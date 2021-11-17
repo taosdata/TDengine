@@ -16,14 +16,17 @@
 #ifndef _TD_LIBS_SYNC_RAFT_NODE_MAP_H
 #define _TD_LIBS_SYNC_RAFT_NODE_MAP_H
 
+#include "thash.h"
 #include "sync.h"
 #include "sync_type.h"
 
-// TODO: is TSDB_MAX_REPLICA enough?
 struct SSyncRaftNodeMap {
-  int32_t   replica;
-  SyncNodeId nodeId[TSDB_MAX_REPLICA];
+  SHashObj* nodeIdMap;
 };
+
+void syncRaftInitNodeMap(SSyncRaftNodeMap* nodeMap);
+
+void syncRaftClearNodeMap(SSyncRaftNodeMap* nodeMap);
 
 bool syncRaftIsInNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId);
 
@@ -32,5 +35,12 @@ void syncRaftCopyNodeMap(const SSyncRaftNodeMap* nodeMap, SSyncRaftNodeMap* to);
 void syncRaftUnionNodeMap(const SSyncRaftNodeMap* nodeMap, SSyncRaftNodeMap* to);
 
 void syncRaftAddToNodeMap(SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId);
+
+void syncRaftRemoveFromNodeMap(SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId);
+
+int32_t syncRaftNodeMapSize(const SSyncRaftNodeMap* nodeMap);
+
+// return true if reach the end
+bool syncRaftIterateNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId *pId);
 
 #endif /* _TD_LIBS_SYNC_RAFT_NODE_MAP_H */

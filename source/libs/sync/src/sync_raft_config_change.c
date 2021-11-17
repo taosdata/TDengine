@@ -101,7 +101,7 @@ int syncRaftChangerEnterJoint(SSyncRaftChanger* changer, bool autoLeave, const S
     return -1;
   }
 
-  if(config->voters.incoming.replica == 0) {
+  if(syncRaftNodeMapSize(&config->voters.incoming) == 0) {
 		// We allow adding nodes to an empty config for convenience (testing and
 		// bootstrap), but you can't enter a joint state.
     syncError("can't make a zero-voter config joint");
@@ -112,7 +112,7 @@ int syncRaftChangerEnterJoint(SSyncRaftChanger* changer, bool autoLeave, const S
   syncRaftJointConfigClearOutgoing(&config->voters);
 
   // Copy incoming to outgoing.
-  memcpy(&config->voters.outgoing, &config->voters.incoming, sizeof(SSyncCluster));
+  syncRaftCopyNodeMap(&config->voters.incoming, &config->voters.outgoing);
 
   ret = applyConfig(changer, config, progressMap, css);
   if (ret != 0) {
@@ -129,13 +129,12 @@ int syncRaftChangerEnterJoint(SSyncRaftChanger* changer, bool autoLeave, const S
 static int checkAndCopy(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap) {
   syncRaftCloneTrackerConfig(&changer->tracker->config, config);
   int i;
-  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    SSyncRaftProgress* progress = &(changer->tracker->progressMap.progress[i]);
-    if (progress->id == SYNC_NON_NODE_ID) {
-      continue;
-    }
-    syncRaftCopyProgress(progress, &(progressMap->progress[i]));
+
+  SSyncRaftProgress* pProgress = NULL;
+  while (!syncRaftIterateProgressMap(&changer->tracker->progressMap, pProgress)) {
+    syncRaftAddToProgressMap(progressMap, pProgress);
   }
+
   return checkAndReturn(config, progressMap);
 }
 
@@ -158,33 +157,44 @@ static int checkInvariants(SSyncRaftProgressTrackerConfig* config, SSyncRaftProg
     return ret;
   }
 
-  int i;
 	// Any staged learner was staged because it could not be directly added due
 	// to a conflicting voter in the outgoing config.
-  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    if (!syncRaftJointConfigInOutgoing(&config->voters, config->learnersNext.nodeId[i])) {
+  SyncNodeId* pNodeId = NULL;
+  while (!syncRaftIterateNodeMap(&config->learnersNext, pNodeId)) {
+    SyncNodeId nodeId = *pNodeId;
+    if (!syncRaftJointConfigInOutgoing(&config->voters, nodeId)) {
       return -1;
     }
-    if (progressMap->progress[i].id != SYNC_NON_NODE_ID && progressMap->progress[i].isLearner) {
-      syncError("%d is in LearnersNext, but is already marked as learner", progressMap->progress[i].id);
+    SSyncRaftProgress* progress = syncRaftFindProgressByNodeId(progressMap, nodeId);
+    assert(progress);
+    assert(progress->id == nodeId);
+    if (progress->isLearner) {
+      syncError("[%d:%d] is in LearnersNext, but is already marked as learner", progress->groupId, nodeId);
       return -1;
     }
   }
+
   // Conversely Learners and Voters doesn't intersect at all.
-  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    if (syncRaftJointConfigInIncoming(&config->voters, config->learners.nodeId[i])) {
-      syncError("%d is in Learners and voter.incoming", progressMap->progress[i].id);
+  SyncNodeId* pNodeId = NULL;
+  while (!syncRaftIterateNodeMap(&config->learners, pNodeId)) {
+    SyncNodeId nodeId = *pNodeId;
+    if (syncRaftJointConfigInIncoming(&config->voters, nodeId)) {
+      syncError("%d is in Learners and voter.incoming", nodeId);
       return -1;
     }
-    if (progressMap->progress[i].id != SYNC_NON_NODE_ID && !progressMap->progress[i].isLearner) {
-      syncError("%d is in Learners, but is not marked as learner", progressMap->progress[i].id);
+    SSyncRaftProgress* progress = syncRaftFindProgressByNodeId(progressMap, nodeId);
+    assert(progress);
+    assert(progress->id == nodeId);
+
+    if (!progress->isLearner) {
+      syncError("[%d:%d] is in Learners, but is not marked as learner", progress->groupId, nodeId);
       return -1;
     }
   }
 
   if (!hasJointConfig(config)) {
     // We enforce that empty maps are nil instead of zero.
-    if (config->learnersNext.replica > 0) {
+    if (syncRaftNodeMapSize(&config->learnersNext)) {
       syncError("cfg.LearnersNext must be nil when not joint");
       return -1;
     }
@@ -198,7 +208,7 @@ static int checkInvariants(SSyncRaftProgressTrackerConfig* config, SSyncRaftProg
 }
 
 static bool hasJointConfig(const SSyncRaftProgressTrackerConfig* config) {
-  return config->voters.outgoing.replica > 0;
+  return syncRaftNodeMapSize(&config->voters.outgoing) > 0;
 }
 
 static int applyConfig(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config,
@@ -227,7 +237,7 @@ static int applyConfig(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig
     }
   }
 
-  if (config->voters.incoming.replica == 0) {
+  if (syncRaftNodeMapSize(&config->voters.incoming) == 0) {
     syncError("removed all voters");
     return -1;
   }
@@ -251,15 +261,10 @@ static int symDiff(const SSyncRaftNodeMap* l, const SSyncRaftNodeMap* r) {
 
     const SSyncRaftNodeMap* p0 = pp[0];
     const SSyncRaftNodeMap* p1 = pp[1];
-    for (j0 = 0; j0 < TSDB_MAX_REPLICA; ++j0) {
-      SyncNodeId id = p0->nodeId[j0];
-      if (id == SYNC_NON_NODE_ID) {
-        continue;
-      }
-      for (j1 = 0; j1 < p1->replica; ++j1) {
-        if (p1->nodeId[j1] != SYNC_NON_NODE_ID && p1->nodeId[j1] != id) {
-          n+=1;
-        }
+    SyncNodeId* pNodeId;
+    while (!syncRaftIterateNodeMap(p0, pNodeId)) {
+      if (!syncRaftIsInNodeMap(p1, *pNodeId)) {
+        n+=1;
       }
     }
   }
@@ -274,47 +279,23 @@ static void initProgress(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConf
 
 // nilAwareDelete deletes from a map, nil'ing the map itself if it is empty after.
 static void nilAwareDelete(SSyncRaftNodeMap* nodeMap, SyncNodeId id) {
-  int i;
-  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    if (nodeMap->nodeId[i] == id) {
-      nodeMap->replica -= 1;
-      nodeMap->nodeId[i] = SYNC_NON_NODE_ID;
-      break;
-    }
-  }
-
-  assert(nodeMap->replica >= 0);
+  syncRaftRemoveFromNodeMap(nodeMap, id);
 }
 
 // nilAwareAdd populates a map entry, creating the map if necessary.
 static void nilAwareAdd(SSyncRaftNodeMap* nodeMap, SyncNodeId id) {
-  int i, j;
-  for (i = 0, j = -1; i < TSDB_MAX_REPLICA; ++i) {
-    if (nodeMap->nodeId[i] == id) {
-      return;
-    }
-    if (j == -1 && nodeMap->nodeId[i] == SYNC_NON_NODE_ID) {
-      j = i;
-    }
-  }
-
-  assert(j != -1);
-  nodeMap->nodeId[j] = id;
-  nodeMap->replica += 1;
+  syncRaftAddToNodeMap(nodeMap, id);
 }
 
 // makeVoter adds or promotes the given ID to be a voter in the incoming
 // majority config.
 static void makeVoter(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config,
                        SSyncRaftProgressMap* progressMap, SyncNodeId id) {
-  int i = syncRaftFindProgressIndexByNodeId(progressMap, id);
-  if (i == -1) {
+  SSyncRaftProgress* progress = syncRaftFindProgressByNodeId(progressMap, id);
+  if (progress == -1) {
     initProgress(changer, config, progressMap, id, false);
-    i = syncRaftFindProgressIndexByNodeId(progressMap, id);
+    return;
   }
-  
-  assert(i != -1);
-  SSyncRaftProgress* progress = &(progressMap->progress[i]);
 
   progress->isLearner = false;
   nilAwareDelete(&config->learners, id);
@@ -337,14 +318,12 @@ static void makeVoter(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig*
 // LeaveJoint().
 static void makeLearner(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config,
                        SSyncRaftProgressMap* progressMap, SyncNodeId id) {
-  int i = syncRaftFindProgressIndexByNodeId(progressMap, id);
-  if (i == -1) {
+  SSyncRaftProgress* progress = syncRaftFindProgressByNodeId(progressMap, id);
+  if (progress == NULL) {
     initProgress(changer, config, progressMap, id, false);
-    i = syncRaftFindProgressIndexByNodeId(progressMap, id);
+    return;
   }
-  
-  assert(i != -1);
-  SSyncRaftProgress* progress = &(progressMap->progress[i]);
+
   if (progress->isLearner) {
     return;
   }
@@ -352,7 +331,7 @@ static void makeLearner(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfi
   removeNodeId(changer, config, progressMap, id);
   
   // ... but save the Progress.
-  syncRaftAddToProgressMap(progressMap, id);
+  syncRaftAddToProgressMap(progressMap, progress);
 
 	// Use LearnersNext if we can't add the learner to Learners directly, i.e.
 	// if the peer is still tracked as a voter in the outgoing config. It will
@@ -371,8 +350,8 @@ static void makeLearner(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfi
 // removeNodeId this peer as a voter or learner from the incoming config.
 static void removeNodeId(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config,
                        SSyncRaftProgressMap* progressMap, SyncNodeId id) {
-  int i = syncRaftFindProgressIndexByNodeId(progressMap, id);
-  if (i == -1) {
+  SSyncRaftProgress* progress = syncRaftFindProgressByNodeId(progressMap, id);
+  if (progress == NULL) {
     return;
   }
 

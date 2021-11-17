@@ -16,51 +16,52 @@
 #include "sync_raft_node_map.h"
 #include "sync_type.h"
 
+void syncRaftInitNodeMap(SSyncRaftNodeMap* nodeMap) {
+  nodeMap->nodeIdMap = taosHashInit(TSDB_MAX_REPLICA, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+}
+
+void syncRaftClearNodeMap(SSyncRaftNodeMap* nodeMap) {
+  taosHashClear(nodeMap->nodeIdMap);
+}
+
 bool syncRaftIsInNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId) {
-  int i;
-
-  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    if (nodeId == nodeMap->nodeId[i]) {
-      return true;
-    }
+  SyncNodeId** ppId = (SyncNodeId**)taosHashGet(nodeMap->nodeIdMap, &nodeId, sizeof(SyncNodeId*));
+  if (ppId == NULL) {
+    return false;
   }
-
-  return false;
+  return true;
 }
 
 void syncRaftCopyNodeMap(const SSyncRaftNodeMap* nodeMap, SSyncRaftNodeMap* to) {
-  memcpy(to, nodeMap, sizeof(SSyncRaftNodeMap));
+  SyncNodeId** ppId = (SyncNodeId**)taosHashIterate(nodeMap->nodeIdMap, NULL);
+  while (ppId) {
+    taosHashPut(to->nodeIdMap, ppId, sizeof(SyncNodeId*), ppId, sizeof(SyncNodeId*));
+    ppId = taosHashIterate(nodeMap->nodeIdMap, ppId);
+  }
+}
+
+bool syncRaftIterateNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId *pId) {
+  SyncNodeId **ppId = taosHashIterate(nodeMap->nodeIdMap, pId);
+  if (ppId == NULL) {
+    return true;
+  }
+
+  *pId = *(*ppId);
+  return false;
 }
 
 void syncRaftUnionNodeMap(const SSyncRaftNodeMap* nodeMap, SSyncRaftNodeMap* to) {
-  int i, j, m;
-
-  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    SyncNodeId id = nodeMap->nodeId[i];
-    if (id == SYNC_NON_NODE_ID) {
-      continue;
-    }
-
-    syncRaftAddToNodeMap(to, id);
-  }
+  syncRaftCopyNodeMap(nodeMap, to);
 }
 
 void syncRaftAddToNodeMap(SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId) {
-  assert(nodeMap->replica < TSDB_MAX_REPLICA);
+  taosHashPut(nodeMap->nodeIdMap, &nodeId, sizeof(SyncNodeId*), &nodeId, sizeof(SyncNodeId*));
+}
 
-  int i, j;
-  for (i = 0, j = -1; i < TSDB_MAX_REPLICA; ++i) {
-    SyncNodeId id = nodeMap->nodeId[i];
-    if (id == SYNC_NON_NODE_ID) {
-      if (j == -1) j = i;
-      continue;
-    }
-    if (id == nodeId) {
-      return;
-    }
-  }
+void syncRaftRemoveFromNodeMap(SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId) {
+  taosHashRemove(nodeMap->nodeIdMap, &nodeId, sizeof(SyncNodeId*));
+}
 
-  assert(j != -1);
-  nodeMap->nodeId[j] = nodeId;
-  nodeMap->replica += 1;
+int32_t syncRaftNodeMapSize(const SSyncRaftNodeMap* nodeMap) {
+  return taosHashGetSize(nodeMap);
 }

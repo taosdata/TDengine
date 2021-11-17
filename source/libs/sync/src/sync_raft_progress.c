@@ -112,42 +112,21 @@ bool syncRaftProgressIsPaused(SSyncRaftProgress* progress) {
   }
 }
 
-int syncRaftFindProgressIndexByNodeId(const SSyncRaftProgressMap* progressMap, SyncNodeId id) {
-  int i;
-  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    if (progressMap->progress[i].id == id) {
-      return i;
-    }
+SSyncRaftProgress* syncRaftFindProgressByNodeId(const SSyncRaftProgressMap* progressMap, SyncNodeId id) {
+  SSyncRaftProgress** ppProgress = (SSyncRaftProgress**)taosHashGet(progressMap, &id, sizeof(SyncNodeId*));
+  if (ppProgress == NULL) {
+    return NULL;
   }
-  return -1;
+
+  return *ppProgress;
 }
 
-int syncRaftAddToProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id) {
-  int i, j;
-
-  for (i = 0, j = -1; i < TSDB_MAX_REPLICA; ++i) {
-    if (progressMap->progress[i].id == id) {
-      return i;
-    }
-    if (j == -1 && progressMap->progress[i].id == SYNC_NON_NODE_ID) {
-      j = i;
-    }
-  }
-
-  assert(j != -1);
-
-  progressMap->progress[i].id = id;
+int syncRaftAddToProgressMap(SSyncRaftProgressMap* progressMap, SSyncRaftProgress* progress) {
+  taosHashPut(progressMap->progressMap, &progress->id, sizeof(SyncNodeId*), &progress, sizeof(SSyncRaftProgress*));
 }
 
 void syncRaftRemoveFromProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id) {
-  int i;
-
-  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    if (progressMap->progress[i].id == id) {
-      progressMap->progress[i].id = SYNC_NON_NODE_ID;
-      break;
-    }
-  }
+  taosHashRemove(progressMap->progressMap, &id, sizeof(SyncNodeId*));
 }
 
 bool syncRaftProgressIsUptodate(SSyncRaft* pRaft, SSyncRaftProgress* progress) {
@@ -188,7 +167,17 @@ void syncRaftProgressBecomeSnapshot(SSyncRaftProgress* progress, SyncIndex snaps
 }
 
 void syncRaftCopyProgress(const SSyncRaftProgress* progress, SSyncRaftProgress* out) {
+  memcpy(out, progress, sizeof(SSyncRaftProgress));
+}
 
+bool syncRaftIterateProgressMap(const SSyncRaftNodeMap* nodeMap, SSyncRaftProgress *pProgress) {
+  SSyncRaftProgress **ppProgress = taosHashIterate(nodeMap->nodeIdMap, pProgress);
+  if (ppProgress == NULL) {
+    return true;
+  }
+
+  *pProgress = *(*ppProgress);
+  return false;
 }
 
 /**

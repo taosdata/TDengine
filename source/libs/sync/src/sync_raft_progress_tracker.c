@@ -22,6 +22,9 @@ SSyncRaftProgressTracker* syncRaftOpenProgressTracker() {
     return NULL;
   }
 
+  syncRaftInitNodeMap(&tracker->config.learners);
+  syncRaftInitNodeMap(&tracker->config.learnersNext);
+
   return tracker;
 }
 
@@ -88,8 +91,8 @@ ESyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* r
 }
 
 void syncRaftConfigState(const SSyncRaftProgressTracker* tracker, SSyncConfigState* cs) {
-  memcpy(&cs->voters, &tracker->config.voters.incoming, sizeof(SSyncRaftNodeMap));
-  memcpy(&cs->votersOutgoing, &tracker->config.voters.outgoing, sizeof(SSyncRaftNodeMap));
-  memcpy(&cs->learners, &tracker->config.learners, sizeof(SSyncRaftNodeMap));
-  memcpy(&cs->learnersNext, &tracker->config.learnersNext, sizeof(SSyncRaftNodeMap));
+  syncRaftCopyNodeMap(&cs->voters, &tracker->config.voters.incoming);
+  syncRaftCopyNodeMap(&cs->votersOutgoing, &tracker->config.voters.outgoing);
+  syncRaftCopyNodeMap(&cs->learners, &tracker->config.learners);
+  syncRaftCopyNodeMap(&cs->learnersNext, &tracker->config.learnersNext);
 }

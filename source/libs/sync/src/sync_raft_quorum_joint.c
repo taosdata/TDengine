@@ -42,39 +42,14 @@ ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, SHashOb
 }
 
 void syncRaftJointConfigAddToIncoming(SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
-  int i, min;
-
-  for (i = 0, min = -1; i < TSDB_MAX_REPLICA; ++i) {
-    if (config->incoming.nodeId[i] == id) {
-      return;
-    }
-    if (min == -1 && config->incoming.nodeId[i] == SYNC_NON_NODE_ID) {
-      min = i;
-    }
-  }
-
-  assert(min != -1);
-  config->incoming.nodeId[min] = id;
-  config->incoming.replica += 1;
+  syncRaftAddToNodeMap(&config->incoming, id);
 }
 
 void syncRaftJointConfigRemoveFromIncoming(SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
-  int i;
-
-  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    if (config->incoming.nodeId[i] == id) {
-      config->incoming.replica  -= 1;
-      config->incoming.nodeId[i] = SYNC_NON_NODE_ID;
-      break;
-    }
-  }
-
-  assert(config->incoming.replica >= 0);
+  syncRaftRemoveFromNodeMap(&config->incoming, id);
 }
 
 void syncRaftJointConfigIDS(const SSyncRaftQuorumJointConfig* config, SSyncRaftNodeMap* nodeMap) {
-  int i, j, m;
-
   syncRaftCopyNodeMap(&config->incoming, nodeMap);
 
   syncRaftUnionNodeMap(&config->outgoing, nodeMap);

@@ -175,7 +175,7 @@ static void switchToConfig(SSyncRaft* pRaft, const SSyncRaftProgressTrackerConfi
   SSyncRaftProgress* progress = NULL;
 
   syncRaftConfigState(pRaft->tracker, cs);
-  i = syncRaftFindProgressIndexByNodeId(&pRaft->tracker->progressMap, selfId);
+  i = syncRaftFindProgressByNodeId(&pRaft->tracker->progressMap, selfId);
   exist = (i != -1);
 
 	// Update whether the node itself is a learner, resetting to false when the
@@ -202,7 +202,7 @@ static void switchToConfig(SSyncRaft* pRaft, const SSyncRaftProgressTrackerConfi
 
 	// The remaining steps only make sense if this node is the leader and there
 	// are other nodes.
-  if (pRaft->state != TAOS_SYNC_STATE_LEADER || cs->voters.replica == 0) {
+  if (pRaft->state != TAOS_SYNC_STATE_LEADER || syncRaftNodeMapSize(&cs->voters) == 0) {
     return;
   }
 

@@ -18,6 +18,7 @@
 
 #include "sync_type.h"
 #include "sync_raft_inflights.h"
+#include "thash.h"
 
 /** 
  * State defines how the leader should interact with the follower.
@@ -69,8 +70,7 @@ static const char* kProgressStateString[] = {
  * progresses of all followers, and sends entries to the follower based on its progress.
  **/
 struct SSyncRaftProgress {
-	// index in raft cluster config
-	int selfIndex;
+	SyncGroupId groupId;
 
 	SyncNodeId id;
 
@@ -139,9 +139,9 @@ struct SSyncRaftProgress {
 };
 
 struct SSyncRaftProgressMap {
-	SSyncRaftProgress progress[TSDB_MAX_REPLICA];
+	// map nodeId -> SSyncRaftProgress*
+	SHashObj* progressMap;
 };
-
 
 static FORCE_INLINE const char* syncRaftProgressStateString(const SSyncRaftProgress* progress) {
 	return kProgressStateString[progress->state];
@@ -221,9 +221,9 @@ static FORCE_INLINE bool syncRaftProgressRecentActive(SSyncRaftProgress* progres
   return progress->recentActive;
 }
 
-int syncRaftFindProgressIndexByNodeId(const SSyncRaftProgressMap* progressMap, SyncNodeId id);
+SSyncRaftProgress* syncRaftFindProgressByNodeId(const SSyncRaftProgressMap* progressMap, SyncNodeId id);
 
-int syncRaftAddToProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id);
+int syncRaftAddToProgressMap(SSyncRaftProgressMap* progressMap, SSyncRaftProgress* progress);
 
 void syncRaftRemoveFromProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id);
 
@@ -236,7 +236,8 @@ void syncRaftProgressBecomeSnapshot(SSyncRaftProgress* progress, SyncIndex snaps
 
 void syncRaftCopyProgress(const SSyncRaftProgress* from, SSyncRaftProgress* to);
 
-void syncRaftProgressMapCopy(const SSyncRaftProgressMap* from, SSyncRaftProgressMap* to);
+// return true if reach the end
+bool syncRaftIterateProgressMap(const SSyncRaftNodeMap* nodeMap, SSyncRaftProgress *pProgress);
 
 #if 0
 

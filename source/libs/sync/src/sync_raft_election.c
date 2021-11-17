@@ -85,8 +85,14 @@ static void campaign(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
   SyncTerm lastTerm = syncRaftLogLastTerm(pRaft->log);
   SSyncRaftNodeMap nodeMap;
   syncRaftJointConfigIDS(&pRaft->tracker->config.voters, &nodeMap);
-  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    SyncNodeId nodeId = nodeMap.nodeId[i];
+  SyncNodeId *pNodeId = NULL;
+  while (true) {
+    syncRaftIterateNodeMap(&nodeMap, &pNodeId);
+    if (pNodeId == NULL || *pNodeId == NULL) {
+      break;
+    }
+
+    SyncNodeId nodeId = *pNodeId;
     if (nodeId == SYNC_NON_NODE_ID) {
       continue;
     }
