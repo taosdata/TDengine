@@ -90,6 +90,77 @@ if $data00 != 2457.000000000 then
   return -1
 endi
 
+print execute sql select select log(pow(length(concat('3','4')),2),c2) from $stb
+sql select log(pow(length(concat('3','4')),2),c2) from $stb
+print [ $data00 , $data10 , $data20 , $data30 , $data40 , $data50 , $data60 , $data70 , $data80 , $data90 ]
+if $data00 != -1.000000000 then
+  return -1
+endi
+if $data10 != @inf@ then
+  return -1
+endi
+if $data20 != 2.000000000 then
+  return -1
+endi
+if $data30 != 1.261859507 then
+  return -1
+endi
+if $data40 != 1.000000000 then
+  return -1
+endi
+if $data50 != 0.861353116 then
+  return -1
+endi
+if $data60 != 0.773705614 then
+  return -1
+endi
+if $data70 != 0.712414374 then
+  return -1
+endi
+if $data80 != 0.666666667 then
+  return -1
+endi
+if $data90 != 0.630929754 then
+  return -1
+endi
+print execute sql select round(log(pow(length(concat('3','4')),2),c2)+floor(c3))+2 from $stb
+sql select round(log(pow(length(concat('3','4')),2),c2)+floor(c3))+2 from $stb
+print [ $data00 , $data10 , $data20 , $data30 , $data40 , $data50 , $data60 , $data70 , $data80 , $data90 ]
+if $data00 != 1.000000000 then
+  return -1
+endi
+if $data10 != @inf@ then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+if $data30 != 3.000000000 then
+  return -1
+endi
+if $data40 != 3.000000000 then
+  return -1
+endi
+if $data50 != 3.000000000 then
+  return -1
+endi
+if $data60 != 3.000000000 then
+  return -1
+endi
+if $data70 != 3.000000000 then
+  return -1
+endi
+if $data80 != 3.000000000 then
+  return -1
+endi
+if $data90 != 3.000000000 then
+  return -1
+endi
+print ============== invalid expressions
+sql_error select agg(c1)+c2 from $stb
+sql_error select agg(c1+2) from $stb
+sql_error select agg(ceil(c1))+c2 from $stb
+sql_error select agg(ceil(c1)) from $stb
 print =============== clear
 sql drop database $db
 sql show databases
