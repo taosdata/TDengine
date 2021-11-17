@@ -16,8 +16,8 @@ public class TaosInfo implements TaosInfoMBean {
             MBeanServer server = ManagementFactory.getPlatformMBeanServer();
             ObjectName name = new ObjectName("TaosInfoMBean:name=TaosInfo");
             server.registerMBean(TaosInfo.getInstance(), name);
-        } catch (MalformedObjectNameException | InstanceAlreadyExistsException | MBeanRegistrationException | NotCompliantMBeanException e) {
-            e.printStackTrace();
+        } catch (MalformedObjectNameException | InstanceAlreadyExistsException | MBeanRegistrationException | NotCompliantMBeanException ignored) {
+            throw new RuntimeException("registerMBean failed");
         }
     }
 
