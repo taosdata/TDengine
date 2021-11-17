@@ -277,7 +277,7 @@ static int compareRowData(const void *a, const void *b, const void *userData) {
   return (in1 != NULL && in2 != NULL) ? supporter->comFunc(in1, in2) : 0;
 }
 
-static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, SSDataBlock* pDataBlock) {
+static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, SSDataBlock* pDataBlock, SQLFunctionCtx *pCtx) {
   SArray *columnOrderList = getOrderCheckColumns(pRuntimeEnv->pQueryAttr);
   size_t size = taosArrayGetSize(columnOrderList);
   taosArrayDestroy(columnOrderList);
@@ -291,12 +291,23 @@ static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeE
     return;
   }
 
+  int32_t orderIndex = -1;
+  for (int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
+    if (pCtx[j].colId == orderId) {
+      orderIndex = j;
+      break;
+    }
+  }
+  if (orderIndex < 0) {
+    return;
+  }
+
   bool found = false;
   int16_t dataOffset = 0;
 
   for (int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
     SColumnInfoData* pColInfoData = (SColumnInfoData *)taosArrayGet(pDataBlock->pDataBlock, j);
-    if (orderId == j) {
+    if (orderIndex == j) {
       found = true;
       break;
     }
@@ -308,8 +319,7 @@ static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeE
     return;
   }
 
-  int16_t type = pRuntimeEnv->pQueryAttr->pExpr1[orderId].base.resType;
-
+  int16_t type = pRuntimeEnv->pQueryAttr->pExpr1[orderIndex].base.resType;
   SRowCompSupporter support = {.pRuntimeEnv = pRuntimeEnv, .dataOffset = dataOffset, .comFunc = getComparFunc(type, 0)};
   taosArraySortPWithExt(pGroupResInfo->pRows, compareRowData, &support);
 }
@@ -6474,7 +6484,7 @@ static SSDataBlock* hashGroupbyAggregate(void* param, bool* newgroup) {
 
   initGroupResInfo(&pRuntimeEnv->groupResInfo, &pInfo->binfo.resultRowInfo);
   if (!pRuntimeEnv->pQueryAttr->stableQuery) {
-    sortGroupResByOrderList(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->binfo.pRes);
+    sortGroupResByOrderList(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->binfo.pRes, pInfo->binfo.pCtx);
   }
 
   toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->binfo.pRes);
