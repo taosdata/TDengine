@@ -277,4 +277,27 @@ static SMemAllocator *vBufPoolCreateMA(SMemAllocatorFactory *pmaf) {
 }
 
 static void vBufPoolDestroyMA(SMemAllocatorFactory *pmaf, SMemAllocator *pma) { /* TODO */
+  SVnode *        pVnode = (SVnode *)(pmaf->impl);
+  SListNode *     pNode = ((SVMAWrapper *)(pma->impl))->pNode;
+  SVMemAllocator *pvma = (SVMemAllocator *)(pNode->data);
+
+  if (T_REF_DEC(pvma) == 0) {
+    if (pvma->type == E_V_ARENA_ALLOCATOR) {
+      SVArenaAllocator *pvaa = &(pvma->vaa);
+      while (pvaa->inuse != &(pvaa->node)) {
+        SVArenaNode *pNode = pvaa->inuse;
+        pvaa->inuse = pNode->prev;
+        /* code */
+      }
+
+      pvaa->inuse->ptr = pvaa->inuse->data;
+    } else if (pvma->type == E_V_HEAP_ALLOCATOR) {
+    } else {
+      ASSERT(0);
+    }
+
+    // Move node from incycle to free
+    tdListAppendNode(&(pVnode->pBufPool->free), tdListPopNode(&(pVnode->pBufPool->incycle), pNode));
+    // tsem_post(); todo: sem_post
+  }
 }
