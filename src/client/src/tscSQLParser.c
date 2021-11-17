@@ -4303,12 +4303,10 @@ static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
     }
     {
       if (TSDB_FUNC_IS_SCALAR(functionId)) {
-        bool allChildValue = true;
         bool anyChildScalar = false;
         bool anyChildAgg = false;
         for (int i = 0; i < numChildren; ++i) {
           assert (childrenTypes[i] != SQLEXPR_TYPE_UNASSIGNED);
-          allChildValue = allChildValue && (childrenTypes[i] == SQLEXPR_TYPE_VALUE);
           anyChildScalar = anyChildScalar || (childrenTypes[i] == SQLEXPR_TYPE_SCALAR);
           anyChildAgg = anyChildAgg || (childrenTypes[i] == SQLEXPR_TYPE_AGG);
         }
@@ -4317,8 +4315,6 @@ static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
         }
         if (anyChildAgg) {
           *type = SQLEXPR_TYPE_AGG;
-        } else if (allChildValue) {
-          *type = SQLEXPR_TYPE_VALUE;
         } else {
           *type = SQLEXPR_TYPE_SCALAR;
         }
