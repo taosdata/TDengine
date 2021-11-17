@@ -1037,6 +1037,12 @@ int32_t filterConvertSetFromBinary(void **q, const char *buf, int32_t len, uint3
 
     switch (tType) {
       case TSDB_DATA_TYPE_BOOL:
+        if (sType != TSDB_DATA_TYPE_BOOL && !IS_SIGNED_NUMERIC_TYPE(sType)) {
+          goto _return;
+        }
+        if (tmpVar.i64 > 1 ||tmpVar.i64 < 0) {
+          goto _return;
+        }
       case TSDB_DATA_TYPE_UTINYINT:
       case TSDB_DATA_TYPE_TINYINT: {
         if (tVariantDumpEx(&tmpVar, (char *)&val, tType, false, &converted, &extInfo)) {
