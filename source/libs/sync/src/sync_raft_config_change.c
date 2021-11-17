@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "raft.h"
 #include "syncInt.h"
 #include "sync_raft_config_change.h"
 #include "sync_raft_progress.h"
@@ -168,7 +169,7 @@ static int applyConfig(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig
 static void makeVoter(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config,
                        SSyncRaftProgressMap* progressMap, SyncNodeId id) {
   SSyncRaftProgress* progress = syncRaftFindProgressByNodeId(progressMap, id);
-  if (progress == -1) {
+  if (progress == NULL) {
     initProgress(changer, config, progressMap, id, false);
     return;
   }
@@ -250,31 +251,34 @@ static void initProgress(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConf
   } else {
     nilAwareAdd(&config->learners, id);
   }
-}
 
-// checkAndCopy copies the tracker's config and progress map (deeply enough for
-// the purposes of the Changer) and returns those copies. It returns an error
-// if checkInvariants does.
-static int checkAndCopy(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap) {
-  syncRaftCloneTrackerConfig(&changer->tracker->config, config);
-  int i;
+  SSyncRaftProgress* pProgress = (SSyncRaftProgress*)malloc(sizeof(SSyncRaftProgress));
+  assert (pProgress != NULL);
+  *pProgress = (SSyncRaftProgress) {
+		// Initializing the Progress with the last index means that the follower
+		// can be probed (with the last index).
+		//
+		// TODO(tbg): seems awfully optimistic. Using the first index would be
+		// better. The general expectation here is that the follower has no log
+		// at all (and will thus likely need a snapshot), though the app may
+		// have applied a snapshot out of band before adding the replica (thus
+		// making the first index the better choice).    
+    .id = id,
+    .groupId = changer->tracker->pRaft->selfGroupId,
+    .nextIndex  = changer->lastIndex,
+    .matchIndex = 0,
+    .state      = PROGRESS_STATE_PROBE,
+    .pendingSnapshotIndex = 0,    
+    .probeSent = false,
+    .inflights = syncRaftOpenInflights(changer->tracker->maxInflightMsgs),
+    .isLearner = isLearner,  
+		// When a node is first added, we should mark it as recently active.
+		// Otherwise, CheckQuorum may cause us to step down if it is invoked
+		// before the added node has had a chance to communicate with us.  
+    .recentActive = true,    
+  };
 
-  SSyncRaftProgress* pProgress = NULL;
-  while (!syncRaftIterateProgressMap(&changer->tracker->progressMap, pProgress)) {
-    syncRaftAddToProgressMap(progressMap, pProgress);
-  }
-
-  return checkAndReturn(config, progressMap);
-}
-
-// checkAndReturn calls checkInvariants on the input and returns either the
-// resulting error or the input.
-static int checkAndReturn(SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap) {
-  if (checkInvariants(config, progressMap) != 0) {
-    return -1;
-  }
-
-  return 0;
+  syncRaftAddToProgressMap(progressMap, pProgress);
 }
 
 // checkInvariants makes sure that the config and progress are compatible with
@@ -304,7 +308,7 @@ static int checkInvariants(SSyncRaftProgressTrackerConfig* config, SSyncRaftProg
   }
 
   // Conversely Learners and Voters doesn't intersect at all.
-  SyncNodeId* pNodeId = NULL;
+  pNodeId = NULL;
   while (!syncRaftIterateNodeMap(&config->learners, pNodeId)) {
     SyncNodeId nodeId = *pNodeId;
     if (syncRaftJointConfigInIncoming(&config->voters, nodeId)) {
@@ -331,6 +335,31 @@ static int checkInvariants(SSyncRaftProgressTrackerConfig* config, SSyncRaftProg
       syncError("AutoLeave must be false when not joint");
       return -1;
     }
+  }
+
+  return 0;
+}
+
+// checkAndCopy copies the tracker's config and progress map (deeply enough for
+// the purposes of the Changer) and returns those copies. It returns an error
+// if checkInvariants does.
+static int checkAndCopy(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap) {
+  syncRaftCloneTrackerConfig(&changer->tracker->config, config);
+  int i;
+
+  SSyncRaftProgress* pProgress = NULL;
+  while (!syncRaftIterateProgressMap(&changer->tracker->progressMap, pProgress)) {
+    syncRaftAddToProgressMap(progressMap, pProgress);
+  }
+
+  return checkAndReturn(config, progressMap);
+}
+
+// checkAndReturn calls checkInvariants on the input and returns either the
+// resulting error or the input.
+static int checkAndReturn(SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap) {
+  if (checkInvariants(config, progressMap) != 0) {
+    return -1;
   }
 
   return 0;

@@ -147,7 +147,7 @@ static FORCE_INLINE const char* syncRaftProgressStateString(const SSyncRaftProgr
 	return kProgressStateString[progress->state];
 }
 
-void syncRaftInitProgress(int i, SSyncRaft* pRaft, SSyncRaftProgress* progress);
+void syncRaftResetProgress(SSyncRaft* pRaft, SSyncRaftProgress* progress);
 
 /**
  * syncRaftProgressBecomeProbe transitions into StateProbe. Next is reset to Match+1 or,
@@ -227,6 +227,8 @@ int syncRaftAddToProgressMap(SSyncRaftProgressMap* progressMap, SSyncRaftProgres
 
 void syncRaftRemoveFromProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id);
 
+bool syncRaftIsInProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id);
+
 /** 
  * return true if progress's log is up-todate
  **/
@@ -237,7 +239,9 @@ void syncRaftProgressBecomeSnapshot(SSyncRaftProgress* progress, SyncIndex snaps
 void syncRaftCopyProgress(const SSyncRaftProgress* from, SSyncRaftProgress* to);
 
 // return true if reach the end
-bool syncRaftIterateProgressMap(const SSyncRaftNodeMap* nodeMap, SSyncRaftProgress *pProgress);
+bool syncRaftIterateProgressMap(const SSyncRaftProgressMap* progressMap, SSyncRaftProgress *pProgress);
+
+bool syncRaftVisitProgressMap(SSyncRaftProgressMap* progressMap, visitProgressFp fp, void* arg);
 
 #if 0
 

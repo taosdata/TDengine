@@ -17,6 +17,7 @@
 #include "sync_raft_restore.h"
 #include "sync_raft_progress_tracker.h"
 
+static void addToConfChangeSingleArray(SSyncConfChangeSingleArray* out, int* i, const SSyncRaftNodeMap* nodeMap, ESyncRaftConfChangeType t);
 static int toConfChangeSingle(const SSyncConfigState* cs, SSyncConfChangeSingleArray* out, SSyncConfChangeSingleArray* in);
 
 // syncRaftRestoreConfig takes a Changer (which must represent an empty configuration), and
@@ -82,6 +83,18 @@ out:
   return ret;
 }
 
+static void addToConfChangeSingleArray(SSyncConfChangeSingleArray* out, int* i, const SSyncRaftNodeMap* nodeMap, ESyncRaftConfChangeType t) {
+  SyncNodeId* pId = NULL;
+
+  while (!syncRaftIterateNodeMap(nodeMap, pId)) {
+    out->changes[*i] = (SSyncConfChangeSingle) {
+      .type = t,
+      .nodeId = *pId,
+    };
+    *i += 1;
+  }
+}
+
 // toConfChangeSingle translates a conf state into 1) a slice of operations creating
 // first the config that will become the outgoing one, and then the incoming one, and
 // b) another slice that, when applied to the config resulted from 1), represents the
@@ -91,13 +104,16 @@ static int toConfChangeSingle(const SSyncConfigState* cs, SSyncConfChangeSingleA
 
   out->n = in->n = 0;
 
-  out->n = cs->votersOutgoing.replica;
+  out->n = syncRaftNodeMapSize(&cs->votersOutgoing);
   out->changes = (SSyncConfChangeSingle*)malloc(sizeof(SSyncConfChangeSingle) * out->n);
   if (out->changes == NULL) {
     out->n = 0;
     return -1;
   }
-  in->n = cs->votersOutgoing.replica + cs->voters.replica + cs->learners.replica + cs->learnersNext.replica;
+  in->n = syncRaftNodeMapSize(&cs->votersOutgoing) + 
+          syncRaftNodeMapSize(&cs->voters) + 
+          syncRaftNodeMapSize(&cs->learners) + 
+          syncRaftNodeMapSize(&cs->learnersNext);
   out->changes = (SSyncConfChangeSingle*)malloc(sizeof(SSyncConfChangeSingle) * in->n);
   if (in->changes == NULL) {
     in->n = 0;
@@ -132,50 +148,24 @@ static int toConfChangeSingle(const SSyncConfigState* cs, SSyncConfChangeSingleA
 	//
 	// as desired.
 
-  for (i = 0; i < cs->votersOutgoing.replica; ++i) {
-    // If there are outgoing voters, first add them one by one so that the
-		// (non-joint) config has them all.
-    out->changes[i] = (SSyncConfChangeSingle) {
-      .type = SYNC_RAFT_Conf_AddNode,
-      .nodeId = cs->votersOutgoing.nodeId[i],
-    };
-  }
+  // If there are outgoing voters, first add them one by one so that the
+	// (non-joint) config has them all.
+  i = 0;
+  addToConfChangeSingleArray(out, &i, &cs->votersOutgoing, SYNC_RAFT_Conf_AddNode);
+  assert(i == out->n);
 
 	// We're done constructing the outgoing slice, now on to the incoming one
 	// (which will apply on top of the config created by the outgoing slice).
-
+  i = 0;
+  
 	// First, we'll remove all of the outgoing voters.
-  int j = 0;
-  for (i = 0; i < cs->votersOutgoing.replica; ++i) {
-    in->changes[j] = (SSyncConfChangeSingle) {
-      .type = SYNC_RAFT_Conf_RemoveNode,
-      .nodeId = cs->votersOutgoing.nodeId[i],
-    };
-    j += 1;
-  }
+  addToConfChangeSingleArray(in, &i, &cs->votersOutgoing, SYNC_RAFT_Conf_RemoveNode);
+
   // Then we'll add the incoming voters and learners.
-  for (i = 0; i < cs->voters.replica; ++i) {
-    in->changes[j] = (SSyncConfChangeSingle) {
-      .type = SYNC_RAFT_Conf_AddNode,
-      .nodeId = cs->voters.nodeId[i],
-    };
-    j += 1;
-  }
-  for (i = 0; i < cs->learners.replica; ++i) {
-    in->changes[j] = (SSyncConfChangeSingle) {
-      .type = SYNC_RAFT_Conf_AddLearnerNode,
-      .nodeId = cs->learners.nodeId[i],
-    };
-    j += 1;
-  }
-	// Same for LearnersNext; these are nodes we want to be learners but which
-	// are currently voters in the outgoing config.
-  for (i = 0; i < cs->learnersNext.replica; ++i) {
-    in->changes[j] = (SSyncConfChangeSingle) {
-      .type = SYNC_RAFT_Conf_AddLearnerNode,
-      .nodeId = cs->learnersNext.nodeId[i],
-    };
-    j += 1;
-  }
+  addToConfChangeSingleArray(in, &i, &cs->voters, SYNC_RAFT_Conf_AddNode);
+  addToConfChangeSingleArray(in, &i, &cs->learners, SYNC_RAFT_Conf_AddLearnerNode);
+  addToConfChangeSingleArray(in, &i, &cs->learnersNext, SYNC_RAFT_Conf_AddLearnerNode);
+  assert(i == in->n);
+
   return 0;
 }

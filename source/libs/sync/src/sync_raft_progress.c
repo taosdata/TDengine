@@ -25,13 +25,16 @@ static void probeAcked(SSyncRaftProgress* progress);
 
 static void resumeProgress(SSyncRaftProgress* progress);
 
-void syncRaftInitProgress(int i, SSyncRaft* pRaft, SSyncRaftProgress* progress) {
+void syncRaftResetProgress(SSyncRaft* pRaft, SSyncRaftProgress* progress) {
+  if (progress->inflights) {
+    syncRaftCloseInflights(progress->inflights);
+  }
   SSyncRaftInflights* inflights = syncRaftOpenInflights(pRaft->tracker->maxInflightMsgs);
   if (inflights == NULL) {
     return;
   }
   *progress = (SSyncRaftProgress) {
-    .matchIndex = i == pRaft->selfIndex ? syncRaftLogLastIndex(pRaft->log) : 0,
+    .matchIndex = progress->id == pRaft->selfId ? syncRaftLogLastIndex(pRaft->log) : 0,
     .nextIndex  = syncRaftLogLastIndex(pRaft->log) + 1,
     .inflights  = inflights,
     .isLearner  = false,
@@ -113,7 +116,7 @@ bool syncRaftProgressIsPaused(SSyncRaftProgress* progress) {
 }
 
 SSyncRaftProgress* syncRaftFindProgressByNodeId(const SSyncRaftProgressMap* progressMap, SyncNodeId id) {
-  SSyncRaftProgress** ppProgress = (SSyncRaftProgress**)taosHashGet(progressMap, &id, sizeof(SyncNodeId*));
+  SSyncRaftProgress** ppProgress = (SSyncRaftProgress**)taosHashGet(progressMap->progressMap, &id, sizeof(SyncNodeId*));
   if (ppProgress == NULL) {
     return NULL;
   }
@@ -126,7 +129,16 @@ int syncRaftAddToProgressMap(SSyncRaftProgressMap* progressMap, SSyncRaftProgres
 }
 
 void syncRaftRemoveFromProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id) {
+  SSyncRaftProgress** ppProgress = (SSyncRaftProgress**)taosHashGet(progressMap->progressMap, &id, sizeof(SyncNodeId*));
+  if (ppProgress == NULL) {
+    return;
+  }
+  free(*ppProgress);
   taosHashRemove(progressMap->progressMap, &id, sizeof(SyncNodeId*));
+}
+
+bool syncRaftIsInProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId id) {
+  return taosHashGet(progressMap->progressMap, &id, sizeof(SyncNodeId*)) != NULL;
 }
 
 bool syncRaftProgressIsUptodate(SSyncRaft* pRaft, SSyncRaftProgress* progress) {
@@ -170,14 +182,21 @@ void syncRaftCopyProgress(const SSyncRaftProgress* progress, SSyncRaftProgress* 
   memcpy(out, progress, sizeof(SSyncRaftProgress));
 }
 
-bool syncRaftIterateProgressMap(const SSyncRaftNodeMap* nodeMap, SSyncRaftProgress *pProgress) {
-  SSyncRaftProgress **ppProgress = taosHashIterate(nodeMap->nodeIdMap, pProgress);
+bool syncRaftIterateProgressMap(const SSyncRaftProgressMap* progressMap, SSyncRaftProgress *pProgress) {
+  SSyncRaftProgress **ppProgress = taosHashIterate(progressMap->progressMap, pProgress);
   if (ppProgress == NULL) {
     return true;
   }
 
   *pProgress = *(*ppProgress);
   return false;
+}
+
+bool syncRaftVisitProgressMap(SSyncRaftProgressMap* progressMap, visitProgressFp fp, void* arg) {
+  SSyncRaftProgress *pProgress;
+  while (!syncRaftIterateProgressMap(progressMap, pProgress)) {
+    fp(pProgress, arg);
+  }
 }
 
 /**

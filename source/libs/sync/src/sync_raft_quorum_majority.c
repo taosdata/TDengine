@@ -17,24 +17,24 @@
 #include "sync_raft_quorum_majority.h"
 #include "sync_raft_node_map.h"
 
-/**
- * syncRaftMajorityVoteResult takes a mapping of voters to yes/no (true/false) votes and returns
- * a result indicating whether the vote is pending (i.e. neither a quorum of
- * yes/no has been reached), won (a quorum of yes has been reached), or lost (a
- * quorum of no has been reached).
- **/
+// VoteResult takes a mapping of voters to yes/no (true/false) votes and returns
+// a result indicating whether the vote is pending (i.e. neither a quorum of
+// yes/no has been reached), won (a quorum of yes has been reached), or lost (a
+// quorum of no has been reached).
 ESyncRaftVoteResult syncRaftMajorityVoteResult(SSyncRaftNodeMap* config, SHashObj* votesMap) {
-  if (config->replica == 0) {
+  int n = syncRaftNodeMapSize(config);
+  if (n == 0) {
+		// By convention, the elections on an empty config win. This comes in
+		// handy with joint quorums because it'll make a half-populated joint
+		// quorum behave like a majority quorum.    
     return SYNC_RAFT_VOTE_WON;
   }
 
   int i, g, r, missing;
-  for (i = g = r = missing = 0; i < TSDB_MAX_REPLICA; ++i) {
-    if (config->nodeId[i] == SYNC_NON_NODE_ID) {
-      continue;
-    }
-
-    const ESyncRaftVoteType* pType = taosHashGet(votesMap, &config->nodeId[i], sizeof(SyncNodeId*));
+  i = g = r = missing = 0;
+  SyncNodeId* pId = NULL;
+  while (!syncRaftIterateNodeMap(config, pId)) {
+    const ESyncRaftVoteType* pType = taosHashGet(votesMap, pId, sizeof(SyncNodeId*));
     if (pType == NULL) {
       missing += 1;
       continue;
@@ -47,11 +47,11 @@ ESyncRaftVoteResult syncRaftMajorityVoteResult(SSyncRaftNodeMap* config, SHashOb
     }
   }
 
-  int quorum = config->replica / 2 + 1;
+  int quorum = n / 2 + 1;
   if (g >= quorum) {
     return SYNC_RAFT_VOTE_WON;
   }
-  if (r + missing >= quorum) {
+  if (g + missing >= quorum) {
     return SYNC_RAFT_VOTE_PENDING;
   }
 

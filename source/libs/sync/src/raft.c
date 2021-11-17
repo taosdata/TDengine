@@ -65,7 +65,7 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   }
 
   // init progress tracker
-  pRaft->tracker = syncRaftOpenProgressTracker();
+  pRaft->tracker = syncRaftOpenProgressTracker(pRaft);
   if (pRaft->tracker == NULL) {
     return -1;
   }
@@ -157,7 +157,7 @@ static int deserializeClusterStateFromBuffer(SSyncConfigState* cluster, const ch
   return 0;
 }
 
-static void visitProgressMaybeSendAppend(int i, SSyncRaftProgress* progress, void* arg) {
+static void visitProgressMaybeSendAppend(SSyncRaftProgress* progress, void* arg) {
   syncRaftReplicate(arg, progress, false);
 }
 
@@ -175,13 +175,12 @@ static void switchToConfig(SSyncRaft* pRaft, const SSyncRaftProgressTrackerConfi
   SSyncRaftProgress* progress = NULL;
 
   syncRaftConfigState(pRaft->tracker, cs);
-  i = syncRaftFindProgressByNodeId(&pRaft->tracker->progressMap, selfId);
-  exist = (i != -1);
+  progress = syncRaftFindProgressByNodeId(&pRaft->tracker->progressMap, selfId);
+  exist = (progress != NULL);
 
 	// Update whether the node itself is a learner, resetting to false when the
 	// node is removed.
   if (exist) {
-    progress = &pRaft->tracker->progressMap.progress[i];
     pRaft->isLearner = progress->isLearner;
   } else {
     pRaft->isLearner = false;

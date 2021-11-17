@@ -16,7 +16,7 @@
 #include "sync_raft_progress_tracker.h"
 #include "sync_raft_proto.h"
 
-SSyncRaftProgressTracker* syncRaftOpenProgressTracker() {
+SSyncRaftProgressTracker* syncRaftOpenProgressTracker(SSyncRaft* pRaft) {
   SSyncRaftProgressTracker* tracker = (SSyncRaftProgressTracker*)malloc(sizeof(SSyncRaftProgressTracker));
   if (tracker == NULL) {
     return NULL;
@@ -24,6 +24,7 @@ SSyncRaftProgressTracker* syncRaftOpenProgressTracker() {
 
   syncRaftInitNodeMap(&tracker->config.learners);
   syncRaftInitNodeMap(&tracker->config.learnersNext);
+  tracker->pRaft = pRaft;
 
   return tracker;
 }
@@ -33,11 +34,7 @@ void syncRaftResetVotes(SSyncRaftProgressTracker* tracker) {
 }
 
 void syncRaftProgressVisit(SSyncRaftProgressTracker* tracker, visitProgressFp visit, void* arg) {
-  int i;
-  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    SSyncRaftProgress* progress = &(tracker->progressMap.progress[i]);
-    visit(i, progress, arg);
-  }
+  syncRaftVisitProgressMap(&tracker->progressMap, visit, arg);  
 }
 
 void syncRaftRecordVote(SSyncRaftProgressTracker* tracker, SyncNodeId id, bool grant) {
@@ -51,10 +48,20 @@ void syncRaftRecordVote(SSyncRaftProgressTracker* tracker, SyncNodeId id, bool g
 }
 
 void syncRaftCloneTrackerConfig(const SSyncRaftProgressTrackerConfig* from, SSyncRaftProgressTrackerConfig* to) {
-
+  memcpy(to, from, sizeof(SSyncRaftProgressTrackerConfig));
 }
 
 int syncRaftCheckProgress(const SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap) {
+	// NB: intentionally allow the empty config. In production we'll never see a
+	// non-empty config (we prevent it from being created) but we will need to
+	// be able to *create* an initial config, for example during bootstrap (or
+	// during tests). Instead of having to hand-code this, we allow
+	// transitioning from an empty config into any other legal and non-empty
+	// config.  
+  if (!syncRaftIsAllInProgressMap(&config->voters.incoming, progressMap)) return -1;
+  if (!syncRaftIsAllInProgressMap(&config->voters.outgoing, progressMap)) return -1;
+  if (!syncRaftIsAllInProgressMap(&config->learners, progressMap)) return -1;
+  if (!syncRaftIsAllInProgressMap(&config->learnersNext, progressMap)) return -1;
   return 0;
 }
 
@@ -67,8 +74,7 @@ ESyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* r
   SSyncRaftProgress* progress;
   int r, g;
 
-  for (i = 0, r = 0, g = 0; i < TSDB_MAX_REPLICA; ++i) {
-    progress = &(tracker->progressMap.progress[i]);
+  while (!syncRaftIterateProgressMap(&tracker->progressMap, progress)) {
     if (progress->id == SYNC_NON_NODE_ID) {
       continue;
     }
@@ -91,8 +97,8 @@ ESyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* r
 }
 
 void syncRaftConfigState(const SSyncRaftProgressTracker* tracker, SSyncConfigState* cs) {
-  syncRaftCopyNodeMap(&cs->voters, &tracker->config.voters.incoming);
-  syncRaftCopyNodeMap(&cs->votersOutgoing, &tracker->config.voters.outgoing);
-  syncRaftCopyNodeMap(&cs->learners, &tracker->config.learners);
-  syncRaftCopyNodeMap(&cs->learnersNext, &tracker->config.learnersNext);
+  syncRaftCopyNodeMap(&tracker->config.voters.incoming, &cs->voters);
+  syncRaftCopyNodeMap(&tracker->config.voters.outgoing, &cs->votersOutgoing);
+  syncRaftCopyNodeMap(&tracker->config.learners, &cs->learners);
+  syncRaftCopyNodeMap(&tracker->config.learnersNext, &cs->learnersNext);
 }

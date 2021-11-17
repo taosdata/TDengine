@@ -86,12 +86,7 @@ static void campaign(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
   SSyncRaftNodeMap nodeMap;
   syncRaftJointConfigIDS(&pRaft->tracker->config.voters, &nodeMap);
   SyncNodeId *pNodeId = NULL;
-  while (true) {
-    syncRaftIterateNodeMap(&nodeMap, &pNodeId);
-    if (pNodeId == NULL || *pNodeId == NULL) {
-      break;
-    }
-
+  while (!syncRaftIterateNodeMap(&nodeMap, pNodeId)) {
     SyncNodeId nodeId = *pNodeId;
     if (nodeId == SYNC_NON_NODE_ID) {
       continue;

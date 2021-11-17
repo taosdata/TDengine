@@ -15,6 +15,7 @@
 
 #include "sync_raft_node_map.h"
 #include "sync_type.h"
+#include "sync_raft_progress.h"
 
 void syncRaftInitNodeMap(SSyncRaftNodeMap* nodeMap) {
   nodeMap->nodeIdMap = taosHashInit(TSDB_MAX_REPLICA, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
@@ -50,6 +51,17 @@ bool syncRaftIterateNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId *pId) {
   return false;
 }
 
+bool syncRaftIsAllInProgressMap(const SSyncRaftNodeMap* nodeMap, const SSyncRaftProgressMap* progressMap) {
+  SyncNodeId *pId = NULL;
+  while (!syncRaftIterateNodeMap(nodeMap, pId)) {
+    if (!syncRaftIsInProgressMap(progressMap, *pId)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 void syncRaftUnionNodeMap(const SSyncRaftNodeMap* nodeMap, SSyncRaftNodeMap* to) {
   syncRaftCopyNodeMap(nodeMap, to);
 }
@@ -63,5 +75,5 @@ void syncRaftRemoveFromNodeMap(SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId) {
 }
 
 int32_t syncRaftNodeMapSize(const SSyncRaftNodeMap* nodeMap) {
-  return taosHashGetSize(nodeMap);
+  return taosHashGetSize(nodeMap->nodeIdMap);
 }

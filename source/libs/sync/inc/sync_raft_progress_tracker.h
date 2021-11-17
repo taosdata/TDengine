@@ -88,13 +88,14 @@ struct SSyncRaftProgressTracker {
 	SHashObj* votesMap;
 
   int maxInflightMsgs;
+
+	SSyncRaft* pRaft;
 };
 
-SSyncRaftProgressTracker* syncRaftOpenProgressTracker();
+SSyncRaftProgressTracker* syncRaftOpenProgressTracker(SSyncRaft* pRaft);
 
 void syncRaftResetVotes(SSyncRaftProgressTracker*);
 
-typedef void (*visitProgressFp)(int i, SSyncRaftProgress* progress, void* arg);
 void syncRaftProgressVisit(SSyncRaftProgressTracker*, visitProgressFp visit, void* arg);
 
 /**

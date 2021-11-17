@@ -84,4 +84,6 @@ typedef enum {
   SYNC_RAFT_VOTE_RESP_REJECT  = 2,
 } ESyncRaftVoteType;
 
+typedef void (*visitProgressFp)(SSyncRaftProgress* progress, void* arg);
+
 #endif  /* _TD_LIBS_SYNC_TYPE_H */

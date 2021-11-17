@@ -47,7 +47,6 @@ struct SSyncRaft {
   // hash map nodeId -> SNodeInfo*
   SHashObj* nodeInfoMap;
 
-  int selfIndex;
   SyncNodeId selfId;
   SyncGroupId selfGroupId;
 

@@ -186,7 +186,7 @@ void syncRaftLoadState(SSyncRaft* pRaft, const SSyncServerState* serverState) {
   pRaft->voteFor = serverState->voteFor;
 }
 
-static void visitProgressSendAppend(int i, SSyncRaftProgress* progress, void* arg) {
+static void visitProgressSendAppend(SSyncRaftProgress* progress, void* arg) {
   SSyncRaft* pRaft = (SSyncRaft*)arg;
   if (pRaft->selfId == progress->id) {
     return;
@@ -279,7 +279,7 @@ static void appendEntries(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n) {
 
   syncRaftLogAppend(pRaft->log, entries, n);
 
-  SSyncRaftProgress* progress = &(pRaft->tracker->progressMap.progress[pRaft->selfIndex]);
+  SSyncRaftProgress* progress = syncRaftFindProgressByNodeId(&pRaft->tracker->progressMap, pRaft->selfId);
   syncRaftProgressMaybeUpdate(progress, lastIndex);
   // Regardless of syncRaftMaybeCommit's return, our caller will call bcastAppend.
   syncRaftMaybeCommit(pRaft);
@@ -316,8 +316,8 @@ static void abortLeaderTransfer(SSyncRaft* pRaft) {
   pRaft->leadTransferee = SYNC_NON_NODE_ID;
 }
 
-static void initProgress(int i, SSyncRaftProgress* progress, void* arg) {
-  syncRaftInitProgress(i, (SSyncRaft*)arg, progress);
+static void resetProgress(SSyncRaftProgress* progress, void* arg) {
+  syncRaftResetProgress((SSyncRaft*)arg, progress);
 }
 
 static void resetRaft(SSyncRaft* pRaft, SyncTerm term) {
@@ -336,7 +336,7 @@ static void resetRaft(SSyncRaft* pRaft, SyncTerm term) {
   abortLeaderTransfer(pRaft);
 
   syncRaftResetVotes(pRaft->tracker);
-  syncRaftProgressVisit(pRaft->tracker, initProgress, pRaft);
+  syncRaftProgressVisit(pRaft->tracker, resetProgress, pRaft);
 
   pRaft->pendingConfigIndex = 0;
   pRaft->uncommittedSize = 0;
