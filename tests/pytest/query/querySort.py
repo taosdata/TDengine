@@ -97,7 +97,7 @@ class TDTestCase:
         self.checkColumnSorted(0, "desc")
 
         print("======= step 2: verify order for special column =========")
-        
+
         tdSql.query("select tbcol1 from st order by ts desc")
 
         tdSql.query("select tbcol6 from st order by ts desc")
@@ -121,6 +121,26 @@ class TDTestCase:
                 "select avg(tbcol1) from st group by tagcol%d order by tagcol%d desc" %
                 (i, i))
             self.checkColumnSorted(1, "desc")
+
+        tdSql.error("select tbcol1 from st order by 123")
+        tdSql.error("select tbcol1 from st order by tbname")
+        tdSql.query("select avg(tbcol1) from st group by tbname order by tbname")
+        tdSql.checkData(1, 0, 5.5)
+        tdSql.checkData(5, 1, "st6")
+
+        tdSql.query("select top(tbcol1, 2) from st group by tbname order by tbname")
+        tdSql.checkData(1, 1, 10)
+        tdSql.checkData(2, 2, "st2")
+
+        tdSql.query("select top(tbcol1, 12) from st order by tbcol1")
+        tdSql.checkData(1, 1, 9)
+
+        tdSql.error("select top(tbcol1, 12) from st1 order by tbcol1,ts")
+        tdSql.error("select top(tbcol1, 12),tbname from st order by tbcol1,tbname")
+
+        tdSql.query("select top(tbcol1, 12) from st group by tbname order by tbname desc")
+        tdSql.checkData(1, 2, "st10")
+        tdSql.checkData(10, 2, "st9")
 
     def stop(self):
         tdSql.close()
