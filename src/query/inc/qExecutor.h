@@ -43,6 +43,8 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 
 #define GET_NUM_OF_RESULTS(_r) (((_r)->outputBuf) == NULL? 0:((_r)->outputBuf)->info.rows)
 
+#define RESET_NUM_OF_RESULTS(_r) (((_r)->outputBuf) == NULL? 0:(((_r)->outputBuf)->info.rows = 0))
+
 #define NEEDTO_COMPRESS_QUERY(size) ((size) > tsCompressColData? 1 : 0)
 
 enum {
@@ -229,6 +231,7 @@ typedef struct SQueryAttr {
   bool             stateWindow;       // window State on sub/normal table
   bool             createFilterOperator; // if filter operator is needed
   bool             multigroupResult; // multigroup result can exist in one SSDataBlock
+  bool             needSort;         // need sort rowRes
   int32_t          interBufSize;     // intermediate buffer sizse
 
   int32_t          havingNum;        // having expr number
@@ -352,16 +355,16 @@ enum OPERATOR_TYPE_E {
 
 typedef struct SOperatorInfo {
   uint8_t               operatorType;
-  bool                  blockingOptr;  // block operator or not
-  uint8_t               status;        // denote if current operator is completed
-  int32_t               numOfOutput;   // number of columns of the current operator results
-  char                 *name;          // name, used to show the query execution plan
-  void                 *info;          // extension attribution
+  bool                  blockingOptr;   // block operator or not
+  uint8_t               status;         // denote if current operator is completed
+  int32_t               numOfOutput;    // number of columns of the current operator results
+  char                 *name;           // name, used to show the query execution plan
+  void                 *info;           // extension attribution
   SExprInfo            *pExpr;
   SQueryRuntimeEnv     *pRuntimeEnv;
 
-  struct SOperatorInfo **upstream;     // upstream pointer list
-  int32_t               numOfUpstream; // number of upstream. The value is always ONE expect for join operator
+  struct SOperatorInfo **upstream;      // upstream pointer list
+  int32_t               numOfUpstream;  // number of upstream. The value is always ONE expect for join operator
   __operator_fn_t       exec;
   __optr_cleanup_fn_t   cleanup;
 } SOperatorInfo;
@@ -392,6 +395,7 @@ typedef struct SQInfo {
   int32_t          dataReady;   // denote if query result is ready or not
   void*            rspContext;  // response context
   int64_t          startExecTs; // start to exec timestamp
+  int64_t          lastRetrieveTs; // last retrieve timestamp  
   char*            sql;         // query sql string
   SQueryCostInfo   summary;
 } SQInfo;

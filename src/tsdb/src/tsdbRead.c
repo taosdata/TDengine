@@ -157,6 +157,7 @@ typedef struct STableGroupSupporter {
 static STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList);
 static int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList);
 static int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle);
+static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle);
 static int32_t tsdbGetCachedLastRow(STable* pTable, SMemRow* pRes, TSKEY* lastKey);
 
 static void    changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle);
@@ -591,6 +592,28 @@ void tsdbResetQueryHandleForNewTable(TsdbQueryHandleT queryHandle, STsdbQueryCon
   pQueryHandle->next = doFreeColumnInfoData(pQueryHandle->next);
 }
 
+static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
+  STsdbRepo* pRepo = pQueryHandle->pTsdb;
+
+  size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
+  int32_t code = 0;
+  for (size_t i = 0; i < numOfTables; ++i) {
+    STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
+    STable*          pTable = pCheckInfo->pTableObj;
+    if (pTable->cacheLastConfigVersion == pRepo->cacheLastConfigVersion) {
+      continue;
+    }
+    code = tsdbLoadLastCache(pRepo, pTable);
+    if (code != 0) {
+      tsdbError("%p uid:%" PRId64 ", tid:%d, failed to load last cache since %s", pQueryHandle, pTable->tableId.uid,
+                pTable->tableId.tid, tstrerror(terrno));
+      break;
+    }
+  }
+
+  return code;
+}
+
 TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pMemRef) {
   pCond->twindow = updateLastrowForEachGroup(groupList);
 
@@ -603,6 +626,8 @@ TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
   if (pQueryHandle == NULL) {
     return NULL;
   }
+
+  lazyLoadCacheLast(pQueryHandle);
 
   int32_t code = checkForCachedLastRow(pQueryHandle, groupList);
   if (code != TSDB_CODE_SUCCESS) { // set the numOfTables to be 0
@@ -618,12 +643,13 @@ TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
   return pQueryHandle;
 }
 
-
 TsdbQueryHandleT tsdbQueryCacheLast(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pMemRef) {
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qId, pMemRef);
   if (pQueryHandle == NULL) {
     return NULL;
   }
+
+  lazyLoadCacheLast(pQueryHandle);
 
   int32_t code = checkForCachedLast(pQueryHandle);
   if (code != TSDB_CODE_SUCCESS) { // set the numOfTables to be 0
@@ -1518,7 +1544,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
   int16_t offset;
 
   bool isRow1DataRow = isDataRow(row1);
-  bool isRow2DataRow;
+  bool isRow2DataRow = false;
   bool isChosenRowDataRow;
   int32_t chosen_itr;
   void *value;
@@ -2758,6 +2784,9 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
     }
     
     int32_t i = 0, j = 0;
+
+    // lock pTable->lastCols[i] as it would be released when schema update(tsdbUpdateLastColSchema)
+    TSDB_RLOCK_TABLE(pTable);
     while(i < tgNumOfCols && j < numOfCols) {
       pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
       if (pTable->lastCols[j].colId < pColInfo->info.colId) {
@@ -2844,6 +2873,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
       i++;
       j++;
     }
+    TSDB_RUNLOCK_TABLE(pTable);
 
     // leave the real ts column as the last row, because last function only (not stable) use the last row as res
     if (priKey != TSKEY_INITIAL_VAL) {
@@ -3175,7 +3205,9 @@ int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle) {
 
   int32_t code = 0;
   
-  if (pQueryHandle->pTsdb && atomic_load_8(&pQueryHandle->pTsdb->hasCachedLastColumn)){
+  STsdbRepo* pRepo = pQueryHandle->pTsdb;
+
+  if (pRepo && CACHE_LAST_NULL_COLUMN(&(pRepo->config))) {
     pQueryHandle->cachelastrow = TSDB_CACHED_TYPE_LAST;
   }
 
@@ -3420,9 +3452,12 @@ void filterPrepare(void* expr, void* param) {
      int dummy = -1;
      SHashObj *pObj = NULL;
      if (pInfo->sch.colId == TSDB_TBNAME_COLUMN_INDEX) {
-        pObj = taosHashInit(256, taosGetDefaultHashFunction(pInfo->sch.type), true, false);
         SArray *arr = (SArray *)(pCond->arr);
-        for (size_t i = 0; i < taosArrayGetSize(arr); i++) {
+
+       size_t size = taosArrayGetSize(arr);
+       pObj = taosHashInit(size * 2, taosGetDefaultHashFunction(pInfo->sch.type), true, false);
+
+        for (size_t i = 0; i < size; i++) {
           char* p = taosArrayGetP(arr, i);
           strntolower_s(varDataVal(p), varDataVal(p), varDataLen(p));
           taosHashPut(pObj, varDataVal(p), varDataLen(p), &dummy, sizeof(dummy));
@@ -3430,12 +3465,14 @@ void filterPrepare(void* expr, void* param) {
      } else {
        buildFilterSetFromBinary((void **)&pObj, pCond->pz, pCond->nLen);
      }
+
      pInfo->q = (char *)pObj;
   } else if (pCond != NULL) {
     uint32_t size = pCond->nLen * TSDB_NCHAR_SIZE;
     if (size < (uint32_t)pSchema->bytes) {
       size = pSchema->bytes;
     }
+
     // to make sure tonchar does not cause invalid write, since the '\0' needs at least sizeof(wchar_t) space.
     pInfo->q = calloc(1, size + TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
     tVariantDump(pCond, pInfo->q, pSchema->type, true);
@@ -3583,7 +3620,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
   return pTableGroup;
 }
 
-int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, const char* pTagCond, size_t len, 
+int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, const char* pTagCond, size_t len,
                                  STableGroupInfo* pGroupInfo, SColIndex* pColIndex, int32_t numOfCols) {
   if (tsdbRLockRepoMeta(tsdb) < 0) goto _error;
 
@@ -3645,19 +3682,19 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
   } END_TRY
 
   void *filterInfo = NULL;
-  
+
   ret = filterInitFromTree(expr, &filterInfo, 0);
   if (ret != TSDB_CODE_SUCCESS) {
     terrno = ret;
     goto _error;
   }
-  
+
   tsdbQueryTableList(pTable, res, filterInfo);
 
   filterFreeInfo(filterInfo);
 
   tExprTreeDestroy(expr, NULL);
-  
+
   pGroupInfo->numOfTables = (uint32_t)taosArrayGetSize(res);
   pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols, skey);
 
@@ -3844,7 +3881,7 @@ void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {
 
 static FORCE_INLINE int32_t tsdbGetTagDataFromId(void *param, int32_t id, void **data) {
   STable* pTable = (STable*)(SL_GET_NODE_DATA((SSkipListNode *)param));
-  
+
   if (id == TSDB_TBNAME_COLUMN_INDEX) {
     *data = TABLE_NAME(pTable);
   } else {
@@ -3877,7 +3914,7 @@ static void queryIndexedColumn(SSkipList* pSkipList, void* filterInfo, SArray* r
       iter = tSkipListCreateIterFromVal(pSkipList, startVal, pSkipList->type, TSDB_ORDER_DESC);
       FILTER_CLR_FLAG(order, TSDB_ORDER_DESC);
     }
-    
+
     while (tSkipListIterNext(iter)) {
       SSkipListNode *pNode = tSkipListIterGet(iter);
 
@@ -3886,7 +3923,7 @@ static void queryIndexedColumn(SSkipList* pSkipList, void* filterInfo, SArray* r
         filterSetColFieldData(filterInfo, pNode, tsdbGetTagDataFromId);
         all = filterExecute(filterInfo, 1, &addToResult, NULL, 0);
       }
-      
+
       char *pData = SL_GET_NODE_DATA(pNode);
 
       tsdbDebug("filter index column, table:%s, result:%d", ((STable *)pData)->name->data, all);
@@ -3918,7 +3955,7 @@ static void queryIndexlessColumn(SSkipList* pSkipList, void* filterInfo, SArray*
     SSkipListNode *pNode = tSkipListIterGet(iter);
 
     filterSetColFieldData(filterInfo, pNode, tsdbGetTagDataFromId);
-    
+
     char *pData = SL_GET_NODE_DATA(pNode);
 
     bool all = filterExecute(filterInfo, 1, &addToResult, NULL, 0);
@@ -3926,7 +3963,7 @@ static void queryIndexlessColumn(SSkipList* pSkipList, void* filterInfo, SArray*
     if (all || (addToResult && *addToResult)) {
       STableKeyInfo info = {.pTable = (void*)pData, .lastKey = TSKEY_INITIAL_VAL};
       taosArrayPush(res, &info);
-    }    
+    }
   }
 
   tfree(addToResult);
@@ -3939,9 +3976,9 @@ static int32_t tsdbQueryTableList(STable* pTable, SArray* pRes, void* filterInfo
   STSchema*   pTSSchema = pTable->tagSchema;
   bool indexQuery = false;
   SSkipList *pSkipList = pTable->pIndex;
-  
+
   filterIsIndexedColumnQuery(filterInfo, pTSSchema->columns->colId, &indexQuery);
-  
+
   if (indexQuery) {
     queryIndexedColumn(pSkipList, filterInfo, pRes);
   } else {

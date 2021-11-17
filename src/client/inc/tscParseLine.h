@@ -64,9 +64,9 @@ typedef struct {
   SMLTimeStampType tsType;
   SHashObj* smlDataToSchema;
 
-  int64_t affectedRows;
+  int32_t affectedRows;
 } SSmlLinesInfo;
-
+char* addEscapeCharToString(char *str, int32_t len);
 int tscSmlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLinesInfo* info);
 bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info);
 bool isValidInteger(char *str);

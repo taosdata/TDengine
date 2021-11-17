@@ -275,7 +275,7 @@ class TDDnode:
             tdLog.info("taosd found in %s" % buildPath)
 
         binPath = buildPath + "/build/bin/taosd"
-        blm3BinPath = buildPath + "/build/bin/blm3"
+        taosadapterBinPath = buildPath + "/build/bin/taosadapter"
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
@@ -291,10 +291,10 @@ class TDDnode:
 
             print(cmd)
 
-        blm3Cmd = "nohup %s > /dev/null 2>&1 & " % (
-                blm3BinPath)
-        if os.system(blm3Cmd) != 0:
-            tdLog.exit(blm3Cmd)
+        taosadapterCmd = "nohup %s > /dev/null 2>&1 & " % (
+                taosadapterBinPath)
+        if os.system(taosadapterCmd) != 0:
+            tdLog.exit(taosadapterCmd)
 
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
@@ -340,7 +340,7 @@ class TDDnode:
             tdLog.info("taosd found in %s" % buildPath)
 
         binPath = buildPath + "/build/bin/taosd"
-        blm3BinPath = buildPath + "/build/bin/blm3"
+        taosadapterBinPath = buildPath + "/build/bin/taosadapter"
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
@@ -356,9 +356,9 @@ class TDDnode:
 
             print(cmd)
 
-        blm3Cmd = "%s > /dev/null 2>&1 & " % (blm3BinPath)
-        if os.system(blm3Cmd) != 0:
-            tdLog.exit(blm3Cmd)
+        taosadapterCmd = "%s > /dev/null 2>&1 & " % (taosadapterBinPath)
+        if os.system(taosadapterCmd) != 0:
+            tdLog.exit(taosadapterCmd)
 
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
@@ -366,18 +366,18 @@ class TDDnode:
         tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
 
     def stop(self):
-        blm3ToBeKilled = "blm3"
+        taosadapterToBeKilled = "taosadapter"
 
-        blm3PsCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % blm3ToBeKilled
-        blm3ProcessID = subprocess.check_output(
-                    blm3PsCmd, shell=True).decode("utf-8")
+        taosadapterPsCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % taosadapterToBeKilled
+        taosadapterProcessID = subprocess.check_output(
+                    taosadapterPsCmd, shell=True).decode("utf-8")
 
-        while(blm3ProcessID):
-            blm3KillCmd = "kill -INT %s > /dev/null 2>&1" % blm3ProcessID
-            os.system(blm3KillCmd)
+        while(taosadapterProcessID):
+            taosadapterKillCmd = "kill -INT %s > /dev/null 2>&1" % taosadapterProcessID
+            os.system(taosadapterKillCmd)
             time.sleep(1)
-            blm3ProcessID = subprocess.check_output(
-                    blm3PsCmd, shell=True).decode("utf-8")
+            taosadapterProcessID = subprocess.check_output(
+                    taosadapterPsCmd, shell=True).decode("utf-8")
 
         if self.valgrind == 0:
             toBeKilled = "taosd"

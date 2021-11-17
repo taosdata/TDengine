@@ -3,7 +3,7 @@
 
 ## <a class="anchor" id="grafana"></a>Grafana
 
-TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/)快速集成搭建数据监测报警系统，整个过程无需任何代码开发，TDengine 中数据表中内容可以在仪表盘(DashBoard)上进行可视化展现。
+TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/)快速集成搭建数据监测报警系统，整个过程无需任何代码开发，TDengine 中数据表中内容可以在仪表盘(DashBoard)上进行可视化展现。关于TDengine插件的使用您可以在[GitHub](https://github.com/taosdata/grafanaplugin/blob/master/README.md)中了解更多。
 
 ### 安装Grafana
 
@@ -11,19 +11,24 @@ TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/
 
 ### 配置Grafana
 
-TDengine 的 Grafana 插件在安装包的 /usr/local/taos/connector/grafanaplugin 目录下。
-
-以 CentOS 7.2 操作系统为例，将 grafanaplugin 目录拷贝到 /var/lib/grafana/plugins 目录下，重新启动 grafana 即可。
+TDengine 的 Grafana 插件请从 <https://github.com/taosdata/grafanaplugin/releases/latest> 下载。
 
 ```bash
-sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/plugins/tdengine
+GF_VERSION=3.1.1
+wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
 ```
 
-Grafana 8.x 版本会对插件进行签名检查，因此还需要在 grafana.ini 文件中增加如下行，才能正确使用插件：
+以 CentOS 7.2 操作系统为例，将插件包解压到 /var/lib/grafana/plugins 目录下，重新启动 grafana 即可。
+
+```bash
+sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
 ```
+
+Grafana 7.3+ / 8.x 版本会对插件进行签名检查，因此还需要在 grafana.ini 文件中增加如下行，才能正确使用插件：
+
+```ini
 [plugins]
-enable_alpha = true
-allow_loading_unsigned_plugins = taosdata-tdengine-datasource
+allow_loading_unsigned_plugins = tdengine-datasource
 ```
 
 ### 使用 Grafana
@@ -62,7 +67,6 @@ allow_loading_unsigned_plugins = taosdata-tdengine-datasource
 * ALIAS BY：可设置当前查询别名。 
 * GENERATE SQL： 点击该按钮会自动替换相应变量，并生成最终执行的语句。
   
-
 按照默认提示查询当前 TDengine 部署所在服务器指定间隔系统内存平均使用量如下：
 
 ![img](../images/connections/create_dashboard2.jpg)
@@ -71,16 +75,15 @@ allow_loading_unsigned_plugins = taosdata-tdengine-datasource
 
 #### 导入 Dashboard
 
-在 Grafana 插件目录 /usr/local/taos/connector/grafanaplugin/dashboard 下提供了一个 `tdengine-grafana.json` 可导入的 dashboard。
+我们提供一个 TDengine Dashboard 可以作为 TDengine 集群的监控可视化工具使用，见 [Grafana Dashboard 15146](https://grafana.com/grafana/dashboards/15146)。
 
-点击左侧 `Import` 按钮，并上传 `tdengine-grafana.json` 文件：
+点击左侧 `Import` 按钮，选择 **Grafana.com Dashboard**,j将id `15146` 填入并加载：
 
 ![img](../images/connections/import_dashboard1.jpg)
 
 导入完成之后可看到如下效果：
 
-![img](../images/connections/import_dashboard2.jpg)
-
+![img](../images/connections/dashboard-15146.png)
 
 ## <a class="anchor" id="matlab"></a>MATLAB
 
