@@ -439,7 +439,9 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char *msg1 = "invalidate function name";
   const char *msg2 = "path is too long";
   const char *msg3 = "invalid outputtype";
+  #ifdef LUA_EMBEDDED
   const char *msg4 = "invalid script";
+  #endif
   const char *msg5 = "invalid dyn lib";
   SSqlCmd *pCmd = &pSql->cmd;
 
@@ -478,9 +480,12 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
       //validate *.lua or .so
       int32_t pathLen = (int32_t)strlen(createInfo->path.z);
+#ifdef LUA_EMBEDDED
       if ((pathLen > 4) && (0 == strncmp(createInfo->path.z + pathLen - 4, ".lua", 4)) && !isValidScript(buf, len)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
-      } else if (pathLen > 3 && (0 == strncmp(createInfo->path.z + pathLen - 3, ".so", 3))) {
+      } else
+#endif
+      if (pathLen > 3 && (0 == strncmp(createInfo->path.z + pathLen - 3, ".so", 3))) {
         void *handle = taosLoadDll(createInfo->path.z);
         taosCloseDll(handle);
         if (handle == NULL) {
