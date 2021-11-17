@@ -1256,10 +1256,10 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
           STR_TO_VARSTR(pWrite, syncRole[pVgid->role]);
           cols++;
           numOfRows++;
-          
         }
       }
       if (numOfRows >= rows) {
+        mnodeDecVgroupRef(pVgroup);
         break;
       }
 
