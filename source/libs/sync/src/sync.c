@@ -99,7 +99,7 @@ void syncCleanUp() {
 SSyncNode* syncStart(const SSyncInfo* pInfo) {
   pthread_mutex_lock(&gSyncManager->mutex);
 
-  SSyncNode **ppNode = taosHashGet(gSyncManager->vgroupTable, &pInfo->vgId, sizeof(SyncGroupId));
+  SSyncNode **ppNode = taosHashGet(gSyncManager->vgroupTable, &pInfo->vgId, sizeof(SyncGroupId*));
   if (ppNode != NULL) {
     syncInfo("vgroup %d already exist", pInfo->vgId);
     pthread_mutex_unlock(&gSyncManager->mutex);
@@ -140,7 +140,7 @@ SSyncNode* syncStart(const SSyncInfo* pInfo) {
 void syncStop(const SSyncNode* pNode) {
   pthread_mutex_lock(&gSyncManager->mutex);
 
-  SSyncNode **ppNode = taosHashGet(gSyncManager->vgroupTable, &pNode->vgId, sizeof(SyncGroupId));
+  SSyncNode **ppNode = taosHashGet(gSyncManager->vgroupTable, &pNode->vgId, sizeof(SyncGroupId*));
   if (ppNode == NULL) {
     syncInfo("vgroup %d not exist", pNode->vgId);
     pthread_mutex_unlock(&gSyncManager->mutex);
@@ -288,7 +288,7 @@ static void *syncWorkerMain(void *argv) {
 
 static void syncNodeTick(void *param, void *tmrId) {
   SyncGroupId vgId = (SyncGroupId)param;
-  SSyncNode **ppNode = taosHashGet(gSyncManager->vgroupTable, &vgId, sizeof(SyncGroupId));
+  SSyncNode **ppNode = taosHashGet(gSyncManager->vgroupTable, &vgId, sizeof(SyncGroupId*));
   if (ppNode == NULL) {
     return;
   }

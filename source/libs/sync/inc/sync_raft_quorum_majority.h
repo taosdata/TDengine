@@ -19,6 +19,7 @@
 #include "sync.h"
 #include "sync_type.h"
 #include "sync_raft_quorum.h"
+#include "thash.h"
 
 /**
  * syncRaftMajorityVoteResult takes a mapping of voters to yes/no (true/false) votes and returns
@@ -26,6 +27,6 @@
  * yes/no has been reached), won (a quorum of yes has been reached), or lost (a
  * quorum of no has been reached).
  **/
-ESyncRaftVoteResult syncRaftMajorityVoteResult(SSyncRaftNodeMap* config, const ESyncRaftVoteType* votes);
+ESyncRaftVoteResult syncRaftMajorityVoteResult(SSyncRaftNodeMap* config, SHashObj* votesMap);
 
 #endif /* _TD_LIBS_SYNC_RAFT_QUORUM_MAJORITY_H */

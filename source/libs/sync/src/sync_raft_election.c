@@ -95,6 +95,11 @@ static void campaign(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
       continue;
     }
 
+    SNodeInfo* pNode = syncRaftGetNodeById(pRaft, nodeId);
+    if (pNode == NULL) {
+      continue;
+    }
+
     SSyncMessage* pMsg = syncNewVoteMsg(pRaft->selfGroupId, pRaft->selfId, 
                                         term, cType, lastIndex, lastTerm);
     if (pMsg == NULL) {
@@ -105,6 +110,6 @@ static void campaign(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
       pRaft->selfGroupId, pRaft->selfId, lastTerm, 
       lastIndex, nodeId, pRaft->term);
 
-    //pRaft->io.send(pMsg, &(pRaft->cluster.nodeInfo[i]));
+    pRaft->io.send(pMsg, pNode);
   }
 }

@@ -77,9 +77,6 @@ typedef enum {
 } ESyncRaftElectionType;
 
 typedef enum {
-  // the init vote resp status
-  SYNC_RAFT_VOTE_RESP_UNKNOWN = 0,
-
   // grant the vote request
   SYNC_RAFT_VOTE_RESP_GRANT   = 1,
 

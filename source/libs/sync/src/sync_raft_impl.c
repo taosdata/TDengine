@@ -200,7 +200,7 @@ void syncRaftBroadcastAppend(SSyncRaft* pRaft) {
 }
 
 SNodeInfo* syncRaftGetNodeById(SSyncRaft *pRaft, SyncNodeId id) {
-  SNodeInfo **ppNode = taosHashGet(pRaft->nodeInfoMap, &id, sizeof(SNodeInfo));
+  SNodeInfo **ppNode = taosHashGet(pRaft->nodeInfoMap, &id, sizeof(SyncNodeId*));
   if (ppNode != NULL) {
     return *ppNode;
   }

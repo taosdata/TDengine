@@ -20,6 +20,7 @@
 #include "sync.h"
 #include "sync_type.h"
 #include "sync_raft_node_map.h"
+#include "thash.h"
 
 /**
  * SSyncRaftQuorumJointConfig is a configuration of two groups of (possibly overlapping)
@@ -35,7 +36,7 @@ typedef struct SSyncRaftQuorumJointConfig {
  * a result indicating whether the vote is pending, lost, or won. A joint quorum
  * requires both majority quorums to vote in favor.
  **/
-ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const ESyncRaftVoteType* votes);
+ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, SHashObj* votesMap);
 
 static FORCE_INLINE bool syncRaftJointConfigInOutgoing(const SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
   return syncRaftIsInNodeMap(&config->outgoing, id);

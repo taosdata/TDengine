@@ -21,6 +21,7 @@
 #include "sync_raft_quorum_joint.h"
 #include "sync_raft_progress.h"
 #include "sync_raft_proto.h"
+#include "thash.h"
 
 struct SSyncRaftProgressTrackerConfig {
   SSyncRaftQuorumJointConfig voters;
@@ -83,7 +84,9 @@ struct SSyncRaftProgressTracker {
 
   SSyncRaftProgressMap progressMap;
 
-	ESyncRaftVoteType votes[TSDB_MAX_REPLICA];
+	// nodeid -> ESyncRaftVoteType map
+	SHashObj* votesMap;
+
   int maxInflightMsgs;
 };
 
@@ -98,7 +101,7 @@ void syncRaftProgressVisit(SSyncRaftProgressTracker*, visitProgressFp visit, voi
  * syncRaftRecordVote records that the node with the given id voted for this Raft
  * instance if v == true (and declined it otherwise).
  **/
-void syncRaftRecordVote(SSyncRaftProgressTracker* tracker, int i, bool grant);
+void syncRaftRecordVote(SSyncRaftProgressTracker* tracker, SyncNodeId id, bool grant);
 
 void syncRaftCloneTrackerConfig(const SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressTrackerConfig* result);
 

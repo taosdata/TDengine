@@ -26,7 +26,7 @@ SSyncRaftProgressTracker* syncRaftOpenProgressTracker() {
 }
 
 void syncRaftResetVotes(SSyncRaftProgressTracker* tracker) {
-  memset(tracker->votes, SYNC_RAFT_VOTE_RESP_UNKNOWN, sizeof(ESyncRaftVoteType) * TSDB_MAX_REPLICA);
+  taosHashClear(tracker->votesMap);
 }
 
 void syncRaftProgressVisit(SSyncRaftProgressTracker* tracker, visitProgressFp visit, void* arg) {
@@ -37,12 +37,14 @@ void syncRaftProgressVisit(SSyncRaftProgressTracker* tracker, visitProgressFp vi
   }
 }
 
-void syncRaftRecordVote(SSyncRaftProgressTracker* tracker, int i, bool grant) {
-  if (tracker->votes[i] != SYNC_RAFT_VOTE_RESP_UNKNOWN) {
+void syncRaftRecordVote(SSyncRaftProgressTracker* tracker, SyncNodeId id, bool grant) {
+  ESyncRaftVoteType* pType = taosHashGet(tracker->votesMap, &id, sizeof(SyncNodeId*));
+  if (pType != NULL) {
     return;
   }
 
-  tracker->votes[i] = grant ? SYNC_RAFT_VOTE_RESP_GRANT : SYNC_RAFT_VOTE_RESP_REJECT;
+  ESyncRaftVoteType type = grant ? SYNC_RAFT_VOTE_RESP_GRANT : SYNC_RAFT_VOTE_RESP_REJECT;
+  taosHashPut(tracker->votesMap, &id, sizeof(SyncNodeId), &type, sizeof(ESyncRaftVoteType*));
 }
 
 void syncRaftCloneTrackerConfig(const SSyncRaftProgressTrackerConfig* from, SSyncRaftProgressTrackerConfig* to) {
@@ -68,11 +70,12 @@ ESyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* r
       continue;
     }
 
-    if (tracker->votes[i] == SYNC_RAFT_VOTE_RESP_UNKNOWN) {
+    ESyncRaftVoteType* pType = taosHashGet(tracker->votesMap, &progress->id, sizeof(SyncNodeId*));
+    if (pType == NULL) {
       continue;
     }
 
-    if (tracker->votes[i] == SYNC_RAFT_VOTE_RESP_GRANT) {
+    if (*pType == SYNC_RAFT_VOTE_RESP_GRANT) {
       g++;
     } else {
       r++;
@@ -81,7 +84,7 @@ ESyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* r
 
   if (rejected) *rejected = r;
   if (granted) *granted = g;
-  return syncRaftVoteResult(&(tracker->config.voters), tracker->votes);
+  return syncRaftVoteResult(&(tracker->config.voters), tracker->votesMap);
 }
 
 void syncRaftConfigState(const SSyncRaftProgressTracker* tracker, SSyncConfigState* cs) {

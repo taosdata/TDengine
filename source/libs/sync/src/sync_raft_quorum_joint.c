@@ -23,9 +23,9 @@
  * a result indicating whether the vote is pending, lost, or won. A joint quorum
  * requires both majority quorums to vote in favor.
  **/
-ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const ESyncRaftVoteType* votes) {
-  ESyncRaftVoteResult r1 = syncRaftMajorityVoteResult(&(config->incoming), votes);
-  ESyncRaftVoteResult r2 = syncRaftMajorityVoteResult(&(config->outgoing), votes);
+ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, SHashObj* votesMap) {
+  ESyncRaftVoteResult r1 = syncRaftMajorityVoteResult(&(config->incoming), votesMap);
+  ESyncRaftVoteResult r2 = syncRaftMajorityVoteResult(&(config->outgoing), votesMap);
 
   if (r1 == r2) {
     // If they agree, return the agreed state.

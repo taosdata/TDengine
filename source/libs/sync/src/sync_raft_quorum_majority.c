@@ -23,7 +23,7 @@
  * yes/no has been reached), won (a quorum of yes has been reached), or lost (a
  * quorum of no has been reached).
  **/
-ESyncRaftVoteResult syncRaftMajorityVoteResult(SSyncRaftNodeMap* config, const ESyncRaftVoteType* votes) {
+ESyncRaftVoteResult syncRaftMajorityVoteResult(SSyncRaftNodeMap* config, SHashObj* votesMap) {
   if (config->replica == 0) {
     return SYNC_RAFT_VOTE_WON;
   }
@@ -34,9 +34,13 @@ ESyncRaftVoteResult syncRaftMajorityVoteResult(SSyncRaftNodeMap* config, const E
       continue;
     }
 
-    if (votes[i] == SYNC_RAFT_VOTE_RESP_UNKNOWN) {
+    const ESyncRaftVoteType* pType = taosHashGet(votesMap, &config->nodeId[i], sizeof(SyncNodeId*));
+    if (pType == NULL) {
       missing += 1;
-    } else if (votes[i] == SYNC_RAFT_VOTE_RESP_GRANT) {
+      continue;
+    }
+
+    if (*pType == SYNC_RAFT_VOTE_RESP_GRANT) {
       g +=1;
     } else {
       r += 1;
