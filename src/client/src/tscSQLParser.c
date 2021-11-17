@@ -3762,14 +3762,13 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
     if(pItem->isJsonExp){
       assert(pItem->jsonExp->tokenId == TK_ARROW);
       token = pItem->jsonExp->pLeft->columnName;
-    }else{
+    }else {
       token.n = pItem->pVar.nLen;
       token.z = pItem->pVar.pz;
       token.type = pItem->pVar.nType;
-    }
-
-    if (pVar->nType != TSDB_DATA_TYPE_BINARY){
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      if (pItem->pVar.nType != TSDB_DATA_TYPE_BINARY){
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
     }
 
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
