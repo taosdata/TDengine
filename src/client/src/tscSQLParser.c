@@ -3763,6 +3763,10 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
       token.type = pItem->pVar.nType;
     }
 
+    if (pVar->nType != TSDB_DATA_TYPE_BINARY){
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    }
+
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
     if (getColumnIndexByName(&token, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
@@ -4093,7 +4097,7 @@ static int32_t getColQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlEx
       UNUSED(code);
       // TODO: more error handling
     } END_TRY
-    
+
     // add to required table column list
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
     int64_t uid = pTableMetaInfo->pTableMeta->id.uid;
@@ -5369,7 +5373,7 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
       UNUSED(code);
       // TODO: more error handling
     } END_TRY
-    
+
     // add to required table column list
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
     int64_t uid = pTableMetaInfo->pTableMeta->id.uid;

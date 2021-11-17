@@ -2997,6 +2997,11 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
       }
     } else if (pToken->type == TK_ID) {
       tscRmEscapeAndTrimToken(pToken);
+
+      if (pToken->n == 0) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
       return TSDB_CODE_SUCCESS;
     } else {
       if (isNumber(pToken)) {

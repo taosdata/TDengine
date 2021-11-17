@@ -1195,8 +1195,8 @@ static TSKEY getStartTsKey(SQueryAttr* pQueryAttr, STimeWindow* win, const TSKEY
 static void setArithParams(SArithmeticSupport* sas, SExprInfo *pExprInfo, SSDataBlock* pSDataBlock) {
   sas->numOfCols = (int32_t) pSDataBlock->info.numOfCols;
   sas->pExprInfo = pExprInfo;
-  if (sas->colList != NULL) {
-    return;
+  if (sas->colList) {
+    free(sas->colList); // free pre malloc memory
   }
   sas->colList = calloc(1, pSDataBlock->info.numOfCols*sizeof(SColumnInfo));
   for(int32_t i = 0; i < sas->numOfCols; ++i) {
@@ -1204,6 +1204,9 @@ static void setArithParams(SArithmeticSupport* sas, SExprInfo *pExprInfo, SSData
     sas->colList[i] = pColData->info;
   }
 
+  if(sas->data) {
+    free(sas->data); // free pre malloc memory
+  }
   sas->data = calloc(sas->numOfCols, POINTER_BYTES);
 
   // set the input column data

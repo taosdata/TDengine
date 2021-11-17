@@ -20,22 +20,20 @@ public class ConnectMultiTaosdByRestfulWithDifferentTokenTest {
     private Connection conn2;
 
     @Test
-    public void test() {
+    public void test() throws SQLException {
         //when
         executeSelectStatus(conn1);
         executeSelectStatus(conn2);
         executeSelectStatus(conn1);
     }
 
-    private void executeSelectStatus(Connection connection) {
+    private void executeSelectStatus(Connection connection) throws SQLException {
         try (Statement stmt = connection.createStatement()) {
             ResultSet rs = stmt.executeQuery("select server_status()");
             ResultSetMetaData meta = rs.getMetaData();
             Assert.assertNotNull(meta);
             while (rs.next()) {
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
