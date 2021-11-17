@@ -122,6 +122,7 @@ class TDTestCase:
                 (i, i))
             self.checkColumnSorted(1, "desc")
 
+        tdSql.error("select tbcol1 from st order by 123")
         tdSql.error("select tbcol1 from st order by tbname")
         tdSql.query("select avg(tbcol1) from st group by tbname order by tbname")
         tdSql.checkData(1, 0, 5.5)
