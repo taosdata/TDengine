@@ -1,0 +1,101 @@
+
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+sleep 500
+sql connect
+
+$dbPrefix = db
+$tbPrefix = ct
+$mtPrefix = st
+$tbNum = 2
+$rowNum = 50
+
+print =============== step1 create stable/table
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 nchar(5), c9 binary(10)) TAGS (tgcol int)
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  $y = 0.25
+
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+    sql insert into $tb values ($ms , $x , $y , $x , $x , $x , $y , $x , $x , $x )
+    $x = $x + 1
+    $y = $y + 1
+  endw
+
+  $i = $i + 1
+endw
+
+print ================= step2
+$stb = $mtPrefix . 0
+$tb = $tbPrefix . 0
+print execute sql select floor(3.0)+ceil(4.0) from  $tb
+sql select floor(3.0)+ceil(4.0) from  $tb
+if $rows != 50 then
+  return -1
+endi
+if $data00 != 7.000000000 then
+  return -1
+endi
+if $data10 != 7.000000000 then
+  return -1
+endi
+if $data20 != 7.000000000 then
+  return -1
+endi
+if $data30 != 7.000000000 then
+  return -1
+endi
+if $data40 != 7.000000000 then
+  return -1
+endi
+if $data50 != 7.000000000 then
+  return -1
+endi
+if $data60 != 7.000000000 then
+  return -1
+endi
+if $data70 != 7.000000000 then
+  return -1
+endi
+if $data80 != 7.000000000 then
+  return -1
+endi
+if $data90 != 7.000000000 then
+  return -1
+endi
+
+print execute sql select sum(c1)+3.0+4.0 from $stb
+sql select sum(c1)+3.0+4.0 from $stb
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2457.000000000 then
+  return -1
+endi
+
+print =============== clear
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+

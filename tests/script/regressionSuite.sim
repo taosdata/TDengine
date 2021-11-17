@@ -39,6 +39,7 @@ run general/compute/sum.sim
 run general/compute/top.sim
 run general/compute/block_dist.sim
 run general/compute/scalar_pow.sim
+run general/compute/scalar_triangle.sim
 run general/db/alter_option.sim
 run general/db/alter_tables_d2.sim
 run general/db/alter_tables_v1.sim
@@ -141,6 +142,7 @@ run general/parser/tags_dynamically_specifiy.sim
 run general/parser/set_tag_vals.sim
 run general/parser/repeatAlter.sim
 run general/parser/precision_ns.sim
+run general/parser/scalar_expression.sim
 ##unsupport run general/parser/slimit_alter_tags.sim
 run general/stable/disk.sim
 run general/stable/dnode3.sim

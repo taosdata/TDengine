@@ -1892,7 +1892,7 @@ static int32_t handleAggTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t 
 }
 
 static int32_t handleSQLExprItem(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t exprIndex, tSqlExprItem* pItem) {
-  const char* msg1 = "invalid column name, illegal column type, or columns in arithmetic expression from two tables";
+  const char* msg1 = "invalid column name, illegal column type, illegal function combination or columns in expression from two tables";
 
   SColumnList columnList = {0};
   int32_t     sqlExprType = SQLEXPR_TYPE_UNASSIGNED;
