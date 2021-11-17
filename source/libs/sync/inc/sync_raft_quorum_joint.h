@@ -59,7 +59,19 @@ static FORCE_INLINE const SSyncRaftNodeMap* syncRaftJointConfigOutgoing(const SS
 }
 
 static FORCE_INLINE void syncRaftJointConfigClearOutgoing(SSyncRaftQuorumJointConfig* config) {
-  memset(&config->outgoing, 0, sizeof(SSyncRaftNodeMap));
+  syncRaftClearNodeMap(&config->outgoing);
+}
+
+static FORCE_INLINE bool syncRaftJointConfigIsIncomingEmpty(const SSyncRaftQuorumJointConfig* config) {
+  return syncRaftNodeMapSize(&config->incoming) == 0;
+}
+
+static FORCE_INLINE bool syncRaftJointConfigIsOutgoingEmpty(const SSyncRaftQuorumJointConfig* config) {
+  return syncRaftNodeMapSize(&config->outgoing) == 0;
+}
+
+static FORCE_INLINE bool syncRaftJointConfigIsInOutgoing(const SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
+  return syncRaftIsInNodeMap(&config->outgoing, id);
 }
 
 void syncRaftJointConfigIDS(const SSyncRaftQuorumJointConfig* config, SSyncRaftNodeMap* nodeMap);
