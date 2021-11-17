@@ -21,46 +21,32 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 }
 
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-#if 0
-  int      reqType;        /* TODO */
-  size_t   reqSize;        /* TODO */
-  uint64_t reqVersion = 0; /* TODO */
-  int      code = 0;
+  // TODO
+  int code = 0;
 
-  // Copy the request to vnode buffer
-  void *pReq = mMalloc(pVnode->inuse, reqSize);
-  if (pReq == NULL) {
-    // TODO: handle error
-  }
-
-  memcpy(pReq, pMsg, reqSize);
-
-  // Push the request to TQ so consumers can consume
-  tqPushMsg(pVnode->pTq, pReq, 0);
-
-  // Process the request
-  switch (reqType) {
+  switch (pMsg->msgType) {
     case TSDB_MSG_TYPE_CREATE_TABLE:
-      code = metaCreateTable(pVnode->pMeta, NULL /* TODO */);
+      if (metaCreateTable(pVnode->pMeta, pMsg->pCont) < 0) {
+        /* TODO */
+        return -1;
+      }
       break;
     case TSDB_MSG_TYPE_DROP_TABLE:
-      code = metaDropTable(pVnode->pMeta, 0 /* TODO */);
+      if (metaDropTable(pVnode->pMeta, pMsg->pCont) < 0) {
+        /* TODO */
+        return -1;
+      }
       break;
     case TSDB_MSG_TYPE_SUBMIT:
-      /* TODO */
+      if (tsdbInsertData(pVnode->pTsdb, pMsg->pCont) < 0) {
+        /* TODO */
+        return -1;
+      }
       break;
     default:
       break;
   }
 
-  if (vnodeShouldCommit(pVnode)) {
-    if (vnodeAsyncCommit(pVnode) < 0) {
-      // TODO: handle error
-    }
-  }
-
-  return code;
-#endif
   return 0;
 }
 

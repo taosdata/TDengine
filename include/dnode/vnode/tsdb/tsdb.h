@@ -29,6 +29,7 @@ typedef struct STsdbMemAllocator STsdbMemAllocator;
 STsdb *tsdbOpen(const char *path, const STsdbOptions *);
 void   tsdbClose(STsdb *);
 void   tsdbRemove(const char *path);
+int    tsdbInsertData(STsdb *pTsdb, void *);
 
 // STsdbOptions
 int  tsdbOptionsInit(STsdbOptions *);
