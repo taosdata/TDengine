@@ -1534,6 +1534,21 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       pMsg += sizeof(SCreateTableMsg);
 
       SCreatedTableInfo* p = taosArrayGet(list, i);
+      //what pCreate->tableName point is a fixed char array which size is 237
+      //what p->fullname point is a char*
+      //before the time we copy p->fullname to pCreate->tableName , we need to check the length of p->fullname
+      try {
+          if (strlen(p->fullname) > 237) {
+            throw runtime_error("length of fullname should be less than 237");
+          }
+      }
+      catch (runtime_error err) {
+          cout << err.what() <<"\nMay you can reenter"<< endl;
+    
+          while (strlen(p->fullname) > 237) {
+              scanf("%s", p->fullname);
+          }
+      }
       strcpy(pCreate->tableName, p->fullname);
       pCreate->igExists = (p->igExist)? 1 : 0;
 
