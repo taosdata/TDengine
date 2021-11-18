@@ -557,6 +557,7 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
   pRepo->state = TSDB_STATE_OK;
   pRepo->code = TSDB_CODE_SUCCESS;
   pRepo->compactState = 0;
+  pRepo->truncateState = 0;
   pRepo->config = *pCfg;
   if (pAppH) {
     pRepo->appH = *pAppH;

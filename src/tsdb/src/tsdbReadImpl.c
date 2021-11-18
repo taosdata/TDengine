@@ -682,7 +682,6 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
     uint32_t toffset = TSDB_KEY_COL_OFFSET;
     int32_t  tlen = pBlock->keyLen;
 
-
     if (dcol != 0) {
       tsdbGetSBlockCol(pBlock, &pBlockCol, pBlockData->cols, ccol);
       tcolId = pBlockCol->colId;
