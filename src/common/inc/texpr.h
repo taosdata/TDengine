@@ -73,7 +73,7 @@ typedef struct {
   char* data;
 } tExprOperandInfo;
 
-typedef void (*_expr_scalar_function_t)(int16_t functionId, tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order);
+typedef void (*_expr_scalar_function_t)(int16_t functionId, tExprOperandInfo* pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order);
 
 _expr_scalar_function_t getExprScalarFunction(uint16_t scalar);
 
@@ -126,7 +126,7 @@ typedef struct tExprNode {
 
     struct {
       int16_t functionId;
-      uint8_t numChildren;
+      int32_t numChildren;
       struct tExprNode **pChildren;
     } _func;
   };

@@ -321,7 +321,7 @@ void exprTreeInternalNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOper
 
 void exprTreeFunctionNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandInfo *output, void *param, int32_t order,
                                   char *(*getSourceDataBlock)(void *, const char*, int32_t)) {
-  uint8_t numChildren = pExpr->_func.numChildren;
+  int32_t numChildren = pExpr->_func.numChildren;
   if (numChildren == 0) {
     _expr_scalar_function_t scalarFn = getExprScalarFunction(pExpr->_func.functionId);
     output->type = pExpr->resultType;
@@ -526,7 +526,7 @@ static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
     exprTreeToBinaryImpl(bw, expr->_node.pRight);
   } else if (expr->nodeType == TSQL_NODE_FUNC) {
     tbufWriteInt16(bw, expr->_func.functionId);
-    tbufWriteUint8(bw, expr->_func.numChildren);
+    tbufWriteInt32(bw, expr->_func.numChildren);
     for (int i = 0; i < expr->_func.numChildren; ++i) {
       exprTreeToBinaryImpl(bw, expr->_func.pChildren[i]);
     }
@@ -599,7 +599,7 @@ static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
     assert(pExpr->_node.pLeft != NULL && pExpr->_node.pRight != NULL);
   } else if (pExpr->nodeType == TSQL_NODE_FUNC) {
     pExpr->_func.functionId = tbufReadInt16(br);
-    pExpr->_func.numChildren = tbufReadUint8(br);
+    pExpr->_func.numChildren = tbufReadInt32(br);
     pExpr->_func.pChildren = (tExprNode**)calloc(pExpr->_func.numChildren, sizeof(tExprNode*));
     for (int i = 0; i < pExpr->_func.numChildren; ++i) {
       pExpr->_func.pChildren[i] = exprTreeFromBinaryImpl(br);
@@ -1040,7 +1040,7 @@ int32_t exprValidateMathNode(tExprNode *pExpr) {
   return TSDB_CODE_SUCCESS;
 }
 
-void vectorConcat(int16_t functionId, tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
+void vectorConcat(int16_t functionId, tExprOperandInfo* pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
   assert(functionId == TSDB_FUNC_SCALAR_CONCAT && numInputs >=2 && order == TSDB_ORDER_ASC);
   for (int i = 0; i < numInputs; ++i) {
     assert(pInputs[i].numOfRows == 1 || pInputs[i].numOfRows == pOutput->numOfRows);
@@ -1080,7 +1080,7 @@ void vectorConcat(int16_t functionId, tExprOperandInfo* pInputs, uint8_t numInpu
   free(inputData);
 }
 
-void vectorLength(int16_t functionId, tExprOperandInfo *pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
+void vectorLength(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
   assert(functionId == TSDB_FUNC_SCALAR_LENGTH && numInputs == 1 && order == TSDB_ORDER_ASC);
 
   char* data0 = NULL;
@@ -1102,7 +1102,7 @@ void vectorLength(int16_t functionId, tExprOperandInfo *pInputs, uint8_t numInpu
   }
 }
 
-void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order)  {
+void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order)  {
 
   for (int i = 0; i < numInputs; ++i) {
     assert(pInputs[i].numOfRows == 1 || pInputs[i].numOfRows == pOutput->numOfRows);

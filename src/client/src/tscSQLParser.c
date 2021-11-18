@@ -9590,7 +9590,7 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       SArray* paramList = pSqlExpr->Expr.paramList;
       size_t paramSize = paramList ? taosArrayGetSize(paramList) : 0;
       if (paramSize > 0) {
-        (*pExpr)->_func.numChildren = (uint8_t)paramSize;
+        (*pExpr)->_func.numChildren = (int32_t)paramSize;
         (*pExpr)->_func.pChildren = (tExprNode**)calloc(paramSize, sizeof(tExprNode*));
       }
       for (int32_t i = 0; i < paramSize; ++i) {
