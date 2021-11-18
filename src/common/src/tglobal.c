@@ -73,7 +73,7 @@ int32_t tsMaxBinaryDisplayWidth = 30;
  * -1: all data are not compressed
  * other values: if the message payload size is greater than the tsCompressMsgSize, the message will be compressed.
  */
-int32_t tsCompressMsgSize = -1;
+int32_t tsCompressMsgSize = 512 * 1024;
 
 /* denote if server needs to compress the retrieved column data before adding to the rpc response message body.
  * 0: all data are compressed
@@ -289,7 +289,7 @@ char     Compressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRES
 int8_t tsDeadLockKillQuery = 0;
 
 // default JSON string type
-char tsDefaultJSONStrType[7] = "binary";
+char tsDefaultJSONStrType[7] = "nchar";
 char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = ""; //user defined child table name can be specified in tag value. If set to empty system will generate table name using MD5 hash.
 
 int32_t (*monStartSystemFp)() = NULL;

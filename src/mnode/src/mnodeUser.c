@@ -276,10 +276,10 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
 
   code = sdbInsertRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-    mError("user:%s, failed to create by %s, reason:%s", pUser->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
+    mError("user:%s, failed to create, reason:%s", pUser->user, tstrerror(code));
     tfree(pUser);
   } else {
-    mLInfo("user:%s, is created by %s", pUser->user, mnodeGetUserFromMsg(pMsg));
+    mLInfo("user:%s, is created successfully", pUser->user);
   }
 
   return code;

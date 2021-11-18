@@ -17,25 +17,20 @@ public class SelectTest {
     String host = "127.0.0.1";
 
     @Before
-    public void createDatabaseAndTable() {
-        try {
-            Properties properties = new Properties();
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-            connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
+    public void createDatabaseAndTable() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
 
-            Statement stmt = connection.createStatement();
-            stmt.execute("drop database if exists " + dbName);
-            stmt.execute("create database if not exists " + dbName);
-            stmt.execute("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
-            stmt.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
+        Statement stmt = connection.createStatement();
+        stmt.execute("drop database if exists " + dbName);
+        stmt.execute("create database if not exists " + dbName);
+        stmt.execute("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
+        stmt.close();
     }
 
     @Test
@@ -65,16 +60,12 @@ public class SelectTest {
     }
 
     @After
-    public void close() {
-        try {
-            if (connection != null) {
-                Statement stmt = connection.createStatement();
-                stmt.executeUpdate("drop database " + dbName);
-                stmt.close();
-                connection.close();
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
+    public void close() throws SQLException {
+        if (connection != null) {
+            Statement stmt = connection.createStatement();
+            stmt.executeUpdate("drop database " + dbName);
+            stmt.close();
+            connection.close();
         }
     }
 }

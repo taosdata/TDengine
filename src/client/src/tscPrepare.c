@@ -48,12 +48,14 @@ typedef struct SMultiTbStmt {
   bool      nameSet;
   bool      tagSet;
   bool      subSet;
+  bool      tagColSet;
   uint64_t  currentUid;
   char     *sqlstr;
   uint32_t  tbNum;
   SStrToken tbname;
   SStrToken stbname;
   SStrToken values;
+  SStrToken tagCols;
   SArray   *tags;
   STableDataBlocks *lastBlock;
   SHashObj *pTableHash;
@@ -1250,6 +1252,12 @@ static void insertBatchClean(STscStmt* pStmt) {
   pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pSql, pCmd->insertParam.pDataBlocks);
   pCmd->insertParam.numOfTables = 0;
 
+  STableDataBlocks** p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, NULL);
+  while(p) {
+    tfree((*p)->pData);
+    p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, p);
+  }
+
   taosHashClear(pCmd->insertParam.pTableBlockHashList);
   tscFreeSqlResult(pSql);
   tscFreeSubobj(pSql);
@@ -1343,9 +1351,40 @@ int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
     pStmt->mtb.stbname = sToken;
 
     sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
-    if (sToken.n <= 0 || sToken.type != TK_TAGS) {
-      tscError("keyword TAGS expected, sql:%s", pCmd->insertParam.sql);
-      return tscSQLSyntaxErrMsg(pCmd->payload, "keyword TAGS expected", sToken.z ? sToken.z : pCmd->insertParam.sql);
+    if (sToken.n <= 0 || ((sToken.type != TK_TAGS) && (sToken.type != TK_LP))) {
+      tscError("invalid token, sql:%s", pCmd->insertParam.sql);
+      return tscSQLSyntaxErrMsg(pCmd->payload, "invalid token", sToken.z ? sToken.z : pCmd->insertParam.sql);
+    }
+
+    // ... (tag_col_list) TAGS(tag_val_list) ...
+    int32_t tagColsCnt = 0;
+    if (sToken.type == TK_LP) {
+      pStmt->mtb.tagColSet = true;
+      pStmt->mtb.tagCols = sToken;
+      int32_t tagColsStart = index;
+      while (1) {
+        sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
+        if (sToken.type == TK_ILLEGAL) {
+          return tscSQLSyntaxErrMsg(pCmd->payload, "unrecognized token", sToken.z);
+        }
+        if (sToken.type == TK_ID) {
+          ++tagColsCnt;
+        }
+        if (sToken.type == TK_RP) {
+          break;
+        }
+      }
+      if (tagColsCnt == 0) {
+        tscError("tag column list expected, sql:%s", pCmd->insertParam.sql);
+        return tscSQLSyntaxErrMsg(pCmd->payload, "tag column list expected", pCmd->insertParam.sql);
+      }
+      pStmt->mtb.tagCols.n = index - tagColsStart + 1;
+
+      sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
+      if (sToken.n <= 0 || sToken.type != TK_TAGS) {
+        tscError("keyword TAGS expected, sql:%s", pCmd->insertParam.sql);
+        return tscSQLSyntaxErrMsg(pCmd->payload, "keyword TAGS expected", sToken.z ? sToken.z : pCmd->insertParam.sql);
+      }
     }
 
     sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
@@ -1385,6 +1424,11 @@ int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
       return tscSQLSyntaxErrMsg(pCmd->payload, "no tags", pCmd->insertParam.sql);
     }
 
+    if (tagColsCnt > 0 && taosArrayGetSize(pStmt->mtb.tags) != tagColsCnt) {
+      tscError("not match tags, sql:%s", pCmd->insertParam.sql);
+      return tscSQLSyntaxErrMsg(pCmd->payload, "not match tags", pCmd->insertParam.sql);
+    }
+
     sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
     if (sToken.n <= 0 || (sToken.type != TK_VALUES && sToken.type != TK_LP)) {
       tscError("sql error, sql:%s", pCmd->insertParam.sql);
@@ -1407,7 +1451,13 @@ int stmtGenInsertStatement(SSqlObj* pSql, STscStmt* pStmt, const char* name, TAO
   int32_t j = 0;
 
   while (1) {
-    len = (size_t)snprintf(str, size - 1, "insert into %s using %.*s tags(", name, pStmt->mtb.stbname.n, pStmt->mtb.stbname.z);
+    if (pStmt->mtb.tagColSet) {
+      len = (size_t)snprintf(str, size - 1, "insert into %s using %.*s %.*s tags(",
+          name, pStmt->mtb.stbname.n, pStmt->mtb.stbname.z, pStmt->mtb.tagCols.n, pStmt->mtb.tagCols.z);
+    } else {
+      len = (size_t)snprintf(str, size - 1, "insert into %s using %.*s tags(", name, pStmt->mtb.stbname.n, pStmt->mtb.stbname.z);
+    }
+
     if (len >= (size -1)) {
       size *= 2;
       free(str);
@@ -1659,6 +1709,13 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
       STMT_RET(TSDB_CODE_TSC_APP_ERROR);
     }
 
+    if ((*t1)->pData == NULL) {
+      code = tscCreateDataBlockData(*t1, TSDB_PAYLOAD_SIZE, (*t1)->pTableMeta->tableInfo.rowSize, sizeof(SSubmitBlk));
+      if (code != TSDB_CODE_SUCCESS) {
+        STMT_RET(code);
+      }
+    }
+
     SSubmitBlk* pBlk = (SSubmitBlk*) (*t1)->pData;
     pCmd->batchSize = pBlk->numOfRows;
     if (pBlk->numOfRows == 0) {
@@ -1784,7 +1841,6 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   STMT_RET(code);
 }
 
-
 int taos_stmt_set_sub_tbname(TAOS_STMT* stmt, const char* name) {
   STscStmt* pStmt = (STscStmt*)stmt;
   STMT_CHECK
@@ -1792,15 +1848,12 @@ int taos_stmt_set_sub_tbname(TAOS_STMT* stmt, const char* name) {
   return taos_stmt_set_tbname_tags(stmt, name, NULL);
 }
 
-
-
 int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
   STscStmt* pStmt = (STscStmt*)stmt;
   STMT_CHECK
   pStmt->mtb.subSet = false;
   return taos_stmt_set_tbname_tags(stmt, name, NULL);
 }
-
 
 int taos_stmt_close(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
@@ -1868,7 +1921,6 @@ int taos_stmt_bind_param(TAOS_STMT* stmt, TAOS_BIND* bind) {
   }
 }
 
-
 int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
@@ -1931,8 +1983,6 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, in
 
   STMT_RET(insertStmtBindParamBatch(pStmt, bind, colIdx));
 }
-
-
 
 int taos_stmt_add_batch(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
@@ -2086,7 +2136,6 @@ int taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
   }
 }
 
-
 char *taos_stmt_errstr(TAOS_STMT *stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
@@ -2096,8 +2145,6 @@ char *taos_stmt_errstr(TAOS_STMT *stmt) {
 
   return taos_errstr(pStmt->pSql);
 }
-
-
 
 const char *taos_data_type(int type) {
   switch (type) {
@@ -2115,4 +2162,3 @@ const char *taos_data_type(int type) {
     default: return "UNKNOWN";
   }
 }
-

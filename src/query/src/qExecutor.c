@@ -277,7 +277,7 @@ static int compareRowData(const void *a, const void *b, const void *userData) {
   return (in1 != NULL && in2 != NULL) ? supporter->comFunc(in1, in2) : 0;
 }
 
-static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, SSDataBlock* pDataBlock) {
+static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, SSDataBlock* pDataBlock, SQLFunctionCtx *pCtx) {
   SArray *columnOrderList = getOrderCheckColumns(pRuntimeEnv->pQueryAttr);
   size_t size = taosArrayGetSize(columnOrderList);
   taosArrayDestroy(columnOrderList);
@@ -291,12 +291,23 @@ static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeE
     return;
   }
 
+  int32_t orderIndex = -1;
+  for (int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
+    if (pCtx[j].colId == orderId) {
+      orderIndex = j;
+      break;
+    }
+  }
+  if (orderIndex < 0) {
+    return;
+  }
+
   bool found = false;
   int16_t dataOffset = 0;
 
   for (int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
     SColumnInfoData* pColInfoData = (SColumnInfoData *)taosArrayGet(pDataBlock->pDataBlock, j);
-    if (orderId == j) {
+    if (orderIndex == j) {
       found = true;
       break;
     }
@@ -308,8 +319,7 @@ static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeE
     return;
   }
 
-  int16_t type = pRuntimeEnv->pQueryAttr->pExpr1[orderId].base.resType;
-
+  int16_t type = pRuntimeEnv->pQueryAttr->pExpr1[orderIndex].base.resType;
   SRowCompSupporter support = {.pRuntimeEnv = pRuntimeEnv, .dataOffset = dataOffset, .comFunc = getComparFunc(type, 0)};
   taosArraySortPWithExt(pGroupResInfo->pRows, compareRowData, &support);
 }
@@ -1184,8 +1194,8 @@ static TSKEY getStartTsKey(SQueryAttr* pQueryAttr, STimeWindow* win, const TSKEY
 static void setArithParams(SArithmeticSupport* sas, SExprInfo *pExprInfo, SSDataBlock* pSDataBlock) {
   sas->numOfCols = (int32_t) pSDataBlock->info.numOfCols;
   sas->pExprInfo = pExprInfo;
-  if (sas->colList != NULL) {
-    return;
+  if (sas->colList) {
+    free(sas->colList); // free pre malloc memory
   }
   sas->colList = calloc(1, pSDataBlock->info.numOfCols*sizeof(SColumnInfo));
   for(int32_t i = 0; i < sas->numOfCols; ++i) {
@@ -1193,6 +1203,9 @@ static void setArithParams(SArithmeticSupport* sas, SExprInfo *pExprInfo, SSData
     sas->colList[i] = pColData->info;
   }
 
+  if(sas->data) {
+    free(sas->data); // free pre malloc memory
+  }
   sas->data = calloc(sas->numOfCols, POINTER_BYTES);
 
   // set the input column data
@@ -6471,7 +6484,7 @@ static SSDataBlock* hashGroupbyAggregate(void* param, bool* newgroup) {
 
   initGroupResInfo(&pRuntimeEnv->groupResInfo, &pInfo->binfo.resultRowInfo);
   if (!pRuntimeEnv->pQueryAttr->stableQuery) {
-    sortGroupResByOrderList(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->binfo.pRes);
+    sortGroupResByOrderList(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->binfo.pRes, pInfo->binfo.pCtx);
   }
 
   toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->binfo.pRes);
@@ -7594,8 +7607,8 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
   pQueryMsg->numOfOutput = htons(pQueryMsg->numOfOutput);
   pQueryMsg->numOfGroupCols = htons(pQueryMsg->numOfGroupCols);
 
-  pQueryMsg->tagCondLen = htons(pQueryMsg->tagCondLen);
-  pQueryMsg->colCondLen = htons(pQueryMsg->colCondLen);  
+  pQueryMsg->tagCondLen = htonl(pQueryMsg->tagCondLen);
+  pQueryMsg->colCondLen = htonl(pQueryMsg->colCondLen);
 
   pQueryMsg->tsBuf.tsOffset = htonl(pQueryMsg->tsBuf.tsOffset);
   pQueryMsg->tsBuf.tsLen = htonl(pQueryMsg->tsBuf.tsLen);
@@ -8245,7 +8258,7 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t createQueryFilter(char *data, uint16_t len, void** pFilters) {
+int32_t createQueryFilter(char *data, int32_t len, void** pFilters) {
   tExprNode* expr = NULL;
   
   TRY(TSDB_MAX_TAG_CONDITIONS) {
