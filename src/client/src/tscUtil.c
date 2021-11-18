@@ -944,23 +944,30 @@ SSDataBlock* doGetDataBlock(void* param, bool* newgroup) {
   pBlock->info.rows = pRes->numOfRows;
   if (pRes->numOfRows != 0) {
     doSetupSDataBlock(pRes, pBlock, pInput->pFilterInfo);
+    if (pBlock->info.rows > 0) {
+      *newgroup = false;
+      return pBlock;
+    }
+  }
+
+  SSDataBlock* result = NULL;
+  do {
+    // No data block exists. So retrieve and transfer it into to SSDataBlock
+    TAOS_ROW pRow = NULL;
+    taos_fetch_block(pSql, &pRow);
+
+    if (pRes->numOfRows == 0) {
+      pOperator->status = OP_EXEC_DONE;
+      result = NULL;
+      break;
+    }
+    pBlock->info.rows = pRes->numOfRows;
+    doSetupSDataBlock(pRes, pBlock, pInput->pFilterInfo);
     *newgroup = false;
-    return pBlock;
-  }
+    result = pBlock;
+  } while (result->info.rows == 0);
 
-  // No data block exists. So retrieve and transfer it into to SSDataBlock
-  TAOS_ROW pRow = NULL;
-  taos_fetch_block(pSql, &pRow);
-
-  if (pRes->numOfRows == 0) {
-    pOperator->status = OP_EXEC_DONE;
-    return NULL;
-  }
-
-  pBlock->info.rows = pRes->numOfRows;
-  doSetupSDataBlock(pRes, pBlock, pInput->pFilterInfo);
-  *newgroup = false;
-  return pBlock;
+  return result;
 }
 
 static void fetchNextBlockIfCompleted(SOperatorInfo* pOperator, bool* newgroup) {
@@ -2955,6 +2962,11 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
       }
     } else if (pToken->type == TK_ID) {
       tscRmEscapeAndTrimToken(pToken);
+
+      if (pToken->n == 0) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
       return TSDB_CODE_SUCCESS;
     } else {
       if (isNumber(pToken)) {

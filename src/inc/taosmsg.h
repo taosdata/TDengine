@@ -485,8 +485,8 @@ typedef struct {
   int16_t     numOfCols;        // the number of columns will be load from vnode
   SInterval   interval;
   SSessionWindow sw;            // session window
-  uint16_t    tagCondLen;       // tag length in current query
-  uint16_t    colCondLen;       // column length in current query
+  uint32_t    tagCondLen;       // tag length in current query
+  int32_t    colCondLen;       // column length in current query
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx

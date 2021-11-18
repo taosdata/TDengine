@@ -120,6 +120,7 @@ HttpContext *httpCreateContext(SOCKET fd) {
   pContext->lastAccessTime = taosGetTimestampSec();
   pContext->state = HTTP_CONTEXT_STATE_READY;
   pContext->parser = httpCreateParser(pContext);
+  pContext->error = false;
 
   TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE)pContext;
   HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE), &pContext,
