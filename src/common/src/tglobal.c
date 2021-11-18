@@ -73,7 +73,7 @@ int32_t tsMaxBinaryDisplayWidth = 30;
  * -1: all data are not compressed
  * other values: if the message payload size is greater than the tsCompressMsgSize, the message will be compressed.
  */
-int32_t tsCompressMsgSize = -1;
+int32_t tsCompressMsgSize = 512 * 1024;
 
 /* denote if server needs to compress the retrieved column data before adding to the rpc response message body.
  * 0: all data are compressed
