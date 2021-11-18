@@ -27,6 +27,9 @@
 #include "tulog.h"
 #include "tutil.h"
 
+// TSDB
+bool tsdbForceKeepFile = false;
+
 // cluster
 char     tsFirst[TSDB_EP_LEN] = {0};
 char     tsSecond[TSDB_EP_LEN] = {0};

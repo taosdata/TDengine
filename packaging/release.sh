@@ -194,6 +194,7 @@ fi
 
 if [[ "$dbName" == "pro" ]]; then
     sed -i "s/taos config/prodb config/g"   ${top_dir}/src/util/src/tconfig.c
+    sed -i "s/TDengine/ProDB/g" ${top_dir}/src/dnode/src/dnodeSystem.c
 fi
 
 echo "build ${pagMode} package ..."
