@@ -30,6 +30,7 @@
 
 static int32_t exprValidateMathNode(tExprNode *pExpr);
 static int32_t exprValidateStringConcatNode(tExprNode *pExpr);
+static int32_t exprValidateStringConcatWsNode(tExprNode *pExpr);
 static int32_t exprValidateStringLengthNode(tExprNode *pExpr);
 
 int32_t exprTreeValidateFunctionNode(tExprNode *pExpr) {
@@ -56,6 +57,9 @@ int32_t exprTreeValidateFunctionNode(tExprNode *pExpr) {
     }
     case TSDB_FUNC_SCALAR_LENGTH: {
       return exprValidateStringLengthNode(pExpr);
+    }
+    case TSDB_FUNC_SCALAR_CONCAT_WS: {
+      return exprValidateStringConcatWsNode(pExpr);
     }
 
     default:
@@ -871,7 +875,7 @@ tExprNode* exprdup(tExprNode* pNode) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // scalar functions
 int32_t exprValidateStringConcatNode(tExprNode *pExpr) {
-  if (pExpr->_func.numChildren < 2) {
+  if (pExpr->_func.numChildren < 2 || pExpr->_func.numChildren > 8) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
@@ -941,6 +945,82 @@ int32_t exprValidateStringConcatNode(tExprNode *pExpr) {
   pExpr->resultBytes = resultBytes + VARSTR_HEADER_SIZE;
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t exprValidateStringConcatWsNode(tExprNode *pExpr) {
+  if (pExpr->_func.numChildren < 3 || pExpr->_func.numChildren > 9) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  int16_t prevResultType = TSDB_DATA_TYPE_NULL;
+  int16_t resultType = TSDB_DATA_TYPE_NULL;
+  bool resultTypeDeduced = false;
+  for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
+    tExprNode *child = pExpr->_func.pChildren[i];
+    if (child->nodeType != TSQL_NODE_VALUE) {
+      resultType = child->resultType;
+      if (!IS_VAR_DATA_TYPE(resultType)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      if (!resultTypeDeduced) {
+        resultTypeDeduced = true;
+      } else {
+        if (resultType != prevResultType) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+      }
+      prevResultType = child->resultType;
+    } else {
+      if (!IS_VAR_DATA_TYPE(child->resultType)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+    }
+  }
+
+  if (resultTypeDeduced) {
+    for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
+      tExprNode *child = pExpr->_func.pChildren[i];
+      if (child->nodeType == TSQL_NODE_VALUE) {
+        if (!IS_VAR_DATA_TYPE(child->pVal->nType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+        char* payload = malloc(child->pVal->nLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+        tVariantDump(child->pVal, payload, resultType, true);
+        int16_t resultBytes = varDataTLen(payload);
+        free(payload);
+        child->resultType = resultType;
+        child->resultBytes = (int16_t)(resultBytes);
+      }
+    }
+  } else {
+    for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
+      tExprNode *child = pExpr->_func.pChildren[i];
+      assert(child->nodeType == TSQL_NODE_VALUE) ;
+      resultType = child->resultType;
+      for (int j = i+1; j < pExpr->_func.numChildren; ++j) {
+        if (pExpr->_func.pChildren[j]->resultType != resultType) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+      }
+    }
+  }
+
+  pExpr->resultType = resultType;
+  int16_t resultBytes = 0;
+  for (int32_t i = 1; i < pExpr->_func.numChildren; ++i) {
+    tExprNode *child = pExpr->_func.pChildren[i];
+    if (resultBytes <= resultBytes + child->resultBytes - VARSTR_HEADER_SIZE) {
+      resultBytes += child->resultBytes - VARSTR_HEADER_SIZE;
+    } else {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+  }
+  tExprNode* wsNode = pExpr->_func.pChildren[0];
+  int16_t wsResultBytes = wsNode->resultBytes - VARSTR_HEADER_SIZE;
+  resultBytes += wsResultBytes * (pExpr->_func.numChildren - 2);
+  pExpr->resultBytes = resultBytes + VARSTR_HEADER_SIZE;
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t exprValidateStringLengthNode(tExprNode *pExpr) {
   if (pExpr->_func.numChildren != 1) {
@@ -1072,6 +1152,50 @@ void vectorConcat(int16_t functionId, tExprOperandInfo* pInputs, int32_t numInpu
       for (int j = 0; j < numInputs; ++j) {
         memcpy(((char*)varDataVal(outputData))+dataLen, varDataVal(inputData[j]), varDataLen(inputData[j]));
         dataLen += varDataLen(inputData[j]);
+      }
+      varDataSetLen(outputData, dataLen);
+    }
+  }
+
+  free(inputData);
+}
+
+void vectorConcatWs(int16_t functionId, tExprOperandInfo* pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
+  assert(functionId == TSDB_FUNC_SCALAR_CONCAT_WS && numInputs >=3 && order == TSDB_ORDER_ASC);
+  for (int i = 0; i < numInputs; ++i) {
+    assert(pInputs[i].numOfRows == 1 || pInputs[i].numOfRows == pOutput->numOfRows);
+  }
+
+  char* outputData = NULL;
+  char** inputData = calloc(numInputs, sizeof(char*));
+  for (int i = 0; i < pOutput->numOfRows; ++i) {
+    for (int j = 0; j < numInputs; ++j) {
+      if (pInputs[j].numOfRows == 1) {
+        inputData[j] = pInputs[j].data;
+      } else {
+        inputData[j] = pInputs[j].data + i * pInputs[j].bytes;
+      }
+    }
+
+    outputData = pOutput->data + i * pOutput->bytes;
+
+    bool hasNullInputs = false;
+    for (int j = 0; j < numInputs; ++j) {
+      if (isNull(inputData[j], pInputs[j].type)) {
+        hasNullInputs = true;
+        setNull(outputData, pOutput->type, pOutput->bytes);
+      }
+    }
+
+    if (!hasNullInputs) {
+      int16_t dataLen = 0;
+      for (int j = 1; j < numInputs; ++j) {
+        memcpy(((char*)varDataVal(outputData))+dataLen, varDataVal(inputData[j]), varDataLen(inputData[j]));
+        dataLen += varDataLen(inputData[j]);
+        if (j < numInputs - 1) {
+          memcpy(((char*)varDataVal(outputData))+dataLen, varDataVal(inputData[0]), varDataLen(inputData[0]));
+          dataLen += varDataLen(inputData[0]);
+        }
       }
       varDataSetLen(outputData, dataLen);
     }
@@ -1398,5 +1522,10 @@ tScalarFunctionInfo aScalarFunctions[] = {
         TSDB_FUNC_SCALAR_LENGTH,
         "length",
         vectorLength
+    },
+    {
+        TSDB_FUNC_SCALAR_CONCAT_WS,
+        "concat_ws",
+        vectorConcatWs
     }
 };
