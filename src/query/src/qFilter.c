@@ -2354,7 +2354,6 @@ int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t *gR
     }
     
     cStart = i;
-    cEnd = i;
     cColNum = gRes[i]->colNum;    
   }
 
