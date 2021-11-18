@@ -344,9 +344,9 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
 
   if (cmd == MON_CMD_CREATE_DB) {
     snprintf(sql, SQL_LENGTH,
-             "create database if not exists %s replica 1 days 10 keep %s cache %d "
+             "create database if not exists %s replica %d days 10 keep %s cache %d "
              "blocks %d precision 'us'",
-             tsMonitorDbName, keepValue, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MIN_TOTAL_BLOCKS);
+             tsMonitorDbName, tsMonitorReplica, keepValue, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MIN_TOTAL_BLOCKS);
   } else if (cmd == MON_CMD_CREATE_MT_DN) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.dn(ts timestamp"
@@ -852,12 +852,24 @@ static int32_t monBuildDnodeUptimeSql(char *sql) {
   int32_t  num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
+  bool is_self_ep = false;
   while ((row = taos_fetch_row(result))) {
+    if (is_self_ep) {
+      break;
+    }
     for (int i = 0; i < num_fields; ++i) {
+      if (strcmp(fields[i].name, "end_point") == 0) {
+        int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
+        if (strncmp((char *)row[i], tsLocalEp, charLen)) {
+          is_self_ep = true;
+        }
+      }
       if (strcmp(fields[i].name, "create_time") == 0) {
-        int64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
-        //dnodes uptime in seconds
-        dnodeUptime = (now - *(int64_t *)row[i]) / 1000;
+        if (is_self_ep) {
+          int64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
+          //dnodes uptime in seconds
+          dnodeUptime = (now - *(int64_t *)row[i]) / 1000;
+        }
       }
     }
   }
@@ -1037,6 +1049,8 @@ static void monSaveClusterInfo() {
 static void monSaveDnodesInfo() {
   int64_t ts = taosGetTimestampUs();
   char *  sql = tsMonitor.sql;
+  int64_t intervalUs = tsMonitorInterval * 1000000;
+  ts = ts / intervalUs * intervalUs; //To align timestamp to integer multiples of monitor interval
   int32_t pos = snprintf(sql, SQL_LENGTH, "insert into %s.dnode_%d values(%" PRId64, tsMonitorDbName, dnodeGetDnodeId(), ts);
 
   pos += monBuildDnodeUptimeSql(sql + pos);
