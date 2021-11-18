@@ -860,7 +860,7 @@ static int32_t monBuildDnodeUptimeSql(char *sql) {
     for (int i = 0; i < num_fields; ++i) {
       if (strcmp(fields[i].name, "end_point") == 0) {
         int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        if (strncmp((char *)row[i], tsLocalEp, charLen)) {
+        if (strncmp((char *)row[i], tsLocalEp, charLen) == 0) {
           is_self_ep = true;
         }
       }
@@ -887,8 +887,8 @@ static int32_t monBuildDnodeIoSql(char *sql) {
   rbyteKB = tsMonStat.io_read_disk;
   wbyteKB = tsMonStat.io_write_disk;
 
-  return snprintf(sql, SQL_LENGTH, ", %f, %f, %f, %f", (rcharKB / 1024) / tsMonitorInterval, (wcharKB / 1024) / tsMonitorInterval,
-                                                       (rbyteKB / 1024) / tsMonitorInterval, (wbyteKB / 1024) / tsMonitorInterval);
+  return snprintf(sql, SQL_LENGTH, ", %f, %f, %f, %f", rcharKB / 1024, wcharKB / 1024,
+                                                       rbyteKB / 1024, wbyteKB / 1024);
 }
 
 static int32_t monBuildNetworkIOSql(char *sql) {

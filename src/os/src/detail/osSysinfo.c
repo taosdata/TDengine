@@ -516,6 +516,8 @@ bool taosReadProcIO(int64_t *rchars, int64_t *wchars, int64_t *rbytes, int64_t *
 bool taosGetProcIO(float *rcharKB, float *wcharKB, float *rbyteKB, float *wbyteKB) {
   static int64_t lastRchar = -1, lastRbyte = -1;
   static int64_t lastWchar = -1, lastWbyte = -1;
+  static time_t  lastTime = 0;
+  time_t         curTime = time(NULL);
 
   int64_t curRchar = 0, curRbyte = 0;
   int64_t curWchar = 0, curWbyte = 0;
@@ -524,7 +526,8 @@ bool taosGetProcIO(float *rcharKB, float *wcharKB, float *rbyteKB, float *wbyteK
     return false;
   }
 
-  if (lastRchar == -1 || lastWchar == -1 || lastRbyte == -1 || lastWbyte == -1) {
+  if (lastTime == 0 || lastRchar == -1 || lastWchar == -1 || lastRbyte == -1 || lastWbyte == -1) {
+    lastTime  = curTime;
     lastRchar = curRchar;
     lastWchar = curWchar;
     lastRbyte = curRbyte;
@@ -532,13 +535,13 @@ bool taosGetProcIO(float *rcharKB, float *wcharKB, float *rbyteKB, float *wbyteK
     return false;
   }
 
-  *rcharKB = (float)((double)(curRchar - lastRchar) / 1024);
-  *wcharKB = (float)((double)(curWchar - lastWchar) / 1024);
+  *rcharKB = (float)((double)(curRchar - lastRchar) / 1024 / (double)(curTime - lastTime));
+  *wcharKB = (float)((double)(curWchar - lastWchar) / 1024 / (double)(curTime - lastTime));
   if (*rcharKB < 0) *rcharKB = 0;
   if (*wcharKB < 0) *wcharKB = 0;
 
-  *rbyteKB = (float)((double)(curRbyte - lastRbyte) / 1024);
-  *wbyteKB = (float)((double)(curWbyte - lastWbyte) / 1024);
+  *rbyteKB = (float)((double)(curRbyte - lastRbyte) / 1024 / (double)(curTime - lastTime));
+  *wbyteKB = (float)((double)(curWbyte - lastWbyte) / 1024 / (double)(curTime - lastTime));
   if (*rbyteKB < 0) *rbyteKB = 0;
   if (*wbyteKB < 0) *wbyteKB = 0;
 
@@ -546,6 +549,7 @@ bool taosGetProcIO(float *rcharKB, float *wcharKB, float *rbyteKB, float *wbyteK
   lastWchar = curWchar;
   lastRbyte = curRbyte;
   lastWbyte = curWbyte;
+  lastTime  = curTime;
 
   return true;
 }
