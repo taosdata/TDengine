@@ -28,21 +28,26 @@ static int toConfChangeSingle(const SSyncConfigState* cs, SSyncConfChangeSingleA
 // the Changer only needs a ProgressMap (not a whole Tracker) at which point
 // this can just take LastIndex and MaxInflight directly instead and cook up
 // the results from that alone.
-int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs) {
+int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs,
+                          SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap) {
   SSyncConfChangeSingleArray outgoing;
   SSyncConfChangeSingleArray incoming;
   SSyncConfChangeSingleArray css;
   SSyncRaftProgressTracker* tracker = changer->tracker;
-  SSyncRaftProgressTrackerConfig* config = &tracker->config;
-  SSyncRaftProgressMap* progressMap = &tracker->progressMap;
   int i, ret;
 
+  syncRaftInitConfArray(&outgoing);
+  syncRaftInitConfArray(&incoming);
+
+  syncRaftInitTrackConfig(config);
+  syncRaftInitProgressMap(progressMap);
+  
   ret = toConfChangeSingle(cs, &outgoing, &incoming);
   if (ret != 0) {
     goto out;
   }
 
-  if (outgoing.n == 0) {
+  if (syncRaftConfArrayIsEmpty(&outgoing)) {
     // No outgoing config, so just apply the incoming changes one by one.
     for (i = 0; i < incoming.n; ++i) {
       css = (SSyncConfChangeSingleArray) {
@@ -53,6 +58,9 @@ int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs)
       if (ret != 0) {
         goto out;
       }
+
+      syncRaftCopyTrackerConfig(config, &changer->tracker->config);
+      syncRaftCopyProgressMap(progressMap, &changer->tracker->progressMap);
     }
   } else {
 		// The ConfState describes a joint configuration.
@@ -69,6 +77,8 @@ int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs)
       if (ret != 0) {
         goto out;
       }
+      syncRaftCopyTrackerConfig(config, &changer->tracker->config);
+      syncRaftCopyProgressMap(progressMap, &changer->tracker->progressMap);
     }
 
     ret = syncRaftChangerEnterJoint(changer, cs->autoLeave, &incoming, config, progressMap);
@@ -78,8 +88,9 @@ int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs)
   }
 
 out:
-  if (incoming.n != 0) free(incoming.changes);
-  if (outgoing.n != 0) free(outgoing.changes);
+  syncRaftFreeConfArray(&incoming);
+  syncRaftFreeConfArray(&outgoing);
+
   return ret;
 }
 
@@ -101,8 +112,6 @@ static void addToConfChangeSingleArray(SSyncConfChangeSingleArray* out, int* i, 
 // ConfState.
 static int toConfChangeSingle(const SSyncConfigState* cs, SSyncConfChangeSingleArray* out, SSyncConfChangeSingleArray* in) {
   int i;
-
-  out->n = in->n = 0;
 
   out->n = syncRaftNodeMapSize(&cs->votersOutgoing);
   out->changes = (SSyncConfChangeSingle*)malloc(sizeof(SSyncConfChangeSingle) * out->n);

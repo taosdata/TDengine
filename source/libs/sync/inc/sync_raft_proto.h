@@ -59,4 +59,19 @@ typedef struct SSyncConfigState {
   bool autoLeave;
 } SSyncConfigState;
 
+static FORCE_INLINE bool syncRaftConfArrayIsEmpty(const SSyncConfChangeSingleArray* ary) {
+  return ary->n == 0;
+}
+
+static FORCE_INLINE void syncRaftInitConfArray(SSyncConfChangeSingleArray* ary) {
+  *ary = (SSyncConfChangeSingleArray) {
+    .changes = NULL,
+    .n       = 0,
+  };
+}
+
+static FORCE_INLINE void syncRaftFreeConfArray(SSyncConfChangeSingleArray* ary) {
+  if (ary->changes != NULL) free(ary->changes);
+}
+
 #endif /* TD_SYNC_RAFT_PROTO_H */

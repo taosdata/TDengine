@@ -74,6 +74,8 @@ struct SSyncRaftProgress {
 
 	SyncNodeId id;
 
+	int16_t refCount;
+
   SyncIndex nextIndex;
 
   SyncIndex matchIndex;
@@ -220,6 +222,12 @@ static FORCE_INLINE ESyncRaftProgressState syncRaftProgressInProbe(SSyncRaftProg
 static FORCE_INLINE bool syncRaftProgressRecentActive(SSyncRaftProgress* progress) {
   return progress->recentActive;
 }
+
+void syncRaftInitProgressMap(SSyncRaftProgressMap* progressMap);
+void syncRaftFreeProgressMap(SSyncRaftProgressMap* progressMap);
+
+void syncRaftClearProgressMap(SSyncRaftProgressMap* progressMap);
+void syncRaftCopyProgressMap(SSyncRaftProgressMap* from, SSyncRaftProgressMap* to);
 
 SSyncRaftProgress* syncRaftFindProgressByNodeId(const SSyncRaftProgressMap* progressMap, SyncNodeId id);
 

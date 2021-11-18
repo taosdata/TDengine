@@ -94,6 +94,11 @@ struct SSyncRaftProgressTracker {
 
 SSyncRaftProgressTracker* syncRaftOpenProgressTracker(SSyncRaft* pRaft);
 
+void syncRaftInitTrackConfig(SSyncRaftProgressTrackerConfig* config);
+void syncRaftFreeTrackConfig(SSyncRaftProgressTrackerConfig* config);
+
+void syncRaftFreeTrackConfig(SSyncRaftProgressTrackerConfig* config);
+
 void syncRaftResetVotes(SSyncRaftProgressTracker*);
 
 void syncRaftProgressVisit(SSyncRaftProgressTracker*, visitProgressFp visit, void* arg);
@@ -104,9 +109,9 @@ void syncRaftProgressVisit(SSyncRaftProgressTracker*, visitProgressFp visit, voi
  **/
 void syncRaftRecordVote(SSyncRaftProgressTracker* tracker, SyncNodeId id, bool grant);
 
-void syncRaftCloneTrackerConfig(const SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressTrackerConfig* result);
+void syncRaftCopyTrackerConfig(const SSyncRaftProgressTrackerConfig* from, SSyncRaftProgressTrackerConfig* to);
 
-int syncRaftCheckProgress(const SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap);
+int syncRaftCheckTrackerConfigInProgress(SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap);
 
 /** 
  * syncRaftTallyVotes returns the number of granted and rejected Votes, and whether the

@@ -41,6 +41,16 @@ ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, SHashOb
   return SYNC_RAFT_VOTE_PENDING;
 }
 
+void syncRaftInitQuorumJointConfig(SSyncRaftQuorumJointConfig* config) {
+  syncRaftInitNodeMap(&config->incoming);
+  syncRaftInitNodeMap(&config->outgoing);
+}
+
+void syncRaftFreeQuorumJointConfig(SSyncRaftQuorumJointConfig* config) {
+  syncRaftFreeNodeMap(&config->incoming);
+  syncRaftFreeNodeMap(&config->outgoing);
+}
+
 void syncRaftJointConfigAddToIncoming(SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
   syncRaftAddToNodeMap(&config->incoming, id);
 }

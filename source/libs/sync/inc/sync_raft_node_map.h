@@ -25,6 +25,7 @@ struct SSyncRaftNodeMap {
 };
 
 void syncRaftInitNodeMap(SSyncRaftNodeMap* nodeMap);
+void syncRaftFreeNodeMap(SSyncRaftNodeMap* nodeMap);
 
 void syncRaftClearNodeMap(SSyncRaftNodeMap* nodeMap);
 
@@ -43,6 +44,6 @@ int32_t syncRaftNodeMapSize(const SSyncRaftNodeMap* nodeMap);
 // return true if reach the end
 bool syncRaftIterateNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId *pId);
 
-bool syncRaftIsAllInProgressMap(const SSyncRaftNodeMap* nodeMap, const SSyncRaftProgressMap* progressMap);
+bool syncRaftIsAllNodeInProgressMap(SSyncRaftNodeMap* nodeMap, SSyncRaftProgressMap* progressMap);
 
 #endif /* _TD_LIBS_SYNC_RAFT_NODE_MAP_H */

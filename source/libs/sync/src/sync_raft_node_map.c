@@ -21,6 +21,10 @@ void syncRaftInitNodeMap(SSyncRaftNodeMap* nodeMap) {
   nodeMap->nodeIdMap = taosHashInit(TSDB_MAX_REPLICA, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
 }
 
+void syncRaftFreeNodeMap(SSyncRaftNodeMap* nodeMap) {
+  taosHashCleanup(nodeMap->nodeIdMap);
+}
+
 void syncRaftClearNodeMap(SSyncRaftNodeMap* nodeMap) {
   taosHashClear(nodeMap->nodeIdMap);
 }
@@ -51,7 +55,7 @@ bool syncRaftIterateNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId *pId) {
   return false;
 }
 
-bool syncRaftIsAllInProgressMap(const SSyncRaftNodeMap* nodeMap, const SSyncRaftProgressMap* progressMap) {
+bool syncRaftIsAllNodeInProgressMap(SSyncRaftNodeMap* nodeMap, SSyncRaftProgressMap* progressMap) {
   SyncNodeId *pId = NULL;
   while (!syncRaftIterateNodeMap(nodeMap, pId)) {
     if (!syncRaftIsInProgressMap(progressMap, *pId)) {

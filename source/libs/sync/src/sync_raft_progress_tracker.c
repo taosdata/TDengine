@@ -22,11 +22,24 @@ SSyncRaftProgressTracker* syncRaftOpenProgressTracker(SSyncRaft* pRaft) {
     return NULL;
   }
 
-  syncRaftInitNodeMap(&tracker->config.learners);
+  syncRaftInitTrackConfig(&tracker->config);
   syncRaftInitNodeMap(&tracker->config.learnersNext);
   tracker->pRaft = pRaft;
 
   return tracker;
+}
+
+void syncRaftInitTrackConfig(SSyncRaftProgressTrackerConfig* config) {
+  syncRaftInitNodeMap(&config->learners);
+  syncRaftInitNodeMap(&config->learnersNext);
+  syncRaftInitQuorumJointConfig(&config->voters);
+  config->autoLeave = false;
+}
+
+void syncRaftFreeTrackConfig(SSyncRaftProgressTrackerConfig* config) {
+  syncRaftFreeNodeMap(&config->learners);
+  syncRaftFreeNodeMap(&config->learnersNext);
+  syncRaftFreeQuorumJointConfig(&config->voters);
 }
 
 void syncRaftResetVotes(SSyncRaftProgressTracker* tracker) {
@@ -47,21 +60,21 @@ void syncRaftRecordVote(SSyncRaftProgressTracker* tracker, SyncNodeId id, bool g
   taosHashPut(tracker->votesMap, &id, sizeof(SyncNodeId), &type, sizeof(ESyncRaftVoteType*));
 }
 
-void syncRaftCloneTrackerConfig(const SSyncRaftProgressTrackerConfig* from, SSyncRaftProgressTrackerConfig* to) {
+void syncRaftCopyTrackerConfig(const SSyncRaftProgressTrackerConfig* from, SSyncRaftProgressTrackerConfig* to) {
   memcpy(to, from, sizeof(SSyncRaftProgressTrackerConfig));
 }
 
-int syncRaftCheckProgress(const SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap) {
+int syncRaftCheckTrackerConfigInProgress(SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap) {
 	// NB: intentionally allow the empty config. In production we'll never see a
 	// non-empty config (we prevent it from being created) but we will need to
 	// be able to *create* an initial config, for example during bootstrap (or
 	// during tests). Instead of having to hand-code this, we allow
 	// transitioning from an empty config into any other legal and non-empty
 	// config.  
-  if (!syncRaftIsAllInProgressMap(&config->voters.incoming, progressMap)) return -1;
-  if (!syncRaftIsAllInProgressMap(&config->voters.outgoing, progressMap)) return -1;
-  if (!syncRaftIsAllInProgressMap(&config->learners, progressMap)) return -1;
-  if (!syncRaftIsAllInProgressMap(&config->learnersNext, progressMap)) return -1;
+  if (!syncRaftIsAllNodeInProgressMap(&config->voters.incoming, progressMap)) return -1;
+  if (!syncRaftIsAllNodeInProgressMap(&config->voters.outgoing, progressMap)) return -1;
+  if (!syncRaftIsAllNodeInProgressMap(&config->learners, progressMap)) return -1;
+  if (!syncRaftIsAllNodeInProgressMap(&config->learnersNext, progressMap)) return -1;
   return 0;
 }
 

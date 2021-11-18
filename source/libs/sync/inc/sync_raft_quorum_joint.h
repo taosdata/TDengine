@@ -38,6 +38,8 @@ typedef struct SSyncRaftQuorumJointConfig {
  **/
 ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, SHashObj* votesMap);
 
+void syncRaftInitQuorumJointConfig(SSyncRaftQuorumJointConfig* config);
+
 static FORCE_INLINE bool syncRaftJointConfigInOutgoing(const SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
   return syncRaftIsInNodeMap(&config->outgoing, id);
 }

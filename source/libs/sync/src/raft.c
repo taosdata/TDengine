@@ -101,10 +101,21 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
     .tracker = pRaft->tracker,
     .lastIndex = syncRaftLogLastIndex(pRaft->log),
   };
-  if (syncRaftRestoreConfig(&changer, &confState) < 0) {
+  SSyncRaftProgressTrackerConfig config;
+  SSyncRaftProgressMap progressMap;
+
+  if (syncRaftRestoreConfig(&changer, &confState, &config, &progressMap) < 0) {
     syncError("syncRaftRestoreConfig for vgid %d fail", pInfo->vgId);
     return -1;
   }
+
+  // save restored config and progress map to tracker
+  syncRaftCopyProgressMap(&progressMap, &pRaft->tracker->progressMap);
+  syncRaftCopyTrackerConfig(&config, &pRaft->tracker->config);
+
+  // free progress map and config
+  syncRaftFreeProgressMap(&progressMap);
+  syncRaftFreeTrackConfig(&config);
 
   if (!syncRaftIsEmptyServerState(&serverState)) {
     syncRaftLoadState(pRaft, &serverState);

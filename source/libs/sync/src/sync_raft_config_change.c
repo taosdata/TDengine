@@ -92,7 +92,7 @@ int syncRaftChangerEnterJoint(SSyncRaftChanger* changer, bool autoLeave, const S
   return checkAndReturn(config, progressMap);
 }
 
-// syncRaftChangerSimpleConfig carries out a series of configuration changes that (in aggregate)
+// Simple carries out a series of configuration changes that (in aggregate)
 // mutates the incoming majority config Voters[0] by at most one. This method
 // will return an error if that is not the case, if the resulting quorum is
 // zero, or if the configuration is in a joint state (i.e. if there is an
@@ -275,7 +275,8 @@ static void initProgress(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConf
 		// When a node is first added, we should mark it as recently active.
 		// Otherwise, CheckQuorum may cause us to step down if it is invoked
 		// before the added node has had a chance to communicate with us.  
-    .recentActive = true,    
+    .recentActive = true,  
+    .refCount = 0,  
   };
 
   syncRaftAddToProgressMap(progressMap, pProgress);
@@ -285,7 +286,7 @@ static void initProgress(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConf
 // each other. This is used to check both what the Changer is initialized with,
 // as well as what it returns.
 static int checkInvariants(SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap) {
-  int ret = syncRaftCheckProgress(config, progressMap);
+  int ret = syncRaftCheckTrackerConfigInProgress(config, progressMap);
   if (ret != 0) {
     return ret;
   }
@@ -296,6 +297,7 @@ static int checkInvariants(SSyncRaftProgressTrackerConfig* config, SSyncRaftProg
   while (!syncRaftIterateNodeMap(&config->learnersNext, pNodeId)) {
     SyncNodeId nodeId = *pNodeId;
     if (!syncRaftJointConfigInOutgoing(&config->voters, nodeId)) {
+      syncError("[%d] is in LearnersNext, but not outgoing", nodeId);
       return -1;
     }
     SSyncRaftProgress* progress = syncRaftFindProgressByNodeId(progressMap, nodeId);
@@ -311,8 +313,8 @@ static int checkInvariants(SSyncRaftProgressTrackerConfig* config, SSyncRaftProg
   pNodeId = NULL;
   while (!syncRaftIterateNodeMap(&config->learners, pNodeId)) {
     SyncNodeId nodeId = *pNodeId;
-    if (syncRaftJointConfigInIncoming(&config->voters, nodeId)) {
-      syncError("%d is in Learners and voter.incoming", nodeId);
+    if (syncRaftJointConfigInOutgoing(&config->voters, nodeId)) {
+      syncError("%d is in Learners and outgoing", nodeId);
       return -1;
     }
     SSyncRaftProgress* progress = syncRaftFindProgressByNodeId(progressMap, nodeId);
@@ -327,7 +329,7 @@ static int checkInvariants(SSyncRaftProgressTrackerConfig* config, SSyncRaftProg
 
   if (!hasJointConfig(config)) {
     // We enforce that empty maps are nil instead of zero.
-    if (syncRaftNodeMapSize(&config->learnersNext)) {
+    if (syncRaftNodeMapSize(&config->learnersNext) > 0) {
       syncError("cfg.LearnersNext must be nil when not joint");
       return -1;
     }
@@ -344,8 +346,8 @@ static int checkInvariants(SSyncRaftProgressTrackerConfig* config, SSyncRaftProg
 // the purposes of the Changer) and returns those copies. It returns an error
 // if checkInvariants does.
 static int checkAndCopy(SSyncRaftChanger* changer, SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap) {
-  syncRaftCloneTrackerConfig(&changer->tracker->config, config);
-  int i;
+  syncRaftCopyTrackerConfig(&changer->tracker->config, config);
+  syncRaftClearProgressMap(progressMap);
 
   SSyncRaftProgress* pProgress = NULL;
   while (!syncRaftIterateProgressMap(&changer->tracker->progressMap, pProgress)) {

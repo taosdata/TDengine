@@ -20,6 +20,11 @@
 #include "sync.h"
 #include "syncInt.h"
 
+static void copyProgress(SSyncRaftProgress* progress, void* arg);
+
+static void refProgress(SSyncRaftProgress* progress);
+static void unrefProgress(SSyncRaftProgress* progress, void*);
+
 static void resetProgressState(SSyncRaftProgress* progress, ESyncRaftProgressState state);
 static void probeAcked(SSyncRaftProgress* progress);
 
@@ -125,6 +130,7 @@ SSyncRaftProgress* syncRaftFindProgressByNodeId(const SSyncRaftProgressMap* prog
 }
 
 int syncRaftAddToProgressMap(SSyncRaftProgressMap* progressMap, SSyncRaftProgress* progress) {
+  refProgress(progress);
   taosHashPut(progressMap->progressMap, &progress->id, sizeof(SyncNodeId*), &progress, sizeof(SSyncRaftProgress*));
 }
 
@@ -133,7 +139,8 @@ void syncRaftRemoveFromProgressMap(SSyncRaftProgressMap* progressMap, SyncNodeId
   if (ppProgress == NULL) {
     return;
   }
-  free(*ppProgress);
+  unrefProgress(*ppProgress, NULL);
+
   taosHashRemove(progressMap->progressMap, &id, sizeof(SyncNodeId*));
 }
 
@@ -182,6 +189,23 @@ void syncRaftCopyProgress(const SSyncRaftProgress* progress, SSyncRaftProgress* 
   memcpy(out, progress, sizeof(SSyncRaftProgress));
 }
 
+void syncRaftInitProgressMap(SSyncRaftProgressMap* progressMap) {
+  progressMap->progressMap = taosHashInit(TSDB_MAX_REPLICA, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+}
+
+void syncRaftFreeProgressMap(SSyncRaftProgressMap* progressMap) {
+  syncRaftVisitProgressMap(progressMap, unrefProgress, NULL);
+  taosHashCleanup(progressMap->progressMap);
+}
+
+void syncRaftClearProgressMap(SSyncRaftProgressMap* progressMap) {
+  taosHashClear(progressMap->progressMap);
+}
+
+void syncRaftCopyProgressMap(SSyncRaftProgressMap* from, SSyncRaftProgressMap* to) {
+  syncRaftVisitProgressMap(from, copyProgress, to);
+}
+
 bool syncRaftIterateProgressMap(const SSyncRaftProgressMap* progressMap, SSyncRaftProgress *pProgress) {
   SSyncRaftProgress **ppProgress = taosHashIterate(progressMap->progressMap, pProgress);
   if (ppProgress == NULL) {
@@ -199,6 +223,25 @@ bool syncRaftVisitProgressMap(SSyncRaftProgressMap* progressMap, visitProgressFp
   }
 }
 
+static void copyProgress(SSyncRaftProgress* progress, void* arg) {
+  assert(progress->refCount > 0);
+  SSyncRaftProgressMap* to = (SSyncRaftProgressMap*)arg;
+  syncRaftAddToProgressMap(to, progress);
+}
+
+static void refProgress(SSyncRaftProgress* progress) {
+  progress->refCount += 1;
+}
+
+static void unrefProgress(SSyncRaftProgress* progress, void* arg) {
+  (void)arg;
+  progress->refCount -= 1;
+  assert(progress->refCount >= 0);
+  if (progress->refCount == 0) {
+    free(progress);
+  }
+}
+ 
 /**
  * ResetState moves the Progress into the specified State, resetting ProbeSent,
  * PendingSnapshot, and Inflights.
