@@ -2029,6 +2029,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   const char* msg6 = "not support distinct mixed with join"; 
   const char* msg7 = "not support distinct mixed with groupby";
   const char* msg8 = "not support distinct in nest query";
+  const char* msg9 = "invalid alias name";
 
   // too many result columns not support order by in query
   if (taosArrayGetSize(pSelNodeList) > TSDB_MAX_COLUMNS) {
@@ -2051,6 +2052,9 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
     if (hasDistinct == false) {
        hasDistinct = (pItem->distinct == true); 
        distIdx     =  hasDistinct ? i : -1;
+    }
+    if(pItem->aliasName != NULL && validateColumnName(pItem->aliasName) != TSDB_CODE_SUCCESS){
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
     }
 
     int32_t type = pItem->pNode->type;
