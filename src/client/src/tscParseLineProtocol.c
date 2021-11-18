@@ -560,7 +560,7 @@ static int32_t retrieveTableMeta(TAOS* taos, char* tableName, STableMeta** pTabl
     pSql->fp = NULL;
 
     registerSqlObj(pSql);
-    char tableNameBuf[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE];
+    char tableNameBuf[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
     memcpy(tableNameBuf, tableName, strlen(tableName));
     SStrToken tableToken = {.z = tableNameBuf, .n = (uint32_t)strlen(tableName), .type = TK_ID};
     tGetToken(tableNameBuf, &tableToken.type);
