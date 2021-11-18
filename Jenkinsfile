@@ -251,77 +251,6 @@ def pre_test_mac(){
     '''
     return 1
 }
-def pre_test_noinstall(){
-    sh'hostname'
-    sh'''
-    cd ${WKC}
-    git reset --hard HEAD~10 >/dev/null
-    '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        sh '''
-        cd ${WKC}
-        git checkout master
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WKC}
-        git checkout 2.0
-        '''
-      } 
-      else{
-        sh '''
-        cd ${WKC}
-        git checkout develop
-        '''
-      }
-    }
-    sh'''
-    cd ${WKC}
-    git pull >/dev/null
-    git fetch origin +refs/pull/${CHANGE_ID}/merge
-    git checkout -qf FETCH_HEAD
-    git clean -dfx
-    git submodule update --init --recursive
-    cd ${WK}
-    git reset --hard HEAD~10
-    '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        sh '''
-        cd ${WK}
-        git checkout master
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WK}
-        git checkout 2.0
-        '''
-      } 
-      else{
-        sh '''
-        cd ${WK}
-        git checkout develop
-        '''
-      } 
-    }
-    sh '''
-    cd ${WK}
-    git pull >/dev/null 
-    
-    export TZ=Asia/Harbin
-    date
-    git clean -dfx
-    mkdir debug
-    cd debug
-    cmake .. > /dev/null
-    make
-    '''
-    return 1
-}
-
 def pre_test_win(){
     bat '''
     taskkill /f /t /im python.exe
@@ -500,7 +429,7 @@ pipeline {
         stage('python_3_s6') {
           agent{label " slave6 || slave16 "}
           steps {     
-            timeout(time: 65, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
@@ -646,7 +575,7 @@ pipeline {
         stage('test_b6_s9') {
           agent{label " slave9 || slave19 "}
           steps {     
-            timeout(time: 105, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
