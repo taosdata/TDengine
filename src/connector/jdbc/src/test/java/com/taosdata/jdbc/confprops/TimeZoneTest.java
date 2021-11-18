@@ -1,4 +1,4 @@
-package com.taosdata.jdbc.cases;
+package com.taosdata.jdbc.confprops;
 
 import com.taosdata.jdbc.TSDBDriver;
 import org.junit.Test;
