@@ -195,8 +195,9 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
   }
   tfree(value);
 
-  pVal->key = tcalloc(sizeof(key), 1);
+  pVal->key = tcalloc(sizeof(key) + TS_ESCAPE_CHAR_SIZE, 1);
   memcpy(pVal->key, key, sizeof(key));
+  addEscapeCharToString(pVal->key, (int32_t)strlen(pVal->key));
   *num_kvs += 1;
 
   *index = cur + 1;
@@ -881,8 +882,9 @@ static int32_t parseMetricValueFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *nu
     return ret;
   }
 
-  pVal->key = tcalloc(sizeof(key), 1);
+  pVal->key = tcalloc(sizeof(key) + TS_ESCAPE_CHAR_SIZE, 1);
   memcpy(pVal->key, key, sizeof(key));
+  addEscapeCharToString(pVal->key, (int32_t)strlen(pVal->key));
 
   *num_kvs += 1;
   return TSDB_CODE_SUCCESS;
