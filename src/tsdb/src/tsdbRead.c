@@ -1916,9 +1916,9 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
         break;
       }
 
-      TSKEY key = memRowKey(row1);
-      if ((key > pQueryHandle->window.ekey && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
-          (key < pQueryHandle->window.ekey && !ASCENDING_TRAVERSE(pQueryHandle->order))) {
+      TSKEY keyMem = memRowKey(row1);
+      if ((keyMem > pQueryHandle->window.ekey && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
+          (keyMem < pQueryHandle->window.ekey && !ASCENDING_TRAVERSE(pQueryHandle->order))) {
         break;
       }
 
@@ -1931,8 +1931,8 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
           break;
       }
 
-      if ((key < tsArray[pos] && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
-          (key > tsArray[pos] && !ASCENDING_TRAVERSE(pQueryHandle->order))) {
+      if ((keyMem < keyFile[pos] && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
+          (keyMem > keyFile[pos] && !ASCENDING_TRAVERSE(pQueryHandle->order))) {
         if (rv1 != memRowVersion(row1)) {
           pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1), (int8_t)memRowType(row1));
           rv1 = memRowVersion(row1);
@@ -1998,7 +1998,7 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
         int32_t end = doBinarySearchKey(pCols->cols[0].pData, pCols->numOfRows, pos, keyMem, pQueryHandle->order);
         assert(end != -1);
 
-        if (tsArray[end] == key) { // the value of key in cache equals to the end timestamp value, ignore it
+        if (keyFile[end] == keyMem) { // the value of key in cache equals to the end timestamp value, ignore it
           if (pCfg->update == TD_ROW_DISCARD_UPDATE) {
             moveToNextRowInMem(pCheckInfo);
           } else {

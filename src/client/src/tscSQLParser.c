@@ -2019,6 +2019,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   const char* msg8 = "not support distinct in nest query";
   const char* msg9 = "_block_dist not support subquery, only support stable/table";
   const char* msg10 = "not support group by in block func";
+  const char* msg11 = "invalid alias name";
 
   // too many result columns not support order by in query
   if (taosArrayGetSize(pSelNodeList) > TSDB_MAX_COLUMNS) {
@@ -2038,9 +2039,12 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
     int32_t outputIndex = (int32_t)tscNumOfExprs(pQueryInfo);
     tSqlExprItem* pItem = taosArrayGet(pSelNodeList, i);
     if (hasDistinct == false) {
-      hasDistinct = (pItem->distinct == true);
-      distIdx     =  hasDistinct ? i : -1;
-    } 
+       hasDistinct = (pItem->distinct == true); 
+       distIdx     =  hasDistinct ? i : -1;
+    }
+    if(pItem->aliasName != NULL && validateColumnName(pItem->aliasName) != TSDB_CODE_SUCCESS){
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg11);
+    }
 
     int32_t type = pItem->pNode->type;
     if (type == SQL_NODE_SQLFUNCTION) {
