@@ -84,7 +84,7 @@ class TDTestCase:
         index_value = np.dstack((cpms_index[0])).squeeze()
 
         tdSql.query("show variables")
-        tdSql.checkData(index_value, 1, -1)
+        tdSql.checkData(index_value, 1, 524288)
 
         tdSql.query("show dnodes")
         index = tdSql.getData(0, 0)
