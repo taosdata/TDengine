@@ -204,13 +204,14 @@ int getChildNameOfSuperTableWithLimitAndOffset(TAOS *taos, char *dbName,
     int64_t   childTblCount = (limit < 0) ? DEFAULT_CHILDTABLES : limit;
     int64_t   count = 0;
     char *    childTblName = *childTblNameOfSuperTbl;
-    char *    pTblName = childTblName;
+
     if (childTblName == NULL) {
         childTblName = (char *)calloc(1, childTblCount * TSDB_TABLE_NAME_LEN);
         if (childTblName == NULL) {
             errorPrint("%s", "failed to allocate memory\n");
         }
     }
+    char *pTblName = childTblName;
 
     snprintf(limitBuf, 100, " limit %" PRId64 " offset %" PRIu64 "", limit,
              offset);
