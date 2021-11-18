@@ -2492,6 +2492,10 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
       }
 
       SExprInfo* p = tscAddFuncInSelectClause(pNewQueryInfo, index++, TSDB_FUNC_TAG, &colIndex, schema, TSDB_COL_TAG, getNewResColId(pCmd));
+      if (schema->type == TSDB_DATA_TYPE_JSON){
+        p->base.numOfParams = pExpr->base.numOfParams;
+        p->base.param[0] = pExpr->base.param[0];
+      }
       p->base.resColId = pExpr->base.resColId;
     } else if (pExpr->base.functionId == TSDB_FUNC_PRJ) {
       int32_t num = (int32_t) taosArrayGetSize(pNewQueryInfo->groupbyExpr.columnInfo);

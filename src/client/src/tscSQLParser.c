@@ -7493,15 +7493,14 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
       SExprInfo*   pExpr = tscExprInsert(pQueryInfo, pos, f, &index, s->type, s->bytes, getNewResColId(pCmd), s->bytes, true);
       // if json->key is more than TSDB_COL_NAME_LEN + TSDB_DB_NAME_LEN, truncature it， maybe case error, can encode name by md5.
       if(s->type == TSDB_DATA_TYPE_JSON){
-        tstrncpy(s->name, pColIndex->name, TSDB_COL_NAME_LEN);
         tVariantCreateFromBinary(&(pExpr->base.param[pExpr->base.numOfParams]), pColIndex->name,
                                  strlen(pColIndex->name), TSDB_DATA_TYPE_BINARY);
         pExpr->base.numOfParams++;
       }
 
       memset(pExpr->base.aliasName, 0, sizeof(pExpr->base.aliasName));
-      tstrncpy(pExpr->base.aliasName, s->name, sizeof(pExpr->base.aliasName));
-      tstrncpy(pExpr->base.token, s->name, sizeof(pExpr->base.aliasName));
+      tstrncpy(pExpr->base.aliasName, pColIndex->name, sizeof(pExpr->base.aliasName));
+      tstrncpy(pExpr->base.token, pColIndex->name, sizeof(pExpr->base.aliasName));
 
       pExpr->base.colInfo.flag = TSDB_COL_TAG;
 
