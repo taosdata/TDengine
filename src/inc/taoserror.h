@@ -24,7 +24,7 @@ extern "C" {
 #include <stdbool.h>
 
 #define TAOS_DEF_ERROR_CODE(mod, code) ((int32_t)((0x80000000 | ((mod)<<16) | (code))))
- 
+
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
 #define TAOS_SUCCEEDED(err)                 ((err) >= 0)
 #define TAOS_FAILED(err)                    ((err) < 0)
@@ -33,7 +33,7 @@ const char* tstrerror(int32_t err);
 
 int32_t* taosGetErrno();
 #define terrno                              (*taosGetErrno())
- 
+
 #define TSDB_CODE_SUCCESS                   0
 #define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error
 
@@ -224,6 +224,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_DND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0404)  //"Action in progress")
 #define TSDB_CODE_DND_TOO_MANY_VNODES           TAOS_DEF_ERROR_CODE(0, 0x0405)  //"Too many vnode directories")
 #define TSDB_CODE_DND_EXITING                   TAOS_DEF_ERROR_CODE(0, 0x0406)  //"Dnode is exiting"
+#define TSDB_CODE_DND_VNODE_OPEN_FAILED         TAOS_DEF_ERROR_CODE(0, 0x0407)  //"Vnode open failed
 
 // vnode
 #define TSDB_CODE_VND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0500)  //"Action in progress")
