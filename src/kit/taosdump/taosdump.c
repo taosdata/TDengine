@@ -312,7 +312,6 @@ static struct argp_option options[] = {
     {"password", 'p', 0,    0,  "User password to connect to server. Default is taosdata.", 0},
 #endif
     {"port", 'P', "PORT",        0,  "Port to connect", 0},
-    {"mysqlFlag",     'q', "MYSQLFLAG",   0,  "mysqlFlag, Default is 0", 0},
     // input/output file
     {"outpath", 'o', "OUTPATH",     0,  "Output file path.", 1},
     {"inpath", 'i', "INPATH",      0,  "Input file path.", 1},
@@ -353,7 +352,6 @@ typedef struct arguments {
     char    *user;
     char    password[SHELL_MAX_PASSWORD_LEN];
     uint16_t port;
-    uint16_t mysqlFlag;
     // output file
     char     outpath[MAX_FILE_NAME_LEN];
     char     inpath[MAX_FILE_NAME_LEN];
@@ -411,8 +409,7 @@ struct arguments g_args = {
 #else
     "taosdata",
 #endif
-    0,
-    0,
+    0,          // port
     // outpath and inpath
     "",
     "",
@@ -620,9 +617,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             }
             g_args.port = (uint16_t)port;
 
-            break;
-        case 'q':
-            g_args.mysqlFlag = atoi(arg);
             break;
         case 'o':
             if (wordexp(arg, &full_path, 0) != 0) {
@@ -1382,24 +1376,12 @@ static int getTableDes(
                             (char *)(tableDes->cols[i].var_value), nlen);
                 }
                 break;
+
             case TSDB_DATA_TYPE_TIMESTAMP:
                 sprintf(tableDes->cols[i].value, "%" PRId64 "",
                         *(int64_t *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
-#if 0
-                if (!g_args.mysqlFlag) {
-                    sprintf(tableDes->cols[i].value, "%" PRId64 "",
-                            *(int64_t *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
-                } else {
-                    char buf[64] = "\0";
-                    int64_t ts = *((int64_t *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
-                    time_t tt = (time_t)(ts / 1000);
-                    struct tm *ptm = localtime(&tt);
-                    strftime(buf, 64, "%y-%m-%d %H:%M:%S", ptm);
-                    sprintf(tableDes->cols[i].value, "\'%s.%03d\'", buf,
-                            (int)(ts % 1000));
-                }
-#endif
                 break;
+
             default:
                 break;
         }
@@ -2933,8 +2915,7 @@ static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbN
     char *pstr = tmpBuffer;
 
     TAOS_ROW row = NULL;
-    int rowFlag = 0;
-    int64_t    lastRowsPrint = 5000000;
+    int64_t lastRowsPrint = 5000000;
     int count = 0;
 
     int numFields = taos_field_count(res);
@@ -2954,16 +2935,7 @@ static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbN
             curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len,
                     "INSERT INTO %s.%s VALUES (", dbName, tbName);
         } else {
-            if (g_args.mysqlFlag) {
-                if (0 == rowFlag) {
-                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "(");
-                    rowFlag++;
-                } else {
-                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, ", (");
-                }
-            } else {
-                curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "(");
-            }
+            curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "(");
         }
 
         for (int col = 0; col < numFields; col++) {
@@ -3027,20 +2999,9 @@ static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbN
                     break;
 
                 case TSDB_DATA_TYPE_TIMESTAMP:
-                    if (!g_args.mysqlFlag) {
-                        curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len,
-                                "%" PRId64 "",
-                                *(int64_t *)row[col]);
-                    } else {
-                        char buf[64] = "\0";
-                        int64_t ts = *((int64_t *)row[col]);
-                        time_t tt = (time_t)(ts / 1000);
-                        struct tm *ptm = localtime(&tt);
-                        strftime(buf, 64, "%y-%m-%d %H:%M:%S", ptm);
-                        curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len,
-                                "\'%s.%03d\'",
-                                buf, (int)(ts % 1000));
-                    }
+                    curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len,
+                            "%" PRId64 "",
+                            *(int64_t *)row[col]);
                     break;
 
                 default:
@@ -4331,7 +4292,6 @@ int main(int argc, char *argv[]) {
     printf("user: %s\n", g_args.user);
     printf("password: %s\n", g_args.password);
     printf("port: %u\n", g_args.port);
-    printf("mysqlFlag: %d\n", g_args.mysqlFlag);
     printf("outpath: %s\n", g_args.outpath);
     printf("inpath: %s\n", g_args.inpath);
     printf("resultFile: %s\n", g_args.resultFile);
@@ -4389,7 +4349,6 @@ int main(int argc, char *argv[]) {
     fprintf(g_fpOfResult, "user: %s\n", g_args.user);
     fprintf(g_fpOfResult, "password: %s\n", g_args.password);
     fprintf(g_fpOfResult, "port: %u\n", g_args.port);
-    fprintf(g_fpOfResult, "mysqlFlag: %d\n", g_args.mysqlFlag);
     fprintf(g_fpOfResult, "outpath: %s\n", g_args.outpath);
     fprintf(g_fpOfResult, "inpath: %s\n", g_args.inpath);
     fprintf(g_fpOfResult, "resultFile: %s\n", g_args.resultFile);
