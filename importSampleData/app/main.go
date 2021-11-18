@@ -709,7 +709,7 @@ func executeBatchInsert(insertSql string, connection *sql.DB) int64 {
 }
 
 func getFieldValue(fieldValue interface{},fieldtype interface{}) string {
-	if fieldtype == "timestamp" {
+	if fieldtype == "timestamp" || fieldtype == "bigint"  {
 		return fmt.Sprintf("%v", fieldValue)
 	}
 	return fmt.Sprintf("'%v'", fieldValue)
