@@ -195,6 +195,12 @@ typedef struct  {
   char  *taglists;
 } SSampleFuncInfo;
 
+typedef struct SElapsedInfo {
+  int8_t hasResult;
+  TSKEY min;
+  TSKEY max;
+} SElapsedInfo;
+
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo) {
   if (!isValidDataType(dataType)) {
@@ -359,6 +365,11 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       *bytes = sizeof(STwaInfo);
       *interBytes = *bytes;
       return TSDB_CODE_SUCCESS;
+    } else if (functionId == TSDB_FUNC_ELAPSED) {
+      *type = TSDB_DATA_TYPE_BINARY;
+      *bytes = sizeof(SElapsedInfo);
+      *interBytes = *bytes;
+      return TSDB_CODE_SUCCESS;
     }
   }
 
@@ -459,6 +470,10 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *bytes = sizeof(SStddevdstInfo);
     *interBytes = (*bytes);
 
+  } else if (functionId == TSDB_FUNC_ELAPSED) {
+    *type = TSDB_DATA_TYPE_BIGINT;
+    *bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    *interBytes = sizeof(SElapsedInfo);
   } else {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
@@ -468,7 +483,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
 // TODO use hash table
 int32_t isValidFunction(const char* name, int32_t len) {
-  for(int32_t i = 0; i <= TSDB_FUNC_BLKINFO; ++i) {
+  for(int32_t i = 0; i <= TSDB_FUNC_ELAPSED; ++i) {
     int32_t nameLen = (int32_t) strlen(aAggs[i].name);
     if (len != nameLen) {
       continue;
@@ -3436,7 +3451,7 @@ static void spread_function(SQLFunctionCtx *pCtx) {
   SSpreadInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   int32_t numOfElems = 0;
-  
+
   // todo : opt with pre-calculated result
   // column missing cause the hasNull to be true
   if (pCtx->preAggVals.isSet) {
@@ -3539,7 +3554,7 @@ void spread_function_finalizer(SQLFunctionCtx *pCtx) {
    * the type of intermediate data is binary
    */
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  
+
   if (pCtx->currentStage == MERGE_STAGE) {
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
     
@@ -5043,6 +5058,89 @@ static void sample_func_finalizer(SQLFunctionCtx *pCtx) {
   doFinalizer(pCtx);
 }
 
+static SElapsedInfo * getSElapsedInfo(SQLFunctionCtx *pCtx) {
+  if (pCtx->stableQuery && pCtx->currentStage != MERGE_STAGE) {
+    return (SElapsedInfo *)pCtx->pOutput;
+  } else {
+    return GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  }
+}
+
+static bool elapsedSetup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
+  if (!function_setup(pCtx, pResInfo)) {
+    return false;
+  }
+
+  SElapsedInfo *pInfo = getSElapsedInfo(pCtx);
+  pInfo->min = MAX_TS_KEY;
+  pInfo->max = 0;
+  pInfo->hasResult = 0;
+
+  return true;
+}
+
+static int32_t elapsedRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
+  return BLK_DATA_NO_NEEDED;
+}
+
+static void elapsedFunction(SQLFunctionCtx *pCtx) {
+  SElapsedInfo *pInfo = getSElapsedInfo(pCtx);
+  if (pCtx->preAggVals.isSet) {
+    if (pInfo->min == MAX_TS_KEY) {
+      pInfo->min = pCtx->preAggVals.statis.min;
+      pInfo->max = pCtx->preAggVals.statis.max;
+    } else {
+      pInfo->max = pCtx->preAggVals.statis.max;
+    }
+  } else {
+    if (0 == pCtx->size) {
+      goto elapsedOver;
+    }
+
+    if (pCtx->start.key == INT64_MIN) {
+      pInfo->min = pCtx->ptsList[0];
+    } else {
+      pInfo->min = pCtx->start.key;
+    }
+
+    if (pCtx->end.key != INT64_MIN) {
+      pInfo->max = pCtx->end.key + 1;
+    } else {
+      pInfo->max = pCtx->ptsList[pCtx->size - 1];
+    }
+  }
+
+elapsedOver:
+  SET_VAL(pCtx, pCtx->size, 1);
+  
+  if (pCtx->size > 0) {
+    GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
+    pInfo->hasResult = DATA_SET_FLAG;
+  }
+}
+
+static void elapsedMerge(SQLFunctionCtx *pCtx) {
+  SElapsedInfo *pInfo = getSElapsedInfo(pCtx);
+  memcpy(pInfo, pCtx->pInput, (size_t)pCtx->inputBytes);
+  GET_RES_INFO(pCtx)->hasResult = pInfo->hasResult;
+}
+
+static void elapsedFinalizer(SQLFunctionCtx *pCtx) {
+  if (GET_RES_INFO(pCtx)->hasResult != DATA_SET_FLAG) {
+    setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+    return;
+  }
+
+  SElapsedInfo *pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  *(int64_t *)pCtx->pOutput = pInfo->max - pInfo->min;
+  if (pCtx->numOfParams > 0 && pCtx->param[0].i64 > 0) {
+    *(int64_t *)pCtx->pOutput = *(int64_t *)pCtx->pOutput / pCtx->param[0].i64;
+  }
+  GET_RES_INFO(pCtx)->numOfRes = 1;
+
+  doFinalizer(pCtx);
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 /*
  * function compatible list.
@@ -5063,8 +5161,8 @@ int32_t functionCompatList[] = {
     1,          1,        1,         1,       -1,      1,          1,           1,          5,          1,      1,
     // tid_tag, deriv,    ceil,     floor,    round,   csum,       mavg,        sample,
     6,          8,        1,        1,         1,      -1,         -1,          -1,
-    // block_info
-    7
+    // block_info, elapsed
+    7,             1
 };
 
 SAggFunctionInfo aAggs[] = {{
@@ -5547,4 +5645,16 @@ SAggFunctionInfo aAggs[] = {{
                               block_func_merge,
                               dataBlockRequired,
                           },
+                          {
+                              // 40
+                              "elapsed",
+                              TSDB_FUNC_ELAPSED,
+                              TSDB_FUNC_ELAPSED,
+                              TSDB_BASE_FUNC_SO,
+                              elapsedSetup,
+                              elapsedFunction,
+                              elapsedFinalizer,
+                              elapsedMerge,
+                              elapsedRequired,
+                          }
 };

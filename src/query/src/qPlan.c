@@ -538,7 +538,7 @@ SArray* createTableScanPlan(SQueryAttr* pQueryAttr) {
   } else {
     if (pQueryAttr->queryBlockDist) {
       op = OP_TableBlockInfoScan;
-    } else if (pQueryAttr->tsCompQuery || pQueryAttr->pointInterpQuery || pQueryAttr->diffQuery) {
+    } else if (pQueryAttr->tsCompQuery || pQueryAttr->pointInterpQuery || pQueryAttr->diffQuery || pQueryAttr->needTableSeqScan) {
       op = OP_TableSeqScan;
     } else if (pQueryAttr->needReverseScan) {
       op = OP_DataBlocksOptScan;

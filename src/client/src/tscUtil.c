@@ -379,6 +379,10 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
   return true;
 }
 
+bool tscNeedTableSeqScan(SQueryInfo* pQueryInfo) {
+  return tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_TWA) || tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_ELAPSED);
+}
+
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo) {
   if (tscIsProjectionQuery(pQueryInfo)) {
     return false;
@@ -511,7 +515,7 @@ bool timeWindowInterpoRequired(SQueryInfo *pQueryInfo) {
     }
 
     int32_t functionId = pExpr->base.functionId;
-    if (functionId == TSDB_FUNC_TWA || functionId == TSDB_FUNC_INTERP) {
+    if (functionId == TSDB_FUNC_TWA || functionId == TSDB_FUNC_INTERP || functionId == TSDB_FUNC_ELAPSED) {
       return true;
     }
   }
@@ -5015,6 +5019,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->groupbyColumn     = (!pQueryInfo->stateWindow) && tscGroupbyColumn(pQueryInfo);
   pQueryAttr->queryBlockDist    = isBlockDistQuery(pQueryInfo);
   pQueryAttr->pointInterpQuery  = tscIsPointInterpQuery(pQueryInfo);
+  pQueryAttr->needTableSeqScan  = tscNeedTableSeqScan(pQueryInfo);
   pQueryAttr->timeWindowInterpo = timeWindowInterpoRequired(pQueryInfo);
   pQueryAttr->distinct          = pQueryInfo->distinct;
   pQueryAttr->sw                = pQueryInfo->sessionWindow;

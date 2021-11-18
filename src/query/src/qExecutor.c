@@ -1332,7 +1332,7 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
 
   for (int32_t k = 0; k < pOperator->numOfOutput; ++k) {
     int32_t functionId = pCtx[k].functionId;
-    if (functionId != TSDB_FUNC_TWA && functionId != TSDB_FUNC_INTERP) {
+    if (functionId != TSDB_FUNC_TWA && functionId != TSDB_FUNC_INTERP && functionId != TSDB_FUNC_ELAPSED) {
       pCtx[k].start.key = INT64_MIN;
       continue;
     }
@@ -1370,7 +1370,7 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
           pCtx[k].end.ptr = (char *)pColInfo->pData + curRowIndex * pColInfo->info.bytes;
         }
       }
-    } else if (functionId == TSDB_FUNC_TWA) {
+    } else if (functionId == TSDB_FUNC_TWA || functionId == TSDB_FUNC_ELAPSED) {
       SPoint point1 = (SPoint){.key = prevTs,    .val = &v1};
       SPoint point2 = (SPoint){.key = curTs,     .val = &v2};
       SPoint point  = (SPoint){.key = windowKey, .val = &v };
@@ -1974,7 +1974,7 @@ void setBlockStatisInfo(SQLFunctionCtx *pCtx, SSDataBlock* pSDataBlock, SColInde
   pCtx->hasNull = hasNull(pColIndex, pStatis);
 
   // set the statistics data for primary time stamp column
-  if (pCtx->functionId == TSDB_FUNC_SPREAD && pColIndex->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+  if ((pCtx->functionId == TSDB_FUNC_SPREAD || pCtx->functionId == TSDB_FUNC_ELAPSED) && pColIndex->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
     pCtx->preAggVals.isSet  = true;
     pCtx->preAggVals.statis.min = pSDataBlock->info.window.skey;
     pCtx->preAggVals.statis.max = pSDataBlock->info.window.ekey;
@@ -8549,6 +8549,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   pQueryAttr->tsCompQuery     = pQueryMsg->tsCompQuery;
   pQueryAttr->simpleAgg       = pQueryMsg->simpleAgg;
   pQueryAttr->pointInterpQuery = pQueryMsg->pointInterpQuery;
+  pQueryAttr->needTableSeqScan = pQueryMsg->needTableSeqScan;
   pQueryAttr->needReverseScan  = pQueryMsg->needReverseScan;
   pQueryAttr->stateWindow      = pQueryMsg->stateWindow;
   pQueryAttr->vgId            = vgId;

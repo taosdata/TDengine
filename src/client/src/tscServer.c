@@ -941,6 +941,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->tsCompQuery      = query.tsCompQuery;
   pQueryMsg->simpleAgg        = query.simpleAgg;
   pQueryMsg->pointInterpQuery = query.pointInterpQuery;
+  pQueryMsg->needTableSeqScan = query.needTableSeqScan;
   pQueryMsg->needReverseScan  = query.needReverseScan;
   pQueryMsg->stateWindow      = query.stateWindow;
   pQueryMsg->numOfTags        = htonl(numOfTags);
