@@ -158,13 +158,13 @@ class TDTestCase:
         self.checkcsum(**case8)
 
         # case9~10: mix with tbname/ts/tag/col
-        # case9 = {"alias": ", tbname"}
-        # self.checkcsum(**case9)
+        case9 = {"alias": ", tbname"}
+        self.checkcsum(**case9)
         case10 = {"alias": ", _c0"}
         self.checkcsum(**case10)
-        # case11 = {"alias": ", st1"}
-        # self.checkcsum(**case11)
-        # case12 = {"alias": ", c1"}
+        case11 = {"alias": ", st1"}
+        self.checkcsum(**case11)
+        case12 = {"alias": ", c1"}
         # self.checkcsum(**case12)
 
         # case13~15: with  single condition
@@ -285,7 +285,7 @@ class TDTestCase:
             "table_expr": "t1",
             "condition": "group by c6"
         }
-        # tdSql.error(self.csum_query_form(**group_normal_col))       # group by normal col
+        tdSql.error(self.csum_query_form(**group_normal_col))       # group by normal col
         slimit_soffset_sql = {
             "table_expr": "stb1",
             "condition": "group by tbname slimit 1 soffset 1"
@@ -349,16 +349,16 @@ class TDTestCase:
         per_table_rows = 100
         self.csum_test_table(tbnum)
 
-        # tdLog.printNoPrefix("######## no data test:")
-        # self.csum_current_query()
-        # self.csum_error_query()
-        #
-        # tdLog.printNoPrefix("######## insert only NULL test:")
-        # for i in range(tbnum):
-        #     tdSql.execute(f"insert into t{i}(ts) values ({nowtime - 5})")
-        #     tdSql.execute(f"insert into t{i}(ts) values ({nowtime + 5})")
-        # self.csum_current_query()
-        # self.csum_error_query()
+        tdLog.printNoPrefix("######## no data test:")
+        self.csum_current_query()
+        self.csum_error_query()
+
+        tdLog.printNoPrefix("######## insert only NULL test:")
+        for i in range(tbnum):
+            tdSql.execute(f"insert into t{i}(ts) values ({nowtime - 5})")
+            tdSql.execute(f"insert into t{i}(ts) values ({nowtime + 5})")
+        self.csum_current_query()
+        self.csum_error_query()
 
         tdLog.printNoPrefix("######## insert data in the range near the max(bigint/double):")
         self.csum_test_table(tbnum)
@@ -367,16 +367,16 @@ class TDTestCase:
         tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
                       f"({nowtime - (per_table_rows + 2) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
         self.csum_current_query()
-        # self.csum_error_query()
-        #
-        # tdLog.printNoPrefix("######## insert data in the range near the min(bigint/double):")
-        # self.csum_test_table(tbnum)
-        # tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
-        #               f"({nowtime - (per_table_rows + 1) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {1-2**63})")
-        # tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
-        #               f"({nowtime - (per_table_rows + 2) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {512-2**63})")
-        # self.csum_current_query()
-        # self.csum_error_query()
+        self.csum_error_query()
+
+        tdLog.printNoPrefix("######## insert data in the range near the min(bigint/double):")
+        self.csum_test_table(tbnum)
+        tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
+                      f"({nowtime - (per_table_rows + 1) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {1-2**63})")
+        tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
+                      f"({nowtime - (per_table_rows + 2) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {512-2**63})")
+        self.csum_current_query()
+        self.csum_error_query()
 
         tdLog.printNoPrefix("######## insert data without NULL data test:")
         self.csum_test_table(tbnum)
