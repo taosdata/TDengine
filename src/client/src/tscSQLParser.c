@@ -2054,6 +2054,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   const char* msg8 = "not support distinct in nest query";
   const char* msg9 = "_block_dist not support subquery, only support stable/table";
   const char* msg10 = "not support group by in block func";
+  const char* msg11 = "invalid alias name";
 
   // too many result columns not support order by in query
   if (taosArrayGetSize(pSelNodeList) > TSDB_MAX_COLUMNS) {
@@ -2073,9 +2074,12 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
     int32_t outputIndex = (int32_t)tscNumOfExprs(pQueryInfo);
     tSqlExprItem* pItem = taosArrayGet(pSelNodeList, i);
     if (hasDistinct == false) {
-      hasDistinct = (pItem->distinct == true);
-      distIdx     =  hasDistinct ? i : -1;
-    } 
+       hasDistinct = (pItem->distinct == true); 
+       distIdx     =  hasDistinct ? i : -1;
+    }
+    if(pItem->aliasName != NULL && validateColumnName(pItem->aliasName) != TSDB_CODE_SUCCESS){
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg11);
+    }
 
     int32_t type = pItem->pNode->type;
     if (type == SQL_NODE_SQLFUNCTION) {
@@ -3752,6 +3756,10 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
 
     SStrToken token = {pVar->nLen, pVar->nType, pVar->pz};
 
+    if (pVar->nType != TSDB_DATA_TYPE_BINARY){
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    }
+
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
     if (getColumnIndexByName(&token, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
@@ -4070,7 +4078,7 @@ static int32_t getColQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlEx
       UNUSED(code);
       // TODO: more error handling
     } END_TRY
-    
+
     // add to required table column list
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
     int64_t uid = pTableMetaInfo->pTableMeta->id.uid;
@@ -5255,7 +5263,7 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
       UNUSED(code);
       // TODO: more error handling
     } END_TRY
-    
+
     // add to required table column list
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
     int64_t uid = pTableMetaInfo->pTableMeta->id.uid;
@@ -5464,7 +5472,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
 
   if (taosArrayGetSize(pQueryInfo->pUpstream) > 0 && condExpr.pTimewindow != NULL) {
     setNormalExprToCond(&condExpr.pColumnCond, condExpr.pTimewindow, TK_AND);
-    condExpr.pTimewindow = NULL;
+    condExpr.pTimewindow = tSqlExprClone(condExpr.pTimewindow);
   }
 
   tSqlExprCompact(pExpr);
@@ -6163,14 +6171,19 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, DEFAULT_TABLE_INDEX);
   bool dbIncluded = false;
 
-  if (tscValidateName(&(pAlterSQL->name), true, &dbIncluded) != TSDB_CODE_SUCCESS) {
+  SStrToken tmpToken = pAlterSQL->name;
+  tmpToken.z= strndup(pAlterSQL->name.z, pAlterSQL->name.n);
+  if (tscValidateName(&tmpToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
+    free(tmpToken.z);
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  code = tscSetTableFullName(&pTableMetaInfo->name, &(pAlterSQL->name), pSql, dbIncluded);
+  code = tscSetTableFullName(&pTableMetaInfo->name, &tmpToken, pSql, dbIncluded);
   if (code != TSDB_CODE_SUCCESS) {
+    free(tmpToken.z);
     return code;
   }
+  free(tmpToken.z);
 
   code = tscGetTableMeta(pSql, pTableMetaInfo);
   if (code != TSDB_CODE_SUCCESS) {
