@@ -78,7 +78,7 @@ void dnodeGetMnodeEpSetForShell(SEpSet *pEpSet) {
   pthread_mutex_unlock(&tsDnode.mutex);
 }
 
-void dnodeSendRedirectMsg(SRpcMsg *pMsg, bool forShell) {
+void dnodeSendRedirectMsg(SServer *pServer, SRpcMsg *pMsg, bool forShell) {
   int32_t msgType = pMsg->msgType;
 
   SEpSet epSet = {0};
@@ -383,7 +383,7 @@ static void dnodeSendStatusMsg() {
   contLen = sizeof(SStatusMsg) + pStatus->vnodeLoads.num * sizeof(SVnodeLoad);
 
   SRpcMsg rpcMsg = {.pCont = pStatus, .contLen = contLen, .msgType = TSDB_MSG_TYPE_STATUS};
-  dnodeSendMsgToMnode(&rpcMsg);
+  dnodeSendMsgToMnode(NULL, &rpcMsg);
 }
 
 static void dnodeUpdateCfg(SDnodeCfg *pCfg) {

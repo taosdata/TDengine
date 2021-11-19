@@ -43,16 +43,24 @@ typedef struct {
   int64_t compStorage;
 } SMnodeLoad;
 
+typedef struct SMnode SMnode;
+typedef struct SServer SServer;
+
+typedef void (*SendMsgToDnodeFp)(SServer *pServer, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
+typedef void (*SendMsgToMnodeFp)(SServer *pServer, struct SRpcMsg *rpcMsg);
+typedef void (*SendRedirectMsgFp)(SServer *pServer, struct SRpcMsg *rpcMsg, bool forShell);
+typedef int32_t (*PutMsgToMnodeQFp)(SServer *pServer, SMnodeMsg *pMsg);
+
 typedef struct {
-  int32_t dnodeId;
-  int64_t clusterId;
-  void (*SendMsgToDnode)(struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-  void (*SendMsgToMnode)(struct SRpcMsg *rpcMsg);
-  void (*SendRedirectMsg)(struct SRpcMsg *rpcMsg, bool forShell);
-  int32_t (*PutMsgIntoApplyQueue)(SMnodeMsg *pMsg);
+  int32_t           dnodeId;
+  int64_t           clusterId;
+  PutMsgToMnodeQFp  putMsgToApplyMsgFp;
+  SendMsgToDnodeFp  sendMsgToDnodeFp;
+  SendMsgToMnodeFp  sendMsgToMnodeFp;
+  SendRedirectMsgFp sendRedirectMsgFp;
 } SMnodePara;
 
-int32_t mnodeInit(SMnodePara para);
+SMnode* mnodeCreate(SMnodePara para);
 void    mnodeCleanup();
 
 int32_t mnodeDeploy(SMnodeCfg *pCfg);

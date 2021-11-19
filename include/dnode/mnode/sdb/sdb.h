@@ -144,6 +144,8 @@ typedef struct {
   SdbDeleteFp deleteFp;
 } SSdbTable;
 
+typedef struct SSdb SSdb;
+
 int32_t sdbInit();
 void    sdbCleanup();
 void    sdbSetTable(SSdbTable table);

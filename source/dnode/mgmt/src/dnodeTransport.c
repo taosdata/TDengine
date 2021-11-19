@@ -382,14 +382,14 @@ void dnodeCleanupTrans() {
   dnodeCleanupClient();
 }
 
-void dnodeSendMsgToDnode(SEpSet *epSet, SRpcMsg *rpcMsg) { 
+void dnodeSendMsgToDnode(SServer *pServer, SEpSet *epSet, SRpcMsg *rpcMsg) { 
   #if 0
   rpcSendRequest(tsTrans.clientRpc, epSet, rpcMsg, NULL); 
   #endif
   }
 
-void dnodeSendMsgToMnode(SRpcMsg *rpcMsg) {
+void dnodeSendMsgToMnode(SServer *pServer, SRpcMsg *rpcMsg) {
   SEpSet epSet = {0};
   dnodeGetMnodeEpSetForPeer(&epSet);
-  dnodeSendMsgToDnode(&epSet, rpcMsg);
+  dnodeSendMsgToDnode(NULL, &epSet, rpcMsg);
 }

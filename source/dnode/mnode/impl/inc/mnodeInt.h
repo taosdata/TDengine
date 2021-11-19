@@ -26,6 +26,16 @@ extern "C" {
 
 typedef int32_t (*MnodeRpcFp)(SMnodeMsg *pMsg);
 
+typedef struct SMnodeBak {
+  int32_t    dnodeId;
+  int64_t    clusterId;
+  tmr_h      timer;
+  SSteps    *pInitSteps;
+  SSteps    *pStartSteps;
+  SMnodePara para;
+  MnodeRpcFp msgFp[TSDB_MSG_TYPE_MAX];
+} SMnodeBak;
+
 typedef struct SMnode {
   int32_t    dnodeId;
   int64_t    clusterId;
@@ -34,15 +44,22 @@ typedef struct SMnode {
   SSteps    *pStartSteps;
   SMnodePara para;
   MnodeRpcFp msgFp[TSDB_MSG_TYPE_MAX];
+
+  struct SSdb      *pSdb;
+  struct SServer   *pServer;
+  PutMsgToMnodeQFp  putMsgToApplyMsgFp;
+  SendMsgToDnodeFp  sendMsgToDnodeFp;
+  SendMsgToMnodeFp  sendMsgToMnodeFp;
+  SendRedirectMsgFp sendRedirectMsgFp;
 } SMnode;
 
 tmr_h   mnodeGetTimer();
 int32_t mnodeGetDnodeId();
 int64_t mnodeGetClusterId();
 
-void mnodeSendMsgToDnode(struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
-void mnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell);
+void mnodeSendMsgToDnode(SMnode *pMnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
+void mnodeSendMsgToMnode(SMnode *pMnode, struct SRpcMsg *rpcMsg);
+void mnodeSendRedirectMsg(SMnode *pMnode, struct SRpcMsg *rpcMsg, bool forShell);
 
 void mnodeSetMsgFp(int32_t msgType, MnodeRpcFp fp);
 

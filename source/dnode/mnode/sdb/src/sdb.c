@@ -17,7 +17,7 @@
 #include "sdbInt.h"
 #include "tglobal.h"
 
-SSdbMgr tsSdb = {0};
+SSdb tsSdb = {0};
 
 int32_t sdbInit() {
   char path[PATH_MAX + 100];

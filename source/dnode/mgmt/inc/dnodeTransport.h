@@ -23,8 +23,8 @@ extern "C" {
 
 int32_t dnodeInitTrans();
 void    dnodeCleanupTrans();
-void    dnodeSendMsgToMnode(SRpcMsg *rpcMsg);
-void    dnodeSendMsgToDnode(SEpSet *epSet, SRpcMsg *rpcMsg);
+void    dnodeSendMsgToMnode(SServer *pServer, SRpcMsg *rpcMsg);
+void    dnodeSendMsgToDnode(SServer *pServer, SEpSet *epSet, SRpcMsg *rpcMsg);
 
 #ifdef __cplusplus
 }

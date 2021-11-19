@@ -38,6 +38,7 @@ static struct {
   taos_queue  pSyncQ;
   taos_queue  pMgmtQ;
   SSteps     *pSteps;
+  SMnode     *pMnode;
   SRWLatch    latch;
 } tsMnode = {0};
 
@@ -360,7 +361,7 @@ void dnodeProcessMnodeWriteMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
     dnodeWriteMnodeMsgToQueue(tsMnode.pWriteQ, pMsg);
     dnodeReleaseMnode();
   } else {
-    dnodeSendRedirectMsg(pMsg, 0);
+    dnodeSendRedirectMsg(NULL, pMsg, 0);
   }
 }
 
@@ -381,7 +382,7 @@ void dnodeProcessMnodeReadMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
     dnodeWriteMnodeMsgToQueue(tsMnode.pReadQ, pMsg);
     dnodeReleaseMnode();
   } else {
-    dnodeSendRedirectMsg(pMsg, 0);
+    dnodeSendRedirectMsg(NULL, pMsg, 0);
   }
 }
 
@@ -505,11 +506,15 @@ static int32_t dnodeInitMnodeModule() {
   SMnodePara para;
   para.dnodeId = dnodeGetDnodeId();
   para.clusterId = dnodeGetClusterId();
-  para.SendMsgToDnode = dnodeSendMsgToDnode;
-  para.SendMsgToMnode = dnodeSendMsgToMnode;
-  para.SendRedirectMsg = dnodeSendRedirectMsg;
+  para.sendMsgToDnodeFp = dnodeSendMsgToDnode;
+  para.sendMsgToMnodeFp = dnodeSendMsgToMnode;
+  para.sendMsgToMnodeFp = dnodeSendRedirectMsg;
 
-  return mnodeInit(para);
+  tsMnode.pMnode = mnodeCreate(para);
+  if (tsMnode.pMnode != NULL) {
+    return -1;
+  }
+  return 0;
 }
 
 static void dnodeCleanupMnodeModule() { mnodeCleanup(); }

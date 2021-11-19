@@ -52,7 +52,7 @@ typedef struct SSdbRow {
   char       pObj[];
 } SSdbRow;
 
-typedef struct {
+typedef struct SSdb {
   char       *currDir;
   char       *syncDir;
   char       *tmpDir;
@@ -67,9 +67,9 @@ typedef struct {
   SdbDeployFp deployFps[SDB_MAX];
   SdbEncodeFp encodeFps[SDB_MAX];
   SdbDecodeFp decodeFps[SDB_MAX];
-} SSdbMgr;
+} SSdb;
 
-extern SSdbMgr tsSdb;
+extern SSdb tsSdb;
 
 int32_t sdbWriteImp(SSdbRaw *pRaw);
 

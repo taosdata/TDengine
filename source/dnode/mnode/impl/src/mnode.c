@@ -35,17 +35,26 @@
 #include "mnodeVgroup.h"
 #include "mnodeTrans.h"
 
-SMnode tsMint = {0};
+SMnodeBak tsMint = {0};
 
 int32_t mnodeGetDnodeId() { return tsMint.para.dnodeId; }
 
 int64_t mnodeGetClusterId() { return tsMint.para.clusterId; }
 
-void mnodeSendMsgToDnode(struct SEpSet *epSet, struct SRpcMsg *rpcMsg) { (*tsMint.para.SendMsgToDnode)(epSet, rpcMsg); }
+void mnodeSendMsgToDnode(SMnode *pMnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg) {
+  assert(pMnode);
+  (*pMnode->sendMsgToDnodeFp)(pMnode->pServer, epSet, rpcMsg);
+}
 
-void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg) { return (*tsMint.para.SendMsgToMnode)(rpcMsg); }
+void mnodeSendMsgToMnode(SMnode *pMnode, struct SRpcMsg *rpcMsg) {
+  assert(pMnode);
+  (*pMnode->sendMsgToMnodeFp)(pMnode->pServer, rpcMsg);
+}
 
-void mnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell) { (*tsMint.para.SendRedirectMsg)(rpcMsg, forShell); }
+void mnodeSendRedirectMsg(SMnode *pMnode, struct SRpcMsg *rpcMsg, bool forShell) {
+  assert(pMnode);
+  (*pMnode->sendRedirectMsgFp)(pMnode->pServer, rpcMsg, forShell);
+}
 
 static int32_t mnodeInitTimer() {
   if (tsMint.timer == NULL) {
@@ -68,35 +77,40 @@ static void mnodeCleanupTimer() {
 
 tmr_h mnodeGetTimer() { return tsMint.timer; }
 
-static int32_t mnodeSetPara(SMnodePara para) {
-  tsMint.para = para;
+static int32_t mnodeSetPara(SMnode *pMnode, SMnodePara para) {
+  pMnode->dnodeId = para.dnodeId;
+  pMnode->clusterId = para.clusterId;
+  pMnode->putMsgToApplyMsgFp = para.putMsgToApplyMsgFp;
+  pMnode->sendMsgToDnodeFp = para.sendMsgToDnodeFp;
+  pMnode->sendMsgToMnodeFp = para.sendMsgToMnodeFp;
+  pMnode->sendRedirectMsgFp = para.sendRedirectMsgFp;
 
-  if (tsMint.para.SendMsgToDnode == NULL) {
+  if (pMnode->sendMsgToDnodeFp == NULL) {
     terrno = TSDB_CODE_MND_APP_ERROR;
     return -1;
   }
 
-  if (tsMint.para.SendMsgToMnode == NULL) {
+  if (pMnode->sendMsgToMnodeFp == NULL) {
     terrno = TSDB_CODE_MND_APP_ERROR;
     return -1;
   }
 
-  if (tsMint.para.SendRedirectMsg == NULL) {
+  if (pMnode->sendRedirectMsgFp == NULL) {
     terrno = TSDB_CODE_MND_APP_ERROR;
     return -1;
   }
 
-  if (tsMint.para.PutMsgIntoApplyQueue == NULL) {
+  if (pMnode->putMsgToApplyMsgFp == NULL) {
     terrno = TSDB_CODE_MND_APP_ERROR;
     return -1;
   }
 
-  if (tsMint.para.dnodeId < 0) {
+  if (pMnode->dnodeId < 0) {
     terrno = TSDB_CODE_MND_APP_ERROR;
     return -1;
   }
 
-  if (tsMint.para.clusterId < 0) {
+  if (pMnode->clusterId < 0) {
     terrno = TSDB_CODE_MND_APP_ERROR;
     return -1;
   }
@@ -142,23 +156,27 @@ static int32_t mnodeAllocStartSteps() {
   return 0;
 }
 
-int32_t mnodeInit(SMnodePara para) {
-  if (mnodeSetPara(para) != 0) {
+SMnode *mnodeCreate(SMnodePara para) {
+  SMnode *pMnode = calloc(1, sizeof(SMnode));
+
+  if (mnodeSetPara(pMnode, para) != 0) {
+    free(pMnode);
     mError("failed to init mnode para since %s", terrstr());
-    return -1;
+    return NULL;
   }
 
   if (mnodeAllocInitSteps() != 0) {
     mError("failed to alloc init steps since %s", terrstr());
-    return -1;
+    return NULL;
   }
 
   if (mnodeAllocStartSteps() != 0) {
     mError("failed to alloc start steps since %s", terrstr());
-    return -1;
+    return NULL;
   }
 
-  return taosStepExec(tsMint.pInitSteps);
+   taosStepExec(tsMint.pInitSteps);
+   return NULL;
 }
 
 void mnodeCleanup() { taosStepCleanup(tsMint.pInitSteps); }
@@ -234,7 +252,7 @@ void mnodeSetMsgFp(int32_t msgType, MnodeRpcFp fp) {
 
 void mnodeProcessMsg(SMnodeMsg *pMsg, EMnMsgType msgType) {
   if (!mnodeIsMaster()) {
-    mnodeSendRedirectMsg(&pMsg->rpcMsg, true);
+    mnodeSendRedirectMsg(NULL, &pMsg->rpcMsg, true);
     mnodeCleanupMsg(pMsg);
     return;
   }

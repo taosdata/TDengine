@@ -30,7 +30,7 @@ int64_t dnodeGetClusterId();
 void    dnodeGetDnodeEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
 void    dnodeGetMnodeEpSetForPeer(SEpSet *epSet);
 void    dnodeGetMnodeEpSetForShell(SEpSet *epSet);
-void    dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
+void    dnodeSendRedirectMsg(SServer *pServer, SRpcMsg *rpcMsg, bool forShell);
 
 #ifdef __cplusplus
 }

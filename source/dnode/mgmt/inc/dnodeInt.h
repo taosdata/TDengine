@@ -37,6 +37,9 @@ extern int32_t dDebugFlag;
 typedef enum { DN_RUN_STAT_INIT, DN_RUN_STAT_RUNNING, DN_RUN_STAT_STOPPED } EDnStat;
 typedef void (*MsgFp)(SRpcMsg *pMsg, SEpSet *pEpSet);
 
+typedef struct SServer {
+} SServer;
+
 int32_t dnodeInit();
 void    dnodeCleanup();
 

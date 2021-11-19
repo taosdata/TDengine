@@ -815,7 +815,7 @@ void dnodeProcessVnodeFetchMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
   }
 }
 
-static int32_t dnodePutMsgIntoVnodeApplyQueue(int32_t vgId, SVnodeMsg *pMsg) {
+static int32_t dnodePutMsgIntoVnodeApplyQueue(SServer *pServer, int32_t vgId, SVnodeMsg *pMsg) {
   SVnodeObj *pVnode = dnodeAcquireVnode(vgId);
   if (pVnode == NULL) {
     return terrno;
@@ -973,9 +973,9 @@ static void dnodeCleanupVnodeSyncWorker() { tMWorkerCleanup(&tsVnodes.syncPool);
 
 static int32_t dnodeInitVnodeModule() {
   SVnodePara para;
-  para.SendMsgToDnode = dnodeSendMsgToDnode;
-  para.SendMsgToMnode = dnodeSendMsgToMnode;
-  para.PutMsgIntoApplyQueue = dnodePutMsgIntoVnodeApplyQueue;
+  para.sendMsgToDnodeFp = dnodeSendMsgToDnode;
+  para.sendMsgToMnodeFp = dnodeSendMsgToMnode;
+  para.putMsgToApplyQueueFp = dnodePutMsgIntoVnodeApplyQueue;
 
   return vnodeInit(para);
 }
