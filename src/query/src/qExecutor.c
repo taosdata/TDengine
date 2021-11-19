@@ -6107,6 +6107,18 @@ static SSDataBlock* doAllIntervalAgg(void* param, bool* newgroup) {
   return pIntervalInfo->pRes->info.rows == 0? NULL:pIntervalInfo->pRes;
 }
 
+static void resetInterpolation(SQLFunctionCtx *pCtx, SQueryRuntimeEnv* pRuntimeEnv, int32_t numOfOutput) {
+  if (!pRuntimeEnv->pQueryAttr->timeWindowInterpo) {
+    return;
+  }
+
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    pCtx[i].start.key = INT64_MIN;
+    pCtx[i].end.key = INT64_MIN;
+  }
+  *(TSKEY *)pRuntimeEnv->prevRow[0] = INT64_MIN;
+}
+
 static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
   if (pOperator->status == OP_EXEC_DONE) {
@@ -6135,6 +6147,7 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
 
   SOperatorInfo* upstream = pOperator->upstream[0];
 
+  STableId prevId = {0, 0};
   while(1) {
     publishOperatorProfEvent(upstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
@@ -6142,6 +6155,12 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
 
     if (pBlock == NULL) {
       break;
+    }
+
+    if (prevId.tid != pBlock->info.tid || prevId.uid != pBlock->info.uid) {
+      resetInterpolation(pIntervalInfo->pCtx, pRuntimeEnv, pOperator->numOfOutput);
+      prevId.uid = pBlock->info.uid;
+      prevId.tid = pBlock->info.tid;
     }
 
     // the pDataBlock are always the same one, no need to call this again

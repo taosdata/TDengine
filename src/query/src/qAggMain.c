@@ -471,8 +471,8 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *interBytes = (*bytes);
 
   } else if (functionId == TSDB_FUNC_ELAPSED) {
-    *type = TSDB_DATA_TYPE_BIGINT;
-    *bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    *type = TSDB_DATA_TYPE_DOUBLE;
+    *bytes = tDataTypes[*type].bytes;
     *interBytes = sizeof(SElapsedInfo);
   } else {
     return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -5132,9 +5132,9 @@ static void elapsedFinalizer(SQLFunctionCtx *pCtx) {
   }
 
   SElapsedInfo *pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  *(int64_t *)pCtx->pOutput = pInfo->max - pInfo->min;
+  *(double *)pCtx->pOutput = (double)pInfo->max - (double)pInfo->min;
   if (pCtx->numOfParams > 0 && pCtx->param[0].i64 > 0) {
-    *(int64_t *)pCtx->pOutput = *(int64_t *)pCtx->pOutput / pCtx->param[0].i64;
+    *(double *)pCtx->pOutput = *(double *)pCtx->pOutput / pCtx->param[0].i64;
   }
   GET_RES_INFO(pCtx)->numOfRes = 1;
 
