@@ -483,6 +483,7 @@ static void dumpFieldToFile(FILE* fp, char* val, TAOS_FIELD* field, int32_t leng
     val += CHAR_BYTES;
     if(type == TSDB_DATA_TYPE_NCHAR) {
       length = varDataLen(val);
+      val = varDataVal(val);
     }
   }
 
@@ -665,6 +666,7 @@ static void printField(char* val, TAOS_FIELD* field, int width, int32_t length, 
     val += CHAR_BYTES;
     if(type == TSDB_DATA_TYPE_NCHAR) {
       length = varDataLen(val);
+      val = varDataVal(val);
     }
   }
 

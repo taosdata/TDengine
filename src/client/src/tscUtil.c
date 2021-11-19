@@ -750,7 +750,9 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
       p += pInfo->field.bytes;
     }
     memcpy(pRes->urow[i], pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
-  }else if (convertNchar && pInfo->field.type == TSDB_DATA_TYPE_JSON && *(char*)(pRes->urow[i]) == TSDB_DATA_TYPE_NCHAR) {
+  }else if (convertNchar && pInfo->field.type == TSDB_DATA_TYPE_JSON
+             && *(char*)(pRes->urow[i]) == TSDB_DATA_TYPE_NCHAR
+             && !isNull(POINTER_SHIFT(pRes->urow[i], CHAR_BYTES), TSDB_DATA_TYPE_JSON)) {
       // convert unicode to native code in a temporary buffer extra one byte for terminated symbol
       char* buffer = realloc(pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
       if (buffer == NULL) return;
