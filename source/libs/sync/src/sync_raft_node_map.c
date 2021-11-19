@@ -37,11 +37,10 @@ bool syncRaftIsInNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId) {
   return true;
 }
 
-void syncRaftCopyNodeMap(const SSyncRaftNodeMap* from, SSyncRaftNodeMap* to) {
-  SyncNodeId** ppId = (SyncNodeId**)taosHashIterate(from->nodeIdMap, NULL);
-  while (ppId) {
-    taosHashPut(to->nodeIdMap, ppId, sizeof(SyncNodeId*), ppId, sizeof(SyncNodeId*));
-    ppId = taosHashIterate(from->nodeIdMap, ppId);
+void syncRaftCopyNodeMap(SSyncRaftNodeMap* from, SSyncRaftNodeMap* to) {
+  SyncNodeId *pId = NULL;
+  while (!syncRaftIterateNodeMap(from, pId)) {
+    taosHashPut(to->nodeIdMap, &pId, sizeof(SyncNodeId*), &pId, sizeof(SyncNodeId*));
   }
 }
 
@@ -66,7 +65,7 @@ bool syncRaftIsAllNodeInProgressMap(SSyncRaftNodeMap* nodeMap, SSyncRaftProgress
   return true;
 }
 
-void syncRaftUnionNodeMap(const SSyncRaftNodeMap* nodeMap, SSyncRaftNodeMap* to) {
+void syncRaftUnionNodeMap(SSyncRaftNodeMap* nodeMap, SSyncRaftNodeMap* to) {
   syncRaftCopyNodeMap(nodeMap, to);
 }
 

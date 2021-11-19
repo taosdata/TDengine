@@ -31,9 +31,9 @@ void syncRaftClearNodeMap(SSyncRaftNodeMap* nodeMap);
 
 bool syncRaftIsInNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId);
 
-void syncRaftCopyNodeMap(const SSyncRaftNodeMap* from, SSyncRaftNodeMap* to);
+void syncRaftCopyNodeMap(SSyncRaftNodeMap* from, SSyncRaftNodeMap* to);
 
-void syncRaftUnionNodeMap(const SSyncRaftNodeMap* nodeMap, SSyncRaftNodeMap* to);
+void syncRaftUnionNodeMap(SSyncRaftNodeMap* nodeMap, SSyncRaftNodeMap* to);
 
 void syncRaftAddToNodeMap(SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId);
 

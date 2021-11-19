@@ -86,4 +86,6 @@ typedef enum {
 
 typedef void (*visitProgressFp)(SSyncRaftProgress* progress, void* arg);
 
+typedef void (*matchAckIndexerFp)(SyncNodeId id, void* arg, SyncIndex* index);
+
 #endif  /* _TD_LIBS_SYNC_TYPE_H */

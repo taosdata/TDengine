@@ -84,7 +84,7 @@ static void campaign(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
   SyncIndex lastIndex = syncRaftLogLastIndex(pRaft->log);
   SyncTerm lastTerm = syncRaftLogLastTerm(pRaft->log);
   SSyncRaftNodeMap nodeMap;
-  syncRaftJointConfigIDS(&pRaft->tracker->config.voters, &nodeMap);
+  syncRaftJointConfigIDs(&pRaft->tracker->config.voters, &nodeMap);
   SyncNodeId *pNodeId = NULL;
   while (!syncRaftIterateNodeMap(&nodeMap, pNodeId)) {
     SyncNodeId nodeId = *pNodeId;

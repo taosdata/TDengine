@@ -22,20 +22,25 @@
 #include "sync_raft_node_map.h"
 #include "thash.h"
 
-/**
- * SSyncRaftQuorumJointConfig is a configuration of two groups of (possibly overlapping)
- * majority configurations. Decisions require the support of both majorities.
- **/
+// JointConfig is a configuration of two groups of (possibly overlapping)
+// majority configurations. Decisions require the support of both majorities.
 typedef struct SSyncRaftQuorumJointConfig {
   SSyncRaftNodeMap outgoing;
   SSyncRaftNodeMap incoming;
 } SSyncRaftQuorumJointConfig;
 
-/**
- * syncRaftVoteResult takes a mapping of voters to yes/no (true/false) votes and returns
- * a result indicating whether the vote is pending, lost, or won. A joint quorum
- * requires both majority quorums to vote in favor.
- **/
+// IDs returns a newly initialized map representing the set of voters present
+// in the joint configuration.
+void syncRaftJointConfigIDs(SSyncRaftQuorumJointConfig* config, SSyncRaftNodeMap* nodeMap);
+
+// CommittedIndex returns the largest committed index for the given joint
+// quorum. An index is jointly committed if it is committed in both constituent
+// majorities.
+SyncIndex syncRaftJointConfigCommittedIndex(const SSyncRaftQuorumJointConfig* config, matchAckIndexerFp indexer, void* arg);
+
+// VoteResult takes a mapping of voters to yes/no (true/false) votes and returns
+// a result indicating whether the vote is pending, lost, or won. A joint quorum
+// requires both majority quorums to vote in favor.
 ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, SHashObj* votesMap);
 
 void syncRaftInitQuorumJointConfig(SSyncRaftQuorumJointConfig* config);
@@ -75,7 +80,5 @@ static FORCE_INLINE bool syncRaftJointConfigIsOutgoingEmpty(const SSyncRaftQuoru
 static FORCE_INLINE bool syncRaftJointConfigIsInOutgoing(const SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
   return syncRaftIsInNodeMap(&config->outgoing, id);
 }
-
-void syncRaftJointConfigIDS(const SSyncRaftQuorumJointConfig* config, SSyncRaftNodeMap* nodeMap);
 
 #endif /* _TD_LIBS_SYNC_RAFT_QUORUM_JOINT_H */

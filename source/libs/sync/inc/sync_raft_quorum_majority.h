@@ -29,4 +29,8 @@
  **/
 ESyncRaftVoteResult syncRaftMajorityVoteResult(SSyncRaftNodeMap* config, SHashObj* votesMap);
 
+// CommittedIndex computes the committed index from those supplied via the
+// provided AckedIndexer (for the active config).
+SyncIndex syncRaftMajorityConfigCommittedIndex(const SSyncRaftNodeMap* config, matchAckIndexerFp indexer, void* arg);
+
 #endif /* _TD_LIBS_SYNC_RAFT_QUORUM_MAJORITY_H */

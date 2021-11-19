@@ -59,8 +59,17 @@ void syncRaftJointConfigRemoveFromIncoming(SSyncRaftQuorumJointConfig* config, S
   syncRaftRemoveFromNodeMap(&config->incoming, id);
 }
 
-void syncRaftJointConfigIDS(const SSyncRaftQuorumJointConfig* config, SSyncRaftNodeMap* nodeMap) {
+void syncRaftJointConfigIDs(SSyncRaftQuorumJointConfig* config, SSyncRaftNodeMap* nodeMap) {
   syncRaftCopyNodeMap(&config->incoming, nodeMap);
 
   syncRaftUnionNodeMap(&config->outgoing, nodeMap);
+}
+
+SyncIndex syncRaftJointConfigCommittedIndex(const SSyncRaftQuorumJointConfig* config, matchAckIndexerFp indexer, void* arg) {
+  SyncIndex index0, index1;
+
+  index0 = syncRaftMajorityConfigCommittedIndex(&config->incoming, indexer, arg);
+  index1 = syncRaftMajorityConfigCommittedIndex(&config->outgoing, indexer, arg);
+
+  return index0 < index1 ? index0 : index1;
 }
