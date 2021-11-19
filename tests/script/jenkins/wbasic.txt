@@ -143,7 +143,7 @@ wtest.bat -f general/parser/fill_stb.sim
 wtest.bat -f general/parser/where.sim
 wtest.bat -f general/parser/slimit.sim
 wtest.bat -f general/parser/select_with_tags.sim
-wtest.bat -f general/parser/interp.sim
+wtest.bat -f general/parser/interp_full.sim
 wtest.bat -f general/parser/tags_dynamically_specifiy.sim
 wtest.bat -f general/parser/groupby.sim
 wtest.bat -f general/parser/set_tag_vals.sim
