@@ -18,6 +18,7 @@
 #include "os.h"
 #include "tglobal.h"
 #include "tkey.h"
+#include "mnodeTrans.h"
 
 #define SDB_USER_VER 1
 
@@ -142,12 +143,12 @@ static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnodeMsg *pM
   userObj.updateTime = userObj.createdTime;
   userObj.rootAuth = 0;
 
-  STrans *pTrans = trnCreate(TRN_POLICY_ROLLBACK);
+  STrans *pTrans = trnCreate(TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
   if (pTrans == NULL) return -1;
-  trnSetRpcHandle(pTrans, pMsg->rpcMsg.handle);
 
   SSdbRaw *pRedoRaw = mnodeUserActionEncode(&userObj);
   if (pRedoRaw == NULL || trnAppendRedoLog(pTrans, pRedoRaw) != 0) {
+    mError("failed to append redo log since %s", terrstr());
     trnDrop(pTrans);
     return -1;
   }
@@ -155,6 +156,7 @@ static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnodeMsg *pM
 
   SSdbRaw *pUndoRaw = mnodeUserActionEncode(&userObj);
   if (pUndoRaw == NULL || trnAppendUndoLog(pTrans, pUndoRaw) != 0) {
+    mError("failed to append undo log since %s", terrstr());
     trnDrop(pTrans);
     return -1;
   }
@@ -162,6 +164,7 @@ static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnodeMsg *pM
 
   SSdbRaw *pCommitRaw = mnodeUserActionEncode(&userObj);
   if (pCommitRaw == NULL || trnAppendCommitLog(pTrans, pCommitRaw) != 0) {
+    mError("failed to append commit log since %s", terrstr());
     trnDrop(pTrans);
     return -1;
   }
@@ -227,6 +230,8 @@ int32_t mnodeInitUser() {
                      .updateFp = (SdbUpdateFp)mnodeUserActionUpdate,
                      .deleteFp = (SdbDeleteFp)mnodeUserActionDelete};
   sdbSetTable(table);
+
+  mnodeSetMsgFp(TSDB_MSG_TYPE_CREATE_USER, mnodeProcessCreateUserMsg);
 
   return 0;
 }

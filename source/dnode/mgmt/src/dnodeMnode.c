@@ -330,15 +330,20 @@ static void dnodeProcessMnodeApplyQueue(void *unused, SMnodeMsg *pMsg) { mnodePr
 static void dnodeProcessMnodeSyncQueue(void *unused, SMnodeMsg *pMsg) { mnodeProcessMsg(pMsg, MN_MSG_TYPE_SYNC); }
 
 static int32_t dnodeWriteMnodeMsgToQueue(taos_queue pQueue, SRpcMsg *pRpcMsg) {
-  int32_t code = 0;
+  int32_t    code = 0;
+  SMnodeMsg *pMsg = NULL;
 
   if (pQueue == NULL) {
     code = TSDB_CODE_DND_MSG_NOT_PROCESSED;
   } else {
-    SMnodeMsg *pMsg = mnodeInitMsg(pRpcMsg);
+    pMsg = mnodeInitMsg(pRpcMsg);
     if (pMsg == NULL) {
       code = terrno;
     }
+  }
+
+  if (code == 0) {
+    code = taosWriteQitem(pQueue, pMsg);
   }
 
   if (code != TSDB_CODE_SUCCESS) {

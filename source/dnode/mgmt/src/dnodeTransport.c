@@ -314,6 +314,8 @@ static int32_t dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, c
 }
 
 static int32_t dnodeInitShellServer() {
+  dnodeInitMsgFp();
+  
   int32_t numOfThreads = (int32_t)((tsNumOfCores * tsNumOfThreadsPerCore) / 2.0);
   if (numOfThreads < 1) {
     numOfThreads = 1;
@@ -336,6 +338,17 @@ static int32_t dnodeInitShellServer() {
     return -1;
   }
 
+#if 1
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_USER;
+  rpcMsg.contLen = sizeof(SCreateUserMsg);
+  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
+  SCreateUserMsg *pMsg = (SCreateUserMsg*)rpcMsg.pCont;
+  strcpy(pMsg->user, "u1");
+  strcpy(pMsg->pass, "up1");
+  dnodeProcessShellReq(&rpcMsg, NULL);
+
+#endif
   dInfo("dnode shell rpc server is initialized");
   return 0;
 }
@@ -369,7 +382,11 @@ void dnodeCleanupTrans() {
   dnodeCleanupClient();
 }
 
-void dnodeSendMsgToDnode(SEpSet *epSet, SRpcMsg *rpcMsg) { rpcSendRequest(tsTrans.clientRpc, epSet, rpcMsg, NULL); }
+void dnodeSendMsgToDnode(SEpSet *epSet, SRpcMsg *rpcMsg) { 
+  #if 0
+  rpcSendRequest(tsTrans.clientRpc, epSet, rpcMsg, NULL); 
+  #endif
+  }
 
 void dnodeSendMsgToMnode(SRpcMsg *rpcMsg) {
   SEpSet epSet = {0};

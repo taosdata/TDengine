@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tglobal.h"
-#include "tstep.h"
 #include "tqueue.h"
 #include "mnodeAcct.h"
 #include "mnodeAuth.h"
@@ -34,16 +33,9 @@
 #include "mnodeTelem.h"
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
+#include "mnodeTrans.h"
 
-static struct {
-  int32_t    dnodeId;
-  int64_t    clusterId;
-  tmr_h      timer;
-  SSteps    *pInitSteps;
-  SSteps    *pStartSteps;
-  SMnodePara para;
-  MnodeRpcFp msgFp[TSDB_MSG_TYPE_MAX];
-} tsMint;
+SMnode tsMint = {0};
 
 int32_t mnodeGetDnodeId() { return tsMint.para.dnodeId; }
 
@@ -116,7 +108,7 @@ static int32_t mnodeAllocInitSteps() {
   struct SSteps *steps = taosStepInit(16, NULL);
   if (steps == NULL) return -1;
 
-  if (taosStepAdd(steps, "mnode-trans", trnInit, trnCleanup) != 0) return -1;
+  if (taosStepAdd(steps, "mnode-trans", mnodeInitTrans, mnodeCleanupTrans) != 0) return -1;
   if (taosStepAdd(steps, "mnode-cluster", mnodeInitCluster, mnodeCleanupCluster) != 0) return -1;
   if (taosStepAdd(steps, "mnode-dnode", mnodeInitDnode, mnodeCleanupDnode) != 0) return -1;
   if (taosStepAdd(steps, "mnode-mnode", mnodeInitMnode, mnodeCleanupMnode) != 0) return -1;
@@ -224,10 +216,14 @@ void mnodeCleanupMsg(SMnodeMsg *pMsg) {
 static void mnodeProcessRpcMsg(SMnodeMsg *pMsg) {
   int32_t msgType = pMsg->rpcMsg.msgType;
 
-  if (tsMint.msgFp[msgType] == NULL) {
+  MnodeRpcFp fp = tsMint.msgFp[msgType];
+  if (fp == NULL) {
   }
 
-  (*tsMint.msgFp[msgType])(pMsg);
+  int32_t code = (fp)(pMsg);
+  if (code != 0) {
+    assert(code);
+  }
 }
 
 void mnodeSetMsgFp(int32_t msgType, MnodeRpcFp fp) {

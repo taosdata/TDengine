@@ -56,39 +56,39 @@ extern "C" {
     dataPos += valLen;                                      \
   }
 
-#define SDB_SET_INT64(pData, dataPos, val)         \
+#define SDB_SET_INT64(pRaw, dataPos, val)          \
   {                                                \
     if (sdbSetRawInt64(pRaw, dataPos, val) != 0) { \
-      sdbFreeRaw(pRaw);                               \
+      sdbFreeRaw(pRaw);                            \
       return NULL;                                 \
-    };                                             \
+    }                                              \
     dataPos += sizeof(int64_t);                    \
   }
 
-#define SDB_SET_INT32(pData, dataPos, val)         \
+#define SDB_SET_INT32(pRaw, dataPos, val)          \
   {                                                \
     if (sdbSetRawInt32(pRaw, dataPos, val) != 0) { \
-      sdbFreeRaw(pRaw);                               \
+      sdbFreeRaw(pRaw);                            \
       return NULL;                                 \
-    };                                             \
+    }                                              \
     dataPos += sizeof(int32_t);                    \
   }
 
-#define SDB_SET_INT8(pData, dataPos, val)         \
+#define SDB_SET_INT8(pRaw, dataPos, val)          \
   {                                               \
     if (sdbSetRawInt8(pRaw, dataPos, val) != 0) { \
-      sdbFreeRaw(pRaw);                              \
+      sdbFreeRaw(pRaw);                           \
       return NULL;                                \
-    };                                            \
+    }                                             \
     dataPos += sizeof(int8_t);                    \
   }
 
 #define SDB_SET_BINARY(pRaw, dataPos, val, valLen)          \
   {                                                         \
     if (sdbSetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
-      sdbFreeRaw(pRaw);                                        \
+      sdbFreeRaw(pRaw);                                     \
       return NULL;                                          \
-    };                                                      \
+    }                                                       \
     dataPos += valLen;                                      \
   }
 
@@ -97,7 +97,7 @@ extern "C" {
     if (sdbSetRawDataLen(pRaw, dataLen) != 0) { \
       sdbFreeRaw(pRaw);                         \
       return NULL;                              \
-    };                                          \
+    }                                           \
   }
 
 typedef struct SSdbRaw SSdbRaw;

@@ -18,13 +18,23 @@
 
 #include "mnodeDef.h"
 #include "sdb.h"
-#include "trn.h"
+#include "tstep.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef void (*MnodeRpcFp)(SMnodeMsg *pMsg);
+typedef int32_t (*MnodeRpcFp)(SMnodeMsg *pMsg);
+
+typedef struct SMnode {
+  int32_t    dnodeId;
+  int64_t    clusterId;
+  tmr_h      timer;
+  SSteps    *pInitSteps;
+  SSteps    *pStartSteps;
+  SMnodePara para;
+  MnodeRpcFp msgFp[TSDB_MSG_TYPE_MAX];
+} SMnode;
 
 tmr_h   mnodeGetTimer();
 int32_t mnodeGetDnodeId();

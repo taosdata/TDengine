@@ -45,7 +45,7 @@ static int32_t sdbCreateDir() {
 static int32_t sdbRunDeployFp() {
   mDebug("start to run deploy functions");
 
-  for (int32_t i = SDB_START; i < SDB_MAX; ++i) {
+  for (int32_t i = SDB_MAX - 1; i > SDB_START; --i) {
     SdbDeployFp fp = tsSdb.deployFps[i];
     if (fp == NULL) continue;
     if ((*fp)() != 0) {
@@ -54,6 +54,7 @@ static int32_t sdbRunDeployFp() {
     }
   }
 
+  mDebug("end of run deploy functions");
   return 0;
 }
 

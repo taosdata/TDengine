@@ -33,7 +33,10 @@ static struct {
 
 EDnStat dnodeGetRunStat() { return tsInt.runStat; }
 
-void dnodeSetRunStat(EDnStat stat) { tsInt.runStat = stat; }
+void dnodeSetRunStat(EDnStat stat) {
+  dDebug("runstat set to %d", stat);
+  tsInt.runStat = stat;
+}
 
 void dnodeReportStartup(char *name, char *desc) {
   SStartupMsg *pStartup = &tsInt.startup;
@@ -99,7 +102,6 @@ static int32_t dnodeInitDir() {
 }
 
 static int32_t dnodeInitMain() {
-  tsInt.runStat = DN_RUN_STAT_STOPPED;
   tscEmbedded = 1;
   taosIgnSIGPIPE();
   taosBlockSIGPIPE();
@@ -147,7 +149,9 @@ static void dnodeCleanupMain() {
 int32_t dnodeInit() {
   SSteps *steps = taosStepInit(10, dnodeReportStartup);
   if (steps == NULL) return -1;
-
+#if 1
+  dnodeSetRunStat(DN_RUN_STAT_RUNNING);
+#endif
   taosStepAdd(steps, "dnode-main", dnodeInitMain, dnodeCleanupMain);
   taosStepAdd(steps, "dnode-rpc", rpcInit, rpcCleanup);
   taosStepAdd(steps, "dnode-tfs", NULL, NULL);

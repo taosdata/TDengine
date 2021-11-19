@@ -41,7 +41,7 @@ int32_t dnodeInit();
 void    dnodeCleanup();
 
 EDnStat dnodeGetRunStat();
-void    dnodeSetRunStat();
+void    dnodeSetRunStat(EDnStat stat);
 
 void dnodeReportStartup(char *name, char *desc);
 void dnodeReportStartupFinished(char *name, char *desc);
