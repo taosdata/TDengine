@@ -3229,7 +3229,7 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken
   
   pToken->z = tmpTokenBuf;
 
-  if (pToken->type == TK_ID || pToken->type == TK_STRING) {
+  if (pToken->type == TK_ID) {
     tscRmEscapeAndTrimToken(pToken);
   }
 
@@ -6441,14 +6441,15 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
     SStrToken    name = {.type = TK_STRING, .z = pItem->name, .n = (uint32_t)strlen(pItem->name)};
 
+    //handle Escape character backstick
+    bool inEscape = false;
+    if (name.z[0] == TS_ESCAPE_CHAR && name.z[name.n - 1] == TS_ESCAPE_CHAR) {
+      inEscape = true;
+      name.type = TK_ID;
+    }
+
     if (getColumnIndexByName(&name, pQueryInfo, &columnIndex, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsg, msg17);
-    }
-    //handle Escape character backstick
-    if (name.z[0] == TS_ESCAPE_CHAR && name.z[name.n - 1] == TS_ESCAPE_CHAR) {
-      memmove(name.z, name.z + 1, name.n);
-      name.z[name.n - TS_ESCAPE_CHAR_SIZE] = '\0';
-      name.n -= TS_ESCAPE_CHAR_SIZE;
     }
 
     SSchema* pColSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, columnIndex.columnIndex);
@@ -6480,6 +6481,13 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     if (nLen >= TSDB_MAX_BYTES_PER_ROW) {
       return invalidOperationMsg(pMsg, msg24);
     }
+
+    if (inEscape) {
+      memmove(name.z, name.z + 1, name.n);
+      name.z[name.n - TS_ESCAPE_CHAR_SIZE] = '\0';
+      name.n -= TS_ESCAPE_CHAR_SIZE;
+    }
+
     TAOS_FIELD f = tscCreateField(pColSchema->type, name.z, pItem->bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   }else if (pAlterSQL->type == TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN) {
