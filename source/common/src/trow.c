@@ -15,6 +15,7 @@
 
 #include "trow.h"
 
+#if 0
 /* ------------ Structures ---------- */
 struct SRowBatch {
   int32_t compress : 1;  // if batch row is compressed
@@ -87,3 +88,4 @@ const SRow rowBatchIterNext(SRowBatchIter *pRowBatchIter) {
 // SRowBatchBuilder
 SRowBatchBuilder *rowBatchBuilderCreate();
 void              rowBatchBuilderDestroy(SRowBatchBuilder *);
+#endif

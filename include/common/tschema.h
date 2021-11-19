@@ -16,9 +16,27 @@
 #ifndef _TD_COMMON_SCHEMA_H_
 #define _TD_COMMON_SCHEMA_H_
 
+#include "os.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct SColAttr {
+  /* data */
+} SColAttr;
+
+typedef struct SColumn {
+  uint8_t  type;
+  uint16_t cid;
+  uint16_t bytes;
+} SColumn;
+
+typedef struct SSchema {
+  /// schema version
+  uint16_t sver;
+  /* data */
+} SSchema;
 
 #ifdef __cplusplus
 }

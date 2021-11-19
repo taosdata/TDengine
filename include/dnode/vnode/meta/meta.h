@@ -41,11 +41,13 @@ void metaOptionsClear(SMetaOptions *pOptions);
 
 // STableOpts
 #define META_TABLE_OPTS_DECLARE(name) STableOpts name = {0}
-void metaNormalTableOptsInit(STbOptions *pTbOptions, const char *name, const STSchema *pSchema);
-void metaSuperTableOptsInit(STbOptions *pTbOptions, const char *name, tb_uid_t uid, const STSchema *pSchema,
-                            const STSchema *pTagSchema);
-void metaChildTableOptsInit(STbOptions *pTbOptions, const char *name, tb_uid_t suid, const SKVRow tags);
-void metaTableOptsClear(STbOptions *pTbOptions);
+void        metaNormalTableOptsInit(STbOptions *pTbOptions, const char *name, const STSchema *pSchema);
+void        metaSuperTableOptsInit(STbOptions *pTbOptions, const char *name, tb_uid_t uid, const STSchema *pSchema,
+                                   const STSchema *pTagSchema);
+void        metaChildTableOptsInit(STbOptions *pTbOptions, const char *name, tb_uid_t suid, const SKVRow tags);
+void        metaTableOptsClear(STbOptions *pTbOptions);
+uint64_t    metaEncodeTbOptions(void **pBuf, STbOptions *pTbOptions);
+STbOptions *metaDecodeTbOptions(void *pBuf, size_t size, bool endian);
 
 #ifdef __cplusplus
 }
