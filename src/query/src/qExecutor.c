@@ -5780,6 +5780,11 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
     }
   }
 
+  if (pOperator->status == OP_EXEC_DONE) {
+    *newgroup = false;
+     return NULL;
+  }
+
   while(1) {
     bool prevVal = *newgroup;
 
@@ -5792,7 +5797,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
       //assert(*newgroup == false);
 
       *newgroup = prevVal;
-      setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
+      doSetOperatorCompleted(pOperator);
       break;
     }
 
