@@ -2494,7 +2494,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
       SExprInfo* p = tscAddFuncInSelectClause(pNewQueryInfo, index++, TSDB_FUNC_TAG, &colIndex, schema, TSDB_COL_TAG, getNewResColId(pCmd));
       if (schema->type == TSDB_DATA_TYPE_JSON){
         p->base.numOfParams = pExpr->base.numOfParams;
-        p->base.param[0] = pExpr->base.param[0];
+        tVariantAssign(&p->base.param[0], &pExpr->base.param[0]);
       }
       p->base.resColId = pExpr->base.resColId;
     } else if (pExpr->base.functionId == TSDB_FUNC_PRJ) {
@@ -3687,7 +3687,14 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql) {
     int32_t type  = pInfo->field.type;
     int32_t bytes = pInfo->field.bytes;
 
-    if (!IS_VAR_DATA_TYPE(type) && type != TSDB_DATA_TYPE_JSON) {
+    if (type == TSDB_DATA_TYPE_JSON){
+      char* p = pRes->urow[i];
+      if (*p == TSDB_DATA_TYPE_NCHAR && isNull(POINTER_SHIFT(p, CHAR_BYTES), type)) {
+        pRes->tsrow[j] = NULL;
+      }else{
+        pRes->tsrow[j] = pRes->urow[i];
+      }
+    }else if (!IS_VAR_DATA_TYPE(type)) {
       pRes->tsrow[j] = isNull(pRes->urow[i], type) ? NULL : pRes->urow[i];
     } else {
       pRes->tsrow[j] = isNull(pRes->urow[i], type) ? NULL : varDataVal(pRes->urow[i]);

@@ -470,10 +470,20 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 }
 
 
-static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_t length, int precision) {
+static void dumpFieldToFile(FILE* fp, char* val, TAOS_FIELD* field, int32_t length, int precision) {
   if (val == NULL) {
     fprintf(fp, "%s", TSDB_DATA_NULL_STR);
     return;
+  }
+
+  uint8_t type = field->type;
+  if (type == TSDB_DATA_TYPE_JSON){
+    char* p = val;
+    type = *p;
+    val += CHAR_BYTES;
+    if(type == TSDB_DATA_TYPE_NCHAR) {
+      length = varDataLen(val);
+    }
   }
 
   char buf[TSDB_MAX_BYTES_PER_ROW];
@@ -556,7 +566,7 @@ static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
       if (i > 0) {
         fputc(',', fp);
       }
-      dumpFieldToFile(fp, (const char*)row[i], fields +i, length[i], precision);
+      dumpFieldToFile(fp, row[i], fields +i, length[i], precision);
     }
     fputc('\n', fp);
 
@@ -635,7 +645,7 @@ static void shellPrintNChar(const char *str, int length, int width) {
 }
 
 
-static void printField(const char* val, TAOS_FIELD* field, int width, int32_t length, int precision) {
+static void printField(char* val, TAOS_FIELD* field, int width, int32_t length, int precision) {
   if (val == NULL) {
     int w = width;
     if (field->type < TSDB_DATA_TYPE_TINYINT || field->type > TSDB_DATA_TYPE_DOUBLE) {
@@ -648,8 +658,18 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
     return;
   }
 
+  uint8_t type = field->type;
+  if (type == TSDB_DATA_TYPE_JSON){
+    char* p = val;
+    type = *p;
+    val += CHAR_BYTES;
+    if(type == TSDB_DATA_TYPE_NCHAR) {
+      length = varDataLen(val);
+    }
+  }
+
   char buf[TSDB_MAX_BYTES_PER_ROW];
-  switch (field->type) {
+  switch (type) {
     case TSDB_DATA_TYPE_BOOL:
       printf("%*s", width, ((((int32_t)(*((char *)val))) == 1) ? "true" : "false"));
       break;
@@ -685,7 +705,6 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
-    case TSDB_DATA_TYPE_JSON:
       shellPrintNChar(val, length, width);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
@@ -747,7 +766,7 @@ static int verticalPrintResult(TAOS_RES* tres) {
         int padding = (int)(maxColNameLen - strlen(field->name));
         printf("%*.s%s: ", padding, " ", field->name);
 
-        printField((const char*)row[i], field, 0, length[i], precision);
+        printField(row[i], field, 0, length[i], precision);
         putchar('\n');
       }
     } else if (showMore) {
@@ -877,7 +896,7 @@ static int horizontalPrintResult(TAOS_RES* tres) {
     if (numOfRows < resShowMaxNum) {
       for (int i = 0; i < num_fields; i++) {
         putchar(' ');
-        printField((const char*)row[i], fields + i, width[i], length[i], precision);
+        printField(row[i], fields + i, width[i], length[i], precision);
         putchar(' ');
         putchar('|');
       }
