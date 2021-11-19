@@ -204,31 +204,31 @@ function install_jemalloc() {
         /usr/bin/install -c -d /usr/local/bin
 
         if [ -f "${binary_dir}/build/bin/jemalloc-config" ]; then
-            /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc-config /usr/local/bin
+            ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc-config /usr/local/bin
         fi
         if [ -f "${binary_dir}/build/bin/jemalloc.sh" ]; then
-            /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc.sh /usr/local/bin
+            ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc.sh /usr/local/bin
         fi
         if [ -f "${binary_dir}/build/bin/jeprof" ]; then
-            /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jeprof /usr/local/bin
+            ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jeprof /usr/local/bin
         fi
         if [ -f "${binary_dir}/build/include/jemalloc/jemalloc.h" ]; then
-            /usr/bin/install -c -d /usr/local/include/jemalloc
-            /usr/bin/install -c -m 644 ${binary_dir}/build/include/jemalloc/jemalloc.h\
+            ${csudo} /usr/bin/install -c -d /usr/local/include/jemalloc
+            ${csudo} /usr/bin/install -c -m 644 ${binary_dir}/build/include/jemalloc/jemalloc.h\
                 /usr/local/include/jemalloc
         fi
         if [ -f "${binary_dir}/build/lib/libjemalloc.so.2" ]; then
-            /usr/bin/install -c -d /usr/local/lib
-            /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.so.2 /usr/local/lib
-            ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
-            /usr/bin/install -c -d /usr/local/lib
+            ${csudo} /usr/bin/install -c -d /usr/local/lib
+            ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.so.2 /usr/local/lib
+            ${csudo} ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
+            ${csudo} /usr/bin/install -c -d /usr/local/lib
             [ -f ${binary_dir}/build/lib/libjemalloc.a ] &&
-                /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.a /usr/local/lib
+                ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.a /usr/local/lib
             [ -f ${binary_dir}/build/lib/libjemalloc_pic.a ] &&
-                /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc_pic.a /usr/local/lib
+                ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc_pic.a /usr/local/lib
             if [ -f "${binary_dir}/build/lib/pkgconfig/jemalloc.pc" ]; then
-                /usr/bin/install -c -d /usr/local/lib/pkgconfig
-                /usr/bin/install -c -m 644 ${binary_dir}/build/lib/pkgconfig/jemalloc.pc\
+                ${csudo} /usr/bin/install -c -d /usr/local/lib/pkgconfig
+                ${csudo} /usr/bin/install -c -m 644 ${binary_dir}/build/lib/pkgconfig/jemalloc.pc\
                     /usr/local/lib/pkgconfig
             fi
             if [ -d /etc/ld.so.conf.d ]; then
@@ -239,29 +239,28 @@ function install_jemalloc() {
             fi
         fi
         if [ -f "${binary_dir}/build/share/doc/jemalloc/jemalloc.html" ]; then
-            /usr/bin/install -c -d /usr/local/share/doc/jemalloc
-            /usr/bin/install -c -m 644 ${binary_dir}/build/share/doc/jemalloc/jemalloc.html\
+            ${csudo} /usr/bin/install -c -d /usr/local/share/doc/jemalloc
+            ${csudo} /usr/bin/install -c -m 644 ${binary_dir}/build/share/doc/jemalloc/jemalloc.html\
                 /usr/local/share/doc/jemalloc
         fi
         if [ -f "${binary_dir}/build/share/man/man3/jemalloc.3" ]; then
-            /usr/bin/install -c -d /usr/local/share/man/man3
-            /usr/bin/install -c -m 644 ${binary_dir}/build/share/man/man3/jemalloc.3\
+            ${csudo} /usr/bin/install -c -d /usr/local/share/man/man3
+            ${csudo} /usr/bin/install -c -m 644 ${binary_dir}/build/share/man/man3/jemalloc.3\
                 /usr/local/share/man/man3
         fi
-
     fi
 }
 
 function install_avro() {
     if [ "$osType" != "Darwin" ]; then
         if [ -f "${binary_dir}/build/$1/libavro.so.23.0.0" ]; then
-            /usr/bin/install -c -d /usr/local/$1
-            /usr/bin/install -c -m 755 ${binary_dir}/build/$1/libavro.so.23.0.0 /usr/local/$1
-            ln -sf libavro.so.23.0.0 /usr/local/$1/libavro.so.23
-            ln -sf libavro.so.23 /usr/local/$1/libavro.so
-            /usr/bin/install -c -d /usr/local/$1
+            ${csudo} /usr/bin/install -c -d /usr/local/$1
+            ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/$1/libavro.so.23.0.0 /usr/local/$1
+            ${csudo} ln -sf libavro.so.23.0.0 /usr/local/$1/libavro.so.23
+            ${csudo} ln -sf libavro.so.23 /usr/local/$1/libavro.so
+            ${csudo} /usr/bin/install -c -d /usr/local/$1
             [ -f ${binary_dir}/build/$1/libavro.a ] &&
-                /usr/bin/install -c -m 755 ${binary_dir}/build/$1/libavro.a /usr/local/$1
+                ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/$1/libavro.a /usr/local/$1
 
             if [ -d /etc/ld.so.conf.d ]; then
                 echo "/usr/local/$1" | ${csudo} tee /etc/ld.so.conf.d/libavro.conf

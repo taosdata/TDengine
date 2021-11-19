@@ -178,6 +178,8 @@ class TDTestCase:
         tdSql.checkRows(1)
         self.tb193new = "table_193~!@#$%^&*()-_+=[]{}':,<.>/?stST0123456789table_192~!@#$%^&*()-_+=[]{}':,<.>/?stST0123456789table_192~!@#$%^&*()-_+=[]{}':,<.>/?stST0123456789table_192~!@#$%^&*()-_+=[]{}':,<.>/?stST123"
         tdSql.error("create table db.`%s` using db.`%s` tags(1)" %(self.tb193new,self.stb1))
+        # case for TD-10691
+        tdSql.error("create table ttb1(ts timestamp, file int )")
         
 
 

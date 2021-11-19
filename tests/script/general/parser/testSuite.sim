@@ -20,7 +20,7 @@ run general/parser/import_commit3.sim
 run general/parser/import_file.sim
 run general/parser/insert_tb.sim
 run general/parser/tags_dynamically_specifiy.sim
-run general/parser/interp.sim
+run general/parser/interp_full.sim
 run general/parser/lastrow.sim
 run general/parser/limit.sim
 run general/parser/limit1.sim

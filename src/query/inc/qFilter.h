@@ -101,14 +101,6 @@ typedef struct SFilterRange {
   char eflag;
 } SFilterRange;
 
-typedef struct SFilterColRange {  
-  uint16_t idx;  //column field idx
-  bool isNull;
-  bool notNull;
-  bool isRange;
-  SFilterRange ra;
-} SFilterColRange;
-
 typedef bool (*rangeCompFunc) (const void *, const void *, const void *, const void *, __compar_fn_t);
 typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
 typedef bool(*filter_exec_func)(void *, int32_t, int8_t**, SDataStatis *, int16_t);
@@ -160,20 +152,20 @@ typedef struct SFilterField {
 } SFilterField;
 
 typedef struct SFilterFields {
-  uint16_t size;
-  uint16_t num;
+  uint32_t size;
+  uint32_t num;
   SFilterField *fields;
 } SFilterFields;
 
 typedef struct SFilterFieldId {
   uint16_t type;
-  uint16_t idx;
+  uint32_t idx;
 } SFilterFieldId;
 
 typedef struct SFilterGroup {
-  uint16_t  unitSize;
-  uint16_t  unitNum;
-  uint16_t *unitIdxs;
+  uint32_t  unitSize;
+  uint32_t  unitNum;
+  uint32_t *unitIdxs;
   uint8_t  *unitFlags;  // !unit result
 } SFilterGroup;
 
@@ -186,13 +178,13 @@ typedef struct SFilterColInfo {
 } SFilterColInfo;
 
 typedef struct SFilterGroupCtx {
-  uint16_t         colNum;
-  uint16_t        *colIdx;
+  uint32_t         colNum;
+  uint32_t        *colIdx;
   SFilterColInfo  *colInfo;
 } SFilterGroupCtx;
 
 typedef struct SFilterColCtx {
-  uint16_t  colIdx;
+  uint32_t  colIdx;
   void*     ctx;
 } SFilterColCtx;
 
@@ -229,13 +221,12 @@ typedef struct SFilterPCtx {
 typedef struct SFilterInfo {
   uint32_t          options;
   uint32_t          status;  
-  uint16_t          unitSize;
-  uint16_t          unitNum;
-  uint16_t          groupNum;
-  uint16_t          colRangeNum;
+  uint32_t          unitSize;
+  uint32_t          unitNum;
+  uint32_t          groupNum;
+  uint32_t          colRangeNum;
   SFilterFields     fields[FLD_TYPE_MAX];
   SFilterGroup     *groups;
-  uint16_t         *cgroups;
   SFilterUnit      *units;
   SFilterComUnit   *cunits;
   uint8_t          *unitRes;    // result
@@ -243,14 +234,12 @@ typedef struct SFilterInfo {
   SFilterRangeCtx **colRange;
   filter_exec_func  func;          
   uint8_t           blkFlag;
-  uint16_t          blkGroupNum;
-  uint16_t         *blkUnits;
+  uint32_t          blkGroupNum;
+  uint32_t         *blkUnits;
   int8_t           *blkUnitRes;
   
   SFilterPCtx       pctx;
 } SFilterInfo;
-
-#define COL_FIELD_SIZE (sizeof(SFilterField) + 2 * sizeof(int64_t))
 
 #define FILTER_NO_MERGE_DATA_TYPE(t) ((t) == TSDB_DATA_TYPE_BINARY || (t) == TSDB_DATA_TYPE_NCHAR)
 #define FILTER_NO_MERGE_OPTR(o) ((o) == TSDB_RELATION_ISNULL || (o) == TSDB_RELATION_NOTNULL || (o) == FILTER_DUMMY_EMPTY_OPTR)
@@ -268,7 +257,7 @@ typedef struct SFilterInfo {
 #define FILTER_CLR_FLAG(st, f) st &= (~f)
 
 #define SIMPLE_COPY_VALUES(dst, src) *((int64_t *)dst) = *((int64_t *)src)
-#define FILTER_PACKAGE_UNIT_HASH_KEY(v, optr, idx1, idx2) do { char *_t = (char *)v; _t[0] = optr; *(uint16_t *)(_t + 1) = idx1; *(uint16_t *)(_t + 3) = idx2; } while (0)
+#define FILTER_PACKAGE_UNIT_HASH_KEY(v, optr, idx1, idx2) do { char *_t = (char *)v; _t[0] = optr; *(uint32_t *)(_t + 1) = idx1; *(uint32_t *)(_t + 3) = idx2; } while (0)
 #define FILTER_GREATER(cr,sflag,eflag) ((cr > 0) || ((cr == 0) && (FILTER_GET_FLAG(sflag,RANGE_FLG_EXCLUDE) || FILTER_GET_FLAG(eflag,RANGE_FLG_EXCLUDE))))
 #define FILTER_COPY_RA(dst, src) do { (dst)->sflag = (src)->sflag; (dst)->eflag = (src)->eflag; (dst)->s = (src)->s; (dst)->e = (src)->e; } while (0)
 
@@ -323,7 +312,7 @@ typedef struct SFilterInfo {
 #define FILTER_PUSH_VAR_HASH(colInfo, ha) do { (colInfo).type = RANGE_TYPE_VAR_HASH; (colInfo).info = ha;} while (0)
 #define FILTER_PUSH_CTX(colInfo, ctx) do { (colInfo).type = RANGE_TYPE_MR_CTX; (colInfo).info = ctx;} while (0)
 
-#define FILTER_COPY_IDX(dst, src, n) do { *(dst) = malloc(sizeof(uint16_t) * n); memcpy(*(dst), src, sizeof(uint16_t) * n);} while (0)
+#define FILTER_COPY_IDX(dst, src, n) do { *(dst) = malloc(sizeof(uint32_t) * n); memcpy(*(dst), src, sizeof(uint32_t) * n);} while (0)
 
 #define FILTER_ADD_CTX_TO_GRES(gres, idx, ctx) do { if ((gres)->colCtxs == NULL) { (gres)->colCtxs = taosArrayInit(gres->colNum, sizeof(SFilterColCtx)); } SFilterColCtx cCtx = {idx, ctx}; taosArrayPush((gres)->colCtxs, &cCtx); } while (0) 
 
