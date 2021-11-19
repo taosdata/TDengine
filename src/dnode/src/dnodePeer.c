@@ -56,17 +56,17 @@ int32_t dnodeInitServer() {
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_GRANT]        = dnodeDispatchToMPeerQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_STATUS]       = dnodeDispatchToMPeerQueue;
 
-  SRpcInit rpcInit;
-  memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localPort    = tsDnodeDnodePort;
-  rpcInit.label        = "DND-S";
-  rpcInit.numOfThreads = 1;
-  rpcInit.cfp          = dnodeProcessReqMsgFromDnode;
-  rpcInit.sessions     = TSDB_MAX_VNODES << 4;
-  rpcInit.connType     = TAOS_CONN_SERVER;
-  rpcInit.idleTime     = tsShellActivityTimer * 1000;
+  SRpcInit dnd_rpcInit;
+  memset(&dnd_rpcInit, 0, sizeof(dnd_rpcInit));
+  dnd_rpcInit.localPort    = tsDnodeDnodePort;
+  dnd_rpcInit.label        = "DND-S";
+  dnd_rpcInit.numOfThreads = 1;
+  dnd_rpcInit.cfp          = dnodeProcessReqMsgFromDnode;
+  dnd_rpcInit.sessions     = TSDB_MAX_VNODES << 4;
+  dnd_rpcInit.connType     = TAOS_CONN_SERVER;
+  dnd_rpcInit.idleTime     = tsShellActivityTimer * 1000;
 
-  tsServerRpc = rpcOpen(&rpcInit);
+  tsServerRpc = rpcOpen(&dnd_rpcInit);
   if (tsServerRpc == NULL) {
     dError("failed to init inter-dnodes RPC server");
     return -1;
@@ -123,19 +123,19 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
 
 int32_t dnodeInitClient() {
   char secret[TSDB_KEY_LEN] = "secret";
-  SRpcInit rpcInit;
-  memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.label        = "DND-C";
-  rpcInit.numOfThreads = 1;
-  rpcInit.cfp          = dnodeProcessRspFromDnode;
-  rpcInit.sessions     = TSDB_MAX_VNODES << 4;
-  rpcInit.connType     = TAOS_CONN_CLIENT;
-  rpcInit.idleTime     = tsShellActivityTimer * 1000;
-  rpcInit.user         = "t";
-  rpcInit.ckey         = "key";
-  rpcInit.secret       = secret;
+  SRpcInit dnd_rpcInit;
+  memset(&dnd_rpcInit, 0, sizeof(dnd_rpcInit));
+  dnd_rpcInit.label        = "DND-C";
+  dnd_rpcInit.numOfThreads = 1;
+  dnd_rpcInit.cfp          = dnodeProcessRspFromDnode;
+  dnd_rpcInit.sessions     = TSDB_MAX_VNODES << 4;
+  dnd_rpcInit.connType     = TAOS_CONN_CLIENT;
+  dnd_rpcInit.idleTime     = tsShellActivityTimer * 1000;
+  dnd_rpcInit.user         = "t";
+  dnd_rpcInit.ckey         = "key";
+  dnd_rpcInit.secret       = secret;
 
-  tsClientRpc = rpcOpen(&rpcInit);
+  tsClientRpc = rpcOpen(&dnd_rpcInit);
   if (tsClientRpc == NULL) {
     dError("failed to init mnode rpc client");
     return -1;

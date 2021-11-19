@@ -569,9 +569,9 @@ extern "C" {
         return FALSE;
     }
 
-    AccessibleContext GetAccessibleChildFromContext(long vmID, AccessibleContext ac, jint index) {
+    AccessibleContext GetAccessibleChildFromContext(long vmID, AccessibleContext ac, jint deps_index) {
         if (theAccessBridgeInitializedFlag == TRUE) {
-            return theAccessBridge.GetAccessibleChildFromContext(vmID, ac, index);
+            return theAccessBridge.GetAccessibleChildFromContext(vmID, ac, deps_index);
         }
         return (AccessibleContext) 0;
     }
@@ -711,9 +711,9 @@ extern "C" {
      * return the row number for a cell at a given index
      */
     jint
-    getAccessibleTableRow(long vmID, AccessibleTable table, jint index) {
+    getAccessibleTableRow(long vmID, AccessibleTable table, jint deps_index) {
         if (theAccessBridgeInitializedFlag == TRUE) {
-            return theAccessBridge.getAccessibleTableRow(vmID, table, index);
+            return theAccessBridge.getAccessibleTableRow(vmID, table, deps_index);
         }
         return -1;
     }
@@ -722,9 +722,9 @@ extern "C" {
      * return the column number for a cell at a given index
      */
     jint
-    getAccessibleTableColumn(long vmID, AccessibleTable table, jint index) {
+    getAccessibleTableColumn(long vmID, AccessibleTable table, jint deps_index) {
         if (theAccessBridgeInitializedFlag == TRUE) {
-            return theAccessBridge.getAccessibleTableColumn(vmID, table, index);
+            return theAccessBridge.getAccessibleTableColumn(vmID, table, deps_index);
         }
         return -1;
     }
@@ -753,9 +753,9 @@ extern "C" {
         return FALSE;
     }
 
-    BOOL GetAccessibleTextItems(long vmID, AccessibleText at, AccessibleTextItemsInfo *textItems, jint index) {
+    BOOL GetAccessibleTextItems(long vmID, AccessibleText at, AccessibleTextItemsInfo *textItems, jint deps_index) {
         if (theAccessBridgeInitializedFlag == TRUE) {
-            return theAccessBridge.GetAccessibleTextItems(vmID, at, textItems, index);
+            return theAccessBridge.GetAccessibleTextItems(vmID, at, textItems, deps_index);
         }
         return FALSE;
     }
@@ -767,23 +767,23 @@ extern "C" {
         return FALSE;
     }
 
-    BOOL GetAccessibleTextAttributes(long vmID, AccessibleText at, jint index, AccessibleTextAttributesInfo *attributes) {
+    BOOL GetAccessibleTextAttributes(long vmID, AccessibleText at, jint deps_index, AccessibleTextAttributesInfo *attributes) {
         if (theAccessBridgeInitializedFlag == TRUE) {
-            return theAccessBridge.GetAccessibleTextAttributes(vmID, at, index, attributes);
+            return theAccessBridge.GetAccessibleTextAttributes(vmID, at, deps_index, attributes);
         }
         return FALSE;
     }
 
-    BOOL GetAccessibleTextRect(long vmID, AccessibleText at, AccessibleTextRectInfo *rectInfo, jint index) {
+    BOOL GetAccessibleTextRect(long vmID, AccessibleText at, AccessibleTextRectInfo *rectInfo, jint deps_index) {
         if (theAccessBridgeInitializedFlag == TRUE) {
-            return theAccessBridge.GetAccessibleTextRect(vmID, at, rectInfo, index);
+            return theAccessBridge.GetAccessibleTextRect(vmID, at, rectInfo, deps_index);
         }
         return FALSE;
     }
 
-    BOOL GetAccessibleTextLineBounds(long vmID, AccessibleText at, jint index, jint *startIndex, jint *endIndex) {
+    BOOL GetAccessibleTextLineBounds(long vmID, AccessibleText at, jint deps_index, jint *startIndex, jint *endIndex) {
         if (theAccessBridgeInitializedFlag == TRUE) {
-            return theAccessBridge.GetAccessibleTextLineBounds(vmID, at, index, startIndex, endIndex);
+            return theAccessBridge.GetAccessibleTextLineBounds(vmID, at, deps_index, startIndex, endIndex);
         }
         return FALSE;
     }
@@ -844,7 +844,7 @@ extern "C" {
 
     /*
      * This method is used to iterate through the hyperlinks in a component.  It
-     * returns hypertext information for a component starting at hyperlink index
+     * returns hypertext information for a component starting at hyperlink deps_index
      * nStartIndex.  No more than MAX_HYPERLINKS AccessibleHypertextInfo objects will
      * be returned for each call to this method.
      * returns FALSE on error.
@@ -1109,9 +1109,9 @@ extern "C" {
     /**
      * Gets the text caret location
      */
-    BOOL getCaretLocation(long vmID, AccessibleContext ac, AccessibleTextRectInfo *rectInfo, jint index) {
+    BOOL getCaretLocation(long vmID, AccessibleContext ac, AccessibleTextRectInfo *rectInfo, jint deps_index) {
         if (theAccessBridgeInitializedFlag == TRUE) {
-            return theAccessBridge.getCaretLocation(vmID, ac, rectInfo, index);
+            return theAccessBridge.getCaretLocation(vmID, ac, rectInfo, deps_index);
         }
         return FALSE;
     }

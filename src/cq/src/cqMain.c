@@ -424,7 +424,7 @@ static void cqProcessCreateTimer(void *param, void *tmrId) {
 
 // inner implement in tscStream.c
 TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* desName, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
-                              int64_t stime, void *param, void (*callback)(void *), void* cqhandle);
+                              int64_t tsc_stime, void *param, void (*callback)(void *), void* cqhandle);
 
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
   pObj->pContext = pContext;
