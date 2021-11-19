@@ -1194,6 +1194,7 @@ static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
   const char* msg4 = "function not support for super table query";
   const char* msg5 = "not support state_window on tag column";
   const char* msg6 = "function not support for state_window";
+  const char* msg7 = "join query does not support state_window";
 
   SStrToken *col = &(pSqlNode->windowstateVal.col) ;
   if (col->z == NULL || col->n <= 0) {
@@ -1205,6 +1206,9 @@ static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
   }
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+  }
+  if (pQueryInfo->numOfTables > 1) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
   pQueryInfo->groupbyExpr.numOfGroupCols = 1;
 
