@@ -2349,7 +2349,7 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
   }
 
   int16_t resType = 0;
-  int16_t resBytes = 0;
+  int32_t resBytes = 0;
   int32_t interBufSize = 0;
 
   getResultDataInfo(pSchema->type, pSchema->bytes, f, 0, &resType, &resBytes, &interBufSize, 0, false, pUdfInfo);
@@ -2587,7 +2587,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       int16_t resultType = 0;
-      int16_t resultSize = 0;
+      int32_t resultSize = 0;
       int32_t intermediateResSize = 0;
 
       if (getResultDataInfo(pSchema->type, pSchema->bytes, functionId, 0, &resultType, &resultSize,
@@ -2846,7 +2846,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       tVariant* pVariant = &pParamElem[1].pNode->value;
 
       int16_t  resultType = pSchema->type;
-      int16_t  resultSize = pSchema->bytes;
+      int32_t  resultSize = pSchema->bytes;
       int32_t  interResult = 0;
 
       char val[8] = {0};
@@ -3024,7 +3024,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         s = pTagSchema[index.columnIndex];
       }
       
-      int16_t bytes = 0;
+      int32_t bytes = 0;
       int16_t type  = 0;
       int32_t inter = 0;
 
@@ -3051,7 +3051,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       int32_t inter   = 0;
       int16_t resType = 0;
-      int16_t bytes   = 0;
+      int32_t bytes   = 0;
 
       getResultDataInfo(TSDB_DATA_TYPE_INT, 4, TSDB_FUNC_BLKINFO, 0, &resType, &bytes, &inter, 0, 0, NULL);
 
@@ -3104,7 +3104,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       int32_t inter   = 0;
       int16_t resType = 0;
-      int16_t bytes   = 0;
+      int32_t bytes   = 0;
       getResultDataInfo(TSDB_DATA_TYPE_INT, 4, functionId, 0, &resType, &bytes, &inter, 0, false, pUdfInfo);
 
       SExprInfo* pExpr = tscExprAppend(pQueryInfo, functionId, &index, resType, bytes, getNewResColId(pCmd), inter, false);
@@ -3415,7 +3415,7 @@ int32_t tscTansformFuncForSTableQuery(SQueryInfo* pQueryInfo) {
 
   assert(tscGetNumOfTags(pTableMetaInfo->pTableMeta) >= 0);
 
-  int16_t bytes = 0;
+  int32_t bytes = 0;
   int16_t type = 0;
   int32_t interBytes = 0;
   

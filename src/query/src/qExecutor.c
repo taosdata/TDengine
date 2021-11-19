@@ -2786,6 +2786,14 @@ static void getIntermediateBufInfo(SQueryRuntimeEnv* pRuntimeEnv, int32_t* ps, i
   while(((*rowsize) * MIN_ROWS_PER_PAGE) > (*ps) - overhead) {
     *ps = ((*ps) << 1u);
   }
+
+  if (*ps > 5 * 1024 * 1024) {
+    MIN_ROWS_PER_PAGE = 2;
+    *ps = DEFAULT_INTERN_BUF_PAGE_SIZE;
+    while(((*rowsize) * MIN_ROWS_PER_PAGE) > (*ps) - overhead) {
+      *ps = ((*ps) << 1u);
+    }
+  }
 }
 
 #define IS_PREFILTER_TYPE(_t) ((_t) != TSDB_DATA_TYPE_BINARY && (_t) != TSDB_DATA_TYPE_NCHAR)
@@ -4955,7 +4963,7 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
   int32_t ps = DEFAULT_PAGE_SIZE;
   getIntermediateBufInfo(pRuntimeEnv, &ps, &pQueryAttr->intermediateResultRowSize);
 
-  int32_t TENMB = 1024*1024*10;
+  int32_t TENMB = 1024*1024*20;
   int32_t code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, ps, TENMB, pQInfo->qId);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
