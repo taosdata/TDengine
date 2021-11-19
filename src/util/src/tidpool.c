@@ -164,3 +164,15 @@ int taosIdPoolMaxSize(void *handle) {
 
   return ret;
 }
+
+// get free count from pool , if bLock is true, locked pool than get free count, accuracy but slowly 
+int taosIdPoolNumOfFree(void *handle, bool bLock) {
+  id_pool_t *pIdPool = handle;
+  if(bLock)
+    pthread_mutex_lock(&pIdPool->mutex);
+  
+  int ret = pIdPool->numOfFree;
+  if(bLock)
+    pthread_mutex_unlock(&pIdPool->mutex);
+  return ret;
+}

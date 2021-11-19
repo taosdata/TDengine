@@ -28,6 +28,7 @@
 #include "tutil.h"
 #include "ttimer.h"
 #include "tscProfile.h"
+#include "tidpool.h"
 
 static bool validImpl(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -304,6 +305,25 @@ void taos_close(TAOS *taos) {
 
   tscDebug("%p all sqlObj are freed, free tscObj", pObj);
   taosRemoveRef(tscRefId, pObj->rid);
+}
+
+// get taos connection unused session number
+int32_t taos_unused_session(TAOS* taos) {
+  // param valid check
+  STscObj *pObj = (STscObj *)taos;
+  if (pObj == NULL || pObj->signature != pObj) {
+    tscError("pObj:%p is NULL or freed", pObj);
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return 0;
+  }
+  if(pObj->pRpcObj == NULL ) {
+    tscError("pObj:%p pRpcObj is NULL.", pObj);
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return 0;
+  }
+
+  // get number
+  return rpcUnusedSession(pObj->pRpcObj->pDnodeConn, false);
 }
 
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {

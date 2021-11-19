@@ -92,6 +92,7 @@ int   rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
 void  rpcSendRecv(void *shandle, SRpcEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 int   rpcReportProgress(void *pConn, char *pCont, int contLen);
 void  rpcCancelRequest(int64_t rid);
+int32_t rpcUnusedSession(void * rpcInfo, bool bLock);
 
 #ifdef __cplusplus
 }
