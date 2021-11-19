@@ -45,12 +45,14 @@ int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 
   if (result == SYNC_RAFT_VOTE_WON) {
     if (pRaft->candidateState.inPreVote) {
-      syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_ELECTION);
+      syncRaftCampaign(pRaft, SYNC_RAFT_CAMPAIGN_ELECTION);
     } else {
       syncRaftBecomeLeader(pRaft);
-
+      syncRaftBroadcastAppend(pRaft);
     }
   } else if (result == SYNC_RAFT_VOTE_LOST) {
+		// pb.MsgPreVoteResp contains future term of pre-candidate
+		// m.Term > r.Term; reuse r.Term    
     syncRaftBecomeFollower(pRaft, pRaft->term, SYNC_NON_NODE_ID);
   }
 

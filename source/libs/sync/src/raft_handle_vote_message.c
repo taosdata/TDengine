@@ -48,12 +48,14 @@ int syncRaftHandleVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 }
 
 static bool canGrantVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
-  if (!(pRaft->voteFor == SYNC_NON_NODE_ID || pMsg->term > pRaft->term || pRaft->voteFor == pMsg->from)) {
-    return false;
-  }
-  if (!syncRaftLogIsUptodate(pRaft->log, pMsg->vote.lastIndex, pMsg->vote.lastTerm)) {
-    return false;
-  }
+  bool canVote = 
+                  // We can vote if this is a repeat of a vote we've already cast...
+                 pRaft->voteFor == pMsg->from ||
+                  // ...we haven't voted and we don't think there's a leader yet in this term...
+                 (pRaft->voteFor == SYNC_NON_NODE_ID && pRaft->leaderId == SYNC_NON_NODE_ID) ||
+                  // ...or this is a PreVote for a future term...
+                 (pMsg->vote.cType == SYNC_RAFT_CAMPAIGN_PRE_ELECTION && pMsg->term > pRaft->term);
 
-  return true;
+  // ...and we believe the candidate is up to date.
+  return canVote && syncRaftLogIsUptodate(pRaft->log, pMsg->vote.lastIndex, pMsg->vote.lastTerm);
 }

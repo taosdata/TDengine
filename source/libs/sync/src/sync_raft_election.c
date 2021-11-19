@@ -19,8 +19,6 @@
 #include "raft_message.h"
 #include "sync_raft_progress_tracker.h"
 
-static void campaign(SSyncRaft* pRaft, ESyncRaftElectionType cType);
-
 void syncRaftStartElection(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
   if (pRaft->state == TAOS_SYNC_STATE_LEADER) {
     syncDebug("[%d:%d] ignoring RAFT_MSG_INTERNAL_ELECTION because already leader", pRaft->selfGroupId, pRaft->selfId);
@@ -28,7 +26,7 @@ void syncRaftStartElection(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
   }
 
   if (!syncRaftIsPromotable(pRaft)) {
-    syncWarn("[%d:%d] is unpromotable and can not campaign", pRaft->selfGroupId, pRaft->selfId);
+    syncWarn("[%d:%d] is unpromotable and can not syncRaftCampaign", pRaft->selfGroupId, pRaft->selfId);
     return;
   }
 
@@ -41,17 +39,17 @@ void syncRaftStartElection(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
 
   syncInfo("[%d:%d] is starting a new election at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
 
-  campaign(pRaft, cType);
+  syncRaftCampaign(pRaft, cType);
 }
 
-// campaign transitions the raft instance to candidate state. This must only be
+// syncRaftCampaign transitions the raft instance to candidate state. This must only be
 // called after verifying that this is a legitimate transition.
-static void campaign(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
+void syncRaftCampaign(SSyncRaft* pRaft, ESyncRaftElectionType cType) {
   bool preVote;
   SyncTerm term;
 
   if (syncRaftIsPromotable(pRaft)) {
-    syncDebug("[%d:%d] is unpromotable; campaign() should have been called", pRaft->selfGroupId, pRaft->selfId);
+    syncDebug("[%d:%d] is unpromotable; syncRaftCampaign() should have been called", pRaft->selfGroupId, pRaft->selfId);
     return;
   }
 

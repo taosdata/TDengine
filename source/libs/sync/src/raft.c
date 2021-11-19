@@ -169,7 +169,7 @@ static int deserializeClusterStateFromBuffer(SSyncConfigState* cluster, const ch
 }
 
 static void visitProgressMaybeSendAppend(SSyncRaftProgress* progress, void* arg) {
-  syncRaftReplicate(arg, progress, false);
+  syncRaftMaybeSendAppend(arg, progress, false);
 }
 
 // switchToConfig reconfigures this node to use the provided configuration. It
