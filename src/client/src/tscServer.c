@@ -1537,11 +1537,11 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       //what pCreate->tableName point is a fixed char array which size is 237
       //what p->fullname point is a char*
       //before the time we copy p->fullname to pCreate->tableName , we need to check the length of p->fullname
-      while (strlen(p->fullname) > 237) {
-          printf("length of p->fullname should not exced 237\n");
-          scanf("%s", p->fullname);
+      if (strlen(p->fullname) > 237) {
+          dError("failed to write size %d, size is over 237, just save the first 237 char", strlen(p->fullname));
       }
-      strcpy(pCreate->tableName, p->fullname);
+      strncpy(pCreate->tableName, p->fullname,237);
+      pCreate->tableName[236]='\0';//I don't know if this line is working properly
       pCreate->igExists = (p->igExist)? 1 : 0;
 
       // use dbinfo from table id without modifying current db info
