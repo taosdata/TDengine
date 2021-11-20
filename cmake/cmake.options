@@ -22,7 +22,7 @@ option(
 option(
     BUILD_WITH_LUCENE 
     "If build with lucene" 
-    OFF
+    off 
 )
 
 option(
