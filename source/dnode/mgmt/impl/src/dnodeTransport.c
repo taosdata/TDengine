@@ -135,7 +135,7 @@ static void dnodeProcessPeerReq(SRpcMsg *pMsg, SEpSet *pEpSet) {
     return;
   }
 
-  if (dnodeGetRunStat() != DN_RUN_STAT_RUNNING) {
+  if (dnodeGetStat() != DN_STAT_RUNNING) {
     rspMsg.code = TSDB_CODE_APP_NOT_READY;
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
@@ -193,7 +193,7 @@ static void dnodeCleanupPeerServer() {
 static void dnodeProcessPeerRsp(SRpcMsg *pMsg, SEpSet *pEpSet) {
   int32_t msgType = pMsg->msgType;
 
-  if (dnodeGetRunStat() == DN_RUN_STAT_STOPPED) {
+  if (dnodeGetStat() == DN_STAT_STOPPED) {
     if (pMsg == NULL || pMsg->pCont == NULL) return;
     dTrace("RPC %p, peer rsp:%s is ignored since dnode is stopping", pMsg->handle, taosMsg[msgType]);
     rpcFreeCont(pMsg->pCont);
@@ -248,13 +248,13 @@ static void dnodeProcessShellReq(SRpcMsg *pMsg, SEpSet *pEpSet) {
   SRpcMsg rspMsg = {.handle = pMsg->handle};
   int32_t msgType = pMsg->msgType;
 
-  if (dnodeGetRunStat() == DN_RUN_STAT_STOPPED) {
+  if (dnodeGetStat() == DN_STAT_STOPPED) {
     dError("RPC %p, shell req:%s is ignored since dnode exiting", pMsg->handle, taosMsg[msgType]);
     rspMsg.code = TSDB_CODE_DND_EXITING;
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
     return;
-  } else if (dnodeGetRunStat() != DN_RUN_STAT_RUNNING) {
+  } else if (dnodeGetStat() != DN_STAT_RUNNING) {
     dError("RPC %p, shell req:%s is ignored since dnode not running", pMsg->handle, taosMsg[msgType]);
     rspMsg.code = TSDB_CODE_APP_NOT_READY;
     rpcSendResponse(&rspMsg);
@@ -382,13 +382,13 @@ void dnodeCleanupTrans() {
   dnodeCleanupClient();
 }
 
-void dnodeSendMsgToDnode(SServer *pServer, SEpSet *epSet, SRpcMsg *rpcMsg) { 
+void dnodeSendMsgToDnode(SDnode *pDnode, SEpSet *epSet, SRpcMsg *rpcMsg) { 
   #if 0
   rpcSendRequest(tsTrans.clientRpc, epSet, rpcMsg, NULL); 
   #endif
   }
 
-void dnodeSendMsgToMnode(SServer *pServer, SRpcMsg *rpcMsg) {
+void dnodeSendMsgToMnode(SDnode *pDnode, SRpcMsg *rpcMsg) {
   SEpSet epSet = {0};
   dnodeGetMnodeEpSetForPeer(&epSet);
   dnodeSendMsgToDnode(NULL, &epSet, rpcMsg);

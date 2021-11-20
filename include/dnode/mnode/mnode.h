@@ -20,17 +20,16 @@
 extern "C" {
 #endif
 
-typedef enum { MN_MSG_TYPE_WRITE = 1, MN_MSG_TYPE_APPLY, MN_MSG_TYPE_SYNC, MN_MSG_TYPE_READ } EMnMsgType;
-
+/* ------------------------ TYPES EXPOSED ------------------------ */
+typedef struct SDnode    SDnode;
+typedef struct SMnode    SMnode;
 typedef struct SMnodeMsg SMnodeMsg;
+typedef void (*SendMsgToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
+typedef void (*SendMsgToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
+typedef void (*SendRedirectMsgFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg, bool forShell);
+typedef int32_t (*PutMsgToMnodeQFp)(SDnode *pDnode, SMnodeMsg *pMsg);
 
-typedef struct {
-  int8_t   replica;
-  int8_t   selfIndex;
-  SReplica replicas[TSDB_MAX_REPLICA];
-} SMnodeCfg;
-
-typedef struct {
+typedef struct SMnodeLoad {
   int64_t numOfDnode;
   int64_t numOfMnode;
   int64_t numOfVgroup;
@@ -43,38 +42,126 @@ typedef struct {
   int64_t compStorage;
 } SMnodeLoad;
 
-typedef struct SMnode SMnode;
-typedef struct SServer SServer;
-
-typedef void (*SendMsgToDnodeFp)(SServer *pServer, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-typedef void (*SendMsgToMnodeFp)(SServer *pServer, struct SRpcMsg *rpcMsg);
-typedef void (*SendRedirectMsgFp)(SServer *pServer, struct SRpcMsg *rpcMsg, bool forShell);
-typedef int32_t (*PutMsgToMnodeQFp)(SServer *pServer, SMnodeMsg *pMsg);
-
 typedef struct {
   int32_t           dnodeId;
   int64_t           clusterId;
+  int8_t            replica;
+  int8_t            selfIndex;
+  SReplica          replicas[TSDB_MAX_REPLICA];
+  struct SServer   *pServer;
   PutMsgToMnodeQFp  putMsgToApplyMsgFp;
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;
   SendRedirectMsgFp sendRedirectMsgFp;
-} SMnodePara;
+} SMnodeOptions;
 
-SMnode* mnodeCreate(SMnodePara para);
-void    mnodeCleanup();
+/* ------------------------ SMnode ------------------------ */
+/**
+ * @brief Open a mnode.
+ *
+ * @param path Path of the mnode
+ * @param pOptions Options of the mnode
+ * @return SMnode* The mnode object
+ */
+SMnode *mnodeOpen(const char *path, const SMnodeOptions *pOptions);
 
-int32_t mnodeDeploy(SMnodeCfg *pCfg);
-void    mnodeUnDeploy();
-int32_t mnodeStart(SMnodeCfg *pCfg);
-int32_t mnodeAlter(SMnodeCfg *pCfg);
-void    mnodeStop();
+/**
+ * @brief Close a mnode
+ *
+ * @param pMnode The mnode object to close
+ */
+void mnodeClose(SMnode *pMnode);
 
-int32_t mnodeGetLoad(SMnodeLoad *pLoad);
-int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
+/**
+ * @brief Close a mnode
+ *
+ * @param pMnode The mnode object to close
+ * @param pOptions Options of the mnode
+ * @return int32_t 0 for success, -1 for failure
+ */
+int32_t mnodeAlter(SMnode *pMnode, const SMnodeOptions *pOptions);
 
-SMnodeMsg *mnodeInitMsg(SRpcMsg *pRpcMsg);
-void       mnodeCleanupMsg(SMnodeMsg *pMsg);
-void       mnodeProcessMsg(SMnodeMsg *pMsg, EMnMsgType msgType);
+/**
+ * @brief Drop a mnode.
+ *
+ * @param path Path of the mnode.
+ */
+void mnodeDestroy(const char *path);
+
+/**
+ * @brief Get mnode statistics info
+ *
+ * @param pMnode The mnode object
+ * @param pLoad Statistics of the mnode.
+ * @return int32_t 0 for success, -1 for failure
+ */
+int32_t mnodeGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
+
+/**
+ * @brief Get user authentication info
+ *
+ * @param pMnode The mnode object
+ * @param user
+ * @param spi
+ * @param encrypt
+ * @param secret
+ * @param ckey
+ * @return int32_t 0 for success, -1 for failure
+ */
+int32_t mnodeRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey);
+
+/**
+ * @brief Initialize mnode msg
+ *
+ * @param pMnode The mnode object
+ * @param pMsg The request rpc msg
+ * @return int32_t The created mnode msg
+ */
+SMnodeMsg *mnodeInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg);
+
+/**
+ * @brief Cleanup mnode msg
+ *
+ * @param pMnode The mnode object
+ * @param pMsg The request msg
+ */
+void mnodeCleanupMsg(SMnode *pMnode, SMnodeMsg *pMsg);
+
+/**
+ * @brief Process the read request
+ *
+ * @param pMnode The mnode object
+ * @param pMsg The request msg
+ * @return int32_t 0 for success, -1 for failure
+ */
+void mnodeProcessReadMsg(SMnode *pMnode, SMnodeMsg *pMsg);
+
+/**
+ * @brief Process the write request
+ *
+ * @param pMnode The mnode object
+ * @param pMsg The request msg
+ * @return int32_t 0 for success, -1 for failure
+ */
+void mnodeProcessWriteMsg(SMnode *pMnode, SMnodeMsg *pMsg);
+
+/**
+ * @brief Process the sync request
+ *
+ * @param pMnode The mnode object
+ * @param pMsg The request msg
+ * @return int32_t 0 for success, -1 for failure
+ */
+void mnodeProcessSyncMsg(SMnode *pMnode, SMnodeMsg *pMsg);
+
+/**
+ * @brief Process the apply request
+ *
+ * @param pMnode The mnode object
+ * @param pMsg The request msg
+ * @return int32_t 0 for success, -1 for failure
+ */
+void mnodeProcessApplyMsg(SMnode *pMnode, SMnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

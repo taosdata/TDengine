@@ -51,19 +51,24 @@ static void    dnodeFreeMnodeApplyQueue();
 static int32_t dnodeAllocMnodeSyncQueue();
 static void    dnodeFreeMnodeSyncQueue();
 
-static int32_t dnodeAcquireMnode() {
+static SMnode *dnodeAcquireMnode() {
+  SMnode *pMnode = NULL;
   taosRLockLatch(&tsMnode.latch);
 
-  int32_t code = tsMnode.deployed ? 0 : TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
-  if (code == 0) {
+  if (tsMnode.deployed) {
     atomic_add_fetch_32(&tsMnode.refCount, 1);
+    pMnode = tsMnode.pMnode;
   }
 
   taosRUnLockLatch(&tsMnode.latch);
-  return code;
+  return pMnode;
 }
 
-static void dnodeReleaseMnode() { atomic_sub_fetch_32(&tsMnode.refCount, 1); }
+static void dnodeReleaseMnode(SMnode *pMnode) {
+  taosRLockLatch(&tsMnode.latch);
+  atomic_sub_fetch_32(&tsMnode.refCount, 1);
+  taosRUnLockLatch(&tsMnode.latch);
+}
 
 static int32_t dnodeReadMnodeFile() {
   int32_t code = TSDB_CODE_DND_READ_MNODE_FILE_ERROR;
@@ -503,12 +508,12 @@ static void dnodeCleanupMnodeSyncWorker() { tWorkerCleanup(&tsMnode.syncPool); }
 static int32_t dnodeInitMnodeModule() {
   taosInitRWLatch(&tsMnode.latch);
 
-  SMnodePara para;
+  SMnodeOptions para;
   para.dnodeId = dnodeGetDnodeId();
   para.clusterId = dnodeGetClusterId();
   para.sendMsgToDnodeFp = dnodeSendMsgToDnode;
   para.sendMsgToMnodeFp = dnodeSendMsgToMnode;
-  para.sendMsgToMnodeFp = dnodeSendRedirectMsg;
+  para.sendRedirectMsgFp = dnodeSendRedirectMsg;
 
   tsMnode.pMnode = mnodeCreate(para);
   if (tsMnode.pMnode != NULL) {
@@ -517,7 +522,7 @@ static int32_t dnodeInitMnodeModule() {
   return 0;
 }
 
-static void dnodeCleanupMnodeModule() { mnodeCleanup(); }
+static void dnodeCleanupMnodeModule() { mnodeDrop(NULL); }
 
 static bool dnodeNeedDeployMnode() {
   if (dnodeGetDnodeId() > 0) return false;
@@ -590,13 +595,14 @@ void dnodeCleanupMnode() {
 }
 
 int32_t dnodeGetUserAuthFromMnode(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  int32_t code = dnodeAcquireMnode();
-  if (code != 0) {
+  SMnode *pMnode = dnodeAcquireMnode();
+  if (pMnode == NULL) {
     dTrace("failed to get user auth since mnode not deployed");
-    return code;
+    terrno = TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
+    return -1;
   }
 
-  code = mnodeRetriveAuth(user, spi, encrypt, secret, ckey);
-  dnodeReleaseMnode();
+  int32_t code = mnodeRetriveAuth(pMnode, user, spi, encrypt, secret, ckey);
+  dnodeReleaseMnode(pMnode);
   return code;
 }

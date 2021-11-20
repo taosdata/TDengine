@@ -184,11 +184,11 @@ typedef struct {
   SRpcMsg rpcMsg[];
 } SVnodeMsg;
 
-typedef struct SServer SServer;
-typedef void (*SendMsgToDnodeFp)(SServer *pServer, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-typedef void (*SendMsgToMnodeFp)(SServer *pServer, struct SRpcMsg *rpcMsg);
-typedef void (*SendRedirectMsgFp)(SServer *pServer, struct SRpcMsg *rpcMsg, bool forShell);
-typedef int32_t (*PutMsgToVnodeQFp)(SServer *pServer, int32_t vgId, SVnodeMsg *pMsg);
+typedef struct SDnode SDnode;
+typedef void (*SendMsgToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
+typedef void (*SendMsgToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
+typedef void (*SendRedirectMsgFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg, bool forShell);
+typedef int32_t (*PutMsgToVnodeQFp)(SDnode *pDnode, int32_t vgId, SVnodeMsg *pMsg);
 
 typedef struct {
   PutMsgToVnodeQFp putMsgToApplyQueueFp;

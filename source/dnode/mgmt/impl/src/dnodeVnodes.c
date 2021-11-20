@@ -815,7 +815,7 @@ void dnodeProcessVnodeFetchMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
   }
 }
 
-static int32_t dnodePutMsgIntoVnodeApplyQueue(SServer *pServer, int32_t vgId, SVnodeMsg *pMsg) {
+static int32_t dnodePutMsgIntoVnodeApplyQueue(SDnode *pDnode, int32_t vgId, SVnodeMsg *pMsg) {
   SVnodeObj *pVnode = dnodeAcquireVnode(vgId);
   if (pVnode == NULL) {
     return terrno;

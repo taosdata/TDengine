@@ -13,27 +13,34 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DNODE_DNODE_H_
-#define _TD_DNODE_DNODE_H_
+#ifndef _TD_DNODE_H_
+#define _TD_DNODE_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dnodeInt.h"
 
-int32_t dnodeInitDnode();
-void    dnodeCleanupDnode();
-void    dnodeProcessDnodeMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
+/* ------------------------ TYPES EXPOSED ------------------------ */
+typedef struct SDnode SDnode;
 
-int32_t dnodeGetDnodeId();
-int64_t dnodeGetClusterId();
-void    dnodeGetDnodeEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
-void    dnodeGetMnodeEpSetForPeer(SEpSet *epSet);
-void    dnodeGetMnodeEpSetForShell(SEpSet *epSet);
-void    dnodeSendRedirectMsg(SServer *pServer, SRpcMsg *rpcMsg, bool forShell);
+/* ------------------------ SDnode ------------------------ */
+/**
+ * @brief Initialize and start the dnode.
+ *
+ * @param cfgPath Config file path.
+ * @return SDnode* The dnode object.
+ */
+SDnode *dnodeInit(const char *cfgPath);
+
+/**
+ * @brief Stop and cleanup dnode.
+ *
+ * @param pDnode The dnode object to close.
+ */
+void dnodeCleanup(SDnode *pDnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DNODE_DNODE_H_*/
+#endif /*_TD_DNODE_H_*/

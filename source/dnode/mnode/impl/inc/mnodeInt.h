@@ -32,21 +32,22 @@ typedef struct SMnodeBak {
   tmr_h      timer;
   SSteps    *pInitSteps;
   SSteps    *pStartSteps;
-  SMnodePara para;
+  SMnodeOptions para;
   MnodeRpcFp msgFp[TSDB_MSG_TYPE_MAX];
 } SMnodeBak;
 
 typedef struct SMnode {
-  int32_t    dnodeId;
-  int64_t    clusterId;
-  tmr_h      timer;
-  SSteps    *pInitSteps;
-  SSteps    *pStartSteps;
-  SMnodePara para;
-  MnodeRpcFp msgFp[TSDB_MSG_TYPE_MAX];
-
+  int32_t           dnodeId;
+  int64_t           clusterId;
+  int8_t            replica;
+  int8_t            selfIndex;
+  SReplica          replicas[TSDB_MAX_REPLICA];
+  tmr_h             timer;
+  SSteps           *pInitSteps;
+  SSteps           *pStartSteps;
   struct SSdb      *pSdb;
-  struct SServer   *pServer;
+  struct SDnode    *pServer;
+  MnodeRpcFp        msgFp[TSDB_MSG_TYPE_MAX];
   PutMsgToMnodeQFp  putMsgToApplyMsgFp;
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;

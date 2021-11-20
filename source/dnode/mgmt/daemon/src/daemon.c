@@ -14,10 +14,14 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dnodeInt.h"
+#include "dnode.h"
+#include "os.h"
+#include "ulog.h"
 
 static bool stop = false;
+
 static void sigintHandler(int32_t signum, void *info, void *ctx) { stop = true; }
+
 static void setSignalHandler() {
   taosSetSignal(SIGTERM, sigintHandler);
   taosSetSignal(SIGHUP, sigintHandler);
@@ -27,20 +31,23 @@ static void setSignalHandler() {
 }
 
 int main(int argc, char const *argv[]) {
-  setSignalHandler();
+  const char *path = "/etc/taos";
 
-  int32_t code = dnodeInit();
-  if (code != 0) {
-    dInfo("Failed to start TDengine, please check the log at:%s", tsLogDir);
+  SDnode *pDnode = dnodeInit(path);
+  if (pDnode == NULL) {
+    uInfo("Failed to start TDengine, please check the log at %s", tsLogDir);
     exit(EXIT_FAILURE);
   }
 
+  uInfo("Started TDengine service successfully.");
+
+  setSignalHandler();
   while (!stop) {
     taosMsleep(100);
   }
 
-  dInfo("TDengine is shut down!");
-  dnodeCleanup();
+  uInfo("TDengine is shut down!");
+  dnodeCleanup(pDnode);
 
   return 0;
 }

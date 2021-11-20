@@ -77,40 +77,20 @@ static void mnodeCleanupTimer() {
 
 tmr_h mnodeGetTimer() { return tsMint.timer; }
 
-static int32_t mnodeSetPara(SMnode *pMnode, SMnodePara para) {
-  pMnode->dnodeId = para.dnodeId;
-  pMnode->clusterId = para.clusterId;
-  pMnode->putMsgToApplyMsgFp = para.putMsgToApplyMsgFp;
-  pMnode->sendMsgToDnodeFp = para.sendMsgToDnodeFp;
-  pMnode->sendMsgToMnodeFp = para.sendMsgToMnodeFp;
-  pMnode->sendRedirectMsgFp = para.sendRedirectMsgFp;
+static int32_t mnodeSetOptions(SMnode *pMnode, const SMnodeOptions *pOptions) {
+  pMnode->dnodeId = pOptions->dnodeId;
+  pMnode->clusterId = pOptions->clusterId;
+  pMnode->replica = pOptions->replica;
+  pMnode->selfIndex = pOptions->selfIndex;
+  memcpy(&pMnode->replicas, pOptions->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
+  pMnode->pServer = pOptions->pServer;
+  pMnode->putMsgToApplyMsgFp = pOptions->putMsgToApplyMsgFp;
+  pMnode->sendMsgToDnodeFp = pOptions->sendMsgToDnodeFp;
+  pMnode->sendMsgToMnodeFp = pOptions->sendMsgToMnodeFp;
+  pMnode->sendRedirectMsgFp = pOptions->sendRedirectMsgFp;
 
-  if (pMnode->sendMsgToDnodeFp == NULL) {
-    terrno = TSDB_CODE_MND_APP_ERROR;
-    return -1;
-  }
-
-  if (pMnode->sendMsgToMnodeFp == NULL) {
-    terrno = TSDB_CODE_MND_APP_ERROR;
-    return -1;
-  }
-
-  if (pMnode->sendRedirectMsgFp == NULL) {
-    terrno = TSDB_CODE_MND_APP_ERROR;
-    return -1;
-  }
-
-  if (pMnode->putMsgToApplyMsgFp == NULL) {
-    terrno = TSDB_CODE_MND_APP_ERROR;
-    return -1;
-  }
-
-  if (pMnode->dnodeId < 0) {
-    terrno = TSDB_CODE_MND_APP_ERROR;
-    return -1;
-  }
-
-  if (pMnode->clusterId < 0) {
+  if (pMnode->sendMsgToDnodeFp == NULL || pMnode->sendMsgToMnodeFp == NULL || pMnode->sendRedirectMsgFp == NULL ||
+      pMnode->putMsgToApplyMsgFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0) {
     terrno = TSDB_CODE_MND_APP_ERROR;
     return -1;
   }
@@ -156,12 +136,12 @@ static int32_t mnodeAllocStartSteps() {
   return 0;
 }
 
-SMnode *mnodeCreate(SMnodePara para) {
+SMnode *mnodeOpen(const char *path, const SMnodeOptions *pOptions) {
   SMnode *pMnode = calloc(1, sizeof(SMnode));
 
-  if (mnodeSetPara(pMnode, para) != 0) {
+  if (mnodeSetOptions(pMnode, pOptions) != 0) {
     free(pMnode);
-    mError("failed to init mnode para since %s", terrstr());
+    mError("failed to init mnode options since %s", terrstr());
     return NULL;
   }
 
@@ -175,35 +155,31 @@ SMnode *mnodeCreate(SMnodePara para) {
     return NULL;
   }
 
-   taosStepExec(tsMint.pInitSteps);
-   return NULL;
-}
+  taosStepExec(tsMint.pInitSteps);
 
-void mnodeCleanup() { taosStepCleanup(tsMint.pInitSteps); }
-
-int32_t mnodeDeploy(SMnodeCfg *pCfg) {
   if (tsMint.para.dnodeId <= 0 && tsMint.para.clusterId <= 0) {
     if (sdbDeploy() != 0) {
       mError("failed to deploy sdb since %s", terrstr());
-      return -1;
+      return NULL;
+    } else {
+      mInfo("mnode is deployed");
     }
   }
 
-  mDebug("mnode is deployed");
-  return 0;
+  taosStepExec(tsMint.pStartSteps);
+
+  return pMnode;
 }
 
-void mnodeUnDeploy() { sdbUnDeploy(); }
+void mnodeClose(SMnode *pMnode) { free(pMnode); }
 
-int32_t mnodeStart(SMnodeCfg *pCfg) { return taosStepExec(tsMint.pStartSteps); }
+int32_t mnodeAlter(SMnode *pMnode, const SMnodeOptions *pOptions) { return 0; }
 
-int32_t mnodeAlter(SMnodeCfg *pCfg) { return 0; }
+void mnodeDestroy(const char *path) { sdbUnDeploy(); }
 
-void mnodeStop() { taosStepCleanup(tsMint.pStartSteps); }
+int32_t mnodeGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) { return 0; }
 
-int32_t mnodeGetLoad(SMnodeLoad *pLoad) { return 0; }
-
-SMnodeMsg *mnodeInitMsg(SRpcMsg *pRpcMsg) {
+SMnodeMsg *mnodeInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   SMnodeMsg *pMsg = taosAllocateQitem(sizeof(SMnodeMsg));
   if (pMsg == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -211,7 +187,7 @@ SMnodeMsg *mnodeInitMsg(SRpcMsg *pRpcMsg) {
   }
 
   if (rpcGetConnInfo(pRpcMsg->handle, &pMsg->conn) != 0) {
-    mnodeCleanupMsg(pMsg);
+    mnodeCleanupMsg(pMnode, pMsg);
     mError("can not get user from conn:%p", pMsg->rpcMsg.handle);
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
     return NULL;
@@ -223,7 +199,7 @@ SMnodeMsg *mnodeInitMsg(SRpcMsg *pRpcMsg) {
   return pMsg;
 }
 
-void mnodeCleanupMsg(SMnodeMsg *pMsg) {
+void mnodeCleanupMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
   if (pMsg->pUser != NULL) {
     sdbRelease(pMsg->pUser);
   }
@@ -232,6 +208,12 @@ void mnodeCleanupMsg(SMnodeMsg *pMsg) {
 }
 
 static void mnodeProcessRpcMsg(SMnodeMsg *pMsg) {
+  if (!mnodeIsMaster()) {
+    mnodeSendRedirectMsg(NULL, &pMsg->rpcMsg, true);
+    mnodeCleanupMsg(NULL, pMsg);
+    return;
+  }
+
   int32_t msgType = pMsg->rpcMsg.msgType;
 
   MnodeRpcFp fp = tsMint.msgFp[msgType];
@@ -250,25 +232,13 @@ void mnodeSetMsgFp(int32_t msgType, MnodeRpcFp fp) {
   }
 }
 
-void mnodeProcessMsg(SMnodeMsg *pMsg, EMnMsgType msgType) {
-  if (!mnodeIsMaster()) {
-    mnodeSendRedirectMsg(NULL, &pMsg->rpcMsg, true);
-    mnodeCleanupMsg(pMsg);
-    return;
-  }
+void mnodeProcessReadMsg(SMnode *pMnode, SMnodeMsg *pMsg) { mnodeProcessRpcMsg(pMsg); }
 
-  switch (msgType) {
-    case MN_MSG_TYPE_READ:
-    case MN_MSG_TYPE_WRITE:
-    case MN_MSG_TYPE_SYNC:
-      mnodeProcessRpcMsg(pMsg);
-      break;
-    case MN_MSG_TYPE_APPLY:
-      break;
-    default:
-      break;
-  }
-}
+void mnodeProcessWriteMsg(SMnode *pMnode, SMnodeMsg *pMsg) { mnodeProcessRpcMsg(pMsg); }
+
+void mnodeProcessSyncMsg(SMnode *pMnode, SMnodeMsg *pMsg) { mnodeProcessRpcMsg(pMsg); }
+
+void mnodeProcessApplyMsg(SMnode *pMnode, SMnodeMsg *pMsg) {}
 
 #if 0
 
