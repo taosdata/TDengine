@@ -6416,6 +6416,14 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
     SStrToken    name = {.type = TK_STRING, .z = pItem->pVar.pz, .n = pItem->pVar.nLen};
+
+    //handle Escape character backstick
+    bool inEscape = false;
+    if (name.z[0] == TS_ESCAPE_CHAR && name.z[name.n - 1] == TS_ESCAPE_CHAR) {
+      inEscape = true;
+      name.type = TK_ID;
+    }
+
     if (getColumnIndexByName(&name, pQueryInfo, &columnIndex, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsg, msg17);
     }
@@ -6426,9 +6434,9 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     char name1[TSDB_COL_NAME_LEN] = {0};
     tstrncpy(name1, pItem->pVar.pz, sizeof(name1));
-    //handle Escape character backstick
+
     int32_t nameLen = pItem->pVar.nLen;
-    if (name1[0] == TS_ESCAPE_CHAR && name1[nameLen - 1] == TS_ESCAPE_CHAR) {
+    if (inEscape) {
       memmove(name1, name1 + 1, nameLen);
       name1[nameLen - TS_ESCAPE_CHAR_SIZE] = '\0';
     }
