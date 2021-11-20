@@ -91,8 +91,8 @@ int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint3
   return TSDB_CODE_SUCCESS;
 }
 
-int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec) {
-  int32_t   index = 0;
+int tsParseTime(SStrToken *pToken, int64_t *tsc_time, char **next, char *tsc_error, int16_t timePrec) {
+  int32_t   tsc_index = 0;
   SStrToken sToken;
   int64_t   interval;
   int64_t   useconds = 0;
@@ -106,8 +106,8 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
     useconds = taosStr2int64(pToken->z);
   } else {
     // strptime("2001-11-12 18:31:01", "%Y-%m-%d %H:%M:%S", &tm);
-    if (taosParseTime(pToken->z, time, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
-      return tscInvalidOperationMsg(error, "invalid timestamp format", pToken->z);
+    if (taosParseTime(pToken->z, tsc_time, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
+      return tscInvalidOperationMsg(tsc_error, "invalid timestamp format", pToken->z);
     }
 
     return TSDB_CODE_SUCCESS;
@@ -117,7 +117,7 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
     if (isspace(pToken->z[k])) continue;
     if (pToken->z[k] == ',') {
       *next = pTokenEnd;
-      *time = useconds;
+      *tsc_time = useconds;
       return 0;
     }
 
@@ -125,21 +125,21 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
   }
 
   /*
-   * time expression:
+   * tsc_time expression:
    * e.g., now+12a, now-5h
    */
   SStrToken valueToken;
-  index = 0;
-  sToken = tStrGetToken(pTokenEnd, &index, false);
-  pTokenEnd += index;
+  tsc_index = 0;
+  sToken = tStrGetToken(pTokenEnd, &tsc_index, false);
+  pTokenEnd += tsc_index;
 
   if (sToken.type == TK_MINUS || sToken.type == TK_PLUS) {
-    index = 0;
-    valueToken = tStrGetToken(pTokenEnd, &index, false);
-    pTokenEnd += index;
+    tsc_index = 0;
+    valueToken = tStrGetToken(pTokenEnd, &tsc_index, false);
+    pTokenEnd += tsc_index;
 
     if (valueToken.n < 2) {
-      return tscInvalidOperationMsg(error, "value expected in timestamp", sToken.z);
+      return tscInvalidOperationMsg(tsc_error, "value expected in timestamp", sToken.z);
     }
 
     char unit = 0;
@@ -156,7 +156,7 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
     *next = pTokenEnd;
   }
 
-  *time = useconds;
+  *tsc_time = useconds;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -448,7 +448,7 @@ int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
 
 int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t *len, char *tmpTokenBuf,
                   SInsertStatementParam *pInsertParam) {
-  int32_t   index = 0;
+  int32_t   tsc_index = 0;
   SStrToken sToken = {0};
 
   char *row = pDataBlocks->pData + pDataBlocks->size;  // skip the SSubmitBlk header
@@ -472,9 +472,9 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
 
     SSchema *pSchema = &schema[colIndex];  // get colId here
 
-    index = 0;
-    sToken = tStrGetToken(*str, &index, true);
-    *str += index;
+    tsc_index = 0;
+    sToken = tStrGetToken(*str, &tsc_index, true);
+    *str += tsc_index;
 
     if (sToken.type == TK_QUESTION) {
       if (!isParseBindParam) {
@@ -606,7 +606,7 @@ int32_t boundIdxCompar(const void *lhs, const void *rhs) {
 
 int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SInsertStatementParam *pInsertParam,
     int32_t* numOfRows, char *tmpTokenBuf) {
-  int32_t index = 0;
+  int32_t tsc_index = 0;
   int32_t code = 0;
 
   (*numOfRows) = 0;
@@ -626,11 +626,11 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
     return code;
   }
   while (1) {
-    index = 0;
-    sToken = tStrGetToken(*str, &index, false);
+    tsc_index = 0;
+    sToken = tStrGetToken(*str, &tsc_index, false);
     if (sToken.n == 0 || sToken.type != TK_LP) break;
 
-    *str += index;
+    *str += tsc_index;
     if ((*numOfRows) >= maxRows || pDataBlock->size + extendedRowSize >= pDataBlock->nAllocSize) {
       int32_t tSize;
       code = tscAllocateMemIfNeed(pDataBlock, extendedRowSize, &tSize);
@@ -651,13 +651,13 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
 
     pDataBlock->size += len;
 
-    index = 0;
-    sToken = tStrGetToken(*str, &index, false);
+    tsc_index = 0;
+    sToken = tStrGetToken(*str, &tsc_index, false);
     if (sToken.n == 0 || sToken.type != TK_RP) {
       return tscSQLSyntaxErrMsg(pInsertParam->msg, ") expected", *str);
     }
     
-    *str += index;
+    *str += tsc_index;
 
     (*numOfRows)++;
   }
@@ -905,7 +905,7 @@ static int32_t doParseInsertStatement(SInsertStatementParam *pInsertParam, char 
 }
 
 static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundColumn) {
-  int32_t   index = 0;
+  int32_t   tsc_index = 0;
   SStrToken sToken = {0};
   SStrToken tableToken = {0};
   int32_t   code = TSDB_CODE_SUCCESS;
@@ -920,14 +920,14 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
   char *sql = *sqlstr;
 
   // get the token of specified table
-  index = 0;
-  tableToken = tStrGetToken(sql, &index, false);
-  sql += index;
+  tsc_index = 0;
+  tableToken = tStrGetToken(sql, &tsc_index, false);
+  sql += tsc_index;
 
   // skip possibly exists column list
-  index = 0;
-  sToken = tStrGetToken(sql, &index, false);
-  sql += index;
+  tsc_index = 0;
+  sToken = tStrGetToken(sql, &tsc_index, false);
+  sql += tsc_index;
 
   int32_t numOfColList = 0;
 
@@ -936,8 +936,8 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     *boundColumn = &sToken.z[0];
 
     while (1) {
-      index = 0;
-      sToken = tStrGetToken(sql, &index, false);
+      tsc_index = 0;
+      sToken = tStrGetToken(sql, &tsc_index, false);
 
       if (sToken.type == TK_ILLEGAL) {
         return tscSQLSyntaxErrMsg(pCmd->payload, "unrecognized token", sToken.z);
@@ -947,12 +947,12 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
         break;
       }
 
-      sql += index;
+      sql += tsc_index;
       ++numOfColList;
     }
 
-    sToken = tStrGetToken(sql, &index, false);
-    sql += index;
+    sToken = tStrGetToken(sql, &tsc_index, false);
+    sql += tsc_index;
   }
 
   if (numOfColList == 0 && (*boundColumn) != NULL) {
@@ -962,9 +962,9 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
   
   if (sToken.type == TK_USING) {  // create table if not exists according to the super table
-    index = 0;
-    sToken = tStrGetToken(sql, &index, false);
-    sql += index;
+    tsc_index = 0;
+    sToken = tStrGetToken(sql, &tsc_index, false);
+    sql += tsc_index;
 
     //the source super table is moved to the secondary position of the pTableMetaInfo list
     if (pQueryInfo->numOfTables < 2) {
@@ -995,8 +995,8 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     SParsedDataColInfo spd = {0};
     tscSetBoundColumnInfo(&spd, pTagSchema, tscGetNumOfTags(pSTableMetaInfo->pTableMeta));
 
-    index = 0;
-    sToken = tStrGetToken(sql, &index, false);
+    tsc_index = 0;
+    sToken = tStrGetToken(sql, &tsc_index, false);
     if (sToken.type != TK_TAGS && sToken.type != TK_LP) {
       tscDestroyBoundColumnInfo(&spd);
       return tscSQLSyntaxErrMsg(pInsertParam->msg, "keyword TAGS expected", sToken.z);
@@ -1017,16 +1017,16 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
       sql = end;
 
-      index = 0;  // keywords of "TAGS"
-      sToken = tStrGetToken(sql, &index, false);
-      sql += index;
+      tsc_index = 0;  // keywords of "TAGS"
+      sToken = tStrGetToken(sql, &tsc_index, false);
+      sql += tsc_index;
     } else {
-      sql += index;
+      sql += tsc_index;
     }
 
-    index = 0;
-    sToken = tStrGetToken(sql, &index, false);
-    sql += index;
+    tsc_index = 0;
+    sToken = tStrGetToken(sql, &tsc_index, false);
+    sql += tsc_index;
 
     if (sToken.type != TK_LP) {
       tscDestroyBoundColumnInfo(&spd);
@@ -1042,9 +1042,9 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     for (int i = 0; i < spd.numOfBound; ++i) {
       SSchema* pSchema = &pTagSchema[spd.boundedColumns[i]];
 
-      index = 0;
-      sToken = tStrGetToken(sql, &index, true);
-      sql += index;
+      tsc_index = 0;
+      sToken = tStrGetToken(sql, &tsc_index, true);
+      sql += tsc_index;
 
       if (TK_ILLEGAL == sToken.type) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
@@ -1096,9 +1096,9 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     free(row);
     pInsertParam->tagData.data = pTag;
 
-    index = 0;
-    sToken = tStrGetToken(sql, &index, false);
-    sql += index;
+    tsc_index = 0;
+    sToken = tStrGetToken(sql, &tsc_index, false);
+    sql += tsc_index;
     if (sToken.n == 0 || sToken.type != TK_RP) {
       return tscSQLSyntaxErrMsg(pInsertParam->msg, ") expected", sToken.z);
     }
@@ -1107,9 +1107,9 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
      * insert into table_name using super_table(tag_name1, tag_name2) tags(tag_val1, tag_val2)
      * (normal_col1, normal_col2) values(normal_col1_val, normal_col2_val);
      * */
-    index = 0;
-    sToken = tStrGetToken(sql, &index, false);
-    sql += index;
+    tsc_index = 0;
+    sToken = tStrGetToken(sql, &tsc_index, false);
+    sql += tsc_index;
     int numOfColsAfterTags = 0;
     if (sToken.type == TK_LP) {
       if (*boundColumn != NULL) {
@@ -1119,18 +1119,18 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       }
 
       while (1) {
-        index = 0;
-        sToken = tStrGetToken(sql, &index, false);
+        tsc_index = 0;
+        sToken = tStrGetToken(sql, &tsc_index, false);
 
         if (sToken.type == TK_RP) {
           break;
         }
 
-        if (sToken.n == 0 || sToken.type == TK_SEMI || index == 0) {
+        if (sToken.n == 0 || sToken.type == TK_SEMI || tsc_index == 0) {
           return tscSQLSyntaxErrMsg(pCmd->payload, "unexpected token", sql);
         }
 
-        sql += index;
+        sql += tsc_index;
         ++numOfColsAfterTags;
       }
 
@@ -1138,7 +1138,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
         return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       }
 
-      sToken = tStrGetToken(sql, &index, false);
+      sToken = tStrGetToken(sql, &tsc_index, false);
     }
 
     sql = sToken.z;
@@ -1213,9 +1213,9 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-  int32_t index = 0;
-  SStrToken sToken = tStrGetToken(str, &index, false);
-  str += index;
+  int32_t tsc_index = 0;
+  SStrToken sToken = tStrGetToken(str, &tsc_index, false);
+  str += tsc_index;
 
   if (sToken.type != TK_LP) {
     code = tscSQLSyntaxErrMsg(pInsertParam->msg, "( is expected", sToken.z);
@@ -1225,9 +1225,9 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
   bool    isOrdered = true;
   int32_t lastColIdx = -1;  // last column found
   while (1) {
-    index = 0;
-    sToken = tStrGetToken(str, &index, false);
-    str += index;
+    tsc_index = 0;
+    sToken = tStrGetToken(str, &tsc_index, false);
+    str += tsc_index;
 
     if (TK_STRING == sToken.type) {
       tscDequoteAndTrimToken(&sToken);
@@ -1378,8 +1378,8 @@ int tsParseInsertSql(SSqlObj *pSql) {
   tscDebug("0x%"PRIx64" create data block list hashList:%p", pSql->self, pInsertParam->pTableBlockHashList);
 
   while (1) {
-    int32_t   index = 0;
-    SStrToken sToken = tStrGetToken(str, &index, false);
+    int32_t   tsc_index = 0;
+    SStrToken sToken = tStrGetToken(str, &tsc_index, false);
 
     // no data in the sql string anymore.
     if (sToken.n == 0) {
@@ -1437,9 +1437,9 @@ int tsParseInsertSql(SSqlObj *pSql) {
       goto _clean;
     }
 
-    index = 0;
-    sToken = tStrGetToken(str, &index, false);
-    str += index;
+    tsc_index = 0;
+    sToken = tStrGetToken(str, &tsc_index, false);
+    str += tsc_index;
 
     if (sToken.n == 0 || (sToken.type != TK_FILE && sToken.type != TK_VALUES)) {
       code = tscSQLSyntaxErrMsg(pInsertParam->msg, "keyword VALUES or FILE required", sToken.z);
@@ -1452,13 +1452,13 @@ int tsParseInsertSql(SSqlObj *pSql) {
         goto _clean;
       }
 
-      index = 0;
-      sToken = tStrGetToken(str, &index, false);
+      tsc_index = 0;
+      sToken = tStrGetToken(str, &tsc_index, false);
       if (sToken.type != TK_STRING && sToken.type != TK_ID) {
         code = tscSQLSyntaxErrMsg(pInsertParam->msg, "file path is required following keyword FILE", sToken.z);
         goto _clean;
       }
-      str += index;
+      str += tsc_index;
       if (sToken.n == 0) {
         code = tscSQLSyntaxErrMsg(pInsertParam->msg, "file path is required following keyword FILE", sToken.z);
         goto _clean;
@@ -1553,10 +1553,10 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
     return TSDB_CODE_TSC_NO_WRITE_AUTH;
   }
 
-  int32_t  index = 0;
+  int32_t  tsc_index = 0;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SStrToken sToken = tStrGetToken(pSql->sqlstr, &index, false);
+  SStrToken sToken = tStrGetToken(pSql->sqlstr, &tsc_index, false);
   assert(sToken.type == TK_INSERT || sToken.type == TK_IMPORT);
 
   pCmd->count   = 0;
@@ -1566,7 +1566,7 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd);
   TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT);
 
-  sToken = tStrGetToken(pSql->sqlstr, &index, false);
+  sToken = tStrGetToken(pSql->sqlstr, &tsc_index, false);
   if (sToken.type != TK_INTO) {
     return tscSQLSyntaxErrMsg(pInsertParam->msg, "keyword INTO is expected", sToken.z);
   }

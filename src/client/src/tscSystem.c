@@ -84,24 +84,24 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
     return 0;
   }
 
-  SRpcInit rpcInit;
-  memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localPort = 0;
-  rpcInit.label = "TSC";
-  rpcInit.numOfThreads = tscNumOfThreads;    
-  rpcInit.cfp = tscProcessMsgFromServer;
-  rpcInit.sessions = tsMaxConnections;
-  rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcInit.user = (char *)user;
-  rpcInit.idleTime = tsShellActivityTimer * 1000; 
-  rpcInit.ckey = "key"; 
-  rpcInit.spi = 1; 
-  rpcInit.secret = (char *)secretEncrypt;
+  SRpcInit tsc_rpcInit;
+  memset(&tsc_rpcInit, 0, sizeof(tsc_rpcInit));
+  tsc_rpcInit.localPort = 0;
+  tsc_rpcInit.label = "TSC";
+  tsc_rpcInit.numOfThreads = tscNumOfThreads;    
+  tsc_rpcInit.cfp = tscProcessMsgFromServer;
+  tsc_rpcInit.sessions = tsMaxConnections;
+  tsc_rpcInit.connType = TAOS_CONN_CLIENT;
+  tsc_rpcInit.user = (char *)user;
+  tsc_rpcInit.idleTime = tsShellActivityTimer * 1000; 
+  tsc_rpcInit.ckey = "key"; 
+  tsc_rpcInit.spi = 1; 
+  tsc_rpcInit.secret = (char *)secretEncrypt;
 
   SRpcObj rpcObj;
   memset(&rpcObj, 0, sizeof(rpcObj));
   strncpy(rpcObj.key, key, strlen(key));
-  rpcObj.pDnodeConn = rpcOpen(&rpcInit);
+  rpcObj.pDnodeConn = rpcOpen(&tsc_rpcInit);
   if (rpcObj.pDnodeConn == NULL) {
     pthread_mutex_unlock(&rpcObjMutex);
     tscError("failed to init connection to TDengine");

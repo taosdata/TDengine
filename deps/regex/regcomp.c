@@ -120,7 +120,7 @@ static reg_errcode_t build_charclass (re_bitset_ptr_t sbcset,
 static bin_tree_t *build_word_op (re_dfa_t *dfa, int not, reg_errcode_t *err);
 static void free_bin_tree (bin_tree_t *tree);
 static bin_tree_t *create_tree (bin_tree_t *left, bin_tree_t *right,
-				re_token_type_t type, int index);
+				re_token_type_t type, int deps_index);
 static bin_tree_t *duplicate_tree (const bin_tree_t *src, re_dfa_t *dfa);
 
 /* This table gives an error message for each of the error codes listed
@@ -3447,11 +3447,11 @@ free_charset (re_charset_t *cset)
    Note: This function automatically free left and right if malloc fails.  */
 
 static bin_tree_t *
-create_tree (left, right, type, index)
+create_tree (left, right, type, deps_index)
      bin_tree_t *left;
      bin_tree_t *right;
      re_token_type_t type;
-     int index;
+     int deps_index;
 {
   bin_tree_t *tree;
   tree = re_malloc (bin_tree_t, 1);
@@ -3465,7 +3465,7 @@ create_tree (left, right, type, index)
   tree->left = left;
   tree->right = right;
   tree->type = type;
-  tree->node_idx = index;
+  tree->node_idx = deps_index;
   tree->first = -1;
   tree->next = -1;
   re_node_set_init_empty (&tree->eclosure);
