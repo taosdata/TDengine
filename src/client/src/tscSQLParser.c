@@ -6361,6 +6361,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     // the schema is located after the pMsg body, then followed by true tag value
     char* d = pUpdateMsg->data;
     SSchema* pTagCols = tscGetTableTagSchema(pTableMeta);
+
     for (int i = 0; i < numOfTags; ++i) {
       STColumn* pCol = (STColumn*) d;
       pCol->colId = htons(pTagCols[i].colId);
@@ -6425,6 +6426,13 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     char name1[TSDB_COL_NAME_LEN] = {0};
     tstrncpy(name1, pItem->pVar.pz, sizeof(name1));
+    //handle Escape character backstick
+    int32_t nameLen = pItem->pVar.nLen;
+    if (name1[0] == TS_ESCAPE_CHAR && name1[nameLen - 1] == TS_ESCAPE_CHAR) {
+      memmove(name1, name1 + 1, nameLen);
+      name1[nameLen - TS_ESCAPE_CHAR_SIZE] = '\0';
+    }
+
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_COLUMN) {
