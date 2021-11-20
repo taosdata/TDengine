@@ -80,7 +80,17 @@ class TDTestCase:
         tdSql.query("select count(*) from stb1")
         tdSql.checkData(0, 0, 200)
 
-
+        # default values json files 
+        tdSql.execute("drop database if exists db") 
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-default.json -y " % binPath)
+        tdSql.query("show databases;")
+        for i in range(tdSql.queryRows):
+            if tdSql.queryResult[i][0] == 'db':
+                tdSql.checkData(i, 2, 100) 
+                tdSql.checkData(i, 4, 1)     
+                tdSql.checkData(i, 6, 10)       
+                tdSql.checkData(i, 16, 'ms')           
+    
         # insert: create  mutiple tables per sql and insert one rows per sql .
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-1s1tntmr.json -y " % binPath)
         tdSql.execute("use db")
