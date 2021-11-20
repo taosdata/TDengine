@@ -649,7 +649,7 @@ pipeline {
         }
 
         stage('ningsi') {
-          agent{label " ningsi "}
+          agent{label "ningsi"}
           steps {     
               pre_test_ningsi()    
             }
