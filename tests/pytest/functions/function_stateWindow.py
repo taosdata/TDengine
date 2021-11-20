@@ -33,10 +33,18 @@ class TDTestCase:
         tdSql.execute('''create table test(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
                     col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
         tdSql.execute("create table test1 using test tags('beijing')")
+        tdSql.execute("create table test2 using test tags('shanghai')")
         col0 = 0
         for i in range(self.rowNum):
             tdSql.execute("insert into test1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
                         % (self.ts + i, col0, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
+
+        for i in range(self.rowNum):
+            tdSql.execute("insert into test2 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
+                        % (self.ts + i, col0, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
+        # operaton not support mixed state_window with join 
+        tdSql.error("select count(*) from test1, test2 where test1.ts = test2.ts state_window(col3)"); 
+        tdSql.error("select count(*) from test1, test2 where test1.ts = test2.ts state_window(col4)"); 
 
         # operation not allowed on super table
         tdSql.error("select count(*) from test session(ts, 1s)")
@@ -55,7 +63,7 @@ class TDTestCase:
         for i in range(self.rowNum):
             tdSql.execute("insert into test1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
                         % (self.ts + i + 10000, col0, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
-
+         
         tdSql.query("select count(*) from test1 state_window(col1)")  
 
         tdSql.checkRows(2)
