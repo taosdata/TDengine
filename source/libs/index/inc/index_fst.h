@@ -13,58 +13,73 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _INDEX_FST_H_
-#define _INDEX_FST_H_
-#include "index_fst.h"
+#ifndef __INDEX_FST_H__
+#define __INDEX_FST_H__
+
+
 #include "tarray.h"
-
-typedef FstType      uint64_t;
-typedef CompiledAddr uint64_t;
-typedef Output       uint64_t;  
-typedef PackSizes    uint8_t;
+#include "index_fst_util.h"
+#include "index_fst_registry.h"
 
 
-//A sentinel value used to indicate an empty final state
-const CompileAddr EMPTY_ADDRESS  = 0;
-/// A sentinel value used to indicate an invalid state.
-const CompileAddr NONE_ADDRESS   = 1;
+typedef struct FstNode FstNode;
+#define OUTPUT_PREFIX(a, b) ((a) > (b) ? (b) : (a) 
 
-// This version number is written to every finite state transducer created by
-// this crate. When a finite state transducer is read, its version number is
-// checked against this value.
-const uint64_t    version        = 3;
-// The threshold (in number of transitions) at which an index is created for                                   
-// a node's transitions. This speeds up lookup time at the expense of FST size 
-
-const uint64_t TRANS_INDEX_THRESHOLD = 32;
 
 typedef struct FstRange {
   uint64_t start;
   uint64_t end;
 } FstRange;
 
-enum State { OneTransNext, OneTrans, AnyTrans, EmptyFinal};
-enum FstBound { Included, Excluded, Unbounded}; 
 
-typedef struct CheckSummer {
-  uint32_t sum;
-};
+typedef struct FstBuilderNode {
+  bool isFinal; 
+  Output finalOutput;  
+  SArray *trans;  // <FstTransition>
+} FstBuilderNode; 
+
+typedef enum { OneTransNext, OneTrans, AnyTrans, EmptyFinal} State;
+typedef enum { Included, Excluded, Unbounded} FstBound; 
+
+typedef uint32_t CheckSummer;
 
 
-typedef struct FstBuilder {
-  FstCountingWriter  wtr;       // The FST raw data is written directly to `wtr`.  
-  FstUnFinishedNodes unfinished // The stack of unfinished nodes   
-  Registry           registry   // A map of finished nodes.        
-  SArray*            last       // The last word added 
-  CompiledAddr       lastAddr   // The address of the last compiled node  
-  uint64_t           len        // num of keys added
-} FstBuilder;
+/*
+ * 
+ * UnFinished node and helper function
+ * TODO: simple function name 
+ */
+typedef struct FstUnFinishedNodes {
+  SArray *stack; // <FstBuilderNodeUnfinished> } FstUnFinishedNodes; 
+} FstUnFinishedNodes;
+
+#define FST_UNFINISHED_NODES_LEN(nodes) taosArrayGetSize(nodes->stack) 
+
+FstUnFinishedNodes *FstUnFinishedNodesCreate();  
+void fstUnFinishedNodesPushEmpty(FstUnFinishedNodes *nodes, bool isFinal);
+FstBuilderNode *fstUnFinishedNodesPopRoot(FstUnFinishedNodes *nodes);
+FstBuilderNode *fstUnFinishedNodesPopFreeze(FstUnFinishedNodes *nodes, CompiledAddr addr);
+FstBuilderNode *fstUnFinishedNodesPopEmpty(FstUnFinishedNodes *nodes);
+void fstUnFinishedNodesSetRootOutput(FstUnFinishedNodes *node, Output out); 
+void fstUnFinishedNodesTopLastFreeze(FstUnFinishedNodes *node, CompiledAddr addr);
+void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes *node, FstSlice bs, Output out);
+uint64_t fstUnFinishedNodesFindCommPrefix(FstUnFinishedNodes *node, FstSlice bs);
+uint64_t FstUnFinishedNodesFindCommPreifxAndSetOutput(FstUnFinishedNodes *node, FstSlice bs, Output in, Output *out);
 
 typedef struct FstCountingWriter {
   void*    wtr;  // wrap any writer that counts and checksum bytes written 
   uint64_t count; 
   CheckSummer summer;  
-};
+} FstCountingWriter;
+
+typedef struct FstBuilder {
+  FstCountingWriter  wtr;         // The FST raw data is written directly to `wtr`.  
+  FstUnFinishedNodes *unfinished; // The stack of unfinished nodes   
+  FstRegistry        registry;    // A map of finished nodes.        
+  SArray*            last;        // The last word added 
+  CompiledAddr       lastAddr;    // The address of the last compiled node  
+  uint64_t           len;         // num of keys added
+} FstBuilder;
 
 
 
@@ -80,16 +95,6 @@ typedef struct FstTransitions {
   FstRange   range;   
 } FstTransitions;
 
-typedef struct FstUnFinishedNodes {
-  SArray *stack; // <FstBuilderNodeUnfinished>
-} FstUnFinishedNodes; 
-
-typedef struct FstBuilderNode {
-  bool isFinal; 
-  Output finalOutput;  
-  SArray *trans;  // <FstTransition>
-} FstBuilderNode; 
-
 
 
 typedef struct FstLastTransition {
@@ -97,13 +102,23 @@ typedef struct FstLastTransition {
   Output  out;
 } FstLastTransition;
 
+/* 
+ * FstBuilderNodeUnfinished and helper function
+ * TODO: simple function name 
+ */
 typedef struct FstBuilderNodeUnfinished {
-  FstBuilderNode    node; 
-  FstLastTransition last; 
+  FstBuilderNode *node; 
+  FstLastTransition* last; 
 } FstBuilderNodeUnfinished;
 
+void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished *node, CompiledAddr addr);
+void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *node, CompiledAddr addr);
+
+/*
+ * FstNode and helper function  
+ */
 typedef struct FstNode {
-  uint8_t*     data;
+  FstSlice     data;
   uint64_t     version; 
   State        state;
   CompiledAddr start; 
@@ -113,6 +128,28 @@ typedef struct FstNode {
   PackSizes    sizes;
   Output      finalOutput;
 } FstNode;
+
+// If this node is final and has a terminal output value, then it is,  returned. Otherwise, a zero output is returned 
+#define FST_NODE_FINAL_OUTPUT(node) node->finalOutput
+// Returns true if and only if this node corresponds to a final or "match", state in the finite state transducer.
+#define FST_NODE_IS_FINAL(node) node->isFinal
+// Returns the number of transitions in this node, The maximum number of transitions is 256.
+#define FST_NODE_LEN(node) node->nTrans
+// Returns true if and only if this node has zero transitions.
+#define FST_NODE_IS_EMPTYE(node) (node->nTrans == 0)
+// Return the address of this node.
+#define FST_NODE_ADDR(node) node->start 
+
+FstNode *fstNodeCreate(int64_t version, CompiledAddr addr, FstSlice *data);
+FstTransitions fstNodeTransitionIter(FstNode *node);
+FstTransitions* fstNodeTransitions(FstNode *node);
+bool fstNodeGetTransitionAt(FstNode *node, uint64_t i, FstTransition *res);
+bool fstNodeGetTransitionAddrAt(FstNode *node, uint64_t i, CompiledAddr *res);
+bool fstNodeFindInput(FstNode *node, uint8_t b, uint64_t *res);
+bool fstNodeCompile(FstNode *node, void *w, CompiledAddr lastAddr, CompiledAddr addr, FstBuilderNode *builderNode); 
+FstSlice  fstNodeAsSlice(FstNode *node); 
+
+
 
 typedef struct FstMeta {
   uint64_t     version;
@@ -125,41 +162,20 @@ typedef struct FstMeta {
 typedef struct Fst {
   FstMeta meta; 
   void    *data;  //  
-};
+} Fst;
 
-// ops 
+// ops  
 
 typedef struct FstIndexedValue {
   uint64_t index;
   uint64_t value;
-};
+} FstIndexedValue;
 
-// relate to Regist 
-typedef struct FstRegistry {
-  SArray *table;      // <Registtry cell>
-  uint64_t tableSize; // num of rows
-  uint64_t mruSize;   // num of columns    
-} FstRegistry; 
-
-typedef struct FstRegistryCache {
-  SArray *cells;  //  <RegistryCell>
-} FstRegistryCache;
 
 typedef struct FstRegistryCell {
   CompiledAddr addr; 
   FstBuilderNode *node; 
 } FstRegistryCell;
-
-enum FstRegistryEntry {Found, NotFound, Rejected};
-
-FstNode *fstNodeCreate(int64_t version, CompiledAddr addr, uint8_t *data);
-FstTransitions fstNodeTransitionIter(FstNode *node);
-FstTransition  fstNodeGetTransitionAt(FstNode *node, uint64_t i);
-CompiledAddr   fstNodeGetTransitionAddr(FstNode *node, uint64_t i);
-int64_t        fstNodeFindInput(FstNode *node, int8_t b);
-Output         fstNodeGetFinalOutput(FstNode *node);
-void*          fstNodeCompile(FstNode *node, void *w, CompiledAddr lastAddr, CompiledArr addr, FstBuilderNode *builderNode); 
-
 
 
 

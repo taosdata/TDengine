@@ -12,6 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#include "tutil.h"
 const uint8_t COMMON_INPUTS[] = {
     84,  // '\x00'
     85,  // '\x01'
@@ -271,7 +273,7 @@ const uint8_t COMMON_INPUTS[] = {
     255, // 'ÿ'
 };
 
-char const COMMON_INPUTS_INV[] = [
+char const COMMON_INPUTS_INV[] = {
     't', 'e', '/', 'o', 'a', 's', 'r', 'i', 'p', 'c', 'n', 'w',
     '.', 'h', 'l', 'm', '-', 'd', 'u', '0', '1', '2', 'g', '=',
     ':', 'b', 'f', '3', 'y', '5', '&', '_', '4', 'v', '9', '6',
@@ -300,5 +302,5 @@ char const COMMON_INPUTS_INV[] = [
     '\xe9', '\xea', '\xeb', '\xec', '\xed', '\xee', '\xef', '\xf0',
     '\xf1', '\xf2', '\xf3', '\xf4', '\xf5', '\xf6', '\xf7', '\xf8',
     '\xf9', '\xfa', '\xfb', '\xfc', '\xfd', '\xfe', '\xff',
-];
+};
 
