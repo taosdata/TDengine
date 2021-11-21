@@ -87,6 +87,8 @@ char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/power";
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/tq";
 #elif (_TD_PRO_ == true)
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/ProDB";
+#elif (_TD_KH_ == true)
+char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/kinghistorian";
 #else
 char    tsLogDir[PATH_MAX] = "/var/log/taos";
 #endif

@@ -210,13 +210,6 @@ function install_lib() {
       ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
     fi
 
-    #if [ "$verMode" == "cluster" ]; then
-    #    # Compatible with version 1.5
-    #    ${csudo} mkdir -p ${v15_java_app_dir}
-    #    ${csudo} ln -s ${install_main_dir}/connector/taos-jdbcdriver-1.0.2-dist.jar ${v15_java_app_dir}/JDBCDriver-1.0.2-dist.jar
-    #    ${csudo} chmod 777 ${v15_java_app_dir} || :
-    #fi
-
     ${csudo} ldconfig
 }
 
@@ -328,7 +321,7 @@ function set_hostname() {
     ${csudo} sed -i -r "s/#*\s*(HOSTNAME=\s*).*/\1$newHostname/" /etc/sysconfig/network   ||:
   fi
 
-  ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${cfg_install_dir}/taos.cfg
+  ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${cfg_install_dir}/tq.cfg
   serverFqdn=$newHostname
 
   if [[ -e /etc/hosts ]]; then
@@ -363,7 +356,7 @@ function set_ipAsFqdn() {
     echo -e -n "${GREEN}Unable to get local ip, use 127.0.0.1${NC}"
     localFqdn="127.0.0.1"
     # Write the local FQDN to configuration file
-    ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/taos.cfg
+    ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/tq.cfg
     serverFqdn=$localFqdn
     echo
     return
@@ -385,7 +378,7 @@ function set_ipAsFqdn() {
           read -p "Please choose an IP from local IP list:" localFqdn
         else
           # Write the local FQDN to configuration file
-          ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/taos.cfg
+          ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/tq.cfg
           serverFqdn=$localFqdn
           break
         fi
@@ -432,16 +425,14 @@ function local_fqdn_check() {
 }
 
 function install_config() {
-    #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
-
-    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
+    if [ ! -f ${cfg_install_dir}/tq.cfg ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${script_dir}/cfg/taos.cfg ] && ${csudo} cp ${script_dir}/cfg/taos.cfg ${cfg_install_dir}
+        [ -f ${script_dir}/cfg/tq.cfg ] && ${csudo} cp ${script_dir}/cfg/tq.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
     fi
 
-    ${csudo} cp -f ${script_dir}/cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
-    ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
+    ${csudo} cp -f ${script_dir}/cfg/tq.cfg ${install_main_dir}/cfg/tq.cfg.org
+    ${csudo} ln -s ${cfg_install_dir}/tq.cfg ${install_main_dir}/cfg
 
     [ ! -z $1 ] && return 0 || : # only install client
 
@@ -471,7 +462,7 @@ function install_config() {
             # check the format of the firstEp
             #if [[ $firstEp == $FQDN_PATTERN ]]; then
                 # Write the first FQDN to configuration file
-                ${csudo} sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${cfg_install_dir}/taos.cfg
+                ${csudo} sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${cfg_install_dir}/tq.cfg
                 break
             #else
             #    read -p "Please enter the correct FQDN:port: " firstEp
@@ -607,7 +598,7 @@ function clean_service_on_systemd() {
     if [ "$verMode" == "cluster" ]; then
         nginx_service_config="${service_config_dir}/nginxd.service"
         if systemctl is-active --quiet nginxd; then
-            echo "Nginx for TDengine is running, stopping it..."
+            echo "Nginx for TQ is running, stopping it..."
             ${csudo} systemctl stop nginxd &> /dev/null || echo &> /dev/null
         fi
         ${csudo} systemctl disable nginxd &> /dev/null || echo &> /dev/null
@@ -646,7 +637,7 @@ function install_service_on_systemd() {
 
     tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
     ${csudo} bash -c "echo '[Unit]'                                  >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'Description=TDengine arbitrator service' >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'Description=TQ arbitrator service' >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'After=network-online.target'             >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'Wants=network-online.target'             >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
@@ -828,7 +819,7 @@ function update_tq() {
         #echo
         #echo -e "\033[44;32;1mTQ is updated successfully!${NC}"
         echo
-        echo -e "${GREEN_DARK}To configure TQ ${NC}: edit /etc/tq/taos.cfg"
+        echo -e "${GREEN_DARK}To configure TQ ${NC}: edit /etc/tq/tq.cfg"
         if ((${service_mod}==0)); then
             echo -e "${GREEN_DARK}To start TQ     ${NC}: ${csudo} systemctl start tqd${NC}"
         elif ((${service_mod}==1)); then
@@ -905,7 +896,7 @@ function install_tq() {
         #echo
         #echo -e "\033[44;32;1mTQ is installed successfully!${NC}"
         echo
-        echo -e "${GREEN_DARK}To configure TQ ${NC}: edit /etc/tq/taos.cfg"
+        echo -e "${GREEN_DARK}To configure TQ ${NC}: edit /etc/tq/tq.cfg"
         if ((${service_mod}==0)); then
             echo -e "${GREEN_DARK}To start TQ     ${NC}: ${csudo} systemctl start tqd${NC}"
         elif ((${service_mod}==1)); then
