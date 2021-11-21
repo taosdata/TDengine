@@ -13,9 +13,13 @@ class TaosadapterPerftest():
         self.telnetCreateStbJmxFile = "opentsdb_telnet_createStb.jmx"
         self.telnetCreateTbJmxFile = "opentsdb_telnet_createTb.jmx"
         self.telnetInsertRowsFile = "opentsdb_telnet_insertRows.jmx"
+        self.telnetMixJmxFile = "opentsdb_telnet_MixTbRows.jmx"
+
         self.jsonCreateStbJmxFile = "opentsdb_json_createStb.jmx"
         self.jsonCreateTbJmxFile = "opentsdb_json_createTb.jmx"
         self.jsonInsertRowsFile = "opentsdb_json_insertRows.jmx"
+        self.jsonMixJmxFile = "opentsdb_json_MixTbRows.jmx"
+
         self.logfile = "taosadapter_perftest.log"
         self.createStbThreads = 100
         self.createTbThreads = 100
@@ -42,7 +46,7 @@ class TaosadapterPerftest():
         result = os.popen(shell_cmd).read().strip()
         return result
 
-    def modifyJxmLooptimes(self, filename, looptimes):
+    def modifyJxmLooptimes(self, filename, looptimes, row_count=None):
         '''
             modify looptimes
         '''
@@ -52,16 +56,20 @@ class TaosadapterPerftest():
             for line in lines:
                 if "looptimes" in line:
                     line = line.replace("looptimes", looptimes)
+                if row_count is not None:
+                    if "row_count" in line:
+                        line = line.replace("row_count", row_count)
                 f_w.write(line)
 
     def cleanAndRestartTaosd(self):
         '''
             restart taosd and clean env
         '''
-        logger.info("restarting taosd and taosadapter")
+        logger.info("---- restarting taosd and taosadapter ----")
         self.exec_remote_cmd("systemctl stop taosd")
         self.exec_remote_cmd("rm -rf /var/lib/taos/* /var/log/taos/*")
         self.exec_remote_cmd("systemctl start taosd")
+        logger.info("---- finish restart ----")
         time.sleep(60)
         
     def recreateReportDir(self, path):
@@ -109,6 +117,7 @@ class TaosadapterPerftest():
         '''
             create stb/tb or insert rows
         '''
+        self.cleanAndRestartTaosd()
         jmxfile, threads = self.outputParams(procotol, create_type)
         handle_file = str(count) + jmxfile
         report_dir = f'testreport/{handle_file}'
@@ -118,6 +127,26 @@ class TaosadapterPerftest():
         self.modifyJxmLooptimes(handle_file, str(replace_count))
         result = self.exec_local_cmd(f"jmeter -n -t {handle_file} -l {report_dir}/{handle_file}.txt -e -o {report_dir}")
         logger.info(result)
+        logger.info("----- sleep 120s and please record data -----")
+        time.sleep(120)
+    
+    def insertMixTbRows(self, procotol, looptimes, row_count):
+        self.cleanAndRestartTaosd()
+        jmxfile = f"opentsdb_{procotol}_{looptimes}Tb100Rows.jmx"
+        report_dir = f'testreport/{jmxfile}'
+        self.recreateReportDir(report_dir)
+        if procotol == "telnet":
+            shutil.copyfile(self.telnetMixJmxFile, jmxfile)
+        else:
+            shutil.copyfile(self.jsonMixJmxFile, jmxfile)
+
+        self.modifyJxmLooptimes(jmxfile, str(looptimes), str(row_count))
+        result = self.exec_local_cmd(f"jmeter -n -t {jmxfile} -l {report_dir}/{jmxfile}.txt -e -o {report_dir}")
+        logger.info(result)
+        logger.info("----- sleep 120s and please record data -----")
+        time.sleep(120)
+        
+
 
 if __name__ == '__main__':
     taosadapterPerftest = TaosadapterPerftest()
@@ -125,38 +154,42 @@ if __name__ == '__main__':
     
     logger.info('------------ Start testing the scenarios in the report chapter 3.4.1 ------------')
     for procotol in ["telnet", "json"]:
-        taosadapterPerftest.cleanAndRestartTaosd()
-        logger.info(f'----- {procotol} protocol ------- Creating 30W stable ------------')
-        taosadapterPerftest.insertTDengine(procotol, "stb", 300000)
-        time.sleep(120)
-        logger.info(f'----- {procotol} protocol ------- Creating 100W table with stb "cpu.usage_user" ------------')
-        taosadapterPerftest.insertTDengine(procotol, "tb", 1000000)
-        time.sleep(120)
-        logger.info(f'----- {procotol} protocol ------- inserting 100W rows ------------')
-        taosadapterPerftest.insertTDengine(procotol, "rows", 1000000)
-        time.sleep(120)
+        # logger.info(f'----- {procotol} protocol ------- Creating 30W stable ------------')
+        # taosadapterPerftest.insertTDengine(procotol, "stb", 300000)
+        # logger.info(f'----- {procotol} protocol ------- Creating 100W table with stb "cpu.usage_user" ------------')
+        # taosadapterPerftest.insertTDengine(procotol, "tb", 1000000)
+        # logger.info(f'----- {procotol} protocol ------- inserting 100W rows ------------')
+        # taosadapterPerftest.insertTDengine(procotol, "rows", 1000000)
 
-        taosadapterPerftest.cleanAndRestartTaosd()
-        logger.info(f'----- {procotol} protocol ------- Creating 50W stable ------------')
-        taosadapterPerftest.insertTDengine(procotol, "stb", 500000)
-        time.sleep(120)
-        logger.info(f'----- {procotol} protocol ------- Creating 500W table with stb "cpu.usage_user" ------------')
-        taosadapterPerftest.insertTDengine(procotol, "tb", 5000000)
-        time.sleep(120)
-        logger.info(f'----- {procotol} protocol ------- inserting 500W rows ------------')
-        taosadapterPerftest.insertTDengine(procotol, "rows", 5000000)
-        time.sleep(120)
+        # logger.info(f'----- {procotol} protocol ------- Creating 50W stable ------------')
+        # taosadapterPerftest.insertTDengine(procotol, "stb", 500000)
+        # logger.info(f'----- {procotol} protocol ------- Creating 500W table with stb "cpu.usage_user" ------------')
+        # taosadapterPerftest.insertTDengine(procotol, "tb", 5000000)
+        # logger.info(f'----- {procotol} protocol ------- inserting 500W rows ------------')
+        # taosadapterPerftest.insertTDengine(procotol, "rows", 5000000)
 
-        taosadapterPerftest.cleanAndRestartTaosd()
-        logger.info(f'----- {procotol} protocol ------- Creating 100W stable ------------')
-        taosadapterPerftest.insertTDengine(procotol, "stb", 1000000)
-        time.sleep(120)
-        logger.info(f'----- {procotol} protocol ------- Creating 1000W table with stb "cpu.usage_user" ------------')
-        taosadapterPerftest.insertTDengine(procotol, "tb", 10000000)
-        time.sleep(120)
-        logger.info(f'----- {procotol} protocol ------- inserting 1000W rows ------------')
-        taosadapterPerftest.insertTDengine(procotol, "rows", 10000000)
-        time.sleep(120)
+        # logger.info(f'----- {procotol} protocol ------- Creating 100W stable ------------')
+        # taosadapterPerftest.insertTDengine(procotol, "stb", 1000000)
+        # logger.info(f'----- {procotol} protocol ------- Creating 1000W table with stb "cpu.usage_user" ------------')
+        # taosadapterPerftest.insertTDengine(procotol, "tb", 10000000)
+        # logger.info(f'----- {procotol} protocol ------- inserting 1000W rows ------------')
+        # taosadapterPerftest.insertTDengine(procotol, "rows", 10000000)
+
+        logger.info(f'----- {procotol} protocol ------- Creating 100W stable 100Rows ------------')
+        taosadapterPerftest.insertMixTbRows(procotol, 1000000, 1000000)
+
+        logger.info(f'----- {procotol} protocol ------- Creating 1000W stable 100Rows ------------')
+        taosadapterPerftest.insertMixTbRows(procotol, 10000000, 10000000)
+
+        logger.info(f'----- {procotol} protocol ------- Creating 3000W stable 100Rows ------------')
+        taosadapterPerftest.insertMixTbRows(procotol, 30000000, 30000000)
+
+        logger.info(f'----- {procotol} protocol ------- Creating 5000W stable 100Rows ------------')
+        taosadapterPerftest.insertMixTbRows(procotol, 50000000, 50000000)
+
+
+
+
 
     
 
