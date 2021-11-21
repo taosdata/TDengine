@@ -183,6 +183,7 @@ void indexMultiTermDestroy(SArray *array) {
   }
   taosArrayDestroy(array);
 }
+
 void indexInit() {
   //do nothing
 }
