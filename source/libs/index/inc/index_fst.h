@@ -20,6 +20,7 @@
 #include "tarray.h"
 #include "index_fst_util.h"
 #include "index_fst_registry.h"
+#include "index_fst_counting_writer.h"
 
 
 typedef struct FstNode FstNode;
@@ -35,7 +36,6 @@ typedef struct FstRange {
 typedef enum { OneTransNext, OneTrans, AnyTrans, EmptyFinal} State;
 typedef enum { Included, Excluded, Unbounded} FstBound; 
 
-typedef uint32_t CheckSummer;
 
 
 /*
@@ -60,11 +60,6 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes *node, FstSlice bs, Output o
 uint64_t fstUnFinishedNodesFindCommPrefix(FstUnFinishedNodes *node, FstSlice bs);
 uint64_t FstUnFinishedNodesFindCommPreifxAndSetOutput(FstUnFinishedNodes *node, FstSlice bs, Output in, Output *out);
 
-typedef struct FstCountingWriter {
-  void*    wtr;  // wrap any writer that counts and checksum bytes written 
-  uint64_t count; 
-  CheckSummer summer;  
-} FstCountingWriter;
 
 typedef struct FstBuilder {
   FstCountingWriter  wtr;         // The FST raw data is written directly to `wtr`.  

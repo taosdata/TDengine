@@ -275,8 +275,6 @@ bool fstNodeCompile(FstNode *node, void *w, CompiledAddr lastAddr, CompiledAddr 
 } 
 
 
-
-
 FstBuilder *fstBuilderCreate(void *w, FstType ty) {
   FstBuilder *b = malloc(sizeof(FstBuilder));  
   if (NULL == b) { return b; }

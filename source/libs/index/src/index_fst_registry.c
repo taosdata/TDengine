@@ -32,6 +32,7 @@ uint64_t fstRegistryHash(FstRegistry *registry, FstBuilderNode *bNode) {
     h = (h ^ (uint64_t)(trn->addr))* FNV_PRIME;
   } 
   return h %(registry->tableSize); 
+
 }
 static void fstRegistryCellSwap(SArray *arr, uint32_t a, uint32_t b) {
   size_t sz = taosArrayGetSize(arr);
@@ -72,10 +73,14 @@ FstRegistry* fstRegistryCreate(uint64_t tableSize, uint64_t mruSize) {
 
   uint64_t nCells = tableSize * mruSize; 
   SArray* tb = (SArray *)taosArrayInit(nCells, sizeof(FstRegistryCell)); 
+  if (NULL == tb) { 
+    free(registry); 
+    return NULL; 
+  }
+
   for (uint64_t i = 0; i < nCells; i++) {
-    FstRegistryCell *cell = taosArrayGet(tb, i);
-    cell->addr = NONE_ADDRESS; 
-    cell->node = fstBuilderNodeDefault(); 
+    FstRegistryCell cell = {.addr = NONE_ADDRESS, .node = fstBuilderNodeDefault()}; 
+    taosArrayPush(tb, &cell);  
   }
   
   registry->table = tb;   
@@ -98,11 +103,9 @@ FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNo
     //cell->isNode && 
     if (cell->addr != NONE_ADDRESS && cell->node == bNode) {
        entry->state = FOUND;
-       entry->addr =  cell->addr ;
+       entry->addr  = cell->addr ;
        return entry; 
     } else {
-       // clone from bNode, refactor later
-       //
        fstBuilderNodeCloneFrom(cell->node, bNode);
        entry->state = NOTFOUND;
        entry->cell  = cell; // copy or not

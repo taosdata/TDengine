@@ -26,14 +26,13 @@ FstBuilderNode *fstBuilderNodeClone(FstBuilderNode *src) {
   FstBuilderNode *node = malloc(sizeof(FstBuilderNode));  
   if (node == NULL) { return NULL; }
 
-      
+  // 
   size_t sz = taosArrayGetSize(src->trans);
   SArray *trans = taosArrayInit(sz, sizeof(FstTransition));
 
   for (size_t i = 0; i < sz; i++) {
     FstTransition *tran = taosArrayGet(src->trans, i);
-    FstTransition t = *tran;
-    taosArrayPush(trans, &t);   
+    taosArrayPush(trans, tran);   
   }
 
   node->trans = trans; 
@@ -47,9 +46,11 @@ void fstBuilderNodeCloneFrom(FstBuilderNode *dst, FstBuilderNode *src) {
   if (dst == NULL || src == NULL) { return; } 
 
   dst->isFinal     = src->isFinal;
-  dst->finalOutput = src->finalOutput ;
-  dst->trans       = src->trans;    
+  dst->finalOutput = src->finalOutput;
 
+  // avoid mem leak
+  taosArrayDestroy(dst->trans); 
+  dst->trans       = src->trans;    
   src->trans = NULL;
 }
 
