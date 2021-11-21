@@ -491,7 +491,7 @@ const char * iconv_canonicalize (const char * name)
   char* bp;
   const struct alias * ap;
   unsigned int count;
-  unsigned int index;
+  unsigned int deps_index;
   const char* pool;
 
   /* Before calling aliases_lookup, convert the input string to upper case,
@@ -555,23 +555,23 @@ const char * iconv_canonicalize (const char * name)
          This is also the case on native Woe32 systems.  */
 #if __STDC_ISO_10646__ || ((defined _WIN32 || defined __WIN32__) && !defined __CYGWIN__)
       if (sizeof(wchar_t) == 4) {
-        index = ei_ucs4internal;
+        deps_index = ei_ucs4internal;
         break;
       }
       if (sizeof(wchar_t) == 2) {
-        index = ei_ucs2internal;
+        deps_index = ei_ucs2internal;
         break;
       }
       if (sizeof(wchar_t) == 1) {
-        index = ei_iso8859_1;
+        deps_index = ei_iso8859_1;
         break;
       }
 #endif
     }
-    index = ap->encoding_index;
+    deps_index = ap->encoding_index;
     break;
   }
-  return all_canonical[index] + pool;
+  return all_canonical[deps_index] + pool;
  invalid:
   return name;
 }

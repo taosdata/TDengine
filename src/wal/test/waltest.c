@@ -113,17 +113,17 @@ int main(int argc, char *argv[]) {
 
   printf("%d wal files are written\n", total);
 
-  int64_t index = 0;
+  int64_t wal_index = 0;
   char    name[256];
 
   while (1) {
-    int code = walGetWalFile(pWal, name, &index);
+    int code = walGetWalFile(pWal, name, &wal_index);
     if (code == -1) {
-      printf("failed to get wal file, index:%" PRId64 "\n", index);
+      printf("failed to get wal file, index:%" PRId64 "\n", wal_index);
       break;
     }
 
-    printf("index:%" PRId64 " wal:%s\n", index, name);
+    printf("index:%" PRId64 " wal:%s\n", wal_index, name);
     if (code == 0) break;
   }
 
