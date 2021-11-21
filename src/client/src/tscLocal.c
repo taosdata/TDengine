@@ -224,7 +224,7 @@ static int32_t tscGetNthFieldResult(TAOS_ROW row, TAOS_FIELD* fields, int *lengt
   int32_t length = lengths[idx]; 
 
   if (type == TSDB_DATA_TYPE_JSON){
-    char* p = result;
+    char* p = val;
     type = *p;
     val += CHAR_BYTES;
     if(type == TSDB_DATA_TYPE_NCHAR) {
