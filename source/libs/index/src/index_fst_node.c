@@ -22,3 +22,14 @@ FstBuilderNode *fstBuilderNodeDefault() {
   return bn;
 }
 
+// not destroy src, User's bussiness  
+void fstBuilderNodeCloneFrom(FstBuilderNode *dst, FstBuilderNode *src) {
+  if (dst == NULL || src == NULL) { return; } 
+
+  dst->isFinal     = src->isFinal;
+  dst->finalOutput = src->finalOutput ;
+  dst->trans       = src->trans;    
+
+  src->trans = NULL;
+}
+

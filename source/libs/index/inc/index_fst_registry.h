@@ -26,11 +26,11 @@ typedef struct FstRegistryCell {
 
 
 
-typedef struct FstRegistryCache {
-  SArray *cells;  
-  uint32_t start;
-  uint32_t end;
-} FstRegistryCache;
+//typedef struct FstRegistryCache {
+//  SArray *cells;  
+//  uint32_t start;
+//  uint32_t end;
+//} FstRegistryCache;
 
 typedef enum {FOUND, NOTFOUND, REJECTED} FstRegistryEntryState;
 

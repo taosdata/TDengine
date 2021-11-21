@@ -16,6 +16,23 @@
 #include "index_fst_registry.h"
 
 
+uint64_t fstRegistryHash(FstRegistry *registry, FstBuilderNode *bNode) {
+  //TODO(yihaoDeng): refactor later
+  const uint64_t FNV_PRIME = 1099511628211;
+  uint64_t h = 14695981039346656037u;
+
+  h = (h ^ (uint64_t)bNode->isFinal) * FNV_PRIME; 
+  h = (h ^ (bNode)->finalOutput) * FNV_PRIME;
+
+  uint32_t sz = (uint32_t)taosArrayGetSize(bNode->trans); 
+  for (uint32_t i = 0; i < sz; i++) {
+    FstTransition *trn = taosArrayGet(bNode->trans, i);
+    h = (h ^ (uint64_t)(trn->inp)) * FNV_PRIME; 
+    h = (h ^ (uint64_t)(trn->out)) * FNV_PRIME; 
+    h = (h ^ (uint64_t)(trn->addr))* FNV_PRIME;
+  } 
+  return h %(registry->tableSize); 
+}
 static void fstRegistryCellSwap(SArray *arr, uint32_t a, uint32_t b) {
   size_t sz = taosArrayGetSize(arr);
   if (a >= sz || b >= sz) { return; }
@@ -46,6 +63,9 @@ static void fstRegistryCellPromote(SArray *arr, uint32_t start, uint32_t end) {
     s -= 1;
   }
 }
+#define FST_REGISTRY_CELL_IS_EMPTY(cell) (cell->addr == NONE_ADDRESS)
+#define FST_REGISTRY_CELL_INSERT(cell, addr) do {cell->addr = addr;} while(0)
+
 FstRegistry* fstRegistryCreate(uint64_t tableSize, uint64_t mruSize) {
   FstRegistry *registry = malloc(sizeof(FstRegistry));  
   if (registry == NULL) { return NULL ;} 
@@ -82,11 +102,8 @@ FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNo
        return entry; 
     } else {
        // clone from bNode, refactor later
-       cell->node->isFinal = bNode->isFinal;
-       cell->node->finalOutput = bNode->finalOutput;
-       cell->node->trans = bNode->trans;
-       bNode->trans = NULL;
-
+       //
+       fstBuilderNodeCloneFrom(cell->node, bNode);
        entry->state = NOTFOUND;
        entry->cell  = cell; // copy or not
     }
@@ -106,10 +123,7 @@ FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNo
       return entry; 
     }
     //clone from bNode, refactor later 
-    cell1->node->isFinal = bNode->isFinal;
-    cell1->node->finalOutput = bNode->finalOutput;
-    cell1->node->trans   = bNode->trans;
-    bNode->trans = NULL;
+    fstBuilderNodeCloneFrom(cell2->node, bNode);
 
     fstRegistryCellSwap(registry->table, start, start + 1);
     FstRegistryCell *cCell = taosArrayGet(registry->table, start);
@@ -130,10 +144,7 @@ FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNo
       uint64_t last = end - 1;  
       FstRegistryCell *cell = (FstRegistryCell *)taosArrayGet(registry->table, last); 
       //clone from bNode, refactor later 
-      cell->node->isFinal = bNode->isFinal;
-      cell->node->finalOutput = bNode->finalOutput;
-      cell->node->trans   = bNode->trans;
-      bNode->trans = NULL;
+      fstBuilderNodeCloneFrom(cell->node, bNode); 
 
       fstRegistryCellPromote(registry->table, last, start);
       FstRegistryCell *cCell = taosArrayGet(registry->table, start);
@@ -144,21 +155,4 @@ FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNo
   return entry;
 }
 
-uint64_t fstRegistryHash(FstRegistry *registry, FstBuilderNode *bNode) {
-  //TODO(yihaoDeng): refactor later
-  const uint64_t FNV_PRIME = 1099511628211;
-  uint64_t h = 14695981039346656037u;
-
-  h = (h ^ (uint64_t)bNode->isFinal) * FNV_PRIME; 
-  h = (h ^ (bNode)->finalOutput) * FNV_PRIME;
-
-  uint32_t sz = (uint32_t)taosArrayGetSize(bNode->trans); 
-  for (uint32_t i = 0; i < sz; i++) {
-    FstTransition *trn = taosArrayGet(bNode->trans, i);
-    h = (h ^ (uint64_t)(trn->inp)) * FNV_PRIME; 
-    h = (h ^ (uint64_t)(trn->out)) * FNV_PRIME; 
-    h = (h ^ (uint64_t)(trn->addr))* FNV_PRIME;
-  } 
-  return h %(registry->tableSize); 
-}
 
