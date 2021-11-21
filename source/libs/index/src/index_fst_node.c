@@ -12,4 +12,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "index_fst_node.h"
+
+FstBuilderNode *fstBuilderNodeDefault() {
+  FstBuilderNode *bn = malloc(sizeof(FstBuilderNode));
+  bn->isFinal     = false; 
+  bn->finalOutput = 0; 
+  bn->trans       = NULL; 
+  return bn;
+}
+
+// not destroy src, User's bussiness  
+void fstBuilderNodeCloneFrom(FstBuilderNode *dst, FstBuilderNode *src) {
+  if (dst == NULL || src == NULL) { return; } 
+
+  dst->isFinal     = src->isFinal;
+  dst->finalOutput = src->finalOutput ;
+  dst->trans       = src->trans;    
+
+  src->trans = NULL;
+}
 
