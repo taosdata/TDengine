@@ -3205,12 +3205,14 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
   const char* msg0 = "ambiguous column name";
   const char* msg1 = "invalid column name";
 
+  if (pToken->n == 0) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
   if (isTablenameToken(pToken)) {
     pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
   } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n &&
             strncasecmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
-    pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX; // just make runtime happy, need fix java test case InsertSpecialCharacterJniTest
-  } else if (pToken->n == 0) {
     pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX; // just make runtime happy, need fix java test case InsertSpecialCharacterJniTest
   } else {
     // not specify the table name, try to locate the table index by column name
@@ -5994,7 +5996,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
         SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
 
-        if (pColIndex->colIndex == index.columnIndex) {
+        if (pColIndex->colIndex != index.columnIndex) {
           return invalidOperationMsg(pMsgBuf, msg8);
         }
       } else {
