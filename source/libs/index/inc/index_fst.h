@@ -32,12 +32,6 @@ typedef struct FstRange {
 } FstRange;
 
 
-typedef struct FstBuilderNode {
-  bool isFinal; 
-  Output finalOutput;  
-  SArray *trans;  // <FstTransition>
-} FstBuilderNode; 
-
 typedef enum { OneTransNext, OneTrans, AnyTrans, EmptyFinal} State;
 typedef enum { Included, Excluded, Unbounded} FstBound; 
 
@@ -81,14 +75,6 @@ typedef struct FstBuilder {
   uint64_t           len;         // num of keys added
 } FstBuilder;
 
-
-
-
-typedef struct FstTransition {
-  uint8_t      inp;  //The byte input associated with this transition.
-  Output       out;  //The output associated with this transition 
-  CompiledAddr addr; //The address of the node that this transition points to
-} FstTransition;
 
 typedef struct FstTransitions {
   FstNode    *node; 
@@ -172,10 +158,6 @@ typedef struct FstIndexedValue {
 } FstIndexedValue;
 
 
-typedef struct FstRegistryCell {
-  CompiledAddr addr; 
-  FstBuilderNode *node; 
-} FstRegistryCell;
 
 
 

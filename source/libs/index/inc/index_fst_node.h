@@ -16,7 +16,21 @@
 #ifndef __INDEX_FST_NODE_H__
 #define __INDEX_FST_NODE_H__
 
+#include "index_fst_util.h"
 
 
+typedef struct FstTransition {
+  uint8_t      inp;  //The byte input associated with this transition.
+  Output       out;  //The output associated with this transition 
+  CompiledAddr addr; //The address of the node that this transition points to
+} FstTransition;
+
+typedef struct FstBuilderNode {
+  bool isFinal; 
+  Output finalOutput;  
+  SArray *trans;  // <FstTransition>
+} FstBuilderNode; 
+
+FstBuilderNode *fstBuilderNodeDefault();
 
 #endif
