@@ -33,6 +33,8 @@ typedef struct FstBuilderNode {
 
 FstBuilderNode *fstBuilderNodeDefault();
 
+FstBuilderNode *fstBuilderNodeClone(FstBuilderNode *src);
+
 void fstBuilderNodeCloneFrom(FstBuilderNode *dst, FstBuilderNode *src);
 
 #endif
