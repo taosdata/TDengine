@@ -30,6 +30,7 @@ typedef struct {
   SArray *   aBlkIdx;
   SArray *   aSupBlk;
   SDataCols *pDataCols;
+  void *     param;  // STruncateTblMsg *pMsg
 } STruncateH;
 
 #define TSDB_TRUNCATE_WSET(pTruncateH) (&((pTruncateH)->wSet))
@@ -71,7 +72,6 @@ int tsdbTruncate(STsdbRepo *pRepo, void *param) { return tsdbAsyncTruncate(pRepo
 
 void *tsdbTruncateImpl(STsdbRepo *pRepo, void *param) {
   int32_t code = 0;
-
   // Step 1: check and clear cache
   if ((code = tsdbTruncateCache(pRepo, param)) != 0) {
     pRepo->code = terrno;
@@ -177,10 +177,12 @@ static int tsdbTruncateMeta(STsdbRepo *pRepo) {
 
 static int tsdbTruncateTSData(STsdbRepo *pRepo, void *param) {
   STsdbCfg *       pCfg = REPO_CFG(pRepo);
-  STruncateH       truncateH;
+  STruncateH       truncateH = {0};
   SDFileSet *      pSet = NULL;
   STruncateTblMsg *pMsg = (STruncateTblMsg *)param;
   ASSERT(pMsg != NULL);
+
+  truncateH.param = pMsg;
 
   tsdbDebug("vgId:%d start to truncate TS data for %" PRIu64, REPO_ID(pRepo), pMsg->uid);
 
@@ -230,7 +232,7 @@ static int tsdbTruncateTSData(STsdbRepo *pRepo, void *param) {
 
 static int tsdbTruncateFSet(STruncateH *pTruncateH, SDFileSet *pSet) {
   STsdbRepo *pRepo = TSDB_TRUNCATE_REPO(pTruncateH);
-  SDiskID    did;
+  SDiskID    did = {0};
 
   tsdbDebug("vgId:%d start to truncate FSET %d on level %d id %d", REPO_ID(pRepo), pSet->fid, TSDB_FSET_LEVEL(pSet),
             TSDB_FSET_ID(pSet));
@@ -422,14 +424,15 @@ static int tsdbTruncateFSetInit(STruncateH *pTruncateH, SDFileSet *pSet) {
 static void tsdbTruncateFSetEnd(STruncateH *pTruncateH) { tsdbCloseAndUnsetFSet(&(pTruncateH->readh)); }
 
 static int tsdbTruncateFSetImpl(STruncateH *pTruncateH) {
-  STsdbRepo *pRepo = TSDB_TRUNCATE_REPO(pTruncateH);
-  STsdbCfg * pCfg = REPO_CFG(pRepo);
-  SReadH *   pReadh = &(pTruncateH->readh);
-  SBlockIdx  blkIdx = {0};
-  void **    ppBuf = &(TSDB_TRUNCATE_BUF(pTruncateH));
-  void **    ppCBuf = &(TSDB_TRUNCATE_COMP_BUF(pTruncateH));
-  void **    ppExBuf = &(TSDB_TRUNCATE_EXBUF(pTruncateH));
-  int        defaultRows = TSDB_DEFAULT_BLOCK_ROWS(pCfg->maxRowsPerFileBlock);
+  STsdbRepo *      pRepo = TSDB_TRUNCATE_REPO(pTruncateH);
+  STruncateTblMsg *pMsg = (STruncateTblMsg *)pTruncateH->param;
+  STsdbCfg *       pCfg = REPO_CFG(pRepo);
+  SReadH *         pReadh = &(pTruncateH->readh);
+  SBlockIdx        blkIdx = {0};
+  void **          ppBuf = &(TSDB_TRUNCATE_BUF(pTruncateH));
+  void **          ppCBuf = &(TSDB_TRUNCATE_COMP_BUF(pTruncateH));
+  void **          ppExBuf = &(TSDB_TRUNCATE_EXBUF(pTruncateH));
+  int              defaultRows = TSDB_DEFAULT_BLOCK_ROWS(pCfg->maxRowsPerFileBlock);
 
   taosArrayClear(pTruncateH->aBlkIdx);
 
