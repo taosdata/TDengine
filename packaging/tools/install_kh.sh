@@ -14,13 +14,13 @@ serverFqdn=""
 # -----------------------Variables definition---------------------
 script_dir=$(dirname $(readlink -f "$0"))
 # Dynamic directory
-data_dir="/var/lib/power"
-log_dir="/var/log/power"
+data_dir="/var/lib/kinghistorian"
+log_dir="/var/log/kinghistorian"
 
-data_link_dir="/usr/local/power/data"
-log_link_dir="/usr/local/power/log"
+data_link_dir="/usr/local/kinghistorian/data"
+log_link_dir="/usr/local/kinghistorian/log"
 
-cfg_install_dir="/etc/power"
+cfg_install_dir="/etc/kinghistorian"
 
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
@@ -28,13 +28,10 @@ lib64_link_dir="/usr/lib64"
 inc_link_dir="/usr/include"
 
 #install main path
-install_main_dir="/usr/local/power"
+install_main_dir="/usr/local/kinghistorian"
 
 # old bin dir
-bin_dir="/usr/local/power/bin"
-
-# v1.5 jar dir
-#v15_java_app_dir="/usr/local/lib/power"
+bin_dir="/usr/local/kinghistorian/bin"
 
 service_config_dir="/etc/systemd/system"
 nginx_port=6060
@@ -104,7 +101,7 @@ else
   echo " osinfo: ${osinfo}"
   echo " This is an officially unverified linux system,"
   echo " if there are any problems with the installation and operation, "
-  echo " please feel free to contact taosdata.com for support."
+  echo " please feel free to contact wellintech.com for support."
   os_type=1
 fi
 
@@ -144,8 +141,6 @@ do
   esac
 done
 
-#echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
-
 function kill_process() {
   pid=$(ps -ef | grep "$1" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
@@ -159,9 +154,9 @@ function install_main_path() {
     ${csudo} mkdir -p ${install_main_dir}
     ${csudo} mkdir -p ${install_main_dir}/cfg
     ${csudo} mkdir -p ${install_main_dir}/bin
-    ${csudo} mkdir -p ${install_main_dir}/connector
+#    ${csudo} mkdir -p ${install_main_dir}/connector
     ${csudo} mkdir -p ${install_main_dir}/driver
-    ${csudo} mkdir -p ${install_main_dir}/examples
+#    ${csudo} mkdir -p ${install_main_dir}/examples
     ${csudo} mkdir -p ${install_main_dir}/include
     ${csudo} mkdir -p ${install_main_dir}/init.d
     if [ "$verMode" == "cluster" ]; then
@@ -171,20 +166,20 @@ function install_main_path() {
 
 function install_bin() {
     # Remove links
-    ${csudo} rm -f ${bin_link_dir}/power     || :
-    ${csudo} rm -f ${bin_link_dir}/powerd    || :
-    ${csudo} rm -f ${bin_link_dir}/powerdemo || :
-    ${csudo} rm -f ${bin_link_dir}/rmpower   || :
-    ${csudo} rm -f ${bin_link_dir}/tarbitrator   || :
-    ${csudo} rm -f ${bin_link_dir}/set_core   || :
+    ${csudo} rm -f ${bin_link_dir}/khclient    || :
+    ${csudo} rm -f ${bin_link_dir}/khserver    || :
+    ${csudo} rm -f ${bin_link_dir}/khdemo      || :
+    ${csudo} rm -f ${bin_link_dir}/rmkh        || :
+    ${csudo} rm -f ${bin_link_dir}/tarbitrator || :
+    ${csudo} rm -f ${bin_link_dir}/set_core    || :
 
     ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
     #Make link
-    [ -x ${install_main_dir}/bin/power ] && ${csudo} ln -s ${install_main_dir}/bin/power ${bin_link_dir}/power                        || :
-    [ -x ${install_main_dir}/bin/powerd ] && ${csudo} ln -s ${install_main_dir}/bin/powerd ${bin_link_dir}/powerd                     || :
-    [ -x ${install_main_dir}/bin/powerdemo ] && ${csudo} ln -s ${install_main_dir}/bin/powerdemo ${bin_link_dir}/powerdemo            || :
-    [ -x ${install_main_dir}/bin/remove_power.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_power.sh ${bin_link_dir}/rmpower  || :
+    [ -x ${install_main_dir}/bin/khclient ] && ${csudo} ln -s ${install_main_dir}/bin/khclient ${bin_link_dir}/khclient                     || :
+    [ -x ${install_main_dir}/bin/khserver ] && ${csudo} ln -s ${install_main_dir}/bin/khserver ${bin_link_dir}/khserver                     || :
+    [ -x ${install_main_dir}/bin/khdemo ] && ${csudo} ln -s ${install_main_dir}/bin/khdemo ${bin_link_dir}/khdemo            || :
+    [ -x ${install_main_dir}/bin/remove_kh.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_kh.sh ${bin_link_dir}/rmkh  || :
     [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core         || :
     [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo} ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator      || :
 
@@ -199,7 +194,6 @@ function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
     ${csudo} rm -f ${lib64_link_dir}/libtaos.*       || :
-    #${csudo} rm -rf ${v15_java_app_dir}              || :
     ${csudo} cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
 
     ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
@@ -210,7 +204,18 @@ function install_lib() {
       ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
     fi
 
-    ${csudo} ldconfig
+    if [ "$osType" != "Darwin" ]; then
+        ${csudo} ldconfig
+    else
+        ${csudo} update_dyld_shared_cache
+    fi
+}
+
+function install_header() {
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
+    ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
+    ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+    ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
 function install_jemalloc() {
@@ -266,13 +271,6 @@ function install_jemalloc() {
     fi
 }
 
-function install_header() {
-    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
-    ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
-    ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
-    ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
-}
-
 function add_newHostname_to_hosts() {
   localIp="127.0.0.1"
   OLD_IFS="$IFS"
@@ -307,10 +305,7 @@ function set_hostname() {
    echo "set hostname fail!"
    return
   fi
-  #echo -e -n "$(hostnamectl status --static)"
-  #echo -e -n "$(hostnamectl status --transient)"
-  #echo -e -n "$(hostnamectl status --pretty)"
-
+  
   #ubuntu/centos /etc/hostname
   if [[ -e /etc/hostname ]]; then
     ${csudo} echo $newHostname > /etc/hostname   ||:
@@ -321,7 +316,7 @@ function set_hostname() {
     ${csudo} sed -i -r "s/#*\s*(HOSTNAME=\s*).*/\1$newHostname/" /etc/sysconfig/network   ||:
   fi
 
-  ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${cfg_install_dir}/power.cfg
+  ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${cfg_install_dir}/kinghistorian.cfg
   serverFqdn=$newHostname
 
   if [[ -e /etc/hosts ]]; then
@@ -356,7 +351,7 @@ function set_ipAsFqdn() {
     echo -e -n "${GREEN}Unable to get local ip, use 127.0.0.1${NC}"
     localFqdn="127.0.0.1"
     # Write the local FQDN to configuration file
-    ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/power.cfg
+    ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/kinghistorian.cfg
     serverFqdn=$localFqdn
     echo
     return
@@ -378,7 +373,7 @@ function set_ipAsFqdn() {
           read -p "Please choose an IP from local IP list:" localFqdn
         else
           # Write the local FQDN to configuration file
-          ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/power.cfg
+          ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/kinghistorian.cfg
           serverFqdn=$localFqdn
           break
         fi
@@ -389,50 +384,50 @@ function set_ipAsFqdn() {
 }
 
 function local_fqdn_check() {
-  #serverFqdn=$(hostname)
-  echo
-  echo -e -n "System hostname is: ${GREEN}$serverFqdn${NC}"
-  echo
-  if [[ "$serverFqdn" == "" ]] || [[ "$serverFqdn" == "localhost"  ]]; then
-      echo -e -n "${GREEN}It is strongly recommended to configure a hostname for this machine ${NC}"
-      echo
+    #serverFqdn=$(hostname)
+    echo
+    echo -e -n "System hostname is: ${GREEN}$serverFqdn${NC}"
+    echo
+    if [[ "$serverFqdn" == "" ]] || [[ "$serverFqdn" == "localhost"  ]]; then
+        echo -e -n "${GREEN}It is strongly recommended to configure a hostname for this machine ${NC}"
+        echo
 
-      while true
-      do
-          read -r -p "Set hostname now? [Y/n] " input
-          if [ ! -n "$input" ]; then
-              set_hostname
-              break
-          else
-              case $input in
-                  [yY][eE][sS]|[yY])
-                      set_hostname
-                      break
-                      ;;
+        while true
+        do
+            read -r -p "Set hostname now? [Y/n] " input
+            if [ ! -n "$input" ]; then
+                set_hostname
+                break
+            else
+                case $input in
+                    [yY][eE][sS]|[yY])
+                        set_hostname
+                        break
+                        ;;
 
-                  [nN][oO]|[nN])
-                      set_ipAsFqdn
-                      break
-                      ;;
+                    [nN][oO]|[nN])
+                        set_ipAsFqdn
+                        break
+                        ;;
 
-                  *)
-                      echo "Invalid input..."
-                      ;;
-              esac
-          fi
-      done
-  fi
+                    *)
+                        echo "Invalid input..."
+                        ;;
+                esac
+            fi
+        done
+    fi
 }
 
 function install_config() {
-    if [ ! -f ${cfg_install_dir}/power.cfg ]; then
+    if [ ! -f ${cfg_install_dir}/kinghistorian.cfg ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${script_dir}/cfg/power.cfg ] && ${csudo} cp ${script_dir}/cfg/power.cfg ${cfg_install_dir}
+        [ -f ${script_dir}/cfg/kinghistorian.cfg ] && ${csudo} cp ${script_dir}/cfg/kinghistorian.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
     fi
 
-    ${csudo} cp -f ${script_dir}/cfg/power.cfg ${install_main_dir}/cfg/power.cfg.org
-    ${csudo} ln -s ${cfg_install_dir}/power.cfg ${install_main_dir}/cfg
+    ${csudo} cp -f ${script_dir}/cfg/kinghistorian.cfg ${install_main_dir}/cfg/kinghistorian.cfg.org
+    ${csudo} ln -s ${cfg_install_dir}/kinghistorian.cfg ${install_main_dir}/cfg
 
     [ ! -z $1 ] && return 0 || : # only install client
 
@@ -451,9 +446,9 @@ function install_config() {
     #PORT_FORMAT="(/[1-6][0-9][0-9][0-9][0-9]?/)"
     #FQDN_PATTERN=":[0-9]{1,5}$"
 
-    # first full-qualified domain name (FQDN) for PowerDB cluster system
+    # first full-qualified domain name (FQDN) for KingHistorian cluster system
     echo
-    echo -e -n "${GREEN}Enter FQDN:port (like h1.powerdata.com:6030) of an existing PowerDB cluster node to join${NC}"
+    echo -e -n "${GREEN}Enter FQDN:port (like h1.wellintech.com:6030) of an existing KingHistorian cluster node to join${NC}"
     echo
     echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
     read firstEp
@@ -462,7 +457,7 @@ function install_config() {
             # check the format of the firstEp
             #if [[ $firstEp == $FQDN_PATTERN ]]; then
                 # Write the first FQDN to configuration file
-                ${csudo} sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${cfg_install_dir}/power.cfg
+                ${csudo} sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${cfg_install_dir}/kinghistorian.cfg
                 break
             #else
             #    read -p "Please enter the correct FQDN:port: " firstEp
@@ -498,11 +493,8 @@ function install_examples() {
 }
 
 function clean_service_on_sysvinit() {
-    #restart_config_str="power:2345:respawn:${service_config_dir}/powerd start"
-    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :
-
-    if pidof powerd &> /dev/null; then
-        ${csudo} service powerd stop || :
+    if pidof khserver &> /dev/null; then
+        ${csudo} service khserver stop || :
     fi
 
     if pidof tarbitrator &> /dev/null; then
@@ -510,30 +502,30 @@ function clean_service_on_sysvinit() {
     fi
 
     if ((${initd_mod}==1)); then
-      if [ -e ${service_config_dir}/powerd ]; then
-        ${csudo} chkconfig --del powerd || :
+      if [ -e ${service_config_dir}/khserver ]; then
+        ${csudo} chkconfig --del khserver || :
       fi
 
       if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo} chkconfig --del tarbitratord || :
       fi
     elif ((${initd_mod}==2)); then
-      if [ -e ${service_config_dir}/powerd ]; then
-        ${csudo} insserv -r powerd || :
+      if [ -e ${service_config_dir}/khserver ]; then
+        ${csudo} insserv -r khserver || :
       fi
       if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo} insserv -r tarbitratord || :
       fi
     elif ((${initd_mod}==3)); then
-      if [ -e ${service_config_dir}/powerd ]; then
-        ${csudo} update-rc.d -f powerd remove || :
+      if [ -e ${service_config_dir}/khserver ]; then
+        ${csudo} update-rc.d -f khserver remove || :
       fi
       if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo} update-rc.d -f tarbitratord remove || :
       fi
     fi
 
-    ${csudo} rm -f ${service_config_dir}/powerd || :
+    ${csudo} rm -f ${service_config_dir}/khserver || :
     ${csudo} rm -f ${service_config_dir}/tarbitratord || :
 
     if $(which init &> /dev/null); then
@@ -545,47 +537,44 @@ function install_service_on_sysvinit() {
     clean_service_on_sysvinit
     sleep 1
 
-    # Install powerd service
+    # Install khserver service
 
     if ((${os_type}==1)); then
-        ${csudo} cp -f ${script_dir}/init.d/powerd.deb ${install_main_dir}/init.d/powerd
-        ${csudo} cp    ${script_dir}/init.d/powerd.deb ${service_config_dir}/powerd && ${csudo} chmod a+x ${service_config_dir}/powerd
+        ${csudo} cp -f ${script_dir}/init.d/khserver.deb ${install_main_dir}/init.d/khserver
+        ${csudo} cp    ${script_dir}/init.d/khserver.deb ${service_config_dir}/khserver && ${csudo} chmod a+x ${service_config_dir}/khserver
         ${csudo} cp -f ${script_dir}/init.d/tarbitratord.deb ${install_main_dir}/init.d/tarbitratord
         ${csudo} cp    ${script_dir}/init.d/tarbitratord.deb ${service_config_dir}/tarbitratord && ${csudo} chmod a+x ${service_config_dir}/tarbitratord
     elif ((${os_type}==2)); then
-        ${csudo} cp -f ${script_dir}/init.d/powerd.rpm ${install_main_dir}/init.d/powerd
-        ${csudo} cp    ${script_dir}/init.d/powerd.rpm ${service_config_dir}/powerd && ${csudo} chmod a+x ${service_config_dir}/powerd
+        ${csudo} cp -f ${script_dir}/init.d/khserver.rpm ${install_main_dir}/init.d/khserver
+        ${csudo} cp    ${script_dir}/init.d/khserver.rpm ${service_config_dir}/khserver && ${csudo} chmod a+x ${service_config_dir}/khserver
         ${csudo} cp -f ${script_dir}/init.d/tarbitratord.rpm ${install_main_dir}/init.d/tarbitratord
         ${csudo} cp    ${script_dir}/init.d/tarbitratord.rpm ${service_config_dir}/tarbitratord && ${csudo} chmod a+x ${service_config_dir}/tarbitratord
     fi
 
-    #restart_config_str="power:2345:respawn:${service_config_dir}/powerd start"
-    #${csudo} grep -q -F "$restart_config_str" /etc/inittab || ${csudo} bash -c "echo '${restart_config_str}' >> /etc/inittab"
-
     if ((${initd_mod}==1)); then
-        ${csudo} chkconfig --add powerd || :
-        ${csudo} chkconfig --level 2345 powerd on || :
+        ${csudo} chkconfig --add khserver || :
+        ${csudo} chkconfig --level 2345 khserver on || :
         ${csudo} chkconfig --add tarbitratord || :
         ${csudo} chkconfig --level 2345 tarbitratord on || :
     elif ((${initd_mod}==2)); then
-        ${csudo} insserv powerd || :
-        ${csudo} insserv -d powerd || :
+        ${csudo} insserv khserver || :
+        ${csudo} insserv -d khserver || :
         ${csudo} insserv tarbitratord || :
         ${csudo} insserv -d tarbitratord || :
     elif ((${initd_mod}==3)); then
-        ${csudo} update-rc.d powerd defaults || :
+        ${csudo} update-rc.d khserver defaults || :
         ${csudo} update-rc.d tarbitratord defaults || :
     fi
 }
 
 function clean_service_on_systemd() {
-    powerd_service_config="${service_config_dir}/powerd.service"
-    if systemctl is-active --quiet powerd; then
-        echo "PowerDB is running, stopping it..."
-        ${csudo} systemctl stop powerd &> /dev/null || echo &> /dev/null
+    khserver_service_config="${service_config_dir}/khserver.service"
+    if systemctl is-active --quiet khserver; then
+        echo "KingHistorian is running, stopping it..."
+        ${csudo} systemctl stop khserver &> /dev/null || echo &> /dev/null
     fi
-    ${csudo} systemctl disable powerd &> /dev/null || echo &> /dev/null
-    ${csudo} rm -f ${powerd_service_config}
+    ${csudo} systemctl disable khserver &> /dev/null || echo &> /dev/null
+    ${csudo} rm -f ${khserver_service_config}
 
     tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
     if systemctl is-active --quiet tarbitratord; then
@@ -596,48 +585,46 @@ function clean_service_on_systemd() {
     ${csudo} rm -f ${tarbitratord_service_config}
 
     if [ "$verMode" == "cluster" ]; then
-      nginx_service_config="${service_config_dir}/nginxd.service"
-      if systemctl is-active --quiet nginxd; then
-        echo "Nginx for PowerDB is running, stopping it..."
-        ${csudo} systemctl stop nginxd &> /dev/null || echo &> /dev/null
-      fi
-      ${csudo} systemctl disable nginxd &> /dev/null || echo &> /dev/null
-      ${csudo} rm -f ${nginx_service_config}
+        nginx_service_config="${service_config_dir}/nginxd.service"
+        if systemctl is-active --quiet nginxd; then
+            echo "Nginx for KingHistorian is running, stopping it..."
+            ${csudo} systemctl stop nginxd &> /dev/null || echo &> /dev/null
+        fi
+        ${csudo} systemctl disable nginxd &> /dev/null || echo &> /dev/null
+        ${csudo} rm -f ${nginx_service_config}
     fi
 }
-
-# power:2345:respawn:/etc/init.d/powerd start
 
 function install_service_on_systemd() {
     clean_service_on_systemd
 
-    powerd_service_config="${service_config_dir}/powerd.service"
-    ${csudo} bash -c "echo '[Unit]'                              >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'Description=PowerDB server service'  >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'After=network-online.target'         >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'Wants=network-online.target'         >> ${powerd_service_config}"
-    ${csudo} bash -c "echo                                       >> ${powerd_service_config}"
-    ${csudo} bash -c "echo '[Service]'                           >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'Type=simple'                         >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'ExecStart=/usr/bin/powerd'           >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'ExecStartPre=/usr/local/power/bin/startPre.sh'           >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'TimeoutStopSec=1000000s'             >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'LimitNOFILE=infinity'                >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'LimitNPROC=infinity'                 >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'LimitCORE=infinity'                  >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'TimeoutStartSec=0'                   >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'StandardOutput=null'                 >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'Restart=always'                      >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'StartLimitBurst=3'                   >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'StartLimitInterval=60s'              >> ${powerd_service_config}"
-    ${csudo} bash -c "echo                                       >> ${powerd_service_config}"
-    ${csudo} bash -c "echo '[Install]'                           >> ${powerd_service_config}"
-    ${csudo} bash -c "echo 'WantedBy=multi-user.target'          >> ${powerd_service_config}"
-    ${csudo} systemctl enable powerd
+    service_config="${service_config_dir}/khserver.service"
+    ${csudo} bash -c "echo '[Unit]'                              >> ${service_config}"
+    ${csudo} bash -c "echo 'Description=KingHistorian server service'  >> ${service_config}"
+    ${csudo} bash -c "echo 'After=network-online.target'         >> ${service_config}"
+    ${csudo} bash -c "echo 'Wants=network-online.target'         >> ${service_config}"
+    ${csudo} bash -c "echo                                       >> ${service_config}"
+    ${csudo} bash -c "echo '[Service]'                           >> ${service_config}"
+    ${csudo} bash -c "echo 'Type=simple'                         >> ${service_config}"
+    ${csudo} bash -c "echo 'ExecStart=/usr/bin/khserver'           >> ${service_config}"
+    ${csudo} bash -c "echo 'ExecStartPre=/usr/local/kinghistorian/bin/startPre.sh'           >> ${service_config}"
+    ${csudo} bash -c "echo 'TimeoutStopSec=1000000s'             >> ${service_config}"
+    ${csudo} bash -c "echo 'LimitNOFILE=infinity'                >> ${service_config}"
+    ${csudo} bash -c "echo 'LimitNPROC=infinity'                 >> ${service_config}"
+    ${csudo} bash -c "echo 'LimitCORE=infinity'                  >> ${service_config}"
+    ${csudo} bash -c "echo 'TimeoutStartSec=0'                   >> ${service_config}"
+    ${csudo} bash -c "echo 'StandardOutput=null'                 >> ${service_config}"
+    ${csudo} bash -c "echo 'Restart=always'                      >> ${service_config}"
+    ${csudo} bash -c "echo 'StartLimitBurst=3'                   >> ${service_config}"
+    ${csudo} bash -c "echo 'StartLimitInterval=60s'              >> ${service_config}"
+    ${csudo} bash -c "echo                                       >> ${service_config}"
+    ${csudo} bash -c "echo '[Install]'                           >> ${service_config}"
+    ${csudo} bash -c "echo 'WantedBy=multi-user.target'          >> ${service_config}"
+    ${csudo} systemctl enable khserver
 
     tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
     ${csudo} bash -c "echo '[Unit]'                                  >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'Description=PowerDB arbitrator service' >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'Description=KingHistorian arbitrator service' >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'After=network-online.target'             >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'Wants=network-online.target'             >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
@@ -661,7 +648,7 @@ function install_service_on_systemd() {
     if [ "$verMode" == "cluster" ]; then
         nginx_service_config="${service_config_dir}/nginxd.service"
         ${csudo} bash -c "echo '[Unit]'                                             >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'Description=Nginx For PowrDB Service'               >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'Description=Nginx For KingHistorian Service'               >> ${nginx_service_config}"
         ${csudo} bash -c "echo 'After=network-online.target'                        >> ${nginx_service_config}"
         ${csudo} bash -c "echo 'Wants=network-online.target'                        >> ${nginx_service_config}"
         ${csudo} bash -c "echo                                                      >> ${nginx_service_config}"
@@ -696,8 +683,8 @@ function install_service() {
     elif ((${service_mod}==1)); then
         install_service_on_sysvinit
     else
-        # must manual stop powerd
-        kill_process powerd
+        # must manual stop khserver
+        kill_process khserver
     fi
 }
 
@@ -731,13 +718,12 @@ vercomp () {
 }
 
 function is_version_compatible() {
-
     curr_version=`ls ${script_dir}/driver/libtaos.so* |cut -d '.' -f 3-6`
 
     if [ -f ${script_dir}/driver/vercomp.txt ]; then
         min_compatible_version=`cat ${script_dir}/driver/vercomp.txt`
     else
-        min_compatible_version=$(${script_dir}/bin/powerd -V | head -1 | cut -d ' ' -f 5)
+        min_compatible_version=$(${script_dir}/bin/khserver -V | head -1 | cut -d ' ' -f 5)
     fi
 
     vercomp $curr_version $min_compatible_version
@@ -748,13 +734,13 @@ function is_version_compatible() {
     esac
 }
 
-function update_PowerDB() {
+function update() {
     # Start to update
-    if [ ! -e power.tar.gz ]; then
-        echo "File power.tar.gz does not exist"
+    if [ ! -e kinghistorian.tar.gz ]; then
+        echo "File kinghistorian.tar.gz does not exist"
         exit 1
     fi
-    tar -zxf power.tar.gz
+    tar -zxf kinghistorian.tar.gz
     install_jemalloc
 
     # Check if version compatible
@@ -763,15 +749,15 @@ function update_PowerDB() {
         return 1
     fi
 
-    echo -e "${GREEN}Start to update PowerDB...${NC}"
+    echo -e "${GREEN}Start to update KingHistorian...${NC}"
     # Stop the service if running
-    if pidof powerd &> /dev/null; then
+    if pidof khserver &> /dev/null; then
         if ((${service_mod}==0)); then
-            ${csudo} systemctl stop powerd || :
+            ${csudo} systemctl stop khserver || :
         elif ((${service_mod}==1)); then
-            ${csudo} service powerd stop || :
+            ${csudo} service khserver stop || :
         else
-            kill_process powerd
+            kill_process khserver
         fi
         sleep 1
     fi
@@ -793,10 +779,10 @@ function update_PowerDB() {
     install_log
     install_header
     install_lib
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
-    fi
-    install_examples
+#    if [ "$pagMode" != "lite" ]; then
+#      install_connector
+#    fi
+#    install_examples
     if [ -z $1 ]; then
         install_bin
         install_service
@@ -808,54 +794,54 @@ function update_PowerDB() {
             # Check if nginx is installed successfully
             if type curl &> /dev/null; then
                 if curl -sSf http://127.0.0.1:${nginx_port} &> /dev/null; then
-                    echo -e "\033[44;32;1mNginx for PowerDB is updated successfully!${NC}"
+                    echo -e "\033[44;32;1mNginx for KingHistorian is updated successfully!${NC}"
                     openresty_work=true
                 else
-                    echo -e "\033[44;31;5mNginx for PowerDB does not work! Please try again!\033[0m"
+                    echo -e "\033[44;31;5mNginx for KingHistorian does not work! Please try again!\033[0m"
                 fi
             fi
         fi
 
         #echo
-        #echo -e "\033[44;32;1mPowerDB is updated successfully!${NC}"
+        #echo -e "\033[44;32;1mKingHistorian is updated successfully!${NC}"
         echo
-        echo -e "${GREEN_DARK}To configure PowerDB ${NC}: edit /etc/power/power.cfg"
+        echo -e "${GREEN_DARK}To configure KingHistorian ${NC}: edit /etc/kinghistorian/kinghistorian.cfg"
         if ((${service_mod}==0)); then
-            echo -e "${GREEN_DARK}To start PowerDB     ${NC}: ${csudo} systemctl start powerd${NC}"
+            echo -e "${GREEN_DARK}To start KingHistorian     ${NC}: ${csudo} systemctl start khserver${NC}"
         elif ((${service_mod}==1)); then
-            echo -e "${GREEN_DARK}To start PowerDB     ${NC}: ${csudo} service powerd start${NC}"
+            echo -e "${GREEN_DARK}To start KingHistorian     ${NC}: ${csudo} service khserver start${NC}"
         else
-            echo -e "${GREEN_DARK}To start PowerDB     ${NC}: ./powerd${NC}"
+            echo -e "${GREEN_DARK}To start KingHistorian     ${NC}: ./khserver${NC}"
         fi
 
         if [ ${openresty_work} = 'true' ]; then
-            echo -e "${GREEN_DARK}To access PowerDB    ${NC}: use ${GREEN_UNDERLINE}power -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+            echo -e "${GREEN_DARK}To access KingHistorian    ${NC}: use ${GREEN_UNDERLINE}khclient -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
         else
-            echo -e "${GREEN_DARK}To access PowerDB    ${NC}: use ${GREEN_UNDERLINE}power -h $serverFqdn${NC} in shell${NC}"
+            echo -e "${GREEN_DARK}To access KingHistorian    ${NC}: use ${GREEN_UNDERLINE}khclient -h $serverFqdn${NC} in shell${NC}"
         fi
 
         echo
-        echo -e "\033[44;32;1mPowerDB is updated successfully!${NC}"
+        echo -e "\033[44;32;1mKingHistorian is updated successfully!${NC}"
     else
         install_bin
         install_config
 
         echo
-        echo -e "\033[44;32;1mPowerDB client is updated successfully!${NC}"
+        echo -e "\033[44;32;1mKingHistorian client is updated successfully!${NC}"
     fi
 
-    rm -rf $(tar -tf power.tar.gz)
+    rm -rf $(tar -tf kinghistorian.tar.gz)
 }
 
-function install_PowerDB() {
+function install() {
     # Start to install
-    if [ ! -e power.tar.gz ]; then
-        echo "File power.tar.gz does not exist"
+    if [ ! -e kinghistorian.tar.gz ]; then
+        echo "File kinghistorian.tar.gz does not exist"
         exit 1
     fi
-    tar -zxf power.tar.gz
+    tar -zxf kinghistorian.tar.gz
 
-    echo -e "${GREEN}Start to install PowerDB...${NC}"
+    echo -e "${GREEN}Start to install KingHistorian...${NC}"
 
     install_main_path
 
@@ -867,10 +853,10 @@ function install_PowerDB() {
     install_header
     install_lib
     install_jemalloc
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
-    fi
-    install_examples
+#    if [ "$pagMode" != "lite" ]; then
+#      install_connector
+#    fi
+#    install_examples
 
     if [ -z $1 ]; then # install service and client
         # For installing new
@@ -882,10 +868,10 @@ function install_PowerDB() {
             # Check if nginx is installed successfully
             if type curl &> /dev/null; then
                 if curl -sSf http://127.0.0.1:${nginx_port} &> /dev/null; then
-                    echo -e "\033[44;32;1mNginx for PowerDB is installed successfully!${NC}"
+                    echo -e "\033[44;32;1mNginx for KingHistorian is installed successfully!${NC}"
                     openresty_work=true
                 else
-                    echo -e "\033[44;31;5mNginx for PowerDB does not work! Please try again!\033[0m"
+                    echo -e "\033[44;31;5mNginx for KingHistorian does not work! Please try again!\033[0m"
                 fi
             fi
         fi
@@ -894,22 +880,16 @@ function install_PowerDB() {
 
         # Ask if to start the service
         #echo
-        #echo -e "\033[44;32;1mPowerDB is installed successfully!${NC}"
+        #echo -e "\033[44;32;1mKingHistorian is installed successfully!${NC}"
         echo
-        echo -e "${GREEN_DARK}To configure PowerDB ${NC}: edit /etc/power/power.cfg"
+        echo -e "${GREEN_DARK}To configure KingHistorian ${NC}: edit /etc/kinghistorian/kinghistorian.cfg"
         if ((${service_mod}==0)); then
-            echo -e "${GREEN_DARK}To start PowerDB     ${NC}: ${csudo} systemctl start powerd${NC}"
+            echo -e "${GREEN_DARK}To start KingHistorian     ${NC}: ${csudo} systemctl start khserver${NC}"
         elif ((${service_mod}==1)); then
-            echo -e "${GREEN_DARK}To start PowerDB     ${NC}: ${csudo} service powerd start${NC}"
+            echo -e "${GREEN_DARK}To start KingHistorian     ${NC}: ${csudo} service khserver start${NC}"
         else
-            echo -e "${GREEN_DARK}To start PowerDB     ${NC}: powerd${NC}"
+            echo -e "${GREEN_DARK}To start KingHistorian     ${NC}: khserver${NC}"
         fi
-
-        #if [ ${openresty_work} = 'true' ]; then
-        #     echo -e "${GREEN_DARK}To access PowerDB    ${NC}: use ${GREEN_UNDERLINE}power${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
-        #else
-        #     echo -e "${GREEN_DARK}To access PowerDB    ${NC}: use ${GREEN_UNDERLINE}power${NC} in shell${NC}"
-        #fi
 
         if [ ! -z "$firstEp" ]; then
             tmpFqdn=${firstEp%%:*}
@@ -920,27 +900,27 @@ function install_PowerDB() {
                 tmpPort=""
             fi
             if [[ "$tmpPort" != "" ]];then
-                echo -e "${GREEN_DARK}To access PowerDB    ${NC}: power -h $tmpFqdn -P $tmpPort${GREEN_DARK} to login into cluster, then${NC}"
+                echo -e "${GREEN_DARK}To access KingHistorian    ${NC}: khclient -h $tmpFqdn -P $tmpPort${GREEN_DARK} to login into cluster, then${NC}"
             else
-                echo -e "${GREEN_DARK}To access PowerDB    ${NC}: power -h $tmpFqdn${GREEN_DARK} to login into cluster, then${NC}"
+                echo -e "${GREEN_DARK}To access KingHistorian    ${NC}: khclient -h $tmpFqdn${GREEN_DARK} to login into cluster, then${NC}"
             fi
             echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
             echo
         elif [ ! -z "$serverFqdn" ]; then
-            echo -e "${GREEN_DARK}To access PowerDB    ${NC}: power -h $serverFqdn${GREEN_DARK} to login into PowerDB server${NC}"
+            echo -e "${GREEN_DARK}To access KingHistorian    ${NC}: khclient -h $serverFqdn${GREEN_DARK} to login into KingHistorian server${NC}"
             echo
         fi
-        echo -e "\033[44;32;1mPowerDB is installed successfully!${NC}"
+        echo -e "\033[44;32;1mKingHistorian is installed successfully!${NC}"
         echo
     else # Only install client
         install_bin
         install_config
 
         echo
-        echo -e "\033[44;32;1mPowerDB client is installed successfully!${NC}"
+        echo -e "\033[44;32;1mKingHistorian client is installed successfully!${NC}"
     fi
 
-    rm -rf $(tar -tf power.tar.gz)
+    rm -rf $(tar -tf kinghistorian.tar.gz)
 }
 
 
@@ -948,20 +928,20 @@ function install_PowerDB() {
 serverFqdn=$(hostname)
 if [ "$verType" == "server" ]; then
     # Install server and client
-    if [ -x ${bin_dir}/powerd ]; then
+    if [ -x ${bin_dir}/khserver ]; then
         update_flag=1
-        update_PowerDB
+        update
     else
-        install_PowerDB
+        install
     fi
 elif [ "$verType" == "client" ]; then
     interactiveFqdn=no
     # Only install client
-    if [ -x ${bin_dir}/power ]; then
+    if [ -x ${bin_dir}/khclient ]; then
         update_flag=1
-        update_PowerDB client
+        update client
     else
-        install_PowerDB client
+        install client
     fi
 else
     echo  "please input correct verType"

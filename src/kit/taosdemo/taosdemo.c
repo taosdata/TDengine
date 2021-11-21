@@ -633,6 +633,8 @@ SArguments g_args = {
     "tqueue",       // password
 #elif (_TD_PRO_ == true)
     "prodb",       // password
+#elif (_TD_KH_ == true)
+    "khroot",       // password
 #else
     "taosdata",     // password
 #endif
@@ -766,27 +768,10 @@ static void printHelp() {
             "The meta file to the execution procedure.");
     printf("%s%s%s%s\n", indent, "-u, --user=USER", "\t\t",
             "The user name to use when connecting to the server.");
-#ifdef _TD_POWER_
-    printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
-            "The password to use when connecting to the server. By default is 'powerdb'");
-    printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
-            "Configuration directory. By default is '/etc/power/'.");
-#elif (_TD_TQ_ == true)
-    printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
-            "The password to use when connecting to the server. By default is 'tqueue'");
-    printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
-            "Configuration directory. By default is '/etc/tq/'.");
-#elif (_TD_PRO_ == true)
-    printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
-            "The password to use when connecting to the server. By default is 'prodb'");
-    printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
-            "Configuration directory. By default is '/etc/ProDB/'.");
-#else
     printf("%s%s%s%s\n", indent, "-p, --password", "\t\t",
             "The password to use when connecting to the server.");
     printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
             "Configuration directory.");
-#endif
     printf("%s%s%s%s\n", indent, "-h, --host=HOST", "\t\t",
             "TDengine server FQDN to connect. The default host is localhost.");
     printf("%s%s%s%s\n", indent, "-P, --port=PORT", "\t\t",
