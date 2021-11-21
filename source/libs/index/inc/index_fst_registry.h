@@ -54,5 +54,4 @@ FstRegistry* fstRegistryCreate(uint64_t tableSize, uint64_t mruSize);
 
 FstRegistryEntry* fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNode);
 
-uint64_t fstRegistryHash(FstRegistry *registry, FstBuilderNode *node);
 #endif
