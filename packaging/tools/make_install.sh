@@ -4,7 +4,7 @@
 # is required to use systemd to manage services at boot
 
 set -e
-# set -x
+set -x
 
 # -----------------------Variables definition
 source_dir=$1
@@ -329,15 +329,16 @@ function install_lib() {
 function install_header() {
 
     if [ "$osType" != "Darwin" ]; then
-        ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h     || :
-        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h \
+        ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h     || :
+        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taosdef.h ${source_dir}/src/inc/taoserror.h \
             ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
         ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+        ${csudo} ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
         ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
     else
-        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h \
+        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taosdef.h ${source_dir}/src/inc/taoserror.h \
             ${install_main_dir}/include \
-            || ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h \
+            || ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taosdef.h ${source_dir}/src/inc/taoserror.h \
             ${install_main_2_dir}/include \
             && ${csudo} chmod 644 ${install_main_dir}/include/* \
             || ${csudo} chmod 644 ${install_main_2_dir}/include/*

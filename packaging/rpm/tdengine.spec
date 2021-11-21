@@ -72,9 +72,9 @@ if [ -f %{_compiledir}/build/bin/taosadapter ]; then
     cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin ||:
 fi
 cp %{_compiledir}/build/bin/taosdemo                %{buildroot}%{homepath}/bin
-cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
 cp %{_compiledir}/../src/inc/taos.h                 %{buildroot}%{homepath}/include
+cp %{_compiledir}/../src/inc/taosdef.h              %{buildroot}%{homepath}/include
 cp %{_compiledir}/../src/inc/taoserror.h            %{buildroot}%{homepath}/include
 cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
@@ -206,9 +206,9 @@ if [ $1 -eq 0 ];then
     ${csudo} rm -f ${bin_link_dir}/taosd      || :
     ${csudo} rm -f ${bin_link_dir}/taosadapter       || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo   || :
-    ${csudo} rm -f ${bin_link_dir}/taosdump   || :
     ${csudo} rm -f ${cfg_link_dir}/*          || :
     ${csudo} rm -f ${inc_link_dir}/taos.h     || :
+    ${csudo} rm -f ${inc_link_dir}/taosdef.h     || :
     ${csudo} rm -f ${inc_link_dir}/taoserror.h     || :
     ${csudo} rm -f ${lib_link_dir}/libtaos.*  || :
 

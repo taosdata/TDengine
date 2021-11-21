@@ -69,6 +69,7 @@ fi
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver
 cp ${compile_dir}/../src/inc/taos.h                 ${pkg_dir}${install_home_path}/include
+cp ${compile_dir}/../src/inc/taosdef.h              ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../src/inc/taoserror.h            ${pkg_dir}${install_home_path}/include
 cp -r ${top_dir}/tests/examples/*                   ${pkg_dir}${install_home_path}/examples
 cp -r ${top_dir}/src/connector/python               ${pkg_dir}${install_home_path}/connector
@@ -127,10 +128,6 @@ chmod 755 ${pkg_dir}/DEBIAN/*
 # modify version of control
 debver="Version: "$tdengine_ver
 sed -i "2c$debver" ${pkg_dir}/DEBIAN/control
-
-if [ -f ${compile_dir}/build/lib/libavro.so.23.0.0 ]; then
-    sed -i.bak "s/#Depends: no/Depends: libjansson4, libsnappy1v5/g" ${pkg_dir}/DEBIAN/control
-fi
 
 #get taos version, then set deb name
 

@@ -42,7 +42,7 @@ fi
 #fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
-header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
+header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
 if [ "$verMode" == "cluster" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else

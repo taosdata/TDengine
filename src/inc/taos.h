@@ -208,6 +208,8 @@ DLL_EXPORT int taos_load_table_info(TAOS *taos, const char* tableNameList);
 
 DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision);
 
+DLL_EXPORT int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t dayligth);
+
 #ifdef __cplusplus
 }
 #endif
