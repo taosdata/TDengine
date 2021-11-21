@@ -1538,10 +1538,13 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       //what p->fullname point is a char*
       //before the time we copy p->fullname to pCreate->tableName , we need to check the length of p->fullname
       if (strlen(p->fullname) > 237) {
-          tscError("failed to write size %d, which is over 237, just save the first 237 char here", strlen(p->fullname));
+        tscError("failed to write this name, which is over 237, just save the first 237 char here");
+        strncpy(pCreate->tableName, p->fullname,237);
+        pCreate->tableName[236]='\0';//I don't know if this line is working properly
+      }else{
+        strcpy(pCreate->tableName, p->fullname);
       }
-      strncpy(pCreate->tableName, p->fullname,237);
-      pCreate->tableName[236]='\0';//I don't know if this line is working properly
+
       pCreate->igExists = (p->igExist)? 1 : 0;
 
       // use dbinfo from table id without modifying current db info
