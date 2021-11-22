@@ -19,18 +19,18 @@
 #include "os.h"
 #include "tbuffer.h"
 #include "tdef.h"
+#include "tschema.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define TD_OR_ROW 0
-#define TD_KV_ROW 1
-
-typedef uint16_t col_id_t;
+#define TD_UNDECIDED_ROW 0
+#define TD_OR_ROW 1
+#define TD_KV_ROW 2
 
 typedef struct {
-  TSKEY ts;
+  // TODO
 } SOrRow;
 
 typedef struct {
@@ -48,20 +48,29 @@ typedef struct {
     /// union field for encode and decode
     uint64_t info;
     struct {
+      /// is deleted row
+      uint64_t del : 1;
       /// row type
-      uint64_t type : 2;
+      uint64_t type : 3;
       /// row schema version
       uint64_t sver : 16;
       /// row total length
-      uint64_t len : 46;
+      uint64_t len : 32;
+      /// reserved for back compatibility
+      uint64_t reserve : 12;
     };
   };
   /// row version
   uint64_t ver;
-  /// timestamp of the row
-  TSKEY    ts;
-  char     content[];
+  /// timestamp
+  TSKEY ts;
+  char  content[];
 } SRow;
+
+typedef struct {
+  uint32_t nRows;
+  char     rows[];
+} SRowBatch;
 
 typedef enum {
   /// ordinary row builder
@@ -82,12 +91,32 @@ typedef struct {
 } SRowBuilder;
 
 typedef struct {
-  /* TODO */
-} SRowBatchBuilder;
+  SSchema *pSchema;
+  SRow *   pRow;
+} SRowReader;
 
-#define tRBInit(type, allocator, endian) \
-  { .type = (type), tbufInitWriter(allocator, endian), NULL }
-void tRBClear(SRowBuilder *pRB);
+typedef struct {
+  uint32_t   it;
+  SRowBatch *pRowBatch;
+} SRowBatchIter;
+
+// SRowBuilder
+#define trbInit(rt, allocator, endian, target, size) \
+  { .type = (rt), .bw = tbufInitWriter(allocator, endian), .pRow = (target) }
+void trbSetRowInfo(SRowBuilder *pRB, bool del, uint16_t sver);
+void trbSetRowVersion(SRowBuilder *pRB, uint64_t ver);
+void trbSetRowTS(SRowBuilder *pRB, TSKEY ts);
+int  trbWriteCol(SRowBuilder *pRB, void *pData, col_id_t cid);
+
+// SRowReader
+#define tRowReaderInit(schema, row) \
+  { .schema = (schema), .row = (row) }
+int tRowReaderRead(SRowReader *pRowReader, col_id_t cid, void *target, uint64_t size);
+
+// SRowBatchIter
+#define tRowBatchIterInit(pRB) \
+  { .it = 0, .pRowBatch = (pRB) }
+const SRow *tRowBatchIterNext(SRowBatchIter *pRowBatchIter);
 
 #ifdef __cplusplus
 }

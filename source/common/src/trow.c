@@ -15,77 +15,19 @@
 
 #include "trow.h"
 
-#if 0
-/* ------------ Structures ---------- */
-struct SRowBatch {
-  int32_t compress : 1;  // if batch row is compressed
-  int32_t nrows : 31;    // number of rows
-  int32_t tlen;          // total length (including `nrows` and `tlen`)
-  char    rows[];
-};
-
-struct SRowBuilder {
+void trbSetRowInfo(SRowBuilder *pRB, bool del, uint16_t sver) {
   // TODO
-};
+}
 
-struct SRowBatchIter {
-  int32_t    counter;  // row counter
-  SRowBatch *rb;       // row batch to iter
-  SRow       nrow;     // next row
-};
-
-struct SRowBatchBuilder {
+void trbSetRowVersion(SRowBuilder *pRB, uint64_t ver) {
   // TODO
-};
+}
 
-/* ------------ Methods ---------- */
-
-// SRowBuilder
-SRowBuilder *rowBuilderCreate() {
-  SRowBuilder *pRowBuilder = NULL;
+void trbSetRowTS(SRowBuilder *pRB, TSKEY ts) {
   // TODO
-
-  return pRowBuilder;
 }
 
-void rowBuilderDestroy(SRowBuilder *pRowBuilder) {
-  if (pRowBuilder) {
-    free(pRowBuilder);
-  }
+int trbWriteCol(SRowBuilder *pRB, void *pData, col_id_t cid) {
+  // TODO
+  return 0;
 }
-
-// SRowBatchIter
-SRowBatchIter *rowBatchIterCreate(SRowBatch *pRowBatch) {
-  SRowBatchIter *pRowBatchIter = (SRowBatchIter *)malloc(sizeof(*pRowBatchIter));
-  if (pRowBatchIter == NULL) {
-    return NULL;
-  }
-
-  pRowBatchIter->counter = 0;
-  pRowBatchIter->rb = pRowBatch;
-  pRowBatchIter->nrow = pRowBatch->rows;
-
-  return pRowBatchIter;
-};
-
-void rowBatchIterDestroy(SRowBatchIter *pRowBatchIter) {
-  if (pRowBatchIter) {
-    free(pRowBatchIter);
-  }
-}
-
-const SRow rowBatchIterNext(SRowBatchIter *pRowBatchIter) {
-  SRow r = NULL;
-  if (pRowBatchIter->counter < pRowBatchIter->rb->nrows) {
-    r = pRowBatchIter->nrow;
-    pRowBatchIter->counter += 1;
-    pRowBatchIter->nrow = (SRow)POINTER_SHIFT(r, rowLen(r));
-  }
-
-  return r;
-}
-
-// SRowBatchBuilder
-SRowBatchBuilder *rowBatchBuilderCreate();
-void              rowBatchBuilderDestroy(SRowBatchBuilder *);
-#endif

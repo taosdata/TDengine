@@ -17,26 +17,60 @@
 #define _TD_COMMON_SCHEMA_H_
 
 #include "os.h"
+#include "tarray.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SColAttr {
-  /* data */
-} SColAttr;
+typedef uint16_t col_id_t;
 
 typedef struct SColumn {
-  uint8_t  type;
-  uint16_t cid;
-  uint16_t bytes;
+  /// column name
+  char *cname;
+  union {
+    /// for encode purpose
+    uint64_t info;
+    struct {
+      uint64_t sma : 1;
+      /// column data type
+      uint64_t type : 7;
+      /// column id
+      uint64_t cid : 16;
+      /// max bytes of the column
+      uint64_t bytes : 32;
+      /// reserved
+      uint64_t reserve : 8;
+    };
+  };
+  /// comment about the column
+  char *comment;
 } SColumn;
 
 typedef struct SSchema {
   /// schema version
   uint16_t sver;
-  /* data */
+  /// number of columns
+  uint16_t ncols;
+  /// sma attributes
+  struct {
+    bool    sma;
+    SArray *smaArray;
+  };
+  /// column info
+  SColumn cols[];
 } SSchema;
+
+typedef struct {
+  uint64_t size;
+  SSchema *pSchema;
+} SShemaBuilder;
+
+#define tSchemaBuilderInit(target, capacity) \
+  { .size = (capacity), .pSchema = (target) }
+void tSchemaBuilderSetSver(SShemaBuilder *pSchemaBuilder, uint16_t sver);
+void tSchemaBuilderSetSMA(bool sma, SArray *smaArray);
+int  tSchemaBuilderPutColumn(char *cname, bool sma, uint8_t type, col_id_t cid, uint32_t bytes, char *comment);
 
 #ifdef __cplusplus
 }
