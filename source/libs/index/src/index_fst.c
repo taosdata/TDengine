@@ -29,7 +29,7 @@ void unFinishedNodeDestroyElem(void* elem) {
   fstBuilderNodeDestroy(b->node); 
   free(b->last); 
 }  
-void fstUnFinishedNodeDestroy(FstUnFinishedNodes *nodes) {
+void fstUnFinishedNodesDestroy(FstUnFinishedNodes *nodes) {
   if (nodes == NULL) { return; } 
 
   taosArrayDestroyEx(nodes->stack, unFinishedNodeDestroyElem); 
@@ -305,7 +305,42 @@ FstBuilder *fstBuilderCreate(void *w, FstType ty) {
   b->len        = 0;
   return b;
 }
+void fstBuilderDestroy(FstBuilder *b) {
+  if (b == NULL) { return; }
 
+  fstCountingWriterDestroy(b->wrt); 
+  fstUnFinishedNodesDestroy(b->unfinished); 
+  fstRegistryDestroy(b->registry);
+  free(b);
+}
+void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in) {
+   FstSlice *s = &bs;
+   if (fstSliceEmpty(s)) {
+     b->len = 1; 
+     fstUnFinishedNodesSetRootOutput(b->unfinished, in);
+     return;
+   }
+   Output out; 
+   uint64_t prefixLen;
+   if (in != 0) { //if let Some(in) = in 
+      prefixLen = fstUnFinishedNodesFindCommPrefixAndSetOutput(b->unfinished, bs, in, &out);  
+   } else {
+      prefixLen = fstUnFinishedNodesFindCommPrefix(b->unfinished, bs);
+      out = 0;
+   }
+
+   if (prefixLen == FST_SLICE_LEN(s)) {
+      assert(out != 0);
+      return;
+   }
+
+   b->len += 1;
+   fstBuilderCompileFrom(b, prefixLen); 
+   
+   FstSlice sub = fstSliceCopy(s, prefixLen, s->end);
+   fstUnFinishedNodesAddSuffix(b->unfinished, sub, out);
+   return;
+ }
 
 OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup) {
   FstSlice *input = &bs;

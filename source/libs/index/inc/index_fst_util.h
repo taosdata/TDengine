@@ -77,8 +77,9 @@ typedef struct FstSlice {
 FstSlice fstSliceCopy(FstSlice *slice, int32_t start, int32_t end);
 FstSlice fstSliceCreate(uint8_t *data, uint64_t dLen);
 bool fstSliceEmpty(FstSlice *slice);
-
 int fstSliceCompare(FstSlice *a, FstSlice *b);
+
+#define FST_SLICE_LEN(s) (s->end - s->start + 1)
 
 
 #endif

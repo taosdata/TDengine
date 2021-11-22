@@ -75,6 +75,8 @@ typedef struct FstBuilder {
 
 
 FstBuilder *fstBuilderCreate(void *w, FstType ty);
+void fstBuilderDestroy(FstBuilder *b);
+void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in);
 OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup);
 void fstBuilderCompileFrom(FstBuilder *b, uint64_t istate);
 CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn);
