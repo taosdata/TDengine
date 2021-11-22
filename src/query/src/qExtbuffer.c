@@ -825,7 +825,7 @@ static void columnwiseQSortImpl(tOrderDescriptor *pDescriptor, int32_t numOfRows
   }
 }
 
-void tColDataSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data, int32_t orderType, bool stableSort) {
+void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data, int32_t orderType) {
   // short array sort, incur another sort procedure instead of quick sort process
   __col_compar_fn_t compareFn = (orderType == TSDB_ORDER_ASC) ? compare_sa : compare_sd;
 
@@ -844,14 +844,40 @@ void tColDataSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t star
 
   if (end - start + 1 <= 8) {
     tColDataInsertSort(pDescriptor, numOfRows, start, end, data, compareFn, buf);
-  } else if (stableSort) {
-    columnwiseMergeSortImpl(pDescriptor, numOfRows, start, end, data, orderType, compareFn);
   } else {
     columnwiseQSortImpl(pDescriptor, numOfRows, start, end, data, orderType, compareFn, buf);
   }
 
   free(buf);
 }
+
+void tColDataMergeSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data, int32_t orderType) {
+  // short array sort, incur another sort procedure instead of quick sort process
+  __col_compar_fn_t compareFn = (orderType == TSDB_ORDER_ASC) ? compare_sa : compare_sd;
+
+  SColumnModel* pModel = pDescriptor->pColumnModel;
+
+  size_t width = 0;
+  for(int32_t i = 0; i < pModel->numOfCols; ++i) {
+    SSchema* pSchema = &pModel->pFields[i].field;
+    if (width < pSchema->bytes) {
+      width = pSchema->bytes;
+    }
+  }
+
+  char* buf = malloc(width);
+  assert(width > 0 && buf != NULL);
+
+  if (end - start + 1 <= 8) {
+    tColDataInsertSort(pDescriptor, numOfRows, start, end, data, compareFn, buf);
+  } else {
+    columnwiseMergeSortImpl(pDescriptor, numOfRows, start, end, data, orderType, compareFn);
+  }
+
+  free(buf);
+}
+
+
 
 /*
  * deep copy of sschema

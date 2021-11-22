@@ -233,7 +233,7 @@ static int32_t tscFlushTmpBufferImpl(tExtMemBuffer *pMemoryBuf, tOrderDescriptor
 
   // sort before flush to disk, the data must be consecutively put on tFilePage.
   if (pDesc->orderInfo.numOfCols > 0) {
-    tColDataSort(pDesc, (int32_t)pPage->num, 0, (int32_t)pPage->num - 1, pPage->data, orderType, true);
+    tColDataMergeSort(pDesc, (int32_t)pPage->num, 0, (int32_t)pPage->num - 1, pPage->data, orderType);
   }
 
 #ifdef _DEBUG_VIEW
