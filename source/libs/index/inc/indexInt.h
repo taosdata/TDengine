@@ -16,10 +16,50 @@
 #ifndef _TD_INDEX_INT_H_
 #define _TD_INDEX_INT_H_
 
+#include "index.h"
+
+#ifdef USE_LUCENE
+#include <lucene++/Lucene_c.h>
+#endif
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+struct SIndex {
+#ifdef USE_LUCENE 
+ index_t *index; 
+#endif  
+};   
+
+struct SIndexOpts {
+#ifdef USE_LUCENE 
+  void *opts; 
+#endif  
+};
+
+struct SIndexMultiTermQuery {
+  EIndexOperatorType opera;   
+  SArray *query;
+};
+
+// field and key;
+typedef struct SIndexTerm {
+  char    *key;
+  int32_t nKey;
+  char    *val;
+  int32_t nVal;
+} SIndexTerm;
+
+typedef struct SIndexTermQuery {
+  SIndexTerm*     field_value;
+  EIndexQueryType type;
+} SIndexTermQuery;
+
+
+SIndexTerm *indexTermCreate(const char *key, int32_t nKey, const char *val, int32_t nVal);
+void        indexTermDestroy(SIndexTerm *p);
 #ifdef __cplusplus
 }
 #endif

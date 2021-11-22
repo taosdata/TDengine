@@ -17,6 +17,7 @@
 #define TD_SYNC_RAFT_PROTO_H
 
 #include "sync_type.h"
+#include "sync_raft_node_map.h"
 
 typedef enum ESyncRaftConfChangeType {
 	SYNC_RAFT_Conf_AddNode = 0,
@@ -57,5 +58,20 @@ typedef struct SSyncConfigState {
 	// the final config (i.e. remove the outgoing config) when this is safe.
   bool autoLeave;
 } SSyncConfigState;
+
+static FORCE_INLINE bool syncRaftConfArrayIsEmpty(const SSyncConfChangeSingleArray* ary) {
+  return ary->n == 0;
+}
+
+static FORCE_INLINE void syncRaftInitConfArray(SSyncConfChangeSingleArray* ary) {
+  *ary = (SSyncConfChangeSingleArray) {
+    .changes = NULL,
+    .n       = 0,
+  };
+}
+
+static FORCE_INLINE void syncRaftFreeConfArray(SSyncConfChangeSingleArray* ary) {
+  if (ary->changes != NULL) free(ary->changes);
+}
 
 #endif /* TD_SYNC_RAFT_PROTO_H */

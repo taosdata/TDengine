@@ -32,6 +32,8 @@ typedef struct SSyncRaftProgress SSyncRaftProgress;
 typedef struct SSyncRaftProgressMap SSyncRaftProgressMap;
 typedef struct SSyncRaftProgressTrackerConfig SSyncRaftProgressTrackerConfig;
 
+typedef struct SSyncRaftNodeMap SSyncRaftNodeMap;
+
 typedef struct SSyncRaftProgressTracker SSyncRaftProgressTracker;
 
 typedef struct SSyncRaftChanger SSyncRaftChanger;
@@ -68,11 +70,6 @@ typedef struct SSyncClusterConfig {
   const SSyncCluster* cluster;
 } SSyncClusterConfig;
 
-typedef struct {
-  int32_t   replica;
-  SyncNodeId nodeId[TSDB_MAX_REPLICA];
-} SSyncRaftNodeMap;
-
 typedef enum {
   SYNC_RAFT_CAMPAIGN_PRE_ELECTION = 0,
   SYNC_RAFT_CAMPAIGN_ELECTION     = 1,
@@ -80,14 +77,15 @@ typedef enum {
 } ESyncRaftElectionType;
 
 typedef enum {
-  // the init vote resp status
-  SYNC_RAFT_VOTE_RESP_UNKNOWN = 0,
-
   // grant the vote request
   SYNC_RAFT_VOTE_RESP_GRANT   = 1,
 
   // reject the vote request
   SYNC_RAFT_VOTE_RESP_REJECT  = 2,
 } ESyncRaftVoteType;
+
+typedef void (*visitProgressFp)(SSyncRaftProgress* progress, void* arg);
+
+typedef void (*matchAckIndexerFp)(SyncNodeId id, void* arg, SyncIndex* index);
 
 #endif  /* _TD_LIBS_SYNC_TYPE_H */

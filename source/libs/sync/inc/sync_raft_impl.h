@@ -28,6 +28,8 @@ void syncRaftBecomeLeader(SSyncRaft* pRaft);
 
 void syncRaftStartElection(SSyncRaft* pRaft, ESyncRaftElectionType cType);
 
+void syncRaftCampaign(SSyncRaft* pRaft, ESyncRaftElectionType cType);
+
 void syncRaftTriggerHeartbeat(SSyncRaft* pRaft);
 
 void syncRaftRandomizedElectionTimeout(SSyncRaft* pRaft);
@@ -50,5 +52,7 @@ static FORCE_INLINE bool syncRaftIsEmptyServerState(const SSyncServerState* serv
 void syncRaftLoadState(SSyncRaft* pRaft, const SSyncServerState* serverState);
 
 void syncRaftBroadcastAppend(SSyncRaft* pRaft);
+
+SNodeInfo* syncRaftGetNodeById(SSyncRaft *pRaft, SyncNodeId id);
 
 #endif /* _TD_LIBS_SYNC_RAFT_IMPL_H */
