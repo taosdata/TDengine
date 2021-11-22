@@ -24,6 +24,8 @@ typedef struct FstRegistryCell {
   FstBuilderNode *node;    
 } FstRegistryCell;
 
+#define FST_REGISTRY_CELL_IS_EMPTY(cell) (cell->addr == NONE_ADDRESS)
+#define FST_REGISTRY_CELL_INSERT(cell, tAddr) do {cell->addr = tAddr;} while(0)
 
 
 //typedef struct FstRegistryCache {

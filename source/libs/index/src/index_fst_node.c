@@ -54,3 +54,25 @@ void fstBuilderNodeCloneFrom(FstBuilderNode *dst, FstBuilderNode *src) {
   src->trans = NULL;
 }
 
+bool fstBuilderNodeCompileTo(FstBuilderNode *b, FstCountingWriter *wrt, CompiledAddr lastAddr, CompiledAddr startAddr) {
+  size_t sz = taosArrayGetSize(b->trans);  
+  assert(sz < 256);
+  if (FST_BUILDER_NODE_IS_FINAL(b) 
+      && FST_BUILDER_NODE_TRANS_ISEMPTY(b) 
+      && FST_BUILDER_NODE_FINALOUTPUT_ISZERO(b)) {
+    return true; 
+  } else if (sz != 1 || b->isFinal) {
+    // AnyTrans->Compile(w, addr, node);
+  } else {
+    FstTransition *tran = taosArrayGet(b->trans, 0);   
+    if (tran->addr == lastAddr && tran->out == 0) {
+       //OneTransNext::compile(w, lastAddr, tran->inp);
+       return true;
+    } else {
+      //OneTrans::Compile(w, lastAddr, *tran);
+       return true;
+    } 
+  } 
+  return true; 
+    
+} 

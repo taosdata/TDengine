@@ -49,7 +49,7 @@ typedef struct FstUnFinishedNodes {
 
 #define FST_UNFINISHED_NODES_LEN(nodes) taosArrayGetSize(nodes->stack) 
 
-FstUnFinishedNodes *FstUnFinishedNodesCreate();  
+FstUnFinishedNodes *fstUnFinishedNodesCreate();  
 void fstUnFinishedNodesPushEmpty(FstUnFinishedNodes *nodes, bool isFinal);
 FstBuilderNode *fstUnFinishedNodesPopRoot(FstUnFinishedNodes *nodes);
 FstBuilderNode *fstUnFinishedNodesPopFreeze(FstUnFinishedNodes *nodes, CompiledAddr addr);
@@ -62,9 +62,9 @@ uint64_t FstUnFinishedNodesFindCommPreifxAndSetOutput(FstUnFinishedNodes *node, 
 
 
 typedef struct FstBuilder {
-  FstCountingWriter  wtr;         // The FST raw data is written directly to `wtr`.  
+  FstCountingWriter  *wrt;         // The FST raw data is written directly to `wtr`.  
   FstUnFinishedNodes *unfinished; // The stack of unfinished nodes   
-  FstRegistry        registry;    // A map of finished nodes.        
+  FstRegistry*        registry;    // A map of finished nodes.        
   SArray*            last;        // The last word added 
   CompiledAddr       lastAddr;    // The address of the last compiled node  
   uint64_t           len;         // num of keys added

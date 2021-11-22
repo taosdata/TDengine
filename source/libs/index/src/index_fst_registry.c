@@ -64,8 +64,6 @@ static void fstRegistryCellPromote(SArray *arr, uint32_t start, uint32_t end) {
     s -= 1;
   }
 }
-#define FST_REGISTRY_CELL_IS_EMPTY(cell) (cell->addr == NONE_ADDRESS)
-#define FST_REGISTRY_CELL_INSERT(cell, addr) do {cell->addr = addr;} while(0)
 
 FstRegistry* fstRegistryCreate(uint64_t tableSize, uint64_t mruSize) {
   FstRegistry *registry = malloc(sizeof(FstRegistry));  

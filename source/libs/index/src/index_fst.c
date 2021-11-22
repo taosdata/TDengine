@@ -279,12 +279,43 @@ FstBuilder *fstBuilderCreate(void *w, FstType ty) {
   FstBuilder *b = malloc(sizeof(FstBuilder));  
   if (NULL == b) { return b; }
 
-  FstCountingWriter wtr = {.wtr = w, .count = 0, .summer = 0};  
-  b->wtr = wtr;
-  b->unfinished = malloc(sizeof(FstUnFinishedNodes));   
+   
+  b->wrt = fstCountingWriterCreate(w);
+  b->unfinished = fstUnFinishedNodesCreate();   
+  b->registry   = fstRegistryCreate(10000, 2) ;
+  b->last       = NULL;
+  b->lastAddr   = NONE_ADDRESS; 
+  b->len        = 0;
   return b;
-  
 }
+
+
+void fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDupe) {
+} 
+
+CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn) {
+  if (FST_BUILDER_NODE_IS_FINAL(bn) 
+      && FST_BUILDER_NODE_TRANS_ISEMPTY(bn) 
+      && FST_BUILDER_NODE_FINALOUTPUT_ISZERO(bn)) {
+    return EMPTY_ADDRESS; 
+  }
+  FstRegistryEntry *entry = fstRegistryGetEntry(b->registry, bn); 
+  if (entry->state == FOUND) { 
+    CompiledAddr ret = entry->addr;
+    tfree(entry); 
+    return ret;
+  } 
+  CompiledAddr startAddr = (CompiledAddr)(FST_WRITER_COUNT(b->wrt));
+
+  fstBuilderNodeCompileTo(bn, b->wrt, b->lastAddr, startAddr);  
+  b->lastAddr =  (CompiledAddr)(FST_WRITER_COUNT(b->wrt)) - 1;  
+  if (entry->state == NOTFOUND) {
+    FST_REGISTRY_CELL_INSERT(entry->cell, b->lastAddr);    
+  }
+  free(entry);
+  return b->lastAddr;  
+}
+
 FstSlice fstNodeAsSlice(FstNode *node) {
   FstSlice *slice = &node->data; 
   FstSlice s = fstSliceCopy(slice, slice->end, slice->dLen - 1);   
