@@ -37,10 +37,10 @@ typedef struct SVnodeCfg SVnodeCfg;
  * @brief Open a VNODE.
  *
  * @param path path of the vnode
- * @param pVnodeOptions options of the vnode
+ * @param pVnodeCfg options of the vnode
  * @return SVnode* The vnode object
  */
-SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeOptions);
+SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg);
 
 /**
  * @brief Close a VNODE
