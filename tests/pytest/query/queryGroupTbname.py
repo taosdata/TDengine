@@ -10,6 +10,7 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
+from util.dnodes import tdDnodes
 from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
@@ -71,6 +72,28 @@ class TDTestCase:
         tdSql.query("select last_row(*), tbname from meters group by tbname order by ts desc")
         tdSql.checkRows(2)
 
+        # TS-561 null tags group by crash
+        tdLog.info("test case for TS-561")
+        tdSql.execute("create database openfalcon")
+        tdSql.execute("use openfalcon")
+        tdSql.execute("create table stb (ts timestamp, value double) tags(_endpoint binary(150), _hostname binary(150), _indexname binary(50), _ip binary(50), _q_name binary(150))")
+        tdSql.execute("create table tb0 using stb tags('root.FTBI', 'CNSZ17VL4774', 'max_mem', '10.116.100.10_8088', 'root.line_volume_predict')")
+        tdSql.execute("create table tb1 using stb(_endpoint, _hostname, _indexname) tags('root.medium_high_freq', 'CNSZ17VL4775', 'max_mem_1')")
+
+        for i in range(2):
+            sql = "insert into tb%d values" % i
+            for j in range(10000):
+                sql += "(%d, %d)" % (ts + j * 500, random.randint(1, 10000) + random.uniform(1.0, 1000.0))
+            tdSql.execute(sql)
+        
+        tdSql.query("select avg(value) from openfalcon.stb where ts > '2020-11-15 03:30:00.000' and ts < '2020-11-15 04:30:00.000' group by _hostname, _indexname, _ip, _q_name")
+        tdSql.checkRows(2)
+
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+
+        tdSql.query("select avg(value) from openfalcon.stb where ts > '2020-11-15 03:30:00.000' and ts < '2020-11-15 04:30:00.000' group by _hostname, _indexname, _ip, _q_name")
+        tdSql.checkRows(2)
 
     def run(self):
         tdSql.prepare()
