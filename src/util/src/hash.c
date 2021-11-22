@@ -19,6 +19,9 @@
 #include "taosdef.h"
 
 #define EXT_SIZE 1024
+#define HASH_MAX_CAPACITY (1024 * 1024 * 16)
+#define HASH_DEFAULT_LOAD_FACTOR (0.75)
+#define HASH_INDEX(v, c) ((v) & ((c)-1))
 
 #define HASH_NEED_RESIZE(_h) ((_h)->size >= (_h)->capacity * HASH_DEFAULT_LOAD_FACTOR)
 
@@ -35,6 +38,32 @@
                                 \
     DO_FREE_HASH_NODE(_n);      \
   } while (0);
+
+#define GET_HASH_NODE_KEY(_n)  ((char*)(_n) + sizeof(SHashNode) + (_n)->dataLen)
+#define GET_HASH_NODE_DATA(_n) ((char*)(_n) + sizeof(SHashNode))
+#define GET_HASH_PNODE(_n) ((SHashNode *)((char*)(_n) - sizeof(SHashNode)))
+
+typedef void (*_hash_free_fn_t)(void *param);
+
+typedef struct SHashEntry {
+  int32_t    num;      // number of elements in current entry
+  SRWLatch   latch;    // entry latch
+  SHashNode *next;
+} SHashEntry;
+
+typedef struct SHashObj {
+  SHashEntry    **hashList;
+  size_t          capacity;     // number of slots
+  size_t          size;         // number of elements in hash table
+  _hash_fn_t      hashFp;       // hash function
+  _hash_free_fn_t freeFp;       // hash node free callback function
+  _equal_fn_t     equalFp;       // equal function
+
+  SRWLatch        lock;         // read-write spin lock
+  SHashLockTypeE  type;         // lock type
+  bool            enableUpdate; // enable update
+  SArray         *pMemBlock;    // memory block allocated for SHashEntry
+} SHashObj;
 
 static FORCE_INLINE void __wr_lock(void *lock, int32_t type) {
   if (type == HASH_NO_LOCK) {
@@ -97,26 +126,26 @@ static FORCE_INLINE SHashNode *doSearchInEntryList(SHashObj *pHashObj, SHashEntr
 static void taosHashTableResize(SHashObj *pHashObj);
 
 /**
+ * allocate and initialize a hash node
+ *
  * @param key      key of object for hash, usually a null-terminated string
  * @param keyLen   length of key
- * @param pData    actually data. Requires a consecutive memory block, no pointer is allowed in pData.
- *                 Pointer copy causes memory access error.
+ * @param pData    data to be stored in hash node
  * @param dsize    size of data
- * @return         SHashNode
+ * @return         sHashNode
  */
 static SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, size_t dsize, uint32_t hashVal);
 
 /**
- * Update the hash node
+ * update the hash node
  *
- * @param pNode   hash node
- * @param key     key for generate hash value
- * @param keyLen  key length
- * @param pData   actual data
- * @param dsize   size of actual data
- * @return        hash node
+ * @param pHashObj   hash table object
+ * @param pe         hash table entry to operate on
+ * @param prev       previous node
+ * @param pNode      the old node with requested key
+ * @param pNewNode   the new node with requested key
  */
-static FORCE_INLINE SHashNode *doUpdateHashNode(SHashObj *pHashObj, SHashEntry* pe, SHashNode* prev, SHashNode *pNode, SHashNode *pNewNode) {
+static FORCE_INLINE void doUpdateHashNode(SHashObj *pHashObj, SHashEntry* pe, SHashNode* prev, SHashNode *pNode, SHashNode *pNewNode) {
   assert(pNode->keyLen == pNewNode->keyLen);
 
   atomic_sub_fetch_32(&pNode->refCount, 1);
@@ -134,12 +163,10 @@ static FORCE_INLINE SHashNode *doUpdateHashNode(SHashObj *pHashObj, SHashEntry* 
     pe->num++;
     atomic_add_fetch_64(&pHashObj->size, 1);
   }
-
-  return pNewNode;
 }
 
 /**
- * insert the hash node at the front of the linked list
+ * Insert the hash node at the front of the linked list
  *
  * @param pHashObj
  * @param pNode
@@ -155,16 +182,21 @@ static void pushfrontNodeInEntryList(SHashEntry *pEntry, SHashNode *pNode);
 static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj);
 
 /**
- * Initialize a hash table
+ * initialize a hash table
  *
- * @param capacity   Initial capacity of the hash table
- * @param fn         Hash function
- * @param update     Whether the hash table allows in place update
- * @param type       Whether the hash table has per entry lock
- * @return           Hash table object
+ * @param capacity   initial capacity of the hash table
+ * @param fn         hash function
+ * @param update     whether the hash table allows in place update
+ * @param type       whether the hash table has per entry lock
+ * @return           hash table object
  */
 SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTypeE type) {
   assert(fn != NULL);
+  if (fn == NULL) {
+    uError("hash table must have a valid hash function");
+    return NULL;
+  }
+
   if (capacity == 0) {
     capacity = 4;
   }
@@ -646,15 +678,15 @@ void taosHashTableResize(SHashObj *pHashObj) {
   SHashNode *pNode = NULL;
   SHashNode *pNext = NULL;
 
-  int32_t newSize = (int32_t)(pHashObj->capacity << 1u);
-  if (newSize > HASH_MAX_CAPACITY) {
+  int32_t newCapacity = (int32_t)(pHashObj->capacity << 1u);
+  if (newCapacity > HASH_MAX_CAPACITY) {
     //    uDebug("current capacity:%d, maximum capacity:%d, no resize applied due to limitation is reached",
     //           pHashObj->capacity, HASH_MAX_CAPACITY);
     return;
   }
 
   int64_t st = taosGetTimestampUs();
-  void *pNewEntryList = realloc(pHashObj->hashList, sizeof(void *) * newSize);
+  void *pNewEntryList = realloc(pHashObj->hashList, sizeof(void *) * newCapacity);
   if (pNewEntryList == NULL) {  // todo handle error
     //    uDebug("cache resize failed due to out of memory, capacity remain:%d", pHashObj->capacity);
     return;
@@ -662,7 +694,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
 
   pHashObj->hashList = pNewEntryList;
 
-  size_t inc = newSize - pHashObj->capacity;
+  size_t inc = newCapacity - pHashObj->capacity;
   void * p = calloc(inc, sizeof(SHashEntry));
 
   for (int32_t i = 0; i < inc; ++i) {
@@ -671,7 +703,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
 
   taosArrayPush(pHashObj->pMemBlock, &p);
 
-  pHashObj->capacity = newSize;
+  pHashObj->capacity = newCapacity;
   for (int32_t i = 0; i < pHashObj->capacity; ++i) {
     SHashEntry *pe = pHashObj->hashList[i];
 
