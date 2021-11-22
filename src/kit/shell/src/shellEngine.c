@@ -262,7 +262,7 @@ int32_t shellRunCommand(TAOS* con, char* command) {
     }
 
     if (c == '\\') {
-      if (quote != 0 && (*command == '_' || *command == '\\')) {
+      if (quote != 0 && (*command == '_' || *command == '%' || *command == '\\')) {
         //DO nothing 
       } else {
         esc = true;
