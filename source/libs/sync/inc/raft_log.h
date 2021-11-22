@@ -39,8 +39,6 @@ struct SSyncRaftLog {
   SyncIndex commitIndex;
 
   SyncIndex appliedIndex;
-
-
 };
 
 SSyncRaftLog* syncRaftLogOpen();

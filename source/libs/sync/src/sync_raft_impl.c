@@ -247,7 +247,7 @@ static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
     syncRaftHandleVoteRespMessage(pRaft, pMsg);
     return 0;
   } else if (msgType == RAFT_MSG_APPEND) {
-    syncRaftBecomeFollower(pRaft, pRaft->term, pMsg->from);
+    syncRaftBecomeFollower(pRaft, pMsg->term, pMsg->from);
     syncRaftHandleAppendEntriesMessage(pRaft, pMsg);
   }
   return 0;
