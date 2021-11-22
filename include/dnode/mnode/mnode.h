@@ -24,10 +24,10 @@ extern "C" {
 typedef struct SDnode    SDnode;
 typedef struct SMnode    SMnode;
 typedef struct SMnodeMsg SMnodeMsg;
-typedef void (*SendMsgToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-typedef void (*SendMsgToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
-typedef void (*SendRedirectMsgFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg, bool forShell);
-typedef int32_t (*PutMsgToMnodeQFp)(SDnode *pDnode, SMnodeMsg *pMsg);
+typedef void (*SendMsgToDnodeFp)(SDnode *pDnd, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
+typedef void (*SendMsgToMnodeFp)(SDnode *pDnd, struct SRpcMsg *rpcMsg);
+typedef void (*SendRedirectMsgFp)(SDnode *pDnd, struct SRpcMsg *rpcMsg, bool forShell);
+typedef int32_t (*PutMsgToMnodeQFp)(SDnode *pDnd, SMnodeMsg *pMsg);
 
 typedef struct SMnodeLoad {
   int64_t numOfDnode;
@@ -48,7 +48,7 @@ typedef struct {
   int8_t            replica;
   int8_t            selfIndex;
   SReplica          replicas[TSDB_MAX_REPLICA];
-  struct SServer   *pServer;
+  struct SDnode    *pDnode;
   PutMsgToMnodeQFp  putMsgToApplyMsgFp;
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;
@@ -122,10 +122,17 @@ SMnodeMsg *mnodeInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg);
 /**
  * @brief Cleanup mnode msg
  *
- * @param pMnode The mnode object
  * @param pMsg The request msg
  */
-void mnodeCleanupMsg(SMnode *pMnode, SMnodeMsg *pMsg);
+void mnodeCleanupMsg(SMnodeMsg *pMsg);
+
+/**
+ * @brief Cleanup mnode msg
+ *
+ * @param pMsg The request msg
+ * @param code The error code
+ */
+void mnodeSendRsp(SMnodeMsg *pMsg, int32_t code);
 
 /**
  * @brief Process the read request

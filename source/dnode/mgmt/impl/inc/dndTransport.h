@@ -13,26 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DNODE_VNODES_H_
-#define _TD_DNODE_VNODES_H_
+#ifndef _TD_DND_TRANSPORT_H_
+#define _TD_DND_TRANSPORT_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dnodeInt.h"
+#include "dndInt.h"
 
-int32_t dnodeInitVnodes();
-void    dnodeCleanupVnodes();
-void    dnodeGetVnodeLoads(SVnodeLoads *pVloads);
-
-void dnodeProcessVnodeMgmtMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
-void dnodeProcessVnodeWriteMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
-void dnodeProcessVnodeSyncMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
-void dnodeProcessVnodeQueryMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
-void dnodeProcessVnodeFetchMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
+int32_t dndInitTrans(SDnode *pDnode);
+void    dndCleanupTrans(SDnode *pDnode);
+void    dndSendMsgToMnode(SDnode *pDnode, SRpcMsg *pRpcMsg);
+void    dndSendMsgToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pRpcMsg);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DNODE_VNODES_H_*/
+#endif /*_TD_DND_TRANSPORT_H_*/

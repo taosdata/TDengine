@@ -83,7 +83,7 @@ static int32_t mnodeSetOptions(SMnode *pMnode, const SMnodeOptions *pOptions) {
   pMnode->replica = pOptions->replica;
   pMnode->selfIndex = pOptions->selfIndex;
   memcpy(&pMnode->replicas, pOptions->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
-  pMnode->pServer = pOptions->pServer;
+  pMnode->pServer = pOptions->pDnode;
   pMnode->putMsgToApplyMsgFp = pOptions->putMsgToApplyMsgFp;
   pMnode->sendMsgToDnodeFp = pOptions->sendMsgToDnodeFp;
   pMnode->sendMsgToMnodeFp = pOptions->sendMsgToMnodeFp;
@@ -187,7 +187,7 @@ SMnodeMsg *mnodeInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   }
 
   if (rpcGetConnInfo(pRpcMsg->handle, &pMsg->conn) != 0) {
-    mnodeCleanupMsg(pMnode, pMsg);
+    mnodeCleanupMsg(pMsg);
     mError("can not get user from conn:%p", pMsg->rpcMsg.handle);
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
     return NULL;
@@ -199,7 +199,7 @@ SMnodeMsg *mnodeInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   return pMsg;
 }
 
-void mnodeCleanupMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
+void mnodeCleanupMsg(SMnodeMsg *pMsg) {
   if (pMsg->pUser != NULL) {
     sdbRelease(pMsg->pUser);
   }
@@ -210,7 +210,7 @@ void mnodeCleanupMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
 static void mnodeProcessRpcMsg(SMnodeMsg *pMsg) {
   if (!mnodeIsMaster()) {
     mnodeSendRedirectMsg(NULL, &pMsg->rpcMsg, true);
-    mnodeCleanupMsg(NULL, pMsg);
+    mnodeCleanupMsg(pMsg);
     return;
   }
 

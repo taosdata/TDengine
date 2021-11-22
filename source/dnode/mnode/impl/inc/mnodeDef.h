@@ -131,7 +131,7 @@ typedef struct SMnodeObj {
   int64_t    roleTime;
   int64_t    createdTime;
   int64_t    updateTime;
-  SDnodeObj *pDnode;
+  SDnodeObj *pDnd;
 } SMnodeObj;
 
 typedef struct {
@@ -215,7 +215,7 @@ typedef struct SDbObj {
 typedef struct {
   int32_t    dnodeId;
   int8_t     role;
-  SDnodeObj *pDnode;
+  SDnodeObj *pDnd;
 } SVnodeGid;
 
 typedef struct SVgObj {

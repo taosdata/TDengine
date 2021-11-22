@@ -13,21 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DNODE_TRANSPORT_H_
-#define _TD_DNODE_TRANSPORT_H_
+#ifndef _TD_DND_VNODES_H_
+#define _TD_DND_VNODES_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dnodeInt.h"
+#include "dndInt.h"
 
-int32_t dnodeInitTrans();
-void    dnodeCleanupTrans();
-void    dnodeSendMsgToMnode(SDnode *pDnode, SRpcMsg *rpcMsg);
-void    dnodeSendMsgToDnode(SDnode *pDnode, SEpSet *epSet, SRpcMsg *rpcMsg);
+int32_t dndInitVnodes(SDnode *pDnode);
+void    dndCleanupVnodes(SDnode *pDnode);
+void    dndGetVnodeLoads(SDnode *pDnode, SVnodeLoads *pVloads);
+void    dndProcessVnodeMgmtMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
+void    dndProcessVnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
+void    dndProcessVnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
+void    dndProcessVnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
+void    dndProcessVnodeFetchMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DNODE_TRANSPORT_H_*/
+#endif /*_TD_DND_VNODES_H_*/

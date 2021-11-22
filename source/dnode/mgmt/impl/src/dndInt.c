@@ -14,50 +14,47 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dnodeDnode.h"
-#include "dnodeMnode.h"
-#include "dnodeTransport.h"
-#include "dnodeVnodes.h"
+#include "dndDnode.h"
+#include "dndMnode.h"
+#include "dndTransport.h"
+#include "dndVnodes.h"
 #include "sync.h"
 #include "tcache.h"
-#include "tconfig.h"
-#include "tnote.h"
-#include "tstep.h"
 #include "wal.h"
 
-EStat dnodeGetStat(SDnode *pDnode) { return pDnode->stat; }
+EStat dndGetStat(SDnode *pDnode) { return pDnode->stat; }
 
-void dnodeSetStat(SDnode *pDnode, EStat stat) {
-  dDebug("dnode stat set from %s to %s", dnodeStatStr(pDnode->stat), dnodeStatStr(stat));
+void dndSetStat(SDnode *pDnode, EStat stat) {
+  dDebug("dnode stat set from %s to %s", dndStatStr(pDnode->stat), dndStatStr(stat));
   pDnode->stat = stat;
 }
 
-char *dnodeStatStr(EStat stat) {
+char *dndStatStr(EStat stat) {
   switch (stat) {
-    case DN_STAT_INIT:
+    case DND_STAT_INIT:
       return "init";
-    case DN_STAT_RUNNING:
+    case DND_STAT_RUNNING:
       return "running";
-    case DN_STAT_STOPPED:
+    case DND_STAT_STOPPED:
       return "stopped";
     default:
       return "unknown";
   }
 }
 
-void dnodeReportStartup(SDnode *pDnode, char *name, char *desc) {
+void dndReportStartup(SDnode *pDnode, char *name, char *desc) {
   SStartupMsg *pStartup = &pDnode->startup;
   tstrncpy(pStartup->name, name, strlen(pStartup->name));
   tstrncpy(pStartup->desc, desc, strlen(pStartup->desc));
   pStartup->finished = 0;
 }
 
-void dnodeGetStartup(SDnode *pDnode, SStartupMsg *pStartup) {
-  memcpy(pStartup, &pDnode->startup, sizeof(SStartupMsg);
-  pStartup->finished = (dnodeGetStat(pDnode) == DN_STAT_RUNNING);
+void dndGetStartup(SDnode *pDnode, SStartupMsg *pStartup) {
+  memcpy(pStartup, &pDnode->startup, sizeof(SStartupMsg));
+  pStartup->finished = (dndGetStat(pDnode) == DND_STAT_RUNNING);
 }
 
-static int32_t dnodeCheckRunning(char *dataDir) {
+static int32_t dndCheckRunning(char *dataDir) {
   char filepath[PATH_MAX] = {0};
   snprintf(filepath, sizeof(filepath), "%s/.running", dataDir);
 
@@ -79,15 +76,19 @@ static int32_t dnodeCheckRunning(char *dataDir) {
   return 0;
 }
 
-static int32_t dnodeInitDisk(SDnode *pDnode, char *dataDir) {
-  char path[PATH_MAX];
-  snprintf(path, PATH_MAX, "%s/mnode", dataDir);
+static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOptions) {
+  if (dndCheckRunning(pOptions->dataDir) != 0) {
+    return -1;
+  }
+
+  char path[PATH_MAX + 100];
+  snprintf(path, sizeof(path), "%s%smnode", pOptions->dataDir, TD_DIRSEP);
   pDnode->dir.mnode = strdup(path);
 
-  sprintf(path, PATH_MAX, "%s/vnode", dataDir);
+  snprintf(path, sizeof(path), "%s%svnode", pOptions->dataDir, TD_DIRSEP);
   pDnode->dir.vnodes = strdup(path);
 
-  sprintf(path, PATH_MAX, "%s/dnode", dataDir);
+  snprintf(path, sizeof(path), "%s%sdnode", pOptions->dataDir, TD_DIRSEP);
   pDnode->dir.dnode = strdup(path);
 
   if (pDnode->dir.mnode == NULL || pDnode->dir.vnodes == NULL || pDnode->dir.dnode == NULL) {
@@ -114,55 +115,10 @@ static int32_t dnodeInitDisk(SDnode *pDnode, char *dataDir) {
     return -1;
   }
 
-  if (dnodeCheckRunning(dataDir) != 0) {
-    return -1;
-  }
-
   return 0;
 }
 
-static int32_t dnodeInitEnv(SDnode *pDnode, const char *cfgPath) {
-  taosIgnSIGPIPE();
-  taosBlockSIGPIPE();
-  taosResolveCRC();
-  taosInitGlobalCfg();
-  taosReadGlobalLogCfg();
-  taosSetCoreDump(tsEnableCoreFile);
-
-  if (!taosMkDir(tsLogDir)) {
-    printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
-    return -1;
-  }
-
-  char temp[TSDB_FILENAME_LEN];
-  sprintf(temp, "%s/taosdlog", tsLogDir);
-  if (taosInitLog(temp, tsNumOfLogLines, 1) < 0) {
-    dError("failed to init log file\n");
-    return -1;
-  }
-
-  if (!taosReadGlobalCfg()) {
-    taosPrintGlobalCfg();
-    dError("TDengine read global config failed");
-    return -1;
-  }
-
-  taosInitNotes();
-
-  if (taosCheckGlobalCfg() != 0) {
-    dError("TDengine check global config failed");
-    return -1;
-  }
-
-  if (dnodeInitDisk(pDnode, tsDataDir) != 0) {
-    dError("TDengine failed to init directory");
-    return -1;
-  }
-
-  return 0;
-}
-
-static void dnodeCleanupEnv(SDnode *pDnode) {
+static void dndCleanupEnv(SDnode *pDnode) {
   if (pDnode->dir.mnode != NULL) {
     tfree(pDnode->dir.mnode);
   }
@@ -175,11 +131,10 @@ static void dnodeCleanupEnv(SDnode *pDnode) {
     tfree(pDnode->dir.dnode);
   }
 
-  taosCloseLog();
   taosStopCacheRefreshWorker();
 }
 
-SDnode *dnodeInit(const char *cfgPath) {
+SDnode *dndInit(SDnodeOpt *pOptions) {
   SDnode *pDnode = calloc(1, sizeof(pDnode));
   if (pDnode == NULL) {
     dError("failed to create dnode object");
@@ -188,73 +143,73 @@ SDnode *dnodeInit(const char *cfgPath) {
   }
 
   dInfo("start to initialize TDengine");
-  dnodeSetStat(pDnode, DN_STAT_INIT);
+  dndSetStat(pDnode, DND_STAT_INIT);
 
-  if (dnodeInitEnv(pDnode, cfgPath) != 0) {
+  if (dndInitEnv(pDnode, pOptions) != 0) {
     dError("failed to init env");
-    dnodeCleanup(pDnode);
+    dndCleanup(pDnode);
     return NULL;
   }
 
   if (rpcInit() != 0) {
     dError("failed to init rpc env");
-    dnodeCleanup(pDnode);
+    dndCleanup(pDnode);
     return NULL;
   }
 
   if (walInit() != 0) {
     dError("failed to init wal env");
-    dnodeCleanup(pDnode);
+    dndCleanup(pDnode);
     return NULL;
   }
 
-  if (dnodeInitDnode(pDnode) != 0) {
+  if (dndInitDnode(pDnode) != 0) {
     dError("failed to init dnode");
-    dnodeCleanup(pDnode);
+    dndCleanup(pDnode);
     return NULL;
   }
 
-  if (dnodeInitVnodes(pDnode) != 0) {
+  if (dndInitVnodes(pDnode) != 0) {
     dError("failed to init vnodes");
-    dnodeCleanup(pDnode);
+    dndCleanup(pDnode);
     return NULL;
   }
 
-  if (dnodeInitMnode(pDnode) != 0) {
+  if (dndInitMnode(pDnode) != 0) {
     dError("failed to init mnode");
-    dnodeCleanup(pDnode);
+    dndCleanup(pDnode);
     return NULL;
   }
 
-  if (dnodeInitTrans(pDnode) != 0) {
+  if (dndInitTrans(pDnode) != 0) {
     dError("failed to init transport");
-    dnodeCleanup(pDnode);
+    dndCleanup(pDnode);
     return NULL;
   }
 
-  dnodeSetStat(pDnode, DN_STAT_RUNNING);
-  dnodeReportStartup(pDnode, "TDengine", "initialized successfully");
+  dndSetStat(pDnode, DND_STAT_RUNNING);
+  dndReportStartup(pDnode, "TDengine", "initialized successfully");
   dInfo("TDengine is initialized successfully");
 
   return 0;
 }
 
-void dnodeCleanup(SDnode *pDnode) {
-  if (dnodeGetStat(pDnode) == DN_STAT_STOPPED) {
+void dndCleanup(SDnode *pDnode) {
+  if (dndGetStat(pDnode) == DND_STAT_STOPPED) {
     dError("dnode is shutting down");
     return;
   }
 
   dInfo("start to cleanup TDengine");
-  dnodeSetStat(pDnode, DN_STAT_STOPPED);
-  dnodeCleanupTrans(pDnode);
-  dnodeCleanupMnode(pDnode);
-  dnodeCleanupVnodes(pDnode);
-  dnodeCleanupDnode(pDnode);
+  dndSetStat(pDnode, DND_STAT_STOPPED);
+  dndCleanupTrans(pDnode);
+  dndCleanupMnode(pDnode);
+  dndCleanupVnodes(pDnode);
+  dndCleanupDnode(pDnode);
   walCleanUp();
   rpcCleanup();
 
   dInfo("TDengine is cleaned up successfully");
-  dnodeCleanupEnv(pDnode);
+  dndCleanupEnv(pDnode);
   free(pDnode);
 }

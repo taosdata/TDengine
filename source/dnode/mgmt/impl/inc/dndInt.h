@@ -13,20 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DNODE_INT_H_
-#define _TD_DNODE_INT_H_
+#ifndef _TD_DND_INT_H_
+#define _TD_DND_INT_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "cJSON.h"
 #include "os.h"
 #include "taosmsg.h"
-#include "tglobal.h"
 #include "thash.h"
+#include "tlockfree.h"
 #include "tlog.h"
+#include "tqueue.h"
 #include "trpc.h"
 #include "tthread.h"
 #include "ttime.h"
+#include "tworker.h"
+#include "mnode.h"
+#include "vnode.h"
+#include "dnode.h"
 
 extern int32_t dDebugFlag;
 
@@ -37,8 +44,8 @@ extern int32_t dDebugFlag;
 #define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("SRV ", dDebugFlag, __VA_ARGS__); }}
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("SRV ", dDebugFlag, __VA_ARGS__); }}
 
-typedef enum { DN_STAT_INIT, DN_STAT_RUNNING, DN_STAT_STOPPED } EStat;
-typedef void (*MsgFp)(SRpcMsg *pMsg, SEpSet *pEpSet);
+typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EStat;
+typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
 
 typedef struct {
   char *dnode;
@@ -48,50 +55,75 @@ typedef struct {
 
 typedef struct {
   int32_t         dnodeId;
-  int64_t         clusterId;
-  SDnodeEps      *dnodeEps;
-  SHashObj       *dnodeHash;
-  SEpSet          mnodeEpSetForShell;
-  SEpSet          mnodeEpSetForPeer;
-  char           *file;
   uint32_t        rebootTime;
-  int8_t          dropped;
-  int8_t          threadStop;
+  int32_t         dropped;
+  int64_t         clusterId;
+  SEpSet          shellEpSet;
+  SEpSet          peerEpSet;
+  char           *file;
+  SHashObj       *dnodeHash;
+  SDnodeEps      *dnodeEps;
   pthread_t      *threadId;
   pthread_mutex_t mutex;
-} SDnodeDnode;
+} SDnodeMgmt;
 
 typedef struct {
-} SDnodeMnode;
+  int32_t     refCount;
+  int8_t      deployed;
+  int8_t      dropped;
+  SWorkerPool mgmtPool;
+  SWorkerPool readPool;
+  SWorkerPool writePool;
+  SWorkerPool syncPool;
+  taos_queue  pReadQ;
+  taos_queue  pWriteQ;
+  taos_queue  pApplyQ;
+  taos_queue  pSyncQ;
+  taos_queue  pMgmtQ;
+  char       *file;
+  SMnode     *pMnode;
+  SRWLatch    latch;
+} SMnodeMgmt;
 
 typedef struct {
-} SDnodeVnodes;
+  SHashObj    *hash;
+  SWorkerPool  mgmtPool;
+  SWorkerPool  queryPool;
+  SWorkerPool  fetchPool;
+  SMWorkerPool syncPool;
+  SMWorkerPool writePool;
+  taos_queue   pMgmtQ;
+  int32_t      openVnodes;
+  int32_t      totalVnodes;
+  SRWLatch     latch;
+} SVnodesMgmt;
 
 typedef struct {
-  void *peerRpc;
-  void *shellRpc;
-  void *clientRpc;
-} SDnodeTrans;
+  void    *serverRpc;
+  void    *clientRpc;
+  DndMsgFp msgFp[TSDB_MSG_TYPE_MAX];
+} STransMgmt;
 
 typedef struct SDnode {
-  EStat        stat;
-  SDnodeDir    dir;
-  SDnodeDnode  dnode;
-  SDnodeVnodes vnodes;
-  SDnodeMnode  mnode;
-  SDnodeTrans  trans;
-  SStartupMsg  startup;
+  EStat       stat;
+  SDnodeOpt   opt;
+  SDnodeDir   dir;
+  SDnodeMgmt  d;
+  SMnodeMgmt  m;
+  SVnodesMgmt vmgmt;
+  STransMgmt  t;
+  SStartupMsg startup;
 } SDnode;
 
-EStat dnodeGetStat(SDnode *pDnode);
-void  dnodeSetStat(SDnode *pDnode, EStat stat);
-char *dnodeStatStr(EStat stat);
+EStat dndGetStat(SDnode *pDnode);
+void  dndSetStat(SDnode *pDnode, EStat stat);
+char *dndStatStr(EStat stat);
 
-void dnodeReportStartup(SDnode *pDnode, char *name, char *desc);
-void dnodeGetStartup(SDnode *pDnode, SStartupMsg *pStartup);
+void dndReportStartup(SDnode *pDnode, char *name, char *desc);
+void dndGetStartup(SDnode *pDnode, SStartupMsg *pStartup);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DNODE_INT_H_*/
+#endif /*_TD_DND_INT_H_*/

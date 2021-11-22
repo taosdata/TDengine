@@ -16,12 +16,32 @@
 #ifndef _TD_DNODE_H_
 #define _TD_DNODE_H_
 
+#include "tdef.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SDnode SDnode;
+
+typedef struct {
+  int32_t  sver;
+  int32_t  numOfCores;
+  float    numOfThreadsPerCore;
+  float    ratioOfQueryCores;
+  int32_t  maxShellConns;
+  int32_t  shellActivityTimer;
+  int32_t  statusInterval;
+  uint16_t serverPort;
+  char     dataDir[PATH_MAX];
+  char     localEp[TSDB_EP_LEN];
+  char     localFqdn[TSDB_FQDN_LEN];
+  char     firstEp[TSDB_EP_LEN];
+  char     timezone[TSDB_TIMEZONE_LEN];
+  char     locale[TSDB_LOCALE_LEN];
+  char     charset[TSDB_LOCALE_LEN];
+} SDnodeOpt;
 
 /* ------------------------ SDnode ------------------------ */
 /**
@@ -30,14 +50,14 @@ typedef struct SDnode SDnode;
  * @param cfgPath Config file path.
  * @return SDnode* The dnode object.
  */
-SDnode *dnodeInit(const char *cfgPath);
+SDnode *dndInit(SDnodeOpt *pOptions);
 
 /**
  * @brief Stop and cleanup dnode.
  *
- * @param pDnode The dnode object to close.
+ * @param pDnd The dnode object to close.
  */
-void dnodeCleanup(SDnode *pDnode);
+void dndCleanup(SDnode *pDnd);
 
 #ifdef __cplusplus
 }
