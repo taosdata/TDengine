@@ -14,7 +14,7 @@
  */
 
 #include "raft.h"
-#include "raft_configuration.h"
+#include "sync_raft_impl.h"
 #include "raft_log.h"
 #include "sync_raft_restore.h"
 #include "raft_replication.h"
@@ -59,8 +59,13 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
   logStore = &(pRaft->logStore);
   fsm = &(pRaft->fsm);
 
+  pRaft->nodeInfoMap = taosHashInit(TSDB_MAX_REPLICA, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  if (pRaft->nodeInfoMap == NULL) {
+    return -1;
+  }
+
   // init progress tracker
-  pRaft->tracker = syncRaftOpenProgressTracker();
+  pRaft->tracker = syncRaftOpenProgressTracker(pRaft);
   if (pRaft->tracker == NULL) {
     return -1;
   }
@@ -96,10 +101,21 @@ int32_t syncRaftStart(SSyncRaft* pRaft, const SSyncInfo* pInfo) {
     .tracker = pRaft->tracker,
     .lastIndex = syncRaftLogLastIndex(pRaft->log),
   };
-  if (syncRaftRestoreConfig(&changer, &confState) < 0) {
+  SSyncRaftProgressTrackerConfig config;
+  SSyncRaftProgressMap progressMap;
+
+  if (syncRaftRestoreConfig(&changer, &confState, &config, &progressMap) < 0) {
     syncError("syncRaftRestoreConfig for vgid %d fail", pInfo->vgId);
     return -1;
   }
+
+  // save restored config and progress map to tracker
+  syncRaftCopyProgressMap(&progressMap, &pRaft->tracker->progressMap);
+  syncRaftCopyTrackerConfig(&config, &pRaft->tracker->config);
+
+  // free progress map and config
+  syncRaftFreeProgressMap(&progressMap);
+  syncRaftFreeTrackConfig(&config);
 
   if (!syncRaftIsEmptyServerState(&serverState)) {
     syncRaftLoadState(pRaft, &serverState);
@@ -140,6 +156,7 @@ int32_t syncRaftStep(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 
 int32_t syncRaftTick(SSyncRaft* pRaft) {
   pRaft->currentTick += 1;
+  pRaft->tickFp(pRaft);
   return 0;
 }
 
@@ -151,8 +168,8 @@ static int deserializeClusterStateFromBuffer(SSyncConfigState* cluster, const ch
   return 0;
 }
 
-static void visitProgressMaybeSendAppend(int i, SSyncRaftProgress* progress, void* arg) {
-  syncRaftReplicate(arg, progress, false);
+static void visitProgressMaybeSendAppend(SSyncRaftProgress* progress, void* arg) {
+  syncRaftMaybeSendAppend(arg, progress, false);
 }
 
 // switchToConfig reconfigures this node to use the provided configuration. It
@@ -169,13 +186,12 @@ static void switchToConfig(SSyncRaft* pRaft, const SSyncRaftProgressTrackerConfi
   SSyncRaftProgress* progress = NULL;
 
   syncRaftConfigState(pRaft->tracker, cs);
-  i = syncRaftFindProgressIndexByNodeId(&pRaft->tracker->progressMap, selfId);
-  exist = (i != -1);
+  progress = syncRaftFindProgressByNodeId(&pRaft->tracker->progressMap, selfId);
+  exist = (progress != NULL);
 
 	// Update whether the node itself is a learner, resetting to false when the
 	// node is removed.
   if (exist) {
-    progress = &pRaft->tracker->progressMap.progress[i];
     pRaft->isLearner = progress->isLearner;
   } else {
     pRaft->isLearner = false;
@@ -196,7 +212,7 @@ static void switchToConfig(SSyncRaft* pRaft, const SSyncRaftProgressTrackerConfi
 
 	// The remaining steps only make sense if this node is the leader and there
 	// are other nodes.
-  if (pRaft->state != TAOS_SYNC_STATE_LEADER || cs->voters.replica == 0) {
+  if (pRaft->state != TAOS_SYNC_STATE_LEADER || syncRaftNodeMapSize(&cs->voters) == 0) {
     return;
   }
 
@@ -212,8 +228,11 @@ static void switchToConfig(SSyncRaft* pRaft, const SSyncRaftProgressTrackerConfi
 
     // If the the leadTransferee was removed or demoted, abort the leadership transfer.
     SyncNodeId leadTransferee = pRaft->leadTransferee;
-    if (leadTransferee != SYNC_NON_NODE_ID && !syncRaftIsInNodeMap(&pRaft->tracker->config.voters, leadTransferee)) {
-      abortLeaderTransfer(pRaft);
+    if (leadTransferee != SYNC_NON_NODE_ID) {
+      if (!syncRaftIsInNodeMap(&pRaft->tracker->config.voters.incoming, leadTransferee) &&
+          !syncRaftIsInNodeMap(&pRaft->tracker->config.voters.outgoing, leadTransferee)) {
+        abortLeaderTransfer(pRaft);
+      }      
     }
   }
 }
@@ -286,8 +305,8 @@ static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
 		 * but it will not receive MsgApp or MsgHeartbeat, so it will not create
 		 * disruptive term increases
     **/
-    int peerIndex = syncRaftConfigurationIndexOfNode(pRaft, pMsg->from);
-    if (peerIndex < 0) {
+    SNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
+    if (pNode == NULL) {
       return true;
     }
     SSyncMessage* msg = syncNewEmptyAppendRespMsg(pRaft->selfGroupId, pRaft->selfId, pRaft->term);
@@ -295,7 +314,7 @@ static bool preHandleOldTermMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) 
       return true;
     }
 
-    pRaft->io.send(msg, &(pRaft->cluster.nodeInfo[peerIndex]));
+    pRaft->io.send(msg, pNode);
   } else {
     // ignore other cases
     syncInfo("[%d:%d] [term:%" PRId64 "] ignored a %d message with lower term from %d [term:%" PRId64 "]",

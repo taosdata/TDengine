@@ -15,7 +15,7 @@
 
 #include "syncInt.h"
 #include "raft.h"
-#include "raft_configuration.h"
+#include "sync_raft_impl.h"
 #include "raft_message.h"
 
 int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
@@ -25,8 +25,8 @@ int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 
   assert(pRaft->state == TAOS_SYNC_STATE_CANDIDATE);
 
-  voterIndex = syncRaftConfigurationIndexOfNode(pRaft, pMsg->from);
-  if (voterIndex == -1) {
+  SNodeInfo* pNode = syncRaftGetNodeById(pRaft, pMsg->from);
+  if (pNode == NULL) {
     syncError("[%d:%d] recv vote resp from unknown server %d", pRaft->selfGroupId, pRaft->selfId, pMsg->from);
     return 0;
   }
@@ -45,12 +45,14 @@ int syncRaftHandleVoteRespMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
 
   if (result == SYNC_RAFT_VOTE_WON) {
     if (pRaft->candidateState.inPreVote) {
-      syncRaftStartElection(pRaft, SYNC_RAFT_CAMPAIGN_ELECTION);
+      syncRaftCampaign(pRaft, SYNC_RAFT_CAMPAIGN_ELECTION);
     } else {
       syncRaftBecomeLeader(pRaft);
-
+      syncRaftBroadcastAppend(pRaft);
     }
   } else if (result == SYNC_RAFT_VOTE_LOST) {
+		// pb.MsgPreVoteResp contains future term of pre-candidate
+		// m.Term > r.Term; reuse r.Term    
     syncRaftBecomeFollower(pRaft, pRaft->term, SYNC_NON_NODE_ID);
   }
 

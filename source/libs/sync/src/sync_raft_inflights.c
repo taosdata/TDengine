@@ -40,19 +40,16 @@ void syncRaftCloseInflights(SSyncRaftInflights* inflights) {
   free(inflights);
 }
 
-/**
- * syncRaftInflightAdd notifies the Inflights that a new message with the given index is being
- * dispatched. syncRaftInflightFull() must be called prior to syncRaftInflightAdd() 
- * to verify that there is room for one more message, 
- * and consecutive calls to add syncRaftInflightAdd() must provide a
- * monotonic sequence of indexes.
- **/
+// Add notifies the Inflights that a new message with the given index is being
+// dispatched. Full() must be called prior to Add() to verify that there is room
+// for one more message, and consecutive calls to add Add() must provide a
+// monotonic sequence of indexes.
 void syncRaftInflightAdd(SSyncRaftInflights* inflights, SyncIndex inflightIndex) {
   assert(!syncRaftInflightFull(inflights));
 
   int next = inflights->start + inflights->count;
   int size = inflights->size;
-  /* is next wrapped around buffer? */
+
   if (next >= size) {
     next -= size;
   }
@@ -61,12 +58,10 @@ void syncRaftInflightAdd(SSyncRaftInflights* inflights, SyncIndex inflightIndex)
   inflights->count++;
 }
 
-/**
- * syncRaftInflightFreeLE frees the inflights smaller or equal to the given `to` flight.
- **/
+// FreeLE frees the inflights smaller or equal to the given `to` flight.
 void syncRaftInflightFreeLE(SSyncRaftInflights* inflights, SyncIndex toIndex) {
   if (inflights->count == 0 || toIndex < inflights->buffer[inflights->start]) {
-    /* out of the left side of the window */
+    // out of the left side of the window
     return;
   }
 
@@ -95,10 +90,8 @@ void syncRaftInflightFreeLE(SSyncRaftInflights* inflights, SyncIndex toIndex) {
   }
 }
 
-/** 
- * syncRaftInflightFreeFirstOne releases the first inflight. 
- * This is a no-op if nothing is inflight.
- **/
+// FreeFirstOne releases the first inflight. This is a no-op if nothing is
+// inflight.
 void syncRaftInflightFreeFirstOne(SSyncRaftInflights* inflights) {
   syncRaftInflightFreeLE(inflights, inflights->buffer[inflights->start]);
 }

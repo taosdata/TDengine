@@ -21,7 +21,9 @@
 #include "sync_raft_quorum_joint.h"
 #include "sync_raft_progress.h"
 #include "sync_raft_proto.h"
+#include "thash.h"
 
+// Config reflects the configuration tracked in a ProgressTracker.
 struct SSyncRaftProgressTrackerConfig {
   SSyncRaftQuorumJointConfig voters;
 
@@ -83,34 +85,47 @@ struct SSyncRaftProgressTracker {
 
   SSyncRaftProgressMap progressMap;
 
-	ESyncRaftVoteType votes[TSDB_MAX_REPLICA];
+	// nodeid -> ESyncRaftVoteType map
+	SHashObj* votesMap;
+
   int maxInflightMsgs;
+
+	SSyncRaft* pRaft;
 };
 
-SSyncRaftProgressTracker* syncRaftOpenProgressTracker();
+SSyncRaftProgressTracker* syncRaftOpenProgressTracker(SSyncRaft* pRaft);
 
+void syncRaftInitTrackConfig(SSyncRaftProgressTrackerConfig* config);
+void syncRaftFreeTrackConfig(SSyncRaftProgressTrackerConfig* config);
+
+void syncRaftFreeTrackConfig(SSyncRaftProgressTrackerConfig* config);
+
+// ResetVotes prepares for a new round of vote counting via recordVote.
 void syncRaftResetVotes(SSyncRaftProgressTracker*);
 
-typedef void (*visitProgressFp)(int i, SSyncRaftProgress* progress, void* arg);
 void syncRaftProgressVisit(SSyncRaftProgressTracker*, visitProgressFp visit, void* arg);
 
-/**
- * syncRaftRecordVote records that the node with the given id voted for this Raft
- * instance if v == true (and declined it otherwise).
- **/
-void syncRaftRecordVote(SSyncRaftProgressTracker* tracker, int i, bool grant);
+// RecordVote records that the node with the given id voted for this Raft
+// instance if v == true (and declined it otherwise).
+void syncRaftRecordVote(SSyncRaftProgressTracker* tracker, SyncNodeId id, bool grant);
 
-void syncRaftCloneTrackerConfig(const SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressTrackerConfig* result);
+void syncRaftCopyTrackerConfig(const SSyncRaftProgressTrackerConfig* from, SSyncRaftProgressTrackerConfig* to);
 
-int syncRaftCheckProgress(const SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap);
+int syncRaftCheckTrackerConfigInProgress(SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap);
 
-/** 
- * syncRaftTallyVotes returns the number of granted and rejected Votes, and whether the
- * election outcome is known.
- **/
+// TallyVotes returns the number of granted and rejected Votes, and whether the
+// election outcome is known.
 ESyncRaftVoteResult syncRaftTallyVotes(SSyncRaftProgressTracker* tracker, int* rejected, int *granted);
 
-void syncRaftConfigState(const SSyncRaftProgressTracker* tracker, SSyncConfigState* cs);
+void syncRaftConfigState(SSyncRaftProgressTracker* tracker, SSyncConfigState* cs);
+
+// Committed returns the largest log index known to be committed based on what
+// the voting members of the group have acknowledged.
+SyncIndex syncRaftCommittedIndex(SSyncRaftProgressTracker* tracker);
+
+// QuorumActive returns true if the quorum is active from the view of the local
+// raft state machine. Otherwise, it returns false.
+bool syncRaftQuorumActive(SSyncRaftProgressTracker* tracker);
 
 bool syncRaftIsInNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId);
 

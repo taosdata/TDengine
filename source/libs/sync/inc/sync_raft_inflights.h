@@ -18,54 +18,47 @@
 
 #include "sync.h"
 
-/**
- * SSyncRaftInflights limits the number of MsgApp (represented by the largest index
- * contained within) sent to followers but not yet acknowledged by them. Callers
- * use syncRaftInflightFull() to check whether more messages can be sent, 
- * call syncRaftInflightAdd() whenever they are sending a new append, 
- * and release "quota" via FreeLE() whenever an ack is received.
-**/
+// Inflights limits the number of MsgApp (represented by the largest index
+// contained within) sent to followers but not yet acknowledged by them. Callers
+// use Full() to check whether more messages can be sent, call Add() whenever
+// they are sending a new append, and release "quota" via FreeLE() whenever an
+// ack is received.
 typedef struct SSyncRaftInflights {
-  /* the starting index in the buffer */
+  // the starting index in the buffer
   int start;
 
-  /* number of inflights in the buffer */
+  // number of inflights in the buffer
   int count;
 
-  /* the size of the buffer */
+  // the size of the buffer
   int size;
 
-	/** 
-   * buffer contains the index of the last entry
-	 * inside one message.
-   **/
+	// buffer contains the index of the last entry
+	// inside one message.
   SyncIndex* buffer;
 } SSyncRaftInflights;
 
 SSyncRaftInflights* syncRaftOpenInflights(int size);
 void syncRaftCloseInflights(SSyncRaftInflights*);
 
+// reset frees all inflights.
 static FORCE_INLINE void syncRaftInflightReset(SSyncRaftInflights* inflights) {  
   inflights->count = 0;
   inflights->start = 0;
 }
 
+// Full returns true if no more messages can be sent at the moment.
 static FORCE_INLINE bool syncRaftInflightFull(SSyncRaftInflights* inflights) {
   return inflights->count == inflights->size;
 }
 
-/**
- * syncRaftInflightAdd notifies the Inflights that a new message with the given index is being
- * dispatched. syncRaftInflightFull() must be called prior to syncRaftInflightAdd() 
- * to verify that there is room for one more message, 
- * and consecutive calls to add syncRaftInflightAdd() must provide a
- * monotonic sequence of indexes.
- **/
+// Add notifies the Inflights that a new message with the given index is being
+// dispatched. Full() must be called prior to Add() to verify that there is room
+// for one more message, and consecutive calls to add Add() must provide a
+// monotonic sequence of indexes.
 void syncRaftInflightAdd(SSyncRaftInflights* inflights, SyncIndex inflightIndex);
 
-/**
- * syncRaftInflightFreeLE frees the inflights smaller or equal to the given `to` flight.
- **/
+// FreeLE frees the inflights smaller or equal to the given `to` flight.
 void syncRaftInflightFreeLE(SSyncRaftInflights* inflights, SyncIndex toIndex);
 
 /** 

@@ -13,15 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_RAFT_CONFIGURATION_H
-#define _TD_LIBS_SYNC_RAFT_CONFIGURATION_H
+#ifndef _TD_LIBS_SYNC_CONST_H
+#define _TD_LIBS_SYNC_CONST_H
 
 #include "sync.h"
-#include "sync_type.h"
 
-// return -1 if cannot find this id
-int syncRaftConfigurationIndexOfNode(SSyncRaft *pRaft, SyncNodeId id);
+static int kSyncRaftMaxInflghtMsgs = 20;
 
-int syncRaftConfigurationVoterCount(SSyncRaft *pRaft);
+static SyncIndex kMaxCommitIndex = UINT64_MAX;
 
-#endif  /* _TD_LIBS_SYNC_RAFT_CONFIGURATION_H */
+#endif  /* _TD_LIBS_SYNC_CONST_H */
