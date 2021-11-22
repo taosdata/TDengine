@@ -4963,8 +4963,8 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
   int32_t ps = DEFAULT_PAGE_SIZE;
   getIntermediateBufInfo(pRuntimeEnv, &ps, &pQueryAttr->intermediateResultRowSize);
 
-  int32_t TENMB = 1024*1024*20;
-  int32_t code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, ps, TENMB, pQInfo->qId);
+  int32_t TWENTYMB = 1024*1024*20;
+  int32_t code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, ps, TWENTYMB, pQInfo->qId);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
