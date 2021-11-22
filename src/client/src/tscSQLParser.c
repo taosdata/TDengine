@@ -1262,17 +1262,12 @@ int32_t validateSessionNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode * pS
   const char* msg3 = "invalid column name";
   const char* msg4 = "invalid time window";
   const char* msg5 = "function not support for session";
-  const char* msg6 = "join query does not support session_window";
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   // no session window
   if (!TPARSER_HAS_TOKEN(pSqlNode->sessionVal.gap)) {
     return TSDB_CODE_SUCCESS;
-  }
-
-  if (pQueryInfo->numOfTables > 1) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
 
   SStrToken* col = &pSqlNode->sessionVal.col;
