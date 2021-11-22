@@ -217,8 +217,8 @@ if __name__ == '__main__':
         logger.info(f'----- {procotol} protocol ------- Creating 100W stable 100Rows ------------')
         taosadapterPerftest.insertMixTbRows(procotol, 1000000, 100)
 
-        logger.info(f'----- {procotol} protocol ------- Creating 000W stable 100Rows ------------')
+        logger.info(f'----- {procotol} protocol ------- Creating 500W stable 20Rows ------------')
         taosadapterPerftest.insertMixTbRows(procotol, 5000000, 20)
 
-        logger.info(f'----- {procotol} protocol ------- Creating 5000W stable 100Rows ------------')
+        logger.info(f'----- {procotol} protocol ------- Creating 1000W stable 10Rows ------------')
         taosadapterPerftest.insertMixTbRows(procotol, 10000000, 10)
