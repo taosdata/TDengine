@@ -15,20 +15,20 @@
 
 #include "metaDef.h"
 
-const SMetaOptions defaultMetaOptions = {.lruCacheSize = 0};
+const SMetaCfg defaultMetaOptions = {.lruSize = 0};
 
 /* ------------------------ EXPOSED METHODS ------------------------ */
-void metaOptionsInit(SMetaOptions *pMetaOptions) { metaOptionsCopy(pMetaOptions, &defaultMetaOptions); }
+void metaOptionsInit(SMetaCfg *pMetaOptions) { metaOptionsCopy(pMetaOptions, &defaultMetaOptions); }
 
-void metaOptionsClear(SMetaOptions *pMetaOptions) {
+void metaOptionsClear(SMetaCfg *pMetaOptions) {
   // TODO
 }
 
-int metaValidateOptions(const SMetaOptions *pMetaOptions) {
+int metaValidateOptions(const SMetaCfg *pMetaOptions) {
   // TODO
   return 0;
 }
 
-void metaOptionsCopy(SMetaOptions *pDest, const SMetaOptions *pSrc) { memcpy(pDest, pSrc, sizeof(*pSrc)); }
+void metaOptionsCopy(SMetaCfg *pDest, const SMetaCfg *pSrc) { memcpy(pDest, pSrc, sizeof(*pSrc)); }
 
 /* ------------------------ STATIC METHODS ------------------------ */

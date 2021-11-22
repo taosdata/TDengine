@@ -25,7 +25,8 @@ extern "C" {
 
 typedef uint16_t col_id_t;
 
-typedef struct SColumn {
+#if 0
+typedef struct STColumn {
   /// column name
   char *cname;
   union {
@@ -45,9 +46,9 @@ typedef struct SColumn {
   };
   /// comment about the column
   char *comment;
-} SColumn;
+} STColumn;
 
-typedef struct SSchema {
+typedef struct STSchema {
   /// schema version
   uint16_t sver;
   /// number of columns
@@ -58,19 +59,21 @@ typedef struct SSchema {
     SArray *smaArray;
   };
   /// column info
-  SColumn cols[];
-} SSchema;
+  STColumn cols[];
+} STSchema;
 
 typedef struct {
-  uint64_t size;
-  SSchema *pSchema;
-} SShemaBuilder;
+  uint64_t  size;
+  STSchema *pSchema;
+} STShemaBuilder;
 
 #define tSchemaBuilderInit(target, capacity) \
   { .size = (capacity), .pSchema = (target) }
-void tSchemaBuilderSetSver(SShemaBuilder *pSchemaBuilder, uint16_t sver);
+void tSchemaBuilderSetSver(STShemaBuilder *pSchemaBuilder, uint16_t sver);
 void tSchemaBuilderSetSMA(bool sma, SArray *smaArray);
 int  tSchemaBuilderPutColumn(char *cname, bool sma, uint8_t type, col_id_t cid, uint32_t bytes, char *comment);
+
+#endif
 
 #ifdef __cplusplus
 }

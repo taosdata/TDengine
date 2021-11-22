@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_OPTIONS_H_
-#define _TD_VNODE_OPTIONS_H_
+#ifndef _TD_VNODE_CFG_H_
+#define _TD_VNODE_CFG_H_
 
 #include "vnode.h"
 
@@ -22,13 +22,13 @@
 extern "C" {
 #endif
 
-extern const SVnodeOptions defaultVnodeOptions;
+extern const SVnodeCfg defaultVnodeOptions;
 
-int  vnodeValidateOptions(const SVnodeOptions *);
-void vnodeOptionsCopy(SVnodeOptions *pDest, const SVnodeOptions *pSrc);
+int  vnodeValidateOptions(const SVnodeCfg *);
+void vnodeOptionsCopy(SVnodeCfg *pDest, const SVnodeCfg *pSrc);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_OPTIONS_H_*/
+#endif /*_TD_VNODE_CFG_H_*/

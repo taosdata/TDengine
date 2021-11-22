@@ -18,6 +18,7 @@
 
 #include "os.h"
 #include "tbuffer.h"
+#include "tdataformat.h"
 #include "tdef.h"
 #include "tschema.h"
 
@@ -91,8 +92,8 @@ typedef struct {
 } SRowBuilder;
 
 typedef struct {
-  SSchema *pSchema;
-  SRow *   pRow;
+  STSchema *pSchema;
+  SRow *    pRow;
 } SRowReader;
 
 typedef struct {

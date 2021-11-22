@@ -16,38 +16,75 @@
 #ifndef _TD_META_H_
 #define _TD_META_H_
 
-#include "impl/metaImpl.h"
+#include "os.h"
+#include "trow.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // Types exported
-typedef struct SMeta        SMeta;
-typedef struct SMetaOptions SMetaOptions;
-typedef struct STbOptions   STbOptions;
+typedef uint64_t     tb_uid_t;
+typedef struct SMeta SMeta;
+
+typedef struct SMetaCfg {
+  /// LRU cache size
+  uint64_t lruSize;
+} SMetaCfg;
+
+typedef struct STbCfg {
+  /// name of the table
+  char *name;
+  /// time to live of the table
+  uint32_t ttl;
+  /// type of table
+  uint8_t type;
+  union {
+    /// super table configurations
+    struct {
+      /// super table UID
+      tb_uid_t suid;
+      /// row schema
+      STSchema *pSchema;
+      /// tag schema
+      STSchema *pTagSchema;
+    } stbCfg;
+
+    /// normal table configuration
+    struct {
+      /// row schema
+      STSchema *pSchema;
+    } ntbCfg;
+    /// child table configuration
+    struct {
+      /// super table UID
+      tb_uid_t suid;
+      SRow *   pTag;
+    } ctbCfg;
+  };
+} STbCfg;
 
 // SMeta operations
-SMeta *metaOpen(const char *path, const SMetaOptions *pOptions);
+SMeta *metaOpen(const char *path, const SMetaCfg *pOptions);
 void   metaClose(SMeta *pMeta);
 void   metaRemove(const char *path);
-int    metaCreateTable(SMeta *pMeta, const STbOptions *pTbOptions);
+int    metaCreateTable(SMeta *pMeta, const STbCfg *pTbOptions);
 int    metaDropTable(SMeta *pMeta, tb_uid_t uid);
 int    metaCommit(SMeta *pMeta);
 
 // Options
-void metaOptionsInit(SMetaOptions *pOptions);
-void metaOptionsClear(SMetaOptions *pOptions);
+void metaOptionsInit(SMetaCfg *pOptions);
+void metaOptionsClear(SMetaCfg *pOptions);
 
 // STableOpts
-#define META_TABLE_OPTS_DECLARE(name) STableOpts name = {0}
-void        metaNormalTableOptsInit(STbOptions *pTbOptions, const char *name, const STSchema *pSchema);
-void        metaSuperTableOptsInit(STbOptions *pTbOptions, const char *name, tb_uid_t uid, const STSchema *pSchema,
-                                   const STSchema *pTagSchema);
-void        metaChildTableOptsInit(STbOptions *pTbOptions, const char *name, tb_uid_t suid, const SKVRow tags);
-void        metaTableOptsClear(STbOptions *pTbOptions);
-uint64_t    metaEncodeTbOptions(void **pBuf, STbOptions *pTbOptions);
-STbOptions *metaDecodeTbOptions(void *pBuf, size_t size, bool endian);
+// #define META_TABLE_OPTS_DECLARE(name) STableOpts name = {0}
+// void     metaNormalTableOptsInit(STbCfg *pTbOptions, const char *name, const STSchema *pSchema);
+// void     metaSuperTableOptsInit(STbCfg *pTbOptions, const char *name, tb_uid_t uid, const STSchema *pSchema,
+//                                 const STSchema *pTagSchema);
+// void     metaChildTableOptsInit(STbCfg *pTbOptions, const char *name, tb_uid_t suid, const SKVRow tags);
+// void     metaTableOptsClear(STbCfg *pTbOptions);
+// uint64_t metaEncodeTbOptions(void **pBuf, STbCfg *pTbOptions);
+// STbCfg * metaDecodeTbOptions(void *pBuf, size_t size, bool endian);
 
 #ifdef __cplusplus
 }

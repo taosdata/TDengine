@@ -25,7 +25,7 @@
 #include "vnodeBufferPool.h"
 #include "vnodeCommit.h"
 #include "vnodeFileSystem.h"
-#include "vnodeOptions.h"
+#include "vnodeCfg.h"
 #include "vnodeStateMgr.h"
 #include "vnodeSync.h"
 
@@ -34,16 +34,16 @@ extern "C" {
 #endif
 
 struct SVnode {
-  char*         path;
-  SVnodeOptions options;
-  SVState       state;
-  SVBufPool*    pBufPool;
-  SMeta*        pMeta;
-  STsdb*        pTsdb;
-  STQ*          pTq;
-  SWal*         pWal;
-  SVnodeSync*   pSync;
-  SVnodeFS*     pFs;
+  char*       path;
+  SVnodeCfg   config;
+  SVState     state;
+  SVBufPool*  pBufPool;
+  SMeta*      pMeta;
+  STsdb*      pTsdb;
+  STQ*        pTq;
+  SWal*       pWal;
+  SVnodeSync* pSync;
+  SVnodeFS*   pFs;
 };
 
 #ifdef __cplusplus

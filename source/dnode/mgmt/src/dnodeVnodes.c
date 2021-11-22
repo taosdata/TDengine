@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "dnodeVnodes.h"
-#include "dnodeTransport.h"
 #include "cJSON.h"
+#include "dnodeTransport.h"
 #include "thash.h"
 #include "tlockfree.h"
 #include "tqueue.h"
@@ -30,7 +30,7 @@ typedef struct {
   int32_t    refCount;
   int8_t     dropped;
   int8_t     accessState;
-  SVnode    *pImpl;
+  SVnode *   pImpl;
   taos_queue pWriteQ;
   taos_queue pSyncQ;
   taos_queue pApplyQ;
@@ -48,14 +48,14 @@ typedef struct {
 } SVThread;
 
 static struct {
-  SHashObj    *hash;
+  SHashObj *   hash;
   SWorkerPool  mgmtPool;
   SWorkerPool  queryPool;
   SWorkerPool  fetchPool;
   SMWorkerPool syncPool;
   SMWorkerPool writePool;
   taos_queue   pMgmtQ;
-  SSteps      *pSteps;
+  SSteps *     pSteps;
   int32_t      openVnodes;
   int32_t      totalVnodes;
   SRWLatch     latch;
@@ -169,7 +169,7 @@ static SVnodeObj **dnodeGetVnodesFromHash(int32_t *numOfVnodes) {
   void *pIter = taosHashIterate(tsVnodes.hash, NULL);
   while (pIter) {
     SVnodeObj **ppVnode = pIter;
-    SVnodeObj  *pVnode = *ppVnode;
+    SVnodeObj * pVnode = *ppVnode;
     if (pVnode) {
       num++;
       if (num < size) {
@@ -191,14 +191,14 @@ static int32_t dnodeGetVnodesFromFile(SVnodeObj **ppVnodes, int32_t *numOfVnodes
   int32_t    code = TSDB_CODE_DND_PARSE_VNODE_FILE_ERROR;
   int32_t    len = 0;
   int32_t    maxLen = 30000;
-  char      *content = calloc(1, maxLen + 1);
-  cJSON     *root = NULL;
-  FILE      *fp = NULL;
+  char *     content = calloc(1, maxLen + 1);
+  cJSON *    root = NULL;
+  FILE *     fp = NULL;
   char       file[PATH_MAX + 20] = {0};
   SVnodeObj *pVnodes = NULL;
 
   snprintf(file, PATH_MAX + 20, "%s/vnodes.json", tsVnodeDir);
-  
+
   fp = fopen(file, "r");
   if (!fp) {
     dDebug("file %s not exist", file);
@@ -238,7 +238,7 @@ static int32_t dnodeGetVnodesFromFile(SVnodeObj **ppVnodes, int32_t *numOfVnodes
   }
 
   for (int32_t i = 0; i < vnodesNum; ++i) {
-    cJSON     *vnode = cJSON_GetArrayItem(vnodes, i);
+    cJSON *    vnode = cJSON_GetArrayItem(vnodes, i);
     SVnodeObj *pVnode = &pVnodes[i];
 
     cJSON *vgId = cJSON_GetObjectItem(vnode, "vgId");
@@ -281,7 +281,7 @@ static int32_t dnodeWriteVnodesToFile() {
 
   int32_t     len = 0;
   int32_t     maxLen = 30000;
-  char       *content = calloc(1, maxLen + 1);
+  char *      content = calloc(1, maxLen + 1);
   int32_t     numOfVnodes = 0;
   SVnodeObj **pVnodes = dnodeGetVnodesFromHash(&numOfVnodes);
 
@@ -322,7 +322,7 @@ static int32_t dnodeCreateVnode(int32_t vgId, SVnodeCfg *pCfg) {
   int32_t code = 0;
 
   char path[PATH_MAX + 20] = {0};
-  snprintf(path, sizeof(path),"%s/vnode%d", tsVnodeDir, vgId);
+  snprintf(path, sizeof(path), "%s/vnode%d", tsVnodeDir, vgId);
   SVnode *pImpl = vnodeCreate(vgId, path, pCfg);
 
   if (pImpl == NULL) {
@@ -375,7 +375,7 @@ static void *dnodeOpenVnodeFunc(void *param) {
     dnodeReportStartup("open-vnodes", stepDesc);
 
     char path[PATH_MAX + 20] = {0};
-    snprintf(path, sizeof(path),"%s/vnode%d", tsVnodeDir, pVnode->vgId);
+    snprintf(path, sizeof(path), "%s/vnode%d", tsVnodeDir, pVnode->vgId);
     SVnode *pImpl = vnodeOpen(path, NULL);
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d", pVnode->vgId, pThread->threadIndex);
@@ -481,6 +481,7 @@ static int32_t dnodeParseCreateVnodeReq(SRpcMsg *rpcMsg, int32_t *vgId, SVnodeCf
   SCreateVnodeMsg *pCreate = rpcMsg->pCont;
   *vgId = htonl(pCreate->vgId);
 
+#if 0
   tstrncpy(pCfg->db, pCreate->db, TSDB_FULL_DB_NAME_LEN);
   pCfg->cacheBlockSize = htonl(pCreate->cacheBlockSize);
   pCfg->totalBlocks = htonl(pCreate->totalBlocks);
@@ -503,6 +504,7 @@ static int32_t dnodeParseCreateVnodeReq(SRpcMsg *rpcMsg, int32_t *vgId, SVnodeCf
     pCfg->replicas[i].port = htons(pCreate->replicas[i].port);
     tstrncpy(pCfg->replicas[i].fqdn, pCreate->replicas[i].fqdn, TSDB_FQDN_LEN);
   }
+#endif
 
   return 0;
 }
@@ -668,7 +670,7 @@ static void dnodeProcessVnodeMgmtQueue(void *unused, SRpcMsg *pMsg) {
       break;
     case TSDB_MSG_TYPE_AUTH_VNODE_IN:
       code = vnodeProcessAuthVnodeReq(pMsg);
-      break; 
+      break;
     case TSDB_MSG_TYPE_SYNC_VNODE_IN:
       code = vnodeProcessSyncVnodeReq(pMsg);
       break;
@@ -696,7 +698,7 @@ static void dnodeProcessVnodeFetchQueue(SVnodeObj *pVnode, SVnodeMsg *pMsg) {
 
 static void dnodeProcessVnodeWriteQueue(SVnodeObj *pVnode, taos_qall qall, int32_t numOfMsgs) {
   SVnodeMsg *pMsg = vnodeInitMsg(numOfMsgs);
-  SRpcMsg   *pRpcMsg = NULL;
+  SRpcMsg *  pRpcMsg = NULL;
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     taosGetQitem(qall, (void **)&pRpcMsg);
@@ -1008,7 +1010,7 @@ void dnodeGetVnodeLoads(SVnodeLoads *pLoads) {
   pLoads->num = taosHashGetSize(tsVnodes.hash);
 
   int32_t v = 0;
-  void   *pIter = taosHashIterate(tsVnodes.hash, NULL);
+  void *  pIter = taosHashIterate(tsVnodes.hash, NULL);
   while (pIter) {
     SVnodeObj **ppVnode = pIter;
     if (ppVnode == NULL) continue;

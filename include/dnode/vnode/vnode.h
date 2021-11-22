@@ -29,8 +29,8 @@ extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct SVnode        SVnode;
-typedef struct SVnodeOptions SVnodeOptions;
+typedef struct SVnode    SVnode;
+typedef struct SVnodeCfg SVnodeCfg;
 
 /* ------------------------ SVnode ------------------------ */
 /**
@@ -40,7 +40,7 @@ typedef struct SVnodeOptions SVnodeOptions;
  * @param pVnodeOptions options of the vnode
  * @return SVnode* The vnode object
  */
-SVnode *vnodeOpen(const char *path, const SVnodeOptions *pVnodeOptions);
+SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeOptions);
 
 /**
  * @brief Close a VNODE
@@ -85,23 +85,23 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
  */
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
-/* ------------------------ SVnodeOptions ------------------------ */
+/* ------------------------ SVnodeCfg ------------------------ */
 /**
  * @brief Initialize VNODE options.
  *
  * @param pOptions The options object to be initialized. It should not be NULL.
  */
-void vnodeOptionsInit(SVnodeOptions *pOptions);
+void vnodeOptionsInit(SVnodeCfg *pOptions);
 
 /**
  * @brief Clear VNODE options.
  *
  * @param pOptions Options to clear.
  */
-void vnodeOptionsClear(SVnodeOptions *pOptions);
+void vnodeOptionsClear(SVnodeCfg *pOptions);
 
 /* ------------------------ STRUCT DEFINITIONS ------------------------ */
-struct SVnodeOptions {
+struct SVnodeCfg {
   /**
    * @brief write buffer size in BYTES
    *
@@ -137,7 +137,7 @@ struct SVnodeOptions {
    * @brief META options
    *
    */
-  SMetaOptions metaOptions;
+  SMetaCfg metaOptions;
   // STqOptions   tqOptions; // TODO
 };
 
@@ -148,27 +148,27 @@ struct SVnodeOptions {
 #include "taosmsg.h"
 #include "trpc.h"
 
-typedef struct {
-  char     db[TSDB_FULL_DB_NAME_LEN];
-  int32_t  cacheBlockSize;  // MB
-  int32_t  totalBlocks;
-  int32_t  daysPerFile;
-  int32_t  daysToKeep0;
-  int32_t  daysToKeep1;
-  int32_t  daysToKeep2;
-  int32_t  minRowsPerFileBlock;
-  int32_t  maxRowsPerFileBlock;
-  int8_t   precision;  // time resolution
-  int8_t   compression;
-  int8_t   cacheLastRow;
-  int8_t   update;
-  int8_t   quorum;
-  int8_t   replica;
-  int8_t   selfIndex;
-  int8_t   walLevel;
-  int32_t  fsyncPeriod;  // millisecond
-  SReplica replicas[TSDB_MAX_REPLICA];
-} SVnodeCfg;
+// typedef struct {
+//   char     db[TSDB_FULL_DB_NAME_LEN];
+//   int32_t  cacheBlockSize;  // MB
+//   int32_t  totalBlocks;
+//   int32_t  daysPerFile;
+//   int32_t  daysToKeep0;
+//   int32_t  daysToKeep1;
+//   int32_t  daysToKeep2;
+//   int32_t  minRowsPerFileBlock;
+//   int32_t  maxRowsPerFileBlock;
+//   int8_t   precision;  // time resolution
+//   int8_t   compression;
+//   int8_t   cacheLastRow;
+//   int8_t   update;
+//   int8_t   quorum;
+//   int8_t   replica;
+//   int8_t   selfIndex;
+//   int8_t   walLevel;
+//   int32_t  fsyncPeriod;  // millisecond
+//   SReplica replicas[TSDB_MAX_REPLICA];
+// } SVnodeCfg;
 
 typedef enum {
   VN_MSG_TYPE_WRITE = 1,

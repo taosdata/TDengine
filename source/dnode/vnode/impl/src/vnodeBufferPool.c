@@ -84,8 +84,8 @@ int vnodeOpenBufPool(SVnode *pVnode) {
   tdListInit(&(pVnode->pBufPool->free), 0);
   tdListInit(&(pVnode->pBufPool->incycle), 0);
 
-  capacity = pVnode->options.wsize / VNODE_BUF_POOL_SHARDS;
-  if (pVnode->options.isHeapAllocator) {
+  capacity = pVnode->config.wsize / VNODE_BUF_POOL_SHARDS;
+  if (pVnode->config.isHeapAllocator) {
     type = E_V_HEAP_ALLOCATOR;
   }
 

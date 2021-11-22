@@ -13,22 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeDef.h"
+#ifndef _TD_META_CFG_H_
+#define _TD_META_CFG_H_
 
-const SVnodeOptions defaultVnodeOptions = {0}; /* TODO */
+#include "meta.h"
 
-void vnodeOptionsInit(SVnodeOptions *pVnodeOptions) { /* TODO */
-  vnodeOptionsCopy(pVnodeOptions, &defaultVnodeOptions);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+extern const SMetaCfg defaultMetaOptions;
+
+int  metaValidateOptions(const SMetaCfg *);
+void metaOptionsCopy(SMetaCfg *pDest, const SMetaCfg *pSrc);
+
+#ifdef __cplusplus
 }
+#endif
 
-void vnodeOptionsClear(SVnodeOptions *pVnodeOptions) { /* TODO */
-}
-
-int vnodeValidateOptions(const SVnodeOptions *pVnodeOptions) {
-  // TODO
-  return 0;
-}
-
-void vnodeOptionsCopy(SVnodeOptions *pDest, const SVnodeOptions *pSrc) {
-  memcpy((void *)pDest, (void *)pSrc, sizeof(SVnodeOptions));
-}
+#endif /*_TD_META_CFG_H_*/
