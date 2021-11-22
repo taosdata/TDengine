@@ -51,3 +51,4 @@ taos_stmt_bind_param_batch
 taos_stmt_bind_single_param_batch
 taos_is_null
 taos_insert_lines
+taos_schemaless_insert

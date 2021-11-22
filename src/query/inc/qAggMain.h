@@ -192,6 +192,7 @@ typedef struct SQLFunctionCtx {
   char *       pOutput;       // final result output buffer, point to sdata->data
   uint8_t      currentStage;  // record current running step, default: 0
   int64_t      startTs;       // timestamp range of current query when function is executed on a specific data block
+  int64_t      endTs;
   int32_t      numOfParams;
   tVariant     param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
   int64_t     *ptsList;       // corresponding timestamp array list

@@ -83,6 +83,11 @@ typedef struct SJoinSupporter {
   int32_t         totalLen;
   int32_t         num;
   SArray*         pVgroupTables;
+
+  int16_t          fillType;      // final result fill type
+  int64_t *        fillVal;       // default value for fill
+  int32_t          numOfFillVal;  // fill value size
+  
 } SJoinSupporter;
 
 
@@ -119,7 +124,8 @@ typedef struct SBlockKeyInfo {
 int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *len);
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
-void tscDestroyDataBlock(SSqlObj *pSql, STableDataBlocks* pDataBlock, bool removeMeta);
+int32_t tscCreateDataBlockData(STableDataBlocks* dataBuf, size_t defaultSize, int32_t rowSize, int32_t startOffset);
+void    tscDestroyDataBlock(SSqlObj *pSql, STableDataBlocks* pDataBlock, bool removeMeta);
 void    tscSortRemoveDataBlockDupRowsRaw(STableDataBlocks* dataBuf);
 int     tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* pBlkKeyInfo);
 int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows);
@@ -147,6 +153,7 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
  * @return
  */
 bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
+bool tscGetPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
 bool tscIsIrateQuery(SQueryInfo* pQueryInfo);
 bool tscQueryContainsFunction(SQueryInfo* pQueryInfo, int16_t functionId);
@@ -155,6 +162,7 @@ bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo);
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo);
 bool tscGroupbyColumn(SQueryInfo* pQueryInfo);
+bool tscGroupbyTag(SQueryInfo* pQueryInfo);
 int32_t tscGetTopBotQueryExprIndex(SQueryInfo* pQueryInfo);
 bool tscIsTopBotQuery(SQueryInfo* pQueryInfo);
 bool hasTagValOutput(SQueryInfo* pQueryInfo);
@@ -251,6 +259,7 @@ void tscColumnListCopyAll(SArray* dst, const SArray* src);
 void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo, uint64_t objId, bool convertNchar);
 
 void tscDequoteAndTrimToken(SStrToken* pToken);
+void tscRmEscapeAndTrimToken(SStrToken* pToken);
 int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded);
 
 void tscIncStreamExecutionCount(void* pStream);

@@ -927,9 +927,12 @@ static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg) {
   pCreate->maxRowsPerFileBlock = htonl(pCreate->maxRowsPerFileBlock);
   
   int32_t code;
+#ifdef GRANT_CHECK_WRITE
   if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_GRANT_EXPIRED;
-  } else if (!pMsg->pUser->writeAuth) {
+  } // else
+#endif
+  if (!pMsg->pUser->writeAuth) {
     code = TSDB_CODE_MND_NO_RIGHTS;
   } else {
     code = mnodeCreateDb(pMsg->pUser->pAcct, pCreate, pMsg);
@@ -1136,7 +1139,7 @@ static int32_t mnodeAlterDbFp(SMnodeMsg *pMsg) {
     return sdbUpdateRow(&row);
   }
 
-  //bnNotify();
+  bnNotify();
 
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }

@@ -405,6 +405,7 @@ void tsdbDestroyCommitQueue();
 int  tsdbSyncCommit(STsdbRepo *repo);
 void tsdbIncCommitRef(int vgId);
 void tsdbDecCommitRef(int vgId);
+void tsdbSwitchTable(TsdbQueryHandleT pQueryHandle);
 
 // For TSDB file sync
 int tsdbSyncSend(void *pRepo, SOCKET socketFd);
@@ -420,9 +421,6 @@ bool tsdbNoProblem(STsdbRepo* pRepo);
 
 // unit of walSize: MB
 int tsdbCheckWal(STsdbRepo *pRepo, uint32_t walSize);
-
-// not commit if other instances in committing state or waiting to commit
-bool tsdbIsNeedCommit(STsdbRepo *pRepo);
 
 #ifdef __cplusplus
 }

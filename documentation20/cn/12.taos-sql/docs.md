@@ -124,7 +124,7 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
     ```mysql
     ALTER DATABASE db_name QUORUM 2;
     ```
-    QUORUM 参数是指数据写入成功所需要的确认数，取值范围 [1, 2]。对于异步复制，quorum 设为 1，具有 master 角色的虚拟节点自己确认即可。对于同步复制，需要至少大于等于 2。原则上，Quorum >= 1 并且 Quorum <= replica(副本数)，这个参数在启动一个同步模块实例时需要提供。
+    QUORUM 参数是指数据写入成功所需要的确认数，取值范围 [1, 2]。对于异步复制，quorum 设为 1，具有 master 角色的虚拟节点自己确认即可。对于同步复制，quorum 设为 2。原则上，Quorum >= 1 并且 Quorum <= replica(副本数)，这个参数在启动一个同步模块实例时需要提供。
 
     ```mysql
     ALTER DATABASE db_name BLOCKS 100;
@@ -719,7 +719,7 @@ Query OK, 1 row(s) in set (0.001091s)
   * 暂不支持含列名的四则运算表达式用于条件过滤算子（例如，不支持 `where a*2>6;`，但可以写 `where a>6/2;`）。
   * 暂不支持含列名的四则运算表达式作为 SQL 函数的应用对象（例如，不支持 `select min(2*a) from t;`，但可以写 `select 2*min(a) from t;`）。
 - WHERE 语句可以使用各种逻辑判断来过滤数字值，或使用通配符来过滤字符串。
-- 输出结果缺省按首列时间戳升序排序，但可以指定按降序排序( _c0 指首列时间戳)。使用 ORDER BY 对其他字段进行排序为非法操作。
+- 输出结果缺省按首列时间戳升序排序，但可以指定按降序排序( _c0 指首列时间戳)。使用 ORDER BY 对其他字段进行排序,排序结果顺序不确定。
 - 参数 LIMIT 控制输出条数，OFFSET 指定从第几条开始输出。LIMIT/OFFSET 对结果集的执行顺序在 ORDER BY 之后。且 `LIMIT 5 OFFSET 2` 可以简写为 `LIMIT 2, 5`。
   * 在有 GROUP BY 子句的情况下，LIMIT 参数控制的是每个分组中至多允许输出的条数。
 - 参数 SLIMIT 控制由 GROUP BY 指令划分的分组中，至多允许输出几个分组的数据。且 `SLIMIT 5 SOFFSET 2` 可以简写为 `SLIMIT 2, 5`。
@@ -729,21 +729,21 @@ Query OK, 1 row(s) in set (0.001091s)
 
 | **Operation** | **Note**                 | **Applicable Data Types**                 |
 | ------------- | ------------------------ | ----------------------------------------- |
-| >             | larger than              | **`timestamp`** and all numeric types     |
-| <             | smaller than             | **`timestamp`** and all numeric types     |
-| >=            | larger than or equal to  | **`timestamp`** and all numeric types     |
-| <=            | smaller than or equal to | **`timestamp`** and all numeric types     |
+| >             | larger than              | all types except bool                     |
+| <             | smaller than             | all types except bool                     |
+| >=            | larger than or equal to  | all types except bool                     |
+| <=            | smaller than or equal to | all types except bool                     |
 | =             | equal to                 | all types                                 |
 | <>            | not equal to             | all types                                 |
 | is [not] null | is null or is not null   | all types                                 |
-| between and   | within a certain range   | **`timestamp`** and all numeric types     |
+| between and   | within a certain range   | all types except bool                     |
 | in            | match any value in a set | all types except first column `timestamp` |
 | like          | match a wildcard string  | **`binary`** **`nchar`**                  |
-| match/nmatch  | filter regex             | **regex**                                 |
+| match/nmatch  | filter regex             | **`binary`** **`nchar`**                  |
 
 1. <> 算子也可以写为 != ，请注意，这个算子不能用于数据表第一列的 timestamp 字段。
 2. like 算子使用通配符字符串进行匹配检查。
-  * 在通配符字符串中：'%'（百分号）匹配 0 到任意个字符；'\_'（下划线）匹配单个任意字符。
+  * 在通配符字符串中：'%'（百分号）匹配 0 到任意个字符；'\_'（下划线）匹配单个任意ASCII字符。
     * 如果希望匹配字符串中原本就带有的 \_（下划线）字符，那么可以在通配符字符串中写作 `\_`，也即加一个反斜线来进行转义。（从 2.2.0.0 版本开始支持）
   * 通配符字符串最长不能超过 20 字节。（从 2.1.6.1 版本开始，通配符字符串的长度放宽到了 100 字节，并可以通过 taos.cfg 中的 maxWildCardsLength 参数来配置这一长度限制。但不建议使用太长的通配符字符串，将有可能严重影响 LIKE 操作的执行性能。）
 3. 同时进行多个字段的范围过滤，需要使用关键词 AND 来连接不同的查询条件，暂不支持 OR 连接的不同列之间的查询过滤条件。
@@ -766,15 +766,10 @@ Query OK, 1 row(s) in set (0.001091s)
 
    **使用限制**
 
-   只能针对表名（即 tbname 筛选）和标签的名称和binary类型标签值 进行正则表达式过滤，不支持针对普通列使用正则表达式过滤。
-
-   只能在 WHERE 子句中作为过滤条件存在。
+   只能针对表名（即 tbname 筛选）、binary/nchar类型标签值进行正则表达式过滤，不支持普通列的过滤。
 
    正则匹配字符串长度不能超过 128 字节。可以通过参数 *maxRegexStringLen* 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启才能生效。
 
-   **嵌套查询支持**
-
-   可以在内层查询和外层查询中使用。<!-- REPLACE_OPEN_TO_ENTERPRISE__IN_OPERATOR_AND_UNSIGNED_INTEGER -->
 
 <a class="anchor" id="join"></a>
 ### JOIN 子句
@@ -1579,11 +1574,11 @@ SELECT function_list FROM stb_name
 CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
 ```
 
-针对智能电表采集的数据，以 10 分钟为一个阶段，计算过去 24 小时的电流数据的平均值、最大值、电流的中位数、以及随着时间变化的电流走势拟合直线。如果没有计算值，用前一个非 NULL 值填充。使用的查询语句如下：
+针对智能电表采集的数据，以 10 分钟为一个阶段，计算过去 24 小时的电流数据的平均值、最大值、电流的中位数。如果没有计算值，用前一个非 NULL 值填充。使用的查询语句如下：
 
 ```mysql
-SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), PERCENTILE(current, 50) FROM meters
-  WHERE ts>=NOW-1d
+SELECT AVG(current), MAX(current), APERCENTILE(current, 50) FROM meters
+  WHERE ts>=NOW-1d and ts<=now
   INTERVAL(10m)
   FILL(PREV);
 ```

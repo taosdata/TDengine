@@ -81,6 +81,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [Node.js Connector](/connector#nodejs)：给node应用提供一个连接TDengine服务器的驱动
 * [C# Connector](/connector#csharp)：给C#应用提供一个连接TDengine服务器的驱动
 * [Windows客户端](https://www.taosdata.com/blog/2019/07/26/514.html)：自行编译windows客户端，Windows环境的各种连接器都需要它
+* [Rust Connector](/connector/rust): Rust语言下通过libtaos客户端或RESTful接口，连接TDengine服务器。
 
 ## [与其他工具的连接](/connections)
 
@@ -120,10 +121,11 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [数据复制](/architecture/replica)：支持实时同步、异步复制，保证系统的High Availibility
 * [技术博客](https://www.taosdata.com/cn/blog/?categories=3)：更多的技术分析和架构设计文章
 
-## [应用 TDengine 快速搭建 IT 运维系统](/devops)
+## 应用 TDengine 快速搭建 IT 运维系统
 
 * [devops](/devops/telegraf)：使用 TDengine + Telegraf + Grafana 快速搭建 IT 运维系统
 * [devops](/devops/collectd)：使用 TDengine + collectd_statsd + Grafana 快速搭建 IT 运维系统
+* [最佳实践](/devops/immigrate)：OpenTSDB 应用迁移到 TDengine 的最佳实践
 
 ## 常用工具
 
@@ -131,7 +133,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [TDengine写入性能测试工具](https://www.taosdata.com/blog/2020/01/18/1166.html)
 * [IDEA数据库管理工具可视化使用TDengine](https://www.taosdata.com/blog/2020/08/27/1767.html)
 * [基于Electron开发的跨平台TDengine图形化管理工具](https://github.com/skye0207/TDengineGUI)
-* [DataX，支持TDengine的离线数据采集/同步工具](https://github.com/wgzhao/DataX)（文档：[读取插件](https://github.com/wgzhao/DataX/blob/master/docs/src/main/sphinx/reader/tdenginereader.md)、[写入插件](https://github.com/wgzhao/DataX/blob/master/docs/src/main/sphinx/writer/tdenginewriter.md)）
+* [基于DataX的TDeninge数据迁移工具](https://www.taosdata.com/blog/2021/10/26/3156.html)
 
 ## TDengine与其他数据库的对比测试
 

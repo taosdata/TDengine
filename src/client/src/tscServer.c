@@ -916,7 +916,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pQueryMsg->window.skey = htobe64(query.window.skey);
   pQueryMsg->window.ekey = htobe64(query.window.ekey);
-
+  pQueryMsg->range.skey = htobe64(query.range.skey);
+  pQueryMsg->range.ekey = htobe64(query.range.ekey);
+  
   pQueryMsg->order          = htons(query.order.order);
   pQueryMsg->orderColId     = htons(query.order.orderColId);
   pQueryMsg->fillType       = htons(query.fillType);
@@ -975,7 +977,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   if (pQueryInfo->colCond && taosArrayGetSize(pQueryInfo->colCond) > 0 && !onlyQueryTags(&query) ) {
     STblCond *pCond = tsGetTableFilter(pQueryInfo->colCond, pTableMeta->id.uid, 0);
     if (pCond != NULL && pCond->cond != NULL) {
-      pQueryMsg->colCondLen = htons(pCond->len);
+      pQueryMsg->colCondLen = htonl(pCond->len);
       memcpy(pMsg, pCond->cond, pCond->len);
 
       pMsg += pCond->len;
@@ -1056,7 +1058,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
     SCond *pCond = tsGetSTableQueryCond(pTagCond, pTableMeta->id.uid);
     if (pCond != NULL && pCond->cond != NULL) {
-      pQueryMsg->tagCondLen = htons(pCond->len);
+      pQueryMsg->tagCondLen = htonl(pCond->len);
       memcpy(pMsg, pCond->cond, pCond->len);
 
       pMsg += pCond->len;
@@ -2955,7 +2957,8 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
     // in case of child table, here only get the
     if (pMeta->tableType == TSDB_CHILD_TABLE) {
       int32_t code = tscCreateTableMetaFromSTableMeta(pSql, &pTableMetaInfo->pTableMeta, name, &pTableMetaInfo->tableMetaCapacity, (STableMeta **)(&pSTMeta));
-      pSql->pBuf   = (void *)(pSTMeta); 
+      pSql->pBuf   = (void *)(pSTMeta);
+      pMeta   = pTableMetaInfo->pTableMeta;
       if (code != TSDB_CODE_SUCCESS) {
         return getTableMetaFromMnode(pSql, pTableMetaInfo, autocreate);
       }

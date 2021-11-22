@@ -130,7 +130,7 @@ run general/parser/limit2.sim
 run general/parser/slimit.sim
 run general/parser/fill.sim
 run general/parser/fill_stb.sim
-run general/parser/interp.sim
+run general/parser/interp_full.sim
 run general/parser/where.sim
 run general/parser/join.sim
 run general/parser/join_multivnode.sim
@@ -228,4 +228,6 @@ run general/db/show_create_table.sim
 run general/parser/like.sim
 run general/parser/regex.sim
 run general/parser/tbname_escape.sim
+run general/parser/columnName_escape.sim
+run general/parser/tagName_escape.sim
 run general/parser/interp_blocks.sim

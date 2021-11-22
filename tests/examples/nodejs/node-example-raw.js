@@ -23,43 +23,31 @@ var conn = taos.connect({host:"127.0.0.1", user:"root", password:"taosdata", con
 // Initialize our TDengineCursor, which we use to interact with TDengine
 var c1 = conn.cursor();
 
-// c1.execute(query) will execute the query
-// Let's create a database named db
-try {
-  c1.execute('create database if not exists db;');
-}
-catch(err) {
-  conn.close();
-  throw err;
+//execute the sql
+function execute(sql){
+  try {
+    c1.execute(sql);
+  }
+  catch(err) {
+    conn.close();
+    throw err;
+  }
 }
 
+// c1.execute(query) will execute the query
+// Let's create a database named db
+execute('create database if not exists db;')
+
 // Now we will use database db
-try {
-  c1.execute('use db;');
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
+execute('use db;')
+
 
 // Let's create a table called weather
 // which stores some weather data like humidity, AQI (air quality index), temperature, and some notes as text
-try {
-  c1.execute('create table if not exists weather (ts timestamp, humidity smallint, aqi int, temperature float, notes binary(30));');
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
+execute('create table if not exists weather (ts timestamp, humidity smallint, aqi int, temperature float, notes binary(30));');
 
 // Let's get the description of the table weather
-try {
-  c1.execute('describe db.weather');
-}
-catch (err) {
-  conn.close();
-  throw err;
-}
+execute('describe db.weather');
 
 // To get results, we run the function c1.fetchall()
 // It only returns the query results as an array of result rows, but also stores the latest results in c1.data
