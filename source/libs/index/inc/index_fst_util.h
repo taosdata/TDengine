@@ -70,11 +70,11 @@ CompiledAddr unpackDelta(char *data, uint64_t len, uint64_t nodeAddr);
 typedef struct FstSlice {
   uint8_t *data; 
   uint64_t dLen;
-  uint32_t start;
-  uint32_t end;
+  int32_t start;
+  int32_t end;
 } FstSlice;
 
-FstSlice fstSliceCopy(FstSlice *slice, uint32_t start, uint32_t end);
+FstSlice fstSliceCopy(FstSlice *slice, int32_t start, int32_t end);
 FstSlice fstSliceCreate(uint8_t *data, uint64_t dLen);
 bool fstSliceEmpty(FstSlice *slice);
 

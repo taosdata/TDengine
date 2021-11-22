@@ -94,7 +94,7 @@ FstSlice fstSliceCreate(uint8_t *data, uint64_t dLen) {
   FstSlice slice = {.data = data, .dLen = dLen, .start = 0, .end = dLen - 1};
   return slice;
 } 
-FstSlice fstSliceCopy(FstSlice *slice, uint32_t start, uint32_t end) {
+FstSlice fstSliceCopy(FstSlice *slice, int32_t start, int32_t end) {
   FstSlice t;
   if (start >= slice->dLen || end >= slice->dLen || start > end) {
     t.data = NULL;
@@ -111,12 +111,10 @@ bool fstSliceEmpty(FstSlice *slice) {
   return slice->data == NULL || slice->dLen <= 0;
 }
 
-
-
 int fstSliceCompare(FstSlice *a, FstSlice *b) {
-  uint32_t aLen = (a->end - a->start + 1);  
-  uint32_t bLen = (b->end - b->start + 1);
-  uint32_t mLen = (aLen < bLen ? aLen : bLen);
+  int32_t aLen = (a->end - a->start + 1);  
+  int32_t bLen = (b->end - b->start + 1);
+  int32_t mLen = (aLen < bLen ? aLen : bLen);
   for (int i = 0; i < mLen; i++) {
     uint8_t x = a->data[i + a->start];
     uint8_t y = b->data[i + b->start];

@@ -300,16 +300,30 @@ FstBuilder *fstBuilderCreate(void *w, FstType ty) {
   b->wrt = fstCountingWriterCreate(w);
   b->unfinished = fstUnFinishedNodesCreate();   
   b->registry   = fstRegistryCreate(10000, 2) ;
-  b->last       = NULL;
+  b->last       = fstSliceCreate(NULL, 0);
   b->lastAddr   = NONE_ADDRESS; 
   b->len        = 0;
   return b;
 }
 
 
-bool fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDupe) {
-      
-  return true;
+
+OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup) {
+  FstSlice *input = &bs;
+  if (fstSliceEmpty(&b->last)) {
+    // deep copy or not
+    b->last = fstSliceCopy(&bs, input->start, input->end);
+  } else {
+    int comp = fstSliceCompare(&b->last, &bs);
+    if (comp == 0 && ckDup) {
+      return DuplicateKey;  
+    } else if (comp == 1) {
+      return OutOfOrdered;
+    }
+    // deep copy or not
+    b->last = fstSliceCopy(&bs, input->start, input->end); 
+  }       
+  return Ordered;
 } 
 CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn) {
   if (FST_BUILDER_NODE_IS_FINAL(bn) 

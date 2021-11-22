@@ -36,6 +36,8 @@ typedef struct FstRange {
 typedef enum { OneTransNext, OneTrans, AnyTrans, EmptyFinal} State;
 typedef enum { Included, Excluded, Unbounded} FstBound; 
 
+typedef enum {Ordered, OutOfOrdered, DuplicateKey} OrderType;
+
 
 
 /*
@@ -66,10 +68,15 @@ typedef struct FstBuilder {
   FstCountingWriter  *wrt;         // The FST raw data is written directly to `wtr`.  
   FstUnFinishedNodes *unfinished; // The stack of unfinished nodes   
   FstRegistry*        registry;    // A map of finished nodes.        
-  SArray*            last;        // The last word added 
+  FstSlice            last;        // The last word added 
   CompiledAddr       lastAddr;    // The address of the last compiled node  
   uint64_t           len;         // num of keys added
 } FstBuilder;
+
+FstBuilder *fstBuilderCreate(void *w, FstType ty);
+OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup);
+CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn);
+
 
 
 typedef struct FstTransitions {
