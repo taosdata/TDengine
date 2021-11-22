@@ -74,7 +74,6 @@ if [ "$verMode" == "cluster" ]; then
     cp ${nginx_dir}/png/taos.png ${install_dir}/nginxd/admin/images/taos.png
     rm -rf ${install_dir}/nginxd/png
 
-    # replace the OEM name, add by yangzy@2021-09-22
     sed -i -e 's/www.taosdata.com/www.wellintech.com/g' $(grep -r 'www.taosdata.com' ${install_dir}/nginxd | sed -r "s/(.*\.html):\s*(.*)/\1/g")
     sed -i -e 's/2017/2021/g' $(grep -r '2017' ${install_dir}/nginxd | sed -r "s/(.*\.html):\s*(.*)/\1/g")
     sed -i -e 's/TAOS Data/Wellintech/g' $(grep -r 'TAOS Data' ${install_dir}/nginxd | sed -r "s/(.*\.html):\s*(.*)/\1/g")
@@ -99,6 +98,7 @@ sed -i "s/TDengine/KingHistorian/g"     ${install_dir}/cfg/kinghistorian.cfg
 sed -i "s/support@taosdata.com/support@wellintech.com/g"      ${install_dir}/cfg/kinghistorian.cfg
 sed -i "s/taos client/khclient/g"      ${install_dir}/cfg/kinghistorian.cfg
 sed -i "s/taosd/khserver/g"      ${install_dir}/cfg/kinghistorian.cfg
+sed -i "s/TAOS/KingHistorian/g"      ${install_dir}/cfg/kinghistorian.cfg
 
 cd ${install_dir}
 tar -zcv -f kinghistorian.tar.gz * --remove-files  || :

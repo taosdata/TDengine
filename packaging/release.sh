@@ -385,9 +385,14 @@ if [[ "$dbName" == "kh" ]]; then
   # src/kit/shell/src/shellEngine.c
   sed -i "s/TDengine shell/KingHistorian shell/g" ${top_dir}/src/kit/shell/src/shellEngine.c
   sed -i "s/2020 by TAOS Data, Inc/2021 by Wellintech, Inc/g" ${top_dir}/src/kit/shell/src/shellEngine.c
-  sed -i "s/\"taos> \"/\"kh> \"/g" ${top_dir}/src/kit/shell/src/shellEngine.c
+  sed -i "s/taos connect failed/kh connect failed/g" ${top_dir}/src/kit/shell/src/shellEngine.c
+  sed -i "s/\"taos> \"/\"khclient> \"/g" ${top_dir}/src/kit/shell/src/shellEngine.c
   sed -i "s/\"   -> \"/\" -> \"/g" ${top_dir}/src/kit/shell/src/shellEngine.c
   sed -i "s/prompt_size = 6/prompt_size = 4/g" ${top_dir}/src/kit/shell/src/shellEngine.c
+  # src/rpc/src/rpcMain.c
+  sed -i "s/taos connections/kh connections/g" ${top_dir}/src/rpc/src/rpcMain.c
+  # src/plugins/monitor/src/monMain.c
+  sed -i "s/taosd is quiting/khserver is quiting/g" ${top_dir}/src/plugins/monitor/src/monMain.c
 fi
 
 
