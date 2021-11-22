@@ -14,6 +14,7 @@
  */
 
 #include "tqInt.h"
+#include "tqMetaStore.h"
 
 //static
 //read next version data
@@ -24,6 +25,46 @@
 //
 
 int tqGetgHandleSSize(const TqGroupHandle *gHandle);
+int tqBufHandleSSize();
+int tqBufItemSSize();
+
+TqGroupHandle* tqFindHandle(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId) {
+  TqGroupHandle* gHandle;
+  return NULL;
+}
+
+void* tqSerializeListHandle(TqListHandle* listHandle, void* ptr);
+void* tqSerializeBufHandle(TqBufferHandle* bufHandle, void* ptr);
+void* tqSerializeBufItem(TqBufferItem* bufItem, void* ptr);
+
+const void* tqDeserializeBufHandle(const void* pBytes, TqBufferHandle* bufHandle);
+const void* tqDeserializeBufItem(const void* pBytes, TqBufferItem* bufItem);
+
+STQ* tqOpen(const char* path, TqConfig* tqConfig, TqLogReader* tqLogReader, SMemAllocatorFactory *allocFac) {
+  STQ* pTq = malloc(sizeof(STQ));
+  if(pTq == NULL) {
+    //TODO: memory error
+    return NULL;
+  }
+  strcpy(pTq->path, path);
+  pTq->tqConfig = tqConfig;
+  pTq->tqLogReader = tqLogReader;
+  pTq->tqMemRef.pAlloctorFactory = allocFac;
+  pTq->tqMemRef.pAllocator = allocFac->create();
+  if(pTq->tqMemRef.pAllocator == NULL) {
+    //TODO
+  }
+  pTq->tqMeta = tqStoreOpen(path,
+                            (TqSerializeFun)tqSerializeGroupHandle,
+                            (TqDeserializeFun)tqDeserializeGroupHandle,
+                            free,
+                            0);
+  if(pTq->tqMeta == NULL) {
+    //TODO: free STQ
+    return NULL;
+  }
+  return pTq;
+}
 
 static int tqProtoCheck(TmqMsgHead *pMsg) {
   return pMsg->protoVer == 0;
@@ -83,14 +124,29 @@ static int tqCommitTCGroup(TqGroupHandle* handle) {
 
 int tqCreateTCGroup(STQ *pTq, int64_t topicId, int64_t cgId, int64_t cId, TqGroupHandle** handle) {
   //create in disk
+  TqGroupHandle* gHandle = (TqGroupHandle*)malloc(sizeof(TqGroupHandle));
+  if(gHandle == NULL) {
+    //TODO
+    return -1;
+  }
+  memset(gHandle, 0, sizeof(TqGroupHandle));
+
   return 0;
 }
 
-int tqOpenTCGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId) {
-  //look up in disk
+TqGroupHandle* tqOpenTCGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId) {
+  TqGroupHandle* gHandle = tqHandleGet(pTq->tqMeta, cId);
+  if(gHandle == NULL) {
+    int code = tqCreateTCGroup(pTq, topicId, cgId, cId, &gHandle);
+    if(code != 0) {
+      //TODO
+      return NULL;
+    }
+  }
+
   //create
   //open
-  return 0;
+  return gHandle;
 }
 
 int tqCloseTCGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId) {
@@ -207,16 +263,20 @@ int tqConsume(STQ* pTq, TmqConsumeReq* pMsg) {
   return 0;
 }
 
-int tqSerializeGroupHandle(TqGroupHandle *gHandle, void** ppBytes) {
+int tqSerializeGroupHandle(const TqGroupHandle *gHandle, TqSerializedHead** ppHead) {
   //calculate size
-  int sz = tqGetgHandleSSize(gHandle);
-  void* ptr = realloc(*ppBytes, sz);
-  if(ptr == NULL) {
-    free(ppBytes);
-    //TODO: memory err
-    return -1;
+  int sz = tqGetgHandleSSize(gHandle) + sizeof(TqSerializedHead);
+  if(sz > (*ppHead)->ssize) {
+    void* tmpPtr = realloc(*ppHead, sz);
+    if(tmpPtr == NULL) {
+      free(*ppHead);
+      //TODO: memory err
+      return -1;
+    }
+    *ppHead = tmpPtr;
+    (*ppHead)->ssize = sz;
   }
-  *ppBytes = ptr;
+  void* ptr = (*ppHead)->content;
   //do serialization
   *(int64_t*)ptr = gHandle->cId;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
@@ -261,8 +321,9 @@ void* tqSerializeBufItem(TqBufferItem *bufItem, void* ptr) {
   return ptr;
 }
 
-const void* tqDeserializeGroupHandle(const void* pBytes, TqGroupHandle *gHandle) {
-  const void* ptr = pBytes;
+const void* tqDeserializeGroupHandle(const TqSerializedHead* pHead, TqGroupHandle **ppGHandle) {
+  TqGroupHandle *gHandle = *ppGHandle;
+  const void* ptr = pHead->content;
   gHandle->cId = *(int64_t*)ptr;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
   gHandle->cgId = *(int64_t*)ptr;
@@ -317,15 +378,15 @@ const void* tqDeserializeBufItem(const void* pBytes, TqBufferItem *bufItem) {
 
 //TODO: make this a macro
 int tqGetgHandleSSize(const TqGroupHandle *gHandle) {
-  return sizeof(int64_t) * 2
-    + sizeof(int32_t)
+  return sizeof(int64_t) * 2 //cId + cgId
+    + sizeof(int32_t)        //topicNum
     + gHandle->topicNum * tqBufHandleSSize();
 }
 
 //TODO: make this a macro
 int tqBufHandleSSize() {
-  return sizeof(int64_t) * 2
-    + sizeof(int32_t) * 2
+  return sizeof(int64_t) * 2 // nextConsumeOffset + topicId
+    + sizeof(int32_t) * 2    // head + tail
     + TQ_BUFFER_SIZE * tqBufItemSSize();
 }
 
