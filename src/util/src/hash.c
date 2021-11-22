@@ -119,14 +119,14 @@ static SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *p
 static FORCE_INLINE SHashNode *doUpdateHashNode(SHashObj *pHashObj, SHashEntry* pe, SHashNode* prev, SHashNode *pNode, SHashNode *pNewNode) {
   assert(pNode->keyLen == pNewNode->keyLen);
 
-  atomic_sub_fetch_32(&pNode->count, 1);
+  atomic_sub_fetch_32(&pNode->refCount, 1);
   if (prev != NULL) {
     prev->next = pNewNode;
   } else {
     pe->next = pNewNode;
   }
 
-  if (pNode->count <= 0) {
+  if (pNode->refCount <= 0) {
     pNewNode->next = pNode->next;
     DO_FREE_HASH_NODE(pNode);
   } else {
@@ -464,9 +464,9 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   if (pNode) {
     code = 0;  // it is found
 
-    atomic_sub_fetch_32(&pNode->count, 1);
+    atomic_sub_fetch_32(&pNode->refCount, 1);
     pNode->removed = 1;
-    if (pNode->count <= 0) {
+    if (pNode->refCount <= 0) {
       if (prevNode) {
         prevNode->next = pNode->next;
       } else {
@@ -756,7 +756,7 @@ SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, s
   pNewNode->keyLen  = (uint32_t)keyLen;
   pNewNode->hashVal = hashVal;
   pNewNode->dataLen = (uint32_t) dsize;
-  pNewNode->count   = 1;
+  pNewNode->refCount   = 1;
   pNewNode->removed = 0;
   pNewNode->next    = NULL;
 
@@ -825,8 +825,8 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
       pNode = pNode->next;
     }
 
-    atomic_sub_fetch_32(&pOld->count, 1);
-    if (pOld->count <=0) {
+    atomic_sub_fetch_32(&pOld->refCount, 1);
+    if (pOld->refCount <=0) {
       if (prevNode) {
         prevNode->next = pOld->next;
       } else {
@@ -891,7 +891,7 @@ void *taosHashIterate(SHashObj *pHashObj, void *p) {
 
   if (pNode) {
     SHashEntry *pe = pHashObj->hashList[slot];
-    atomic_add_fetch_32(&pNode->count, 1);
+    atomic_add_fetch_32(&pNode->refCount, 1);
     data = GET_HASH_NODE_DATA(pNode);
     if (pHashObj->type == HASH_ENTRY_LOCK) {
       taosWUnLockLatch(&pe->latch);

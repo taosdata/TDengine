@@ -36,7 +36,7 @@ typedef struct SHashNode {
   uint32_t          dataLen;     // length of data
   uint32_t          keyLen;      // length of the key
   int8_t            removed;     // flag to indicate removed
-  int32_t           count;       // reference count
+  int32_t           refCount;    // reference count
   char              data[];
 } SHashNode;
 
@@ -81,9 +81,9 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 
 
 /**
- * set equal func of the hash table  
- * @param pHashObj    
- * @param equalFp       
+ * set equal func of the hash table
+ * @param pHashObj
+ * @param equalFp
  * @return
  */
 void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp);
@@ -133,7 +133,7 @@ void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void 
  * @param keyLen
  * @param fp
  * @param d
- * @param sz 
+ * @param sz
  * @return
  */
 void* taosHashGetCloneExt(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void** d, size_t *sz);
