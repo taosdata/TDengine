@@ -21,19 +21,23 @@ FstBuilderNode *fstBuilderNodeDefault() {
   bn->trans       = NULL; 
   return bn;
 }
+void fstBuilderNodeDestroy(FstBuilderNode *node) {
+  if (node == NULL) { return; }
 
+  taosArrayDestroy(node->trans);
+  free(node);
+} 
 FstBuilderNode *fstBuilderNodeClone(FstBuilderNode *src) {
   FstBuilderNode *node = malloc(sizeof(FstBuilderNode));  
   if (node == NULL) { return NULL; }
 
-      
+  // 
   size_t sz = taosArrayGetSize(src->trans);
   SArray *trans = taosArrayInit(sz, sizeof(FstTransition));
 
   for (size_t i = 0; i < sz; i++) {
     FstTransition *tran = taosArrayGet(src->trans, i);
-    FstTransition t = *tran;
-    taosArrayPush(trans, &t);   
+    taosArrayPush(trans, tran);   
   }
 
   node->trans = trans; 
@@ -47,9 +51,34 @@ void fstBuilderNodeCloneFrom(FstBuilderNode *dst, FstBuilderNode *src) {
   if (dst == NULL || src == NULL) { return; } 
 
   dst->isFinal     = src->isFinal;
-  dst->finalOutput = src->finalOutput ;
-  dst->trans       = src->trans;    
+  dst->finalOutput = src->finalOutput;
 
+  // avoid mem leak
+  taosArrayDestroy(dst->trans); 
+  dst->trans       = src->trans;    
   src->trans = NULL;
 }
+
+bool fstBuilderNodeCompileTo(FstBuilderNode *b, FstCountingWriter *wrt, CompiledAddr lastAddr, CompiledAddr startAddr) {
+  size_t sz = taosArrayGetSize(b->trans);  
+  assert(sz < 256);
+  if (FST_BUILDER_NODE_IS_FINAL(b) 
+      && FST_BUILDER_NODE_TRANS_ISEMPTY(b) 
+      && FST_BUILDER_NODE_FINALOUTPUT_ISZERO(b)) {
+    return true; 
+  } else if (sz != 1 || b->isFinal) {
+    // AnyTrans->Compile(w, addr, node);
+  } else {
+    FstTransition *tran = taosArrayGet(b->trans, 0);   
+    if (tran->addr == lastAddr && tran->out == 0) {
+       //OneTransNext::compile(w, lastAddr, tran->inp);
+       return true;
+    } else {
+      //OneTrans::Compile(w, lastAddr, *tran);
+       return true;
+    } 
+  } 
+  return true; 
+} 
+
 
