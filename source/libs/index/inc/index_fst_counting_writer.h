@@ -31,6 +31,7 @@ int FstCountingWriterFlush(FstCountingWriter *write);
 
 
 FstCountingWriter *fstCountingWriterCreate(void *wtr);
+void fstCountingWriterDestroy(FstCountingWriter *w); 
 
 
 #define FST_WRITER_COUNT(writer) (writer->count)

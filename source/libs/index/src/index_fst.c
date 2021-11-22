@@ -24,6 +24,18 @@ FstUnFinishedNodes *fstUnFinishedNodesCreate() {
   fstUnFinishedNodesPushEmpty(nodes, false);
   return nodes;
 }
+void unFinishedNodeDestroyElem(void* elem) {
+  FstBuilderNodeUnfinished *b = (FstBuilderNodeUnfinished*)elem;
+  fstBuilderNodeDestroy(b->node); 
+  free(b->last); 
+}  
+void fstUnFinishedNodeDestroy(FstUnFinishedNodes *nodes) {
+  if (nodes == NULL) { return; } 
+
+  taosArrayDestroyEx(nodes->stack, unFinishedNodeDestroyElem); 
+  free(nodes);
+}
+
 void fstUnFinishedNodesPushEmpty(FstUnFinishedNodes *nodes, bool isFinal) {
   FstBuilderNode *node = malloc(sizeof(FstBuilderNode));
   node->isFinal     = isFinal;
@@ -76,11 +88,11 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes *nodes, FstSlice bs, Output 
   assert(un->last == NULL);
 
   
-  FstLastTransition *trn = malloc(sizeof(FstLastTransition)); 
-  trn->inp = s->data[s->start]; 
-  trn->out = out;
   
-  un->last = trn; 
+  //FstLastTransition *trn = malloc(sizeof(FstLastTransition)); 
+  //trn->inp = s->data[s->start]; 
+  //trn->out = out;
+  un->last = fstLastTransitionCreate(s->data[s->start], out); 
 
   for (uint64_t i = s->start; i <= s->end; i++) {
     FstBuilderNode *n = malloc(sizeof(FstBuilderNode));
@@ -88,9 +100,10 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes *nodes, FstSlice bs, Output 
     n->finalOutput = 0;
     n->trans       = NULL;
     
-    FstLastTransition *trn = malloc(sizeof(FstLastTransition)); 
-    trn->inp = s->data[i];
-    trn->out = out; 
+    //FstLastTransition *trn = malloc(sizeof(FstLastTransition)); 
+    //trn->inp = s->data[i];
+    //trn->out = out; 
+    FstLastTransition *trn = fstLastTransitionCreate(s->data[i], out);
 
     FstBuilderNodeUnfinished un = {.node = n, .last = trn}; 
     taosArrayPush(nodes->stack, &un); 
@@ -116,7 +129,7 @@ uint64_t fstUnFinishedNodesFindCommPrefix(FstUnFinishedNodes *node, FstSlice bs)
   }
   return count;
 }
-uint64_t FstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes *node, FstSlice bs, Output in, Output *out) {
+uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes *node, FstSlice bs, Output in, Output *out) {
   FstSlice *s = &bs;
 
   size_t lsz = (size_t)(s->end - s->start + 1);          // data len 
@@ -198,6 +211,10 @@ FstNode *fstNodeCreate(int64_t version, CompiledAddr addr, FstSlice *slice) {
      n->finalOutput = 0; // s.final_output(version, data, sz, ntrans);
    } 
    return n; 
+}
+void fstNodeDestroy(FstNode *node) {
+  if (node == NULL) { return; } 
+  free(node);
 }
 FstTransitions* fstNodeTransitions(FstNode *node) {
   FstTransitions *t = malloc(sizeof(FstTransitions));
@@ -291,6 +308,7 @@ FstBuilder *fstBuilderCreate(void *w, FstType ty) {
 
 
 void fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDupe) {
+  return;
 } 
 
 CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn) {
@@ -302,24 +320,46 @@ CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn) {
   FstRegistryEntry *entry = fstRegistryGetEntry(b->registry, bn); 
   if (entry->state == FOUND) { 
     CompiledAddr ret = entry->addr;
-    tfree(entry); 
+    fstRegistryEntryDestroy(entry);
     return ret;
   } 
   CompiledAddr startAddr = (CompiledAddr)(FST_WRITER_COUNT(b->wrt));
 
   fstBuilderNodeCompileTo(bn, b->wrt, b->lastAddr, startAddr);  
-  b->lastAddr =  (CompiledAddr)(FST_WRITER_COUNT(b->wrt)) - 1;  
+  b->lastAddr =  (CompiledAddr)(FST_WRITER_COUNT(b->wrt) - 1);  
   if (entry->state == NOTFOUND) {
     FST_REGISTRY_CELL_INSERT(entry->cell, b->lastAddr);    
   }
-  free(entry);
+  fstRegistryEntryDestroy(entry);
+  
   return b->lastAddr;  
 }
+
 
 FstSlice fstNodeAsSlice(FstNode *node) {
   FstSlice *slice = &node->data; 
   FstSlice s = fstSliceCopy(slice, slice->end, slice->dLen - 1);   
   return s; 
+}
+
+FstLastTransition *fstLastTransitionCreate(uint8_t inp, Output out) {
+  FstLastTransition *trn = malloc(sizeof(FstLastTransition));
+  if (trn == NULL) { return NULL; }
+
+  trn->inp = inp;
+  trn->out = out;
+  return trn;
+}
+
+void fstLastTransitionDestroy(FstLastTransition *trn) {
+  free(trn);
+}
+void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished *node, CompiledAddr addr) {
+  return;
+}
+
+void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *node, CompiledAddr addr) {
+  return;
 }
 
 

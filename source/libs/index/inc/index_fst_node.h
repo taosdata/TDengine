@@ -43,4 +43,6 @@ void fstBuilderNodeCloneFrom(FstBuilderNode *dst, FstBuilderNode *src);
 
 bool fstBuilderNodeCompileTo(FstBuilderNode *b, FstCountingWriter *wrt, CompiledAddr lastAddr, CompiledAddr startAddr); 
 
+void fstBuilderNodeDestroy(FstBuilderNode *node);
+
 #endif

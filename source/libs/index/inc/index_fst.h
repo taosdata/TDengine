@@ -50,6 +50,7 @@ typedef struct FstUnFinishedNodes {
 #define FST_UNFINISHED_NODES_LEN(nodes) taosArrayGetSize(nodes->stack) 
 
 FstUnFinishedNodes *fstUnFinishedNodesCreate();  
+void fstUnFinishedNodesDestroy(FstUnFinishedNodes *node);
 void fstUnFinishedNodesPushEmpty(FstUnFinishedNodes *nodes, bool isFinal);
 FstBuilderNode *fstUnFinishedNodesPopRoot(FstUnFinishedNodes *nodes);
 FstBuilderNode *fstUnFinishedNodesPopFreeze(FstUnFinishedNodes *nodes, CompiledAddr addr);
@@ -58,7 +59,7 @@ void fstUnFinishedNodesSetRootOutput(FstUnFinishedNodes *node, Output out);
 void fstUnFinishedNodesTopLastFreeze(FstUnFinishedNodes *node, CompiledAddr addr);
 void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes *node, FstSlice bs, Output out);
 uint64_t fstUnFinishedNodesFindCommPrefix(FstUnFinishedNodes *node, FstSlice bs);
-uint64_t FstUnFinishedNodesFindCommPreifxAndSetOutput(FstUnFinishedNodes *node, FstSlice bs, Output in, Output *out);
+uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes *node, FstSlice bs, Output in, Output *out);
 
 
 typedef struct FstBuilder {
@@ -122,6 +123,8 @@ typedef struct FstNode {
 #define FST_NODE_ADDR(node) node->start 
 
 FstNode *fstNodeCreate(int64_t version, CompiledAddr addr, FstSlice *data);
+void fstNodeDestroy(FstNode *fstNode);
+
 FstTransitions fstNodeTransitionIter(FstNode *node);
 FstTransitions* fstNodeTransitions(FstNode *node);
 bool fstNodeGetTransitionAt(FstNode *node, uint64_t i, FstTransition *res);
@@ -151,6 +154,9 @@ typedef struct FstIndexedValue {
   uint64_t index;
   uint64_t value;
 } FstIndexedValue;
+
+FstLastTransition *fstLastTransitionCreate(uint8_t inp, Output out);
+void fstLastTransitionDestroy(FstLastTransition *trn);
 
 
 

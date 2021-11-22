@@ -87,6 +87,19 @@ FstRegistry* fstRegistryCreate(uint64_t tableSize, uint64_t mruSize) {
   return registry;   
 }
 
+void fstRegistryDestroy(FstRegistry *registry) {
+  if (registry == NULL) { return; }
+
+  SArray *tb = registry->table;
+  size_t sz = taosArrayGetSize(tb);
+  for (size_t i = 0; i < sz; i++) {
+    FstRegistryCell *cell = taosArrayGet(tb, i); 
+    fstBuilderNodeDestroy(cell->node); 
+  }
+  taosArrayDestroy(tb);
+  free(registry);
+}
+
 FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNode) {
   if (taosArrayGetSize(registry->table) <= 0) {
     return NULL;    
@@ -154,6 +167,9 @@ FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNo
     }
   }      
   return entry;
+}
+void fstRegistryEntryDestroy(FstRegistryEntry *entry) {
+  free(entry);  
 }
 
 

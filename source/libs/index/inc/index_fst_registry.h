@@ -46,14 +46,17 @@ typedef struct FstRegistryEntry {
 
 // Registry relation function 
 typedef struct FstRegistry {
-   SArray *table; 
+   SArray *table;  //<FstRegistryCell> 
    uint64_t tableSize; // num of rows
    uint64_t mruSize;   // num of columns
 } FstRegistry;      
 
 // 
 FstRegistry* fstRegistryCreate(uint64_t tableSize, uint64_t mruSize);
+void fstRegistryDestroy(FstRegistry *registry);
+
 
 FstRegistryEntry* fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNode);
+void fstRegistryEntryDestroy(FstRegistryEntry *entry);
 
 #endif

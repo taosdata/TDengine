@@ -21,7 +21,12 @@ FstBuilderNode *fstBuilderNodeDefault() {
   bn->trans       = NULL; 
   return bn;
 }
+void fstBuilderNodeDestroy(FstBuilderNode *node) {
+  if (node == NULL) { return; }
 
+  taosArrayDestroy(node->trans);
+  free(node);
+} 
 FstBuilderNode *fstBuilderNodeClone(FstBuilderNode *src) {
   FstBuilderNode *node = malloc(sizeof(FstBuilderNode));  
   if (node == NULL) { return NULL; }
@@ -74,5 +79,6 @@ bool fstBuilderNodeCompileTo(FstBuilderNode *b, FstCountingWriter *wrt, Compiled
     } 
   } 
   return true; 
-    
 } 
+
+

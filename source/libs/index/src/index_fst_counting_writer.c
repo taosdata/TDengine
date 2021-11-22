@@ -12,15 +12,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#include "tutil.h"
+#include "index_fst_counting_writer.h"
 
 FstCountingWriter *fstCountingWriterCreate(void *wrt) {
   FstCountingWriter *cw = calloc(1, sizeof(FstCountingWriter)); 
   if (cw == NULL) { return NULL; }
+
   cw->wrt = wrt; 
   return cw; 
 }
-void FstCountingWriterDestroy(FstCountingWriter *cw) {
+void fstCountingWriterDestroy(FstCountingWriter *cw) {
   // free wrt object: close fd or free mem 
   free(cw);
 }
