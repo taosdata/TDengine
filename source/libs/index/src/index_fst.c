@@ -307,7 +307,6 @@ FstBuilder *fstBuilderCreate(void *w, FstType ty) {
 }
 
 
-
 OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup) {
   FstSlice *input = &bs;
   if (fstSliceEmpty(&b->last)) {
@@ -325,6 +324,22 @@ OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup) {
   }       
   return Ordered;
 } 
+void fstBuilderCompileFrom(FstBuilder *b, uint64_t istate) {
+  CompiledAddr addr = NONE_ADDRESS;
+  while (istate + 1 < FST_UNFINISHED_NODES_LEN(b->unfinished)) {
+    FstBuilderNode *n = NULL;
+    if (addr == NONE_ADDRESS) {
+      n = fstUnFinishedNodesPopEmpty(b->unfinished);
+    } else {
+      n = fstUnFinishedNodesPopFreeze(b->unfinished, addr);
+    }
+    addr =  fstBuilderCompile(b, n);
+    assert(addr != NONE_ADDRESS);      
+    fstBuilderNodeDestroy(n);
+  }
+  fstUnFinishedNodesTopLastFreeze(b->unfinished, addr);
+  return; 
+}
 CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn) {
   if (FST_BUILDER_NODE_IS_FINAL(bn) 
       && FST_BUILDER_NODE_TRANS_ISEMPTY(bn) 

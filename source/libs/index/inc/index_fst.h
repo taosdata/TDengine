@@ -73,8 +73,10 @@ typedef struct FstBuilder {
   uint64_t           len;         // num of keys added
 } FstBuilder;
 
+
 FstBuilder *fstBuilderCreate(void *w, FstType ty);
 OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup);
+void fstBuilderCompileFrom(FstBuilder *b, uint64_t istate);
 CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn);
 
 
