@@ -78,5 +78,7 @@ FstSlice fstSliceCopy(FstSlice *slice, uint32_t start, uint32_t end);
 FstSlice fstSliceCreate(uint8_t *data, uint64_t dLen);
 bool fstSliceEmpty(FstSlice *slice);
 
+int fstSliceCompare(FstSlice *a, FstSlice *b);
+
 
 #endif

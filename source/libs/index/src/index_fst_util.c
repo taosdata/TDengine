@@ -113,3 +113,21 @@ bool fstSliceEmpty(FstSlice *slice) {
 
 
 
+int fstSliceCompare(FstSlice *a, FstSlice *b) {
+  uint32_t aLen = (a->end - a->start + 1);  
+  uint32_t bLen = (b->end - b->start + 1);
+  uint32_t mLen = (aLen < bLen ? aLen : bLen);
+  for (int i = 0; i < mLen; i++) {
+    uint8_t x = a->data[i + a->start];
+    uint8_t y = b->data[i + b->start];
+    if (x == y) { continue; }
+    else if (x < y) { return -1; }
+    else { return 1; } 
+  } 
+  if (aLen == bLen) { return 0; }
+  else if (aLen < bLen) { return -1; }
+  else { return 1; } 
+} 
+
+
+

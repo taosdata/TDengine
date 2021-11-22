@@ -94,7 +94,7 @@ typedef struct FstBuilderNodeUnfinished {
 } FstBuilderNodeUnfinished;
 
 void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished *node, CompiledAddr addr);
-void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *node, CompiledAddr addr);
+void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *node, Output out);
 
 /*
  * FstNode and helper function  

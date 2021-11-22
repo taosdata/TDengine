@@ -307,10 +307,10 @@ FstBuilder *fstBuilderCreate(void *w, FstType ty) {
 }
 
 
-void fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDupe) {
-  return;
+bool fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDupe) {
+      
+  return true;
 } 
-
 CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn) {
   if (FST_BUILDER_NODE_IS_FINAL(bn) 
       && FST_BUILDER_NODE_TRANS_ISEMPTY(bn) 
@@ -336,6 +336,8 @@ CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn) {
 }
 
 
+
+
 FstSlice fstNodeAsSlice(FstNode *node) {
   FstSlice *slice = &node->data; 
   FstSlice s = fstSliceCopy(slice, slice->end, slice->dLen - 1);   
@@ -354,11 +356,25 @@ FstLastTransition *fstLastTransitionCreate(uint8_t inp, Output out) {
 void fstLastTransitionDestroy(FstLastTransition *trn) {
   free(trn);
 }
-void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished *node, CompiledAddr addr) {
+void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished *unNode, CompiledAddr addr) {
+  FstLastTransition *trn = unNode->last;       
+  FstTransition t = {.inp = trn->inp, .out = trn->out, .addr = addr};      
+  taosArrayPush(unNode->node->trans, &t); 
   return;
 }
 
-void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *node, CompiledAddr addr) {
+void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *unNode, Output out) {
+  if (FST_BUILDER_NODE_IS_FINAL(unNode->node)) {
+    unNode->node->finalOutput += out;  
+  }
+  size_t sz = taosArrayGetSize(unNode->node->trans);
+  for (size_t i = 0; i < sz; i++) {
+    FstTransition *trn = taosArrayGet(unNode->node->trans, i); 
+    trn->out += out;
+  }
+  if (unNode->last) {
+    unNode->last->out += out;  
+  }
   return;
 }
 
