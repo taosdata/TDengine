@@ -54,6 +54,18 @@ bool qIsAggregateFunction(const char* functionName) {
   return !scalarfunc;
 }
 
+bool qIsSelectivityFunction(const char* functionName) {
+  assert(functionName != NULL);
+  pthread_once(&functionHashTableInit, doInitFunctionHashTable);
+
+  size_t len = strlen(functionName);
+  SAggFunctionInfo** pInfo = taosHashGet(functionHashTable, functionName, len);
+  if (pInfo != NULL) {
+    return ((*pInfo)->status | FUNCSTATE_SELECTIVITY) != 0;
+  }
+
+  return false;
+}
 
 SAggFunctionInfo* qGetFunctionInfo(const char* name, int32_t len) {
   pthread_once(&functionHashTableInit, doInitFunctionHashTable);
@@ -79,16 +91,17 @@ void qRemoveUdfInfo(uint64_t id, SUdfInfo* pUdfInfo) {
 bool isTagsQuery(SArray* pFunctionIdList) {
   int32_t num = (int32_t) taosArrayGetSize(pFunctionIdList);
   for (int32_t i = 0; i < num; ++i) {
-    int16_t f = *(int16_t*) taosArrayGet(pFunctionIdList, i);
+    char* f = *(char**) taosArrayGet(pFunctionIdList, i);
+
+    // todo handle count(tbname) query
+    if (strcmp(f, "project") != 0 && strcmp(f, "count") != 0) {
+      return false;
+    }
 
     // "select count(tbname)" query
 //    if (functId == FUNCTION_COUNT && pExpr->base.colpDesc->colId == TSDB_TBNAME_COLUMN_INDEX) {
 //      continue;
 //    }
-
-    if (f != FUNCTION_TAGPRJ && f != FUNCTION_TID_TAG) {
-      return false;
-    }
   }
 
   return true;
@@ -113,23 +126,13 @@ bool isTagsQuery(SArray* pFunctionIdList) {
 bool isProjectionQuery(SArray* pFunctionIdList) {
   int32_t num = (int32_t) taosArrayGetSize(pFunctionIdList);
   for (int32_t i = 0; i < num; ++i) {
-    int32_t f = *(int16_t*) taosArrayGet(pFunctionIdList, i);
-    if (f == FUNCTION_TS_DUMMY) {
-      continue;
-    }
-
-    if (f != FUNCTION_PRJ &&
-        f != FUNCTION_TAGPRJ &&
-        f != FUNCTION_TAG &&
-        f != FUNCTION_TS &&
-        f != FUNCTION_ARITHM &&
-        f != FUNCTION_DIFF &&
-        f != FUNCTION_DERIVATIVE) {
-      return false;
+    char* f = *(char**) taosArrayGet(pFunctionIdList, i);
+    if (strcmp(f, "project") == 0) {
+      return true;
     }
   }
 
-  return true;
+  return false;
 }
 
 bool isDiffDerivativeQuery(SArray* pFunctionIdList) {
@@ -190,11 +193,11 @@ bool isTopBotQuery(SArray* pFunctionIdList) {
   int32_t num = (int32_t) taosArrayGetSize(pFunctionIdList);
   for (int32_t i = 0; i < num; ++i) {
     char* f = *(char**) taosArrayGet(pFunctionIdList, i);
-    if (f == FUNCTION_TS) {
+    if (strcmp(f, "project") == 0) {
       continue;
     }
 
-    if (f == FUNCTION_TOP || f == FUNCTION_BOTTOM) {
+    if (strcmp(f, "top") == 0 || strcmp(f, "bottom") == 0) {
       return true;
     }
   }
@@ -273,49 +276,26 @@ bool needReverseScan(SArray* pFunctionIdList) {
   return false;
 }
 
-bool isSimpleAggregateRv(SArray* pFunctionIdList) {
-//  if (pQueryInfo->interval.interval > 0 || pQueryInfo->sessionWindow.gap > 0) {
-//    return false;
-//  }
-//
-//  if (tscIsDiffDerivQuery(pQueryInfo)) {
-//    return false;
-//  }
-//
-//  size_t numOfExprs = getNumOfExprs(pQueryInfo);
-//  for (int32_t i = 0; i < numOfExprs; ++i) {
-//    SExprInfo* pExpr = getExprInfo(pQueryInfo, i);
-//    if (pExpr == NULL) {
-//      continue;
-//    }
-//
-//    int32_t functionId = pExpr->base.functionId;
-//    if (functionId < 0) {
-//      SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * functionId - 1);
-//      if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
-//        return true;
-//      }
-//
-//      continue;
-//    }
-//
-//    if (functionId == FUNCTION_TS || functionId == FUNCTION_TS_DUMMY) {
-//      continue;
-//    }
-//
-//    if ((!IS_MULTIOUTPUT(aAggs[functionId].status)) ||
-//        (functionId == FUNCTION_TOP || functionId == FUNCTION_BOTTOM || functionId == FUNCTION_TS_COMP)) {
-//      return true;
-//    }
-//  }
+bool isAgg(SArray* pFunctionIdList) {
+  size_t size = taosArrayGetSize(pFunctionIdList);
+  for (int32_t i = 0; i < size; ++i) {
+    char* f = *(char**) taosArrayGet(pFunctionIdList, i);
+    if (strcmp(f, "project") == 0) {
+      return false;
+    }
+
+    if (qIsAggregateFunction(f)) {
+      return true;
+    }
+  }
 
   return false;
 }
 
 bool isBlockDistQuery(SArray* pFunctionIdList) {
   int32_t num = (int32_t) taosArrayGetSize(pFunctionIdList);
-  int32_t f = *(int16_t*) taosArrayGet(pFunctionIdList, 0);
-  return (num == 1 && f == FUNCTION_BLKINFO);
+  char* f = *(char**) taosArrayGet(pFunctionIdList, 0);
+  return (num == 1 && strcmp(f, "block_dist") == 0);
 }
 
 bool isTwoStageSTableQuery(SArray* pFunctionIdList, int32_t tableIndex) {
@@ -426,8 +406,9 @@ void extractFunctionDesc(SArray* pFunctionIdList, SMultiFunctionsDesc* pDesc) {
     return;
   }
 
-  pDesc->projectionQuery = isProjectionQuery(pFunctionIdList);
-  pDesc->onlyTagQuery    = isTagsQuery(pFunctionIdList);
+//  pDesc->projectionQuery = isProjectionQuery(pFunctionIdList);
+//  pDesc->onlyTagQuery    = isTagsQuery(pFunctionIdList);
   pDesc->interpQuery     = isInterpQuery(pFunctionIdList);
   pDesc->topbotQuery     = isTopBotQuery(pFunctionIdList);
+  pDesc->agg             = isAgg(pFunctionIdList);
 }

@@ -325,12 +325,15 @@ SArray* extractFunctionList(SArray* pExprInfoList) {
 
   size_t len = taosArrayGetSize(pExprInfoList);
   SArray* p = taosArrayInit(len, POINTER_BYTES);
+
   for(int32_t i = 0; i < len; ++i) {
     SExprInfo* pExprInfo = taosArrayGetP(pExprInfoList, i);
     if (pExprInfo->pExpr->nodeType == TEXPR_FUNCTION_NODE) {
-      taosArrayPush(p, &pExprInfo->pExpr->_function.functionName);
+      char* name = strdup(pExprInfo->pExpr->_function.functionName);
+      taosArrayPush(p, &name);
     } else {
-      taosArrayPush(p, "project");
+      char* name = strdup("project");
+      taosArrayPush(p, &name);
     }
   }
 

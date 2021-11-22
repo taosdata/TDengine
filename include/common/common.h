@@ -55,11 +55,18 @@ typedef struct SDataBlockInfo {
   int64_t     uid;
 } SDataBlockInfo;
 
+typedef struct SConstantItem {
+  SColumnInfo info;
+  int32_t     startIndex;    // run-length-encoding to save the space for multiple rows
+  int32_t     endIndex;
+  SVariant    value;
+} SConstantItem;
+
 typedef struct SSDataBlock {
   SColumnDataAgg *pBlockAgg;
-  SArray         *pDataBlock;   // SArray<SColumnInfoData>
-  SArray         *pTagsList;    // SArray<SVariant> for tag value
-  SDataBlockInfo info;
+  SArray         *pDataBlock;    // SArray<SColumnInfoData>
+  SArray         *pConstantList; // SArray<SConstantItem>, it is a constant/tags value of the corresponding result value.
+  SDataBlockInfo  info;
 } SSDataBlock;
 
 typedef struct SColumnInfoData {
@@ -83,7 +90,7 @@ typedef struct SLimit {
 
 typedef struct SOrder {
   uint32_t  order;
-  int32_t   orderColId;
+  SColumn   col;
 } SOrder;
 
 typedef struct SGroupbyExpr {

@@ -15,6 +15,7 @@
 
 #include <function.h>
 #include <gtest/gtest.h>
+#include <tglobal.h>
 #include <iostream>
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 
@@ -63,7 +64,6 @@ void setTableMetaInfo(SQueryStmtInfo* pQueryInfo, SMetaReq *req) {
   setSchema(&pSchema[1], TSDB_DATA_TYPE_INT, 4, "a", 1);
   setSchema(&pSchema[2], TSDB_DATA_TYPE_DOUBLE, 8, "b", 2);
   setSchema(&pSchema[3], TSDB_DATA_TYPE_DOUBLE, 8, "col", 3);
-
 }
 
 void generateLogicplan(const char* sql) {
@@ -132,7 +132,9 @@ TEST(testCase, planner_test) {
   ASSERT_EQ(ret, 0);
 
   SArray* pExprList = pQueryInfo->exprList[0];
-  ASSERT_EQ(taosArrayGetSize(pExprList), 2);
+
+  int32_t num = tsCompatibleModel? 2:1;
+  ASSERT_EQ(taosArrayGetSize(pExprList), num);
 
   SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 1);
   ASSERT_EQ(p1->base.pColumns->uid, 110);
@@ -172,6 +174,7 @@ TEST(testCase, displayPlan) {
   generateLogicplan("select count(A+B) from `t.1abc` group by a");
   generateLogicplan("select count(length(a)+b) from `t.1abc` group by a");
   generateLogicplan("select count(*) from `t.1abc` interval(10s, 5s) sliding(7s)");
+  generateLogicplan("select count(*) from `t.1abc` interval(10s, 5s) sliding(7s) order by 1 desc ");
   generateLogicplan("select count(*),sum(a),avg(b),min(a+b)+99 from `t.1abc`");
   generateLogicplan("select count(*), min(a) + 99 from `t.1abc`");
   generateLogicplan("select count(length(count(*) + 22)) from `t.1abc`");
@@ -180,7 +183,7 @@ TEST(testCase, displayPlan) {
   generateLogicplan("select count(*), first(a), last(b) from `t.1abc` session(ts, 20s)");
 
   // order by + group by column + limit offset + fill
-
+  generateLogicplan("select top(a, 20) k from `t.1abc` order by k asc limit 3 offset 1");
 
   // join
 

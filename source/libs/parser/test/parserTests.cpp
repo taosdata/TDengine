@@ -16,6 +16,7 @@
 #include <function.h>
 #include <gtest/gtest.h>
 #include <iostream>
+#include "tglobal.h"
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 
 #pragma GCC diagnostic ignored "-Wunused-function"
@@ -422,8 +423,8 @@ TEST(testCase, function_Test10) {
   sqlCheck("select block_dist() + 20 from `t.1abc`", true);
   sqlCheck("select count(b), c from `t.1abc`", false);
   sqlCheck("select top(a, 20), count(b) from `t.1abc`", false);
-//  sqlCheck("select top(a, 20), b from `t.1abc`", false);
-//  sqlCheck("select top(a, 20), a+20 from `t.1abc`", true);
+  sqlCheck("select top(a, 20), b from `t.1abc`", false);
+  sqlCheck("select top(a, 20), a+20 from `t.1abc`", true);
 //  sqlCheck("select top(a, 20), bottom(a, 10) from `t.1abc`", false);
 //  sqlCheck("select last_row(*), count(b) from `t.1abc`", false);
 //  sqlCheck("select last_row(a, b) + 20 from `t.1abc`", false);
@@ -457,9 +458,14 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(ret, 0);
 
   SArray* pExprList = pQueryInfo->exprList[0];
-  ASSERT_EQ(taosArrayGetSize(pExprList), 5);
+  if (tsCompatibleModel) {
+      ASSERT_EQ(taosArrayGetSize(pExprList), 6);
+  } else {
+      ASSERT_EQ(taosArrayGetSize(pExprList), 5);
+  }
 
-  SExprInfo* p1 = (SExprInfo*)taosArrayGetP(pExprList, 0);
+  int32_t index = tsCompatibleModel? 1:0;
+  SExprInfo* p1 = (SExprInfo*)taosArrayGetP(pExprList, index);
   ASSERT_EQ(p1->base.pColumns->uid, 110);
   ASSERT_EQ(p1->base.numOfParams, 0);
   ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_DOUBLE);
@@ -477,9 +483,12 @@ TEST(testCase, function_Test6) {
   ASSERT_STREQ(pParam->pSchema->name, "t.1abc.a+b");
 
   ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 3);
-  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 5);
 
-  SExprInfo* p2 = (SExprInfo*)taosArrayGetP(pExprList, 1);
+  int32_t numOfResCol = tsCompatibleModel? 6:5;
+  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, numOfResCol);
+
+  index = tsCompatibleModel? 2:1;
+  SExprInfo* p2 = (SExprInfo*)taosArrayGetP(pExprList, index);
   ASSERT_EQ(p2->base.pColumns->uid, 110);
   ASSERT_EQ(p2->base.numOfParams, 0);
   ASSERT_EQ(p2->base.resSchema.type, TSDB_DATA_TYPE_DOUBLE);
@@ -527,9 +536,10 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(ret, 0);
 
   SArray* pExprList = pQueryInfo->exprList[0];
-  ASSERT_EQ(taosArrayGetSize(pExprList), 2);
+  ASSERT_EQ(taosArrayGetSize(pExprList), 3);
 
-  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, 0);
+  int32_t index = tsCompatibleModel? 1:0;
+  SExprInfo* p1 = (SExprInfo*) taosArrayGetP(pExprList, index);
   ASSERT_EQ(p1->base.pColumns->uid, 110);
   ASSERT_EQ(p1->base.numOfParams, 0);
   ASSERT_EQ(p1->base.resSchema.type, TSDB_DATA_TYPE_BIGINT);
@@ -553,7 +563,9 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(pParam->pSchema->colId, p2->base.resSchema.colId);
 
   ASSERT_EQ(taosArrayGetSize(pQueryInfo->colList), 3);
-  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 2);
+
+  int32_t numOfCols = tsCompatibleModel? 3:2;
+  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, numOfCols);
 
   destroyQueryInfo(pQueryInfo);
   qParserClearupMetaRequestInfo(&req);

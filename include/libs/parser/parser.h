@@ -86,7 +86,7 @@ typedef struct SQueryStmtInfo {
   SLimit           slimit;
   STagCond         tagCond;
   SArray *         colCond;
-  SOrder           order;
+  SArray *         order;
   int16_t          numOfTables;
   int16_t          curTableIdx;
   STableMetaInfo **pTableMetaInfo;

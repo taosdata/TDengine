@@ -229,7 +229,7 @@ typedef struct SScalarFunctionInfo {
 typedef struct SMultiFunctionsDesc {
   bool stableQuery;
   bool groupbyColumn;
-  bool simpleAgg;
+  bool agg;
   bool arithmeticOnAgg;
   bool projectionQuery;
   bool hasFilter;
@@ -261,6 +261,7 @@ int32_t qIsBuiltinFunction(const char* name, int32_t len, bool* scalarFunction);
 bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* functionId);
 
 bool qIsAggregateFunction(const char* functionName);
+bool qIsSelectivityFunction(const char* functionName);
 
 tExprNode* exprTreeFromBinary(const void* data, size_t size);
 
