@@ -683,7 +683,7 @@ static void columnwiseMergeSortImpl(tOrderDescriptor *pDescriptor, int32_t numOf
   int32_t* indices = malloc(numOfRows * sizeof(int32_t));
   int32_t* aux = malloc(numOfRows * sizeof(int32_t));
 
-  for (int32_t i = 0; i <= numOfRows; ++i) {
+  for (int32_t i = 0; i < numOfRows; ++i) {
     indices[i] = i;
   }
 
