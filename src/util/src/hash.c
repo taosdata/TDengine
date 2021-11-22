@@ -18,7 +18,7 @@
 #include "tulog.h"
 #include "taosdef.h"
 
-#define EXT_SIZE 1024 
+#define EXT_SIZE 1024
 
 #define HASH_NEED_RESIZE(_h) ((_h)->size >= (_h)->capacity * HASH_DEFAULT_LOAD_FACTOR)
 
@@ -130,11 +130,11 @@ static FORCE_INLINE SHashNode *doUpdateHashNode(SHashObj *pHashObj, SHashEntry* 
     pNewNode->next = pNode->next;
     DO_FREE_HASH_NODE(pNode);
   } else {
-    pNewNode->next = pNode;    
+    pNewNode->next = pNode;
     pe->num++;
     atomic_add_fetch_64(&pHashObj->size, 1);
   }
-  
+
   return pNewNode;
 }
 
@@ -155,11 +155,14 @@ static void pushfrontNodeInEntryList(SHashEntry *pEntry, SHashNode *pNode);
 static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj);
 
 /**
- * Get the next element in hash table for iterator
- * @param pIter
- * @return
+ * Initialize a hash table
+ *
+ * @param capacity   Initial capacity of the hash table
+ * @param fn         Hash function
+ * @param update     Whether the hash table allows in place update
+ * @param type       Whether the hash table has per entry lock
+ * @return           Hash table object
  */
-
 SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTypeE type) {
   assert(fn != NULL);
   if (capacity == 0) {
@@ -202,11 +205,11 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp) {
   if (pHashObj != NULL && fp != NULL) {
     pHashObj->equalFp = fp;
-  } 
-} 
+  }
+}
 
 int32_t taosHashGetSize(const SHashObj *pHashObj) {
-  if (!pHashObj) {
+  if (pHashObj == NULL) {
     return 0;
   }
   return (int32_t)atomic_load_64(&pHashObj->size);
@@ -217,6 +220,10 @@ static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj) {
 }
 
 int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size) {
+  if (pHashObj == NULL || key == NULL || keyLen == 0 || data == NULL || size == 0) {
+    return -1;
+  }
+
   uint32_t   hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
   SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
   if (pNewNode == NULL) {
@@ -248,7 +255,9 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
 
   SHashNode* prev = NULL;
   while (pNode) {
-    if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) {
+    if ((pNode->keyLen == keyLen) &&
+        (*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0 &&
+        pNode->removed == 0) {
       assert(pNode->hashVal == hashVal);
       break;
     }
@@ -261,11 +270,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
     // no data in hash table with the specified key, add it into hash table
     pushfrontNodeInEntryList(pe, pNewNode);
 
-    if (pe->num == 0) {
-      assert(pe->next == NULL);
-    } else {
-      assert(pe->next != NULL);
-    }
+    assert(pe->next != NULL);
 
     if (pHashObj->type == HASH_ENTRY_LOCK) {
       taosWUnLockLatch(&pe->latch);
@@ -300,7 +305,7 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
 }
 //TODO(yihaoDeng), merge with taosHashGetClone
 void* taosHashGetCloneExt(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void** d, size_t *sz) {
-  if (taosHashTableEmpty(pHashObj) || keyLen == 0 || key == NULL) {
+  if (pHashObj == NULL || taosHashTableEmpty(pHashObj) || keyLen == 0 || key == NULL) {
     return NULL;
   }
 
@@ -336,19 +341,19 @@ void* taosHashGetCloneExt(SHashObj *pHashObj, const void *key, size_t keyLen, vo
     if (fp != NULL) {
       fp(GET_HASH_NODE_DATA(pNode));
     }
-     
+
     if (*d == NULL) {
       *sz =  pNode->dataLen + EXT_SIZE;
-      *d  =  calloc(1, *sz);   
+      *d  =  calloc(1, *sz);
     } else if (*sz < pNode->dataLen){
       *sz = pNode->dataLen + EXT_SIZE;
-      *d  = realloc(*d, *sz); 
+      *d  = realloc(*d, *sz);
     }
     memcpy((char *)(*d), GET_HASH_NODE_DATA(pNode), pNode->dataLen);
-    // just make runtime happy 
+    // just make runtime happy
     if ((*sz) - pNode->dataLen > 0) {
       memset((char *)(*d) + pNode->dataLen, 0, (*sz) - pNode->dataLen);
-    } 
+    }
 
     data = GET_HASH_NODE_DATA(pNode);
   }
@@ -362,7 +367,7 @@ void* taosHashGetCloneExt(SHashObj *pHashObj, const void *key, size_t keyLen, vo
 }
 
 void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d) {
-  if (taosHashTableEmpty(pHashObj) || keyLen == 0 || key == NULL) {
+  if (pHashObj == NULL || taosHashTableEmpty(pHashObj) || keyLen == 0 || key == NULL) {
     return NULL;
   }
 
@@ -449,7 +454,7 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   SHashNode *prevNode = NULL;
 
   while (pNode) {
-    if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) 
+    if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0)
       break;
 
     prevNode = pNode;
@@ -467,14 +472,14 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
       } else {
         pe->next = pNode->next;
       }
-   
+
       if (data) memcpy(data, GET_HASH_NODE_DATA(pNode), dsize);
 
       pe->num--;
       atomic_sub_fetch_64(&pHashObj->size, 1);
       FREE_HASH_NODE(pHashObj, pNode);
     }
-  } 
+  }
 
   if (pHashObj->type == HASH_ENTRY_LOCK) {
     taosWUnLockLatch(&pe->latch);
@@ -806,14 +811,14 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
   SHashNode *pNode = pe->next;
 
   while (pNode) {
-    if (pNode == pOld) 
+    if (pNode == pOld)
       break;
 
     prevNode = pNode;
     pNode = pNode->next;
   }
 
-  if (pNode) { 
+  if (pNode) {
     pNode = pNode->next;
     while (pNode) {
       if (pNode->removed == 0) break;
@@ -827,11 +832,11 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
       } else {
         pe->next = pOld->next;
       }
-   
+
       pe->num--;
       atomic_sub_fetch_64(&pHashObj->size, 1);
       FREE_HASH_NODE(pHashObj, pOld);
-    } 
+    }
   } else {
     uError("pNode:%p data:%p is not there!!!", pNode, p);
   }
@@ -840,7 +845,7 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
 }
 
 void *taosHashIterate(SHashObj *pHashObj, void *p) {
-  if (pHashObj == NULL) return NULL; 
+  if (pHashObj == NULL) return NULL;
 
   int  slot = 0;
   char *data = NULL;
@@ -855,7 +860,7 @@ void *taosHashIterate(SHashObj *pHashObj, void *p) {
       SHashEntry *pe = pHashObj->hashList[slot];
       if (pHashObj->type == HASH_ENTRY_LOCK) {
         taosWUnLockLatch(&pe->latch);
-      } 
+      }
 
       slot = slot + 1;
     }
@@ -880,7 +885,7 @@ void *taosHashIterate(SHashObj *pHashObj, void *p) {
 
       if (pHashObj->type == HASH_ENTRY_LOCK) {
         taosWUnLockLatch(&pe->latch);
-      } 
+      }
     }
   }
 
@@ -890,7 +895,7 @@ void *taosHashIterate(SHashObj *pHashObj, void *p) {
     data = GET_HASH_NODE_DATA(pNode);
     if (pHashObj->type == HASH_ENTRY_LOCK) {
       taosWUnLockLatch(&pe->latch);
-    } 
+    }
   }
 
   __rd_unlock(&pHashObj->lock, pHashObj->type);
@@ -910,7 +915,7 @@ void taosHashCancelIterate(SHashObj *pHashObj, void *p) {
   SHashEntry *pe = pHashObj->hashList[slot];
   if (pHashObj->type == HASH_ENTRY_LOCK) {
     taosWUnLockLatch(&pe->latch);
-  } 
+  }
 
   __rd_unlock(&pHashObj->lock, pHashObj->type);
 }
