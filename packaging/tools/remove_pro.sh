@@ -177,7 +177,6 @@ function clean_service() {
     elif ((${service_mod}==1)); then
         clean_service_on_sysvinit
     else
-        # must manual stop taosd
         kill_prodbs
         kill_tarbitrator
     fi
