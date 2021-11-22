@@ -59,7 +59,6 @@ cp ${compile_dir}/../packaging/tools/set_core.sh    ${pkg_dir}${install_home_pat
 cp ${compile_dir}/../packaging/tools/taosd-dump-cfg.gdb    ${pkg_dir}${install_home_path}/bin
 
 cp ${compile_dir}/build/bin/taosdemo                ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
 
 if [ -f "${compile_dir}/build/bin/taosadapter" ]; then
@@ -78,16 +77,6 @@ cp -r ${top_dir}/src/connector/nodejs               ${pkg_dir}${install_home_pat
 cp ${compile_dir}/build/lib/taos-jdbcdriver*.*  ${pkg_dir}${install_home_path}/connector ||:
 
 install_user_local_path="/usr/local"
-
-if [ -f ${compile_dir}/build/lib/libavro.so.23.0.0 ]; then
-    mkdir -p ${pkg_dir}${install_user_local_path}/lib
-    cp ${compile_dir}/build/lib/libavro.so.23.0.0 ${pkg_dir}${install_user_local_path}/lib/
-    ln -sf libavro.so.23.0.0 ${pkg_dir}${install_user_local_path}/lib/libavro.so.23
-    ln -sf libavro.so.23 ${pkg_dir}${install_user_local_path}/lib/libavro.so
-fi
-if [ -f ${compile_dir}/build/lib/libavro.a ]; then
-    cp ${compile_dir}/build/lib/libavro.a ${pkg_dir}${install_user_local_path}/lib/
-fi
 
 if [ -f ${compile_dir}/build/bin/jemalloc-config ]; then
     mkdir -p ${pkg_dir}${install_user_local_path}/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3}
@@ -130,8 +119,6 @@ debver="Version: "$tdengine_ver
 sed -i "2c$debver" ${pkg_dir}/DEBIAN/control
 
 #get taos version, then set deb name
-
-
 if [ "$verMode" == "cluster" ]; then
   debname="TDengine-server-"${tdengine_ver}-${osType}-${cpuType}
 elif [ "$verMode" == "edge" ]; then
@@ -150,13 +137,11 @@ else
   exit 1
 fi
 
-
-
 # make deb package
 dpkg -b ${pkg_dir} $debname
 echo "make deb package success!"
 
 cp ${pkg_dir}/*.deb ${output_dir}
 
-# clean tmep dir
+# clean temp dir
 rm -rf ${pkg_dir}

@@ -82,15 +82,6 @@ cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/conn
 cp %{_compiledir}/build/lib/taos-jdbcdriver*.*      %{buildroot}%{homepath}/connector ||:
 cp -r %{_compiledir}/../tests/examples/*            %{buildroot}%{homepath}/examples
 
-if [ -f %{_compiledir}/build/lib/libavro.so.23.0.0 ]; then
-    cp %{_compiledir}/build/lib/libavro.so.23.0.0 %{buildroot}%{homepath}/driver
-    ln -sf libavro.so.23.0.0 %{buildroot}%{homepath}/driver/libavro.so.23
-    ln -sf libavro.so.23 %{buildroot}%{homepath}/driver/libavro.so
-fi
-if [ -f %{_compiledir}/build/lib/libavro.a ]; then
-    cp %{_compiledir}/build/lib/libavro.a %{buildroot}%{homepath}/driver
-fi
-
 if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
     mkdir -p %{buildroot}%{userlocalpath}/bin
     mkdir -p %{buildroot}%{userlocalpath}/lib

@@ -200,14 +200,18 @@ fi
 echo "build ${pagMode} package ..."
 if [[ "$pagMode" == "lite" ]]; then
     BUILD_HTTP=true
+    BUILD_TOOLS=false
+else
+    BUILD_HTTP=false
+    BUILD_TOOLS=true
 fi
 
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "mips64" ]] ; then
   if [ "$verMode" != "cluster" ]; then
-    cmake ../    -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} ${allocator_macro}
+    cmake ../    -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   else
-    cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} ${allocator_macro}
+    cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   fi
 else
   echo "input cpuType=${cpuType} error!!!"
@@ -216,9 +220,9 @@ fi
 
 if [[ "$allocator" == "jemalloc" ]]; then
     # jemalloc need compile first, so disable parallel build
-    make V=1 && ${csudo} make install
+    make -j 8 && ${csudo} make install
 else
-    make -j8 && ${csudo} make install
+    make -j 8 && ${csudo} make install
 fi
 
 cd ${curr_dir}
@@ -237,6 +241,15 @@ if [ "$osType" != "Darwin" ]; then
       ${csudo} mkdir -p ${output_dir}
       cd ${script_dir}/deb
       ${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
+
+      if [ -d ${top_dir}/src/kit/taos-tools/packaging/deb ]; then
+          cd ${top_dir}/src/kit/taos-tools/packaging/deb
+          taos_tools_ver=$(git describe --tags|sed -e 's/ver-//g')
+          [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
+
+          ${csudo} ./make-taos-tools-deb.sh ${top_dir} \
+              ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
+      fi
     else
       echo "==========dpkg command not exist, so not release deb package!!!"
     fi
@@ -252,6 +265,15 @@ if [ "$osType" != "Darwin" ]; then
       ${csudo} mkdir -p ${output_dir}
       cd ${script_dir}/rpm
       ${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
+
+      if [ -d ${top_dir}/src/kit/taos-tools/packaging/rpm ]; then
+          cd ${top_dir}/src/kit/taos-tools/packaging/rpm
+          taos_tools_ver=$(git describe --tags|sed -e 's/ver-//g')
+          [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
+
+          ${csudo} ./make-taos-tools-rpm.sh ${top_dir} \
+              ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
+      fi
     else
       echo "==========rpmbuild command not exist, so not release rpm package!!!"
     fi
