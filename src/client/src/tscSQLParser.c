@@ -1781,7 +1781,7 @@ static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
     }
   }
 
-  ret = exprTreeValidateTree(pNode);
+  ret = exprTreeValidateTree(tscGetErrorMsgPayload(pCmd), pNode);
   if (ret != TSDB_CODE_SUCCESS) {
     taosArrayDestroy(colList);
     tExprTreeDestroy(pNode, NULL);
@@ -1845,7 +1845,7 @@ static int32_t handleAggTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t 
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "invalid expression in select clause");
   }
 
-  ret = exprTreeValidateTree(pExpr);
+  ret = exprTreeValidateTree(tscGetErrorMsgPayload(pCmd), pExpr);
   if (ret != TSDB_CODE_SUCCESS) {
     tExprTreeDestroy(pExpr, NULL);
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
@@ -4455,6 +4455,11 @@ static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
 
     pList->ids[pList->num++] = index;
     *type = SQLEXPR_TYPE_SCALAR;
+  } else if (pExpr->type == SQL_NODE_DATA_TYPE) {
+    if (pExpr->dataType.type < 0 || pExpr->dataType.bytes <= 0) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+    *type = SQLEXPR_TYPE_SCALAR;    
   } else {
     if ((pExpr->tokenId == TK_FLOAT && (isnan(pExpr->value.dKey) || isinf(pExpr->value.dKey))) ||
         pExpr->tokenId == TK_NULL) {
@@ -9489,6 +9494,14 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
 
         taosArrayPush(pCols, &colIndex);
       }
+      return TSDB_CODE_SUCCESS;
+    } else if (pSqlExpr->type == SQL_NODE_DATA_TYPE) {
+      *pExpr = calloc(1, sizeof(tExprNode));
+      (*pExpr)->nodeType = TSQL_NODE_TYPE;
+      (*pExpr)->pType = calloc(1, sizeof(TAOS_FIELD));
+    
+      *(*pExpr)->pType = pSqlExpr->dataType;   
+      
       return TSDB_CODE_SUCCESS;
     } else if (pSqlExpr->tokenId == TK_SET) {
       int32_t colType = -1;

@@ -480,7 +480,7 @@ int32_t isValidFunction(const char* name, int32_t len) {
     }
   }
   
-  for(int32_t i = 0; i <= TSDB_FUNC_BLKINFO; ++i) {
+  for(int32_t i = 0; i <= tListLen(aAggs); ++i) {
     int32_t nameLen = (int32_t) strlen(aAggs[i].name);
     if (len != nameLen) {
       continue;
@@ -4852,7 +4852,7 @@ int32_t functionCompatList[] = {
     7
 };
 
-SAggFunctionInfo aAggs[] = {{
+SAggFunctionInfo aAggs[40] = {{
                               // 0, count function does not invoke the finalize function
                               "count",
                               TSDB_FUNC_COUNT,
