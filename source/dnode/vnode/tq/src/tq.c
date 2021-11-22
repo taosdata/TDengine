@@ -50,7 +50,7 @@ STQ* tqOpen(const char* path, TqConfig* tqConfig, TqLogReader* tqLogReader, SMem
   pTq->tqConfig = tqConfig;
   pTq->tqLogReader = tqLogReader;
   pTq->tqMemRef.pAlloctorFactory = allocFac;
-  pTq->tqMemRef.pAllocator = allocFac->create();
+  pTq->tqMemRef.pAllocator = allocFac->create(allocFac);
   if(pTq->tqMemRef.pAllocator == NULL) {
     //TODO
   }
