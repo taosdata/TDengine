@@ -44,8 +44,10 @@ typedef struct {
   EWalType walLevel;     // wal level
 } SWalCfg;
 
-struct SWal;
-typedef struct SWal SWal;  // WAL HANDLE
+typedef struct SWal {
+  int8_t unused;
+} SWal;  // WAL HANDLE
+
 typedef int32_t (*FWalWrite)(void *ahandle, void *pHead, int32_t qtype, void *pMsg);
 
 // module initialization

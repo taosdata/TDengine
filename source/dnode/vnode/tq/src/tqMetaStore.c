@@ -69,10 +69,10 @@ static inline int tqReadLastPage(int fd, TqIdxPageBuf* pBuf) {
 }
 
 TqMetaStore* tqStoreOpen(const char* path,
-    int serializer(const void* pObj, TqSerializedHead** ppHead),
-    const void* deserializer(const TqSerializedHead* pHead, void** ppObj),
-    void deleter(void* pObj),
-    int32_t tqConfigFlag
+    TqSerializeFun   serializer,
+    TqDeserializeFun deserializer,
+    TqDeleteFun      deleter,
+    int32_t          tqConfigFlag
     ) {
   TqMetaStore* pMeta = malloc(sizeof(TqMetaStore)); 
   if(pMeta == NULL) {
@@ -127,9 +127,9 @@ TqMetaStore* tqStoreOpen(const char* path,
 
   pMeta->fileFd = fileFd;
   
-  pMeta->serializer = serializer;
-  pMeta->deserializer = deserializer;
-  pMeta->deleter = deleter;
+  pMeta->pSerializer = serializer;
+  pMeta->pDeserializer = deserializer;
+  pMeta->pDeleter = deleter;
   pMeta->tqConfigFlag = tqConfigFlag;
 
   //read idx file and load into memory
@@ -171,25 +171,25 @@ TqMetaStore* tqStoreOpen(const char* path,
       }
       if(serializedObj->action == TQ_ACTION_INUSE) {
         if(serializedObj->ssize != sizeof(TqSerializedHead)) {
-          pMeta->deserializer(serializedObj, &pNode->handle.valueInUse);
+          pMeta->pDeserializer(serializedObj, &pNode->handle.valueInUse);
         } else {
           pNode->handle.valueInUse = TQ_DELETE_TOKEN;
         }
       } else if(serializedObj->action == TQ_ACTION_INTXN) {
         if(serializedObj->ssize != sizeof(TqSerializedHead)) {
-          pMeta->deserializer(serializedObj, &pNode->handle.valueInTxn);
+          pMeta->pDeserializer(serializedObj, &pNode->handle.valueInTxn);
         } else {
           pNode->handle.valueInTxn = TQ_DELETE_TOKEN;
         }
       } else if(serializedObj->action == TQ_ACTION_INUSE_CONT) {
         if(serializedObj->ssize != sizeof(TqSerializedHead)) {
-          pMeta->deserializer(serializedObj, &pNode->handle.valueInUse);
+          pMeta->pDeserializer(serializedObj, &pNode->handle.valueInUse);
         } else {
           pNode->handle.valueInUse = TQ_DELETE_TOKEN;
         }
         TqSerializedHead* ptr = POINTER_SHIFT(serializedObj, serializedObj->ssize);
         if(ptr->ssize != sizeof(TqSerializedHead)) {
-          pMeta->deserializer(ptr, &pNode->handle.valueInTxn);
+          pMeta->pDeserializer(ptr, &pNode->handle.valueInTxn);
         } else {
           pNode->handle.valueInTxn = TQ_DELETE_TOKEN;
         }
@@ -225,11 +225,11 @@ TqMetaStore* tqStoreOpen(const char* path,
       if(pBucketNode) {
         if(pBucketNode->handle.valueInUse
             && pBucketNode->handle.valueInUse != TQ_DELETE_TOKEN) {
-          pMeta->deleter(pBucketNode->handle.valueInUse);
+          pMeta->pDeleter(pBucketNode->handle.valueInUse);
         }
         if(pBucketNode->handle.valueInTxn
             && pBucketNode->handle.valueInTxn != TQ_DELETE_TOKEN) {
-          pMeta->deleter(pBucketNode->handle.valueInTxn);
+          pMeta->pDeleter(pBucketNode->handle.valueInTxn);
         }
         free(pBucketNode);
       }
@@ -253,11 +253,11 @@ int32_t tqStoreClose(TqMetaStore* pMeta) {
       ASSERT(pNode->unpersistPrev == NULL);
       if(pNode->handle.valueInTxn
           && pNode->handle.valueInTxn != TQ_DELETE_TOKEN) {
-        pMeta->deleter(pNode->handle.valueInTxn);
+        pMeta->pDeleter(pNode->handle.valueInTxn);
       }
       if(pNode->handle.valueInUse
           && pNode->handle.valueInUse != TQ_DELETE_TOKEN) {
-        pMeta->deleter(pNode->handle.valueInUse);
+        pMeta->pDeleter(pNode->handle.valueInUse);
       }
       TqMetaList* next = pNode->next;
       free(pNode);
@@ -280,11 +280,11 @@ int32_t tqStoreDelete(TqMetaStore* pMeta) {
     while(pNode) {
       if(pNode->handle.valueInTxn
           && pNode->handle.valueInTxn != TQ_DELETE_TOKEN) {
-        pMeta->deleter(pNode->handle.valueInTxn);
+        pMeta->pDeleter(pNode->handle.valueInTxn);
       }
       if(pNode->handle.valueInUse
           && pNode->handle.valueInUse != TQ_DELETE_TOKEN) {
-        pMeta->deleter(pNode->handle.valueInUse);
+        pMeta->pDeleter(pNode->handle.valueInUse);
       }
       TqMetaList* next = pNode->next;
       free(pNode);
@@ -338,7 +338,7 @@ int32_t tqStorePersist(TqMetaStore* pMeta) {
       if(pNode->handle.valueInUse == TQ_DELETE_TOKEN) {
         pSHead->ssize = sizeof(TqSerializedHead);
       } else {
-        pMeta->serializer(pNode->handle.valueInUse, &pSHead);
+        pMeta->pSerializer(pNode->handle.valueInUse, &pSHead);
       }
       nBytes = write(pMeta->fileFd, pSHead, pSHead->ssize);
       ASSERT(nBytes == pSHead->ssize);
@@ -349,7 +349,7 @@ int32_t tqStorePersist(TqMetaStore* pMeta) {
       if(pNode->handle.valueInTxn == TQ_DELETE_TOKEN) {
         pSHead->ssize = sizeof(TqSerializedHead);
       } else {
-        pMeta->serializer(pNode->handle.valueInTxn, &pSHead);
+        pMeta->pSerializer(pNode->handle.valueInTxn, &pSHead);
       }
       int nBytesTxn = write(pMeta->fileFd, pSHead, pSHead->ssize);
       ASSERT(nBytesTxn == pSHead->ssize);
@@ -423,7 +423,7 @@ static int32_t tqHandlePutCommitted(TqMetaStore* pMeta, int64_t key, void* value
       //TODO: think about thread safety
       if(pNode->handle.valueInUse
           && pNode->handle.valueInUse != TQ_DELETE_TOKEN) {
-        pMeta->deleter(pNode->handle.valueInUse);
+        pMeta->pDeleter(pNode->handle.valueInUse);
       }
       //change pointer ownership
       pNode->handle.valueInUse = value;
@@ -496,7 +496,7 @@ static inline int32_t tqHandlePutImpl(TqMetaStore* pMeta, int64_t key, void* val
           return -2;
         }
         if(pNode->handle.valueInTxn != TQ_DELETE_TOKEN) {
-          pMeta->deleter(pNode->handle.valueInTxn);
+          pMeta->pDeleter(pNode->handle.valueInTxn);
         }
       }
       pNode->handle.valueInTxn = value;
@@ -562,7 +562,7 @@ int32_t tqHandleCommit(TqMetaStore* pMeta, int64_t key) {
       }
       if(pNode->handle.valueInUse
           && pNode->handle.valueInUse != TQ_DELETE_TOKEN) {
-        pMeta->deleter(pNode->handle.valueInUse);
+        pMeta->pDeleter(pNode->handle.valueInUse);
       }
       pNode->handle.valueInUse = pNode->handle.valueInTxn;
       pNode->handle.valueInTxn = NULL;
@@ -582,7 +582,7 @@ int32_t tqHandleAbort(TqMetaStore* pMeta, int64_t key) {
     if(pNode->handle.key == key) {
       if(pNode->handle.valueInTxn) {
         if(pNode->handle.valueInTxn != TQ_DELETE_TOKEN) {
-          pMeta->deleter(pNode->handle.valueInTxn);
+          pMeta->pDeleter(pNode->handle.valueInTxn);
         }
         pNode->handle.valueInTxn = NULL;
         tqLinkUnpersist(pMeta, pNode);
@@ -602,7 +602,7 @@ int32_t tqHandleDel(TqMetaStore* pMeta, int64_t key) {
   while(pNode) {
     if(pNode->handle.valueInTxn != TQ_DELETE_TOKEN) {
       if(pNode->handle.valueInTxn) {
-        pMeta->deleter(pNode->handle.valueInTxn);
+        pMeta->pDeleter(pNode->handle.valueInTxn);
       }
       pNode->handle.valueInTxn = TQ_DELETE_TOKEN;
       tqLinkUnpersist(pMeta, pNode);

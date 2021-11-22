@@ -19,11 +19,19 @@ int32_t walInit() { return 0; }
 
 void walCleanUp() {}
 
-SWal *walOpen(char *path, SWalCfg *pCfg) { return NULL; }
+SWal *walOpen(char *path, SWalCfg *pCfg) {
+  SWal* pWal = malloc(sizeof(SWal));
+  if(pWal == NULL) {
+    return NULL;
+  }
+  return pWal;
+}
 
 int32_t walAlter(SWal *pWal, SWalCfg *pCfg) { return 0; }
 
-void walClose(SWal *pWal) {}
+void walClose(SWal *pWal) {
+  if(pWal) free(pWal);
+}
 
 void walFsync(SWal *pWal, bool force) {}
 
