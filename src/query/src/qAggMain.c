@@ -196,6 +196,14 @@ typedef struct  {
   char  *taglists;
 } SSampleFuncInfo;
 
+typedef struct {
+  bool valueAssigned;
+  union {
+    int64_t i64Prev;
+    double d64Prev;
+  };
+} SDiffFuncInfo;
+
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo) {
   if (!isValidDataType(dataType)) {
@@ -214,9 +222,12 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
     if (functionId == TSDB_FUNC_INTERP) {
       *interBytes = sizeof(SInterpInfoDetail);
+    } else if (functionId == TSDB_FUNC_DIFF) {
+      *interBytes = sizeof(SDiffFunctInfo);
     } else {
       *interBytes = 0;
     }
+
 
     return TSDB_CODE_SUCCESS;
   }
@@ -2984,18 +2995,16 @@ static void full_copy_function(SQLFunctionCtx *pCtx) {
   }
 }
 
-enum {
-  INITIAL_VALUE_NOT_ASSIGNED = 0,
-};
 
 static bool diff_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
   if (!function_setup(pCtx, pResInfo)) {
     return false;
   }
   
-  // diff function require the value is set to -1
-  pCtx->param[1].nType = INITIAL_VALUE_NOT_ASSIGNED;
-  return false;
+  SDiffFuncInfo* pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pDiffInfo->valueAssigned = false;
+  pDiffInfo->i64Prev = 0;
+  return true;
 }
 
 static bool deriv_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultInfo) {
@@ -3201,22 +3210,14 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
   GET_RES_INFO(pCtx)->numOfRes += notNullElems;
 }
 
-#define DIFF_IMPL(ctx, d, type)                                                              \
-  do {                                                                                       \
-    if ((ctx)->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {                               \
-      (ctx)->param[1].nType = (ctx)->inputType;                                              \
-      *(type *)&(ctx)->param[1].i64 = *(type *)(d);                                       \
-    } else {                                                                                 \
-      *(type *)(ctx)->pOutput = *(type *)(d) - (*(type *)(&(ctx)->param[1].i64));      \
-      *(type *)(&(ctx)->param[1].i64) = *(type *)(d);                                     \
-      *(int64_t *)(ctx)->ptsOutputBuf = GET_TS_DATA(ctx, index);                             \
-    }                                                                                        \
-  } while (0);
 
 // TODO difference in date column
 static void diff_function(SQLFunctionCtx *pCtx) {
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SDiffFuncInfo *pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
   void *data = GET_INPUT_DATA_LIST(pCtx);
-  bool  isFirstBlock = (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED);
+  bool  isFirstBlock = (pDiffInfo->valueAssigned == false);
 
   int32_t notNullElems = 0;
 
@@ -3236,15 +3237,15 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
+        if (pDiffInfo->valueAssigned) {
+          *pOutput = (int32_t)(pData[i] - pDiffInfo->i64Prev);  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
           pTimestamp += 1;
         }
 
-        pCtx->param[1].i64 = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
+        pDiffInfo->i64Prev = pData[i];
+        pDiffInfo->valueAssigned = true;
         notNullElems++;
       }
       break;
@@ -3258,15 +3259,15 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          *pOutput = pData[i] - pCtx->param[1].i64;  // direct previous may be null
+        if (pDiffInfo->valueAssigned) {
+          *pOutput = pData[i] - pDiffInfo->i64Prev;  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
           pTimestamp += 1;
         }
 
-        pCtx->param[1].i64 = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
+        pDiffInfo->i64Prev = pData[i];
+        pDiffInfo->valueAssigned = true;
         notNullElems++;
       }
       break;
@@ -3280,15 +3281,15 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+        if (pDiffInfo->valueAssigned) {  // initial value is not set yet
           SET_DOUBLE_VAL(pOutput, pData[i] - pCtx->param[1].dKey);  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
           pTimestamp += 1;
         }
 
-        pCtx->param[1].dKey = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
+        pDiffInfo->d64Prev = pData[i];
+        pDiffInfo->valueAssigned = true;
         notNullElems++;
       }
       break;
@@ -3302,15 +3303,15 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+        if (pDiffInfo->valueAssigned) {  // initial value is not set yet
           *pOutput = (float)(pData[i] - pCtx->param[1].dKey);  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
           pTimestamp += 1;
         }
 
-        pCtx->param[1].dKey = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
+        pDiffInfo->d64Prev = pData[i];
+        pDiffInfo->valueAssigned = true;
         notNullElems++;
       }
       break;
@@ -3324,15 +3325,15 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+        if (pDiffInfo->valueAssigned) {  // initial value is not set yet
           *pOutput = (int16_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
           pTimestamp += 1;
         }
 
-        pCtx->param[1].i64 = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
+        pDiffInfo->i64Prev = pData[i];
+        pDiffInfo->valueAssigned = true;
         notNullElems++;
       }
       break;
@@ -3347,15 +3348,15 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+        if (pDiffInfo->valueAssigned) {  // initial value is not set yet
           *pOutput = (int8_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
           pTimestamp += 1;
         }
 
-        pCtx->param[1].i64 = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
+        pDiffInfo->i64Prev = pData[i];
+        pDiffInfo->valueAssigned = true;
         notNullElems++;
       }
       break;
@@ -3365,7 +3366,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
   }
 
   // initial value is not set yet
-  if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED || notNullElems <= 0) {
+  if (!pDiffInfo->valueAssigned || notNullElems <= 0) {
     /*
      * 1. current block and blocks before are full of null
      * 2. current block may be null value
