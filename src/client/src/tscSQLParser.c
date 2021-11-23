@@ -3516,6 +3516,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
   int32_t scalarUdf = 0;
   int32_t prjNum = 0;
   int32_t aggNum = 0;
+  int32_t countTbname = 0;
 
   size_t numOfExpr = tscNumOfExprs(pQueryInfo);
   assert(numOfExpr > 0);
@@ -3566,9 +3567,13 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
     if (functionId == TSDB_FUNC_LAST_ROW && (joinQuery || twQuery || !groupbyTagsOrNull(pQueryInfo))) {
       return false;
     }
+
+    if (functionId == TSDB_FUNC_COUNT && pExpr1->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
+      ++countTbname;
+    }
   }
 
-  aggNum = (int32_t)size - prjNum - aggUdf - scalarUdf;
+  aggNum = (int32_t)size - prjNum - aggUdf - scalarUdf - countTbname;
 
   assert(aggNum >= 0);
 
@@ -3577,6 +3582,10 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
   }
 
   if (scalarUdf > 0 && aggNum > 0) {
+    return false;
+  }
+
+  if (countTbname && (prjNum > 0 || aggNum > 0 || scalarUdf > 0)) {
     return false;
   }
 
