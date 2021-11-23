@@ -61,14 +61,14 @@ char *getpass(const char *prefix) {
   memset(passwd, 0, TSDB_KEY_LEN);
   printf("%s", prefix);
 
-  int32_t index = 0;
+  int32_t os_index = 0;
   char    ch;
-  while (index < TSDB_KEY_LEN) {
+  while (os_index < TSDB_KEY_LEN) {
     ch = getch();
     if (ch == '\n' || ch == '\r') {
       break;
     } else {
-      passwd[index++] = ch;
+      passwd[os_index++] = ch;
     }
   }
 

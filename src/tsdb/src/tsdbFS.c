@@ -1164,10 +1164,10 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
   // Sort the array according to file name
   taosArraySort(fArray, tsdbComparTFILE);
 
-  size_t index = 0;
+  size_t tsd_index = 0;
   // Loop to recover each file set
   for (;;) {
-    if (index >= taosArrayGetSize(fArray)) {
+    if (tsd_index >= taosArrayGetSize(fArray)) {
       break;
     }
 
@@ -1179,13 +1179,13 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
     for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
       SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ftype);
 
-      if (index >= taosArrayGetSize(fArray)) {
+      if (tsd_index >= taosArrayGetSize(fArray)) {
         tsdbError("vgId:%d incomplete DFileSet, fid:%d", REPO_ID(pRepo), fset.fid);
         taosArrayDestroy(fArray);
         return -1;
       }
 
-      pf = taosArrayGet(fArray, index);
+      pf = taosArrayGet(fArray, tsd_index);
 
       int         tvid, tfid;
       TSDB_FILE_T ttype;
@@ -1198,7 +1198,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
       ASSERT(tvid == REPO_ID(pRepo));
 
       if (tfid < pRepo->rtn.minFid) {  // skip file expired
-        ++index;
+        ++tsd_index;
         continue;
       }
 
@@ -1252,7 +1252,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
       }
 
       tsdbCloseDFile(pDFile);
-      index++;
+      tsd_index++;
     }
 
     tsdbInfo("vgId:%d FSET %d is restored", REPO_ID(pRepo), fset.fid);

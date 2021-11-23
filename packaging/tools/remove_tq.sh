@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Script to stop the service and uninstall TDengine, but retain the config, data and log files.
+# Script to stop the service and uninstall TQ, but retain the config, data and log files.
 
 set -e
 #set -x
@@ -112,7 +112,7 @@ function clean_service_on_systemd() {
     
     tarbitratord_service_config="${service_config_dir}/${tarbitrator_service_name}.service"
     if systemctl is-active --quiet ${tarbitrator_service_name}; then
-        echo "TDengine tarbitrator is running, stopping it..."
+        echo "TQ tarbitrator is running, stopping it..."
         ${csudo} systemctl stop ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
     fi
     ${csudo} systemctl disable ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
@@ -122,7 +122,7 @@ function clean_service_on_systemd() {
 		  nginx_service_config="${service_config_dir}/${nginx_service_name}.service"	
    	 	if [ -d ${bin_dir}/web ]; then
    	    if systemctl is-active --quiet ${nginx_service_name}; then
-   	        echo "Nginx for TDengine is running, stopping it..."
+   	        echo "Nginx for TQ is running, stopping it..."
    	        ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
    	    fi
    	    ${csudo} systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
@@ -183,7 +183,6 @@ function clean_service() {
     elif ((${service_mod}==1)); then
         clean_service_on_sysvinit
     else
-        # must manual stop taosd
         kill_tqd
         kill_tarbitrator
     fi
@@ -211,17 +210,6 @@ if [[ -e /etc/os-release ]]; then
 else
   osinfo=""
 fi
-
-#if echo $osinfo | grep -qwi "ubuntu" ; then
-##  echo "this is ubuntu system"
-#   ${csudo} rm -f /var/lib/dpkg/info/tdengine* || :
-#elif echo $osinfo | grep -qwi "debian" ; then
-##  echo "this is debian system"
-#   ${csudo} rm -f /var/lib/dpkg/info/tdengine* || :
-#elif  echo $osinfo | grep -qwi "centos" ; then
-##  echo "this is centos system"
-#  ${csudo} rpm -e --noscripts tdengine || :
-#fi
 
 echo -e "${GREEN}TQ is removed successfully!${NC}"
 echo 

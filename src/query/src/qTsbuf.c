@@ -5,7 +5,7 @@
 #include "queryLog.h"
 
 static int32_t getDataStartOffset();
-static void TSBufUpdateGroupInfo(STSBuf* pTSBuf, int32_t index, STSGroupBlockInfo* pBlockInfo);
+static void TSBufUpdateGroupInfo(STSBuf* pTSBuf, int32_t qry_index, STSGroupBlockInfo* pBlockInfo);
 static STSBuf* allocResForTSBuf(STSBuf* pTSBuf);
 static int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader);
 
@@ -796,7 +796,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
     return -1;
   }
   
-  // src can only have one vnode index
+  // src can only have one vnode qry_index
   assert(pSrcBuf->numOfGroups == 1);
 
   // there are data in buffer, flush to disk first
@@ -819,7 +819,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
       pDestBuf->pData = tmp;
     }
     
-    // directly copy the vnode index information
+    // directly copy the vnode qry_index information
     memcpy(&pDestBuf->pData[oldSize], pSrcBuf->pData, (size_t)pSrcBuf->numOfGroups * sizeof(STSGroupBlockInfoEx));
     
     // set the new offset value
@@ -1012,8 +1012,8 @@ static int32_t getDataStartOffset() {
 }
 
 // update prev vnode length info in file
-static void TSBufUpdateGroupInfo(STSBuf* pTSBuf, int32_t index, STSGroupBlockInfo* pBlockInfo) {
-  int32_t offset = sizeof(STSBufFileHeader) + index * sizeof(STSGroupBlockInfo);
+static void TSBufUpdateGroupInfo(STSBuf* pTSBuf, int32_t qry_index, STSGroupBlockInfo* pBlockInfo) {
+  int32_t offset = sizeof(STSBufFileHeader) + qry_index * sizeof(STSGroupBlockInfo);
   doUpdateGroupInfo(pTSBuf, offset, pBlockInfo);
 }
 

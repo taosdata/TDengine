@@ -188,12 +188,12 @@ void insertImp(void *param) {
     return;
   }
   taos_free_result(result);
-  int64_t time = getTimeStampMs();
+  int64_t test_time = getTimeStampMs();
   while (true) {
     sqlLen = sprintf(sql, "insert into");
     for (int i = (pThread->threadId - 1) * arguments.stable / arguments.client; i < pThread->threadId * arguments.stable / arguments.client; i++) {
       for (int j = 0; j < arguments.table; j++) {
-        sqlLen += sprintf(sql + sqlLen, " s%d_%d values (%ld, %d, %d, %d)", i, j, time, rand(), rand(), rand());
+        sqlLen += sprintf(sql + sqlLen, " s%d_%d values (%ld, %d, %d, %d)", i, j, test_time, rand(), rand(), rand());
         count++;
         if ( (1048576 - sqlLen) < 49151 || i == (pThread->threadId * arguments.stable / arguments.client - 1)) {
           result = taos_query(pThread->taos, sql);
@@ -208,7 +208,7 @@ void insertImp(void *param) {
         }
       }
     }
-    time += 1000*arguments.interval;
+    test_time += 1000*arguments.interval;
   }
 }
 

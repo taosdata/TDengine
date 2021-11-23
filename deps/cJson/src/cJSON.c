@@ -49,8 +49,8 @@
 typedef struct {
     const unsigned char *json;
     size_t position;
-} error;
-static error global_error = { NULL, 0 };
+} deps_error;
+static deps_error global_error = { NULL, 0 };
 
 CJSON_PUBLIC(const char *) cJSON_GetErrorPtr(void)
 {
@@ -210,8 +210,8 @@ typedef struct
 #define can_read(buffer, size) ((buffer != NULL) && (((buffer)->offset + size) <= (buffer)->length))
 #define cannot_read(buffer, size) (!can_read(buffer, size))
 /* check if the buffer can be accessed at the given index (starting with 0) */
-#define can_access_at_index(buffer, index) ((buffer != NULL) && (((buffer)->offset + index) < (buffer)->length))
-#define cannot_access_at_index(buffer, index) (!can_access_at_index(buffer, index))
+#define can_access_at_index(buffer, deps_index) ((buffer != NULL) && (((buffer)->offset + deps_index) < (buffer)->length))
+#define cannot_access_at_index(buffer, deps_index) (!can_access_at_index(buffer, deps_index))
 /* get a pointer to the buffer at the position */
 #define buffer_at_offset(buffer) ((buffer)->content + (buffer)->offset)
 
@@ -992,7 +992,7 @@ fail:
 
     if (value != NULL)
     {
-        error local_error;
+        deps_error local_error;
         local_error.json = (const unsigned char*)value;
         local_error.position = 0;
 
@@ -1683,7 +1683,7 @@ CJSON_PUBLIC(int) cJSON_GetArraySize(const cJSON *array)
     return (int)size;
 }
 
-static cJSON* get_array_item(const cJSON *array, size_t index)
+static cJSON* get_array_item(const cJSON *array, size_t deps_index)
 {
     cJSON *current_child = NULL;
 
@@ -1693,23 +1693,23 @@ static cJSON* get_array_item(const cJSON *array, size_t index)
     }
 
     current_child = array->child;
-    while ((current_child != NULL) && (index > 0))
+    while ((current_child != NULL) && (deps_index > 0))
     {
-        index--;
+        deps_index--;
         current_child = current_child->next;
     }
 
     return current_child;
 }
 
-CJSON_PUBLIC(cJSON *) cJSON_GetArrayItem(const cJSON *array, int index)
+CJSON_PUBLIC(cJSON *) cJSON_GetArrayItem(const cJSON *array, int deps_index)
 {
-    if (index < 0)
+    if (deps_index < 0)
     {
         return NULL;
     }
 
-    return get_array_item(array, (size_t)index);
+    return get_array_item(array, (size_t)deps_index);
 }
 
 static cJSON *get_object_item(const cJSON * const object, const char * const name, const cJSON_bool case_sensitive)

@@ -89,19 +89,19 @@ char *taosMemPoolMalloc(mpool_h handle) {
 }
 
 void taosMemPoolFree(mpool_h handle, char *pMem) {
-  int     index;
+  int     utl_index;
   pool_t *pool_p = (pool_t *)handle;
 
   if (pMem == NULL) return;
 
-  index = (int)(pMem - pool_p->pool) % pool_p->blockSize;
-  if (index != 0) {
+  utl_index = (int)(pMem - pool_p->pool) % pool_p->blockSize;
+  if (utl_index != 0) {
     uError("invalid free address:%p\n", pMem);
     return;
   }
 
-  index = (int)((pMem - pool_p->pool) / pool_p->blockSize);
-  if (index < 0 || index >= pool_p->numOfBlock) {
+  utl_index = (int)((pMem - pool_p->pool) / pool_p->blockSize);
+  if (utl_index < 0 || utl_index >= pool_p->numOfBlock) {
     uError("mempool: error, invalid address:%p\n", pMem);
     return;
   }
@@ -110,7 +110,7 @@ void taosMemPoolFree(mpool_h handle, char *pMem) {
 
   pthread_mutex_lock(&pool_p->mutex);
 
-  pool_p->freeList[(pool_p->first + pool_p->numOfFree) % pool_p->numOfBlock] = index;
+  pool_p->freeList[(pool_p->first + pool_p->numOfFree) % pool_p->numOfBlock] = utl_index;
   pool_p->numOfFree++;
 
   pthread_mutex_unlock(&pool_p->mutex);

@@ -30,7 +30,7 @@ int main (int argc, char *argv[])
 {
   unsigned int data[0x100000];
   int uni2index[0x110000];
-  int index;
+  int deps_index;
 
   if (argc != 1)
     exit(1);
@@ -64,7 +64,7 @@ int main (int argc, char *argv[])
     int j;
     for (j = 0; j < 0x110000; j++)
       uni2index[j] = -1;
-    index = 0;
+    deps_index = 0;
     for (;;) {
       c = getc(stdin);
       if (c == EOF)
@@ -86,8 +86,8 @@ int main (int argc, char *argv[])
         if (c == '\t')
           break;
         if (uni2index[j] < 0) {
-          uni2index[j] = index;
-          data[index++] = 0;
+          uni2index[j] = deps_index;
+          data[deps_index++] = 0;
         }
         if (c >= 0x80) {
           /* Finish reading an UTF-8 character. */
@@ -104,17 +104,17 @@ int main (int argc, char *argv[])
             }
           }
         }
-        data[index++] = (unsigned int) c;
+        data[deps_index++] = (unsigned int) c;
       }
       if (uni2index[j] >= 0)
-        data[uni2index[j]] = index - uni2index[j] - 1;
+        data[uni2index[j]] = deps_index - uni2index[j] - 1;
       do { c = getc(stdin); } while (!(c == EOF || c == '\n'));
     }
   }
-  printf("static const unsigned int translit_data[%d] = {",index);
+  printf("static const unsigned int translit_data[%d] = {",deps_index);
   {
     int i;
-    for (i = 0; i < index; i++) {
+    for (i = 0; i < deps_index; i++) {
       if (data[i] < 32)
         printf("\n %3d,",data[i]);
       else if (data[i] == '\'')

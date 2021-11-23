@@ -54,7 +54,7 @@ static void taosLockList(int64_t *lockedBy);
 static void taosUnlockList(int64_t *lockedBy);
 static void taosIncRsetCount(SRefSet *pSet);
 static void taosDecRsetCount(SRefSet *pSet);
-static int  taosDecRefCount(int rsetId, int64_t rid, int remove);
+static int  taosDecRefCount(int rsetId, int64_t rid, int utl_remove);
 
 int taosOpenRef(int max, void (*fp)(void *))
 {
@@ -389,7 +389,7 @@ int taosListRef() {
   return num;
 }
 
-static int taosDecRefCount(int rsetId, int64_t rid, int remove) {
+static int taosDecRefCount(int rsetId, int64_t rid, int utl_remove) {
   int       hash;
   SRefSet  *pSet;
   SRefNode *pNode;
@@ -428,7 +428,7 @@ static int taosDecRefCount(int rsetId, int64_t rid, int remove) {
 
   if (pNode) {
     pNode->count--;
-    if (remove) pNode->removed = 1;
+    if (utl_remove) pNode->removed = 1;
 
     if (pNode->count <= 0) {
       if (pNode->prev) {
