@@ -313,6 +313,18 @@ void fstBuilderDestroy(FstBuilder *b) {
   fstRegistryDestroy(b->registry);
   free(b);
 }
+
+
+bool fstBuilderInsert(FstBuilder *b, FstSlice bs, Output in) {
+  OrderType t = fstBuilderCheckLastKey(b, bs, true);  
+  if (t == Ordered) {
+    // add log info
+    fstBuilderInsertOutput(b, bs, in); 
+    return true; 
+  } 
+  return false;
+}
+
 void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in) {
    FstSlice *s = &bs;
    if (fstSliceEmpty(s)) {
@@ -422,6 +434,8 @@ void fstLastTransitionDestroy(FstLastTransition *trn) {
 }
 void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished *unNode, CompiledAddr addr) {
   FstLastTransition *trn = unNode->last;       
+  if (trn == NULL) { return; }  
+
   FstTransition t = {.inp = trn->inp, .out = trn->out, .addr = addr};      
   taosArrayPush(unNode->node->trans, &t); 
   return;
