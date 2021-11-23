@@ -42,8 +42,12 @@ class TDTestCase:
         tdSql.execute(
             "INSERT INTO dev_001 VALUES('2020-05-13 10:00:00.000', 1, '2020-05-13 10:00:00.000', 10, 3.1, 3.14, 'test', -10, -126, true, '测试', 15, 10, 65534, 254, 1)('2020-05-13 10:00:01.000', 1, '2020-05-13 10:00:01.000', 10, 3.1, 3.14, 'test', -10, -126, true, '测试', 15, 10, 65534, 253, 5)('2020-05-13 10:00:02.000', 10, '2020-05-13 10:00:00.000', 11, 3.1, 3.14, 'test', 10, -127, false, '测试', 15, 10, 65534, 253, 10)('2020-05-13 10:00:03.000', 1, '2020-05-13 10:00:00.000', 11, 3.1, 3.14, 'test', -10, -126, true, '测试', 14, 12, 65532, 254, 15)")
 
-        for i in range(self.rowNum):
-            tdSql.execute("insert into dev_002 (ts,t1) values(%d, %d,)" % (self.ts + i, i + 1))
+        for i in range(10):
+            sql = "insert into dev_002(ts, t1) values"
+            batch = int(self.rowNum / 10)
+            for j in range(batch):
+                sql += "(%d, %d)" % (self.ts + batch * i + j, batch * i + j)
+            tdSql.execute(sql)
 
         tdSql.query("select count(ts) from dev_001 state_window(t1)")
         tdSql.checkRows(3)
@@ -101,6 +105,42 @@ class TDTestCase:
         tdSql.error("select count(*) from dev_001 state_window(t10)")
         tdSql.error("select count(*) from dev_001 state_window(tag2)")
 
+        # TS-537
+        tdLog.info("case for TS-537")
+        tdSql.execute("create stable stb (ts timestamp, c1 int, c2 float) tags(tg1 int)")
+        tdSql.execute("CREATE TABLE IF NOT EXISTS db.tb1 USING db.stb TAGS (1)")
+        sql = "insert into tb1 values(1635398806734, 1, 1.000000)(1635398810062, 1, 2.000000)(1635398811528, 1, 3.000000)(1635398813301, 1, 4.000000)"
+        sql += "(1635398818507, 2, 1.000000)(1635398823464, 2, 1.000000)(1635398825150, 2, 1.000000)(1635398826453, 2, 1.000000)(1635399123037, 2, 2.000000)"
+        sql += "(1635399125335, 2, 2.000000)(1635399126292, 2, 2.000000)(1635399127288, 2, 2.000000)(1635399129361, 2, 2.000000)(1635399133331, 1, 2.000000)"
+        sql += "(1635399134179, 1, 2.000000)(1635399134909, 1, 2.000000)(1635399135617, 1, 2.000000)(1635399136372, 1, 2.000000)"
+        tdSql.execute(sql)
+
+        tdSql.query("select * from (select first(ts), count(*), c1 from db.tb1 state_window(c1))")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 4)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(1, 1, 9)
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(2, 1, 5)
+        tdSql.checkData(2, 2, 1)
+
+        tdSql.query("select fts, cnt, c1 from (select first(ts) fts, count(*) cnt, c1 from db.tb1 state_window(c1))")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 4)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(1, 1, 9)
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(2, 1, 5)
+        tdSql.checkData(2, 2, 1)
+
+        tdSql.query("select * from (select first(ts) fts, count(*) cnt, c1 from db.tb1 state_window(c1))")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 4)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(1, 1, 9)
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(2, 1, 5)
+        tdSql.checkData(2, 2, 1)
 
     def stop(self):
         tdSql.close()
