@@ -855,6 +855,7 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
   pSqlExpr->numOfParams = htons(pExpr->numOfParams);
   pSqlExpr->resColId    = htons(pExpr->resColId);
   pSqlExpr->flist.numOfFilters = htons(pExpr->flist.numOfFilters);
+  tstrncpy(pSqlExpr->aliasName, pExpr->aliasName, TSDB_COL_NAME_LEN);
 
   (*pMsg) += sizeof(SSqlExpr);
   for (int32_t j = 0; j < pExpr->numOfParams; ++j) { // todo add log

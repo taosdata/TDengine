@@ -260,7 +260,7 @@ typedef struct SSchema {
 
 typedef struct TagJsonSSchema {
   uint8_t type;
-  char    name[TSDB_MAX_JSON_KEY_LEN + 1];
+  char    name[TSDB_MAX_JSON_KEY_LEN];
 } TagJsonSSchema;
 
 typedef struct {

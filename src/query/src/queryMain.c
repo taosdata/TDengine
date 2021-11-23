@@ -84,7 +84,7 @@ static void* setJsonTagSchema(void* tsdb, int16_t numOfOutput, SExprInfo *pExprs
     if (sqlExpr->colType == TSDB_DATA_TYPE_JSON && sqlExpr->numOfParams > 0){
       TagJsonSSchema* schema = (TagJsonSSchema*)(tmp);
       schema->type = TSDB_DATA_TYPE_NULL;
-      tstrncpy(schema->name, sqlExpr->param[0].pz, TSDB_MAX_JSON_KEY_LEN + 1);
+      tstrncpy(schema->name, sqlExpr->aliasName, TSDB_MAX_JSON_KEY_LEN);
       for (int j = 0; j < taosArrayGetSize(pTableIdList); ++j) {
         STableIdInfo *id = taosArrayGet(pTableIdList, j);
         uint8_t type = getTagJsonType(tsdb, id->uid, sqlExpr->param[0].pz, sqlExpr->param[0].nLen);

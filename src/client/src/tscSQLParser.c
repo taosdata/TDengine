@@ -1910,8 +1910,16 @@ static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumn
 
   SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, pIndex->columnIndex);
 
-  char* colName = (pItem->aliasName == NULL) ? pSchema->name : pItem->aliasName;
-  tstrncpy(pExpr->base.aliasName, colName, sizeof(pExpr->base.aliasName));
+  if (pItem->aliasName){
+    tstrncpy(pExpr->base.aliasName, pItem->aliasName, sizeof(pExpr->base.aliasName));
+  }else {
+    if (pSchema->type == TSDB_DATA_TYPE_JSON && pItem->pNode->tokenId == TK_ARROW) {
+      tstrncpy(pExpr->base.aliasName, pItem->pNode->exprToken.z,
+               (pItem->pNode->exprToken.n + 1) < sizeof(pExpr->base.aliasName) ? (pItem->pNode->exprToken.n + 1) : sizeof(pExpr->base.aliasName));
+    } else {
+      tstrncpy(pExpr->base.aliasName, pSchema->name, sizeof(pExpr->base.aliasName));
+    }
+  }
 
   SColumnList ids = {0};
   ids.num = 1;
@@ -2261,6 +2269,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
   const char* msg3 = "tbname not allowed in outer query";
   const char* msg4 = "-> operate can only used in json type";
   const char* msg5 = "the right value of -> operation must be string";
+  const char* msg6 = "select name is too long than 64, please use alias name";
 
   int32_t startPos = (int32_t)tscNumOfExprs(pQueryInfo);
   int32_t tokenId = pItem->pNode->tokenId;
@@ -2369,10 +2378,10 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       if (tokenId == TK_ARROW && pSchema->type != TSDB_DATA_TYPE_JSON) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
       }
-      if(pSchema->type == TSDB_DATA_TYPE_JSON && tokenId == TK_ARROW){
-        pItem->aliasName = calloc(1, pItem->pNode->exprToken.n + 1);
-        memcpy(pItem->aliasName, pItem->pNode->exprToken.z, pItem->pNode->exprToken.n);
+      if (pSchema->type == TSDB_DATA_TYPE_JSON && tokenId == TK_ARROW && pItem->pNode->exprToken.n >= TSDB_COL_NAME_LEN){
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
+
       addProjectQueryCol(pQueryInfo, startPos, &index, pItem, getNewResColId(pCmd));
       pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
     }
