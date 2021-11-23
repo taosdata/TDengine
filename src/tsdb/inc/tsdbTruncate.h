@@ -20,6 +20,7 @@ extern "C" {
 #endif
 
 void *tsdbTruncateImpl(STsdbRepo *pRepo, void *param);
+void *tsdbDeleteImpl(STsdbRepo *pRepo, void *param);
 
 #ifdef __cplusplus
 }

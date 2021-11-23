@@ -651,6 +651,8 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
     return -1;
   }
 
+  pBlockData->delete = 0;  // ignore delete flag
+
   int32_t tsize = (int32_t)tsdbBlockStatisSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer);
   if (!taosCheckChecksumWhole((uint8_t *)TSDB_READ_BUF(pReadh), tsize)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;

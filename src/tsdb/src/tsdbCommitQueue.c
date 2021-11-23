@@ -194,6 +194,8 @@ static void *tsdbLoopCommit(void *arg) {
       tsdbCompactImpl(pRepo);
     } else if (req == TRUNCATE_REQ) {
       tsdbTruncateImpl(pRepo, param);
+    } else if (req == DELETE_REQ) {
+      tsdbDeleteImpl(pRepo, param);
     } else if (req == COMMIT_CONFIG_REQ) {
       ASSERT(pRepo->config_changed);
       tsdbApplyRepoConfig(pRepo);

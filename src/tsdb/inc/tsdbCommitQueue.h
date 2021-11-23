@@ -16,7 +16,13 @@
 #ifndef _TD_TSDB_COMMIT_QUEUE_H_
 #define _TD_TSDB_COMMIT_QUEUE_H_
 
-typedef enum { COMMIT_REQ, COMPACT_REQ, TRUNCATE_REQ, COMMIT_CONFIG_REQ } TSDB_REQ_T;
+typedef enum {
+  COMMIT_REQ,
+  COMPACT_REQ,
+  TRUNCATE_REQ,
+  DELETE_REQ,
+  COMMIT_CONFIG_REQ,
+} TSDB_REQ_T;
 
 int tsdbScheduleCommit(STsdbRepo *pRepo, void* param, TSDB_REQ_T req);
 

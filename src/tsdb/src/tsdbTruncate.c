@@ -30,7 +30,8 @@ typedef struct {
   SArray *   aBlkIdx;
   SArray *   aSupBlk;
   SDataCols *pDCols;
-  void *     param;  // STruncateTblMsg *pMsg
+  void *     param;  // STruncateTblMsg or SDeleteTblMsg
+  TSDB_REQ_T type;   // truncate or delete
 } STruncateH;
 
 #define TSDB_TRUNCATE_WSET(pTruncateH) (&((pTruncateH)->wSet))
@@ -44,24 +45,25 @@ typedef struct {
 #define TSDB_TRUNCATE_COMP_BUF(pTruncateH) TSDB_READ_COMP_BUF(&((pTruncateH)->readh))
 #define TSDB_TRUNCATE_EXBUF(pTruncateH) TSDB_READ_EXBUF(&((pTruncateH)->readh))
 
-static int  tsdbAsyncTruncate(STsdbRepo *pRepo, void *param);
-static void tsdbStartTruncate(STsdbRepo *pRepo);
-static void tsdbEndTruncate(STsdbRepo *pRepo, int eno);
-static int  tsdbTruncateMeta(STsdbRepo *pRepo);
-static int  tsdbTruncateTSData(STsdbRepo *pRepo, void *param);
-static int  tsdbTruncateFSet(STruncateH *pTruncateH, SDFileSet *pSet);
-static int  tsdbInitTruncateH(STruncateH *pTruncateH, STsdbRepo *pRepo);
-static void tsdbDestroyTruncateH(STruncateH *pTruncateH);
-static int  tsdbInitTruncateTblArray(STruncateH *pTruncateH);
-static void tsdbDestroyTruncateTblArray(STruncateH *pTruncateH);
-static int  tsdbCacheFSetIndex(STruncateH *pTruncateH);
-static int  tsdbTruncateCache(STsdbRepo *pRepo, void *param);
-static int  tsdbTruncateFSetInit(STruncateH *pTruncateH, SDFileSet *pSet);
-static void tsdbTruncateFSetEnd(STruncateH *pTruncateH);
-static int  tsdbTruncateFSetImpl(STruncateH *pTruncateH);
-static bool tsdbBlockInterleaved(STruncateH *pTruncateH, SBlock *pBlock);
-static int  tsdbWriteBlockToRightFile(STruncateH *pTruncateH, STable *pTable, SDataCols *pDCols, void **ppBuf,
-                                      void **ppCBuf, void **ppExBuf);
+static int   tsdbAsyncTruncate(STsdbRepo *pRepo, void *param, TSDB_REQ_T type);
+static void  tsdbStartTruncate(STsdbRepo *pRepo);
+static void  tsdbEndTruncate(STsdbRepo *pRepo, int eno);
+static int   tsdbTruncateMeta(STsdbRepo *pRepo);
+static int   tsdbTruncateTSData(STsdbRepo *pRepo, void *param, TSDB_REQ_T type);
+static int   tsdbTruncateFSet(STruncateH *pTruncateH, SDFileSet *pSet);
+static int   tsdbInitTruncateH(STruncateH *pTruncateH, STsdbRepo *pRepo);
+static void  tsdbDestroyTruncateH(STruncateH *pTruncateH);
+static int   tsdbInitTruncateTblArray(STruncateH *pTruncateH);
+static void  tsdbDestroyTruncateTblArray(STruncateH *pTruncateH);
+static int   tsdbCacheFSetIndex(STruncateH *pTruncateH);
+static int   tsdbTruncateCache(STsdbRepo *pRepo, void *param);
+static int   tsdbTruncateFSetInit(STruncateH *pTruncateH, SDFileSet *pSet);
+static void  tsdbTruncateFSetEnd(STruncateH *pTruncateH);
+static int   tsdbTruncateFSetImpl(STruncateH *pTruncateH);
+static bool  tsdbBlockInterleaved(STruncateH *pTruncateH, SBlock *pBlock);
+static int   tsdbWriteBlockToRightFile(STruncateH *pTruncateH, STable *pTable, SDataCols *pDCols, void **ppBuf,
+                                       void **ppCBuf, void **ppExBuf);
+static void *tsdbTruncateImplCommon(STsdbRepo *pRepo, void *param, TSDB_REQ_T type);
 
 enum {
   TSDB_NO_TRUNCATE,
@@ -69,9 +71,19 @@ enum {
   TSDB_WAITING_TRUNCATE,
 };
 
-int tsdbTruncate(STsdbRepo *pRepo, void *param) { return tsdbAsyncTruncate(pRepo, param); }
+int tsdbTruncate(STsdbRepo *pRepo, void *param) { return tsdbAsyncTruncate(pRepo, param, TRUNCATE_REQ); }
+int tsdbDelete(STsdbRepo *pRepo, void *param) { return tsdbAsyncTruncate(pRepo, param, DELETE_REQ); }
 
 void *tsdbTruncateImpl(STsdbRepo *pRepo, void *param) {
+  tsdbTruncateImplCommon(pRepo, param, TRUNCATE_REQ);
+  return NULL;
+}
+void *tsdbDeleteImpl(STsdbRepo *pRepo, void *param) {
+  tsdbTruncateImplCommon(pRepo, param, DELETE_REQ);
+  return NULL;
+}
+
+static void *tsdbTruncateImplCommon(STsdbRepo *pRepo, void *param, TSDB_REQ_T type) {
   ASSERT(param != NULL);
   int32_t code = 0;
   // Step 1: check and clear cache
@@ -98,7 +110,7 @@ void *tsdbTruncateImpl(STsdbRepo *pRepo, void *param) {
     goto _err;
   }
 
-  if (tsdbTruncateTSData(pRepo, param) < 0) {
+  if (tsdbTruncateTSData(pRepo, param, type) < 0) {
     tsdbError("vgId:%d failed to truncate TS data since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
@@ -130,7 +142,7 @@ static int tsdbTruncateCache(STsdbRepo *pRepo, void *param) {
   return 0;
 }
 
-static int tsdbAsyncTruncate(STsdbRepo *pRepo, void *param) {
+static int tsdbAsyncTruncate(STsdbRepo *pRepo, void *param, TSDB_REQ_T type) {
   // avoid repeated input of commands by end users in a short period of time
   if (pRepo->truncateState != TSDB_NO_TRUNCATE) {
     tsdbInfo("vgId:%d retry later as tsdb in truncating state", REPO_ID(pRepo));
@@ -145,7 +157,7 @@ static int tsdbAsyncTruncate(STsdbRepo *pRepo, void *param) {
 
   // truncate
   tsem_wait(&(pRepo->readyToCommit));
-  int code = tsdbScheduleCommit(pRepo, param, TRUNCATE_REQ);
+  int code = tsdbScheduleCommit(pRepo, param, type);
   if (code < 0) {
     tsem_post(&(pRepo->readyToCommit));
   }
@@ -177,7 +189,7 @@ static int tsdbTruncateMeta(STsdbRepo *pRepo) {
   return 0;
 }
 
-static int tsdbTruncateTSData(STsdbRepo *pRepo, void *param) {
+static int tsdbTruncateTSData(STsdbRepo *pRepo, void *param, TSDB_REQ_T type) {
   STsdbCfg *       pCfg = REPO_CFG(pRepo);
   STruncateH       truncateH = {0};
   SDFileSet *      pSet = NULL;
@@ -188,7 +200,9 @@ static int tsdbTruncateTSData(STsdbRepo *pRepo, void *param) {
   if (tsdbInitTruncateH(&truncateH, pRepo) < 0) {
     return -1;
   }
+
   truncateH.param = pMsg;
+  truncateH.type = type;
 
   int sFid = TSDB_KEY_FID(pMsg->span[0].skey, pCfg->daysPerFile, pCfg->precision);
   int eFid = TSDB_KEY_FID(pMsg->span[0].ekey, pCfg->daysPerFile, pCfg->precision);

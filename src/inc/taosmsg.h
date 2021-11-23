@@ -410,6 +410,14 @@ typedef struct {
   char        tableFname[TSDB_TABLE_FNAME_LEN];
   STimeWindow span[];
 } STruncateTblMsg;
+typedef struct {
+  int32_t     contLen;
+  int32_t     vgId;
+  uint64_t    uid;
+  uint16_t    nSpan;
+  char        tableFname[TSDB_TABLE_FNAME_LEN];
+  STimeWindow span[];
+} SDeleteTblMsg;
 // N.B. JUST Utility for DEMO Implementation(not formal definition)
 typedef struct SColIndex {
   int16_t  colId;      // column id
