@@ -236,6 +236,29 @@ function install_lib() {
     ${csudo} ldconfig
 }
 
+function install_avro() {
+    if [ "$osType" != "Darwin" ]; then
+        avro_dir=${script_dir}/avro
+        if [ -f "${avro_dir}/$1/libavro.so.23.0.0" ] && [ -d /usr/local/$1 ]; then
+            ${csudo} /usr/bin/install -c -d /usr/local/$1
+            ${csudo} /usr/bin/install -c -m 755 ${avro_dir}/$1/libavro.so.23.0.0 /usr/local/$1
+            ${csudo} ln -sf /usr/local/$1/libavro.so.23.0.0 /usr/local/$1/libavro.so.23
+            ${csudo} ln -sf /usr/local/$1/libavro.so.23 /usr/local/$1/libavro.so
+
+            ${csudo} /usr/bin/install -c -d /usr/local/$1
+            [ -f ${avro_dir}/$1/libavro.a ] &&
+                ${csudo} /usr/bin/install -c -m 755 ${avro_dir}/$1/libavro.a /usr/local/$1
+
+            if [ -d /etc/ld.so.conf.d ]; then
+                echo "/usr/local/$1" | ${csudo} tee /etc/ld.so.conf.d/libavro.conf
+                ${csudo} ldconfig
+            else
+                echo "/etc/ld.so.conf.d not found!"
+            fi
+        fi
+    fi
+}
+
 function install_jemalloc() {
     jemalloc_dir=${script_dir}/jemalloc
 
@@ -849,6 +872,8 @@ function update_TDengine() {
     fi
     tar -zxf taos.tar.gz
     install_jemalloc
+    install_avro lib
+    install_avro lib64
 
     echo -e "${GREEN}Start to update TDengine...${NC}"
     # Stop the service if running
@@ -961,6 +986,9 @@ function install_TDengine() {
     install_header
     install_lib
     install_jemalloc
+    install_avro lib
+    install_avro lib64
+
     if [ "$pagMode" != "lite" ]; then
       install_connector
     fi

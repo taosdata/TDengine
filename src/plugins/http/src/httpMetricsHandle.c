@@ -123,9 +123,9 @@ bool metricsProcessRequest(HttpContext* pContext) {
   }
 
   {
-    int64_t rchars = 0;
-    int64_t wchars = 0;
-    bool succeeded = taosReadProcIO(&rchars, &wchars);
+    int64_t rchars = 0, rbytes = 0;
+    int64_t wchars = 0, wbytes = 0;
+    bool succeeded = taosReadProcIO(&rchars, &wchars, &rbytes, &wbytes);
     if (!succeeded) {
       httpError("failed to get io info");
     } else {
@@ -164,7 +164,7 @@ bool metricsProcessRequest(HttpContext* pContext) {
   }
 
   {
-    SStatisInfo info = dnodeGetStatisInfo();
+    SDnodeStatisInfo info = dnodeGetStatisInfo();
     {
       char* keyReqHttp = "req_http";
       char* keyReqSelect = "req_select";

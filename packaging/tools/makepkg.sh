@@ -3,7 +3,7 @@
 # Generate tar.gz package for all os system
 
 set -e
-#set -x
+set -x
 
 curr_dir=$(pwd)
 compile_dir=$1
@@ -91,6 +91,12 @@ mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/taos
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/taosd.rpm
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
+
+if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
+    mkdir -p ${install_dir}/avro/{lib,lib/pkgconfig}
+    cp ${build_dir}/lib/libavro.* ${install_dir}/avro/lib
+    cp ${build_dir}/lib/pkgconfig/avro-c.pc ${install_dir}/avro/lib/pkgconfig
+fi
 
 if [ -f ${build_dir}/bin/jemalloc-config ]; then
     mkdir -p ${install_dir}/jemalloc/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3}

@@ -86,7 +86,6 @@ function install_bin() {
   ${csudo} rm -f ${bin_link_dir}/taos         || :
   if [ "$osType" != "Darwin" ]; then
       ${csudo} rm -f ${bin_link_dir}/taosdemo || :
-      ${csudo} rm -f ${bin_link_dir}/taosdump || :
   fi
   ${csudo} rm -f ${bin_link_dir}/rmtaos       || :
   ${csudo} rm -f ${bin_link_dir}/set_core     || :
@@ -97,7 +96,6 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                 || :
   if [ "$osType" != "Darwin" ]; then
       [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
-      [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
   fi
   [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmtaos || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :

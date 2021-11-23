@@ -4,7 +4,7 @@
 # is required to use systemd to manage services at boot
 
 set -e
-# set -x
+#set -x
 
 # -----------------------Variables definition
 source_dir=$1
@@ -253,7 +253,7 @@ function install_jemalloc() {
 
 function install_avro() {
     if [ "$osType" != "Darwin" ]; then
-        if [ -f "${binary_dir}/build/$1/libavro.so.23.0.0" ]; then
+        if [ -f "${binary_dir}/build/$1/libavro.so.23.0.0" ] && [ -d /usr/local/$1 ]; then
             ${csudo} /usr/bin/install -c -d /usr/local/$1
             ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/$1/libavro.so.23.0.0 /usr/local/$1
             ${csudo} ln -sf libavro.so.23.0.0 /usr/local/$1/libavro.so.23
