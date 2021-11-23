@@ -21,6 +21,7 @@
 #include "sync.h"
 #include "tcache.h"
 #include "wal.h"
+#include "tcrc32c.h"
 
 EStat dndGetStat(SDnode *pDnode) { return pDnode->stat; }
 
@@ -135,6 +136,10 @@ static void dndCleanupEnv(SDnode *pDnode) {
 }
 
 SDnode *dndInit(SDnodeOpt *pOptions) {
+  taosIgnSIGPIPE();
+  taosBlockSIGPIPE();
+  taosResolveCRC();
+
   SDnode *pDnode = calloc(1, sizeof(pDnode));
   if (pDnode == NULL) {
     dError("failed to create dnode object");

@@ -1,5 +1,5 @@
 aux_source_directory(src DNODE_SRC)
-add_library(dnode ${DNODE_SRC})
+add_library(dnode STATIC ${DNODE_SRC})
 target_link_libraries(
     dnode
     PUBLIC cjson

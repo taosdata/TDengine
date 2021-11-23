@@ -38,9 +38,9 @@ extern SNoteObj tsHttpNote;
 extern SNoteObj tsTscNote;
 extern SNoteObj tsInfoNote;
 
-void taosInitNotes();
-void taosNotePrint(SNoteObj* pNote, const char* const format, ...);
-void taosNotePrintBuffer(SNoteObj *pNote, char *buffer, int32_t len);
+int32_t taosInitNotes();
+void    taosNotePrint(SNoteObj* pNote, const char* const format, ...);
+void    taosNotePrintBuffer(SNoteObj* pNote, char* buffer, int32_t len);
 
 #define nPrintHttp(...)                      \
   if (tsHttpEnableRecordSql) {               \

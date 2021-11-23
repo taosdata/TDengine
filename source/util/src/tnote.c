@@ -40,7 +40,7 @@ static void taosInitNote(int32_t numOfLines, int32_t maxNotes, SNoteObj *pNote, 
   taosNotePrint(pNote, "==================================================");
 }
 
-void taosInitNotes() {
+int32_t taosInitNotes() {
   char name[TSDB_FILENAME_LEN * 2] = {0};
 
 #if 0
@@ -58,7 +58,8 @@ void taosInitNotes() {
     snprintf(name, TSDB_FILENAME_LEN * 2, "%s/taosinfo", tsLogDir);
     taosInitNote(tsNumOfLogLines, 1, &tsInfoNote, name);
   }
-#endif  
+#endif
+  return 0;
 }
 
 static bool taosLockNote(int32_t fd, SNoteObj *pNote) {

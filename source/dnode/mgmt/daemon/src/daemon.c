@@ -16,7 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "dnode.h"
 #include "os.h"
+#include "tconfig.h"
 #include "tglobal.h"
+#include "tnote.h"
 #include "ulog.h"
 
 static struct {
@@ -68,7 +70,11 @@ int dmnParseOpts(int argc, char const *argv[]) {
   return 0;
 }
 
-void dmnGenerateGrant() { grantParseParameter(); }
+void dmnGenerateGrant() {
+#if 0
+  grantParseParameter();
+#endif
+}
 
 void dmnPrintVersion() {
 #ifdef TD_ENTERPRISE
@@ -83,9 +89,6 @@ void dmnPrintVersion() {
 }
 
 int dmnReadConfig(const char *path) {
-  taosIgnSIGPIPE();
-  taosBlockSIGPIPE();
-  taosResolveCRC();
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
 

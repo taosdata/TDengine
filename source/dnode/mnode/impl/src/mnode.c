@@ -207,6 +207,8 @@ void mnodeCleanupMsg(SMnodeMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
+void mnodeSendRsp(SMnodeMsg *pMsg, int32_t code) {}
+
 static void mnodeProcessRpcMsg(SMnodeMsg *pMsg) {
   if (!mnodeIsMaster()) {
     mnodeSendRedirectMsg(NULL, &pMsg->rpcMsg, true);
