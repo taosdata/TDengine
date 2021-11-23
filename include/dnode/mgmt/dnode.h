@@ -26,38 +26,112 @@ extern "C" {
 typedef struct SDnode SDnode;
 
 typedef struct {
-  int32_t  sver;
-  int32_t  numOfCores;
-  float    numOfThreadsPerCore;
-  float    ratioOfQueryCores;
-  int32_t  maxShellConns;
-  int32_t  shellActivityTimer;
-  int32_t  statusInterval;
+  /**
+   * @brief software version of the program.
+   *
+   */
+  int32_t sver;
+
+  /**
+   * @brief num of CPU cores.
+   *
+   */
+  int32_t numOfCores;
+
+  /**
+   * @brief number of threads per CPU core.
+   *
+   */
+  float numOfThreadsPerCore;
+
+  /**
+   * @brief the proportion of total CPU cores available for query processing.
+   *
+   */
+  float ratioOfQueryCores;
+
+  /**
+   * @brief max number of connections allowed in dnode.
+   *
+   */
+  int32_t maxShellConns;
+
+  /**
+   * @brief time interval of heart beat from shell to dnode, seconds.
+   *
+   */
+  int32_t shellActivityTimer;
+
+  /**
+   * @brief time interval of dnode status reporting to mnode, seconds, for cluster only.
+   *
+   */
+  int32_t statusInterval;
+
+  /**
+   * @brief first port number for the connection (12 continuous UDP/TCP port number are used).
+   *
+   */
   uint16_t serverPort;
-  char     dataDir[PATH_MAX];
-  char     localEp[TSDB_EP_LEN];
-  char     localFqdn[TSDB_FQDN_LEN];
-  char     firstEp[TSDB_EP_LEN];
-  char     timezone[TSDB_TIMEZONE_LEN];
-  char     locale[TSDB_LOCALE_LEN];
-  char     charset[TSDB_LOCALE_LEN];
+
+  /**
+   * @brief data file's directory.
+   *
+   */
+  char dataDir[PATH_MAX];
+
+  /**
+   * @brief local endpoint.
+   *
+   */
+  char localEp[TSDB_EP_LEN];
+
+  /**
+   * @brieflocal fully qualified domain name (FQDN).
+   *
+   */
+  char localFqdn[TSDB_FQDN_LEN];
+
+  /**
+   * @brief first fully qualified domain name (FQDN) for TDengine system.
+   *
+   */
+  char firstEp[TSDB_EP_LEN];
+
+  /**
+   * @brief system time zone.
+   *
+   */
+  char timezone[TSDB_TIMEZONE_LEN];
+
+  /**
+   * @brief system locale.
+   *
+   */
+  char locale[TSDB_LOCALE_LEN];
+
+  /**
+   * @briefdefault system charset.
+   *
+   */
+  char charset[TSDB_LOCALE_LEN];
 } SDnodeOpt;
 
 /* ------------------------ SDnode ------------------------ */
 /**
  * @brief Initialize and start the dnode.
  *
- * @param cfgPath Config file path.
+ * @param pOptions Options of the dnode.
  * @return SDnode* The dnode object.
  */
 SDnode *dndInit(SDnodeOpt *pOptions);
 
 /**
- * @brief Stop and cleanup dnode.
+ * @brief Stop and cleanup the dnode.
  *
- * @param pDnd The dnode object to close.
+ * @param pDnode The dnode object to close.
  */
-void dndCleanup(SDnode *pDnd);
+void dndCleanup(SDnode *pDnode);
 
 #ifdef __cplusplus
 }

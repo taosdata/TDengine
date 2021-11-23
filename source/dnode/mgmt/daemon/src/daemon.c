@@ -40,7 +40,7 @@ void dmnSetSignalHandle() {
   taosSetSignal(SIGBREAK, dmnSigintHandle);
 }
 
-int dmnParseOpts(int argc, char const *argv[]) {
+int dmnParseOption(int argc, char const *argv[]) {
   tstrncpy(global.configDir, "/etc/taos", PATH_MAX);
 
   for (int i = 1; i < argc; ++i) {
@@ -52,7 +52,7 @@ int dmnParseOpts(int argc, char const *argv[]) {
         }
         tstrncpy(global.configDir, argv[i], PATH_MAX);
       } else {
-        printf("'-c' requires a parameter, default:%s\n", configDir);
+        printf("'-c' requires a parameter, default is %s\n", configDir);
         return -1;
       }
     } else if (strcmp(argv[i], "-C") == 0) {
@@ -78,11 +78,11 @@ void dmnGenerateGrant() {
 
 void dmnPrintVersion() {
 #ifdef TD_ENTERPRISE
-  char *versionStr = "enterprise";
+  char *releaseName = "enterprise";
 #else
-  char *versionStr = "community";
+  char *releaseName = "community";
 #endif
-  printf("%s version: %s compatible_version: %s\n", versionStr, version, compatible_version);
+  printf("%s version: %s compatible_version: %s\n", releaseName, version, compatible_version);
   printf("gitinfo: %s\n", gitinfo);
   printf("gitinfoI: %s\n", gitinfoOfInternal);
   printf("builuInfo: %s\n", buildinfo);
@@ -164,7 +164,7 @@ int dmnRunDnode() {
 }
 
 int main(int argc, char const *argv[]) {
-  if (dmnParseOpts(argc, argv) != 0) {
+  if (dmnParseOption(argc, argv) != 0) {
     return -1;
   }
 

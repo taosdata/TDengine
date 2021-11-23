@@ -21,19 +21,19 @@
 static int32_t sdbCreateDir() {
   mDebug("start to create mnode at %s", tsMnodeDir);
   
-  if (!taosMkDir(tsSdb.currDir)) {
+  if (taosMkDir(tsSdb.currDir) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to create dir:%s since %s", tsSdb.currDir, terrstr());
     return -1;
   }
 
-  if (!taosMkDir(tsSdb.syncDir)) {
+  if (taosMkDir(tsSdb.syncDir) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to create dir:%s since %s", tsSdb.syncDir, terrstr());
     return -1;
   }
 
-  if (!taosMkDir(tsSdb.tmpDir)) {
+  if (taosMkDir(tsSdb.tmpDir) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to create dir:%s since %s", tsSdb.tmpDir, terrstr());
     return -1;

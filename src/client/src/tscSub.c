@@ -371,7 +371,7 @@ void tscSaveSubscriptionProgress(void* sub) {
 
   char path[256];
   sprintf(path, "%s/subscribe", tsDataDir);
-  if (!taosMkDir(path)) {
+  if (taosMkDir(path) != 0) {
     tscError("failed to create subscribe dir: %s", path);
   }
 

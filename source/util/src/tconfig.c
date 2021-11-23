@@ -154,7 +154,7 @@ static bool taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
       taosExpandDir(input_value, option, cfg->ptrLength);
       taosRealPath(option, cfg->ptrLength);
 
-      if (!taosMkDir(option)) {
+      if (taosMkDir(option) != 0) {
         uError("config option:%s, input value:%s, directory not exist, create fail:%s", cfg->option, input_value,
                strerror(errno));
         return false;

@@ -98,19 +98,19 @@ static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOptions) {
     return -1;
   }
 
-  if (!taosMkDir(pDnode->dir.dnode)) {
+  if (taosMkDir(pDnode->dir.dnode) != 0) {
     dError("failed to create dir:%s since %s", pDnode->dir.dnode, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  if (!taosMkDir(pDnode->dir.mnode)) {
+  if (taosMkDir(pDnode->dir.mnode) != 0) {
     dError("failed to create dir:%s since %s", pDnode->dir.mnode, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  if (!taosMkDir(pDnode->dir.vnodes)) {
+  if (taosMkDir(pDnode->dir.vnodes) != 0) {
     dError("failed to create dir:%s since %s", pDnode->dir.vnodes, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;

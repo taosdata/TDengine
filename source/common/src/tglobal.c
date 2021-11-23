@@ -1679,7 +1679,7 @@ int32_t taosCheckGlobalCfg() {
 
   taosCheckDataDirCfg();
 
-  if (!taosDirExist(tsTempDir)) {
+  if (taosDirExist(tsTempDir) != 0) {
     return -1;
   }
   
