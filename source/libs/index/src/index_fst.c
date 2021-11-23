@@ -156,27 +156,22 @@ uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes *node, 
 } 
 
 
-FstState fstStateCreate(FstSlice* date, CompiledAddr addr) {
-  FstState fs =  {.state = EmptyFinal, .val = 0}; 
+FstState fstStateCreate(FstSlice* slice, CompiledAddr addr) {
+  FstState fs = {.state = EmptyFinal, .val = 0};
   if (addr == EMPTY_ADDRESS) {
-    fs.state = EmptyFinal; 
-    fs.val   = 0;
     return fs; 
   }
-  
-  FstSlice *s = date;
-  uint8_t v = s->data[addr]; 
+
+  uint8_t v = slice->data[addr]; 
   uint8_t t = (v & 0b11000000) >> 6;
   if (t == 0b11) {
     fs.state = OneTransNext;
-    fs.val   = v;
   } else if (t == 0b10) {
-    fs.state = OneTrans;
-    fs.val   = v;
+    fs.state = OneTrans; 
   } else {
-    fs.state = AnyTrans;
-    fs.val   = v;
+    fs.state = AnyTrans;  
   }
+  fs.val = v;
   return fs;
 }
 
