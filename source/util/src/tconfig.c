@@ -335,7 +335,7 @@ void taosReadGlobalLogCfg() {
   fclose(fp);
 }
 
-bool taosReadGlobalCfg() {
+int32_t taosReadGlobalCfg() {
   char * line, *option, *value, *value2, *value3;
   int    olen, vlen, vlen2, vlen3;
   char   fileName[PATH_MAX] = {0};
@@ -345,7 +345,7 @@ bool taosReadGlobalCfg() {
   if (fp == NULL) {
     fp = fopen(configDir, "r");
     if (fp == NULL) {
-      return false;
+      return -1;
     }
   }
 
@@ -393,7 +393,7 @@ bool taosReadGlobalCfg() {
   //   taosSetAllDebugFlag();
   // }
 
-  return true;
+  return 0;
 }
 
 void taosPrintGlobalCfg() {

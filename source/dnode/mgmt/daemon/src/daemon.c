@@ -132,24 +132,30 @@ void dmnWaitSignal() {
   }
 }
 
-void dmnInitOption(SDnodeOpt *pOpt) {
-  pOpt->sver = tsVersion;
-  pOpt->numOfCores = tsNumOfCores;
-  pOpt->statusInterval = tsStatusInterval;
-  pOpt->serverPort = tsServerPort;
-  tstrncpy(pOpt->localEp, tsLocalEp, TSDB_EP_LEN);
-  tstrncpy(pOpt->localFqdn, tsLocalEp, TSDB_FQDN_LEN);
-  tstrncpy(pOpt->timezone, tsLocalEp, TSDB_TIMEZONE_LEN);
-  tstrncpy(pOpt->locale, tsLocalEp, TSDB_LOCALE_LEN);
-  tstrncpy(pOpt->charset, tsLocalEp, TSDB_LOCALE_LEN);
+void dmnInitOption(SDnodeOpt *pOption) {
+  pOption->sver = tsVersion;
+  pOption->numOfCores = tsNumOfCores;
+  pOption->numOfThreadsPerCore = tsNumOfThreadsPerCore;
+  pOption->ratioOfQueryCores = tsRatioOfQueryCores;
+  pOption->maxShellConns = tsMaxShellConns;
+  pOption->shellActivityTimer = tsShellActivityTimer;
+  pOption->statusInterval = tsStatusInterval;
+  pOption->serverPort = tsServerPort;
+  tstrncpy(pOption->dataDir, tsDataDir, TSDB_EP_LEN);
+  tstrncpy(pOption->localEp, tsLocalEp, TSDB_EP_LEN);
+  tstrncpy(pOption->localFqdn, tsLocalEp, TSDB_FQDN_LEN);
+  tstrncpy(pOption->firstEp, tsFirst, TSDB_FQDN_LEN);
+  tstrncpy(pOption->timezone, tsLocalEp, TSDB_TIMEZONE_LEN);
+  tstrncpy(pOption->locale, tsLocalEp, TSDB_LOCALE_LEN);
+  tstrncpy(pOption->charset, tsLocalEp, TSDB_LOCALE_LEN);
 }
 
 int dmnRunDnode() {
-  SDnodeOpt opt = {0};
-  dmnInitOption(&opt);
+  SDnodeOpt option = {0};
+  dmnInitOption(&option);
 
-  SDnode *pDnd = dndInit(&opt);
-  if (pDnd == NULL) {
+  SDnode *pDnode = dndInit(&option);
+  if (pDnode == NULL) {
     uInfo("Failed to start TDengine, please check the log at %s", tsLogDir);
     return -1;
   }
@@ -158,7 +164,7 @@ int dmnRunDnode() {
   dmnWaitSignal();
   uInfo("TDengine is shut down!");
 
-  dndCleanup(pDnd);
+  dndCleanup(pDnode);
   taosCloseLog();
   return 0;
 }
