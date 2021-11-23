@@ -2247,7 +2247,7 @@ SInternalField* tscFieldInfoAppend(SFieldInfo* pFieldInfo, TAOS_FIELD* pField) {
   assert(pFieldInfo != NULL);
   pFieldInfo->numOfOutput++;
 
-  struct SInternalField info = { .pExpr = NULL, .visible = true };
+  struct SInternalField info = { .pExpr = NULL, .visible = true, .fieldJson={0} };
 
   info.field = *pField;
   return taosArrayPush(pFieldInfo->internalField, &info);
@@ -2255,7 +2255,7 @@ SInternalField* tscFieldInfoAppend(SFieldInfo* pFieldInfo, TAOS_FIELD* pField) {
 
 SInternalField* tscFieldInfoInsert(SFieldInfo* pFieldInfo, int32_t index, TAOS_FIELD* field) {
   pFieldInfo->numOfOutput++;
-  struct SInternalField info = { .pExpr = NULL, .visible = true };
+  struct SInternalField info = { .pExpr = NULL, .visible = true, .fieldJson={0}};
 
   info.field = *field;
   return taosArrayInsert(pFieldInfo->internalField, index, &info);

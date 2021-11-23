@@ -80,6 +80,7 @@ typedef struct SInternalField {
   TAOS_FIELD      field;
   bool            visible;
   SExprInfo      *pExpr;
+  TAOS_FIELD      fieldJson;  // for tag json
 } SInternalField;
 
 typedef struct SParamInfo {
