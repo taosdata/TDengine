@@ -229,7 +229,8 @@ static SKeyword keywordTable[] = {
     {"FUNCTIONS",    TK_FUNCTIONS},
     {"OUTPUTTYPE",   TK_OUTPUTTYPE},
     {"AGGREGATE",    TK_AGGREGATE},
-    {"BUFSIZE",      TK_BUFSIZE}
+    {"BUFSIZE",      TK_BUFSIZE},
+    {"RANGE",        TK_RANGE}
 };
 
 static const char isIdChar[] = {
@@ -626,12 +627,16 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
     while (isspace(t) || t == ',') {
       if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
         t0.n = 0;
+        t0.type = TK_ILLEGAL;
         return t0;
       }
 
       t = str[++(*i)];
     }
-
+    if (str[*i] == 0) {
+      t0.n = 0;
+      break;
+    }
     t0.n = tGetToken(&str[*i], &t0.type);
     break;
 

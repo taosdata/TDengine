@@ -78,7 +78,13 @@ mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
 
-[ -f ${cfg_dir}/taosadapter.toml ] && cp ${cfg_dir}/taosadapter.toml ${install_dir}/cfg/taosadapter.toml
+if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
+    cp ${compile_dir}/test/cfg/taosadapter.toml                 ${install_dir}/cfg || :
+fi
+
+if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
+    cp ${compile_dir}/test/cfg/taosadapter.service          ${install_dir}/cfg || :
+fi
 
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/taosd.deb

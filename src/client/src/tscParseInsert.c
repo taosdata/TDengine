@@ -314,8 +314,6 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
         if (ret != TSDB_CODE_SUCCESS) {
           return tscInvalidOperationMsg(msg, "invalid unsigned bigint data", pToken->z);
-        } else if (!IS_VALID_UBIGINT((uint64_t)iv)) {
-          return tscInvalidOperationMsg(msg, "unsigned bigint data overflow", pToken->z);
         }
 
         *((uint64_t *)payload) = iv;
@@ -1416,6 +1414,11 @@ int tsParseInsertSql(SSqlObj *pSql) {
        * merge or submit, save the file path and parse the file in other routines.
        */
       if (TSDB_QUERY_HAS_TYPE(pInsertParam->insertType, TSDB_QUERY_TYPE_FILE_INSERT)) {
+        goto _clean;
+      }
+
+      if (sToken.type == TK_ILLEGAL) {  // ,,,, like => insert into t values(now,1),,,,(now+1s,2);
+        code = tscSQLSyntaxErrMsg(pInsertParam->msg, NULL, str);
         goto _clean;
       }
 

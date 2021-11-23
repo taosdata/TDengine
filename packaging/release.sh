@@ -194,6 +194,7 @@ fi
 
 if [[ "$dbName" == "pro" ]]; then
     sed -i "s/taos config/prodb config/g"   ${top_dir}/src/util/src/tconfig.c
+    sed -i "s/TDengine/ProDB/g" ${top_dir}/src/dnode/src/dnodeSystem.c
 fi
 
 echo "build ${pagMode} package ..."
@@ -213,7 +214,12 @@ else
   exit 1
 fi
 
-make -j8 && ${csudo} make install
+if [[ "$allocator" == "jemalloc" ]]; then
+    # jemalloc need compile first, so disable parallel build
+    make V=1 && ${csudo} make install
+else
+    make -j8 && ${csudo} make install
+fi
 
 cd ${curr_dir}
 

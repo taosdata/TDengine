@@ -145,27 +145,27 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 <br/>如果是无模式写入过程中的数据本身错误，应用会得到 TSDB_CODE_TSC_LINE_SYNTAX_ERROR 错误信息，该错误信息表明错误发生在写入文本中。其他的错误码与原系统一致，可以通过 taos_errstr 获取具体的错误原因。
 
 **后续升级计划**
-<br/>当前版本只提供了 C 版本的 API，后续将提供 其他高级语言的 API，例如 Java/Go/Python/C# 等。此外，在TDengine v2.3及后续版本中，您还可以通过 BLM v3 采用 REST 的方式直接写入无模式数据。
+<br/>当前版本只提供了 C 版本的 API，后续将提供 其他高级语言的 API，例如 Java/Go/Python/C# 等。此外，在TDengine v2.3及后续版本中，您还可以通过 Taos Adapter 采用 REST 的方式直接写入无模式数据。
 
 
 ## <a class="anchor" id="prometheus"></a>Prometheus 直接写入
 
 [Prometheus](https://www.prometheus.io/)作为Cloud Native Computing Fundation毕业的项目，在性能监控以及K8S性能监控领域有着非常广泛的应用。TDengine提供一个小工具[Bailongma](https://github.com/taosdata/Bailongma)，只需对Prometheus做简单配置，无需任何代码，就可将Prometheus采集的数据直接写入TDengine，并按规则在TDengine自动创建库和相关表项。博文[用Docker容器快速搭建一个Devops监控Demo](https://www.taosdata.com/blog/2020/02/03/1189.html)即是采用Bailongma将Prometheus和Telegraf的数据写入TDengine中的示例，可以参考。
 
-### 从源代码编译 taosadapter_prometheus
+### 从源代码编译 blm_prometheus
 
 用户需要从github下载[Bailongma](https://github.com/taosdata/Bailongma)的源码，使用Golang语言编译器编译生成可执行文件。在开始编译前，需要准备好以下条件：
 - Linux操作系统的服务器
 - 安装好Golang，1.14版本以上
 - 对应的TDengine版本。因为用到了TDengine的客户端动态链接库，因此需要安装好和服务端相同版本的TDengine程序；比如服务端版本是TDengine 2.0.0, 则在Bailongma所在的Linux服务器（可以与TDengine在同一台服务器，或者不同服务器）
 
-Bailongma项目中有一个文件夹taosadapter_prometheus，存放了prometheus的写入API程序。编译过程如下：
+Bailongma项目中有一个文件夹blm_prometheus，存放了prometheus的写入API程序。编译过程如下：
 ```bash
-cd taosadapter_prometheus
+cd blm_prometheus
 go build
 ```
 
-一切正常的情况下，就会在对应的目录下生成一个taosadapter_prometheus的可执行程序。
+一切正常的情况下，就会在对应的目录下生成一个blm_prometheus的可执行程序。
 
 ### 安装 Prometheus
 
@@ -176,23 +176,23 @@ go build
 参考Prometheus的[配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/)，在Prometheus的配置文件中的<remote_write>部分，增加以下配置：
 
 ```
-  - url: "bailongma API服务提供的URL"（参考下面的taosadapter_prometheus启动示例章节）
+  - url: "bailongma API服务提供的URL"（参考下面的blm_prometheus启动示例章节）
 ```
 
 启动Prometheus后，可以通过taos客户端查询确认数据是否成功写入。
 
-### 启动 taosadapter_prometheus 程序
+### 启动 blm_prometheus 程序
 
-taosadapter_prometheus程序有以下选项，在启动taosadapter_prometheus程序时可以通过设定这些选项来设定taosadapter_prometheus的配置。
+blm_prometheus程序有以下选项，在启动blm_prometheus程序时可以通过设定这些选项来设定blm_prometheus的配置。
 ```bash
 --tdengine-name
 如果TDengine安装在一台具备域名的服务器上，也可以通过配置TDengine的域名来访问TDengine。在K8S环境下，可以配置成TDengine所运行的service name。
 
 --batch-size
-taosadapter_prometheus会将收到的prometheus的数据拼装成TDengine的写入请求，这个参数控制一次发给TDengine的写入请求中携带的数据条数。
+blm_prometheus会将收到的prometheus的数据拼装成TDengine的写入请求，这个参数控制一次发给TDengine的写入请求中携带的数据条数。
 
 --dbname
-设置在TDengine中创建的数据库名称，taosadapter_prometheus会自动在TDengine中创建一个以dbname为名称的数据库，缺省值是prometheus。
+设置在TDengine中创建的数据库名称，blm_prometheus会自动在TDengine中创建一个以dbname为名称的数据库，缺省值是prometheus。
 
 --dbuser
 设置访问TDengine的用户名，缺省值是'root'。
@@ -201,16 +201,16 @@ taosadapter_prometheus会将收到的prometheus的数据拼装成TDengine的写�
 设置访问TDengine的密码，缺省值是'taosdata'。
 
 --port
-taosadapter_prometheus对prometheus提供服务的端口号。
+blm_prometheus对prometheus提供服务的端口号。
 ```
 
 ### 启动示例
 
-通过以下命令启动一个taosadapter_prometheus的API服务
+通过以下命令启动一个blm_prometheus的API服务
 ```bash
-./taosadapter_prometheus -port 8088
+./blm_prometheus -port 8088
 ```
-假设taosadapter_prometheus所在服务器的IP地址为"10.1.2.3"，则在prometheus的配置文件中<remote_write>部分增加url为
+假设blm_prometheus所在服务器的IP地址为"10.1.2.3"，则在prometheus的配置文件中<remote_write>部分增加url为
 ```yaml
 remote_write:
   - url: "http://10.1.2.3:8088/receive"
@@ -235,7 +235,7 @@ prometheus产生的数据格式如下：
   }
 }
 ```
-其中，apiserver_request_latencies_bucket为prometheus采集的时序数据的名称，后面{}中的为该时序数据的标签。taosadapter_prometheus会以时序数据的名称在TDengine中自动创建一个超级表，并将{}中的标签转换成TDengine的tag值，Timestamp作为时间戳，value作为该时序数据的值。因此在TDengine的客户端中，可以通过以下指令查到这个数据是否成功写入。
+其中，apiserver_request_latencies_bucket为prometheus采集的时序数据的名称，后面{}中的为该时序数据的标签。blm_prometheus会以时序数据的名称在TDengine中自动创建一个超级表，并将{}中的标签转换成TDengine的tag值，Timestamp作为时间戳，value作为该时序数据的值。因此在TDengine的客户端中，可以通过以下指令查到这个数据是否成功写入。
 ```mysql
 use prometheus;
 select * from apiserver_request_latencies_bucket;
@@ -314,7 +314,7 @@ taosadapter 相关配置参数请参考 taosadapter --help 命令输出以及相
 
 [Telegraf](https://www.influxdata.com/time-series-platform/telegraf/)是一流行的IT运维数据采集开源工具，TDengine提供一个小工具[Bailongma](https://github.com/taosdata/Bailongma)，只需在Telegraf做简单配置，无需任何代码，就可将Telegraf采集的数据直接写入TDengine，并按规则在TDengine自动创建库和相关表项。博文[用Docker容器快速搭建一个Devops监控Demo](https://www.taosdata.com/blog/2020/02/03/1189.html)即是采用bailongma将Prometheus和Telegraf的数据写入TDengine中的示例，可以参考。
 
-### 从源代码编译 taosadapter_telegraf
+### 从源代码编译 blm_telegraf
 
 用户需要从github下载[Bailongma](https://github.com/taosdata/Bailongma)的源码，使用Golang语言编译器编译生成可执行文件。在开始编译前，需要准备好以下条件：
 
@@ -322,14 +322,14 @@ taosadapter 相关配置参数请参考 taosadapter --help 命令输出以及相
 - 安装好Golang，1.10版本以上
 - 对应的TDengine版本。因为用到了TDengine的客户端动态链接库，因此需要安装好和服务端相同版本的TDengine程序；比如服务端版本是TDengine 2.0.0, 则在Bailongma所在的Linux服务器（可以与TDengine在同一台服务器，或者不同服务器）
 
-Bailongma项目中有一个文件夹taosadapter_telegraf，存放了Telegraf的写入API程序。编译过程如下：
+Bailongma项目中有一个文件夹blm_telegraf，存放了Telegraf的写入API程序。编译过程如下：
 
 ```bash
-cd taosadapter_telegraf
+cd blm_telegraf
 go build
 ```
 
-一切正常的情况下，就会在对应的目录下生成一个taosadapter_telegraf的可执行程序。
+一切正常的情况下，就会在对应的目录下生成一个blm_telegraf的可执行程序。
 
 ### 安装 Telegraf
 
@@ -352,19 +352,19 @@ go build
 
 关于如何使用Telegraf采集数据以及更多有关使用Telegraf的信息，请参考Telegraf官方的[文档](https://docs.influxdata.com/telegraf/v1.11/)。
 
-### 启动 taosadapter_telegraf 程序
+### 启动 blm_telegraf 程序
 
-taosadapter_telegraf程序有以下选项，在启动taosadapter_telegraf程序时可以通过设定这些选项来设定taosadapter_telegraf的配置。
+blm_telegraf程序有以下选项，在启动blm_telegraf程序时可以通过设定这些选项来设定blm_telegraf的配置。
 
 ```bash
 --host
 TDengine服务端的IP地址，缺省值为空。
 
 --batch-size
-taosadapter_telegraf会将收到的telegraf的数据拼装成TDengine的写入请求，这个参数控制一次发给TDengine的写入请求中携带的数据条数。
+blm_telegraf会将收到的telegraf的数据拼装成TDengine的写入请求，这个参数控制一次发给TDengine的写入请求中携带的数据条数。
 
 --dbname
-设置在TDengine中创建的数据库名称，taosadapter_telegraf会自动在TDengine中创建一个以dbname为名称的数据库，缺省值是prometheus。
+设置在TDengine中创建的数据库名称，blm_telegraf会自动在TDengine中创建一个以dbname为名称的数据库，缺省值是prometheus。
 
 --dbuser
 设置访问TDengine的用户名，缺省值是'root'。
@@ -373,17 +373,17 @@ taosadapter_telegraf会将收到的telegraf的数据拼装成TDengine的写入�
 设置访问TDengine的密码，缺省值是'taosdata'。
 
 --port
-taosadapter_telegraf对telegraf提供服务的端口号。
+blm_telegraf对telegraf提供服务的端口号。
 ```
 
 ### 启动示例
 
-通过以下命令启动一个taosadapter_telegraf的API服务：
+通过以下命令启动一个blm_telegraf的API服务：
 ```bash
-./taosadapter_telegraf -host 127.0.0.1 -port 8089
+./blm_telegraf -host 127.0.0.1 -port 8089
 ```
 
-假设taosadapter_telegraf所在服务器的IP地址为"10.1.2.3"，则在telegraf的配置文件中, 在output plugins部分，增加[[outputs.http]]配置项：
+假设blm_telegraf所在服务器的IP地址为"10.1.2.3"，则在telegraf的配置文件中, 在output plugins部分，增加[[outputs.http]]配置项：
 
 ```yaml
 url = "http://10.1.2.3:8089/telegraf"
@@ -416,7 +416,7 @@ telegraf产生的数据格式如下：
 }
 ```
 
-其中，name字段为telegraf采集的时序数据的名称，tags字段为该时序数据的标签。taosadapter_telegraf会以时序数据的名称在TDengine中自动创建一个超级表，并将tags字段中的标签转换成TDengine的tag值，timestamp作为时间戳，fields字段中的值作为该时序数据的值。因此在TDengine的客户端中，可以通过以下指令查到这个数据是否成功写入。
+其中，name字段为telegraf采集的时序数据的名称，tags字段为该时序数据的标签。blm_telegraf会以时序数据的名称在TDengine中自动创建一个超级表，并将tags字段中的标签转换成TDengine的tag值，timestamp作为时间戳，fields字段中的值作为该时序数据的值。因此在TDengine的客户端中，可以通过以下指令查到这个数据是否成功写入。
 
 ```mysql
 use telegraf;

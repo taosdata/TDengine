@@ -23,14 +23,12 @@ public class RestfulConnectionTest {
     }
 
     @Test
-    public void createStatement() {
+    public void createStatement() throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select server_status()");
             rs.next();
             int status = rs.getInt("server_status()");
             assertEquals(1, status);
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
@@ -359,13 +357,9 @@ public class RestfulConnectionTest {
     }
 
     @Test
-    public void unwrap() {
-        try {
-            RestfulConnection restfulConnection = conn.unwrap(RestfulConnection.class);
-            Assert.assertNotNull(restfulConnection);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    public void unwrap() throws SQLException {
+        RestfulConnection restfulConnection = conn.unwrap(RestfulConnection.class);
+        Assert.assertNotNull(restfulConnection);
     }
 
     @Test
@@ -374,32 +368,22 @@ public class RestfulConnectionTest {
     }
 
     @BeforeClass
-    public static void beforeClass() {
-        try {
-            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-            Properties properties = new Properties();
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/log?user=root&password=taosdata", properties);
-            // create test database for test cases
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("create database if not exists test");
-            }
-
-        } catch (ClassNotFoundException | SQLException e) {
-            e.printStackTrace();
+    public static void beforeClass() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+        conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/log?user=root&password=taosdata", properties);
+        // create test database for test cases
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("create database if not exists test");
         }
     }
 
     @AfterClass
-    public static void afterClass() {
-        try {
-            if (conn != null)
-                conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    public static void afterClass() throws SQLException {
+        if (conn != null)
+            conn.close();
     }
 
 }
