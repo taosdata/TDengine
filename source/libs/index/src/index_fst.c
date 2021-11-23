@@ -156,7 +156,7 @@ uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes *node, 
 } 
 
 
-FstState fstStateCreate(FstSlice* slice, CompiledAddr addr) {
+FstState fstStateCreateFrom(FstSlice* slice, CompiledAddr addr) {
   FstState fs = {.state = EmptyFinal, .val = 0};
   if (addr == EMPTY_ADDRESS) {
     return fs; 
@@ -175,13 +175,26 @@ FstState fstStateCreate(FstSlice* slice, CompiledAddr addr) {
   return fs;
 }
 
+static FstState stateDict[] = {
+  {.state = OneTransNext, .val = 0b11000000},
+  {.state = OneTrans,     .val = 0b10000000},
+  {.state = AnyTrans,     .val = 0b00000000},
+  {.state = EmptyFinal,   .val = 0b00000000}
+};
+
+FstState fstStateCreate(State state){
+  uint8_t idx = (uint8_t)state;
+  return stateDict[idx];
+  
+}
+
 // fst node function 
 
 FstNode *fstNodeCreate(int64_t version, CompiledAddr addr, FstSlice *slice) {
   FstNode *n = (FstNode *)malloc(sizeof(FstNode)); 
   if (n == NULL) { return NULL; }
 
-  FstState st = fstStateCreate(slice, addr);  
+  FstState st = fstStateCreateFrom(slice, addr);  
 
   if (st.state == EmptyFinal) {
      n->data    = fstSliceCreate(NULL, 0);   

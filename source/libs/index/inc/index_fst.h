@@ -95,7 +95,32 @@ typedef struct FstState {
   uint8_t val;
 } FstState;
 
-FstState fstStateCreate(FstSlice* data, CompiledAddr addr);
+FstState fstStateCreateFrom(FstSlice* data, CompiledAddr addr);
+FstState fstStateCreate(State state);
+
+//compile
+void fstStateCompileForOneTransNext(FstState state, FstCountingWriter *w, CompiledAddr addr, uint8_t inp);
+void fstStateCompileForOneTrans(FstState state, FstCountingWriter *w, CompiledAddr addr, FstTransition trn);
+void fstStateCompileForAnyTrans(FstState state, FstCountingWriter *w, CompiledAddr addr, FstBuilderNode *node);
+
+// set_comm_input
+void fstStateSetCommInputForOneTransNext(FstState state, uint8_t inp);
+void fstStateSetCommInputForOneTrans(FstState state, uint8_t inp);
+
+// comm_input
+uint8_t fstStateCommInputForOneTransNext(FstState state);
+uint8_t fstStateCommInputForOneTrans(FstState state);
+
+// input_len
+
+uint64_t fstStateInputLenForOneTransNext(FstState state);
+uint64_t fstStateInputLenForOneTrans(FstState state);
+
+
+
+
+
+  
 
 #define FST_STATE_ONE_TRNAS_NEXT(node) (node->state.state == OneTransNext) 
 #define FST_STATE_ONE_TRNAS(node) (node->state.state == OneTrans)
