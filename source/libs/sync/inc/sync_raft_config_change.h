@@ -33,6 +33,11 @@ struct SSyncRaftChanger {
 typedef int (*configChangeFp)(SSyncRaftChanger* changer, const SSyncConfChangeSingleArray* css,
                             SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap);
 
+// Simple carries out a series of configuration changes that (in aggregate)
+// mutates the incoming majority config Voters[0] by at most one. This method
+// will return an error if that is not the case, if the resulting quorum is
+// zero, or if the configuration is in a joint state (i.e. if there is an
+// outgoing configuration).
 int syncRaftChangerSimpleConfig(SSyncRaftChanger* changer, const SSyncConfChangeSingleArray* css,
                             SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap);
 

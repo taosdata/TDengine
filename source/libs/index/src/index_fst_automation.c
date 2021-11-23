@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <cli@taosdata.com>
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -12,14 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#include "raft_configuration.h"
-#include "raft.h"
-
-int syncRaftConfigurationIndexOfNode(SSyncRaft *pRaft, SyncNodeId id) {
-  return (int)(id);
-}
-
-int syncRaftConfigurationVoterCount(SSyncRaft *pRaft) {
-  return pRaft->cluster.replica;
-}

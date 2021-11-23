@@ -27,6 +27,7 @@
 // the Changer only needs a ProgressMap (not a whole Tracker) at which point
 // this can just take LastIndex and MaxInflight directly instead and cook up
 // the results from that alone.
-int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs);
+int syncRaftRestoreConfig(SSyncRaftChanger* changer, const SSyncConfigState* cs,
+                          SSyncRaftProgressTrackerConfig* config, SSyncRaftProgressMap* progressMap);
 
 #endif /* TD_SYNC_RAFT_RESTORE_H */

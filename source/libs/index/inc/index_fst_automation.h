@@ -12,38 +12,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef __INDEX_FST_AUTAOMATION_H__
+#define __INDEX_FST_AUTAOMATION_H__
 
-#include "wal.h"
+struct AutomationCtx;
 
-int32_t walCommit(SWal *pWal, int64_t ver) {
-  return 0;
-}
+typedef struct StartWith {
+  AutomationCtx  *autoSelf;
+} StartWith;
 
-int32_t walRollback(SWal *pWal, int64_t ver) {
-  return 0;
-}
+typedef struct Complement {
+  AutomationCtx *autoSelf;
+} Complement;
 
-int32_t walPrune(SWal *pWal, int64_t ver) {
-  return 0;
-}
+// automation 
+typedef struct AutomationCtx {
+  void *data;
+} AutomationCtx;
+
+// automation interface
+void (*start)(AutomationCtx *ctx); 
+bool (*isMatch)(AutomationCtx *ctx);
+bool (*canMatch)(AutomationCtx *ctx, void *data);
+bool (*willAlwaysMatch)(AutomationCtx *ctx, void *state); 
+void* (*accpet)(AutomationCtx *ctx, void *state, uint8_t byte);
+void* (*accpetEof)(AutomationCtx *ctx, *state);
 
 
-int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
-  return 0;
-}
-
-int32_t walReadWithFp(SWal *pWal, FWalWrite writeFp, int64_t verStart, int32_t readNum) {
-  return 0;
-}
-
-int64_t walGetFirstVer(SWal *pWal) {
-  return 0;
-}
-
-int64_t walGetSnapshotVer(SWal *pWal) {
-  return 0;
-}
-
-int64_t walGetLastVer(SWal *pWal) {
-  return 0;
-}
+#endif

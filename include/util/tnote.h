@@ -53,7 +53,7 @@ void taosNotePrintBuffer(SNoteObj *pNote, char *buffer, int32_t len);
   }
 
 #define nInfo(buffer, len)                         \
-  if (tscEmbedded == 1) {                          \
+  if (tscEmbeddedInUtil == 1) {                          \
     taosNotePrintBuffer(&tsInfoNote, buffer, len); \
   }
 
