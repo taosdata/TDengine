@@ -67,7 +67,39 @@ void freeParam(SQueryParam *param) {
   tfree(param->prevResult);
 }
 
-int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qinfo_t* pQInfo, uint64_t qId) {
+static void* setJsonTagSchema(void* tsdb, int16_t numOfOutput, SExprInfo *pExprs, SArray* pTableIdList){
+  uint16_t cnt = 0;
+  for (int i = 0; i < numOfOutput; ++i) {
+    SSqlExpr* sqlExpr = &pExprs[i].base;
+    if (sqlExpr->colType == TSDB_DATA_TYPE_JSON && sqlExpr->numOfParams > 0) {
+      cnt ++;
+    }
+  }
+  if(cnt <= 0) return NULL;
+  void* tJsonSchData = calloc(1, SHORT_BYTES + cnt*sizeof(TagJsonSSchema));
+  *(uint16_t*)(tJsonSchData) = cnt;
+  void* tmp = tJsonSchData + SHORT_BYTES;
+  for (int i = 0; i < numOfOutput; ++i) {
+    SSqlExpr* sqlExpr = &pExprs[i].base;
+    if (sqlExpr->colType == TSDB_DATA_TYPE_JSON && sqlExpr->numOfParams > 0){
+      TagJsonSSchema* schema = (TagJsonSSchema*)(tmp);
+      schema->type = TSDB_DATA_TYPE_NULL;
+      tstrncpy(schema->name, sqlExpr->param[0].pz, TSDB_MAX_JSON_KEY_LEN + 1);
+      for (int j = 0; j < taosArrayGetSize(pTableIdList); ++j) {
+        STableIdInfo *id = taosArrayGet(pTableIdList, j);
+        uint8_t type = getTagJsonType(tsdb, id->uid, sqlExpr->param[0].pz, sqlExpr->param[0].nLen);
+        if(type != TSDB_DATA_TYPE_NULL) {
+          schema->type = type;
+          break;
+        }
+      }
+      tmp += sizeof(TagJsonSSchema);
+    }
+  }
+  return tJsonSchData;
+}
+
+int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qinfo_t* pQInfo, uint64_t qId, void** tJsonSchema) {
   assert(pQueryMsg != NULL && tsdb != NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -168,7 +200,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   assert(pQueryMsg->stableQuery == isSTableQuery);
   (*pQInfo) = createQInfoImpl(pQueryMsg, param.pGroupbyExpr, param.pExprs, param.pSecExprs, &tableGroupInfo,
                               param.pTagColumnInfo, param.pFilters, vgId, param.sql, qId, param.pUdfInfo);
-
+  *tJsonSchema = setJsonTagSchema(tsdb, pQueryMsg->numOfOutput, param.pExprs, param.pTableIdList);
   param.sql    = NULL;
   param.pExprs = NULL;
   param.pSecExprs = NULL;

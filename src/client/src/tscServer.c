@@ -2643,12 +2643,37 @@ int tscProcessShowCreateRsp(SSqlObj *pSql) {
   return tscLocalResultCommonBuilder(pSql, 1);
 }
 
+static void updateFieldForJson(SSqlObj *pSql, SQueryTableRsp *pQueryAttr){
+  if(pQueryAttr->tJsonSchLen <= 0) {
+    return;
+  }
+
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
+  SFieldInfo *pFieldInfo = &pQueryInfo->fieldsInfo;
+  for(int32_t i = 0; i < pFieldInfo->numOfOutput; ++i) {
+    SInternalField *pField = tscFieldInfoGetInternalField(pFieldInfo, i);
+
+    if (pField->field.type == TSDB_DATA_TYPE_JSON) {
+      for (int k = 0; k < pQueryAttr->tJsonSchLen; ++k) {
+        if (strncmp(pField->field.name, pQueryAttr->tagJsonSchema[k].name, TSDB_MAX_JSON_KEY_LEN) == 0) {
+          pField->field.type = pQueryAttr->tagJsonSchema[k].type;
+          pField->field.bytes = TYPE_BYTES[pField->field.type];
+          tscDebug("0x%" PRIx64 " change json type %s:%s to %d", pSql->self, pField->field.name, pQueryAttr->tagJsonSchema[k].name,
+                   pField->field.type);
+          break;
+        }
+      }
+    }
+  }
+}
+
 int tscProcessQueryRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
 
   SQueryTableRsp *pQueryAttr = (SQueryTableRsp *)pRes->pRsp;
   pQueryAttr->qId = htobe64(pQueryAttr->qId);
-
+  pQueryAttr->tJsonSchLen = htons(pQueryAttr->tJsonSchLen);
+  updateFieldForJson(pSql, pQueryAttr);
   pRes->qId  = pQueryAttr->qId;
   pRes->data = NULL;
 

@@ -239,14 +239,25 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
   if (contLen != 0) {
     qinfo_t pQInfo = NULL;
     uint64_t qId = genQueryId();
-    code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, &pQInfo, qId);
+    void* tJsonSchema = NULL;
+    code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, &pQInfo, qId, &tJsonSchema);
 
-    SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp));
+    int extSize = 0;
+    if (tJsonSchema != NULL){
+      uint16_t cnt = *(uint16_t*)tJsonSchema;
+      extSize = cnt * sizeof(TagJsonSSchema);
+    }
+    SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp) + extSize);
     pRsp->code = code;
     pRsp->qId  = 0;
 
-    pRet->len = sizeof(SQueryTableRsp);
+    pRet->len = sizeof(SQueryTableRsp) + extSize;
     pRet->rsp = pRsp;
+    if (tJsonSchema != NULL){
+      pRsp->tJsonSchLen = htons(*(uint16_t*)tJsonSchema);
+      memcpy(pRsp->tagJsonSchema, tJsonSchema + SHORT_BYTES, extSize);
+      tfree(tJsonSchema);
+    }
     int32_t vgId = pVnode->vgId;
 
     // current connect is broken
