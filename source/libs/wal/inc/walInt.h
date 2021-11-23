@@ -16,6 +16,8 @@
 #ifndef _TD_WAL_INT_H_
 #define _TD_WAL_INT_H_
 
+#include "wal.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

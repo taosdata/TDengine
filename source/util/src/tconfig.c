@@ -402,7 +402,7 @@ void taosPrintGlobalCfg() {
 
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
-    if (tscEmbedded == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
+    if (tscEmbeddedInUtil == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
     if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
     
     int optionLen = (int)strlen(cfg->option);
@@ -487,7 +487,7 @@ void taosDumpGlobalCfg() {
   printf("==================================\n");
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
-    if (tscEmbedded == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
+    if (tscEmbeddedInUtil == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
     if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
     if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_SHOW)) continue;
 
@@ -499,7 +499,7 @@ void taosDumpGlobalCfg() {
 
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
-    if (tscEmbedded == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
+    if (tscEmbeddedInUtil == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
     if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
     if (cfg->cfgType & TSDB_CFG_CTYPE_B_SHOW) continue;
 
