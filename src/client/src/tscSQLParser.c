@@ -6361,6 +6361,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     // the schema is located after the pMsg body, then followed by true tag value
     char* d = pUpdateMsg->data;
     SSchema* pTagCols = tscGetTableTagSchema(pTableMeta);
+
     for (int i = 0; i < numOfTags; ++i) {
       STColumn* pCol = (STColumn*) d;
       pCol->colId = htons(pTagCols[i].colId);
@@ -6415,6 +6416,14 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
     SStrToken    name = {.type = TK_STRING, .z = pItem->pVar.pz, .n = pItem->pVar.nLen};
+
+    //handle Escape character backstick
+    bool inEscape = false;
+    if (name.z[0] == TS_ESCAPE_CHAR && name.z[name.n - 1] == TS_ESCAPE_CHAR) {
+      inEscape = true;
+      name.type = TK_ID;
+    }
+
     if (getColumnIndexByName(&name, pQueryInfo, &columnIndex, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsg, msg17);
     }
@@ -6425,6 +6434,13 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     char name1[TSDB_COL_NAME_LEN] = {0};
     tstrncpy(name1, pItem->pVar.pz, sizeof(name1));
+
+    int32_t nameLen = pItem->pVar.nLen;
+    if (inEscape) {
+      memmove(name1, name1 + 1, nameLen);
+      name1[nameLen - TS_ESCAPE_CHAR_SIZE] = '\0';
+    }
+
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_COLUMN) {
