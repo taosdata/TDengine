@@ -182,14 +182,17 @@ TEST(testCase, displayPlan) {
   generateLogicplan("select count(*), first(a), last(b) from `t.1abc` state_window(a)");
   generateLogicplan("select count(*), first(a), last(b) from `t.1abc` session(ts, 20s)");
 
-  // order by + group by column + limit offset + fill
+  // order by + group by column + limit offset
   generateLogicplan("select top(a, 20) k from `t.1abc` order by k asc limit 3 offset 1");
 
+  // fill
+  generateLogicplan("select min(a) from `t.1abc` where ts>now and ts<now+2h interval(1s) fill(linear)");
+
+  // union + union all
+
+
+
   // join
-
-
-  // union
-
 
   // Aggregate(count(*) [count(*) #5056], sum(a) [sum(a) #5057], avg(b) [avg(b) #5058], min(a+b) [min(a+b) #5060])
   // Projection(cols: [a+b #5059]) filters:(nil)

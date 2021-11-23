@@ -954,22 +954,32 @@ int32_t validateOrderbyNode(SQueryStmtInfo *pQueryInfo, SSqlNode* pSqlNode, SMsg
   }
 
   // handle the first part of order by
+  bool found = false;
   for(int32_t i = 0; i < taosArrayGetSize(pSortOrder); ++i) {
-    SVariant* pVar = taosArrayGet(pSortOrder, i);
+    SListItem* pItem = taosArrayGet(pSortOrder, i);
+
+    SVariant* pVar = &pItem->pVar;
     if (pVar->nType == TSDB_DATA_TYPE_BINARY) {
-      SColumn c = {0};
+      SOrder order = {0};
 
       // find the orde column among the result field.
       for (int32_t j = 0; j < getNumOfFields(&pQueryInfo->fieldsInfo); ++j) {
         SInternalField* pInfo = taosArrayGet(pQueryInfo->fieldsInfo.internalField, j);
         SSchema* pSchema = &pInfo->pExpr->base.resSchema;
         if (strcasecmp(pVar->pz, pSchema->name) == 0) {
-          setColumn(&c, pTableMetaInfo->pTableMeta->uid, pTableMetaInfo->aliasName, TSDB_COL_TMP, &pSchema);
-          return TSDB_CODE_SUCCESS;
+          setColumn(&order.col, pTableMetaInfo->pTableMeta->uid, pTableMetaInfo->aliasName, TSDB_COL_TMP, pSchema);
+
+          order.order = pItem->sortOrder;
+          taosArrayPush(pQueryInfo->order, &order);
+          found = true;
+          break;
         }
       }
 
-      return buildInvalidOperationMsg(pMsgBuf, "invalid order by column");
+      if (!found) {
+        return buildInvalidOperationMsg(pMsgBuf, "invalid order by column");
+      }
+
     } else {  // order by [1|2|3]
       if (pVar->i > getNumOfFields(&pQueryInfo->fieldsInfo)) {
         return buildInvalidOperationMsg(pMsgBuf, msg4);
@@ -980,6 +990,7 @@ int32_t validateOrderbyNode(SQueryStmtInfo *pQueryInfo, SSqlNode* pSqlNode, SMsg
 
       SOrder c = {0};
       setColumn(&c.col, pTableMetaInfo->pTableMeta->uid, pTableMetaInfo->aliasName, TSDB_COL_TMP, &pExprInfo->base.resSchema);
+      c.order = pItem->sortOrder;
       taosArrayPush(pQueryInfo->order, &c);
     }
   }
@@ -1248,16 +1259,17 @@ int32_t checkForInvalidOrderby(SQueryStmtInfo *pQueryInfo, SSqlNode* pSqlNode, S
 #endif
 
 static int32_t checkFillQueryRange(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf) {
-  const char* msg3 = "start(end) time of time range required or time range too large";
+  const char* msg1 = "start(end) time of time range required or time range too large";
 
   if (pQueryInfo->interval.interval == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  bool initialWindows = TSWINDOW_IS_EQUAL(pQueryInfo->window, TSWINDOW_INITIALIZER);
-  if (initialWindows) {
-    return buildInvalidOperationMsg(pMsgBuf, msg3);
-  }
+  // TODO disable this check temporarily
+//  bool initialWindows = TSWINDOW_IS_EQUAL(pQueryInfo->window, TSWINDOW_INITIALIZER);
+//  if (initialWindows) {
+//    return buildInvalidOperationMsg(pMsgBuf, msg1);
+//  }
 
   int64_t timeRange = ABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
 
@@ -1267,7 +1279,7 @@ static int32_t checkFillQueryRange(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf)
 
     // number of result is not greater than 10,000,000
     if ((timeRange == 0) || (timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW) {
-      return buildInvalidOperationMsg(pMsgBuf, msg3);
+      return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
   }
 
@@ -1384,7 +1396,8 @@ int32_t validateFillNode(SQueryStmtInfo *pQueryInfo, SSqlNode* pSqlNode, SMsgBuf
   return TSDB_CODE_SUCCESS;
 }
 
-static void exprInfoPushDown(SQueryStmtInfo* pQueryInfo);
+static void pushDownAggFuncExprInfo(SQueryStmtInfo* pQueryInfo);
+static void addColumnNodeFromLowerLevel(SQueryStmtInfo* pQueryInfo);
 
 int32_t validateSqlNode(SSqlNode* pSqlNode, SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf) {
   assert(pSqlNode != NULL && (pSqlNode->from == NULL || taosArrayGetSize(pSqlNode->from->list) > 0));
@@ -1575,7 +1588,8 @@ int32_t validateSqlNode(SSqlNode* pSqlNode, SQueryStmtInfo* pQueryInfo, SMsgBuf*
     }
   }
 
-  exprInfoPushDown(pQueryInfo);
+  pushDownAggFuncExprInfo(pQueryInfo);
+//  addColumnNodeFromLowerLevel(pQueryInfo);
 
   for(int32_t i = 0; i < 1; ++i) {
     SArray* functionList = extractFunctionList(pQueryInfo->exprList[i]);
@@ -1629,15 +1643,29 @@ static bool isAllAggExpr(SArray* pList) {
   return true;
 }
 
-static SExprInfo* doCreateColumnNodeFromAggFunc(SSchema* pSchema);
+static bool isAllProjectExpr(SArray *pList) {
+  assert(pList != NULL);
 
-static void exprInfoPushDown(SQueryStmtInfo* pQueryInfo) {
+  for(int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
+    SExprInfo* p = taosArrayGetP(pList, i);
+    if (p->pExpr->nodeType == TEXPR_FUNCTION_NODE && !qIsAggregateFunction(p->pExpr->_function.functionName)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static SExprInfo* createColumnNodeFromAggFunc(SSchema* pSchema);
+
+static void pushDownAggFuncExprInfo(SQueryStmtInfo* pQueryInfo) {
   assert(pQueryInfo != NULL);
 
   size_t level = getExprFunctionLevel(pQueryInfo);
   for(int32_t i = 0; i < level - 1; ++i) {
     SArray* p = pQueryInfo->exprList[i];
 
+    // If direct lower level expressions are all aggregate function, check if current function can be push down or not
     SArray* pNext = pQueryInfo->exprList[i + 1];
     if (!isAllAggExpr(pNext)) {
       continue;
@@ -1650,8 +1678,8 @@ static void exprInfoPushDown(SQueryStmtInfo* pQueryInfo) {
         bool canPushDown = true;
         for (int32_t k = 0; k < taosArrayGetSize(pNext); ++k) {
           SExprInfo* pNextLevelExpr = taosArrayGetP(pNext, k);
+          // pExpr depends on the output of the down level, so it can not be push downwards
           if (pExpr->base.pColumns->info.colId == pNextLevelExpr->base.resSchema.colId) {
-            // pExpr is dependent on the output of the under layer, so it can not be push downwards
             canPushDown = false;
             break;
           }
@@ -1661,10 +1689,53 @@ static void exprInfoPushDown(SQueryStmtInfo* pQueryInfo) {
           taosArrayInsert(pNext, j, &pExpr);
           taosArrayRemove(p, j);
 
-          // todo add the project function in level of "i"
-          SExprInfo* pNew = doCreateColumnNodeFromAggFunc(&pExpr->base.resSchema);
+          // Add the project function of the current level, to output the calculated result
+          SExprInfo* pNew = createColumnNodeFromAggFunc(&pExpr->base.resSchema);
           taosArrayInsert(p, j, &pNew);
         }
+      }
+    }
+  }
+}
+
+// todo change the logic plan data
+static void addColumnNodeFromLowerLevel(SQueryStmtInfo* pQueryInfo) {
+  assert(pQueryInfo != NULL);
+
+  size_t level = getExprFunctionLevel(pQueryInfo);
+  for (int32_t i = 0; i < level - 1; ++i) {
+    SArray* p = pQueryInfo->exprList[i];
+    if (isAllAggExpr(p)) {
+      continue;
+    }
+
+    // If direct lower level expressions are all aggregate function, check if current function can be push down or not
+    SArray* pNext = pQueryInfo->exprList[i + 1];
+    if (isAllAggExpr(pNext)) {
+      continue;
+    }
+
+    for (int32_t j = 0; j < taosArrayGetSize(pNext); ++j) {
+      SExprInfo* pExpr = taosArrayGetP(p, j);
+
+      bool exists = false;
+      for (int32_t k = 0; k < taosArrayGetSize(p); ++k) {
+        SExprInfo* pNextLevelExpr = taosArrayGetP(pNext, k);
+        // pExpr depends on the output of the down level, so it can not be push downwards
+        if (pExpr->base.pColumns->info.colId == pNextLevelExpr->base.resSchema.colId) {
+          exists = true;
+          break;
+        }
+      }
+
+      if (!exists) {
+        SExprInfo* pNew = calloc(1, sizeof(SExprInfo));
+        pNew->pExpr = exprdup(pExpr->pExpr);
+        memcpy(&pNew->base, &pExpr->base, sizeof(SSqlExpr));
+
+        int32_t pos = taosArrayGetSize(p);
+        // Add the project function of the current level, to output the calculated result
+        taosArrayInsert(p, pos - 1, &pExpr);
       }
     }
   }
@@ -3096,7 +3167,7 @@ static tExprNode* doCreateColumnNode(SQueryStmtInfo* pQueryInfo, SColumnIndex* p
   return pExpr;
 }
 
-static SExprInfo* doCreateColumnNodeFromAggFunc(SSchema* pSchema) {
+static SExprInfo* createColumnNodeFromAggFunc(SSchema* pSchema) {
   tExprNode* pExprNode = calloc(1, sizeof(tExprNode));
 
   pExprNode->nodeType = TEXPR_COL_NODE;
