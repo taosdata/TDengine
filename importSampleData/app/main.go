@@ -628,7 +628,7 @@ func insertData(threadIndex, start, end int, wg *sync.WaitGroup, successRows []i
 					buffer.WriteString(",")
 
 					for _, field := range subTableInfo.config.Fields {
-						buffer.WriteString(getFieldValue(currentRow[strings.ToLower(field.Name)]))
+						buffer.WriteString(getFieldValue(currentRow[strings.ToLower(field.Name)],field.Type))
 						buffer.WriteString(",")
 					}
 
@@ -708,7 +708,10 @@ func executeBatchInsert(insertSql string, connection *sql.DB) int64 {
 	return affected
 }
 
-func getFieldValue(fieldValue interface{}) string {
+func getFieldValue(fieldValue interface{},fieldtype interface{}) string {
+	if fieldtype == "timestamp" || fieldtype == "bigint"  {
+		return fmt.Sprintf("%v", fieldValue)
+	}
 	return fmt.Sprintf("'%v'", fieldValue)
 }
 
