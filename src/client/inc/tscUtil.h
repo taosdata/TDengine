@@ -83,6 +83,11 @@ typedef struct SJoinSupporter {
   int32_t         totalLen;
   int32_t         num;
   SArray*         pVgroupTables;
+
+  int16_t          fillType;      // final result fill type
+  int64_t *        fillVal;       // default value for fill
+  int32_t          numOfFillVal;  // fill value size
+  
 } SJoinSupporter;
 
 
@@ -148,6 +153,7 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
  * @return
  */
 bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
+bool tscGetPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
 bool tscIsIrateQuery(SQueryInfo* pQueryInfo);
 bool tscQueryContainsFunction(SQueryInfo* pQueryInfo, int16_t functionId);

@@ -406,6 +406,7 @@ void tsdbDestroyCommitQueue();
 int  tsdbSyncCommit(STsdbRepo *repo);
 void tsdbIncCommitRef(int vgId);
 void tsdbDecCommitRef(int vgId);
+void tsdbSwitchTable(TsdbQueryHandleT pQueryHandle);
 
 // For TSDB file sync
 int tsdbSyncSend(void *pRepo, SOCKET socketFd);

@@ -192,6 +192,65 @@ tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optr
   return pSqlExpr;
 }
 
+
+tSqlExpr *tSqlExprCreateTimestamp(SStrToken *pToken, int32_t optrType) {
+  tSqlExpr *pSqlExpr = calloc(1, sizeof(tSqlExpr));
+
+  if (pToken != NULL) {
+    pSqlExpr->exprToken = *pToken;
+  }
+
+  if (optrType == TK_INTEGER || optrType == TK_STRING) {
+    if (pToken) {
+      toTSDBType(pToken->type);
+      tVariantCreate(&pSqlExpr->value, pToken);
+    }
+    pSqlExpr->tokenId = optrType;
+    pSqlExpr->type    = SQL_NODE_VALUE;
+  } else if (optrType == TK_NOW) {
+    // use nanosecond by default TODO set value after getting database precision
+    pSqlExpr->value.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+    pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+    pSqlExpr->tokenId = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
+    pSqlExpr->type    = SQL_NODE_VALUE;
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_NS_TIMESTAMP;
+  } else if (optrType == TK_PLUS || optrType == TK_MINUS) {
+    // use nanosecond by default
+    // TODO set value after getting database precision
+    if (pToken) {
+      char unit = 0;
+      int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64, &unit, TSDB_TIME_PRECISION_NANO);
+      if (ret != TSDB_CODE_SUCCESS) {
+        terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+      }
+    }
+  
+    if (optrType == TK_PLUS) {
+      pSqlExpr->value.i64 += taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+    } else {
+      pSqlExpr->value.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO) - pSqlExpr->value.i64;
+    }
+    
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_NS_TIMESTAMP;
+    pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+    pSqlExpr->tokenId = TK_TIMESTAMP;
+    pSqlExpr->type    = SQL_NODE_VALUE;
+  } else {
+    // Here it must be the column name (tk_id) if it is not a number or string.
+    assert(optrType == TK_ID || optrType == TK_ALL);
+    if (pToken != NULL) {
+      pSqlExpr->columnName = *pToken;
+    }
+
+    pSqlExpr->tokenId = optrType;
+    pSqlExpr->type    = SQL_NODE_TABLE_COLUMN;
+  }
+
+  return pSqlExpr;
+}
+
+
+
 /*
  * pList is the parameters for function with id(optType)
  * function name is denoted by pFunctionToken
@@ -751,7 +810,7 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
 SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
                                 SSessionWindowVal *pSession, SWindowStateVal *pWindowStateVal, SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit,
-                                SLimitVal *psLimit, tSqlExpr *pHaving) {
+                                SLimitVal *psLimit, tSqlExpr *pHaving, SRangeVal *pRange) {
   assert(pSelNodeList != NULL);
 
   SSqlNode *pSqlNode = calloc(1, sizeof(SSqlNode));
@@ -767,7 +826,10 @@ SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelat
   pSqlNode->pWhere      = pWhere;
   pSqlNode->fillType    = pFill;
   pSqlNode->pHaving     = pHaving;
-
+  if (pRange) {
+    pSqlNode->pRange      = *pRange;
+  }
+  
   if (pLimit != NULL) {
     pSqlNode->limit = *pLimit;
   } else {
