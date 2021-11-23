@@ -88,6 +88,19 @@ typedef struct FstTransitions {
   FstRange   range;   
 } FstTransitions;
 
+//FstState and relation function
+
+typedef struct FstState {
+  State state;
+  uint8_t val;
+} FstState;
+
+FstState fstStateCreate(FstSlice* data, CompiledAddr addr);
+
+#define FST_STATE_ONE_TRNAS_NEXT(node) (node->state.state == OneTransNext) 
+#define FST_STATE_ONE_TRNAS(node) (node->state.state == OneTrans)
+#define FST_STATE_ANY_TRANS(node) (node->state.state == AnyTrans)
+#define FST_STATE_EMPTY_FINAL(node) (node->state.state == EmptyFinal) 
 
 
 typedef struct FstLastTransition {
@@ -104,6 +117,8 @@ typedef struct FstBuilderNodeUnfinished {
   FstLastTransition* last; 
 } FstBuilderNodeUnfinished;
 
+
+
 void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished *node, CompiledAddr addr);
 void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *node, Output out);
 
@@ -113,7 +128,7 @@ void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *node, Out
 typedef struct FstNode {
   FstSlice     data;
   uint64_t     version; 
-  State        state;
+  FstState     state;
   CompiledAddr start; 
   CompiledAddr end;  
   bool         isFinal;
@@ -168,8 +183,6 @@ typedef struct FstIndexedValue {
 
 FstLastTransition *fstLastTransitionCreate(uint8_t inp, Output out);
 void fstLastTransitionDestroy(FstLastTransition *trn);
-
-
 
 
 
