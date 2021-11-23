@@ -215,23 +215,13 @@ static int32_t tscProcessDescribeTable(SSqlObj *pSql) {
   return tscSetValueToResObj(pSql, rowLen);
 }
 static int32_t tscGetNthFieldResult(TAOS_ROW row, TAOS_FIELD* fields, int *lengths, int idx, char *result) {
-  char *val = (char*)row[idx];
+  const char *val = (const char*)row[idx];
   if (val == NULL) {
     sprintf(result, "%s", TSDB_DATA_NULL_STR);
     return -1;
   } 
   uint8_t type = fields[idx].type;
-  int32_t length = lengths[idx]; 
-
-  if (type == TSDB_DATA_TYPE_JSON){
-    char* p = val;
-    type = *p;
-    val += CHAR_BYTES;
-    if(type == TSDB_DATA_TYPE_NCHAR) {
-      length = varDataLen(val);
-      val = varDataVal(val);
-    }
-  }
+  int32_t length = lengths[idx];
 
   switch (type) {
     case TSDB_DATA_TYPE_BOOL: 
@@ -257,6 +247,7 @@ static int32_t tscGetNthFieldResult(TAOS_ROW row, TAOS_FIELD* fields, int *lengt
       break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_JSON:
       memcpy(result, val, length); 
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
