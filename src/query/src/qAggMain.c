@@ -223,7 +223,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     if (functionId == TSDB_FUNC_INTERP) {
       *interBytes = sizeof(SInterpInfoDetail);
     } else if (functionId == TSDB_FUNC_DIFF) {
-      *interBytes = sizeof(SDiffFunctInfo);
+      *interBytes = sizeof(SDiffFuncInfo);
     } else {
       *interBytes = 0;
     }
