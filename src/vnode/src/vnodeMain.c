@@ -143,10 +143,10 @@ int32_t vnodeTruncate(STruncateTblMsg *pMsg) {
     // not care success or not
     STruncateTblMsg *param = (STruncateTblMsg *)calloc(1, sizeof(STruncateTblMsg) + pMsg->nSpan * sizeof(STimeWindow));
     param->vgId = 2;
-    param->uid = 562949986978794;
+    param->uid = 562949986979009;
     param->nSpan = 1;
-    param->span[0].skey = 1637417678000;
-    param->span[0].ekey = 1637417679000;
+    param->span[0].skey = 1634701320001;
+    param->span[0].ekey = 1634701320001;
     if (tsdbTruncate(((SVnodeObj *)pVnode)->tsdb, param) < 0) {
       tfree(param);
     }
