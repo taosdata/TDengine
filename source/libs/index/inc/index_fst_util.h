@@ -18,7 +18,7 @@
 #define __INDEX_FST_UTIL_H__
 
 #include "tarray.h"
-
+#include "index_fst_common.h"
 
 typedef uint64_t FstType;
 typedef uint64_t CompiledAddr; 
@@ -44,6 +44,8 @@ extern const uint64_t TRANS_INDEX_THRESHOLD;
 //
 // `0` is a legal value which means there are no transitions/outputs
 
+
+extern 
 #define FST_SET_TRANSITION_PACK_SIZE(v, sz) do {v = (v & 0b00001111) | (sz << 4} while(0)
 #define FST_GET_TRANSITION_PACK_SIZE(v) (((v) & 0b11110000) >> 4) 
 #define FST_SET_OUTPUT_PACK_SIZE(v, sz) do { v =  (v & 0b11110000) | sz } while(0)
@@ -79,7 +81,7 @@ FstSlice fstSliceCreate(uint8_t *data, uint64_t dLen);
 bool fstSliceEmpty(FstSlice *slice);
 int fstSliceCompare(FstSlice *a, FstSlice *b);
 
-#define FST_SLICE_LEN(s) (s->end - s->start + 1)
+#define FST_SLICE_LEN(s) ((s)->end - (s)->start + 1)
 
 
 #endif

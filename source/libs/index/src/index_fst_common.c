@@ -14,6 +14,7 @@
  */
 
 #include "tutil.h"
+
 const uint8_t COMMON_INPUTS[] = {
     84,  // '\x00'
     85,  // '\x01'
@@ -273,7 +274,7 @@ const uint8_t COMMON_INPUTS[] = {
     255, // 'ÿ'
 };
 
-char const COMMON_INPUTS_INV[] = {
+const char COMMON_INPUTS_INV[] = {
     't', 'e', '/', 'o', 'a', 's', 'r', 'i', 'p', 'c', 'n', 'w',
     '.', 'h', 'l', 'm', '-', 'd', 'u', '0', '1', '2', 'g', '=',
     ':', 'b', 'f', '3', 'y', '5', '&', '_', '4', 'v', '9', '6',

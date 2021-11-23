@@ -185,8 +185,119 @@ static FstState stateDict[] = {
 FstState fstStateCreate(State state){
   uint8_t idx = (uint8_t)state;
   return stateDict[idx];
-  
 }
+//compile
+void fstStateCompileForOneTransNext(FstState* state, FstCountingWriter *w, CompiledAddr addr, uint8_t inp) {
+  return ;
+}
+void fstStateCompileForOneTrans(FstState* state, FstCountingWriter *w, CompiledAddr addr, FstTransition trn) {
+  return ;
+
+}
+void fstStateCompileForAnyTrans(FstState* state, FstCountingWriter *w, CompiledAddr addr, FstBuilderNode *node) {
+  return;
+}
+
+// set_comm_input
+void fstStateSetCommInput(FstState* s, uint8_t inp) {
+  assert(s->state == OneTransNext || s->state == OneTrans);
+
+  uint8_t val;
+  COMMON_INDEX(inp, 0x111111, val); 
+  s->val = (s->val & stateDict[s->state].val) | val;    
+}
+
+// comm_input
+uint8_t fstStateCommInput(FstState* s) {
+  assert(s->state == OneTransNext || s->state == OneTrans);
+  uint8_t v = s->val & 0b00111111;
+  //v = 0 indicate that common_input is None
+  return v == 0 ? 0 : COMMON_INPUT(v);  
+}
+
+// input_len
+
+uint64_t fstStateInputLen(FstState* s) {
+  assert(s->state == OneTransNext || s->state == OneTrans);
+  return fstStateCommInput(s) == 0 ? 1 : 0;
+} 
+  
+
+// end_addr 
+uint64_t fstStateEndAddrForOneTransNext(FstState* s, FstSlice *data) {
+  return FST_SLICE_LEN(data) - 1 - fstStateInputLen(s);
+}
+uint64_t fstStateEndAddrForOneTrans(FstState *s, FstSlice *data, PackSizes sizes) {
+  return FST_SLICE_LEN(data) - 1 - fstStateInputLen(s) - 1 - FST_GET_TRANSITION_PACK_SIZE(sizes) - FST_GET_OUTPUT_PACK_SIZE(sizes); 
+}
+uint64_t fstStateEndAddrForAnyTrans(FstState *state, uint64_t version, FstSlice *date, PackSizes sizes, uint64_t nTrans) {
+  return 1;
+}
+// input  
+uint8_t  fstStateInput(FstState *state, FstNode *node) {
+  return 1;
+}
+uint8_t  fstStateInputForAnyTrans(FstState *state, FstNode *node, uint64_t i) {
+  return 1;
+}
+
+// trans_addr
+CompiledAddr fstStateTransAddr(FstState *state, FstNode *node) {
+  return 1;
+}
+CompiledAddr fstStateTransAddrForAnyTrans(FstState *state, FstNode *node, uint64_t i) {
+  return 1;
+}
+
+// sizes 
+PackSizes fstStateSizes(FstState *state, FstSlice *data) {
+  return 1;
+}
+// Output 
+Output fstStateOutput(FstState *state, FstNode *node) {
+  return 1;
+
+}
+Output fstStateOutputForAnyTrans(FstState *state, FstNode *node, uint64_t i) {
+  return 1;
+}
+
+// anyTrans specify function
+
+void fstStateSetFinalState(FstState *state, bool yes) {
+  return;
+}
+bool fstStateIsFinalState(FstState *state) {
+  return false;
+} 
+void fstStateSetStateNtrans(FstState *state, uint8_t n) {
+  return;
+}
+// state_ntrans
+void fstStateStateNtrans(FstState *state) {
+  return ;
+}
+uint64_t fstStateTotalTransSize(FstState *state, uint64_t version, PackSizes size, uint64_t nTrans) {
+  return 1;
+}
+uint64_t fstStateTransIndexSize(FstState *state, uint64_t version, uint64_t nTrans) {
+  return 1;
+}
+uint64_t fstStateNtransLen(FstState *state) {
+  return 1;
+}
+uint64_t fstStateNtrans(FstState *state) {
+  return 1;
+}
+Output  fstStateFinalOutput(FstState *state, uint64_t version, FstSlice *date, PackSizes sizes, uint64_t nTrans) {
+  return 1;
+
+}
+uint64_t fstStateFindInput(FstState *state, FstNode *node, uint8_t b) {
+  return 1;
+
+}
+
 
 // fst node function 
 
