@@ -1485,6 +1485,7 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
   const char* msg5 = "invalid binary/nchar column length";
   const char* msg6 = "invalid column name";
   const char* msg7 = "too many columns";
+  const char* msg8 = "invalid column name length";
 
   // number of fields no less than 2
   size_t numOfCols = taosArrayGetSize(pFieldList);
@@ -1522,8 +1523,13 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
       return false;
     }
 
-    if (validateColumnName(pField->name) != TSDB_CODE_SUCCESS) {
-      invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+    int32_t code = validateColumnName(pField->name);
+    if (code != TSDB_CODE_SUCCESS) {
+      if (code == TSDB_CODE_TSC_INVALID_COLUMN_LENGTH) {
+        invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
+      } else {
+        invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+      }
       return false;
     }
 
@@ -6763,6 +6769,9 @@ int32_t validateLocalConfig(SMiscInfo* pOptions) {
 }
 
 int32_t validateColumnName(char* name) {
+  if (strlen(name) == 0) {
+    return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
+  }
   bool ret = taosIsKeyWordToken(name, (int32_t)strlen(name));
   if (ret) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
