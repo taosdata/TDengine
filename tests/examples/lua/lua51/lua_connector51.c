@@ -102,7 +102,7 @@ static int l_query(lua_State *L){
     printf("failed, reason:%s\n", taos_errstr(result));
     lua_pushinteger(L, -1);
     lua_setfield(L, table_index, "code");    
-    lua_pushstring(L, taos_errstr(taos));
+    lua_pushstring(L, taos_errstr(result));
     lua_setfield(L, table_index, "error");    
    
     return 1;

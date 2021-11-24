@@ -57,7 +57,7 @@ int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pR
   STsdbRepo *    pRepo = repo;
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk *   pBlock = NULL;
-  int32_t        affectedrows = 0;
+  int32_t        affectedrows = 0, numOfRows = 0;
 
   if (tsdbScanAndConvertSubmitMsg(pRepo, pMsg) < 0) {
     if (terrno != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
@@ -73,9 +73,13 @@ int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pR
     if (tsdbInsertDataToTable(pRepo, pBlock, &affectedrows) < 0) {
       return -1;
     }
+    numOfRows += pBlock->numOfRows;
   }
 
-  if (pRsp != NULL) pRsp->affectedRows = htonl(affectedrows);
+  if (pRsp != NULL) {
+    pRsp->affectedRows = htonl(affectedrows);
+    pRsp->numOfRows = htonl(numOfRows);
+  }
 
   if (tsdbCheckCommit(pRepo) < 0) return -1;
   return 0;

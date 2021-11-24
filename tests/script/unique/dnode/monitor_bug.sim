@@ -19,7 +19,7 @@ sleep 3000
 
 sql show dnodes
 print dnode1 openVnodes $data2_1
-if $data2_1 > 2 then
+if $data2_1 > 4 then
 	return -1
 endi
 
@@ -28,20 +28,20 @@ sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 
 $x = 0
-show2: 
+show2:
 	$x = $x + 1
 	sleep 2000
 	if $x == 10 then
 		return -1
 	endi
-	
+
 sql show dnodes
 print dnode1 openVnodes $data2_1
 print dnode2 openVnodes $data2_2
 if $data2_1 != 0 then
 	goto show2
 endi
-if $data2_2 > 2 then
+if $data2_2 > 4 then
 	goto show2
 endi
 
@@ -55,7 +55,7 @@ print $data30
 print $data40
 print $data50
 
-if $rows > 5 then
+if $rows > 14 then
 	return -1
 endi
 
