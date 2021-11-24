@@ -18,6 +18,10 @@
 #include "tulog.h"
 #include "taosdef.h"
 
+/*
+ * Macro definition
+ */
+
 #define EXT_SIZE 1024
 #define HASH_MAX_CAPACITY (1024 * 1024 * 16)
 #define HASH_DEFAULT_LOAD_FACTOR (0.75)
@@ -43,6 +47,10 @@
 #define GET_HASH_NODE_DATA(_n) ((char*)(_n) + sizeof(SHashNode))
 #define GET_HASH_PNODE(_n) ((SHashNode *)((char*)(_n) - sizeof(SHashNode)))
 
+/*
+ * typedef
+ */
+
 typedef void (*_hash_free_fn_t)(void *param);
 
 typedef struct SHashEntry {
@@ -64,6 +72,10 @@ typedef struct SHashObj {
   bool            enableUpdate; // enable update
   SArray         *pMemBlock;    // memory block allocated for SHashEntry
 } SHashObj;
+
+/*
+ * Function definition
+ */
 
 static FORCE_INLINE void __wr_lock(void *lock, int32_t type) {
   if (type == HASH_NO_LOCK) {
@@ -168,8 +180,8 @@ static FORCE_INLINE void doUpdateHashNode(SHashObj *pHashObj, SHashEntry* pe, SH
 /**
  * Insert the hash node at the front of the linked list
  *
- * @param pHashObj
- * @param pNode
+ * @param pHashObj   hash table object
+ * @param pNode      the old node with requested key
  */
 static void pushfrontNodeInEntryList(SHashEntry *pEntry, SHashNode *pNode);
 
@@ -191,9 +203,9 @@ static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj);
  * @return           hash table object
  */
 SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTypeE type) {
-  assert(fn != NULL);
   if (fn == NULL) {
     uError("hash table must have a valid hash function");
+    assert(0);
     return NULL;
   }
 
@@ -209,27 +221,42 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 
   // the max slots is not defined by user
   pHashObj->capacity = taosHashCapacity((int32_t)capacity);
-  assert((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
   pHashObj->equalFp = memcmp;
   pHashObj->hashFp  = fn;
   pHashObj->type = type;
   pHashObj->enableUpdate = update;
+
+  assert((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
 
   pHashObj->hashList = (SHashEntry **)calloc(pHashObj->capacity, sizeof(void *));
   if (pHashObj->hashList == NULL) {
     free(pHashObj);
     uError("failed to allocate memory, reason:%s", strerror(errno));
     return NULL;
-  } else {
-    pHashObj->pMemBlock = taosArrayInit(8, sizeof(void *));
-
-    void *p = calloc(pHashObj->capacity, sizeof(SHashEntry));
-    for (int32_t i = 0; i < pHashObj->capacity; ++i) {
-      pHashObj->hashList[i] = (void *)((char *)p + i * sizeof(SHashEntry));
-    }
-
-    taosArrayPush(pHashObj->pMemBlock, &p);
   }
+
+  pHashObj->pMemBlock = taosArrayInit(8, sizeof(void *));
+  if (pHashObj->pMemBlock == NULL) {
+     free(pHashObj->hashList);
+     free(pHashObj);
+     uError("failed to allocate memory, reason:%s", strerror(errno));
+     return NULL;
+  }
+
+  void *p = calloc(pHashObj->capacity, sizeof(SHashEntry));
+  if (p == NULL) {
+     taosArrayDestroy(pHashObj->pMemBlock);
+     free(pHashObj->hashList);
+     free(pHashObj);
+     uError("failed to allocate memory, reason:%s", strerror(errno));
+     return NULL;
+  }
+
+  for (int32_t i = 0; i < pHashObj->capacity; ++i) {
+    pHashObj->hashList[i] = (void *)((char *)p + i * sizeof(SHashEntry));
+  }
+
+  taosArrayPush(pHashObj->pMemBlock, &p);
 
   return pHashObj;
 }
