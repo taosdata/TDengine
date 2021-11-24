@@ -50,7 +50,7 @@ static bool isProjectStream(SQueryInfo* pQueryInfo) {
 static int64_t tscGetRetryDelayTime(SSqlStream* pStream, int64_t slidingTime, int16_t prec) {
   float retryRangeFactor = 0.3f;
   int64_t retryDelta = (int64_t)(tsRetryStreamCompDelay * retryRangeFactor);
-  retryDelta = ((rand() % retryDelta) + tsRetryStreamCompDelay) * 1000L;
+  retryDelta = (rand() % retryDelta) + tsRetryStreamCompDelay;
 
   if (pStream->interval.intervalUnit != 'n' && pStream->interval.intervalUnit != 'y') {
     // change to ms
@@ -951,7 +951,7 @@ void splitStreamSql(const char *str, char **sql, char **to, char **split) {
   int32_t len = p1 - str - LABEL_SQL_LEN;
   *sql = (char *)tmalloc(len + 1);
   strncpy(*sql, str + LABEL_SQL_LEN, len);
-  sql[len] = 0;  // str end 
+  (*sql)[len] = 0;  // str end 
 
   // TO value
   char *p2 = strstr(p1 + LABEL_TO_LEN, LABEL_SPLIT);
@@ -964,7 +964,7 @@ void splitStreamSql(const char *str, char **sql, char **to, char **split) {
   len = p2 - p1 - LABEL_TO_LEN;
   *to = (char *)tmalloc(len + 1);
   strncpy(*to, p1 + LABEL_TO_LEN, len);
-  to[len] = 0;  // str end 
+  (*to)[len] = 0;  // str end 
 
   // SPLIT value
   char *p = p2 + LABEL_SPLIT_LEN; 
@@ -1048,7 +1048,7 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, int32_t
   if (code == TSDB_CODE_SUCCESS) {
     cbParseSql(pStream, pSql, code);
   } else if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-     tscDebug(" CQ taso_open_stream IN Process. sql=%s", sqlstr);
+     tscDebug(" CQ taos_open_stream IN Process. sql=%s", sqlstr);
   } else {
     tscError("0x%"PRIx64" open stream failed, sql:%s, code:%s", pSql->self, sqlstr, tstrerror(code));
     taosReleaseRef(tscObjRef, pSql->self);
