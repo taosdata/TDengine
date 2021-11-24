@@ -1531,7 +1531,6 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
 
   STimeWindow win = getActiveTimeWindow(pResultRowInfo, ts, pQueryAttr);
   bool masterScan = IS_MASTER_SCAN(pRuntimeEnv);
-
   SResultRow* pResult = NULL;
   int32_t ret = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.tid, &win, masterScan, &pResult, tableGroupId, pInfo->pCtx,
                                         numOfOutput, pInfo->rowCellInfoOffset);
@@ -1554,23 +1553,22 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
         continue;
       }
 
-        STimeWindow w = pRes->win;
-        ret = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.tid, &w, masterScan, &pResult,
-                                      tableGroupId, pInfo->pCtx, numOfOutput, pInfo->rowCellInfoOffset);
-        if (ret != TSDB_CODE_SUCCESS) {
-          longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
-        }
-
-        assert(!resultRowInterpolated(pResult, RESULT_ROW_END_INTERP));
-
-        doTimeWindowInterpolation(pOperatorInfo, pInfo, pSDataBlock->pDataBlock, *(TSKEY*)pRuntimeEnv->prevRow[0], -1,
-                                  tsCols[startPos], startPos, w.ekey, RESULT_ROW_END_INTERP);
-
-        setResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
-        setNotInterpoWindowKey(pInfo->pCtx, pQueryAttr->numOfOutput, RESULT_ROW_START_INTERP);
-
-        doApplyFunctions(pRuntimeEnv, pInfo->pCtx, &w, startPos, 0, tsCols, pSDataBlock->info.rows, numOfOutput);
+      STimeWindow w = pRes->win;
+      ret = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.tid, &w, masterScan, &pResult,
+                                    tableGroupId, pInfo->pCtx, numOfOutput, pInfo->rowCellInfoOffset);
+      if (ret != TSDB_CODE_SUCCESS) {
+        longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
+
+      assert(!resultRowInterpolated(pResult, RESULT_ROW_END_INTERP));
+
+      doTimeWindowInterpolation(pOperatorInfo, pInfo, pSDataBlock->pDataBlock, *(TSKEY*)pRuntimeEnv->prevRow[0], -1,
+                                tsCols[startPos], startPos, QUERY_IS_ASC_QUERY(pQueryAttr) ? w.ekey : w.skey, RESULT_ROW_END_INTERP);
+
+      setResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
+      setNotInterpoWindowKey(pInfo->pCtx, pQueryAttr->numOfOutput, RESULT_ROW_START_INTERP);
+      doApplyFunctions(pRuntimeEnv, pInfo->pCtx, &w, startPos, 0, tsCols, pSDataBlock->info.rows, numOfOutput);
+    }
 
     // restore current time window
     ret = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.tid, &win, masterScan, &pResult, tableGroupId, pInfo->pCtx,

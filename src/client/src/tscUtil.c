@@ -380,7 +380,7 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
 }
 
 bool tscNeedTableSeqScan(SQueryInfo* pQueryInfo) {
-  return tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_TWA) || tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_ELAPSED);
+  return pQueryInfo->stableQuery && (tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_TWA) || tscQueryContainsFunction(pQueryInfo, TSDB_FUNC_ELAPSED));
 }
 
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo) {

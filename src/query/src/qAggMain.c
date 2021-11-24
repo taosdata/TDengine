@@ -5090,23 +5090,54 @@ static void elapsedFunction(SQLFunctionCtx *pCtx) {
       pInfo->min = pCtx->preAggVals.statis.min;
       pInfo->max = pCtx->preAggVals.statis.max;
     } else {
-      pInfo->max = pCtx->preAggVals.statis.max;
+      if (pCtx->order == TSDB_ORDER_ASC) {
+        pInfo->max = pCtx->preAggVals.statis.max;
+      } else {
+        pInfo->min = pCtx->preAggVals.statis.min;
+      }
     }
   } else {
+    // 0 == pCtx->size mean this is end interpolation.
     if (0 == pCtx->size) {
+      if (pCtx->order == TSDB_ORDER_DESC) {
+        if (pCtx->end.key != INT64_MIN) {
+          pInfo->min = pCtx->end.key;
+        }
+      } else {
+        if (pCtx->end.key != INT64_MIN) {
+          pInfo->max = pCtx->end.key + 1;
+        }
+      }
       goto elapsedOver;
     }
 
-    if (pCtx->start.key == INT64_MIN) {
-      pInfo->min = pCtx->ptsList[0];
-    } else {
-      pInfo->min = pCtx->start.key;
-    }
+    int64_t *ptsList = (int64_t *)GET_INPUT_DATA_LIST(pCtx);
+    // pCtx->start.key == INT64_MIN mean this is first window or there is actual start point of current window.
+    // pCtx->end.key == INT64_MIN mean current window does not end in current data block or there is actual end point of current window.
+    if (pCtx->order == TSDB_ORDER_DESC) {
+      if (pCtx->start.key == INT64_MIN) {
+        pInfo->max = (pInfo->max < ptsList[pCtx->size - 1]) ? ptsList[pCtx->size - 1] : pInfo->max;
+      } else {
+        pInfo->max = pCtx->start.key + 1;
+      }
 
-    if (pCtx->end.key != INT64_MIN) {
-      pInfo->max = pCtx->end.key + 1;
+      if (pCtx->end.key != INT64_MIN) {
+        pInfo->min = pCtx->end.key;
+      } else {
+        pInfo->min = ptsList[0];
+      }
     } else {
-      pInfo->max = pCtx->ptsList[pCtx->size - 1];
+      if (pCtx->start.key == INT64_MIN) {
+        pInfo->min = (pInfo->min > ptsList[0]) ? ptsList[0] : pInfo->min;
+      } else {
+        pInfo->min = pCtx->start.key;
+      }
+
+      if (pCtx->end.key != INT64_MIN) {
+        pInfo->max = pCtx->end.key + 1;
+      } else {
+        pInfo->max = ptsList[pCtx->size - 1];
+      }
     }
   }
 
