@@ -1910,26 +1910,26 @@ static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumn
 
   SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, pIndex->columnIndex);
 
-  char oriAliasName[TSDB_COL_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_MAX_JSON_KEY_LEN + 4 + 1] = {0};
-  void* oriAliasNamePtr = &oriAliasName;
+  char* oriAliasName1 = NULL;
+  char oriAliasName2[TSDB_COL_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_MAX_JSON_KEY_LEN + 4 + 1] = {0};
   if (pSchema->type == TSDB_DATA_TYPE_JSON && pItem->pNode->tokenId == TK_ARROW) {
     char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN + 1] = {0};
     if (pItem->aliasName){
       jsonKeyMd5(pItem->aliasName, strlen(pItem->aliasName), keyMd5);
-      *(char**)oriAliasNamePtr = pItem->aliasName;
+      oriAliasName1 = pItem->aliasName;
     }else{
       jsonKeyMd5(pItem->pNode->exprToken.z, pItem->pNode->exprToken.n, keyMd5);
-      tstrncpy(*(char**)oriAliasNamePtr, pItem->pNode->exprToken.z,
-               pItem->pNode->exprToken.n + 1 < sizeof(oriAliasName) ? pItem->pNode->exprToken.n + 1 : sizeof(oriAliasName));
+      tstrncpy(oriAliasName2, pItem->pNode->exprToken.z,
+               pItem->pNode->exprToken.n + 1 < sizeof(oriAliasName2) ? pItem->pNode->exprToken.n + 1 : sizeof(oriAliasName2));
     }
     tstrncpy(pExpr->base.aliasName, keyMd5, sizeof(pExpr->base.aliasName));
   } else {
     if (pItem->aliasName){
       tstrncpy(pExpr->base.aliasName, pItem->aliasName, sizeof(pExpr->base.aliasName));
-      *(char**)oriAliasNamePtr = pItem->aliasName;
+      oriAliasName1 = pItem->aliasName;
     }else{
       tstrncpy(pExpr->base.aliasName, pSchema->name, sizeof(pExpr->base.aliasName));
-      *(char**)oriAliasNamePtr = pSchema->name;
+      oriAliasName1 = pSchema->name;
     }
   }
 
@@ -1942,7 +1942,7 @@ static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumn
     ids.num = 0;
   }
 
-  insertResultField(pQueryInfo, startPos, &ids, pExpr->base.resBytes, (int8_t)pExpr->base.resType, *(char**)oriAliasNamePtr, pExpr);
+  insertResultField(pQueryInfo, startPos, &ids, pExpr->base.resBytes, (int8_t)pExpr->base.resType, oriAliasName1 ? oriAliasName1 : oriAliasName2, pExpr);
 }
 
 static void addPrimaryTsColIntoResult(SQueryInfo* pQueryInfo, SSqlCmd* pCmd) {
