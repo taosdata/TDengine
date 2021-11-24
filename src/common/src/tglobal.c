@@ -102,7 +102,7 @@ int32_t tsMaxStreamComputDelay = 20000;
 int32_t tsFirstLaunchDelay = 10000;
 
 // the stream computing delay time after executing failed, change accordingly
-int32_t tsRetryStreamCompDelay = 10 * 1000;
+int32_t tsRetryStreamCompDelay = 30 * 60 * 1000;
 
 // The delayed computing ration. 10% of the whole computing time window by default.
 float tsStreamComputDelayRatio = 0.1f;

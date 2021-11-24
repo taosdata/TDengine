@@ -534,7 +534,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
     for(int32_t i = 0; i < numOfRows; ++i) {
       TAOS_ROW row = taos_fetch_row(res);
       if (row != NULL) {
-        tscDebug("0x%"PRIx64" stream:%p fetch result", pSql->self, pStream);
+        tscDebug("0x%"PRIx64" stream:%p fetch result row=%d", pSql->self, pStream, i);
         tscStreamFillTimeGap(pStream, *(TSKEY*)row[0]);
         pStream->stime = *(TSKEY *)row[0];
         // write to another table if true
