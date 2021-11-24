@@ -1177,8 +1177,8 @@ static int32_t mnodeGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   int32_t cols = 0;
   SUserObj *pUser = mnodeGetUserFromConn(pConn);
   if (pUser == NULL) return 0;
-  
-  if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0)  {
+
+  if (strcmp(pUser->pAcct->user, TSDB_DEFAULT_USER) != 0 ) {
     mnodeDecUserRef(pUser);
     return TSDB_CODE_MND_NO_RIGHTS;
   }
@@ -1256,10 +1256,10 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
           STR_TO_VARSTR(pWrite, syncRole[pVgid->role]);
           cols++;
           numOfRows++;
-          
         }
       }
       if (numOfRows >= rows) {
+        mnodeDecVgroupRef(pVgroup);
         break;
       }
 
