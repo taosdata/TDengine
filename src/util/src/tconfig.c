@@ -334,8 +334,9 @@ bool taosReadConfigOption(const char *option, char *value, char *value2, char *v
         if (taosReadDirectoryConfig(cfg, value)) {
            taosReadDataDirCfg(value, value2, value3);
            ret = true;
+        } else {
+           ret = false;  
         }
-        ret = false;
         break;
       default:
         uError("config option:%s, input value:%s, can't be recognized", option, value);

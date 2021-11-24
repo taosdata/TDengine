@@ -439,7 +439,9 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char *msg1 = "invalidate function name";
   const char *msg2 = "path is too long";
   const char *msg3 = "invalid outputtype";
+  #ifdef LUA_EMBEDDED
   const char *msg4 = "invalid script";
+  #endif
   const char *msg5 = "invalid dyn lib";
   SSqlCmd *pCmd = &pSql->cmd;
 
@@ -478,9 +480,12 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
       //validate *.lua or .so
       int32_t pathLen = (int32_t)strlen(createInfo->path.z);
+#ifdef LUA_EMBEDDED
       if ((pathLen > 4) && (0 == strncmp(createInfo->path.z + pathLen - 4, ".lua", 4)) && !isValidScript(buf, len)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
-      } else if (pathLen > 3 && (0 == strncmp(createInfo->path.z + pathLen - 3, ".so", 3))) {
+      } else
+#endif
+      if (pathLen > 3 && (0 == strncmp(createInfo->path.z + pathLen - 3, ".so", 3))) {
         void *handle = taosLoadDll(createInfo->path.z);
         taosCloseDll(handle);
         if (handle == NULL) {
@@ -2394,7 +2399,7 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
   }
 
   int16_t resType = 0;
-  int16_t resBytes = 0;
+  int32_t resBytes = 0;
   int32_t interBufSize = 0;
 
   getResultDataInfo(pSchema->type, pSchema->bytes, f, 0, &resType, &resBytes, &interBufSize, 0, false, pUdfInfo);
@@ -2633,7 +2638,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       int16_t resultType = 0;
-      int16_t resultSize = 0;
+      int32_t resultSize = 0;
       int32_t intermediateResSize = 0;
 
       if (getResultDataInfo(pSchema->type, pSchema->bytes, functionId, 0, &resultType, &resultSize,
@@ -2892,7 +2897,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       tVariant* pVariant = &pParamElem[1].pNode->value;
 
       int16_t  resultType = pSchema->type;
-      int16_t  resultSize = pSchema->bytes;
+      int32_t  resultSize = pSchema->bytes;
       int32_t  interResult = 0;
 
       char val[8] = {0};
@@ -3074,7 +3079,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         s = pTagSchema[index.columnIndex];
       }
       
-      int16_t bytes = 0;
+      int32_t bytes = 0;
       int16_t type  = 0;
       int32_t inter = 0;
 
@@ -3101,7 +3106,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       int32_t inter   = 0;
       int16_t resType = 0;
-      int16_t bytes   = 0;
+      int32_t bytes   = 0;
 
       getResultDataInfo(TSDB_DATA_TYPE_INT, 4, TSDB_FUNC_BLKINFO, 0, &resType, &bytes, &inter, 0, 0, NULL);
 
@@ -3154,7 +3159,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       int32_t inter   = 0;
       int16_t resType = 0;
-      int16_t bytes   = 0;
+      int32_t bytes   = 0;
       getResultDataInfo(TSDB_DATA_TYPE_INT, 4, functionId, 0, &resType, &bytes, &inter, 0, false, pUdfInfo);
 
       SExprInfo* pExpr = tscExprAppend(pQueryInfo, functionId, &index, resType, bytes, getNewResColId(pCmd), inter, false);
@@ -3474,7 +3479,7 @@ int32_t tscTansformFuncForSTableQuery(SQueryInfo* pQueryInfo) {
 
   assert(tscGetNumOfTags(pTableMetaInfo->pTableMeta) >= 0);
 
-  int16_t bytes = 0;
+  int32_t bytes = 0;
   int16_t type = 0;
   int32_t interBytes = 0;
   
