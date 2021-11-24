@@ -417,7 +417,7 @@ typedef struct {
   uint16_t    nSpan;
   char        tableFname[TSDB_TABLE_FNAME_LEN];
   STimeWindow span[];
-} SDeleteTblMsg;
+} SDeleteDataMsg;
 // N.B. JUST Utility for DEMO Implementation(not formal definition)
 typedef struct SColIndex {
   int16_t  colId;      // column id

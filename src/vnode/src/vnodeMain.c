@@ -130,24 +130,18 @@ int32_t vnodeCompact(int32_t vgId) {
 }
 
 int32_t vnodeTruncateTbl(STruncateTblMsg *pMsg) {
-  // build test data
-  // pMsg->vgId = 2;
-  // pMsg->uid = 562949986978701;
-  // pMsg->nSpan = 1;
-  // pMsg->span = malloc(pMsg->nSpan * sizeof(STimeWindow));
-
-    int32_t vgId = 2;
+  int32_t vgId = 2;
   void *  pVnode = vnodeAcquire(vgId);
   if (pVnode != NULL) {
     vDebug("vgId:%d, truncate table %s msg is received", vgId, pMsg->tableFname);
     // not care success or not
     STruncateTblMsg *param = (STruncateTblMsg *)calloc(1, sizeof(STruncateTblMsg) + pMsg->nSpan * sizeof(STimeWindow));
     param->vgId = 2;
-    param->uid = 562949986979009;
+    param->uid = 562949986978880;
     param->nSpan = 1;
     param->span[0].skey = 1634701320001;
     param->span[0].ekey = 1634701320001;
-    if (tsdbTruncate(((SVnodeObj *)pVnode)->tsdb, param) < 0) {
+    if (tsdbTruncateTbl(((SVnodeObj *)pVnode)->tsdb, param) < 0) {
       tfree(param);
     }
     vnodeRelease(pVnode);
@@ -158,25 +152,19 @@ int32_t vnodeTruncateTbl(STruncateTblMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t vnodeDeleteTbl(SDeleteTblMsg *pMsg) {
-  // build test data
-  // pMsg->vgId = 2;
-  // pMsg->uid = 562949986978701;
-  // pMsg->nSpan = 1;
-  // pMsg->span = malloc(pMsg->nSpan * sizeof(STimeWindow));
-
-    int32_t vgId = 2;
+int32_t vnodeDeleteData(SDeleteDataMsg *pMsg) {
+  int32_t vgId = 2;
   void *  pVnode = vnodeAcquire(vgId);
   if (pVnode != NULL) {
     vDebug("vgId:%d, truncate table %s msg is received", vgId, pMsg->tableFname);
     // not care success or not
-    STruncateTblMsg *param = (STruncateTblMsg *)calloc(1, sizeof(STruncateTblMsg) + pMsg->nSpan * sizeof(STimeWindow));
+    SDeleteDataMsg *param = (SDeleteDataMsg *)calloc(1, sizeof(STruncateTblMsg) + pMsg->nSpan * sizeof(STimeWindow));
     param->vgId = 2;
-    param->uid = 562949986979009;
+    param->uid = 562949986978880;
     param->nSpan = 1;
     param->span[0].skey = 1634701320001;
     param->span[0].ekey = 1634701320001;
-    if (tsdbTruncate(((SVnodeObj *)pVnode)->tsdb, param) < 0) {
+    if (tsdbDeleteData(((SVnodeObj *)pVnode)->tsdb, param) < 0) {
       tfree(param);
     }
     vnodeRelease(pVnode);

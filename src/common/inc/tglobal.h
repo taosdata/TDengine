@@ -22,6 +22,9 @@
 extern "C" {
 #endif
 
+// global definition
+extern bool isBigEndian;
+
 // cluster
 extern char     tsFirst[];
 extern char     tsSecond[];

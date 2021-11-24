@@ -415,8 +415,11 @@ int tsdbSyncRecv(void *pRepo, SOCKET socketFd);
 // For TSDB Compact
 int tsdbCompact(STsdbRepo *pRepo);
 
-// For TSDB Truncate
-int tsdbTruncate(STsdbRepo *pRepo, void *param);
+// For TSDB truncate table
+int tsdbTruncateTbl(STsdbRepo *pRepo, void *param);
+
+// For TSDB delete data
+int tsdbDeleteData(STsdbRepo *pRepo, void *param);
 
 // For TSDB Health Monitor
 

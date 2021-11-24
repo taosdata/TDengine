@@ -51,6 +51,7 @@ static void  tsdbEndTruncate(STsdbRepo *pRepo, int eno);
 static int   tsdbTruncateMeta(STsdbRepo *pRepo);
 static int   tsdbTruncateTSData(STsdbRepo *pRepo, void *param, TSDB_REQ_T type);
 static int   tsdbTruncateFSet(STruncateH *pTruncateH, SDFileSet *pSet);
+static int   tsdbDeleteFSet(STruncateH *pTruncateH, SDFileSet *pSet);
 static int   tsdbInitTruncateH(STruncateH *pTruncateH, STsdbRepo *pRepo);
 static void  tsdbDestroyTruncateH(STruncateH *pTruncateH);
 static int   tsdbInitTruncateTblArray(STruncateH *pTruncateH);
@@ -60,6 +61,7 @@ static int   tsdbTruncateCache(STsdbRepo *pRepo, void *param);
 static int   tsdbTruncateFSetInit(STruncateH *pTruncateH, SDFileSet *pSet);
 static void  tsdbTruncateFSetEnd(STruncateH *pTruncateH);
 static int   tsdbTruncateFSetImpl(STruncateH *pTruncateH);
+static int   tsdbDeleteFSetImpl(STruncateH *pTruncateH);
 static bool  tsdbBlockInterleaved(STruncateH *pTruncateH, SBlock *pBlock);
 static int   tsdbWriteBlockToRightFile(STruncateH *pTruncateH, STable *pTable, SDataCols *pDCols, void **ppBuf,
                                        void **ppCBuf, void **ppExBuf);
@@ -71,15 +73,15 @@ enum {
   TSDB_WAITING_TRUNCATE,
 };
 
-int tsdbTruncate(STsdbRepo *pRepo, void *param) { return tsdbAsyncTruncate(pRepo, param, TRUNCATE_REQ); }
-int tsdbDelete(STsdbRepo *pRepo, void *param) { return tsdbAsyncTruncate(pRepo, param, DELETE_REQ); }
+int tsdbTruncateTbl(STsdbRepo *pRepo, void *param) { return tsdbAsyncTruncate(pRepo, param, TRUNCATE_TBL_REQ); }
+int tsdbDeleteData(STsdbRepo *pRepo, void *param) { return tsdbAsyncTruncate(pRepo, param, DELETE_TBL_REQ); }
 
 void *tsdbTruncateImpl(STsdbRepo *pRepo, void *param) {
-  tsdbTruncateImplCommon(pRepo, param, TRUNCATE_REQ);
+  tsdbTruncateImplCommon(pRepo, param, TRUNCATE_TBL_REQ);
   return NULL;
 }
 void *tsdbDeleteImpl(STsdbRepo *pRepo, void *param) {
-  tsdbTruncateImplCommon(pRepo, param, DELETE_REQ);
+  tsdbTruncateImplCommon(pRepo, param, DELETE_TBL_REQ);
   return NULL;
 }
 
@@ -231,10 +233,20 @@ static int tsdbTruncateTSData(STsdbRepo *pRepo, void *param, TSDB_REQ_T type) {
       continue;
     }
 #endif
-    if (tsdbTruncateFSet(&truncateH, pSet) < 0) {
-      tsdbDestroyTruncateH(&truncateH);
-      tsdbError("vgId:%d failed to truncate FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
-      return -1;
+    if (truncateH.type == TRUNCATE_TBL_REQ) {
+      if (tsdbTruncateFSet(&truncateH, pSet) < 0) {
+        tsdbDestroyTruncateH(&truncateH);
+        tsdbError("vgId:%d failed to truncate table in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+        return -1;
+      }
+    } else if (truncateH.type == DELETE_TBL_REQ) {
+      if (tsdbDeleteFSet(&truncateH, pSet) < 0) {
+        tsdbDestroyTruncateH(&truncateH);
+        tsdbError("vgId:%d failed to truncate data in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+        return -1;
+      }
+    } else {
+      ASSERT(false);
     }
   }
 
@@ -243,12 +255,57 @@ static int tsdbTruncateTSData(STsdbRepo *pRepo, void *param, TSDB_REQ_T type) {
   return 0;
 }
 
-static int tsdbTruncateFSet(STruncateH *pTruncateH, SDFileSet *pSet) {
+static int tsdbDeleteFSet(STruncateH *pTruncateH, SDFileSet *pSet) {
   STsdbRepo *pRepo = TSDB_TRUNCATE_REPO(pTruncateH);
   SDiskID    did = {0};
 
-  tsdbDebug("vgId:%d start to truncate FSET %d on level %d id %d", REPO_ID(pRepo), pSet->fid, TSDB_FSET_LEVEL(pSet),
-            TSDB_FSET_ID(pSet));
+  tsdbDebug("vgId:%d start to truncate data in FSET %d on level %d id %d", REPO_ID(pRepo), pSet->fid,
+            TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
+
+  if (tsdbTruncateFSetInit(pTruncateH, pSet) < 0) {
+    return -1;
+  }
+
+  // Create new fset as deleted fset
+  tfsAllocDisk(tsdbGetFidLevel(pSet->fid, &(pTruncateH->rtn)), &(did.level), &(did.id));
+  if (did.level == TFS_UNDECIDED_LEVEL) {
+    terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
+    tsdbError("vgId:%d failed to truncate data in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+    tsdbTruncateFSetEnd(pTruncateH);
+    return -1;
+  }
+
+  tsdbInitDFileSet(TSDB_TRUNCATE_WSET(pTruncateH), did, REPO_ID(pRepo), TSDB_FSET_FID(pSet),
+                   FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_LATEST_FSET_VER);
+
+  if (tsdbCreateDFileSet(TSDB_TRUNCATE_WSET(pTruncateH), true) < 0) {
+    tsdbError("vgId:%d failed to truncate data in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+    tsdbTruncateFSetEnd(pTruncateH);
+    return -1;
+  }
+
+  if (tsdbDeleteFSetImpl(pTruncateH) < 0) {
+    tsdbCloseDFileSet(TSDB_TRUNCATE_WSET(pTruncateH));
+    tsdbRemoveDFileSet(TSDB_TRUNCATE_WSET(pTruncateH));
+    tsdbTruncateFSetEnd(pTruncateH);
+    return -1;
+  }
+
+  tsdbCloseDFileSet(TSDB_TRUNCATE_WSET(pTruncateH));
+  tsdbUpdateDFileSet(REPO_FS(pRepo), TSDB_TRUNCATE_WSET(pTruncateH));
+  tsdbDebug("vgId:%d FSET %d truncate data over", REPO_ID(pRepo), pSet->fid);
+
+  tsdbTruncateFSetEnd(pTruncateH);
+  return 0;
+}
+
+static int tsdbTruncateFSet(STruncateH *pTruncateH, SDFileSet *pSet) {
+  STsdbRepo *pRepo = TSDB_TRUNCATE_REPO(pTruncateH);
+  SDiskID    did = {0};
+  SDFileSet *pWSet = TSDB_TRUNCATE_WSET(pTruncateH);
+
+  tsdbDebug("vgId:%d start to truncate table in FSET %d on level %d id %d", REPO_ID(pRepo), pSet->fid,
+            TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
 
   if (tsdbTruncateFSetInit(pTruncateH, pSet) < 0) {
     return -1;
@@ -258,17 +315,28 @@ static int tsdbTruncateFSet(STruncateH *pTruncateH, SDFileSet *pSet) {
   tfsAllocDisk(tsdbGetFidLevel(pSet->fid, &(pTruncateH->rtn)), &(did.level), &(did.id));
   if (did.level == TFS_UNDECIDED_LEVEL) {
     terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
-    tsdbError("vgId:%d failed to truncate FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+    tsdbError("vgId:%d failed to truncate table in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
     tsdbTruncateFSetEnd(pTruncateH);
     return -1;
   }
 
-  tsdbInitDFileSet(TSDB_TRUNCATE_WSET(pTruncateH), did, REPO_ID(pRepo), TSDB_FSET_FID(pSet),
-                   FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_LATEST_FSET_VER);
+  // Only .head is created, use original .data/.last/.smad/.smal
+  tsdbInitDFileSetEx(pWSet, pSet);
+  pWSet->state = 0;
+  SDFile *pHeadFile = TSDB_DFILE_IN_SET(pWSet, TSDB_FILE_HEAD);
+  tsdbInitDFile(pHeadFile, did, REPO_ID(pRepo), TSDB_FSET_FID(pSet), FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_HEAD);
 
-  if (tsdbCreateDFileSet(TSDB_TRUNCATE_WSET(pTruncateH), true) < 0) {
-    tsdbError("vgId:%d failed to truncate FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
-    tsdbTruncateFSetEnd(pTruncateH);
+  if (tsdbCreateDFile(pHeadFile, true, TSDB_FILE_HEAD) < 0) {
+    tsdbError("vgId:%d failed to truncate table in FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+    tsdbCloseDFile(pHeadFile);
+    tsdbRemoveDFile(pHeadFile);
+    return -1;
+  }
+
+  tsdbCloseDFile(pHeadFile);
+
+  if (tsdbOpenDFileSet(pWSet, O_RDWR) < 0) {
+    tsdbError("vgId:%d failed to open file set %d since %s", REPO_ID(pRepo), TSDB_FSET_FID(pWSet), tstrerror(terrno));
     return -1;
   }
 
@@ -281,7 +349,7 @@ static int tsdbTruncateFSet(STruncateH *pTruncateH, SDFileSet *pSet) {
 
   tsdbCloseDFileSet(TSDB_TRUNCATE_WSET(pTruncateH));
   tsdbUpdateDFileSet(REPO_FS(pRepo), TSDB_TRUNCATE_WSET(pTruncateH));
-  tsdbDebug("vgId:%d FSET %d truncate over", REPO_ID(pRepo), pSet->fid);
+  tsdbDebug("vgId:%d FSET %d truncate table over", REPO_ID(pRepo), pSet->fid);
 
   tsdbTruncateFSetEnd(pTruncateH);
   return 0;
@@ -477,6 +545,53 @@ static int32_t tsdbFilterDataCols(STruncateH *pTruncateH, SDataCols *pSrcDCols) 
 }
 
 static int tsdbTruncateFSetImpl(STruncateH *pTruncateH) {
+  STsdbRepo *      pRepo = TSDB_TRUNCATE_REPO(pTruncateH);
+  STruncateTblMsg *pMsg = (STruncateTblMsg *)pTruncateH->param;
+  // SReadH *         pReadh = &(pTruncateH->readh);
+  SBlockIdx *      pBlkIdx = NULL;
+  void **          ppBuf = &(TSDB_TRUNCATE_BUF(pTruncateH));
+  // void **          ppCBuf = &(TSDB_TRUNCATE_COMP_BUF(pTruncateH));
+  // void **          ppExBuf = &(TSDB_TRUNCATE_EXBUF(pTruncateH));
+
+  taosArrayClear(pTruncateH->aBlkIdx);
+
+  for (size_t tid = 1; tid < taosArrayGetSize(pTruncateH->tblArray); ++tid) {
+    STableTruncateH *pTblHandle = (STableTruncateH *)taosArrayGet(pTruncateH->tblArray, tid);
+    pBlkIdx = pTblHandle->pBlkIdx;
+
+    if (pTblHandle->pTable == NULL || pTblHandle->pBlkIdx == NULL) continue;
+
+    taosArrayClear(pTruncateH->aSupBlk);
+
+    uint64_t uid = pTblHandle->pTable->tableId.uid;
+
+    if (uid != pMsg->uid) {
+      if ((pBlkIdx->numOfBlocks > 0) && (taosArrayPush(pTruncateH->aBlkIdx, (const void *)(pBlkIdx)) == NULL)) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        return -1;
+      }
+    } else {
+      // Loop to mark delete flag for each block data
+      tsdbDebug("vgId:%d uid %" PRIu64 " matched to truncate", REPO_ID(pRepo), uid);
+      // for (int i = 0; i < pTblHandle->pBlkIdx->numOfBlocks; ++i) {
+      //   SBlock *pBlock = pTblHandle->pInfo->blocks + i;
+
+      //   if (tsdbWriteBlockToRightFile(pTruncateH, pTblHandle->pTable, pTruncateH->pDCols, ppBuf, ppCBuf, ppExBuf) <
+      //   0) {
+      //     return -1;
+      //   }
+      // }
+    }
+  }
+
+  if (tsdbWriteBlockIdx(TSDB_TRUNCATE_HEAD_FILE(pTruncateH), pTruncateH->aBlkIdx, ppBuf) < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int tsdbDeleteFSetImpl(STruncateH *pTruncateH) {
   STsdbRepo *      pRepo = TSDB_TRUNCATE_REPO(pTruncateH);
   STruncateTblMsg *pMsg = (STruncateTblMsg *)pTruncateH->param;
   // STsdbCfg *       pCfg = REPO_CFG(pRepo);

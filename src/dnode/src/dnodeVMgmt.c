@@ -198,14 +198,14 @@ static int32_t dnodeProcessCompactVnodeMsg(SRpcMsg *rpcMsg) {
   return vnodeCompact(pCompactVnode->vgId);
 }
 #else
-// static int32_t dnodeProcessCompactVnodeMsg(SRpcMsg *rpcMsg) {
-//   STruncateTblMsg *pTruncateMsg = rpcMsg->pCont;
-//   return vnodeTruncateTbl(pTruncateMsg);
-// }
 static int32_t dnodeProcessCompactVnodeMsg(SRpcMsg *rpcMsg) {
   STruncateTblMsg *pTruncateMsg = rpcMsg->pCont;
   return vnodeTruncateTbl(pTruncateMsg);
 }
+// static int32_t dnodeProcessCompactVnodeMsg(SRpcMsg *rpcMsg) {
+//   SDeleteDataMsg *pDeleteDataMsg = rpcMsg->pCont;
+//   return vnodeDeleteData(pDeleteDataMsg);
+// }
 #endif
 
 static int32_t dnodeProcessDropVnodeMsg(SRpcMsg *rpcMsg) {

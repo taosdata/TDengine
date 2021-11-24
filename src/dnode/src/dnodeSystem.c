@@ -23,9 +23,13 @@ static tsem_t exitSem;
 static void   siguser1Handler(int32_t signum, void *sigInfo, void *context);
 static void   siguser2Handler(int32_t signum, void *sigInfo, void *context);
 static void   sigintHandler(int32_t signum, void *sigInfo, void *context);
+static const int __TEST_NUMBER__ = 1;
+bool             isBigEndian = false;
 
 int32_t main(int32_t argc, char *argv[]) {
   int dump_config = 0;
+
+  isBigEndian = (*(char *)&__TEST_NUMBER__) == 0;
 
   // Set global configuration file
   for (int32_t i = 1; i < argc; ++i) {
