@@ -584,8 +584,9 @@ void taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), void *
         }
         pEntry->num -= 1;
         atomic_sub_fetch_64(&pHashObj->size, 1);
-        pNode = pNode->next;
+        SHashNode *next = pNode->next;
         FREE_HASH_NODE(pHashObj, pNode);
+        pNode = next;
       }
     }
 
@@ -609,7 +610,7 @@ void taosHashClear(SHashObj *pHashObj) {
   for (int32_t i = 0; i < pHashObj->capacity; ++i) {
     SHashEntry *pEntry = pHashObj->hashList[i];
     if (pEntry->num == 0) {
-      assert(pEntry->next == 0);
+      assert(pEntry->next == NULL);
       continue;
     }
 
