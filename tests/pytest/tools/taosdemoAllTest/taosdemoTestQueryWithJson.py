@@ -232,7 +232,7 @@ class TDTestCase:
         os.system("rm -rf tools/taosdemoAllTest/*.py.sql")
         os.system("rm -rf ./querySystemInfo*")
         os.system("rm -rf ./query_res*")
-#       os.system("rm -rf ./all_query*")
+        os.system("rm -rf ./all_query*")
         os.system("rm -rf ./test_query_res0.txt")
 
     def stop(self):
