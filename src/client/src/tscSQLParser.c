@@ -3748,6 +3748,7 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
   const char* msg8 = "normal column can only locate at the end of group by clause";
   const char* msg9 = "json tag must be use ->'key'";
   const char* msg10 = "non json column can not use ->'key'";
+  const char* msg11 = "group by json->'key' is too long";
 
   // todo : handle two tables situation
   STableMetaInfo* pTableMetaInfo = NULL;
@@ -3839,8 +3840,10 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
 
       SColIndex colIndex = { .colIndex = relIndex, .flag = TSDB_COL_TAG, .colId = pSchema->colId, };
       if(pItem->isJsonExp) {
-        tstrncpy(colIndex.name, pItem->jsonExp->exprToken.z,
-                 pItem->jsonExp->exprToken.n + 1 > tListLen(colIndex.name) ? tListLen(colIndex.name) : pItem->jsonExp->exprToken.n + 1);
+        if(pItem->jsonExp->exprToken.n >= tListLen(colIndex.name)){
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg11);
+        }
+        tstrncpy(colIndex.name, pItem->jsonExp->exprToken.z, pItem->jsonExp->exprToken.n + 1);
       }else{
         tstrncpy(colIndex.name, pSchema->name, tListLen(colIndex.name));
       }
@@ -7518,26 +7521,26 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
 
       SColumnIndex index = {.tableIndex = pQueryInfo->groupbyExpr.tableIndex, .columnIndex = colIndex};
       SExprInfo*   pExpr = tscExprInsert(pQueryInfo, pos, f, &index, s->type, s->bytes, getNewResColId(pCmd), s->bytes, true);
-      // if json->key is more than TSDB_COL_NAME_LEN + TSDB_DB_NAME_LEN, truncature it， maybe case error, can encode name by md5.
+      // NOTE: tag column does not add to source column list
+      SColumnList ids = createColumnList(1, 0, pColIndex->colIndex);
+      insertResultField(pQueryInfo, pos, &ids, s->bytes, (int8_t)s->type, pColIndex->name, pExpr);
+      pExpr->base.colInfo.flag = TSDB_COL_TAG;
+      memset(pExpr->base.aliasName, 0, sizeof(pExpr->base.aliasName));
       if(s->type == TSDB_DATA_TYPE_JSON){
         SStrToken t0 = {.z = pColIndex->name};
         getJsonKey(&t0);
         tVariantCreateFromBinary(&(pExpr->base.param[pExpr->base.numOfParams]), t0.z,
                                  t0.n, TSDB_DATA_TYPE_BINARY);
         pExpr->base.numOfParams++;
+        char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN + 1] = {0};
+        jsonKeyMd5(pColIndex->name, strlen(pColIndex->name), keyMd5);
+        tstrncpy(pExpr->base.aliasName, keyMd5, sizeof(pExpr->base.aliasName));
+        tstrncpy(pExpr->base.token, keyMd5, sizeof(pExpr->base.token));
+        tstrncpy(pColIndex->name, t0.z, t0.n + 1);
+      }else {
+        tstrncpy(pExpr->base.aliasName, s->name, sizeof(pExpr->base.aliasName));
+        tstrncpy(pExpr->base.token, s->name, sizeof(pExpr->base.aliasName));
       }
-
-      char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN + 1] = {0};
-      jsonKeyMd5(pColIndex->name, strlen(pColIndex->name), keyMd5);
-      memset(pExpr->base.aliasName, 0, sizeof(pExpr->base.aliasName));
-      tstrncpy(pExpr->base.aliasName, keyMd5, sizeof(pExpr->base.aliasName));
-      tstrncpy(pExpr->base.token, keyMd5, sizeof(pExpr->base.token));
-
-      pExpr->base.colInfo.flag = TSDB_COL_TAG;
-
-      // NOTE: tag column does not add to source column list
-      SColumnList ids = createColumnList(1, 0, pColIndex->colIndex);
-      insertResultField(pQueryInfo, pos, &ids, s->bytes, (int8_t)s->type, pColIndex->name, pExpr);
     } else {
       // if this query is "group by" normal column, time window query is not allowed
       if (isTimeWindowQuery(pQueryInfo)) {
