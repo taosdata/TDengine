@@ -110,15 +110,15 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // TODO: Open TQ
   sprintf(dir, "%s/wal", pVnode->path);
-  // pVnode->pTq = tqOpen(dir, NULL /* TODO */);
-  // if (pVnode->pTq == NULL) {
-  //   // TODO: handle error
-  //   return -1;
-  // }
+  pVnode->pTq = tqOpen(dir, &(pVnode->config.tqCfg), NULL, NULL);
+  if (pVnode->pTq == NULL) {
+    // TODO: handle error
+    return -1;
+  }
 
   // Open WAL
   sprintf(dir, "%s/wal", pVnode->path);
-  pVnode->pWal = walOpen(dir, NULL /* TODO */);
+  pVnode->pWal = walOpen(dir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
     // TODO: handle error
     return -1;
