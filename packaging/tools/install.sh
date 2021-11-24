@@ -239,18 +239,18 @@ function install_lib() {
 function install_avro() {
     if [ "$osType" != "Darwin" ]; then
         avro_dir=${script_dir}/avro
-        if [ -f "${avro_dir}/$1/libavro.so.23.0.0" ] && [ -d /usr/local/$1 ]; then
+        if [ -f "${avro_dir}/lib/libavro.so.23.0.0" ] && [ -d /usr/local/$1 ]; then
             ${csudo} /usr/bin/install -c -d /usr/local/$1
-            ${csudo} /usr/bin/install -c -m 755 ${avro_dir}/$1/libavro.so.23.0.0 /usr/local/$1
+            ${csudo} /usr/bin/install -c -m 755 ${avro_dir}/lib/libavro.so.23.0.0 /usr/local/$1
             ${csudo} ln -sf /usr/local/$1/libavro.so.23.0.0 /usr/local/$1/libavro.so.23
             ${csudo} ln -sf /usr/local/$1/libavro.so.23 /usr/local/$1/libavro.so
 
             ${csudo} /usr/bin/install -c -d /usr/local/$1
-            [ -f ${avro_dir}/$1/libavro.a ] &&
-                ${csudo} /usr/bin/install -c -m 755 ${avro_dir}/$1/libavro.a /usr/local/$1
+            [ -f ${avro_dir}/lib/libavro.a ] &&
+                ${csudo} /usr/bin/install -c -m 755 ${avro_dir}/lib/libavro.a /usr/local/$1
 
             if [ -d /etc/ld.so.conf.d ]; then
-                echo "/usr/local/$1" | ${csudo} tee /etc/ld.so.conf.d/libavro.conf
+                ${csudo} echo "/usr/local/$1" > /etc/ld.so.conf.d/libavro.conf
                 ${csudo} ldconfig
             else
                 echo "/etc/ld.so.conf.d not found!"
