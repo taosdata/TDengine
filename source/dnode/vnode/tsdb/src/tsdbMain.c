@@ -15,12 +15,12 @@
 
 #include "tsdbDef.h"
 
-static STsdb *tsdbNew(const char *path, const STsdbOptions *pTsdbOptions);
+static STsdb *tsdbNew(const char *path, const STsdbCfg *pTsdbOptions);
 static void   tsdbFree(STsdb *pTsdb);
 static int    tsdbOpenImpl(STsdb *pTsdb);
 static void   tsdbCloseImpl(STsdb *pTsdb);
 
-STsdb *tsdbOpen(const char *path, const STsdbOptions *pTsdbOptions) {
+STsdb *tsdbOpen(const char *path, const STsdbCfg *pTsdbOptions) {
   STsdb *pTsdb = NULL;
 
   // Set default TSDB Options
@@ -62,7 +62,7 @@ void tsdbClose(STsdb *pTsdb) {
 void tsdbRemove(const char *path) { taosRemoveDir(path); }
 
 /* ------------------------ STATIC METHODS ------------------------ */
-static STsdb *tsdbNew(const char *path, const STsdbOptions *pTsdbOptions) {
+static STsdb *tsdbNew(const char *path, const STsdbCfg *pTsdbOptions) {
   STsdb *pTsdb = NULL;
 
   pTsdb = (STsdb *)calloc(1, sizeof(STsdb));

@@ -40,7 +40,7 @@ void* tqSerializeBufItem(TqBufferItem* bufItem, void* ptr);
 const void* tqDeserializeBufHandle(const void* pBytes, TqBufferHandle* bufHandle);
 const void* tqDeserializeBufItem(const void* pBytes, TqBufferItem* bufItem);
 
-STQ* tqOpen(const char* path, TqConfig* tqConfig, TqLogReader* tqLogReader, SMemAllocatorFactory *allocFac) {
+STQ* tqOpen(const char* path, STqCfg* tqConfig, TqLogReader* tqLogReader, SMemAllocatorFactory *allocFac) {
   STQ* pTq = malloc(sizeof(STQ));
   if(pTq == NULL) {
     //TODO: memory error

@@ -161,9 +161,9 @@ typedef struct TqLogReader {
   int64_t (*logGetLastVer)(void* logHandle);
 } TqLogReader;
 
-typedef struct TqConfig {
+typedef struct STqCfg {
   // TODO
-} TqConfig;
+} STqCfg;
 
 typedef struct TqMemRef {
   SMemAllocatorFactory *pAlloctorFactory;
@@ -256,14 +256,14 @@ typedef struct STQ {
   // the collection of group handle
   // the handle of kvstore
   char*  path;
-  TqConfig*    tqConfig;
+  STqCfg*    tqConfig;
   TqLogReader* tqLogReader; 
   TqMemRef     tqMemRef;
   TqMetaStore* tqMeta;
 } STQ;
 
 // open in each vnode
-STQ* tqOpen(const char* path, TqConfig* tqConfig, TqLogReader* tqLogReader, SMemAllocatorFactory *allocFac);
+STQ* tqOpen(const char* path, STqCfg* tqConfig, TqLogReader* tqLogReader, SMemAllocatorFactory *allocFac);
 void tqDestroy(STQ*);
 
 // void* will be replace by a msg type

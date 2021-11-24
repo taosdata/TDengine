@@ -23,6 +23,7 @@
 #include "tarray.h"
 #include "tq.h"
 #include "tsdb.h"
+#include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -102,43 +103,34 @@ void vnodeOptionsClear(SVnodeCfg *pOptions);
 
 /* ------------------------ STRUCT DEFINITIONS ------------------------ */
 struct SVnodeCfg {
-  /**
-   * @brief write buffer size in BYTES
-   *
-   */
-  uint64_t wsize;
+  /** vnode buffer pool options */
+  struct {
+    /** write buffer size */
+    uint64_t wsize;
+    /** use heap allocator or arena allocator */
+    bool isHeapAllocator;
+  };
 
-  /**
-   * @brief time to live of tables in this vnode
-   * in SECONDS
-   *
-   */
+  /** time to live of tables in this vnode *
   uint32_t ttl;
 
-  /**
-   * @brief if time-series requests eventual consistency
-   *
-   */
+  /** data to keep in this vnode */
+  uint32_t keep;
+
+  /** if TS data is eventually consistency */
   bool isWeak;
 
-  /**
-   * @brief if the allocator is heap allcator or arena allocator
-   *
-   */
-  bool isHeapAllocator;
+  /** TSDB config */
+  STsdbCfg tsdbCfg;
 
-  /**
-   * @brief TSDB options
-   *
-   */
-  STsdbOptions tsdbOptions;
+  /** META config */
+  SMetaCfg metaCfg;
 
-  /**
-   * @brief META options
-   *
-   */
-  SMetaCfg metaOptions;
-  // STqOptions   tqOptions; // TODO
+  /** TQ config */
+  STqCfg tqCfg;
+
+  /** WAL config */
+  SWalCfg walCfg;
 };
 
 /* ------------------------ FOR COMPILE ------------------------ */

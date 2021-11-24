@@ -22,21 +22,21 @@ extern "C" {
 
 // TYPES EXPOSED
 typedef struct STsdb             STsdb;
-typedef struct STsdbOptions      STsdbOptions;
+typedef struct STsdbCfg          STsdbCfg;
 typedef struct STsdbMemAllocator STsdbMemAllocator;
 
 // STsdb
-STsdb *tsdbOpen(const char *path, const STsdbOptions *);
+STsdb *tsdbOpen(const char *path, const STsdbCfg *);
 void   tsdbClose(STsdb *);
 void   tsdbRemove(const char *path);
 int    tsdbInsertData(STsdb *pTsdb, void *);
 
-// STsdbOptions
-int  tsdbOptionsInit(STsdbOptions *);
-void tsdbOptionsClear(STsdbOptions *);
+// STsdbCfg
+int  tsdbOptionsInit(STsdbCfg *);
+void tsdbOptionsClear(STsdbCfg *);
 
 /* ------------------------ STRUCT DEFINITIONS ------------------------ */
-struct STsdbOptions {
+struct STsdbCfg {
   uint64_t lruCacheSize;
   /* TODO */
 };

@@ -94,7 +94,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open meta
   sprintf(dir, "%s/meta", pVnode->path);
-  pVnode->pMeta = metaOpen(dir, &(pVnode->config.metaOptions));
+  pVnode->pMeta = metaOpen(dir, &(pVnode->config.metaCfg));
   if (pVnode->pMeta == NULL) {
     // TODO: handle error
     return -1;
@@ -102,7 +102,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open tsdb
   sprintf(dir, "%s/tsdb", pVnode->path);
-  pVnode->pTsdb = tsdbOpen(dir, &(pVnode->config.tsdbOptions));
+  pVnode->pTsdb = tsdbOpen(dir, &(pVnode->config.tsdbCfg));
   if (pVnode->pTsdb == NULL) {
     // TODO: handle error
     return -1;
