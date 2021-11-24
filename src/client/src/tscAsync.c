@@ -237,7 +237,7 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
     return;
   }
 
-  if (pRes->qId == 0) {
+  if (pRes->qId == 0 && pSql->cmd.command != TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
     tscError("qhandle is invalid");
     pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
     tscAsyncResultOnError(pSql);

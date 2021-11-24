@@ -63,6 +63,10 @@ enum {
       QUERY_OVER = 0x4u,
 };
 
+enum {
+  OPTION_SWITCH_TABLE = 1,
+};
+
 typedef struct SResultRowPool {
   int32_t elemSize;
   int32_t blockSize;
@@ -241,6 +245,7 @@ typedef struct SQueryAttr {
   int16_t          numOfTags;
 
   STimeWindow      window;
+  STimeWindow      range;
   SInterval        interval;
   SSessionWindow   sw;
   int16_t          precision;
@@ -277,6 +282,7 @@ typedef struct SQueryAttr {
 } SQueryAttr;
 
 typedef SSDataBlock* (*__operator_fn_t)(void* param, bool* newgroup);
+typedef void (*__operator_notify_fn_t)(void* param, int32_t option);
 typedef void (*__optr_cleanup_fn_t)(void* param, int32_t num);
 
 struct SOperatorInfo;
@@ -348,7 +354,7 @@ enum OPERATOR_TYPE_E {
   OP_Distinct          = 20,
   OP_Join              = 21,
   OP_StateWindow       = 22,
-  OP_AllTimeWindow     = 23,
+  OP_TimeEvery         = 23,
   OP_AllMultiTableTimeInterval = 24,
   OP_Order             = 25,
 };
@@ -363,10 +369,11 @@ typedef struct SOperatorInfo {
   SExprInfo            *pExpr;
   SQueryRuntimeEnv     *pRuntimeEnv;
 
-  struct SOperatorInfo **upstream;      // upstream pointer list
-  int32_t               numOfUpstream;  // number of upstream. The value is always ONE expect for join operator
-  __operator_fn_t       exec;
-  __optr_cleanup_fn_t   cleanup;
+  struct SOperatorInfo **upstream;     // upstream pointer list
+  int32_t               numOfUpstream; // number of upstream. The value is always ONE expect for join operator
+  __operator_fn_t        exec;
+  __operator_notify_fn_t notify;
+  __optr_cleanup_fn_t    cleanup;
 } SOperatorInfo;
 
 enum {
@@ -478,6 +485,21 @@ typedef struct SProjectOperatorInfo {
 
   SSDataBlock   *existDataBlock;
 } SProjectOperatorInfo;
+
+typedef struct STimeEveryOperatorInfo {
+  SOptrBasicInfo binfo;
+  int32_t        bufCapacity;
+  uint32_t       seed;
+  
+  int64_t        tableEndKey;
+  SSDataBlock   *lastBlock;
+  SHashObj      *rangeStart;
+  int32_t        lastGroupIdx;
+  
+  bool           groupDone;
+  bool           allDone;
+  SSDataBlock   *existDataBlock;
+} STimeEveryOperatorInfo;
 
 typedef struct SLimitOperatorInfo {
   int64_t   limit;
@@ -599,13 +621,12 @@ SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
 SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream);
 SOperatorInfo* createTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
-SOperatorInfo* createAllTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createSWindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createFillOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, bool multigroupResult);
 SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
-SOperatorInfo* createAllMultiTableTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createTimeEveryOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createTagScanOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);

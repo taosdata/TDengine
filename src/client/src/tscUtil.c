@@ -187,7 +187,7 @@ bool tscQueryTags(SQueryInfo* pQueryInfo) {
       continue;
     }
 
-    if (functId != TSDB_FUNC_TAGPRJ && functId != TSDB_FUNC_TID_TAG) {
+    if (functId != TSDB_FUNC_TAGPRJ && functId != TSDB_FUNC_TID_TAG && functId != TSDB_FUNC_BLKINFO) {
       return false;
     }
   }
@@ -365,7 +365,7 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
     assert(pExpr != NULL);
 
     int32_t functionId = pExpr->base.functionId;
-    if (functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TS) {
+    if (functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY) {
       continue;
     }
 
@@ -376,6 +376,23 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
 
   return true;
 }
+
+bool tscGetPointInterpQuery(SQueryInfo* pQueryInfo) {
+  size_t size = tscNumOfExprs(pQueryInfo);
+  for (int32_t i = 0; i < size; ++i) {
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+    assert(pExpr != NULL);
+
+    int32_t functionId = pExpr->base.functionId;
+
+    if (functionId == TSDB_FUNC_INTERP) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo) {
   if (tscIsProjectionQuery(pQueryInfo)) {
@@ -1847,6 +1864,32 @@ int32_t tscCreateDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOff
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
+  int32_t code = tscCreateDataBlockData(dataBuf, defaultSize, rowSize, startOffset);
+  if (code != TSDB_CODE_SUCCESS) {
+    tfree(dataBuf);
+    return code;
+  }
+
+  //Here we keep the tableMeta to avoid it to be remove by other threads.
+  dataBuf->pTableMeta = tscTableMetaDup(pTableMeta);
+
+  SParsedDataColInfo* pColInfo = &dataBuf->boundColumnInfo;
+  SSchema* pSchema = tscGetTableSchema(dataBuf->pTableMeta);
+  tscSetBoundColumnInfo(pColInfo, pSchema, dataBuf->pTableMeta->tableInfo.numOfColumns);
+
+  dataBuf->vgId     = dataBuf->pTableMeta->vgId;
+
+  tNameAssign(&dataBuf->tableName, name);
+
+  assert(defaultSize > 0 && pTableMeta != NULL && dataBuf->pTableMeta != NULL);
+
+  *dataBlocks = dataBuf;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tscCreateDataBlockData(STableDataBlocks* dataBuf, size_t defaultSize, int32_t rowSize, int32_t startOffset) {
+  assert(dataBuf != NULL);
+
   dataBuf->nAllocSize = (uint32_t)defaultSize;
   dataBuf->headerSize = startOffset;
 
@@ -1859,30 +1902,16 @@ int32_t tscCreateDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOff
   dataBuf->pData = malloc(dataBuf->nAllocSize);
   if (dataBuf->pData == NULL) {
     tscError("failed to allocated memory, reason:%s", strerror(errno));
-    tfree(dataBuf);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   memset(dataBuf->pData, 0, sizeof(SSubmitBlk));
-
-  //Here we keep the tableMeta to avoid it to be remove by other threads.
-  dataBuf->pTableMeta = tscTableMetaDup(pTableMeta);
-
-  SParsedDataColInfo* pColInfo = &dataBuf->boundColumnInfo;
-  SSchema* pSchema = tscGetTableSchema(dataBuf->pTableMeta);
-  tscSetBoundColumnInfo(pColInfo, pSchema, dataBuf->pTableMeta->tableInfo.numOfColumns);
 
   dataBuf->ordered  = true;
   dataBuf->prevTS   = INT64_MIN;
   dataBuf->rowSize  = rowSize;
   dataBuf->size     = startOffset;
   dataBuf->tsSource = -1;
-  dataBuf->vgId     = dataBuf->pTableMeta->vgId;
 
-  tNameAssign(&dataBuf->tableName, name);
-
-  assert(defaultSize > 0 && pTableMeta != NULL && dataBuf->pTableMeta != NULL);
-
-  *dataBlocks = dataBuf;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3431,7 +3460,7 @@ int32_t tscQueryInfoCopy(SQueryInfo* pQueryInfo, const SQueryInfo* pSrc) {
   pQueryInfo->clauseLimit    = pSrc->clauseLimit;
   pQueryInfo->prjOffset      = pSrc->prjOffset;
   pQueryInfo->numOfTables    = 0;
-  pQueryInfo->window         = pSrc->window;
+  pQueryInfo->range          = pSrc->range;
   pQueryInfo->sessionWindow  = pSrc->sessionWindow;
   pQueryInfo->pTableMetaInfo = NULL;
   pQueryInfo->multigroupResult = pSrc->multigroupResult;
@@ -3824,6 +3853,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   memcpy(&pNewQueryInfo->interval, &pQueryInfo->interval, sizeof(pNewQueryInfo->interval));
   pNewQueryInfo->type         = pQueryInfo->type;
   pNewQueryInfo->window       = pQueryInfo->window;
+  pNewQueryInfo->range        = pQueryInfo->range;
   pNewQueryInfo->limit        = pQueryInfo->limit;
   pNewQueryInfo->slimit       = pQueryInfo->slimit;
   pNewQueryInfo->order        = pQueryInfo->order;
@@ -5043,6 +5073,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->fillType          = pQueryInfo->fillType;
   pQueryAttr->havingNum         = pQueryInfo->havingFieldNum;
   pQueryAttr->pUdfInfo          = pQueryInfo->pUdfInfo;
+  pQueryAttr->range             = pQueryInfo->range;
 
   if (pQueryInfo->order.order == TSDB_ORDER_ASC) {   // TODO refactor
     pQueryAttr->window = pQueryInfo->window;
@@ -5341,5 +5372,4 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
 
   return p;
 }
-
 

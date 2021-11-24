@@ -21,6 +21,7 @@
 #include "httpResp.h"
 #include "httpJson.h"
 #include "httpContext.h"
+#include "monitor.h"
 
 const char *httpKeepAliveStr[] = {"", "Connection: Keep-Alive\r\n", "Connection: Close\r\n"};
 
@@ -152,6 +153,10 @@ void httpSendErrorResp(HttpContext *pContext, int32_t errNo) {
   if (pContext->parser && pContext->parser->httpCode != 0) {
     httpCode = pContext->parser->httpCode;
   }
+
+  HttpServer *pServer = &tsHttpServer;
+  SMonHttpStatus *httpStatus = monGetHttpStatusHashTableEntry(httpCode);
+  pServer->statusCodeErrs[httpStatus->index] += 1;
 
   pContext->error = true;
 

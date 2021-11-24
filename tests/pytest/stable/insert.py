@@ -91,6 +91,12 @@ class TDTestCase:
             tdSql.query("show stables")
             tdSql.checkRows(1)
 
+        # TS-646
+        tdLog.info("test case for TS-646")
+        tdSql.execute("drop stable if exists db.st")        
+        tdSql.execute("create table stb(ts timestamp, c1 int) tags(t1 int)")
+        tdSql.error("create table `` using stb tags(1)")
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

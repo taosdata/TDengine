@@ -479,6 +479,7 @@ typedef struct {
   bool        stateWindow;       // state window flag 
 
   STimeWindow window;
+  STimeWindow range;            // result range for interp query
   int32_t     numOfTables;
   int16_t     order;
   int16_t     orderColId;

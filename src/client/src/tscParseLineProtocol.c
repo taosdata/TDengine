@@ -156,13 +156,15 @@ static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableNa
 
   SStringBuilder sb; memset(&sb, 0, sizeof(sb));
   char sTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
-  strtolower(sTableName, point->stableName);
+  strncpy(sTableName, point->stableName, strlen(point->stableName));
+  //strtolower(sTableName, point->stableName);
   taosStringBuilderAppendString(&sb, sTableName);
   for (int j = 0; j < point->tagNum; ++j) {
     taosStringBuilderAppendChar(&sb, ',');
     TAOS_SML_KV* tagKv = point->tags + j;
     char tagName[TSDB_COL_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
-    strtolower(tagName, tagKv->key);
+    strncpy(tagName, tagKv->key, strlen(tagKv->key));
+    //strtolower(tagName, tagKv->key);
     taosStringBuilderAppendString(&sb, tagName);
     taosStringBuilderAppendChar(&sb, '=');
     taosStringBuilderAppend(&sb, tagKv->value, tagKv->length);
@@ -261,10 +263,10 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
 
 static int32_t generateSchemaAction(SSchema* pointColField, SHashObj* dbAttrHash, SArray* dbAttrArray, bool isTag, char sTableName[],
                                        SSchemaAction* action, bool* actionNeeded, SSmlLinesInfo* info) {
-  char fieldNameLowerCase[TSDB_COL_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
-  strtolower(fieldNameLowerCase, pointColField->name);
+  char fieldName[TSDB_COL_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
+  strcpy(fieldName, pointColField->name);
 
-  size_t* pDbIndex = taosHashGet(dbAttrHash, fieldNameLowerCase, strlen(fieldNameLowerCase));
+  size_t* pDbIndex = taosHashGet(dbAttrHash, fieldName, strlen(fieldName));
   if (pDbIndex) {
     SSchema* dbAttr = taosArrayGet(dbAttrArray, *pDbIndex);
     assert(strcasecmp(dbAttr->name, pointColField->name) == 0);
@@ -297,7 +299,7 @@ static int32_t generateSchemaAction(SSchema* pointColField, SHashObj* dbAttrHash
     *actionNeeded = true;
   }
   if (*actionNeeded) {
-    tscDebug("SML:0x%" PRIx64 " generate schema action. column name: %s, action: %d", info->id, fieldNameLowerCase,
+    tscDebug("SML:0x%" PRIx64 " generate schema action. column name: %s, action: %d", info->id, fieldName,
              action->action);
   }
   return 0;
@@ -536,11 +538,8 @@ static int32_t retrieveTableMeta(TAOS* taos, char* tableName, STableMeta** pTabl
 
     tscDebug("SML:0x%" PRIx64 " retrieve table meta. super table name: %s", info->id, tableName);
 
-    char tableNameLowerCase[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE];
-    strtolower(tableNameLowerCase, tableName);
-
     char sql[256];
-    snprintf(sql, 256, "describe %s", tableNameLowerCase);
+    snprintf(sql, 256, "describe %s", tableName);
     TAOS_RES* res = taos_query(taos, sql);
     code = taos_errno(res);
     if (code != 0) {
@@ -561,8 +560,10 @@ static int32_t retrieveTableMeta(TAOS* taos, char* tableName, STableMeta** pTabl
     pSql->fp = NULL;
 
     registerSqlObj(pSql);
-    SStrToken tableToken = {.z = tableNameLowerCase, .n = (uint32_t)strlen(tableNameLowerCase), .type = TK_ID};
-    tGetToken(tableNameLowerCase, &tableToken.type);
+    char tableNameBuf[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
+    memcpy(tableNameBuf, tableName, strlen(tableName));
+    SStrToken tableToken = {.z = tableNameBuf, .n = (uint32_t)strlen(tableName), .type = TK_ID};
+    tGetToken(tableNameBuf, &tableToken.type);
     bool dbIncluded = false;
     // Check if the table name available or not
     if (tscValidateName(&tableToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
@@ -1871,24 +1872,14 @@ static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **index, SSmlLine
 
 bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info) {
   char *val = NULL;
-  char *cur = key;
-  char keyLower[TSDB_COL_NAME_LEN];
-  size_t keyLen = 0;
-  while(*cur != '\0') {
-    keyLower[keyLen] = tolower(*cur);
-    keyLen++;
-    cur++;
-  }
-  keyLower[keyLen] = '\0';
-
-  val = taosHashGet(pHash, keyLower, keyLen);
+  val = taosHashGet(pHash, key, strlen(key));
   if (val) {
-    tscError("SML:0x%"PRIx64" Duplicate key detected:%s", info->id, keyLower);
+    tscError("SML:0x%"PRIx64" Duplicate key detected:%s", info->id, key);
     return true;
   }
 
   uint8_t dummy_val = 0;
-  taosHashPut(pHash, keyLower, strlen(key), &dummy_val, sizeof(uint8_t));
+  taosHashPut(pHash, key, strlen(key), &dummy_val, sizeof(uint8_t));
 
   return false;
 }
@@ -1926,7 +1917,6 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
 
   pKV->key = calloc(len + TS_ESCAPE_CHAR_SIZE + 1, 1);
   memcpy(pKV->key, key, len + 1);
-  strntolower_s(pKV->key, pKV->key, (int32_t)len);
   addEscapeCharToString(pKV->key, len);
   tscDebug("SML:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
   *index = cur + 1;
@@ -2054,7 +2044,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
     if (*cur == '\\') {
       escapeSpecialCharacter(1, &cur);
     }
-    pSml->stableName[len] = tolower(*cur);
+    pSml->stableName[len] = *cur;
     cur++;
     len++;
   }
@@ -2130,7 +2120,6 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
     if (!isField && childTableNameLen != 0 && strcasecmp(pkv->key, childTableName) == 0)  {
       smlData->childTableName = malloc(pkv->length + TS_ESCAPE_CHAR_SIZE + 1);
       memcpy(smlData->childTableName, pkv->value, pkv->length);
-      strntolower_s(smlData->childTableName, smlData->childTableName, (int32_t)pkv->length);
       addEscapeCharToString(smlData->childTableName, (int32_t)pkv->length);
       free(pkv->key);
       free(pkv->value);
