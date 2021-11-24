@@ -195,6 +195,9 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     tsem_wait(&pSql->rspSem);
 
     pSql->pTscObj->pClusterInfo = (SClusterInfo *)tscAcquireClusterInfo(pSql->pTscObj->clusterId);
+    if (pSql->pTscObj->pClusterInfo == NULL) {
+      assert(pSql->res.code != TSDB_CODE_SUCCESS);
+    } 
     if (pSql->res.code != TSDB_CODE_SUCCESS) {
       terrno = pSql->res.code;
       if (terrno ==TSDB_CODE_RPC_FQDN_ERROR) {
