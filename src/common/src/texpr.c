@@ -55,7 +55,8 @@ int32_t exprTreeValidateFunctionNode(tExprNode *pExpr) {
     case TSDB_FUNC_SCALAR_CONCAT: {
       return exprValidateStringConcatNode(pExpr);
     }
-    case TSDB_FUNC_SCALAR_LENGTH: {
+    case TSDB_FUNC_SCALAR_LENGTH:
+    case TSDB_FUNC_SCALAR_CHAR_LENGTH: {
       return exprValidateStringLengthNode(pExpr);
     }
     case TSDB_FUNC_SCALAR_CONCAT_WS: {
@@ -1206,6 +1207,7 @@ void vectorConcatWs(int16_t functionId, tExprOperandInfo* pInputs, int32_t numIn
 
 void vectorLength(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
   assert(functionId == TSDB_FUNC_SCALAR_LENGTH && numInputs == 1 && order == TSDB_ORDER_ASC);
+  assert(IS_VAR_DATA_TYPE(pInputs[0].type));
 
   char* data0 = NULL;
   char* outputData = NULL;
@@ -1222,6 +1224,33 @@ void vectorLength(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInpu
     } else {
       int16_t result = varDataLen(data0);
       SET_TYPED_DATA(outputData, pOutput->type, result);
+    }
+  }
+}
+
+void vectorCharLength(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
+  assert(functionId == TSDB_FUNC_SCALAR_CHAR_LENGTH && numInputs == 1 && order == TSDB_ORDER_ASC);
+  assert(IS_VAR_DATA_TYPE(pInputs[0].type));
+
+  char* data0 = NULL;
+  char* outputData = NULL;
+  for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
+    if (pInputs[0].numOfRows == 1) {
+      data0 = pInputs[0].data;
+    } else {
+      data0 = pInputs[0].data + i * pInputs[0].bytes;
+    }
+
+    outputData = pOutput->data + i * pOutput->bytes;
+    if (isNull(data0, pInputs[0].type)) {
+      setNull(outputData, pOutput->type, pOutput->bytes);
+    } else {
+      int16_t result = varDataLen(data0);
+      if (pInputs[0].type == TSDB_DATA_TYPE_BINARY) {
+        SET_TYPED_DATA(outputData, pOutput->type, result);
+      } else if (pInputs[0].type == TSDB_DATA_TYPE_NCHAR) {
+        SET_TYPED_DATA(outputData, pOutput->type, result/TSDB_NCHAR_SIZE);
+      }
     }
   }
 }
@@ -1527,5 +1556,10 @@ tScalarFunctionInfo aScalarFunctions[] = {
         TSDB_FUNC_SCALAR_CONCAT_WS,
         "concat_ws",
         vectorConcatWs
+    },
+    {
+        TSDB_FUNC_SCALAR_CHAR_LENGTH,
+        "char_length",
+        vectorCharLength
     }
 };

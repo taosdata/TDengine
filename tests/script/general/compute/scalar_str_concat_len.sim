@@ -145,6 +145,13 @@ if $data00 != 8 then
   return -1
 endi
 
+print sql select char_length(concat(c2, c3, c4, c5)) from $tb
+sql select char_length(concat(c2, c3, c4, c5)) from $tb
+print $data00
+if $data00 != 8 then
+  return -1
+endi
+
 print sql select length(concat_ws('data',c2,c3,c4,c5)) from $tb
 sql select length(concat_ws('data',c2,c3,c4,c5)) from $tb
 print $data00
@@ -152,10 +159,26 @@ print $data00
 if $data00 != 20 then
   return -1
 endi
+
+print sql select char_length(concat_ws('data',c2,c3,c4,c5)) from $tb
+sql select char_length(concat_ws('data',c2,c3,c4,c5)) from $tb
+print $data00
+
+if $data00 != 20 then
+  return -1
+endi
+
 print sql select length(concat(c6, c7, c8, c9)) from $tb
 sql select length(concat(c6, c7, c8, c9)) from $tb
 print $data00
 if $data00 != 32 then
+  return -1
+endi
+
+print sql select char_length(concat(c6, c7, c8, c9)) from $tb
+sql select char_length(concat(c6, c7, c8, c9)) from $tb
+print $data00
+if $data00 != 8 then
   return -1
 endi
 
@@ -164,6 +187,13 @@ sql select length(concat_ws('data' ,c6,c7,c8,c9)) from $tb
 print $data00
 
 if $data00 != 80 then
+  return -1
+endi
+
+print sql select char_length(concat_ws('data', c6,c7,c8,c9)) from $tb
+sql select char_length(concat_ws('data', c6, c7, c8, c9)) from $tb
+print $data00
+if $data00 != 20 then
   return -1
 endi
 
