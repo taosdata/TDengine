@@ -679,7 +679,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
 
   int32_t newCapacity = (int32_t)(pHashObj->capacity << 1u);
   if (newCapacity > HASH_MAX_CAPACITY) {
-    uDebug("current capacity:%lu, maximum capacity:%d, no resize applied due to limitation is reached",
+    uDebug("current capacity:%zu, maximum capacity:%d, no resize applied due to limitation is reached",
            pHashObj->capacity, HASH_MAX_CAPACITY);
     return;
   }
@@ -687,7 +687,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
   int64_t st = taosGetTimestampUs();
   void *pNewEntryList = realloc(pHashObj->hashList, sizeof(void *) * newCapacity);
   if (pNewEntryList == NULL) {
-    uDebug("cache resize failed due to out of memory, capacity remain:%lu", pHashObj->capacity);
+    uDebug("cache resize failed due to out of memory, capacity remain:%zu", pHashObj->capacity);
     return;
   }
 
