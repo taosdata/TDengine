@@ -138,13 +138,13 @@ void fstStateSetFinalState(FstState *state, bool yes);
 bool fstStateIsFinalState(FstState *state); 
 void fstStateSetStateNtrans(FstState *state, uint8_t n);
 // state_ntrans
-void fstStateStateNtrans(FstState *state);
+uint8_t fstStateStateNtrans(FstState *state, bool *null);
 uint64_t fstStateTotalTransSize(FstState *state, uint64_t version, PackSizes size, uint64_t nTrans);
 uint64_t fstStateTransIndexSize(FstState *state, uint64_t version, uint64_t nTrans);
 uint64_t fstStateNtransLen(FstState *state);
-uint64_t fstStateNtrans(FstState *state);
+uint64_t fstStateNtrans(FstState *state, FstSlice *slice);
 Output   fstStateFinalOutput(FstState *state, uint64_t version, FstSlice *date, PackSizes sizes, uint64_t nTrans);
-uint64_t fstStateFindInput(FstState *state, FstNode *node, uint8_t b);
+uint64_t fstStateFindInput(FstState *state, FstNode *node, uint8_t b, bool *null);
 
 
 
