@@ -13,25 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TRANSACTION_H_
-#define _TD_TRANSACTION_H_
+#ifndef _TD_TRANSACTION_INT_H_
+#define _TD_TRANSACTION_INT_H_
 
-#include "sdb.h"
-#include "taosmsg.h"
+#include "mnodeInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct STrans STrans;
-typedef enum { TRN_POLICY_ROLLBACK = 1, TRN_POLICY_RETRY = 2 } ETrnPolicy;
+int32_t mnodeInitTrans();
+void    mnodeCleanupTrans();
 
-int32_t trnInit();
-void    trnCleanup();
-
-STrans *trnCreate(ETrnPolicy);
+STrans *trnCreate(ETrnPolicy policy, void *rpcHandle);
 void    trnDrop(STrans *pTrans);
-void    trnSetRpcHandle(STrans *pTrans, void *rpcHandle);
 int32_t trnAppendRedoLog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t trnAppendUndoLog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t trnAppendCommitLog(STrans *pTrans, SSdbRaw *pRaw);
@@ -42,8 +37,11 @@ int32_t trnPrepare(STrans *pTrans, int32_t (*syncfp)(SSdbRaw *pRaw, void *pData)
 int32_t trnApply(SSdbRaw *pRaw, void *pData, int32_t code);
 int32_t trnExecute(int32_t tranId);
 
+SSdbRaw *trnActionEncode(STrans *pTrans);
+SSdbRow *trnActionDecode(SSdbRaw *pRaw);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TRANSACTION_H_*/
+#endif /*_TD_TRANSACTION_INT_H_*/

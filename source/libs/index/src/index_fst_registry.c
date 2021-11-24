@@ -32,6 +32,7 @@ uint64_t fstRegistryHash(FstRegistry *registry, FstBuilderNode *bNode) {
     h = (h ^ (uint64_t)(trn->addr))* FNV_PRIME;
   } 
   return h %(registry->tableSize); 
+
 }
 static void fstRegistryCellSwap(SArray *arr, uint32_t a, uint32_t b) {
   size_t sz = taosArrayGetSize(arr);
@@ -63,8 +64,6 @@ static void fstRegistryCellPromote(SArray *arr, uint32_t start, uint32_t end) {
     s -= 1;
   }
 }
-#define FST_REGISTRY_CELL_IS_EMPTY(cell) (cell->addr == NONE_ADDRESS)
-#define FST_REGISTRY_CELL_INSERT(cell, addr) do {cell->addr = addr;} while(0)
 
 FstRegistry* fstRegistryCreate(uint64_t tableSize, uint64_t mruSize) {
   FstRegistry *registry = malloc(sizeof(FstRegistry));  
@@ -72,16 +71,33 @@ FstRegistry* fstRegistryCreate(uint64_t tableSize, uint64_t mruSize) {
 
   uint64_t nCells = tableSize * mruSize; 
   SArray* tb = (SArray *)taosArrayInit(nCells, sizeof(FstRegistryCell)); 
+  if (NULL == tb) { 
+    free(registry); 
+    return NULL; 
+  }
+
   for (uint64_t i = 0; i < nCells; i++) {
-    FstRegistryCell *cell = taosArrayGet(tb, i);
-    cell->addr = NONE_ADDRESS; 
-    cell->node = fstBuilderNodeDefault(); 
+    FstRegistryCell cell = {.addr = NONE_ADDRESS, .node = fstBuilderNodeDefault()}; 
+    taosArrayPush(tb, &cell);  
   }
   
   registry->table = tb;   
   registry->tableSize = tableSize; 
   registry->mruSize   = mruSize;
   return registry;   
+}
+
+void fstRegistryDestroy(FstRegistry *registry) {
+  if (registry == NULL) { return; }
+
+  SArray *tb = registry->table;
+  size_t sz = taosArrayGetSize(tb);
+  for (size_t i = 0; i < sz; i++) {
+    FstRegistryCell *cell = taosArrayGet(tb, i); 
+    fstBuilderNodeDestroy(cell->node); 
+  }
+  taosArrayDestroy(tb);
+  free(registry);
 }
 
 FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNode) {
@@ -98,11 +114,9 @@ FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNo
     //cell->isNode && 
     if (cell->addr != NONE_ADDRESS && cell->node == bNode) {
        entry->state = FOUND;
-       entry->addr =  cell->addr ;
+       entry->addr  = cell->addr ;
        return entry; 
     } else {
-       // clone from bNode, refactor later
-       //
        fstBuilderNodeCloneFrom(cell->node, bNode);
        entry->state = NOTFOUND;
        entry->cell  = cell; // copy or not
@@ -153,6 +167,9 @@ FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNo
     }
   }      
   return entry;
+}
+void fstRegistryEntryDestroy(FstRegistryEntry *entry) {
+  free(entry);  
 }
 
 

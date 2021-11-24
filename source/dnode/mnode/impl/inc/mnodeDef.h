@@ -76,6 +76,28 @@ typedef enum {
   MN_AUTH_MAX
 } EMnAuthOp;
 
+typedef enum {
+  TRN_STAGE_PREPARE = 1,
+  TRN_STAGE_EXECUTE = 2,
+  TRN_STAGE_COMMIT = 3,
+  TRN_STAGE_ROLLBACK = 4,
+  TRN_STAGE_RETRY = 5
+} ETrnStage;
+
+typedef enum { TRN_POLICY_ROLLBACK = 1, TRN_POLICY_RETRY = 2 } ETrnPolicy;
+
+
+typedef struct STrans {
+  int32_t    id;
+  ETrnStage  stage;
+  ETrnPolicy policy;
+  void      *rpcHandle;
+  SArray    *redoLogs;
+  SArray    *undoLogs;
+  SArray    *commitLogs;
+  SArray    *redoActions;
+  SArray    *undoActions;
+} STrans;
 
 
 typedef struct SClusterObj {
@@ -109,7 +131,7 @@ typedef struct SMnodeObj {
   int64_t    roleTime;
   int64_t    createdTime;
   int64_t    updateTime;
-  SDnodeObj *pDnode;
+  SDnodeObj *pDnd;
 } SMnodeObj;
 
 typedef struct {
@@ -193,7 +215,7 @@ typedef struct SDbObj {
 typedef struct {
   int32_t    dnodeId;
   int8_t     role;
-  SDnodeObj *pDnode;
+  SDnodeObj *pDnd;
 } SVnodeGid;
 
 typedef struct SVgObj {

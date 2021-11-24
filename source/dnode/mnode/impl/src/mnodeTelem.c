@@ -174,7 +174,7 @@ static void mnodeAddVersionInfo(SBufferWriter* bw) {
 
 static void mnodeAddRuntimeInfo(SBufferWriter* bw) {
   SMnodeLoad load = {0};
-  if (mnodeGetLoad(&load) != 0) {
+  if (mnodeGetLoad(NULL, &load) != 0) {
     return;
   }
 

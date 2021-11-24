@@ -18,21 +18,49 @@
 
 #include "mnodeDef.h"
 #include "sdb.h"
-#include "trn.h"
+#include "tstep.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef void (*MnodeRpcFp)(SMnodeMsg *pMsg);
+typedef int32_t (*MnodeRpcFp)(SMnodeMsg *pMsg);
+
+typedef struct SMnodeBak {
+  int32_t    dnodeId;
+  int64_t    clusterId;
+  tmr_h      timer;
+  SSteps    *pInitSteps;
+  SSteps    *pStartSteps;
+  SMnodeOptions para;
+  MnodeRpcFp msgFp[TSDB_MSG_TYPE_MAX];
+} SMnodeBak;
+
+typedef struct SMnode {
+  int32_t           dnodeId;
+  int64_t           clusterId;
+  int8_t            replica;
+  int8_t            selfIndex;
+  SReplica          replicas[TSDB_MAX_REPLICA];
+  tmr_h             timer;
+  SSteps           *pInitSteps;
+  SSteps           *pStartSteps;
+  struct SSdb      *pSdb;
+  struct SDnode    *pServer;
+  MnodeRpcFp        msgFp[TSDB_MSG_TYPE_MAX];
+  PutMsgToMnodeQFp  putMsgToApplyMsgFp;
+  SendMsgToDnodeFp  sendMsgToDnodeFp;
+  SendMsgToMnodeFp  sendMsgToMnodeFp;
+  SendRedirectMsgFp sendRedirectMsgFp;
+} SMnode;
 
 tmr_h   mnodeGetTimer();
 int32_t mnodeGetDnodeId();
 int64_t mnodeGetClusterId();
 
-void mnodeSendMsgToDnode(struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-void mnodeSendMsgToMnode(struct SRpcMsg *rpcMsg);
-void mnodeSendRedirectMsg(struct SRpcMsg *rpcMsg, bool forShell);
+void mnodeSendMsgToDnode(SMnode *pMnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
+void mnodeSendMsgToMnode(SMnode *pMnode, struct SRpcMsg *rpcMsg);
+void mnodeSendRedirectMsg(SMnode *pMnode, struct SRpcMsg *rpcMsg, bool forShell);
 
 void mnodeSetMsgFp(int32_t msgType, MnodeRpcFp fp);
 

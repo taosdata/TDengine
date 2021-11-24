@@ -68,6 +68,8 @@ typedef struct {
   pthread_mutex_t logMutex;
 } SLogObj;
 
+int8_t  tscEmbeddedInUtil = 0;
+
 int32_t tsLogKeepDays = 0;
 int8_t  tsAsyncLog = 1;
 float   tsTotalLogDirGB = 0;

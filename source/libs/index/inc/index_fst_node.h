@@ -17,7 +17,11 @@
 #define __INDEX_FST_NODE_H__
 
 #include "index_fst_util.h"
+#include "index_fst_counting_writer.h"
 
+#define FST_BUILDER_NODE_IS_FINAL(bn) (bn->isFinal) 
+#define FST_BUILDER_NODE_TRANS_ISEMPTY(bn) (taosArrayGetSize(bn->trans) == 0) 
+#define FST_BUILDER_NODE_FINALOUTPUT_ISZERO(bn) (bn->finalOutput == 0)
 
 typedef struct FstTransition {
   uint8_t      inp;  //The byte input associated with this transition.
@@ -36,5 +40,9 @@ FstBuilderNode *fstBuilderNodeDefault();
 FstBuilderNode *fstBuilderNodeClone(FstBuilderNode *src);
 
 void fstBuilderNodeCloneFrom(FstBuilderNode *dst, FstBuilderNode *src);
+
+bool fstBuilderNodeCompileTo(FstBuilderNode *b, FstCountingWriter *wrt, CompiledAddr lastAddr, CompiledAddr startAddr); 
+
+void fstBuilderNodeDestroy(FstBuilderNode *node);
 
 #endif

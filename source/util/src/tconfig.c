@@ -154,7 +154,7 @@ static bool taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
       taosExpandDir(input_value, option, cfg->ptrLength);
       taosRealPath(option, cfg->ptrLength);
 
-      if (!taosMkDir(option)) {
+      if (taosMkDir(option) != 0) {
         uError("config option:%s, input value:%s, directory not exist, create fail:%s", cfg->option, input_value,
                strerror(errno));
         return false;
@@ -335,7 +335,7 @@ void taosReadGlobalLogCfg() {
   fclose(fp);
 }
 
-bool taosReadGlobalCfg() {
+int32_t taosReadGlobalCfg() {
   char * line, *option, *value, *value2, *value3;
   int    olen, vlen, vlen2, vlen3;
   char   fileName[PATH_MAX] = {0};
@@ -345,7 +345,7 @@ bool taosReadGlobalCfg() {
   if (fp == NULL) {
     fp = fopen(configDir, "r");
     if (fp == NULL) {
-      return false;
+      return -1;
     }
   }
 
@@ -393,7 +393,7 @@ bool taosReadGlobalCfg() {
   //   taosSetAllDebugFlag();
   // }
 
-  return true;
+  return 0;
 }
 
 void taosPrintGlobalCfg() {
@@ -402,7 +402,7 @@ void taosPrintGlobalCfg() {
 
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
-    if (tscEmbedded == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
+    if (tscEmbeddedInUtil == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
     if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
     
     int optionLen = (int)strlen(cfg->option);
@@ -487,7 +487,7 @@ void taosDumpGlobalCfg() {
   printf("==================================\n");
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
-    if (tscEmbedded == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
+    if (tscEmbeddedInUtil == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
     if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
     if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_SHOW)) continue;
 
@@ -499,7 +499,7 @@ void taosDumpGlobalCfg() {
 
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
-    if (tscEmbedded == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
+    if (tscEmbeddedInUtil == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
     if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
     if (cfg->cfgType & TSDB_CFG_CTYPE_B_SHOW) continue;
 

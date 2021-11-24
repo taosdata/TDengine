@@ -51,6 +51,7 @@ TEST(IndexTest, index_create_test) {
     int *v = (int *)taosArrayGet(result, i);
     std::cout << "value --->" << *v  << std::endl;
   }
+  // add more test case 
   indexMultiTermQueryDestroy(multiQuery);
 
   indexOptsDestroy(opts); 

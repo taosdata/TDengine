@@ -13,25 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DNODE_MNODE_H_
-#define _TD_DNODE_MNODE_H_
+#ifndef _TD_DND_DNODE_H_
+#define _TD_DND_DNODE_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dnodeInt.h"
+#include "dndInt.h"
 
-int32_t dnodeInitMnode();
-void    dnodeCleanupMnode();
-int32_t dnodeGetUserAuthFromMnode(char *user, char *spi, char *encrypt, char *secret, char *ckey);
+int32_t dndInitDnode(SDnode *pDnd);
+void    dndCleanupDnode(SDnode *pDnd);
+void    dndProcessDnodeReq(SDnode *pDnd, SRpcMsg *pMsg, SEpSet *pEpSet);
+void    dndProcessDnodeRsp(SDnode *pDnd, SRpcMsg *pMsg, SEpSet *pEpSet);
 
-void dnodeProcessMnodeMgmtMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
-void dnodeProcessMnodeReadMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
-void dnodeProcessMnodeWriteMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
-void dnodeProcessMnodeSyncMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
+int32_t dndGetDnodeId(SDnode *pDnd);
+int64_t dndGetClusterId(SDnode *pDnd);
+void    dndGetDnodeEp(SDnode *pDnd, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
+void    dndGetMnodeEpSet(SDnode *pDnd, SEpSet *pEpSet);
+void    dndSendRedirectMsg(SDnode *pDnd, SRpcMsg *pMsg, bool forShell);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DNODE_MNODE_H_*/
+#endif /*_TD_DND_DNODE_H_*/

@@ -148,7 +148,7 @@ void taos_init_imp(void) {
     }
 
     taosReadGlobalCfg();
-    if (taosCheckGlobalCfg()) {
+    if (taosCheckGlobalCfg() != 0) {
       tscInitRes = -1;
       return;
     }

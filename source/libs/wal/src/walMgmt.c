@@ -18,7 +18,6 @@
 #include "taoserror.h"
 #include "tref.h"
 #include "tfile.h"
-#include "twal.h"
 #include "walInt.h"
 
 typedef struct {
@@ -62,8 +61,8 @@ void walCleanUp() {
   wInfo("wal module is cleaned up");
 }
 
-void *walOpen(char *path, SWalCfg *pCfg) {
-  SWal *pWal = tcalloc(1, sizeof(SWal));
+SWal *walOpen(char *path, SWalCfg *pCfg) {
+  SWal *pWal = malloc(sizeof(SWal));
   if (pWal == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return NULL;
@@ -73,7 +72,7 @@ void *walOpen(char *path, SWalCfg *pCfg) {
   pWal->tfd = -1;
   pWal->fileId = -1;
   pWal->level = pCfg->walLevel;
-  pWal->keep = pCfg->keep;
+  /*pWal->keep = pCfg->keep;*/
   pWal->fsyncPeriod = pCfg->fsyncPeriod;
   tstrncpy(pWal->path, path, sizeof(pWal->path));
   pthread_mutex_init(&pWal->mutex, NULL);
@@ -86,8 +85,8 @@ void *walOpen(char *path, SWalCfg *pCfg) {
     return NULL;
   }
 
-   pWal->rid = taosAddRef(tsWal.refId, pWal);
-   if (pWal->rid < 0) {
+   pWal->rId = taosAddRef(tsWal.refId, pWal);
+   if (pWal->rId < 0) {
     walFreeObj(pWal);
     return NULL;
   }
@@ -97,9 +96,8 @@ void *walOpen(char *path, SWalCfg *pCfg) {
   return pWal;
 }
 
-int32_t walAlter(void *handle, SWalCfg *pCfg) {
-  if (handle == NULL) return TSDB_CODE_WAL_APP_ERROR;
-  SWal *pWal = handle;
+int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
+  if (pWal == NULL) return TSDB_CODE_WAL_APP_ERROR;
 
   if (pWal->level == pCfg->walLevel && pWal->fsyncPeriod == pCfg->fsyncPeriod) {
     wDebug("vgId:%d, old walLevel:%d fsync:%d, new walLevel:%d fsync:%d not change", pWal->vgId, pWal->level,
@@ -128,18 +126,17 @@ void walStop(void *handle) {
   wDebug("vgId:%d, stop write wal", pWal->vgId);
 }
 
-void walClose(void *handle) {
-  if (handle == NULL) return;
+void walClose(SWal *pWal) {
+  if (pWal == NULL) return;
 
-  SWal *pWal = handle;
   pthread_mutex_lock(&pWal->mutex);
   tfClose(pWal->tfd);
   pthread_mutex_unlock(&pWal->mutex);
-  taosRemoveRef(tsWal.refId, pWal->rid);
+  taosRemoveRef(tsWal.refId, pWal->rId);
 }
 
 static int32_t walInitObj(SWal *pWal) {
-  if (!taosMkDir(pWal->path)) {
+  if (taosMkDir(pWal->path) != 0) {
     wError("vgId:%d, path:%s, failed to create directory since %s", pWal->vgId, pWal->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }
@@ -186,7 +183,7 @@ static void walFsyncAll() {
         wError("vgId:%d, file:%s, failed to fsync since %s", pWal->vgId, pWal->name, strerror(code));
       }
     }
-    pWal = taosIterateRef(tsWal.refId, pWal->rid);
+    pWal = taosIterateRef(tsWal.refId, pWal->rId);
   }
 }
 

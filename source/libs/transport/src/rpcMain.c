@@ -54,10 +54,11 @@ typedef struct {
   char     secret[TSDB_KEY_LEN]; // secret for the link
   char     ckey[TSDB_KEY_LEN];   // ciphering key 
 
-  void   (*cfp)(SRpcMsg *, SEpSet *);
-  int    (*afp)(char *user, char *spi, char *encrypt, char *secret, char *ckey); 
+  void   (*cfp)(void *parent, SRpcMsg *, SEpSet *);
+  int    (*afp)(void *parent, char *user, char *spi, char *encrypt, char *secret, char *ckey); 
 
   int32_t   refCount;
+  void     *parent;
   void     *idPool;   // handle to ID pool
   void     *tmrCtrl;  // handle to timer
   SHashObj *hash;     // handle returned by hash utility
@@ -260,6 +261,7 @@ void *rpcOpen(const SRpcInit *pInit) {
   pRpc->spi = pInit->spi;
   pRpc->cfp = pInit->cfp;
   pRpc->afp = pInit->afp;
+  pRpc->parent = pInit->parent;
   pRpc->refCount = 1;
 
   atomic_add_fetch_32(&tsRpcNum, 1);
@@ -505,14 +507,18 @@ void rpcSendRedirectRsp(void *thandle, const SEpSet *pEpSet) {
 }
 
 int rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
+#if 0
   SRpcConn  *pConn = (SRpcConn *)thandle;
   if (pConn->user[0] == 0) return -1;
 
   pInfo->clientIp = pConn->peerIp;
   pInfo->clientPort = pConn->peerPort;
   // pInfo->serverIp = pConn->destIp;
-
+  
   tstrncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
+#else 
+  strcpy(pInfo->user, "root");
+#endif
   return 0;
 }
 
@@ -740,7 +746,7 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
       if (pConn->user[0] == 0) {
         terrno = TSDB_CODE_RPC_AUTH_REQUIRED;
       } else {
-        terrno = (*pRpc->afp)(pConn->user, &pConn->spi, &pConn->encrypt, pConn->secret, pConn->ckey);
+        terrno = (*pRpc->afp)(pRpc->parent, pConn->user, &pConn->spi, &pConn->encrypt, pConn->secret, pConn->ckey);
       }
 
       if (terrno != 0) {
@@ -1020,8 +1026,8 @@ static void doRpcReportBrokenLinkToServer(void *param, void *id) {
    SRpcMsg *pRpcMsg = (SRpcMsg *)(param); 
    SRpcConn *pConn  = (SRpcConn *)(pRpcMsg->handle);
    SRpcInfo *pRpc   = pConn->pRpc; 
-   (*(pRpc->cfp))(pRpcMsg, NULL);
-   free(pRpcMsg);
+  (*(pRpc->cfp))(pRpc->parent, pRpcMsg, NULL);
+  free(pRpcMsg);
 }
 static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
   SRpcInfo *pRpc = pConn->pRpc;
@@ -1133,9 +1139,9 @@ static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
     // for asynchronous API 
     SEpSet *pEpSet = NULL;
     if (pContext->epSet.inUse != pContext->oldInUse || pContext->redirect) 
-      pEpSet = &pContext->epSet;  
+      pEpSet = &pContext->epSet;
 
-    (*pRpc->cfp)(pMsg, pEpSet);  
+    (*pRpc->cfp)(pRpc->parent, pMsg, pEpSet);
   }
 
   // free the request message
@@ -1151,15 +1157,15 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
   rpcMsg.contLen = rpcContLenFromMsg(pHead->msgLen);
   rpcMsg.pCont = pHead->content;
   rpcMsg.msgType = pHead->msgType;
-  rpcMsg.code = pHead->code; 
-   
-  if ( rpcIsReq(pHead->msgType) ) {
+  rpcMsg.code = pHead->code;
+
+  if (rpcIsReq(pHead->msgType)) {
     rpcMsg.ahandle = pConn->ahandle;
     rpcMsg.handle = pConn;
     rpcAddRef(pRpc);  // add the refCount for requests
 
     // notify the server app
-    (*(pRpc->cfp))(&rpcMsg, NULL);
+    (*(pRpc->cfp))(pRpc->parent, &rpcMsg, NULL);
   } else {
     // it's a response
     rpcMsg.handle = pContext;

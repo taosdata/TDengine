@@ -14,13 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#define TAOS_RANDOM_FILE_FAIL_TEST
+
 #include "os.h"
 #include "taoserror.h"
-#include "taosmsg.h"
 #include "tchecksum.h"
 #include "tfile.h"
-#include "twal.h"
 #include "walInt.h"
 
 static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name, int64_t fileId);
@@ -43,12 +41,12 @@ int32_t walRenew(void *handle) {
     wDebug("vgId:%d, file:%s, it is closed while renew", pWal->vgId, pWal->name);
   }
 
-  if (pWal->keep == TAOS_WAL_KEEP) {
-    pWal->fileId = 0;
-  } else {
-    if (walGetNewFile(pWal, &pWal->fileId) != 0) pWal->fileId = 0;
-    pWal->fileId++;
-  }
+  /*if (pWal->keep == TAOS_WAL_KEEP) {*/
+    /*pWal->fileId = 0;*/
+  /*} else {*/
+    /*if (walGetNewFile(pWal, &pWal->fileId) != 0) pWal->fileId = 0;*/
+    /*pWal->fileId++;*/
+  /*}*/
 
   snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, pWal->fileId);
   pWal->tfd = tfOpenCreateWrite(pWal->name);
@@ -68,7 +66,7 @@ int32_t walRenew(void *handle) {
 void walRemoveOneOldFile(void *handle) {
   SWal *pWal = handle;
   if (pWal == NULL) return;
-  if (pWal->keep == TAOS_WAL_KEEP) return;
+  /*if (pWal->keep == TAOS_WAL_KEEP) return;*/
   if (!tfValid(pWal->tfd)) return;
 
   pthread_mutex_lock(&pWal->mutex);
@@ -117,7 +115,7 @@ void walRemoveAllOldFiles(void *handle) {
 static void walUpdateChecksum(SWalHead *pHead) {
   pHead->sver = 2;
   pHead->cksum = 0;
-  pHead->cksum = taosCalcChecksum(0, (uint8_t *)pHead, sizeof(*pHead) + pHead->len);
+  pHead->cksum = taosCalcChecksum(0, (uint8_t *)pHead, sizeof(SWalHead) + pHead->len);
 }
 
 static int walValidateChecksum(SWalHead *pHead) {
@@ -134,10 +132,14 @@ static int walValidateChecksum(SWalHead *pHead) {
 
 #endif
 
-int32_t walWrite(void *handle, SWalHead *pHead) {
-  if (handle == NULL) return -1;
+int64_t walWrite(SWal *pWal, int64_t index, void *body, int32_t bodyLen) {
+  if (pWal == NULL) return -1;
 
-  SWal *  pWal = handle;
+  SWalHead *pHead = malloc(sizeof(SWalHead) + bodyLen);
+  if(pHead == NULL) {
+    return -1;
+  }
+  pHead->version = index;
   int32_t code = 0;
 
   // no wal
@@ -146,6 +148,9 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
   if (pHead->version <= pWal->version) return 0;
 
   pHead->signature = WAL_SIGNATURE;
+  pHead->len = bodyLen;
+  memcpy(pHead->cont, body, bodyLen);
+
 #if defined(WAL_CHECKSUM_WHOLE)
   walUpdateChecksum(pHead);
 #else
@@ -173,8 +178,7 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
   return code;
 }
 
-void walFsync(void *handle, bool forceFsync) {
-  SWal *pWal = handle;
+void walFsync(SWal *pWal, bool forceFsync) {
   if (pWal == NULL || !tfValid(pWal->tfd)) return;
 
   if (forceFsync || (pWal->level == TAOS_WAL_FSYNC && pWal->fsyncPeriod == 0)) {
@@ -211,7 +215,7 @@ int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
     count++;
   }
 
-  if (pWal->keep != TAOS_WAL_KEEP) return TSDB_CODE_SUCCESS;
+  /*if (pWal->keep != TAOS_WAL_KEEP) return TSDB_CODE_SUCCESS;*/
 
   if (count == 0) {
     wDebug("vgId:%d, wal file not exist, renew it", pWal->vgId);
@@ -307,119 +311,10 @@ static int32_t walSkipCorruptedRecord(SWal *pWal, SWalHead *pHead, int64_t tfd, 
 
   return TSDB_CODE_WAL_FILE_CORRUPTED;
 }
-// Add SMemRowType ahead of SDataRow
-static void expandSubmitBlk(SSubmitBlk *pDest, SSubmitBlk *pSrc, int32_t *lenExpand) {
-  // copy the header firstly
-  memcpy(pDest, pSrc, sizeof(SSubmitBlk));
-
-  int32_t nRows = htons(pDest->numOfRows);
-  int32_t dataLen = htonl(pDest->dataLen);
-
-  if ((nRows <= 0) || (dataLen <= 0)) {
-    return;
-  }
-
-  char *pDestData = pDest->data;
-  char *pSrcData = pSrc->data;
-  for (int32_t i = 0; i < nRows; ++i) {
-    memRowSetType(pDestData, SMEM_ROW_DATA);
-    memcpy(memRowDataBody(pDestData), pSrcData, dataRowLen(pSrcData));
-    pDestData = POINTER_SHIFT(pDestData, memRowTLen(pDestData));
-    pSrcData = POINTER_SHIFT(pSrcData, dataRowLen(pSrcData));
-    ++(*lenExpand);
-  }
-  pDest->dataLen = htonl(dataLen + nRows * sizeof(uint8_t));
-}
-
-// Check SDataRow by comparing the SDataRow len and SSubmitBlk dataLen
-static bool walIsSDataRow(void *pBlkData, int nRows, int32_t dataLen) {
-  if ((nRows <= 0) || (dataLen <= 0)) {
-    return true;
-  }
-  int32_t len = 0, kvLen = 0;
-  for (int i = 0; i < nRows; ++i) {
-    len += dataRowLen(pBlkData);
-    if (len > dataLen) {
-      return false;
-    }
-
-    /**
-     * For SDataRow between version [2.1.5.0 and 2.1.6.X], it would never conflict.
-     * For SKVRow between version [2.1.5.0 and 2.1.6.X], it may conflict in below scenario
-     *   -  with 1st type byte 0x01 and sversion  0x0101(257), thus do further check
-     */
-    if (dataRowLen(pBlkData) == 257) {
-      SMemRow  memRow = pBlkData;
-      SKVRow   kvRow = memRowKvBody(memRow);
-      int      nCols = kvRowNCols(kvRow);
-      uint16_t calcTsOffset = (uint16_t)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nCols);
-      uint16_t realTsOffset = (kvRowColIdx(kvRow))->offset;
-      if (calcTsOffset == realTsOffset) {
-        kvLen += memRowKvTLen(memRow);
-      }
-    }
-    pBlkData = POINTER_SHIFT(pBlkData, dataRowLen(pBlkData));
-  }
-  if (len != dataLen) {
-    return false;
-  }
-  if (kvLen == dataLen) {
-    return false;
-  }
-  return true;
-}
-// for WAL SMemRow/SDataRow compatibility
-static int walSMemRowCheck(SWalHead *pHead) {
-  if ((pHead->sver < 2) && (pHead->msgType == TSDB_MSG_TYPE_SUBMIT)) {
-    SSubmitMsg *pMsg = (SSubmitMsg *)pHead->cont;
-    int32_t     numOfBlocks = htonl(pMsg->numOfBlocks);
-    if (numOfBlocks <= 0) {
-      return 0;
-    }
-
-    int32_t     nTotalRows = 0;
-    SSubmitBlk *pBlk = (SSubmitBlk *)pMsg->blocks;
-    for (int32_t i = 0; i < numOfBlocks; ++i) {
-      int32_t dataLen = htonl(pBlk->dataLen);
-      int32_t nRows = htons(pBlk->numOfRows);
-      nTotalRows += nRows;
-      if (!walIsSDataRow(pBlk->data, nRows, dataLen)) {
-        return 0;
-      }
-      pBlk = (SSubmitBlk *)POINTER_SHIFT(pBlk, sizeof(SSubmitBlk) + dataLen);
-    }
-    ASSERT(nTotalRows >= 0);
-    SWalHead *pWalHead = (SWalHead *)calloc(sizeof(SWalHead) + pHead->len + nTotalRows * sizeof(uint8_t), 1);
-    if (pWalHead == NULL) {
-      return -1;
-    }
-
-    memcpy(pWalHead, pHead, sizeof(SWalHead) + sizeof(SSubmitMsg));
-
-    SSubmitMsg *pDestMsg = (SSubmitMsg *)pWalHead->cont;
-    SSubmitBlk *pDestBlks = (SSubmitBlk *)pDestMsg->blocks;
-    SSubmitBlk *pSrcBlks = (SSubmitBlk *)pMsg->blocks;
-    int32_t     lenExpand = 0;
-    for (int32_t i = 0; i < numOfBlocks; ++i) {
-      expandSubmitBlk(pDestBlks, pSrcBlks, &lenExpand);
-      pDestBlks = POINTER_SHIFT(pDestBlks, htonl(pDestBlks->dataLen) + sizeof(SSubmitBlk));
-      pSrcBlks = POINTER_SHIFT(pSrcBlks, htonl(pSrcBlks->dataLen) + sizeof(SSubmitBlk));
-    }
-    if (lenExpand > 0) {
-      pDestMsg->header.contLen = htonl(pDestMsg->length) + lenExpand;
-      pDestMsg->length = htonl(pDestMsg->header.contLen);
-      pWalHead->len = pWalHead->len + lenExpand;
-    }
-
-    memcpy(pHead, pWalHead, sizeof(SWalHead) + pWalHead->len);
-    tfree(pWalHead);
-  }
-  return 0;
-}
 
 static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name, int64_t fileId) {
   int32_t size = WAL_MAX_SIZE;
-  void *  buffer = tmalloc(size);
+  void *  buffer = malloc(size);
   if (buffer == NULL) {
     wError("vgId:%d, file:%s, failed to open for restore since %s", pWal->vgId, name, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
@@ -541,14 +436,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     pWal->version = pHead->version;
 
     // wInfo("writeFp: %ld", offset);
-    if (0 != walSMemRowCheck(pHead)) {
-      wError("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d offset:%" PRId64,
-             pWal->vgId, fileId, pHead->version, pWal->version, pHead->len, offset);
-      tfClose(tfd);
-      tfree(buffer);
-      return TAOS_SYSTEM_ERROR(errno);
-    }
-    (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, NULL);
+    (*writeFp)(pVnode, pHead, NULL);
   }
 
   tfClose(tfd);
@@ -558,9 +446,8 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
   return code;
 }
 
-uint64_t walGetVersion(twalh param) {
-  SWal *pWal = param;
-  if (pWal == 0) return 0;
+uint64_t walGetVersion(SWal *pWal) {
+  if (pWal == NULL) return 0;
 
   return pWal->version;
 }
@@ -570,9 +457,8 @@ uint64_t walGetVersion(twalh param) {
 // Some new wal record cannot be written to the wal file in dnode1 for wal version not reset, then fversion and the record in wal file may inconsistent, 
 // At this time, if dnode2 down, dnode1 switched to master. After dnode2 start and restore data from dnode1, data loss will occur
 
-void walResetVersion(twalh param, uint64_t newVer) {
-  SWal *pWal = param;
-  if (pWal == 0) return;
+void walResetVersion(SWal *pWal, uint64_t newVer) {
+  if (pWal == NULL) return;
   wInfo("vgId:%d, version reset from %" PRIu64 " to %" PRIu64, pWal->vgId, pWal->version, newVer);
 
   pWal->version = newVer;

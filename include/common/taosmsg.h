@@ -672,16 +672,16 @@ typedef struct {
 } SDnodeCfg;
 
 typedef struct {
-  int32_t  dnodeId;
+  int32_t  id;
   int8_t   isMnode;
   int8_t   reserved;
-  uint16_t dnodePort;
-  char     dnodeFqdn[TSDB_FQDN_LEN];
+  uint16_t port;
+  char     fqdn[TSDB_FQDN_LEN];
 } SDnodeEp;
 
 typedef struct {
-  int32_t  dnodeNum;
-  SDnodeEp dnodeEps[];
+  int32_t  num;
+  SDnodeEp eps[];
 } SDnodeEps;
 
 typedef struct {
@@ -820,9 +820,9 @@ typedef struct {
 } SCreateDnodeMsg, SDropDnodeMsg;
 
 typedef struct {
-  int32_t    dnodeId;
-  int8_t     replica;
-  int8_t     reserved[3];
+  int32_t  dnodeId;
+  int8_t   replica;
+  int8_t   reserved[3];
   SReplica replicas[TSDB_MAX_REPLICA];
 } SCreateMnodeMsg, SAlterMnodeMsg, SDropMnodeMsg;
 

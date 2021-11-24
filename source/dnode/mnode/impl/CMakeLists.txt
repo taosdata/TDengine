@@ -8,7 +8,6 @@ target_include_directories(
 target_link_libraries(
     mnode
     PRIVATE sdb
-    PRIVATE transaction
     PUBLIC transport
     PUBLIC cjson
 )

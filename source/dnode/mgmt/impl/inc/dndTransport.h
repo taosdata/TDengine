@@ -13,27 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DNODE_DNODE_H_
-#define _TD_DNODE_DNODE_H_
+#ifndef _TD_DND_TRANSPORT_H_
+#define _TD_DND_TRANSPORT_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dnodeInt.h"
+#include "dndInt.h"
 
-int32_t dnodeInitDnode();
-void    dnodeCleanupDnode();
-void    dnodeProcessDnodeMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
-
-int32_t dnodeGetDnodeId();
-int64_t dnodeGetClusterId();
-void    dnodeGetDnodeEp(int32_t dnodeId, char *epstr, char *fqdn, uint16_t *port);
-void    dnodeGetMnodeEpSetForPeer(SEpSet *epSet);
-void    dnodeGetMnodeEpSetForShell(SEpSet *epSet);
-void    dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
+int32_t dndInitTrans(SDnode *pDnode);
+void    dndCleanupTrans(SDnode *pDnode);
+void    dndSendMsgToMnode(SDnode *pDnode, SRpcMsg *pRpcMsg);
+void    dndSendMsgToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pRpcMsg);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DNODE_DNODE_H_*/
+#endif /*_TD_DND_TRANSPORT_H_*/

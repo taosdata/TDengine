@@ -20,6 +20,7 @@
 #include "tarray.h"
 #include "index_fst_util.h"
 #include "index_fst_registry.h"
+#include "index_fst_counting_writer.h"
 
 
 typedef struct FstNode FstNode;
@@ -35,7 +36,6 @@ typedef struct FstRange {
 typedef enum { OneTransNext, OneTrans, AnyTrans, EmptyFinal} State;
 typedef enum { Included, Excluded, Unbounded} FstBound; 
 
-typedef uint32_t CheckSummer;
 
 
 /*
@@ -49,7 +49,8 @@ typedef struct FstUnFinishedNodes {
 
 #define FST_UNFINISHED_NODES_LEN(nodes) taosArrayGetSize(nodes->stack) 
 
-FstUnFinishedNodes *FstUnFinishedNodesCreate();  
+FstUnFinishedNodes *fstUnFinishedNodesCreate();  
+void fstUnFinishedNodesDestroy(FstUnFinishedNodes *node);
 void fstUnFinishedNodesPushEmpty(FstUnFinishedNodes *nodes, bool isFinal);
 FstBuilderNode *fstUnFinishedNodesPopRoot(FstUnFinishedNodes *nodes);
 FstBuilderNode *fstUnFinishedNodesPopFreeze(FstUnFinishedNodes *nodes, CompiledAddr addr);
@@ -58,18 +59,13 @@ void fstUnFinishedNodesSetRootOutput(FstUnFinishedNodes *node, Output out);
 void fstUnFinishedNodesTopLastFreeze(FstUnFinishedNodes *node, CompiledAddr addr);
 void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes *node, FstSlice bs, Output out);
 uint64_t fstUnFinishedNodesFindCommPrefix(FstUnFinishedNodes *node, FstSlice bs);
-uint64_t FstUnFinishedNodesFindCommPreifxAndSetOutput(FstUnFinishedNodes *node, FstSlice bs, Output in, Output *out);
+uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes *node, FstSlice bs, Output in, Output *out);
 
-typedef struct FstCountingWriter {
-  void*    wtr;  // wrap any writer that counts and checksum bytes written 
-  uint64_t count; 
-  CheckSummer summer;  
-} FstCountingWriter;
 
 typedef struct FstBuilder {
-  FstCountingWriter  wtr;         // The FST raw data is written directly to `wtr`.  
+  FstCountingWriter  *wrt;         // The FST raw data is written directly to `wtr`.  
   FstUnFinishedNodes *unfinished; // The stack of unfinished nodes   
-  FstRegistry        registry;    // A map of finished nodes.        
+  FstRegistry*        registry;    // A map of finished nodes.        
   SArray*            last;        // The last word added 
   CompiledAddr       lastAddr;    // The address of the last compiled node  
   uint64_t           len;         // num of keys added
@@ -127,6 +123,8 @@ typedef struct FstNode {
 #define FST_NODE_ADDR(node) node->start 
 
 FstNode *fstNodeCreate(int64_t version, CompiledAddr addr, FstSlice *data);
+void fstNodeDestroy(FstNode *fstNode);
+
 FstTransitions fstNodeTransitionIter(FstNode *node);
 FstTransitions* fstNodeTransitions(FstNode *node);
 bool fstNodeGetTransitionAt(FstNode *node, uint64_t i, FstTransition *res);
@@ -156,6 +154,9 @@ typedef struct FstIndexedValue {
   uint64_t index;
   uint64_t value;
 } FstIndexedValue;
+
+FstLastTransition *fstLastTransitionCreate(uint8_t inp, Output out);
+void fstLastTransitionDestroy(FstLastTransition *trn);
 
 
 

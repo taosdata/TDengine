@@ -46,6 +46,7 @@ extern "C" {
 #include <math.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <dirent.h>
 #include <unistd.h>
 
 #include "osAtomic.h"

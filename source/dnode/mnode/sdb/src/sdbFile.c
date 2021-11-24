@@ -21,19 +21,19 @@
 static int32_t sdbCreateDir() {
   mDebug("start to create mnode at %s", tsMnodeDir);
   
-  if (!taosMkDir(tsSdb.currDir)) {
+  if (taosMkDir(tsSdb.currDir) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to create dir:%s since %s", tsSdb.currDir, terrstr());
     return -1;
   }
 
-  if (!taosMkDir(tsSdb.syncDir)) {
+  if (taosMkDir(tsSdb.syncDir) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to create dir:%s since %s", tsSdb.syncDir, terrstr());
     return -1;
   }
 
-  if (!taosMkDir(tsSdb.tmpDir)) {
+  if (taosMkDir(tsSdb.tmpDir) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to create dir:%s since %s", tsSdb.tmpDir, terrstr());
     return -1;
@@ -45,7 +45,7 @@ static int32_t sdbCreateDir() {
 static int32_t sdbRunDeployFp() {
   mDebug("start to run deploy functions");
 
-  for (int32_t i = SDB_START; i < SDB_MAX; ++i) {
+  for (int32_t i = SDB_MAX - 1; i > SDB_START; --i) {
     SdbDeployFp fp = tsSdb.deployFps[i];
     if (fp == NULL) continue;
     if ((*fp)() != 0) {
@@ -54,6 +54,7 @@ static int32_t sdbRunDeployFp() {
     }
   }
 
+  mDebug("end of run deploy functions");
   return 0;
 }
 

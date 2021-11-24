@@ -92,7 +92,7 @@ TqMetaStore* tqStoreOpen(const char* path,
   char name[pathLen+10];
 
   strcpy(name, path);
-  if(!taosDirExist(name) && !taosMkDir(name)) {
+  if (taosDirExist(name) != 0 && taosMkDir(name) != 0) {
     ASSERT(false);
   }
   strcat(name, "/" TQ_IDX_NAME);

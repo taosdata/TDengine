@@ -106,7 +106,7 @@ int main(int argc, char* argv[]) {
     taosInitGlobalCfg();
     taosReadGlobalLogCfg();
 
-    if (!taosReadGlobalCfg()) {
+    if (taosReadGlobalCfg() ! =0) {
       printf("TDengine read global config failed");
       exit(EXIT_FAILURE);
     }
