@@ -280,67 +280,13 @@ endi
 if $data02 != @02030405@ then
  return -1
 endi
-print execute sql select concat(c2,'taos'),concat(c3,'taos'),concat(c4,'taos'),concat(c5,'taos') from ct1
-
-sql select concat(c2,'taos'),concat(c3,'taos'),concat(c4,'taos'),concat(c5,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @02taos@ then
+if $data10 != @1213@ then
  return -1
 endi
-if $data01 != @03taos@ then
+if $data11 != @121314@ then
  return -1
 endi
-if $data02 != @04taos@ then
- return -1
-endi
-if $data03 != @05taos@ then
- return -1
-endi
-print execute sql select concat(c2,c3,'taos'),concat(c2,c4,'taos'),concat(c2,c5,'taos'),concat(c3,c4,'taos'),concat(c3,c5,'taos') from ct1
-
-sql select concat(c2,c3,'taos'),concat(c2,c4,'taos'),concat(c2,c5,'taos'),concat(c3,c4,'taos'),concat(c3,c5,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @0203taos@ then
- return -1
-endi
-if $data01 != @0204taos@ then
- return -1
-endi
-if $data02 != @0205taos@ then
- return -1
-endi
-if $data03 != @0304taos@ then
- return -1
-endi
-if $data04 != @0305taos@ then
- return -1
-endi
-print execute sql select concat(c2,'taos',c3),concat(c2,'taos',c4),concat(c2,'taos',c5),concat(c3,'taos',c4),concat(c3,'taos',c5) from ct1
-
-sql select concat(c2,'taos',c3),concat(c2,'taos',c4),concat(c2,'taos',c5),concat(c3,'taos',c4),concat(c3,'taos',c5) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @02taos03@ then
- return -1
-endi
-if $data01 != @02taos04@ then
- return -1
-endi
-if $data02 != @02taos05@ then
- return -1
-endi
-if $data03 != @03taos04@ then
- return -1
-endi
-if $data04 != @03taos05@ then
+if $data12 != @12131415@ then
  return -1
 endi
 print execute sql select concat('taos',c2,c3),concat('taos',c2,c4),concat('taos',c2,c5),concat('taos',c3,c4),concat('taos',c3,c5) from ct1
@@ -365,61 +311,19 @@ endi
 if $data04 != @taos0305@ then
  return -1
 endi
-print execute sql select concat(c2,c3,c4,c5),concat('taos',c2,c3,c4,c5),concat(c2,'taos',c3,c4,c5),concat(c2,c3,'taos',c4,c5),concat(c2,c3,c4,c5,'taos') from ct1
-
-sql select concat(c2,c3,c4,c5),concat('taos',c2,c3,c4,c5),concat(c2,'taos',c3,c4,c5),concat(c2,c3,'taos',c4,c5),concat(c2,c3,c4,c5,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @02030405@ then
+if $data10 != @taos1213@ then
  return -1
 endi
-if $data01 != @taos02030405@ then
+if $data11 != @taos1214@ then
  return -1
 endi
-if $data02 != @02taos030405@ then
+if $data12 != @taos1215@ then
  return -1
 endi
-if $data03 != @0203taos0405@ then
+if $data13 != @taos1314@ then
  return -1
 endi
-if $data04 != @02030405taos@ then
- return -1
-endi
-print execute sql select concat(c6,c7),concat(c6,c7,c8),concat(c6,c7,c8,c9) from ct1
-
-sql select concat(c6,c7),concat(c6,c7,c8),concat(c6,c7,c8,c9) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @0607@ then
- return -1
-endi
-if $data01 != @060708@ then
- return -1
-endi
-if $data02 != @06070809@ then
- return -1
-endi
-print execute sql select concat(c6,'taos'),concat(c7,'taos'),concat(c8,'taos'),concat(c9,'taos') from ct1
-
-sql select concat(c6,'taos'),concat(c7,'taos'),concat(c8,'taos'),concat(c9,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @06taos@ then
- return -1
-endi
-if $data01 != @07taos@ then
- return -1
-endi
-if $data02 != @08taos@ then
- return -1
-endi
-if $data03 != @09taos@ then
+if $data14 != @taos1315@ then
  return -1
 endi
 print execute sql select concat(c6,c7,'taos'),concat(c6,c8,'taos'),concat(c6,c9,'taos'),concat(c7,c8,'taos'),concat(c7,c9,'taos') from ct1
@@ -444,228 +348,19 @@ endi
 if $data04 != @0709taos@ then
  return -1
 endi
-print execute sql select concat(c6,'taos',c7),concat(c6,'taos',c8),concat(c6,'taos',c9),concat(c7,'taos',c8),concat(c7,'taos',c9) from ct1
-
-sql select concat(c6,'taos',c7),concat(c6,'taos',c8),concat(c6,'taos',c9),concat(c7,'taos',c8),concat(c7,'taos',c9) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @06taos07@ then
+if $data10 != @1617taos@ then
  return -1
 endi
-if $data01 != @06taos08@ then
+if $data11 != @1618taos@ then
  return -1
 endi
-if $data02 != @06taos09@ then
+if $data12 != @1619taos@ then
  return -1
 endi
-if $data03 != @07taos08@ then
+if $data13 != @1718taos@ then
  return -1
 endi
-if $data04 != @07taos09@ then
- return -1
-endi
-print execute sql select concat('taos',c6,c7),concat('taos',c6,c8),concat('taos',c6,c9),concat('taos',c7,c8),concat('taos',c7,c9) from ct1
-
-sql select concat('taos',c6,c7),concat('taos',c6,c8),concat('taos',c6,c9),concat('taos',c7,c8),concat('taos',c7,c9) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @taos0607@ then
- return -1
-endi
-if $data01 != @taos0608@ then
- return -1
-endi
-if $data02 != @taos0609@ then
- return -1
-endi
-if $data03 != @taos0708@ then
- return -1
-endi
-if $data04 != @taos0709@ then
- return -1
-endi
-print execute sql select concat(c6,c7,c8,c9),concat('taos',c6,c7,c8,c9),concat(c6,'taos',c7,c8,c9),concat(c6,c7,'taos',c8,c9),concat(c6,c7,c8,c9,'taos') from ct1
-
-sql select concat(c6,c7,c8,c9),concat('taos',c6,c7,c8,c9),concat(c6,'taos',c7,c8,c9),concat(c6,c7,'taos',c8,c9),concat(c6,c7,c8,c9,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @06070809@ then
- return -1
-endi
-if $data01 != @taos06070809@ then
- return -1
-endi
-if $data02 != @06taos070809@ then
- return -1
-endi
-if $data03 != @0607taos0809@ then
- return -1
-endi
-if $data04 != @06070809taos@ then
- return -1
-endi
-print execute sql select concat('data',c3),concat('data',c3,c4),concat('data',c3,c4,c5) from ct1
-
-sql select concat('data',c3),concat('data',c3,c4),concat('data',c3,c4,c5) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @data03@ then
- return -1
-endi
-if $data01 != @data0304@ then
- return -1
-endi
-if $data02 != @data030405@ then
- return -1
-endi
-print execute sql select concat('data','taos'),concat(c3,'taos'),concat(c4,'taos'),concat(c5,'taos') from ct1
-
-sql select concat('data','taos'),concat(c3,'taos'),concat(c4,'taos'),concat(c5,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @datataos@ then
- return -1
-endi
-if $data01 != @03taos@ then
- return -1
-endi
-if $data02 != @04taos@ then
- return -1
-endi
-if $data03 != @05taos@ then
- return -1
-endi
-print execute sql select concat('data',c3,'taos'),concat('data',c4,'taos'),concat('data',c5,'taos'),concat(c3,c4,'taos'),concat(c3,c5,'taos') from ct1
-
-sql select concat('data',c3,'taos'),concat('data',c4,'taos'),concat('data',c5,'taos'),concat(c3,c4,'taos'),concat(c3,c5,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @data03taos@ then
- return -1
-endi
-if $data01 != @data04taos@ then
- return -1
-endi
-if $data02 != @data05taos@ then
- return -1
-endi
-if $data03 != @0304taos@ then
- return -1
-endi
-if $data04 != @0305taos@ then
- return -1
-endi
-print execute sql select concat('data','taos',c3),concat('data','taos',c4),concat('data','taos',c5),concat(c3,'taos',c4),concat(c3,'taos',c5) from ct1
-
-sql select concat('data','taos',c3),concat('data','taos',c4),concat('data','taos',c5),concat(c3,'taos',c4),concat(c3,'taos',c5) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @datataos03@ then
- return -1
-endi
-if $data01 != @datataos04@ then
- return -1
-endi
-if $data02 != @datataos05@ then
- return -1
-endi
-if $data03 != @03taos04@ then
- return -1
-endi
-if $data04 != @03taos05@ then
- return -1
-endi
-print execute sql select concat('taos','data',c3),concat('taos','data',c4),concat('taos','data',c5),concat('taos',c3,c4),concat('taos',c3,c5) from ct1
-
-sql select concat('taos','data',c3),concat('taos','data',c4),concat('taos','data',c5),concat('taos',c3,c4),concat('taos',c3,c5) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @taosdata03@ then
- return -1
-endi
-if $data01 != @taosdata04@ then
- return -1
-endi
-if $data02 != @taosdata05@ then
- return -1
-endi
-if $data03 != @taos0304@ then
- return -1
-endi
-if $data04 != @taos0305@ then
- return -1
-endi
-print execute sql select concat('data',c3,c4,c5),concat('taos','data',c3,c4,c5),concat('data','taos',c3,c4,c5),concat('data',c3,'taos',c4,c5),concat('data',c3,c4,c5,'taos') from ct1
-
-sql select concat('data',c3,c4,c5),concat('taos','data',c3,c4,c5),concat('data','taos',c3,c4,c5),concat('data',c3,'taos',c4,c5),concat('data',c3,c4,c5,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @data030405@ then
- return -1
-endi
-if $data01 != @taosdata030405@ then
- return -1
-endi
-if $data02 != @datataos030405@ then
- return -1
-endi
-if $data03 != @data03taos0405@ then
- return -1
-endi
-if $data04 != @data030405taos@ then
- return -1
-endi
-print execute sql select concat('data',c7),concat('data',c7,c8),concat('data',c7,c8,c9) from ct1
-
-sql select concat('data',c7),concat('data',c7,c8),concat('data',c7,c8,c9) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @data07@ then
- return -1
-endi
-if $data01 != @data0708@ then
- return -1
-endi
-if $data02 != @data070809@ then
- return -1
-endi
-print execute sql select concat('data','taos'),concat(c7,'taos'),concat(c8,'taos'),concat(c9,'taos') from ct1
-
-sql select concat('data','taos'),concat(c7,'taos'),concat(c8,'taos'),concat(c9,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @datataos@ then
- return -1
-endi
-if $data01 != @07taos@ then
- return -1
-endi
-if $data02 != @08taos@ then
- return -1
-endi
-if $data03 != @09taos@ then
+if $data14 != @1719taos@ then
  return -1
 endi
 print execute sql select concat('data',c7,'taos'),concat('data',c8,'taos'),concat('data',c9,'taos'),concat(c7,c8,'taos'),concat(c7,c9,'taos') from ct1
@@ -690,70 +385,19 @@ endi
 if $data04 != @0709taos@ then
  return -1
 endi
-print execute sql select concat('data','taos',c7),concat('data','taos',c8),concat('data','taos',c9),concat(c7,'taos',c8),concat(c7,'taos',c9) from ct1
-
-sql select concat('data','taos',c7),concat('data','taos',c8),concat('data','taos',c9),concat(c7,'taos',c8),concat(c7,'taos',c9) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @datataos07@ then
+if $data10 != @data17taos@ then
  return -1
 endi
-if $data01 != @datataos08@ then
+if $data11 != @data18taos@ then
  return -1
 endi
-if $data02 != @datataos09@ then
+if $data12 != @data19taos@ then
  return -1
 endi
-if $data03 != @07taos08@ then
+if $data13 != @1718taos@ then
  return -1
 endi
-if $data04 != @07taos09@ then
- return -1
-endi
-print execute sql select concat('taos','data',c7),concat('taos','data',c8),concat('taos','data',c9),concat('taos',c7,c8),concat('taos',c7,c9) from ct1
-
-sql select concat('taos','data',c7),concat('taos','data',c8),concat('taos','data',c9),concat('taos',c7,c8),concat('taos',c7,c9) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @taosdata07@ then
- return -1
-endi
-if $data01 != @taosdata08@ then
- return -1
-endi
-if $data02 != @taosdata09@ then
- return -1
-endi
-if $data03 != @taos0708@ then
- return -1
-endi
-if $data04 != @taos0709@ then
- return -1
-endi
-print execute sql select concat('data',c7,c8,c9),concat('taos','data',c7,c8,c9),concat('data','taos',c7,c8,c9),concat('data',c7,'taos',c8,c9),concat('data',c7,c8,c9,'taos') from ct1
-
-sql select concat('data',c7,c8,c9),concat('taos','data',c7,c8,c9),concat('data','taos',c7,c8,c9),concat('data',c7,'taos',c8,c9),concat('data',c7,c8,c9,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @data070809@ then
- return -1
-endi
-if $data01 != @taosdata070809@ then
- return -1
-endi
-if $data02 != @datataos070809@ then
- return -1
-endi
-if $data03 != @data07taos0809@ then
- return -1
-endi
-if $data04 != @data070809taos@ then
+if $data14 != @1719taos@ then
  return -1
 endi
 print execute sql select concat_ws('jeff',c2,c3),concat_ws('jeff',c2,c3,c4),concat_ws('jeff',c2,c3,c4,c5) from ct1
@@ -772,67 +416,13 @@ endi
 if $data02 != @02jeff03jeff04jeff05@ then
  return -1
 endi
-print execute sql select concat_ws('jeff',c2,'taos'),concat_ws('jeff',c3,'taos'),concat_ws('jeff',c4,'taos'),concat_ws('jeff',c5,'taos') from ct1
-
-sql select concat_ws('jeff',c2,'taos'),concat_ws('jeff',c3,'taos'),concat_ws('jeff',c4,'taos'),concat_ws('jeff',c5,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @02jefftaos@ then
+if $data10 != @12jeff13@ then
  return -1
 endi
-if $data01 != @03jefftaos@ then
+if $data11 != @12jeff13jeff14@ then
  return -1
 endi
-if $data02 != @04jefftaos@ then
- return -1
-endi
-if $data03 != @05jefftaos@ then
- return -1
-endi
-print execute sql select concat_ws('jeff',c2,c3,'taos'),concat_ws('jeff',c2,c4,'taos'),concat_ws('jeff',c2,c5,'taos'),concat_ws('jeff',c3,c4,'taos'),concat_ws('jeff',c3,c5,'taos') from ct1
-
-sql select concat_ws('jeff',c2,c3,'taos'),concat_ws('jeff',c2,c4,'taos'),concat_ws('jeff',c2,c5,'taos'),concat_ws('jeff',c3,c4,'taos'),concat_ws('jeff',c3,c5,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @02jeff03jefftaos@ then
- return -1
-endi
-if $data01 != @02jeff04jefftaos@ then
- return -1
-endi
-if $data02 != @02jeff05jefftaos@ then
- return -1
-endi
-if $data03 != @03jeff04jefftaos@ then
- return -1
-endi
-if $data04 != @03jeff05jefftaos@ then
- return -1
-endi
-print execute sql select concat_ws('jeff',c2,'taos',c3),concat_ws('jeff',c2,'taos',c4),concat_ws('jeff',c2,'taos',c5),concat_ws('jeff',c3,'taos',c4),concat_ws('jeff',c3,'taos',c5) from ct1
-
-sql select concat_ws('jeff',c2,'taos',c3),concat_ws('jeff',c2,'taos',c4),concat_ws('jeff',c2,'taos',c5),concat_ws('jeff',c3,'taos',c4),concat_ws('jeff',c3,'taos',c5) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @02jefftaosjeff03@ then
- return -1
-endi
-if $data01 != @02jefftaosjeff04@ then
- return -1
-endi
-if $data02 != @02jefftaosjeff05@ then
- return -1
-endi
-if $data03 != @03jefftaosjeff04@ then
- return -1
-endi
-if $data04 != @03jefftaosjeff05@ then
+if $data12 != @12jeff13jeff14jeff15@ then
  return -1
 endi
 print execute sql select concat_ws('jeff','taos',c2,c3),concat_ws('jeff','taos',c2,c4),concat_ws('jeff','taos',c2,c5),concat_ws('jeff','taos',c3,c4),concat_ws('jeff','taos',c3,c5) from ct1
@@ -857,149 +447,19 @@ endi
 if $data04 != @taosjeff03jeff05@ then
  return -1
 endi
-print execute sql select concat_ws('jeff',c2,c3,c4,c5),concat_ws('jeff','taos',c2,c3,c4,c5),concat_ws('jeff',c2,'taos',c3,c4,c5),concat_ws('jeff',c2,c3,'taos',c4,c5),concat_ws('jeff',c2,c3,c4,c5,'taos') from ct1
-
-sql select concat_ws('jeff',c2,c3,c4,c5),concat_ws('jeff','taos',c2,c3,c4,c5),concat_ws('jeff',c2,'taos',c3,c4,c5),concat_ws('jeff',c2,c3,'taos',c4,c5),concat_ws('jeff',c2,c3,c4,c5,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @02jeff03jeff04jeff05@ then
+if $data10 != @taosjeff12jeff13@ then
  return -1
 endi
-if $data01 != @taosjeff02jeff03jeff04jeff05@ then
+if $data11 != @taosjeff12jeff14@ then
  return -1
 endi
-if $data02 != @02jefftaosjeff03jeff04jeff05@ then
+if $data12 != @taosjeff12jeff15@ then
  return -1
 endi
-if $data03 != @02jeff03jefftaosjeff04jeff05@ then
+if $data13 != @taosjeff13jeff14@ then
  return -1
 endi
-if $data04 != @02jeff03jeff04jeff05jefftaos@ then
- return -1
-endi
-print execute sql select concat_ws('jeff',c6,c7),concat_ws('jeff',c6,c7,c8),concat_ws('jeff',c6,c7,c8,c9) from ct1
-
-sql select concat_ws('jeff',c6,c7),concat_ws('jeff',c6,c7,c8),concat_ws('jeff',c6,c7,c8,c9) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @06jeff07@ then
- return -1
-endi
-if $data01 != @06jeff07jeff08@ then
- return -1
-endi
-if $data02 != @06jeff07jeff08jeff09@ then
- return -1
-endi
-print execute sql select concat_ws('jeff',c6,'taos'),concat_ws('jeff',c7,'taos'),concat_ws('jeff',c8,'taos'),concat_ws('jeff',c9,'taos') from ct1
-
-sql select concat_ws('jeff',c6,'taos'),concat_ws('jeff',c7,'taos'),concat_ws('jeff',c8,'taos'),concat_ws('jeff',c9,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @06jefftaos@ then
- return -1
-endi
-if $data01 != @07jefftaos@ then
- return -1
-endi
-if $data02 != @08jefftaos@ then
- return -1
-endi
-if $data03 != @09jefftaos@ then
- return -1
-endi
-print execute sql select concat_ws('jeff',c6,c7,'taos'),concat_ws('jeff',c6,c8,'taos'),concat_ws('jeff',c6,c9,'taos'),concat_ws('jeff',c7,c8,'taos'),concat_ws('jeff',c7,c9,'taos') from ct1
-
-sql select concat_ws('jeff',c6,c7,'taos'),concat_ws('jeff',c6,c8,'taos'),concat_ws('jeff',c6,c9,'taos'),concat_ws('jeff',c7,c8,'taos'),concat_ws('jeff',c7,c9,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @06jeff07jefftaos@ then
- return -1
-endi
-if $data01 != @06jeff08jefftaos@ then
- return -1
-endi
-if $data02 != @06jeff09jefftaos@ then
- return -1
-endi
-if $data03 != @07jeff08jefftaos@ then
- return -1
-endi
-if $data04 != @07jeff09jefftaos@ then
- return -1
-endi
-print execute sql select concat_ws('jeff',c6,'taos',c7),concat_ws('jeff',c6,'taos',c8),concat_ws('jeff',c6,'taos',c9),concat_ws('jeff',c7,'taos',c8),concat_ws('jeff',c7,'taos',c9) from ct1
-
-sql select concat_ws('jeff',c6,'taos',c7),concat_ws('jeff',c6,'taos',c8),concat_ws('jeff',c6,'taos',c9),concat_ws('jeff',c7,'taos',c8),concat_ws('jeff',c7,'taos',c9) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @06jefftaosjeff07@ then
- return -1
-endi
-if $data01 != @06jefftaosjeff08@ then
- return -1
-endi
-if $data02 != @06jefftaosjeff09@ then
- return -1
-endi
-if $data03 != @07jefftaosjeff08@ then
- return -1
-endi
-if $data04 != @07jefftaosjeff09@ then
- return -1
-endi
-print execute sql select concat_ws('jeff','taos',c6,c7),concat_ws('jeff','taos',c6,c8),concat_ws('jeff','taos',c6,c9),concat_ws('jeff','taos',c7,c8),concat_ws('jeff','taos',c7,c9) from ct1
-
-sql select concat_ws('jeff','taos',c6,c7),concat_ws('jeff','taos',c6,c8),concat_ws('jeff','taos',c6,c9),concat_ws('jeff','taos',c7,c8),concat_ws('jeff','taos',c7,c9) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @taosjeff06jeff07@ then
- return -1
-endi
-if $data01 != @taosjeff06jeff08@ then
- return -1
-endi
-if $data02 != @taosjeff06jeff09@ then
- return -1
-endi
-if $data03 != @taosjeff07jeff08@ then
- return -1
-endi
-if $data04 != @taosjeff07jeff09@ then
- return -1
-endi
-print execute sql select concat_ws('jeff',c6,c7,c8,c9),concat_ws('jeff','taos',c6,c7,c8,c9),concat_ws('jeff',c6,'taos',c7,c8,c9),concat_ws('jeff',c6,c7,'taos',c8,c9),concat_ws('jeff',c6,c7,c8,c9,'taos') from ct1
-
-sql select concat_ws('jeff',c6,c7,c8,c9),concat_ws('jeff','taos',c6,c7,c8,c9),concat_ws('jeff',c6,'taos',c7,c8,c9),concat_ws('jeff',c6,c7,'taos',c8,c9),concat_ws('jeff',c6,c7,c8,c9,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @06jeff07jeff08jeff09@ then
- return -1
-endi
-if $data01 != @taosjeff06jeff07jeff08jeff09@ then
- return -1
-endi
-if $data02 != @06jefftaosjeff07jeff08jeff09@ then
- return -1
-endi
-if $data03 != @06jeff07jefftaosjeff08jeff09@ then
- return -1
-endi
-if $data04 != @06jeff07jeff08jeff09jefftaos@ then
+if $data14 != @taosjeff13jeff15@ then
  return -1
 endi
 print execute sql select concat_ws('jeff','data',c3),concat_ws('jeff','data',c3,c4),concat_ws('jeff','data',c3,c4,c5) from ct1
@@ -1018,146 +478,13 @@ endi
 if $data02 != @datajeff03jeff04jeff05@ then
  return -1
 endi
-print execute sql select concat_ws('jeff','data','taos'),concat_ws('jeff',c3,'taos'),concat_ws('jeff',c4,'taos'),concat_ws('jeff',c5,'taos') from ct1
-
-sql select concat_ws('jeff','data','taos'),concat_ws('jeff',c3,'taos'),concat_ws('jeff',c4,'taos'),concat_ws('jeff',c5,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @datajefftaos@ then
+if $data10 != @datajeff13@ then
  return -1
 endi
-if $data01 != @03jefftaos@ then
+if $data11 != @datajeff13jeff14@ then
  return -1
 endi
-if $data02 != @04jefftaos@ then
- return -1
-endi
-if $data03 != @05jefftaos@ then
- return -1
-endi
-print execute sql select concat_ws('jeff','data',c3,'taos'),concat_ws('jeff','data',c4,'taos'),concat_ws('jeff','data',c5,'taos'),concat_ws('jeff',c3,c4,'taos'),concat_ws('jeff',c3,c5,'taos') from ct1
-
-sql select concat_ws('jeff','data',c3,'taos'),concat_ws('jeff','data',c4,'taos'),concat_ws('jeff','data',c5,'taos'),concat_ws('jeff',c3,c4,'taos'),concat_ws('jeff',c3,c5,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @datajeff03jefftaos@ then
- return -1
-endi
-if $data01 != @datajeff04jefftaos@ then
- return -1
-endi
-if $data02 != @datajeff05jefftaos@ then
- return -1
-endi
-if $data03 != @03jeff04jefftaos@ then
- return -1
-endi
-if $data04 != @03jeff05jefftaos@ then
- return -1
-endi
-print execute sql select concat_ws('jeff','data','taos',c3),concat_ws('jeff','data','taos',c4),concat_ws('jeff','data','taos',c5),concat_ws('jeff',c3,'taos',c4),concat_ws('jeff',c3,'taos',c5) from ct1
-
-sql select concat_ws('jeff','data','taos',c3),concat_ws('jeff','data','taos',c4),concat_ws('jeff','data','taos',c5),concat_ws('jeff',c3,'taos',c4),concat_ws('jeff',c3,'taos',c5) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @datajefftaosjeff03@ then
- return -1
-endi
-if $data01 != @datajefftaosjeff04@ then
- return -1
-endi
-if $data02 != @datajefftaosjeff05@ then
- return -1
-endi
-if $data03 != @03jefftaosjeff04@ then
- return -1
-endi
-if $data04 != @03jefftaosjeff05@ then
- return -1
-endi
-print execute sql select concat_ws('jeff','taos','data',c3),concat_ws('jeff','taos','data',c4),concat_ws('jeff','taos','data',c5),concat_ws('jeff','taos',c3,c4),concat_ws('jeff','taos',c3,c5) from ct1
-
-sql select concat_ws('jeff','taos','data',c3),concat_ws('jeff','taos','data',c4),concat_ws('jeff','taos','data',c5),concat_ws('jeff','taos',c3,c4),concat_ws('jeff','taos',c3,c5) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @taosjeffdatajeff03@ then
- return -1
-endi
-if $data01 != @taosjeffdatajeff04@ then
- return -1
-endi
-if $data02 != @taosjeffdatajeff05@ then
- return -1
-endi
-if $data03 != @taosjeff03jeff04@ then
- return -1
-endi
-if $data04 != @taosjeff03jeff05@ then
- return -1
-endi
-print execute sql select concat_ws('jeff','data',c3,c4,c5),concat_ws('jeff','taos','data',c3,c4,c5),concat_ws('jeff','data','taos',c3,c4,c5),concat_ws('jeff','data',c3,'taos',c4,c5),concat_ws('jeff','data',c3,c4,c5,'taos') from ct1
-
-sql select concat_ws('jeff','data',c3,c4,c5),concat_ws('jeff','taos','data',c3,c4,c5),concat_ws('jeff','data','taos',c3,c4,c5),concat_ws('jeff','data',c3,'taos',c4,c5),concat_ws('jeff','data',c3,c4,c5,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @datajeff03jeff04jeff05@ then
- return -1
-endi
-if $data01 != @taosjeffdatajeff03jeff04jeff05@ then
- return -1
-endi
-if $data02 != @datajefftaosjeff03jeff04jeff05@ then
- return -1
-endi
-if $data03 != @datajeff03jefftaosjeff04jeff05@ then
- return -1
-endi
-if $data04 != @datajeff03jeff04jeff05jefftaos@ then
- return -1
-endi
-print execute sql select concat_ws('jeff','data',c7),concat_ws('jeff','data',c7,c8),concat_ws('jeff','data',c7,c8,c9) from ct1
-
-sql select concat_ws('jeff','data',c7),concat_ws('jeff','data',c7,c8),concat_ws('jeff','data',c7,c8,c9) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @datajeff07@ then
- return -1
-endi
-if $data01 != @datajeff07jeff08@ then
- return -1
-endi
-if $data02 != @datajeff07jeff08jeff09@ then
- return -1
-endi
-print execute sql select concat_ws('jeff','data','taos'),concat_ws('jeff',c7,'taos'),concat_ws('jeff',c8,'taos'),concat_ws('jeff',c9,'taos') from ct1
-
-sql select concat_ws('jeff','data','taos'),concat_ws('jeff',c7,'taos'),concat_ws('jeff',c8,'taos'),concat_ws('jeff',c9,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @datajefftaos@ then
- return -1
-endi
-if $data01 != @07jefftaos@ then
- return -1
-endi
-if $data02 != @08jefftaos@ then
- return -1
-endi
-if $data03 != @09jefftaos@ then
+if $data12 != @datajeff13jeff14jeff15@ then
  return -1
 endi
 print execute sql select concat_ws('jeff','data',c7,'taos'),concat_ws('jeff','data',c8,'taos'),concat_ws('jeff','data',c9,'taos'),concat_ws('jeff',c7,c8,'taos'),concat_ws('jeff',c7,c9,'taos') from ct1
@@ -1182,70 +509,19 @@ endi
 if $data04 != @07jeff09jefftaos@ then
  return -1
 endi
-print execute sql select concat_ws('jeff','data','taos',c7),concat_ws('jeff','data','taos',c8),concat_ws('jeff','data','taos',c9),concat_ws('jeff',c7,'taos',c8),concat_ws('jeff',c7,'taos',c9) from ct1
-
-sql select concat_ws('jeff','data','taos',c7),concat_ws('jeff','data','taos',c8),concat_ws('jeff','data','taos',c9),concat_ws('jeff',c7,'taos',c8),concat_ws('jeff',c7,'taos',c9) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @datajefftaosjeff07@ then
+if $data10 != @datajeff17jefftaos@ then
  return -1
 endi
-if $data01 != @datajefftaosjeff08@ then
+if $data11 != @datajeff18jefftaos@ then
  return -1
 endi
-if $data02 != @datajefftaosjeff09@ then
+if $data12 != @datajeff19jefftaos@ then
  return -1
 endi
-if $data03 != @07jefftaosjeff08@ then
+if $data13 != @17jeff18jefftaos@ then
  return -1
 endi
-if $data04 != @07jefftaosjeff09@ then
- return -1
-endi
-print execute sql select concat_ws('jeff','taos','data',c7),concat_ws('jeff','taos','data',c8),concat_ws('jeff','taos','data',c9),concat_ws('jeff','taos',c7,c8),concat_ws('jeff','taos',c7,c9) from ct1
-
-sql select concat_ws('jeff','taos','data',c7),concat_ws('jeff','taos','data',c8),concat_ws('jeff','taos','data',c9),concat_ws('jeff','taos',c7,c8),concat_ws('jeff','taos',c7,c9) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @taosjeffdatajeff07@ then
- return -1
-endi
-if $data01 != @taosjeffdatajeff08@ then
- return -1
-endi
-if $data02 != @taosjeffdatajeff09@ then
- return -1
-endi
-if $data03 != @taosjeff07jeff08@ then
- return -1
-endi
-if $data04 != @taosjeff07jeff09@ then
- return -1
-endi
-print execute sql select concat_ws('jeff','data',c7,c8,c9),concat_ws('jeff','taos','data',c7,c8,c9),concat_ws('jeff','data','taos',c7,c8,c9),concat_ws('jeff','data',c7,'taos',c8,c9),concat_ws('jeff','data',c7,c8,c9,'taos') from ct1
-
-sql select concat_ws('jeff','data',c7,c8,c9),concat_ws('jeff','taos','data',c7,c8,c9),concat_ws('jeff','data','taos',c7,c8,c9),concat_ws('jeff','data',c7,'taos',c8,c9),concat_ws('jeff','data',c7,c8,c9,'taos') from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @datajeff07jeff08jeff09@ then
- return -1
-endi
-if $data01 != @taosjeffdatajeff07jeff08jeff09@ then
- return -1
-endi
-if $data02 != @datajefftaosjeff07jeff08jeff09@ then
- return -1
-endi
-if $data03 != @datajeff07jefftaosjeff08jeff09@ then
- return -1
-endi
-if $data04 != @datajeff07jeff08jeff09jefftaos@ then
+if $data14 != @17jeff19jefftaos@ then
  return -1
 endi
 print execute sql select length(concat(c2,c3)),length(concat(c2,c3,c4)),length(concat(c2,c3,c4,c5)) from ct1
@@ -1264,146 +540,13 @@ endi
 if $data02 != @8@ then
  return -1
 endi
-print execute sql select length(concat(c2,'taos')),length(concat(c3,'taos')),length(concat(c4,'taos')),length(concat(c5,'taos')) from ct1
-
-sql select length(concat(c2,'taos')),length(concat(c3,'taos')),length(concat(c4,'taos')),length(concat(c5,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @6@ then
+if $data10 != @4@ then
  return -1
 endi
-if $data01 != @6@ then
+if $data11 != @6@ then
  return -1
 endi
-if $data02 != @6@ then
- return -1
-endi
-if $data03 != @6@ then
- return -1
-endi
-print execute sql select length(concat(c2,c3,'taos')),length(concat(c2,c4,'taos')),length(concat(c2,c5,'taos')),length(concat(c3,c4,'taos')),length(concat(c3,c5,'taos')) from ct1
-
-sql select length(concat(c2,c3,'taos')),length(concat(c2,c4,'taos')),length(concat(c2,c5,'taos')),length(concat(c3,c4,'taos')),length(concat(c3,c5,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @8@ then
- return -1
-endi
-if $data01 != @8@ then
- return -1
-endi
-if $data02 != @8@ then
- return -1
-endi
-if $data03 != @8@ then
- return -1
-endi
-if $data04 != @8@ then
- return -1
-endi
-print execute sql select length(concat(c2,'taos',c3)),length(concat(c2,'taos',c4)),length(concat(c2,'taos',c5)),length(concat(c3,'taos',c4)),length(concat(c3,'taos',c5)) from ct1
-
-sql select length(concat(c2,'taos',c3)),length(concat(c2,'taos',c4)),length(concat(c2,'taos',c5)),length(concat(c3,'taos',c4)),length(concat(c3,'taos',c5)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @8@ then
- return -1
-endi
-if $data01 != @8@ then
- return -1
-endi
-if $data02 != @8@ then
- return -1
-endi
-if $data03 != @8@ then
- return -1
-endi
-if $data04 != @8@ then
- return -1
-endi
-print execute sql select length(concat('taos',c2,c3)),length(concat('taos',c2,c4)),length(concat('taos',c2,c5)),length(concat('taos',c3,c4)),length(concat('taos',c3,c5)) from ct1
-
-sql select length(concat('taos',c2,c3)),length(concat('taos',c2,c4)),length(concat('taos',c2,c5)),length(concat('taos',c3,c4)),length(concat('taos',c3,c5)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @8@ then
- return -1
-endi
-if $data01 != @8@ then
- return -1
-endi
-if $data02 != @8@ then
- return -1
-endi
-if $data03 != @8@ then
- return -1
-endi
-if $data04 != @8@ then
- return -1
-endi
-print execute sql select length(concat(c2,c3,c4,c5)),length(concat('taos',c2,c3,c4,c5)),length(concat(c2,'taos',c3,c4,c5)),length(concat(c2,c3,'taos',c4,c5)),length(concat(c2,c3,c4,c5,'taos')) from ct1
-
-sql select length(concat(c2,c3,c4,c5)),length(concat('taos',c2,c3,c4,c5)),length(concat(c2,'taos',c3,c4,c5)),length(concat(c2,c3,'taos',c4,c5)),length(concat(c2,c3,c4,c5,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @8@ then
- return -1
-endi
-if $data01 != @12@ then
- return -1
-endi
-if $data02 != @12@ then
- return -1
-endi
-if $data03 != @12@ then
- return -1
-endi
-if $data04 != @12@ then
- return -1
-endi
-print execute sql select length(concat(c6,c7)),length(concat(c6,c7,c8)),length(concat(c6,c7,c8,c9)) from ct1
-
-sql select length(concat(c6,c7)),length(concat(c6,c7,c8)),length(concat(c6,c7,c8,c9)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @16@ then
- return -1
-endi
-if $data01 != @24@ then
- return -1
-endi
-if $data02 != @32@ then
- return -1
-endi
-print execute sql select length(concat(c6,'taos')),length(concat(c7,'taos')),length(concat(c8,'taos')),length(concat(c9,'taos')) from ct1
-
-sql select length(concat(c6,'taos')),length(concat(c7,'taos')),length(concat(c8,'taos')),length(concat(c9,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @24@ then
- return -1
-endi
-if $data01 != @24@ then
- return -1
-endi
-if $data02 != @24@ then
- return -1
-endi
-if $data03 != @24@ then
+if $data12 != @8@ then
  return -1
 endi
 print execute sql select length(concat(c6,c7,'taos')),length(concat(c6,c8,'taos')),length(concat(c6,c9,'taos')),length(concat(c7,c8,'taos')),length(concat(c7,c9,'taos')) from ct1
@@ -1428,395 +571,19 @@ endi
 if $data04 != @32@ then
  return -1
 endi
-print execute sql select length(concat(c6,'taos',c7)),length(concat(c6,'taos',c8)),length(concat(c6,'taos',c9)),length(concat(c7,'taos',c8)),length(concat(c7,'taos',c9)) from ct1
-
-sql select length(concat(c6,'taos',c7)),length(concat(c6,'taos',c8)),length(concat(c6,'taos',c9)),length(concat(c7,'taos',c8)),length(concat(c7,'taos',c9)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @32@ then
- return -1
-endi
-if $data01 != @32@ then
- return -1
-endi
-if $data02 != @32@ then
- return -1
-endi
-if $data03 != @32@ then
- return -1
-endi
-if $data04 != @32@ then
- return -1
-endi
-print execute sql select length(concat('taos',c6,c7)),length(concat('taos',c6,c8)),length(concat('taos',c6,c9)),length(concat('taos',c7,c8)),length(concat('taos',c7,c9)) from ct1
-
-sql select length(concat('taos',c6,c7)),length(concat('taos',c6,c8)),length(concat('taos',c6,c9)),length(concat('taos',c7,c8)),length(concat('taos',c7,c9)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @32@ then
- return -1
-endi
-if $data01 != @32@ then
- return -1
-endi
-if $data02 != @32@ then
- return -1
-endi
-if $data03 != @32@ then
- return -1
-endi
-if $data04 != @32@ then
- return -1
-endi
-print execute sql select length(concat(c6,c7,c8,c9)),length(concat('taos',c6,c7,c8,c9)),length(concat(c6,'taos',c7,c8,c9)),length(concat(c6,c7,'taos',c8,c9)),length(concat(c6,c7,c8,c9,'taos')) from ct1
-
-sql select length(concat(c6,c7,c8,c9)),length(concat('taos',c6,c7,c8,c9)),length(concat(c6,'taos',c7,c8,c9)),length(concat(c6,c7,'taos',c8,c9)),length(concat(c6,c7,c8,c9,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @32@ then
- return -1
-endi
-if $data01 != @48@ then
- return -1
-endi
-if $data02 != @48@ then
- return -1
-endi
-if $data03 != @48@ then
- return -1
-endi
-if $data04 != @48@ then
- return -1
-endi
-print execute sql select length(concat('data',c3)),length(concat('data',c3,c4)),length(concat('data',c3,c4,c5)) from ct1
-
-sql select length(concat('data',c3)),length(concat('data',c3,c4)),length(concat('data',c3,c4,c5)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @6@ then
- return -1
-endi
-if $data01 != @8@ then
- return -1
-endi
-if $data02 != @10@ then
- return -1
-endi
-print execute sql select length(concat('data','taos')),length(concat(c3,'taos')),length(concat(c4,'taos')),length(concat(c5,'taos')) from ct1
-
-sql select length(concat('data','taos')),length(concat(c3,'taos')),length(concat(c4,'taos')),length(concat(c5,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @8@ then
- return -1
-endi
-if $data01 != @6@ then
- return -1
-endi
-if $data02 != @6@ then
- return -1
-endi
-if $data03 != @6@ then
- return -1
-endi
-print execute sql select length(concat('data',c3,'taos')),length(concat('data',c4,'taos')),length(concat('data',c5,'taos')),length(concat(c3,c4,'taos')),length(concat(c3,c5,'taos')) from ct1
-
-sql select length(concat('data',c3,'taos')),length(concat('data',c4,'taos')),length(concat('data',c5,'taos')),length(concat(c3,c4,'taos')),length(concat(c3,c5,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @10@ then
- return -1
-endi
-if $data01 != @10@ then
- return -1
-endi
-if $data02 != @10@ then
- return -1
-endi
-if $data03 != @8@ then
- return -1
-endi
-if $data04 != @8@ then
- return -1
-endi
-print execute sql select length(concat('data','taos',c3)),length(concat('data','taos',c4)),length(concat('data','taos',c5)),length(concat(c3,'taos',c4)),length(concat(c3,'taos',c5)) from ct1
-
-sql select length(concat('data','taos',c3)),length(concat('data','taos',c4)),length(concat('data','taos',c5)),length(concat(c3,'taos',c4)),length(concat(c3,'taos',c5)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @10@ then
- return -1
-endi
-if $data01 != @10@ then
- return -1
-endi
-if $data02 != @10@ then
- return -1
-endi
-if $data03 != @8@ then
- return -1
-endi
-if $data04 != @8@ then
- return -1
-endi
-print execute sql select length(concat('taos','data',c3)),length(concat('taos','data',c4)),length(concat('taos','data',c5)),length(concat('taos',c3,c4)),length(concat('taos',c3,c5)) from ct1
-
-sql select length(concat('taos','data',c3)),length(concat('taos','data',c4)),length(concat('taos','data',c5)),length(concat('taos',c3,c4)),length(concat('taos',c3,c5)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @10@ then
- return -1
-endi
-if $data01 != @10@ then
- return -1
-endi
-if $data02 != @10@ then
- return -1
-endi
-if $data03 != @8@ then
- return -1
-endi
-if $data04 != @8@ then
- return -1
-endi
-print execute sql select length(concat('data',c3,c4,c5)),length(concat('taos','data',c3,c4,c5)),length(concat('data','taos',c3,c4,c5)),length(concat('data',c3,'taos',c4,c5)),length(concat('data',c3,c4,c5,'taos')) from ct1
-
-sql select length(concat('data',c3,c4,c5)),length(concat('taos','data',c3,c4,c5)),length(concat('data','taos',c3,c4,c5)),length(concat('data',c3,'taos',c4,c5)),length(concat('data',c3,c4,c5,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @10@ then
- return -1
-endi
-if $data01 != @14@ then
- return -1
-endi
-if $data02 != @14@ then
- return -1
-endi
-if $data03 != @14@ then
- return -1
-endi
-if $data04 != @14@ then
- return -1
-endi
-print execute sql select length(concat('data',c7)),length(concat('data',c7,c8)),length(concat('data',c7,c8,c9)) from ct1
-
-sql select length(concat('data',c7)),length(concat('data',c7,c8)),length(concat('data',c7,c8,c9)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @24@ then
- return -1
-endi
-if $data01 != @32@ then
- return -1
-endi
-if $data02 != @40@ then
- return -1
-endi
-print execute sql select length(concat('data','taos')),length(concat(c7,'taos')),length(concat(c8,'taos')),length(concat(c9,'taos')) from ct1
-
-sql select length(concat('data','taos')),length(concat(c7,'taos')),length(concat(c8,'taos')),length(concat(c9,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @8@ then
- return -1
-endi
-if $data01 != @24@ then
- return -1
-endi
-if $data02 != @24@ then
- return -1
-endi
-if $data03 != @24@ then
- return -1
-endi
-print execute sql select length(concat('data',c7,'taos')),length(concat('data',c8,'taos')),length(concat('data',c9,'taos')),length(concat(c7,c8,'taos')),length(concat(c7,c9,'taos')) from ct1
-
-sql select length(concat('data',c7,'taos')),length(concat('data',c8,'taos')),length(concat('data',c9,'taos')),length(concat(c7,c8,'taos')),length(concat(c7,c9,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @40@ then
- return -1
-endi
-if $data01 != @40@ then
- return -1
-endi
-if $data02 != @40@ then
- return -1
-endi
-if $data03 != @32@ then
- return -1
-endi
-if $data04 != @32@ then
- return -1
-endi
-print execute sql select length(concat('data','taos',c7)),length(concat('data','taos',c8)),length(concat('data','taos',c9)),length(concat(c7,'taos',c8)),length(concat(c7,'taos',c9)) from ct1
-
-sql select length(concat('data','taos',c7)),length(concat('data','taos',c8)),length(concat('data','taos',c9)),length(concat(c7,'taos',c8)),length(concat(c7,'taos',c9)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @40@ then
- return -1
-endi
-if $data01 != @40@ then
- return -1
-endi
-if $data02 != @40@ then
- return -1
-endi
-if $data03 != @32@ then
- return -1
-endi
-if $data04 != @32@ then
- return -1
-endi
-print execute sql select length(concat('taos','data',c7)),length(concat('taos','data',c8)),length(concat('taos','data',c9)),length(concat('taos',c7,c8)),length(concat('taos',c7,c9)) from ct1
-
-sql select length(concat('taos','data',c7)),length(concat('taos','data',c8)),length(concat('taos','data',c9)),length(concat('taos',c7,c8)),length(concat('taos',c7,c9)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @40@ then
- return -1
-endi
-if $data01 != @40@ then
- return -1
-endi
-if $data02 != @40@ then
- return -1
-endi
-if $data03 != @32@ then
- return -1
-endi
-if $data04 != @32@ then
- return -1
-endi
-print execute sql select length(concat('data',c7,c8,c9)),length(concat('taos','data',c7,c8,c9)),length(concat('data','taos',c7,c8,c9)),length(concat('data',c7,'taos',c8,c9)),length(concat('data',c7,c8,c9,'taos')) from ct1
-
-sql select length(concat('data',c7,c8,c9)),length(concat('taos','data',c7,c8,c9)),length(concat('data','taos',c7,c8,c9)),length(concat('data',c7,'taos',c8,c9)),length(concat('data',c7,c8,c9,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @40@ then
- return -1
-endi
-if $data01 != @56@ then
- return -1
-endi
-if $data02 != @56@ then
- return -1
-endi
-if $data03 != @56@ then
- return -1
-endi
-if $data04 != @56@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff',c2,c3)),length(concat_ws('jeff',c2,c3,c4)),length(concat_ws('jeff',c2,c3,c4,c5)) from ct1
-
-sql select length(concat_ws('jeff',c2,c3)),length(concat_ws('jeff',c2,c3,c4)),length(concat_ws('jeff',c2,c3,c4,c5)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @8@ then
- return -1
-endi
-if $data01 != @14@ then
- return -1
-endi
-if $data02 != @20@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff',c2,'taos')),length(concat_ws('jeff',c3,'taos')),length(concat_ws('jeff',c4,'taos')),length(concat_ws('jeff',c5,'taos')) from ct1
-
-sql select length(concat_ws('jeff',c2,'taos')),length(concat_ws('jeff',c3,'taos')),length(concat_ws('jeff',c4,'taos')),length(concat_ws('jeff',c5,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @10@ then
- return -1
-endi
-if $data01 != @10@ then
- return -1
-endi
-if $data02 != @10@ then
- return -1
-endi
-if $data03 != @10@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff',c2,c3,'taos')),length(concat_ws('jeff',c2,c4,'taos')),length(concat_ws('jeff',c2,c5,'taos')),length(concat_ws('jeff',c3,c4,'taos')),length(concat_ws('jeff',c3,c5,'taos')) from ct1
-
-sql select length(concat_ws('jeff',c2,c3,'taos')),length(concat_ws('jeff',c2,c4,'taos')),length(concat_ws('jeff',c2,c5,'taos')),length(concat_ws('jeff',c3,c4,'taos')),length(concat_ws('jeff',c3,c5,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @16@ then
- return -1
-endi
-if $data01 != @16@ then
- return -1
-endi
-if $data02 != @16@ then
- return -1
-endi
-if $data03 != @16@ then
- return -1
-endi
-if $data04 != @16@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff',c2,'taos',c3)),length(concat_ws('jeff',c2,'taos',c4)),length(concat_ws('jeff',c2,'taos',c5)),length(concat_ws('jeff',c3,'taos',c4)),length(concat_ws('jeff',c3,'taos',c5)) from ct1
-
-sql select length(concat_ws('jeff',c2,'taos',c3)),length(concat_ws('jeff',c2,'taos',c4)),length(concat_ws('jeff',c2,'taos',c5)),length(concat_ws('jeff',c3,'taos',c4)),length(concat_ws('jeff',c3,'taos',c5)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @16@ then
+if $data10 != @32@ then
  return -1
 endi
-if $data01 != @16@ then
+if $data11 != @32@ then
  return -1
 endi
-if $data02 != @16@ then
+if $data12 != @32@ then
  return -1
 endi
-if $data03 != @16@ then
+if $data13 != @32@ then
  return -1
 endi
-if $data04 != @16@ then
+if $data14 != @32@ then
  return -1
 endi
 print execute sql select length(concat_ws('jeff','taos',c2,c3)),length(concat_ws('jeff','taos',c2,c4)),length(concat_ws('jeff','taos',c2,c5)),length(concat_ws('jeff','taos',c3,c4)),length(concat_ws('jeff','taos',c3,c5)) from ct1
@@ -1841,61 +608,19 @@ endi
 if $data04 != @16@ then
  return -1
 endi
-print execute sql select length(concat_ws('jeff',c2,c3,c4,c5)),length(concat_ws('jeff','taos',c2,c3,c4,c5)),length(concat_ws('jeff',c2,'taos',c3,c4,c5)),length(concat_ws('jeff',c2,c3,'taos',c4,c5)),length(concat_ws('jeff',c2,c3,c4,c5,'taos')) from ct1
-
-sql select length(concat_ws('jeff',c2,c3,c4,c5)),length(concat_ws('jeff','taos',c2,c3,c4,c5)),length(concat_ws('jeff',c2,'taos',c3,c4,c5)),length(concat_ws('jeff',c2,c3,'taos',c4,c5)),length(concat_ws('jeff',c2,c3,c4,c5,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @20@ then
+if $data10 != @16@ then
  return -1
 endi
-if $data01 != @28@ then
+if $data11 != @16@ then
  return -1
 endi
-if $data02 != @28@ then
+if $data12 != @16@ then
  return -1
 endi
-if $data03 != @28@ then
+if $data13 != @16@ then
  return -1
 endi
-if $data04 != @28@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff',c6,c7)),length(concat_ws('jeff',c6,c7,c8)),length(concat_ws('jeff',c6,c7,c8,c9)) from ct1
-
-sql select length(concat_ws('jeff',c6,c7)),length(concat_ws('jeff',c6,c7,c8)),length(concat_ws('jeff',c6,c7,c8,c9)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @32@ then
- return -1
-endi
-if $data01 != @56@ then
- return -1
-endi
-if $data02 != @80@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff',c6,'taos')),length(concat_ws('jeff',c7,'taos')),length(concat_ws('jeff',c8,'taos')),length(concat_ws('jeff',c9,'taos')) from ct1
-
-sql select length(concat_ws('jeff',c6,'taos')),length(concat_ws('jeff',c7,'taos')),length(concat_ws('jeff',c8,'taos')),length(concat_ws('jeff',c9,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @40@ then
- return -1
-endi
-if $data01 != @40@ then
- return -1
-endi
-if $data02 != @40@ then
- return -1
-endi
-if $data03 != @40@ then
+if $data14 != @16@ then
  return -1
 endi
 print execute sql select length(concat_ws('jeff',c6,c7,'taos')),length(concat_ws('jeff',c6,c8,'taos')),length(concat_ws('jeff',c6,c9,'taos')),length(concat_ws('jeff',c7,c8,'taos')),length(concat_ws('jeff',c7,c9,'taos')) from ct1
@@ -1920,96 +645,134 @@ endi
 if $data04 != @64@ then
  return -1
 endi
-print execute sql select length(concat_ws('jeff',c6,'taos',c7)),length(concat_ws('jeff',c6,'taos',c8)),length(concat_ws('jeff',c6,'taos',c9)),length(concat_ws('jeff',c7,'taos',c8)),length(concat_ws('jeff',c7,'taos',c9)) from ct1
+if $data10 != @64@ then
+ return -1
+endi
+if $data11 != @64@ then
+ return -1
+endi
+if $data12 != @64@ then
+ return -1
+endi
+if $data13 != @64@ then
+ return -1
+endi
+if $data14 != @64@ then
+ return -1
+endi
+print execute sql select char_length(concat(c2,'taos',c3)),char_length(concat(c2,'taos',c4)),char_length(concat(c2,'taos',c5)),char_length(concat(c3,'taos',c4)),char_length(concat(c3,'taos',c5)) from ct1
 
-sql select length(concat_ws('jeff',c6,'taos',c7)),length(concat_ws('jeff',c6,'taos',c8)),length(concat_ws('jeff',c6,'taos',c9)),length(concat_ws('jeff',c7,'taos',c8)),length(concat_ws('jeff',c7,'taos',c9)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @64@ then
- return -1
-endi
-if $data01 != @64@ then
- return -1
-endi
-if $data02 != @64@ then
- return -1
-endi
-if $data03 != @64@ then
- return -1
-endi
-if $data04 != @64@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff','taos',c6,c7)),length(concat_ws('jeff','taos',c6,c8)),length(concat_ws('jeff','taos',c6,c9)),length(concat_ws('jeff','taos',c7,c8)),length(concat_ws('jeff','taos',c7,c9)) from ct1
-
-sql select length(concat_ws('jeff','taos',c6,c7)),length(concat_ws('jeff','taos',c6,c8)),length(concat_ws('jeff','taos',c6,c9)),length(concat_ws('jeff','taos',c7,c8)),length(concat_ws('jeff','taos',c7,c9)) from ct1
+sql select char_length(concat(c2,'taos',c3)),char_length(concat(c2,'taos',c4)),char_length(concat(c2,'taos',c5)),char_length(concat(c3,'taos',c4)),char_length(concat(c3,'taos',c5)) from ct1
 
 if $rows != 50 then 
   return -1
 endi
-if $data00 != @64@ then
+if $data00 != @8@ then
  return -1
 endi
-if $data01 != @64@ then
+if $data01 != @8@ then
  return -1
 endi
-if $data02 != @64@ then
+if $data02 != @8@ then
  return -1
 endi
-if $data03 != @64@ then
+if $data03 != @8@ then
  return -1
 endi
-if $data04 != @64@ then
+if $data04 != @8@ then
  return -1
 endi
-print execute sql select length(concat_ws('jeff',c6,c7,c8,c9)),length(concat_ws('jeff','taos',c6,c7,c8,c9)),length(concat_ws('jeff',c6,'taos',c7,c8,c9)),length(concat_ws('jeff',c6,c7,'taos',c8,c9)),length(concat_ws('jeff',c6,c7,c8,c9,'taos')) from ct1
+if $data10 != @8@ then
+ return -1
+endi
+if $data11 != @8@ then
+ return -1
+endi
+if $data12 != @8@ then
+ return -1
+endi
+if $data13 != @8@ then
+ return -1
+endi
+if $data14 != @8@ then
+ return -1
+endi
+print execute sql select char_length(concat(c6,'taos')),char_length(concat(c7,'taos')),char_length(concat(c8,'taos')),char_length(concat(c9,'taos')) from ct1
 
-sql select length(concat_ws('jeff',c6,c7,c8,c9)),length(concat_ws('jeff','taos',c6,c7,c8,c9)),length(concat_ws('jeff',c6,'taos',c7,c8,c9)),length(concat_ws('jeff',c6,c7,'taos',c8,c9)),length(concat_ws('jeff',c6,c7,c8,c9,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @80@ then
- return -1
-endi
-if $data01 != @112@ then
- return -1
-endi
-if $data02 != @112@ then
- return -1
-endi
-if $data03 != @112@ then
- return -1
-endi
-if $data04 != @112@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff','data',c3)),length(concat_ws('jeff','data',c3,c4)),length(concat_ws('jeff','data',c3,c4,c5)) from ct1
-
-sql select length(concat_ws('jeff','data',c3)),length(concat_ws('jeff','data',c3,c4)),length(concat_ws('jeff','data',c3,c4,c5)) from ct1
+sql select char_length(concat(c6,'taos')),char_length(concat(c7,'taos')),char_length(concat(c8,'taos')),char_length(concat(c9,'taos')) from ct1
 
 if $rows != 50 then 
   return -1
 endi
-if $data00 != @10@ then
+if $data00 != @6@ then
+ return -1
+endi
+if $data01 != @6@ then
+ return -1
+endi
+if $data02 != @6@ then
+ return -1
+endi
+if $data03 != @6@ then
+ return -1
+endi
+if $data10 != @6@ then
+ return -1
+endi
+if $data11 != @6@ then
+ return -1
+endi
+if $data12 != @6@ then
+ return -1
+endi
+if $data13 != @6@ then
+ return -1
+endi
+print execute sql select char_length(concat_ws('jeff',c2,'taos',c3)),char_length(concat_ws('jeff',c2,'taos',c4)),char_length(concat_ws('jeff',c2,'taos',c5)),char_length(concat_ws('jeff',c3,'taos',c4)),char_length(concat_ws('jeff',c3,'taos',c5)) from ct1
+
+sql select char_length(concat_ws('jeff',c2,'taos',c3)),char_length(concat_ws('jeff',c2,'taos',c4)),char_length(concat_ws('jeff',c2,'taos',c5)),char_length(concat_ws('jeff',c3,'taos',c4)),char_length(concat_ws('jeff',c3,'taos',c5)) from ct1
+
+if $rows != 50 then 
+  return -1
+endi
+if $data00 != @16@ then
  return -1
 endi
 if $data01 != @16@ then
  return -1
 endi
-if $data02 != @22@ then
+if $data02 != @16@ then
  return -1
 endi
-print execute sql select length(concat_ws('jeff','data','taos')),length(concat_ws('jeff',c3,'taos')),length(concat_ws('jeff',c4,'taos')),length(concat_ws('jeff',c5,'taos')) from ct1
+if $data03 != @16@ then
+ return -1
+endi
+if $data04 != @16@ then
+ return -1
+endi
+if $data10 != @16@ then
+ return -1
+endi
+if $data11 != @16@ then
+ return -1
+endi
+if $data12 != @16@ then
+ return -1
+endi
+if $data13 != @16@ then
+ return -1
+endi
+if $data14 != @16@ then
+ return -1
+endi
+print execute sql select char_length(concat_ws('jeff',c6,'taos')),char_length(concat_ws('jeff',c7,'taos')),char_length(concat_ws('jeff',c8,'taos')),char_length(concat_ws('jeff',c9,'taos')) from ct1
 
-sql select length(concat_ws('jeff','data','taos')),length(concat_ws('jeff',c3,'taos')),length(concat_ws('jeff',c4,'taos')),length(concat_ws('jeff',c5,'taos')) from ct1
+sql select char_length(concat_ws('jeff',c6,'taos')),char_length(concat_ws('jeff',c7,'taos')),char_length(concat_ws('jeff',c8,'taos')),char_length(concat_ws('jeff',c9,'taos')) from ct1
 
 if $rows != 50 then 
   return -1
 endi
-if $data00 != @12@ then
+if $data00 != @10@ then
  return -1
 endi
 if $data01 != @10@ then
@@ -2021,215 +784,16 @@ endi
 if $data03 != @10@ then
  return -1
 endi
-print execute sql select length(concat_ws('jeff','data',c3,'taos')),length(concat_ws('jeff','data',c4,'taos')),length(concat_ws('jeff','data',c5,'taos')),length(concat_ws('jeff',c3,c4,'taos')),length(concat_ws('jeff',c3,c5,'taos')) from ct1
-
-sql select length(concat_ws('jeff','data',c3,'taos')),length(concat_ws('jeff','data',c4,'taos')),length(concat_ws('jeff','data',c5,'taos')),length(concat_ws('jeff',c3,c4,'taos')),length(concat_ws('jeff',c3,c5,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @18@ then
+if $data10 != @10@ then
  return -1
 endi
-if $data01 != @18@ then
+if $data11 != @10@ then
  return -1
 endi
-if $data02 != @18@ then
+if $data12 != @10@ then
  return -1
 endi
-if $data03 != @16@ then
- return -1
-endi
-if $data04 != @16@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff','data','taos',c3)),length(concat_ws('jeff','data','taos',c4)),length(concat_ws('jeff','data','taos',c5)),length(concat_ws('jeff',c3,'taos',c4)),length(concat_ws('jeff',c3,'taos',c5)) from ct1
-
-sql select length(concat_ws('jeff','data','taos',c3)),length(concat_ws('jeff','data','taos',c4)),length(concat_ws('jeff','data','taos',c5)),length(concat_ws('jeff',c3,'taos',c4)),length(concat_ws('jeff',c3,'taos',c5)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @18@ then
- return -1
-endi
-if $data01 != @18@ then
- return -1
-endi
-if $data02 != @18@ then
- return -1
-endi
-if $data03 != @16@ then
- return -1
-endi
-if $data04 != @16@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff','taos','data',c3)),length(concat_ws('jeff','taos','data',c4)),length(concat_ws('jeff','taos','data',c5)),length(concat_ws('jeff','taos',c3,c4)),length(concat_ws('jeff','taos',c3,c5)) from ct1
-
-sql select length(concat_ws('jeff','taos','data',c3)),length(concat_ws('jeff','taos','data',c4)),length(concat_ws('jeff','taos','data',c5)),length(concat_ws('jeff','taos',c3,c4)),length(concat_ws('jeff','taos',c3,c5)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @18@ then
- return -1
-endi
-if $data01 != @18@ then
- return -1
-endi
-if $data02 != @18@ then
- return -1
-endi
-if $data03 != @16@ then
- return -1
-endi
-if $data04 != @16@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff','data',c3,c4,c5)),length(concat_ws('jeff','taos','data',c3,c4,c5)),length(concat_ws('jeff','data','taos',c3,c4,c5)),length(concat_ws('jeff','data',c3,'taos',c4,c5)),length(concat_ws('jeff','data',c3,c4,c5,'taos')) from ct1
-
-sql select length(concat_ws('jeff','data',c3,c4,c5)),length(concat_ws('jeff','taos','data',c3,c4,c5)),length(concat_ws('jeff','data','taos',c3,c4,c5)),length(concat_ws('jeff','data',c3,'taos',c4,c5)),length(concat_ws('jeff','data',c3,c4,c5,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @22@ then
- return -1
-endi
-if $data01 != @30@ then
- return -1
-endi
-if $data02 != @30@ then
- return -1
-endi
-if $data03 != @30@ then
- return -1
-endi
-if $data04 != @30@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff','data',c7)),length(concat_ws('jeff','data',c7,c8)),length(concat_ws('jeff','data',c7,c8,c9)) from ct1
-
-sql select length(concat_ws('jeff','data',c7)),length(concat_ws('jeff','data',c7,c8)),length(concat_ws('jeff','data',c7,c8,c9)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @40@ then
- return -1
-endi
-if $data01 != @64@ then
- return -1
-endi
-if $data02 != @88@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff','data','taos')),length(concat_ws('jeff',c7,'taos')),length(concat_ws('jeff',c8,'taos')),length(concat_ws('jeff',c9,'taos')) from ct1
-
-sql select length(concat_ws('jeff','data','taos')),length(concat_ws('jeff',c7,'taos')),length(concat_ws('jeff',c8,'taos')),length(concat_ws('jeff',c9,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @12@ then
- return -1
-endi
-if $data01 != @40@ then
- return -1
-endi
-if $data02 != @40@ then
- return -1
-endi
-if $data03 != @40@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff','data',c7,'taos')),length(concat_ws('jeff','data',c8,'taos')),length(concat_ws('jeff','data',c9,'taos')),length(concat_ws('jeff',c7,c8,'taos')),length(concat_ws('jeff',c7,c9,'taos')) from ct1
-
-sql select length(concat_ws('jeff','data',c7,'taos')),length(concat_ws('jeff','data',c8,'taos')),length(concat_ws('jeff','data',c9,'taos')),length(concat_ws('jeff',c7,c8,'taos')),length(concat_ws('jeff',c7,c9,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @72@ then
- return -1
-endi
-if $data01 != @72@ then
- return -1
-endi
-if $data02 != @72@ then
- return -1
-endi
-if $data03 != @64@ then
- return -1
-endi
-if $data04 != @64@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff','data','taos',c7)),length(concat_ws('jeff','data','taos',c8)),length(concat_ws('jeff','data','taos',c9)),length(concat_ws('jeff',c7,'taos',c8)),length(concat_ws('jeff',c7,'taos',c9)) from ct1
-
-sql select length(concat_ws('jeff','data','taos',c7)),length(concat_ws('jeff','data','taos',c8)),length(concat_ws('jeff','data','taos',c9)),length(concat_ws('jeff',c7,'taos',c8)),length(concat_ws('jeff',c7,'taos',c9)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @72@ then
- return -1
-endi
-if $data01 != @72@ then
- return -1
-endi
-if $data02 != @72@ then
- return -1
-endi
-if $data03 != @64@ then
- return -1
-endi
-if $data04 != @64@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff','taos','data',c7)),length(concat_ws('jeff','taos','data',c8)),length(concat_ws('jeff','taos','data',c9)),length(concat_ws('jeff','taos',c7,c8)),length(concat_ws('jeff','taos',c7,c9)) from ct1
-
-sql select length(concat_ws('jeff','taos','data',c7)),length(concat_ws('jeff','taos','data',c8)),length(concat_ws('jeff','taos','data',c9)),length(concat_ws('jeff','taos',c7,c8)),length(concat_ws('jeff','taos',c7,c9)) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @72@ then
- return -1
-endi
-if $data01 != @72@ then
- return -1
-endi
-if $data02 != @72@ then
- return -1
-endi
-if $data03 != @64@ then
- return -1
-endi
-if $data04 != @64@ then
- return -1
-endi
-print execute sql select length(concat_ws('jeff','data',c7,c8,c9)),length(concat_ws('jeff','taos','data',c7,c8,c9)),length(concat_ws('jeff','data','taos',c7,c8,c9)),length(concat_ws('jeff','data',c7,'taos',c8,c9)),length(concat_ws('jeff','data',c7,c8,c9,'taos')) from ct1
-
-sql select length(concat_ws('jeff','data',c7,c8,c9)),length(concat_ws('jeff','taos','data',c7,c8,c9)),length(concat_ws('jeff','data','taos',c7,c8,c9)),length(concat_ws('jeff','data',c7,'taos',c8,c9)),length(concat_ws('jeff','data',c7,c8,c9,'taos')) from ct1
-
-if $rows != 50 then 
-  return -1
-endi
-if $data00 != @88@ then
- return -1
-endi
-if $data01 != @120@ then
- return -1
-endi
-if $data02 != @120@ then
- return -1
-endi
-if $data03 != @120@ then
- return -1
-endi
-if $data04 != @120@ then
+if $data13 != @10@ then
  return -1
 endi
 print =============== clear
