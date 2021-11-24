@@ -238,6 +238,7 @@ class TDTestCase:
     def doCheck(self, resultAsc, resultdesc):
         resultRows = len(resultAsc)
         for i in range(resultRows):
+            tdLog.info("row:%d" % i)
             tdSql.checkEqual(resultAsc[i], resultdesc[resultRows - i - 1])
 
     def orderbyForStableCheck(self, sql, elapsedCol, tbnameCol):
@@ -248,6 +249,7 @@ class TDTestCase:
             if None == descValue:
                 tdLog.exit("%s failed: subtable %s not exists" % (sql))
             else:
+                tdLog.info("subtable:%s" % kv[0])
                 self.doCheck(kv[1], descValue)
 
     # Orderby clause only changes the output order and has no effect on the calculation results.
@@ -353,9 +355,8 @@ class TDTestCase:
     def continuousQueryTest(self):
         tdSql.execute("use wxy_db")
 
-        #tdSql.execute("create table elapsed_t as select elapsed(ts) from t1 interval(1m) sliding(30s)")
-        #tdSql.execute("create table elapsed_st as select elapsed(ts) from st1 interval(1m) sliding(30s) group by tbname")
-        #tdSql.execute("create table spread_st as select spread(ts) from st1 interval(1m) sliding(30s) group by tbname")
+        tdSql.execute("create table elapsed_t as select elapsed(ts) from t1 interval(1m) sliding(30s)")
+        tdSql.execute("create table elapsed_st as select elapsed(ts) from st1 interval(1m) sliding(30s) group by tbname")
 
     def selectIllegalTest(self):
         tdSql.execute("use wxy_db")

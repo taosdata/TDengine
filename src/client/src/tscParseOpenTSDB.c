@@ -65,7 +65,7 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
       }
     }
 
-    pSml->stableName[len] = tolower(*cur);
+    pSml->stableName[len] = *cur;
 
     cur++;
     len++;
@@ -195,8 +195,9 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
   }
   tfree(value);
 
-  pVal->key = tcalloc(sizeof(key), 1);
+  pVal->key = tcalloc(sizeof(key) + TS_ESCAPE_CHAR_SIZE, 1);
   memcpy(pVal->key, key, sizeof(key));
+  addEscapeCharToString(pVal->key, (int32_t)strlen(pVal->key));
   *num_kvs += 1;
 
   *index = cur + 1;
@@ -240,7 +241,6 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **index, SHashObj 
 
   pKV->key = tcalloc(len + TS_ESCAPE_CHAR_SIZE + 1, 1);
   memcpy(pKV->key, key, len + 1);
-  strntolower_s(pKV->key, pKV->key, (int32_t)len);
   addEscapeCharToString(pKV->key, len);
   //tscDebug("OTD:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
   *index = cur + 1;
@@ -326,7 +326,6 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
       *childTableName = tcalloc(pkv->length + TS_ESCAPE_CHAR_SIZE + 1, 1);
       memcpy(*childTableName, pkv->value, pkv->length);
       (*childTableName)[pkv->length] = '\0';
-      strntolower_s(*childTableName, *childTableName, (int32_t)pkv->length);
       addEscapeCharToString(*childTableName, pkv->length);
       tfree(pkv->key);
       tfree(pkv->value);
@@ -514,7 +513,6 @@ static int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlL
   */
 
   tstrncpy(pSml->stableName, metric->valuestring, stableLen + 1);
-  strntolower_s(pSml->stableName, pSml->stableName, (int32_t)stableLen);
   addEscapeCharToString(pSml->stableName, (int32_t)stableLen);
 
   return TSDB_CODE_SUCCESS;
@@ -545,7 +543,6 @@ static int32_t parseTimestampFromJSONObj(cJSON *root, int64_t *tsVal, SSmlLinesI
   }
 
   size_t typeLen = strlen(type->valuestring);
-  strntolower_s(type->valuestring, type->valuestring, (int32_t)typeLen);
   if (typeLen == 1 && type->valuestring[0] == 's') {
     //seconds
     *tsVal = (int64_t)(*tsVal * 1e9);
@@ -881,8 +878,9 @@ static int32_t parseMetricValueFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *nu
     return ret;
   }
 
-  pVal->key = tcalloc(sizeof(key), 1);
+  pVal->key = tcalloc(sizeof(key) + TS_ESCAPE_CHAR_SIZE, 1);
   memcpy(pVal->key, key, sizeof(key));
+  addEscapeCharToString(pVal->key, (int32_t)strlen(pVal->key));
 
   *num_kvs += 1;
   return TSDB_CODE_SUCCESS;
@@ -913,7 +911,6 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
       size_t idLen = strlen(id->valuestring);
       *childTableName = tcalloc(idLen + TS_ESCAPE_CHAR_SIZE + 1, sizeof(char));
       memcpy(*childTableName, id->valuestring, idLen);
-      strntolower_s(*childTableName, *childTableName, (int32_t)idLen);
       addEscapeCharToString(*childTableName, (int32_t)idLen);
 
       //check duplicate IDs
@@ -952,7 +949,6 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
     }
     pkv->key = tcalloc(keyLen + TS_ESCAPE_CHAR_SIZE + 1, sizeof(char));
     strncpy(pkv->key, tag->string, keyLen);
-    strntolower_s(pkv->key, pkv->key, (int32_t)keyLen);
     addEscapeCharToString(pkv->key, (int32_t)keyLen);
     //value
     ret = parseValueFromJSON(tag, pkv, info);

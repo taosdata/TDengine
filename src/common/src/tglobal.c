@@ -73,7 +73,7 @@ int32_t tsMaxBinaryDisplayWidth = 30;
  * -1: all data are not compressed
  * other values: if the message payload size is greater than the tsCompressMsgSize, the message will be compressed.
  */
-int32_t tsCompressMsgSize = -1;
+int32_t tsCompressMsgSize = 512 * 1024;
 
 /* denote if server needs to compress the retrieved column data before adding to the rpc response message body.
  * 0: all data are compressed
@@ -193,6 +193,7 @@ char   tsMqttTopic[TSDB_MQTT_TOPIC_LEN] = "/test";  // #
 
 // monitor
 int8_t  tsEnableMonitorModule = 1;
+int8_t  tsMonitorReplica = 1;
 char    tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
 char    tsInternalPass[] = "secretkey";
 int32_t tsMonitorInterval = 30;  // seconds
@@ -289,7 +290,7 @@ char     Compressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRES
 int8_t tsDeadLockKillQuery = 0;
 
 // default JSON string type
-char tsDefaultJSONStrType[7] = "binary";
+char tsDefaultJSONStrType[7] = "nchar";
 char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = ""; //user defined child table name can be specified in tag value. If set to empty system will generate table name using MD5 hash.
 
 int32_t (*monStartSystemFp)() = NULL;
@@ -667,6 +668,16 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 600;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_SECOND;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "monitorReplica";
+  cfg.ptr = &tsMonitorReplica;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 1;
+  cfg.maxValue = 3;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
   cfg.option = "offlineThreshold";

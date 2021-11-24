@@ -400,7 +400,7 @@ typedef struct SColIndex {
   int16_t  colId;      // column id
   int16_t  colIndex;   // column index in colList if it is a normal column or index in tagColList if a tag
   uint16_t flag;       // denote if it is a tag or a normal column
-  char     name[TSDB_COL_NAME_LEN + TSDB_DB_NAME_LEN + 1];
+  char     name[TSDB_COL_NAME_LEN + TSDB_TABLE_NAME_LEN + 1];
 } SColIndex;
 
 typedef struct SColumnFilterInfo {
@@ -438,7 +438,7 @@ typedef struct SColumnFilterList {
 typedef struct SColumnInfo {
   int16_t            colId;
   int16_t            type;
-  int16_t            bytes;
+  int32_t            bytes;
   SColumnFilterList  flist;
 } SColumnInfo;
 
@@ -480,14 +480,15 @@ typedef struct {
   bool        stateWindow;       // state window flag 
 
   STimeWindow window;
+  STimeWindow range;            // result range for interp query
   int32_t     numOfTables;
   int16_t     order;
   int16_t     orderColId;
   int16_t     numOfCols;        // the number of columns will be load from vnode
   SInterval   interval;
   SSessionWindow sw;            // session window
-  uint16_t    tagCondLen;       // tag length in current query
-  uint16_t    colCondLen;       // column length in current query
+  uint32_t    tagCondLen;       // tag length in current query
+  int32_t    colCondLen;       // column length in current query
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx

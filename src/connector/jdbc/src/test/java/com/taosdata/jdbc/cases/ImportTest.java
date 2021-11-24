@@ -17,29 +17,6 @@ public class ImportTest {
     static String host = "127.0.0.1";
     private static long ts;
 
-    @BeforeClass
-    public static void before() {
-        try {
-            Properties properties = new Properties();
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-            connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
-
-            Statement stmt = connection.createStatement();
-            stmt.execute("create database if not exists " + dbName);
-            stmt.execute("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
-            stmt.close();
-
-            ts = System.currentTimeMillis();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-    }
-
     @Test
     public void case001_insertData() throws Exception {
         try (Statement stmt = connection.createStatement()) {
@@ -52,28 +29,25 @@ public class ImportTest {
     }
 
     @Test
-    public void case002_checkSum() {
+    public void case002_checkSum() throws SQLException {
         Assert.assertEquals(50, select());
     }
 
-    private int select() {
+    private int select() throws SQLException {
         int count = 0;
         try (Statement stmt = connection.createStatement()) {
-
             String sql = "select * from " + dbName + "." + tName;
             ResultSet rs = stmt.executeQuery(sql);
             while (rs.next()) {
                 count++;
             }
             rs.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
         return count;
     }
 
     @Test
-    public void case003_importData() {
+    public void case003_importData() throws SQLException {
         // 避免时间重复
         try (Statement stmt = connection.createStatement()) {
             StringBuilder sqlBuilder = new StringBuilder("import into ").append(dbName).append(".").append(tName).append(" values ");
@@ -84,27 +58,40 @@ public class ImportTest {
             }
             int rows = stmt.executeUpdate(sqlBuilder.toString());
             assertEquals(50, rows);
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
     @Test
-    public void case004_checkSum() {
+    public void case004_checkSum() throws SQLException {
         Assert.assertEquals(100, select());
     }
 
+
+    @BeforeClass
+    public static void before() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
+
+        Statement stmt = connection.createStatement();
+        stmt.execute("create database if not exists " + dbName);
+        stmt.execute("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
+        stmt.close();
+
+        ts = System.currentTimeMillis();
+    }
+
     @AfterClass
-    public static void close() {
-        try {
-            if (connection != null) {
-                Statement statement = connection.createStatement();
-                statement.executeUpdate("drop database " + dbName);
-                statement.close();
-                connection.close();
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
+    public static void close() throws SQLException {
+        if (connection != null) {
+            Statement statement = connection.createStatement();
+            statement.executeUpdate("drop database " + dbName);
+            statement.close();
+            connection.close();
         }
     }
 }

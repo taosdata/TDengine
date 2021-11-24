@@ -597,7 +597,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         return col4;
     }
 
-    public ResultSet getSchemas() throws SQLException {
+    public ResultSet getSchemas() {
         return getEmptyResultSet();
     }
 
@@ -629,7 +629,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
 
     public abstract ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException;
 
-    protected ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern, Connection conn) {
+    protected ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern, Connection conn) throws SQLException {
         if (catalog == null || catalog.isEmpty())
             return null;
         if (!isAvailableCatalog(conn, catalog))
@@ -682,8 +682,6 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
                 rowIndex++;
             }
             resultSet.setRowDataList(rowDataList);
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
         return resultSet;
     }
@@ -1220,7 +1218,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         return col6;
     }
 
-    private boolean isAvailableCatalog(Connection connection, String catalog) {
+    private boolean isAvailableCatalog(Connection connection, String catalog) throws SQLException {
         try (Statement stmt = connection.createStatement();
              ResultSet databases = stmt.executeQuery("show databases")) {
             while (databases.next()) {
@@ -1229,8 +1227,6 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
                 if (dbname.equalsIgnoreCase(catalog))
                     return true;
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
         return false;
     }
