@@ -4956,21 +4956,27 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
         if (0 == strncasecmp(superTbls->columns[c].dataType,
                     "INT", strlen("INT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_INT;
+	    superTbls->columns[c].dataLen = sizeof(int);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType,
                     "TINYINT", strlen("TINYINT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_TINYINT;
+	    superTbls->columns[c].dataLen = sizeof(char);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType,
                     "SMALLINT", strlen("SMALLINT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_SMALLINT;
+	    superTbls->columns[c].dataLen = sizeof(int16_t);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType,
                     "BIGINT", strlen("BIGINT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_BIGINT;
+	    superTbls->columns[c].dataLen = sizeof(int64_t);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType,
                     "FLOAT", strlen("FLOAT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_FLOAT;
+	    superTbls->columns[c].dataLen = sizeof(float);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType,
                     "DOUBLE", strlen("DOUBLE"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_DOUBLE;
+	    superTbls->columns[c].dataLen = sizeof(double);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType,
                     "BINARY", strlen("BINARY"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_BINARY;
@@ -4980,21 +4986,27 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
         } else if (0 == strncasecmp(superTbls->columns[c].dataType,
                     "BOOL", strlen("BOOL"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_BOOL;
+	    superTbls->columns[c].dataLen = sizeof(char);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType,
                     "TIMESTAMP", strlen("TIMESTAMP"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_TIMESTAMP;
+	    superTbls->columns[c].dataLen = sizeof(int64_t);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType,
                     "UTINYINT", strlen("UTINYINT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_UTINYINT;
+	    superTbls->columns[c].dataLen = sizeof(char);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType,
                     "USMALLINT", strlen("USMALLINT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_USMALLINT;
+	    superTbls->columns[c].dataLen = sizeof(uint16_t);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType,
                     "UINT", strlen("UINT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_UINT;
+	    superTbls->columns[c].dataLen = sizeof(uint32_t);
         } else if (0 == strncasecmp(superTbls->columns[c].dataType,
                     "UBIGINT", strlen("UBIGINT"))) {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_UBIGINT;
+	    superTbls->columns[c].dataLen = sizeof(uint64_t);
         } else {
             superTbls->columns[c].data_type = TSDB_DATA_TYPE_NULL;
         }
@@ -8555,7 +8567,7 @@ static int parseSamplefileToStmtBatch(
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
                 tmpP = calloc(1, MAX_SAMPLES *
-                        (((stbInfo)?stbInfo->columns[c].dataLen:g_args.binwidth)));
+                        (((stbInfo)?stbInfo->columns[c].dataLen:g_args.binwidth) + 1));
                 assert(tmpP);
                 *(uintptr_t*)(sampleBindBatchArray+ sizeof(uintptr_t*)*c) = (uintptr_t)tmpP;
                 break;
@@ -12016,7 +12028,35 @@ static void setParaFromArg() {
                 tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
                     type, min(DATATYPE_BUFF_LEN, strlen(type) + 1));
             } else {
-                g_Dbs.db[0].superTbls[0].columns[i].dataLen = g_args.binwidth;
+		    switch (g_Dbs.db[0].superTbls[0].columns[i].data_type){
+		    	case TSDB_DATA_TYPE_BOOL:
+			case TSDB_DATA_TYPE_UTINYINT:
+			case TSDB_DATA_TYPE_TINYINT:
+				g_Dbs.db[0].superTbls[0].columns[i].dataLen = sizeof(char);
+				break;
+			case TSDB_DATA_TYPE_SMALLINT:
+			case TSDB_DATA_TYPE_USMALLINT:
+				g_Dbs.db[0].superTbls[0].columns[i].dataLen = sizeof(int16_t);
+				break;
+			case TSDB_DATA_TYPE_INT:
+			case TSDB_DATA_TYPE_UINT:
+				g_Dbs.db[0].superTbls[0].columns[i].dataLen = sizeof(int32_t);
+				break;
+			case TSDB_DATA_TYPE_TIMESTAMP:
+			case TSDB_DATA_TYPE_BIGINT:
+			case TSDB_DATA_TYPE_UBIGINT:
+				g_Dbs.db[0].superTbls[0].columns[i].dataLen = sizeof(int64_t);
+				break;
+			case TSDB_DATA_TYPE_FLOAT:
+				g_Dbs.db[0].superTbls[0].columns[i].dataLen = sizeof(float);
+				break;
+			case TSDB_DATA_TYPE_DOUBLE:
+				g_Dbs.db[0].superTbls[0].columns[i].dataLen = sizeof(double);
+				break;
+			default:
+				g_Dbs.db[0].superTbls[0].columns[i].dataLen = g_args.binwidth;
+				break;
+		    }
                 tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
                     dataType[i], min(DATATYPE_BUFF_LEN, strlen(dataType[i]) + 1));
             }
