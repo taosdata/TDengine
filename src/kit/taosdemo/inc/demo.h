@@ -142,7 +142,7 @@ extern char configDir[];
 #define DEFAULT_DATATYPE \
     { "FLOAT", "INT", "FLOAT" }
 #define DEFAULT_DATALENGTH \
-    { 8, 8, 8 }
+    { 4, 4, 4 }
 #define DEFAULT_BINWIDTH 64
 #define DEFAULT_COL_COUNT 4
 #define DEFAULT_LEN_ONE_ROW 76
