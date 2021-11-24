@@ -187,14 +187,24 @@ FstState fstStateCreate(State state){
   return stateDict[idx];
 }
 //compile
-void fstStateCompileForOneTransNext(FstState* state, FstCountingWriter *w, CompiledAddr addr, uint8_t inp) {
+void fstStateCompileForOneTransNext(FstCountingWriter *w, CompiledAddr addr, uint8_t inp) {
+  FstState s = fstStateCreate(OneTransNext);  
+  fstStateSetCommInput(&s, inp);
+
+  bool null = false;
+  uint8_t v = fstStateCommInput(&s, &null);
+  if (null) {
+    // w->write_all(&[inp])
+  }  
+  // w->write_all(&[s.val])
   return ;
 }
-void fstStateCompileForOneTrans(FstState* state, FstCountingWriter *w, CompiledAddr addr, FstTransition trn) {
+void fstStateCompileForOneTrans(FstCountingWriter *w, CompiledAddr addr, FstTransition trn) {
+  
   return ;
 
 }
-void fstStateCompileForAnyTrans(FstState* state, FstCountingWriter *w, CompiledAddr addr, FstBuilderNode *node) {
+void fstStateCompileForAnyTrans(FstCountingWriter *w, CompiledAddr addr, FstBuilderNode *node) {
   return;
 }
 
@@ -208,9 +218,13 @@ void fstStateSetCommInput(FstState* s, uint8_t inp) {
 }
 
 // comm_input
-uint8_t fstStateCommInput(FstState* s) {
+uint8_t fstStateCommInput(FstState* s, bool *null) {
   assert(s->state == OneTransNext || s->state == OneTrans);
   uint8_t v = s->val & 0b00111111;
+  if (v == 0) { 
+    *null = true; 
+    return v;
+  } 
   //v = 0 indicate that common_input is None
   return v == 0 ? 0 : COMMON_INPUT(v);  
 }
@@ -219,7 +233,9 @@ uint8_t fstStateCommInput(FstState* s) {
 
 uint64_t fstStateInputLen(FstState* s) {
   assert(s->state == OneTransNext || s->state == OneTrans);
-  return fstStateCommInput(s) == 0 ? 1 : 0;
+  bool null = false;
+  fstStateCommInput(s, &null); 
+  return null ? 1 : 0 ;
 } 
   
 
@@ -250,8 +266,9 @@ uint64_t fstStateEndAddrForAnyTrans(FstState *state, uint64_t version, FstSlice 
 uint8_t  fstStateInput(FstState *s, FstNode *node) {
   assert(s->state == OneTransNext || s->state == OneTrans);
   FstSlice *slice = &node->data;
-  uint8_t inp = fstStateCommInput(s);
-  return inp != 0 ? inp : slice->data[slice->start - 1];
+  bool null = false;
+  uint8_t inp = fstStateCommInput(s, &null);
+  return null == false ? inp : slice->data[slice->start - 1];
 }
 uint8_t  fstStateInputForAnyTrans(FstState *s, FstNode *node, uint64_t i) {
   assert(s->state == AnyTrans);

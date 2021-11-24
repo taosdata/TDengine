@@ -99,15 +99,15 @@ FstState fstStateCreateFrom(FstSlice* data, CompiledAddr addr);
 FstState fstStateCreate(State state);
 
 //compile
-void fstStateCompileForOneTransNext(FstState* state, FstCountingWriter *w, CompiledAddr addr, uint8_t inp);
-void fstStateCompileForOneTrans(FstState* state, FstCountingWriter *w, CompiledAddr addr, FstTransition trn);
-void fstStateCompileForAnyTrans(FstState* state, FstCountingWriter *w, CompiledAddr addr, FstBuilderNode *node);
+void fstStateCompileForOneTransNext(FstCountingWriter *w, CompiledAddr addr, uint8_t inp);
+void fstStateCompileForOneTrans(FstCountingWriter *w, CompiledAddr addr, FstTransition trn);
+void fstStateCompileForAnyTrans(FstCountingWriter *w, CompiledAddr addr, FstBuilderNode *node);
 
 // set_comm_input
 void fstStateSetCommInput(FstState* state, uint8_t inp);
 
 // comm_input
-uint8_t fstStateCommInput(FstState* state);
+uint8_t fstStateCommInput(FstState* state, bool *null);
 
 // input_len
 
