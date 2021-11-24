@@ -141,6 +141,8 @@ extern char configDir[];
     { TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_FLOAT }
 #define DEFAULT_DATATYPE \
     { "FLOAT", "INT", "FLOAT" }
+#define DEFAULT_DATALENGTH \
+    { 8, 8, 8 }
 #define DEFAULT_BINWIDTH 64
 #define DEFAULT_COL_COUNT 4
 #define DEFAULT_LEN_ONE_ROW 76
@@ -306,6 +308,7 @@ typedef struct SArguments_S {
     bool     async_mode;
     char     data_type[MAX_NUM_COLUMNS + 1];
     char *   dataType[MAX_NUM_COLUMNS + 1];
+    int32_t  data_length[MAX_NUM_COLUMNS + 1];
     uint32_t binwidth;
     uint32_t columnCount;
     uint64_t lenOfOneRow;

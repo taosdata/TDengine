@@ -1043,10 +1043,8 @@ int createChildTables() {
             // normal table
             len = snprintf(tblColsBuf, TSDB_MAX_BYTES_PER_ROW, "(TS TIMESTAMP");
             for (int j = 0; j < g_args.columnCount; j++) {
-                if ((strncasecmp(g_args.dataType[j], "BINARY",
-                                 strlen("BINARY")) == 0) ||
-                    (strncasecmp(g_args.dataType[j], "NCHAR",
-                                 strlen("NCHAR")) == 0)) {
+                if ((strcasecmp(g_args.dataType[j], "BINARY") == 0) ||
+                    (strcasecmp(g_args.dataType[j], "NCHAR") == 0)) {
                     snprintf(tblColsBuf + len, TSDB_MAX_BYTES_PER_ROW - len,
                              ",C%d %s(%d)", j, g_args.dataType[j],
                              g_args.binwidth);
