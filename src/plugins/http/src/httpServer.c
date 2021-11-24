@@ -53,7 +53,7 @@ static void httpStopThread(HttpThread *pThread) {
       break;
     }
   } while (0);
-  if (r) {
+  if (r && taosCheckPthreadValid(pThread->thread)) {
     pthread_cancel(pThread->thread);
   }
 #else
