@@ -577,8 +577,8 @@ __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
 
 int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
   if (type == TSDB_DATA_TYPE_JSON){
-    bool f1IsNull = (*f1 == TSDB_DATA_TYPE_NCHAR && isNull(f1 + CHAR_BYTES, TSDB_DATA_TYPE_JSON));
-    bool f2IsNull = (*f2 == TSDB_DATA_TYPE_NCHAR && isNull(f2 + CHAR_BYTES, TSDB_DATA_TYPE_JSON));
+    bool f1IsNull = (*f1 == TSDB_DATA_TYPE_JSON && isNull(f1 + CHAR_BYTES, TSDB_DATA_TYPE_JSON));
+    bool f2IsNull = (*f2 == TSDB_DATA_TYPE_JSON && isNull(f2 + CHAR_BYTES, TSDB_DATA_TYPE_JSON));
     if(f1IsNull && f2IsNull){
       return 0;
     }else if(f1IsNull && !f2IsNull){
