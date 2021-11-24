@@ -228,35 +228,92 @@ uint64_t fstStateEndAddrForOneTransNext(FstState* s, FstSlice *data) {
   return FST_SLICE_LEN(data) - 1 - fstStateInputLen(s);
 }
 uint64_t fstStateEndAddrForOneTrans(FstState *s, FstSlice *data, PackSizes sizes) {
-  return FST_SLICE_LEN(data) - 1 - fstStateInputLen(s) - 1 - FST_GET_TRANSITION_PACK_SIZE(sizes) - FST_GET_OUTPUT_PACK_SIZE(sizes); 
+  return FST_SLICE_LEN(data) 
+                - 1 
+                - fstStateInputLen(s) 
+                - 1 // pack size 
+                - FST_GET_TRANSITION_PACK_SIZE(sizes) 
+                - FST_GET_OUTPUT_PACK_SIZE(sizes); 
 }
 uint64_t fstStateEndAddrForAnyTrans(FstState *state, uint64_t version, FstSlice *date, PackSizes sizes, uint64_t nTrans) {
-  return 1;
+  uint8_t oSizes = FST_GET_OUTPUT_PACK_SIZE(sizes); 
+  uint8_t finalOsize = !fstStateIsFinalState(state) ? 0 : oSizes;    
+  return FST_SLICE_LEN(date)  
+               - 1 
+               - fstStateNtransLen(state) 
+               - 1 //pack size 
+               - fstStateTotalTransSize(state, version, sizes, nTrans) 
+               - nTrans * oSizes  // output values
+               - finalOsize;     // final output 
 }
 // input  
-uint8_t  fstStateInput(FstState *state, FstNode *node) {
-  return 1;
+uint8_t  fstStateInput(FstState *s, FstNode *node) {
+  assert(s->state == OneTransNext || s->state == OneTrans);
+  FstSlice *slice = &node->data;
+  uint8_t inp = fstStateCommInput(s);
+  return inp != 0 ? inp : slice->data[slice->start - 1];
 }
-uint8_t  fstStateInputForAnyTrans(FstState *state, FstNode *node, uint64_t i) {
-  return 1;
+uint8_t  fstStateInputForAnyTrans(FstState *s, FstNode *node, uint64_t i) {
+  assert(s->state == AnyTrans);
+  FstSlice *slice = &node->data; 
+
+  uint64_t at = node->start 
+            - fstStateNtransLen(s) 
+            - 1  // pack size
+            - fstStateTransIndexSize(s, node->version, node->nTrans) 
+            - i 
+            - 1; // the output size 
+  return slice->data[at];
 }
 
 // trans_addr
-CompiledAddr fstStateTransAddr(FstState *state, FstNode *node) {
-  return 1;
+CompiledAddr fstStateTransAddr(FstState *s, FstNode *node) {
+  assert(s->state == OneTransNext || s->state == OneTrans);
+  FstSlice *slice = &node->data;
+  if (s->state == OneTransNext) {
+    return (CompiledAddr)(node->end);      
+  } else {
+    PackSizes sizes = node->sizes; 
+    uint8_t tSizes = FST_GET_TRANSITION_PACK_SIZE(sizes);  
+    uint64_t i = node->start 
+                - fstStateInputLen(s)
+                - 1 // PackSizes
+                - tSizes;
+
+    // refactor error logic 
+    return unpackDelta(slice->data + i, tSizes, node->end);      
+  }  
 }
-CompiledAddr fstStateTransAddrForAnyTrans(FstState *state, FstNode *node, uint64_t i) {
-  return 1;
+CompiledAddr fstStateTransAddrForAnyTrans(FstState *s, FstNode *node, uint64_t i) {
+  assert(s->state == AnyTrans);
+
+  FstSlice *slice = &node->data;
+  uint8_t tSizes = FST_GET_TRANSITION_PACK_SIZE(node->sizes);
+  uint64_t at = node->start  
+               - fstStateNtransLen(s)
+               - 1
+               - fstStateTransIndexSize(s, node->version, node->nTrans)
+               - node->nTrans
+               - (i * tSizes)
+               - tSizes;
+  return unpackDelta(slice->data + at, tSizes, node->end); 
 }
 
 // sizes 
-PackSizes fstStateSizes(FstState *state, FstSlice *data) {
-  return 1;
+PackSizes fstStateSizes(FstState *s, FstSlice *slice) {
+  assert(s->state == OneTrans || s->state == AnyTrans) ;
+  uint64_t i; 
+  if (s->state == OneTrans) {
+    i = FST_SLICE_LEN(slice) - 1 - fstStateInputLen(s) - 1;  
+  } else {
+    i = FST_SLICE_LEN(slice) - 1 - fstStateNtransLen(s) - 1;
+  }
+
+  return (PackSizes)(slice->data[slice->start + i]);
 }
 // Output 
 Output fstStateOutput(FstState *state, FstNode *node) {
-  return 1;
-
+  
 }
 Output fstStateOutputForAnyTrans(FstState *state, FstNode *node, uint64_t i) {
   return 1;
@@ -281,7 +338,9 @@ uint64_t fstStateTotalTransSize(FstState *state, uint64_t version, PackSizes siz
   return 1;
 }
 uint64_t fstStateTransIndexSize(FstState *state, uint64_t version, uint64_t nTrans) {
-  return 1;
+  if (version >= 2 && nTrans > TRANS_INDEX_THRESHOLD)
+    return 256;
+  return 0;
 }
 uint64_t fstStateNtransLen(FstState *state) {
   return 1;

@@ -151,7 +151,6 @@ uint64_t fstStateFindInput(FstState *state, FstNode *node, uint8_t b);
 
 
 
-
   
 
 #define FST_STATE_ONE_TRNAS_NEXT(node) (node->state.state == OneTransNext) 
@@ -204,6 +203,7 @@ typedef struct FstNode {
 #define FST_NODE_IS_EMPTYE(node) (node->nTrans == 0)
 // Return the address of this node.
 #define FST_NODE_ADDR(node) node->start 
+
 
 FstNode *fstNodeCreate(int64_t version, CompiledAddr addr, FstSlice *data);
 void fstNodeDestroy(FstNode *fstNode);
