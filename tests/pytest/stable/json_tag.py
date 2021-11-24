@@ -194,7 +194,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, "{\"k1\":\"\",\"k2\":true,\"k3\":false,\"k4\":55}")
 
         tdSql.query("select jtag->'k2' from db_json_tag_test.jsons1_10")
-        tdSql.checkData(0, 0, "true")
+        tdSql.checkData(0, 0, True)
 
         tdSql.query("select jtag from db_json_tag_test.jsons1 where jtag->'k1'=''")
         tdSql.checkRows(1)

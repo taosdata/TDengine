@@ -439,7 +439,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
       if (pField->visible) {
         f[j] = pField->field;
 
-        if(f[j].type == TSDB_DATA_TYPE_JSON){
+        if(f[j].type == TSDB_DATA_TYPE_JSON && pField->fieldJson.type != TSDB_DATA_TYPE_NULL){
           f[j].type = pField->fieldJson.type;
           if(!IS_VAR_DATA_TYPE(f[j].type) && f[j].type != TSDB_DATA_TYPE_JSON){
             f[j].bytes = pField->fieldJson.bytes;
