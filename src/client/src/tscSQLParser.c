@@ -2199,6 +2199,7 @@ int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnLi
     char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN + 1] = {0};
     jsonKeyMd5(fieldName, strlen(fieldName), keyMd5);
     strncpy(pInfo->fieldJson.name, keyMd5, sizeof(pInfo->fieldJson.name));
+    pInfo->fieldJson.type = TSDB_DATA_TYPE_JSON;
   }
   pInfo->pExpr = pSqlExpr;
   
