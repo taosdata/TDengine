@@ -173,7 +173,7 @@ void taosHashCleanup(SHashObj *pHashObj);
  * @param pHashObj   hash table object
  * @return           maximum number of collisions
  */
-int32_t taosHashGetMaxOverflowLinkLength(const SHashObj *pHashObj);
+int32_t taosHashGetMaxOverflowLinkLength(SHashObj *pHashObj);
 
 /**
  * return the consumed memory of the hash table

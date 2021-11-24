@@ -515,30 +515,27 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   while (pNode) {
     if ((pNode->keyLen == keyLen) &&
         ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) &&
-        pNode->removed == 0)
-      break;
+        pNode->removed == 0) {
+      code = 0;  // it is found
 
-    prevNode = pNode;
-    pNode = pNode->next;
-  }
+      atomic_sub_fetch_32(&pNode->refCount, 1);
+      pNode->removed = 1;
+      if (pNode->refCount <= 0) {
+        if (prevNode == NULL) {
+          pe->next = pNode->next;
+        } else {
+          prevNode->next = pNode->next;
+        }
 
-  if (pNode) {
-    code = 0;  // it is found
+        if (data) memcpy(data, GET_HASH_NODE_DATA(pNode), dsize);
 
-    atomic_sub_fetch_32(&pNode->refCount, 1);
-    pNode->removed = 1;
-    if (pNode->refCount <= 0) {
-      if (prevNode) {
-        prevNode->next = pNode->next;
-      } else {
-        pe->next = pNode->next;
+        pe->num--;
+        atomic_sub_fetch_64(&pHashObj->size, 1);
+        FREE_HASH_NODE(pHashObj, pNode);
       }
-
-      if (data) memcpy(data, GET_HASH_NODE_DATA(pNode), dsize);
-
-      pe->num--;
-      atomic_sub_fetch_64(&pHashObj->size, 1);
-      FREE_HASH_NODE(pHashObj, pNode);
+    } else {
+      prevNode = pNode;
+      pNode = pNode->next;
     }
   }
 
@@ -649,24 +646,28 @@ void taosHashCleanup(SHashObj *pHashObj) {
 
   taosArrayDestroy(pHashObj->pMemBlock);
 
-  memset(pHashObj, 0, sizeof(SHashObj));
   free(pHashObj);
 }
 
 // for profile only
-int32_t taosHashGetMaxOverflowLinkLength(const SHashObj *pHashObj) {
+int32_t taosHashGetMaxOverflowLinkLength(SHashObj *pHashObj) {
   if (pHashObj == NULL || taosHashTableEmpty(pHashObj)) {
     return 0;
   }
 
   int32_t num = 0;
 
+  __rd_lock(&pHashObj->lock, pHashObj->type);
   for (int32_t i = 0; i < pHashObj->size; ++i) {
     SHashEntry *pEntry = pHashObj->hashList[i];
+
+    // fine grain per entry lock is not held since this is used
+    // for profiling only and doesn't need an accurate count.
     if (num < pEntry->num) {
       num = pEntry->num;
     }
   }
+  __rd_unlock(&pHashObj->lock, pHashObj->type);
 
   return num;
 }
@@ -682,15 +683,15 @@ void taosHashTableResize(SHashObj *pHashObj) {
 
   int32_t newCapacity = (int32_t)(pHashObj->capacity << 1u);
   if (newCapacity > HASH_MAX_CAPACITY) {
-    //    uDebug("current capacity:%d, maximum capacity:%d, no resize applied due to limitation is reached",
-    //           pHashObj->capacity, HASH_MAX_CAPACITY);
+    uDebug("current capacity:%lu, maximum capacity:%d, no resize applied due to limitation is reached",
+           pHashObj->capacity, HASH_MAX_CAPACITY);
     return;
   }
 
   int64_t st = taosGetTimestampUs();
   void *pNewEntryList = realloc(pHashObj->hashList, sizeof(void *) * newCapacity);
-  if (pNewEntryList == NULL) {  // todo handle error
-    //    uDebug("cache resize failed due to out of memory, capacity remain:%d", pHashObj->capacity);
+  if (pNewEntryList == NULL) {
+    uDebug("cache resize failed due to out of memory, capacity remain:%lu", pHashObj->capacity);
     return;
   }
 
@@ -711,14 +712,10 @@ void taosHashTableResize(SHashObj *pHashObj) {
 
     if (pe->num == 0) {
       assert(pe->next == NULL);
-    } else {
-      assert(pe->next != NULL);
-    }
-
-    if (pe->num == 0) {
-      assert(pe->next == NULL);
       continue;
     }
+
+    assert(pe->next != NULL);
 
     while ((pNode = pe->next) != NULL) {
       int32_t j = HASH_INDEX(pNode->hashVal, pHashObj->capacity);
