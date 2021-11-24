@@ -42,7 +42,7 @@ print dnode2 openVnodes $data2_2
 if $data2_1 != 0 then
 	return -1
 endi
-if $data2_2 != 1 then
+if $data2_2 != 2 then
 	return -1
 endi
 
@@ -56,7 +56,25 @@ print $data30
 print $data40
 print $data50
 
-if $rows > 6 then
+print *num of tables $rows
+
+if $rows > 17 then
+	return -1
+endi
+
+sql show log.stables
+
+print $data00
+print $data10
+print $data20
+print $data30
+print $data40
+print $data50
+print $data60
+
+print *num of stables $rows
+
+if $rows > 7 then
 	return -1
 endi
 

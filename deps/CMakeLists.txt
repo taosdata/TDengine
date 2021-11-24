@@ -15,7 +15,10 @@ ADD_SUBDIRECTORY(cJson)
 ADD_SUBDIRECTORY(wepoll)
 ADD_SUBDIRECTORY(MsvcLibX)
 ADD_SUBDIRECTORY(rmonotonic)
-ADD_SUBDIRECTORY(lua)
+
+IF (TD_BUILD_LUA)
+  ADD_SUBDIRECTORY(lua)
+ENDIF ()
 
 IF (TD_LINUX AND TD_MQTT)
   ADD_SUBDIRECTORY(MQTT-C)
@@ -55,6 +58,7 @@ IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
   MESSAGE("")
   MESSAGE("setup deps/jemalloc, current source dir:" ${CMAKE_CURRENT_SOURCE_DIR})
   MESSAGE("binary dir:" ${CMAKE_BINARY_DIR})
+  include(ExternalProject)
   ExternalProject_Add(jemalloc
     PREFIX        "jemalloc"
     SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/jemalloc
@@ -62,6 +66,7 @@ IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
     CONFIGURE_COMMAND   ./autogen.sh COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/
     BUILD_COMMAND       ${MAKE}
   )
+  INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
 ENDIF ()
 
 IF (${TSZ_ENABLED} MATCHES "true")

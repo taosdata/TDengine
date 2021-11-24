@@ -17,7 +17,6 @@ public class HttpClientPoolUtilTest {
     String user = "root";
     String password = "taosdata";
     String host = "127.0.0.1";
-//    String host = "master";
 
     @Test
     public void useLog() {
