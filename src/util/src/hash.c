@@ -677,10 +677,6 @@ void taosHashTableResize(SHashObj *pHashObj) {
     return;
   }
 
-  // double the original capacity
-  SHashNode *pNode = NULL;
-  SHashNode *pNext = NULL;
-
   int32_t newCapacity = (int32_t)(pHashObj->capacity << 1u);
   if (newCapacity > HASH_MAX_CAPACITY) {
     uDebug("current capacity:%lu, maximum capacity:%d, no resize applied due to limitation is reached",
@@ -707,73 +703,45 @@ void taosHashTableResize(SHashObj *pHashObj) {
   taosArrayPush(pHashObj->pMemBlock, &p);
 
   pHashObj->capacity = newCapacity;
-  for (int32_t i = 0; i < pHashObj->capacity; ++i) {
-    SHashEntry *pe = pHashObj->hashList[i];
+  for (int32_t idx = 0; idx < pHashObj->capacity; ++idx) {
+    SHashEntry *pe = pHashObj->hashList[idx];
+    SHashNode *pNode;
+    SHashNode *pNext;
+    SHashNode *pPrev = NULL;
 
     if (pe->num == 0) {
       assert(pe->next == NULL);
       continue;
     }
 
-    assert(pe->next != NULL);
+    pNode = pe->next;
 
-    while ((pNode = pe->next) != NULL) {
-      int32_t j = HASH_INDEX(pNode->hashVal, pHashObj->capacity);
-      if (j != i) {
+    assert(pNode != NULL);
+
+    while (pNode != NULL) {
+      int32_t newIdx = HASH_INDEX(pNode->hashVal, pHashObj->capacity);
+      pNext = pNode->next;
+      if (newIdx != idx) {
         pe->num -= 1;
-        pe->next = pNode->next;
-
-        if (pe->num == 0) {
-          assert(pe->next == NULL);
+        if (pPrev == NULL) {
+          pe->next = pNext;
         } else {
-          assert(pe->next != NULL);
+          pPrev->next = pNext;
         }
 
-        SHashEntry *pNewEntry = pHashObj->hashList[j];
+        SHashEntry *pNewEntry = pHashObj->hashList[newIdx];
         pushfrontNodeInEntryList(pNewEntry, pNode);
       } else {
-        break;
+        pPrev = pNode;
       }
+      pNode = pNext;
     }
-
-    if (pNode != NULL) {
-      while ((pNext = pNode->next) != NULL) {
-        int32_t j = HASH_INDEX(pNext->hashVal, pHashObj->capacity);
-        if (j != i) {
-          pe->num -= 1;
-
-          pNode->next = pNext->next;
-          pNext->next = NULL;
-
-          // added into new slot
-          SHashEntry *pNewEntry = pHashObj->hashList[j];
-
-          if (pNewEntry->num == 0) {
-            assert(pNewEntry->next == NULL);
-          } else {
-            assert(pNewEntry->next != NULL);
-          }
-
-          pushfrontNodeInEntryList(pNewEntry, pNext);
-        } else {
-          pNode = pNext;
-        }
-      }
-
-      if (pe->num == 0) {
-        assert(pe->next == NULL);
-      } else {
-        assert(pe->next != NULL);
-      }
-
-    }
-
   }
 
   int64_t et = taosGetTimestampUs();
 
   uDebug("hash table resize completed, new capacity:%d, load factor:%f, elapsed time:%fms", (int32_t)pHashObj->capacity,
-           ((double)pHashObj->size) / pHashObj->capacity, (et - st) / 1000.0);
+         ((double)pHashObj->size) / pHashObj->capacity, (et - st) / 1000.0);
 }
 
 SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, size_t dsize, uint32_t hashVal) {
