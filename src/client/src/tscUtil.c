@@ -715,11 +715,12 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
       char* realData = p + CHAR_BYTES;
       char type = *p;
 
-      if (type == TSDB_DATA_TYPE_NCHAR && isNull(realData, TSDB_DATA_TYPE_JSON)) {
-        memcpy(dst, realData, varDataTLen(realData));
-        offset = pInfo->field.bytes;
-      }else if (type == TSDB_DATA_TYPE_NCHAR) {
-        if(convertNchar){
+      if (type == TSDB_DATA_TYPE_JSON && isNull(realData, TSDB_DATA_TYPE_JSON)) {
+        type = pInfo->fieldJson.type;
+        setNull(realData, type, 0);
+      }
+      if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_JSON) {
+        if(convertNchar && !isNull(realData, TSDB_DATA_TYPE_NCHAR)){
           int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), varDataVal(dst));
           varDataSetLen(dst, length);
           if (length == 0) {
@@ -729,17 +730,10 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
           memcpy(dst, realData, varDataTLen(realData));
         }
         offset = pInfo->field.bytes;
-      }else if (type == TSDB_DATA_TYPE_DOUBLE) {
-        memcpy(dst, realData, DOUBLE_BYTES);
-        offset = DOUBLE_BYTES;
-      }else if (type == TSDB_DATA_TYPE_BIGINT) {
-        memcpy(dst, realData, LONG_BYTES);
-        offset = LONG_BYTES;
-      }else if (type == TSDB_DATA_TYPE_BOOL) {
-        memcpy(dst, realData, CHAR_BYTES);
-        offset = CHAR_BYTES;
       }else {
-        assert(0);
+        assert(type <= TSDB_DATA_TYPE_DOUBLE && type >=TSDB_DATA_TYPE_BOOL);
+        memcpy(dst, realData, tDataTypes[(int32_t)type].bytes);
+        offset = tDataTypes[(int32_t)type].bytes;
       }
 
       p += pInfo->field.bytes;
@@ -5384,7 +5378,7 @@ void* getJsonTagValueElment(STable* data, char* key, int32_t keyLen, char* dst, 
   void* result = getJsonTagValue(data, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN, NULL);
   if (result == NULL){    // json key no result
     if(!dst) return NULL;
-    *(char*)dst = TSDB_DATA_TYPE_NCHAR;
+    *(char*)dst = TSDB_DATA_TYPE_JSON;
     setNull(dst + CHAR_BYTES, TSDB_DATA_TYPE_JSON, 0);
     return dst;
   }
@@ -5412,7 +5406,7 @@ void* getJsonTagValueElment(STable* data, char* key, int32_t keyLen, char* dst, 
 void getJsonTagValueAll(void* data, void* dst, int16_t bytes) {
   char* json = parseTagDatatoJson(data);
   char* tagData = dst + CHAR_BYTES;
-  *(char*)dst = TSDB_DATA_TYPE_NCHAR;
+  *(char*)dst = TSDB_DATA_TYPE_JSON;
   if(json == NULL){
     setNull(tagData, TSDB_DATA_TYPE_JSON, 0);
     return;

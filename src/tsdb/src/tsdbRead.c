@@ -4118,7 +4118,7 @@ uint8_t getTagJsonType(STsdbRepo* tsdb, uint64_t uid, char* key, int32_t len){
   if(result){
     return *(char*)result;
   }else{
-    return TSDB_DATA_TYPE_NULL;
+    return TSDB_DATA_TYPE_JSON;
   }
 }
 
