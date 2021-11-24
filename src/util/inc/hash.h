@@ -142,7 +142,16 @@ int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen);
  */
 int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLen, void* data, size_t dsize);
 
-int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), void *param);
+/**
+ * traverse through all objects in the hash table and apply "fp" on each node.
+ * If "fp" returns false when applied on top of a node, the node will also be
+ * removed from table.
+ *
+ * @param pHashObj   hash table object
+ * @param fp         function pointer applied on each node
+ * @param param      parameter fed into "fp"
+ */
+void taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), void *param);
 
 /**
  * clear the contents of the hash table

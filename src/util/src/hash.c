@@ -131,7 +131,7 @@ static FORCE_INLINE SHashNode *doSearchInEntryList(SHashObj *pHashObj, SHashEntr
 }
 
 /**
- * Resize the hash list if the threshold is reached
+ * resize the hash list if the threshold is reached
  *
  * @param pHashObj
  */
@@ -144,7 +144,7 @@ static void taosHashTableResize(SHashObj *pHashObj);
  * @param keyLen   length of key
  * @param pData    data to be stored in hash node
  * @param dsize    size of data
- * @return         sHashNode
+ * @return         SHashNode
  */
 static SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, size_t dsize, uint32_t hashVal);
 
@@ -178,7 +178,7 @@ static FORCE_INLINE void doUpdateHashNode(SHashObj *pHashObj, SHashEntry* pe, SH
 }
 
 /**
- * Insert the hash node at the front of the linked list
+ * insert the hash node at the front of the linked list
  *
  * @param pHashObj   hash table object
  * @param pNode      the old node with requested key
@@ -483,7 +483,7 @@ int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
 }
 
 int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t dsize) {
-  if (pHashObj == NULL || taosHashTableEmpty(pHashObj)) {
+  if (pHashObj == NULL || taosHashTableEmpty(pHashObj) || key == NULL || keyLen == 0) {
     return -1;
   }
 
@@ -513,7 +513,9 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   SHashNode *prevNode = NULL;
 
   while (pNode) {
-    if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0)
+    if ((pNode->keyLen == keyLen) &&
+        ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) &&
+        pNode->removed == 0)
       break;
 
     prevNode = pNode;
@@ -549,9 +551,9 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   return code;
 }
 
-int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), void *param) {
-  if (pHashObj == NULL || taosHashTableEmpty(pHashObj)) {
-    return 0;
+void taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), void *param) {
+  if (pHashObj == NULL || taosHashTableEmpty(pHashObj) || fp == NULL) {
+    return;
   }
 
   // disable the resize process
@@ -568,49 +570,22 @@ int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), voi
       taosWLockLatch(&pEntry->latch);
     }
 
-    // todo remove the first node
-    SHashNode *pNode = NULL;
-    while((pNode = pEntry->next) != NULL) {
-      if (fp && (!fp(param, GET_HASH_NODE_DATA(pNode)))) {
+    SHashNode *pPrevNode = NULL;
+    SHashNode *pNode = pEntry->next;
+    while (pNode != NULL) {
+      if (fp(param, GET_HASH_NODE_DATA(pNode))) {
+        pPrevNode = pNode;
+        pNode = pNode->next;
+      } else {
+        if (pPrevNode == NULL) {
+          pEntry->next = pNode->next;
+        } else {
+          pPrevNode->next = pNode->next;
+        }
         pEntry->num -= 1;
         atomic_sub_fetch_64(&pHashObj->size, 1);
-
-        pEntry->next = pNode->next;
-
-        if (pEntry->num == 0) {
-          assert(pEntry->next == NULL);
-        } else {
-          assert(pEntry->next != NULL);
-        }
-
+        pNode = pNode->next;
         FREE_HASH_NODE(pHashObj, pNode);
-      } else {
-        break;
-      }
-    }
-
-    // handle the following node
-    if (pNode != NULL) {
-      assert(pNode == pEntry->next);
-      SHashNode *pNext = NULL;
-
-      while ((pNext = pNode->next) != NULL) {
-        // not qualified, remove it
-        if (fp && (!fp(param, GET_HASH_NODE_DATA(pNext)))) {
-          pNode->next = pNext->next;
-          pEntry->num -= 1;
-          atomic_sub_fetch_64(&pHashObj->size, 1);
-
-          if (pEntry->num == 0) {
-            assert(pEntry->next == NULL);
-          } else {
-            assert(pEntry->next != NULL);
-          }
-
-          FREE_HASH_NODE(pHashObj, pNext);
-        } else {
-          pNode = pNext;
-        }
       }
     }
 
@@ -620,7 +595,6 @@ int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), voi
   }
 
   __rd_unlock(&pHashObj->lock, pHashObj->type);
-  return 0;
 }
 
 void taosHashClear(SHashObj *pHashObj) {
