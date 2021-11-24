@@ -521,7 +521,7 @@ static void swap(SColumnModel *pColumnModel, int32_t count, int32_t s1, char *da
     void *first = COLMODEL_GET_VAL(data1, pColumnModel, count, s1, i);
     void *second = COLMODEL_GET_VAL(data1, pColumnModel, count, s2, i);
 
-    SSchema* pSchema = &pColumnModel->pFields[i].field;
+    SSchema1* pSchema = &pColumnModel->pFields[i].field;
     tsDataSwap(first, second, pSchema->type, pSchema->bytes, buf);
   }
 }
@@ -750,7 +750,7 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
 
   size_t width = 0;
   for(int32_t i = 0; i < pModel->numOfCols; ++i) {
-    SSchema* pSchema = &pModel->pFields[i].field;
+    SSchema1* pSchema = &pModel->pFields[i].field;
     if (width < pSchema->bytes) {
       width = pSchema->bytes;
     }
@@ -771,7 +771,7 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
 /*
  * deep copy of sschema
  */
-SColumnModel *createColumnModel(SSchema *fields, int32_t numOfCols, int32_t blockCapacity) {
+SColumnModel *createColumnModel(SSchema1 *fields, int32_t numOfCols, int32_t blockCapacity) {
   SColumnModel *pColumnModel = (SColumnModel *)calloc(1, sizeof(SColumnModel) + numOfCols * sizeof(SSchemaEx));
   if (pColumnModel == NULL) {
     return NULL;
@@ -1023,7 +1023,7 @@ void tColModelCompact(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxE
   }
 }
 
-SSchema* getColumnModelSchema(SColumnModel *pColumnModel, int32_t index) {
+SSchema1* getColumnModelSchema(SColumnModel *pColumnModel, int32_t index) {
   assert(pColumnModel != NULL && index >= 0 && index < pColumnModel->numOfCols);
   return &pColumnModel->pFields[index].field;
 }
@@ -1045,7 +1045,7 @@ void tColModelErase(SColumnModel *pModel, tFilePage *inputBuffer, int32_t blockC
   /* start from the second column */
   for (int32_t i = 0; i < pModel->numOfCols; ++i) {
     int16_t offset = getColumnModelOffset(pModel, i);
-    SSchema* pSchema = getColumnModelSchema(pModel, i);
+    SSchema1* pSchema = getColumnModelSchema(pModel, i);
     
     char *startPos = inputBuffer->data + offset * blockCapacity + s * pSchema->bytes;
     char *endPos = startPos + pSchema->bytes * removed;
