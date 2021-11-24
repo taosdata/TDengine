@@ -396,6 +396,7 @@ void getJsonTagValueAll(void* data, void* dst, int16_t bytes);
 
 int8_t jsonType2DbType(double data, int jsonType);
 void* getJsonTagValue(STable* pTable, char* key, int32_t keyLen, int16_t* colId);
+void getJsonKey(SStrToken *t0);
 
 char* cloneCurrentDBName(SSqlObj* pSql);
 

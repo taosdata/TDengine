@@ -2657,7 +2657,7 @@ static void updateFieldForJson(SSqlObj *pSql, SQueryTableRsp *pQueryAttr){
     if (pField->field.type == TSDB_DATA_TYPE_JSON) {
       pField->fieldJson.type = TSDB_DATA_TYPE_JSON;
       for (int k = 0; k < pQueryAttr->tJsonSchLen; ++k) {
-        if (strncmp(pField->field.name, pQueryAttr->tagJsonSchema[k].name, TSDB_MAX_JSON_KEY_LEN) == 0) {
+        if (strncmp(pField->fieldJson.name, pQueryAttr->tagJsonSchema[k].name, TSDB_MAX_JSON_KEY_LEN) == 0) {
           pField->fieldJson.type = pQueryAttr->tagJsonSchema[k].type;
           pField->fieldJson.bytes = TYPE_BYTES[pField->field.type];
           tscDebug("0x%" PRIx64 " change json type %s:%s to %d", pSql->self, pField->field.name, pQueryAttr->tagJsonSchema[k].name,

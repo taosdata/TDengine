@@ -1910,14 +1910,26 @@ static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumn
 
   SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, pIndex->columnIndex);
 
-  if (pItem->aliasName){
-    tstrncpy(pExpr->base.aliasName, pItem->aliasName, sizeof(pExpr->base.aliasName));
-  }else {
-    if (pSchema->type == TSDB_DATA_TYPE_JSON && pItem->pNode->tokenId == TK_ARROW) {
-      tstrncpy(pExpr->base.aliasName, pItem->pNode->exprToken.z,
-               (pItem->pNode->exprToken.n + 1) < sizeof(pExpr->base.aliasName) ? (pItem->pNode->exprToken.n + 1) : sizeof(pExpr->base.aliasName));
-    } else {
+  char oriAliasName[TSDB_COL_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_MAX_JSON_KEY_LEN + 4 + 1] = {0};
+  void* oriAliasNamePtr = &oriAliasName;
+  if (pSchema->type == TSDB_DATA_TYPE_JSON && pItem->pNode->tokenId == TK_ARROW) {
+    char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN + 1] = {0};
+    if (pItem->aliasName){
+      jsonKeyMd5(pItem->aliasName, strlen(pItem->aliasName), keyMd5);
+      *(char**)oriAliasNamePtr = pItem->aliasName;
+    }else{
+      jsonKeyMd5(pItem->pNode->exprToken.z, pItem->pNode->exprToken.n, keyMd5);
+      tstrncpy(*(char**)oriAliasNamePtr, pItem->pNode->exprToken.z,
+               pItem->pNode->exprToken.n + 1 < sizeof(oriAliasName) ? pItem->pNode->exprToken.n + 1 : sizeof(oriAliasName));
+    }
+    tstrncpy(pExpr->base.aliasName, keyMd5, sizeof(pExpr->base.aliasName));
+  } else {
+    if (pItem->aliasName){
+      tstrncpy(pExpr->base.aliasName, pItem->aliasName, sizeof(pExpr->base.aliasName));
+      *(char**)oriAliasNamePtr = pItem->aliasName;
+    }else{
       tstrncpy(pExpr->base.aliasName, pSchema->name, sizeof(pExpr->base.aliasName));
+      *(char**)oriAliasNamePtr = pSchema->name;
     }
   }
 
@@ -1930,7 +1942,7 @@ static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumn
     ids.num = 0;
   }
 
-  insertResultField(pQueryInfo, startPos, &ids, pExpr->base.resBytes, (int8_t)pExpr->base.resType, pExpr->base.aliasName, pExpr);
+  insertResultField(pQueryInfo, startPos, &ids, pExpr->base.resBytes, (int8_t)pExpr->base.resType, *(char**)oriAliasNamePtr, pExpr);
 }
 
 static void addPrimaryTsColIntoResult(SQueryInfo* pQueryInfo, SSqlCmd* pCmd) {
@@ -2183,6 +2195,11 @@ int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnLi
   
   TAOS_FIELD f = tscCreateField(type, fieldName, bytes);
   SInternalField* pInfo = tscFieldInfoInsert(&pQueryInfo->fieldsInfo, outputIndex, &f);
+  if (type == TSDB_DATA_TYPE_JSON){
+    char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN + 1] = {0};
+    jsonKeyMd5(fieldName, strlen(fieldName), keyMd5);
+    strncpy(pInfo->fieldJson.name, keyMd5, sizeof(pInfo->fieldJson.name));
+  }
   pInfo->pExpr = pSqlExpr;
   
   return TSDB_CODE_SUCCESS;
@@ -3822,7 +3839,8 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
 
       SColIndex colIndex = { .colIndex = relIndex, .flag = TSDB_COL_TAG, .colId = pSchema->colId, };
       if(pItem->isJsonExp) {
-        tstrncpy(colIndex.name, pItem->jsonExp->pRight->value.pz, tListLen(colIndex.name));
+        tstrncpy(colIndex.name, pItem->jsonExp->exprToken.z,
+                 pItem->jsonExp->exprToken.n + 1 > tListLen(colIndex.name) ? tListLen(colIndex.name) : pItem->jsonExp->exprToken.n + 1);
       }else{
         tstrncpy(colIndex.name, pSchema->name, tListLen(colIndex.name));
       }
@@ -7281,7 +7299,7 @@ static bool tagColumnInGroupby(SGroupbyExpr* pGroupbyExpr, int16_t columnId, int
   for (int32_t j = 0; j < pGroupbyExpr->numOfGroupCols; ++j) {
     SColIndex* pColIndex = taosArrayGet(pGroupbyExpr->columnInfo, j);
 
-    if (type == TSDB_DATA_TYPE_JSON){
+    if (type == TSDB_DATA_TYPE_JSON && name != NULL){
       if (columnId == pColIndex->colId && strncmp(pColIndex->name, name, tListLen(pColIndex->name)) == 0 && TSDB_COL_IS_TAG(pColIndex->flag )) {
         return true;
       }
@@ -7502,20 +7520,24 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
       SExprInfo*   pExpr = tscExprInsert(pQueryInfo, pos, f, &index, s->type, s->bytes, getNewResColId(pCmd), s->bytes, true);
       // if json->key is more than TSDB_COL_NAME_LEN + TSDB_DB_NAME_LEN, truncature it， maybe case error, can encode name by md5.
       if(s->type == TSDB_DATA_TYPE_JSON){
-        tVariantCreateFromBinary(&(pExpr->base.param[pExpr->base.numOfParams]), pColIndex->name,
-                                 strlen(pColIndex->name), TSDB_DATA_TYPE_BINARY);
+        SStrToken t0 = {.z = pColIndex->name};
+        getJsonKey(&t0);
+        tVariantCreateFromBinary(&(pExpr->base.param[pExpr->base.numOfParams]), t0.z,
+                                 t0.n, TSDB_DATA_TYPE_BINARY);
         pExpr->base.numOfParams++;
       }
 
+      char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN + 1] = {0};
+      jsonKeyMd5(pColIndex->name, strlen(pColIndex->name), keyMd5);
       memset(pExpr->base.aliasName, 0, sizeof(pExpr->base.aliasName));
-      tstrncpy(pExpr->base.aliasName, pColIndex->name, sizeof(pExpr->base.aliasName));
-      tstrncpy(pExpr->base.token, pColIndex->name, sizeof(pExpr->base.aliasName));
+      tstrncpy(pExpr->base.aliasName, keyMd5, sizeof(pExpr->base.aliasName));
+      tstrncpy(pExpr->base.token, keyMd5, sizeof(pExpr->base.token));
 
       pExpr->base.colInfo.flag = TSDB_COL_TAG;
 
       // NOTE: tag column does not add to source column list
       SColumnList ids = createColumnList(1, 0, pColIndex->colIndex);
-      insertResultField(pQueryInfo, pos, &ids, s->bytes, (int8_t)s->type, s->name, pExpr);
+      insertResultField(pQueryInfo, pos, &ids, s->bytes, (int8_t)s->type, pColIndex->name, pExpr);
     } else {
       // if this query is "group by" normal column, time window query is not allowed
       if (isTimeWindowQuery(pQueryInfo)) {

@@ -5681,3 +5681,17 @@ void* getJsonTagValue(STable* pTable, char* key, int32_t keyLen, int16_t* retCol
   }
   return NULL;
 }
+
+void getJsonKey(SStrToken *t0){
+  while(true){
+    t0->n = tGetToken(t0->z, &t0->type);
+    if (t0->type == TK_STRING){
+      t0->z++;
+      t0->n -= 2;
+      break;
+    }else if (t0->type == TK_ILLEGAL){
+      assert(0);
+    }
+    t0->z += t0->n;
+  }
+}
