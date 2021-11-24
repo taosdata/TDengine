@@ -122,8 +122,19 @@ class TDTestCase:
                 (i, i))
             self.checkColumnSorted(1, "desc")
 
+        # order by rules: https://jira.taosdata.com:18090/pages/viewpage.action?pageId=123455481
         tdSql.error("select tbcol1 from st order by 123")
         tdSql.error("select tbcol1 from st order by tbname")
+        tdSql.error("select tbcol1 from st order by tagcol1")
+        tdSql.error("select tbcol1 from st order by ''")
+        tdSql.error("select top(tbcol1, 12) from st1 order by tbcol1,ts")
+        tdSql.error("select top(tbcol1, 12) from st order by tbcol1,ts,tbcol2")
+        tdSql.error("select top(tbcol1, 12) from st order by ts, tbcol1")
+        tdSql.error("select top(tbcol1, 2) from st1 group by tbcol1 order by tbcol2")
+
+        tdSql.query("select top(tbcol1, 2) from st1 group by tbcol2 order by tbcol2")
+        tdSql.query("select top(tbcol1, 12) from st order by tbcol1, ts")
+
         tdSql.query("select avg(tbcol1) from st group by tbname order by tbname")
         tdSql.checkData(1, 0, 5.5)
         tdSql.checkData(5, 1, "st6")
@@ -141,6 +152,13 @@ class TDTestCase:
         tdSql.query("select top(tbcol1, 12) from st group by tbname order by tbname desc")
         tdSql.checkData(1, 2, "st10")
         tdSql.checkData(10, 2, "st9")
+
+        tdSql.query("select top(tbcol1, 2) from st group by tbname order by tbname desc,ts")
+        tdSql.checkData(1, 2, "st10")
+        tdSql.checkData(10, 2, "st5")
+        tdSql.checkData(0, 0, "2018-09-17 09:00:00.109")
+        tdSql.checkData(1, 0, "2018-09-17 09:00:00.110")
+        tdSql.checkData(2, 0, "2018-09-17 09:00:00.099")
 
     def stop(self):
         tdSql.close()
