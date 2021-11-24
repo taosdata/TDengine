@@ -100,7 +100,7 @@ FstState fstStateCreate(State state);
 
 //compile
 void fstStateCompileForOneTransNext(FstCountingWriter *w, CompiledAddr addr, uint8_t inp);
-void fstStateCompileForOneTrans(FstCountingWriter *w, CompiledAddr addr, FstTransition trn);
+void fstStateCompileForOneTrans(FstCountingWriter *w, CompiledAddr addr, FstTransition *trn);
 void fstStateCompileForAnyTrans(FstCountingWriter *w, CompiledAddr addr, FstBuilderNode *node);
 
 // set_comm_input

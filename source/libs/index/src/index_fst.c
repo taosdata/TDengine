@@ -195,12 +195,14 @@ void fstStateCompileForOneTransNext(FstCountingWriter *w, CompiledAddr addr, uin
   uint8_t v = fstStateCommInput(&s, &null);
   if (null) {
     // w->write_all(&[inp])
-  }  
+    fstCountingWriterWrite(w, &inp, 1);
+  }     
+  fstCountingWriterWrite(w, &(s.val), 1);
   // w->write_all(&[s.val])
-  return ;
+  return;
 }
-void fstStateCompileForOneTrans(FstCountingWriter *w, CompiledAddr addr, FstTransition trn) {
-  
+void fstStateCompileForOneTrans(FstCountingWriter *w, CompiledAddr addr, FstTransition* trn) {
+  Output val = trn->out;   
   return ;
 
 }
