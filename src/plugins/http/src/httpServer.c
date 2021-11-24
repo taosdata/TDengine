@@ -53,7 +53,7 @@ static void httpStopThread(HttpThread *pThread) {
       break;
     }
   } while (0);
-  if (r) {
+  if (r && taosCheckPthreadValid(pThread->thread)) {
     pthread_cancel(pThread->thread);
   }
 #else
@@ -63,15 +63,21 @@ static void httpStopThread(HttpThread *pThread) {
     httpError("%s, failed to create eventfd, will call pthread_cancel instead, which may result in data corruption: %s",
               pThread->label, strerror(errno));
     pThread->stop = true;
-    pthread_cancel(pThread->thread);
+    if (taosCheckPthreadValid(pThread->thread)) {
+      pthread_cancel(pThread->thread);
+    }
   } else if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
     httpError("%s, failed to call epoll_ctl, will call pthread_cancel instead, which may result in data corruption: %s",
               pThread->label, strerror(errno));
-    pthread_cancel(pThread->thread);
+    if (taosCheckPthreadValid(pThread->thread)) {
+      pthread_cancel(pThread->thread);
+    }
   }
 #endif  // __APPLE__
 
-  pthread_join(pThread->thread, NULL);
+  if (taosCheckPthreadValid(pThread->thread)) {
+    pthread_join(pThread->thread, NULL);
+  }
 
 #ifdef __APPLE__
   if (sv[0] != -1) {
