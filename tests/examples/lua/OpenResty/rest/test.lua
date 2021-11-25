@@ -63,6 +63,7 @@ else
 
 end
 
+--[[
 local flag = false
 function query_callback(res)
    if res.code ~=0 then
@@ -80,9 +81,10 @@ end
 driver.query_a(conn,"insert into m1 values ('2019-09-01 00:00:00.001', 3, 'robotspace'),('2019-09-01 00:00:00.006', 4, 'Hilink'),('2019-09-01 00:00:00.007', 6, 'Harmony')", query_callback)
 
 while not flag do
---   ngx.say("i am here once...")
+   ngx.say("i am here once...")
    ngx.sleep(0.001) -- time unit is second
 end
+--]]
 
 ngx.say("pool water_mark:"..pool:get_water_mark())
 
