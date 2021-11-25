@@ -231,6 +231,18 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
       }
     }
 
+    const char tagNullName[] = "`_tag_null`";
+    size_t* pTagNullIdx = taosHashGet(pStableSchema->tagHash, tagNullName, strlen(tagNullName));
+    if (!pTagNullIdx) {
+      SSchema tagNull = {0};
+      tagNull.type  = TSDB_DATA_TYPE_NCHAR;
+      tagNull.bytes = 6;
+      strncpy(tagNull.name, tagNullName, strlen(tagNullName));
+      taosArrayPush(pStableSchema->tags, &tagNull);
+      size_t tagNullIdx = taosArrayGetSize(pStableSchema->tags) - 1;
+      taosHashPut(pStableSchema->tagHash, tagNull.name, strlen(tagNullName), &tagNullIdx, sizeof(tagNullIdx));
+    }
+
     for (int j = 0; j < point->fieldNum; ++j) {
       TAOS_SML_KV* fieldKv = point->fields + j;
       code = buildSmlKvSchema(fieldKv, pStableSchema->fieldHash, pStableSchema->fields, info);
@@ -951,11 +963,11 @@ static int32_t applyChildTableTags(TAOS* taos, char* cTableName, char* sTableNam
       tagKVs[kv->fieldSchemaIdx] = kv;
     }
   }
-  
-  SArray* tagBinds = taosArrayInit(numTags, sizeof(TAOS_BIND));
-  taosArraySetSize(tagBinds, numTags);
+
+  SArray* tagBinds = taosArrayInit(numTags + 1, sizeof(TAOS_BIND));
+  taosArraySetSize(tagBinds, numTags + 1);
   int isNullColBind = TSDB_TRUE;
-  for (int j = 0; j < numTags; ++j) {
+  for (int j = 0; j < numTags + 1; ++j) {
     TAOS_BIND* bind = taosArrayGet(tagBinds, j);
     bind->is_null = &isNullColBind;
   }
