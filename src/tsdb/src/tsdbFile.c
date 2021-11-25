@@ -683,7 +683,7 @@ int tsdbScanAndTryFixDFileSet(STsdbRepo *pRepo, SDFileSet *pSet) {
 }
 
 int tsdbParseDFilename(const char *fname, int *vid, int *fid, TSDB_FILE_T *ftype, uint32_t *_version) {
-  static const int MAX_SUFFIX_LEN = 10;
+#define MAX_SUFFIX_LEN 10
   char suffix[MAX_SUFFIX_LEN] = {0};
   *_version = 0;
   *ftype = TSDB_FILE_MAX;
