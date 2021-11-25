@@ -3585,7 +3585,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
     return false;
   }
 
-  if (countTbname && (prjNum > 0 || aggNum > 0 || scalarUdf > 0)) {
+  if (countTbname && (prjNum > 0 || aggNum > 0 || scalarUdf > 0 || aggUdf > 0)) {
     return false;
   }
 
