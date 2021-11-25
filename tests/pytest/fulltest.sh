@@ -171,7 +171,7 @@ python3 test.py -f tools/taosdemoTestLimitOffset.py
 python3 test.py -f tools/taosdemoTestTblAlt.py
 python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdemoTestInterlace.py
-python3 test.py -f tools/taosdemoTestQuery.py
+# python3 test.py -f tools/taosdemoTestQuery.py
 
 # restful test for python
 # python3 test.py -f restful/restful_bind_db1.py
