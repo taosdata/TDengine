@@ -488,7 +488,7 @@ class TDTestCase:
             tdLog.info(len(sql))      
             tdSql.query(sql)
             #tdSql.checkData(0,0,'2020-09-13 20:26:40.000')
-            tdSql.checkRows(6*self.num)       
+            tdSql.checkRows(6*self.num)     
 
         #1 outer union not support        
         #dcDB = self.dropandcreateDB(random.randint(1,3))
@@ -2163,6 +2163,68 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql)     
+
+        tdSql.query("select 21-4 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   avg(res1),min(res2),max(res3) from  ( select  " 
+            sql += "%s res1, " % random.choice(calc_aggregate_all)
+            sql += "%s res2," % random.choice(calc_aggregate_all) 
+            sql += "%s res3 " % random.choice(calc_aggregate_all) 
+            sql += " from regular_table_1 t1  "
+            sql += " where %s " % random.choice(q_where)
+            sql += " %s ) " % random.choice(interval_sliding) 
+            sql += "group by ts "   
+            sql += "%s ;" % random.choice(limit_where)      
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.query(sql)
+
+        tdSql.query("select 21-5 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   avg(res1),min(res2),max(res3) from  ( select  " 
+            sql += "%s res1, " % random.choice(calc_aggregate_all)
+            sql += "%s res2," % random.choice(calc_aggregate_all) 
+            sql += "%s res3 " % random.choice(calc_aggregate_all) 
+            sql += " from table_1 t1  "
+            sql += " where %s " % random.choice(q_where)
+            sql += " %s ) " % random.choice(interval_sliding)  
+            sql += "group by ts "      
+            sql += "%s ;" % random.choice([limit_where[2] , limit_where[3]] )         
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.query(sql)
+
+        tdSql.query("select 21-6 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   avg(res1),min(res2),max(res3) from  ( select  " 
+            sql += "%s res1, " % random.choice(calc_aggregate_all)
+            sql += "%s res2," % random.choice(calc_aggregate_all) 
+            sql += "%s res3 " % random.choice(calc_aggregate_all) 
+            sql += " from stable_1 t1  "
+            sql += " where %s " % random.choice(q_where)
+            sql += " %s ) " % random.choice(interval_sliding)          
+            sql += "group by ts "   
+            sql += "%s ;" % random.choice(limit_where)         
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.query(sql)    
+        
+        tdSql.query("select 21-7 from table_0;")
+        for i in range(self.fornum):
+            sql = "select   avg(res1),min(res2),max(res3) from  ( select  " 
+            sql += "%s res1, " % random.choice(calc_aggregate_all)
+            sql += "%s res2," % random.choice(calc_aggregate_all) 
+            sql += "%s res3 " % random.choice(calc_aggregate_all) 
+            sql += " from stable_1 t1  "
+            sql += " where %s " % random.choice(q_where)
+            sql += " %s " % random.choice(interval_sliding) 
+            sql += " %s ) " % random.choice(group_where)         
+            sql += "group by ts "   
+            sql += "%s ;" % random.choice(limit_where)         
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.query(sql)  
+
 
         # error
         #1 select * from (select * from (select * form regular_table  where <\>\in\and\or order by limit  ))
