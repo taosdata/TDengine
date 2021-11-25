@@ -58,6 +58,11 @@ To install Apache Maven:
 sudo apt-get install -y  maven
 ```
 
+To compile and package the [taos-tools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
+```bash
+sudo apt install libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+```
+
 ### Centos 7:
 ```bash
 sudo yum install epel-release
@@ -91,6 +96,11 @@ To install Apache Maven:
 sudo dnf install -y maven
 ```
 
+To compile and package the [taos-tools](https://github.com/taosdata/taos-tools) on CentOS, the following packages need to be installed.
+```bash
+sudo yum install xz-devel snappy-devel jansson-devel pkgconfig libatomic
+```
+
 ### Setup golang environment
 TDengine includes few components developed by Go language. Please refer to golang.org official documentation for golang environment setup.
 
@@ -108,7 +118,7 @@ git clone https://github.com/taosdata/TDengine.git
 cd TDengine
 ```
 
-The connectors for go & grafana have been moved to separated repositories,
+The connectors for go & grafana and some tools have been moved to separated repositories,
 so you should run this command in the TDengine directory to install them:
 ```bash
 git submodule update --init --recursive
