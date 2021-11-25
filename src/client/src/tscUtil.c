@@ -4370,6 +4370,8 @@ bool tscHasReachLimitation(SQueryInfo* pQueryInfo, SSqlRes* pRes) {
 
 char* tscGetErrorMsgPayload(SSqlCmd* pCmd) { return pCmd->payload; }
 
+int32_t tscGetErrorMsgLength(SSqlCmd* pCmd) { return strlen(pCmd->payload); }
+
 /**
  *  If current vnode query does not return results anymore (pRes->numOfRows == 0), try the next vnode if exists,
  *  while multi-vnode super table projection query and the result does not reach the limitation.

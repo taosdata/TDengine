@@ -147,10 +147,10 @@ typedef struct {
         snprintf(_output, (int32_t)(_outputBytes), "%" PRIu64, *(uint64_t *)(_input));     \
         break;                                 \
       case TSDB_DATA_TYPE_FLOAT:               \
-        snprintf(_output, (int32_t)(_outputBytes), "%e", *(float *)(_input));     \
+        snprintf(_output, (int32_t)(_outputBytes), "%f", *(float *)(_input));     \
         break;                                 \
       case TSDB_DATA_TYPE_DOUBLE:              \
-        snprintf(_output, (int32_t)(_outputBytes), "%e", *(double *)(_input));     \
+        snprintf(_output, (int32_t)(_outputBytes), "%f", *(double *)(_input));     \
         break;                                 \
       case TSDB_DATA_TYPE_UINT:                \
         snprintf(_output, (int32_t)(_outputBytes), "%u", *(uint32_t *)(_input));     \
