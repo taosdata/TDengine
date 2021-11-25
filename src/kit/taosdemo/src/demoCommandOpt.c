@@ -736,10 +736,12 @@ int parse_args(int argc, char *argv[]) {
                 g_args.columnCount = MAX_NUM_COLUMNS;
             }
 
-            for (int col = DEFAULT_DATATYPE_NUM; col < g_args.columnCount;
+            for (int col = 0; col < g_args.columnCount;
                  col++) {
-                g_args.dataType[col] = "INT";
-                g_args.data_type[col] = TSDB_DATA_TYPE_INT;
+                if (g_args.data_type[col] == TSDB_DATA_TYPE_NULL) {
+                    g_args.dataType[col] = "INT";
+                    g_args.data_type[col] = TSDB_DATA_TYPE_INT;
+                }
             }
             for (int col = g_args.columnCount; col < MAX_NUM_COLUMNS; col++) {
                 g_args.dataType[col] = NULL;
@@ -830,8 +832,10 @@ int parse_args(int argc, char *argv[]) {
                     g_args.data_type[0] = TSDB_DATA_TYPE_NULL;
                 }
                 g_args.dataType[0] = dataType;
-                g_args.dataType[1] = NULL;
-                g_args.data_type[1] = TSDB_DATA_TYPE_NULL;
+                if (g_args.data_type[1] != TSDB_DATA_TYPE_INT) {
+                    g_args.dataType[1] = NULL;
+                    g_args.data_type[1] = TSDB_DATA_TYPE_NULL;
+                }
             } else {
                 // more than one col
                 int index = 0;
@@ -899,8 +903,10 @@ int parse_args(int argc, char *argv[]) {
                     token = strsep(&running, ",");
                     if (index >= MAX_NUM_COLUMNS) break;
                 }
-                g_args.dataType[index] = NULL;
-                g_args.data_type[index] = TSDB_DATA_TYPE_NULL;
+                if (g_args.data_type[index] != TSDB_DATA_TYPE_INT) {
+                    g_args.dataType[index] = NULL;
+                    g_args.data_type[index] = TSDB_DATA_TYPE_NULL;
+                }
             }
         } else if ((0 == strncmp(argv[i], "-w", strlen("-w"))) ||
                    (0 ==
