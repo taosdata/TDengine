@@ -371,7 +371,7 @@ python3 ./test.py  -f functions/function_irate.py
 python3 ./test.py  -f functions/function_ceil.py
 python3 ./test.py  -f functions/function_floor.py
 python3 ./test.py  -f functions/function_round.py
-python3 ./test.py  -f functions/function_elapsed.py -r 1
+python3 ./test.py  -f functions/function_elapsed.py
 
 python3 ./test.py -f insert/unsignedInt.py
 python3 ./test.py -f insert/unsignedBigint.py
