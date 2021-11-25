@@ -4606,7 +4606,7 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
         }
       }
 
-      pse->colInfo.flag = TSDB_COL_NORMAL;
+      pse->colInfo.flag = pSource->base.colInfo.flag; //TSDB_COL_NORMAL;
       pse->resType  = pSource->base.resType;
       pse->resBytes = pSource->base.resBytes;
       strncpy(pse->colInfo.name, pSource->base.aliasName, tListLen(pse->colInfo.name));
