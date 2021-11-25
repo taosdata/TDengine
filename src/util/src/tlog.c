@@ -87,6 +87,8 @@ char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/power";
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/tq";
 #elif (_TD_PRO_ == true)
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/ProDB";
+#elif (_TD_KH_ == true)
+char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/kinghistorian";
 #else
 char    tsLogDir[PATH_MAX] = "/var/log/taos";
 #endif
@@ -566,7 +568,7 @@ static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen) 
   int32_t end = 0;
   int32_t remainSize = 0;
   static int64_t lostLine = 0;
-  char tmpBuf[40] = {0};
+  char tmpBuf[60] = {0};
   int32_t tmpBufLen = 0;
 
   if (tLogBuff == NULL || tLogBuff->stop) return -1;

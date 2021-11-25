@@ -281,7 +281,7 @@ void          *destroyRelationInfo(SRelationInfo* pFromInfo);
 SRelationInfo *addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrToken* pAlias);
 
 // sql expr leaf node
-tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType);
+tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optrType);
 tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType);
 SArray *tStrTokenAppend(SArray *pList, SStrToken *pToken);
 

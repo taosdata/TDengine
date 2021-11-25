@@ -181,7 +181,76 @@ def pre_test_noinstall(){
     '''
     return 1
 }
-
+def pre_test_ningsi(){
+    sh'hostname'
+    sh'''
+    cd ${WKC}
+    git reset --hard HEAD~10 >/dev/null
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        sh '''
+        cd ${WKC}
+        git checkout master
+        '''
+        }
+      else if(env.CHANGE_TARGET == '2.0'){
+        sh '''
+        cd ${WKC}
+        git checkout 2.0
+        '''
+      } 
+      else{
+        sh '''
+        cd ${WKC}
+        git checkout develop
+        '''
+      }
+    }
+    sh'''
+    cd ${WKC}
+    git pull >/dev/null
+    git fetch origin +refs/pull/${CHANGE_ID}/merge
+    git checkout -qf FETCH_HEAD
+    git clean -dfx
+    git submodule update --init --recursive
+    cd ${WK}
+    git reset --hard HEAD~10
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        sh '''
+        cd ${WK}
+        git checkout master
+        '''
+        }
+      else if(env.CHANGE_TARGET == '2.0'){
+        sh '''
+        cd ${WK}
+        git checkout 2.0
+        '''
+      } 
+      else{
+        sh '''
+        cd ${WK}
+        git checkout develop
+        '''
+      } 
+    }
+    sh '''
+    cd ${WK}
+    git pull >/dev/null 
+    
+    export TZ=Asia/Harbin
+    date
+    git clean -dfx
+    mkdir debug
+    cd debug
+    cmake .. -DOSTYPE=Ningsi60 > /dev/null
+    make
+    '''
+    return 1
+}
 def pre_test_win(){
     bat '''
     taskkill /f /t /im python.exe
@@ -387,11 +456,13 @@ pipeline {
               npm install td2.0-connector > /dev/null 2>&1
               node nodejsChecker.js host=localhost
               '''
-              sh '''
-              cd ${WKC}/tests/examples/C#/taosdemo
-              mcs -out:taosdemo *.cs > /dev/null 2>&1
-              echo '' |./taosdemo -c /etc/taos
-              '''
+              catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                  cd ${WKC}/tests/examples/C#/taosdemo
+                  mcs -out:taosdemo *.cs > /dev/null 2>&1
+                  echo '' |./taosdemo -c /etc/taos
+                '''
+              } 
               sh '''
                 cd ${WKC}/tests/gotest
                 bash batchtest.sh
@@ -574,6 +645,13 @@ pipeline {
           agent{label " bionic "}
           steps {     
               pre_test_noinstall()    
+            }
+        }
+
+        stage('ningsi') {
+          agent{label "ningsi"}
+          steps {     
+              pre_test_ningsi()    
             }
         }
         

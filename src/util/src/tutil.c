@@ -64,7 +64,7 @@ int32_t strRmquote(char *z, int32_t len){
     int32_t j = 0;
     for (uint32_t k = 1; k < len - 1; ++k) {
       if (z[k] == '\\' || (z[k] == delim && z[k + 1] == delim)) {
-        if (z[k] == '\\' && z[k + 1] == '_') {
+        if ((z[k] == '\\' && z[k + 1] == '_') || (z[k] == '\\' && z[k + 1] == '%')) {
           //match '_' self
         } else {
           z[j] = z[k + 1];

@@ -478,8 +478,8 @@ static bool chkResultRowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SResultRowInfo *p
         existed = (pResultRowInfo->pResult[0] == (*p1));
       } else {  // check if current pResultRowInfo contains the existed pResultRow
         SET_RES_EXT_WINDOW_KEY(pRuntimeEnv->keyBuf, pData, bytes, uid, pResultRowInfo);
-        int64_t* index = taosHashGet(pRuntimeEnv->pResultRowListSet, pRuntimeEnv->keyBuf, GET_RES_EXT_WINDOW_KEY_LEN(bytes));
-        if (index != NULL) {
+        int64_t* qry_index = taosHashGet(pRuntimeEnv->pResultRowListSet, pRuntimeEnv->keyBuf, GET_RES_EXT_WINDOW_KEY_LEN(bytes));
+        if (qry_index != NULL) {
           existed = true;
         } else {
           existed = false;
@@ -517,9 +517,9 @@ static SResultRow* doSetResultOutBufByKey(SQueryRuntimeEnv* pRuntimeEnv, SResult
         pResultRowInfo->curPos = 0;
       } else {  // check if current pResultRowInfo contains the existed pResultRow
         SET_RES_EXT_WINDOW_KEY(pRuntimeEnv->keyBuf, pData, bytes, tid, pResultRowInfo);
-        int64_t* index = taosHashGet(pRuntimeEnv->pResultRowListSet, pRuntimeEnv->keyBuf, GET_RES_EXT_WINDOW_KEY_LEN(bytes));
-        if (index != NULL) {
-          pResultRowInfo->curPos = (int32_t) *index;
+        int64_t* qry_index = taosHashGet(pRuntimeEnv->pResultRowListSet, pRuntimeEnv->keyBuf, GET_RES_EXT_WINDOW_KEY_LEN(bytes));
+        if (qry_index != NULL) {
+          pResultRowInfo->curPos = (int32_t) *qry_index;
           existed = true;
         } else {
           existed = false;
@@ -555,9 +555,9 @@ static SResultRow* doSetResultOutBufByKey(SQueryRuntimeEnv* pRuntimeEnv, SResult
     pResultRowInfo->curPos = pResultRowInfo->size;
     pResultRowInfo->pResult[pResultRowInfo->size++] = pResult;
 
-    int64_t index = pResultRowInfo->curPos;
+    int64_t qry_index = pResultRowInfo->curPos;
     SET_RES_EXT_WINDOW_KEY(pRuntimeEnv->keyBuf, pData, bytes, tid, pResultRowInfo);
-    taosHashPut(pRuntimeEnv->pResultRowListSet, pRuntimeEnv->keyBuf, GET_RES_EXT_WINDOW_KEY_LEN(bytes), &index, POINTER_BYTES);
+    taosHashPut(pRuntimeEnv->pResultRowListSet, pRuntimeEnv->keyBuf, GET_RES_EXT_WINDOW_KEY_LEN(bytes), &qry_index, POINTER_BYTES);
   }
 
   // too many time window in query
@@ -1166,8 +1166,8 @@ static TSKEY getStartTsKey(SQueryAttr* pQueryAttr, STimeWindow* win, const TSKEY
 static void setArithParams(SArithmeticSupport* sas, SExprInfo *pExprInfo, SSDataBlock* pSDataBlock) {
   sas->numOfCols = (int32_t) pSDataBlock->info.numOfCols;
   sas->pExprInfo = pExprInfo;
-  if (sas->colList != NULL) {
-    return;
+  if (sas->colList) {
+    free(sas->colList); // free pre malloc memory
   }
   sas->colList = calloc(1, pSDataBlock->info.numOfCols*sizeof(SColumnInfo));
   for(int32_t i = 0; i < sas->numOfCols; ++i) {
@@ -1175,6 +1175,9 @@ static void setArithParams(SArithmeticSupport* sas, SExprInfo *pExprInfo, SSData
     sas->colList[i] = pColData->info;
   }
 
+  if(sas->data) {
+    free(sas->data); // free pre malloc memory
+  }
   sas->data = calloc(sas->numOfCols, POINTER_BYTES);
 
   // set the input column data
@@ -1320,14 +1323,14 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
     }
 
     SColIndex *      pColIndex = &pExpr[k].base.colInfo;
-    int16_t          index = pColIndex->colIndex;
-    SColumnInfoData *pColInfo = taosArrayGet(pDataBlock, index);
+    int16_t          qry_index = pColIndex->colIndex;
+    SColumnInfoData *pColInfo = taosArrayGet(pDataBlock, qry_index);
 
     assert(pColInfo->info.colId == pColIndex->colId && curTs != windowKey);
     double v1 = 0, v2 = 0, v = 0;
 
     if (prevRowIndex == -1) {
-      GET_TYPED_DATA(v1, double, pColInfo->info.type, (char *)pRuntimeEnv->prevRow[index]);
+      GET_TYPED_DATA(v1, double, pColInfo->info.type, (char *)pRuntimeEnv->prevRow[qry_index]);
     } else {
       GET_TYPED_DATA(v1, double, pColInfo->info.type, (char *)pColInfo->pData + prevRowIndex * pColInfo->info.bytes);
     }
@@ -1344,7 +1347,7 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
 
         if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
           if (prevRowIndex == -1) {
-            pCtx[k].start.ptr = (char *)pRuntimeEnv->prevRow[index];
+            pCtx[k].start.ptr = (char *)pRuntimeEnv->prevRow[qry_index];
           } else {
             pCtx[k].start.ptr = (char *)pColInfo->pData + prevRowIndex * pColInfo->info.bytes;
           }
@@ -2779,16 +2782,16 @@ static bool doFilterByBlockStatistics(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis
   for (int32_t k = 0; k < pQueryAttr->numOfFilterCols; ++k) {
     SSingleColumnFilterInfo *pFilterInfo = &pQueryAttr->pFilterInfo[k];
 
-    int32_t index = -1;
+    int32_t qry_index = -1;
     for(int32_t i = 0; i < pQueryAttr->numOfCols; ++i) {
       if (pDataStatis[i].colId == pFilterInfo->info.colId) {
-        index = i;
+        qry_index = i;
         break;
       }
     }
 
     // no statistics data, load the true data block
-    if (index == -1) {
+    if (qry_index == -1) {
       return true;
     }
 
@@ -2798,7 +2801,7 @@ static bool doFilterByBlockStatistics(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis
     }
 
     // all data in current column are NULL, no need to check its boundary value
-    if (pDataStatis[index].numOfNull == numOfRows) {
+    if (pDataStatis[qry_index].numOfNull == numOfRows) {
 
       // if isNULL query exists, load the null data column
       for (int32_t j = 0; j < pFilterInfo->numOfFilters; ++j) {
@@ -2811,7 +2814,7 @@ static bool doFilterByBlockStatistics(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis
       continue;
     }
 
-    SDataStatis* pDataBlockst = &pDataStatis[index];
+    SDataStatis* pDataBlockst = &pDataStatis[qry_index];
 
     if (pFilterInfo->info.type == TSDB_DATA_TYPE_FLOAT) {
       float minval = (float)(*(double *)(&pDataBlockst->min));
@@ -4593,10 +4596,10 @@ void queryCostStatis(SQInfo *pQInfo) {
 //    TSKEY key = pTableQueryInfo->win.skey;
 //
 //    pWindowResInfo->prevSKey = tw.skey;
-//    int32_t index = pRuntimeEnv->resultRowInfo.curIndex;
+//    int32_t qry_index = pRuntimeEnv->resultRowInfo.curIndex;
 //
 //    int32_t numOfRes = tableApplyFunctionsOnBlock(pRuntimeEnv, pBlockInfo, NULL, binarySearchForKey, pDataBlock);
-//    pRuntimeEnv->resultRowInfo.curIndex = index;  // restore the window index
+//    pRuntimeEnv->resultRowInfo.curIndex = qry_index;  // restore the window index
 //
 //    qDebug("QInfo:0x%"PRIx64" check data block, brange:%" PRId64 "-%" PRId64 ", numOfRows:%d, numOfRes:%d, lastKey:%" PRId64,
 //           GET_QID(pRuntimeEnv), pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows, numOfRes,
@@ -5325,15 +5328,15 @@ SArray* getOrderCheckColumns(SQueryAttr* pQuery) {
   {
     numOfCols = (int32_t) taosArrayGetSize(pOrderColumns);
     for(int32_t i = 0; i < numOfCols; ++i) {
-      SColIndex* index = taosArrayGet(pOrderColumns, i);
+      SColIndex* qry_index = taosArrayGet(pOrderColumns, i);
       for(int32_t j = 0; j < pQuery->numOfOutput; ++j) {
         SSqlExpr* pExpr = &pQuery->pExpr1[j].base;
         int32_t functionId = pExpr->functionId;
 
-        if (index->colId == pExpr->colInfo.colId &&
+        if (qry_index->colId == pExpr->colInfo.colId &&
             (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TS)) {
-          index->colIndex = j;
-          index->colId = pExpr->resColId;
+          qry_index->colIndex = j;
+          qry_index->colId = pExpr->resColId;
         }
       }
     }
@@ -5353,24 +5356,24 @@ SArray* getResultGroupCheckColumns(SQueryAttr* pQuery) {
   }
 
   for(int32_t i = 0; i < numOfCols; ++i) {
-    SColIndex* index = taosArrayGet(pOrderColumns, i);
+    SColIndex* qry_index = taosArrayGet(pOrderColumns, i);
 
     bool found = false;
     for(int32_t j = 0; j < pQuery->numOfOutput; ++j) {
       SSqlExpr* pExpr = &pQuery->pExpr1[j].base;
 
       // TSDB_FUNC_TAG_DUMMY function needs to be ignored
-      if (index->colId == pExpr->colInfo.colId &&
+      if (qry_index->colId == pExpr->colInfo.colId &&
           ((TSDB_COL_IS_TAG(pExpr->colInfo.flag) && ((pExpr->functionId == TSDB_FUNC_TAG) || (pExpr->functionId == TSDB_FUNC_TAGPRJ))) ||
            (TSDB_COL_IS_NORMAL_COL(pExpr->colInfo.flag) && pExpr->functionId == TSDB_FUNC_PRJ))) {
-        index->colIndex = j;
-        index->colId = pExpr->resColId;
+        qry_index->colIndex = j;
+        qry_index->colId = pExpr->resColId;
         found = true;
         break;
       }
     }
 
-    assert(found && index->colIndex >= 0 && index->colIndex < pQuery->numOfOutput);
+    assert(found && qry_index->colIndex >= 0 && qry_index->colIndex < pQuery->numOfOutput);
   }
 
   return pOrderColumns;
@@ -5423,8 +5426,8 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
   for(int32_t i = 0; i < numOfCols; ++i) {
     pInfo->prevRow[i] = (char*)pInfo->prevRow + offset;
 
-    SColIndex* index = taosArrayGet(pInfo->orderColumnList, i);
-    offset += pExpr[index->colIndex].base.resBytes;
+    SColIndex* qry_index = taosArrayGet(pInfo->orderColumnList, i);
+    offset += pExpr[qry_index->colIndex].base.resBytes;
   }
 
   numOfCols = (pInfo->groupColumnList != NULL)? (int32_t)taosArrayGetSize(pInfo->groupColumnList):0;
@@ -5434,8 +5437,8 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
   for(int32_t i = 0; i < numOfCols; ++i) {
     pInfo->currentGroupColData[i] = (char*)pInfo->currentGroupColData + offset;
 
-    SColIndex* index = taosArrayGet(pInfo->groupColumnList, i);
-    offset += pExpr[index->colIndex].base.resBytes;
+    SColIndex* qry_index = taosArrayGet(pInfo->groupColumnList, i);
+    offset += pExpr[qry_index->colIndex].base.resBytes;
   }
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
@@ -5482,8 +5485,8 @@ SOperatorInfo *createMultiwaySortOperatorInfo(SQueryRuntimeEnv *pRuntimeEnv, SEx
     for(int32_t i = 0; i < numOfCols; ++i) {
       pInfo->prevRow[i] = (char*)pInfo->prevRow + offset;
 
-      SColIndex* index = taosArrayGet(pInfo->orderColumnList, i);
-      offset += pExpr[index->colIndex].base.colBytes;
+      SColIndex* qry_index = taosArrayGet(pInfo->orderColumnList, i);
+      offset += pExpr[qry_index->colIndex].base.colBytes;
     }
   }
 
@@ -5777,6 +5780,11 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
     }
   }
 
+  if (pOperator->status == OP_EXEC_DONE) {
+    *newgroup = false;
+     return NULL;
+  }
+
   while(1) {
     bool prevVal = *newgroup;
 
@@ -5789,7 +5797,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
       //assert(*newgroup == false);
 
       *newgroup = prevVal;
-      setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
+      doSetOperatorCompleted(pOperator);
       break;
     }
 
@@ -7025,8 +7033,8 @@ SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
   for(int32_t i = 0; i < numOfCols; ++i) {
     pInfo->prevRow[i] = (char*)pInfo->prevRow + offset;
 
-    SColIndex* index = taosArrayGet(pInfo->orderColumnList, i);
-    offset += pExpr[index->colIndex].base.resBytes;
+    SColIndex* qry_index = taosArrayGet(pInfo->orderColumnList, i);
+    offset += pExpr[qry_index->colIndex].base.resBytes;
   }
 
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
@@ -8206,11 +8214,11 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t nu
       type  = TSDB_DATA_TYPE_DOUBLE;
       bytes = tDataTypes[type].bytes;
     } else {
-      int32_t index = pExprs[i].base.colInfo.colIndex;
-      assert(prevExpr[index].base.resColId == pExprs[i].base.colInfo.colId);
+      int32_t qry_index = pExprs[i].base.colInfo.colIndex;
+      assert(prevExpr[qry_index].base.resColId == pExprs[i].base.colInfo.colId);
 
-      type  = prevExpr[index].base.resType;
-      bytes = prevExpr[index].base.resBytes;
+      type  = prevExpr[qry_index].base.resType;
+      bytes = prevExpr[qry_index].base.resBytes;
     }
 
     int32_t param = (int32_t)pExprs[i].base.param[0].i64;
@@ -8541,7 +8549,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   STimeWindow window = pQueryAttr->window;
 
-  int32_t index = 0;
+  int32_t qry_index = 0;
   for(int32_t i = 0; i < numOfGroups; ++i) {
     SArray* pa = taosArrayGetP(pQueryAttr->tableGroupInfo.pGroupList, i);
 
@@ -8557,7 +8565,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
       STableKeyInfo* info = taosArrayGet(pa, j);
       window.skey = info->lastKey;
 
-      void* buf = (char*) pQInfo->pBuf + index * sizeof(STableQueryInfo);
+      void* buf = (char*) pQInfo->pBuf + qry_index * sizeof(STableQueryInfo);
       STableQueryInfo* item = createTableQueryInfo(pQueryAttr, info->pTable, pQueryAttr->groupbyColumn, window, buf);
       if (item == NULL) {
         goto _cleanup;
@@ -8568,7 +8576,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
 
       STableId* id = TSDB_TABLEID(info->pTable);
       taosHashPut(pRuntimeEnv->tableqinfoGroupInfo.map, &id->tid, sizeof(id->tid), &item, POINTER_BYTES);
-      index += 1;
+      qry_index += 1;
     }
   }
 
