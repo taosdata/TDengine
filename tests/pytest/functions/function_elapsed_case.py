@@ -159,10 +159,10 @@ class ElapsedCase:
         tdSql.query("select elapsed(ts) from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' interval(30s) fill(next)")
         tdSql.checkRows(2880) # The range of window conditions is 24 hours.
 
+    # Elapsed only support group by tbname. Supported tests have been done in selectTest().
     def groupbyTest(self):
         tdSql.execute("use wxy_db")
 
-        # Elapsed only support group by tbname. Supported tests have been done in selectTest().
         tdSql.error("select elapsed(ts) from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' group by i")
         tdSql.error("select elapsed(ts) from st1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' group by i")
 
@@ -257,6 +257,7 @@ class ElapsedCase:
     def fromCheck(self, sqlTemplate, table):
         tdSql.checkEqual(tdSql.getResult(sqlTemplate % table), tdSql.getResult(sqlTemplate % ("(select * from %s)" % table)))
         tdSql.query(sqlTemplate % ("(select last(ts) from %s interval(10s))" % table))
+        tdSql.query(sqlTemplate % ("(select elapsed(ts) from %s interval(10s))" % table))
 
     # It has little to do with the elapsed function, so just simple test.
     def fromTest(self):
@@ -264,12 +265,12 @@ class ElapsedCase:
 
         self.fromCheck("select elapsed(ts) from %s where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'", "t1")
         self.fromCheck("select elapsed(ts) from %s where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' interval(40s)", "t1")
-        self.fromCheck("select elapsed(ts) from %s where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'", "st1s1")
-        self.fromCheck("select elapsed(ts) from %s where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' interval(40s)", "st1s1")
+        tdSql.query("select * from (select elapsed(ts) from t1 interval(10s)) where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'")
+        tdSql.query("select * from (select elapsed(ts) from t1)")
         # Tags not allowed for table query, so there is no need to test super table.
 
     def joinCheck(self, sqlTemplate, rtable):
-        tdSql.checkEqual(tdSql.getResult(sqlTemplate % ("t1, %s t2" % rtable, "t1.ts = t2.ts and ")), tdSql.getResult(sqlTemplate % (rtable, "")))
+        tdSql.checkEqual(tdSql.getResult(sqlTemplate % (rtable, "")), tdSql.getResult(sqlTemplate % ("t1, %s t2" % rtable, "t1.ts = t2.ts and ")))
 
     # It has little to do with the elapsed function, so just simple test.
     def joinTest(self):
@@ -298,6 +299,7 @@ class ElapsedCase:
         self.unionAllCheck("select elapsed(ts) from st1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' interval(1m) group by tbname",
                            "select elapsed(ts) from st1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' interval(222m) group by tbname")
     
+    # It has little to do with the elapsed function, so just simple test.
     def continuousQueryTest(self):
         tdSql.execute("use wxy_db")
 
