@@ -468,8 +468,8 @@ function install_service_on_systemd() {
 
 function install_taosadapter_service() {
     if ((${service_mod}==0)); then
-        [ -f ${script_dir}/cfg/taosadapter.service ] &&\
-            ${csudo} cp ${script_dir}/cfg/taosadapter.service \
+        [ -f ${script_dir}/../cfg/taosadapter.service ] &&\
+            ${csudo} cp ${script_dir}/../cfg/taosadapter.service \
             ${service_config_dir}/ || :
         ${csudo} systemctl daemon-reload
     fi

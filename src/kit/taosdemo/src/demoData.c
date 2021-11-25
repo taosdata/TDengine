@@ -868,8 +868,8 @@ int64_t generateStbRowData(SSuperTable *stbInfo, char *recBuf,
     return strlen(recBuf);
 }
 
-static int64_t generateData(char *recBuf, char *data_type, int64_t timestamp,
-                            int lenOfBinary) {
+static int64_t generateData(char *recBuf, char *data_type, int32_t *data_length,
+                            int64_t timestamp) {
     memset(recBuf, 0, MAX_DATA_SIZE);
     char *pstr = recBuf;
     pstr += sprintf(pstr, "(%" PRId64 "", timestamp);
@@ -915,13 +915,13 @@ static int64_t generateData(char *recBuf, char *data_type, int64_t timestamp,
 
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
-                s = calloc(1, lenOfBinary + 1);
+                s = calloc(1, data_length[i] + 1);
                 if (NULL == s) {
                     errorPrint("%s", "failed to allocate memory\n");
                     return -1;
                 }
 
-                rand_string(s, lenOfBinary);
+                rand_string(s, data_length[i]);
                 pstr += sprintf(pstr, ",\"%s\"", s);
                 free(s);
                 break;
@@ -1156,20 +1156,18 @@ static int32_t generateDataTailWithoutStb(
 
         int64_t retLen = 0;
 
-        char *data_type = g_args.data_type;
-        int   lenOfBinary = g_args.binwidth;
+        char *   data_type = g_args.data_type;
+        int32_t *data_length = g_args.data_length;
 
         if (g_args.disorderRatio) {
             retLen =
-                generateData(data, data_type,
+                generateData(data, data_type, data_length,
                              startTime + getTSRandTail(g_args.timestamp_step, k,
                                                        g_args.disorderRatio,
-                                                       g_args.disorderRange),
-                             lenOfBinary);
+                                                       g_args.disorderRange));
         } else {
-            retLen = generateData(data, data_type,
-                                  startTime + g_args.timestamp_step * k,
-                                  lenOfBinary);
+            retLen = generateData(data, data_type, data_length,
+                                  startTime + g_args.timestamp_step * k);
         }
 
         if (len > remainderBufLen) break;
