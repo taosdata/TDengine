@@ -245,16 +245,19 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
       if (!point->childTableName) {
         buildSmlChildTableName(point, info);
       }
-      const char tagNullName[] = "`_tag_null`";
-      size_t* pTagNullIdx = taosHashGet(pStableSchema->tagHash, tagNullName, strlen(tagNullName));
+      char tagNullName[TSDB_COL_NAME_LEN] = {0};
+      int16_t nameLen = strlen(tsSmlTagNullName);
+      strncpy(tagNullName, tsSmlTagNullName, nameLen);
+      addEscapeCharToString(tagNullName, nameLen);
+      size_t* pTagNullIdx = taosHashGet(pStableSchema->tagHash, tagNullName, nameLen + TS_ESCAPE_CHAR_SIZE);
       if (!pTagNullIdx) {
         SSchema tagNull = {0};
         tagNull.type  = TSDB_DATA_TYPE_NCHAR;
-        tagNull.bytes = 6;
-        strncpy(tagNull.name, tagNullName, strlen(tagNullName));
+        tagNull.bytes = TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+        strncpy(tagNull.name, tagNullName, nameLen + TS_ESCAPE_CHAR_SIZE);
         taosArrayPush(pStableSchema->tags, &tagNull);
         size_t tagNullIdx = taosArrayGetSize(pStableSchema->tags) - 1;
-        taosHashPut(pStableSchema->tagHash, tagNull.name, strlen(tagNullName), &tagNullIdx, sizeof(tagNullIdx));
+        taosHashPut(pStableSchema->tagHash, tagNull.name, nameLen + TS_ESCAPE_CHAR_SIZE, &tagNullIdx, sizeof(tagNullIdx));
       }
     }
 
