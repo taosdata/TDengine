@@ -21,9 +21,10 @@ static void fstPackDeltaIn(FstCountingWriter *wrt, CompiledAddr nodeAddr, Compil
   CompiledAddr deltaAddr = (transAddr == EMPTY_ADDRESS) ? EMPTY_ADDRESS : nodeAddr - transAddr;
   fstCountingWriterPackUintIn(wrt, deltaAddr, nBytes); 
 }
-static void fstPackDetla(FstCountingWriter *wrt, CompiledAddr nodeAddr, CompiledAddr transAddr) {
+static uint8_t fstPackDetla(FstCountingWriter *wrt, CompiledAddr nodeAddr, CompiledAddr transAddr) {
   uint8_t nBytes = packDeltaSize(nodeAddr, transAddr);
   fstPackDeltaIn(wrt, nodeAddr, transAddr, nBytes); 
+  return nBytes;
 }
 
 FstUnFinishedNodes *fstUnFinishedNodesCreate() {
@@ -213,8 +214,24 @@ void fstStateCompileForOneTransNext(FstCountingWriter *w, CompiledAddr addr, uin
   return;
 }
 void fstStateCompileForOneTrans(FstCountingWriter *w, CompiledAddr addr, FstTransition* trn) {
-  Output val = trn->out;   
-   
+  Output out = trn->out;   
+  uint8_t outPackSize = (out == 0 ? 0 : fstCountingWriterPackUint(w, out));        
+  uint8_t transPackSize = fstPackDetla(w, addr, trn->addr);      
+  PackSizes packSizes = 0;
+
+  FST_SET_OUTPUT_PACK_SIZE(packSizes, outPackSize);
+  FST_SET_TRANSITION_PACK_SIZE(packSizes, transPackSize);
+  fstCountingWriterWrite(w, (char *)&packSizes, sizeof(packSizes)); 
+
+  FstState st = fstStateCreate(OneTrans); 
+  
+  fstStateSetCommInput(&st, trn->inp);
+  bool null = false;
+  uint8_t inp = fstStateCommInput(&st, &null);   
+  if (null == true) {
+    fstCountingWriterWrite(w, (char *)&trn->inp, sizeof(trn->inp));
+  }
+  fstCountingWriterWrite(w, (char *)(&(st.val)), sizeof(st.val));
   return ;
 
 }
@@ -267,7 +284,7 @@ void fstStateCompileForAnyTrans(FstCountingWriter *w, CompiledAddr addr, FstBuil
     // at that index. (Except when there are 256 transitions.) Namely,
     // any value greater than or equal to the number of transitions in
     // this node indicates an absent transition.
-    uint8_t *index = malloc(sizeof(uint8_t) * 256); 
+    uint8_t *index = (uint8_t *)malloc(sizeof(uint8_t) * 256); 
     for (uint8_t i = 0; i < 256; i++) {
       index[i] = 255;
     }
@@ -277,6 +294,7 @@ void fstStateCompileForAnyTrans(FstCountingWriter *w, CompiledAddr addr, FstBuil
       fstCountingWriterWrite(w, (char *)index, sizeof(index)); 
       //fstPackDeltaIn(w, addr, t->addr, tSize);
     }
+    free(index);
   }
   fstCountingWriterWrite(w, (char *)&packSizes, 1);
   bool null = false;

@@ -35,6 +35,7 @@ void fstCountingWriterDestroy(FstCountingWriter *w);
 
 
 void fstCountingWriterPackUintIn(FstCountingWriter *writer, uint64_t n,  uint8_t nBytes);
+uint8_t fstCountingWriterPackUint(FstCountingWriter *writer, uint64_t n);
 
 
 #define FST_WRITER_COUNT(writer) (writer->count)
