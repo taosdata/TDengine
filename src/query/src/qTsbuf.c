@@ -694,8 +694,8 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
       int32_t groupIndex = pTSBuf->numOfGroups - 1;
       pCur->vgroupIndex = groupIndex;
       
-      int32_t            id = pTSBuf->pData[pCur->vgroupIndex].info.id;
-      STSGroupBlockInfo* pBlockInfo = tsBufGetGroupBlockInfo(pTSBuf, id);
+      // get current vgroupIndex BlockInfo
+      STSGroupBlockInfo* pBlockInfo = &pTSBuf->pData[pCur->vgroupIndex].info;
       int32_t            blockIndex = pBlockInfo->numOfBlocks - 1;
       
       tsBufGetBlock(pTSBuf, groupIndex, blockIndex);
@@ -715,32 +715,43 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
   while (1) {
     assert(pTSBuf->tsData.len == pTSBuf->block.numOfElem * TSDB_KEYSIZE);
     
+    // tsIndex is last
     if ((pCur->order == TSDB_ORDER_ASC && pCur->tsIndex >= pTSBuf->block.numOfElem - 1) ||
         (pCur->order == TSDB_ORDER_DESC && pCur->tsIndex <= 0)) {
-      int32_t id = pTSBuf->pData[pCur->vgroupIndex].info.id;
       
-      STSGroupBlockInfo* pBlockInfo = tsBufGetGroupBlockInfo(pTSBuf, id);
-      if (pBlockInfo == NULL || (pCur->blockIndex >= pBlockInfo->numOfBlocks - 1 && pCur->order == TSDB_ORDER_ASC) ||
+      // get current vgroupIndex BlockInfo
+      STSGroupBlockInfo* pBlockInfo = &pTSBuf->pData[pCur->vgroupIndex].info;      
+      if (pBlockInfo == NULL) {
+        return false;
+      }
+
+      // blockIndex is last
+      if ((pCur->blockIndex >= pBlockInfo->numOfBlocks - 1 && pCur->order == TSDB_ORDER_ASC) ||
           (pCur->blockIndex <= 0 && pCur->order == TSDB_ORDER_DESC)) {
+        
+        // vgroupIndex is last    
         if ((pCur->vgroupIndex >= pTSBuf->numOfGroups - 1 && pCur->order == TSDB_ORDER_ASC) ||
             (pCur->vgroupIndex <= 0 && pCur->order == TSDB_ORDER_DESC)) {
+          // this is end.  both vgroupIndex and blockindex and tsIndex is last    
           pCur->vgroupIndex = -1;
           return false;
         }
         
-        if (pBlockInfo == NULL) {
-          return false;
-        }
-        
+        // blockIndex must match with next group
+        int32_t nextGroupIdx = pCur->vgroupIndex + step;
+        pBlockInfo = &pTSBuf->pData[nextGroupIdx].info;
         int32_t blockIndex = (pCur->order == TSDB_ORDER_ASC) ? 0 : (pBlockInfo->numOfBlocks - 1);
+        // vgroupIndex move next and set value in tsBufGetBlock()
         tsBufGetBlock(pTSBuf, pCur->vgroupIndex + step, blockIndex);
         break;
         
       } else {
+        // blockIndex move next and set value in tsBufGetBlock()
         tsBufGetBlock(pTSBuf, pCur->vgroupIndex, pCur->blockIndex + step);
         break;
       }
     } else {
+      // tsIndex move next
       pCur->tsIndex += step;
       break;
     }
@@ -764,7 +775,7 @@ STSElem tsBufGetElem(STSBuf* pTSBuf) {
   }
   
   STSCursor* pCur = &pTSBuf->cur;
-  if (pCur != NULL && pCur->vgroupIndex < 0) {
+  if (pCur->vgroupIndex < 0) {
     return elem1;
   }
 
