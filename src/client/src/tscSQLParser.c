@@ -3568,7 +3568,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
       return false;
     }
 
-    if (functionId == TSDB_FUNC_COUNT && pExpr1->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
+    if (functionId == TSDB_FUNC_COUNT && (pExpr1->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX || TSDB_COL_IS_TAG(pExpr1->base.colInfo.flag))) {
       ++countTbname;
     }
   }
