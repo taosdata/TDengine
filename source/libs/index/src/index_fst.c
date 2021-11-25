@@ -181,6 +181,8 @@ static FstState stateDict[] = {
   {.state = AnyTrans,     .val = 0b00000000},
   {.state = EmptyFinal,   .val = 0b00000000}
 };
+// debug 
+static char *fStStateStr[] = {"ONE_TRANS_NEXT", "ONE_TRANS", "ANY_TRANS", "EMPTY_FINAL"}; 
 
 FstState fstStateCreate(State state){
   uint8_t idx = (uint8_t)state;
@@ -507,7 +509,6 @@ FstNode *fstNodeCreate(int64_t version, CompiledAddr addr, FstSlice *slice) {
      n->sizes   = sz;   
      n->finalOutput = 0; 
   } else {
-     
      uint64_t sz = fstStateSizes(&st, slice);    // s.sizes(data)
      uint32_t nTrans = fstStateNtrans(&st, slice); // s.ntrans(data)  
      n->data    = *slice; 
@@ -539,19 +540,19 @@ FstTransitions* fstNodeTransitions(FstNode *node) {
 // Returns the transition at index `i`. 
 bool fstNodeGetTransitionAt(FstNode *node, uint64_t i, FstTransition *trn) {
   bool s = true;
-  //FstState st = node->state;
-  if (FST_STATE_ONE_TRNAS_NEXT(node)) {
-    trn->inp  = 0; 
+  FstState *st = &node->state;
+  if (st->state == OneTransNext) {
+    trn->inp  = fstStateInput(st, node); 
     trn->out  = 0;
-    trn->addr = 0; 
-  } else if (FST_STATE_ONE_TRNAS(node)) {
-    trn->inp  = 0;    
-    trn->out  = 0;
-    trn->addr = 0; 
-  } else if (FST_STATE_ANY_TRANS(node)) {
-    trn->inp  = 0;
-    trn->out  = 0;
-    trn->addr = 0; 
+    trn->addr = fstStateTransAddr(st, node); 
+  } else if (st->state == OneTrans) {
+    trn->inp  = fstStateInput(st, node);    
+    trn->out  = fstStateOutput(st, node);
+    trn->addr = fstStateTransAddr(st, node); 
+  } else if (st->state == AnyTrans) {
+    trn->inp  = fstStateInputForAnyTrans(st, node, i);
+    trn->out  = fstStateOutputForAnyTrans(st, node, i);
+    trn->addr = fstStateTransAddrForAnyTrans(st, node, i); 
   } else {
     s = false;
   }
@@ -561,12 +562,15 @@ bool fstNodeGetTransitionAt(FstNode *node, uint64_t i, FstTransition *trn) {
 // Returns the transition address of the `i`th transition
 bool fstNodeGetTransitionAddrAt(FstNode *node, uint64_t i, CompiledAddr *res) {
   bool s = true;
-  if (FST_STATE_ONE_TRNAS_NEXT(node)) {
-
-  } else if (FST_STATE_ONE_TRNAS(node)) {
-
-  } else if (FST_STATE_ANY_TRANS(node)) {
-
+  FstState *st = &node->state;
+  if (st->state == OneTransNext) {
+    assert(i == 0);
+    fstStateTransAddr(st, node);
+  } else if (st->state == OneTrans) {
+    assert(i == 0); 
+    fstStateTransAddr(st, node);
+  } else if (st->state == AnyTrans) {
+    fstStateTransAddrForAnyTrans(st, node, i);
   } else if (FST_STATE_EMPTY_FINAL(node)){
     s = false;
   } else {
@@ -579,19 +583,19 @@ bool fstNodeGetTransitionAddrAt(FstNode *node, uint64_t i, CompiledAddr *res) {
 //  If no transition for this byte exists, then `false` is returned. 
 bool fstNodeFindInput(FstNode *node, uint8_t b, uint64_t *res) {
   bool s = true;
-  uint8_t input; // get s.input
-  FstState fs = node->state;
-  if (FST_STATE_ONE_TRNAS_NEXT(node)) {
-    if (b == input) { *res = 0; } 
-    else { return s ; }
-  } else if (FST_STATE_ONE_TRNAS(node)) {
-    if (b == input) { *res = 0; }
-    else {return s;}
-  } else if (FST_STATE_ANY_TRANS(node)) {
-     
-  } else if (FST_STATE_EMPTY_FINAL(node)) {
-    s = false;
-  } 
+  FstState *st = &node->state;
+  if (st->state == OneTransNext) {
+    if (fstStateInput(st,node) == b) { *res = 0; } 
+    else { s = false; } } 
+  else if (st->state == OneTrans) {
+    if (fstStateInput(st, node) == b) { *res = 0 ;}
+    else {  s = false; }
+  } else if (st->state == AnyTrans) {
+    bool null = false;
+    uint64_t out = fstStateFindInput(st, node, b, &null); 
+    if (null == false) { *res = out; } 
+    else { s = false;}
+  }
   return s;
 } 
 
