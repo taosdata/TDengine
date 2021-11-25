@@ -436,7 +436,7 @@ int32_t readFromFile(char *name, uint32_t *len, void **buf) {
 
 
 int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
-  const char *msg1 = "invalidate function name";
+  const char *msg1 = "invalid function name or length";
   const char *msg2 = "path is too long";
   const char *msg3 = "invalid outputtype";
   #ifdef LUA_EMBEDDED
@@ -1488,7 +1488,7 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
   const char* msg3 = "duplicated column names";
   const char* msg4 = "invalid data type";
   const char* msg5 = "invalid binary/nchar column length";
-  const char* msg6 = "invalid column name";
+  const char* msg6 = "invalid column name or length";
   const char* msg7 = "too many columns";
 
   // number of fields no less than 2
@@ -1559,7 +1559,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
   const char* msg3 = "duplicated column names";
   //const char* msg4 = "timestamp not allowed in tags";
   const char* msg5 = "invalid data type in tags";
-  const char* msg6 = "invalid tag name";
+  const char* msg6 = "invalid tag name or length";
   const char* msg7 = "invalid binary/nchar tag length";
 
   // number of fields at least 1
@@ -1628,7 +1628,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
  */
 int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   const char* msg3 = "tag length too long";
-  const char* msg4 = "invalid tag name";
+  const char* msg4 = "invalid tag name or length";
   const char* msg5 = "invalid binary/nchar tag length";
   const char* msg6 = "invalid data type in tags";
   const char* msg7 = "too many columns";
@@ -1701,7 +1701,7 @@ int32_t validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
   const char* msg1 = "too many columns";
   const char* msg3 = "column length too long";
   const char* msg4 = "invalid data type";
-  const char* msg5 = "invalid column name";
+  const char* msg5 = "invalid column name or length";
   const char* msg6 = "invalid column length";
 
 //  assert(pCmd->numOfClause == 1);
@@ -2059,7 +2059,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   const char* msg8 = "not support distinct in nest query";
   const char* msg9 = "_block_dist not support subquery, only support stable/table";
   const char* msg10 = "not support group by in block func";
-  const char* msg11 = "invalid alias name";
+  const char* msg11 = "invalid alias name or length";
 
   // too many result columns not support order by in query
   if (taosArrayGetSize(pSelNodeList) > TSDB_MAX_COLUMNS) {
@@ -6803,6 +6803,10 @@ int32_t validateLocalConfig(SMiscInfo* pOptions) {
 }
 
 int32_t validateColumnName(char* name) {
+  if (strlen(name) == 0) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
   bool ret = taosIsKeyWordToken(name, (int32_t)strlen(name));
   if (ret) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
