@@ -1654,7 +1654,6 @@ void *queryStableAggrFunc(void *sarg) {
             if (code != 0) {
                 errorPrint("Failed to query:%s\n", taos_errstr(pSql));
                 taos_free_result(pSql);
-                taos_close(taos);
                 fclose(fp);
                 free(command);
                 return NULL;
