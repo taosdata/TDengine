@@ -21,6 +21,10 @@ static void fstPackDeltaIn(FstCountingWriter *wrt, CompiledAddr nodeAddr, Compil
   CompiledAddr deltaAddr = (transAddr == EMPTY_ADDRESS) ? EMPTY_ADDRESS : nodeAddr - transAddr;
   fstCountingWriterPackUintIn(wrt, deltaAddr, nBytes); 
 }
+static void fstPackDetla(FstCountingWriter *wrt, CompiledAddr nodeAddr, CompiledAddr transAddr) {
+  uint8_t nBytes = packDeltaSize(nodeAddr, transAddr);
+  fstPackDeltaIn(wrt, nodeAddr, transAddr, nBytes); 
+}
 
 FstUnFinishedNodes *fstUnFinishedNodesCreate() {
   FstUnFinishedNodes *nodes = malloc(sizeof(FstUnFinishedNodes));
@@ -167,7 +171,6 @@ FstState fstStateCreateFrom(FstSlice* slice, CompiledAddr addr) {
   if (addr == EMPTY_ADDRESS) {
     return fs; 
   }
-
   uint8_t v = slice->data[addr]; 
   uint8_t t = (v & 0b11000000) >> 6;
   if (t == 0b11) {
@@ -211,6 +214,7 @@ void fstStateCompileForOneTransNext(FstCountingWriter *w, CompiledAddr addr, uin
 }
 void fstStateCompileForOneTrans(FstCountingWriter *w, CompiledAddr addr, FstTransition* trn) {
   Output val = trn->out;   
+   
   return ;
 
 }
