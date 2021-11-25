@@ -183,10 +183,9 @@ class ElapsedCase:
                 subtable[result[i][tbnameCol]].append(result[i][elapsedCol])
         return subtable
     
-    def doCheck(self, resultAsc, resultdesc):
+    def doOrderbyCheck(self, resultAsc, resultdesc):
         resultRows = len(resultAsc)
         for i in range(resultRows):
-            tdLog.info("row:%d" % i)
             tdSql.checkEqual(resultAsc[i], resultdesc[resultRows - i - 1])
 
     def orderbyForStableCheck(self, sql, elapsedCol, tbnameCol):
@@ -197,8 +196,7 @@ class ElapsedCase:
             if None == descValue:
                 tdLog.exit("%s failed: subtable %s not exists" % (sql))
             else:
-                tdLog.info("subtable:%s" % kv[0])
-                self.doCheck(kv[1], descValue)
+                self.doOrderbyCheck(kv[1], descValue)
 
     # Orderby clause only changes the output order and has no effect on the calculation results.
     def orderbyTest(self):
