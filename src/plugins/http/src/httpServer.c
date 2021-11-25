@@ -398,7 +398,10 @@ static bool httpReadData(HttpContext *pContext) {
         return true;
       }
     } else if (nread < 0) {
-      if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
+      if (errno == EINTR) {
+        httpDebug("context:%p, fd:%d, read from socket error:%d, continue", pContext, pContext->fd, errno);
+        continue;
+      } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
         httpDebug("context:%p, fd:%d, read from socket error:%d, wait another event", pContext, pContext->fd, errno);
         return false;
       } else {
