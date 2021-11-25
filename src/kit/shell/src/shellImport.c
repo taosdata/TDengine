@@ -25,7 +25,7 @@
 
 static char **shellSQLFiles = NULL;
 static int32_t shellSQLFileNum = 0;
-static char shellTablesSQLFile[TSDB_FILENAME_LEN] = {0};
+static char shellTablesSQLFile[4096] = {0};
 
 typedef struct {
   pthread_t threadID;
@@ -93,8 +93,8 @@ static void shellCheckTablesSQLFile(const char *directoryName)
 {
   sprintf(shellTablesSQLFile, "%s/tables.sql", directoryName);
 
-  struct stat fstat;
-  if (stat(shellTablesSQLFile, &fstat) < 0) {
+  struct stat kit_fstat;
+  if (stat(shellTablesSQLFile, &kit_fstat) < 0) {
     shellTablesSQLFile[0] = 0;
   }
 }

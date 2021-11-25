@@ -216,7 +216,7 @@ static int l_async_query(lua_State *L){
   int r = luaL_ref(L, LUA_REGISTRYINDEX);
   TAOS *    taos = (TAOS*)lua_topointer(L,1);
   const char * sqlstr = lua_tostring(L,2);
-  // int stime = luaL_checknumber(L,3);
+  // int test_stime = luaL_checknumber(L,3);
 
   lua_newtable(L);
   int table_index = lua_gettop(L);
@@ -301,7 +301,7 @@ static int l_open_stream(lua_State *L){
   int r = luaL_ref(L, LUA_REGISTRYINDEX);
   TAOS *    taos = (TAOS*)lua_topointer(L,1);
   const char * sqlstr = lua_tostring(L,2);
-  int stime = luaL_checknumber(L,3);
+  int test_stime = luaL_checknumber(L,3);
 
   lua_newtable(L);
   int table_index = lua_gettop(L);
@@ -310,7 +310,7 @@ static int l_open_stream(lua_State *L){
   p->state = L;
   p->callback=r;
   //  printf("r:%d, L:%d\n",r,L);
-  void * s = taos_open_stream(taos,sqlstr,stream_cb,stime,p,NULL);
+  void * s = taos_open_stream(taos,sqlstr,stream_cb,test_stime,p,NULL);
   if (s == NULL) {
     printf("failed to open stream, reason:%s\n", taos_errstr(taos));
     free(p);

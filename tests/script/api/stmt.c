@@ -247,16 +247,16 @@ void taos_stmt_bind_param_test() {
 void taos_stmt_bind_single_param_batch_test() {
   printf("start taos_stmt_bind_single_param_batch test\n");
   TAOS_STMT *      stmt = NULL;
-  TAOS_MULTI_BIND *bind = NULL;
-  assert(taos_stmt_bind_single_param_batch(stmt, bind, 0) != 0);
+  TAOS_MULTI_BIND *test_bind = NULL;
+  assert(taos_stmt_bind_single_param_batch(stmt, test_bind, 0) != 0);
   printf("finish taos_stmt_bind_single_param_batch test\n");
 }
 
 void taos_stmt_bind_param_batch_test() {
   printf("start taos_stmt_bind_param_batch test\n");
   TAOS_STMT *      stmt = NULL;
-  TAOS_MULTI_BIND *bind = NULL;
-  assert(taos_stmt_bind_param_batch(stmt, bind) != 0);
+  TAOS_MULTI_BIND *test_bind = NULL;
+  assert(taos_stmt_bind_param_batch(stmt, test_bind) != 0);
   printf("finish taos_stmt_bind_param_batch test\n");
 }
 
