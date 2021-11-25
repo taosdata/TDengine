@@ -75,8 +75,15 @@ typedef struct tFilePagesItem {
   tFilePage              item;
 } tFilePagesItem;
 
+typedef struct SSchema1 {
+  uint8_t type;
+  char    name[TSDB_COL_NAME_LEN];
+  int16_t colId;
+  int32_t bytes;
+} SSchema1;
+
 typedef struct SSchemaEx {
-  struct SSchema field;
+  SSchema1       field;
   int32_t        offset;
 } SSchemaEx;
 
@@ -178,7 +185,7 @@ bool tExtMemBufferIsAllDataInMem(tExtMemBuffer *pMemBuffer);
  * @param blockCapacity
  * @return
  */
-SColumnModel *createColumnModel(SSchema *fields, int32_t numOfCols, int32_t blockCapacity);
+SColumnModel *createColumnModel(SSchema1 *fields, int32_t numOfCols, int32_t blockCapacity);
 
 /**
  *
@@ -199,7 +206,7 @@ void destroyColumnModel(SColumnModel *pModel);
 void tColModelCompact(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxElemsCapacity);
 
 void     tColModelErase(SColumnModel *pModel, tFilePage *inputBuffer, int32_t maxCapacity, int32_t s, int32_t e);
-SSchema *getColumnModelSchema(SColumnModel *pColumnModel, int32_t index);
+SSchema1 *getColumnModelSchema(SColumnModel *pColumnModel, int32_t index);
 
 int16_t getColumnModelOffset(SColumnModel *pColumnModel, int32_t index);
 
