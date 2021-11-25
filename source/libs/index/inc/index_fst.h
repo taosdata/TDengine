@@ -80,6 +80,9 @@ void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in);
 OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup);
 void fstBuilderCompileFrom(FstBuilder *b, uint64_t istate);
 CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn);
+void* fstBuilerIntoInner(FstBuilder *b);
+void  fstBuilderFinish(FstBuilder *b); 
+
 
 
 

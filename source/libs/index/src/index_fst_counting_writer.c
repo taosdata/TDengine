@@ -37,6 +37,9 @@ uint64_t fstCountingWriterWrite(FstCountingWriter *write, uint8_t *buf, uint32_t
   return bufLen; 
 } 
 
+uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter *write) {
+  return 0;
+}
 int fstCountingWriterFlush(FstCountingWriter *write) {
   //write->wtr->flush
   return 1;

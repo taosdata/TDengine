@@ -14,7 +14,7 @@
  */
 
 #include "index_fst.h"
-
+#include "tcoding.h"
 
 
 static void fstPackDeltaIn(FstCountingWriter *wrt, CompiledAddr nodeAddr, CompiledAddr transAddr, uint8_t nBytes) {
@@ -98,7 +98,7 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes *nodes, FstSlice bs, Output 
   FstBuilderNodeUnfinished *un = taosArrayGet(nodes->stack, sz);
   assert(un->last == NULL);
 
-  
+     
   
   //FstLastTransition *trn = malloc(sizeof(FstLastTransition)); 
   //trn->inp = s->data[s->start]; 
@@ -849,6 +849,31 @@ CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn) {
   return b->lastAddr;  
 }
 
+void* fstBuilderInsertInner(FstBuilder *b) {
+  fstBuilderCompileFrom(b, 0);  
+  FstBuilderNode *rootNode = fstUnFinishedNodesPopRoot(b->unfinished); 
+  CompiledAddr  rootAddr = fstBuilderCompile(b, rootNode);
+
+  uint8_t buf64[8] = {0}; 
+
+  taosEncodeFixedU64((void **)&buf64, b->len); 
+  fstCountingWriterWrite(b->wrt, buf64, sizeof(buf64));  
+    
+  taosEncodeFixedU64((void **)&buf64, rootAddr);  
+  fstCountingWriterWrite(b->wrt, buf64, sizeof(buf64));  
+
+  uint8_t buf32[4] = {0};
+  uint32_t sum = fstCountingWriterMaskedCheckSum(b->wrt);
+  taosEncodeFixedU32((void **)&buf32, sum); 
+  fstCountingWriterWrite(b->wrt, buf32, sizeof(buf32));  
+  
+  fstCountingWriterFlush(b->wrt);
+  return b->wrt;
+  
+}
+void fstBuilderFinish(FstBuilder *b) {
+  fstBuilderInsertInner(b);
+}
 
 
 

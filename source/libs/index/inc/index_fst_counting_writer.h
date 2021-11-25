@@ -27,8 +27,10 @@ typedef struct FstCountingWriter {
 
 uint64_t fstCountingWriterWrite(FstCountingWriter *write, uint8_t *buf, uint32_t bufLen); 
 
-int FstCountingWriterFlush(FstCountingWriter *write);
+int fstCountingWriterFlush(FstCountingWriter *write);
 
+
+uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter *write);
 
 FstCountingWriter *fstCountingWriterCreate(void *wtr);
 void fstCountingWriterDestroy(FstCountingWriter *w); 
