@@ -859,7 +859,7 @@ void tColDataMergeSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t
 
   size_t width = 0;
   for(int32_t i = 0; i < pModel->numOfCols; ++i) {
-    SSchema* pSchema = &pModel->pFields[i].field;
+    SSchema1* pSchema = &pModel->pFields[i].field;
     if (width < pSchema->bytes) {
       width = pSchema->bytes;
     }
