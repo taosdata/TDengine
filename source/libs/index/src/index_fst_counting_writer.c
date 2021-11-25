@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "tutil.h"
+#include "index_fst_util.h"
 #include "index_fst_counting_writer.h"
 
 FstCountingWriter *fstCountingWriterCreate(void *wrt) {
@@ -36,10 +37,27 @@ uint64_t fstCountingWriterWrite(FstCountingWriter *write, uint8_t *buf, uint32_t
   return bufLen; 
 } 
 
-int FstCountingWriterFlush(FstCountingWriter *write) {
+int fstCountingWriterFlush(FstCountingWriter *write) {
   //write->wtr->flush
   return 1;
 }
 
+void fstCountingWriterPackUintIn(FstCountingWriter *writer, uint64_t n,  uint8_t nBytes) {
+  assert(1 <= nBytes && nBytes <= 8);
+  uint8_t *buf = calloc(8, sizeof(uint8_t));  
+  for (uint8_t i = 0; i < nBytes; i++) {
+    buf[i] = (uint8_t)n; 
+    n = n >> 8;
+  }
+  fstCountingWriterWrite(writer, buf, nBytes);
+  free(buf);
+  return;
+}
+
+uint8_t fstCountingWriterPackUint(FstCountingWriter *writer, uint64_t n) {
+  uint8_t nBytes = packSize(n);
+  fstCountingWriterPackUintIn(writer, n, nBytes);
+  return nBytes; 
+} 
 
 

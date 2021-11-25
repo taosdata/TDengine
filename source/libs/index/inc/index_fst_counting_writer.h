@@ -34,6 +34,10 @@ FstCountingWriter *fstCountingWriterCreate(void *wtr);
 void fstCountingWriterDestroy(FstCountingWriter *w); 
 
 
+void fstCountingWriterPackUintIn(FstCountingWriter *writer, uint64_t n,  uint8_t nBytes);
+uint8_t fstCountingWriterPackUint(FstCountingWriter *writer, uint64_t n);
+
+
 #define FST_WRITER_COUNT(writer) (writer->count)
 #define FST_WRITER_INTER_WRITER(writer) (writer->wtr)
 #define FST_WRITE_CHECK_SUMMER(writer) (writer->summer)

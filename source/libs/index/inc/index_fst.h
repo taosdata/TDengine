@@ -36,6 +36,8 @@ typedef struct FstRange {
 typedef enum { OneTransNext, OneTrans, AnyTrans, EmptyFinal} State;
 typedef enum { Included, Excluded, Unbounded} FstBound; 
 
+typedef enum {Ordered, OutOfOrdered, DuplicateKey} OrderType;
+
 
 
 /*
@@ -66,10 +68,19 @@ typedef struct FstBuilder {
   FstCountingWriter  *wrt;         // The FST raw data is written directly to `wtr`.  
   FstUnFinishedNodes *unfinished; // The stack of unfinished nodes   
   FstRegistry*        registry;    // A map of finished nodes.        
-  SArray*            last;        // The last word added 
+  FstSlice            last;        // The last word added 
   CompiledAddr       lastAddr;    // The address of the last compiled node  
   uint64_t           len;         // num of keys added
 } FstBuilder;
+
+
+FstBuilder *fstBuilderCreate(void *w, FstType ty);
+void fstBuilderDestroy(FstBuilder *b);
+void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in);
+OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup);
+void fstBuilderCompileFrom(FstBuilder *b, uint64_t istate);
+CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn);
+
 
 
 typedef struct FstTransitions {
@@ -77,6 +88,75 @@ typedef struct FstTransitions {
   FstRange   range;   
 } FstTransitions;
 
+//FstState and relation function
+
+typedef struct FstState {
+  State state;
+  uint8_t val;
+} FstState;
+
+FstState fstStateCreateFrom(FstSlice* data, CompiledAddr addr);
+FstState fstStateCreate(State state);
+
+//compile
+void fstStateCompileForOneTransNext(FstCountingWriter *w, CompiledAddr addr, uint8_t inp);
+void fstStateCompileForOneTrans(FstCountingWriter *w, CompiledAddr addr, FstTransition *trn);
+void fstStateCompileForAnyTrans(FstCountingWriter *w, CompiledAddr addr, FstBuilderNode *node);
+
+// set_comm_input
+void fstStateSetCommInput(FstState* state, uint8_t inp);
+
+// comm_input
+uint8_t fstStateCommInput(FstState* state, bool *null);
+
+// input_len
+
+uint64_t fstStateInputLen(FstState* state);
+
+
+// end_addr 
+uint64_t fstStateEndAddrForOneTransNext(FstState* state, FstSlice *data);
+uint64_t fstStateEndAddrForOneTrans(FstState *state, FstSlice *data, PackSizes sizes);
+uint64_t fstStateEndAddrForAnyTrans(FstState *state, uint64_t version, FstSlice *date, PackSizes sizes, uint64_t nTrans);
+// input  
+uint8_t  fstStateInput(FstState *state, FstNode *node);
+uint8_t  fstStateInputForAnyTrans(FstState *state, FstNode *node, uint64_t i);
+
+// trans_addr
+CompiledAddr fstStateTransAddr(FstState *state, FstNode *node);
+CompiledAddr fstStateTransAddrForAnyTrans(FstState *state, FstNode *node, uint64_t i);
+
+// sizes 
+PackSizes fstStateSizes(FstState *state, FstSlice *data);
+// Output 
+Output fstStateOutput(FstState *state, FstNode *node);
+Output fstStateOutputForAnyTrans(FstState *state, FstNode *node, uint64_t i);
+
+// anyTrans specify function
+
+void fstStateSetFinalState(FstState *state, bool yes);
+bool fstStateIsFinalState(FstState *state); 
+void fstStateSetStateNtrans(FstState *state, uint8_t n);
+// state_ntrans
+uint8_t fstStateStateNtrans(FstState *state, bool *null);
+uint64_t fstStateTotalTransSize(FstState *state, uint64_t version, PackSizes size, uint64_t nTrans);
+uint64_t fstStateTransIndexSize(FstState *state, uint64_t version, uint64_t nTrans);
+uint64_t fstStateNtransLen(FstState *state);
+uint64_t fstStateNtrans(FstState *state, FstSlice *slice);
+Output   fstStateFinalOutput(FstState *state, uint64_t version, FstSlice *date, PackSizes sizes, uint64_t nTrans);
+uint64_t fstStateFindInput(FstState *state, FstNode *node, uint8_t b, bool *null);
+
+
+
+
+
+
+  
+
+#define FST_STATE_ONE_TRNAS_NEXT(node) (node->state.state == OneTransNext) 
+#define FST_STATE_ONE_TRNAS(node) (node->state.state == OneTrans)
+#define FST_STATE_ANY_TRANS(node) (node->state.state == AnyTrans)
+#define FST_STATE_EMPTY_FINAL(node) (node->state.state == EmptyFinal) 
 
 
 typedef struct FstLastTransition {
@@ -93,8 +173,10 @@ typedef struct FstBuilderNodeUnfinished {
   FstLastTransition* last; 
 } FstBuilderNodeUnfinished;
 
+
+
 void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished *node, CompiledAddr addr);
-void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *node, CompiledAddr addr);
+void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *node, Output out);
 
 /*
  * FstNode and helper function  
@@ -102,7 +184,7 @@ void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *node, Com
 typedef struct FstNode {
   FstSlice     data;
   uint64_t     version; 
-  State        state;
+  FstState     state;
   CompiledAddr start; 
   CompiledAddr end;  
   bool         isFinal;
@@ -121,6 +203,7 @@ typedef struct FstNode {
 #define FST_NODE_IS_EMPTYE(node) (node->nTrans == 0)
 // Return the address of this node.
 #define FST_NODE_ADDR(node) node->start 
+
 
 FstNode *fstNodeCreate(int64_t version, CompiledAddr addr, FstSlice *data);
 void fstNodeDestroy(FstNode *fstNode);
@@ -157,8 +240,6 @@ typedef struct FstIndexedValue {
 
 FstLastTransition *fstLastTransitionCreate(uint8_t inp, Output out);
 void fstLastTransitionDestroy(FstLastTransition *trn);
-
-
 
 
 

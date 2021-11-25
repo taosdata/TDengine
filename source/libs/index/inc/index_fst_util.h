@@ -18,7 +18,7 @@
 #define __INDEX_FST_UTIL_H__
 
 #include "tarray.h"
-
+#include "index_fst_common.h"
 
 typedef uint64_t FstType;
 typedef uint64_t CompiledAddr; 
@@ -44,9 +44,10 @@ extern const uint64_t TRANS_INDEX_THRESHOLD;
 //
 // `0` is a legal value which means there are no transitions/outputs
 
-#define FST_SET_TRANSITION_PACK_SIZE(v, sz) do {v = (v & 0b00001111) | (sz << 4} while(0)
+
+#define FST_SET_TRANSITION_PACK_SIZE(v, sz) do {v = (v & 0b00001111) | (sz << 4); } while(0)
 #define FST_GET_TRANSITION_PACK_SIZE(v) (((v) & 0b11110000) >> 4) 
-#define FST_SET_OUTPUT_PACK_SIZE(v, sz) do { v =  (v & 0b11110000) | sz } while(0)
+#define FST_SET_OUTPUT_PACK_SIZE(v, sz) do { v =  (v & 0b11110000) | sz; } while(0)
 #define FST_GET_OUTPUT_PACK_SIZE(v) ((v) & 0b00001111)   
 
 #define COMMON_INPUT(idx) COMMON_INPUTS_INV[(idx) - 1]
@@ -70,13 +71,16 @@ CompiledAddr unpackDelta(char *data, uint64_t len, uint64_t nodeAddr);
 typedef struct FstSlice {
   uint8_t *data; 
   uint64_t dLen;
-  uint32_t start;
-  uint32_t end;
+  int32_t start;
+  int32_t end;
 } FstSlice;
 
-FstSlice fstSliceCopy(FstSlice *slice, uint32_t start, uint32_t end);
+FstSlice fstSliceCopy(FstSlice *slice, int32_t start, int32_t end);
 FstSlice fstSliceCreate(uint8_t *data, uint64_t dLen);
 bool fstSliceEmpty(FstSlice *slice);
+int fstSliceCompare(FstSlice *a, FstSlice *b);
+
+#define FST_SLICE_LEN(s) ((s)->end - (s)->start + 1)
 
 
 #endif

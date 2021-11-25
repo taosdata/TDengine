@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "index_fst_util.h"
+#include "index_fst_common.h"
 
 
 
@@ -94,7 +95,7 @@ FstSlice fstSliceCreate(uint8_t *data, uint64_t dLen) {
   FstSlice slice = {.data = data, .dLen = dLen, .start = 0, .end = dLen - 1};
   return slice;
 } 
-FstSlice fstSliceCopy(FstSlice *slice, uint32_t start, uint32_t end) {
+FstSlice fstSliceCopy(FstSlice *slice, int32_t start, int32_t end) {
   FstSlice t;
   if (start >= slice->dLen || end >= slice->dLen || start > end) {
     t.data = NULL;
@@ -110,6 +111,22 @@ FstSlice fstSliceCopy(FstSlice *slice, uint32_t start, uint32_t end) {
 bool fstSliceEmpty(FstSlice *slice) {
   return slice->data == NULL || slice->dLen <= 0;
 }
+
+int fstSliceCompare(FstSlice *a, FstSlice *b) {
+  int32_t aLen = (a->end - a->start + 1);  
+  int32_t bLen = (b->end - b->start + 1);
+  int32_t mLen = (aLen < bLen ? aLen : bLen);
+  for (int i = 0; i < mLen; i++) {
+    uint8_t x = a->data[i + a->start];
+    uint8_t y = b->data[i + b->start];
+    if (x == y) { continue; }
+    else if (x < y) { return -1; }
+    else { return 1; } 
+  } 
+  if (aLen == bLen) { return 0; }
+  else if (aLen < bLen) { return -1; }
+  else { return 1; } 
+} 
 
 
 
