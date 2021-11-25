@@ -1221,13 +1221,13 @@ static void monSaveSlowQueryInfo() {
       if (strcmp(fields[i].name, "query_id") == 0) {
         has_slowquery = true;
         charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen, ", "SQL_STR_FMT, (char *)row[i]);
+        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
       } else if (strcmp(fields[i].name, "user") == 0) {
         charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen, ", "SQL_STR_FMT, (char *)row[i]);
+        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
       } else if (strcmp(fields[i].name, "qid") == 0) {
         charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen, ", "SQL_STR_FMT, (char *)row[i]);
+        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
       } else if (strcmp(fields[i].name, "created_time") == 0) {
         int64_t create_time = *(int64_t *)row[i];
         create_time = convertTimePrecision(create_time, TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO);
@@ -1236,10 +1236,10 @@ static void monSaveSlowQueryInfo() {
         pos += snprintf(sql + pos, SQL_LENGTH, ", %" PRId64 "", *(int64_t *)row[i]);
       } else if (strcmp(fields[i].name, "ep") == 0) {
         charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen, ", "SQL_STR_FMT, (char *)row[i]);
+        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
       } else if (strcmp(fields[i].name, "sql") == 0) {
         charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
-        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT")", (char *)row[i]);
+        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 2, ", "SQL_STR_FMT")", (char *)row[i]);
       }
     }
   }
