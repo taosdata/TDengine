@@ -55,6 +55,14 @@ void osInit() {
   strcpy(tsDataDir, "C:/KingHistorian/data");
   strcpy(tsLogDir, "C:/KingHistorian/log");
   strcpy(tsScriptDir, "C:/KingHistorian/script");
+#elif (_TD_JH_ == true)
+  if (configDir[0] == 0) {
+    strcpy(configDir, "C:/jh_iot/cfg");
+  }
+  strcpy(tsVnodeDir, "C:/jh_iot/data");
+  strcpy(tsDataDir, "C:/jh_iot/data");
+  strcpy(tsLogDir, "C:/jh_iot/log");
+  strcpy(tsScriptDir, "C:/jh_iot/script");
 #else
   if (configDir[0] == 0) {
     strcpy(configDir, "C:/TDengine/cfg");

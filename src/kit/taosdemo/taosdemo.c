@@ -635,6 +635,8 @@ SArguments g_args = {
     "prodb",       // password
 #elif (_TD_KH_ == true)
     "khroot",       // password
+#elif (_TD_JH_ == true)
+    "jhdata",       // password
 #else
     "taosdata",     // password
 #endif

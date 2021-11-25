@@ -336,6 +336,8 @@ void get_history_path(char *history) {
   sprintf(history, "C:/ProDB/%s", HISTORY_FILE); 
 #elif (_TD_KH_ == true)
   sprintf(history, "C:/KingHistorian/%s", HISTORY_FILE); 
+#elif (_TD_JH_ == true)
+  sprintf(history, "C:/jh_iot/%s", HISTORY_FILE); 
 #else
   sprintf(history, "C:/TDengine/%s", HISTORY_FILE); 
 #endif
