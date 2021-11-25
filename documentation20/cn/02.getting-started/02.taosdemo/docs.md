@@ -4,7 +4,7 @@
 
 自从 TDengine 2019年 7 月开源以来，凭借创新的数据建模设计、快捷的安装方式、易用的编程接口和强大的数据写入查询性能博得了大量时序数据开发者的青睐。其中写入和查询性能往往令刚接触 TDengine 的用户称叹不已。为了便于用户在最短时间内就可以体验到 TDengine 的高性能特点，我们专门开发了一个应用程序 taosdemo 用于对 TDengine 进行写入和查询的性能测试，用户可以通过 taosdemo 轻松模拟大量设备产生海量数据的场景，并且可以通过 taosdemo 参数灵活控制表的列数、数据类型、乱序比例以及并发线程数量。
 
-运行 taosdemo 很简单，通过下载 TDengine 安装包（https://www.taosdata.com/cn/all-downloads/）或者自行下载 TDengine 代码（https://github.com/taosdata/TDengine）编译都可以在安装目录或者编译结果目录中找到并运行。
+运行 taosdemo 很简单，通过下载 TDengine 安装包（ https://www.taosdata.com/cn/all-downloads/ ）或者自行下载 TDengine 代码（ https://github.com/taosdata/TDengine ）编译都可以在安装目录或者编译结果目录中找到并运行。
 
 接下来本文为大家讲解 taosdemo 的使用介绍及注意事项。
 
