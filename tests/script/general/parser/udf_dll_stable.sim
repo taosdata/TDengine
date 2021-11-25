@@ -11,7 +11,7 @@ print ======================== dnode1 start
 
 sql create function add_one as '/tmp/add_one.so' outputtype int;
 sql create function add_one_64232 as '/tmp/add_one_64232.so' outputtype int;
-sql create aggregate function sum_double as '/tmp/sum_double.so' outputtype int;
+sql create aggregate function sum_double as '/tmp/sum_double.so' outputtype bigint;
 sql show functions;
 if $rows != 3 then
   return -1

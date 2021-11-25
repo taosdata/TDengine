@@ -68,9 +68,9 @@ class TDTestCase:
                 tdSql.checkData(0, 0, "2018-09-17 09:00:10.000")
                 tdSql.checkData(0, 1, "2018-09-17 09:00:10.000")
                 tdSql.checkData(0, 3, "2018-09-17 09:00:10.000")
-                tdSql.checkData(1, 0, "2018-09-17 09:00:20.009")
-                tdSql.checkData(1, 1, "2018-09-17 09:00:20.009")
-                tdSql.checkData(1, 3, "2018-09-17 09:00:20.009")
+                tdSql.checkData(1, 0, "2018-09-17 09:00:20.000")
+                tdSql.checkData(1, 1, "2018-09-17 09:00:20.000")
+                tdSql.checkData(1, 3, "2018-09-17 09:00:20.000")
 
                 tdSql.query("select ts from(select ts,derivative(col, 10s, 0) from stb group by tbname)")
 
@@ -150,6 +150,7 @@ class TDTestCase:
             tdSql.error("select derivative(col, -106752999999999922222d, 0) from stb group by tbname");  #overflow error
             tdSql.error("select derivative(col, 10y, 0) from stb group by tbname")      #TD-10399, DB error: syntax error near '10y, 0) from stb group by tbname;'
             tdSql.error("select derivative(col, -106752d, 0) from stb group by tbname") #TD-10398 overflow tips
+            tdSql.error("select derivative(col, 106751991168d, 0) from stb group by tbname") #TD-10398 overflow tips
 
     def run(self):
         tdSql.prepare()        
