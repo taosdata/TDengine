@@ -88,6 +88,8 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DEFAULT_PASS               "prodb"
 #elif (_TD_KH_ == true)
 #define TSDB_DEFAULT_PASS               "khroot"
+#elif (_TD_JH_ == true)
+#define TSDB_DEFAULT_PASS               "jhdata"
 #else
 #define TSDB_DEFAULT_PASS               "taosdata"
 #endif

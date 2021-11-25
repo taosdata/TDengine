@@ -45,7 +45,17 @@ int32_t    tscNumOfObj = 0;         // number of sqlObj in current process.
 static void  *tscCheckDiskUsageTmr;
 void      *tscRpcCache;            // cache to keep rpc obj
 int32_t    tscNumOfThreads = 1;     // num of rpc threads
+#ifdef _TD_POWER_
+char       tscLogFileName[12] = "powerlog";
+#elif (_TD_TQ_ == true)
+char       tscLogFileName[12] = "tqlog";
+#elif (_TD_PRO_ == true)
+char       tscLogFileName[12] = "prolog";
+#elif (_TD_KH_ == true)
+char       tscLogFileName[12] = "khclientlog";
+#else
 char       tscLogFileName[12] = "taoslog";
+#endif
 int        tscLogFileNum = 10;
 
 static pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently
@@ -104,7 +114,7 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
   rpcObj.pDnodeConn = rpcOpen(&tsc_rpcInit);
   if (rpcObj.pDnodeConn == NULL) {
     pthread_mutex_unlock(&rpcObjMutex);
-    tscError("failed to init connection to TDengine");
+    tscError("failed to init connection to server");
     return -1;
   }
 
@@ -158,8 +168,7 @@ void taos_init_imp(void) {
     rpcInit();
 
     scriptEnvPoolInit();
-
-    tscDebug("starting to initialize TAOS client ...");
+    tscDebug("starting to initialize client ...");
     tscDebug("Local End Point is:%s", tsLocalEp);
   }
 
