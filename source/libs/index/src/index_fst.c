@@ -16,6 +16,12 @@
 #include "index_fst.h"
 
 
+
+static void fstPackDeltaIn(FstCountingWriter *wrt, CompiledAddr nodeAddr, CompiledAddr transAddr, uint8_t nBytes) {
+  CompiledAddr deltaAddr = (transAddr == EMPTY_ADDRESS) ? EMPTY_ADDRESS : nodeAddr - transAddr;
+  fstCountingWriterPackUintIn(wrt, deltaAddr, nBytes); 
+}
+
 FstUnFinishedNodes *fstUnFinishedNodesCreate() {
   FstUnFinishedNodes *nodes = malloc(sizeof(FstUnFinishedNodes));
   if (nodes == NULL) { return NULL; }
@@ -175,18 +181,18 @@ FstState fstStateCreateFrom(FstSlice* slice, CompiledAddr addr) {
   return fs;
 }
 
-static FstState stateDict[] = {
+static FstState fstStateDict[] = {
   {.state = OneTransNext, .val = 0b11000000},
   {.state = OneTrans,     .val = 0b10000000},
   {.state = AnyTrans,     .val = 0b00000000},
   {.state = EmptyFinal,   .val = 0b00000000}
 };
 // debug 
-static char *fStStateStr[] = {"ONE_TRANS_NEXT", "ONE_TRANS", "ANY_TRANS", "EMPTY_FINAL"}; 
+static const char *fstStateStr[] = {"ONE_TRANS_NEXT", "ONE_TRANS", "ANY_TRANS", "EMPTY_FINAL"}; 
 
 FstState fstStateCreate(State state){
   uint8_t idx = (uint8_t)state;
-  return stateDict[idx];
+  return fstStateDict[idx];
 }
 //compile
 void fstStateCompileForOneTransNext(FstCountingWriter *w, CompiledAddr addr, uint8_t inp) {
@@ -209,6 +215,77 @@ void fstStateCompileForOneTrans(FstCountingWriter *w, CompiledAddr addr, FstTran
 
 }
 void fstStateCompileForAnyTrans(FstCountingWriter *w, CompiledAddr addr, FstBuilderNode *node) {
+  size_t sz = taosArrayGetSize(node->trans);  
+  assert(sz <= 256);
+
+  uint8_t tSize = 0;
+  uint8_t oSize = packSize(node->finalOutput) ;  
+  
+  // finalOutput.is_zero()
+  bool anyOuts = (node->finalOutput != 0) ;
+  for (size_t i = 0; i < sz; i++) {
+    FstTransition *t = taosArrayGet(node->trans, i); 
+    tSize = MAX(tSize, packDeltaSize(addr, t->addr)); 
+    oSize = MAX(oSize, packSize(t->out));
+    anyOuts = anyOuts || (t->out != 0); 
+  }
+
+  PackSizes packSizes = 0; 
+  if (anyOuts) { FST_SET_OUTPUT_PACK_SIZE(packSizes, oSize); }
+  else { FST_SET_OUTPUT_PACK_SIZE(packSizes, 0); }
+
+  FST_SET_TRANSITION_PACK_SIZE(packSizes, tSize);
+  
+  FstState st = fstStateCreate(AnyTrans);
+  fstStateSetFinalState(&st, node->isFinal); 
+  fstStateSetStateNtrans(&st, (uint8_t)sz);
+   
+  if (anyOuts) {
+    if (FST_BUILDER_NODE_IS_FINAL(node)) {
+      fstCountingWriterPackUintIn(w, node->finalOutput, oSize);
+    }
+    for (size_t i = 0; i < sz; i++) {
+      FstTransition *t = taosArrayGet(node->trans, i);
+      fstCountingWriterPackUintIn(w, t->out, oSize);
+    }
+  } 
+  for (size_t i = 0; i < sz; i++) {
+      FstTransition *t = taosArrayGet(node->trans, i);
+      fstPackDeltaIn(w, addr, t->addr, tSize);
+  }
+  for (size_t i = 0; i < sz; i++) {
+     FstTransition *t = taosArrayGet(node->trans, i);
+     fstCountingWriterWrite(w, (char *)&t->inp, 1);
+      //fstPackDeltaIn(w, addr, t->addr, tSize);
+  }
+  if (sz > TRANS_INDEX_THRESHOLD) {
+    // A value of 255 indicates that no transition exists for the byte
+    // at that index. (Except when there are 256 transitions.) Namely,
+    // any value greater than or equal to the number of transitions in
+    // this node indicates an absent transition.
+    uint8_t *index = malloc(sizeof(uint8_t) * 256); 
+    for (uint8_t i = 0; i < 256; i++) {
+      index[i] = 255;
+    }
+    for (size_t i = 0; i < sz; i++) {
+      FstTransition *t = taosArrayGet(node->trans, i);
+      index[t->inp] = i;
+      fstCountingWriterWrite(w, (char *)index, sizeof(index)); 
+      //fstPackDeltaIn(w, addr, t->addr, tSize);
+    }
+  }
+  fstCountingWriterWrite(w, (char *)&packSizes, 1);
+  bool null = false;
+  fstStateStateNtrans(&st, &null);
+  if (null == true) {
+     // 256 can't be represented in a u8, so we abuse the fact that
+     // the # of transitions can never be 1 here, since 1 is always
+     // encoded in the state byte.
+    uint8_t v = 1;
+    if (sz == 256) { fstCountingWriterWrite(w, (char *)&v, 1); }
+    else { fstCountingWriterWrite(w, (char *)&sz, 1); }
+  }
+  fstCountingWriterWrite(w, (char *)(&(st.val)), 1);
   return;
 }
 
@@ -218,7 +295,7 @@ void fstStateSetCommInput(FstState* s, uint8_t inp) {
 
   uint8_t val;
   COMMON_INDEX(inp, 0x111111, val); 
-  s->val = (s->val & stateDict[s->state].val) | val;    
+  s->val = (s->val & fstStateDict[s->state].val) | val;    
 }
 
 // comm_input
@@ -523,6 +600,14 @@ FstNode *fstNodeCreate(int64_t version, CompiledAddr addr, FstSlice *slice) {
   }
    return n; 
 }
+
+// debug state transition
+static const char *fstNodeState(FstNode *node) {
+  FstState *st = &node->state; 
+  return fstStateStr[st->state]; 
+}
+
+
 void fstNodeDestroy(FstNode *node) {
   free(node);
 }

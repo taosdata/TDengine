@@ -36,10 +36,13 @@ uint64_t fstCountingWriterWrite(FstCountingWriter *write, uint8_t *buf, uint32_t
   return bufLen; 
 } 
 
-int FstCountingWriterFlush(FstCountingWriter *write) {
+int fstCountingWriterFlush(FstCountingWriter *write) {
   //write->wtr->flush
   return 1;
 }
 
+void fstCountingWriterPackUintIn(FstCountingWriter *writer, uint64_t n,  uint8_t nBytes) {
+  return;
+}
 
 

@@ -45,9 +45,9 @@ extern const uint64_t TRANS_INDEX_THRESHOLD;
 // `0` is a legal value which means there are no transitions/outputs
 
 
-#define FST_SET_TRANSITION_PACK_SIZE(v, sz) do {v = (v & 0b00001111) | (sz << 4} while(0)
+#define FST_SET_TRANSITION_PACK_SIZE(v, sz) do {v = (v & 0b00001111) | (sz << 4); } while(0)
 #define FST_GET_TRANSITION_PACK_SIZE(v) (((v) & 0b11110000) >> 4) 
-#define FST_SET_OUTPUT_PACK_SIZE(v, sz) do { v =  (v & 0b11110000) | sz } while(0)
+#define FST_SET_OUTPUT_PACK_SIZE(v, sz) do { v =  (v & 0b11110000) | sz; } while(0)
 #define FST_GET_OUTPUT_PACK_SIZE(v) ((v) & 0b00001111)   
 
 #define COMMON_INPUT(idx) COMMON_INPUTS_INV[(idx) - 1]
