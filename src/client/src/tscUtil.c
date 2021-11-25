@@ -268,10 +268,6 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
         functionId != TSDB_FUNC_TS &&
         functionId != TSDB_FUNC_ARITHM &&
         functionId != TSDB_FUNC_TS_COMP &&
-        functionId != TSDB_FUNC_DIFF &&
-        functionId != TSDB_FUNC_DERIVATIVE &&
-        functionId != TSDB_FUNC_MAVG &&
-        functionId != TSDB_FUNC_CSUM &&
         functionId != TSDB_FUNC_TS_DUMMY &&
         functionId != TSDB_FUNC_TID_TAG &&
         functionId != TSDB_FUNC_CEIL &&
@@ -367,7 +363,7 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
     assert(pExpr != NULL);
 
     int32_t functionId = pExpr->base.functionId;
-    if (functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TS) {
+    if (functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY) {
       continue;
     }
 
@@ -378,6 +374,23 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
 
   return true;
 }
+
+bool tscGetPointInterpQuery(SQueryInfo* pQueryInfo) {
+  size_t size = tscNumOfExprs(pQueryInfo);
+  for (int32_t i = 0; i < size; ++i) {
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+    assert(pExpr != NULL);
+
+    int32_t functionId = pExpr->base.functionId;
+
+    if (functionId == TSDB_FUNC_INTERP) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo) {
   if (tscIsProjectionQuery(pQueryInfo)) {
@@ -3441,10 +3454,11 @@ int32_t tscQueryInfoCopy(SQueryInfo* pQueryInfo, const SQueryInfo* pSrc) {
   pQueryInfo->clauseLimit    = pSrc->clauseLimit;
   pQueryInfo->prjOffset      = pSrc->prjOffset;
   pQueryInfo->numOfTables    = 0;
-  pQueryInfo->window         = pSrc->window;
+  pQueryInfo->range          = pSrc->range;
   pQueryInfo->sessionWindow  = pSrc->sessionWindow;
   pQueryInfo->pTableMetaInfo = NULL;
   pQueryInfo->multigroupResult = pSrc->multigroupResult;
+  pQueryInfo->stateWindow    = pSrc->stateWindow;
 
   pQueryInfo->bufLen         = pSrc->bufLen;
   pQueryInfo->orderProjectQuery = pSrc->orderProjectQuery;
@@ -3834,6 +3848,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   memcpy(&pNewQueryInfo->interval, &pQueryInfo->interval, sizeof(pNewQueryInfo->interval));
   pNewQueryInfo->type         = pQueryInfo->type;
   pNewQueryInfo->window       = pQueryInfo->window;
+  pNewQueryInfo->range        = pQueryInfo->range;
   pNewQueryInfo->limit        = pQueryInfo->limit;
   pNewQueryInfo->slimit       = pQueryInfo->slimit;
   pNewQueryInfo->order        = pQueryInfo->order;
@@ -4848,7 +4863,7 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
         }
       }
 
-      pse->colInfo.flag = TSDB_COL_NORMAL;
+      pse->colInfo.flag = pSource->base.colInfo.flag; //TSDB_COL_NORMAL;
       pse->resType  = pSource->base.resType;
       pse->resBytes = pSource->base.resBytes;
       strncpy(pse->colInfo.name, pSource->base.aliasName, tListLen(pse->colInfo.name));
@@ -5053,6 +5068,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->fillType          = pQueryInfo->fillType;
   pQueryAttr->havingNum         = pQueryInfo->havingFieldNum;
   pQueryAttr->pUdfInfo          = pQueryInfo->pUdfInfo;
+  pQueryAttr->range             = pQueryInfo->range;
 
   if (pQueryInfo->order.order == TSDB_ORDER_ASC) {   // TODO refactor
     pQueryAttr->window = pQueryInfo->window;
@@ -5351,5 +5367,4 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
 
   return p;
 }
-
 

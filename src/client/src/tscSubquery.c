@@ -394,6 +394,12 @@ SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, int32_t index) {
   memcpy(&pSupporter->interval, &pQueryInfo->interval, sizeof(pSupporter->interval));
   pSupporter->limit = pQueryInfo->limit;
 
+  if (tscIsPointInterpQuery(pQueryInfo)) {
+    pSupporter->fillType = pQueryInfo->fillType;
+    pSupporter->fillVal = pQueryInfo->fillVal;
+    pSupporter->numOfFillVal = pQueryInfo->numOfFillVal;
+  }
+
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, index);
   pSupporter->uid = pTableMetaInfo->pTableMeta->id.uid;
   assert (pSupporter->uid != 0);
@@ -579,6 +585,13 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     pQueryInfo->fieldsInfo  = pSupporter->fieldsInfo;
     pQueryInfo->groupbyExpr = pSupporter->groupInfo;
     pQueryInfo->pUpstream   = taosArrayInit(4, sizeof(POINTER_BYTES));
+    
+    if (tscIsPointInterpQuery(pQueryInfo)) {
+      pQueryInfo->fillType = pSupporter->fillType;
+      pQueryInfo->numOfFillVal = pSupporter->numOfFillVal;
+      pQueryInfo->fillVal = malloc(pQueryInfo->numOfFillVal * sizeof(*pSupporter->fillVal));
+      memcpy(pQueryInfo->fillVal, pSupporter->fillVal, sizeof(*pSupporter->fillVal) * pQueryInfo->numOfFillVal);
+    }
 
     assert(pNew->subState.numOfSub == 0 && pQueryInfo->numOfTables == 1);
   
@@ -1987,7 +2000,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
 
       colIndex.columnIndex = tscGetTagColIndexById(pTableMetaInfo->pTableMeta, tagColId);
 
-      int16_t bytes = 0;
+      int32_t bytes = 0;
       int16_t type  = 0;
       int32_t inter = 0;
 
@@ -2623,7 +2636,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
 
   pRes->qId = 0x1;  // hack the qhandle check
 
-  const uint32_t nBufferSize = (1u << 18u);  // 256KB, default buffer size
+  uint32_t nBufferSize = (1u << 18u);  // 256KB, default buffer size
 
   SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -2639,7 +2652,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     return ret;
   }
 
-  ret = tscCreateGlobalMergerEnv(pQueryInfo, &pMemoryBuf, pSql->subState.numOfSub, &pDesc, nBufferSize, pSql->self);
+  ret = tscCreateGlobalMergerEnv(pQueryInfo, &pMemoryBuf, pSql->subState.numOfSub, &pDesc, &nBufferSize, pSql->self);
   if (ret != 0) {
     pRes->code = ret;
     tscAsyncResultOnError(pSql);

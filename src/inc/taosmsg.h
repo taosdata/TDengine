@@ -438,7 +438,7 @@ typedef struct SColumnFilterList {
 typedef struct SColumnInfo {
   int16_t            colId;
   int16_t            type;
-  int16_t            bytes;
+  int32_t            bytes;
   SColumnFilterList  flist;
 } SColumnInfo;
 
@@ -479,6 +479,7 @@ typedef struct {
   bool        stateWindow;       // state window flag 
 
   STimeWindow window;
+  STimeWindow range;            // result range for interp query
   int32_t     numOfTables;
   int16_t     order;
   int16_t     orderColId;

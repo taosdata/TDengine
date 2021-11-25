@@ -683,8 +683,8 @@ SArray* tsdbGetQueriedTableList(TsdbQueryHandleT *pHandle) {
 
 TsdbQueryHandleT tsdbQueryRowsInExternalWindow(STsdbRepo *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pRef) {
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qId, pRef);
-  pQueryHandle->loadExternalRow = true;
-  pQueryHandle->currentLoadExternalRows = true;
+  //pQueryHandle->loadExternalRow = true;
+  //pQueryHandle->currentLoadExternalRows = true;
 
   return pQueryHandle;
 }
@@ -2927,6 +2927,22 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
   }
 
   return false;
+}
+
+void tsdbSwitchTable(TsdbQueryHandleT queryHandle) {
+  STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) queryHandle;
+
+  STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
+  pCheckInfo->numOfBlocks = 0;
+  
+  pQueryHandle->locateStart = false;
+  pQueryHandle->checkFiles  = true;
+  pQueryHandle->cur.rows    = 0;
+  pQueryHandle->currentLoadExternalRows = pQueryHandle->loadExternalRow;
+  
+  terrno = TSDB_CODE_SUCCESS;
+
+  ++pQueryHandle->activeIndex;
 }
 
 
