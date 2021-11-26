@@ -419,8 +419,6 @@ int tsdbCompact(STsdbRepo *pRepo);
 bool tsdbNoProblem(STsdbRepo* pRepo);
 // unit of walSize: MB
 int tsdbCheckWal(STsdbRepo *pRepo, uint32_t walSize);
-// for tag json
-uint8_t getTagJsonType(STsdbRepo* tsdb, uint64_t uid, char* key, int32_t len);
 
 #ifdef __cplusplus
 }

@@ -1910,29 +1910,20 @@ static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumn
 
   SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, pIndex->columnIndex);
 
-  char* oriAliasName1 = NULL;
-  char oriAliasName2[TSDB_COL_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_MAX_JSON_KEY_LEN + 4 + 1] = {0};
   if (pSchema->type == TSDB_DATA_TYPE_JSON && pItem->pNode->tokenId == TK_ARROW) {
-    char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN + 1] = {0};
-    if (pItem->aliasName){
-      jsonKeyMd5(pItem->aliasName, strlen(pItem->aliasName), keyMd5);
-      oriAliasName1 = pItem->aliasName;
-    }else{
-      jsonKeyMd5(pItem->pNode->exprToken.z, pItem->pNode->exprToken.n, keyMd5);
-      tstrncpy(oriAliasName2, pItem->pNode->exprToken.z,
-               pItem->pNode->exprToken.n + 1 < sizeof(oriAliasName2) ? pItem->pNode->exprToken.n + 1 : sizeof(oriAliasName2));
-    }
-    tstrncpy(pExpr->base.aliasName, keyMd5, sizeof(pExpr->base.aliasName));
-  } else {
     if (pItem->aliasName){
       tstrncpy(pExpr->base.aliasName, pItem->aliasName, sizeof(pExpr->base.aliasName));
-      oriAliasName1 = pItem->aliasName;
     }else{
-      tstrncpy(pExpr->base.aliasName, pSchema->name, sizeof(pExpr->base.aliasName));
-      oriAliasName1 = pSchema->name;
+      tstrncpy(pExpr->base.aliasName, pItem->pNode->exprToken.z,
+               pItem->pNode->exprToken.n + 1 < sizeof(pExpr->base.aliasName) ? pItem->pNode->exprToken.n + 1 : sizeof(pExpr->base.aliasName));
     }
-  }
+    char* colName = (pItem->aliasName == NULL) ? pSchema->name : pItem->aliasName;
+    tstrncpy(pExpr->base.aliasName, colName, sizeof(pExpr->base.aliasName));
 
+  }else{
+    char* colName = (pItem->aliasName == NULL) ? pSchema->name : pItem->aliasName;
+    tstrncpy(pExpr->base.aliasName, colName, sizeof(pExpr->base.aliasName));
+  }
   SColumnList ids = {0};
   ids.num = 1;
   ids.ids[0] = *pIndex;
@@ -1942,7 +1933,7 @@ static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumn
     ids.num = 0;
   }
 
-  insertResultField(pQueryInfo, startPos, &ids, pExpr->base.resBytes, (int8_t)pExpr->base.resType, oriAliasName1 ? oriAliasName1 : oriAliasName2, pExpr);
+  insertResultField(pQueryInfo, startPos, &ids, pExpr->base.resBytes, (int8_t)pExpr->base.resType, pExpr->base.aliasName, pExpr);
 }
 
 static void addPrimaryTsColIntoResult(SQueryInfo* pQueryInfo, SSqlCmd* pCmd) {
@@ -2195,12 +2186,6 @@ int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnLi
   
   TAOS_FIELD f = tscCreateField(type, fieldName, bytes);
   SInternalField* pInfo = tscFieldInfoInsert(&pQueryInfo->fieldsInfo, outputIndex, &f);
-  if (type == TSDB_DATA_TYPE_JSON){
-    char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN + 1] = {0};
-    jsonKeyMd5(fieldName, strlen(fieldName), keyMd5);
-    strncpy(pInfo->fieldJson.name, keyMd5, sizeof(pInfo->fieldJson.name));
-    pInfo->fieldJson.type = TSDB_DATA_TYPE_JSON;
-  }
   pInfo->pExpr = pSqlExpr;
   
   return TSDB_CODE_SUCCESS;
@@ -7527,20 +7512,15 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
       insertResultField(pQueryInfo, pos, &ids, s->bytes, (int8_t)s->type, pColIndex->name, pExpr);
       pExpr->base.colInfo.flag = TSDB_COL_TAG;
       memset(pExpr->base.aliasName, 0, sizeof(pExpr->base.aliasName));
+      tstrncpy(pExpr->base.aliasName, pColIndex->name, sizeof(pExpr->base.aliasName));
+      tstrncpy(pExpr->base.token, pColIndex->name, sizeof(pExpr->base.token));
       if(s->type == TSDB_DATA_TYPE_JSON){
         SStrToken t0 = {.z = pColIndex->name};
         getJsonKey(&t0);
         tVariantCreateFromBinary(&(pExpr->base.param[pExpr->base.numOfParams]), t0.z,
                                  t0.n, TSDB_DATA_TYPE_BINARY);
         pExpr->base.numOfParams++;
-        char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN + 1] = {0};
-        jsonKeyMd5(pColIndex->name, strlen(pColIndex->name), keyMd5);
-        tstrncpy(pExpr->base.aliasName, keyMd5, sizeof(pExpr->base.aliasName));
-        tstrncpy(pExpr->base.token, keyMd5, sizeof(pExpr->base.token));
         tstrncpy(pColIndex->name, t0.z, t0.n + 1);
-      }else {
-        tstrncpy(pExpr->base.aliasName, s->name, sizeof(pExpr->base.aliasName));
-        tstrncpy(pExpr->base.token, s->name, sizeof(pExpr->base.aliasName));
       }
     } else {
       // if this query is "group by" normal column, time window query is not allowed

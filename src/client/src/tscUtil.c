@@ -701,45 +701,7 @@ int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 
 static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bool convertNchar) {
   // generated the user-defined column result
-  if (pInfo->field.type == TSDB_DATA_TYPE_JSON){
-    char* buffer = realloc(pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
-    if (buffer == NULL) return;
-    pRes->buffer[i] = buffer;
-    // string terminated char for binary data
-    memset(pRes->buffer[i], 0, pInfo->field.bytes * pRes->numOfRows);
-
-    char* p = pRes->urow[i];
-    int32_t offset = 0;
-    for (int32_t k = 0; k < pRes->numOfRows; ++k) {
-      char* dst = pRes->buffer[i] + k * offset;
-      char* realData = p + CHAR_BYTES;
-      char type = *p;
-
-      if (type == TSDB_DATA_TYPE_JSON && isNull(realData, TSDB_DATA_TYPE_JSON)) {
-        type = pInfo->fieldJson.type;
-        setNull(realData, type, 0);
-      }
-      if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_JSON) {
-        if(convertNchar && !isNull(realData, TSDB_DATA_TYPE_NCHAR)){
-          int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), varDataVal(dst));
-          varDataSetLen(dst, length);
-          if (length == 0) {
-            tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)varDataVal(realData));
-          }
-        }else{
-          memcpy(dst, realData, varDataTLen(realData));
-        }
-        offset = pInfo->field.bytes;
-      }else {
-        assert(type <= TSDB_DATA_TYPE_DOUBLE && type >=TSDB_DATA_TYPE_BOOL);
-        memcpy(dst, realData, tDataTypes[(int32_t)type].bytes);
-        offset = tDataTypes[(int32_t)type].bytes;
-      }
-
-      p += pInfo->field.bytes;
-    }
-    memcpy(pRes->urow[i], pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
-  }else if (pInfo->pExpr->pExpr == NULL && TSDB_COL_IS_UD_COL(pInfo->pExpr->base.colInfo.flag)) {
+  if (pInfo->pExpr->pExpr == NULL && TSDB_COL_IS_UD_COL(pInfo->pExpr->base.colInfo.flag)) {
     if (pInfo->pExpr->base.param[0].nType == TSDB_DATA_TYPE_NULL) {
       setNullN(pRes->urow[i], pInfo->field.type, pInfo->field.bytes, (int32_t) pRes->numOfRows);
     } else {
@@ -788,6 +750,50 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
       p += pInfo->field.bytes;
     }
     memcpy(pRes->urow[i], pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
+  }else if (pInfo->field.type == TSDB_DATA_TYPE_JSON) {
+      // convert unicode to native code in a temporary buffer extra one byte for terminated symbol
+      char* buffer = realloc(pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
+      if (buffer == NULL) return;
+      pRes->buffer[i] = buffer;
+      // string terminated char for binary data
+      memset(pRes->buffer[i], 0, pInfo->field.bytes * pRes->numOfRows);
+
+      char* p = pRes->urow[i];
+      for (int32_t k = 0; k < pRes->numOfRows; ++k) {
+        char* dst = pRes->buffer[i] + k * pInfo->field.bytes;
+        char type = *p;
+        char* realData = p + CHAR_BYTES;
+        if (type == TSDB_DATA_TYPE_NCHAR && isNull(realData, TSDB_DATA_TYPE_NCHAR)) {
+          memcpy(dst, realData, varDataTLen(realData));
+        } else if (type == TSDB_DATA_TYPE_BINARY) {
+          assert(*(uint32_t*)varDataVal(realData) == TSDB_DATA_JSON_null);   // json null value
+          assert(varDataLen(realData) == INT_BYTES);
+          sprintf(varDataVal(dst), "%s", "null");
+          varDataSetLen(dst, strlen(varDataVal(dst)));
+        }else if (type == TSDB_DATA_TYPE_NCHAR) {
+          int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), varDataVal(dst));
+          varDataSetLen(dst, length);
+          if (length == 0) {
+            tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)p);
+          }
+        }else if (type == TSDB_DATA_TYPE_DOUBLE) {
+          double jsonVd = *(double*)(realData);
+          sprintf(varDataVal(dst), "%.9lf", jsonVd);
+          varDataSetLen(dst, strlen(varDataVal(dst)));
+        }else if (type == TSDB_DATA_TYPE_BIGINT) {
+          int64_t jsonVd = *(int64_t*)(realData);
+          sprintf(varDataVal(dst), "%" PRId64, jsonVd);
+          varDataSetLen(dst, strlen(varDataVal(dst)));
+        }else if (type == TSDB_DATA_TYPE_BOOL) {
+          sprintf(varDataVal(dst), "%s", (*((char *)realData) == 1) ? "true" : "false");
+          varDataSetLen(dst, strlen(varDataVal(dst)));
+        }else {
+          assert(0);
+        }
+
+        p += pInfo->field.bytes;
+      }
+      memcpy(pRes->urow[i], pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
   }
 
   if (convertNchar) {

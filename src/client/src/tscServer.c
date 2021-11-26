@@ -855,7 +855,6 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
   pSqlExpr->numOfParams = htons(pExpr->numOfParams);
   pSqlExpr->resColId    = htons(pExpr->resColId);
   pSqlExpr->flist.numOfFilters = htons(pExpr->flist.numOfFilters);
-  tstrncpy(pSqlExpr->aliasName, pExpr->aliasName, TSDB_COL_NAME_LEN);
 
   (*pMsg) += sizeof(SSqlExpr);
   for (int32_t j = 0; j < pExpr->numOfParams; ++j) { // todo add log
@@ -2644,38 +2643,12 @@ int tscProcessShowCreateRsp(SSqlObj *pSql) {
   return tscLocalResultCommonBuilder(pSql, 1);
 }
 
-static void updateFieldForJson(SSqlObj *pSql, SQueryTableRsp *pQueryAttr){
-  if(pQueryAttr->tJsonSchLen <= 0) {
-    return;
-  }
-
-  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
-  SFieldInfo *pFieldInfo = &pQueryInfo->fieldsInfo;
-  for(int32_t i = 0; i < pFieldInfo->numOfOutput; ++i) {
-    SInternalField *pField = tscFieldInfoGetInternalField(pFieldInfo, i);
-
-    if (pField->field.type == TSDB_DATA_TYPE_JSON) {
-      for (int k = 0; k < pQueryAttr->tJsonSchLen; ++k) {
-        if (strncmp(pField->fieldJson.name, pQueryAttr->tagJsonSchema[k].name, TSDB_MAX_JSON_KEY_LEN) == 0
-            && pQueryAttr->tagJsonSchema[k].type != TSDB_DATA_TYPE_JSON) {
-          pField->fieldJson.type = pQueryAttr->tagJsonSchema[k].type;
-          pField->fieldJson.bytes = TYPE_BYTES[pField->fieldJson.type];
-          tscDebug("0x%" PRIx64 " change json type %s:%s to %d", pSql->self, pField->field.name, pQueryAttr->tagJsonSchema[k].name,
-                   pField->fieldJson.type);
-          break;
-        }
-      }
-    }
-  }
-}
-
 int tscProcessQueryRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
 
   SQueryTableRsp *pQueryAttr = (SQueryTableRsp *)pRes->pRsp;
   pQueryAttr->qId = htobe64(pQueryAttr->qId);
-  pQueryAttr->tJsonSchLen = htons(pQueryAttr->tJsonSchLen);
-  updateFieldForJson(pSql, pQueryAttr);
+
   pRes->qId  = pQueryAttr->qId;
   pRes->data = NULL;
 

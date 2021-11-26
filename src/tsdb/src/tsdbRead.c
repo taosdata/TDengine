@@ -4112,16 +4112,5 @@ static int32_t tsdbQueryTableList(STable* pTable, SArray* pRes, void* filterInfo
   return TSDB_CODE_SUCCESS;
 }
 
-uint8_t getTagJsonType(STsdbRepo* tsdb, uint64_t uid, char* key, int32_t len){
-  STable* pTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
-  void* result = getJsonTagValueElment(pTable, key, len, NULL, TSDB_MAX_JSON_TAGS_LEN);
-  if(result){
-    return *(char*)result;
-  }else{
-    return TSDB_DATA_TYPE_JSON;
-  }
-}
-
-
 
 

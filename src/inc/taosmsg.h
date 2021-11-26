@@ -258,11 +258,6 @@ typedef struct SSchema {
   int16_t bytes;
 } SSchema;
 
-typedef struct TagJsonSSchema {
-  uint8_t type;
-  char    name[TSDB_MAX_JSON_KEY_LEN];
-} TagJsonSSchema;
-
 typedef struct {
   int32_t  contLen;
   int32_t  vgId;
@@ -519,8 +514,6 @@ typedef struct {
 typedef struct {
   int32_t  code;
   union{uint64_t qhandle; uint64_t qId;}; // query handle
-  uint16_t tJsonSchLen;
-  TagJsonSSchema tagJsonSchema[];
 } SQueryTableRsp;
 
 // todo: the show handle should be replaced with id

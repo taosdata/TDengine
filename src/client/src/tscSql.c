@@ -439,12 +439,6 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
       if (pField->visible) {
         f[j] = pField->field;
 
-        if(f[j].type == TSDB_DATA_TYPE_JSON){
-          f[j].type = pField->fieldJson.type;
-          if(!IS_VAR_DATA_TYPE(f[j].type) && f[j].type != TSDB_DATA_TYPE_JSON){
-            f[j].bytes = pField->fieldJson.bytes;
-          }
-        }
         // revise the length for binary and nchar fields
         if (f[j].type == TSDB_DATA_TYPE_BINARY) {
           f[j].bytes -= VARSTR_HEADER_SIZE;

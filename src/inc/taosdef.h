@@ -227,7 +227,7 @@ do { \
 #define TSDB_MAX_JSON_TAGS_LEN    (4096*TSDB_NCHAR_SIZE + 2 + 1) // 2->var_header_len 1->type
 #define TSDB_MAX_TAGS             128
 #define TSDB_MAX_TAG_CONDITIONS   1024
-#define TSDB_MAX_JSON_KEY_LEN     65
+#define TSDB_MAX_JSON_KEY_LEN     256
 #define TSDB_MAX_JSON_KEY_MD5_LEN 16
 
 #define TSDB_AUTH_LEN             16

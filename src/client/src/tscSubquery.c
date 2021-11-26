@@ -3686,10 +3686,6 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql) {
 
     int32_t type  = pInfo->field.type;
     int32_t bytes = pInfo->field.bytes;
-    if(type == TSDB_DATA_TYPE_JSON && pInfo->fieldJson.type != TSDB_DATA_TYPE_JSON){
-      type = pInfo->fieldJson.type;
-      bytes = pInfo->fieldJson.bytes;
-    }
 
     if (!IS_VAR_DATA_TYPE(type) && type != TSDB_DATA_TYPE_JSON) {
       pRes->tsrow[j] = isNull(pRes->urow[i], type) ? NULL : pRes->urow[i];
