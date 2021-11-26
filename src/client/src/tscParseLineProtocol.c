@@ -982,10 +982,10 @@ static int32_t applyChildTableTags(TAOS* taos, char* cTableName, char* sTableNam
     }
   }
 
-  SArray* tagBinds = taosArrayInit(numTags + 1, sizeof(TAOS_BIND));
-  taosArraySetSize(tagBinds, numTags + 1);
+  SArray* tagBinds = taosArrayInit(numTags, sizeof(TAOS_BIND));
+  taosArraySetSize(tagBinds, numTags);
   int isNullColBind = TSDB_TRUE;
-  for (int j = 0; j < numTags + 1; ++j) {
+  for (int j = 0; j < numTags; ++j) {
     TAOS_BIND* bind = taosArrayGet(tagBinds, j);
     bind->is_null = &isNullColBind;
   }
