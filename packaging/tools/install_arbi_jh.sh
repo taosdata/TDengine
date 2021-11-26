@@ -84,7 +84,7 @@ else
   echo " osinfo: ${osinfo}"
   echo " This is an officially unverified linux system," 
   echo " if there are any problems with the installation and operation, "
-  echo " please feel free to contact taosdata.com for support."
+  echo " please feel free to contact jhict.com for support."
   os_type=1
 fi
 
@@ -111,7 +111,7 @@ function install_bin() {
     ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
     #Make link
-    [ -x ${install_main_dir}/bin/remove_arbi_tq.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_arbi_tq.sh ${bin_link_dir}/rmtarbitrator  || :
+    [ -x ${install_main_dir}/bin/remove_arbi_jh.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_arbi_jh.sh ${bin_link_dir}/rmtarbitrator  || :
     [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo} ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator || :
 }
 
@@ -152,8 +152,7 @@ function install_service_on_sysvinit() {
     clean_service_on_sysvinit
     sleep 1
 
-    # Install tqd service
-
+    # Install server service
     if ((${os_type}==1)); then
         ${csudo} cp -f ${script_dir}/init.d/tarbitratord.deb ${install_main_dir}/init.d/tarbitratord
         ${csudo} cp    ${script_dir}/init.d/tarbitratord.deb ${service_config_dir}/tarbitratord && ${csudo} chmod a+x ${service_config_dir}/tarbitratord
@@ -161,9 +160,6 @@ function install_service_on_sysvinit() {
         ${csudo} cp -f ${script_dir}/init.d/tarbitratord.rpm ${install_main_dir}/init.d/tarbitratord
         ${csudo} cp    ${script_dir}/init.d/tarbitratord.rpm ${service_config_dir}/tarbitratord && ${csudo} chmod a+x ${service_config_dir}/tarbitratord
     fi
-    
-    #restart_config_str="tq:2345:respawn:${service_config_dir}/tqd start"
-    #${csudo} grep -q -F "$restart_config_str" /etc/inittab || ${csudo} bash -c "echo '${restart_config_str}' >> /etc/inittab"
     
     if ((${initd_mod}==1)); then
         ${csudo} chkconfig --add tarbitratord || :
@@ -187,15 +183,13 @@ function clean_service_on_systemd() {
   ${csudo} rm -f ${tarbitratord_service_config}
 }
 
-# tq:2345:respawn:/etc/init.d/tarbitratord start
-
 function install_service_on_systemd() {
     clean_service_on_systemd
 
     tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
 
     ${csudo} bash -c "echo '[Unit]'                                  >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'Description=TQ arbitrator service' >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'Description=jh_iot arbitrator service' >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'After=network-online.target'             >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'Wants=network-online.target'             >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
@@ -227,9 +221,9 @@ function install_service() {
     fi
 }
 
-function update_tq() {
+function update() {
     # Start to update
-    echo -e "${GREEN}Start to update TQ's arbitrator ...${NC}"
+    echo -e "${GREEN}Start to update jh_iot's arbitrator ...${NC}"
     # Stop the service if running
     if pidof tarbitrator &> /dev/null; then
         if ((${service_mod}==0)); then
@@ -256,12 +250,12 @@ function update_tq() {
         echo -e "${GREEN_DARK}To start arbitrator     ${NC}: ./tarbitrator${NC}"
     fi                
     echo
-    echo -e "\033[44;32;1mTQ's arbitrator is updated successfully!${NC}"
+    echo -e "\033[44;32;1mjh_iot's arbitrator is updated successfully!${NC}"
 }
 
-function install_tq() {
+function install() {
     # Start to install
-    echo -e "${GREEN}Start to install TQ's arbitrator ...${NC}"
+    echo -e "${GREEN}Start to install jh_iot's arbitrator ...${NC}"
     
     install_main_path	   
     #install_header
@@ -276,7 +270,7 @@ function install_tq() {
         echo -e "${GREEN_DARK}To start arbitrator     ${NC}: tarbitrator${NC}"
     fi
 
-    echo -e "\033[44;32;1mTQ's arbitrator is installed successfully!${NC}"
+    echo -e "\033[44;32;1mjh_iot's arbitrator is installed successfully!${NC}"
     echo
 }
 
@@ -285,8 +279,8 @@ function install_tq() {
 # Install server and client
 if [ -x ${bin_dir}/tarbitrator ]; then
     update_flag=1
-    update_tq
+    update
 else
-    install_tq
+    install
 fi
 

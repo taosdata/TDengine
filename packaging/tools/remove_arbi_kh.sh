@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Script to stop the service and uninstall TQ's arbitrator
+# Script to stop the service and uninstall KingHistorian's arbitrator
 
 set -e
 #set -x
@@ -14,7 +14,6 @@ NC='\033[0m'
 #install main path
 install_main_dir="/usr/local/tarbitrator"
 bin_link_dir="/usr/bin"
-#inc_link_dir="/usr/include"
 
 service_config_dir="/etc/systemd/system"
 tarbitrator_service_name="tarbitratord"
@@ -49,6 +48,7 @@ function kill_tarbitrator() {
     ${csudo} kill -9 $pid   || :
   fi
 }
+
 function clean_bin() {
     # Remove link
     ${csudo} rm -f ${bin_link_dir}/tarbitrator      || :
@@ -69,7 +69,7 @@ function clean_service_on_systemd() {
   tarbitratord_service_config="${service_config_dir}/${tarbitrator_service_name}.service"
 
   if systemctl is-active --quiet ${tarbitrator_service_name}; then
-      echo "TQ tarbitrator is running, stopping it..."
+      echo "KingHistorian's tarbitrator is running, stopping it..."
       ${csudo} systemctl stop ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
   fi
   ${csudo} systemctl disable ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
@@ -79,7 +79,7 @@ function clean_service_on_systemd() {
 
 function clean_service_on_sysvinit() {
     if pidof tarbitrator &> /dev/null; then
-        echo "TQ's tarbitrator is running, stopping it..."
+        echo "KingHistorian's tarbitrator is running, stopping it..."
         ${csudo} service tarbitratord stop || :
     fi
     
@@ -126,5 +126,5 @@ clean_log
 
 ${csudo} rm -rf ${install_main_dir}
 
-echo -e "${GREEN}TQ's arbitrator is removed successfully!${NC}"
+echo -e "${GREEN}KingHistorian's arbitrator is removed successfully!${NC}"
 echo 

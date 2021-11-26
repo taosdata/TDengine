@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# This file is used to install TQ client on linux systems. The operating system
+# This file is used to install jh_taos client on linux systems. The operating system
 # is required to use systemd to manage services at boot
 
 set -e
@@ -14,19 +14,19 @@ pagMode=full
 if [ "$osType" != "Darwin" ]; then
     script_dir=$(dirname $(readlink -f "$0"))
     # Dynamic directory
-    data_dir="/var/lib/tq"
-    log_dir="/var/log/tq"
+    data_dir="/var/lib/jh_taos"
+    log_dir="/var/log/jh_taos"
 else
     script_dir=`dirname $0`
     cd ${script_dir}
     script_dir="$(pwd)"
-    data_dir="/var/lib/tq"
-    log_dir="~/TQLog"
+    data_dir="/var/lib/jh_taos"
+    log_dir="~/jh_taos/log"
 fi
 
-log_link_dir="/usr/local/tq/log"
+log_link_dir="/usr/local/jh_taos/log"
 
-cfg_install_dir="/etc/tq"
+cfg_install_dir="/etc/jh_taos"
 
 if [ "$osType" != "Darwin" ]; then
     bin_link_dir="/usr/bin"
@@ -40,13 +40,10 @@ else
 fi
 
 #install main path
-install_main_dir="/usr/local/tq"
+install_main_dir="/usr/local/jh_taos"
 
 # old bin dir
-bin_dir="/usr/local/tq/bin"
-
-# v1.5 jar dir
-#v15_java_app_dir="/usr/local/lib/tq"
+bin_dir="/usr/local/jh_taos/bin"
 
 # Color setting
 RED='\033[0;31m'
@@ -63,7 +60,7 @@ fi
 update_flag=0
 
 function kill_client() {
-  pid=$(ps -ef | grep "tq" | grep -v "grep" | awk '{print $2}')
+  pid=$(ps -ef | grep "jh_taos" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo} kill -9 $pid   || :
   fi
@@ -83,23 +80,23 @@ function install_main_path() {
 
 function install_bin() {
   # Remove links
-  ${csudo} rm -f ${bin_link_dir}/tq         || :
+  ${csudo} rm -f ${bin_link_dir}/jh_taos         || :
   if [ "$osType" != "Darwin" ]; then
-      ${csudo} rm -f ${bin_link_dir}/tqdemo  || :
-      ${csudo} rm -f ${bin_link_dir}/tqdump  || :
+      ${csudo} rm -f ${bin_link_dir}/jhdemo  || :
+      ${csudo} rm -f ${bin_link_dir}/jh_taosdump  || :
   fi
-  ${csudo} rm -f ${bin_link_dir}/rmtq       || :
+  ${csudo} rm -f ${bin_link_dir}/rmjh       || :
   ${csudo} rm -f ${bin_link_dir}/set_core      || :
 
   ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
   #Make link
-  [ -x ${install_main_dir}/bin/tq ] && ${csudo} ln -s ${install_main_dir}/bin/tq ${bin_link_dir}/tq                 || :
+  [ -x ${install_main_dir}/bin/jh_taos ] && ${csudo} ln -s ${install_main_dir}/bin/jh_taos ${bin_link_dir}/jh_taos    || :
   if [ "$osType" != "Darwin" ]; then
-      [ -x ${install_main_dir}/bin/tqdemo ] && ${csudo} ln -s ${install_main_dir}/bin/tqdemo ${bin_link_dir}/tqdemo || :
-      [ -x ${install_main_dir}/bin/tqdump ] && ${csudo} ln -s ${install_main_dir}/bin/tqdump ${bin_link_dir}/tqdump || :
+      [ -x ${install_main_dir}/bin/jhdemo ] && ${csudo} ln -s ${install_main_dir}/bin/jhdemo ${bin_link_dir}/jhdemo || :
+      [ -x ${install_main_dir}/bin/jh_taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/jh_taosdump ${bin_link_dir}/jh_taosdump || :
   fi
-  [ -x ${install_main_dir}/bin/remove_client_tq.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client_tq.sh ${bin_link_dir}/rmtq || :
+  [ -x ${install_main_dir}/bin/remove_client_jh.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client_jh.sh ${bin_link_dir}/rmjh || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
 }
 
@@ -112,7 +109,6 @@ function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
     ${csudo} rm -f ${lib64_link_dir}/libtaos.*       || :
-    #${csudo} rm -rf ${v15_java_app_dir}              || :
 
     ${csudo} cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
 
@@ -140,14 +136,14 @@ function install_header() {
 }
 
 function install_config() {
-    if [ ! -f ${cfg_install_dir}/tq.cfg ]; then
+    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${script_dir}/cfg/tq.cfg ] && ${csudo} cp ${script_dir}/cfg/tq.cfg ${cfg_install_dir}
+        [ -f ${script_dir}/cfg/taos.cfg ] && ${csudo} cp ${script_dir}/cfg/taos.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
     fi
 
-    ${csudo} cp -f ${script_dir}/cfg/tq.cfg ${install_main_dir}/cfg/tq.cfg.org
-    ${csudo} ln -s ${cfg_install_dir}/tq.cfg ${install_main_dir}/cfg
+    ${csudo} cp -f ${script_dir}/cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
+    ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
 }
 
 
@@ -172,17 +168,17 @@ function install_examples() {
     fi
 }
 
-function update_tq() {
+function update() {
     # Start to update
-    if [ ! -e tq.tar.gz ]; then
-        echo "File tq.tar.gz does not exist"
+    if [ ! -e jh_taos.tar.gz ]; then
+        echo "File jh_taos.tar.gz does not exist"
         exit 1
     fi
-    tar -zxf tq.tar.gz
+    tar -zxf jh_taos.tar.gz
 
-    echo -e "${GREEN}Start to update TQ client...${NC}"
+    echo -e "${GREEN}Start to update jh_iot client...${NC}"
     # Stop the client shell if running
-    if pidof tq &> /dev/null; then
+    if pidof jh_taos &> /dev/null; then
         kill_client
         sleep 1
     fi
@@ -200,20 +196,20 @@ function update_tq() {
     install_config
 
     echo
-    echo -e "\033[44;32;1mTQ client is updated successfully!${NC}"
+    echo -e "\033[44;32;1mjh_iot client is updated successfully!${NC}"
 
-    rm -rf $(tar -tf tq.tar.gz)
+    rm -rf $(tar -tf jh_taos.tar.gz)
 }
 
-function install_tq() {
+function install() {
     # Start to install
-    if [ ! -e tq.tar.gz ]; then
-        echo "File tq.tar.gz does not exist"
+    if [ ! -e jh_taos.tar.gz ]; then
+        echo "File jh_taos.tar.gz does not exist"
         exit 1
     fi
-    tar -zxf tq.tar.gz
+    tar -zxf jh_taos.tar.gz
 
-    echo -e "${GREEN}Start to install TQ client...${NC}"
+    echo -e "${GREEN}Start to install jh_taos client...${NC}"
 
 	install_main_path
     install_log
@@ -227,23 +223,23 @@ function install_tq() {
     install_config
 
     echo
-    echo -e "\033[44;32;1mTQ client is installed successfully!${NC}"
+    echo -e "\033[44;32;1mjh_iot client is installed successfully!${NC}"
 
-    rm -rf $(tar -tf tq.tar.gz)
+    rm -rf $(tar -tf jh_taos.tar.gz)
 }
 
 
 ## ==============================Main program starts from here============================
 # Install or updata client and client
 # if server is already install, don't install client
-  if [ -e ${bin_dir}/tqd ]; then
-      echo -e "\033[44;32;1mThere are already installed TQ server, so don't need install client!${NC}"
+  if [ -e ${bin_dir}/jh_taosd ]; then
+      echo -e "\033[44;32;1mThere are already installed jh_iot server, so don't need install client!${NC}"
       exit 0
   fi
 
-  if [ -x ${bin_dir}/tq ]; then
+  if [ -x ${bin_dir}/jh_taos ]; then
       update_flag=1
-      update_tq
+      update
   else
-      install_tq
+      install
   fi

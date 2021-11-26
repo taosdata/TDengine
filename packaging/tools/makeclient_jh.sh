@@ -32,9 +32,9 @@ release_dir="${top_dir}/release"
 #package_name='linux'
 
 if [ "$verMode" == "cluster" ]; then
-    install_dir="${release_dir}/ProDB-enterprise-client-${version}"
+    install_dir="${release_dir}/jh_iot-enterprise-client-${version}"
 else
-    install_dir="${release_dir}/ProDB-client-${version}"
+    install_dir="${release_dir}/jh_iot-client-${version}"
 fi
 
 # Directories and files.
@@ -42,7 +42,7 @@ fi
 if [ "$osType" != "Darwin" ]; then
   lib_files="${build_dir}/lib/libtaos.so.${version}"
 else
-  bin_files="${build_dir}/bin/taos ${script_dir}/remove_client_pro.sh"
+  bin_files="${build_dir}/bin/taos ${script_dir}/remove_client_jh.sh"
   lib_files="${build_dir}/lib/libtaos.${version}.dylib"
 fi
 
@@ -53,28 +53,28 @@ else
   cfg_dir="${top_dir}/packaging/cfg"
 fi
 
-install_files="${script_dir}/install_client_pro.sh"
+install_files="${script_dir}/install_client_jh.sh"
 
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/prodb.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
 
-sed -i '/dataDir/ {s/taos/ProDB/g}'  ${install_dir}/cfg/prodb.cfg
-sed -i '/logDir/  {s/taos/ProDB/g}'  ${install_dir}/cfg/prodb.cfg
-sed -i "s/TDengine/ProDB/g"        ${install_dir}/cfg/prodb.cfg
+sed -i '/dataDir/ {s/taos/jh_taos/g}'  ${install_dir}/cfg/taos.cfg
+sed -i '/logDir/  {s/taos/jh_taos/g}'  ${install_dir}/cfg/taos.cfg
+sed -i "s/TDengine/jh_iot/g"        ${install_dir}/cfg/taos.cfg
 
 mkdir -p ${install_dir}/bin
 if [ "$osType" != "Darwin" ]; then
   if [ "$pagMode" == "lite" ]; then
     strip ${build_dir}/bin/taos
-    cp ${build_dir}/bin/taos          ${install_dir}/bin/prodbc
-    cp ${script_dir}/remove_pro.sh  ${install_dir}/bin
+    cp ${build_dir}/bin/taos          ${install_dir}/bin/jh_taos
+    cp ${script_dir}/remove_jh.sh  ${install_dir}/bin
   else 
-    cp ${build_dir}/bin/taos          ${install_dir}/bin/prodbc
-    cp ${script_dir}/remove_pro.sh  ${install_dir}/bin
-    cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/prodemo
-    cp ${build_dir}/bin/taosdump      ${install_dir}/bin/prodump
+    cp ${build_dir}/bin/taos          ${install_dir}/bin/jh_taos
+    cp ${script_dir}/remove_jh.sh  ${install_dir}/bin
+    cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/jhdemo
+    cp ${build_dir}/bin/taosdump      ${install_dir}/bin/jh_taosdump
     cp ${script_dir}/set_core.sh      ${install_dir}/bin
     cp ${script_dir}/get_client.sh    ${install_dir}/bin
     cp ${script_dir}/taosd-dump-cfg.gdb    ${install_dir}/bin
@@ -120,69 +120,29 @@ fi
 cd ${install_dir}
 
 if [ "$osType" != "Darwin" ]; then
-    tar -zcv -f prodb.tar.gz * --remove-files || :
+    tar -zcv -f jh_taos.tar.gz * --remove-files || :
 else
-    tar -zcv -f prodb.tar.gz * || :
-    mv prodb.tar.gz ..
+    tar -zcv -f jh_taos.tar.gz * || :
+    mv jh_taos.tar.gz ..
     rm -rf ./*
-    mv ../prodb.tar.gz .
+    mv ../jh_taos.tar.gz .
 fi
 
 cd ${curr_dir}
 cp ${install_files} ${install_dir}
 if [ "$osType" == "Darwin" ]; then
-    sed 's/osType=Linux/osType=Darwin/g' ${install_dir}/install_client_pro.sh >> install_client_prodb_temp.sh
-    mv install_client_prodb_temp.sh ${install_dir}/install_client_pro.sh
+    sed 's/osType=Linux/osType=Darwin/g' ${install_dir}/install_client_jh.sh >> install_client_jh_temp.sh
+    mv install_client_jh_temp.sh ${install_dir}/install_client_jh.sh
 fi
 if [ "$pagMode" == "lite" ]; then
-    sed 's/pagMode=full/pagMode=lite/g' ${install_dir}/install_client_pro.sh >> install_client_prodb_temp.sh
-    mv install_client_prodb_temp.sh ${install_dir}/install_client_pro.sh
+    sed 's/pagMode=full/pagMode=lite/g' ${install_dir}/install_client_jh.sh >> install_client_jh_temp.sh
+    mv install_client_jh_temp.sh ${install_dir}/install_client_jh.sh
 fi
-chmod a+x ${install_dir}/install_client_pro.sh
+chmod a+x ${install_dir}/install_client_jh.sh
 
-# Copy example code
-mkdir -p ${install_dir}/examples
-examples_dir="${top_dir}/tests/examples"
-cp -r ${examples_dir}/c      ${install_dir}/examples
-sed -i '/passwd/ {s/taosdata/prodb/g}'  ${install_dir}/examples/c/*.c
-sed -i '/root/   {s/taosdata/prodb/g}'  ${install_dir}/examples/c/*.c
-
-if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-  cp -r ${examples_dir}/JDBC   ${install_dir}/examples
-  cp -r ${examples_dir}/matlab ${install_dir}/examples
-  mv ${install_dir}/examples/matlab/TDengineDemo.m ${install_dir}/examples/matlab/ProDBDemo.m
-  sed -i '/password/ {s/taosdata/prodb/g}'  ${install_dir}/examples/matlab/ProDBDemo.m
-  cp -r ${examples_dir}/python ${install_dir}/examples
-  sed -i '/password/ {s/taosdata/prodb/g}'  ${install_dir}/examples/python/read_example.py
-  cp -r ${examples_dir}/R      ${install_dir}/examples
-  sed -i '/password/ {s/taosdata/prodb/g}'  ${install_dir}/examples/R/command.txt
-  cp -r ${examples_dir}/go     ${install_dir}/examples
-  mv ${install_dir}/examples/go/taosdemo.go ${install_dir}/examples/go/prodemo.go  
-  sed -i '/root/ {s/taosdata/prodb/g}'  ${install_dir}/examples/go/prodemo.go
-fi
 # Copy driver
 mkdir -p ${install_dir}/driver 
 cp ${lib_files} ${install_dir}/driver
-
-# Copy connector
-connector_dir="${code_dir}/connector"
-mkdir -p ${install_dir}/connector
-
-if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-  if [ "$osType" != "Darwin" ]; then
-    cp ${build_dir}/lib/*.jar      ${install_dir}/connector ||:
-  fi
-  if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
-    cp -r ${connector_dir}/go ${install_dir}/connector
-  else
-    echo "WARNING: go connector not found, please check if want to use it!"
-  fi
-  cp -r ${connector_dir}/python  ${install_dir}/connector
-  mv ${install_dir}/connector/python/taos ${install_dir}/connector/python/prodb
-  sed -i '/password/ {s/taosdata/prodb/g}'  ${install_dir}/connector/python/prodb/cinterface.py
-  sed -i '/password/ {s/taosdata/prodb/g}'  ${install_dir}/connector/python/prodb/subscription.py
-  sed -i '/self._password/ {s/taosdata/prodb/g}'  ${install_dir}/connector/python/prodb/connection.py
-fi
 
 cd ${release_dir} 
 

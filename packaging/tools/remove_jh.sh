@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Script to stop the service and uninstall TQ, but retain the config, data and log files.
+# Script to stop the service and uninstall jh_taos, but retain the config, data and log files.
 
 set -e
 #set -x
@@ -12,21 +12,18 @@ GREEN='\033[1;32m'
 NC='\033[0m'
 
 #install main path
-install_main_dir="/usr/local/tq"
-data_link_dir="/usr/local/tq/data"
-log_link_dir="/usr/local/tq/log"
-cfg_link_dir="/usr/local/tq/cfg"
+install_main_dir="/usr/local/jh_taos"
+data_link_dir="/usr/local/jh_taos/data"
+log_link_dir="/usr/local/jh_taos/log"
+cfg_link_dir="/usr/local/jh_taos/cfg"
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
 lib64_link_dir="/usr/lib64"
 inc_link_dir="/usr/include"
 install_nginxd_dir="/usr/local/nginxd"
 
-# v1.5 jar dir
-#v15_java_app_dir="/usr/local/lib/tq"
-
 service_config_dir="/etc/systemd/system"
-tq_service_name="tqd"
+service_name="jh_taosd"
 tarbitrator_service_name="tarbitratord"
 nginx_service_name="nginxd"
 csudo=""
@@ -54,8 +51,8 @@ else
     service_mod=2
 fi
 
-function kill_tqd() {
-  pid=$(ps -ef | grep "tqd" | grep -v "grep" | awk '{print $2}')
+function kill_process() {
+  pid=$(ps -ef | grep "jh_taosd" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo} kill -9 $pid   || :
   fi
@@ -67,22 +64,22 @@ function kill_tarbitrator() {
     ${csudo} kill -9 $pid   || :
   fi
 }
+
 function clean_bin() {
     # Remove link
-    ${csudo} rm -f ${bin_link_dir}/tq        || :
-    ${csudo} rm -f ${bin_link_dir}/tqd       || :
-    ${csudo} rm -f ${bin_link_dir}/tqdemo    || :
-    ${csudo} rm -f ${bin_link_dir}/tqdump    || :
-    ${csudo} rm -f ${bin_link_dir}/rmtq      || :
-    ${csudo} rm -f ${bin_link_dir}/tarbitrator  || :
-    ${csudo} rm -f ${bin_link_dir}/set_core     || :
+    ${csudo} rm -f ${bin_link_dir}/jh_taos      || :
+    ${csudo} rm -f ${bin_link_dir}/jh_taosd      || :
+    ${csudo} rm -f ${bin_link_dir}/jhdemo        || :
+    ${csudo} rm -f ${bin_link_dir}/jh_taosdump        || :
+    ${csudo} rm -f ${bin_link_dir}/rmjh          || :
+    ${csudo} rm -f ${bin_link_dir}/tarbitrator   || :
+    ${csudo} rm -f ${bin_link_dir}/set_core      || :
 }
 
 function clean_lib() {
     # Remove link
     ${csudo} rm -f ${lib_link_dir}/libtaos.*      || :
     ${csudo} rm -f ${lib64_link_dir}/libtaos.*    || :
-    #${csudo} rm -rf ${v15_java_app_dir}           || :
 }
 
 function clean_header() {
@@ -102,17 +99,17 @@ function clean_log() {
 }
 
 function clean_service_on_systemd() {
-    tq_service_config="${service_config_dir}/${tq_service_name}.service"
-    if systemctl is-active --quiet ${tq_service_name}; then
-        echo "TQ tqd is running, stopping it..."
-        ${csudo} systemctl stop ${tq_service_name} &> /dev/null || echo &> /dev/null
+    service_config="${service_config_dir}/${service_name}.service"
+    if systemctl is-active --quiet ${service_name}; then
+        echo "jh_iot's jh_taosd is running, stopping it..."
+        ${csudo} systemctl stop ${service_name} &> /dev/null || echo &> /dev/null
     fi
-    ${csudo} systemctl disable ${tq_service_name} &> /dev/null || echo &> /dev/null
-    ${csudo} rm -f ${tq_service_config}
+    ${csudo} systemctl disable ${service_name} &> /dev/null || echo &> /dev/null
+    ${csudo} rm -f ${service_config}
     
     tarbitratord_service_config="${service_config_dir}/${tarbitrator_service_name}.service"
     if systemctl is-active --quiet ${tarbitrator_service_name}; then
-        echo "TQ tarbitrator is running, stopping it..."
+        echo "jh_iot's tarbitrator is running, stopping it..."
         ${csudo} systemctl stop ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
     fi
     ${csudo} systemctl disable ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
@@ -122,7 +119,7 @@ function clean_service_on_systemd() {
 		  nginx_service_config="${service_config_dir}/${nginx_service_name}.service"	
    	 	if [ -d ${bin_dir}/web ]; then
    	    if systemctl is-active --quiet ${nginx_service_name}; then
-   	        echo "Nginx for TQ is running, stopping it..."
+   	        echo "Nginx for jh_iot is running, stopping it..."
    	        ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
    	    fi
    	    ${csudo} systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
@@ -133,43 +130,40 @@ function clean_service_on_systemd() {
 }
 
 function clean_service_on_sysvinit() {
-    #restart_config_str="tq:2345:respawn:${service_config_dir}/tqd start"
-    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :    
-    
-    if pidof tqd &> /dev/null; then
-        echo "TQ tqd is running, stopping it..."
-        ${csudo} service tqd stop || :
+    if pidof jh_taosd &> /dev/null; then
+        echo "jh_iot's jh_taosd is running, stopping it..."
+        ${csudo} service jh_taosd stop || :
     fi
     
     if pidof tarbitrator &> /dev/null; then
-        echo "TQ tarbitrator is running, stopping it..."
+        echo "jh_iot's tarbitrator is running, stopping it..."
         ${csudo} service tarbitratord stop || :
     fi
     
     if ((${initd_mod}==1)); then    
-      if [ -e ${service_config_dir}/tqd ]; then
-        ${csudo} chkconfig --del tqd || :
+      if [ -e ${service_config_dir}/jh_taosd ]; then
+        ${csudo} chkconfig --del jh_taosd || :
       fi
       if [ -e ${service_config_dir}/tarbitratord ]; then 
         ${csudo} chkconfig --del tarbitratord || :
       fi
     elif ((${initd_mod}==2)); then   
-      if [ -e ${service_config_dir}/tqd ]; then
-        ${csudo} insserv -r tqd || :
+      if [ -e ${service_config_dir}/jh_taosd ]; then
+        ${csudo} insserv -r jh_taosd || :
       fi
       if [ -e ${service_config_dir}/tarbitratord ]; then 
         ${csudo} insserv -r tarbitratord || :
       fi
     elif ((${initd_mod}==3)); then  
-      if [ -e ${service_config_dir}/tqd ]; then
-        ${csudo} update-rc.d -f tqd remove || :
+      if [ -e ${service_config_dir}/jh_taosd ]; then
+        ${csudo} update-rc.d -f jh_taosd remove || :
       fi
       if [ -e ${service_config_dir}/tarbitratord ]; then 
         ${csudo} update-rc.d -f tarbitratord remove || :
       fi
     fi
     
-    ${csudo} rm -f ${service_config_dir}/tqd || :
+    ${csudo} rm -f ${service_config_dir}/jh_taosd || :
     ${csudo} rm -f ${service_config_dir}/tarbitratord || :
    
     if $(which init &> /dev/null); then
@@ -183,7 +177,7 @@ function clean_service() {
     elif ((${service_mod}==1)); then
         clean_service_on_sysvinit
     else
-        kill_tqd
+        kill_process
         kill_tarbitrator
     fi
 }
@@ -211,5 +205,5 @@ else
   osinfo=""
 fi
 
-echo -e "${GREEN}TQ is removed successfully!${NC}"
+echo -e "${GREEN}jh_iot is removed successfully!${NC}"
 echo 
