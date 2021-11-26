@@ -90,7 +90,6 @@ extern "C" {
 #define TSDB_FUNCSTATE_OF           0x10u   // outer forward
 #define TSDB_FUNCSTATE_NEED_TS      0x20u   // timestamp is required during query processing
 #define TSDB_FUNCSTATE_SELECTIVITY  0x40u   // selectivity functions, can exists along with tag columns
-#define TSDB_FUNCSTATE_SCALAR       0x80u
 
 #define TSDB_BASE_FUNC_SO TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_OF
 #define TSDB_BASE_FUNC_MO TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_OF
@@ -231,7 +230,6 @@ int32_t isValidFunction(const char* name, int32_t len);
 #define IS_MULTIOUTPUT(x)         (((x)&TSDB_FUNCSTATE_MO) != 0)
 #define IS_SINGLEOUTPUT(x)        (((x)&TSDB_FUNCSTATE_SO) != 0)
 #define IS_OUTER_FORWARD(x)       (((x)&TSDB_FUNCSTATE_OF) != 0)
-#define IS_SCALAR_FUNCTION(x)     (((x)&TSDB_FUNCSTATE_SCALAR) != 0)
 
 // determine the real data need to calculated the result
 enum {

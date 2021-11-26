@@ -7425,8 +7425,6 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
 
     if ((aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
       numOfSelectivity++;
-    } else if ((aAggs[functionId].status & TSDB_FUNCSTATE_SCALAR) != 0) {
-      numOfScalar++;
     } else {
       numOfAggregation++;
     }
@@ -7692,9 +7690,6 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
         return invalidOperationMsg(msg, msg1);
       }
 
-      if (IS_SCALAR_FUNCTION(aAggs[f].status)) {
-        return invalidOperationMsg(msg, msg1);
-      }
 
       if (f == TSDB_FUNC_COUNT && pExpr->base.colInfo.colIndex == TSDB_TBNAME_COLUMN_INDEX) {
         return invalidOperationMsg(msg, msg1);

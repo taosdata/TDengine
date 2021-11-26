@@ -199,12 +199,37 @@ endi
 if $data90 != 0.429470715 then
   return -1
 endi
+print execute sql select asin(c1) from $stb limit 1
+sql select asin(c1) from $stb limit 1
+if $data00 != 0.000000000 then
+  return -1
+endi
+print execute sql select pow(c1,2) from $stb limit 1 offset 2;
+sql select pow(c1,2) from $stb limit 1 offset 2;
+if $data00 != 4.000000000 then
+  return -1
+endi
+print exeucte sql select cos(c1) from db0.ct0, db0.ct1 where ct0.ts==ct1.ts;
+sql select cos(c1) from db0.ct0, db0.ct1 where ct0.ts==ct1.ts
+if $rows != 50 then
+  return -1
+endi
+if $data10 != 0.540302306 then
+  return -1
+endi
 
 print ============== invalid expressions
 sql_error select agg(c1)+c2 from $stb
 sql_error select agg(c1+2) from $stb
 sql_error select agg(ceil(c1))+c2 from $stb
 sql_error select agg(ceil(c1)) from $stb
+sql_error select asin(c1) from $stb group by tbname
+sql_error select asin(c2) from $stb group by tgcol
+sql_error select asin(c1) from $stb session_window(ts, 1s)
+sql_error select cos(c1) from $stb state_window(f1)
+sql_error select pow(c2,2) from $stb interval(1s) sliding(500a)
+sql_error select pow(c2,2) from $stb state_window(f1)
+sql_error select tan(f1) from $stb from d.st slimit 1
 print =============== clear
 sql drop database $db
 sql show databases

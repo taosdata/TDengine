@@ -435,10 +435,6 @@ static bool isScalarWithTagsQuery(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
       hasTags = true;
       continue;
     }
-
-    if ((aAggs[functId].status & TSDB_FUNCSTATE_SCALAR) != 0) {
-      numOfScalar++;
-    }
   }
 
   return (numOfScalar > 0 && hasTags);
@@ -1869,7 +1865,7 @@ static int32_t setCtxTagColumnInfo(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
     if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
       tagLen += pCtx[i].outputBytes;
       pTagCtx[num++] = &pCtx[i];
-    } else if ((aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0 || (aAggs[functionId].status & TSDB_FUNCSTATE_SCALAR) != 0) {
+    } else if ((aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
       p = &pCtx[i];
     } else if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TAG) {
       // tag function may be the group by tag column
