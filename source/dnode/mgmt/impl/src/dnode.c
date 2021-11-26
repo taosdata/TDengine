@@ -84,13 +84,13 @@ static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOptions) {
 
   char path[PATH_MAX + 100];
   snprintf(path, sizeof(path), "%s%smnode", pOptions->dataDir, TD_DIRSEP);
-  pDnode->dir.mnode = strdup(path);
+  pDnode->dir.mnode = tstrdup(path);
 
   snprintf(path, sizeof(path), "%s%svnode", pOptions->dataDir, TD_DIRSEP);
-  pDnode->dir.vnodes = strdup(path);
+  pDnode->dir.vnodes = tstrdup(path);
 
   snprintf(path, sizeof(path), "%s%sdnode", pOptions->dataDir, TD_DIRSEP);
-  pDnode->dir.dnode = strdup(path);
+  pDnode->dir.dnode = tstrdup(path);
 
   if (pDnode->dir.mnode == NULL || pDnode->dir.vnodes == NULL || pDnode->dir.dnode == NULL) {
     dError("failed to malloc dir object");
@@ -140,7 +140,7 @@ SDnode *dndInit(SDnodeOpt *pOptions) {
   taosBlockSIGPIPE();
   taosResolveCRC();
 
-  SDnode *pDnode = calloc(1, sizeof(pDnode));
+  SDnode *pDnode = calloc(1, sizeof(SDnode));
   if (pDnode == NULL) {
     dError("failed to create dnode object");
     terrno = TSDB_CODE_OUT_OF_MEMORY;

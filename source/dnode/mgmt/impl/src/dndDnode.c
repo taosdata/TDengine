@@ -480,7 +480,7 @@ int32_t dndInitDnode(SDnode *pDnode) {
     return -1;
   }
 
-  pMgmt->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  pMgmt->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (pMgmt->dnodeHash == NULL) {
     dError("failed to init dnode hash");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
