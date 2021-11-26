@@ -20,6 +20,7 @@ FILE *         g_fpOfInsertResult = NULL;
 char *         g_dupstr = NULL;
 SDbs           g_Dbs;
 SQueryMetaInfo g_queryInfo;
+bool           g_fail = false;
 
 SArguments g_args = {
     DEFAULT_METAFILE,          // metaFile
