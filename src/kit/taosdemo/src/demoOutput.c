@@ -313,6 +313,8 @@ void printHelp() {
            "Table prefix name. By default use 'd'.");
     printf("%s%s%s%s\n", indent, "-E, --escape-character", "\t",
            "Use escape character for Both Stable and normmal table name");
+    printf("%s%s%s%s\n", indent, "-C, --chinese", "\t",
+           "Use chinese characters as the data source for binary/nchar data");
     printf("%s%s%s%s\n", indent, "-s, --sql-file=FILE", "\t\t",
            "The select sql file.");
     printf("%s%s%s%s\n", indent, "-N, --normal-table", "\t\t",
