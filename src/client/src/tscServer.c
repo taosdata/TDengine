@@ -3086,12 +3086,16 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   
   pSql->rootObj->retryReason = pSql->retryReason;
 
+  SSqlObj *tmpSql = pSql->rootObj;
+  tscFreeSubobj(pSql->rootObj);
+  tfree(tmpSql->pSubs);
+
   SArray* pNameList = taosArrayInit(1, POINTER_BYTES);
   SArray* vgroupList = taosArrayInit(1, POINTER_BYTES);
 
   char* n = strdup(name);
   taosArrayPush(pNameList, &n);
-  code = getMultiTableMetaFromMnode(pSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
+  code = getMultiTableMetaFromMnode(tmpSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
   taosArrayDestroyEx(pNameList, freeElem);
   taosArrayDestroyEx(vgroupList, freeElem);
 
