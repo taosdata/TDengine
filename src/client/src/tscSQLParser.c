@@ -7337,7 +7337,8 @@ static bool onlyTagPrjFunction(SQueryInfo* pQueryInfo) {
   size_t size = taosArrayGetSize(pQueryInfo->exprList);
   for (int32_t i = 0; i < size; ++i) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
-    if (pExpr->base.functionId == TSDB_FUNC_PRJ) {
+    if (pExpr->base.functionId == TSDB_FUNC_PRJ ||
+        (pExpr->base.functionId == TSDB_FUNC_SCALAR_EXPR && ((pQueryInfo->type & TSDB_QUERY_TYPE_PROJECTION_QUERY) != 0))) {
       hasColumnPrj = true;
     } else if (pExpr->base.functionId == TSDB_FUNC_TAGPRJ) {
       hasTagPrj = true;
@@ -7670,7 +7671,8 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
         continue;
       }
 
-      if (TSDB_FUNC_IS_SCALAR(f)) {
+      if (f == TSDB_FUNC_SCALAR_EXPR &&
+          (pQueryInfo->type & TSDB_QUERY_TYPE_PROJECTION_QUERY) != 0) {
         return invalidOperationMsg(msg, msg1);
       }
 
