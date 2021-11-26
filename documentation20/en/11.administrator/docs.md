@@ -408,9 +408,9 @@ The collection of these monitoring metrics is turned on by default, but you can 
 
 ### TDinsight - Monitor TDengine with Grafana + Data Source
 
-Starting from v2.3.3.0, TDengine `log` database provides more metrics for resources and status monitoring. Here we are introducing a zero-dependency monitoring solution - we call it TDinsight - with only Grafana. The full documentations are located in [GitHub](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight.md).
+Starting from v2.3.3.0, TDengine's log database provides more metrics for resources and status monitoring. Here we introduce a zero-dependency monitoring solution - we call it TDinsight - with Grafana. You can find the documentation from [GitHub](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight.md).
 
-For a shortcut, we provide a automation shell script [`TDinsight.sh`](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight.sh) to help setup TDinsight on Grafana server.
+We provide an automation shell script [`TDinsight.sh`](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight.sh) as a shortcut to help setup TDinsight on the Grafana server.
 
 First, download `TDinsight.sh` from GitHub：
 
