@@ -50,6 +50,9 @@ class TDTestCase:
         tdSql.query("select count(*) from t1")
         tdSql.checkEqual(int(tdSql.getData(0, 0)), 1000)
 
+        # empty normal table
+        tdSql.execute("create table t2(ts timestamp, i int, b bigint, f float, d double, bin binary(10), s smallint, t tinyint, bl bool, n nchar(10), ts1 timestamp)")
+
         tdSql.execute("create database wxy_db_ns precision \"ns\"")
         tdSql.execute("use wxy_db_ns")
         tdSql.execute("create table t1 (ts timestamp, f float)")
@@ -73,6 +76,12 @@ class TDTestCase:
         tdSql.checkEqual(int(tdSql.getData(0, 0)), 500)
         tdSql.query("select count(*) from st1s2")
         tdSql.checkEqual(int(tdSql.getData(0, 0)), 500)
+        # empty super table
+        tdSql.execute("create stable st2(ts timestamp, i int, b bigint, f float, d double, bin binary(10), s smallint, t tinyint, bl bool, n nchar(10), ts1 timestamp) tags(id int)")
+        tdSql.execute("create table st2s1 using st1 tags(1)")
+        tdSql.execute("create table st2s2 using st1 tags(2)")
+
+        tdSql.execute("create stable st3(ts timestamp, i int, b bigint, f float, d double, bin binary(10), s smallint, t tinyint, bl bool, n nchar(10), ts1 timestamp) tags(id int)")
 
     def run(self):
         tdSql.prepare()
