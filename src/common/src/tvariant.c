@@ -30,7 +30,7 @@
                                                         assert(0);                                                                  \
                                                        } while (0)
 
-void tVariantCreate(tVariant *pVar, SStrToken *token) {
+void tVariantCreate(tVariant *pVar, SStrToken *token, bool needRmquoteEscape) {
   int32_t ret = 0;
   int32_t type = token->type;
 
@@ -81,7 +81,7 @@ void tVariantCreate(tVariant *pVar, SStrToken *token) {
 
     case TSDB_DATA_TYPE_BINARY: {
       pVar->pz = strndup(token->z, token->n);
-      pVar->nLen = strRmquoteEscape(pVar->pz, token->n);
+      pVar->nLen = needRmquoteEscape ? strRmquoteEscape(pVar->pz, token->n) : token->n;
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP: {

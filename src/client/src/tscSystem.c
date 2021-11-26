@@ -133,8 +133,8 @@ void tscClusterInfoDestroy(SClusterInfo *pObj) {
 
 void *tscAcquireClusterInfo(const char *clusterId) {
   pthread_mutex_lock(&clusterMutex);
-  
   size_t len = strlen(clusterId);
+
   SClusterInfo *pObj   = NULL;
   SClusterInfo **ppObj = taosHashGet(tscClusterMap, clusterId, len); 
   if (ppObj == NULL || *ppObj == NULL) {
@@ -210,9 +210,9 @@ void taos_init_imp(void) {
     taosInitNotes();
 
     rpcInit();
-
+#ifdef LUA_EMBEDDED
     scriptEnvPoolInit();
-
+#endif
     tscDebug("starting to initialize TAOS client ...");
     tscDebug("Local End Point is:%s", tsLocalEp);
   }
@@ -276,7 +276,9 @@ void taos_cleanup(void) {
   }
 
   if (tscEmbedded == 0) {
+    #ifdef LUA_EMBEDDED
     scriptEnvPoolCleanup();
+    #endif
   }
 
   int32_t id = tscObjRef;

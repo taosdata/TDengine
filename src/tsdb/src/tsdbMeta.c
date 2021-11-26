@@ -342,7 +342,7 @@ int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg) {
     tsdbError(
         "vgId:%d failed to update tag value of table %s since version out of date, client tag version %d server tag "
         "version %d",
-        REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), pMsg->tversion, schemaVersion(pTable->tagSchema));
+        REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), pMsg->tversion, schemaVersion(pTable->pSuper->tagSchema));
     terrno = TSDB_CODE_TDB_TAG_VER_OUT_OF_DATE;
     return -1;
   }
