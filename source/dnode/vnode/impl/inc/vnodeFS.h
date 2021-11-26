@@ -13,18 +13,35 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_FILE_SYSTEM_H_
-#define _TD_VNODE_FILE_SYSTEM_H_
+#ifndef _TD_VNODE_FS_H_
+#define _TD_VNODE_FS_H_
+
+#include "vnode.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct {
+} SDir;
+
+typedef struct {
+} SFile;
+
+typedef struct SFS {
+  void *pImpl;
+  int (*startEdit)(struct SFS *);
+  int (*endEdit)(struct SFS *);
+} SFS;
+
+typedef struct {
 } SVnodeFS;
+
+int  vnodeOpenFS(SVnode *pVnode);
+void vnodeCloseFS(SVnode *pVnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_FILE_SYSTEM_H_*/
+#endif /*_TD_VNODE_FS_H_*/

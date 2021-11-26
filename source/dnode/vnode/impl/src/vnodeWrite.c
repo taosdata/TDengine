@@ -34,19 +34,19 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   switch (pMsg->msgType) {
     case TSDB_MSG_TYPE_CREATE_TABLE:
-      if (metaCreateTable(pVnode->pMeta, pMsg->pCont) < 0) {
+      if (metaCreateTable(pVnode->pMeta, pMsg->pCont, pMsg->contLen) < 0) {
         /* TODO */
         return -1;
       }
       break;
     case TSDB_MSG_TYPE_DROP_TABLE:
-      if (metaDropTable(pVnode->pMeta, pMsg->pCont) < 0) {
+      if (metaDropTable(pVnode->pMeta, pMsg->pCont, pMsg->contLen) < 0) {
         /* TODO */
         return -1;
       }
       break;
     case TSDB_MSG_TYPE_SUBMIT:
-      if (tsdbInsertData(pVnode->pTsdb, pMsg->pCont) < 0) {
+      if (tsdbInsertData(pVnode->pTsdb, pMsg->pCont, pMsg->contLen) < 0) {
         /* TODO */
         return -1;
       }

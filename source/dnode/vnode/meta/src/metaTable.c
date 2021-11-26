@@ -15,21 +15,22 @@
 
 #include "metaDef.h"
 
-int metaCreateTable(SMeta *pMeta, const STbCfg *pTbOptions) {
+int metaCreateTable(SMeta *pMeta, const void *pCont, const int len) {
+  STbCfg *pTbCfg = NULL;
   // Validate the tbOptions
-  if (metaValidateTbOptions(pMeta, pTbOptions) < 0) {
+  if (metaValidateTbOptions(pMeta, pTbCfg) < 0) {
     // TODO: handle error
     return -1;
   }
 
   // TODO: add atomicity
 
-  if (metaSaveTableToDB(pMeta, pTbOptions) < 0) {
+  if (metaSaveTableToDB(pMeta, pTbCfg) < 0) {
     // TODO: handle error
     return -1;
   }
 
-  if (metaSaveTableToIdx(pMeta, pTbOptions) < 0) {
+  if (metaSaveTableToIdx(pMeta, pTbCfg) < 0) {
     // TODO: handle error
     return -1;
   }
@@ -37,7 +38,8 @@ int metaCreateTable(SMeta *pMeta, const STbCfg *pTbOptions) {
   return 0;
 }
 
-int metaDropTable(SMeta *pMeta, tb_uid_t uid) {
+int metaDropTable(SMeta *pMeta, const void *pCont, const int len) {
+  tb_uid_t uid;
   if (metaRemoveTableFromIdx(pMeta, uid) < 0) {
     // TODO: handle error
     return -1;

@@ -30,8 +30,37 @@ extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct SVnode    SVnode;
-typedef struct SVnodeCfg SVnodeCfg;
+typedef struct SVnode SVnode;
+typedef struct SVnodeCfg {
+  /** vnode buffer pool options */
+  struct {
+    /** write buffer size */
+    uint64_t wsize;
+    /** use heap allocator or arena allocator */
+    bool isHeapAllocator;
+  };
+
+  /** time to live of tables in this vnode */
+  uint32_t ttl;
+
+  /** data to keep in this vnode */
+  uint32_t keep;
+
+  /** if TS data is eventually consistency */
+  bool isWeak;
+
+  /** TSDB config */
+  STsdbCfg tsdbCfg;
+
+  /** META config */
+  SMetaCfg metaCfg;
+
+  /** TQ config */
+  STqCfg tqCfg;
+
+  /** WAL config */
+  SWalCfg walCfg;
+} SVnodeCfg;
 
 /* ------------------------ SVnode ------------------------ */
 /**
@@ -100,38 +129,6 @@ void vnodeOptionsInit(SVnodeCfg *pOptions);
  * @param pOptions Options to clear.
  */
 void vnodeOptionsClear(SVnodeCfg *pOptions);
-
-/* ------------------------ STRUCT DEFINITIONS ------------------------ */
-struct SVnodeCfg {
-  /** vnode buffer pool options */
-  struct {
-    /** write buffer size */
-    uint64_t wsize;
-    /** use heap allocator or arena allocator */
-    bool isHeapAllocator;
-  };
-
-  /** time to live of tables in this vnode *
-  uint32_t ttl;
-
-  /** data to keep in this vnode */
-  uint32_t keep;
-
-  /** if TS data is eventually consistency */
-  bool isWeak;
-
-  /** TSDB config */
-  STsdbCfg tsdbCfg;
-
-  /** META config */
-  SMetaCfg metaCfg;
-
-  /** TQ config */
-  STqCfg tqCfg;
-
-  /** WAL config */
-  SWalCfg walCfg;
-};
 
 /* ------------------------ FOR COMPILE ------------------------ */
 

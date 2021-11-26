@@ -49,8 +49,8 @@ STQ* tqOpen(const char* path, STqCfg* tqConfig, TqLogReader* tqLogReader, SMemAl
   strcpy(pTq->path, path);
   pTq->tqConfig = tqConfig;
   pTq->tqLogReader = tqLogReader;
-  pTq->tqMemRef.pAlloctorFactory = allocFac;
-  pTq->tqMemRef.pAllocator = allocFac->create(allocFac);
+  // pTq->tqMemRef.pAlloctorFactory = allocFac;
+  // pTq->tqMemRef.pAllocator = allocFac->create(allocFac);
   if(pTq->tqMemRef.pAllocator == NULL) {
     //TODO
   }

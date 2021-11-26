@@ -29,7 +29,7 @@ typedef struct STsdbMemAllocator STsdbMemAllocator;
 STsdb *tsdbOpen(const char *path, const STsdbCfg *);
 void   tsdbClose(STsdb *);
 void   tsdbRemove(const char *path);
-int    tsdbInsertData(STsdb *pTsdb, void *);
+int    tsdbInsertData(STsdb *pTsdb, void *pData, int len);
 
 // STsdbCfg
 int  tsdbOptionsInit(STsdbCfg *);
@@ -38,6 +38,9 @@ void tsdbOptionsClear(STsdbCfg *);
 /* ------------------------ STRUCT DEFINITIONS ------------------------ */
 struct STsdbCfg {
   uint64_t lruCacheSize;
+  uint32_t keep0;
+  uint32_t keep1;
+  uint32_t keep2;
   /* TODO */
 };
 
