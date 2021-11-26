@@ -3142,15 +3142,19 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   SSqlCmd* pCmd2 = &pSql->rootObj->cmd;
   pCmd2->pTableMetaMap = tscCleanupTableMetaMap(pCmd2->pTableMetaMap);
   pCmd2->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-  
+
   pSql->rootObj->retryReason = pSql->retryReason;
+
+  SSqlObj *tmpSql = pSql->rootObj;
+  tscFreeSubobj(pSql->rootObj);
+  tfree(tmpSql->pSubs);
 
   SArray* pNameList = taosArrayInit(1, POINTER_BYTES);
   SArray* vgroupList = taosArrayInit(1, POINTER_BYTES);
 
   char* n = strdup(name);
   taosArrayPush(pNameList, &n);
-  code = getMultiTableMetaFromMnode(pSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
+  code = getMultiTableMetaFromMnode(tmpSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
   taosArrayDestroyEx(pNameList, freeElem);
   taosArrayDestroyEx(vgroupList, freeElem);
 
