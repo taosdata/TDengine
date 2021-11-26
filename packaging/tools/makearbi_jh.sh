@@ -25,26 +25,25 @@ release_dir="${top_dir}/release"
 
 #package_name='linux'
 if [ "$verMode" == "cluster" ]; then
-    install_dir="${release_dir}/TQ-enterprise-arbitrator-${version}"
+    install_dir="${release_dir}/jh_iot-enterprise-arbitrator-${version}"
 else
-    install_dir="${release_dir}/TQ-arbitrator-${version}"
+    install_dir="${release_dir}/jh_iot-arbitrator-${version}"
 fi
 
 # Directories and files.
-bin_files="${build_dir}/bin/tarbitrator ${script_dir}/remove_arbi_tq.sh"
-install_files="${script_dir}/install_arbi_tq.sh"
+bin_files="${build_dir}/bin/tarbitrator ${script_dir}/remove_arbi_jh.sh"
+install_files="${script_dir}/install_arbi_jh.sh"
 
 init_file_tarbitrator_deb=${script_dir}/../deb/tarbitratord
 init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 
 # make directories.
-mkdir -p ${install_dir} && cp ${install_files} ${install_dir} && chmod a+x ${install_dir}/install_arbi_tq.sh || :
-#mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc || :
+mkdir -p ${install_dir} && cp ${install_files} ${install_dir} && chmod a+x ${install_dir}/install_arbi_jh.sh || :
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
 
-cd ${release_dir}
+cd ${release_dir} 
 
 if [ "$verMode" == "cluster" ]; then
   pkg_name=${install_dir}-${osType}-${cpuType}
@@ -57,8 +56,8 @@ fi
 
 if [ "$verType" == "beta" ]; then
   pkg_name=${pkg_name}-${verType}
-elif [ "$verType" == "stable" ]; then
-  pkg_name=${pkg_name}
+elif [ "$verType" == "stable" ]; then 
+  pkg_name=${pkg_name} 
 else
   echo "unknow verType, nor stabel or beta"
   exit 1

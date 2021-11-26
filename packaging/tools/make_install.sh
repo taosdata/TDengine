@@ -232,7 +232,7 @@ function install_jemalloc() {
                     /usr/local/lib/pkgconfig
             fi
             if [ -d /etc/ld.so.conf.d ]; then
-                echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf
+                echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf > /dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
                 ${csudo} ldconfig
             else
                 echo "/etc/ld.so.conf.d not found!"
@@ -263,7 +263,7 @@ function install_avro() {
                 ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/$1/libavro.a /usr/local/$1
 
             if [ -d /etc/ld.so.conf.d ]; then
-                echo "/usr/local/$1" | ${csudo} tee /etc/ld.so.conf.d/libavro.conf
+                echo "/usr/local/$1" | ${csudo} tee /etc/ld.so.conf.d/libavro.conf > /dev/null || echo -e "failed to write /etc/ld.so.conf.d/libavro.conf"
                 ${csudo} ldconfig
             else
                 echo "/etc/ld.so.conf.d not found!"
@@ -346,9 +346,7 @@ function install_header() {
 }
 
 function install_config() {
-    #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
-
-    if [ ! -f "${cfg_install_dir}/taos.cfg" ]; then
+    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
         [ -f ${script_dir}/../cfg/taos.cfg ] &&
         ${csudo} cp ${script_dir}/../cfg/taos.cfg ${cfg_install_dir}
