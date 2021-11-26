@@ -123,8 +123,29 @@ class TDTestCase:
         tdSql.execute("insert into t1 values(now, 1, 'abc');")
         tdLog.info("select stddev(k) from t1  where b <> 'abc' interval(1s);")
         tdSql.query("select stddev(k) from t1  where b <> 'abc' interval(1s);")
+
+        tdSql.execute("create table stdtable(ts timestamp, col1 int) tags(loc nchar(64))")
+        tdSql.execute("create table std1 using stdtable tags('beijing')")
+        tdSql.execute("create table std2 using stdtable tags('shanghai')")
+        tdSql.execute("insert into std1 values(now, 1)")
+        tdSql.execute("insert into std1 values(now, 2);")
+        tdSql.execute("insert into std2 values(now, 1);")
+        tdSql.execute("insert into std2 values(now, 2);")
+        tdSql.query("select stddev(col1) from stdtable group by loc;")
+        tdSql.checkData(0, 0, 0.5)
+        tdSql.checkData(1, 0, 0.5)
+
+        tdSql.execute("create table stdtableint(ts timestamp, col1 int) tags(num int)")
+        tdSql.execute("create table stdint1 using stdtableint tags(1)")
+        tdSql.execute("create table stdint2 using stdtableint tags(2)")
+        tdSql.execute("insert into stdint1 values(now, 1)")
+        tdSql.execute("insert into stdint1 values(now, 2);")
+        tdSql.execute("insert into stdint2 values(now, 1);")
+        tdSql.execute("insert into stdint2 values(now, 2);")
+        tdSql.query("select stddev(col1) from stdtableint group by num")
+        tdSql.checkData(0, 0, 0.5)
+        tdSql.checkData(1, 0, 0.5)
         
-            
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
