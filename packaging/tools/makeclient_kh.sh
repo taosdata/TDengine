@@ -63,6 +63,7 @@ mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/kinghis
 sed -i '/dataDir/ {s/taos/kinghistorian/g}'  ${install_dir}/cfg/kinghistorian.cfg
 sed -i '/logDir/  {s/taos/kinghistorian/g}'  ${install_dir}/cfg/kinghistorian.cfg
 sed -i "s/TDengine/KingHistorian/g"        ${install_dir}/cfg/kinghistorian.cfg
+sed -i "s/TAOS/KingHistorian/g"      ${install_dir}/cfg/kinghistorian.cfg
 
 mkdir -p ${install_dir}/bin
 if [ "$osType" != "Darwin" ]; then

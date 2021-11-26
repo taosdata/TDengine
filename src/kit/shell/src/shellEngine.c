@@ -53,11 +53,11 @@ char      CONTINUE_PROMPT[] = "    -> ";
 int       prompt_size = 7;
 #elif (_TD_KH_ == true)
 char      CLIENT_VERSION[] = "Welcome to the KingHistorian shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2021 by Hanatech, Inc. All rights reserved.\n\n";
-char      PROMPT_HEADER[] = "kh> ";
+                             "Copyright (c) 2021 by Wellintech, Inc. All rights reserved.\n\n";
+char      PROMPT_HEADER[] = "khclient> ";
 
-char      CONTINUE_PROMPT[] = " -> ";
-int       prompt_size = 4;
+char      CONTINUE_PROMPT[] = "       -> ";
+int       prompt_size = 10;
 #else
 char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
@@ -118,7 +118,11 @@ TAOS *shellInit(SShellArguments *_args) {
   }
 
   if (con == NULL) {
+#ifdef _TD_KH_
+    printf("kh connect failed, reason: %s.\n\n", tstrerror(terrno));
+#else
     printf("taos connect failed, reason: %s.\n\n", tstrerror(terrno));
+#endif
     fflush(stdout);
     return con;
   }
