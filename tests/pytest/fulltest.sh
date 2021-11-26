@@ -171,7 +171,7 @@ python3 test.py -f tools/taosdemoTestLimitOffset.py
 python3 test.py -f tools/taosdemoTestTblAlt.py
 python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdemoTestInterlace.py
-python3 test.py -f tools/taosdemoTestQuery.py
+# python3 test.py -f tools/taosdemoTestQuery.py
 
 # restful test for python
 # python3 test.py -f restful/restful_bind_db1.py
@@ -218,9 +218,9 @@ python3 ./test.py -f perfbenchmark/bug3433.py
 python3 ./test.py -f perfbenchmark/taosdemoInsert.py
 
 #taosdemo
-#python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
-# python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
-# python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py
 
 #query
 python3 test.py -f query/distinctOneColTb.py
@@ -279,6 +279,7 @@ python3 ./test.py -f query/queryCnameDisplay.py
 # python3 ./test.py -f query/long_where_query.py
 python3 test.py -f query/nestedQuery/queryWithSpread.py
 python3 ./test.py -f query/bug6586.py
+# python3 ./test.py -f query/bug5903.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -363,7 +364,7 @@ python3 ./test.py -f query/last_row_cache.py
 python3 ./test.py -f account/account_create.py
 python3 ./test.py -f alter/alter_table.py
 python3 ./test.py -f query/queryGroupbySort.py
-python3 ./test.py -f functions/queryTestCases.py
+#python3 ./test.py -f functions/queryTestCases.py
 python3 ./test.py -f functions/function_stateWindow.py
 python3 ./test.py -f functions/function_derivative.py
 python3 ./test.py  -f functions/function_irate.py

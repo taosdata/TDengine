@@ -54,6 +54,7 @@ void    moduleStop() {}
 
 void *tsDnodeTmr = NULL;
 static SRunStatus tsRunStatus = TSDB_RUN_STATUS_STOPPED;
+static int64_t tsDnodeErrors = 0;
 
 static int32_t dnodeInitStorage();
 static void    dnodeCleanupStorage();
@@ -88,7 +89,9 @@ static SStep tsDnodeSteps[] = {
   {"dnode-shell",     dnodeInitShell,      dnodeCleanupShell},
   {"dnode-statustmr", dnodeInitStatusTimer,dnodeCleanupStatusTimer},
   {"dnode-telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
+#ifdef LUA_EMBEDDED
   {"dnode-script",    scriptEnvPoolInit,   scriptEnvPoolCleanup},
+#endif
   {"dnode-grant",     grantInit,           grantCleanUp},
 };
 
@@ -223,6 +226,14 @@ SRunStatus dnodeGetRunStatus() {
 
 static void dnodeSetRunStatus(SRunStatus status) {
   tsRunStatus = status;
+}
+
+int64_t dnodeGetDnodeError() {
+  return tsDnodeErrors;
+}
+
+void dnodeIncDnodeError() {
+  atomic_add_fetch_64(&tsDnodeErrors, 1);
 }
 
 static void dnodeCheckDataDirOpenned(char *dir) {

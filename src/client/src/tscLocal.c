@@ -440,7 +440,7 @@ static int32_t tscSCreateSetValueToResObj(SSqlObj *pSql, int32_t rowLen, const c
   SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
   int32_t numOfRows = 1;
   if (strlen(ddl) == 0) {
-    
+
   }
   pSql->res.pMerger = tscInitResObjForLocalQuery(numOfRows, rowLen, pSql->self);
   tscInitResForMerge(&pSql->res);
@@ -459,7 +459,7 @@ static int32_t tscSCreateBuildResult(SSqlObj *pSql, BuildType type, const char *
   int32_t rowLen = tscSCreateBuildResultFields(pSql, type, result);
 
   tscFieldInfoUpdateOffset(pQueryInfo);
-  return tscSCreateSetValueToResObj(pSql, rowLen, str, result);  
+  return tscSCreateSetValueToResObj(pSql, rowLen, str, result);
 }
 int32_t tscRebuildCreateTableStatement(void *param,char *result) {
   SCreateBuilder *builder = (SCreateBuilder *)param;
@@ -473,8 +473,8 @@ int32_t tscRebuildCreateTableStatement(void *param,char *result) {
   code = tscGetTableTagValue(builder, buf);
   if (code == TSDB_CODE_SUCCESS) {
     snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "CREATE TABLE `%s` USING `%s` TAGS %s", builder->buf, builder->sTableName, buf);
-    code = tscSCreateBuildResult(builder->pParentSql, SCREATE_BUILD_TABLE, builder->buf, result);    
-  }  
+    code = tscSCreateBuildResult(builder->pParentSql, SCREATE_BUILD_TABLE, builder->buf, result);
+  }
   free(buf);
   return code;
 }
@@ -490,27 +490,27 @@ static int32_t tscGetDBInfo(SCreateBuilder *builder, char *result) {
   TAOS_FIELD *fields = taos_fetch_fields(pSql);
   int num_fields = taos_num_fields(pSql);
 
-  char buf[TSDB_DB_NAME_LEN + 64] = {0}; 
+  char buf[TSDB_DB_NAME_LEN + 64] = {0};
   do {
     memset(buf, 0, sizeof(buf));
-    int32_t* lengths = taos_fetch_lengths(pSql);  
+    int32_t* lengths = taos_fetch_lengths(pSql);
     int32_t ret = tscGetNthFieldResult(row, fields, lengths, 0, buf);
     if (0 == ret && STR_NOCASE_EQUAL(buf, strlen(buf), builder->buf, strlen(builder->buf))) {
-      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "CREATE DATABASE %s", buf);  
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "CREATE DATABASE %s", buf);
       for (int i = 1; i < num_fields; i++) {
         for (int j = 0; showColumns[j] != NULL; j++) {
           if (STR_NOCASE_EQUAL(fields[i].name, strlen(fields[i].name), showColumns[j], strlen(showColumns[j]))) {
             memset(buf, 0, sizeof(buf));
             ret = tscGetNthFieldResult(row, fields, lengths, i, buf);
             if (ret == 0) {
-              snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), " %s %s", showColumns[j], buf); 
+              snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), " %s %s", showColumns[j], buf);
             }
           }
         }
       }
       break;
-    } 
-    
+    }
+
     row = tscFetchRow(builder);
   } while (row != NULL);
 
@@ -528,9 +528,9 @@ int32_t tscRebuildCreateDBStatement(void *param,char *result) {
   if (buf == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  code = tscGetDBInfo(param, buf);  
+  code = tscGetDBInfo(param, buf);
   if (code == TSDB_CODE_SUCCESS) {
-    code = tscSCreateBuildResult(builder->pParentSql, SCREATE_BUILD_DB, builder->buf, buf);    
+    code = tscSCreateBuildResult(builder->pParentSql, SCREATE_BUILD_DB, builder->buf, buf);
   }
   free(buf);
   return code;
@@ -539,7 +539,7 @@ int32_t tscRebuildCreateDBStatement(void *param,char *result) {
 static int32_t tscGetTableTagColumnName(SSqlObj *pSql, char **result) {
   char *buf = (char *)malloc(TSDB_MAX_BINARY_LEN);
   if (buf == NULL) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY; 
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   buf[0] = 0;
 
@@ -548,33 +548,33 @@ static int32_t tscGetTableTagColumnName(SSqlObj *pSql, char **result) {
       pMeta->tableType == TSDB_STREAM_TABLE) {
     free(buf);
     return TSDB_CODE_TSC_INVALID_VALUE;
-  } 
+  }
 
-  SSchema *pTagsSchema = tscGetTableTagSchema(pMeta);  
+  SSchema *pTagsSchema = tscGetTableTagSchema(pMeta);
   int32_t numOfTags = tscGetNumOfTags(pMeta);
   for (int32_t i = 0; i < numOfTags; i++) {
     if (i != numOfTags - 1) {
-      snprintf(buf + strlen(buf), TSDB_MAX_BINARY_LEN - strlen(buf), "%s,", pTagsSchema[i].name);  
+      snprintf(buf + strlen(buf), TSDB_MAX_BINARY_LEN - strlen(buf), "`%s`,", pTagsSchema[i].name);
     } else {
-      snprintf(buf + strlen(buf), TSDB_MAX_BINARY_LEN - strlen(buf), "%s", pTagsSchema[i].name);
+      snprintf(buf + strlen(buf), TSDB_MAX_BINARY_LEN - strlen(buf), "`%s`", pTagsSchema[i].name);
     }
-  }   
+  }
 
   *result = buf;
   return TSDB_CODE_SUCCESS;
-}  
+}
 static int32_t tscRebuildDDLForSubTable(SSqlObj *pSql, const char *tableName, char *ddl) {
   SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableMeta *    pMeta = pTableMetaInfo->pTableMeta;
 
-  SSqlObj *pInterSql = (SSqlObj *)calloc(1, sizeof(SSqlObj)); 
+  SSqlObj *pInterSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (pInterSql == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }  
+  }
 
-  SCreateBuilder *param = (SCreateBuilder *)malloc(sizeof(SCreateBuilder));    
+  SCreateBuilder *param = (SCreateBuilder *)malloc(sizeof(SCreateBuilder));
   if (param == NULL) {
     free(pInterSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;

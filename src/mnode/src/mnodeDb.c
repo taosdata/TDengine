@@ -1139,7 +1139,7 @@ static int32_t mnodeAlterDbFp(SMnodeMsg *pMsg) {
     return sdbUpdateRow(&row);
   }
 
-  //bnNotify();
+  bnNotify();
 
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }

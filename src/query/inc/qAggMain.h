@@ -183,7 +183,7 @@ typedef struct SQLFunctionCtx {
   int16_t      inputBytes;
   
   int16_t      outputType;
-  int16_t      outputBytes;   // size of results, determined by function and input column data type
+  int32_t      outputBytes;   // size of results, determined by function and input column data type
   int32_t      interBufBytes; // internal buffer size
   bool         hasNull;       // null value exist in current block
   bool         requireNull;   // require null in some function
@@ -192,6 +192,7 @@ typedef struct SQLFunctionCtx {
   char *       pOutput;       // final result output buffer, point to sdata->data
   uint8_t      currentStage;  // record current running step, default: 0
   int64_t      startTs;       // timestamp range of current query when function is executed on a specific data block
+  int64_t      endTs;
   int32_t      numOfParams;
   tVariant     param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
   int64_t     *ptsList;       // corresponding timestamp array list
@@ -226,7 +227,7 @@ typedef struct SAggFunctionInfo {
 #define GET_RES_INFO(ctx) ((ctx)->resultInfo)
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
-                          int16_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo);
+                          int32_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo);
 int32_t isValidFunction(const char* name, int32_t len);
 
 #define IS_STREAM_QUERY_VALID(x)  (((x)&TSDB_FUNCSTATE_STREAM) != 0)

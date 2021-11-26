@@ -50,6 +50,47 @@ typedef struct {
 #define TSDB_DATA_TYPE_POINTER_ARRAY      (1000)
 #define TSDB_DATA_TYPE_VALUE_ARRAY      (1001)
 
+#define COPY_DATA(dst, src) *((int64_t *)(dst)) = *((int64_t *)(src))
+
+#define COPY_TYPED_DATA(_v, _type, _data) \
+  do {                                               \
+    switch (_type) {                                 \
+      case TSDB_DATA_TYPE_BOOL:                      \
+      case TSDB_DATA_TYPE_TINYINT:                   \
+        (*(int8_t *)_v) = GET_INT8_VAL(_data);       \
+        break;                                       \
+      case TSDB_DATA_TYPE_UTINYINT:                  \
+        (*(uint8_t *)_v) = GET_UINT8_VAL(_data);     \
+        break;                                       \
+      case TSDB_DATA_TYPE_SMALLINT:                  \
+        (*(int16_t *)_v) = GET_INT16_VAL(_data);     \
+        break;                                       \
+      case TSDB_DATA_TYPE_USMALLINT:                 \
+        (*(uint16_t *)_v) = GET_UINT16_VAL(_data);   \
+        break;                                       \
+      case TSDB_DATA_TYPE_TIMESTAMP:                 \
+      case TSDB_DATA_TYPE_BIGINT:                    \
+        (*(int64_t *)_v) = (GET_INT64_VAL(_data));   \
+        break;                                       \
+      case TSDB_DATA_TYPE_UBIGINT:                   \
+        (*(uint64_t *)_v) = (GET_UINT64_VAL(_data)); \
+        break;                                       \
+      case TSDB_DATA_TYPE_FLOAT:                     \
+        (*(float *)_v) = GET_FLOAT_VAL(_data);       \
+        break;                                       \
+      case TSDB_DATA_TYPE_DOUBLE:                    \
+        (*(double *)_v) = GET_DOUBLE_VAL(_data);     \
+        break;                                       \
+      case TSDB_DATA_TYPE_UINT:                      \
+        (*(uint32_t *)_v) = GET_UINT32_VAL(_data);   \
+        break;                                       \
+      default:                                       \
+        (*(int32_t *)_v) = GET_INT32_VAL(_data);     \
+        break;                                       \
+    }                                                \
+  } while (0)
+
+
 #define GET_TYPED_DATA(_v, _finalType, _type, _data) \
   do {                                               \
     switch (_type) {                                 \

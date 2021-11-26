@@ -39,9 +39,7 @@ typedef struct tVariant {
 
 bool tVariantIsValid(tVariant *pVar);
 
-bool tVariantTypeMatch(tVariant *pVar, int8_t dbType);
-
-void tVariantCreate(tVariant *pVar, SStrToken *token);
+void tVariantCreate(tVariant *pVar, SStrToken *token, bool needRmquoteEscape);
 
 void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32_t type);
 

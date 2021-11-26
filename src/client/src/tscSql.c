@@ -29,6 +29,7 @@
 #include "ttimer.h"
 #include "tscProfile.h"
 
+static char clusterDefaultId[] = "clusterDefaultId";
 static bool validImpl(const char* str, size_t maxsize) {
   if (str == NULL) {
     return false;
@@ -193,7 +194,9 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
 
     tscBuildAndSendRequest(pSql, NULL);
     tsem_wait(&pSql->rspSem);
-
+    if (0 == strlen(pSql->pTscObj->clusterId)) {
+      memcpy(pSql->pTscObj->clusterId, clusterDefaultId, strlen(clusterDefaultId));
+    } 
     pSql->pTscObj->pClusterInfo = (SClusterInfo *)tscAcquireClusterInfo(pSql->pTscObj->clusterId);
     if (pSql->res.code != TSDB_CODE_SUCCESS) {
       terrno = pSql->res.code;

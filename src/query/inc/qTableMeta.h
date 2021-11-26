@@ -145,6 +145,8 @@ typedef struct SQueryInfo {
   bool               udfCopy;
   SArray            *pUdfInfo;
 
+  STimeWindow        range;        // range for interp
+  
   struct SQInfo     *pQInfo;      // global merge operator
   struct SQueryAttr *pQueryAttr;     // query object
 
