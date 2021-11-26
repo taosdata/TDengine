@@ -84,17 +84,17 @@ void dndSendRedirectMsg(SDnode *pDnode, SRpcMsg *pMsg) {
   rpcSendRedirectRsp(pMsg->handle, &epSet);
 }
 
-static void dndUpdateMnodeEpSet(SDnode *pDnd, SEpSet *pEpSet) {
+static void dndUpdateMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
   dInfo("mnode is changed, num:%d inUse:%d", pEpSet->numOfEps, pEpSet->inUse);
 
-  dndWLockDnode(pDnd);
+  dndWLockDnode(pDnode);
 
-  pDnd->dmgmt.mnodeEpSet = *pEpSet;
+  pDnode->dmgmt.mnodeEpSet = *pEpSet;
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
     dInfo("mnode index:%d %s:%u", i, pEpSet->fqdn[i], pEpSet->port[i]);
   }
 
-  dndWUnLockDnode(pDnd);
+  dndWUnLockDnode(pDnode);
 }
 
 static void dndPrintDnodes(SDnode *pDnode) {

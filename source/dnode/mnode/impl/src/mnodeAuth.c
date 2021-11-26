@@ -21,16 +21,5 @@ int32_t mnodeInitAuth() { return 0; }
 void    mnodeCleanupAuth() {}
 
 int32_t mnodeRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  if (strcmp(user, TSDB_NETTEST_USER) == 0) {
-    char pass[32] = {0};
-    taosEncryptPass((uint8_t *)user, strlen(user), pass);
-    *spi = 0;
-    *encrypt = 0;
-    *ckey = 0;
-    memcpy(secret, pass, TSDB_KEY_LEN);
-    mDebug("nettest user is authorized");
-    return 0;
-  }
-
   return 0;
 }

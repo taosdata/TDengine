@@ -109,9 +109,9 @@ typedef struct SDnode {
   SDnodeOpt   opt;
   SDnodeDir   dir;
   SDnodeMgmt  dmgmt;
-  SMnodeMgmt  m;
+  SMnodeMgmt  mmgmt;
   SVnodesMgmt vmgmt;
-  STransMgmt  t;
+  STransMgmt  tmgmt;
   SStartupMsg startup;
 } SDnode;
 
