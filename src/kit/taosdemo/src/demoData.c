@@ -296,8 +296,8 @@ void rand_string(char *str, int size) {
             if (size < 3) {
                 break;
             }
-            // Chinese Character's Unicode is from 0x4e00 to 0x9fff
-            int unic = 0x4e00 + rand() % 0x9fff;
+            // Basic Chinese Character's Unicode is from 0x4e00 to 0x9fa5
+            int unic = 0x4e00 + rand() % (0x9fa5 - 0x4e00);
             move = usc2utf8(pstr, unic);
             pstr += move;
             size -= move;
