@@ -15,6 +15,7 @@
 
 #include "index_fst.h"
 #include "tcoding.h"
+#include "tchecksum.h"
 
 
 static void fstPackDeltaIn(FstCountingWriter *wrt, CompiledAddr nodeAddr, CompiledAddr transAddr, uint8_t nBytes) {
@@ -923,7 +924,6 @@ void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *unNode, O
 }
 
 Fst* fstCreate(FstSlice *slice) {
-  
   char *buf = slice->data;
   uint64_t skip = 0;  
   uint64_t len = slice->dLen;
@@ -968,6 +968,7 @@ Fst* fstCreate(FstSlice *slice) {
   fst->meta->ty       = type;
   fst->meta->len      = fstLen;
   fst->meta->checkSum = checkSum;
+  fst->data = slice; 
   return fst;
 
 FST_CREAT_FAILED: 
@@ -976,7 +977,54 @@ FST_CREAT_FAILED:
 
 }
 void fstDestroy(Fst *fst) {
+  if (fst) { 
+    free(fst->meta); 
+    fstNodeDestroy(fst->root);  
+  } 
+  free(fst); 
+}
 
+bool fstGet(Fst *fst, FstSlice *b, Output *out) {
+   
+  return false; 
+}
+
+FstNode* fstGetNode(Fst *fst, CompiledAddr addr) {
+  if (fst->root != NULL) {
+    return fst->root;
+  }
+  fst->root = fstNodeCreate(fst->meta->version, addr, fst->data); 
+  return fst->root;
+  
+}
+FstType fstGetType(Fst *fst) {
+  return fst->meta->ty;
+}
+CompiledAddr fstGetRootAddr(Fst *fst) {
+  return fst->meta->rootAddr;
+} 
+
+Output fstEmptyFinalOutput(Fst *fst, bool *null) {
+  Output res = 0;
+  FstNode *node = fst->root;
+  if (FST_NODE_IS_FINAL(node)) {
+    *null = false;
+    res = FST_NODE_FINAL_OUTPUT(node); 
+  } else {
+    *null = true;
+  }
+  return res;
+}
+
+
+bool fstVerify(Fst *fst) {
+  uint32_t checkSum = fst->meta->checkSum;
+  FstSlice *data    = fst->data;          
+  TSCKSUM initSum  = 0;  
+  if (taosCheckChecksumWhole(data->data, data->dLen)) {
+    return false;
+  }
+  
 }
 
 
