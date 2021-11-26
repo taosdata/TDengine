@@ -121,10 +121,10 @@ typedef struct {
 /**
  * @brief Initialize and start the dnode.
  *
- * @param pOptions Options of the dnode.
+ * @param pOption Option of the dnode.
  * @return SDnode* The dnode object.
  */
-SDnode *dndInit(SDnodeOpt *pOptions);
+SDnode *dndInit(SDnodeOpt *pOption);
 
 /**
  * @brief Stop and cleanup the dnode.

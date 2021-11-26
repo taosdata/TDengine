@@ -58,8 +58,8 @@ static void    dndReleaseMnode(SDnode *pDnode, SMnode *pMnode);
 static int32_t dndReadMnodeFile(SDnode *pDnode);
 static int32_t dndWriteMnodeFile(SDnode *pDnode);
 
-static int32_t dndOpenMnode(SDnode *pDnode, SMnodeOptions *pOptions);
-static int32_t dndAlterMnode(SDnode *pDnode, SMnodeOptions *pOptions);
+static int32_t dndOpenMnode(SDnode *pDnode, SMnodeOpt *pOption);
+static int32_t dndAlterMnode(SDnode *pDnode, SMnodeOpt *pOption);
 static int32_t dndDropMnode(SDnode *pDnode);
 
 static int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
@@ -243,6 +243,7 @@ static bool dndNeedDeployMnode(SDnode *pDnode) {
   if (dndGetClusterId(pDnode) > 0) {
     return false;
   }
+
   if (strcmp(pDnode->opt.localEp, pDnode->opt.firstEp) != 0) {
     return false;
   }
@@ -250,43 +251,49 @@ static bool dndNeedDeployMnode(SDnode *pDnode) {
   return true;
 }
 
-static void dndInitMnodeOptions(SDnode *pDnode, SMnodeOptions *pOptions) {
-  pOptions->pDnode = pDnode;
-  pOptions->sendMsgToDnodeFp = dndSendMsgToDnode;
-  pOptions->sendMsgToMnodeFp = dndSendMsgToMnode;
-  pOptions->sendRedirectMsgFp = dndSendRedirectMsg;
-  pOptions->putMsgToApplyMsgFp = dndPutMsgIntoMnodeApplyQueue;
+static void dndInitMnodeOption(SDnode *pDnode, SMnodeOpt *pOption) {
+  pOption->pDnode = pDnode;
+  pOption->sendMsgToDnodeFp = dndSendMsgToDnode;
+  pOption->sendMsgToMnodeFp = dndSendMsgToMnode;
+  pOption->sendRedirectMsgFp = dndSendRedirectMsg;
+  pOption->putMsgToApplyMsgFp = dndPutMsgIntoMnodeApplyQueue;
+  pOption->dnodeId = dndGetDnodeId(pDnode);
+  pOption->clusterId = dndGetClusterId(pDnode);
 }
 
-static int32_t dndBuildMnodeOptions(SDnode *pDnode, SMnodeOptions *pOptions, SCreateMnodeMsg *pMsg) {
-  dndInitMnodeOptions(pDnode, pOptions);
+static void dndBuildMnodeDeployOption(SDnode *pDnode, SMnodeOpt *pOption) {
+  dndInitMnodeOption(pDnode, pOption);
+  pOption->replica = 1;
+  pOption->selfIndex = 0;
+  SReplica *pReplica = &pOption->replicas[0];
+  pReplica->id = 1;
+  pReplica->port = pDnode->opt.serverPort;
+  tstrncpy(pReplica->fqdn, pDnode->opt.localFqdn, TSDB_FQDN_LEN);
+}
 
-  if (pMsg == NULL) {
-    pOptions->dnodeId = 1;
-    pOptions->clusterId = 1234;
-    pOptions->replica = 1;
-    pOptions->selfIndex = 0;
-    SReplica *pReplica = &pOptions->replicas[0];
-    pReplica->id = 1;
-    pReplica->port = pDnode->opt.serverPort;
-    tstrncpy(pReplica->fqdn, pDnode->opt.localFqdn, TSDB_FQDN_LEN);
-  } else {
-    pOptions->dnodeId = dndGetDnodeId(pDnode);
-    pOptions->clusterId = dndGetClusterId(pDnode);
-    pOptions->selfIndex = -1;
-    pOptions->replica = pMsg->replica;
-    for (int32_t index = 0; index < pMsg->replica; ++index) {
-      SReplica *pReplica = &pOptions->replicas[index];
-      pReplica->id = pMsg->replicas[index].id;
-      pReplica->port = pMsg->replicas[index].port;
-      tstrncpy(pReplica->fqdn, pMsg->replicas[index].fqdn, TSDB_FQDN_LEN);
-      if (pReplica->id == pOptions->dnodeId) {
-        pOptions->selfIndex = index;
-      }
+static void dndBuildMnodeOpenOption(SDnode *pDnode, SMnodeOpt *pOption) {
+  dndInitMnodeOption(pDnode, pOption);
+  pOption->replica = 0;
+}
+
+static int32_t dndBuildMnodeOptionFromMsg(SDnode *pDnode, SMnodeOpt *pOption, SCreateMnodeMsg *pMsg) {
+  dndInitMnodeOption(pDnode, pOption);
+  pOption->dnodeId = dndGetDnodeId(pDnode);
+  pOption->clusterId = dndGetClusterId(pDnode);
+
+  pOption->replica = pMsg->replica;
+  pOption->selfIndex = -1;
+  for (int32_t index = 0; index < pMsg->replica; ++index) {
+    SReplica *pReplica = &pOption->replicas[index];
+    pReplica->id = pMsg->replicas[index].id;
+    pReplica->port = pMsg->replicas[index].port;
+    tstrncpy(pReplica->fqdn, pMsg->replicas[index].fqdn, TSDB_FQDN_LEN);
+    if (pReplica->id == pOption->dnodeId) {
+      pOption->selfIndex = index;
     }
   }
 
-  if (pOptions->selfIndex == -1) {
+  if (pOption->selfIndex == -1) {
     terrno = TSDB_CODE_DND_MNODE_ID_NOT_FOUND;
     dError("failed to build mnode options since %s", terrstr());
     return -1;
@@ -295,7 +302,7 @@ static int32_t dndBuildMnodeOptions(SDnode *pDnode, SMnodeOptions *pOptions, SCr
   return 0;
 }
 
-static int32_t dndOpenMnode(SDnode *pDnode, SMnodeOptions *pOptions) {
+static int32_t dndOpenMnode(SDnode *pDnode, SMnodeOpt *pOption) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
   int32_t code = dndStartMnodeWorker(pDnode);
@@ -304,7 +311,7 @@ static int32_t dndOpenMnode(SDnode *pDnode, SMnodeOptions *pOptions) {
     return code;
   }
 
-  SMnode *pMnode = mnodeOpen(pDnode->dir.mnode, pOptions);
+  SMnode *pMnode = mnodeOpen(pDnode->dir.mnode, pOption);
   if (pMnode == NULL) {
     dError("failed to open mnode since %s", terrstr());
     code = terrno;
@@ -331,7 +338,7 @@ static int32_t dndOpenMnode(SDnode *pDnode, SMnodeOptions *pOptions) {
   return 0;
 }
 
-static int32_t dndAlterMnode(SDnode *pDnode, SMnodeOptions *pOptions) {
+static int32_t dndAlterMnode(SDnode *pDnode, SMnodeOpt *pOption) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
   SMnode *pMnode = dndAcquireMnode(pDnode);
@@ -340,7 +347,7 @@ static int32_t dndAlterMnode(SDnode *pDnode, SMnodeOptions *pOptions) {
     return -1;
   }
 
-  if (mnodeAlter(pMnode, pOptions) != 0) {
+  if (mnodeAlter(pMnode, pOption) != 0) {
     dError("failed to alter mnode since %s", terrstr());
     dndReleaseMnode(pDnode, pMnode);
     return -1;
@@ -399,8 +406,8 @@ static int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
     terrno = TSDB_CODE_DND_MNODE_ID_INVALID;
     return -1;
   } else {
-    SMnodeOptions option = {0};
-    if (dndBuildMnodeOptions(pDnode, &option, pMsg) != 0) {
+    SMnodeOpt option = {0};
+    if (dndBuildMnodeOptionFromMsg(pDnode, &option, pMsg) != 0) {
       return -1;
     }
     return dndOpenMnode(pDnode, &option);
@@ -414,8 +421,8 @@ static int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
     terrno = TSDB_CODE_DND_MNODE_ID_INVALID;
     return -1;
   } else {
-    SMnodeOptions option = {0};
-    if (dndBuildMnodeOptions(pDnode, &option, pMsg) != 0) {
+    SMnodeOpt option = {0};
+    if (dndBuildMnodeOptionFromMsg(pDnode, &option, pMsg) != 0) {
       return -1;
     }
     return dndAlterMnode(pDnode, &option);
@@ -625,7 +632,6 @@ static int32_t dndInitMnodeMgmtWorker(SDnode *pDnode) {
 
 static void dndCleanupMnodeMgmtWorker(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  ;
   tWorkerCleanup(&pMgmt->mgmtPool);
 }
 
@@ -737,7 +743,12 @@ static int32_t dndInitMnodeSyncWorker(SDnode *pDnode) {
   pPool->name = "mnode-sync";
   pPool->min = 0;
   pPool->max = 1;
-  return tWorkerInit(pPool);
+  if (tWorkerInit(pPool) != 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  return 0;
 }
 
 static void dndCleanupMnodeSyncWorker(SDnode *pDnode) {
@@ -781,13 +792,15 @@ int32_t dndInitMnode(SDnode *pDnode) {
     }
 
     dInfo("start to deploy mnode");
+    SMnodeOpt option = {0};
+    dndBuildMnodeDeployOption(pDnode, &option);
+    return dndOpenMnode(pDnode, &option);
   } else {
     dInfo("start to open mnode");
+    SMnodeOpt option = {0};
+    dndBuildMnodeOpenOption(pDnode, &option);
+    return dndOpenMnode(pDnode, &option);
   }
-
-  SMnodeOptions option = {0};
-  dndInitMnodeOptions(pDnode, &option);
-  return dndOpenMnode(pDnode, &option);
 }
 
 void dndCleanupMnode(SDnode *pDnode) {

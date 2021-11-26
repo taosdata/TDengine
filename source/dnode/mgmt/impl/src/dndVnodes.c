@@ -239,7 +239,7 @@ static int32_t dndGetVnodesFromFile(SDnode *pDnode, SVnodeObj **ppVnodes, int32_
   snprintf(file, PATH_MAX + 20, "%s/vnodes.json", pDnode->dir.vnodes);
 
   fp = fopen(file, "r");
-  if (!fp) {
+  if (fp == NULL) {
     dDebug("file %s not exist", file);
     code = 0;
     goto PRASE_VNODE_OVER;

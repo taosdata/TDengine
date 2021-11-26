@@ -77,17 +77,17 @@ static void mnodeCleanupTimer() {
 
 tmr_h mnodeGetTimer() { return tsMint.timer; }
 
-static int32_t mnodeSetOptions(SMnode *pMnode, const SMnodeOptions *pOptions) {
-  pMnode->dnodeId = pOptions->dnodeId;
-  pMnode->clusterId = pOptions->clusterId;
-  pMnode->replica = pOptions->replica;
-  pMnode->selfIndex = pOptions->selfIndex;
-  memcpy(&pMnode->replicas, pOptions->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
-  pMnode->pServer = pOptions->pDnode;
-  pMnode->putMsgToApplyMsgFp = pOptions->putMsgToApplyMsgFp;
-  pMnode->sendMsgToDnodeFp = pOptions->sendMsgToDnodeFp;
-  pMnode->sendMsgToMnodeFp = pOptions->sendMsgToMnodeFp;
-  pMnode->sendRedirectMsgFp = pOptions->sendRedirectMsgFp;
+static int32_t mnodeSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
+  pMnode->dnodeId = pOption->dnodeId;
+  pMnode->clusterId = pOption->clusterId;
+  pMnode->replica = pOption->replica;
+  pMnode->selfIndex = pOption->selfIndex;
+  memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
+  pMnode->pServer = pOption->pDnode;
+  pMnode->putMsgToApplyMsgFp = pOption->putMsgToApplyMsgFp;
+  pMnode->sendMsgToDnodeFp = pOption->sendMsgToDnodeFp;
+  pMnode->sendMsgToMnodeFp = pOption->sendMsgToMnodeFp;
+  pMnode->sendRedirectMsgFp = pOption->sendRedirectMsgFp;
 
   if (pMnode->sendMsgToDnodeFp == NULL || pMnode->sendMsgToMnodeFp == NULL || pMnode->sendRedirectMsgFp == NULL ||
       pMnode->putMsgToApplyMsgFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0) {
@@ -136,10 +136,10 @@ static int32_t mnodeAllocStartSteps() {
   return 0;
 }
 
-SMnode *mnodeOpen(const char *path, const SMnodeOptions *pOptions) {
+SMnode *mnodeOpen(const char *path, const SMnodeOpt *pOption) {
   SMnode *pMnode = calloc(1, sizeof(SMnode));
 
-  if (mnodeSetOptions(pMnode, pOptions) != 0) {
+  if (mnodeSetOptions(pMnode, pOption) != 0) {
     free(pMnode);
     mError("failed to init mnode options since %s", terrstr());
     return NULL;
@@ -173,7 +173,7 @@ SMnode *mnodeOpen(const char *path, const SMnodeOptions *pOptions) {
 
 void mnodeClose(SMnode *pMnode) { free(pMnode); }
 
-int32_t mnodeAlter(SMnode *pMnode, const SMnodeOptions *pOptions) { return 0; }
+int32_t mnodeAlter(SMnode *pMnode, const SMnodeOpt *pOption) { return 0; }
 
 void mnodeDestroy(const char *path) { sdbUnDeploy(); }
 

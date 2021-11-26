@@ -32,7 +32,7 @@ typedef struct SMnodeBak {
   tmr_h      timer;
   SSteps    *pInitSteps;
   SSteps    *pStartSteps;
-  SMnodeOptions para;
+  SMnodeOpt  para;
   MnodeRpcFp msgFp[TSDB_MSG_TYPE_MAX];
 } SMnodeBak;
 
