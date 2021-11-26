@@ -972,6 +972,10 @@ int parse_args(int argc, char *argv[]) {
                    (0 == strncmp(argv[i], "--escape-character",
                                  strlen("--escape-character")))) {
             g_args.escapeChar = true;
+        } else if ((0 == strncmp(argv[i], "-C", strlen("-C"))) ||
+        (0 == strncmp(argv[i], "--chinese",
+                      strlen("--chinese")))) {
+            g_args.chinese = true;
         } else if ((strcmp(argv[i], "-N") == 0) ||
                    (0 == strcmp(argv[i], "--normal-table"))) {
             g_args.demo_mode = false;

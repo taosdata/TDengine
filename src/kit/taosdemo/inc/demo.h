@@ -158,6 +158,7 @@ extern char configDir[];
 #define DEFAULT_TOTAL_INSERT 0
 #define DEFAULT_TOTAL_AFFECT 0
 #define DEFAULT_DEMO_MODE true
+#define DEFAULT_CHINESE_OPT false
 #define DEFAULT_CREATE_BATCH 10
 #define DEFAULT_SUB_INTERVAL 10000
 #define DEFAULT_QUERY_INTERVAL 10000
@@ -329,6 +330,7 @@ typedef struct SArguments_S {
     uint64_t totalInsertRows;
     uint64_t totalAffectedRows;
     bool     demo_mode;  // use default column name and semi-random data
+    bool     chinese;
 } SArguments;
 
 typedef struct SColumn_S {

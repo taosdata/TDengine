@@ -313,6 +313,8 @@ void printHelp() {
            "Table prefix name. By default use 'd'.");
     printf("%s%s%s%s\n", indent, "-E, --escape-character", "\t",
            "Use escape character for Both Stable and normmal table name");
+    printf("%s%s%s%s\n", indent, "-C, --chinese", "\t",
+           "Use chinese characters as the data source for binary/nchar data");
     printf("%s%s%s%s\n", indent, "-s, --sql-file=FILE", "\t\t",
            "The select sql file.");
     printf("%s%s%s%s\n", indent, "-N, --normal-table", "\t\t",
@@ -414,6 +416,8 @@ void printfInsertMeta() {
     printf("number of records per req:  \033[33m%u\033[0m\n", g_args.reqPerReq);
     printf("max sql length:             \033[33m%" PRIu64 "\033[0m\n",
            g_args.max_sql_len);
+    printf("random prepare data:        \033[33m%" PRId64 "\033[0m\n", g_args.prepared_rand);
+    printf("chinese:                    \033[33m%s\033[0m\n", g_args.chinese?"yes":"no");
 
     printf("database count:             \033[33m%d\033[0m\n", g_Dbs.dbCount);
 
