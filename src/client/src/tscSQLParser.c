@@ -7182,21 +7182,16 @@ static bool tagColumnInGroupby(SGroupbyExpr* pGroupbyExpr, int16_t columnId) {
   return false;
 }
 
-static bool onlyTagPrjFunction(SQueryInfo* pQueryInfo) {
-  bool hasTagPrj = false;
-  bool hasColumnPrj = false;
-  
+static bool onlyTagPrjFunction(SQueryInfo* pQueryInfo) {  
   size_t size = taosArrayGetSize(pQueryInfo->exprList);
   for (int32_t i = 0; i < size; ++i) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
-    if (pExpr->base.functionId == TSDB_FUNC_PRJ) {
-      hasColumnPrj = true;
-    } else if (pExpr->base.functionId == TSDB_FUNC_TAGPRJ) {
-      hasTagPrj = true;
+    if (pExpr->base.functionId != TSDB_FUNC_TAGPRJ) {
+      return false;
     }
   }
 
-  return (hasTagPrj) && (hasColumnPrj == false);
+  return true;
 }
 
 // check if all the tags prj columns belongs to the group by columns
@@ -9095,7 +9090,6 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
 
 int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInfo) {
   assert(pSqlNode != NULL && (pSqlNode->from == NULL || taosArrayGetSize(pSqlNode->from->list) > 0));
-
   const char* msg2 = "too many tables in from clause";
   const char* msg3 = "start(end) time of query range required or time range too large";
   const char* msg4 = "interval query not supported, since the result of sub query not include valid timestamp column";
