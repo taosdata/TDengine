@@ -2281,7 +2281,6 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
       char* p = calloc(1, pSup->tagLen);
 
       while ((row = taos_fetch_row(tres)) != NULL) {
-        int32_t* length = taos_fetch_lengths(tres);
         memset(p, 0, pSup->tagLen);
 
         int32_t offset = 0;
@@ -2293,7 +2292,17 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
             if (row[i] == NULL) {
               setNull(p + offset, pExpr->base.resType, pExpr->base.resBytes);
             } else {
-              memcpy(p + offset, row[i], length[i]);
+              if(pExpr->base.resType == TSDB_DATA_TYPE_NCHAR){
+                int32_t output = 0;
+                bool ret = taosMbsToUcs4(varDataVal(row[i]), varDataLen(row[i]), varDataVal(p + offset), pExpr->base.resBytes, &output);
+                if (!ret) {
+                  tscError("stddev convert tag error:%d", ret);
+                }else{
+                  varDataSetLen(p + offset, output);
+                }
+              }else{
+                memcpy(p + offset, row[i], pExpr->base.resBytes);
+              }
             }
             offset += pExpr->base.resBytes;
           }
