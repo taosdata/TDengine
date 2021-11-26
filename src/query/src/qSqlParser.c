@@ -680,7 +680,7 @@ void tSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) {
 
   // column name is too long, set the it to be invalid.
   if ((int32_t) pName->n >= maxLen) {
-    pName->n = -1;
+    pField->name[0] = 0;
   } else {
     strncpy(pField->name, pName->z, pName->n);
     pField->name[pName->n] = 0;

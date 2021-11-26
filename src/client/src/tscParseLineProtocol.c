@@ -1841,7 +1841,7 @@ static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **index, SSmlLine
   const char *start, *cur;
   int32_t ret = TSDB_CODE_SUCCESS;
   int len = 0;
-  char key[] = "_ts";
+  char key[] = "ts";
   char *value = NULL;
 
   start = cur = *index;
