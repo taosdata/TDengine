@@ -69,7 +69,7 @@ class TDTestCase:
 
         # test select condition
         tdSql.query("select jtag->'location' from db_json_tag_test.jsons1_2")
-        tdSql.checkData(0, 0, "beijing")
+        tdSql.checkData(0, 0, "\"beijing\"")
 
         tdSql.query("select jtag->'location' from db_json_tag_test.jsons1")
         tdSql.checkRows(4)
@@ -105,7 +105,7 @@ class TDTestCase:
         tdSql.checkRows(0)
 
         tdSql.query("select jtag->'sex' from db_json_tag_test.jsons1 where jtag?'sex' or jtag?'num'")
-        tdSql.checkData(0, 0, "femail")
+        tdSql.checkData(0, 0, "\"femail\"")
         tdSql.checkRows(3)
 
         tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'location'='beijing'")
@@ -265,13 +265,13 @@ class TDTestCase:
         tdSql.execute("insert into db_json_tag_test.jsons2_1 values('2020-04-18 15:00:00.000', 1, false, 'json1')")
         tdSql.query("select 'sss',33,a.jtag->'loc' from db_json_tag_test.jsons2 a,db_json_tag_test.jsons3 b where a.ts=b.ts and a.jtag->'loc'=b.jtag->'loc'")
         tdSql.checkData(0, 0, "sss")
-        tdSql.checkData(0, 2, "fff")
+        tdSql.checkData(0, 2, "\"fff\"")
     
         # test group by & order by   string
         tdSql.query("select avg(dataint),count(*) from db_json_tag_test.jsons1 group by jtag->'location' order by jtag->'location' desc")
         tdSql.checkData(1, 0, 2.5)
         tdSql.checkData(1, 1, 2)
-        tdSql.checkData(1, 2, "beijing")
+        tdSql.checkData(1, 2, "\"beijing\"")
         tdSql.checkData(2, 2, None)
 
         # test group by & order by   int

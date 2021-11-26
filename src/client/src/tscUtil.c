@@ -763,16 +763,24 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
         char* dst = pRes->buffer[i] + k * pInfo->field.bytes;
         char type = *p;
         char* realData = p + CHAR_BYTES;
-        if (type == TSDB_DATA_TYPE_NCHAR && isNull(realData, TSDB_DATA_TYPE_NCHAR)) {
+        if (type == TSDB_DATA_TYPE_JSON && isNull(realData, TSDB_DATA_TYPE_JSON)) {
           memcpy(dst, realData, varDataTLen(realData));
         } else if (type == TSDB_DATA_TYPE_BINARY) {
           assert(*(uint32_t*)varDataVal(realData) == TSDB_DATA_JSON_null);   // json null value
           assert(varDataLen(realData) == INT_BYTES);
           sprintf(varDataVal(dst), "%s", "null");
           varDataSetLen(dst, strlen(varDataVal(dst)));
-        }else if (type == TSDB_DATA_TYPE_NCHAR) {
+        }else if (type == TSDB_DATA_TYPE_JSON) {
           int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), varDataVal(dst));
           varDataSetLen(dst, length);
+          if (length == 0) {
+            tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)p);
+          }
+        }else if (type == TSDB_DATA_TYPE_NCHAR) {   // value -> "value"
+          *(char*)varDataVal(dst) = '\"';
+          int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), POINTER_SHIFT(varDataVal(dst), CHAR_BYTES));
+          *(char*)(POINTER_SHIFT(varDataVal(dst), length + CHAR_BYTES)) = '\"';
+          varDataSetLen(dst, length + CHAR_BYTES*2);
           if (length == 0) {
             tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)p);
           }
