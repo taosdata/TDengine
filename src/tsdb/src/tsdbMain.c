@@ -766,7 +766,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
         memcpy(pLastCol->pData, pColData, bytes);
 
         // save row ts(in column 0)
-        // pDataCol = pReadh->pDCols[0]->cols + 0;
+        pDataCol = pReadh->pDCols[0]->cols + 0;
         // pCol = schemaColAt(pSchema, 0);
         // tdAppendColVal(memRowDataBody(row), tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->offset);
         // pLastCol->ts = memRowKey(row);
