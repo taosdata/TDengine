@@ -7642,7 +7642,9 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
         tVariantCreateFromBinary(&(pExpr->base.param[pExpr->base.numOfParams]), t0.z,
                                  t0.n, TSDB_DATA_TYPE_BINARY);
         pExpr->base.numOfParams++;
-        tstrncpy(pColIndex->name, t0.z, t0.n + 1);
+        assert(t0.n < strlen(pColIndex->name));
+        memmove(pColIndex->name, t0.z, t0.n);
+        pColIndex->name[t0.n] = '\0';
       }
     } else {
       // if this query is "group by" normal column, time window query is not allowed

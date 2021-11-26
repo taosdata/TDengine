@@ -5725,6 +5725,7 @@ void* getJsonTagValue(STable* pTable, char* key, int32_t keyLen, int16_t* retCol
   return NULL;
 }
 
+// get key from json->'key'
 void getJsonKey(SStrToken *t0){
   while(true){
     t0->n = tGetToken(t0->z, &t0->type);
