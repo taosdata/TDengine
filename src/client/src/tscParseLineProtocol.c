@@ -246,9 +246,9 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
         buildSmlChildTableName(point, info);
       }
       char tagNullName[TSDB_COL_NAME_LEN] = {0};
-      int16_t nameLen = strlen(tsSmlTagNullName);
+      size_t nameLen = strlen(tsSmlTagNullName);
       strncpy(tagNullName, tsSmlTagNullName, nameLen);
-      addEscapeCharToString(tagNullName, nameLen);
+      addEscapeCharToString(tagNullName, (int32_t)nameLen);
       size_t* pTagNullIdx = taosHashGet(pStableSchema->tagHash, tagNullName, nameLen + TS_ESCAPE_CHAR_SIZE);
       if (!pTagNullIdx) {
         SSchema tagNull = {0};
