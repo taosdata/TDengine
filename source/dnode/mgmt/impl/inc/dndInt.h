@@ -71,6 +71,9 @@ typedef struct {
   int32_t     refCount;
   int8_t      deployed;
   int8_t      dropped;
+  int8_t      replica;
+  int8_t      selfIndex;
+  SReplica    replicas[TSDB_MAX_REPLICA];
   SWorkerPool mgmtPool;
   SWorkerPool readPool;
   SWorkerPool writePool;
