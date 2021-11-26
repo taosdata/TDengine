@@ -2295,11 +2295,9 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
             } else {
               if(pExpr->base.resType == TSDB_DATA_TYPE_NCHAR){
                 int32_t output = 0;
-                bool ret = taosMbsToUcs4(row[i], length[i], varDataVal(p + offset), pExpr->base.resBytes, &output);
+                bool ret = taosMbsToUcs4(row[i], length[i], p + offset, pExpr->base.resBytes, &output);
                 if (!ret) {
                   tscError("stddev convert tag error:%d", ret);
-                }else{
-                  varDataSetLen(p + offset, output);
                 }
               }else{
                 memcpy(p + offset, row[i], pExpr->base.resBytes);
