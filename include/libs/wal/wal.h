@@ -53,45 +53,63 @@ typedef struct {
   EWalType walLevel;     // wal level
 } SWalCfg;
 
-#define WAL_PREFIX     "wal"
-#define WAL_PREFIX_LEN 3
-#define WAL_REFRESH_MS 1000
-#define WAL_MAX_SIZE   (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + 16)
-#define WAL_SIGNATURE  ((uint32_t)(0xFAFBFDFE))
-#define WAL_PATH_LEN   (TSDB_FILENAME_LEN + 12)
-#define WAL_FILE_LEN   (WAL_PATH_LEN + 32)
-#define WAL_FILE_NUM   1 // 3
+#define WAL_PREFIX       "wal"
+#define WAL_LOG_SUFFIX   "log"
+#define WAL_INDEX_SUFFIX "idx"
+#define WAL_PREFIX_LEN   3
+#define WAL_REFRESH_MS   1000
+#define WAL_MAX_SIZE     (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + 16)
+#define WAL_SIGNATURE    ((uint32_t)(0xFAFBFDFEUL))
+#define WAL_PATH_LEN     (TSDB_FILENAME_LEN + 12)
+#define WAL_FILE_LEN     (WAL_PATH_LEN + 32)
+//#define WAL_FILE_NUM     1 // 3
+
+#define WAL_CUR_POS_READ_ONLY  1
+#define WAL_CUR_FILE_READ_ONLY 2
 
 typedef struct SWal {
-  int64_t version;
-  int64_t fileId;
-  int64_t rId;
-  int64_t tfd;
-  int32_t vgId;
-  int32_t keep;
-  int32_t level;
-  int32_t fsyncPeriod;
+  // cfg
+  int32_t  vgId;
+  int32_t  fsyncPeriod;  // millisecond
+  EWalType level;
+  //reference
+  int64_t refId;
+  //current tfd
+  int64_t curLogTfd;
+  int64_t curIdxTfd;
+  //current version
+  int64_t curVersion;
+  int64_t curOffset;
+  //current file version
+  int64_t curFileFirstVersion;
+  int64_t curFileLastVersion;
+  //wal fileset version
+  int64_t firstVersion;
+  int64_t snapshotVersion;
+  int64_t lastVersion;
+  //fsync status
   int32_t fsyncSeq;
-  int8_t stop;
-  int8_t reseved[3];
-  char path[WAL_PATH_LEN];
-  char name[WAL_FILE_LEN];
+  //ctl
+  int32_t curStatus;
   pthread_mutex_t mutex;
+  //path
+  char path[WAL_PATH_LEN];
 } SWal;  // WAL HANDLE
 
-typedef int32_t (*FWalWrite)(void *ahandle, void *pHead, void *pMsg);
+typedef int32_t (*FWalWrite)(void *ahandle, void *pHead);
 
 // module initialization
 int32_t walInit();
 void    walCleanUp();
 
 // handle open and ctl
-SWal   *walOpen(char *path, SWalCfg *pCfg);
+SWal   *walOpen(const char *path, SWalCfg *pCfg);
+void    walStop(SWal *pWal);
 int32_t walAlter(SWal *, SWalCfg *pCfg);
 void    walClose(SWal *);
 
 // write
-// int64_t  walWriteWithMsgType(SWal*, int8_t msgType, void* body, int32_t bodyLen);
+//int64_t  walWriteWithMsgType(SWal*, int8_t msgType, void* body, int32_t bodyLen);
 int64_t walWrite(SWal *, int64_t index, void *body, int32_t bodyLen);
 int64_t walWriteBatch(SWal *, void **bodies, int32_t *bodyLen, int32_t batchSize);
 
@@ -101,7 +119,8 @@ int32_t walCommit(SWal *, int64_t ver);
 // truncate after
 int32_t walRollback(SWal *, int64_t ver);
 // notify that previous log can be pruned safely
-int32_t walPrune(SWal *, int64_t ver);
+int32_t walTakeSnapshot(SWal *, int64_t ver);
+//int32_t  walDataCorrupted(SWal*);
 
 // read
 int32_t walRead(SWal *, SWalHead **, int64_t ver);
@@ -111,7 +130,6 @@ int32_t walReadWithFp(SWal *, FWalWrite writeFp, int64_t verStart, int32_t readN
 int64_t walGetFirstVer(SWal *);
 int64_t walGetSnapshotVer(SWal *);
 int64_t walGetLastVer(SWal *);
-// int32_t  walDataCorrupted(SWal*);
 
 //internal
 int32_t walGetNextFile(SWal *pWal, int64_t *nextFileId);
