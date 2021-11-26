@@ -145,7 +145,7 @@ class TDTestCase:
         tdSql.query("select stddev(col1) from stdtableint group by num")
         tdSql.checkData(0, 0, 0.5)
         tdSql.checkData(1, 0, 0.5)
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
