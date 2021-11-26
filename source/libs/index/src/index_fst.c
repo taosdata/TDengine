@@ -146,24 +146,27 @@ uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes *node, 
   size_t lsz = (size_t)(s->end - s->start + 1);          // data len 
   size_t ssz = taosArrayGetSize(node->stack);  // stack size
 
-  uint64_t res = 0;
-  for (size_t i = 0; i < lsz && i < ssz; i++) {
+  uint64_t i = 0;
+  for (i = 0; i < lsz && i < ssz; i++) {
     FstBuilderNodeUnfinished *un = taosArrayGet(node->stack, i);
 
-    FstLastTransition *last = un->last; 
-    if (last->inp == s->data[s->start + i]) {
-      uint64_t commPrefix = last->out;      
-      uint64_t addPrefix  = last->out - commPrefix; 
-      out = out - commPrefix; 
-      last->out = commPrefix;
-      if (addPrefix != 0) {
-        fstBuilderNodeUnfinishedAddOutputPrefix(un, addPrefix);  
-      }
+    FstLastTransition *t = un->last; 
+    uint64_t addPrefix = 0;  
+    if (t && t->inp == s->data[s->start + i]) {
+      uint64_t commPrefix = MIN(t->out, *out);      
+      uint64_t tAddPrefix  = t->out - commPrefix; 
+      (*out) = (*out) - commPrefix; 
+      t->out = commPrefix;
+      addPrefix = tAddPrefix; 
     } else {
-      break;
+       break;
+    }
+    if (addPrefix != 0) {
+      fstBuilderNodeUnfinishedAddOutputPrefix(un, addPrefix);  
+
     }
   }   
-  return res;
+  return i;
 } 
 
 
@@ -780,7 +783,7 @@ void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in) {
    }
 
    if (prefixLen == FST_SLICE_LEN(s)) {
-      assert(out != 0);
+      assert(out == 0);
       return;
    }
 
