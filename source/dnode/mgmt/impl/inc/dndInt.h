@@ -31,9 +31,10 @@ extern "C" {
 #include "tthread.h"
 #include "ttime.h"
 #include "tworker.h"
+
+#include "dnode.h"
 #include "mnode.h"
 #include "vnode.h"
-#include "dnode.h"
 
 extern int32_t dDebugFlag;
 
@@ -54,17 +55,16 @@ typedef struct {
 } SDnodeDir;
 
 typedef struct {
-  int32_t         dnodeId;
-  uint32_t        rebootTime;
-  int32_t         dropped;
-  int64_t         clusterId;
-  SEpSet          shellEpSet;
-  SEpSet          peerEpSet;
-  char           *file;
-  SHashObj       *dnodeHash;
-  SDnodeEps      *dnodeEps;
-  pthread_t      *threadId;
-  pthread_mutex_t mutex;
+  int32_t    dnodeId;
+  int32_t    dropped;
+  uint32_t   rebootTime;
+  int64_t    clusterId;
+  SEpSet     mnodeEpSet;
+  char      *file;
+  SHashObj  *dnodeHash;
+  SDnodeEps *dnodeEps;
+  pthread_t *threadId;
+  SRWLatch   latch;
 } SDnodeMgmt;
 
 typedef struct {
@@ -108,7 +108,7 @@ typedef struct SDnode {
   EStat       stat;
   SDnodeOpt   opt;
   SDnodeDir   dir;
-  SDnodeMgmt  d;
+  SDnodeMgmt  dmgmt;
   SMnodeMgmt  m;
   SVnodesMgmt vmgmt;
   STransMgmt  t;

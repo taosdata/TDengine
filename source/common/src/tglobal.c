@@ -33,10 +33,6 @@ char     tsArbitrator[TSDB_EP_LEN] = {0};
 char     tsLocalFqdn[TSDB_FQDN_LEN] = {0};
 char     tsLocalEp[TSDB_EP_LEN] = {0};  // Local End Point, hostname:port
 uint16_t tsServerPort = 6030;
-uint16_t tsDnodeShellPort = 6030;  // udp[6035-6039] tcp[6035]
-uint16_t tsDnodeDnodePort = 6035;  // udp/tcp
-uint16_t tsSyncPort = 6040;
-uint16_t tsArbitratorPort = 6042;
 int32_t  tsStatusInterval = 1;  // second
 int32_t  tsNumOfMnodes = 1;
 int8_t   tsEnableVnodeBak = 1;
@@ -1725,11 +1721,6 @@ int32_t taosCheckGlobalCfg() {
       break;
     }
   }
-
-  tsDnodeShellPort = tsServerPort + TSDB_PORT_DNODESHELL;  // udp[6035-6039] tcp[6035]
-  tsDnodeDnodePort = tsServerPort + TSDB_PORT_DNODEDNODE;   // udp/tcp
-  tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
-  tsHttpPort = tsServerPort + TSDB_PORT_HTTP;
 
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;

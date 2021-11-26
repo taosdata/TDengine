@@ -53,7 +53,7 @@ void mnodeSendMsgToMnode(SMnode *pMnode, struct SRpcMsg *rpcMsg) {
 
 void mnodeSendRedirectMsg(SMnode *pMnode, struct SRpcMsg *rpcMsg, bool forShell) {
   assert(pMnode);
-  (*pMnode->sendRedirectMsgFp)(pMnode->pServer, rpcMsg, forShell);
+  (*pMnode->sendRedirectMsgFp)(pMnode->pServer, rpcMsg);
 }
 
 static int32_t mnodeInitTimer() {
