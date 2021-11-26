@@ -22,7 +22,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   for (size_t i = 0; i < taosArrayGetSize(pMsgs); i++) {
     pReq = taosArrayGet(pMsgs, i);
 
-    vnodeApplyWMsg(pVnode, pReq, pRsp);
+    vnodeApplyWMsg(pVnode, pReq, &pRsp);
   }
 
   return 0;

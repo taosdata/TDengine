@@ -130,6 +130,16 @@ void vnodeOptionsInit(SVnodeCfg *pOptions);
  */
 void vnodeOptionsClear(SVnodeCfg *pOptions);
 
+/* ------------------------ REQUESTS ------------------------ */
+
+// Create table request
+
+typedef STbCfg SVCreateTableReq;
+typedef struct {
+  int  err;
+  char info[];
+} SVCreateTableRsp;
+
 /* ------------------------ FOR COMPILE ------------------------ */
 
 #if 1

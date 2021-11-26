@@ -47,3 +47,12 @@ size_t metaEncodeTbObjFromTbOptions(const STbCfg *pTbOptions, void *pBuf, size_t
 
   return tlen;
 }
+
+int metaEncodeTbCfg(void **pBuf, STbCfg *pTbCfg) {
+  // TODO
+  return 0;
+}
+
+void *metaDecodeTbCfg(void *pBuf, STbCfg **pTbCfg) {
+  // TODO
+}

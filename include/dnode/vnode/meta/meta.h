@@ -27,6 +27,10 @@ extern "C" {
 typedef uint64_t     tb_uid_t;
 typedef struct SMeta SMeta;
 
+#define META_SUPER_TABLE 0
+#define META_CHILD_TABLE 1
+#define META_NORMAL_TABLE 2
+
 typedef struct SMetaCfg {
   /// LRU cache size
   uint64_t lruSize;
@@ -37,6 +41,8 @@ typedef struct STbCfg {
   char *name;
   /// time to live of the table
   uint32_t ttl;
+  /// keep time of this table
+  uint32_t keep;
   /// type of table
   uint8_t type;
   union {
@@ -76,15 +82,30 @@ int    metaCommit(SMeta *pMeta);
 void metaOptionsInit(SMetaCfg *pOptions);
 void metaOptionsClear(SMetaCfg *pOptions);
 
-// STableOpts
-// #define META_TABLE_OPTS_DECLARE(name) STableOpts name = {0}
-// void     metaNormalTableOptsInit(STbCfg *pTbOptions, const char *name, const STSchema *pSchema);
-// void     metaSuperTableOptsInit(STbCfg *pTbOptions, const char *name, tb_uid_t uid, const STSchema *pSchema,
-//                                 const STSchema *pTagSchema);
-// void     metaChildTableOptsInit(STbCfg *pTbOptions, const char *name, tb_uid_t suid, const SKVRow tags);
-// void     metaTableOptsClear(STbCfg *pTbOptions);
-// uint64_t metaEncodeTbOptions(void **pBuf, STbCfg *pTbOptions);
-// STbCfg * metaDecodeTbOptions(void *pBuf, size_t size, bool endian);
+// STbCfg
+#define META_INIT_STB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA, PTAGSCHEMA)                   \
+  {                                                                                     \
+    .name = (NAME), .ttl = (TTL), .keep = (KEEP), .type = META_SUPER_TABLE, .stbCfg = { \
+      .suid = (SUID),                                                                   \
+      .pSchema = (PSCHEMA),                                                             \
+      .pTagSchema = (PTAGSCHEMA)                                                        \
+    }                                                                                   \
+  }
+
+#define META_INIT_CTB_CFG(NAME, TTL, KEEP, SUID, PTAG)                                                                \
+  {                                                                                                                   \
+    .name = (NAME), .ttl = (TTL), .keep = (KEEP), .type = META_CHILD_TABLE, .ctbCfg = {.suid = (SUID), .pTag = PTAG } \
+  }
+
+#define META_INIT_NTB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA)                                                      \
+  {                                                                                                            \
+    .name = (NAME), .ttl = (TTL), .keep = (KEEP), .type = META_NORMAL_TABLE, .ntbCfg = {.pSchema = (PSCHEMA) } \
+  }
+
+#define META_CLEAR_TB_CFG(pTbCfg)
+
+int   metaEncodeTbCfg(void **pBuf, STbCfg *pTbCfg);
+void *metaDecodeTbCfg(void *pBuf, STbCfg **pTbCfg);
 
 #ifdef __cplusplus
 }
