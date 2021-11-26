@@ -2000,7 +2000,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
 
       colIndex.columnIndex = tscGetTagColIndexById(pTableMetaInfo->pTableMeta, tagColId);
 
-      int16_t bytes = 0;
+      int32_t bytes = 0;
       int16_t type  = 0;
       int32_t inter = 0;
 
@@ -2636,7 +2636,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
 
   pRes->qId = 0x1;  // hack the qhandle check
 
-  const uint32_t nBufferSize = (1u << 18u);  // 256KB, default buffer size
+  uint32_t nBufferSize = (1u << 18u);  // 256KB, default buffer size
 
   SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -2652,7 +2652,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     return ret;
   }
 
-  ret = tscCreateGlobalMergerEnv(pQueryInfo, &pMemoryBuf, pSql->subState.numOfSub, &pDesc, nBufferSize, pSql->self);
+  ret = tscCreateGlobalMergerEnv(pQueryInfo, &pMemoryBuf, pSql->subState.numOfSub, &pDesc, &nBufferSize, pSql->self);
   if (ret != 0) {
     pRes->code = ret;
     tscAsyncResultOnError(pSql);

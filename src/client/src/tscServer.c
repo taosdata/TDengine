@@ -1536,7 +1536,17 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       pMsg += sizeof(SCreateTableMsg);
 
       SCreatedTableInfo* p = taosArrayGet(list, i);
-      strcpy(pCreate->tableName, p->fullname);
+      //what pCreate->tableName point is a fixed char array which size is 237
+      //what p->fullname point is a char*
+      //before the time we copy p->fullname to pCreate->tableName , we need to check the length of p->fullname
+      if (strlen(p->fullname) > 237) {
+        tscError("failed to write this name, which is over 237, just save the first 237 char here");
+        strncpy(pCreate->tableName, p->fullname,237);
+        pCreate->tableName[236]='\0';//I don't know if this line is working properly
+      }else{
+        strcpy(pCreate->tableName, p->fullname);
+      }
+
       pCreate->igExists = (p->igExist)? 1 : 0;
 
       // use dbinfo from table id without modifying current db info
@@ -3076,12 +3086,16 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   
   pSql->rootObj->retryReason = pSql->retryReason;
 
+  SSqlObj *tmpSql = pSql->rootObj;
+  tscFreeSubobj(pSql->rootObj);
+  tfree(tmpSql->pSubs);
+
   SArray* pNameList = taosArrayInit(1, POINTER_BYTES);
   SArray* vgroupList = taosArrayInit(1, POINTER_BYTES);
 
   char* n = strdup(name);
   taosArrayPush(pNameList, &n);
-  code = getMultiTableMetaFromMnode(pSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
+  code = getMultiTableMetaFromMnode(tmpSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
   taosArrayDestroyEx(pNameList, freeElem);
   taosArrayDestroyEx(vgroupList, freeElem);
 
