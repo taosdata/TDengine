@@ -131,14 +131,25 @@ void vnodeOptionsInit(SVnodeCfg *pOptions);
 void vnodeOptionsClear(SVnodeCfg *pOptions);
 
 /* ------------------------ REQUESTS ------------------------ */
-
-// Create table request
-
-typedef STbCfg SVCreateTableReq;
 typedef struct {
   int  err;
   char info[];
-} SVCreateTableRsp;
+} SVnodeRsp;
+
+/// Create table request
+typedef STbCfg SVCreateTableReq;
+/// Drop table request
+typedef struct {
+  tb_uid_t uid;
+} SVDropTableReq;
+/// Alter table request
+typedef struct {
+  // TODO
+} SVAlterTableReq;
+
+int vnodeCreateTable(SVnode *pVnode, SVCreateTableReq *pReq, SVnodeRsp *pRsp);
+int vnodeDropTable(SVnode *pVnode, SVDropTableReq *pReq, SVnodeRsp *pRsp);
+int vnodeAlterTable(SVnode *pVnode, SVAlterTableReq *pReq, SVnodeRsp *pRsp);
 
 /* ------------------------ FOR COMPILE ------------------------ */
 
