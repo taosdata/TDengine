@@ -78,7 +78,7 @@ typedef struct {
    * @brief data file's directory.
    *
    */
-  char dataDir[PATH_MAX];
+  char dataDir[TSDB_FILENAME_LEN];
 
   /**
    * @brief local endpoint.

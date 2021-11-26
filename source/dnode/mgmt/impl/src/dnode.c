@@ -116,6 +116,7 @@ static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOptions) {
     return -1;
   }
 
+  memcpy(&pDnode->opt, pOptions, sizeof(SDnodeOpt));
   return 0;
 }
 

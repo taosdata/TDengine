@@ -141,7 +141,7 @@ void dmnInitOption(SDnodeOpt *pOption) {
   pOption->shellActivityTimer = tsShellActivityTimer;
   pOption->statusInterval = tsStatusInterval;
   pOption->serverPort = tsServerPort;
-  tstrncpy(pOption->dataDir, tsDataDir, PATH_MAX);
+  tstrncpy(pOption->dataDir, tsDataDir, TSDB_FILENAME_LEN);
   tstrncpy(pOption->localEp, tsLocalEp, TSDB_EP_LEN);
   tstrncpy(pOption->localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   tstrncpy(pOption->firstEp, tsFirst, TSDB_EP_LEN);

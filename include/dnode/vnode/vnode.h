@@ -184,27 +184,9 @@ typedef struct {
   SRpcMsg rpcMsg[];
 } SVnodeMsg;
 
-typedef struct SDnode SDnode;
-typedef void (*SendMsgToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-typedef void (*SendMsgToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
-typedef void (*SendRedirectMsgFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
-typedef int32_t (*PutMsgToVnodeQFp)(SDnode *pDnode, int32_t vgId, SVnodeMsg *pMsg);
-
-typedef struct {
-  PutMsgToVnodeQFp putMsgToApplyQueueFp;
-  SendMsgToDnodeFp sendMsgToDnodeFp;
-  SendMsgToMnodeFp sendMsgToMnodeFp;
-} SVnodePara;
-
-int32_t vnodeInit(SVnodePara);
-void    vnodeCleanup();
-
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
-SVnode *vnodeCreate(int32_t vgId, const char *path, const SVnodeCfg *pCfg);
-void    vnodeDrop(SVnode *pVnode);
 int32_t vnodeCompact(SVnode *pVnode);
 int32_t vnodeSync(SVnode *pVnode);
-
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 
 SVnodeMsg *vnodeInitMsg(int32_t msgNum);

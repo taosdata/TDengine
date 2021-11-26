@@ -22,6 +22,7 @@ typedef struct {
   int32_t    refCount;
   int8_t     dropped;
   int8_t     accessState;
+  char      *path;
   SVnode    *pImpl;
   taos_queue pWriteQ;
   taos_queue pSyncQ;
@@ -74,7 +75,7 @@ static int32_t dndPutMsgIntoVnodeApplyQueue(SDnode *pDnode, int32_t vgId, SVnode
 
 static SVnodeObj  *dndAcquireVnode(SDnode *pDnode, int32_t vgId);
 static void        dndReleaseVnode(SDnode *pDnode, SVnodeObj *pVnode);
-static int32_t     dndCreateVnodeWrapper(SDnode *pDnode, int32_t vgId, SVnode *pImpl);
+static int32_t     dndCreateVnodeWrapper(SDnode *pDnode, int32_t vgId, char *path, SVnode *pImpl);
 static void        dndDropVnodeWrapper(SDnode *pDnode, SVnodeObj *pVnode);
 static SVnodeObj **dndGetVnodesFromHash(SDnode *pDnode, int32_t *numOfVnodes);
 static int32_t     dndGetVnodesFromFile(SDnode *pDnode, SVnodeObj **ppVnodes, int32_t *numOfVnodes);
@@ -125,7 +126,7 @@ static void dndReleaseVnode(SDnode *pDnode, SVnodeObj *pVnode) {
   }
 }
 
-static int32_t dndCreateVnodeWrapper(SDnode *pDnode, int32_t vgId, SVnode *pImpl) {
+static int32_t dndCreateVnodeWrapper(SDnode *pDnode, int32_t vgId, char *path, SVnode *pImpl) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
   SVnodeObj   *pVnode = calloc(1, sizeof(SVnodeObj));
   if (pVnode == NULL) {
@@ -138,6 +139,12 @@ static int32_t dndCreateVnodeWrapper(SDnode *pDnode, int32_t vgId, SVnode *pImpl
   pVnode->dropped = 0;
   pVnode->accessState = TSDB_VN_ALL_ACCCESS;
   pVnode->pImpl = pImpl;
+
+  pVnode->path = tstrdup(path);
+  if (pVnode->path == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
 
   if (dndAllocVnodeQueryQueue(pDnode, pVnode) != 0) {
     return -1;
@@ -354,22 +361,25 @@ static int32_t dndWriteVnodesToFile(SDnode *pDnode) {
 static int32_t dndCreateVnode(SDnode *pDnode, int32_t vgId, SVnodeCfg *pCfg) {
   char path[PATH_MAX + 20] = {0};
   snprintf(path, sizeof(path), "%s/vnode%d", pDnode->dir.vnodes, vgId);
-  SVnode *pImpl = vnodeCreate(vgId, path, pCfg);
+  // SVnode *pImpl = vnodeCreate(vgId, path, pCfg);
 
+  SVnode *pImpl = vnodeOpen(path, NULL);
   if (pImpl == NULL) {
     return -1;
   }
 
-  int32_t code = dndCreateVnodeWrapper(pDnode, vgId, pImpl);
+  int32_t code = dndCreateVnodeWrapper(pDnode, vgId, path, pImpl);
   if (code != 0) {
-    vnodeDrop(pImpl);
+    vnodeClose(pImpl);
+    vnodeDestroy(path);
     terrno = code;
     return code;
   }
 
   code = dndWriteVnodesToFile(pDnode);
   if (code != 0) {
-    vnodeDrop(pImpl);
+    vnodeClose(pImpl);
+    vnodeDestroy(path);
     terrno = code;
     return code;
   }
@@ -385,7 +395,8 @@ static int32_t dndDropVnode(SDnode *pDnode, SVnodeObj *pVnode) {
   }
 
   dndDropVnodeWrapper(pDnode, pVnode);
-  vnodeDrop(pVnode->pImpl);
+  vnodeClose(pVnode->pImpl);
+  vnodeDestroy(pVnode->path);
   dndWriteVnodesToFile(pDnode);
   return 0;
 }
@@ -413,7 +424,7 @@ static void *dnodeOpenVnodeFunc(void *param) {
       dError("vgId:%d, failed to open vnode by thread:%d", pVnode->vgId, pThread->threadIndex);
       pThread->failed++;
     } else {
-      dndCreateVnodeWrapper(pDnode, pVnode->vgId, pImpl);
+      dndCreateVnodeWrapper(pDnode, pVnode->vgId, path, pImpl);
       dDebug("vgId:%d, is opened by thread:%d", pVnode->vgId, pThread->threadIndex);
       pThread->opened++;
     }
@@ -433,7 +444,7 @@ static int32_t dndOpenVnodes(SDnode *pDnode) {
   pMgmt->hash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (pMgmt->hash == NULL) {
     dError("failed to init vnode hash");
-    terrno = TSDB_CODE_VND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -874,13 +885,13 @@ static int32_t dndInitVnodeMgmtWorker(SDnode *pDnode) {
   pPool->min = 1;
   pPool->max = 1;
   if (tWorkerInit(pPool) != 0) {
-    terrno = TSDB_CODE_VND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   pMgmt->pMgmtQ = tWorkerAllocQueue(pPool, pDnode, (FProcessItem)dndProcessVnodeMgmtQueue);
   if (pMgmt->pMgmtQ == NULL) {
-    terrno = TSDB_CODE_VND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -918,6 +929,7 @@ static int32_t dndAllocVnodeFetchQueue(SDnode *pDnode, SVnodeObj *pVnode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   return 0;
 }
 
@@ -938,7 +950,8 @@ static int32_t dndInitVnodeReadWorker(SDnode *pDnode) {
   pPool->min = (int32_t)threadsForQuery;
   pPool->max = pPool->min;
   if (tWorkerInit(pPool) != 0) {
-    return TSDB_CODE_VND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
   }
 
   pPool = &pMgmt->fetchPool;
@@ -946,7 +959,8 @@ static int32_t dndInitVnodeReadWorker(SDnode *pDnode) {
   pPool->min = MIN(maxFetchThreads, pDnode->opt.numOfCores);
   pPool->max = pPool->min;
   if (tWorkerInit(pPool) != 0) {
-    TSDB_CODE_VND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
   }
 
   return 0;
@@ -998,7 +1012,7 @@ static int32_t dndInitVnodeWriteWorker(SDnode *pDnode) {
   pPool->name = "vnode-write";
   pPool->max = tsNumOfCores;
   if (tMWorkerInit(pPool) != 0) {
-    terrno = TSDB_CODE_VND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -1036,7 +1050,7 @@ static int32_t dndInitVnodeSyncWorker(SDnode *pDnode) {
   pPool->name = "vnode-sync";
   pPool->max = maxThreads;
   if (tMWorkerInit(pPool) != 0) {
-    terrno = TSDB_CODE_VND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 

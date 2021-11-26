@@ -455,12 +455,11 @@ static void *dnodeThreadRoutine(void *param) {
 
   while (true) {
     taosMsleep(ms);
-    if (dndGetStat(pDnode) != DND_STAT_RUNNING) {
-      continue;
-    }
-
     pthread_testcancel();
-    dndSendStatusMsg(pDnode);
+
+    if (dndGetStat(pDnode) == DND_STAT_RUNNING) {
+      dndSendStatusMsg(pDnode);
+    }
   }
 }
 
@@ -501,7 +500,7 @@ int32_t dndInitDnode(SDnode *pDnode) {
     return -1;
   }
 
-  dInfo("dnd-dnode is initialized");
+  dInfo("dnode-dnode is initialized");
   return 0;
 }
 
@@ -531,7 +530,7 @@ void dndCleanupDnode(SDnode *pDnode) {
   }
 
   dndWUnLockDnode(pDnode);
-  dInfo("dnd-dnode is cleaned up");
+  dInfo("dnode-dnode is cleaned up");
 }
 
 void dndProcessDnodeReq(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {

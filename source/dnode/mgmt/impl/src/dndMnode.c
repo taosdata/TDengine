@@ -616,7 +616,7 @@ static int32_t dndInitMnodeMgmtWorker(SDnode *pDnode) {
   pPool->min = 1;
   pPool->max = 1;
   if (tWorkerInit(pPool) != 0) {
-    terrno = TSDB_CODE_VND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -652,7 +652,7 @@ static int32_t dndInitMnodeReadWorker(SDnode *pDnode) {
   pPool->min = 0;
   pPool->max = 1;
   if (tWorkerInit(pPool) != 0) {
-    terrno = TSDB_CODE_VND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -703,7 +703,7 @@ static int32_t dndInitMnodeWriteWorker(SDnode *pDnode) {
   pPool->min = 0;
   pPool->max = 1;
   if (tWorkerInit(pPool) != 0) {
-    terrno = TSDB_CODE_VND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
