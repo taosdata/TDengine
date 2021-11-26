@@ -20,8 +20,8 @@
 #include "dndVnodes.h"
 #include "sync.h"
 #include "tcache.h"
-#include "wal.h"
 #include "tcrc32c.h"
+#include "wal.h"
 
 EStat dndGetStat(SDnode *pDnode) { return pDnode->stat; }
 
@@ -43,10 +43,10 @@ char *dndStatStr(EStat stat) {
   }
 }
 
-void dndReportStartup(SDnode *pDnode, char *name, char *desc) {
+void dndReportStartup(SDnode *pDnode, char *pName, char *pDesc) {
   SStartupMsg *pStartup = &pDnode->startup;
-  tstrncpy(pStartup->name, name, strlen(pStartup->name));
-  tstrncpy(pStartup->desc, desc, strlen(pStartup->desc));
+  tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
+  tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
   pStartup->finished = 0;
 }
 
@@ -61,7 +61,7 @@ static int32_t dndCheckRunning(char *dataDir) {
 
   FileFd fd = taosOpenFileCreateWriteTrunc(filepath);
   if (fd < 0) {
-    dError("failed to open lock file:%s since %s, quit", filepath, strerror(errno));
+    dError("failed to lock file:%s since %s, quit", filepath, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
