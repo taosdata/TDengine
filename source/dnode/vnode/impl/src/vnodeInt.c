@@ -17,9 +17,6 @@
 #include "vnodeInt.h"
 #include "tqueue.h"
 
-int32_t vnodeInit(SVnodePara para) { return 0; }
-void    vnodeCleanup() {}
-
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg) { return 0; }
 SVnode *vnodeCreate(int32_t vgId, const char *path, const SVnodeCfg *pCfg) { return NULL; }
 void    vnodeDrop(SVnode *pVnode) {}
@@ -31,7 +28,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) { return 0; }
 SVnodeMsg *vnodeInitMsg(int32_t msgNum) {
   SVnodeMsg *pMsg = taosAllocateQitem(msgNum * sizeof(SRpcMsg *) + sizeof(SVnodeMsg));
   if (pMsg == NULL) {
-    terrno = TSDB_CODE_VND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   } else {
     pMsg->allocNum = msgNum;
@@ -41,7 +38,7 @@ SVnodeMsg *vnodeInitMsg(int32_t msgNum) {
 
 int32_t vnodeAppendMsg(SVnodeMsg *pMsg, SRpcMsg *pRpcMsg) {
   if (pMsg->curNum >= pMsg->allocNum) {
-    return TSDB_CODE_VND_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pMsg->rpcMsg[pMsg->curNum++] = *pRpcMsg;

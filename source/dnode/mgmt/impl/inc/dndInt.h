@@ -31,18 +31,19 @@ extern "C" {
 #include "tthread.h"
 #include "ttime.h"
 #include "tworker.h"
+
+#include "dnode.h"
 #include "mnode.h"
 #include "vnode.h"
-#include "dnode.h"
 
 extern int32_t dDebugFlag;
 
-#define dFatal(...) { if (dDebugFlag & DEBUG_FATAL) { taosPrintLog("SRV FATAL ", 255, __VA_ARGS__); }}
-#define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("SRV ERROR ", 255, __VA_ARGS__); }}
-#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("SRV WARN ", 255, __VA_ARGS__); }}
-#define dInfo(...)  { if (dDebugFlag & DEBUG_INFO)  { taosPrintLog("SRV ", 255, __VA_ARGS__); }}
-#define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("SRV ", dDebugFlag, __VA_ARGS__); }}
-#define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("SRV ", dDebugFlag, __VA_ARGS__); }}
+#define dFatal(...) { if (dDebugFlag & DEBUG_FATAL) { taosPrintLog("DND FATAL ", 255, __VA_ARGS__); }}
+#define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("DND ERROR ", 255, __VA_ARGS__); }}
+#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("DND WARN ", 255, __VA_ARGS__); }}
+#define dInfo(...)  { if (dDebugFlag & DEBUG_INFO)  { taosPrintLog("DND ", 255, __VA_ARGS__); }}
+#define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
+#define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
 
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EStat;
 typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
@@ -54,17 +55,16 @@ typedef struct {
 } SDnodeDir;
 
 typedef struct {
-  int32_t         dnodeId;
-  uint32_t        rebootTime;
-  int32_t         dropped;
-  int64_t         clusterId;
-  SEpSet          shellEpSet;
-  SEpSet          peerEpSet;
-  char           *file;
-  SHashObj       *dnodeHash;
-  SDnodeEps      *dnodeEps;
-  pthread_t      *threadId;
-  pthread_mutex_t mutex;
+  int32_t    dnodeId;
+  int32_t    dropped;
+  uint32_t   rebootTime;
+  int64_t    clusterId;
+  SEpSet     mnodeEpSet;
+  char      *file;
+  SHashObj  *dnodeHash;
+  SDnodeEps *dnodeEps;
+  pthread_t *threadId;
+  SRWLatch   latch;
 } SDnodeMgmt;
 
 typedef struct {
@@ -108,10 +108,10 @@ typedef struct SDnode {
   EStat       stat;
   SDnodeOpt   opt;
   SDnodeDir   dir;
-  SDnodeMgmt  d;
-  SMnodeMgmt  m;
+  SDnodeMgmt  dmgmt;
+  SMnodeMgmt  mmgmt;
   SVnodesMgmt vmgmt;
-  STransMgmt  t;
+  STransMgmt  tmgmt;
   SStartupMsg startup;
 } SDnode;
 
@@ -119,7 +119,7 @@ EStat dndGetStat(SDnode *pDnode);
 void  dndSetStat(SDnode *pDnode, EStat stat);
 char *dndStatStr(EStat stat);
 
-void dndReportStartup(SDnode *pDnode, char *name, char *desc);
+void dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
 void dndGetStartup(SDnode *pDnode, SStartupMsg *pStartup);
 
 #ifdef __cplusplus

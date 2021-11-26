@@ -21,16 +21,16 @@ extern "C" {
 #endif
 #include "dndInt.h"
 
-int32_t dndInitDnode(SDnode *pDnd);
-void    dndCleanupDnode(SDnode *pDnd);
-void    dndProcessDnodeReq(SDnode *pDnd, SRpcMsg *pMsg, SEpSet *pEpSet);
-void    dndProcessDnodeRsp(SDnode *pDnd, SRpcMsg *pMsg, SEpSet *pEpSet);
+int32_t dndInitDnode(SDnode *pDnode);
+void    dndCleanupDnode(SDnode *pDnode);
+void    dndProcessDnodeReq(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
+void    dndProcessDnodeRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 
-int32_t dndGetDnodeId(SDnode *pDnd);
-int64_t dndGetClusterId(SDnode *pDnd);
-void    dndGetDnodeEp(SDnode *pDnd, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
-void    dndGetMnodeEpSet(SDnode *pDnd, SEpSet *pEpSet);
-void    dndSendRedirectMsg(SDnode *pDnd, SRpcMsg *pMsg, bool forShell);
+int32_t dndGetDnodeId(SDnode *pDnode);
+int64_t dndGetClusterId(SDnode *pDnode);
+void    dndGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
+void    dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
+void    dndSendRedirectMsg(SDnode *pDnode, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }
