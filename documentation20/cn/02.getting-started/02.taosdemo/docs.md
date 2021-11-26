@@ -596,7 +596,7 @@ taosdemo支持3种功能的测试，包括插入、查询、订阅。但一个ta
 
 "interlace_rows": 设置轮询插入每个单表数据的条目数，如果interlace_rows*childtable_count*supertable_num小于num_of_records_per_req时，则请求插入的数目以interlace_rows*childtable_count*supertable_num为准。可选项，缺省是0。
 
-"num_of_records_per_req": 每条请求数据内容包含的插入数据记录数目，该数据组成的sql不能大于maxsqllen，如果过大，则取taood限制的1M长度(1048576)。可选项，缺省是INT64_MAX  32766（受服务端限制）。0代表不插入数据，建议配置大于0。
+"num_of_records_per_req": 每条请求数据内容包含的插入数据记录数目，该数据组成的sql不能大于maxsqllen，如果过大，则取taood限制的1M长度(1048576)。0代表不插入数据，建议配置大于0。
 
 "databases": [{
 
