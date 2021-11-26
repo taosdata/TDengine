@@ -404,7 +404,7 @@ Force to turn off the stream computing, in which stream-id is the connection-id:
 
 After TDengine is started, it will automatically create a monitoring database log and write the server's CPU, memory, hard disk space, bandwidth, number of requests, disk read-write speed, slow query and other information into the database regularly. TDengine also records important system operations (such as logging in, creating, deleting databases, etc.) logs and various error alarm information and stores them in the log database. The system administrator can view the database directly from CLI or view the monitoring information through GUI on WEB.
 
-The collection of these monitoring metrics is turned on by default, but you can modify option enableMonitor in the configuration file to turn it off or on.
+The collection of these monitoring metrics is turned on by default, but you can modify option monitor in the configuration file to turn it off or on.
 
 ## <a class="anchor" id="directories"></a> File Directory Structure
 

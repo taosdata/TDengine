@@ -781,6 +781,7 @@ int createDatabasesAndStables(char *command) {
                 tmfree(cmd);
 
                 if (0 != ret) {
+                    tmfree(g_Dbs.db[i].superTbls[j].colsOfCreateChildTable);
                     errorPrint("create super table %" PRIu64 " failed!\n\n", j);
                     continue;
                 }
