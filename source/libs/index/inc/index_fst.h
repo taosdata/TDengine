@@ -230,10 +230,12 @@ typedef struct FstMeta {
 } FstMeta;
 
 typedef struct Fst {
-  FstMeta meta; 
+  FstMeta *meta; 
   void    *data;  //  
 } Fst;
 
+Fst* fstCreate(FstSlice *data);
+void fstDestroy(Fst *fst);
 // ops  
 
 typedef struct FstIndexedValue {

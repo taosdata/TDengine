@@ -32,9 +32,9 @@ extern const CompiledAddr EMPTY_ADDRESS;
 extern const CompiledAddr NONE_ADDRESS;
 
 // This version number is written to every finite state transducer created by
-// this crate. When a finite state transducer is read, its version number is
+// this version When a finite state transducer is read, its version number is
 // checked against this value.
-extern const uint64_t    version;
+extern const uint64_t    VERSION;
 // The threshold (in number of transitions) at which an index is created for                                   
 // a node's transitions. This speeds up lookup time at the expense of FST size 
 

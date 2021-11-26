@@ -919,4 +919,61 @@ void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *unNode, O
   return;
 }
 
+Fst* fstCreate(FstSlice *slice) {
+  
+  char *buf = slice->data;
+  uint64_t skip = 0;  
+  uint64_t len = slice->dLen;
+  if (len < 36) { 
+    return NULL; 
+  }
+
+  uint64_t version; 
+  taosDecodeFixedU64(buf, &version); 
+  skip += sizeof(version); 
+  if (version == 0 || version > VERSION) {
+    return NULL; 
+  }  
+
+  uint64_t type;
+  taosDecodeFixedU64(buf + skip, &type);
+  skip += sizeof(type); 
+
+  uint32_t checkSum = 0;
+  len -= sizeof(checkSum);
+  taosDecodeFixedU32(buf + len, &checkSum); 
+
+  CompiledAddr rootAddr;
+  len -= sizeof(rootAddr); 
+  taosDecodeFixedU64(buf + len, &rootAddr); 
+
+  uint64_t fstLen; 
+  len -= sizeof(fstLen); 
+  taosDecodeFixedU64(buf + len, &fstLen);
+  //TODO(validat root addr)
+  // 
+  Fst *fst= (Fst *)calloc(1, sizeof(Fst)); 
+  if (fst == NULL) { return NULL; }  
+  
+  fst->meta = (FstMeta *)malloc(sizeof(FstMeta));
+  if (NULL == fst->meta) { 
+    goto FST_CREAT_FAILED; 
+  }
+
+  fst->meta->version   = version;  
+  fst->meta->rootAddr = rootAddr; 
+  fst->meta->ty       = type;
+  fst->meta->len      = fstLen;
+  fst->meta->checkSum = checkSum;
+  return fst;
+
+FST_CREAT_FAILED: 
+  free(fst->meta); 
+  free(fst);
+
+}
+void fstDestroy(Fst *fst) {
+
+}
+
 
