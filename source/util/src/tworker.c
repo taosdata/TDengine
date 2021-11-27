@@ -50,7 +50,7 @@ void tWorkerCleanup(SWorkerPool *pool) {
     }
   }
 
-  free(pool->workers);
+  tfree(pool->workers);
   taosCloseQset(pool->qset);
   pthread_mutex_destroy(&pool->mutex);
 
@@ -159,7 +159,7 @@ void tMWorkerCleanup(SMWorkerPool *pool) {
     }
   }
 
-  free(pool->workers);
+  tfree(pool->workers);
   pthread_mutex_destroy(&pool->mutex);
 
   uInfo("worker:%s is closed", pool->name);

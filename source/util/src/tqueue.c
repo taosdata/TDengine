@@ -107,7 +107,7 @@ bool taosQueueEmpty(taos_queue param) {
   if (queue->head == NULL && queue->tail == NULL) {
     empty = true;
   }
-  pthread_mutex_destroy(&queue->mutex);
+  pthread_mutex_unlock(&queue->mutex);
 
   return empty;
 }

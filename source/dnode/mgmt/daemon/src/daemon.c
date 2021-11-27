@@ -30,7 +30,10 @@ static struct {
   char configDir[PATH_MAX];
 } global = {0};
 
-void dmnSigintHandle(int signum, void *info, void *ctx) { global.stop = true; }
+void dmnSigintHandle(int signum, void *info, void *ctx) {
+  uError("singal:%d is received", signum);
+  global.stop = true;
+}
 
 void dmnSetSignalHandle() {
   taosSetSignal(SIGTERM, dmnSigintHandle);

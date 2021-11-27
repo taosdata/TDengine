@@ -74,31 +74,31 @@ typedef struct {
   int8_t      replica;
   int8_t      selfIndex;
   SReplica    replicas[TSDB_MAX_REPLICA];
-  SWorkerPool mgmtPool;
-  SWorkerPool readPool;
-  SWorkerPool writePool;
-  SWorkerPool syncPool;
+  char       *file;
+  SMnode     *pMnode;
+  SRWLatch    latch;
   taos_queue  pReadQ;
   taos_queue  pWriteQ;
   taos_queue  pApplyQ;
   taos_queue  pSyncQ;
   taos_queue  pMgmtQ;
-  char       *file;
-  SMnode     *pMnode;
-  SRWLatch    latch;
+  SWorkerPool mgmtPool;
+  SWorkerPool readPool;
+  SWorkerPool writePool;
+  SWorkerPool syncPool;
 } SMnodeMgmt;
 
 typedef struct {
   SHashObj    *hash;
+  int32_t      openVnodes;
+  int32_t      totalVnodes;
+  SRWLatch     latch;
+  taos_queue   pMgmtQ;
   SWorkerPool  mgmtPool;
   SWorkerPool  queryPool;
   SWorkerPool  fetchPool;
   SMWorkerPool syncPool;
   SMWorkerPool writePool;
-  taos_queue   pMgmtQ;
-  int32_t      openVnodes;
-  int32_t      totalVnodes;
-  SRWLatch     latch;
 } SVnodesMgmt;
 
 typedef struct {

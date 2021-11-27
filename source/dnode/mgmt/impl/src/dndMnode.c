@@ -294,14 +294,14 @@ static void dndStopMnodeWorker(SDnode *pDnode) {
   while (!taosQueueEmpty(pMgmt->pWriteQ)) taosMsleep(10);
   while (!taosQueueEmpty(pMgmt->pSyncQ)) taosMsleep(10);
 
+  dndCleanupMnodeReadWorker(pDnode);
+  dndCleanupMnodeWriteWorker(pDnode);
+  dndCleanupMnodeSyncWorker(pDnode);
+
   dndFreeMnodeReadQueue(pDnode);
   dndFreeMnodeWriteQueue(pDnode);
   dndFreeMnodeApplyQueue(pDnode);
   dndFreeMnodeSyncQueue(pDnode);
-
-  dndCleanupMnodeReadWorker(pDnode);
-  dndCleanupMnodeWriteWorker(pDnode);
-  dndCleanupMnodeSyncWorker(pDnode);
 }
 
 static bool dndNeedDeployMnode(SDnode *pDnode) {
@@ -714,6 +714,7 @@ static int32_t dndInitMnodeMgmtWorker(SDnode *pDnode) {
 static void dndCleanupMnodeMgmtWorker(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   tWorkerCleanup(&pMgmt->mgmtPool);
+  dDebug("mnode mgmt worker is stopped");
 }
 
 static int32_t dndAllocMnodeReadQueue(SDnode *pDnode) {
@@ -750,6 +751,7 @@ static int32_t dndInitMnodeReadWorker(SDnode *pDnode) {
 static void dndCleanupMnodeReadWorker(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   tWorkerCleanup(&pMgmt->readPool);
+  dDebug("mnode read worker is stopped");
 }
 
 static int32_t dndAllocMnodeWriteQueue(SDnode *pDnode) {
@@ -803,6 +805,7 @@ static int32_t dndInitMnodeWriteWorker(SDnode *pDnode) {
 static void dndCleanupMnodeWriteWorker(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   tWorkerCleanup(&pMgmt->writePool);
+  dDebug("mnode write worker is stopped");
 }
 
 static int32_t dndAllocMnodeSyncQueue(SDnode *pDnode) {
@@ -839,6 +842,7 @@ static int32_t dndInitMnodeSyncWorker(SDnode *pDnode) {
 static void dndCleanupMnodeSyncWorker(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   tWorkerCleanup(&pMgmt->syncPool);
+  dDebug("mnode sync worker is stopped");
 }
 
 int32_t dndInitMnode(SDnode *pDnode) {

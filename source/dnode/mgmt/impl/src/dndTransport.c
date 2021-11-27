@@ -160,6 +160,7 @@ static int32_t dndInitClient(SDnode *pDnode) {
   rpcInit.user = INTERNAL_USER;
   rpcInit.ckey = INTERNAL_CKEY;
   rpcInit.secret = INTERNAL_SECRET;
+  rpcInit.parent = pDnode;
 
   pMgmt->clientRpc = rpcOpen(&rpcInit);
   if (pMgmt->clientRpc == NULL) {
@@ -167,6 +168,7 @@ static int32_t dndInitClient(SDnode *pDnode) {
     return -1;
   }
 
+  dDebug("dnode rpc client is initialized");
   return 0;
 }
 
@@ -175,7 +177,7 @@ static void dndCleanupClient(SDnode *pDnode) {
   if (pMgmt->clientRpc) {
     rpcClose(pMgmt->clientRpc);
     pMgmt->clientRpc = NULL;
-    dInfo("dnode peer rpc client is closed");
+    dDebug("dnode rpc client is closed");
   }
 }
 
@@ -315,6 +317,7 @@ static int32_t dndInitServer(SDnode *pDnode) {
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = pDnode->opt.shellActivityTimer * 1000;
   rpcInit.afp = dndRetrieveUserAuthInfo;
+  rpcInit.parent = pDnode;
 
   pMgmt->serverRpc = rpcOpen(&rpcInit);
   if (pMgmt->serverRpc == NULL) {
@@ -322,6 +325,7 @@ static int32_t dndInitServer(SDnode *pDnode) {
     return -1;
   }
 
+  dDebug("dnode rpc server is initialized");
   return 0;
 }
 
@@ -330,6 +334,7 @@ static void dndCleanupServer(SDnode *pDnode) {
   if (pMgmt->serverRpc) {
     rpcClose(pMgmt->serverRpc);
     pMgmt->serverRpc = NULL;
+    dDebug("dnode rpc server is closed");
   }
 }
 
@@ -347,6 +352,7 @@ int32_t dndInitTrans(SDnode *pDnode) {
 }
 
 void dndCleanupTrans(SDnode *pDnode) {
+  dInfo("dnode-transport start to clean up");
   dndCleanupServer(pDnode);
   dndCleanupClient(pDnode);
   dInfo("dnode-transport is cleaned up");
