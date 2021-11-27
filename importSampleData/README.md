@@ -1,36 +1,28 @@
-## 样例数据导入
+# 样例数据导入
 
 该工具可以根据用户提供的 `json` 或 `csv` 格式样例数据文件快速导入 `TDengine`，目前仅能在 Linux 上运行。
 
 为了体验写入和查询性能，可以对样例数据进行横向、纵向扩展。横向扩展是指将一个表（监测点）的数据克隆到多张表，纵向扩展是指将样例数据中的一段时间范围内的数据在时间轴上复制。该工具还支持历史数据导入至当前时间后持续导入，这样可以测试插入和查询并行进行的场景，以模拟真实环境。
 
-## 下载安装
+## 编译安装
 
-### 下载可执行文件
+由于该工具使用 go 语言开发，编译之前需要先安装 go，具体请参考 [Getting Started][2]。执行以下命令即可编译成可执行文件 `bin/taosimport`。
 
-由于该工具使用 go 语言开发，为了方便使用，项目中已经提供了编译好的可执行文件 `bin/taosimport`。通过 `git clone https://github.com/taosdata/TDengine.git` 命令或者直接下载 `ZIP` 文件解压进入样例导入程序目录 `cd importSampleData`，执行 `bin/taosimport`。
-
-### go 源码编译
-
-由于该工具使用 go 语言开发，编译之前需要先安装 go，具体请参考 [Getting Started][2]，而且需要安装 TDengine 的 Go Connector, 具体请参考[TDengine 连接器文档][3]。安装完成之后，执行以下命令即可编译成可执行文件 `bin/taosimport`。
 ```shell
-go get https://github.com/taosdata/TDengine/importSampleData
-cd $GOPATH/src/github.com/taosdata/TDengine/importSampleData
+go mod tidy
 go build -o bin/taosimport app/main.go
 ```
-
-> 注：由于目前 TDengine 的 go connector 只支持 linux 环境，所以该工具暂时只能在 linux 系统中运行。
-> 如果 go get 失败可以下载之后复制 `github.com/taosdata/TDengine/importSampleData` 文件夹到 $GOPATH 的 src 目录下再执行 `go build -o bin/taosimport app/main.go`。
 
 ## 使用
 
 ### 快速体验
 
 执行命令 `bin/taosimport` 会根据默认配置执行以下操作：
+
 1. 创建数据库
 
-   自动创建名称为 `test_yyyyMMdd` 的数据库。
-   
+   自动创建名称为 `test_yyyyMMdd` 的数据库，`yyyyMMdd` 是当前日期，如`20211111`。
+
 2. 创建超级表
 
    根据配置文件 `config/cfg.toml` 中指定的 `sensor_info` 场景信息创建相应的超级表。
@@ -48,21 +40,25 @@ go build -o bin/taosimport app/main.go
     taos> use test_yyyyMMdd;
     taos> select count(*) from s_sensor_info;
     ```
+
 * 查询各个分组的记录数
 
     ```shell
     taos> select count(*) from s_sensor_info group by devgroup;
     ```
+
 * 按 1h 间隔查询各聚合指标
 
     ```shell
     taos> select count(temperature), sum(temperature), avg(temperature) from s_sensor_info interval(1h);
     ```
+
 * 查询指定位置最新上传指标
 
     ```shell
     taos> select last(*) from s_sensor_info where location = 'beijing';
     ```
+
 > 更多查询及函数使用请参考 [数据查询][4]
 
 ### 详细使用说明
@@ -70,23 +66,23 @@ go build -o bin/taosimport app/main.go
 执行命令 `bin/taosimport -h` 可以查看详细参数使用说明：
 
 * -cfg string
-    
+
     导入配置文件路径，包含样例数据文件相关描述及对应 TDengine 配置信息。默认使用 `config/cfg.toml`。
-    
+
 * -cases string
 
     需要导入的场景名称，该名称可从 -cfg 指定的配置文件中 `[usecase]` 查看，可同时导入多个场景，中间使用逗号分隔，如：`sensor_info,camera_detection`，默认为 `sensor_info`。
-    
+
 * -hnum int
 
     需要将样例数据进行横向扩展的倍数，假设原有样例数据包含 1 张子表 `t_0` 数据，指定 hnum 为 2 时会根据原有表名创建 `t_0、t_1` 两张子表。默认为 100。
-    
+
 * -vnum int
 
     需要将样例数据进行纵向扩展的次数，如果设置为 0 代表将历史数据导入至当前时间后持续按照指定间隔导入。默认为 1000，表示将样例数据在时间轴上纵向复制1000 次。
 
 * -delay int
-    
+
     当 vnum 设置为 0 时持续导入的时间间隔，默认为所有场景中最小记录间隔时间的一半，单位 ms。
 
 * -tick int
@@ -102,25 +98,25 @@ go build -o bin/taosimport app/main.go
     当 save 为 1 时保存统计信息的表名， 默认 statistic。
 
 * -auto int
-    
+
     是否自动生成样例数据中的主键时间戳，1 是，0 否， 默认 0。
-    
+
 * -start string
 
     导入的记录开始时间，格式为 `"yyyy-MM-dd HH:mm:ss.SSS"`，不设置会使用样例数据中最小时间，设置后会忽略样例数据中的主键时间，会按照指定的 start 进行导入。如果 auto 为 1，则必须设置 start，默认为空。
-    
+
 * -interval int
 
     导入的记录时间间隔，该设置只会在指定 `auto=1` 之后生效，否则会根据样例数据自动计算间隔时间。单位为毫秒，默认 1000。
   
 * -thread int
- 
+
     执行导入数据的线程数目，默认为 10。
   
 * -batch int
-    
+
     执行导入数据时的批量大小，默认为 100。批量是指一次写操作时，包含多少条记录。
- 
+
 * -host string
 
     导入的 TDengine 服务器 IP，默认为 127.0.0.1。
@@ -138,7 +134,7 @@ go build -o bin/taosimport app/main.go
     导入的 TDengine 用户密码，默认为 taosdata。
 
 * -dropdb int
-    
+
     导入数据之前是否删除数据库，1 是，0 否， 默认 0。
 
 * -db string
@@ -160,7 +156,7 @@ go build -o bin/taosimport app/main.go
     执行上述命令后会将 sensor_info 场景的数据横向扩展2倍从指定时间 `2019-12-12 00:00:00.000` 开始且记录间隔时间为 5000 毫秒开始导入，导入至当前时间后会自动持续导入。
 
 ### config/cfg.toml 配置文件说明
-    
+
 ``` toml
 # 传感器场景
 [sensor_info]                               # 场景名称
@@ -236,8 +232,6 @@ devid,location,color,devgroup,ts,temperature,humidity
 0, beijing, white, 0, 1575129600000, 16, 19.405091
 0, beijing, white, 0, 1575129601000, 22, 14.377142
 ```
-
-
 
 [1]: https://github.com/taosdata/TDengine
 [2]: https://golang.org/doc/install
