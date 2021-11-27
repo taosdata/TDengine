@@ -3708,7 +3708,9 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql) {
     int32_t type  = pInfo->field.type;
     int32_t bytes = pInfo->field.bytes;
 
-    if (!IS_VAR_DATA_TYPE(type) && type != TSDB_DATA_TYPE_JSON) {
+    if (tscMultiRoundQuery(pQueryInfo, 0) && pQueryInfo->round == 0 && type == TSDB_DATA_TYPE_JSON){  // for json tag compare in the second round of stddev
+      pRes->tsrow[j] = pRes->urow[i];
+    }else if (!IS_VAR_DATA_TYPE(type) && type != TSDB_DATA_TYPE_JSON) {
       pRes->tsrow[j] = isNull(pRes->urow[i], type) ? NULL : pRes->urow[i];
     } else {
       pRes->tsrow[j] = isNull(pRes->urow[i], type) ? NULL : varDataVal(pRes->urow[i]);
