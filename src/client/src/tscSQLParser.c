@@ -5621,7 +5621,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   }
 
   SStrToken    columnName = {pVar->nLen, pVar->nType, pVar->pz};
-  SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+  SColumnIndex indexColumn = COLUMN_INDEX_INITIALIZER;
   bool udf = false;
 
   if (pQueryInfo->pUdfInfo && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0) {
@@ -5637,7 +5637,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   }
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {  // super table query
-    if (getColumnIndexByName(&columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
+    if (getColumnIndexByName(&columnName, pQueryInfo, &indexColumn, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsgBuf, msg1);
     }
 
@@ -5645,8 +5645,8 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     bool orderByTS = false;
     bool orderByGroupbyCol = false;
 
-    if (index.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {    // order by tag1
-      int32_t relTagIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+    if (indexColumn.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {    // order by tag1
+      int32_t relTagIndex = indexColumn.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
 
       // it is a tag column
       if (pQueryInfo->groupbyExpr.columnInfo == NULL) {
@@ -5656,7 +5656,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       if (relTagIndex == pColIndex->colIndex) {
         orderByTags = true;
       }
-    } else if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) { // order by tbname
+    } else if (indexColumn.columnIndex == TSDB_TBNAME_COLUMN_INDEX) { // order by tbname
       // it is a tag column
       if (pQueryInfo->groupbyExpr.columnInfo == NULL) {
         return invalidOperationMsg(pMsgBuf, msg4);
@@ -5665,13 +5665,13 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       if (TSDB_TBNAME_COLUMN_INDEX == pColIndex->colIndex) {
         orderByTags = true;
       }
-    }else if (index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX) {     // order by ts
+    }else if (indexColumn.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX) {     // order by ts
       orderByTS = true;
     }else{    // order by normal column
       SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
       if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
         SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
-        if (pColIndex->colIndex == index.columnIndex) {
+        if (pColIndex->colIndex == indexColumn.columnIndex) {
           orderByGroupbyCol = true;
         }
       }
@@ -5687,7 +5687,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
         if (tscIsDiffDerivQuery(pQueryInfo)) {
           return invalidOperationMsg(pMsgBuf, msg12);
         }
-        pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+        pQueryInfo->groupbyExpr.orderIndex = indexColumn.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
 
         tVariantListItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
         pQueryInfo->groupbyExpr.orderType = p1->sortOrder;
@@ -5695,7 +5695,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
         tVariantListItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
 
         pQueryInfo->groupbyExpr.orderType = p1->sortOrder;
-        pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
+        pQueryInfo->order.orderColId = pSchema[indexColumn.columnIndex].colId;
         if (udf) {
           return invalidOperationMsg(pMsgBuf, msg11);
         }
@@ -5709,13 +5709,13 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
         pExpr = tscExprGet(pQueryInfo, pos);
 
-        if (pExpr->base.colInfo.colIndex != index.columnIndex && index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+        if (pExpr->base.colInfo.colIndex != indexColumn.columnIndex && indexColumn.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
           return invalidOperationMsg(pMsgBuf, msg5);
         }
 
         tVariantListItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
         pQueryInfo->order.order = p1->sortOrder;
-        pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
+        pQueryInfo->order.orderColId = pSchema[indexColumn.columnIndex].colId;
         return TSDB_CODE_SUCCESS;
       } else {
         tVariantListItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
@@ -5746,11 +5746,11 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     } else {
       tVariantListItem *pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
       if (orderByTags) {
-        pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+        pQueryInfo->groupbyExpr.orderIndex = indexColumn.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
         pQueryInfo->groupbyExpr.orderType = pItem->sortOrder;
       } else if (orderByGroupbyCol){
         pQueryInfo->order.order = pItem->sortOrder;
-        pQueryInfo->order.orderColId = index.columnIndex;
+        pQueryInfo->order.orderColId = indexColumn.columnIndex;
         if (udf) {
           return invalidOperationMsg(pMsgBuf, msg11);
         }
@@ -5765,11 +5765,11 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       pItem = taosArrayGet(pSqlNode->pSortOrder, 1);
       tVariant* pVar2 = &pItem->pVar;
       SStrToken cname = {pVar2->nLen, pVar2->nType, pVar2->pz};
-      if (getColumnIndexByName(&cname, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
+      if (getColumnIndexByName(&cname, pQueryInfo, &indexColumn, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(pMsgBuf, msg1);
       }
 
-      if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+      if (indexColumn.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
         return invalidOperationMsg(pMsgBuf, msg6);
       } else {
         tVariantListItem* p1 = taosArrayGet(pSortOrder, 1);
@@ -5779,16 +5779,16 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     }
 
   } else if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo) || UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo)) { // check order by clause for normal table & temp table
-    if (getColumnIndexByName(&columnName, pQueryInfo, &index, pMsgBuf) != TSDB_CODE_SUCCESS) {
+    if (getColumnIndexByName(&columnName, pQueryInfo, &indexColumn, pMsgBuf) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsgBuf, msg1);
     }
 
-    if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX && !isTopBottomQuery(pQueryInfo)) {
+    if (indexColumn.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX && !isTopBottomQuery(pQueryInfo)) {
       bool validOrder = false;
       SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
       if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
         SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
-        validOrder = (pColIndex->colIndex == index.columnIndex);
+        validOrder = (pColIndex->colIndex == indexColumn.columnIndex);
       }
 
       if (!validOrder) {
@@ -5804,7 +5804,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       }
 
       tVariantListItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
-      pQueryInfo->groupbyExpr.orderIndex = pSchema[index.columnIndex].colId;
+      pQueryInfo->groupbyExpr.orderIndex = pSchema[indexColumn.columnIndex].colId;
       pQueryInfo->groupbyExpr.orderType = p1->sortOrder;
     }
 
@@ -5813,7 +5813,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
         SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
 
-        if (pColIndex->colIndex != index.columnIndex) {
+        if (pColIndex->colIndex != indexColumn.columnIndex) {
           return invalidOperationMsg(pMsgBuf, msg8);
         }
       } else {
@@ -5824,7 +5824,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
         pExpr = tscExprGet(pQueryInfo, pos);
 
-        if (pExpr->base.colInfo.colIndex != index.columnIndex && index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+        if (pExpr->base.colInfo.colIndex != indexColumn.columnIndex && indexColumn.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
           return invalidOperationMsg(pMsgBuf, msg5);
         }
       }
@@ -5832,7 +5832,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       tVariantListItem* pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
       pQueryInfo->order.order = pItem->sortOrder;
 
-      pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
+      pQueryInfo->order.orderColId = pSchema[indexColumn.columnIndex].colId;
       return TSDB_CODE_SUCCESS;
     }
 
@@ -5842,13 +5842,13 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
     tVariantListItem* pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
     pQueryInfo->order.order = pItem->sortOrder;
-    pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
+    pQueryInfo->order.orderColId = pSchema[indexColumn.columnIndex].colId;
   } else {
     // handle the temp table order by clause. You can order by any single column in case of the temp table, created by
     // inner subquery.
     assert(UTIL_TABLE_IS_TMP_TABLE(pTableMetaInfo) && taosArrayGetSize(pSqlNode->pSortOrder) == 1);
 
-    if (getColumnIndexByName(&columnName, pQueryInfo, &index, pMsgBuf) != TSDB_CODE_SUCCESS) {
+    if (getColumnIndexByName(&columnName, pQueryInfo, &indexColumn, pMsgBuf) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsgBuf, msg1);
     }
 
@@ -5858,7 +5858,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
     tVariantListItem* pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
     pQueryInfo->order.order = pItem->sortOrder;
-    pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
+    pQueryInfo->order.orderColId = pSchema[indexColumn.columnIndex].colId;
   }
 
   return TSDB_CODE_SUCCESS;
