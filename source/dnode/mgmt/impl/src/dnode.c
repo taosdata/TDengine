@@ -26,7 +26,7 @@
 EStat dndGetStat(SDnode *pDnode) { return pDnode->stat; }
 
 void dndSetStat(SDnode *pDnode, EStat stat) {
-  dDebug("dnode stat set from %s to %s", dndStatStr(pDnode->stat), dndStatStr(stat));
+  dDebug("dnode status set from %s to %s", dndStatStr(pDnode->stat), dndStatStr(stat));
   pDnode->stat = stat;
 }
 
@@ -214,8 +214,7 @@ void dndCleanup(SDnode *pDnode) {
   dndCleanupDnode(pDnode);
   walCleanUp();
   rpcCleanup();
-
-  dInfo("TDengine is cleaned up successfully");
   dndCleanupEnv(pDnode);
   free(pDnode);
+  dInfo("TDengine is cleaned up successfully");
 }

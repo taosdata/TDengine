@@ -187,6 +187,7 @@ static void dndProcessRequest(void *param, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   int32_t msgType = pMsg->msgType;
   if (msgType == TSDB_MSG_TYPE_NETWORK_TEST) {
+    dTrace("RPC %p, network test req will be processed", pMsg->handle);
     dndProcessDnodeReq(pDnode, pMsg, pEpSet);
     return;
   }
@@ -206,6 +207,7 @@ static void dndProcessRequest(void *param, SRpcMsg *pMsg, SEpSet *pEpSet) {
   }
 
   if (pMsg->pCont == NULL) {
+    dTrace("RPC %p, req:%s not processed since content is null", pMsg->handle, taosMsg[msgType]);
     SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_DND_INVALID_MSG_LEN};
     rpcSendResponse(&rspMsg);
     return;
