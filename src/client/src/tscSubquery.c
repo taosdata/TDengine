@@ -2323,7 +2323,7 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
                   tscError("stddev convert tag error:%d", ret);
                 }
               }else{
-                memcpy(p + offset, row[i], pExpr->base.resBytes);
+                memcpy(p + offset, row[i], length[i]);
               }
             }
             offset += pExpr->base.resBytes;
