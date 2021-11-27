@@ -1,0 +1,2360 @@
+sleep 100
+sql connect
+
+sql use db;
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 09:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(LINEAR);
+if $rows != 22 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:01.000@ then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:02.000@ then
+  return -1
+endi
+if $data21 != 2 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:03.000@ then
+  return -1
+endi
+if $data31 != 3 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:04.000@ then
+  return -1
+endi
+if $data41 != 4 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:05.000@ then
+  return -1
+endi
+if $data51 != 5 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data61 != 6 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:07.000@ then
+  return -1
+endi
+if $data71 != 7 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:08.000@ then
+  return -1
+endi
+if $data81 != 8 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:09.000@ then
+  return -1
+endi
+if $data91 != 9 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 09:00:00','2021-10-20 09:00:01') EVERY(1s) FILL(LINEAR);
+if $rows != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 10:00:00','2021-10-20 10:00:00') EVERY(1s) FILL(LINEAR);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 10:00:04','2021-10-20 14:00:00') EVERY(1s) FILL(LINEAR);
+if $rows != 18 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:04.000@ then
+  return -1
+endi
+if $data01 != 4 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:05.000@ then
+  return -1
+endi
+if $data11 != 5 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data21 != 6 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:07.000@ then
+  return -1
+endi
+if $data31 != 7 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:08.000@ then
+  return -1
+endi
+if $data41 != 8 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:09.000@ then
+  return -1
+endi
+if $data51 != 9 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data61 != 10 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:11.000@ then
+  return -1
+endi
+if $data71 != 11 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:12.000@ then
+  return -1
+endi
+if $data81 != 12 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:13.000@ then
+  return -1
+endi
+if $data91 != 13 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 11:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(LINEAR);
+if $rows != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 09:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(NEXT);
+if $rows != 3622 then
+  return -1
+endi
+if $data00 != @21-10-20 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 09:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(NEXT) limit 10 offset 3612;
+if $rows != 10 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:12.000@ then
+  return -1
+endi
+if $data01 != 15 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:13.000@ then
+  return -1
+endi
+if $data11 != 15 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:14.000@ then
+  return -1
+endi
+if $data21 != 15 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:15.000@ then
+  return -1
+endi
+if $data31 != 15 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:16.000@ then
+  return -1
+endi
+if $data41 != 21 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:17.000@ then
+  return -1
+endi
+if $data51 != 21 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:18.000@ then
+  return -1
+endi
+if $data61 != 21 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:19.000@ then
+  return -1
+endi
+if $data71 != 21 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:20.000@ then
+  return -1
+endi
+if $data81 != 21 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:21.000@ then
+  return -1
+endi
+if $data91 != 21 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 09:00:00','2021-10-20 09:00:01') EVERY(1s) FILL(NEXT);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-10-20 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data10 != @21-10-20 09:00:01.000@ then
+  return -1
+endi
+if $data11 != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 10:00:00','2021-10-20 10:00:00') EVERY(1s) FILL(NEXT);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 10:00:04','2021-10-20 14:00:00') EVERY(1s) FILL(NEXT);
+if $rows != 18 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:04.000@ then
+  return -1
+endi
+if $data01 != 6 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:05.000@ then
+  return -1
+endi
+if $data11 != 6 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data21 != 6 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:07.000@ then
+  return -1
+endi
+if $data31 != 10 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:08.000@ then
+  return -1
+endi
+if $data41 != 10 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:09.000@ then
+  return -1
+endi
+if $data51 != 10 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data61 != 10 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:11.000@ then
+  return -1
+endi
+if $data71 != 15 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:12.000@ then
+  return -1
+endi
+if $data81 != 15 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:13.000@ then
+  return -1
+endi
+if $data91 != 15 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 11:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(NEXT);
+if $rows != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 09:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(PREV);
+if $rows != 14401 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:01.000@ then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:02.000@ then
+  return -1
+endi
+if $data21 != 1 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:03.000@ then
+  return -1
+endi
+if $data31 != 3 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:04.000@ then
+  return -1
+endi
+if $data41 != 3 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:05.000@ then
+  return -1
+endi
+if $data51 != 3 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data61 != 6 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:07.000@ then
+  return -1
+endi
+if $data71 != 6 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:08.000@ then
+  return -1
+endi
+if $data81 != 6 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:09.000@ then
+  return -1
+endi
+if $data91 != 6 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 09:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(PREV) limit 1 offset 14400;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-10-20 14:00:00.000@ then
+  return -1
+endi
+if $data01 != 21 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 09:00:00','2021-10-20 09:00:01') EVERY(1s) FILL(PREV);
+if $rows != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 10:00:00','2021-10-20 10:00:00') EVERY(1s) FILL(PREV);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 10:00:04','2021-10-20 14:00:00') EVERY(1s) FILL(PREV);
+if $rows != 14397 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:04.000@ then
+  return -1
+endi
+if $data01 != 3 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:05.000@ then
+  return -1
+endi
+if $data11 != 3 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data21 != 6 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:07.000@ then
+  return -1
+endi
+if $data31 != 6 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:08.000@ then
+  return -1
+endi
+if $data41 != 6 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:09.000@ then
+  return -1
+endi
+if $data51 != 6 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data61 != 10 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:11.000@ then
+  return -1
+endi
+if $data71 != 10 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:12.000@ then
+  return -1
+endi
+if $data81 != 10 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:13.000@ then
+  return -1
+endi
+if $data91 != 10 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 10:00:04','2021-10-20 14:00:00') EVERY(1s) FILL(PREV) limit 5 offset 14396;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-10-20 14:00:00.000@ then
+  return -1
+endi
+if $data01 != 21 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 11:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(PREV);
+if $rows != 10801 then
+  return -1
+endi
+if $data00 != @21-10-20 11:00:00.000@ then
+  return -1
+endi
+if $data01 != 21 then
+  return -1
+endi
+if $data10 != @21-10-20 11:00:01.000@ then
+  return -1
+endi
+if $data11 != 21 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 09:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(VALUE,100);
+if $rows != 18001 then
+  return -1
+endi
+if $data00 != @21-10-20 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 100 then
+  return -1
+endi
+if $data10 != @21-10-20 09:00:01.000@ then
+  return -1
+endi
+if $data11 != 100 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 09:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(VALUE,100) limit 20 offset 3600;
+if $rows != 20 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:01.000@ then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:02.000@ then
+  return -1
+endi
+if $data21 != 100 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:03.000@ then
+  return -1
+endi
+if $data31 != 3 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:04.000@ then
+  return -1
+endi
+if $data41 != 100 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:05.000@ then
+  return -1
+endi
+if $data51 != 100 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data61 != 6 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:07.000@ then
+  return -1
+endi
+if $data71 != 100 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:08.000@ then
+  return -1
+endi
+if $data81 != 100 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:09.000@ then
+  return -1
+endi
+if $data91 != 100 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 09:00:00','2021-10-20 09:00:01') EVERY(1s) FILL(VALUE,100);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-10-20 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 100 then
+  return -1
+endi
+if $data10 != @21-10-20 09:00:01.000@ then
+  return -1
+endi
+if $data11 != 100 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 10:00:00','2021-10-20 10:00:00') EVERY(1s) FILL(VALUE,100);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 10:00:04','2021-10-20 14:00:00') EVERY(1s) FILL(VALUE,100);
+if $rows != 14397 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:04.000@ then
+  return -1
+endi
+if $data01 != 100 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:05.000@ then
+  return -1
+endi
+if $data11 != 100 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data21 != 6 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:07.000@ then
+  return -1
+endi
+if $data31 != 100 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:08.000@ then
+  return -1
+endi
+if $data41 != 100 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:09.000@ then
+  return -1
+endi
+if $data51 != 100 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data61 != 10 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:11.000@ then
+  return -1
+endi
+if $data71 != 100 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:12.000@ then
+  return -1
+endi
+if $data81 != 100 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:13.000@ then
+  return -1
+endi
+if $data91 != 100 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 11:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(VALUE,100);
+if $rows != 10801 then
+  return -1
+endi
+if $data00 != @21-10-20 11:00:00.000@ then
+  return -1
+endi
+if $data01 != 100 then
+  return -1
+endi
+if $data10 != @21-10-20 11:00:01.000@ then
+  return -1
+endi
+if $data11 != 100 then
+  return -1
+endi
+if $data90 != @21-10-20 11:00:09.000@ then
+  return -1
+endi
+if $data91 != 100 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 09:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(NULL);
+if $rows != 18001 then
+  return -1
+endi
+if $data00 != @21-10-20 09:00:00.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data10 != @21-10-20 09:00:01.000@ then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 09:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(NULL) limit 20 offset 3600;
+if $rows != 20 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:01.000@ then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:02.000@ then
+  return -1
+endi
+if $data21 != NULL then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:03.000@ then
+  return -1
+endi
+if $data31 != 3 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:04.000@ then
+  return -1
+endi
+if $data41 != NULL then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:05.000@ then
+  return -1
+endi
+if $data51 != NULL then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data61 != 6 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:07.000@ then
+  return -1
+endi
+if $data71 != NULL then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:08.000@ then
+  return -1
+endi
+if $data81 != NULL then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:09.000@ then
+  return -1
+endi
+if $data91 != NULL then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 09:00:00','2021-10-20 09:00:01') EVERY(1s) FILL(NULL);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-10-20 09:00:00.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data10 != @21-10-20 09:00:01.000@ then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 10:00:00','2021-10-20 10:00:00') EVERY(1s) FILL(NULL);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 10:00:04','2021-10-20 14:00:00') EVERY(1s) FILL(NULL);
+if $rows != 14397 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:04.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:05.000@ then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data21 != 6 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:07.000@ then
+  return -1
+endi
+if $data31 != NULL then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:08.000@ then
+  return -1
+endi
+if $data41 != NULL then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:09.000@ then
+  return -1
+endi
+if $data51 != NULL then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data61 != 10 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:11.000@ then
+  return -1
+endi
+if $data71 != NULL then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:12.000@ then
+  return -1
+endi
+if $data81 != NULL then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:13.000@ then
+  return -1
+endi
+if $data91 != NULL then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 11:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(NULL);
+if $rows != 10801 then
+  return -1
+endi
+if $data00 != @21-10-20 11:00:00.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data10 != @21-10-20 11:00:01.000@ then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+if $data90 != @21-10-20 11:00:09.000@ then
+  return -1
+endi
+if $data91 != NULL then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 RANGE('2021-10-20 10:00:03.500','2021-10-20 14:00:00') EVERY(1s) FILL(LINEAR);
+if $rows != 18 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:03.500@ then
+  return -1
+endi
+if $data01 != 3 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:04.500@ then
+  return -1
+endi
+if $data11 != 4 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:05.500@ then
+  return -1
+endi
+if $data21 != 5 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:06.500@ then
+  return -1
+endi
+if $data31 != 6 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:07.500@ then
+  return -1
+endi
+if $data41 != 7 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:08.500@ then
+  return -1
+endi
+if $data51 != 8 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:09.500@ then
+  return -1
+endi
+if $data61 != 9 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:10.500@ then
+  return -1
+endi
+if $data71 != 10 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:11.500@ then
+  return -1
+endi
+if $data81 != 11 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:12.500@ then
+  return -1
+endi
+if $data91 != 12 then
+  return -1
+endi
+
+
+sql SELECT INTERP(c2) FROM tb1 RANGE('2021-10-20 10:00:03.500','2021-10-20 14:00:00') EVERY(1s) FILL(LINEAR);
+if $rows != 18 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:03.500@ then
+  return -1
+endi
+if $data01 != 3.50000 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:04.500@ then
+  return -1
+endi
+if $data11 != 4.50000 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:05.500@ then
+  return -1
+endi
+if $data21 != 5.50000 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:06.500@ then
+  return -1
+endi
+if $data31 != 6.50000 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:07.500@ then
+  return -1
+endi
+if $data41 != 7.50000 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:08.500@ then
+  return -1
+endi
+if $data51 != 8.50000 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:09.500@ then
+  return -1
+endi
+if $data61 != 9.50000 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:10.500@ then
+  return -1
+endi
+if $data71 != 10.50000 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:11.500@ then
+  return -1
+endi
+if $data81 != 11.50000 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:12.500@ then
+  return -1
+endi
+if $data91 != 12.50000 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 WHERE ts BETWEEN '2021-10-20 10:00:10' AND '2021-10-20 10:00:15' RANGE('2021-10-20 10:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(LINEAR);
+if $rows != 6 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data01 != 10 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:11.000@ then
+  return -1
+endi
+if $data11 != 11 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:12.000@ then
+  return -1
+endi
+if $data21 != 12 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:13.000@ then
+  return -1
+endi
+if $data31 != 13 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:14.000@ then
+  return -1
+endi
+if $data41 != 14 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:15.000@ then
+  return -1
+endi
+if $data51 != 15 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 WHERE ts BETWEEN '2021-10-20 10:00:10' AND '2021-10-20 10:00:11' RANGE('2021-10-20 10:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(LINEAR);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data01 != 10 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 WHERE ts BETWEEN '2021-10-20 10:00:10' AND '2021-10-20 10:00:15' RANGE('2021-10-20 10:00:00','2021-10-20 14:00:00') EVERY(1s) FILL(NEXT);
+if $rows != 16 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data01 != 10 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:01.000@ then
+  return -1
+endi
+if $data11 != 10 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:02.000@ then
+  return -1
+endi
+if $data21 != 10 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:03.000@ then
+  return -1
+endi
+if $data31 != 10 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:04.000@ then
+  return -1
+endi
+if $data41 != 10 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:05.000@ then
+  return -1
+endi
+if $data51 != 10 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data61 != 10 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:07.000@ then
+  return -1
+endi
+if $data71 != 10 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:08.000@ then
+  return -1
+endi
+if $data81 != 10 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:09.000@ then
+  return -1
+endi
+if $data91 != 10 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 WHERE ts BETWEEN '2021-10-20 10:00:10' AND '2021-10-20 10:00:15' RANGE('2021-10-20 09:00:00','2021-10-20 09:00:10') EVERY(1s) FILL(LINEAR);
+if $rows != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 WHERE ts BETWEEN '2021-10-20 10:00:10' AND '2021-10-20 10:00:20' RANGE('2021-10-20 10:00:05','2021-10-20 10:00:16') EVERY(1s) FILL(LINEAR);
+if $rows != 6 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data01 != 10 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:11.000@ then
+  return -1
+endi
+if $data11 != 11 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:12.000@ then
+  return -1
+endi
+if $data21 != 12 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:13.000@ then
+  return -1
+endi
+if $data31 != 13 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:14.000@ then
+  return -1
+endi
+if $data41 != 14 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:15.000@ then
+  return -1
+endi
+if $data51 != 15 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 WHERE ts BETWEEN '2021-10-20 10:00:10' AND '2021-10-20 10:00:20' RANGE('2021-10-20 10:00:15','2021-10-20 10:00:25') EVERY(1s) FILL(LINEAR);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:15.000@ then
+  return -1
+endi
+if $data01 != 15 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 WHERE ts BETWEEN '2021-10-20 10:00:10' AND '2021-10-20 10:00:20' RANGE('2021-10-20 10:00:21','2021-10-20 10:00:30') EVERY(1s) FILL(LINEAR);
+if $rows != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 WHERE ts BETWEEN '2021-10-20 10:00:10' AND '2021-10-20 10:00:15' RANGE('2021-10-20 09:00:00','2021-10-20 09:00:10') EVERY(1s) FILL(PREV);
+if $rows != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 WHERE ts BETWEEN '2021-10-20 10:00:10' AND '2021-10-20 10:00:20' RANGE('2021-10-20 10:00:05','2021-10-20 10:00:16') EVERY(1s) FILL(PREV);
+if $rows != 7 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data01 != 10 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:11.000@ then
+  return -1
+endi
+if $data11 != 10 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:12.000@ then
+  return -1
+endi
+if $data21 != 10 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:13.000@ then
+  return -1
+endi
+if $data31 != 10 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:14.000@ then
+  return -1
+endi
+if $data41 != 10 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:15.000@ then
+  return -1
+endi
+if $data51 != 15 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:16.000@ then
+  return -1
+endi
+if $data61 != 15 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 WHERE ts BETWEEN '2021-10-20 10:00:10' AND '2021-10-20 10:00:20' RANGE('2021-10-20 10:00:15','2021-10-20 10:00:25') EVERY(1s) FILL(PREV);
+if $rows != 11 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:15.000@ then
+  return -1
+endi
+if $data01 != 15 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:16.000@ then
+  return -1
+endi
+if $data11 != 15 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:17.000@ then
+  return -1
+endi
+if $data21 != 15 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:18.000@ then
+  return -1
+endi
+if $data31 != 15 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:19.000@ then
+  return -1
+endi
+if $data41 != 15 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:20.000@ then
+  return -1
+endi
+if $data51 != 15 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:21.000@ then
+  return -1
+endi
+if $data61 != 15 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:22.000@ then
+  return -1
+endi
+if $data71 != 15 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:23.000@ then
+  return -1
+endi
+if $data81 != 15 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:24.000@ then
+  return -1
+endi
+if $data91 != 15 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 WHERE ts BETWEEN '2021-10-20 10:00:10' AND '2021-10-20 10:00:20' RANGE('2021-10-20 10:00:21','2021-10-20 10:00:30') EVERY(1s) FILL(PREV);
+if $rows != 10 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:21.000@ then
+  return -1
+endi
+if $data01 != 15 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:22.000@ then
+  return -1
+endi
+if $data11 != 15 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:23.000@ then
+  return -1
+endi
+if $data21 != 15 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:24.000@ then
+  return -1
+endi
+if $data31 != 15 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:25.000@ then
+  return -1
+endi
+if $data41 != 15 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:26.000@ then
+  return -1
+endi
+if $data51 != 15 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:27.000@ then
+  return -1
+endi
+if $data61 != 15 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:28.000@ then
+  return -1
+endi
+if $data71 != 15 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:29.000@ then
+  return -1
+endi
+if $data81 != 15 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:30.000@ then
+  return -1
+endi
+if $data91 != 15 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 WHERE ts BETWEEN '2021-10-20 10:00:10' AND '2021-10-20 10:00:15' RANGE('2021-10-20 09:00:00','2021-10-20 09:00:10') EVERY(1s) FILL(NEXT);
+if $rows != 11 then
+  return -1
+endi
+if $data00 != @21-10-20 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 10 then
+  return -1
+endi
+if $data10 != @21-10-20 09:00:01.000@ then
+  return -1
+endi
+if $data11 != 10 then
+  return -1
+endi
+if $data20 != @21-10-20 09:00:02.000@ then
+  return -1
+endi
+if $data21 != 10 then
+  return -1
+endi
+if $data30 != @21-10-20 09:00:03.000@ then
+  return -1
+endi
+if $data31 != 10 then
+  return -1
+endi
+if $data40 != @21-10-20 09:00:04.000@ then
+  return -1
+endi
+if $data41 != 10 then
+  return -1
+endi
+if $data50 != @21-10-20 09:00:05.000@ then
+  return -1
+endi
+if $data51 != 10 then
+  return -1
+endi
+if $data60 != @21-10-20 09:00:06.000@ then
+  return -1
+endi
+if $data61 != 10 then
+  return -1
+endi
+if $data70 != @21-10-20 09:00:07.000@ then
+  return -1
+endi
+if $data71 != 10 then
+  return -1
+endi
+if $data80 != @21-10-20 09:00:08.000@ then
+  return -1
+endi
+if $data81 != 10 then
+  return -1
+endi
+if $data90 != @21-10-20 09:00:09.000@ then
+  return -1
+endi
+if $data91 != 10 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 WHERE ts BETWEEN '2021-10-20 10:00:10' AND '2021-10-20 10:00:20' RANGE('2021-10-20 10:00:05','2021-10-20 10:00:16') EVERY(1s) FILL(NEXT);
+if $rows != 11 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:05.000@ then
+  return -1
+endi
+if $data01 != 10 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data11 != 10 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:07.000@ then
+  return -1
+endi
+if $data21 != 10 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:08.000@ then
+  return -1
+endi
+if $data31 != 10 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:09.000@ then
+  return -1
+endi
+if $data41 != 10 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data51 != 10 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:11.000@ then
+  return -1
+endi
+if $data61 != 15 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:12.000@ then
+  return -1
+endi
+if $data71 != 15 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:13.000@ then
+  return -1
+endi
+if $data81 != 15 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:14.000@ then
+  return -1
+endi
+if $data91 != 15 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 WHERE ts BETWEEN '2021-10-20 10:00:10' AND '2021-10-20 10:00:20' RANGE('2021-10-20 10:00:15','2021-10-20 10:00:25') EVERY(1s) FILL(NEXT);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:15.000@ then
+  return -1
+endi
+if $data01 != 15 then
+  return -1
+endi
+
+
+sql SELECT INTERP(c1) FROM tb1 WHERE ts BETWEEN '2021-10-20 10:00:10' AND '2021-10-20 10:00:20' RANGE('2021-10-20 10:00:21','2021-10-20 10:00:30') EVERY(1s) FILL(NEXT);
+if $rows != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c2) FROM tb4 RANGE('2021-10-20 10:00:00','2021-10-20 12:00:00') FILL(NULL);
+if $rows != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c2) FROM tb4 RANGE('2021-10-20 10:00:00','2021-10-20 12:00:00') EVERY(1s) FILL(NULL);
+if $rows != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c2) FROM tb4 RANGE('2021-10-20 10:00:00','2021-10-20 12:00:00') EVERY(1s) FILL(LINEAR);
+if $rows != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c2) FROM tb4 RANGE('2021-10-20 10:00:00','2021-10-20 12:00:00') EVERY(1s) FILL(PREV);
+if $rows != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c2) FROM tb4 RANGE('2021-10-20 10:00:00','2021-10-20 12:00:00') EVERY(1s) FILL(NEXT);
+if $rows != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c2) FROM tb4 RANGE('2021-10-20 10:00:00','2021-10-20 12:00:00') EVERY(1s) FILL(VALUE,100);
+if $rows != 0 then
+  return -1
+endi
+
+
+
+print ================== start DESC test
+
+sql SELECT INTERP(c1) FROM tb1 ORDER BY ts DESC;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+
+sql SELECT ts,INTERP(c1) FROM tb1 ORDER BY ts DESC;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data01 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data02 != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM tb1 where ts > '2021-10-20 10:00:03' ORDER BY ts DESC;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data01 != 6 then
+  return -1
+endi
+sql SELECT INTERP(c1,c2,c3,c4,c6,c5) FROM tb1 every(1s) ORDER BY ts DESC;
+if $rows != 7 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:21.000@ then
+  return -1
+endi
+if $data01 != 21 then
+  return -1
+endi
+if $data02 != 21.00000 then
+  return -1
+endi
+if $data03 != 21 then
+  return -1
+endi
+if $data04 != 21 then
+  return -1
+endi
+if $data05 != 21.000000000 then
+  return -1
+endi
+if $data06 != 21 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:15.000@ then
+  return -1
+endi
+if $data11 != 15 then
+  return -1
+endi
+if $data12 != 15.00000 then
+  return -1
+endi
+if $data13 != 15 then
+  return -1
+endi
+if $data14 != 15 then
+  return -1
+endi
+if $data15 != 15.000000000 then
+  return -1
+endi
+if $data16 != 15 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data21 != 10 then
+  return -1
+endi
+if $data22 != 10.00000 then
+  return -1
+endi
+if $data23 != 10 then
+  return -1
+endi
+if $data24 != 10 then
+  return -1
+endi
+if $data25 != 10.000000000 then
+  return -1
+endi
+if $data26 != 10 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data31 != 6 then
+  return -1
+endi
+if $data32 != 6.00000 then
+  return -1
+endi
+if $data33 != 6 then
+  return -1
+endi
+if $data34 != 6 then
+  return -1
+endi
+if $data35 != 6.000000000 then
+  return -1
+endi
+if $data36 != 6 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:03.000@ then
+  return -1
+endi
+if $data41 != 3 then
+  return -1
+endi
+if $data42 != 3.00000 then
+  return -1
+endi
+if $data43 != 3 then
+  return -1
+endi
+if $data44 != 3 then
+  return -1
+endi
+if $data45 != 3.000000000 then
+  return -1
+endi
+if $data46 != 3 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:01.000@ then
+  return -1
+endi
+if $data51 != 1 then
+  return -1
+endi
+if $data52 != 1.00000 then
+  return -1
+endi
+if $data53 != 1 then
+  return -1
+endi
+if $data54 != 1 then
+  return -1
+endi
+if $data55 != 1.000000000 then
+  return -1
+endi
+if $data56 != 1 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data61 != 0 then
+  return -1
+endi
+if $data62 != 0.00000 then
+  return -1
+endi
+if $data63 != 0 then
+  return -1
+endi
+if $data64 != 0 then
+  return -1
+endi
+if $data65 != 0.000000000 then
+  return -1
+endi
+if $data66 != 0 then
+  return -1
+endi
+
+sql SELECT INTERP(c1),interp(c2),interp(c3) FROM tb1 every(1s) ORDER BY ts DESC;
+if $rows != 7 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data61 != 0 then
+  return -1
+endi
+if $data62 != 0.00000 then
+  return -1
+endi
+if $data63 != 0 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:01.000@ then
+  return -1
+endi
+if $data51 != 1 then
+  return -1
+endi
+if $data52 != 1.00000 then
+  return -1
+endi
+if $data53 != 1 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:03.000@ then
+  return -1
+endi
+if $data41 != 3 then
+  return -1
+endi
+if $data42 != 3.00000 then
+  return -1
+endi
+if $data43 != 3 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data31 != 6 then
+  return -1
+endi
+if $data32 != 6.00000 then
+  return -1
+endi
+if $data33 != 6 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data21 != 10 then
+  return -1
+endi
+if $data22 != 10.00000 then
+  return -1
+endi
+if $data23 != 10 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:15.000@ then
+  return -1
+endi
+if $data11 != 15 then
+  return -1
+endi
+if $data12 != 15.00000 then
+  return -1
+endi
+if $data13 != 15 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:21.000@ then
+  return -1
+endi
+if $data01 != 21 then
+  return -1
+endi
+if $data02 != 21.00000 then
+  return -1
+endi
+if $data03 != 21 then
+  return -1
+endi
+
+sql SELECT INTERP(c1),ts FROM tb1 every(1s) ORDER BY ts DESC;
+if $rows != 7 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data61 != 0 then
+  return -1
+endi
+if $data62 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:01.000@ then
+  return -1
+endi
+if $data51 != 1 then
+  return -1
+endi
+if $data52 != @21-10-20 10:00:01.000@ then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:03.000@ then
+  return -1
+endi
+if $data41 != 3 then
+  return -1
+endi
+if $data42 != @21-10-20 10:00:03.000@ then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data31 != 6 then
+  return -1
+endi
+if $data32 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data21 != 10 then
+  return -1
+endi
+if $data22 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:15.000@ then
+  return -1
+endi
+if $data11 != 15 then
+  return -1
+endi
+if $data12 != @21-10-20 10:00:15.000@ then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:21.000@ then
+  return -1
+endi
+if $data01 != 21 then
+  return -1
+endi
+if $data02 != @21-10-20 10:00:21.000@ then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM stb1 every(1s) group by tbname ORDER BY ts DESC;
+if $rows != 21 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data61 != 0 then
+  return -1
+endi
+if $data62 != tb1 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:01.000@ then
+  return -1
+endi
+if $data51 != 1 then
+  return -1
+endi
+if $data52 != tb1 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:03.000@ then
+  return -1
+endi
+if $data41 != 3 then
+  return -1
+endi
+if $data42 != tb1 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data31 != 6 then
+  return -1
+endi
+if $data32 != tb1 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data21 != 10 then
+  return -1
+endi
+if $data22 != tb1 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:15.000@ then
+  return -1
+endi
+if $data11 != 15 then
+  return -1
+endi
+if $data12 != tb1 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:21.000@ then
+  return -1
+endi
+if $data01 != 21 then
+  return -1
+endi
+if $data02 != tb1 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:14.000@ then
+  return -1
+endi
+if $data71 != 14 then
+  return -1
+endi
+if $data72 != tb2 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:12.000@ then
+  return -1
+endi
+if $data81 != 12 then
+  return -1
+endi
+if $data82 != tb2 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data91 != 10 then
+  return -1
+endi
+if $data92 != tb2 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM stb1 every(1s) group by tbname ORDER BY ts DESC limit 5;
+if $rows != 15 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM stb1 every(1s) group by tbname ORDER BY ts DESC limit 3;
+if $rows != 9 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:21.000@ then
+  return -1
+endi
+if $data01 != 21 then
+  return -1
+endi
+if $data02 != tb1 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:15.000@ then
+  return -1
+endi
+if $data11 != 15 then
+  return -1
+endi
+if $data12 != tb1 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data21 != 10 then
+  return -1
+endi
+if $data22 != tb1 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:14.000@ then
+  return -1
+endi
+if $data31 != 14 then
+  return -1
+endi
+if $data32 != tb2 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:12.000@ then
+  return -1
+endi
+if $data41 != 12 then
+  return -1
+endi
+if $data42 != tb2 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data51 != 10 then
+  return -1
+endi
+if $data52 != tb2 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:21.000@ then
+  return -1
+endi
+if $data61 != 21 then
+  return -1
+endi
+if $data62 != tb3 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:18.000@ then
+  return -1
+endi
+if $data71 != 18 then
+  return -1
+endi
+if $data72 != tb3 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data81 != 10 then
+  return -1
+endi
+if $data82 != tb3 then
+  return -1
+endi
+
+sql SELECT INTERP(c1) FROM stb1 every(1s) group by tbname ORDER BY ts DESC limit 3 offset 6;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data02 != tb1 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data11 != 0 then
+  return -1
+endi
+if $data12 != tb2 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data21 != 0 then
+  return -1
+endi
+if $data22 != tb3 then
+  return -1
+endi
+
+sql SELECT INTERP(c1),t1,interp(c2),t2,interp(c3) FROM stb1 every(1s) group by tbname ORDER BY ts DESC;
+if $rows != 21 then
+  return -1
+endi
+if $data00 != @21-10-20 10:00:21.000@ then
+  return -1
+endi
+if $data01 != 21 then
+  return -1
+endi
+if $data02 != 1 then
+  return -1
+endi
+if $data03 != 21.00000 then
+  return -1
+endi
+if $data04 != 1 then
+  return -1
+endi
+if $data05 != 21 then
+  return -1
+endi
+if $data06 != tb1 then
+  return -1
+endi
+if $data10 != @21-10-20 10:00:15.000@ then
+  return -1
+endi
+if $data11 != 15 then
+  return -1
+endi
+if $data12 != 1 then
+  return -1
+endi
+if $data13 != 15.00000 then
+  return -1
+endi
+if $data14 != 1 then
+  return -1
+endi
+if $data15 != 15 then
+  return -1
+endi
+if $data16 != tb1 then
+  return -1
+endi
+if $data20 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data21 != 10 then
+  return -1
+endi
+if $data22 != 1 then
+  return -1
+endi
+if $data23 != 10.00000 then
+  return -1
+endi
+if $data24 != 1 then
+  return -1
+endi
+if $data25 != 10 then
+  return -1
+endi
+if $data26 != tb1 then
+  return -1
+endi
+if $data30 != @21-10-20 10:00:06.000@ then
+  return -1
+endi
+if $data31 != 6 then
+  return -1
+endi
+if $data32 != 1 then
+  return -1
+endi
+if $data33 != 6.00000 then
+  return -1
+endi
+if $data34 != 1 then
+  return -1
+endi
+if $data35 != 6 then
+  return -1
+endi
+if $data36 != tb1 then
+  return -1
+endi
+if $data40 != @21-10-20 10:00:03.000@ then
+  return -1
+endi
+if $data41 != 3 then
+  return -1
+endi
+if $data42 != 1 then
+  return -1
+endi
+if $data43 != 3.00000 then
+  return -1
+endi
+if $data44 != 1 then
+  return -1
+endi
+if $data45 != 3 then
+  return -1
+endi
+if $data46 != tb1 then
+  return -1
+endi
+if $data50 != @21-10-20 10:00:01.000@ then
+  return -1
+endi
+if $data51 != 1 then
+  return -1
+endi
+if $data52 != 1 then
+  return -1
+endi
+if $data53 != 1.00000 then
+  return -1
+endi
+if $data54 != 1 then
+  return -1
+endi
+if $data55 != 1 then
+  return -1
+endi
+if $data56 != tb1 then
+  return -1
+endi
+if $data60 != @21-10-20 10:00:00.000@ then
+  return -1
+endi
+if $data61 != 0 then
+  return -1
+endi
+if $data62 != 1 then
+  return -1
+endi
+if $data63 != 0.00000 then
+  return -1
+endi
+if $data64 != 1 then
+  return -1
+endi
+if $data65 != 0 then
+  return -1
+endi
+if $data66 != tb1 then
+  return -1
+endi
+if $data70 != @21-10-20 10:00:14.000@ then
+  return -1
+endi
+if $data71 != 14 then
+  return -1
+endi
+if $data72 != 2 then
+  return -1
+endi
+if $data73 != 14.00000 then
+  return -1
+endi
+if $data74 != 2 then
+  return -1
+endi
+if $data75 != 14 then
+  return -1
+endi
+if $data76 != tb2 then
+  return -1
+endi
+if $data80 != @21-10-20 10:00:12.000@ then
+  return -1
+endi
+if $data81 != 12 then
+  return -1
+endi
+if $data82 != 2 then
+  return -1
+endi
+if $data83 != 12.00000 then
+  return -1
+endi
+if $data84 != 2 then
+  return -1
+endi
+if $data85 != 12 then
+  return -1
+endi
+if $data86 != tb2 then
+  return -1
+endi
+if $data90 != @21-10-20 10:00:10.000@ then
+  return -1
+endi
+if $data91 != 10 then
+  return -1
+endi
+if $data92 != 2 then
+  return -1
+endi
+if $data93 != 10.00000 then
+  return -1
+endi
+if $data94 != 2 then
+  return -1
+endi
+if $data95 != 10 then
+  return -1
+endi
+if $data96 != tb2 then
+  return -1
+endi

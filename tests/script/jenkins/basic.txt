@@ -75,7 +75,7 @@ cd ../../../debug; make
 ./test.sh -f general/parser/where.sim
 ./test.sh -f general/parser/slimit.sim
 ./test.sh -f general/parser/select_with_tags.sim
-./test.sh -f general/parser/interp.sim
+./test.sh -f general/parser/interp_full.sim
 ./test.sh -f general/parser/tags_dynamically_specifiy.sim
 ./test.sh -f general/parser/groupby.sim
 ./test.sh -f general/parser/set_tag_vals.sim
@@ -414,6 +414,7 @@ cd ../../../debug; make
 ./test.sh -f general/parser/between_and.sim
 ./test.sh -f general/parser/last_cache.sim
 ./test.sh -f unique/big/balance.sim
+./test.sh -f general/parser/nestquery.sim
 
 ./test.sh -f general/parser/udf.sim
 ./test.sh -f general/parser/udf_dll.sim

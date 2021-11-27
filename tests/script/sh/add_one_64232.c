@@ -29,5 +29,3 @@ void add_one_64232(char* data, short itype, short ibytes, int numOfRows, long lo
      printf("add_one_64232 out, numOfOutput:%d\n", *numOfOutput);
    }
 }
-
-

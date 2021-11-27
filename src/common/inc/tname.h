@@ -51,7 +51,7 @@ typedef struct SSqlExpr {
   int16_t   functionId;     // function id in aAgg array
 
   int16_t   resType;        // return value type
-  int16_t   resBytes;       // length of return value
+  int32_t   resBytes;       // length of return value
   int32_t   interBytes;     // inter result buffer size
 
   int16_t   colType;        // table column type

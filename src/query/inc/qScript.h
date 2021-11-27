@@ -15,7 +15,7 @@
 
 #ifndef TDENGINE_QSCRIPT_H
 #define TDENGINE_QSCRIPT_H
-
+#ifdef LUA_EMBEDDED
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
@@ -78,5 +78,5 @@ void       destroyScriptCtx(void *pScriptCtx);
 int32_t scriptEnvPoolInit();
 void    scriptEnvPoolCleanup();
 bool    isValidScript(char *script, int32_t len);
-
+#endif //LUA_EMBEDDED
 #endif //TDENGINE_QSCRIPT_H 

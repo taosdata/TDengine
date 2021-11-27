@@ -233,7 +233,7 @@ static int32_t tscFlushTmpBufferImpl(tExtMemBuffer *pMemoryBuf, tOrderDescriptor
 
   // sort before flush to disk, the data must be consecutively put on tFilePage.
   if (pDesc->orderInfo.numOfCols > 0) {
-    tColDataQSort(pDesc, (int32_t)pPage->num, 0, (int32_t)pPage->num - 1, pPage->data, orderType);
+    tColDataMergeSort(pDesc, (int32_t)pPage->num, 0, (int32_t)pPage->num - 1, pPage->data, orderType);
   }
 
 #ifdef _DEBUG_VIEW
@@ -364,7 +364,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SQueryInfo* 
           SExprInfo* pExprInfo = tscExprGet(pQueryInfo, j);
 
           int32_t functionId = pExprInfo->base.functionId;
-          if (pColIndex->colId == pExprInfo->base.colInfo.colId && (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAG)) {
+          if (pColIndex->colId == pExprInfo->base.colInfo.colId && (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TAGPRJ)) {
             orderColIndexList[i] = j;
             break;
           }
@@ -407,8 +407,8 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SQueryInfo* 
 }
 
 int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBuffer, int32_t numOfSub,
-                                 tOrderDescriptor **pOrderDesc, uint32_t nBufferSizes, int64_t id) {
-  SSchema      *pSchema = NULL;
+                                 tOrderDescriptor **pOrderDesc, uint32_t* nBufferSizes, int64_t id) {
+  SSchema1     *pSchema = NULL;
   SColumnModel *pModel = NULL;
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -421,7 +421,7 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
   
   size_t size = tscNumOfExprs(pQueryInfo);
   
-  pSchema = (SSchema *)calloc(1, sizeof(SSchema) * size);
+  pSchema = (SSchema1 *)calloc(1, sizeof(SSchema1) * size);
   if (pSchema == NULL) {
     tscError("0x%"PRIx64" failed to allocate memory", id);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -440,7 +440,10 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
 
   int32_t capacity = 0;
   if (rlen != 0) {
-    capacity = nBufferSizes / rlen;
+    if ((*nBufferSizes) < rlen) {
+      (*nBufferSizes) = rlen * 2;
+    }
+    capacity = (*nBufferSizes) / rlen;
   }
   
   pModel = createColumnModel(pSchema, (int32_t)size, capacity);
@@ -457,7 +460,7 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
 
   assert(numOfSub <= pTableMetaInfo->vgroupList->numOfVgroups);
   for (int32_t i = 0; i < numOfSub; ++i) {
-    (*pMemBuffer)[i] = createExtMemBuffer(nBufferSizes, rlen, pg, pModel);
+    (*pMemBuffer)[i] = createExtMemBuffer(*nBufferSizes, rlen, pg, pModel);
     (*pMemBuffer)[i]->flushModel = MULTIPLE_APPEND_MODEL;
   }
 
@@ -967,7 +970,6 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
 
       if (pOperator->pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_DESC) {
         SWAP(w->skey, w->ekey, TSKEY);
-        assert(w->skey <= w->ekey);
       }
     }
   }

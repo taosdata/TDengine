@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Script to stop the service and uninstall TDengine, but retain the config, data and log files.
+# Script to stop the service and uninstall PowerDB, but retain the config, data and log files.
 
 set -e
 #set -x
@@ -112,7 +112,7 @@ function clean_service_on_systemd() {
     
     tarbitratord_service_config="${service_config_dir}/${tarbitrator_service_name}.service"
     if systemctl is-active --quiet ${tarbitrator_service_name}; then
-        echo "TDengine tarbitrator is running, stopping it..."
+        echo "PowerDB tarbitrator is running, stopping it..."
         ${csudo} systemctl stop ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
     fi
     ${csudo} systemctl disable ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
@@ -122,7 +122,7 @@ function clean_service_on_systemd() {
 		  nginx_service_config="${service_config_dir}/${nginx_service_name}.service"	
    	 	if [ -d ${bin_dir}/web ]; then
    	    if systemctl is-active --quiet ${nginx_service_name}; then
-   	        echo "Nginx for TDengine is running, stopping it..."
+   	        echo "Nginx for PowerDB is running, stopping it..."
    	        ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
    	    fi
    	    ${csudo} systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
@@ -133,9 +133,6 @@ function clean_service_on_systemd() {
 }
 
 function clean_service_on_sysvinit() {
-    #restart_config_str="power:2345:respawn:${service_config_dir}/powerd start"
-    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :    
-    
     if pidof powerd &> /dev/null; then
         echo "PowerDB powerd is running, stopping it..."
         ${csudo} service powerd stop || :
@@ -183,7 +180,6 @@ function clean_service() {
     elif ((${service_mod}==1)); then
         clean_service_on_sysvinit
     else
-        # must manual stop taosd
         kill_powerd
         kill_tarbitrator
     fi
