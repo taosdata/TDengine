@@ -218,18 +218,18 @@ static void mnodeProcessRpcMsg(SMnodeMsg *pMsg) {
 
   int32_t msgType = pMsg->rpcMsg.msgType;
 
-  MnodeRpcFp fp = tsMint.msgFp[msgType];
+  MndMsgFp fp = tsMint.msgFp[msgType];
   if (fp == NULL) {
   }
 
-  int32_t code = (fp)(pMsg);
+  int32_t code = (*fp)(NULL, pMsg);
   if (code != 0) {
     assert(code);
   }
 }
 
-void mnodeSetMsgFp(int32_t msgType, MnodeRpcFp fp) {
-  if (msgType > 0 || msgType < TSDB_MSG_TYPE_MAX) {
+void mnodeSetMsgHandle(SMnode *pMnode, int32_t msgType, MndMsgFp fp) {
+  if (msgType >= 0 && msgType < TSDB_MSG_TYPE_MAX) {
     tsMint.msgFp[msgType] = fp;
   }
 }

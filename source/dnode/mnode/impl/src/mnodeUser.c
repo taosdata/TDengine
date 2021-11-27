@@ -179,7 +179,7 @@ static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnodeMsg *pM
   return 0;
 }
 
-static int32_t mnodeProcessCreateUserMsg(SMnodeMsg *pMsg) {
+static int32_t mnodeProcessCreateUserMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
   SCreateUserMsg *pCreate = pMsg->rpcMsg.pCont;
 
   if (pCreate->user[0] == 0) {
@@ -231,7 +231,7 @@ int32_t mnodeInitUser() {
                      .deleteFp = (SdbDeleteFp)mnodeUserActionDelete};
   sdbSetTable(table);
 
-  mnodeSetMsgFp(TSDB_MSG_TYPE_CREATE_USER, mnodeProcessCreateUserMsg);
+  mnodeSetMsgHandle(NULL, TSDB_MSG_TYPE_CREATE_USER, mnodeProcessCreateUserMsg);
 
   return 0;
 }
