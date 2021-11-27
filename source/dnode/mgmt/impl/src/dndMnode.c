@@ -198,7 +198,7 @@ static int32_t dndWriteMnodeFile(SDnode *pDnode) {
   snprintf(file, sizeof(file), "%s.bak", pMgmt->file);
 
   FILE *fp = fopen(file, "w");
-  if (fp != NULL) {
+  if (fp == NULL) {
     terrno = TSDB_CODE_DND_MNODE_WRITE_FILE_ERROR;
     dError("failed to write %s since %s", file, terrstr());
     return -1;
@@ -242,6 +242,21 @@ static int32_t dndWriteMnodeFile(SDnode *pDnode) {
 }
 
 static int32_t dndStartMnodeWorker(SDnode *pDnode) {
+  if (dndInitMnodeReadWorker(pDnode) != 0) {
+    dError("failed to start mnode read worker since %s", terrstr());
+    return -1;
+  }
+
+  if (dndInitMnodeWriteWorker(pDnode) != 0) {
+    dError("failed to start mnode write worker since %s", terrstr());
+    return -1;
+  }
+
+  if (dndInitMnodeSyncWorker(pDnode) != 0) {
+    dError("failed to start mnode sync worker since %s", terrstr());
+    return -1;
+  }
+
   if (dndAllocMnodeReadQueue(pDnode) != 0) {
     dError("failed to alloc mnode read queue since %s", terrstr());
     return -1;
@@ -708,6 +723,7 @@ static int32_t dndAllocMnodeReadQueue(SDnode *pDnode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   return 0;
 }
 
@@ -743,6 +759,7 @@ static int32_t dndAllocMnodeWriteQueue(SDnode *pDnode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   return 0;
 }
 
@@ -759,6 +776,7 @@ static int32_t dndAllocMnodeApplyQueue(SDnode *pDnode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   return 0;
 }
 
@@ -794,6 +812,7 @@ static int32_t dndAllocMnodeSyncQueue(SDnode *pDnode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   return 0;
 }
 

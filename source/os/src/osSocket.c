@@ -95,7 +95,7 @@ void taosShutDownSocketWR(SOCKET fd) {
 int32_t taosSetNonblocking(SOCKET sock, int32_t on) {
   int32_t flags = 0;
   if ((flags = fcntl(sock, F_GETFL, 0)) < 0) {
-    printf("fcntl(F_GETFL) error: %d (%s)\n", errno, strerror(errno));
+    //printf("fcntl(F_GETFL) error: %d (%s)\n", errno, strerror(errno));
     return 1;
   }
 
@@ -105,7 +105,7 @@ int32_t taosSetNonblocking(SOCKET sock, int32_t on) {
     flags &= ~O_NONBLOCK;
 
   if ((flags = fcntl(sock, F_SETFL, flags)) < 0) {
-    printf("fcntl(F_SETFL) error: %d (%s)\n", errno, strerror(errno));
+    //printf("fcntl(F_SETFL) error: %d (%s)\n", errno, strerror(errno));
     return 1;
   }
 
@@ -120,7 +120,7 @@ void taosBlockSIGPIPE() {
   sigaddset(&signal_mask, SIGPIPE);
   int32_t rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
   if (rc != 0) {
-    printf("failed to block SIGPIPE");
+    //printf("failed to block SIGPIPE");
   }
 }
 
@@ -130,7 +130,7 @@ void taosSetMaskSIGPIPE() {
   sigaddset(&signal_mask, SIGPIPE);
   int32_t rc = pthread_sigmask(SIG_SETMASK, &signal_mask, NULL);
   if (rc != 0) {
-    printf("failed to setmask SIGPIPE");
+    //printf("failed to setmask SIGPIPE");
   }
 }
 
@@ -277,7 +277,7 @@ int32_t taosGetFqdn(char *fqdn) {
   char hostname[1024];
   hostname[1023] = '\0';
   if (gethostname(hostname, 1023) == -1) {
-    printf("failed to get hostname, reason:%s", strerror(errno));
+    //printf("failed to get hostname, reason:%s", strerror(errno));
     return -1;
   }
 
@@ -294,7 +294,7 @@ int32_t taosGetFqdn(char *fqdn) {
 #endif // __APPLE__
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
-    printf("failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
+    //printf("failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
     return -1;
   }
 
@@ -326,12 +326,12 @@ uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
   } else {
 #ifdef EAI_SYSTEM
     if (ret == EAI_SYSTEM) {
-      printf("failed to get the ip address, fqdn:%s, since:%s", fqdn, strerror(errno));
+      //printf("failed to get the ip address, fqdn:%s, since:%s", fqdn, strerror(errno));
     } else {
-      printf("failed to get the ip address, fqdn:%s, since:%s", fqdn, gai_strerror(ret));
+      //printf("failed to get the ip address, fqdn:%s, since:%s", fqdn, gai_strerror(ret));
     }
 #else
-    printf("failed to get the ip address, fqdn:%s, since:%s", fqdn, gai_strerror(ret));
+    //printf("failed to get the ip address, fqdn:%s, since:%s", fqdn, gai_strerror(ret));
 #endif
     return 0xFFFFFFFF;
   }
@@ -437,13 +437,13 @@ int32_t taosNonblockwrite(SOCKET fd, char *ptr, int32_t nbytes) {
     FD_SET(fd, &fset);
     if ((nready = select((int32_t)(fd + 1), NULL, &fset, NULL, &tv)) == 0) {
       errno = ETIMEDOUT;
-      printf("fd %d timeout, no enough space to write", fd);
+      //printf("fd %d timeout, no enough space to write", fd);
       break;
 
     } else if (nready < 0) {
       if (errno == EINTR) continue;
 
-      printf("select error, %d (%s)", errno, strerror(errno));
+      //printf("select error, %d (%s)", errno, strerror(errno));
       return -1;
     }
 
@@ -451,7 +451,7 @@ int32_t taosNonblockwrite(SOCKET fd, char *ptr, int32_t nbytes) {
     if (nwritten <= 0) {
       if (errno == EAGAIN || errno == EINTR) continue;
 
-      printf("write error, %d (%s)", errno, strerror(errno));
+      //printf("write error, %d (%s)", errno, strerror(errno));
       return -1;
     }
 
@@ -477,21 +477,21 @@ int32_t taosReadn(SOCKET fd, char *ptr, int32_t nbytes) {
     FD_SET(fd, &fset);
     if ((nready = select((int32_t)(fd + 1), NULL, &fset, NULL, &tv)) == 0) {
       errno = ETIMEDOUT;
-      printf("fd %d timeout\n", fd);
+      //printf("fd %d timeout\n", fd);
       break;
     } else if (nready < 0) {
       if (errno == EINTR) continue;
-      printf("select error, %d (%s)", errno, strerror(errno));
+      //printf("select error, %d (%s)", errno, strerror(errno));
       return -1;
     }
 
     if ((nread = (int32_t)taosReadSocket(fd, ptr, (size_t)nleft)) < 0) {
       if (errno == EINTR) continue;
-      printf("read error, %d (%s)", errno, strerror(errno));
+      //printf("read error, %d (%s)", errno, strerror(errno));
       return -1;
 
     } else if (nread == 0) {
-      printf("fd %d EOF", fd);
+      //printf("fd %d EOF", fd);
       break;  // EOF
     }
 
@@ -507,7 +507,7 @@ SOCKET taosOpenUdpSocket(uint32_t ip, uint16_t port) {
   SOCKET sockFd;
   int32_t bufSize = 1024000;
 
-  printf("open udp socket:0x%x:%hu", ip, port);
+  //printf("open udp socket:0x%x:%hu", ip, port);
 
   memset((char *)&localAddr, 0, sizeof(localAddr));
   localAddr.sin_family = AF_INET;
@@ -515,26 +515,26 @@ SOCKET taosOpenUdpSocket(uint32_t ip, uint16_t port) {
   localAddr.sin_port = (uint16_t)htons(port);
 
   if ((sockFd = socket(AF_INET, SOCK_DGRAM, 0)) <= 2) {
-    printf("failed to open udp socket: %d (%s)", errno, strerror(errno));
+    //printf("failed to open udp socket: %d (%s)", errno, strerror(errno));
     taosCloseSocketNoCheck(sockFd);
     return -1;
   }
 
   if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_SNDBUF, (void *)&bufSize, sizeof(bufSize)) != 0) {
-    printf("failed to set the send buffer size for UDP socket\n");
+    //printf("failed to set the send buffer size for UDP socket\n");
     taosCloseSocket(sockFd);
     return -1;
   }
 
   if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_RCVBUF, (void *)&bufSize, sizeof(bufSize)) != 0) {
-    printf("failed to set the receive buffer size for UDP socket\n");
+    //printf("failed to set the receive buffer size for UDP socket\n");
     taosCloseSocket(sockFd);
     return -1;
   }
 
   /* bind socket to local address */
   if (bind(sockFd, (struct sockaddr *)&localAddr, sizeof(localAddr)) < 0) {
-    printf("failed to bind udp socket: %d (%s), 0x%x:%hu", errno, strerror(errno), ip, port);
+    //printf("failed to bind udp socket: %d (%s), 0x%x:%hu", errno, strerror(errno), ip, port);
     taosCloseSocket(sockFd);
     return -1;
   }
@@ -551,7 +551,7 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
   sockFd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
   if (sockFd <= 2) {
-    printf("failed to open the socket: %d (%s)", errno, strerror(errno));
+    //printf("failed to open the socket: %d (%s)", errno, strerror(errno));
     taosCloseSocketNoCheck(sockFd);
     return -1;
   }
@@ -559,19 +559,19 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
   /* set REUSEADDR option, so the portnumber can be re-used */
   int32_t reuse = 1;
   if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
-    printf("setsockopt SO_REUSEADDR failed: %d (%s)", errno, strerror(errno));
+    //printf("setsockopt SO_REUSEADDR failed: %d (%s)", errno, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;
   }
 
   if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_SNDBUF, (void *)&bufSize, sizeof(bufSize)) != 0) {
-    printf("failed to set the send buffer size for TCP socket\n");
+    //printf("failed to set the send buffer size for TCP socket\n");
     taosCloseSocket(sockFd);
     return -1;
   }
 
   if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_RCVBUF, (void *)&bufSize, sizeof(bufSize)) != 0) {
-    printf("failed to set the receive buffer size for TCP socket\n");
+    //printf("failed to set the receive buffer size for TCP socket\n");
     taosCloseSocket(sockFd);
     return -1;
   }
@@ -584,8 +584,8 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
 
     /* bind socket to client address */
     if (bind(sockFd, (struct sockaddr *)&clientAddr, sizeof(clientAddr)) < 0) {
-      printf("bind tcp client socket failed, client(0x%x:0), dest(0x%x:%d), reason:(%s)", clientIp, destIp, destPort,
-             strerror(errno));
+      //printf("bind tcp client socket failed, client(0x%x:0), dest(0x%x:%d), reason:(%s)", clientIp, destIp, destPort,
+      //       strerror(errno));
       taosCloseSocket(sockFd);
       return -1;
     }
@@ -601,7 +601,7 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
   ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)); 
   if (ret == -1) {
     if (errno == EHOSTUNREACH) {
-      printf("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
+      //printf("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
       taosCloseSocket(sockFd);
       return -1; 
     } else if (errno == EINPROGRESS || errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -612,19 +612,19 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
     
       int res = poll(wfd, 1, TCP_CONN_TIMEOUT);
       if (res == -1 || res == 0) {
-        printf("failed to connect socket, ip:0x%x, port:%hu(poll error/conn timeout)", destIp, destPort);
+        //printf("failed to connect socket, ip:0x%x, port:%hu(poll error/conn timeout)", destIp, destPort);
         taosCloseSocket(sockFd); //  
         return -1;
       }
       int optVal = -1, optLen = sizeof(int);  
       if ((0 != taosGetSockOpt(sockFd, SOL_SOCKET, SO_ERROR, &optVal, &optLen)) || (optVal != 0)) {
-        printf("failed to connect socket, ip:0x%x, port:%hu(connect host error)", destIp, destPort);
+        //printf("failed to connect socket, ip:0x%x, port:%hu(connect host error)", destIp, destPort);
         taosCloseSocket(sockFd); //  
         return -1;
       }
       ret = 0;
     } else { // Other error
-      printf("failed to connect socket, ip:0x%x, port:%hu(target host cannot be reached)", destIp, destPort);
+      //printf("failed to connect socket, ip:0x%x, port:%hu(target host cannot be reached)", destIp, destPort);
       taosCloseSocket(sockFd); //  
       return -1; 
     } 
@@ -636,7 +636,7 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
 #endif
 
   if (ret != 0) {
-    printf("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
+    //printf("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
     taosCloseSocket(sockFd);
     sockFd = -1;
   } else {
@@ -649,7 +649,7 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
 int32_t taosKeepTcpAlive(SOCKET sockFd) {
   int32_t alive = 1;
   if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_KEEPALIVE, (void *)&alive, sizeof(alive)) < 0) {
-    printf("fd:%d setsockopt SO_KEEPALIVE failed: %d (%s)", sockFd, errno, strerror(errno));
+    //printf("fd:%d setsockopt SO_KEEPALIVE failed: %d (%s)", sockFd, errno, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;
   }
@@ -658,21 +658,21 @@ int32_t taosKeepTcpAlive(SOCKET sockFd) {
   // all fails on macosx
   int32_t probes = 3;
   if (taosSetSockOpt(sockFd, SOL_TCP, TCP_KEEPCNT, (void *)&probes, sizeof(probes)) < 0) {
-    printf("fd:%d setsockopt SO_KEEPCNT failed: %d (%s)", sockFd, errno, strerror(errno));
+    //printf("fd:%d setsockopt SO_KEEPCNT failed: %d (%s)", sockFd, errno, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;
   }
 
   int32_t alivetime = 10;
   if (taosSetSockOpt(sockFd, SOL_TCP, TCP_KEEPIDLE, (void *)&alivetime, sizeof(alivetime)) < 0) {
-    printf("fd:%d setsockopt SO_KEEPIDLE failed: %d (%s)", sockFd, errno, strerror(errno));
+    //printf("fd:%d setsockopt SO_KEEPIDLE failed: %d (%s)", sockFd, errno, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;
   }
 
   int32_t interval = 3;
   if (taosSetSockOpt(sockFd, SOL_TCP, TCP_KEEPINTVL, (void *)&interval, sizeof(interval)) < 0) {
-    printf("fd:%d setsockopt SO_KEEPINTVL failed: %d (%s)", sockFd, errno, strerror(errno));
+    //printf("fd:%d setsockopt SO_KEEPINTVL failed: %d (%s)", sockFd, errno, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;
   }
@@ -680,7 +680,7 @@ int32_t taosKeepTcpAlive(SOCKET sockFd) {
 
   int32_t nodelay = 1;
   if (taosSetSockOpt(sockFd, IPPROTO_TCP, TCP_NODELAY, (void *)&nodelay, sizeof(nodelay)) < 0) {
-    printf("fd:%d setsockopt TCP_NODELAY failed %d (%s)", sockFd, errno, strerror(errno));
+    //printf("fd:%d setsockopt TCP_NODELAY failed %d (%s)", sockFd, errno, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;
   }
@@ -689,7 +689,7 @@ int32_t taosKeepTcpAlive(SOCKET sockFd) {
   linger.l_onoff = 1;
   linger.l_linger = 3;
   if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_LINGER, (void *)&linger, sizeof(linger)) < 0) {
-    printf("setsockopt SO_LINGER failed: %d (%s)", errno, strerror(errno));
+    //printf("setsockopt SO_LINGER failed: %d (%s)", errno, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;
   }
@@ -702,7 +702,7 @@ SOCKET taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   SOCKET             sockFd;
   int32_t            reuse;
 
-  printf("open tcp server socket:0x%x:%hu", ip, port);
+  //printf("open tcp server socket:0x%x:%hu", ip, port);
 
   bzero((char *)&serverAdd, sizeof(serverAdd));
   serverAdd.sin_family = AF_INET;
@@ -710,7 +710,7 @@ SOCKET taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   serverAdd.sin_port = (uint16_t)htons(port);
 
   if ((sockFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) <= 2) {
-    printf("failed to open TCP socket: %d (%s)", errno, strerror(errno));
+    //printf("failed to open TCP socket: %d (%s)", errno, strerror(errno));
     taosCloseSocketNoCheck(sockFd);
     return -1;
   }
@@ -718,26 +718,26 @@ SOCKET taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   /* set REUSEADDR option, so the portnumber can be re-used */
   reuse = 1;
   if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
-    printf("setsockopt SO_REUSEADDR failed: %d (%s)", errno, strerror(errno));
+    //printf("setsockopt SO_REUSEADDR failed: %d (%s)", errno, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;
   }
 
   /* bind socket to server address */
   if (bind(sockFd, (struct sockaddr *)&serverAdd, sizeof(serverAdd)) < 0) {
-    printf("bind tcp server socket failed, 0x%x:%hu(%s)", ip, port, strerror(errno));
+    //printf("bind tcp server socket failed, 0x%x:%hu(%s)", ip, port, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;
   }
 
   if (taosKeepTcpAlive(sockFd) < 0) {
-    printf("failed to set tcp server keep-alive option, 0x%x:%hu(%s)", ip, port, strerror(errno));
+    //printf("failed to set tcp server keep-alive option, 0x%x:%hu(%s)", ip, port, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;
   }
 
   if (listen(sockFd, 1024) < 0) {
-    printf("listen tcp server socket failed, 0x%x:%hu(%s)", ip, port, strerror(errno));
+    //printf("listen tcp server socket failed, 0x%x:%hu(%s)", ip, port, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;
   }
@@ -767,16 +767,16 @@ int64_t taosCopyFds(SOCKET sfd, int32_t dfd, int64_t len) {
 
     int64_t retLen = taosReadMsg(sfd, temp, (int32_t)readLen);
     if (readLen != retLen) {
-      printf("read error, readLen:%" PRId64 " retLen:%" PRId64 " len:%" PRId64 " leftLen:%" PRId64 ", reason:%s",
-             readLen, retLen, len, leftLen, strerror(errno));
+      //printf("read error, readLen:%" PRId64 " retLen:%" PRId64 " len:%" PRId64 " leftLen:%" PRId64 ", reason:%s",
+      //       readLen, retLen, len, leftLen, strerror(errno));
       return -1;
     }
 
     writeLen = taosWriteMsg(dfd, temp, (int32_t)readLen);
 
     if (readLen != writeLen) {
-      printf("copy error, readLen:%" PRId64 " writeLen:%" PRId64 " len:%" PRId64 " leftLen:%" PRId64 ", reason:%s",
-             readLen, writeLen, len, leftLen, strerror(errno));
+      //printf("copy error, readLen:%" PRId64 " writeLen:%" PRId64 " len:%" PRId64 " leftLen:%" PRId64 ", reason:%s",
+      //       readLen, writeLen, len, leftLen, strerror(errno));
       return -1;
     }
 

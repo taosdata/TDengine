@@ -31,9 +31,9 @@
 #include "mnodeStable.h"
 #include "mnodeSync.h"
 #include "mnodeTelem.h"
+#include "mnodeTrans.h"
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
-#include "mnodeTrans.h"
 
 SMnodeBak tsMint = {0};
 

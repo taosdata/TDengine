@@ -48,14 +48,14 @@ void taosRemoveDir(const char *dirname) {
       taosRemoveDir(filename);
     } else {
       (void)remove(filename);
-      printf("file:%s is removed\n", filename);
+      //printf("file:%s is removed\n", filename);
     }
   }
 
   closedir(dir);
   rmdir(dirname);
 
-  printf("dir:%s is removed\n", dirname);
+  //printf("dir:%s is removed\n", dirname);
 }
 
 int32_t taosDirExist(char *dirname) { return access(dirname, F_OK); }
@@ -101,9 +101,9 @@ void taosRemoveOldFiles(char *dirname, int32_t keepDays) {
       int32_t days = (int32_t)(ABS(sec - fileSec) / 86400 + 1);
       if (days > keepDays) {
         (void)remove(filename);
-        printf("file:%s is removed, days:%d keepDays:%d", filename, days, keepDays);
+        //printf("file:%s is removed, days:%d keepDays:%d", filename, days, keepDays);
       } else {
-        printf("file:%s won't be removed, days:%d keepDays:%d", filename, days, keepDays);
+        //printf("file:%s won't be removed, days:%d keepDays:%d", filename, days, keepDays);
       }
     }
   }
@@ -115,7 +115,7 @@ void taosRemoveOldFiles(char *dirname, int32_t keepDays) {
 int32_t taosExpandDir(char *dirname, char *outname, int32_t maxlen) {
   wordexp_t full_path;
   if (0 != wordexp(dirname, &full_path, 0)) {
-    printf("failed to expand path:%s since %s", dirname, strerror(errno));
+    //printf("failed to expand path:%s since %s", dirname, strerror(errno));
     wordfree(&full_path);
     return -1;
   }
