@@ -894,6 +894,89 @@ int taos_print_row_ex(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_field
   return len;
 }
 
+// print field value to str
+int taos_print_field(char *str, void* value, TAOS_FIELD *field) {
+  // check valid
+  if (str == NULL || value == NULL || field == NULL) {
+    return 0;
+  }
+
+  // get value
+  int len = 0;
+  switch (field->type) {
+    //
+    // fixed length
+    //
+    case TSDB_DATA_TYPE_TINYINT:
+      len = sprintf(str, "%d", *((int8_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_UTINYINT:
+      len = sprintf(str, "%u", *((uint8_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_SMALLINT:
+      len = sprintf(str, "%d", *((int16_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_USMALLINT:
+      len = sprintf(str, "%u", *((uint16_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_INT:
+      len = sprintf(str, "%d", *((int32_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_UINT:
+      len = sprintf(str, "%u", *((uint32_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_BIGINT:
+      len = sprintf(str, "%" PRId64, *((int64_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_UBIGINT:
+      len = sprintf(str, "%" PRIu64, *((uint64_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_FLOAT: {
+      float fv = 0;
+      fv = GET_FLOAT_VAL(value);
+      len = sprintf(str, "%f", fv);
+    } break;
+
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double dv = 0;
+      dv = GET_DOUBLE_VAL(value);
+      len = sprintf(str, "%lf", dv);
+    } break;
+
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      len = sprintf(str, "%" PRId64, *((int64_t *)value));
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+      len = sprintf(str, "%d", *((int8_t *)value));
+
+    // 
+    //  variant length
+    //
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR: {
+      len = varDataLen((char*)value - VARSTR_HEADER_SIZE);
+      if (field->type == TSDB_DATA_TYPE_BINARY) {
+        assert(len <= field->bytes && len >= 0);
+      } else {
+        assert(len <= field->bytes * TSDB_NCHAR_SIZE && len >= 0);
+      }
+      memcpy(str, value, len);
+    } break;
+  
+    default:
+      break;
+  }
+  return len;
+}
+
 static void asyncCallback(void *param, TAOS_RES *tres, int code) {
   assert(param != NULL);
   SSqlObj *pSql = ((SSqlObj *)param);

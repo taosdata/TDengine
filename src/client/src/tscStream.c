@@ -461,17 +461,30 @@ bool toAnotherTable(STscObj *pTscObj, char *superName, TAOS_FIELD *fields, int32
 // add row to hash to group by tbname
 bool tbHashAdd(SHashObj *tbHash, TAOS_ROW row, TAOS_FIELD* fields, int32_t idx, int32_t numCols) {
   void *v = row[idx];
-  VarDataLenT len = varDataLen((char*)v - VARSTR_HEADER_SIZE);
-  char *key = v;
+  TAOS_FIELD *field = &fields[idx];
+  VarDataLenT len = 0;
+  char str[128];
+  memset(str, 0, sizeof(str));
+  char *key = str;
+  
+  // get key and len
+  if(field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_NCHAR) {
+    key = v;
+    len = varDataLen((char*)v - VARSTR_HEADER_SIZE);
+  } else {
+    len = taos_print_field(str, v, field);
+  }
+  if(len == 0) {
+    return false;
+  }
 
-  // get array point from hash 
+  // append key with len
   SArray *arr = NULL;
-  // get arr from hash
   void* pdata = taosHashGet(tbHash, key, len);
   if(pdata) {
     arr = *(SArray **)pdata;
   }
-  // get arr from new
+  // if group is null create new
   if(arr == NULL) {
     arr = (SArray *)taosArrayInit(10, sizeof(TAOS_ROW));
     if(arr == NULL) {
@@ -481,7 +494,7 @@ bool tbHashAdd(SHashObj *tbHash, TAOS_ROW row, TAOS_FIELD* fields, int32_t idx, 
     taosHashPut(tbHash, key, len, &arr, sizeof(SArray *));
   }
 
-  // add to array
+  // append to group
   int32_t new_len = sizeof(void*) * numCols;
   TAOS_ROW new_row = (TAOS_ROW)tmalloc(new_len);
   memcpy(new_row, row, new_len);
@@ -507,7 +520,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
   if (numOfRows > 0) { // when reaching here the first execution of stream computing is successful.
     // init hash
     SHashObj* tbHash = NULL;
-    int32_t colIdx = 1;
+    int32_t colIdx = -1;
     TAOS_FIELD *fields = NULL;
     int32_t dstColsNum = pStream->dstCols;
     int32_t fieldsNum = 0;
@@ -528,6 +541,11 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
           colIdx = i;
           break;
         }
+      }
+
+      // set default with last fields if
+      if(colIdx == -1) { 
+        colIdx = fieldsNum - 1; 
       }
     }
 
@@ -560,7 +578,9 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
       pStream->stime = taosTimeAdd(pStream->stime, pStream->interval.sliding, pStream->interval.slidingUnit, pStream->precision);
     }
     // actually only one row is returned. this following is not necessary
-    taos_fetch_rows_a(res, tscProcessStreamRetrieveResult, pStream);
+    if(pQueryInfo->pQInfo->code == TSDB_CODE_SUCCESS) { 
+      taos_fetch_rows_a(res, tscProcessStreamRetrieveResult, pStream);
+    }
   } else {  // numOfRows == 0, all data has been retrieved
     pStream->useconds += pSql->res.useconds;
     if (pStream->numOfRes == 0) {
