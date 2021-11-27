@@ -72,8 +72,8 @@ int main(int argc, char *argv[]) {
   taos_close(taos);
   taos_cleanup();
 }
-void Test(TAOS *taos, char *qstr, int index) {
-  printf("==================test at %d\n================================", index);
+void Test(TAOS *taos, char *qstr, int tst_index) {
+  printf("==================test at %d\n================================", tst_index);
   queryDB(taos, "drop database if exists demo");
   queryDB(taos, "create database demo");
   TAOS_RES *result;

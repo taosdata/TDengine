@@ -339,6 +339,12 @@ void taosReadGlobalLogCfg() {
 	#elif (_TD_PRO_ == true)
     printf("configDir:%s not there, use default value: /etc/ProDB", configDir);
     strcpy(configDir, "/etc/ProDB");
+	#elif (_TD_KH_ == true)
+    printf("configDir:%s not there, use default value: /etc/kinghistorian", configDir);
+    strcpy(configDir, "/etc/kinghistorian");
+	#elif (_TD_JH_ == true)
+    printf("configDir:%s not there, use default value: /etc/jh_taos", configDir);
+    strcpy(configDir, "/etc/jh_taos");
     #else
     printf("configDir:%s not there, use default value: /etc/taos", configDir);
     strcpy(configDir, "/etc/taos");

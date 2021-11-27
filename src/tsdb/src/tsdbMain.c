@@ -330,7 +330,7 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
 #endif
 }
 
-uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t eindex, int64_t *size) {
+uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *tsd_index, uint32_t eindex, int64_t *size) {
   // TODO
   return 0;
 #if 0
@@ -342,16 +342,16 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
 
   struct stat fState;
 
-  tsdbDebug("vgId:%d name:%s index:%d eindex:%d", pRepo->config.tsdbId, name, *index, eindex);
-  ASSERT(*index <= eindex);
+  tsdbDebug("vgId:%d name:%s tsd_index:%d eindex:%d", pRepo->config.tsdbId, name, *tsd_index, eindex);
+  ASSERT(*tsd_index <= eindex);
 
   if (name[0] == 0) {  // get the file from index or after, but not larger than eindex
-    int fid = (*index) / TSDB_FILE_TYPE_MAX;
+    int fid = (*tsd_index) / TSDB_FILE_TYPE_MAX;
 
     if (pFileH->nFGroups == 0 || fid > pFileH->pFGroup[pFileH->nFGroups - 1].fileId) {
-      if (*index <= TSDB_META_FILE_INDEX && TSDB_META_FILE_INDEX <= eindex) {
+      if (*tsd_index <= TSDB_META_FILE_INDEX && TSDB_META_FILE_INDEX <= eindex) {
         fname = tsdbGetMetaFileName(pRepo->rootDir);
-        *index = TSDB_META_FILE_INDEX;
+        *tsd_index = TSDB_META_FILE_INDEX;
         magic = TSDB_META_FILE_MAGIC(pRepo->tsdbMeta);
         sprintf(name, "tsdb/%s", TSDB_META_FILE_NAME);
       } else {
@@ -361,7 +361,7 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
       SFileGroup *pFGroup =
           taosbsearch(&fid, pFileH->pFGroup, pFileH->nFGroups, sizeof(SFileGroup), keyFGroupCompFunc, TD_GE);
       if (pFGroup->fileId == fid) {
-        SFile *pFile = &pFGroup->files[(*index) % TSDB_FILE_TYPE_MAX];
+        SFile *pFile = &pFGroup->files[(*tsd_index) % TSDB_FILE_TYPE_MAX];
         fname = strdup(TSDB_FILE_NAME(pFile));
         magic = pFile->info.magic;
         char *tfname = strdup(fname);
@@ -371,7 +371,7 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
         if ((pFGroup->fileId + 1) * TSDB_FILE_TYPE_MAX - 1 < (int)eindex) {
           SFile *pFile = &pFGroup->files[0];
           fname = strdup(TSDB_FILE_NAME(pFile));
-          *index = pFGroup->fileId * TSDB_FILE_TYPE_MAX;
+          *tsd_index = pFGroup->fileId * TSDB_FILE_TYPE_MAX;
           magic = pFile->info.magic;
           char *tfname = strdup(fname);
           sprintf(name, "tsdb/%s/%s", TSDB_DATA_DIR_NAME, basename(tfname));
@@ -388,7 +388,7 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
       tfree(fname);
       return 0;
     }
-    if (*index == TSDB_META_FILE_INDEX) {  // get meta file
+    if (*tsd_index == TSDB_META_FILE_INDEX) {  // get meta file
       tsdbGetStoreInfo(fname, &magic, size);
     } else {
       char tfname[TSDB_FILENAME_LEN] = "\0";
@@ -646,9 +646,9 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   int numColumns;
   int32_t blockIdx;
   SDataStatis* pBlockStatis = NULL;
-  SMemRow      row = NULL;
+  // SMemRow      row = NULL;
   // restore last column data with last schema
-  
+
   int err = 0;
 
   numColumns = schemaNCols(pSchema);
@@ -662,17 +662,17 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
     }
   }
 
-  row = taosTMalloc(memRowMaxBytesFromSchema(pSchema));
-  if (row == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    err = -1;
-    goto out;
-  }
+  // row = taosTMalloc(memRowMaxBytesFromSchema(pSchema));
+  // if (row == NULL) {
+  //   terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+  //   err = -1;
+  //   goto out;
+  // }
 
-  memRowSetType(row, SMEM_ROW_DATA);
-  tdInitDataRow(memRowDataBody(row), pSchema);
+  // memRowSetType(row, SMEM_ROW_DATA);
+  // tdInitDataRow(memRowDataBody(row), pSchema);
 
-  // first load block index info
+  // first load block tsd_index info
   if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
     err = -1;
     goto out;
@@ -728,10 +728,11 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
       for (int32_t rowId = pBlock->numOfRows - 1; rowId >= 0; rowId--) {
         SDataCol *pDataCol = pReadh->pDCols[0]->cols + i;
         const void* pColData = tdGetColDataOfRow(pDataCol, rowId);
-        tdAppendColVal(memRowDataBody(row), pColData, pCol->type, pCol->offset);
-        //SDataCol *pDataCol = readh.pDCols[0]->cols + j;
-        void *value = tdGetRowDataOfCol(memRowDataBody(row), (int8_t)pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
-        if (isNull(value, pCol->type)) {
+        // tdAppendColVal(memRowDataBody(row), pColData, pCol->type, pCol->offset);
+        //  SDataCol *pDataCol = readh.pDCols[0]->cols + j;
+        // void *value = tdGetRowDataOfCol(memRowDataBody(row), (int8_t)pCol->type, TD_DATA_ROW_HEAD_SIZE +
+        // pCol->offset);
+        if (isNull(pColData, pCol->type)) {
           continue;
         }
 
@@ -746,14 +747,15 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
         pLastCol->pData = malloc(bytes);
         pLastCol->bytes = bytes;
         pLastCol->colId = pCol->colId;
-        memcpy(pLastCol->pData, value, bytes);
+        memcpy(pLastCol->pData, pColData, bytes);
 
         // save row ts(in column 0)
         pDataCol = pReadh->pDCols[0]->cols + 0;
-        pCol = schemaColAt(pSchema, 0);
-        tdAppendColVal(memRowDataBody(row), tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->offset);
-        pLastCol->ts = memRowKey(row);
-
+        // pCol = schemaColAt(pSchema, 0);
+        // tdAppendColVal(memRowDataBody(row), tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->offset);
+        // pLastCol->ts = memRowKey(row);
+        pLastCol->ts = tdGetKey(*(TKEY *)(tdGetColDataOfRow(pDataCol, rowId)));
+        
         pTable->restoreColumnNum += 1;
 
         tsdbDebug("tsdbRestoreLastColumns restore vgId:%d,table:%s cache column %d, %" PRId64, REPO_ID(pRepo), pTable->name->data, pLastCol->colId, pLastCol->ts);
@@ -764,7 +766,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   }
 
 out:
-  taosTZfree(row);
+  // taosTZfree(row);
   tfree(pBlockStatis);
 
   if (err == 0 && numColumns <= pTable->restoreColumnNum) {

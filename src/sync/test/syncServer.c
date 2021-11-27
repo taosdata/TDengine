@@ -229,47 +229,47 @@ void processRequestMsg(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   taosWriteQitem(qhandle, TAOS_QTYPE_RPC, pTemp);
 }
 
-uint32_t getFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion) {
+uint32_t getFileInfo(int32_t vgId, char *name, uint32_t *syn_index, uint32_t eindex, int64_t *size, uint64_t *fversion) {
   uint32_t    magic;
-  struct stat fstat;
+  struct stat syn_fstat;
   char        aname[280];
 
-  if (*index == 2) {
+  if (*syn_index == 2) {
     uInfo("wait for a while .....");
     sleep(3);
   }
 
   if (name[0] == 0) {
     // find the file
-    snprintf(aname, sizeof(aname), "%s/data/data.%d", path, *index);
-    sprintf(name, "data/data.%d", *index);
+    snprintf(aname, sizeof(aname), "%s/data/data.%d", path, *syn_index);
+    sprintf(name, "data/data.%d", *syn_index);
   } else {
     snprintf(aname, sizeof(aname), "%s/%s", path, name);
   }
 
   uInfo("get file info:%s", aname);
-  if (stat(aname, &fstat) < 0) return 0;
+  if (stat(aname, &syn_fstat) < 0) return 0;
 
-  *size = fstat.st_size;
-  magic = fstat.st_size;
+  *size = syn_fstat.st_size;
+  magic = syn_fstat.st_size;
 
   return magic;
 }
 
-int getWalInfo(int32_t vgId, char *name, int64_t *index) {
-  struct stat fstat;
+int getWalInfo(int32_t vgId, char *name, int64_t *syn_index) {
+  struct stat syn_fstat;
   char        aname[280];
 
   name[0] = 0;
-  if (*index + 1 > walNum) return 0;
+  if (*syn_index + 1 > walNum) return 0;
 
-  snprintf(aname, sizeof(aname), "%s/wal/wal.%d", path, *index);
-  sprintf(name, "wal/wal.%d", *index);
+  snprintf(aname, sizeof(aname), "%s/wal/wal.%d", path, *syn_index);
+  sprintf(name, "wal/wal.%d", *syn_index);
   uInfo("get wal info:%s", aname);
 
-  if (stat(aname, &fstat) < 0) return -1;
+  if (stat(aname, &syn_fstat) < 0) return -1;
 
-  if (*index >= walNum - 1) return 0;  // no more
+  if (*syn_index >= walNum - 1) return 0;  // no more
 
   return 1;
 }
@@ -342,30 +342,30 @@ void doSync() {
 }
 
 int main(int argc, char *argv[]) {
-  SRpcInit rpcInit;
+  SRpcInit syn_rpcInit;
   char     dataName[20] = "server.data";
   pCfg = &syncInfo.syncCfg;
 
   initSync();
 
-  memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localPort = 7000;
-  rpcInit.label = "SER";
-  rpcInit.numOfThreads = 1;
-  rpcInit.cfp = processRequestMsg;
-  rpcInit.sessions = 1000;
-  rpcInit.idleTime = tsShellActivityTimer * 1500;
-  rpcInit.afp = retrieveAuthInfo;
+  memset(&syn_rpcInit, 0, sizeof(syn_rpcInit));
+  syn_rpcInit.localPort = 7000;
+  syn_rpcInit.label = "SER";
+  syn_rpcInit.numOfThreads = 1;
+  syn_rpcInit.cfp = processRequestMsg;
+  syn_rpcInit.sessions = 1000;
+  syn_rpcInit.idleTime = tsShellActivityTimer * 1500;
+  syn_rpcInit.afp = retrieveAuthInfo;
 
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {
-      rpcInit.localPort = atoi(argv[++i]);
+      syn_rpcInit.localPort = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-t") == 0 && i < argc - 1) {
-      rpcInit.numOfThreads = atoi(argv[++i]);
+      syn_rpcInit.numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m") == 0 && i < argc - 1) {
       msgSize = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-s") == 0 && i < argc - 1) {
-      rpcInit.sessions = atoi(argv[++i]);
+      syn_rpcInit.sessions = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-o") == 0 && i < argc - 1) {
       tsCompressMsgSize = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-w") == 0 && i < argc - 1) {
@@ -380,9 +380,9 @@ int main(int argc, char *argv[]) {
       rpcDebugFlag = atoi(argv[++i]);
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
-      printf("  [-p port]: server port number, default is:%d\n", rpcInit.localPort);
-      printf("  [-t threads]: number of rpc threads, default is:%d\n", rpcInit.numOfThreads);
-      printf("  [-s sessions]: number of sessions, default is:%d\n", rpcInit.sessions);
+      printf("  [-p port]: server port number, default is:%d\n", syn_rpcInit.localPort);
+      printf("  [-t threads]: number of rpc threads, default is:%d\n", syn_rpcInit.numOfThreads);
+      printf("  [-s sessions]: number of sessions, default is:%d\n", syn_rpcInit.sessions);
       printf("  [-m msgSize]: message body size, default is:%d\n", msgSize);
       printf("  [-o compSize]: compression message size, default is:%d\n", tsCompressMsgSize);
       printf("  [-w write]: write received data to file(0, 1, 2), default is:%d\n", commit);
@@ -401,14 +401,14 @@ int main(int argc, char *argv[]) {
   tsAsyncLog = 0;
   taosInitLog("server.log", 1000000, 10);
 
-  rpcInit.connType = TAOS_CONN_SERVER;
-  void *pRpc = rpcOpen(&rpcInit);
+  syn_rpcInit.connType = TAOS_CONN_SERVER;
+  void *pRpc = rpcOpen(&syn_rpcInit);
   if (pRpc == NULL) {
     uError("failed to start RPC server");
     return -1;
   }
 
-  tsSyncPort = rpcInit.localPort + 10;
+  tsSyncPort = syn_rpcInit.localPort + 10;
   qhandle = taosOpenQueue();
 
   doSync();
@@ -422,7 +422,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  printf("server is running, localPort:%d\n", rpcInit.localPort);
+  printf("server is running, localPort:%d\n", syn_rpcInit.localPort);
   SNodesRole nroles;
 
   while (1) {

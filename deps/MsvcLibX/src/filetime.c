@@ -29,7 +29,7 @@
    A Unix time_t is the number of 1-second intervals since January 1, 1970.
    time_ts are expressed in the GMT time zone. DOS times in the current local time.
 */
-time_t Filetime2Timet(uint16_t date, uint16_t time) {
+time_t Filetime2Timet(uint16_t date, uint16_t deps_time) {
   unsigned int year, month, day, hour, minute, second;
   struct tm stm;
 
@@ -37,9 +37,9 @@ time_t Filetime2Timet(uint16_t date, uint16_t time) {
   year = 1980 + ((date & 0xFE00) >> 9);
   month = (date & 0x1E0) >> 5;
   day = date & 0x1F;
-  hour = (time & 0xF800) >> 11;
-  minute = (time & 0x7E0) >> 5;
-  second = 2 * (time & 0x1F);
+  hour = (deps_time & 0xF800) >> 11;
+  minute = (deps_time & 0x7E0) >> 5;
+  second = 2 * (deps_time & 0x1F);
 
   stm.tm_year = (int)year - 1900;
   stm.tm_mon  = (int)month - 1;
@@ -55,7 +55,7 @@ time_t Filetime2Timet(uint16_t date, uint16_t time) {
 #if 0
 /* Older version of the same, trying to generate the time_t manually.
    Did not handle DST well */
-time_t Filetime2Timet(uint16_t date, uint16_t time) {
+time_t Filetime2Timet(uint16_t date, uint16_t deps_time) {
   unsigned int year, month, day, hour, minute, second;
   unsigned int olympiads; /* 4-year periods */
   unsigned long t = 0;
@@ -64,9 +64,9 @@ time_t Filetime2Timet(uint16_t date, uint16_t time) {
   year = 1980 + ((date & 0xFE00) >> 9);
   month = (date & 0x1E0) >> 5;
   day = date & 0x1F;
-  hour = (time & 0xF800) >> 11;
-  minute = (time & 0x7E0) >> 5;
-  second = 2 * (time & 0x1F);
+  hour = (deps_time & 0xF800) >> 11;
+  minute = (deps_time & 0x7E0) >> 5;
+  second = 2 * (deps_time & 0x1F);
 
   /* Count days */
   year -= 1970; /* Start of Unix time_t epoch */
@@ -111,16 +111,16 @@ time_t Filetime2Timet(uint16_t date, uint16_t time) {
 #endif
 
 /* Generate a string with the local file time, in the ISO 8601 date/time format */
-char *Filetime2String(uint16_t date, uint16_t time, char *pBuf, size_t nBufSize) {
+char *Filetime2String(uint16_t date, uint16_t deps_time, char *pBuf, size_t nBufSize) {
   unsigned int year, month, day, hour, minute, second;
 
   /* Decode fields */
   year = 1980 + ((date & 0xFE00) >> 9);
   month = (date & 0x1E0) >> 5;
   day = date & 0x1F;
-  hour = (time & 0xF800) >> 11;
-  minute = (time & 0x7E0) >> 5;
-  second = 2 * (time & 0x1F);
+  hour = (deps_time & 0xF800) >> 11;
+  minute = (deps_time & 0x7E0) >> 5;
+  second = 2 * (deps_time & 0x1F);
 
   if (nBufSize >= 20) {
     sprintf(pBuf, "%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, minute, second);

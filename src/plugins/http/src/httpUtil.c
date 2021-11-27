@@ -31,10 +31,10 @@ bool httpCheckUsedbSql(char *sql) {
 }
 
 bool httpCheckAlterSql(char *sql) {
-  int32_t index = 0;
+  int32_t htp_index = 0;
 
   do {
-    SStrToken t0 = tStrGetToken(sql, &index, false);
+    SStrToken t0 = tStrGetToken(sql, &htp_index, false);
     if (t0.type != TK_LP) {
       return t0.type == TK_ALTER;
     }

@@ -134,7 +134,7 @@ SArray *tStrTokenAppend(SArray *pList, SStrToken *pToken) {
   return pList;
 }
 
-tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
+tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optrType) {
   tSqlExpr *pSqlExpr = calloc(1, sizeof(tSqlExpr));
 
   if (pToken != NULL) {
@@ -169,6 +169,7 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
       char unit = 0;
       int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64, &unit, TSDB_TIME_PRECISION_NANO);
       if (ret != TSDB_CODE_SUCCESS) {
+        snprintf(pInfo->msg, tListLen(pInfo->msg), "%s", pToken->z);
         terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       }
     }
@@ -538,8 +539,8 @@ SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder) {
   return pList;
 }
 
-SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t index) {
-  if (pList == NULL || pVar == NULL || index >= taosArrayGetSize(pList)) {
+SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t qry_index) {
+  if (pList == NULL || pVar == NULL || qry_index >= taosArrayGetSize(pList)) {
     return tVariantListAppend(NULL, pVar, sortOrder);
   }
 
@@ -548,7 +549,7 @@ SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int
   item.pVar = *pVar;
   item.sortOrder = sortOrder;
 
-  taosArrayInsert(pList, index, &item);
+  taosArrayInsert(pList, qry_index, &item);
   return pList;
 }
 
@@ -559,7 +560,8 @@ SRelationInfo *setTableNameList(SRelationInfo* pRelationInfo, SStrToken *pName, 
   }
 
   pRelationInfo->type = SQL_NODE_FROM_TABLELIST;
-  SRelElementPair p = {.tableName = *pName};
+  SRelElementPair p;
+  p.tableName = *pName;
   if (pAlias != NULL) {
     p.aliasName = *pAlias;
   } else {
@@ -598,7 +600,8 @@ SRelationInfo* addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrT
 
   pRelationInfo->type = SQL_NODE_FROM_SUBQUERY;
 
-  SRelElementPair p = {.pSubquery = pSub};
+  SRelElementPair p;
+  p.pSubquery = pSub;
   if (pAlias != NULL) {
     p.aliasName = *pAlias;
   } else {

@@ -43,9 +43,9 @@ void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
     strcat(tmpPath, "-%d-%s");
   }
 
-  char rand[8] = {0};
-  taosRandStr(rand, tListLen(rand) - 1);
-  snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
+  char os_rand[8] = {0};
+  taosRandStr(os_rand, tListLen(os_rand) - 1);
+  snprintf(dstPath, PATH_MAX, tmpPath, getpid(), os_rand);
 }
 
 #else
@@ -68,11 +68,11 @@ void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
     strcat(tmpPath, "-%d-%s");
   }
 
-  char rand[32] = {0};
+  char os_rand[32] = {0};
 
-  sprintf(rand, "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
+  sprintf(os_rand, "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
 
-  snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
+  snprintf(dstPath, PATH_MAX, tmpPath, getpid(), os_rand);
 }
 
 #endif
