@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MNODE_OPER_H_
-#define _TD_MNODE_OPER_H_
+#ifndef _TD_MND_OPER_H_
+#define _TD_MND_OPER_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,4 +27,4 @@ void    mnodeCleanupOper();
 }
 #endif
 
-#endif /*_TD_MNODE_OPER_H_*/
+#endif /*_TD_MND_OPER_H_*/

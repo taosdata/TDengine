@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MNODE_SYNC_H_
-#define _TD_MNODE_SYNC_H_
+#ifndef _TD_MND_SYNC_H_
+#define _TD_MND_SYNC_H_
 
 #include "mndInt.h"
 
@@ -32,4 +32,4 @@ bool mnodeIsMaster();
 }
 #endif
 
-#endif /*_TD_MNODE_SYNC_H_*/
+#endif /*_TD_MND_SYNC_H_*/

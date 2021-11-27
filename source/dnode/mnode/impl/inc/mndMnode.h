@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MNODE_MNODE_H_
-#define _TD_MNODE_MNODE_H_
+#ifndef _TD_MND_MNODE_H_
+#define _TD_MND_MNODE_H_
 
 #include "mndInt.h"
 
@@ -31,4 +31,4 @@ void    mnodeGetMnodeEpSetForShell(SEpSet *epSet, bool redirect);
 }
 #endif
 
-#endif /*_TD_MNODE_MNODE_H_*/
+#endif /*_TD_MND_MNODE_H_*/

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MNODE_H_
-#define _TD_MNODE_H_
+#ifndef _TD_MND_H_
+#define _TD_MND_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -170,4 +170,4 @@ void mnodeProcessApplyMsg(SMnodeMsg *pMsg);
 }
 #endif
 
-#endif /*_TD_MNODE_H_*/
+#endif /*_TD_MND_H_*/

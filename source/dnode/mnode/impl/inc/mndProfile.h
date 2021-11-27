@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MNODE_PROFILE_H_
-#define _TD_MNODE_PROFILE_H_
+#ifndef _TD_MND_PROFILE_H_
+#define _TD_MND_PROFILE_H_
 
 #include "mndInt.h"
 
@@ -29,4 +29,4 @@ void    mnodeCleanupProfile();
 }
 #endif
 
-#endif /*_TD_MNODE_PROFILE_H_*/
+#endif /*_TD_MND_PROFILE_H_*/
