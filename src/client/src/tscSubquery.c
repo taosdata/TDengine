@@ -2450,6 +2450,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pNewQueryInfo, 0);
 
   tscInitQueryInfo(pNewQueryInfo);
+  pNewQueryInfo->isStddev = true;     // for json tag
 
   // add the group cond
   pNewQueryInfo->groupbyExpr = pQueryInfo->groupbyExpr;
@@ -3708,7 +3709,7 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql) {
     int32_t type  = pInfo->field.type;
     int32_t bytes = pInfo->field.bytes;
 
-    if (tscMultiRoundQuery(pQueryInfo, 0) && pQueryInfo->round == 0 && type == TSDB_DATA_TYPE_JSON){  // for json tag compare in the second round of stddev
+    if (pQueryInfo->isStddev && type == TSDB_DATA_TYPE_JSON){  // for json tag compare in the second round of stddev
       pRes->tsrow[j] = pRes->urow[i];
     }else if (!IS_VAR_DATA_TYPE(type) && type != TSDB_DATA_TYPE_JSON) {
       pRes->tsrow[j] = isNull(pRes->urow[i], type) ? NULL : pRes->urow[i];

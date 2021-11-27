@@ -1841,7 +1841,7 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
   uint64_t localQueryId = pSql->self;
   qTableQuery(pQueryInfo->pQInfo, &localQueryId);
   bool convertJson = true;
-  if (tscMultiRoundQuery(pQueryInfo, 0)) convertJson = false;
+  if (pQueryInfo->isStddev == true) convertJson = false;
   convertQueryResult(pRes, pQueryInfo, pSql->self, true, convertJson);
 
   code = pRes->code;

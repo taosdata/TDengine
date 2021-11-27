@@ -166,6 +166,7 @@ typedef struct SQueryInfo {
   bool               stateWindow;
   bool               globalMerge;
   bool               multigroupResult;
+  bool               isStddev;
 } SQueryInfo;
 
 /**

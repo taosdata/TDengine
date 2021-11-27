@@ -105,7 +105,6 @@ class TDTestCase:
         tdSql.checkRows(0)
 
         tdSql.query("select jtag->'sex' from db_json_tag_test.jsons1 where jtag?'sex' or jtag?'num'")
-        tdSql.checkData(0, 0, "\"femail\"")
         tdSql.checkRows(3)
 
         tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'location'='beijing'")
@@ -289,6 +288,11 @@ class TDTestCase:
         tdSql.checkData(0, 2, None)
         tdSql.checkData(1, 2, 1)
         tdSql.checkData(3, 2, 11)
+
+        tdSql.query("select stddev(dataint) from db_json_tag_test.jsons1 group by jtag->'location'")
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 0, 0.5)
+        tdSql.checkData(2, 0, 0)
 
         # test json->'key'=null
         tdSql.execute("insert into db_json_tag_test.jsons1_9 values('2020-04-17 15:20:00.000', 5, false, 'json19')")
