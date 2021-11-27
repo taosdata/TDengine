@@ -261,12 +261,12 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
   SDnode *pDnode = parent;
 
   if (dndAuthInternalMsg(parent, user, spi, encrypt, secret, ckey) == 0) {
-    dTrace("get internal auth success");
+    // dTrace("get internal auth success");
     return 0;
   }
 
   if (dndGetUserAuthFromMnode(pDnode, user, spi, encrypt, secret, ckey) == 0) {
-    dTrace("get auth from internal mnode");
+    // dTrace("get auth from internal mnode");
     return 0;
   }
 
@@ -275,7 +275,7 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
     return -1;
   }
 
-  dDebug("user:%s, send auth msg to other mnodes", user);
+  // dDebug("user:%s, send auth msg to other mnodes", user);
 
   SAuthMsg *pMsg = rpcMallocCont(sizeof(SAuthMsg));
   tstrncpy(pMsg->user, user, TSDB_USER_LEN);

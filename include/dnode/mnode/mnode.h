@@ -137,38 +137,34 @@ void mnodeSendRsp(SMnodeMsg *pMsg, int32_t code);
 /**
  * @brief Process the read request
  *
- * @param pMnode The mnode object
  * @param pMsg The request msg
  * @return int32_t 0 for success, -1 for failure
  */
-void mnodeProcessReadMsg(SMnode *pMnode, SMnodeMsg *pMsg);
+void mnodeProcessReadMsg(SMnodeMsg *pMsg);
 
 /**
  * @brief Process the write request
  *
- * @param pMnode The mnode object
  * @param pMsg The request msg
  * @return int32_t 0 for success, -1 for failure
  */
-void mnodeProcessWriteMsg(SMnode *pMnode, SMnodeMsg *pMsg);
+void mnodeProcessWriteMsg(SMnodeMsg *pMsg);
 
 /**
  * @brief Process the sync request
  *
- * @param pMnode The mnode object
  * @param pMsg The request msg
  * @return int32_t 0 for success, -1 for failure
  */
-void mnodeProcessSyncMsg(SMnode *pMnode, SMnodeMsg *pMsg);
+void mnodeProcessSyncMsg(SMnodeMsg *pMsg);
 
 /**
  * @brief Process the apply request
  *
- * @param pMnode The mnode object
  * @param pMsg The request msg
  * @return int32_t 0 for success, -1 for failure
  */
-void mnodeProcessApplyMsg(SMnode *pMnode, SMnodeMsg *pMsg);
+void mnodeProcessApplyMsg(SMnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

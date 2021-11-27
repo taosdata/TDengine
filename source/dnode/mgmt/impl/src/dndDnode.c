@@ -121,12 +121,14 @@ static void dndResetDnodes(SDnode *pDnode, SDnodeEps *pDnodeEps) {
   }
 
   pMgmt->mnodeEpSet.inUse = 0;
+  pMgmt->mnodeEpSet.numOfEps = 0;
 
   int32_t mIndex = 0;
   for (int32_t i = 0; i < pMgmt->dnodeEps->num; i++) {
     SDnodeEp *pDnodeEp = &pMgmt->dnodeEps->eps[i];
     if (!pDnodeEp->isMnode) continue;
     if (mIndex >= TSDB_MAX_REPLICA) continue;
+    pMgmt->mnodeEpSet.numOfEps++;
     strcpy(pMgmt->mnodeEpSet.fqdn[mIndex], pDnodeEp->fqdn);
     pMgmt->mnodeEpSet.port[mIndex] = pDnodeEp->port;
     mIndex++;
@@ -279,6 +281,7 @@ PRASE_DNODE_OVER:
   if (pMgmt->dnodeEps == NULL) {
     pMgmt->dnodeEps = calloc(1, sizeof(SDnodeEps) + sizeof(SDnodeEp));
     pMgmt->dnodeEps->num = 1;
+    pMgmt->dnodeEps->eps[0].isMnode = 1;
     pMgmt->dnodeEps->eps[0].port = pDnode->opt.serverPort;
     tstrncpy(pMgmt->dnodeEps->eps[0].fqdn, pDnode->opt.localFqdn, TSDB_FQDN_LEN);
   }

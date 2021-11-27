@@ -234,13 +234,13 @@ void mnodeSetMsgFp(int32_t msgType, MnodeRpcFp fp) {
   }
 }
 
-void mnodeProcessReadMsg(SMnode *pMnode, SMnodeMsg *pMsg) { mnodeProcessRpcMsg(pMsg); }
+void mnodeProcessReadMsg(SMnodeMsg *pMsg) { mnodeProcessRpcMsg(pMsg); }
 
-void mnodeProcessWriteMsg(SMnode *pMnode, SMnodeMsg *pMsg) { mnodeProcessRpcMsg(pMsg); }
+void mnodeProcessWriteMsg(SMnodeMsg *pMsg) { mnodeProcessRpcMsg(pMsg); }
 
-void mnodeProcessSyncMsg(SMnode *pMnode, SMnodeMsg *pMsg) { mnodeProcessRpcMsg(pMsg); }
+void mnodeProcessSyncMsg(SMnodeMsg *pMsg) { mnodeProcessRpcMsg(pMsg); }
 
-void mnodeProcessApplyMsg(SMnode *pMnode, SMnodeMsg *pMsg) {}
+void mnodeProcessApplyMsg(SMnodeMsg *pMsg) {}
 
 #if 0
 
