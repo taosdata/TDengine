@@ -22,7 +22,6 @@
  * Macro definition
  */
 
-#define EXT_SIZE 1024
 #define HASH_MAX_CAPACITY (1024 * 1024 * 16)
 #define HASH_DEFAULT_LOAD_FACTOR (0.75)
 #define HASH_INDEX(v, c) ((v) & ((c)-1))
@@ -139,10 +138,13 @@ static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
   return i;
 }
 
-static FORCE_INLINE SHashNode *doSearchInEntryList(SHashObj *pHashObj, SHashEntry *pe, const void *key, size_t keyLen, uint32_t hashVal) {
+static FORCE_INLINE SHashNode *
+doSearchInEntryList(SHashObj *pHashObj, SHashEntry *pe, const void *key, size_t keyLen, uint32_t hashVal) {
   SHashNode *pNode = pe->next;
   while (pNode) {
-    if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) {
+    if ((pNode->keyLen == keyLen) &&
+        ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) &&
+        pNode->removed == 0) {
       assert(pNode->hashVal == hashVal);
       break;
     }
@@ -416,17 +418,13 @@ void* taosHashGetCloneExt(SHashObj *pHashObj, const void *key, size_t keyLen, vo
     }
 
     if (*d == NULL) {
-      *sz =  pNode->dataLen + EXT_SIZE;
-      *d  =  calloc(1, *sz);
+      *sz =  pNode->dataLen;
+      *d = calloc(1, *sz);
     } else if (*sz < pNode->dataLen){
-      *sz = pNode->dataLen + EXT_SIZE;
-      *d  = realloc(*d, *sz);
+      *sz =  pNode->dataLen;
+      *d = realloc(*d, *sz);
     }
     memcpy((char *)(*d), GET_HASH_NODE_DATA(pNode), pNode->dataLen);
-    // just make runtime happy
-    if ((*sz) - pNode->dataLen > 0) {
-      memset((char *)(*d) + pNode->dataLen, 0, (*sz) - pNode->dataLen);
-    }
 
     data = GET_HASH_NODE_DATA(pNode);
   }
@@ -507,8 +505,8 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   // double check after locked
   if (pe->num == 0) {
     assert(pe->next == NULL);
-    taosHashEntryWUnlock(pHashObj, pe);
 
+    taosHashEntryWUnlock(pHashObj, pe);
     taosHashRUnlock(pHashObj);
     return -1;
   }
@@ -753,7 +751,7 @@ SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, s
 
   pNewNode->keyLen  = (uint32_t)keyLen;
   pNewNode->hashVal = hashVal;
-  pNewNode->dataLen = (uint32_t) dsize;
+  pNewNode->dataLen = (uint32_t)dsize;
   pNewNode->refCount   = 1;
   pNewNode->removed = 0;
   pNewNode->next    = NULL;
@@ -899,7 +897,7 @@ void taosHashCancelIterate(SHashObj *pHashObj, void *p) {
   taosHashReleaseNode(pHashObj, p, &slot);
 
   SHashEntry *pe = pHashObj->hashList[slot];
-  taosHashEntryWUnlock(pHashObj, pe);
 
+  taosHashEntryWUnlock(pHashObj, pe);
   taosHashRUnlock(pHashObj);
 }
