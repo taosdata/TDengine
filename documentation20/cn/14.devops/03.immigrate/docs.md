@@ -8,7 +8,7 @@
 
 - 数据写入和查询的性能远超 OpenTSDB；
 - 针对时序数据的高效压缩机制，压缩后在磁盘上的存储空间不到 1/5；
-- 安装部署非常简单，单一安装包完成安装部署，除了 taosadapter 需要依赖 Go 运行环境外，不依赖其他的第三方软件，整个安装部署过程秒级搞定;
+- 安装部署非常简单，单一安装包完成安装部署，除了 taosAdapter 需要依赖 Go 运行环境外，不依赖其他的第三方软件，整个安装部署过程秒级搞定;
 - 提供的内建函数覆盖 OpenTSDB 支持的全部查询函数，还支持更多的时序数据查询函数、标量函数及聚合函数，支持多种时间窗口聚合、连接查询、表达式运算、多种分组聚合、用户定义排序、以及用户定义函数等高级查询功能。采用类 SQL 的语法规则，更加简单易学，基本上没有学习成本。
 - 支持多达 128 个标签，标签总长度可达到 16 KB；
 - 除 HTTP 之外，还提供 Java、Python、C、Rust、Go 等多种语言的接口，支持 JDBC 等多种企业级标准连接器协议。
@@ -40,9 +40,9 @@
 
 - **调整数据收集器配置**
 
-在 TDengine 2.3 版本中，后台服务 taosd 启动后一个 HTTP 的服务 taosadapter 也会自动启用*。*利用 taosadapter 能够兼容 Influxdb 的 Line Protocol 和 OpenTSDB 的 telnet/Json 写入协议，可以将 collectd 和 StatsD 收集的数据直接推送到TDengine。
+在 TDengine 2.3 版本中，后台服务 taosd 启动后一个 HTTP 的服务 taosAdapter 也会自动启用*。*利用 taosAdapter 能够兼容 Influxdb 的 Line Protocol 和 OpenTSDB 的 telnet/JSON 写入协议，可以将 collectd 和 StatsD 收集的数据直接推送到TDengine。
 
-如果使用 collectd，修改其默认位置 `/etc/collectd/collectd.conf` 的配置文件为指向 taosadapter 部署的节点 IP 地址和端口。假设 taosadapter 的 IP 地址为192.168.1.130，端口为 6046，配置如下：
+如果使用 collectd，修改其默认位置 `/etc/collectd/collectd.conf` 的配置文件为指向 taosAdapter 部署的节点 IP 地址和端口。假设 taosAdapter 的 IP 地址为192.168.1.130，端口为 6046，配置如下：
 
 ```html
 LoadPlugin write_tsdb
@@ -57,7 +57,7 @@ LoadPlugin write_tsdb
 </Plugin>
 ```
 
-即可让 collectd 将数据使用推送到 OpenTSDB 的插件方式推送到 taosadapter， taosadapter 将调用 API 将数据写入到 taosd 中，从而完成数据的写入工作。如果你使用的是 StatsD 相应地调整配置文件信息。
+即可让 collectd 将数据使用推送到 OpenTSDB 的插件方式推送到 taosAdapter， taosAdapter 将调用 API 将数据写入到 taosd 中，从而完成数据的写入工作。如果你使用的是 StatsD 相应地调整配置文件信息。
 
 - **调整看板（Dashborad）系统**
 
@@ -106,7 +106,7 @@ sudo systemctl start grafana-server
 
 TDengine 当前只支持 Grafana 的可视化看板呈现，所以如果你的应用中使用了 Grafana 以外的前端看板（例如[TSDash](https://github.com/facebook/tsdash)、[Status Wolf](https://github.com/box/StatusWolf)等），那么前端看板将无法直接迁移到 TDengine，需要将前端看板重新适配到 Grafana 才可以正常运行。
 
-截止到 2.3.0.x 版本，TDengine 只能够支持 collectd 和 StatsD 作为数据收集汇聚软件，当然后面会陆续提供更多的数据收集聚合软件的接入支持。如果您的收集端使用了其他类型的数据汇聚器，您的应用需要适配到这两个数据汇聚端系统，才能够将数据正常写入。除了上述两个数据汇聚端软件协议以外，TDengine 还支持通过 InfluxDB 的行协议和 OpenTSDB 的数据写入协议、Json 格式将数据直接写入，您可以重写数据推送端的逻辑，使用 TDengine 支持的行协议来写入数据。
+截止到 2.3.0.x 版本，TDengine 只能够支持 collectd 和 StatsD 作为数据收集汇聚软件，当然后面会陆续提供更多的数据收集聚合软件的接入支持。如果您的收集端使用了其他类型的数据汇聚器，您的应用需要适配到这两个数据汇聚端系统，才能够将数据正常写入。除了上述两个数据汇聚端软件协议以外，TDengine 还支持通过 InfluxDB 的行协议和 OpenTSDB 的数据写入协议、JSON 格式将数据直接写入，您可以重写数据推送端的逻辑，使用 TDengine 支持的行协议来写入数据。
 
 此外，如果你的应用中使用了 OpenTSDB 以下特性，在将应用迁移到 TDengine 之前你还需要了解以下注意事项：
 
@@ -353,7 +353,7 @@ Select sum(val) from table_name
 完整示例：
 
 ```json
-//OpenTSDB查询Json
+//OpenTSDB查询JSON
 query = {
 “start”:1510560000,
 “end”: 1515000009,
