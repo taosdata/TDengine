@@ -276,7 +276,7 @@ int32_t shellReadCommand(TAOS *con, char command[]) {
   // Read input.
   void *console = GetStdHandle(STD_INPUT_HANDLE);
   unsigned long read;
-  wchar_t c[SHELL_INPUT_MAX_COMMAND_SIZE];
+  wchar_t *c= (wchar_t *)calloc(SHELL_INPUT_MAX_COMMAND_SIZE, sizeof(wchar_t));
   char mbStr[16];
   while (1) {
     int ret = ReadConsole(console, c, SHELL_INPUT_MAX_COMMAND_SIZE, &read, NULL);
@@ -291,6 +291,7 @@ int32_t shellReadCommand(TAOS *con, char command[]) {
             cmd.buffer = NULL;
             free(cmd.command);
             cmd.command = NULL;
+            free(c);
             return 0;
           } else {
             shellPrintContinuePrompt();
