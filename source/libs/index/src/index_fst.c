@@ -775,14 +775,14 @@ void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in) {
      return;
    }
    Output out; 
-   uint64_t prefixLen;
-   if (in != 0) { //if let Some(in) = in 
-      prefixLen = fstUnFinishedNodesFindCommPrefixAndSetOutput(b->unfinished, bs, in, &out);  
-   } else {
-      prefixLen = fstUnFinishedNodesFindCommPrefix(b->unfinished, bs);
-      out = 0;
-   }
-
+   //if (in != 0) { //if let Some(in) = in 
+   //   prefixLen = fstUnFinishedNodesFindCommPrefixAndSetOutput(b->unfinished, bs, in, &out);  
+   //} else {
+   //   prefixLen = fstUnFinishedNodesFindCommPrefix(b->unfinished, bs);
+   //   out = 0;
+   //}
+   uint64_t prefixLen = fstUnFinishedNodesFindCommPrefixAndSetOutput(b->unfinished, bs, in, &out);
+  
    if (prefixLen == FST_SLICE_LEN(s)) {
       assert(out == 0);
       return;
