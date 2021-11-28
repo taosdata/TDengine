@@ -1252,7 +1252,7 @@ node nodejsChecker.js host=localhost
 
 ### Node.js连接器的使用
 
-以下是Node.js 连接器的一些基本使用方法，详细的使用方法可参考[TDengine Node.js connector](http://docs.taosdata.com/node)。
+以下是Node.js 连接器的一些基本使用方法，详细的使用方法可参考[TDengine Node.js connector](https://github.com/taosdata/TDengine/tree/develop/src/connector/nodejs)。
 
 #### 建立连接
 
