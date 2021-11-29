@@ -174,10 +174,6 @@ typedef struct {
 int   vnodeBuildReq(void **buf, const SVnodeReq *pReq, uint8_t type);
 void *vnodeParseReq(void *buf, SVnodeReq *pReq, uint8_t type);
 
-// TODO
-int   vnodeBuildCreateTableReq(void **buf, const SVCreateTableReq *pReq);
-void *vnodeParseCreateTableReq(void *buf, SVCreateTableReq *pReq);
-
 /* ------------------------ FOR COMPILE ------------------------ */
 
 #if 1

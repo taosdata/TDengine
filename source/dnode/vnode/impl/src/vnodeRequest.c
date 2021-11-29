@@ -15,6 +15,9 @@
 
 #include "vnodeDef.h"
 
+static int   vnodeBuildCreateTableReq(void **buf, const SVCreateTableReq *pReq);
+static void *vnodeParseCreateTableReq(void *buf, SVCreateTableReq *pReq);
+
 int vnodeBuildReq(void **buf, const SVnodeReq *pReq, uint8_t type) {
   int tsize = 0;
 
@@ -48,7 +51,7 @@ void *vnodeParseReq(void *buf, SVnodeReq *pReq, uint8_t type) {
   return buf;
 }
 
-int vnodeBuildCreateTableReq(void **buf, const SVCreateTableReq *pReq) {
+static int vnodeBuildCreateTableReq(void **buf, const SVCreateTableReq *pReq) {
   int tsize = 0;
 
   tsize += taosEncodeString(buf, pReq->name);
@@ -76,7 +79,7 @@ int vnodeBuildCreateTableReq(void **buf, const SVCreateTableReq *pReq) {
   return tsize;
 }
 
-void *vnodeParseCreateTableReq(void *buf, SVCreateTableReq *pReq) {
+static void *vnodeParseCreateTableReq(void *buf, SVCreateTableReq *pReq) {
   buf = taosDecodeString(buf, &(pReq->name));
   buf = taosDecodeFixedU32(buf, &(pReq->ttl));
   buf = taosDecodeFixedU32(buf, &(pReq->keep));
