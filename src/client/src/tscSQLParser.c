@@ -1957,9 +1957,6 @@ static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumn
       tstrncpy(pExpr->base.aliasName, pItem->pNode->exprToken.z,
                pItem->pNode->exprToken.n + 1 < sizeof(pExpr->base.aliasName) ? pItem->pNode->exprToken.n + 1 : sizeof(pExpr->base.aliasName));
     }
-    char* colName = (pItem->aliasName == NULL) ? pSchema->name : pItem->aliasName;
-    tstrncpy(pExpr->base.aliasName, colName, sizeof(pExpr->base.aliasName));
-
   }else{
     char* colName = (pItem->aliasName == NULL) ? pSchema->name : pItem->aliasName;
     tstrncpy(pExpr->base.aliasName, colName, sizeof(pExpr->base.aliasName));
