@@ -19,27 +19,31 @@
 
 SSdb tsSdb = {0};
 
-int32_t sdbInit() {
+SSdb *sdbOpen(SSdbOpt *pOption) {
+  SSdb *pSdb = calloc(1, sizeof(SSdb));
+  if (pSdb == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
   char path[PATH_MAX + 100];
-
-  snprintf(path, PATH_MAX + 100, "%s%scur%s", tsMnodeDir, TD_DIRSEP, TD_DIRSEP);
-  tsSdb.currDir = strdup(path);
-
-  snprintf(path, PATH_MAX + 100, "%s%ssync%s", tsMnodeDir, TD_DIRSEP, TD_DIRSEP);
-  tsSdb.syncDir = strdup(path);
-
-  snprintf(path, PATH_MAX + 100, "%s%stmp%s", tsMnodeDir, TD_DIRSEP, TD_DIRSEP);
-  tsSdb.tmpDir = strdup(path);
-
-  if (tsSdb.currDir == NULL || tsSdb.currDir == NULL || tsSdb.currDir == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  snprintf(path, PATH_MAX + 100, "%s%scur%s", pOption->path, TD_DIRSEP, TD_DIRSEP);
+  pSdb->currDir = strdup(path);
+  snprintf(path, PATH_MAX + 100, "%s%ssync%s", pOption->path, TD_DIRSEP, TD_DIRSEP);
+  pSdb->syncDir = strdup(path);
+  snprintf(path, PATH_MAX + 100, "%s%stmp%s", pOption->path, TD_DIRSEP, TD_DIRSEP);
+  pSdb->tmpDir = strdup(path);
+  if (pSdb->currDir == NULL || pSdb->currDir == NULL || pSdb->currDir == NULL) {
+    sdbClose(pSdb);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
   }
 
   for (int32_t i = 0; i < SDB_MAX; ++i) {
     int32_t type;
-    if (tsSdb.keyTypes[i] == SDB_KEY_INT32) {
+    if (pSdb->keyTypes[i] == SDB_KEY_INT32) {
       type = TSDB_DATA_TYPE_INT;
-    } else if (tsSdb.keyTypes[i] == SDB_KEY_INT64) {
+    } else if (pSdb->keyTypes[i] == SDB_KEY_INT64) {
       type = TSDB_DATA_TYPE_BIGINT;
     } else {
       type = TSDB_DATA_TYPE_BINARY;
@@ -47,45 +51,47 @@ int32_t sdbInit() {
 
     SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(type), true, HASH_NO_LOCK);
     if (hash == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      sdbClose(pSdb);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
     }
 
-    tsSdb.hashObjs[i] = hash;
-    taosInitRWLatch(&tsSdb.locks[i]);
+    pSdb->hashObjs[i] = hash;
+    taosInitRWLatch(&pSdb->locks[i]);
   }
 
   return 0;
 }
 
-void sdbCleanup() {
-  if (tsSdb.currDir != NULL) {
-    tfree(tsSdb.currDir);
+void sdbClose(SSdb *pSdb) {
+  if (pSdb->currDir != NULL) {
+    tfree(pSdb->currDir);
   }
 
-  if (tsSdb.syncDir != NULL) {
-    tfree(tsSdb.syncDir);
+  if (pSdb->syncDir != NULL) {
+    tfree(pSdb->syncDir);
   }
 
-  if (tsSdb.tmpDir != NULL) {
-    tfree(tsSdb.tmpDir);
+  if (pSdb->tmpDir != NULL) {
+    tfree(pSdb->tmpDir);
   }
 
   for (int32_t i = 0; i < SDB_MAX; ++i) {
-    SHashObj *hash = tsSdb.hashObjs[i];
+    SHashObj *hash = pSdb->hashObjs[i];
     if (hash != NULL) {
       taosHashCleanup(hash);
     }
-    tsSdb.hashObjs[i] = NULL;
+    pSdb->hashObjs[i] = NULL;
   }
 }
 
-void sdbSetTable(SSdbTable table) {
+void sdbSetTable(SSdb *pSdb, SSdbTable table) {
   ESdbType sdb = table.sdbType;
-  tsSdb.keyTypes[sdb] = table.keyType;
-  tsSdb.insertFps[sdb] = table.insertFp;
-  tsSdb.updateFps[sdb] = table.updateFp;
-  tsSdb.deleteFps[sdb] = table.deleteFp;
-  tsSdb.deployFps[sdb] = table.deployFp;
-  tsSdb.encodeFps[sdb] = table.encodeFp;
-  tsSdb.decodeFps[sdb] = table.decodeFp;
+  pSdb->keyTypes[sdb] = table.keyType;
+  pSdb->insertFps[sdb] = table.insertFp;
+  pSdb->updateFps[sdb] = table.updateFp;
+  pSdb->deleteFps[sdb] = table.deleteFp;
+  pSdb->deployFps[sdb] = table.deployFp;
+  pSdb->encodeFps[sdb] = table.encodeFp;
+  pSdb->decodeFps[sdb] = table.decodeFp;
 }

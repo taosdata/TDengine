@@ -46,6 +46,12 @@ int64_t mndGetClusterId(SMnode *pMnode) {
   return -1;
 }
 
+tmr_h mndGetTimer(SMnode *pMnode) {
+  if (pMnode != NULL) {
+    return pMnode->timer;
+  }
+}
+
 void mndSendMsgToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *pMsg) {
   if (pMnode != NULL && pMnode->sendMsgToDnodeFp != NULL) {
     (*pMnode->sendMsgToDnodeFp)(pMnode->pDnode, pEpSet, pMsg);
@@ -83,31 +89,40 @@ static void mndCleanupTimer(SMnode *pMnode) {
   }
 }
 
-tmr_h mndGetTimer(SMnode *pMnode) {
-  if (pMnode != NULL) {
-    return pMnode->timer;
+static int32_t mnodeCreateDir(SMnode *pMnode, const char *path) {
+  pMnode->path = strdup(path);
+  if (pMnode->path == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
+
+  if (taosMkDir(pMnode->path) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+
+  return 0;
 }
 
-static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
-  pMnode->dnodeId = pOption->dnodeId;
-  pMnode->clusterId = pOption->clusterId;
-  pMnode->replica = pOption->replica;
-  pMnode->selfIndex = pOption->selfIndex;
-  memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
-  pMnode->pDnode = pOption->pDnode;
-  pMnode->putMsgToApplyMsgFp = pOption->putMsgToApplyMsgFp;
-  pMnode->sendMsgToDnodeFp = pOption->sendMsgToDnodeFp;
-  pMnode->sendMsgToMnodeFp = pOption->sendMsgToMnodeFp;
-  pMnode->sendRedirectMsgFp = pOption->sendRedirectMsgFp;
+static int32_t mndInitSdb(SMnode *pMnode) {
+  SSdbOpt opt = {0};
+  opt.path = pMnode->path;
 
-  if (pMnode->sendMsgToDnodeFp == NULL || pMnode->sendMsgToMnodeFp == NULL || pMnode->sendRedirectMsgFp == NULL ||
-      pMnode->putMsgToApplyMsgFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0) {
-    terrno = TSDB_CODE_MND_APP_ERROR;
+  pMnode->pSdb = sdbOpen(&opt);
+  if (pMnode->pSdb == NULL) {
     return -1;
   }
 
   return 0;
+}
+
+static int32_t mndDeploySdb(SMnode *pMnode) { return sdbDeploy(pMnode->pSdb); }
+
+static void mndCleanupSdb(SMnode *pMnode) {
+  if (pMnode->pSdb) {
+    sdbClose(pMnode->pSdb);
+    pMnode->pSdb = NULL;
+  }
 }
 
 static int32_t mndAllocStep(SMnode *pMnode, char *name, MndInitFp initFp, MndCleanupFp cleanupFp) {
@@ -125,33 +140,28 @@ static int32_t mndAllocStep(SMnode *pMnode, char *name, MndInitFp initFp, MndCle
 }
 
 static int32_t mndInitSteps(SMnode *pMnode) {
-  if (mndAllocStep(pMnode, "mnode-trans", mndInitTrans, mndCleanupTrans) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-cluster", mndInitCluster, mndCleanupCluster) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-mnode", mndInitMnode, mndCleanupMnode) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-acct", mndInitAcct, mndCleanupAcct) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-auth", mndInitAuth, mndCleanupAuth) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-stable", mndInitStable, mndCleanupStable) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-sdb", sdbInit, sdbCleanup) != 0) return -1;
-
-  if (pMnode->replica == 1) {
-    if (mndAllocStep(pMnode, "mnode-deploy-sdb", sdbDeploy, sdbClose) != 0) return -1;
-  } else {
-    if (mndAllocStep(pMnode, "mnode-open-sdb", sdbOpen, sdbClose) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-trans", mndInitTrans, mndCleanupTrans) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-cluster", mndInitCluster, mndCleanupCluster) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-mnode", mndInitMnode, mndCleanupMnode) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-acct", mndInitAcct, mndCleanupAcct) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-auth", mndInitAuth, mndCleanupAuth) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-stable", mndInitStable, mndCleanupStable) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-sdb", mndInitSdb, mndCleanupSdb) != 0) return terrno;
+  if (pMnode->clusterId <= 0) {
+    if (mndAllocStep(pMnode, "mnode-deploy", mndDeploySdb, NULL) != 0) return terrno;
   }
-
-  if (mndAllocStep(pMnode, "mnode-timer", mndInitTimer, NULL) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-sdb-file", sdbOpen, sdbClose) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-balance", mndInitBalance, mndCleanupBalance) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-show", mndInitShow, mndCleanupShow) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-timer", NULL, mndCleanupTimer) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-timer", mndInitTimer, NULL) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-balance", mndInitBalance, mndCleanupBalance) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-show", mndInitShow, mndCleanupShow) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem) != 0) return terrno;
+  if (mndAllocStep(pMnode, "mnode-timer", NULL, mndCleanupTimer) != 0) return terrno;
 
   return 0;
 }
@@ -194,10 +204,39 @@ static int32_t mndExecSteps(SMnode *pMnode) {
   }
 }
 
+static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
+  pMnode->dnodeId = pOption->dnodeId;
+  pMnode->clusterId = pOption->clusterId;
+  pMnode->replica = pOption->replica;
+  pMnode->selfIndex = pOption->selfIndex;
+  memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
+  pMnode->pDnode = pOption->pDnode;
+  pMnode->putMsgToApplyMsgFp = pOption->putMsgToApplyMsgFp;
+  pMnode->sendMsgToDnodeFp = pOption->sendMsgToDnodeFp;
+  pMnode->sendMsgToMnodeFp = pOption->sendMsgToMnodeFp;
+  pMnode->sendRedirectMsgFp = pOption->sendRedirectMsgFp;
+
+  if (pMnode->sendMsgToDnodeFp == NULL || pMnode->sendMsgToMnodeFp == NULL || pMnode->sendRedirectMsgFp == NULL ||
+      pMnode->putMsgToApplyMsgFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0) {
+    terrno = TSDB_CODE_MND_APP_ERROR;
+    return terrno;
+  }
+
+  return 0;
+}
+
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   SMnode *pMnode = calloc(1, sizeof(SMnode));
 
-  int32_t code = mndSetOptions(pMnode, pOption);
+  int32_t code = mnodeCreateDir(pMnode, path);
+  if (code != 0) {
+    mError("failed to set mnode options since %s", terrstr());
+    mndClose(pMnode);
+    terrno = code;
+    return NULL;
+  }
+
+  code = mndSetOptions(pMnode, pOption);
   if (code != 0) {
     mndClose(pMnode);
     terrno = code;
@@ -227,7 +266,8 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
 void mndClose(SMnode *pMnode) {
   mndCleanupSteps(pMnode, -1);
-  free(pMnode);
+  tfree(pMnode->path);
+  tfree(pMnode);
   mDebug("mnode:%p object is cleaned up", pMnode);
 }
 

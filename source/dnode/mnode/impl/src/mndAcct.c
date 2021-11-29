@@ -110,8 +110,8 @@ int32_t mndInitAcct(SMnode *pMnode) {
                      .insertFp = (SdbInsertFp)mnodeAcctActionInsert,
                      .updateFp = (SdbUpdateFp)mnodeAcctActionUpdate,
                      .deleteFp = (SdbDeleteFp)mnodeAcctActionDelete};
-  sdbSetTable(table);
 
+  sdbSetTable(pMnode->pSdb, table);
   return 0;
 }
 

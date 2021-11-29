@@ -126,6 +126,10 @@ typedef enum {
   SDB_MAX = 12
 } ESdbType;
 
+typedef struct SSdbOpt {
+  const char *path;
+} SSdbOpt;
+
 typedef int32_t (*SdbInsertFp)(void *pObj);
 typedef int32_t (*SdbUpdateFp)(void *pSrcObj, void *pDstObj);
 typedef int32_t (*SdbDeleteFp)(void *pObj);
@@ -146,12 +150,12 @@ typedef struct {
 
 typedef struct SSdb SSdb;
 
-int32_t sdbInit();
-void    sdbCleanup();
-void    sdbSetTable(SSdbTable table);
+SSdb *sdbOpen(SSdbOpt *pOption);
+void  sdbClose(SSdb *pSdb);
+void  sdbSetTable(SSdb *pSdb, SSdbTable table);
 
-int32_t sdbOpen();
-void    sdbClose();
+// int32_t sdbOpen();
+// void    sdbClose();
 int32_t sdbWrite(SSdbRaw *pRaw);
 
 int32_t sdbDeploy();

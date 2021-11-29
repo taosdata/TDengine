@@ -223,7 +223,7 @@ int32_t mndInitUser(SMnode *pMnode) {
                      .insertFp = (SdbInsertFp)mndUserActionInsert,
                      .updateFp = (SdbUpdateFp)mndUserActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndUserActionDelete};
-  sdbSetTable(table);
+  sdbSetTable(pMnode->pSdb, table);
 
   mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_USER, mndProcessCreateUserMsg);
 

@@ -320,7 +320,7 @@ int32_t mndInitTrans(SMnode *pMnode) {
                      .insertFp = (SdbInsertFp)trnActionInsert,
                      .updateFp = (SdbUpdateFp)trnActionUpdate,
                      .deleteFp = (SdbDeleteFp)trnActionDelete};
-  sdbSetTable(table);
+  sdbSetTable(pMnode->pSdb, table);
 
   mInfo("trn module is initialized");
   return 0;

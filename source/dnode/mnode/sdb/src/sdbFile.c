@@ -212,29 +212,29 @@ static int32_t sdbWriteDataFile() {
   return code;
 }
 
-int32_t sdbOpen() {
-  mDebug("start to read mnode file");
+// int32_t sdbOpen() {
+//   mDebug("start to read mnode file");
 
-  if (sdbReadDataFile() != 0) {
-    return -1;
-  }
+//   if (sdbReadDataFile() != 0) {
+//     return -1;
+//   }
 
-  return 0;
-}
+//   return 0;
+// }
 
-void sdbClose() {
-  if (tsSdb.curVer != tsSdb.lastCommitVer) {
-    mDebug("start to write mnode file");
-    sdbWriteDataFile();
-  }
+// void sdbClose() {
+//   if (tsSdb.curVer != tsSdb.lastCommitVer) {
+//     mDebug("start to write mnode file");
+//     sdbWriteDataFile();
+//   }
 
-  for (int32_t i = 0; i < SDB_MAX; ++i) {
-    SHashObj *hash = tsSdb.hashObjs[i];
-    if (hash != NULL) {
-      taosHashClear(hash);
-    }
-  }
-}
+//   for (int32_t i = 0; i < SDB_MAX; ++i) {
+//     SHashObj *hash = tsSdb.hashObjs[i];
+//     if (hash != NULL) {
+//       taosHashClear(hash);
+//     }
+//   }
+// }
 
 int32_t sdbDeploy() {
   if (sdbCreateDir() != 0) {
@@ -249,7 +249,7 @@ int32_t sdbDeploy() {
     return -1;
   }
 
-  sdbClose();
+  // sdbClose();
   return 0;
 }
 

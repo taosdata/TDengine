@@ -43,6 +43,7 @@ typedef struct SMnode {
   tmr_h             timer;
   SSdb             *pSdb;
   SDnode           *pDnode;
+  char             *path;
   SArray            steps;
   MndMsgFp          msgFp[TSDB_MSG_TYPE_MAX];
   SendMsgToDnodeFp  sendMsgToDnodeFp;
