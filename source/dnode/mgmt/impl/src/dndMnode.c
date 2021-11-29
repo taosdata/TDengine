@@ -364,13 +364,13 @@ static int32_t dndBuildMnodeOptionFromMsg(SDnode *pDnode, SMnodeOpt *pOption, SC
 
   pOption->replica = pMsg->replica;
   pOption->selfIndex = -1;
-  for (int32_t index = 0; index < pMsg->replica; ++index) {
-    SReplica *pReplica = &pOption->replicas[index];
-    pReplica->id = pMsg->replicas[index].id;
-    pReplica->port = pMsg->replicas[index].port;
-    tstrncpy(pReplica->fqdn, pMsg->replicas[index].fqdn, TSDB_FQDN_LEN);
+  for (int32_t i = 0; i < pMsg->replica; ++i) {
+    SReplica *pReplica = &pOption->replicas[i];
+    pReplica->id = pMsg->replicas[i].id;
+    pReplica->port = pMsg->replicas[i].port;
+    tstrncpy(pReplica->fqdn, pMsg->replicas[i].fqdn, TSDB_FQDN_LEN);
     if (pReplica->id == pOption->dnodeId) {
-      pOption->selfIndex = index;
+      pOption->selfIndex = i;
     }
   }
 

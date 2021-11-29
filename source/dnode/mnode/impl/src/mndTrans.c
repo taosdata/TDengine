@@ -28,18 +28,18 @@ SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   int32_t redoActionNum = taosArrayGetSize(pTrans->redoActions);
   int32_t undoActionNum = taosArrayGetSize(pTrans->undoActions);
 
-  for (int32_t index = 0; index < redoLogNum; ++index) {
-    SSdbRaw *pTmp = taosArrayGet(pTrans->redoLogs, index);
+  for (int32_t i = 0; i < redoLogNum; ++i) {
+    SSdbRaw *pTmp = taosArrayGet(pTrans->redoLogs, i);
     rawDataLen += sdbGetRawTotalSize(pTmp);
   }
 
-  for (int32_t index = 0; index < undoLogNum; ++index) {
-    SSdbRaw *pTmp = taosArrayGet(pTrans->undoLogs, index);
+  for (int32_t i = 0; i < undoLogNum; ++i) {
+    SSdbRaw *pTmp = taosArrayGet(pTrans->undoLogs, i);
     rawDataLen += sdbGetRawTotalSize(pTmp);
   }
 
-  for (int32_t index = 0; index < commitLogNum; ++index) {
-    SSdbRaw *pTmp = taosArrayGet(pTrans->commitLogs, index);
+  for (int32_t i = 0; i < commitLogNum; ++i) {
+    SSdbRaw *pTmp = taosArrayGet(pTrans->commitLogs, i);
     rawDataLen += sdbGetRawTotalSize(pTmp);
   }
 
@@ -59,22 +59,22 @@ SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   SDB_SET_INT32(pRaw, dataPos, redoActionNum)
   SDB_SET_INT32(pRaw, dataPos, undoActionNum)
 
-  for (int32_t index = 0; index < redoLogNum; ++index) {
-    SSdbRaw *pTmp = taosArrayGet(pTrans->redoLogs, index);
+  for (int32_t i = 0; i < redoLogNum; ++i) {
+    SSdbRaw *pTmp = taosArrayGet(pTrans->redoLogs, i);
     int32_t  len = sdbGetRawTotalSize(pTmp);
     SDB_SET_INT32(pRaw, dataPos, len)
     SDB_SET_BINARY(pRaw, dataPos, (void *)pTmp, len)
   }
 
-  for (int32_t index = 0; index < undoLogNum; ++index) {
-    SSdbRaw *pTmp = taosArrayGet(pTrans->undoLogs, index);
+  for (int32_t i = 0; i < undoLogNum; ++i) {
+    SSdbRaw *pTmp = taosArrayGet(pTrans->undoLogs, i);
     int32_t  len = sdbGetRawTotalSize(pTmp);
     SDB_SET_INT32(pRaw, dataPos, len)
     SDB_SET_BINARY(pRaw, dataPos, (void *)pTmp, len)
   }
 
-  for (int32_t index = 0; index < commitLogNum; ++index) {
-    SSdbRaw *pTmp = taosArrayGet(pTrans->commitLogs, index);
+  for (int32_t i = 0; i < commitLogNum; ++i) {
+    SSdbRaw *pTmp = taosArrayGet(pTrans->commitLogs, i);
     int32_t  len = sdbGetRawTotalSize(pTmp);
     SDB_SET_INT32(pRaw, dataPos, len)
     SDB_SET_BINARY(pRaw, dataPos, (void *)pTmp, len)
@@ -134,7 +134,7 @@ SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, pRow, dataPos, &undoActionNum)
 
   int32_t code = 0;
-  for (int32_t index = 0; index < redoLogNum; ++index) {
+  for (int32_t i = 0; i < redoLogNum; ++i) {
     int32_t dataLen = 0;
     SDB_GET_INT32(pRaw, pRow, dataPos, &dataLen)
 
@@ -162,8 +162,8 @@ static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
   SArray *pArray = pTrans->redoLogs;
   int32_t arraySize = taosArrayGetSize(pArray);
 
-  for (int32_t index = 0; index < arraySize; ++index) {
-    SSdbRaw *pRaw = taosArrayGet(pArray, index);
+  for (int32_t i = 0; i < arraySize; ++i) {
+    SSdbRaw *pRaw = taosArrayGet(pArray, i);
     int32_t  code = sdbWrite(pSdb, pRaw);
     if (code != 0) {
       mError("trn:%d, failed to write raw:%p to sdb since %s", pTrans->id, pRaw, terrstr());
@@ -179,8 +179,8 @@ static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans) {
   SArray *pArray = pTrans->redoLogs;
   int32_t arraySize = taosArrayGetSize(pArray);
 
-  for (int32_t index = 0; index < arraySize; ++index) {
-    SSdbRaw *pRaw = taosArrayGet(pArray, index);
+  for (int32_t i = 0; i < arraySize; ++i) {
+    SSdbRaw *pRaw = taosArrayGet(pArray, i);
     int32_t  code = sdbWrite(pSdb, pRaw);
     if (code != 0) {
       mError("trn:%d, failed to write raw:%p to sdb since %s", pTrans->id, pRaw, terrstr());
@@ -197,8 +197,8 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pTrans, STrans *pDstTran
   SArray *pArray = pTrans->redoLogs;
   int32_t arraySize = taosArrayGetSize(pArray);
 
-  for (int32_t index = 0; index < arraySize; ++index) {
-    SSdbRaw *pRaw = taosArrayGet(pArray, index);
+  for (int32_t i = 0; i < arraySize; ++i) {
+    SSdbRaw *pRaw = taosArrayGet(pArray, i);
     int32_t  code = sdbWrite(pSdb, pRaw);
     if (code != 0) {
       mError("trn:%d, failed to write raw:%p to sdb since %s", pTrans->id, pRaw, terrstr());
@@ -243,8 +243,8 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, void *rpcHandle) {
 }
 
 static void trnDropArray(SArray *pArray) {
-  for (int32_t index = 0; index < pArray->size; ++index) {
-    SSdbRaw *pRaw = taosArrayGet(pArray, index);
+  for (int32_t i = 0; i < pArray->size; ++i) {
+    SSdbRaw *pRaw = taosArrayGet(pArray, i);
     tfree(pRaw);
   }
 
@@ -373,8 +373,8 @@ int32_t mndTransApply(SMnode *pMnode, SSdbRaw *pRaw, void *pData, int32_t code) 
 }
 
 static int32_t trnExecuteArray(SMnode *pMnode, SArray *pArray) {
-  for (int32_t index = 0; index < pArray->size; ++index) {
-    SSdbRaw *pRaw = taosArrayGetP(pArray, index);
+  for (int32_t i = 0; i < pArray->size; ++i) {
+    SSdbRaw *pRaw = taosArrayGetP(pArray, i);
     if (sdbWrite(pMnode->pSdb, pRaw) != 0) {
       return -1;
     }
