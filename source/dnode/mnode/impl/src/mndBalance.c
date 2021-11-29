@@ -17,5 +17,5 @@
 #include "os.h"
 #include "mndInt.h"
 
-int32_t mndInitBalance() { return 0; }
-void    mndCleanupBalance() {}
+int32_t mndInitBalance(SMnode *pMnode) { return 0; }
+void    mndCleanupBalance(SMnode *pMnode) {}

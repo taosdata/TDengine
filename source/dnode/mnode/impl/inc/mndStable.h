@@ -22,8 +22,8 @@
 extern "C" {
 #endif
 
-int32_t mndInitStable();
-void    mndCleanupStable();
+int32_t mndInitStable(SMnode *pMnode);
+void    mndCleanupStable(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

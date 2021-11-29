@@ -22,9 +22,9 @@
 extern "C" {
 #endif
 
-int32_t mndInitSync();
-void    mndCleanupSync();
-bool    mndIsMaster();
+int32_t mndInitSync(SMnode *pMnode);
+void    mndCleanupSync(SMnode *pMnode);
+bool    mndIsMaster(SMnode *pMnode);
 int32_t mndSyncPropose(SSdbRaw *pRaw, void *pData);
 
 #ifdef __cplusplus

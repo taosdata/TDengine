@@ -17,5 +17,5 @@
 #include "os.h"
 #include "mndInt.h"
 
-int32_t mndInitDb() { return 0; }
-void    mndCleanupDb() {}
+int32_t mndInitDb(SMnode *pMnode) { return 0; }
+void    mndCleanupDb(SMnode *pMnode) {}

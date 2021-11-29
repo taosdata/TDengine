@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
-int32_t mndInitOper();
-void    mndCleanupOper();
+int32_t mndInitOper(SMnode *pMnode);
+void    mndCleanupOper(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

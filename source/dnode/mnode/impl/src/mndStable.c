@@ -17,5 +17,5 @@
 #include "os.h"
 #include "mndInt.h"
 
-int32_t mndInitStable() { return 0; }
-void    mndCleanupStable() {}
+int32_t mndInitStable(SMnode *pMnode) { return 0; }
+void    mndCleanupStable(SMnode *pMnode) {}

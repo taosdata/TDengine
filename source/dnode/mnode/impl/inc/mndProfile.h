@@ -22,8 +22,8 @@
 extern "C" {
 #endif
 
-int32_t mndInitProfile();
-void    mndCleanupProfile();
+int32_t mndInitProfile(SMnode *pMnode);
+void    mndCleanupProfile(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

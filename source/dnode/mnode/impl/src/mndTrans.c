@@ -312,7 +312,7 @@ int32_t trnAppendUndoAction(STrans *pTrans, SEpSet *pEpSet, void *pMsg) {
   return code;
 }
 
-int32_t mndInitTrans() {
+int32_t mndInitTrans(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_TRANS,
                      .keyType = SDB_KEY_INT32,
                      .encodeFp = (SdbEncodeFp)trnActionEncode,
@@ -326,7 +326,7 @@ int32_t mndInitTrans() {
   return 0;
 }
 
-void mndCleanupTrans() { mInfo("trn module is cleaned up"); }
+void mndCleanupTrans(SMnode *pMnode) { mInfo("trn module is cleaned up"); }
 
 
 int32_t trnPrepare(STrans *pTrans, int32_t (*syncfp)(SSdbRaw *pRaw, void *pData)) {

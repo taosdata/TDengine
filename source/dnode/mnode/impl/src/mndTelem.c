@@ -256,7 +256,7 @@ static void* mndTelemThreadFp(void* param) {
     if (r == 0) break;
     if (r != ETIMEDOUT) continue;
 
-    if (mndIsMaster()) {
+    if (mndIsMaster(NULL)) {
       mndSendTelemetryReport();
     }
     end.tv_sec += REPORT_INTERVAL;
@@ -278,7 +278,7 @@ static void mndGetEmail(char* filepath) {
   taosCloseFile(fd);
 }
 
-int32_t mndInitTelem() {
+int32_t mndInitTelem(SMnode *pMnode) {
   tsTelem.enable = tsEnableTelemetryReporting;
   if (!tsTelem.enable) return 0;
 
@@ -303,7 +303,7 @@ int32_t mndInitTelem() {
   return 0;
 }
 
-void mndCleanupTelem() {
+void mndCleanupTelem(SMnode *pMnode) {
   if (!tsTelem.enable) return;
 
   if (taosCheckPthreadValid(tsTelem.thread)) {

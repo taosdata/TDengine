@@ -17,5 +17,5 @@
 #include "os.h"
 #include "mndInt.h"
 
-int32_t mndInitProfile() { return 0; }
-void    mndCleanupProfile() {}
+int32_t mndInitProfile(SMnode *pMnode) { return 0; }
+void    mndCleanupProfile(SMnode *pMnode) {}

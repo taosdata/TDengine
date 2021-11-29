@@ -17,8 +17,8 @@
 #include "os.h"
 #include "mndInt.h"
 
-int32_t mndInitMnode() { return 0; }
-void    mndCleanupMnode() {}
+int32_t mndInitMnode(SMnode *pMnode) { return 0; }
+void    mndCleanupMnode(SMnode *pMnode) {}
 
 void mndGetMnodeEpSetForPeer(SEpSet *epSet, bool redirect) {}
 void mndGetMnodeEpSetForShell(SEpSet *epSet, bool redirect) {}

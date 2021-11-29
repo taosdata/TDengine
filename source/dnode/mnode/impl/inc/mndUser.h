@@ -22,8 +22,8 @@
 extern "C" {
 #endif
 
-int32_t mndInitUser();
-void    mndCleanupUser();
+int32_t mndInitUser(SMnode *pMnode);
+void    mndCleanupUser(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

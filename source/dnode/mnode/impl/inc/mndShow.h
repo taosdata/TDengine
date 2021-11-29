@@ -22,8 +22,8 @@
 extern "C" {
 #endif
 
-int32_t mndInitShow();
-void    mndCleanupShow();
+int32_t mndInitShow(SMnode *pMnode);
+void    mndCleanupShow(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

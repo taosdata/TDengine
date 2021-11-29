@@ -17,5 +17,5 @@
 #include "os.h"
 #include "mndInt.h"
 
-int32_t mndInitCluster() { return 0; }
-void    mndCleanupCluster() {}
+int32_t mndInitCluster(SMnode *pMnode) { return 0; }
+void    mndCleanupCluster(SMnode *pMnode) {}

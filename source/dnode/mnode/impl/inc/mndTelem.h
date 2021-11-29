@@ -21,8 +21,8 @@ extern "C" {
 #endif
 #include "mndInt.h"
 
-int32_t mndInitTelem();
-void    mndCleanupTelem();
+int32_t mndInitTelem(SMnode *pMnode);
+void    mndCleanupTelem(SMnode *pMnode);
 
 #ifdef __cplusplus
 }
