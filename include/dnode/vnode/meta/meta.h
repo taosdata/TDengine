@@ -65,7 +65,7 @@ typedef struct STbCfg {
     struct {
       /// super table UID
       tb_uid_t suid;
-      SRow *   pTag;
+      SKVRow   pTag;
     } ctbCfg;
   };
 } STbCfg;

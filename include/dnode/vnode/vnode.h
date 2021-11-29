@@ -162,14 +162,14 @@ typedef struct {
   char info[];
 } SVnodeRsp;
 
-#define VNODE_INIT_CREATE_STB_REQ(VER, NAME, TTL, KEEP, SUID, PSCHEMA, PTAGSCHEMA) \
-  { .ver = (VER), .ctReq = META_INIT_STB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA, PTAGSCHEMA) }
+#define VNODE_INIT_CREATE_STB_REQ(NAME, TTL, KEEP, SUID, PSCHEMA, PTAGSCHEMA) \
+  { .ver = 0, .ctReq = META_INIT_STB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA, PTAGSCHEMA) }
 
-#define VNODE_INIT_CREATE_CTB_REQ(VER, NAME, TTL, KEEP, SUID, PTAG) \
-  { .ver = (VER), .ctReq = META_INIT_CTB_CFG(NAME, TTL, KEEP, SUID, PTAG) }
+#define VNODE_INIT_CREATE_CTB_REQ(NAME, TTL, KEEP, SUID, PTAG) \
+  { .ver = 0, .ctReq = META_INIT_CTB_CFG(NAME, TTL, KEEP, SUID, PTAG) }
 
-#define VNODE_INIT_CREATE_NTB_REQ(VER, NAME, TTL, KEEP, SUID, PSCHEMA) \
-  { .ver = (VER), .ctReq = META_INIT_NTB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA) }
+#define VNODE_INIT_CREATE_NTB_REQ(NAME, TTL, KEEP, SUID, PSCHEMA) \
+  { .ver = 0, .ctReq = META_INIT_NTB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA) }
 
 int   vnodeBuildReq(void **buf, const SVnodeReq *pReq, uint8_t type);
 void *vnodeParseReq(void *buf, SVnodeReq *pReq, uint8_t type);
