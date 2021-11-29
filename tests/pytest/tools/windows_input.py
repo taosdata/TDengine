@@ -52,7 +52,7 @@ class TDTestCase:
         temp = ''
         for i in range(300):
             temp += 'a'
-        sql = "'insert into db.tb values(now,'%s')" % temp
+        sql = "insert into db.tb values(now,'%s')" % temp
         window.SendKeys(sql)
         window.SendKeys('{Enter}')
         window.SendKeys('{Ctrl}C')
