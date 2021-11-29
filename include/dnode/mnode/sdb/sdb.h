@@ -130,36 +130,162 @@ typedef struct SSdb SSdb;
 typedef int32_t (*SdbInsertFp)(SSdb *pSdb, void *pObj);
 typedef int32_t (*SdbUpdateFp)(SSdb *pSdb, void *pSrcObj, void *pDstObj);
 typedef int32_t (*SdbDeleteFp)(SSdb *pSdb, void *pObj);
-typedef int32_t (*SdbDeployFp)(SSdb*pSdb);
+typedef int32_t (*SdbDeployFp)(SSdb *pSdb);
 typedef SSdbRow *(*SdbDecodeFp)(SSdbRaw *pRaw);
 typedef SSdbRaw *(*SdbEncodeFp)(void *pObj);
 
 typedef struct {
-  ESdbType    sdbType;
-  EKeyType    keyType;
+  /**
+   * @brief The sdb type of the table.
+   *
+   */
+  ESdbType sdbType;
+
+  /**
+   * @brief The key type of the table.
+   *
+   */
+  EKeyType keyType;
+
+  /**
+   * @brief The callback function when the table is first deployed.
+   *
+   */
   SdbDeployFp deployFp;
+
+  /**
+   * @brief Encode one row of the table into rawdata.
+   *
+   */
   SdbEncodeFp encodeFp;
+
+  /**
+   * @brief Decode one row of the table from rawdata.
+   *
+   */
   SdbDecodeFp decodeFp;
+
+  /**
+   * @brief The callback function when insert a row to sdb.
+   *
+   */
   SdbInsertFp insertFp;
+
+  /**
+   * @brief The callback function when undate a row in sdb.
+   *
+   */
   SdbUpdateFp updateFp;
+
+  /**
+   * @brief The callback function when delete a row from sdb.
+   *
+   */
   SdbDeleteFp deleteFp;
 } SSdbTable;
 
 typedef struct SSdbOpt {
+  /**
+   * @brief The path of the sdb file.
+   *
+   */
   const char *path;
 } SSdbOpt;
 
-SSdb   *sdbInit(SSdbOpt *pOption);
-void    sdbCleanup(SSdb *pSdb);
+/**
+ * @brief Initialize and start the sdb.
+ *
+ * @param pOption Option of the sdb.
+ * @return SSdb* The sdb object.
+ */
+SSdb *sdbInit(SSdbOpt *pOption);
+
+/**
+ * @brief Stop and cleanup the sdb.
+ *
+ * @param pSdb The sdb object to close.
+ */
+void sdbCleanup(SSdb *pSdb);
+
+/**
+ * @brief Set the properties of sdb table.
+ *
+ * @param pSdb The sdb object.
+ * @param table The properties of the table.
+ * @return int32_t 0 for success, -1 for failure.
+ */
 int32_t sdbSetTable(SSdb *pSdb, SSdbTable table);
+
+/**
+ * @brief Set the initial rows of sdb.
+ *
+ * @param pSdb The sdb object.
+ * @return int32_t 0 for success, -1 for failure.
+ */
 int32_t sdbDeploy(SSdb *pSdb);
+
+/**
+ * @brief Load sdb from file.
+ *
+ * @param pSdb The sdb object.
+ * @return int32_t 0 for success, -1 for failure.
+ */
 int32_t sdbReadFile(SSdb *pSdb);
+
+/**
+ * @brief Parse and write raw data to sdb.
+ *
+ * @param pSdb The sdb object.
+ * @param pRaw The raw data.
+ * @return int32_t 0 for success, -1 for failure.
+ */
 int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw);
 
-void   *sdbAcquire(SSdb *pSdb, ESdbType type, void *pKey);
-void    sdbRelease(SSdb *pSdb, void *pObj);
-void   *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj);
-void    sdbCancelFetch(SSdb *pSdb, void *pIter);
+/**
+ * @brief Acquire a row from sdb
+ *
+ * @param pSdb The sdb object.
+ * @param type The type of the row.
+ * @param pKey The key value of the row.
+ * @return void* The object of the row.
+ */
+void *sdbAcquire(SSdb *pSdb, ESdbType type, void *pKey);
+
+/**
+ * @brief Release a row from sdb.
+ *
+ * @param pSdb The sdb object.
+ * @param pObj The object of the row.
+ */
+void sdbRelease(SSdb *pSdb, void *pObj);
+
+/**
+ * @brief Traverse a sdb table
+ *
+ * @param pSdb The sdb object.
+ * @param type The type of the table.
+ * @param type The initial iterator of the table.
+ * @param pObj The object of the row just fetched.
+ * @return void* The next iterator of the table.
+ */
+void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj);
+
+/**
+ * @brief Cancel a traversal
+ *
+ * @param pSdb The sdb object.
+ * @param pIter The iterator of the table.
+ * @param type The initial iterator of table.
+ */
+void sdbCancelFetch(SSdb *pSdb, void *pIter);
+
+/**
+ * @brief Get the number of rows in the table
+ *
+ * @param pSdb The sdb object.
+ * @param pIter The type of the table.
+ * @record int32_t The number of rows in the table
+ */
 int32_t sdbGetSize(SSdb *pSdb, ESdbType type);
 
 SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen);

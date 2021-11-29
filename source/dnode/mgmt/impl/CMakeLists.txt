@@ -12,5 +12,5 @@ target_link_libraries(
 target_include_directories(
     dnode
     PUBLIC "${CMAKE_SOURCE_DIR}/include/dnode/mgmt"
-    private "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
