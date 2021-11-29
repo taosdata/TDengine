@@ -36,9 +36,9 @@ static struct {
   char             email[TSDB_FQDN_LEN];
 } tsTelem;
 
-static void mnodeBeginObject(SBufferWriter* bw) { tbufWriteChar(bw, '{'); }
+static void mndBeginObject(SBufferWriter* bw) { tbufWriteChar(bw, '{'); }
 
-static void mnodeCloseObject(SBufferWriter* bw) {
+static void mndCloseObject(SBufferWriter* bw) {
   size_t len = tbufTell(bw);
   if (tbufGetData(bw, false)[len - 1] == ',') {
     tbufWriteCharAt(bw, len - 1, '}');
@@ -64,14 +64,14 @@ static void closeArray(SBufferWriter* bw) {
 }
 #endif
 
-static void mnodeWriteString(SBufferWriter* bw, const char* str) {
+static void mndWriteString(SBufferWriter* bw, const char* str) {
   tbufWriteChar(bw, '"');
   tbufWrite(bw, str, strlen(str));
   tbufWriteChar(bw, '"');
 }
 
-static void mnodeAddIntField(SBufferWriter* bw, const char* k, int64_t v) {
-  mnodeWriteString(bw, k);
+static void mndAddIntField(SBufferWriter* bw, const char* k, int64_t v) {
+  mndWriteString(bw, k);
   tbufWriteChar(bw, ':');
   char buf[32];
   sprintf(buf, "%" PRId64, v);
@@ -79,14 +79,14 @@ static void mnodeAddIntField(SBufferWriter* bw, const char* k, int64_t v) {
   tbufWriteChar(bw, ',');
 }
 
-static void mnodeAddStringField(SBufferWriter* bw, const char* k, const char* v) {
-  mnodeWriteString(bw, k);
+static void mndAddStringField(SBufferWriter* bw, const char* k, const char* v) {
+  mndWriteString(bw, k);
   tbufWriteChar(bw, ':');
-  mnodeWriteString(bw, v);
+  mndWriteString(bw, v);
   tbufWriteChar(bw, ',');
 }
 
-static void mnodeAddCpuInfo(SBufferWriter* bw) {
+static void mndAddCpuInfo(SBufferWriter* bw) {
   char*   line = NULL;
   size_t  size = 0;
   int32_t done = 0;
@@ -100,11 +100,11 @@ static void mnodeAddCpuInfo(SBufferWriter* bw) {
     line[size - 1] = '\0';
     if (((done & 1) == 0) && strncmp(line, "model name", 10) == 0) {
       const char* v = strchr(line, ':') + 2;
-      mnodeAddStringField(bw, "cpuModel", v);
+      mndAddStringField(bw, "cpuModel", v);
       done |= 1;
     } else if (((done & 2) == 0) && strncmp(line, "cpu cores", 9) == 0) {
       const char* v = strchr(line, ':') + 2;
-      mnodeWriteString(bw, "numOfCpu");
+      mndWriteString(bw, "numOfCpu");
       tbufWriteChar(bw, ':');
       tbufWrite(bw, v, strlen(v));
       tbufWriteChar(bw, ',');
@@ -116,7 +116,7 @@ static void mnodeAddCpuInfo(SBufferWriter* bw) {
   fclose(fp);
 }
 
-static void mnodeAddOsInfo(SBufferWriter* bw) {
+static void mndAddOsInfo(SBufferWriter* bw) {
   char*  line = NULL;
   size_t size = 0;
 
@@ -133,7 +133,7 @@ static void mnodeAddOsInfo(SBufferWriter* bw) {
         p++;
         line[size - 2] = 0;
       }
-      mnodeAddStringField(bw, "os", p);
+      mndAddStringField(bw, "os", p);
       break;
     }
   }
@@ -142,7 +142,7 @@ static void mnodeAddOsInfo(SBufferWriter* bw) {
   fclose(fp);
 }
 
-static void mnodeAddMemoryInfo(SBufferWriter* bw) {
+static void mndAddMemoryInfo(SBufferWriter* bw) {
   char*  line = NULL;
   size_t size = 0;
 
@@ -156,7 +156,7 @@ static void mnodeAddMemoryInfo(SBufferWriter* bw) {
     if (strncmp(line, "MemTotal", 8) == 0) {
       const char* p = strchr(line, ':') + 1;
       while (*p == ' ') p++;
-      mnodeAddStringField(bw, "memory", p);
+      mndAddStringField(bw, "memory", p);
       break;
     }
   }
@@ -165,32 +165,32 @@ static void mnodeAddMemoryInfo(SBufferWriter* bw) {
   fclose(fp);
 }
 
-static void mnodeAddVersionInfo(SBufferWriter* bw) {
-  mnodeAddStringField(bw, "version", version);
-  mnodeAddStringField(bw, "buildInfo", buildinfo);
-  mnodeAddStringField(bw, "gitInfo", gitinfo);
-  mnodeAddStringField(bw, "email", tsTelem.email);
+static void mndAddVersionInfo(SBufferWriter* bw) {
+  mndAddStringField(bw, "version", version);
+  mndAddStringField(bw, "buildInfo", buildinfo);
+  mndAddStringField(bw, "gitInfo", gitinfo);
+  mndAddStringField(bw, "email", tsTelem.email);
 }
 
-static void mnodeAddRuntimeInfo(SBufferWriter* bw) {
+static void mndAddRuntimeInfo(SBufferWriter* bw) {
   SMnodeLoad load = {0};
   if (mndGetLoad(NULL, &load) != 0) {
     return;
   }
 
-  mnodeAddIntField(bw, "numOfDnode", load.numOfDnode);
-  mnodeAddIntField(bw, "numOfMnode", load.numOfMnode);
-  mnodeAddIntField(bw, "numOfVgroup", load.numOfVgroup);
-  mnodeAddIntField(bw, "numOfDatabase", load.numOfDatabase);
-  mnodeAddIntField(bw, "numOfSuperTable", load.numOfSuperTable);
-  mnodeAddIntField(bw, "numOfChildTable", load.numOfChildTable);
-  mnodeAddIntField(bw, "numOfColumn", load.numOfColumn);
-  mnodeAddIntField(bw, "numOfPoint", load.totalPoints);
-  mnodeAddIntField(bw, "totalStorage", load.totalStorage);
-  mnodeAddIntField(bw, "compStorage", load.compStorage);
+  mndAddIntField(bw, "numOfDnode", load.numOfDnode);
+  mndAddIntField(bw, "numOfMnode", load.numOfMnode);
+  mndAddIntField(bw, "numOfVgroup", load.numOfVgroup);
+  mndAddIntField(bw, "numOfDatabase", load.numOfDatabase);
+  mndAddIntField(bw, "numOfSuperTable", load.numOfSuperTable);
+  mndAddIntField(bw, "numOfChildTable", load.numOfChildTable);
+  mndAddIntField(bw, "numOfColumn", load.numOfColumn);
+  mndAddIntField(bw, "numOfPoint", load.totalPoints);
+  mndAddIntField(bw, "totalStorage", load.totalStorage);
+  mndAddIntField(bw, "compStorage", load.compStorage);
 }
 
-static void mnodeSendTelemetryReport() {
+static void mndSendTelemetryReport() {
   char     buf[128] = {0};
   uint32_t ip = taosGetIpv4FromFqdn(TELEMETRY_SERVER);
   if (ip == 0xffffffff) {
@@ -208,15 +208,15 @@ static void mnodeSendTelemetryReport() {
   snprintf(clusterIdStr, sizeof(clusterIdStr), "%" PRId64, clusterId);
 
   SBufferWriter bw = tbufInitWriter(NULL, false);
-  mnodeBeginObject(&bw);
-  mnodeAddStringField(&bw, "instanceId", clusterIdStr);
-  mnodeAddIntField(&bw, "reportVersion", 1);
-  mnodeAddOsInfo(&bw);
-  mnodeAddCpuInfo(&bw);
-  mnodeAddMemoryInfo(&bw);
-  mnodeAddVersionInfo(&bw);
-  mnodeAddRuntimeInfo(&bw);
-  mnodeCloseObject(&bw);
+  mndBeginObject(&bw);
+  mndAddStringField(&bw, "instanceId", clusterIdStr);
+  mndAddIntField(&bw, "reportVersion", 1);
+  mndAddOsInfo(&bw);
+  mndAddCpuInfo(&bw);
+  mndAddMemoryInfo(&bw);
+  mndAddVersionInfo(&bw);
+  mndAddRuntimeInfo(&bw);
+  mndCloseObject(&bw);
 
   const char* header =
       "POST /report HTTP/1.1\n"
@@ -240,12 +240,12 @@ static void mnodeSendTelemetryReport() {
   taosCloseSocket(fd);
 }
 
-static void* mnodeTelemThreadFp(void* param) {
+static void* mndTelemThreadFp(void* param) {
   struct timespec end = {0};
   clock_gettime(CLOCK_REALTIME, &end);
   end.tv_sec += 300;  // wait 5 minutes before send first report
 
-  setThreadName("mnode-telem");
+  setThreadName("mnd-telem");
 
   while (!tsTelem.exit) {
     int32_t         r = 0;
@@ -256,8 +256,8 @@ static void* mnodeTelemThreadFp(void* param) {
     if (r == 0) break;
     if (r != ETIMEDOUT) continue;
 
-    if (mnodeIsMaster()) {
-      mnodeSendTelemetryReport();
+    if (mndIsMaster()) {
+      mndSendTelemetryReport();
     }
     end.tv_sec += REPORT_INTERVAL;
   }
@@ -265,7 +265,7 @@ static void* mnodeTelemThreadFp(void* param) {
   return NULL;
 }
 
-static void mnodeGetEmail(char* filepath) {
+static void mndGetEmail(char* filepath) {
   int32_t fd = taosOpenFileRead(filepath);
   if (fd < 0) {
     return;
@@ -287,19 +287,19 @@ int32_t mndInitTelem() {
   pthread_cond_init(&tsTelem.cond, NULL);
   tsTelem.email[0] = 0;
 
-  mnodeGetEmail("/usr/local/taos/email");
+  mndGetEmail("/usr/local/taos/email");
 
   pthread_attr_t attr;
   pthread_attr_init(&attr);
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
-  int32_t code = pthread_create(&tsTelem.thread, &attr, mnodeTelemThreadFp, NULL);
+  int32_t code = pthread_create(&tsTelem.thread, &attr, mndTelemThreadFp, NULL);
   pthread_attr_destroy(&attr);
   if (code != 0) {
     mTrace("failed to create telemetry thread since :%s", strerror(code));
   }
 
-  mInfo("mnode telemetry is initialized");
+  mInfo("mnd telemetry is initialized");
   return 0;
 }
 

@@ -20,5 +20,5 @@
 int32_t mndInitMnode() { return 0; }
 void    mndCleanupMnode() {}
 
-void mnodeGetMnodeEpSetForPeer(SEpSet *epSet, bool redirect) {}
-void mnodeGetMnodeEpSetForShell(SEpSet *epSet, bool redirect) {}
+void mndGetMnodeEpSetForPeer(SEpSet *epSet, bool redirect) {}
+void mndGetMnodeEpSetForShell(SEpSet *epSet, bool redirect) {}

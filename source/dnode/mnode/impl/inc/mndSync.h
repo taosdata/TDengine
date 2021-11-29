@@ -24,9 +24,8 @@ extern "C" {
 
 int32_t mndInitSync();
 void    mndCleanupSync();
-int32_t mnodeSyncPropose(SSdbRaw *pRaw, void *pData);
-
-bool mnodeIsMaster();
+bool    mndIsMaster();
+int32_t mndSyncPropose(SSdbRaw *pRaw, void *pData);
 
 #ifdef __cplusplus
 }

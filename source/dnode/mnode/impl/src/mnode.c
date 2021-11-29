@@ -278,28 +278,44 @@ void mndSendRsp(SMnodeMsg *pMsg, int32_t code) {}
 
 static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
   SMnode *pMnode = pMsg->pMnode;
+  int32_t code = 0;
+  int32_t msgType = pMsg->rpcMsg.msgType;
+  void   *ahandle = pMsg->rpcMsg.ahandle;
+  bool    isReq = (msgType % 2 == 1);
 
-  if (!mnodeIsMaster(pMnode)) {
-    mndSendRedirectMsg(pMnode, &pMsg->rpcMsg);
-    mndCleanupMsg(pMsg);
-    return;
+  if (isReq && !mndIsMaster(pMnode)) {
+    code = TSDB_CODE_APP_NOT_READY;
+    goto PROCESS_RPC_END;
   }
 
-  int32_t  msgType = pMsg->rpcMsg.msgType;
+  if (isReq && pMsg->rpcMsg.pCont == NULL) {
+    mError("msg:%p, app:%p type:%s content is null", pMsg, ahandle, taosMsg[msgType]);
+    code = TSDB_CODE_MND_INVALID_MSG_LEN;
+    goto PROCESS_RPC_END;
+  }
+
   MndMsgFp fp = pMnode->msgFp[msgType];
   if (fp == NULL) {
-    mError("RPC %p, req:%s is not processed", pMsg->rpcMsg.handle, taosMsg[msgType]);
-    SRpcMsg rspMsg = {.handle = pMsg->rpcMsg.handle, .code = TSDB_CODE_MSG_NOT_PROCESSED};
-    rpcSendResponse(&rspMsg);
-    mndCleanupMsg(pMsg);
-    return;
+    mError("msg:%p, app:%p type:%s not processed", pMsg, ahandle, taosMsg[msgType]);
+    code = TSDB_CODE_MSG_NOT_PROCESSED;
+    goto PROCESS_RPC_END;
   }
 
-  int32_t code = (*fp)(pMnode, pMsg);
+  code = (*fp)(pMnode, pMsg);
   if (code != 0) {
-    mError("RPC %p, req:%s processed error since %s", pMsg->rpcMsg.handle, taosMsg[msgType], tstrerror(code));
-    SRpcMsg rspMsg = {.handle = pMsg->rpcMsg.handle, .code = TSDB_CODE_MSG_NOT_PROCESSED};
-    rpcSendResponse(&rspMsg);
+    mError("msg:%p, app:%p type:%s failed to process since %s", pMsg, ahandle, taosMsg[msgType], tstrerror(code));
+    goto PROCESS_RPC_END;
+  }
+
+PROCESS_RPC_END:
+  if (isReq) {
+    if (code == TSDB_CODE_APP_NOT_READY) {
+      mndSendRedirectMsg(pMnode, &pMsg->rpcMsg);
+    } else if (code != 0) {
+      SRpcMsg rspMsg = {.handle = pMsg->rpcMsg.handle, .code = code};
+      rpcSendResponse(&rspMsg);
+    } else {
+    }
   }
 
   mndCleanupMsg(pMsg);
@@ -318,139 +334,3 @@ void mndProcessWriteMsg(SMnodeMsg *pMsg) { mndProcessRpcMsg(pMsg); }
 void mndProcessSyncMsg(SMnodeMsg *pMsg) { mndProcessRpcMsg(pMsg); }
 
 void mndProcessApplyMsg(SMnodeMsg *pMsg) {}
-
-#if 0
-
-static void mnodeProcessWriteReq(SMnodeMsg *pMsg, void *unused) {
-  int32_t msgType = pMsg->rpcMsg.msgType;
-  void   *ahandle = pMsg->rpcMsg.ahandle;
-  int32_t code = 0;
-
-  if (pMsg->rpcMsg.pCont == NULL) {
-    mError("msg:%p, app:%p type:%s content is null", pMsg, ahandle, taosMsg[msgType]);
-    code = TSDB_CODE_MND_INVALID_MSG_LEN;
-    goto PROCESS_WRITE_REQ_END;
-  }
-
-  if (!mnodeIsMaster()) {
-    SMnodeRsp *rpcRsp = &pMsg->rpcRsp;
-    SEpSet *epSet = rpcMallocCont(sizeof(SEpSet));
-    mnodeGetMnodeEpSetForShell(epSet, true);
-    rpcRsp->rsp = epSet;
-    rpcRsp->len = sizeof(SEpSet);
-
-    mDebug("msg:%p, app:%p type:%s in write queue, is redirected, numOfEps:%d inUse:%d", pMsg, ahandle,
-           taosMsg[msgType], epSet->numOfEps, epSet->inUse);
-
-    code = TSDB_CODE_RPC_REDIRECT;
-    goto PROCESS_WRITE_REQ_END;
-  }
-
-  if (tsMworker.writeMsgFp[msgType] == NULL) {
-    mError("msg:%p, app:%p type:%s not processed", pMsg, ahandle, taosMsg[msgType]);
-    code = TSDB_CODE_MND_MSG_NOT_PROCESSED;
-    goto PROCESS_WRITE_REQ_END;
-  }
-
-  code = (*tsMworker.writeMsgFp[msgType])(pMsg);
-
-PROCESS_WRITE_REQ_END:
-  mndSendRsp(pMsg, code);
-}
-
-static void mnodeProcessReadReq(SMnodeMsg *pMsg, void *unused) {
-  int32_t msgType = pMsg->rpcMsg.msgType;
-  void   *ahandle = pMsg->rpcMsg.ahandle;
-  int32_t code = 0;
-
-  if (pMsg->rpcMsg.pCont == NULL) {
-    mError("msg:%p, app:%p type:%s in mread queue, content is null", pMsg, ahandle, taosMsg[msgType]);
-    code = TSDB_CODE_MND_INVALID_MSG_LEN;
-    goto PROCESS_READ_REQ_END;
-  }
-
-  if (!mnodeIsMaster()) {
-    SMnodeRsp *rpcRsp = &pMsg->rpcRsp;
-    SEpSet *epSet = rpcMallocCont(sizeof(SEpSet));
-    if (!epSet) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto PROCESS_READ_REQ_END;
-    }
-    mnodeGetMnodeEpSetForShell(epSet, true);
-    rpcRsp->rsp = epSet;
-    rpcRsp->len = sizeof(SEpSet);
-
-    mDebug("msg:%p, app:%p type:%s in mread queue is redirected, numOfEps:%d inUse:%d", pMsg, ahandle, taosMsg[msgType],
-           epSet->numOfEps, epSet->inUse);
-    code = TSDB_CODE_RPC_REDIRECT;
-    goto PROCESS_READ_REQ_END;
-  }
-
-  if (tsMworker.readMsgFp[msgType] == NULL) {
-    mError("msg:%p, app:%p type:%s in mread queue, not processed", pMsg, ahandle, taosMsg[msgType]);
-    code = TSDB_CODE_MND_MSG_NOT_PROCESSED;
-    goto PROCESS_READ_REQ_END;
-  }
-
-  mTrace("msg:%p, app:%p type:%s will be processed in mread queue", pMsg, ahandle, taosMsg[msgType]);
-  code = (*tsMworker.readMsgFp[msgType])(pMsg);
-
-PROCESS_READ_REQ_END:
-  mndSendRsp(pMsg, code);
-}
-
-static void mnodeProcessPeerReq(SMnodeMsg *pMsg, void *unused) {
-  int32_t msgType = pMsg->rpcMsg.msgType;
-  void   *ahandle = pMsg->rpcMsg.ahandle;
-  int32_t code = 0;
-
-  if (pMsg->rpcMsg.pCont == NULL) {
-    mError("msg:%p, ahandle:%p type:%s in mpeer queue, content is null", pMsg, ahandle, taosMsg[msgType]);
-    code = TSDB_CODE_MND_INVALID_MSG_LEN;
-    goto PROCESS_PEER_REQ_END;
-  }
-
-  if (!mnodeIsMaster()) {
-    SMnodeRsp *rpcRsp = &pMsg->rpcRsp;
-    SEpSet *epSet = rpcMallocCont(sizeof(SEpSet));
-    mnodeGetMnodeEpSetForPeer(epSet, true);
-    rpcRsp->rsp = epSet;
-    rpcRsp->len = sizeof(SEpSet);
-
-    mDebug("msg:%p, ahandle:%p type:%s in mpeer queue is redirected, numOfEps:%d inUse:%d", pMsg, ahandle,
-           taosMsg[msgType], epSet->numOfEps, epSet->inUse);
-
-    code = TSDB_CODE_RPC_REDIRECT;
-    goto PROCESS_PEER_REQ_END;
-  }
-
-  if (tsMworker.peerReqFp[msgType] == NULL) {
-    mError("msg:%p, ahandle:%p type:%s in mpeer queue, not processed", pMsg, ahandle, taosMsg[msgType]);
-    code = TSDB_CODE_MND_MSG_NOT_PROCESSED;
-    goto PROCESS_PEER_REQ_END;
-  }
-
-  code = (*tsMworker.peerReqFp[msgType])(pMsg);
-
-PROCESS_PEER_REQ_END:
-  mndSendRsp(pMsg, code);
-}
-
-static void mnodeProcessPeerRsp(SMnodeMsg *pMsg, void *unused) {
-  int32_t  msgType = pMsg->rpcMsg.msgType;
-  SRpcMsg *pRpcMsg = &pMsg->rpcMsg;
-
-  if (!mnodeIsMaster()) {
-    mError("msg:%p, ahandle:%p type:%s not processed for not master", pRpcMsg, pRpcMsg->ahandle, taosMsg[msgType]);
-    mndCleanupMsg2(pMsg);
-  }
-
-  if (tsMworker.peerRspFp[msgType]) {
-    (*tsMworker.peerRspFp[msgType])(pRpcMsg);
-  } else {
-    mError("msg:%p, ahandle:%p type:%s is not processed", pRpcMsg, pRpcMsg->ahandle, taosMsg[msgType]);
-  }
-
-  mndCleanupMsg2(pMsg);
-}
-#endif

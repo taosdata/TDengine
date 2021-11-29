@@ -21,10 +21,10 @@
 int32_t mndInitSync() { return 0; }
 void    mndCleanupSync() {}
 
-int32_t mnodeSyncPropose(SSdbRaw *pRaw, void *pData) {
+int32_t mndSyncPropose(SSdbRaw *pRaw, void *pData) {
   trnApply(pData, pData, 0);
   free(pData);
   return 0;
 }
 
-bool mnodeIsMaster() { return true; }
+bool mndIsMaster() { return true; }

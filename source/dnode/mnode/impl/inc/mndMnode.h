@@ -24,8 +24,8 @@ extern "C" {
 
 int32_t mndInitMnode();
 void    mndCleanupMnode();
-void    mnodeGetMnodeEpSetForPeer(SEpSet *epSet, bool redirect);
-void    mnodeGetMnodeEpSetForShell(SEpSet *epSet, bool redirect);
+void    mndGetMnodeEpSetForPeer(SEpSet *epSet, bool redirect);
+void    mndGetMnodeEpSetForShell(SEpSet *epSet, bool redirect);
 
 #ifdef __cplusplus
 }

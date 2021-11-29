@@ -15,14 +15,12 @@
 
 #define _DEFAULT_SOURCE
 #include "mndSync.h"
-#include "os.h"
-#include "tglobal.h"
 #include "tkey.h"
 #include "mndTrans.h"
 
 #define SDB_USER_VER 1
 
-static SSdbRaw *mnodeUserActionEncode(SUserObj *pUser) {
+static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, SDB_USER_VER, sizeof(SAcctObj));
   if (pRaw == NULL) return NULL;
 
@@ -38,7 +36,7 @@ static SSdbRaw *mnodeUserActionEncode(SUserObj *pUser) {
   return pRaw;
 }
 
-static SSdbRow *mnodeUserActionDecode(SSdbRaw *pRaw) {
+static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
@@ -62,7 +60,7 @@ static SSdbRow *mnodeUserActionDecode(SSdbRaw *pRaw) {
   return pRow;
 }
 
-static int32_t mnodeUserActionInsert(SUserObj *pUser) {
+static int32_t mndUserActionInsert(SUserObj *pUser) {
   pUser->prohibitDbHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pUser->prohibitDbHash == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -78,7 +76,7 @@ static int32_t mnodeUserActionInsert(SUserObj *pUser) {
   return 0;
 }
 
-static int32_t mnodeUserActionDelete(SUserObj *pUser) {
+static int32_t mndUserActionDelete(SUserObj *pUser) {
   if (pUser->prohibitDbHash) {
     taosHashCleanup(pUser->prohibitDbHash);
     pUser->prohibitDbHash = NULL;
@@ -92,14 +90,14 @@ static int32_t mnodeUserActionDelete(SUserObj *pUser) {
   return 0;
 }
 
-static int32_t mnodeUserActionUpdate(SUserObj *pSrcUser, SUserObj *pDstUser) {
+static int32_t mndUserActionUpdate(SUserObj *pSrcUser, SUserObj *pDstUser) {
   SUserObj tObj;
   int32_t  len = (int32_t)((int8_t *)tObj.prohibitDbHash - (int8_t *)&tObj);
   memcpy(pDstUser, pSrcUser, len);
   return 0;
 }
 
-static int32_t mnodeCreateDefaultUser(char *acct, char *user, char *pass) {
+static int32_t mndCreateDefaultUser(char *acct, char *user, char *pass) {
   SUserObj userObj = {0};
   tstrncpy(userObj.user, user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
@@ -111,30 +109,26 @@ static int32_t mnodeCreateDefaultUser(char *acct, char *user, char *pass) {
     userObj.rootAuth = 1;
   }
 
-  SSdbRaw *pRaw = mnodeUserActionEncode(&userObj);
+  SSdbRaw *pRaw = mndUserActionEncode(&userObj);
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   return sdbWrite(pRaw);
 }
 
-static int32_t mnodeCreateDefaultUsers() {
-  if (mnodeCreateDefaultUser(TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
+static int32_t mndCreateDefaultUsers() {
+  if (mndCreateDefaultUser(TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
     return -1;
   }
 
-  if (mnodeCreateDefaultUser(TSDB_DEFAULT_USER, "monitor", tsInternalPass) != 0) {
-    return -1;
-  }
-
-  if (mnodeCreateDefaultUser(TSDB_DEFAULT_USER, "_" TSDB_DEFAULT_USER, tsInternalPass) != 0) {
+  if (mndCreateDefaultUser(TSDB_DEFAULT_USER, "_" TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
     return -1;
   }
 
   return 0;
 }
 
-static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnodeMsg *pMsg) {
+static int32_t mndCreateUser(char *acct, char *user, char *pass, SMnodeMsg *pMsg) {
   SUserObj userObj = {0};
   tstrncpy(userObj.user, user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
@@ -146,7 +140,7 @@ static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnodeMsg *pM
   STrans *pTrans = trnCreate(TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
   if (pTrans == NULL) return -1;
 
-  SSdbRaw *pRedoRaw = mnodeUserActionEncode(&userObj);
+  SSdbRaw *pRedoRaw = mndUserActionEncode(&userObj);
   if (pRedoRaw == NULL || trnAppendRedoLog(pTrans, pRedoRaw) != 0) {
     mError("failed to append redo log since %s", terrstr());
     trnDrop(pTrans);
@@ -154,7 +148,7 @@ static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnodeMsg *pM
   }
   sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING);
 
-  SSdbRaw *pUndoRaw = mnodeUserActionEncode(&userObj);
+  SSdbRaw *pUndoRaw = mndUserActionEncode(&userObj);
   if (pUndoRaw == NULL || trnAppendUndoLog(pTrans, pUndoRaw) != 0) {
     mError("failed to append undo log since %s", terrstr());
     trnDrop(pTrans);
@@ -162,7 +156,7 @@ static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnodeMsg *pM
   }
   sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED);
 
-  SSdbRaw *pCommitRaw = mnodeUserActionEncode(&userObj);
+  SSdbRaw *pCommitRaw = mndUserActionEncode(&userObj);
   if (pCommitRaw == NULL || trnAppendCommitLog(pTrans, pCommitRaw) != 0) {
     mError("failed to append commit log since %s", terrstr());
     trnDrop(pTrans);
@@ -170,7 +164,7 @@ static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnodeMsg *pM
   }
   sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
-  if (trnPrepare(pTrans, mnodeSyncPropose) != 0) {
+  if (trnPrepare(pTrans, mndSyncPropose) != 0) {
     trnDrop(pTrans);
     return -1;
   }
@@ -179,7 +173,7 @@ static int32_t mnodeCreateUser(char *acct, char *user, char *pass, SMnodeMsg *pM
   return 0;
 }
 
-static int32_t mnodeProcessCreateUserMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
+static int32_t mndProcessCreateUserMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
   SCreateUserMsg *pCreate = pMsg->rpcMsg.pCont;
 
   if (pCreate->user[0] == 0) {
@@ -209,7 +203,7 @@ static int32_t mnodeProcessCreateUserMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
     return -1;
   }
 
-  int32_t code = mnodeCreateUser(pOperUser->acct, pCreate->user, pCreate->pass, pMsg);
+  int32_t code = mndCreateUser(pOperUser->acct, pCreate->user, pCreate->pass, pMsg);
   sdbRelease(pOperUser);
 
   if (code != 0) {
@@ -223,15 +217,15 @@ static int32_t mnodeProcessCreateUserMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
 int32_t mndInitUser() {
   SSdbTable table = {.sdbType = SDB_USER,
                      .keyType = SDB_KEY_BINARY,
-                     .deployFp = (SdbDeployFp)mnodeCreateDefaultUsers,
-                     .encodeFp = (SdbEncodeFp)mnodeUserActionEncode,
-                     .decodeFp = (SdbDecodeFp)mnodeUserActionDecode,
-                     .insertFp = (SdbInsertFp)mnodeUserActionInsert,
-                     .updateFp = (SdbUpdateFp)mnodeUserActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mnodeUserActionDelete};
+                     .deployFp = (SdbDeployFp)mndCreateDefaultUsers,
+                     .encodeFp = (SdbEncodeFp)mndUserActionEncode,
+                     .decodeFp = (SdbDecodeFp)mndUserActionDecode,
+                     .insertFp = (SdbInsertFp)mndUserActionInsert,
+                     .updateFp = (SdbUpdateFp)mndUserActionUpdate,
+                     .deleteFp = (SdbDeleteFp)mndUserActionDelete};
   sdbSetTable(table);
 
-  mndSetMsgHandle(NULL, TSDB_MSG_TYPE_CREATE_USER, mnodeProcessCreateUserMsg);
+  mndSetMsgHandle(NULL, TSDB_MSG_TYPE_CREATE_USER, mndProcessCreateUserMsg);
 
   return 0;
 }
