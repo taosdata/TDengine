@@ -56,9 +56,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 
       switch (pMsg->msgType) {
         case TSDB_MSG_TYPE_CREATE_TABLE:
-          if (vnodeParseCreateTableReq(pVnodeReq->req, pMsg->contLen - sizeof(pVnodeReq->ver), &(ctReq)) < 0) {
-            // TODO: handle error
-          }
+          vnodeParseCreateTableReq(pVnodeReq->req, &(ctReq));
 
           if (metaCreateTable(pVnode->pMeta, &ctReq) < 0) {
             // TODO: handle error
@@ -67,7 +65,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
           // TODO: maybe need to clear the requst struct
           break;
         case TSDB_MSG_TYPE_DROP_TABLE:
-          if (vnodeParseDropTableReq(pVnodeReq->req, pMsg->contLen - sizeof(pVnodeReq->ver), &(dtReq)) < 0) {
+          if (vnodeParseDropTableReq(pVnodeReq->req, &(dtReq)) < 0) {
             // TODO: handle error
           }
 

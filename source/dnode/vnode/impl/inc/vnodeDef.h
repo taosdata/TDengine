@@ -20,6 +20,7 @@
 #include "sync.h"
 #include "tlockfree.h"
 #include "wal.h"
+#include "tcoding.h"
 
 #include "vnode.h"
 #include "vnodeBufferPool.h"

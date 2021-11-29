@@ -65,14 +65,14 @@ typedef struct SVnodeCfg {
 /* ------------------------ SVnode ------------------------ */
 /**
  * @brief Initialize the vnode module
- * 
+ *
  * @return int 0 for success and -1 for failure
  */
 int vnodeInit();
 
 /**
  * @brief clear a vnode
- * 
+ *
  */
 void vnodeClear();
 
@@ -156,6 +156,10 @@ typedef struct {
 
 /// Create table request
 typedef STbCfg SVCreateTableReq;
+
+int   vnodeBuildCreateTableReq(void **buf, const SVCreateTableReq *pReq);
+void *vnodeParseCreateTableReq(void *buf, SVCreateTableReq *pReq);
+
 /// Drop table request
 typedef struct {
   tb_uid_t uid;
