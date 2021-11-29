@@ -48,10 +48,10 @@ static SSdbRow *mnodeAcctActionDecode(SSdbRaw *pRaw) {
     return NULL;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SAcctObj));
+  SSdbRow  *pRow = sdbAllocRow(sizeof(SAcctObj));
   SAcctObj *pAcct = sdbGetRowObj(pRow);
   if (pAcct == NULL) return NULL;
-  
+
   int32_t dataPos = 0;
   SDB_GET_BINARY(pRaw, pRow, dataPos, pAcct->acct, TSDB_USER_LEN)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pAcct->createdTime)
@@ -68,18 +68,18 @@ static SSdbRow *mnodeAcctActionDecode(SSdbRaw *pRaw) {
   return pRow;
 }
 
-static int32_t mnodeAcctActionInsert(SAcctObj *pAcct) { return 0; }
+static int32_t mnodeAcctActionInsert(SSdb *pSdb, SAcctObj *pAcct) { return 0; }
 
-static int32_t mnodeAcctActionDelete(SAcctObj *pAcct) { return 0; }
+static int32_t mnodeAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct) { return 0; }
 
-static int32_t mnodeAcctActionUpdate(SAcctObj *pSrcAcct, SAcctObj *pDstAcct) {
+static int32_t mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pSrcAcct, SAcctObj *pDstAcct) {
   SAcctObj tObj;
   int32_t  len = (int32_t)((int8_t *)&tObj.info - (int8_t *)&tObj);
   memcpy(pDstAcct, pSrcAcct, len);
   return 0;
 }
 
-static int32_t mnodeCreateDefaultAcct() {
+static int32_t mnodeCreateDefaultAcct(SSdb *pSdb) {
   int32_t code = 0;
 
   SAcctObj acctObj = {0};
@@ -98,13 +98,13 @@ static int32_t mnodeCreateDefaultAcct() {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  return sdbWrite(pRaw);
+  return sdbWrite(pSdb, pRaw);
 }
 
 int32_t mndInitAcct(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_ACCT,
                      .keyType = SDB_KEY_BINARY,
-                     .deployFp = (SdbDeployFp)mnodeCreateDefaultAcct,
+                     .deployFp = mnodeCreateDefaultAcct,
                      .encodeFp = (SdbEncodeFp)mnodeAcctActionEncode,
                      .decodeFp = (SdbDecodeFp)mnodeAcctActionDecode,
                      .insertFp = (SdbInsertFp)mnodeAcctActionInsert,

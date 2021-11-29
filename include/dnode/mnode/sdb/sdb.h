@@ -126,14 +126,11 @@ typedef enum {
   SDB_MAX = 12
 } ESdbType;
 
-typedef struct SSdbOpt {
-  const char *path;
-} SSdbOpt;
-
-typedef int32_t (*SdbInsertFp)(void *pObj);
-typedef int32_t (*SdbUpdateFp)(void *pSrcObj, void *pDstObj);
-typedef int32_t (*SdbDeleteFp)(void *pObj);
-typedef int32_t (*SdbDeployFp)();
+typedef struct SSdb SSdb;
+typedef int32_t (*SdbInsertFp)(SSdb *pSdb, void *pObj);
+typedef int32_t (*SdbUpdateFp)(SSdb *pSdb, void *pSrcObj, void *pDstObj);
+typedef int32_t (*SdbDeleteFp)(SSdb *pSdb, void *pObj);
+typedef int32_t (*SdbDeployFp)(SSdb*pSdb);
 typedef SSdbRow *(*SdbDecodeFp)(SSdbRaw *pRaw);
 typedef SSdbRaw *(*SdbEncodeFp)(void *pObj);
 
@@ -148,26 +145,23 @@ typedef struct {
   SdbDeleteFp deleteFp;
 } SSdbTable;
 
-typedef struct SSdb SSdb;
+typedef struct SSdbOpt {
+  const char *path;
+} SSdbOpt;
 
-SSdb *sdbOpen(SSdbOpt *pOption);
-void  sdbClose(SSdb *pSdb);
-void  sdbSetTable(SSdb *pSdb, SSdbTable table);
+SSdb   *sdbOpen(SSdbOpt *pOption);
+void    sdbClose(SSdb *pSdb);
+int32_t sdbDeploy(SSdb *pSdb);
+void    sdbSetTable(SSdb *pSdb, SSdbTable table);
+int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw);
 
-// int32_t sdbOpen();
-// void    sdbClose();
-int32_t sdbWrite(SSdbRaw *pRaw);
+void   *sdbAcquire(SSdb *pSdb, ESdbType type, void *pKey);
+void    sdbRelease(SSdb *pSdb, void *pObj);
+void   *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj);
+void    sdbCancelFetch(SSdb *pSdb, void *pIter);
+int32_t sdbGetSize(SSdb *pSdb, ESdbType type);
 
-int32_t sdbDeploy();
-void    sdbUnDeploy();
-
-void   *sdbAcquire(ESdbType sdb, void *pKey);
-void    sdbRelease(void *pObj);
-void   *sdbFetch(ESdbType sdb, void *pIter, void **ppObj);
-void    sdbCancelFetch(void *pIter);
-int32_t sdbGetSize(ESdbType sdb);
-
-SSdbRaw *sdbAllocRaw(ESdbType sdb, int8_t sver, int32_t dataLen);
+SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen);
 void     sdbFreeRaw(SSdbRaw *pRaw);
 int32_t  sdbSetRawInt8(SSdbRaw *pRaw, int32_t dataPos, int8_t val);
 int32_t  sdbSetRawInt32(SSdbRaw *pRaw, int32_t dataPos, int32_t val);

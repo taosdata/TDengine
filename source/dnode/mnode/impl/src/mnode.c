@@ -278,7 +278,7 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
 
 void mndDestroy(const char *path) {
   mDebug("mnode in %s will be destroyed", path);
-  sdbUnDeploy();
+  taosRemoveDir(path);
 }
 
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
@@ -308,7 +308,7 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
 
 void mndCleanupMsg(SMnodeMsg *pMsg) {
   if (pMsg->pUser != NULL) {
-    sdbRelease(pMsg->pUser);
+    sdbRelease(pMsg->pMnode->pSdb, pMsg->pUser);
   }
 
   taosFreeQitem(pMsg);

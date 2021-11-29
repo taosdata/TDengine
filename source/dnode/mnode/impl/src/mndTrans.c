@@ -158,13 +158,13 @@ SSdbRow *trnActionDecode(SSdbRaw *pRaw) {
   return pRow;
 }
 
-static int32_t trnActionInsert(STrans *pTrans) {
+static int32_t trnActionInsert(SSdb *pSdb, STrans *pTrans) {
   SArray *pArray = pTrans->redoLogs;
   int32_t arraySize = taosArrayGetSize(pArray);
 
   for (int32_t index = 0; index < arraySize; ++index) {
     SSdbRaw *pRaw = taosArrayGet(pArray, index);
-    int32_t  code = sdbWrite(pRaw);
+    int32_t  code = sdbWrite(pSdb, pRaw);
     if (code != 0) {
       mError("trn:%d, failed to write raw:%p to sdb since %s", pTrans->id, pRaw, terrstr());
       return code;
@@ -175,13 +175,13 @@ static int32_t trnActionInsert(STrans *pTrans) {
   return 0;
 }
 
-static int32_t trnActionDelete(STrans *pTrans) {
+static int32_t trnActionDelete(SSdb *pSdb, STrans *pTrans) {
   SArray *pArray = pTrans->redoLogs;
   int32_t arraySize = taosArrayGetSize(pArray);
 
   for (int32_t index = 0; index < arraySize; ++index) {
     SSdbRaw *pRaw = taosArrayGet(pArray, index);
-    int32_t  code = sdbWrite(pRaw);
+    int32_t  code = sdbWrite(pSdb, pRaw);
     if (code != 0) {
       mError("trn:%d, failed to write raw:%p to sdb since %s", pTrans->id, pRaw, terrstr());
       return code;
@@ -192,14 +192,14 @@ static int32_t trnActionDelete(STrans *pTrans) {
   return 0;
 }
 
-static int32_t trnActionUpdate(STrans *pTrans, STrans *pDstTrans) {
+static int32_t trnActionUpdate(SSdb *pSdb, STrans *pTrans, STrans *pDstTrans) {
   assert(true);
   SArray *pArray = pTrans->redoLogs;
   int32_t arraySize = taosArrayGetSize(pArray);
 
   for (int32_t index = 0; index < arraySize; ++index) {
     SSdbRaw *pRaw = taosArrayGet(pArray, index);
-    int32_t  code = sdbWrite(pRaw);
+    int32_t  code = sdbWrite(pSdb, pRaw);
     if (code != 0) {
       mError("trn:%d, failed to write raw:%p to sdb since %s", pTrans->id, pRaw, terrstr());
       return code;
@@ -213,7 +213,7 @@ static int32_t trnActionUpdate(STrans *pTrans, STrans *pDstTrans) {
 
 static int32_t trnGenerateTransId() { return 1; }
 
-STrans *trnCreate(ETrnPolicy policy, void *rpcHandle) {
+STrans *trnCreate(SMnode *pMnode, ETrnPolicy policy, void *rpcHandle) {
   STrans *pTrans = calloc(1, sizeof(STrans));
   if (pTrans == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -339,7 +339,7 @@ int32_t trnPrepare(STrans *pTrans, int32_t (*syncfp)(SSdbRaw *pRaw, void *pData)
   }
   sdbSetRawStatus(pRaw, SDB_STATUS_CREATING);
 
-  if (sdbWrite(pRaw) != 0) {
+  if (sdbWrite(pTrans->pMnode->pSdb, pRaw) != 0) {
     mError("trn:%d, failed to write trans since %s", pTrans->id, terrstr());
     return -1;
   }
@@ -359,13 +359,13 @@ static void trnSendRpcRsp(void *rpcHandle, int32_t code) {
   }
 }
 
-int32_t trnApply(SSdbRaw *pRaw, void *pData, int32_t code) {
+int32_t trnApply(SMnode *pMnode, SSdbRaw *pRaw, void *pData, int32_t code) {
   if (code != 0) {
     trnSendRpcRsp(pData, terrno);
     return 0;
   }
 
-  if (sdbWrite(pData) != 0) {
+  if (sdbWrite(pMnode->pSdb, pData) != 0) {
     code = terrno;
     trnSendRpcRsp(pData, code);
     terrno = code;
@@ -375,10 +375,10 @@ int32_t trnApply(SSdbRaw *pRaw, void *pData, int32_t code) {
   return 0;
 }
 
-static int32_t trnExecuteArray(SArray *pArray) {
+static int32_t trnExecuteArray(SMnode *pMnode, SArray *pArray) {
   for (int32_t index = 0; index < pArray->size; ++index) {
     SSdbRaw *pRaw = taosArrayGetP(pArray, index);
-    if (sdbWrite(pRaw) != 0) {
+    if (sdbWrite(pMnode->pSdb, pRaw) != 0) {
       return -1;
     }
   }
@@ -386,15 +386,15 @@ static int32_t trnExecuteArray(SArray *pArray) {
   return 0;
 }
 
-static int32_t trnExecuteRedoLogs(STrans *pTrans) { return trnExecuteArray(pTrans->redoLogs); }
+static int32_t trnExecuteRedoLogs(STrans *pTrans) { return trnExecuteArray(pTrans->pMnode, pTrans->redoLogs); }
 
-static int32_t trnExecuteUndoLogs(STrans *pTrans) { return trnExecuteArray(pTrans->undoLogs); }
+static int32_t trnExecuteUndoLogs(STrans *pTrans) { return trnExecuteArray(pTrans->pMnode, pTrans->undoLogs); }
 
-static int32_t trnExecuteCommitLogs(STrans *pTrans) { return trnExecuteArray(pTrans->commitLogs); }
+static int32_t trnExecuteCommitLogs(STrans *pTrans) { return trnExecuteArray(pTrans->pMnode, pTrans->commitLogs); }
 
-static int32_t trnExecuteRedoActions(STrans *pTrans) { return trnExecuteArray(pTrans->redoActions); }
+static int32_t trnExecuteRedoActions(STrans *pTrans) { return trnExecuteArray(pTrans->pMnode, pTrans->redoActions); }
 
-static int32_t trnExecuteUndoActions(STrans *pTrans) { return trnExecuteArray(pTrans->undoActions); }
+static int32_t trnExecuteUndoActions(STrans *pTrans) { return trnExecuteArray(pTrans->pMnode, pTrans->undoActions); }
 
 static int32_t trnPerformPrepareStage(STrans *pTrans) {
   if (trnExecuteRedoLogs(pTrans) == 0) {
@@ -454,49 +454,49 @@ static int32_t trnPerformRetryStage(STrans *pTrans) {
   }
 }
 
-int32_t trnExecute(int32_t tranId) {
+int32_t trnExecute(SSdb *pSdb, int32_t tranId) {
   int32_t code = 0;
 
-  STrans *pTrans = sdbAcquire(SDB_TRANS, &tranId);
+  STrans *pTrans = sdbAcquire(pSdb, SDB_TRANS, &tranId);
   if (pTrans == NULL) {
     return -1;
   }
 
   if (pTrans->stage == TRN_STAGE_PREPARE) {
     if (trnPerformPrepareStage(pTrans) != 0) {
-      sdbRelease(pTrans);
+      sdbRelease(pSdb, pTrans);
       return -1;
     }
   }
 
   if (pTrans->stage == TRN_STAGE_EXECUTE) {
     if (trnPerformExecuteStage(pTrans) != 0) {
-      sdbRelease(pTrans);
+      sdbRelease(pSdb, pTrans);
       return -1;
     }
   }
 
   if (pTrans->stage == TRN_STAGE_COMMIT) {
     if (trnPerformCommitStage(pTrans) != 0) {
-      sdbRelease(pTrans);
+      sdbRelease(pSdb, pTrans);
       return -1;
     }
   }
 
   if (pTrans->stage == TRN_STAGE_ROLLBACK) {
     if (trnPerformRollbackStage(pTrans) != 0) {
-      sdbRelease(pTrans);
+      sdbRelease(pSdb, pTrans);
       return -1;
     }
   }
 
   if (pTrans->stage == TRN_STAGE_RETRY) {
     if (trnPerformRetryStage(pTrans) != 0) {
-      sdbRelease(pTrans);
+      sdbRelease(pSdb, pTrans);
       return -1;
     }
   }
 
-  sdbRelease(pTrans);
+  sdbRelease(pSdb, pTrans);
   return 0;
 }

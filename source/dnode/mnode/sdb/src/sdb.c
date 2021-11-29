@@ -15,27 +15,28 @@
 
 #define _DEFAULT_SOURCE
 #include "sdbInt.h"
-#include "tglobal.h"
-
-SSdb tsSdb = {0};
 
 SSdb *sdbOpen(SSdbOpt *pOption) {
+  mDebug("start to open sdb in %s", pOption->path);
+
   SSdb *pSdb = calloc(1, sizeof(SSdb));
   if (pSdb == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("failed to open sdb since %s", terrstr());
     return NULL;
   }
 
   char path[PATH_MAX + 100];
-  snprintf(path, PATH_MAX + 100, "%s%scur%s", pOption->path, TD_DIRSEP, TD_DIRSEP);
+  snprintf(path, PATH_MAX + 100, "%s%scur", pOption->path, TD_DIRSEP);
   pSdb->currDir = strdup(path);
-  snprintf(path, PATH_MAX + 100, "%s%ssync%s", pOption->path, TD_DIRSEP, TD_DIRSEP);
+  snprintf(path, PATH_MAX + 100, "%s%ssync", pOption->path, TD_DIRSEP);
   pSdb->syncDir = strdup(path);
-  snprintf(path, PATH_MAX + 100, "%s%stmp%s", pOption->path, TD_DIRSEP, TD_DIRSEP);
+  snprintf(path, PATH_MAX + 100, "%s%stmp", pOption->path, TD_DIRSEP);
   pSdb->tmpDir = strdup(path);
   if (pSdb->currDir == NULL || pSdb->currDir == NULL || pSdb->currDir == NULL) {
     sdbClose(pSdb);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("failed to open sdb since %s", terrstr());
     return NULL;
   }
 
@@ -53,6 +54,7 @@ SSdb *sdbOpen(SSdbOpt *pOption) {
     if (hash == NULL) {
       sdbClose(pSdb);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
+      mError("failed to open sdb since %s", terrstr());
       return NULL;
     }
 
@@ -60,10 +62,27 @@ SSdb *sdbOpen(SSdbOpt *pOption) {
     taosInitRWLatch(&pSdb->locks[i]);
   }
 
-  return 0;
+  int32_t code = sdbReadFile(pSdb);
+  if (code != 0) {
+    sdbClose(pSdb);
+    terrno = code;
+    mError("failed to open sdb since %s", terrstr());
+    return NULL;
+  }
+
+  mDebug("sdb open successfully");
+  return pSdb;
 }
 
 void sdbClose(SSdb *pSdb) {
+  mDebug("start to close sdb");
+
+  if (pSdb->curVer != pSdb->lastCommitVer) {
+    mDebug("start to write sdb file since curVer:% " PRId64 " and lastCommitVer:%" PRId64 " inequal", pSdb->curVer,
+           pSdb->lastCommitVer);
+    sdbWriteFile(pSdb);
+  }
+
   if (pSdb->currDir != NULL) {
     tfree(pSdb->currDir);
   }
@@ -79,10 +98,13 @@ void sdbClose(SSdb *pSdb) {
   for (int32_t i = 0; i < SDB_MAX; ++i) {
     SHashObj *hash = pSdb->hashObjs[i];
     if (hash != NULL) {
+      taosHashClear(hash);
       taosHashCleanup(hash);
     }
     pSdb->hashObjs[i] = NULL;
   }
+
+  mDebug("sdb is closed");
 }
 
 void sdbSetTable(SSdb *pSdb, SSdbTable table) {
@@ -94,4 +116,6 @@ void sdbSetTable(SSdb *pSdb, SSdbTable table) {
   pSdb->deployFps[sdb] = table.deployFp;
   pSdb->encodeFps[sdb] = table.encodeFp;
   pSdb->decodeFps[sdb] = table.decodeFp;
+
+  mDebug("set sdb handle of table %d", pSdb, table);
 }

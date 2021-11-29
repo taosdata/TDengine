@@ -15,70 +15,74 @@
 
 #define _DEFAULT_SOURCE
 #include "sdbInt.h"
-#include "tglobal.h"
 #include "tchecksum.h"
 
-static int32_t sdbCreateDir() {
-  mDebug("start to create mnode at %s", tsMnodeDir);
-  
-  if (taosMkDir(tsSdb.currDir) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", tsSdb.currDir, terrstr());
-    return -1;
+static int32_t sdbCreateDir(SSdb *pSdb) {
+  int32_t code = taosMkDir(pSdb->currDir);
+  if (code != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", pSdb->currDir, tstrerror(code));
+    return code;
   }
 
-  if (taosMkDir(tsSdb.syncDir) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", tsSdb.syncDir, terrstr());
-    return -1;
+  code = taosMkDir(pSdb->syncDir);
+  if (code != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", pSdb->syncDir, tstrerror(code));
+    return code;
   }
 
-  if (taosMkDir(tsSdb.tmpDir) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", tsSdb.tmpDir, terrstr());
-    return -1;
+  code = taosMkDir(pSdb->tmpDir);
+  if (code != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", pSdb->tmpDir, tstrerror(code));
+    return code;
   }
 
   return 0;
 }
 
-static int32_t sdbRunDeployFp() {
-  mDebug("start to run deploy functions");
+static int32_t sdbRunDeployFp(SSdb *pSdb) {
+  mDebug("start to run sdb deploy functions");
 
   for (int32_t i = SDB_MAX - 1; i > SDB_START; --i) {
-    SdbDeployFp fp = tsSdb.deployFps[i];
+    SdbDeployFp fp = pSdb->deployFps[i];
     if (fp == NULL) continue;
-    if ((*fp)() != 0) {
-      mError("failed to deploy sdb:%d since %s", i, terrstr());
-      return -1;
+
+    int32_t code = (*fp)(pSdb);
+    if (code != 0) {
+      mError("failed to deploy sdb:%d since %s", i, tstrerror(code));
+      return code;
     }
   }
 
-  mDebug("end of run deploy functions");
+  mDebug("sdb deploy functions run finished");
   return 0;
 }
 
-static int32_t sdbReadDataFile() {
-  SSdbRaw *pRaw = malloc(SDB_MAX_SIZE);
-  if (pRaw == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  char file[PATH_MAX] = {0};
-  snprintf(file, sizeof(file), "%ssdb.data", tsSdb.currDir);
-  FileFd fd = taosOpenFileRead(file);
-  if (fd <= 0) {
-    free(pRaw);
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to open file:%s for read since %s", file, terrstr());
-    return -1;
-  }
-
+int32_t sdbReadFile(SSdb *pSdb) {
   int64_t offset = 0;
   int32_t code = 0;
   int32_t readLen = 0;
   int64_t ret = 0;
+
+  SSdbRaw *pRaw = malloc(SDB_MAX_SIZE);
+  if (pRaw == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    mError("failed read file since %s", tstrerror(code));
+    return code;
+  }
+
+  char file[PATH_MAX] = {0};
+  snprintf(file, sizeof(file), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
+
+  FileFd fd = taosOpenFileRead(file);
+  if (fd <= 0) {
+    free(pRaw);
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to read file:%s since %s", file, tstrerror(code));
+    return code;
+  }
 
   while (1) {
     readLen = sizeof(SSdbRaw);
@@ -118,7 +122,7 @@ static int32_t sdbReadDataFile() {
       break;
     }
 
-    code = sdbWriteImp(pRaw);
+    code = sdbWriteRaw(pSdb, pRaw);
     if (code != 0) {
       mError("failed to read file:%s since %s", file, terrstr());
       goto PARSE_SDB_DATA_ERROR;
@@ -130,29 +134,31 @@ static int32_t sdbReadDataFile() {
 PARSE_SDB_DATA_ERROR:
   taosCloseFile(fd);
   sdbFreeRaw(pRaw);
-  terrno = code;
+
   return code;
 }
 
-static int32_t sdbWriteDataFile() {
+int32_t sdbWriteFile(SSdb *pSdb) {
+  int32_t code = 0;
+
   char tmpfile[PATH_MAX] = {0};
-  snprintf(tmpfile, sizeof(tmpfile), "%ssdb.data", tsSdb.tmpDir);
+  snprintf(tmpfile, sizeof(tmpfile), "%ssdb.data", pSdb->tmpDir);
+  char curfile[PATH_MAX] = {0};
+  snprintf(curfile, sizeof(curfile), "%ssdb.data", pSdb->currDir);
 
   FileFd fd = taosOpenFileCreateWrite(tmpfile);
   if (fd <= 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to open file:%s for write since %s", tmpfile, terrstr());
-    return -1;
+    code = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to open file:%s for write since %s", tmpfile, tstrerror(code));
+    return code;
   }
 
-  int32_t code = 0;
-
   for (int32_t i = SDB_MAX - 1; i > SDB_START; --i) {
-    SdbEncodeFp encodeFp = tsSdb.encodeFps[i];
+    SdbEncodeFp encodeFp = pSdb->encodeFps[i];
     if (encodeFp == NULL) continue;
 
-    SHashObj *hash = tsSdb.hashObjs[i];
-    SRWLatch *pLock = &tsSdb.locks[i];
+    SHashObj *hash = pSdb->hashObjs[i];
+    SRWLatch *pLock = &pSdb->locks[i];
     taosWLockLatch(pLock);
 
     SSdbRow **ppRow = taosHashIterate(hash, NULL);
@@ -192,68 +198,46 @@ static int32_t sdbWriteDataFile() {
 
   if (code == 0) {
     code = taosFsyncFile(fd);
+    if (code != 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      mError("failed to write file:%s since %s", tmpfile, tstrerror(code));
+    }
   }
 
   taosCloseFile(fd);
 
   if (code == 0) {
-    char curfile[PATH_MAX] = {0};
-    snprintf(curfile, sizeof(curfile), "%ssdb.data", tsSdb.currDir);
     code = taosRenameFile(tmpfile, curfile);
+    if (code != 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      mError("failed to write file:%s since %s", curfile, tstrerror(code));
+    }
   }
 
   if (code != 0) {
-    terrno = code;
-    mError("failed to write sdb file since %s", terrstr());
+    mError("failed to write file:%s since %s", curfile, tstrerror(code));
   } else {
-    mDebug("write sdb file successfully");
+    mDebug("write file:%s successfully", curfile);
   }
 
   return code;
 }
 
-// int32_t sdbOpen() {
-//   mDebug("start to read mnode file");
-
-//   if (sdbReadDataFile() != 0) {
-//     return -1;
-//   }
-
-//   return 0;
-// }
-
-// void sdbClose() {
-//   if (tsSdb.curVer != tsSdb.lastCommitVer) {
-//     mDebug("start to write mnode file");
-//     sdbWriteDataFile();
-//   }
-
-//   for (int32_t i = 0; i < SDB_MAX; ++i) {
-//     SHashObj *hash = tsSdb.hashObjs[i];
-//     if (hash != NULL) {
-//       taosHashClear(hash);
-//     }
-//   }
-// }
-
-int32_t sdbDeploy() {
-  if (sdbCreateDir() != 0) {
-    return -1;
+int32_t sdbDeploy(SSdb *pSdb) {
+  int32_t code = sdbCreateDir(pSdb);
+  if (code != 0) {
+    return code;
   }
 
-  if (sdbRunDeployFp() != 0) {
-    return -1;
+  code = sdbRunDeployFp(pSdb);
+  if (code != 0) {
+    return code;
   }
 
-  if (sdbWriteDataFile() != 0) {
-    return -1;
+  code = sdbWriteFile(pSdb);
+  if (code != 0) {
+    return code;
   }
 
-  // sdbClose();
   return 0;
-}
-
-void sdbUnDeploy() {
-  mDebug("start to undeploy mnode");
-  taosRemoveDir(tsMnodeDir);
 }

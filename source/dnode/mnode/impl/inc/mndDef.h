@@ -82,6 +82,7 @@ typedef struct STrans {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
+  SMnode    *pMnode;
   void      *rpcHandle;
   SArray    *redoLogs;
   SArray    *undoLogs;

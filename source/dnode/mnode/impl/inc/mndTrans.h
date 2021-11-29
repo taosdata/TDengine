@@ -25,7 +25,7 @@ extern "C" {
 int32_t mndInitTrans(SMnode *pMnode);
 void    mndCleanupTrans(SMnode *pMnode);
 
-STrans *trnCreate(ETrnPolicy policy, void *rpcHandle);
+STrans *trnCreate(SMnode *pMnode, ETrnPolicy policy, void *rpcHandle);
 void    trnDrop(STrans *pTrans);
 int32_t trnAppendRedoLog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t trnAppendUndoLog(STrans *pTrans, SSdbRaw *pRaw);
@@ -34,8 +34,8 @@ int32_t trnAppendRedoAction(STrans *pTrans, SEpSet *, void *pMsg);
 int32_t trnAppendUndoAction(STrans *pTrans, SEpSet *, void *pMsg);
 
 int32_t trnPrepare(STrans *pTrans, int32_t (*syncfp)(SSdbRaw *pRaw, void *pData));
-int32_t trnApply(SSdbRaw *pRaw, void *pData, int32_t code);
-int32_t trnExecute(int32_t tranId);
+int32_t trnApply(SMnode *pMnode, SSdbRaw *pRaw, void *pData, int32_t code);
+int32_t trnExecute(SSdb *pSdb, int32_t tranId);
 
 SSdbRaw *trnActionEncode(STrans *pTrans);
 SSdbRow *trnActionDecode(SSdbRaw *pRaw);

@@ -69,9 +69,9 @@ typedef struct SSdb {
   SdbDecodeFp decodeFps[SDB_MAX];
 } SSdb;
 
-extern SSdb tsSdb;
-
-int32_t sdbWriteImp(SSdbRaw *pRaw);
+int32_t sdbReadFile(SSdb *pSdb);
+int32_t sdbWriteFile(SSdb *pSdb);
+int32_t sdbWriteRaw(SSdb *pSdb, SSdbRaw *pRaw);
 
 #ifdef __cplusplus
 }
