@@ -109,7 +109,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
   }
 
   // TODO: Open TQ
-  sprintf(dir, "%s/wal", pVnode->path);
+  sprintf(dir, "%s/tq", pVnode->path);
   pVnode->pTq = tqOpen(dir, &(pVnode->config.tqCfg), NULL, NULL);
   if (pVnode->pTq == NULL) {
     // TODO: handle error
