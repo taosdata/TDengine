@@ -1026,10 +1026,10 @@ bool fstVerify(Fst *fst) {
   uint32_t checkSum = fst->meta->checkSum;
   FstSlice *data    = fst->data;          
   TSCKSUM initSum  = 0;  
-  if (taosCheckChecksumWhole(data->data, data->dLen)) {
+  if (!taosCheckChecksumWhole(data->data, data->dLen)) {
     return false;
   }
-  
+  return true;
 }
 
 
