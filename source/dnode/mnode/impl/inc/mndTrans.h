@@ -25,20 +25,20 @@ extern "C" {
 int32_t mndInitTrans(SMnode *pMnode);
 void    mndCleanupTrans(SMnode *pMnode);
 
-STrans *trnCreate(SMnode *pMnode, ETrnPolicy policy, void *rpcHandle);
-void    trnDrop(STrans *pTrans);
-int32_t trnAppendRedoLog(STrans *pTrans, SSdbRaw *pRaw);
-int32_t trnAppendUndoLog(STrans *pTrans, SSdbRaw *pRaw);
-int32_t trnAppendCommitLog(STrans *pTrans, SSdbRaw *pRaw);
-int32_t trnAppendRedoAction(STrans *pTrans, SEpSet *, void *pMsg);
-int32_t trnAppendUndoAction(STrans *pTrans, SEpSet *, void *pMsg);
+STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, void *rpcHandle);
+void    mndTransDrop(STrans *pTrans);
+int32_t mndTransAppendRedolog(STrans *pTrans, SSdbRaw *pRaw);
+int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw);
+int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw);
+int32_t mndTransAppendRedoAction(STrans *pTrans, SEpSet *, void *pMsg);
+int32_t mndTransAppendUndoAction(STrans *pTrans, SEpSet *, void *pMsg);
 
-int32_t trnPrepare(STrans *pTrans, int32_t (*syncfp)(SSdbRaw *pRaw, void *pData));
-int32_t trnApply(SMnode *pMnode, SSdbRaw *pRaw, void *pData, int32_t code);
-int32_t trnExecute(SSdb *pSdb, int32_t tranId);
+int32_t mndTransPrepare(STrans *pTrans, int32_t (*syncfp)(SSdbRaw *pRaw, void *pData));
+int32_t mndTransApply(SMnode *pMnode, SSdbRaw *pRaw, void *pData, int32_t code);
+int32_t mndTransExecute(SSdb *pSdb, int32_t tranId);
 
-SSdbRaw *trnActionEncode(STrans *pTrans);
-SSdbRow *trnActionDecode(SSdbRaw *pRaw);
+SSdbRaw *mndTransActionEncode(STrans *pTrans);
+SSdbRow *mndTransActionDecode(SSdbRaw *pRaw);
 
 #ifdef __cplusplus
 }

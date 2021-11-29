@@ -137,39 +137,39 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass,
   userObj.updateTime = userObj.createdTime;
   userObj.rootAuth = 0;
 
-  STrans *pTrans = trnCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
   if (pTrans == NULL) return -1;
 
   SSdbRaw *pRedoRaw = mndUserActionEncode(&userObj);
-  if (pRedoRaw == NULL || trnAppendRedoLog(pTrans, pRedoRaw) != 0) {
+  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
     mError("failed to append redo log since %s", terrstr());
-    trnDrop(pTrans);
+    mndTransDrop(pTrans);
     return -1;
   }
   sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING);
 
   SSdbRaw *pUndoRaw = mndUserActionEncode(&userObj);
-  if (pUndoRaw == NULL || trnAppendUndoLog(pTrans, pUndoRaw) != 0) {
+  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) {
     mError("failed to append undo log since %s", terrstr());
-    trnDrop(pTrans);
+    mndTransDrop(pTrans);
     return -1;
   }
   sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED);
 
   SSdbRaw *pCommitRaw = mndUserActionEncode(&userObj);
-  if (pCommitRaw == NULL || trnAppendCommitLog(pTrans, pCommitRaw) != 0) {
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("failed to append commit log since %s", terrstr());
-    trnDrop(pTrans);
+    mndTransDrop(pTrans);
     return -1;
   }
   sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
-  if (trnPrepare(pTrans, mndSyncPropose) != 0) {
-    trnDrop(pTrans);
+  if (mndTransPrepare(pTrans, mndSyncPropose) != 0) {
+    mndTransDrop(pTrans);
     return -1;
   }
 
-  trnDrop(pTrans);
+  mndTransDrop(pTrans);
   return 0;
 }
 
