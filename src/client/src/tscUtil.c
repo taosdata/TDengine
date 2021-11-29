@@ -914,17 +914,6 @@ void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBloc
   }
 }
 
-static SColumnInfo* extractColumnInfoFromResult(SArray* pTableCols) {
-  int32_t numOfCols = (int32_t) taosArrayGetSize(pTableCols);
-  SColumnInfo* pColInfo = calloc(numOfCols, sizeof(SColumnInfo));
-  for(int32_t i = 0; i < numOfCols; ++i) {
-    SColumn* pCol = taosArrayGetP(pTableCols, i);
-    pColInfo[i] = pCol->info;//[index].type;
-  }
-
-  return pColInfo;
-}
-
 typedef struct SDummyInputInfo {
   SSDataBlock     *block;
   STableQueryInfo *pTableQueryInfo;
@@ -1355,8 +1344,6 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
 
   // handle the following query process
   if (px->pQInfo == NULL) {
-    SColumnInfo* pColumnInfo = extractColumnInfoFromResult(px->colList);
-
     STableMeta* pTableMeta = tscGetMetaInfo(px, 0)->pTableMeta;
     SSchema* pSchema = tscGetTableSchema(pTableMeta);
 
@@ -1471,7 +1458,6 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
     px->pQInfo->runtimeEnv.udfIsCopy = true;
     px->pQInfo->runtimeEnv.pUdfInfo = pUdfInfo;
     
-    tfree(pColumnInfo);
     tfree(schema);
 
     // set the pRuntimeEnv for pSourceOperator
@@ -1480,7 +1466,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
 
   uint64_t qId = pSql->self;
   qTableQuery(px->pQInfo, &qId);
-  convertQueryResult(pOutput, px, pSql->self, false, true);
+  convertQueryResult(pOutput, px, pSql->self, false, false);
 }
 
 static void tscDestroyResPointerInfo(SSqlRes* pRes) {
