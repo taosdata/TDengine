@@ -34,7 +34,7 @@ At the moment, TDengine only supports building and running on Linux systems. You
 
 To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in the project directory.
 
-## Install tools
+## Install build dependencies
 
 ### Ubuntu 16.04 and above & Debian:
 ```bash
@@ -58,7 +58,8 @@ To install Apache Maven:
 sudo apt-get install -y  maven
 ```
 
-To compile and package the [taos-tools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
+#### Install build dependencies for taos-tools 
+To build the [taos-tools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
 ```bash
 sudo apt install libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
 ```
@@ -96,7 +97,8 @@ To install Apache Maven:
 sudo dnf install -y maven
 ```
 
-To compile and package the [taos-tools](https://github.com/taosdata/taos-tools) on CentOS, the following packages need to be installed.
+#### Install build dependencies for taos-tools 
+To build the [taos-tools](https://github.com/taosdata/taos-tools) on CentOS, the following packages need to be installed.
 ```bash
 sudo yum install xz-devel snappy-devel jansson-devel pkgconfig libatomic
 ```
