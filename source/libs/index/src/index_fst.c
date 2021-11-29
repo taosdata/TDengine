@@ -733,6 +733,11 @@ bool fstNodeCompile(FstNode *node, void *w, CompiledAddr lastAddr, CompiledAddr 
   return true; 
 } 
 
+bool fstBuilderNodeCompileTo(FstBuilderNode *b, FstCountingWriter *wrt, CompiledAddr lastAddr, CompiledAddr startAddr) {
+  return fstNodeCompile(NULL, wrt, lastAddr, startAddr, b);
+}
+
+
 
 FstBuilder *fstBuilderCreate(void *w, FstType ty) {
   FstBuilder *b = malloc(sizeof(FstBuilder));  
@@ -985,15 +990,39 @@ void fstDestroy(Fst *fst) {
 }
 
 bool fstGet(Fst *fst, FstSlice *b, Output *out) {
-   
+  FstNode *root = fstGetRoot(fst);    
+  Output tOut = 0; 
+  for (uint32_t i = 0; i < b->dLen; i++) {
+    uint8_t inp = b->data[i];
+    Output  res = 0;
+    bool null = fstNodeFindInput(root, inp, &res);    
+    if (null) { return false; }    
+
+    FstTransition trn; 
+    fstNodeGetTransitionAt(root, res, &trn);
+    tOut += trn.out; 
+    root = fstGetNode(fst, trn.addr);
+  }
+  if (!FST_NODE_IS_FINAL(root)) {
+    return false;
+  } else {
+    tOut = tOut + FST_NODE_FINAL_OUTPUT(root); 
+  }
+  *out = tOut;
+  
   return false; 
 }
 
+FstNode *fstGetRoot(Fst *fst) {
+  CompiledAddr root = fstGetRootAddr(fst); 
+  return fstGetNode(fst, root);
+}
 FstNode* fstGetNode(Fst *fst, CompiledAddr addr) {
   if (fst->root != NULL) {
     return fst->root;
   }
   fst->root = fstNodeCreate(fst->meta->version, addr, fst->data); 
+  
   return fst->root;
   
 }
@@ -1016,15 +1045,14 @@ Output fstEmptyFinalOutput(Fst *fst, bool *null) {
   return res;
 }
 
-
 bool fstVerify(Fst *fst) {
   uint32_t checkSum = fst->meta->checkSum;
   FstSlice *data    = fst->data;          
   TSCKSUM initSum  = 0;  
-  if (taosCheckChecksumWhole(data->data, data->dLen)) {
+  if (!taosCheckChecksumWhole(data->data, data->dLen)) {
     return false;
   }
-  
+  return true;
 }
 
 

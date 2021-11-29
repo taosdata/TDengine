@@ -251,8 +251,14 @@ void         fstDestroy(Fst *fst);
 
 bool         fstGet(Fst *fst, FstSlice *b, Output *out);
 FstNode*     fstGetNode(Fst *fst, CompiledAddr); 
+FstNode*     fstGetRoot(Fst *fst);
 FstType      fstGetType(Fst *fst); 
 CompiledAddr fstGetRootAddr(Fst *fst);
+
 Output fstEmptyFinalOutput(Fst *fst, bool *null);
 bool fstVerify(Fst *fst);
+
+
+//refactor this function 
+bool fstBuilderNodeCompileTo(FstBuilderNode *b, FstCountingWriter *wrt, CompiledAddr lastAddr, CompiledAddr startAddr); 
 #endif
