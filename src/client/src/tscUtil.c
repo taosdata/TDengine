@@ -29,10 +29,10 @@
 #include "tsclient.h"
 #include "ttimer.h"
 #include "ttokendef.h"
+#include "cJSON.h"
 
 #ifdef HTTP_EMBEDDED
 #include "httpInt.h"
-#include "cJSON.h"
 #endif
 
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
