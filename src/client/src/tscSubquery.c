@@ -2272,7 +2272,15 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
             if (row[i] == NULL) {
               setNull(p + offset, pExpr->base.resType, pExpr->base.resBytes);
             } else {
-              memcpy(p + offset, row[i], length[i]);
+              if(pExpr->base.resType == TSDB_DATA_TYPE_NCHAR){
+                int32_t output = 0;
+                bool ret = taosMbsToUcs4(row[i], length[i], p + offset, pExpr->base.resBytes, &output);
+                if (!ret) {
+                  tscError("stddev convert tag error:%d", ret);
+                }
+              }else{
+                memcpy(p + offset, row[i], length[i]);
+              }
             }
             offset += pExpr->base.resBytes;
           }
