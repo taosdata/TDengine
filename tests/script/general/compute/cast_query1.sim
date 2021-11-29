@@ -218,6 +218,8 @@ sql_error select cast(c2+c3 as binary(6)) from stb1 group by c1;
 sql_error select cast(c2+c3 as binary(6)) from stb1 group by tbname;
 sql_error select cast(c2+c3 as binary(6)) from tb1 order by c2;
 sql_error select cast(c8 as bigint),cast(c9 as bigint(12)) from tbn;
+sql_error select cast(ts as binary(10)) from (select avg(c2) as a from stb1 interval(1s));
+sql_error select cast(a as timestamp) from (select cast(c2 as binary(2)) as a from tb1);
 
 print "test constant"
 

@@ -100,6 +100,7 @@ sql insert into tba1 values ('2021-11-11 09:00:29',true, 0,0,0,0,0,0,"000","0000
 
 run general/compute/cast_query1.sim
 run general/compute/cast_query2.sim
+run general/compute/cast_query3.sim
 
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
