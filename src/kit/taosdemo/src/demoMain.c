@@ -45,6 +45,7 @@ SArguments g_args = {
     DEFAULT_SYNC_MODE,         // mode : sync or async
     DEFAULT_DATA_TYPE,         // data_type
     DEFAULT_DATATYPE,          // dataType
+    DEFAULT_DATALENGTH,        // data_length
     DEFAULT_BINWIDTH,          // binwidth
     DEFAULT_COL_COUNT,         // columnCount, timestamp + float + int + float
     DEFAULT_LEN_ONE_ROW,       // lenOfOneRow
@@ -65,6 +66,7 @@ SArguments g_args = {
     DEFAULT_TOTAL_INSERT,      // totalInsertRows;
     DEFAULT_TOTAL_AFFECT,      // totalAffectedRows;
     DEFAULT_DEMO_MODE,         // demo_mode;
+    DEFAULT_CHINESE_OPT        // chinese
 };
 
 int main(int argc, char *argv[]) {

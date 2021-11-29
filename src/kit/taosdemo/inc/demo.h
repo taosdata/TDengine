@@ -141,6 +141,8 @@ extern char configDir[];
     { TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_FLOAT }
 #define DEFAULT_DATATYPE \
     { "FLOAT", "INT", "FLOAT" }
+#define DEFAULT_DATALENGTH \
+    { 4, 4, 4 }
 #define DEFAULT_BINWIDTH 64
 #define DEFAULT_COL_COUNT 4
 #define DEFAULT_LEN_ONE_ROW 76
@@ -156,6 +158,7 @@ extern char configDir[];
 #define DEFAULT_TOTAL_INSERT 0
 #define DEFAULT_TOTAL_AFFECT 0
 #define DEFAULT_DEMO_MODE true
+#define DEFAULT_CHINESE_OPT false
 #define DEFAULT_CREATE_BATCH 10
 #define DEFAULT_SUB_INTERVAL 10000
 #define DEFAULT_QUERY_INTERVAL 10000
@@ -306,6 +309,7 @@ typedef struct SArguments_S {
     bool     async_mode;
     char     data_type[MAX_NUM_COLUMNS + 1];
     char *   dataType[MAX_NUM_COLUMNS + 1];
+    int32_t  data_length[MAX_NUM_COLUMNS + 1];
     uint32_t binwidth;
     uint32_t columnCount;
     uint64_t lenOfOneRow;
@@ -326,6 +330,7 @@ typedef struct SArguments_S {
     uint64_t totalInsertRows;
     uint64_t totalAffectedRows;
     bool     demo_mode;  // use default column name and semi-random data
+    bool     chinese;
 } SArguments;
 
 typedef struct SColumn_S {

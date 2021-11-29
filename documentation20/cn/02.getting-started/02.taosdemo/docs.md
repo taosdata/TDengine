@@ -4,7 +4,7 @@
 
 自从 TDengine 2019年 7 月开源以来，凭借创新的数据建模设计、快捷的安装方式、易用的编程接口和强大的数据写入查询性能博得了大量时序数据开发者的青睐。其中写入和查询性能往往令刚接触 TDengine 的用户称叹不已。为了便于用户在最短时间内就可以体验到 TDengine 的高性能特点，我们专门开发了一个应用程序 taosdemo 用于对 TDengine 进行写入和查询的性能测试，用户可以通过 taosdemo 轻松模拟大量设备产生海量数据的场景，并且可以通过 taosdemo 参数灵活控制表的列数、数据类型、乱序比例以及并发线程数量。
 
-运行 taosdemo 很简单，通过下载 TDengine 安装包（https://www.taosdata.com/cn/all-downloads/）或者自行下载 TDengine 代码（https://github.com/taosdata/TDengine）编译都可以在安装目录或者编译结果目录中找到并运行。
+运行 taosdemo 很简单，通过下载 TDengine 安装包（ https://www.taosdata.com/cn/all-downloads/ ）或者自行下载 TDengine 代码（ https://github.com/taosdata/TDengine ）编译都可以在安装目录或者编译结果目录中找到并运行。
 
 接下来本文为大家讲解 taosdemo 的使用介绍及注意事项。
 
@@ -439,7 +439,7 @@ TDengine是涛思数据专为物联网、车联网、工业互联网、IT运维�
 
 附录 - 完整 taosdemo 参数介绍
 --
-taosdemo支持两种配置参数的模式，一种是命令行参数，一种是使用json格式的配置文件。
+taosdemo支持两种配置参数的模式，一种是命令行参数，一种是使用 JSON 格式的配置文件。
 一、命令行参数
 
 -f：指定taosdemo所需参数的meta文件。当使用该参数时，其他所有命令行参数都失效。可选项，缺省是NULL。目前仅支持不含 BOM（byte-order mark）的标准 UTF-8 编码文件。
@@ -505,10 +505,10 @@ taosdemo支持两种配置参数的模式，一种是命令行参数，一种是
 --help: 打印命令参数列表。
 
 
-二、json格式的配置文件中所有参数说明
+二、JSON 格式的配置文件中所有参数说明
 
 taosdemo支持3种功能的测试，包括插入、查询、订阅。但一个taosdemo实例不能同时支持三种功能，一个 taosdemo 实例只能支持其中的一种功能，通过配置文件来指定进行哪种功能的测试。
-1、插入功能测试的json配置文件
+1、插入功能测试的 JSON 配置文件
 
 {
     "filetype": "insert",
@@ -695,7 +695,7 @@ taosdemo支持3种功能的测试，包括插入、查询、订阅。但一个ta
 "count":该类型的连续列个数，可选项，缺省是1。
 
 }]
-2、查询功能测试的json配置文件
+2、查询功能测试的 JSON 配置文件
 
 {
   "filetype": "query",
@@ -784,7 +784,7 @@ taosdemo支持3种功能的测试，包括插入、查询、订阅。但一个ta
 注意：每条sql语句后的保存结果的文件不能重名，且生成结果文件时，文件名会附加线程号。
 
 查询结果显示：如果查询线程结束一次查询距开始执行时间超过30秒打印一次查询次数、用时和QPS。所有查询结束时，汇总打印总的查询次数和QPS。
-3、订阅功能测试的json配置文件
+3、订阅功能测试的 JSON 配置文件
 
 {
     "filetype":"subscribe",

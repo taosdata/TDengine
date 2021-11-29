@@ -450,6 +450,25 @@ int getMetaFromInsertJsonFile(cJSON *root) {
         goto PARSE_OVER;
     }
 
+    cJSON *chineseOpt = cJSON_GetObjectItem(root, "chinese");  // yes, no,
+        if (chineseOpt && chineseOpt->type == cJSON_String &&
+        chineseOpt->valuestring != NULL) {
+            if (0 == strncasecmp(chineseOpt->valuestring, "yes", 3)) {
+                g_args.chinese = true;
+            } else if (0 == strncasecmp(chineseOpt->valuestring, "no", 2)) {
+                g_args.chinese = false;
+            } else {
+                g_args.chinese = DEFAULT_CHINESE_OPT;
+            }
+        } else if (!chineseOpt) {
+            g_args.chinese = DEFAULT_CHINESE_OPT;
+        } else {
+            errorPrint(
+                    "%s",
+                    "failed to read json, chinese input mistake\n");
+            goto PARSE_OVER;
+        }
+
     cJSON *answerPrompt =
         cJSON_GetObjectItem(root, "confirm_parameter_prompt");  // yes, no,
     if (answerPrompt && answerPrompt->type == cJSON_String &&

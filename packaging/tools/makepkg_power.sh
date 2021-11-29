@@ -31,16 +31,6 @@ else
     install_dir="${release_dir}/PowerDB-server-${version}"
 fi
 
-# Directories and files.
-#if [ "$pagMode" == "lite" ]; then
-#  strip ${build_dir}/bin/taosd
-#  strip ${build_dir}/bin/taos
-#  bin_files="${build_dir}/bin/powerd ${build_dir}/bin/power ${script_dir}/remove_power.sh"
-#else
-#  bin_files="${build_dir}/bin/powerd ${build_dir}/bin/power ${build_dir}/bin/powerdemo ${build_dir}/bin/tarbitrator ${script_dir}/remove_power.sh\
-#              ${script_dir}/set_core.sh ${script_dir}/startPre.sh  ${script_dir}/taosd-dump-cfg.gdb"
-#fi
-
 lib_files="${build_dir}/lib/libtaos.so.${version}"
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
 if [ "$verMode" == "cluster" ]; then
@@ -51,13 +41,6 @@ fi
 install_files="${script_dir}/install_power.sh"
 nginx_dir="${code_dir}/../../enterprise/src/plugins/web"
 
-# Init file
-#init_dir=${script_dir}/deb
-#if [ $package_type = "centos" ]; then
-#    init_dir=${script_dir}/rpm
-#fi
-#init_files=${init_dir}/powerd
-# temp use rpm's powerd. TODO: later modify according to os type
 init_file_deb=${script_dir}/../deb/powerd
 init_file_rpm=${script_dir}/../rpm/powerd
 init_file_tarbitrator_deb=${script_dir}/../deb/tarbitratord
@@ -66,7 +49,7 @@ init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/power.cfg
 
 #mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/bin
@@ -109,9 +92,9 @@ if [ "$verMode" == "cluster" ]; then
     sed -i "s/TDengine/PowerDB/g"   ${install_dir}/nginxd/admin/*.html
     sed -i "s/TDengine/PowerDB/g"   ${install_dir}/nginxd/admin/js/*.js
 
-    sed -i '/dataDir/ {s/taos/power/g}'  ${install_dir}/cfg/taos.cfg
-    sed -i '/logDir/  {s/taos/power/g}'  ${install_dir}/cfg/taos.cfg
-    sed -i "s/TDengine/PowerDB/g"        ${install_dir}/cfg/taos.cfg
+    sed -i '/dataDir/ {s/taos/power/g}'  ${install_dir}/cfg/power.cfg
+    sed -i '/logDir/  {s/taos/power/g}'  ${install_dir}/cfg/power.cfg
+    sed -i "s/TDengine/PowerDB/g"        ${install_dir}/cfg/power.cfg
 
     if [ "$cpuType" == "aarch64" ]; then
         cp -f ${install_dir}/nginxd/sbin/arm/64bit/nginx ${install_dir}/nginxd/sbin/

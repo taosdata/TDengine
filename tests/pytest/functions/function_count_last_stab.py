@@ -42,22 +42,22 @@ class TDTestCase:
                         % (self.ts + i, i + 1, 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))            
 
         tdSql.query("select count(*),last(*) from stest  group by col1")
-        tdSql.checkRows(10)
-        tdSql.checkData(0, 0, 1)
-        tdSql.checkData(1, 2, 2)
-        tdSql.checkData(1, 3, 1)
+        tdSql.checkRows(11)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(2, 3, 1)
 
         tdSql.query("select count(*),last(*) from stest  group by col2")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 10)
-        tdSql.checkData(0, 2, 10)
-        tdSql.checkData(0, 3, 1)
+        tdSql.checkRows(2)
+        tdSql.checkData(1, 0, 10)
+        tdSql.checkData(1, 2, 10)
+        tdSql.checkData(1, 3, 1)
 
         tdSql.query("select count(*),last(ts,stest.*) from stest  group by col1")
-        tdSql.checkRows(10)
-        tdSql.checkData(0, 0, 1)
-        tdSql.checkData(0, 2, "2018-09-17 09:00:00")
-        tdSql.checkData(1, 4, 1)
+        tdSql.checkRows(11)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(1, 2, "2018-09-17 09:00:00")
+        tdSql.checkData(2, 4, 1)
 
 
                 

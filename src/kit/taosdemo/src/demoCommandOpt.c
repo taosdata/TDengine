@@ -972,6 +972,10 @@ int parse_args(int argc, char *argv[]) {
                    (0 == strncmp(argv[i], "--escape-character",
                                  strlen("--escape-character")))) {
             g_args.escapeChar = true;
+        } else if ((0 == strncmp(argv[i], "-C", strlen("-C"))) ||
+        (0 == strncmp(argv[i], "--chinese",
+                      strlen("--chinese")))) {
+            g_args.chinese = true;
         } else if ((strcmp(argv[i], "-N") == 0) ||
                    (0 == strcmp(argv[i], "--normal-table"))) {
             g_args.demo_mode = false;
@@ -1338,9 +1342,10 @@ void setParaFromArg() {
     g_args.prepared_rand = min(g_args.insertRows, MAX_PREPARED_RAND);
     g_Dbs.aggr_func = g_args.aggr_func;
 
-    char   dataString[TSDB_MAX_BYTES_PER_ROW];
-    char * data_type = g_args.data_type;
-    char **dataType = g_args.dataType;
+    char     dataString[TSDB_MAX_BYTES_PER_ROW];
+    char *   data_type = g_args.data_type;
+    char **  dataType = g_args.dataType;
+    int32_t *data_length = g_args.data_length;
 
     memset(dataString, 0, TSDB_MAX_BYTES_PER_ROW);
 
@@ -1469,6 +1474,47 @@ void setParaFromArg() {
     } else {
         g_Dbs.threadCountForCreateTbl = g_args.nthreads;
         g_Dbs.db[0].superTbls[0].tagCount = 0;
+        for (int i = 0; i < MAX_NUM_COLUMNS; i++) {
+            if (data_type[i] == TSDB_DATA_TYPE_NULL) {
+                break;
+            }
+            if (1 == regexMatch(dataType[i],
+                                "^(NCHAR|BINARY)(\\([1-9][0-9]*\\))$",
+                                REG_ICASE | REG_EXTENDED)) {
+                sscanf(dataType[i], "%[^(](%[^)]", type, length);
+                data_length[i] = atoi(length);
+            } else {
+                switch (data_type[i]) {
+                    case TSDB_DATA_TYPE_BOOL:
+                    case TSDB_DATA_TYPE_UTINYINT:
+                    case TSDB_DATA_TYPE_TINYINT:
+                        data_length[i] = sizeof(char);
+                        break;
+                    case TSDB_DATA_TYPE_SMALLINT:
+                    case TSDB_DATA_TYPE_USMALLINT:
+                        data_length[i] = sizeof(int16_t);
+                        break;
+                    case TSDB_DATA_TYPE_INT:
+                    case TSDB_DATA_TYPE_UINT:
+                        data_length[i] = sizeof(int32_t);
+                        break;
+                    case TSDB_DATA_TYPE_TIMESTAMP:
+                    case TSDB_DATA_TYPE_BIGINT:
+                    case TSDB_DATA_TYPE_UBIGINT:
+                        data_length[i] = sizeof(int64_t);
+                        break;
+                    case TSDB_DATA_TYPE_FLOAT:
+                        data_length[i] = sizeof(float);
+                        break;
+                    case TSDB_DATA_TYPE_DOUBLE:
+                        data_length[i] = sizeof(double);
+                        break;
+                    default:
+                        data_length[i] = g_args.binwidth;
+                        break;
+                }
+            }
+        }
     }
 }
 
@@ -1612,7 +1658,6 @@ void *queryStableAggrFunc(void *sarg) {
             if (code != 0) {
                 errorPrint("Failed to query:%s\n", taos_errstr(pSql));
                 taos_free_result(pSql);
-                taos_close(taos);
                 fclose(fp);
                 free(command);
                 return NULL;
@@ -1698,8 +1743,15 @@ void *queryNtableAggrFunc(void *sarg) {
         double   totalT = 0;
         uint64_t count = 0;
         for (int64_t i = 0; i < ntables; i++) {
-            sprintf(command, "SELECT %s FROM %s%" PRId64 " WHERE ts>= %" PRIu64,
-                    aggreFunc[j], tb_prefix, i, startTime);
+            if (g_args.escapeChar) {
+                sprintf(command,
+                        "SELECT %s FROM `%s%" PRId64 "` WHERE ts>= %" PRIu64,
+                        aggreFunc[j], tb_prefix, i, startTime);
+            } else {
+                sprintf(command,
+                        "SELECT %s FROM %s%" PRId64 " WHERE ts>= %" PRIu64,
+                        aggreFunc[j], tb_prefix, i, startTime);
+            }
 
             double t = (double)taosGetTimestampUs();
             debugPrint("%s() LN%d, sql command: %s\n", __func__, __LINE__,
@@ -1708,9 +1760,9 @@ void *queryNtableAggrFunc(void *sarg) {
             int32_t   code = taos_errno(pSql);
 
             if (code != 0) {
-                errorPrint("Failed to query:%s\n", taos_errstr(pSql));
+                errorPrint("Failed to query <%s>, reason:%s\n", command,
+                           taos_errstr(pSql));
                 taos_free_result(pSql);
-                taos_close(taos);
                 fclose(fp);
                 free(command);
                 return NULL;

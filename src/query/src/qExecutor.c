@@ -1578,9 +1578,6 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
   int32_t num = 0;
   for (int32_t j = 0; j < pSDataBlock->info.rows; ++j) {
     char* val = ((char*)pColInfoData->pData) + bytes * j;
-    if (isNull(val, type)) {
-      continue;
-    }
 
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (pInfo->prevData == NULL) {
@@ -2638,6 +2635,14 @@ static void getIntermediateBufInfo(SQueryRuntimeEnv* pRuntimeEnv, int32_t* ps, i
   *ps = DEFAULT_INTERN_BUF_PAGE_SIZE;
   while(((*rowsize) * MIN_ROWS_PER_PAGE) > (*ps) - overhead) {
     *ps = ((*ps) << 1u);
+  }
+
+  if (*ps > 5 * 1024 * 1024) {
+    MIN_ROWS_PER_PAGE = 2;
+    *ps = DEFAULT_INTERN_BUF_PAGE_SIZE;
+    while(((*rowsize) * MIN_ROWS_PER_PAGE) > (*ps) - overhead) {
+      *ps = ((*ps) << 1u);
+    }
   }
 }
 
@@ -4792,8 +4797,8 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
   int32_t ps = DEFAULT_PAGE_SIZE;
   getIntermediateBufInfo(pRuntimeEnv, &ps, &pQueryAttr->intermediateResultRowSize);
 
-  int32_t TENMB = 1024*1024*10;
-  int32_t code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, ps, TENMB, pQInfo->qId);
+  int32_t TWENTYMB = 1024*1024*20;
+  int32_t code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, ps, TWENTYMB, pQInfo->qId);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -8240,7 +8245,7 @@ void destroyUdfInfo(SUdfInfo* pUdfInfo) {
   taosCloseDll(pUdfInfo->handle);
   tfree(pUdfInfo);
 }
-
+#ifdef LUA_EMBEDDED
 static char* getUdfFuncName(char* funcname, char* name, int type) {
   switch (type) {
     case TSDB_UDF_FUNC_NORMAL:
@@ -8265,8 +8270,9 @@ static char* getUdfFuncName(char* funcname, char* name, int type) {
 
   return funcname;
 }
-
+#endif
 int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
+#ifdef LUA_EMBEDDED
   if (pUdfInfo == NULL || pUdfInfo->handle) {
     return TSDB_CODE_SUCCESS;
   }
@@ -8350,7 +8356,7 @@ int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
       return (*(udfInitFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_INIT])(&pUdfInfo->init);
     }
   }
-
+#endif //LUA_EMBEDDED
   return TSDB_CODE_SUCCESS;
 }
 

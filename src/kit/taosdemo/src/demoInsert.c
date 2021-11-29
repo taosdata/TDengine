@@ -781,6 +781,7 @@ int createDatabasesAndStables(char *command) {
                 tmfree(cmd);
 
                 if (0 != ret) {
+                    tmfree(g_Dbs.db[i].superTbls[j].colsOfCreateChildTable);
                     errorPrint("create super table %" PRIu64 " failed!\n\n", j);
                     continue;
                 }
@@ -1043,10 +1044,8 @@ int createChildTables() {
             // normal table
             len = snprintf(tblColsBuf, TSDB_MAX_BYTES_PER_ROW, "(TS TIMESTAMP");
             for (int j = 0; j < g_args.columnCount; j++) {
-                if ((strncasecmp(g_args.dataType[j], "BINARY",
-                                 strlen("BINARY")) == 0) ||
-                    (strncasecmp(g_args.dataType[j], "NCHAR",
-                                 strlen("NCHAR")) == 0)) {
+                if ((strcasecmp(g_args.dataType[j], "BINARY") == 0) ||
+                    (strcasecmp(g_args.dataType[j], "NCHAR") == 0)) {
                     snprintf(tblColsBuf + len, TSDB_MAX_BYTES_PER_ROW - len,
                              ",C%d %s(%d)", j, g_args.dataType[j],
                              g_args.binwidth);
@@ -1139,7 +1138,17 @@ void postFreeResource() {
     tmfree(g_randfloat_buff);
     tmfree(g_rand_current_buff);
     tmfree(g_rand_phase_buff);
-
+    tmfree(g_randdouble_buff);
+    tmfree(g_randuint_buff);
+    tmfree(g_randutinyint_buff);
+    tmfree(g_randusmallint_buff);
+    tmfree(g_randubigint_buff);
+    tmfree(g_randint);
+    tmfree(g_randuint);
+    tmfree(g_randbigint);
+    tmfree(g_randubigint);
+    tmfree(g_randfloat);
+    tmfree(g_randdouble);
     tmfree(g_sampleDataBuf);
 
     for (int l = 0; l < g_args.columnCount; l++) {
