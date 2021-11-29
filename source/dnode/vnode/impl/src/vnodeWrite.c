@@ -38,6 +38,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
     pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
     pVnodeReq = (SVnodeReq *)(pMsg->pCont);
     SVCreateTableReq ctReq;
+    SVDropTableReq   dtReq;
 
     // Apply the request
     {
@@ -49,7 +50,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
       memcpy(ptr, pVnodeReq, pMsg->contLen);
 
       // todo: change the interface here
-      if (tqPushMsg(pVnode->pTq, pVnodeReq->req, pVnodeReq->ver) < 0) {
+      if (tqPushMsg(pVnode->pTq, ptr, pVnodeReq->ver) < 0) {
         // TODO: handle error
       }
 
@@ -66,7 +67,13 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
           // TODO: maybe need to clear the requst struct
           break;
         case TSDB_MSG_TYPE_DROP_TABLE:
-          /* code */
+          if (vnodeParseDropTableReq(pVnodeReq->req, pMsg->contLen - sizeof(pVnodeReq->ver), &(dtReq)) < 0) {
+            // TODO: handle error
+          }
+
+          if (metaDropTable(pVnode->pMeta, dtReq.uid) < 0) {
+            // TODO: handle error
+          }
           break;
         case TSDB_MSG_TYPE_SUBMIT:
           /* code */

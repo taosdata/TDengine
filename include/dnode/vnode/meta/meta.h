@@ -75,7 +75,7 @@ SMeta *metaOpen(const char *path, const SMetaCfg *pOptions);
 void   metaClose(SMeta *pMeta);
 void   metaRemove(const char *path);
 int    metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg);
-int    metaDropTable(SMeta *pMeta, const void *pReq, const int len);
+int    metaDropTable(SMeta *pMeta, tb_uid_t uid);
 int    metaCommit(SMeta *pMeta);
 
 // Options

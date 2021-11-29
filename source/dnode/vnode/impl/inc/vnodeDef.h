@@ -23,9 +23,10 @@
 
 #include "vnode.h"
 #include "vnodeBufferPool.h"
+#include "vnodeCfg.h"
 #include "vnodeCommit.h"
 #include "vnodeFS.h"
-#include "vnodeCfg.h"
+#include "vnodeRequest.h"
 #include "vnodeStateMgr.h"
 #include "vnodeSync.h"
 

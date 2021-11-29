@@ -37,8 +37,7 @@ int metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg) {
   return 0;
 }
 
-int metaDropTable(SMeta *pMeta, const void *pCont, const int len) {
-  tb_uid_t uid;
+int metaDropTable(SMeta *pMeta, tb_uid_t uid) {
   if (metaRemoveTableFromIdx(pMeta, uid) < 0) {
     // TODO: handle error
     return -1;
