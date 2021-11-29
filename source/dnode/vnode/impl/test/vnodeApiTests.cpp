@@ -118,7 +118,7 @@ TEST(vnodeApiTest, vnodeOpen_vnodeClose_test) {
         vnodeBuildReq(pBuf, &vCreateCTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
         META_CLEAR_TB_CFG(&vCreateCTbReq);
 
-        taosArrayPush(pMsgs, pMsg);
+        taosArrayPush(pMsgs, &(pMsg));
       }
 
       vnodeProcessWMsgs(pVnode, pMsgs);

@@ -46,7 +46,7 @@ STQ* tqOpen(const char* path, STqCfg* tqConfig, TqLogReader* tqLogReader, SMemAl
     //TODO: memory error
     return NULL;
   }
-  strcpy(pTq->path, path);
+  pTq->path = strdup(path);
   pTq->tqConfig = tqConfig;
   pTq->tqLogReader = tqLogReader;
   // pTq->tqMemRef.pAlloctorFactory = allocFac;
