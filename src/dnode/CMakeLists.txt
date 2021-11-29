@@ -19,6 +19,10 @@ ENDIF ()
 
 ADD_EXECUTABLE(taosd ${SRC})
 
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+    ADD_DEPENDENCIES(taosd jemalloc)
+ENDIF ()
+
 IF (TD_BUILD_HTTP)
 TARGET_LINK_LIBRARIES(taosd mnode monitor http tsdb twal vnode cJson lua lz4 balance sync ${LINK_JEMALLOC})
 ELSE ()
