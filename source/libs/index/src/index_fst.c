@@ -1055,4 +1055,158 @@ bool fstVerify(Fst *fst) {
   return true;
 }
 
+// data bound function
+FstBoundWithData* fstBoundStateCreate(FstBound type, FstSlice *data) {
+  FstBoundWithData *b = calloc(1, sizeof(FstBoundWithData));
+  if (b == NULL) { return NULL; }
+  
+  b->type = type;
+  b->data = fstSliceCopy(data, data->start, data->end);
+  return b; 
+}
+
+bool fstBoundWithDataExceededBy(FstBoundWithData *bound, FstSlice *slice) {
+  int comp = fstSliceCompare(slice, &bound->data);
+  if (bound->type == Included) {
+    return comp > 0 ? true : false;
+  } else if (bound->type == Excluded) {
+    return comp >= 0 ? true : false;
+  } else {
+    return true;
+  }
+}
+bool fstBoundWithDataIsEmpty(FstBoundWithData *bound) {
+  if (bound->type == Unbounded) {
+    return true;
+  } else { 
+    return fstSliceEmpty(&bound->data);  
+  }     
+}
+
+
+bool fstBoundWithDataIsIncluded(FstBoundWithData *bound) {
+  return bound->type == Included ? true : false;
+}
+
+void fstBoundDestroy(FstBoundWithData *bound) {
+  free(bound);
+}
+
+StreamWithState *streamWithStateCreate(Fst *fst, Automation *automation, FstBoundWithData *min, FstBoundWithData *max) {
+  StreamWithState *sws = calloc(1, sizeof(StreamWithState));
+  if (sws == NULL) { return NULL; } 
+
+  sws->fst  = fst;
+  sws->aut  = automation; 
+  sws->inp  = (SArray *)taosArrayInit(256, sizeof(uint8_t));  
+  
+  sws->emptyOutput.null = false;
+  sws->emptyOutput.out  = 0;
+
+  sws->stack = (SArray *)taosArrayInit(256, sizeof(StreamState)); 
+  sws->endAt = max; 
+  streamWithStateSeekMin(sws, min);
+
+  return sws;
+}
+void streamWithStateDestroy(StreamWithState *sws) {
+  if (sws == NULL) { return; }
+
+  taosArrayDestroy(sws->inp);
+  taosArrayDestroy(sws->stack);
+
+  free(sws); 
+}
+
+bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min) {
+  if (fstBoundWithDataIsEmpty(min)) {
+    if (fstBoundWithDataIsIncluded(min)) {
+       sws->emptyOutput.out = fstEmptyFinalOutput(sws->fst, &(sws->emptyOutput.null));
+    } 
+    StreamState s = {.node     = fstGetRoot(sws->fst),
+                     .trans    = 0,
+                     .out      = {.null = false, .out = 0},
+                     .autState = sws->aut->start()}; // auto.start callback 
+    taosArrayPush(sws->stack, &s);
+    return true;
+  } 
+  FstSlice *key = NULL;
+  bool inclusize = false;;
+
+  if (min->type == Included) {
+    key = &min->data;
+    inclusize = true;
+  } else if (min->type == Excluded) {
+    key = &min->data;
+  } else {
+    return false;
+  }
+
+  FstNode *node = fstGetRoot(sws->fst); 
+  Output  out = 0;
+  void*   autState = sws->aut->start();  
+
+  for (uint32_t i = 0; i < key->dLen; i++) {
+    uint8_t b = key->data[i];
+    uint64_t res = 0;
+    bool null = fstNodeFindInput(node, b, &res); 
+    if (null == false) {
+      FstTransition trn;
+      fstNodeGetTransitionAt(node, res, &trn);   
+      void *preState = autState;
+      autState = sws->aut->accpet(preState, b);
+      taosArrayPush(sws->inp, &b);
+      StreamState s = {.node     = node, 
+                       .trans    = res + 1, 
+                       .out      = {.null = false, .out = out}, 
+                       .autState = preState}; 
+      taosArrayPush(sws->stack, &s);
+      out += trn.out;
+      node = fstGetNode(sws->fst, trn.addr);  
+    } else {
+
+      // This is a little tricky. We're in this case if the
+      // given bound is not a prefix of any key in the FST.
+      // Since this is a minimum bound, we need to find the
+      // first transition in this node that proceeds the current
+      // input byte. 
+      FstTransitions *trans = fstNodeTransitions(node);
+      uint64_t i = 0; 
+      for (i = trans->range.start; i < trans->range.end; i++) {
+        FstTransition trn;
+        if (fstNodeGetTransitionAt(node, i, &trn) && trn.inp > b) {
+          break;   
+        }  
+      }
+      
+      StreamState s = {.node     = node, 
+                       .trans    = i, 
+                       .out      = {.null = false, .out = out}, 
+                       .autState = autState}; 
+      taosArrayPush(sws->stack, &s);  
+       return true;  
+    }
+  }
+  uint32_t sz = taosArrayGetSize(sws->stack); 
+  if (sz != 0) {
+    StreamState *s = taosArrayGet(sws->stack, sz - 1); 
+    if (inclusize) {
+      s->trans -= 1;
+      taosArrayPop(sws->inp);
+    } else {
+      FstNode *n = s->node;  
+      uint64_t trans = s->trans; 
+      FstTransition trn;  
+      fstNodeGetTransitionAt(n, trans - 1, &trn);
+      StreamState s = {.node = fstGetNode(sws->fst, trn.addr),
+                       .trans= 0,
+                       .out  = {.null = false, .out = out},
+                       .autState = autState}; 
+      taosArrayPush(sws->stack, &s);
+      return true; 
+   }
+   return false;
+  } 
+}          
+
 
