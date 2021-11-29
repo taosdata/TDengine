@@ -132,6 +132,11 @@ void vnodeOptionsClear(SVnodeCfg *pOptions);
 
 /* ------------------------ REQUESTS ------------------------ */
 typedef struct {
+  uint64_t ver;
+  char     req[];
+} SVnodeReq;
+
+typedef struct {
   int  err;
   char info[];
 } SVnodeRsp;

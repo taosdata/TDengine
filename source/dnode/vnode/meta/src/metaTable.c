@@ -15,8 +15,7 @@
 
 #include "metaDef.h"
 
-int metaCreateTable(SMeta *pMeta, const void *pCont, const int len) {
-  STbCfg *pTbCfg = NULL;
+int metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg) {
   // Validate the tbOptions
   if (metaValidateTbOptions(pMeta, pTbCfg) < 0) {
     // TODO: handle error

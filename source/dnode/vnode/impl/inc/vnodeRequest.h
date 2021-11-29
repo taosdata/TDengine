@@ -16,23 +16,14 @@
 #ifndef _TD_VNODE_REQUEST_H_
 #define _TD_VNODE_REQUEST_H_
 
+#include "vnode.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SVnodeReq SVnodeReq;
-typedef struct SVnodeRsp SVnodeRsp;
-
-typedef enum {} EVReqT;
-typedef enum {} EVRspT;
-
-struct SVnodeReq {
-  EVReqT type;
-};
-
-struct SVnodeRsp {
-  EVRspT type;
-};
+int vnodeBuildCreateTableReq(const SVCreateTableReq *pReq, char *msg, int len);
+int vnodeParseCreateTableReq(const char *msg, int len, SVCreateTableReq *pReq);
 
 #ifdef __cplusplus
 }

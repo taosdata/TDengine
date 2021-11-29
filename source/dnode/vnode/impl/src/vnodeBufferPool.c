@@ -71,6 +71,7 @@ static SListNode *    vBufPoolNewNode(uint64_t capacity, EVMemAllocatorT type);
 static void           vBufPoolFreeNode(SListNode *pNode);
 static SMemAllocator *vBufPoolCreateMA(SMemAllocatorFactory *pmaf);
 static void           vBufPoolDestroyMA(SMemAllocatorFactory *pmaf, SMemAllocator *pma);
+static void *         vBufPoolMalloc(SVMemAllocator *pvma, uint64_t size);
 
 int vnodeOpenBufPool(SVnode *pVnode) {
   uint64_t        capacity;
@@ -127,6 +128,24 @@ void vnodeCloseBufPool(SVnode *pVnode) {
     free(pVnode->pBufPool);
     pVnode->pBufPool = NULL;
   }
+}
+
+void *vnodeMalloc(SVnode *pVnode, uint64_t size) {
+  void *ptr;
+
+  if (pVnode->pBufPool->inuse == NULL) {
+    SListNode *pNode;
+    while ((pNode = tdListPopHead(&(pVnode->pBufPool->free))) == NULL) {
+      // todo
+      // tsem_wait();
+      ASSERT(0);
+    }
+
+    pVnode->pBufPool->inuse = pNode;
+  }
+
+  SVMemAllocator *pvma = (SVMemAllocator *)(pVnode->pBufPool->inuse->data);
+  return vBufPoolMalloc(pvma, size);
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */
@@ -201,10 +220,8 @@ static void vBufPoolFreeNode(SListNode *pNode) {
   free(pNode);
 }
 
-static void *vBufPoolMalloc(SMemAllocator *pma, uint64_t size) {
-  SVMAWrapper *   pvmaw = (SVMAWrapper *)(pma->impl);
-  SVMemAllocator *pvma = (SVMemAllocator *)(pvmaw->pNode->data);
-  void *          ptr = NULL;
+static void *vBufPoolMalloc(SVMemAllocator *pvma, uint64_t size) {
+  void *ptr = NULL;
 
   if (pvma->type == E_V_ARENA_ALLOCATOR) {
     SVArenaAllocator *pvaa = &(pvma->vaa);
@@ -229,7 +246,7 @@ static void *vBufPoolMalloc(SMemAllocator *pma, uint64_t size) {
     /* TODO */
   }
 
-  return NULL;
+  return ptr;
 }
 
 static SMemAllocator *vBufPoolCreateMA(SMemAllocatorFactory *pmaf) {
@@ -267,7 +284,7 @@ static SMemAllocator *vBufPoolCreateMA(SMemAllocatorFactory *pmaf) {
   pvmaw->pNode = pVnode->pBufPool->inuse;
 
   pma->impl = pvmaw;
-  pma->malloc = vBufPoolMalloc;
+  pma->malloc = NULL;
   pma->calloc = NULL;  /* TODO */
   pma->realloc = NULL; /* TODO */
   pma->free = NULL;    /* TODO */
