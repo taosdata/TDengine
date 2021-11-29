@@ -774,7 +774,7 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
 
         char* p = pRes->urow[i];
         for (int32_t k = 0; k < pRes->numOfRows; ++k) {
-          char* dst = pRes->buffer[i] + k * pInfo->field.bytes;
+          char* dst = pRes->buffer[i] + k * (pInfo->field.bytes - CHAR_BYTES); // jump json inter type, so minus CHAR_BYTES
           char type = *p;
           char* realData = p + CHAR_BYTES;
           if (type == TSDB_DATA_TYPE_JSON && isNull(realData, TSDB_DATA_TYPE_JSON)) {
