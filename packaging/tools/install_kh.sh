@@ -169,6 +169,7 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/khclient    || :
     ${csudo} rm -f ${bin_link_dir}/khserver    || :
     ${csudo} rm -f ${bin_link_dir}/khdemo      || :
+    ${csudo} rm -f ${bin_link_dir}/khdump      || :
     ${csudo} rm -f ${bin_link_dir}/rmkh        || :
     ${csudo} rm -f ${bin_link_dir}/tarbitrator || :
     ${csudo} rm -f ${bin_link_dir}/set_core    || :
@@ -178,6 +179,7 @@ function install_bin() {
     #Make link
     [ -x ${install_main_dir}/bin/khclient ] && ${csudo} ln -s ${install_main_dir}/bin/khclient ${bin_link_dir}/khclient                     || :
     [ -x ${install_main_dir}/bin/khserver ] && ${csudo} ln -s ${install_main_dir}/bin/khserver ${bin_link_dir}/khserver                     || :
+    [ -x ${install_main_dir}/bin/khdump ] && ${csudo} ln -s ${install_main_dir}/bin/khdump ${bin_link_dir}/khdump            || :
     [ -x ${install_main_dir}/bin/khdemo ] && ${csudo} ln -s ${install_main_dir}/bin/khdemo ${bin_link_dir}/khdemo            || :
     [ -x ${install_main_dir}/bin/remove_kh.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_kh.sh ${bin_link_dir}/rmkh  || :
     [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core         || :
