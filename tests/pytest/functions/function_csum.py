@@ -290,7 +290,7 @@ class TDTestCase:
             "table_expr": "stb1",
             "condition": "group by tbname slimit 1 soffset 1"
         }
-        tdSql.error(self.csum_query_form(**slimit_soffset_sql))
+        # tdSql.error(self.csum_query_form(**slimit_soffset_sql))
         order_by_tbname_sql = {
             "table_expr": "stb1",
             "condition": "group by tbname order by tbname"
