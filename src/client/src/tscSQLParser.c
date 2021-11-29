@@ -4373,12 +4373,10 @@ static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
     }
     {
       if (TSDB_FUNC_IS_SCALAR(functionId)) {
-        bool allChildValue = true;
         bool anyChildScalar = false;
         bool anyChildAgg = false;
         for (int i = 0; i < numChildren; ++i) {
           assert (childrenTypes[i] != SQLEXPR_TYPE_UNASSIGNED);
-          allChildValue = allChildValue && (childrenTypes[i] == SQLEXPR_TYPE_VALUE);
           anyChildScalar = anyChildScalar || (childrenTypes[i] == SQLEXPR_TYPE_SCALAR);
           anyChildAgg = anyChildAgg || (childrenTypes[i] == SQLEXPR_TYPE_AGG);
         }
@@ -4387,8 +4385,6 @@ static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
         }
         if (anyChildAgg) {
           *type = SQLEXPR_TYPE_AGG;
-        } else if (allChildValue) {
-          *type = SQLEXPR_TYPE_VALUE;
         } else {
           *type = SQLEXPR_TYPE_SCALAR;
         }
@@ -7386,7 +7382,8 @@ static bool onlyTagPrjFunction(SQueryInfo* pQueryInfo) {
   size_t size = taosArrayGetSize(pQueryInfo->exprList);
   for (int32_t i = 0; i < size; ++i) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
-    if (pExpr->base.functionId == TSDB_FUNC_PRJ) {
+    if (pExpr->base.functionId == TSDB_FUNC_PRJ ||
+        (pExpr->base.functionId == TSDB_FUNC_SCALAR_EXPR && ((pQueryInfo->type & TSDB_QUERY_TYPE_PROJECTION_QUERY) != 0))) {
       hasColumnPrj = true;
     } else if (pExpr->base.functionId == TSDB_FUNC_TAGPRJ) {
       hasTagPrj = true;
@@ -7478,8 +7475,6 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
 
     if ((aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
       numOfSelectivity++;
-    } else if ((aAggs[functionId].status & TSDB_FUNCSTATE_SCALAR) != 0) {
-      numOfScalar++;
     } else {
       numOfAggregation++;
     }
@@ -7721,7 +7716,8 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
         continue;
       }
 
-      if (TSDB_FUNC_IS_SCALAR(f)) {
+      if (f == TSDB_FUNC_SCALAR_EXPR &&
+          (pQueryInfo->type & TSDB_QUERY_TYPE_PROJECTION_QUERY) != 0) {
         return invalidOperationMsg(msg, msg1);
       }
 
@@ -7745,9 +7741,6 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
         return invalidOperationMsg(msg, msg1);
       }
 
-      if (IS_SCALAR_FUNCTION(aAggs[f].status)) {
-        return invalidOperationMsg(msg, msg1);
-      }
 
       if (f == TSDB_FUNC_COUNT && pExpr->base.colInfo.colIndex == TSDB_TBNAME_COLUMN_INDEX) {
         return invalidOperationMsg(msg, msg1);
@@ -9826,7 +9819,7 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       SArray* paramList = pSqlExpr->Expr.paramList;
       size_t paramSize = paramList ? taosArrayGetSize(paramList) : 0;
       if (paramSize > 0) {
-        (*pExpr)->_func.numChildren = (uint8_t)paramSize;
+        (*pExpr)->_func.numChildren = (int32_t)paramSize;
         (*pExpr)->_func.pChildren = (tExprNode**)calloc(paramSize, sizeof(tExprNode*));
       }
       for (int32_t i = 0; i < paramSize; ++i) {

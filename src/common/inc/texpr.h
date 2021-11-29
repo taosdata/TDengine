@@ -62,8 +62,10 @@ struct SSchema;
 #define TSDB_FUNC_SCALAR_ROUND        (TSDB_FUNC_FLAG_SCALAR | 0x000C)
 #define TSDB_FUNC_SCALAR_CONCAT       (TSDB_FUNC_FLAG_SCALAR | 0x000D)
 #define TSDB_FUNC_SCALAR_LENGTH       (TSDB_FUNC_FLAG_SCALAR | 0x000E)
-#define TSDB_FUNC_SCALAR_CAST         (TSDB_FUNC_FLAG_SCALAR | 0x000F)
-#define TSDB_FUNC_SCALAR_MAX_NUM      16
+#define TSDB_FUNC_SCALAR_CONCAT_WS    (TSDB_FUNC_FLAG_SCALAR | 0x000F)
+#define TSDB_FUNC_SCALAR_CHAR_LENGTH  (TSDB_FUNC_FLAG_SCALAR | 0x0010)
+#define TSDB_FUNC_SCALAR_CAST         (TSDB_FUNC_FLAG_SCALAR | 0x0011)
+#define TSDB_FUNC_SCALAR_MAX_NUM      18
 
 #define TSDB_FUNC_SCALAR_NAME_MAX_LEN 16
 
@@ -74,7 +76,7 @@ typedef struct {
   char* data;
 } tExprOperandInfo;
 
-typedef void (*_expr_scalar_function_t)(int16_t functionId, tExprOperandInfo* pInputs, uint8_t numInputs, tExprOperandInfo* pOutput, int32_t order);
+typedef void (*_expr_scalar_function_t)(int16_t functionId, tExprOperandInfo* pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order);
 
 _expr_scalar_function_t getExprScalarFunction(uint16_t scalar);
 
@@ -128,7 +130,7 @@ typedef struct tExprNode {
 
     struct {
       int16_t functionId;
-      uint8_t numChildren;
+      int32_t numChildren;
       struct tExprNode **pChildren;
     } _func;
 
