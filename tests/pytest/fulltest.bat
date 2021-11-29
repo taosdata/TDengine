@@ -19,3 +19,4 @@ python .\test.py -f query\filterFloatAndDouble.py
 python .\test.py -f query\filterOtherTypes.py 
 python .\test.py -f query\querySort.py 
 python .\test.py -f query\queryJoin.py 
+python .\test.py -f tools\windows_input.py
