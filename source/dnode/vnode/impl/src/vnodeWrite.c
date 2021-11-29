@@ -23,10 +23,10 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
     pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
 
     // ser request version
-    pVnodeReq = (SVnodeReq *)(pMsg->pCont);
-    pVnodeReq->ver = pVnode->state.processed++;
+    void **pBuf = &(pMsg->pCont);
+    taosEncodeFixedU64(pBuf, pVnode->state.processed++);
 
-    if (walWrite(pVnode->pWal, pVnodeReq->ver, pVnodeReq->req, pMsg->contLen - sizeof(pVnodeReq->ver)) < 0) {
+    if (walWrite(pVnode->pWal, pVnodeReq->ver, pMsg->pCont, pMsg->contLen) < 0) {
       // TODO: handle error
     }
   }
@@ -36,9 +36,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   // Apply each request now
   for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
     pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
-    pVnodeReq = (SVnodeReq *)(pMsg->pCont);
-    SVCreateTableReq ctReq;
-    SVDropTableReq   dtReq;
+    SVnodeReq vReq;
 
     // Apply the request
     {
@@ -47,29 +45,28 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
         // TODO: handle error
       }
 
-      memcpy(ptr, pVnodeReq, pMsg->contLen);
+      // TODO: copy here need to be extended
+      memcpy(ptr, pMsg->pCont, pMsg->contLen);
 
-      // todo: change the interface here
-      if (tqPushMsg(pVnode->pTq, ptr, pVnodeReq->ver) < 0) {
+      // // todo: change the interface here
+      uint64_t ver;
+      taosDecodeFixedU64(pMsg->pCont, &ver);
+      if (tqPushMsg(pVnode->pTq, ptr, ver) < 0) {
         // TODO: handle error
       }
 
+      vnodeParseReq(pMsg->pCont, &vReq, pMsg->msgType);
+
       switch (pMsg->msgType) {
         case TSDB_MSG_TYPE_CREATE_TABLE:
-          vnodeParseCreateTableReq(pVnodeReq->req, &(ctReq));
-
-          if (metaCreateTable(pVnode->pMeta, &ctReq) < 0) {
+          if (metaCreateTable(pVnode->pMeta, &(vReq.ctReq)) < 0) {
             // TODO: handle error
           }
 
           // TODO: maybe need to clear the requst struct
           break;
         case TSDB_MSG_TYPE_DROP_TABLE:
-          if (vnodeParseDropTableReq(pVnodeReq->req, &(dtReq)) < 0) {
-            // TODO: handle error
-          }
-
-          if (metaDropTable(pVnode->pMeta, dtReq.uid) < 0) {
+          if (metaDropTable(pVnode->pMeta, vReq.dtReq.uid) < 0) {
             // TODO: handle error
           }
           break;

@@ -144,9 +144,17 @@ void vnodeOptionsInit(SVnodeCfg *pOptions);
 void vnodeOptionsClear(SVnodeCfg *pOptions);
 
 /* ------------------------ REQUESTS ------------------------ */
+typedef STbCfg SVCreateTableReq;
+typedef struct {
+  tb_uid_t uid;
+} SVDropTableReq;
+
 typedef struct {
   uint64_t ver;
-  char     req[];
+  union {
+    SVCreateTableReq ctReq;
+    SVDropTableReq   dtReq;
+  };
 } SVnodeReq;
 
 typedef struct {
@@ -154,24 +162,21 @@ typedef struct {
   char info[];
 } SVnodeRsp;
 
-/// Create table request
-typedef STbCfg SVCreateTableReq;
+#define VNODE_INIT_CREATE_STB_REQ(VER, NAME, TTL, KEEP, SUID, PSCHEMA, PTAGSCHEMA) \
+  { .ver = (VER), .ctReq = META_INIT_STB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA, PTAGSCHEMA) }
 
+#define VNODE_INIT_CREATE_CTB_REQ(VER, NAME, TTL, KEEP, SUID, PTAG) \
+  { .ver = (VER), .ctReq = META_INIT_CTB_CFG(NAME, TTL, KEEP, SUID, PTAG) }
+
+#define VNODE_INIT_CREATE_NTB_REQ(VER, NAME, TTL, KEEP, SUID, PSCHEMA) \
+  { .ver = (VER), .ctReq = META_INIT_NTB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA) }
+
+int   vnodeBuildReq(void **buf, const SVnodeReq *pReq, uint8_t type);
+void *vnodeParseReq(void *buf, SVnodeReq *pReq, uint8_t type);
+
+// TODO
 int   vnodeBuildCreateTableReq(void **buf, const SVCreateTableReq *pReq);
 void *vnodeParseCreateTableReq(void *buf, SVCreateTableReq *pReq);
-
-/// Drop table request
-typedef struct {
-  tb_uid_t uid;
-} SVDropTableReq;
-/// Alter table request
-typedef struct {
-  // TODO
-} SVAlterTableReq;
-
-int vnodeCreateTable(SVnode *pVnode, SVCreateTableReq *pReq, SVnodeRsp *pRsp);
-int vnodeDropTable(SVnode *pVnode, SVDropTableReq *pReq, SVnodeRsp *pRsp);
-int vnodeAlterTable(SVnode *pVnode, SVAlterTableReq *pReq, SVnodeRsp *pRsp);
 
 /* ------------------------ FOR COMPILE ------------------------ */
 

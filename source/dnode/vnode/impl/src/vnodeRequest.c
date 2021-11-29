@@ -15,6 +15,39 @@
 
 #include "vnodeDef.h"
 
+int vnodeBuildReq(void **buf, const SVnodeReq *pReq, uint8_t type) {
+  int tsize = 0;
+
+  tsize += taosEncodeFixedU64(buf, pReq->ver);
+  switch (type) {
+    case TSDB_MSG_TYPE_CREATE_TABLE:
+      tsize += vnodeBuildCreateTableReq(buf, &(pReq->ctReq));
+      /* code */
+      break;
+
+    default:
+      break;
+  }
+  /* TODO */
+  return tsize;
+}
+
+void *vnodeParseReq(void *buf, SVnodeReq *pReq, uint8_t type) {
+  buf = taosDecodeFixedU64(buf, &(pReq->ver));
+
+  switch (type) {
+    case TSDB_MSG_TYPE_CREATE_TABLE:
+      buf = vnodeParseCreateTableReq(buf, &(pReq->ctReq));
+      break;
+
+    default:
+      break;
+  }
+
+  // TODO
+  return buf;
+}
+
 int vnodeBuildCreateTableReq(void **buf, const SVCreateTableReq *pReq) {
   int tsize = 0;
 
@@ -69,11 +102,11 @@ void *vnodeParseCreateTableReq(void *buf, SVCreateTableReq *pReq) {
   return buf;
 }
 
-int   vnodeBuildDropTableReq(void **buf, const SVDropTableReq *pReq) {
-    // TODO
-    return 0;
+int vnodeBuildDropTableReq(void **buf, const SVDropTableReq *pReq) {
+  // TODO
+  return 0;
 }
 
 void *vnodeParseDropTableReq(void *buf, SVDropTableReq *pReq) {
-    // TODO
+  // TODO
 }

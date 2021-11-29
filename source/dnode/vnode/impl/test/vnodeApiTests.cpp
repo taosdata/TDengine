@@ -17,18 +17,18 @@ TEST(vnodeApiTest, vnodeOpen_vnodeClose_test) {
     STSchema *pTagSchema = NULL;
     char      tbname[128] = "st";
 
-    SArray *pMsgs = (SArray *)taosArrayInit(1, sizeof(SRpcMsg *));
-    STbCfg  stbCfg = META_INIT_STB_CFG(tbname, UINT32_MAX, UINT32_MAX, suid, pSchema, pTagSchema);
+    SArray *  pMsgs = (SArray *)taosArrayInit(1, sizeof(SRpcMsg *));
+    SVnodeReq vCreateSTbReq = VNODE_INIT_CREATE_STB_REQ(0, tbname, UINT32_MAX, UINT32_MAX, suid, pSchema, pTagSchema);
 
-    int      zs = vnodeBuildCreateTableReq(NULL, &stbCfg);
+    int      zs = vnodeBuildReq(NULL, &vCreateSTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
     SRpcMsg *pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg) + zs);
     pMsg->contLen = zs;
     pMsg->pCont = POINTER_SHIFT(pMsg, sizeof(SRpcMsg));
 
     void **pBuf = &(pMsg->pCont);
 
-    vnodeBuildCreateTableReq(pBuf, &stbCfg);
-    META_CLEAR_TB_CFG(&stbCfg);
+    vnodeBuildReq(pBuf, &vCreateSTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
+    META_CLEAR_TB_CFG(&vCreateSTbReq);
 
     taosArrayPush(pMsgs, &(pMsg));
 
@@ -48,16 +48,16 @@ TEST(vnodeApiTest, vnodeOpen_vnodeClose_test) {
         SRow *pTag = NULL;
         char  tbname[128];
         sprintf(tbname, "tb%d", i * batch + j);
-        STbCfg ctbCfg = META_INIT_CTB_CFG(tbname, UINT32_MAX, UINT32_MAX, suid, pTag);
+        SVnodeReq vCreateCTbReq = VNODE_INIT_CREATE_CTB_REQ(0, tbname, UINT32_MAX, UINT32_MAX, suid, pTag);
 
-        int      tz = vnodeBuildCreateTableReq(NULL, &ctbCfg);
+        int      tz = vnodeBuildReq(NULL, &vCreateCTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
         SRpcMsg *pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg) + tz);
         pMsg->contLen = tz;
         pMsg->pCont = POINTER_SHIFT(pMsg, sizeof(*pMsg));
         void **pBuf = &(pMsg->pCont);
 
-        vnodeBuildCreateTableReq(pBuf, &ctbCfg);
-        META_CLEAR_TB_CFG(&ctbCfg);
+        vnodeBuildReq(pBuf, &vCreateCTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
+        META_CLEAR_TB_CFG(&vCreateCTbReq);
       }
 
       vnodeProcessWMsgs(pVnode, pMsgs);
