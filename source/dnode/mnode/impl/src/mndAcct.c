@@ -111,8 +111,7 @@ int32_t mndInitAcct(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mnodeAcctActionUpdate,
                      .deleteFp = (SdbDeleteFp)mnodeAcctActionDelete};
 
-  sdbSetTable(pMnode->pSdb, table);
-  return 0;
+  return sdbSetTable(pMnode->pSdb, table);
 }
 
 void mndCleanupAcct(SMnode *pMnode) {}

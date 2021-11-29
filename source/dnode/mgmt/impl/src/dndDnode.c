@@ -464,7 +464,7 @@ static void *dnodeThreadRoutine(void *param) {
     pthread_testcancel();
 
     if (dndGetStat(pDnode) == DND_STAT_RUNNING) {
-      dndSendStatusMsg(pDnode);
+      // dndSendStatusMsg(pDnode);
     }
   }
 }

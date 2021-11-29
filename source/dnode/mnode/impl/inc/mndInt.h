@@ -41,10 +41,10 @@ typedef struct SMnode {
   int8_t            selfIndex;
   SReplica          replicas[TSDB_MAX_REPLICA];
   tmr_h             timer;
+  char             *path;
   SSdb             *pSdb;
   SDnode           *pDnode;
-  char             *path;
-  SArray            steps;
+  SArray           *pSteps;
   MndMsgFp          msgFp[TSDB_MSG_TYPE_MAX];
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;

@@ -114,14 +114,14 @@ typedef enum {
   SDB_START = 0,
   SDB_TRANS = 1,
   SDB_CLUSTER = 2,
-  SDB_DNODE = 3,
-  SDB_MNODE = 4,
+  SDB_MNODE = 3,
+  SDB_DNODE = 4,
   SDB_USER = 5,
   SDB_AUTH = 6,
   SDB_ACCT = 7,
-  SDB_DB = 8,
   SDB_VGROUP = 9,
-  SDB_STABLE = 10,
+  SDB_STABLE = 9,
+  SDB_DB = 10,
   SDB_FUNC = 11,
   SDB_MAX = 12
 } ESdbType;
@@ -149,10 +149,11 @@ typedef struct SSdbOpt {
   const char *path;
 } SSdbOpt;
 
-SSdb   *sdbOpen(SSdbOpt *pOption);
-void    sdbClose(SSdb *pSdb);
+SSdb   *sdbInit(SSdbOpt *pOption);
+void    sdbCleanup(SSdb *pSdb);
+int32_t sdbSetTable(SSdb *pSdb, SSdbTable table);
 int32_t sdbDeploy(SSdb *pSdb);
-void    sdbSetTable(SSdb *pSdb, SSdbTable table);
+int32_t sdbReadFile(SSdb *pSdb);
 int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw);
 
 void   *sdbAcquire(SSdb *pSdb, ESdbType type, void *pKey);

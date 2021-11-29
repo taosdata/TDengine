@@ -320,14 +320,11 @@ int32_t mndInitTrans(SMnode *pMnode) {
                      .insertFp = (SdbInsertFp)mndTransActionInsert,
                      .updateFp = (SdbUpdateFp)mndTransActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndTransActionDelete};
-  sdbSetTable(pMnode->pSdb, table);
 
-  mInfo("trn module is initialized");
-  return 0;
+  return sdbSetTable(pMnode->pSdb, table);
 }
 
-void mndCleanupTrans(SMnode *pMnode) { mInfo("trn module is cleaned up"); }
-
+void mndCleanupTrans(SMnode *pMnode) {}
 
 int32_t mndTransPrepare(STrans *pTrans, int32_t (*syncfp)(SSdbRaw *pRaw, void *pData)) {
   if (syncfp == NULL) return -1;

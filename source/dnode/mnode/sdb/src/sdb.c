@@ -16,70 +16,43 @@
 #define _DEFAULT_SOURCE
 #include "sdbInt.h"
 
-SSdb *sdbOpen(SSdbOpt *pOption) {
-  mDebug("start to open sdb in %s", pOption->path);
+SSdb *sdbInit(SSdbOpt *pOption) {
+  mDebug("start to init sdb in %s", pOption->path);
 
   SSdb *pSdb = calloc(1, sizeof(SSdb));
   if (pSdb == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("failed to open sdb since %s", terrstr());
+    mError("failed to init sdb since %s", terrstr());
     return NULL;
   }
 
   char path[PATH_MAX + 100];
-  snprintf(path, PATH_MAX + 100, "%s%scur", pOption->path, TD_DIRSEP);
+  snprintf(path, PATH_MAX + 100, "%s", pOption->path);
   pSdb->currDir = strdup(path);
   snprintf(path, PATH_MAX + 100, "%s%ssync", pOption->path, TD_DIRSEP);
   pSdb->syncDir = strdup(path);
   snprintf(path, PATH_MAX + 100, "%s%stmp", pOption->path, TD_DIRSEP);
   pSdb->tmpDir = strdup(path);
   if (pSdb->currDir == NULL || pSdb->currDir == NULL || pSdb->currDir == NULL) {
-    sdbClose(pSdb);
+    sdbCleanup(pSdb);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("failed to open sdb since %s", terrstr());
+    mError("failed to init sdb since %s", terrstr());
     return NULL;
   }
 
   for (int32_t i = 0; i < SDB_MAX; ++i) {
-    int32_t type;
-    if (pSdb->keyTypes[i] == SDB_KEY_INT32) {
-      type = TSDB_DATA_TYPE_INT;
-    } else if (pSdb->keyTypes[i] == SDB_KEY_INT64) {
-      type = TSDB_DATA_TYPE_BIGINT;
-    } else {
-      type = TSDB_DATA_TYPE_BINARY;
-    }
-
-    SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(type), true, HASH_NO_LOCK);
-    if (hash == NULL) {
-      sdbClose(pSdb);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      mError("failed to open sdb since %s", terrstr());
-      return NULL;
-    }
-
-    pSdb->hashObjs[i] = hash;
     taosInitRWLatch(&pSdb->locks[i]);
   }
 
-  int32_t code = sdbReadFile(pSdb);
-  if (code != 0) {
-    sdbClose(pSdb);
-    terrno = code;
-    mError("failed to open sdb since %s", terrstr());
-    return NULL;
-  }
-
-  mDebug("sdb open successfully");
+  mDebug("sdb init successfully");
   return pSdb;
 }
 
-void sdbClose(SSdb *pSdb) {
-  mDebug("start to close sdb");
+void sdbCleanup(SSdb *pSdb) {
+  mDebug("start to cleanup sdb");
 
   if (pSdb->curVer != pSdb->lastCommitVer) {
-    mDebug("start to write sdb file since curVer:% " PRId64 " and lastCommitVer:%" PRId64 " inequal", pSdb->curVer,
-           pSdb->lastCommitVer);
+    mDebug("write sdb file for curVer:% " PRId64 " and lastVer:%" PRId64, pSdb->curVer, pSdb->lastCommitVer);
     sdbWriteFile(pSdb);
   }
 
@@ -104,10 +77,10 @@ void sdbClose(SSdb *pSdb) {
     pSdb->hashObjs[i] = NULL;
   }
 
-  mDebug("sdb is closed");
+  mDebug("sdb is cleaned up");
 }
 
-void sdbSetTable(SSdb *pSdb, SSdbTable table) {
+int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
   ESdbType sdb = table.sdbType;
   pSdb->keyTypes[sdb] = table.keyType;
   pSdb->insertFps[sdb] = table.insertFp;
@@ -117,5 +90,25 @@ void sdbSetTable(SSdb *pSdb, SSdbTable table) {
   pSdb->encodeFps[sdb] = table.encodeFp;
   pSdb->decodeFps[sdb] = table.decodeFp;
 
-  mDebug("set sdb handle of table %d", pSdb, table);
+  for (int32_t i = 0; i < SDB_MAX; ++i) {
+    int32_t type;
+    if (pSdb->keyTypes[i] == SDB_KEY_INT32) {
+      type = TSDB_DATA_TYPE_INT;
+    } else if (pSdb->keyTypes[i] == SDB_KEY_INT64) {
+      type = TSDB_DATA_TYPE_BIGINT;
+    } else {
+      type = TSDB_DATA_TYPE_BINARY;
+    }
+
+    SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(type), true, HASH_NO_LOCK);
+    if (hash == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    pSdb->hashObjs[i] = hash;
+    taosInitRWLatch(&pSdb->locks[i]);
+  }
+
+  return 0;
 }

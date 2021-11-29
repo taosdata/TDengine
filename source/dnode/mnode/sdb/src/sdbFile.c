@@ -18,45 +18,41 @@
 #include "tchecksum.h"
 
 static int32_t sdbCreateDir(SSdb *pSdb) {
-  int32_t code = taosMkDir(pSdb->currDir);
-  if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", pSdb->currDir, tstrerror(code));
-    return code;
+  if (taosMkDir(pSdb->currDir) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", pSdb->currDir, terrstr());
+    return -1;
   }
 
-  code = taosMkDir(pSdb->syncDir);
-  if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", pSdb->syncDir, tstrerror(code));
-    return code;
+  if (taosMkDir(pSdb->syncDir) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", pSdb->syncDir, terrstr());
+    return -1;
   }
 
-  code = taosMkDir(pSdb->tmpDir);
-  if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", pSdb->tmpDir, tstrerror(code));
-    return code;
+  if (taosMkDir(pSdb->tmpDir) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", pSdb->tmpDir, terrstr());
+    return -1;
   }
 
   return 0;
 }
 
 static int32_t sdbRunDeployFp(SSdb *pSdb) {
-  mDebug("start to run sdb deploy functions");
+  mDebug("start to deploy sdb");
 
   for (int32_t i = SDB_MAX - 1; i > SDB_START; --i) {
     SdbDeployFp fp = pSdb->deployFps[i];
     if (fp == NULL) continue;
 
-    int32_t code = (*fp)(pSdb);
-    if (code != 0) {
-      mError("failed to deploy sdb:%d since %s", i, tstrerror(code));
-      return code;
+    if ((*fp)(pSdb) != 0) {
+      mError("failed to deploy sdb:%d since %s", i, terrstr());
+      return -1;
     }
   }
 
-  mDebug("sdb deploy functions run finished");
+  mDebug("sdb deploy successfully");
   return 0;
 }
 
@@ -68,9 +64,9 @@ int32_t sdbReadFile(SSdb *pSdb) {
 
   SSdbRaw *pRaw = malloc(SDB_MAX_SIZE);
   if (pRaw == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    mError("failed read file since %s", tstrerror(code));
-    return code;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("failed read file since %s",  terrstr());
+    return -1;
   }
 
   char file[PATH_MAX] = {0};
@@ -79,9 +75,9 @@ int32_t sdbReadFile(SSdb *pSdb) {
   FileFd fd = taosOpenFileRead(file);
   if (fd <= 0) {
     free(pRaw);
-    code = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to read file:%s since %s", file, tstrerror(code));
-    return code;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to read file:%s since %s", file, terrstr());
+    return -1;
   }
 
   while (1) {
@@ -135,6 +131,7 @@ PARSE_SDB_DATA_ERROR:
   taosCloseFile(fd);
   sdbFreeRaw(pRaw);
 
+  terrno = code;
   return code;
 }
 
@@ -142,15 +139,15 @@ int32_t sdbWriteFile(SSdb *pSdb) {
   int32_t code = 0;
 
   char tmpfile[PATH_MAX] = {0};
-  snprintf(tmpfile, sizeof(tmpfile), "%ssdb.data", pSdb->tmpDir);
+  snprintf(tmpfile, sizeof(tmpfile), "%s%ssdb.data", pSdb->tmpDir, TD_DIRSEP);
   char curfile[PATH_MAX] = {0};
-  snprintf(curfile, sizeof(curfile), "%ssdb.data", pSdb->currDir);
+  snprintf(curfile, sizeof(curfile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
   FileFd fd = taosOpenFileCreateWrite(tmpfile);
   if (fd <= 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to open file:%s for write since %s", tmpfile, tstrerror(code));
-    return code;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to open file:%s for write since %s", tmpfile, terrstr());
+    return -1;
   }
 
   for (int32_t i = SDB_MAX - 1; i > SDB_START; --i) {
@@ -220,23 +217,21 @@ int32_t sdbWriteFile(SSdb *pSdb) {
     mDebug("write file:%s successfully", curfile);
   }
 
+  terrno = code;
   return code;
 }
 
 int32_t sdbDeploy(SSdb *pSdb) {
-  int32_t code = sdbCreateDir(pSdb);
-  if (code != 0) {
-    return code;
+  if (sdbCreateDir(pSdb) != 0) {
+    return -1;
   }
 
-  code = sdbRunDeployFp(pSdb);
-  if (code != 0) {
-    return code;
+  if (sdbRunDeployFp(pSdb) != 0) {
+    return -1;
   }
 
-  code = sdbWriteFile(pSdb);
-  if (code != 0) {
-    return code;
+  if (sdbWriteFile(pSdb) != 0) {
+    return -1;
   }
 
   return 0;
