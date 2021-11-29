@@ -280,7 +280,15 @@ SDbInfo **g_dbInfos = NULL;
 TableInfo *g_tablesList = NULL;
 
 const char *argp_program_version = version;
+#ifdef _TD_PRO_
+const char *argp_program_bug_address = "<support@hanatech.com.cn>";
+#elif (_TD_KH_ == true)
+const char *argp_program_bug_address = "<support@wellintech.com>";
+#elif (_TD_JH_ == true)
+const char *argp_program_bug_address = "<jhkj@njsteel.com.cn>";
+#else
 const char *argp_program_bug_address = "<support@taosdata.com>";
+#endif
 
 /* Program documentation. */
 static char doc[] = "";
@@ -303,6 +311,14 @@ static struct argp_option options[] = {
     {"user", 'u', "USER",    0,  "User name used to connect to server. Default is root.", 0},
 #ifdef _TD_POWER_
     {"password", 'p', 0,    0,  "User password to connect to server. Default is powerdb.", 0},
+#elif (_TD_TQ_ == true)
+    {"password", 'p', 0,    0,  "User password to connect to server. Default is tqueue.", 0},
+#elif (_TD_PRO_ == true)
+    {"password", 'p', 0,    0,  "User password to connect to server. Default is prodb.", 0},
+#elif (_TD_KH_ == true)
+    {"password", 'p', 0,    0,  "User password to connect to server. Default is khroot.", 0},
+#elif (_TD_JH_ == true)
+    {"password", 'p', 0,    0,  "User password to connect to server. Default is jhdata.", 0},
 #else
     {"password", 'p', 0,    0,  "User password to connect to server. Default is taosdata.", 0},
 #endif
@@ -313,7 +329,15 @@ static struct argp_option options[] = {
     {"inpath", 'i', "INPATH",      0,  "Input file path.", 1},
     {"resultFile", 'r', "RESULTFILE",  0,  "DumpOut/In Result file path and name.", 1},
 #ifdef _TD_POWER_
-    {"config-dir", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/power/taos.cfg.", 1},
+    {"config-dir", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/power/power.cfg.", 1},
+#elif (_TD_TQ_ == true)
+    {"config-dir", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/tq/tq.cfg.", 1},
+#elif (_TD_PRO_ == true)
+    {"config-dir", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/ProDB/prodb.cfg.", 1},
+#elif (_TD_KH_ == true)
+    {"config-dir", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/kinghistorian/kinghistorian.cfg.", 1},
+#elif (_TD_JH_ == true)
+    {"config-dir", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/jh_taos/taos.cfg.", 1},
 #else
     {"config-dir", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/taos/taos.cfg.", 1},
 #endif
@@ -403,6 +427,14 @@ struct arguments g_args = {
     "root",
 #ifdef _TD_POWER_
     "powerdb",
+#elif (_TD_TQ_ == true)
+    "tqueue",
+#elif (_TD_PRO_ == true)
+    "prodb",
+#elif (_TD_KH_ == true)
+    "khroot",
+#elif (_TD_JH_ == true)
+    "jhdata",
 #else
     "taosdata",
 #endif
@@ -857,7 +889,7 @@ static int getTableRecordInfo(
     TAOS *taos = taos_connect(g_args.host, g_args.user, g_args.password,
             dbName, g_args.port);
     if (taos == NULL) {
-        errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
+        errorPrint("Failed to connect to server %s\n", g_args.host);
         return -1;
     }
 
@@ -987,7 +1019,7 @@ static int getDumpDbCount()
     taos = taos_connect(g_args.host, g_args.user, g_args.password,
             NULL, g_args.port);
     if (NULL == taos) {
-        errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
+        errorPrint("Failed to connect to server %s\n", g_args.host);
         return 0;
     }
 
@@ -1111,7 +1143,7 @@ static int64_t getNtbCountOfStb(char *dbName, char *stbName)
     TAOS *taos = taos_connect(g_args.host, g_args.user, g_args.password,
             dbName, g_args.port);
     if (taos == NULL) {
-        errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
+        errorPrint("Failed to connect to server %s\n", g_args.host);
         return -1;
     }
 
@@ -1420,7 +1452,7 @@ static int64_t dumpCreateSTableClauseOfDb(
             g_args.user, g_args.password, dbInfo->name, g_args.port);
     if (NULL == taos) {
         errorPrint(
-                "Failed to connect to TDengine server %s by specified database %s\n",
+                "Failed to connect to server %s by specified database %s\n",
                 g_args.host, dbInfo->name);
         return 0;
     }
@@ -2157,7 +2189,7 @@ static int dumpInOneAvroFile(char* fcharset,
     TAOS *taos = taos_connect(g_args.host, g_args.user, g_args.password,
             namespace, g_args.port);
     if (taos == NULL) {
-        errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
+        errorPrint("Failed to connect to server %s\n", g_args.host);
         return -1;
     }
 
@@ -2720,7 +2752,7 @@ static int64_t dumpTableData(FILE *fp, char *tbName,
             g_args.user, g_args.password, dbName, g_args.port);
     if (NULL == taos) {
         errorPrint(
-                "Failed to connect to TDengine server %s by specified database %s\n",
+                "Failed to connect to server %s by specified database %s\n",
                 g_args.host, dbName);
         return -1;
     }
@@ -3274,7 +3306,7 @@ static int dumpInSqlWorkThreads()
         pThread->taos = taos_connect(g_args.host, g_args.user, g_args.password,
             NULL, g_args.port);
         if (pThread->taos == NULL) {
-            errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
+            errorPrint("Failed to connect to server %s\n", g_args.host);
             free(infos);
             free(pids);
             return -1;
@@ -3310,7 +3342,7 @@ static int dumpInDbs()
             NULL, g_args.port);
 
     if (taos == NULL) {
-        errorPrint("%s() LN%d, failed to connect to TDengine server\n",
+        errorPrint("%s() LN%d, failed to connect to server\n",
                 __func__, __LINE__);
         return -1;
     }
@@ -3461,7 +3493,7 @@ static int64_t dumpNtbOfDbByThreads(
                 g_args.port
                 );
         if (NULL == pThreadInfo->taos) {
-            errorPrint("%s() LN%d, Failed to connect to TDengine, reason: %s\n",
+            errorPrint("%s() LN%d, Failed to connect to server, reason: %s\n",
                     __func__,
                     __LINE__,
                     taos_errstr(NULL));
@@ -3503,7 +3535,7 @@ static int64_t dumpNTablesOfDb(SDbInfo *dbInfo)
             g_args.user, g_args.password, dbInfo->name, g_args.port);
     if (NULL == taos) {
         errorPrint(
-                "Failed to connect to TDengine server %s by specified database %s\n",
+                "Failed to connect to server %s by specified database %s\n",
                 g_args.host, dbInfo->name);
         return 0;
     }
@@ -3596,7 +3628,7 @@ static int64_t dumpNtbOfStbByThreads(
                 g_args.port
                 );
         if (NULL == pThreadInfo->taos) {
-            errorPrint("%s() LN%d, Failed to connect to TDengine, reason: %s\n",
+            errorPrint("%s() LN%d, Failed to connect to server, reason: %s\n",
                     __func__,
                     __LINE__,
                     taos_errstr(NULL));
@@ -3693,7 +3725,7 @@ static int dumpOut() {
     taos = taos_connect(g_args.host, g_args.user, g_args.password,
             NULL, g_args.port);
     if (taos == NULL) {
-        errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
+        errorPrint("Failed to connect to server %s\n", g_args.host);
         goto _exit_failure;
     }
 

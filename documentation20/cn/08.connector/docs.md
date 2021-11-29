@@ -328,7 +328,7 @@ TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线
 
 除 C/C++ 语言外，TDengine 的 Java 语言 JNI Connector 也提供参数绑定接口支持，具体请另外参见：[参数绑定接口的 Java 用法](https://www.taosdata.com/cn/documentation/connector/java#stmt-java)。
 
-接口相关的具体函数如下（也可以参考 [apitest.c](https://github.com/taosdata/TDengine/blob/develop/tests/examples/c/apitest.c) 文件中使用对应函数的方式）：
+接口相关的具体函数如下（也可以参考 [prepare.c](https://github.com/taosdata/TDengine/blob/develop/tests/examples/c/prepare.c) 文件中使用对应函数的方式）：
 
 - `TAOS_STMT* taos_stmt_init(TAOS *taos)`
 
@@ -1252,7 +1252,7 @@ node nodejsChecker.js host=localhost
 
 ### Node.js连接器的使用
 
-以下是Node.js 连接器的一些基本使用方法，详细的使用方法可参考[TDengine Node.js connector](http://docs.taosdata.com/node)。
+以下是Node.js 连接器的一些基本使用方法，详细的使用方法可参考[TDengine Node.js connector](https://github.com/taosdata/TDengine/tree/develop/src/connector/nodejs)。
 
 #### 建立连接
 

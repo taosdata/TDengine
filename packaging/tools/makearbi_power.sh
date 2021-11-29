@@ -34,7 +34,6 @@ fi
 bin_files="${build_dir}/bin/tarbitrator ${script_dir}/remove_arbi_power.sh"
 install_files="${script_dir}/install_arbi_power.sh"
 
-#header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
 init_file_tarbitrator_deb=${script_dir}/../deb/tarbitratord
 init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 

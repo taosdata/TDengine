@@ -87,6 +87,11 @@ typedef struct SIntervalVal {
   SStrToken          offset;
 } SIntervalVal;
 
+typedef struct SRangeVal {
+  void          *start;
+  void          *end;
+} SRangeVal;
+
 typedef struct SSessionWindowVal {
   SStrToken          col;
   SStrToken          gap;
@@ -113,6 +118,7 @@ typedef struct SSqlNode {
   SLimitVal          slimit;       // group limit offset [optional]
   SStrToken          sqlstr;       // sql string in select clause
   struct tSqlExpr   *pHaving;      // having clause [optional]
+  SRangeVal          pRange;       // range clause [optional]
 } SSqlNode;
 
 typedef struct SRelElementPair {
@@ -275,15 +281,17 @@ typedef struct tSqlExprItem {
   bool               distinct;
 } tSqlExprItem;
 
+
 SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder);
 SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t index);
-SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder);
+SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder, bool needRmquoteEscape);
 
 SRelationInfo *setTableNameList(SRelationInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias);
 void          *destroyRelationInfo(SRelationInfo* pFromInfo);
 SRelationInfo *addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrToken* pAlias);
 
 // sql expr leaf node
+tSqlExpr *tSqlExprCreateTimestamp(SStrToken *pToken, int32_t optrType);
 tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optrType);
 tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType);
 tSqlExpr *tSqlExprCreateFuncWithParams(SSqlInfo *pInfo, tSqlExpr* col, TAOS_FIELD *colType, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType);
@@ -300,7 +308,7 @@ void      tSqlExprListDestroy(SArray *pList);
 
 SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps, SWindowStateVal *pw,
-                                SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit, tSqlExpr *pHaving);
+                                SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit, tSqlExpr *pHaving, SRangeVal *pRange);
 int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right);
 
 SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SSqlNode *pSelect, int32_t type);

@@ -1022,7 +1022,7 @@ Steps:
 
 ### How to use Node.js
 
-The following are some basic uses of node.js connector. Please refer to [TDengine Node.js connector](http://docs.taosdata.com/node) for details.
+The following are some basic uses of node.js connector. Please refer to [TDengine Node.js connector](https://github.com/taosdata/TDengine/tree/develop/src/connector/nodejs)for details.
 
 ### Create connection
 

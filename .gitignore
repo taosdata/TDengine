@@ -82,6 +82,10 @@ tests/comparisonTest/opentsdb/opentsdbtest/.settings/
 tests/examples/JDBC/JDBCDemo/.classpath
 tests/examples/JDBC/JDBCDemo/.project
 tests/examples/JDBC/JDBCDemo/.settings/
+tests/script/api/batchprepare
+tests/script/api/stmt
+tests/script/api/stmtBatchTest
+tests/script/api/stmtTest
 
 # Emacs
 # -*- mode: gitignore; -*-

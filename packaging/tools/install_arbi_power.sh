@@ -176,9 +176,6 @@ function install_header() {
 }
 
 function clean_service_on_sysvinit() {
-    #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
-    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :
-
     if pidof tarbitrator &> /dev/null; then
         ${csudo} service tarbitratord stop || :
     fi
@@ -279,7 +276,6 @@ function install_service() {
     elif ((${service_mod}==1)); then
         install_service_on_sysvinit
     else
-        # must manual stop taosd
         kill_tarbitrator
     fi
 }
@@ -306,7 +302,6 @@ function update_PowerDB() {
     install_jemalloc
 
     echo
-    #echo -e "${GREEN_DARK}To configure PowerDB ${NC}: edit /etc/taos/taos.cfg"
     if ((${service_mod}==0)); then
         echo -e "${GREEN_DARK}To start arbitrator     ${NC}: ${csudo} systemctl start tarbitratord${NC}"
     elif ((${service_mod}==1)); then
@@ -329,7 +324,6 @@ function install_PowerDB() {
     install_jemalloc
 
     echo
-    #echo -e "${GREEN_DARK}To configure PowerDB ${NC}: edit /etc/taos/taos.cfg"
     if ((${service_mod}==0)); then
         echo -e "${GREEN_DARK}To start arbitrator     ${NC}: ${csudo} systemctl start tarbitratord${NC}"
     elif ((${service_mod}==1)); then
