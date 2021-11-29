@@ -1194,7 +1194,7 @@ void castConvert(int16_t inputType, int16_t inputBytes, char *input, int16_t Out
       } else {
         char tmp[400] = {0};
         NUM_TO_STRING(inputType, input, sizeof(tmp), tmp);
-        int32_t len = strlen(tmp);
+        int32_t len = (int32_t)strlen(tmp);
         len = (outputBytes - VARSTR_HEADER_SIZE) > len ? len : (outputBytes - VARSTR_HEADER_SIZE);
         memcpy(varDataVal(output), tmp, len);
         varDataSetLen(output, len);
@@ -1220,7 +1220,7 @@ void castConvert(int16_t inputType, int16_t inputBytes, char *input, int16_t Out
         } else {
           char tmp[400] = {0};
           NUM_TO_STRING(inputType, input, sizeof(tmp), tmp);
-          int32_t len = ncharSize > strlen(tmp) ? strlen(tmp) : ncharSize;
+          int32_t len = (int32_t)(ncharSize > strlen(tmp) ? strlen(tmp) : ncharSize);
           taosMbsToUcs4(tmp, len, varDataVal(output), outputBytes - VARSTR_HEADER_SIZE, &len);
           varDataSetLen(output, len);
         }
