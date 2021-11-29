@@ -230,6 +230,7 @@ sql_error select cos(c1) from $stb state_window(f1)
 sql_error select pow(c2,2) from $stb interval(1s) sliding(500a)
 sql_error select pow(c2,2) from $stb state_window(f1)
 sql_error select tan(f1) from $stb from d.st slimit 1
+sql_error select f1+2, tbname from $stb group by tbname
 print =============== clear
 sql drop database $db
 sql show databases

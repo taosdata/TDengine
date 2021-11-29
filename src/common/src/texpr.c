@@ -1180,27 +1180,26 @@ void vectorConcatWs(int16_t functionId, tExprOperandInfo* pInputs, int32_t numIn
 
     outputData = pOutput->data + i * pOutput->bytes;
 
-    bool hasNullInputs = false;
-    for (int j = 0; j < numInputs; ++j) {
-      if (isNull(inputData[j], pInputs[j].type)) {
-        hasNullInputs = true;
-        setNull(outputData, pOutput->type, pOutput->bytes);
-      }
+    if (isNull(inputData[0], pInputs[0].type)) {
+      setNull(outputData, pOutput->type, pOutput->bytes);
+      continue;
     }
 
-    if (!hasNullInputs) {
-      int16_t dataLen = 0;
-      for (int j = 1; j < numInputs; ++j) {
-        memcpy(((char*)varDataVal(outputData))+dataLen, varDataVal(inputData[j]), varDataLen(inputData[j]));
-        dataLen += varDataLen(inputData[j]);
-        if (j < numInputs - 1) {
-          memcpy(((char*)varDataVal(outputData))+dataLen, varDataVal(inputData[0]), varDataLen(inputData[0]));
-          dataLen += varDataLen(inputData[0]);
-        }
+    int16_t dataLen = 0;
+    for (int j = 1; j < numInputs; ++j) {
+      if (isNull(inputData[j], pInputs[j].type)) {
+        continue;
       }
-      varDataSetLen(outputData, dataLen);
+      memcpy(((char*)varDataVal(outputData))+dataLen, varDataVal(inputData[j]), varDataLen(inputData[j]));
+      dataLen += varDataLen(inputData[j]);
+      if (j < numInputs - 1) {
+        memcpy(((char*)varDataVal(outputData))+dataLen, varDataVal(inputData[0]), varDataLen(inputData[0]));
+        dataLen += varDataLen(inputData[0]);
+      }
     }
+    varDataSetLen(outputData, dataLen);
   }
+
 
   free(inputData);
 }
