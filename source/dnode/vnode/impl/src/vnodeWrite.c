@@ -24,9 +24,10 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 
     // ser request version
     void **pBuf = &(pMsg->pCont);
-    taosEncodeFixedU64(pBuf, pVnode->state.processed++);
+    uint64_t ver = pVnode->state.processed++;
+    taosEncodeFixedU64(pBuf, ver);
 
-    if (walWrite(pVnode->pWal, pVnodeReq->ver, pMsg->pCont, pMsg->contLen) < 0) {
+    if (walWrite(pVnode->pWal, ver, pMsg->pCont, pMsg->contLen) < 0) {
       // TODO: handle error
     }
   }
@@ -76,9 +77,9 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
         default:
           break;
       }
-    }
 
-    pVnode->state.applied = pVnodeReq->ver;
+      pVnode->state.applied = ver;
+    }
 
     // Check if it needs to commit
     if (vnodeShouldCommit(pVnode)) {
