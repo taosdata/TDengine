@@ -23,10 +23,9 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   return 0;
 }
 
-int32_t walPrune(SWal *pWal, int64_t ver) {
+int32_t walTakeSnapshot(SWal *pWal, int64_t ver) {
   return 0;
 }
-
 
 int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
   return 0;

@@ -87,11 +87,11 @@ int taosSetConsoleEcho(bool on) {
 void* taosLoadDll(const char* filename) {
   void* handle = dlopen(filename, RTLD_LAZY);
   if (!handle) {
-    printf("load dll:%s failed, error:%s", filename, dlerror());
+    //printf("load dll:%s failed, error:%s", filename, dlerror());
     return NULL;
   }
 
-  printf("dll %s loaded", filename);
+  //printf("dll %s loaded", filename);
 
   return handle;
 }
@@ -101,11 +101,11 @@ void* taosLoadSym(void* handle, char* name) {
   char* error = NULL;
 
   if ((error = dlerror()) != NULL) {
-    printf("load sym:%s failed, error:%s", name, dlerror());
+    //printf("load sym:%s failed, error:%s", name, dlerror());
     return NULL;
   }
 
-  printf("sym %s loaded", name);
+  //printf("sym %s loaded", name);
 
   return sym;
 }
@@ -133,7 +133,7 @@ int taosSetConsoleEcho(bool on) {
 
   err = tcsetattr(STDIN_FILENO, TCSAFLUSH, &term);
   if (err == -1 || err == EINTR) {
-    printf("Cannot set the attribution of the terminal");
+    //printf("Cannot set the attribution of the terminal");
     return -1;
   }
 

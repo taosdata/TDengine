@@ -80,6 +80,9 @@ void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in);
 OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup);
 void fstBuilderCompileFrom(FstBuilder *b, uint64_t istate);
 CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn);
+void* fstBuilerIntoInner(FstBuilder *b);
+void  fstBuilderFinish(FstBuilder *b); 
+
 
 
 
@@ -216,21 +219,6 @@ bool fstNodeFindInput(FstNode *node, uint8_t b, uint64_t *res);
 bool fstNodeCompile(FstNode *node, void *w, CompiledAddr lastAddr, CompiledAddr addr, FstBuilderNode *builderNode); 
 FstSlice  fstNodeAsSlice(FstNode *node); 
 
-
-
-typedef struct FstMeta {
-  uint64_t     version;
-  CompiledAddr rootAddr;  
-  FstType      ty;
-  uint64_t     len;
-  uint32_t     checkSum;
-} FstMeta;
-
-typedef struct Fst {
-  FstMeta meta; 
-  void    *data;  //  
-} Fst;
-
 // ops  
 
 typedef struct FstIndexedValue {
@@ -242,5 +230,29 @@ FstLastTransition *fstLastTransitionCreate(uint8_t inp, Output out);
 void fstLastTransitionDestroy(FstLastTransition *trn);
 
 
+typedef struct FstMeta {
+  uint64_t     version;
+  CompiledAddr rootAddr;  
+  FstType      ty;
+  uint64_t     len;
+  uint32_t     checkSum;
+} FstMeta;
 
+typedef struct Fst {
+  FstMeta  *meta; 
+  FstSlice *data;  //  
+  FstNode  *root;  // 
+} Fst;
+
+// refactor simple function 
+
+Fst*         fstCreate(FstSlice *data);
+void         fstDestroy(Fst *fst);
+
+bool         fstGet(Fst *fst, FstSlice *b, Output *out);
+FstNode*     fstGetNode(Fst *fst, CompiledAddr); 
+FstType      fstGetType(Fst *fst); 
+CompiledAddr fstGetRootAddr(Fst *fst);
+Output fstEmptyFinalOutput(Fst *fst, bool *null);
+bool fstVerify(Fst *fst);
 #endif

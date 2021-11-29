@@ -24,10 +24,10 @@ extern "C" {
 typedef struct SDnode    SDnode;
 typedef struct SMnode    SMnode;
 typedef struct SMnodeMsg SMnodeMsg;
-typedef void (*SendMsgToDnodeFp)(SDnode *pDnd, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-typedef void (*SendMsgToMnodeFp)(SDnode *pDnd, struct SRpcMsg *rpcMsg);
-typedef void (*SendRedirectMsgFp)(SDnode *pDnd, struct SRpcMsg *rpcMsg, bool forShell);
-typedef int32_t (*PutMsgToMnodeQFp)(SDnode *pDnd, SMnodeMsg *pMsg);
+typedef void (*SendMsgToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
+typedef void (*SendMsgToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
+typedef void (*SendRedirectMsgFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
+typedef int32_t (*PutMsgToMnodeQFp)(SDnode *pDnode, SMnodeMsg *pMsg);
 
 typedef struct SMnodeLoad {
   int64_t numOfDnode;
@@ -53,17 +53,17 @@ typedef struct {
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;
   SendRedirectMsgFp sendRedirectMsgFp;
-} SMnodeOptions;
+} SMnodeOpt;
 
 /* ------------------------ SMnode ------------------------ */
 /**
  * @brief Open a mnode.
  *
  * @param path Path of the mnode
- * @param pOptions Options of the mnode
+ * @param pOption Option of the mnode
  * @return SMnode* The mnode object
  */
-SMnode *mnodeOpen(const char *path, const SMnodeOptions *pOptions);
+SMnode *mnodeOpen(const char *path, const SMnodeOpt *pOption);
 
 /**
  * @brief Close a mnode
@@ -76,10 +76,10 @@ void mnodeClose(SMnode *pMnode);
  * @brief Close a mnode
  *
  * @param pMnode The mnode object to close
- * @param pOptions Options of the mnode
+ * @param pOption Options of the mnode
  * @return int32_t 0 for success, -1 for failure
  */
-int32_t mnodeAlter(SMnode *pMnode, const SMnodeOptions *pOptions);
+int32_t mnodeAlter(SMnode *pMnode, const SMnodeOpt *pOption);
 
 /**
  * @brief Drop a mnode.

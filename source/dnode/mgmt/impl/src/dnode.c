@@ -20,8 +20,8 @@
 #include "dndVnodes.h"
 #include "sync.h"
 #include "tcache.h"
-#include "wal.h"
 #include "tcrc32c.h"
+#include "wal.h"
 
 EStat dndGetStat(SDnode *pDnode) { return pDnode->stat; }
 
@@ -43,10 +43,10 @@ char *dndStatStr(EStat stat) {
   }
 }
 
-void dndReportStartup(SDnode *pDnode, char *name, char *desc) {
+void dndReportStartup(SDnode *pDnode, char *pName, char *pDesc) {
   SStartupMsg *pStartup = &pDnode->startup;
-  tstrncpy(pStartup->name, name, strlen(pStartup->name));
-  tstrncpy(pStartup->desc, desc, strlen(pStartup->desc));
+  tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
+  tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
   pStartup->finished = 0;
 }
 
@@ -61,7 +61,7 @@ static int32_t dndCheckRunning(char *dataDir) {
 
   FileFd fd = taosOpenFileCreateWriteTrunc(filepath);
   if (fd < 0) {
-    dError("failed to open lock file:%s since %s, quit", filepath, strerror(errno));
+    dError("failed to lock file:%s since %s, quit", filepath, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -77,20 +77,20 @@ static int32_t dndCheckRunning(char *dataDir) {
   return 0;
 }
 
-static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOptions) {
-  if (dndCheckRunning(pOptions->dataDir) != 0) {
+static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOption) {
+  if (dndCheckRunning(pOption->dataDir) != 0) {
     return -1;
   }
 
   char path[PATH_MAX + 100];
-  snprintf(path, sizeof(path), "%s%smnode", pOptions->dataDir, TD_DIRSEP);
-  pDnode->dir.mnode = strdup(path);
+  snprintf(path, sizeof(path), "%s%smnode", pOption->dataDir, TD_DIRSEP);
+  pDnode->dir.mnode = tstrdup(path);
 
-  snprintf(path, sizeof(path), "%s%svnode", pOptions->dataDir, TD_DIRSEP);
-  pDnode->dir.vnodes = strdup(path);
+  snprintf(path, sizeof(path), "%s%svnode", pOption->dataDir, TD_DIRSEP);
+  pDnode->dir.vnodes = tstrdup(path);
 
-  snprintf(path, sizeof(path), "%s%sdnode", pOptions->dataDir, TD_DIRSEP);
-  pDnode->dir.dnode = strdup(path);
+  snprintf(path, sizeof(path), "%s%sdnode", pOption->dataDir, TD_DIRSEP);
+  pDnode->dir.dnode = tstrdup(path);
 
   if (pDnode->dir.mnode == NULL || pDnode->dir.vnodes == NULL || pDnode->dir.dnode == NULL) {
     dError("failed to malloc dir object");
@@ -116,6 +116,7 @@ static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOptions) {
     return -1;
   }
 
+  memcpy(&pDnode->opt, pOption, sizeof(SDnodeOpt));
   return 0;
 }
 
@@ -135,12 +136,12 @@ static void dndCleanupEnv(SDnode *pDnode) {
   taosStopCacheRefreshWorker();
 }
 
-SDnode *dndInit(SDnodeOpt *pOptions) {
+SDnode *dndInit(SDnodeOpt *pOption) {
   taosIgnSIGPIPE();
   taosBlockSIGPIPE();
   taosResolveCRC();
 
-  SDnode *pDnode = calloc(1, sizeof(pDnode));
+  SDnode *pDnode = calloc(1, sizeof(SDnode));
   if (pDnode == NULL) {
     dError("failed to create dnode object");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -150,7 +151,7 @@ SDnode *dndInit(SDnodeOpt *pOptions) {
   dInfo("start to initialize TDengine");
   dndSetStat(pDnode, DND_STAT_INIT);
 
-  if (dndInitEnv(pDnode, pOptions) != 0) {
+  if (dndInitEnv(pDnode, pOption) != 0) {
     dError("failed to init env");
     dndCleanup(pDnode);
     return NULL;
@@ -196,7 +197,7 @@ SDnode *dndInit(SDnodeOpt *pOptions) {
   dndReportStartup(pDnode, "TDengine", "initialized successfully");
   dInfo("TDengine is initialized successfully");
 
-  return 0;
+  return pDnode;
 }
 
 void dndCleanup(SDnode *pDnode) {

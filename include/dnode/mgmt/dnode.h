@@ -78,7 +78,7 @@ typedef struct {
    * @brief data file's directory.
    *
    */
-  char dataDir[PATH_MAX];
+  char dataDir[TSDB_FILENAME_LEN];
 
   /**
    * @brief local endpoint.
@@ -121,10 +121,10 @@ typedef struct {
 /**
  * @brief Initialize and start the dnode.
  *
- * @param pOptions Options of the dnode.
+ * @param pOption Option of the dnode.
  * @return SDnode* The dnode object.
  */
-SDnode *dndInit(SDnodeOpt *pOptions);
+SDnode *dndInit(SDnodeOpt *pOption);
 
 /**
  * @brief Stop and cleanup the dnode.

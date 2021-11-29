@@ -14,7 +14,8 @@
  */
 
 #include "index_fst.h"
-
+#include "tcoding.h"
+#include "tchecksum.h"
 
 
 static void fstPackDeltaIn(FstCountingWriter *wrt, CompiledAddr nodeAddr, CompiledAddr transAddr, uint8_t nBytes) {
@@ -98,7 +99,7 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes *nodes, FstSlice bs, Output 
   FstBuilderNodeUnfinished *un = taosArrayGet(nodes->stack, sz);
   assert(un->last == NULL);
 
-  
+     
   
   //FstLastTransition *trn = malloc(sizeof(FstLastTransition)); 
   //trn->inp = s->data[s->start]; 
@@ -146,24 +147,27 @@ uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes *node, 
   size_t lsz = (size_t)(s->end - s->start + 1);          // data len 
   size_t ssz = taosArrayGetSize(node->stack);  // stack size
 
-  uint64_t res = 0;
-  for (size_t i = 0; i < lsz && i < ssz; i++) {
+  uint64_t i = 0;
+  for (i = 0; i < lsz && i < ssz; i++) {
     FstBuilderNodeUnfinished *un = taosArrayGet(node->stack, i);
 
-    FstLastTransition *last = un->last; 
-    if (last->inp == s->data[s->start + i]) {
-      uint64_t commPrefix = last->out;      
-      uint64_t addPrefix  = last->out - commPrefix; 
-      out = out - commPrefix; 
-      last->out = commPrefix;
-      if (addPrefix != 0) {
-        fstBuilderNodeUnfinishedAddOutputPrefix(un, addPrefix);  
-      }
+    FstLastTransition *t = un->last; 
+    uint64_t addPrefix = 0;  
+    if (t && t->inp == s->data[s->start + i]) {
+      uint64_t commPrefix = MIN(t->out, *out);      
+      uint64_t tAddPrefix  = t->out - commPrefix; 
+      (*out) = (*out) - commPrefix; 
+      t->out = commPrefix;
+      addPrefix = tAddPrefix; 
     } else {
-      break;
+       break;
+    }
+    if (addPrefix != 0) {
+      fstBuilderNodeUnfinishedAddOutputPrefix(un, addPrefix);  
+
     }
   }   
-  return res;
+  return i;
 } 
 
 
@@ -771,16 +775,16 @@ void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in) {
      return;
    }
    Output out; 
-   uint64_t prefixLen;
-   if (in != 0) { //if let Some(in) = in 
-      prefixLen = fstUnFinishedNodesFindCommPrefixAndSetOutput(b->unfinished, bs, in, &out);  
-   } else {
-      prefixLen = fstUnFinishedNodesFindCommPrefix(b->unfinished, bs);
-      out = 0;
-   }
-
+   //if (in != 0) { //if let Some(in) = in 
+   //   prefixLen = fstUnFinishedNodesFindCommPrefixAndSetOutput(b->unfinished, bs, in, &out);  
+   //} else {
+   //   prefixLen = fstUnFinishedNodesFindCommPrefix(b->unfinished, bs);
+   //   out = 0;
+   //}
+   uint64_t prefixLen = fstUnFinishedNodesFindCommPrefixAndSetOutput(b->unfinished, bs, in, &out);
+  
    if (prefixLen == FST_SLICE_LEN(s)) {
-      assert(out != 0);
+      assert(out == 0);
       return;
    }
 
@@ -849,6 +853,31 @@ CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn) {
   return b->lastAddr;  
 }
 
+void* fstBuilderInsertInner(FstBuilder *b) {
+  fstBuilderCompileFrom(b, 0);  
+  FstBuilderNode *rootNode = fstUnFinishedNodesPopRoot(b->unfinished); 
+  CompiledAddr  rootAddr = fstBuilderCompile(b, rootNode);
+
+  uint8_t buf64[8] = {0}; 
+
+  taosEncodeFixedU64((void **)&buf64, b->len); 
+  fstCountingWriterWrite(b->wrt, buf64, sizeof(buf64));  
+    
+  taosEncodeFixedU64((void **)&buf64, rootAddr);  
+  fstCountingWriterWrite(b->wrt, buf64, sizeof(buf64));  
+
+  uint8_t buf32[4] = {0};
+  uint32_t sum = fstCountingWriterMaskedCheckSum(b->wrt);
+  taosEncodeFixedU32((void **)&buf32, sum); 
+  fstCountingWriterWrite(b->wrt, buf32, sizeof(buf32));  
+  
+  fstCountingWriterFlush(b->wrt);
+  return b->wrt;
+  
+}
+void fstBuilderFinish(FstBuilder *b) {
+  fstBuilderInsertInner(b);
+}
 
 
 
@@ -892,6 +921,110 @@ void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *unNode, O
     unNode->last->out += out;  
   }
   return;
+}
+
+Fst* fstCreate(FstSlice *slice) {
+  char *buf = slice->data;
+  uint64_t skip = 0;  
+  uint64_t len = slice->dLen;
+  if (len < 36) { 
+    return NULL; 
+  }
+
+  uint64_t version; 
+  taosDecodeFixedU64(buf, &version); 
+  skip += sizeof(version); 
+  if (version == 0 || version > VERSION) {
+    return NULL; 
+  }  
+
+  uint64_t type;
+  taosDecodeFixedU64(buf + skip, &type);
+  skip += sizeof(type); 
+
+  uint32_t checkSum = 0;
+  len -= sizeof(checkSum);
+  taosDecodeFixedU32(buf + len, &checkSum); 
+
+  CompiledAddr rootAddr;
+  len -= sizeof(rootAddr); 
+  taosDecodeFixedU64(buf + len, &rootAddr); 
+
+  uint64_t fstLen; 
+  len -= sizeof(fstLen); 
+  taosDecodeFixedU64(buf + len, &fstLen);
+  //TODO(validat root addr)
+  // 
+  Fst *fst= (Fst *)calloc(1, sizeof(Fst)); 
+  if (fst == NULL) { return NULL; }  
+  
+  fst->meta = (FstMeta *)malloc(sizeof(FstMeta));
+  if (NULL == fst->meta) { 
+    goto FST_CREAT_FAILED; 
+  }
+
+  fst->meta->version   = version;  
+  fst->meta->rootAddr = rootAddr; 
+  fst->meta->ty       = type;
+  fst->meta->len      = fstLen;
+  fst->meta->checkSum = checkSum;
+  fst->data = slice; 
+  return fst;
+
+FST_CREAT_FAILED: 
+  free(fst->meta); 
+  free(fst);
+
+}
+void fstDestroy(Fst *fst) {
+  if (fst) { 
+    free(fst->meta); 
+    fstNodeDestroy(fst->root);  
+  } 
+  free(fst); 
+}
+
+bool fstGet(Fst *fst, FstSlice *b, Output *out) {
+   
+  return false; 
+}
+
+FstNode* fstGetNode(Fst *fst, CompiledAddr addr) {
+  if (fst->root != NULL) {
+    return fst->root;
+  }
+  fst->root = fstNodeCreate(fst->meta->version, addr, fst->data); 
+  return fst->root;
+  
+}
+FstType fstGetType(Fst *fst) {
+  return fst->meta->ty;
+}
+CompiledAddr fstGetRootAddr(Fst *fst) {
+  return fst->meta->rootAddr;
+} 
+
+Output fstEmptyFinalOutput(Fst *fst, bool *null) {
+  Output res = 0;
+  FstNode *node = fst->root;
+  if (FST_NODE_IS_FINAL(node)) {
+    *null = false;
+    res = FST_NODE_FINAL_OUTPUT(node); 
+  } else {
+    *null = true;
+  }
+  return res;
+}
+
+
+bool fstVerify(Fst *fst) {
+  uint32_t checkSum = fst->meta->checkSum;
+  FstSlice *data    = fst->data;          
+  TSCKSUM initSum  = 0;  
+  if (taosCheckChecksumWhole(data->data, data->dLen)) {
+    return false;
+  }
+  
 }
 
 

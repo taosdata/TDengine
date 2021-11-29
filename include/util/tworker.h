@@ -22,10 +22,13 @@
 extern "C" {
 #endif
 
+typedef struct SWorkerPool  SWorkerPool;
+typedef struct SMWorkerPool SMWorkerPool;
+
 typedef struct SWorker {
-  int32_t             id;      // worker ID
-  pthread_t           thread;  // thread
-  struct SWorkerPool *pool;
+  int32_t      id;      // worker ID
+  pthread_t    thread;  // thread
+  SWorkerPool *pool;
 } SWorker;
 
 typedef struct SWorkerPool {
@@ -39,11 +42,11 @@ typedef struct SWorkerPool {
 } SWorkerPool;
 
 typedef struct SMWorker {
-  int32_t              id;      // worker id
-  pthread_t            thread;  // thread
-  taos_qall            qall;
-  taos_qset            qset;  // queue set
-  struct SMWorkerPool *pool;
+  int32_t       id;      // worker id
+  pthread_t     thread;  // thread
+  taos_qall     qall;
+  taos_qset     qset;  // queue set
+  SMWorkerPool *pool;
 } SMWorker;
 
 typedef struct SMWorkerPool {

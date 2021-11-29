@@ -25,6 +25,10 @@
 #include "dndMnode.h"
 #include "dndVnodes.h"
 
+#define INTERNAL_USER "_internal"
+#define INTERNAL_CKEY "_key"
+#define INTERNAL_SECRET "_secret"
+
 static void dndInitMsgFp(STransMgmt *pMgmt) {
   // msg from client to dnode
   pMgmt->msgFp[TSDB_MSG_TYPE_SUBMIT] = dndProcessVnodeWriteMsg;
@@ -121,7 +125,7 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
 
 static void dndProcessResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SDnode     *pDnode = parent;
-  STransMgmt *pMgmt = &pDnode->t;
+  STransMgmt *pMgmt = &pDnode->tmgmt;
 
   int32_t msgType = pMsg->msgType;
 
@@ -143,19 +147,20 @@ static void dndProcessResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 }
 
 static int32_t dndInitClient(SDnode *pDnode) {
-  STransMgmt *pMgmt = &pDnode->t;
+  STransMgmt *pMgmt = &pDnode->tmgmt;
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.label = "DND-C";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = dndProcessResponse;
-  rpcInit.sessions = TSDB_MAX_VNODES << 4;
+  rpcInit.sessions = 8;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = pDnode->opt.shellActivityTimer * 1000;
-  rpcInit.user = "-internal";
-  rpcInit.ckey = "-key";
-  rpcInit.secret = "-secret";
+  rpcInit.user = INTERNAL_USER;
+  rpcInit.ckey = INTERNAL_CKEY;
+  rpcInit.secret = INTERNAL_SECRET;
+  rpcInit.parent = pDnode;
 
   pMgmt->clientRpc = rpcOpen(&rpcInit);
   if (pMgmt->clientRpc == NULL) {
@@ -163,21 +168,22 @@ static int32_t dndInitClient(SDnode *pDnode) {
     return -1;
   }
 
+  dDebug("dnode rpc client is initialized");
   return 0;
 }
 
 static void dndCleanupClient(SDnode *pDnode) {
-  STransMgmt *pMgmt = &pDnode->t;
+  STransMgmt *pMgmt = &pDnode->tmgmt;
   if (pMgmt->clientRpc) {
     rpcClose(pMgmt->clientRpc);
     pMgmt->clientRpc = NULL;
-    dInfo("dnode peer rpc client is closed");
+    dDebug("dnode rpc client is closed");
   }
 }
 
 static void dndProcessRequest(void *param, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  SDnode *pDnode = param;
-  STransMgmt *pMgmt = &pDnode->t;
+  SDnode     *pDnode = param;
+  STransMgmt *pMgmt = &pDnode->tmgmt;
 
   int32_t msgType = pMsg->msgType;
   if (msgType == TSDB_MSG_TYPE_NETWORK_TEST) {
@@ -218,24 +224,56 @@ static void dndProcessRequest(void *param, SRpcMsg *pMsg, SEpSet *pEpSet) {
 }
 
 static void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pRpcMsg, SRpcMsg *pRpcRsp) {
-  STransMgmt *pMgmt = &pDnode->t;
+  STransMgmt *pMgmt = &pDnode->tmgmt;
 
   SEpSet epSet = {0};
   dndGetMnodeEpSet(pDnode, &epSet);
   rpcSendRecv(pMgmt->clientRpc, &epSet, pRpcMsg, pRpcRsp);
 }
 
+static int32_t dndAuthInternalMsg(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+  if (strcmp(user, INTERNAL_USER) == 0) {
+    // A simple temporary implementation
+    char pass[32] = {0};
+    taosEncryptPass((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
+    memcpy(secret, pass, TSDB_KEY_LEN);
+    *spi = 0;
+    *encrypt = 0;
+    *ckey = 0;
+    return 0;
+  } else if (strcmp(user, TSDB_NETTEST_USER) == 0) {
+    // A simple temporary implementation
+    char pass[32] = {0};
+    taosEncryptPass((uint8_t *)(TSDB_NETTEST_USER), strlen(TSDB_NETTEST_USER), pass);
+    memcpy(secret, pass, TSDB_KEY_LEN);
+    *spi = 0;
+    *encrypt = 0;
+    *ckey = 0;
+    return 0;
+  } else {
+    return -1;
+  }
+}
+
 static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   SDnode *pDnode = parent;
 
-  if (dndGetUserAuthFromMnode(pDnode, user, spi, encrypt, secret, ckey) != 0) {
-    if (terrno != TSDB_CODE_APP_NOT_READY) {
-      dTrace("failed to get user auth from mnode since %s", terrstr());
-      return -1;
-    }
+  if (dndAuthInternalMsg(parent, user, spi, encrypt, secret, ckey) == 0) {
+    dTrace("get internal auth success");
+    return 0;
   }
 
-  dDebug("user:%s, send auth msg to mnodes", user);
+  if (dndGetUserAuthFromMnode(pDnode, user, spi, encrypt, secret, ckey) == 0) {
+    dTrace("get auth from internal mnode");
+    return 0;
+  }
+
+  if (terrno != TSDB_CODE_APP_NOT_READY) {
+    dTrace("failed to get user auth from internal mnode since %s", terrstr());
+    return -1;
+  }
+
+  dDebug("user:%s, send auth msg to other mnodes", user);
 
   SAuthMsg *pMsg = rpcMallocCont(sizeof(SAuthMsg));
   tstrncpy(pMsg->user, user, TSDB_USER_LEN);
@@ -246,14 +284,14 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
 
   if (rpcRsp.code != 0) {
     terrno = rpcRsp.code;
-    dError("user:%s, failed to get user auth from mnodes since %s", user, terrstr());
+    dError("user:%s, failed to get user auth from other mnodes since %s", user, terrstr());
   } else {
     SAuthRsp *pRsp = rpcRsp.pCont;
     memcpy(secret, pRsp->secret, TSDB_KEY_LEN);
     memcpy(ckey, pRsp->ckey, TSDB_KEY_LEN);
     *spi = pRsp->spi;
     *encrypt = pRsp->encrypt;
-    dDebug("user:%s, success to get user auth from mnodes", user);
+    dDebug("user:%s, success to get user auth from other mnodes", user);
   }
 
   rpcFreeCont(rpcRsp.pCont);
@@ -261,7 +299,7 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
 }
 
 static int32_t dndInitServer(SDnode *pDnode) {
-  STransMgmt *pMgmt = &pDnode->t;
+  STransMgmt *pMgmt = &pDnode->tmgmt;
   dndInitMsgFp(pMgmt);
 
   int32_t numOfThreads = (int32_t)((pDnode->opt.numOfCores * pDnode->opt.numOfThreadsPerCore) / 2.0);
@@ -279,6 +317,7 @@ static int32_t dndInitServer(SDnode *pDnode) {
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = pDnode->opt.shellActivityTimer * 1000;
   rpcInit.afp = dndRetrieveUserAuthInfo;
+  rpcInit.parent = pDnode;
 
   pMgmt->serverRpc = rpcOpen(&rpcInit);
   if (pMgmt->serverRpc == NULL) {
@@ -286,14 +325,16 @@ static int32_t dndInitServer(SDnode *pDnode) {
     return -1;
   }
 
+  dDebug("dnode rpc server is initialized");
   return 0;
 }
 
 static void dndCleanupServer(SDnode *pDnode) {
-  STransMgmt *pMgmt = &pDnode->t;
+  STransMgmt *pMgmt = &pDnode->tmgmt;
   if (pMgmt->serverRpc) {
     rpcClose(pMgmt->serverRpc);
     pMgmt->serverRpc = NULL;
+    dDebug("dnode rpc server is closed");
   }
 }
 
@@ -311,13 +352,14 @@ int32_t dndInitTrans(SDnode *pDnode) {
 }
 
 void dndCleanupTrans(SDnode *pDnode) {
+  dInfo("dnode-transport start to clean up");
   dndCleanupServer(pDnode);
   dndCleanupClient(pDnode);
   dInfo("dnode-transport is cleaned up");
 }
 
 void dndSendMsgToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pMsg) {
-  STransMgmt *pMgmt = &pDnode->t;
+  STransMgmt *pMgmt = &pDnode->tmgmt;
   rpcSendRequest(pMgmt->clientRpc, pEpSet, pMsg, NULL);
 }
 

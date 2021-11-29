@@ -404,14 +404,14 @@ int32_t taosRenameFile(char *oldName, char *newName) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   int32_t code = MoveFileEx(oldName, newName, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
   if (code < 0) {
-    printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
+    //printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
   }
 
   return code;
 #else
   int32_t code = rename(oldName, newName);
   if (code < 0) {
-    printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
+    //printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
   }
 
   return code;

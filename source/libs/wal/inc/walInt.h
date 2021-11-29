@@ -22,6 +22,9 @@
 extern "C" {
 #endif
 
+int walRotate(SWal* pWal);
+int walGetFile(SWal* pWal, int32_t version);
+
 #ifdef __cplusplus
 }
 #endif

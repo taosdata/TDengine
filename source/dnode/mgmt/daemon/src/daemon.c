@@ -30,7 +30,10 @@ static struct {
   char configDir[PATH_MAX];
 } global = {0};
 
-void dmnSigintHandle(int signum, void *info, void *ctx) { global.stop = true; }
+void dmnSigintHandle(int signum, void *info, void *ctx) {
+  uError("singal:%d is received", signum);
+  global.stop = true;
+}
 
 void dmnSetSignalHandle() {
   taosSetSignal(SIGTERM, dmnSigintHandle);
@@ -141,13 +144,13 @@ void dmnInitOption(SDnodeOpt *pOption) {
   pOption->shellActivityTimer = tsShellActivityTimer;
   pOption->statusInterval = tsStatusInterval;
   pOption->serverPort = tsServerPort;
-  tstrncpy(pOption->dataDir, tsDataDir, TSDB_EP_LEN);
+  tstrncpy(pOption->dataDir, tsDataDir, TSDB_FILENAME_LEN);
   tstrncpy(pOption->localEp, tsLocalEp, TSDB_EP_LEN);
-  tstrncpy(pOption->localFqdn, tsLocalEp, TSDB_FQDN_LEN);
-  tstrncpy(pOption->firstEp, tsFirst, TSDB_FQDN_LEN);
-  tstrncpy(pOption->timezone, tsLocalEp, TSDB_TIMEZONE_LEN);
-  tstrncpy(pOption->locale, tsLocalEp, TSDB_LOCALE_LEN);
-  tstrncpy(pOption->charset, tsLocalEp, TSDB_LOCALE_LEN);
+  tstrncpy(pOption->localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  tstrncpy(pOption->firstEp, tsFirst, TSDB_EP_LEN);
+  tstrncpy(pOption->timezone, tsTimezone, TSDB_TIMEZONE_LEN);
+  tstrncpy(pOption->locale, tsLocale, TSDB_LOCALE_LEN);
+  tstrncpy(pOption->charset, tsCharset, TSDB_LOCALE_LEN);
 }
 
 int dmnRunDnode() {
