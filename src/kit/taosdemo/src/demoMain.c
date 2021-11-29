@@ -66,6 +66,7 @@ SArguments g_args = {
     DEFAULT_TOTAL_INSERT,      // totalInsertRows;
     DEFAULT_TOTAL_AFFECT,      // totalAffectedRows;
     DEFAULT_DEMO_MODE,         // demo_mode;
+    DEFAULT_CHINESE_OPT        // chinese
 };
 
 int main(int argc, char *argv[]) {

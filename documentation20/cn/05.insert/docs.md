@@ -34,7 +34,7 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 
 <br/>无模式写入方式建立的超级表及其对应的子表与通过 SQL 直接建立的超级表和子表完全没有区别，您也可以通过 SQL 语句直接向其中写入数据。需要注意的是，通过无模式写入方式建立的表，其表名是基于标签值按照固定的映射规则生成，所以无法明确地进行表意，缺乏可读性。
 
 **无模式写入行协议**
-<br/>TDengine 的无模式写入的行协议兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议、OpenTSDB 的 Json 格式协议。但是使用这三种协议的时候，需要在 API 中指定输入内容使用解析协议的标准。
+<br/>TDengine 的无模式写入的行协议兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议、OpenTSDB 的 JSON 格式协议。但是使用这三种协议的时候，需要在 API 中指定输入内容使用解析协议的标准。
 
 对于InfluxDB、OpenTSDB的标准写入协议请参考各自的文档。下面首先以 InfluxDB 的行协议为基础，介绍 TDengine 扩展的协议内容，允许用户采用更加精细的方式控制（超级表）模式。
 
@@ -99,8 +99,8 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 | **序号** | **值**        | **说明** |
 | ---- | ------------------- | ------------ |
 | 1    | SML_LINE_PROTOCOL           |    InfluxDB行协议（Line Protocol)   |
-| 2    | SML_TELNET_PROTOCOL              |    OpenTSDB文本行协议   |
-| 3    | SML_JSON_PROTOCOL              |    Json协议格式   |
+| 2    | SML_TELNET_PROTOCOL              |    OpenTSDB 文本行协议   |
+| 3    | SML_JSON_PROTOCOL              |    JSON 协议格式   |
 
 <br/>在 SML_LINE_PROTOCOL 解析模式下，需要用户指定输入的时间戳的时间分辨率。可用的时间分辨率如下表所示：<br/>
 
@@ -145,7 +145,7 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 <br/>如果是无模式写入过程中的数据本身错误，应用会得到 TSDB_CODE_TSC_LINE_SYNTAX_ERROR 错误信息，该错误信息表明错误发生在写入文本中。其他的错误码与原系统一致，可以通过 taos_errstr 获取具体的错误原因。
 
 **后续升级计划**
-<br/>当前版本只提供了 C 版本的 API，后续将提供 其他高级语言的 API，例如 Java/Go/Python/C# 等。此外，在TDengine v2.3及后续版本中，您还可以通过 Taos Adapter 采用 REST 的方式直接写入无模式数据。
+<br/>当前版本只提供了 C 版本的 API，后续将提供 其他高级语言的 API，例如 Java/Go/Python/C# 等。此外，在TDengine v2.3及后续版本中，您还可以通过 taosAdapter 采用 REST 的方式直接写入无模式数据。
 
 
 ## <a class="anchor" id="prometheus"></a>Prometheus 直接写入
@@ -241,10 +241,10 @@ use prometheus;
 select * from apiserver_request_latencies_bucket;
 ```
 
-## <a class="anchor" id="telegraf"></a> Telegraf 直接写入(通过 taosadapter)
+## <a class="anchor" id="telegraf"></a> Telegraf 直接写入(通过 taosAdapter)
 安装 Telegraf 请参考[官方文档](https://portal.influxdata.com/downloads/)。
 
-TDengine 新版本（2.3.0.0+）包含一个 taosadapter 独立程序，负责接收包括 Telegraf 的多种应用的数据写入。
+TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 Telegraf 的多种应用的数据写入。
 
 配置方法，在 /etc/telegraf/telegraf.conf 增加如下文字，其中 database name 请填写希望在 TDengine 保存 Telegraf 数据的数据库名，TDengine server/cluster host、username和 password 填写 TDengine 实际值：
 ```
@@ -264,14 +264,14 @@ sudo systemctl start telegraf
 ```
 即可在 TDengine 中查询 metrics 数据库中 Telegraf 写入的数据。
 
-taosadapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
+taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
-## <a class="anchor" id="collectd"></a> collectd 直接写入(通过 taosadapter)
+## <a class="anchor" id="collectd"></a> collectd 直接写入(通过 taosAdapter)
 安装 collectd，请参考[官方文档](https://collectd.org/download.shtml)。
 
-TDengine 新版本（2.3.0.0+）包含一个 taosadapter 独立程序，负责接收包括 collectd 的多种应用的数据写入。
+TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 collectd 的多种应用的数据写入。
 
-在 /etc/collectd/collectd.conf 文件中增加如下内容，其中 host 和 port 请填写 TDengine 和 taosadapter 配置的实际值：
+在 /etc/collectd/collectd.conf 文件中增加如下内容，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
 ```
 LoadPlugin network
 <Plugin network>
@@ -282,15 +282,15 @@ LoadPlugin network
 ```
 sudo systemctl start collectd
 ```
-taosadapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
+taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
-## <a class="anchor" id="statsd"></a> StatsD 直接写入(通过 taosadapter)
+## <a class="anchor" id="statsd"></a> StatsD 直接写入(通过 taosAdapter)
 安装 StatsD
 请参考[官方文档](https://github.com/statsd/statsd)。
 
-TDengine 新版本（2.3.0.0+）包含一个 taosadapter 独立程序，负责接收包括 StatsD 的多种应用的数据写入。
+TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 StatsD 的多种应用的数据写入。
 
-在 config.js 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 taosadapter 配置的实际值：
+在 config.js 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
 ```
 backends 部分添加 "./backends/repeater"
 repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for StatsD>}
@@ -305,12 +305,12 @@ port: 8125
 }
 ```
 
-taosadapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
+taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
 
 ## <a class="anchor" id="taosadapter2-telegraf"></a> 使用 Bailongma 2.0 接入 Telegraf 数据写入
 
-*注意：TDengine 新版本（2.3.0.0+）提供新版本 Bailongma ，命名为 taosadapter ，提供更简便的 Telegraf 数据写入以及其他更强大的功能，Bailongma v2 即之前版本将逐步不再维护。
+*注意：TDengine 新版本（2.3.0.0+）提供新版本 Bailongma ，命名为 taosAdapter ，提供更简便的 Telegraf 数据写入以及其他更强大的功能，Bailongma v2 即之前版本将逐步不再维护。
 
 [Telegraf](https://www.influxdata.com/time-series-platform/telegraf/)是一流行的IT运维数据采集开源工具，TDengine提供一个小工具[Bailongma](https://github.com/taosdata/Bailongma)，只需在Telegraf做简单配置，无需任何代码，就可将Telegraf采集的数据直接写入TDengine，并按规则在TDengine自动创建库和相关表项。博文[用Docker容器快速搭建一个Devops监控Demo](https://www.taosdata.com/blog/2020/02/03/1189.html)即是采用bailongma将Prometheus和Telegraf的数据写入TDengine中的示例，可以参考。
 
