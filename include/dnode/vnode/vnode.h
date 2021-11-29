@@ -64,6 +64,19 @@ typedef struct SVnodeCfg {
 
 /* ------------------------ SVnode ------------------------ */
 /**
+ * @brief Initialize the vnode module
+ * 
+ * @return int 0 for success and -1 for failure
+ */
+int vnodeInit();
+
+/**
+ * @brief clear a vnode
+ * 
+ */
+void vnodeClear();
+
+/**
  * @brief Open a VNODE.
  *
  * @param path path of the vnode

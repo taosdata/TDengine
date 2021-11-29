@@ -20,6 +20,19 @@ static void    vnodeFree(SVnode *pVnode);
 static int     vnodeOpenImpl(SVnode *pVnode);
 static void    vnodeCloseImpl(SVnode *pVnode);
 
+int vnodeInit() {
+  // TODO
+  if (walInit() < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+void vnodeClear() {
+  walCleanUp();
+}
+
 SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
   SVnode *pVnode = NULL;
 

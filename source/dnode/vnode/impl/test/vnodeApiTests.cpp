@@ -4,12 +4,20 @@
 #include "vnode.h"
 
 TEST(vnodeApiTest, vnodeOpen_vnodeClose_test) {
+  GTEST_ASSERT_GE(vnodeInit(), 0);
+
   // Create and open a vnode
   SVnode *pVnode = vnodeOpen("vnode1", NULL);
   ASSERT_NE(pVnode, nullptr);
 
+  // Create table
+  // SArray *pArray = taosArrayInit()
+  // vnodeProcessWMsgs(pVnode, );
+
   // Close the vnode
   vnodeClose(pVnode);
+
+  vnodeClear();
 }
 
 TEST(vnodeApiTest, vnode_process_create_table) {
