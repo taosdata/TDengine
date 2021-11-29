@@ -501,12 +501,12 @@ class TDTestCase:
             "table_expr": "stb1",
             "condition": "group by tbname slimit 1 "
         }
-        self.checkmavg(**err47)         # with slimit
+        # self.checkmavg(**err47)         # with slimit
         err48 = {
             "table_expr": "stb1",
             "condition": "group by tbname slimit 1 soffset 1"
         }
-        self.checkmavg(**err48)         # with soffset
+        # self.checkmavg(**err48)         # with soffset
         err49 = {"k": "2021-01-01 00:00:00.000"}
         self.checkmavg(**err49)         # k: timestamp
         err50 = {"k": False}
