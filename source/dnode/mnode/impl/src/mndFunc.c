@@ -17,5 +17,5 @@
 #include "os.h"
 #include "mndInt.h"
 
-int32_t mnodeInitFunc() { return 0; }
-void    mnodeCleanupFunc() {}
+int32_t mndInitFunc() { return 0; }
+void    mndCleanupFunc() {}

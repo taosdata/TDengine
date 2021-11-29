@@ -22,8 +22,8 @@
 extern "C" {
 #endif
 
-int32_t mnodeInitAuth();
-void    mnodeCleanupAuth();
+int32_t mndInitAuth();
+void    mndCleanupAuth();
 
 #ifdef __cplusplus
 }

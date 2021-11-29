@@ -174,7 +174,7 @@ static void mnodeAddVersionInfo(SBufferWriter* bw) {
 
 static void mnodeAddRuntimeInfo(SBufferWriter* bw) {
   SMnodeLoad load = {0};
-  if (mnodeGetLoad(NULL, &load) != 0) {
+  if (mndGetLoad(NULL, &load) != 0) {
     return;
   }
 
@@ -203,7 +203,7 @@ static void mnodeSendTelemetryReport() {
     return;
   }
 
-  int64_t clusterId = mnodeGetClusterId();
+  int64_t clusterId = mndGetClusterId(NULL);
   char    clusterIdStr[20] = {0};
   snprintf(clusterIdStr, sizeof(clusterIdStr), "%" PRId64, clusterId);
 
@@ -278,7 +278,7 @@ static void mnodeGetEmail(char* filepath) {
   taosCloseFile(fd);
 }
 
-int32_t mnodeInitTelem() {
+int32_t mndInitTelem() {
   tsTelem.enable = tsEnableTelemetryReporting;
   if (!tsTelem.enable) return 0;
 
@@ -303,7 +303,7 @@ int32_t mnodeInitTelem() {
   return 0;
 }
 
-void mnodeCleanupTelem() {
+void mndCleanupTelem() {
   if (!tsTelem.enable) return;
 
   if (taosCheckPthreadValid(tsTelem.thread)) {

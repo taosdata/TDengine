@@ -101,7 +101,7 @@ static int32_t mnodeCreateDefaultAcct() {
   return sdbWrite(pRaw);
 }
 
-int32_t mnodeInitAcct() {
+int32_t mndInitAcct() {
   SSdbTable table = {.sdbType = SDB_ACCT,
                      .keyType = SDB_KEY_BINARY,
                      .deployFp = (SdbDeployFp)mnodeCreateDefaultAcct,
@@ -115,4 +115,4 @@ int32_t mnodeInitAcct() {
   return 0;
 }
 
-void mnodeCleanupAcct() {}
+void mndCleanupAcct() {}

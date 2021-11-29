@@ -17,5 +17,5 @@
 #include "os.h"
 #include "mndInt.h"
 
-int32_t mnodeInitDb() { return 0; }
-void    mnodeCleanupDb() {}
+int32_t mndInitDb() { return 0; }
+void    mndCleanupDb() {}

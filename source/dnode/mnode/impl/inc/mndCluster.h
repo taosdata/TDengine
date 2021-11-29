@@ -22,8 +22,8 @@
 extern "C" {
 #endif
 
-int32_t mnodeInitCluster();
-void    mnodeCleanupCluster();
+int32_t mndInitCluster();
+void    mndCleanupCluster();
 
 #ifdef __cplusplus
 }

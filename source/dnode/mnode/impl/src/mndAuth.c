@@ -17,9 +17,9 @@
 #include "os.h"
 #include "mndAuth.h"
 
-int32_t mnodeInitAuth() { return 0; }
-void    mnodeCleanupAuth() {}
+int32_t mndInitAuth() { return 0; }
+void    mndCleanupAuth() {}
 
-int32_t mnodeRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   return 0;
 }

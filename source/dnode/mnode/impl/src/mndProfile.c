@@ -17,5 +17,5 @@
 #include "os.h"
 #include "mndInt.h"
 
-int32_t mnodeInitProfile() { return 0; }
-void    mnodeCleanupProfile() {}
+int32_t mndInitProfile() { return 0; }
+void    mndCleanupProfile() {}

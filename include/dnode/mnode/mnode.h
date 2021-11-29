@@ -48,7 +48,7 @@ typedef struct {
   int8_t            replica;
   int8_t            selfIndex;
   SReplica          replicas[TSDB_MAX_REPLICA];
-  struct SDnode    *pDnode;
+  SDnode           *pDnode;
   PutMsgToMnodeQFp  putMsgToApplyMsgFp;
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;
@@ -63,14 +63,14 @@ typedef struct {
  * @param pOption Option of the mnode
  * @return SMnode* The mnode object
  */
-SMnode *mnodeOpen(const char *path, const SMnodeOpt *pOption);
+SMnode *mndOpen(const char *path, const SMnodeOpt *pOption);
 
 /**
  * @brief Close a mnode
  *
  * @param pMnode The mnode object to close
  */
-void mnodeClose(SMnode *pMnode);
+void mndClose(SMnode *pMnode);
 
 /**
  * @brief Close a mnode
@@ -79,14 +79,14 @@ void mnodeClose(SMnode *pMnode);
  * @param pOption Options of the mnode
  * @return int32_t 0 for success, -1 for failure
  */
-int32_t mnodeAlter(SMnode *pMnode, const SMnodeOpt *pOption);
+int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption);
 
 /**
  * @brief Drop a mnode.
  *
  * @param path Path of the mnode.
  */
-void mnodeDestroy(const char *path);
+void mndDestroy(const char *path);
 
 /**
  * @brief Get mnode statistics info
@@ -95,7 +95,7 @@ void mnodeDestroy(const char *path);
  * @param pLoad Statistics of the mnode.
  * @return int32_t 0 for success, -1 for failure
  */
-int32_t mnodeGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
+int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
 
 /**
  * @brief Get user authentication info
@@ -108,7 +108,7 @@ int32_t mnodeGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
  * @param ckey
  * @return int32_t 0 for success, -1 for failure
  */
-int32_t mnodeRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey);
+int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
 /**
  * @brief Initialize mnode msg
@@ -117,14 +117,14 @@ int32_t mnodeRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, c
  * @param pMsg The request rpc msg
  * @return int32_t The created mnode msg
  */
-SMnodeMsg *mnodeInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg);
+SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg);
 
 /**
  * @brief Cleanup mnode msg
  *
  * @param pMsg The request msg
  */
-void mnodeCleanupMsg(SMnodeMsg *pMsg);
+void mndCleanupMsg(SMnodeMsg *pMsg);
 
 /**
  * @brief Cleanup mnode msg
@@ -132,7 +132,7 @@ void mnodeCleanupMsg(SMnodeMsg *pMsg);
  * @param pMsg The request msg
  * @param code The error code
  */
-void mnodeSendRsp(SMnodeMsg *pMsg, int32_t code);
+void mndSendRsp(SMnodeMsg *pMsg, int32_t code);
 
 /**
  * @brief Process the read request
@@ -140,7 +140,7 @@ void mnodeSendRsp(SMnodeMsg *pMsg, int32_t code);
  * @param pMsg The request msg
  * @return int32_t 0 for success, -1 for failure
  */
-void mnodeProcessReadMsg(SMnodeMsg *pMsg);
+void mndProcessReadMsg(SMnodeMsg *pMsg);
 
 /**
  * @brief Process the write request
@@ -148,7 +148,7 @@ void mnodeProcessReadMsg(SMnodeMsg *pMsg);
  * @param pMsg The request msg
  * @return int32_t 0 for success, -1 for failure
  */
-void mnodeProcessWriteMsg(SMnodeMsg *pMsg);
+void mndProcessWriteMsg(SMnodeMsg *pMsg);
 
 /**
  * @brief Process the sync request
@@ -156,7 +156,7 @@ void mnodeProcessWriteMsg(SMnodeMsg *pMsg);
  * @param pMsg The request msg
  * @return int32_t 0 for success, -1 for failure
  */
-void mnodeProcessSyncMsg(SMnodeMsg *pMsg);
+void mndProcessSyncMsg(SMnodeMsg *pMsg);
 
 /**
  * @brief Process the apply request
@@ -164,7 +164,7 @@ void mnodeProcessSyncMsg(SMnodeMsg *pMsg);
  * @param pMsg The request msg
  * @return int32_t 0 for success, -1 for failure
  */
-void mnodeProcessApplyMsg(SMnodeMsg *pMsg);
+void mndProcessApplyMsg(SMnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

@@ -18,8 +18,8 @@
 #include "mndInt.h"
 #include "mndTrans.h"
 
-int32_t mnodeInitSync() { return 0; }
-void    mnodeCleanUpSync() {}
+int32_t mndInitSync() { return 0; }
+void    mndCleanupSync() {}
 
 int32_t mnodeSyncPropose(SSdbRaw *pRaw, void *pData) {
   trnApply(pData, pData, 0);

@@ -396,7 +396,7 @@ static int32_t dndOpenMnode(SDnode *pDnode, SMnodeOpt *pOption) {
     return code;
   }
 
-  SMnode *pMnode = mnodeOpen(pDnode->dir.mnode, pOption);
+  SMnode *pMnode = mndOpen(pDnode->dir.mnode, pOption);
   if (pMnode == NULL) {
     dError("failed to open mnode since %s", terrstr());
     code = terrno;
@@ -409,8 +409,8 @@ static int32_t dndOpenMnode(SDnode *pDnode, SMnodeOpt *pOption) {
     dError("failed to write mnode file since %s", terrstr());
     code = terrno;
     dndStopMnodeWorker(pDnode);
-    mnodeClose(pMnode);
-    mnodeDestroy(pDnode->dir.mnode);
+    mndClose(pMnode);
+    mndDestroy(pDnode->dir.mnode);
     terrno = code;
     return code;
   }
@@ -432,7 +432,7 @@ static int32_t dndAlterMnode(SDnode *pDnode, SMnodeOpt *pOption) {
     return -1;
   }
 
-  if (mnodeAlter(pMnode, pOption) != 0) {
+  if (mndAlter(pMnode, pOption) != 0) {
     dError("failed to alter mnode since %s", terrstr());
     dndReleaseMnode(pDnode, pMnode);
     return -1;
@@ -467,8 +467,8 @@ static int32_t dndDropMnode(SDnode *pDnode) {
 
   dndStopMnodeWorker(pDnode);
   dndWriteMnodeFile(pDnode);
-  mnodeClose(pMnode);
-  mnodeDestroy(pDnode->dir.mnode);
+  mndClose(pMnode);
+  mndDestroy(pDnode->dir.mnode);
 
   return 0;
 }
@@ -495,6 +495,7 @@ static int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
     if (dndBuildMnodeOptionFromMsg(pDnode, &option, pMsg) != 0) {
       return -1;
     }
+
     return dndOpenMnode(pDnode, &option);
   }
 }
@@ -554,13 +555,13 @@ static void dndProcessMnodeReadQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
 
   SMnode *pMnode = dndAcquireMnode(pDnode);
   if (pMnode != NULL) {
-    mnodeProcessReadMsg(pMsg);
+    mndProcessReadMsg(pMsg);
     dndReleaseMnode(pDnode, pMnode);
   } else {
-    mnodeSendRsp(pMsg, terrno);
+    mndSendRsp(pMsg, terrno);
   }
 
-  mnodeCleanupMsg(pMsg);
+  mndCleanupMsg(pMsg);
 }
 
 static void dndProcessMnodeWriteQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
@@ -568,13 +569,13 @@ static void dndProcessMnodeWriteQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
 
   SMnode *pMnode = dndAcquireMnode(pDnode);
   if (pMnode != NULL) {
-    mnodeProcessWriteMsg(pMsg);
+    mndProcessWriteMsg(pMsg);
     dndReleaseMnode(pDnode, pMnode);
   } else {
-    mnodeSendRsp(pMsg, terrno);
+    mndSendRsp(pMsg, terrno);
   }
 
-  mnodeCleanupMsg(pMsg);
+  mndCleanupMsg(pMsg);
 }
 
 static void dndProcessMnodeApplyQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
@@ -582,13 +583,13 @@ static void dndProcessMnodeApplyQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
 
   SMnode *pMnode = dndAcquireMnode(pDnode);
   if (pMnode != NULL) {
-    mnodeProcessApplyMsg(pMsg);
+    mndProcessApplyMsg(pMsg);
     dndReleaseMnode(pDnode, pMnode);
   } else {
-    mnodeSendRsp(pMsg, terrno);
+    mndSendRsp(pMsg, terrno);
   }
 
-  mnodeCleanupMsg(pMsg);
+  mndCleanupMsg(pMsg);
 }
 
 static void dndProcessMnodeSyncQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
@@ -596,26 +597,26 @@ static void dndProcessMnodeSyncQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
 
   SMnode *pMnode = dndAcquireMnode(pDnode);
   if (pMnode != NULL) {
-    mnodeProcessSyncMsg(pMsg);
+    mndProcessSyncMsg(pMsg);
     dndReleaseMnode(pDnode, pMnode);
   } else {
-    mnodeSendRsp(pMsg, terrno);
+    mndSendRsp(pMsg, terrno);
   }
 
-  mnodeCleanupMsg(pMsg);
+  mndCleanupMsg(pMsg);
 }
 
 static int32_t dndWriteMnodeMsgToQueue(SMnode *pMnode, taos_queue pQueue, SRpcMsg *pRpcMsg) {
   assert(pQueue);
 
-  SMnodeMsg *pMsg = mnodeInitMsg(pMnode, pRpcMsg);
+  SMnodeMsg *pMsg = mndInitMsg(pMnode, pRpcMsg);
   if (pMsg == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   if (taosWriteQitem(pQueue, pMsg) != 0) {
-    mnodeCleanupMsg(pMsg);
+    mndCleanupMsg(pMsg);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -877,7 +878,7 @@ int32_t dndInitMnode(SDnode *pDnode) {
 
   if (pMgmt->dropped) {
     dInfo("mnode has been deployed and needs to be deleted");
-    mnodeDestroy(pDnode->dir.mnode);
+    mndDestroy(pDnode->dir.mnode);
     return 0;
   }
 
@@ -920,7 +921,7 @@ int32_t dndGetUserAuthFromMnode(SDnode *pDnode, char *user, char *spi, char *enc
     return -1;
   }
 
-  int32_t code = mnodeRetriveAuth(pMnode, user, spi, encrypt, secret, ckey);
+  int32_t code = mndRetriveAuth(pMnode, user, spi, encrypt, secret, ckey);
   dndReleaseMnode(pDnode, pMnode);
   return code;
 }

@@ -22,8 +22,8 @@
 extern "C" {
 #endif
 
-int32_t mnodeInitBalance();
-void    mnodeCleanupBalance();
+int32_t mndInitBalance();
+void    mndCleanupBalance();
 
 #ifdef __cplusplus
 }

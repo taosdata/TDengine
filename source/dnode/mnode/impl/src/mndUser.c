@@ -220,7 +220,7 @@ static int32_t mnodeProcessCreateUserMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-int32_t mnodeInitUser() {
+int32_t mndInitUser() {
   SSdbTable table = {.sdbType = SDB_USER,
                      .keyType = SDB_KEY_BINARY,
                      .deployFp = (SdbDeployFp)mnodeCreateDefaultUsers,
@@ -231,9 +231,9 @@ int32_t mnodeInitUser() {
                      .deleteFp = (SdbDeleteFp)mnodeUserActionDelete};
   sdbSetTable(table);
 
-  mnodeSetMsgHandle(NULL, TSDB_MSG_TYPE_CREATE_USER, mnodeProcessCreateUserMsg);
+  mndSetMsgHandle(NULL, TSDB_MSG_TYPE_CREATE_USER, mnodeProcessCreateUserMsg);
 
   return 0;
 }
 
-void mnodeCleanupUser() {}
+void mndCleanupUser() {}

@@ -22,8 +22,8 @@
 extern "C" {
 #endif
 
-int32_t mnodeInitTrans();
-void    mnodeCleanupTrans();
+int32_t mndInitTrans();
+void    mndCleanupTrans();
 
 STrans *trnCreate(ETrnPolicy policy, void *rpcHandle);
 void    trnDrop(STrans *pTrans);

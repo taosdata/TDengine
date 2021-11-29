@@ -22,8 +22,8 @@
 extern "C" {
 #endif
 
-int32_t mnodeInitMnode();
-void    mnodeCleanupMnode();
+int32_t mndInitMnode();
+void    mndCleanupMnode();
 void    mnodeGetMnodeEpSetForPeer(SEpSet *epSet, bool redirect);
 void    mnodeGetMnodeEpSetForShell(SEpSet *epSet, bool redirect);
 

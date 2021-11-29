@@ -17,5 +17,5 @@
 #include "os.h"
 #include "mndInt.h"
 
-int32_t mnodeInitVgroup() { return 0; }
-void    mnodeCleanupVgroup() {}
+int32_t mndInitVgroup() { return 0; }
+void    mndCleanupVgroup() {}

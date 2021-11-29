@@ -22,8 +22,8 @@
 extern "C" {
 #endif
 
-int32_t mnodeInitDb();
-void    mnodeCleanupDb();
+int32_t mndInitDb();
+void    mndCleanupDb();
 
 #ifdef __cplusplus
 }

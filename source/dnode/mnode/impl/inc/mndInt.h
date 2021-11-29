@@ -18,23 +18,21 @@
 
 #include "mndDef.h"
 #include "sdb.h"
-#include "tstep.h"
+#include "tqueue.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef int32_t (*MndMsgFp)(SMnode *pMnode, SMnodeMsg *pMsg);
+typedef int32_t (*MndInitFp)(SMnode *pMnode);
+typedef void (*MndCleanupFp)(SMnode *pMnode);
 
-typedef struct SMnodeBak {
-  int32_t   dnodeId;
-  int64_t   clusterId;
-  tmr_h     timer;
-  SSteps   *pInitSteps;
-  SSteps   *pStartSteps;
-  SMnodeOpt para;
-  MndMsgFp  msgFp[TSDB_MSG_TYPE_MAX];
-} SMnodeBak;
+typedef struct {
+  const char  *name;
+  MndInitFp    initFp;
+  MndCleanupFp cleanupFp;
+} SMnodeStep;
 
 typedef struct SMnode {
   int32_t           dnodeId;
@@ -43,25 +41,24 @@ typedef struct SMnode {
   int8_t            selfIndex;
   SReplica          replicas[TSDB_MAX_REPLICA];
   tmr_h             timer;
-  SSteps           *pInitSteps;
-  SSteps           *pStartSteps;
-  struct SSdb      *pSdb;
-  struct SDnode    *pServer;
+  SSdb             *pSdb;
+  SDnode           *pDnode;
+  SArray            steps;
   MndMsgFp          msgFp[TSDB_MSG_TYPE_MAX];
-  PutMsgToMnodeQFp  putMsgToApplyMsgFp;
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;
   SendRedirectMsgFp sendRedirectMsgFp;
+  PutMsgToMnodeQFp  putMsgToApplyMsgFp;
 } SMnode;
 
-tmr_h   mnodeGetTimer();
-int32_t mnodeGetDnodeId();
-int64_t mnodeGetClusterId();
+tmr_h   mndGetTimer(SMnode *pMnode);
+int32_t mndGetDnodeId(SMnode *pMnode);
+int64_t mndGetClusterId(SMnode *pMnode);
 
-void mnodeSendMsgToDnode(SMnode *pMnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-void mnodeSendMsgToMnode(SMnode *pMnode, struct SRpcMsg *rpcMsg);
-void mnodeSendRedirectMsg(SMnode *pMnode, struct SRpcMsg *rpcMsg, bool forShell);
-void mnodeSetMsgHandle(SMnode *pMnode, int32_t msgType, MndMsgFp fp);
+void mndSendMsgToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);
+void mndSendMsgToMnode(SMnode *pMnode, SRpcMsg *pMsg);
+void mndSendRedirectMsg(SMnode *pMnode, SRpcMsg *pMsg);
+void mndSetMsgHandle(SMnode *pMnode, int32_t msgType, MndMsgFp fp);
 
 #ifdef __cplusplus
 }

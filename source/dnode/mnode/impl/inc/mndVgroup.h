@@ -22,8 +22,8 @@
 extern "C" {
 #endif
 
-int32_t mnodeInitVgroup();
-void    mnodeCleanupVgroup();
+int32_t mndInitVgroup();
+void    mndCleanupVgroup();
 
 #ifdef __cplusplus
 }

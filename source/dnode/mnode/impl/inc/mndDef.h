@@ -39,42 +39,34 @@ extern int32_t mDebugFlag;
 #define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
 
-// #define mLError(...) { monSaveLog(2, __VA_ARGS__); mError(__VA_ARGS__) }
-// #define mLWarn(...)  { monSaveLog(1, __VA_ARGS__); mWarn(__VA_ARGS__)  }
-// #define mLInfo(...)  { monSaveLog(0, __VA_ARGS__); mInfo(__VA_ARGS__) }
-
-#define mLError(...) {mError(__VA_ARGS__) }
-#define mLWarn(...)  {mWarn(__VA_ARGS__)  }
-#define mLInfo(...)  {mInfo(__VA_ARGS__) }
-
-typedef struct SClusterObj SClusterObj; 
-typedef struct SDnodeObj SDnodeObj;
-typedef struct SMnodeObj SMnodeObj;
-typedef struct SAcctObj SAcctObj;
-typedef struct SUserObj SUserObj;
-typedef struct SDbObj SDbObj;
-typedef struct SVgObj SVgObj;
-typedef struct SSTableObj SSTableObj;
-typedef struct SFuncObj SFuncObj; 
-typedef struct SOperObj SOperObj;
+typedef struct SClusterObj SClusterObj;
+typedef struct SDnodeObj   SDnodeObj;
+typedef struct SMnodeObj   SMnodeObj;
+typedef struct SAcctObj    SAcctObj;
+typedef struct SUserObj    SUserObj;
+typedef struct SDbObj      SDbObj;
+typedef struct SVgObj      SVgObj;
+typedef struct SSTableObj  SSTableObj;
+typedef struct SFuncObj    SFuncObj;
+typedef struct SOperObj    SOperObj;
 
 typedef enum {
-  MN_AUTH_ACCT_START = 0,
-  MN_AUTH_ACCT_USER,
-  MN_AUTH_ACCT_DNODE,
-  MN_AUTH_ACCT_MNODE,
-  MN_AUTH_ACCT_DB,
-  MN_AUTH_ACCT_TABLE,
-  MN_AUTH_ACCT_MAX
-} EMnAuthAcct;
+  MND_AUTH_ACCT_START = 0,
+  MND_AUTH_ACCT_USER,
+  MND_AUTH_ACCT_DNODE,
+  MND_AUTH_ACCT_MNODE,
+  MND_AUTH_ACCT_DB,
+  MND_AUTH_ACCT_TABLE,
+  MND_AUTH_ACCT_MAX
+} EAuthAcct;
 
 typedef enum {
-  MN_AUTH_OP_START = 0,
-  MN_AUTH_OP_CREATE_USER,
-  MN_AUTH_OP_ALTER_USER,
-  MN_AUTH_OP_DROP_USER,
-  MN_AUTH_MAX
-} EMnAuthOp;
+  MND_AUTH_OP_START = 0,
+  MND_AUTH_OP_CREATE_USER,
+  MND_AUTH_OP_ALTER_USER,
+  MND_AUTH_OP_DROP_USER,
+  MND_AUTH_MAX
+} EAuthOp;
 
 typedef enum {
   TRN_STAGE_PREPARE = 1,
@@ -85,7 +77,6 @@ typedef enum {
 } ETrnStage;
 
 typedef enum { TRN_POLICY_ROLLBACK = 1, TRN_POLICY_RETRY = 2 } ETrnPolicy;
-
 
 typedef struct STrans {
   int32_t    id;
@@ -98,7 +89,6 @@ typedef struct STrans {
   SArray    *redoActions;
   SArray    *undoActions;
 } STrans;
-
 
 typedef struct SClusterObj {
   int64_t id;
@@ -202,6 +192,7 @@ typedef struct SDbObj {
   int64_t   createdTime;
   int64_t   updateTime;
   SDbCfg    cfg;
+  int64_t   uid;
   int8_t    status;
   int32_t   numOfVgroups;
   int32_t   numOfTables;
@@ -240,13 +231,13 @@ typedef struct SVgObj {
 } SVgObj;
 
 typedef struct SSTableObj {
-  char       tableId[TSDB_TABLE_NAME_LEN];
-  uint64_t   uid;
-  int64_t    createdTime;
-  int64_t    updateTime;
-  int32_t    numOfColumns;  // used by normal table
-  int32_t    numOfTags;
-  SSchema *  schema;
+  char     tableId[TSDB_TABLE_NAME_LEN];
+  uint64_t uid;
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int32_t  numOfColumns;  // used by normal table
+  int32_t  numOfTags;
+  SSchema *schema;
 } SSTableObj;
 
 typedef struct SFuncObj {
@@ -284,21 +275,22 @@ typedef struct {
 typedef struct {
   int32_t len;
   void   *rsp;
-} SMnRsp;
+} SMnodeRsp;
 
 typedef struct SMnodeMsg {
+  SMnode *pMnode;
   void (*fp)(SMnodeMsg *pMsg, int32_t code);
   SRpcConnInfo conn;
-  SUserObj *pUser;
-  int16_t   received;
-  int16_t   successed;
-  int16_t   expected;
-  int16_t   retry;
-  int32_t   code;
-  int64_t   createdTime;
-  SMnRsp    rpcRsp;
-  SRpcMsg   rpcMsg;
-  char      pCont[];
+  SUserObj    *pUser;
+  int16_t      received;
+  int16_t      successed;
+  int16_t      expected;
+  int16_t      retry;
+  int32_t      code;
+  int64_t      createdTime;
+  SMnodeRsp       rpcRsp;
+  SRpcMsg      rpcMsg;
+  char         pCont[];
 } SMnodeMsg;
 
 #ifdef __cplusplus
