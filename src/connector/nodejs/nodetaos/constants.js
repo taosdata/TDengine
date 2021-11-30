@@ -26,10 +26,10 @@ const typeCodesToName = {
   8: 'Binary',
   9: 'Timestamp',
   10: 'Nchar',
-  11: 'TINYINT_UNSIGNED',
-  12: 'SMALLINT_UNSIGNED',
-  13: 'INT_UNSIGNED',
-  14: 'BIGINT_UNSIGNED',
+  11: 'Tinyint Unsigned',
+  12: 'Smallint Unsigned',
+  13: 'Int Unsigned',
+  14: 'Bigint Unsigned',
 }
 
 /**
