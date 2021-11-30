@@ -717,12 +717,15 @@ static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRep
 
   //for compatiblity, duplicate key inserted when update=0 should be also calculated as affected rows!
   if(row1 == NULL && row2 == NULL && pRepo->config.update == TD_ROW_DISCARD_UPDATE) {
+    tsdbTrace("vgId:%d a duplicated row is discarded in table %s tid %d uid %" PRIu64 " key %" PRIu64 " since update 0",
+        REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable),
+        memRowKey(row1));
     (*pPoints)++;
     return NULL;
   }
 
-  tsdbTrace("vgId:%d a row is %s table %s tid %d uid %" PRIu64 " key %" PRIu64, REPO_ID(pRepo),
-            "updated in", TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable),
+  tsdbTrace("vgId:%d a row(disordered:%d) is inserted in table %s tid %d uid %" PRIu64 " key %" PRIu64, REPO_ID(pRepo),
+            pTable->lastKey > memRowKey(row1), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable),
             memRowKey(row1));
 
   if(row2 == NULL || pRepo->config.update != TD_ROW_PARTIAL_UPDATE) {
@@ -733,6 +736,10 @@ static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRep
     *pLastRow = pMem;
     return pMem;
   }
+
+  tsdbTrace("vgId:%d a row is merged in table %s tid %d uid %" PRIu64 " key %" PRIu64 " since update 2",
+      REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable),
+      memRowKey(row1));
 
   STSchema *pSchema1 = *ppSchema1;
   STSchema *pSchema2 = *ppSchema2;
