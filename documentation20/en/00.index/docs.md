@@ -106,7 +106,8 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [User Management](/administrator#user): add/delete TDengine users, modify user password
 - [Import Data](/administrator#import): import data into TDengine from either script or CSV file
 - [Export Data](/administrator#export): export data either from TDengine shell or from the taosdump tool
-- [System Monitor](/administrator#status): monitor the system connections, queries, streaming calculation, logs, and events
+- [System Connection and Task Query Management](/administrator#status): show the system connections, queries, streaming calculation and others
+- [System Monitor](/administrator#monitoring): monitor TDengine cluster with log database and TDinsight.
 - [File Directory Structure](/administrator#directories): directories where TDengine data files and configuration files located
 - [Parameter Limitss and Reserved Keywords](/administrator#keywords): TDengine’s list of parameter limits and reserved keywords
 

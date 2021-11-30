@@ -103,6 +103,8 @@ int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* ts, char* 
 int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision);
 
 int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t dayligth);
+int32_t taos_parse_time(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t dayligth);
+
 void    deltaToUtcInitOnce();
 
 int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision);
