@@ -47,31 +47,32 @@ typedef struct {
 typedef struct {
   union {
     /// union field for encode and decode
-    uint64_t info;
+    uint32_t info;
     struct {
-      /// is deleted row
-      uint64_t del : 1;
       /// row type
-      uint64_t type : 3;
+      uint32_t type : 2;
       /// row schema version
-      uint64_t sver : 16;
-      /// row total length
-      uint64_t len : 32;
+      uint32_t sver : 16;
+      /// is delete row
+      uint32_t del : 1;
       /// reserved for back compatibility
-      uint64_t reserve : 12;
+      uint32_t reserve : 13;
     };
   };
+  /// row total length
+  uint32_t len;
   /// row version
   uint64_t ver;
   /// timestamp
   TSKEY ts;
-  char  content[];
-} SRow;
+  /// the inline data, maybe a tuple or a k-v tuple
+  char data[];
+} STSRow;
 
 typedef struct {
   uint32_t nRows;
   char     rows[];
-} SRowBatch;
+} STSRowBatch;
 
 typedef enum {
   /// ordinary row builder
@@ -88,36 +89,36 @@ typedef struct {
   /// buffer writer
   SBufferWriter bw;
   /// target row
-  SRow *pRow;
-} SRowBuilder;
+  STSRow *pRow;
+} STSRowBuilder;
 
 typedef struct {
   STSchema *pSchema;
-  SRow *    pRow;
-} SRowReader;
+  STSRow *    pRow;
+} STSRowReader;
 
 typedef struct {
   uint32_t   it;
-  SRowBatch *pRowBatch;
-} SRowBatchIter;
+  STSRowBatch *pRowBatch;
+} STSRowBatchIter;
 
-// SRowBuilder
+// STSRowBuilder
 #define trbInit(rt, allocator, endian, target, size) \
   { .type = (rt), .bw = tbufInitWriter(allocator, endian), .pRow = (target) }
-void trbSetRowInfo(SRowBuilder *pRB, bool del, uint16_t sver);
-void trbSetRowVersion(SRowBuilder *pRB, uint64_t ver);
-void trbSetRowTS(SRowBuilder *pRB, TSKEY ts);
-int  trbWriteCol(SRowBuilder *pRB, void *pData, col_id_t cid);
+void trbSetRowInfo(STSRowBuilder *pRB, bool del, uint16_t sver);
+void trbSetRowVersion(STSRowBuilder *pRB, uint64_t ver);
+void trbSetRowTS(STSRowBuilder *pRB, TSKEY ts);
+int  trbWriteCol(STSRowBuilder *pRB, void *pData, col_id_t cid);
 
-// SRowReader
+// STSRowReader
 #define tRowReaderInit(schema, row) \
   { .schema = (schema), .row = (row) }
-int tRowReaderRead(SRowReader *pRowReader, col_id_t cid, void *target, uint64_t size);
+int tRowReaderRead(STSRowReader *pRowReader, col_id_t cid, void *target, uint64_t size);
 
-// SRowBatchIter
+// STSRowBatchIter
 #define tRowBatchIterInit(pRB) \
   { .it = 0, .pRowBatch = (pRB) }
-const SRow *tRowBatchIterNext(SRowBatchIter *pRowBatchIter);
+const STSRow *tRowBatchIterNext(STSRowBatchIter *pRowBatchIter);
 
 #ifdef __cplusplus
 }

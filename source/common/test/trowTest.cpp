@@ -3,6 +3,7 @@
 #include "trow.h"
 
 TEST(td_row_test, build_row_to_target) {
+#if 0
   char        dst[1024];
   SRow*       pRow = (SRow*)dst;
   int         ncols = 10;
@@ -18,4 +19,5 @@ TEST(td_row_test, build_row_to_target) {
       // TODO
     }
   }
+#endif
 }

@@ -15,6 +15,7 @@
 
 #include "trow.h"
 
+#if 0
 void trbSetRowInfo(SRowBuilder *pRB, bool del, uint16_t sver) {
   // TODO
 }
@@ -31,3 +32,4 @@ int trbWriteCol(SRowBuilder *pRB, void *pData, col_id_t cid) {
   // TODO
   return 0;
 }
+#endif

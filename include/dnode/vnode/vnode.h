@@ -150,6 +150,10 @@ typedef struct {
 } SVDropTableReq;
 
 typedef struct {
+  // TODO
+} SVSubmitReq;
+
+typedef struct {
   uint64_t ver;
   union {
     SVCreateTableReq ctReq;
