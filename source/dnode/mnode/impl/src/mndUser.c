@@ -21,7 +21,7 @@
 #define SDB_USER_VER 1
 
 static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, SDB_USER_VER, sizeof(SAcctObj));
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, SDB_USER_VER, sizeof(SUserObj));
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
@@ -97,7 +97,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pSrcUser, SUserObj *pDs
   return 0;
 }
 
-static int32_t mndCreateDefaultUser(SSdb *pSdb, char *acct, char *user, char *pass) {
+static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
   SUserObj userObj = {0};
   tstrncpy(userObj.user, user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
@@ -113,15 +113,15 @@ static int32_t mndCreateDefaultUser(SSdb *pSdb, char *acct, char *user, char *pa
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  return sdbWrite(pSdb, pRaw);
+  return sdbWrite(pMnode->pSdb, pRaw);
 }
 
-static int32_t mndCreateDefaultUsers(SSdb *pSdb) {
-  if (mndCreateDefaultUser(pSdb, TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
+static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
+  if (mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
     return -1;
   }
 
-  if (mndCreateDefaultUser(pSdb, TSDB_DEFAULT_USER, "_" TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
+  if (mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, "_" TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
     return -1;
   }
 

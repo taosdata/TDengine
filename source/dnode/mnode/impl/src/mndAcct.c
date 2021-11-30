@@ -79,7 +79,7 @@ static int32_t mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pSrcAcct, SAcctObj *p
   return 0;
 }
 
-static int32_t mnodeCreateDefaultAcct(SSdb *pSdb) {
+static int32_t mnodeCreateDefaultAcct(SMnode *pMnode) {
   int32_t code = 0;
 
   SAcctObj acctObj = {0};
@@ -98,7 +98,7 @@ static int32_t mnodeCreateDefaultAcct(SSdb *pSdb) {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  return sdbWrite(pSdb, pRaw);
+  return sdbWrite(pMnode->pSdb, pRaw);
 }
 
 int32_t mndInitAcct(SMnode *pMnode) {

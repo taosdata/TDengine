@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TRANSACTION_INT_H_
-#define _TD_TRANSACTION_INT_H_
+#ifndef _TD_MND_TRANS_H_
+#define _TD_MND_TRANS_H_
 
 #include "mndInt.h"
 
@@ -44,4 +44,4 @@ SSdbRow *mndTransActionDecode(SSdbRaw *pRaw);
 }
 #endif
 
-#endif /*_TD_TRANSACTION_INT_H_*/
+#endif /*_TD_MND_TRANS_H_*/
