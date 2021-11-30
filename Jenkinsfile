@@ -70,6 +70,7 @@ def pre_test(){
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
+    git ls-files --stage   | grep 160000   | awk '{print $4}'   | xargs git rm --cached 
     git submodule update --init --recursive
     cd ${WK}
     git reset --hard HEAD~10
@@ -143,6 +144,7 @@ def pre_test_noinstall(){
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
+    git ls-files --stage   | grep 160000   | awk '{print $4}'   | xargs git rm --cached 
     git submodule update --init --recursive
     cd ${WK}
     git reset --hard HEAD~10
@@ -213,6 +215,7 @@ def pre_test_ningsi(){
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
+    git ls-files --stage   | grep 160000   | awk '{print $4}'   | xargs git rm --cached 
     git submodule update --init --recursive
     cd ${WK}
     git reset --hard HEAD~10
@@ -334,8 +337,8 @@ pipeline {
   agent none
   options { skipDefaultCheckout() } 
   environment{
-      WK = '/var/lib/jenkins/workspace/TDinternal_master'
-      WKC= '/var/lib/jenkins/workspace/TDinternal_master/community'
+      WK = '/var/lib/jenkins/workspace/TDinternal'
+      WKC= '/var/lib/jenkins/workspace/TDinternal/community'
   }
   stages {
       stage('pre_build'){
