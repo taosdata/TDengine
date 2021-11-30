@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "sync_raft_node_map.h"
 #include "sync_raft_quorum_majority.h"
 #include "sync_raft_quorum_joint.h"
 #include "sync_raft_quorum.h"
@@ -22,9 +23,9 @@
  * a result indicating whether the vote is pending, lost, or won. A joint quorum
  * requires both majority quorums to vote in favor.
  **/
-ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const ESyncRaftVoteType* votes) {
-  ESyncRaftVoteResult r1 = syncRaftMajorityVoteResult(&(config->incoming), votes);
-  ESyncRaftVoteResult r2 = syncRaftMajorityVoteResult(&(config->outgoing), votes);
+ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, SHashObj* votesMap) {
+  ESyncRaftVoteResult r1 = syncRaftMajorityVoteResult(&(config->incoming), votesMap);
+  ESyncRaftVoteResult r2 = syncRaftMajorityVoteResult(&(config->outgoing), votesMap);
 
   if (r1 == r2) {
     // If they agree, return the agreed state.
@@ -40,46 +41,35 @@ ESyncRaftVoteType syncRaftVoteResult(SSyncRaftQuorumJointConfig* config, const E
   return SYNC_RAFT_VOTE_PENDING;
 }
 
+void syncRaftInitQuorumJointConfig(SSyncRaftQuorumJointConfig* config) {
+  syncRaftInitNodeMap(&config->incoming);
+  syncRaftInitNodeMap(&config->outgoing);
+}
+
+void syncRaftFreeQuorumJointConfig(SSyncRaftQuorumJointConfig* config) {
+  syncRaftFreeNodeMap(&config->incoming);
+  syncRaftFreeNodeMap(&config->outgoing);
+}
+
 void syncRaftJointConfigAddToIncoming(SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
-  int i, min;
-
-  for (i = 0, min = -1; i < TSDB_MAX_REPLICA; ++i) {
-    if (config->incoming.nodeId[i] == id) {
-      return;
-    }
-    if (min == -1 && config->incoming.nodeId[i] == SYNC_NON_NODE_ID) {
-      min = i;
-    }
-  }
-
-  assert(min != -1);
-  config->incoming.nodeId[min] = id;
-  config->incoming.replica += 1;
+  syncRaftAddToNodeMap(&config->incoming, id);
 }
 
 void syncRaftJointConfigRemoveFromIncoming(SSyncRaftQuorumJointConfig* config, SyncNodeId id) {
-  int i;
-
-  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    if (config->incoming.nodeId[i] == id) {
-      config->incoming.replica  -= 1;
-      config->incoming.nodeId[i] = SYNC_NON_NODE_ID;
-      break;
-    }
-  }
-
-  assert(config->incoming.replica >= 0);
+  syncRaftRemoveFromNodeMap(&config->incoming, id);
 }
 
+void syncRaftJointConfigIDs(SSyncRaftQuorumJointConfig* config, SSyncRaftNodeMap* nodeMap) {
+  syncRaftCopyNodeMap(&config->incoming, nodeMap);
 
-bool syncRaftIsInNodeMap(const SSyncRaftNodeMap* nodeMap, SyncNodeId nodeId) {
-  int i;
+  syncRaftUnionNodeMap(&config->outgoing, nodeMap);
+}
 
-  for (i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    if (nodeId == nodeMap->nodeId[i]) {
-      return true;
-    }
-  }
+SyncIndex syncRaftJointConfigCommittedIndex(const SSyncRaftQuorumJointConfig* config, matchAckIndexerFp indexer, void* arg) {
+  SyncIndex index0, index1;
 
-  return false;
+  index0 = syncRaftMajorityConfigCommittedIndex(&config->incoming, indexer, arg);
+  index1 = syncRaftMajorityConfigCommittedIndex(&config->outgoing, indexer, arg);
+
+  return index0 < index1 ? index0 : index1;
 }

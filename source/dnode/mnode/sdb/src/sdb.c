@@ -15,31 +15,86 @@
 
 #define _DEFAULT_SOURCE
 #include "sdbInt.h"
-#include "tglobal.h"
 
-SSdbMgr tsSdb = {0};
+SSdb *sdbInit(SSdbOpt *pOption) {
+  mDebug("start to init sdb in %s", pOption->path);
 
-int32_t sdbInit() {
+  SSdb *pSdb = calloc(1, sizeof(SSdb));
+  if (pSdb == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("failed to init sdb since %s", terrstr());
+    return NULL;
+  }
+
   char path[PATH_MAX + 100];
-
-  snprintf(path, PATH_MAX + 100, "%s%scur%s", tsMnodeDir, TD_DIRSEP, TD_DIRSEP);
-  tsSdb.currDir = strdup(path);
-
-  snprintf(path, PATH_MAX + 100, "%s%ssync%s", tsMnodeDir, TD_DIRSEP, TD_DIRSEP);
-  tsSdb.syncDir = strdup(path);
-
-  snprintf(path, PATH_MAX + 100, "%s%stmp%s", tsMnodeDir, TD_DIRSEP, TD_DIRSEP);
-  tsSdb.tmpDir = strdup(path);
-
-  if (tsSdb.currDir == NULL || tsSdb.currDir == NULL || tsSdb.currDir == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  snprintf(path, PATH_MAX + 100, "%s", pOption->path);
+  pSdb->currDir = strdup(path);
+  snprintf(path, PATH_MAX + 100, "%s%ssync", pOption->path, TD_DIRSEP);
+  pSdb->syncDir = strdup(path);
+  snprintf(path, PATH_MAX + 100, "%s%stmp", pOption->path, TD_DIRSEP);
+  pSdb->tmpDir = strdup(path);
+  if (pSdb->currDir == NULL || pSdb->currDir == NULL || pSdb->currDir == NULL) {
+    sdbCleanup(pSdb);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("failed to init sdb since %s", terrstr());
+    return NULL;
   }
 
   for (int32_t i = 0; i < SDB_MAX; ++i) {
+    taosInitRWLatch(&pSdb->locks[i]);
+  }
+
+  mDebug("sdb init successfully");
+  return pSdb;
+}
+
+void sdbCleanup(SSdb *pSdb) {
+  mDebug("start to cleanup sdb");
+
+  if (pSdb->curVer != pSdb->lastCommitVer) {
+    mDebug("write sdb file for curVer:% " PRId64 " and lastVer:%" PRId64, pSdb->curVer, pSdb->lastCommitVer);
+    sdbWriteFile(pSdb);
+  }
+
+  if (pSdb->currDir != NULL) {
+    tfree(pSdb->currDir);
+  }
+
+  if (pSdb->syncDir != NULL) {
+    tfree(pSdb->syncDir);
+  }
+
+  if (pSdb->tmpDir != NULL) {
+    tfree(pSdb->tmpDir);
+  }
+
+  for (int32_t i = 0; i < SDB_MAX; ++i) {
+    SHashObj *hash = pSdb->hashObjs[i];
+    if (hash != NULL) {
+      taosHashClear(hash);
+      taosHashCleanup(hash);
+    }
+    pSdb->hashObjs[i] = NULL;
+  }
+
+  mDebug("sdb is cleaned up");
+}
+
+int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
+  ESdbType sdb = table.sdbType;
+  pSdb->keyTypes[sdb] = table.keyType;
+  pSdb->insertFps[sdb] = table.insertFp;
+  pSdb->updateFps[sdb] = table.updateFp;
+  pSdb->deleteFps[sdb] = table.deleteFp;
+  pSdb->deployFps[sdb] = table.deployFp;
+  pSdb->encodeFps[sdb] = table.encodeFp;
+  pSdb->decodeFps[sdb] = table.decodeFp;
+
+  for (int32_t i = 0; i < SDB_MAX; ++i) {
     int32_t type;
-    if (tsSdb.keyTypes[i] == SDB_KEY_INT32) {
+    if (pSdb->keyTypes[i] == SDB_KEY_INT32) {
       type = TSDB_DATA_TYPE_INT;
-    } else if (tsSdb.keyTypes[i] == SDB_KEY_INT64) {
+    } else if (pSdb->keyTypes[i] == SDB_KEY_INT64) {
       type = TSDB_DATA_TYPE_BIGINT;
     } else {
       type = TSDB_DATA_TYPE_BINARY;
@@ -47,45 +102,13 @@ int32_t sdbInit() {
 
     SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(type), true, HASH_NO_LOCK);
     if (hash == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
     }
 
-    tsSdb.hashObjs[i] = hash;
-    taosInitRWLatch(&tsSdb.locks[i]);
+    pSdb->hashObjs[i] = hash;
+    taosInitRWLatch(&pSdb->locks[i]);
   }
 
   return 0;
-}
-
-void sdbCleanup() {
-  if (tsSdb.currDir != NULL) {
-    tfree(tsSdb.currDir);
-  }
-
-  if (tsSdb.syncDir != NULL) {
-    tfree(tsSdb.syncDir);
-  }
-
-  if (tsSdb.tmpDir != NULL) {
-    tfree(tsSdb.tmpDir);
-  }
-
-  for (int32_t i = 0; i < SDB_MAX; ++i) {
-    SHashObj *hash = tsSdb.hashObjs[i];
-    if (hash != NULL) {
-      taosHashCleanup(hash);
-    }
-    tsSdb.hashObjs[i] = NULL;
-  }
-}
-
-void sdbSetTable(SSdbTable table) {
-  ESdbType sdb = table.sdbType;
-  tsSdb.keyTypes[sdb] = table.keyType;
-  tsSdb.insertFps[sdb] = table.insertFp;
-  tsSdb.updateFps[sdb] = table.updateFp;
-  tsSdb.deleteFps[sdb] = table.deleteFp;
-  tsSdb.deployFps[sdb] = table.deployFp;
-  tsSdb.encodeFps[sdb] = table.encodeFp;
-  tsSdb.decodeFps[sdb] = table.decodeFp;
 }

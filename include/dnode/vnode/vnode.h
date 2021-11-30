@@ -184,21 +184,9 @@ typedef struct {
   SRpcMsg rpcMsg[];
 } SVnodeMsg;
 
-typedef struct {
-  void (*SendMsgToDnode)(SEpSet *pEpSet, SRpcMsg *pMsg);
-  void (*SendMsgToMnode)(SRpcMsg *pMsg);
-  int32_t (*PutMsgIntoApplyQueue)(int32_t vgId, SVnodeMsg *pMsg);
-} SVnodePara;
-
-int32_t vnodeInit(SVnodePara);
-void    vnodeCleanup();
-
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
-SVnode *vnodeCreate(int32_t vgId, const char *path, const SVnodeCfg *pCfg);
-void    vnodeDrop(SVnode *pVnode);
 int32_t vnodeCompact(SVnode *pVnode);
 int32_t vnodeSync(SVnode *pVnode);
-
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 
 SVnodeMsg *vnodeInitMsg(int32_t msgNum);

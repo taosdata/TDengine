@@ -134,7 +134,7 @@ int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
     diskSize->used = (int64_t)(i64TotalBytes - i64FreeBytes);
     return 0;
   } else {
-    printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
+    //printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -205,12 +205,12 @@ void taosGetSystemInfo() {
 }
 
 void taosKillSystem() {
-  printf("function taosKillSystem, exit!");
+  //printf("function taosKillSystem, exit!");
   exit(0);
 }
 
 int taosSystem(const char *cmd) {
-  printf("taosSystem not support");
+  //printf("taosSystem not support");
   return -1;
 }
 
@@ -280,7 +280,7 @@ static void taosGetSystemTimezone() {
   {
     int n = readlink("/etc/localtime", buf, sizeof(buf));
     if (n < 0) {
-      printf("read /etc/localtime error, reason:%s", strerror(errno));
+      //printf("read /etc/localtime error, reason:%s", strerror(errno));
       return;
     }
     buf[n] = '\0';
@@ -294,7 +294,7 @@ static void taosGetSystemTimezone() {
       }
     }
     if (!tz || 0 == strchr(tz, '/')) {
-      printf("parsing /etc/localtime failed");
+      //printf("parsing /etc/localtime failed");
       return;
     }
 
@@ -321,7 +321,7 @@ static void taosGetSystemTimezone() {
            -timezone / 3600);
 
   // cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
-  printf("timezone not configured, set to system default:%s", tsTimezone);
+  //printf("timezone not configured, set to system default:%s", tsTimezone);
 }
 
 /*
@@ -348,11 +348,11 @@ static void taosGetSystemLocale() {  // get and set default locale
 
   locale = setlocale(LC_CTYPE, "");
   if (locale == NULL) {
-    printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
+    //printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
     strcpy(tsLocale, "en_US.UTF-8");
   } else {
     tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
-    printf("locale not configured, set to system default:%s", tsLocale);
+    //printf("locale not configured, set to system default:%s", tsLocale);
   }
 
   /* if user does not specify the charset, extract it from locale */
@@ -364,15 +364,15 @@ static void taosGetSystemLocale() {  // get and set default locale
     tstrncpy(tsCharset, revisedCharset, TSDB_LOCALE_LEN);
 
     free(revisedCharset);
-    printf("charset not configured, set to system default:%s", tsCharset);
+    //printf("charset not configured, set to system default:%s", tsCharset);
   } else {
     strcpy(tsCharset, "UTF-8");
-    printf("can't get locale and charset from system, set it to UTF-8");
+    //printf("can't get locale and charset from system, set it to UTF-8");
   }
 }
 
 void taosKillSystem() {
-  printf("function taosKillSystem, exit!");
+  //printf("function taosKillSystem, exit!");
   exit(0);
 }
 
@@ -432,7 +432,7 @@ bool taosGetSysMemory(float *memoryUsedMB) {
 }
 
 int taosSystem(const char *cmd) {
-  printf("un support funtion");
+  //printf("un support funtion");
   return -1;
 }
 
@@ -441,7 +441,7 @@ void taosSetCoreDump() {}
 int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
-    printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
+    //printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   } else {
@@ -535,7 +535,7 @@ bool taosGetSysMemory(float *memoryUsedMB) {
 bool taosGetProcMemory(float *memoryUsedMB) {
   FILE *fp = fopen(tsProcMemFile, "r");
   if (fp == NULL) {
-    printf("open file:%s failed", tsProcMemFile);
+    //printf("open file:%s failed", tsProcMemFile);
     return false;
   }
 
@@ -555,7 +555,7 @@ bool taosGetProcMemory(float *memoryUsedMB) {
   }
 
   if (line == NULL) {
-    printf("read file:%s failed", tsProcMemFile);
+    //printf("read file:%s failed", tsProcMemFile);
     fclose(fp);
     return false;
   }
@@ -573,7 +573,7 @@ bool taosGetProcMemory(float *memoryUsedMB) {
 static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   FILE *fp = fopen(tsSysCpuFile, "r");
   if (fp == NULL) {
-    printf("open file:%s failed", tsSysCpuFile);
+    //printf("open file:%s failed", tsSysCpuFile);
     return false;
   }
 
@@ -581,7 +581,7 @@ static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   char *  line = NULL;
   ssize_t _bytes = getline(&line, &len, fp);
   if ((_bytes < 0) || (line == NULL)) {
-    printf("read file:%s failed", tsSysCpuFile);
+    //printf("read file:%s failed", tsSysCpuFile);
     fclose(fp);
     return false;
   }
@@ -598,7 +598,7 @@ static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   FILE *fp = fopen(tsProcCpuFile, "r");
   if (fp == NULL) {
-    printf("open file:%s failed", tsProcCpuFile);
+    //printf("open file:%s failed", tsProcCpuFile);
     return false;
   }
 
@@ -606,7 +606,7 @@ static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   char *  line = NULL;
   ssize_t _bytes = getline(&line, &len, fp);
   if ((_bytes < 0) || (line == NULL)) {
-    printf("read file:%s failed", tsProcCpuFile);
+    //printf("read file:%s failed", tsProcCpuFile);
     fclose(fp);
     return false;
   }
@@ -642,7 +642,7 @@ static void taosGetSystemTimezone() {
     int len = fread(buf, 64, 1, f);
     if (len < 64 && ferror(f)) {
       fclose(f);
-      printf("read /etc/timezone error, reason:%s", strerror(errno));
+      //printf("read /etc/timezone error, reason:%s", strerror(errno));
       return;
     }
 
@@ -681,7 +681,7 @@ static void taosGetSystemTimezone() {
   snprintf(tsTimezone, TSDB_TIMEZONE_LEN, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
 
   // cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
-  printf("timezone not configured, set to system default:%s", tsTimezone);
+  //printf("timezone not configured, set to system default:%s", tsTimezone);
 }
 
 /*
@@ -707,11 +707,11 @@ static void taosGetSystemLocale() {  // get and set default locale
 
   locale = setlocale(LC_CTYPE, "");
   if (locale == NULL) {
-    printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
+    //printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
     strcpy(tsLocale, "en_US.UTF-8");
   } else {
     tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
-    printf("locale not configured, set to system default:%s", tsLocale);
+    //printf("locale not configured, set to system default:%s", tsLocale);
   }
 
   /* if user does not specify the charset, extract it from locale */
@@ -723,10 +723,10 @@ static void taosGetSystemLocale() {  // get and set default locale
     tstrncpy(tsCharset, revisedCharset, TSDB_LOCALE_LEN);
 
     free(revisedCharset);
-    printf("charset not configured, set to system default:%s", tsCharset);
+    //printf("charset not configured, set to system default:%s", tsCharset);
   } else {
     strcpy(tsCharset, "UTF-8");
-    printf("can't get locale and charset from system, set it to UTF-8");
+    //printf("can't get locale and charset from system, set it to UTF-8");
   }
 }
 
@@ -774,7 +774,7 @@ bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
 int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
-    printf("failed to get disk size, dataDir:%s errno:%s", dataDir, strerror(errno));
+    //printf("failed to get disk size, dataDir:%s errno:%s", dataDir, strerror(errno));
     return -1;
   } else {
     diskSize->tsize = info.f_blocks * info.f_frsize;
@@ -788,7 +788,7 @@ bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
   *bytes = 0;
   FILE *fp = fopen(tsSysNetFile, "r");
   if (fp == NULL) {
-    printf("open file:%s failed", tsSysNetFile);
+    //printf("open file:%s failed", tsSysNetFile);
     return false;
   }
 
@@ -864,7 +864,7 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
   double totalBytes = (double)(curBytes - lastBytes) / 1024 * 8;  // Kb
   *bandSpeedKb = (float)(totalBytes / (double)(curTime - lastTime));
 
-  // printf("bandwidth lastBytes:%ld, lastTime:%ld, curBytes:%ld, curTime:%ld,
+  // //printf("bandwidth lastBytes:%ld, lastTime:%ld, curBytes:%ld, curTime:%ld,
   // speed:%f", lastBytes, lastTime, curBytes, curTime, *bandSpeed);
 
   lastTime = curTime;
@@ -876,7 +876,7 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
 bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
   FILE *fp = fopen(tsProcIOFile, "r");
   if (fp == NULL) {
-    printf("open file:%s failed", tsProcIOFile);
+    //printf("open file:%s failed", tsProcIOFile);
     return false;
   }
 
@@ -909,7 +909,7 @@ bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
   fclose(fp);
 
   if (readIndex < 2) {
-    printf("read file:%s failed", tsProcIOFile);
+    //printf("read file:%s failed", tsProcIOFile);
     return false;
   }
 
@@ -964,7 +964,7 @@ void taosGetSystemInfo() {
 
 void taosKillSystem() {
   // SIGINT
-  printf("taosd will shut down soon");
+  //printf("taosd will shut down soon");
   kill(tsProcId, 2);
 }
 
@@ -973,22 +973,22 @@ int taosSystem(const char *cmd) {
   int   res;
   char  buf[1024];
   if (cmd == NULL) {
-    printf("taosSystem cmd is NULL!");
+    //printf("taosSystem cmd is NULL!");
     return -1;
   }
 
   if ((fp = popen(cmd, "r")) == NULL) {
-    printf("popen cmd:%s error: %s", cmd, strerror(errno));
+    //printf("popen cmd:%s error: %s", cmd, strerror(errno));
     return -1;
   } else {
     while (fgets(buf, sizeof(buf), fp)) {
-      printf("popen result:%s", buf);
+      //printf("popen result:%s", buf);
     }
 
     if ((res = pclose(fp)) == -1) {
-      printf("close popen file pointer fp error!");
+      //printf("close popen file pointer fp error!");
     } else {
-      printf("popen res is :%d", res);
+      //printf("popen res is :%d", res);
     }
 
     return res;
@@ -1003,14 +1003,14 @@ void taosSetCoreDump(bool enable) {
   struct rlimit rlim_new;
   if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
 #ifndef _ALPINE
-    printf("the old unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
+    //printf("the old unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
 #else
-    printf("the old unlimited para: rlim_cur=%llu, rlim_max=%llu", rlim.rlim_cur, rlim.rlim_max);
+    //printf("the old unlimited para: rlim_cur=%llu, rlim_max=%llu", rlim.rlim_cur, rlim.rlim_max);
 #endif
     rlim_new.rlim_cur = RLIM_INFINITY;
     rlim_new.rlim_max = RLIM_INFINITY;
     if (setrlimit(RLIMIT_CORE, &rlim_new) != 0) {
-      printf("set unlimited fail, error: %s", strerror(errno));
+      //printf("set unlimited fail, error: %s", strerror(errno));
       rlim_new.rlim_cur = rlim.rlim_max;
       rlim_new.rlim_max = rlim.rlim_max;
       (void)setrlimit(RLIMIT_CORE, &rlim_new);
@@ -1019,9 +1019,9 @@ void taosSetCoreDump(bool enable) {
 
   if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
 #ifndef _ALPINE
-    printf("the new unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
+    //printf("the new unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
 #else
-    printf("the new unlimited para: rlim_cur=%llu, rlim_max=%llu", rlim.rlim_cur, rlim.rlim_max);
+    //printf("the new unlimited para: rlim_cur=%llu, rlim_max=%llu", rlim.rlim_cur, rlim.rlim_max);
 #endif
   }
 
@@ -1047,10 +1047,10 @@ void taosSetCoreDump(bool enable) {
   old_len = sizeof(old_usespid);
 
   if (syscall(SYS__sysctl, &args) == -1) {
-    printf("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
+    //printf("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
   }
 
-  printf("The old core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
+  //printf("The old core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
 
   old_usespid = 0;
   old_len = 0;
@@ -1063,10 +1063,10 @@ void taosSetCoreDump(bool enable) {
   old_len = sizeof(old_usespid);
 
   if (syscall(SYS__sysctl, &args) == -1) {
-    printf("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
+    //printf("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
   }
 
-  printf("The new core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
+  //printf("The new core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
 #endif
 }
 

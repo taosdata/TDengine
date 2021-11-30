@@ -51,7 +51,7 @@ typedef struct SRpcMsg {
 } SRpcMsg;
 
 typedef struct SRpcInit {
-  uint16_t localPort; // local port
+ uint16_t localPort; // local port
   char  *label;        // for debug purpose
   int    numOfThreads; // number of threads to handle connections
   int    sessions;     // number of sessions allowed
@@ -66,10 +66,12 @@ typedef struct SRpcInit {
   char *ckey;         // ciphering key
 
   // call back to process incoming msg, code shall be ignored by server app
-  void (*cfp)(SRpcMsg *, SEpSet *);  
+  void (*cfp)(void *parent, SRpcMsg *, SEpSet *);
 
-  // call back to retrieve the client auth info, for server app only 
-  int  (*afp)(char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
+  // call back to retrieve the client auth info, for server app only
+  int (*afp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
+
+  void *parent;
 } SRpcInit;
 
 int32_t rpcInit();

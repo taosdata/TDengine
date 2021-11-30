@@ -170,7 +170,7 @@ static void *taosProcessAlarmSignal(void *tharg) {
   sevent.sigev_signo = SIGALRM;
 
   if (timer_create(CLOCK_REALTIME, &sevent, &timerId) == -1) {
-    printf("Failed to create timer");
+    //printf("Failed to create timer");
   }
 
   pthread_cleanup_push(taosDeleteTimer, &timerId);
@@ -182,17 +182,17 @@ static void *taosProcessAlarmSignal(void *tharg) {
   ts.it_interval.tv_nsec = 1000000 * MSECONDS_PER_TICK;
 
   if (timer_settime(timerId, 0, &ts, NULL)) {
-    printf("Failed to init timer");
+    //printf("Failed to init timer");
     return NULL;
   }
 
   int signo;
   while (!stopTimer) {
     if (sigwait(&sigset, &signo)) {
-      printf("Failed to wait signal: number %d", signo);
+      //printf("Failed to wait signal: number %d", signo);
       continue;
     }
-    /* printf("Signal handling: number %d ......\n", signo); */
+    /* //printf("Signal handling: number %d ......\n", signo); */
 
     callback(0);
   }
@@ -208,10 +208,10 @@ int taosInitTimer(void (*callback)(int), int ms) {
   int code = pthread_create(&timerThread, &tattr, taosProcessAlarmSignal, callback);
   pthread_attr_destroy(&tattr);
   if (code != 0) {
-    printf("failed to create timer thread");
+    //printf("failed to create timer thread");
     return -1;
   } else {
-    printf("timer thread:0x%08" PRIx64 " is created", taosGetPthreadId(timerThread));
+    //printf("timer thread:0x%08" PRIx64 " is created", taosGetPthreadId(timerThread));
   }
 
   return 0;
@@ -220,7 +220,7 @@ int taosInitTimer(void (*callback)(int), int ms) {
 void taosUninitTimer() {
   stopTimer = true;
 
-  printf("join timer thread:0x%08" PRIx64, taosGetPthreadId(timerThread));
+  //printf("join timer thread:0x%08" PRIx64, taosGetPthreadId(timerThread));
   pthread_join(timerThread, NULL);
 }
 

@@ -35,4 +35,4 @@ void *sdbGetRowObj(SSdbRow *pRow) {
   return pRow->pObj;
 }
 
-void sdbFreeRow(SSdbRow *pRow) { free(pRow); }
+void sdbFreeRow(SSdbRow *pRow) { tfree(pRow); }

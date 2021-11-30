@@ -48,25 +48,25 @@ void taosRemoveDir(const char *dirname) {
       taosRemoveDir(filename);
     } else {
       (void)remove(filename);
-      printf("file:%s is removed\n", filename);
+      //printf("file:%s is removed\n", filename);
     }
   }
 
   closedir(dir);
   rmdir(dirname);
 
-  printf("dir:%s is removed\n", dirname);
+  //printf("dir:%s is removed\n", dirname);
 }
 
-bool taosDirExist(char *dirname) { return access(dirname, F_OK) == 0; }
+int32_t taosDirExist(char *dirname) { return access(dirname, F_OK); }
 
-bool taosMkDir(const char *dirname) {
+int32_t taosMkDir(const char *dirname) {
   int32_t code = mkdir(dirname, 0755);
   if (code < 0 && errno == EEXIST) {
-    return true;
+    return 0;
   }
 
-  return code == 0;
+  return code;
 }
 
 void taosRemoveOldFiles(char *dirname, int32_t keepDays) {
@@ -101,9 +101,9 @@ void taosRemoveOldFiles(char *dirname, int32_t keepDays) {
       int32_t days = (int32_t)(ABS(sec - fileSec) / 86400 + 1);
       if (days > keepDays) {
         (void)remove(filename);
-        printf("file:%s is removed, days:%d keepDays:%d", filename, days, keepDays);
+        //printf("file:%s is removed, days:%d keepDays:%d", filename, days, keepDays);
       } else {
-        printf("file:%s won't be removed, days:%d keepDays:%d", filename, days, keepDays);
+        //printf("file:%s won't be removed, days:%d keepDays:%d", filename, days, keepDays);
       }
     }
   }
@@ -112,12 +112,12 @@ void taosRemoveOldFiles(char *dirname, int32_t keepDays) {
   rmdir(dirname);
 }
 
-bool taosExpandDir(char *dirname, char *outname, int32_t maxlen) {
+int32_t taosExpandDir(char *dirname, char *outname, int32_t maxlen) {
   wordexp_t full_path;
   if (0 != wordexp(dirname, &full_path, 0)) {
-    printf("failed to expand path:%s since %s", dirname, strerror(errno));
+    //printf("failed to expand path:%s since %s", dirname, strerror(errno));
     wordfree(&full_path);
-    return false;
+    return -1;
   }
 
   if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {
@@ -126,16 +126,16 @@ bool taosExpandDir(char *dirname, char *outname, int32_t maxlen) {
 
   wordfree(&full_path);
 
-  return true;
+  return 0;
 }
 
-bool taosRealPath(char *dirname, int32_t maxlen) {
+int32_t taosRealPath(char *dirname, int32_t maxlen) {
   char tmp[PATH_MAX] = {0};
   if (realpath(dirname, tmp) != NULL) {
     strncpy(dirname, tmp, maxlen);
   }
 
-  return true;
+  return 0;
 }
 
 #endif

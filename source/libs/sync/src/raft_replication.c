@@ -22,14 +22,14 @@
 static bool sendSnapshot(SSyncRaft* pRaft, SSyncRaftProgress* progress);
 static bool sendAppendEntries(SSyncRaft* pRaft, SSyncRaftProgress* progress,
                               SyncIndex prevIndex, SyncTerm prevTerm,
-                              const SSyncRaftEntry *entries, int nEntry);
+                              SSyncRaftEntry *entries, int nEntry);
 
-// syncRaftReplicate sends an append RPC with new entries to the given peer,
+// maybeSendAppend sends an append RPC with new entries to the given peer,
 // if necessary. Returns true if a message was sent. The sendIfEmpty
 // argument controls whether messages with no entries will be sent
 // ("empty" messages are useful to convey updated Commit indexes, but
 // are undesirable when we're sending multiple messages in a batch).
-bool syncRaftReplicate(SSyncRaft* pRaft, SSyncRaftProgress* progress, bool sendIfEmpty) {
+bool syncRaftMaybeSendAppend(SSyncRaft* pRaft, SSyncRaftProgress* progress, bool sendIfEmpty) {
   assert(pRaft->state == TAOS_SYNC_STATE_LEADER);
   SyncNodeId nodeId = progress->id;
 
@@ -68,10 +68,13 @@ static bool sendSnapshot(SSyncRaft* pRaft, SSyncRaftProgress* progress) {
 
 static bool sendAppendEntries(SSyncRaft* pRaft, SSyncRaftProgress* progress,
                               SyncIndex prevIndex, SyncTerm prevTerm,
-                              const SSyncRaftEntry *entries, int nEntry) {
+                              SSyncRaftEntry *entries, int nEntry) {
+  SNodeInfo* pNode = syncRaftGetNodeById(pRaft, progress->id);
+  if (pNode == NULL) {
+    return false;
+  }
   SyncIndex lastIndex;
-  SyncTerm logTerm = prevTerm;
-  SNodeInfo* pNode = &(pRaft->cluster.nodeInfo[progress->selfIndex]);
+  SyncTerm logTerm = prevTerm;  
 
   SSyncMessage* msg = syncNewAppendMsg(pRaft->selfGroupId, pRaft->selfId, pRaft->term,
                                       prevIndex, prevTerm, pRaft->log->commitIndex,
@@ -87,7 +90,7 @@ static bool sendAppendEntries(SSyncRaft* pRaft, SSyncRaftProgress* progress,
     case PROGRESS_STATE_REPLICATE:
       lastIndex = entries[nEntry - 1].index;
       syncRaftProgressOptimisticNextIndex(progress, lastIndex);
-      syncRaftInflightAdd(&progress->inflights, lastIndex);
+      syncRaftInflightAdd(progress->inflights, lastIndex);
       break;
     case PROGRESS_STATE_PROBE:
       progress->probeSent = true;

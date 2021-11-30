@@ -14,7 +14,7 @@
  */
 
 #include "raft.h"
-#include "raft_configuration.h"
+#include "sync_raft_impl.h"
 #include "raft_log.h"
 #include "raft_replication.h"
 #include "sync_raft_progress_tracker.h"
@@ -24,6 +24,8 @@ static int convertClear(SSyncRaft* pRaft);
 static int stepFollower(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg);
 static int stepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg);
+
+static bool increaseUncommittedSize(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n);
 
 static int triggerAll(SSyncRaft* pRaft);
 
@@ -82,13 +84,22 @@ void syncRaftBecomeLeader(SSyncRaft* pRaft) {
   resetRaft(pRaft, pRaft->term);
   pRaft->leaderId = pRaft->leaderId;
   pRaft->state  = TAOS_SYNC_STATE_LEADER;
-  // TODO: check if there is pending config log
-  int nPendingConf = syncRaftLogNumOfPendingConf(pRaft->log);
-  if (nPendingConf > 1) {
-    syncFatal("unexpected multiple uncommitted config entry");
-  }
 
-  syncInfo("[%d:%d] became leader at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
+  SSyncRaftProgress* progress = syncRaftFindProgressByNodeId(&pRaft->tracker->progressMap, pRaft->selfId);
+  assert(progress != NULL);
+	// Followers enter replicate mode when they've been successfully probed
+	// (perhaps after having received a snapshot as a result). The leader is
+	// trivially in this state. Note that r.reset() has initialized this
+	// progress with the last index already.  
+  syncRaftProgressBecomeReplicate(progress);
+
+	// Conservatively set the pendingConfIndex to the last index in the
+	// log. There may or may not be a pending config change, but it's
+	// safe to delay any future proposals until we commit all our
+	// pending log entries, and scanning the entire tail of the log
+	// could be expensive.
+  SyncIndex lastIndex = syncRaftLogLastIndex(pRaft->log);
+  pRaft->pendingConfigIndex = lastIndex;
 
   // after become leader, send a no-op log
   SSyncRaftEntry* entry = (SSyncRaftEntry*)malloc(sizeof(SSyncRaftEntry));
@@ -103,6 +114,7 @@ void syncRaftBecomeLeader(SSyncRaft* pRaft) {
   };
   appendEntries(pRaft, entry, 1);
   //syncRaftTriggerHeartbeat(pRaft);
+  syncInfo("[%d:%d] became leader at term %" PRId64 "", pRaft->selfGroupId, pRaft->selfId, pRaft->term);
 }
 
 void syncRaftTriggerHeartbeat(SSyncRaft* pRaft) {
@@ -123,15 +135,16 @@ bool syncRaftIsPastElectionTimeout(SSyncRaft* pRaft) {
 }
 
 int syncRaftQuorum(SSyncRaft* pRaft) {
-  return pRaft->cluster.replica / 2 + 1;
+  return 0;
+  //return pRaft->cluster.replica / 2 + 1;
 }
 
 ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id, 
                                       bool preVote, bool grant, 
                                       int* rejected, int *granted) {
-  int voterIndex = syncRaftConfigurationIndexOfNode(pRaft, id);
-  if (voterIndex == -1) {
-    return SYNC_RAFT_VOTE_PENDING;
+  SNodeInfo* pNode = syncRaftGetNodeById(pRaft, id);
+  if (pNode == NULL) {
+    return true;
   }
 
   if (grant) {
@@ -142,7 +155,7 @@ ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id,
       pRaft->selfGroupId, pRaft->selfId, preVote, id, pRaft->term);
   }
 
-  syncRaftRecordVote(pRaft->tracker, voterIndex, grant);
+  syncRaftRecordVote(pRaft->tracker, pNode->nodeId, grant);
   return syncRaftTallyVotes(pRaft->tracker, rejected, granted);
 }
 /*
@@ -154,7 +167,7 @@ ESyncRaftVoteResult  syncRaftPollVote(SSyncRaft* pRaft, SyncNodeId id,
       pRaft->selfGroupId, pRaft->selfId, id, pRaft->term);
   }
   
-  int voteIndex = syncRaftConfigurationIndexOfNode(pRaft, id);
+  int voteIndex = syncRaftGetNodeById(pRaft, id);
   assert(voteIndex < pRaft->cluster.replica && voteIndex >= 0);
   assert(pRaft->candidateState.votes[voteIndex] == SYNC_RAFT_VOTE_RESP_UNKNOWN);
 
@@ -185,17 +198,28 @@ void syncRaftLoadState(SSyncRaft* pRaft, const SSyncServerState* serverState) {
   pRaft->voteFor = serverState->voteFor;
 }
 
-static void visitProgressSendAppend(int i, SSyncRaftProgress* progress, void* arg) {
+static void visitProgressSendAppend(SSyncRaftProgress* progress, void* arg) {
   SSyncRaft* pRaft = (SSyncRaft*)arg;
   if (pRaft->selfId == progress->id) {
     return;
   }
 
-  syncRaftReplicate(arg, progress, true);
+  syncRaftMaybeSendAppend(arg, progress, true);
 }
 
+// bcastAppend sends RPC, with entries to all peers that are not up-to-date
+// according to the progress recorded in r.prs.
 void syncRaftBroadcastAppend(SSyncRaft* pRaft) {
   syncRaftProgressVisit(pRaft->tracker, visitProgressSendAppend, pRaft);
+}
+
+SNodeInfo* syncRaftGetNodeById(SSyncRaft *pRaft, SyncNodeId id) {
+  SNodeInfo **ppNode = taosHashGet(pRaft->nodeInfoMap, &id, sizeof(SyncNodeId*));
+  if (ppNode != NULL) {
+    return *ppNode;
+  }
+
+  return NULL;
 }
 
 static int convertClear(SSyncRaft* pRaft) {
@@ -223,7 +247,7 @@ static int stepCandidate(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
     syncRaftHandleVoteRespMessage(pRaft, pMsg);
     return 0;
   } else if (msgType == RAFT_MSG_APPEND) {
-    syncRaftBecomeFollower(pRaft, pRaft->term, pMsg->from);
+    syncRaftBecomeFollower(pRaft, pMsg->term, pMsg->from);
     syncRaftHandleAppendEntriesMessage(pRaft, pMsg);
   }
   return 0;
@@ -234,9 +258,7 @@ static int stepLeader(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   return 0;
 }
 
-/**
- *  tickElection is run by followers and candidates per tick.
- **/
+// tickElection is run by followers and candidates after r.electionTimeout.
 static void tickElection(SSyncRaft* pRaft) {
   pRaft->electionElapsed += 1;
 
@@ -254,8 +276,14 @@ static void tickElection(SSyncRaft* pRaft) {
   syncRaftStep(pRaft, syncInitElectionMsg(&msg, pRaft->selfId));
 }
 
+// tickHeartbeat is run by leaders to send a MsgBeat after r.heartbeatTimeout.
 static void tickHeartbeat(SSyncRaft* pRaft) {
 
+}
+
+// TODO
+static bool increaseUncommittedSize(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n) {
+  return false;
 }
 
 static void appendEntries(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n) {
@@ -268,9 +296,16 @@ static void appendEntries(SSyncRaft* pRaft, SSyncRaftEntry* entries, int n) {
     entries[i].index = lastIndex + 1 + i;
   }
 
+  // Track the size of this uncommitted proposal.
+  if (!increaseUncommittedSize(pRaft, entries, n)) {
+    // Drop the proposal.
+    return;    
+  }
+
   syncRaftLogAppend(pRaft->log, entries, n);
 
-  SSyncRaftProgress* progress = &(pRaft->tracker->progressMap.progress[pRaft->cluster.selfIndex]);
+  SSyncRaftProgress* progress = syncRaftFindProgressByNodeId(&pRaft->tracker->progressMap, pRaft->selfId);
+  assert(progress != NULL);
   syncRaftProgressMaybeUpdate(progress, lastIndex);
   // Regardless of syncRaftMaybeCommit's return, our caller will call bcastAppend.
   syncRaftMaybeCommit(pRaft);
@@ -297,7 +332,7 @@ static int triggerAll(SSyncRaft* pRaft) {
       continue;
     }
 
-    syncRaftReplicate(pRaft, pRaft->tracker->progressMap.progress[i], true);
+    syncRaftMaybeSendAppend(pRaft, pRaft->tracker->progressMap.progress[i], true);
   }
   #endif
   return 0;
@@ -307,8 +342,8 @@ static void abortLeaderTransfer(SSyncRaft* pRaft) {
   pRaft->leadTransferee = SYNC_NON_NODE_ID;
 }
 
-static void initProgress(int i, SSyncRaftProgress* progress, void* arg) {
-  syncRaftInitProgress(i, (SSyncRaft*)arg, progress);
+static void resetProgress(SSyncRaftProgress* progress, void* arg) {
+  syncRaftResetProgress((SSyncRaft*)arg, progress);
 }
 
 static void resetRaft(SSyncRaft* pRaft, SyncTerm term) {
@@ -327,7 +362,7 @@ static void resetRaft(SSyncRaft* pRaft, SyncTerm term) {
   abortLeaderTransfer(pRaft);
 
   syncRaftResetVotes(pRaft->tracker);
-  syncRaftProgressVisit(pRaft->tracker, initProgress, pRaft);
+  syncRaftProgressVisit(pRaft->tracker, resetProgress, pRaft);
 
   pRaft->pendingConfigIndex = 0;
   pRaft->uncommittedSize = 0;

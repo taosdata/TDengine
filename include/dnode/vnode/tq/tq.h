@@ -109,11 +109,10 @@ typedef struct TqTopicVhandle {
 
 #define TQ_BUFFER_SIZE 8
 
-// TODO: define a serializer and deserializer
 typedef struct TqBufferItem {
   int64_t offset;
   // executors are identical but not concurrent
-  // so it must be a copy in each item
+  // so there must be a copy in each item
   void*   executor;
   int64_t size;
   void*   content;
@@ -156,23 +155,111 @@ typedef struct TqQueryMsg {
 
 typedef struct TqLogReader {
   void* logHandle;
-  int32_t (*walRead)(void* logHandle, void** data, int64_t ver);
-  int64_t (*walGetFirstVer)(void* logHandle);
-  int64_t (*walGetSnapshotVer)(void* logHandle);
-  int64_t (*walGetLastVer)(void* logHandle);
+  int32_t (*logRead)(void* logHandle, void** data, int64_t ver);
+  int64_t (*logGetFirstVer)(void* logHandle);
+  int64_t (*logGetSnapshotVer)(void* logHandle);
+  int64_t (*logGetLastVer)(void* logHandle);
 } TqLogReader;
 
 typedef struct TqConfig {
   // TODO
 } TqConfig;
 
+typedef struct TqMemRef {
+  SMemAllocatorFactory *pAlloctorFactory;
+  SMemAllocator *pAllocator;
+} TqMemRef;
+
+typedef struct TqSerializedHead {
+  int16_t ver;
+  int16_t action;
+  int32_t checksum;
+  int64_t ssize;
+  char    content[];
+} TqSerializedHead;
+
+typedef int (*TqSerializeFun)(const void* pObj, TqSerializedHead** ppHead);
+typedef const void* (*TqDeserializeFun)(const TqSerializedHead* pHead, void** ppObj);
+typedef void (*TqDeleteFun)(void*);
+
+#define TQ_BUCKET_MASK 0xFF
+#define TQ_BUCKET_SIZE 256
+
+#define TQ_PAGE_SIZE 4096
+//key + offset + size
+#define TQ_IDX_SIZE 24
+//4096 / 24
+#define TQ_MAX_IDX_ONE_PAGE 170
+//24 * 170
+#define TQ_IDX_PAGE_BODY_SIZE 4080
+//4096 - 4080
+#define TQ_IDX_PAGE_HEAD_SIZE 16
+
+#define TQ_ACTION_CONST      0
+#define TQ_ACTION_INUSE      1
+#define TQ_ACTION_INUSE_CONT 2
+#define TQ_ACTION_INTXN      3
+
+#define TQ_SVER              0
+
+//TODO: inplace mode is not implemented
+#define TQ_UPDATE_INPLACE    0
+#define TQ_UPDATE_APPEND     1
+
+#define TQ_DUP_INTXN_REWRITE 0
+#define TQ_DUP_INTXN_REJECT  2
+
+static inline bool TqUpdateAppend(int32_t tqConfigFlag) {
+  return tqConfigFlag & TQ_UPDATE_APPEND;
+}
+
+static inline bool TqDupIntxnReject(int32_t tqConfigFlag) {
+  return tqConfigFlag & TQ_DUP_INTXN_REJECT;
+}
+
+static const int8_t TQ_CONST_DELETE = TQ_ACTION_CONST;
+#define TQ_DELETE_TOKEN  (void*)&TQ_CONST_DELETE
+
+typedef struct TqMetaHandle {
+  int64_t key;
+  int64_t offset;
+  int64_t serializedSize;
+  void*   valueInUse;
+  void*   valueInTxn;
+} TqMetaHandle;
+
+typedef struct TqMetaList {
+  TqMetaHandle handle;
+  struct TqMetaList* next;
+  //struct TqMetaList* inTxnPrev;
+  //struct TqMetaList* inTxnNext;
+  struct TqMetaList* unpersistPrev;
+  struct TqMetaList* unpersistNext;
+} TqMetaList;
+
+typedef struct TqMetaStore {
+  TqMetaList*      bucket[TQ_BUCKET_SIZE];
+  //a table head
+  TqMetaList*      unpersistHead;
+ //TODO:temporaral use, to be replaced by unified tfile
+  int              fileFd;
+  //TODO:temporaral use, to be replaced by unified tfile
+  int              idxFd;
+  char*            dirPath;
+  int32_t          tqConfigFlag;
+  TqSerializeFun   pSerializer;
+  TqDeserializeFun pDeserializer;
+  TqDeleteFun      pDeleter;
+} TqMetaStore;
+
 typedef struct STQ {
   // the collection of group handle
   // the handle of kvstore
-  const char*  path;
+  char*  path;
   TqConfig*    tqConfig;
   TqLogReader* tqLogReader; 
-  SMemAllocatorFactory* allocFac;
+  TqMemRef     tqMemRef;
+  TqMetaStore* tqMeta;
 } STQ;
 
 // open in each vnode
@@ -187,7 +274,7 @@ int tqConsume(STQ*, TmqConsumeReq*);
 
 TqGroupHandle* tqGetGroupHandle(STQ*, int64_t cId);
 
-int tqOpenTCGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
+TqGroupHandle* tqOpenTCGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
 int tqCloseTCGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
 int tqMoveOffsetToNext(TqGroupHandle*);
 int tqResetOffset(STQ*, int64_t topicId, int64_t cgId, int64_t offset);
@@ -195,18 +282,9 @@ int tqRegisterContext(TqGroupHandle*, void* ahandle);
 int tqLaunchQuery(TqGroupHandle*);
 int tqSendLaunchQuery(TqGroupHandle*);
 
-int   tqSerializeGroupHandle(TqGroupHandle* gHandle, void** ppBytes);
-void* tqSerializeListHandle(TqListHandle* listHandle, void* ptr);
-void* tqSerializeBufHandle(TqBufferHandle* bufHandle, void* ptr);
-void* tqSerializeBufItem(TqBufferItem* bufItem, void* ptr);
+int   tqSerializeGroupHandle(const TqGroupHandle* gHandle, TqSerializedHead** ppHead);
 
-const void* tqDeserializeGroupHandle(const void* pBytes, TqGroupHandle* ghandle);
-const void* tqDeserializeBufHandle(const void* pBytes, TqBufferHandle* bufHandle);
-const void* tqDeserializeBufItem(const void* pBytes, TqBufferItem* bufItem);
-
-int tqGetGHandleSSize(const TqGroupHandle* gHandle);
-int tqBufHandleSSize();
-int tqBufItemSSize();
+const void* tqDeserializeGroupHandle(const TqSerializedHead* pHead, TqGroupHandle** gHandle);
 
 #ifdef __cplusplus
 }

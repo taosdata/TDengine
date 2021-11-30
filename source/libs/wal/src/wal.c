@@ -15,32 +15,34 @@
 
 #include "wal.h"
 
-int32_t walInit() { return 0; }
-
-void walCleanUp() {}
-
-SWal *walOpen(char *path, SWalCfg *pCfg) { return NULL; }
-
-int32_t walAlter(SWal *pWal, SWalCfg *pCfg) { return 0; }
-
-void walClose(SWal *pWal) {}
-
-void walFsync(SWal *pWal, bool force) {}
-
-int64_t walWrite(SWal *pWal, int64_t index, void *body, int32_t bodyLen) {
+int32_t walCommit(SWal *pWal, int64_t ver) {
   return 0;
 }
 
-int32_t walCommit(SWal *pWal, int64_t ver) { return 0; }
+int32_t walRollback(SWal *pWal, int64_t ver) {
+  return 0;
+}
 
-int32_t walRollback(SWal *pWal, int64_t ver) { return 0; }
+int32_t walTakeSnapshot(SWal *pWal, int64_t ver) {
+  return 0;
+}
 
-int32_t walPrune(SWal *pWal, int64_t ver) { return 0; }
+int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
+  return 0;
+}
 
+int32_t walReadWithFp(SWal *pWal, FWalWrite writeFp, int64_t verStart, int32_t readNum) {
+  return 0;
+}
 
-int32_t walRead(SWal *, SWalHead **, int64_t ver);
-int32_t walReadWithFp(SWal *, FWalWrite writeFp, int64_t verStart, int32_t readNum);
+int64_t walGetFirstVer(SWal *pWal) {
+  return 0;
+}
 
-int64_t walGetFirstVer(SWal *);
-int64_t walGetSnapshotVer(SWal *);
-int64_t walGetLastVer(SWal *);
+int64_t walGetSnapshotVer(SWal *pWal) {
+  return 0;
+}
+
+int64_t walGetLastVer(SWal *pWal) {
+  return 0;
+}

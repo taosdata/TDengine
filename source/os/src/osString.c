@@ -277,7 +277,7 @@ char *strsep(char **stringp, const char *delim) {
 char *getpass(const char *prefix) {
   static char passwd[TSDB_KEY_LEN] = {0};
   memset(passwd, 0, TSDB_KEY_LEN);
-  printf("%s", prefix);
+  //printf("%s", prefix);
 
   int32_t index = 0;
   char    ch;
