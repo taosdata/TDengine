@@ -1014,16 +1014,15 @@ bool fstGet(Fst *fst, FstSlice *b, Output *out) {
 }
 
 FstNode *fstGetRoot(Fst *fst) {
-  CompiledAddr root = fstGetRootAddr(fst); 
-  return fstGetNode(fst, root);
-}
-FstNode* fstGetNode(Fst *fst, CompiledAddr addr) {
   if (fst->root != NULL) {
     return fst->root;
   }
-  fst->root = fstNodeCreate(fst->meta->version, addr, fst->data); 
-  
+  CompiledAddr rAddr = fstGetRootAddr(fst); 
+  fst->root =  fstGetNode(fst, rAddr);
   return fst->root;
+}
+FstNode* fstGetNode(Fst *fst, CompiledAddr addr) {
+  return fstNodeCreate(fst->meta->version, addr, fst->data); 
   
 }
 FstType fstGetType(Fst *fst) {
@@ -1113,7 +1112,7 @@ void streamWithStateDestroy(StreamWithState *sws) {
   if (sws == NULL) { return; }
 
   taosArrayDestroy(sws->inp);
-  taosArrayDestroy(sws->stack);
+  taosArrayDestroyEx(sws->stack, streamStateDestroy);
 
   free(sws); 
 }
@@ -1154,7 +1153,7 @@ bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min) {
       FstTransition trn;
       fstNodeGetTransitionAt(node, res, &trn);   
       void *preState = autState;
-      autState = sws->aut->accpet(preState, b);
+      autState = sws->aut->accept(preState, b);
       taosArrayPush(sws->inp, &b);
       StreamState s = {.node     = node, 
                        .trans    = res + 1, 
@@ -1208,5 +1207,91 @@ bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min) {
    return false;
   } 
 }          
+
+StreamWithStateResult *streamWithStateNextWith(StreamWithState *sws, StreamCallback callback) {
+  FstOutput output = sws->emptyOutput; 
+  if (output.null == false) {
+    FstSlice emptySlice = fstSliceCreate(NULL, 0);   
+    if (fstBoundWithDataExceededBy(sws->endAt, &emptySlice)) {
+      taosArrayDestroyEx(sws->stack, streamStateDestroy);
+      sws->stack = (SArray *)taosArrayInit(256, sizeof(StreamState)); 
+      return NULL;
+    }
+    void* start = sws->aut->start();
+    if (sws->aut->isMatch(start)) { 
+      FstSlice s = fstSliceCreate(NULL, 0);
+      return swsResultCreate(&s, output, callback(start));
+    }
+  }
+  while (taosArrayGetSize(sws->stack) > 0) {
+    StreamState *p = (StreamState *)taosArrayPop(sws->stack);     
+    if (p->trans >= FST_NODE_LEN(p->node) || !sws->aut->canMatch(p->autState)) {
+      if (FST_NODE_ADDR(p->node) != fstGetRootAddr(sws->fst)) {
+        taosArrayPop(sws->inp);
+      }
+      streamStateDestroy(p);    
+      continue;
+    }
+    FstTransition trn; 
+    fstNodeGetTransitionAt(p->node, p->trans, &trn);
+    Output out = p->out.out + trn.out;
+    void* nextState = sws->aut->accept(p->autState, trn.inp);
+    void* tState = callback(nextState);
+    bool isMatch = sws->aut->isMatch(nextState);
+    FstNode *nextNode = fstGetNode(sws->fst, trn.addr); 
+    taosArrayPush(sws->inp, &(trn.inp)); 
+
+    if (FST_NODE_IS_FINAL(nextNode)) {
+      void *eofState = sws->aut->acceptEof(nextState); 
+      if (eofState != NULL) {
+        isMatch = sws->aut->isMatch(eofState); 
+      }
+    } 
+    StreamState s1 = { .node = p->node, .trans = p->trans + 1, .out = p->out, .autState = p->autState};  
+    taosArrayPush(sws->stack, &s1);
+
+    StreamState s2 = {.node = nextNode, .trans = 0, .out = {.null = false, .out = out}, .autState = nextState};
+    taosArrayPush(sws->stack, &s2);
+    
+    uint8_t *buf = (uint8_t *)malloc(taosArrayGetSize(sws->inp) * sizeof(uint8_t)); 
+    for (uint32_t i = 0; i < taosArrayGetSize(sws->inp); i++) {
+      uint8_t *t = (uint8_t *)taosArrayGet(sws->inp, i);
+      buf[i] = *t; 
+    }
+    FstSlice slice = fstSliceCreate(buf, taosArrayGetSize(sws->inp));
+    if (fstBoundWithDataExceededBy(sws->endAt, &slice)) {
+      taosArrayDestroyEx(sws->stack, streamStateDestroy);
+      sws->stack = (SArray *)taosArrayInit(256, sizeof(StreamState)); 
+      return NULL;
+    }
+    if (FST_NODE_IS_FINAL(nextNode) && isMatch) {
+      FstOutput fOutput = {.null = false, out = out + FST_NODE_FINAL_OUTPUT(nextNode)};
+      return swsResultCreate(&slice, fOutput , tState);
+    }
+  }
+  return NULL; 
+  
+}
+
+StreamWithStateResult *swsResultCreate(FstSlice *data, FstOutput fOut, void *state) {
+  StreamWithStateResult *result = calloc(1, sizeof(StreamWithStateResult));  
+  if (result == NULL) { return NULL; }
+  
+  FstSlice slice = fstSliceCopy(data, 0, data->dLen - 1);
+  result->data  = slice;
+  result->out   = fOut;
+  result->state = state; 
+
+  return result;
+   
+}
+void streamStateDestroy(void *s) {
+  if (NULL == s) { return; }
+  StreamState *ss = (StreamState *)s;
+
+  fstNodeDestroy(ss->node);
+  //free(s->autoState);
+}
+
 
 
