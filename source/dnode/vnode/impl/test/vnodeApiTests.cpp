@@ -79,12 +79,13 @@ TEST(vnodeApiTest, vnodeOpen_vnodeClose_test) {
 
     int      zs = vnodeBuildReq(NULL, &vCreateSTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
     SRpcMsg *pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg) + zs);
+    pMsg->msgType = TSDB_MSG_TYPE_CREATE_TABLE;
     pMsg->contLen = zs;
     pMsg->pCont = POINTER_SHIFT(pMsg, sizeof(SRpcMsg));
 
-    void **pBuf = &(pMsg->pCont);
+    void *pBuf = pMsg->pCont;
 
-    vnodeBuildReq(pBuf, &vCreateSTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
+    vnodeBuildReq(&pBuf, &vCreateSTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
     META_CLEAR_TB_CFG(&vCreateSTbReq);
 
     taosArrayPush(pMsgs, &(pMsg));
@@ -92,7 +93,7 @@ TEST(vnodeApiTest, vnodeOpen_vnodeClose_test) {
     vnodeProcessWMsgs(pVnode, pMsgs);
 
     free(pMsg);
-    taosArrayClear(pMsgs);
+    taosArrayDestroy(pMsgs);
     tdFreeSchema(pSchema);
     tdFreeSchema(pTagSchema);
   }
@@ -111,12 +112,14 @@ TEST(vnodeApiTest, vnodeOpen_vnodeClose_test) {
 
         int      tz = vnodeBuildReq(NULL, &vCreateCTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
         SRpcMsg *pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg) + tz);
+        pMsg->msgType = TSDB_MSG_TYPE_CREATE_TABLE;
         pMsg->contLen = tz;
         pMsg->pCont = POINTER_SHIFT(pMsg, sizeof(*pMsg));
-        void **pBuf = &(pMsg->pCont);
+        void *pBuf = pMsg->pCont;
 
-        vnodeBuildReq(pBuf, &vCreateCTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
+        vnodeBuildReq(&pBuf, &vCreateCTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
         META_CLEAR_TB_CFG(&vCreateCTbReq);
+        free(pTag);
 
         taosArrayPush(pMsgs, &(pMsg));
       }
@@ -128,7 +131,7 @@ TEST(vnodeApiTest, vnodeOpen_vnodeClose_test) {
         free(pMsg);
       }
 
-      taosArrayClear(pMsgs);
+      taosArrayDestroy(pMsgs);
     }
   }
 
@@ -138,7 +141,7 @@ TEST(vnodeApiTest, vnodeOpen_vnodeClose_test) {
   vnodeClear();
 }
 
-TEST(vnodeApiTest, vnode_process_create_table) {
+TEST(vnodeApiTest, DISABLED_vnode_process_create_table) {
   STSchema *       pSchema = NULL;
   STSchema *       pTagSchema = NULL;
   char             stname[15];

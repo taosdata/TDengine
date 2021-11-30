@@ -23,9 +23,9 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
     pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
 
     // ser request version
-    void **pBuf = &(pMsg->pCont);
+    void *   pBuf = pMsg->pCont;
     uint64_t ver = pVnode->state.processed++;
-    taosEncodeFixedU64(pBuf, ver);
+    taosEncodeFixedU64(&pBuf, ver);
 
     if (walWrite(pVnode->pWal, ver, pMsg->pCont, pMsg->contLen) < 0) {
       // TODO: handle error
@@ -49,7 +49,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
       // TODO: copy here need to be extended
       memcpy(ptr, pMsg->pCont, pMsg->contLen);
 
-      // // todo: change the interface here
+      // todo: change the interface here
       uint64_t ver;
       taosDecodeFixedU64(pMsg->pCont, &ver);
       if (tqPushMsg(pVnode->pTq, ptr, ver) < 0) {
