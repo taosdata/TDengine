@@ -645,7 +645,7 @@ static void shellPrintNChar(const char *str, int length, int width) {
 static void printField(const char* val, TAOS_FIELD* field, int width, int32_t length, int precision) {
   if (val == NULL) {
     int w = width;
-    if (field->type < TSDB_DATA_TYPE_TINYINT || field->type > TSDB_DATA_TYPE_DOUBLE) {
+    if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_NCHAR || field->type == TSDB_DATA_TYPE_TIMESTAMP) {
       w = 0;
     }
     w = printf("%*s", w, TSDB_DATA_NULL_STR);

@@ -64,7 +64,8 @@ struct SSchema;
 #define TSDB_FUNC_SCALAR_LENGTH       (TSDB_FUNC_FLAG_SCALAR | 0x000E)
 #define TSDB_FUNC_SCALAR_CONCAT_WS    (TSDB_FUNC_FLAG_SCALAR | 0x000F)
 #define TSDB_FUNC_SCALAR_CHAR_LENGTH  (TSDB_FUNC_FLAG_SCALAR | 0x0010)
-#define TSDB_FUNC_SCALAR_MAX_NUM      17
+#define TSDB_FUNC_SCALAR_CAST         (TSDB_FUNC_FLAG_SCALAR | 0x0011)
+#define TSDB_FUNC_SCALAR_MAX_NUM      18
 
 #define TSDB_FUNC_SCALAR_NAME_MAX_LEN 16
 
@@ -97,7 +98,8 @@ enum {
   TSQL_NODE_EXPR  = 0x1,
   TSQL_NODE_COL   = 0x2,
   TSQL_NODE_VALUE = 0x4,
-  TSQL_NODE_FUNC  = 0x8
+  TSQL_NODE_FUNC  = 0x8,
+  TSQL_NODE_TYPE  = 0x10
 };
 
 /**
@@ -131,6 +133,8 @@ typedef struct tExprNode {
       int32_t numChildren;
       struct tExprNode **pChildren;
     } _func;
+
+    TAOS_FIELD        *pType;
   };
   int16_t resultType;
   int16_t resultBytes;
@@ -144,7 +148,7 @@ typedef struct SExprTraverseSupp {
 
 void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *));
 
-int32_t exprTreeValidateTree(tExprNode *pExpr);
+int32_t exprTreeValidateTree(char* msgbuf, tExprNode *pExpr);
 
 void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 tExprNode* exprTreeFromBinary(const void* data, size_t size);

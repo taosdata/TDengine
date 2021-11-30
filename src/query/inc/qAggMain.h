@@ -251,7 +251,7 @@ void blockDistInfoToBinary(STableBlockDist* pDist, struct SBufferWriter* bw);
 void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDist);
 
 /* global sql function array */
-extern struct SAggFunctionInfo aAggs[];
+extern struct SAggFunctionInfo aAggs[40];
 
 extern int32_t functionCompatList[]; // compatible check array list
 
