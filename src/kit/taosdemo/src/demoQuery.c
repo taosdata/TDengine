@@ -44,7 +44,8 @@ void selectAndGetResult(threadInfo *pThreadInfo, char *command) {
 
 void *specifiedTableQuery(void *sarg) {
     threadInfo *pThreadInfo = (threadInfo *)sarg;
-
+    int32_t *code = calloc(1, sizeof (int32_t));
+    *code = -1;
     setThreadName("specTableQuery");
 
     if (pThreadInfo->taos == NULL) {
@@ -54,7 +55,7 @@ void *specifiedTableQuery(void *sarg) {
         if (taos == NULL) {
             errorPrint("[%d] Failed to connect to TDengine, reason:%s\n",
                        pThreadInfo->threadID, taos_errstr(NULL));
-            return NULL;
+            goto end_of_specified_query;
         } else {
             pThreadInfo->taos = taos;
         }
@@ -65,7 +66,7 @@ void *specifiedTableQuery(void *sarg) {
     if (0 != queryDbExec(pThreadInfo->taos, sqlStr, NO_INSERT_TYPE, false)) {
         taos_close(pThreadInfo->taos);
         errorPrint("use database %s failed!\n\n", g_queryInfo.dbName);
-        return NULL;
+        goto end_of_specified_query;
     }
 
     uint64_t st = 0;
@@ -118,14 +119,18 @@ void *specifiedTableQuery(void *sarg) {
             lastPrintTime = currentPrintTime;
         }
     }
-    return NULL;
+    *code = 0;
+    end_of_specified_query:
+    return code;
 }
 
 void *superTableQuery(void *sarg) {
+    int32_t * code = calloc(1, sizeof (int32_t));
+    *code = -1;
     char *sqlstr = calloc(1, BUFFER_SIZE);
     if (NULL == sqlstr) {
         errorPrint("%s", "failed to allocate memory\n");
-        return NULL;
+        goto free_of_super_query;
     }
 
     threadInfo *pThreadInfo = (threadInfo *)sarg;
@@ -139,8 +144,7 @@ void *superTableQuery(void *sarg) {
         if (taos == NULL) {
             errorPrint("[%d] Failed to connect to TDengine, reason:%s\n",
                        pThreadInfo->threadID, taos_errstr(NULL));
-            free(sqlstr);
-            return NULL;
+            goto free_of_super_query;
         } else {
             pThreadInfo->taos = taos;
         }
@@ -200,9 +204,10 @@ void *superTableQuery(void *sarg) {
                taosGetSelfPthreadId(), pThreadInfo->start_table_from,
                pThreadInfo->end_table_to, (double)(et - st) / 1000.0);
     }
-
-    free(sqlstr);
-    return NULL;
+    *code = 0;
+    free_of_super_query:
+    tmfree(sqlstr);
+    return code;
 }
 
 int queryTestProcess() {
@@ -398,7 +403,12 @@ int queryTestProcess() {
     if ((nSqlCount > 0) && (nConcurrent > 0)) {
         for (int i = 0; i < nConcurrent; i++) {
             for (int j = 0; j < nSqlCount; j++) {
-                pthread_join(pids[i * nSqlCount + j], NULL);
+                void* result;
+                pthread_join(pids[i * nSqlCount + j], &result);
+                if (*(int32_t*)result) {
+                    g_fail = true;
+                }
+                tmfree(result);
                 if (0 == strncasecmp(g_queryInfo.queryMode, "rest", 4)) {
                     threadInfo *pThreadInfo = infos + i * nSqlCount + j;
 #ifdef WINDOWS
@@ -416,7 +426,12 @@ int queryTestProcess() {
     tmfree((char *)infos);
 
     for (int i = 0; i < g_queryInfo.superQueryInfo.threadCnt; i++) {
-        pthread_join(pidsOfSub[i], NULL);
+        void* result;
+        pthread_join(pidsOfSub[i], &result);
+        if (*(int32_t*)result) {
+            g_fail = true;
+        }
+        tmfree(result);
         if (0 == strncasecmp(g_queryInfo.queryMode, "rest", 4)) {
             threadInfo *pThreadInfo = infosOfSub + i;
 #ifdef WINDOWS
@@ -430,6 +445,10 @@ int queryTestProcess() {
 
     tmfree((char *)pidsOfSub);
     tmfree((char *)infosOfSub);
+
+    if (g_fail) {
+        return -1;
+    }
 
     //  taos_close(taos);// workaround to use separate taos connection;
     uint64_t endTs = taosGetTimestampMs();

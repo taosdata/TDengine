@@ -171,8 +171,8 @@ class TDTestCase:
        
         #print("==============taosdemo——json_no,#create stable,table; insert table; show table; select table; drop table")
 
-        assert os.system("%staosdemo -f tools/taosdemoAllTest/TD-10539/create_taosdemo_no.json -y " % binPath) == 0
-        tdSql.query("show dbno.tables ")
+        os.system("%staosdemo -f tools/taosdemoAllTest/TD-10539/create_taosdemo_no.json -y " % binPath) 
+        tdSql.query("show dbno.tables;")
         tdSql.checkRows(0)
         
 

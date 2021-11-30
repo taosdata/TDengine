@@ -585,6 +585,7 @@ extern int64_t        g_totalChildTables;
 extern int64_t        g_actualChildTables;
 extern SQueryMetaInfo g_queryInfo;
 extern FILE *         g_fpOfInsertResult;
+extern bool           g_fail;
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
