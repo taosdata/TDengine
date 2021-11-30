@@ -2914,7 +2914,7 @@ static void date_col_output_function(SQLFunctionCtx *pCtx) {
 }
 
 static void col_project_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->colId <= TSDB_UD_COLUMN_INDEX && pCtx->colId != TSDB_RES_COL_ID) {    // user-specified constant value
+  if (pCtx->colId <= TSDB_UD_COLUMN_INDEX && pCtx->colId > TSDB_RES_COL_ID) {    // user-specified constant value
     return;
   }
 
