@@ -60,6 +60,26 @@ static SKVRow createBasicTag() {
   return pTag;
 }
 
+#if 0
+TEST(vnodeApiTest, test_create_table_encode_and_decode_function) {
+  tb_uid_t  suid = 1638166374163;
+  STSchema *pSchema = createBasicSchema();
+  STSchema *pTagSchema = createBasicTagSchema();
+  char      tbname[128] = "st";
+  char *    buffer = new char[1024];
+  void *    pBuf = (void *)buffer;
+  SVnodeReq vCreateSTbReq = VNODE_INIT_CREATE_STB_REQ(tbname, UINT32_MAX, UINT32_MAX, suid, pSchema, pTagSchema);
+
+  vnodeBuildReq(&pBuf, &vCreateSTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
+
+  SVnodeReq decoded_req;
+
+  vnodeParseReq(buffer, &decoded_req, TSDB_MSG_TYPE_CREATE_TABLE);
+
+  int k = 10;
+}
+#endif
+
 TEST(vnodeApiTest, vnodeOpen_vnodeClose_test) {
   GTEST_ASSERT_GE(vnodeInit(), 0);
 

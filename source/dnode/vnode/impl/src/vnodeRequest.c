@@ -93,7 +93,7 @@ static void *vnodeParseCreateTableReq(void *buf, SVCreateTableReq *pReq) {
       break;
     case META_CHILD_TABLE:
       buf = taosDecodeFixedU64(buf, &(pReq->ctbCfg.suid));
-      buf = tdDecodeKVRow(buf, pReq->ctbCfg.pTag);
+      buf = tdDecodeKVRow(buf, &(pReq->ctbCfg.pTag));
       break;
     case META_NORMAL_TABLE:
       buf = tdDecodeSchema(buf, &(pReq->ntbCfg.pSchema));
