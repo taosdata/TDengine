@@ -400,7 +400,7 @@ KILL STREAM <stream-id>;
 
 Force to turn off the stream computing, in which stream-id is the connection-id: stream-no string displayed in SHOW STREAMS, such as 103: 2, copy and paste it.
 
-## System Monitoring
+## <a class="anchor" id="monitoring"></a>System Monitoring
 
 After TDengine is started, it will automatically create a monitoring database log and write the server's CPU, memory, hard disk space, bandwidth, number of requests, disk read-write speed, slow query and other information into the database regularly. TDengine also records important system operations (such as logging in, creating, deleting databases, etc.) logs and various error alarm information and stores them in the log database. The system administrator can view the database directly from CLI or view the monitoring information through GUI on WEB.
 

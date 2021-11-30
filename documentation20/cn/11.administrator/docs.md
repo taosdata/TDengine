@@ -553,7 +553,7 @@ KILL STREAM <stream-id>;
 
 强制关闭流式计算，其中的中stream-id是SHOW STREAMS中显示的connection-id:stream-no字串，如103:2，拷贝粘贴即可。
 
-## 系统监控
+## <a class="anchor" id="monitoring"></a>系统监控
 
 TDengine启动后，会自动创建一个监测数据库log，并自动将服务器的CPU、内存、硬盘空间、带宽、请求数、磁盘读写速度、慢查询等信息定时写入该数据库。TDengine还将重要的系统操作（比如登录、创建、删除数据库等）日志以及各种错误报警信息记录下来存放在log库里。系统管理员可以从CLI直接查看这个数据库，也可以在WEB通过图形化界面查看这些监测信息。
 
