@@ -142,12 +142,21 @@ public class MicroSecondPrecisionRestfulTest {
     }
 
     @AfterClass
-    public static void afterClass() throws SQLException {
-        if (conn1 != null)
-            conn1.close();
-        if (conn2 != null)
-            conn2.close();
-        if (conn3 != null)
-            conn3.close();
+    public static void afterClass() {
+        try {
+            if (conn1 != null) {
+                Statement statement = conn1.createStatement();
+                statement.execute("drop database if exists " + ms_timestamp_db);
+                statement.execute("drop database if exists " + us_timestamp_db);
+                statement.close();
+                conn1.close();
+            }
+            if (conn2 != null)
+                conn2.close();
+            if (conn3 != null)
+                conn3.close();
+        }catch (SQLException e){
+            e.printStackTrace();
+        }
     }
 }

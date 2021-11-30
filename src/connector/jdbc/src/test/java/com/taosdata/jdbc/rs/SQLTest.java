@@ -577,6 +577,9 @@ public class SQLTest {
 
     @AfterClass
     public static void after() throws SQLException {
+        Statement statement = connection.createStatement();
+        statement.execute("drop database if exists restful_test");
+        statement.close();
         connection.close();
     }
 

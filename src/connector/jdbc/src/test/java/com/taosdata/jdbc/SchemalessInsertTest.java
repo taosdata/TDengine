@@ -24,8 +24,8 @@ public class SchemalessInsertTest {
     public void schemalessInsert() throws SQLException {
         // given
         String[] lines = new String[]{
-                "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
-                "st,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000"};
+                "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000123",
+                "st,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000123"};
         // when
         try (Statement statement = conn.createStatement();
              SchemalessStatement schemalessStatement = new SchemalessStatement(statement)) {
@@ -143,7 +143,7 @@ public class SchemalessInsertTest {
             conn = DriverManager.getConnection(url);
             Statement stmt = conn.createStatement();
             stmt.execute("drop database if exists " + dbname);
-            stmt.execute("create database if not exists " + dbname + " precision 'ns'");
+            stmt.execute("create database if not exists " + dbname );
             stmt.execute("use " + dbname);
         } catch (SQLException e) {
             e.printStackTrace();
@@ -154,7 +154,6 @@ public class SchemalessInsertTest {
     public void after() {
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("drop database if exists " + dbname);
-            stmt.close();
             conn.close();
         } catch (SQLException e) {
             e.printStackTrace();

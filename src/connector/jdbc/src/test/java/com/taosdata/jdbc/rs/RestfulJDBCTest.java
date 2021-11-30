@@ -11,12 +11,13 @@ public class RestfulJDBCTest {
 
     private static final String host = "127.0.0.1";
     private final Random random = new Random(System.currentTimeMillis());
-    private Connection connection;
+    private static Connection connection;
+    private static final String dbname = "restful_test";
 
     @Test
     public void testCase001() throws SQLException {
         // given
-        String sql = "drop database if exists restful_test";
+        String sql = "drop database if exists " + dbname;
         // when
         boolean execute = execute(connection, sql);
         // then
@@ -30,7 +31,7 @@ public class RestfulJDBCTest {
         Assert.assertFalse(execute);
 
         // given
-        sql = "use restful_test";
+        sql = "use "  + dbname;
         // when
         execute = execute(connection, sql);
         // then
@@ -101,7 +102,7 @@ public class RestfulJDBCTest {
     @Test
     public void testCase007() throws SQLException {
         // given
-        String sql = "drop database restful_test";
+        String sql = "drop database " + dbname;
 
         // when
         boolean execute = execute(connection, sql);
@@ -134,10 +135,18 @@ public class RestfulJDBCTest {
         connection = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=root&password=taosdata&httpKeepAlive=false");
     }
 
-    @After
-    public void after() throws SQLException {
-        if (connection != null)
-            connection.close();
+    @AfterClass
+    public static void after() throws SQLException {
+        try {
+            if (connection != null) {
+                Statement statement = connection.createStatement();
+                statement.execute("drop database if exists " + dbname);
+                statement.close();
+                connection.close();
+            }
+        }catch (SQLException e){
+            e.printStackTrace();
+        }
     }
 
 }

@@ -62,8 +62,12 @@ public class TimestampPrecisonInNanoRestTest {
     @AfterClass
     public static void afterClass() {
         try {
-            if (conn != null)
+            if (conn != null) {
+                Statement statement = conn.createStatement();
+                statement.execute("drop database if exists " + ns_timestamp_db);
+                statement.close();
                 conn.close();
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }

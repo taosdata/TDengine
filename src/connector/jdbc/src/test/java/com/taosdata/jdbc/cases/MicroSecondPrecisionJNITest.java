@@ -79,8 +79,13 @@ public class MicroSecondPrecisionJNITest {
     @AfterClass
     public static void afterClass() {
         try {
-            if (conn != null)
+            if (conn != null) {
+                Statement statement = conn.createStatement();
+                statement.execute("drop database " + ms_timestamp_db);
+                statement.execute("drop database " + us_timestamp_db);
+                statement.close();
                 conn.close();
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }

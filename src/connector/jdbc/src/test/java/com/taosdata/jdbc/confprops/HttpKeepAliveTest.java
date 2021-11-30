@@ -25,7 +25,7 @@ public class HttpKeepAliveTest {
 
         //when
         Properties props = new Properties();
-        props.setProperty("httpKeepAlive", "false");
+        props.setProperty("httpKeepAlive", "true");
         props.setProperty("httpPoolSize", "20");
         Connection connection = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata", props);
 
