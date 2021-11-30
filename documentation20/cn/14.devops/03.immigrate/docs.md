@@ -8,7 +8,7 @@
 
 - 数据写入和查询的性能远超 OpenTSDB；
 - 针对时序数据的高效压缩机制，压缩后在磁盘上的存储空间不到 1/5；
-- 安装部署非常简单，单一安装包完成安装部署，除了 taosAdapter 需要依赖 Go 运行环境外，不依赖其他的第三方软件，整个安装部署过程秒级搞定;
+- 安装部署非常简单，单一安装包完成安装部署，不依赖其他的第三方软件，整个安装部署过程秒级搞定;
 - 提供的内建函数覆盖 OpenTSDB 支持的全部查询函数，还支持更多的时序数据查询函数、标量函数及聚合函数，支持多种时间窗口聚合、连接查询、表达式运算、多种分组聚合、用户定义排序、以及用户定义函数等高级查询功能。采用类 SQL 的语法规则，更加简单易学，基本上没有学习成本。
 - 支持多达 128 个标签，标签总长度可达到 16 KB；
 - 除 HTTP 之外，还提供 Java、Python、C、Rust、Go 等多种语言的接口，支持 JDBC 等多种企业级标准连接器协议。
@@ -40,7 +40,7 @@
 
 - **调整数据收集器配置**
 
-在 TDengine 2.3 版本中，后台服务 taosd 启动后一个 HTTP 的服务 taosAdapter 也会自动启用*。*利用 taosAdapter 能够兼容 Influxdb 的 Line Protocol 和 OpenTSDB 的 telnet/JSON 写入协议，可以将 collectd 和 StatsD 收集的数据直接推送到TDengine。
+在 TDengine 2.3 版本中，后台服务 taosd 启动后一个 HTTP 的服务 taosAdapter 也会自动启用。利用 taosAdapter 能够兼容 Influxdb 的 Line Protocol 和 OpenTSDB 的 telnet/JSON 写入协议，可以将 collectd 和 StatsD 收集的数据直接推送到TDengine。
 
 如果使用 collectd，修改其默认位置 `/etc/collectd/collectd.conf` 的配置文件为指向 taosAdapter 部署的节点 IP 地址和端口。假设 taosAdapter 的 IP 地址为192.168.1.130，端口为 6046，配置如下：
 
