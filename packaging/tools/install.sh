@@ -236,6 +236,29 @@ function install_lib() {
     ${csudo} ldconfig
 }
 
+function install_avro() {
+    if [ "$osType" != "Darwin" ]; then
+        avro_dir=${script_dir}/avro
+        if [ -f "${avro_dir}/lib/libavro.so.23.0.0" ] && [ -d /usr/local/$1 ]; then
+            ${csudo} /usr/bin/install -c -d /usr/local/$1
+            ${csudo} /usr/bin/install -c -m 755 ${avro_dir}/lib/libavro.so.23.0.0 /usr/local/$1
+            ${csudo} ln -sf /usr/local/$1/libavro.so.23.0.0 /usr/local/$1/libavro.so.23
+            ${csudo} ln -sf /usr/local/$1/libavro.so.23 /usr/local/$1/libavro.so
+
+            ${csudo} /usr/bin/install -c -d /usr/local/$1
+            [ -f ${avro_dir}/lib/libavro.a ] &&
+                ${csudo} /usr/bin/install -c -m 755 ${avro_dir}/lib/libavro.a /usr/local/$1
+
+            if [ -d /etc/ld.so.conf.d ]; then
+                echo "/usr/local/$1" | ${csudo} tee /etc/ld.so.conf.d/libavro.conf > /dev/null || echo -e "failed to write /etc/ld.so.conf.d/libavro.conf"
+                ${csudo} ldconfig
+            else
+                echo "/etc/ld.so.conf.d not found!"
+            fi
+        fi
+    fi
+}
+
 function install_jemalloc() {
     jemalloc_dir=${script_dir}/jemalloc
 
@@ -281,7 +304,7 @@ function install_jemalloc() {
         fi
 
         if [ -d /etc/ld.so.conf.d ]; then
-            ${csudo} echo "/usr/local/lib" > /etc/ld.so.conf.d/jemalloc.conf
+            echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf > /dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
             ${csudo} ldconfig
         else
             echo "/etc/ld.so.conf.d not found!"
@@ -290,9 +313,10 @@ function install_jemalloc() {
 }
 
 function install_header() {
-    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h    || :
     ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+    ${csudo} ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
@@ -863,6 +887,8 @@ function update_TDengine() {
     fi
     tar -zxf taos.tar.gz
     install_jemalloc
+    install_avro lib
+    install_avro lib64
 
     echo -e "${GREEN}Start to update TDengine...${NC}"
     # Stop the service if running
@@ -975,6 +1001,9 @@ function install_TDengine() {
     install_header
     install_lib
     install_jemalloc
+    install_avro lib
+    install_avro lib64
+
     if [ "$pagMode" != "lite" ]; then
       install_connector
     fi

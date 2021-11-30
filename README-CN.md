@@ -254,23 +254,25 @@ Query OK, 2 row(s) in set (0.001700s)
 
 TDengine 提供了丰富的应用程序开发接口，其中包括C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用：
 
-- Java
+- [Java](https://www.taosdata.com/cn/documentation/connector/java)
 
-- C/C++
+- [C/C++](https://www.taosdata.com/cn/documentation/connector#c-cpp)
 
-- Python
+- [Python](https://www.taosdata.com/cn/documentation/connector#python)
 
-- Go
+- [Go](https://www.taosdata.com/cn/documentation/connector#go)
 
-- RESTful API
+- [RESTful API](https://www.taosdata.com/cn/documentation/connector#restful)
 
-- Node.js
+- [Node.js](https://www.taosdata.com/cn/documentation/connector#nodejs)
+
+- [Rust](https://www.taosdata.com/cn/documentation/connector/rust)
 
 ## 第三方连接器
 
 TDengine 社区生态中也有一些非常友好的第三方连接器，可以通过以下链接访问它们的源码。
 
-- [Rust Connector](https://github.com/taosdata/TDengine/tree/master/tests/examples/rust)
+- [Rust Bindings](https://github.com/songtianyi/tdengine-rust-bindings/tree/master/examples)
 - [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
 - [Lua Connector](https://github.com/taosdata/TDengine/tree/develop/tests/examples/lua)
 

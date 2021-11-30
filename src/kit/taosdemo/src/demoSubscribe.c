@@ -71,6 +71,8 @@ TAOS_SUB *subscribeImpl(QUERY_CLASS class, threadInfo *pThreadInfo, char *sql,
 }
 
 void *specifiedSubscribe(void *sarg) {
+    int32_t * code = calloc(1, sizeof (int32_t));
+    *code = -1;
     threadInfo *pThreadInfo = (threadInfo *)sarg;
     //  TAOS_SUB*  tsub = NULL;
 
@@ -83,15 +85,14 @@ void *specifiedSubscribe(void *sarg) {
         if (pThreadInfo->taos == NULL) {
             errorPrint("[%d] Failed to connect to TDengine, reason:%s\n",
                        pThreadInfo->threadID, taos_errstr(NULL));
-            return NULL;
+            goto free_of_specified_subscribe;
         }
     }
 
     char sqlStr[TSDB_DB_NAME_LEN + 5];
     sprintf(sqlStr, "USE %s", g_queryInfo.dbName);
     if (0 != queryDbExec(pThreadInfo->taos, sqlStr, NO_INSERT_TYPE, false)) {
-        taos_close(pThreadInfo->taos);
-        return NULL;
+        goto free_of_specified_subscribe;
     }
 
     sprintf(g_queryInfo.specifiedQueryInfo.topic[pThreadInfo->threadID],
@@ -110,8 +111,7 @@ void *specifiedSubscribe(void *sarg) {
         g_queryInfo.specifiedQueryInfo.subscribeRestart,
         g_queryInfo.specifiedQueryInfo.subscribeInterval);
     if (NULL == g_queryInfo.specifiedQueryInfo.tsub[pThreadInfo->threadID]) {
-        taos_close(pThreadInfo->taos);
-        return NULL;
+        goto free_of_specified_subscribe;
     }
 
     // start loop to consume result
@@ -171,36 +171,37 @@ void *specifiedSubscribe(void *sarg) {
                     g_queryInfo.specifiedQueryInfo.subscribeInterval);
                 if (NULL == g_queryInfo.specifiedQueryInfo
                                 .tsub[pThreadInfo->threadID]) {
-                    taos_close(pThreadInfo->taos);
-                    return NULL;
+                    goto free_of_specified_subscribe;
                 }
             }
         }
     }
+    *code = 0;
     taos_free_result(g_queryInfo.specifiedQueryInfo.res[pThreadInfo->threadID]);
+    free_of_specified_subscribe:
     taos_close(pThreadInfo->taos);
-
-    return NULL;
+    return code;
 }
 
 static void *superSubscribe(void *sarg) {
+    int32_t * code = calloc(1, sizeof (int32_t));
+    *code = -1;
     threadInfo *pThreadInfo = (threadInfo *)sarg;
+    TAOS_SUB *tsub[MAX_QUERY_SQL_COUNT] = {0};
+    uint64_t  tsubSeq;
     char *      subSqlStr = calloc(1, BUFFER_SIZE);
     if (NULL == subSqlStr) {
         errorPrint("%s", "failed to allocate memory\n");
+        goto free_of_super_subscribe;
     }
-
-    TAOS_SUB *tsub[MAX_QUERY_SQL_COUNT] = {0};
-    uint64_t  tsubSeq;
 
     setThreadName("superSub");
 
     if (pThreadInfo->ntables > MAX_QUERY_SQL_COUNT) {
-        free(subSqlStr);
         errorPrint("The table number(%" PRId64
                    ") of the thread is more than max query sql count: %d\n",
                    pThreadInfo->ntables, MAX_QUERY_SQL_COUNT);
-        exit(EXIT_FAILURE);
+        goto free_of_super_subscribe;
     }
 
     if (pThreadInfo->taos == NULL) {
@@ -210,18 +211,15 @@ static void *superSubscribe(void *sarg) {
         if (pThreadInfo->taos == NULL) {
             errorPrint("[%d] Failed to connect to TDengine, reason:%s\n",
                        pThreadInfo->threadID, taos_errstr(NULL));
-            free(subSqlStr);
-            return NULL;
+            goto free_of_super_subscribe;
         }
     }
 
     char sqlStr[TSDB_DB_NAME_LEN + 5];
     sprintf(sqlStr, "USE %s", g_queryInfo.dbName);
     if (0 != queryDbExec(pThreadInfo->taos, sqlStr, NO_INSERT_TYPE, false)) {
-        taos_close(pThreadInfo->taos);
         errorPrint("use database %s failed!\n\n", g_queryInfo.dbName);
-        free(subSqlStr);
-        return NULL;
+        goto free_of_super_subscribe;
     }
 
     char topic[32] = {0};
@@ -252,9 +250,7 @@ static void *superSubscribe(void *sarg) {
                           g_queryInfo.superQueryInfo.subscribeRestart,
                           g_queryInfo.superQueryInfo.subscribeInterval);
         if (NULL == tsub[tsubSeq]) {
-            taos_close(pThreadInfo->taos);
-            free(subSqlStr);
-            return NULL;
+            goto free_of_super_subscribe;
         }
     }
 
@@ -321,9 +317,7 @@ static void *superSubscribe(void *sarg) {
                         g_queryInfo.superQueryInfo.subscribeRestart,
                         g_queryInfo.superQueryInfo.subscribeInterval);
                     if (NULL == tsub[tsubSeq]) {
-                        taos_close(pThreadInfo->taos);
-                        free(subSqlStr);
-                        return NULL;
+                        goto free_of_super_subscribe;
                     }
                 }
             }
@@ -340,10 +334,11 @@ static void *superSubscribe(void *sarg) {
         tsubSeq = i - pThreadInfo->start_table_from;
         taos_unsubscribe(tsub[tsubSeq], 0);
     }
-
+    *code = 0;
+    free_of_super_subscribe:
     taos_close(pThreadInfo->taos);
-    free(subSqlStr);
-    return NULL;
+    tmfree(subSqlStr);
+    return code;
 }
 
 int subscribeTestProcess() {
@@ -482,7 +477,12 @@ int subscribeTestProcess() {
             for (int i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
                 for (int j = 0; j < threads; j++) {
                     uint64_t seq = i * threads + j;
-                    pthread_join(pidsOfStable[seq], NULL);
+                    void* result;
+                    pthread_join(pidsOfStable[seq], &result);
+                    if (*(int32_t*)result) {
+                        g_fail = true;
+                    }
+                    tmfree(result);
                 }
             }
         }
@@ -491,7 +491,12 @@ int subscribeTestProcess() {
     for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
         for (int j = 0; j < g_queryInfo.specifiedQueryInfo.concurrent; j++) {
             uint64_t seq = i * g_queryInfo.specifiedQueryInfo.concurrent + j;
-            pthread_join(pids[seq], NULL);
+            void* result;
+            pthread_join(pids[seq], &result);
+            if (*(int32_t*)result) {
+                g_fail = true;
+            }
+            tmfree(result);
         }
     }
 
@@ -501,5 +506,8 @@ int subscribeTestProcess() {
     tmfree((char *)pidsOfStable);
     tmfree((char *)infosOfStable);
     //   taos_close(taos);
+    if (g_fail) {
+        return -1;
+    }
     return 0;
 }

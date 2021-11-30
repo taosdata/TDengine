@@ -808,7 +808,8 @@ int createDatabasesAndStables(char *command) {
 static void *createTable(void *sarg) {
     threadInfo * pThreadInfo = (threadInfo *)sarg;
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
-
+    int32_t* code = calloc(1, sizeof(int32_t));
+    *code = -1;
     setThreadName("createTable");
 
     uint64_t lastPrintTime = taosGetTimestampMs();
@@ -818,7 +819,7 @@ static void *createTable(void *sarg) {
     pThreadInfo->buffer = calloc(1, buff_len);
     if (NULL == pThreadInfo->buffer) {
         errorPrint("%s", "failed to allocate memory\n");
-        return NULL;
+        goto create_table_end;
     }
 
     int len = 0;
@@ -840,11 +841,10 @@ static void *createTable(void *sarg) {
             batchNum++;
         } else {
             if (stbInfo == NULL) {
-                free(pThreadInfo->buffer);
                 errorPrint(
                     "%s() LN%d, use metric, but super table info is NULL\n",
                     __func__, __LINE__);
-                exit(EXIT_FAILURE);
+                goto create_table_end;
             } else {
                 if (0 == len) {
                     batchNum = 0;
@@ -856,14 +856,13 @@ static void *createTable(void *sarg) {
                 char *tagsValBuf = (char *)calloc(TSDB_MAX_SQL_LEN + 1, 1);
                 if (NULL == tagsValBuf) {
                     errorPrint("%s", "failed to allocate memory\n");
-                    return NULL;
+                    goto create_table_end;
                 }
 
                 if (0 == stbInfo->tagSource) {
                     if (generateTagValuesForStb(stbInfo, i, tagsValBuf)) {
                         tmfree(tagsValBuf);
-                        tmfree(pThreadInfo->buffer);
-                        exit(EXIT_FAILURE);
+                        goto create_table_end;
                     }
                 } else {
                     snprintf(tagsValBuf, TSDB_MAX_SQL_LEN, "(%s)",
@@ -895,7 +894,7 @@ static void *createTable(void *sarg) {
                              NO_INSERT_TYPE, false)) {
             errorPrint("queryDbExec() failed. buffer:\n%s\n",
                        pThreadInfo->buffer);
-            free(pThreadInfo->buffer);
+            goto create_table_end;
             return NULL;
         }
         pThreadInfo->tables_created += batchNum;
@@ -913,11 +912,14 @@ static void *createTable(void *sarg) {
                              NO_INSERT_TYPE, false)) {
             errorPrint("queryDbExec() failed. buffer:\n%s\n",
                        pThreadInfo->buffer);
+            goto create_table_end;
         }
         pThreadInfo->tables_created += batchNum;
     }
-    free(pThreadInfo->buffer);
-    return NULL;
+    *code = 0;
+    create_table_end:
+    tmfree(pThreadInfo->buffer);
+    return code;
 }
 
 int startMultiThreadCreateChildTable(char *cols, int threads,
@@ -976,7 +978,12 @@ int startMultiThreadCreateChildTable(char *cols, int threads,
     }
 
     for (int i = 0; i < threads; i++) {
-        pthread_join(pids[i], NULL);
+        void* result;
+        pthread_join(pids[i], &result);
+        if (*(int32_t*)result) {
+            g_fail = true;
+        }
+        tmfree(result);
     }
 
     for (int i = 0; i < threads; i++) {
@@ -988,6 +995,9 @@ int startMultiThreadCreateChildTable(char *cols, int threads,
 
     free(pids);
     free(infos);
+    if (g_fail) {
+        return -1;
+    }
 
     return 0;
 }
@@ -1579,7 +1589,8 @@ static void *syncWriteInterlaceStmtBatch(threadInfo *pThreadInfo,
                                          uint32_t    interlaceRows) {
     debugPrint("[%d] %s() LN%d: ### stmt interlace write\n",
                pThreadInfo->threadID, __func__, __LINE__);
-
+    int32_t* code = calloc(1, sizeof (int32_t));
+    *code = -1;
     int64_t  insertRows;
     int64_t  timeStampStep;
     uint64_t insert_interval;
@@ -1644,7 +1655,7 @@ static void *syncWriteInterlaceStmtBatch(threadInfo *pThreadInfo,
             if (0 == strlen(tableName)) {
                 errorPrint("[%d] %s() LN%d, getTableName return null\n",
                            pThreadInfo->threadID, __func__, __LINE__);
-                return NULL;
+                goto free_of_interlace_stmt;
             }
 
             samplePos = pThreadInfo->samplePos;
@@ -1777,16 +1788,17 @@ static void *syncWriteInterlaceStmtBatch(threadInfo *pThreadInfo,
     }
     if (percentComplete < 100)
         printf("[%d]:%d%%\n", pThreadInfo->threadID, percentComplete);
-
-free_of_interlace_stmt:
+    *code = 0;
     printStatPerThread(pThreadInfo);
-    return NULL;
+free_of_interlace_stmt:
+    return code;
 }
 
 void *syncWriteInterlace(threadInfo *pThreadInfo, uint32_t interlaceRows) {
     debugPrint("[%d] %s() LN%d: ### interlace write\n", pThreadInfo->threadID,
                __func__, __LINE__);
-
+    int32_t* code = calloc(1, sizeof (int32_t));
+    *code = -1;
     int64_t  insertRows;
     uint64_t maxSqlLen;
     int64_t  timeStampStep;
@@ -1824,7 +1836,7 @@ void *syncWriteInterlace(threadInfo *pThreadInfo, uint32_t interlaceRows) {
     pThreadInfo->buffer = calloc(maxSqlLen, 1);
     if (NULL == pThreadInfo->buffer) {
         errorPrint("%s", "failed to allocate memory\n");
-        return NULL;
+        goto free_of_interlace;
     }
 
     pThreadInfo->totalInsertRows = 0;
@@ -1874,8 +1886,7 @@ void *syncWriteInterlace(threadInfo *pThreadInfo, uint32_t interlaceRows) {
             if (0 == strlen(tableName)) {
                 errorPrint("[%d] %s() LN%d, getTableName return null\n",
                            pThreadInfo->threadID, __func__, __LINE__);
-                free(pThreadInfo->buffer);
-                return NULL;
+                goto free_of_interlace;
             }
 
             uint64_t oldRemainderLen = remainderBufLen;
@@ -2017,22 +2028,23 @@ void *syncWriteInterlace(threadInfo *pThreadInfo, uint32_t interlaceRows) {
     }
     if (percentComplete < 100)
         printf("[%d]:%d%%\n", pThreadInfo->threadID, percentComplete);
-
+    *code = 0;
+    printStatPerThread(pThreadInfo);
 free_of_interlace:
     tmfree(pThreadInfo->buffer);
-    printStatPerThread(pThreadInfo);
-    return NULL;
+    return code;
 }
 
 static void *syncWriteInterlaceSml(threadInfo *pThreadInfo,
                                    uint32_t    interlaceRows) {
+    int32_t* code = calloc(1, sizeof (int32_t));
+    *code = -1;
     debugPrint("[%d] %s() LN%d: ### interlace schemaless write\n",
                pThreadInfo->threadID, __func__, __LINE__);
     int64_t  insertRows;
     uint64_t maxSqlLen;
     int64_t  timeStampStep;
     uint64_t insert_interval;
-    int32_t  code = 0;
 
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
 
@@ -2072,7 +2084,7 @@ static void *syncWriteInterlaceSml(threadInfo *pThreadInfo,
         smlList = (char **)calloc(pThreadInfo->ntables, sizeof(char *));
         if (NULL == smlList) {
             errorPrint("%s", "failed to allocate memory\n");
-            return NULL;
+            goto free_of_interlace_sml;
         }
 
         for (int t = 0; t < pThreadInfo->ntables; t++) {
@@ -2081,8 +2093,7 @@ static void *syncWriteInterlaceSml(threadInfo *pThreadInfo,
                 errorPrint("%s", "failed to allocate memory\n");
                 goto free_smlheadlist_interlace_sml;
             }
-            code = generateSmlConstPart(sml, stbInfo, pThreadInfo, t);
-            if (code) {
+            if (generateSmlConstPart(sml, stbInfo, pThreadInfo, t)) {
                 goto free_smlheadlist_interlace_sml;
             }
             smlList[t] = sml;
@@ -2105,8 +2116,7 @@ static void *syncWriteInterlaceSml(threadInfo *pThreadInfo,
         jsonArray = cJSON_CreateArray();
         tagsList = cJSON_CreateArray();
         for (int t = 0; t < pThreadInfo->ntables; t++) {
-            code = generateSmlJsonTags(tagsList, stbInfo, pThreadInfo, t);
-            if (code) {
+            if (generateSmlJsonTags(tagsList, stbInfo, pThreadInfo, t)) {
                 goto free_json_interlace_sml;
             }
         }
@@ -2156,17 +2166,15 @@ static void *syncWriteInterlaceSml(threadInfo *pThreadInfo,
                             tagsList,
                             (int)(tableSeq - pThreadInfo->start_table_from)),
                         true);
-                    code = generateSmlJsonCols(jsonArray, tag, stbInfo,
-                                               pThreadInfo, timestamp);
-                    if (code) {
+                    if (generateSmlJsonCols(jsonArray, tag, stbInfo,
+                                            pThreadInfo, timestamp)) {
                         goto free_json_interlace_sml;
                     }
                 } else {
-                    code = generateSmlMutablePart(
-                        pThreadInfo->lines[j],
-                        smlList[tableSeq - pThreadInfo->start_table_from],
-                        stbInfo, pThreadInfo, timestamp);
-                    if (code) {
+                    if (generateSmlMutablePart(
+                            pThreadInfo->lines[j],
+                            smlList[tableSeq - pThreadInfo->start_table_from],
+                            stbInfo, pThreadInfo, timestamp)) {
                         goto free_lines_interlace_sml;
                     }
                 }
@@ -2302,7 +2310,9 @@ static void *syncWriteInterlaceSml(threadInfo *pThreadInfo,
     if (percentComplete < 100)
         printf("[%d]:%d%%\n", pThreadInfo->threadID, percentComplete);
 
+    *code = 0;
     printStatPerThread(pThreadInfo);
+    free_of_interlace_sml:
     if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
         tmfree(pThreadInfo->lines);
     free_json_interlace_sml:
@@ -2324,12 +2334,13 @@ static void *syncWriteInterlaceSml(threadInfo *pThreadInfo,
         }
         tmfree(smlList);
     }
-    return NULL;
+    return code;
 }
 
 void *syncWriteProgressiveStmt(threadInfo *pThreadInfo) {
     debugPrint("%s() LN%d: ### stmt progressive write\n", __func__, __LINE__);
-
+    int32_t* code = calloc(1, sizeof (int32_t));
+    *code = -1;
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
     int64_t      timeStampStep =
         stbInfo ? stbInfo->timeStampStep : g_args.timestamp_step;
@@ -2362,7 +2373,7 @@ void *syncWriteProgressiveStmt(threadInfo *pThreadInfo) {
             if (0 == strlen(tableName)) {
                 errorPrint("[%d] %s() LN%d, getTableName return null\n",
                            pThreadInfo->threadID, __func__, __LINE__);
-                return NULL;
+                goto free_of_stmt_progressive;
             }
 
             // measure prepare + insert
@@ -2448,16 +2459,17 @@ void *syncWriteProgressiveStmt(threadInfo *pThreadInfo) {
     if (percentComplete < 100) {
         printf("[%d]:%d%%\n", pThreadInfo->threadID, percentComplete);
     }
-
+    *code = 0;
+    printStatPerThread(pThreadInfo);
 free_of_stmt_progressive:
     tmfree(pThreadInfo->buffer);
-    printStatPerThread(pThreadInfo);
-    return NULL;
+    return code;
 }
 
 void *syncWriteProgressive(threadInfo *pThreadInfo) {
     debugPrint("%s() LN%d: ### progressive write\n", __func__, __LINE__);
-
+    int32_t* code = calloc(1, sizeof (int32_t));
+    *code = -1;
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
     uint64_t     maxSqlLen = stbInfo ? stbInfo->maxSqlLen : g_args.max_sql_len;
     int64_t      timeStampStep =
@@ -2469,7 +2481,7 @@ void *syncWriteProgressive(threadInfo *pThreadInfo) {
     pThreadInfo->buffer = calloc(maxSqlLen, 1);
     if (NULL == pThreadInfo->buffer) {
         errorPrint("%s", "failed to allocate memory\n");
-        return NULL;
+        goto free_of_progressive;
     }
 
     uint64_t lastPrintTime = taosGetTimestampMs();
@@ -2497,8 +2509,7 @@ void *syncWriteProgressive(threadInfo *pThreadInfo) {
             if (0 == strlen(tableName)) {
                 errorPrint("[%d] %s() LN%d, getTableName return null\n",
                            pThreadInfo->threadID, __func__, __LINE__);
-                free(pThreadInfo->buffer);
-                return NULL;
+                goto free_of_progressive;
             }
 
             int64_t remainderBufLen = maxSqlLen - 2000;
@@ -2609,16 +2620,17 @@ void *syncWriteProgressive(threadInfo *pThreadInfo) {
     if (percentComplete < 100) {
         printf("[%d]:%d%%\n", pThreadInfo->threadID, percentComplete);
     }
-
+    *code = 0;
+    printStatPerThread(pThreadInfo);
 free_of_progressive:
     tmfree(pThreadInfo->buffer);
-    printStatPerThread(pThreadInfo);
-    return NULL;
+    return code;
 }
 
 void *syncWriteProgressiveSml(threadInfo *pThreadInfo) {
     debugPrint("%s() LN%d: ### sml progressive write\n", __func__, __LINE__);
-    int32_t      code = 0;
+    int32_t * code = calloc(1, sizeof (int32_t));
+    *code = -1;
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
     int64_t      timeStampStep = stbInfo->timeStampStep;
     int64_t      insertRows = stbInfo->insertRows;
@@ -2645,7 +2657,7 @@ void *syncWriteProgressiveSml(threadInfo *pThreadInfo) {
         smlList = (char **)calloc(pThreadInfo->ntables, sizeof(char *));
         if (NULL == smlList) {
             errorPrint("%s", "failed to allocate memory\n");
-            return NULL;
+            goto free_of_progressive_sml;
         }
         for (int t = 0; t < pThreadInfo->ntables; t++) {
             char *sml = (char *)calloc(1, stbInfo->lenOfOneRow);
@@ -2653,8 +2665,7 @@ void *syncWriteProgressiveSml(threadInfo *pThreadInfo) {
                 errorPrint("%s", "failed to allocate memory\n");
                 goto free_smlheadlist_progressive_sml;
             }
-            code = generateSmlConstPart(sml, stbInfo, pThreadInfo, t);
-            if (code) {
+            if (generateSmlConstPart(sml, stbInfo, pThreadInfo, t)) {
                 goto free_smlheadlist_progressive_sml;
             }
             smlList[t] = sml;
@@ -2677,8 +2688,7 @@ void *syncWriteProgressiveSml(threadInfo *pThreadInfo) {
         jsonArray = cJSON_CreateArray();
         tagsList = cJSON_CreateArray();
         for (int t = 0; t < pThreadInfo->ntables; t++) {
-            code = generateSmlJsonTags(tagsList, stbInfo, pThreadInfo, t);
-            if (code) {
+            if (generateSmlJsonTags(tagsList, stbInfo, pThreadInfo, t)) {
                 goto free_json_progressive_sml;
             }
         }
@@ -2699,16 +2709,14 @@ void *syncWriteProgressiveSml(threadInfo *pThreadInfo) {
                 if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
                     cJSON *tag = cJSON_Duplicate(
                         cJSON_GetArrayItem(tagsList, (int)i), true);
-                    code = generateSmlJsonCols(jsonArray, tag, stbInfo,
-                                               pThreadInfo, timestamp);
-                    if (code) {
+                    if (generateSmlJsonCols(jsonArray, tag, stbInfo,
+                                            pThreadInfo, timestamp)) {
                         goto free_json_progressive_sml;
                     }
                 } else {
-                    code = generateSmlMutablePart(pThreadInfo->lines[k],
-                                                  smlList[i], stbInfo,
-                                                  pThreadInfo, timestamp);
-                    if (code) {
+                    if (generateSmlMutablePart(pThreadInfo->lines[k],
+                                               smlList[i], stbInfo,
+                                               pThreadInfo, timestamp)) {
                         goto free_lines_progressive_sml;
                     }
                 }
@@ -2770,6 +2778,8 @@ void *syncWriteProgressiveSml(threadInfo *pThreadInfo) {
         }
     }
 
+    *code = 0;
+    free_of_progressive_sml:
     if (stbInfo->lineProtocol == TSDB_SML_JSON_PROTOCOL) {
         tmfree(pThreadInfo->lines);
     free_json_progressive_sml:
@@ -2791,7 +2801,7 @@ void *syncWriteProgressiveSml(threadInfo *pThreadInfo) {
         }
         tmfree(smlList);
     }
-    return NULL;
+    return code;
 }
 
 void *syncWrite(void *sarg) {
@@ -3290,7 +3300,12 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
     int64_t start = taosGetTimestampUs();
 
     for (int i = 0; i < threads; i++) {
-        pthread_join(pids[i], NULL);
+        void* result;
+        pthread_join(pids[i], &result);
+        if (*(int32_t*)result){
+            g_fail = true;
+        }
+        tmfree(result);
     }
 
     uint64_t totalDelay = 0;
@@ -3341,6 +3356,13 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
         cntDelay += pThreadInfo->cntDelay;
         if (pThreadInfo->maxDelay > maxDelay) maxDelay = pThreadInfo->maxDelay;
         if (pThreadInfo->minDelay < minDelay) minDelay = pThreadInfo->minDelay;
+    }
+
+    free(pids);
+    free(infos);
+
+    if (g_fail){
+        return -1;
     }
 
     if (cntDelay == 0) cntDelay = 1;
@@ -3404,8 +3426,6 @@ int startMultiThreadInsertData(int threads, char *db_name, char *precision,
 
     // taos_close(taos);
 
-    free(pids);
-    free(infos);
     return 0;
 }
 
