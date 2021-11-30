@@ -1854,7 +1854,7 @@ int32_t filterInitValFieldData(SFilterInfo *info) {
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
       size_t len = (var->nType == TSDB_DATA_TYPE_BINARY || var->nType == TSDB_DATA_TYPE_NCHAR) ? var->nLen : MAX_NUM_STR_SIZE;    
       fi->data = calloc(1, (len + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
-    } else {
+    } else if (type != TSDB_DATA_TYPE_JSON){
       if (var->nType == TSDB_DATA_TYPE_VALUE_ARRAY) {  //TIME RANGE
         fi->data = calloc(var->nLen, tDataTypes[type].bytes);
         for (int32_t a = 0; a < var->nLen; ++a) {
