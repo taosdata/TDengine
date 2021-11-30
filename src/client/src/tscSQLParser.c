@@ -6869,17 +6869,15 @@ int32_t validateLimitNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlN
 
   // todo refactor
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    if (!tscQueryTags(pQueryInfo)) {  // local handle the super table tag query
-      if (tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
-        if (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0) {
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
-        }
+    if (tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
+      if (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
 
-        // for projection query on super table, all queries are subqueries
-        if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
-            !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY)) {
-          pQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
-        }
+      // for projection query on super table, all queries are subqueries
+      if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
+          !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY)) {
+        pQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
       }
     }
 
