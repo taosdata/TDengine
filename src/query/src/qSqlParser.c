@@ -744,6 +744,10 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
 
       pField->bytes = (int16_t)bytes;
     }
+  } else {
+    if (type->type > 0) {
+      pField->type = -1;
+    }
   }
 }
 
