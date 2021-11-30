@@ -1265,7 +1265,7 @@ StreamWithStateResult *streamWithStateNextWith(StreamWithState *sws, StreamCallb
       return NULL;
     }
     if (FST_NODE_IS_FINAL(nextNode) && isMatch) {
-      FstOutput fOutput = {.null = false, out = out + FST_NODE_FINAL_OUTPUT(nextNode)};
+      FstOutput fOutput = {.null = false, .out = out + FST_NODE_FINAL_OUTPUT(nextNode)};
       return swsResultCreate(&slice, fOutput , tState);
     }
   }
