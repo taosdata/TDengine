@@ -472,6 +472,10 @@ pipeline {
                 bash batchtest.sh
               '''
               sh '''
+                cd ${WKC}/src/connector/jdbc
+                mvn clean test
+              '''
+              sh '''
               cd ${WKC}/tests
               ./test-all.sh b1fq
               date'''
