@@ -1,0 +1,45 @@
+deploy_mode: single
+install_package: /home/ubuntu/TDengine/release/TDengine-server-2.3.1.0-Linux-x64.tar.gz
+clean_env: True
+taosd_dnode1: 
+    ip: 192.168.1.189
+    port: 22
+    username: root
+    password: tbase125!
+taosd_cluster: 
+  enable: False
+  taosd_dnode2: 
+    ip: 127.0.0.1
+    port: 22
+    username: root
+    password: tbase125!
+  taosd_dnode3: 
+    ip: 127.0.0.1
+    port: 22
+    username: root
+    password: tbase125!
+
+taosadapter_deploy: 
+  taosadapter_count: 1
+  taosadapter1:
+    ip: 192.168.1.83
+    port: 22
+    username: root
+    password: tbase125!
+  taosadapter2:
+    ip: 192.168.1.84
+    port: 22
+    username: root
+    password: tbase125!
+  taosadapter3:
+    ip: 192.168.1.85
+    port: 22
+    username: root
+    password: tbase125!
+  taosadapter4:
+    ip: 192.168.1.86
+    port: 22
+    username: root
+    password: tbase125!
+
+
