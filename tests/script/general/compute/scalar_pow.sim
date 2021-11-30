@@ -212,7 +212,15 @@ endi
 if $data15 != 2.000000000 then
   return -1
 endi
-
+print execute sql select sqrt(abs(log(c1,2)-pow(c1,2)))+2 from $tb order by ts limit 2
+sql select sqrt(abs(log(c1,2)-pow(c1,2)))+2 from $tb order by ts limit 2
+print $data00 , $ data10 
+if $data00 != @inf@ then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
 
 print ===============> step 3 sql_error stable, group by, window
 sql_error select log(c2,2) from $stb group by tbname;
