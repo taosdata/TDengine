@@ -20,16 +20,42 @@
 #include "tfile.h"
 #include "walInt.h"
 
-int walSetCurVerImpl(SWal *pWal, int64_t ver) {
+int walSeekVerImpl(SWal *pWal, int64_t ver) {
   //close old file
-  //iterate all files
-  //open right file
+  int code = 0;
+  code = tfClose(pWal->curLogTfd);
+  if(code != 0) {
+   //TODO 
+  }
+  code = tfClose(pWal->curIdxTfd);
+  if(code != 0) {
+   //TODO 
+  }
+  //bsearch in fileSet
+  int fName = 0;//TODO
+  //open the right file
+  char fNameStr[WAL_FILE_LEN];
+  sprintf(fNameStr, "%d."WAL_INDEX_SUFFIX, fName);
+  bool closed = 1; //TODO:read only
+  int64_t idxTfd = tfOpenReadWrite(fNameStr);
+  sprintf(fNameStr, "%d."WAL_LOG_SUFFIX, fName);
+  int64_t logTfd = tfOpenReadWrite(fNameStr);
+  //seek position
+  int64_t offset = (ver - fName) * WAL_IDX_ENTRY_SIZE;
+  tfLseek(idxTfd, offset, SEEK_SET);
   //set cur version, cur file version and cur status
-  return 0;
+  pWal->curFileFirstVersion = fName;
+  pWal->curFileLastVersion = 1;//TODO
+  pWal->curLogTfd = logTfd;
+  pWal->curIdxTfd = idxTfd;
+  pWal->curVersion = ver;
+  pWal->curOffset = offset;
+  pWal->curStatus = 0;//TODO
+  return code;
 }
 
-int walSetCurVer(SWal *pWal, int64_t ver) {
-  if(ver > pWal->lastVersion + 1) {
+int walSeekVer(SWal *pWal, int64_t ver) {
+  if(ver > pWal->lastVersion) {
     //TODO: some records are skipped
     return -1;
   }
@@ -40,13 +66,19 @@ int walSetCurVer(SWal *pWal, int64_t ver) {
   if(ver < pWal->snapshotVersion) {
     //TODO: seek snapshotted log
   }
+  if(ver >= pWal->curFileFirstVersion
+      && ((pWal->curFileLastVersion == -1 && ver <= pWal->lastVersion) || (ver <= pWal->curFileLastVersion))) {
+
+  }
   if(ver < pWal->curFileFirstVersion || (pWal->curFileLastVersion != -1 && ver > pWal->curFileLastVersion)) {
+    int index = 0;
+    index = 1;
     //back up to avoid inconsistency
     int64_t curVersion = pWal->curVersion;
     int64_t curOffset = pWal->curOffset;
     int64_t curFileFirstVersion = pWal->curFileFirstVersion;
     int64_t curFileLastVersion = pWal->curFileLastVersion;
-    if(walSetCurVerImpl(pWal, ver) < 0) {
+    if(walSeekVerImpl(pWal, ver) < 0) {
       //TODO: errno
       pWal->curVersion = curVersion;
       pWal->curOffset = curOffset;
@@ -67,7 +99,7 @@ int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
     wError("vgId:%d, file:%"PRId64".idx, failed to open since %s", pWal->vgId, pWal->curFileFirstVersion, strerror(errno));
   }
   if(pWal->curVersion != ver) {
-    if(walSetCurVer(pWal, ver) != 0) {
+    if(walSeekVer(pWal, ver) != 0) {
       //TODO: some records are skipped
       return -1;
     }

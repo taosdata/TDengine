@@ -18,7 +18,16 @@
 #include "taoserror.h"
 #include "tref.h"
 #include "tfile.h"
+#include "compare.h"
 #include "walInt.h"
+
+//internal
+int32_t walGetNextFile(SWal *pWal, int64_t *nextFileId);
+int32_t walGetOldFile(SWal *pWal, int64_t curFileId, int32_t minDiff, int64_t *oldFileId);
+int32_t walGetNewFile(SWal *pWal, int64_t *newFileId);
+
+static pthread_mutex_t walInitLock = PTHREAD_MUTEX_INITIALIZER;
+static int8_t walInited = 0;
 
 typedef struct {
   int32_t   refSetId;
@@ -35,11 +44,21 @@ static int32_t  walInitObj(SWal *pWal);
 static void     walFreeObj(void *pWal);
 
 int32_t walInit() {
+  //TODO: change to atomic
+  pthread_mutex_lock(&walInitLock);
+  if(walInited) {
+    pthread_mutex_unlock(&walInitLock);
+    return 0;
+  } else {
+    walInited = 1;
+    pthread_mutex_unlock(&walInitLock);
+  }
+
   int32_t code = 0;
   tsWal.refSetId = taosOpenRef(TSDB_MIN_VNODES, walFreeObj);
 
   code = pthread_mutex_init(&tsWal.mutex, NULL);
-  if (code) {
+  if (code != 0) {
     wError("failed to init wal mutex since %s", tstrerror(code));
     return code;
   }
@@ -61,6 +80,27 @@ void walCleanUp() {
   wInfo("wal module is cleaned up");
 }
 
+static int walLoadFileset(SWal *pWal) {
+  DIR *dir = opendir(pWal->path);
+  if (dir == NULL) {
+    wError("vgId:%d, path:%s, failed to open since %s", pWal->vgId, pWal->path, strerror(errno));
+    return -1;
+  }
+
+  struct dirent* ent;
+  while ((ent = readdir(dir)) != NULL) {
+    char *name = ent->d_name;
+    name[WAL_NOSUFFIX_LEN] = 0;
+    //validate file name by regex matching
+    if(1 /* regex match */) {
+      int64_t fnameInt64 = atoll(name);
+      taosArrayPush(pWal->fileSet, &fnameInt64);
+    }
+  }
+  taosArraySort(pWal->fileSet, compareInt64Val);
+  return 0;
+}
+
 SWal *walOpen(const char *path, SWalCfg *pCfg) {
   SWal *pWal = malloc(sizeof(SWal));
   if (pWal == NULL) {
@@ -70,9 +110,13 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
 
   pWal->vgId = pCfg->vgId;
   pWal->curLogTfd = -1;
-  /*pWal->curFileId = -1;*/
+  pWal->curIdxTfd = -1;
   pWal->level = pCfg->walLevel;
   pWal->fsyncPeriod = pCfg->fsyncPeriod;
+
+  memset(&pWal->head, 0, sizeof(SWalHead));
+  pWal->head.sver = 0;
+
   tstrncpy(pWal->path, path, sizeof(pWal->path));
   pthread_mutex_init(&pWal->mutex, NULL);
 
@@ -127,6 +171,11 @@ void walClose(SWal *pWal) {
 static int32_t walInitObj(SWal *pWal) {
   if (!taosMkDir(pWal->path)) {
     wError("vgId:%d, path:%s, failed to create directory since %s", pWal->vgId, pWal->path, strerror(errno));
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+  pWal->fileSet = taosArrayInit(0, sizeof(int64_t));
+  if(pWal->fileSet == NULL) {
+    wError("vgId:%d, path:%s, failed to init taosArray %s", pWal->vgId, pWal->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }
 
