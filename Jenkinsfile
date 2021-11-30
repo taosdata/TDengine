@@ -334,8 +334,8 @@ pipeline {
   agent none
   options { skipDefaultCheckout() } 
   environment{
-      WK = '/var/lib/jenkins/workspace/TDinternal'
-      WKC= '/var/lib/jenkins/workspace/TDinternal/community'
+      WK = '/var/lib/jenkins/workspace/TDinternal_master'
+      WKC= '/var/lib/jenkins/workspace/TDinternal_master/community'
   }
   stages {
       stage('pre_build'){
