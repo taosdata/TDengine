@@ -80,7 +80,9 @@ static SMnode *dndAcquireMnode(SDnode *pDnode) {
   }
   taosRUnLockLatch(&pMgmt->latch);
 
-  dTrace("acquire mnode, refCount:%d", refCount);
+  if (pMnode != NULL) {
+    dTrace("acquire mnode, refCount:%d", refCount);
+  }
   return pMnode;
 }
 
@@ -94,7 +96,9 @@ static void dndReleaseMnode(SDnode *pDnode, SMnode *pMnode) {
   }
   taosRUnLockLatch(&pMgmt->latch);
 
-  dTrace("release mnode, refCount:%d", refCount);
+  if (pMnode != NULL) {
+    dTrace("release mnode, refCount:%d", refCount);
+  }
 }
 
 static int32_t dndReadMnodeFile(SDnode *pDnode) {
@@ -360,13 +364,13 @@ static int32_t dndBuildMnodeOptionFromMsg(SDnode *pDnode, SMnodeOpt *pOption, SC
 
   pOption->replica = pMsg->replica;
   pOption->selfIndex = -1;
-  for (int32_t index = 0; index < pMsg->replica; ++index) {
-    SReplica *pReplica = &pOption->replicas[index];
-    pReplica->id = pMsg->replicas[index].id;
-    pReplica->port = pMsg->replicas[index].port;
-    tstrncpy(pReplica->fqdn, pMsg->replicas[index].fqdn, TSDB_FQDN_LEN);
+  for (int32_t i = 0; i < pMsg->replica; ++i) {
+    SReplica *pReplica = &pOption->replicas[i];
+    pReplica->id = pMsg->replicas[i].id;
+    pReplica->port = pMsg->replicas[i].port;
+    tstrncpy(pReplica->fqdn, pMsg->replicas[i].fqdn, TSDB_FQDN_LEN);
     if (pReplica->id == pOption->dnodeId) {
-      pOption->selfIndex = index;
+      pOption->selfIndex = i;
     }
   }
 
@@ -392,7 +396,7 @@ static int32_t dndOpenMnode(SDnode *pDnode, SMnodeOpt *pOption) {
     return code;
   }
 
-  SMnode *pMnode = mnodeOpen(pDnode->dir.mnode, pOption);
+  SMnode *pMnode = mndOpen(pDnode->dir.mnode, pOption);
   if (pMnode == NULL) {
     dError("failed to open mnode since %s", terrstr());
     code = terrno;
@@ -405,8 +409,8 @@ static int32_t dndOpenMnode(SDnode *pDnode, SMnodeOpt *pOption) {
     dError("failed to write mnode file since %s", terrstr());
     code = terrno;
     dndStopMnodeWorker(pDnode);
-    mnodeClose(pMnode);
-    mnodeDestroy(pDnode->dir.mnode);
+    mndClose(pMnode);
+    mndDestroy(pDnode->dir.mnode);
     terrno = code;
     return code;
   }
@@ -428,7 +432,7 @@ static int32_t dndAlterMnode(SDnode *pDnode, SMnodeOpt *pOption) {
     return -1;
   }
 
-  if (mnodeAlter(pMnode, pOption) != 0) {
+  if (mndAlter(pMnode, pOption) != 0) {
     dError("failed to alter mnode since %s", terrstr());
     dndReleaseMnode(pDnode, pMnode);
     return -1;
@@ -463,8 +467,8 @@ static int32_t dndDropMnode(SDnode *pDnode) {
 
   dndStopMnodeWorker(pDnode);
   dndWriteMnodeFile(pDnode);
-  mnodeClose(pMnode);
-  mnodeDestroy(pDnode->dir.mnode);
+  mndClose(pMnode);
+  mndDestroy(pDnode->dir.mnode);
 
   return 0;
 }
@@ -491,6 +495,7 @@ static int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
     if (dndBuildMnodeOptionFromMsg(pDnode, &option, pMsg) != 0) {
       return -1;
     }
+
     return dndOpenMnode(pDnode, &option);
   }
 }
@@ -550,13 +555,13 @@ static void dndProcessMnodeReadQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
 
   SMnode *pMnode = dndAcquireMnode(pDnode);
   if (pMnode != NULL) {
-    mnodeProcessReadMsg(pMnode, pMsg);
+    mndProcessReadMsg(pMsg);
     dndReleaseMnode(pDnode, pMnode);
   } else {
-    mnodeSendRsp(pMsg, terrno);
+    mndSendRsp(pMsg, terrno);
   }
 
-  mnodeCleanupMsg(pMsg);
+  mndCleanupMsg(pMsg);
 }
 
 static void dndProcessMnodeWriteQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
@@ -564,13 +569,13 @@ static void dndProcessMnodeWriteQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
 
   SMnode *pMnode = dndAcquireMnode(pDnode);
   if (pMnode != NULL) {
-    mnodeProcessWriteMsg(pMnode, pMsg);
+    mndProcessWriteMsg(pMsg);
     dndReleaseMnode(pDnode, pMnode);
   } else {
-    mnodeSendRsp(pMsg, terrno);
+    mndSendRsp(pMsg, terrno);
   }
 
-  mnodeCleanupMsg(pMsg);
+  mndCleanupMsg(pMsg);
 }
 
 static void dndProcessMnodeApplyQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
@@ -578,13 +583,13 @@ static void dndProcessMnodeApplyQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
 
   SMnode *pMnode = dndAcquireMnode(pDnode);
   if (pMnode != NULL) {
-    mnodeProcessApplyMsg(pMnode, pMsg);
+    mndProcessApplyMsg(pMsg);
     dndReleaseMnode(pDnode, pMnode);
   } else {
-    mnodeSendRsp(pMsg, terrno);
+    mndSendRsp(pMsg, terrno);
   }
 
-  mnodeCleanupMsg(pMsg);
+  mndCleanupMsg(pMsg);
 }
 
 static void dndProcessMnodeSyncQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
@@ -592,26 +597,26 @@ static void dndProcessMnodeSyncQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
 
   SMnode *pMnode = dndAcquireMnode(pDnode);
   if (pMnode != NULL) {
-    mnodeProcessSyncMsg(pMnode, pMsg);
+    mndProcessSyncMsg(pMsg);
     dndReleaseMnode(pDnode, pMnode);
   } else {
-    mnodeSendRsp(pMsg, terrno);
+    mndSendRsp(pMsg, terrno);
   }
 
-  mnodeCleanupMsg(pMsg);
+  mndCleanupMsg(pMsg);
 }
 
 static int32_t dndWriteMnodeMsgToQueue(SMnode *pMnode, taos_queue pQueue, SRpcMsg *pRpcMsg) {
   assert(pQueue);
 
-  SMnodeMsg *pMsg = mnodeInitMsg(pMnode, pRpcMsg);
+  SMnodeMsg *pMsg = mndInitMsg(pMnode, pRpcMsg);
   if (pMsg == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   if (taosWriteQitem(pQueue, pMsg) != 0) {
-    mnodeCleanupMsg(pMsg);
+    mndCleanupMsg(pMsg);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -683,7 +688,7 @@ static int32_t dndPutMsgIntoMnodeApplyQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
 
 static int32_t dndAllocMnodeMgmtQueue(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  pMgmt->pMgmtQ = tWorkerAllocQueue(&pMgmt->mgmtPool, NULL, (FProcessItem)dndProcessMnodeMgmtQueue);
+  pMgmt->pMgmtQ = tWorkerAllocQueue(&pMgmt->mgmtPool, pDnode, (FProcessItem)dndProcessMnodeMgmtQueue);
   if (pMgmt->pMgmtQ == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -708,18 +713,19 @@ static int32_t dndInitMnodeMgmtWorker(SDnode *pDnode) {
     return -1;
   }
 
+  dDebug("mnode mgmt worker is initialized");
   return 0;
 }
 
 static void dndCleanupMnodeMgmtWorker(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   tWorkerCleanup(&pMgmt->mgmtPool);
-  dDebug("mnode mgmt worker is stopped");
+  dDebug("mnode mgmt worker is closed");
 }
 
 static int32_t dndAllocMnodeReadQueue(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  pMgmt->pReadQ = tWorkerAllocQueue(&pMgmt->readPool, NULL, (FProcessItem)dndProcessMnodeReadQueue);
+  pMgmt->pReadQ = tWorkerAllocQueue(&pMgmt->readPool, pDnode, (FProcessItem)dndProcessMnodeReadQueue);
   if (pMgmt->pReadQ == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -745,18 +751,19 @@ static int32_t dndInitMnodeReadWorker(SDnode *pDnode) {
     return -1;
   }
 
+  dDebug("mnode read worker is initialized");
   return 0;
 }
 
 static void dndCleanupMnodeReadWorker(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   tWorkerCleanup(&pMgmt->readPool);
-  dDebug("mnode read worker is stopped");
+  dDebug("mnode read worker is closed");
 }
 
 static int32_t dndAllocMnodeWriteQueue(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  pMgmt->pWriteQ = tWorkerAllocQueue(&pMgmt->writePool, NULL, (FProcessItem)dndProcessMnodeWriteQueue);
+  pMgmt->pWriteQ = tWorkerAllocQueue(&pMgmt->writePool, pDnode, (FProcessItem)dndProcessMnodeWriteQueue);
   if (pMgmt->pWriteQ == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -773,7 +780,7 @@ static void dndFreeMnodeWriteQueue(SDnode *pDnode) {
 
 static int32_t dndAllocMnodeApplyQueue(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  pMgmt->pApplyQ = tWorkerAllocQueue(&pMgmt->writePool, NULL, (FProcessItem)dndProcessMnodeApplyQueue);
+  pMgmt->pApplyQ = tWorkerAllocQueue(&pMgmt->writePool, pDnode, (FProcessItem)dndProcessMnodeApplyQueue);
   if (pMgmt->pApplyQ == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -799,18 +806,19 @@ static int32_t dndInitMnodeWriteWorker(SDnode *pDnode) {
     return -1;
   }
 
+  dDebug("mnode write worker is initialized");
   return 0;
 }
 
 static void dndCleanupMnodeWriteWorker(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   tWorkerCleanup(&pMgmt->writePool);
-  dDebug("mnode write worker is stopped");
+  dDebug("mnode write worker is closed");
 }
 
 static int32_t dndAllocMnodeSyncQueue(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  pMgmt->pSyncQ = tWorkerAllocQueue(&pMgmt->syncPool, NULL, (FProcessItem)dndProcessMnodeSyncQueue);
+  pMgmt->pSyncQ = tWorkerAllocQueue(&pMgmt->syncPool, pDnode, (FProcessItem)dndProcessMnodeSyncQueue);
   if (pMgmt->pSyncQ == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -836,13 +844,14 @@ static int32_t dndInitMnodeSyncWorker(SDnode *pDnode) {
     return -1;
   }
 
+  dDebug("mnode sync worker is initialized");
   return 0;
 }
 
 static void dndCleanupMnodeSyncWorker(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   tWorkerCleanup(&pMgmt->syncPool);
-  dDebug("mnode sync worker is stopped");
+  dDebug("mnode sync worker is closed");
 }
 
 int32_t dndInitMnode(SDnode *pDnode) {
@@ -869,7 +878,7 @@ int32_t dndInitMnode(SDnode *pDnode) {
 
   if (pMgmt->dropped) {
     dInfo("mnode has been deployed and needs to be deleted");
-    mnodeDestroy(pDnode->dir.mnode);
+    mndDestroy(pDnode->dir.mnode);
     return 0;
   }
 
@@ -912,7 +921,7 @@ int32_t dndGetUserAuthFromMnode(SDnode *pDnode, char *user, char *spi, char *enc
     return -1;
   }
 
-  int32_t code = mnodeRetriveAuth(pMnode, user, spi, encrypt, secret, ckey);
+  int32_t code = mndRetriveAuth(pMnode, user, spi, encrypt, secret, ckey);
   dndReleaseMnode(pDnode, pMnode);
   return code;
 }

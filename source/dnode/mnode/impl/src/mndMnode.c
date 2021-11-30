@@ -12,36 +12,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef __INDEX_FST_AUTAOMATION_H__
-#define __INDEX_FST_AUTAOMATION_H__
 
-typedef struct AutomationCtx AutomationCtx;
+#define _DEFAULT_SOURCE
+#include "os.h"
+#include "mndInt.h"
 
-typedef struct StartWith {
-  AutomationCtx  *autoSelf;
-} StartWith;
+int32_t mndInitMnode(SMnode *pMnode) { return 0; }
+void    mndCleanupMnode(SMnode *pMnode) {}
 
-typedef struct Complement {
-  AutomationCtx *autoSelf;
-  
-} Complement;
-
-// automation 
-typedef struct AutomationCtx {
-// automation interface
-  void *data;
-} AutomationCtx;
-
-typedef struct Automation {
-  void* (*start)() ; 
-  bool (*isMatch)();
-  bool (*canMatch)(void *data);
-  bool (*willAlwaysMatch)(void *state); 
-  void* (*accpet)(void *state, uint8_t byte);
-  void* (*accpetEof)(void *state);
-  void *data;
-} Automation; 
-
-
-
-#endif
+void mndGetMnodeEpSetForPeer(SEpSet *epSet, bool redirect) {}
+void mndGetMnodeEpSetForShell(SEpSet *epSet, bool redirect) {}

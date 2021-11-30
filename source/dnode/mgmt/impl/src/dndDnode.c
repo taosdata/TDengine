@@ -18,32 +18,27 @@
 #include "dndTransport.h"
 #include "dndVnodes.h"
 
-static inline void dndRLockDnode(SDnode *pDnode) { taosRLockLatch(&pDnode->dmgmt.latch); }
-
-static inline void dndRUnLockDnode(SDnode *pDnode) { taosRUnLockLatch(&pDnode->dmgmt.latch); }
-
-static inline void dndWLockDnode(SDnode *pDnode) { taosWLockLatch(&pDnode->dmgmt.latch); }
-
-static inline void dndWUnLockDnode(SDnode *pDnode) { taosWUnLockLatch(&pDnode->dmgmt.latch); }
-
 int32_t dndGetDnodeId(SDnode *pDnode) {
-  dndRLockDnode(pDnode);
-  int32_t dnodeId = pDnode->dmgmt.dnodeId;
-  dndRUnLockDnode(pDnode);
+  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+  taosRLockLatch(&pMgmt->latch);
+  int32_t dnodeId = pMgmt->dnodeId;
+  taosRUnLockLatch(&pMgmt->latch);
   return dnodeId;
 }
 
 int64_t dndGetClusterId(SDnode *pDnode) {
-  dndRLockDnode(pDnode);
-  int64_t clusterId = pDnode->dmgmt.clusterId;
-  dndRUnLockDnode(pDnode);
+  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+  taosRLockLatch(&pMgmt->latch);
+  int64_t clusterId = pMgmt->clusterId;
+  taosRUnLockLatch(&pMgmt->latch);
   return clusterId;
 }
 
 void dndGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
-  dndRLockDnode(pDnode);
+  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+  taosRLockLatch(&pMgmt->latch);
 
-  SDnodeEp *pDnodeEp = taosHashGet(pDnode->dmgmt.dnodeHash, &dnodeId, sizeof(int32_t));
+  SDnodeEp *pDnodeEp = taosHashGet(pMgmt->dnodeHash, &dnodeId, sizeof(int32_t));
   if (pDnodeEp != NULL) {
     if (pPort != NULL) {
       *pPort = pDnodeEp->port;
@@ -56,13 +51,14 @@ void dndGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint
     }
   }
 
-  dndRUnLockDnode(pDnode);
+  taosRUnLockLatch(&pMgmt->latch);
 }
 
 void dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
-  dndRLockDnode(pDnode);
-  *pEpSet = pDnode->dmgmt.mnodeEpSet;
-  dndRUnLockDnode(pDnode);
+  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+  taosRLockLatch(&pMgmt->latch);
+  *pEpSet = pMgmt->mnodeEpSet;
+  taosRUnLockLatch(&pMgmt->latch);
 }
 
 void dndSendRedirectMsg(SDnode *pDnode, SRpcMsg *pMsg) {
@@ -87,14 +83,15 @@ void dndSendRedirectMsg(SDnode *pDnode, SRpcMsg *pMsg) {
 static void dndUpdateMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
   dInfo("mnode is changed, num:%d inUse:%d", pEpSet->numOfEps, pEpSet->inUse);
 
-  dndWLockDnode(pDnode);
+  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+  taosWLockLatch(&pMgmt->latch);
 
-  pDnode->dmgmt.mnodeEpSet = *pEpSet;
+  pMgmt->mnodeEpSet = *pEpSet;
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
     dInfo("mnode index:%d %s:%u", i, pEpSet->fqdn[i], pEpSet->port[i]);
   }
 
-  dndWUnLockDnode(pDnode);
+  taosWUnLockLatch(&pMgmt->latch);
 }
 
 static void dndPrintDnodes(SDnode *pDnode) {
@@ -124,12 +121,14 @@ static void dndResetDnodes(SDnode *pDnode, SDnodeEps *pDnodeEps) {
   }
 
   pMgmt->mnodeEpSet.inUse = 0;
+  pMgmt->mnodeEpSet.numOfEps = 0;
 
   int32_t mIndex = 0;
   for (int32_t i = 0; i < pMgmt->dnodeEps->num; i++) {
     SDnodeEp *pDnodeEp = &pMgmt->dnodeEps->eps[i];
     if (!pDnodeEp->isMnode) continue;
     if (mIndex >= TSDB_MAX_REPLICA) continue;
+    pMgmt->mnodeEpSet.numOfEps++;
     strcpy(pMgmt->mnodeEpSet.fqdn[mIndex], pDnodeEp->fqdn);
     pMgmt->mnodeEpSet.port[mIndex] = pDnodeEp->port;
     mIndex++;
@@ -145,16 +144,18 @@ static void dndResetDnodes(SDnode *pDnode, SDnodeEps *pDnodeEps) {
 
 static bool dndIsEpChanged(SDnode *pDnode, int32_t dnodeId, char *pEp) {
   bool changed = false;
-  dndRLockDnode(pDnode);
 
-  SDnodeEp *pDnodeEp = taosHashGet(pDnode->dmgmt.dnodeHash, &dnodeId, sizeof(int32_t));
+  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+  taosRLockLatch(&pMgmt->latch);
+
+  SDnodeEp *pDnodeEp = taosHashGet(pMgmt->dnodeHash, &dnodeId, sizeof(int32_t));
   if (pDnodeEp != NULL) {
     char epstr[TSDB_EP_LEN + 1];
     snprintf(epstr, TSDB_EP_LEN, "%s:%u", pDnodeEp->fqdn, pDnodeEp->port);
     changed = strcmp(pEp, epstr) != 0;
   }
 
-  dndRUnLockDnode(pDnode);
+  taosRUnLockLatch(&pMgmt->latch);
   return changed;
 }
 
@@ -280,6 +281,7 @@ PRASE_DNODE_OVER:
   if (pMgmt->dnodeEps == NULL) {
     pMgmt->dnodeEps = calloc(1, sizeof(SDnodeEps) + sizeof(SDnodeEp));
     pMgmt->dnodeEps->num = 1;
+    pMgmt->dnodeEps->eps[0].isMnode = 1;
     pMgmt->dnodeEps->eps[0].port = pDnode->opt.serverPort;
     tstrncpy(pMgmt->dnodeEps->eps[0].fqdn, pDnode->opt.localFqdn, TSDB_FQDN_LEN);
   }
@@ -342,11 +344,14 @@ static void dndSendStatusMsg(SDnode *pDnode) {
     return;
   }
 
-  dndRLockDnode(pDnode);
+  bool changed = false;
+
+  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+  taosRLockLatch(&pMgmt->latch);
   pStatus->sversion = htonl(pDnode->opt.sver);
-  pStatus->dnodeId = htonl(pDnode->dmgmt.dnodeId);
-  pStatus->clusterId = htobe64(pDnode->dmgmt.clusterId);
-  pStatus->rebootTime = htonl(pDnode->dmgmt.rebootTime);
+  pStatus->dnodeId = htonl(pMgmt->dnodeId);
+  pStatus->clusterId = htobe64(pMgmt->clusterId);
+  pStatus->rebootTime = htonl(pMgmt->rebootTime);
   pStatus->numOfCores = htonl(pDnode->opt.numOfCores);
   tstrncpy(pStatus->dnodeEp, pDnode->opt.localEp, TSDB_EP_LEN);
   pStatus->clusterCfg.statusInterval = htonl(pDnode->opt.statusInterval);
@@ -356,7 +361,7 @@ static void dndSendStatusMsg(SDnode *pDnode) {
   pStatus->clusterCfg.checkTime = 0;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &pStatus->clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
-  dndRUnLockDnode(pDnode);
+  taosRUnLockLatch(&pMgmt->latch);
 
   dndGetVnodeLoads(pDnode, &pStatus->vnodeLoads);
   contLen = sizeof(SStatusMsg) + pStatus->vnodeLoads.num * sizeof(SVnodeLoad);
@@ -370,32 +375,33 @@ static void dndUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
   if (pMgmt->dnodeId == 0 || pMgmt->dropped != pCfg->dropped) {
     dInfo("set dnodeId:%d clusterId:%" PRId64 " dropped:%d", pCfg->dnodeId, pCfg->clusterId, pCfg->dropped);
 
-    dndWLockDnode(pDnode);
+    taosWLockLatch(&pMgmt->latch);
     pMgmt->dnodeId = pCfg->dnodeId;
     pMgmt->clusterId = pCfg->clusterId;
     pMgmt->dropped = pCfg->dropped;
     (void)dndWriteDnodes(pDnode);
-    dndWUnLockDnode(pDnode);
+    taosWUnLockLatch(&pMgmt->latch);
   }
 }
 
 static void dndUpdateDnodeEps(SDnode *pDnode, SDnodeEps *pDnodeEps) {
   if (pDnodeEps == NULL || pDnodeEps->num <= 0) return;
 
-  dndWLockDnode(pDnode);
+  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+  taosWLockLatch(&pMgmt->latch);
 
-  if (pDnodeEps->num != pDnode->dmgmt.dnodeEps->num) {
+  if (pDnodeEps->num != pMgmt->dnodeEps->num) {
     dndResetDnodes(pDnode, pDnodeEps);
     dndWriteDnodes(pDnode);
   } else {
     int32_t size = pDnodeEps->num * sizeof(SDnodeEp) + sizeof(SDnodeEps);
-    if (memcmp(pDnode->dmgmt.dnodeEps, pDnodeEps, size) != 0) {
+    if (memcmp(pMgmt->dnodeEps, pDnodeEps, size) != 0) {
       dndResetDnodes(pDnode, pDnodeEps);
       dndWriteDnodes(pDnode);
     }
   }
 
-  dndWUnLockDnode(pDnode);
+  taosWUnLockLatch(&pMgmt->latch);
 }
 
 static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
@@ -458,7 +464,7 @@ static void *dnodeThreadRoutine(void *param) {
     pthread_testcancel();
 
     if (dndGetStat(pDnode) == DND_STAT_RUNNING) {
-      dndSendStatusMsg(pDnode);
+      // dndSendStatusMsg(pDnode);
     }
   }
 }
@@ -512,7 +518,7 @@ void dndCleanupDnode(SDnode *pDnode) {
     pMgmt->threadId = NULL;
   }
 
-  dndWLockDnode(pDnode);
+  taosWLockLatch(&pMgmt->latch);
 
   if (pMgmt->dnodeEps != NULL) {
     free(pMgmt->dnodeEps);
@@ -529,7 +535,7 @@ void dndCleanupDnode(SDnode *pDnode) {
     pMgmt->file = NULL;
   }
 
-  dndWUnLockDnode(pDnode);
+  taosWUnLockLatch(&pMgmt->latch);
   dInfo("dnode-dnode is cleaned up");
 }
 

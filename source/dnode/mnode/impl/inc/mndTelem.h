@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2020 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -13,26 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "sdbInt.h"
+#ifndef _TD_MND_TELEMETRY_H_
+#define _TD_MND_TELEMETRY_H_
 
-SSdbRow *sdbAllocRow(int32_t objSize) {
-  SSdbRow *pRow = calloc(1, objSize + sizeof(SSdbRow));
-  if (pRow == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include "mndInt.h"
 
-  return pRow;
+int32_t mndInitTelem(SMnode *pMnode);
+void    mndCleanupTelem(SMnode *pMnode);
+
+#ifdef __cplusplus
 }
+#endif
 
-void *sdbGetRowObj(SSdbRow *pRow) {
-  if (pRow == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  return pRow->pObj;
-}
-
-void sdbFreeRow(SSdbRow *pRow) { tfree(pRow); }
+#endif /*_TD_MND_TELEMETRY_H_*/

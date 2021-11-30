@@ -16,14 +16,14 @@
 #define _DEFAULT_SOURCE
 #include "sdbInt.h"
 
-SSdbRaw *sdbAllocRaw(ESdbType sdb, int8_t sver, int32_t dataLen) {
+SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen) {
   SSdbRaw *pRaw = calloc(1, dataLen + sizeof(SSdbRaw));
   if (pRaw == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  pRaw->sdb = sdb;
+  pRaw->type = type;
   pRaw->sver = sver;
   pRaw->dataLen = dataLen;
   return pRaw;

@@ -15,70 +15,70 @@
 
 #define _DEFAULT_SOURCE
 #include "sdbInt.h"
-#include "tglobal.h"
 #include "tchecksum.h"
 
-static int32_t sdbCreateDir() {
-  mDebug("start to create mnode at %s", tsMnodeDir);
-  
-  if (taosMkDir(tsSdb.currDir) != 0) {
+static int32_t sdbCreateDir(SSdb *pSdb) {
+  if (taosMkDir(pSdb->currDir) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", tsSdb.currDir, terrstr());
+    mError("failed to create dir:%s since %s", pSdb->currDir, terrstr());
     return -1;
   }
 
-  if (taosMkDir(tsSdb.syncDir) != 0) {
+  if (taosMkDir(pSdb->syncDir) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", tsSdb.syncDir, terrstr());
+    mError("failed to create dir:%s since %s", pSdb->syncDir, terrstr());
     return -1;
   }
 
-  if (taosMkDir(tsSdb.tmpDir) != 0) {
+  if (taosMkDir(pSdb->tmpDir) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", tsSdb.tmpDir, terrstr());
+    mError("failed to create dir:%s since %s", pSdb->tmpDir, terrstr());
     return -1;
   }
 
   return 0;
 }
 
-static int32_t sdbRunDeployFp() {
-  mDebug("start to run deploy functions");
+static int32_t sdbRunDeployFp(SSdb *pSdb) {
+  mDebug("start to deploy sdb");
 
   for (int32_t i = SDB_MAX - 1; i > SDB_START; --i) {
-    SdbDeployFp fp = tsSdb.deployFps[i];
+    SdbDeployFp fp = pSdb->deployFps[i];
     if (fp == NULL) continue;
-    if ((*fp)() != 0) {
+
+    if ((*fp)(pSdb) != 0) {
       mError("failed to deploy sdb:%d since %s", i, terrstr());
       return -1;
     }
   }
 
-  mDebug("end of run deploy functions");
+  mDebug("sdb deploy successfully");
   return 0;
 }
 
-static int32_t sdbReadDataFile() {
-  SSdbRaw *pRaw = malloc(SDB_MAX_SIZE);
-  if (pRaw == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  char file[PATH_MAX] = {0};
-  snprintf(file, sizeof(file), "%ssdb.data", tsSdb.currDir);
-  FileFd fd = taosOpenFileRead(file);
-  if (fd <= 0) {
-    free(pRaw);
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to open file:%s for read since %s", file, terrstr());
-    return -1;
-  }
-
+int32_t sdbReadFile(SSdb *pSdb) {
   int64_t offset = 0;
   int32_t code = 0;
   int32_t readLen = 0;
   int64_t ret = 0;
+
+  SSdbRaw *pRaw = malloc(SDB_MAX_SIZE);
+  if (pRaw == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("failed read file since %s",  terrstr());
+    return -1;
+  }
+
+  char file[PATH_MAX] = {0};
+  snprintf(file, sizeof(file), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
+
+  FileFd fd = taosOpenFileRead(file);
+  if (fd <= 0) {
+    free(pRaw);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to read file:%s since %s", file, terrstr());
+    return -1;
+  }
 
   while (1) {
     readLen = sizeof(SSdbRaw);
@@ -118,7 +118,7 @@ static int32_t sdbReadDataFile() {
       break;
     }
 
-    code = sdbWriteImp(pRaw);
+    code = sdbWriteRaw(pSdb, pRaw);
     if (code != 0) {
       mError("failed to read file:%s since %s", file, terrstr());
       goto PARSE_SDB_DATA_ERROR;
@@ -130,13 +130,18 @@ static int32_t sdbReadDataFile() {
 PARSE_SDB_DATA_ERROR:
   taosCloseFile(fd);
   sdbFreeRaw(pRaw);
+
   terrno = code;
   return code;
 }
 
-static int32_t sdbWriteDataFile() {
+int32_t sdbWriteFile(SSdb *pSdb) {
+  int32_t code = 0;
+
   char tmpfile[PATH_MAX] = {0};
-  snprintf(tmpfile, sizeof(tmpfile), "%ssdb.data", tsSdb.tmpDir);
+  snprintf(tmpfile, sizeof(tmpfile), "%s%ssdb.data", pSdb->tmpDir, TD_DIRSEP);
+  char curfile[PATH_MAX] = {0};
+  snprintf(curfile, sizeof(curfile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
   FileFd fd = taosOpenFileCreateWrite(tmpfile);
   if (fd <= 0) {
@@ -145,14 +150,12 @@ static int32_t sdbWriteDataFile() {
     return -1;
   }
 
-  int32_t code = 0;
-
   for (int32_t i = SDB_MAX - 1; i > SDB_START; --i) {
-    SdbEncodeFp encodeFp = tsSdb.encodeFps[i];
+    SdbEncodeFp encodeFp = pSdb->encodeFps[i];
     if (encodeFp == NULL) continue;
 
-    SHashObj *hash = tsSdb.hashObjs[i];
-    SRWLatch *pLock = &tsSdb.locks[i];
+    SHashObj *hash = pSdb->hashObjs[i];
+    SRWLatch *pLock = &pSdb->locks[i];
     taosWLockLatch(pLock);
 
     SSdbRow **ppRow = taosHashIterate(hash, NULL);
@@ -192,68 +195,44 @@ static int32_t sdbWriteDataFile() {
 
   if (code == 0) {
     code = taosFsyncFile(fd);
+    if (code != 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      mError("failed to write file:%s since %s", tmpfile, tstrerror(code));
+    }
   }
 
   taosCloseFile(fd);
 
   if (code == 0) {
-    char curfile[PATH_MAX] = {0};
-    snprintf(curfile, sizeof(curfile), "%ssdb.data", tsSdb.currDir);
     code = taosRenameFile(tmpfile, curfile);
+    if (code != 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      mError("failed to write file:%s since %s", curfile, tstrerror(code));
+    }
   }
 
   if (code != 0) {
-    terrno = code;
-    mError("failed to write sdb file since %s", terrstr());
+    mError("failed to write file:%s since %s", curfile, tstrerror(code));
   } else {
-    mDebug("write sdb file successfully");
+    mDebug("write file:%s successfully", curfile);
   }
 
+  terrno = code;
   return code;
 }
 
-int32_t sdbOpen() {
-  mDebug("start to read mnode file");
+int32_t sdbDeploy(SSdb *pSdb) {
+  if (sdbCreateDir(pSdb) != 0) {
+    return -1;
+  }
 
-  if (sdbReadDataFile() != 0) {
+  if (sdbRunDeployFp(pSdb) != 0) {
+    return -1;
+  }
+
+  if (sdbWriteFile(pSdb) != 0) {
     return -1;
   }
 
   return 0;
-}
-
-void sdbClose() {
-  if (tsSdb.curVer != tsSdb.lastCommitVer) {
-    mDebug("start to write mnode file");
-    sdbWriteDataFile();
-  }
-
-  for (int32_t i = 0; i < SDB_MAX; ++i) {
-    SHashObj *hash = tsSdb.hashObjs[i];
-    if (hash != NULL) {
-      taosHashClear(hash);
-    }
-  }
-}
-
-int32_t sdbDeploy() {
-  if (sdbCreateDir() != 0) {
-    return -1;
-  }
-
-  if (sdbRunDeployFp() != 0) {
-    return -1;
-  }
-
-  if (sdbWriteDataFile() != 0) {
-    return -1;
-  }
-
-  sdbClose();
-  return 0;
-}
-
-void sdbUnDeploy() {
-  mDebug("start to undeploy mnode");
-  taosRemoveDir(tsMnodeDir);
 }

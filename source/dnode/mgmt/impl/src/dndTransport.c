@@ -187,6 +187,7 @@ static void dndProcessRequest(void *param, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   int32_t msgType = pMsg->msgType;
   if (msgType == TSDB_MSG_TYPE_NETWORK_TEST) {
+    dTrace("RPC %p, network test req will be processed", pMsg->handle);
     dndProcessDnodeReq(pDnode, pMsg, pEpSet);
     return;
   }
@@ -206,6 +207,7 @@ static void dndProcessRequest(void *param, SRpcMsg *pMsg, SEpSet *pEpSet) {
   }
 
   if (pMsg->pCont == NULL) {
+    dTrace("RPC %p, req:%s not processed since content is null", pMsg->handle, taosMsg[msgType]);
     SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_DND_INVALID_MSG_LEN};
     rpcSendResponse(&rspMsg);
     return;
@@ -259,12 +261,12 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
   SDnode *pDnode = parent;
 
   if (dndAuthInternalMsg(parent, user, spi, encrypt, secret, ckey) == 0) {
-    dTrace("get internal auth success");
+    // dTrace("get internal auth success");
     return 0;
   }
 
   if (dndGetUserAuthFromMnode(pDnode, user, spi, encrypt, secret, ckey) == 0) {
-    dTrace("get auth from internal mnode");
+    // dTrace("get auth from internal mnode");
     return 0;
   }
 
@@ -273,7 +275,7 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
     return -1;
   }
 
-  dDebug("user:%s, send auth msg to other mnodes", user);
+  // dDebug("user:%s, send auth msg to other mnodes", user);
 
   SAuthMsg *pMsg = rpcMallocCont(sizeof(SAuthMsg));
   tstrncpy(pMsg->user, user, TSDB_USER_LEN);

@@ -12,36 +12,23 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef __INDEX_FST_AUTAOMATION_H__
-#define __INDEX_FST_AUTAOMATION_H__
 
-typedef struct AutomationCtx AutomationCtx;
+#ifndef _TD_MND_SYNC_H_
+#define _TD_MND_SYNC_H_
 
-typedef struct StartWith {
-  AutomationCtx  *autoSelf;
-} StartWith;
+#include "mndInt.h"
 
-typedef struct Complement {
-  AutomationCtx *autoSelf;
-  
-} Complement;
-
-// automation 
-typedef struct AutomationCtx {
-// automation interface
-  void *data;
-} AutomationCtx;
-
-typedef struct Automation {
-  void* (*start)() ; 
-  bool (*isMatch)();
-  bool (*canMatch)(void *data);
-  bool (*willAlwaysMatch)(void *state); 
-  void* (*accpet)(void *state, uint8_t byte);
-  void* (*accpetEof)(void *state);
-  void *data;
-} Automation; 
-
-
-
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+int32_t mndInitSync(SMnode *pMnode);
+void    mndCleanupSync(SMnode *pMnode);
+bool    mndIsMaster(SMnode *pMnode);
+int32_t mndSyncPropose(SSdbRaw *pRaw, void *pData);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_MND_SYNC_H_*/
