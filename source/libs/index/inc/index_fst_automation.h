@@ -34,11 +34,11 @@ typedef struct AutomationCtx {
 
 typedef struct Automation {
   void* (*start)() ; 
-  bool (*isMatch)();
+  bool (*isMatch)(void *);
   bool (*canMatch)(void *data);
   bool (*willAlwaysMatch)(void *state); 
-  void* (*accpet)(void *state, uint8_t byte);
-  void* (*accpetEof)(void *state);
+  void* (*accept)(void *state, uint8_t byte);
+  void* (*acceptEof)(void *state);
   void *data;
 } Automation; 
 

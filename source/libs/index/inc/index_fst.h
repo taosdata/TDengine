@@ -291,6 +291,8 @@ typedef struct StreamState {
   void     *autState; 
 } StreamState; 
 
+void streamStateDestroy(void *s);
+
 typedef struct StreamWithState {
   Fst        *fst;
   Automation *aut; 
@@ -300,9 +302,18 @@ typedef struct StreamWithState {
   FstBoundWithData *endAt;
 } StreamWithState ;
 
+typedef struct StreamWithStateResult {
+  FstSlice data;  
+  FstOutput out;
+  void     *state; 
+
+} StreamWithStateResult;
+
+StreamWithStateResult *swsResultCreate(FstSlice *data, FstOutput fOut, void *state);
+
 typedef void* (*StreamCallback)(void *);
 StreamWithState *streamWithStateCreate(Fst *fst, Automation *automation, FstBoundWithData *min, FstBoundWithData *max) ;
 void streamWithStateDestroy(StreamWithState *sws);
 bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min);           
-void *streamWithStateNextWith(StreamWithState *sws, StreamCallback callback);
+StreamWithStateResult* streamWithStateNextWith(StreamWithState *sws, StreamCallback callback);
 #endif
