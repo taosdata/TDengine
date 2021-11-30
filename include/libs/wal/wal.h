@@ -18,6 +18,7 @@
 #include "os.h"
 #include "tdef.h"
 #include "tlog.h"
+#include "tarray.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -39,12 +40,14 @@ typedef enum {
 
 typedef struct {
   int8_t   sver;
-  int8_t   reserved[3];
+  uint8_t  msgType;
+  int8_t   reserved[2];
   int32_t  len;
   int64_t  version;
   uint32_t signature;
-  uint32_t cksum;
-  char     cont[];
+  uint32_t cksumHead;
+  uint32_t cksumBody;
+  //char     cont[];
 } SWalHead;
 
 typedef struct {
@@ -54,16 +57,20 @@ typedef struct {
 } SWalCfg;
 
 #define WAL_PREFIX       "wal"
+#define WAL_PREFIX_LEN   3
+#define WAL_NOSUFFIX_LEN 20
+#define WAL_SUFFIX_AT    (WAL_NOSUFFIX_LEN+1)
 #define WAL_LOG_SUFFIX   "log"
 #define WAL_INDEX_SUFFIX "idx"
-#define WAL_PREFIX_LEN   3
 #define WAL_REFRESH_MS   1000
 #define WAL_MAX_SIZE     (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + 16)
 #define WAL_SIGNATURE    ((uint32_t)(0xFAFBFDFEUL))
 #define WAL_PATH_LEN     (TSDB_FILENAME_LEN + 12)
 #define WAL_FILE_LEN     (WAL_PATH_LEN + 32)
 //#define WAL_FILE_NUM     1 // 3
+#define WAL_FILESET_MAX  128
 
+#define WAL_IDX_ENTRY_SIZE     (sizeof(int64_t)*2)
 #define WAL_CUR_POS_READ_ONLY  1
 #define WAL_CUR_FILE_READ_ONLY 2
 
@@ -94,6 +101,10 @@ typedef struct SWal {
   pthread_mutex_t mutex;
   //path
   char path[WAL_PATH_LEN];
+  //file set
+  SArray* fileSet;
+  //reusable write head
+  SWalHead head;
 } SWal;  // WAL HANDLE
 
 typedef int32_t (*FWalWrite)(void *ahandle, void *pHead);
@@ -104,21 +115,20 @@ void    walCleanUp();
 
 // handle open and ctl
 SWal   *walOpen(const char *path, SWalCfg *pCfg);
-void    walStop(SWal *pWal);
 int32_t walAlter(SWal *, SWalCfg *pCfg);
 void    walClose(SWal *);
 
 // write
 //int64_t  walWriteWithMsgType(SWal*, int8_t msgType, void* body, int32_t bodyLen);
-int64_t walWrite(SWal *, int64_t index, void *body, int32_t bodyLen);
-int64_t walWriteBatch(SWal *, void **bodies, int32_t *bodyLen, int32_t batchSize);
+int64_t walWrite(SWal *, int64_t index, uint8_t msgType, void *body, int32_t bodyLen);
+//int64_t walWriteBatch(SWal *, void **bodies, int32_t *bodyLen, int32_t batchSize);
 
 // apis for lifecycle management
 void    walFsync(SWal *, bool force);
 int32_t walCommit(SWal *, int64_t ver);
 // truncate after
 int32_t walRollback(SWal *, int64_t ver);
-// notify that previous log can be pruned safely
+// notify that previous logs can be pruned safely
 int32_t walTakeSnapshot(SWal *, int64_t ver);
 //int32_t  walDataCorrupted(SWal*);
 
@@ -130,11 +140,6 @@ int32_t walReadWithFp(SWal *, FWalWrite writeFp, int64_t verStart, int32_t readN
 int64_t walGetFirstVer(SWal *);
 int64_t walGetSnapshotVer(SWal *);
 int64_t walGetLastVer(SWal *);
-
-//internal
-int32_t walGetNextFile(SWal *pWal, int64_t *nextFileId);
-int32_t walGetOldFile(SWal *pWal, int64_t curFileId, int32_t minDiff, int64_t *oldFileId);
-int32_t walGetNewFile(SWal *pWal, int64_t *newFileId);
 
 #ifdef __cplusplus
 }
