@@ -81,6 +81,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [Node.js Connector](/connector#nodejs)：给node应用提供一个连接TDengine服务器的驱动
 * [C# Connector](/connector#csharp)：给C#应用提供一个连接TDengine服务器的驱动
 * [Windows客户端](https://www.taosdata.com/blog/2019/07/26/514.html)：自行编译windows客户端，Windows环境的各种连接器都需要它
+* [Rust Connector](/connector/rust): Rust语言下通过libtaos客户端或RESTful接口，连接TDengine服务器。
 
 ## [与其他工具的连接](/connections)
 
@@ -109,7 +110,8 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [用户管理](/administrator#user)：添加、删除TDengine用户，修改用户密码
 * [数据导入](/administrator#import)：可按脚本文件导入，也可按数据文件导入
 * [数据导出](/administrator#export)：从shell按表导出，也可用taosdump工具做各种导出
-* [系统监控](/administrator#status)：检查系统现有的连接、查询、流式计算，日志和事件等
+* [系统连接、任务查询管理](/administrator#status)：检查系统现有的连接、查询、流式计算，日志和事件等
+* [系统监控](/administrator#monitoring)：系统监控，使用TDinsight进行集群监控等
 * [性能优化](/administrator#optimize)：对长期运行的系统进行维护优化，保障性能表现
 * [文件目录结构](/administrator#directories)：TDengine数据文件、配置文件等所在目录
 * [参数限制与保留关键字](/administrator#keywords)：TDengine的参数限制与保留关键字列表
@@ -120,10 +122,11 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [数据复制](/architecture/replica)：支持实时同步、异步复制，保证系统的High Availibility
 * [技术博客](https://www.taosdata.com/cn/blog/?categories=3)：更多的技术分析和架构设计文章
 
-## [应用 TDengine 快速搭建 IT 运维系统](/devops)
+## 应用 TDengine 快速搭建 IT 运维系统
 
 * [devops](/devops/telegraf)：使用 TDengine + Telegraf + Grafana 快速搭建 IT 运维系统
 * [devops](/devops/collectd)：使用 TDengine + collectd_statsd + Grafana 快速搭建 IT 运维系统
+* [最佳实践](/devops/immigrate)：OpenTSDB 应用迁移到 TDengine 的最佳实践
 
 ## 常用工具
 

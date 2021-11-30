@@ -80,12 +80,17 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DATA_NULL_STR_L            "null"
 
 #define TSDB_DEFAULT_USER               "root"
+
 #ifdef _TD_POWER_
 #define TSDB_DEFAULT_PASS               "powerdb"
 #elif (_TD_TQ_ == true)
 #define TSDB_DEFAULT_PASS               "tqueue"
 #elif (_TD_PRO_ == true)
 #define TSDB_DEFAULT_PASS               "prodb"
+#elif (_TD_KH_ == true)
+#define TSDB_DEFAULT_PASS               "khroot"
+#elif (_TD_JH_ == true)
+#define TSDB_DEFAULT_PASS               "jhdata"
 #else
 #define TSDB_DEFAULT_PASS               "taosdata"
 #endif
@@ -99,6 +104,7 @@ extern const int32_t TYPE_BYTES[15];
 
 #define TS_PATH_DELIMITER "."
 #define TS_ESCAPE_CHAR '`'
+#define TS_ESCAPE_CHAR_SIZE 2
 
 #define TSDB_TIME_PRECISION_MILLI 0
 #define TSDB_TIME_PRECISION_MICRO 1
@@ -294,7 +300,7 @@ do { \
 #define TSDB_DEFAULT_DAYS_PER_FILE      10
 
 #define TSDB_MIN_KEEP                   1        // data in db to be reserved.
-#define TSDB_MAX_KEEP                   365000   // data in db to be reserved.
+#define TSDB_MAX_KEEP                   36500   // data in db to be reserved.
 #define TSDB_DEFAULT_KEEP               3650     // ten years
 
 #define TSDB_DEFAULT_MIN_ROW_FBLOCK     100

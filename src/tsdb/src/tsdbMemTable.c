@@ -57,7 +57,7 @@ int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pR
   STsdbRepo *    pRepo = repo;
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk *   pBlock = NULL;
-  int32_t        affectedrows = 0;
+  int32_t        affectedrows = 0, numOfRows = 0;
 
   if (tsdbScanAndConvertSubmitMsg(pRepo, pMsg) < 0) {
     if (terrno != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
@@ -73,9 +73,13 @@ int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pR
     if (tsdbInsertDataToTable(pRepo, pBlock, &affectedrows) < 0) {
       return -1;
     }
+    numOfRows += pBlock->numOfRows;
   }
 
-  if (pRsp != NULL) pRsp->affectedRows = htonl(affectedrows);
+  if (pRsp != NULL) {
+    pRsp->affectedRows = htonl(affectedrows);
+    pRsp->numOfRows = htonl(numOfRows);
+  }
 
   if (tsdbCheckCommit(pRepo) < 0) return -1;
   return 0;
@@ -594,7 +598,7 @@ static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema *
       }
     }
 
-    tdAppendMemRowToDataCol(row, *ppSchema, pCols, true);
+    tdAppendMemRowToDataCol(row, *ppSchema, pCols, true, 0);
   }
 
   return 0;
@@ -647,7 +651,7 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
   TSKEY          now = taosGetTimestamp(pRepo->config.precision);
   TSKEY          minKey = now - tsTickPerDay[pRepo->config.precision] * pRepo->config.keep;
   TSKEY          maxKey = now + tsTickPerDay[pRepo->config.precision] * pRepo->config.daysPerFile;
-
+  
   terrno = TSDB_CODE_SUCCESS;
   pMsg->length = htonl(pMsg->length);
   pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
@@ -1001,7 +1005,8 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
     if ((value == NULL) || isNull(value, pTCol->type)) {
       continue;
     }
-
+    // lock
+    TSDB_WLOCK_TABLE(pTable); 
     SDataCol *pDataCol = &(pLatestCols[idx]);
     if (pDataCol->pData == NULL) {
       pDataCol->pData = malloc(pTCol->bytes);
@@ -1017,6 +1022,8 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
     memcpy(pDataCol->pData, value, bytes);
     //tsdbInfo("updateTableLatestColumn vgId:%d cache column %d for %d,%s", REPO_ID(pRepo), j, pDataCol->bytes, (char*)pDataCol->pData);
     pDataCol->ts = memRowKey(row);
+    // unlock
+    TSDB_WUNLOCK_TABLE(pTable); 
   }
 }
 
@@ -1063,5 +1070,8 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow r
       updateTableLatestColumn(pRepo, pTable, row);
     }
   }
+
+  pTable->cacheLastConfigVersion = pRepo->cacheLastConfigVersion;
+
   return 0;
 }

@@ -394,6 +394,12 @@ SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, int32_t index) {
   memcpy(&pSupporter->interval, &pQueryInfo->interval, sizeof(pSupporter->interval));
   pSupporter->limit = pQueryInfo->limit;
 
+  if (tscIsPointInterpQuery(pQueryInfo)) {
+    pSupporter->fillType = pQueryInfo->fillType;
+    pSupporter->fillVal = pQueryInfo->fillVal;
+    pSupporter->numOfFillVal = pQueryInfo->numOfFillVal;
+  }
+
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, index);
   pSupporter->uid = pTableMetaInfo->pTableMeta->id.uid;
   assert (pSupporter->uid != 0);
@@ -579,6 +585,13 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     pQueryInfo->fieldsInfo  = pSupporter->fieldsInfo;
     pQueryInfo->groupbyExpr = pSupporter->groupInfo;
     pQueryInfo->pUpstream   = taosArrayInit(4, sizeof(POINTER_BYTES));
+    
+    if (tscIsPointInterpQuery(pQueryInfo)) {
+      pQueryInfo->fillType = pSupporter->fillType;
+      pQueryInfo->numOfFillVal = pSupporter->numOfFillVal;
+      pQueryInfo->fillVal = malloc(pQueryInfo->numOfFillVal * sizeof(*pSupporter->fillVal));
+      memcpy(pQueryInfo->fillVal, pSupporter->fillVal, sizeof(*pSupporter->fillVal) * pQueryInfo->numOfFillVal);
+    }
 
     assert(pNew->subState.numOfSub == 0 && pQueryInfo->numOfTables == 1);
   
@@ -1987,7 +2000,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
 
       colIndex.columnIndex = tscGetTagColIndexById(pTableMetaInfo->pTableMeta, tagColId);
 
-      int16_t bytes = 0;
+      int32_t bytes = 0;
       int16_t type  = 0;
       int32_t inter = 0;
 
@@ -2280,7 +2293,15 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
             if (row[i] == NULL) {
               setNull(p + offset, pExpr->base.resType, pExpr->base.resBytes);
             } else {
-              memcpy(p + offset, row[i], length[i]);
+              if(pExpr->base.resType == TSDB_DATA_TYPE_NCHAR){
+                int32_t output = 0;
+                bool ret = taosMbsToUcs4(row[i], length[i], p + offset, pExpr->base.resBytes, &output);
+                if (!ret) {
+                  tscError("stddev convert tag error:%d", ret);
+                }
+              }else{
+                memcpy(p + offset, row[i], length[i]);
+              }
             }
             offset += pExpr->base.resBytes;
           }
@@ -2623,7 +2644,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
 
   pRes->qId = 0x1;  // hack the qhandle check
 
-  const uint32_t nBufferSize = (1u << 18u);  // 256KB, default buffer size
+  uint32_t nBufferSize = (1u << 18u);  // 256KB, default buffer size
 
   SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -2639,7 +2660,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     return ret;
   }
 
-  ret = tscCreateGlobalMergerEnv(pQueryInfo, &pMemoryBuf, pSql->subState.numOfSub, &pDesc, nBufferSize, pSql->self);
+  ret = tscCreateGlobalMergerEnv(pQueryInfo, &pMemoryBuf, pSql->subState.numOfSub, &pDesc, &nBufferSize, pSql->self);
   if (ret != 0) {
     pRes->code = ret;
     tscAsyncResultOnError(pSql);
@@ -2876,7 +2897,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
     SSqlObj *userSql = pParentSql->rootObj;
 
     if ((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && userSql->retry < userSql->maxRetry) {
-      if (userSql != pParentSql) {
+      if (userSql != pParentSql && pParentSql->freeParam != NULL) {
         (*pParentSql->freeParam)(&pParentSql->param);
       }
 
@@ -3729,6 +3750,25 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
   return hasData;
 }
 
+
+void tscSetQuerySort(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr) {
+  if (pQueryInfo->interval.interval <= 0) {
+    return;
+  }
+  
+  if (pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
+    size_t size = taosArrayGetSize(pQueryInfo->pUpstream);
+    for(int32_t i = 0; i < size; ++i) {
+      SQueryInfo* pq = taosArrayGetP(pQueryInfo->pUpstream, i);
+      if (pq->groupbyTag && pq->interval.interval > 0) {
+        pQueryAttr->needSort = true;
+        return;
+      }
+    }
+  }
+}
+
+
 void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pSourceOperator,
                                char* sql, void* merger, int32_t stage, uint64_t qId) {
   assert(pQueryInfo != NULL);
@@ -3831,6 +3871,7 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
   SArray* pa = NULL;
   if (stage == MASTER_SCAN) {
     pQueryAttr->createFilterOperator = false;  // no need for parent query
+    tscSetQuerySort(pQueryInfo, pQueryAttr);
     pa = createExecOperatorPlan(pQueryAttr);
   } else {
     pa = createGlobalMergePlan(pQueryAttr);

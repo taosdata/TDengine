@@ -314,8 +314,6 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
         if (ret != TSDB_CODE_SUCCESS) {
           return tscInvalidOperationMsg(msg, "invalid unsigned bigint data", pToken->z);
-        } else if (!IS_VALID_UBIGINT((uint64_t)iv)) {
-          return tscInvalidOperationMsg(msg, "unsigned bigint data overflow", pToken->z);
         }
 
         *((uint64_t *)payload) = iv;
@@ -762,35 +760,32 @@ void tscSortRemoveDataBlockDupRowsRaw(STableDataBlocks *dataBuf) {
   if (!dataBuf->ordered) {
     char *pBlockData = pBlocks->data;
     qsort(pBlockData, pBlocks->numOfRows, dataBuf->rowSize, rowDataCompar);
-
-    int32_t i = 0;
-    int32_t j = 1;
-
-    while (j < pBlocks->numOfRows) {
-      TSKEY ti = *(TSKEY *)(pBlockData + dataBuf->rowSize * i);
-      TSKEY tj = *(TSKEY *)(pBlockData + dataBuf->rowSize * j);
-
-      if (ti == tj) {
-        if (dataBuf->pTableMeta && dataBuf->pTableMeta->tableInfo.update != TD_ROW_DISCARD_UPDATE) {
-          memmove(pBlockData + dataBuf->rowSize * i, pBlockData + dataBuf->rowSize * j, dataBuf->rowSize);
-        }
-
-        ++j;
-        continue;
-      }
-
-      int32_t nextPos = (++i);
-      if (nextPos != j) {
-        memmove(pBlockData + dataBuf->rowSize * nextPos, pBlockData + dataBuf->rowSize * j, dataBuf->rowSize);
-      }
-
-      ++j;
-    }
-
     dataBuf->ordered = true;
 
-    pBlocks->numOfRows = i + 1;
-    dataBuf->size = sizeof(SSubmitBlk) + dataBuf->rowSize * pBlocks->numOfRows;
+    if(tsClientMerge) {
+      int32_t i = 0;
+      int32_t j = 1;
+      while (j < pBlocks->numOfRows) {
+        TSKEY ti = *(TSKEY *)(pBlockData + dataBuf->rowSize * i);
+        TSKEY tj = *(TSKEY *)(pBlockData + dataBuf->rowSize * j);
+
+        if (ti == tj) {
+          if (dataBuf->pTableMeta && dataBuf->pTableMeta->tableInfo.update != TD_ROW_DISCARD_UPDATE) {
+            memmove(pBlockData + dataBuf->rowSize * i, pBlockData + dataBuf->rowSize * j, dataBuf->rowSize);
+          }
+          ++j;
+          continue;
+        }
+
+        int32_t nextPos = (++i);
+        if (nextPos != j) {
+          memmove(pBlockData + dataBuf->rowSize * nextPos, pBlockData + dataBuf->rowSize * j, dataBuf->rowSize);
+        }
+        ++j;
+      }      
+      pBlocks->numOfRows = i + 1;
+      dataBuf->size = sizeof(SSubmitBlk) + dataBuf->rowSize * pBlocks->numOfRows;
+    }
   }
 
   dataBuf->prevTS = INT64_MIN;
@@ -836,32 +831,33 @@ int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlk
   if (!dataBuf->ordered) {
     pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
     qsort(pBlkKeyTuple, nRows, sizeof(SBlockKeyTuple), rowDataCompar);
+    dataBuf->ordered = true;
 
-    pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
-    int32_t i = 0;
-    int32_t j = 1;
-    while (j < nRows) {
-      TSKEY ti = (pBlkKeyTuple + i)->skey;
-      TSKEY tj = (pBlkKeyTuple + j)->skey;
+    if(tsClientMerge) {
+      pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
+      int32_t i = 0;
+      int32_t j = 1;
+      while (j < nRows) {
+        TSKEY ti = (pBlkKeyTuple + i)->skey;
+        TSKEY tj = (pBlkKeyTuple + j)->skey;
 
-      if (ti == tj) {
-        if (dataBuf->pTableMeta && dataBuf->pTableMeta->tableInfo.update != TD_ROW_DISCARD_UPDATE) {
-          memmove(pBlkKeyTuple + i, pBlkKeyTuple + j, sizeof(SBlockKeyTuple));
+        if (ti == tj) {
+          if (dataBuf->pTableMeta && dataBuf->pTableMeta->tableInfo.update != TD_ROW_DISCARD_UPDATE) {
+            memmove(pBlkKeyTuple + i, pBlkKeyTuple + j, sizeof(SBlockKeyTuple));
+          }
+
+          ++j;
+          continue;
         }
 
+        int32_t nextPos = (++i);
+        if (nextPos != j) {
+          memmove(pBlkKeyTuple + nextPos, pBlkKeyTuple + j, sizeof(SBlockKeyTuple));
+        }
         ++j;
-        continue;
       }
-
-      int32_t nextPos = (++i);
-      if (nextPos != j) {
-        memmove(pBlkKeyTuple + nextPos, pBlkKeyTuple + j, sizeof(SBlockKeyTuple));
-      }
-      ++j;
-    }
-
-    dataBuf->ordered = true;
-    pBlocks->numOfRows = i + 1;
+      pBlocks->numOfRows = i + 1;
+    } 
   }
 
   dataBuf->size = sizeof(SSubmitBlk) + pBlocks->numOfRows * extendedRowSize;
@@ -1251,8 +1247,16 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
     sToken = tStrGetToken(str, &index, false);
     str += index;
 
+    char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0}; // used for deleting Escape character backstick(`)
+    strncpy(tmpTokenBuf, sToken.z, sToken.n);
+    sToken.z = tmpTokenBuf;
+
     if (TK_STRING == sToken.type) {
       tscDequoteAndTrimToken(&sToken);
+    }
+
+    if (TK_ID == sToken.type) {
+      tscRmEscapeAndTrimToken(&sToken);
     }
 
     if (sToken.type == TK_RP) {
@@ -1410,6 +1414,11 @@ int tsParseInsertSql(SSqlObj *pSql) {
        * merge or submit, save the file path and parse the file in other routines.
        */
       if (TSDB_QUERY_HAS_TYPE(pInsertParam->insertType, TSDB_QUERY_TYPE_FILE_INSERT)) {
+        goto _clean;
+      }
+
+      if (sToken.type == TK_ILLEGAL) {  // ,,,, like => insert into t values(now,1),,,,(now+1s,2);
+        code = tscSQLSyntaxErrMsg(pInsertParam->msg, NULL, str);
         goto _clean;
       }
 

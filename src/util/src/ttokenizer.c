@@ -229,7 +229,8 @@ static SKeyword keywordTable[] = {
     {"FUNCTIONS",    TK_FUNCTIONS},
     {"OUTPUTTYPE",   TK_OUTPUTTYPE},
     {"AGGREGATE",    TK_AGGREGATE},
-    {"BUFSIZE",      TK_BUFSIZE}
+    {"BUFSIZE",      TK_BUFSIZE},
+    {"RANGE",        TK_RANGE}
 };
 
 static const char isIdChar[] = {
@@ -592,7 +593,7 @@ SStrToken tscReplaceStrToken(char **str, SStrToken *token, const char* newToken)
   size_t nsize = strlen(newToken);
   int32_t size = (int32_t)strlen(*str) - token->n + (int32_t)nsize + 1;
   int32_t bsize = (int32_t)((uint64_t)token->z - (uint64_t)src);
-  SStrToken ntoken;
+  SStrToken ntoken = {0};
 
   *str = calloc(1, size);
 
@@ -626,12 +627,16 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
     while (isspace(t) || t == ',') {
       if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
         t0.n = 0;
+        t0.type = TK_ILLEGAL;
         return t0;
       }
-    
+
       t = str[++(*i)];
     }
-
+    if (str[*i] == 0) {
+      t0.n = 0;
+      break;
+    }
     t0.n = tGetToken(&str[*i], &t0.type);
     break;
 

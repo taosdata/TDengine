@@ -46,7 +46,7 @@ else
   lib_files="${build_dir}/lib/libtaos.${version}.dylib"
 fi
 
-header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
+header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
 if [ "$verMode" == "cluster" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else
@@ -58,11 +58,11 @@ install_files="${script_dir}/install_client_pro.sh"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/prodb.cfg
 
-sed -i '/dataDir/ {s/taos/ProDB/g}'  ${install_dir}/cfg/taos.cfg
-sed -i '/logDir/  {s/taos/ProDB/g}'  ${install_dir}/cfg/taos.cfg
-sed -i "s/TDengine/ProDB/g"        ${install_dir}/cfg/taos.cfg
+sed -i '/dataDir/ {s/taos/ProDB/g}'  ${install_dir}/cfg/prodb.cfg
+sed -i '/logDir/  {s/taos/ProDB/g}'  ${install_dir}/cfg/prodb.cfg
+sed -i "s/TDengine/ProDB/g"        ${install_dir}/cfg/prodb.cfg
 
 mkdir -p ${install_dir}/bin
 if [ "$osType" != "Darwin" ]; then
@@ -171,11 +171,6 @@ mkdir -p ${install_dir}/connector
 if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   if [ "$osType" != "Darwin" ]; then
     cp ${build_dir}/lib/*.jar      ${install_dir}/connector ||:
-  fi
-  if [ -d "${connector_dir}/grafanaplugin/dist" ]; then
-    cp -r ${connector_dir}/grafanaplugin/dist ${install_dir}/connector/grafanaplugin
-  else
-    echo "WARNING: grafanaplugin bunlded dir not found, please check if want to use it!"
   fi
   if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
     cp -r ${connector_dir}/go ${install_dir}/connector

@@ -48,21 +48,25 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
 
+        testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf ./insert*_res.txt*")
+        os.system("rm -rf tools/taosdemoAllTest/%s.sql" % testcaseFilename )         
+
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-1s1tnt1r.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
-        tdSql.checkData(0, 0, 1000)
+        tdSql.checkData(0, 0, 11)
         tdSql.query("select count (tbname) from stb1")
-        tdSql.checkData(0, 0, 1000)
+        tdSql.checkData(0, 0, 10)
         tdSql.query("select count(*) from stb00_0")
         tdSql.checkData(0, 0, 100)
         tdSql.query("select count(*) from stb0")
-        tdSql.checkData(0, 0, 100000)
+        tdSql.checkData(0, 0, 1100)
         tdSql.query("select count(*) from stb01_1")
         tdSql.checkData(0, 0, 200)
         tdSql.query("select count(*) from stb1")
-        tdSql.checkData(0, 0, 200000)
+        tdSql.checkData(0, 0, 2000)
 
         # restful connector insert data
         os.system("%staosdemo -f tools/taosdemoAllTest/insertRestful.json -y " % binPath)
@@ -80,7 +84,17 @@ class TDTestCase:
         tdSql.query("select count(*) from stb1")
         tdSql.checkData(0, 0, 200)
 
-
+        # default values json files 
+        tdSql.execute("drop database if exists db") 
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-default.json -y " % binPath)
+        tdSql.query("show databases;")
+        for i in range(tdSql.queryRows):
+            if tdSql.queryResult[i][0] == 'db':
+                tdSql.checkData(i, 2, 100) 
+                tdSql.checkData(i, 4, 1)     
+                tdSql.checkData(i, 6, 10)       
+                tdSql.checkData(i, 16, 'ms')           
+    
         # insert: create  mutiple tables per sql and insert one rows per sql .
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-1s1tntmr.json -y " % binPath)
         tdSql.execute("use db")
@@ -263,6 +277,25 @@ class TDTestCase:
         tdSql.checkData(0, 0, 10)
 
         # insert:  sample json
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-sample-ts.json -y " % binPath)
+        tdSql.execute("use dbtest123")
+        tdSql.query("select c2 from stb0")
+        tdSql.checkData(0, 0, 2147483647)
+        tdSql.query("select c0 from stb0_0 order by ts")
+        tdSql.checkData(3, 0, 4)
+        tdSql.query("select count(*) from stb0 order by ts")
+        tdSql.checkData(0, 0, 40)
+        tdSql.query("select * from stb0_1 order by ts")
+        tdSql.checkData(0, 0, '2021-10-28 15:34:44.735')
+        tdSql.checkData(3, 0, '2021-10-31 15:34:44.735')
+        tdSql.query("select * from stb1 where t1=-127")
+        tdSql.checkRows(20)
+        tdSql.query("select * from stb1 where t2=127")
+        tdSql.checkRows(10)
+        tdSql.query("select * from stb1 where t2=126")
+        tdSql.checkRows(10)
+
+        # insert:  sample json
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-sample.json -y " % binPath)
         tdSql.execute("use dbtest123")
         tdSql.query("select c2 from stb0")
@@ -273,6 +306,7 @@ class TDTestCase:
         tdSql.checkRows(10)
         tdSql.query("select * from stb1 where t2=126")
         tdSql.checkRows(10)
+
 
         # insert: test interlace parament
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-interlace-row.json -y " % binPath)
@@ -319,9 +353,10 @@ class TDTestCase:
         tdSql.query('show tables like \'YYY%\'')    #child_table_exists = yes, auto_create_table varies = yes
         tdSql.checkRows(20)
 
-        testcaseFilename = os.path.split(__file__)[-1]
-        os.system("rm -rf ./insert_res.txt")
-        os.system("rm -rf tools/taosdemoAllTest/%s.sql" % testcaseFilename )         
+        # rm useless files
+        os.system("rm -rf ./insert*_res.txt*")
+
+
         
         
         
