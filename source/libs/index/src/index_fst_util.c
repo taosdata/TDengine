@@ -95,6 +95,7 @@ FstSlice fstSliceCreate(uint8_t *data, uint64_t dLen) {
   FstSlice slice = {.data = data, .dLen = dLen, .start = 0, .end = dLen - 1};
   return slice;
 } 
+// just shallow copy
 FstSlice fstSliceCopy(FstSlice *slice, int32_t start, int32_t end) {
   FstSlice t;
   if (start >= slice->dLen || end >= slice->dLen || start > end) {

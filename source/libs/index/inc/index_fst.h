@@ -21,6 +21,7 @@
 #include "index_fst_util.h"
 #include "index_fst_registry.h"
 #include "index_fst_counting_writer.h"
+#include "index_fst_automation.h"
 
 
 typedef struct FstNode FstNode;
@@ -34,11 +35,28 @@ typedef struct FstRange {
 
 
 typedef enum { OneTransNext, OneTrans, AnyTrans, EmptyFinal} State;
-typedef enum { Included, Excluded, Unbounded} FstBound; 
 
 typedef enum {Ordered, OutOfOrdered, DuplicateKey} OrderType;
 
 
+typedef enum { Included, Excluded, Unbounded} FstBound; 
+typedef struct FstBoundWithData {
+  FstSlice data; 
+  FstBound type;
+} FstBoundWithData;
+
+FstBoundWithData* fstBoundStateCreate(FstBound type, FstSlice *data);
+bool fstBoundWithDataExceededBy(FstBoundWithData *bound, FstSlice *slice);
+bool fstBoundWithDataIsEmpty(FstBoundWithData *bound); 
+bool fstBoundWithDataIsIncluded(FstBoundWithData *bound); 
+
+
+typedef struct FstOutput {
+  bool   null;
+  Output out;
+} FstOutput;
+
+ 
 
 /*
  * 
@@ -261,4 +279,30 @@ bool fstVerify(Fst *fst);
 
 //refactor this function 
 bool fstBuilderNodeCompileTo(FstBuilderNode *b, FstCountingWriter *wrt, CompiledAddr lastAddr, CompiledAddr startAddr); 
+
+
+
+
+
+typedef struct StreamState {
+  FstNode   *node; 
+  uint64_t  trans;
+  FstOutput out; 
+  void     *autState; 
+} StreamState; 
+
+typedef struct StreamWithState {
+  Fst        *fst;
+  Automation *aut; 
+  SArray     *inp;
+  FstOutput   emptyOutput;
+  SArray     *stack; // <StreamState>
+  FstBoundWithData *endAt;
+} StreamWithState ;
+
+typedef void* (*StreamCallback)(void *);
+StreamWithState *streamWithStateCreate(Fst *fst, Automation *automation, FstBoundWithData *min, FstBoundWithData *max) ;
+void streamWithStateDestroy(StreamWithState *sws);
+bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min);           
+void *streamWithStateNextWith(StreamWithState *sws, StreamCallback callback);
 #endif
