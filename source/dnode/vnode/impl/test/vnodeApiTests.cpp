@@ -120,7 +120,7 @@ TEST(vnodeApiTest, vnodeOpen_vnodeClose_test) {
 
   {
     // Create some child tables
-    int ntables = 1000000;
+    int ntables = 50000;
     int batch = 10;
     for (int i = 0; i < ntables / batch; i++) {
       SArray *pMsgs = (SArray *)taosArrayInit(batch, sizeof(SRpcMsg *));
@@ -152,6 +152,8 @@ TEST(vnodeApiTest, vnodeOpen_vnodeClose_test) {
       }
 
       taosArrayDestroy(pMsgs);
+
+      std::cout << "the " << i << "th batch is created" << std::endl;
     }
   }
 
