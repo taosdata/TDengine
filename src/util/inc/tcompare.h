@@ -88,7 +88,8 @@ int32_t compareStrRegexCompMatch(const void* pLeft, const void* pRight);
 int32_t compareStrRegexCompNMatch(const void* pLeft, const void* pRight);
 int32_t compareFindItemInSet(const void *pLeft, const void* pRight);
 int32_t compareWStrPatternComp(const void* pLeft, const void* pRight);
-int32_t comparreStrContainJson(const void* pLeft, const void* pRight);
+int32_t compareStrContainJson(const void* pLeft, const void* pRight);
+int32_t compareJsonVal(const void* pLeft, const void* pRight);
 
 #ifdef __cplusplus
 }

@@ -280,7 +280,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_MESSED_MSG,               "TSDB messed message")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVLD_TAG_VAL,             "TSDB invalid tag value")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_CACHE_LAST_ROW,        "TSDB no cache last row data")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INCOMPLETE_DFILESET,      "Incomplete DFileSet")
-TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVLD_SAME_JSON_VALUE,     "TSDB invalid same json value")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_JSON_TAG_KEY,          "TSDB no tag json key")
 
 // query
@@ -300,7 +299,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INCONSISTAN,              "File inconsistance in
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_TIME_CONDITION,   "One valid time range condition expected")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SYS_ERROR,                "System error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_SUPPORT_ERROR,       "only support is [not] null")
-TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JSON_INVALID_EXP,         "invalid regular expression")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")

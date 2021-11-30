@@ -1106,6 +1106,7 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
         ASSERT(jsonNULL == TSDB_DATA_JSON_NULL);
       }
 
+      // then insert
       char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
       jsonKeyMd5(varDataVal(val), varDataLen(val), keyMd5);
       SArray  *tablistNew = NULL;
@@ -1126,36 +1127,14 @@ static int tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper
         tablistNew = *tablist;
       }
 
-      if (taosArrayGetSize(tablistNew) > 0) {
-        // validate type
-        JsonMapValue *tmp = taosArrayGet(tablistNew, 0);
-        void         *data1 = tdGetKVRowValOfCol(((STable *)(tmp->table))->tagVal, tmp->colId + 1);
-        SColIdx      *pInsertColIdx = kvRowColIdxAt(pTable->tagVal, j + 1);
-        void         *data2 = (kvRowColVal(pTable->tagVal, pInsertColIdx));
-        if (*(uint8_t *)data1 != *(uint8_t *)data2) {
-          terrno = TSDB_CODE_TDB_IVLD_SAME_JSON_VALUE;
-          tsdbError("invalidate same json tag value");
-          return -1;
-        }
-      }
-    }
-
-    // then insert
-    for (int j = 1; j < nCols; j = j + 2) {
-      SColIdx *pColIdx = kvRowColIdxAt(pTable->tagVal, j);
-      void    *val = (kvRowColVal(pTable->tagVal, pColIdx));
-      char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
-      jsonKeyMd5(varDataVal(val), varDataLen(val), keyMd5);
-      SArray **tablist = (SArray **)taosHashGet(pSTable->jsonKeyMap, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
-
       JsonMapValue jmvalue = {pTable, pColIdx->colId};
-      void* p = taosArraySearch(*tablist, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
+      void* p = taosArraySearch(tablistNew, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
       if (p == NULL) {
-        p = taosArraySearch(*tablist, &jmvalue, tsdbCompareJsonMapValue, TD_GE);
+        p = taosArraySearch(tablistNew, &jmvalue, tsdbCompareJsonMapValue, TD_GE);
         if(p == NULL){
-          taosArrayPush(*tablist, &jmvalue);
+          taosArrayPush(tablistNew, &jmvalue);
         }else{
-          taosArrayInsert(*tablist, TARRAY_ELEM_IDX(*tablist, p), &jmvalue);
+          taosArrayInsert(tablistNew, TARRAY_ELEM_IDX(tablistNew, p), &jmvalue);
         }
       }else{
         tsdbError("insert dumplicate");

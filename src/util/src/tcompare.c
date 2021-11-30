@@ -18,11 +18,12 @@
 #define _DEFAULT_SOURCE
 
 #include "tcompare.h"
-#include "tulog.h"
+#include "tvariant.h"
 #include "hash.h"
-#include "regex.h"
 #include "os.h"
+#include "regex.h"
 #include "ttype.h"
+#include "tulog.h"
 
 int32_t setCompareBytes1(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
@@ -218,6 +219,33 @@ int32_t compareLenPrefixedWStrDesc(const void* pLeft, const void* pRight) {
   return compareLenPrefixedWStr(pRight, pLeft);
 }
 
+int32_t compareJsonVal(const void *pLeft, const void *pRight) {
+  const tVariant* right = pRight;
+  if(right->nType != *(char*)pLeft) return -1;
+
+  uint8_t type = *(char*)pLeft;
+  char* realData = POINTER_SHIFT(pLeft, CHAR_BYTES);
+  if(type == TSDB_DATA_TYPE_BOOL) {
+    DEFAULT_COMP(GET_INT8_VAL(realData), right->i64);
+  }else if(type == TSDB_DATA_TYPE_BIGINT){
+    DEFAULT_COMP(GET_INT64_VAL(realData), right->i64);
+  }else if(type == TSDB_DATA_TYPE_DOUBLE){
+    DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(realData), right->dKey);
+  }else if(type == TSDB_DATA_TYPE_NCHAR){
+    if (varDataLen(realData) != right->nLen) {
+      return varDataLen(realData) > right->nLen ? 1 : -1;
+    }
+    int32_t ret = memcmp(varDataVal(realData), right->pz, right->nLen);
+    if (ret == 0) {
+      return ret;
+    }
+    return (ret < 0) ? -1 : 1;
+  }else{
+    assert(0);
+  }
+  return 0;
+}
+
 /*
  * Compare two strings
  *    TSDB_MATCH:            Match
@@ -405,7 +433,7 @@ int32_t compareStrRegexComp(const void* pLeft, const void* pRight) {
   return result;
 }
 
-int32_t comparreStrContainJson(const void* pLeft, const void* pRight) {
+int32_t compareStrContainJson(const void* pLeft, const void* pRight) {
   if(pLeft) return 0;
   return 1;
 }
@@ -484,8 +512,6 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
         comparFn = compareStrRegexCompNMatch;
       } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
         comparFn = compareStrPatternComp;
-      } else if (optr == TSDB_RELATION_QUESTION) {
-        comparFn = comparreStrContainJson;
       } else if (optr == TSDB_RELATION_IN) {
         comparFn = compareFindItemInSet;
       } else { /* normal relational comparFn */
@@ -495,20 +521,29 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       break;
     }
 
-    case TSDB_DATA_TYPE_NCHAR:
-    case TSDB_DATA_TYPE_JSON:{
+    case TSDB_DATA_TYPE_NCHAR:{
       if (optr == TSDB_RELATION_MATCH) {
         comparFn = compareStrRegexCompMatch;
       } else if (optr == TSDB_RELATION_NMATCH) {
         comparFn = compareStrRegexCompNMatch;
-      } else if (optr == TSDB_RELATION_QUESTION) {
-        comparFn = comparreStrContainJson;
       } else if (optr == TSDB_RELATION_LIKE) {
         comparFn = compareWStrPatternComp;
       } else if (optr == TSDB_RELATION_IN) {
         comparFn = compareFindItemInSet;
       } else {
         comparFn = compareLenPrefixedWStr;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_JSON:{
+      if (optr == TSDB_RELATION_MATCH) {
+        comparFn = compareStrRegexCompMatch;
+      } else if (optr == TSDB_RELATION_NMATCH) {
+        comparFn = compareStrRegexCompNMatch;
+      } else if (optr == TSDB_RELATION_QUESTION) {
+        comparFn = compareStrContainJson;
+      } else {
+        comparFn = compareJsonVal;
       }
       break;
     }
