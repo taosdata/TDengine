@@ -155,6 +155,7 @@ class TDTestCase:
                 sys.exit()
 
         tdSql.query("select abs_max(val) from st") 
+        tdSql.error("select abs_max(val),count(tbname) from st")
         tdSql.query("select abs_max(val) from tb1")
         tdSql.checkRows(0)
         tdSql.query("select sum_double(val) from st") 
