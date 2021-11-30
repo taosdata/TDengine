@@ -44,7 +44,7 @@ python3 ./test.py -f table/tablename-boundary.py
 python3 ./test.py  -f table/max_table_length.py
 python3 ./test.py -f table/alter_column.py
 python3 ./test.py -f table/boundary.py
-python3 ./test.py -f table/create.py
+#python3 ./test.py -f table/create.py
 python3 ./test.py -f table/del_stable.py
 
 #stable
