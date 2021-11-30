@@ -888,7 +888,7 @@ dotnet add package TDengine.Connector
 ```C#
 using TDengineDriver;
 ```
-* user can reference from<feff>[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%23/TDengineTest) and learn how to define database connection,query,insert and other basic data manipulations.
+* user can reference from[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%23/TDengineTest) and learn how to define database connection,query,insert and other basic data manipulations.
 
 **Note:**
 

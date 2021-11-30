@@ -1045,7 +1045,7 @@ HTTP 请求 URL 采用 `sqlutc` 时，返回结果集的时间戳将采用 UTC �
 ### 安装准备
 
 * 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector#driver)。
-* 接口文件<feff>TDengineDrivercs.cs和参考程序示例TDengineTest.cs均位于Windows客户端install_directory/examples/C#目录下。
+* 接口文件TDengineDrivercs.cs和参考程序示例TDengineTest.cs均位于Windows客户端install_directory/examples/C#目录下。
 * 安装[.NET SDK](https://dotnet.microsoft.com/download)
 
 ### 示例程序
@@ -1084,7 +1084,7 @@ dotnet add package TDengine.Connector
 ```c# 
 using TDengineDriver;
 ```
-* 用户可以参考<feff>[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%23/TDengineTest)来定义数据库连接参数，以及如何执行数据插入、查询等操作。
+* 用户可以参考[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%23/TDengineTest)来定义数据库连接参数，以及如何执行数据插入、查询等操作。
 
 
 **注意：**
