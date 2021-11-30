@@ -7475,10 +7475,8 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
     // check if all the tags prj columns belongs to the group by columns
     if (onlyTagPrjFunction(pQueryInfo) && allTagPrjInGroupby(pQueryInfo)) {
-      if (!tscIsDiffDerivLikeQuery(pQueryInfo)) {
-        // It is a groupby aggregate query, the tag project function is not suitable for this case.
-        updateTagPrjFunction(pQueryInfo);
-      }
+      // It is a groupby aggregate query, the tag project function is not suitable for this case.
+      updateTagPrjFunction(pQueryInfo);
 
       return doAddGroupbyColumnsOnDemand(pCmd, pQueryInfo);
     }
