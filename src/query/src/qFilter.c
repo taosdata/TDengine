@@ -1573,7 +1573,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
             tlen = varDataLen(data);
             data += VARSTR_HEADER_SIZE;
           }
-          converToStr(str + len, type, data, tlen > 32 ? 32 : tlen, &tlen);
+          if (data) converToStr(str + len, type, data, tlen > 32 ? 32 : tlen, &tlen);
         } else {
           strcat(str, "NULL");
         }
