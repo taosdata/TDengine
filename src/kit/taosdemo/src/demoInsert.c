@@ -1138,7 +1138,17 @@ void postFreeResource() {
     tmfree(g_randfloat_buff);
     tmfree(g_rand_current_buff);
     tmfree(g_rand_phase_buff);
-
+    tmfree(g_randdouble_buff);
+    tmfree(g_randuint_buff);
+    tmfree(g_randutinyint_buff);
+    tmfree(g_randusmallint_buff);
+    tmfree(g_randubigint_buff);
+    tmfree(g_randint);
+    tmfree(g_randuint);
+    tmfree(g_randbigint);
+    tmfree(g_randubigint);
+    tmfree(g_randfloat);
+    tmfree(g_randdouble);
     tmfree(g_sampleDataBuf);
 
     for (int l = 0; l < g_args.columnCount; l++) {

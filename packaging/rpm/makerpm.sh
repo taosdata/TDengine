@@ -56,10 +56,6 @@ cd ${pkg_dir}
 
 ${csudo} mkdir -p BUILD BUILDROOT RPMS SOURCES SPECS SRPMS
 
-if [ -f ${compile_dir}/build/lib/libavro.so.23.0.0 ]; then
-    sed -i.bak 's/#Requires:/Requires: jansson snappy/g' ${spec_file}
-fi
-
 ${csudo} rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_dir}" --define="_compiledir ${compile_dir}" -bb ${spec_file}
 
 # copy rpm package to output_dir, and modify package name, then clean temp dir

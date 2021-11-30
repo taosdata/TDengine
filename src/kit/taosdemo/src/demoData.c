@@ -238,16 +238,81 @@ float UNUSED_FUNC demo_phase_float() {
                    360);
 }
 
+static int usc2utf8(char* p, int unic) {
+    if ( unic <= 0x0000007F )
+    {
+        *p     = (unic & 0x7F);
+        return 1;
+    }
+    else if ( unic >= 0x00000080 && unic <= 0x000007FF )
+    {
+        *(p+1) = (unic & 0x3F) | 0x80;
+        *p     = ((unic >> 6) & 0x1F) | 0xC0;
+        return 2;
+    }
+    else if ( unic >= 0x00000800 && unic <= 0x0000FFFF )
+    {
+        *(p+2) = (unic & 0x3F) | 0x80;
+        *(p+1) = ((unic >>  6) & 0x3F) | 0x80;
+        *p     = ((unic >> 12) & 0x0F) | 0xE0;
+        return 3;
+    }
+    else if ( unic >= 0x00010000 && unic <= 0x001FFFFF )
+    {
+        *(p+3) = (unic & 0x3F) | 0x80;
+        *(p+2) = ((unic >>  6) & 0x3F) | 0x80;
+        *(p+1) = ((unic >> 12) & 0x3F) | 0x80;
+        *p     = ((unic >> 18) & 0x07) | 0xF0;
+        return 4;
+    }
+    else if ( unic >= 0x00200000 && unic <= 0x03FFFFFF )
+    {
+        *(p+4) = (unic & 0x3F) | 0x80;
+        *(p+3) = ((unic >>  6) & 0x3F) | 0x80;
+        *(p+2) = ((unic >> 12) & 0x3F) | 0x80;
+        *(p+1) = ((unic >> 18) & 0x3F) | 0x80;
+        *p     = ((unic >> 24) & 0x03) | 0xF8;
+        return 5;
+    }
+    else if ( unic >= 0x04000000 && unic <= 0x7FFFFFFF )
+    {
+        *(p+5) = (unic & 0x3F) | 0x80;
+        *(p+4) = ((unic >>  6) & 0x3F) | 0x80;
+        *(p+3) = ((unic >> 12) & 0x3F) | 0x80;
+        *(p+2) = ((unic >> 18) & 0x3F) | 0x80;
+        *(p+1) = ((unic >> 24) & 0x3F) | 0x80;
+        *p     = ((unic >> 30) & 0x01) | 0xFC;
+        return 6;
+    }
+    return 0;
+}
+
 void rand_string(char *str, int size) {
-    str[0] = 0;
-    if (size > 0) {
-        //--size;
-        int n;
-        for (n = 0; n < size; n++) {
-            int key = abs(taosRandom()) % (int)(sizeof(charset) - 1);
-            str[n] = charset[key];
+    if (g_args.chinese) {
+        char* pstr = str;
+        int move = 0;
+        while (size > 0) {
+            // Chinese Character need 3 bytes space
+            if (size < 3) {
+                break;
+            }
+            // Basic Chinese Character's Unicode is from 0x4e00 to 0x9fa5
+            int unic = 0x4e00 + rand() % (0x9fa5 - 0x4e00);
+            move = usc2utf8(pstr, unic);
+            pstr += move;
+            size -= move;
         }
-        str[n] = 0;
+    } else {
+        str[0] = 0;
+        if (size > 0) {
+            //--size;
+            int n;
+            for (n = 0; n < size; n++) {
+                int key = abs(taosRandom()) % (int)(sizeof(charset) - 1);
+                str[n] = charset[key];
+            }
+            str[n] = 0;
+        }
     }
 }
 
