@@ -2360,7 +2360,11 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     if (tokenId == TK_ARROW){
       tSqlExpr* left = pItem->pNode->pLeft;
       assert(left != NULL && left->type == SQL_NODE_TABLE_COLUMN);
-      pToken = &left->columnName;
+      if (pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0){    // if select from subquery, pToken should be jtag->'location'. like (select jtag->'location' from (select jtag->'location' from jsons1);)
+        pToken = &pItem->pNode->exprToken;
+      }else{
+        pToken = &left->columnName;
+      }
 
       tSqlExpr* right = pItem->pNode->pRight;
       if(right == NULL || right->type != SQL_NODE_VALUE || right->tokenId != TK_STRING){

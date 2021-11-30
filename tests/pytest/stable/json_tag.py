@@ -32,10 +32,10 @@ class TDTestCase:
         tdSql.execute("create database db_json_tag_test")
         tdSql.execute("create table if not exists db_json_tag_test.jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50)) tags(jtag json)")
         tdSql.execute("CREATE TABLE if not exists db_json_tag_test.jsons1_1 using db_json_tag_test.jsons1 tags('{\"loc\":\"fff\",\"id\":5}')")
-        tdSql.execute("insert into db_json_tag_test.jsons1_2 using db_json_tag_test.jsons1 tags('{\"num\":5,\"location\":\"beijing\"}') values (now, 2, true, 'json2')")
-        tdSql.execute("insert into db_json_tag_test.jsons1_1 values(now, 1, false, 'json1')")
-        tdSql.execute("insert into db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags('{\"num\":34,\"location\":\"beijing\",\"level\":\"l1\"}') values (now, 3, false 'json3')")
-        tdSql.execute("insert into db_json_tag_test.jsons1_4 using db_json_tag_test.jsons1 tags('{\"class\":55,\"location\":\"shanghai\",\"name\":\"name4\"}') values (now, 4, true, 'json4')")
+        tdSql.execute("insert into db_json_tag_test.jsons1_2 using db_json_tag_test.jsons1 tags('{\"num\":5,\"location\":\"beijing\"}') values (1591060628000, 2, true, 'json2')")
+        tdSql.execute("insert into db_json_tag_test.jsons1_1 values(1591060638000, 1, false, 'json1')")
+        tdSql.execute("insert into db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags('{\"num\":34,\"location\":\"beijing\",\"level\":\"l1\"}') values (1591060668000, 3, false 'json3')")
+        tdSql.execute("insert into db_json_tag_test.jsons1_4 using db_json_tag_test.jsons1 tags('{\"class\":55,\"location\":\"shanghai\",\"name\":\"name4\"}') values (1591060728000, 4, true, 'json4')")
 
         print("==============step2")
         tdLog.info("alter stable add tag")
@@ -238,7 +238,7 @@ class TDTestCase:
         tdSql.checkRows(1)
 
         #test dumplicate key with normal colomn
-        tdSql.execute("INSERT INTO db_json_tag_test.jsons1_12 using db_json_tag_test.jsons1 tags('{\"tbname\":\"tt\",\"databool\":true,\"dataStr\":\"是是是\"}') values(now, 4, false, \"你就会\")")
+        tdSql.execute("INSERT INTO db_json_tag_test.jsons1_12 using db_json_tag_test.jsons1 tags('{\"tbname\":\"tt\",\"databool\":true,\"dataStr\":\"是是是\"}') values(1591060828000, 4, false, \"你就会\")")
 
         tdSql.query("select *,tbname,jtag from db_json_tag_test.jsons1 where jtag->'dataStr' match '是'")
         tdSql.checkRows(1)
@@ -265,6 +265,13 @@ class TDTestCase:
         tdSql.query("select 'sss',33,a.jtag->'loc' from db_json_tag_test.jsons2 a,db_json_tag_test.jsons3 b where a.ts=b.ts and a.jtag->'loc'=b.jtag->'loc'")
         tdSql.checkData(0, 0, "sss")
         tdSql.checkData(0, 2, "\"fff\"")
+
+        res = tdSql.getColNameList("select 'sss',33,a.jtag->'loc' from db_json_tag_test.jsons2 a,db_json_tag_test.jsons3 b where a.ts=b.ts and a.jtag->'loc'=b.jtag->'loc'")
+        cname_list = []
+        cname_list.append("sss")
+        cname_list.append("33")
+        cname_list.append("a.jtag->'loc'")
+        tdSql.checkColNameList(res, cname_list)
     
         # test group by & order by   string
         tdSql.query("select avg(dataint),count(*) from db_json_tag_test.jsons1 group by jtag->'location' order by jtag->'location' desc")
@@ -274,9 +281,9 @@ class TDTestCase:
         tdSql.checkData(2, 2, None)
 
         # test group by & order by   int
-        tdSql.execute("INSERT INTO db_json_tag_test.jsons1_20 using db_json_tag_test.jsons1 tags('{\"tagint\":1}') values(now, 1, false, \"你就会\")")
-        tdSql.execute("INSERT INTO db_json_tag_test.jsons1_21 using db_json_tag_test.jsons1 tags('{\"tagint\":11}') values(now, 11, false, \"你就会\")")
-        tdSql.execute("INSERT INTO db_json_tag_test.jsons1_22 using db_json_tag_test.jsons1 tags('{\"tagint\":2}') values(now, 2, false, \"你就会\")")
+        tdSql.execute("INSERT INTO db_json_tag_test.jsons1_20 using db_json_tag_test.jsons1 tags('{\"tagint\":1}') values(1591060928000, 1, false, \"你就会\")")
+        tdSql.execute("INSERT INTO db_json_tag_test.jsons1_21 using db_json_tag_test.jsons1 tags('{\"tagint\":11}') values(1591061628000, 11, false, \"你就会\")")
+        tdSql.execute("INSERT INTO db_json_tag_test.jsons1_22 using db_json_tag_test.jsons1 tags('{\"tagint\":2}') values(1591062628000, 2, false, \"你就会\")")
         tdSql.query("select avg(dataint),count(*) from db_json_tag_test.jsons1 group by jtag->'tagint' order by jtag->'tagint' desc")
         tdSql.checkData(0, 0, 11)
         tdSql.checkData(0, 2, 11)
@@ -289,10 +296,23 @@ class TDTestCase:
         tdSql.checkData(1, 2, 1)
         tdSql.checkData(3, 2, 11)
 
+        # test stddev with group by json tag sting
         tdSql.query("select stddev(dataint) from db_json_tag_test.jsons1 group by jtag->'location'")
         tdSql.checkData(0, 1, None)
         tdSql.checkData(1, 0, 0.5)
         tdSql.checkData(2, 0, 0)
+
+        tdSql.query("select stddev(dataint) from db_json_tag_test.jsons1 group by jtag->'tagint'")
+        tdSql.checkData(0, 0, 1.16619037896906)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 0, 0)
+        tdSql.checkData(2, 1, 2)
+
+        res = tdSql.getColNameList("select stddev(dataint) from db_json_tag_test.jsons1 group by jsons1.jtag->'tagint'")
+        cname_list = []
+        cname_list.append("stddev(dataint)")
+        cname_list.append("jsons1.jtag->'tagint'")
+        tdSql.checkColNameList(res, cname_list)
 
         # test json->'key'=null
         tdSql.execute("insert into db_json_tag_test.jsons1_9 values('2020-04-17 15:20:00.000', 5, false, 'json19')")
@@ -302,6 +322,27 @@ class TDTestCase:
         tdSql.checkRows(8)
         tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'time'=null")
         tdSql.checkRows(1)
+
+        # subquery with json tag
+        tdSql.query("select * from (select jtag, dataint from db_json_tag_test.jsons1)")
+        tdSql.checkRows(9)
+        tdSql.checkData(1, 1, 2)
+        tdSql.checkData(6, 0, "{\"tagint\":1}")
+
+        tdSql.query("select jtag->'age' from (select jtag->'age', dataint from db_json_tag_test.jsons1)")
+        tdSql.checkRows(9)
+        tdSql.checkData(0, 0, 35)
+        tdSql.checkData(2, 0, None)
+
+        res = tdSql.getColNameList("select jtag->'age' from (select jtag->'age', dataint from db_json_tag_test.jsons1)")
+        cname_list = []
+        cname_list.append("jtag->'age'")
+        tdSql.checkColNameList(res, cname_list)
+
+        tdSql.query("select ts,tbname,jtag->'location' from (select jtag->'location',tbname,ts from db_json_tag_test.jsons1 order by ts)")
+        tdSql.checkRows(9)
+        tdSql.checkData(1, 1, "jsons1_2")
+        tdSql.checkData(3, 2, "\"beijing\"")
 
     def stop(self):
         tdSql.close()
