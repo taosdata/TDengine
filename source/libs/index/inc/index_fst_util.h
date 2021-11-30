@@ -67,20 +67,27 @@ uint8_t      packDeltaSize(CompiledAddr nodeAddr, CompiledAddr transAddr);
 CompiledAddr unpackDelta(char *data, uint64_t len, uint64_t nodeAddr);
 
 
+typedef struct FstString {
+  uint8_t *data; 
+  uint32_t len;
+  int32_t ref;
+} FstString;
 
 typedef struct FstSlice {
-  uint8_t *data; 
-  uint64_t dLen;
-  int32_t start;
-  int32_t end;
+  FstString   *str;     
+  int32_t start; 
+  int32_t end; 
 } FstSlice;
 
-FstSlice fstSliceCopy(FstSlice *slice, int32_t start, int32_t end);
-FstSlice fstSliceCreate(uint8_t *data, uint64_t dLen);
-bool fstSliceEmpty(FstSlice *slice);
-int fstSliceCompare(FstSlice *a, FstSlice *b);
+FstSlice fstSliceCreate(uint8_t *data, uint64_t len);
+FstSlice fstSliceCopy(FstSlice *s, int32_t start, int32_t end);
+FstSlice fstSliceDeepCopy(FstSlice *s, int32_t start, int32_t end);
+bool fstSliceEmpty(FstSlice *s);
+int fstSliceCompare(FstSlice *s1, FstSlice *s2);
+void fstSliceDestroy(FstSlice *s); 
+uint8_t *fstSliceData(FstSlice *s, int32_t *sz); 
 
-#define FST_SLICE_LEN(s) ((s)->end - (s)->start + 1)
+#define FST_SLICE_LEN(s) (s->end - s->start + 1)
 
 
 #endif

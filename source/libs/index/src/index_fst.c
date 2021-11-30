@@ -92,7 +92,7 @@ void fstUnFinishedNodesTopLastFreeze(FstUnFinishedNodes *nodes, CompiledAddr add
 }
 void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes *nodes, FstSlice bs, Output out) {
   FstSlice *s = &bs;
-  if (s->data == NULL || s->dLen == 0 || s->start > s->end) {
+  if (fstSliceEmpty(s)) {
     return;
   }
   size_t sz = taosArrayGetSize(nodes->stack) - 1; 
@@ -104,9 +104,11 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes *nodes, FstSlice bs, Output 
   //FstLastTransition *trn = malloc(sizeof(FstLastTransition)); 
   //trn->inp = s->data[s->start]; 
   //trn->out = out;
-  un->last = fstLastTransitionCreate(s->data[s->start], out); 
+  int32_t len = 0;
+  uint8_t *data = fstSliceData(s, &len);
+  un->last = fstLastTransitionCreate(data[0], out); 
 
-  for (uint64_t i = s->start; i <= s->end; i++) {
+  for (uint64_t i = 0; i < len; i++) {
     FstBuilderNode *n = malloc(sizeof(FstBuilderNode));
     n->isFinal     = false;
     n->finalOutput = 0;
@@ -115,7 +117,7 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes *nodes, FstSlice bs, Output 
     //FstLastTransition *trn = malloc(sizeof(FstLastTransition)); 
     //trn->inp = s->data[i];
     //trn->out = out; 
-    FstLastTransition *trn = fstLastTransitionCreate(s->data[i], out);
+    FstLastTransition *trn = fstLastTransitionCreate(data[i], out);
 
     FstBuilderNodeUnfinished un = {.node = n, .last = trn}; 
     taosArrayPush(nodes->stack, &un); 
@@ -133,7 +135,8 @@ uint64_t fstUnFinishedNodesFindCommPrefix(FstUnFinishedNodes *node, FstSlice bs)
   uint64_t count = 0;
   for (size_t i = 0; i < ssz && i < lsz; i++) {
     FstBuilderNodeUnfinished *un = taosArrayGet(node->stack, i); 
-    if (un->last->inp == s->data[s->start + i]) {
+    uint8_t *data = fstSliceData(s, NULL);
+    if (un->last->inp == data[i]) {
       count++;
     } else {
       break;
@@ -153,7 +156,8 @@ uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes *node, 
 
     FstLastTransition *t = un->last; 
     uint64_t addPrefix = 0;  
-    if (t && t->inp == s->data[s->start + i]) {
+    uint8_t *data = fstSliceData(s, NULL);
+    if (t && t->inp == data[i]) {
       uint64_t commPrefix = MIN(t->out, *out);      
       uint64_t tAddPrefix  = t->out - commPrefix; 
       (*out) = (*out) - commPrefix; 
@@ -176,7 +180,9 @@ FstState fstStateCreateFrom(FstSlice* slice, CompiledAddr addr) {
   if (addr == EMPTY_ADDRESS) {
     return fs; 
   }
-  uint8_t v = slice->data[addr]; 
+  
+  uint8_t *data = fstSliceData(slice, NULL);
+  uint8_t v = data[addr]; 
   uint8_t t = (v & 0b11000000) >> 6;
   if (t == 0b11) {
     fs.state = OneTransNext;
@@ -376,7 +382,8 @@ uint8_t  fstStateInput(FstState *s, FstNode *node) {
   FstSlice *slice = &node->data;
   bool null = false;
   uint8_t inp = fstStateCommInput(s, &null);
-  return null == false ? inp : slice->data[slice->start - 1];
+  uint8_t *data = fstSliceData(slice, NULL); 
+  return null == false ? inp : data[-1];
 }
 uint8_t  fstStateInputForAnyTrans(FstState *s, FstNode *node, uint64_t i) {
   assert(s->state == AnyTrans);
@@ -388,7 +395,9 @@ uint8_t  fstStateInputForAnyTrans(FstState *s, FstNode *node, uint64_t i) {
             - fstStateTransIndexSize(s, node->version, node->nTrans) 
             - i 
             - 1; // the output size 
-  return slice->data[at];
+
+  uint8_t *data = fstSliceData(slice, NULL);
+  return data[at];
 }
 
 // trans_addr
@@ -406,7 +415,8 @@ CompiledAddr fstStateTransAddr(FstState *s, FstNode *node) {
                 - tSizes;
 
     // refactor error logic 
-    return unpackDelta(slice->data + slice->start + i, tSizes, node->end);      
+    uint8_t *data = fstSliceData(slice, NULL);
+    return unpackDelta(data +i, tSizes, node->end);      
   }  
 }
 CompiledAddr fstStateTransAddrForAnyTrans(FstState *s, FstNode *node, uint64_t i) {
@@ -421,7 +431,8 @@ CompiledAddr fstStateTransAddrForAnyTrans(FstState *s, FstNode *node, uint64_t i
                - node->nTrans
                - (i * tSizes)
                - tSizes;
-  return unpackDelta(slice->data + slice->start + at, tSizes, node->end); 
+  uint8_t *data = fstSliceData(slice, NULL);
+  return unpackDelta(data + at, tSizes, node->end); 
 }
 
 // sizes 
@@ -434,7 +445,8 @@ PackSizes fstStateSizes(FstState *s, FstSlice *slice) {
     i = FST_SLICE_LEN(slice) - 1 - fstStateNtransLen(s) - 1;
   }
 
-  return (PackSizes)(slice->data[slice->start + i]);
+  uint8_t *data = fstSliceData(slice, NULL);
+  return (PackSizes)(*(data +i));
 }
 // Output 
 Output fstStateOutput(FstState *s, FstNode *node) {
@@ -452,7 +464,8 @@ Output fstStateOutput(FstState *s, FstNode *node) {
                 - 1
                 - tSizes 
                 - oSizes;
-  return unpackUint64(slice->data + slice->start + i, oSizes);
+  uint8_t *data = fstSliceData(slice, NULL);              
+  return unpackUint64(data + i, oSizes);
   
 }
 Output fstStateOutputForAnyTrans(FstState *s, FstNode *node, uint64_t i) {
@@ -469,7 +482,9 @@ Output fstStateOutputForAnyTrans(FstState *s, FstNode *node, uint64_t i) {
                 - fstStateTotalTransSize(s, node->version, node->sizes, node->nTrans)
                 - (i * oSizes)
                 - oSizes;
-  return unpackUint64(slice->data + slice->start + at, oSizes);
+
+  uint8_t *data = fstSliceData(slice, NULL);              
+  return unpackUint64(data + at, oSizes);
 }
 
 // anyTrans specify function
@@ -523,7 +538,10 @@ uint64_t fstStateNtrans(FstState *s, FstSlice *slice) {
   if (null != true) {
     return n;   
   }  
-  n = slice->data[slice->end - 1]; // data[data.len() - 2]
+  int32_t len;
+  uint8_t *data = fstSliceData(slice, &len);
+  n = data[len - 2];
+  //n = data[slice->end - 1]; // data[data.len() - 2]
   return n == 1 ? 256: n; // // "1" is never a normal legal value here, because if there, // is only 1 transition, then it is encoded in the state byte  
 }
 Output  fstStateFinalOutput(FstState *s, uint64_t version, FstSlice *slice, PackSizes sizes, uint64_t nTrans) {
@@ -538,7 +556,8 @@ Output  fstStateFinalOutput(FstState *s, uint64_t version, FstSlice *slice, Pack
                  - fstStateTotalTransSize(s, version, sizes, nTrans)
                  - (nTrans * oSizes)
                  - oSizes;
-  return unpackUint64(slice->data + slice->start + at, (uint8_t)oSizes);    
+  uint8_t *data = fstSliceData(slice, NULL);
+  return unpackUint64(data + at, (uint8_t)oSizes);    
 
 }
 uint64_t fstStateFindInput(FstState *s, FstNode *node, uint8_t b, bool *null) {
@@ -549,7 +568,10 @@ uint64_t fstStateFindInput(FstState *s, FstNode *node, uint8_t b, bool *null) {
                   - fstStateNtransLen(s)
                   - 1 // pack size 
                   - fstStateTransIndexSize(s, node->version, node->nTrans);
-    uint64_t i = slice->data[slice->start + at + b];  
+    int32_t dlen = 0; 
+    uint8_t *data = fstSliceData(slice, &dlen);
+    uint64_t i = data[at + b];
+    //uint64_t i = slice->data[slice->start + at + b];  
     if (i >= node->nTrans) {
       *null = true;
     } 
@@ -561,8 +583,13 @@ uint64_t fstStateFindInput(FstState *s, FstNode *node, uint8_t b, bool *null) {
                     - node->nTrans;
     uint64_t end =  start + node->nTrans;
     uint64_t len = end - start; 
+    int32_t dlen = 0; 
+    uint8_t *data = fstSliceData(slice, &dlen);
     for(int i = 0; i < len; i++) {
-      uint8_t v = slice->data[slice->start + i];
+      //uint8_t v = slice->data[slice->start + i];
+      ////slice->data[slice->start + i];
+      uint8_t v = data[i]; 
+      
       if (v == b) {
         return node->nTrans - i - 1; // bug  
       }
@@ -888,7 +915,7 @@ void fstBuilderFinish(FstBuilder *b) {
 
 FstSlice fstNodeAsSlice(FstNode *node) {
   FstSlice *slice = &node->data; 
-  FstSlice s = fstSliceCopy(slice, slice->end, slice->dLen - 1);   
+  FstSlice s = fstSliceCopy(slice, slice->end, FST_SLICE_LEN(slice) - 1);   
   return s; 
 }
 
@@ -929,12 +956,13 @@ void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *unNode, O
 }
 
 Fst* fstCreate(FstSlice *slice) {
-  char *buf = slice->data;
-  uint64_t skip = 0;  
-  uint64_t len = slice->dLen;
-  if (len < 36) { 
+  int32_t slen;
+  char *buf = fstSliceData(slice, &slen);
+  if (slen < 36) { 
     return NULL; 
   }
+  uint64_t len = slen;
+  uint64_t skip = 0;  
 
   uint64_t version; 
   taosDecodeFixedU64(buf, &version); 
@@ -992,8 +1020,10 @@ void fstDestroy(Fst *fst) {
 bool fstGet(Fst *fst, FstSlice *b, Output *out) {
   FstNode *root = fstGetRoot(fst);    
   Output tOut = 0; 
-  for (uint32_t i = 0; i < b->dLen; i++) {
-    uint8_t inp = b->data[i];
+  int32_t len;
+  uint8_t *data = fstSliceData(b, &len);
+  for (uint32_t i = 0; i < len; i++) {
+    uint8_t inp = data[i];
     Output  res = 0;
     bool null = fstNodeFindInput(root, inp, &res);    
     if (null) { return false; }    
@@ -1046,9 +1076,10 @@ Output fstEmptyFinalOutput(Fst *fst, bool *null) {
 
 bool fstVerify(Fst *fst) {
   uint32_t checkSum = fst->meta->checkSum;
-  FstSlice *data    = fst->data;          
+  int32_t len;
+  uint8_t *data = fstSliceData(fst->data, &len);
   TSCKSUM initSum  = 0;  
-  if (!taosCheckChecksumWhole(data->data, data->dLen)) {
+  if (!taosCheckChecksumWhole(data, len)) {
     return false;
   }
   return true;
@@ -1058,9 +1089,14 @@ bool fstVerify(Fst *fst) {
 FstBoundWithData* fstBoundStateCreate(FstBound type, FstSlice *data) {
   FstBoundWithData *b = calloc(1, sizeof(FstBoundWithData));
   if (b == NULL) { return NULL; }
-  
+
+  if (data != NULL) {
+    b->data = fstSliceCopy(data, data->start, data->end);
+  } else {
+    b->data = fstSliceCreate(NULL, 0);
+  }
   b->type = type;
-  b->data = fstSliceCopy(data, data->start, data->end);
+
   return b; 
 }
 
@@ -1145,8 +1181,10 @@ bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min) {
   Output  out = 0;
   void*   autState = sws->aut->start();  
 
-  for (uint32_t i = 0; i < key->dLen; i++) {
-    uint8_t b = key->data[i];
+  int32_t len; 
+  uint8_t *data = fstSliceData(key, &len);  
+  for (uint32_t i = 0; i < len; i++) {
+    uint8_t b = data[i];
     uint64_t res = 0;
     bool null = fstNodeFindInput(node, b, &res); 
     if (null == false) {
@@ -1277,8 +1315,8 @@ StreamWithStateResult *swsResultCreate(FstSlice *data, FstOutput fOut, void *sta
   StreamWithStateResult *result = calloc(1, sizeof(StreamWithStateResult));  
   if (result == NULL) { return NULL; }
   
-  FstSlice slice = fstSliceCopy(data, 0, data->dLen - 1);
-  result->data  = slice;
+  FstSlice s = fstSliceCopy(data, 0, FST_SLICE_LEN(data) - 1);
+  result->data  = s;
   result->out   = fOut;
   result->state = state; 
 
@@ -1292,6 +1330,43 @@ void streamStateDestroy(void *s) {
   fstNodeDestroy(ss->node);
   //free(s->autoState);
 }
+
+FstStreamBuilder *fstStreamBuilderCreate(Fst *fst, Automation *aut) {
+  FstStreamBuilder *b = calloc(1, sizeof(FstStreamBuilder));
+  if (NULL == b) { return NULL; }
+
+  b->fst = fst;
+  b->aut = aut;
+  b->min = fstBoundStateCreate(Unbounded, NULL);
+  b->max = fstBoundStateCreate(Unbounded, NULL);  
+  return b;
+}
+void fstStreamBuilderDestroy(FstStreamBuilder *b) {
+  free(b);
+}
+FstStreamBuilder *fstStreamBuilderRange(FstStreamBuilder *b, FstSlice *val, RangeType type) {
+  if (b == NULL) { return NULL; }
+
+  if (type == GE) {
+    b->min->type = Included;
+    fstSliceDestroy(&(b->min->data));
+    b->min->data = fstSliceDeepCopy(val, 0, FST_SLICE_LEN(val) - 1);
+  } else if (type == GT) {
+    b->min->type = Excluded;
+    fstSliceDestroy(&(b->min->data));
+    b->min->data = fstSliceDeepCopy(val, 0, FST_SLICE_LEN(val) - 1);
+  } else if (type == LE) {
+    b->max->type = Included;
+    fstSliceDestroy(&(b->max->data));
+    b->max->data = fstSliceDeepCopy(val, 0, FST_SLICE_LEN(val) - 1);
+  } else if (type == LT) {
+    b->max->type = Excluded;
+    fstSliceDestroy(&(b->max->data));
+    b->max->data = fstSliceDeepCopy(val, 0, FST_SLICE_LEN(val) - 1);
+  }
+  return b;
+}
+
 
 
 

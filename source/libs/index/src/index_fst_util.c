@@ -91,42 +91,88 @@ CompiledAddr unpackDelta(char *data, uint64_t len, uint64_t nodeAddr) {
 }
 
 // fst slice func
-FstSlice fstSliceCreate(uint8_t *data, uint64_t dLen) {
-  FstSlice slice = {.data = data, .dLen = dLen, .start = 0, .end = dLen - 1};
-  return slice;
+//
+
+FstSlice fstSliceCreate(uint8_t *data, uint64_t len) {
+  FstString *str = (FstString *)malloc(sizeof(FstString));
+  str->ref  = 1; 
+  str->len  = len;
+  str->data = malloc(len * sizeof(uint8_t));
+  memcpy(str->data, data, len);
+  
+  FstSlice s = {.str = str, .start = 0, .end = len - 1};
+  return s;
 } 
 // just shallow copy
-FstSlice fstSliceCopy(FstSlice *slice, int32_t start, int32_t end) {
-  FstSlice t;
-  if (start >= slice->dLen || end >= slice->dLen || start > end) {
-    t.data = NULL;
-    return t;
-  };
-   
-  t.data  = slice->data;
-  t.dLen  = slice->dLen;
-  t.start = start; 
-  t.end   = end; 
+FstSlice fstSliceCopy(FstSlice *s, int32_t start, int32_t end) {
+  FstString *str = s->str;
+  str->ref++;
+  int32_t alen; 
+  //uint8_t *buf = fstSliceData(s, &alen); 
+  //start = buf + start - (buf - s->start);
+  //end   = buf + end - (buf - s->start);  
+
+  FstSlice t = {.str = str, .start = start + s->start, .end = end + s->start};
   return t;
 }
-bool fstSliceEmpty(FstSlice *slice) {
-  return slice->data == NULL || slice->dLen <= 0;
+FstSlice fstSliceDeepCopy(FstSlice *s, int32_t start, int32_t end) {
+
+  int32_t alen, tlen = end - start + 1;
+  uint8_t *data = fstSliceData(s, &alen);      
+  assert(tlen <= alen);
+
+  uint8_t *buf  = malloc(sizeof(uint8_t) * tlen);  
+  memcpy(buf, data, tlen);
+   
+  FstString *str = malloc(sizeof(FstString));  
+  str->data = buf;
+  str->len  = tlen; 
+  str->ref  = 1;
+
+  FstSlice ans;
+  ans.str   = str;
+  ans.start = 0; 
+  ans.end   = tlen - 1;
+  return ans; 
+}
+bool fstSliceEmpty(FstSlice *s) {
+  return s->str == NULL || s->start < 0 || s->end < 0;
+}
+
+uint8_t *fstSliceData(FstSlice *s, int32_t *size) {
+   FstString *str = s->str;
+   if (size != NULL) {
+    *size = s->end - s->start + 1;
+   }
+   return str->data + s->start; 
+}
+void fstSliceDestroy(FstSlice *s) {
+  FstString *str = s->str;
+  str->ref--;
+  if (str->ref <= 0) {
+    free(str->data);
+    free(str);
+    s->str = NULL; 
+  }
 }
 
 int fstSliceCompare(FstSlice *a, FstSlice *b) {
-  int32_t aLen = (a->end - a->start + 1);  
-  int32_t bLen = (b->end - b->start + 1);
-  int32_t mLen = (aLen < bLen ? aLen : bLen);
-  for (int i = 0; i < mLen; i++) {
-    uint8_t x = a->data[i + a->start];
-    uint8_t y = b->data[i + b->start];
-    if (x == y) { continue; }
+  int32_t alen, blen;
+  uint8_t *aBuf = fstSliceData(a, &alen); 
+  uint8_t *bBuf = fstSliceData(b, &blen); 
+
+
+  uint32_t i, j;
+  for (i = 0, j = 0; i < alen && j < blen; i++, j++) {
+    uint8_t x = aBuf[i];
+    uint8_t y = bBuf[j];
+    if (x == y) { continue;}
     else if (x < y) { return -1; }
-    else { return 1; } 
-  } 
-  if (aLen == bLen) { return 0; }
-  else if (aLen < bLen) { return -1; }
-  else { return 1; } 
+    else { return 1; };
+  }
+  if (i < alen) { return 1; } 
+  else if (j < blen) { return -1; }
+  else { return 0; } 
 } 
 
 
