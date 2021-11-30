@@ -348,19 +348,25 @@ static void dndSendStatusMsg(SDnode *pDnode) {
 
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
-  pStatus->sversion = htonl(pDnode->opt.sver);
+  pStatus->sver = htonl(pDnode->opt.sver);
   pStatus->dnodeId = htonl(pMgmt->dnodeId);
   pStatus->clusterId = htobe64(pMgmt->clusterId);
   pStatus->rebootTime = htonl(pMgmt->rebootTime);
-  pStatus->numOfCores = htonl(pDnode->opt.numOfCores);
+  pStatus->numOfCores = htons(pDnode->opt.numOfCores);
+  pStatus->numOfSupportMnodes = htons(pDnode->opt.numOfCores);
+  pStatus->numOfSupportVnodes = htons(pDnode->opt.numOfCores);
+  pStatus->numOfSupportQnodes = htons(pDnode->opt.numOfCores);
   tstrncpy(pStatus->dnodeEp, pDnode->opt.localEp, TSDB_EP_LEN);
+
   pStatus->clusterCfg.statusInterval = htonl(pDnode->opt.statusInterval);
-  tstrncpy(pStatus->clusterCfg.timezone, pDnode->opt.timezone, TSDB_TIMEZONE_LEN);
-  tstrncpy(pStatus->clusterCfg.locale, pDnode->opt.locale, TSDB_LOCALE_LEN);
-  tstrncpy(pStatus->clusterCfg.charset, pDnode->opt.charset, TSDB_LOCALE_LEN);
+  pStatus->clusterCfg.mnodeEqualVnodeNum = htonl(pDnode->opt.mnodeEqualVnodeNum);
   pStatus->clusterCfg.checkTime = 0;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &pStatus->clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  pStatus->clusterCfg.checkTime = htonl(pStatus->clusterCfg.checkTime);
+  tstrncpy(pStatus->clusterCfg.timezone, pDnode->opt.timezone, TSDB_TIMEZONE_LEN);
+  tstrncpy(pStatus->clusterCfg.locale, pDnode->opt.locale, TSDB_LOCALE_LEN);
+  tstrncpy(pStatus->clusterCfg.charset, pDnode->opt.charset, TSDB_LOCALE_LEN);
   taosRUnLockLatch(&pMgmt->latch);
 
   dndGetVnodeLoads(pDnode, &pStatus->vnodeLoads);

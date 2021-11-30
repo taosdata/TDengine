@@ -138,11 +138,15 @@ void dmnWaitSignal() {
 void dmnInitOption(SDnodeOpt *pOption) {
   pOption->sver = tsVersion;
   pOption->numOfCores = tsNumOfCores;
+  pOption->numOfSupportMnodes = 1;
+  pOption->numOfSupportVnodes = 1;
+  pOption->numOfSupportQnodes = 1;
+  pOption->statusInterval = tsStatusInterval;
+  pOption->mnodeEqualVnodeNum = tsMnodeEqualVnodeNum;
   pOption->numOfThreadsPerCore = tsNumOfThreadsPerCore;
   pOption->ratioOfQueryCores = tsRatioOfQueryCores;
   pOption->maxShellConns = tsMaxShellConns;
   pOption->shellActivityTimer = tsShellActivityTimer;
-  pOption->statusInterval = tsStatusInterval;
   pOption->serverPort = tsServerPort;
   tstrncpy(pOption->dataDir, tsDataDir, TSDB_FILENAME_LEN);
   tstrncpy(pOption->localEp, tsLocalEp, TSDB_EP_LEN);

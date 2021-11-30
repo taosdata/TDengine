@@ -50,6 +50,12 @@ typedef struct SMnode {
   SendMsgToMnodeFp  sendMsgToMnodeFp;
   SendRedirectMsgFp sendRedirectMsgFp;
   PutMsgToMnodeQFp  putMsgToApplyMsgFp;
+  int32_t           sver;
+  int32_t           statusInterval;
+  int32_t           mnodeEqualVnodeNum;
+  char             *timezone;
+  char             *locale;
+  char             *charset;
 } SMnode;
 
 tmr_h   mndGetTimer(SMnode *pMnode);

@@ -14,11 +14,120 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "mndInt.h"
+#include "mndTrans.h"
 
-int32_t mndInitMnode(SMnode *pMnode) { return 0; }
-void    mndCleanupMnode(SMnode *pMnode) {}
+#define SDB_MNODE_VER 1
 
-void mndGetMnodeEpSetForPeer(SEpSet *epSet, bool redirect) {}
-void mndGetMnodeEpSetForShell(SEpSet *epSet, bool redirect) {}
+static SSdbRaw *mndMnodeActionEncode(SMnodeObj *pMnodeObj) {
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_MNODE, SDB_MNODE_VER, sizeof(SMnodeObj));
+  if (pRaw == NULL) return NULL;
+
+  int32_t dataPos = 0;
+  SDB_SET_INT32(pRaw, dataPos, pMnodeObj->id);
+  SDB_SET_INT64(pRaw, dataPos, pMnodeObj->createdTime)
+  SDB_SET_INT64(pRaw, dataPos, pMnodeObj->updateTime)
+
+  return pRaw;
+}
+
+static SSdbRow *mndMnodeActionDecode(SSdbRaw *pRaw) {
+  int8_t sver = 0;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+
+  if (sver != SDB_MNODE_VER) {
+    terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
+    mError("failed to decode mnode since %s", terrstr());
+    return NULL;
+  }
+
+  SSdbRow   *pRow = sdbAllocRow(sizeof(SMnodeObj));
+  SMnodeObj *pMnodeObj = sdbGetRowObj(pRow);
+  if (pMnodeObj == NULL) return NULL;
+
+  int32_t dataPos = 0;
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pMnodeObj->id)
+  SDB_GET_INT64(pRaw, pRow, dataPos, &pMnodeObj->createdTime)
+  SDB_GET_INT64(pRaw, pRow, dataPos, &pMnodeObj->updateTime)
+
+  return pRow;
+}
+
+static void mnodeResetMnode(SMnodeObj *pMnodeObj) {
+  pMnodeObj->role = TAOS_SYNC_STATE_FOLLOWER;
+  pMnodeObj->roleTerm = 0;
+  pMnodeObj->roleTime = 0;
+}
+
+static int32_t mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pMnodeObj) {
+  pMnodeObj->pDnode = sdbAcquire(pSdb, SDB_DNODE, &pMnodeObj->id);
+  if (pMnodeObj->pDnode == NULL) {
+    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+    return -1;
+  }
+
+  mnodeResetMnode(pMnodeObj);
+  return 0;
+}
+
+static int32_t mndMnodeActionDelete(SSdb *pSdb, SMnodeObj *pMnodeObj) {
+  if (pMnodeObj->pDnode != NULL) {
+    sdbRelease(pSdb, pMnodeObj->pDnode);
+    pMnodeObj->pDnode = NULL;
+  }
+
+  return 0;
+}
+
+static int32_t mndMnodeActionUpdate(SSdb *pSdb, SMnodeObj *pSrcMnode, SMnodeObj *pDstMnode) {
+  pSrcMnode->id = pDstMnode->id;
+  pSrcMnode->createdTime = pDstMnode->createdTime;
+  pSrcMnode->updateTime = pDstMnode->updateTime;
+  mnodeResetMnode(pSrcMnode);
+}
+
+static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
+  SMnodeObj mnodeObj = {0};
+  mnodeObj.id = 0;
+  mnodeObj.createdTime = taosGetTimestampMs();
+  mnodeObj.updateTime = mnodeObj.createdTime;
+
+  SSdbRaw *pRaw = mndMnodeActionEncode(&mnodeObj);
+  if (pRaw == NULL) return -1;
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+
+  return sdbWrite(pMnode->pSdb, pRaw);
+}
+
+static int32_t mndProcessCreateMnodeMsg(SMnode *pMnode, SMnodeMsg *pMsg) { return 0; }
+
+static int32_t mndProcessDropMnodeMsg(SMnode *pMnode, SMnodeMsg *pMsg) { return 0; }
+
+int32_t mndInitMnode(SMnode *pMnode) {
+  SSdbTable table = {.sdbType = SDB_MNODE,
+                     .keyType = SDB_KEY_INT32,
+                     .deployFp = (SdbDeployFp)mndCreateDefaultMnode,
+                     .encodeFp = (SdbEncodeFp)mndMnodeActionEncode,
+                     .decodeFp = (SdbDecodeFp)mndMnodeActionDecode,
+                     .insertFp = (SdbInsertFp)mndMnodeActionInsert,
+                     .updateFp = (SdbUpdateFp)mndMnodeActionUpdate,
+                     .deleteFp = (SdbDeleteFp)mndMnodeActionDelete};
+
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_MNODE, mndProcessCreateMnodeMsg);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_MNODE, mndProcessDropMnodeMsg);
+
+  return sdbSetTable(pMnode->pSdb, table);
+}
+
+void mndCleanupMnode(SMnode *pMnode) {}
+
+bool mndIsMnode(SMnode *pMnode, int32_t dnodeId) {
+  SSdb *pSdb = pMnode->pSdb;
+
+  SMnodeObj *pMnodeObj = sdbAcquire(pSdb, SDB_MNODE, &dnodeId);
+  if (pMnodeObj == NULL) {
+    return false;
+  }
+
+  sdbRelease(pSdb, pMnodeObj);
+  return true;
+}

@@ -10,4 +10,5 @@ target_link_libraries(
     PRIVATE sdb
     PRIVATE transport
     PRIVATE cjson
+    PRIVATE sync
 )

@@ -332,6 +332,12 @@ static void dndInitMnodeOption(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->putMsgToApplyMsgFp = dndPutMsgIntoMnodeApplyQueue;
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
+  pOption->sver = pDnode->opt.sver;
+  pOption->statusInterval = pDnode->opt.statusInterval;
+  pOption->mnodeEqualVnodeNum = pDnode->opt.mnodeEqualVnodeNum;
+  pOption->timezone = pDnode->opt.timezone;
+  pOption->charset = pDnode->opt.charset;
+  pOption->locale = pDnode->opt.locale;
 }
 
 static void dndBuildMnodeDeployOption(SDnode *pDnode, SMnodeOpt *pOption) {
