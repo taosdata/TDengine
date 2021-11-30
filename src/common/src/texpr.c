@@ -289,7 +289,7 @@ static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
     tVariant* pVal = expr->pVal;
     
     tbufWriteUint32(bw, pVal->nType);
-    if (pVal->nType == TSDB_DATA_TYPE_BINARY) {
+    if (pVal->nType == TSDB_DATA_TYPE_BINARY || Val->nType == TSDB_DATA_TYPE_NCHAR) {
       tbufWriteInt32(bw, pVal->nLen);
       tbufWrite(bw, pVal->pz, pVal->nLen);
     } else {
@@ -350,7 +350,7 @@ static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
     pExpr->pVal = pVal;
   
     pVal->nType = tbufReadUint32(br);
-    if (pVal->nType == TSDB_DATA_TYPE_BINARY) {
+    if (pVal->nType == TSDB_DATA_TYPE_BINARY || pVal->nType == TSDB_DATA_TYPE_NCHAR) {
       tbufReadToBuffer(br, &pVal->nLen, sizeof(pVal->nLen));
       pVal->pz = calloc(1, pVal->nLen + 1);
       tbufReadToBuffer(br, pVal->pz, pVal->nLen);
