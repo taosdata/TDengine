@@ -8836,7 +8836,7 @@ int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
       // pBlock->tag.nType numOfElem compLen payload compLen tag.nLen about 6 int32 length
       if (s <= (sizeof(STSBufFileHeader) + sizeof(STSGroupBlockInfo) + 6 * sizeof(int32_t))) {
         // file size is less than above, maybe no data in this file, set query over
-        qError("STSBuf file is small maybe no data, so set query over. file size=%d", (int32_t)s);
+        qError("QInfo:0x%" PRIx64 " STSBuf file is small maybe no data, so set query over. file size=%d", pQInfo->qId, (int32_t)s);
         setQueryStatus(pRuntimeEnv, QUERY_OVER);
         return TSDB_CODE_SUCCESS;
       }
