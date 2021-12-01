@@ -129,13 +129,12 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes *nodes, FstSlice bs, Output 
 uint64_t fstUnFinishedNodesFindCommPrefix(FstUnFinishedNodes *node, FstSlice bs) {
   FstSlice *s = &bs;
 
-  size_t lsz = (size_t)(s->end - s->start + 1);          // data len 
   size_t ssz = taosArrayGetSize(node->stack);  // stack size
-    
   uint64_t count = 0;
+  int32_t lsz;          // data len 
+  uint8_t *data = fstSliceData(s, &lsz);
   for (size_t i = 0; i < ssz && i < lsz; i++) {
     FstBuilderNodeUnfinished *un = taosArrayGet(node->stack, i); 
-    uint8_t *data = fstSliceData(s, NULL);
     if (un->last->inp == data[i]) {
       count++;
     } else {
@@ -662,6 +661,7 @@ static const char *fstNodeState(FstNode *node) {
 
 
 void fstNodeDestroy(FstNode *node) {
+  fstSliceDestroy(&node->data); 
   free(node);
 }
 FstTransitions* fstNodeTransitions(FstNode *node) {
@@ -825,6 +825,7 @@ void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in) {
    
    FstSlice sub = fstSliceCopy(s, prefixLen, s->end);
    fstUnFinishedNodesAddSuffix(b->unfinished, sub, out);
+   fstSliceDestroy(&sub);
    return;
  }
 
@@ -1316,7 +1317,6 @@ StreamWithStateResult *swsResultCreate(FstSlice *data, FstOutput fOut, void *sta
   if (result == NULL) { return NULL; }
   
   result->data   = fstSliceCopy(data, 0, FST_SLICE_LEN(data) - 1);
-  result->data  = s;
   result->out   = fOut;
   result->state = state; 
 
@@ -1342,8 +1342,8 @@ FstStreamBuilder *fstStreamBuilderCreate(Fst *fst, Automation *aut) {
   return b;
 }
 void fstStreamBuilderDestroy(FstStreamBuilder *b) {
-  fstSliceDestroy(&b->min);
-  fstSliceDestroy(&b->max);
+  fstSliceDestroy(&b->min->data);
+  fstSliceDestroy(&b->max->data);
   free(b);
 }
 FstStreamBuilder *fstStreamBuilderRange(FstStreamBuilder *b, FstSlice *val, RangeType type) {
