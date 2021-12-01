@@ -220,17 +220,21 @@ int32_t compareLenPrefixedWStrDesc(const void* pLeft, const void* pRight) {
 }
 
 int32_t compareJsonVal(const void *pLeft, const void *pRight) {
+  if(*(char*)pLeft == TSDB_DATA_TYPE_BINARY){  // json null
+    return -1;
+  }
   const tVariant* right = pRight;
-  if(right->nType != *(char*)pLeft) return -1;
+  if(right->nType != *(char*)pLeft && !(IS_NUMERIC_TYPE(right->nType) && IS_NUMERIC_TYPE(*(char*)pLeft)))
+    return TSDB_DATA_JSON_CAN_NOT_COMPARE;
 
   uint8_t type = *(char*)pLeft;
   char* realData = POINTER_SHIFT(pLeft, CHAR_BYTES);
   if(type == TSDB_DATA_TYPE_BOOL) {
     DEFAULT_COMP(GET_INT8_VAL(realData), right->i64);
   }else if(type == TSDB_DATA_TYPE_BIGINT){
-    DEFAULT_COMP(GET_INT64_VAL(realData), right->i64);
+    DEFAULT_COMP(GET_INT64_VAL(realData), (right->nType == TSDB_DATA_TYPE_BIGINT) ? right->i64 : right->dKey);
   }else if(type == TSDB_DATA_TYPE_DOUBLE){
-    DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(realData), right->dKey);
+    DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(realData), (right->nType == TSDB_DATA_TYPE_DOUBLE) ? right->dKey : right->i64);
   }else if(type == TSDB_DATA_TYPE_NCHAR){
     if (varDataLen(realData) != right->nLen) {
       return varDataLen(realData) > right->nLen ? 1 : -1;
@@ -243,7 +247,6 @@ int32_t compareJsonVal(const void *pLeft, const void *pRight) {
   }else{
     assert(0);
   }
-  return 0;
 }
 
 /*
@@ -624,7 +627,18 @@ int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
     }else if(!f1IsNull && f2IsNull){
       return 1;
     }else{
-      assert(*f1 == *f2);
+      bool f1IsJsonNull = (*f1 == TSDB_DATA_TYPE_BINARY && *(uint32_t*)(f1 + CHAR_BYTES) == TSDB_DATA_JSON_null);
+      bool f2IsJsonNull = (*f2 == TSDB_DATA_TYPE_BINARY && *(uint32_t*)(f1 + CHAR_BYTES) == TSDB_DATA_JSON_null);
+      if(f1IsJsonNull && f2IsJsonNull){
+        return 0;
+      }else if(f1IsJsonNull && !f2IsJsonNull){
+        return -1;
+      }else if(!f1IsJsonNull && f2IsJsonNull) {
+        return 1;
+      }
+      if(*f1 != *f2) {
+        return 1;
+      }
       type = *f1;
       f1 += CHAR_BYTES;
       f2 += CHAR_BYTES;

@@ -5602,7 +5602,6 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
     }
 
     char *jsonKey = item->string;
-    if(strtrim(jsonKey) == 0) continue;
     if(!isValidateTag(jsonKey)){
       tscError("json key not validate");
       retCode =  tscSQLSyntaxErrMsg(errMsg, "json key not validate", NULL);
@@ -5629,7 +5628,6 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
 
     if(item->type == cJSON_String){     // add json value  format: type|data
       char *jsonValue = item->valuestring;
-      strtrim(jsonValue);
       outLen = 0;
       char tagVal[TSDB_MAX_JSON_TAGS_LEN] = {0};
       *tagVal = jsonType2DbType(0, item->type);     // type

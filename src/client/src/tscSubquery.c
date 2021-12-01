@@ -747,7 +747,18 @@ int32_t tagValCompar(const void* p1, const void* p2) {
     }else if(!f1IsNull && f2IsNull){
       return 1;
     }else {
-      assert(*t1->tag == *t1->tag);
+      bool f1IsJsonNull = (*t1->tag == TSDB_DATA_TYPE_BINARY && *(uint32_t*)(t1->tag + CHAR_BYTES) == TSDB_DATA_JSON_null);
+      bool f2IsJsonNull = (*t2->tag == TSDB_DATA_TYPE_BINARY && *(uint32_t*)(t2->tag + CHAR_BYTES) == TSDB_DATA_JSON_null);
+      if(f1IsJsonNull && f2IsJsonNull){
+        return 0;
+      }else if(f1IsJsonNull && !f2IsJsonNull){
+        return -1;
+      }else if(!f1IsJsonNull && f2IsJsonNull) {
+        return 1;
+      }
+      if(*t1->tag != *t2->tag) {
+        return 1;
+      }
       __compar_fn_t func = getComparFunc(t1->tag[0], 0);
       return func(t1->tag + CHAR_BYTES, t2->tag + CHAR_BYTES);
     }

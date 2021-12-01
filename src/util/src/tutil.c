@@ -528,7 +528,7 @@ bool isValidateTag(char *input) {
   if (!input) return false;
   int len = strlen(input);
   if (len == 0) return false;
-  for (int i = 1; i < len; ++i) {
+  for (int i = 0; i < len; ++i) {
     if (isprint(input[i]) == 0) return false;
   }
   return true;

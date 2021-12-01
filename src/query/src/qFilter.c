@@ -1910,6 +1910,8 @@ int32_t filterInitValFieldData(SFilterInfo *info) {
 bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right) {
   int32_t ret = func(left, right);
 
+  if(ret == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
+
   switch (optr) {
     case TSDB_RELATION_EQUAL: {
       return ret == 0;

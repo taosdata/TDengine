@@ -74,6 +74,7 @@ extern const int32_t TYPE_BYTES[16];
 #define TSDB_DATA_JSON_NULL             0xFFFFFFFF
 #define TSDB_DATA_JSON_null             0xFFFFFFFE
 #define TSDB_DATA_JSON_NOT_NULL         0x01
+#define TSDB_DATA_JSON_CAN_NOT_COMPARE  0x7FFFFFFF
 
 #define TSDB_DATA_UTINYINT_NULL         0xFF
 #define TSDB_DATA_USMALLINT_NULL        0xFFFF
