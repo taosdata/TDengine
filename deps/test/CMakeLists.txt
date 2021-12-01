@@ -6,3 +6,5 @@ endif(${BUILD_WITH_ROCKSDB})
 if(${BUILD_WITH_LUCENE})
     add_subdirectory(lucene)
 endif(${BUILD_WITH_LUCENE})
+
+add_subdirectory(tdev)
