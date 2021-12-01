@@ -11,4 +11,8 @@ if(${BUILD_WITH_BDB})
     add_subdirectory(bdb)
 endif(${BUILD_WITH_BDB})
 
+if(${BUILD_WITH_SQLITE})
+    add_subdirectory(sqlite)
+endif(${BUILD_WITH_SQLITE})
+
 add_subdirectory(tdev)

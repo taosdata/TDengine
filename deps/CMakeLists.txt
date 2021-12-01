@@ -92,8 +92,8 @@ endif(${BUILD_WITH_BDB})
 # SQLite
 if(${BUILD_WITH_SQLITE})
     add_library(sqlite STATIC IMPORTED)
-    set_target_properties(bdb PROPERTIES
-        IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/sqlite/.lib/libsqlite3.a"
+    set_target_properties(sqlite PROPERTIES
+        IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/sqlite/.libs/libsqlite3.a"
         INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/sqlite"
     )
 endif(${BUILD_WITH_SQLITE})
