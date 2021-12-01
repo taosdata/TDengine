@@ -2,7 +2,6 @@ package com.taosdata.jdbc.cases;
 
 import com.taosdata.jdbc.TSDBErrorNumbers;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -59,38 +58,31 @@ public class AuthenticationTest {
     @Test
     public void test() throws SQLException {
         // change password
-        String url = "jdbc:TAOS-RS://" + host + ":6041/restful_test?user=" + user + "&password=taosdata";
-        try (Connection conn = DriverManager.getConnection(url);
-             Statement stmt = conn.createStatement();) {
-            stmt.execute("alter user " + user + " pass '" + password + "'");
-        }
+        conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=" + user + "&password=taosdata");
+        Statement stmt = conn.createStatement();
+        stmt.execute("alter user " + user + " pass '" + password + "'");
+        stmt.close();
+        conn.close();
 
         // use new to login and execute query
-        url = "jdbc:TAOS-RS://" + host + ":6041/restful_test?user=" + user + "&password=" + password;
-        try (Connection conn = DriverManager.getConnection(url);
-             Statement stmt = conn.createStatement()) {
-            stmt.execute("show databases");
-            ResultSet rs = stmt.getResultSet();
-            ResultSetMetaData meta = rs.getMetaData();
-            while (rs.next()) {
+        conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=" + user + "&password=" + password);
+        stmt = conn.createStatement();
+        stmt.execute("show databases");
+        ResultSet rs = stmt.getResultSet();
+        ResultSetMetaData meta = rs.getMetaData();
+        while (rs.next()) {
+            for (int i = 1; i <= meta.getColumnCount(); i++) {
+                System.out.print(meta.getColumnLabel(i) + ":" + rs.getString(i) + "\t");
             }
+            System.out.println();
         }
 
         // change password back
-        url = "jdbc:TAOS-RS://" + host + ":6041/restful_test?user=" + user + "&password=" + password;
-        try (Connection conn = DriverManager.getConnection(url);
-             Statement stmt = conn.createStatement()) {
-            stmt.execute("alter user " + user + " pass 'taosdata'");
-        }
-    }
-
-    @Before
-    public void before() {
-        try {
-            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
+        conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=" + user + "&password=" + password);
+        stmt = conn.createStatement();
+        stmt.execute("alter user " + user + " pass 'taosdata'");
+        stmt.close();
+        conn.close();
     }
 
 }
