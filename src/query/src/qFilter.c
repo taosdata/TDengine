@@ -1202,13 +1202,13 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
   if((ret = filterDealJson(info, tree, &pLeft)) != TSDB_CODE_SUCCESS) return ret;
   SFilterFieldId left = {0}, right = {0};
   filterAddFieldFromNode(info, pLeft, &left);
-  tVariant* var = tree->_node.pRight->pVal;
   uint8_t type = FILTER_GET_COL_FIELD_TYPE(FILTER_GET_FIELD(info, left));
   int32_t len = 0;
   uint32_t uidx = 0;
 
   if (tree->_node.optr == TSDB_RELATION_IN && !IS_VAR_DATA_TYPE(type) && type != TSDB_DATA_TYPE_JSON) {
     void *data = NULL;
+    tVariant* var = tree->_node.pRight->pVal;
     filterConvertSetFromBinary((void **)&data, var->pz, var->nLen, type, false);
     CHK_LRET(data == NULL, TSDB_CODE_QRY_APP_ERROR, "failed to convert in param");
 
@@ -1868,6 +1868,8 @@ int32_t filterInitValFieldData(SFilterInfo *info) {
       } else {
         fi->data = calloc(1, sizeof(int64_t));
       }
+    } else{     // type == TSDB_DATA_TYPE_JSON
+      // fi->data = null;  use fi->desc as data, because json value is variable, so use tVariant (fi->desc)
     }
 
     if(type != TSDB_DATA_TYPE_JSON){
@@ -2948,6 +2950,9 @@ static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows,
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
     void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
+    if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
+      colData += CHAR_BYTES;
+    }
     (*p)[i] = ((colData == NULL) || isNull(colData, info->cunits[uidx].dataType));
     if ((*p)[i] == 0) {
       all = false;
@@ -2971,6 +2976,9 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
     void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
+    if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
+      colData += CHAR_BYTES;
+    }
     (*p)[i] = ((colData != NULL) && !isNull(colData, info->cunits[uidx].dataType));
     if ((*p)[i] == 0) {
       all = false;
