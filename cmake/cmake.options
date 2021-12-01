@@ -46,7 +46,7 @@ option(
 option(
     BUILD_DEPENDENCY_TESTS 
     "If build dependency tests" 
-    OFF
+    ON
 )
 
 option(

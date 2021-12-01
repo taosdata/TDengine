@@ -96,6 +96,11 @@ if(${BUILD_WITH_SQLITE})
         IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/sqlite/.libs/libsqlite3.a"
         INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/sqlite"
     )
+    target_link_libraries(sqlite 
+        INTERFACE m 
+        INTERFACE pthread 
+        INTERFACE dl
+    )
 endif(${BUILD_WITH_SQLITE})
 
 
