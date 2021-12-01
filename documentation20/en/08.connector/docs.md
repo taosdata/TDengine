@@ -200,6 +200,8 @@ Create a database connection and initialize the connection context. The paramete
 * port: Port number
 
 A null return value indicates a failure. The application needs to save the returned parameters for subsequent API calls.
+Note: The same process can connect to multiple taosd processes based on ip/port
+
 
 - `char *taos_get_server_info(TAOS *taos)`
 
