@@ -182,7 +182,7 @@ python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoIns
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQuery.py
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanosubscribe.py
 python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestInsertTime_step.py
-# disable due to taosdump don't support sql format. python3 test.py -f tools/taosdumpTestNanoSupport.py
+python3 test.py -f tools/taosdumpTestNanoSupport.py
 
 #
 python3 ./test.py -f tsdb/tsdbComp.py
@@ -305,7 +305,7 @@ python3 ./test.py -f client/client.py
 python3 ./test.py -f client/version.py
 python3 ./test.py -f client/alterDatabase.py
 python3 ./test.py -f client/noConnectionErrorTest.py
-# disable due to taosdump don't support sql format. python3 ./test.py -f client/taoshellCheckCase.py
+python3 ./test.py -f client/taoshellCheckCase.py
 # python3 test.py -f client/change_time_1_1.py
 # python3 test.py -f client/change_time_1_2.py
 
