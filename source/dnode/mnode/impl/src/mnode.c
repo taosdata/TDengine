@@ -190,6 +190,7 @@ static void mndCleanupSteps(SMnode *pMnode, int32_t pos) {
   }
 
   taosArrayClear(pMnode->pSteps);
+  taosArrayDestroy(pMnode->pSteps);
   pMnode->pSteps = NULL;
 }
 
@@ -306,10 +307,6 @@ void mndClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     mDebug("start to close mnode");
     mndCleanupSteps(pMnode, -1);
-    if (pMnode->pSteps != NULL) {
-      taosArrayDestroy(pMnode->pSteps);
-      pMnode->pSteps = NULL;
-    }
     tfree(pMnode->path);
     tfree(pMnode->charset);
     tfree(pMnode->locale);
