@@ -132,6 +132,25 @@ class TDTestCase:
         tdSql.error("select top(tbcol1, 12) from st order by ts, tbcol1")
         tdSql.error("select top(tbcol1, 2) from st1 group by tbcol1 order by tbcol2")
 
+        fun_list = ['avg','count','twa','sum','stddev','leastsquares','min',
+                    'max','first','last','top','bottom','percentile','apercentile',
+                    'last_row','diff','spread','distinct']
+        key = ['tbol','tagcol']
+        for i in range(1,15):
+            for k in key:
+                for j in fun_list:
+                    if j == 'leastsquares':
+                        pick_func=j+'('+ k + str(i) +',1,1)'
+                    elif j == 'top' or j == 'bottom' : continue
+                    elif j == 'percentile' or j == 'apercentile':
+                        pick_func=j+'('+ k + str(i) +',1)'
+                    else:
+                        pick_func=j+'('+ k + str(i) +')'
+                    sql = 'select %s from st group by %s' % (pick_func , k+str(i))
+                    tdSql.error(sql)
+                    sql = 'select %s from st6 group by %s' % (pick_func , k+str(i))
+                    tdSql.error(sql)
+
         tdSql.query("select top(tbcol1, 2) from st1 group by tbcol2 order by tbcol2")
         tdSql.query("select top(tbcol1, 12) from st order by tbcol1, ts")
 
