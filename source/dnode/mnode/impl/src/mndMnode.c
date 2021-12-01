@@ -59,6 +59,7 @@ static void mnodeResetMnode(SMnodeObj *pMnodeObj) {
 }
 
 static int32_t mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pMnodeObj) {
+  mTrace("mnode:%d, perform insert action", pMnodeObj->id);
   pMnodeObj->pDnode = sdbAcquire(pSdb, SDB_DNODE, &pMnodeObj->id);
   if (pMnodeObj->pDnode == NULL) {
     terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
@@ -70,6 +71,7 @@ static int32_t mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pMnodeObj) {
 }
 
 static int32_t mndMnodeActionDelete(SSdb *pSdb, SMnodeObj *pMnodeObj) {
+  mTrace("mnode:%d, perform delete action", pMnodeObj->id);
   if (pMnodeObj->pDnode != NULL) {
     sdbRelease(pSdb, pMnodeObj->pDnode);
     pMnodeObj->pDnode = NULL;
@@ -79,6 +81,7 @@ static int32_t mndMnodeActionDelete(SSdb *pSdb, SMnodeObj *pMnodeObj) {
 }
 
 static int32_t mndMnodeActionUpdate(SSdb *pSdb, SMnodeObj *pSrcMnode, SMnodeObj *pDstMnode) {
+  mTrace("mnode:%d, perform update action", pSrcMnode->id);
   pSrcMnode->id = pDstMnode->id;
   pSrcMnode->createdTime = pDstMnode->createdTime;
   pSrcMnode->updateTime = pDstMnode->updateTime;
@@ -95,6 +98,7 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
+  mTrace("mnode:%d, will be created while deploy sdb", mnodeObj.id);
   return sdbWrite(pMnode->pSdb, pRaw);
 }
 

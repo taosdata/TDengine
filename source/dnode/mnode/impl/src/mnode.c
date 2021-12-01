@@ -112,6 +112,7 @@ static int32_t mnodeCreateDir(SMnode *pMnode, const char *path) {
 static int32_t mndInitSdb(SMnode *pMnode) {
   SSdbOpt opt = {0};
   opt.path = pMnode->path;
+  opt.pMnode = pMnode;
 
   pMnode->pSdb = sdbInit(&opt);
   if (pMnode->pSdb == NULL) {

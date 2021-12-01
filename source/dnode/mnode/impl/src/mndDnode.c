@@ -91,13 +91,18 @@ static void mnodeResetDnode(SDnodeObj *pDnode) {
 }
 
 static int32_t mndDnodeActionInsert(SSdb *pSdb, SDnodeObj *pDnode) {
+  mTrace("dnode:%d, perform insert action", pDnode->id);
   mnodeResetDnode(pDnode);
   return 0;
 }
 
-static int32_t mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode) { return 0; }
+static int32_t mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode) {
+  mTrace("dnode:%d, perform delete action", pDnode->id);
+  return 0;
+}
 
 static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pSrcDnode, SDnodeObj *pDstDnode) {
+  mTrace("dnode:%d, perform update action", pSrcDnode->id);
   pSrcDnode->id = pDstDnode->id;
   pSrcDnode->createdTime = pDstDnode->createdTime;
   pSrcDnode->updateTime = pDstDnode->updateTime;
@@ -118,6 +123,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
+  mTrace("dnode:%d, will be created while deploy sdb", dnodeObj.id);
   return sdbWrite(pMnode->pSdb, pRaw);
 }
 
