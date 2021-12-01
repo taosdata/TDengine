@@ -1315,7 +1315,7 @@ StreamWithStateResult *swsResultCreate(FstSlice *data, FstOutput fOut, void *sta
   StreamWithStateResult *result = calloc(1, sizeof(StreamWithStateResult));  
   if (result == NULL) { return NULL; }
   
-  FstSlice s = fstSliceCopy(data, 0, FST_SLICE_LEN(data) - 1);
+  result->data   = fstSliceCopy(data, 0, FST_SLICE_LEN(data) - 1);
   result->data  = s;
   result->out   = fOut;
   result->state = state; 
@@ -1342,6 +1342,8 @@ FstStreamBuilder *fstStreamBuilderCreate(Fst *fst, Automation *aut) {
   return b;
 }
 void fstStreamBuilderDestroy(FstStreamBuilder *b) {
+  fstSliceDestroy(&b->min);
+  fstSliceDestroy(&b->max);
   free(b);
 }
 FstStreamBuilder *fstStreamBuilderRange(FstStreamBuilder *b, FstSlice *val, RangeType type) {
