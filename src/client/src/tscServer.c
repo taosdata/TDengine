@@ -980,7 +980,11 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  assert(pExpr->resColId < 0);
+  if (pExpr->resColId >= 0) {
+    tscError("result column id underflowed: %d", pExpr->resColId);
+    return TSDB_CODE_TSC_RES_TOO_MANY;
+  }
+
   SSqlExpr* pSqlExpr = (SSqlExpr *)(*pMsg);
 
   SColIndex* pIndex = &pSqlExpr->colInfo;
