@@ -80,6 +80,16 @@ if(${BUILD_WITH_NURAFT})
     add_subdirectory(nuraft)
 endif(${BUILD_WITH_NURAFT})
 
+# BDB
+if(${BUILD_WITH_BDB})
+    add_library(bdb STATIC IMPORTED)
+    set_target_properties(bdb PROPERTIES
+        IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/bdb/libdb.a"
+        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/bdb"
+    )
+endif(${BUILD_WITH_BDB})
+
+
 
 # ================================================================================================
 # DEPENDENCY TEST

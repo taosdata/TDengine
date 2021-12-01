@@ -7,7 +7,7 @@ ExternalProject_Add(bdb
         BINARY_DIR "${CMAKE_SOURCE_DIR}/deps/bdb"
         #BUILD_IN_SOURCE TRUE
         CONFIGURE_COMMAND "./dist/configure"
-        BUILD_COMMAND "make"
+        BUILD_COMMAND "$(MAKE)"
         INSTALL_COMMAND ""
         TEST_COMMAND ""
 )

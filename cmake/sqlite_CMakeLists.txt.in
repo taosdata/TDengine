@@ -1,0 +1,13 @@
+
+# sqlite
+ExternalProject_Add(sqlite
+        GIT_REPOSITORY https://github.com/sqlite/sqlite.git
+        GIT_TAG version-3.37.0
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/sqlite"
+        BINARY_DIR "${CMAKE_SOURCE_DIR}/deps/sqlite"
+        #BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+)
