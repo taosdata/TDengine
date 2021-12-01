@@ -45,6 +45,11 @@ if(${BUILD_WITH_ROCKSDB})
     add_definitions(-DUSE_ROCKSDB)
 endif(${BUILD_WITH_ROCKSDB})
 
+## bdb
+if(${BUILD_WITH_BDB})
+    cat("${CMAKE_SUPPORT_DIR}/bdb_CMakeLists.txt.in" ${DEPS_TMP_FILE})
+endif(${BUILD_WITH_DBD})
+
 ## lucene
 if(${BUILD_WITH_LUCENE})
     cat("${CMAKE_SUPPORT_DIR}/lucene_CMakeLists.txt.in" ${DEPS_TMP_FILE})

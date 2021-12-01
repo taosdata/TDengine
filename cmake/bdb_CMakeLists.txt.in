@@ -1,0 +1,13 @@
+
+# bdb
+ExternalProject_Add(bdb
+        GIT_REPOSITORY https://github.com/berkeleydb/libdb.git
+        GIT_TAG v5.3.28
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/bdb"
+        BINARY_DIR "${CMAKE_SOURCE_DIR}/deps/bdb"
+        #BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND "./dist/configure"
+        BUILD_COMMAND "make"
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+)
