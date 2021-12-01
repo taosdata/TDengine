@@ -97,7 +97,7 @@ class TDTestCase:
         self.checkColumnSorted(0, "desc")
 
         print("======= step 2: verify order for special column =========")
-        
+
         tdSql.query("select tbcol1 from st order by ts desc")
 
         tdSql.query("select tbcol6 from st order by ts desc")
@@ -122,7 +122,7 @@ class TDTestCase:
                 (i, i))
             self.checkColumnSorted(1, "desc")
 
-            # order by rules: https://jira.taosdata.com:18090/pages/viewpage.action?pageId=123455481
+        # order by rules: https://jira.taosdata.com:18090/pages/viewpage.action?pageId=123455481
         tdSql.error("select tbcol1 from st order by 123")
         tdSql.error("select tbcol1 from st order by tbname")
         tdSql.error("select tbcol1 from st order by tagcol1")
@@ -131,6 +131,25 @@ class TDTestCase:
         tdSql.error("select top(tbcol1, 12) from st order by tbcol1,ts,tbcol2")
         tdSql.error("select top(tbcol1, 12) from st order by ts, tbcol1")
         tdSql.error("select top(tbcol1, 2) from st1 group by tbcol1 order by tbcol2")
+
+        fun_list = ['avg','count','twa','sum','stddev','leastsquares','min',
+                    'max','first','last','top','bottom','percentile','apercentile',
+                    'last_row','diff','spread','distinct']
+        key = ['tbol','tagcol']
+        for i in range(1,15):
+            for k in key:
+                for j in fun_list:
+                    if j == 'leastsquares':
+                        pick_func=j+'('+ k + str(i) +',1,1)'
+                    elif j == 'top' or j == 'bottom' : continue
+                    elif j == 'percentile' or j == 'apercentile':
+                        pick_func=j+'('+ k + str(i) +',1)'
+                    else:
+                        pick_func=j+'('+ k + str(i) +')'
+                    sql = 'select %s from st group by %s' % (pick_func , k+str(i))
+                    tdSql.error(sql)
+                    sql = 'select %s from st6 group by %s' % (pick_func , k+str(i))
+                    tdSql.error(sql)
 
         tdSql.query("select top(tbcol1, 2) from st1 group by tbcol2 order by tbcol2")
         tdSql.query("select top(tbcol1, 12) from st order by tbcol1, ts")
