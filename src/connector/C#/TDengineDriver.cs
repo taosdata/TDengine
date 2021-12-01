@@ -19,7 +19,7 @@ using System.Runtime.InteropServices;
 
 namespace TDengineDriver
 {
-    enum TDengineDataType
+    public enum TDengineDataType
     {
         TSDB_DATA_TYPE_NULL = 0,     // 1 bytes
         TSDB_DATA_TYPE_BOOL = 1,     // 1 bytes
@@ -33,12 +33,12 @@ namespace TDengineDriver
         TSDB_DATA_TYPE_TIMESTAMP = 9,// 8 bytes
         TSDB_DATA_TYPE_NCHAR = 10,   // unicode string
         TSDB_DATA_TYPE_UTINYINT = 11,// 1 byte
-        TSDB_DATA_TYPE_USMALLINT= 12,// 2 bytes
+        TSDB_DATA_TYPE_USMALLINT = 12,// 2 bytes
         TSDB_DATA_TYPE_UINT = 13,    // 4 bytes
-        TSDB_DATA_TYPE_UBIGINT= 14   // 8 bytes
+        TSDB_DATA_TYPE_UBIGINT = 14   // 8 bytes
     }
 
-    enum TDengineInitOption
+    public enum TDengineInitOption
     {
         TSDB_OPTION_LOCALE = 0,
         TSDB_OPTION_CHARSET = 1,
@@ -47,7 +47,7 @@ namespace TDengineDriver
         TDDB_OPTION_SHELL_ACTIVITY_TIMER = 4
     }
 
-    class TDengineMeta
+    public class TDengineMeta
     {
         public string name;
         public short size;
@@ -90,7 +90,7 @@ namespace TDengineDriver
         }
     }
 
-    class TDengine
+    public class TDengine
     {
         public const int TSDB_CODE_SUCCESS = 0;
 
