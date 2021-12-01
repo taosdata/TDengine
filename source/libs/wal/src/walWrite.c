@@ -21,6 +21,18 @@
 #include "tfile.h"
 #include "walInt.h"
 
+int32_t walCommit(SWal *pWal, int64_t ver) {
+  return 0;
+}
+
+int32_t walRollback(SWal *pWal, int64_t ver) {
+  return 0;
+}
+
+int32_t walTakeSnapshot(SWal *pWal, int64_t ver) {
+  return 0;
+}
+
 #if 0
 static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name, int64_t fileId);
 
@@ -112,60 +124,40 @@ void walRemoveAllOldFiles(void *handle) {
 }
 #endif
 
-static void walUpdateChecksum(SWalHead *pHead) {
-  pHead->sver = 2;
-  pHead->cksum = taosCalcChecksum(0, (uint8_t *)pHead, sizeof(SWalHead) + pHead->len);
-}
-
-static int walValidateChecksum(SWalHead *pHead) {
-  if (pHead->sver == 0) { // for compatible with wal before sver 1
-    return taosCheckChecksumWhole((uint8_t *)pHead, sizeof(*pHead));
-  } else if (pHead->sver >= 1) {
-    uint32_t cksum = pHead->cksum;
-    pHead->cksum = 0;
-    return taosCheckChecksum((uint8_t *)pHead, sizeof(*pHead) + pHead->len, cksum);
-  }
-
-  return 0;
-}
-
-int64_t walWrite(SWal *pWal, int64_t index, void *body, int32_t bodyLen) {
+int64_t walWrite(SWal *pWal, int64_t index, uint8_t msgType, void *body, int32_t bodyLen) {
   if (pWal == NULL) return -1;
-
-  SWalHead *pHead = malloc(sizeof(SWalHead) + bodyLen);
-  if(pHead == NULL) {
-    return -1;
-  }
-  pHead->version = index;
-  int32_t code = 0;
 
   // no wal
   if (!tfValid(pWal->curLogTfd)) return 0;
   if (pWal->level == TAOS_WAL_NOLOG) return 0;
-  if (pHead->version <= pWal->curVersion) return 0;
+  if (index > pWal->lastVersion + 1) return -1;
 
-  pHead->signature = WAL_SIGNATURE;
-  pHead->len = bodyLen;
-  memcpy(pHead->cont, body, bodyLen);
+  pWal->head.version = index;
+  int32_t code = 0;
 
-  walUpdateChecksum(pHead);
+  pWal->head.signature = WAL_SIGNATURE;
+  pWal->head.len = bodyLen;
+  pWal->head.msgType = msgType;
 
-  int32_t contLen = pHead->len + sizeof(SWalHead);
+  pWal->head.cksumHead = taosCalcChecksum(0, (const uint8_t*)&pWal->head, sizeof(SWalHead)- sizeof(uint32_t)*2);
+  pWal->head.cksumBody = taosCalcChecksum(0, (const uint8_t*)&body, bodyLen);
 
   pthread_mutex_lock(&pWal->mutex);
 
-  if (tfWrite(pWal->curLogTfd, pHead, contLen) != contLen) {
+  if (tfWrite(pWal->curLogTfd, &pWal->head, sizeof(SWalHead)) != sizeof(SWalHead)) {
+    //ftruncate
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%"PRId64".log, failed to write since %s", pWal->vgId, pWal->curFileFirstVersion, strerror(errno));
-  } else {
-    /*wTrace("vgId:%d, write wal, fileId:%" PRId64 " tfd:%" PRId64 " hver:%" PRId64 " wver:%" PRIu64 " len:%d", pWal->vgId,*/
-           /*pWal->curFileId, pWal->logTfd, pHead->version, pWal->curVersion, pHead->len);*/
-    pWal->curVersion = pHead->version;
   }
 
-  pthread_mutex_unlock(&pWal->mutex);
+  if (tfWrite(pWal->curLogTfd, &body, bodyLen) != bodyLen) {
+    //ftruncate
+    code = TAOS_SYSTEM_ERROR(errno);
+    wError("vgId:%d, file:%"PRId64".log, failed to write since %s", pWal->vgId, pWal->curFileFirstVersion, strerror(errno));
+  }
+  //TODO:write idx
 
-  ASSERT(contLen == pHead->len + sizeof(SWalHead));
+  pthread_mutex_unlock(&pWal->mutex);
 
   return code;
 }
@@ -254,6 +246,7 @@ static void walFtruncate(SWal *pWal, int64_t tfd, int64_t offset) {
   tfFsync(tfd);
 }
 
+#if 0
 static int32_t walSkipCorruptedRecord(SWal *pWal, SWalHead *pHead, int64_t tfd, int64_t *offset) {
   int64_t pos = *offset;
   while (1) {
@@ -387,21 +380,4 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
   wDebug("vgId:%d, file:%s, it is closed after restore", pWal->vgId, name);
   return code;
 }
-
-uint64_t walGetVersion(SWal *pWal) {
-  if (pWal == NULL) return 0;
-
-  return pWal->curVersion;
-}
-
-// Wal version in slave (dnode1) must be reset. 
-// Because after the data file is recovered from peer (dnode2), the new file version in dnode1 may become smaller than origin.
-// Some new wal record cannot be written to the wal file in dnode1 for wal version not reset, then fversion and the record in wal file may inconsistent, 
-// At this time, if dnode2 down, dnode1 switched to master. After dnode2 start and restore data from dnode1, data loss will occur
-
-void walResetVersion(SWal *pWal, uint64_t newVer) {
-  if (pWal == NULL) return;
-  wInfo("vgId:%d, version reset from %" PRIu64 " to %" PRIu64, pWal->vgId, pWal->curVersion, newVer);
-
-  pWal->curVersion = newVer;
-}
+#endif

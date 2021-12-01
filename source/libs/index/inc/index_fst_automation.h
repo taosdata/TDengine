@@ -15,7 +15,7 @@
 #ifndef __INDEX_FST_AUTAOMATION_H__
 #define __INDEX_FST_AUTAOMATION_H__
 
-struct AutomationCtx;
+typedef struct AutomationCtx AutomationCtx;
 
 typedef struct StartWith {
   AutomationCtx  *autoSelf;
@@ -23,20 +23,25 @@ typedef struct StartWith {
 
 typedef struct Complement {
   AutomationCtx *autoSelf;
+  
 } Complement;
 
 // automation 
 typedef struct AutomationCtx {
+// automation interface
   void *data;
 } AutomationCtx;
 
-// automation interface
-void (*start)(AutomationCtx *ctx); 
-bool (*isMatch)(AutomationCtx *ctx);
-bool (*canMatch)(AutomationCtx *ctx, void *data);
-bool (*willAlwaysMatch)(AutomationCtx *ctx, void *state); 
-void* (*accpet)(AutomationCtx *ctx, void *state, uint8_t byte);
-void* (*accpetEof)(AutomationCtx *ctx, *state);
+typedef struct Automation {
+  void* (*start)() ; 
+  bool (*isMatch)(void *);
+  bool (*canMatch)(void *data);
+  bool (*willAlwaysMatch)(void *state); 
+  void* (*accept)(void *state, uint8_t byte);
+  void* (*acceptEof)(void *state);
+  void *data;
+} Automation; 
+
 
 
 #endif
