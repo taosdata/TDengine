@@ -4741,7 +4741,7 @@ static int32_t validateJsonTagExpr(tSqlExpr* pExpr, char* msgBuf) {
         return invalidOperationMsg(msgBuf, msg2);
     }
 
-    if (pRight->value.nType == TSDB_DATA_TYPE_BINARY){    // json value store by nchar, so need to convert to nchar
+    if (pRight->value.nType == TSDB_DATA_TYPE_BINARY && *(uint32_t*)pRight->value.pz != TSDB_DATA_JSON_null){    // json value store by nchar, so need to convert to nchar
       char newData[TSDB_MAX_JSON_TAGS_LEN] = {0};
       int len = 0;
       if(!taosMbsToUcs4(pRight->value.pz, pRight->value.nLen, newData, TSDB_MAX_JSON_TAGS_LEN, &len)){
