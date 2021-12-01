@@ -109,6 +109,7 @@ int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions) {
 
   // Save tbname -> uid to tbnameDB
   rocksdb_put(pMeta->pDB->nameDb, wopt, pTbOptions->name, strlen(pTbOptions->name), (char *)(&uid), sizeof(uid), &err);
+  rocksdb_writeoptions_disable_WAL(wopt, 1);
 
   // Save uid -> tb_obj to tbDB
   size = metaEncodeTbObjFromTbOptions(pTbOptions, pBuf, 1024);
@@ -157,6 +158,7 @@ static void metaSaveSchemaDB(SMeta *pMeta, tb_uid_t uid, STSchema *pSchema) {
   char * err = NULL;
 
   rocksdb_writeoptions_t *wopt = rocksdb_writeoptions_create();
+  rocksdb_writeoptions_disable_WAL(wopt, 1);
 
   metaGetSchemaDBKey(key, uid, schemaVersion(pSchema));
   vsize = tdEncodeSchema((void **)(&ppBuf), pSchema);
@@ -190,10 +192,12 @@ static int metaSaveMapDB(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid) {
   memcpy(POINTER_SHIFT(nval, vlen), (void *)(&uid), sizeof(uid));
 
   rocksdb_writeoptions_t *wopt = rocksdb_writeoptions_create();
+  rocksdb_writeoptions_disable_WAL(wopt, 1);
 
   rocksdb_put(pMeta->pDB->mapDb, wopt, (char *)(&suid), sizeof(suid), nval, vlen + sizeof(uid), &err);
 
   rocksdb_writeoptions_destroy(wopt);
+  free(nval);
 
   return 0;
 }
