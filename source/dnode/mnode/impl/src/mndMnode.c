@@ -63,6 +63,7 @@ static int32_t mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pMnodeObj) {
   pMnodeObj->pDnode = sdbAcquire(pSdb, SDB_DNODE, &pMnodeObj->id);
   if (pMnodeObj->pDnode == NULL) {
     terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+    mError("mnode:%d, failed to perform insert action since %s", pMnodeObj->id, terrstr());
     return -1;
   }
 
@@ -85,12 +86,12 @@ static int32_t mndMnodeActionUpdate(SSdb *pSdb, SMnodeObj *pSrcMnode, SMnodeObj 
   pSrcMnode->id = pDstMnode->id;
   pSrcMnode->createdTime = pDstMnode->createdTime;
   pSrcMnode->updateTime = pDstMnode->updateTime;
-  mnodeResetMnode(pSrcMnode);
+  return 0;
 }
 
 static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
   SMnodeObj mnodeObj = {0};
-  mnodeObj.id = 0;
+  mnodeObj.id = 1;
   mnodeObj.createdTime = taosGetTimestampMs();
   mnodeObj.updateTime = mnodeObj.createdTime;
 

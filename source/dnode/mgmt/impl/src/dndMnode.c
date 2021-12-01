@@ -184,7 +184,7 @@ static int32_t dndReadMnodeFile(SDnode *pDnode) {
   }
 
   code = 0;
-  dInfo("succcessed to read file %s", pMgmt->file);
+  dDebug("succcessed to read file %s, deployed:%d dropped:%d", pMgmt->file, pMgmt->deployed, pMgmt->dropped);
 
 PRASE_MNODE_OVER:
   if (content != NULL) free(content);
@@ -241,7 +241,7 @@ static int32_t dndWriteMnodeFile(SDnode *pDnode) {
     return -1;
   }
 
-  dInfo("successed to write %s", pMgmt->file);
+  dInfo("successed to write %s, deployed:%d dropped:%d", pMgmt->file, pMgmt->deployed, pMgmt->dropped);
   return 0;
 }
 
@@ -396,29 +396,34 @@ static int32_t dndBuildMnodeOptionFromMsg(SDnode *pDnode, SMnodeOpt *pOption, SC
 static int32_t dndOpenMnode(SDnode *pDnode, SMnodeOpt *pOption) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
-  int32_t code = dndStartMnodeWorker(pDnode);
-  if (code != 0) {
-    dError("failed to start mnode worker since %s", terrstr());
-    return code;
-  }
-
   SMnode *pMnode = mndOpen(pDnode->dir.mnode, pOption);
   if (pMnode == NULL) {
     dError("failed to open mnode since %s", terrstr());
-    code = terrno;
-    dndStopMnodeWorker(pDnode);
-    terrno = code;
-    return code;
+    return -1;
   }
+  pMgmt->deployed = 1;
 
-  if (dndWriteMnodeFile(pDnode) != 0) {
+  int32_t code = dndWriteMnodeFile(pDnode);
+  if (code != 0) {
     dError("failed to write mnode file since %s", terrstr());
     code = terrno;
+    pMgmt->deployed = 0;
+    mndClose(pMnode);
+    mndDestroy(pDnode->dir.mnode);
+    terrno = code;
+    return -1;
+  }
+
+  code = dndStartMnodeWorker(pDnode);
+  if (code != 0) {
+    dError("failed to start mnode worker since %s", terrstr());
+    code = terrno;
+    pMgmt->deployed = 0;
     dndStopMnodeWorker(pDnode);
     mndClose(pMnode);
     mndDestroy(pDnode->dir.mnode);
     terrno = code;
-    return code;
+    return -1;
   }
 
   taosWLockLatch(&pMgmt->latch);
@@ -426,6 +431,7 @@ static int32_t dndOpenMnode(SDnode *pDnode, SMnodeOpt *pOption) {
   pMgmt->deployed = 1;
   taosWUnLockLatch(&pMgmt->latch);
 
+  dInfo("mnode open successfully");
   return 0;
 }
 

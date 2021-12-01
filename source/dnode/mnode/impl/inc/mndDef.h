@@ -299,25 +299,18 @@ typedef struct {
   char     payload[];
 } SShowObj;
 
-typedef struct {
-  int32_t len;
-  void   *rsp;
-} SMnodeRsp;
-
 typedef struct SMnodeMsg {
+  char    user[TSDB_USER_LEN];
   SMnode *pMnode;
-  void (*fp)(SMnodeMsg *pMsg, int32_t code);
-  SRpcConnInfo conn;
-  SUserObj    *pUser;
-  int16_t      received;
-  int16_t      successed;
-  int16_t      expected;
-  int16_t      retry;
-  int32_t      code;
-  int64_t      createdTime;
-  SMnodeRsp       rpcRsp;
-  SRpcMsg      rpcMsg;
-  char         pCont[];
+  int16_t received;
+  int16_t successed;
+  int16_t expected;
+  int16_t retry;
+  int32_t code;
+  int64_t createdTime;
+  SRpcMsg rpcMsg;
+  int32_t contLen;
+  void   *pCont;
 } SMnodeMsg;
 
 #ifdef __cplusplus

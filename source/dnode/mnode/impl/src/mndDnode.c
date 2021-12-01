@@ -107,8 +107,8 @@ static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pSrcDnode, SDnodeObj 
   pSrcDnode->createdTime = pDstDnode->createdTime;
   pSrcDnode->updateTime = pDstDnode->updateTime;
   pSrcDnode->port = pDstDnode->port;
-  memcpy(pSrcDnode->fqdn, pDstDnode->fqdn, TSDB_FQDN_LEN);
-  mnodeResetDnode(pSrcDnode);
+  memcpy(pSrcDnode->fqdn, pDstDnode->fqdn, TSDB_FQDN_LEN); 
+  return 0;
 }
 
 static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
@@ -211,8 +211,7 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
   return 0;
 }
 
-static int32_t mndProcessStatusMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
-  SStatusMsg *pStatus = pMsg->rpcMsg.pCont;
+static void mndParseStatusMsg(SStatusMsg *pStatus) {
   pStatus->sver = htonl(pStatus->sver);
   pStatus->dnodeId = htonl(pStatus->dnodeId);
   pStatus->clusterId = htobe64(pStatus->clusterId);
@@ -225,6 +224,11 @@ static int32_t mndProcessStatusMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
   pStatus->clusterCfg.statusInterval = htonl(pStatus->clusterCfg.statusInterval);
   pStatus->clusterCfg.mnodeEqualVnodeNum = htonl(pStatus->clusterCfg.mnodeEqualVnodeNum);
   pStatus->clusterCfg.checkTime = htobe64(pStatus->clusterCfg.checkTime);
+}
+
+static int32_t mndProcessStatusMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
+  SStatusMsg *pStatus = pMsg->rpcMsg.pCont;
+  mndParseStatusMsg(pStatus);
 
   SDnodeObj *pDnode = NULL;
   if (pStatus->dnodeId == 0) {
@@ -305,8 +309,8 @@ static int32_t mndProcessStatusMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
   pRsp->dnodeCfg.clusterId = htobe64(clusterId);
   mndGetDnodeData(pMnode, &pRsp->dnodeEps, numOfEps);
 
-  pMsg->rpcRsp.len = contLen;
-  pMsg->rpcRsp.rsp = pRsp;
+  pMsg->contLen = contLen;
+  pMsg->pCont = pRsp;
   mndReleaseDnode(pMnode, pDnode);
 
   return 0;
