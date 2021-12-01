@@ -289,7 +289,6 @@ static void dndStopMnodeWorker(SDnode *pDnode) {
 
   taosWLockLatch(&pMgmt->latch);
   pMgmt->deployed = 0;
-  pMgmt->pMnode = NULL;
   taosWUnLockLatch(&pMgmt->latch);
 
   while (pMgmt->refCount > 1) taosMsleep(10);
@@ -920,6 +919,7 @@ void dndCleanupMnode(SDnode *pDnode) {
   dndStopMnodeWorker(pDnode);
   dndCleanupMnodeMgmtWorker(pDnode);
   tfree(pMgmt->file);
+  mndClose(pMgmt->pMnode);
   dInfo("dnode-mnode is cleaned up");
 }
 

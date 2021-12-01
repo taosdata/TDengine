@@ -131,17 +131,18 @@ static void dndProcessResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   if (dndGetStat(pDnode) == DND_STAT_STOPPED) {
     if (pMsg == NULL || pMsg->pCont == NULL) return;
-    dTrace("RPC %p, rsp:%s is ignored since dnode is stopping", pMsg->handle, taosMsg[msgType]);
+    dTrace("RPC %p, rsp:%s app:%p is ignored since dnode is stopping", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
     rpcFreeCont(pMsg->pCont);
     return;
   }
 
   DndMsgFp fp = pMgmt->msgFp[msgType];
   if (fp != NULL) {
-    dTrace("RPC %p, rsp:%s will be processed, code:%s", pMsg->handle, taosMsg[msgType], tstrerror(pMsg->code));
+    dTrace("RPC %p, rsp:%s app:%p will be processed, result:%s", pMsg->handle, taosMsg[msgType], pMsg->ahandle,
+           tstrerror(pMsg->code));
     (*fp)(pDnode, pMsg, pEpSet);
   } else {
-    dError("RPC %p, rsp:%s not processed", pMsg->handle, taosMsg[msgType]);
+    dError("RPC %p, rsp:%s app:%p not processed", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
     rpcFreeCont(pMsg->pCont);
   }
 }
@@ -187,19 +188,19 @@ static void dndProcessRequest(void *param, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   int32_t msgType = pMsg->msgType;
   if (msgType == TSDB_MSG_TYPE_NETWORK_TEST) {
-    dTrace("RPC %p, network test req will be processed", pMsg->handle);
+    dTrace("RPC %p, network test req, app:%p will be processed", pMsg->handle, pMsg->ahandle);
     dndProcessDnodeReq(pDnode, pMsg, pEpSet);
     return;
   }
 
   if (dndGetStat(pDnode) == DND_STAT_STOPPED) {
-    dError("RPC %p, req:%s is ignored since dnode exiting", pMsg->handle, taosMsg[msgType]);
+    dError("RPC %p, req:%s app:%p is ignored since dnode exiting", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
     SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_DND_EXITING};
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
     return;
   } else if (dndGetStat(pDnode) != DND_STAT_RUNNING) {
-    dError("RPC %p, req:%s is ignored since dnode not running", pMsg->handle, taosMsg[msgType]);
+    dError("RPC %p, req:%s app:%p is ignored since dnode not running", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
     SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_APP_NOT_READY};
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
@@ -207,7 +208,7 @@ static void dndProcessRequest(void *param, SRpcMsg *pMsg, SEpSet *pEpSet) {
   }
 
   if (pMsg->pCont == NULL) {
-    dTrace("RPC %p, req:%s not processed since content is null", pMsg->handle, taosMsg[msgType]);
+    dTrace("RPC %p, req:%s app:%p not processed since content is null", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
     SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_DND_INVALID_MSG_LEN};
     rpcSendResponse(&rspMsg);
     return;
@@ -215,10 +216,10 @@ static void dndProcessRequest(void *param, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   DndMsgFp fp = pMgmt->msgFp[msgType];
   if (fp != NULL) {
-    dTrace("RPC %p, req:%s will be processed", pMsg->handle, taosMsg[msgType]);
+    dTrace("RPC %p, req:%s app:%p will be processed", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
     (*fp)(pDnode, pMsg, pEpSet);
   } else {
-    dError("RPC %p, req:%s is not processed", pMsg->handle, taosMsg[msgType]);
+    dError("RPC %p, req:%s app:%p is not processed since no handle", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
     SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_MSG_NOT_PROCESSED};
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);

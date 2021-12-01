@@ -178,11 +178,11 @@ static void mndCleanupSteps(SMnode *pMnode, int32_t pos) {
   if (pMnode->pSteps == NULL) return;
 
   if (pos == -1) {
-    pos = taosArrayGetSize(pMnode->pSteps);
+    pos = taosArrayGetSize(pMnode->pSteps) - 1;
   }
 
   for (int32_t s = pos; s >= 0; s--) {
-    SMnodeStep *pStep = taosArrayGet(pMnode->pSteps, pos);
+    SMnodeStep *pStep = taosArrayGet(pMnode->pSteps, s);
     mDebug("step:%s will cleanup", pStep->name);
     if (pStep->cleanupFp != NULL) {
       (*pStep->cleanupFp)(pMnode);
@@ -267,7 +267,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   }
 
   int32_t code = mnodeCreateDir(pMnode, path);
-  if (mnodeCreateDir(pMnode, path) != 0) {
+  if (code != 0) {
     mError("failed to open mnode since %s", tstrerror(code));
     mndClose(pMnode);
     terrno = code;
@@ -306,6 +306,10 @@ void mndClose(SMnode *pMnode) {
   if (pMnode != NULL) {
     mDebug("start to close mnode");
     mndCleanupSteps(pMnode, -1);
+    if (pMnode->pSteps != NULL) {
+      taosArrayDestroy(pMnode->pSteps);
+      pMnode->pSteps = NULL;
+    }
     tfree(pMnode->path);
     tfree(pMnode->charset);
     tfree(pMnode->locale);
@@ -354,7 +358,7 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   if (rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
     mndCleanupMsg(pMsg);
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    mError("failed to create msg since %s",terrstr());
+    mError("failed to create msg since %s", terrstr());
     return NULL;
   }
   memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
@@ -372,7 +376,10 @@ void mndCleanupMsg(SMnodeMsg *pMsg) {
   mTrace("msg:%p, is destroyed", pMsg);
 }
 
-void mndSendRsp(SMnodeMsg *pMsg, int32_t code) {}
+void mndSendRsp(SMnodeMsg *pMsg, int32_t code) {
+  SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .code = code};
+  rpcSendResponse(&rpcRsp);
+}
 
 static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
   SMnode *pMnode = pMsg->pMnode;
@@ -381,32 +388,34 @@ static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
   void   *ahandle = pMsg->rpcMsg.ahandle;
   bool    isReq = (msgType % 2 == 1);
 
-  mTrace("msg:%p, type:%s will be processed", pMsg, taosMsg[msgType]);
+  mTrace("msg:%p, app:%p will be processed", pMsg, ahandle);
 
   if (isReq && !mndIsMaster(pMnode)) {
     code = TSDB_CODE_APP_NOT_READY;
-    mDebug("msg:%p, failed to process since %s", pMsg, terrstr());
+    mDebug("msg:%p, app:%p failed to process since %s", pMsg, ahandle, terrstr());
     goto PROCESS_RPC_END;
   }
 
   if (isReq && pMsg->rpcMsg.pCont == NULL) {
     code = TSDB_CODE_MND_INVALID_MSG_LEN;
-    mError("msg:%p, failed to process since %s", pMsg, terrstr());
+    mError("msg:%p, app:%p failed to process since %s", pMsg, ahandle, terrstr());
     goto PROCESS_RPC_END;
   }
 
   MndMsgFp fp = pMnode->msgFp[msgType];
   if (fp == NULL) {
     code = TSDB_CODE_MSG_NOT_PROCESSED;
-    mError("msg:%p, failed to process since not handle", pMsg);
+    mError("msg:%p, app:%p failed to process since not handle", pMsg, ahandle);
     goto PROCESS_RPC_END;
   }
 
   code = (*fp)(pMnode, pMsg);
   if (code != 0) {
     code = terrno;
-    mError("msg:%p, failed to process since %s", pMsg, terrstr());
+    mError("msg:%p, app:%p failed to process since %s", pMsg, ahandle, terrstr());
     goto PROCESS_RPC_END;
+  } else {
+    mTrace("msg:%p, app:%p is processed", pMsg, ahandle);
   }
 
 PROCESS_RPC_END:
@@ -421,8 +430,6 @@ PROCESS_RPC_END:
       rpcSendResponse(&rpcRsp);
     }
   }
-
-  mndCleanupMsg(pMsg);
 }
 
 void mndSetMsgHandle(SMnode *pMnode, int32_t msgType, MndMsgFp fp) {

@@ -40,7 +40,7 @@ SSdb *sdbInit(SSdbOpt *pOption) {
     return NULL;
   }
 
-  for (int32_t i = 0; i < SDB_MAX; ++i) {
+  for (ESdbType i = 0; i < SDB_MAX; ++i) {
     taosInitRWLatch(&pSdb->locks[i]);
   }
 
@@ -69,12 +69,30 @@ void sdbCleanup(SSdb *pSdb) {
     tfree(pSdb->tmpDir);
   }
 
-  for (int32_t i = 0; i < SDB_MAX; ++i) {
+  for (ESdbType i = 0; i < SDB_MAX; ++i) {
     SHashObj *hash = pSdb->hashObjs[i];
-    if (hash != NULL) {
-      taosHashClear(hash);
-      taosHashCleanup(hash);
+    if (hash == NULL) continue;
+
+    SdbDeleteFp deleteFp = pSdb->deleteFps[i];
+    SSdbRow   **ppRow = taosHashIterate(hash, ppRow);
+    while (ppRow != NULL) {
+      SSdbRow *pRow = *ppRow;
+      if (pRow == NULL) continue;
+
+      if (deleteFp != NULL) {
+        (*deleteFp)(pSdb, pRow->pObj);
+      }
+      sdbFreeRow(pRow);
+      ppRow = taosHashIterate(hash, ppRow);
     }
+  }
+
+  for (ESdbType i = 0; i < SDB_MAX; ++i) {
+    SHashObj *hash = pSdb->hashObjs[i];
+    if (hash == NULL) continue;
+
+    taosHashClear(hash);
+    taosHashCleanup(hash);
     pSdb->hashObjs[i] = NULL;
   }
 
@@ -91,7 +109,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
   pSdb->encodeFps[sdb] = table.encodeFp;
   pSdb->decodeFps[sdb] = table.decodeFp;
 
-  for (int32_t i = 0; i < SDB_MAX; ++i) {
+  for (ESdbType i = 0; i < SDB_MAX; ++i) {
     int32_t type;
     if (pSdb->keyTypes[i] == SDB_KEY_INT32) {
       type = TSDB_DATA_TYPE_INT;
