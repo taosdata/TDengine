@@ -27,7 +27,7 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   }
 
   char path[PATH_MAX + 100];
-  snprintf(path, PATH_MAX + 100, "%s", pOption->path);
+  snprintf(path, PATH_MAX + 100, "%s%sdata", pOption->path, TD_DIRSEP);
   pSdb->currDir = strdup(path);
   snprintf(path, PATH_MAX + 100, "%s%ssync", pOption->path, TD_DIRSEP);
   pSdb->syncDir = strdup(path);
@@ -44,6 +44,7 @@ SSdb *sdbInit(SSdbOpt *pOption) {
     taosInitRWLatch(&pSdb->locks[i]);
   }
 
+  pSdb->pMnode = pOption->pMnode;
   mDebug("sdb init successfully");
   return pSdb;
 }

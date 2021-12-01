@@ -46,7 +46,7 @@ static int32_t sdbRunDeployFp(SSdb *pSdb) {
     SdbDeployFp fp = pSdb->deployFps[i];
     if (fp == NULL) continue;
 
-    if ((*fp)(pSdb) != 0) {
+    if ((*fp)(pSdb->pMnode) != 0) {
       mError("failed to deploy sdb:%d since %s", i, terrstr());
       return -1;
     }

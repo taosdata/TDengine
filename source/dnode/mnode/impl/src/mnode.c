@@ -225,15 +225,22 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->sendMsgToDnodeFp = pOption->sendMsgToDnodeFp;
   pMnode->sendMsgToMnodeFp = pOption->sendMsgToMnodeFp;
   pMnode->sendRedirectMsgFp = pOption->sendRedirectMsgFp;
+  pMnode->sver = pOption->sver;
+  pMnode->statusInterval = pOption->statusInterval;
+  pMnode->mnodeEqualVnodeNum = pOption->mnodeEqualVnodeNum;
+  pMnode->timezone = strdup(pOption->timezone);
+  pMnode->locale = strdup(pOption->locale);
+  pMnode->charset = strdup(pOption->charset);
 
   if (pMnode->sendMsgToDnodeFp == NULL || pMnode->sendMsgToMnodeFp == NULL || pMnode->sendRedirectMsgFp == NULL ||
-      pMnode->putMsgToApplyMsgFp == NULL) {
+      pMnode->putMsgToApplyMsgFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0 ||
+      pMnode->statusInterval < 1 || pOption->mnodeEqualVnodeNum < 0) {
     terrno = TSDB_CODE_MND_APP_ERROR;
     return -1;
   }
 
-  if (pMnode->dnodeId < 0 || pMnode->clusterId < 0) {
-    terrno = TSDB_CODE_MND_APP_ERROR;
+  if (pMnode->timezone == NULL || pMnode->locale == NULL || pMnode->charset == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -299,6 +306,9 @@ void mndClose(SMnode *pMnode) {
     mDebug("start to close mnode");
     mndCleanupSteps(pMnode, -1);
     tfree(pMnode->path);
+    tfree(pMnode->charset);
+    tfree(pMnode->locale);
+    tfree(pMnode->timezone);
     tfree(pMnode);
     mDebug("mnode is closed");
   }

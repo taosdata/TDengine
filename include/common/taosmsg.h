@@ -63,6 +63,8 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_USER, "drop-user" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_DNODE, "create-dnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONFIG_DNODE, "config-dnode" ) 
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_DNODE, "drop-dnode" )   
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_MNODE, "create-mnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_MNODE, "drop-mnode" ) 
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_DB, "create-db" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_DB, "drop-db" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_USE_DB, "use-db" )
@@ -631,7 +633,7 @@ typedef struct {
 
 typedef struct {
   int32_t statusInterval;
-  int8_t  reserved[4];
+  int32_t mnodeEqualVnodeNum;
   int64_t checkTime;                    // 1970-01-01 00:00:00.000
   char    timezone[TSDB_TIMEZONE_LEN];  // tsTimezone
   char    locale[TSDB_LOCALE_LEN];      // tsLocale
@@ -654,11 +656,14 @@ typedef struct {
 } SVnodeLoads;
 
 typedef struct SStatusMsg {
-  uint32_t    sversion;
+  int32_t     sver;
   int32_t     dnodeId;
   int64_t     clusterId;
   uint32_t    rebootTime;  // time stamp for last reboot
-  int32_t     numOfCores;
+  int16_t     numOfCores;
+  int16_t     numOfSupportMnodes;
+  int16_t     numOfSupportVnodes;
+  int16_t     numOfSupportQnodes;
   char        dnodeEp[TSDB_EP_LEN];
   SClusterCfg clusterCfg;
   SVnodeLoads vnodeLoads;
