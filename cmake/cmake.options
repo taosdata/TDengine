@@ -20,6 +20,12 @@ option(
 )
 
 option(
+    BUILD_WITH_SQLITE
+    "If build with sqlite" 
+    ON
+)
+
+option(
     BUILD_WITH_BDB 
     "If build with BerkleyDB" 
     ON
