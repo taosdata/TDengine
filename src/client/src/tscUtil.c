@@ -89,15 +89,34 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
       break;
 
     case TSDB_DATA_TYPE_BINARY:
+      if (bufSize < 0) {
+        tscError("invalid buf size");
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+      int32_t escapeSize = 0;
+      *str++ = '\'';
+      ++escapeSize;
+      char* data = buf;
+      for (int32_t i = 0; i < bufSize; ++i) {
+        if (data[i] == '\'' || data[i] == '"') {
+          *str++ = '\\';
+          ++escapeSize;
+        }
+        *str++ = data[i];
+      }
+      *str = '\'';
+      ++escapeSize;
+      n = bufSize + escapeSize;
+      break;
     case TSDB_DATA_TYPE_NCHAR:
       if (bufSize < 0) {
         tscError("invalid buf size");
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
 
-      *str = '"';
+      *str = '\'';
       memcpy(str + 1, buf, bufSize);
-      *(str + bufSize + 1) = '"';
+      *(str + bufSize + 1) = '\'';
       n = bufSize + 2;
       break;
 
