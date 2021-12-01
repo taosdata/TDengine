@@ -5697,26 +5697,16 @@ int8_t jsonType2DbType(double data, int jsonType){
 }
 
 void* getJsonTagValue(STable* pTable, char* key, int32_t keyLen, int16_t* retColId){
-  if(TABLE_TYPE(pTable) == TSDB_CHILD_TABLE){
-    STable* superTable= pTable->pSuper;
-    SArray** data = (SArray**)taosHashGet(superTable->jsonKeyMap, key, keyLen);
-    if(data == NULL) return NULL;
-    JsonMapValue jmvalue = {pTable, 0};
-    JsonMapValue* p = taosArraySearch(*data, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
-    if (p == NULL) return NULL;
-    int16_t colId = p->colId + 1;
-    if(retColId) *retColId = p->colId;
-    return tdGetKVRowValOfCol(pTable->tagVal, colId);
-  }else if(TABLE_TYPE(pTable) == TSDB_SUPER_TABLE){
-    SArray** data = (SArray**)taosHashGet(pTable->jsonKeyMap, key, keyLen);
-    if(data == NULL) return NULL;
-    if(taosArrayGetSize(*data) == 0) return NULL;
-    JsonMapValue* p = taosArrayGet(*data, 0);
-    int16_t colId = p->colId + 1;
-    if(retColId) *retColId = p->colId;
-    return tdGetKVRowValOfCol(((STable*)(p->table))->tagVal, colId);
-  }
-  return NULL;
+  assert(TABLE_TYPE(pTable) == TSDB_CHILD_TABLE);
+  STable* superTable= pTable->pSuper;
+  SArray** data = (SArray**)taosHashGet(superTable->jsonKeyMap, key, keyLen);
+  if(data == NULL) return NULL;
+  JsonMapValue jmvalue = {pTable, 0};
+  JsonMapValue* p = taosArraySearch(*data, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
+  if (p == NULL) return NULL;
+  int16_t colId = p->colId + 1;
+  if(retColId) *retColId = p->colId;
+  return tdGetKVRowValOfCol(pTable->tagVal, colId);
 }
 
 // get key from json->'key'

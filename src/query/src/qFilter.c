@@ -2951,7 +2951,7 @@ static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows,
     uint32_t uidx = info->groups[0].unitIdxs[0];
     void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
     if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
-      colData += CHAR_BYTES;
+      if(colData) colData += CHAR_BYTES;
     }
     (*p)[i] = ((colData == NULL) || isNull(colData, info->cunits[uidx].dataType));
     if ((*p)[i] == 0) {
@@ -2977,7 +2977,7 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
     uint32_t uidx = info->groups[0].unitIdxs[0];
     void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
     if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
-      colData += CHAR_BYTES;
+      if(colData) colData += CHAR_BYTES;
     }
     (*p)[i] = ((colData != NULL) && !isNull(colData, info->cunits[uidx].dataType));
     if ((*p)[i] == 0) {
