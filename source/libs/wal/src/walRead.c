@@ -14,18 +14,13 @@
  */
 
 #include "wal.h"
+#include "tchecksum.h"
 
-int32_t walCommit(SWal *pWal, int64_t ver) {
-  return 0;
+static int walValidateChecksum(SWalHead *pHead, void* body, int64_t bodyLen) {
+  return taosCheckChecksum((uint8_t*)pHead, sizeof(SWalHead) - sizeof(uint32_t)*2, pHead->cksumHead) &&
+    taosCheckChecksum(body, bodyLen, pHead->cksumBody);
 }
 
-int32_t walRollback(SWal *pWal, int64_t ver) {
-  return 0;
-}
-
-int32_t walTakeSnapshot(SWal *pWal, int64_t ver) {
-  return 0;
-}
 
 int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
   return 0;
@@ -36,13 +31,16 @@ int32_t walReadWithFp(SWal *pWal, FWalWrite writeFp, int64_t verStart, int32_t r
 }
 
 int64_t walGetFirstVer(SWal *pWal) {
-  return 0;
+  if (pWal == NULL) return 0;
+  return pWal->firstVersion;
 }
 
-int64_t walGetSnapshotVer(SWal *pWal) {
-  return 0;
+int64_t walGetSnaphostVer(SWal *pWal) {
+  if (pWal == NULL) return 0;
+  return pWal->snapshotVersion;
 }
 
 int64_t walGetLastVer(SWal *pWal) {
-  return 0;
+  if (pWal == NULL) return 0;
+  return pWal->lastVersion;
 }
