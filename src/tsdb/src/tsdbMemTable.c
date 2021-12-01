@@ -717,9 +717,8 @@ static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRep
 
   //for compatiblity, duplicate key inserted when update=0 should be also calculated as affected rows!
   if(row1 == NULL && row2 == NULL && pRepo->config.update == TD_ROW_DISCARD_UPDATE) {
-    tsdbTrace("vgId:%d a duplicated row is discarded in table %s tid %d uid %" PRIu64 " key %" PRIu64 " since update 0",
-        REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable),
-        memRowKey(row1));
+    tsdbTrace("vgId:%d a duplicated row is discarded in table %s tid %d uid %" PRIu64 " since update 0",
+        REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable));
     (*pPoints)++;
     return NULL;
   }
