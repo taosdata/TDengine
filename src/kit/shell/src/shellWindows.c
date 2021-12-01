@@ -17,7 +17,7 @@
 #include "taos.h"
 #include "shellCommand.h"
 
-#define SHELL_INPUT_MAX_COMMAND_SIZE 100000
+#define SHELL_INPUT_MAX_COMMAND_SIZE 10000
 
 extern char configDir[];
 
