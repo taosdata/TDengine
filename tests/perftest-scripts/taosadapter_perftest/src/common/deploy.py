@@ -74,12 +74,15 @@ class Dnode:
         if not res:
             self.dnode_conn.exec_cmd(f'sudo mkdir -p {dir}')
 
-    def modifyTaosCfg(self):
+    def modifyTaosCfg(self, firstEp=None):
         if self.dnode_dict["modify_cfg"]:
             logger.info('modify /etc/taos/taos.cfg')
             for key, value in self.dnode_dict['cfg'].items():
                 self.createRemoteDir(value)
                 self.dnode_conn.exec_cmd(f'echo {key}   {value} >> /etc/taos/taos.cfg')
+            if firstEp is not None:
+                self.dnode_conn.exec_cmd(f'echo "firstEp   {firstEp}" >> /etc/taos/taos.cfg')
+                self.dnode_conn.exec_cmd(f'echo "fqdn   {self.dnode_name}" >> /etc/taos/taos.cfg')
 
     def hostsIsExist(self, ip):
         ip_suffix = ip.split('.')[-1]
@@ -106,7 +109,10 @@ class Dnode:
             logger.info(f'check {self.dnode_name}-taosd {process} not exist')
             return False
 
-    def deployTaosd(self):
+    def taoscCreateDnodes(self):
+        self.dnode_conn.exec_cmd(f'sudo taos -s "create dnode \'{self.dnode_name}:6030\'"')
+
+    def deployTaosd(self, firstEp=None):
         if self.dnode_username == "root":
             remote_dir = "/root"
         else:
@@ -122,7 +128,7 @@ class Dnode:
         self.killTaosd()
         logger.info(f'install {self.dnode_name}-taosd')
         logger.info(self.dnode_conn.exec_cmd(f'cd {remote_dir} && tar -xvf {remote_dir}/{package_name} && cd {package_dir} && ./install.sh'))
-        self.modifyTaosCfg()
+        self.modifyTaosCfg(firstEp)
         self.dnode_conn.exec_cmd('systemctl start taosd')
         if self.checkStatus("taosd"):
             logger.success(f'{self.dnode_name}-taosd deploy success')
@@ -153,8 +159,8 @@ class Cluster:
     def rmDnodeTaosCfg(self, index):
         self.dnodes[index - 1].rmTaosCfg()
 
-    def modifyDnodeTaosCfg(self, index):
-        self.dnodes[index - 1].modifyTaosCfg()
+    def modifyDnodeTaosCfg(self, index, taosCfgKey=None, taosCfgValue=None):
+        self.dnodes[index - 1].modifyTaosCfg(taosCfgKey, taosCfgValue)
         
     def configDnodesHostname(self):
         for i in range(len(self.dnodes)):
@@ -190,13 +196,12 @@ class Cluster:
         if config["taosd_cluster"]:
             self.configDnodesHostname()
             self.configDnodesHosts()
-            # TODO
-            # for i in range(len(self.dnodes)):
-            #     if i == 0:
-                    
-            #     if i > 0:
-            #         self.modifyDnodeTaosCfg(i + 2)
-            #     self.dnodes[i].deployTaosd()
+            firstEp = f'{self.dnodes[0].dnode_name}:6030'
+            for i in range(len(self.dnodes)):
+                self.dnodes[i].deployTaosd(firstEp)
+            for i in range(len(self.dnodes)):
+                if i != 0:
+                    self.dnodes[i].taoscCreateDnodes()
 
 
 
