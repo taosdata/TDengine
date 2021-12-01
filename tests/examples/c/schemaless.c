@@ -8,7 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define MAX_THREAD_LINE_BATCHES 1024
+bool verbose = false;
 
 void printThreadId(pthread_t id, char* buf)
 {
@@ -31,10 +31,8 @@ typedef struct {
 typedef struct  {
   TAOS* taos;
   int numBatches;
-  SThreadLinesBatch batches[MAX_THREAD_LINE_BATCHES];
+  SThreadLinesBatch *batches;
   int64_t costTime;
-  int tsPrecision;
-  int lineProtocol;
 } SThreadInsertArgs;
 
 static void* insertLines(void* args) {
@@ -43,14 +41,14 @@ static void* insertLines(void* args) {
   printThreadId(pthread_self(), tidBuf);
   for (int i = 0; i < insertArgs->numBatches; ++i) {
     SThreadLinesBatch* batch = insertArgs->batches + i;
-    printf("%s, thread: 0x%s\n", "begin taos_insert_lines", tidBuf);
+    if (verbose) printf("%s, thread: 0x%s\n", "begin taos_insert_lines", tidBuf);
     int64_t begin = getTimeInUs();
-    TAOS_RES *res = taos_schemaless_insert(insertArgs->taos, batch->lines, batch->numLines, insertArgs->lineProtocol, insertArgs->tsPrecision);
-    int32_t code = taos_errno(res);
+    //int32_t code = taos_insert_lines(insertArgs->taos, batch->lines, batch->numLines);
+     TAOS_RES * res = taos_schemaless_insert(insertArgs->taos, batch->lines, batch->numLines, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+     int32_t code = taos_errno(res);
     int64_t end = getTimeInUs();
     insertArgs->costTime += end - begin;
-    printf("code: %d, %s. affected lines:%d time used:%"PRId64", thread: 0x%s\n", code, taos_errstr(res), taos_affected_rows(res), end - begin, tidBuf);
-    taos_free_result(res);
+    if (verbose) printf("code: %d, %s. time used:%"PRId64", thread: 0x%s\n", code, tstrerror(code), end - begin, tidBuf);
   }
   return NULL;
 }
@@ -63,7 +61,7 @@ int32_t getLineTemplate(char* lineTemplate, int templateLen, int numFields) {
   }
 
   if (numFields <= 13) {
-     char* sample = "sta%d,t0=true,t1=127i8,t2=32767i16,t3=%di32,t4=9223372036854775807i64,t9=11.12345f32,t10=22.123456789f64,t11=\"binaryTagValue\",t12=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=254u8,c6=32770u16,c7=2147483699u32,c8=9223372036854775899u64,c9=11.12345f32,c10=22.123456789f64,c11=\"binaryValue\",c12=L\"ncharValue\" %lldms";
+     char* sample = "sta%d,t0=true,t1=127i8,t2=32767i16,t3=%di32,t4=9223372036854775807i64,t9=11.12345f32,t10=22.123456789f64,t11=\"binaryTagValue\",t12=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=254u8,c6=32770u16,c7=2147483699u32,c8=9223372036854775899u64,c9=11.12345f32,c10=22.123456789f64,c11=\"binaryValue\",c12=L\"ncharValue\" %lld";
      snprintf(lineTemplate, templateLen, "%s", sample);
      return 0;
   }
@@ -92,6 +90,7 @@ int32_t getLineTemplate(char* lineTemplate, int templateLen, int numFields) {
 
 int main(int argc, char* argv[]) {
   int numThreads = 8;
+  int maxBatchesPerThread = 1024;	
 
   int numSuperTables = 1;
   int numChildTables = 256;
@@ -99,11 +98,9 @@ int main(int argc, char* argv[]) {
   int numFields = 13;
 
   int maxLinesPerBatch = 16384;
-  int tsPrecision = TSDB_SML_TIMESTAMP_NOT_CONFIGURED;
-  int lineProtocol = TSDB_SML_UNKNOWN_PROTOCOL;
 
   int opt;
-  while ((opt = getopt(argc, argv, "s:c:r:f:t:m:p:P:h")) != -1) {
+  while ((opt = getopt(argc, argv, "s:c:r:f:t:b:hv")) != -1) {
     switch (opt) {
       case 's':
         numSuperTables = atoi(optarg);
@@ -120,21 +117,18 @@ int main(int argc, char* argv[]) {
       case 't':
         numThreads = atoi(optarg);
         break;
-      case 'm':
+      case 'b':
         maxLinesPerBatch = atoi(optarg);
         break;
-      case 'p':
-        tsPrecision = atoi(optarg);
-        break;
-      case 'P':
-        lineProtocol = atoi(optarg);
+      case 'v':
+        verbose = true;
         break;
       case 'h':
-        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -m maxlines_per_batch\n",
+        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -b maxlines_per_batch -v\n",
                 argv[0]);
         exit(0);
       default: /* '?' */
-        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -m maxlines_per_batch\n",
+        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -b maxlines_per_batch -v\n",
                 argv[0]);
         exit(-1);
     }
@@ -152,10 +146,7 @@ int main(int argc, char* argv[]) {
     exit(1);
   }
 
-  if (numThreads * MAX_THREAD_LINE_BATCHES* maxLinesPerBatch < numSuperTables*numChildTables*numRowsPerChildTable) {
-    printf("too many rows to be handle by threads with %d batches", MAX_THREAD_LINE_BATCHES);
-    exit(2);
-  }
+  maxBatchesPerThread = (numSuperTables*numChildTables*numRowsPerChildTable)/(numThreads * maxLinesPerBatch) + 1;
 
   char* info = taos_get_server_info(taos);
   printf("server info: %s\n", info);
@@ -171,7 +162,7 @@ int main(int argc, char* argv[]) {
   (void)taos_select_db(taos, "db");
 
   time_t  ct = time(0);
-  int64_t ts = ct * 1000;
+  int64_t ts = ct * 1000 ;
 
   char* lineTemplate = calloc(65536, sizeof(char));
   getLineTemplate(lineTemplate, 65535, numFields);
@@ -187,12 +178,12 @@ int main(int argc, char* argv[]) {
       linesStb[i] = lineStb;
     }
     SThreadInsertArgs args = {0};
+    args.batches = calloc(maxBatchesPerThread, sizeof(maxBatchesPerThread));
     args.taos = taos;
     args.batches[0].lines = linesStb;
     args.batches[0].numLines = numSuperTables;
-    args.tsPrecision = tsPrecision;
-    args.lineProtocol = lineProtocol;
     insertLines(&args);
+    free(args.batches);
     for (int i = 0; i < numSuperTables; ++i) {
       free(linesStb[i]);
     }
@@ -203,6 +194,7 @@ int main(int argc, char* argv[]) {
   pthread_t* tids = calloc(numThreads, sizeof(pthread_t));
   SThreadInsertArgs* argsThread = calloc(numThreads, sizeof(SThreadInsertArgs));
   for (int i = 0; i < numThreads; ++i) {
+    argsThread[i].batches = calloc(maxBatchesPerThread, sizeof(SThreadLinesBatch));	  
     argsThread[i].taos = taos;
     argsThread[i].numBatches = 0;
   }
@@ -262,6 +254,9 @@ int main(int argc, char* argv[]) {
   }
   free(allBatches);
 
+  for (int i = 0; i < numThreads; i++) {
+    free(argsThread[i].batches);
+  }    
   free(argsThread);
   free(tids);
 
