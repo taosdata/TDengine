@@ -82,8 +82,8 @@ typedef struct FstSlice {
 FstSlice fstSliceCreate(uint8_t *data, uint64_t len);
 FstSlice fstSliceCopy(FstSlice *s, int32_t start, int32_t end);
 FstSlice fstSliceDeepCopy(FstSlice *s, int32_t start, int32_t end);
-bool fstSliceEmpty(FstSlice *s);
-int fstSliceCompare(FstSlice *s1, FstSlice *s2);
+bool fstSliceIsEmpty(FstSlice *s);
+int  fstSliceCompare(FstSlice *s1, FstSlice *s2);
 void fstSliceDestroy(FstSlice *s); 
 uint8_t *fstSliceData(FstSlice *s, int32_t *sz); 
 

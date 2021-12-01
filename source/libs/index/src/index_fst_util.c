@@ -122,7 +122,7 @@ FstSlice fstSliceDeepCopy(FstSlice *s, int32_t start, int32_t end) {
   assert(tlen <= alen);
 
   uint8_t *buf  = malloc(sizeof(uint8_t) * tlen);  
-  memcpy(buf, data, tlen);
+  memcpy(buf, data + start, tlen);
    
   FstString *str = malloc(sizeof(FstString));  
   str->data = buf;
@@ -135,7 +135,7 @@ FstSlice fstSliceDeepCopy(FstSlice *s, int32_t start, int32_t end) {
   ans.end   = tlen - 1;
   return ans; 
 }
-bool fstSliceEmpty(FstSlice *s) {
+bool fstSliceIsEmpty(FstSlice *s) {
   return s->str == NULL || s->start < 0 || s->end < 0;
 }
 

@@ -92,7 +92,7 @@ void fstUnFinishedNodesTopLastFreeze(FstUnFinishedNodes *nodes, CompiledAddr add
 }
 void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes *nodes, FstSlice bs, Output out) {
   FstSlice *s = &bs;
-  if (fstSliceEmpty(s)) {
+  if (fstSliceIsEmpty(s)) {
     return;
   }
   size_t sz = taosArrayGetSize(nodes->stack) - 1; 
@@ -801,7 +801,7 @@ bool fstBuilderInsert(FstBuilder *b, FstSlice bs, Output in) {
 
 void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in) {
    FstSlice *s = &bs;
-   if (fstSliceEmpty(s)) {
+   if (fstSliceIsEmpty(s)) {
      b->len = 1; 
      fstUnFinishedNodesSetRootOutput(b->unfinished, in);
      return;
@@ -831,7 +831,7 @@ void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in) {
 
 OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup) {
   FstSlice *input = &bs;
-  if (fstSliceEmpty(&b->last)) {
+  if (fstSliceIsEmpty(&b->last)) {
     // deep copy or not
     b->last = fstSliceCopy(&bs, input->start, input->end);
   } else {
@@ -1115,7 +1115,7 @@ bool fstBoundWithDataIsEmpty(FstBoundWithData *bound) {
   if (bound->type == Unbounded) {
     return true;
   } else { 
-    return fstSliceEmpty(&bound->data);  
+    return fstSliceIsEmpty(&bound->data);  
   }     
 }
 
