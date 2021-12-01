@@ -146,9 +146,9 @@ class TDTestCase:
                         pick_func=j+'('+ k + str(i) +',1)'
                     else:
                         pick_func=j+'('+ k + str(i) +')'
-                    sql = 'select %s from st group by %s' % (pick_func , k+str(i))
+                    sql = 'select %s from st group by %s order by %s' % (pick_func , k+str(i), k+str(i))
                     tdSql.error(sql)
-                    sql = 'select %s from st6 group by %s' % (pick_func , k+str(i))
+                    sql = 'select %s from st6 group by %s order by %s ' % (pick_func , k+str(i), k+str(i))
                     tdSql.error(sql)
 
         tdSql.query("select top(tbcol1, 2) from st1 group by tbcol2 order by tbcol2")
