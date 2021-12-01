@@ -142,19 +142,13 @@ class TDTestCase:
         tdSql.query("select *,tbname from db_json_tag_test.jsons1 where (jtag->'location' like 'bei%' or jtag->'num'=34) and jtag->'class'=55")
         tdSql.checkRows(0)
 
-        tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num' like '5%'")
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'num' like '5%'")
+        tdSql.checkRows(0)
 
         # test where condition in
-        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location' in ('beijing')")
-        tdSql.checkRows(2)
-
-        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'num' in (5,34)")
-        tdSql.checkRows(2)
+        tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'location' in ('beijing')")
 
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num' in ('5',34)")
-
-        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location' in ('shanghai') and jtag->'class'=55")
-        tdSql.checkRows(1)
 
         # test where condition match
         tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location' match 'jin$'")
@@ -166,7 +160,8 @@ class TDTestCase:
         tdSql.query("select * from db_json_tag_test.jsons1 where datastr match 'json' and jtag->'location' match 'jin'")
         tdSql.checkRows(2)
 
-        tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num' match '5'")
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'num' match '5'")
+        tdSql.checkRows(0)
 
         # test json string parse
         tdSql.error("CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('efwewf')")

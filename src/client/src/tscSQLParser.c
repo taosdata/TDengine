@@ -4716,6 +4716,7 @@ static int32_t validateJsonTagExpr(tSqlExpr* pExpr, char* msgBuf) {
   const char* msg1 = "not support json tag column filter";
   const char* msg2 = "tag json key is invalidate";
   const char* msg3 = "tag json key must be string";
+  const char* msg4 = "in operation not support in tag json";
 
   tSqlExpr* pLeft = pExpr->pLeft;
   tSqlExpr* pRight = pExpr->pRight;
@@ -4726,6 +4727,8 @@ static int32_t validateJsonTagExpr(tSqlExpr* pExpr, char* msgBuf) {
 
     if (pRight != NULL && (pRight->value.nLen > TSDB_MAX_JSON_KEY_LEN || pRight->value.nLen <= 0))
       return invalidOperationMsg(msgBuf, msg2);
+  } else if(pExpr->tokenId == TK_IN){
+    return invalidOperationMsg(msgBuf, msg4);
   } else {
     if (pLeft != NULL && pLeft->tokenId == TK_ID && pExpr->tokenId != TK_ISNULL && pExpr->tokenId != TK_NOTNULL) {
       return invalidOperationMsg(msgBuf, msg1);

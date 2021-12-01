@@ -234,6 +234,8 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
         comparFn = 19;
       } else if (optr == TSDB_RELATION_NMATCH) {
         comparFn = 20;
+      } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
+        comparFn = 9;
       } else if (optr == TSDB_RELATION_QUESTION) {
         comparFn = 21;
       } else {
@@ -3061,6 +3063,19 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t** p, SDataStat
           (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, newColData, newValData);
           tfree(newColData);
         }
+      }else if(info->cunits[uidx].optr == TSDB_RELATION_LIKE){
+        uint8_t  jsonType = *(char*)colData;
+        char* realData = colData + CHAR_BYTES;
+        if (jsonType != TSDB_DATA_TYPE_NCHAR){
+          (*p)[i] = false;
+        }else{
+          tVariant* val = info->cunits[uidx].valData;
+          char* newValData = calloc(val->nLen + VARSTR_HEADER_SIZE, 1);
+          memcpy(varDataVal(newValData), val->pz, val->nLen);
+          varDataSetLen(newValData, val->nLen);
+          (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, realData, newValData);
+          tfree(newValData);
+        }
       }else{
         (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, colData, info->cunits[uidx].valData);
       }
@@ -3137,6 +3152,19 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t** p, SDataStatis *
                     varDataSetLen(newValData, val->nLen);
                     (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, newColData, newValData);
                     tfree(newColData);
+                  }
+                }else if(cunit->optr == TSDB_RELATION_LIKE){
+                  uint8_t  jsonType = *(char*)colData;
+                  char* realData = colData + CHAR_BYTES;
+                  if (jsonType != TSDB_DATA_TYPE_NCHAR){
+                    (*p)[i] = false;
+                  }else{
+                    tVariant* val = cunit->valData;
+                    char* newValData = calloc(val->nLen + VARSTR_HEADER_SIZE, 1);
+                    memcpy(varDataVal(newValData), val->pz, val->nLen);
+                    varDataSetLen(newValData, val->nLen);
+                    (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, realData, newValData);
+                    tfree(newValData);
                   }
                 }else{
                   (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, colData, cunit->valData);
