@@ -9160,14 +9160,17 @@ int32_t doDumpQueryResult(SQInfo *pQInfo, char *data, int8_t compressed, int32_t
         assert(0);
       }
 
-      // dump error info
-      if (s <= (sizeof(STSBufFileHeader) + sizeof(STSGroupBlockInfo) + 6 * sizeof(int32_t))) {
-        qDump(data, s);
-        assert(0);
-      }
-
       fclose(f);
       *(FILE **)pColInfoData->pData = NULL;
+
+      // pBlock->tag.nType numOfElem compLen payload compLen tag.nLen about 6 int32 length
+      if (s <= (sizeof(STSBufFileHeader) + sizeof(STSGroupBlockInfo) + 6 * sizeof(int32_t))) {
+        // file size is less than above, maybe no data in this file, set query over
+        qError("STSBuf file is small maybe no data, so set query over. file size=%d", (int32_t)s);
+        setQueryStatus(pRuntimeEnv, QUERY_OVER);
+        return TSDB_CODE_SUCCESS;
+      }
+
     }
 
     // all data returned, set query over
