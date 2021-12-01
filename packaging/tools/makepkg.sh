@@ -86,6 +86,16 @@ if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
     cp ${compile_dir}/test/cfg/taosadapter.service          ${install_dir}/cfg || :
 fi
 
+if [ -f "${cfg_dir}/taosd.service" ]; then
+    cp ${cfg_dir}/taosd.service          ${install_dir}/cfg || :
+fi
+if [ -f "${cfg_dir}/tarbitratord.service" ]; then
+    cp ${cfg_dir}/tarbitratord.service          ${install_dir}/cfg || :
+fi
+if [ -f "${cfg_dir}/nginxd.service" ]; then
+    cp ${cfg_dir}/nginxd.service          ${install_dir}/cfg || :
+fi
+
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/taosd.deb
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/taosd.rpm
