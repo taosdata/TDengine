@@ -113,6 +113,9 @@ class TDTestCase:
         tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'num'=5 or jtag?'sex'")
         tdSql.checkRows(2)
 
+        tdSql.query("select *,tbname from db_json_tag_test.jsons1 where jtag->'num'=5")
+        tdSql.checkRows(1)
+
         # test with tbname
         tdSql.query("select * from db_json_tag_test.jsons1 where tbname = 'jsons1_1'")
         tdSql.checkRows(1)
@@ -147,7 +150,6 @@ class TDTestCase:
 
         # test where condition in
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'location' in ('beijing')")
-
         tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num' in ('5',34)")
 
         # test where condition match
@@ -214,7 +216,8 @@ class TDTestCase:
         tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'location'='null'")
         tdSql.checkRows(0)
 
-        tdSql.error("select * from db_json_tag_test.jsons1 where jtag->'num'='null'")
+        tdSql.query("select * from db_json_tag_test.jsons1 where jtag->'num'='null'")
+        tdSql.checkRows(0)
 
         # test distinct
         tdSql.query("select distinct jtag from db_json_tag_test.jsons1")
