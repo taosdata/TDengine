@@ -207,7 +207,8 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
     - port：TDengine管理主节点的端口号
 
   返回值为空表示失败。应用程序需要保存返回的参数，以便后续API调用。
-  **提示: **: 同一进程可以根据不同的host/port 连接多个taosd 集群
+
+  **提示:** 同一进程可以根据不同的host/port 连接多个taosd 集群
 
 - `char *taos_get_server_info(TAOS *taos)`
 
