@@ -4106,11 +4106,9 @@ static int32_t queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
       }
     }
   }
-  if(tabList == NULL || taosArrayGetSize(tabList) == 0){
+  if(tabList == NULL){
     tsdbError("json key not exist, no candidate table");
-    terrno = TSDB_CODE_TDB_NO_JSON_TAG_KEY;
-    taosArrayDestroy(tabList);
-    return TSDB_CODE_TDB_NO_JSON_TAG_KEY;
+    return TSDB_CODE_SUCCESS;
   }
   int32_t size = taosArrayGetSize(tabList);
   int8_t *addToResult = NULL;

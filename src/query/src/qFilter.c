@@ -62,15 +62,23 @@ filter_desc_compare_func gDescCompare [FLD_TYPE_MAX] = {
 };
 
 bool filterRangeCompGi (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
+  int32_t result = cfunc(maxv, minr);
+  if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return cfunc(maxv, minr) >= 0;
 }
 bool filterRangeCompGe (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
+  int32_t result = cfunc(maxv, minr);
+  if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return cfunc(maxv, minr) > 0;
 }
 bool filterRangeCompLi (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
+  int32_t result = cfunc(minv, maxr);
+  if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return cfunc(minv, maxr) <= 0;
 }
 bool filterRangeCompLe (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
+  int32_t result = cfunc(minv, maxr);
+  if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return cfunc(minv, maxr) < 0;
 }
 bool filterRangeCompii (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
@@ -2990,6 +2998,42 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
   return all;
 }
 
+static void doJsonCompare(SFilterComUnit *cunit, int8_t *result, void* colData){
+  if(cunit->optr == TSDB_RELATION_MATCH || cunit->optr == TSDB_RELATION_NMATCH){
+    uint8_t  jsonType = *(char*)colData;
+    char* realData = colData + CHAR_BYTES;
+    if (jsonType != TSDB_DATA_TYPE_NCHAR){
+      *result = false;
+    }else{
+      char *newColData = calloc(cunit->dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
+      int len = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), varDataVal(newColData));
+      varDataSetLen(newColData, len);
+      tVariant* val = cunit->valData;
+      char newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
+      assert(val->nLen <= TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE);
+      memcpy(varDataVal(newValData), val->pz, val->nLen);
+      varDataSetLen(newValData, val->nLen);
+      *result = filterDoCompare(gDataCompare[cunit->func], cunit->optr, newColData, newValData);
+      tfree(newColData);
+    }
+  }else if(cunit->optr == TSDB_RELATION_LIKE){
+    uint8_t  jsonType = *(char*)colData;
+    char* realData = colData + CHAR_BYTES;
+    if (jsonType != TSDB_DATA_TYPE_NCHAR){
+      *result = false;
+    }else{
+      tVariant* val = cunit->valData;
+      char* newValData = calloc(val->nLen + VARSTR_HEADER_SIZE, 1);
+      memcpy(varDataVal(newValData), val->pz, val->nLen);
+      varDataSetLen(newValData, val->nLen);
+      *result = filterDoCompare(gDataCompare[cunit->func], cunit->optr, realData, newValData);
+      tfree(newValData);
+    }
+  }else{
+    *result = filterDoCompare(gDataCompare[cunit->func], cunit->optr, colData, cunit->valData);
+  }
+}
+
 bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols) {
   SFilterInfo *info = (SFilterInfo *)pinfo;
   bool all = true;
@@ -3056,39 +3100,7 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t** p, SDataStat
       (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, newColData, info->cunits[uidx].valData);
       tfree(newColData);
     }else if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
-      if(info->cunits[uidx].optr == TSDB_RELATION_MATCH || info->cunits[uidx].optr == TSDB_RELATION_NMATCH){
-        uint8_t  jsonType = *(char*)colData;
-        char* realData = colData + CHAR_BYTES;
-        if (jsonType != TSDB_DATA_TYPE_NCHAR){
-          (*p)[i] = false;
-        }else{
-          char *newColData = calloc(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
-          int len = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), varDataVal(newColData));
-          varDataSetLen(newColData, len);
-          tVariant* val = info->cunits[uidx].valData;
-          char newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
-          assert(val->nLen <= TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE);
-          memcpy(varDataVal(newValData), val->pz, val->nLen);
-          varDataSetLen(newValData, val->nLen);
-          (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, newColData, newValData);
-          tfree(newColData);
-        }
-      }else if(info->cunits[uidx].optr == TSDB_RELATION_LIKE){
-        uint8_t  jsonType = *(char*)colData;
-        char* realData = colData + CHAR_BYTES;
-        if (jsonType != TSDB_DATA_TYPE_NCHAR){
-          (*p)[i] = false;
-        }else{
-          tVariant* val = info->cunits[uidx].valData;
-          char* newValData = calloc(val->nLen + VARSTR_HEADER_SIZE, 1);
-          memcpy(varDataVal(newValData), val->pz, val->nLen);
-          varDataSetLen(newValData, val->nLen);
-          (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, realData, newValData);
-          tfree(newValData);
-        }
-      }else{
-        (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, colData, info->cunits[uidx].valData);
-      }
+      doJsonCompare(&(info->cunits[uidx]), &(*p)[i], colData);
     }else{
       (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, colData, info->cunits[uidx].valData);
     }
@@ -3100,7 +3112,6 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t** p, SDataStat
 
   return all;
 }
-
 
 bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols) {
   SFilterInfo *info = (SFilterInfo *)pinfo;
@@ -3146,39 +3157,7 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t** p, SDataStatis *
                 (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, newColData, cunit->valData);
                 tfree(newColData);
               }else if(cunit->dataType == TSDB_DATA_TYPE_JSON){
-                if(cunit->optr == TSDB_RELATION_MATCH || cunit->optr == TSDB_RELATION_NMATCH){
-                  uint8_t  jsonType = *(char*)colData;
-                  char* realData = colData + CHAR_BYTES;
-                  if (jsonType != TSDB_DATA_TYPE_NCHAR){
-                    (*p)[i] = false;
-                  }else{
-                    char *newColData = calloc(cunit->dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
-                    int len = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), varDataVal(newColData));
-                    varDataSetLen(newColData, len);
-                    tVariant* val = cunit->valData;
-                    char newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
-                    assert(val->nLen <= TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE);
-                    memcpy(varDataVal(newValData), val->pz, val->nLen);
-                    varDataSetLen(newValData, val->nLen);
-                    (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, newColData, newValData);
-                    tfree(newColData);
-                  }
-                }else if(cunit->optr == TSDB_RELATION_LIKE){
-                  uint8_t  jsonType = *(char*)colData;
-                  char* realData = colData + CHAR_BYTES;
-                  if (jsonType != TSDB_DATA_TYPE_NCHAR){
-                    (*p)[i] = false;
-                  }else{
-                    tVariant* val = cunit->valData;
-                    char* newValData = calloc(val->nLen + VARSTR_HEADER_SIZE, 1);
-                    memcpy(varDataVal(newValData), val->pz, val->nLen);
-                    varDataSetLen(newValData, val->nLen);
-                    (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, realData, newValData);
-                    tfree(newValData);
-                  }
-                }else{
-                  (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, colData, cunit->valData);
-                }
+                doJsonCompare(cunit, &(*p)[i], colData);
               }else{
                 (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, colData, cunit->valData);
               }

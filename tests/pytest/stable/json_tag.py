@@ -146,6 +146,9 @@ class TDTestCase:
 
         # test where with json tag
         tdSql.error("select * from jsons1_1 where jtag is not null")
+        tdSql.error("select * from jsons1 where jtag='{\"tag1\":11,\"tag2\":\"\"}'")
+        tdSql.error("select * from jsons1 where jtag->'tag1'={}")
+
         # where json value is string
         tdSql.query("select * from jsons1 where jtag->'tag2'='beijing'")
         tdSql.checkRows(2)
@@ -161,6 +164,19 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query("select * from jsons1 where jtag->'tag1'='收到货'")
         tdSql.checkRows(1)
+        tdSql.query("select * from jsons1 where jtag->'tag2'>'beijing'")
+        tdSql.checkRows(1)
+        tdSql.query("select * from jsons1 where jtag->'tag2'>='beijing'")
+        tdSql.checkRows(3)
+        tdSql.query("select * from jsons1 where jtag->'tag2'<'beijing'")
+        tdSql.checkRows(2)
+        tdSql.query("select * from jsons1 where jtag->'tag2'<='beijing'")
+        tdSql.checkRows(4)
+        tdSql.query("select * from jsons1 where jtag->'tag2'!='beijing'")
+        tdSql.checkRows(3)
+        tdSql.query("select * from jsons1 where jtag->'tag2'=''")
+        tdSql.checkRows(2)
+
         # where json value is int
         tdSql.query("select * from jsons1 where jtag->'tag1'=5")
         tdSql.checkRows(1)
@@ -169,12 +185,58 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query("select * from jsons1 where jtag->'tag1'<54")
         tdSql.checkRows(3)
+        tdSql.query("select * from jsons1 where jtag->'tag1'<=11")
+        tdSql.checkRows(3)
+        tdSql.query("select * from jsons1 where jtag->'tag1'>4")
+        tdSql.checkRows(2)
+        tdSql.query("select * from jsons1 where jtag->'tag1'>=5")
+        tdSql.checkRows(2)
+        tdSql.query("select * from jsons1 where jtag->'tag1'!=5")
+        tdSql.checkRows(2)
+        tdSql.query("select * from jsons1 where jtag->'tag1'!=55")
+        tdSql.checkRows(3)
+
         # where json value is double
         tdSql.query("select * from jsons1 where jtag->'tag1'=1.232")
         tdSql.checkRows(1)
-        # where json value is null
-        tdSql.query("select * from jsons1 where jtag->'tag1'=null")
+        tdSql.query("select * from jsons1 where jtag->'tag1'<1.232")
+        tdSql.checkRows(0)
+        tdSql.query("select * from jsons1 where jtag->'tag1'<=1.232")
         tdSql.checkRows(1)
+        tdSql.query("select * from jsons1 where jtag->'tag1'>1.23")
+        tdSql.checkRows(3)
+        tdSql.query("select * from jsons1 where jtag->'tag1'>=1.232")
+        tdSql.checkRows(3)
+        tdSql.query("select * from jsons1 where jtag->'tag1'!=1.232")
+        tdSql.checkRows(2)
+        tdSql.query("select * from jsons1 where jtag->'tag1'!=3.232")
+        tdSql.checkRows(3)
+        tdSql.error("select * from jsons1 where jtag->'tag1'/0=3")
+        tdSql.error("select * from jsons1 where jtag->'tag1'/5=1")
+
+        # where json value is bool
+        tdSql.query("select * from jsons1 where jtag->'tag1'=true")
+        tdSql.checkRows(0)
+        tdSql.query("select * from jsons1 where jtag->'tag1'=false")
+        tdSql.checkRows(1)
+        tdSql.query("select * from jsons1 where jtag->'tag1'!=false")
+        tdSql.checkRows(0)
+        tdSql.error("select * from jsons1 where jtag->'tag1'>false")
+
+        # where json value is null
+        tdSql.query("select * from jsons1 where jtag->'tag1'=null")     # only json suport =null. This synatx will change later.
+        tdSql.checkRows(1)
+
+        # where json is null
+        tdSql.query("select * from jsons1 where jtag is null")
+        tdSql.checkRows(1)
+        tdSql.query("select * from jsons1 where jtag is not null")
+        tdSql.checkRows(8)
+
+        # where json key is null
+        tdSql.query("select * from jsons1 where jtag->'tag_no_exist'=3")
+        tdSql.checkRows(0)
+
         # where json value is not exist
         tdSql.query("select * from jsons1 where jtag->'tag1' is null")
         tdSql.checkData(0, 0, 'jsons1_9')
@@ -184,55 +246,42 @@ class TDTestCase:
         tdSql.query("select * from jsons1 where jtag->'tag3' is not null")
         tdSql.checkRows(4)
 
-
-        # test json tag in where condition with and/or/?
-        tdSql.query("select * from jsons1 where jtag->'location'!='beijing'")
-        tdSql.checkRows(1)
-
-        tdSql.query("select jtag->'num' from jsons1 where jtag->'level'='l1'")
-        tdSql.checkData(0, 0, 34)
-
-        # test json number value
-        tdSql.query("select *,tbname from jsons1 where jtag->'class'>5 and jtag->'class'<9")
+        # test ?
+        tdSql.query("select * from jsons1 where jtag?'tag1'")
+        tdSql.checkRows(8)
+        tdSql.query("select * from jsons1 where jtag?'tag3'")
+        tdSql.checkRows(4)
+        tdSql.query("select * from jsons1 where jtag?'tag_no_exist'")
         tdSql.checkRows(0)
 
-        tdSql.query("select *,tbname from jsons1 where jtag->'class'>5 and jtag->'class'<92")
+        # test json tag in where condition with and/or
+        tdSql.query("select * from jsons1 where jtag->'tag1'=false and jtag->'tag2'='beijing'")
         tdSql.checkRows(1)
-
-        # test where condition
-        tdSql.query("select * from jsons1 where jtag?'sex' or jtag?'num'")
-        tdSql.checkRows(3)
-
-        tdSql.query("select * from jsons1 where jtag?'sex' or jtag?'numww'")
-        tdSql.checkRows(1)
-
-        tdSql.query("select * from jsons1 where jtag?'sex' and jtag?'num'")
+        tdSql.query("select * from jsons1 where jtag->'tag1'=false or jtag->'tag2'='beijing'")
+        tdSql.checkRows(2)
+        tdSql.query("select * from jsons1 where jtag->'tag1'=false and jtag->'tag2'='shanghai'")
         tdSql.checkRows(0)
-
-        tdSql.query("select jtag->'sex' from jsons1 where jtag?'sex' or jtag?'num'")
-        tdSql.checkRows(3)
-
-        tdSql.query("select *,tbname from jsons1 where jtag->'location'='beijing'")
+        tdSql.query("select * from jsons1 where jtag->'tag1'=false and jtag->'tag2'='shanghai'")
+        tdSql.checkRows(0)
+        tdSql.query("select * from jsons1 where jtag->'tag1'=13 or jtag->'tag2'>35")
+        tdSql.checkRows(0)
+        tdSql.query("select * from jsons1 where jtag->'tag1'=13 or jtag->'tag2'>35")
+        tdSql.checkRows(0)
+        tdSql.query("select * from jsons1 where jtag->'tag1' is not null and jtag?'tag3'")
+        tdSql.checkRows(4)
+        tdSql.query("select * from jsons1 where jtag->'tag1'='femail' and jtag?'tag3'")
         tdSql.checkRows(2)
 
-        tdSql.query("select *,tbname from jsons1 where jtag->'num'=5 or jtag?'sex'")
-        tdSql.checkRows(2)
-
-        tdSql.query("select *,tbname from jsons1 where jtag->'num'=5")
-        tdSql.checkRows(1)
-
-        # test with tbname
+        # test with tbname/normal cloumn
         tdSql.query("select * from jsons1 where tbname = 'jsons1_1'")
+        tdSql.checkRows(2)
+        tdSql.query("select * from jsons1 where tbname = 'jsons1_1' and jtag?'tag3'")
+        tdSql.checkRows(2)
+        tdSql.query("select * from jsons1 where tbname = 'jsons1_1' and jtag?'tag3' and dataint=3")
+        tdSql.checkRows(0)
+        tdSql.query("select * from jsons1 where tbname = 'jsons1_1' and jtag?'tag3' and dataint=23")
         tdSql.checkRows(1)
 
-        tdSql.query("select * from jsons1 where tbname = 'jsons1_1' or jtag?'num'")
-        tdSql.checkRows(3)
-
-        tdSql.query("select * from jsons1 where tbname = 'jsons1_1' and jtag?'num'")
-        tdSql.checkRows(0)
-
-        tdSql.query("select * from jsons1 where tbname = 'jsons1_1' or jtag->'num'=5")
-        tdSql.checkRows(2)
 
         # test where condition like
         tdSql.query("select *,tbname from jsons1 where jtag->'location' like 'bei%'")
@@ -298,11 +347,7 @@ class TDTestCase:
         tdSql.query("select jtag from jsons1 where jtag->'k2'=true")
         tdSql.checkRows(1)
 
-        tdSql.query("select jtag from jsons1 where jtag is null")
-        tdSql.checkRows(4)
 
-        tdSql.query("select jtag from jsons1 where jtag is not null")
-        tdSql.checkRows(6)
 
         tdSql.query("select * from jsons1 where jtag->'location' is not null")
         tdSql.checkRows(3)

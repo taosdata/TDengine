@@ -4979,8 +4979,9 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       tSqlExpr *rexpr = NULL;
       if ((*pExpr)->tokenId == TK_NE && (pSchema->type != TSDB_DATA_TYPE_BINARY
                                          && pSchema->type != TSDB_DATA_TYPE_NCHAR
-                                         && pSchema->type != TSDB_DATA_TYPE_BOOL)) {
-        handleNeOptr(&rexpr, *pExpr);     //todo json check
+                                         && pSchema->type != TSDB_DATA_TYPE_BOOL
+                                         && pSchema->type != TSDB_DATA_TYPE_JSON)) {
+        handleNeOptr(&rexpr, *pExpr);
         *pExpr = rexpr;
       }
       
@@ -9907,7 +9908,10 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
     // NOTE: binary|nchar data allows the >|< type filter
     if ((*pExpr)->_node.optr != TSDB_RELATION_EQUAL && (*pExpr)->_node.optr != TSDB_RELATION_NOT_EQUAL) {
       if (pRight != NULL && pRight->nodeType == TSQL_NODE_VALUE) {
-        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL && pLeft->pSchema->type == TSDB_DATA_TYPE_BOOL) {
+        if (pLeft->_node.optr == TSDB_RELATION_ARROW){
+          pLeft = pLeft->_node.pLeft;
+        }
+        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL && (pLeft->pSchema->type == TSDB_DATA_TYPE_BOOL || pLeft->pSchema->type == TSDB_DATA_TYPE_JSON)) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
       }
