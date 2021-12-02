@@ -40,12 +40,12 @@
 
 - **调整数据收集器配置**
 
-在TDengine 2.3版本中，我们发布了taosAdapter ，作为兼容 Influxdb 的 Line Protocol 和 OpenTSDB 的 telnet/JSON 写入协议规范的独立程序，提供丰富的数据接入能力，它可以有效的节省用户迁移成本，降低用户迁移改造的难度。
+ 在TDengine 2.3版本中，我们发布了taosAdapter ，taosAdapter 是一个无状态、可快速弹性伸缩的组件，它可以兼容 Influxdb 的 Line Protocol 和 OpenTSDB 的 telnet/JSON 写入协议规范，提供了丰富的数据接入能力，有效的节省用户迁移成本，降低用户应用迁移的难度。
 
-通过taosAdapter，用户可以将 collectd 和 StatsD 收集的数据直接推送到TDengine ，实现应用场景的无缝迁移，非常的轻松便捷。
-taosAdapter还支持Telegraf、Icinga、TCollector 、node_exporter的数据接入，使用详情参考[taosAdapter](https://github.com/taosdata/taosAdapter/blob/develop/README-CN.md)。
+用户可以根据需求弹性部署 taosAdapter 实例，结合场景的需要，快速提升数据写入的吞吐量，为不同应用场景下的数据写入提供保障。
 
-可以通过启动多个taosAdapter实例，可以进一步拓展taosAdapter的数据接入能力，为不同场景下的数据写入提供保障。
+通过taosAdapter，用户可以将 collectd 和 StatsD 收集的数据直接推送到TDengine ，实现应用场景的无缝迁移，非常的轻松便捷。taosAdapter还支持Telegraf、Icinga、TCollector 、node_exporter的数据接入，使用详情参考[taosAdapter](https://www.taosdata.com/cn/documentation/tools/adapter)。
+
 
 如果使用 collectd，修改其默认位置 `/etc/collectd/collectd.conf` 的配置文件为指向 taosAdapter 部署的节点 IP 地址和端口。假设 taosAdapter 的 IP 地址为192.168.1.130，端口为 6046，配置如下：
 
@@ -122,7 +122,7 @@ TDengine 当前只支持 Grafana 的可视化看板呈现，所以如果你的�
 | 1    | memory         | value  | double | host | memory_type | memory_type_instance | source    |        |
 | 2    | swap           | value  | double | host | swap_type   | swap_type_instance   | source    |        |
 | 3    | disk           | value  | double | host | disk_point  | disk_instance        | disk_type | source |
-（注： 测试数据源自单节点Intel(R)Core(TM)i7-10700 CPU@2.90GHz 16核64G硬件设备，channel和batchSize 分别为8和1000，每条记录包含10个tag）
+
 
 
 TDengine 要求存储的数据具有数据模式，即写入数据之前需创建超级表并指定超级表的模式。对于数据模式的建立，你有两种方式来完成此项工作：1）充分利用TDengine对 OpenTSDB 的数据原生写入的支持，调用 TDengine 提供的 API 将（文本行或 JSON 格式）数据写入，并自动化地建立单值模型。采用这种方式不需要对数据写入应用进行较大的调整，也不需要对写入的数据格式进行转换。
@@ -183,7 +183,7 @@ TDengine支持标准的JDBC 3.0接口操纵数据库，你也可以使用其他�
 
 DataX 具体的使用方式及如何使用DataX将数据写入TDengine请参见[基于DataX的TDeninge数据迁移工具](https://www.taosdata.com/blog/2021/10/26/3156.html)。 
 
-在对DataX进行迁移实践后，我们发现，在合理的设置channel 和 batchSize参数的基础上 ，通过使用多个进程，同时迁移多个metric 的方式，可以大幅度的提高迁移历史数据的效率，下面是迁移过程中的部分记录，希望这些能为应用迁移工作带来参考。
+在对DataX进行迁移实践后，我们发现通过启动多个进程，同时迁移多个metric 的方式，可以大幅度的提高迁移历史数据的效率，下面是迁移过程中的部分记录，希望这些能为应用迁移工作带来参考。
 | datax实例个数 (并发进程个数) | 迁移记录速度 （条/秒) | 
 | ---- | -------------- | 
 | 1    | 约13.9万        | 
