@@ -119,8 +119,8 @@ TDengine 当前只支持 Grafana 的可视化看板呈现，所以如果你的�
 
 | 序号 | 测量（metric） | 值名称 | 类型   | tag1 | tag2        | tag3                 | tag4      | tag5   |
 | ---- | -------------- | ------ | ------ | ---- | ----------- | -------------------- | --------- | ------ |
-| 1    | memory         | value  | double | host | memory_type | memory_type_instance | source    |        |
-| 2    | swap           | value  | double | host | swap_type   | swap_type_instance   | source    |        |
+| 1    | memory         | value  | double | host | memory_type | memory_type_instance | source    |   n/a     |
+| 2    | swap           | value  | double | host | swap_type   | swap_type_instance   | source    |      n/a  |
 | 3    | disk           | value  | double | host | disk_point  | disk_instance        | disk_type | source |
 
 
