@@ -47,7 +47,12 @@ void metaCloseIdx(SMeta *pMeta) { /* TODO */
   }
 }
 
-int metaSaveTableToIdx(SMeta *pMeta, const STbOptions *pTbOptions) {
+int metaSaveTableToIdx(SMeta *pMeta, const STbCfg *pTbOptions) {
+  // TODO
+  return 0;
+}
+
+int metaRemoveTableFromIdx(SMeta *pMeta, tb_uid_t uid) {
   // TODO
   return 0;
 }

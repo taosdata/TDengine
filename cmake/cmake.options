@@ -20,6 +20,18 @@ option(
 )
 
 option(
+    BUILD_WITH_SQLITE
+    "If build with sqlite" 
+    ON
+)
+
+option(
+    BUILD_WITH_BDB 
+    "If build with BerkleyDB" 
+    ON
+)
+
+option(
     BUILD_WITH_LUCENE 
     "If build with lucene" 
     off 
@@ -34,7 +46,7 @@ option(
 option(
     BUILD_DEPENDENCY_TESTS 
     "If build dependency tests" 
-    OFF
+    ON
 )
 
 option(

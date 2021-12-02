@@ -20,12 +20,14 @@
 #include "sync.h"
 #include "tlockfree.h"
 #include "wal.h"
+#include "tcoding.h"
 
 #include "vnode.h"
 #include "vnodeBufferPool.h"
+#include "vnodeCfg.h"
 #include "vnodeCommit.h"
-#include "vnodeFileSystem.h"
-#include "vnodeOptions.h"
+#include "vnodeFS.h"
+#include "vnodeRequest.h"
 #include "vnodeStateMgr.h"
 #include "vnodeSync.h"
 
@@ -34,16 +36,16 @@ extern "C" {
 #endif
 
 struct SVnode {
-  char*         path;
-  SVnodeOptions options;
-  SVState       state;
-  SVBufPool*    pBufPool;
-  SMeta*        pMeta;
-  STsdb*        pTsdb;
-  STQ*          pTq;
-  SWal*         pWal;
-  SVnodeSync*   pSync;
-  SVnodeFS*     pFs;
+  char*       path;
+  SVnodeCfg   config;
+  SVState     state;
+  SVBufPool*  pBufPool;
+  SMeta*      pMeta;
+  STsdb*      pTsdb;
+  STQ*        pTq;
+  SWal*       pWal;
+  SVnodeSync* pSync;
+  SVnodeFS*   pFs;
 };
 
 #ifdef __cplusplus

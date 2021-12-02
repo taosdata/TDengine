@@ -25,8 +25,9 @@ extern "C" {
 
 typedef struct SVBufPool SVBufPool;
 
-int  vnodeOpenBufPool(SVnode *pVnode);
-void vnodeCloseBufPool(SVnode *pVnode);
+int   vnodeOpenBufPool(SVnode *pVnode);
+void  vnodeCloseBufPool(SVnode *pVnode);
+void *vnodeMalloc(SVnode *pVnode, uint64_t size);
 
 #ifdef __cplusplus
 }

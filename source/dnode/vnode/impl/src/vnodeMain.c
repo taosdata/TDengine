@@ -15,27 +15,40 @@
 
 #include "vnodeDef.h"
 
-static SVnode *vnodeNew(const char *path, const SVnodeOptions *pVnodeOptions);
+static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg);
 static void    vnodeFree(SVnode *pVnode);
 static int     vnodeOpenImpl(SVnode *pVnode);
 static void    vnodeCloseImpl(SVnode *pVnode);
 
-SVnode *vnodeOpen(const char *path, const SVnodeOptions *pVnodeOptions) {
+int vnodeInit() {
+  // TODO
+  if (walInit() < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+void vnodeClear() {
+  walCleanUp();
+}
+
+SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
   SVnode *pVnode = NULL;
 
   // Set default options
-  if (pVnodeOptions == NULL) {
-    pVnodeOptions = &defaultVnodeOptions;
+  if (pVnodeCfg == NULL) {
+    pVnodeCfg = &defaultVnodeOptions;
   }
 
   // Validate options
-  if (vnodeValidateOptions(pVnodeOptions) < 0) {
+  if (vnodeValidateOptions(pVnodeCfg) < 0) {
     // TODO
     return NULL;
   }
 
   // Create the handle
-  pVnode = vnodeNew(path, pVnodeOptions);
+  pVnode = vnodeNew(path, pVnodeCfg);
   if (pVnode == NULL) {
     // TODO: handle error
     return NULL;
@@ -62,7 +75,7 @@ void vnodeClose(SVnode *pVnode) {
 void vnodeDestroy(const char *path) { taosRemoveDir(path); }
 
 /* ------------------------ STATIC METHODS ------------------------ */
-static SVnode *vnodeNew(const char *path, const SVnodeOptions *pVnodeOptions) {
+static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg) {
   SVnode *pVnode = NULL;
 
   pVnode = (SVnode *)calloc(1, sizeof(*pVnode));
@@ -72,7 +85,7 @@ static SVnode *vnodeNew(const char *path, const SVnodeOptions *pVnodeOptions) {
   }
 
   pVnode->path = strdup(path);
-  vnodeOptionsCopy(&(pVnode->options), pVnodeOptions);
+  vnodeOptionsCopy(&(pVnode->config), pVnodeCfg);
 
   return pVnode;
 }
@@ -94,7 +107,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open meta
   sprintf(dir, "%s/meta", pVnode->path);
-  pVnode->pMeta = metaOpen(dir, &(pVnode->options.metaOptions));
+  pVnode->pMeta = metaOpen(dir, &(pVnode->config.metaCfg));
   if (pVnode->pMeta == NULL) {
     // TODO: handle error
     return -1;
@@ -102,23 +115,23 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open tsdb
   sprintf(dir, "%s/tsdb", pVnode->path);
-  pVnode->pTsdb = tsdbOpen(dir, &(pVnode->options.tsdbOptions));
+  pVnode->pTsdb = tsdbOpen(dir, &(pVnode->config.tsdbCfg));
   if (pVnode->pTsdb == NULL) {
     // TODO: handle error
     return -1;
   }
 
   // TODO: Open TQ
-  sprintf(dir, "%s/wal", pVnode->path);
-  // pVnode->pTq = tqOpen(dir, NULL /* TODO */);
-  // if (pVnode->pTq == NULL) {
-  //   // TODO: handle error
-  //   return -1;
-  // }
+  sprintf(dir, "%s/tq", pVnode->path);
+  pVnode->pTq = tqOpen(dir, &(pVnode->config.tqCfg), NULL, NULL);
+  if (pVnode->pTq == NULL) {
+    // TODO: handle error
+    return -1;
+  }
 
   // Open WAL
   sprintf(dir, "%s/wal", pVnode->path);
-  pVnode->pWal = walOpen(dir, NULL /* TODO */);
+  pVnode->pWal = walOpen(dir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
     // TODO: handle error
     return -1;

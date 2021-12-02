@@ -16,23 +16,15 @@
 #ifndef _TD_VNODE_REQUEST_H_
 #define _TD_VNODE_REQUEST_H_
 
+#include "vnode.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SVnodeReq SVnodeReq;
-typedef struct SVnodeRsp SVnodeRsp;
-
-typedef enum {
-} EVReqT;
-
-struct SVnodeReq {
-  /* TODO */
-};
-
-struct SVnodeRsp {
-  /* TODO */
-};
+// SVDropTableReq
+int   vnodeBuildDropTableReq(void **buf, const SVDropTableReq *pReq);
+void *vnodeParseDropTableReq(void *buf, SVDropTableReq *pReq);
 
 #ifdef __cplusplus
 }

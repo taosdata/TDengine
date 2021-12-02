@@ -12,23 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#include "metaDef.h"
-
-const SMetaOptions defaultMetaOptions = {.lruCacheSize = 0};
-
-/* ------------------------ EXPOSED METHODS ------------------------ */
-void metaOptionsInit(SMetaOptions *pMetaOptions) { metaOptionsCopy(pMetaOptions, &defaultMetaOptions); }
-
-void metaOptionsClear(SMetaOptions *pMetaOptions) {
-  // TODO
-}
-
-int metaValidateOptions(const SMetaOptions *pMetaOptions) {
-  // TODO
-  return 0;
-}
-
-void metaOptionsCopy(SMetaOptions *pDest, const SMetaOptions *pSrc) { memcpy(pDest, pSrc, sizeof(*pSrc)); }
-
-/* ------------------------ STATIC METHODS ------------------------ */

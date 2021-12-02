@@ -34,7 +34,7 @@ typedef struct {
 
 int  metaOpenDB(SMeta *pMeta);
 void metaCloseDB(SMeta *pMeta);
-int  metaSaveTableToDB(SMeta *pMeta, const STbOptions *pTbOptions);
+int  metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions);
 int  metaRemoveTableFromDb(SMeta *pMeta, tb_uid_t uid);
 
 #ifdef __cplusplus

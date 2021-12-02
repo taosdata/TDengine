@@ -20,10 +20,10 @@
 
 #include "meta.h"
 #include "metaCache.h"
+#include "metaCfg.h"
 #include "metaDB.h"
 #include "metaIdx.h"
-#include "metaOptions.h"
-#include "metaTbOptions.h"
+#include "metaTbCfg.h"
 #include "metaTbTag.h"
 #include "metaTbUid.h"
 
@@ -33,7 +33,7 @@ extern "C" {
 
 struct SMeta {
   char*                 path;
-  SMetaOptions          options;
+  SMetaCfg              options;
   meta_db_t*            pDB;
   meta_index_t*         pIdx;
   meta_cache_t*         pCache;

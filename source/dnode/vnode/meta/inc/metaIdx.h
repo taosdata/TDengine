@@ -28,7 +28,7 @@ typedef rocksdb_t meta_index_t;
 
 int  metaOpenIdx(SMeta *pMeta);
 void metaCloseIdx(SMeta *pMeta);
-int  metaSaveTableToIdx(SMeta *pMeta, const STbOptions *pTbOptions);
+int  metaSaveTableToIdx(SMeta *pMeta, const STbCfg *pTbOptions);
 int  metaRemoveTableFromIdx(SMeta *pMeta, tb_uid_t uid);
 
 #ifdef __cplusplus

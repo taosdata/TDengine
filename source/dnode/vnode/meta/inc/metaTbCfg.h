@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_META_TABLE_OPTIONS_H_
-#define _TD_META_TABLE_OPTIONS_H_
+#ifndef _TD_META_TABLE_CFG_H_
+#define _TD_META_TABLE_CFG_H_
 
 #include "meta.h"
 
@@ -22,11 +22,15 @@
 extern "C" {
 #endif
 
-int    metaValidateTbOptions(SMeta *pMeta, const STbOptions *);
-size_t metaEncodeTbObjFromTbOptions(const STbOptions *, void *pBuf, size_t bsize);
+#define META_SUPER_TABLE 0
+#define META_CHILD_TABLE 1
+#define META_NORMAL_TABLE 2
+
+int    metaValidateTbOptions(SMeta *pMeta, const STbCfg *);
+size_t metaEncodeTbObjFromTbOptions(const STbCfg *, void *pBuf, size_t bsize);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_META_TABLE_OPTIONS_H_*/
+#endif /*_TD_META_TABLE_CFG_H_*/
