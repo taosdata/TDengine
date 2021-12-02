@@ -9,8 +9,7 @@ import java.util.Random;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class RestfulJDBCTest {
 
-//    private static final String host = "127.0.0.1";
-    private static final String host = "master";
+    private static final String host = "127.0.0.1";
     private static final Random random = new Random(System.currentTimeMillis());
     private static Connection connection;
 
