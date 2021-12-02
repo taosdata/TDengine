@@ -17,8 +17,7 @@ import java.text.SimpleDateFormat;
 
 public class RestfulResultSetTest {
 
-    //    private static final String host = "127.0.0.1";
-    private static final String host = "master";
+    private static final String host = "127.0.0.1";
     private static Connection conn;
     private static Statement stmt;
     private static ResultSet rs;
@@ -676,7 +675,7 @@ public class RestfulResultSetTest {
     public static void afterClass() throws SQLException {
         if (rs != null)
             rs.close();
-        if (stmt != null){
+        if (stmt != null) {
             stmt.execute("drop database if exists restful_test");
             stmt.close();
         }
