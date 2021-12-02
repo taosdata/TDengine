@@ -130,43 +130,43 @@ static int32_t dndReadMnodeFile(SDnode *pDnode) {
   }
 
   cJSON *deployed = cJSON_GetObjectItem(root, "deployed");
-  if (!deployed || deployed->type != cJSON_String) {
+  if (!deployed || deployed->type != cJSON_Number) {
     dError("failed to read %s since deployed not found", pMgmt->file);
     goto PRASE_MNODE_OVER;
   }
-  pMgmt->deployed = atoi(deployed->valuestring);
+  pMgmt->deployed = deployed->valueint;
 
   cJSON *dropped = cJSON_GetObjectItem(root, "dropped");
-  if (!dropped || dropped->type != cJSON_String) {
+  if (!dropped || dropped->type != cJSON_Number) {
     dError("failed to read %s since dropped not found", pMgmt->file);
     goto PRASE_MNODE_OVER;
   }
-  pMgmt->dropped = atoi(dropped->valuestring);
+  pMgmt->dropped = dropped->valueint;
 
-  cJSON *nodes = cJSON_GetObjectItem(root, "nodes");
-  if (!nodes || nodes->type != cJSON_Array) {
+  cJSON *mnodes = cJSON_GetObjectItem(root, "mnodes");
+  if (!mnodes || mnodes->type != cJSON_Array) {
     dError("failed to read %s since nodes not found", pMgmt->file);
     goto PRASE_MNODE_OVER;
   }
 
-  pMgmt->replica = cJSON_GetArraySize(nodes);
+  pMgmt->replica = cJSON_GetArraySize(mnodes);
   if (pMgmt->replica <= 0 || pMgmt->replica > TSDB_MAX_REPLICA) {
-    dError("failed to read %s since nodes size %d invalid", pMgmt->file, pMgmt->replica);
+    dError("failed to read %s since mnodes size %d invalid", pMgmt->file, pMgmt->replica);
     goto PRASE_MNODE_OVER;
   }
 
   for (int32_t i = 0; i < pMgmt->replica; ++i) {
-    cJSON *node = cJSON_GetArrayItem(nodes, i);
+    cJSON *node = cJSON_GetArrayItem(mnodes, i);
     if (node == NULL) break;
 
     SReplica *pReplica = &pMgmt->replicas[i];
 
     cJSON *id = cJSON_GetObjectItem(node, "id");
-    if (!id || id->type != cJSON_String || id->valuestring == NULL) {
+    if (!id || id->type != cJSON_Number) {
       dError("failed to read %s since id not found", pMgmt->file);
       goto PRASE_MNODE_OVER;
     }
-    pReplica->id = atoi(id->valuestring);
+    pReplica->id = id->valueint;
 
     cJSON *fqdn = cJSON_GetObjectItem(node, "fqdn");
     if (!fqdn || fqdn->type != cJSON_String || fqdn->valuestring == NULL) {
@@ -176,11 +176,11 @@ static int32_t dndReadMnodeFile(SDnode *pDnode) {
     tstrncpy(pReplica->fqdn, fqdn->valuestring, TSDB_FQDN_LEN);
 
     cJSON *port = cJSON_GetObjectItem(node, "port");
-    if (!port || port->type != cJSON_String || port->valuestring == NULL) {
+    if (!port || port->type != cJSON_Number) {
       dError("failed to read %s since port not found", pMgmt->file);
       goto PRASE_MNODE_OVER;
     }
-    pReplica->port = atoi(port->valuestring);
+    pReplica->port = port->valueint;
   }
 
   code = 0;
@@ -213,15 +213,15 @@ static int32_t dndWriteMnodeFile(SDnode *pDnode) {
   char   *content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"deployed\": \"%d\",\n", pMgmt->deployed);
+  len += snprintf(content + len, maxLen - len, "  \"deployed\": %d,\n", pMgmt->deployed);
 
-  len += snprintf(content + len, maxLen - len, "  \"dropped\": \"%d\",\n", pMgmt->dropped);
-  len += snprintf(content + len, maxLen - len, "  \"nodes\": [{\n");
+  len += snprintf(content + len, maxLen - len, "  \"dropped\": %d,\n", pMgmt->dropped);
+  len += snprintf(content + len, maxLen - len, "  \"mnodes\": [{\n");
   for (int32_t i = 0; i < pMgmt->replica; ++i) {
     SReplica *pReplica = &pMgmt->replicas[i];
-    len += snprintf(content + len, maxLen - len, "    \"id\": \"%d\",\n", pReplica->id);
+    len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pReplica->id);
     len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pReplica->fqdn);
-    len += snprintf(content + len, maxLen - len, "    \"port\": \"%u\"\n", pReplica->port);
+    len += snprintf(content + len, maxLen - len, "    \"port\": %u\n", pReplica->port);
     if (i < pMgmt->replica - 1) {
       len += snprintf(content + len, maxLen - len, "  },{\n");
     } else {

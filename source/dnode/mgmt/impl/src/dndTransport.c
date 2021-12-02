@@ -140,13 +140,13 @@ static void dndProcessResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   DndMsgFp fp = pMgmt->msgFp[msgType];
   if (fp != NULL) {
-    dTrace("RPC %p, rsp:%s app:%p will be processed, result:%s", pMsg->handle, taosMsg[msgType], pMsg->ahandle,
-           tstrerror(pMsg->code));
     (*fp)(pDnode, pMsg, pEpSet);
+    dTrace("RPC %p, rsp:%s app:%p is processed, code:0x%0X", pMsg->handle, taosMsg[msgType], pMsg->ahandle,
+           pMsg->code & 0XFFFF);
   } else {
     dError("RPC %p, rsp:%s app:%p not processed", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
-    rpcFreeCont(pMsg->pCont);
   }
+  rpcFreeCont(pMsg->pCont);
 }
 
 static int32_t dndInitClient(SDnode *pDnode) {

@@ -83,6 +83,7 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
     mDebug("cluster:%d, uid is %s", clusterObj.id, clusterObj.uid);
   }
   clusterObj.id = MurmurHash3_32(clusterObj.uid, TSDB_CLUSTER_ID_LEN);
+  clusterObj.id = abs(clusterObj.id);
   pMnode->clusterId = clusterObj.id;
 
   SSdbRaw *pRaw = mndClusterActionEncode(&clusterObj);

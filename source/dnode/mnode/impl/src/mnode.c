@@ -213,7 +213,7 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   if (pMnode->sendMsgToDnodeFp == NULL || pMnode->sendMsgToMnodeFp == NULL || pMnode->sendRedirectMsgFp == NULL ||
       pMnode->putMsgToApplyMsgFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0 ||
       pMnode->statusInterval < 1 || pOption->mnodeEqualVnodeNum < 0) {
-    terrno = TSDB_CODE_MND_APP_ERROR;
+    terrno = TSDB_CODE_MND_INVALID_OPTIONS;
     return -1;
   }
 
@@ -245,7 +245,8 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   int32_t code = mnodeCreateDir(pMnode, path);
   if (code != 0) {
-    mError("failed to open mnode since %s", tstrerror(code));
+    code = terrno;
+    mError("failed to open mnode since %s", terrstr());
     mndClose(pMnode);
     terrno = code;
     return NULL;
@@ -253,7 +254,8 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   code = mndSetOptions(pMnode, pOption);
   if (code != 0) {
-    mError("failed to open mnode since %s", tstrerror(code));
+    code = terrno;
+    mError("failed to open mnode since %s", terrstr());
     mndClose(pMnode);
     terrno = code;
     return NULL;
@@ -261,7 +263,8 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   code = mndInitSteps(pMnode);
   if (code != 0) {
-    mError("failed to open mnode since %s", tstrerror(code));
+    code = terrno;
+    mError("failed to open mnode since %s", terrstr());
     mndClose(pMnode);
     terrno = code;
     return NULL;
@@ -269,7 +272,8 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   code = mndExecSteps(pMnode);
   if (code != 0) {
-    mError("failed to open mnode since %s", tstrerror(code));
+    code = terrno;
+    mError("failed to open mnode since %s", terrstr());
     mndClose(pMnode);
     terrno = code;
     return NULL;

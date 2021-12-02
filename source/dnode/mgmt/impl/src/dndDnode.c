@@ -190,78 +190,78 @@ static int32_t dndReadDnodes(SDnode *pDnode) {
   }
 
   cJSON *dnodeId = cJSON_GetObjectItem(root, "dnodeId");
-  if (!dnodeId || dnodeId->type != cJSON_String) {
+  if (!dnodeId || dnodeId->type != cJSON_Number) {
     dError("failed to read %s since dnodeId not found", pMgmt->file);
     goto PRASE_DNODE_OVER;
   }
-  pMgmt->dnodeId = atoi(dnodeId->valuestring);
+  pMgmt->dnodeId = dnodeId->valueint;
 
   cJSON *clusterId = cJSON_GetObjectItem(root, "clusterId");
-  if (!clusterId || clusterId->type != cJSON_String) {
+  if (!clusterId || clusterId->type != cJSON_Number) {
     dError("failed to read %s since clusterId not found", pMgmt->file);
     goto PRASE_DNODE_OVER;
   }
-  pMgmt->clusterId = atol(clusterId->valuestring);
+  pMgmt->clusterId = clusterId->valueint;
 
   cJSON *dropped = cJSON_GetObjectItem(root, "dropped");
-  if (!dropped || dropped->type != cJSON_String) {
+  if (!dropped || dropped->type != cJSON_Number) {
     dError("failed to read %s since dropped not found", pMgmt->file);
     goto PRASE_DNODE_OVER;
   }
-  pMgmt->dropped = atoi(dropped->valuestring);
+  pMgmt->dropped = dropped->valueint;
 
-  cJSON *dnodeInfos = cJSON_GetObjectItem(root, "dnodeInfos");
-  if (!dnodeInfos || dnodeInfos->type != cJSON_Array) {
-    dError("failed to read %s since dnodeInfos not found", pMgmt->file);
+  cJSON *dnodes = cJSON_GetObjectItem(root, "dnodes");
+  if (!dnodes || dnodes->type != cJSON_Array) {
+    dError("failed to read %s since dnodes not found", pMgmt->file);
     goto PRASE_DNODE_OVER;
   }
 
-  int32_t dnodeInfosSize = cJSON_GetArraySize(dnodeInfos);
-  if (dnodeInfosSize <= 0) {
-    dError("failed to read %s since dnodeInfos size:%d invalid", pMgmt->file, dnodeInfosSize);
+  int32_t numOfNodes = cJSON_GetArraySize(dnodes);
+  if (numOfNodes <= 0) {
+    dError("failed to read %s since numOfNodes:%d invalid", pMgmt->file, numOfNodes);
     goto PRASE_DNODE_OVER;
   }
 
-  pMgmt->dnodeEps = calloc(1, dnodeInfosSize * sizeof(SDnodeEp) + sizeof(SDnodeEps));
+  pMgmt->dnodeEps = calloc(1, numOfNodes * sizeof(SDnodeEp) + sizeof(SDnodeEps));
   if (pMgmt->dnodeEps == NULL) {
     dError("failed to calloc dnodeEpList since %s", strerror(errno));
     goto PRASE_DNODE_OVER;
   }
-  pMgmt->dnodeEps->num = dnodeInfosSize;
+  pMgmt->dnodeEps->num = numOfNodes;
 
-  for (int32_t i = 0; i < dnodeInfosSize; ++i) {
-    cJSON *dnodeInfo = cJSON_GetArrayItem(dnodeInfos, i);
-    if (dnodeInfo == NULL) break;
+  for (int32_t i = 0; i < numOfNodes; ++i) {
+    cJSON *node = cJSON_GetArrayItem(dnodes, i);
+    if (node == NULL) break;
 
     SDnodeEp *pDnodeEp = &pMgmt->dnodeEps->eps[i];
 
-    cJSON *dnodeId = cJSON_GetObjectItem(dnodeInfo, "dnodeId");
-    if (!dnodeId || dnodeId->type != cJSON_String) {
+    cJSON *dnodeId = cJSON_GetObjectItem(node, "id");
+    if (!dnodeId || dnodeId->type != cJSON_Number) {
       dError("failed to read %s, dnodeId not found", pMgmt->file);
       goto PRASE_DNODE_OVER;
     }
-    pDnodeEp->id = atoi(dnodeId->valuestring);
+    pDnodeEp->id = dnodeId->valueint;
 
-    cJSON *isMnode = cJSON_GetObjectItem(dnodeInfo, "isMnode");
-    if (!isMnode || isMnode->type != cJSON_String) {
-      dError("failed to read %s, isMnode not found", pMgmt->file);
-      goto PRASE_DNODE_OVER;
-    }
-    pDnodeEp->isMnode = atoi(isMnode->valuestring);
-
-    cJSON *dnodeFqdn = cJSON_GetObjectItem(dnodeInfo, "dnodeFqdn");
+    cJSON *dnodeFqdn = cJSON_GetObjectItem(node, "fqdn");
     if (!dnodeFqdn || dnodeFqdn->type != cJSON_String || dnodeFqdn->valuestring == NULL) {
       dError("failed to read %s, dnodeFqdn not found", pMgmt->file);
       goto PRASE_DNODE_OVER;
     }
     tstrncpy(pDnodeEp->fqdn, dnodeFqdn->valuestring, TSDB_FQDN_LEN);
 
-    cJSON *dnodePort = cJSON_GetObjectItem(dnodeInfo, "dnodePort");
-    if (!dnodePort || dnodePort->type != cJSON_String) {
+    cJSON *dnodePort = cJSON_GetObjectItem(node, "port");
+    if (!dnodePort || dnodePort->type != cJSON_Number) {
       dError("failed to read %s, dnodePort not found", pMgmt->file);
       goto PRASE_DNODE_OVER;
     }
-    pDnodeEp->port = atoi(dnodePort->valuestring);
+    pDnodeEp->port = dnodePort->valueint;
+
+    cJSON *isMnode = cJSON_GetObjectItem(node, "isMnode");
+    if (!isMnode || isMnode->type != cJSON_Number) {
+      dError("failed to read %s, isMnode not found", pMgmt->file);
+      goto PRASE_DNODE_OVER;
+    }
+    pDnodeEp->isMnode = isMnode->valueint;
   }
 
   code = 0;
@@ -307,16 +307,16 @@ static int32_t dndWriteDnodes(SDnode *pDnode) {
   char   *content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"dnodeId\": \"%d\",\n", pMgmt->dnodeId);
-  len += snprintf(content + len, maxLen - len, "  \"clusterId\": \"%d\",\n", pMgmt->clusterId);
-  len += snprintf(content + len, maxLen - len, "  \"dropped\": \"%d\",\n", pMgmt->dropped);
-  len += snprintf(content + len, maxLen - len, "  \"dnodeInfos\": [{\n");
+  len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", pMgmt->dnodeId);
+  len += snprintf(content + len, maxLen - len, "  \"clusterId\": %d,\n", pMgmt->clusterId);
+  len += snprintf(content + len, maxLen - len, "  \"dropped\": %d,\n", pMgmt->dropped);
+  len += snprintf(content + len, maxLen - len, "  \"dnodes\": [{\n");
   for (int32_t i = 0; i < pMgmt->dnodeEps->num; ++i) {
     SDnodeEp *pDnodeEp = &pMgmt->dnodeEps->eps[i];
-    len += snprintf(content + len, maxLen - len, "    \"dnodeId\": \"%d\",\n", pDnodeEp->id);
-    len += snprintf(content + len, maxLen - len, "    \"isMnode\": \"%d\",\n", pDnodeEp->isMnode);
-    len += snprintf(content + len, maxLen - len, "    \"dnodeFqdn\": \"%s\",\n", pDnodeEp->fqdn);
-    len += snprintf(content + len, maxLen - len, "    \"dnodePort\": \"%u\"\n", pDnodeEp->port);
+    len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pDnodeEp->id);
+    len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pDnodeEp->fqdn);
+    len += snprintf(content + len, maxLen - len, "    \"port\": %u,\n", pDnodeEp->port);
+    len += snprintf(content + len, maxLen - len, "    \"isMnode\": %d\n", pDnodeEp->isMnode);
     if (i < pMgmt->dnodeEps->num - 1) {
       len += snprintf(content + len, maxLen - len, "  },{\n");
     } else {
@@ -343,8 +343,6 @@ static void dndSendStatusMsg(SDnode *pDnode) {
     dError("failed to malloc status message");
     return;
   }
-
-  bool changed = false;
 
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
@@ -440,6 +438,7 @@ static void dndProcessAuthRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) { a
 static void dndProcessGrantRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) { assert(1); }
 
 static void dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pMsg) {
+  dDebug("config msg is received");
   SCfgDnodeMsg *pCfg = pMsg->pCont;
 
   int32_t code = TSDB_CODE_OPS_NOT_SUPPORT;
@@ -449,12 +448,12 @@ static void dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pMsg) {
 }
 
 static void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg) {
-  dInfo("startup msg is received");
+  dDebug("startup msg is received");
 
   SStartupMsg *pStartup = rpcMallocCont(sizeof(SStartupMsg));
   dndGetStartup(pDnode, pStartup);
 
-  dInfo("startup msg is sent, step:%s desc:%s finished:%d", pStartup->name, pStartup->desc, pStartup->finished);
+  dDebug("startup msg is sent, step:%s desc:%s finished:%d", pStartup->name, pStartup->desc, pStartup->finished);
 
   SRpcMsg rpcRsp = {.handle = pMsg->handle, .pCont = pStartup, .contLen = sizeof(SStartupMsg)};
   rpcSendResponse(&rpcRsp);

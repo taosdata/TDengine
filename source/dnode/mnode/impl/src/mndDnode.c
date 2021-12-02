@@ -175,7 +175,7 @@ static void mndGetDnodeData(SMnode *pMnode, SDnodeEps *pEps, int32_t numOfEps) {
     i++;
   }
 
-  pEps->num = i;
+  pEps->num = htonl(i);
 }
 
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
