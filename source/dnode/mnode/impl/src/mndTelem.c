@@ -203,9 +203,9 @@ static void mndSendTelemetryReport() {
     return;
   }
 
-  int64_t clusterId = mndGetClusterId(NULL);
+  int32_t clusterId = 0;
   char    clusterIdStr[20] = {0};
-  snprintf(clusterIdStr, sizeof(clusterIdStr), "%" PRId64, clusterId);
+  snprintf(clusterIdStr, sizeof(clusterIdStr), "%d", clusterId);
 
   SBufferWriter bw = tbufInitWriter(NULL, false);
   mndBeginObject(&bw);

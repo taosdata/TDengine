@@ -32,30 +32,6 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 
-int32_t mndGetDnodeId(SMnode *pMnode) {
-  if (pMnode != NULL) {
-    return pMnode->dnodeId;
-  }
-
-  return -1;
-}
-
-int64_t mndGetClusterId(SMnode *pMnode) {
-  if (pMnode != NULL) {
-    return pMnode->clusterId;
-  }
-
-  return -1;
-}
-
-tmr_h mndGetTimer(SMnode *pMnode) {
-  if (pMnode != NULL) {
-    return pMnode->timer;
-  }
-
-  return NULL;
-}
-
 void mndSendMsgToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *pMsg) {
   if (pMnode != NULL && pMnode->sendMsgToDnodeFp != NULL) {
     (*pMnode->sendMsgToDnodeFp)(pMnode->pDnode, pEpSet, pMsg);

@@ -214,7 +214,7 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
 static void mndParseStatusMsg(SStatusMsg *pStatus) {
   pStatus->sver = htonl(pStatus->sver);
   pStatus->dnodeId = htonl(pStatus->dnodeId);
-  pStatus->clusterId = htobe64(pStatus->clusterId);
+  pStatus->clusterId = htonl(pStatus->clusterId);
   pStatus->rebootTime = htonl(pStatus->rebootTime);
   pStatus->numOfCores = htons(pStatus->numOfCores);
   pStatus->numOfSupportMnodes = htons(pStatus->numOfSupportMnodes);
@@ -259,15 +259,14 @@ static int32_t mndProcessStatusMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_INVALID_MSG_VERSION;
   }
 
-  int64_t clusterId = mndGetClusterId(pMnode);
   if (pStatus->dnodeId == 0) {
-    mDebug("dnode:%d %s, first access, set clusterId %" PRId64, pDnode->id, pDnode->ep, clusterId);
+    mDebug("dnode:%d %s, first access, set clusterId %d", pDnode->id, pDnode->ep, pMnode->clusterId);
   } else {
-    if (pStatus->clusterId != clusterId) {
+    if (pStatus->clusterId != pMnode->clusterId) {
       if (pDnode != NULL && pDnode->status != DND_STATUS_READY) {
         pDnode->offlineReason = DND_REASON_CLUSTER_ID_NOT_MATCH;
       }
-      mError("dnode:%d, clusterId %" PRId64 " not match exist %" PRId64, pDnode->id, pStatus->clusterId, clusterId);
+      mError("dnode:%d, clusterId %d not match exist %d", pDnode->id, pStatus->clusterId, pMnode->clusterId);
       mndReleaseDnode(pMnode, pDnode);
       return TSDB_CODE_MND_INVALID_CLUSTER_ID;
     } else {
@@ -306,7 +305,7 @@ static int32_t mndProcessStatusMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
 
   pRsp->dnodeCfg.dnodeId = htonl(pDnode->id);
   pRsp->dnodeCfg.dropped = 0;
-  pRsp->dnodeCfg.clusterId = htobe64(clusterId);
+  pRsp->dnodeCfg.clusterId = htonl(pMnode->clusterId);
   mndGetDnodeData(pMnode, &pRsp->dnodeEps, numOfEps);
 
   pMsg->contLen = contLen;

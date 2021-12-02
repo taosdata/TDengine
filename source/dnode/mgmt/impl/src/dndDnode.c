@@ -26,10 +26,10 @@ int32_t dndGetDnodeId(SDnode *pDnode) {
   return dnodeId;
 }
 
-int64_t dndGetClusterId(SDnode *pDnode) {
+int32_t dndGetClusterId(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
-  int64_t clusterId = pMgmt->clusterId;
+  int32_t clusterId = pMgmt->clusterId;
   taosRUnLockLatch(&pMgmt->latch);
   return clusterId;
 }
@@ -201,7 +201,7 @@ static int32_t dndReadDnodes(SDnode *pDnode) {
     dError("failed to read %s since clusterId not found", pMgmt->file);
     goto PRASE_DNODE_OVER;
   }
-  pMgmt->clusterId = atoll(clusterId->valuestring);
+  pMgmt->clusterId = atol(clusterId->valuestring);
 
   cJSON *dropped = cJSON_GetObjectItem(root, "dropped");
   if (!dropped || dropped->type != cJSON_String) {
@@ -308,7 +308,7 @@ static int32_t dndWriteDnodes(SDnode *pDnode) {
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"dnodeId\": \"%d\",\n", pMgmt->dnodeId);
-  len += snprintf(content + len, maxLen - len, "  \"clusterId\": \"%" PRId64 "\",\n", pMgmt->clusterId);
+  len += snprintf(content + len, maxLen - len, "  \"clusterId\": \"%d\",\n", pMgmt->clusterId);
   len += snprintf(content + len, maxLen - len, "  \"dropped\": \"%d\",\n", pMgmt->dropped);
   len += snprintf(content + len, maxLen - len, "  \"dnodeInfos\": [{\n");
   for (int32_t i = 0; i < pMgmt->dnodeEps->num; ++i) {
@@ -350,7 +350,7 @@ static void dndSendStatusMsg(SDnode *pDnode) {
   taosRLockLatch(&pMgmt->latch);
   pStatus->sver = htonl(pDnode->opt.sver);
   pStatus->dnodeId = htonl(pMgmt->dnodeId);
-  pStatus->clusterId = htobe64(pMgmt->clusterId);
+  pStatus->clusterId = htonl(pMgmt->clusterId);
   pStatus->rebootTime = htonl(pMgmt->rebootTime);
   pStatus->numOfCores = htons(pDnode->opt.numOfCores);
   pStatus->numOfSupportMnodes = htons(pDnode->opt.numOfCores);
@@ -379,7 +379,7 @@ static void dndSendStatusMsg(SDnode *pDnode) {
 static void dndUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   if (pMgmt->dnodeId == 0 || pMgmt->dropped != pCfg->dropped) {
-    dInfo("set dnodeId:%d clusterId:%" PRId64 " dropped:%d", pCfg->dnodeId, pCfg->clusterId, pCfg->dropped);
+    dInfo("set dnodeId:%d clusterId:%d dropped:%d", pCfg->dnodeId, pCfg->clusterId, pCfg->dropped);
 
     taosWLockLatch(&pMgmt->latch);
     pMgmt->dnodeId = pCfg->dnodeId;
@@ -420,7 +420,7 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SStatusRsp *pRsp = pMsg->pCont;
   SDnodeCfg  *pCfg = &pRsp->dnodeCfg;
   pCfg->dnodeId = htonl(pCfg->dnodeId);
-  pCfg->clusterId = htobe64(pCfg->clusterId);
+  pCfg->clusterId = htonl(pCfg->clusterId);
   dndUpdateDnodeCfg(pDnode, pCfg);
 
   if (pCfg->dropped) return;

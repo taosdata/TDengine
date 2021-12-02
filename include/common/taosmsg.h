@@ -658,7 +658,7 @@ typedef struct {
 typedef struct SStatusMsg {
   int32_t     sver;
   int32_t     dnodeId;
-  int64_t     clusterId;
+  int32_t     clusterId;
   uint32_t    rebootTime;  // time stamp for last reboot
   int16_t     numOfCores;
   int16_t     numOfSupportMnodes;
@@ -671,9 +671,9 @@ typedef struct SStatusMsg {
 
 typedef struct {
   int32_t dnodeId;
+  int32_t clusterId;
   int8_t  dropped;
-  char    reserved[3];
-  int64_t clusterId;
+  char    reserved[7];
 } SDnodeCfg;
 
 typedef struct {

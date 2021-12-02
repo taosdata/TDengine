@@ -45,7 +45,7 @@ typedef struct SMnodeLoad {
 
 typedef struct {
   int32_t           dnodeId;
-  int64_t           clusterId;
+  int32_t           clusterId;
   int8_t            replica;
   int8_t            selfIndex;
   SReplica          replicas[TSDB_MAX_REPLICA];
