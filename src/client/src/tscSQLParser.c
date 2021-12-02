@@ -7930,6 +7930,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg3 = "tag value too long";
   const char* msg4 = "illegal value or data overflow";
   const char* msg5 = "tags number not matched";
+  const char* msg6 = "create table only from super table is allowed";
 
   SSqlCmd* pCmd = &pSql->cmd;
 
@@ -7975,6 +7976,10 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     code = tscGetTableMeta(pSql, pStableMetaInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
+    }
+
+    if (UTIL_TABLE_IS_NORMAL_TABLE(pStableMetaInfo)) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
     }
 
     size_t valSize = taosArrayGetSize(pValList);
