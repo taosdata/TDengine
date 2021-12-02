@@ -386,8 +386,14 @@ int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t
       }else if(!f1IsJsonNull && f2IsJsonNull) {
         return 1;
       }
-      if(*f1 != *f2) {
+
+      if(*f1 != *f2 && !(IS_NUMERIC_TYPE(*f1) && IS_NUMERIC_TYPE(*f2))) {
         return 1;
+      }
+      if(*f1 == TSDB_DATA_TYPE_BIGINT && *f2 == TSDB_DATA_TYPE_DOUBLE){
+        DEFAULT_DOUBLE_COMP(GET_INT64_VAL(f1 + CHAR_BYTES), GET_DOUBLE_VAL(f2 + CHAR_BYTES));
+      }else if(*f1 == TSDB_DATA_TYPE_DOUBLE && *f2 == TSDB_DATA_TYPE_BIGINT){
+        DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1 + CHAR_BYTES), GET_INT64_VAL(f2 + CHAR_BYTES));
       }
       type = *f1;
       f1 += CHAR_BYTES;

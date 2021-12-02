@@ -220,9 +220,6 @@ int32_t compareLenPrefixedWStrDesc(const void* pLeft, const void* pRight) {
 }
 
 int32_t compareJsonVal(const void *pLeft, const void *pRight) {
-  if(*(char*)pLeft == TSDB_DATA_TYPE_BINARY){  // json null
-    return -1;
-  }
   const tVariant* right = pRight;
   if(right->nType != *(char*)pLeft && !(IS_NUMERIC_TYPE(right->nType) && IS_NUMERIC_TYPE(*(char*)pLeft)))
     return TSDB_DATA_JSON_CAN_NOT_COMPARE;
@@ -244,8 +241,10 @@ int32_t compareJsonVal(const void *pLeft, const void *pRight) {
       return ret;
     }
     return (ret < 0) ? -1 : 1;
+  }else if(type == TSDB_DATA_TYPE_BINARY) { //json null
+    return 0;
   }else{
-    assert(0);
+      assert(0);
   }
 }
 
@@ -636,8 +635,13 @@ int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
       }else if(!f1IsJsonNull && f2IsJsonNull) {
         return 1;
       }
-      if(*f1 != *f2) {
+      if(*f1 != *f2 && !(IS_NUMERIC_TYPE(*f1) && IS_NUMERIC_TYPE(*f2))) {
         return 1;
+      }
+      if(*f1 == TSDB_DATA_TYPE_BIGINT && *f2 == TSDB_DATA_TYPE_DOUBLE){
+        DEFAULT_DOUBLE_COMP(GET_INT64_VAL(f1 + CHAR_BYTES), GET_DOUBLE_VAL(f2 + CHAR_BYTES));
+      }else if(*f1 == TSDB_DATA_TYPE_DOUBLE && *f2 == TSDB_DATA_TYPE_BIGINT){
+        DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1 + CHAR_BYTES), GET_INT64_VAL(f2 + CHAR_BYTES));
       }
       type = *f1;
       f1 += CHAR_BYTES;

@@ -756,9 +756,15 @@ int32_t tagValCompar(const void* p1, const void* p2) {
       }else if(!f1IsJsonNull && f2IsJsonNull) {
         return 1;
       }
-      if(*t1->tag != *t2->tag) {
+      if(*t1->tag != *t2->tag && !(IS_NUMERIC_TYPE(*t1->tag) && IS_NUMERIC_TYPE(*t2->tag))) {
         return 1;
       }
+      if(*t1->tag == TSDB_DATA_TYPE_BIGINT && *t2->tag == TSDB_DATA_TYPE_DOUBLE){
+        DEFAULT_DOUBLE_COMP(GET_INT64_VAL(t1->tag + CHAR_BYTES), GET_DOUBLE_VAL(t2->tag + CHAR_BYTES));
+      }else if(*t1->tag == TSDB_DATA_TYPE_DOUBLE && *t2->tag == TSDB_DATA_TYPE_BIGINT){
+        DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(t1->tag + CHAR_BYTES), GET_INT64_VAL(t2->tag + CHAR_BYTES));
+      }
+
       __compar_fn_t func = getComparFunc(t1->tag[0], 0);
       return func(t1->tag + CHAR_BYTES, t2->tag + CHAR_BYTES);
     }

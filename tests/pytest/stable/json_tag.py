@@ -167,6 +167,8 @@ class TDTestCase:
         tdSql.checkData(0, 1, 2)
         tdSql.query("select * from jsons1 where jtag->'tag1'=10")
         tdSql.checkRows(0)
+        tdSql.query("select * from jsons1 where jtag->'tag1'<54")
+        tdSql.checkRows(3)
         # where json value is double
         tdSql.query("select * from jsons1 where jtag->'tag1'=1.232")
         tdSql.checkRows(1)
