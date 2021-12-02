@@ -221,7 +221,7 @@ def pre_test_win(){
     cd C:\\
     rd /s /Q C:\\TDengine
     cd C:\\workspace
-    rd /s /Q C:\\workspace\\TDinternal
+    rd /s /Q C:\\workspace\\TDinternal | echo 1
     '''
     script {
       if (env.CHANGE_TARGET == 'master') {
@@ -230,7 +230,7 @@ def pre_test_win(){
         git pull
         cd C:\\workspace\\TDinternal_master\\community
         git pull
-        xcopy /e/y/i/f cd C:\\workspace\\TDinternal_master cd C:\\workspace\\TDinternal
+        xcopy /e/y/i/f C:\\workspace\\TDinternal_master  C:\\workspace\\TDinternal
         '''
         }
       else if(env.CHANGE_TARGET == '2.0'){
@@ -239,7 +239,7 @@ def pre_test_win(){
         git pull
         cd C:\\workspace\\TDinternal_20\\community
         git pull
-        xcopy /e/y/i/f cd C:\\workspace\\TDinternal_20 cd C:\\workspace\\TDinternal
+        xcopy /e/y/i/f  C:\\workspace\\TDinternal_20  C:\\workspace\\TDinternal
         '''
       } 
       else{
@@ -248,7 +248,7 @@ def pre_test_win(){
         git pull
         cd C:\\workspace\\TDinternal_develop\\community
         git pull
-        xcopy /e/y/i/f cd C:\\workspace\\TDinternal_develop cd C:\\workspace\\TDinternal
+        xcopy /e/y/i/f  C:\\workspace\\TDinternal_develop  C:\\workspace\\TDinternal
         '''
       }
     }
