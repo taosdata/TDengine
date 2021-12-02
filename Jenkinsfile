@@ -83,7 +83,7 @@ def pre_test(){
     cd ${WKC}
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    git submodule update --init --recursive
+    
     '''
     sh '''
     cd ${WK} 
@@ -144,7 +144,7 @@ def pre_test_noinstall(){
     cd ${WKC}
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    git submodule update --init --recursive
+    
     '''
     sh '''
     cd ${WK} 
@@ -202,7 +202,7 @@ def pre_test_mac(){
     cd ${WKC}
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    git submodule update --init --recursive
+    
     '''
     sh '''
     cd ${WK} 
@@ -256,7 +256,7 @@ def pre_test_win(){
     cd C:\\workspace\\TDinternal\\community
     git fetch origin +refs/pull/%CHANGE_ID%/merge
     git checkout -qf FETCH_HEAD
-    git submodule update --init --recursive
+    
     '''
     bat '''
     cd C:\\workspace\\TDinternal
