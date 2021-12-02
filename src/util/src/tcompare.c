@@ -639,9 +639,9 @@ int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
         return 1;
       }
       if(*f1 == TSDB_DATA_TYPE_BIGINT && *f2 == TSDB_DATA_TYPE_DOUBLE){
-        DEFAULT_DOUBLE_COMP(GET_INT64_VAL(f1 + CHAR_BYTES), GET_DOUBLE_VAL(f2 + CHAR_BYTES));
+        DEFAULT_COMP(GET_INT64_VAL(f1 + CHAR_BYTES), GET_DOUBLE_VAL(f2 + CHAR_BYTES));
       }else if(*f1 == TSDB_DATA_TYPE_DOUBLE && *f2 == TSDB_DATA_TYPE_BIGINT){
-        DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1 + CHAR_BYTES), GET_INT64_VAL(f2 + CHAR_BYTES));
+        DEFAULT_COMP(GET_DOUBLE_VAL(f1 + CHAR_BYTES), GET_INT64_VAL(f2 + CHAR_BYTES));
       }
       type = *f1;
       f1 += CHAR_BYTES;
