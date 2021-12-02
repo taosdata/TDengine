@@ -775,39 +775,45 @@ static int32_t applyChildTableDataPointsWithInsertSQL(TAOS* taos, char* cTableNa
   }
 
   int32_t freeBytes = tsMaxSQLStringLen + 1 ;
-  sprintf(sql, "insert into ? using %s (", sTableName);
+  int32_t totalLen = 0;
+  totalLen += sprintf(sql, "insert into %s using %s (", cTableName, sTableName);
   for (int i = 0; i < numTags; ++i) {
     SSchema* tagSchema = taosArrayGet(tagsSchema, i);
-    snprintf(sql+strlen(sql), freeBytes-strlen(sql), "%s,", tagSchema->name);
+    totalLen += snprintf(sql+totalLen, freeBytes-totalLen, "%s,", tagSchema->name);
   }
-  snprintf(sql + strlen(sql) - 1, freeBytes-strlen(sql)+1, ")");
+  --totalLen;
+  totalLen += snprintf(sql + totalLen, freeBytes-totalLen, ")");
 
-  snprintf(sql + strlen(sql), freeBytes-strlen(sql), " tags (");
+  totalLen += snprintf(sql + totalLen, freeBytes-totalLen, " tags (");
 
 //  for (int i = 0; i < numTags; ++i) {
 //    snprintf(sql+strlen(sql), freeBytes-strlen(sql), "?,");
 //  }
   for (int i = 0; i < numTags; ++i) {
     if (tagKVs[i] == NULL) {
-      snprintf(sql + strlen(sql), freeBytes-strlen(sql), "NULL,");
+      totalLen += snprintf(sql + totalLen, freeBytes-totalLen, "NULL,");
     } else {
       TAOS_SML_KV* kv =  tagKVs[i];
+      size_t beforeLen = totalLen;
       int32_t len = 0;
-      converToStr(sql+strlen(sql), kv->type, kv->value, kv->length, &len);
-      *(sql+strlen(sql)+len)='\0';
+      converToStr(sql+beforeLen, kv->type, kv->value, kv->length, &len);
+      totalLen += len;
+      totalLen += snprintf(sql+totalLen, freeBytes-totalLen, ",");
     }
   }
-  snprintf(sql + strlen(sql) - 1, freeBytes-strlen(sql)+1, ") (");
+  --totalLen;
+  totalLen += snprintf(sql + totalLen, freeBytes-totalLen, ") (");
 
   for (int i = 0; i < numCols; ++i) {
     SSchema* colSchema = taosArrayGet(colsSchema, i);
-    snprintf(sql+strlen(sql), freeBytes-strlen(sql), "%s,", colSchema->name);
+    totalLen += snprintf(sql+totalLen, freeBytes-totalLen, "%s,", colSchema->name);
   }
-  snprintf(sql + strlen(sql)-1, freeBytes-strlen(sql)+1, ") values ");
+  --totalLen;
+  totalLen += snprintf(sql + totalLen, freeBytes-totalLen, ") values ");
 
   TAOS_SML_KV** colKVs = malloc(numCols*sizeof(TAOS_SML_KV*));
   for (int r = 0; r < rows; ++r) {
-    snprintf(sql + strlen(sql)-1, freeBytes-strlen(sql)+1, "(");
+    totalLen += snprintf(sql + totalLen, freeBytes-totalLen, "(");
 
     memset(colKVs, 0, numCols*sizeof(TAOS_SML_KV*));
 
@@ -819,20 +825,23 @@ static int32_t applyChildTableDataPointsWithInsertSQL(TAOS* taos, char* cTableNa
 
     for (int i = 0; i < numCols; ++i) {
       if (colKVs[i] == NULL) {
-        snprintf(sql + strlen(sql), freeBytes-strlen(sql), "NULL,");
+        totalLen += snprintf(sql + totalLen, freeBytes-totalLen, "NULL,");
       } else {
         TAOS_SML_KV* kv =  colKVs[i];
+        size_t beforeLen = totalLen;
         int32_t len = 0;
-        converToStr(sql+strlen(sql), kv->type, kv->value, kv->length, &len);
-        *(sql+strlen(sql)+len)='\0';
+        converToStr(sql+beforeLen, kv->type, kv->value, kv->length, &len);
+        totalLen += len;
+        totalLen += snprintf(sql+totalLen, freeBytes-totalLen, ",");
       }
     }
-    snprintf(sql + strlen(sql) - 1, freeBytes - strlen(sql) + 1, ")");
+    --totalLen;
+    totalLen += snprintf(sql+totalLen, freeBytes - totalLen, ")");
   }
   free(colKVs);
-  sql[strlen(sql)] = '\0';
+  sql[totalLen] = '\0';
 
-  tscDebug("SML:0x%"PRIx64" insert child table table %s of super table %s : %s", info->id, cTableName, sTableName, sql);
+  tscInfo("SML:0x%"PRIx64" insert child table table %s of super table %s sql: %s", info->id, cTableName, sTableName, sql);
   TAOS_RES* res = taos_query(taos, sql);
   code = taos_errno(res);
   info->affectedRows = taos_affected_rows(res);
@@ -1099,9 +1108,9 @@ static int32_t applyChildTableDataPoints(TAOS* taos, char* cTableName, char* sTa
   int32_t code = TSDB_CODE_SUCCESS;
   size_t childTableDataPoints = taosArrayGetSize(cTablePoints);
   if (childTableDataPoints < 10) {
-    applyChildTableDataPointsWithInsertSQL(taos, cTableName, sTableName, sTableSchema, cTablePoints, rowSize, info);
+    code = applyChildTableDataPointsWithInsertSQL(taos, cTableName, sTableName, sTableSchema, cTablePoints, rowSize, info);
   } else {
-    applyChildTableDataPointsWithStmt(taos, cTableName, sTableName, sTableSchema, cTablePoints, rowSize, info);
+    code = applyChildTableDataPointsWithStmt(taos, cTableName, sTableName, sTableSchema, cTablePoints, rowSize, info);
   }
   return code;
 }
