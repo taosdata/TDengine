@@ -1,12 +1,12 @@
 import hudson.model.Result
-import hudson.model.*;
 import jenkins.model.CauseOfInterruption
+properties([pipelineTriggers([githubPush()])])
 node {
 }
 
+
 def skipbuild=0
 def win_stop=0
-
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -59,12 +59,12 @@ def pre_test(){
       else if(env.CHANGE_TARGET == '2.0'){
         sh '''
         cd ${WS}
-        cd TDinternal_2.0
+        cd TDinternal_20
         git pull
         cd community
         git pull
         cd ${WS}
-        cp -fr TDinternal_2.0 TDinternal
+        cp -fr TDinternal_20 TDinternal
         '''
       } 
       else{
@@ -274,64 +274,6 @@ def pre_test_win(){
     '''
     return 1
 }
-def pre_test_ningsi(){
-    sh'hostname'
-    sh'''
-    cd ${WS}
-    rm -rf ${WK}
-    '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        sh '''
-        cd ${WS}
-        cd TDinternal_master
-        git pull
-        cd community
-        git pull
-        cd ${WS}
-        cp -fr TDinternal_master TDinternal
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WS}
-        cd TDinternal_20
-        git pull
-        cd community
-        git pull
-        cd ${WS}
-        cp -fr TDinternal_20 TDinternal
-        '''
-      } 
-      else{
-        sh '''
-        cd ${WS}
-        cd TDinternal_develop
-        git pull
-        cd community
-        git pull
-        cd ${WS}
-        cp -fr TDinternal_develop TDinternal
-        '''
-      }
-    }
-    sh'''
-    cd ${WKC}
-    git fetch origin +refs/pull/${CHANGE_ID}/merge
-    git checkout -qf FETCH_HEAD
-    git submodule update --init --recursive
-    '''
-    sh '''
-    cd ${WK} 
-    export TZ=Asia/Harbin
-    date
-    mkdir debug
-    cd debug
-    cmake .. -DOSTYPE=Ningsi60 > /dev/null
-    make
-    '''
-    return 1
-}
 pipeline {
   agent none
   options { skipDefaultCheckout() } 
@@ -340,6 +282,7 @@ pipeline {
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
       WS = '/var/lib/jenkins/workspace'
   }
+  
   stages {
       stage('pre_build'){
           agent{label 'master'}
@@ -352,7 +295,7 @@ pipeline {
               abort_previous()
               abortPreviousBuilds()
             }
-          //   sh'''
+          // sh'''
           // rm -rf ${WORKSPACE}.tes
           // cp -r ${WORKSPACE} ${WORKSPACE}.tes
           // cd ${WORKSPACE}.tes
@@ -379,18 +322,20 @@ pipeline {
           // git fetch origin +refs/pull/${CHANGE_ID}/merge
           // git checkout -qf FETCH_HEAD
           // '''     
+          
 
           // script{  
           //   skipbuild='2'     
           //   skipbuild=sh(script: "git log -2 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
           //   println skipbuild
+
           // }
           // sh'''
           // rm -rf ${WORKSPACE}.tes
           // '''
-          // }       
           }
       }
+    
       stage('Parallel test stage') {
         //only build pr
         options { skipDefaultCheckout() } 
@@ -433,7 +378,7 @@ pipeline {
         stage('python_3_s6') {
           agent{label " slave6 || slave16 "}
           steps {     
-            timeout(time: 65, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
@@ -449,44 +394,25 @@ pipeline {
             timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
-                rm -rf /var/lib/taos/*
-                rm -rf /var/log/taos/*
-                nohup taosd >/dev/null &
-                sleep 10
-              '''
-              sh '''
-              cd ${WKC}/tests/examples/nodejs
-              npm install td2.0-connector > /dev/null 2>&1
-              node nodejsChecker.js host=localhost
-              '''
-              catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                  cd ${WKC}/tests/examples/C#/taosdemo
-                  mcs -out:taosdemo *.cs > /dev/null 2>&1
-                  echo '' |./taosdemo -c /etc/taos
-                '''
-              } 
-              sh '''
-                cd ${WKC}/tests/gotest
-                bash batchtest.sh
-              '''
-              sh '''
               cd ${WKC}/tests
               ./test-all.sh b1fq
               date'''
             }
           }
         }
+
         stage('test_crash_gen_s3') {
           agent{label " slave3 || slave13 "}
           
           steps {
             pre_test()
-            timeout(time: 60, unit: 'MINUTES'){
-              sh '''
-              cd ${WKC}/tests/pytest
-              ./crash_gen.sh -a -p -t 4 -s 2000
-              '''
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                timeout(time: 60, unit: 'MINUTES'){
+                  sh '''
+                  cd ${WKC}/tests/pytest
+                  ./crash_gen.sh -a -p -t 4 -s 2000
+                  '''
+                }
             }
             timeout(time: 60, unit: 'MINUTES'){
               sh '''
@@ -509,9 +435,11 @@ pipeline {
                 ./test-all.sh b2fq
                 date
                 '''
-            }                     
+            }         
+            
           }
         }
+
         stage('test_valgrind_s4') {
           agent{label " slave4 || slave14 "}
 
@@ -541,7 +469,7 @@ pipeline {
         stage('test_b4_s7') {
           agent{label " slave7 || slave17 "}
           steps {     
-            timeout(time: 105, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
@@ -573,7 +501,7 @@ pipeline {
         stage('test_b6_s9') {
           agent{label " slave9 || slave19 "}
           steps {     
-            timeout(time: 105, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
@@ -595,7 +523,7 @@ pipeline {
               date'''              
             }
           }
-        } 
+        }
         stage('arm64centos7') {
           agent{label " arm64centos7 "}
           steps {     
@@ -650,13 +578,6 @@ pipeline {
               pre_test_noinstall()    
             }
         }
-
-        stage('ningsi') {
-          agent{label "ningsi"}
-          steps {     
-              pre_test_ningsi()    
-            }
-        }
         
         stage('build'){
           agent{label " wintest "}
@@ -675,20 +596,18 @@ pipeline {
             
             catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                 pre_test_win()
-                timeout(time: 20, unit: 'MINUTES'){
-                bat'''
-                cd C:\\workspace\\TDinternal\\community\\tests\\pytest
-                .\\test-all.bat wintest
-                '''
-                }
+                // timeout(time: 20, unit: 'MINUTES'){
+                // bat'''
+                // cd C:\\workspace\\TDinternal\\community\\tests\\pytest
+                // .\\test-all.bat wintest
+                // '''
+                // }
             }     
             script{
               win_stop=1
             }
           }
-        }
-          
-               
+        }        
     }
   }
   }
@@ -769,5 +688,6 @@ pipeline {
                 from: "support@taosdata.com"
             )
         }
-    } 
+    }
+   
 }
