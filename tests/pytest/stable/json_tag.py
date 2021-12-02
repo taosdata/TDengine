@@ -336,27 +336,14 @@ class TDTestCase:
         tdSql.checkColNameList(res, cname_list)
     
         # test group by & order by   string
-        tdSql.query("select avg(dataint),count(*) from jsons1 group by jtag->'tag1' order by jtag->'tag1' desc")
-        tdSql.checkData(1, 0, 2.5)
-        tdSql.checkData(1, 1, 2)
-        tdSql.checkData(1, 2, "\"beijing\"")
-        tdSql.checkData(2, 2, None)
-
-        # test group by & order by   int
-        tdSql.query("select avg(dataint),count(*) from jsons1 group by jtag->'tagint' order by jtag->'tagint' desc")
-        tdSql.checkData(0, 0, 11)
-        tdSql.checkData(0, 2, 11)
-        tdSql.checkData(1, 2, 2)
-        tdSql.checkData(3, 2, None)
-        tdSql.checkData(3, 1, 5)
-        tdSql.query("select avg(dataint),count(*) from jsons1 group by jtag->'tagint' order by jtag->'tagint'")
-        tdSql.checkData(0, 1, 5)
-        tdSql.checkData(0, 2, None)
-        tdSql.checkData(1, 2, 1)
-        tdSql.checkData(3, 2, 11)
+        #tdSql.query("select avg(dataint),count(*) from jsons1 group by jtag->'tag1' order by jtag->'tag1' desc")
+        #tdSql.checkData(1, 0, 2.5)
+        #tdSql.checkData(1, 1, 2)
+        #tdSql.checkData(1, 2, "\"beijing\"")
+        #tdSql.checkData(2, 2, None)
 
         # test stddev with group by json tag sting
-        tdSql.query("select stddev(dataint) from jsons1 group by jtag->'location'")
+        tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tag1'")
         tdSql.checkData(0, 1, None)
         tdSql.checkData(1, 0, 0.5)
         tdSql.checkData(2, 0, 0)
@@ -373,14 +360,6 @@ class TDTestCase:
         cname_list.append("jsons1.jtag->'tagint'")
         tdSql.checkColNameList(res, cname_list)
 
-        # test json->'key'=null
-        
-        tdSql.query("select * from jsons1")
-        tdSql.checkRows(9)
-        tdSql.query("select * from jsons1 where jtag->'time' is null")
-        tdSql.checkRows(8)
-        tdSql.query("select * from jsons1 where jtag->'time'=null")
-        tdSql.checkRows(1)
 
         # subquery with json tag
         tdSql.query("select * from (select jtag, dataint from jsons1)")
@@ -402,9 +381,6 @@ class TDTestCase:
         tdSql.checkRows(9)
         tdSql.checkData(1, 1, "jsons1_2")
         tdSql.checkData(3, 2, "\"beijing\"")
-
-        # test different type of json value
-        tdSql.query("select avg(dataint),count(*) from jsons1 group by jtag->'tagint' order by jtag->'tagint' desc")
 
     def stop(self):
         tdSql.close()
