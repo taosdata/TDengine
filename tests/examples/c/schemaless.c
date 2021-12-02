@@ -10,6 +10,7 @@
 
 bool verbose = false;
 
+
 void printThreadId(pthread_t id, char* buf)
 {
   size_t i;
@@ -30,6 +31,7 @@ typedef struct {
 
 typedef struct  {
   TAOS* taos;
+  int protocol;
   int numBatches;
   SThreadLinesBatch *batches;
   int64_t costTime;
@@ -44,8 +46,8 @@ static void* insertLines(void* args) {
     if (verbose) printf("%s, thread: 0x%s\n", "begin taos_insert_lines", tidBuf);
     int64_t begin = getTimeInUs();
     //int32_t code = taos_insert_lines(insertArgs->taos, batch->lines, batch->numLines);
-     TAOS_RES * res = taos_schemaless_insert(insertArgs->taos, batch->lines, batch->numLines, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
-     int32_t code = taos_errno(res);
+    TAOS_RES * res = taos_schemaless_insert(insertArgs->taos, batch->lines, batch->numLines, insertArgs->protocol, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+    int32_t code = taos_errno(res);
     int64_t end = getTimeInUs();
     insertArgs->costTime += end - begin;
     if (verbose) printf("code: %d, %s. time used:%"PRId64", thread: 0x%s\n", code, tstrerror(code), end - begin, tidBuf);
@@ -53,9 +55,15 @@ static void* insertLines(void* args) {
   return NULL;
 }
 
+int32_t getTelenetTemplate(char* lineTemplate, int templateLen) {
+  char* sample = "sta%d %lld 44.3 t0=False t1=127i8 t2=32 t3=%di32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7=\"hpxzrdiw\" t8=\"ncharTagValue\" t9=127i8";
+  snprintf(lineTemplate, templateLen, "%s", sample);
+  return 0;
+}
+
 int32_t getLineTemplate(char* lineTemplate, int templateLen, int numFields) {
   if (numFields <= 4) {
-    char* sample = "sta%d,t3=%di32 c3=2147483647i32,c4=9223372036854775807i64,c9=11.12345f32,c10=22.123456789f64 %lldms";
+    char* sample = "sta%d,t3=%di32 c3=2147483647i32,c4=9223372036854775807i64,c9=11.12345f32,c10=22.123456789f64 %lld";
     snprintf(lineTemplate, templateLen, "%s", sample);
     return 0;
   }
@@ -82,10 +90,19 @@ int32_t getLineTemplate(char* lineTemplate, int templateLen, int numFields) {
   for (int i = offset[1]+1; i < offset[2]; ++i) {
     snprintf(lineTemplate+strlen(lineTemplate), templateLen-strlen(lineTemplate), "c%d=\"%d\",", i, i);
   }
-  char* lineFormatTs = " %lldms";
+  char* lineFormatTs = " %lld";
   snprintf(lineTemplate+strlen(lineTemplate)-1, templateLen-strlen(lineTemplate)+1, "%s", lineFormatTs);
 
   return 0;
+}
+
+int32_t generateLine(char* line, int lineLen, char* lineTemplate, int protocol, int superTable, int childTable, int64_t ts) {
+  if (protocol == TSDB_SML_LINE_PROTOCOL) {
+    snprintf(line, lineLen, lineTemplate, superTable, childTable, ts);               
+  } else if (protocol == TSDB_SML_TELNET_PROTOCOL) {
+    snprintf(line, lineLen, lineTemplate, superTable, ts, childTable);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int main(int argc, char* argv[]) {
@@ -99,8 +116,10 @@ int main(int argc, char* argv[]) {
 
   int maxLinesPerBatch = 16384;
 
+  int protocol = TSDB_SML_TELNET_PROTOCOL;
+
   int opt;
-  while ((opt = getopt(argc, argv, "s:c:r:f:t:b:hv")) != -1) {
+  while ((opt = getopt(argc, argv, "s:c:r:f:t:b:p:hv")) != -1) {
     switch (opt) {
       case 's':
         numSuperTables = atoi(optarg);
@@ -123,12 +142,21 @@ int main(int argc, char* argv[]) {
       case 'v':
         verbose = true;
         break;
+      case 'p':
+        if (optarg[0] == 't') {
+          protocol = TSDB_SML_TELNET_PROTOCOL;
+        } else if (optarg[0] == 'l') {
+          protocol = TSDB_SML_LINE_PROTOCOL;
+        } else if (optarg[0] == 'j') {
+          protocol = TSDB_SML_JSON_PROTOCOL;
+        }
+        break;
       case 'h':
-        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -b maxlines_per_batch -v\n",
+        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -b maxlines_per_batch -p [t|l|j] -v\n",
                 argv[0]);
         exit(0);
       default: /* '?' */
-        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -b maxlines_per_batch -v\n",
+        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -b maxlines_per_batch -p [t|l|j] -v\n",
                 argv[0]);
         exit(-1);
     }
@@ -165,19 +193,24 @@ int main(int argc, char* argv[]) {
   int64_t ts = ct * 1000 ;
 
   char* lineTemplate = calloc(65536, sizeof(char));
-  getLineTemplate(lineTemplate, 65535, numFields);
+  if (protocol == TSDB_SML_LINE_PROTOCOL) {
+    getLineTemplate(lineTemplate, 65535, numFields);
+  } else if (protocol == TSDB_SML_TELNET_PROTOCOL ) {
+    getTelenetTemplate(lineTemplate, 65535);
+  }
 
   printf("setup supertables...");
   {
     char** linesStb = calloc(numSuperTables, sizeof(char*));
     for (int i = 0; i < numSuperTables; i++) {
       char* lineStb = calloc(strlen(lineTemplate)+128, 1);
-      snprintf(lineStb, strlen(lineTemplate)+128, lineTemplate, i,
+      generateLine(lineStb, strlen(lineTemplate)+128, lineTemplate, protocol, i,
                numSuperTables * numChildTables,
                ts + numSuperTables * numChildTables * numRowsPerChildTable);
       linesStb[i] = lineStb;
     }
     SThreadInsertArgs args = {0};
+    args.protocol = protocol;
     args.batches = calloc(maxBatchesPerThread, sizeof(maxBatchesPerThread));
     args.taos = taos;
     args.batches[0].lines = linesStb;
@@ -197,6 +230,7 @@ int main(int argc, char* argv[]) {
     argsThread[i].batches = calloc(maxBatchesPerThread, sizeof(SThreadLinesBatch));	  
     argsThread[i].taos = taos;
     argsThread[i].numBatches = 0;
+    argsThread[i].protocol = protocol;
   }
 
   int64_t totalLines = numSuperTables * numChildTables * numRowsPerChildTable;
@@ -221,7 +255,7 @@ int main(int argc, char* argv[]) {
         int stIdx = i;
         int ctIdx = numSuperTables*numChildTables + j;
         char* line = calloc(strlen(lineTemplate)+128, 1);
-        snprintf(line, strlen(lineTemplate)+128, lineTemplate, stIdx, ctIdx, ts + l);
+        generateLine(line, strlen(lineTemplate)+128, lineTemplate, protocol, stIdx, ctIdx, ts + l);
         int batchNo = l / maxLinesPerBatch;
         int lineNo = l % maxLinesPerBatch;
         allBatches[batchNo][lineNo] =  line;
