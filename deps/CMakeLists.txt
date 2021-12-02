@@ -82,7 +82,7 @@ endif(${BUILD_WITH_NURAFT})
 
 # BDB
 if(${BUILD_WITH_BDB})
-    add_library(bdb STATIC IMPORTED)
+    add_library(bdb STATIC IMPORTED GLOBAL)
     set_target_properties(bdb PROPERTIES
         IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/bdb/libdb.a"
         INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/bdb"
@@ -93,8 +93,9 @@ if(${BUILD_WITH_BDB})
 endif(${BUILD_WITH_BDB})
 
 # SQLite
+# see https://stackoverflow.com/questions/8774593/cmake-link-to-external-library#comment58570736_10550334
 if(${BUILD_WITH_SQLITE})
-    add_library(sqlite STATIC IMPORTED)
+    add_library(sqlite STATIC IMPORTED GLOBAL)
     set_target_properties(sqlite PROPERTIES
         IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/sqlite/.libs/libsqlite3.a"
         INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/sqlite"
