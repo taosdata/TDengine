@@ -15,21 +15,21 @@
 
 #include "metaDef.h"
 
-int metaCreateTable(SMeta *pMeta, const STbOptions *pTbOptions) {
+int metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg) {
   // Validate the tbOptions
-  if (metaValidateTbOptions(pMeta, pTbOptions) < 0) {
+  if (metaValidateTbOptions(pMeta, pTbCfg) < 0) {
     // TODO: handle error
     return -1;
   }
 
   // TODO: add atomicity
 
-  if (metaSaveTableToDB(pMeta, pTbOptions) < 0) {
+  if (metaSaveTableToDB(pMeta, pTbCfg) < 0) {
     // TODO: handle error
     return -1;
   }
 
-  if (metaSaveTableToIdx(pMeta, pTbOptions) < 0) {
+  if (metaSaveTableToIdx(pMeta, pTbCfg) < 0) {
     // TODO: handle error
     return -1;
   }

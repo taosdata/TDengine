@@ -16,12 +16,12 @@
 #include "metaDef.h"
 #include "tcoding.h"
 
-int metaValidateTbOptions(SMeta *pMeta, const STbOptions *pTbOptions) {
+int metaValidateTbOptions(SMeta *pMeta, const STbCfg *pTbOptions) {
   // TODO
   return 0;
 }
 
-size_t metaEncodeTbObjFromTbOptions(const STbOptions *pTbOptions, void *pBuf, size_t bsize) {
+size_t metaEncodeTbObjFromTbOptions(const STbCfg *pTbOptions, void *pBuf, size_t bsize) {
   void **ppBuf = &pBuf;
   int    tlen = 0;
 
@@ -31,12 +31,12 @@ size_t metaEncodeTbObjFromTbOptions(const STbOptions *pTbOptions, void *pBuf, si
 
   switch (pTbOptions->type) {
     case META_SUPER_TABLE:
-      tlen += taosEncodeFixedU64(ppBuf, pTbOptions->stbOptions.uid);
-      tlen += tdEncodeSchema(ppBuf, pTbOptions->stbOptions.pTagSchema);
+      tlen += taosEncodeFixedU64(ppBuf, pTbOptions->stbCfg.suid);
+      tlen += tdEncodeSchema(ppBuf, pTbOptions->stbCfg.pTagSchema);
       // TODO: encode schema version array
       break;
     case META_CHILD_TABLE:
-      tlen += taosEncodeFixedU64(ppBuf, pTbOptions->ctbOptions.suid);
+      tlen += taosEncodeFixedU64(ppBuf, pTbOptions->ctbCfg.suid);
       break;
     case META_NORMAL_TABLE:
       // TODO: encode schema version array
@@ -46,4 +46,13 @@ size_t metaEncodeTbObjFromTbOptions(const STbOptions *pTbOptions, void *pBuf, si
   }
 
   return tlen;
+}
+
+int metaEncodeTbCfg(void **pBuf, STbCfg *pTbCfg) {
+  // TODO
+  return 0;
+}
+
+void *metaDecodeTbCfg(void *pBuf, STbCfg **pTbCfg) {
+  // TODO
 }

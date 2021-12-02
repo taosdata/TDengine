@@ -16,51 +16,84 @@
 #include "vnodeDef.h"
 
 int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
-  /* TODO */
-  return 0;
-}
+  SRpcMsg *  pMsg;
+  SVnodeReq *pVnodeReq;
 
-int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-#if 0
-  int      reqType;        /* TODO */
-  size_t   reqSize;        /* TODO */
-  uint64_t reqVersion = 0; /* TODO */
-  int      code = 0;
+  for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
+    pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
 
-  // Copy the request to vnode buffer
-  void *pReq = mMalloc(pVnode->inuse, reqSize);
-  if (pReq == NULL) {
-    // TODO: handle error
-  }
+    // ser request version
+    void *   pBuf = pMsg->pCont;
+    uint64_t ver = pVnode->state.processed++;
+    taosEncodeFixedU64(&pBuf, ver);
 
-  memcpy(pReq, pMsg, reqSize);
-
-  // Push the request to TQ so consumers can consume
-  tqPushMsg(pVnode->pTq, pReq, 0);
-
-  // Process the request
-  switch (reqType) {
-    case TSDB_MSG_TYPE_CREATE_TABLE:
-      code = metaCreateTable(pVnode->pMeta, NULL /* TODO */);
-      break;
-    case TSDB_MSG_TYPE_DROP_TABLE:
-      code = metaDropTable(pVnode->pMeta, 0 /* TODO */);
-      break;
-    case TSDB_MSG_TYPE_SUBMIT:
-      /* TODO */
-      break;
-    default:
-      break;
-  }
-
-  if (vnodeShouldCommit(pVnode)) {
-    if (vnodeAsyncCommit(pVnode) < 0) {
+    if (walWrite(pVnode->pWal, ver, pMsg->msgType, pMsg->pCont, pMsg->contLen) < 0) {
       // TODO: handle error
     }
   }
 
-  return code;
-#endif
+  walFsync(pVnode->pWal, false);
+
+  // Apply each request now
+  for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
+    pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
+    SVnodeReq vReq;
+
+    // Apply the request
+    {
+      void *ptr = vnodeMalloc(pVnode, pMsg->contLen);
+      if (ptr == NULL) {
+        // TODO: handle error
+      }
+
+      // TODO: copy here need to be extended
+      memcpy(ptr, pMsg->pCont, pMsg->contLen);
+
+      // todo: change the interface here
+      uint64_t ver;
+      taosDecodeFixedU64(pMsg->pCont, &ver);
+      if (tqPushMsg(pVnode->pTq, ptr, ver) < 0) {
+        // TODO: handle error
+      }
+
+      vnodeParseReq(pMsg->pCont, &vReq, pMsg->msgType);
+
+      switch (pMsg->msgType) {
+        case TSDB_MSG_TYPE_CREATE_TABLE:
+          if (metaCreateTable(pVnode->pMeta, &(vReq.ctReq)) < 0) {
+            // TODO: handle error
+          }
+
+          // TODO: maybe need to clear the requst struct
+          break;
+        case TSDB_MSG_TYPE_DROP_TABLE:
+          if (metaDropTable(pVnode->pMeta, vReq.dtReq.uid) < 0) {
+            // TODO: handle error
+          }
+          break;
+        case TSDB_MSG_TYPE_SUBMIT:
+          /* code */
+          break;
+        default:
+          break;
+      }
+
+      pVnode->state.applied = ver;
+    }
+
+    // Check if it needs to commit
+    if (vnodeShouldCommit(pVnode)) {
+      if (vnodeAsyncCommit(pVnode) < 0) {
+        // TODO: handle error
+      }
+    }
+  }
+
+  return 0;
+}
+
+int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+  // TODO
   return 0;
 }
 

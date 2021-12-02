@@ -13,18 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_FILE_SYSTEM_H_
-#define _TD_VNODE_FILE_SYSTEM_H_
+#include "vnodeDef.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+const SVnodeCfg defaultVnodeOptions = {0}; /* TODO */
 
-typedef struct {
-} SVnodeFS;
-
-#ifdef __cplusplus
+void vnodeOptionsInit(SVnodeCfg *pVnodeOptions) { /* TODO */
+  vnodeOptionsCopy(pVnodeOptions, &defaultVnodeOptions);
 }
-#endif
 
-#endif /*_TD_VNODE_FILE_SYSTEM_H_*/
+void vnodeOptionsClear(SVnodeCfg *pVnodeOptions) { /* TODO */
+}
+
+int vnodeValidateOptions(const SVnodeCfg *pVnodeOptions) {
+  // TODO
+  return 0;
+}
+
+void vnodeOptionsCopy(SVnodeCfg *pDest, const SVnodeCfg *pSrc) {
+  memcpy((void *)pDest, (void *)pSrc, sizeof(SVnodeCfg));
+}

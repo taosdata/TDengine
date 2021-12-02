@@ -23,24 +23,67 @@
 #include "tarray.h"
 #include "tq.h"
 #include "tsdb.h"
+#include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct SVnode        SVnode;
-typedef struct SVnodeOptions SVnodeOptions;
+typedef struct SVnode SVnode;
+typedef struct SVnodeCfg {
+  /** vnode buffer pool options */
+  struct {
+    /** write buffer size */
+    uint64_t wsize;
+    /** use heap allocator or arena allocator */
+    bool isHeapAllocator;
+  };
+
+  /** time to live of tables in this vnode */
+  uint32_t ttl;
+
+  /** data to keep in this vnode */
+  uint32_t keep;
+
+  /** if TS data is eventually consistency */
+  bool isWeak;
+
+  /** TSDB config */
+  STsdbCfg tsdbCfg;
+
+  /** META config */
+  SMetaCfg metaCfg;
+
+  /** TQ config */
+  STqCfg tqCfg;
+
+  /** WAL config */
+  SWalCfg walCfg;
+} SVnodeCfg;
 
 /* ------------------------ SVnode ------------------------ */
+/**
+ * @brief Initialize the vnode module
+ *
+ * @return int 0 for success and -1 for failure
+ */
+int vnodeInit();
+
+/**
+ * @brief clear a vnode
+ *
+ */
+void vnodeClear();
+
 /**
  * @brief Open a VNODE.
  *
  * @param path path of the vnode
- * @param pVnodeOptions options of the vnode
+ * @param pVnodeCfg options of the vnode
  * @return SVnode* The vnode object
  */
-SVnode *vnodeOpen(const char *path, const SVnodeOptions *pVnodeOptions);
+SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg);
 
 /**
  * @brief Close a VNODE
@@ -85,61 +128,55 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
  */
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
-/* ------------------------ SVnodeOptions ------------------------ */
+/* ------------------------ SVnodeCfg ------------------------ */
 /**
  * @brief Initialize VNODE options.
  *
  * @param pOptions The options object to be initialized. It should not be NULL.
  */
-void vnodeOptionsInit(SVnodeOptions *pOptions);
+void vnodeOptionsInit(SVnodeCfg *pOptions);
 
 /**
  * @brief Clear VNODE options.
  *
  * @param pOptions Options to clear.
  */
-void vnodeOptionsClear(SVnodeOptions *pOptions);
+void vnodeOptionsClear(SVnodeCfg *pOptions);
 
-/* ------------------------ STRUCT DEFINITIONS ------------------------ */
-struct SVnodeOptions {
-  /**
-   * @brief write buffer size in BYTES
-   *
-   */
-  uint64_t wsize;
+/* ------------------------ REQUESTS ------------------------ */
+typedef STbCfg SVCreateTableReq;
+typedef struct {
+  tb_uid_t uid;
+} SVDropTableReq;
 
-  /**
-   * @brief time to live of tables in this vnode
-   * in SECONDS
-   *
-   */
-  uint32_t ttl;
+typedef struct {
+  // TODO
+} SVSubmitReq;
 
-  /**
-   * @brief if time-series requests eventual consistency
-   *
-   */
-  bool isWeak;
+typedef struct {
+  uint64_t ver;
+  union {
+    SVCreateTableReq ctReq;
+    SVDropTableReq   dtReq;
+  };
+} SVnodeReq;
 
-  /**
-   * @brief if the allocator is heap allcator or arena allocator
-   *
-   */
-  bool isHeapAllocator;
+typedef struct {
+  int  err;
+  char info[];
+} SVnodeRsp;
 
-  /**
-   * @brief TSDB options
-   *
-   */
-  STsdbOptions tsdbOptions;
+#define VNODE_INIT_CREATE_STB_REQ(NAME, TTL, KEEP, SUID, PSCHEMA, PTAGSCHEMA) \
+  { .ver = 0, .ctReq = META_INIT_STB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA, PTAGSCHEMA) }
 
-  /**
-   * @brief META options
-   *
-   */
-  SMetaOptions metaOptions;
-  // STqOptions   tqOptions; // TODO
-};
+#define VNODE_INIT_CREATE_CTB_REQ(NAME, TTL, KEEP, SUID, PTAG) \
+  { .ver = 0, .ctReq = META_INIT_CTB_CFG(NAME, TTL, KEEP, SUID, PTAG) }
+
+#define VNODE_INIT_CREATE_NTB_REQ(NAME, TTL, KEEP, SUID, PSCHEMA) \
+  { .ver = 0, .ctReq = META_INIT_NTB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA) }
+
+int   vnodeBuildReq(void **buf, const SVnodeReq *pReq, uint8_t type);
+void *vnodeParseReq(void *buf, SVnodeReq *pReq, uint8_t type);
 
 /* ------------------------ FOR COMPILE ------------------------ */
 
@@ -148,27 +185,27 @@ struct SVnodeOptions {
 #include "taosmsg.h"
 #include "trpc.h"
 
-typedef struct {
-  char     db[TSDB_FULL_DB_NAME_LEN];
-  int32_t  cacheBlockSize;  // MB
-  int32_t  totalBlocks;
-  int32_t  daysPerFile;
-  int32_t  daysToKeep0;
-  int32_t  daysToKeep1;
-  int32_t  daysToKeep2;
-  int32_t  minRowsPerFileBlock;
-  int32_t  maxRowsPerFileBlock;
-  int8_t   precision;  // time resolution
-  int8_t   compression;
-  int8_t   cacheLastRow;
-  int8_t   update;
-  int8_t   quorum;
-  int8_t   replica;
-  int8_t   selfIndex;
-  int8_t   walLevel;
-  int32_t  fsyncPeriod;  // millisecond
-  SReplica replicas[TSDB_MAX_REPLICA];
-} SVnodeCfg;
+// typedef struct {
+//   char     db[TSDB_FULL_DB_NAME_LEN];
+//   int32_t  cacheBlockSize;  // MB
+//   int32_t  totalBlocks;
+//   int32_t  daysPerFile;
+//   int32_t  daysToKeep0;
+//   int32_t  daysToKeep1;
+//   int32_t  daysToKeep2;
+//   int32_t  minRowsPerFileBlock;
+//   int32_t  maxRowsPerFileBlock;
+//   int8_t   precision;  // time resolution
+//   int8_t   compression;
+//   int8_t   cacheLastRow;
+//   int8_t   update;
+//   int8_t   quorum;
+//   int8_t   replica;
+//   int8_t   selfIndex;
+//   int8_t   walLevel;
+//   int32_t  fsyncPeriod;  // millisecond
+//   SReplica replicas[TSDB_MAX_REPLICA];
+// } SVnodeCfg;
 
 typedef enum {
   VN_MSG_TYPE_WRITE = 1,

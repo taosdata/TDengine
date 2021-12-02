@@ -15,20 +15,20 @@
 
 #include "tsdbDef.h"
 
-const STsdbOptions defautlTsdbOptions = {.lruCacheSize = 0};
+const STsdbCfg defautlTsdbOptions = {.lruCacheSize = 0};
 
-int tsdbOptionsInit(STsdbOptions *pTsdbOptions) {
+int tsdbOptionsInit(STsdbCfg *pTsdbOptions) {
   // TODO
   return 0;
 }
 
-void tsdbOptionsClear(STsdbOptions *pTsdbOptions) {
+void tsdbOptionsClear(STsdbCfg *pTsdbOptions) {
   // TODO
 }
 
-int tsdbValidateOptions(const STsdbOptions *pTsdbOptions) {
+int tsdbValidateOptions(const STsdbCfg *pTsdbOptions) {
   // TODO
   return 0;
 }
 
-void tsdbOptionsCopy(STsdbOptions *pDest, const STsdbOptions *pSrc) { memcpy(pDest, pSrc, sizeof(STsdbOptions)); }
+void tsdbOptionsCopy(STsdbCfg *pDest, const STsdbCfg *pSrc) { memcpy(pDest, pSrc, sizeof(STsdbCfg)); }

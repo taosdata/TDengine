@@ -21,6 +21,9 @@ extern "C" {
 #endif
 
 typedef struct {
+  uint64_t processed;
+  uint64_t committed;
+  uint64_t applied;
 } SVState;
 
 #ifdef __cplusplus

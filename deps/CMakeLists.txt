@@ -80,6 +80,33 @@ if(${BUILD_WITH_NURAFT})
     add_subdirectory(nuraft)
 endif(${BUILD_WITH_NURAFT})
 
+# BDB
+if(${BUILD_WITH_BDB})
+    add_library(bdb STATIC IMPORTED)
+    set_target_properties(bdb PROPERTIES
+        IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/bdb/libdb.a"
+        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/bdb"
+    )
+    target_link_libraries(bdb 
+        INTERFACE pthread 
+    )
+endif(${BUILD_WITH_BDB})
+
+# SQLite
+if(${BUILD_WITH_SQLITE})
+    add_library(sqlite STATIC IMPORTED)
+    set_target_properties(sqlite PROPERTIES
+        IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/sqlite/.libs/libsqlite3.a"
+        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/sqlite"
+    )
+    target_link_libraries(sqlite 
+        INTERFACE m 
+        INTERFACE pthread 
+        INTERFACE dl
+    )
+endif(${BUILD_WITH_SQLITE})
+
+
 
 # ================================================================================================
 # DEPENDENCY TEST

@@ -20,10 +20,10 @@
 extern "C" {
 #endif
 
-extern const STsdbOptions defautlTsdbOptions;
+extern const STsdbCfg defautlTsdbOptions;
 
-int  tsdbValidateOptions(const STsdbOptions *);
-void tsdbOptionsCopy(STsdbOptions *pDest, const STsdbOptions *pSrc);
+int  tsdbValidateOptions(const STsdbCfg *);
+void tsdbOptionsCopy(STsdbCfg *pDest, const STsdbCfg *pSrc);
 
 #ifdef __cplusplus
 }
