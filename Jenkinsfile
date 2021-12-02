@@ -59,12 +59,12 @@ def pre_test(){
       else if(env.CHANGE_TARGET == '2.0'){
         sh '''
         cd ${WS}
-        cd TDinternal_2.0
+        cd TDinternal_20
         git pull
         cd community
         git pull
         cd ${WS}
-        cp -fr TDinternal_2.0 TDinternal
+        cp -fr TDinternal_20 TDinternal
         '''
       } 
       else{
