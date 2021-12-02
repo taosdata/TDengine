@@ -750,10 +750,6 @@ static int32_t arrangePointsByChildTableName(TAOS_SML_DATA_POINT* points, int nu
   return 0;
 }
 
-void insertCallback(void* param, TAOS_RES* res, int code) {
-  taos_close(res);
-}
-
 static int32_t applyChildTableDataPointsWithInsertSQL(TAOS* taos, char* cTableName, char* sTableName, SSmlSTableSchema* sTableSchema,
                                                   SArray* cTablePoints, size_t rowSize, SSmlLinesInfo* info) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -788,6 +784,9 @@ static int32_t applyChildTableDataPointsWithInsertSQL(TAOS* taos, char* cTableNa
 
   snprintf(sql + strlen(sql), freeBytes-strlen(sql), " tags (");
 
+//  for (int i = 0; i < numTags; ++i) {
+//    snprintf(sql+strlen(sql), freeBytes-strlen(sql), "?,");
+//  }
   for (int i = 0; i < numTags; ++i) {
     if (tagKVs[i] == NULL) {
       snprintf(sql + strlen(sql), freeBytes-strlen(sql), "NULL,");
@@ -834,10 +833,9 @@ static int32_t applyChildTableDataPointsWithInsertSQL(TAOS* taos, char* cTableNa
   sql[strlen(sql)] = '\0';
 
   tscDebug("SML:0x%"PRIx64" insert child table table %s of super table %s : %s", info->id, cTableName, sTableName, sql);
-  taos_query_a(taos, sql, insertCallback, NULL);
-//  TAOS_RES* res = taos_query(taos, sql);
-//  code = taos_errno(res);
-//  info->affectedRows = taos_affected_rows(res);
+  TAOS_RES* res = taos_query(taos, sql);
+  code = taos_errno(res);
+  info->affectedRows = taos_affected_rows(res);
   return code;
 }
 
