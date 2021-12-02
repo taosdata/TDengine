@@ -87,6 +87,9 @@ if(${BUILD_WITH_BDB})
         IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/bdb/libdb.a"
         INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/bdb"
     )
+    target_link_libraries(bdb 
+        INTERFACE pthread 
+    )
 endif(${BUILD_WITH_BDB})
 
 # SQLite
