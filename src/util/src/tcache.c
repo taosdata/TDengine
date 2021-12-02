@@ -675,10 +675,10 @@ bool travHashTableFn(void* param, void* data) {
   return true;
 }
 
-static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_trav_fn_t fp, void* param1) {
+static void doCacheRefresh(SCacheObj* pCacheObj, int64_t utl_time, __cache_trav_fn_t fp, void* param1) {
   assert(pCacheObj != NULL);
 
-  SHashTravSupp sup = {.pCacheObj = pCacheObj, .fp = fp, .time = time, .param1 = param1};
+  SHashTravSupp sup = {.pCacheObj = pCacheObj, .fp = fp, .time = utl_time, .param1 = param1};
   taosHashCondTraverse(pCacheObj->pHashTable, travHashTableFn, &sup);
 }
 
