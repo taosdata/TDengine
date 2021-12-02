@@ -16,6 +16,34 @@
 #ifndef __INDEX_FST_COUNTING_WRITER_H__
 #define __INDEX_FST_COUNTING_WRITER_H__
 
+#include "tfile.h"
+
+
+#define DefaultMem  1024*1024
+
+static char tmpFile[] = "/tmp/index";
+typedef enum WriterType {TMemory, TFile} WriterType;   
+
+typedef struct WriterCtx {
+  int (*write)(struct WriterCtx *ctx, uint8_t *buf, int len);
+  int (*read)(struct WriterCtx *ctx, uint8_t *buf, int len);
+  int (*flush)(struct WriterCtx *ctx);
+  WriterType type; 
+  union {
+    int fd;
+    void *mem;
+  };
+  int32_t offset;
+  int32_t limit;
+} WriterCtx;
+
+static int writeCtxDoWrite(WriterCtx *ctx, uint8_t *buf, int len);
+static int writeCtxDoRead(WriterCtx *ctx, uint8_t *buf, int len);
+static int writeCtxDoFlush(WriterCtx *ctx);
+
+WriterCtx* writerCtxCreate(WriterType type);
+void writerCtxDestroy(WriterCtx *w);
+
 typedef uint32_t CheckSummer;
 
 
@@ -25,7 +53,7 @@ typedef struct FstCountingWriter {
   CheckSummer summer;  
 } FstCountingWriter;
 
-uint64_t fstCountingWriterWrite(FstCountingWriter *write, uint8_t *buf, uint32_t bufLen); 
+int fstCountingWriterWrite(FstCountingWriter *write, uint8_t *buf, uint32_t bufLen); 
 
 int fstCountingWriterFlush(FstCountingWriter *write);
 

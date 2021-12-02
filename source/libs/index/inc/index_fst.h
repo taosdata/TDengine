@@ -86,14 +86,16 @@ uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes *node, 
 typedef struct FstBuilder {
   FstCountingWriter  *wrt;         // The FST raw data is written directly to `wtr`.  
   FstUnFinishedNodes *unfinished; // The stack of unfinished nodes   
-  FstRegistry*        registry;    // A map of finished nodes.        
-  FstSlice            last;        // The last word added 
+  FstRegistry*       registry;    // A map of finished nodes.        
+  FstSlice           last;        // The last word added 
   CompiledAddr       lastAddr;    // The address of the last compiled node  
   uint64_t           len;         // num of keys added
 } FstBuilder;
 
 
 FstBuilder *fstBuilderCreate(void *w, FstType ty);
+
+
 void fstBuilderDestroy(FstBuilder *b);
 void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in);
 OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup);
