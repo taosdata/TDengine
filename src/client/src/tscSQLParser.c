@@ -7576,7 +7576,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
       return code;
     }
 
-    if (UTIL_TABLE_IS_NORMAL_TABLE(pStableMetaInfo)) {
+    if (!UTIL_TABLE_IS_SUPER_TABLE(pStableMetaInfo)) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
     }
 
