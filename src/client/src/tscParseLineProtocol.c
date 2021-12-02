@@ -843,6 +843,7 @@ static int32_t applyChildTableDataPointsWithInsertSQL(TAOS* taos, char* cTableNa
 
   tscInfo("SML:0x%"PRIx64" insert child table table %s of super table %s sql: %s", info->id, cTableName, sTableName, sql);
   TAOS_RES* res = taos_query(taos, sql);
+  free(sql);
   code = taos_errno(res);
   info->affectedRows = taos_affected_rows(res);
   return code;
