@@ -41,68 +41,19 @@ def pre_test(){
     killall -9 taosd ||echo "no taosd running"
     killall -9 gdb || echo "no gdb running"
     killall -9 python3.8 || echo "no python program running"
+    cd ${WS}
+    rm -rf ${WK}
+    git clone  git@github.com:taosdata/TDinternal.git --branch ${CHANGE_TARGET} --single-branch --depth 1
+    cd ${WK}
+    git clone  git@github.com:taosdata/TDengine.git community --branch develop --single-branch --depth 1
     cd ${WKC}
-    git reset --hard HEAD~10 >/dev/null
-    '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        sh '''
-        cd ${WKC}
-        git checkout master
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WKC}
-        git checkout 2.0
-        '''
-      } 
-      else{
-        sh '''
-        cd ${WKC}
-        git checkout develop
-        '''
-      }
-    }
-    sh'''
-    cd ${WKC}
-    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
-    git pull >/dev/null
-    git fetch origin +refs/pull/${CHANGE_ID}/merge
+    git submoudule update --recursive --init --depth 1 
+    git fetch origin +refs/pull/${CHANGE_ID}/merge --depth 1 
     git checkout -qf FETCH_HEAD
-    git clean -dfx
-    git ls-files --stage   | grep 160000   | awk '{print $4}'   | xargs git rm --cached 
-    git submodule update --init --recursive
-    cd ${WK}
-    git reset --hard HEAD~10
-    '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        sh '''
-        cd ${WK}
-        git checkout master
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WK}
-        git checkout 2.0
-        '''
-      } 
-      else{
-        sh '''
-        cd ${WK}
-        git checkout develop
-        '''
-      } 
-    }
-    sh '''
-    cd ${WK}
-    git pull >/dev/null 
     
+    cd ${WK}
     export TZ=Asia/Harbin
     date
-    git clean -dfx
     mkdir debug
     cd debug
     cmake .. > /dev/null
@@ -116,140 +67,42 @@ def pre_test(){
 def pre_test_noinstall(){
     sh'hostname'
     sh'''
+    cd ${WS}
+    rm -rf ${WK}
+    git clone  git@github.com:taosdata/TDinternal.git --branch ${CHANGE_TARGET} --single-branch --depth 1
+    cd ${WK}
+    git clone  git@github.com:taosdata/TDengine.git community --branch develop --single-branch --depth 1
     cd ${WKC}
-    git reset --hard HEAD~10 >/dev/null
-    '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        sh '''
-        cd ${WKC}
-        git checkout master
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WKC}
-        git checkout 2.0
-        '''
-      } 
-      else{
-        sh '''
-        cd ${WKC}
-        git checkout develop
-        '''
-      }
-    }
-    sh'''
-    cd ${WKC}
-    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
-    git pull >/dev/null
-    git fetch origin +refs/pull/${CHANGE_ID}/merge
+    git submoudule update --recursive --init --depth 1 
+    git fetch origin +refs/pull/${CHANGE_ID}/merge --depth 1 
     git checkout -qf FETCH_HEAD
-    git clean -dfx
-    git ls-files --stage   | grep 160000   | awk '{print $4}'   | xargs git rm --cached 
-    git submodule update --init --recursive
-    cd ${WK}
-    git reset --hard HEAD~10
-    '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        sh '''
-        cd ${WK}
-        git checkout master
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WK}
-        git checkout 2.0
-        '''
-      } 
-      else{
-        sh '''
-        cd ${WK}
-        git checkout develop
-        '''
-      } 
-    }
-    sh '''
-    cd ${WK}
-    git pull >/dev/null 
     
+    cd ${WK}
     export TZ=Asia/Harbin
     date
-    git clean -dfx
     mkdir debug
     cd debug
-    cmake .. > /dev/null
-    make
+    cmake .. 
+    make 
     '''
     return 1
 }
 def pre_test_mac(){
     sh'hostname'
     sh'''
+    cd ${WS}
+    rm -rf ${WK}
+    git clone  git@github.com:taosdata/TDinternal.git --branch ${CHANGE_TARGET} --single-branch --depth 1
+    cd ${WK}
+    git clone  git@github.com:taosdata/TDengine.git community --branch develop --single-branch --depth 1
     cd ${WKC}
-    git reset --hard HEAD~10 >/dev/null
-    '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        sh '''
-        cd ${WKC}
-        git checkout master
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WKC}
-        git checkout 2.0
-        '''
-      } 
-      else{
-        sh '''
-        cd ${WKC}
-        git checkout develop
-        '''
-      }
-    }
-    sh'''
-    cd ${WKC}
-    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
-    git pull >/dev/null
-    git fetch origin +refs/pull/${CHANGE_ID}/merge
+    git submoudule update --recursive --init --depth 1 
+    git fetch origin +refs/pull/${CHANGE_ID}/merge --depth 1 
     git checkout -qf FETCH_HEAD
-    git clean -dfx
-    git ls-files --stage   | grep 160000   | awk '{print $4}'   | xargs git rm --cached
-    git submodule update --init --recursive
-    cd ${WK}
-    git reset --hard HEAD~10
-    '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        sh '''
-        cd ${WK}
-        git checkout master
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WK}
-        git checkout 2.0
-        '''
-      } 
-      else{
-        sh '''
-        cd ${WK}
-        git checkout develop
-        '''
-      } 
-    }
-    sh '''
-    cd ${WK}
-    git pull >/dev/null 
     
+    cd ${WK}
     export TZ=Asia/Harbin
     date
-    git clean -dfx
     mkdir debug
     cd debug
     cmake .. > /dev/null
@@ -262,72 +115,21 @@ def pre_test_win(){
     taskkill /f /t /im python.exe
     cd C:\\
     rd /s /Q C:\\TDengine
+    rd /s /Q C:\\workspace\\TDinternal
+    cd C:\\workspace
+    git clone  git@github.com:taosdata/TDinternal.git --branch ${CHANGE_TARGET} --single-branch --depth 1
     cd C:\\workspace\\TDinternal
-    rd /s /Q C:\\workspace\\TDinternal\\debug
+    git clone  git@github.com:taosdata/TDengine.git community --branch develop --single-branch --depth 1
     cd C:\\workspace\\TDinternal\\community
-    git reset --hard HEAD~10 
-    '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        bat '''
-        cd C:\\workspace\\TDinternal\\community
-        git checkout master
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        bat '''
-        cd C:\\workspace\\TDinternal\\community
-        git checkout 2.0
-        '''
-      } 
-      else{
-        bat '''
-        cd C:\\workspace\\TDinternal\\community
-        git checkout develop
-        '''
-      }
-    }
-    bat'''
-    cd C:\\workspace\\TDinternal\\community
-    git pull 
-    git fetch origin +refs/pull/%CHANGE_ID%/merge
+    git submoudule update --recursive --init --depth 1 
+    git fetch origin +refs/pull/${CHANGE_ID}/merge --depth 1 
     git checkout -qf FETCH_HEAD
-    git clean -dfx
-    git submodule update --init --recursive
     cd C:\\workspace\\TDinternal
-    git reset --hard HEAD~10
-    '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        bat '''
-        cd C:\\workspace\\TDinternal
-        git checkout master
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        bat '''
-        cd C:\\workspace\\TDinternal
-        git checkout 2.0
-        '''
-      } 
-      else{
-        bat '''
-        cd C:\\workspace\\TDinternal
-        git checkout develop
-        '''
-      } 
-    }
-    bat '''
-    cd C:\\workspace\\TDinternal
-    git pull 
-
-    date
-    git clean -dfx
     mkdir debug
     cd debug
     call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" amd64
     cmake ../ -G "NMake Makefiles" 
-    set CL=/MP nmake nmake || exit 8
+    set CL=/MP nmake || exit 8
     nmake install || exit 8
     xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32 || exit 8
     cd C:\\workspace\\TDinternal\\community\\src\\connector\\python
@@ -337,16 +139,15 @@ def pre_test_win(){
     return 1
 }
 pipeline {
-  agent none
-  options { skipDefaultCheckout() } 
+  agent none 
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
+      WS = '/var/lib/jenkins/workspace'
   }
   stages {
       stage('pre_build'){
-          agent{label 'master'}
-          options { skipDefaultCheckout() } 
+          agent{label 'master'} 
           when {
               changeRequest()
           }
@@ -355,43 +156,7 @@ pipeline {
               abort_previous()
               abortPreviousBuilds()
             }
-          //   sh'''
-          // rm -rf ${WORKSPACE}.tes
-          // cp -r ${WORKSPACE} ${WORKSPACE}.tes
-          // cd ${WORKSPACE}.tes
-          // git fetch
-          // '''
-          // script {
-          //   if (env.CHANGE_TARGET == 'master') {
-          //     sh '''
-          //     git checkout master
-          //     '''
-          //     }
-          //   else if(env.CHANGE_TARGET == '2.0'){
-          //     sh '''
-          //     git checkout 2.0
-          //     '''
-          //   } 
-          //   else{
-          //     sh '''
-          //     git checkout develop
-          //     '''
-          //   } 
-          // }
-          // sh'''
-          // git fetch origin +refs/pull/${CHANGE_ID}/merge
-          // git checkout -qf FETCH_HEAD
-          // '''     
-
-          // script{  
-          //   skipbuild='2'     
-          //   skipbuild=sh(script: "git log -2 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
-          //   println skipbuild
-          // }
-          // sh'''
-          // rm -rf ${WORKSPACE}.tes
-          // '''
-          // }       
+               
           }
       }
       stage('Parallel test stage') {
