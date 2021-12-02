@@ -211,6 +211,8 @@ def pre_test_mac(){
     mkdir debug
     cd debug
     cmake .. > /dev/null
+    go env -w GOPROXY=https://goproxy.cn,direct
+    go env -w GO111MODULE=on
     cmake --build .
     '''
     return 1
