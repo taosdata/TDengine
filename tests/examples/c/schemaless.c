@@ -163,7 +163,8 @@ int main(int argc, char* argv[]) {
   }
 
   TAOS_RES*   result;
-  const char* host = "127.0.0.1";
+  //const char* host = "127.0.0.1";
+  const char* host = NULL;
   const char* user = "root";
   const char* passwd = "taosdata";
 
