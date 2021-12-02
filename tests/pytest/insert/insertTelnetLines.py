@@ -333,7 +333,7 @@ class TDTestCase:
         tdSql.query('describe `!@#$.%^&*()`')
         tdSql.checkRows(9)
 
-        tdSql.query('describe `stable`')
+        tdSql.query('describe `STABLE`')
         tdSql.checkRows(9)
 
         #tdSql.query('select * from `123`')
