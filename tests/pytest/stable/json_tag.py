@@ -272,7 +272,7 @@ class TDTestCase:
         tdSql.query("select * from jsons1 where jtag->'tag1'='femail' and jtag?'tag3'")
         tdSql.checkRows(2)
 
-        # test with tbname/normal cloumn
+        # test with tbname/normal column
         tdSql.query("select * from jsons1 where tbname = 'jsons1_1'")
         tdSql.checkRows(2)
         tdSql.query("select * from jsons1 where tbname = 'jsons1_1' and jtag?'tag3'")
@@ -284,128 +284,59 @@ class TDTestCase:
 
 
         # test where condition like
-        tdSql.query("select *,tbname from jsons1 where jtag->'location' like 'bei%'")
+        tdSql.query("select *,tbname from jsons1 where jtag->'tag2' like 'bei%'")
+        tdSql.checkRows(2)
+        tdSql.query("select *,tbname from jsons1 where jtag->'tag1' like 'fe%' and jtag->'tag2' is not null")
         tdSql.checkRows(2)
 
-        tdSql.query("select *,tbname from jsons1 where jtag->'location' like 'bei%' and jtag->'location'='beijin'")
-        tdSql.checkRows(0)
-
-        tdSql.query("select *,tbname from jsons1 where jtag->'location' like 'bei%' or jtag->'location'='beijin'")
-        tdSql.checkRows(2)
-
-        tdSql.query("select *,tbname from jsons1 where jtag->'location' like 'bei%' and jtag->'num'=34")
-        tdSql.checkRows(1)
-
-        tdSql.query("select *,tbname from jsons1 where (jtag->'location' like 'bei%' or jtag->'num'=34) and jtag->'class'=55")
-        tdSql.checkRows(0)
-
-        tdSql.query("select * from jsons1 where jtag->'num' like '5%'")
-        tdSql.checkRows(0)
-
-        # test where condition in
-        tdSql.error("select * from jsons1 where jtag->'location' in ('beijing')")
-        tdSql.error("select * from jsons1 where jtag->'num' in ('5',34)")
+        # test where condition in  no support in
+        tdSql.error("select * from jsons1 where jtag->'tag1' in ('beijing')")
 
         # test where condition match
-        tdSql.query("select * from jsons1 where jtag->'location' match 'jin$'")
-        tdSql.checkRows(0)
-
-        tdSql.query("select * from jsons1 where jtag->'location' match 'jin'")
+        tdSql.query("select * from jsons1 where jtag->'tag1' match 'ma'")
         tdSql.checkRows(2)
-
-        tdSql.query("select * from jsons1 where datastr match 'json' and jtag->'location' match 'jin'")
-        tdSql.checkRows(2)
-
-        tdSql.query("select * from jsons1 where jtag->'num' match '5'")
+        tdSql.query("select * from jsons1 where jtag->'tag1' match 'ma$'")
         tdSql.checkRows(0)
-
-        
-        tdSql.query("select jtag from jsons1_6")
-        tdSql.checkData(0, 0, None)
-
-        
-        tdSql.query("select jtag from jsons1_7")
-        tdSql.checkData(0, 0, None)
-
-        
-        tdSql.query("select jtag from jsons1_8")
-        tdSql.checkData(0, 0, None)
-
-        
-        tdSql.query("select jtag from jsons1_9")
-        tdSql.checkData(0, 0, "{\"time\":null}")
-
-        tdSql.query("select jtag from jsons1_10")
-        tdSql.checkData(0, 0, "{\"k1\":\"\",\"k2\":true,\"k3\":false,\"k4\":55}")
-
-        tdSql.query("select jtag->'k2' from jsons1_10")
-        tdSql.checkData(0, 0, "true")
-
-        tdSql.query("select jtag from jsons1 where jtag->'k1'=''")
+        tdSql.query("select * from jsons1 where jtag->'tag2' match 'jing$'")
+        tdSql.checkRows(2)
+        tdSql.query("select * from jsons1 where jtag->'tag1' match '收到'")
         tdSql.checkRows(1)
-
-        tdSql.query("select jtag from jsons1 where jtag->'k2'=true")
-        tdSql.checkRows(1)
-
-
-
-        tdSql.query("select * from jsons1 where jtag->'location' is not null")
-        tdSql.checkRows(3)
-
-        tdSql.query("select tbname,jtag from jsons1 where jtag->'location' is null")
-        tdSql.checkRows(7)
-
-        tdSql.query("select * from jsons1 where jtag->'num' is not null")
-        tdSql.checkRows(2)
-
-        tdSql.query("select * from jsons1 where jtag->'location'='null'")
-        tdSql.checkRows(0)
-
-        tdSql.query("select * from jsons1 where jtag->'num'='null'")
-        tdSql.checkRows(0)
 
         # test distinct
+        tdSql.execute("insert into jsons1_14 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":null}') values(1591062628000, 2, NULL, '你就会', 'dws')")
+        tdSql.query("select distinct jtag->'tag1' from jsons1")
+        tdSql.checkRows(8)
         tdSql.query("select distinct jtag from jsons1")
-        tdSql.checkRows(7)
-
-        tdSql.query("select distinct jtag->'location' from jsons1")
-        tdSql.checkRows(3)
-
-        # test chinese
-        tdSql.query("select tbname,jtag from jsons1 where jtag->'k1' match '中'")
-        tdSql.checkRows(1)
-
-        tdSql.query("select tbname,jtag from jsons1 where jtag->'k1'='中国'")
-        tdSql.checkRows(1)
+        tdSql.checkRows(9)
 
         #test dumplicate key with normal colomn
-        tdSql.execute("INSERT INTO jsons1_12 using jsons1 tags('{\"tbname\":\"tt\",\"databool\":true,\"dataStr\":\"是是是\"}') values(1591060828000, 4, false, \"你就会\")")
-
-        tdSql.query("select *,tbname,jtag from jsons1 where jtag->'dataStr' match '是'")
+        tdSql.execute("INSERT INTO jsons1_15 using jsons1 tags('{\"tbname\":\"tt\",\"databool\":true,\"datastr\":\"是是是\"}') values(1591060828000, 4, false, 'jjsf', \"你就会\")")
+        tdSql.query("select *,tbname,jtag from jsons1 where jtag->'datastr' match '是' and datastr match 'js'")
         tdSql.checkRows(1)
-
-        tdSql.query("select tbname,jtag->'tbname' from jsons1 where jtag->'tbname'='tt'")
-        tdSql.checkRows(1)
-
-        tdSql.query("select *,tbname,jtag from jsons1 where dataBool=true")
-        tdSql.checkRows(2)
-
-        # test error
+        tdSql.query("select tbname,jtag->'tbname' from jsons1 where jtag->'tbname'='tt' and tbname='jsons1_14'")
+        tdSql.checkRows(0)
         
         # test join
-        tdSql.query("select 'sss',33,a.jtag->'loc' from jsons2 a,jsons3 b where a.ts=b.ts and a.jtag->'loc'=b.jtag->'loc'")
-        tdSql.checkData(0, 0, "sss")
-        tdSql.checkData(0, 2, "\"fff\"")
+        tdSql.execute("create table if not exists jsons2(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json)")
+        tdSql.execute("insert into jsons2_1 using jsons2 tags('{\"tag1\":\"fff\",\"tag2\":5, \"tag3\":true}') values(1591060618000, 2, false, 'json2', '你是2')")
+        tdSql.execute("insert into jsons2_2 using jsons2 tags('{\"tag1\":5,\"tag2\":\"beijing\"}') values (1591060628000, 2, true, 'json2', 'sss')")
 
-        res = tdSql.getColNameList("select 'sss',33,a.jtag->'loc' from jsons2 a,jsons3 b where a.ts=b.ts and a.jtag->'loc'=b.jtag->'loc'")
+        tdSql.execute("create table if not exists jsons3(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json)")
+        tdSql.execute("insert into jsons3_1 using jsons3 tags('{\"tag1\":\"fff\",\"tag2\":5, \"tag3\":true}') values(1591060618000, 3, false, 'json3', '你是3')")
+        tdSql.execute("insert into jsons3_2 using jsons3 tags('{\"tag1\":5,\"tag2\":\"beijing\"}') values (1591060638000, 2, true, 'json3', 'sss')")
+        tdSql.query("select 'sss',33,a.jtag->'tag3' from jsons2 a,jsons3 b where a.ts=b.ts and a.jtag->'tag1'=b.jtag->'tag1'")
+        tdSql.checkData(0, 0, "sss")
+        tdSql.checkData(0, 2, "true")
+
+        res = tdSql.getColNameList("select 'sss',33,a.jtag->'tag3' from jsons2 a,jsons3 b where a.ts=b.ts and a.jtag->'tag1'=b.jtag->'tag1'")
         cname_list = []
         cname_list.append("sss")
         cname_list.append("33")
-        cname_list.append("a.jtag->'loc'")
+        cname_list.append("a.jtag->'tag3'")
         tdSql.checkColNameList(res, cname_list)
     
         # test group by & order by   string
-        tdSql.query("select avg(dataint),count(*) from jsons1 group by jtag->'location' order by jtag->'location' desc")
+        tdSql.query("select avg(dataint),count(*) from jsons1 group by jtag->'tag1' order by jtag->'tag1' desc")
         tdSql.checkData(1, 0, 2.5)
         tdSql.checkData(1, 1, 2)
         tdSql.checkData(1, 2, "\"beijing\"")
