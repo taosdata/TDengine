@@ -268,11 +268,8 @@ FstNode*     fstGetNode(Fst *fst, CompiledAddr);
 FstNode*     fstGetRoot(Fst *fst);
 FstType      fstGetType(Fst *fst); 
 CompiledAddr fstGetRootAddr(Fst *fst);
-
-
-
-Output fstEmptyFinalOutput(Fst *fst, bool *null);
-bool fstVerify(Fst *fst);
+Output       fstEmptyFinalOutput(Fst *fst, bool *null);
+bool         fstVerify(Fst *fst);
 
 
 //refactor this function 
@@ -304,6 +301,7 @@ typedef struct StreamWithStateResult {
 } StreamWithStateResult;
 
 StreamWithStateResult *swsResultCreate(FstSlice *data, FstOutput fOut, void *state);
+void swsResultDestroy(StreamWithStateResult *result);
 
 typedef void* (*StreamCallback)(void *);
 StreamWithState *streamWithStateCreate(Fst *fst, Automation *automation, FstBoundWithData *min, FstBoundWithData *max) ;

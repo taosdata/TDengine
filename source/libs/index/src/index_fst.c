@@ -1301,12 +1301,16 @@ StreamWithStateResult *streamWithStateNextWith(StreamWithState *sws, StreamCallb
     if (fstBoundWithDataExceededBy(sws->endAt, &slice)) {
       taosArrayDestroyEx(sws->stack, streamStateDestroy);
       sws->stack = (SArray *)taosArrayInit(256, sizeof(StreamState)); 
+      fstSliceDestroy(&slice);
       return NULL;
     }
     if (FST_NODE_IS_FINAL(nextNode) && isMatch) {
       FstOutput fOutput = {.null = false, .out = out + FST_NODE_FINAL_OUTPUT(nextNode)};
-      return swsResultCreate(&slice, fOutput , tState);
+      StreamWithStateResult *result =  swsResultCreate(&slice, fOutput , tState);     
+      fstSliceDestroy(&slice);
+      return result; 
     }
+    fstSliceDestroy(&slice);
   }
   return NULL; 
   
@@ -1321,8 +1325,14 @@ StreamWithStateResult *swsResultCreate(FstSlice *data, FstOutput fOut, void *sta
   result->state = state; 
 
   return result;
-   
 }
+void swsResultDestroy(StreamWithStateResult *result) {
+  if (NULL == result) { return; }
+  
+  fstSliceDestroy(&result->data);
+  free(result);
+}
+
 void streamStateDestroy(void *s) {
   if (NULL == s) { return; }
   StreamState *ss = (StreamState *)s;
