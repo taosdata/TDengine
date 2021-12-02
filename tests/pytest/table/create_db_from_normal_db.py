@@ -34,6 +34,7 @@ class TDTestCase:
         tdSql.execute("drop table if exists db.state2;")
         tdSql.execute("create table db.state2 (ts timestamp, c1 int) tags (t binary(20));")
         tdSql.query("create table db.test2 using db.state2 tags('tt');")
+        tdSql.error("create table db.test22 using db.test2 tags('tt');")
 
     def stop(self):
         tdSql.close()
