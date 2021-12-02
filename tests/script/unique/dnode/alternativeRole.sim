@@ -42,8 +42,8 @@ show1:
 
 sql show dnodes
 print dnode1 $data5_1
-print dnode1 $data5_2
-print dnode1 $data5_3
+print dnode2 $data5_2
+print dnode3 $data5_3
 
 if $data5_1 != mnode then
   goto show1
