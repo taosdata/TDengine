@@ -66,10 +66,12 @@ def pre_test(){
     }
     sh'''
     cd ${WKC}
+    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
+    git ls-files --stage   | grep 160000   | awk '{print $4}'   | xargs git rm --cached 
     git submodule update --init --recursive
     cd ${WK}
     git reset --hard HEAD~10
@@ -139,10 +141,12 @@ def pre_test_noinstall(){
     }
     sh'''
     cd ${WKC}
+    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
+    git ls-files --stage   | grep 160000   | awk '{print $4}'   | xargs git rm --cached 
     git submodule update --init --recursive
     cd ${WK}
     git reset --hard HEAD~10
@@ -209,10 +213,12 @@ def pre_test_mac(){
     }
     sh'''
     cd ${WKC}
+    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
+    git ls-files --stage   | grep 160000   | awk '{print $4}'   | xargs git rm --cached
     git submodule update --init --recursive
     cd ${WK}
     git reset --hard HEAD~10

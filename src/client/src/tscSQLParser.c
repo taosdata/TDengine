@@ -436,7 +436,7 @@ int32_t readFromFile(char *name, uint32_t *len, void **buf) {
 
 
 int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
-  const char *msg1 = "invalidate function name";
+  const char *msg1 = "invalid function name or length";
   const char *msg2 = "path is too long";
   const char *msg3 = "invalid outputtype";
   #ifdef LUA_EMBEDDED
@@ -1488,7 +1488,7 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
   const char* msg3 = "duplicated column names";
   const char* msg4 = "invalid data type";
   const char* msg5 = "invalid binary/nchar column length";
-  const char* msg6 = "invalid column name";
+  const char* msg6 = "invalid column name or length";
   const char* msg7 = "too many columns";
 
   // number of fields no less than 2
@@ -1559,7 +1559,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
   const char* msg3 = "duplicated column names";
   //const char* msg4 = "timestamp not allowed in tags";
   const char* msg5 = "invalid data type in tags";
-  const char* msg6 = "invalid tag name";
+  const char* msg6 = "invalid tag name or length";
   const char* msg7 = "invalid binary/nchar tag length";
 
   // number of fields at least 1
@@ -1628,7 +1628,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
  */
 int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   const char* msg3 = "tag length too long";
-  const char* msg4 = "invalid tag name";
+  const char* msg4 = "invalid tag name or length";
   const char* msg5 = "invalid binary/nchar tag length";
   const char* msg6 = "invalid data type in tags";
   const char* msg7 = "too many columns";
@@ -1701,7 +1701,7 @@ int32_t validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
   const char* msg1 = "too many columns";
   const char* msg3 = "column length too long";
   const char* msg4 = "invalid data type";
-  const char* msg5 = "invalid column name";
+  const char* msg5 = "invalid column name or length";
   const char* msg6 = "invalid column length";
 
 //  assert(pCmd->numOfClause == 1);
@@ -2059,7 +2059,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   const char* msg8 = "not support distinct in nest query";
   const char* msg9 = "_block_dist not support subquery, only support stable/table";
   const char* msg10 = "not support group by in block func";
-  const char* msg11 = "invalid alias name";
+  const char* msg11 = "invalid alias name or length";
 
   // too many result columns not support order by in query
   if (taosArrayGetSize(pSelNodeList) > TSDB_MAX_COLUMNS) {
@@ -3256,12 +3256,14 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
   const char* msg0 = "ambiguous column name";
   const char* msg1 = "invalid column name";
 
+  if (pToken->n == 0) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
   if (isTablenameToken(pToken)) {
     pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
   } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n &&
             strncasecmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
-    pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX; // just make runtime happy, need fix java test case InsertSpecialCharacterJniTest
-  } else if (pToken->n == 0) {
     pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX; // just make runtime happy, need fix java test case InsertSpecialCharacterJniTest
   } else {
     // not specify the table name, try to locate the table index by column name
@@ -3637,6 +3639,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
   int32_t prjNum = 0;
   int32_t aggNum = 0;
   int32_t scalNum = 0;
+  int32_t countTbname = 0;
 
   size_t numOfExpr = tscNumOfExprs(pQueryInfo);
   assert(numOfExpr > 0);
@@ -3691,9 +3694,13 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
     if (functionId == TSDB_FUNC_LAST_ROW && (joinQuery || twQuery || !groupbyTagsOrNull(pQueryInfo))) {
       return false;
     }
+
+    if (functionId == TSDB_FUNC_COUNT && (pExpr1->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX || TSDB_COL_IS_TAG(pExpr1->base.colInfo.flag))) {
+      ++countTbname;
+    }
   }
 
-  aggNum = (int32_t)size - prjNum - scalNum - aggUdf - scalarUdf;
+  aggNum = (int32_t)size - prjNum - scalNum - aggUdf - scalarUdf - countTbname;
 
   assert(aggNum >= 0);
 
@@ -3706,6 +3713,10 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
   }
 
   if (aggNum > 0 && scalNum > 0) {
+    return false;
+  }
+
+  if (countTbname && (prjNum > 0 || aggNum > 0 || scalarUdf > 0 || aggUdf > 0)) {
     return false;
   }
 
@@ -5873,10 +5884,17 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
    * for table query, there is only one or none order option is allowed, which is the
    * ts or values(top/bottom) order is supported.
    *
-   * for super table query, the order option must be less than 3.
+   * for super table query, the order option must be less than 3 and the second must be ts.
+   *
+   * order by has 5 situations
+   * 1. from stable group by tag1 order by tag1 [ts]
+   * 2. from stable group by tbname order by tbname [ts]
+   * 3. from stable/table group by column1 order by column1
+   * 4. from stable/table order by ts
+   * 5. select stable/table top(column2,1) ... order by column2
    */
   size_t size = taosArrayGetSize(pSortOrder);
-  if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo) || UTIL_TABLE_IS_TMP_TABLE(pTableMetaInfo)) {
+  if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     if (size > 1) {
       return invalidOperationMsg(pMsgBuf, msg0);
     }
@@ -5886,15 +5904,14 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     }
   }
   if (size > 0 && pQueryInfo->distinct) {
-    return invalidOperationMsg(pMsgBuf, msg10); 
+    return invalidOperationMsg(pMsgBuf, msg10);
   }
 
   // handle the first part of order by
   tVariant* pVar = taosArrayGet(pSortOrder, 0);
 
-  // e.g., order by 1 asc, return directly with out further check.
-  if (pVar->nType >= TSDB_DATA_TYPE_TINYINT && pVar->nType <= TSDB_DATA_TYPE_BIGINT) {
-    return TSDB_CODE_SUCCESS;
+  if (pVar->nType != TSDB_DATA_TYPE_BINARY){
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
   SStrToken    columnName = {pVar->nLen, pVar->nType, pVar->pz};
@@ -5903,7 +5920,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
   if (pQueryInfo->pUdfInfo && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0) {
     int32_t usize = (int32_t)taosArrayGetSize(pQueryInfo->pUdfInfo);
-    
+
     for (int32_t i = 0; i < usize; ++i) {
       SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, i);
       if (pUdfInfo->funcType == TSDB_UDF_TYPE_SCALAR) {
@@ -5922,9 +5939,9 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     bool orderByTS = false;
     bool orderByGroupbyCol = false;
 
-    if (index.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {
+    if (index.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {    // order by tag1
       int32_t relTagIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
-      
+
       // it is a tag column
       if (pQueryInfo->groupbyExpr.columnInfo == NULL) {
         return invalidOperationMsg(pMsgBuf, msg4);
@@ -5933,26 +5950,29 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       if (relTagIndex == pColIndex->colIndex) {
         orderByTags = true;
       }
-    } else if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
-      orderByTags = true;
-    }
-
-    if (PRIMARYKEY_TIMESTAMP_COL_INDEX == index.columnIndex) {
+    } else if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) { // order by tbname
+      // it is a tag column
+      if (pQueryInfo->groupbyExpr.columnInfo == NULL) {
+        return invalidOperationMsg(pMsgBuf, msg4);
+      }
+      SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, 0);
+      if (TSDB_TBNAME_COLUMN_INDEX == pColIndex->colIndex) {
+        orderByTags = true;
+      }
+    }else if (index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX) {     // order by ts
       orderByTS = true;
-    }
-
-    SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
-    if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
-      SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
-      if (PRIMARYKEY_TIMESTAMP_COL_INDEX != index.columnIndex && pColIndex->colIndex == index.columnIndex) {
-        orderByGroupbyCol = true;
+    }else{    // order by normal column
+      SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
+      if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
+        SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
+        if (pColIndex->colIndex == index.columnIndex) {
+          orderByGroupbyCol = true;
+        }
       }
     }
 
     if (!(orderByTags || orderByTS || orderByGroupbyCol) && !isTopBottomQuery(pQueryInfo)) {
       return invalidOperationMsg(pMsgBuf, msg3);
-    } else {  // order by top/bottom result value column is not supported in case of interval query.
-      assert(!(orderByTags && orderByTS && orderByGroupbyCol));
     }
 
     size_t s = taosArrayGetSize(pSortOrder);
@@ -6087,7 +6107,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
         SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
 
-        if (pColIndex->colIndex == index.columnIndex) {
+        if (pColIndex->colIndex != index.columnIndex) {
           return invalidOperationMsg(pMsgBuf, msg8);
         }
       } else {
@@ -6792,6 +6812,10 @@ int32_t validateLocalConfig(SMiscInfo* pOptions) {
 }
 
 int32_t validateColumnName(char* name) {
+  if (strlen(name) == 0) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
   bool ret = taosIsKeyWordToken(name, (int32_t)strlen(name));
   if (ret) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
