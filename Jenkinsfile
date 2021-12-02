@@ -70,7 +70,7 @@ def pre_test(){
       else{
         sh '''
         cd ${WS}
-        cd TDinternal_develop.0
+        cd TDinternal_develop
         git pull
         cd community
         git pull
