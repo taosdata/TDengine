@@ -41,216 +41,177 @@ def pre_test(){
     killall -9 taosd ||echo "no taosd running"
     killall -9 gdb || echo "no gdb running"
     killall -9 python3.8 || echo "no python program running"
-    cd ${WKC}
-    git reset --hard HEAD~10 >/dev/null
+    cd ${WS}
+    rm -rf ${WK}
     '''
     script {
       if (env.CHANGE_TARGET == 'master') {
         sh '''
-        cd ${WKC}
-        git checkout master
+        cd ${WS}
+        cd TDinternal_master
+        git pull
+        cd community
+        git pull
+        cd ${WS}
+        cp -fr TDinternal_master TDinternal
         '''
         }
       else if(env.CHANGE_TARGET == '2.0'){
         sh '''
-        cd ${WKC}
-        git checkout 2.0
+        cd ${WS}
+        cd TDinternal_2.0
+        git pull
+        cd community
+        git pull
+        cd ${WS}
+        cp -fr TDinternal_2.0 TDinternal
         '''
       } 
       else{
         sh '''
-        cd ${WKC}
-        git checkout develop
+        cd ${WS}
+        cd TDinternal_develop
+        git pull
+        cd community
+        git pull
+        cd ${WS}
+        cp -fr TDinternal_develop TDinternal
         '''
       }
     }
     sh'''
     cd ${WKC}
-    git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    git clean -dfx
-    git ls-files --stage   | grep 160000   | awk '{print $4}'   | xargs git rm --cached 
     git submodule update --init --recursive
-    cd ${WK}
-    git reset --hard HEAD~10
     '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        sh '''
-        cd ${WK}
-        git checkout master
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WK}
-        git checkout 2.0
-        '''
-      } 
-      else{
-        sh '''
-        cd ${WK}
-        git checkout develop
-        '''
-      } 
-    }
     sh '''
-    cd ${WK}
-    git pull >/dev/null 
-
+    cd ${WK} 
     export TZ=Asia/Harbin
     date
-    git clean -dfx
     mkdir debug
     cd debug
     cmake .. > /dev/null
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
-    pip3 install ${WKC}/src/connector/python/
+    pip3 install ${WKC}/src/connector/python/ 
     '''
     return 1
 }
 def pre_test_noinstall(){
     sh'hostname'
     sh'''
-    cd ${WKC}
-    git reset --hard HEAD~10 >/dev/null
+    cd ${WS}
+    rm -rf ${WK}
     '''
     script {
       if (env.CHANGE_TARGET == 'master') {
         sh '''
-        cd ${WKC}
-        git checkout master
+        cd ${WS}
+        cd TDinternal_master
+        git pull
+        cd community
+        git pull
+        cd ${WS}
+        cp -fr TDinternal_master TDinternal
         '''
         }
       else if(env.CHANGE_TARGET == '2.0'){
         sh '''
-        cd ${WKC}
-        git checkout 2.0
+        cd ${WS}
+        cd TDinternal_20
+        git pull
+        cd community
+        git pull
+        cd ${WS}
+        cp -fr TDinternal_20 TDinternal
         '''
       } 
       else{
         sh '''
-        cd ${WKC}
-        git checkout develop
+        cd ${WS}
+        cd TDinternal_develop
+        git pull
+        cd community
+        git pull
+        cd ${WS}
+        cp -fr TDinternal_develop TDinternal
         '''
       }
     }
     sh'''
     cd ${WKC}
-    git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    git clean -dfx
-    git ls-files --stage   | grep 160000   | awk '{print $4}'   | xargs git rm --cached 
     git submodule update --init --recursive
-    cd ${WK}
-    git reset --hard HEAD~10
     '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        sh '''
-        cd ${WK}
-        git checkout master
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WK}
-        git checkout 2.0
-        '''
-      } 
-      else{
-        sh '''
-        cd ${WK}
-        git checkout develop
-        '''
-      } 
-    }
     sh '''
-    cd ${WK}
-    git pull >/dev/null 
-    
+    cd ${WK} 
     export TZ=Asia/Harbin
     date
-    git clean -dfx
     mkdir debug
     cd debug
     cmake .. > /dev/null
-    make
+    make 
     '''
     return 1
 }
-def pre_test_ningsi(){
+def pre_test_mac(){
     sh'hostname'
     sh'''
-    cd ${WKC}
-    git reset --hard HEAD~10 >/dev/null
+    cd ${WS}
+    rm -rf ${WK}
     '''
     script {
       if (env.CHANGE_TARGET == 'master') {
         sh '''
-        cd ${WKC}
-        git checkout master
+        cd ${WS}
+        cd TDinternal_master
+        git pull
+        cd community
+        git pull
+        cd ${WS}
+        cp -fr TDinternal_master TDinternal
         '''
         }
       else if(env.CHANGE_TARGET == '2.0'){
         sh '''
-        cd ${WKC}
-        git checkout 2.0
+        cd ${WS}
+        cd TDinternal_20
+        git pull
+        cd community
+        git pull
+        cd ${WS}
+        cp -fr TDinternal_20 TDinternal
         '''
       } 
       else{
         sh '''
-        cd ${WKC}
-        git checkout develop
+        cd ${WS}
+        cd TDinternal_develop
+        git pull
+        cd community
+        git pull
+        cd ${WS}
+        cp -fr TDinternal_develop TDinternal
         '''
       }
     }
     sh'''
     cd ${WKC}
-    git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    git clean -dfx
-    git ls-files --stage   | grep 160000   | awk '{print $4}'   | xargs git rm --cached 
     git submodule update --init --recursive
-    cd ${WK}
-    git reset --hard HEAD~10
     '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        sh '''
-        cd ${WK}
-        git checkout master
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WK}
-        git checkout 2.0
-        '''
-      } 
-      else{
-        sh '''
-        cd ${WK}
-        git checkout develop
-        '''
-      } 
-    }
     sh '''
-    cd ${WK}
-    git pull >/dev/null 
-    
+    cd ${WK} 
     export TZ=Asia/Harbin
     date
-    git clean -dfx
     mkdir debug
     cd debug
-    cmake .. -DOSTYPE=Ningsi60 > /dev/null
-    make
+    cmake .. > /dev/null
+    cmake --build .
     '''
     return 1
 }
@@ -259,67 +220,47 @@ def pre_test_win(){
     taskkill /f /t /im python.exe
     cd C:\\
     rd /s /Q C:\\TDengine
-    cd C:\\workspace\\TDinternal
-    rd /s /Q C:\\workspace\\TDinternal\\debug
-    cd C:\\workspace\\TDinternal\\community
-    git reset --hard HEAD~10 
+    cd C:\\workspace
+    rd /s /Q C:\\workspace\\TDinternal | echo 1
     '''
     script {
       if (env.CHANGE_TARGET == 'master') {
         bat '''
-        cd C:\\workspace\\TDinternal\\community
-        git checkout master
+        cd C:\\workspace\\TDinternal_master
+        git pull
+        cd C:\\workspace\\TDinternal_master\\community
+        git pull
+        xcopy /e/y/i/f C:\\workspace\\TDinternal_master  C:\\workspace\\TDinternal
         '''
         }
       else if(env.CHANGE_TARGET == '2.0'){
         bat '''
-        cd C:\\workspace\\TDinternal\\community
-        git checkout 2.0
+        cd C:\\workspace\\TDinternal_20
+        git pull
+        cd C:\\workspace\\TDinternal_20\\community
+        git pull
+        xcopy /e/y/i/f  C:\\workspace\\TDinternal_20  C:\\workspace\\TDinternal
         '''
       } 
       else{
         bat '''
-        cd C:\\workspace\\TDinternal\\community
-        git checkout develop
+        cd C:\\workspace\\TDinternal_develop
+        git pull
+        cd C:\\workspace\\TDinternal_develop\\community
+        git pull
+        xcopy /e/y/i/f  C:\\workspace\\TDinternal_develop  C:\\workspace\\TDinternal
         '''
       }
     }
     bat'''
     cd C:\\workspace\\TDinternal\\community
-    git pull 
     git fetch origin +refs/pull/%CHANGE_ID%/merge
     git checkout -qf FETCH_HEAD
-    git clean -dfx
     git submodule update --init --recursive
-    cd C:\\workspace\\TDinternal
-    git reset --hard HEAD~10
     '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        bat '''
-        cd C:\\workspace\\TDinternal
-        git checkout master
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        bat '''
-        cd C:\\workspace\\TDinternal
-        git checkout 2.0
-        '''
-      } 
-      else{
-        bat '''
-        cd C:\\workspace\\TDinternal
-        git checkout develop
-        '''
-      } 
-    }
     bat '''
     cd C:\\workspace\\TDinternal
-    git pull 
-
     date
-    git clean -dfx
     mkdir debug
     cd debug
     call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" amd64
@@ -333,12 +274,71 @@ def pre_test_win(){
     '''
     return 1
 }
+def pre_test_ningsi(){
+    sh'hostname'
+    sh'''
+    cd ${WS}
+    rm -rf ${WK}
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        sh '''
+        cd ${WS}
+        cd TDinternal_master
+        git pull
+        cd community
+        git pull
+        cd ${WS}
+        cp -fr TDinternal_master TDinternal
+        '''
+        }
+      else if(env.CHANGE_TARGET == '2.0'){
+        sh '''
+        cd ${WS}
+        cd TDinternal_20
+        git pull
+        cd community
+        git pull
+        cd ${WS}
+        cp -fr TDinternal_20 TDinternal
+        '''
+      } 
+      else{
+        sh '''
+        cd ${WS}
+        cd TDinternal_develop
+        git pull
+        cd community
+        git pull
+        cd ${WS}
+        cp -fr TDinternal_develop TDinternal
+        '''
+      }
+    }
+    sh'''
+    cd ${WKC}
+    git fetch origin +refs/pull/${CHANGE_ID}/merge
+    git checkout -qf FETCH_HEAD
+    git submodule update --init --recursive
+    '''
+    sh '''
+    cd ${WK} 
+    export TZ=Asia/Harbin
+    date
+    mkdir debug
+    cd debug
+    cmake .. -DOSTYPE=Ningsi60 > /dev/null
+    make
+    '''
+    return 1
+}
 pipeline {
   agent none
   options { skipDefaultCheckout() } 
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
+      WS = '/var/lib/jenkins/workspace'
   }
   stages {
       stage('pre_build'){
