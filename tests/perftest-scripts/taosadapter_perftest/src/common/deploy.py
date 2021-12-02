@@ -135,8 +135,22 @@ class Dnode:
             return False
 
     def taoscCreateDnodes(self):
-        self.dnode_conn.exec_cmd(f'sudo taos -s "create dnode \'{self.dnode_ip}:6030\'"')
-
+        firstEp = f'{self.configHostname()}:6030'
+        self.dnode_conn.exec_cmd(f'sudo taos -s "create dnode \'{firstEp}\'"')
+        ready_count = self.dnode_conn.exec_cmd(f'taos -s "show dnodes" | grep {firstEp} | grep ready | wc -l')
+        ready_flag = 0
+        if int(ready_count) == 1:
+            logger.success(f'deploy dnode {firstEp} success')
+        while int(ready_count) != 1:
+            if ready_flag < config["timeout"]:
+                ready_flag += 1
+            else:
+                logger.error(f'deploy cluster {firstEp} failed, please check by manual')
+            time.sleep(1)
+            ready_count = self.dnode_conn.exec_cmd(f'taos -s "show dnodes" | grep {firstEp} | grep ready | wc -l')
+            if int(ready_count) == 1:
+                logger.success(f'deploy dnode {firstEp} success')
+        
     def deployTaosd(self, firstEp=None, deploy_type="taosd"):
         '''
             deploy_type = taosd/taosadapter
@@ -162,10 +176,11 @@ class Dnode:
         elif deploy_type == "taosadapter":
             self.startTaosadapter()
         if self.checkStatus(deploy_type):
-            logger.success(f'{self.dnode_name}-{deploy_type} deploy success')
+            logger.success(f'{self.dnode_ip}-{deploy_type} deploy success')
         else:
             logger.error(f'{deploy_type} deploy failed, please check by manual')
             sys.exit(1)
+
 class Dnodes:
     def __init__(self):
         self.dnodes = list()
