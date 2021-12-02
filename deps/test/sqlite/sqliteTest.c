@@ -3,6 +3,20 @@
 
 #include "sqlite3.h"
 
+static void count_table(sqlite3 *db) {
+  int           rc;
+  char *        sql = "select * from t;";
+  sqlite3_stmt *stmt = NULL;
+  int           nrows = 0;
+
+  rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  while (SQLITE_ROW == sqlite3_step(stmt)) {
+    nrows++;
+  }
+
+  printf("Number of rows: %d\n", nrows);
+}
+
 int main(int argc, char const *argv[]) {
   sqlite3 *db;
   char *   err_msg = 0;
@@ -33,11 +47,14 @@ int main(int argc, char const *argv[]) {
 
   {
     // Write a lot of data
-    int  nrows = 100000;
-    int  batch = 1000;
+    int  nrows = 1000;
+    int  batch = 100;
     char tsql[1024];
+    int  v = 0;
 
-    int v = 0;
+    // sqlite3_exec(db, "PRAGMA journal_mode=WAL;", 0, 0, &err_msg);
+    sqlite3_exec(db, "PRAGMA read_uncommitted=true;", 0, 0, &err_msg);
+
     for (int k = 0; k < nrows / batch; k++) {
       sqlite3_exec(db, "begin;", 0, 0, &err_msg);
 
@@ -56,6 +73,7 @@ int main(int argc, char const *argv[]) {
         }
       }
 
+      count_table(db);
       sqlite3_exec(db, "commit;", 0, 0, &err_msg);
     }
   }
