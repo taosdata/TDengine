@@ -157,7 +157,7 @@ static int32_t dndInitClient(SDnode *pDnode) {
   rpcInit.label = "DND-C";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = dndProcessResponse;
-  rpcInit.sessions = 8;
+  rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = pDnode->opt.shellActivityTimer * 1000;
   rpcInit.user = INTERNAL_USER;
