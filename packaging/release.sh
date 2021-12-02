@@ -14,6 +14,7 @@ set -e
 #             -d [taos | power | tq | pro | kh | jh]
 #             -n [2.0.0.3]
 #             -m [2.0.0.0]
+#             -H [ false | true]
 
 # set parameters by default value
 verMode=edge     # [cluster, edge]
@@ -26,8 +27,9 @@ dbName=taos      # [taos | power | tq | pro | kh | jh]
 allocator=glibc  # [glibc | jemalloc]
 verNumber=""
 verNumberComp="1.0.0.0"
+httpdBuild=false
 
-while getopts "hv:V:c:o:l:s:d:a:n:m:" arg
+while getopts "hv:V:c:o:l:s:d:a:n:m:H:" arg
 do
   case $arg in
     v)
@@ -70,6 +72,10 @@ do
       #echo "osType=$OPTARG"
       osType=$(echo $OPTARG)
       ;;
+    H)
+      #echo "httpdBuild=$OPTARG"
+      httpdBuild=$(echo $OPTARG)
+      ;;
     h)
       echo "Usage: `basename $0` -v [cluster | edge] "
       echo "                  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] "
@@ -81,6 +87,7 @@ do
       echo "                  -d [taos | power | tq | pro | kh | jh] "
       echo "                  -n [version number] "
       echo "                  -m [compatible version number] "
+      echo "                  -H [false | true] "
       exit 0
       ;;
     ?) #unknow option
@@ -90,7 +97,7 @@ do
   esac
 done
 
-echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} dbName=${dbName} allocator=${allocator} verNumber=${verNumber} verNumberComp=${verNumberComp}"
+echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} dbName=${dbName} allocator=${allocator} verNumber=${verNumber} verNumberComp=${verNumberComp} httpdBuild=${httpdBuild}"
 
 curr_dir=$(pwd)
 
@@ -405,8 +412,7 @@ if [[ "$dbName" == "jh" ]]; then
   # TODO: src/dnode/CMakeLists.txt
 fi
 
-echo "build ${pagMode} package ..."
-if [[ "$pagMode" == "lite" ]]; then
+if [[ "$httpdBuild" == "true" ]]; then
     BUILD_HTTP=true
     BUILD_TOOLS=false
 else

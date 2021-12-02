@@ -2,7 +2,6 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.0...3.20)
 PROJECT(TDengine)
 
 ADD_SUBDIRECTORY(shell)
-ADD_SUBDIRECTORY(taosdemo)
 
 IF (TD_TAOS_TOOLS)
     INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/src/kit/taos_tools/deps/avro/lang/c/src)

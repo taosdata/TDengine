@@ -79,6 +79,10 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [Windows Client](https://www.taosdata.com/blog/2019/07/26/514.html): compile your own Windows client, which is required by various connectors on the Windows environment
 - [Rust Connector](/connector/rust): A taosc/RESTful API based TDengine client for Rust
 
+## [Components and Tools](/tools/adapter)
+
+* [taosAdapter](/tools/adapter)
+
 ## [Connections with Other Tools](/connections)
 
 - [Grafana](/connections#grafana): query the data saved in TDengine and provide visualization

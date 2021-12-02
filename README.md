@@ -64,7 +64,7 @@ To build the [taos-tools](https://github.com/taosdata/taos-tools) on Ubuntu/Debi
 sudo apt install libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
 ```
 
-### Centos 7:
+### CentOS 7:
 ```bash
 sudo yum install epel-release
 sudo yum update
@@ -82,7 +82,7 @@ To install Apache Maven:
 sudo yum install -y maven
 ```
 
-### Centos 8 & Fedora:
+### CentOS 8 & Fedora:
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git
 ```
@@ -100,8 +100,9 @@ sudo dnf install -y maven
 #### Install build dependencies for taos-tools 
 To build the [taos-tools](https://github.com/taosdata/taos-tools) on CentOS, the following packages need to be installed.
 ```bash
-sudo yum install xz-devel snappy-devel jansson-devel pkgconfig libatomic
+sudo yum install libz-devel xz-devel snappy-devel jansson-devel pkgconfig libatomic
 ```
+Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)), it lead a cmake prompt libsnappy not found. But snappy will works well.
 
 ### Setup golang environment
 TDengine includes few components developed by Go language. Please refer to golang.org official documentation for golang environment setup.
@@ -281,18 +282,19 @@ drop database db;
 
 TDengine provides abundant developing tools for users to develop on TDengine. Follow the links below to find your desired connectors and relevant documentation.
 
-- [Java](https://www.taosdata.com/en/documentation/connector/#Java-Connector)
-- [C/C++](https://www.taosdata.com/en/documentation/connector/#C/C++-Connector)
-- [Python](https://www.taosdata.com/en/documentation/connector/#Python-Connector)
-- [Go](https://www.taosdata.com/en/documentation/connector/#Go-Connector)
-- [RESTful API](https://www.taosdata.com/en/documentation/connector/#RESTful-Connector)
-- [Node.js](https://www.taosdata.com/en/documentation/connector/#Node.js-Connector)
+- [Java](https://www.taosdata.com/en/documentation/connector/java)
+- [C/C++](https://www.taosdata.com/en/documentation/connector#c-cpp)
+- [Python](https://www.taosdata.com/en/documentation/connector#python)
+- [Go](https://www.taosdata.com/en/documentation/connector#go)
+- [RESTful API](https://www.taosdata.com/en/documentation/connector#restful)
+- [Node.js](https://www.taosdata.com/en/documentation/connector#nodejs)
+- [Rust](https://www.taosdata.com/en/documentation/connector/rust)
 
 ### Third Party Connectors
 
 The TDengine community has also kindly built some of their own connectors! Follow the links below to find the source code for them.
 
-- [Rust Connector](https://github.com/taosdata/TDengine/tree/master/tests/examples/rust)
+- [Rust Bindings](https://github.com/songtianyi/tdengine-rust-bindings/tree/master/examples)
 - [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
 - [Lua Connector](https://github.com/taosdata/TDengine/tree/develop/tests/examples/lua)
 
