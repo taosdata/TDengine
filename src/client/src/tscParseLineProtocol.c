@@ -209,8 +209,8 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
       schema.sTableName[stableNameLen] = '\0';
       schema.fields = taosArrayInit(64, sizeof(SSchema));
       schema.tags = taosArrayInit(8, sizeof(SSchema));
-      schema.tagHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
-      schema.fieldHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
+      schema.tagHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
+      schema.fieldHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
 
       pStableSchema = taosArrayPush(stableSchemas, &schema);
       stableIdx = taosArrayGetSize(stableSchemas) - 1;
