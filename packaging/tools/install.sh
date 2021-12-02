@@ -819,7 +819,7 @@ vercomp () {
 
 function is_version_compatible() {
 
-    curr_version=`ls ${script_dir}/driver/libtaos.so* |cut -d '.' -f 3-6`
+    curr_version=`ls ${script_dir}/driver/libtaos.so* | awk -F 'libtaos.so.' '{print $2}'`
 
     if [ -f ${script_dir}/driver/vercomp.txt ]; then
         min_compatible_version=`cat ${script_dir}/driver/vercomp.txt`
