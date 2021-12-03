@@ -1081,8 +1081,8 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, int32_t
 }
 
 TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
-                              int64_t stime, void *param, void (*callback)(void *)) {  
-  return taos_open_stream_withname(taos, "", -1, sqlstr, fp, stime, param, callback, NULL);
+                              int64_t tsc_stime, void *param, void (*callback)(void *)) {  
+  return taos_open_stream_withname(taos, "", -1, sqlstr, fp, tsc_stime, param, callback, NULL);
 }
 
 void taos_close_stream(TAOS_STREAM *handle) {
