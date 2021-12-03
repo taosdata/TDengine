@@ -373,11 +373,12 @@ public class RestfulConnectionTest {
         properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-        conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/log?user=root&password=taosdata", properties);
+        conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata", properties);
         // create test database for test cases
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("create database if not exists test");
         }
+
     }
 
     @AfterClass
