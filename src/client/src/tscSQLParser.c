@@ -4763,16 +4763,18 @@ static int32_t validateJsonTagExpr(tSqlExpr* pExpr, char* msgBuf) {
         return invalidOperationMsg(msgBuf, msg2);
     }
 
-    if (pRight->value.nType == TSDB_DATA_TYPE_BINARY && *(uint32_t*)pRight->value.pz != TSDB_DATA_JSON_null){    // json value store by nchar, so need to convert to nchar
+    if (pRight->value.nType == TSDB_DATA_TYPE_BINARY){    // json value store by nchar, so need to convert from binary to nchar
+      if(pRight->value.nLen == INT_BYTES && *(uint32_t*)pRight->value.pz != TSDB_DATA_JSON_null)
+        return TSDB_CODE_SUCCESS;
+      if(pRight->value.nLen == 0)
+        return TSDB_CODE_SUCCESS;
       char newData[TSDB_MAX_JSON_TAGS_LEN] = {0};
       int len = 0;
       if(!taosMbsToUcs4(pRight->value.pz, pRight->value.nLen, newData, TSDB_MAX_JSON_TAGS_LEN, &len)){
         tscError("json where condition mbsToUcs4 error");
       }
-      if(len > 0){
-        pRight->value.pz = realloc(pRight->value.pz, len);
-        memcpy(pRight->value.pz, newData, len);
-      }
+      pRight->value.pz = realloc(pRight->value.pz, len);
+      memcpy(pRight->value.pz, newData, len);
       pRight->value.nLen = len;
       pRight->value.nType = TSDB_DATA_TYPE_NCHAR;
     }
