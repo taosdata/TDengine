@@ -36,7 +36,7 @@ typedef struct {
 
 typedef struct SMnode {
   int32_t           dnodeId;
-  int64_t           clusterId;
+  int32_t           clusterId;
   int8_t            replica;
   int8_t            selfIndex;
   SReplica          replicas[TSDB_MAX_REPLICA];
@@ -50,11 +50,13 @@ typedef struct SMnode {
   SendMsgToMnodeFp  sendMsgToMnodeFp;
   SendRedirectMsgFp sendRedirectMsgFp;
   PutMsgToMnodeQFp  putMsgToApplyMsgFp;
+  int32_t           sver;
+  int32_t           statusInterval;
+  int32_t           mnodeEqualVnodeNum;
+  char             *timezone;
+  char             *locale;
+  char             *charset;
 } SMnode;
-
-tmr_h   mndGetTimer(SMnode *pMnode);
-int32_t mndGetDnodeId(SMnode *pMnode);
-int64_t mndGetClusterId(SMnode *pMnode);
 
 void mndSendMsgToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);
 void mndSendMsgToMnode(SMnode *pMnode, SRpcMsg *pMsg);

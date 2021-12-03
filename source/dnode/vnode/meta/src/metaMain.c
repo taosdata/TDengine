@@ -15,17 +15,14 @@
 
 #include "tcoding.h"
 
-#include "meta.h"
-#include "metaDB.h"
 #include "metaDef.h"
-#include "metaOptions.h"
 
-static SMeta *metaNew(const char *path, const SMetaOptions *pMetaOptions);
+static SMeta *metaNew(const char *path, const SMetaCfg *pMetaOptions);
 static void   metaFree(SMeta *pMeta);
 static int    metaOpenImpl(SMeta *pMeta);
 static void   metaCloseImpl(SMeta *pMeta);
 
-SMeta *metaOpen(const char *path, const SMetaOptions *pMetaOptions) {
+SMeta *metaOpen(const char *path, const SMetaCfg *pMetaOptions) {
   SMeta *pMeta = NULL;
 
   // Set default options
@@ -68,7 +65,7 @@ void metaClose(SMeta *pMeta) {
 void metaRemove(const char *path) { taosRemoveDir(path); }
 
 /* ------------------------ STATIC METHODS ------------------------ */
-static SMeta *metaNew(const char *path, const SMetaOptions *pMetaOptions) {
+static SMeta *metaNew(const char *path, const SMetaCfg *pMetaOptions) {
   SMeta *pMeta;
   size_t psize = strlen(path);
 

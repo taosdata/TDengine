@@ -30,133 +30,36 @@ typedef void (*SendRedirectMsgFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef int32_t (*PutMsgToMnodeQFp)(SDnode *pDnode, SMnodeMsg *pMsg);
 
 typedef struct SMnodeLoad {
-  /**
-   * @brief the number of dnodes in cluster.
-   *
-   */
   int64_t numOfDnode;
-
-  /**
-   * @brief the number of mnodes in cluster.
-   *
-   */
   int64_t numOfMnode;
-
-  /**
-   * @brief the number of vgroups in cluster.
-   *
-   */
   int64_t numOfVgroup;
-
-  /**
-   * @brief the number of databases in cluster.
-   *
-   */
   int64_t numOfDatabase;
-
-  /**
-   * @brief the number of super tables in cluster.
-   *
-   */
   int64_t numOfSuperTable;
-
-  /**
-   * @brief the number of child tables in cluster.
-   *
-   */
   int64_t numOfChildTable;
-
-  /**
-   * @brief the number of normal tables in cluster.
-   *
-   */
   int64_t numOfNormalTable;
-
-  /**
-   * @brief the number of numOfTimeseries in cluster.
-   *
-   */
   int64_t numOfColumn;
-
-  /**
-   * @brief total points written in cluster.
-   *
-   */
   int64_t totalPoints;
-
-  /**
-   * @brief total storage in cluster.
-   *
-   */
   int64_t totalStorage;
-
-  /**
-   * @brief total compressed storage in cluster.
-   *
-   */
   int64_t compStorage;
 } SMnodeLoad;
 
 typedef struct {
-  /**
-   * @brief dnodeId of this mnode.
-   *
-   */
-  int32_t dnodeId;
-
-  /**
-   * @brief clusterId of this mnode.
-   *
-   */
-  int64_t clusterId;
-
-  /**
-   * @brief replica num of this mnode.
-   *
-   */
-  int8_t replica;
-
-  /**
-   * @brief self index in the array of replicas.
-   *
-   */
-  int8_t selfIndex;
-
-  /**
-   * @brief detail replica information of this mnode.
-   *
-   */
-  SReplica replicas[TSDB_MAX_REPLICA];
-
-  /**
-   * @brief the parent dnode of this mnode.
-   *
-   */
-  SDnode *pDnode;
-
-  /**
-   * @brief put apply msg to the write queue in dnode.
-   *
-   */
-  PutMsgToMnodeQFp putMsgToApplyMsgFp;
-
-  /**
-   * @brief the callback function while send msg to dnode.
-   *
-   */
-  SendMsgToDnodeFp sendMsgToDnodeFp;
-
-  /**
-   * @brief the callback function while send msg to mnode.
-   *
-   */
-  SendMsgToMnodeFp sendMsgToMnodeFp;
-
-  /**
-   * @brief the callback function while send redirect msg to clients or peers.
-   *
-   */
+  int32_t           dnodeId;
+  int32_t           clusterId;
+  int8_t            replica;
+  int8_t            selfIndex;
+  SReplica          replicas[TSDB_MAX_REPLICA];
+  SDnode           *pDnode;
+  PutMsgToMnodeQFp  putMsgToApplyMsgFp;
+  SendMsgToDnodeFp  sendMsgToDnodeFp;
+  SendMsgToMnodeFp  sendMsgToMnodeFp;
   SendRedirectMsgFp sendRedirectMsgFp;
+  int32_t           sver;
+  int32_t           statusInterval;
+  int32_t           mnodeEqualVnodeNum;
+  char             *timezone;
+  char             *locale;
+  char             *charset;
 } SMnodeOpt;
 
 /* ------------------------ SMnode ------------------------ */

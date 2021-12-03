@@ -24,6 +24,7 @@
 #include "thash.h"
 #include "cJSON.h"
 #include "mnode.h"
+#include "sync.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,6 +79,28 @@ typedef enum {
 
 typedef enum { TRN_POLICY_ROLLBACK = 1, TRN_POLICY_RETRY = 2 } ETrnPolicy;
 
+typedef enum {
+  DND_STATUS_OFFLINE = 0,
+  DND_STATUS_READY = 1,
+  DND_STATUS_CREATING = 2,
+  DND_STATUS_DROPPING = 3
+} EDndStatus;
+
+typedef enum {
+  DND_REASON_ONLINE = 0,
+  DND_REASON_STATUS_MSG_TIMEOUT,
+  DND_REASON_STATUS_NOT_RECEIVED,
+  DND_REASON_VERSION_NOT_MATCH,
+  DND_REASON_DNODE_ID_NOT_MATCH,
+  DND_REASON_CLUSTER_ID_NOT_MATCH,
+  DND_REASON_MN_EQUAL_VN_NOT_MATCH,
+  DND_REASON_STATUS_INTERVAL_NOT_MATCH,
+  DND_REASON_TIME_ZONE_NOT_MATCH,
+  DND_REASON_LOCALE_NOT_MATCH,
+  DND_REASON_CHARSET_NOT_MATCH,
+  DND_REASON_OTHERS
+} EDndReason;
+
 typedef struct STrans {
   int32_t    id;
   ETrnStage  stage;
@@ -92,36 +115,39 @@ typedef struct STrans {
 } STrans;
 
 typedef struct SClusterObj {
-  int64_t id;
+  int32_t id;
   char    uid[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
   int64_t updateTime;
 } SClusterObj;
 
 typedef struct SDnodeObj {
-  int32_t  id;
-  int32_t  vnodes;
-  int64_t  createdTime;
-  int64_t  updateTime;
-  int64_t  lastAccess;
-  int64_t  rebootTime;  // time stamp for last reboot
-  char     fqdn[TSDB_FQDN_LEN];
-  char     ep[TSDB_EP_LEN];
-  uint16_t port;
-  int16_t  numOfCores;       // from dnode status msg
-  int8_t   alternativeRole;  // from dnode status msg, 0-any, 1-mgmt, 2-dnode
-  int8_t   status;           // set in balance function
-  int8_t   offlineReason;
+  int32_t    id;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  int64_t    rebootTime;
+  int32_t    accessTimes;
+  int16_t    numOfMnodes;
+  int16_t    numOfVnodes;
+  int16_t    numOfQnodes;
+  int16_t    numOfSupportMnodes;
+  int16_t    numOfSupportVnodes;
+  int16_t    numOfSupportQnodes;
+  int16_t    numOfCores;
+  EDndStatus status;
+  EDndReason offlineReason;
+  uint16_t   port;
+  char       fqdn[TSDB_FQDN_LEN];
+  char       ep[TSDB_EP_LEN];
 } SDnodeObj;
 
 typedef struct SMnodeObj {
   int32_t    id;
-  int8_t     status;
-  int8_t     role;
-  int32_t    roleTerm;
-  int64_t    roleTime;
   int64_t    createdTime;
   int64_t    updateTime;
+  ESyncState role;
+  int32_t    roleTerm;
+  int64_t    roleTime;
   SDnodeObj *pDnode;
 } SMnodeObj;
 
@@ -273,25 +299,18 @@ typedef struct {
   char     payload[];
 } SShowObj;
 
-typedef struct {
-  int32_t len;
-  void   *rsp;
-} SMnodeRsp;
-
 typedef struct SMnodeMsg {
+  char    user[TSDB_USER_LEN];
   SMnode *pMnode;
-  void (*fp)(SMnodeMsg *pMsg, int32_t code);
-  SRpcConnInfo conn;
-  SUserObj    *pUser;
-  int16_t      received;
-  int16_t      successed;
-  int16_t      expected;
-  int16_t      retry;
-  int32_t      code;
-  int64_t      createdTime;
-  SMnodeRsp       rpcRsp;
-  SRpcMsg      rpcMsg;
-  char         pCont[];
+  int16_t received;
+  int16_t successed;
+  int16_t expected;
+  int16_t retry;
+  int32_t code;
+  int64_t createdTime;
+  SRpcMsg rpcMsg;
+  int32_t contLen;
+  void   *pCont;
 } SMnodeMsg;
 
 #ifdef __cplusplus

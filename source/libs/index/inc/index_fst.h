@@ -16,6 +16,9 @@
 #ifndef __INDEX_FST_H__
 #define __INDEX_FST_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "tarray.h"
 #include "index_fst_util.h"
@@ -34,6 +37,7 @@ typedef struct FstRange {
 } FstRange;
 
 
+typedef enum {GE, GT, LE, LT} RangeType;
 typedef enum { OneTransNext, OneTrans, AnyTrans, EmptyFinal} State;
 
 typedef enum {Ordered, OutOfOrdered, DuplicateKey} OrderType;
@@ -85,16 +89,19 @@ uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes *node, 
 typedef struct FstBuilder {
   FstCountingWriter  *wrt;         // The FST raw data is written directly to `wtr`.  
   FstUnFinishedNodes *unfinished; // The stack of unfinished nodes   
-  FstRegistry*        registry;    // A map of finished nodes.        
-  FstSlice            last;        // The last word added 
+  FstRegistry*       registry;    // A map of finished nodes.        
+  FstSlice           last;        // The last word added 
   CompiledAddr       lastAddr;    // The address of the last compiled node  
   uint64_t           len;         // num of keys added
 } FstBuilder;
 
 
 FstBuilder *fstBuilderCreate(void *w, FstType ty);
+
+
 void fstBuilderDestroy(FstBuilder *b);
 void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in);
+bool fstBuilderInsert(FstBuilder *b, FstSlice bs, Output in);
 OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup);
 void fstBuilderCompileFrom(FstBuilder *b, uint64_t istate);
 CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn);
@@ -168,11 +175,6 @@ Output   fstStateFinalOutput(FstState *state, uint64_t version, FstSlice *date, 
 uint64_t fstStateFindInput(FstState *state, FstNode *node, uint8_t b, bool *null);
 
 
-
-
-
-
-  
 
 #define FST_STATE_ONE_TRNAS_NEXT(node) (node->state.state == OneTransNext) 
 #define FST_STATE_ONE_TRNAS(node) (node->state.state == OneTrans)
@@ -272,17 +274,12 @@ FstNode*     fstGetNode(Fst *fst, CompiledAddr);
 FstNode*     fstGetRoot(Fst *fst);
 FstType      fstGetType(Fst *fst); 
 CompiledAddr fstGetRootAddr(Fst *fst);
-
-Output fstEmptyFinalOutput(Fst *fst, bool *null);
-bool fstVerify(Fst *fst);
+Output       fstEmptyFinalOutput(Fst *fst, bool *null);
+bool         fstVerify(Fst *fst);
 
 
 //refactor this function 
 bool fstBuilderNodeCompileTo(FstBuilderNode *b, FstCountingWriter *wrt, CompiledAddr lastAddr, CompiledAddr startAddr); 
-
-
-
-
 
 typedef struct StreamState {
   FstNode   *node; 
@@ -310,10 +307,30 @@ typedef struct StreamWithStateResult {
 } StreamWithStateResult;
 
 StreamWithStateResult *swsResultCreate(FstSlice *data, FstOutput fOut, void *state);
+void swsResultDestroy(StreamWithStateResult *result);
 
 typedef void* (*StreamCallback)(void *);
 StreamWithState *streamWithStateCreate(Fst *fst, Automation *automation, FstBoundWithData *min, FstBoundWithData *max) ;
 void streamWithStateDestroy(StreamWithState *sws);
 bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min);           
 StreamWithStateResult* streamWithStateNextWith(StreamWithState *sws, StreamCallback callback);
+
+typedef struct FstStreamBuilder {
+  Fst *fst; 
+  Automation *aut;
+  FstBoundWithData *min;  
+  FstBoundWithData *max;
+} FstStreamBuilder;
+
+FstStreamBuilder *fstStreamBuilderCreate(Fst *fst, Automation *aut); 
+// set up bound range
+// refator, simple code by marco 
+
+FstStreamBuilder *fstStreamBuilderRange(FstStreamBuilder *b, FstSlice *val, RangeType type);
+
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif

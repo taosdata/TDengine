@@ -15,6 +15,10 @@
 #ifndef __FST_REGISTRY_H__
 #define __FST_REGISTRY_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "index_fst_util.h"
 #include "tarray.h"
 #include "index_fst_node.h"
@@ -58,5 +62,9 @@ void fstRegistryDestroy(FstRegistry *registry);
 
 FstRegistryEntry* fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNode);
 void fstRegistryEntryDestroy(FstRegistryEntry *entry);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

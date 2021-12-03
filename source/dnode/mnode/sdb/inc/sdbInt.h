@@ -38,8 +38,8 @@ extern "C" {
 
 typedef struct SSdbRaw {
   int8_t  type;
-  int8_t  sver;
   int8_t  status;
+  int8_t  sver;
   int8_t  reserved;
   int32_t dataLen;
   char    pData[];
@@ -53,6 +53,7 @@ typedef struct SSdbRow {
 } SSdbRow;
 
 typedef struct SSdb {
+  SMnode     *pMnode;
   char       *currDir;
   char       *syncDir;
   char       *tmpDir;

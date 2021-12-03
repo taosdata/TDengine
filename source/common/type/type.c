@@ -12,23 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef _TD_VNODE_OPTIONS_H_
-#define _TD_VNODE_OPTIONS_H_
-
-#include "vnode.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-extern const SVnodeOptions defaultVnodeOptions;
-
-int  vnodeValidateOptions(const SVnodeOptions *);
-void vnodeOptionsCopy(SVnodeOptions *pDest, const SVnodeOptions *pSrc);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_VNODE_OPTIONS_H_*/

@@ -15,13 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "mndSync.h"
-#include "tkey.h"
 #include "mndTrans.h"
+#include "tkey.h"
 
 #define SDB_USER_VER 1
 
 static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, SDB_USER_VER, sizeof(SAcctObj));
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, SDB_USER_VER, sizeof(SUserObj));
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
@@ -41,6 +41,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
   if (sver != SDB_USER_VER) {
+    mError("failed to decode user since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     return NULL;
   }
@@ -61,15 +62,18 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 }
 
 static int32_t mndUserActionInsert(SSdb *pSdb, SUserObj *pUser) {
+  mTrace("user:%s, perform insert action", pUser->user);
   pUser->prohibitDbHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pUser->prohibitDbHash == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("user:%s, failed to perform insert action since %s", pUser->user, terrstr());
     return -1;
   }
 
   pUser->pAcct = sdbAcquire(pSdb, SDB_ACCT, pUser->acct);
   if (pUser->pAcct == NULL) {
     terrno = TSDB_CODE_MND_ACCT_NOT_EXIST;
+    mError("user:%s, failed to perform insert action since %s", pUser->user, terrstr());
     return -1;
   }
 
@@ -77,12 +81,13 @@ static int32_t mndUserActionInsert(SSdb *pSdb, SUserObj *pUser) {
 }
 
 static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
+  mTrace("user:%s, perform delete action", pUser->user);
   if (pUser->prohibitDbHash) {
     taosHashCleanup(pUser->prohibitDbHash);
     pUser->prohibitDbHash = NULL;
   }
 
-  if (pUser->acct != NULL) {
+  if (pUser->pAcct != NULL) {
     sdbRelease(pSdb, pUser->pAcct);
     pUser->pAcct = NULL;
   }
@@ -91,13 +96,17 @@ static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
 }
 
 static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pSrcUser, SUserObj *pDstUser) {
-  SUserObj tObj;
-  int32_t  len = (int32_t)((int8_t *)tObj.prohibitDbHash - (int8_t *)&tObj);
-  memcpy(pDstUser, pSrcUser, len);
+  mTrace("user:%s, perform update action", pSrcUser->user);
+  memcpy(pSrcUser->user, pDstUser->user, TSDB_USER_LEN);
+  memcpy(pSrcUser->pass, pDstUser->pass, TSDB_KEY_LEN);
+  memcpy(pSrcUser->acct, pDstUser->acct, TSDB_USER_LEN);
+  pSrcUser->createdTime = pDstUser->createdTime;
+  pSrcUser->updateTime = pDstUser->updateTime;
+  pSrcUser->rootAuth = pDstUser->rootAuth;
   return 0;
 }
 
-static int32_t mndCreateDefaultUser(SSdb *pSdb, char *acct, char *user, char *pass) {
+static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
   SUserObj userObj = {0};
   tstrncpy(userObj.user, user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
@@ -113,15 +122,16 @@ static int32_t mndCreateDefaultUser(SSdb *pSdb, char *acct, char *user, char *pa
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  return sdbWrite(pSdb, pRaw);
+  mTrace("user:%s, will be created while deploy sdb", userObj.user);
+  return sdbWrite(pMnode->pSdb, pRaw);
 }
 
-static int32_t mndCreateDefaultUsers(SSdb *pSdb) {
-  if (mndCreateDefaultUser(pSdb, TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
+static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
+  if (mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
     return -1;
   }
 
-  if (mndCreateDefaultUser(pSdb, TSDB_DEFAULT_USER, "_" TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
+  if (mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, "_" TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
     return -1;
   }
 
@@ -196,7 +206,7 @@ static int32_t mndProcessCreateUserMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
     return -1;
   }
 
-  SUserObj *pOperUser = sdbAcquire(pMnode->pSdb, SDB_USER, pMsg->conn.user);
+  SUserObj *pOperUser = sdbAcquire(pMnode->pSdb, SDB_USER, pMsg->user);
   if (pOperUser == NULL) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
     mError("user:%s, failed to create since %s", pCreate->user, terrstr());
@@ -230,3 +240,14 @@ int32_t mndInitUser(SMnode *pMnode) {
 }
 
 void mndCleanupUser(SMnode *pMnode) {}
+
+SUserObj *mndAcquireUser(SMnode *pMnode, const char *userName) {
+  SSdb *pSdb = pMnode->pSdb;
+  return sdbAcquire(pSdb, SDB_USER, &userName);
+}
+
+void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbRelease(pSdb, pUser);
+}
+

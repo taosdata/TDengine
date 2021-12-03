@@ -44,6 +44,7 @@ static SSdbRow *mnodeAcctActionDecode(SSdbRaw *pRaw) {
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
   if (sver != SDB_ACCT_VER) {
+    mError("failed to decode acct since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     return NULL;
   }
@@ -68,18 +69,30 @@ static SSdbRow *mnodeAcctActionDecode(SSdbRaw *pRaw) {
   return pRow;
 }
 
-static int32_t mnodeAcctActionInsert(SSdb *pSdb, SAcctObj *pAcct) { return 0; }
-
-static int32_t mnodeAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct) { return 0; }
-
-static int32_t mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pSrcAcct, SAcctObj *pDstAcct) {
-  SAcctObj tObj;
-  int32_t  len = (int32_t)((int8_t *)&tObj.info - (int8_t *)&tObj);
-  memcpy(pDstAcct, pSrcAcct, len);
+static int32_t mnodeAcctActionInsert(SSdb *pSdb, SAcctObj *pAcct) {
+  mTrace("acct:%s, perform insert action", pAcct->acct);
+  memset(&pAcct->info, 0, sizeof(SAcctInfo));
   return 0;
 }
 
-static int32_t mnodeCreateDefaultAcct(SSdb *pSdb) {
+static int32_t mnodeAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct) {
+  mTrace("acct:%s, perform delete action", pAcct->acct);
+  return 0;
+}
+
+static int32_t mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pSrcAcct, SAcctObj *pDstAcct) {
+  mTrace("acct:%s, perform update action", pSrcAcct->acct);
+
+  memcpy(pSrcAcct->acct, pDstAcct->acct, TSDB_USER_LEN);
+  pSrcAcct->createdTime = pDstAcct->createdTime;
+  pSrcAcct->updateTime = pDstAcct->updateTime;
+  pSrcAcct->acctId = pDstAcct->acctId;
+  pSrcAcct->status = pDstAcct->status;
+  pSrcAcct->cfg = pDstAcct->cfg;
+  return 0;
+}
+
+static int32_t mnodeCreateDefaultAcct(SMnode *pMnode) {
   int32_t code = 0;
 
   SAcctObj acctObj = {0};
@@ -98,7 +111,8 @@ static int32_t mnodeCreateDefaultAcct(SSdb *pSdb) {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  return sdbWrite(pSdb, pRaw);
+  mTrace("acct:%s, will be created while deploy sdb", acctObj.acct);
+  return sdbWrite(pMnode->pSdb, pRaw);
 }
 
 int32_t mndInitAcct(SMnode *pMnode) {

@@ -26,95 +26,25 @@ extern "C" {
 typedef struct SDnode SDnode;
 
 typedef struct {
-  /**
-   * @brief software version of the program.
-   *
-   */
-  int32_t sver;
-
-  /**
-   * @brief num of CPU cores.
-   *
-   */
-  int32_t numOfCores;
-
-  /**
-   * @brief number of threads per CPU core.
-   *
-   */
-  float numOfThreadsPerCore;
-
-  /**
-   * @brief the proportion of total CPU cores available for query processing.
-   *
-   */
-  float ratioOfQueryCores;
-
-  /**
-   * @brief max number of connections allowed in dnode.
-   *
-   */
-  int32_t maxShellConns;
-
-  /**
-   * @brief time interval of heart beat from shell to dnode, seconds.
-   *
-   */
-  int32_t shellActivityTimer;
-
-  /**
-   * @brief time interval of dnode status reporting to mnode, seconds, for cluster only.
-   *
-   */
-  int32_t statusInterval;
-
-  /**
-   * @brief first port number for the connection (12 continuous UDP/TCP port number are used).
-   *
-   */
+  int32_t  sver;
+  int16_t  numOfCores;
+  int16_t  numOfSupportMnodes;
+  int16_t  numOfSupportVnodes;
+  int16_t  numOfSupportQnodes;
+  int32_t  statusInterval;
+  int32_t  mnodeEqualVnodeNum;
+  float    numOfThreadsPerCore;
+  float    ratioOfQueryCores;
+  int32_t  maxShellConns;
+  int32_t  shellActivityTimer;
   uint16_t serverPort;
-
-  /**
-   * @brief data file's directory.
-   *
-   */
-  char dataDir[TSDB_FILENAME_LEN];
-
-  /**
-   * @brief local endpoint.
-   *
-   */
-  char localEp[TSDB_EP_LEN];
-
-  /**
-   * @brieflocal fully qualified domain name (FQDN).
-   *
-   */
-  char localFqdn[TSDB_FQDN_LEN];
-
-  /**
-   * @brief first fully qualified domain name (FQDN) for TDengine system.
-   *
-   */
-  char firstEp[TSDB_EP_LEN];
-
-  /**
-   * @brief system time zone.
-   *
-   */
-  char timezone[TSDB_TIMEZONE_LEN];
-
-  /**
-   * @brief system locale.
-   *
-   */
-  char locale[TSDB_LOCALE_LEN];
-
-  /**
-   * @briefdefault system charset.
-   *
-   */
-  char charset[TSDB_LOCALE_LEN];
+  char     dataDir[TSDB_FILENAME_LEN];
+  char     localEp[TSDB_EP_LEN];
+  char     localFqdn[TSDB_FQDN_LEN];
+  char     firstEp[TSDB_EP_LEN];
+  char     timezone[TSDB_TIMEZONE_LEN];
+  char     locale[TSDB_LOCALE_LEN];
+  char     charset[TSDB_LOCALE_LEN];
 } SDnodeOpt;
 
 /* ------------------------ SDnode ------------------------ */

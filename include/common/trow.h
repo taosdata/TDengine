@@ -17,53 +17,108 @@
 #define _TD_COMMON_ROW_H_
 
 #include "os.h"
+#include "tbuffer.h"
+#include "tdataformat.h"
+#include "tdef.h"
+#include "tschema.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// types
-typedef void *                  SRow;
-typedef struct SRowBatch        SRowBatch;
-typedef struct SRowBuilder      SRowBuilder;
-typedef struct SRowBatchIter    SRowBatchIter;
-typedef struct SRowBatchBuilder SRowBatchBuilder;
+#define TD_UNDECIDED_ROW 0
+#define TD_OR_ROW 1
+#define TD_KV_ROW 2
 
-// SRow
-#define ROW_HEADER_SIZE (sizeof(uint8_t) + 2 * sizeof(uint16_t) + sizeof(uint64_t))
-#define rowType(r) (*(uint8_t *)(r))                                // row type
-#define rowLen(r) (*(uint16_t *)POINTER_SHIFT(r, sizeof(uint8_t)))  // row length
-#define rowSVer(r) \
-  (*(uint16_t *)POINTER_SHIFT(r, sizeof(uint8_t) + sizeof(uint16_t)))  // row schema version, only for SDataRow
-#define rowNCols(r) rowSVer(r)                                         // only for SKVRow
-#define rowVer(r) (*(uint64_t)POINTER_SHIFT(r, sizeof(uint8_t) + 2 * sizeof(uint16_t)))  // row version
-#define rowCopy(dest, r) memcpy((dest), r, rowLen(r))
+typedef struct {
+  // TODO
+} SOrRow;
 
-static FORCE_INLINE SRow rowDup(SRow row) {
-  SRow r = malloc(rowLen(row));
-  if (r == NULL) {
-    return NULL;
-  }
+typedef struct {
+  col_id_t cid;
+  uint32_t offset;
+} SKvRowIdx;
 
-  rowCopy(r, row);
+typedef struct {
+  uint16_t  ncols;
+  SKvRowIdx cidx[];
+} SKvRow;
 
-  return r;
-}
+typedef struct {
+  union {
+    /// union field for encode and decode
+    uint32_t info;
+    struct {
+      /// row type
+      uint32_t type : 2;
+      /// row schema version
+      uint32_t sver : 16;
+      /// is delete row
+      uint32_t del : 1;
+      /// reserved for back compatibility
+      uint32_t reserve : 13;
+    };
+  };
+  /// row total length
+  uint32_t len;
+  /// row version
+  uint64_t ver;
+  /// timestamp
+  TSKEY ts;
+  /// the inline data, maybe a tuple or a k-v tuple
+  char data[];
+} STSRow;
 
-// SRowBatch
+typedef struct {
+  uint32_t nRows;
+  char     rows[];
+} STSRowBatch;
 
-// SRowBuilder
-SRowBuilder *rowBuilderCreate();
-void         rowBuilderDestroy(SRowBuilder *);
+typedef enum {
+  /// ordinary row builder
+  TD_OR_ROW_BUILDER = 0,
+  /// kv row builder
+  TD_KV_ROW_BUILDER,
+  /// self-determined row builder
+  TD_SD_ROW_BUILDER
+} ERowBbuilderT;
 
-// SRowBatchIter
-SRowBatchIter *rowBatchIterCreate(SRowBatch *);
-void           rowBatchIterDestroy(SRowBatchIter *);
-const SRow     rowBatchIterNext(SRowBatchIter *);
+typedef struct {
+  /// row builder type
+  ERowBbuilderT type;
+  /// buffer writer
+  SBufferWriter bw;
+  /// target row
+  STSRow *pRow;
+} STSRowBuilder;
 
-// SRowBatchBuilder
-SRowBatchBuilder *rowBatchBuilderCreate();
-void              rowBatchBuilderDestroy(SRowBatchBuilder *);
+typedef struct {
+  STSchema *pSchema;
+  STSRow *    pRow;
+} STSRowReader;
+
+typedef struct {
+  uint32_t   it;
+  STSRowBatch *pRowBatch;
+} STSRowBatchIter;
+
+// STSRowBuilder
+#define trbInit(rt, allocator, endian, target, size) \
+  { .type = (rt), .bw = tbufInitWriter(allocator, endian), .pRow = (target) }
+void trbSetRowInfo(STSRowBuilder *pRB, bool del, uint16_t sver);
+void trbSetRowVersion(STSRowBuilder *pRB, uint64_t ver);
+void trbSetRowTS(STSRowBuilder *pRB, TSKEY ts);
+int  trbWriteCol(STSRowBuilder *pRB, void *pData, col_id_t cid);
+
+// STSRowReader
+#define tRowReaderInit(schema, row) \
+  { .schema = (schema), .row = (row) }
+int tRowReaderRead(STSRowReader *pRowReader, col_id_t cid, void *target, uint64_t size);
+
+// STSRowBatchIter
+#define tRowBatchIterInit(pRB) \
+  { .it = 0, .pRowBatch = (pRB) }
+const STSRow *tRowBatchIterNext(STSRowBatchIter *pRowBatchIter);
 
 #ifdef __cplusplus
 }

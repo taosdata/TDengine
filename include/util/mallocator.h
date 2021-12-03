@@ -22,10 +22,10 @@
 extern "C" {
 #endif
 
-typedef struct SMemAllocator SMemAllocator;
+typedef struct SMemAllocator        SMemAllocator;
+typedef struct SMemAllocatorFactory SMemAllocatorFactory;
 
 struct SMemAllocator {
-  char  name[16];
   void *impl;
   void *(*malloc)(SMemAllocator *, uint64_t size);
   void *(*calloc)(SMemAllocator *, uint64_t nmemb, uint64_t size);
@@ -34,11 +34,11 @@ struct SMemAllocator {
   uint64_t (*usage)(SMemAllocator *);
 };
 
-typedef struct {
+struct SMemAllocatorFactory {
   void *impl;
-  SMemAllocator *(*create)();
-  void (*destroy)(SMemAllocator *);
-} SMemAllocatorFactory;
+  SMemAllocator *(*create)(SMemAllocatorFactory *);
+  void (*destroy)(SMemAllocatorFactory *, SMemAllocator *);
+};
 
 #ifdef __cplusplus
 }

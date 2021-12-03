@@ -52,7 +52,7 @@ bool    taosGetSysMemory(float *memoryUsedMB);
 void    taosPrintOsInfo();
 int     taosSystem(const char *cmd);
 void    taosKillSystem();
-bool    taosGetSystemUid(char *uid, int32_t uidlen);
+int32_t taosGetSystemUid(char *uid, int32_t uidlen);
 char *  taosGetCmdlineByPID(int pid);
 void    taosSetCoreDump(bool enable);
 

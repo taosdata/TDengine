@@ -26,10 +26,10 @@ int32_t dndGetDnodeId(SDnode *pDnode) {
   return dnodeId;
 }
 
-int64_t dndGetClusterId(SDnode *pDnode) {
+int32_t dndGetClusterId(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
-  int64_t clusterId = pMgmt->clusterId;
+  int32_t clusterId = pMgmt->clusterId;
   taosRUnLockLatch(&pMgmt->latch);
   return clusterId;
 }
@@ -190,78 +190,78 @@ static int32_t dndReadDnodes(SDnode *pDnode) {
   }
 
   cJSON *dnodeId = cJSON_GetObjectItem(root, "dnodeId");
-  if (!dnodeId || dnodeId->type != cJSON_String) {
+  if (!dnodeId || dnodeId->type != cJSON_Number) {
     dError("failed to read %s since dnodeId not found", pMgmt->file);
     goto PRASE_DNODE_OVER;
   }
-  pMgmt->dnodeId = atoi(dnodeId->valuestring);
+  pMgmt->dnodeId = dnodeId->valueint;
 
   cJSON *clusterId = cJSON_GetObjectItem(root, "clusterId");
-  if (!clusterId || clusterId->type != cJSON_String) {
+  if (!clusterId || clusterId->type != cJSON_Number) {
     dError("failed to read %s since clusterId not found", pMgmt->file);
     goto PRASE_DNODE_OVER;
   }
-  pMgmt->clusterId = atoll(clusterId->valuestring);
+  pMgmt->clusterId = clusterId->valueint;
 
   cJSON *dropped = cJSON_GetObjectItem(root, "dropped");
-  if (!dropped || dropped->type != cJSON_String) {
+  if (!dropped || dropped->type != cJSON_Number) {
     dError("failed to read %s since dropped not found", pMgmt->file);
     goto PRASE_DNODE_OVER;
   }
-  pMgmt->dropped = atoi(dropped->valuestring);
+  pMgmt->dropped = dropped->valueint;
 
-  cJSON *dnodeInfos = cJSON_GetObjectItem(root, "dnodeInfos");
-  if (!dnodeInfos || dnodeInfos->type != cJSON_Array) {
-    dError("failed to read %s since dnodeInfos not found", pMgmt->file);
+  cJSON *dnodes = cJSON_GetObjectItem(root, "dnodes");
+  if (!dnodes || dnodes->type != cJSON_Array) {
+    dError("failed to read %s since dnodes not found", pMgmt->file);
     goto PRASE_DNODE_OVER;
   }
 
-  int32_t dnodeInfosSize = cJSON_GetArraySize(dnodeInfos);
-  if (dnodeInfosSize <= 0) {
-    dError("failed to read %s since dnodeInfos size:%d invalid", pMgmt->file, dnodeInfosSize);
+  int32_t numOfNodes = cJSON_GetArraySize(dnodes);
+  if (numOfNodes <= 0) {
+    dError("failed to read %s since numOfNodes:%d invalid", pMgmt->file, numOfNodes);
     goto PRASE_DNODE_OVER;
   }
 
-  pMgmt->dnodeEps = calloc(1, dnodeInfosSize * sizeof(SDnodeEp) + sizeof(SDnodeEps));
+  pMgmt->dnodeEps = calloc(1, numOfNodes * sizeof(SDnodeEp) + sizeof(SDnodeEps));
   if (pMgmt->dnodeEps == NULL) {
     dError("failed to calloc dnodeEpList since %s", strerror(errno));
     goto PRASE_DNODE_OVER;
   }
-  pMgmt->dnodeEps->num = dnodeInfosSize;
+  pMgmt->dnodeEps->num = numOfNodes;
 
-  for (int32_t i = 0; i < dnodeInfosSize; ++i) {
-    cJSON *dnodeInfo = cJSON_GetArrayItem(dnodeInfos, i);
-    if (dnodeInfo == NULL) break;
+  for (int32_t i = 0; i < numOfNodes; ++i) {
+    cJSON *node = cJSON_GetArrayItem(dnodes, i);
+    if (node == NULL) break;
 
     SDnodeEp *pDnodeEp = &pMgmt->dnodeEps->eps[i];
 
-    cJSON *dnodeId = cJSON_GetObjectItem(dnodeInfo, "dnodeId");
-    if (!dnodeId || dnodeId->type != cJSON_String) {
+    cJSON *dnodeId = cJSON_GetObjectItem(node, "id");
+    if (!dnodeId || dnodeId->type != cJSON_Number) {
       dError("failed to read %s, dnodeId not found", pMgmt->file);
       goto PRASE_DNODE_OVER;
     }
-    pDnodeEp->id = atoi(dnodeId->valuestring);
+    pDnodeEp->id = dnodeId->valueint;
 
-    cJSON *isMnode = cJSON_GetObjectItem(dnodeInfo, "isMnode");
-    if (!isMnode || isMnode->type != cJSON_String) {
-      dError("failed to read %s, isMnode not found", pMgmt->file);
-      goto PRASE_DNODE_OVER;
-    }
-    pDnodeEp->isMnode = atoi(isMnode->valuestring);
-
-    cJSON *dnodeFqdn = cJSON_GetObjectItem(dnodeInfo, "dnodeFqdn");
+    cJSON *dnodeFqdn = cJSON_GetObjectItem(node, "fqdn");
     if (!dnodeFqdn || dnodeFqdn->type != cJSON_String || dnodeFqdn->valuestring == NULL) {
       dError("failed to read %s, dnodeFqdn not found", pMgmt->file);
       goto PRASE_DNODE_OVER;
     }
     tstrncpy(pDnodeEp->fqdn, dnodeFqdn->valuestring, TSDB_FQDN_LEN);
 
-    cJSON *dnodePort = cJSON_GetObjectItem(dnodeInfo, "dnodePort");
-    if (!dnodePort || dnodePort->type != cJSON_String) {
+    cJSON *dnodePort = cJSON_GetObjectItem(node, "port");
+    if (!dnodePort || dnodePort->type != cJSON_Number) {
       dError("failed to read %s, dnodePort not found", pMgmt->file);
       goto PRASE_DNODE_OVER;
     }
-    pDnodeEp->port = atoi(dnodePort->valuestring);
+    pDnodeEp->port = dnodePort->valueint;
+
+    cJSON *isMnode = cJSON_GetObjectItem(node, "isMnode");
+    if (!isMnode || isMnode->type != cJSON_Number) {
+      dError("failed to read %s, isMnode not found", pMgmt->file);
+      goto PRASE_DNODE_OVER;
+    }
+    pDnodeEp->isMnode = isMnode->valueint;
   }
 
   code = 0;
@@ -307,16 +307,16 @@ static int32_t dndWriteDnodes(SDnode *pDnode) {
   char   *content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"dnodeId\": \"%d\",\n", pMgmt->dnodeId);
-  len += snprintf(content + len, maxLen - len, "  \"clusterId\": \"%" PRId64 "\",\n", pMgmt->clusterId);
-  len += snprintf(content + len, maxLen - len, "  \"dropped\": \"%d\",\n", pMgmt->dropped);
-  len += snprintf(content + len, maxLen - len, "  \"dnodeInfos\": [{\n");
+  len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", pMgmt->dnodeId);
+  len += snprintf(content + len, maxLen - len, "  \"clusterId\": %d,\n", pMgmt->clusterId);
+  len += snprintf(content + len, maxLen - len, "  \"dropped\": %d,\n", pMgmt->dropped);
+  len += snprintf(content + len, maxLen - len, "  \"dnodes\": [{\n");
   for (int32_t i = 0; i < pMgmt->dnodeEps->num; ++i) {
     SDnodeEp *pDnodeEp = &pMgmt->dnodeEps->eps[i];
-    len += snprintf(content + len, maxLen - len, "    \"dnodeId\": \"%d\",\n", pDnodeEp->id);
-    len += snprintf(content + len, maxLen - len, "    \"isMnode\": \"%d\",\n", pDnodeEp->isMnode);
-    len += snprintf(content + len, maxLen - len, "    \"dnodeFqdn\": \"%s\",\n", pDnodeEp->fqdn);
-    len += snprintf(content + len, maxLen - len, "    \"dnodePort\": \"%u\"\n", pDnodeEp->port);
+    len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pDnodeEp->id);
+    len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pDnodeEp->fqdn);
+    len += snprintf(content + len, maxLen - len, "    \"port\": %u,\n", pDnodeEp->port);
+    len += snprintf(content + len, maxLen - len, "    \"isMnode\": %d\n", pDnodeEp->isMnode);
     if (i < pMgmt->dnodeEps->num - 1) {
       len += snprintf(content + len, maxLen - len, "  },{\n");
     } else {
@@ -344,23 +344,27 @@ static void dndSendStatusMsg(SDnode *pDnode) {
     return;
   }
 
-  bool changed = false;
-
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
-  pStatus->sversion = htonl(pDnode->opt.sver);
+  pStatus->sver = htonl(pDnode->opt.sver);
   pStatus->dnodeId = htonl(pMgmt->dnodeId);
-  pStatus->clusterId = htobe64(pMgmt->clusterId);
+  pStatus->clusterId = htonl(pMgmt->clusterId);
   pStatus->rebootTime = htonl(pMgmt->rebootTime);
-  pStatus->numOfCores = htonl(pDnode->opt.numOfCores);
+  pStatus->numOfCores = htons(pDnode->opt.numOfCores);
+  pStatus->numOfSupportMnodes = htons(pDnode->opt.numOfCores);
+  pStatus->numOfSupportVnodes = htons(pDnode->opt.numOfCores);
+  pStatus->numOfSupportQnodes = htons(pDnode->opt.numOfCores);
   tstrncpy(pStatus->dnodeEp, pDnode->opt.localEp, TSDB_EP_LEN);
+
   pStatus->clusterCfg.statusInterval = htonl(pDnode->opt.statusInterval);
-  tstrncpy(pStatus->clusterCfg.timezone, pDnode->opt.timezone, TSDB_TIMEZONE_LEN);
-  tstrncpy(pStatus->clusterCfg.locale, pDnode->opt.locale, TSDB_LOCALE_LEN);
-  tstrncpy(pStatus->clusterCfg.charset, pDnode->opt.charset, TSDB_LOCALE_LEN);
+  pStatus->clusterCfg.mnodeEqualVnodeNum = htonl(pDnode->opt.mnodeEqualVnodeNum);
   pStatus->clusterCfg.checkTime = 0;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &pStatus->clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  pStatus->clusterCfg.checkTime = htonl(pStatus->clusterCfg.checkTime);
+  tstrncpy(pStatus->clusterCfg.timezone, pDnode->opt.timezone, TSDB_TIMEZONE_LEN);
+  tstrncpy(pStatus->clusterCfg.locale, pDnode->opt.locale, TSDB_LOCALE_LEN);
+  tstrncpy(pStatus->clusterCfg.charset, pDnode->opt.charset, TSDB_LOCALE_LEN);
   taosRUnLockLatch(&pMgmt->latch);
 
   dndGetVnodeLoads(pDnode, &pStatus->vnodeLoads);
@@ -373,7 +377,7 @@ static void dndSendStatusMsg(SDnode *pDnode) {
 static void dndUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   if (pMgmt->dnodeId == 0 || pMgmt->dropped != pCfg->dropped) {
-    dInfo("set dnodeId:%d clusterId:%" PRId64 " dropped:%d", pCfg->dnodeId, pCfg->clusterId, pCfg->dropped);
+    dInfo("set dnodeId:%d clusterId:%d dropped:%d", pCfg->dnodeId, pCfg->clusterId, pCfg->dropped);
 
     taosWLockLatch(&pMgmt->latch);
     pMgmt->dnodeId = pCfg->dnodeId;
@@ -414,7 +418,7 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SStatusRsp *pRsp = pMsg->pCont;
   SDnodeCfg  *pCfg = &pRsp->dnodeCfg;
   pCfg->dnodeId = htonl(pCfg->dnodeId);
-  pCfg->clusterId = htobe64(pCfg->clusterId);
+  pCfg->clusterId = htonl(pCfg->clusterId);
   dndUpdateDnodeCfg(pDnode, pCfg);
 
   if (pCfg->dropped) return;
@@ -434,6 +438,7 @@ static void dndProcessAuthRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) { a
 static void dndProcessGrantRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) { assert(1); }
 
 static void dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pMsg) {
+  dDebug("config msg is received");
   SCfgDnodeMsg *pCfg = pMsg->pCont;
 
   int32_t code = TSDB_CODE_OPS_NOT_SUPPORT;
@@ -443,12 +448,12 @@ static void dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pMsg) {
 }
 
 static void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg) {
-  dInfo("startup msg is received");
+  dDebug("startup msg is received");
 
   SStartupMsg *pStartup = rpcMallocCont(sizeof(SStartupMsg));
   dndGetStartup(pDnode, pStartup);
 
-  dInfo("startup msg is sent, step:%s desc:%s finished:%d", pStartup->name, pStartup->desc, pStartup->finished);
+  dDebug("startup msg is sent, step:%s desc:%s finished:%d", pStartup->name, pStartup->desc, pStartup->finished);
 
   SRpcMsg rpcRsp = {.handle = pMsg->handle, .pCont = pStartup, .contLen = sizeof(SStartupMsg)};
   rpcSendResponse(&rpcRsp);
@@ -464,7 +469,7 @@ static void *dnodeThreadRoutine(void *param) {
     pthread_testcancel();
 
     if (dndGetStat(pDnode) == DND_STAT_RUNNING) {
-      // dndSendStatusMsg(pDnode);
+      dndSendStatusMsg(pDnode);
     }
   }
 }

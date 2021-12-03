@@ -18,8 +18,8 @@
 
 int metaOpenCache(SMeta *pMeta) {
   // TODO
-  if (pMeta->options.lruCacheSize) {
-    pMeta->pCache = rocksdb_cache_create_lru(pMeta->options.lruCacheSize);
+  if (pMeta->options.lruSize) {
+    pMeta->pCache = rocksdb_cache_create_lru(pMeta->options.lruSize);
     if (pMeta->pCache == NULL) {
       // TODO: handle error
       return -1;

@@ -42,11 +42,11 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
 static int32_t sdbRunDeployFp(SSdb *pSdb) {
   mDebug("start to deploy sdb");
 
-  for (int32_t i = SDB_MAX - 1; i > SDB_START; --i) {
+  for (ESdbType i = SDB_MAX - 1; i > SDB_START; --i) {
     SdbDeployFp fp = pSdb->deployFps[i];
     if (fp == NULL) continue;
 
-    if ((*fp)(pSdb) != 0) {
+    if ((*fp)(pSdb->pMnode) != 0) {
       mError("failed to deploy sdb:%d since %s", i, terrstr());
       return -1;
     }
@@ -150,7 +150,7 @@ int32_t sdbWriteFile(SSdb *pSdb) {
     return -1;
   }
 
-  for (int32_t i = SDB_MAX - 1; i > SDB_START; --i) {
+  for (ESdbType i = SDB_MAX - 1; i > SDB_START; --i) {
     SdbEncodeFp encodeFp = pSdb->encodeFps[i];
     if (encodeFp == NULL) continue;
 
@@ -173,6 +173,7 @@ int32_t sdbWriteFile(SSdb *pSdb) {
         if (taosWriteFile(fd, pRaw, writeLen) != writeLen) {
           code = TAOS_SYSTEM_ERROR(terrno);
           taosHashCancelIterate(hash, ppRow);
+          free(pRaw);
           break;
         }
 
@@ -180,6 +181,7 @@ int32_t sdbWriteFile(SSdb *pSdb) {
         if (taosWriteFile(fd, &cksum, sizeof(int32_t)) != sizeof(int32_t)) {
           code = TAOS_SYSTEM_ERROR(terrno);
           taosHashCancelIterate(hash, ppRow);
+          free(pRaw);
           break;
         }
       } else {
@@ -188,6 +190,7 @@ int32_t sdbWriteFile(SSdb *pSdb) {
         break;
       }
 
+      free(pRaw);
       ppRow = taosHashIterate(hash, ppRow);
     }
     taosWUnLockLatch(pLock);

@@ -28,7 +28,7 @@ extern "C" {
 
 struct STsdb {
   char *                path;
-  STsdbOptions          options;
+  STsdbCfg              options;
   SMemAllocatorFactory *pmaf;
 };
 
