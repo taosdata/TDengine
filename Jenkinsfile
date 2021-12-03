@@ -324,7 +324,7 @@ def pre_test_win(){
     cd debug
     call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" amd64
     cmake ../ -G "NMake Makefiles" 
-    set CL=/MP nmake nmake || exit 8
+    set CL=/MP4 nmake nmake || exit 8
     nmake install || exit 8
     xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32 || exit 8
     cd C:\\workspace\\TDinternal\\community\\src\\connector\\python
