@@ -167,7 +167,6 @@ uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes *node, 
     }
     if (addPrefix != 0) {
       fstBuilderNodeUnfinishedAddOutputPrefix(un, addPrefix);  
-
     }
   }   
   return i;
