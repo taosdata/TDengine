@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
 
-static int32_t mndProcessShowMsg(SMnode *pMnode, SMnodeMsg *pMnodeMsg);
-static int32_t mndProcessRetrieveMsg(SMnode *pMnode, SMnodeMsg *pMsg);
+static int32_t mndProcessShowMsg(SMnodeMsg *pMnodeMsg);
+static int32_t mndProcessRetrieveMsg( SMnodeMsg *pMsg);
 static bool    mndCheckRetrieveFinished(SShowObj *pShow);
 static int32_t mndAcquireShowObj(SMnode *pMnode, SShowObj *pShow);
 static void    mndReleaseShowObj(SShowObj *pShow, bool forceRemove);
@@ -42,7 +42,8 @@ int32_t mndInitShow(SMnode *pMnode) {
 
 void mndCleanupShow(SMnode *pMnode) {}
 
-static int32_t mndProcessShowMsg(SMnode *pMnode, SMnodeMsg *pMnodeMsg) {
+static int32_t mndProcessShowMsg(SMnodeMsg *pMnodeMsg) {
+  SMnode    *pMnode = pMnodeMsg->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   SShowMsg  *pMsg = pMnodeMsg->rpcMsg.pCont;
   int8_t     type = pMsg->type;
@@ -108,7 +109,8 @@ static int32_t mndProcessShowMsg(SMnode *pMnode, SMnodeMsg *pMnodeMsg) {
   }
 }
 
-static int32_t mndProcessRetrieveMsg(SMnode *pMnode, SMnodeMsg *pMnodeMsg) {
+static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
+  SMnode    *pMnode = pMnodeMsg->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   int32_t    rowsToRead = 0;
   int32_t    size = 0;

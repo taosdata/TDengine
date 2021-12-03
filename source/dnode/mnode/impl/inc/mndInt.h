@@ -25,7 +25,7 @@
 extern "C" {
 #endif
 
-typedef int32_t (*MndMsgFp)(SMnode *pMnode, SMnodeMsg *pMsg);
+typedef int32_t (*MndMsgFp)(SMnodeMsg *pMsg);
 typedef int32_t (*MndInitFp)(SMnode *pMnode);
 typedef void (*MndCleanupFp)(SMnode *pMnode);
 typedef int32_t (*ShowMetaFp)(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);

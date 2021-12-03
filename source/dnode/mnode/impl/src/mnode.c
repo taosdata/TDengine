@@ -386,7 +386,7 @@ static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
     goto PROCESS_RPC_END;
   }
 
-  code = (*fp)(pMnode, pMsg);
+  code = (*fp)(pMsg);
   if (code != 0) {
     code = terrno;
     mError("msg:%p, app:%p failed to process since %s", pMsg, ahandle, terrstr());

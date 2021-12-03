@@ -180,7 +180,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass,
   return 0;
 }
 
-static int32_t mndProcessCreateUserMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
+static int32_t mndProcessCreateUserMsg(SMnodeMsg *pMsg) {
+  SMnode         *pMnode = pMsg->pMnode;
   SCreateUserMsg *pCreate = pMsg->rpcMsg.pCont;
 
   if (pCreate->user[0] == 0) {

@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndDb.h"
 
-static int32_t mnodeProcessUseMsg(SMnode *pMnode, SMnodeMsg *pMsg);
+static int32_t mnodeProcessUseMsg(SMnodeMsg *pMsg);
 
 int32_t mndInitDb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_USE_DB, mnodeProcessUseMsg);
@@ -35,10 +35,11 @@ void mndReleaseDb(SMnode *pMnode, SDbObj *pDb) {
   sdbRelease(pSdb, pDb);
 }
 
-static int32_t mnodeProcessUseMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
-  SUseDbMsg *pUseDbMsg = pMsg->rpcMsg.pCont;
+static int32_t mnodeProcessUseMsg(SMnodeMsg *pMsg) {
+  SMnode    *pMnode = pMsg->pMnode;
+  SUseDbMsg *pUse = pMsg->rpcMsg.pCont;
 
-  strncpy(pMsg->db, pUseDbMsg->db, TSDB_FULL_DB_NAME_LEN);
+  strncpy(pMsg->db, pUse->db, TSDB_FULL_DB_NAME_LEN);
 
   SDbObj *pDb = mndAcquireDb(pMnode, pMsg->db);
   if (pDb != NULL) {

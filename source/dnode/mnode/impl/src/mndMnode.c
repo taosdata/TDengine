@@ -103,9 +103,9 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
   return sdbWrite(pMnode->pSdb, pRaw);
 }
 
-static int32_t mndProcessCreateMnodeMsg(SMnode *pMnode, SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessCreateMnodeMsg(SMnodeMsg *pMsg) { return 0; }
 
-static int32_t mndProcessDropMnodeMsg(SMnode *pMnode, SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessDropMnodeMsg(SMnodeMsg *pMsg) { return 0; }
 
 int32_t mndInitMnode(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_MNODE,
