@@ -99,6 +99,64 @@ def pre_test(){
     '''
     return 1
 }
+def pre_test_ningsi(){
+    sh'hostname'
+    sh'''
+    cd ${WS}
+    rm -rf ${WK}
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        sh '''
+        cd ${WS}
+        cd TDinternal_master
+        git pull
+        cd community
+        git pull
+        cd ${WS}
+        cp -fr TDinternal_master TDinternal
+        '''
+        }
+      else if(env.CHANGE_TARGET == '2.0'){
+        sh '''
+        cd ${WS}
+        cd TDinternal_20
+        git pull
+        cd community
+        git pull
+        cd ${WS}
+        cp -fr TDinternal_20 TDinternal
+        '''
+      } 
+      else{
+        sh '''
+        cd ${WS}
+        cd TDinternal_develop
+        git pull
+        cd community
+        git pull
+        cd ${WS}
+        cp -fr TDinternal_develop TDinternal
+        '''
+      }
+    }
+    sh'''
+    cd ${WKC}
+    git fetch origin +refs/pull/${CHANGE_ID}/merge
+    git checkout -qf FETCH_HEAD
+    git submodule update --init --recursive
+    '''
+    sh '''
+    cd ${WK} 
+    export TZ=Asia/Harbin
+    date
+    mkdir debug
+    cd debug
+    cmake .. -DOSTYPE=Ningsi60 > /dev/null
+    make 
+    '''
+    return 1
+}
 def pre_test_noinstall(){
     sh'hostname'
     sh'''
@@ -294,45 +352,7 @@ pipeline {
             script{
               abort_previous()
               abortPreviousBuilds()
-            }
-          // sh'''
-          // rm -rf ${WORKSPACE}.tes
-          // cp -r ${WORKSPACE} ${WORKSPACE}.tes
-          // cd ${WORKSPACE}.tes
-          // git fetch
-          // '''
-          // script {
-          //   if (env.CHANGE_TARGET == 'master') {
-          //     sh '''
-          //     git checkout master
-          //     '''
-          //     }
-          //   else if(env.CHANGE_TARGET == '2.0'){
-          //     sh '''
-          //     git checkout 2.0
-          //     '''
-          //   } 
-          //   else{
-          //     sh '''
-          //     git checkout develop
-          //     '''
-          //   } 
-          // }
-          // sh'''
-          // git fetch origin +refs/pull/${CHANGE_ID}/merge
-          // git checkout -qf FETCH_HEAD
-          // '''     
-          
-
-          // script{  
-          //   skipbuild='2'     
-          //   skipbuild=sh(script: "git log -2 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
-          //   println skipbuild
-
-          // }
-          // sh'''
-          // rm -rf ${WORKSPACE}.tes
-          // '''
+            } 
           }
       }
     
@@ -578,7 +598,12 @@ pipeline {
               pre_test_noinstall()    
             }
         }
-        
+        stage('ningsi') {
+          agent{label "ningsi"}
+          steps {     
+              pre_test_ningsi()    
+            }
+        }
         stage('build'){
           agent{label " wintest "}
           steps {
@@ -596,12 +621,12 @@ pipeline {
             
             catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                 pre_test_win()
-                // timeout(time: 20, unit: 'MINUTES'){
-                // bat'''
-                // cd C:\\workspace\\TDinternal\\community\\tests\\pytest
-                // .\\test-all.bat wintest
-                // '''
-                // }
+                timeout(time: 20, unit: 'MINUTES'){
+                bat'''
+                cd C:\\workspace\\TDinternal\\community\\tests\\pytest
+                .\\test-all.bat wintest
+                '''
+                }
             }     
             script{
               win_stop=1
