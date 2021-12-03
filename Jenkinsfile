@@ -42,6 +42,7 @@ def pre_test(){
     killall -9 gdb || echo "no gdb running"
     killall -9 python3.8 || echo "no python program running"
     cd ${WKC}
+    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git reset --hard HEAD~10 >/dev/null
     '''
     script {
@@ -115,6 +116,7 @@ def pre_test_noinstall(){
     sh'hostname'
     sh'''
     cd ${WKC}
+    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git reset --hard HEAD~10 >/dev/null
     '''
     script {
@@ -185,6 +187,7 @@ def pre_test_mac(){
     sh'hostname'
     sh'''
     cd ${WKC}
+    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git reset --hard HEAD~10 >/dev/null
     '''
     script {
@@ -321,7 +324,7 @@ def pre_test_win(){
     cd debug
     call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" amd64
     cmake ../ -G "NMake Makefiles" 
-    set CL=/MP nmake nmake || exit 8
+    set CL=/MP4 nmake nmake || exit 8
     nmake install || exit 8
     xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32 || exit 8
     cd C:\\workspace\\TDinternal\\community\\src\\connector\\python
