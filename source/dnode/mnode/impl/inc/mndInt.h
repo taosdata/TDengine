@@ -28,8 +28,8 @@ extern "C" {
 typedef int32_t (*MndMsgFp)(SMnode *pMnode, SMnodeMsg *pMsg);
 typedef int32_t (*MndInitFp)(SMnode *pMnode);
 typedef void (*MndCleanupFp)(SMnode *pMnode);
-typedef int32_t (*ShowMetaFp)(SMnode *pMnode, STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
-typedef int32_t (*ShowRetrieveFp)(SMnode *pMnode, SShowObj *pShow, char *data, int32_t rows, void *pConn);
+typedef int32_t (*ShowMetaFp)(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
+typedef int32_t (*ShowRetrieveFp)(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
 typedef void (*ShowFreeIterFp)(SMnode *pMnode, void *pIter);
 
 typedef struct {
@@ -46,6 +46,11 @@ typedef struct {
   SCacheObj     *cache;
 } SShowMgmt;
 
+typedef struct {
+  int32_t    connId;
+  SCacheObj *cache;
+} SProfileMgmt;
+
 typedef struct SMnode {
   int32_t           dnodeId;
   int32_t           clusterId;
@@ -58,6 +63,7 @@ typedef struct SMnode {
   SDnode           *pDnode;
   SArray           *pSteps;
   SShowMgmt         showMgmt;
+  SProfileMgmt      profileMgmt;
   MndMsgFp          msgFp[TSDB_MSG_TYPE_MAX];
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;

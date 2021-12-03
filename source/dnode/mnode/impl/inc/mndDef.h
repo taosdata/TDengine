@@ -185,9 +185,11 @@ typedef struct SUserObj {
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
   int64_t   updateTime;
-  int8_t    rootAuth;
+  int8_t    superAuth;
+  int8_t    readAuth;
+  int8_t    writeAuth;
+  int32_t   acctId;
   SHashObj *prohibitDbHash;
-  SAcctObj *pAcct;
 } SUserObj;
 
 typedef struct {
@@ -303,6 +305,8 @@ typedef struct SShowObj {
 
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];
+  char    db[TSDB_FULL_DB_NAME_LEN];
+  int32_t acctId;
   SMnode *pMnode;
   int16_t received;
   int16_t successed;

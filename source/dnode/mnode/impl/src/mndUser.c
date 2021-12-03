@@ -30,7 +30,7 @@ static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN)
   SDB_SET_INT64(pRaw, dataPos, pUser->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pUser->updateTime)
-  SDB_SET_INT8(pRaw, dataPos, pUser->rootAuth)
+  SDB_SET_INT8(pRaw, dataPos, pUser->superAuth)
   SDB_SET_DATALEN(pRaw, dataPos);
 
   return pRaw;
@@ -56,7 +56,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->acct, TSDB_USER_LEN)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pUser->createdTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pUser->updateTime)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pUser->rootAuth)
+  SDB_GET_INT8(pRaw, pRow, dataPos, &pUser->superAuth)
 
   return pRow;
 }
@@ -70,12 +70,14 @@ static int32_t mndUserActionInsert(SSdb *pSdb, SUserObj *pUser) {
     return -1;
   }
 
-  pUser->pAcct = sdbAcquire(pSdb, SDB_ACCT, pUser->acct);
-  if (pUser->pAcct == NULL) {
+  SAcctObj *pAcct = sdbAcquire(pSdb, SDB_ACCT, pUser->acct);
+  if (pAcct == NULL) {
     terrno = TSDB_CODE_MND_ACCT_NOT_EXIST;
     mError("user:%s, failed to perform insert action since %s", pUser->user, terrstr());
     return -1;
   }
+  pUser->acctId = pAcct->acctId;
+  sdbRelease(pSdb, pAcct);
 
   return 0;
 }
@@ -85,11 +87,6 @@ static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
   if (pUser->prohibitDbHash) {
     taosHashCleanup(pUser->prohibitDbHash);
     pUser->prohibitDbHash = NULL;
-  }
-
-  if (pUser->pAcct != NULL) {
-    sdbRelease(pSdb, pUser->pAcct);
-    pUser->pAcct = NULL;
   }
 
   return 0;
@@ -102,7 +99,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pSrcUser, SUserObj *pDs
   memcpy(pSrcUser->acct, pDstUser->acct, TSDB_USER_LEN);
   pSrcUser->createdTime = pDstUser->createdTime;
   pSrcUser->updateTime = pDstUser->updateTime;
-  pSrcUser->rootAuth = pDstUser->rootAuth;
+  pSrcUser->superAuth = pDstUser->superAuth;
   return 0;
 }
 
@@ -115,7 +112,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.updateTime = userObj.createdTime;
 
   if (strcmp(user, TSDB_DEFAULT_USER) == 0) {
-    userObj.rootAuth = 1;
+    userObj.superAuth = 1;
   }
 
   SSdbRaw *pRaw = mndUserActionEncode(&userObj);
@@ -145,7 +142,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass,
   taosEncryptPass((uint8_t *)pass, strlen(pass), userObj.pass);
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
-  userObj.rootAuth = 0;
+  userObj.superAuth = 0;
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
   if (pTrans == NULL) return -1;

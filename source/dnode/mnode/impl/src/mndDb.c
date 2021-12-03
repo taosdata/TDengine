@@ -14,26 +14,38 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "mndInt.h"
+#include "mndDb.h"
 
-int32_t mndInitDb(SMnode *pMnode) { return 0; }
-void    mndCleanupDb(SMnode *pMnode) {}
+static int32_t mnodeProcessUseMsg(SMnode *pMnode, SMnodeMsg *pMsg);
 
+int32_t mndInitDb(SMnode *pMnode) {
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_USE_DB, mnodeProcessUseMsg);
+  return 0;
+}
 
-// static int32_t mnodeProcessUseMsg(SMnodeMsg *pMsg) {
-//   SUseDbMsg *pUseDbMsg = pMsg->rpcMsg.pCont;
+void mndCleanupDb(SMnode *pMnode) {}
 
-//   int32_t code = TSDB_CODE_SUCCESS;
-//   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pUseDbMsg->db);
-//   if (pMsg->pDb == NULL) {
-//     return TSDB_CODE_MND_INVALID_DB;
-//   }
-  
-//   if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
-//     mError("db:%s, status:%d, in dropping", pMsg->pDb->name, pMsg->pDb->status);
-//     return TSDB_CODE_MND_DB_IN_DROPPING;
-//   }
+SDbObj *mndAcquireDb(SMnode *pMnode, char *db) {
+  SSdb *pSdb = pMnode->pSdb;
+  return sdbAcquire(pSdb, SDB_DB, db);
+}
 
-//   return code;
-// }
+void mndReleaseDb(SMnode *pMnode, SDbObj *pDb) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbRelease(pSdb, pDb);
+}
+
+static int32_t mnodeProcessUseMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
+  SUseDbMsg *pUseDbMsg = pMsg->rpcMsg.pCont;
+
+  strncpy(pMsg->db, pUseDbMsg->db, TSDB_FULL_DB_NAME_LEN);
+
+  SDbObj *pDb = mndAcquireDb(pMnode, pMsg->db);
+  if (pDb != NULL) {
+    mndReleaseDb(pMnode, pDb);
+    return 0;
+  } else {
+    mError("db:%s, failed to process use db msg since %s", pMsg->db, terrstr());
+    return -1;
+  }
+}

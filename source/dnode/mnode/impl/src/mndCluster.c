@@ -170,9 +170,9 @@ int32_t mndInitCluster(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndClusterActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndClusterActionDelete};
 
-  // mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_CLUSTER, mnodeGetClusterMeta);
-  // mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_CLUSTER, mnodeRetrieveClusters);
-  // mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_CLUSTER, mnodeCancelGetNextCluster);
+  // mndAddShowMetaHandle(TSDB_MGMT_TABLE_CLUSTER, mnodeGetClusterMeta);
+  // mndAddShowRetrieveHandle(TSDB_MGMT_TABLE_CLUSTER, mnodeRetrieveClusters);
+  // mndAddShowFreeIterHandle(TSDB_MGMT_TABLE_CLUSTER, mnodeCancelGetNextCluster);
   return sdbSetTable(pMnode->pSdb, table);
 }
 

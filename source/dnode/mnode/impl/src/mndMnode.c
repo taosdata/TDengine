@@ -136,3 +136,5 @@ bool mndIsMnode(SMnode *pMnode, int32_t dnodeId) {
   sdbRelease(pSdb, pMnodeObj);
   return true;
 }
+
+void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {}

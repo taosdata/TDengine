@@ -353,11 +353,9 @@ typedef struct {
 } SUpdateTableTagValMsg;
 
 typedef struct {
-  char    clientVersion[TSDB_VERSION_LEN];
-  char    msgVersion[TSDB_VERSION_LEN];
-  char    db[TSDB_TABLE_FNAME_LEN];
-  char    appName[TSDB_APPNAME_LEN];
   int32_t pid;
+  char    app[TSDB_APP_NAME_LEN];
+  char    db[TSDB_DB_NAME_LEN];
 } SConnectMsg;
 
 typedef struct SEpSet {
@@ -368,15 +366,14 @@ typedef struct SEpSet {
 } SEpSet;
 
 typedef struct {
-  char      acctId[TSDB_ACCT_ID_LEN];
-  char      serverVersion[TSDB_VERSION_LEN];
-  char      clusterId[TSDB_CLUSTER_ID_LEN];
-  int8_t    writeAuth;
-  int8_t    superAuth;
-  int8_t    reserved1;
-  int8_t    reserved2;
-  int32_t   connId;
-  SEpSet    epSet;
+  int32_t acctId;
+  int32_t clusterId;
+  int32_t connId;
+  int8_t  superAuth;
+  int8_t  readAuth;
+  int8_t  writeAuth;
+  int8_t  reserved[5];
+  SEpSet  epSet;
 } SConnectRsp;
 
 typedef struct {
@@ -875,23 +872,23 @@ typedef struct {
 } SStreamDesc;
 
 typedef struct {
-  char     clientVer[TSDB_VERSION_LEN];
-  uint32_t connId;
-  int32_t  pid;
-  int32_t  numOfQueries;
-  int32_t  numOfStreams;
-  char     appName[TSDB_APPNAME_LEN];
-  char     pData[];
+  int32_t connId;
+  int32_t pid;
+  int32_t numOfQueries;
+  int32_t numOfStreams;
+  char    app[TSDB_APP_NAME_LEN];
+  char    pData[];
 } SHeartBeatMsg;
 
 typedef struct {
-  uint32_t  queryId;
-  uint32_t  streamId;
-  uint32_t  totalDnodes;
-  uint32_t  onlineDnodes;
-  uint32_t  connId;
-  int8_t    killConnection;
-  SEpSet    epSet;
+  int32_t connId;
+  int32_t queryId;
+  int32_t streamId;
+  int32_t totalDnodes;
+  int32_t onlineDnodes;
+  int8_t  killConnection;
+  int8_t  reserved[3];
+  SEpSet  epSet;
 } SHeartBeatRsp;
 
 typedef struct {

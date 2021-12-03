@@ -92,7 +92,7 @@ static int32_t mndProcessShowMsg(SMnode *pMnode, SMnodeMsg *pMnodeMsg) {
 
   pRsp->qhandle = htobe64((uint64_t)pShow);
 
-  int32_t code = (*metaFp)(pMnode, &pRsp->tableMeta, pShow, pMnodeMsg->rpcMsg.handle);
+  int32_t code = (*metaFp)(pMnodeMsg,pShow, &pRsp->tableMeta);
   mDebug("show:%d, type:%s, get meta finished, numOfRows:%d cols:%d result:%s", pShow->id, mndShowStr(type),
          pShow->numOfRows, pShow->numOfColumns, tstrerror(code));
 
@@ -169,7 +169,7 @@ static int32_t mndProcessRetrieveMsg(SMnode *pMnode, SMnodeMsg *pMnodeMsg) {
 
   // if free flag is set, client wants to clean the resources
   if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
-    rowsRead = (*retrieveFp)(pMnode, pShow, pRsp->data, rowsToRead, pMnodeMsg->rpcMsg.handle);
+    rowsRead = (*retrieveFp)(pMnodeMsg, pShow, pRsp->data, rowsToRead);
   }
 
   mDebug("show:%d, stop retrieve data, rowsRead:%d rowsToRead:%d", pShow->id, rowsRead, rowsToRead);
@@ -311,17 +311,17 @@ void mnodeVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capa
   }
 }
 
-void mnodeAddShowMetaHandle(SMnode *pMnode, EShowType showType, ShowMetaFp fp) {
+void mndAddShowMetaHandle(SMnode *pMnode, EShowType showType, ShowMetaFp fp) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   pMgmt->metaFps[showType] = fp;
 }
 
-void mnodeAddShowRetrieveHandle(SMnode *pMnode, EShowType showType, ShowRetrieveFp fp) {
+void mndAddShowRetrieveHandle(SMnode *pMnode, EShowType showType, ShowRetrieveFp fp) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   pMgmt->retrieveFps[showType] = fp;
 }
 
-void mnodeAddShowFreeIterHandle(SMnode *pMnode, EShowType showType, ShowFreeIterFp fp) {
+void mndAddShowFreeIterHandle(SMnode *pMnode, EShowType showType, ShowFreeIterFp fp) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   pMgmt->freeIterFps[showType] = fp;
 }

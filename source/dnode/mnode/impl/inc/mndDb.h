@@ -24,6 +24,8 @@ extern "C" {
 
 int32_t mndInitDb(SMnode *pMnode);
 void    mndCleanupDb(SMnode *pMnode);
+SDbObj *mndAcquireDb(SMnode *pMnode, char *db);
+void    mndReleaseDb(SMnode *pMnode, SDbObj *pDb);
 
 #ifdef __cplusplus
 }
