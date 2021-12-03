@@ -98,6 +98,6 @@ tramp
 .\#*
 TAGS
 
-deps/*
-!deps/CMakeLists.txt
-!deps/test
+contrib/*
+!contrib/CMakeLists.txt
+!contrib/test
