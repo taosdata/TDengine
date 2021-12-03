@@ -220,7 +220,31 @@ void mnodeCancelGetNextDb(void *pIter) {
 }
 
 SDbObj *mnodeGetDb(char *db) {
-  return (SDbObj *)sdbGetRow(tsDbSdb, db);
+  SDbObj* pDb = (SDbObj *)sdbGetRow(tsDbSdb, db);
+  if (pDb == NULL) {
+    return NULL;
+  }
+  SDbCfg* cfg = &(pDb->cfg);  
+  if (cfg->daysToKeep0 > cfg->daysToKeep1 || cfg->daysToKeep1 > cfg->daysToKeep2) {
+    //mInfo("before mnodeGetDb keep:%d,%d,%d", cfg->daysToKeep0, cfg->daysToKeep1, cfg->daysToKeep2);
+    // old keep config version, fix it in new version format
+    int32_t bakKeep = cfg->daysToKeep0;
+    cfg->daysToKeep0 = cfg->daysToKeep1;
+    cfg->daysToKeep1 = cfg->daysToKeep2;
+    cfg->daysToKeep2 = bakKeep;  
+
+    //mInfo("after mnodeGetDb keep:%d,%d,%d,%d", cfg->daysToKeep0, cfg->daysToKeep1, cfg->daysToKeep2,mnodeCheckDbCfg(cfg));
+
+    SSdbRow row = {
+      .type    = SDB_OPER_GLOBAL,
+      .pTable  = tsDbSdb,
+      .pObj    = pDb,
+    };
+
+    sdbUpdateRow(&row);
+  }  
+
+  return pDb;
 }
 
 void mnodeIncDbRef(SDbObj *pDb) {

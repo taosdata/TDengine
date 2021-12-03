@@ -31,7 +31,6 @@ static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
   pVnode->tsdbCfg.keep1 = vnodeMsg->cfg.daysToKeep1;
   pVnode->tsdbCfg.keep2 = vnodeMsg->cfg.daysToKeep2;
   
-#ifdef _STORAGE
   if (pVnode->tsdbCfg.keep > pVnode->tsdbCfg.keep1 || pVnode->tsdbCfg.keep1 > pVnode->tsdbCfg.keep2) {
     // old keep config version, fix it in new version format
     vInfo("before vgId:%d, vnodeLoadCfg, keep:%d,%d,%d", pVnode->vgId, pVnode->tsdbCfg.keep,pVnode->tsdbCfg.keep1,pVnode->tsdbCfg.keep2);
@@ -45,7 +44,7 @@ static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
     vnodeMsg->cfg.daysToKeep2 = pVnode->tsdbCfg.keep2;
     vnodeWriteCfg(vnodeMsg);
   }
-#endif
+
   pVnode->tsdbCfg.minRowsPerFileBlock = vnodeMsg->cfg.minRowsPerFileBlock;
   pVnode->tsdbCfg.maxRowsPerFileBlock = vnodeMsg->cfg.maxRowsPerFileBlock;
   pVnode->tsdbCfg.precision = vnodeMsg->cfg.precision;
