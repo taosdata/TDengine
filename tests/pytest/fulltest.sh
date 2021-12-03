@@ -46,6 +46,7 @@ python3 ./test.py -f table/alter_column.py
 python3 ./test.py -f table/boundary.py
 python3 ./test.py -f table/create.py
 python3 ./test.py -f table/del_stable.py
+python3 ./test.py -f table/create_db_from_normal_db.py
 
 #stable
 python3 ./test.py -f stable/insert.py
