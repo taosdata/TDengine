@@ -83,6 +83,10 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [Windows客户端](https://www.taosdata.com/blog/2019/07/26/514.html)：自行编译windows客户端，Windows环境的各种连接器都需要它
 * [Rust Connector](/connector/rust): Rust语言下通过libtaos客户端或RESTful接口，连接TDengine服务器。
 
+## [TDengine 组件与工具](/tools/adapter)
+
+* [taosAdapter用户手册](/tools/adapter)
+
 ## [与其他工具的连接](/connections)
 
 * [Grafana](/connections#grafana)：获取并可视化保存在TDengine的数据
@@ -110,7 +114,8 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [用户管理](/administrator#user)：添加、删除TDengine用户，修改用户密码
 * [数据导入](/administrator#import)：可按脚本文件导入，也可按数据文件导入
 * [数据导出](/administrator#export)：从shell按表导出，也可用taosdump工具做各种导出
-* [系统监控](/administrator#status)：检查系统现有的连接、查询、流式计算，日志和事件等
+* [系统连接、任务查询管理](/administrator#status)：检查系统现有的连接、查询、流式计算，日志和事件等
+* [系统监控](/administrator#monitoring)：系统监控，使用TDinsight进行集群监控等
 * [性能优化](/administrator#optimize)：对长期运行的系统进行维护优化，保障性能表现
 * [文件目录结构](/administrator#directories)：TDengine数据文件、配置文件等所在目录
 * [参数限制与保留关键字](/administrator#keywords)：TDengine的参数限制与保留关键字列表
