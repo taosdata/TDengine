@@ -30,6 +30,21 @@ static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
   pVnode->tsdbCfg.keep = vnodeMsg->cfg.daysToKeep;
   pVnode->tsdbCfg.keep1 = vnodeMsg->cfg.daysToKeep1;
   pVnode->tsdbCfg.keep2 = vnodeMsg->cfg.daysToKeep2;
+
+  if (pVnode->tsdbCfg.keep > pVnode->tsdbCfg.keep1 || pVnode->tsdbCfg.keep1 > pVnode->tsdbCfg.keep2) {
+    // old keep config version, fix it in new version format
+    vInfo("before vgId:%d, vnodeLoadCfg, keep:%d,%d,%d", pVnode->vgId, pVnode->tsdbCfg.keep,pVnode->tsdbCfg.keep1,pVnode->tsdbCfg.keep2);
+    int32_t bakKeep = pVnode->tsdbCfg.keep;
+    pVnode->tsdbCfg.keep = pVnode->tsdbCfg.keep1;
+    pVnode->tsdbCfg.keep1 = pVnode->tsdbCfg.keep2;
+    pVnode->tsdbCfg.keep2 = bakKeep;
+    vInfo("after vgId:%d, vnodeLoadCfg, keep:%d,%d,%d", pVnode->vgId, pVnode->tsdbCfg.keep,pVnode->tsdbCfg.keep1,pVnode->tsdbCfg.keep2);
+    vnodeMsg->cfg.daysToKeep = pVnode->tsdbCfg.keep;
+    vnodeMsg->cfg.daysToKeep1 = pVnode->tsdbCfg.keep1;
+    vnodeMsg->cfg.daysToKeep2 = pVnode->tsdbCfg.keep2;
+    vnodeWriteCfg(vnodeMsg);
+  }
+
   pVnode->tsdbCfg.minRowsPerFileBlock = vnodeMsg->cfg.minRowsPerFileBlock;
   pVnode->tsdbCfg.maxRowsPerFileBlock = vnodeMsg->cfg.maxRowsPerFileBlock;
   pVnode->tsdbCfg.precision = vnodeMsg->cfg.precision;
