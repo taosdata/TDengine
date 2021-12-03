@@ -420,10 +420,9 @@ int tscSmlInsert2(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLin
   static int64_t l = 0;
   for (int i = 0; i < numPoint; ++i) {
     char sql[512];
-    sprintf(sql, "insert into `sml`(`ts`,`value`) values(%" PRId64 ",%f)", ts+l, 4.2);
+    sprintf(sql, "insert into `sml`(`ts`,`value`) values(%" PRId64 ",%f)", ts+ atomic_add_fetch_64(&l, 1), 4.2);
     TAOS_RES* res = taos_query(taos, sql);
     taos_free_result(res);
-    ++l;
   }
   info->affectedRows = numPoint;
   return TSDB_CODE_SUCCESS;
