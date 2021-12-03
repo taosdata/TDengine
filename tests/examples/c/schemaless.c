@@ -190,10 +190,6 @@ int main(int argc, char* argv[]) {
 
   (void)taos_select_db(taos, "db");
 
-  result = taos_query(taos, "create table `sml`(`ts` timestamp, `value` double)");
-  taos_free_result(result);
-  usleep(100000);
-
   time_t  ct = time(0);
   int64_t ts = ct * 1000 ;
 
