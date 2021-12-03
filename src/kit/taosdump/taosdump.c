@@ -231,7 +231,12 @@ SDbInfo **g_dbInfos = NULL;
 TableInfo *g_tablesList = NULL;
 
 const char *argp_program_version = version;
+#ifdef _TD_KH_
+const char *argp_program_bug_address = "<support@wellintech.com>";
+#else
 const char *argp_program_bug_address = "<support@taosdata.com>";
+#endif
+
 
 /* Program documentation. */
 static char doc[] = "";
