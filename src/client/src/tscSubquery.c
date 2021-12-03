@@ -738,36 +738,12 @@ int32_t tagValCompar(const void* p1, const void* p2) {
   const STidTags* t2 = (const STidTags*) varDataVal(p2);
 
   if (t1->padding == TSDB_DATA_TYPE_JSON){
-    bool f1IsNull = (*t1->tag == TSDB_DATA_TYPE_JSON && isNull(t1->tag + CHAR_BYTES, TSDB_DATA_TYPE_JSON));
-    bool f2IsNull = (*t1->tag == TSDB_DATA_TYPE_JSON && isNull(t1->tag + CHAR_BYTES, TSDB_DATA_TYPE_JSON));
-    if(f1IsNull && f2IsNull){
-      return 0;
-    }else if(f1IsNull && !f2IsNull){
-      return -1;
-    }else if(!f1IsNull && f2IsNull){
-      return 1;
-    }else {
-      bool f1IsJsonNull = (*t1->tag == TSDB_DATA_TYPE_BINARY && *(uint32_t*)(t1->tag + CHAR_BYTES) == TSDB_DATA_JSON_null);
-      bool f2IsJsonNull = (*t2->tag == TSDB_DATA_TYPE_BINARY && *(uint32_t*)(t2->tag + CHAR_BYTES) == TSDB_DATA_JSON_null);
-      if(f1IsJsonNull && f2IsJsonNull){
-        return 0;
-      }else if(f1IsJsonNull && !f2IsJsonNull){
-        return -1;
-      }else if(!f1IsJsonNull && f2IsJsonNull) {
-        return 1;
-      }
-      if(*t1->tag != *t2->tag && !(IS_NUMERIC_TYPE(*t1->tag) && IS_NUMERIC_TYPE(*t2->tag))) {
-        return 1;
-      }
-      if(*t1->tag == TSDB_DATA_TYPE_BIGINT && *t2->tag == TSDB_DATA_TYPE_DOUBLE){
-        DEFAULT_COMP(GET_INT64_VAL(t1->tag + CHAR_BYTES), GET_DOUBLE_VAL(t2->tag + CHAR_BYTES));
-      }else if(*t1->tag == TSDB_DATA_TYPE_DOUBLE && *t2->tag == TSDB_DATA_TYPE_BIGINT){
-        DEFAULT_COMP(GET_DOUBLE_VAL(t1->tag + CHAR_BYTES), GET_INT64_VAL(t2->tag + CHAR_BYTES));
-      }
+    bool canReturn = true;
+    int32_t result = jsonCompareUnit(t1->tag, t2->tag, &canReturn);
+    if(canReturn) return result;
 
-      __compar_fn_t func = getComparFunc(t1->tag[0], 0);
-      return func(t1->tag + CHAR_BYTES, t2->tag + CHAR_BYTES);
-    }
+    __compar_fn_t func = getComparFunc(t1->tag[0], 0);
+    return func(t1->tag + CHAR_BYTES, t2->tag + CHAR_BYTES);
   }
   __compar_fn_t func = getComparFunc(t1->padding, 0);
   return func(t1->tag, t2->tag);

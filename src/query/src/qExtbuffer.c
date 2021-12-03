@@ -368,37 +368,12 @@ static int32_t tsCompareFunc(TSKEY k1, TSKEY k2, int32_t order) {
 
 int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
   if (type == TSDB_DATA_TYPE_JSON){
-    bool f1IsNull = (*f1 == TSDB_DATA_TYPE_JSON && isNull(f1 + CHAR_BYTES, TSDB_DATA_TYPE_JSON));
-    bool f2IsNull = (*f2 == TSDB_DATA_TYPE_JSON && isNull(f2 + CHAR_BYTES, TSDB_DATA_TYPE_JSON));
-    if(f1IsNull && f2IsNull){
-      return 0;
-    }else if(f1IsNull && !f2IsNull){
-      return -1;
-    }else if(!f1IsNull && f2IsNull){
-      return 1;
-    }else{
-      bool f1IsJsonNull = (*f1 == TSDB_DATA_TYPE_BINARY && *(uint32_t*)(f1 + CHAR_BYTES) == TSDB_DATA_JSON_null);
-      bool f2IsJsonNull = (*f2 == TSDB_DATA_TYPE_BINARY && *(uint32_t*)(f1 + CHAR_BYTES) == TSDB_DATA_JSON_null);
-      if(f1IsJsonNull && f2IsJsonNull){
-        return 0;
-      }else if(f1IsJsonNull && !f2IsJsonNull){
-        return -1;
-      }else if(!f1IsJsonNull && f2IsJsonNull) {
-        return 1;
-      }
-
-      if(*f1 != *f2 && !(IS_NUMERIC_TYPE(*f1) && IS_NUMERIC_TYPE(*f2))) {
-        return 1;
-      }
-      if(*f1 == TSDB_DATA_TYPE_BIGINT && *f2 == TSDB_DATA_TYPE_DOUBLE){
-        DEFAULT_COMP(GET_INT64_VAL(f1 + CHAR_BYTES), GET_DOUBLE_VAL(f2 + CHAR_BYTES));
-      }else if(*f1 == TSDB_DATA_TYPE_DOUBLE && *f2 == TSDB_DATA_TYPE_BIGINT){
-        DEFAULT_COMP(GET_DOUBLE_VAL(f1 + CHAR_BYTES), GET_INT64_VAL(f2 + CHAR_BYTES));
-      }
-      type = *f1;
-      f1 += CHAR_BYTES;
-      f2 += CHAR_BYTES;
-    }
+    bool canReturn = true;
+    int32_t result = jsonCompareUnit(f1, f2, &canReturn);
+    if(canReturn) return result;
+    type = *f1;
+    f1 += CHAR_BYTES;
+    f2 += CHAR_BYTES;
   }
   switch (type) {
     case TSDB_DATA_TYPE_INT:     DEFAULT_COMP(GET_INT32_VAL(f1), GET_INT32_VAL(f2));

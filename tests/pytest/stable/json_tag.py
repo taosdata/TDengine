@@ -319,7 +319,7 @@ class TDTestCase:
         # test join
         tdSql.execute("create table if not exists jsons2(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json)")
         tdSql.execute("insert into jsons2_1 using jsons2 tags('{\"tag1\":\"fff\",\"tag2\":5, \"tag3\":true}') values(1591060618000, 2, false, 'json2', '你是2')")
-        tdSql.execute("insert into jsons2_2 using jsons2 tags('{\"tag1\":5,\"tag2\":\"beijing\"}') values (1591060628000, 2, true, 'json2', 'sss')")
+        tdSql.execute("insert into jsons2_2 using jsons2 tags('{\"tag1\":5,\"tag2\":null}') values (1591060628000, 2, true, 'json2', 'sss')")
 
         tdSql.execute("create table if not exists jsons3(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json)")
         tdSql.execute("insert into jsons3_1 using jsons3 tags('{\"tag1\":\"fff\",\"tag2\":5, \"tag3\":true}') values(1591060618000, 3, false, 'json3', '你是3')")
@@ -335,30 +335,24 @@ class TDTestCase:
         cname_list.append("a.jtag->'tag3'")
         tdSql.checkColNameList(res, cname_list)
     
-        # test group by & order by   string
-        #tdSql.query("select avg(dataint),count(*) from jsons1 group by jtag->'tag1' order by jtag->'tag1' desc")
+        # test group by & order by  json tag
+        tdSql.query("select count(*) from jsons1 group by jtag->'tag1' order by jtag->'tag1' desc")
         #tdSql.checkData(1, 0, 2.5)
         #tdSql.checkData(1, 1, 2)
         #tdSql.checkData(1, 2, "\"beijing\"")
         #tdSql.checkData(2, 2, None)
 
-        # test stddev with group by json tag sting
-        #tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tag1'")
+        # test stddev with group by json tag
+        tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tag1'")
         #tdSql.checkData(0, 1, None)
         #tdSql.checkData(1, 0, 0.5)
         #tdSql.checkData(2, 0, 0)
 
-        #tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tagint'")
-        #tdSql.checkData(0, 0, 1.16619037896906)
-        #tdSql.checkData(0, 1, None)
-        #tdSql.checkData(1, 0, 0)
-        #tdSql.checkData(2, 1, 2)
-
-        #res = tdSql.getColNameList("select stddev(dataint) from jsons1 group by jsons1.jtag->'tagint'")
-        #cname_list = []
-        #cname_list.append("stddev(dataint)")
-        #cname_list.append("jsons1.jtag->'tagint'")
-        #tdSql.checkColNameList(res, cname_list)
+        res = tdSql.getColNameList("select stddev(dataint) from jsons1 group by jsons1.jtag->'tag1'")
+        cname_list = []
+        cname_list.append("stddev(dataint)")
+        cname_list.append("jsons1.jtag->'tag1'")
+        tdSql.checkColNameList(res, cname_list)
 
 
         # subquery with json tag

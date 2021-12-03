@@ -90,6 +90,7 @@ int32_t compareFindItemInSet(const void *pLeft, const void* pRight);
 int32_t compareWStrPatternComp(const void* pLeft, const void* pRight);
 int32_t compareStrContainJson(const void* pLeft, const void* pRight);
 int32_t compareJsonVal(const void* pLeft, const void* pRight);
+int32_t jsonCompareUnit(const char* f1, const char* f2, bool* canReturn);
 
 #ifdef __cplusplus
 }
