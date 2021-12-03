@@ -6,9 +6,6 @@ project(
     DESCRIPTION "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
 )
 
-# ============================================================================
-# DEPENDENCIES
-# ============================================================================
 set(CMAKE_SUPPORT_DIR "${CMAKE_SOURCE_DIR}/cmake")
 set(CMAKE_CONTRIB_DIR "${CMAKE_SOURCE_DIR}/contrib")
 include(${CMAKE_SUPPORT_DIR}/cmake.options)
