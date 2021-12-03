@@ -57,8 +57,8 @@ typedef struct {
 typedef struct {
   int32_t    dnodeId;
   int32_t    dropped;
+  int32_t    clusterId;
   uint32_t   rebootTime;
-  int64_t    clusterId;
   SEpSet     mnodeEpSet;
   char      *file;
   SHashObj  *dnodeHash;

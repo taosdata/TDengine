@@ -252,14 +252,14 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
 
 void taosSetCoreDump() { SetUnhandledExceptionFilter(&FlCrashDump); }
 
-bool taosGetSystemUid(char *uid) {
+int32_t taosGetSystemUid(char *uid, int32_t uidlen) {
   GUID guid;
   CoCreateGuid(&guid);
 
   sprintf(uid, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X", guid.Data1, guid.Data2, guid.Data3, guid.Data4[0],
           guid.Data4[1], guid.Data4[2], guid.Data4[3], guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]);
 
-  return true;
+  return 0;
 }
 
 char *taosGetCmdlineByPID(int pid) { return ""; }
@@ -452,12 +452,12 @@ int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   }
 }
 
-bool taosGetSystemUid(char *uid) {
+int32_t taosGetSystemUid(char *uid, int32_t uidlen) {
   uuid_t uuid = {0};
   uuid_generate(uuid);
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
   uuid_unparse_lower(uuid, uid);
-  return true;
+  return 0;
 }
 
 char *taosGetCmdlineByPID(int pid) {
@@ -1070,13 +1070,13 @@ void taosSetCoreDump(bool enable) {
 #endif
 }
 
-bool taosGetSystemUid(char *uid, int32_t uidlen) {
+int32_t taosGetSystemUid(char *uid, int32_t uidlen) {
   int fd;
   int len = 0;
 
   fd = open("/proc/sys/kernel/random/uuid", 0);
   if (fd < 0) {
-    return false;
+    return -1;
   } else {
     len = read(fd, uid, uidlen);
     close(fd);
@@ -1084,9 +1084,10 @@ bool taosGetSystemUid(char *uid, int32_t uidlen) {
 
   if (len >= 36) {
     uid[36] = 0;
-    return true;
+    return 0;
   }
-  return false;
+
+  return -1;
 }
 
 char *taosGetCmdlineByPID(int pid) {

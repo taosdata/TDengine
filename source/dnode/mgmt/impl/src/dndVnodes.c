@@ -897,6 +897,7 @@ static int32_t dndInitVnodeMgmtWorker(SDnode *pDnode) {
     return -1;
   }
 
+  dDebug("vnode mgmt worker is initialized");
   return 0;
 }
 
@@ -905,6 +906,7 @@ static void dndCleanupVnodeMgmtWorker(SDnode *pDnode) {
   tWorkerFreeQueue(&pMgmt->mgmtPool, pMgmt->pMgmtQ);
   tWorkerCleanup(&pMgmt->mgmtPool);
   pMgmt->pMgmtQ = NULL;
+  dDebug("vnode mgmt worker is closed");
 }
 
 static int32_t dndAllocVnodeQueryQueue(SDnode *pDnode, SVnodeObj *pVnode) {
@@ -965,6 +967,7 @@ static int32_t dndInitVnodeReadWorker(SDnode *pDnode) {
     return -1;
   }
 
+  dDebug("vnode read worker is initialized");
   return 0;
 }
 
@@ -972,6 +975,7 @@ static void dndCleanupVnodeReadWorker(SDnode *pDnode) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
   tWorkerCleanup(&pMgmt->fetchPool);
   tWorkerCleanup(&pMgmt->queryPool);
+  dDebug("vnode close worker is initialized");
 }
 
 static int32_t dndAllocVnodeWriteQueue(SDnode *pDnode, SVnodeObj *pVnode) {
@@ -1018,12 +1022,14 @@ static int32_t dndInitVnodeWriteWorker(SDnode *pDnode) {
     return -1;
   }
 
+  dDebug("vnode write worker is initialized");
   return 0;
 }
 
 static void dndCleanupVnodeWriteWorker(SDnode *pDnode) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
   tMWorkerCleanup(&pMgmt->writePool);
+  dDebug("vnode write worker is closed");
 }
 
 static int32_t dndAllocVnodeSyncQueue(SDnode *pDnode, SVnodeObj *pVnode) {
@@ -1047,8 +1053,8 @@ static int32_t dndInitVnodeSyncWorker(SDnode *pDnode) {
   int32_t maxThreads = tsNumOfCores / 2;
   if (maxThreads < 1) maxThreads = 1;
 
-  SVnodesMgmt * pMgmt = &pDnode->vmgmt;
-  SMWorkerPool *pPool = &pMgmt->writePool;
+  SVnodesMgmt  *pMgmt = &pDnode->vmgmt;
+  SMWorkerPool *pPool = &pMgmt->syncPool;
   pPool->name = "vnode-sync";
   pPool->max = maxThreads;
   if (tMWorkerInit(pPool) != 0) {
@@ -1056,12 +1062,14 @@ static int32_t dndInitVnodeSyncWorker(SDnode *pDnode) {
     return -1;
   }
 
+  dDebug("vnode sync worker is initialized");
   return 0;
 }
 
 static void dndCleanupVnodeSyncWorker(SDnode *pDnode) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
   tMWorkerCleanup(&pMgmt->syncPool);
+  dDebug("vnode sync worker is closed");
 }
 
 int32_t dndInitVnodes(SDnode *pDnode) {

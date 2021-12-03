@@ -32,30 +32,6 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 
-int32_t mndGetDnodeId(SMnode *pMnode) {
-  if (pMnode != NULL) {
-    return pMnode->dnodeId;
-  }
-
-  return -1;
-}
-
-int64_t mndGetClusterId(SMnode *pMnode) {
-  if (pMnode != NULL) {
-    return pMnode->clusterId;
-  }
-
-  return -1;
-}
-
-tmr_h mndGetTimer(SMnode *pMnode) {
-  if (pMnode != NULL) {
-    return pMnode->timer;
-  }
-
-  return NULL;
-}
-
 void mndSendMsgToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *pMsg) {
   if (pMnode != NULL && pMnode->sendMsgToDnodeFp != NULL) {
     (*pMnode->sendMsgToDnodeFp)(pMnode->pDnode, pEpSet, pMsg);
@@ -112,6 +88,7 @@ static int32_t mnodeCreateDir(SMnode *pMnode, const char *path) {
 static int32_t mndInitSdb(SMnode *pMnode) {
   SSdbOpt opt = {0};
   opt.path = pMnode->path;
+  opt.pMnode = pMnode;
 
   pMnode->pSdb = sdbInit(&opt);
   if (pMnode->pSdb == NULL) {
@@ -177,11 +154,11 @@ static void mndCleanupSteps(SMnode *pMnode, int32_t pos) {
   if (pMnode->pSteps == NULL) return;
 
   if (pos == -1) {
-    pos = taosArrayGetSize(pMnode->pSteps);
+    pos = taosArrayGetSize(pMnode->pSteps) - 1;
   }
 
   for (int32_t s = pos; s >= 0; s--) {
-    SMnodeStep *pStep = taosArrayGet(pMnode->pSteps, pos);
+    SMnodeStep *pStep = taosArrayGet(pMnode->pSteps, s);
     mDebug("step:%s will cleanup", pStep->name);
     if (pStep->cleanupFp != NULL) {
       (*pStep->cleanupFp)(pMnode);
@@ -189,6 +166,7 @@ static void mndCleanupSteps(SMnode *pMnode, int32_t pos) {
   }
 
   taosArrayClear(pMnode->pSteps);
+  taosArrayDestroy(pMnode->pSteps);
   pMnode->pSteps = NULL;
 }
 
@@ -235,7 +213,7 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   if (pMnode->sendMsgToDnodeFp == NULL || pMnode->sendMsgToMnodeFp == NULL || pMnode->sendRedirectMsgFp == NULL ||
       pMnode->putMsgToApplyMsgFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0 ||
       pMnode->statusInterval < 1 || pOption->mnodeEqualVnodeNum < 0) {
-    terrno = TSDB_CODE_MND_APP_ERROR;
+    terrno = TSDB_CODE_MND_INVALID_OPTIONS;
     return -1;
   }
 
@@ -266,8 +244,9 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   }
 
   int32_t code = mnodeCreateDir(pMnode, path);
-  if (mnodeCreateDir(pMnode, path) != 0) {
-    mError("failed to open mnode since %s", tstrerror(code));
+  if (code != 0) {
+    code = terrno;
+    mError("failed to open mnode since %s", terrstr());
     mndClose(pMnode);
     terrno = code;
     return NULL;
@@ -275,7 +254,8 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   code = mndSetOptions(pMnode, pOption);
   if (code != 0) {
-    mError("failed to open mnode since %s", tstrerror(code));
+    code = terrno;
+    mError("failed to open mnode since %s", terrstr());
     mndClose(pMnode);
     terrno = code;
     return NULL;
@@ -283,7 +263,8 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   code = mndInitSteps(pMnode);
   if (code != 0) {
-    mError("failed to open mnode since %s", tstrerror(code));
+    code = terrno;
+    mError("failed to open mnode since %s", terrstr());
     mndClose(pMnode);
     terrno = code;
     return NULL;
@@ -291,7 +272,8 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
   code = mndExecSteps(pMnode);
   if (code != 0) {
-    mError("failed to open mnode since %s", tstrerror(code));
+    code = terrno;
+    mError("failed to open mnode since %s", terrstr());
     mndClose(pMnode);
     terrno = code;
     return NULL;
@@ -345,31 +327,36 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   SMnodeMsg *pMsg = taosAllocateQitem(sizeof(SMnodeMsg));
   if (pMsg == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("failed to create msg since %s", terrstr());
     return NULL;
   }
 
-  if (rpcGetConnInfo(pRpcMsg->handle, &pMsg->conn) != 0) {
+  SRpcConnInfo connInfo = {0};
+  if (rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
     mndCleanupMsg(pMsg);
-    mError("can not get user from conn:%p", pMsg->rpcMsg.handle);
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
+    mError("failed to create msg since %s", terrstr());
     return NULL;
   }
+  memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
 
+  pMsg->pMnode = pMnode;
   pMsg->rpcMsg = *pRpcMsg;
   pMsg->createdTime = taosGetTimestampSec();
 
+  mTrace("msg:%p, is created", pMsg);
   return pMsg;
 }
 
 void mndCleanupMsg(SMnodeMsg *pMsg) {
-  if (pMsg->pUser != NULL) {
-    sdbRelease(pMsg->pMnode->pSdb, pMsg->pUser);
-  }
-
   taosFreeQitem(pMsg);
+  mTrace("msg:%p, is destroyed", pMsg);
 }
 
-void mndSendRsp(SMnodeMsg *pMsg, int32_t code) {}
+void mndSendRsp(SMnodeMsg *pMsg, int32_t code) {
+  SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .code = code};
+  rpcSendResponse(&rpcRsp);
+}
 
 static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
   SMnode *pMnode = pMsg->pMnode;
@@ -378,29 +365,34 @@ static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
   void   *ahandle = pMsg->rpcMsg.ahandle;
   bool    isReq = (msgType % 2 == 1);
 
+  mTrace("msg:%p, app:%p will be processed", pMsg, ahandle);
+
   if (isReq && !mndIsMaster(pMnode)) {
     code = TSDB_CODE_APP_NOT_READY;
+    mDebug("msg:%p, app:%p failed to process since %s", pMsg, ahandle, terrstr());
     goto PROCESS_RPC_END;
   }
 
   if (isReq && pMsg->rpcMsg.pCont == NULL) {
-    mError("msg:%p, app:%p type:%s content is null", pMsg, ahandle, taosMsg[msgType]);
     code = TSDB_CODE_MND_INVALID_MSG_LEN;
+    mError("msg:%p, app:%p failed to process since %s", pMsg, ahandle, terrstr());
     goto PROCESS_RPC_END;
   }
 
   MndMsgFp fp = pMnode->msgFp[msgType];
   if (fp == NULL) {
-    mError("msg:%p, app:%p type:%s not processed", pMsg, ahandle, taosMsg[msgType]);
     code = TSDB_CODE_MSG_NOT_PROCESSED;
+    mError("msg:%p, app:%p failed to process since not handle", pMsg, ahandle);
     goto PROCESS_RPC_END;
   }
 
   code = (*fp)(pMnode, pMsg);
   if (code != 0) {
     code = terrno;
-    mError("msg:%p, app:%p type:%s failed to process since %s", pMsg, ahandle, taosMsg[msgType], terrstr());
+    mError("msg:%p, app:%p failed to process since %s", pMsg, ahandle, terrstr());
     goto PROCESS_RPC_END;
+  } else {
+    mTrace("msg:%p, app:%p is processed", pMsg, ahandle);
   }
 
 PROCESS_RPC_END:
@@ -408,13 +400,13 @@ PROCESS_RPC_END:
     if (code == TSDB_CODE_APP_NOT_READY) {
       mndSendRedirectMsg(pMnode, &pMsg->rpcMsg);
     } else if (code != 0) {
-      SRpcMsg rspMsg = {.handle = pMsg->rpcMsg.handle, .code = code};
-      rpcSendResponse(&rspMsg);
+      SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .code = code};
+      rpcSendResponse(&rpcRsp);
     } else {
+      SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .contLen = pMsg->contLen, .pCont = pMsg->pCont};
+      rpcSendResponse(&rpcRsp);
     }
   }
-
-  mndCleanupMsg(pMsg);
 }
 
 void mndSetMsgHandle(SMnode *pMnode, int32_t msgType, MndMsgFp fp) {

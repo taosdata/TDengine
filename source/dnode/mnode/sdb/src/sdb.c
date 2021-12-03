@@ -40,7 +40,7 @@ SSdb *sdbInit(SSdbOpt *pOption) {
     return NULL;
   }
 
-  for (int32_t i = 0; i < SDB_MAX; ++i) {
+  for (ESdbType i = 0; i < SDB_MAX; ++i) {
     taosInitRWLatch(&pSdb->locks[i]);
   }
 
@@ -69,47 +69,67 @@ void sdbCleanup(SSdb *pSdb) {
     tfree(pSdb->tmpDir);
   }
 
-  for (int32_t i = 0; i < SDB_MAX; ++i) {
+  for (ESdbType i = 0; i < SDB_MAX; ++i) {
     SHashObj *hash = pSdb->hashObjs[i];
-    if (hash != NULL) {
-      taosHashClear(hash);
-      taosHashCleanup(hash);
+    if (hash == NULL) continue;
+
+    SdbDeleteFp deleteFp = pSdb->deleteFps[i];
+    SSdbRow   **ppRow = taosHashIterate(hash, NULL);
+    while (ppRow != NULL) {
+      SSdbRow *pRow = *ppRow;
+      if (pRow == NULL) continue;
+
+      if (deleteFp != NULL) {
+        (*deleteFp)(pSdb, pRow->pObj);
+      }
+      sdbFreeRow(pRow);
+      ppRow = taosHashIterate(hash, ppRow);
     }
-    pSdb->hashObjs[i] = NULL;
   }
 
+  for (ESdbType i = 0; i < SDB_MAX; ++i) {
+    SHashObj *hash = pSdb->hashObjs[i];
+    if (hash == NULL) continue;
+
+    taosHashClear(hash);
+    taosHashCleanup(hash);
+    pSdb->hashObjs[i] = NULL;
+    mTrace("sdb table:%d is cleaned up", i);
+  }
+
+  free(pSdb);
   mDebug("sdb is cleaned up");
 }
 
 int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
-  ESdbType sdb = table.sdbType;
-  pSdb->keyTypes[sdb] = table.keyType;
-  pSdb->insertFps[sdb] = table.insertFp;
-  pSdb->updateFps[sdb] = table.updateFp;
-  pSdb->deleteFps[sdb] = table.deleteFp;
-  pSdb->deployFps[sdb] = table.deployFp;
-  pSdb->encodeFps[sdb] = table.encodeFp;
-  pSdb->decodeFps[sdb] = table.decodeFp;
+  ESdbType sdbType = table.sdbType;
+  EKeyType keyType = table.keyType;
+  pSdb->keyTypes[sdbType] = table.keyType;
+  pSdb->insertFps[sdbType] = table.insertFp;
+  pSdb->updateFps[sdbType] = table.updateFp;
+  pSdb->deleteFps[sdbType] = table.deleteFp;
+  pSdb->deployFps[sdbType] = table.deployFp;
+  pSdb->encodeFps[sdbType] = table.encodeFp;
+  pSdb->decodeFps[sdbType] = table.decodeFp;
 
-  for (int32_t i = 0; i < SDB_MAX; ++i) {
-    int32_t type;
-    if (pSdb->keyTypes[i] == SDB_KEY_INT32) {
-      type = TSDB_DATA_TYPE_INT;
-    } else if (pSdb->keyTypes[i] == SDB_KEY_INT64) {
-      type = TSDB_DATA_TYPE_BIGINT;
-    } else {
-      type = TSDB_DATA_TYPE_BINARY;
-    }
-
-    SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(type), true, HASH_NO_LOCK);
-    if (hash == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
-
-    pSdb->hashObjs[i] = hash;
-    taosInitRWLatch(&pSdb->locks[i]);
+  int32_t hashType = 0;
+  if (keyType == SDB_KEY_INT32) {
+    hashType = TSDB_DATA_TYPE_INT;
+  } else if (keyType == SDB_KEY_INT64) {
+    hashType = TSDB_DATA_TYPE_BIGINT;
+  } else {
+    hashType = TSDB_DATA_TYPE_BINARY;
   }
+
+  SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(hashType), true, HASH_NO_LOCK);
+  if (hash == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  pSdb->hashObjs[sdbType] = hash;
+  taosInitRWLatch(&pSdb->locks[sdbType]);
+  mTrace("sdb table:%d is initialized", sdbType);
 
   return 0;
 }

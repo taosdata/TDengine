@@ -237,7 +237,15 @@ void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
   SRWLatch *pLock = &pSdb->locks[type];
   taosRLockLatch(pLock);
 
-  SSdbRow **ppRow = taosHashIterate(hash, ppRow);
+  if (pIter != NULL) {
+    SSdbRow *pLastRow = *(SSdbRow **)pIter;
+    int32_t  ref = atomic_sub_fetch_32(&pLastRow->refCount, 1);
+    if (ref <= 0 && pLastRow->status == SDB_STATUS_DROPPED) {
+      sdbFreeRow(pLastRow);
+    }
+  }
+
+  SSdbRow **ppRow = taosHashIterate(hash, pIter);
   while (ppRow != NULL) {
     SSdbRow *pRow = *ppRow;
     if (pRow == NULL || pRow->status != SDB_STATUS_READY) {

@@ -22,8 +22,10 @@
 extern "C" {
 #endif
 
-int32_t mndInitUser(SMnode *pMnode);
-void    mndCleanupUser(SMnode *pMnode);
+int32_t   mndInitUser(SMnode *pMnode);
+void      mndCleanupUser(SMnode *pMnode);
+SUserObj *mndAcquireUser(SMnode *pMnode, const char *userName);
+void      mndReleaseUser(SMnode *pMnode, SUserObj *pUser);
 
 #ifdef __cplusplus
 }

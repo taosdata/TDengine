@@ -91,19 +91,24 @@ static void mnodeResetDnode(SDnodeObj *pDnode) {
 }
 
 static int32_t mndDnodeActionInsert(SSdb *pSdb, SDnodeObj *pDnode) {
+  mTrace("dnode:%d, perform insert action", pDnode->id);
   mnodeResetDnode(pDnode);
   return 0;
 }
 
-static int32_t mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode) { return 0; }
+static int32_t mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode) {
+  mTrace("dnode:%d, perform delete action", pDnode->id);
+  return 0;
+}
 
 static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pSrcDnode, SDnodeObj *pDstDnode) {
+  mTrace("dnode:%d, perform update action", pSrcDnode->id);
   pSrcDnode->id = pDstDnode->id;
   pSrcDnode->createdTime = pDstDnode->createdTime;
   pSrcDnode->updateTime = pDstDnode->updateTime;
   pSrcDnode->port = pDstDnode->port;
-  memcpy(pSrcDnode->fqdn, pDstDnode->fqdn, TSDB_FQDN_LEN);
-  mnodeResetDnode(pSrcDnode);
+  memcpy(pSrcDnode->fqdn, pDstDnode->fqdn, TSDB_FQDN_LEN); 
+  return 0;
 }
 
 static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
@@ -118,6 +123,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
+  mTrace("dnode:%d, will be created while deploy sdb", dnodeObj.id);
   return sdbWrite(pMnode->pSdb, pRaw);
 }
 
@@ -169,7 +175,7 @@ static void mndGetDnodeData(SMnode *pMnode, SDnodeEps *pEps, int32_t numOfEps) {
     i++;
   }
 
-  pEps->num = i;
+  pEps->num = htonl(i);
 }
 
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
@@ -205,11 +211,10 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
   return 0;
 }
 
-static int32_t mndProcessStatusMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
-  SStatusMsg *pStatus = pMsg->rpcMsg.pCont;
+static void mndParseStatusMsg(SStatusMsg *pStatus) {
   pStatus->sver = htonl(pStatus->sver);
   pStatus->dnodeId = htonl(pStatus->dnodeId);
-  pStatus->clusterId = htobe64(pStatus->clusterId);
+  pStatus->clusterId = htonl(pStatus->clusterId);
   pStatus->rebootTime = htonl(pStatus->rebootTime);
   pStatus->numOfCores = htons(pStatus->numOfCores);
   pStatus->numOfSupportMnodes = htons(pStatus->numOfSupportMnodes);
@@ -219,6 +224,11 @@ static int32_t mndProcessStatusMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
   pStatus->clusterCfg.statusInterval = htonl(pStatus->clusterCfg.statusInterval);
   pStatus->clusterCfg.mnodeEqualVnodeNum = htonl(pStatus->clusterCfg.mnodeEqualVnodeNum);
   pStatus->clusterCfg.checkTime = htobe64(pStatus->clusterCfg.checkTime);
+}
+
+static int32_t mndProcessStatusMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
+  SStatusMsg *pStatus = pMsg->rpcMsg.pCont;
+  mndParseStatusMsg(pStatus);
 
   SDnodeObj *pDnode = NULL;
   if (pStatus->dnodeId == 0) {
@@ -249,15 +259,14 @@ static int32_t mndProcessStatusMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_INVALID_MSG_VERSION;
   }
 
-  int64_t clusterId = mndGetClusterId(pMnode);
   if (pStatus->dnodeId == 0) {
-    mDebug("dnode:%d %s, first access, set clusterId %" PRId64, pDnode->id, pDnode->ep, clusterId);
+    mDebug("dnode:%d %s, first access, set clusterId %d", pDnode->id, pDnode->ep, pMnode->clusterId);
   } else {
-    if (pStatus->clusterId != clusterId) {
+    if (pStatus->clusterId != pMnode->clusterId) {
       if (pDnode != NULL && pDnode->status != DND_STATUS_READY) {
         pDnode->offlineReason = DND_REASON_CLUSTER_ID_NOT_MATCH;
       }
-      mError("dnode:%d, clusterId %" PRId64 " not match exist %" PRId64, pDnode->id, pStatus->clusterId, clusterId);
+      mError("dnode:%d, clusterId %d not match exist %d", pDnode->id, pStatus->clusterId, pMnode->clusterId);
       mndReleaseDnode(pMnode, pDnode);
       return TSDB_CODE_MND_INVALID_CLUSTER_ID;
     } else {
@@ -296,11 +305,11 @@ static int32_t mndProcessStatusMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
 
   pRsp->dnodeCfg.dnodeId = htonl(pDnode->id);
   pRsp->dnodeCfg.dropped = 0;
-  pRsp->dnodeCfg.clusterId = htobe64(clusterId);
+  pRsp->dnodeCfg.clusterId = htonl(pMnode->clusterId);
   mndGetDnodeData(pMnode, &pRsp->dnodeEps, numOfEps);
 
-  pMsg->rpcRsp.len = contLen;
-  pMsg->rpcRsp.rsp = pRsp;
+  pMsg->contLen = contLen;
+  pMsg->pCont = pRsp;
   mndReleaseDnode(pMnode, pDnode);
 
   return 0;
@@ -325,7 +334,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_DNODE, mndProcessCreateDnodeMsg);
   mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_DNODE, mndProcessDropDnodeMsg);
   mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CONFIG_DNODE, mndProcessConfigDnodeMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_STATUS_RSP, mndProcessStatusMsg);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_STATUS, mndProcessStatusMsg);
 
   return sdbSetTable(pMnode->pSdb, table);
 }

@@ -130,43 +130,43 @@ static int32_t dndReadMnodeFile(SDnode *pDnode) {
   }
 
   cJSON *deployed = cJSON_GetObjectItem(root, "deployed");
-  if (!deployed || deployed->type != cJSON_String) {
+  if (!deployed || deployed->type != cJSON_Number) {
     dError("failed to read %s since deployed not found", pMgmt->file);
     goto PRASE_MNODE_OVER;
   }
-  pMgmt->deployed = atoi(deployed->valuestring);
+  pMgmt->deployed = deployed->valueint;
 
   cJSON *dropped = cJSON_GetObjectItem(root, "dropped");
-  if (!dropped || dropped->type != cJSON_String) {
+  if (!dropped || dropped->type != cJSON_Number) {
     dError("failed to read %s since dropped not found", pMgmt->file);
     goto PRASE_MNODE_OVER;
   }
-  pMgmt->dropped = atoi(dropped->valuestring);
+  pMgmt->dropped = dropped->valueint;
 
-  cJSON *nodes = cJSON_GetObjectItem(root, "nodes");
-  if (!nodes || nodes->type != cJSON_Array) {
+  cJSON *mnodes = cJSON_GetObjectItem(root, "mnodes");
+  if (!mnodes || mnodes->type != cJSON_Array) {
     dError("failed to read %s since nodes not found", pMgmt->file);
     goto PRASE_MNODE_OVER;
   }
 
-  pMgmt->replica = cJSON_GetArraySize(nodes);
+  pMgmt->replica = cJSON_GetArraySize(mnodes);
   if (pMgmt->replica <= 0 || pMgmt->replica > TSDB_MAX_REPLICA) {
-    dError("failed to read %s since nodes size %d invalid", pMgmt->file, pMgmt->replica);
+    dError("failed to read %s since mnodes size %d invalid", pMgmt->file, pMgmt->replica);
     goto PRASE_MNODE_OVER;
   }
 
   for (int32_t i = 0; i < pMgmt->replica; ++i) {
-    cJSON *node = cJSON_GetArrayItem(nodes, i);
+    cJSON *node = cJSON_GetArrayItem(mnodes, i);
     if (node == NULL) break;
 
     SReplica *pReplica = &pMgmt->replicas[i];
 
     cJSON *id = cJSON_GetObjectItem(node, "id");
-    if (!id || id->type != cJSON_String || id->valuestring == NULL) {
+    if (!id || id->type != cJSON_Number) {
       dError("failed to read %s since id not found", pMgmt->file);
       goto PRASE_MNODE_OVER;
     }
-    pReplica->id = atoi(id->valuestring);
+    pReplica->id = id->valueint;
 
     cJSON *fqdn = cJSON_GetObjectItem(node, "fqdn");
     if (!fqdn || fqdn->type != cJSON_String || fqdn->valuestring == NULL) {
@@ -176,15 +176,15 @@ static int32_t dndReadMnodeFile(SDnode *pDnode) {
     tstrncpy(pReplica->fqdn, fqdn->valuestring, TSDB_FQDN_LEN);
 
     cJSON *port = cJSON_GetObjectItem(node, "port");
-    if (!port || port->type != cJSON_String || port->valuestring == NULL) {
+    if (!port || port->type != cJSON_Number) {
       dError("failed to read %s since port not found", pMgmt->file);
       goto PRASE_MNODE_OVER;
     }
-    pReplica->port = atoi(port->valuestring);
+    pReplica->port = port->valueint;
   }
 
   code = 0;
-  dInfo("succcessed to read file %s", pMgmt->file);
+  dDebug("succcessed to read file %s, deployed:%d dropped:%d", pMgmt->file, pMgmt->deployed, pMgmt->dropped);
 
 PRASE_MNODE_OVER:
   if (content != NULL) free(content);
@@ -213,15 +213,15 @@ static int32_t dndWriteMnodeFile(SDnode *pDnode) {
   char   *content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"deployed\": \"%d\",\n", pMgmt->deployed);
+  len += snprintf(content + len, maxLen - len, "  \"deployed\": %d,\n", pMgmt->deployed);
 
-  len += snprintf(content + len, maxLen - len, "  \"dropped\": \"%d\",\n", pMgmt->dropped);
-  len += snprintf(content + len, maxLen - len, "  \"nodes\": [{\n");
+  len += snprintf(content + len, maxLen - len, "  \"dropped\": %d,\n", pMgmt->dropped);
+  len += snprintf(content + len, maxLen - len, "  \"mnodes\": [{\n");
   for (int32_t i = 0; i < pMgmt->replica; ++i) {
     SReplica *pReplica = &pMgmt->replicas[i];
-    len += snprintf(content + len, maxLen - len, "    \"id\": \"%d\",\n", pReplica->id);
+    len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pReplica->id);
     len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pReplica->fqdn);
-    len += snprintf(content + len, maxLen - len, "    \"port\": \"%u\"\n", pReplica->port);
+    len += snprintf(content + len, maxLen - len, "    \"port\": %u\n", pReplica->port);
     if (i < pMgmt->replica - 1) {
       len += snprintf(content + len, maxLen - len, "  },{\n");
     } else {
@@ -241,7 +241,7 @@ static int32_t dndWriteMnodeFile(SDnode *pDnode) {
     return -1;
   }
 
-  dInfo("successed to write %s", pMgmt->file);
+  dInfo("successed to write %s, deployed:%d dropped:%d", pMgmt->file, pMgmt->deployed, pMgmt->dropped);
   return 0;
 }
 
@@ -289,7 +289,6 @@ static void dndStopMnodeWorker(SDnode *pDnode) {
 
   taosWLockLatch(&pMgmt->latch);
   pMgmt->deployed = 0;
-  pMgmt->pMnode = NULL;
   taosWUnLockLatch(&pMgmt->latch);
 
   while (pMgmt->refCount > 1) taosMsleep(10);
@@ -396,29 +395,34 @@ static int32_t dndBuildMnodeOptionFromMsg(SDnode *pDnode, SMnodeOpt *pOption, SC
 static int32_t dndOpenMnode(SDnode *pDnode, SMnodeOpt *pOption) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
-  int32_t code = dndStartMnodeWorker(pDnode);
-  if (code != 0) {
-    dError("failed to start mnode worker since %s", terrstr());
-    return code;
-  }
-
   SMnode *pMnode = mndOpen(pDnode->dir.mnode, pOption);
   if (pMnode == NULL) {
     dError("failed to open mnode since %s", terrstr());
-    code = terrno;
-    dndStopMnodeWorker(pDnode);
-    terrno = code;
-    return code;
+    return -1;
   }
+  pMgmt->deployed = 1;
 
-  if (dndWriteMnodeFile(pDnode) != 0) {
+  int32_t code = dndWriteMnodeFile(pDnode);
+  if (code != 0) {
     dError("failed to write mnode file since %s", terrstr());
     code = terrno;
+    pMgmt->deployed = 0;
+    mndClose(pMnode);
+    mndDestroy(pDnode->dir.mnode);
+    terrno = code;
+    return -1;
+  }
+
+  code = dndStartMnodeWorker(pDnode);
+  if (code != 0) {
+    dError("failed to start mnode worker since %s", terrstr());
+    code = terrno;
+    pMgmt->deployed = 0;
     dndStopMnodeWorker(pDnode);
     mndClose(pMnode);
     mndDestroy(pDnode->dir.mnode);
     terrno = code;
-    return code;
+    return -1;
   }
 
   taosWLockLatch(&pMgmt->latch);
@@ -426,6 +430,7 @@ static int32_t dndOpenMnode(SDnode *pDnode, SMnodeOpt *pOption) {
   pMgmt->deployed = 1;
   taosWUnLockLatch(&pMgmt->latch);
 
+  dInfo("mnode open successfully");
   return 0;
 }
 
@@ -914,6 +919,7 @@ void dndCleanupMnode(SDnode *pDnode) {
   dndStopMnodeWorker(pDnode);
   dndCleanupMnodeMgmtWorker(pDnode);
   tfree(pMgmt->file);
+  mndClose(pMgmt->pMnode);
   dInfo("dnode-mnode is cleaned up");
 }
 
