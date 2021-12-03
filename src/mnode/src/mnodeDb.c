@@ -224,8 +224,10 @@ SDbObj *mnodeGetDb(char *db) {
   if (pDb == NULL) {
     return NULL;
   }
-  SDbCfg* cfg = &(pDb->cfg);  
-  if (cfg->daysToKeep0 > cfg->daysToKeep1 || cfg->daysToKeep1 > cfg->daysToKeep2) {
+  SDbCfg* cfg = &(pDb->cfg);
+  // since all the mnode wal will be replayed when startup,
+  // so fix keep format only in serving state, avoid duplicate fix action
+  if (sdbIsServing() && (cfg->daysToKeep0 > cfg->daysToKeep1 || cfg->daysToKeep1 > cfg->daysToKeep2)) {
     //mInfo("before mnodeGetDb keep:%d,%d,%d", cfg->daysToKeep0, cfg->daysToKeep1, cfg->daysToKeep2);
     // old keep config version, fix it in new version format
     int32_t bakKeep = cfg->daysToKeep0;
