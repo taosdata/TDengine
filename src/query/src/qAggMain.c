@@ -1085,7 +1085,6 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
             DO_UPDATE_TAG_COLUMNS(pCtx, k);
           }
         }
-        
         *notNullElems += 1;
       }
 #if defined(_DEBUG_VIEW)
