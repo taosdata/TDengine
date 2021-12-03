@@ -248,6 +248,41 @@ static int32_t mndProcessConnectMsg(SMnodeMsg *pMsg) {
   return 0;
 }
 
+static int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SHeartBeatMsg *pMsg) {
+  pConn->numOfQueries = 0;
+  pConn->numOfStreams = 0;
+  int32_t numOfQueries = htonl(pMsg->numOfQueries);
+  int32_t numOfStreams = htonl(pMsg->numOfStreams);
+
+  if (numOfQueries > 0) {
+    if (pConn->pQueries == NULL) {
+      pConn->pQueries = calloc(sizeof(SQueryDesc), QUERY_STREAM_SAVE_SIZE);
+    }
+
+    pConn->numOfQueries = MIN(QUERY_STREAM_SAVE_SIZE, numOfQueries);
+
+    int32_t saveSize = pConn->numOfQueries * sizeof(SQueryDesc);
+    if (saveSize > 0 && pConn->pQueries != NULL) {
+      memcpy(pConn->pQueries, pMsg->pData, saveSize);
+    }
+  }
+
+  if (numOfStreams > 0) {
+    if (pConn->pStreams == NULL) {
+      pConn->pStreams = calloc(sizeof(SStreamDesc), QUERY_STREAM_SAVE_SIZE);
+    }
+
+    pConn->numOfStreams = MIN(QUERY_STREAM_SAVE_SIZE, numOfStreams);
+
+    int32_t saveSize = pConn->numOfStreams * sizeof(SStreamDesc);
+    if (saveSize > 0 && pConn->pStreams != NULL) {
+      memcpy(pConn->pStreams, pMsg->pData + numOfQueries * sizeof(SQueryDesc), saveSize);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mndProcessHeartBeatMsg(SMnodeMsg *pMsg) {
   SMnode        *pMnode = pMsg->pMnode;
   SHeartBeatMsg *pReq = pMsg->rpcMsg.pCont;
@@ -279,8 +314,24 @@ static int32_t mndProcessHeartBeatMsg(SMnodeMsg *pMsg) {
     return -1;
   }
 
+  mnodeSaveQueryStreamList(pConn, pReq);
+  if (pConn->killed != 0) {
+    pRsp->killConnection = 1;
+  }
+
+  if (pConn->streamId != 0) {
+    pRsp->streamId = htonl(pConn->streamId);
+    pConn->streamId = 0;
+  }
+
+  if (pConn->queryId != 0) {
+    pRsp->queryId = htonl(pConn->queryId);
+    pConn->queryId = 0;
+  }
+
   pRsp->connId = htonl(pConn->connId);
-  pRsp->killConnection = pConn->killed;
+  pRsp->totalDnodes = htnol(1);
+  pRsp->onlineDnodes = htonl(1);
   mndGetMnodeEpSet(pMnode, &pRsp->epSet);
   mndReleaseConn(pMnode, pConn);
 

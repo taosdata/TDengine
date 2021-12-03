@@ -40,7 +40,72 @@ int32_t mndInitShow(SMnode *pMnode) {
   return 0;
 }
 
-void mndCleanupShow(SMnode *pMnode) {}
+void mndCleanupShow(SMnode *pMnode) {
+  SShowMgmt *pMgmt = &pMnode->showMgmt;
+  if (pMgmt->cache != NULL) {
+    taosCacheCleanup(pMgmt->cache);
+    pMgmt->cache = NULL;
+  }
+}
+
+static int32_t mndAcquireShowObj(SMnode *pMnode, SShowObj *pShow) {
+  TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE)pShow;
+
+  SShowMgmt *pMgmt = &pMnode->showMgmt;
+  SShowObj **ppShow = taosCacheAcquireByKey(pMgmt->cache, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE));
+  if (ppShow) {
+    mTrace("show:%d, data:%p acquired from cache", pShow->id, ppShow);
+    return 0;
+  }
+
+  return -1;
+}
+
+static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
+  SMnode    *pMnode = pShow->pMnode;
+  SShowMgmt *pMgmt = &pMnode->showMgmt;
+  SShowObj **ppShow = (SShowObj **)pShow->ppShow;
+  taosCacheRelease(pMgmt->cache, (void **)(&ppShow), forceRemove);
+  mDebug("show:%d, data:%p released from cache, force:%d", pShow->id, ppShow, forceRemove);
+}
+
+static int32_t mndPutShowObj(SMnode *pMnode, SShowObj *pShow) {
+  SShowMgmt *pMgmt = &pMnode->showMgmt;
+  int32_t    lifeSpan = pMnode->shellActivityTimer * 6 * 1000;
+
+  TSDB_CACHE_PTR_TYPE val = (TSDB_CACHE_PTR_TYPE)pShow;
+  pShow->id = atomic_add_fetch_32(&pMgmt->showId, 1);
+  SShowObj **ppShow =
+      taosCachePut(pMgmt->cache, &val, sizeof(TSDB_CACHE_PTR_TYPE), &pShow, sizeof(TSDB_CACHE_PTR_TYPE), lifeSpan);
+  if (ppShow == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("show:%d, failed to put into cache", pShow->id);
+    return -1;
+  }
+
+  mTrace("show:%d, data:%p put into cache", pShow->id, ppShow);
+  return 0;
+}
+
+static void mndFreeShowObj(void *ppShow) {
+  SShowObj  *pShow = *(SShowObj **)ppShow;
+  SMnode    *pMnode = pShow->pMnode;
+  SShowMgmt *pMgmt = &pMnode->showMgmt;
+
+  ShowFreeIterFp freeFp = pMgmt->freeIterFps[pShow->type];
+  if (freeFp != NULL) {
+    if (pShow->pVgIter != NULL) {
+      // only used in 'show vnodes "ep"'
+      (*freeFp)(pMnode, pShow->pVgIter);
+    }
+    if (pShow->pIter != NULL) {
+      (*freeFp)(pMnode, pShow->pIter);
+    }
+  }
+
+  mDebug("show:%d, data:%p destroyed", pShow->id, ppShow);
+  tfree(pShow);
+}
 
 static int32_t mndProcessShowMsg(SMnodeMsg *pMnodeMsg) {
   SMnode    *pMnode = pMnodeMsg->pMnode;
@@ -244,65 +309,6 @@ static bool mndCheckRetrieveFinished(SShowObj *pShow) {
     return true;
   } 
   return false;
-}
-
-static int32_t mndAcquireShowObj(SMnode *pMnode, SShowObj *pShow) {
-  TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE)pShow;
-
-  SShowMgmt *pMgmt = &pMnode->showMgmt;
-  SShowObj **ppShow = taosCacheAcquireByKey(pMgmt->cache, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE));
-  if (ppShow) {
-    mTrace("show:%d, data:%p acquired from cache", pShow->id, ppShow);
-    return 0;
-  }
-
-  return -1;
-}
-
-static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
-  SMnode    *pMnode = pShow->pMnode;
-  SShowMgmt *pMgmt = &pMnode->showMgmt;
-  SShowObj **ppShow = (SShowObj **)pShow->ppShow;
-  taosCacheRelease(pMgmt->cache, (void **)(&ppShow), forceRemove);
-  mDebug("show:%d, data:%p released from cache, force:%d", pShow->id, ppShow, forceRemove);
-}
-
-static int32_t mndPutShowObj(SMnode *pMnode, SShowObj *pShow) {
-  SShowMgmt *pMgmt = &pMnode->showMgmt;
-  int32_t    lifeSpan = pMnode->shellActivityTimer * 6 * 1000;
-
-  TSDB_CACHE_PTR_TYPE val = (TSDB_CACHE_PTR_TYPE)pShow;
-  pShow->id = atomic_add_fetch_32(&pMgmt->showId, 1);
-  SShowObj **ppShow =
-      taosCachePut(pMgmt->cache, &val, sizeof(TSDB_CACHE_PTR_TYPE), &pShow, sizeof(TSDB_CACHE_PTR_TYPE), lifeSpan);
-  if (ppShow == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("show:%d, failed to put into cache", pShow->id);
-    return -1;
-  }
-
-  mTrace("show:%d, data:%p put into cache", pShow->id, ppShow);
-  return 0;
-}
-
-static void mndFreeShowObj(void *ppShow) {
-  SShowObj  *pShow = *(SShowObj **)ppShow;
-  SMnode    *pMnode = pShow->pMnode;
-  SShowMgmt *pMgmt = &pMnode->showMgmt;
-
-  ShowFreeIterFp freeFp = pMgmt->freeIterFps[pShow->type];
-  if (freeFp != NULL) {
-    if (pShow->pVgIter != NULL) {
-      // only used in 'show vnodes "ep"'
-      (*freeFp)(pMnode, pShow->pVgIter);
-    }
-    if (pShow->pIter != NULL) {
-      (*freeFp)(pMnode, pShow->pIter);
-    }
-  }
-
-  mDebug("show:%d, data:%p destroyed", pShow->id, ppShow);
-  tfree(pShow);
 }
 
 void mnodeVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {
