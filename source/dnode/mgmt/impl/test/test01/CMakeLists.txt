@@ -2,12 +2,15 @@ add_executable(dndTest01 "")
 
 target_sources(dndTest01
     PRIVATE
-    "dndTest01.cpp"
+    "test01.cpp"
+    "../util/deploy.cpp"
 )
 
 target_link_libraries(
     dndTest01
     PUBLIC dnode
+    PUBLIC util
+    PUBLIC os
     PUBLIC gtest_main
 )
 

@@ -14,13 +14,16 @@
  */
 
 #include <gtest/gtest.h>
-#include <cstring>
-#include <iostream>
-#include <queue>
-#include "tthread.h"
+#include "os.h"
 
 #include "dnode.h"
+#include "taosmsg.h"
+#include "tconfig.h"
+#include "tglobal.h"
+#include "tnote.h"
 #include "trpc.h"
+#include "tthread.h"
+#include "ulog.h"
 
 typedef struct {
   SDnode*    pDnode;
@@ -28,7 +31,7 @@ typedef struct {
 } SServer;
 
 void* runServer(void* param) {
-  SServer* pServer = param;
+  SServer* pServer = (SServer*)param;
   while (1) {
     taosMsleep(100);
     pthread_testcancel();
@@ -49,19 +52,19 @@ void initOption(SDnodeOpt* pOption) {
   pOption->shellActivityTimer = 30;
   pOption->serverPort = 9527;
   strncpy(pOption->dataDir, "./test01");
-  strncpy(pOption->localEp, "localhost:9527");
-  strncpy(pOption->localFqdn, "localhost");
-  tstrncpy(pOption->firstEp, "localhost:9527");
+  strcpy(pOption->localEp, "localhost:9527");
+  strcpy(pOption->localFqdn, "localhost");
+  strcpy(pOption->firstEp, "localhost:9527");
 }
 
-Server* createServer() {
+SServer* createServer() {
   SDnodeOpt option = {0};
   initOption(&option);
 
   SDnode* pDnode = dndInit(&option);
   ASSERT(pDnode);
 
-  Server* pServer = calloc(1, sizeof(SServer));
+  SServer* pServer = (SServer*)calloc(1, sizeof(SServer));
   ASSERT(pServer);
 
   pServer->pDnode = pDnode;
@@ -84,13 +87,13 @@ typedef struct {
 } SClient;
 
 static void processClientRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
-  SClient* pClient = parent;
+  SClient* pClient = (SClient*)parent;
   pClient->pRsp = pMsg;
-  tsem_post(pMgmt->clientRpc);
+  tsem_post(&pClient->sem);
 }
 
 SClient* createClient() {
-  SClient* pClient = calloc(1, sizeof(SClient));
+  SClient* pClient = (SClient*)calloc(1, sizeof(SClient));
   ASSERT(pClient);
 
   char  secretEncrypt[32] = {0};
@@ -107,7 +110,7 @@ SClient* createClient() {
   rpcInit.idleTime = 30 * 1000;
   rpcInit.user = "root";
   rpcInit.ckey = "key";
-  rpcInit.parent = pDnode;
+  rpcInit.parent = pClient;
   rpcInit.secret = (char*)secretEncrypt;
   rpcInit.parent = pClient;
   // rpcInit.spi = 1;
@@ -130,8 +133,8 @@ void sendMsg(SClient* pClient, SRpcMsg* pMsg) {
   epSet.port[0] = 9527;
   strcpy(epSet.fqdn[0], "localhost");
 
-  rpcSendRequest(pMgmt->clientRpc, &epSet, pMsg, NULL);
-  tsem_wait(pMgmt->clientRpc);
+  rpcSendRequest(pClient->clientRpc, &epSet, pMsg, NULL);
+  tsem_wait(&pClient->sem);
 }
 
 class DndTest01 : public ::testing::Test {
@@ -150,7 +153,26 @@ class DndTest01 : public ::testing::Test {
 };
 
 TEST_F(DndTest01, connectMsg) {
-  SConnectMsg *pReq = rpcMallocCont()    
+  SConnectMsg* pReq = (SConnectMsg*)rpcMallocCont(sizeof(SConnectMsg));
+  pReq->pid = 1234;
+  strcpy(pReq->app, "test01");
+  strcpy(pReq->app, "");
 
+  SRpcMsg rpcMsg = {.pCont = pReq, .contLen = sizeof(SConnectMsg), .msgType = TSDB_MSG_TYPE_AUTH};
 
+  sendMsg(pClient, &rpcMsg);
+
+  SConnectRsp* pRsp = (SConnectRsp*)pClient->pRsp;
+  EXPECT_NE(pRsp, NULL);
+  EXPECT_EQ(pRsp->acctId, 1);
+  EXPECT_GT(pRsp->clusterId, 0);
+  EXPECT_GT(pRsp->connId, 1);
+  EXPECT_EQ(pRsp->superAuth, 1);
+  EXPECT_EQ(pRsp->readAuth, 1);
+  EXPECT_EQ(pRsp->writeAuth, 1);
+
+  EXPECT_EQ(pRsp->epSet.inUse, 0);
+  EXPECT_EQ(pRsp->epSet.numOfEps, 1);
+  EXPECT_EQ(pRsp->epSet.port[0], 9527);
+  EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
 }
