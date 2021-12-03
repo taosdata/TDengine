@@ -626,8 +626,8 @@ int32_t jsonCompareUnit(const char* f1, const char* f2, bool* canReturn){
   }else if(!f1IsNull && f2IsNull){
     return 1;
   }else{
-    bool f1IsJsonNull = (*f1 == TSDB_DATA_TYPE_BINARY && *(uint32_t*)(f1 + CHAR_BYTES) == TSDB_DATA_JSON_null);
-    bool f2IsJsonNull = (*f2 == TSDB_DATA_TYPE_BINARY && *(uint32_t*)(f1 + CHAR_BYTES) == TSDB_DATA_JSON_null);
+    bool f1IsJsonNull = (*f1 == TSDB_DATA_TYPE_BINARY && *(uint32_t*)varDataVal(f1 + CHAR_BYTES) == TSDB_DATA_JSON_null);
+    bool f2IsJsonNull = (*f2 == TSDB_DATA_TYPE_BINARY && *(uint32_t*)varDataVal(f1 + CHAR_BYTES) == TSDB_DATA_JSON_null);
     if(f1IsJsonNull && f2IsJsonNull){
       return 0;
     }else if(f1IsJsonNull && !f2IsJsonNull){
