@@ -1052,7 +1052,7 @@ HTTP 请求 URL 采用 `sqlutc` 时，返回结果集的时间戳将采用 UTC �
 
 示例程序源码位于
 * {client_install_directory}/examples/C#
-* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%23)
+* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523)
 
 **注意:** TDengineTest.cs       C#示例源程序,包含了数据库连接参数，以及如何执行数据插入、查询等操作。
 
@@ -1084,7 +1084,7 @@ dotnet add package TDengine.Connector
 ```c# 
 using TDengineDriver;
 ```
-* 用户可以参考[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%23/TDengineTest)来定义数据库连接参数，以及如何执行数据插入、查询等操作。
+* 用户可以参考[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523/TDengineTest)来定义数据库连接参数，以及如何执行数据插入、查询等操作。
 
 
 **注意：**
