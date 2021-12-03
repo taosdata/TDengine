@@ -144,6 +144,8 @@ static int32_t syncProcessBufferedFwd(SSyncPeer *pPeer) {
     forwards++;
   }
 
+  // uint64_t uid = atomic_add_fetch_32(&gSyncUid, 1);
+  // sInfo("propSync_%s_%d rid:%" PRId64 ":uid:%" PRIu64, __func__, __LINE__, rid, uid);
   pthread_mutex_lock(&pNode->mutex);
 
   while (forwards < pRecv->forwards && pRecv->code == 0) {
@@ -154,6 +156,7 @@ static int32_t syncProcessBufferedFwd(SSyncPeer *pPeer) {
   nodeRole = TAOS_SYNC_ROLE_SLAVE;
   sDebug("%s, finish processing buffered fwds:%d", pPeer->id, forwards);
 
+  // sInfo("propSync_%s_%d rid:%" PRId64 ":uid_ex:%" PRIu64, __func__, __LINE__, rid, uid);
   pthread_mutex_unlock(&pNode->mutex);
 
   return pRecv->code;
@@ -286,7 +289,7 @@ void *syncRestoreData(void *param) {
   } else {
     if (syncRestoreDataStepByStep(pPeer) == 0) {
       sInfo("%s, it is synced successfully", pPeer->id);
-      nodeRole = TAOS_SYNC_ROLE_SLAVE;
+      nodeRole = TAOS_SYNC_ROLE_SLAVE;  
       syncBroadcastStatus(pNode);
     } else {
       sError("%s, failed to restore data, restart connection", pPeer->id);
@@ -310,3 +313,4 @@ void *syncRestoreData(void *param) {
 
   return NULL;
 }
+                                
