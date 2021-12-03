@@ -114,6 +114,17 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 
 在 SML_TELNET_PROTOCOL 和 SML_JSON_PROTOCOL 模式下，根据时间戳的长度来确定时间精度（与 OpenTSDB 标准操作方式相同），此时会忽略用户指定的时间分辨率。
 
+**数据模式映射规则**
+<br/>本节将说明行协议的数据如何映射成为具有模式的数据。每个行协议中数据  measurement 映射为 超级表名称。tag_set 中的 标签名称为 数据模式中的标签名，field_set 中的名称为列名称。以如下数据为例，说明映射规则：
+
+```json
+st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
+```
+该行数据映射生成一个超级表： st， 其包含了 3 个类型为 nchar 的标签，分别是：t1, t2, t3。五个数据列，分别是ts（timestamp），c1 (bigint），c3(binary)，c2 (bool),  c4 (bigint）。映射成为如下 SQL 语句：
+```json
+create stable st (_ts timestamp, c1 bigint, c2 bool, c3 binary(6), c4 bigint) tags(t1 nchar(1), t2 nchar(1), t3 nchar(2))
+```
+
 **数据模式变更处理**
 <br/>本节将说明不同行数据写入情况下，对于数据模式的影响。
 

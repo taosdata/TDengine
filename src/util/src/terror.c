@@ -16,7 +16,7 @@
 #include "os.h"
 
 #define TAOS_ERROR_C
- 
+
 typedef struct {
     int32_t val;
     const char* str;
@@ -233,6 +233,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DND_INVALID_MSG_LEN,          "Invalid message lengt
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_ACTION_IN_PROGRESS,       "Action in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_TOO_MANY_VNODES,          "Too many vnode directories")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_EXITING,                  "Dnode is exiting")
+TAOS_DEFINE_ERROR(TSDB_CODE_DND_VNODE_OPEN_FAILED,        "Vnode open failed")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ACTION_IN_PROGRESS,       "Action in progress")
