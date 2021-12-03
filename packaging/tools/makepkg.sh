@@ -51,7 +51,7 @@ else
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
-header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
+header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
 if [ "$verMode" == "cluster" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else
@@ -86,11 +86,27 @@ if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
     cp ${compile_dir}/test/cfg/taosadapter.service          ${install_dir}/cfg || :
 fi
 
+if [ -f "${cfg_dir}/taosd.service" ]; then
+    cp ${cfg_dir}/taosd.service          ${install_dir}/cfg || :
+fi
+if [ -f "${cfg_dir}/tarbitratord.service" ]; then
+    cp ${cfg_dir}/tarbitratord.service          ${install_dir}/cfg || :
+fi
+if [ -f "${cfg_dir}/nginxd.service" ]; then
+    cp ${cfg_dir}/nginxd.service          ${install_dir}/cfg || :
+fi
+
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/taosd.deb
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/taosd.rpm
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
+
+if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
+    mkdir -p ${install_dir}/avro/{lib,lib/pkgconfig}
+    cp ${build_dir}/lib/libavro.* ${install_dir}/avro/lib
+    cp ${build_dir}/lib/pkgconfig/avro-c.pc ${install_dir}/avro/lib/pkgconfig
+fi
 
 if [ -f ${build_dir}/bin/jemalloc-config ]; then
     mkdir -p ${install_dir}/jemalloc/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3}

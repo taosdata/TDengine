@@ -414,6 +414,7 @@ cd ../../../debug; make
 ./test.sh -f general/parser/between_and.sim
 ./test.sh -f general/parser/last_cache.sim
 ./test.sh -f unique/big/balance.sim
+./test.sh -f general/parser/nestquery.sim
 
 ./test.sh -f general/parser/udf.sim
 ./test.sh -f general/parser/udf_dll.sim

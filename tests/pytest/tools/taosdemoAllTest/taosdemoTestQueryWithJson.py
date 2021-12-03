@@ -52,8 +52,8 @@ class TDTestCase:
         self.expectResult = expectResult
         with open("%s" % filename, 'r+') as f1:
             for line in f1.readlines():
-                queryResult = line.strip().split()[0]
-                self.assertCheck(filename, queryResult, expectResult)
+                queryResultTaosc = line.strip().split()[0]
+                self.assertCheck(filename, queryResultTaosc, expectResult)
 
     # 获取restful接口查询的结果文件中的关键内容,目前的关键内容找到第一个key就跳出循，所以就只有一个数据。后续再修改多个结果文件。
     def getfileDataRestful(self, filename):
@@ -65,9 +65,12 @@ class TDTestCase:
                     pattern = re.compile("{.*}")
                     contents = pattern.search(contents).group()
                     contentsDict = ast.literal_eval(contents)   # 字符串转换为字典
-                    queryResult = contentsDict['data'][0][0]
+                    queryResultRest = contentsDict['data'][0][0]
                     break
-        return queryResult
+                else :
+                    queryResultRest = ""
+        return queryResultRest
+        
 
     # 获取taosc接口查询次数
     def queryTimesTaosc(self, filename):
@@ -185,9 +188,10 @@ class TDTestCase:
         os.system(
             "%staosdemo -f tools/taosdemoAllTest/queryInsertdata.json" %
             binPath)
-        os.system(
+        exceptcode = os.system(
             "%staosdemo -f tools/taosdemoAllTest/queryQps.json" %
             binPath)
+        assert exceptcode == 0
 
         # use illegal or out of range parameters query json file
         os.system(
@@ -228,7 +232,7 @@ class TDTestCase:
         os.system("rm -rf tools/taosdemoAllTest/*.py.sql")
         os.system("rm -rf ./querySystemInfo*")
         os.system("rm -rf ./query_res*")
-#        os.system("rm -rf ./all_query*")
+        os.system("rm -rf ./all_query*")
         os.system("rm -rf ./test_query_res0.txt")
 
     def stop(self):

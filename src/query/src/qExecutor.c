@@ -1577,9 +1577,6 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
   int32_t num = 0;
   for (int32_t j = 0; j < pSDataBlock->info.rows; ++j) {
     char* val = ((char*)pColInfoData->pData) + bytes * j;
-    if (isNull(val, type)) {
-      continue;
-    }
 
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (pInfo->prevData == NULL) {

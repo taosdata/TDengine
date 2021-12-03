@@ -171,7 +171,7 @@ python3 test.py -f tools/taosdemoTestLimitOffset.py
 python3 test.py -f tools/taosdemoTestTblAlt.py
 python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdemoTestInterlace.py
-python3 test.py -f tools/taosdemoTestQuery.py
+# python3 test.py -f tools/taosdemoTestQuery.py
 
 # restful test for python
 # python3 test.py -f restful/restful_bind_db1.py
@@ -218,9 +218,9 @@ python3 ./test.py -f perfbenchmark/bug3433.py
 python3 ./test.py -f perfbenchmark/taosdemoInsert.py
 
 #taosdemo
-#python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
-# python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
-# python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py
 
 #query
 python3 test.py -f query/distinctOneColTb.py
@@ -372,6 +372,8 @@ python3 ./test.py  -f functions/function_ceil.py
 python3 ./test.py  -f functions/function_floor.py
 python3 ./test.py  -f functions/function_round.py
 python3 ./test.py  -f functions/function_elapsed.py
+python3 ./test.py -f functions/function_mavg.py
+python3 ./test.py -f functions/function_csum.py
 
 python3 ./test.py -f insert/unsignedInt.py
 python3 ./test.py -f insert/unsignedBigint.py

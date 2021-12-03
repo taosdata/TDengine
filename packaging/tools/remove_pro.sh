@@ -85,6 +85,7 @@ function clean_lib() {
 function clean_header() {
     # Remove link
     ${csudo} rm -f ${inc_link_dir}/taos.h       || :
+    ${csudo} rm -f ${inc_link_dir}/taosdef.h       || :
     ${csudo} rm -f ${inc_link_dir}/taoserror.h  || :
 }
 
@@ -177,7 +178,6 @@ function clean_service() {
     elif ((${service_mod}==1)); then
         clean_service_on_sysvinit
     else
-        # must manual stop taosd
         kill_prodbs
         kill_tarbitrator
     fi
