@@ -52,7 +52,7 @@ if [ "$pagMode" == "lite" ]; then
   strip ${build_dir}/bin/taosd
   strip ${build_dir}/bin/taos
 else
-  cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/khdemo
+  cp ${build_dir}/bin/taosBenchmark      ${install_dir}/bin/khdemo
   cp ${build_dir}/bin/taosdump      ${install_dir}/bin/khdump
   cp ${build_dir}/bin/tarbitrator   ${install_dir}/bin
   cp ${script_dir}/set_core.sh      ${install_dir}/bin

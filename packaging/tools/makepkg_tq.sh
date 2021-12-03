@@ -58,7 +58,7 @@ else
   cp ${build_dir}/bin/taosd         ${install_dir}/bin/tqd
   cp ${script_dir}/remove_tq.sh  ${install_dir}/bin
   cp ${build_dir}/bin/taosadapter          ${install_dir}/bin/taosadapter ||:
-  cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/tqdemo
+  cp ${build_dir}/bin/taosBenchmark      ${install_dir}/bin/tqdemo
   cp ${build_dir}/bin/tarbitrator   ${install_dir}/bin
   cp ${script_dir}/set_core.sh      ${install_dir}/bin
   cp ${script_dir}/get_client.sh    ${install_dir}/bin
