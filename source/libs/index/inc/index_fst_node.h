@@ -16,6 +16,10 @@
 #ifndef __INDEX_FST_NODE_H__
 #define __INDEX_FST_NODE_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "index_fst_util.h"
 #include "index_fst_counting_writer.h"
 
@@ -44,5 +48,9 @@ void fstBuilderNodeCloneFrom(FstBuilderNode *dst, FstBuilderNode *src);
 //bool fstBuilderNodeCompileTo(FstBuilderNode *b, FstCountingWriter *wrt, CompiledAddr lastAddr, CompiledAddr startAddr); 
 
 void fstBuilderNodeDestroy(FstBuilderNode *node);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

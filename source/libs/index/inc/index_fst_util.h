@@ -17,6 +17,10 @@
 #ifndef __INDEX_FST_UTIL_H__
 #define __INDEX_FST_UTIL_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "tarray.h"
 #include "index_fst_common.h"
 
@@ -89,5 +93,8 @@ uint8_t *fstSliceData(FstSlice *s, int32_t *sz);
 
 #define FST_SLICE_LEN(s) (s->end - s->start + 1)
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif

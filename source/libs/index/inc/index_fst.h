@@ -16,6 +16,9 @@
 #ifndef __INDEX_FST_H__
 #define __INDEX_FST_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "tarray.h"
 #include "index_fst_util.h"
@@ -98,6 +101,7 @@ FstBuilder *fstBuilderCreate(void *w, FstType ty);
 
 void fstBuilderDestroy(FstBuilder *b);
 void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in);
+bool fstBuilderInsert(FstBuilder *b, FstSlice bs, Output in);
 OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup);
 void fstBuilderCompileFrom(FstBuilder *b, uint64_t istate);
 CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn);
@@ -323,5 +327,10 @@ FstStreamBuilder *fstStreamBuilderCreate(Fst *fst, Automation *aut);
 // refator, simple code by marco 
 
 FstStreamBuilder *fstStreamBuilderRange(FstStreamBuilder *b, FstSlice *val, RangeType type);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

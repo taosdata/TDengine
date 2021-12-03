@@ -16,6 +16,10 @@
 #ifndef __INDEX_FST_COUNTING_WRITER_H__
 #define __INDEX_FST_COUNTING_WRITER_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "tfile.h"
 
 
@@ -71,6 +75,10 @@ uint8_t fstCountingWriterPackUint(FstCountingWriter *writer, uint64_t n);
 #define FST_WRITER_COUNT(writer) (writer->count)
 #define FST_WRITER_INTER_WRITER(writer) (writer->wtr)
 #define FST_WRITE_CHECK_SUMMER(writer) (writer->summer)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

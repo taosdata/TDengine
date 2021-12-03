@@ -52,7 +52,7 @@ void fstUnFinishedNodesPushEmpty(FstUnFinishedNodes *nodes, bool isFinal) {
   FstBuilderNode *node = malloc(sizeof(FstBuilderNode));
   node->isFinal     = isFinal;
   node->finalOutput = 0;
-  node->trans       = NULL;
+  node->trans       = taosArrayInit(16, sizeof(FstTransition));
 
   FstBuilderNodeUnfinished un = {.node = node, .last = NULL}; 
   taosArrayPush(nodes->stack, &un);
@@ -112,7 +112,7 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes *nodes, FstSlice bs, Output 
     FstBuilderNode *n = malloc(sizeof(FstBuilderNode));
     n->isFinal     = false;
     n->finalOutput = 0;
-    n->trans       = NULL;
+    n->trans       = taosArrayInit(16, sizeof(FstTransition));
     
     //FstLastTransition *trn = malloc(sizeof(FstLastTransition)); 
     //trn->inp = s->data[i];
@@ -806,13 +806,13 @@ void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in) {
      fstUnFinishedNodesSetRootOutput(b->unfinished, in);
      return;
    }
-   Output out; 
    //if (in != 0) { //if let Some(in) = in 
    //   prefixLen = fstUnFinishedNodesFindCommPrefixAndSetOutput(b->unfinished, bs, in, &out);  
    //} else {
    //   prefixLen = fstUnFinishedNodesFindCommPrefix(b->unfinished, bs);
    //   out = 0;
    //}
+   Output out; 
    uint64_t prefixLen = fstUnFinishedNodesFindCommPrefixAndSetOutput(b->unfinished, bs, in, &out);
   
    if (prefixLen == FST_SLICE_LEN(s)) {
@@ -857,7 +857,7 @@ void fstBuilderCompileFrom(FstBuilder *b, uint64_t istate) {
     }
     addr =  fstBuilderCompile(b, n);
     assert(addr != NONE_ADDRESS);      
-    fstBuilderNodeDestroy(n);
+    //fstBuilderNodeDestroy(n);
   }
   fstUnFinishedNodesTopLastFreeze(b->unfinished, addr);
   return; 

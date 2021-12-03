@@ -81,7 +81,7 @@ FstCountingWriter *fstCountingWriterCreate(void *wrt) {
   FstCountingWriter *cw = calloc(1, sizeof(FstCountingWriter)); 
   if (cw == NULL) { return NULL; }
   
-  cw->wrt = (void *)(writerCtxCreate(TMemory)); 
+  cw->wrt = (void *)(writerCtxCreate(TFile)); 
   return cw; 
 }
 void fstCountingWriterDestroy(FstCountingWriter *cw) {
