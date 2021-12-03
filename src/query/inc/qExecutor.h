@@ -230,6 +230,7 @@ typedef struct SQueryAttr {
   bool             diffQuery;        // is diff query
   bool             simpleAgg;
   bool             pointInterpQuery; // point interpolation query
+  bool             needTableSeqScan; // need scan table by table
   bool             needReverseScan;  // need reverse scan
   bool             distinct;         // distinct  query or not
   bool             stateWindow;       // window State on sub/normal table
