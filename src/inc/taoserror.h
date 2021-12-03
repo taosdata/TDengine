@@ -35,6 +35,7 @@ int32_t* taosGetErrno();
 #define terrno                              (*taosGetErrno())
  
 #define TSDB_CODE_SUCCESS                   0
+#define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error
 
 // rpc
 #define TSDB_CODE_RPC_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0001)  //"Action in progress")

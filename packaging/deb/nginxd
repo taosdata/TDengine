@@ -1,0 +1,46 @@
+#!/bin/bash
+#Startup script for the nginx Web Server
+# chkconfig: 2345 99 01
+# description: Nginx For TDengine Service.
+#
+#
+### BEGIN INIT INFO
+# Provides: nginx
+# Required-Start: $local_fs $network $syslog
+# Required-Stop: $local_fs $network $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Starts nginx
+# Description: Starts nginx.
+### END INIT INFO
+
+nginx=/usr/local/nginxd/sbin/nginx
+case $1 in
+    start)
+        echo -n "Starting Nginx"
+        $nginx
+        echo " done."
+        ;;
+    stop)
+        echo -n "Stopping Nginx"
+        $nginx -s stop
+        echo " done."
+        ;;
+    test)
+        $nginx -t
+        echo "Success."
+        ;;
+    reload)
+        echo -n "Reloading Nginx"
+        $nginx -s reload
+        echo " done."
+        ;;
+    restart)
+        $nginx -s reload
+        echo "reload done."
+        ;;
+    *)
+        echo "Usage: $0 {start|restart|reload|stop|test|show}"
+    ;;
+esac
+

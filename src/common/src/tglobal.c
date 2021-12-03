@@ -271,6 +271,9 @@ uint32_t curRange = 100;                      // range
 char     Compressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 #endif
 
+// long query death-lock
+int8_t tsDeadLockKillQuery = 1;
+
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
 void (*monExecuteSQLFp)(char *sql) = NULL;
@@ -1598,6 +1601,17 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "clientMerge";
   cfg.ptr = &tsClientMerge;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // enable kill long query
+  cfg.option = "deadLockKillQuery";
+  cfg.ptr = &tsDeadLockKillQuery;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;
