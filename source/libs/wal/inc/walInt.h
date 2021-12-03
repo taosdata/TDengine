@@ -17,13 +17,15 @@
 #define _TD_WAL_INT_H_
 
 #include "wal.h"
+#include "compare.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int walRotate(SWal* pWal);
 int walGetFile(SWal* pWal, int32_t version);
+
+int64_t walGetSeq();
 
 #ifdef __cplusplus
 }

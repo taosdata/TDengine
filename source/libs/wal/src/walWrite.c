@@ -26,10 +26,24 @@ int32_t walCommit(SWal *pWal, int64_t ver) {
 }
 
 int32_t walRollback(SWal *pWal, int64_t ver) {
+  //TODO: ftruncate
   return 0;
 }
 
 int32_t walTakeSnapshot(SWal *pWal, int64_t ver) {
+  pWal->snapshotVersion = ver;
+
+  //mark files safe to delete
+  int64_t* pRet = taosArraySearch(pWal->fileSet, &ver, compareInt64Val, TD_LE);
+  if(pRet != pWal->fileSet->pData) {
+    //delete files until less than retention size
+    
+    //find first file that exceeds retention time
+    
+  }
+
+  //delete files living longer than retention limit
+  //remove file from fileset
   return 0;
 }
 
@@ -124,13 +138,102 @@ void walRemoveAllOldFiles(void *handle) {
 }
 #endif
 
+static int walRoll(SWal *pWal) {
+  int code = 0;
+  code = tfClose(pWal->curIdxTfd);
+  if(code != 0) {
+    return code;
+  }
+  code = tfClose(pWal->curLogTfd);
+  if(code != 0) {
+    return code;
+  }
+  int64_t idxTfd, logTfd;
+  //create new file
+  int64_t newFileFirstVersion = pWal->lastVersion + 1;
+  char fnameStr[WAL_FILE_LEN];
+  sprintf(fnameStr, "%"PRId64"."WAL_INDEX_SUFFIX, newFileFirstVersion);
+  idxTfd = tfOpenCreateWrite(fnameStr);
+  sprintf(fnameStr, "%"PRId64"."WAL_LOG_SUFFIX, newFileFirstVersion);
+  logTfd = tfOpenCreateWrite(fnameStr);
+
+  taosArrayPush(pWal->fileSet, &newFileFirstVersion);
+  
+  //switch file
+  pWal->curIdxTfd = idxTfd;
+  pWal->curLogTfd = logTfd;
+  //change status
+  pWal->curFileLastVersion = -1;
+  pWal->curFileFirstVersion = newFileFirstVersion; 
+  pWal->curVersion = newFileFirstVersion;
+  pWal->curLogOffset = 0;
+  pWal->curStatus = WAL_CUR_FILE_WRITABLE & WAL_CUR_POS_WRITABLE;
+
+  pWal->lastFileName = newFileFirstVersion;
+  pWal->lastFileWriteSize = 0;
+  pWal->lastRollSeq = walGetSeq();
+  return 0;
+}
+
+int walChangeFileToLast(SWal *pWal) {
+  int64_t idxTfd, logTfd;
+  int64_t* pRet = taosArrayGetLast(pWal->fileSet);
+  ASSERT(pRet != NULL);
+  int64_t fname = *pRet;
+
+  char fnameStr[WAL_FILE_LEN];
+  sprintf(fnameStr, "%"PRId64"."WAL_INDEX_SUFFIX, fname);
+  idxTfd = tfOpenReadWrite(fnameStr);
+  sprintf(fnameStr, "%"PRId64"."WAL_LOG_SUFFIX, fname);
+  logTfd = tfOpenReadWrite(fnameStr);
+  //switch file
+  pWal->curIdxTfd = idxTfd;
+  pWal->curLogTfd = logTfd;
+  //change status
+  pWal->curFileLastVersion = -1;
+  pWal->curFileFirstVersion = fname; 
+  pWal->curVersion = fname;
+  pWal->curLogOffset = 0;
+  pWal->curStatus = WAL_CUR_FILE_WRITABLE;
+  return 0;
+}
+
+int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
+  int code = 0;
+  //get index file
+  if(!tfValid(pWal->curIdxTfd)) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    wError("vgId:%d, file:%"PRId64".idx, failed to open since %s", pWal->vgId, pWal->curFileFirstVersion, strerror(errno));
+  }
+  int64_t writeBuf[2] = { ver, offset };
+  int size = tfWrite(pWal->curIdxTfd, writeBuf, sizeof(writeBuf));
+  if(size != sizeof(writeBuf)) {
+    //TODO:
+  }
+  return 0;
+}
+
 int64_t walWrite(SWal *pWal, int64_t index, uint8_t msgType, void *body, int32_t bodyLen) {
   if (pWal == NULL) return -1;
 
   // no wal
-  if (!tfValid(pWal->curLogTfd)) return 0;
   if (pWal->level == TAOS_WAL_NOLOG) return 0;
-  if (index > pWal->lastVersion + 1) return -1;
+
+  if (index == pWal->lastVersion + 1) {
+    int64_t passed = walGetSeq() - pWal->lastRollSeq;
+    if(passed > pWal->rollPeriod) {
+      walRoll(pWal);
+    } else if(pWal->lastFileWriteSize > pWal->segSize) {
+      walRoll(pWal);
+    } else {
+      walChangeFileToLast(pWal);
+    }
+  } else {
+    //reject skip log or rewrite log
+    //must truncate explicitly first
+    return -1;
+  }
+  if (!tfValid(pWal->curLogTfd)) return 0;
 
   pWal->head.version = index;
   int32_t code = 0;
@@ -155,8 +258,12 @@ int64_t walWrite(SWal *pWal, int64_t index, uint8_t msgType, void *body, int32_t
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%"PRId64".log, failed to write since %s", pWal->vgId, pWal->curFileFirstVersion, strerror(errno));
   }
-  //TODO:write idx
+  walWriteIndex(pWal, index, pWal->curLogOffset);
+  pWal->curLogOffset += sizeof(SWalHead) + bodyLen;
 
+  //set status
+  pWal->lastVersion = index;
+  
   pthread_mutex_unlock(&pWal->mutex);
 
   return code;
