@@ -17,7 +17,7 @@
 
 static void metaSaveSchemaDB(SMeta *pMeta, tb_uid_t uid, STSchema *pSchema);
 static void metaGetSchemaDBKey(char key[], tb_uid_t uid, int sversion);
-static int  metaSaveMapDB(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid);
+// static int  metaSaveMapDB(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid);
 
 #define SCHEMA_KEY_LEN (sizeof(tb_uid_t) + sizeof(int))
 
@@ -65,8 +65,14 @@ int metaOpenDB(SMeta *pMeta) {
   META_OPEN_DB_IMPL(pMeta->pDB->schemaDb, options, dir, err);
 
   // mapDb
-  sprintf(dir, "%s/map_db", pMeta->path);
-  META_OPEN_DB_IMPL(pMeta->pDB->mapDb, options, dir, err);
+  sprintf(dir, "%s/meta.db", pMeta->path);
+  if (sqlite3_open(dir, &(pMeta->pDB->mapDb)) != SQLITE_OK) {
+    // TODO
+  }
+
+  // // set read uncommitted
+  sqlite3_exec(pMeta->pDB->mapDb, "PRAGMA read_uncommitted=true;", 0, 0, 0);
+  sqlite3_exec(pMeta->pDB->mapDb, "BEGIN;", 0, 0, 0);
 
   rocksdb_options_destroy(options);
   return 0;
@@ -82,7 +88,12 @@ int metaOpenDB(SMeta *pMeta) {
 
 void metaCloseDB(SMeta *pMeta) {
   if (pMeta->pDB) {
-    META_CLOSE_DB_IMPL(pMeta->pDB->mapDb);
+    if (pMeta->pDB->mapDb) {
+      sqlite3_exec(pMeta->pDB->mapDb, "COMMIT;", 0, 0, 0);
+      sqlite3_close(pMeta->pDB->mapDb);
+      pMeta->pDB->mapDb = NULL;
+    }
+
     META_CLOSE_DB_IMPL(pMeta->pDB->schemaDb);
     META_CLOSE_DB_IMPL(pMeta->pDB->tagDb);
     META_CLOSE_DB_IMPL(pMeta->pDB->nameDb);
@@ -97,6 +108,7 @@ int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions) {
   char *   err = NULL;
   size_t   size;
   char     pBuf[1024];  // TODO
+  char     sql[128];
 
   rocksdb_writeoptions_t *wopt = rocksdb_writeoptions_create();
 
@@ -124,8 +136,12 @@ int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions) {
       // save schemaDB
       metaSaveSchemaDB(pMeta, uid, pTbOptions->stbCfg.pSchema);
 
-      // save mapDB (really need?)
-      rocksdb_put(pMeta->pDB->mapDb, wopt, (char *)(&uid), sizeof(uid), "", 0, &err);
+      // // save mapDB (really need?)
+      // rocksdb_put(pMeta->pDB->mapDb, wopt, (char *)(&uid), sizeof(uid), "", 0, &err);
+      sprintf(sql, "create table st_%" PRIu64 " (uid BIGINT);", uid);
+      if (sqlite3_exec(pMeta->pDB->mapDb, sql, NULL, NULL, &err) != SQLITE_OK) {
+        // fprintf(stderr, "Failed to create table, since %s\n", err);
+      }
       break;
     case META_CHILD_TABLE:
       // save tagDB
@@ -133,7 +149,10 @@ int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions) {
                   kvRowLen(pTbOptions->ctbCfg.pTag), &err);
 
       // save mapDB
-      metaSaveMapDB(pMeta, pTbOptions->ctbCfg.suid, uid);
+      sprintf(sql, "insert into st_%" PRIu64 " values (%" PRIu64 ");", pTbOptions->ctbCfg.suid, uid);
+      if (sqlite3_exec(pMeta->pDB->mapDb, sql, NULL, NULL, &err) != SQLITE_OK) {
+        fprintf(stderr, "failed to insert data, since %s\n", err);
+      }
       break;
     default:
       ASSERT(0);
@@ -172,32 +191,32 @@ static void metaGetSchemaDBKey(char *key, tb_uid_t uid, int sversion) {
   *(int *)POINTER_SHIFT(key, sizeof(tb_uid_t)) = sversion;
 }
 
-static int metaSaveMapDB(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid) {
-  size_t vlen;
-  char * val;
-  char * err = NULL;
+// static int metaSaveMapDB(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid) {
+//   size_t vlen;
+//   char * val;
+//   char * err = NULL;
 
-  rocksdb_readoptions_t *ropt = rocksdb_readoptions_create();
-  val = rocksdb_get(pMeta->pDB->mapDb, ropt, (char *)(&suid), sizeof(suid), &vlen, &err);
-  rocksdb_readoptions_destroy(ropt);
+//   rocksdb_readoptions_t *ropt = rocksdb_readoptions_create();
+//   val = rocksdb_get(pMeta->pDB->mapDb, ropt, (char *)(&suid), sizeof(suid), &vlen, &err);
+//   rocksdb_readoptions_destroy(ropt);
 
-  void *nval = malloc(vlen + sizeof(uid));
-  if (nval == NULL) {
-    return -1;
-  }
+//   void *nval = malloc(vlen + sizeof(uid));
+//   if (nval == NULL) {
+//     return -1;
+//   }
 
-  if (vlen) {
-    memcpy(nval, val, vlen);
-  }
-  memcpy(POINTER_SHIFT(nval, vlen), (void *)(&uid), sizeof(uid));
+//   if (vlen) {
+//     memcpy(nval, val, vlen);
+//   }
+//   memcpy(POINTER_SHIFT(nval, vlen), (void *)(&uid), sizeof(uid));
 
-  rocksdb_writeoptions_t *wopt = rocksdb_writeoptions_create();
-  rocksdb_writeoptions_disable_WAL(wopt, 1);
+//   rocksdb_writeoptions_t *wopt = rocksdb_writeoptions_create();
+//   rocksdb_writeoptions_disable_WAL(wopt, 1);
 
-  rocksdb_put(pMeta->pDB->mapDb, wopt, (char *)(&suid), sizeof(suid), nval, vlen + sizeof(uid), &err);
+//   rocksdb_put(pMeta->pDB->mapDb, wopt, (char *)(&suid), sizeof(suid), nval, vlen + sizeof(uid), &err);
 
-  rocksdb_writeoptions_destroy(wopt);
-  free(nval);
+//   rocksdb_writeoptions_destroy(wopt);
+//   free(nval);
 
-  return 0;
-}
+//   return 0;
+// }

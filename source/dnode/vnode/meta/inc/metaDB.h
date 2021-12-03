@@ -17,6 +17,7 @@
 #define _TD_META_DB_H_
 
 #include "rocksdb/c.h"
+#include "sqlite3.h"
 
 #include "meta.h"
 
@@ -29,7 +30,7 @@ typedef struct {
   rocksdb_t *nameDb;    // name -> uid
   rocksdb_t *tagDb;     // uid -> tag
   rocksdb_t *schemaDb;  // uid+version -> schema
-  rocksdb_t *mapDb;     // suid -> uid_list
+  sqlite3 *  mapDb;     // suid -> uid_list
 } meta_db_t;
 
 int  metaOpenDB(SMeta *pMeta);
