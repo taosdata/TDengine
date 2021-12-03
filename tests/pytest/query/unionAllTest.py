@@ -109,7 +109,7 @@ class TDTestCase:
 
         tdSql.execute("create table st2(ts timestamp, c1 int, c2 int, c3 int) tags(loc nchar(20))")
 
-        for i in range(7000):
+        for i in range(101):
             if i == 0:
                 sql = "select last(*) from sub0 "
             else:
@@ -118,13 +118,7 @@ class TDTestCase:
             tdSql.execute("create table sub%d using st2 tags('nchar%d')" % (i, i))
             tdSql.execute("insert into sub%d values(%d, %d, %d, %d)" % (i, self.ts + i, i, i, i))
 
-        exception = "Exception(\"ProgrammingError('Result set too large to be output', -2147483097)\")"
-        try:
-            tdSql.query(sql)
-        except Exception as e:
-            if {exception} != {repr(e)}:
-                tdLog.info(f"sql: {sql}, {exception} expected, actually raises {repr(e)}")
-                raise e
+        tdSql.error(sql)
 
     def stop(self):
         tdSql.close()
