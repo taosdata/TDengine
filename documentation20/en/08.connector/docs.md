@@ -855,7 +855,7 @@ Only some configuration parameters related to RESTful interface are listed below
 ### Example Source Code
 you can find sample code under follow directions:
 * {client_install_directory}/examples/C#
-* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C\%23)
+* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523)
 
 **Tips:** TDengineTest.cs       One of C# connector's sample code that include basic examples like connection,sql executions and so on.
 
@@ -888,7 +888,7 @@ dotnet add package TDengine.Connector
 ```C#
 using TDengineDriver;
 ```
-* user can reference from[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C\%23/TDengineTest) and learn how to define database connection,query,insert and other basic data manipulations.
+* user can reference from[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523/TDengineTest) and learn how to define database connection,query,insert and other basic data manipulations.
 
 **Note:**
 
