@@ -343,44 +343,44 @@ class TDTestCase:
         #tdSql.checkData(2, 2, None)
 
         # test stddev with group by json tag sting
-        tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tag1'")
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(1, 0, 0.5)
-        tdSql.checkData(2, 0, 0)
+        #tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tag1'")
+        #tdSql.checkData(0, 1, None)
+        #tdSql.checkData(1, 0, 0.5)
+        #tdSql.checkData(2, 0, 0)
 
-        tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tagint'")
-        tdSql.checkData(0, 0, 1.16619037896906)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(1, 0, 0)
-        tdSql.checkData(2, 1, 2)
+        #tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tagint'")
+        #tdSql.checkData(0, 0, 1.16619037896906)
+        #tdSql.checkData(0, 1, None)
+        #tdSql.checkData(1, 0, 0)
+        #tdSql.checkData(2, 1, 2)
 
-        res = tdSql.getColNameList("select stddev(dataint) from jsons1 group by jsons1.jtag->'tagint'")
-        cname_list = []
-        cname_list.append("stddev(dataint)")
-        cname_list.append("jsons1.jtag->'tagint'")
-        tdSql.checkColNameList(res, cname_list)
+        #res = tdSql.getColNameList("select stddev(dataint) from jsons1 group by jsons1.jtag->'tagint'")
+        #cname_list = []
+        #cname_list.append("stddev(dataint)")
+        #cname_list.append("jsons1.jtag->'tagint'")
+        #tdSql.checkColNameList(res, cname_list)
 
 
         # subquery with json tag
         tdSql.query("select * from (select jtag, dataint from jsons1)")
-        tdSql.checkRows(9)
-        tdSql.checkData(1, 1, 2)
-        tdSql.checkData(6, 0, "{\"tagint\":1}")
+        tdSql.checkRows(11)
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(2, 0, '{"tag1":5,"tag2":"beijing"}')
 
-        tdSql.query("select jtag->'age' from (select jtag->'age', dataint from jsons1)")
-        tdSql.checkRows(9)
-        tdSql.checkData(0, 0, 35)
-        tdSql.checkData(2, 0, None)
+        tdSql.query("select jtag->'tag1' from (select jtag->'tag1', dataint from jsons1)")
+        tdSql.checkRows(11)
+        tdSql.checkData(0, 0, '"femail"')
+        tdSql.checkData(2, 0, 5)
 
-        res = tdSql.getColNameList("select jtag->'age' from (select jtag->'age', dataint from jsons1)")
+        res = tdSql.getColNameList("select jtag->'tag1' from (select jtag->'tag1', dataint from jsons1)")
         cname_list = []
-        cname_list.append("jtag->'age'")
+        cname_list.append("jtag->'tag1'")
         tdSql.checkColNameList(res, cname_list)
 
-        tdSql.query("select ts,tbname,jtag->'location' from (select jtag->'location',tbname,ts from jsons1 order by ts)")
-        tdSql.checkRows(9)
-        tdSql.checkData(1, 1, "jsons1_2")
-        tdSql.checkData(3, 2, "\"beijing\"")
+        tdSql.query("select ts,tbname,jtag->'tag1' from (select jtag->'tag1',tbname,ts from jsons1 order by ts)")
+        tdSql.checkRows(11)
+        tdSql.checkData(1, 1, "jsons1_1")
+        tdSql.checkData(1, 2, '"femail"')
 
     def stop(self):
         tdSql.close()
