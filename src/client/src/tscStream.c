@@ -577,8 +577,11 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
     if (!pStream->isProject) {
       pStream->stime = taosTimeAdd(pStream->stime, pStream->interval.sliding, pStream->interval.slidingUnit, pStream->precision);
     }
+    int32_t code = TSDB_CODE_SUCCESS;
+    if(pQueryInfo && pQueryInfo->pQInfo)
+      code = pQueryInfo->pQInfo->code;
     // actually only one row is returned. this following is not necessary
-    if(pQueryInfo->pQInfo->code == TSDB_CODE_SUCCESS) { 
+    if(code == TSDB_CODE_SUCCESS) { 
       taos_fetch_rows_a(res, tscProcessStreamRetrieveResult, pStream);
     }
   } else {  // numOfRows == 0, all data has been retrieved
