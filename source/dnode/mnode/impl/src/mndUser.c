@@ -14,11 +14,75 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndUser.h"
+#include "mndShow.h"
 #include "mndSync.h"
 #include "mndTrans.h"
 #include "tkey.h"
 
 #define SDB_USER_VER 1
+
+static int32_t  mndCreateDefaultUsers(SMnode *pMnode);
+static SSdbRaw *mndUserActionEncode(SUserObj *pUser);
+static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw);
+static int32_t  mndUserActionInsert(SSdb *pSdb, SUserObj *pUser);
+static int32_t  mndUserActionDelete(SSdb *pSdb, SUserObj *pUser);
+static int32_t  mndUserActionUpdate(SSdb *pSdb, SUserObj *pSrcUser, SUserObj *pDstUser);
+static int32_t  mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass, SMnodeMsg *pMsg);
+static int32_t  mndProcessCreateUserMsg(SMnodeMsg *pMsg);
+static int32_t  mndProcessAlterUserMsg(SMnodeMsg *pMsg);
+static int32_t  mndProcessDropUserMsg(SMnodeMsg *pMsg);
+
+int32_t mndInitUser(SMnode *pMnode) {
+  SSdbTable table = {.sdbType = SDB_USER,
+                     .keyType = SDB_KEY_BINARY,
+                     .deployFp = (SdbDeployFp)mndCreateDefaultUsers,
+                     .encodeFp = (SdbEncodeFp)mndUserActionEncode,
+                     .decodeFp = (SdbDecodeFp)mndUserActionDecode,
+                     .insertFp = (SdbInsertFp)mndUserActionInsert,
+                     .updateFp = (SdbUpdateFp)mndUserActionUpdate,
+                     .deleteFp = (SdbDeleteFp)mndUserActionDelete};
+
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_USER, mndProcessCreateUserMsg);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_USER, mndProcessAlterUserMsg);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_USER, mndProcessDropUserMsg);
+
+  return sdbSetTable(pMnode->pSdb, table);
+}
+
+void mndCleanupUser(SMnode *pMnode) {}
+
+static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
+  SUserObj userObj = {0};
+  tstrncpy(userObj.user, user, TSDB_USER_LEN);
+  tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
+  taosEncryptPass((uint8_t *)pass, strlen(pass), userObj.pass);
+  userObj.createdTime = taosGetTimestampMs();
+  userObj.updateTime = userObj.createdTime;
+
+  if (strcmp(user, TSDB_DEFAULT_USER) == 0) {
+    userObj.superAuth = 1;
+  }
+
+  SSdbRaw *pRaw = mndUserActionEncode(&userObj);
+  if (pRaw == NULL) return -1;
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+
+  mTrace("user:%s, will be created while deploy sdb", userObj.user);
+  return sdbWrite(pMnode->pSdb, pRaw);
+}
+
+static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
+  if (mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
+    return -1;
+  }
+
+  if (mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, "_" TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
+    return -1;
+  }
+
+  return 0;
+}
 
 static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, SDB_USER_VER, sizeof(SUserObj));
@@ -103,36 +167,14 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pSrcUser, SUserObj *pDs
   return 0;
 }
 
-static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
-  SUserObj userObj = {0};
-  tstrncpy(userObj.user, user, TSDB_USER_LEN);
-  tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
-  taosEncryptPass((uint8_t *)pass, strlen(pass), userObj.pass);
-  userObj.createdTime = taosGetTimestampMs();
-  userObj.updateTime = userObj.createdTime;
-
-  if (strcmp(user, TSDB_DEFAULT_USER) == 0) {
-    userObj.superAuth = 1;
-  }
-
-  SSdbRaw *pRaw = mndUserActionEncode(&userObj);
-  if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-
-  mTrace("user:%s, will be created while deploy sdb", userObj.user);
-  return sdbWrite(pMnode->pSdb, pRaw);
+SUserObj *mndAcquireUser(SMnode *pMnode, const char *userName) {
+  SSdb *pSdb = pMnode->pSdb;
+  return sdbAcquire(pSdb, SDB_USER, &userName);
 }
 
-static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
-  if (mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
-    return -1;
-  }
-
-  if (mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, "_" TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
-    return -1;
-  }
-
-  return 0;
+void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbRelease(pSdb, pUser);
 }
 
 static int32_t mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass, SMnodeMsg *pMsg) {
@@ -222,30 +264,14 @@ static int32_t mndProcessCreateUserMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-int32_t mndInitUser(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_USER,
-                     .keyType = SDB_KEY_BINARY,
-                     .deployFp = (SdbDeployFp)mndCreateDefaultUsers,
-                     .encodeFp = (SdbEncodeFp)mndUserActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndUserActionDecode,
-                     .insertFp = (SdbInsertFp)mndUserActionInsert,
-                     .updateFp = (SdbUpdateFp)mndUserActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndUserActionDelete};
-
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_USER, mndProcessCreateUserMsg);
-
-  return sdbSetTable(pMnode->pSdb, table);
+static int32_t mndProcessAlterUserMsg(SMnodeMsg *pMsg) {
+  terrno = TSDB_CODE_MND_MSG_NOT_PROCESSED;
+  mError("failed to process alter user msg since %s", terrstr());
+  return -1;
 }
 
-void mndCleanupUser(SMnode *pMnode) {}
-
-SUserObj *mndAcquireUser(SMnode *pMnode, const char *userName) {
-  SSdb *pSdb = pMnode->pSdb;
-  return sdbAcquire(pSdb, SDB_USER, &userName);
+static int32_t mndProcessDropUserMsg(SMnodeMsg *pMsg) {
+  terrno = TSDB_CODE_MND_MSG_NOT_PROCESSED;
+  mError("failed to process drop user msg since %s", terrstr());
+  return -1;
 }
-
-void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
-  SSdb *pSdb = pMnode->pSdb;
-  sdbRelease(pSdb, pUser);
-}
-
