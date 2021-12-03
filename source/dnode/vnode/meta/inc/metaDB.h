@@ -16,6 +16,8 @@
 #ifndef _TD_META_DB_H_
 #define _TD_META_DB_H_
 
+#define USE_SQLITE_IMPL 1
+
 #include "rocksdb/c.h"
 #include "sqlite3.h"
 
@@ -25,6 +27,7 @@
 extern "C" {
 #endif
 
+#if !USE_SQLITE_IMPL
 typedef struct {
   rocksdb_t *tbDb;      // uid -> tb obj
   rocksdb_t *nameDb;    // name -> uid
@@ -32,6 +35,9 @@ typedef struct {
   rocksdb_t *schemaDb;  // uid+version -> schema
   sqlite3 *  mapDb;     // suid -> uid_list
 } meta_db_t;
+#else
+typedef sqlite3 meta_db_t;
+#endif
 
 int  metaOpenDB(SMeta *pMeta);
 void metaCloseDB(SMeta *pMeta);

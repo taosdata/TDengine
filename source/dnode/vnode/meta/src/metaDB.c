@@ -15,9 +15,9 @@
 
 #include "metaDef.h"
 
+#if !USE_SQLITE_IMPL
 static void metaSaveSchemaDB(SMeta *pMeta, tb_uid_t uid, STSchema *pSchema);
 static void metaGetSchemaDBKey(char key[], tb_uid_t uid, int sversion);
-// static int  metaSaveMapDB(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid);
 
 #define SCHEMA_KEY_LEN (sizeof(tb_uid_t) + sizeof(int))
 
@@ -31,9 +31,20 @@ static void metaGetSchemaDBKey(char key[], tb_uid_t uid, int sversion);
     }                                             \
   } while (0)
 
+#define META_CLOSE_DB_IMPL(pDB) \
+  do {                          \
+    if (pDB) {                  \
+      rocksdb_close(pDB);       \
+      pDB = NULL;               \
+    }                           \
+  } while (0)
+#endif
+
 int metaOpenDB(SMeta *pMeta) {
-  char               dir[128];
-  char *             err = NULL;
+  char  dir[128];
+  int   rc;
+  char *err = NULL;
+#if !USE_SQLITE_IMPL
   rocksdb_options_t *options = rocksdb_options_create();
 
   if (pMeta->pCache) {
@@ -75,18 +86,63 @@ int metaOpenDB(SMeta *pMeta) {
   sqlite3_exec(pMeta->pDB->mapDb, "BEGIN;", 0, 0, 0);
 
   rocksdb_options_destroy(options);
+#else
+  sprintf(dir, "%s/meta.db", pMeta->path);
+  rc = sqlite3_open(dir, &(pMeta->pDB));
+  if (rc != SQLITE_OK) {
+    // TODO: handle error
+    printf("failed to open meta.db\n");
+  }
+
+  // For all tables
+  rc = sqlite3_exec(pMeta->pDB,
+                    "CREATE TABLE IF NOT EXISTS tb ("
+                    "  tbname VARCHAR(256) NOT NULL UNIQUE,"
+                    "  tb_uid INTEGER NOT NULL UNIQUE "
+                    ");",
+                    NULL, NULL, &err);
+  if (rc != SQLITE_OK) {
+    // TODO: handle error
+    printf("failed to create meta table tb since %s\n", err);
+  }
+
+  // For super tables
+  rc = sqlite3_exec(pMeta->pDB,
+                    "CREATE TABLE IF NOT EXISTS stb ("
+                    "    tb_uid INTEGER NOT NULL UNIQUE,"
+                    "    tbname VARCHAR(256) NOT NULL UNIQUE,"
+                    "    tb_schema BLOB NOT NULL,"
+                    "    tag_schema BLOB NOT NULL"
+                    ");",
+                    NULL, NULL, &err);
+  if (rc != SQLITE_OK) {
+    // TODO: handle error
+    printf("failed to create meta table stb since %s\n", err);
+  }
+
+  // For normal tables
+  rc = sqlite3_exec(pMeta->pDB,
+                    "CREATE TABLE IF NOT EXISTS ntb ("
+                    "    tb_uid INTEGER NOT NULL UNIQUE,"
+                    "    tbname VARCHAR(256) NOT NULL,"
+                    "    tb_schema BLOB NOT NULL"
+                    ");",
+                    NULL, NULL, &err);
+  if (rc != SQLITE_OK) {
+    // TODO: handle error
+    printf("failed to create meta table ntb since %s\n", err);
+  }
+
+  sqlite3_exec(pMeta->pDB, "BEGIN;", NULL, NULL, &err);
+
+  tfree(err);
+#endif
+
   return 0;
 }
 
-#define META_CLOSE_DB_IMPL(pDB) \
-  do {                          \
-    if (pDB) {                  \
-      rocksdb_close(pDB);       \
-      pDB = NULL;               \
-    }                           \
-  } while (0)
-
 void metaCloseDB(SMeta *pMeta) {
+#if !USE_SQLITE_IMPL
   if (pMeta->pDB) {
     if (pMeta->pDB->mapDb) {
       sqlite3_exec(pMeta->pDB->mapDb, "COMMIT;", 0, 0, 0);
@@ -101,9 +157,19 @@ void metaCloseDB(SMeta *pMeta) {
     free(pMeta->pDB);
     pMeta->pDB = NULL;
   }
+#else
+  if (pMeta->pDB) {
+    sqlite3_exec(pMeta->pDB, "BEGIN;", NULL, NULL, NULL);
+    sqlite3_close(pMeta->pDB);
+    pMeta->pDB = NULL;
+  }
+
+  // TODO
+#endif
 }
 
 int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions) {
+#if !USE_SQLITE_IMPL
   tb_uid_t uid;
   char *   err = NULL;
   size_t   size;
@@ -140,7 +206,7 @@ int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions) {
       // rocksdb_put(pMeta->pDB->mapDb, wopt, (char *)(&uid), sizeof(uid), "", 0, &err);
       sprintf(sql, "create table st_%" PRIu64 " (uid BIGINT);", uid);
       if (sqlite3_exec(pMeta->pDB->mapDb, sql, NULL, NULL, &err) != SQLITE_OK) {
-        // fprintf(stderr, "Failed to create table, since %s\n", err);
+        // fprintf(stderr,"Failed to create table, since %s\n", err);
       }
       break;
     case META_CHILD_TABLE:
@@ -159,6 +225,53 @@ int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions) {
   }
 
   rocksdb_writeoptions_destroy(wopt);
+#else
+  char  sql[256];
+  char *err = NULL;
+  int   rc;
+
+  switch (pTbOptions->type) {
+    case META_SUPER_TABLE:
+      // sprintf(sql, "INSERT INTO tb VALUES (\'%s\', %" PRIu64
+      //              ");"
+      //              "INSERT INTO stb VALUES (%" PRIu64
+      //              ", \'%s\', );"
+      //              "CREATE TABLE IF NOT EXISTS stb_%" PRIu64
+      //              " ("
+      //              "    tb_uid INTEGER NOT NULL UNIQUE,"
+      //              "    tbname VARCHAR(256),"
+      //              "    tag1 INTEGER"
+      //              ");"
+      //              "CREATE INDEX IF NOT EXISTS stb_%" PRIu64 "_tag1_idx ON stb_1638517480 (tag1);");
+      rc = sqlite3_exec(pMeta->pDB, sql, NULL, NULL, &err);
+      if (rc != SQLITE_OK) {
+        printf("failed to create normal table since %s\n", err);
+      }
+      break;
+    case META_NORMAL_TABLE:
+      // sprintf(sql, "INSERT INTO tb VALUES (\'%s\', %" PRIu64
+      //              ");"
+      //              "INSERT INTO ntb VALUES (%" PRIu64 ", \'%s\', );");
+      rc = sqlite3_exec(pMeta->pDB, sql, NULL, NULL, &err);
+      if (rc != SQLITE_OK) {
+        printf("failed to create normal table since %s\n", err);
+      }
+      break;
+    case META_CHILD_TABLE:
+      // sprintf(sql, "INSERT INTO tb VALUES (\'%s\', %" PRIu64
+      //              ");"
+      //              "INSERT INTO stb_%" PRIu64 " VALUES (%" PRIu64 ", \'%s\', );");
+      rc = sqlite3_exec(pMeta->pDB, sql, NULL, NULL, &err);
+      if (rc != SQLITE_OK) {
+        printf("failed to create normal table since %s\n", err);
+      }
+      break;
+    default:
+      break;
+  }
+
+  tfree(err);
+#endif
 
   return 0;
 }
@@ -169,6 +282,7 @@ int metaRemoveTableFromDb(SMeta *pMeta, tb_uid_t uid) {
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */
+#if !USE_SQLITE_IMPL
 static void metaSaveSchemaDB(SMeta *pMeta, tb_uid_t uid, STSchema *pSchema) {
   char   key[64];
   char   pBuf[1024];
@@ -190,33 +304,4 @@ static void metaGetSchemaDBKey(char *key, tb_uid_t uid, int sversion) {
   *(tb_uid_t *)key = uid;
   *(int *)POINTER_SHIFT(key, sizeof(tb_uid_t)) = sversion;
 }
-
-// static int metaSaveMapDB(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid) {
-//   size_t vlen;
-//   char * val;
-//   char * err = NULL;
-
-//   rocksdb_readoptions_t *ropt = rocksdb_readoptions_create();
-//   val = rocksdb_get(pMeta->pDB->mapDb, ropt, (char *)(&suid), sizeof(suid), &vlen, &err);
-//   rocksdb_readoptions_destroy(ropt);
-
-//   void *nval = malloc(vlen + sizeof(uid));
-//   if (nval == NULL) {
-//     return -1;
-//   }
-
-//   if (vlen) {
-//     memcpy(nval, val, vlen);
-//   }
-//   memcpy(POINTER_SHIFT(nval, vlen), (void *)(&uid), sizeof(uid));
-
-//   rocksdb_writeoptions_t *wopt = rocksdb_writeoptions_create();
-//   rocksdb_writeoptions_disable_WAL(wopt, 1);
-
-//   rocksdb_put(pMeta->pDB->mapDb, wopt, (char *)(&suid), sizeof(suid), nval, vlen + sizeof(uid), &err);
-
-//   rocksdb_writeoptions_destroy(wopt);
-//   free(nval);
-
-//   return 0;
-// }
+#endif

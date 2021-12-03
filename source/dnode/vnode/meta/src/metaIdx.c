@@ -16,6 +16,7 @@
 #include "metaDef.h"
 
 int metaOpenIdx(SMeta *pMeta) {
+#if 0
   char               idxDir[128];  // TODO
   char *             err = NULL;
   rocksdb_options_t *options = rocksdb_options_create();
@@ -36,15 +37,18 @@ int metaOpenIdx(SMeta *pMeta) {
   }
 
   rocksdb_options_destroy(options);
+#endif
 
   return 0;
 }
 
 void metaCloseIdx(SMeta *pMeta) { /* TODO */
+#if 0
   if (pMeta->pIdx) {
     rocksdb_close(pMeta->pIdx);
     pMeta->pIdx = NULL;
   }
+#endif
 }
 
 int metaSaveTableToIdx(SMeta *pMeta, const STbCfg *pTbOptions) {
