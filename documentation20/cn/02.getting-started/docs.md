@@ -1,5 +1,23 @@
 # 立即开始
 
+## <a class="anchor" id="install"></a>安装前须知
+
+- 目前TDengine服务端仅支持Linux X64系统，首选CentOS 7.9 和 Ubuntu 18.04。如您用于开发或简单的单机使用，推荐采用docker部署方式
+
+  应用开发首选RESTful接口，在满足绝大多数应用场景要求的同时，摆脱了客户端驱动同步升级的困扰
+
+- **服务端与客户端**都必须配置时间同步，并配置相应时区。如果不能连接互联网，可以配置本地时间同步
+
+- 关闭服务器防火墙，或打开6030-6042端口（TCP/UDP都需要）
+
+- **服务端和客户端**的每台机器都需配置/etc/hosts，添加**集群每个节点**的解析
+
+- 关闭服务器端SELinux（centos操作系统）
+
+- 生产环境建议部署在独立服务器，不与其他服务共用服务器
+
+- 确定适当的服务器配置：CPU、内存、硬盘、网络
+
 ## <a class="anchor" id="install"></a>快捷安装
 
 TDengine 软件分为服务器、客户端和报警模块三部分，目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后续会支持 Windows、Mac OS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。任何 OS 的应用也可以选择 RESTful 接口连接服务器 taosd。CPU 支持 X64/ARM64/MIPS64/Alpha64，后续会支持 ARM32、RISC-V 等 CPU 架构。用户可根据需求选择通过 [源码](https://www.taosdata.com/cn/getting-started/#通过源码安装) 或者 [安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装) 来安装。
@@ -126,6 +144,7 @@ taos> source <filename>;
 **Shell 小技巧**
 
 - 可以使用上下光标键查看历史输入的指令
+- 如果返回结果太长被截断，试试在命令尾部加上\G（分号之前）
 - 修改用户密码：在 shell 中使用 `alter user` 命令，缺省密码为 taosdata
 - ctrl+c 中止正在进行中的查询
 - 执行 `RESET QUERY CACHE` 可清除本地缓存的表 schema
