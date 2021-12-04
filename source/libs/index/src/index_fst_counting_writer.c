@@ -52,9 +52,12 @@ WriterCtx* writerCtxCreate(WriterType type) {
   WriterCtx *ctx = calloc(1, sizeof(WriterCtx));
   if (ctx == NULL) { return NULL; }
 
-  ctx->type == type;
+  ctx->type = type;
   if (ctx->type == TFile) {
     ctx->fd = tfOpenCreateWriteAppend(tmpFile);  
+    if (ctx->fd < 0) {
+      
+    }
   } else if (ctx->type == TMemory) {
     ctx->mem = calloc(1, DefaultMem * sizeof(uint8_t));
   } 

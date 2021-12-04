@@ -30,20 +30,26 @@ void fstBuilderNodeDestroy(FstBuilderNode *node) {
 
 bool fstBuilderNodeEqual(FstBuilderNode *n1, FstBuilderNode *n2) {
   if (n1 == n2) { return true; }
+  if (n1 == NULL || n2 == NULL ) {
+    return false;
+  }
 
-  if (n1->isFinal != n2->isFinal || 
-      n1->finalOutput != n2->finalOutput ||
-      taosArrayGetSize(n1->trans) != taosArrayGetSize(n2->trans)) {
-    return false;  
-  } 
-  size_t sz =  taosArrayGetSize(n1->trans); 
-  for (size_t i = 0; i < sz; i++) {
+  if (n1->isFinal != n2->isFinal || n1->finalOutput != n2->finalOutput) {
+    return false;
+  }
+  size_t s1 = n1->trans? taosArrayGetSize(n1->trans): 0;
+  size_t s2 = n2->trans? taosArrayGetSize(n2->trans): 0;
+  if (s1 != s2) { 
+    return false;
+  }
+  for (size_t i = 0; i < s1; i++) {
     FstTransition *t1 = taosArrayGet(n1->trans, i);
     FstTransition *t2 = taosArrayGet(n2->trans, i);
     if (t1->inp != t2->inp || t1->out != t2->out || t1->addr != t2->addr) {
       return false;
     }  
   }
+  
   return true;
 }
 FstBuilderNode *fstBuilderNodeClone(FstBuilderNode *src) {
