@@ -45,7 +45,7 @@ sql insert into tbn values ('2021-11-11 09:00:04',true,5,5,5,5,5,5,"555","5555",
 sql insert into tbn values ('2021-11-11 09:00:05',true,6,6,6,6,6,6,"666","6666",6,6,6,6);
 sql insert into tbn values ('2021-11-11 09:00:06',true,7,7,7,7,7,7,"777","7777",7,7,7,7);
 
-#run general/compute/math_str_query1.sim
+run general/compute/math_str_query1.sim
 #run general/compute/math_str_query2.sim
 
 
@@ -98,7 +98,7 @@ sql insert into tba1 values ('2021-11-11 09:00:27',true, 8,8,8,8,8,8,"888","8888
 sql insert into tba1 values ('2021-11-11 09:00:28',true, 9,9,9,9,9,9,"999","9999",9,9,9,9);
 sql insert into tba1 values ('2021-11-11 09:00:29',true, 0,0,0,0,0,0,"000","0000",0,0,0,0);
 
-#run general/compute/math_str_query1.sim
+run general/compute/math_str_query1.sim
 #run general/compute/math_str_query2.sim
 #run general/compute/math_str_query3.sim
 
