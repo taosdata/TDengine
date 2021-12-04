@@ -64,7 +64,7 @@ To build the [taos-tools](https://github.com/taosdata/taos-tools) on Ubuntu/Debi
 sudo apt install libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
 ```
 
-### Centos 7:
+### CentOS 7:
 ```bash
 sudo yum install epel-release
 sudo yum update
@@ -82,7 +82,7 @@ To install Apache Maven:
 sudo yum install -y maven
 ```
 
-### Centos 8 & Fedora:
+### CentOS 8 & Fedora:
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git
 ```
@@ -100,8 +100,9 @@ sudo dnf install -y maven
 #### Install build dependencies for taos-tools 
 To build the [taos-tools](https://github.com/taosdata/taos-tools) on CentOS, the following packages need to be installed.
 ```bash
-sudo yum install xz-devel snappy-devel jansson-devel pkgconfig libatomic
+sudo yum install libz-devel xz-devel snappy-devel jansson-devel pkgconfig libatomic
 ```
+Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)), it lead a cmake prompt libsnappy not found. But snappy will works well.
 
 ### Setup golang environment
 TDengine includes few components developed by Go language. Please refer to golang.org official documentation for golang environment setup.
