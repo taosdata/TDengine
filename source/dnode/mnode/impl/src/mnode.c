@@ -206,6 +206,7 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->sver = pOption->sver;
   pMnode->statusInterval = pOption->statusInterval;
   pMnode->mnodeEqualVnodeNum = pOption->mnodeEqualVnodeNum;
+  pMnode->shellActivityTimer = pOption->shellActivityTimer;
   pMnode->timezone = strdup(pOption->timezone);
   pMnode->locale = strdup(pOption->locale);
   pMnode->charset = strdup(pOption->charset);
@@ -386,7 +387,7 @@ static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
     goto PROCESS_RPC_END;
   }
 
-  code = (*fp)(pMnode, pMsg);
+  code = (*fp)(pMsg);
   if (code != 0) {
     code = terrno;
     mError("msg:%p, app:%p failed to process since %s", pMsg, ahandle, terrstr());

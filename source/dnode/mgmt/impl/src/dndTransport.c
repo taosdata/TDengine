@@ -76,6 +76,7 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
   pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STABLE] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_STABLE_VGROUP] = dndProcessMnodeReadMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_KILL_QUERY] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_KILL_STREAM] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_KILL_CONN] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_HEARTBEAT] = dndProcessMnodeReadMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_SHOW] = dndProcessMnodeReadMsg;
@@ -157,7 +158,7 @@ static int32_t dndInitClient(SDnode *pDnode) {
   rpcInit.label = "DND-C";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = dndProcessResponse;
-  rpcInit.sessions = 8;
+  rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = pDnode->opt.shellActivityTimer * 1000;
   rpcInit.user = INTERNAL_USER;

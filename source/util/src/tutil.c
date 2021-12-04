@@ -410,3 +410,10 @@ char *taosIpStr(uint32_t ipInt) {
   return ipStr;
 }
 
+void taosIp2String(uint32_t ip, char *str) {
+  sprintf(str, "%u.%u.%u.%u", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (uint8_t)(ip >> 24));
+}
+
+void taosIpPort2String(uint32_t ip, uint16_t port, char *str) {
+  sprintf(str, "%u.%u.%u.%u:%u", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (uint8_t)(ip >> 24), port);
+}

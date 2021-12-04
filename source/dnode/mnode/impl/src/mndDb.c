@@ -14,8 +14,39 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "mndInt.h"
+#include "mndDb.h"
 
-int32_t mndInitDb(SMnode *pMnode) { return 0; }
-void    mndCleanupDb(SMnode *pMnode) {}
+static int32_t mnodeProcessUseMsg(SMnodeMsg *pMsg);
+
+int32_t mndInitDb(SMnode *pMnode) {
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_USE_DB, mnodeProcessUseMsg);
+  return 0;
+}
+
+void mndCleanupDb(SMnode *pMnode) {}
+
+SDbObj *mndAcquireDb(SMnode *pMnode, char *db) {
+  SSdb *pSdb = pMnode->pSdb;
+  return sdbAcquire(pSdb, SDB_DB, db);
+}
+
+void mndReleaseDb(SMnode *pMnode, SDbObj *pDb) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbRelease(pSdb, pDb);
+}
+
+static int32_t mnodeProcessUseMsg(SMnodeMsg *pMsg) {
+  SMnode    *pMnode = pMsg->pMnode;
+  SUseDbMsg *pUse = pMsg->rpcMsg.pCont;
+
+  strncpy(pMsg->db, pUse->db, TSDB_FULL_DB_NAME_LEN);
+
+  SDbObj *pDb = mndAcquireDb(pMnode, pMsg->db);
+  if (pDb != NULL) {
+    mndReleaseDb(pMnode, pDb);
+    return 0;
+  } else {
+    mError("db:%s, failed to process use db msg since %s", pMsg->db, terrstr());
+    return -1;
+  }
+}

@@ -185,9 +185,11 @@ typedef struct SUserObj {
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
   int64_t   updateTime;
-  int8_t    rootAuth;
+  int8_t    superAuth;
+  int8_t    readAuth;
+  int8_t    writeAuth;
+  int32_t   acctId;
   SHashObj *prohibitDbHash;
-  SAcctObj *pAcct;
 } SUserObj;
 
 typedef struct {
@@ -281,26 +283,30 @@ typedef struct SFuncObj {
   int16_t type;
 } SFuncObj;
 
-typedef struct {
-  int8_t   type;
-  int8_t   maxReplica;
-  int16_t  numOfColumns;
-  int32_t  index;
-  int32_t  rowSize;
-  int32_t  numOfRows;
-  int32_t  numOfReads;
-  uint16_t payloadLen;
-  void    *pIter;
-  void    *pVgIter;
-  void   **ppShow;
-  char     db[TSDB_FULL_DB_NAME_LEN];
-  int16_t  offset[TSDB_MAX_COLUMNS];
-  int32_t  bytes[TSDB_MAX_COLUMNS];
-  char     payload[];
+typedef struct SShowObj SShowObj;
+typedef struct SShowObj {
+  int8_t     type;
+  int8_t     maxReplica;
+  int16_t    numOfColumns;
+  int32_t    id;
+  int32_t    rowSize;
+  int32_t    numOfRows;
+  int32_t    numOfReads;
+  uint16_t   payloadLen;
+  void      *pIter;
+  void      *pVgIter;
+  SMnode    *pMnode;
+  SShowObj **ppShow;
+  char       db[TSDB_FULL_DB_NAME_LEN];
+  int16_t    offset[TSDB_MAX_COLUMNS];
+  int32_t    bytes[TSDB_MAX_COLUMNS];
+  char       payload[];
 } SShowObj;
 
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];
+  char    db[TSDB_FULL_DB_NAME_LEN];
+  int32_t acctId;
   SMnode *pMnode;
   int16_t received;
   int16_t successed;

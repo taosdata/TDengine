@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndCluster.h"
 #include "mndTrans.h"
+#include "mndShow.h"
 
 #define SDB_CLUSTER_VER 1
 
@@ -94,6 +95,71 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   return sdbWrite(pMnode->pSdb, pRaw);
 }
 
+
+// static int32_t mnodeGetClusterMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+//   int32_t cols = 0;
+//   SSchema *pSchema = pMeta->schema;
+
+//   pShow->bytes[cols] = TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE;
+//   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+//   strcpy(pSchema[cols].name, "clusterId");
+//   pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//   cols++;
+
+//   pShow->bytes[cols] = 8;
+//   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
+//   strcpy(pSchema[cols].name, "create_time");
+//   pSchema[cols].bytes = htons(pShow->bytes[cols]);
+//   cols++;
+
+//   pMeta->numOfColumns = htons(cols);
+//   strcpy(pMeta->tableFname, "show cluster");
+//   pShow->numOfColumns = cols;
+
+//   pShow->offset[0] = 0;
+//   for (int32_t i = 1; i < cols; ++i) {
+//     pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+//   }
+
+//   pShow->numOfRows = 1;
+//   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+
+//   return 0;
+// }
+
+// static int32_t mnodeRetrieveClusters(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+//   int32_t numOfRows = 0;
+//   int32_t cols = 0;
+//   char *  pWrite;
+//   SClusterObj *pCluster = NULL;
+
+//   while (numOfRows < rows) {
+//     pShow->pIter = mnodeGetNextCluster(pShow->pIter, &pCluster);
+//     if (pCluster == NULL) break;
+    
+//     cols = 0;
+
+//     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pCluster->uid, TSDB_CLUSTER_ID_LEN);
+//     cols++;
+
+//     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+//     *(int64_t *) pWrite = pCluster->createdTime;
+//     cols++;
+
+//     mnodeDecClusterRef(pCluster);
+//     numOfRows++;
+//   }
+
+//   mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+//   pShow->numOfReads += numOfRows;
+//   return numOfRows;
+// }
+
+// static void mnodeCancelGetNextCluster(void *pIter) {
+//   sdbFreeIter(tsClusterSdb, pIter);
+// }
+
 int32_t mndInitCluster(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_CLUSTER,
                      .keyType = SDB_KEY_INT32,
@@ -104,6 +170,9 @@ int32_t mndInitCluster(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndClusterActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndClusterActionDelete};
 
+  // mndAddShowMetaHandle(TSDB_MGMT_TABLE_CLUSTER, mnodeGetClusterMeta);
+  // mndAddShowRetrieveHandle(TSDB_MGMT_TABLE_CLUSTER, mnodeRetrieveClusters);
+  // mndAddShowFreeIterHandle(TSDB_MGMT_TABLE_CLUSTER, mnodeCancelGetNextCluster);
   return sdbSetTable(pMnode->pSdb, table);
 }
 

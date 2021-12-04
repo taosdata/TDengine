@@ -7,6 +7,7 @@ target_include_directories(
 )
 target_link_libraries(
     meta
+    PUBLIC sqlite
     PUBLIC common
     PUBLIC tkv
 )

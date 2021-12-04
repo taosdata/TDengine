@@ -334,6 +334,7 @@ static void dndInitMnodeOption(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->sver = pDnode->opt.sver;
   pOption->statusInterval = pDnode->opt.statusInterval;
   pOption->mnodeEqualVnodeNum = pDnode->opt.mnodeEqualVnodeNum;
+  pOption->shellActivityTimer = pDnode->opt.shellActivityTimer;
   pOption->timezone = pDnode->opt.timezone;
   pOption->charset = pDnode->opt.charset;
   pOption->locale = pDnode->opt.locale;
@@ -675,7 +676,7 @@ void dndProcessMnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 void dndProcessMnodeReadMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   SMnode     *pMnode = dndAcquireMnode(pDnode);
-  if (pMnode == NULL || dndWriteMnodeMsgToQueue(pMnode, pMgmt->pSyncQ, pMsg) != 0) {
+  if (pMnode == NULL || dndWriteMnodeMsgToQueue(pMnode, pMgmt->pReadQ, pMsg) != 0) {
     SRpcMsg rsp = {.handle = pMsg->handle, .code = terrno};
     rpcSendResponse(&rsp);
     rpcFreeCont(pMsg->pCont);

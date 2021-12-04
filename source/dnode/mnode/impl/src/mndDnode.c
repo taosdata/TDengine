@@ -226,7 +226,8 @@ static void mndParseStatusMsg(SStatusMsg *pStatus) {
   pStatus->clusterCfg.checkTime = htobe64(pStatus->clusterCfg.checkTime);
 }
 
-static int32_t mndProcessStatusMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
+static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg) {
+  SMnode     *pMnode = pMsg->pMnode;
   SStatusMsg *pStatus = pMsg->rpcMsg.pCont;
   mndParseStatusMsg(pStatus);
 
@@ -315,11 +316,11 @@ static int32_t mndProcessStatusMsg(SMnode *pMnode, SMnodeMsg *pMsg) {
   return 0;
 }
 
-static int32_t mndProcessCreateDnodeMsg(SMnode *pMnode, SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessCreateDnodeMsg(SMnodeMsg *pMsg) { return 0; }
 
-static int32_t mndProcessDropDnodeMsg(SMnode *pMnode, SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessDropDnodeMsg(SMnodeMsg *pMsg) { return 0; }
 
-static int32_t mndProcessConfigDnodeMsg(SMnode *pMnode, SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessConfigDnodeMsg(SMnodeMsg *pMsg) { return 0; }
 
 int32_t mndInitDnode(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_DNODE,
