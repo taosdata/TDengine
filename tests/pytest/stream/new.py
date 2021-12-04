@@ -34,7 +34,7 @@ class TDTestCase:
         for i in range(5):
             tdSql.execute("create table tb%d using mt tags(%d)" % (i, i))
             for j in range(rowNum):
-                tdSql.execute("insert into tb%d values(%d + %ds, %d, %d)" % (i,start,j, j, j))
+                tdSql.execute("insert into tb%d values(%d, %d, %d)" % (i, start+j, j, j))
         time.sleep(0.1)
 
         tdLog.info("=============== step2")
@@ -53,7 +53,7 @@ class TDTestCase:
         for i in range(5, 10):
             tdSql.execute("create table tb%d using mt tags(%d)" % (i, i))
             for j in range(rowNum):
-                tdSql.execute("insert into tb%d values(%d + %ds, %d, %d)" % (i,start,j, j, j))
+                tdSql.execute("insert into tb%d values(%d, %d, %d)" % (i, start+j, j, j))
 
         tdLog.info("=============== step5")
         maxValue = 0
