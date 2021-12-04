@@ -400,7 +400,7 @@ bool sendChildTalbe(TAOS *taos, char *superName, char *tableName, TAOS_FIELD *fi
 
       // init reset
       strcpy(sqlBuf, STR_SQL_INSERT);
-      preLen = strlen(sqlBuf);
+      preLen = (int32_t)strlen(sqlBuf);
       subBuf = sqlBuf + preLen;
       subLen = bufLen - preLen; 
       sprintf(subBuf, " %s using %s tags(0) values ", dbTable, superName);
