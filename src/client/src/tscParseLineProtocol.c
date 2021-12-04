@@ -529,54 +529,63 @@ static int32_t fillDbSchema(STableMeta* tableMeta, char* tableName, SSmlSTableSc
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t getTableMetaFromLocalCache(TAOS* taos, char* tableName, STableMeta** outTableMeta, SSmlLinesInfo* info) {
-  int32_t code = 0;
+static int32_t getSuperTableMetaFromLocalCache(TAOS* taos, char* tableName, STableMeta** outTableMeta, SSmlLinesInfo* info) {
+  int32_t     code = 0;
   STableMeta* tableMeta = NULL;
-  {
-    SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
-    if (pSql == NULL) {
-      tscError("SML:0x%" PRIx64 " failed to allocate memory, reason:%s", info->id, strerror(errno));
-      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      return code;
-    }
-    pSql->pTscObj = taos;
-    pSql->signature = pSql;
-    pSql->fp = NULL;
 
-    registerSqlObj(pSql);
-    char tableNameBuf[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
-    memcpy(tableNameBuf, tableName, strlen(tableName));
-    SStrToken tableToken = {.z = tableNameBuf, .n = (uint32_t)strlen(tableName), .type = TK_ID};
-    tGetToken(tableNameBuf, &tableToken.type);
-    bool dbIncluded = false;
-    // Check if the table name available or not
-    if (tscValidateName(&tableToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
-      code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
-      sprintf(pSql->cmd.payload, "table name is invalid");
-      taosReleaseRef(tscObjRef, pSql->self);
-      return code;
-    }
+  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+  if (pSql == NULL) {
+    tscError("SML:0x%" PRIx64 " failed to allocate memory, reason:%s", info->id, strerror(errno));
+    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return code;
+  }
+  pSql->pTscObj = taos;
+  pSql->signature = pSql;
+  pSql->fp = NULL;
 
-    SName sname = {0};
-    if ((code = tscSetTableFullName(&sname, &tableToken, pSql, dbIncluded)) != TSDB_CODE_SUCCESS) {
-      taosReleaseRef(tscObjRef, pSql->self);
-      return code;
-    }
-
-    char fullTableName[TSDB_TABLE_FNAME_LEN] = {0};
-    memset(fullTableName, 0, tListLen(fullTableName));
-    tNameExtractFullName(&sname, fullTableName);
-
-    size_t size = 0;
-    taosHashGetCloneExt(UTIL_GET_TABLEMETA(pSql), fullTableName, strlen(fullTableName), NULL, (void**)&tableMeta, &size);
+  registerSqlObj(pSql);
+  char tableNameBuf[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
+  memcpy(tableNameBuf, tableName, strlen(tableName));
+  SStrToken tableToken = {.z = tableNameBuf, .n = (uint32_t)strlen(tableName), .type = TK_ID};
+  tGetToken(tableNameBuf, &tableToken.type);
+  bool dbIncluded = false;
+  // Check if the table name available or not
+  if (tscValidateName(&tableToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+    sprintf(pSql->cmd.payload, "table name is invalid");
     taosReleaseRef(tscObjRef, pSql->self);
+    return code;
   }
 
-  if (tableMeta != NULL) {
+  SName sname = {0};
+  if ((code = tscSetTableFullName(&sname, &tableToken, pSql, dbIncluded)) != TSDB_CODE_SUCCESS) {
+    taosReleaseRef(tscObjRef, pSql->self);
+    return code;
+  }
+
+  char fullTableName[TSDB_TABLE_FNAME_LEN] = {0};
+  memset(fullTableName, 0, tListLen(fullTableName));
+  tNameExtractFullName(&sname, fullTableName);
+
+  size_t size = 0;
+  taosHashGetCloneExt(UTIL_GET_TABLEMETA(pSql), fullTableName, strlen(fullTableName), NULL, (void**)&tableMeta, &size);
+  taosReleaseRef(tscObjRef, pSql->self);
+
+  STableMeta* stableMeta = tableMeta;
+  if (tableMeta != NULL && tableMeta->tableType == TSDB_CHILD_TABLE) {
+      taosHashGetCloneExt(UTIL_GET_TABLEMETA(pSql), tableMeta->sTableName, strlen(tableMeta->sTableName), NULL,
+                          (void**)stableMeta, &size);
+  }
+
+  if (stableMeta != tableMeta) {
+    free(tableMeta);
+  }
+
+  if (stableMeta != NULL) {
     if (outTableMeta != NULL) {
-      *outTableMeta = tableMeta;
+      *outTableMeta = stableMeta;
     } else {
-      free(tableMeta);
+      free(stableMeta);
     }
     return TSDB_CODE_SUCCESS;
   } else {
@@ -596,7 +605,7 @@ static int32_t retrieveTableMeta(TAOS* taos, char* tableName, STableMeta** pTabl
     }
 
     tscDebug("SML:0x%" PRIx64 " retrieve table meta. super table name: %s", info->id, tableName);
-    code = getTableMetaFromLocalCache(taos, tableName, &tableMeta, info);
+    code = getSuperTableMetaFromLocalCache(taos, tableName, &tableMeta, info);
     if (code == TSDB_CODE_SUCCESS) {
       tscDebug("SML:0x%" PRIx64 " successfully retrieved table meta. super table name: %s", info->id, tableName);
       break;
@@ -1172,51 +1181,46 @@ int tscSmlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLine
 
   info->affectedRows = 0;
 
-  //TODO:
   if (numPoint == 1) {
-    TAOS_SML_DATA_POINT* point = points;
+    TAOS_SML_DATA_POINT* point = points + 0;
     if (!point->childTableName) {
       int tableNameLen = TSDB_TABLE_NAME_LEN;
       point->childTableName = calloc(1, tableNameLen + 1);
       getSmlMd5ChildTableName(point, point->childTableName, &tableNameLen, info);
       point->childTableName[tableNameLen] = '\0';
     }
-    int32_t ret = getTableMetaFromLocalCache(taos, point->childTableName, NULL, info);
+    STableMeta* tableMeta;
+    int32_t ret = getSuperTableMetaFromLocalCache(taos, point->stableName, &tableMeta, info);
     if (ret == TSDB_CODE_SUCCESS) {
-      STableMeta* tableMeta;
-      int32_t ret2 = getTableMetaFromLocalCache(taos, point->stableName, &tableMeta, info);
-      if (ret2 != TSDB_CODE_SUCCESS) {
-        tscError("SML:0x%"PRIx64" meta of super table %s not found but meta of child table %s found ",
-                 info->id, point->stableName, point->childTableName);
-      }
       uint8_t precision = tableMeta->tableInfo.precision;
       free(tableMeta);
 
-      char* sql = malloc(TSDB_MAX_SQL_LEN+1);
-      int freeBytes = TSDB_MAX_SQL_LEN;
-      int sqlLen = 0;
-      sqlLen += snprintf(sql+sqlLen, freeBytes-sqlLen, "insert into %s(", point->childTableName);
+      char* sql = malloc(TSDB_MAX_SQL_LEN + 1);
+      int   freeBytes = TSDB_MAX_SQL_LEN;
+      int   sqlLen = 0;
+      sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, "insert into %s(", point->childTableName);
       for (int col = 0; col < point->fieldNum; ++col) {
         TAOS_SML_KV* kv = point->fields + col;
-        sqlLen += snprintf(sql+sqlLen, freeBytes-sqlLen, "%s,", kv->key);
+        sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, "%s,", kv->key);
       }
       --sqlLen;
-      sqlLen += snprintf(sql+sqlLen, freeBytes-sqlLen, ") values (");
+      sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, ") values (");
       TAOS_SML_KV* tsField = point->fields + 0;
-      int64_t ts = *(int64_t*)(tsField->value);
+      int64_t      ts = *(int64_t*)(tsField->value);
       ts = convertTimePrecision(ts, TSDB_TIME_PRECISION_NANO, precision);
-      sqlLen += snprintf(sql+sqlLen, freeBytes-sqlLen, "%" PRId64 ",", ts);
+      sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, "%" PRId64 ",", ts);
       for (int col = 1; col < point->fieldNum; ++col) {
         TAOS_SML_KV* kv = point->fields + col;
-        int32_t len = 0;
-        converToStr(sql+sqlLen, kv->type, kv->value, kv->length, &len);
+        int32_t      len = 0;
+        converToStr(sql + sqlLen, kv->type, kv->value, kv->length, &len);
         sqlLen += len;
-        sqlLen += snprintf(sql+sqlLen, freeBytes-sqlLen, ",");
+        sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, ",");
       }
       --sqlLen;
-      sqlLen += snprintf(sql+sqlLen, freeBytes-sqlLen, ")");
+      sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, ")");
       sql[sqlLen] = 0;
-      tscDebug("SML:0x%"PRIx64" insert child table table %s of super table %s sql: %s", info->id, point->childTableName, point->stableName, sql);
+      tscDebug("SML:0x%" PRIx64 " insert child table table %s of super table %s sql: %s", info->id,
+               point->childTableName, point->stableName, sql);
       TAOS_RES* res = taos_query(taos, sql);
       free(sql);
       code = taos_errno(res);
