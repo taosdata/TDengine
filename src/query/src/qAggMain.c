@@ -495,7 +495,6 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
 // TODO use hash table
 int32_t isValidFunction(const char* name, int32_t len) {
-<<<<<<< HEAD
 
   for (int32_t i = 0; i < TSDB_FUNC_SCALAR_MAX_NUM; ++i) {
     int32_t nameLen = (int32_t) strlen(aScalarFunctions[i].name);
