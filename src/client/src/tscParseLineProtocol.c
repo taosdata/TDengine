@@ -184,7 +184,7 @@ static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableNa
   uint64_t digest1 = *(uint64_t*)(context.digest);
   uint64_t digest2 = *(uint64_t*)(context.digest + 8);
   *tableNameLen = snprintf(tableName, *tableNameLen,
-                           "t_%16lx%16lx", digest1, digest2);
+                           "t_%16" PRIx64 "%16" PRIx64, digest1, digest2);
   taosStringBuilderDestroy(&sb);
   tscDebug("SML:0x%"PRIx64" child table name: %s", info->id, tableName);
   return 0;
@@ -1202,6 +1202,60 @@ cleanup:
   return code;
 }
 
+static int doSmlInsertOneDataPoint(TAOS* taos, TAOS_SML_DATA_POINT* point, SSmlLinesInfo* info) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (!point->childTableName) {
+    int tableNameLen = TSDB_TABLE_NAME_LEN;
+    point->childTableName = calloc(1, tableNameLen + 1);
+    getSmlMd5ChildTableName(point, point->childTableName, &tableNameLen, info);
+    point->childTableName[tableNameLen] = '\0';
+  }
+
+  STableMeta* tableMeta = NULL;
+  int32_t ret = getSuperTableMetaFromLocalCache(taos, point->stableName, &tableMeta, info);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+  uint8_t precision = tableMeta->tableInfo.precision;
+  free(tableMeta);
+
+  char* sql = malloc(TSDB_MAX_SQL_LEN + 1);
+  int   freeBytes = TSDB_MAX_SQL_LEN;
+  int   sqlLen = 0;
+  sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, "insert into %s(", point->childTableName);
+  for (int col = 0; col < point->fieldNum; ++col) {
+    TAOS_SML_KV* kv = point->fields + col;
+    sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, "%s,", kv->key);
+  }
+  --sqlLen;
+  sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, ") values (");
+  TAOS_SML_KV* tsField = point->fields + 0;
+  int64_t      ts = *(int64_t*)(tsField->value);
+  ts = convertTimePrecision(ts, TSDB_TIME_PRECISION_NANO, precision);
+  sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, "%" PRId64 ",", ts);
+  for (int col = 1; col < point->fieldNum; ++col) {
+    TAOS_SML_KV* kv = point->fields + col;
+    int32_t      len = 0;
+    converToStr(sql + sqlLen, kv->type, kv->value, kv->length, &len);
+    sqlLen += len;
+    sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, ",");
+  }
+  --sqlLen;
+  sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, ")");
+  sql[sqlLen] = 0;
+
+  tscDebug("SML:0x%" PRIx64 " insert child table table %s of super table %s sql: %s", info->id,
+           point->childTableName, point->stableName, sql);
+  TAOS_RES* res = taos_query(taos, sql);
+  free(sql);
+  code = taos_errno(res);
+  info->affectedRows = taos_affected_rows(res);
+  taos_free_result(res);
+
+  return code;
+}
+
 int tscSmlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLinesInfo* info) {
   tscDebug("SML:0x%"PRIx64" taos_sml_insert. number of points: %d", info->id, numPoint);
 
@@ -1211,52 +1265,9 @@ int tscSmlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLine
 
   if (numPoint == 1) {
     TAOS_SML_DATA_POINT* point = points + 0;
-    if (!point->childTableName) {
-      int tableNameLen = TSDB_TABLE_NAME_LEN;
-      point->childTableName = calloc(1, tableNameLen + 1);
-      getSmlMd5ChildTableName(point, point->childTableName, &tableNameLen, info);
-      point->childTableName[tableNameLen] = '\0';
-    }
-    STableMeta* tableMeta;
-    int32_t ret = getSuperTableMetaFromLocalCache(taos, point->stableName, &tableMeta, info);
-    if (ret == TSDB_CODE_SUCCESS) {
-      uint8_t precision = tableMeta->tableInfo.precision;
-      free(tableMeta);
-
-      char* sql = malloc(TSDB_MAX_SQL_LEN + 1);
-      int   freeBytes = TSDB_MAX_SQL_LEN;
-      int   sqlLen = 0;
-      sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, "insert into %s(", point->childTableName);
-      for (int col = 0; col < point->fieldNum; ++col) {
-        TAOS_SML_KV* kv = point->fields + col;
-        sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, "%s,", kv->key);
-      }
-      --sqlLen;
-      sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, ") values (");
-      TAOS_SML_KV* tsField = point->fields + 0;
-      int64_t      ts = *(int64_t*)(tsField->value);
-      ts = convertTimePrecision(ts, TSDB_TIME_PRECISION_NANO, precision);
-      sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, "%" PRId64 ",", ts);
-      for (int col = 1; col < point->fieldNum; ++col) {
-        TAOS_SML_KV* kv = point->fields + col;
-        int32_t      len = 0;
-        converToStr(sql + sqlLen, kv->type, kv->value, kv->length, &len);
-        sqlLen += len;
-        sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, ",");
-      }
-      --sqlLen;
-      sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, ")");
-      sql[sqlLen] = 0;
-      tscDebug("SML:0x%" PRIx64 " insert child table table %s of super table %s sql: %s", info->id,
-               point->childTableName, point->stableName, sql);
-      TAOS_RES* res = taos_query(taos, sql);
-      free(sql);
-      code = taos_errno(res);
-      info->affectedRows = taos_affected_rows(res);
-      taos_free_result(res);
-      if (code == TSDB_CODE_SUCCESS) {
-        return code;
-      }
+    code = doSmlInsertOneDataPoint(taos, point, info);
+    if (code == TSDB_CODE_SUCCESS) {
+      return code;
     }
   }
 
