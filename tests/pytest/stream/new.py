@@ -27,14 +27,14 @@ class TDTestCase:
     def run(self):
         rowNum = 200
         tdSql.prepare()
-        start = 1633017600000
+        ts_begin = 1633017600000
 
         tdLog.info("=============== step1")
         tdSql.execute("create table mt(ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)")
         for i in range(5):
             tdSql.execute("create table tb%d using mt tags(%d)" % (i, i))
             for j in range(rowNum):
-                tdSql.execute("insert into tb%d values(%d, %d, %d)" % (i, start+j*1000, j, j))
+                tdSql.execute("insert into tb%d values(%d, %d, %d)" % (i, ts_begin+j*1000, j, j))
         time.sleep(0.1)
 
         tdLog.info("=============== step2")
@@ -53,7 +53,7 @@ class TDTestCase:
         for i in range(5, 10):
             tdSql.execute("create table tb%d using mt tags(%d)" % (i, i))
             for j in range(rowNum):
-                tdSql.execute("insert into tb%d values(%d, %d, %d)" % (i, start+j*1000, j, j))
+                tdSql.execute("insert into tb%d values(%d, %d, %d)" % (i, ts_begin+j*1000, j, j))
 
         tdLog.info("=============== step5")
         maxValue = 0
