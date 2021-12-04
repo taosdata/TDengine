@@ -358,17 +358,26 @@ static int32_t handlePassword(SSqlCmd* pCmd, SStrToken* pPwd) {
 // validate the out put field type for "UNION ALL" subclause
 static int32_t normalizeVarDataTypeLength(SSqlCmd* pCmd) {
   const char* msg1 = "columns in select clause not identical";
+  const char* msg2 = "too many select clause siblings, at most 100 allowed";
 
+  int32_t siblings = 0;
   int32_t diffSize = 0;
 
   // if there is only one element, the limit of clause is the limit of global result.
   SQueryInfo* pQueryInfo1 = pCmd->pQueryInfo;
   SQueryInfo* pSibling = pQueryInfo1->sibling;
 
+  // pQueryInfo1 itself
+  ++siblings;
+
   while(pSibling != NULL) {
     int32_t ret = tscFieldInfoCompare(&pQueryInfo1->fieldsInfo, &pSibling->fieldsInfo, &diffSize);
     if (ret != 0) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    }
+
+    if (++siblings > 100) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
     pSibling = pSibling->sibling;
