@@ -206,6 +206,7 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->sver = pOption->sver;
   pMnode->statusInterval = pOption->statusInterval;
   pMnode->mnodeEqualVnodeNum = pOption->mnodeEqualVnodeNum;
+  pMnode->shellActivityTimer = pOption->shellActivityTimer;
   pMnode->timezone = strdup(pOption->timezone);
   pMnode->locale = strdup(pOption->locale);
   pMnode->charset = strdup(pOption->charset);

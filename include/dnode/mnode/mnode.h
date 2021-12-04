@@ -57,6 +57,7 @@ typedef struct {
   int32_t           sver;
   int32_t           statusInterval;
   int32_t           mnodeEqualVnodeNum;
+  int32_t           shellActivityTimer;
   char             *timezone;
   char             *locale;
   char             *charset;

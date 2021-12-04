@@ -78,7 +78,7 @@ int32_t mndInitProfile(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_HEARTBEAT, mndProcessHeartBeatMsg);
   mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CONNECT, mndProcessConnectMsg);
   mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_KILL_QUERY, mndProcessKillQueryMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CONNECT, mndProcessKillStreamMsg);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_KILL_STREAM, mndProcessKillStreamMsg);
   mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_KILL_CONN, mndProcessKillConnectionMsg);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndGetConnsMeta);
@@ -237,7 +237,6 @@ static int32_t mndProcessConnectMsg(SMnodeMsg *pMsg) {
     mndReleaseUser(pMnode, pUser);
   }
 
-  pRsp->acctId = htonl(pUser->acctId);
   pRsp->clusterId = htonl(pMnode->clusterId);
   pRsp->connId = htonl(pConn->connId);
   mndGetMnodeEpSet(pMnode, &pRsp->epSet);
@@ -330,7 +329,7 @@ static int32_t mndProcessHeartBeatMsg(SMnodeMsg *pMsg) {
   }
 
   pRsp->connId = htonl(pConn->connId);
-  pRsp->totalDnodes = htnol(1);
+  pRsp->totalDnodes = htonl(1);
   pRsp->onlineDnodes = htonl(1);
   mndGetMnodeEpSet(pMnode, &pRsp->epSet);
   mndReleaseConn(pMnode, pConn);

@@ -13,22 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_USER_H_
-#define _TD_MND_USER_H_
+#include <gtest/gtest.h>
+#include "os.h"
 
-#include "mndInt.h"
+#include "dnode.h"
+#include "taosmsg.h"
+#include "tconfig.h"
+#include "tglobal.h"
+#include "tnote.h"
+#include "trpc.h"
+#include "tthread.h"
+#include "ulog.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+typedef struct {
+  SDnode*    pDnode;
+  pthread_t* threadId;
+} SServer;
 
-int32_t   mndInitUser(SMnode *pMnode);
-void      mndCleanupUser(SMnode *pMnode);
-SUserObj *mndAcquireUser(SMnode *pMnode, char *userName);
-void      mndReleaseUser(SMnode *pMnode, SUserObj *pUser);
+typedef struct {
+  void*    clientRpc;
+  SRpcMsg* pRsp;
+  tsem_t   sem;
+} SClient;
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_MND_USER_H_*/
+SServer* createServer(char* path);
+void     dropServer(SServer* pServer);
+SClient* createClient(char *user, char *pass);
+void     dropClient(SClient* pClient);
+void     sendMsg(SClient* pClient, SRpcMsg* pMsg);

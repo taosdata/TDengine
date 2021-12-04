@@ -167,9 +167,9 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pSrcUser, SUserObj *pDs
   return 0;
 }
 
-SUserObj *mndAcquireUser(SMnode *pMnode, const char *userName) {
+SUserObj *mndAcquireUser(SMnode *pMnode, char *userName) {
   SSdb *pSdb = pMnode->pSdb;
-  return sdbAcquire(pSdb, SDB_USER, &userName);
+  return sdbAcquire(pSdb, SDB_USER, userName);
 }
 
 void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {

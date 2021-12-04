@@ -13,22 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <gtest/gtest.h>
-#include "os.h"
+#include "dndTestDeploy.h"
 
-#include "dnode.h"
-#include "taosmsg.h"
-#include "tconfig.h"
-#include "tglobal.h"
-#include "tnote.h"
-#include "trpc.h"
-#include "tthread.h"
-#include "ulog.h"
-
-typedef struct {
-  SDnode*    pDnode;
-  pthread_t* threadId;
-} SServer;
+void initLog(char *path) {
+  mDebugFlag = 207;
+  char temp[PATH_MAX];
+  snprintf(temp, PATH_MAX, "%s/taosdlog", path);
+  if (taosInitLog(temp, tsNumOfLogLines, 1) != 0) {
+    printf("failed to init log file\n");
+  }
+}
 
 void* runServer(void* param) {
   SServer* pServer = (SServer*)param;
@@ -38,7 +32,7 @@ void* runServer(void* param) {
   }
 }
 
-void initOption(SDnodeOpt* pOption) {
+void initOption(SDnodeOpt* pOption, char *path) {
   pOption->sver = 1;
   pOption->numOfCores = 1;
   pOption->numOfSupportMnodes = 1;
@@ -51,15 +45,18 @@ void initOption(SDnodeOpt* pOption) {
   pOption->maxShellConns = 1000;
   pOption->shellActivityTimer = 30;
   pOption->serverPort = 9527;
-  strncpy(pOption->dataDir, "./test01");
+  strcpy(pOption->dataDir, path);
   strcpy(pOption->localEp, "localhost:9527");
   strcpy(pOption->localFqdn, "localhost");
   strcpy(pOption->firstEp, "localhost:9527");
+
+  taosRemoveDir(path);
+  taosMkDir(path);
 }
 
-SServer* createServer() {
+SServer* createServer(char *path) {
   SDnodeOpt option = {0};
-  initOption(&option);
+  initOption(&option, path);
 
   SDnode* pDnode = dndInit(&option);
   ASSERT(pDnode);
@@ -80,24 +77,18 @@ void dropServer(SServer* pServer) {
   }
 }
 
-typedef struct {
-  void*    clientRpc;
-  SRpcMsg* pRsp;
-  tsem_t   sem;
-} SClient;
-
-static void processClientRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
+void processClientRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SClient* pClient = (SClient*)parent;
   pClient->pRsp = pMsg;
+  taosMsleep(100000);
   tsem_post(&pClient->sem);
 }
 
-SClient* createClient() {
+SClient* createClient(char *user, char *pass) {
   SClient* pClient = (SClient*)calloc(1, sizeof(SClient));
   ASSERT(pClient);
 
-  char  secretEncrypt[32] = {0};
-  char* pass = "taosdata";
+  char secretEncrypt[32] = {0};
   taosEncryptPass((uint8_t*)pass, strlen(pass), secretEncrypt);
 
   SRpcInit rpcInit;
@@ -108,7 +99,7 @@ SClient* createClient() {
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = 30 * 1000;
-  rpcInit.user = "root";
+  rpcInit.user = user;
   rpcInit.ckey = "key";
   rpcInit.parent = pClient;
   rpcInit.secret = (char*)secretEncrypt;
@@ -119,6 +110,8 @@ SClient* createClient() {
   ASSERT(pClient->clientRpc);
 
   tsem_init(&pClient->sem, 0, 0);
+
+  return pClient;
 }
 
 void dropClient(SClient* pClient) {
@@ -135,44 +128,4 @@ void sendMsg(SClient* pClient, SRpcMsg* pMsg) {
 
   rpcSendRequest(pClient->clientRpc, &epSet, pMsg, NULL);
   tsem_wait(&pClient->sem);
-}
-
-class DndTest01 : public ::testing::Test {
- protected:
-  void SetUp() override {
-    pServer = createServer();
-    pClient = createClient();
-  }
-  void TearDown() override {
-    dropServer(pServer);
-    dropClient(pClient);
-  }
-
-  SServer* pServer;
-  SClient* pClient;
-};
-
-TEST_F(DndTest01, connectMsg) {
-  SConnectMsg* pReq = (SConnectMsg*)rpcMallocCont(sizeof(SConnectMsg));
-  pReq->pid = 1234;
-  strcpy(pReq->app, "test01");
-  strcpy(pReq->app, "");
-
-  SRpcMsg rpcMsg = {.pCont = pReq, .contLen = sizeof(SConnectMsg), .msgType = TSDB_MSG_TYPE_AUTH};
-
-  sendMsg(pClient, &rpcMsg);
-
-  SConnectRsp* pRsp = (SConnectRsp*)pClient->pRsp;
-  EXPECT_NE(pRsp, NULL);
-  EXPECT_EQ(pRsp->acctId, 1);
-  EXPECT_GT(pRsp->clusterId, 0);
-  EXPECT_GT(pRsp->connId, 1);
-  EXPECT_EQ(pRsp->superAuth, 1);
-  EXPECT_EQ(pRsp->readAuth, 1);
-  EXPECT_EQ(pRsp->writeAuth, 1);
-
-  EXPECT_EQ(pRsp->epSet.inUse, 0);
-  EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-  EXPECT_EQ(pRsp->epSet.port[0], 9527);
-  EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
 }
