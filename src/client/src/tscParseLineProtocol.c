@@ -181,11 +181,10 @@ static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableNa
   MD5Init(&context);
   MD5Update(&context, (uint8_t *)keyJoined, (uint32_t)len);
   MD5Final(&context);
+  uint64_t digest1 = *(uint64_t*)(context.digest);
+  uint64_t digest2 = *(uint64_t*)(context.digest + 8);
   *tableNameLen = snprintf(tableName, *tableNameLen,
-                           "t_%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0],
-                           context.digest[1], context.digest[2], context.digest[3], context.digest[4], context.digest[5], context.digest[6],
-                           context.digest[7], context.digest[8], context.digest[9], context.digest[10], context.digest[11],
-                           context.digest[12], context.digest[13], context.digest[14], context.digest[15]);
+                           "t_%16lx%16lx", digest1, digest2);
   taosStringBuilderDestroy(&sb);
   tscDebug("SML:0x%"PRIx64" child table name: %s", info->id, tableName);
   return 0;
