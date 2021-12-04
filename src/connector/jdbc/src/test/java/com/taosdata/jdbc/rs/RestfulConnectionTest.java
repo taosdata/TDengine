@@ -374,22 +374,17 @@ public class RestfulConnectionTest {
     }
 
     @BeforeClass
-    public static void beforeClass() {
-        try {
-            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-            Properties properties = new Properties();
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/log?user=root&password=taosdata", properties);
-            // create test database for test cases
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("create database if not exists test");
-            }
-
-        } catch (ClassNotFoundException | SQLException e) {
-            e.printStackTrace();
+    public static void beforeClass() throws SQLException {
+        Properties properties = new Properties();
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+        conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata", properties);
+        // create test database for test cases
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("create database if not exists test");
         }
+
     }
 
     @AfterClass
