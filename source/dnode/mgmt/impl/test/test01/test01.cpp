@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dndTestDeploy.h"
+#include "deploy.h"
 
 class DndTest01 : public ::testing::Test {
  protected:
@@ -44,7 +44,7 @@ TEST_F(DndTest01, connectMsg) {
   sendMsg(pClient, &rpcMsg);
 
   SConnectRsp* pRsp = (SConnectRsp*)pClient->pRsp->pCont;
-  ASSERT(pRsp);
+  ASSERT_NE(pRsp, nullptr);
   pRsp->acctId = htonl(pRsp->acctId);
   pRsp->clusterId = htonl(pRsp->clusterId);
   pRsp->connId = htonl(pRsp->connId);
