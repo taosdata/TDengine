@@ -43,16 +43,16 @@ TEST_F(DndTest01, connectMsg) {
 
   sendMsg(pClient, &rpcMsg);
 
-  SConnectRsp* pRsp = (SConnectRsp*)pClient->pRsp;
+  SConnectRsp* pRsp = (SConnectRsp*)pClient->pRsp->pCont;
   ASSERT(pRsp);
   pRsp->acctId = htonl(pRsp->acctId);
   pRsp->clusterId = htonl(pRsp->clusterId);
   pRsp->connId = htonl(pRsp->connId);
-  pRsp->epSet.port[0] = htonl(pRsp->epSet.port[0]);
+  pRsp->epSet.port[0] = htons(pRsp->epSet.port[0]);
 
   EXPECT_EQ(pRsp->acctId, 1);
   EXPECT_GT(pRsp->clusterId, 0);
-  EXPECT_GT(pRsp->connId, 1);
+  EXPECT_EQ(pRsp->connId, 1);
   EXPECT_EQ(pRsp->superAuth, 1);
   EXPECT_EQ(pRsp->readAuth, 1);
   EXPECT_EQ(pRsp->writeAuth, 1);

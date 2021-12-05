@@ -80,7 +80,7 @@ void dropServer(SServer* pServer) {
 void processClientRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SClient* pClient = (SClient*)parent;
   pClient->pRsp = pMsg;
-  taosMsleep(100000);
+  //taosMsleep(1000000);
   tsem_post(&pClient->sem);
 }
 
