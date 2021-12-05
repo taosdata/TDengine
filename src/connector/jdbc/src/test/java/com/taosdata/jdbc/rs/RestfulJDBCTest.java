@@ -9,9 +9,10 @@ import java.util.Random;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class RestfulJDBCTest {
 
-    private static final String host = "127.0.0.1";
-    private final Random random = new Random(System.currentTimeMillis());
-    private Connection connection;
+    //    private static final String host = "127.0.0.1";
+    private static final String host = "master";
+    private static final Random random = new Random(System.currentTimeMillis());
+    private static Connection connection;
 
     @Test
     public void testCase001() throws SQLException {
@@ -129,15 +130,23 @@ public class RestfulJDBCTest {
         }
     }
 
-    @Before
-    public void before() throws SQLException {
-        connection = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=root&password=taosdata&httpKeepAlive=false");
+    @BeforeClass
+    public static void beforeClass() {
+        try {
+            connection = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
-    @After
-    public void after() throws SQLException {
-        if (connection != null)
+    @AfterClass
+    public static void afterClass() throws SQLException {
+        if (connection != null) {
+            Statement stmt = connection.createStatement();
+            stmt.execute("drop database if exists restful_test");
+            stmt.close();
             connection.close();
+        }
     }
 
 }

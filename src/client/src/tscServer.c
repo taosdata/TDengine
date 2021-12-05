@@ -837,7 +837,11 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  assert(pExpr->resColId < 0);
+  if (pExpr->resColId >= 0) {
+    tscError("result column id underflowed: %d", pExpr->resColId);
+    return TSDB_CODE_TSC_RES_TOO_MANY;
+  }
+
   SSqlExpr* pSqlExpr = (SSqlExpr *)(*pMsg);
 
   SColIndex* pIndex = &pSqlExpr->colInfo;
@@ -943,6 +947,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->tsCompQuery      = query.tsCompQuery;
   pQueryMsg->simpleAgg        = query.simpleAgg;
   pQueryMsg->pointInterpQuery = query.pointInterpQuery;
+  pQueryMsg->needTableSeqScan = query.needTableSeqScan;
   pQueryMsg->needReverseScan  = query.needReverseScan;
   pQueryMsg->stateWindow      = query.stateWindow;
   pQueryMsg->numOfTags        = htonl(numOfTags);
