@@ -39,6 +39,14 @@ typedef enum {
 } EWalType;
 
 typedef struct {
+  //union {
+    //uint32_t info;
+    //struct {
+      //uint32_t sver:3;
+      //uint32_t msgtype: 5;
+      //uint32_t reserved : 24;
+    //};
+  //};
   int8_t   sver;
   uint8_t  msgType;
   int8_t   reserved[2];
@@ -71,13 +79,17 @@ typedef struct {
 #define WAL_FILESET_MAX  128
 
 #define WAL_IDX_ENTRY_SIZE     (sizeof(int64_t)*2)
-#define WAL_CUR_POS_READ_ONLY  1
-#define WAL_CUR_FILE_READ_ONLY 2
+#define WAL_CUR_POS_WRITABLE  1
+#define WAL_CUR_FILE_WRITABLE 2
+#define WAL_CUR_FAILED        4
 
 typedef struct SWal {
   // cfg
   int32_t  vgId;
   int32_t  fsyncPeriod;  // millisecond
+  int32_t  fsyncSeq;
+  int32_t  rollPeriod;  // second
+  int64_t  segSize;
   EWalType level;
   //reference
   int64_t refId;
@@ -86,7 +98,7 @@ typedef struct SWal {
   int64_t curIdxTfd;
   //current version
   int64_t curVersion;
-  int64_t curOffset;
+  int64_t curLogOffset;
   //current file version
   int64_t curFileFirstVersion;
   int64_t curFileLastVersion;
@@ -94,8 +106,10 @@ typedef struct SWal {
   int64_t firstVersion;
   int64_t snapshotVersion;
   int64_t lastVersion;
-  //fsync status
-  int32_t fsyncSeq;
+  int64_t lastFileName;
+  //roll status
+  int64_t lastRollSeq;
+  int64_t lastFileWriteSize;
   //ctl
   int32_t curStatus;
   pthread_mutex_t mutex;
@@ -119,12 +133,10 @@ int32_t walAlter(SWal *, SWalCfg *pCfg);
 void    walClose(SWal *);
 
 // write
-//int64_t  walWriteWithMsgType(SWal*, int8_t msgType, void* body, int32_t bodyLen);
 int64_t walWrite(SWal *, int64_t index, uint8_t msgType, void *body, int32_t bodyLen);
-//int64_t walWriteBatch(SWal *, void **bodies, int32_t *bodyLen, int32_t batchSize);
+void    walFsync(SWal *, bool force);
 
 // apis for lifecycle management
-void    walFsync(SWal *, bool force);
 int32_t walCommit(SWal *, int64_t ver);
 // truncate after
 int32_t walRollback(SWal *, int64_t ver);

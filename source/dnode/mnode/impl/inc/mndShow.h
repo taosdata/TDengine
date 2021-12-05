@@ -24,6 +24,10 @@ extern "C" {
 
 int32_t mndInitShow(SMnode *pMnode);
 void    mndCleanupShow(SMnode *pMnode);
+void    mndAddShowMetaHandle(SMnode *pMnode, EShowType showType, ShowMetaFp fp);
+void    mndAddShowRetrieveHandle(SMnode *pMnode, EShowType showType, ShowRetrieveFp fp);
+void    mndAddShowFreeIterHandle(SMnode *pMnode, EShowType msgType, ShowFreeIterFp fp);
+void    mnodeVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow);
 
 #ifdef __cplusplus
 }

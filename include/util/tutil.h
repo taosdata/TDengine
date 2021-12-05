@@ -41,8 +41,10 @@ char *  paGetToken(char *src, char **token, int32_t *tokenLen);
 int32_t taosByteArrayToHexStr(char bytes[], int32_t len, char hexstr[]);
 int32_t taosHexStrToByteArray(char hexstr[], char bytes[]);
 
-char *   taosIpStr(uint32_t ipInt);
+char    *taosIpStr(uint32_t ipInt);
 uint32_t ip2uint(const char *const ip_addr);
+void     taosIp2String(uint32_t ip, char *str);
+void     taosIpPort2String(uint32_t ip, uint16_t port, char *str);
 
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
   MD5_CTX context;

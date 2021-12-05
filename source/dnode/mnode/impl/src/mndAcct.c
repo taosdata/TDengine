@@ -14,9 +14,60 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndInt.h"
+#include "mndAcct.h"
+#include "mndShow.h"
 
 #define SDB_ACCT_VER 1
+
+static int32_t  mnodeCreateDefaultAcct(SMnode *pMnode);
+static SSdbRaw *mnodeAcctActionEncode(SAcctObj *pAcct);
+static SSdbRow *mnodeAcctActionDecode(SSdbRaw *pRaw);
+static int32_t  mnodeAcctActionInsert(SSdb *pSdb, SAcctObj *pAcct);
+static int32_t  mnodeAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct);
+static int32_t  mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pSrcAcct, SAcctObj *pDstAcct);
+static int32_t  mndProcessCreateAcctMsg(SMnodeMsg *pMnodeMsg);
+static int32_t  mndProcessAlterAcctMsg(SMnodeMsg *pMnodeMsg);
+static int32_t  mndProcessDropAcctMsg(SMnodeMsg *pMnodeMsg);
+
+int32_t mndInitAcct(SMnode *pMnode) {
+  SSdbTable table = {.sdbType = SDB_ACCT,
+                     .keyType = SDB_KEY_BINARY,
+                     .deployFp = mnodeCreateDefaultAcct,
+                     .encodeFp = (SdbEncodeFp)mnodeAcctActionEncode,
+                     .decodeFp = (SdbDecodeFp)mnodeAcctActionDecode,
+                     .insertFp = (SdbInsertFp)mnodeAcctActionInsert,
+                     .updateFp = (SdbUpdateFp)mnodeAcctActionUpdate,
+                     .deleteFp = (SdbDeleteFp)mnodeAcctActionDelete};
+
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_ACCT, mndProcessCreateAcctMsg);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_ACCT, mndProcessAlterAcctMsg);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_ACCT, mndProcessDropAcctMsg);
+
+  return sdbSetTable(pMnode->pSdb, table);
+}
+
+void mndCleanupAcct(SMnode *pMnode) {}
+
+static int32_t mnodeCreateDefaultAcct(SMnode *pMnode) {
+  SAcctObj acctObj = {0};
+  tstrncpy(acctObj.acct, TSDB_DEFAULT_USER, TSDB_USER_LEN);
+  acctObj.createdTime = taosGetTimestampMs();
+  acctObj.updateTime = acctObj.createdTime;
+  acctObj.acctId = 1;
+  acctObj.cfg = (SAcctCfg){.maxUsers = 1024,
+                           .maxDbs = 1024,
+                           .maxTimeSeries = INT32_MAX,
+                           .maxStreams = 8092,
+                           .maxStorage = INT64_MAX,
+                           .accessState = TSDB_VN_ALL_ACCCESS};
+
+  SSdbRaw *pRaw = mnodeAcctActionEncode(&acctObj);
+  if (pRaw == NULL) return -1;
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+
+  mTrace("acct:%s, will be created while deploy sdb", acctObj.acct);
+  return sdbWrite(pMnode->pSdb, pRaw);
+}
 
 static SSdbRaw *mnodeAcctActionEncode(SAcctObj *pAcct) {
   SSdbRaw *pRaw = sdbAllocRaw(SDB_ACCT, SDB_ACCT_VER, sizeof(SAcctObj));
@@ -92,40 +143,20 @@ static int32_t mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pSrcAcct, SAcctObj *p
   return 0;
 }
 
-static int32_t mnodeCreateDefaultAcct(SMnode *pMnode) {
-  int32_t code = 0;
-
-  SAcctObj acctObj = {0};
-  tstrncpy(acctObj.acct, TSDB_DEFAULT_USER, TSDB_USER_LEN);
-  acctObj.createdTime = taosGetTimestampMs();
-  acctObj.updateTime = acctObj.createdTime;
-  acctObj.acctId = 1;
-  acctObj.cfg = (SAcctCfg){.maxUsers = 1024,
-                           .maxDbs = 1024,
-                           .maxTimeSeries = INT32_MAX,
-                           .maxStreams = 8092,
-                           .maxStorage = INT64_MAX,
-                           .accessState = TSDB_VN_ALL_ACCCESS};
-
-  SSdbRaw *pRaw = mnodeAcctActionEncode(&acctObj);
-  if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-
-  mTrace("acct:%s, will be created while deploy sdb", acctObj.acct);
-  return sdbWrite(pMnode->pSdb, pRaw);
+static int32_t mndProcessCreateAcctMsg(SMnodeMsg *pMnodeMsg) {
+  terrno = TSDB_CODE_MND_MSG_NOT_PROCESSED;
+  mError("failed to process create acct msg since %s", terrstr());
+  return -1;
 }
 
-int32_t mndInitAcct(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_ACCT,
-                     .keyType = SDB_KEY_BINARY,
-                     .deployFp = mnodeCreateDefaultAcct,
-                     .encodeFp = (SdbEncodeFp)mnodeAcctActionEncode,
-                     .decodeFp = (SdbDecodeFp)mnodeAcctActionDecode,
-                     .insertFp = (SdbInsertFp)mnodeAcctActionInsert,
-                     .updateFp = (SdbUpdateFp)mnodeAcctActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mnodeAcctActionDelete};
-
-  return sdbSetTable(pMnode->pSdb, table);
+static int32_t mndProcessAlterAcctMsg(SMnodeMsg *pMnodeMsg) {
+  terrno = TSDB_CODE_MND_MSG_NOT_PROCESSED;
+  mError("failed to process create acct msg since %s", terrstr());
+  return -1;
 }
 
-void mndCleanupAcct(SMnode *pMnode) {}
+static int32_t mndProcessDropAcctMsg(SMnodeMsg *pMnodeMsg) {
+  terrno = TSDB_CODE_MND_MSG_NOT_PROCESSED;
+  mError("failed to process create acct msg since %s", terrstr());
+  return -1;
+}

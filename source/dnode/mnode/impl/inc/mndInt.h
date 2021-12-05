@@ -18,21 +18,38 @@
 
 #include "mndDef.h"
 #include "sdb.h"
+#include "tcache.h"
 #include "tqueue.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef int32_t (*MndMsgFp)(SMnode *pMnode, SMnodeMsg *pMsg);
+typedef int32_t (*MndMsgFp)(SMnodeMsg *pMsg);
 typedef int32_t (*MndInitFp)(SMnode *pMnode);
 typedef void (*MndCleanupFp)(SMnode *pMnode);
+typedef int32_t (*ShowMetaFp)(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
+typedef int32_t (*ShowRetrieveFp)(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+typedef void (*ShowFreeIterFp)(SMnode *pMnode, void *pIter);
 
 typedef struct {
   const char  *name;
   MndInitFp    initFp;
   MndCleanupFp cleanupFp;
 } SMnodeStep;
+
+typedef struct {
+  int32_t        showId;
+  ShowMetaFp     metaFps[TSDB_MGMT_TABLE_MAX];
+  ShowRetrieveFp retrieveFps[TSDB_MGMT_TABLE_MAX];
+  ShowFreeIterFp freeIterFps[TSDB_MGMT_TABLE_MAX];
+  SCacheObj     *cache;
+} SShowMgmt;
+
+typedef struct {
+  int32_t    connId;
+  SCacheObj *cache;
+} SProfileMgmt;
 
 typedef struct SMnode {
   int32_t           dnodeId;
@@ -45,6 +62,8 @@ typedef struct SMnode {
   SSdb             *pSdb;
   SDnode           *pDnode;
   SArray           *pSteps;
+  SShowMgmt         showMgmt;
+  SProfileMgmt      profileMgmt;
   MndMsgFp          msgFp[TSDB_MSG_TYPE_MAX];
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;
@@ -53,6 +72,7 @@ typedef struct SMnode {
   int32_t           sver;
   int32_t           statusInterval;
   int32_t           mnodeEqualVnodeNum;
+  int32_t           shellActivityTimer;
   char             *timezone;
   char             *locale;
   char             *charset;

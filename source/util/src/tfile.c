@@ -53,6 +53,11 @@ static int64_t tfOpenImp(int32_t fd) {
   return rid;
 }
 
+int64_t tfOpenRead(const char *pathname, int32_t flags) {
+  int32_t fd = taosOpenFileRead(pathname);
+  return tfOpenImp(fd);
+}
+
 int64_t tfOpenReadWrite(const char *pathname, int32_t flags) {
   int32_t fd = taosOpenFileReadWrite(pathname);
   return tfOpenImp(fd);

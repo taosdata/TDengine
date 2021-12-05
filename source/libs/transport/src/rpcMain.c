@@ -507,7 +507,6 @@ void rpcSendRedirectRsp(void *thandle, const SEpSet *pEpSet) {
 }
 
 int rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
-#if 0
   SRpcConn  *pConn = (SRpcConn *)thandle;
   if (pConn->user[0] == 0) return -1;
 
@@ -516,9 +515,6 @@ int rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo) {
   // pInfo->serverIp = pConn->destIp;
   
   tstrncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
-#else 
-  strcpy(pInfo->user, "root");
-#endif
   return 0;
 }
 

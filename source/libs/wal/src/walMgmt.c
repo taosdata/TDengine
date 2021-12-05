@@ -26,57 +26,44 @@ int32_t walGetNextFile(SWal *pWal, int64_t *nextFileId);
 int32_t walGetOldFile(SWal *pWal, int64_t curFileId, int32_t minDiff, int64_t *oldFileId);
 int32_t walGetNewFile(SWal *pWal, int64_t *newFileId);
 
-static pthread_mutex_t walInitLock = PTHREAD_MUTEX_INITIALIZER;
-static int8_t walInited = 0;
-
 typedef struct {
   int32_t   refSetId;
-  int32_t   seq;
+  uint32_t  seq;
   int8_t    stop;
+  int8_t    inited;
   pthread_t thread;
-  pthread_mutex_t mutex;
 } SWalMgmt;
 
-static SWalMgmt tsWal = {0};
+static SWalMgmt tsWal = {0, .seq = 1};
 static int32_t  walCreateThread();
 static void     walStopThread();
 static int32_t  walInitObj(SWal *pWal);
 static void     walFreeObj(void *pWal);
 
-int32_t walInit() {
-  //TODO: change to atomic
-  pthread_mutex_lock(&walInitLock);
-  if(walInited) {
-    pthread_mutex_unlock(&walInitLock);
-    return 0;
-  } else {
-    walInited = 1;
-    pthread_mutex_unlock(&walInitLock);
-  }
+int64_t walGetSeq() {
+  return (int64_t)atomic_load_32(&tsWal.seq);
+}
 
-  int32_t code = 0;
+int32_t walInit() {
+  int8_t old = atomic_val_compare_exchange_8(&tsWal.inited, 0, 1);
+  if(old == 1) return 0;
+
   tsWal.refSetId = taosOpenRef(TSDB_MIN_VNODES, walFreeObj);
 
-  code = pthread_mutex_init(&tsWal.mutex, NULL);
-  if (code != 0) {
-    wError("failed to init wal mutex since %s", tstrerror(code));
-    return code;
-  }
-
-  code = walCreateThread();
+  int code = walCreateThread();
   if (code != 0) {
     wError("failed to init wal module since %s", tstrerror(code));
+    atomic_store_8(&tsWal.inited, 0);
     return code;
   }
 
   wInfo("wal module is initialized, rsetId:%d", tsWal.refSetId);
-  return code;
+  return 0;
 }
 
 void walCleanUp() {
   walStopThread();
   taosCloseRef(tsWal.refSetId);
-  pthread_mutex_destroy(&tsWal.mutex);
   wInfo("wal module is cleaned up");
 }
 
@@ -92,7 +79,7 @@ static int walLoadFileset(SWal *pWal) {
     char *name = ent->d_name;
     name[WAL_NOSUFFIX_LEN] = 0;
     //validate file name by regex matching
-    if(1 /* regex match */) {
+    if(1 /* TODO:regex match */) {
       int64_t fnameInt64 = atoll(name);
       taosArrayPush(pWal->fileSet, &fnameInt64);
     }
@@ -133,6 +120,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     walFreeObj(pWal);
     return NULL;
   }
+  walLoadFileset(pWal);
 
   wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->vgId, pWal, pWal->level, pWal->fsyncPeriod);
 
@@ -164,6 +152,9 @@ void walClose(SWal *pWal) {
 
   pthread_mutex_lock(&pWal->mutex);
   tfClose(pWal->curLogTfd);
+  tfClose(pWal->curIdxTfd);
+  taosArrayDestroy(pWal->fileSet);
+  pWal->fileSet = NULL;
   pthread_mutex_unlock(&pWal->mutex);
   taosRemoveRef(tsWal.refSetId, pWal->refId);
 }
@@ -188,6 +179,9 @@ static void walFreeObj(void *wal) {
   wDebug("vgId:%d, wal:%p is freed", pWal->vgId, pWal);
 
   tfClose(pWal->curLogTfd);
+  tfClose(pWal->curIdxTfd);
+  taosArrayDestroy(pWal->fileSet);
+  pWal->fileSet = NULL;
   pthread_mutex_destroy(&pWal->mutex);
   tfree(pWal);
 }
@@ -197,7 +191,7 @@ static bool walNeedFsync(SWal *pWal) {
     return false;
   }
 
-  if (tsWal.seq % pWal->fsyncSeq == 0) {
+  if (atomic_load_32(&tsWal.seq) % pWal->fsyncSeq == 0) {
     return true;
   }
 
@@ -206,16 +200,14 @@ static bool walNeedFsync(SWal *pWal) {
 
 static void walUpdateSeq() {
   taosMsleep(WAL_REFRESH_MS);
-  if (++tsWal.seq <= 0) {
-    tsWal.seq = 1;
-  }
+  atomic_add_fetch_32(&tsWal.seq, 1);
 }
 
 static void walFsyncAll() {
   SWal *pWal = taosIterateRef(tsWal.refSetId, 0);
   while (pWal) {
     if (walNeedFsync(pWal)) {
-      wTrace("vgId:%d, do fsync, level:%d seq:%d rseq:%d", pWal->vgId, pWal->level, pWal->fsyncSeq, tsWal.seq);
+      wTrace("vgId:%d, do fsync, level:%d seq:%d rseq:%d", pWal->vgId, pWal->level, pWal->fsyncSeq, atomic_load_32(&tsWal.seq));
       int32_t code = tfFsync(pWal->curLogTfd);
       if (code != 0) {
         wError("vgId:%d, file:%"PRId64".log, failed to fsync since %s", pWal->vgId, pWal->curFileFirstVersion, strerror(code));
@@ -226,16 +218,12 @@ static void walFsyncAll() {
 }
 
 static void *walThreadFunc(void *param) {
-  int stop = 0;
   setThreadName("wal");
   while (1) {
     walUpdateSeq();
     walFsyncAll();
 
-    pthread_mutex_lock(&tsWal.mutex);
-    stop = tsWal.stop;
-    pthread_mutex_unlock(&tsWal.mutex);
-    if (stop) break;
+    if (atomic_load_8(&tsWal.stop)) break;
   }
 
   return NULL;
@@ -258,9 +246,7 @@ static int32_t walCreateThread() {
 }
 
 static void walStopThread() {
-  pthread_mutex_lock(&tsWal.mutex);
-  tsWal.stop = 1;
-  pthread_mutex_unlock(&tsWal.mutex);
+  atomic_store_8(&tsWal.stop, 1);
 
   if (taosCheckPthreadValid(tsWal.thread)) {
     pthread_join(tsWal.thread, NULL);

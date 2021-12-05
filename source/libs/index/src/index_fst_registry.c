@@ -112,7 +112,7 @@ FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNo
   if (end - start == 1) {
     FstRegistryCell *cell = taosArrayGet(registry->table, start); 
     //cell->isNode && 
-    if (cell->addr != NONE_ADDRESS && cell->node == bNode) {
+    if (cell->addr != NONE_ADDRESS && fstBuilderNodeEqual(cell->node, bNode)) {
        entry->state = FOUND;
        entry->addr  = cell->addr ;
        return entry; 
@@ -123,13 +123,13 @@ FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNo
     }
   } else if (end - start == 2) {
     FstRegistryCell *cell1 = taosArrayGet(registry->table, start); 
-    if (cell1->addr != NONE_ADDRESS && cell1->node == bNode) {
+    if (cell1->addr != NONE_ADDRESS && fstBuilderNodeEqual(cell1->node, bNode)) {
       entry->state = FOUND;   
       entry->addr  = cell1->addr;
       return entry;
     }      
     FstRegistryCell *cell2 = taosArrayGet(registry->table, start + 1); 
-    if (cell2->addr != NONE_ADDRESS && cell2->node == bNode) {
+    if (cell2->addr != NONE_ADDRESS && fstBuilderNodeEqual(cell2->node, bNode)) {
       entry->state = FOUND; 
       entry->addr  = cell2->addr;
       // must swap here
@@ -147,7 +147,7 @@ FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNo
     uint32_t i = start; 
     for (; i < end; i++) {
       FstRegistryCell *cell = (FstRegistryCell *)taosArrayGet(registry->table, i);
-      if (cell->addr != NONE_ADDRESS && cell->node == bNode) {
+      if (cell->addr != NONE_ADDRESS && fstBuilderNodeEqual(cell->node, bNode)) {
         entry->state = FOUND;  
         entry->addr  = cell->addr; 
         fstRegistryCellPromote(registry->table, i, start);

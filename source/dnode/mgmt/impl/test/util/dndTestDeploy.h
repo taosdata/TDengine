@@ -13,22 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_WAL_INT_H_
-#define _TD_WAL_INT_H_
+#include <gtest/gtest.h>
+#include "os.h"
 
-#include "wal.h"
-#include "compare.h"
+#include "dnode.h"
+#include "taosmsg.h"
+#include "tconfig.h"
+#include "tglobal.h"
+#include "tnote.h"
+#include "trpc.h"
+#include "tthread.h"
+#include "ulog.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+typedef struct {
+  SDnode*    pDnode;
+  pthread_t* threadId;
+} SServer;
 
-int walGetFile(SWal* pWal, int32_t version);
+typedef struct {
+  void*    clientRpc;
+  SRpcMsg* pRsp;
+  tsem_t   sem;
+} SClient;
 
-int64_t walGetSeq();
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_WAL_INT_H_*/
+SServer* createServer(char* path);
+void     dropServer(SServer* pServer);
+SClient* createClient(char *user, char *pass);
+void     dropClient(SClient* pClient);
+void     sendMsg(SClient* pClient, SRpcMsg* pMsg);

@@ -15,6 +15,10 @@
 #ifndef __INDEX_FST_AUTAOMATION_H__
 #define __INDEX_FST_AUTAOMATION_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct AutomationCtx AutomationCtx;
 
 typedef struct StartWith {
@@ -42,6 +46,8 @@ typedef struct Automation {
   void *data;
 } Automation; 
 
-
+#ifdef __cplusplus
+}
+#endif
 
 #endif
