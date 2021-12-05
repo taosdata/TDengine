@@ -18,6 +18,12 @@
 float money = 122.45;
 char *description = "Grocery bill.";
 
+typedef struct {
+  int   id;
+  char *family_name;
+  char *surname;
+} SPersion;
+
 static void put_value(DB *dbp) {
   DBT key = {0};
   DBT value = {0};
@@ -37,8 +43,8 @@ static void put_value(DB *dbp) {
 
 static void get_value(DB *dbp) {
   char desp[DESCRIPTION_SIZE];
-  DBT key = {0};
-  DBT value = {0};
+  DBT  key = {0};
+  DBT  value = {0};
 
   key.data = &money;
   key.size = sizeof(money);
@@ -83,7 +89,7 @@ int main(int argc, char const *argv[]) {
     exit(1);
   }
 
-  db_flags = DB_CREATE;
+  db_flags = DB_CREATE | DB_TRUNCATE;
   ret = dbp->open(dbp,       /* DB structure pointer */
                   NULL,      /* Transaction pointer */
                   "meta.db", /* On-disk file that holds the database */
