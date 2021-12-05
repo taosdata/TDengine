@@ -893,8 +893,18 @@ typedef struct {
 } SHeartBeatRsp;
 
 typedef struct {
-  char queryId[TSDB_KILL_MSG_LEN + 1];
-} SKillQueryMsg, SKillConnMsg;
+  int32_t connId;
+  int32_t streamId;
+} SKillStreamMsg;
+
+typedef struct {
+  int32_t connId;
+  int32_t queryId;
+} SKillQueryMsg;
+
+typedef struct {
+  int32_t connId;
+} SKillConnMsg;
 
 typedef struct {
   char user[TSDB_USER_LEN];

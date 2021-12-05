@@ -84,6 +84,12 @@ int32_t mndInitProfile(SMnode *pMnode) {
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndGetConnsMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndRetrieveConns);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndCancelGetNextConn);
+  mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_QUERIES, mndGetQueryMeta);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_QUERIES, mndRetrieveQueries);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_QUERIES, mndCancelGetNextQuery);
+  mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndGetStreamMeta);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndRetrieveStreams);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndCancelGetNextStream);
 
   return 0;
 }
@@ -122,15 +128,19 @@ static SConnObj *mndCreateConn(SMnode *pMnode, char *user, uint32_t ip, uint16_t
 
   int32_t   keepTime = pMnode->shellActivityTimer * 3;
   SConnObj *pConn = taosCachePut(pMgmt->cache, &connId, sizeof(int32_t), &connObj, sizeof(connObj), keepTime * 1000);
-
-  mDebug("conn:%d, is created, user:%s", connId, user);
-  return pConn;
+  if (pConn == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("conn:%d, failed to put into cache since %s, user:%s", connId, user, terrstr());
+    return NULL;
+  } else {
+    mDebug("conn:%d, is created, user:%s", connId, user);
+    return pConn;
+  }
 }
 
 static void mndFreeConn(SConnObj *pConn) {
   tfree(pConn->pQueries);
   tfree(pConn->pStreams);
-  tfree(pConn);
   mDebug("conn:%d, is destroyed", pConn->connId);
 }
 
@@ -224,6 +234,7 @@ static int32_t mndProcessConnectMsg(SMnodeMsg *pMsg) {
 
   SConnectRsp *pRsp = rpcMallocCont(sizeof(SConnectRsp));
   if (pRsp == NULL) {
+    mndReleaseConn(pMnode, pConn);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("user:%s, failed to login from %s while create rsp since %s", pMsg->user, ip, terrstr());
     return -1;
@@ -241,6 +252,7 @@ static int32_t mndProcessConnectMsg(SMnodeMsg *pMsg) {
   pRsp->clusterId = htonl(pMnode->clusterId);
   pRsp->connId = htonl(pConn->connId);
   mndGetMnodeEpSet(pMnode, &pRsp->epSet);
+  mndReleaseConn(pMnode, pConn);
 
   pMsg->contLen = sizeof(SConnectRsp);
   pMsg->pCont = pRsp;
@@ -354,28 +366,17 @@ static int32_t mndProcessKillQueryMsg(SMnodeMsg *pMsg) {
   mndReleaseUser(pMnode, pUser);
 
   SKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
+  int32_t        connId = htonl(pKill->connId);
+  int32_t        queryId = htonl(pKill->queryId);
   mInfo("kill query msg is received, queryId:%s", pKill->queryId);
 
-  const char delim = ':';
-  char      *connIdStr = strtok(pKill->queryId, &delim);
-  char      *queryIdStr = strtok(NULL, &delim);
-
-  if (queryIdStr == NULL || connIdStr == NULL) {
-    mError("failed to kill query, queryId:%s", pKill->queryId);
-    terrno = TSDB_CODE_MND_INVALID_QUERY_ID;
-    return -1;
-  }
-
-  int32_t queryId = (int32_t)strtol(queryIdStr, NULL, 10);
-
-  int32_t   connId = atoi(connIdStr);
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->cache, &connId, sizeof(int32_t));
   if (pConn == NULL) {
-    mError("connId:%s, failed to kill queryId:%d, conn not exist", connIdStr, queryId);
+    mError("connId:%d, failed to kill queryId:%d, conn not exist", connId, queryId);
     terrno = TSDB_CODE_MND_INVALID_CONN_ID;
     return -1;
   } else {
-    mInfo("connId:%s, queryId:%d is killed by user:%s", connIdStr, queryId, pMsg->user);
+    mInfo("connId:%d, queryId:%d is killed by user:%s", connId, queryId, pMsg->user);
     pConn->queryId = queryId;
     taosCacheRelease(pMgmt->cache, (void **)&pConn, false);
     return 0;
@@ -395,29 +396,18 @@ static int32_t mndProcessKillStreamMsg(SMnodeMsg *pMsg) {
   }
   mndReleaseUser(pMnode, pUser);
 
-  SKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
-  mInfo("kill stream msg is received, streamId:%s", pKill->queryId);
-
-  const char delim = ':';
-  char      *connIdStr = strtok(pKill->queryId, &delim);
-  char      *streamIdStr = strtok(NULL, &delim);
-
-  if (streamIdStr == NULL || connIdStr == NULL) {
-    mError("failed to kill stream, streamId:%s", pKill->queryId);
-    terrno = TSDB_CODE_MND_INVALID_STREAM_ID;
-    return -1;
-  }
-
-  int32_t streamId = (int32_t)strtol(streamIdStr, NULL, 10);
-  int32_t connId = atoi(connIdStr);
+  SKillStreamMsg *pKill = pMsg->rpcMsg.pCont;
+  int32_t         connId = htonl(pKill->connId);
+  int32_t         streamId = htonl(pKill->streamId);
+  mDebug("kill stream msg is received, streamId:%s", streamId);
 
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->cache, &connId, sizeof(int32_t));
   if (pConn == NULL) {
-    mError("connId:%s, failed to kill streamId:%d, conn not exist", connIdStr, streamId);
+    mError("connId:%d, failed to kill streamId:%d, conn not exist", connId, streamId);
     terrno = TSDB_CODE_MND_INVALID_CONN_ID;
     return -1;
   } else {
-    mInfo("connId:%s, streamId:%d is killed by user:%s", connIdStr, streamId, pMsg->user);
+    mInfo("connId:%d, streamId:%d is killed by user:%s", connId, streamId, pMsg->user);
     pConn->streamId = streamId;
     taosCacheRelease(pMgmt->cache, (void **)&pConn, false);
     return TSDB_CODE_SUCCESS;
@@ -438,14 +428,15 @@ static int32_t mndProcessKillConnectionMsg(SMnodeMsg *pMsg) {
   mndReleaseUser(pMnode, pUser);
 
   SKillConnMsg *pKill = pMsg->rpcMsg.pCont;
-  int32_t       connId = atoi(pKill->queryId);
-  SConnObj     *pConn = taosCacheAcquireByKey(pMgmt->cache, &connId, sizeof(int32_t));
+  int32_t       connId = htonl(pKill->connId);
+
+  SConnObj *pConn = taosCacheAcquireByKey(pMgmt->cache, &connId, sizeof(int32_t));
   if (pConn == NULL) {
-    mError("connId:%s, failed to kill, conn not exist", pKill->queryId);
+    mError("connId:%s, failed to kill connection, conn not exist", connId);
     terrno = TSDB_CODE_MND_INVALID_CONN_ID;
     return -1;
   } else {
-    mInfo("connId:%s, is killed by user:%s", pKill->queryId, pMsg->user);
+    mInfo("connId:%s, is killed by user:%s", connId, pMsg->user);
     pConn->killed = 1;
     taosCacheRelease(pMgmt->cache, (void **)&pConn, false);
     return TSDB_CODE_SUCCESS;

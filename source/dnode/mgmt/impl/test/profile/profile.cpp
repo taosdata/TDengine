@@ -21,7 +21,8 @@ class DndTestProfile : public ::testing::Test {
   void TearDown() override {}
 
   static void SetUpTestSuite() {
-    pServer = createServer("/tmp/dndTestProfile", "localhost", 9527);
+    pServer = createServer("/tmp/dndTestProfile", "localhost", 7100);
+    ASSERT(pServer);
     pClient = createClient("root", "taosdata");
   }
 
@@ -38,7 +39,6 @@ SServer* DndTestProfile::pServer;
 SClient* DndTestProfile::pClient;
 
 TEST_F(DndTestProfile, connectMsg_01) {
-  ASSERT_NE(pServer, nullptr);
   ASSERT_NE(pClient, nullptr);
 
   SConnectMsg* pReq = (SConnectMsg*)rpcMallocCont(sizeof(SConnectMsg));
@@ -74,7 +74,6 @@ TEST_F(DndTestProfile, connectMsg_01) {
 }
 
 TEST_F(DndTestProfile, heartbeatMsg_01) {
-  ASSERT_NE(pServer, nullptr);
   ASSERT_NE(pClient, nullptr);
 
   SHeartBeatMsg* pReq = (SHeartBeatMsg*)rpcMallocCont(sizeof(SHeartBeatMsg));
