@@ -144,9 +144,11 @@ static int32_t syncProcessBufferedFwd(SSyncPeer *pPeer) {
     forwards++;
   }
 
-  // uint64_t uid = atomic_add_fetch_32(&gSyncUid, 1);
-  // printf("propSync_%s_%d rid:%" PRId64 ":uid:%" PRIu64 "\n", __func__, __LINE__, rid, uid);
-  pthread_mutex_lock(&pNode->mutex);
+  int ret = 0;
+  if ((ret = pthread_mutex_lock(&pNode->mutex)) != 0) {
+    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
+    exit(ret);
+  };
 
   while (forwards < pRecv->forwards && pRecv->code == 0) {
     offset = syncProcessOneBufferedFwd(pPeer, offset);
@@ -156,8 +158,10 @@ static int32_t syncProcessBufferedFwd(SSyncPeer *pPeer) {
   nodeRole = TAOS_SYNC_ROLE_SLAVE;
   sDebug("%s, finish processing buffered fwds:%d", pPeer->id, forwards);
 
-  // printf("propSync_%s_%d rid:%" PRId64 ":uid_ex:%" PRIu64 "\n", __func__, __LINE__, rid, uid);
-  pthread_mutex_unlock(&pNode->mutex);
+  if ((ret = pthread_mutex_unlock(&pNode->mutex)) != 0) {
+    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
+    exit(ret);
+  };
 
   return pRecv->code;
 }
