@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "db.h"
 
@@ -13,13 +14,51 @@
 
 #define USE_ENV 0
 
+#define DESCRIPTION_SIZE 128
+float money = 122.45;
+char *description = "Grocery bill.";
+
+static void put_value(DB *dbp) {
+  DBT key = {0};
+  DBT value = {0};
+  int ret;
+
+  key.data = &money;
+  key.size = sizeof(money);
+
+  value.data = description;
+  value.size = strlen(description) + 1;
+
+  ret = dbp->put(dbp, NULL, &key, &value, DB_NOOVERWRITE);
+  if (ret != 0) {
+    fprintf(stderr, "Failed to put DB record: %s\n", db_strerror(ret));
+  }
+}
+
+static void get_value(DB *dbp) {
+  char desp[DESCRIPTION_SIZE];
+  DBT key = {0};
+  DBT value = {0};
+
+  key.data = &money;
+  key.size = sizeof(money);
+
+  value.data = desp;
+  value.ulen = DESCRIPTION_SIZE;
+  value.flags = DB_DBT_USERMEM;
+
+  dbp->get(dbp, NULL, &key, &value, 0);
+  printf("The value is \"%s\"\n", value.data);
+}
+
 int main(int argc, char const *argv[]) {
   DB *      dbp = NULL;
   u_int32_t db_flags;
   DB_ENV *  envp = NULL;
   u_int32_t env_flags;
   int       ret;
-  DBT       key, value;  // Database records
+  DBT       key = {0};
+  DBT       value = {0};
 
 #if USE_ENV
   // Initialize an env object and open it for
@@ -55,6 +94,12 @@ int main(int argc, char const *argv[]) {
   if (ret != 0) {
     exit(1);
   }
+
+  // Insert a key-value record
+  put_value(dbp);
+
+  // Read the key-value record
+  get_value(dbp);
 
   // Close the database
   if (dbp != NULL) {
