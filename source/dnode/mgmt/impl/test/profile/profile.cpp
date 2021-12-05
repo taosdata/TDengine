@@ -15,22 +15,32 @@
 
 #include "deploy.h"
 
-class DndTest01 : public ::testing::Test {
+class DndTestProfile : public ::testing::Test {
  protected:
-  void SetUp() override {
-    pServer = createServer("/tmp/dndTest01");
+  void SetUp() override {}
+  void TearDown() override {}
+
+  static void SetUpTestSuite() {
+    pServer = createServer("/tmp/dndTestProfile", "localhost", 9527);
     pClient = createClient("root", "taosdata");
   }
-  void TearDown() override {
+
+  static void TearDownTestSuite() {
     dropServer(pServer);
     dropClient(pClient);
   }
 
-  SServer* pServer;
-  SClient* pClient;
+  static SServer* pServer;
+  static SClient* pClient;
 };
 
-TEST_F(DndTest01, connectMsg) {
+SServer* DndTestProfile::pServer;
+SClient* DndTestProfile::pClient;
+
+TEST_F(DndTestProfile, connectMsg_01) {
+  ASSERT_NE(pServer, nullptr);
+  ASSERT_NE(pClient, nullptr);
+
   SConnectMsg* pReq = (SConnectMsg*)rpcMallocCont(sizeof(SConnectMsg));
   pReq->pid = htonl(1234);
   strcpy(pReq->app, "test01");
@@ -63,33 +73,42 @@ TEST_F(DndTest01, connectMsg) {
   EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
 }
 
-// TEST_F(DndTest01, heartbeatMsg) {
-//   SHeartBeatMsg* pReq = (SHeartBeatMsg*)rpcMallocCont(sizeof(SHeartBeatMsg));
-//   pReq->connId = htonl(1);
-//   pReq->pid = htonl(1234);
-//   pReq->numOfQueries = htonl(0);
-//   pReq->numOfStreams = htonl(0);
-//   strcpy(pReq->app, "test01");
+TEST_F(DndTestProfile, heartbeatMsg_01) {
+  ASSERT_NE(pServer, nullptr);
+  ASSERT_NE(pClient, nullptr);
 
-//   SRpcMsg rpcMsg = {0};
-//   rpcMsg.pCont = pReq;
-//   rpcMsg.contLen = sizeof(SHeartBeatMsg);
-//   rpcMsg.msgType = TSDB_MSG_TYPE_HEARTBEAT;
+  SHeartBeatMsg* pReq = (SHeartBeatMsg*)rpcMallocCont(sizeof(SHeartBeatMsg));
+  pReq->connId = htonl(1);
+  pReq->pid = htonl(1234);
+  pReq->numOfQueries = htonl(0);
+  pReq->numOfStreams = htonl(0);
+  strcpy(pReq->app, "test01");
 
-//   sendMsg(pClient, &rpcMsg);
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.pCont = pReq;
+  rpcMsg.contLen = sizeof(SHeartBeatMsg);
+  rpcMsg.msgType = TSDB_MSG_TYPE_HEARTBEAT;
 
-//   SHeartBeatRsp* pRsp = (SHeartBeatRsp*)pClient->pRsp;
-//   ASSERT(pRsp);
-  // pRsp->epSet.port[0] = htonl(pRsp->epSet.port[0]);
+  sendMsg(pClient, &rpcMsg);
 
-//   EXPECT_EQ(htonl(pRsp->connId), 1);
-//   EXPECT_GT(htonl(pRsp->queryId), 0);
-//   EXPECT_GT(htonl(pRsp->streamId), 1);
-//   EXPECT_EQ(htonl(pRsp->totalDnodes), 1);
-//   EXPECT_EQ(htonl(pRsp->onlineDnodes), 1);
-//   EXPECT_EQ(pRsp->killConnection, 0);
-  // EXPECT_EQ(pRsp->epSet.inUse, 0);
-  // EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-  // EXPECT_EQ(pRsp->epSet.port[0], 9527);
-  // EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
-// }
+  SHeartBeatRsp* pRsp = (SHeartBeatRsp*)pClient->pRsp->pCont;
+  ASSERT_NE(pRsp, nullptr);
+  pRsp->connId = htonl(pRsp->connId);
+  pRsp->queryId = htonl(pRsp->queryId);
+  pRsp->streamId = htonl(pRsp->streamId);
+  pRsp->totalDnodes = htonl(pRsp->totalDnodes);
+  pRsp->onlineDnodes = htonl(pRsp->onlineDnodes);
+  pRsp->epSet.port[0] = htons(pRsp->epSet.port[0]);
+
+  EXPECT_EQ(pRsp->connId, 1);
+  EXPECT_EQ(pRsp->queryId, 0);
+  EXPECT_EQ(pRsp->streamId, 0);
+  EXPECT_EQ(pRsp->totalDnodes, 1);
+  EXPECT_EQ(pRsp->onlineDnodes, 1);
+  EXPECT_EQ(pRsp->killConnection, 0);
+
+  EXPECT_EQ(pRsp->epSet.inUse, 0);
+  EXPECT_EQ(pRsp->epSet.numOfEps, 1);
+  EXPECT_EQ(pRsp->epSet.port[0], 9527);
+  EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
+}

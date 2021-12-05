@@ -15,7 +15,7 @@
 
 #include "deploy.h"
 
-void initLog(char *path) {
+void initLog(char* path) {
   mDebugFlag = 207;
   char temp[PATH_MAX];
   snprintf(temp, PATH_MAX, "%s/taosdlog", path);
@@ -32,7 +32,7 @@ void* runServer(void* param) {
   }
 }
 
-void initOption(SDnodeOpt* pOption, char *path) {
+void initOption(SDnodeOpt* pOption, char* path, char* fqdn, uint16_t port) {
   pOption->sver = 1;
   pOption->numOfCores = 1;
   pOption->numOfSupportMnodes = 1;
@@ -44,19 +44,19 @@ void initOption(SDnodeOpt* pOption, char *path) {
   pOption->ratioOfQueryCores = 1;
   pOption->maxShellConns = 1000;
   pOption->shellActivityTimer = 30;
-  pOption->serverPort = 9527;
+  pOption->serverPort = port;
   strcpy(pOption->dataDir, path);
-  strcpy(pOption->localEp, "localhost:9527");
-  strcpy(pOption->localFqdn, "localhost");
-  strcpy(pOption->firstEp, "localhost:9527");
+  snprintf(pOption->localEp, TSDB_EP_LEN, "%s:&u", fqdn, port);
+  snprintf(pOption->localFqdn, TSDB_FQDN_LEN, "%s", fqdn);
+  snprintf(pOption->firstEp, TSDB_EP_LEN, "%s:&u", fqdn, port);
 
   taosRemoveDir(path);
   taosMkDir(path);
 }
 
-SServer* createServer(char *path) {
+SServer* createServer(char* path, char* fqdn, uint16_t port) {
   SDnodeOpt option = {0};
-  initOption(&option, path);
+  initOption(&option, path, fqdn, port);
 
   SDnode* pDnode = dndInit(&option);
   ASSERT(pDnode);
