@@ -263,7 +263,7 @@ int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions) {
       //              "INSERT INTO stb_%" PRIu64 " VALUES (%" PRIu64 ", \'%s\', );");
       rc = sqlite3_exec(pMeta->pDB, sql, NULL, NULL, &err);
       if (rc != SQLITE_OK) {
-        printf("failed to create normal table since %s\n", err);
+        printf("failed to create child table since %s\n", err);
       }
       break;
     default:
