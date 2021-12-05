@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dndTestDeploy.h"
+#include "deploy.h"
 
 void initLog(char *path) {
   mDebugFlag = 207;
@@ -80,7 +80,7 @@ void dropServer(SServer* pServer) {
 void processClientRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SClient* pClient = (SClient*)parent;
   pClient->pRsp = pMsg;
-  taosMsleep(100000);
+  //taosMsleep(1000000);
   tsem_post(&pClient->sem);
 }
 

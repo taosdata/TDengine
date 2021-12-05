@@ -130,6 +130,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, char *user, uint32_t ip, uint16_t
 static void mndFreeConn(SConnObj *pConn) {
   tfree(pConn->pQueries);
   tfree(pConn->pStreams);
+  tfree(pConn);
   mDebug("conn:%d, is destroyed", pConn->connId);
 }
 

@@ -2,8 +2,8 @@ add_executable(dndTest01 "")
 
 target_sources(dndTest01
     PRIVATE
-    "dndTest01.cpp"
-    "../util/dndTestDeploy.cpp"
+    "test01.cpp"
+    "../sut/deploy.cpp"
 )
 
 target_link_libraries(
@@ -18,7 +18,7 @@ target_include_directories(dndTest01
     PUBLIC
     "${CMAKE_SOURCE_DIR}/include/server/dnode/mgmt"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../util"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../sut"
 )
 
 enable_testing()
