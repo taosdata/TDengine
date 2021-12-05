@@ -4764,7 +4764,7 @@ static int32_t validateJsonTagExpr(tSqlExpr* pExpr, char* msgBuf) {
     }
 
     if (pRight->value.nType == TSDB_DATA_TYPE_BINARY){    // json value store by nchar, so need to convert from binary to nchar
-      if(pRight->value.nLen == INT_BYTES && *(uint32_t*)pRight->value.pz != TSDB_DATA_JSON_null)
+      if(pRight->value.nLen == INT_BYTES && *(uint32_t*)pRight->value.pz == TSDB_DATA_JSON_null)
         return TSDB_CODE_SUCCESS;
       if(pRight->value.nLen == 0)
         return TSDB_CODE_SUCCESS;
