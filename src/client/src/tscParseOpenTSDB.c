@@ -127,7 +127,7 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
 
   (*pTS)->key = tcalloc(sizeof(key) + TS_ESCAPE_CHAR_SIZE, 1);
   memcpy((*pTS)->key, key, sizeof(key));
-  addEscapeCharToString((*pTS)->key, strlen(key));
+  addEscapeCharToString((*pTS)->key, (int32_t)strlen(key));
 
   *num_kvs += 1;
   *index = cur + 1;
