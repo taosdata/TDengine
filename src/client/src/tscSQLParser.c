@@ -4764,10 +4764,13 @@ static int32_t validateJsonTagExpr(tSqlExpr* pExpr, char* msgBuf) {
     }
 
     if (pRight->value.nType == TSDB_DATA_TYPE_BINARY){    // json value store by nchar, so need to convert from binary to nchar
-      if(pRight->value.nLen == INT_BYTES && *(uint32_t*)pRight->value.pz == TSDB_DATA_JSON_null)
+      if(pRight->value.nLen == INT_BYTES && *(uint32_t*)pRight->value.pz == TSDB_DATA_JSON_null){
         return TSDB_CODE_SUCCESS;
-      if(pRight->value.nLen == 0)
+      }
+      if(pRight->value.nLen == 0){
+        pRight->value.nType = TSDB_DATA_TYPE_NCHAR;
         return TSDB_CODE_SUCCESS;
+      }
       char newData[TSDB_MAX_JSON_TAGS_LEN] = {0};
       int len = 0;
       if(!taosMbsToUcs4(pRight->value.pz, pRight->value.nLen, newData, TSDB_MAX_JSON_TAGS_LEN, &len)){
@@ -5155,6 +5158,9 @@ static void doExtractExprForSTable(SSqlCmd* pCmd, tSqlExpr** pExpr, SQueryInfo* 
     tSqlExpr* pLeft = (*pExpr)->pLeft;
 
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+    if(pLeft->tokenId == TK_ARROW) {
+      pLeft = pLeft->pLeft;
+    }
     if (getColumnIndexByName(&pLeft->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return;
     }
