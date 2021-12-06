@@ -65,7 +65,7 @@
 int main(int argc, char** argv) {
   FstBuilder *b = fstBuilderCreate(NULL, 0);
   {
-    std::string str("abc");
+    std::string str("aaa");
     FstSlice key = fstSliceCreate((uint8_t *)str.c_str(), str.size());
     Output   val = 1;
     fstBuilderInsert(b, key, val); 
@@ -77,10 +77,15 @@ int main(int argc, char** argv) {
   //
    
   {
-    std::string str("adc");
-    FstSlice key = fstSliceCreate((uint8_t *)str.c_str(), str.size());
-    Output   val = 2;
-    fstBuilderInsert(b, key, val); 
+     
+    for (size_t i = 1; i < 26; i++) {
+      std::string str("aaa");
+      str[2] = 'a' + i ;
+      FstSlice key = fstSliceCreate((uint8_t *)str.c_str(), str.size());
+      Output   val = 2;
+      fstBuilderInsert(b, key, val); 
+    }
+    
   } 
   //fstBuilderInsert(b, key1, val2); 
   fstBuilderFinish(b);

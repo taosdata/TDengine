@@ -16,6 +16,7 @@
 #include "index_fst.h"
 #include "tcoding.h"
 #include "tchecksum.h"
+#include "indexInt.h" 
 
 
 static void fstPackDeltaIn(FstCountingWriter *wrt, CompiledAddr nodeAddr, CompiledAddr transAddr, uint8_t nBytes) {
@@ -806,6 +807,7 @@ bool fstBuilderInsert(FstBuilder *b, FstSlice bs, Output in) {
     fstBuilderInsertOutput(b, bs, in); 
     return true; 
   } 
+  indexInfo("key must be ordered");
   return false;
 }
 
