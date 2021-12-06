@@ -360,10 +360,10 @@ typedef struct {
 } SConnectMsg;
 
 typedef struct SEpSet {
-  int8_t    inUse; 
-  int8_t    numOfEps;
-  uint16_t  port[TSDB_MAX_REPLICA];
-  char      fqdn[TSDB_MAX_REPLICA][TSDB_FQDN_LEN];
+  int8_t   inUse;
+  int8_t   numOfEps;
+  uint16_t port[TSDB_MAX_REPLICA];
+  char     fqdn[TSDB_MAX_REPLICA][TSDB_FQDN_LEN];
 } SEpSet;
 
 typedef struct {
@@ -383,14 +383,9 @@ typedef struct {
   int32_t maxUsers;
   int32_t maxDbs;
   int32_t maxTimeSeries;
-  int32_t maxConnections;
   int32_t maxStreams;
-  int32_t maxPointsPerSecond;
-  int64_t maxStorage;    // In unit of GB
-  int64_t maxQueryTime;  // In unit of hour
-  int64_t maxInbound;
-  int64_t maxOutbound;
-  int8_t  accessState;  // Configured only by command
+  int64_t maxStorage;   // In unit of GB
+  int32_t accessState;  // Configured only by command
 } SCreateAcctMsg, SAlterAcctMsg;
 
 typedef struct {
@@ -398,8 +393,8 @@ typedef struct {
 } SDropUserMsg, SDropAcctMsg;
 
 typedef struct {
-  char   user[TSDB_USER_LEN];
-  char   pass[TSDB_KEY_LEN];
+  char user[TSDB_USER_LEN];
+  char pass[TSDB_KEY_LEN];
 } SCreateUserMsg, SAlterUserMsg;
 
 typedef struct {
