@@ -15,26 +15,14 @@
 
 #define _DEFAULT_SOURCE
 #include "mndTelem.h"
-#include "tbuffer.h"
-#include "tglobal.h"
+#include "mndCluster.h"
 #include "mndSync.h"
+#include "tbuffer.h"
+#include "tversion.h"
 
 #define TELEMETRY_SERVER "telemetry.taosdata.com"
 #define TELEMETRY_PORT 80
 #define REPORT_INTERVAL 86400
-
-/*
- * sem_timedwait is NOT implemented on MacOSX
- * thus we use pthread_mutex_t/pthread_cond_t to simulate
- */
-static struct {
-  bool             enable;
-  pthread_mutex_t  lock;
-  pthread_cond_t   cond;
-  volatile int32_t exit;
-  pthread_t        thread;
-  char             email[TSDB_FQDN_LEN];
-} tsTelem;
 
 static void mndBeginObject(SBufferWriter* bw) { tbufWriteChar(bw, '{'); }
 
@@ -86,7 +74,7 @@ static void mndAddStringField(SBufferWriter* bw, const char* k, const char* v) {
   tbufWriteChar(bw, ',');
 }
 
-static void mndAddCpuInfo(SBufferWriter* bw) {
+static void mndAddCpuInfo(SMnode* pMnode, SBufferWriter* bw) {
   char*   line = NULL;
   size_t  size = 0;
   int32_t done = 0;
@@ -116,7 +104,7 @@ static void mndAddCpuInfo(SBufferWriter* bw) {
   fclose(fp);
 }
 
-static void mndAddOsInfo(SBufferWriter* bw) {
+static void mndAddOsInfo(SMnode* pMnode, SBufferWriter* bw) {
   char*  line = NULL;
   size_t size = 0;
 
@@ -142,7 +130,7 @@ static void mndAddOsInfo(SBufferWriter* bw) {
   fclose(fp);
 }
 
-static void mndAddMemoryInfo(SBufferWriter* bw) {
+static void mndAddMemoryInfo(SMnode* pMnode, SBufferWriter* bw) {
   char*  line = NULL;
   size_t size = 0;
 
@@ -165,16 +153,21 @@ static void mndAddMemoryInfo(SBufferWriter* bw) {
   fclose(fp);
 }
 
-static void mndAddVersionInfo(SBufferWriter* bw) {
-  mndAddStringField(bw, "version", version);
-  mndAddStringField(bw, "buildInfo", buildinfo);
-  mndAddStringField(bw, "gitInfo", gitinfo);
-  mndAddStringField(bw, "email", tsTelem.email);
+static void mndAddVersionInfo(SMnode* pMnode, SBufferWriter* bw) {
+  STelemMgmt* pMgmt = &pMnode->telemMgmt;
+
+  char vstr[32] = {0};
+  taosVersionIntToStr(pMnode->cfg.sver, vstr, 32);
+
+  mndAddStringField(bw, "version", vstr);
+  mndAddStringField(bw, "buildInfo", pMnode->cfg.buildinfo);
+  mndAddStringField(bw, "gitInfo", pMnode->cfg.gitinfo);
+  mndAddStringField(bw, "email", pMgmt->email);
 }
 
-static void mndAddRuntimeInfo(SBufferWriter* bw) {
+static void mndAddRuntimeInfo(SMnode* pMnode, SBufferWriter* bw) {
   SMnodeLoad load = {0};
-  if (mndGetLoad(NULL, &load) != 0) {
+  if (mndGetLoad(pMnode, &load) != 0) {
     return;
   }
 
@@ -190,11 +183,13 @@ static void mndAddRuntimeInfo(SBufferWriter* bw) {
   mndAddIntField(bw, "compStorage", load.compStorage);
 }
 
-static void mndSendTelemetryReport() {
+static void mndSendTelemetryReport(SMnode* pMnode) {
+  STelemMgmt* pMgmt = &pMnode->telemMgmt;
+
   char     buf[128] = {0};
   uint32_t ip = taosGetIpv4FromFqdn(TELEMETRY_SERVER);
   if (ip == 0xffffffff) {
-    mTrace("failed to get IP address of " TELEMETRY_SERVER ", reason:%s", strerror(errno));
+    mTrace("failed to get IP address of " TELEMETRY_SERVER " since :%s", strerror(errno));
     return;
   }
   SOCKET fd = taosOpenTcpClientSocket(ip, TELEMETRY_PORT, 0);
@@ -203,19 +198,18 @@ static void mndSendTelemetryReport() {
     return;
   }
 
-  int32_t clusterId = 0;
-  char    clusterIdStr[20] = {0};
-  snprintf(clusterIdStr, sizeof(clusterIdStr), "%d", clusterId);
+  char clusterName[64] = {0};
+  mndGetClusterName(pMnode, clusterName, sizeof(clusterName));
 
   SBufferWriter bw = tbufInitWriter(NULL, false);
   mndBeginObject(&bw);
-  mndAddStringField(&bw, "instanceId", clusterIdStr);
+  mndAddStringField(&bw, "instanceId", clusterName);
   mndAddIntField(&bw, "reportVersion", 1);
-  mndAddOsInfo(&bw);
-  mndAddCpuInfo(&bw);
-  mndAddMemoryInfo(&bw);
-  mndAddVersionInfo(&bw);
-  mndAddRuntimeInfo(&bw);
+  mndAddOsInfo(pMnode, &bw);
+  mndAddCpuInfo(pMnode, &bw);
+  mndAddMemoryInfo(pMnode, &bw);
+  mndAddVersionInfo(pMnode, &bw);
+  mndAddRuntimeInfo(pMnode, &bw);
   mndCloseObject(&bw);
 
   const char* header =
@@ -241,23 +235,26 @@ static void mndSendTelemetryReport() {
 }
 
 static void* mndTelemThreadFp(void* param) {
+  SMnode*     pMnode = param;
+  STelemMgmt* pMgmt = &pMnode->telemMgmt;
+
   struct timespec end = {0};
   clock_gettime(CLOCK_REALTIME, &end);
   end.tv_sec += 300;  // wait 5 minutes before send first report
 
   setThreadName("mnd-telem");
 
-  while (!tsTelem.exit) {
+  while (!pMgmt->exit) {
     int32_t         r = 0;
     struct timespec ts = end;
-    pthread_mutex_lock(&tsTelem.lock);
-    r = pthread_cond_timedwait(&tsTelem.cond, &tsTelem.lock, &ts);
-    pthread_mutex_unlock(&tsTelem.lock);
+    pthread_mutex_lock(&pMgmt->lock);
+    r = pthread_cond_timedwait(&pMgmt->cond, &pMgmt->lock, &ts);
+    pthread_mutex_unlock(&pMgmt->lock);
     if (r == 0) break;
     if (r != ETIMEDOUT) continue;
 
-    if (mndIsMaster(NULL)) {
-      mndSendTelemetryReport();
+    if (mndIsMaster(pMnode)) {
+      mndSendTelemetryReport(pMnode);
     }
     end.tv_sec += REPORT_INTERVAL;
   }
@@ -265,35 +262,39 @@ static void* mndTelemThreadFp(void* param) {
   return NULL;
 }
 
-static void mndGetEmail(char* filepath) {
+static void mndGetEmail(SMnode* pMnode, char* filepath) {
+  STelemMgmt* pMgmt = &pMnode->telemMgmt;
+
   int32_t fd = taosOpenFileRead(filepath);
   if (fd < 0) {
     return;
   }
 
-  if (taosReadFile(fd, (void*)tsTelem.email, TSDB_FQDN_LEN) < 0) {
+  if (taosReadFile(fd, (void*)pMgmt->email, TSDB_FQDN_LEN) < 0) {
     mError("failed to read %d bytes from file %s since %s", TSDB_FQDN_LEN, filepath, strerror(errno));
   }
 
   taosCloseFile(fd);
 }
 
-int32_t mndInitTelem(SMnode *pMnode) {
-  tsTelem.enable = tsEnableTelemetryReporting;
-  if (!tsTelem.enable) return 0;
+int32_t mndInitTelem(SMnode* pMnode) {
+  STelemMgmt* pMgmt = &pMnode->telemMgmt;
+  pMgmt->enable = pMnode->cfg.enableTelem;
 
-  tsTelem.exit = 0;
-  pthread_mutex_init(&tsTelem.lock, NULL);
-  pthread_cond_init(&tsTelem.cond, NULL);
-  tsTelem.email[0] = 0;
+  if (!pMgmt->enable) return 0;
 
-  mndGetEmail("/usr/local/taos/email");
+  pMgmt->exit = 0;
+  pthread_mutex_init(&pMgmt->lock, NULL);
+  pthread_cond_init(&pMgmt->cond, NULL);
+  pMgmt->email[0] = 0;
+
+  mndGetEmail(pMnode, "/usr/local/taos/email");
 
   pthread_attr_t attr;
   pthread_attr_init(&attr);
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
-  int32_t code = pthread_create(&tsTelem.thread, &attr, mndTelemThreadFp, NULL);
+  int32_t code = pthread_create(&pMgmt->thread, &attr, mndTelemThreadFp, pMnode);
   pthread_attr_destroy(&attr);
   if (code != 0) {
     mTrace("failed to create telemetry thread since :%s", strerror(code));
@@ -303,18 +304,19 @@ int32_t mndInitTelem(SMnode *pMnode) {
   return 0;
 }
 
-void mndCleanupTelem(SMnode *pMnode) {
-  if (!tsTelem.enable) return;
+void mndCleanupTelem(SMnode* pMnode) {
+  STelemMgmt* pMgmt = &pMnode->telemMgmt;
+  if (!pMgmt->enable) return;
 
-  if (taosCheckPthreadValid(tsTelem.thread)) {
-    pthread_mutex_lock(&tsTelem.lock);
-    tsTelem.exit = 1;
-    pthread_cond_signal(&tsTelem.cond);
-    pthread_mutex_unlock(&tsTelem.lock);
+  if (taosCheckPthreadValid(pMgmt->thread)) {
+    pthread_mutex_lock(&pMgmt->lock);
+    pMgmt->exit = 1;
+    pthread_cond_signal(&pMgmt->cond);
+    pthread_mutex_unlock(&pMgmt->lock);
 
-    pthread_join(tsTelem.thread, NULL);
+    pthread_join(pMgmt->thread, NULL);
   }
 
-  pthread_mutex_destroy(&tsTelem.lock);
-  pthread_cond_destroy(&tsTelem.cond);
+  pthread_mutex_destroy(&pMgmt->lock);
+  pthread_cond_destroy(&pMgmt->cond);
 }

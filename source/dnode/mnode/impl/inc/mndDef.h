@@ -116,7 +116,7 @@ typedef struct STrans {
 
 typedef struct SClusterObj {
   int32_t id;
-  char    uid[TSDB_CLUSTER_ID_LEN];
+  char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
   int64_t updateTime;
 } SClusterObj;
@@ -296,7 +296,6 @@ typedef struct SShowObj {
   void      *pIter;
   void      *pVgIter;
   SMnode    *pMnode;
-  SShowObj **ppShow;
   char       db[TSDB_FULL_DB_NAME_LEN];
   int16_t    offset[TSDB_MAX_COLUMNS];
   int32_t    bytes[TSDB_MAX_COLUMNS];
