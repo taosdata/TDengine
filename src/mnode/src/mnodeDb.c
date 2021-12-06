@@ -220,33 +220,7 @@ void mnodeCancelGetNextDb(void *pIter) {
 }
 
 SDbObj *mnodeGetDb(char *db) {
-  SDbObj* pDb = (SDbObj *)sdbGetRow(tsDbSdb, db);
-  if (pDb == NULL) {
-    return NULL;
-  }
-  SDbCfg* cfg = &(pDb->cfg);
-  // since all the mnode wal will be replayed when startup,
-  // so fix keep format only in serving state, avoid duplicate fix action
-  if (sdbIsServing() && (cfg->daysToKeep0 > cfg->daysToKeep1 || cfg->daysToKeep1 > cfg->daysToKeep2)) {
-    //mInfo("before mnodeGetDb keep:%d,%d,%d", cfg->daysToKeep0, cfg->daysToKeep1, cfg->daysToKeep2);
-    // old keep config version, fix it in new version format
-    int32_t bakKeep = cfg->daysToKeep0;
-    cfg->daysToKeep0 = cfg->daysToKeep1;
-    cfg->daysToKeep1 = cfg->daysToKeep2;
-    cfg->daysToKeep2 = bakKeep;  
-
-    //mInfo("after mnodeGetDb keep:%d,%d,%d,%d", cfg->daysToKeep0, cfg->daysToKeep1, cfg->daysToKeep2,mnodeCheckDbCfg(cfg));
-
-    SSdbRow row = {
-      .type    = SDB_OPER_GLOBAL,
-      .pTable  = tsDbSdb,
-      .pObj    = pDb,
-    };
-
-    sdbUpdateRow(&row);
-  }  
-
-  return pDb;
+  return (SDbObj *)sdbGetRow(tsDbSdb, db);
 }
 
 void mnodeIncDbRef(SDbObj *pDb) {
