@@ -56,7 +56,7 @@ class TDTestCase:
         if(threadID == 0):
             print("%staosdemo -y -t %d -n %d -b INT,INT,INT,INT" %
                       (binPath, self.numberOfTables, self.numberOfRecords))
-            os.system("taosdemo -y -t %d -n %d -b INT,INT,INT,INT" %
+            os.system("%staosBenchmark -y -t %d -n %d -b INT,INT,INT,INT" %
                       (binPath, self.numberOfTables, self.numberOfRecords))
         if(threadID == 1):
             time.sleep(2)

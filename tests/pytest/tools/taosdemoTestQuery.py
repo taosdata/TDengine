@@ -53,7 +53,7 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
-        os.system("taosdemo -y -t %d -n %d" %
+        os.system("%staosBenchmark -y -t %d -n %d" %
                   (binPath, self.numberOfTables, self.numberOfRecords))
         print("Sleep 2 seconds..")
         time.sleep(2)

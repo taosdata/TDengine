@@ -151,7 +151,7 @@ class TDTestCase:
 
         sleep(10)
 
-        os.system("taosdemo  -s taosdemoTestNanoCreateDB.sql  -y " % binPath)
+        os.system("%staosBenchmark  -s taosdemoTestNanoCreateDB.sql  -y " % binPath)
         tdSql.query("select count(*) from nsdbsql.meters")
         tdSql.checkData(0, 0, 2)
 

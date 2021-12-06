@@ -52,7 +52,7 @@ class TDTestCase:
         binPath = buildPath+ "/build/bin/"
 
         # # insert 1000w rows in stb0
-        os.system("taosdemo -f tools/taosdemoAllTest/query-interrupt.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/query-interrupt.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0,60)

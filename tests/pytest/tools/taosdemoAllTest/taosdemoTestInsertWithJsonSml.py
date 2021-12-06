@@ -50,7 +50,7 @@ class TDTestCase:
 
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql 
         # line_protocol——telnet and json
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insert-1s1tnt1r-sml.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-1s1tnt1r-sml.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 10)
@@ -67,7 +67,7 @@ class TDTestCase:
 
 
         # insert: create  mutiple tables per sql and insert one rows per sql . 
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insert-1s1tntmr-sml.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-1s1tntmr-sml.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 10)
@@ -84,7 +84,7 @@ class TDTestCase:
 
         # insert: using parament "insert_interval to controls spped  of insert. 
         # but We need to have accurate methods to control the speed, such as getting the speed value, checking the count and so on。
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insert-interval-speed-sml.json -y" % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-interval-speed-sml.json -y" % binPath)
         tdSql.execute("use db")
         tdSql.query("select tbname from  stb0")
         tdSql.checkRows(100 )
@@ -103,9 +103,9 @@ class TDTestCase:
         # insert: drop and child_table_exists combination test 
         # insert: sml can't support parament "childtable_offset and childtable_limit" \ drop=no or child_table_exists = yes
 
-        # os.system("taosdemo -f tools/taosdemoAllTest/sml/insert-nodbnodrop-sml.json -y" % binPath)
+        # os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-nodbnodrop-sml.json -y" % binPath)
         # tdSql.error("show dbno.stables")
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insert-newdb-sml.json -y" % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-newdb-sml.json -y" % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 5)
@@ -117,7 +117,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 8)        
         tdSql.query("select count (tbname) from stb4")
         tdSql.checkData(0, 0, 8)  
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insert-renewdb-sml.json -y" % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-renewdb-sml.json -y" % binPath)
         tdSql.execute("use db")             
         tdSql.query("select count(*) from stb0")
         tdSql.checkData(0, 0, 50) 
@@ -133,29 +133,29 @@ class TDTestCase:
 
         # insert:  let parament in json file  is illegal, it'll expect error.
         tdSql.execute("drop database if exists db") 
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insertColumnsAndTagNumLarge4096-sml.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertColumnsAndTagNumLarge4096-sml.json -y " % binPath)
         tdSql.error("use db")
         tdSql.execute("drop database if exists db") 
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insertSigcolumnsNum4096-sml.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertSigcolumnsNum4096-sml.json -y " % binPath)
         tdSql.error("select * from db.stb0")
         # tdSql.execute("drop database if exists db") 
-        # os.system("taosdemo -f tools/taosdemoAllTest/sml/insertColumnsAndTagNum4096-sml.json -y " % binPath)
+        # os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertColumnsAndTagNum4096-sml.json -y " % binPath)
         # tdSql.query("select count(*) from db.stb0")
         # tdSql.checkData(0, 0, 10000) 
         tdSql.execute("drop database if exists db")
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insertInterlaceRowsLarge1M-sml.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertInterlaceRowsLarge1M-sml.json -y " % binPath)
         tdSql.query("select count(*) from db.stb0")
         tdSql.checkRows(0)
         tdSql.execute("drop database if exists db") 
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insertColumnsNum0-sml.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertColumnsNum0-sml.json -y " % binPath)
         tdSql.execute("use db") 
         tdSql.query("show stables like 'stb0%' ")
         tdSql.checkData(0, 2, 11)
         tdSql.execute("drop database if exists db") 
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insertTagsNumLarge128-sml.json -y " % binPath)   
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertTagsNumLarge128-sml.json -y " % binPath)   
         tdSql.error("use db1") 
         tdSql.execute("drop database if exists db") 
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insertBinaryLenLarge16374AllcolLar49151-sml.json -y " % binPath)   
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertBinaryLenLarge16374AllcolLar49151-sml.json -y " % binPath)   
         tdSql.query("select count(*) from db.stb0") 
         tdSql.checkRows(1)
         tdSql.query("select count(*) from db.stb1") 
@@ -165,19 +165,19 @@ class TDTestCase:
         tdSql.query("select count(*) from db.stb3") 
         tdSql.checkRows(1)
         tdSql.execute("drop database if exists db") 
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insertNumOfrecordPerReq0-sml.json -y " % binPath)   
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertNumOfrecordPerReq0-sml.json -y " % binPath)   
         tdSql.error("select count(*) from db.stb0") 
         tdSql.execute("drop database if exists db") 
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insertNumOfrecordPerReqless0-sml.json -y " % binPath)   
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertNumOfrecordPerReqless0-sml.json -y " % binPath)   
         tdSql.error("use db") 
         tdSql.execute("drop database if exists db") 
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insertChildTab0-sml.json -y " % binPath)   
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertChildTab0-sml.json -y " % binPath)   
         tdSql.error("use db") 
         tdSql.execute("drop database if exists db") 
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insertChildTabLess0-sml.json -y " % binPath)   
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertChildTabLess0-sml.json -y " % binPath)   
         tdSql.error("use db") 
         tdSql.execute("drop database if exists blf") 
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insertTimestepMulRowsLargeint16-sml.json -y " % binPath)   
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertTimestepMulRowsLargeint16-sml.json -y " % binPath)   
         tdSql.execute("use blf") 
         tdSql.query("select ts from blf.p_0_topics_7 limit 262800,1") 
         tdSql.checkData(0, 0, "2020-03-31 12:00:00.000")
@@ -186,13 +186,13 @@ class TDTestCase:
         tdSql.query("select last(ts) from blf.p_0_topics_6 ")        
         tdSql.checkData(0, 0, "2020-09-29 23:59:00")
         # it will be commented in ci because it spend too much time to insert data, but when you can excute it when you want to test this case.
-        # os.system("taosdemo -f tools/taosdemoAllTest/sml/insertMaxNumPerReq-sml.json -y " % binPath)
+        # os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertMaxNumPerReq-sml.json -y " % binPath)
         # tdSql.execute("use db")
         # tdSql.query("select count(*) from stb0")
         # tdSql.checkData(0, 0, 5000000)
         # tdSql.query("select count(*) from stb1")
         # tdSql.checkData(0, 0, 5000000)
-        # os.system("taosdemo -f tools/taosdemoAllTest/sml/insertMaxNumPerReq-sml-telnet.json -y " % binPath)
+        # os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertMaxNumPerReq-sml-telnet.json -y " % binPath)
         # tdSql.execute("use db")
         # tdSql.query("select count(*) from stb0")
         # tdSql.checkData(0, 0, 5000000)
@@ -201,7 +201,7 @@ class TDTestCase:
 
 
         # insert: timestamp and step 
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insert-timestep-sml.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-timestep-sml.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 10)
@@ -217,7 +217,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 400) 
 
         # # insert:  disorder_ratio
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insert-disorder-sml.json 2>&1  -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-disorder-sml.json 2>&1  -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 1)
@@ -229,7 +229,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 10) 
 
         # insert:  sample json
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insert-sample-sml.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-sample-sml.json -y " % binPath)
         tdSql.execute("use dbtest123")
         tdSql.query("select c2 from stb0")
         tdSql.checkData(0, 0, 2147483647)
@@ -241,7 +241,7 @@ class TDTestCase:
         tdSql.checkRows(10)
 
         # insert: test interlace parament 
-        os.system("taosdemo -f tools/taosdemoAllTest/sml/insert-interlace-row-sml.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-interlace-row-sml.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 100)
