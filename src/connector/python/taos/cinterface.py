@@ -110,7 +110,7 @@ _libtaos.taos_get_client_info.restype = c_char_p
 def taos_get_client_info():
     # type: () -> str
     """Get client version info."""
-    return _libtaos.taos_get_client_info().decode()
+    return _libtaos.taos_get_client_info().decode("utf-8")
 
 
 _libtaos.taos_get_server_info.restype = c_char_p
@@ -120,7 +120,7 @@ _libtaos.taos_get_server_info.argtypes = (c_void_p,)
 def taos_get_server_info(connection):
     # type: (c_void_p) -> str
     """Get server version as string."""
-    return _libtaos.taos_get_server_info(connection).decode()
+    return _libtaos.taos_get_server_info(connection).decode("utf-8")
 
 
 _libtaos.taos_close.restype = None
