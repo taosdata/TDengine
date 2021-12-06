@@ -414,9 +414,6 @@ if $rows != 9999 then
   return -1
 endi
 
-print data00 = $data00
-print data00 = $data01
-
 if $data00 != @20-09-15 00:01:00.000@ then
   return -1
 endi
