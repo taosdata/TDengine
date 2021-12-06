@@ -31,7 +31,17 @@ else
     install_dir="${release_dir}/TDengine-server-${version}"
 fi
 
-taostools_install_dir="${release_dir}/taos-tools-${version}"
+if [ -d ${top_dir}/src/kit/taos-tools/packaging/deb ]; then
+    cd ${top_dir}/src/kit/taos-tools/packaging/deb
+    [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
+
+    taostools_ver=$(git describe --tags|sed -e 's/ver-//g'|awk -F '-' '{print $1}')
+    taostools_install_dir="${release_dir}/taos-tools-${taostools_ver}"
+
+    cd ${curr_dir}
+else
+    taostools_install_dir="${release_dir}/taos-tools-${version}"
+fi
 
 # Directories and files
 if [ "$pagMode" == "lite" ]; then
@@ -44,16 +54,13 @@ else
   bin_files="${build_dir}/bin/taosd \
       ${build_dir}/bin/taos \
       ${build_dir}/bin/taosadapter \
-      ${build_dir}/bin/taosdump \
-      ${build_dir}/bin/taosdemo \
       ${build_dir}/bin/tarbitrator\
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
       ${script_dir}/startPre.sh \
       ${script_dir}/taosd-dump-cfg.gdb"
 
-  taostools_bin_files="\
-      ${build_dir}/bin/taosdump \
+  taostools_bin_files=" ${build_dir}/bin/taosdump \
       ${build_dir}/bin/taosdemo"
 fi
 
@@ -110,7 +117,7 @@ mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/taos
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
 
-if [ -z "${taostools_bin_files}" ]; then
+if [ -n "${taostools_bin_files}" ]; then
     mkdir -p ${taostools_install_dir} || echo -e "failed to create ${taostools_install_dir}"
     mkdir -p ${taostools_install_dir}/bin \
     && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
@@ -283,7 +290,7 @@ if [ "$exitcode" != "0" ]; then
     exit $exitcode
 fi
 
-if [ -z "${taostools_bin_files}" ]; then
+if [ -n "${taostools_bin_files}" ]; then
     tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" $(basename ${taostools_install_dir}) --remove-files || :
     exitcode=$?
     if [ "$exitcode" != "0" ]; then
