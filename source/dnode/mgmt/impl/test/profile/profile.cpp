@@ -215,7 +215,7 @@ TEST_F(DndTestProfile, SConnectMsg_03) {
     sendMsg(pClient, &rpcMsg);
     SRpcMsg* pMsg = pClient->pRsp;
     ASSERT_NE(pMsg, nullptr);
-    ASSERT_NE(pMsg->code, 0);
+    ASSERT_EQ(pMsg->code, 0);
 
     SRetrieveTableRsp* pRsp = (SRetrieveTableRsp*)pMsg->pCont;
     ASSERT_NE(pRsp, nullptr);
@@ -310,7 +310,7 @@ TEST_F(DndTestProfile, SKillConnMsg_01) {
     sendMsg(pClient, &rpcMsg);
     SRpcMsg* pMsg = pClient->pRsp;
     ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_TSC_INVALID_CONNECTION);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_CONNECTION);
     ASSERT_EQ(pMsg->contLen, 0);
   }
 
@@ -338,7 +338,7 @@ TEST_F(DndTestProfile, SKillConnMsg_01) {
 
     EXPECT_EQ(pRsp->acctId, 1);
     EXPECT_GT(pRsp->clusterId, 0);
-    EXPECT_EQ(pRsp->superAuth, 1);
+    EXPECT_GT(pRsp->connId, connId);
     EXPECT_EQ(pRsp->readAuth, 1);
     EXPECT_EQ(pRsp->writeAuth, 1);
 
@@ -446,6 +446,115 @@ TEST_F(DndTestProfile, SKillQueryMsg_02) {
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_CONN_ID);
 }
 
+TEST_F(DndTestProfile, SKillQueryMsg_03) {
+  ASSERT_NE(pClient, nullptr);
+  int32_t showId = 0;
+
+  {
+    SShowMsg* pReq = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
+    pReq->type = TSDB_MGMT_TABLE_QUERIES;
+    strcpy(pReq->db, "");
+
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SShowMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_SHOW;
+
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+
+    SShowRsp* pRsp = (SShowRsp*)pMsg->pCont;
+    ASSERT_NE(pRsp, nullptr);
+    pRsp->showId = htonl(pRsp->showId);
+    STableMetaMsg* pMeta = &pRsp->tableMeta;
+    pMeta->contLen = htonl(pMeta->contLen);
+    pMeta->numOfColumns = htons(pMeta->numOfColumns);
+    pMeta->sversion = htons(pMeta->sversion);
+    pMeta->tversion = htons(pMeta->tversion);
+    pMeta->tid = htonl(pMeta->tid);
+    pMeta->uid = htobe64(pMeta->uid);
+    pMeta->suid = htobe64(pMeta->suid);
+
+    showId = pRsp->showId;
+
+    EXPECT_NE(pRsp->showId, 0);
+    EXPECT_EQ(pMeta->contLen, 0);
+    EXPECT_STREQ(pMeta->tableFname, "");
+    EXPECT_EQ(pMeta->numOfTags, 0);
+    EXPECT_EQ(pMeta->precision, 0);
+    EXPECT_EQ(pMeta->tableType, 0);
+    EXPECT_EQ(pMeta->numOfColumns, 14);
+    EXPECT_EQ(pMeta->sversion, 0);
+    EXPECT_EQ(pMeta->tversion, 0);
+    EXPECT_EQ(pMeta->tid, 0);
+    EXPECT_EQ(pMeta->uid, 0);
+    EXPECT_STREQ(pMeta->sTableName, "");
+    EXPECT_EQ(pMeta->suid, 0);
+
+    SSchema* pSchema = NULL;
+    pSchema = &pMeta->schema[0];
+    pSchema->bytes = htons(pSchema->bytes);
+    EXPECT_EQ(pSchema->colId, 0);
+    EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
+    EXPECT_EQ(pSchema->bytes, 4);
+    EXPECT_STREQ(pSchema->name, "queryId");
+
+    pSchema = &pMeta->schema[1];
+    pSchema->bytes = htons(pSchema->bytes);
+    EXPECT_EQ(pSchema->colId, 0);
+    EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
+    EXPECT_EQ(pSchema->bytes, 4);
+    EXPECT_STREQ(pSchema->name, "connId");
+
+    pSchema = &pMeta->schema[2];
+    pSchema->bytes = htons(pSchema->bytes);
+    EXPECT_EQ(pSchema->colId, 0);
+    EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
+    EXPECT_EQ(pSchema->bytes, TSDB_USER_LEN + VARSTR_HEADER_SIZE);
+    EXPECT_STREQ(pSchema->name, "user");
+
+    pSchema = &pMeta->schema[3];
+    pSchema->bytes = htons(pSchema->bytes);
+    EXPECT_EQ(pSchema->colId, 0);
+    EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
+    EXPECT_EQ(pSchema->bytes, TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE);
+    EXPECT_STREQ(pSchema->name, "ip:port");
+  }
+
+  {
+    SRetrieveTableMsg* pReq = (SRetrieveTableMsg*)rpcMallocCont(sizeof(SRetrieveTableMsg));
+    pReq->showId = htonl(showId);
+    pReq->free = 0;
+
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SRetrieveTableMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_SHOW_RETRIEVE;
+
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+
+    SRetrieveTableRsp* pRsp = (SRetrieveTableRsp*)pMsg->pCont;
+    ASSERT_NE(pRsp, nullptr);
+    pRsp->numOfRows = htonl(pRsp->numOfRows);
+    pRsp->offset = htobe64(pRsp->offset);
+    pRsp->useconds = htobe64(pRsp->useconds);
+    pRsp->compLen = htonl(pRsp->compLen);
+
+    EXPECT_EQ(pRsp->numOfRows, 0);
+    EXPECT_EQ(pRsp->offset, 0);
+    EXPECT_EQ(pRsp->useconds, 0);
+    EXPECT_EQ(pRsp->completed, 1);
+    EXPECT_EQ(pRsp->precision, TSDB_TIME_PRECISION_MILLI);
+    EXPECT_EQ(pRsp->compressed, 0);
+    EXPECT_EQ(pRsp->reserved, 0);
+    EXPECT_EQ(pRsp->compLen, 0);
+  }
+}
+
 TEST_F(DndTestProfile, SKillStreamMsg_01) {
   ASSERT_NE(pClient, nullptr);
 
@@ -522,4 +631,106 @@ TEST_F(DndTestProfile, SKillStreamMsg_02) {
   SRpcMsg* pMsg = pClient->pRsp;
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_CONN_ID);
+}
+
+TEST_F(DndTestProfile, SKillStreamMsg_03) {
+  ASSERT_NE(pClient, nullptr);
+  int32_t showId = 0;
+
+  {
+    SShowMsg* pReq = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
+    pReq->type = TSDB_MGMT_TABLE_STREAMS;
+    strcpy(pReq->db, "");
+
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SShowMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_SHOW;
+
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+
+    SShowRsp* pRsp = (SShowRsp*)pMsg->pCont;
+    ASSERT_NE(pRsp, nullptr);
+    pRsp->showId = htonl(pRsp->showId);
+    STableMetaMsg* pMeta = &pRsp->tableMeta;
+    pMeta->contLen = htonl(pMeta->contLen);
+    pMeta->numOfColumns = htons(pMeta->numOfColumns);
+    pMeta->sversion = htons(pMeta->sversion);
+    pMeta->tversion = htons(pMeta->tversion);
+    pMeta->tid = htonl(pMeta->tid);
+    pMeta->uid = htobe64(pMeta->uid);
+    pMeta->suid = htobe64(pMeta->suid);
+
+    showId = pRsp->showId;
+
+    EXPECT_NE(pRsp->showId, 0);
+    EXPECT_EQ(pMeta->contLen, 0);
+    EXPECT_STREQ(pMeta->tableFname, "");
+    EXPECT_EQ(pMeta->numOfTags, 0);
+    EXPECT_EQ(pMeta->precision, 0);
+    EXPECT_EQ(pMeta->tableType, 0);
+    EXPECT_EQ(pMeta->numOfColumns, 10);
+    EXPECT_EQ(pMeta->sversion, 0);
+    EXPECT_EQ(pMeta->tversion, 0);
+    EXPECT_EQ(pMeta->tid, 0);
+    EXPECT_EQ(pMeta->uid, 0);
+    EXPECT_STREQ(pMeta->sTableName, "");
+    EXPECT_EQ(pMeta->suid, 0);
+
+    SSchema* pSchema = NULL;
+    pSchema = &pMeta->schema[0];
+    pSchema->bytes = htons(pSchema->bytes);
+    EXPECT_EQ(pSchema->colId, 0);
+    EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
+    EXPECT_EQ(pSchema->bytes, 4);
+    EXPECT_STREQ(pSchema->name, "streamId");
+
+    pSchema = &pMeta->schema[1];
+    pSchema->bytes = htons(pSchema->bytes);
+    EXPECT_EQ(pSchema->colId, 0);
+    EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
+    EXPECT_EQ(pSchema->bytes, 4);
+    EXPECT_STREQ(pSchema->name, "connId");
+
+    pSchema = &pMeta->schema[2];
+    pSchema->bytes = htons(pSchema->bytes);
+    EXPECT_EQ(pSchema->colId, 0);
+    EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
+    EXPECT_EQ(pSchema->bytes, TSDB_USER_LEN + VARSTR_HEADER_SIZE);
+    EXPECT_STREQ(pSchema->name, "user");
+  }
+
+  {
+    SRetrieveTableMsg* pReq = (SRetrieveTableMsg*)rpcMallocCont(sizeof(SRetrieveTableMsg));
+    pReq->showId = htonl(showId);
+    pReq->free = 0;
+
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SRetrieveTableMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_SHOW_RETRIEVE;
+
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+
+    SRetrieveTableRsp* pRsp = (SRetrieveTableRsp*)pMsg->pCont;
+    ASSERT_NE(pRsp, nullptr);
+    pRsp->numOfRows = htonl(pRsp->numOfRows);
+    pRsp->offset = htobe64(pRsp->offset);
+    pRsp->useconds = htobe64(pRsp->useconds);
+    pRsp->compLen = htonl(pRsp->compLen);
+
+    EXPECT_EQ(pRsp->numOfRows, 0);
+    EXPECT_EQ(pRsp->offset, 0);
+    EXPECT_EQ(pRsp->useconds, 0);
+    EXPECT_EQ(pRsp->completed, 1);
+    EXPECT_EQ(pRsp->precision, TSDB_TIME_PRECISION_MILLI);
+    EXPECT_EQ(pRsp->compressed, 0);
+    EXPECT_EQ(pRsp->reserved, 0);
+    EXPECT_EQ(pRsp->compLen, 0);
+  }
 }

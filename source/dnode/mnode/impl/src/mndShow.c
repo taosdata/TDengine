@@ -16,14 +16,14 @@
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
 
-static int32_t   mndProcessShowMsg(SMnodeMsg *pMnodeMsg);
-static int32_t   mndProcessRetrieveMsg(SMnodeMsg *pMsg);
-static bool      mndCheckRetrieveFinished(SShowObj *pShow);
 static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowMsg *pMsg);
 static void      mndFreeShowObj(SShowObj *pShow);
 static SShowObj *mndAcquireShowObj(SMnode *pMnode, int32_t showId);
 static void      mndReleaseShowObj(SShowObj *pShow, bool forceRemove);
 static char     *mndShowStr(int32_t showType);
+static int32_t   mndProcessShowMsg(SMnodeMsg *pMnodeMsg);
+static int32_t   mndProcessRetrieveMsg(SMnodeMsg *pMsg);
+static bool      mndCheckRetrieveFinished(SShowObj *pShow);
 
 int32_t mndInitShow(SMnode *pMnode) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
@@ -116,6 +116,9 @@ static SShowObj *mndAcquireShowObj(SMnode *pMnode, int32_t showId) {
 static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
   if (pShow == NULL) return;
   mTrace("show:%d, data:%p released from cache, force:%d", pShow->id, pShow, forceRemove);
+  
+  // A bug in tcache.c
+  forceRemove = 0;
 
   SMnode    *pMnode = pShow->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
@@ -244,7 +247,7 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
   pMnodeMsg->pCont = pRsp;
   pMnodeMsg->contLen = size;
 
-  if (rowsToRead == 0 || (rowsRead == rowsToRead && pShow->numOfRows == pShow->numOfReads)) {
+  if (rowsRead == 0 || rowsToRead == 0 || (rowsRead == rowsToRead && pShow->numOfRows == pShow->numOfReads)) {
     pRsp->completed = 1;
     mDebug("show:%d, data:%p retrieve completed", pShow->id, pShow);
     mndReleaseShowObj(pShow, true);

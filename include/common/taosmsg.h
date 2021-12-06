@@ -418,10 +418,10 @@ typedef struct {
 } SDropSTableMsg;
 
 typedef struct SColIndex {
-  int16_t  colId;      // column id
-  int16_t  colIndex;   // column index in colList if it is a normal column or index in tagColList if a tag
-  uint16_t flag;       // denote if it is a tag or a normal column
-  char     name[TSDB_COL_NAME_LEN + TSDB_DB_NAME_LEN + 1];
+  int16_t colId;     // column id
+  int16_t colIndex;  // column index in colList if it is a normal column or index in tagColList if a tag
+  int16_t flag;      // denote if it is a tag or a normal column
+  char    name[TSDB_COL_NAME_LEN + TSDB_DB_NAME_LEN + 1];
 } SColIndex;
 
 typedef struct SColumnFilterInfo {
@@ -515,8 +515,8 @@ typedef struct {
   int16_t     numOfCols;        // the number of columns will be load from vnode
   SInterval   interval;
 //  SSessionWindow sw;            // session window
-  uint16_t    tagCondLen;       // tag length in current query
-  uint16_t    colCondLen;       // column length in current query
+  int16_t     tagCondLen;       // tag length in current query
+  int16_t     colCondLen;       // column length in current query
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
@@ -524,10 +524,10 @@ typedef struct {
   int16_t     prjOrder;         // global order in super table projection query.
   int64_t     limit;
   int64_t     offset;
-  uint32_t    queryType;        // denote another query process
+  int32_t     queryType;        // denote another query process
   int16_t     numOfOutput;      // final output columns numbers
   int16_t     fillType;         // interpolate type
-  uint64_t    fillVal;          // default value array list
+  int64_t     fillVal;          // default value array list
   int32_t     secondStageOutput;
   STsBufInfo  tsBuf;            // tsBuf info
   int32_t     numOfTags;        // number of tags columns involved
@@ -542,8 +542,11 @@ typedef struct {
 } SQueryTableMsg;
 
 typedef struct {
-  int32_t  code;
-  union{uint64_t qhandle; uint64_t qId;}; // query handle
+  int32_t code;
+  union {
+    uint64_t qhandle;
+    uint64_t qId;
+  };  // query handle
 } SQueryTableRsp;
 
 // todo: the show handle should be replaced with id
@@ -706,7 +709,7 @@ typedef struct {
 
 typedef struct {
   char     db[TSDB_FULL_DB_NAME_LEN];
-  uint32_t vgId;
+  int32_t  vgId;
   int32_t  cacheBlockSize;
   int32_t  totalBlocks;
   int32_t  daysPerFile;
@@ -784,14 +787,14 @@ typedef struct STableMetaMsg {
 } STableMetaMsg;
 
 typedef struct SMultiTableMeta {
-  int32_t       numOfTables;
-  int32_t       numOfVgroup;
-  int32_t       numOfUdf;
-  int32_t       contLen;
-  uint8_t       compressed;      // denote if compressed or not
-  uint32_t      rawLen;          // size before compress
-  uint8_t       metaClone;       // make meta clone after retrieve meta from mnode
-  char          meta[];
+  int32_t numOfTables;
+  int32_t numOfVgroup;
+  int32_t numOfUdf;
+  int32_t contLen;
+  int8_t  compressed;  // denote if compressed or not
+  int32_t rawLen;      // size before compress
+  uint8_t metaClone;   // make meta clone after retrieve meta from mnode
+  char    meta[];
 } SMultiTableMeta;
 
 typedef struct {
@@ -841,8 +844,8 @@ typedef struct {
 } SConfigTableMsg;
 
 typedef struct {
-  uint32_t dnodeId;
-  int32_t  vgId;
+  int32_t dnodeId;
+  int32_t vgId;
 } SConfigVnodeMsg;
 
 typedef struct {
@@ -851,29 +854,29 @@ typedef struct {
 } SCfgDnodeMsg;
 
 typedef struct {
-  char     sql[TSDB_SHOW_SQL_LEN];
-  uint32_t queryId;
-  int64_t  useconds;
-  int64_t  stime;
-  uint64_t qId;
-  uint64_t sqlObjId;
-  int32_t  pid;
-  char     fqdn[TSDB_FQDN_LEN];
-  uint8_t  stableQuery;
-  int32_t  numOfSub;
-  char     subSqlInfo[TSDB_SHOW_SUBQUERY_LEN]; //include subqueries' index, Obj IDs and states(C-complete/I-imcomplete)
+  char    sql[TSDB_SHOW_SQL_LEN];
+  int32_t queryId;
+  int64_t useconds;
+  int64_t stime;
+  int64_t qId;
+  int64_t sqlObjId;
+  int32_t pid;
+  char    fqdn[TSDB_FQDN_LEN];
+  int8_t  stableQuery;
+  int32_t numOfSub;
+  char    subSqlInfo[TSDB_SHOW_SUBQUERY_LEN];  // include subqueries' index, Obj IDs and states(C-complete/I-imcomplete)
 } SQueryDesc;
 
 typedef struct {
-  char     sql[TSDB_SHOW_SQL_LEN];
-  char     dstTable[TSDB_TABLE_NAME_LEN];
-  uint32_t streamId;
-  int64_t  num;  // number of computing/cycles
-  int64_t  useconds;
-  int64_t  ctime;
-  int64_t  stime;
-  int64_t  slidingTime;
-  int64_t  interval;
+  char    sql[TSDB_SHOW_SQL_LEN];
+  char    dstTable[TSDB_TABLE_NAME_LEN];
+  int32_t streamId;
+  int64_t num;  // number of computing/cycles
+  int64_t useconds;
+  int64_t ctime;
+  int64_t stime;
+  int64_t slidingTime;
+  int64_t interval;
 } SStreamDesc;
 
 typedef struct {
