@@ -78,14 +78,13 @@ class TDTestCase:
         tdSql.error("select * from jsons1 where jtag->''")
         tdSql.error("select * from jsons1 where jtag->''=9")
         tdSql.error("select -> from jsons1")
-        tdSql.error("select ? from jsons1")
-        tdSql.error("select * from jsons1 where ?")
+        tdSql.error("select * from jsons1 where contains")
         tdSql.error("select * from jsons1 where jtag->")
         tdSql.error("select jtag->location from jsons1")
-        tdSql.error("select jtag?location from jsons1")
-        tdSql.error("select * from jsons1 where jtag?location")
-        tdSql.error("select * from jsons1 where jtag?''")
-        tdSql.error("select * from jsons1 where jtag?'location'='beijing'")
+        tdSql.error("select jtag contains location from jsons1")
+        tdSql.error("select * from jsons1 where jtag contains location")
+        tdSql.error("select * from jsons1 where jtag contains''")
+        tdSql.error("select * from jsons1 where jtag contains 'location'='beijing'")
 
         # test select normal column
         tdSql.query("select dataint from jsons1")
@@ -246,12 +245,12 @@ class TDTestCase:
         tdSql.query("select * from jsons1 where jtag->'tag3' is not null")
         tdSql.checkRows(4)
 
-        # test ?
-        tdSql.query("select * from jsons1 where jtag?'tag1'")
+        # test contains
+        tdSql.query("select * from jsons1 where jtag contains 'tag1'")
         tdSql.checkRows(8)
-        tdSql.query("select * from jsons1 where jtag?'tag3'")
+        tdSql.query("select * from jsons1 where jtag contains 'tag3'")
         tdSql.checkRows(4)
-        tdSql.query("select * from jsons1 where jtag?'tag_no_exist'")
+        tdSql.query("select * from jsons1 where jtag contains 'tag_no_exist'")
         tdSql.checkRows(0)
 
         # test json tag in where condition with and/or
@@ -267,19 +266,19 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query("select * from jsons1 where jtag->'tag1'=13 or jtag->'tag2'>35")
         tdSql.checkRows(0)
-        tdSql.query("select * from jsons1 where jtag->'tag1' is not null and jtag?'tag3'")
+        tdSql.query("select * from jsons1 where jtag->'tag1' is not null and jtag contains 'tag3'")
         tdSql.checkRows(4)
-        tdSql.query("select * from jsons1 where jtag->'tag1'='femail' and jtag?'tag3'")
+        tdSql.query("select * from jsons1 where jtag->'tag1'='femail' and jtag contains 'tag3'")
         tdSql.checkRows(2)
 
         # test with tbname/normal column
         tdSql.query("select * from jsons1 where tbname = 'jsons1_1'")
         tdSql.checkRows(2)
-        tdSql.query("select * from jsons1 where tbname = 'jsons1_1' and jtag?'tag3'")
+        tdSql.query("select * from jsons1 where tbname = 'jsons1_1' and jtag contains 'tag3'")
         tdSql.checkRows(2)
-        tdSql.query("select * from jsons1 where tbname = 'jsons1_1' and jtag?'tag3' and dataint=3")
+        tdSql.query("select * from jsons1 where tbname = 'jsons1_1' and jtag contains 'tag3' and dataint=3")
         tdSql.checkRows(0)
-        tdSql.query("select * from jsons1 where tbname = 'jsons1_1' and jtag?'tag3' and dataint=23")
+        tdSql.query("select * from jsons1 where tbname = 'jsons1_1' and jtag contains 'tag3' and dataint=23")
         tdSql.checkRows(1)
 
 

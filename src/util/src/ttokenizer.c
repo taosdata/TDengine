@@ -231,7 +231,8 @@ static SKeyword keywordTable[] = {
     {"OUTPUTTYPE",   TK_OUTPUTTYPE},
     {"AGGREGATE",    TK_AGGREGATE},
     {"BUFSIZE",      TK_BUFSIZE},
-    {"RANGE",        TK_RANGE}
+    {"RANGE",        TK_RANGE},
+    {"CONTAINS",     TK_CONTAINS}
 };
 
 static const char isIdChar[] = {

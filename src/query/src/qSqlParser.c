@@ -387,7 +387,7 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
     pRSub->Expr.paramList = (SArray *)pRight;
 
     pExpr->pRight = pRSub;
-  } else if (optrType == TK_ARROW || optrType == TK_QUESTION) {
+  } else if (optrType == TK_ARROW || optrType == TK_CONTAINS) {
     pExpr->tokenId = optrType;
     pExpr->pLeft = pLeft;
     pExpr->pRight = pRight;

@@ -286,8 +286,8 @@ static uint8_t convertRelationalOperator(SStrToken *pToken) {
       return TSDB_RELATION_MATCH;
     case TK_NMATCH:
       return TSDB_RELATION_NMATCH;
-    case TK_QUESTION:
-      return TSDB_RELATION_QUESTION;
+    case TK_CONTAINS:
+      return TSDB_RELATION_CONTAINS;
     case TK_ARROW:
       return TSDB_RELATION_ARROW;
     case TK_ISNULL:
@@ -4743,7 +4743,7 @@ static int32_t validateJsonTagExpr(tSqlExpr* pExpr, char* msgBuf) {
   tSqlExpr* pLeft = pExpr->pLeft;
   tSqlExpr* pRight = pExpr->pRight;
 
-  if (pExpr->tokenId == TK_QUESTION) {
+  if (pExpr->tokenId == TK_CONTAINS) {
     if (pRight != NULL && !IS_VAR_DATA_TYPE(pRight->value.nType))
       return invalidOperationMsg(msgBuf, msg3);
 

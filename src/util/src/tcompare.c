@@ -544,7 +544,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
         comparFn = compareStrRegexCompNMatch;
       } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
         comparFn = compareWStrPatternComp;
-      } else if (optr == TSDB_RELATION_QUESTION) {
+      } else if (optr == TSDB_RELATION_CONTAINS) {
         comparFn = compareStrContainJson;
       } else {
         comparFn = compareJsonVal;

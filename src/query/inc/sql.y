@@ -11,7 +11,7 @@
 %left OR.
 %left AND.
 %right NOT.
-%left EQ NE ISNULL NOTNULL IS LIKE MATCH NMATCH GLOB BETWEEN IN.
+%left EQ NE ISNULL NOTNULL IS LIKE MATCH NMATCH CONTAINS GLOB BETWEEN IN.
 %left GT GE LT LE.
 %left BITAND BITOR LSHIFT RSHIFT.
 %left PLUS MINUS.
@@ -19,7 +19,7 @@
 %left STAR SLASH REM.
 %left CONCAT.
 %right UMINUS UPLUS BITNOT.
-%right QUESTION ARROW.
+%right ARROW.
 
 %include {
 #include <stdio.h>
@@ -651,10 +651,13 @@ sortlist(A) ::= arrow(Y) sortorder(Z). {
 }
 
 %type item {tVariant}
-item(A) ::= ID(X).  { toTSDBType(X.type); tVariantCreate(&A, &X, true); }
+item(A) ::= ID(X).   {
+  toTSDBType(X.type);
+  tVariantCreate(&A, &X, true);
+}
 item(A) ::= ID(X) DOT ID(Y).   {
   toTSDBType(X.type);
-  X.n += Y.n;
+  X.n += (1+Y.n);
   tVariantCreate(&A, &X, true);
 }
 
@@ -779,8 +782,9 @@ expr(A) ::= expr(X) LIKE expr(Y).    {A = tSqlExprCreate(X, Y, TK_LIKE);  }
 expr(A) ::= expr(X) MATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_MATCH);  }
 expr(A) ::= expr(X) NMATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_NMATCH);  }
 
-// question expression
-expr(A) ::= ID(X) QUESTION STRING(Y).    { tSqlExpr* S = tSqlExprCreateIdValue(pInfo, &X, TK_ID); tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Y, TK_STRING); A = tSqlExprCreate(S, M, TK_QUESTION);  }
+// contains expression
+expr(A) ::= ID(X) CONTAINS STRING(Y).    { tSqlExpr* S = tSqlExprCreateIdValue(pInfo, &X, TK_ID); tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Y, TK_STRING); A = tSqlExprCreate(S, M, TK_CONTAINS);  }
+expr(A) ::= ID(X) DOT ID(Y) CONTAINS STRING(Z).    { X.n += (1+Y.n); tSqlExpr* S = tSqlExprCreateIdValue(pInfo, &X, TK_ID); tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Z, TK_STRING); A = tSqlExprCreate(S, M, TK_CONTAINS);  }
 
 // arrow expression
 %type arrow {tSqlExpr*}

@@ -37,7 +37,7 @@ OptrStr gOptrStr[] = {
   {TSDB_RELATION_NOT,                      "not"},
   {TSDB_RELATION_MATCH,                    "match"},
   {TSDB_RELATION_NMATCH,                   "nmatch"},
-  {TSDB_RELATION_QUESTION,                 "?"},
+  {TSDB_RELATION_CONTAINS,                 "contains"},
 };
 
 static FORCE_INLINE int32_t filterFieldColDescCompare(const void *desc1, const void *desc2) {
@@ -244,7 +244,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
         comparFn = 20;
       } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
         comparFn = 9;
-      } else if (optr == TSDB_RELATION_QUESTION) {
+      } else if (optr == TSDB_RELATION_CONTAINS) {
         comparFn = 21;
       } else {
         comparFn = 22;
@@ -1193,7 +1193,7 @@ static int32_t filterDealJson(SFilterInfo *info, tExprNode* tree, tExprNode** pL
     uint32_t nullData = TSDB_DATA_JSON_NULL;
     jsonKeyMd5(&nullData, INT_BYTES, keyMd5);
     memcpy(schema->name, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN);
-  }else if(tree->_node.optr == TSDB_RELATION_QUESTION){
+  }else if(tree->_node.optr == TSDB_RELATION_CONTAINS){
     SSchema* schema = (*pLeft)->pSchema;
     if(tree->_node.pRight->pVal->nLen > TSDB_MAX_JSON_KEY_LEN) return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
@@ -1945,7 +1945,7 @@ bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right) 
     case TSDB_RELATION_MATCH: {
       return ret == 0;
     }
-    case TSDB_RELATION_QUESTION: {
+    case TSDB_RELATION_CONTAINS: {
       return ret == 0;
     }
     case TSDB_RELATION_NMATCH: {
@@ -2718,7 +2718,7 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SDataStatis *pDataStatis, int32_t
 
     if (cunit->optr == TSDB_RELATION_ISNULL || cunit->optr == TSDB_RELATION_NOTNULL
      || cunit->optr == TSDB_RELATION_IN || cunit->optr == TSDB_RELATION_LIKE || cunit->optr == TSDB_RELATION_MATCH
-     || cunit->optr == TSDB_RELATION_NOT_EQUAL || cunit->optr == TSDB_RELATION_QUESTION) {
+     || cunit->optr == TSDB_RELATION_NOT_EQUAL || cunit->optr == TSDB_RELATION_CONTAINS) {
       continue;
     }
 
@@ -3600,7 +3600,7 @@ int32_t filterIsIndexedColumnQuery(SFilterInfo* info, int32_t idxId, bool *res) 
   int32_t optr = FILTER_UNIT_OPTR(info->units);
   
   CHK_JMP(optr == TSDB_RELATION_LIKE || optr == TSDB_RELATION_IN || optr == TSDB_RELATION_MATCH 
-       || optr == TSDB_RELATION_ISNULL || optr == TSDB_RELATION_NOTNULL || optr == TSDB_RELATION_QUESTION);
+       || optr == TSDB_RELATION_ISNULL || optr == TSDB_RELATION_NOTNULL || optr == TSDB_RELATION_CONTAINS);
 
   *res = true;
 

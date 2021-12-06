@@ -40,29 +40,29 @@
 #define TK_LIKE                            22
 #define TK_MATCH                           23
 #define TK_NMATCH                          24
-#define TK_GLOB                            25
-#define TK_BETWEEN                         26
-#define TK_IN                              27
-#define TK_GT                              28
-#define TK_GE                              29
-#define TK_LT                              30
-#define TK_LE                              31
-#define TK_BITAND                          32
-#define TK_BITOR                           33
-#define TK_LSHIFT                          34
-#define TK_RSHIFT                          35
-#define TK_PLUS                            36
-#define TK_MINUS                           37
-#define TK_DIVIDE                          38
-#define TK_TIMES                           39
-#define TK_STAR                            40
-#define TK_SLASH                           41
-#define TK_REM                             42
-#define TK_CONCAT                          43
-#define TK_UMINUS                          44
-#define TK_UPLUS                           45
-#define TK_BITNOT                          46
-#define TK_QUESTION                        47
+#define TK_CONTAINS                        25
+#define TK_GLOB                            26
+#define TK_BETWEEN                         27
+#define TK_IN                              28
+#define TK_GT                              29
+#define TK_GE                              30
+#define TK_LT                              31
+#define TK_LE                              32
+#define TK_BITAND                          33
+#define TK_BITOR                           34
+#define TK_LSHIFT                          35
+#define TK_RSHIFT                          36
+#define TK_PLUS                            37
+#define TK_MINUS                           38
+#define TK_DIVIDE                          39
+#define TK_TIMES                           40
+#define TK_STAR                            41
+#define TK_SLASH                           42
+#define TK_REM                             43
+#define TK_CONCAT                          44
+#define TK_UMINUS                          45
+#define TK_UPLUS                           46
+#define TK_BITNOT                          47
 #define TK_ARROW                           48
 #define TK_SHOW                            49
 #define TK_DATABASES                       50
@@ -225,6 +225,7 @@
 #define TK_HEX                            303   // hex number  0x123
 #define TK_OCT                            304   // oct number
 #define TK_BIN                            305   // bin format data 0b111
+#define TK_QUESTION                       307   // denoting the placeholder of "?",when invoking statement bind query
 
 #endif
 
