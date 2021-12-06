@@ -20,6 +20,17 @@
 #include "dnode.h"
 #include "vnodeCfg.h"
 
+static int32_t keepCompar(const void *lhs, const void *rhs) {
+  int32_t left = *(int32_t *)lhs;
+  int32_t right = *(int32_t *)rhs;
+
+  if (left == right) {
+    return 0;
+  } else {
+    return left > right ? 1 : -1;
+  }
+}
+
 static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
   tstrncpy(pVnode->db, vnodeMsg->db, sizeof(pVnode->db));
   pVnode->dbCfgVersion = vnodeMsg->cfg.dbCfgVersion;
@@ -34,10 +45,11 @@ static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
   if (pVnode->tsdbCfg.keep > pVnode->tsdbCfg.keep1 || pVnode->tsdbCfg.keep1 > pVnode->tsdbCfg.keep2) {
     // old keep config version, fix it in new version format
     vInfo("before vgId:%d, vnodeLoadCfg, keep:%d,%d,%d", pVnode->vgId, pVnode->tsdbCfg.keep,pVnode->tsdbCfg.keep1,pVnode->tsdbCfg.keep2);
-    int32_t bakKeep = pVnode->tsdbCfg.keep;
-    pVnode->tsdbCfg.keep = pVnode->tsdbCfg.keep1;
-    pVnode->tsdbCfg.keep1 = pVnode->tsdbCfg.keep2;
-    pVnode->tsdbCfg.keep2 = bakKeep;
+    int32_t bakKeep[3] = {pVnode->tsdbCfg.keep,pVnode->tsdbCfg.keep1,pVnode->tsdbCfg.keep2};
+    qsort(&bakKeep[0], 3, sizeof(int32_t), keepCompar);
+    pVnode->tsdbCfg.keep = bakKeep[0];
+    pVnode->tsdbCfg.keep1 = bakKeep[1];
+    pVnode->tsdbCfg.keep2 = bakKeep[2];
     vInfo("after vgId:%d, vnodeLoadCfg, keep:%d,%d,%d", pVnode->vgId, pVnode->tsdbCfg.keep,pVnode->tsdbCfg.keep1,pVnode->tsdbCfg.keep2);
     vnodeMsg->cfg.daysToKeep = pVnode->tsdbCfg.keep;
     vnodeMsg->cfg.daysToKeep1 = pVnode->tsdbCfg.keep1;
