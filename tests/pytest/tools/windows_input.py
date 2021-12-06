@@ -57,7 +57,7 @@ class TDTestCase:
         sql = "insert into db.tb values(now,'%s');" % temp
         window.SendKeys(sql)
         window.SendKeys('{Enter}')
-        sql = "select * from db.tb"
+        sql = "select * from db.tb;"
         window.SendKeys('{Enter}')
         time.sleep(1)
         window.SendKeys('{Ctrl}A')
@@ -74,10 +74,11 @@ class TDTestCase:
         tdSql.prepare()
 
         ret = tdSql.execute('create table db.tb (ts timestamp, i binary(300))')
-
+        tdSql.execute("insert into db.tb values(now,'sdfsdf'")
         result = self.win_input_test()
         tdLog.info(result)
         time.sleep(5)
+
         l = tdSql.query("select * from db.tb")
         print(l)
         tdSql.checkRows(1)
