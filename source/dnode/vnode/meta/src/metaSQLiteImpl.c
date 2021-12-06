@@ -16,20 +16,30 @@
 #include "metaDef.h"
 #include "sqlite3.h"
 
+struct SMetaDB {
+  sqlite3 *pDB;
+};
+
 int metaOpenDB(SMeta *pMeta) {
   char  dir[128];
   int   rc;
   char *err = NULL;
 
+  pMeta->pDB = (SMetaDB *)calloc(1, sizeof(SMetaDB));
+  if (pMeta->pDB == NULL) {
+    // TODO: handle error
+    return -1;
+  }
+
   sprintf(dir, "%s/meta.db", pMeta->path);
-  rc = sqlite3_open(dir, &(pMeta->pDB));
+  rc = sqlite3_open(dir, &(pMeta->pDB->pDB));
   if (rc != SQLITE_OK) {
     // TODO: handle error
     printf("failed to open meta.db\n");
   }
 
   // For all tables
-  rc = sqlite3_exec(pMeta->pDB,
+  rc = sqlite3_exec(pMeta->pDB->pDB,
                     "CREATE TABLE IF NOT EXISTS tb ("
                     "  tbname VARCHAR(256) NOT NULL UNIQUE,"
                     "  tb_uid INTEGER NOT NULL UNIQUE "
@@ -41,7 +51,7 @@ int metaOpenDB(SMeta *pMeta) {
   }
 
   // For super tables
-  rc = sqlite3_exec(pMeta->pDB,
+  rc = sqlite3_exec(pMeta->pDB->pDB,
                     "CREATE TABLE IF NOT EXISTS stb ("
                     "    tb_uid INTEGER NOT NULL UNIQUE,"
                     "    tbname VARCHAR(256) NOT NULL UNIQUE,"
@@ -55,7 +65,7 @@ int metaOpenDB(SMeta *pMeta) {
   }
 
   // For normal tables
-  rc = sqlite3_exec(pMeta->pDB,
+  rc = sqlite3_exec(pMeta->pDB->pDB,
                     "CREATE TABLE IF NOT EXISTS ntb ("
                     "    tb_uid INTEGER NOT NULL UNIQUE,"
                     "    tbname VARCHAR(256) NOT NULL,"
@@ -67,7 +77,7 @@ int metaOpenDB(SMeta *pMeta) {
     printf("failed to create meta table ntb since %s\n", err);
   }
 
-  sqlite3_exec(pMeta->pDB, "BEGIN;", NULL, NULL, &err);
+  sqlite3_exec(pMeta->pDB->pDB, "BEGIN;", NULL, NULL, &err);
 
   tfree(err);
 
@@ -76,8 +86,9 @@ int metaOpenDB(SMeta *pMeta) {
 
 void metaCloseDB(SMeta *pMeta) {
   if (pMeta->pDB) {
-    sqlite3_exec(pMeta->pDB, "BEGIN;", NULL, NULL, NULL);
-    sqlite3_close(pMeta->pDB);
+    sqlite3_exec(pMeta->pDB->pDB, "COMMIT;", NULL, NULL, NULL);
+    sqlite3_close(pMeta->pDB->pDB);
+    free(pMeta->pDB);
     pMeta->pDB = NULL;
   }
 
@@ -102,7 +113,7 @@ int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions) {
       //              "    tag1 INTEGER"
       //              ");"
       //              "CREATE INDEX IF NOT EXISTS stb_%" PRIu64 "_tag1_idx ON stb_1638517480 (tag1);");
-      rc = sqlite3_exec(pMeta->pDB, sql, NULL, NULL, &err);
+      rc = sqlite3_exec(pMeta->pDB->pDB, sql, NULL, NULL, &err);
       if (rc != SQLITE_OK) {
         printf("failed to create normal table since %s\n", err);
       }
@@ -111,7 +122,7 @@ int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions) {
       // sprintf(sql, "INSERT INTO tb VALUES (\'%s\', %" PRIu64
       //              ");"
       //              "INSERT INTO ntb VALUES (%" PRIu64 ", \'%s\', );");
-      rc = sqlite3_exec(pMeta->pDB, sql, NULL, NULL, &err);
+      rc = sqlite3_exec(pMeta->pDB->pDB, sql, NULL, NULL, &err);
       if (rc != SQLITE_OK) {
         printf("failed to create normal table since %s\n", err);
       }
@@ -120,7 +131,7 @@ int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions) {
       // sprintf(sql, "INSERT INTO tb VALUES (\'%s\', %" PRIu64
       //              ");"
       //              "INSERT INTO stb_%" PRIu64 " VALUES (%" PRIu64 ", \'%s\', );");
-      rc = sqlite3_exec(pMeta->pDB, sql, NULL, NULL, &err);
+      rc = sqlite3_exec(pMeta->pDB->pDB, sql, NULL, NULL, &err);
       if (rc != SQLITE_OK) {
         printf("failed to create child table since %s\n", err);
       }
