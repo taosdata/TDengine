@@ -73,7 +73,7 @@ class TDTestCase:
         
 
         # insert data
-        os.system("%staosdemo -f tools/taosdemoAllTest/taosdemoTestNanoDatabaseInsertForSub.json" % binPath)
+        os.system("taosdemo -f tools/taosdemoAllTest/taosdemoTestNanoDatabaseInsertForSub.json" % binPath)
         os.system("nohup %staosdemo -f tools/taosdemoAllTest/taosdemoTestSupportNanoSubscribe.json &" % binPath)
         query_pid = int(subprocess.getstatusoutput('ps aux|grep "taosdemoAllTest/taosdemoTestSupportNanoSubscribe.json" |grep -v "grep"|awk \'{print $2}\'')[1])
 

@@ -56,7 +56,7 @@ class TDTestCase:
         #print("==============taosdemo,#create stable,table; insert table; show table; select table; drop table")
         self.tsdemo = "tsdemo~!.@#$%^*[]-_=+{,?.}"
         #this escape character is not support in shell  . include  & () <> | /
-        os.system("%staosdemo -d test -E -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
+        os.system("taosdemo -d test -E -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
         tdSql.execute("use test ;" )
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, 1000)
@@ -91,14 +91,14 @@ class TDTestCase:
         tdSql.error("select * from test.`%s2` ; " %self.tsdemo)
 
         # Exception
-        os.system("%staosdemo -d test -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
+        os.system("taosdemo -d test -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
         tdSql.query("show test.tables ")
         tdSql.checkRows(0)
 
         #print("==============taosdemo,#create regular table; insert table; show table; select table; drop table")
         self.tsdemo = "tsdemo~!.@#$%^*[]-_=+{,?.}"
         #this escape character is not support in shell  . include  & () <> | /
-        os.system("%staosdemo -N -E -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
+        os.system("taosdemo -N -E -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
         tdSql.execute("use test ;" )
         tdSql.query("select count(*) from `%s1`" %self.tsdemo)
         tdSql.checkData(0, 0, 100)
@@ -125,13 +125,13 @@ class TDTestCase:
         tdSql.checkRows(9)
 
         # Exception
-        os.system("%staosdemo -N -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
+        os.system("taosdemo -N -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
         tdSql.query("show test.tables ")
         tdSql.checkRows(0)
 
 
         #print("==============taosdemo——json_yes,#create stable,table; insert table; show table; select table; drop table")
-        os.system("%staosdemo -f tools/taosdemoAllTest/TD-10539/create_taosdemo_yes.json -y " % binPath)
+        os.system("taosdemo -f tools/taosdemoAllTest/TD-10539/create_taosdemo_yes.json -y " % binPath)
         tdSql.execute("use dbyes")
 
         self.tsdemo_stable = "tsdemo_stable~!.@#$%^*[]-_=+{,?.}"
@@ -171,7 +171,7 @@ class TDTestCase:
        
         #print("==============taosdemo——json_no,#create stable,table; insert table; show table; select table; drop table")
 
-        os.system("%staosdemo -f tools/taosdemoAllTest/TD-10539/create_taosdemo_no.json -y " % binPath) 
+        os.system("taosdemo -f tools/taosdemoAllTest/TD-10539/create_taosdemo_no.json -y " % binPath) 
         tdSql.query("show dbno.tables;")
         tdSql.checkRows(0)
         

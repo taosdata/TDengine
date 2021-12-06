@@ -74,7 +74,7 @@ class TDTestCase:
         os.system("rm -rf ./all_subscribe_res*") 
         sleep(2)
         # subscribe: sync 
-        os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdata.json" % binPath)
+        os.system("taosdemo -f tools/taosdemoAllTest/subInsertdata.json" % binPath)
         os.system("nohup %staosdemo -f tools/taosdemoAllTest/subSync.json &" % binPath)
         query_pid = int(subprocess.getstatusoutput('ps aux|grep "taosdemoAllTest/subSync.json" |grep -v "grep"|awk \'{print $2}\'')[1])
 
@@ -112,14 +112,14 @@ class TDTestCase:
         os.system("rm -rf ./all_subscribe*")
   
         # # sql number lager  100
-        os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
-        assert os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSpecMaxsql100.json" % binPath) != 0
-        assert os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSuperMaxsql100.json" % binPath) != 0
+        os.system("taosdemo -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
+        assert os.system("taosdemo -f tools/taosdemoAllTest/subSyncSpecMaxsql100.json" % binPath) != 0
+        assert os.system("taosdemo -f tools/taosdemoAllTest/subSyncSuperMaxsql100.json" % binPath) != 0
 
         # # result files is null
-        # os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
-        # os.system("%staosdemo -f tools/taosdemoAllTest/subSyncResFileNull.json" % binPath)
-        # # assert os.system("%staosdemo -f tools/taosdemoAllTest/subSyncResFileNull.json" % binPath) != 0
+        # os.system("taosdemo -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
+        # os.system("taosdemo -f tools/taosdemoAllTest/subSyncResFileNull.json" % binPath)
+        # # assert os.system("taosdemo -f tools/taosdemoAllTest/subSyncResFileNull.json" % binPath) != 0
 
 
 
@@ -144,7 +144,7 @@ class TDTestCase:
         os.system("rm -rf ./subscribe_res*")   
 
         # # resubAfterConsume= -1 endAfter=0 ;
-        # os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
+        # os.system("taosdemo -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
         # os.system('kill -9 `ps aux|grep "subSyncResubACMinus1endAfter0.json" |grep -v "grep"|awk \'{print $2}\'` ')
         # os.system("nohup %staosdemo -f tools/taosdemoAllTest/Resubjson/subSyncResubACMinus1endAfter0.json & " % binPath)
         # sleep(2)
@@ -185,8 +185,8 @@ class TDTestCase:
         # self.assertCheck("all_subscribe_res2.txt",subTimes2 ,1900)
 
 
-        # os.system("%staosdemo -f tools/taosdemoAllTest/subSupermaxsql100.json" % binPath)
-        # os.system("%staosdemo -f tools/taosdemoAllTest/subSupermaxsql100.json" % binPath)
+        # os.system("taosdemo -f tools/taosdemoAllTest/subSupermaxsql100.json" % binPath)
+        # os.system("taosdemo -f tools/taosdemoAllTest/subSupermaxsql100.json" % binPath)
 
 
         
