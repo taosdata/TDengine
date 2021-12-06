@@ -402,7 +402,7 @@ pipeline {
         stage('build'){
           agent{label " wintest "}
           steps {
-            pre_test()
+
             script{             
                 while(win_stop == 0){
                   sleep(1)
