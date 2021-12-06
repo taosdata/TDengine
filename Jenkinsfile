@@ -553,7 +553,7 @@ pipeline {
               '''
               sh '''
               cd ${WKC}/src/connector/jdbc
-              ./test-all.sh full jdbc
+              ${WKC}/tests/test-all.sh full jdbc
               '''
               // cd ${WKC}/tests
               // ./test-all.sh full jdbc
