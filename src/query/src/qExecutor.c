@@ -9373,3 +9373,49 @@ void freeQueryAttr(SQueryAttr* pQueryAttr) {
   }
 }
 
+void qInfoLogSSDataBlock(SSDataBlock* block) {
+  if (block == NULL) {
+    qInfo("SSDataBlock : NULL");
+    return;
+  }
+
+  qInfo("SSDataBlock rows:%d, cols:%d, tid:%d, uid:%" PRId64 ", skey:%" PRId64 ", ekey:%" PRId64, block->info.rows,
+        block->info.numOfCols, block->info.tid, block->info.uid, block->info.window.skey, block->info.window.ekey);
+  if (block->pBlockStatis != NULL) {
+    qInfo("SSDataBlock statics: null %d, max %" PRId64 ", min %" PRId64
+          ", colId %d, maxIndex %d, minIndex %d, colId %d, sum %" PRId64,
+          block->pBlockStatis->numOfNull, block->pBlockStatis->max, block->pBlockStatis->min,
+          block->pBlockStatis->colId, block->pBlockStatis->maxIndex, block->pBlockStatis->minIndex,
+          block->pBlockStatis->colId, block->pBlockStatis->sum);
+  }
+
+  for (int i = 0; i < block->info.numOfCols; ++i) {
+    SColumnInfoData* infoData = taosArrayGet(block->pDataBlock, i);
+    qInfo("column %d, bytes %d, colId %d, type %d", i, infoData->info.bytes, infoData->info.colId, infoData->info.type);
+    for (int j = 0; j < block->info.rows; ++j) {
+      if (IS_SIGNED_NUMERIC_TYPE(infoData->info.type)) {
+        int64_t v;
+        GET_TYPED_DATA(v, int64_t, infoData->info.type, infoData->pData + j * infoData->info.bytes);
+        qInfo("%d, %" PRId64, j, v);
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(infoData->info.type)) {
+        uint64_t v;
+        GET_TYPED_DATA(v, uint64_t, infoData->info.type, infoData->pData + j * infoData->info.bytes);
+        qInfo("%d, %" PRIu64, j, v);
+      } else if (IS_FLOAT_TYPE(infoData->info.type)) {
+        double v;
+        GET_TYPED_DATA(v, double, infoData->info.type, infoData->pData + j * infoData->info.bytes);
+        qInfo("%d, %lf", j, v);
+      } else if (infoData->info.type == TSDB_DATA_TYPE_BOOL) {
+        bool v;
+        GET_TYPED_DATA(v, bool, infoData->info.type, infoData->pData + j * infoData->info.bytes);
+        qInfo("%d, %s", j, v ? "true" : "false");
+      } else if (infoData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        int64_t v;
+        GET_TYPED_DATA(v, int64_t, infoData->info.type, infoData->pData + j * infoData->info.bytes);
+        qInfo("%d, %" PRId64, j, v);
+      } else {
+        qInfo("can not print binary or nchar");
+      }
+    }
+  }
+}

@@ -717,4 +717,5 @@ int32_t getMaximumIdleDurationSec();
 void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
 int32_t getColumnDataFromId(void *param, int32_t id, void **data);
 
+void qInfoLogSSDataBlock(SSDataBlock* block);
 #endif  // TDENGINE_QEXECUTOR_H

@@ -28,6 +28,7 @@ print execute sql select sqrt(c1 + c2) from tb1;
 sql_error select sqrt(c1 + c2) from tb1;
 print execute sql select sqrt(13) from tb1;
 sql select sqrt(13) from tb1;
+print $data00
 if $data00 != @3.605551275@ then
   return -1 
 endi
@@ -595,58 +596,58 @@ if $data80 != @1.414213562@ then
   return -1 
 endi
 endi
-print execute sql select sqrt(c4),t1 from stb1 order by ts desc;
-#sql select sqrt(c4),t1 from stb1 order by ts desc;
-#if $data00 != @2.645751311@ then
-#if $data00 != @-nan@ then
-#  return -1 
-#endi
-#endi
-#if $data01 != @2@ then
-#if $data01 != @1@ then
-#endi
-#  return -1 
-#endi
-#if $data20 != @2.449489743@ then
-#if $data20 != @46340.950001052@ then
-#  return -1 
-#endi
-#endi
-#if $data21 != @2@ then
-#if $data21 != @1@ then
-#  return -1 
-#endi
-#endi
-#if $data40 != @2.236067977@ then
-#if $data40 != @2.000000000@ then
-#  return -1 
-#endi
-#endi
-#if $data41 != @2@ then
-#if $data41 != @1@ then
-#  return -1 
-#endi
-#endi
-#if $data60 != @2.000000000@ then
-#if $data60 != NULL then
-#  return -1 
-#endi
-#endi
-#if $data61 != @2@ then
-#if $data61 != @1@ then
-#  return -1 
-#endi
-#endi
-#if $data80 != @1.414213562@ then
-#if $data80 != @1.414213562@ then
-#  return -1 
-#endi
-#endi
-#if $data81 != @2@ then
-#if $data81 != @1@ then
-#  return -1 
-#endi
-#endi
+print execute sql select sqrt(c4),t1,c4 from stb1 order by ts desc;
+sql select sqrt(c4),t1,c4 from stb1 order by ts desc;
+if $data00 != @2.645751311@ then
+if $data00 != @-nan@ then
+  return -1 
+endi
+endi
+if $data01 != @2@ then
+if $data01 != @1@ then
+  return -1 
+endi
+endi
+if $data20 != @2.449489743@ then
+if $data20 != @46340.950001052@ then
+  return -1 
+endi
+endi
+if $data21 != @2@ then
+if $data21 != @1@ then
+  return -1 
+endi
+endi
+if $data40 != @2.236067977@ then
+if $data40 != @2.000000000@ then
+  return -1 
+endi
+endi
+if $data41 != @2@ then
+if $data41 != @1@ then
+  return -1 
+endi
+endi
+if $data60 != @2.000000000@ then
+if $data60 != NULL then
+  return -1 
+endi
+endi
+if $data61 != @2@ then
+if $data61 != @1@ then
+  return -1 
+endi
+endi
+if $data80 != @1.414213562@ then
+if $data80 != @1.414213562@ then
+  return -1 
+endi
+endi
+if $data81 != @2@ then
+if $data81 != @1@ then
+  return -1 
+endi
+endi
 print execute sql select sqrt(c3),tbname from stb1;
 sql select sqrt(c3),tbname from stb1;
 if $data00 != @1.000000000@ then
@@ -1073,111 +1074,3 @@ endi
 if $data90 != @1.732050808@ then
   return -1 
 endi
-print execute sql select sqrt(stb1.c4),sqrt(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
-#sql select sqrt(stb1.c4),sqrt(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
-#if $data00 != @1.000000000@ then
-#  return -1 
-#endi
-#if $data01 != @1.000000000@ then
-#  return -1 
-#endi
-#if $data10 != NULL then
-#  return -1 
-#endi
-#if $data11 != @1.414213562@ then
-#  return -1 
-#endi
-#if $data20 != @1.414213562@ then
-#  return -1 
-#endi
-#if $data21 != @1.732050808@ then
-#  return -1 
-#endi
-#if $data30 != NULL then
-#  return -1 
-#endi
-#if $data31 != @2.000000000@ then
-#  return -1 
-#endi
-#if $data40 != @2.000000000@ then
-#  return -1 
-#endi
-#if $data41 != @2.236067977@ then
-#  return -1 
-#endi
-#if $data50 != @46340.950001052@ then
-#  return -1 
-#endi
-#if $data51 != @2.449489743@ then
-#  return -1 
-#endi
-#if $data60 != @-nan@ then
-#  return -1 
-#endi
-#if $data61 != @2.645751311@ then
-#  return -1 
-#endi
-#print execute sql select sqrt(c4) as a from stb1 union all select sqrt(c5) as a from stba;
-#sql select sqrt(c4) as a from stb1 union all select sqrt(c5) as a from stba;
-#if $data00 != @1.000000000@ then
-#  return -1 
-#endi
-#if $data10 != NULL then
-#  return -1 
-#endi
-#if $data20 != @1.414213562@ then
-#  return -1 
-#endi
-#if $data30 != NULL then
-#  return -1 
-#endi
-#if $data40 != @2.000000000@ then
-#  return -1 
-#endi
-#if $data50 != @46340.950001052@ then
-#  return -1 
-#endi
-#if $data60 != @-nan@ then
-#  return -1 
-#endi
-#if $data70 != @1.000000000@ then
-#  return -1 
-#endi
-#if $data80 != @1.414213562@ then
-#  return -1 
-#endi
-#if $data90 != @1.414213562@ then
-#  return -1 
-#endi
-#print execute sql select sqrt(c2) from stba;
-#sql select sqrt(c2) from stba;
-#if $data00 != @1.000000000@ then
-#  return -1 
-#endi
-#if $data10 != @1.414213562@ then
-#  return -1 
-#endi
-#if $data20 != @1.732050808@ then
-#  return -1 
-#endi
-#if $data30 != @2.000000000@ then
-#  return -1 
-#endi
-#if $data40 != @2.236067977@ then
-#  return -1 
-#endi
-#if $data50 != @2.449489743@ then
-#  return -1 
-#endi
-#if $data60 != @2.645751311@ then
-#  return -1 
-#endi
-#if $data70 != @2.828427125@ then
-#  return -1 
-#endi
-#if $data80 != @3.000000000@ then
-#  return -1 
-#endi
-#if $data90 != @0.000000000@ then
-#  return -1 
-#endi

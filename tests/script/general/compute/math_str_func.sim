@@ -99,7 +99,7 @@ sql insert into tba1 values ('2021-11-11 09:00:28',true, 9,9,9,9,9,9,"999","9999
 sql insert into tba1 values ('2021-11-11 09:00:29',true, 0,0,0,0,0,0,"000","0000",0,0,0,0);
 
 run general/compute/math_str_query1.sim
-#run general/compute/math_str_query2.sim
+run general/compute/math_str_query2.sim
 #run general/compute/math_str_query3.sim
 
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT
