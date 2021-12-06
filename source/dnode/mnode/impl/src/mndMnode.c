@@ -137,4 +137,24 @@ bool mndIsMnode(SMnode *pMnode, int32_t dnodeId) {
   return true;
 }
 
-void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {}
+void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
+  SSdb *pSdb = pMnode->pSdb;
+
+  pEpSet->numOfEps = 0;
+
+  void *pIter = NULL;
+  while (1) {
+    SMnodeObj *pMnodeObj = NULL;
+    pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pMnodeObj);
+    if (pIter == NULL) break;
+    if (pMnodeObj->pDnode == NULL) break;
+
+    pEpSet->port[pEpSet->numOfEps] = htons(pMnodeObj->pDnode->port);
+    tstrncpy(pEpSet->fqdn[pEpSet->numOfEps], pMnodeObj->pDnode->fqdn, TSDB_FQDN_LEN);
+    if (pMnodeObj->role == TAOS_SYNC_STATE_LEADER) {
+      pEpSet->inUse = pEpSet->numOfEps;
+    }
+
+    pEpSet->numOfEps++;
+  }
+}
