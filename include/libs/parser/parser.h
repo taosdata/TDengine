@@ -86,7 +86,7 @@ typedef struct SQueryStmtInfo {
   SLimit           slimit;
   STagCond         tagCond;
   SArray *         colCond;
-  SOrder           order;
+  SArray *         order;
   int16_t          numOfTables;
   int16_t          curTableIdx;
   STableMetaInfo **pTableMetaInfo;
@@ -108,10 +108,10 @@ typedef struct SQueryStmtInfo {
   SArray          *pUdfInfo;
 
   struct SQueryStmtInfo *sibling;     // sibling
-  SArray            *pUpstream;   // SArray<struct SQueryStmtInfo>
   struct SQueryStmtInfo *pDownstream;
+  SMultiFunctionsDesc    info;
+  SArray            *pUpstream;   // SArray<struct SQueryStmtInfo>
   int32_t            havingFieldNum;
-  SMultiFunctionsDesc     info;
   int32_t            exprListLevelIndex;
 } SQueryStmtInfo;
 
@@ -176,6 +176,7 @@ typedef struct SSourceParam {
 
 SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, const char* funcName, SSourceParam* pSource, SSchema* pResSchema, int16_t interSize);
 int32_t copyExprInfoList(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
+int32_t getExprFunctionLevel(SQueryStmtInfo* pQueryInfo);
 
 STableMetaInfo* getMetaInfo(SQueryStmtInfo* pQueryInfo, int32_t tableIndex);
 SSchema *getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex);

@@ -75,6 +75,11 @@ int32_t tsCompressMsgSize = -1;
  */
 int32_t tsCompressColData = -1;
 
+/*
+ * denote if 3.0 query pattern compatible for 2.0
+ */
+int32_t tsCompatibleModel = 1;
+
 // client
 int32_t tsMaxSQLStringLen = TSDB_MAX_ALLOWED_SQL_LEN;
 int32_t tsMaxWildCardsLen = TSDB_PATTERN_STRING_DEFAULT_LEN;
