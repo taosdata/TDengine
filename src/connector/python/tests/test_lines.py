@@ -36,7 +36,6 @@ def test_insert_lines(conn):
         conn.insert_lines(lines)
         print("inserted")
         result = conn.query("select * from st")
-        print(*result.fields)
         all = result.rows_iter()
         for row in all:
             print(row)

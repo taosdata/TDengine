@@ -15,6 +15,7 @@ import os
 from uiautomation import WindowControl
 from util.cases import *
 from util.sql import *
+import clipboard
 
 
 class TDTestCase:
@@ -55,16 +56,22 @@ class TDTestCase:
         sql = "insert into db.tb values(now,'%s');" % temp
         window.SendKeys(sql)
         window.SendKeys('{Enter}')
+        window.SendKeys('{Ctrl}A')
+        window.SendKeys('{Ctrl}C')
+        # 获取剪切板里面的复制内容
+        result = clipboard.paste()
         window.SendKeys('{Ctrl}C')
         window.SendKeys('exit')
         window.SendKeys('{Enter}')
+        return result
 
     def run(self):
         tdSql.prepare()
 
         ret = tdSql.execute('create table tb (ts timestamp, i binary(300))')
 
-        self.win_input_test()
+        result = self.win_input_test()
+        tdLog.info(result)
 
         tdSql.query("select * from tb")
         tdSql.checkRows(1)
