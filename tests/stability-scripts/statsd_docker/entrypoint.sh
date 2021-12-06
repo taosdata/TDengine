@@ -1,0 +1,8 @@
+#!/bin/bash
+sed -i 's/TaosadapterIp/'$TaosadapterIp'/g;s/TaosadapterPort/'$TaosadapterPort'/g;' /root/statsd/config.js
+nohup node /root/statsd/stats.js /root/statsd/config.js &
+for i in `seq 1 100`;
+do
+	echo "sample.gauge'$i':5|c" | nc -w 1 -u 127.0.0.1 8125
+done
+tail -f /dev/null
