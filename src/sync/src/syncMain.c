@@ -568,7 +568,7 @@ static void syncClosePeerConn(SSyncPeer *pPeer) {
   taosTmrStopA(&pPeer->timer);
 
   if (taosCloseSocket(pPeer->syncFd) != 0) {
-    exit(4);
+    exit(false);
   }
   if (pPeer->peerFd >= 0) {
     pPeer->peerFd = -1;
@@ -896,7 +896,7 @@ static void syncRestartPeer(SSyncPeer *pPeer) {
   if (pPeer->nodeId == 0 || ret > 0 || (ret == 0 && pPeer->port > tsSyncPort)) {
     sDebug("%s, check peer connection in 1000 ms", pPeer->id);
     if (!taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer)) {
-      exit(3);
+      assert(false);
     }
   }
 }

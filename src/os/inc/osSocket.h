@@ -39,7 +39,7 @@ static FORCE_INLINE int32_t taosCloseSocket(int x) {
     x = ((int32_t)-1);
   }
   if (ret != 0) {
-    exit(10);
+    assert(false);
   }
   return ret;
 }

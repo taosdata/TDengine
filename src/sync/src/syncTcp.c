@@ -169,7 +169,7 @@ void syncFreeTcpConn(void *param) {
   sDebug("%p TCP connection will be closed, fd:%d", pThread, pConn->fd);
   pConn->closedByApp = 1;
   if (shutdown(pConn->fd, SHUT_WR) != 0) {
-    exit(2);
+    ASSERT(false);
   }
 }
 
