@@ -80,7 +80,7 @@ class TDTestCase:
         tdLog.info(result)
         time.sleep(5)
 
-
+        tdSql.query('select * from db.tb')
         tdSql.checkRows(1)
 
 
