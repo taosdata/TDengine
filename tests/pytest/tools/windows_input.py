@@ -58,6 +58,7 @@ class TDTestCase:
         window.SendKeys(sql)
         window.SendKeys('{Enter}')
         sql = "select * from db.tb;"
+        window.SendKeys(sql)
         window.SendKeys('{Enter}')
         time.sleep(1)
         window.SendKeys('{Ctrl}A')
