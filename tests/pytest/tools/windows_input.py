@@ -74,7 +74,7 @@ class TDTestCase:
         tdSql.prepare()
 
         ret = tdSql.execute('create table db.tb (ts timestamp, i binary(300))')
-        tdSql.execute("insert into db.tb values(now,'sdfsdf'")
+        tdSql.execute("insert into db.tb values(now,'sdfsdf')")
         result = self.win_input_test()
         tdLog.info(result)
         time.sleep(5)
