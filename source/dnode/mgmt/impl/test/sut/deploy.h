@@ -24,6 +24,7 @@
 #include "trpc.h"
 #include "tthread.h"
 #include "ulog.h"
+#include "tdataformat.h"
 
 typedef struct {
   SDnode*    pDnode;

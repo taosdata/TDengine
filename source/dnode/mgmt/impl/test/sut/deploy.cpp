@@ -113,14 +113,14 @@ SClient* createClient(const char* user, const char* pass, const char* fqdn, uint
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.label = "DND-C";
+  rpcInit.label = (char*)"DND-C";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = processClientRsp;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = 30 * 1000;
   rpcInit.user = (char*)user;
-  rpcInit.ckey = "key";
+  rpcInit.ckey = (char*)"key";
   rpcInit.parent = pClient;
   rpcInit.secret = (char*)secretEncrypt;
   rpcInit.parent = pClient;

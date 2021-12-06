@@ -15,7 +15,7 @@
 
 #include "deploy.h"
 
-class DndTestShow : public ::testing::Test {
+class DndTestCluster : public ::testing::Test {
  protected:
   void SetUp() override {}
   void TearDown() override {}
@@ -23,9 +23,9 @@ class DndTestShow : public ::testing::Test {
   static void SetUpTestSuite() {
     const char* user = "root";
     const char* pass = "taosdata";
-    const char* path = "/tmp/dndTestShow";
+    const char* path = "/tmp/dndTestCluster";
     const char* fqdn = "localhost";
-    uint16_t    port = 9523;
+    uint16_t    port = 9521;
 
     pServer = createServer(path, fqdn, port);
     ASSERT(pServer);
@@ -42,78 +42,17 @@ class DndTestShow : public ::testing::Test {
   static int32_t  connId;
 };
 
-SServer* DndTestShow::pServer;
-SClient* DndTestShow::pClient;
-int32_t  DndTestShow::connId;
+SServer* DndTestCluster::pServer;
+SClient* DndTestCluster::pClient;
+int32_t  DndTestCluster::connId;
 
-TEST_F(DndTestShow, SShowMsg_01) {
-  ASSERT_NE(pClient, nullptr);
-
-  SConnectMsg* pReq = (SConnectMsg*)rpcMallocCont(sizeof(SConnectMsg));
-  pReq->pid = htonl(1234);
-  strcpy(pReq->app, "dndTestShow");
-  strcpy(pReq->db, "");
-
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SConnectMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_CONNECT;
-
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-
-  SConnectRsp* pRsp = (SConnectRsp*)pMsg->pCont;
-  ASSERT_NE(pRsp, nullptr);
-  pRsp->connId = htonl(pRsp->connId);
-
-  EXPECT_EQ(pRsp->connId, 1);
-  connId = pRsp->connId;
-}
-
-TEST_F(DndTestShow, SShowMsg_02) {
-  ASSERT_NE(pClient, nullptr);
-
-  SShowMsg* pReq = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
-  pReq->type = TSDB_MGMT_TABLE_MAX;
-  strcpy(pReq->db, "");
-
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SShowMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_SHOW;
-
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
-}
-
-TEST_F(DndTestShow, SShowMsg_03) {
-  ASSERT_NE(pClient, nullptr);
-
-  SShowMsg* pReq = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
-  pReq->type = TSDB_MGMT_TABLE_START;
-  strcpy(pReq->db, "");
-
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SShowMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_SHOW;
-
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
-}
-
-TEST_F(DndTestShow, SShowMsg_04) {
+TEST_F(DndTestCluster, ShowCluster) {
   ASSERT_NE(pClient, nullptr);
   int32_t showId = 0;
 
   {
     SShowMsg* pReq = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
-    pReq->type = TSDB_MGMT_TABLE_CONNS;
+    pReq->type = TSDB_MGMT_TABLE_CLUSTER;
     strcpy(pReq->db, "");
 
     SRpcMsg rpcMsg = {0};
@@ -141,11 +80,11 @@ TEST_F(DndTestShow, SShowMsg_04) {
 
     EXPECT_NE(pRsp->showId, 0);
     EXPECT_EQ(pMeta->contLen, 0);
-    EXPECT_STREQ(pMeta->tableFname, "");
+    EXPECT_STREQ(pMeta->tableFname, "show cluster");
     EXPECT_EQ(pMeta->numOfTags, 0);
     EXPECT_EQ(pMeta->precision, 0);
     EXPECT_EQ(pMeta->tableType, 0);
-    EXPECT_EQ(pMeta->numOfColumns, 7);
+    EXPECT_EQ(pMeta->numOfColumns, 3);
     EXPECT_EQ(pMeta->sversion, 0);
     EXPECT_EQ(pMeta->tversion, 0);
     EXPECT_EQ(pMeta->tid, 0);
@@ -159,49 +98,21 @@ TEST_F(DndTestShow, SShowMsg_04) {
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
     EXPECT_EQ(pSchema->bytes, 4);
-    EXPECT_STREQ(pSchema->name, "connId");
+    EXPECT_STREQ(pSchema->name, "id");
 
     pSchema = &pMeta->schema[1];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
-    EXPECT_EQ(pSchema->bytes, TSDB_USER_LEN + VARSTR_HEADER_SIZE);
-    EXPECT_STREQ(pSchema->name, "user");
+    EXPECT_EQ(pSchema->bytes, TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE);
+    EXPECT_STREQ(pSchema->name, "name");
 
     pSchema = &pMeta->schema[2];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
-    EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
-    EXPECT_EQ(pSchema->bytes, TSDB_USER_LEN + VARSTR_HEADER_SIZE);
-    EXPECT_STREQ(pSchema->name, "program");
-
-    pSchema = &pMeta->schema[3];
-    pSchema->bytes = htons(pSchema->bytes);
-    EXPECT_EQ(pSchema->colId, 0);
-    EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
-    EXPECT_EQ(pSchema->bytes, 4);
-    EXPECT_STREQ(pSchema->name, "pid");
-
-    pSchema = &pMeta->schema[4];
-    pSchema->bytes = htons(pSchema->bytes);
-    EXPECT_EQ(pSchema->colId, 0);
-    EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
-    EXPECT_EQ(pSchema->bytes, TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE);
-    EXPECT_STREQ(pSchema->name, "ip:port");
-
-    pSchema = &pMeta->schema[5];
-    pSchema->bytes = htons(pSchema->bytes);
-    EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TIMESTAMP);
     EXPECT_EQ(pSchema->bytes, 8);
-    EXPECT_STREQ(pSchema->name, "login_time");
-
-    pSchema = &pMeta->schema[6];
-    pSchema->bytes = htons(pSchema->bytes);
-    EXPECT_EQ(pSchema->colId, 0);
-    EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TIMESTAMP);
-    EXPECT_EQ(pSchema->bytes, 8);
-    EXPECT_STREQ(pSchema->name, "last_access");
+    EXPECT_STREQ(pSchema->name, "create_time");
   }
 
   {
@@ -234,5 +145,26 @@ TEST_F(DndTestShow, SShowMsg_04) {
     EXPECT_EQ(pRsp->compressed, 0);
     EXPECT_EQ(pRsp->reserved, 0);
     EXPECT_EQ(pRsp->compLen, 0);
+
+    char*   pData = pRsp->data;
+    int32_t pos = 0;
+
+    int32_t id = *((int32_t*)(pData + pos));
+    pos += sizeof(int32_t);
+
+    int32_t nameLen = varDataLen(pData + pos);
+    pos += sizeof(VarDataLenT);
+
+    char* name = (char*)(pData + pos);
+    pos += TSDB_CLUSTER_ID_LEN;
+
+    int64_t create_time = *((int64_t*)(pData + pos));
+    pos += sizeof(int64_t);
+
+    EXPECT_NE(id, 0);
+    EXPECT_EQ(nameLen, 36);
+    EXPECT_STRNE(name, "");
+    EXPECT_GT(create_time, 0);
+    printf("--- id:%d nameLen:%d name:%s time:%" PRId64 " --- \n", id, nameLen, name, create_time);
   }
 }

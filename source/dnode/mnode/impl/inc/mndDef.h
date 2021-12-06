@@ -116,7 +116,7 @@ typedef struct STrans {
 
 typedef struct SClusterObj {
   int32_t id;
-  char    uid[TSDB_CLUSTER_ID_LEN];
+  char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
   int64_t updateTime;
 } SClusterObj;

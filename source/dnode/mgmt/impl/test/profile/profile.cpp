@@ -25,7 +25,7 @@ class DndTestProfile : public ::testing::Test {
     const char* pass = "taosdata";
     const char* path = "/tmp/dndTestProfile";
     const char* fqdn = "localhost";
-    uint16_t    port = 9527;
+    uint16_t    port = 9522;
 
     pServer = createServer(path, fqdn, port);
     ASSERT(pServer);
@@ -79,7 +79,7 @@ TEST_F(DndTestProfile, SConnectMsg_01) {
 
   EXPECT_EQ(pRsp->epSet.inUse, 0);
   EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-  EXPECT_EQ(pRsp->epSet.port[0], 9527);
+  EXPECT_EQ(pRsp->epSet.port[0], 9522);
   EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
 
   connId = pRsp->connId;
@@ -272,7 +272,7 @@ TEST_F(DndTestProfile, SHeartBeatMsg_01) {
 
   EXPECT_EQ(pRsp->epSet.inUse, 0);
   EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-  EXPECT_EQ(pRsp->epSet.port[0], 9527);
+  EXPECT_EQ(pRsp->epSet.port[0], 9522);
   EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
 }
 
@@ -344,7 +344,7 @@ TEST_F(DndTestProfile, SKillConnMsg_01) {
 
     EXPECT_EQ(pRsp->epSet.inUse, 0);
     EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-    EXPECT_EQ(pRsp->epSet.port[0], 9527);
+    EXPECT_EQ(pRsp->epSet.port[0], 9522);
     EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
 
     connId = pRsp->connId;
@@ -423,7 +423,7 @@ TEST_F(DndTestProfile, SKillQueryMsg_01) {
 
     EXPECT_EQ(pRsp->epSet.inUse, 0);
     EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-    EXPECT_EQ(pRsp->epSet.port[0], 9527);
+    EXPECT_EQ(pRsp->epSet.port[0], 9522);
     EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
   }
 }
@@ -610,7 +610,7 @@ TEST_F(DndTestProfile, SKillStreamMsg_01) {
 
     EXPECT_EQ(pRsp->epSet.inUse, 0);
     EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-    EXPECT_EQ(pRsp->epSet.port[0], 9527);
+    EXPECT_EQ(pRsp->epSet.port[0], 9522);
     EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
   }
 }
