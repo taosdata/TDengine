@@ -31,12 +31,15 @@ else
     install_dir="${release_dir}/TDengine-server-${version}"
 fi
 
+taostools_install_dir="${release_dir}/taos-tools-${version}"
+
 # Directories and files
 if [ "$pagMode" == "lite" ]; then
   strip ${build_dir}/bin/taosd
   strip ${build_dir}/bin/taos
   # lite version doesn't include taosadapter,  which will lead to no restful interface
   bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${script_dir}/remove.sh ${script_dir}/startPre.sh"
+  taostools_bin_files=""
 else
   bin_files="${build_dir}/bin/taosd \
       ${build_dir}/bin/taos \
@@ -48,6 +51,10 @@ else
       ${script_dir}/set_core.sh \
       ${script_dir}/startPre.sh \
       ${script_dir}/taosd-dump-cfg.gdb"
+
+  taostools_bin_files="\
+      ${build_dir}/bin/taosdump \
+      ${build_dir}/bin/taosdemo"
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
@@ -78,6 +85,7 @@ mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
 
+
 if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
     cp ${compile_dir}/test/cfg/taosadapter.toml                 ${install_dir}/cfg || :
 fi
@@ -102,10 +110,17 @@ mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/taos
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
 
-if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
-    mkdir -p ${install_dir}/avro/{lib,lib/pkgconfig}
-    cp ${build_dir}/lib/libavro.* ${install_dir}/avro/lib
-    cp ${build_dir}/lib/pkgconfig/avro-c.pc ${install_dir}/avro/lib/pkgconfig
+if [ -z "${taostools_bin_files}" ]; then
+    mkdir -p ${taostools_install_dir} || echo -e "failed to create ${taostools_install_dir}"
+    mkdir -p ${taostools_install_dir}/bin \
+    && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
+    && chmod a+x ${taostools_install_dir}/bin/* || :
+
+    if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
+        mkdir -p ${taostools_install_dir}/avro/{lib,lib/pkgconfig} || echo -e "failed to create ${taostools_install_dir}/avro"
+        cp ${build_dir}/lib/libavro.* ${taostools_install_dir}/avro/lib
+        cp ${build_dir}/lib/pkgconfig/avro-c.pc ${taostools_install_dir}/avro/lib/pkgconfig
+    fi
 fi
 
 if [ -f ${build_dir}/bin/jemalloc-config ]; then
@@ -235,6 +250,8 @@ cd ${release_dir}
 #  install_dir has been distinguishes  cluster from  edege, so comments this code
 pkg_name=${install_dir}-${osType}-${cpuType}
 
+taostools_pkg_name=${taostools_install_dir}-${osType}-${cpuType}
+
 # if [ "$verMode" == "cluster" ]; then
 #   pkg_name=${install_dir}-${osType}-${cpuType}
 # elif [ "$verMode" == "edge" ]; then
@@ -246,8 +263,10 @@ pkg_name=${install_dir}-${osType}-${cpuType}
 
 if [[ "$verType" == "beta" ]] || [[ "$verType" == "preRelease" ]]; then
   pkg_name=${install_dir}-${verType}-${osType}-${cpuType}
+  taostools_pkg_name=${taostools_install_dir}-${verType}-${osType}-${cpuType}
 elif [ "$verType" == "stable" ]; then
   pkg_name=${pkg_name}
+  taostools_pkg_name=${taostools_pkg_name}
 else
   echo "unknow verType, nor stabel or beta"
   exit 1
@@ -262,6 +281,15 @@ exitcode=$?
 if [ "$exitcode" != "0" ]; then
     echo "tar ${pkg_name}.tar.gz error !!!"
     exit $exitcode
+fi
+
+if [ -z "${taostools_bin_files}" ]; then
+    tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" $(basename ${taostools_install_dir}) --remove-files || :
+    exitcode=$?
+    if [ "$exitcode" != "0" ]; then
+        echo "tar ${taostools_pkg_name}.tar.gz error !!!"
+        exit $exitcode
+    fi
 fi
 
 cd ${curr_dir}
