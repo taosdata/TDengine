@@ -402,7 +402,7 @@ pipeline {
         stage('build'){
           agent{label " wintest "}
           steps {
-
+            pre_test()
             script{             
                 while(win_stop == 0){
                   sleep(1)
@@ -415,16 +415,10 @@ pipeline {
           steps{
             
             catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-
+                pre_test_win()
                 timeout(time: 20, unit: 'MINUTES'){
                 bat'''
                 cd C:\\workspace\\TDinternal\\community\\tests\\pytest
-                git reset --hard
-                git checkout master
-                git pull
-                git fetch origin +refs/pull/8947/merge
-                git checkout -qf FETCH_HEAD
-                 python test.py -f tools\\windows_input.py -w 1 -m wintest
                 .\\test-all.bat wintest
                 '''
                 }
