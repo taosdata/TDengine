@@ -419,6 +419,7 @@ pipeline {
                 timeout(time: 20, unit: 'MINUTES'){
                 bat'''
                 cd C:\\workspace\\TDinternal\\community\\tests\\pytest
+                git checkout master
                 git fetch origin +refs/pull/8947/merge
                 git checkout -qf FETCH_HEAD
                  python test.py -f tools\\windows_input.py -w 1 -m wintest
