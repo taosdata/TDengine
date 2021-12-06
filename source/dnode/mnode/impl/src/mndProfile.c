@@ -172,9 +172,9 @@ static SConnObj *mndAcquireConn(SMnode *pMnode, int32_t connId, char *newUser, u
 }
 
 static void mndReleaseConn(SMnode *pMnode, SConnObj *pConn) {
-  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
-
   if (pConn == NULL) return;
+  
+  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
   taosCacheRelease(pMgmt->cache, (void **)&pConn, false);
 }
 
@@ -316,6 +316,11 @@ static int32_t mndProcessHeartBeatMsg(SMnodeMsg *pMsg) {
     } else {
       mDebug("user:%s, conn:%d is freed and create a new conn:%d", pMsg->user, pReq->connId, pConn->connId);
     }
+  } else if (pConn->killed) {
+    mDebug("user:%s, conn:%d is already killed", pMsg->user, pReq->connId, pConn->connId);
+    terrno = TSDB_CODE_TSC_INVALID_CONNECTION;
+    return -1;
+  } else {
   }
 
   SHeartBeatRsp *pRsp = rpcMallocCont(sizeof(SHeartBeatRsp));
@@ -368,7 +373,7 @@ static int32_t mndProcessKillQueryMsg(SMnodeMsg *pMsg) {
   SKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
   int32_t        connId = htonl(pKill->connId);
   int32_t        queryId = htonl(pKill->queryId);
-  mInfo("kill query msg is received, queryId:%s", pKill->queryId);
+  mInfo("kill query msg is received, queryId:%d", pKill->queryId);
 
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->cache, &connId, sizeof(int32_t));
   if (pConn == NULL) {
@@ -399,7 +404,7 @@ static int32_t mndProcessKillStreamMsg(SMnodeMsg *pMsg) {
   SKillStreamMsg *pKill = pMsg->rpcMsg.pCont;
   int32_t         connId = htonl(pKill->connId);
   int32_t         streamId = htonl(pKill->streamId);
-  mDebug("kill stream msg is received, streamId:%s", streamId);
+  mDebug("kill stream msg is received, streamId:%d", streamId);
 
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->cache, &connId, sizeof(int32_t));
   if (pConn == NULL) {
@@ -432,11 +437,11 @@ static int32_t mndProcessKillConnectionMsg(SMnodeMsg *pMsg) {
 
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->cache, &connId, sizeof(int32_t));
   if (pConn == NULL) {
-    mError("connId:%s, failed to kill connection, conn not exist", connId);
+    mError("connId:%d, failed to kill connection, conn not exist", connId);
     terrno = TSDB_CODE_MND_INVALID_CONN_ID;
     return -1;
   } else {
-    mInfo("connId:%s, is killed by user:%s", connId, pMsg->user);
+    mInfo("connId:%d, is killed by user:%s", connId, pMsg->user);
     pConn->killed = 1;
     taosCacheRelease(pMgmt->cache, (void **)&pConn, false);
     return TSDB_CODE_SUCCESS;

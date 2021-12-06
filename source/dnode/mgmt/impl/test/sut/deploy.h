@@ -31,13 +31,15 @@ typedef struct {
 } SServer;
 
 typedef struct {
+  char     fqdn[TSDB_FQDN_LEN];
+  uint16_t port;
   void*    clientRpc;
   SRpcMsg* pRsp;
   tsem_t   sem;
 } SClient;
 
-SServer* createServer(char* path, char *fqdn, uint16_t port);
+SServer* createServer(const char* path, const char* fqdn, uint16_t port);
 void     dropServer(SServer* pServer);
-SClient* createClient(char *user, char *pass);
+SClient* createClient(const char* user, const char* pass, const char* fqdn, uint16_t port);
 void     dropClient(SClient* pClient);
 void     sendMsg(SClient* pClient, SRpcMsg* pMsg);

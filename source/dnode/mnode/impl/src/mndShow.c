@@ -16,19 +16,19 @@
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
 
-static int32_t mndProcessShowMsg(SMnodeMsg *pMnodeMsg);
-static int32_t mndProcessRetrieveMsg( SMnodeMsg *pMsg);
-static bool    mndCheckRetrieveFinished(SShowObj *pShow);
-static int32_t mndAcquireShowObj(SMnode *pMnode, SShowObj *pShow);
-static void    mndReleaseShowObj(SShowObj *pShow, bool forceRemove);
-static int32_t mndPutShowObj(SMnode *pMnode, SShowObj *pShow);
-static void    mndFreeShowObj(void *ppShow);
-static char   *mndShowStr(int32_t showType);
+static int32_t   mndProcessShowMsg(SMnodeMsg *pMnodeMsg);
+static int32_t   mndProcessRetrieveMsg(SMnodeMsg *pMsg);
+static bool      mndCheckRetrieveFinished(SShowObj *pShow);
+static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowMsg *pMsg);
+static void      mndFreeShowObj(SShowObj *pShow);
+static SShowObj *mndAcquireShowObj(SMnode *pMnode, int32_t showId);
+static void      mndReleaseShowObj(SShowObj *pShow, bool forceRemove);
+static char     *mndShowStr(int32_t showType);
 
 int32_t mndInitShow(SMnode *pMnode) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
 
-  pMgmt->cache = taosCacheInit(TSDB_CACHE_PTR_KEY, 5, true, mndFreeShowObj, "show");
+  pMgmt->cache = taosCacheInit(TSDB_DATA_TYPE_INT, 5, true, (__cache_free_fn_t)mndFreeShowObj, "show");
   if (pMgmt->cache == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to alloc show cache since %s", terrstr());
@@ -48,47 +48,41 @@ void mndCleanupShow(SMnode *pMnode) {
   }
 }
 
-static int32_t mndAcquireShowObj(SMnode *pMnode, SShowObj *pShow) {
-  TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE)pShow;
-
+static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowMsg *pMsg) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
-  SShowObj **ppShow = taosCacheAcquireByKey(pMgmt->cache, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE));
-  if (ppShow) {
-    mTrace("show:%d, data:%p acquired from cache", pShow->id, ppShow);
-    return 0;
-  }
 
-  return -1;
-}
+  int32_t showId = atomic_add_fetch_32(&pMgmt->showId, 1);
+  if (showId == 0) atomic_add_fetch_32(&pMgmt->showId, 1);
 
-static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
-  SMnode    *pMnode = pShow->pMnode;
-  SShowMgmt *pMgmt = &pMnode->showMgmt;
-  SShowObj **ppShow = (SShowObj **)pShow->ppShow;
-  taosCacheRelease(pMgmt->cache, (void **)(&ppShow), forceRemove);
-  mDebug("show:%d, data:%p released from cache, force:%d", pShow->id, ppShow, forceRemove);
-}
-
-static int32_t mndPutShowObj(SMnode *pMnode, SShowObj *pShow) {
-  SShowMgmt *pMgmt = &pMnode->showMgmt;
-  int32_t    lifeSpan = pMnode->shellActivityTimer * 6 * 1000;
-
-  TSDB_CACHE_PTR_TYPE val = (TSDB_CACHE_PTR_TYPE)pShow;
-  pShow->id = atomic_add_fetch_32(&pMgmt->showId, 1);
-  SShowObj **ppShow =
-      taosCachePut(pMgmt->cache, &val, sizeof(TSDB_CACHE_PTR_TYPE), &pShow, sizeof(TSDB_CACHE_PTR_TYPE), lifeSpan);
-  if (ppShow == NULL) {
+  int32_t   size = sizeof(SShowObj) + pMsg->payloadLen;
+  SShowObj *pShow = calloc(1, size);
+  if (pShow != NULL) {
+    pShow->id = showId;
+    pShow->pMnode = pMnode;
+    pShow->type = pMsg->type;
+    pShow->payloadLen = pMsg->payloadLen;
+    memcpy(pShow->db, pMsg->db, TSDB_FULL_DB_NAME_LEN);
+    memcpy(pShow->payload, pMsg->payload, pMsg->payloadLen);
+  } else {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("show:%d, failed to put into cache", pShow->id);
-    return -1;
+    mError("failed to process show-meta msg:%s since %s", mndShowStr(pMsg->type), terrstr());
+    return NULL;
   }
 
-  mTrace("show:%d, data:%p put into cache", pShow->id, ppShow);
-  return 0;
+  int32_t   keepTime = pMnode->shellActivityTimer * 6 * 1000;
+  SShowObj *pShowRet = taosCachePut(pMgmt->cache, &showId, sizeof(int32_t), pShow, size, keepTime);
+  free(pShow);
+  if (pShowRet == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("show:%d, failed to put into cache since %s", showId, terrstr());
+    return NULL;
+  } else {
+    mTrace("show:%d, data:%p created", showId, pShowRet);
+    return pShowRet;
+  }
 }
 
-static void mndFreeShowObj(void *ppShow) {
-  SShowObj  *pShow = *(SShowObj **)ppShow;
+static void mndFreeShowObj(SShowObj *pShow) {
   SMnode    *pMnode = pShow->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
 
@@ -103,8 +97,29 @@ static void mndFreeShowObj(void *ppShow) {
     }
   }
 
-  mDebug("show:%d, data:%p destroyed", pShow->id, ppShow);
-  tfree(pShow);
+  mTrace("show:%d, data:%p destroyed", pShow->id, pShow);
+}
+
+static SShowObj *mndAcquireShowObj(SMnode *pMnode, int32_t showId) {
+  SShowMgmt *pMgmt = &pMnode->showMgmt;
+
+  SShowObj *pShow = taosCacheAcquireByKey(pMgmt->cache, &showId, sizeof(int32_t));
+  if (pShow == NULL) {
+    mError("show:%d, already destroyed", showId);
+    return NULL;
+  }
+
+  mTrace("show:%d, data:%p acquired from cache", pShow->id, pShow);
+  return pShow;
+}
+
+static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
+  if (pShow == NULL) return;
+  mTrace("show:%d, data:%p released from cache, force:%d", pShow->id, pShow, forceRemove);
+
+  SMnode    *pMnode = pShow->pMnode;
+  SShowMgmt *pMgmt = &pMnode->showMgmt;
+  taosCacheRelease(pMgmt->cache, (void **)(&pShow), forceRemove);
 }
 
 static int32_t mndProcessShowMsg(SMnodeMsg *pMnodeMsg) {
@@ -112,7 +127,7 @@ static int32_t mndProcessShowMsg(SMnodeMsg *pMnodeMsg) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   SShowMsg  *pMsg = pMnodeMsg->rpcMsg.pCont;
   int8_t     type = pMsg->type;
-  uint16_t   payloadLen = htonl(pMsg->payloadLen);
+  int16_t    payloadLen = htonl(pMsg->payloadLen);
 
   if (type <= TSDB_MGMT_TABLE_START || type >= TSDB_MGMT_TABLE_MAX) {
     terrno = TSDB_CODE_MND_INVALID_MSG_TYPE;
@@ -127,27 +142,13 @@ static int32_t mndProcessShowMsg(SMnodeMsg *pMnodeMsg) {
     return -1;
   }
 
-  int32_t   size = sizeof(SShowObj) + payloadLen;
-  SShowObj *pShow = calloc(1, size);
-  if (pShow != NULL) {
-    pShow->pMnode = pMnode;
-    pShow->type = type;
-    pShow->payloadLen = payloadLen;
-    memcpy(pShow->db, pMsg->db, TSDB_FULL_DB_NAME_LEN);
-    memcpy(pShow->payload, pMsg->payload, payloadLen);
-  } else {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  SShowObj *pShow = mndCreateShowObj(pMnode, pMsg);
+  if (pShow == NULL) {
     mError("failed to process show-meta msg:%s since %s", mndShowStr(type), terrstr());
     return -1;
   }
 
-  if (mndPutShowObj(pMnode, pShow) == 0) {
-    mError("failed to process show-meta msg:%s since %s", mndShowStr(type), terrstr());
-    free(pShow);
-    return -1;
-  }
-
-  size = sizeof(SShowRsp) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_EXTRA_PAYLOAD_SIZE;
+  int32_t   size = sizeof(SShowRsp) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_EXTRA_PAYLOAD_SIZE;
   SShowRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
     mndReleaseShowObj(pShow, true);
@@ -156,15 +157,14 @@ static int32_t mndProcessShowMsg(SMnodeMsg *pMnodeMsg) {
     return -1;
   }
 
-  pRsp->qhandle = htobe64((uint64_t)pShow);
-
-  int32_t code = (*metaFp)(pMnodeMsg,pShow, &pRsp->tableMeta);
-  mDebug("show:%d, type:%s, get meta finished, numOfRows:%d cols:%d result:%s", pShow->id, mndShowStr(type),
-         pShow->numOfRows, pShow->numOfColumns, tstrerror(code));
+  int32_t code = (*metaFp)(pMnodeMsg, pShow, &pRsp->tableMeta);
+  mDebug("show:%d, data:%p get meta finished, numOfRows:%d cols:%d type:%s result:%s", pShow->id, pShow,
+         pShow->numOfRows, pShow->numOfColumns, mndShowStr(type), tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {
     pMnodeMsg->contLen = sizeof(SShowRsp) + sizeof(SSchema) * pShow->numOfColumns;
     pMnodeMsg->pCont = pRsp;
+    pRsp->showId = htonl(pShow->id);
     mndReleaseShowObj(pShow, false);
     return TSDB_CODE_SUCCESS;
   } else {
@@ -182,14 +182,10 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
   int32_t    rowsRead = 0;
 
   SRetrieveTableMsg *pRetrieve = pMnodeMsg->rpcMsg.pCont;
-  pRetrieve->qhandle = htobe64(pRetrieve->qhandle);
-  SShowObj *pShow = (SShowObj *)pRetrieve->qhandle;
+  int32_t            showId = htonl(pRetrieve->showId);
 
-  /*
-   * in case of server restart, apps may hold qhandle created by server before
-   * restart, which is actually invalid, therefore, signature check is required.
-   */
-  if (mndAcquireShowObj(pMnode, pShow) != 0) {
+  SShowObj *pShow = mndAcquireShowObj(pMnode, showId);
+  if (pShow == NULL) {
     terrno = TSDB_CODE_MND_INVALID_SHOWOBJ;
     mError("failed to process show-retrieve msg:%p since %s", pShow, terrstr());
     return -1;
@@ -199,15 +195,16 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
   if (retrieveFp == NULL) {
     mndReleaseShowObj(pShow, false);
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-    mError("show:%d, failed to retrieve data since %s", pShow->id, terrstr());
+    mError("show:%d, data:%p failed to retrieve data since %s", pShow->id, pShow, terrstr());
     return -1;
   }
 
-  mDebug("show:%d, type:%s, start retrieve data, numOfReads:%d numOfRows:%d", pShow->id, mndShowStr(pShow->type),
-         pShow->numOfReads, pShow->numOfRows);
+  mDebug("show:%d, data:%p start retrieve data, numOfReads:%d numOfRows:%d type:%s", pShow->id, pShow,
+         pShow->numOfReads, pShow->numOfRows, mndShowStr(pShow->type));
 
   if (mndCheckRetrieveFinished(pShow)) {
-    mDebug("show:%d, read finished, numOfReads:%d numOfRows:%d", pShow->id, pShow->numOfReads, pShow->numOfRows);
+    mDebug("show:%d, data:%p read finished, numOfReads:%d numOfRows:%d", pShow->id, pShow, pShow->numOfReads,
+           pShow->numOfRows);
     pShow->numOfReads = pShow->numOfRows;
   }
 
@@ -230,7 +227,7 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
   if (pRsp == NULL) {
     mndReleaseShowObj(pShow, false);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("show:%d, failed to retrieve data since %s", pShow->id, terrstr());
+    mError("show:%d, data:%p failed to retrieve data since %s", pShow->id, pShow, terrstr());
     return -1;
   }
 
@@ -239,20 +236,20 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
     rowsRead = (*retrieveFp)(pMnodeMsg, pShow, pRsp->data, rowsToRead);
   }
 
-  mDebug("show:%d, stop retrieve data, rowsRead:%d rowsToRead:%d", pShow->id, rowsRead, rowsToRead);
+  mDebug("show:%d, data:%p stop retrieve data, rowsRead:%d rowsToRead:%d", pShow->id, pShow, rowsRead, rowsToRead);
 
   pRsp->numOfRows = htonl(rowsRead);
-  pRsp->precision = (int16_t)htonl(TSDB_TIME_PRECISION_MILLI);  // millisecond time precision
+  pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision
 
   pMnodeMsg->pCont = pRsp;
   pMnodeMsg->contLen = size;
 
   if (rowsToRead == 0 || (rowsRead == rowsToRead && pShow->numOfRows == pShow->numOfReads)) {
     pRsp->completed = 1;
-    mDebug("%p, retrieve completed", pShow);
+    mDebug("show:%d, data:%p retrieve completed", pShow->id, pShow);
     mndReleaseShowObj(pShow, true);
   } else {
-    mDebug("%p, retrieve not completed yet", pShow);
+    mDebug("show:%d, data:%p retrieve not completed yet", pShow->id, pShow);
     mndReleaseShowObj(pShow, false);
   }
 
@@ -307,7 +304,7 @@ static char *mndShowStr(int32_t showType) {
 static bool mndCheckRetrieveFinished(SShowObj *pShow) {
   if (pShow->pIter == NULL && pShow->numOfReads != 0) {
     return true;
-  } 
+  }
   return false;
 }
 

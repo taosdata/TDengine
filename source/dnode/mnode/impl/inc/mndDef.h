@@ -296,7 +296,6 @@ typedef struct SShowObj {
   void      *pIter;
   void      *pVgIter;
   SMnode    *pMnode;
-  SShowObj **ppShow;
   char       db[TSDB_FULL_DB_NAME_LEN];
   int16_t    offset[TSDB_MAX_COLUMNS];
   int32_t    bytes[TSDB_MAX_COLUMNS];

@@ -15,8 +15,27 @@
 
 #include "deploy.h"
 
-void initLog(char* path) {
+void initLog(const char* path) {
+  dDebugFlag = 0;
+  vDebugFlag = 0;
   mDebugFlag = 207;
+  cDebugFlag = 0;
+  jniDebugFlag = 0;
+  tmrDebugFlag = 0;
+  sdbDebugFlag = 0;
+  httpDebugFlag = 0;
+  mqttDebugFlag = 0;
+  monDebugFlag = 0;
+  uDebugFlag = 0;
+  rpcDebugFlag = 0;
+  odbcDebugFlag = 0;
+  qDebugFlag = 0;
+  wDebugFlag = 0;
+  sDebugFlag = 0;
+  tsdbDebugFlag = 0;
+  cqDebugFlag = 0;
+  debugFlag = 0;
+
   char temp[PATH_MAX];
   snprintf(temp, PATH_MAX, "%s/taosdlog", path);
   if (taosInitLog(temp, tsNumOfLogLines, 1) != 0) {
@@ -32,7 +51,7 @@ void* runServer(void* param) {
   }
 }
 
-void initOption(SDnodeOpt* pOption, char* path, char* fqdn, uint16_t port) {
+void initOption(SDnodeOpt* pOption, const char* path, const char* fqdn, uint16_t port) {
   pOption->sver = 1;
   pOption->numOfCores = 1;
   pOption->numOfSupportMnodes = 1;
@@ -46,15 +65,16 @@ void initOption(SDnodeOpt* pOption, char* path, char* fqdn, uint16_t port) {
   pOption->shellActivityTimer = 30;
   pOption->serverPort = port;
   strcpy(pOption->dataDir, path);
-  snprintf(pOption->localEp, TSDB_EP_LEN, "%s:&u", fqdn, port);
+  snprintf(pOption->localEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
   snprintf(pOption->localFqdn, TSDB_FQDN_LEN, "%s", fqdn);
-  snprintf(pOption->firstEp, TSDB_EP_LEN, "%s:&u", fqdn, port);
-
-  taosRemoveDir(path);
-  taosMkDir(path);
+  snprintf(pOption->firstEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
 }
 
-SServer* createServer(char* path, char* fqdn, uint16_t port) {
+SServer* createServer(const char* path, const char* fqdn, uint16_t port) {
+  taosRemoveDir(path);
+  taosMkDir(path);
+  initLog(path);
+
   SDnodeOpt option = {0};
   initOption(&option, path, fqdn, port);
 
@@ -80,11 +100,11 @@ void dropServer(SServer* pServer) {
 void processClientRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SClient* pClient = (SClient*)parent;
   pClient->pRsp = pMsg;
-  //taosMsleep(1000000);
+  // taosMsleep(1000000);
   tsem_post(&pClient->sem);
 }
 
-SClient* createClient(char *user, char *pass) {
+SClient* createClient(const char* user, const char* pass, const char* fqdn, uint16_t port) {
   SClient* pClient = (SClient*)calloc(1, sizeof(SClient));
   ASSERT(pClient);
 
@@ -99,7 +119,7 @@ SClient* createClient(char *user, char *pass) {
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = 30 * 1000;
-  rpcInit.user = user;
+  rpcInit.user = (char*)user;
   rpcInit.ckey = "key";
   rpcInit.parent = pClient;
   rpcInit.secret = (char*)secretEncrypt;
@@ -110,6 +130,8 @@ SClient* createClient(char *user, char *pass) {
   ASSERT(pClient->clientRpc);
 
   tsem_init(&pClient->sem, 0, 0);
+  strcpy(pClient->fqdn, fqdn);
+  pClient->port = port;
 
   return pClient;
 }
@@ -123,8 +145,8 @@ void sendMsg(SClient* pClient, SRpcMsg* pMsg) {
   SEpSet epSet = {0};
   epSet.inUse = 0;
   epSet.numOfEps = 1;
-  epSet.port[0] = 9527;
-  strcpy(epSet.fqdn[0], "localhost");
+  epSet.port[0] = pClient->port;
+  strcpy(epSet.fqdn[0], pClient->fqdn);
 
   rpcSendRequest(pClient->clientRpc, &epSet, pMsg, NULL);
   tsem_wait(&pClient->sem);
