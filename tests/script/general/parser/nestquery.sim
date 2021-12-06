@@ -419,7 +419,7 @@ if $data03 != @20-09-15 00:00:00.000@ then
   return -1
 endi
 
-sql select diff(val) from (select c1 val from nest_tb0);
+sql select diff(val) from (select ts,c1 val from nest_tb0);
 if $rows != 9999 then
   return -1
 endi
