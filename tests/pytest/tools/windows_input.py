@@ -57,6 +57,8 @@ class TDTestCase:
         sql = "insert into db.tb values(now,'%s');" % temp
         window.SendKeys(sql)
         window.SendKeys('{Enter}')
+        sql = "select * from db.tb"
+        window.SendKeys('{Enter}')
         time.sleep(1)
         window.SendKeys('{Ctrl}A')
         window.SendKeys('{Ctrl}C')
