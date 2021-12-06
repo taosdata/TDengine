@@ -25,7 +25,7 @@ extern "C" {
 
 #define DefaultMem  1024*1024
 
-static char tmpFile[] = "/tmp/index";
+static char tmpFile[] = "./index";
 typedef enum WriterType {TMemory, TFile} WriterType;   
 
 typedef struct WriterCtx {

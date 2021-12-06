@@ -148,7 +148,7 @@ uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes *node, 
 
   size_t lsz = (size_t)(s->end - s->start + 1);          // data len 
   size_t ssz = taosArrayGetSize(node->stack);  // stack size
-
+  *out = in;
   uint64_t i = 0;
   for (i = 0; i < lsz && i < ssz; i++) {
     FstBuilderNodeUnfinished *un = taosArrayGet(node->stack, i);
@@ -776,6 +776,17 @@ FstBuilder *fstBuilderCreate(void *w, FstType ty) {
   b->last       = fstSliceCreate(NULL, 0);
   b->lastAddr   = NONE_ADDRESS; 
   b->len        = 0;
+  
+  char buf64[8] = {0}; 
+  void *pBuf64 = buf64;
+  taosEncodeFixedU64(&pBuf64, VERSION); 
+  fstCountingWriterWrite(b->wrt, buf64, sizeof(buf64));
+  
+  memset(buf64, 0, sizeof(buf64)); 
+  pBuf64 = buf64;
+  taosEncodeFixedU64(&pBuf64, ty); 
+  fstCountingWriterWrite(b->wrt, buf64, sizeof(buf64));
+
   return b;
 }
 void fstBuilderDestroy(FstBuilder *b) {
@@ -811,7 +822,7 @@ void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in) {
    //   prefixLen = fstUnFinishedNodesFindCommPrefix(b->unfinished, bs);
    //   out = 0;
    //}
-   Output out; 
+   Output out;  
    uint64_t prefixLen = fstUnFinishedNodesFindCommPrefixAndSetOutput(b->unfinished, bs, in, &out);
   
    if (prefixLen == FST_SLICE_LEN(s)) {

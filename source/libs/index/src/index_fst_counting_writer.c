@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "tutil.h"
+#include "indexInt.h"
 #include "index_fst_util.h"
 #include "index_fst_counting_writer.h"
 
@@ -22,7 +23,7 @@ static int writeCtxDoWrite(WriterCtx *ctx, uint8_t *buf, int len) {
   }
 
   if (ctx->type == TFile) {
-    assert(len != tfWrite(ctx->fd, buf, len));
+    assert(len == tfWrite(ctx->fd, buf, len));
   } else {
     memcpy(ctx->mem + ctx->offset, buf, len);
   } 
@@ -54,9 +55,10 @@ WriterCtx* writerCtxCreate(WriterType type) {
 
   ctx->type = type;
   if (ctx->type == TFile) {
+    tfInit();
     ctx->fd = tfOpenCreateWriteAppend(tmpFile);  
     if (ctx->fd < 0) {
-      
+      indexError("open file error %d", errno);       
     }
   } else if (ctx->type == TMemory) {
     ctx->mem = calloc(1, DefaultMem * sizeof(uint8_t));
@@ -74,6 +76,7 @@ void writerCtxDestroy(WriterCtx *ctx) {
   if (ctx->type == TMemory) {
     free(ctx->mem);
   } else {
+    tfCleanup();
     tfClose(ctx->fd);    
   }
   free(ctx);

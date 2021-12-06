@@ -75,10 +75,10 @@ int main(int argc, char** argv) {
   //FstSlice key1 = fstSliceCreate((uint8_t *)str1.c_str(), str1.size());
   //Output   val2 = 10;
   {
-    std::string str("bcd");
-    FstSlice key = fstSliceCreate((uint8_t *)str.c_str(), str.size());
-    Output   val = 1;
-    fstBuilderInsert(b, key, val); 
+    //std::string str("bcd");
+    //FstSlice key = fstSliceCreate((uint8_t *)str.c_str(), str.size());
+    //Output   val = 1;
+    //fstBuilderInsert(b, key, val); 
   } 
   //fstBuilderInsert(b, key1, val2); 
   fstBuilderFinish(b);
