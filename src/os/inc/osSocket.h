@@ -15,7 +15,6 @@
 
 #ifndef TDENGINE_OS_SOCKET_H
 #define TDENGINE_OS_SOCKET_H
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -33,13 +32,17 @@ extern "C" {
   #define taosReadSocket(fd, buf, len) read(fd, buf, len)
   #define taosWriteSocket(fd, buf, len) write(fd, buf, len)
   #define taosCloseSocketNoCheck(x) close(x)
-  #define taosCloseSocket(x) \
-    {                        \
-      if (FD_VALID(x)) {     \
-        close(x);            \
-        x = FD_INITIALIZER;  \
-      }                      \
-    }
+static FORCE_INLINE int32_t taosCloseSocket(int x) {
+  int32_t ret = 0;
+  if (x > STDERR_FILENO) {
+    ret = close(x);
+    x = ((int32_t)-1);
+  }
+  if (ret != 0) {
+    exit(10);
+  }
+  return ret;
+}
 #endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
