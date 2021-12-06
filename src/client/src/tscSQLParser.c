@@ -9141,7 +9141,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   const char* msg4 = "interval query not supported, since the result of sub query not include valid timestamp column";
   const char* msg5 = "only tag query not compatible with normal column filter";
   const char* msg6 = "not support stddev/percentile/interp in the outer query yet";
-  const char* msg7 = "derivative/twa/rate/irate/diff/top/bottom requires timestamp column exists in subquery";
+  const char* msg7 = "derivative/twa/rate/irate/diff requires timestamp column exists in subquery";
   const char* msg8 = "condition missing for join query";
   const char* msg9 = "not support 3 level select";
 
@@ -9226,8 +9226,8 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
         SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
 
         int32_t f = pExpr->base.functionId;
-        if (f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE || f == TSDB_FUNC_RATE || 
-            f == TSDB_FUNC_DIFF       || f == TSDB_FUNC_TOP || f == TSDB_FUNC_BOTTOM) {
+        if (f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE || 
+            f == TSDB_FUNC_RATE       || f == TSDB_FUNC_DIFF) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
         }
       }
