@@ -273,16 +273,16 @@ void fstStateCompileForAnyTrans(FstCountingWriter *w, CompiledAddr addr, FstBuil
     if (FST_BUILDER_NODE_IS_FINAL(node)) {
       fstCountingWriterPackUintIn(w, node->finalOutput, oSize);
     }
-    for (size_t i = 0; i < sz; i++) {
+    for (int32_t i = sz - 1; i >= 0; i--) {
       FstTransition *t = taosArrayGet(node->trans, i);
       fstCountingWriterPackUintIn(w, t->out, oSize);
     }
   } 
-  for (size_t i = 0; i < sz; i++) {
+  for (int32_t i = sz - 1; i >= 0; i--) {
       FstTransition *t = taosArrayGet(node->trans, i);
       fstPackDeltaIn(w, addr, t->addr, tSize);
   }
-  for (size_t i = 0; i < sz; i++) {
+  for (int32_t i = sz - 1; i >= 0; i--) {
      FstTransition *t = taosArrayGet(node->trans, i);
      fstCountingWriterWrite(w, (char *)&t->inp, 1);
       //fstPackDeltaIn(w, addr, t->addr, tSize);
