@@ -96,43 +96,64 @@ void metaCloseDB(SMeta *pMeta) {
 }
 
 int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbCfg) {
-  char     sql[256];
-  char *   err = NULL;
-  int      rc;
-  tb_uid_t uid;
+  char          sql[256];
+  char *        err = NULL;
+  int           rc;
+  tb_uid_t      uid;
+  sqlite3_stmt *stmt;
+  char          buf[256];
+  void *        pBuf;
 
   switch (pTbCfg->type) {
     case META_SUPER_TABLE:
       uid = pTbCfg->stbCfg.suid;
-      // sprintf(sql, "INSERT INTO tb VALUES (\'%s\', %" PRIu64
-      //              ");"
-      //              "INSERT INTO stb VALUES (%" PRIu64
-      //              ", \'%s\', );"
-      //              "CREATE TABLE IF NOT EXISTS stb_%" PRIu64
-      //              " ("
-      //              "    tb_uid INTEGER NOT NULL UNIQUE,"
-      //              "    tbname VARCHAR(256),"
-      //              "    tag1 INTEGER"
-      //              ");"
-      //              "CREATE INDEX IF NOT EXISTS stb_%" PRIu64 "_tag1_idx ON stb_1638517480 (tag1);");
-      rc = sqlite3_exec(pMeta->pDB->pDB, sql, NULL, NULL, &err);
+      strcpy(sql, "INSERT INTO tb VALUES (?, ?);");
+      // sprintf(sql,
+      //         "INSERT INTO tb VALUES (?, ?);"
+      //         // "INSERT INTO stb VALUES (?, ?, ?, ?);"
+      //         // "CREATE TABLE IF NOT EXISTS stb_%" PRIu64
+      //         // " ("
+      //         // "    tb_uid INTEGER NOT NULL UNIQUE,"
+      //         // "    tbname VARCHAR(256),"
+      //         // "    tag1 INTEGER);"
+      //         ,
+      //         uid);
+      rc = sqlite3_prepare_v2(pMeta->pDB->pDB, sql, -1, &stmt, NULL);
       if (rc != SQLITE_OK) {
-        printf("failed to create normal table since %s\n", err);
+        return -1;
       }
+      sqlite3_bind_text(stmt, 1, pTbCfg->name, -1, SQLITE_TRANSIENT);
+      sqlite3_bind_int64(stmt, 2, uid);
+      // sqlite3_bind_int64(stmt, 3, uid);
+      // sqlite3_bind_text(stmt, 4, pTbCfg->name, -1, SQLITE_TRANSIENT);
+      // pBuf = buf;
+      // tdEncodeSchema(&pBuf, pTbCfg->stbCfg.pSchema);
+      // sqlite3_bind_blob(stmt, 5, buf, POINTER_DISTANCE(pBuf, buf), NULL);
+      // pBuf = buf;
+      // tdEncodeSchema(&pBuf, pTbCfg->stbCfg.pTagSchema);
+      // sqlite3_bind_blob(stmt, 6, buf, POINTER_DISTANCE(pBuf, buf), NULL);
+
+      rc = sqlite3_step(stmt);
+      if (rc != SQLITE_OK) {
+        printf("failed to create normal table since %s\n", sqlite3_errmsg(pMeta->pDB->pDB));
+      }
+      sqlite3_finalize(stmt);
       break;
     case META_NORMAL_TABLE:
-      uid = metaGenerateUid(pMeta);
+      // uid = metaGenerateUid(pMeta);
       // sprintf(sql,
       //         "INSERT INTO tb VALUES (\'%s\', %" PRIu64
       //         ");"
       //         "INSERT INTO ntb VALUES (%" PRIu64 ", \'%s\', );",
       //         pTbCfg->name, uid, uid, pTbCfg->name, );
-      rc = sqlite3_exec(pMeta->pDB->pDB, sql, NULL, NULL, &err);
-      if (rc != SQLITE_OK) {
-        printf("failed to create normal table since %s\n", err);
-      }
+
+      // rc = sqlite3_exec(pMeta->pDB->pDB, sql, NULL, NULL, &err);
+      // if (rc != SQLITE_OK) {
+      //   printf("failed to create normal table since %s\n", err);
+      // }
       break;
     case META_CHILD_TABLE:
+#if 0
       uid = metaGenerateUid(pMeta);
       // sprintf(sql, "INSERT INTO tb VALUES (\'%s\', %" PRIu64
       //              ");"
@@ -141,6 +162,7 @@ int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbCfg) {
       if (rc != SQLITE_OK) {
         printf("failed to create child table since %s\n", err);
       }
+#endif
       break;
     default:
       break;
