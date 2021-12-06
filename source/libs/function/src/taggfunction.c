@@ -4589,7 +4589,7 @@ SAggFunctionInfo aggFunc[35] = {{
                           },
                           {
                               // 16
-                              "ts",
+                              "dummy",
                               FUNCTION_TYPE_AGG,
                               FUNCTION_TS,
                               FUNCTION_TS,

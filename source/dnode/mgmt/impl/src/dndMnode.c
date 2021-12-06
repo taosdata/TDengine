@@ -331,13 +331,16 @@ static void dndInitMnodeOption(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->putMsgToApplyMsgFp = dndPutMsgIntoMnodeApplyQueue;
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
-  pOption->sver = pDnode->opt.sver;
-  pOption->statusInterval = pDnode->opt.statusInterval;
-  pOption->mnodeEqualVnodeNum = pDnode->opt.mnodeEqualVnodeNum;
-  pOption->shellActivityTimer = pDnode->opt.shellActivityTimer;
-  pOption->timezone = pDnode->opt.timezone;
-  pOption->charset = pDnode->opt.charset;
-  pOption->locale = pDnode->opt.locale;
+  pOption->cfg.sver = pDnode->opt.sver;
+  pOption->cfg.enableTelem = pDnode->opt.enableTelem;
+  pOption->cfg.statusInterval = pDnode->opt.statusInterval;
+  pOption->cfg.mnodeEqualVnodeNum = pDnode->opt.mnodeEqualVnodeNum;
+  pOption->cfg.shellActivityTimer = pDnode->opt.shellActivityTimer;
+  pOption->cfg.timezone = pDnode->opt.timezone;
+  pOption->cfg.charset = pDnode->opt.charset;
+  pOption->cfg.locale = pDnode->opt.locale;
+  pOption->cfg.gitinfo = pDnode->opt.gitinfo;
+  pOption->cfg.buildinfo = pDnode->opt.buildinfo;
 }
 
 static void dndBuildMnodeDeployOption(SDnode *pDnode, SMnodeOpt *pOption) {

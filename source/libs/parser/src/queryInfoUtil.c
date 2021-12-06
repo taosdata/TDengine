@@ -223,7 +223,7 @@ void addExprInfoParam(SSqlExpr* pExpr, char* argument, int32_t type, int32_t byt
 }
 
 int32_t getExprFunctionId(SExprInfo *pExprInfo) {
-  assert(pExprInfo != NULL && pExprInfo->pExpr != NULL && pExprInfo->pExpr->nodeType == TEXPR_UNARYEXPR_NODE);
+  assert(pExprInfo != NULL && pExprInfo->pExpr != NULL && pExprInfo->pExpr->nodeType == TEXPR_FUNCTION_NODE);
   return 0;
 }
 
@@ -324,10 +324,17 @@ SArray* extractFunctionList(SArray* pExprInfoList) {
   assert(pExprInfoList != NULL);
 
   size_t len = taosArrayGetSize(pExprInfoList);
-  SArray* p = taosArrayInit(len, sizeof(int32_t));
+  SArray* p = taosArrayInit(len, POINTER_BYTES);
+
   for(int32_t i = 0; i < len; ++i) {
     SExprInfo* pExprInfo = taosArrayGetP(pExprInfoList, i);
-    taosArrayPush(p, &pExprInfo->pExpr->_function.functionName);
+    if (pExprInfo->pExpr->nodeType == TEXPR_FUNCTION_NODE) {
+      char* name = strdup(pExprInfo->pExpr->_function.functionName);
+      taosArrayPush(p, &name);
+    } else {
+      char* name = strdup("project");
+      taosArrayPush(p, &name);
+    }
   }
 
   return p;
@@ -350,11 +357,16 @@ bool tscHasColumnFilter(SQueryStmtInfo* pQueryInfo) {
   return false;
 }
 
-//void tscClearInterpInfo(SQueryStmtInfo* pQueryInfo) {
-//  if (!tscIsPointInterpQuery(pQueryInfo)) {
-//    return;
-//  }
-//
-//  pQueryInfo->fillType = TSDB_FILL_NONE;
-//  tfree(pQueryInfo->fillVal);
-//}
+int32_t getExprFunctionLevel(SQueryStmtInfo* pQueryInfo) {
+  int32_t n = 10;
+
+  int32_t level = 0;
+  for(int32_t i = 0; i < n; ++i) {
+    SArray* pList = pQueryInfo->exprList[i];
+    if (taosArrayGetSize(pList) > 0) {
+      level += 1;
+    }
+  }
+
+  return level;
+}

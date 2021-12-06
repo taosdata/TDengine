@@ -59,8 +59,7 @@ SArray *tListItemAppendToken(SArray *pList, SToken *pAliasToken, uint8_t sortOrd
 
   if (pAliasToken) {
     SListItem item;
-    assert(0);
-//    taosVariantCreate(&item.pVar, pAliasToken);
+    taosVariantCreate(&item.pVar, pAliasToken->z, pAliasToken->n, pAliasToken->type);
     item.sortOrder = sortOrder;
 
     taosArrayPush(pList, &item);

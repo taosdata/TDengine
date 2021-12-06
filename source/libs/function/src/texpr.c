@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "function.h"
 #include "os.h"
 
 #include "exception.h"
@@ -550,6 +551,15 @@ tExprNode* exprdup(tExprNode* pNode) {
   } else if (pNode->nodeType == TEXPR_COL_NODE) {
     pCloned->pSchema = calloc(1, sizeof(SSchema));
     *pCloned->pSchema = *pNode->pSchema;
+  } else if (pNode->nodeType == TEXPR_FUNCTION_NODE) {
+    strcpy(pCloned->_function.functionName, pNode->_function.functionName);
+
+    int32_t num = pNode->_function.num;
+    pCloned->_function.num = num;
+    pCloned->_function.pChild = calloc(num, POINTER_BYTES);
+    for(int32_t i = 0; i < num; ++i) {
+      pCloned->_function.pChild[i] = exprdup(pNode->_function.pChild[i]);
+    }
   }
 
   pCloned->nodeType = pNode->nodeType;
