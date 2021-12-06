@@ -506,26 +506,26 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
 
   // Check keep
 #if 0  // already checked and set in mnodeSetDefaultDbCfg
-  // if (pCfg->keep == -1) {
-  //   pCfg->keep = TSDB_DEFAULT_KEEP;
-  // } else {
-  //   if (pCfg->keep < TSDB_MIN_KEEP || pCfg->keep > TSDB_MAX_KEEP) {
-  //     tsdbError(
-  //         "vgId:%d invalid keep configuration! keep %d TSDB_MIN_KEEP %d "
-  //         "TSDB_MAX_KEEP %d",
-  //         pCfg->tsdbId, pCfg->keep, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
-  //     terrno = TSDB_CODE_TDB_INVALID_CONFIG;
-  //     return -1;
-  //   }
-  // }
+  if (pCfg->keep == -1) {
+    pCfg->keep = TSDB_DEFAULT_KEEP;
+  } else {
+    if (pCfg->keep < TSDB_MIN_KEEP || pCfg->keep > TSDB_MAX_KEEP) {
+      tsdbError(
+          "vgId:%d invalid keep configuration! keep %d TSDB_MIN_KEEP %d "
+          "TSDB_MAX_KEEP %d",
+          pCfg->tsdbId, pCfg->keep, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
+      terrno = TSDB_CODE_TDB_INVALID_CONFIG;
+      return -1;
+    }
+  }
 
-  // if (pCfg->keep1 == 0) {
-  //   pCfg->keep1 = pCfg->keep;
-  // }
+  if (pCfg->keep1 == 0) {
+    pCfg->keep1 = pCfg->keep;
+  }
 
-  // if (pCfg->keep2 == 0) {
-  //   pCfg->keep2 = pCfg->keep;
-  // }
+  if (pCfg->keep2 == 0) {
+    pCfg->keep2 = pCfg->keep;
+  }
 #endif
 
   int32_t keepMin = pCfg->keep1;
