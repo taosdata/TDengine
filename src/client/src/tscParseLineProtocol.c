@@ -184,7 +184,7 @@ static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableNa
   uint64_t digest1 = *(uint64_t*)(context.digest);
   uint64_t digest2 = *(uint64_t*)(context.digest + 8);
   *tableNameLen = snprintf(tableName, *tableNameLen,
-                           "t_%16" PRIx64 "%16" PRIx64, digest1, digest2);
+                           "t_%16"PRIx64"%16"PRIx64, digest1, digest2);
   taosStringBuilderDestroy(&sb);
   tscDebug("SML:0x%"PRIx64" child table name: %s", info->id, tableName);
   return 0;
