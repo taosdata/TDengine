@@ -12,6 +12,11 @@
 // 3. Queue
 // 4. Recno
 
+// Use secondary database work as index.
+// Any attemp to write to a secondary database results in a non-zero status return.
+
+static int idx_callback(DB *dbp, const DBT *keyp, const DBT *valuep, DBT *resvp);
+
 #define USE_ENV 0
 
 #define DESCRIPTION_SIZE 128
@@ -54,11 +59,12 @@ static void get_value(DB *dbp) {
   value.flags = DB_DBT_USERMEM;
 
   dbp->get(dbp, NULL, &key, &value, 0);
-  printf("The value is \"%s\"\n", value.data);
+  printf("The value is \"%s\"\n", desp);
 }
 
 int main(int argc, char const *argv[]) {
   DB *      dbp = NULL;
+  DB *      sdbp = NULL;
   u_int32_t db_flags;
   DB_ENV *  envp = NULL;
   u_int32_t env_flags;
@@ -89,6 +95,16 @@ int main(int argc, char const *argv[]) {
     exit(1);
   }
 
+  ret = db_create(&sdbp, envp, 0);
+  if (ret != 0) {
+    exit(1);
+  }
+
+  ret = sdbp->set_flags(sdbp, DB_DUPSORT);
+  if (ret != 0) {
+    exit(1);
+  }
+
   db_flags = DB_CREATE | DB_TRUNCATE;
   ret = dbp->open(dbp,       /* DB structure pointer */
                   NULL,      /* Transaction pointer */
@@ -101,13 +117,37 @@ int main(int argc, char const *argv[]) {
     exit(1);
   }
 
-  // Insert a key-value record
-  put_value(dbp);
+  ret = sdbp->open(sdbp,       /* DB structure pointer */
+                   NULL,       /* Transaction pointer */
+                   "index.db", /* On-disk file that holds the database */
+                   NULL,       /* Optional logical database name */
+                   DB_BTREE,   /* Database access method */
+                   db_flags,   /* Open flags */
+                   0);         /* File mode */
+  if (ret != 0) {
+    exit(1);
+  }
 
-  // Read the key-value record
-  get_value(dbp);
+  // Associate the secondary database to the primary
+  dbp->associate(dbp,          /* Primary database */
+                 NULL,         /* TXN id */
+                 sdbp,         /* Secondary database */
+                 idx_callback, /* Callback used for key creation */
+                 0);           /* Flags */
+
+  {
+    // Insert a key-value record
+    put_value(dbp);
+
+    // Read the key-value record
+    get_value(dbp);
+  }
 
   // Close the database
+  if (sdbp != NULL) {
+    sdbp->close(sdbp, 0);
+  }
+
   if (dbp != NULL) {
     dbp->close(dbp, 0);
   }
@@ -115,6 +155,34 @@ int main(int argc, char const *argv[]) {
   if (envp != NULL) {
     envp->close(envp, 0);
   }
+
+  return 0;
+}
+
+static int idx_callback(DB *       sdbp,   /* secondary db handle */
+                        const DBT *keyp,   /* primary db record's key */
+                        const DBT *valuep, /* primary db record's value */
+                        DBT *      skeyp   /* secondary db record's key*/
+) {
+  DBT *tmpdbt;
+
+  tmpdbt = (DBT *)calloc(2, sizeof(DBT));
+
+  {  // TODO
+    tmpdbt[0].data = NULL;
+    tmpdbt[0].size = 0;
+
+    tmpdbt[1].data = NULL;
+    tmpdbt[1].size = 0;
+  }
+
+  /**
+   * DB_DBT_MULTIPLE means DBT references an array
+   * DB_DBT_APPMALLOC means we dynamically allocated memory for the DBT's data field.
+   */
+  skeyp->flags = DB_DBT_MULTIPLE | DB_DBT_APPMALLOC;
+  skeyp->size = 2;
+  skeyp->data = tmpdbt;
 
   return 0;
 }
