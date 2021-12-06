@@ -409,6 +409,7 @@ static bool httpReadData(HttpContext *pContext) {
         continue;
       } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
         httpDebug("context:%p, fd:%d, read from socket error:%d, wait another event", pContext, pContext->fd, errno);
+        httpReleaseContext(pContext/*, false */);
         return false;
       } else {
         httpError("context:%p, fd:%d, read from socket error:%d, close connect", pContext, pContext->fd, errno);
