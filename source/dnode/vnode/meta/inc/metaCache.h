@@ -16,15 +16,13 @@
 #ifndef _TD_META_CACHE_H_
 #define _TD_META_CACHE_H_
 
-#include "rocksdb/c.h"
-
 #include "meta.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef rocksdb_cache_t meta_cache_t;
+typedef struct SMetaCache SMetaCache;
 
 int  metaOpenCache(SMeta *pMeta);
 void metaCloseCache(SMeta *pMeta);

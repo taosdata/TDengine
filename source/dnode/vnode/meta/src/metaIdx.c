@@ -15,6 +15,10 @@
 
 #include "metaDef.h"
 
+struct SMetaIdx {
+  /* data */
+};
+
 int metaOpenIdx(SMeta *pMeta) {
 #if 0
   char               idxDir[128];  // TODO
