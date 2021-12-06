@@ -31,6 +31,7 @@ class TDTestCase:
         # 获取CMD窗口
         # window = DocumentControl(searchDepth=3, Name='Text Area')
         window = WindowControl(searchDepth=1, AutomationId='Console Window')
+        time.sleep(1)
         # 切换英文输入法
         # window.SendKeys('\\')
         # window.SendKeys('{Enter}')
@@ -56,6 +57,7 @@ class TDTestCase:
         sql = "insert into db.tb values(now,'%s');" % temp
         window.SendKeys(sql)
         window.SendKeys('{Enter}')
+        time.sleep(1)
         window.SendKeys('{Ctrl}A')
         window.SendKeys('{Ctrl}C')
         # 获取剪切板里面的复制内容

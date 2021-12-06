@@ -419,6 +419,7 @@ pipeline {
                 timeout(time: 20, unit: 'MINUTES'){
                 bat'''
                 cd C:\\workspace\\TDinternal\\community\\tests\\pytest
+                 python test.py -f tools\\windows_input.py -w 1 -m wintest
                 .\\test-all.bat wintest
                 '''
                 }
