@@ -95,13 +95,15 @@ void metaCloseDB(SMeta *pMeta) {
   // TODO
 }
 
-int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions) {
-  char  sql[256];
-  char *err = NULL;
-  int   rc;
+int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbCfg) {
+  char     sql[256];
+  char *   err = NULL;
+  int      rc;
+  tb_uid_t uid;
 
-  switch (pTbOptions->type) {
+  switch (pTbCfg->type) {
     case META_SUPER_TABLE:
+      uid = pTbCfg->stbCfg.suid;
       // sprintf(sql, "INSERT INTO tb VALUES (\'%s\', %" PRIu64
       //              ");"
       //              "INSERT INTO stb VALUES (%" PRIu64
@@ -119,15 +121,19 @@ int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions) {
       }
       break;
     case META_NORMAL_TABLE:
-      // sprintf(sql, "INSERT INTO tb VALUES (\'%s\', %" PRIu64
-      //              ");"
-      //              "INSERT INTO ntb VALUES (%" PRIu64 ", \'%s\', );");
+      uid = metaGenerateUid(pMeta);
+      // sprintf(sql,
+      //         "INSERT INTO tb VALUES (\'%s\', %" PRIu64
+      //         ");"
+      //         "INSERT INTO ntb VALUES (%" PRIu64 ", \'%s\', );",
+      //         pTbCfg->name, uid, uid, pTbCfg->name, );
       rc = sqlite3_exec(pMeta->pDB->pDB, sql, NULL, NULL, &err);
       if (rc != SQLITE_OK) {
         printf("failed to create normal table since %s\n", err);
       }
       break;
     case META_CHILD_TABLE:
+      uid = metaGenerateUid(pMeta);
       // sprintf(sql, "INSERT INTO tb VALUES (\'%s\', %" PRIu64
       //              ");"
       //              "INSERT INTO stb_%" PRIu64 " VALUES (%" PRIu64 ", \'%s\', );");

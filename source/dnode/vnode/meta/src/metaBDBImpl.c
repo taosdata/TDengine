@@ -39,6 +39,8 @@ int metaOpenDB(SMeta *pMeta) {
     return -1;
   }
 
+  // pMeta->pDB->pEvn->set_cachesize(pMeta->pDB->pEvn, )
+
   ret = pMeta->pDB->pEvn->open(pMeta->pDB->pEvn, pMeta->path, DB_CREATE | DB_INIT_MPOOL, 0);
   if (ret != 0) {
     // TODO: handle error
@@ -106,7 +108,7 @@ void metaCloseDB(SMeta *pMeta) {
   }
 }
 
-int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions) {
+int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbCfg) {
   // TODO
   return 0;
 }
