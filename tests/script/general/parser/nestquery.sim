@@ -342,9 +342,9 @@ endi
 
 sql select sample(x, 20) from (select c1 x from nest_tb0);
 
-sql select top(x, 20) from (select c1 x from nest_tb0);
+sql select top(x, 20) from (select c1 cs,x from nest_tb0);
 
-sql select bottom(x, 20) from (select c1 x from nest_tb0)
+sql select bottom(x, 20) from (select cs,c1 x from nest_tb0)
 
 print ===================> group by + having
 
@@ -419,12 +419,14 @@ if $data03 != @20-09-15 00:00:00.000@ then
   return -1
 endi
 
+sql_error select diff(val) from (select c1 val from nest_tb0);
+
 sql select diff(val) from (select ts,c1 val from nest_tb0);
 if $rows != 9999 then
   return -1
 endi
 
-if $data00 != @70-01-01 08:00:00.000@ then
+if $data00 != @20-09-15 00:01:00.000@ then
   return -1
 endi
 
