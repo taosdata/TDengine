@@ -65,17 +65,19 @@ class TDTestCase:
         window.SendKeys('{Ctrl}C')
         window.SendKeys('exit')
         window.SendKeys('{Enter}')
+        time.sleep(1)
         return result
 
     def run(self):
         tdSql.prepare()
 
-        ret = tdSql.execute('create table tb (ts timestamp, i binary(300))')
+        ret = tdSql.execute('create table db.tb (ts timestamp, i binary(300))')
 
         result = self.win_input_test()
         tdLog.info(result)
-
-        tdSql.query("select * from tb")
+        time.sleep(5)
+        l = tdSql.query("select * from db.tb")
+        print(l)
         tdSql.checkRows(1)
 
 
