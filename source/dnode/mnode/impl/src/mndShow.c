@@ -69,7 +69,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowMsg *pMsg) {
     return NULL;
   }
 
-  int32_t   keepTime = pMnode->shellActivityTimer * 6 * 1000;
+  int32_t   keepTime = pMnode->cfg.shellActivityTimer * 6 * 1000;
   SShowObj *pShowRet = taosCachePut(pMgmt->cache, &showId, sizeof(int32_t), pShow, size, keepTime);
   free(pShow);
   if (pShowRet == NULL) {

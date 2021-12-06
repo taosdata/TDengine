@@ -51,6 +51,15 @@ typedef struct {
   SCacheObj *cache;
 } SProfileMgmt;
 
+typedef struct {
+  int8_t           enable;
+  pthread_mutex_t  lock;
+  pthread_cond_t   cond;
+  volatile int32_t exit;
+  pthread_t        thread;
+  char             email[TSDB_FQDN_LEN];
+} STelemMgmt;
+
 typedef struct SMnode {
   int32_t           dnodeId;
   int32_t           clusterId;
@@ -59,23 +68,18 @@ typedef struct SMnode {
   SReplica          replicas[TSDB_MAX_REPLICA];
   tmr_h             timer;
   char             *path;
+  SMnodeCfg         cfg;
   SSdb             *pSdb;
   SDnode           *pDnode;
   SArray           *pSteps;
   SShowMgmt         showMgmt;
   SProfileMgmt      profileMgmt;
+  STelemMgmt        telemMgmt;
   MndMsgFp          msgFp[TSDB_MSG_TYPE_MAX];
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;
   SendRedirectMsgFp sendRedirectMsgFp;
   PutMsgToMnodeQFp  putMsgToApplyMsgFp;
-  int32_t           sver;
-  int32_t           statusInterval;
-  int32_t           mnodeEqualVnodeNum;
-  int32_t           shellActivityTimer;
-  char             *timezone;
-  char             *locale;
-  char             *charset;
 } SMnode;
 
 void mndSendMsgToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);

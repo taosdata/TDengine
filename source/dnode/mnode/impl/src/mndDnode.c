@@ -179,32 +179,33 @@ static void mndGetDnodeData(SMnode *pMnode, SDnodeEps *pEps, int32_t numOfEps) {
 }
 
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
-  if (pCfg->mnodeEqualVnodeNum != pMnode->mnodeEqualVnodeNum) {
-    mError("\"mnodeEqualVnodeNum\"[%d - %d] cfg inconsistent", pCfg->mnodeEqualVnodeNum, pMnode->mnodeEqualVnodeNum);
+  if (pCfg->mnodeEqualVnodeNum != pMnode->cfg.mnodeEqualVnodeNum) {
+    mError("\"mnodeEqualVnodeNum\"[%d - %d] cfg inconsistent", pCfg->mnodeEqualVnodeNum,
+           pMnode->cfg.mnodeEqualVnodeNum);
     return DND_REASON_MN_EQUAL_VN_NOT_MATCH;
   }
 
-  if (pCfg->statusInterval != pMnode->statusInterval) {
-    mError("\"statusInterval\"[%d - %d] cfg inconsistent", pCfg->statusInterval, pMnode->statusInterval);
+  if (pCfg->statusInterval != pMnode->cfg.statusInterval) {
+    mError("\"statusInterval\"[%d - %d] cfg inconsistent", pCfg->statusInterval, pMnode->cfg.statusInterval);
     return DND_REASON_STATUS_INTERVAL_NOT_MATCH;
   }
 
   int64_t checkTime = 0;
   char    timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
-  if ((0 != strcasecmp(pCfg->timezone, pMnode->timezone)) && (checkTime != pCfg->checkTime)) {
-    mError("\"timezone\"[%s - %s] [%" PRId64 " - %" PRId64 "] cfg inconsistent", pCfg->timezone, tsTimezone,
+  if ((0 != strcasecmp(pCfg->timezone, pMnode->cfg.timezone)) && (checkTime != pCfg->checkTime)) {
+    mError("\"timezone\"[%s - %s] [%" PRId64 " - %" PRId64 "] cfg inconsistent", pCfg->timezone, pMnode->cfg.timezone,
            pCfg->checkTime, checkTime);
     return DND_REASON_TIME_ZONE_NOT_MATCH;
   }
 
-  if (0 != strcasecmp(pCfg->locale, pMnode->locale)) {
-    mError("\"locale\"[%s - %s]  cfg parameters inconsistent", pCfg->locale, pMnode->locale);
+  if (0 != strcasecmp(pCfg->locale, pMnode->cfg.locale)) {
+    mError("\"locale\"[%s - %s]  cfg parameters inconsistent", pCfg->locale, pMnode->cfg.locale);
     return DND_REASON_LOCALE_NOT_MATCH;
   }
 
-  if (0 != strcasecmp(pCfg->charset, pMnode->charset)) {
-    mError("\"charset\"[%s - %s] cfg parameters inconsistent.", pCfg->charset, pMnode->charset);
+  if (0 != strcasecmp(pCfg->charset, pMnode->cfg.charset)) {
+    mError("\"charset\"[%s - %s] cfg parameters inconsistent.", pCfg->charset, pMnode->cfg.charset);
     return DND_REASON_CHARSET_NOT_MATCH;
   }
 
@@ -251,12 +252,12 @@ static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  if (pStatus->sver != pMnode->sver) {
+  if (pStatus->sver != pMnode->cfg.sver) {
     if (pDnode != NULL && pDnode->status != DND_STATUS_READY) {
       pDnode->offlineReason = DND_REASON_VERSION_NOT_MATCH;
     }
     mndReleaseDnode(pMnode, pDnode);
-    mError("dnode:%d, status msg version:%d not match cluster:%d", pStatus->dnodeId, pStatus->sver, pMnode->sver);
+    mError("dnode:%d, status msg version:%d not match cluster:%d", pStatus->dnodeId, pStatus->sver, pMnode->cfg.sver);
     return TSDB_CODE_MND_INVALID_MSG_VERSION;
   }
 

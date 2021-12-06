@@ -48,6 +48,19 @@ int32_t mndInitCluster(SMnode *pMnode) {
 
 void mndCleanupCluster(SMnode *pMnode) {}
 
+int32_t mndGetClusterName(SMnode *pMnode, char *clusterName, int32_t len) {
+  SSdb *pSdb = pMnode->pSdb;
+
+  SClusterObj *pCluster = sdbAcquire(pSdb, SDB_CLUSTER, &pMnode->clusterId);
+  if (pCluster = NULL) {
+    return -1;
+  }
+
+  tstrncpy(clusterName, pCluster->name, len);
+  sdbRelease(pSdb, pCluster);
+  return 0;
+}
+
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
   SSdbRaw *pRaw = sdbAllocRaw(SDB_CLUSTER, SDB_CLUSTER_VER, sizeof(SClusterObj));
   if (pRaw == NULL) return NULL;

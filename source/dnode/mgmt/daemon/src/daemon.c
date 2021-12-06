@@ -136,7 +136,7 @@ void dmnWaitSignal() {
 }
 
 void dmnInitOption(SDnodeOpt *pOption) {
-  pOption->sver = tsVersion;
+  pOption->sver = 30000000; //3.0.0.0
   pOption->numOfCores = tsNumOfCores;
   pOption->numOfSupportMnodes = 1;
   pOption->numOfSupportVnodes = 1;
@@ -155,6 +155,8 @@ void dmnInitOption(SDnodeOpt *pOption) {
   tstrncpy(pOption->timezone, tsTimezone, TSDB_TIMEZONE_LEN);
   tstrncpy(pOption->locale, tsLocale, TSDB_LOCALE_LEN);
   tstrncpy(pOption->charset, tsCharset, TSDB_LOCALE_LEN);
+  tstrncpy(pOption->buildinfo, buildinfo, 64);
+  tstrncpy(pOption->gitinfo, gitinfo, 48);
 }
 
 int dmnRunDnode() {

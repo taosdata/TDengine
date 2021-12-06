@@ -67,7 +67,7 @@ static void      mndCancelGetNextStream(SMnode *pMnode, void *pIter);
 int32_t mndInitProfile(SMnode *pMnode) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
-  int32_t connCheckTime = pMnode->shellActivityTimer * 2;
+  int32_t connCheckTime = pMnode->cfg.shellActivityTimer * 2;
   pMgmt->cache = taosCacheInit(TSDB_DATA_TYPE_INT, connCheckTime, true, (__cache_free_fn_t)mndFreeConn, "conn");
   if (pMgmt->cache == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -126,7 +126,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, char *user, uint32_t ip, uint16_t
   tstrncpy(connObj.user, user, TSDB_USER_LEN);
   tstrncpy(connObj.app, app, TSDB_APP_NAME_LEN);
 
-  int32_t   keepTime = pMnode->shellActivityTimer * 3;
+  int32_t   keepTime = pMnode->cfg.shellActivityTimer * 3;
   SConnObj *pConn = taosCachePut(pMgmt->cache, &connId, sizeof(int32_t), &connObj, sizeof(connObj), keepTime * 1000);
   if (pConn == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -153,7 +153,7 @@ static SConnObj *mndAcquireConn(SMnode *pMnode, int32_t connId) {
     return NULL;
   }
 
-  int32_t keepTime = pMnode->shellActivityTimer * 3;
+  int32_t keepTime = pMnode->cfg.shellActivityTimer * 3;
   pConn->lastAccess = keepTime * 1000 + (uint64_t)taosGetTimestampMs();
 
   mTrace("conn:%d, data:%p acquired from cache", pConn->id, pConn);

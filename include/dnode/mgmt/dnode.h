@@ -31,6 +31,7 @@ typedef struct {
   int16_t  numOfSupportMnodes;
   int16_t  numOfSupportVnodes;
   int16_t  numOfSupportQnodes;
+  int8_t   enableTelem;
   int32_t  statusInterval;
   int32_t  mnodeEqualVnodeNum;
   float    numOfThreadsPerCore;
@@ -45,6 +46,8 @@ typedef struct {
   char     timezone[TSDB_TIMEZONE_LEN];
   char     locale[TSDB_LOCALE_LEN];
   char     charset[TSDB_LOCALE_LEN];
+  char     buildinfo[64];
+  char     gitinfo[48];
 } SDnodeOpt;
 
 /* ------------------------ SDnode ------------------------ */
