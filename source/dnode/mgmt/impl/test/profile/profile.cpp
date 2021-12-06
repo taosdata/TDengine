@@ -51,7 +51,7 @@ TEST_F(DndTestProfile, SConnectMsg_01) {
 
   SConnectMsg* pReq = (SConnectMsg*)rpcMallocCont(sizeof(SConnectMsg));
   pReq->pid = htonl(1234);
-  strcpy(pReq->app, "test01");
+  strcpy(pReq->app, "dndTestProfile");
   strcpy(pReq->db, "");
 
   SRpcMsg rpcMsg = {0};
@@ -90,7 +90,7 @@ TEST_F(DndTestProfile, SConnectMsg_02) {
 
   SConnectMsg* pReq = (SConnectMsg*)rpcMallocCont(sizeof(SConnectMsg));
   pReq->pid = htonl(1234);
-  strcpy(pReq->app, "test01");
+  strcpy(pReq->app, "dndTestProfile");
   strcpy(pReq->db, "invalid_db");
 
   SRpcMsg rpcMsg = {0};
@@ -243,7 +243,7 @@ TEST_F(DndTestProfile, SHeartBeatMsg_01) {
   pReq->pid = htonl(1234);
   pReq->numOfQueries = htonl(0);
   pReq->numOfStreams = htonl(0);
-  strcpy(pReq->app, "test01");
+  strcpy(pReq->app, "dndTestProfile");
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pReq;
@@ -300,7 +300,7 @@ TEST_F(DndTestProfile, SKillConnMsg_01) {
     pReq->pid = htonl(1234);
     pReq->numOfQueries = htonl(0);
     pReq->numOfStreams = htonl(0);
-    strcpy(pReq->app, "test01");
+    strcpy(pReq->app, "dndTestProfile");
 
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = pReq;
@@ -317,7 +317,7 @@ TEST_F(DndTestProfile, SKillConnMsg_01) {
   {
     SConnectMsg* pReq = (SConnectMsg*)rpcMallocCont(sizeof(SConnectMsg));
     pReq->pid = htonl(1234);
-    strcpy(pReq->app, "test01");
+    strcpy(pReq->app, "dndTestProfile");
     strcpy(pReq->db, "");
 
     SRpcMsg rpcMsg = {0};
@@ -394,7 +394,7 @@ TEST_F(DndTestProfile, SKillQueryMsg_01) {
     pReq->pid = htonl(1234);
     pReq->numOfQueries = htonl(0);
     pReq->numOfStreams = htonl(0);
-    strcpy(pReq->app, "test01");
+    strcpy(pReq->app, "dndTestProfile");
 
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = pReq;
@@ -581,7 +581,7 @@ TEST_F(DndTestProfile, SKillStreamMsg_01) {
     pReq->pid = htonl(1234);
     pReq->numOfQueries = htonl(0);
     pReq->numOfStreams = htonl(0);
-    strcpy(pReq->app, "test01");
+    strcpy(pReq->app, "dndTestProfile");
 
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = pReq;
