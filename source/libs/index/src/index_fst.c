@@ -40,6 +40,7 @@ void unFinishedNodeDestroyElem(void* elem) {
   FstBuilderNodeUnfinished *b = (FstBuilderNodeUnfinished*)elem;
   fstBuilderNodeDestroy(b->node); 
   free(b->last); 
+  b->last = NULL;
 }  
 void fstUnFinishedNodesDestroy(FstUnFinishedNodes *nodes) {
   if (nodes == NULL) { return; } 
@@ -62,15 +63,15 @@ FstBuilderNode *fstUnFinishedNodesPopRoot(FstUnFinishedNodes *nodes) {
   assert(taosArrayGetSize(nodes->stack) == 1);
 
   FstBuilderNodeUnfinished *un = taosArrayPop(nodes->stack);
-  //assert(un->last == NULL); 
+  assert(un->last == NULL); 
   return un->node;  
 }
 
 FstBuilderNode *fstUnFinishedNodesPopFreeze(FstUnFinishedNodes *nodes, CompiledAddr addr) {
   FstBuilderNodeUnfinished *un = taosArrayPop(nodes->stack);
   fstBuilderNodeUnfinishedLastCompiled(un, addr);
-  free(un->last); // TODO add func FstLastTransitionFree()
-  un->last = NULL;
+  //free(un->last); // TODO add func FstLastTransitionFree()
+  //un->last = NULL;
   return un->node; 
 }
 
@@ -937,9 +938,10 @@ void fstLastTransitionDestroy(FstLastTransition *trn) {
 void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished *unNode, CompiledAddr addr) {
   FstLastTransition *trn = unNode->last;       
   if (trn == NULL) { return; }  
-
   FstTransition t = {.inp = trn->inp, .out = trn->out, .addr = addr};      
   taosArrayPush(unNode->node->trans, &t); 
+  fstLastTransitionDestroy(trn); 
+  unNode->last = NULL;
   return;
 }
 
