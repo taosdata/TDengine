@@ -109,7 +109,7 @@ static int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo);
 static int32_t validateSqlFunctionInStreamSql(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
-                                   SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type, uint64_t* uid);
+                                   SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type, uint64_t* uid, int32_t* height);
 static int32_t validateEp(char* ep);
 static int32_t validateDNodeConfig(SMiscInfo* pOptions);
 static int32_t validateLocalConfig(SMiscInfo* pOptions);
@@ -1944,10 +1944,15 @@ static int32_t handleSQLExprItem(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t 
   int32_t     sqlExprType = SQLEXPR_TYPE_UNASSIGNED;
 
   uint64_t uid;
-  int32_t code = validateSQLExprItem(pCmd, pItem->pNode, pQueryInfo, &columnList, &sqlExprType, &uid);
+  int32_t height = 0;
+  int32_t code = validateSQLExprItem(pCmd, pItem->pNode, pQueryInfo, &columnList, &sqlExprType, &uid, &height);
 
   if (code != TSDB_CODE_SUCCESS) {
     return code;
+  }
+
+  if (height >= 16) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "the max height of expression must be less than 16");
   }
 
   if (sqlExprType == SQLEXPR_TYPE_SCALAR) {
@@ -4366,7 +4371,7 @@ static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* 
 }
 
 static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
-                                         SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type, uint64_t *uid) {
+                                         SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type, uint64_t *uid, int32_t* height) {
   int32_t code = TSDB_CODE_SUCCESS;
   const char* msg1 = "invalid function parameters";
   const char* msg2 = "not supported functions in arithmetic expression";
@@ -4377,10 +4382,11 @@ static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
   if (pExpr->Expr.paramList != NULL) {
     size_t numChildren = taosArrayGetSize(pExpr->Expr.paramList);
     int32_t* childrenTypes = calloc(numChildren, sizeof(int32_t));
+    int32_t* childrenHeight = calloc(numChildren, sizeof(int32_t));
     for (int32_t i = 0; i < numChildren; ++i) {
       tSqlExprItem* pParamElem = taosArrayGet(pExpr->Expr.paramList, i);
       if (TSDB_FUNC_IS_SCALAR(functionId)) {
-        code = validateSQLExprItem(pCmd, pParamElem->pNode, pQueryInfo, pList, childrenTypes + i, uid);
+        code = validateSQLExprItem(pCmd, pParamElem->pNode, pQueryInfo, pList, childrenTypes + i, uid, childrenHeight+i);
         if (code != TSDB_CODE_SUCCESS) {
           free(childrenTypes);
           return code;
@@ -4397,11 +4403,18 @@ static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
       if (TSDB_FUNC_IS_SCALAR(functionId)) {
         bool anyChildScalar = false;
         bool anyChildAgg = false;
+        int32_t maxChildrenHeight = 0;
         for (int i = 0; i < numChildren; ++i) {
           assert (childrenTypes[i] != SQLEXPR_TYPE_UNASSIGNED);
           anyChildScalar = anyChildScalar || (childrenTypes[i] == SQLEXPR_TYPE_SCALAR);
           anyChildAgg = anyChildAgg || (childrenTypes[i] == SQLEXPR_TYPE_AGG);
+          if (childrenHeight[i] > maxChildrenHeight) {
+            maxChildrenHeight = childrenHeight[i];
+          }
         }
+
+        *height = maxChildrenHeight + 1;
+
         if (anyChildAgg && anyChildScalar) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
         }
@@ -4477,19 +4490,20 @@ static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
 }
 
 static int32_t validateSQLExprItemArithmeticExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList,
-                                      int32_t* type, uint64_t* uid) {
+                                      int32_t* type, uint64_t* uid, int32_t* height) {
   uint64_t uidLeft = 0;
   uint64_t uidRight = 0;
   int32_t leftType = SQLEXPR_TYPE_UNASSIGNED;
   int32_t rightType = SQLEXPR_TYPE_UNASSIGNED;
   const char* msg1 = "arithmetic expression composed with columns from different tables";
   const char* msg2 = "arithmetic expression composed with functions/columns of different types";
-  
-  int32_t  ret = validateSQLExprItem(pCmd, pExpr->pLeft, pQueryInfo, pList, &leftType, &uidLeft);
+  int32_t leftHeight = 0;
+  int32_t  ret = validateSQLExprItem(pCmd, pExpr->pLeft, pQueryInfo, pList, &leftType, &uidLeft, &leftHeight);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
-  ret = validateSQLExprItem(pCmd, pExpr->pRight, pQueryInfo, pList, &rightType, &uidRight);
+  int32_t rightHeight = 0;
+  ret = validateSQLExprItem(pCmd, pExpr->pRight, pQueryInfo, pList, &rightType, &uidRight, &rightHeight);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
@@ -4499,6 +4513,7 @@ static int32_t validateSQLExprItemArithmeticExpr(SSqlCmd* pCmd, tSqlExpr* pExpr,
   }
   *uid = uidLeft;
 
+  *height = (leftHeight > rightHeight) ? leftHeight + 1 : rightHeight+1;
   {
     assert(leftType != SQLEXPR_TYPE_UNASSIGNED && rightType != SQLEXPR_TYPE_UNASSIGNED);
 
@@ -4519,7 +4534,7 @@ static int32_t validateSQLExprItemArithmeticExpr(SSqlCmd* pCmd, tSqlExpr* pExpr,
 }
 
 static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
-                                             SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type, uint64_t* uid) {
+                                             SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type, uint64_t* uid, int32_t* height) {
   const char* msg1 = "invalid column name in select clause";
   const char* msg2 = "invalid data type in select clause";
   const char* msg3 = "invalid select clause";
@@ -4527,14 +4542,13 @@ static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
-
   if (pExpr->type == SQL_NODE_EXPR) {
-    int32_t ret = validateSQLExprItemArithmeticExpr(pCmd, pExpr, pQueryInfo, pList, type, uid);
+    int32_t ret = validateSQLExprItemArithmeticExpr(pCmd, pExpr, pQueryInfo, pList, type, uid, height);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
   } else if (pExpr->type == SQL_NODE_SQLFUNCTION) {
-    int32_t ret = validateSQLExprItemSQLFunc(pCmd, pExpr, pQueryInfo, pList, type, uid);
+    int32_t ret = validateSQLExprItemSQLFunc(pCmd, pExpr, pQueryInfo, pList, type, uid, height);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
