@@ -15,8 +15,6 @@ elseif(${META_DB_IMPL} STREQUAL "SQLITE")
     list(REMOVE_ITEM META_SRC "src/metaBDBImpl.c")
 endif()
 
-message("${META_SRC}")
-
 add_library(meta STATIC ${META_SRC})
 target_include_directories(
     meta
