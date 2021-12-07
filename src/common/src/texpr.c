@@ -1034,8 +1034,8 @@ int32_t exprValidateStringLengthNode(tExprNode *pExpr) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  pExpr->resultType = TSDB_DATA_TYPE_SMALLINT;
-  pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_SMALLINT].bytes;
+  pExpr->resultType = TSDB_DATA_TYPE_INT;
+  pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
 
   return TSDB_CODE_SUCCESS;
 }
