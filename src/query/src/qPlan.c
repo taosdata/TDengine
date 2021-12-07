@@ -567,6 +567,10 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
   } else if (pQueryAttr->pointInterpQuery) {
     op = OP_TimeEvery;
     taosArrayPush(plan, &op);
+    if (pQueryAttr->pExpr2 != NULL) {
+      op = OP_Project;
+      taosArrayPush(plan, &op);
+    }
   } else if (pQueryAttr->interval.interval > 0) {
     if (pQueryAttr->stableQuery) {
       op = OP_MultiTableTimeInterval;

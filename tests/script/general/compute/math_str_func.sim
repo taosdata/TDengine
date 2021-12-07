@@ -45,8 +45,8 @@ sql insert into tbn values ('2021-11-11 09:00:04',true,5,5,5,5,5,5,"555","5555",
 sql insert into tbn values ('2021-11-11 09:00:05',true,6,6,6,6,6,6,"666","6666",6,6,6,6);
 sql insert into tbn values ('2021-11-11 09:00:06',true,7,7,7,7,7,7,"777","7777",7,7,7,7);
 
-run general/compute/math_str_query1.sim
-#run general/compute/math_str_query2.sim
+run general/compute/math_sqrt.sim
+run general/compute/math_abs.sim
 
 
 sql create table stba (ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 float, c7 double, c8 binary(10), c9 nchar(10), c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned) TAGS(t1 int, t2 binary(10), t3 double);
@@ -98,9 +98,10 @@ sql insert into tba1 values ('2021-11-11 09:00:27',true, 8,8,8,8,8,8,"888","8888
 sql insert into tba1 values ('2021-11-11 09:00:28',true, 9,9,9,9,9,9,"999","9999",9,9,9,9);
 sql insert into tba1 values ('2021-11-11 09:00:29',true, 0,0,0,0,0,0,"000","0000",0,0,0,0);
 
-run general/compute/math_str_query1.sim
-run general/compute/math_str_query2.sim
-#run general/compute/math_str_query3.sim
+run general/compute/math_sqrt.sim
+run general/compute/math_sqrt2.sim
+run general/compute/math_abs.sim
+run general/compute/math_abs2.sim
 
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
