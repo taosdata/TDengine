@@ -342,9 +342,9 @@ endi
 
 sql select sample(x, 20) from (select c1 x from nest_tb0);
 
-sql select top(x, 20) from (select c1 cs,x from nest_tb0);
+sql select top(x, 20) from (select c1 x from nest_tb0);
 
-sql select bottom(x, 20) from (select cs,c1 x from nest_tb0)
+sql select bottom(x, 20) from (select c1 x from nest_tb0)
 
 print ===================> group by + having
 
