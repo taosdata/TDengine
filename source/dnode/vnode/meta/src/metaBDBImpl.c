@@ -33,29 +33,44 @@ struct SMetaDB {
   DB_ENV *pEvn;
 };
 
+#define P_ERROR(info, code) fprintf(stderr, info "reason: %s", db_strerror(code))
+
 static SMetaDB *metaNewDB();
 static void     metaFreeDB(SMetaDB *pDB);
+static int      metaCreateDBEnv(SMetaDB *pDB, const char *path);
+static void     metaDestroyDBEnv(SMetaDB *pDB);
 
 int metaOpenDB(SMeta *pMeta) {
   int      ret;
   SMetaDB *pDB;
 
   pMeta->pDB = metaNewDB();
+  if (pMeta->pDB == NULL) {
+    return -1;
+  }
+
+  pDB = pMeta->pDB;
+
+  if (metaCreateDBEnv(pDB, pMeta->path) < 0) {
+    metaCloseDB(pMeta);
+    return -1;
+  }
+
+  // ret = db_create(&(pDB->pStbDB), pDB->pEvn, 0);
+  // if (ret != 0) {
+  //   P_ERROR("failed to create META super table DB", ret);
+  //   metaCloseDB(pMeta);
+  //   return -1;
+  // }
+
+  // ret = pDB->pStbDB->open(pDB->pStbDB, NULL, "meta.db", NULL, DB_BTREE, DB_CREATE, 0);
+  // if (ret != 0) {
+  //   P_ERROR("failed to create META super table DB", ret);
+  //   metaCloseDB(pMeta);
+  //   return -1;
+  // }
 
 #if 0
-  // create the env
-  ret = db_env_create(&(pMeta->pDB->pEvn), 0);
-  if (ret != 0) {
-    // TODO: handle error
-    return -1;
-  }
-
-  ret = pMeta->pDB->pEvn->open(pMeta->pDB->pEvn, pMeta->path, DB_CREATE | DB_INIT_MPOOL, 0);
-  if (ret != 0) {
-    // TODO: handle error
-    return -1;
-  }
-
   ret = db_create(&(pMeta->pDB->pDB), pMeta->pDB->pEvn, 0);
   if (ret != 0) {
     // TODO: handle error
@@ -125,33 +140,11 @@ int metaOpenDB(SMeta *pMeta) {
 }
 
 void metaCloseDB(SMeta *pMeta) {
-  metaFreeDB(pMeta->pDB);
-  pMeta->pDB = NULL;
-#if 0
   if (pMeta->pDB) {
-    if (pMeta->pDB->pIdx) {
-      pMeta->pDB->pIdx->close(pMeta->pDB->pIdx, 0);
-      pMeta->pDB->pIdx = NULL;
-    }
-
-    if (pMeta->pDB->pSchemaDB) {
-      pMeta->pDB->pSchemaDB->close(pMeta->pDB->pSchemaDB, 0);
-      pMeta->pDB->pSchemaDB = NULL;
-    }
-
-    if (pMeta->pDB->pDB) {
-      pMeta->pDB->pDB->close(pMeta->pDB->pDB, 0);
-      pMeta->pDB->pDB = NULL;
-    }
-
-    if (pMeta->pDB->pEvn) {
-      pMeta->pDB->pEvn->close(pMeta->pDB->pEvn, 0);
-      pMeta->pDB->pEvn = NULL;
-    }
-
-    free(pMeta->pDB);
+    metaDestroyDBEnv(pMeta->pDB);
+    metaFreeDB(pMeta->pDB);
+    pMeta->pDB = NULL;
   }
-#endif
 }
 
 int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
@@ -220,5 +213,31 @@ static void metaFreeDB(SMetaDB *pDB) {
     }
 
     free(pDB);
+  }
+}
+
+static int metaCreateDBEnv(SMetaDB *pDB, const char *path) {
+  int ret;
+
+  if (path == NULL) return 0;
+
+  ret = db_env_create(&(pDB->pEvn), 0);
+  if (ret != 0) {
+    P_ERROR("Failed to create META DB ENV", ret);
+    return -1;
+  }
+
+  ret = pDB->pEvn->open(pDB->pEvn, path, DB_CREATE | DB_INIT_MPOOL, 0);
+  if (ret != 0) {
+    P_ERROR("failed to open META DB ENV", ret);
+    return -1;
+  }
+
+  return 0;
+}
+
+static void metaDestroyDBEnv(SMetaDB *pDB) {
+  if (pDB->pEvn) {
+    pDB->pEvn->close(pDB->pEvn, 0);
   }
 }
