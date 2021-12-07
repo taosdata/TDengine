@@ -583,10 +583,15 @@ pipeline {
             timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
+              cd ${WKC}/tests
+              ./test-all.sh develop-test
+              '''
+              sh '''
               date
               cd ${WKC}/tests
               ./test-all.sh b6fq
               date'''
+              
             }
           }
         }
@@ -595,6 +600,10 @@ pipeline {
           steps {     
             timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
+              sh '''
+              cd ${WKC}/tests
+              ./test-all.sh system-test
+              '''
               sh '''
               date
               cd ${WKC}/tests

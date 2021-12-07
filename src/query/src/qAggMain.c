@@ -1106,11 +1106,11 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
         
         if ((*retVal < pData[i]) ^ isMin) {
           *retVal = pData[i];
-          TSKEY k = tsList[i];
-          
-          DO_UPDATE_TAG_COLUMNS(pCtx, k);
+          if(tsList) {
+            TSKEY k = tsList[i];
+            DO_UPDATE_TAG_COLUMNS(pCtx, k);
+          }
         }
-        
         *notNullElems += 1;
       }
 #if defined(_DEBUG_VIEW)

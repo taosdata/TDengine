@@ -75,45 +75,46 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_REF_NOT_EXIST                 TAOS_DEF_ERROR_CODE(0, 0x010A)  //"Ref is not there"
 
 //client
-#define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)  //"Invalid Operation"
-#define TSDB_CODE_TSC_INVALID_QHANDLE           TAOS_DEF_ERROR_CODE(0, 0x0201)  //"Invalid qhandle"
-#define TSDB_CODE_TSC_INVALID_TIME_STAMP        TAOS_DEF_ERROR_CODE(0, 0x0202)  //"Invalid combination of client/service time"
-#define TSDB_CODE_TSC_INVALID_VALUE             TAOS_DEF_ERROR_CODE(0, 0x0203)  //"Invalid value in client"
-#define TSDB_CODE_TSC_INVALID_VERSION           TAOS_DEF_ERROR_CODE(0, 0x0204)  //"Invalid client version"
-#define TSDB_CODE_TSC_INVALID_IE                TAOS_DEF_ERROR_CODE(0, 0x0205)  //"Invalid client ie"
-#define TSDB_CODE_TSC_INVALID_FQDN              TAOS_DEF_ERROR_CODE(0, 0x0206)  //"Invalid host name"
-#define TSDB_CODE_TSC_INVALID_USER_LENGTH       TAOS_DEF_ERROR_CODE(0, 0x0207)  //"Invalid user name"
-#define TSDB_CODE_TSC_INVALID_PASS_LENGTH       TAOS_DEF_ERROR_CODE(0, 0x0208)  //"Invalid password"
-#define TSDB_CODE_TSC_INVALID_DB_LENGTH         TAOS_DEF_ERROR_CODE(0, 0x0209)  //"Database name too long"
-#define TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH   TAOS_DEF_ERROR_CODE(0, 0x020A)  //"Table name too long"
-#define TSDB_CODE_TSC_INVALID_CONNECTION        TAOS_DEF_ERROR_CODE(0, 0x020B)  //"Invalid connection"
-#define TSDB_CODE_TSC_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x020C)  //"System out of memory"
-#define TSDB_CODE_TSC_NO_DISKSPACE              TAOS_DEF_ERROR_CODE(0, 0x020D)  //"System out of disk space"
-#define TSDB_CODE_TSC_QUERY_CACHE_ERASED        TAOS_DEF_ERROR_CODE(0, 0x020E)  //"Query cache erased"
-#define TSDB_CODE_TSC_QUERY_CANCELLED           TAOS_DEF_ERROR_CODE(0, 0x020F)  //"Query terminated"
-#define TSDB_CODE_TSC_SORTED_RES_TOO_MANY       TAOS_DEF_ERROR_CODE(0, 0x0210)  //"Result set too large to be sorted"      // too many result for ordered super table projection query
-#define TSDB_CODE_TSC_APP_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x0211)  //"Application error"
-#define TSDB_CODE_TSC_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0212)  //"Action in progress"
-#define TSDB_CODE_TSC_DISCONNECTED              TAOS_DEF_ERROR_CODE(0, 0x0213)  //"Disconnected from service"
-#define TSDB_CODE_TSC_NO_WRITE_AUTH             TAOS_DEF_ERROR_CODE(0, 0x0214)  //"No write permission"
-#define TSDB_CODE_TSC_CONN_KILLED               TAOS_DEF_ERROR_CODE(0, 0x0215)  //"Connection killed"
-#define TSDB_CODE_TSC_SQL_SYNTAX_ERROR          TAOS_DEF_ERROR_CODE(0, 0x0216)  //"Syntax error in SQL"
-#define TSDB_CODE_TSC_DB_NOT_SELECTED           TAOS_DEF_ERROR_CODE(0, 0x0217)  //"Database not specified or available"
-#define TSDB_CODE_TSC_INVALID_TABLE_NAME        TAOS_DEF_ERROR_CODE(0, 0x0218)  //"Table does not exist"
-#define TSDB_CODE_TSC_EXCEED_SQL_LIMIT          TAOS_DEF_ERROR_CODE(0, 0x0219)  //"SQL statement too long check maxSQLLength config"
-#define TSDB_CODE_TSC_FILE_EMPTY                TAOS_DEF_ERROR_CODE(0, 0x021A)  //"File is empty"
-#define TSDB_CODE_TSC_LINE_SYNTAX_ERROR         TAOS_DEF_ERROR_CODE(0, 0x021B)  //"Syntax error in Line"
-#define TSDB_CODE_TSC_NO_META_CACHED            TAOS_DEF_ERROR_CODE(0, 0x021C)  //"No table meta cached"
-#define TSDB_CODE_TSC_DUP_COL_NAMES             TAOS_DEF_ERROR_CODE(0, 0x021D)  //"duplicated column names"
-#define TSDB_CODE_TSC_INVALID_TAG_LENGTH        TAOS_DEF_ERROR_CODE(0, 0x021E)  //"Invalid tag length"
-#define TSDB_CODE_TSC_INVALID_COLUMN_LENGTH     TAOS_DEF_ERROR_CODE(0, 0x021F)  //"Invalid column length"
-#define TSDB_CODE_TSC_DUP_TAG_NAMES             TAOS_DEF_ERROR_CODE(0, 0x0220)  //"duplicated tag names"
-#define TSDB_CODE_TSC_INVALID_JSON              TAOS_DEF_ERROR_CODE(0, 0x0221)  //"Invalid JSON format"
-#define TSDB_CODE_TSC_INVALID_JSON_TYPE         TAOS_DEF_ERROR_CODE(0, 0x0222)  //"Invalid JSON data type"
-#define TSDB_CODE_TSC_INVALID_JSON_CONFIG       TAOS_DEF_ERROR_CODE(0, 0x0223)  //"Invalid JSON configuration"
-#define TSDB_CODE_TSC_VALUE_OUT_OF_RANGE        TAOS_DEF_ERROR_CODE(0, 0x0224)  //"Value out of range"
-#define TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE     TAOS_DEF_ERROR_CODE(0, 0x0225)  //"Invalid line protocol type"
-#define TSDB_CODE_TSC_INVALID_PRECISION_TYPE    TAOS_DEF_ERROR_CODE(0, 0x0226)  //"Invalid timestamp precision type"
+#define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)  //"Invalid Operation")
+#define TSDB_CODE_TSC_INVALID_QHANDLE           TAOS_DEF_ERROR_CODE(0, 0x0201)  //"Invalid qhandle")
+#define TSDB_CODE_TSC_INVALID_TIME_STAMP        TAOS_DEF_ERROR_CODE(0, 0x0202)  //"Invalid combination of client/service time")
+#define TSDB_CODE_TSC_INVALID_VALUE             TAOS_DEF_ERROR_CODE(0, 0x0203)  //"Invalid value in client")
+#define TSDB_CODE_TSC_INVALID_VERSION           TAOS_DEF_ERROR_CODE(0, 0x0204)  //"Invalid client version")
+#define TSDB_CODE_TSC_INVALID_IE                TAOS_DEF_ERROR_CODE(0, 0x0205)  //"Invalid client ie")
+#define TSDB_CODE_TSC_INVALID_FQDN              TAOS_DEF_ERROR_CODE(0, 0x0206)  //"Invalid host name")
+#define TSDB_CODE_TSC_INVALID_USER_LENGTH       TAOS_DEF_ERROR_CODE(0, 0x0207)  //"Invalid user name")
+#define TSDB_CODE_TSC_INVALID_PASS_LENGTH       TAOS_DEF_ERROR_CODE(0, 0x0208)  //"Invalid password")
+#define TSDB_CODE_TSC_INVALID_DB_LENGTH         TAOS_DEF_ERROR_CODE(0, 0x0209)  //"Database name too long")
+#define TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH   TAOS_DEF_ERROR_CODE(0, 0x020A)  //"Table name too long")
+#define TSDB_CODE_TSC_INVALID_CONNECTION        TAOS_DEF_ERROR_CODE(0, 0x020B)  //"Invalid connection")
+#define TSDB_CODE_TSC_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x020C)  //"System out of memory")
+#define TSDB_CODE_TSC_NO_DISKSPACE              TAOS_DEF_ERROR_CODE(0, 0x020D)  //"System out of disk space")
+#define TSDB_CODE_TSC_QUERY_CACHE_ERASED        TAOS_DEF_ERROR_CODE(0, 0x020E)  //"Query cache erased")
+#define TSDB_CODE_TSC_QUERY_CANCELLED           TAOS_DEF_ERROR_CODE(0, 0x020F)  //"Query terminated")
+#define TSDB_CODE_TSC_SORTED_RES_TOO_MANY       TAOS_DEF_ERROR_CODE(0, 0x0210)  //"Result set too large to be sorted")      // too many result for ordered super table projection query
+#define TSDB_CODE_TSC_APP_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x0211)  //"Application error")
+#define TSDB_CODE_TSC_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0212)  //"Action in progress")
+#define TSDB_CODE_TSC_DISCONNECTED              TAOS_DEF_ERROR_CODE(0, 0x0213)  //"Disconnected from service")
+#define TSDB_CODE_TSC_NO_WRITE_AUTH             TAOS_DEF_ERROR_CODE(0, 0x0214)  //"No write permission")
+#define TSDB_CODE_TSC_CONN_KILLED               TAOS_DEF_ERROR_CODE(0, 0x0215)  //"Connection killed")
+#define TSDB_CODE_TSC_SQL_SYNTAX_ERROR          TAOS_DEF_ERROR_CODE(0, 0x0216)  //"Syntax error in SQL")
+#define TSDB_CODE_TSC_DB_NOT_SELECTED           TAOS_DEF_ERROR_CODE(0, 0x0217)  //"Database not specified or available")
+#define TSDB_CODE_TSC_INVALID_TABLE_NAME        TAOS_DEF_ERROR_CODE(0, 0x0218)  //"Table does not exist")
+#define TSDB_CODE_TSC_EXCEED_SQL_LIMIT          TAOS_DEF_ERROR_CODE(0, 0x0219)  //"SQL statement too long check maxSQLLength config")
+#define TSDB_CODE_TSC_FILE_EMPTY                TAOS_DEF_ERROR_CODE(0, 0x021A)  //"File is empty")
+#define TSDB_CODE_TSC_LINE_SYNTAX_ERROR         TAOS_DEF_ERROR_CODE(0, 0x021B)  //"Syntax error in Line")
+#define TSDB_CODE_TSC_NO_META_CACHED            TAOS_DEF_ERROR_CODE(0, 0x021C)  //"No table meta cached")
+#define TSDB_CODE_TSC_DUP_COL_NAMES             TAOS_DEF_ERROR_CODE(0, 0x021D)  //"duplicated column names")
+#define TSDB_CODE_TSC_INVALID_TAG_LENGTH        TAOS_DEF_ERROR_CODE(0, 0x021E)  //"Invalid tag length")
+#define TSDB_CODE_TSC_INVALID_COLUMN_LENGTH     TAOS_DEF_ERROR_CODE(0, 0x021F)  //"Invalid column length")
+#define TSDB_CODE_TSC_DUP_TAG_NAMES             TAOS_DEF_ERROR_CODE(0, 0x0220)  //"duplicated tag names")
+#define TSDB_CODE_TSC_INVALID_JSON              TAOS_DEF_ERROR_CODE(0, 0x0221)  //"Invalid JSON format")
+#define TSDB_CODE_TSC_INVALID_JSON_TYPE         TAOS_DEF_ERROR_CODE(0, 0x0222)  //"Invalid JSON data type")
+#define TSDB_CODE_TSC_INVALID_JSON_CONFIG       TAOS_DEF_ERROR_CODE(0, 0x0223)  //"Invalid JSON configuration")
+#define TSDB_CODE_TSC_VALUE_OUT_OF_RANGE        TAOS_DEF_ERROR_CODE(0, 0x0224)  //"Value out of range")
+#define TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE     TAOS_DEF_ERROR_CODE(0, 0x0225)  //"Invalid line protocol type")
+#define TSDB_CODE_TSC_INVALID_PRECISION_TYPE    TAOS_DEF_ERROR_CODE(0, 0x0226)  //"Invalid timestamp precision type")
+#define TSDB_CODE_TSC_RES_TOO_MANY              TAOS_DEF_ERROR_CODE(0, 0x0227)  //"Result set too large to be output")
 
 // mnode
 #define TSDB_CODE_MND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0300)  //"Message not processed"

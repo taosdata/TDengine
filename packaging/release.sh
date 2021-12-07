@@ -518,7 +518,7 @@ if [ "$osType" != "Darwin" ]; then
           cd ${top_dir}/src/kit/taos-tools/packaging/deb
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-          taos_tools_ver=$(git describe --tags|sed -e 's/ver-//g')
+          taos_tools_ver=$(git describe --tags|sed -e 's/ver-//g'|awk -F '-' '{print $1}')
           ${csudo} ./make-taos-tools-deb.sh ${top_dir} \
               ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
       fi
@@ -541,7 +541,7 @@ if [ "$osType" != "Darwin" ]; then
           cd ${top_dir}/src/kit/taos-tools/packaging/rpm
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-          taos_tools_ver=$(git describe --tags|sed -e 's/ver-//g'|sed -e 's/-/_/g')
+          taos_tools_ver=$(git describe --tags|sed -e 's/ver-//g'|awk -F '-' '{print $1}'|sed -e 's/-/_/g')
           ${csudo} ./make-taos-tools-rpm.sh ${top_dir} \
               ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
       fi
