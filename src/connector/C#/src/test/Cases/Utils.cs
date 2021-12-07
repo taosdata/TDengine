@@ -3,7 +3,6 @@ using TDengineDriver;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Collections.Generic;
-
 namespace Test.UtilsTools
 {
     public class UtilsTools
@@ -152,6 +151,10 @@ namespace Test.UtilsTools
                     Console.WriteLine("close Connection failed");
                 }
             }
+        }
+        public static  List<TDengineMeta> getField(IntPtr res){
+            List<TDengineMeta> metas = TDengine.FetchFields(res);
+            return metas;
         }
         public static void ExitProgram()
         {

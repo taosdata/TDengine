@@ -46,6 +46,9 @@ namespace Cases.EntryPoint
             NtableColumnByColumn ntableColumnByColumn = new NtableColumnByColumn();
             ntableColumnByColumn.Test(conn, "ntablecolumnbycolumn");
 
+            Console.WriteLine("====================fetchfeilds===================");
+            FetchFields fetchFields = new FetchFields();
+            fetchFields.Test(conn,"fetchfeilds");
             UtilsTools.ExecuteQuery(conn, "drop database if  exists csharp");
             UtilsTools.CloseConnection(conn);
             UtilsTools.ExitProgram();

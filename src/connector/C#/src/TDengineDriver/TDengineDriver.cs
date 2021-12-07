@@ -47,6 +47,13 @@ namespace TDengineDriver
         TDDB_OPTION_SHELL_ACTIVITY_TIMER = 4
     }
 
+    enum TaosField {
+        STRUCT_SIZE = 68,
+        NAME_LENGTH = 65,
+        TYPE_OFFSET = 65,
+        BYTES_OFFSET =66,
+
+    }
     public class TDengineMeta
     {
         public string name;
@@ -175,7 +182,7 @@ namespace TDengineDriver
         static extern private IntPtr taos_fetch_fields(IntPtr res);
         static public List<TDengineMeta> FetchFields(IntPtr res)
         {
-            const int fieldSize = 68;
+            // const int fieldSize = 68;
 
             List<TDengineMeta> metas = new List<TDengineMeta>();
             if (res == IntPtr.Zero)
@@ -188,12 +195,11 @@ namespace TDengineDriver
 
             for (int i = 0; i < fieldCount; ++i)
             {
-                int offset = i * fieldSize;
-
+                int offset = i * (int)TaosField.STRUCT_SIZE;
                 TDengineMeta meta = new TDengineMeta();
                 meta.name = Marshal.PtrToStringAnsi(fieldsPtr + offset);
-                meta.type = Marshal.ReadByte(fieldsPtr + offset + 65);
-                meta.size = Marshal.ReadInt16(fieldsPtr + offset + 66);
+                meta.type = Marshal.ReadByte(fieldsPtr + offset + (int)TaosField.TYPE_OFFSET);
+                meta.size = Marshal.ReadInt16(fieldsPtr + offset + (int)TaosField.BYTES_OFFSET);
                 metas.Add(meta);
             }
 
