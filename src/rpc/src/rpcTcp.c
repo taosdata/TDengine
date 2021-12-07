@@ -489,7 +489,7 @@ static int taosReadTcpData(SFdObj *pFdObj, SRecvInfo *pInfo) {
   msgLen = (int32_t)htonl((uint32_t)rpcHead.msgLen);
   int32_t size = msgLen + tsRpcOverhead;
   // TODO: reason not found yet, workaround to avoid first
-  if (size < 0) {
+  if (msgLen <= 0 || size < 0) {
     tError("%s %p invalid size for malloc, msgLen:%d, size:%d", pThreadObj->label, pFdObj->thandle, msgLen, size);
     return -1;
   }
