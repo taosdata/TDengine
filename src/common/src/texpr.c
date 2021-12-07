@@ -1686,11 +1686,6 @@ tScalarFunctionInfo aScalarFunctions[] = {
         vectorLength
     },
     {
-        TSDB_FUNC_SCALAR_CAST,
-        "cast",
-        vectorMathFunc
-    },
-    {
         TSDB_FUNC_SCALAR_CONCAT_WS,
         "concat_ws",
         vectorConcatWs
@@ -1699,5 +1694,10 @@ tScalarFunctionInfo aScalarFunctions[] = {
         TSDB_FUNC_SCALAR_CHAR_LENGTH,
         "char_length",
         vectorCharLength
-    }
+    },
+    {
+        TSDB_FUNC_SCALAR_CAST,
+        "cast",
+        vectorMathFunc
+    },
 };
