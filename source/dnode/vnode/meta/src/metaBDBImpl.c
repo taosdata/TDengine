@@ -74,9 +74,9 @@ static int      metaSaveTbInfo(DB *pDB, tb_uid_t uid, STbCfg *pTbCfg);
 
 #define META_CLOSE_DB(pDB)
 
-#define META_ASSOCIATE_IDX(pDB, pNameIdx, cbf)                     \
+#define META_ASSOCIATE_IDX(pDB, pIdx, cbf)                     \
   do {                                                             \
-    int ret = (pDB)->associate((pDB), NULL, (pNameIdx), (cbf), 0); \
+    int ret = (pDB)->associate((pDB), NULL, (pIdx), (cbf), 0); \
     if (ret != 0) {                                                \
       P_ERROR("Failed to associate META DB", ret);                 \
       metaCloseDB(pMeta);                                          \
@@ -111,13 +111,13 @@ int metaOpenDB(SMeta *pMeta) {
 
   META_OPEN_DB(pDB->pNameIdx, pDB->pEvn, "index.db");
 
-  META_OPEN_DB(pDB->pUidIdx, pDB->pEvn, "index.db");
+  // META_OPEN_DB(pDB->pUidIdx, pDB->pEvn, "index.db");
 
   // Associate name index
   META_ASSOCIATE_IDX(pDB->pStbDB, pDB->pNameIdx, metaNameIdxCb);
-  META_ASSOCIATE_IDX(pDB->pStbDB, pDB->pUidIdx, metaUidIdxCb);
-  META_ASSOCIATE_IDX(pDB->pNtbDB, pDB->pNameIdx, metaNameIdxCb);
-  META_ASSOCIATE_IDX(pDB->pNtbDB, pDB->pUidIdx, metaUidIdxCb);
+  // META_ASSOCIATE_IDX(pDB->pStbDB, pDB->pUidIdx, metaUidIdxCb);
+  // META_ASSOCIATE_IDX(pDB->pNtbDB, pDB->pNameIdx, metaNameIdxCb);
+  // META_ASSOCIATE_IDX(pDB->pNtbDB, pDB->pUidIdx, metaUidIdxCb);
 
   for (;;) {
     // Loop to associate each super table db
@@ -308,13 +308,41 @@ static void metaPutSchema(SMeta *pMeta, tb_uid_t uid, STSchema *pSchema) {
 }
 
 static int metaEncodeTbInfo(void **buf, STbCfg *pTbCfg) {
-  // TODO
-  return 0;
+  int tsize = 0;
+
+  tsize += taosEncodeString(buf, pTbCfg->name);
+  tsize += taosEncodeFixedU32(buf, pTbCfg->ttl);
+  tsize += taosEncodeFixedU32(buf, pTbCfg->keep);
+
+  if (pTbCfg->type == META_SUPER_TABLE) {
+    tsize += tdEncodeSchema(buf, pTbCfg->stbCfg.pTagSchema);
+  } else if (pTbCfg->type == META_CHILD_TABLE) {
+    tsize += taosEncodeFixedU64(buf, pTbCfg->ctbCfg.suid);
+    tsize += tdEncodeKVRow(buf, pTbCfg->ctbCfg.pTag);
+  } else if (pTbCfg->type == META_NORMAL_TABLE) {
+  } else {
+    ASSERT(0);
+  }
+
+  return tsize;
 }
 
 static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg) {
   // TODO
-  return NULL;
+  buf = taosDecodeString(buf, &(pTbCfg->name));
+  buf = taosDecodeFixedU32(buf, &(pTbCfg->ttl));
+  buf = taosDecodeFixedU32(buf, &(pTbCfg->keep));
+
+  if (pTbCfg->type == META_SUPER_TABLE) {
+    buf = tdDecodeSchema(buf, &(pTbCfg->stbCfg.pTagSchema));
+  } else if (pTbCfg->type == META_CHILD_TABLE) {
+    buf = taosDecodeFixedU64(buf, &(pTbCfg->ctbCfg.suid));
+    buf = tdDecodeKVRow(buf, &(pTbCfg->ctbCfg.pTag));
+  } else if (pTbCfg->type == META_NORMAL_TABLE) {
+  } else {
+    ASSERT(0);
+  }
+  return buf;
 }
 
 static int metaSaveTbInfo(DB *pDB, tb_uid_t uid, STbCfg *pTbCfg) {
