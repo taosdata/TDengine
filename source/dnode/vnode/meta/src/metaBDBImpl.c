@@ -40,6 +40,25 @@ static void     metaFreeDB(SMetaDB *pDB);
 static int      metaCreateDBEnv(SMetaDB *pDB, const char *path);
 static void     metaDestroyDBEnv(SMetaDB *pDB);
 
+#define META_OPEN_DB(pDB, pEnv, fName)                                     \
+  do {                                                                     \
+    ret = db_create(&((pDB)), (pEnv), 0);                                  \
+    if (ret != 0) {                                                        \
+      P_ERROR("Failed to create META DB", ret);                            \
+      metaCloseDB(pMeta);                                                  \
+      return -1;                                                           \
+    }                                                                      \
+                                                                           \
+    ret = (pDB)->open((pDB), NULL, (fName), NULL, DB_BTREE, DB_CREATE, 0); \
+    if (ret != 0) {                                                        \
+      P_ERROR("Failed to open META DB", ret);                              \
+      metaCloseDB(pMeta);                                                  \
+      return -1;                                                           \
+    }                                                                      \
+  } while (0)
+
+#define META_CLOSE_DB(pDB)
+
 int metaOpenDB(SMeta *pMeta) {
   int      ret;
   SMetaDB *pDB;
@@ -56,85 +75,24 @@ int metaOpenDB(SMeta *pMeta) {
     return -1;
   }
 
-  // ret = db_create(&(pDB->pStbDB), pDB->pEvn, 0);
-  // if (ret != 0) {
-  //   P_ERROR("failed to create META super table DB", ret);
-  //   metaCloseDB(pMeta);
-  //   return -1;
-  // }
+  META_OPEN_DB(pDB->pStbDB, pDB->pEvn, "meta.db");
 
-  // ret = pDB->pStbDB->open(pDB->pStbDB, NULL, "meta.db", NULL, DB_BTREE, DB_CREATE, 0);
-  // if (ret != 0) {
-  //   P_ERROR("failed to create META super table DB", ret);
-  //   metaCloseDB(pMeta);
-  //   return -1;
-  // }
+  META_OPEN_DB(pDB->pNtbDB, pDB->pEvn, "meta.db");
 
-#if 0
-  ret = db_create(&(pMeta->pDB->pDB), pMeta->pDB->pEvn, 0);
-  if (ret != 0) {
-    // TODO: handle error
-    return -1;
+  META_OPEN_DB(pDB->pSchemaDB, pDB->pEvn, "meta.db");
+
+  {
+    // TODO: Loop to open each super table db
   }
 
-  ret = db_create(&(pMeta->pDB->pSchemaDB), pMeta->pDB->pEvn, 0);
-  if (ret != 0) {
-    // TODO: handle error
-    return -1;
-  }
+  META_OPEN_DB(pDB->pNameIdx, pDB->pEvn, "index.db");
 
-  ret = db_create(&(pMeta->pDB->pIdx), pMeta->pDB->pEvn, 0);
-  if (ret != 0) {
-    // TODO: handle error
-    return -1;
-  }
+  META_OPEN_DB(pDB->pUidIdx, pDB->pEvn, "index.db");
 
-  ret = pMeta->pDB->pDB->open(pMeta->pDB->pDB, /* DB structure pointer */
-                              NULL,            /* Transaction pointer */
-                              "meta.db",       /* On-disk file that holds the database */
-                              NULL,            /* Optional logical database name */
-                              DB_BTREE,        /* Database access method */
-                              DB_CREATE,       /* Open flags */
-                              0);              /* File mode */
-  if (ret != 0) {
-    // TODO: handle error
-    return -1;
+  {
+    // TODO: Loop to open index DB for each super table
+    // and create the association between main DB and index
   }
-
-  ret = pMeta->pDB->pSchemaDB->open(pMeta->pDB->pSchemaDB, /* DB structure pointer */
-                                    NULL,                  /* Transaction pointer */
-                                    "meta.db",             /* On-disk file that holds the database */
-                                    NULL,                  /* Optional logical database name */
-                                    DB_BTREE,              /* Database access method */
-                                    DB_CREATE,             /* Open flags */
-                                    0);                    /* File mode */
-  if (ret != 0) {
-    // TODO: handle error
-    return -1;
-  }
-
-  ret = pMeta->pDB->pIdx->open(pMeta->pDB->pIdx, /* DB structure pointer */
-                               NULL,             /* Transaction pointer */
-                               "index.db",       /* On-disk file that holds the database */
-                               NULL,             /* Optional logical database name */
-                               DB_BTREE,         /* Database access method */
-                               DB_CREATE,        /* Open flags */
-                               0);               /* File mode */
-  if (ret != 0) {
-    // TODO: handle error
-    return -1;
-  }
-
-  ret = pMeta->pDB->pDB->associate(pMeta->pDB->pDB,  /* Primary database */
-                                   NULL,             /* TXN id */
-                                   pMeta->pDB->pIdx, /* Secondary database */
-                                   metaIdxCallback,  /* Callback used for key creation */
-                                   0);               /* Flags */
-  if (ret != 0) {
-    // TODO: handle error
-    return -1;
-  }
-#endif
 
   return 0;
 }
@@ -148,30 +106,7 @@ void metaCloseDB(SMeta *pMeta) {
 }
 
 int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
-#if 0
-  tb_uid_t uid;
-  DBT      key = {0};
-  DBT      value = {0};
-  char     buf[256];
-  void *   pBuf;
-  int      bsize;
-
-  if (pTbCfg->type == META_SUPER_TABLE) {
-    uid = pTbCfg->stbCfg.suid;
-  } else {
-    uid = metaGenerateUid(pMeta);
-  }
-
-  key.size = sizeof(uid);
-  key.data = &uid;
-
-  pBuf = buf;
-  value.size = metaEncodeTbCfg(&pBuf, pTbCfg);
-  value.data = buf;
-
-  pMeta->pDB->pDB->put(pMeta->pDB->pDB, NULL, &key, &value, 0);
-#endif
-
+  // TODO
   return 0;
 }
 
