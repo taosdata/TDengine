@@ -559,7 +559,7 @@ void taos_stmt_use_result_query_json(void *taos, char *col, int type) {
 
   params[0].buffer_type = TSDB_DATA_TYPE_NCHAR;
   params[0].buffer_length = strlen(col);
-  params[0].buffer = &col;
+  params[0].buffer = col;
   params[0].length = &params[0].buffer_length;
   params[0].is_null = NULL;
 
