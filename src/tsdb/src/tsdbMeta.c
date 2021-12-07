@@ -1488,7 +1488,7 @@ static int tsdbGetTableEncodeSize(int8_t act, STable *pTable) {
     tlen = sizeof(SListNode) + sizeof(SActObj) + sizeof(SActCont) + tsdbEncodeTable(NULL, pTable) + sizeof(TSCKSUM);
   } else {
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-      int tableSize = 0;
+      size_t tableSize = 0;
       if(pTable->tagSchema->columns[0].type == TSDB_DATA_TYPE_JSON){
         SArray* tablist = getJsonTagTableList(pTable);
         tableSize = taosArrayGetSize(tablist);
