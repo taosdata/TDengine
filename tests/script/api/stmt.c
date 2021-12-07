@@ -534,7 +534,7 @@ void taos_stmt_use_result_query_json(void *taos, char *col, int type) {
   TAOS_STMT *stmt = taos_stmt_init(taos);
   assert(stmt != NULL);
   char *stmt_sql = calloc(1, 1024);
-  sprintf(stmt_sql, "select * from t1 where jtag->? = ?");
+  sprintf(stmt_sql, "select * from stmt_test_json.super where jtag->? = ?");
   printf("stmt_sql: %s\n", stmt_sql);
   assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
 
