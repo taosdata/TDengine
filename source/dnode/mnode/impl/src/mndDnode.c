@@ -102,12 +102,12 @@ static int32_t mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode) {
 }
 
 static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pSrcDnode, SDnodeObj *pDstDnode) {
-  mTrace("dnode:%d, perform update action", pSrcDnode->id);
-  pSrcDnode->id = pDstDnode->id;
-  pSrcDnode->createdTime = pDstDnode->createdTime;
-  pSrcDnode->updateTime = pDstDnode->updateTime;
-  pSrcDnode->port = pDstDnode->port;
-  memcpy(pSrcDnode->fqdn, pDstDnode->fqdn, TSDB_FQDN_LEN); 
+  mTrace("dnode:%d, perform update action", pDstDnode->id);
+  pDstDnode->id = pSrcDnode->id;
+  pDstDnode->createdTime = pSrcDnode->createdTime;
+  pDstDnode->updateTime = pSrcDnode->updateTime;
+  pDstDnode->port = pSrcDnode->port;
+  memcpy(pDstDnode->fqdn, pSrcDnode->fqdn, TSDB_FQDN_LEN); 
   return 0;
 }
 
@@ -123,7 +123,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mTrace("dnode:%d, will be created while deploy sdb", dnodeObj.id);
+  mDebug("dnode:%d, will be created while deploy sdb", dnodeObj.id);
   return sdbWrite(pMnode->pSdb, pRaw);
 }
 

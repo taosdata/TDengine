@@ -34,7 +34,6 @@ void initLog(const char* path) {
   sDebugFlag = 0;
   tsdbDebugFlag = 0;
   cqDebugFlag = 0;
-  debugFlag = 0;
 
   char temp[PATH_MAX];
   snprintf(temp, PATH_MAX, "%s/taosdlog", path);

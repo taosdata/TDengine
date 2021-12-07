@@ -98,7 +98,7 @@ static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   }
   SSdbRow *pDstRow = *ppDstRow;
 
-  pRow->status = pRaw->status;
+  pDstRow->status = pRaw->status;
   taosRUnLockLatch(pLock);
 
   SdbUpdateFp updateFp = pSdb->updateFps[pRow->type];
@@ -138,7 +138,7 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   return code;
 }
 
-int32_t sdbWriteRaw(SSdb *pSdb, SSdbRaw *pRaw) {
+int32_t sdbWriteNotFree(SSdb *pSdb, SSdbRaw *pRaw) {
   SHashObj *hash = sdbGetHash(pSdb, pRaw->type);
   if (hash == NULL) return terrno;
 
@@ -158,7 +158,6 @@ int32_t sdbWriteRaw(SSdb *pSdb, SSdbRaw *pRaw) {
       code = sdbInsertRow(pSdb, hash, pRaw, pRow, keySize);
       break;
     case SDB_STATUS_READY:
-    case SDB_STATUS_DROPPING:
       code = sdbUpdateRow(pSdb, hash, pRaw, pRow, keySize);
       break;
     case SDB_STATUS_DROPPED:
@@ -170,7 +169,7 @@ int32_t sdbWriteRaw(SSdb *pSdb, SSdbRaw *pRaw) {
 }
 
 int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw) {
-  int32_t code = sdbWriteRaw(pSdb, pRaw);
+  int32_t code = sdbWriteNotFree(pSdb, pRaw);
   sdbFreeRaw(pRaw);
   return code;
 }
@@ -201,7 +200,7 @@ void *sdbAcquire(SSdb *pSdb, ESdbType type, void *pKey) {
     case SDB_STATUS_CREATING:
       terrno = TSDB_CODE_SDB_OBJ_CREATING;
       break;
-    case SDB_STATUS_DROPPING:
+    case SDB_STATUS_DROPPED:
       terrno = TSDB_CODE_SDB_OBJ_DROPPING;
       break;
     default:

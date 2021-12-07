@@ -65,7 +65,7 @@ static int32_t mnodeCreateDefaultAcct(SMnode *pMnode) {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mTrace("acct:%s, will be created while deploy sdb", acctObj.acct);
+  mDebug("acct:%s, will be created while deploy sdb", acctObj.acct);
   return sdbWrite(pMnode->pSdb, pRaw);
 }
 
@@ -132,14 +132,14 @@ static int32_t mnodeAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct) {
 }
 
 static int32_t mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pSrcAcct, SAcctObj *pDstAcct) {
-  mTrace("acct:%s, perform update action", pSrcAcct->acct);
+  mTrace("acct:%s, perform update action", pDstAcct->acct);
 
-  memcpy(pSrcAcct->acct, pDstAcct->acct, TSDB_USER_LEN);
-  pSrcAcct->createdTime = pDstAcct->createdTime;
-  pSrcAcct->updateTime = pDstAcct->updateTime;
-  pSrcAcct->acctId = pDstAcct->acctId;
-  pSrcAcct->status = pDstAcct->status;
-  pSrcAcct->cfg = pDstAcct->cfg;
+  memcpy(pDstAcct->acct, pSrcAcct->acct, TSDB_USER_LEN);
+  pDstAcct->createdTime = pSrcAcct->createdTime;
+  pDstAcct->updateTime = pSrcAcct->updateTime;
+  pDstAcct->acctId = pSrcAcct->acctId;
+  pDstAcct->status = pSrcAcct->status;
+  pDstAcct->cfg = pSrcAcct->cfg;
   return 0;
 }
 

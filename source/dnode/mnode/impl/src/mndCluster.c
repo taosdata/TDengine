@@ -108,7 +108,7 @@ static int32_t mndClusterActionDelete(SSdb *pSdb, SClusterObj *pCluster) {
 }
 
 static int32_t mndClusterActionUpdate(SSdb *pSdb, SClusterObj *pSrcCluster, SClusterObj *pDstCluster) {
-  mTrace("cluster:%d, perform update action", pSrcCluster->id);
+  mTrace("cluster:%d, perform update action", pDstCluster->id);
   return 0;
 }
 
@@ -132,7 +132,7 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mTrace("cluster:%d, will be created while deploy sdb", clusterObj.id);
+  mDebug("cluster:%d, will be created while deploy sdb", clusterObj.id);
   return sdbWrite(pMnode->pSdb, pRaw);
 }
 

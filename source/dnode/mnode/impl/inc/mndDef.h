@@ -318,6 +318,11 @@ typedef struct SMnodeMsg {
   void   *pCont;
 } SMnodeMsg;
 
+typedef struct {
+  int32_t id;
+  void   *rpcHandle;
+} STransMsg;
+
 #ifdef __cplusplus
 }
 #endif

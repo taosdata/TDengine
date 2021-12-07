@@ -189,12 +189,12 @@ static void mndSendTelemetryReport(SMnode* pMnode) {
   char     buf[128] = {0};
   uint32_t ip = taosGetIpv4FromFqdn(TELEMETRY_SERVER);
   if (ip == 0xffffffff) {
-    mTrace("failed to get IP address of " TELEMETRY_SERVER " since :%s", strerror(errno));
+    mDebug("failed to get IP address of " TELEMETRY_SERVER " since :%s", strerror(errno));
     return;
   }
   SOCKET fd = taosOpenTcpClientSocket(ip, TELEMETRY_PORT, 0);
   if (fd < 0) {
-    mTrace("failed to create socket for telemetry, reason:%s", strerror(errno));
+    mDebug("failed to create socket for telemetry, reason:%s", strerror(errno));
     return;
   }
 
@@ -228,7 +228,7 @@ static void mndSendTelemetryReport(SMnode* pMnode) {
 
   // read something to avoid nginx error 499
   if (taosReadSocket(fd, buf, 10) < 0) {
-    mTrace("failed to receive response since %s", strerror(errno));
+    mDebug("failed to receive response since %s", strerror(errno));
   }
 
   taosCloseSocket(fd);
@@ -297,7 +297,7 @@ int32_t mndInitTelem(SMnode* pMnode) {
   int32_t code = pthread_create(&pMgmt->thread, &attr, mndTelemThreadFp, pMnode);
   pthread_attr_destroy(&attr);
   if (code != 0) {
-    mTrace("failed to create telemetry thread since :%s", strerror(code));
+    mDebug("failed to create telemetry thread since :%s", strerror(code));
   }
 
   mInfo("mnd telemetry is initialized");

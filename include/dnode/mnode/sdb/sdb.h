@@ -125,8 +125,7 @@ typedef enum { SDB_KEY_BINARY = 1, SDB_KEY_INT32 = 2, SDB_KEY_INT64 = 3 } EKeyTy
 typedef enum {
   SDB_STATUS_CREATING = 1,
   SDB_STATUS_READY = 2,
-  SDB_STATUS_DROPPING = 3,
-  SDB_STATUS_DROPPED = 4
+  SDB_STATUS_DROPPED = 3
 } ESdbStatus;
 
 typedef enum {
@@ -258,13 +257,22 @@ int32_t sdbDeploy(SSdb *pSdb);
 int32_t sdbReadFile(SSdb *pSdb);
 
 /**
- * @brief Parse and write raw data to sdb.
+ * @brief Parse and write raw data to sdb, then free the pRaw object
  *
  * @param pSdb The sdb object.
  * @param pRaw The raw data.
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw);
+
+/**
+ * @brief Parse and write raw data to sdb.
+ *
+ * @param pSdb The sdb object.
+ * @param pRaw The raw data.
+ * @return int32_t 0 for success, -1 for failure.
+ */
+int32_t sdbWriteNotFree(SSdb *pSdb, SSdbRaw *pRaw);
 
 /**
  * @brief Acquire a row from sdb
