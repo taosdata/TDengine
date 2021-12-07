@@ -887,8 +887,8 @@ function update_TDengine() {
     fi
     tar -zxf taos.tar.gz
     install_jemalloc
-    install_avro lib
-    install_avro lib64
+    #install_avro lib
+    #install_avro lib64
 
     echo -e "${GREEN}Start to update TDengine...${NC}"
     # Stop the service if running
@@ -1001,8 +1001,8 @@ function install_TDengine() {
     install_header
     install_lib
     install_jemalloc
-    install_avro lib
-    install_avro lib64
+    #install_avro lib
+    #install_avro lib64
 
     if [ "$pagMode" != "lite" ]; then
       install_connector
