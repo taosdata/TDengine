@@ -3033,8 +3033,10 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
       STSElem elem = tsBufGetElem(pRuntimeEnv->pTsBuf);
       if (!tsBufIsValidElem(&elem) || (tsBufIsValidElem(&elem) && (tVariantCompare(&t, elem.tag) != 0))) {
         (*status) = BLK_DATA_DISCARD;
+        tVariantDestroy(&t);
         return TSDB_CODE_SUCCESS;
       }
+      tVariantDestroy(&t);
     }
   }
 
