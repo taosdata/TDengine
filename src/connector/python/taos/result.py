@@ -3,6 +3,8 @@ from .cinterface import *
 # from .connection import TaosConnection
 from .error import *
 
+from ctypes import c_void_p
+
 
 class TaosResult(object):
     """TDengine result interface"""
@@ -12,7 +14,11 @@ class TaosResult(object):
         # to make the __del__ order right
         self._conn = conn
         self._close_after = close_after
-        self._result = result
+        if isinstance(result, c_void_p):
+            self._result = result
+        else:
+            self._result = c_void_p(result)
+
         self._fields = None
         self._field_count = None
         self._precision = None
