@@ -331,7 +331,7 @@ namespace TDengineDriver
 
         public void BindSingleParamBatch(TAOS_MULTI_BIND bind, int index)
         {
-            int res = TDengine.StmtBindSingleParamBatch(this.stmt, bind, index);
+            int res = TDengine.StmtBindSingleParamBatch(this.stmt,ref bind, index);
             if (res == 0)
             {
                 Console.WriteLine("single bind  batch success");

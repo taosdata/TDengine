@@ -47,11 +47,12 @@ namespace TDengineDriver
         TDDB_OPTION_SHELL_ACTIVITY_TIMER = 4
     }
 
-    enum TaosField {
+    enum TaosField
+    {
         STRUCT_SIZE = 68,
         NAME_LENGTH = 65,
         TYPE_OFFSET = 65,
-        BYTES_OFFSET =66,
+        BYTES_OFFSET = 66,
 
     }
     public class TDengineMeta
@@ -299,7 +300,7 @@ namespace TDengineDriver
         /// <param name="colIdx">the column's index in prepared sql statement, it starts from 0.</param>
         /// <returns>0 for success, non-zero for failure.</returns>
         [DllImport("taos", EntryPoint = "taos_stmt_bind_single_param_batch", CallingConvention = CallingConvention.Cdecl)]
-        static extern public int StmtBindSingleParamBatch(IntPtr stmt, [In, Out] TAOS_MULTI_BIND bind, int colIdx);
+        static extern public int StmtBindSingleParamBatch(IntPtr stmt, ref TAOS_MULTI_BIND bind, int colIdx);
 
         /// <summary>
         /// for INSERT only

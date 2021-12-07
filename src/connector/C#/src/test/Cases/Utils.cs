@@ -152,7 +152,8 @@ namespace Test.UtilsTools
                 }
             }
         }
-        public static  List<TDengineMeta> getField(IntPtr res){
+        public static List<TDengineMeta> getField(IntPtr res)
+        {
             List<TDengineMeta> metas = TDengine.FetchFields(res);
             return metas;
         }

@@ -96,7 +96,7 @@ namespace Test.UtilsTools
 
         public static void BindSingleParamBatch(IntPtr stmt, TAOS_MULTI_BIND bind, int index)
         {
-            int res = TDengine.StmtBindSingleParamBatch(stmt, bind, index);
+            int res = TDengine.StmtBindSingleParamBatch(stmt, ref bind, index);
             if (res == 0)
             {
                 Console.WriteLine("single bind  batch success");
