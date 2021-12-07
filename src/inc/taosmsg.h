@@ -820,6 +820,7 @@ typedef struct STableMetaMsg {
 } STableMetaMsg;
 
 typedef struct SMultiTableMeta {
+  int8_t        extend;
   int32_t       numOfTables;
   int32_t       numOfVgroup;
   int32_t       numOfUdf;
