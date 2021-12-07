@@ -136,7 +136,7 @@ static void *shellCheckThreadFp(void *arg) {
     TAOS_RES *pSql = taos_query(pThread->taos, sql);
     int32_t   code = taos_errno(pSql);
     // -k: -1 means check all errors, while other non-zero values means check specific errors.
-    if (((pThread->sqlCode == -1) && (code != 0)) || (code == pThread->sqlCode)) {
+    if ((code == pThread->sqlCode) || ((pThread->sqlCode == -1) && (code != 0))) {
       int32_t len = snprintf(sql, SHELL_SQL_LEN, "drop table %s.%s;\n", pThread->db, tbname);
       fwrite(sql, 1, len, fp);
       atomic_add_fetch_32(&errorNum, 1);
