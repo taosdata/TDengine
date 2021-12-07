@@ -9224,7 +9224,8 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
         SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
 
         int32_t f = pExpr->base.functionId;
-        if (f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE || f == TSDB_FUNC_RATE || f== TSDB_FUNC_DIFF) {
+        if (f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE || 
+            f == TSDB_FUNC_RATE       || f == TSDB_FUNC_DIFF) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
         }
       }
