@@ -76,6 +76,11 @@ void* qGetResultRetrieveMsg(qinfo_t qinfo);
  */
 int32_t qKillQuery(qinfo_t qinfo);
 
+//kill by qid 
+int32_t qKillQueryByQId(void* pMgmt, int64_t qId, int32_t waitMs, int32_t waitCount);
+
+bool qSolveCommitNoBlock(void* pRepo, void* pMgmt);
+
 int32_t qQueryCompleted(qinfo_t qinfo);
 
 /**
