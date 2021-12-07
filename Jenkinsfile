@@ -456,6 +456,13 @@ pipeline {
                 nohup taosd >/dev/null &
                 sleep 10
               '''
+
+              sh '''
+                cd ${WKC}/src/connector/python
+                export PYTHONPATH=$PWD/
+                pytest tests/
+              '''
+
               sh '''
               cd ${WKC}/tests/examples/nodejs
               npm install td2.0-connector > /dev/null 2>&1
