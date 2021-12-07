@@ -54,8 +54,6 @@ else
   bin_files="${build_dir}/bin/taosd \
       ${build_dir}/bin/taos \
       ${build_dir}/bin/taosadapter \
-      ${build_dir}/bin/taosdump \
-      ${build_dir}/bin/taosBenchmark \
       ${build_dir}/bin/tarbitrator\
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \

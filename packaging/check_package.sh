@@ -142,11 +142,11 @@ function check_main_path() {
 
 function check_bin_path() {
     # check install bin dir and all sub dir
-    bin_dir=("taos" "taosd" "taosadapter" "taosBenchmark" "remove.sh" "tarbitrator" "set_core.sh")
+    bin_dir=("taos" "taosd" "taosadapter" "taosdemo" "remove.sh" "tarbitrator" "set_core.sh")
     for i in "${bin_dir[@]}";do
         check_file ${sbin_dir} $i
     done
-    lbin_dir=("taos" "taosd" "taosadapter" "taosBenchmark" "taosdemo" "rmtaos" "tarbitrator" "set_core")
+    lbin_dir=("taos" "taosd" "taosadapter" "taosdemo" "rmtaos" "tarbitrator" "set_core")
     for i in "${lbin_dir[@]}";do
         check_link ${bin_link_dir}/$i
     done

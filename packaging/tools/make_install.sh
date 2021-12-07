@@ -160,7 +160,6 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
     ${csudo} rm -f ${bin_link_dir}/taosadapter || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo || :
-    ${csudo} rm -f ${bin_link_dir}/taosBenchmark || :
     ${csudo} rm -f ${bin_link_dir}/taosdump || :
 
     if [ "$osType" != "Darwin" ]; then
@@ -181,8 +180,7 @@ function install_bin() {
         [ -x ${install_main_dir}/bin/taosd ]     && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd   || :
         [ -x ${install_main_dir}/bin/taosadapter ]  && ${csudo} ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter || :
         [ -x ${install_main_dir}/bin/taosdump ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
-        [ -x ${install_main_dir}/bin/taosBenchmark ]  && ${csudo} ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosBenchmark || :
-        [ -x ${install_main_dir}/bin/taosBenchmark ]  && ${csudo} ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosdemo || :
+        [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
         [ -x ${install_main_dir}/bin/perfMonitor ]  && ${csudo} ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor || :
         [ -x ${install_main_dir}/set_core.sh ]  && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
         [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos  || :
@@ -197,8 +195,7 @@ function install_bin() {
         [ -x ${install_main_dir}/bin/taosd ] || [ -x ${install_main_2_dir}/bin/taosd ] &&  ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd || ${csudo} ln -s ${install_main_2_dir}/bin/taosd || :
         [ -x ${install_main_dir}/bin/taosadapter ] || [ -x ${install_main_2_dir}/bin/taosadapter ] &&  ${csudo} ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter || ${csudo} ln -s ${install_main_2_dir}/bin/taosadapter || :
         [ -x ${install_main_dir}/bin/taosdump ] || [ -x ${install_main_2_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || ln -s ${install_main_2_dir}/bin/taosdump ${bin_link_dir}/taosdump   || :
-        [ -x ${install_main_dir}/bin/taosBenchmark ] || [ -x ${install_main_2_dir}/bin/taosBenchmark ] && ${csudo} ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosdemo || ln -s ${install_main_2_dir}/bin/taosBenchmark ${bin_link_dir}/taosdemo   || :
-        [ -x ${install_main_dir}/bin/taosBenchmark ] || [ -x ${install_main_2_dir}/bin/taosBenchmark ] && ${csudo} ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosBenchmark || ln -s ${install_main_2_dir}/bin/taosBenchmark ${bin_link_dir}/taosBenchmark   || :
+        [ -x ${install_main_dir}/bin/taosdemo ] || [ -x ${install_main_2_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || ln -s ${install_main_2_dir}/bin/taosdemo ${bin_link_dir}/taosdemo   || :
     fi
 }
 

@@ -45,8 +45,6 @@ if [ "$osType" != "Darwin" ]; then
     strip ${build_dir}/bin/taos
     bin_files="${build_dir}/bin/taos ${script_dir}/remove_client.sh"
   else
-    bin_files="${build_dir}/bin/taos ${build_dir}/bin/taosBenchmark \
-               ${script_dir}/remove_client.sh ${script_dir}/set_core.sh ${script_dir}/get_client.sh ${script_dir}/taosd-dump-cfg.gdb"
     bin_files="${script_dir}/remove_client.sh \
         ${script_dir}/set_core.sh \
         ${script_dir}/get_client.sh ${script_dir}/taosd-dump-cfg.gdb"

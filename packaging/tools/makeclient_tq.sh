@@ -73,7 +73,7 @@ if [ "$osType" != "Darwin" ]; then
   else 
     cp ${build_dir}/bin/taos          ${install_dir}/bin/tq
     cp ${script_dir}/remove_tq.sh  ${install_dir}/bin
-    cp ${build_dir}/bin/taosBenchmark      ${install_dir}/bin/tqdemo
+    cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/tqdemo
     cp ${build_dir}/bin/taosdump      ${install_dir}/bin/tqdump
     cp ${script_dir}/set_core.sh      ${install_dir}/bin
     cp ${script_dir}/get_client.sh    ${install_dir}/bin
