@@ -564,7 +564,7 @@ static void tsdbFreeTableData(STableData *pTableData) {
   }
 }
 
-static char *tsdbGetTsTupleKey(const void *data) { return memRowTuple((SMemRow)data); }
+static char *tsdbGetTsTupleKey(const void *data) { return memRowKeys((SMemRow)data); }
 
 static int tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables) {
   ASSERT(pMemTable->maxTables < maxTables);
