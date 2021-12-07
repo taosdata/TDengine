@@ -13,27 +13,36 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "metaDef.h"
-
 #include "db.h"
 
+#include "metaDef.h"
+
+#include "thash.h"
+
 struct SMetaDB {
-  DB *    pStbDB;
-  DB *    pCtbDB;
-  DB *    pNtbDB;
-  DB *    pIdx;
+  // DB
+  DB *      pStbDB;
+  DB *      pNtbDB;
+  SHashObj *pCtbMap;
+  DB *      pSchemaDB;
+  // IDX
+  SHashObj *pIdxMap;
+  DB *      pNameIdx;
+  DB *      pUidIdx;
+  // ENV
   DB_ENV *pEvn;
 };
 
+static SMetaDB *metaNewDB();
+static void     metaFreeDB(SMetaDB *pDB);
+
 int metaOpenDB(SMeta *pMeta) {
-  int ret;
+  int      ret;
+  SMetaDB *pDB;
 
-  pMeta->pDB = (SMetaDB *)calloc(1, sizeof(SMetaDB));
-  if (pMeta->pDB == NULL) {
-    // TODO: handle error
-    return -1;
-  }
+  pMeta->pDB = metaNewDB();
 
+#if 0
   // create the env
   ret = db_env_create(&(pMeta->pDB->pEvn), 0);
   if (ret != 0) {
@@ -47,19 +56,13 @@ int metaOpenDB(SMeta *pMeta) {
     return -1;
   }
 
-  ret = db_create(&(pMeta->pDB->pStbDB), pMeta->pDB->pEvn, 0);
+  ret = db_create(&(pMeta->pDB->pDB), pMeta->pDB->pEvn, 0);
   if (ret != 0) {
     // TODO: handle error
     return -1;
   }
 
-  ret = db_create(&(pMeta->pDB->pCtbDB), pMeta->pDB->pEvn, 0);
-  if (ret != 0) {
-    // TODO: handle error
-    return -1;
-  }
-
-  ret = db_create(&(pMeta->pDB->pNtbDB), pMeta->pDB->pEvn, 0);
+  ret = db_create(&(pMeta->pDB->pSchemaDB), pMeta->pDB->pEvn, 0);
   if (ret != 0) {
     // TODO: handle error
     return -1;
@@ -71,37 +74,25 @@ int metaOpenDB(SMeta *pMeta) {
     return -1;
   }
 
-  ret = pMeta->pDB->pStbDB->open(pMeta->pDB->pStbDB, /* DB structure pointer */
-                                 NULL,               /* Transaction pointer */
-                                 "meta.db",          /* On-disk file that holds the database */
-                                 NULL,               /* Optional logical database name */
-                                 DB_BTREE,           /* Database access method */
-                                 DB_CREATE,          /* Open flags */
-                                 0);                 /* File mode */
+  ret = pMeta->pDB->pDB->open(pMeta->pDB->pDB, /* DB structure pointer */
+                              NULL,            /* Transaction pointer */
+                              "meta.db",       /* On-disk file that holds the database */
+                              NULL,            /* Optional logical database name */
+                              DB_BTREE,        /* Database access method */
+                              DB_CREATE,       /* Open flags */
+                              0);              /* File mode */
   if (ret != 0) {
     // TODO: handle error
     return -1;
   }
 
-  ret = pMeta->pDB->pCtbDB->open(pMeta->pDB->pCtbDB, /* DB structure pointer */
-                                 NULL,               /* Transaction pointer */
-                                 "meta.db",          /* On-disk file that holds the database */
-                                 NULL,               /* Optional logical database name */
-                                 DB_BTREE,           /* Database access method */
-                                 DB_CREATE,          /* Open flags */
-                                 0);                 /* File mode */
-  if (ret != 0) {
-    // TODO: handle error
-    return -1;
-  }
-
-  ret = pMeta->pDB->pNtbDB->open(pMeta->pDB->pNtbDB, /* DB structure pointer */
-                                 NULL,               /* Transaction pointer */
-                                 "meta.db",          /* On-disk file that holds the database */
-                                 NULL,               /* Optional logical database name */
-                                 DB_BTREE,           /* Database access method */
-                                 DB_CREATE,          /* Open flags */
-                                 0);                 /* File mode */
+  ret = pMeta->pDB->pSchemaDB->open(pMeta->pDB->pSchemaDB, /* DB structure pointer */
+                                    NULL,                  /* Transaction pointer */
+                                    "meta.db",             /* On-disk file that holds the database */
+                                    NULL,                  /* Optional logical database name */
+                                    DB_BTREE,              /* Database access method */
+                                    DB_CREATE,             /* Open flags */
+                                    0);                    /* File mode */
   if (ret != 0) {
     // TODO: handle error
     return -1;
@@ -119,30 +110,38 @@ int metaOpenDB(SMeta *pMeta) {
     return -1;
   }
 
-  // TODO
+  ret = pMeta->pDB->pDB->associate(pMeta->pDB->pDB,  /* Primary database */
+                                   NULL,             /* TXN id */
+                                   pMeta->pDB->pIdx, /* Secondary database */
+                                   metaIdxCallback,  /* Callback used for key creation */
+                                   0);               /* Flags */
+  if (ret != 0) {
+    // TODO: handle error
+    return -1;
+  }
+#endif
+
   return 0;
 }
 
 void metaCloseDB(SMeta *pMeta) {
+  metaFreeDB(pMeta->pDB);
+  pMeta->pDB = NULL;
+#if 0
   if (pMeta->pDB) {
     if (pMeta->pDB->pIdx) {
       pMeta->pDB->pIdx->close(pMeta->pDB->pIdx, 0);
       pMeta->pDB->pIdx = NULL;
     }
 
-    if (pMeta->pDB->pNtbDB) {
-      pMeta->pDB->pNtbDB->close(pMeta->pDB->pNtbDB, 0);
-      pMeta->pDB->pNtbDB = NULL;
+    if (pMeta->pDB->pSchemaDB) {
+      pMeta->pDB->pSchemaDB->close(pMeta->pDB->pSchemaDB, 0);
+      pMeta->pDB->pSchemaDB = NULL;
     }
 
-    if (pMeta->pDB->pCtbDB) {
-      pMeta->pDB->pCtbDB->close(pMeta->pDB->pCtbDB, 0);
-      pMeta->pDB->pCtbDB = NULL;
-    }
-
-    if (pMeta->pDB->pStbDB) {
-      pMeta->pDB->pStbDB->close(pMeta->pDB->pStbDB, 0);
-      pMeta->pDB->pStbDB = NULL;
+    if (pMeta->pDB->pDB) {
+      pMeta->pDB->pDB->close(pMeta->pDB->pDB, 0);
+      pMeta->pDB->pDB = NULL;
     }
 
     if (pMeta->pDB->pEvn) {
@@ -152,9 +151,11 @@ void metaCloseDB(SMeta *pMeta) {
 
     free(pMeta->pDB);
   }
+#endif
 }
 
-int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbCfg) {
+int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
+#if 0
   tb_uid_t uid;
   DBT      key = {0};
   DBT      value = {0};
@@ -175,11 +176,49 @@ int metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbCfg) {
   value.size = metaEncodeTbCfg(&pBuf, pTbCfg);
   value.data = buf;
 
-  pMeta->pDB->pStbDB->put(pMeta->pDB->pStbDB, NULL, &key, &value, 0);
+  pMeta->pDB->pDB->put(pMeta->pDB->pDB, NULL, &key, &value, 0);
+#endif
 
   return 0;
 }
 
 int metaRemoveTableFromDb(SMeta *pMeta, tb_uid_t uid) {
   // TODO
+}
+
+/* ------------------------ STATIC METHODS ------------------------ */
+static SMetaDB *metaNewDB() {
+  SMetaDB *pDB;
+  pDB = (SMetaDB *)calloc(1, sizeof(*pDB));
+  if (pDB == NULL) {
+    return NULL;
+  }
+
+  pDB->pCtbMap = taosHashInit(0, MurmurHash3_32, false, HASH_NO_LOCK);
+  if (pDB->pCtbMap == NULL) {
+    metaFreeDB(pDB);
+    return NULL;
+  }
+
+  pDB->pIdxMap = taosHashInit(0, MurmurHash3_32, false, HASH_NO_LOCK);
+  if (pDB->pIdxMap == NULL) {
+    metaFreeDB(pDB);
+    return NULL;
+  }
+
+  return pDB;
+}
+
+static void metaFreeDB(SMetaDB *pDB) {
+  if (pDB == NULL) {
+    if (pDB->pIdxMap) {
+      taosHashCleanup(pDB->pIdxMap);
+    }
+
+    if (pDB->pCtbMap) {
+      taosHashCleanup(pDB->pCtbMap);
+    }
+
+    free(pDB);
+  }
 }

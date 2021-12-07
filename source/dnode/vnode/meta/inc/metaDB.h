@@ -26,7 +26,7 @@ typedef struct SMetaDB SMetaDB;
 
 int  metaOpenDB(SMeta *pMeta);
 void metaCloseDB(SMeta *pMeta);
-int  metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbCfg);
+int  metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg);
 int  metaRemoveTableFromDb(SMeta *pMeta, tb_uid_t uid);
 
 #ifdef __cplusplus
