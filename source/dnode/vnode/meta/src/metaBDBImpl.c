@@ -75,12 +75,12 @@ static int      metaSaveTbInfo(DB *pDB, tb_uid_t uid, STbCfg *pTbCfg);
 #define META_CLOSE_DB(pDB)
 
 #define META_ASSOCIATE_IDX(pDB, pIdx, cbf)                     \
-  do {                                                             \
+  do {                                                         \
     int ret = (pDB)->associate((pDB), NULL, (pIdx), (cbf), 0); \
-    if (ret != 0) {                                                \
-      P_ERROR("Failed to associate META DB", ret);                 \
-      metaCloseDB(pMeta);                                          \
-    }                                                              \
+    if (ret != 0) {                                            \
+      P_ERROR("Failed to associate META DB", ret);             \
+      metaCloseDB(pMeta);                                      \
+    }                                                          \
   } while (0)
 
 int metaOpenDB(SMeta *pMeta) {
