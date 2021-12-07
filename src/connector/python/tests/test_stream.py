@@ -20,7 +20,8 @@ def stream_callback(p_param, p_result, p_row):
     result = TaosResult(p_result)
     row = TaosRow(result, p_row)
     try:
-        ts, count = row()
+        ts, count = row.as_tuple()
+        print(ts, count)
         p = cast(p_param, POINTER(Counter))
         p.contents.count += count
         print("[%s] inserted %d in 5s, total count: %d" % (ts.strftime("%Y-%m-%d %H:%M:%S"), count, p.contents.count))
