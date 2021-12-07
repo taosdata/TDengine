@@ -374,6 +374,15 @@ class TDTestCase:
         cname_list.append("jsons1.jtag->'tag1'")
         tdSql.checkColNameList(res, cname_list)
 
+        # test top/bottom with group by json tag
+        tdSql.query("select top(dataint,100) from jsons1 group by jtag->'tag1'")
+        tdSql.checkRows(11)
+        tdSql.checkData(0, 1, 4)
+        tdSql.checkData(1, 1, 24)
+        tdSql.checkData(1, 2, None)
+        tdSql.checkData(10, 1, 1)
+        tdSql.checkData(10, 2, '"femail"')
+
 
         # subquery with json tag
         tdSql.query("select * from (select jtag, dataint from jsons1)")
