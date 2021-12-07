@@ -50,7 +50,7 @@ python3 ./test.py -f table/del_stable.py
 
 #stable
 python3 ./test.py -f stable/insert.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py
+#python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py
 
 # tag
 python3 ./test.py -f tag_lite/filter.py
