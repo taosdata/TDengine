@@ -31,6 +31,8 @@ $tsu = $tsu + $ts0
 #sql_error select top(c1, 1) from $stb where ts >= $ts0 and ts <= $tsu slimit 5 offset 1
 #sql_error select bottom(c1, 1) from $stb where ts >= $ts0 and ts <= $tsu slimit 5 offset 1
 
+sql_error select t1 from $stb slimit 5 offset 1;
+
 ### select from stb + group by + slimit offset
 sql select max(c1), min(c2), avg(c3), sum(c4), spread(c5), sum(c6), count(c7), first(c8), last(c9) from $stb group by t1 slimit 5 soffset 0
 if $rows != 5 then
