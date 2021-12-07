@@ -222,7 +222,6 @@ TEST_F(DndTestUser, CreateUser_01) {
   rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_USER;
 
   sendMsg(pClient, &rpcMsg);
-  // taosMsleep(10000000);
   SRpcMsg* pMsg = pClient->pRsp;
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, 0);
@@ -277,34 +276,132 @@ TEST_F(DndTestUser, CreateUser_01) {
   }
 }
 
-// TEST_F(DndTestUser, AlterUser) {
-//   ASSERT_NE(pClient, nullptr);
+TEST_F(DndTestUser, AlterUser_01) {
+  ASSERT_NE(pClient, nullptr);
 
-//   SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(sizeof(SAlterUserMsg));
+  //--- drop user ---
+  SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(sizeof(SAlterUserMsg));
+  strcpy(pReq->user, "u1");
+  strcpy(pReq->pass, "p2");
 
-//   SRpcMsg rpcMsg = {0};
-//   rpcMsg.pCont = pReq;
-//   rpcMsg.contLen = sizeof(SAlterUserMsg);
-//   rpcMsg.msgType = TSDB_MSG_TYPE_ALTER_ACCT;
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.pCont = pReq;
+  rpcMsg.contLen = sizeof(SDropUserMsg);
+  rpcMsg.msgType = TSDB_MSG_TYPE_ALTER_USER;
 
-//   sendMsg(pClient, &rpcMsg);
-//   SRpcMsg* pMsg = pClient->pRsp;
-//   ASSERT_NE(pMsg, nullptr);
-//   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
-// }
+  sendMsg(pClient, &rpcMsg);
+  SRpcMsg* pMsg = pClient->pRsp;
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_EQ(pMsg->code, 0);
 
-// TEST_F(DndTestUser, DropUser) {
-//   ASSERT_NE(pClient, nullptr);
+  //--- meta ---
+  SShowMsg* pShow = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
+  pShow->type = TSDB_MGMT_TABLE_USER;
+  SRpcMsg showRpcMsg = {0};
+  showRpcMsg.pCont = pShow;
+  showRpcMsg.contLen = sizeof(SShowMsg);
+  showRpcMsg.msgType = TSDB_MSG_TYPE_SHOW;
 
-//   SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(sizeof(SDropUserMsg));
+  sendMsg(pClient, &showRpcMsg);
+  SShowRsp*      pShowRsp = (SShowRsp*)pClient->pRsp->pCont;
+  STableMetaMsg* pMeta = &pShowRsp->tableMeta;
+  pMeta->numOfColumns = htons(pMeta->numOfColumns);
+  EXPECT_EQ(pMeta->numOfColumns, 4);
 
-//   SRpcMsg rpcMsg = {0};
-//   rpcMsg.pCont = pReq;
-//   rpcMsg.contLen = sizeof(SDropUserMsg);
-//   rpcMsg.msgType = TSDB_MSG_TYPE_DROP_ACCT;
+  //--- retrieve ---
+  SRetrieveTableMsg* pRetrieve = (SRetrieveTableMsg*)rpcMallocCont(sizeof(SRetrieveTableMsg));
+  pRetrieve->showId = pShowRsp->showId;
+  SRpcMsg retrieveRpcMsg = {0};
+  retrieveRpcMsg.pCont = pRetrieve;
+  retrieveRpcMsg.contLen = sizeof(SRetrieveTableMsg);
+  retrieveRpcMsg.msgType = TSDB_MSG_TYPE_SHOW_RETRIEVE;
 
-//   sendMsg(pClient, &rpcMsg);
-//   SRpcMsg* pMsg = pClient->pRsp;
-//   ASSERT_NE(pMsg, nullptr);
-//   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
-// }
+  sendMsg(pClient, &retrieveRpcMsg);
+  SRetrieveTableRsp* pRetrieveRsp = (SRetrieveTableRsp*)pClient->pRsp->pCont;
+  pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
+  EXPECT_EQ(pRetrieveRsp->numOfRows, 3);
+
+  char*   pData = pRetrieveRsp->data;
+  int32_t pos = 0;
+  char*   strVal = NULL;
+
+  //--- name ---
+  {
+    pos += sizeof(VarDataLenT);
+    strVal = (char*)(pData + pos);
+    pos += TSDB_USER_LEN;
+    EXPECT_STREQ(strVal, "u1");
+
+    pos += sizeof(VarDataLenT);
+    strVal = (char*)(pData + pos);
+    pos += TSDB_USER_LEN;
+    EXPECT_STREQ(strVal, "root");
+
+    pos += sizeof(VarDataLenT);
+    strVal = (char*)(pData + pos);
+    pos += TSDB_USER_LEN;
+    EXPECT_STREQ(strVal, "_root");
+  }
+}
+
+TEST_F(DndTestUser, DropUser_01) {
+  ASSERT_NE(pClient, nullptr);
+
+  //--- drop user ---
+  SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(sizeof(SDropUserMsg));
+  strcpy(pReq->user, "u1");
+
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.pCont = pReq;
+  rpcMsg.contLen = sizeof(SDropUserMsg);
+  rpcMsg.msgType = TSDB_MSG_TYPE_DROP_USER;
+
+  sendMsg(pClient, &rpcMsg);
+  SRpcMsg* pMsg = pClient->pRsp;
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_EQ(pMsg->code, 0);
+
+  //--- meta ---
+  SShowMsg* pShow = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
+  pShow->type = TSDB_MGMT_TABLE_USER;
+  SRpcMsg showRpcMsg = {0};
+  showRpcMsg.pCont = pShow;
+  showRpcMsg.contLen = sizeof(SShowMsg);
+  showRpcMsg.msgType = TSDB_MSG_TYPE_SHOW;
+
+  sendMsg(pClient, &showRpcMsg);
+  SShowRsp*      pShowRsp = (SShowRsp*)pClient->pRsp->pCont;
+  STableMetaMsg* pMeta = &pShowRsp->tableMeta;
+  pMeta->numOfColumns = htons(pMeta->numOfColumns);
+  EXPECT_EQ(pMeta->numOfColumns, 4);
+
+  //--- retrieve ---
+  SRetrieveTableMsg* pRetrieve = (SRetrieveTableMsg*)rpcMallocCont(sizeof(SRetrieveTableMsg));
+  pRetrieve->showId = pShowRsp->showId;
+  SRpcMsg retrieveRpcMsg = {0};
+  retrieveRpcMsg.pCont = pRetrieve;
+  retrieveRpcMsg.contLen = sizeof(SRetrieveTableMsg);
+  retrieveRpcMsg.msgType = TSDB_MSG_TYPE_SHOW_RETRIEVE;
+
+  sendMsg(pClient, &retrieveRpcMsg);
+  SRetrieveTableRsp* pRetrieveRsp = (SRetrieveTableRsp*)pClient->pRsp->pCont;
+  pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
+  EXPECT_EQ(pRetrieveRsp->numOfRows, 2);
+
+  char*   pData = pRetrieveRsp->data;
+  int32_t pos = 0;
+  char*   strVal = NULL;
+
+  //--- name ---
+  {
+    pos += sizeof(VarDataLenT);
+    strVal = (char*)(pData + pos);
+    pos += TSDB_USER_LEN;
+    EXPECT_STREQ(strVal, "root");
+
+    pos += sizeof(VarDataLenT);
+    strVal = (char*)(pData + pos);
+    pos += TSDB_USER_LEN;
+    EXPECT_STREQ(strVal, "_root");
+  }
+}

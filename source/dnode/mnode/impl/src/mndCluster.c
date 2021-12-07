@@ -24,7 +24,7 @@ static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster);
 static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw);
 static int32_t  mndClusterActionInsert(SSdb *pSdb, SClusterObj *pCluster);
 static int32_t  mndClusterActionDelete(SSdb *pSdb, SClusterObj *pCluster);
-static int32_t  mndClusterActionUpdate(SSdb *pSdb, SClusterObj *pSrcCluster, SClusterObj *pDstCluster);
+static int32_t  mndClusterActionUpdate(SSdb *pSdb, SClusterObj *pOldCluster, SClusterObj *pNewCluster);
 static int32_t  mndCreateDefaultCluster(SMnode *pMnode);
 static int32_t  mndGetClusterMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
 static int32_t  mndRetrieveClusters(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
@@ -107,8 +107,8 @@ static int32_t mndClusterActionDelete(SSdb *pSdb, SClusterObj *pCluster) {
   return 0;
 }
 
-static int32_t mndClusterActionUpdate(SSdb *pSdb, SClusterObj *pSrcCluster, SClusterObj *pDstCluster) {
-  mTrace("cluster:%d, perform update action", pDstCluster->id);
+static int32_t mndClusterActionUpdate(SSdb *pSdb, SClusterObj *pOldCluster, SClusterObj *pNewCluster) {
+  mTrace("cluster:%d, perform update action", pOldCluster->id);
   return 0;
 }
 

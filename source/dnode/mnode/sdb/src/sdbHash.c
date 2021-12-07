@@ -52,8 +52,8 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   SRWLatch *pLock = &pSdb->locks[pRow->type];
   taosWLockLatch(pLock);
 
-  SSdbRow *pDstRow = taosHashGet(hash, pRow->pObj, keySize);
-  if (pDstRow != NULL) {
+  SSdbRow *pOldRow = taosHashGet(hash, pRow->pObj, keySize);
+  if (pOldRow != NULL) {
     taosWUnLockLatch(pLock);
     sdbFreeRow(pRow);
     return TSDB_CODE_SDB_OBJ_ALREADY_THERE;
@@ -85,28 +85,28 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   return 0;
 }
 
-static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_t keySize) {
+static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pNewRow, int32_t keySize) {
   int32_t code = 0;
 
-  SRWLatch *pLock = &pSdb->locks[pRow->type];
+  SRWLatch *pLock = &pSdb->locks[pNewRow->type];
   taosRLockLatch(pLock);
 
-  SSdbRow **ppDstRow = taosHashGet(hash, pRow->pObj, keySize);
-  if (ppDstRow == NULL || *ppDstRow == NULL) {
+  SSdbRow **ppOldRow = taosHashGet(hash, pNewRow->pObj, keySize);
+  if (ppOldRow == NULL || *ppOldRow == NULL) {
     taosRUnLockLatch(pLock);
-    return sdbInsertRow(pSdb, hash, pRaw, pRow, keySize);
+    return sdbInsertRow(pSdb, hash, pRaw, pNewRow, keySize);
   }
-  SSdbRow *pDstRow = *ppDstRow;
+  SSdbRow *pOldRow = *ppOldRow;
 
-  pDstRow->status = pRaw->status;
+  pOldRow->status = pRaw->status;
   taosRUnLockLatch(pLock);
 
-  SdbUpdateFp updateFp = pSdb->updateFps[pRow->type];
+  SdbUpdateFp updateFp = pSdb->updateFps[pNewRow->type];
   if (updateFp != NULL) {
-    code = (*updateFp)(pSdb, pRow->pObj, pDstRow->pObj);
+    code = (*updateFp)(pSdb, pOldRow->pObj, pNewRow->pObj);
   }
 
-  sdbFreeRow(pRow);
+  sdbFreeRow(pNewRow);
   return code;
 }
 
@@ -116,24 +116,24 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   SRWLatch *pLock = &pSdb->locks[pRow->type];
   taosWLockLatch(pLock);
 
-  SSdbRow **ppDstRow = taosHashGet(hash, pRow->pObj, keySize);
-  if (ppDstRow == NULL || *ppDstRow == NULL) {
+  SSdbRow **ppOldRow = taosHashGet(hash, pRow->pObj, keySize);
+  if (ppOldRow == NULL || *ppOldRow == NULL) {
     taosWUnLockLatch(pLock);
     sdbFreeRow(pRow);
     return TSDB_CODE_SDB_OBJ_NOT_THERE;
   }
-  SSdbRow *pDstRow = *ppDstRow;
+  SSdbRow *pOldRow = *ppOldRow;
 
-  pDstRow->status = pRaw->status;
-  taosHashRemove(hash, pDstRow->pObj, keySize);
+  pOldRow->status = pRaw->status;
+  taosHashRemove(hash, pOldRow->pObj, keySize);
   taosWUnLockLatch(pLock);
 
-  SdbDeleteFp deleteFp = pSdb->deleteFps[pDstRow->type];
+  SdbDeleteFp deleteFp = pSdb->deleteFps[pOldRow->type];
   if (deleteFp != NULL) {
-    code = (*deleteFp)(pSdb, pDstRow->pObj);
+    code = (*deleteFp)(pSdb, pOldRow->pObj);
   }
 
-  sdbRelease(pSdb, pDstRow->pObj);
+  sdbRelease(pSdb, pOldRow->pObj);
   sdbFreeRow(pRow);
   return code;
 }
@@ -158,6 +158,7 @@ int32_t sdbWriteNotFree(SSdb *pSdb, SSdbRaw *pRaw) {
       code = sdbInsertRow(pSdb, hash, pRaw, pRow, keySize);
       break;
     case SDB_STATUS_READY:
+    case SDB_STATUS_DROPPING:
       code = sdbUpdateRow(pSdb, hash, pRaw, pRow, keySize);
       break;
     case SDB_STATUS_DROPPED:
@@ -200,7 +201,7 @@ void *sdbAcquire(SSdb *pSdb, ESdbType type, void *pKey) {
     case SDB_STATUS_CREATING:
       terrno = TSDB_CODE_SDB_OBJ_CREATING;
       break;
-    case SDB_STATUS_DROPPED:
+    case SDB_STATUS_DROPPING:
       terrno = TSDB_CODE_SDB_OBJ_DROPPING;
       break;
     default:

@@ -23,7 +23,7 @@
 static SSdbRaw *mndTransActionEncode(STrans *pTrans);
 static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw);
 static int32_t  mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
-static int32_t  mndTransActionUpdate(SSdb *pSdb, STrans *pTrans, STrans *pDstTrans);
+static int32_t  mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOldTrans);
 static int32_t  mndTransActionDelete(SSdb *pSdb, STrans *pTrans);
 
 int32_t mndInitTrans(SMnode *pMnode) {
@@ -244,22 +244,22 @@ static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans) {
   return 0;
 }
 
-static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pTrans, STrans *pDstTrans) {
-  mTrace("trans:%d, perform update action, stage:%d", pTrans->id, pTrans->stage);
+static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOldTrans, STrans *pNewTrans) {
+  mTrace("trans:%d, perform update action, stage:%d", pOldTrans->id, pNewTrans->stage);
 
-  SArray *pArray = pDstTrans->commitLogs;
+  SArray *pArray = pOldTrans->commitLogs;
   int32_t arraySize = taosArrayGetSize(pArray);
 
   for (int32_t i = 0; i < arraySize; ++i) {
     SSdbRaw *pRaw = taosArrayGetP(pArray, i);
     int32_t  code = sdbWrite(pSdb, pRaw);
     if (code != 0) {
-      mError("trans:%d, failed to write raw:%p to sdb since %s", pDstTrans->id, pRaw, terrstr());
+      mError("trans:%d, failed to write raw:%p to sdb since %s", pOldTrans->id, pRaw, terrstr());
       return code;
     }
   }
 
-  pDstTrans->stage = pTrans->stage;
+  pOldTrans->stage = pNewTrans->stage;
   return 0;
 }
 

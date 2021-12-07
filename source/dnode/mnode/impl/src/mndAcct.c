@@ -24,7 +24,7 @@ static SSdbRaw *mnodeAcctActionEncode(SAcctObj *pAcct);
 static SSdbRow *mnodeAcctActionDecode(SSdbRaw *pRaw);
 static int32_t  mnodeAcctActionInsert(SSdb *pSdb, SAcctObj *pAcct);
 static int32_t  mnodeAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct);
-static int32_t  mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pSrcAcct, SAcctObj *pDstAcct);
+static int32_t  mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pOldAcct, SAcctObj *pNewAcct);
 static int32_t  mndProcessCreateAcctMsg(SMnodeMsg *pMnodeMsg);
 static int32_t  mndProcessAlterAcctMsg(SMnodeMsg *pMnodeMsg);
 static int32_t  mndProcessDropAcctMsg(SMnodeMsg *pMnodeMsg);
@@ -131,15 +131,15 @@ static int32_t mnodeAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct) {
   return 0;
 }
 
-static int32_t mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pSrcAcct, SAcctObj *pDstAcct) {
-  mTrace("acct:%s, perform update action", pDstAcct->acct);
+static int32_t mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pOldAcct, SAcctObj *pNewAcct) {
+  mTrace("acct:%s, perform update action", pOldAcct->acct);
 
-  memcpy(pDstAcct->acct, pSrcAcct->acct, TSDB_USER_LEN);
-  pDstAcct->createdTime = pSrcAcct->createdTime;
-  pDstAcct->updateTime = pSrcAcct->updateTime;
-  pDstAcct->acctId = pSrcAcct->acctId;
-  pDstAcct->status = pSrcAcct->status;
-  pDstAcct->cfg = pSrcAcct->cfg;
+  memcpy(pOldAcct->acct, pNewAcct->acct, TSDB_USER_LEN);
+  pOldAcct->createdTime = pNewAcct->createdTime;
+  pOldAcct->updateTime = pNewAcct->updateTime;
+  pOldAcct->acctId = pNewAcct->acctId;
+  pOldAcct->status = pNewAcct->status;
+  pOldAcct->cfg = pNewAcct->cfg;
   return 0;
 }
 

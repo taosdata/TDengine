@@ -101,13 +101,13 @@ static int32_t mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode) {
   return 0;
 }
 
-static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pSrcDnode, SDnodeObj *pDstDnode) {
-  mTrace("dnode:%d, perform update action", pDstDnode->id);
-  pDstDnode->id = pSrcDnode->id;
-  pDstDnode->createdTime = pSrcDnode->createdTime;
-  pDstDnode->updateTime = pSrcDnode->updateTime;
-  pDstDnode->port = pSrcDnode->port;
-  memcpy(pDstDnode->fqdn, pSrcDnode->fqdn, TSDB_FQDN_LEN); 
+static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOldDnode, SDnodeObj *pNewDnode) {
+  mTrace("dnode:%d, perform update action", pOldDnode->id);
+  pOldDnode->id = pNewDnode->id;
+  pOldDnode->createdTime = pNewDnode->createdTime;
+  pOldDnode->updateTime = pNewDnode->updateTime;
+  pOldDnode->port = pNewDnode->port;
+  memcpy(pOldDnode->fqdn, pNewDnode->fqdn, TSDB_FQDN_LEN); 
   return 0;
 }
 

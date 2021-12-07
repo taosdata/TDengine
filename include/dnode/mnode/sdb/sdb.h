@@ -125,7 +125,8 @@ typedef enum { SDB_KEY_BINARY = 1, SDB_KEY_INT32 = 2, SDB_KEY_INT64 = 3 } EKeyTy
 typedef enum {
   SDB_STATUS_CREATING = 1,
   SDB_STATUS_READY = 2,
-  SDB_STATUS_DROPPED = 3
+  SDB_STATUS_DROPPING = 3,
+  SDB_STATUS_DROPPED = 4
 } ESdbStatus;
 
 typedef enum {
