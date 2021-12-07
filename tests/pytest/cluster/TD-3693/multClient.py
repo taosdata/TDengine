@@ -51,9 +51,9 @@ class TDTestCase:
         binPath = buildPath+ "/build/bin/"
 
         # insert data to cluster'db
-        os.system("%staosdemo -f cluster/TD-3693/insert1Data.json -y " % binPath)   
+        os.system("%staosBenchmark -f cluster/TD-3693/insert1Data.json -y " % binPath)   
         # multiple new and cloes connection with query data 
-        os.system("%staosdemo -f cluster/TD-3693/insert2Data.json -y " % binPath)   
+        os.system("%staosBenchmark -f cluster/TD-3693/insert2Data.json -y " % binPath)   
         os.system("nohup %staosdemoMul -f cluster/TD-3693/queryCount.json -y & " % binPath)
         
 

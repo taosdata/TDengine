@@ -51,7 +51,7 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
-        os.system("%staosdemo -f tools/taosdemo-sampledata.json" % binPath)
+        os.system("%staosBenchmark -f tools/taosdemo-sampledata.json" % binPath)
 
         tdSql.execute("use db")
         tdSql.query("select count(tbname) from db.stb")
