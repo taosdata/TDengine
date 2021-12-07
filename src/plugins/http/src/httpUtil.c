@@ -350,10 +350,10 @@ int32_t httpShrinkTableName(HttpContext *pContext, int32_t pos, char *name) {
     return pos;
   }
 
-  MD5_CTX context;
-  MD5Init(&context);
-  MD5Update(&context, (uint8_t *)name, (uint32_t)len);
-  MD5Final(&context);
+  T_MD5_CTX context;
+  tMD5Init(&context);
+  tMD5Update(&context, (uint8_t *)name, (uint32_t)len);
+  tMD5Final(&context);
 
   int32_t table_name = httpAddToSqlCmdBuffer(
       pContext, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0],
