@@ -222,6 +222,17 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
       if (clusterId[0] != '\0') {
         dnodeSetDropped();
         dError("exit zombie dropped dnode");
+
+        // warning: only for k8s!
+        while (tsDnodeNopLoop) {
+          dInfo("Nop loop");
+#ifdef WINDOWS
+          Sleep(100);
+#else
+          usleep(100000);
+#endif
+        }
+
         exit(EXIT_FAILURE);
       }
     }
