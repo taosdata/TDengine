@@ -333,7 +333,7 @@ class TDTestCase:
         tdSql.query("select * from jsons1 where jtag->'tag1' match '收到'")
         tdSql.checkRows(1)
         tdSql.query("select * from jsons1 where jtag->'tag1' nmatch 'ma'")
-        tdSql.checkRows(2)
+        tdSql.checkRows(1)
 
         # test distinct
         tdSql.execute("insert into jsons1_14 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":null}') values(1591062628000, 2, NULL, '你就会', 'dws')")
