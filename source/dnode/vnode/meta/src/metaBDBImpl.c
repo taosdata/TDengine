@@ -42,6 +42,7 @@ static void     metaCloseBDBEnv(DB_ENV *pEnv);
 static int      metaOpenBDBDb(DB **ppDB, DB_ENV *pEnv, const char *pFName);
 static void     metaCloseBDBDb(DB *pDB);
 static int      metaOpenBDBIdx(DB **ppIdx, DB_ENV *pEnv, const char *pFName, DB *pDB, bdbIdxCbPtr cbf);
+static void     metaCloseBDBIdx(DB *pIdx);
 static int      metaNameIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
 static int      metaStbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
 static int      metaNtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
@@ -103,6 +104,12 @@ int metaOpenDB(SMeta *pMeta) {
 
 void metaCloseDB(SMeta *pMeta) {
   if (pMeta->pDB) {
+    metaCloseBDBIdx(pMeta->pDB->pCtbIdx);
+    metaCloseBDBIdx(pMeta->pDB->pNtbIdx);
+    metaCloseBDBIdx(pMeta->pDB->pStbIdx);
+    metaCloseBDBIdx(pMeta->pDB->pNameIdx);
+    metaCloseBDBDb(pMeta->pDB->pSchemaDB);
+    metaCloseBDBDb(pMeta->pDB->pTbDB);
     metaCloseBDBEnv(pMeta->pDB->pEvn);
     metaFreeDB(pMeta->pDB);
     pMeta->pDB = NULL;
@@ -110,7 +117,58 @@ void metaCloseDB(SMeta *pMeta) {
 }
 
 int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
-  // TODO
+  tb_uid_t  uid;
+  STSchema *pSchema = NULL;
+
+  if (pTbCfg->type == META_SUPER_TABLE) {
+    uid = pTbCfg->stbCfg.suid;
+  } else {
+    uid = metaGenerateUid(pMeta);
+  }
+
+  {
+    // save table info
+    char  buf[512];
+    void *pBuf = buf;
+    DBT   key = {0};
+    DBT   value = {0};
+
+    key.data = &uid;
+    key.size = sizeof(uid);
+
+    // metaEncodeTbInfo(&pBuf, pTbCfg);
+
+    value.data = buf;
+    value.size = POINTER_DISTANCE(pBuf, buf);
+
+    pMeta->pDB->pTbDB->put(pMeta->pDB->pTbDB, NULL, &key, &value, 0);
+  }
+
+  // save schema
+  if (pTbCfg->type == META_SUPER_TABLE) {
+    pSchema = pTbCfg->stbCfg.pSchema;
+  } else if (pTbCfg->type == META_NORMAL_TABLE) {
+    pSchema = pTbCfg->ntbCfg.pSchema;
+  }
+
+  if (pSchema) {
+    char  buf[512];
+    void *pBuf = buf;
+    DBT   key = {0};
+    DBT   value = {0};
+
+    // TODO
+    key.data = NULL;
+    key.size = 0;
+
+    tdEncodeSchema(&pBuf, pSchema);
+
+    value.data = buf;
+    value.size = POINTER_DISTANCE(pBuf, buf);
+
+    pMeta->pDB->pSchemaDB->put(pMeta->pDB->pSchemaDB, NULL, &key, &value, 0);
+  }
+
   return 0;
 }
 
@@ -169,7 +227,7 @@ static int metaOpenBDBDb(DB **ppDB, DB_ENV *pEnv, const char *pFName) {
   int ret;
   DB *pDB;
 
-  ret = db_create(&((pDB)), (pEnv), 0);
+  ret = db_create(&(pDB), pEnv, 0);
   if (ret != 0) {
     BDB_PERR("Failed to create META DB", ret);
     return -1;
@@ -236,35 +294,6 @@ static int metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey
 }
 
 #if 0
-typedef struct {
-  tb_uid_t uid;
-  int32_t  sver;
-} SSchemaKey;
-
-
-static SMetaDB *metaNewDB();
-static void     metaFreeDB(SMetaDB *pDB);
-static int      metaCreateDBEnv(SMetaDB *pDB, const char *path);
-static void     metaDestroyDBEnv(SMetaDB *pDB);
-static int      metaEncodeSchemaKey(void **buf, SSchemaKey *pSchemaKey);
-static void *   metaDecodeSchemaKey(void *buf, SSchemaKey *pSchemaKey);
-static int      metaNameIdxCb(DB *sdbp, const DBT *pKey, const DBT *pValue, DBT *pSKey);
-static int      metaUidIdxCb(DB *sdbp, const DBT *pKey, const DBT *pValue, DBT *pSKey);
-static void     metaPutSchema(SMeta *pMeta, tb_uid_t uid, STSchema *pSchema);
-static int      metaEncodeTbInfo(void **buf, STbCfg *pTbCfg);
-static void *   metaDecodeTbInfo(void *buf, STbCfg *pTbCfg);
-static int      metaSaveTbInfo(DB *pDB, tb_uid_t uid, STbCfg *pTbCfg);
-
-#define META_ASSOCIATE_IDX(pDB, pIdx, cbf)                     \
-  do {                                                         \
-    int ret = (pDB)->associate((pDB), NULL, (pIdx), (cbf), 0); \
-    if (ret != 0) {                                            \
-      P_ERROR("Failed to associate META DB", ret);             \
-      metaCloseDB(pMeta);                                      \
-    }                                                          \
-  } while (0)
-
-
 int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
   char       buf[512];
   void *     pBuf;
