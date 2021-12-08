@@ -277,7 +277,7 @@ static int32_t mndUpdateUser(SMnode *pMnode, SUserObj *pOldUser, SUserObj *pNewU
   return 0;
 }
 
-static int32_t mndDropUser(SMnode *pMnode, SUserObj *pUser, SMnodeMsg *pMsg) {
+static int32_t mndDropUser(SMnode *pMnode, SMnodeMsg *pMsg, SUserObj *pUser) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
   if (pTrans == NULL) {
     mError("user:%s, failed to drop since %s", pUser->user, terrstr());
@@ -437,7 +437,7 @@ static int32_t mndProcessDropUserMsg(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  int32_t code = mndDropUser(pMnode, pUser, pMsg);
+  int32_t code = mndDropUser(pMnode, pMsg, pUser);
   sdbRelease(pMnode->pSdb, pOperUser);
 
   if (code != 0) {
@@ -489,7 +489,8 @@ static int32_t mndGetUserMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *p
 
   pShow->numOfRows = sdbGetSize(pSdb, SDB_USER);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tableFname, "show users");
+  strcpy(pMeta->tableFname, mndShowStr(pShow->type));
+
   return 0;
 }
 

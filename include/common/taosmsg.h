@@ -829,7 +829,16 @@ typedef struct SShowRsp {
 
 typedef struct {
   char ep[TSDB_EP_LEN];  // end point, hostname:port
-} SCreateDnodeMsg, SDropDnodeMsg;
+} SCreateDnodeMsg;
+
+typedef struct {
+  int32_t dnodeId;
+} SDropDnodeMsg;
+
+typedef struct {
+  int32_t dnodeId;
+  char    config[128];
+} SCfgDnodeMsg;
 
 typedef struct {
   int32_t  dnodeId;
@@ -848,11 +857,6 @@ typedef struct {
   int32_t dnodeId;
   int32_t vgId;
 } SConfigVnodeMsg;
-
-typedef struct {
-  char ep[TSDB_EP_LEN];  // end point, hostname:port
-  char config[64];
-} SCfgDnodeMsg;
 
 typedef struct {
   char    sql[TSDB_SHOW_SQL_LEN];

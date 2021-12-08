@@ -20,7 +20,6 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowMsg *pMsg);
 static void      mndFreeShowObj(SShowObj *pShow);
 static SShowObj *mndAcquireShowObj(SMnode *pMnode, int32_t showId);
 static void      mndReleaseShowObj(SShowObj *pShow, bool forceRemove);
-static char     *mndShowStr(int32_t showType);
 static int32_t   mndProcessShowMsg(SMnodeMsg *pMnodeMsg);
 static int32_t   mndProcessRetrieveMsg(SMnodeMsg *pMsg);
 static bool      mndCheckRetrieveFinished(SShowObj *pShow);
@@ -88,10 +87,6 @@ static void mndFreeShowObj(SShowObj *pShow) {
 
   ShowFreeIterFp freeFp = pMgmt->freeIterFps[pShow->type];
   if (freeFp != NULL) {
-    if (pShow->pVgIter != NULL) {
-      // only used in 'show vnodes "ep"'
-      (*freeFp)(pMnode, pShow->pVgIter);
-    }
     if (pShow->pIter != NULL) {
       (*freeFp)(pMnode, pShow->pIter);
     }
@@ -259,7 +254,7 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-static char *mndShowStr(int32_t showType) {
+char *mndShowStr(int32_t showType) {
   switch (showType) {
     case TSDB_MGMT_TABLE_ACCT:
       return "show accounts";

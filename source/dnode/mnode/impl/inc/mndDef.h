@@ -286,23 +286,21 @@ typedef struct SFuncObj {
   char    pData[];
 } SFuncObj;
 
-typedef struct SShowObj SShowObj;
-typedef struct SShowObj {
-  int8_t     type;
-  int8_t     maxReplica;
-  int16_t    numOfColumns;
-  int32_t    id;
-  int32_t    rowSize;
-  int32_t    numOfRows;
-  int32_t    numOfReads;
-  uint16_t   payloadLen;
-  void      *pIter;
-  void      *pVgIter;
-  SMnode    *pMnode;
-  char       db[TSDB_FULL_DB_NAME_LEN];
-  int16_t    offset[TSDB_MAX_COLUMNS];
-  int32_t    bytes[TSDB_MAX_COLUMNS];
-  char       payload[];
+typedef struct {
+  int32_t id;
+  int8_t  type;
+  int8_t  replica;
+  int16_t numOfColumns;
+  int32_t rowSize;
+  int32_t numOfRows;
+  int32_t numOfReads;
+  int32_t payloadLen;
+  void   *pIter;
+  SMnode *pMnode;
+  char    db[TSDB_FULL_DB_NAME_LEN];
+  int16_t offset[TSDB_MAX_COLUMNS];
+  int32_t bytes[TSDB_MAX_COLUMNS];
+  char    payload[];
 } SShowObj;
 
 typedef struct SMnodeMsg {

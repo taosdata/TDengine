@@ -24,6 +24,7 @@ extern "C" {
 
 int32_t mndInitVgroup(SMnode *pMnode);
 void    mndCleanupVgroup(SMnode *pMnode);
+int32_t mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId);
 
 #ifdef __cplusplus
 }
