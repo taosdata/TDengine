@@ -6436,7 +6436,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg10 = "invalid tag name";
   const char* msg11 = "primary tag cannot be dropped";
   const char* msg12 = "update normal column not supported";
-  //const char* msg13 = "invalid tag value";
+  const char* msg13 = "invalid tag value";
   const char* msg14 = "tag value too long";
   
   const char* msg15 = "no columns can be dropped";
@@ -6685,7 +6685,10 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       free(row);
     }else{
       // copy the tag value to pMsg body
-      tVariantDump(&pItem->pVar, pUpdateMsg->data + schemaLen, pTagsSchema->type, true);
+      if (tVariantDump(&pItem->pVar, pUpdateMsg->data + schemaLen, pTagsSchema->type, true)
+          != TSDB_CODE_SUCCESS){
+        return invalidOperationMsg(pMsg, msg13);
+      }
     }
 
     int32_t len = 0;
