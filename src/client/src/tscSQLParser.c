@@ -8231,7 +8231,8 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg3 = "tag value too long";
   const char* msg4 = "illegal value or data overflow";
   const char* msg5 = "tags number not matched";
-  const char* msg6 = "json type error, should be string";
+  const char* msg6 = "create table only from super table is allowed";
+  const char* msg7 = "json type error, should be string";
 
   SSqlCmd* pCmd = &pSql->cmd;
 
@@ -8277,6 +8278,10 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     code = tscGetTableMeta(pSql, pStableMetaInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
+    }
+
+    if (!UTIL_TABLE_IS_SUPER_TABLE(pStableMetaInfo)) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
     }
 
     size_t valSize = taosArrayGetSize(pValList);
@@ -8436,7 +8441,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
       if(pItem->pVar.nType != TSDB_DATA_TYPE_BINARY){
         tscError("json type error, should be string");
         tdDestroyKVRowBuilder(&kvRowBuilder);
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
       }
       if(pItem->pVar.nLen > TSDB_MAX_JSON_TAGS_LEN/TSDB_NCHAR_SIZE){
         tscError("json tag too long");
