@@ -130,7 +130,7 @@ if [ -n "${taostools_bin_files}" ]; then
     if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh ]; then
         cp ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh \
             ${taostools_install_dir}/ > /dev/null \
-            && chmod a+x {taostools_install_dir}/install-taostools.sh \
+            && chmod a+x ${taostools_install_dir}/install-taostools.sh \
             || echo -e "failed to copy install-taostools.sh"
     else
         echo -e "install-taostools.sh not found"
@@ -296,7 +296,7 @@ if [ "$pagMode" == "lite" ]; then
   pkg_name=${pkg_name}-Lite
 fi
 
-tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files || :
+tar -zcv -f "$(basename ${pkg_name}).tar.gz" "$(basename ${install_dir})" --remove-files || :
 exitcode=$?
 if [ "$exitcode" != "0" ]; then
     echo "tar ${pkg_name}.tar.gz error !!!"
@@ -304,7 +304,7 @@ if [ "$exitcode" != "0" ]; then
 fi
 
 if [ -n "${taostools_bin_files}" ]; then
-    tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" $(basename ${taostools_install_dir}) --remove-files || :
+    tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" --remove-files || :
     exitcode=$?
     if [ "$exitcode" != "0" ]; then
         echo "tar ${taostools_pkg_name}.tar.gz error !!!"

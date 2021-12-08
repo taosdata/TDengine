@@ -107,11 +107,10 @@ Launch an API service for blm_prometheus with the following command:
 
 Assuming that the IP address of the server where blm_prometheus located is "10.1.2. 3", the URL shall be added to the configuration file of Prometheus as:
 
+```yaml
 remote_write:
-
-\- url: "http://10.1.2.3:8088/receive"
-
-
+  - url: "http://10.1.2.3:8088/receive"
+```
 
 ### Query written data of prometheus
 
