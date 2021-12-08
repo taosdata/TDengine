@@ -212,24 +212,15 @@ typedef struct {
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  dbType;
-  int16_t partitions;
 } SDbCfg;
 
 typedef struct SDbObj {
-  char      name[TSDB_FULL_DB_NAME_LEN];
-  char      acct[TSDB_USER_LEN];
-  int64_t   createdTime;
-  int64_t   updateTime;
-  SDbCfg    cfg;
-  int64_t   uid;
-  int8_t    status;
-  int32_t   numOfVgroups;
-  int32_t   numOfTables;
-  int32_t   numOfSuperTables;
-  int32_t   vgListSize;
-  int32_t   vgListIndex;
-  SVgObj  **vgList;
-  SAcctObj *pAcct;
+  char    name[TSDB_FULL_DB_NAME_LEN];
+  char    acct[TSDB_USER_LEN];
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t uid;
+  SDbCfg  cfg;
 } SDbObj;
 
 typedef struct {
