@@ -158,7 +158,13 @@ function runPyCaseOneByOne {
 }
 
 function runPyCaseOneByOnefq() {
-  cd $tests_dir/pytest
+  if [[ $3 =~ system ]] ; then
+    cd $tests_dir/system-test
+  elif [[ $3 =~ develop ]] ; then
+    cd $tests_dir/develop-test
+  else
+    cd $tests_dir/pytest
+  fi
   if [[ $1 =~ full ]] ; then
     start=1
     end=`sed -n '$=' fulltest.sh`
@@ -361,6 +367,12 @@ if [ "$2" != "sim" ] && [ "$2" != "jdbc" ] && [ "$2" != "unit" ]  && [ "$2" != "
   elif [ "$1" == "p4" ]; then
     echo "### run Python_4 test ###"
     runPyCaseOneByOnefq p4 1
+  elif [ "$1" == "system-test" ]; then
+    echo "### run system-test test ###"
+    runPyCaseOneByOnefq full 1 system
+  elif [ "$1" == "develop-test" ]; then
+    echo "### run develop-test test ###"
+    runPyCaseOneByOnefq full 1 develop
   elif [ "$1" == "b2" ] || [ "$1" == "b3" ]; then
     exit $(($totalFailed + $totalPyFailed))
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then

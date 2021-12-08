@@ -29,7 +29,7 @@ public class SchemalessInsertTest {
         // when
         try (Statement statement = conn.createStatement();
              SchemalessStatement schemalessStatement = new SchemalessStatement(statement)) {
-            schemalessStatement.executeSchemaless(lines, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
+            schemalessStatement.insert(lines, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
         }
 
         // then
@@ -64,7 +64,7 @@ public class SchemalessInsertTest {
         // when
         try (Statement statement = conn.createStatement();
              SchemalessStatement schemalessStatement = new SchemalessStatement(statement)) {
-            schemalessStatement.executeSchemaless(lines, SchemalessProtocolType.TELNET, SchemalessTimestampType.NOT_CONFIGURED);
+            schemalessStatement.insert(lines, SchemalessProtocolType.TELNET, SchemalessTimestampType.NOT_CONFIGURED);
         }
 
         // then
@@ -116,7 +116,7 @@ public class SchemalessInsertTest {
         // when
         try (Statement statement = conn.createStatement();
              SchemalessStatement schemalessStatement = new SchemalessStatement(statement)) {
-            schemalessStatement.executeSchemaless(json, SchemalessProtocolType.JSON, SchemalessTimestampType.NOT_CONFIGURED);
+            schemalessStatement.insert(json, SchemalessProtocolType.JSON, SchemalessTimestampType.NOT_CONFIGURED);
         }
 
         // then

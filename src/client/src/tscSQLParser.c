@@ -369,17 +369,26 @@ static int32_t handlePassword(SSqlCmd* pCmd, SStrToken* pPwd) {
 // validate the out put field type for "UNION ALL" subclause
 static int32_t normalizeVarDataTypeLength(SSqlCmd* pCmd) {
   const char* msg1 = "columns in select clause not identical";
+  const char* msg2 = "too many select clause siblings, at most 100 allowed";
 
+  int32_t siblings = 0;
   int32_t diffSize = 0;
 
   // if there is only one element, the limit of clause is the limit of global result.
   SQueryInfo* pQueryInfo1 = pCmd->pQueryInfo;
   SQueryInfo* pSibling = pQueryInfo1->sibling;
 
+  // pQueryInfo1 itself
+  ++siblings;
+
   while(pSibling != NULL) {
     int32_t ret = tscFieldInfoCompare(&pQueryInfo1->fieldsInfo, &pSibling->fieldsInfo, &diffSize);
     if (ret != 0) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    }
+
+    if (++siblings > 100) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
     pSibling = pSibling->sibling;
@@ -7096,17 +7105,15 @@ int32_t validateLimitNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlN
 
   // todo refactor
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    if (!tscQueryTags(pQueryInfo)) {  // local handle the super table tag query
-      if (tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
-        if (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0) {
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
-        }
+    if (tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
+      if (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
 
-        // for projection query on super table, all queries are subqueries
-        if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
-            !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY)) {
-          pQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
-        }
+      // for projection query on super table, all queries are subqueries
+      if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
+          !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY)) {
+        pQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
       }
     }
 
@@ -9351,7 +9358,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   const char* msg4 = "interval query not supported, since the result of sub query not include valid timestamp column";
   const char* msg5 = "only tag query not compatible with normal column filter";
   const char* msg6 = "not support stddev/percentile/interp in the outer query yet";
-  const char* msg7 = "derivative/twa/irate requires timestamp column exists in subquery";
+  const char* msg7 = "derivative/twa/rate/irate/diff requires timestamp column exists in subquery";
   const char* msg8 = "condition missing for join query";
   const char* msg9 = "not support 3 level select";
 
@@ -9436,7 +9443,8 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
         SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
 
         int32_t f = pExpr->base.functionId;
-        if (f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE) {
+        if (f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE || 
+            f == TSDB_FUNC_RATE       || f == TSDB_FUNC_DIFF) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
         }
       }
