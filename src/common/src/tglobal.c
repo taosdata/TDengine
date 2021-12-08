@@ -1332,7 +1332,7 @@ static void doInitGlobalConfig(void) {
   cfg.option = "httpDbNameMandatory";
   cfg.ptr = &tsHttpDbNameMandatory;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;
   cfg.maxValue = 1;
   cfg.ptrLength = 0;
