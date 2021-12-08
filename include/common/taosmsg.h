@@ -74,7 +74,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_TOPIC, "create-topic" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_TOPIC, "drop-topic" )	  
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_TOPIC, "alter-topic" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_FUNCTION, "create-function" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_FUNCTION, "alter-function" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_RETRIEVE_FUNCTION, "retrieve-function" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_FUNCTION, "drop-function" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STABLE, "create-stable" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STABLE, "alter-stable" )
@@ -86,7 +86,6 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_CONN, "kill-conn" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_HEARTBEAT, "heartbeat" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SHOW, "show" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SHOW_RETRIEVE, "retrieve" )  
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SHOW_RETRIEVE_FUNC, "retrieve-func" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_COMPACT_VNODE, "compact-vnode" )
 // message from client to qnode
 // message from client to dnode
@@ -595,38 +594,45 @@ typedef struct {
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
-  char    path[PATH_MAX];
-  int32_t funcType;
+  int8_t  funcType;
+  int8_t  scriptType;
+  int8_t  align;
   int8_t  outputType;
-  int16_t outputLen;
+  int32_t outputLen;
   int32_t bufSize;
-  int32_t codeLen;
-  char    code[];
+  int64_t sigature;
+  int32_t commentSize;
+  int32_t codeSize;
+  char    pCont[];
 } SCreateFuncMsg;
 
 typedef struct {
-  int32_t num;
-  char    name[];
+  char name[TSDB_FUNC_NAME_LEN];
+} SDropFuncMsg;
+
+typedef struct {
+  int32_t numOfFuncs;
+  char    pFuncNames[];
 } SRetrieveFuncMsg;
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
-  int32_t funcType;
-  int8_t  resType;
-  int16_t resBytes;
+  int8_t  funcType;
+  int8_t  scriptType;
+  int8_t  align;
+  int8_t  outputType;
+  int32_t outputLen;
   int32_t bufSize;
-  int32_t len;
-  char    content[];
-} SFunctionInfoMsg;
+  int64_t sigature;
+  int32_t commentSize;
+  int32_t codeSize;
+  char    pCont[];
+} SFuncInfo;
 
 typedef struct {
-  int32_t num;
-  char    content[];
-} SUdfFuncMsg;
-
-typedef struct {
-  char     name[TSDB_FUNC_NAME_LEN];
-} SDropFuncMsg;
+  int32_t numOfFuncs;
+  char    pFuncInfos[];
+} SRetrieveFuncRsp;
 
 typedef struct {
   char   db[TSDB_TABLE_FNAME_LEN];

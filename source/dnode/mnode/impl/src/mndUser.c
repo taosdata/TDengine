@@ -480,7 +480,6 @@ static int32_t mndGetUserMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *p
   cols++;
 
   pMeta->numOfColumns = htons(cols);
-  strcpy(pMeta->tableFname, "show users");
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
@@ -490,6 +489,7 @@ static int32_t mndGetUserMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *p
 
   pShow->numOfRows = sdbGetSize(pSdb, SDB_USER);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+  strcpy(pMeta->tableFname, "show users");
   return 0;
 }
 

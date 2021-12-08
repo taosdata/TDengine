@@ -271,16 +271,19 @@ typedef struct SSTableObj {
 
 typedef struct SFuncObj {
   char    name[TSDB_FUNC_NAME_LEN];
-  char    path[128];
-  int32_t contLen;
-  char    cont[TSDB_FUNC_CODE_LEN];
-  int32_t funcType;
-  int32_t bufSize;
   int64_t createdTime;
-  uint8_t resType;
-  int16_t resBytes;
-  int64_t sig;
-  int16_t type;
+  int8_t  funcType;
+  int8_t  scriptType;
+  int8_t  align;
+  int8_t  outputType;
+  int32_t outputLen;
+  int32_t bufSize;
+  int64_t sigature;
+  int32_t commentSize;
+  int32_t codeSize;
+  char   *pComment;
+  char   *pCode;
+  char    pData[];
 } SFuncObj;
 
 typedef struct SShowObj SShowObj;
