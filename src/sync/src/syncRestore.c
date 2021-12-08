@@ -144,7 +144,11 @@ static int32_t syncProcessBufferedFwd(SSyncPeer *pPeer) {
     forwards++;
   }
 
-  pthread_mutex_lock(&pNode->mutex);
+  int ret = 0;
+  if ((ret = pthread_mutex_lock(&pNode->mutex)) != 0) {
+    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
+    exit(ret);
+  };
 
   while (forwards < pRecv->forwards && pRecv->code == 0) {
     offset = syncProcessOneBufferedFwd(pPeer, offset);
@@ -154,7 +158,10 @@ static int32_t syncProcessBufferedFwd(SSyncPeer *pPeer) {
   nodeRole = TAOS_SYNC_ROLE_SLAVE;
   sDebug("%s, finish processing buffered fwds:%d", pPeer->id, forwards);
 
-  pthread_mutex_unlock(&pNode->mutex);
+  if ((ret = pthread_mutex_unlock(&pNode->mutex)) != 0) {
+    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
+    exit(ret);
+  };
 
   return pRecv->code;
 }
@@ -286,7 +293,7 @@ void *syncRestoreData(void *param) {
   } else {
     if (syncRestoreDataStepByStep(pPeer) == 0) {
       sInfo("%s, it is synced successfully", pPeer->id);
-      nodeRole = TAOS_SYNC_ROLE_SLAVE;
+      nodeRole = TAOS_SYNC_ROLE_SLAVE;  
       syncBroadcastStatus(pNode);
     } else {
       sError("%s, failed to restore data, restart connection", pPeer->id);
@@ -310,3 +317,4 @@ void *syncRestoreData(void *param) {
 
   return NULL;
 }
+                                
