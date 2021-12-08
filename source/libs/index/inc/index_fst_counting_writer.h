@@ -25,7 +25,7 @@ extern "C" {
 
 #define DefaultMem  1024*1024
 
-static char tmpFile[] = "/tmp/index";
+static char tmpFile[] = "./index";
 typedef enum WriterType {TMemory, TFile} WriterType;   
 
 typedef struct WriterCtx {
@@ -45,7 +45,7 @@ static int writeCtxDoWrite(WriterCtx *ctx, uint8_t *buf, int len);
 static int writeCtxDoRead(WriterCtx *ctx, uint8_t *buf, int len);
 static int writeCtxDoFlush(WriterCtx *ctx);
 
-WriterCtx* writerCtxCreate(WriterType type);
+WriterCtx* writerCtxCreate(WriterType type, bool readOnly);
 void writerCtxDestroy(WriterCtx *w);
 
 typedef uint32_t CheckSummer;
@@ -57,14 +57,16 @@ typedef struct FstCountingWriter {
   CheckSummer summer;  
 } FstCountingWriter;
 
-int fstCountingWriterWrite(FstCountingWriter *write, uint8_t *buf, uint32_t bufLen); 
+int fstCountingWriterWrite(FstCountingWriter *write, uint8_t *buf, uint32_t len); 
+
+int fstCountingWriterRead(FstCountingWriter *write, uint8_t *buf, uint32_t len);
 
 int fstCountingWriterFlush(FstCountingWriter *write);
 
 
 uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter *write);
 
-FstCountingWriter *fstCountingWriterCreate(void *wtr);
+FstCountingWriter *fstCountingWriterCreate(void *wtr, bool readOnly);
 void fstCountingWriterDestroy(FstCountingWriter *w); 
 
 

@@ -63,19 +63,67 @@
 //}
 
 int main(int argc, char** argv) {
-  std::string str("abc");
-  FstSlice key = fstSliceCreate((uint8_t *)str.c_str(), str.size());
-  Output   val = 1;
+  // test write
+  FstBuilder *b = fstBuilderCreate(NULL, 0);
+  {
+    std::string str("aaa");
+    FstSlice key = fstSliceCreate((uint8_t *)str.c_str(), str.size());
+    Output   val = 1;
+    fstBuilderInsert(b, key, val); 
+  }
 
   //std::string str1("bcd");
   //FstSlice key1 = fstSliceCreate((uint8_t *)str1.c_str(), str1.size());
   //Output   val2 = 10;
-  FstBuilder *b = fstBuilderCreate(NULL, 1);
-  fstBuilderInsert(b, key, val); 
-  //fstBuilderInsert(b, key1, val2); 
+  //
+   
+  {
+     
+    for (size_t i = 1; i < 26; i++) {
+      std::string str("aaa");
+      str[2] = 'a' + i ;
+      FstSlice key = fstSliceCreate((uint8_t *)str.c_str(), str.size());
+      Output   val = 2;
+      fstBuilderInsert(b, key, val); 
+    }
+    
+  } 
   fstBuilderFinish(b);
   fstBuilderDestroy(b);
-  fstSliceDestroy(&key);
+
+
+  char buf[64 * 1024] = {0};     
+
+  FstSlice s; 
+
+  FstCountingWriter *w = fstCountingWriterCreate(NULL, true);
+  int nRead = fstCountingWriterRead(w, (uint8_t *)buf, sizeof(buf)); 
+  assert(nRead <= sizeof(buf));  
+  s = fstSliceCreate((uint8_t *)buf, nRead);
+  fstCountingWriterDestroy(w);
+
+
+  // test reader
+  
+      
+  Fst *fst = fstCreate(&s); 
+  {
+    std::string str("aaa"); 
+    uint64_t out;
+    
+   
+    FstSlice key = fstSliceCreate((uint8_t *)str.c_str(), str.size());
+    bool ok = fstGet(fst, &key, &out); 
+    if (ok == true) {
+      //indexInfo("Get key-value success, %s, %d", str.c_str(), out); 
+    } else {
+      //indexError("Get key-value failed, %s", str.c_str()); 
+    }
+  }
+  fstSliceDestroy(&s);
+  
+
+  
   return 1;
 }
 

@@ -17,6 +17,7 @@
 #define _TD_INDEX_INT_H_
 
 #include "index.h"
+#include "tlog.h"
 
 #ifdef USE_LUCENE
 #include <lucene++/Lucene_c.h>
@@ -60,6 +61,16 @@ typedef struct SIndexTermQuery {
 
 SIndexTerm *indexTermCreate(const char *key, int32_t nKey, const char *val, int32_t nVal);
 void        indexTermDestroy(SIndexTerm *p);
+
+
+#define indexFatal(...) do { if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("index FATAL ", 255, __VA_ARGS__); }}     while(0)
+#define indexError(...) do { if (sDebugFlag & DEBUG_ERROR) { taosPrintLog("index ERROR ", 255, __VA_ARGS__); }}     while(0)
+#define indexWarn(...)  do { if (sDebugFlag & DEBUG_WARN)  { taosPrintLog("index WARN ", 255, __VA_ARGS__); }}      while(0)
+#define indexInfo(...)  do { if (sDebugFlag & DEBUG_INFO)  { taosPrintLog("index ", 255, __VA_ARGS__); }}           while(0)
+#define indexDebug(...) do { if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("index ", sDebugFlag, __VA_ARGS__); }} while(0)
+#define indexTrace(...) do { if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("index ", sDebugFlag, __VA_ARGS__); }} while(0)
+
+
 #ifdef __cplusplus
 }
 #endif

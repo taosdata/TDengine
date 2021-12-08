@@ -93,6 +93,28 @@ uint8_t *fstSliceData(FstSlice *s, int32_t *sz);
 
 #define FST_SLICE_LEN(s) (s->end - s->start + 1)
 
+//// stack 
+//
+//typedef (*StackFreeElemFn)(void *elem);
+//
+//typedef struct FstStack {
+//  void   *first;    
+//  void   *end;  
+//  size_t elemSize; 
+//  size_t nElem;
+//  StackFreeElemFn fn;
+//} FstStack;
+//
+//
+//FstStack* fstStackCreate(size_t elemSize, stackFreeElem); 
+//void  *fstStackPush(FstStack *s, void *elem);
+//void  *fstStackTop(FstStack *s);
+//size_t fstStackLen(FstStack *s); 
+//void  fstStackDestory(FstStack *); 
+//
+
+
+  
 #ifdef __cplusplus
 }
 #endif
