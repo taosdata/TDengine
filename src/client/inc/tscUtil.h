@@ -28,8 +28,6 @@ extern "C" {
 #include "tscGlobalmerge.h"
 #include "tsched.h"
 #include "tsclient.h"
-#include "tglobal.h"
-#include "tsdbMeta.h"
 
 #define UTIL_TABLE_IS_SUPER_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_SUPER_TABLE))
@@ -397,12 +395,7 @@ void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id);
 char* cloneCurrentDBName(SSqlObj* pSql);
 
 int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId);
-char* parseTagDatatoJson(void *p);
-void* getJsonTagValueElment(STable* data, char* key, int32_t keyLen, char* out, int16_t bytes);
-void getJsonTagValueAll(void* data, void* dst, int16_t bytes);
-
 int8_t jsonType2DbType(double data, int jsonType);
-void* getJsonTagValue(STable* pTable, char* key, int32_t keyLen, int16_t* colId);
 void getJsonKey(SStrToken *t0);
 
 char* cloneCurrentDBName(SSqlObj* pSql);

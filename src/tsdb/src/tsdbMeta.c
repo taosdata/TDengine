@@ -1071,6 +1071,19 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
   tsdbUnRefTable(pTable);
 }
 
+void* tsdbGetJsonTagValue(STable* pTable, char* key, int32_t keyLen, int16_t* retColId){
+  assert(TABLE_TYPE(pTable) == TSDB_CHILD_TABLE);
+  STable* superTable= pTable->pSuper;
+  SArray** data = (SArray**)taosHashGet(superTable->jsonKeyMap, key, keyLen);
+  if(data == NULL) return NULL;
+  JsonMapValue jmvalue = {pTable, 0};
+  JsonMapValue* p = taosArraySearch(*data, &jmvalue, tsdbCompareJsonMapValue, TD_EQ);
+  if (p == NULL) return NULL;
+  int16_t colId = p->colId + 1;
+  if(retColId) *retColId = p->colId;
+  return tdGetKVRowValOfCol(pTable->tagVal, colId);
+}
+
 int tsdbCompareJsonMapValue(const void* a, const void* b) {
   const JsonMapValue* x = (const JsonMapValue*)a;
   const JsonMapValue* y = (const JsonMapValue*)b;
@@ -1670,3 +1683,4 @@ static void tsdbFreeTableSchema(STable *pTable) {
     taosArrayDestroy(pTable->schema);
   }
 }
+

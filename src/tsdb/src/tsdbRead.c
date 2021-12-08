@@ -26,7 +26,7 @@
 #include "tsdbint.h"
 #include "texpr.h"
 #include "qFilter.h"
-#include "tscUtil.h"
+#include "cJSON.h"
 
 #define EXTRA_BYTES 2
 #define ASCENDING_TRAVERSE(o)   (o == TSDB_ORDER_ASC)
@@ -4047,7 +4047,7 @@ static FORCE_INLINE int32_t tsdbGetJsonTagDataFromId(void *param, int32_t id, ch
   if (id == TSDB_TBNAME_COLUMN_INDEX) {
     *data = TABLE_NAME(pTable);
   } else {
-    void* jsonData = getJsonTagValue(pTable, name, TSDB_MAX_JSON_KEY_MD5_LEN, NULL);
+    void* jsonData = tsdbGetJsonTagValue(pTable, name, TSDB_MAX_JSON_KEY_MD5_LEN, NULL);
     // jsonData == NULL for ? operation
     // if(jsonData != NULL) jsonData += CHAR_BYTES;   // jump type
     *data = jsonData;
@@ -4148,5 +4148,149 @@ static int32_t tsdbQueryTableList(STable* pTable, SArray* pRes, void* filterInfo
   return TSDB_CODE_SUCCESS;
 }
 
+void* getJsonTagValueElment(void* data, char* key, int32_t keyLen, char* dst, int16_t bytes){
+  char keyMd5[TSDB_MAX_JSON_KEY_MD5_LEN] = {0};
+  jsonKeyMd5(key, keyLen, keyMd5);
+
+  void* result = tsdbGetJsonTagValue(data, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN, NULL);
+  if (result == NULL){    // json key no result
+    if(!dst) return NULL;
+    *(char*)dst = TSDB_DATA_TYPE_JSON;
+    setNull(dst + CHAR_BYTES, TSDB_DATA_TYPE_JSON, 0);
+    return dst;
+  }
+
+  char* realData = POINTER_SHIFT(result, CHAR_BYTES);
+  if(*(char*)result == TSDB_DATA_TYPE_NCHAR || *(char*)result == TSDB_DATA_TYPE_BINARY) {
+    assert(varDataTLen(realData) < bytes);
+    if(!dst) return result;
+    memcpy(dst, result, CHAR_BYTES + varDataTLen(realData));
+    return dst;
+  }else if (*(char*)result == TSDB_DATA_TYPE_DOUBLE || *(char*)result == TSDB_DATA_TYPE_BIGINT) {
+    if(!dst) return result;
+    memcpy(dst, result, CHAR_BYTES + LONG_BYTES);
+    return dst;
+  }else if (*(char*)result == TSDB_DATA_TYPE_BOOL) {
+    if(!dst) return result;
+    memcpy(dst, result, CHAR_BYTES + CHAR_BYTES);
+    return dst;
+  }else {
+    assert(0);
+  }
+  return result;
+}
+
+void getJsonTagValueAll(void* data, void* dst, int16_t bytes) {
+  char* json = parseTagDatatoJson(data);
+  char* tagData = dst + CHAR_BYTES;
+  *(char*)dst = TSDB_DATA_TYPE_JSON;
+  if(json == NULL){
+    setNull(tagData, TSDB_DATA_TYPE_JSON, 0);
+    return;
+  }
+
+  int32_t length = 0;
+  if(!taosMbsToUcs4(json, strlen(json), varDataVal(tagData), bytes - VARSTR_HEADER_SIZE - CHAR_BYTES, &length)){
+    tsdbError("getJsonTagValueAll mbstoucs4 error! length:%d", length);
+  }
+  varDataSetLen(tagData, length);
+  assert(varDataTLen(tagData) <= bytes);
+  tfree(json);
+}
+
+char* parseTagDatatoJson(void *p){
+  char* string = NULL;
+  cJSON *json = cJSON_CreateObject();
+  if (json == NULL)
+  {
+    goto end;
+  }
+
+  int16_t nCols = kvRowNCols(p);
+  ASSERT(nCols%2 == 1);
+  char tagJsonKey[TSDB_MAX_JSON_KEY_LEN + 1] = {0};
+  for (int j = 0; j < nCols; ++j) {
+    SColIdx * pColIdx = kvRowColIdxAt(p, j);
+    void* val = (kvRowColVal(p, pColIdx));
+    if (j == 0){
+      int8_t jsonPlaceHolder = *(int8_t*)val;
+      ASSERT(jsonPlaceHolder == TSDB_DATA_JSON_PLACEHOLDER);
+      continue;
+    }
+    if(j == 1){
+      uint32_t jsonNULL = *(uint32_t*)(varDataVal(val));
+      ASSERT(jsonNULL == TSDB_DATA_JSON_NULL);
+      continue;
+    }
+    if (j == 2){
+      if(*(uint32_t*)(varDataVal(val + CHAR_BYTES)) == TSDB_DATA_JSON_NULL) goto end;
+      continue;
+    }
+    if (j%2 == 1) { // json key  encode by binary
+      ASSERT(varDataLen(val) <= TSDB_MAX_JSON_KEY_LEN);
+      memset(tagJsonKey, 0, sizeof(tagJsonKey));
+      memcpy(tagJsonKey, varDataVal(val), varDataLen(val));
+    }else{  // json value
+      char tagJsonValue[TSDB_MAX_JSON_TAGS_LEN] = {0};
+      char* realData = POINTER_SHIFT(val, CHAR_BYTES);
+      char type = *(char*)val;
+      if(type == TSDB_DATA_TYPE_BINARY) {
+        assert(*(uint32_t*)varDataVal(realData) == TSDB_DATA_JSON_null);   // json null value
+        assert(varDataLen(realData) == INT_BYTES);
+        cJSON* value = cJSON_CreateNull();
+        if (value == NULL)
+        {
+          goto end;
+        }
+        cJSON_AddItemToObject(json, tagJsonKey, value);
+      }else if(type == TSDB_DATA_TYPE_NCHAR) {
+        int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), tagJsonValue);
+        if (length < 0) {
+          tsdbError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+                   (char*)val);
+          goto end;
+        }
+        cJSON* value = cJSON_CreateString(tagJsonValue);
+
+        if (value == NULL)
+        {
+          goto end;
+        }
+        cJSON_AddItemToObject(json, tagJsonKey, value);
+      }else if(type == TSDB_DATA_TYPE_DOUBLE){
+        double jsonVd = *(double*)(realData);
+        cJSON* value = cJSON_CreateNumber(jsonVd);
+        if (value == NULL)
+        {
+          goto end;
+        }
+        cJSON_AddItemToObject(json, tagJsonKey, value);
+      }else if(type == TSDB_DATA_TYPE_BIGINT){
+        int64_t jsonVd = *(int64_t*)(realData);
+        cJSON* value = cJSON_CreateNumber(jsonVd);
+        if (value == NULL)
+        {
+          goto end;
+        }
+        cJSON_AddItemToObject(json, tagJsonKey, value);
+      }else if (type == TSDB_DATA_TYPE_BOOL) {
+        char jsonVd = *(char*)(realData);
+        cJSON* value = cJSON_CreateBool(jsonVd);
+        if (value == NULL)
+        {
+          goto end;
+        }
+        cJSON_AddItemToObject(json, tagJsonKey, value);
+      }
+      else{
+        tsdbError("unsupportted json value");
+      }
+    }
+  }
+  string = cJSON_PrintUnformatted(json);
+end:
+  cJSON_Delete(json);
+  return string;
+}
 
 
