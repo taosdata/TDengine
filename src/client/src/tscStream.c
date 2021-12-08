@@ -357,7 +357,7 @@ bool sendChildTalbe(TAOS *taos, char *superName, char *tableName, TAOS_FIELD *fi
   // obtain dbname
   char * p = strstr(superName, ".");
   if(p) { // if have db prefix , under this db create table
-    int32_t len = p - superName;
+    int32_t len = (int32_t)(p - superName);
     strncpy(dbName, superName, len);
     dbName[len] = 0; // append str end
     sprintf(dbTable, "%s.%s", dbName, tableName);
