@@ -53,7 +53,7 @@ class TDTestCase:
         # check stable stb0
 
         os.system(
-            "%staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabase.json -y " %
+            "%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabase.json -y " %
             binPath)
         tdSql.execute("use nsdb")
         tdSql.query("show stables")
@@ -88,7 +88,7 @@ class TDTestCase:
 
         # check stable stb0
         os.system(
-            "%staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseNow.json -y " %
+            "%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseNow.json -y " %
             binPath)
 
         tdSql.execute("use nsdb2")
@@ -108,7 +108,7 @@ class TDTestCase:
         # cols
 
         os.system(
-            "%staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabasecsv.json  -y " %
+            "%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabasecsv.json  -y " %
             binPath)
         tdSql.execute("use nsdbcsv")
         tdSql.query("show stables")
@@ -130,7 +130,7 @@ class TDTestCase:
         # taosdemo test insert with command and parameter , detals show
         # taosdemo --help
         os.system(
-            "%staosdemo  -u root -ptaosdata -P 6030  -a 1  -m pre -n 10 -T 20 -t 60 -o res.txt -y " %
+            "%staosBenchmark  -u root -ptaosdata -P 6030  -a 1  -m pre -n 10 -T 20 -t 60 -o res.txt -y " %
             binPath)
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 600)
@@ -152,7 +152,7 @@ class TDTestCase:
 
         sleep(10)
 
-        os.system("%staosdemo  -s taosdemoTestNanoCreateDB.sql  -y " % binPath)
+        os.system("%staosBenchmark  -s taosdemoTestNanoCreateDB.sql  -y " % binPath)
         tdSql.query("select count(*) from nsdbsql.meters")
         tdSql.checkData(0, 0, 2)
 

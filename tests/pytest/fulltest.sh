@@ -216,7 +216,7 @@ python3 ./test.py -f stable/query_after_reset.py
 # perfbenchmark
 python3 ./test.py -f perfbenchmark/bug3433.py
 #python3 ./test.py -f perfbenchmark/bug3589.py
-python3 ./test.py -f perfbenchmark/taosdemoInsert.py
+#python3 ./test.py -f perfbenchmark/taosdemoInsert.py
 
 #taosdemo
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
