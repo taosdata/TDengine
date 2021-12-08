@@ -176,7 +176,7 @@ namespace Test.UtilsTools
             }
             else
             {
-                Console.WriteLine("{0},query success");
+                Console.WriteLine("StmtUseResult success");
 
             }
             return res;
