@@ -167,7 +167,10 @@ uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes *node, 
        break;
     }
     if (addPrefix != 0) {
-      fstBuilderNodeUnfinishedAddOutputPrefix(un, addPrefix);  
+      if (i + 1 < ssz) {
+        FstBuilderNodeUnfinished *unf = taosArrayGet(node->stack, i + 1);
+        fstBuilderNodeUnfinishedAddOutputPrefix(unf, addPrefix);  
+      }
     }
   }   
   return i;
@@ -581,14 +584,13 @@ uint64_t fstStateFindInput(FstState *s, FstNode *node, uint8_t b, bool *null) {
                     - 1 // pack size
                     - node->nTrans;
     uint64_t end =  start + node->nTrans;
-    uint64_t len = end - start; 
-    int32_t dlen = 0; 
-    uint8_t *data = fstSliceData(slice, &dlen);
+    FstSlice t = fstSliceCopy(slice, start, end - 1);
+    int32_t len = 0; 
+    uint8_t *data = fstSliceData(&t, &len);
     for(int i = 0; i < len; i++) {
       //uint8_t v = slice->data[slice->start + i];
       ////slice->data[slice->start + i];
       uint8_t v = data[i]; 
-      
       if (v == b) {
         return node->nTrans - i - 1; // bug  
       }
@@ -1060,7 +1062,7 @@ bool fstGet(Fst *fst, FstSlice *b, Output *out) {
   }
   *out = tOut;
   
-  return false; 
+  return true; 
 }
 
 FstNode *fstGetRoot(Fst *fst) {
