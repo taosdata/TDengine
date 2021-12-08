@@ -5472,7 +5472,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       retCode =  tscSQLSyntaxErrMsg(errMsg, "json key too long, more than 256", NULL);
       goto end;
     }
-    if(taosHashGet(keyHash, jsonKey, strlen(jsonKey)) != NULL){
+    if(strlen(jsonKey) == 0 || taosHashGet(keyHash, jsonKey, strlen(jsonKey)) != NULL){
       continue;
     }
 

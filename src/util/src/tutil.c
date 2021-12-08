@@ -526,9 +526,7 @@ void jsonKeyMd5(void *pMsg, int msgLen, void *pKey) {
 
 bool isValidateTag(char *input) {
   if (!input) return false;
-  size_t len = strlen(input);
-  if (len == 0) return false;
-  for (size_t i = 0; i < len; ++i) {
+  for (size_t i = 0; i < strlen(input); ++i) {
     if (isprint(input[i]) == 0) return false;
   }
   return true;

@@ -6099,6 +6099,8 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   const char* msg10 = "not support distinct mixed with order by";
   const char* msg11 = "not support order with udf";
   const char* msg12 = "order by tags not supported with diff/derivative/csum/mavg";
+  const char* msg13 = "order by json tag, key is too long";
+  const char* msg14 = "order by json tag, must be json->'key'";
 
   setDefaultOrderInfo(pQueryInfo);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -6186,7 +6188,21 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       }
       SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, 0);
       if (relTagIndex == pColIndex->colIndex) {
-        orderByTags = true;
+        if (tscGetColumnSchemaById(pTableMetaInfo->pTableMeta, pColIndex->colId)->type == TSDB_DATA_TYPE_JSON){
+          if(!pItem->isJsonExp){
+            return invalidOperationMsg(pMsgBuf, msg14);
+          }
+          if(pItem->jsonExp->exprToken.n >= sizeof(pColIndex->name)){
+            return invalidOperationMsg(pMsgBuf, msg13);
+          }
+          if(strncmp(pColIndex->name, pItem->jsonExp->exprToken.z, pItem->jsonExp->exprToken.n) == 0){
+            orderByTags = true;
+          }else{
+            orderByTags = false;
+          }
+        }else{
+          orderByTags = true;
+        }
       }
     } else if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) { // order by tbname
       // it is a tag column

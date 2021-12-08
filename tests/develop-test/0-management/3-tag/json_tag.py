@@ -19,6 +19,13 @@ from util.sql import tdSql
 
 
 class TDTestCase:
+    def caseDescription(self):
+        '''
+        Json tag test case, include create table with json tag,
+        select json tag and query with json tag in where condition,
+        besides, include json tag in group by/order by/join/subquery.
+        '''
+        return
 
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -38,7 +45,7 @@ class TDTestCase:
         tdSql.execute("insert into jsons1_7 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":null}') values(1591062628000, 2, NULL, '你就会', 'dws')")
 
         # test duplicate key using the first one. elimate empty key
-        tdSql.execute("CREATE TABLE if not exists jsons1_8 using jsons1 tags('{\"tag1\":null, \"tag1\":true, \"tag1\":45, \"1tag$\":2, \" \":90}')")
+        tdSql.execute("CREATE TABLE if not exists jsons1_8 using jsons1 tags('{\"tag1\":null, \"tag1\":true, \"tag1\":45, \"1tag$\":2, \" \":90, \"\":32}')")
 
         # test empty json string, save as jtag is NULL
         tdSql.execute("insert into jsons1_9  using jsons1 tags('\t') values (1591062328000, 24, NULL, '你就会', '2sdw')")
@@ -60,9 +67,19 @@ class TDTestCase:
         tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"tag1\":[1,true]}')")
         tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"tag1\":{}}')")
         tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"。loc\":\"fff\"}')")
-        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"\":\"fff\"}')")
         tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"\t\":\"fff\"}')")
         tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"试试\":\"fff\"}')")
+
+        #test length limit
+        char1= ''.join(['abcd']*64)
+        char3= ''.join(['abcd']*1022)
+        print(len(char3))   # 4088
+        tdSql.error("CREATE TABLE if not exists  jsons1_15 using  jsons1 tags('{\"%s1\":5}')" % char1)   # len(key)=257
+        tdSql.execute("CREATE TABLE if not exists  jsons1_15 using  jsons1 tags('{\"%s\":5}')" % char1)  # len(key)=256
+        tdSql.error("CREATE TABLE if not exists  jsons1_16 using  jsons1 tags('{\"TS\":\"%s\"}')" % char3)   # len(object)=4097
+        tdSql.execute("CREATE TABLE if not exists  jsons1_16 using  jsons1 tags('{\"T\":\"%s\"}')" % char3)  # len(object)=4096
+        tdSql.execute("drop table if exists jsons1_15")
+        tdSql.execute("drop table if exists jsons1_16")
 
         print("============== STEP 2 ===== alter table json tag")
         tdSql.error("ALTER STABLE jsons1 add tag tag2 nchar(20)")
@@ -85,6 +102,14 @@ class TDTestCase:
         tdSql.error("select * from jsons1 where jtag contains location")
         tdSql.error("select * from jsons1 where jtag contains''")
         tdSql.error("select * from jsons1 where jtag contains 'location'='beijing'")
+
+        # test function error
+        tdSql.error("select avg(jtag->'tag1') from jsons1")
+        tdSql.error("select avg(jtag) from jsons1")
+        tdSql.error("select min(jtag->'tag1') from jsons1")
+        tdSql.error("select min(jtag) from jsons1")
+        tdSql.error("select ceil(jtag->'tag1') from jsons1")
+        tdSql.error("select ceil(jtag) from jsons1")
 
         # test select normal column
         tdSql.query("select dataint from jsons1")
@@ -271,6 +296,13 @@ class TDTestCase:
         tdSql.query("select * from jsons1 where jtag->'tag1'='femail' and jtag contains 'tag3'")
         tdSql.checkRows(2)
 
+
+        # test with between and
+        tdSql.query("select * from jsons1 where jtag->'tag1' between 1 and 30")
+        tdSql.checkRows(3)
+        tdSql.query("select * from jsons1 where jtag->'tag1' between 'femail' and 'beijing'")
+        tdSql.checkRows(2)
+
         # test with tbname/normal column
         tdSql.query("select * from jsons1 where tbname = 'jsons1_1'")
         tdSql.checkRows(2)
@@ -291,7 +323,7 @@ class TDTestCase:
         # test where condition in  no support in
         tdSql.error("select * from jsons1 where jtag->'tag1' in ('beijing')")
 
-        # test where condition match
+        # test where condition match/nmath
         tdSql.query("select * from jsons1 where jtag->'tag1' match 'ma'")
         tdSql.checkRows(2)
         tdSql.query("select * from jsons1 where jtag->'tag1' match 'ma$'")
@@ -300,6 +332,8 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query("select * from jsons1 where jtag->'tag1' match '收到'")
         tdSql.checkRows(1)
+        tdSql.query("select * from jsons1 where jtag->'tag1' nmatch 'ma'")
+        tdSql.checkRows(2)
 
         # test distinct
         tdSql.execute("insert into jsons1_14 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":null}') values(1591062628000, 2, NULL, '你就会', 'dws')")
@@ -335,6 +369,8 @@ class TDTestCase:
         tdSql.checkColNameList(res, cname_list)
     
         # test group by & order by  json tag
+        tdSql.error("select count(*) from jsons1 group by jtag->'tag1' order by jtag->'tag2'")
+        tdSql.error("select count(*) from jsons1 group by jtag->'tag1' order by jtag")
         tdSql.query("select count(*) from jsons1 group by jtag->'tag1' order by jtag->'tag1' desc")
         tdSql.checkRows(8)
         tdSql.checkData(0, 0, 2)
@@ -367,6 +403,10 @@ class TDTestCase:
         tdSql.checkData(1, 1, "null")
         tdSql.checkData(7, 0, 11)
         tdSql.checkData(7, 1, '"femail"')
+
+        # test having
+        tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tag1' having stddev(dataint) > 0")
+        tdSql.checkRows(2)
 
         res = tdSql.getColNameList("select stddev(dataint) from jsons1 group by jsons1.jtag->'tag1'")
         cname_list = []
@@ -404,6 +444,16 @@ class TDTestCase:
         tdSql.checkRows(11)
         tdSql.checkData(1, 1, "jsons1_1")
         tdSql.checkData(1, 2, '"femail"')
+
+        # union all
+        tdSql.error("select jtag->'tag1' from jsons1 union all select jtag->'tag2' from jsons2")
+        tdSql.error("select jtag->'tag1' from jsons1_1 union all select jtag->'tag2' from jsons2_1")
+
+        tdSql.query("select jtag->'tag1' from jsons1_1 union all select jtag->'tag1' from jsons2_1")
+        tdSql.checkRows(2)
+        tdSql.query("select dataint,jtag->'tag1',tbname from jsons1 union all select dataint,jtag->'tag1',tbname from jsons2")
+        tdSql.checkRows(13)
+
 
     def stop(self):
         tdSql.close()
