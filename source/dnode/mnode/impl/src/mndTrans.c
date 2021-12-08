@@ -263,7 +263,10 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOldTrans, STrans *pNewT
   return 0;
 }
 
-static int32_t trnGenerateTransId() { return 1; }
+static int32_t trnGenerateTransId() {
+  static int32_t tmp = 0;
+  return ++tmp;
+}
 
 STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, void *rpcHandle) {
   STrans *pTrans = calloc(1, sizeof(STrans));

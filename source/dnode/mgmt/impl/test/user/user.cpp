@@ -286,7 +286,7 @@ TEST_F(DndTestUser, AlterUser_01) {
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SDropUserMsg);
+  rpcMsg.contLen = sizeof(SAlterUserMsg);
   rpcMsg.msgType = TSDB_MSG_TYPE_ALTER_USER;
 
   sendMsg(pClient, &rpcMsg);
