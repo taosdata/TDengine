@@ -105,7 +105,7 @@ void metaOptionsClear(SMetaCfg *pOptions);
 #define META_CLEAR_TB_CFG(pTbCfg)
 
 int   metaEncodeTbCfg(void **pBuf, STbCfg *pTbCfg);
-void *metaDecodeTbCfg(void *pBuf, STbCfg **pTbCfg);
+void *metaDecodeTbCfg(void *pBuf, STbCfg *pTbCfg);
 
 #ifdef __cplusplus
 }

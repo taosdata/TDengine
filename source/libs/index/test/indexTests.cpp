@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
       std::string str("aaa");
       str[2] = 'a' + i ;
       FstSlice key = fstSliceCreate((uint8_t *)str.c_str(), str.size());
-      Output   val = 2;
+      Output   val = 0;
       fstBuilderInsert(b, key, val); 
     }
     
@@ -108,13 +108,14 @@ int main(int argc, char** argv) {
       
   Fst *fst = fstCreate(&s); 
   {
-    std::string str("aaa"); 
+    std::string str("aax"); 
     uint64_t out;
     
-   
+       
     FstSlice key = fstSliceCreate((uint8_t *)str.c_str(), str.size());
     bool ok = fstGet(fst, &key, &out); 
     if (ok == true) {
+      printf("val = %d\n", out);
       //indexInfo("Get key-value success, %s, %d", str.c_str(), out); 
     } else {
       //indexError("Get key-value failed, %s", str.c_str()); 

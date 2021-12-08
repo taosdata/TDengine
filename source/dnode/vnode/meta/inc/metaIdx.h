@@ -16,15 +16,13 @@
 #ifndef _TD_META_IDX_H_
 #define _TD_META_IDX_H_
 
-#include "rocksdb/c.h"
-
 #include "meta.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef rocksdb_t meta_index_t;
+typedef struct SMetaIdx SMetaIdx;
 
 int  metaOpenIdx(SMeta *pMeta);
 void metaCloseIdx(SMeta *pMeta);

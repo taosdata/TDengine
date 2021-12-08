@@ -16,26 +16,17 @@
 #ifndef _TD_META_DB_H_
 #define _TD_META_DB_H_
 
-#include "rocksdb/c.h"
-#include "sqlite3.h"
-
 #include "meta.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct {
-  rocksdb_t *tbDb;      // uid -> tb obj
-  rocksdb_t *nameDb;    // name -> uid
-  rocksdb_t *tagDb;     // uid -> tag
-  rocksdb_t *schemaDb;  // uid+version -> schema
-  sqlite3 *  mapDb;     // suid -> uid_list
-} meta_db_t;
+typedef struct SMetaDB SMetaDB;
 
 int  metaOpenDB(SMeta *pMeta);
 void metaCloseDB(SMeta *pMeta);
-int  metaSaveTableToDB(SMeta *pMeta, const STbCfg *pTbOptions);
+int  metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg);
 int  metaRemoveTableFromDb(SMeta *pMeta, tb_uid_t uid);
 
 #ifdef __cplusplus

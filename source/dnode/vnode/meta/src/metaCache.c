@@ -16,22 +16,26 @@
 #include "meta.h"
 #include "metaDef.h"
 
+struct SMetaCache {
+  // TODO
+};
+
 int metaOpenCache(SMeta *pMeta) {
   // TODO
-  if (pMeta->options.lruSize) {
-    pMeta->pCache = rocksdb_cache_create_lru(pMeta->options.lruSize);
-    if (pMeta->pCache == NULL) {
-      // TODO: handle error
-      return -1;
-    }
-  }
+  // if (pMeta->options.lruSize) {
+  //   pMeta->pCache = rocksdb_cache_create_lru(pMeta->options.lruSize);
+  //   if (pMeta->pCache == NULL) {
+  //     // TODO: handle error
+  //     return -1;
+  //   }
+  // }
 
   return 0;
 }
 
 void metaCloseCache(SMeta *pMeta) {
-  if (pMeta->pCache) {
-    rocksdb_cache_destroy(pMeta->pCache);
-    pMeta->pCache = NULL;
-  }
+  // if (pMeta->pCache) {
+  //   rocksdb_cache_destroy(pMeta->pCache);
+  //   pMeta->pCache = NULL;
+  // }
 }
