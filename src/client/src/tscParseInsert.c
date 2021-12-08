@@ -44,6 +44,12 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
 int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, uint32_t nBoundCols,
                                  int32_t allNullLen) {
   ASSERT(nRows >= 0 && nCols > 0 && (nBoundCols <= nCols));
+
+  if (tsForceDataRow) {
+    pBuilder->memRowType = SMEM_ROW_DATA;
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (nRows > 0) {
     // already init(bind multiple rows by single column)
     if (pBuilder->compareStat == ROW_COMPARE_NEED && (pBuilder->rowInfo != NULL)) {
