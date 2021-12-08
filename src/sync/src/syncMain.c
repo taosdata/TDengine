@@ -271,11 +271,7 @@ void syncStop(int64_t rid) {
 
   sInfo("vgId:%d, cleanup sync", pNode->vgId);
 
-  int ret = 0;
-  if ((ret = pthread_mutex_lock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_lock(&pNode->mutex);
 
   if (tsVgIdHash) taosHashRemove(tsVgIdHash, &pNode->vgId, sizeof(int32_t));
   if (pNode->pFwdTimer) taosTmrStop(pNode->pFwdTimer);
@@ -289,10 +285,7 @@ void syncStop(int64_t rid) {
   pPeer = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
   if (pPeer) syncRemovePeer(pPeer);
 
-  if ((ret = pthread_mutex_unlock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_unlock(&pNode->mutex);
 
   syncReleaseNode(pNode);
   taosRemoveRef(tsNodeRefId, rid);
@@ -307,11 +300,7 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg *pNewCfg) {
   sInfo("vgId:%d, reconfig, role:%s replica:%d old:%d", pNode->vgId, syncRole[nodeRole], pNewCfg->replica,
         pNode->replica);
 
-  int ret = 0;
-  if ((ret = pthread_mutex_lock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_lock(&pNode->mutex);
 
   syncStopCheckPeerConn(pNode->peerInfo[TAOS_SYNC_MAX_REPLICA]);  // arb
   for (int32_t syn_index = 0; syn_index < pNode->replica; ++syn_index) {
@@ -379,10 +368,7 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg *pNewCfg) {
     syncStartCheckPeerConn(pNode->peerInfo[syn_index]);
   }
 
-  if ((ret = pthread_mutex_unlock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_unlock(&pNode->mutex);
 
   sInfo("vgId:%d, %d replicas are configured, quorum:%d", pNode->vgId, pNode->replica, pNode->quorum);
   syncBroadcastStatus(pNode);
@@ -432,11 +418,7 @@ void syncRecover(int64_t rid) {
   nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
   (*pNode->notifyRoleFp)(pNode->vgId, nodeRole);
 
-  int ret = 0;
-  if ((ret = pthread_mutex_lock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_lock(&pNode->mutex);
 
   nodeVersion = 0;
 
@@ -449,10 +431,7 @@ void syncRecover(int64_t rid) {
     }
   }
 
-  if ((ret = pthread_mutex_unlock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_unlock(&pNode->mutex);
 
   syncReleaseNode(pNode);
 }
@@ -566,10 +545,7 @@ static void syncClosePeerConn(SSyncPeer *pPeer) {
   sDebug("%s, pfd:%d sfd:%d will be closed", pPeer->id, pPeer->peerFd, pPeer->syncFd);
 
   taosTmrStopA(&pPeer->timer);
-
-  if (taosCloseSocket(pPeer->syncFd) != 0) {
-    exit(false);
-  }
+  taosCloseSocket(pPeer->syncFd);
   if (pPeer->peerFd >= 0) {
     pPeer->peerFd = -1;
     void *pConn = pPeer->pConn;
@@ -895,9 +871,7 @@ static void syncRestartPeer(SSyncPeer *pPeer) {
   int32_t ret = strcmp(pPeer->fqdn, tsNodeFqdn);
   if (pPeer->nodeId == 0 || ret > 0 || (ret == 0 && pPeer->port > tsSyncPort)) {
     sDebug("%s, check peer connection in 1000 ms", pPeer->id);
-    if (!taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer)) {
-      assert(false);
-    }
+    taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
   }
 }
 
@@ -956,20 +930,12 @@ static void syncNotStarted(void *param, void *tmrId) {
 
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  int ret = 0;
-  if ((ret = pthread_mutex_lock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_lock(&pNode->mutex);
   pPeer->timer = NULL;
   pPeer->sstatus = TAOS_SYNC_STATUS_INIT;
   sInfo("%s, sync conn is still not up, restart and set sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
   syncRestartConnection(pPeer);
-
-  if ((ret = pthread_mutex_unlock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_unlock(&pNode->mutex);
 
   syncReleasePeer(pPeer);
 }
@@ -981,17 +947,9 @@ static void syncTryRecoverFromMaster(void *param, void *tmrId) {
 
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  int ret = 0;
-  if ((ret = pthread_mutex_lock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_lock(&pNode->mutex);
   syncRecoverFromMaster(pPeer);
-
-  if ((ret = pthread_mutex_unlock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_unlock(&pNode->mutex);
 
   syncReleasePeer(pPeer);
 }
@@ -1120,12 +1078,8 @@ static int32_t syncProcessPeerMsg(int64_t rid, void *buffer) {
 
   SSyncHead *pHead = buffer;
   SSyncNode *pNode = pPeer->pSyncNode;
-
-  int ret = 0;
-  if ((ret = pthread_mutex_lock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  
+  pthread_mutex_lock(&pNode->mutex);
 
   int32_t code = syncReadPeerMsg(pPeer, pHead);
 
@@ -1141,10 +1095,7 @@ static int32_t syncProcessPeerMsg(int64_t rid, void *buffer) {
     }
   }
 
-  if ((ret = pthread_mutex_unlock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_unlock(&pNode->mutex);
   syncReleasePeer(pPeer);
 
   return code;
@@ -1237,19 +1188,12 @@ static void syncCheckPeerConnection(void *param, void *tmrId) {
 
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  int ret = 0;
-  if ((ret = pthread_mutex_lock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_lock(&pNode->mutex);
 
   sDebug("%s, check peer connection", pPeer->id);
   syncSetupPeerConnection(pPeer);
 
-  if ((ret = pthread_mutex_unlock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_unlock(&pNode->mutex);
 
   syncReleasePeer(pPeer);
 }
@@ -1330,12 +1274,7 @@ static void syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
   sDebug("vgId:%d, sync connection is incoming, tranId:%u", vgId, msg.tranId);
 
   SSyncNode *pNode = *ppNode;
-
-  int ret = 0;
-  if ((ret = pthread_mutex_lock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_lock(&pNode->mutex);
 
   SSyncPeer *pPeer;
   for (i = 0; i < pNode->replica; ++i) {
@@ -1366,10 +1305,7 @@ static void syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
     }
   }
 
-  if ((ret = pthread_mutex_unlock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_unlock(&pNode->mutex);
 }
 
 static void syncProcessBrokenLink(int64_t rid, int32_t closedByApp) {
@@ -1378,11 +1314,7 @@ static void syncProcessBrokenLink(int64_t rid, int32_t closedByApp) {
 
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  int ret = 0;
-  if ((ret = pthread_mutex_lock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_lock(&pNode->mutex);
 
   sDebug("%s, TCP link is broken since %s, pfd:%d sfd:%d closedByApp:%d",
          pPeer->id, strerror(errno), pPeer->peerFd, pPeer->syncFd, closedByApp);
@@ -1392,11 +1324,7 @@ static void syncProcessBrokenLink(int64_t rid, int32_t closedByApp) {
   }
 
   syncRestartConnection(pPeer);
-
-  if ((ret = pthread_mutex_unlock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_unlock(&pNode->mutex);
 
   syncReleasePeer(pPeer);
 }
@@ -1500,11 +1428,7 @@ static void syncMonitorFwdInfos(void *param, void *tmrId) {
     int64_t syn_time = taosGetTimestampMs();
 
     if (pSyncFwds->fwds > 0) {
-      int ret = 0;
-      if ((ret = pthread_mutex_lock(&pNode->mutex)) != 0) {
-        sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-        exit(ret);
-      };
+      pthread_mutex_lock(&pNode->mutex);
       for (int32_t i = 0; i < pSyncFwds->fwds; ++i) {
         SFwdInfo *pFwdInfo = pSyncFwds->fwdInfo + (pSyncFwds->first + i) % SYNC_MAX_FWDS;
         if (ABS(syn_time - pFwdInfo->time) < 10000) break;
@@ -1515,11 +1439,7 @@ static void syncMonitorFwdInfos(void *param, void *tmrId) {
       }
 
       syncRemoveConfirmedFwdInfo(pNode);
-
-      if ((ret = pthread_mutex_unlock(&pNode->mutex)) != 0) {
-        sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-        exit(ret);
-      };
+      pthread_mutex_unlock(&pNode->mutex);
     }
 
     pNode->pFwdTimer = taosTmrStart(syncMonitorFwdInfos, SYNC_FWD_TIMER, (void *)pNode->rid, tsSyncTmrCtrl);
@@ -1565,11 +1485,7 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
   syncBuildSyncFwdMsg(pSyncHead, pNode->vgId, sizeof(SWalHead) + pWalHead->len);
   fwdLen = pSyncHead->len + sizeof(SSyncHead);  // include the WAL and SYNC head
 
-  int ret = 0;
-  if ((ret = pthread_mutex_lock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_lock(&pNode->mutex);
 
   for (int32_t i = 0; i < pNode->replica; ++i) {
     pPeer = pNode->peerInfo[i];
@@ -1581,10 +1497,7 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
       if (code >= 0) {
         code = 1;
       } else {
-        if ((ret = pthread_mutex_unlock(&pNode->mutex)) != 0) {
-          sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-          exit(ret);
-        };
+        pthread_mutex_unlock(&pNode->mutex);
         return code;
       }
     }
@@ -1600,10 +1513,7 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
     }
   }
 
-  if ((ret = pthread_mutex_unlock(&pNode->mutex)) != 0) {
-    sFatal("%d:: vgId:%d, failed to lock pNode->mutex", __LINE__, pNode->vgId);
-    exit(ret);
-  };
+  pthread_mutex_unlock(&pNode->mutex);
 
   return code;
 }

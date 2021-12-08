@@ -445,7 +445,6 @@ bool taosTmrStop(tmr_h timerId) {
 bool taosTmrStopA(tmr_h* timerId) {
   bool ret = taosTmrStop(*timerId);
   *timerId = NULL;
-  
   return ret;
 }
 

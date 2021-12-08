@@ -168,9 +168,7 @@ void syncFreeTcpConn(void *param) {
 
   sDebug("%p TCP connection will be closed, fd:%d", pThread, pConn->fd);
   pConn->closedByApp = 1;
-  if (shutdown(pConn->fd, SHUT_WR) != 0) {
-    ASSERT(false);
-  }
+  shutdown(pConn->fd, SHUT_WR);
 }
 
 static void taosProcessBrokenLink(SConnObj *pConn) {
