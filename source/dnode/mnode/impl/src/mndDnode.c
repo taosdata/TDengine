@@ -36,6 +36,53 @@ static char *offlineReason[] = {
     "unknown",
 };
 
+static int32_t  mndCreateDefaultDnode(SMnode *pMnode);
+static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode);
+static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw);
+static int32_t  mndDnodeActionInsert(SSdb *pSdb, SDnodeObj *pDnode);
+static int32_t  mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode);
+static int32_t  mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOldDnode, SDnodeObj *pNewDnode);
+static int32_t  mndProcessCreateDnodeMsg(SMnodeMsg *pMsg);
+static int32_t  mndProcessDropDnodeMsg(SMnodeMsg *pMsg);
+static int32_t  mndProcessConfigDnodeMsg(SMnodeMsg *pMsg);
+static int32_t  mndProcessStatusMsg(SMnodeMsg *pMsg);
+
+int32_t mndInitDnode(SMnode *pMnode) {
+  SSdbTable table = {.sdbType = SDB_DNODE,
+                     .keyType = SDB_KEY_INT32,
+                     .deployFp = (SdbDeployFp)mndCreateDefaultDnode,
+                     .encodeFp = (SdbEncodeFp)mndDnodeActionEncode,
+                     .decodeFp = (SdbDecodeFp)mndDnodeActionDecode,
+                     .insertFp = (SdbInsertFp)mndDnodeActionInsert,
+                     .updateFp = (SdbUpdateFp)mndDnodeActionUpdate,
+                     .deleteFp = (SdbDeleteFp)mndDnodeActionDelete};
+
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_DNODE, mndProcessCreateDnodeMsg);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_DNODE, mndProcessDropDnodeMsg);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CONFIG_DNODE, mndProcessConfigDnodeMsg);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_STATUS, mndProcessStatusMsg);
+
+  return sdbSetTable(pMnode->pSdb, table);
+}
+
+void mndCleanupDnode(SMnode *pMnode) {}
+
+static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
+  SDnodeObj dnodeObj = {0};
+  dnodeObj.id = 1;
+  dnodeObj.createdTime = taosGetTimestampMs();
+  dnodeObj.updateTime = dnodeObj.createdTime;
+  dnodeObj.port = pMnode->replicas[0].port;
+  memcpy(&dnodeObj.fqdn, pMnode->replicas[0].fqdn, TSDB_FQDN_LEN);
+
+  SSdbRaw *pRaw = mndDnodeActionEncode(&dnodeObj);
+  if (pRaw == NULL) return -1;
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+
+  mDebug("dnode:%d, will be created while deploy sdb", dnodeObj.id);
+  return sdbWrite(pMnode->pSdb, pRaw);
+}
+
 static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode) {
   SSdbRaw *pRaw = sdbAllocRaw(SDB_DNODE, SDB_DNODE_VER, sizeof(SDnodeObj));
   if (pRaw == NULL) return NULL;
@@ -107,24 +154,18 @@ static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOldDnode, SDnodeObj 
   pOldDnode->createdTime = pNewDnode->createdTime;
   pOldDnode->updateTime = pNewDnode->updateTime;
   pOldDnode->port = pNewDnode->port;
-  memcpy(pOldDnode->fqdn, pNewDnode->fqdn, TSDB_FQDN_LEN); 
+  memcpy(pOldDnode->fqdn, pNewDnode->fqdn, TSDB_FQDN_LEN);
   return 0;
 }
 
-static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
-  SDnodeObj dnodeObj = {0};
-  dnodeObj.id = 1;
-  dnodeObj.createdTime = taosGetTimestampMs();
-  dnodeObj.updateTime = dnodeObj.createdTime;
-  dnodeObj.port = pMnode->replicas[0].port;
-  memcpy(&dnodeObj.fqdn, pMnode->replicas[0].fqdn, TSDB_FQDN_LEN);
+SDnodeObj *mndAcquireDnode(SMnode *pMnode, int32_t dnodeId) {
+  SSdb *pSdb = pMnode->pSdb;
+  return sdbAcquire(pSdb, SDB_DNODE, &dnodeId);
+}
 
-  SSdbRaw *pRaw = mndDnodeActionEncode(&dnodeObj);
-  if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-
-  mDebug("dnode:%d, will be created while deploy sdb", dnodeObj.id);
-  return sdbWrite(pMnode->pSdb, pRaw);
+void mndReleaseDnode(SMnode *pMnode, SDnodeObj *pDnode) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbRelease(pSdb, pDnode);
 }
 
 static SDnodeObj *mndAcquireDnodeByEp(SMnode *pMnode, char *pEpStr) {
@@ -322,33 +363,3 @@ static int32_t mndProcessCreateDnodeMsg(SMnodeMsg *pMsg) { return 0; }
 static int32_t mndProcessDropDnodeMsg(SMnodeMsg *pMsg) { return 0; }
 
 static int32_t mndProcessConfigDnodeMsg(SMnodeMsg *pMsg) { return 0; }
-
-int32_t mndInitDnode(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_DNODE,
-                     .keyType = SDB_KEY_INT32,
-                     .deployFp = (SdbDeployFp)mndCreateDefaultDnode,
-                     .encodeFp = (SdbEncodeFp)mndDnodeActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndDnodeActionDecode,
-                     .insertFp = (SdbInsertFp)mndDnodeActionInsert,
-                     .updateFp = (SdbUpdateFp)mndDnodeActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndDnodeActionDelete};
-
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_DNODE, mndProcessCreateDnodeMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_DNODE, mndProcessDropDnodeMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CONFIG_DNODE, mndProcessConfigDnodeMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_STATUS, mndProcessStatusMsg);
-
-  return sdbSetTable(pMnode->pSdb, table);
-}
-
-void mndCleanupDnode(SMnode *pMnode) {}
-
-SDnodeObj *mndAcquireDnode(SMnode *pMnode, int32_t dnodeId) {
-  SSdb *pSdb = pMnode->pSdb;
-  return sdbAcquire(pSdb, SDB_DNODE, &dnodeId);
-}
-
-void mndReleaseDnode(SMnode *pMnode, SDnodeObj *pDnode) {
-  SSdb *pSdb = pMnode->pSdb;
-  sdbRelease(pSdb, pDnode);
-}

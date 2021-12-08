@@ -18,6 +18,47 @@
 
 #define SDB_MNODE_VER 1
 
+static int32_t  mndCreateDefaultMnode(SMnode *pMnode);
+static SSdbRaw *mndMnodeActionEncode(SMnodeObj *pMnodeObj);
+static SSdbRow *mndMnodeActionDecode(SSdbRaw *pRaw);
+static int32_t  mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pMnodeObj);
+static int32_t  mndMnodeActionDelete(SSdb *pSdb, SMnodeObj *pMnodeObj);
+static int32_t  mndMnodeActionUpdate(SSdb *pSdb, SMnodeObj *pOldMnode, SMnodeObj *pNewMnode);
+static int32_t  mndProcessCreateMnodeMsg(SMnodeMsg *pMsg);
+static int32_t  mndProcessDropMnodeMsg(SMnodeMsg *pMsg);
+
+int32_t mndInitMnode(SMnode *pMnode) {
+  SSdbTable table = {.sdbType = SDB_MNODE,
+                     .keyType = SDB_KEY_INT32,
+                     .deployFp = (SdbDeployFp)mndCreateDefaultMnode,
+                     .encodeFp = (SdbEncodeFp)mndMnodeActionEncode,
+                     .decodeFp = (SdbDecodeFp)mndMnodeActionDecode,
+                     .insertFp = (SdbInsertFp)mndMnodeActionInsert,
+                     .updateFp = (SdbUpdateFp)mndMnodeActionUpdate,
+                     .deleteFp = (SdbDeleteFp)mndMnodeActionDelete};
+
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_MNODE, mndProcessCreateMnodeMsg);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_MNODE, mndProcessDropMnodeMsg);
+
+  return sdbSetTable(pMnode->pSdb, table);
+}
+
+void mndCleanupMnode(SMnode *pMnode) {}
+
+static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
+  SMnodeObj mnodeObj = {0};
+  mnodeObj.id = 1;
+  mnodeObj.createdTime = taosGetTimestampMs();
+  mnodeObj.updateTime = mnodeObj.createdTime;
+
+  SSdbRaw *pRaw = mndMnodeActionEncode(&mnodeObj);
+  if (pRaw == NULL) return -1;
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+
+  mDebug("mnode:%d, will be created while deploy sdb", mnodeObj.id);
+  return sdbWrite(pMnode->pSdb, pRaw);
+}
+
 static SSdbRaw *mndMnodeActionEncode(SMnodeObj *pMnodeObj) {
   SSdbRaw *pRaw = sdbAllocRaw(SDB_MNODE, SDB_MNODE_VER, sizeof(SMnodeObj));
   if (pRaw == NULL) return NULL;
@@ -89,42 +130,6 @@ static int32_t mndMnodeActionUpdate(SSdb *pSdb, SMnodeObj *pOldMnode, SMnodeObj 
   return 0;
 }
 
-static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
-  SMnodeObj mnodeObj = {0};
-  mnodeObj.id = 1;
-  mnodeObj.createdTime = taosGetTimestampMs();
-  mnodeObj.updateTime = mnodeObj.createdTime;
-
-  SSdbRaw *pRaw = mndMnodeActionEncode(&mnodeObj);
-  if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-
-  mDebug("mnode:%d, will be created while deploy sdb", mnodeObj.id);
-  return sdbWrite(pMnode->pSdb, pRaw);
-}
-
-static int32_t mndProcessCreateMnodeMsg(SMnodeMsg *pMsg) { return 0; }
-
-static int32_t mndProcessDropMnodeMsg(SMnodeMsg *pMsg) { return 0; }
-
-int32_t mndInitMnode(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_MNODE,
-                     .keyType = SDB_KEY_INT32,
-                     .deployFp = (SdbDeployFp)mndCreateDefaultMnode,
-                     .encodeFp = (SdbEncodeFp)mndMnodeActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndMnodeActionDecode,
-                     .insertFp = (SdbInsertFp)mndMnodeActionInsert,
-                     .updateFp = (SdbUpdateFp)mndMnodeActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndMnodeActionDelete};
-
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_MNODE, mndProcessCreateMnodeMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_MNODE, mndProcessDropMnodeMsg);
-
-  return sdbSetTable(pMnode->pSdb, table);
-}
-
-void mndCleanupMnode(SMnode *pMnode) {}
-
 bool mndIsMnode(SMnode *pMnode, int32_t dnodeId) {
   SSdb *pSdb = pMnode->pSdb;
 
@@ -158,3 +163,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
     pEpSet->numOfEps++;
   }
 }
+
+static int32_t mndProcessCreateMnodeMsg(SMnodeMsg *pMsg) { return 0; }
+
+static int32_t mndProcessDropMnodeMsg(SMnodeMsg *pMsg) { return 0; }
