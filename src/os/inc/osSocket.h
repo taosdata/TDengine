@@ -33,14 +33,14 @@ extern "C" {
   #define taosReadSocket(fd, buf, len) read(fd, buf, len)
   #define taosWriteSocket(fd, buf, len) write(fd, buf, len)
   #define taosCloseSocketNoCheck(x) close(x)
-#define taosCloseSocket(x) \
-  {                        \
-    if (FD_VALID(x)) {     \
-      close(x);            \
-      x = FD_INITIALIZER;  \
-    }                      \
-  }
-#endif
+  #define taosCloseSocket(x) \
+    {                        \
+      if (FD_VALID(x)) {     \
+        close(x);            \
+        x = FD_INITIALIZER;  \
+      }                      \
+    }
+  #endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   #define TAOS_EPOLL_WAIT_TIME 100
