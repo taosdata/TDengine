@@ -165,6 +165,7 @@ python3 ./test.py -f update/merge_commit_data.py
 python3 test.py -f tools/taosdumpTest.py
 python3 test.py -f tools/taosdumpTest2.py
 
+#python3 test.py -f tools/taosdemoTest.py
 #python3 test.py -f tools/taosdemoTestWithoutMetric.py
 #python3 test.py -f tools/taosdemoTestWithJson.py
 #python3 test.py -f tools/taosdemoTestLimitOffset.py
