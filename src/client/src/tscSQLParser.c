@@ -1951,8 +1951,8 @@ static int32_t handleSQLExprItem(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t 
     return code;
   }
 
-  if (height >= 16) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "the max height of expression must be less than 16");
+  if (height > 16) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "the max expression nested levels must be equal or less than 16");
   }
 
   if (sqlExprType == SQLEXPR_TYPE_SCALAR) {

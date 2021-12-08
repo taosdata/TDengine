@@ -225,6 +225,7 @@ if $data90 != @-0.911130262@ then
   return -1 
 endi
 print ============== invalid expressions
+$stb = st0
 sql_error select agg(c1)+c2 from $stb
 sql_error select agg(c1+2) from $stb
 sql_error select agg(ceil(c1))+c2 from $stb
@@ -235,8 +236,10 @@ sql_error select asin(c1) from $stb session_window(ts, 1s)
 sql_error select cos(c1) from $stb state_window(f1)
 sql_error select pow(c2,2) from $stb interval(1s) sliding(500a)
 sql_error select pow(c2,2) from $stb state_window(f1)
-sql_error select tan(f1) from $stb from d.st slimit 1
-sql_error select f1+2, tbname from $stb group by tbname
+sql_error select tan(c1) from $stb from d.st slimit 1
+sql_error select c1+2, tbname from $stb group by tbname
+sql select sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(c1)))))))))))))))) from $stb
+sql_error select sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(sin(c1))))))))))))))))) from $stb
 print =============== clear
 sql drop database $db
 sql show databases
