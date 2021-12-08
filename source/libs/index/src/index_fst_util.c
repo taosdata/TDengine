@@ -67,7 +67,7 @@ uint8_t packSize(uint64_t n) {
 }
 
 uint64_t unpackUint64(uint8_t *ch, uint8_t sz) {
-  uint64_t n;
+  uint64_t n = 0;
   for (uint8_t i = 0; i < sz; i++) {
     n = n | (ch[i] << (8 * i));
   }
@@ -173,6 +173,19 @@ int fstSliceCompare(FstSlice *a, FstSlice *b) {
   else if (j < blen) { return -1; }
   else { return 0; } 
 } 
+
+//FstStack* fstStackCreate(size_t elemSize, StackFreeElem freeFn) {
+//  FstStack *s = calloc(1, sizeof(FstStack));
+//  if (s == NULL) { return NULL; }
+//  s-> 
+//  s->freeFn 
+//  
+//}
+//void  *fstStackPush(FstStack *s, void *elem);
+//void  *fstStackTop(FstStack *s);
+//size_t fstStackLen(FstStack *s); 
+//void  *fstStackGetAt(FstStack *s, size_t i);
+//void   fstStackDestory(FstStack *); 
 
 
 
