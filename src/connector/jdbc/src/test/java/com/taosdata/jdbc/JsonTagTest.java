@@ -60,13 +60,13 @@ public class JsonTagTest {
             "select * from jsons1 where jtag->''=9",
             "select -> from jsons1",
             "select ? from jsons1",
-            "select * from jsons1 where ?",
+            "select * from jsons1 where contains",
             "select * from jsons1 where jtag->",
             "select jtag->location from jsons1",
-            "select jtag?location from jsons1",
-            "select * from jsons1 where jtag?location",
-            "select * from jsons1 where jtag?''",
-            "select * from jsons1 where jtag?'location'='beijing'",
+            "select jtag contains location from jsons1",
+            "select * from jsons1 where jtag contains location",
+            "select * from jsons1 where jtag contains ''",
+            "select * from jsons1 where jtag contains 'location'='beijing'",
             // test where with json tag
             "select * from jsons1_1 where jtag is not null",
             "select * from jsons1 where jtag='{\"tag1\":11,\"tag2\":\"\"}'",
@@ -748,7 +748,7 @@ public class JsonTagTest {
     // test ?
     @Test
     public void case09_select10() throws SQLException {
-        ResultSet resultSet = statement.executeQuery("select * from jsons1 where jtag?'tag1'");
+        ResultSet resultSet = statement.executeQuery("select * from jsons1 where jtag contains 'tag1'");
         int count = 0;
         while (resultSet.next()) {
             count++;
@@ -759,7 +759,7 @@ public class JsonTagTest {
 
     @Test
     public void case09_select11() throws SQLException {
-        ResultSet resultSet = statement.executeQuery("select * from jsons1 where jtag?'tag3'");
+        ResultSet resultSet = statement.executeQuery("select * from jsons1 where jtag contains 'tag3'");
         int count = 0;
         while (resultSet.next()) {
             count++;
@@ -770,7 +770,7 @@ public class JsonTagTest {
 
     @Test
     public void case09_select12() throws SQLException {
-        ResultSet resultSet = statement.executeQuery("select * from jsons1 where jtag?'tag_no_exist'");
+        ResultSet resultSet = statement.executeQuery("select * from jsons1 where jtag contains 'tag_no_exist'");
         int count = 0;
         while (resultSet.next()) {
             count++;
@@ -826,7 +826,7 @@ public class JsonTagTest {
 
     @Test
     public void case10_selectAndOr05() throws SQLException {
-        ResultSet resultSet = statement.executeQuery("select * from jsons1 where jtag->'tag1' is not null and jtag?'tag3'");
+        ResultSet resultSet = statement.executeQuery("select * from jsons1 where jtag->'tag1' is not null and jtag contains 'tag3'");
         int count = 0;
         while (resultSet.next()) {
             count++;
@@ -837,7 +837,7 @@ public class JsonTagTest {
 
     @Test
     public void case10_selectAndOr06() throws SQLException {
-        ResultSet resultSet = statement.executeQuery("select * from jsons1 where jtag->'tag1'='femail' and jtag?'tag3'");
+        ResultSet resultSet = statement.executeQuery("select * from jsons1 where jtag->'tag1'='femail' and jtag contains 'tag3'");
         int count = 0;
         while (resultSet.next()) {
             count++;
@@ -860,7 +860,7 @@ public class JsonTagTest {
 
     @Test
     public void case11_selectTbName02() throws SQLException {
-        ResultSet resultSet = statement.executeQuery("select * from jsons1 where tbname = 'jsons1_1' and jtag?'tag3'");
+        ResultSet resultSet = statement.executeQuery("select * from jsons1 where tbname = 'jsons1_1' and jtag contains 'tag3'");
         int count = 0;
         while (resultSet.next()) {
             count++;
@@ -871,7 +871,7 @@ public class JsonTagTest {
 
     @Test
     public void case11_selectTbName03() throws SQLException {
-        ResultSet resultSet = statement.executeQuery("select * from jsons1 where tbname = 'jsons1_1' and jtag?'tag3' and dataint=3");
+        ResultSet resultSet = statement.executeQuery("select * from jsons1 where tbname = 'jsons1_1' and jtag contains 'tag3' and dataint=3");
         int count = 0;
         while (resultSet.next()) {
             count++;
@@ -882,7 +882,7 @@ public class JsonTagTest {
 
     @Test
     public void case11_selectTbName04() throws SQLException {
-        ResultSet resultSet = statement.executeQuery("select * from jsons1 where tbname = 'jsons1_1' and jtag?'tag3' and dataint=23");
+        ResultSet resultSet = statement.executeQuery("select * from jsons1 where tbname = 'jsons1_1' and jtag contains 'tag3' and dataint=23");
         int count = 0;
         while (resultSet.next()) {
             count++;
