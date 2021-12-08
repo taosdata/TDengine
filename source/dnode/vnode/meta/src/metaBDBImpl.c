@@ -33,15 +33,21 @@ struct SMetaDB {
   DB_ENV *pEvn;
 };
 
+typedef int (*bdbIdxCbPtr)(DB *, const DBT *, const DBT *, DBT *);
+
 static SMetaDB *metaNewDB();
 static void     metaFreeDB(SMetaDB *pDB);
 static int      metaOpenBDBEnv(DB_ENV **ppEnv, const char *path);
 static void     metaCloseBDBEnv(DB_ENV *pEnv);
 static int      metaOpenBDBDb(DB **ppDB, DB_ENV *pEnv, const char *pFName);
 static void     metaCloseBDBDb(DB *pDB);
+static int      metaOpenBDBIdx(DB **ppIdx, DB_ENV *pEnv, const char *pFName, DB *pDB, bdbIdxCbPtr cbf);
+static int      metaNameIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
+static int      metaStbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
+static int      metaNtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
+static int      metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
 
 #define BDB_PERR(info, code) fprintf(stderr, info " reason: %s", db_strerror(code))
-#define metaOpenBDBIdx metaOpenBDBDb
 
 int metaOpenDB(SMeta *pMeta) {
   SMetaDB *pDB;
@@ -72,26 +78,25 @@ int metaOpenDB(SMeta *pMeta) {
   }
 
   // Open Indices
-  if (metaOpenBDBIdx(&(pDB->pNameIdx), pDB->pEvn, "index.db") < 0) {
+  if (metaOpenBDBIdx(&(pDB->pNameIdx), pDB->pEvn, "index.db", pDB->pTbDB, &metaNameIdxCb) < 0) {
     metaCloseDB(pMeta);
     return -1;
   }
 
-  if (metaOpenBDBIdx(&(pDB->pStbIdx), pDB->pEvn, "index.db") < 0) {
+  if (metaOpenBDBIdx(&(pDB->pStbIdx), pDB->pEvn, "index.db", pDB->pTbDB, &metaStbIdxCb) < 0) {
     metaCloseDB(pMeta);
     return -1;
   }
 
-  if (metaOpenBDBIdx(&(pDB->pNtbIdx), pDB->pEvn, "index.db") < 0) {
+  if (metaOpenBDBIdx(&(pDB->pNtbIdx), pDB->pEvn, "index.db", pDB->pTbDB, &metaNtbIdxCb) < 0) {
     metaCloseDB(pMeta);
     return -1;
   }
 
-  if (metaOpenBDBIdx(&(pDB->pCtbIdx), pDB->pEvn, "index.db") < 0) {
+  if (metaOpenBDBIdx(&(pDB->pCtbIdx), pDB->pEvn, "index.db", pDB->pTbDB, &metaCtbIdxCb) < 0) {
     metaCloseDB(pMeta);
     return -1;
   }
-  // Associate Indices
 
   return 0;
 }
@@ -176,6 +181,8 @@ static int metaOpenBDBDb(DB **ppDB, DB_ENV *pEnv, const char *pFName) {
     return -1;
   }
 
+  *ppDB = pDB;
+
   return 0;
 }
 
@@ -183,6 +190,49 @@ static void metaCloseBDBDb(DB *pDB) {
   if (pDB) {
     pDB->close(pDB, 0);
   }
+}
+
+static int metaOpenBDBIdx(DB **ppIdx, DB_ENV *pEnv, const char *pFName, DB *pDB, bdbIdxCbPtr cbf) {
+  DB *pIdx;
+  int ret;
+
+  if (metaOpenBDBDb(ppIdx, pEnv, pFName) < 0) {
+    return -1;
+  }
+
+  pIdx = *ppIdx;
+  ret = pDB->associate(pDB, NULL, pIdx, cbf, 0);
+  if (ret) {
+    BDB_PERR("Failed to associate META DB and Index", ret);
+  }
+
+  return 0;
+}
+
+static void metaCloseBDBIdx(DB *pIdx) {
+  if (pIdx) {
+    pIdx->close(pIdx, 0);
+  }
+}
+
+static int metaNameIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey) {
+  // TODO
+  return 0;
+}
+
+static int metaStbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey) {
+  // TODO
+  return 0;
+}
+
+static int metaNtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey) {
+  // TODO
+  return 0;
+}
+
+static int metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey) {
+  // TODO
+  return 0;
 }
 
 #if 0
