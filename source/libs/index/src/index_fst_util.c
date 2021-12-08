@@ -67,7 +67,7 @@ uint8_t packSize(uint64_t n) {
 }
 
 uint64_t unpackUint64(uint8_t *ch, uint8_t sz) {
-  uint64_t n;
+  uint64_t n = 0;
   for (uint8_t i = 0; i < sz; i++) {
     n = n | (ch[i] << (8 * i));
   }

@@ -63,6 +63,7 @@
 //}
 
 int main(int argc, char** argv) {
+  // test write
   FstBuilder *b = fstBuilderCreate(NULL, 0);
   {
     std::string str("aaa");
@@ -87,9 +88,42 @@ int main(int argc, char** argv) {
     }
     
   } 
-  //fstBuilderInsert(b, key1, val2); 
   fstBuilderFinish(b);
   fstBuilderDestroy(b);
+
+
+  char buf[64 * 1024] = {0};     
+
+  FstSlice s; 
+
+  FstCountingWriter *w = fstCountingWriterCreate(NULL, true);
+  int nRead = fstCountingWriterRead(w, (uint8_t *)buf, sizeof(buf)); 
+  assert(nRead <= sizeof(buf));  
+  s = fstSliceCreate((uint8_t *)buf, nRead);
+  fstCountingWriterDestroy(w);
+
+
+  // test reader
+  
+      
+  Fst *fst = fstCreate(&s); 
+  {
+    std::string str("aaa"); 
+    uint64_t out;
+    
+   
+    FstSlice key = fstSliceCreate((uint8_t *)str.c_str(), str.size());
+    bool ok = fstGet(fst, &key, &out); 
+    if (ok == true) {
+      //indexInfo("Get key-value success, %s, %d", str.c_str(), out); 
+    } else {
+      //indexError("Get key-value failed, %s", str.c_str()); 
+    }
+  }
+  fstSliceDestroy(&s);
+  
+
+  
   return 1;
 }
 

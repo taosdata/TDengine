@@ -31,17 +31,19 @@ static int writeCtxDoWrite(WriterCtx *ctx, uint8_t *buf, int len) {
   return len;
 }
 static int writeCtxDoRead(WriterCtx *ctx, uint8_t *buf, int len) {
+  int nRead = 0; 
   if (ctx->type == TFile) {
-    tfRead(ctx->fd, buf, len);
+    nRead = tfRead(ctx->fd, buf, len);
   } else {
     memcpy(buf, ctx->mem + ctx->offset, len);
   }
-  ctx->offset += len;
+  ctx->offset += nRead;
 
-  return 1;
+  return nRead;
 } 
 static int writeCtxDoFlush(WriterCtx *ctx) {
   if (ctx->type == TFile) {
+    //tfFsync(ctx->fd);
     //tfFlush(ctx->fd);
   } else {
     // do nothing
@@ -49,14 +51,19 @@ static int writeCtxDoFlush(WriterCtx *ctx) {
   return 1;
 }
 
-WriterCtx* writerCtxCreate(WriterType type) {     
+WriterCtx* writerCtxCreate(WriterType type, bool readOnly) {     
   WriterCtx *ctx = calloc(1, sizeof(WriterCtx));
   if (ctx == NULL) { return NULL; }
 
   ctx->type = type;
   if (ctx->type == TFile) {
     tfInit();
-    ctx->fd = tfOpenCreateWriteAppend(tmpFile);  
+    // ugly code, refactor later
+    if (readOnly == false) {
+      ctx->fd = tfOpenCreateWriteAppend(tmpFile);  
+    } else {
+      ctx->fd = tfOpenReadWrite(tmpFile);
+    } 
     if (ctx->fd < 0) {
       indexError("open file error %d", errno);       
     }
@@ -76,35 +83,44 @@ void writerCtxDestroy(WriterCtx *ctx) {
   if (ctx->type == TMemory) {
     free(ctx->mem);
   } else {
-    tfCleanup();
     tfClose(ctx->fd);    
+    tfCleanup();
   }
   free(ctx);
 }
 
 
-FstCountingWriter *fstCountingWriterCreate(void *wrt) {
+FstCountingWriter *fstCountingWriterCreate(void *wrt, bool readOnly) {
   FstCountingWriter *cw = calloc(1, sizeof(FstCountingWriter)); 
   if (cw == NULL) { return NULL; }
   
-  cw->wrt = (void *)(writerCtxCreate(TFile)); 
+  cw->wrt = (void *)(writerCtxCreate(TFile, readOnly)); 
   return cw; 
 }
 void fstCountingWriterDestroy(FstCountingWriter *cw) {
   // free wrt object: close fd or free mem 
+  fstCountingWriterFlush(cw);
   writerCtxDestroy((WriterCtx *)(cw->wrt));
   free(cw);
 }
 
-int fstCountingWriterWrite(FstCountingWriter *write, uint8_t *buf, uint32_t bufLen) {
+int fstCountingWriterWrite(FstCountingWriter *write, uint8_t *buf, uint32_t len) {
   if (write == NULL) { return 0; } 
   // update checksum 
   // write data to file/socket or mem
   WriterCtx *ctx = write->wrt;
 
-  int nWrite = ctx->write(ctx, buf, bufLen); 
-  write->count += nWrite;
-  return bufLen; 
+  int nWrite = ctx->write(ctx, buf, len); 
+  assert(nWrite == len);
+  write->count += len;
+  return len; 
+} 
+int fstCountingWriterRead(FstCountingWriter *write, uint8_t *buf, uint32_t len) {
+  if (write == NULL) { return 0; }
+  WriterCtx *ctx = write->wrt;
+  int nRead = ctx->read(ctx, buf, len);
+  //assert(nRead == len);
+  return nRead; 
 } 
 
 uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter *write) {
