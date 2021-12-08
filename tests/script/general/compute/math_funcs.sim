@@ -53,6 +53,8 @@ run general/compute/math_atan.sim
 run general/compute/math_sin.sim
 run general/compute/math_cos.sim
 run general/compute/math_tan.sim
+run general/compute/math_pow.sim
+run general/compute/math_log.sim
 
 
 sql create table stba (ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 float, c7 double, c8 binary(10), c9 nchar(10), c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned) TAGS(t1 int, t2 binary(10), t3 double);
@@ -120,6 +122,9 @@ run general/compute/math_cos.sim
 run general/compute/math_cos2.sim
 run general/compute/math_tan.sim
 run general/compute/math_tan2.sim
-
+run general/compute/math_pow.sim
+run general/compute/math_pow2.sim
+run general/compute/math_log.sim
+run general/compute/math_log2.sim
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
