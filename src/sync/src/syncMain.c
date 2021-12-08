@@ -1506,7 +1506,6 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
     pthread_mutex_unlock(&pNode->mutex);
     int32_t retLen = taosWriteMsg(peerFd, pSyncHead, fwdLen);
     pthread_mutex_lock(&pNode->mutex);
-
     if (retLen == fwdLen) {
       sTrace("%s, forward is sent, role:%s sstatus:%s hver:%" PRIu64 " contLen:%d", pPeer->id, syncRole[pPeer->role],
              syncStatus[pPeer->sstatus], pWalHead->version, pWalHead->len);

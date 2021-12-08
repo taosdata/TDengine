@@ -40,7 +40,7 @@ extern "C" {
         x = FD_INITIALIZER;  \
       }                      \
     }
-  #endif
+#endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   #define TAOS_EPOLL_WAIT_TIME 100
