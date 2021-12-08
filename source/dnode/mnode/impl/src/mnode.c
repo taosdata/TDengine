@@ -22,7 +22,6 @@
 #include "mndDnode.h"
 #include "mndFunc.h"
 #include "mndMnode.h"
-#include "mndOper.h"
 #include "mndProfile.h"
 #include "mndShow.h"
 #include "mndStable.h"
