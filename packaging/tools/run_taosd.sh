@@ -1,3 +1,3 @@
 #!/bin/bash
-[[ -x /usr/bin/taosadataper ]] && /usr/bin/taosadapter &
+[[ -x /usr/bin/taosadapter ]] && /usr/bin/taosadapter &
 taosd
