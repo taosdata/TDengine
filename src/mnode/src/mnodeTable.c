@@ -3092,7 +3092,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   // add the user-defined-function information
   for(int32_t i = 0; i < pInfo->numOfUdfs; ++i, ++t) {
     char buf[TSDB_FUNC_NAME_LEN] = {0};
-    strcpy(buf, nameList[t]);
+    tstrncpy(buf, nameList[t], TSDB_FUNC_NAME_LEN);
 
     SFuncObj* pFuncObj = mnodeGetFunc(buf);
     if (pFuncObj == NULL) {
