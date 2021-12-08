@@ -244,8 +244,9 @@ int32_t compareJsonVal(const void *pLeft, const void *pRight) {
   }else if(type == TSDB_DATA_TYPE_BINARY) { //json null
     return 0;
   }else{
-      assert(0);
+    assert(0);
   }
+  return 0;
 }
 
 /*

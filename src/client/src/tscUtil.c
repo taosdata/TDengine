@@ -5478,9 +5478,8 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
 
     // json key encode by binary
     char tagKey[TSDB_MAX_JSON_KEY_LEN + VARSTR_HEADER_SIZE] = {0};
-    int32_t outLen = 0;
     strncpy(varDataVal(tagKey), jsonKey, strlen(jsonKey));
-    outLen = strlen(jsonKey);
+    int32_t outLen = (int32_t)strlen(jsonKey);
     taosHashPut(keyHash, jsonKey, outLen, &outLen, CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
 
     varDataSetLen(tagKey, outLen);
@@ -5510,9 +5509,9 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_BIGINT, tagVal, true);
     }else if(item->type == cJSON_True || item->type == cJSON_False){
       char tagVal[CHAR_BYTES + CHAR_BYTES] = {0};
-      *tagVal = jsonType2DbType(item->valueint, item->type);    // type
+      *tagVal = jsonType2DbType((double)(item->valueint), item->type);    // type
       char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
-      *tagData = item->valueint;
+      *tagData = (char)(item->valueint);
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_BOOL, tagVal, true);
     }else if(item->type == cJSON_NULL){
       char tagVal[CHAR_BYTES + VARSTR_HEADER_SIZE + INT_BYTES] = {0};
