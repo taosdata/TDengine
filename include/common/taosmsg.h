@@ -841,11 +841,19 @@ typedef struct {
 } SCfgDnodeMsg;
 
 typedef struct {
+  int32_t dnodeId;
+} SCreateMnodeMsg, SDropMnodeMsg;
+
+typedef struct {
   int32_t  dnodeId;
+  int8_t   align[3];
   int8_t   replica;
-  int8_t   reserved[3];
   SReplica replicas[TSDB_MAX_REPLICA];
-} SCreateMnodeMsg, SAlterMnodeMsg, SDropMnodeMsg;
+} SCreateMnodeInMsg, SAlterMnodeInMsg;
+
+typedef struct {
+  int32_t dnodeId;
+} SDropMnodeInMsg;
 
 typedef struct {
   int32_t dnodeId;

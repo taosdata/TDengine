@@ -16,11 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "mndVgroup.h"
 #include "mndDnode.h"
+#include "mndMnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "ttime.h"
-
-static char *syncRole[] = {"unsynced", "slave", "master"};
 
 static int32_t mndGetVnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
 static int32_t mndRetrieveVnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
@@ -108,7 +107,7 @@ static int32_t mndRetrieveVnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, i
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      STR_TO_VARSTR(pWrite, syncRole[pVgid->role]);
+      STR_TO_VARSTR(pWrite, mndGetRoleStr(pVgid->role));
       cols++;
       numOfRows++;
     }

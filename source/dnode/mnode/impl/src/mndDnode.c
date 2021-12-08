@@ -523,7 +523,7 @@ static int32_t mndProcessDropDnodeMsg(SMnodeMsg *pMsg) {
 
   if (pDrop->dnodeId <= 0) {
     terrno = TSDB_CODE_SDB_APP_ERROR;
-    mError("dnode:%d, failed to create since %s", pDrop->dnodeId, terrstr());
+    mError("dnode:%d, failed to drop since %s", pDrop->dnodeId, terrstr());
     return -1;
   }
 
@@ -537,7 +537,7 @@ static int32_t mndProcessDropDnodeMsg(SMnodeMsg *pMsg) {
   int32_t code = mndDropDnode(pMnode, pMsg, pDnode);
 
   if (code != 0) {
-    mError("dnode:%d, failed to create since %s", pDrop->dnodeId, terrstr());
+    mError("dnode:%d, failed to drop since %s", pDrop->dnodeId, terrstr());
     return -1;
   }
 
@@ -762,6 +762,7 @@ static int32_t mndRetrieveDnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, i
 
   mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
+
   return numOfRows;
 }
 
