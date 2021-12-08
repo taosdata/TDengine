@@ -162,8 +162,8 @@ python3 ./test.py -f update/merge_commit_data.py
 #======================p1-end===============
 #======================p2-start===============
 # tools
-python3 test.py -f tools/taosdumpTest.py
-python3 test.py -f tools/taosdumpTest2.py
+#python3 test.py -f tools/taosdumpTest.py
+#python3 test.py -f tools/taosdumpTest2.py
 
 #python3 test.py -f tools/taosdemoTest.py
 #python3 test.py -f tools/taosdemoTestWithoutMetric.py
@@ -183,7 +183,7 @@ python3 test.py -f tools/taosdumpTest2.py
 #python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQuery.py
 #python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanosubscribe.py
 #python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestInsertTime_step.py
-python3 test.py -f tools/taosdumpTestNanoSupport.py
+#python3 test.py -f tools/taosdumpTestNanoSupport.py
 
 #
 python3 ./test.py -f tsdb/tsdbComp.py
