@@ -22,7 +22,7 @@ option(
 option(
     BUILD_WITH_SQLITE
     "If build with sqlite" 
-    ON
+    OFF
 )
 
 option(
