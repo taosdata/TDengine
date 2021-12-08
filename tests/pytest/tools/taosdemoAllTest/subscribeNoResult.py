@@ -68,7 +68,7 @@ class TDTestCase:
         
         binPath = buildPath+ "/build/bin/"
 
-        os.system("%staosdemo -f tools/taosdemoAllTest/sub_no_result.json -g 2>&1 | tee sub_no_result.log" % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sub_no_result.json -g 2>&1 | tee sub_no_result.log" % binPath)
         test_line = int(self.execCmdAndGetOutput("cat sub_no_result.log | wc -l"))
         if(test_line < 1100024):
             tdLog.exit("failed test subscribeNoResult: %d != expected(1100024)" % test_line)

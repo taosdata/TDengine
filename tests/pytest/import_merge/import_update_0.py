@@ -1055,7 +1055,7 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
-        os.system("%staosdemo -N -d taosdemo -t 100 -n 100 -l 1000 -y" % binPath)
+        os.system("%staosBenchmark -N -d taosdemo -t 100 -n 100 -l 1000 -y" % binPath)
 
         tdSql.execute('''insert into table_2 values( %d , NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);''' %(self.ts - 200))
         sql = '''select * from table_2 where ts = %d ;''' %(self.ts - 200)
