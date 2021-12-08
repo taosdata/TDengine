@@ -191,17 +191,19 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
     ${csudo} rm -f ${bin_link_dir}/tarbitrator   || :
     ${csudo} rm -f ${bin_link_dir}/set_core   || :
+    ${csudo} rm -f ${bin_link_dir}/run_taosd  || :
 
     ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
     #Make link
     [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                      || :
     [ -x ${install_main_dir}/bin/taosd ] && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd                   || :
-    [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo} ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter                      || :
+    [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo} ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter        || :
     [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo          || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump          || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos          || :
     [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core    || :
+    [ -x ${install_main_dir}/bin/run_taosd.sh ] && ${csudo} ln -s ${install_main_dir}/bin/run_taosd.sh ${bin_link_dir}/run_taosd.sh     || :
     [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo} ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator || :
 
     if [ "$verMode" == "cluster" ]; then

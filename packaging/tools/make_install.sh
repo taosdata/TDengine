@@ -165,6 +165,7 @@ function install_bin() {
     if [ "$osType" != "Darwin" ]; then
         ${csudo} rm -f ${bin_link_dir}/perfMonitor || :
         ${csudo} rm -f ${bin_link_dir}/set_core || :
+        ${csudo} rm -f ${bin_link_dir}/run_taosd.sh || :
         ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
 
         ${csudo} cp -r ${binary_dir}/build/bin/* ${install_main_dir}/bin
@@ -172,6 +173,7 @@ function install_bin() {
 
         ${csudo} cp -r ${script_dir}/remove.sh     ${install_main_dir}/bin
         ${csudo} cp -r ${script_dir}/set_core.sh   ${install_main_dir}/bin
+        ${csudo} cp -r ${script_dir}/run_taosd.sh  ${install_main_dir}/bin
         ${csudo} cp -r ${script_dir}/startPre.sh   ${install_main_dir}/bin
 
         ${csudo} chmod 0555 ${install_main_dir}/bin/*
@@ -183,6 +185,7 @@ function install_bin() {
         [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
         [ -x ${install_main_dir}/bin/perfMonitor ]  && ${csudo} ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor || :
         [ -x ${install_main_dir}/set_core.sh ]  && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
+        [ -x ${install_main_dir}/run_taosd.sh ]  && ${csudo} ln -s ${install_main_dir}/bin/run_taosd.sh ${bin_link_dir}/run_taosd || :
         [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos  || :
    else
 
