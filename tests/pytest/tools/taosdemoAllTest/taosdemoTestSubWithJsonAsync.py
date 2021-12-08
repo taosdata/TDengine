@@ -73,7 +73,7 @@ class TDTestCase:
 
         # subscribe: resultfile 
         os.system("%staosBenchmark -f tools/taosdemoAllTest/subInsertdata.json" % binPath)
-        os.system("nohup %staosdemo -f tools/taosdemoAllTest/subAsync.json &" % binPath)
+        os.system("nohup %staosBenchmark -f tools/taosdemoAllTest/subAsync.json &" % binPath)
         query_pid = int(subprocess.getstatusoutput('ps aux|grep "taosdemoAllTest/subAsync.json" |grep -v "grep"|awk \'{print $2}\'')[1])
 
         # insert extral data     

@@ -57,8 +57,8 @@ class TDTestCase:
                   (binPath, self.numberOfTables, self.numberOfRecords))
         print("Sleep 2 seconds..")
         time.sleep(2)
-        os.system('%staosdemo -f tools/query.json ' % binPath)
-#        taosdemoCmd = '%staosdemo -f tools/query.json ' % binPath
+        os.system('%staosBenchmark -f tools/query.json ' % binPath)
+#        taosdemoCmd = '%staosBenchmark -f tools/query.json ' % binPath
 #        threads = subprocess.check_output(
 #            taosdemoCmd, shell=True).decode("utf-8")
 #        print("threads: %d" % int(threads))
