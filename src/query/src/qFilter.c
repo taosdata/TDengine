@@ -2964,7 +2964,7 @@ static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows,
       if (!colData){  // for json->'key' is null
         (*p)[i] = 1;
       }else if( *(char*)colData == TSDB_DATA_TYPE_JSON){  // for json is null
-        colData += CHAR_BYTES;
+        colData = POINTER_SHIFT(colData, CHAR_BYTES);
         (*p)[i] = isNull(colData, info->cunits[uidx].dataType);
       }else{
         (*p)[i] = 0;
@@ -2999,7 +2999,7 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
       if (!colData) {   // for json->'key' is not null
         (*p)[i] = 0;
       }else if( *(char*)colData == TSDB_DATA_TYPE_JSON){   // for json is not null
-        colData += CHAR_BYTES;
+        colData = POINTER_SHIFT(colData, CHAR_BYTES);
         (*p)[i] = !isNull(colData, info->cunits[uidx].dataType);
       }else{    // for json->'key' is not null
         (*p)[i] = 1;
@@ -3019,7 +3019,7 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
 static void doJsonCompare(SFilterComUnit *cunit, int8_t *result, void* colData){
   if(cunit->optr == TSDB_RELATION_MATCH || cunit->optr == TSDB_RELATION_NMATCH){
     uint8_t  jsonType = *(char*)colData;
-    char* realData = colData + CHAR_BYTES;
+    char* realData = POINTER_SHIFT(colData, CHAR_BYTES);
     if (jsonType != TSDB_DATA_TYPE_NCHAR){
       *result = false;
     }else{
@@ -3036,7 +3036,7 @@ static void doJsonCompare(SFilterComUnit *cunit, int8_t *result, void* colData){
     }
   }else if(cunit->optr == TSDB_RELATION_LIKE){
     uint8_t  jsonType = *(char*)colData;
-    char* realData = colData + CHAR_BYTES;
+    char* realData = POINTER_SHIFT(colData, CHAR_BYTES);
     if (jsonType != TSDB_DATA_TYPE_NCHAR){
       *result = false;
     }else{

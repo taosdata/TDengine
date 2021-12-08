@@ -3559,8 +3559,8 @@ static int32_t tableGroupComparFn(const void *p1, const void *p2, const void *pa
         bytes = pCol->bytes;
         type = pCol->type;
         if (type == TSDB_DATA_TYPE_JSON){
-          f1 = getJsonTagValueElment(pTable1, pColIndex->name, strlen(pColIndex->name), NULL, TSDB_MAX_JSON_TAGS_LEN);
-          f2 = getJsonTagValueElment(pTable2, pColIndex->name, strlen(pColIndex->name), NULL, TSDB_MAX_JSON_TAGS_LEN);
+          f1 = getJsonTagValueElment(pTable1, pColIndex->name, (int32_t)strlen(pColIndex->name), NULL, TSDB_MAX_JSON_TAGS_LEN);
+          f2 = getJsonTagValueElment(pTable2, pColIndex->name, (int32_t)strlen(pColIndex->name), NULL, TSDB_MAX_JSON_TAGS_LEN);
         }else{
           f1 = tdGetKVRowValOfCol(pTable1->tagVal, pCol->colId);
           f2 = tdGetKVRowValOfCol(pTable2->tagVal, pCol->colId);
@@ -4110,7 +4110,7 @@ static int32_t queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
     tsdbError("json key not exist, no candidate table");
     return TSDB_CODE_SUCCESS;
   }
-  int32_t size = taosArrayGetSize(tabList);
+  size_t size = taosArrayGetSize(tabList);
   int8_t *addToResult = NULL;
   for(int i = 0; i < size; i++){
     JsonMapValue* data = taosArrayGet(tabList, i);
@@ -4155,7 +4155,7 @@ void* getJsonTagValueElment(void* data, char* key, int32_t keyLen, char* dst, in
   void* result = tsdbGetJsonTagValue(data, keyMd5, TSDB_MAX_JSON_KEY_MD5_LEN, NULL);
   if (result == NULL){    // json key no result
     if(!dst) return NULL;
-    *(char*)dst = TSDB_DATA_TYPE_JSON;
+    *dst = TSDB_DATA_TYPE_JSON;
     setNull(dst + CHAR_BYTES, TSDB_DATA_TYPE_JSON, 0);
     return dst;
   }
@@ -4182,7 +4182,7 @@ void* getJsonTagValueElment(void* data, char* key, int32_t keyLen, char* dst, in
 
 void getJsonTagValueAll(void* data, void* dst, int16_t bytes) {
   char* json = parseTagDatatoJson(data);
-  char* tagData = dst + CHAR_BYTES;
+  char* tagData = POINTER_SHIFT(dst, CHAR_BYTES);
   *(char*)dst = TSDB_DATA_TYPE_JSON;
   if(json == NULL){
     setNull(tagData, TSDB_DATA_TYPE_JSON, 0);
@@ -4267,7 +4267,7 @@ char* parseTagDatatoJson(void *p){
         cJSON_AddItemToObject(json, tagJsonKey, value);
       }else if(type == TSDB_DATA_TYPE_BIGINT){
         int64_t jsonVd = *(int64_t*)(realData);
-        cJSON* value = cJSON_CreateNumber(jsonVd);
+        cJSON* value = cJSON_CreateNumber((double)jsonVd);
         if (value == NULL)
         {
           goto end;
