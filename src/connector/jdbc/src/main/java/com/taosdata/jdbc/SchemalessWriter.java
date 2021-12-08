@@ -6,30 +6,29 @@ import com.taosdata.jdbc.rs.RestfulConnection;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.Statement;
 
 /**
- * this class is an extension of {@link Statement}. e.g.:
- * Statement statement = conn.createStatement();
- * SchemalessStatement schemalessStatement = new SchemalessStatement(statement);
- * schemalessStatement.execute(sql);
- * schemalessStatement.insert(lines, SchemalessProtocolType, SchemalessTimestampType);
+ * This class is for schemaless lines(line/telnet/json) write to tdengine.
+ * e.g.:
+ * SchemalessWriter writer = new SchemalessWriter(connection);
+ * writer.write(lines, SchemalessProtocolType, SchemalessTimestampType);
  */
-public class SchemalessStatement extends AbstractStatementWrapper {
-    public SchemalessStatement(Statement statement) {
-        super(statement);
+public class SchemalessWriter {
+    protected Connection connection;
+
+    public SchemalessWriter(Connection connection) {
+        this.connection = connection;
     }
 
     /**
-     * batch insert schemaless lines
+     * batch schemaless lines write to db
      *
      * @param lines         schemaless lines
      * @param protocolType  schemaless type {@link SchemalessProtocolType}
      * @param timestampType Time precision {@link SchemalessTimestampType}
-     * @throws SQLException execute insert exception
+     * @throws SQLException execute exception
      */
-    public void insert(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException {
-        Connection connection = this.getConnection();
+    public void write(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException {
         if (connection instanceof TSDBConnection) {
             TSDBConnection tsdbConnection = (TSDBConnection) connection;
             tsdbConnection.getConnector().insertLines(lines, protocolType, timestampType);
@@ -41,14 +40,14 @@ public class SchemalessStatement extends AbstractStatementWrapper {
     }
 
     /**
-     * only one insert
+     * only one line writes to db
      *
      * @param line          schemaless line
      * @param protocolType  schemaless type {@link SchemalessProtocolType}
      * @param timestampType Time precision {@link SchemalessTimestampType}
-     * @throws SQLException execute insert exception
+     * @throws SQLException execute exception
      */
-    public void insert(String line, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException {
-        insert(new String[]{line}, protocolType, timestampType);
+    public void write(String line, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException {
+        write(new String[]{line}, protocolType, timestampType);
     }
 }
