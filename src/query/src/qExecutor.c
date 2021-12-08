@@ -138,7 +138,7 @@ do {                                       \
 uint64_t queryHandleId = 0;
 
 int32_t getMaximumIdleDurationSec() {
-  return tsShellActivityTimer * 2;
+  return tsShellActivityTimer * 10;
 }
 int64_t genQueryId(void) {
   int64_t uid = 0;
@@ -8416,6 +8416,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   }
 
   pQInfo->qId = qId;
+  pQInfo->startExecTs = 0;
 
   pQInfo->runtimeEnv.pUdfInfo = pUdfInfo;
 

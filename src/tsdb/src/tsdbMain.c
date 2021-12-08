@@ -16,6 +16,8 @@
 // no test file errors here
 #include "taosdef.h"
 #include "tsdbint.h"
+#include "ttimer.h"
+#include "tthread.h"
 
 #define IS_VALID_PRECISION(precision) \
   (((precision) >= TSDB_TIME_PRECISION_MILLI) && ((precision) <= TSDB_TIME_PRECISION_NANO))
@@ -126,6 +128,10 @@ int tsdbCloseRepo(STsdbRepo *repo, int toCommit) {
   terrno = TSDB_CODE_SUCCESS;
 
   tsdbStopStream(pRepo);
+  if(pRepo->pthread){
+    taosDestoryThread(pRepo->pthread);
+    pRepo->pthread = NULL;
+  }
 
   if (toCommit) {
     tsdbSyncCommit(repo);
@@ -499,6 +505,7 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   }
 
   // Check keep
+#if 0  // already checked and set in mnodeSetDefaultDbCfg
   if (pCfg->keep == -1) {
     pCfg->keep = TSDB_DEFAULT_KEEP;
   } else {
@@ -519,6 +526,25 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   if (pCfg->keep2 == 0) {
     pCfg->keep2 = pCfg->keep;
   }
+#endif
+
+  int32_t keepMin = pCfg->keep1;
+  int32_t keepMid = pCfg->keep2;
+  int32_t keepMax = pCfg->keep;
+
+  if (keepMin > keepMid) {
+    SWAP(keepMin, keepMid, int32_t);
+  }
+  if (keepMin > keepMax) {
+    SWAP(keepMin, keepMax, int32_t);
+  }
+  if (keepMid > keepMax) {
+    SWAP(keepMid, keepMax, int32_t);
+  }
+
+  pCfg->keep = keepMax;
+  pCfg->keep1 = keepMin;
+  pCfg->keep2 = keepMid;
 
   // update check
   if (pCfg->update < TD_ROW_DISCARD_UPDATE || pCfg->update > TD_ROW_PARTIAL_UPDATE)
@@ -547,6 +573,7 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
     pRepo->appH = *pAppH;
   }
   pRepo->repoLocked = false;
+  pRepo->pthread = NULL;
 
   int code = pthread_mutex_init(&(pRepo->mutex), NULL);
   if (code != 0) {

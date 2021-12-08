@@ -231,7 +231,12 @@ SDbInfo **g_dbInfos = NULL;
 TableInfo *g_tablesList = NULL;
 
 const char *argp_program_version = version;
+#ifdef _TD_KH_
+const char *argp_program_bug_address = "<support@wellintech.com>";
+#else
 const char *argp_program_bug_address = "<support@taosdata.com>";
+#endif
+
 
 /* Program documentation. */
 static char doc[] = "";
@@ -2089,7 +2094,7 @@ static int getTableDes(
                     memset(tableDes->cols[i].value, 0, sizeof(tableDes->cols[i].note));
                     char tbuf[COL_NOTE_LEN-2];    // need reserve 2 bytes for ' '
                     convertNCharToReadable((char *)row[TSDB_SHOW_TABLES_NAME_INDEX], length[0], tbuf, COL_NOTE_LEN);
-                    sprintf(tableDes->cols[i].value, "\'%s\'", tbuf);
+                    sprintf(tableDes->cols[i].value, "%s", tbuf);
                     break;
                 }
             case TSDB_DATA_TYPE_TIMESTAMP:

@@ -63,6 +63,8 @@ init_file_deb=${script_dir}/../deb/taosd
 init_file_rpm=${script_dir}/../rpm/taosd
 init_file_tarbitrator_deb=${script_dir}/../deb/tarbitratord
 init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
+init_file_nginx_deb=${script_dir}/../deb/nginxd
+init_file_nginx_rpm=${script_dir}/../rpm/nginxd
 
 # make directories.
 mkdir -p ${install_dir}
@@ -73,6 +75,8 @@ mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/taos
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/taosd.rpm
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
+mkdir -p ${install_dir}/init.d && cp ${init_file_nginx_deb} ${install_dir}/init.d/nginxd.deb || :
+mkdir -p ${install_dir}/init.d && cp ${init_file_nginx_rpm} ${install_dir}/init.d/nginxd.rpm || :
 
 if [ -f ${build_dir}/bin/jemalloc-config ]; then
     mkdir -p ${install_dir}/jemalloc/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3}

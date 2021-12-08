@@ -582,6 +582,26 @@ function clean_service_on_sysvinit() {
     ${csudo} rm -f ${service_config_dir}/taosd || :
     ${csudo} rm -f ${service_config_dir}/tarbitratord || :
 
+    if [ "$verMode" == "cluster" ]; then\
+        if pidof nginxd ; then
+            ${csudo} service nginxd stop || :
+        fi
+        if ((${initd_mod}==1)); then
+            if [ -e ${service_config_dir}/nginxd ]; then
+                ${csudo} chkconfig --del nginxd || :
+            fi
+        elif ((${initd_mod}==2)); then
+            if [ -e ${service_config_dir}/nginxd ]; then
+                ${csudo} insserv -r nginxd || :
+            fi
+        elif ((${initd_mod}==3)); then
+            if [ -e ${service_config_dir}/nginxd ]; then
+                ${csudo} update-rc.d -f nginxd remove || :
+            fi
+        fi
+        ${csudo} rm -f ${service_config_dir}/nginxd || :
+    fi
+
     if $(which init &> /dev/null); then
         ${csudo} init q || :
     fi
@@ -598,11 +618,19 @@ function install_service_on_sysvinit() {
         ${csudo} cp    ${script_dir}/init.d/taosd.deb ${service_config_dir}/taosd && ${csudo} chmod a+x ${service_config_dir}/taosd
         ${csudo} cp -f ${script_dir}/init.d/tarbitratord.deb ${install_main_dir}/init.d/tarbitratord
         ${csudo} cp    ${script_dir}/init.d/tarbitratord.deb ${service_config_dir}/tarbitratord && ${csudo} chmod a+x ${service_config_dir}/tarbitratord
+        if [ "$verMode" == "cluster" ]; then
+            ${csudo} cp -f ${script_dir}/init.d/nginxd.deb ${install_main_dir}/init.d/nginxd
+            ${csudo} cp    ${script_dir}/init.d/nginxd.deb ${service_config_dir}/nginxd && ${csudo} chmod a+x ${service_config_dir}/nginxd
+        fi
     elif ((${os_type}==2)); then
         ${csudo} cp -f ${script_dir}/init.d/taosd.rpm ${install_main_dir}/init.d/taosd
         ${csudo} cp    ${script_dir}/init.d/taosd.rpm ${service_config_dir}/taosd && ${csudo} chmod a+x ${service_config_dir}/taosd
         ${csudo} cp -f ${script_dir}/init.d/tarbitratord.rpm ${install_main_dir}/init.d/tarbitratord
         ${csudo} cp    ${script_dir}/init.d/tarbitratord.rpm ${service_config_dir}/tarbitratord && ${csudo} chmod a+x ${service_config_dir}/tarbitratord
+        if [ "$verMode" == "cluster" ]; then
+            ${csudo} cp -f ${script_dir}/init.d/nginxd.rpm ${install_main_dir}/init.d/nginxd
+            ${csudo} cp    ${script_dir}/init.d/nginxd.rpm ${service_config_dir}/nginxd && ${csudo} chmod a+x ${service_config_dir}/nginxd
+        fi
     fi
 
     #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
@@ -613,14 +641,26 @@ function install_service_on_sysvinit() {
         ${csudo} chkconfig --level 2345 taosd on || :
         ${csudo} chkconfig --add tarbitratord || :
         ${csudo} chkconfig --level 2345 tarbitratord on || :
+        if [ "$verMode" == "cluster" ]; then
+            ${csudo} chkconfig --add nginxd || :
+            ${csudo} chkconfig --level 0123456 nginxd on || :
+            ${csudo} service nginxd start
+        fi
     elif ((${initd_mod}==2)); then
         ${csudo} insserv taosd || :
         ${csudo} insserv -d taosd || :
         ${csudo} insserv tarbitratord || :
         ${csudo} insserv -d tarbitratord || :
+        if [ "$verMode" == "cluster" ]; then
+            ${csudo} insserv nginxd || :
+            ${csudo} insserv -d nginxd || :
+        fi
     elif ((${initd_mod}==3)); then
         ${csudo} update-rc.d taosd defaults || :
         ${csudo} update-rc.d tarbitratord defaults || :
+        if [ "$verMode" == "cluster" ]; then
+            ${csudo} update-rc.d nginxd defaults || :
+        fi
     fi
 }
 
@@ -779,7 +819,7 @@ vercomp () {
 
 function is_version_compatible() {
 
-    curr_version=`ls ${script_dir}/driver/libtaos.so* |cut -d '.' -f 3-6`
+    curr_version=`ls ${script_dir}/driver/libtaos.so* | awk -F 'libtaos.so.' '{print $2}'`
 
     if [ -f ${script_dir}/driver/vercomp.txt ]; then
         min_compatible_version=`cat ${script_dir}/driver/vercomp.txt`

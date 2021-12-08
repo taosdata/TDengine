@@ -28,6 +28,7 @@ void taosClose(FileFd fd) {
 void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
   const char *tdengineTmpFileNamePrefix = "tdengine-";
   char        tmpPath[PATH_MAX];
+  static uint64_t seqId = 0;
 
   int32_t len = (int32_t)strlen(tsTempDir);
   memcpy(tmpPath, tsTempDir, len);
@@ -43,8 +44,10 @@ void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath) {
     strcat(tmpPath, "-%d-%s");
   }
 
-  char os_rand[8] = {0};
-  taosRandStr(os_rand, tListLen(os_rand) - 1);
+  char os_rand[32] = {0};
+
+  sprintf(os_rand, "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
+
   snprintf(dstPath, PATH_MAX, tmpPath, getpid(), os_rand);
 }
 
