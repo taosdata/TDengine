@@ -28,6 +28,8 @@ class TDTestCase:
 
         print("==============step1")
         print("prepare data")
+        tdSql.error("create table db.st1 (ts timestamp(8), i int) tags(j int)")
+        tdSql.error("create table db.st2 (ts timestamp, i int(2)) tags(j int)")
         tdSql.execute("create table db.st (ts timestamp, i int) tags(j int)")
         tdSql.execute("create table db.tb using st tags(1)")
         tdSql.execute("insert into db.tb values(now, 1)")
