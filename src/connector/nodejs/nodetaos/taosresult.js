@@ -31,7 +31,6 @@ TaosResult.prototype.pretty = function pretty() {
   let sizing = [];
   this.fields.forEach((field, i) => {
     if (field._field.type == 8 || field._field.type == 10 ) {
-      console.log("field._field.bytes:{0},field.name.length:{0}",field._field.bytes,field.name.length);
       sizing.push(Math.max(field.name.length, field._field.bytes));
     }
     else {
