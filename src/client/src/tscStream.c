@@ -377,7 +377,7 @@ bool sendChildTalbe(TAOS *taos, char *superName, char *tableName, TAOS_FIELD *fi
   }
 
   // init
-  int32_t preLen = strlen(sqlBuf);
+  int32_t preLen = (int32_t)strlen(sqlBuf);
   char *subBuf = sqlBuf + preLen;
   int32_t subLen = bufLen - preLen; 
   sprintf(subBuf, " %s using %s tags(0) values ", dbTable, superName);
