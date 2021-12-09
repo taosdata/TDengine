@@ -113,7 +113,7 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
 
   SRpcObj rpcObj;
   memset(&rpcObj, 0, sizeof(rpcObj));
-  strncpy(rpcObj.key, key, strlen(key));
+  tstrncpy(rpcObj.key, key, strlen(key));
   rpcObj.pDnodeConn = rpcOpen(&rpcInit);
   if (rpcObj.pDnodeConn == NULL) {
     pthread_mutex_unlock(&rpcObjMutex);
