@@ -304,9 +304,9 @@ void fstStateCompileForAnyTrans(FstCountingWriter *w, CompiledAddr addr, FstBuil
     for (size_t i = 0; i < sz; i++) {
       FstTransition *t = taosArrayGet(node->trans, i);
       index[t->inp] = i;
-      fstCountingWriterWrite(w, (char *)index, sizeof(index)); 
       //fstPackDeltaIn(w, addr, t->addr, tSize);
     }
+    fstCountingWriterWrite(w, (char *)index, 256); 
     free(index);
   }
   fstCountingWriterWrite(w, (char *)&packSizes, 1);

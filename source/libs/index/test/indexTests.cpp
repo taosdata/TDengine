@@ -168,9 +168,18 @@ void checkFstPerf() {
   int64_t s = taosGetTimestampUs();
   int num = Performance_fstWriteRecords(fw);
   int64_t e = taosGetTimestampUs();
-
   printf("write %d record cost %" PRId64"us\n", num,  e - s);
-  
+  delete fw;
+
+  FstReadMemory *m = new FstReadMemory(1024 * 64);
+  if (m->init()) {
+    uint64_t val;
+    if(m->Get("aaaaaaa", &val)) {
+      std::cout << "succes to Get val: " << val << std::endl;
+    } else {
+      std::cout << "failed to Get " << std::endl;
+    } 
+  }  
 } 
 
 
