@@ -47,10 +47,10 @@ void     taosIp2String(uint32_t ip, char *str);
 void     taosIpPort2String(uint32_t ip, uint16_t port, char *str);
 
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
-  MD5_CTX context;
-  MD5Init(&context);
-  MD5Update(&context, inBuf, (unsigned int)inLen);
-  MD5Final(&context);
+  T_MD5_CTX context;
+  tMD5Init(&context);
+  tMD5Update(&context, inBuf, (unsigned int)inLen);
+  tMD5Final(&context);
   memcpy(target, context.digest, TSDB_KEY_LEN);
 }
 
