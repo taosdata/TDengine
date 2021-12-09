@@ -203,10 +203,10 @@ static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableNa
   }
   size_t len = 0;
   char* keyJoined = taosStringBuilderGetResult(&sb, &len);
-  MD5_CTX context;
-  MD5Init(&context);
-  MD5Update(&context, (uint8_t *)keyJoined, (uint32_t)len);
-  MD5Final(&context);
+  T_MD5_CTX context;
+  tMD5Init(&context);
+  tMD5Update(&context, (uint8_t *)keyJoined, (uint32_t)len);
+  tMD5Final(&context);
   *tableNameLen = snprintf(tableName, *tableNameLen,
                            "t_%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0],
                            context.digest[1], context.digest[2], context.digest[3], context.digest[4], context.digest[5], context.digest[6],
