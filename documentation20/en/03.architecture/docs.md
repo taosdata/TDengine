@@ -193,7 +193,7 @@ A complete TDengine system runs on one or more physical nodes. Logically, it inc
 
 **Redirection**: No matter about dnode or TAOSC, the connection to the mnode shall be initiated first, but the mnode is automatically created and maintained by the system, so the user does not know which dnode is running the mnode. TDengine only requires a connection to any working dnode in the system. Because any running dnode maintains the currently running mnode EP List, when receiving a connecting request from the newly started dnode or TAOSC, if it’s not a mnode by self, it will reply to the mnode EP List back. After receiving this list, TAOSC or the newly started dnode will try to establish the connection again. When the mnode EP List changes, each data node quickly obtains the latest list and notifies TAOSC through messaging interaction among nodes.
 
-### A Typical Data Writinfg Process
+### A Typical Data Writing Process
 
 To explain the relationship between vnode, mnode, TAOSC and application and their respective roles, the following is an analysis of a typical data writing process.
 
@@ -244,7 +244,7 @@ The meta data of each table (including schema, tags, etc.) is also stored in vno
 
 ### Data Partitioning
 
-In addition to vnode sharding, TDengine partitions the time-series data by time range. Each data file contains only one time range of time-series data, and the length of the time range is determined by DB's configuration parameter `“days”`. This method of partitioning by time rang is also convenient to efficiently implement the data retention policy. As long as the data file exceeds the specified number of days (system configuration parameter `“keep”`), it will be automatically deleted. Moreover, different time ranges can be stored in different paths and storage media, so as to facilitate the tiered-storage. Cold/hot data can be stored in different storage meida to reduce the storage cost.
+In addition to vnode sharding, TDengine partitions the time-series data by time range. Each data file contains only one time range of time-series data, and the length of the time range is determined by DB's configuration parameter `“days”`. This method of partitioning by time rang is also convenient to efficiently implement the data retention policy. As long as the data file exceeds the specified number of days (system configuration parameter `“keep”`), it will be automatically deleted. Moreover, different time ranges can be stored in different paths and storage media, so as to facilitate the tiered-storage. Cold/hot data can be stored in different storage media to reduce the storage cost.
 
 In general, **TDengine splits big data by vnode and time range in two dimensions** to manage the data efficiently with horizontal scalability.
 
