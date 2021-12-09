@@ -130,25 +130,28 @@ class FstReadMemory {
 
 
 
-void Performance_fstWriteRecords(FstWriter *b) {
+int Performance_fstWriteRecords(FstWriter *b) {
   std::string str("aa"); 
-  for (int i = 0; i < 100; i++) {
+  int L = 100, M = 100, N = 10;
+  for (int i = 0; i < L; i++) {
     str[0] = 'a' + i;
     str.resize(2); 
-    for(int j = 0; j < 100; j++) {
+    for(int j = 0; j < M; j++) {
       str[1] = 'a' + j;
       str.resize(2);
-      for (int k = 0; k < 100; k++) {
+      for (int k = 0; k < N; k++) {
         str.push_back('a');
         b->Put(str, k);
+        printf("(%d, %d, %d, %s)\n", i, j, k, str.c_str());
       }
     } 
   }
+  return L * M * N;
 }
 
 void Performance_fstReadRecords(FstReadMemory *m) {
    std::string str("a");
-   for (int i = 0; i < 500; i++) {
+   for (int i = 0; i < 50; i++) {
      //std::string str("aa"); 
      str.push_back('a');
      uint64_t out, cost;
@@ -160,22 +163,32 @@ void Performance_fstReadRecords(FstReadMemory *m) {
      }
    }
 }
+void checkFstPerf() {
+  FstWriter *fw = new FstWriter;
+  int64_t s = taosGetTimestampUs();
+  int num = Performance_fstWriteRecords(fw);
+  int64_t e = taosGetTimestampUs();
+
+  printf("write %d record cost %" PRId64"us\n", num,  e - s);
+  
+} 
+
 
 void validateFst() {
-  r
   int val = 100;
   int count = 100;
   FstWriter *fw = new FstWriter;
+  // write 
   {
     std::string key("ab");
-    int64_t val = 100; 
     for (int i = 0; i < count; i++) {
       key.push_back('a' + i);
-      fw->Put(key, val + i);
+      fw->Put(key, val - i);
     }
   }
   delete fw;
 
+  // read
   FstReadMemory *m = new FstReadMemory(1024 * 64);
   if (m->init() == false) { 
     std::cout << "init readMemory failed" << std::endl; 
@@ -192,7 +205,7 @@ void validateFst() {
    for (int i = 0; i < count; i++) {
      key.push_back('a' + i);
      if (m->Get(key, &out) ) {
-       assert(val + i ==  out);
+       assert(val - i ==  out);
        printf("success to get (%s, %" PRId64")\n", key.c_str(), out);
      } else {
        printf("failed to get(%s)\n", key.c_str());
@@ -203,9 +216,7 @@ void validateFst() {
 
 } 
 int main(int argc, char** argv) {
-  // test write
-  validateFst(); 
-     
+  checkFstPerf(); 
   return 1;
 }
 
