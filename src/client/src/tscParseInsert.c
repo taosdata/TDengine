@@ -453,6 +453,8 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, b
 
   char *row = pDataBlocks->pData +
               ((*isConverted) ? (pDataBlocks->size - rowSize) : pDataBlocks->size);  // skip the SSubmitBlk header
+  *isConverted = false;
+  
   SParsedDataColInfo *spd = &pDataBlocks->boundColumnInfo;
   STableMeta *        pTableMeta = pDataBlocks->pTableMeta;
   SSchema *           schema = tscGetTableSchema(pTableMeta);
@@ -461,7 +463,6 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, b
   int32_t             kvLen = pBuilder->kvRowInitLen;
   bool                isParseBindParam = false;
 
-  *isConverted = false;
   initSMemRow(row, pBuilder->memRowType, pDataBlocks, spd->numOfBound);
 
   // 1. set the parsed value from sql string
