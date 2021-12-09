@@ -2,13 +2,79 @@
 #include <string>
 #include <iostream>
 #include "index.h"
+#include "tutil.h"
 #include "indexInt.h"
 #include "index_fst.h"
 #include "index_fst_util.h"
 #include "index_fst_counting_writer.h"
 
 
+class FstWriter {
+  public:
+    FstWriter() {
+      _b = fstBuilderCreate(NULL, 0);
+    }  
+   bool Put(const std::string &key, uint64_t val) {
+      FstSlice skey = fstSliceCreate((uint8_t *)key.c_str(), key.size());   
+      bool ok = fstBuilderInsert(_b, skey, val);
+      fstSliceDestroy(&skey);
+      return ok;
+   }
+   ~FstWriter() {
+     fstBuilderFinish(_b);
+     fstBuilderDestroy(_b);
+   }
+  private:
+    FstBuilder *_b; 
+};
 
+class FstReadMemory {
+  public:
+   FstReadMemory(size_t size) {
+     _w    = fstCountingWriterCreate(NULL, true); 
+     _size = size; 
+     memset((void *)&_s, 0, sizeof(_s));
+   }
+   bool init() {
+     char *buf = (char *)calloc(1,  sizeof(char) * _size);
+     int nRead = fstCountingWriterRead(_w, (uint8_t *)buf, _size); 
+     if (nRead <= 0) { return false; } 
+      _size = nRead;
+     _s   = fstSliceCreate((uint8_t *)buf, _size);  
+     _fst = fstCreate(&_s); 
+     free(buf);
+     return _fst != NULL;
+   }
+   bool Get(const std::string &key, uint64_t *val) {
+     FstSlice skey = fstSliceCreate((uint8_t *)key.c_str(), key.size());   
+     bool ok = fstGet(_fst, &skey, val); 
+     fstSliceDestroy(&skey);
+     return ok;
+   }
+   bool GetWithTimeCostUs(const std::string &key, uint64_t *val, uint64_t *elapse) {
+     int64_t s = taosGetTimestampUs();
+     bool ok = this->Get(key, val); 
+     int64_t e = taosGetTimestampUs();
+     *elapse = e - s;
+     return ok; 
+   }
+   // add later
+   bool Search(const std::string &key, std::vector<uint64_t> &result) {
+      return true;
+   }
+    
+   ~FstReadMemory() {
+    fstCountingWriterDestroy(_w);
+    fstSliceDestroy(&_s);
+  } 
+  
+  private:
+   FstCountingWriter *_w; 
+   Fst *_fst;
+   FstSlice _s;  
+   size_t _size;
+   
+}; 
 
 //TEST(IndexTest, index_create_test) {
 //  SIndexOpts *opts = indexOptsCreate();
@@ -62,69 +128,77 @@
 //  //
 //}
 
+
+
+void Performance_fstWriteRecords(FstWriter *b) {
+  std::string str("aa"); 
+  for (int i = 0; i < 26; i++) {
+    str[0] = 'a' + i;
+    str.resize(2); 
+    for(int j = 0; j < 26; j++) {
+      str[1] = 'a' + j;
+      str.resize(2);
+      for (int k = 0; k < 10; k++) {
+        str.push_back('a');
+        b->Put(str, k);
+      }
+    } 
+  }
+}
+
+void Performance_fstReadRecords(FstReadMemory *m) {
+   std::string str("a");
+   for (int i = 0; i < 500; i++) {
+     //std::string str("aa"); 
+     str.push_back('a');
+     uint64_t out, cost;
+     bool ok = m->GetWithTimeCostUs(str, &out, &cost); 
+     if (ok == true) {
+      printf("success to get (%s, %" PRId64"), time cost: %" PRId64")\n", str.c_str(), out, cost);
+     } else {
+      printf("failed to get(%s)\n", str.c_str());
+     }
+   }
+}
+
 int main(int argc, char** argv) {
   // test write
-  FstBuilder *b = fstBuilderCreate(NULL, 0);
-  {
-    std::string str("aaa");
-    FstSlice key = fstSliceCreate((uint8_t *)str.c_str(), str.size());
-    Output   val = 1;
-    fstBuilderInsert(b, key, val); 
-  }
-
-  //std::string str1("bcd");
-  //FstSlice key1 = fstSliceCreate((uint8_t *)str1.c_str(), str1.size());
-  //Output   val2 = 10;
   //
-   
+  FstWriter *fw = new FstWriter;
   {
-     
-    for (size_t i = 1; i < 26; i++) {
-      std::string str("aaa");
-      str[2] = 'a' + i ;
-      FstSlice key = fstSliceCreate((uint8_t *)str.c_str(), str.size());
-      Output   val = 0;
-      fstBuilderInsert(b, key, val); 
-    }
-    
-  } 
-  fstBuilderFinish(b);
-  fstBuilderDestroy(b);
-
-
-  char buf[64 * 1024] = {0};     
-
-  FstSlice s; 
-
-  FstCountingWriter *w = fstCountingWriterCreate(NULL, true);
-  int nRead = fstCountingWriterRead(w, (uint8_t *)buf, sizeof(buf)); 
-  assert(nRead <= sizeof(buf));  
-  s = fstSliceCreate((uint8_t *)buf, nRead);
-  fstCountingWriterDestroy(w);
-
-
-  // test reader
-  
-      
-  Fst *fst = fstCreate(&s); 
-  {
-    std::string str("aax"); 
-    uint64_t out;
-    
-       
-    FstSlice key = fstSliceCreate((uint8_t *)str.c_str(), str.size());
-    bool ok = fstGet(fst, &key, &out); 
-    if (ok == true) {
-      printf("val = %d\n", out);
-      //indexInfo("Get key-value success, %s, %d", str.c_str(), out); 
-    } else {
-      //indexError("Get key-value failed, %s", str.c_str()); 
+    std::string key("ab");
+    int64_t val = 100; 
+    for (int i = 0; i < 26; i++) {
+      key.push_back('a' + i);
+      fw->Put(key, val++);
     }
   }
-  fstSliceDestroy(&s);
-  
+  delete fw;
 
+  FstReadMemory *m = new FstReadMemory(1024 * 64);
+  if (m->init() == false) { 
+    std::cout << "init readMemory failed" << std::endl; 
+  }
+
+  {
+   std::string key("ab");
+   uint64_t out;
+   if (m->Get(key, &out)) {
+     printf("success to get (%s, %" PRId64")\n", key.c_str(), out);
+   } else {
+     printf("failed to get(%s)\n", key.c_str());
+   }
+   for (int i = 0; i < 26; i++) {
+     key.push_back('a' + i);
+     if (m->Get(key, &out)) {
+       printf("success to get (%s, %" PRId64")\n", key.c_str(), out);
+     } else {
+       printf("failed to get(%s)\n", key.c_str());
+    }
+   }
+  } 
   
+     
   return 1;
 }
 
