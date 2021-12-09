@@ -166,16 +166,8 @@ int8_t  tsEnableSlaveQuery = 1;
 int8_t  tsEnableAdjustMaster = 1;
 
 // restful
-int8_t   tsEnableHttpModule = 1;
 int32_t  tsRestRowLimit = 10240;
-uint16_t tsHttpPort = 6041;  // only tcp, range tcp[6041]
-int32_t  tsHttpCacheSessions = 1000;
-int32_t  tsHttpSessionExpire = 36000;
-int32_t  tsHttpMaxThreads = 2;
-int8_t   tsHttpEnableCompress = 1;
-int8_t   tsHttpEnableRecordSql = 0;
 int8_t   tsTelegrafUseFieldNum = 0;
-int8_t   tsHttpDbNameMandatory = 0;
 
 // mqtt
 int8_t tsEnableMqttModule = 0;  // not finished yet, not started it by default
@@ -198,7 +190,6 @@ int8_t  tsEnableStream = 1;
 // internal
 int8_t tsCompactMnodeWal = 0;
 int8_t tsPrintAuth = 0;
-int8_t tscEmbedded = 0;
 char   tsVnodeDir[PATH_MAX] = {0};
 char   tsDnodeDir[PATH_MAX] = {0};
 char   tsMnodeDir[PATH_MAX] = {0};
@@ -261,7 +252,6 @@ void taosSetAllDebugFlag() {
     sdbDebugFlag = debugFlag;
     dDebugFlag = debugFlag;
     vDebugFlag = debugFlag;
-    cDebugFlag = debugFlag;
     jniDebugFlag = debugFlag;
     odbcDebugFlag = debugFlag;
     httpDebugFlag = debugFlag;
@@ -1161,16 +1151,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "http";
-  cfg.ptr = &tsEnableHttpModule;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
   cfg.option = "mqtt";
   cfg.ptr = &tsEnableMqttModule;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -1211,16 +1191,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "httpEnableRecordSql";
-  cfg.ptr = &tsHttpEnableRecordSql;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
   cfg.option = "telegrafUseFieldNum";
   cfg.ptr = &tsTelegrafUseFieldNum;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -1231,32 +1201,12 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "httpMaxThreads";
-  cfg.ptr = &tsHttpMaxThreads;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 2;
-  cfg.maxValue = 1000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
   cfg.option = "restfulRowLimit";
   cfg.ptr = &tsRestRowLimit;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 1;
   cfg.maxValue = 10000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "httpDbNameMandatory";
-  cfg.ptr = &tsHttpDbNameMandatory;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -1697,13 +1647,6 @@ int32_t taosCheckGlobalCfg() {
     tsNumOfCores = 1;
   }
 
-  if (tsHttpMaxThreads == 2) {
-    int32_t halfNumOfCores = tsNumOfCores >> 1;
-    if (halfNumOfCores > 2) {
-      tsHttpMaxThreads = halfNumOfCores;
-    }
-  }
-
   if (tsMaxTablePerVnode < tsMinTablePerVnode) {
     uError("maxTablesPerVnode(%d) < minTablesPerVnode(%d), reset to minTablesPerVnode(%d)",
 	   tsMaxTablePerVnode, tsMinTablePerVnode, tsMinTablePerVnode);
@@ -1736,24 +1679,6 @@ int32_t taosCheckGlobalCfg() {
   taosPrintGlobalCfg();
 
   return 0;
-}
-
-int taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {
-  *port = 0;
-  strcpy(fqdn, ep);
-
-  char *temp = strchr(fqdn, ':');
-  if (temp) {   
-    *temp = 0;
-    *port = atoi(temp+1);
-  } 
-  
-  if (*port == 0) {
-    *port = tsServerPort;
-    return -1;
-  }
-
-  return 0; 
 }
 
 /*

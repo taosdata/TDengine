@@ -161,7 +161,7 @@ do { \
 
 #define TSDB_NODE_NAME_LEN        64
 #define TSDB_TABLE_NAME_LEN       193     // it is a null-terminated string
-#define TSDB_DB_NAME_LEN          33
+#define TSDB_DB_NAME_LEN          65
 #define TSDB_FULL_DB_NAME_LEN     (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN)
 #define TSDB_FUNC_NAME_LEN        65
 #define TSDB_FUNC_CODE_LEN        (65535 - 512)
@@ -188,7 +188,7 @@ do { \
 #define TSDB_MAX_TAG_CONDITIONS   1024
 
 #define TSDB_AUTH_LEN             16
-#define TSDB_KEY_LEN              16
+#define TSDB_KEY_LEN              64
 #define TSDB_VERSION_LEN          12
 #define TSDB_LABEL_LEN            8 
 

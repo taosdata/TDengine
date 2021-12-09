@@ -19,7 +19,6 @@ void initLog(const char* path) {
   dDebugFlag = 0;
   vDebugFlag = 0;
   mDebugFlag = 207;
-  cDebugFlag = 0;
   jniDebugFlag = 0;
   tmrDebugFlag = 0;
   sdbDebugFlag = 0;
