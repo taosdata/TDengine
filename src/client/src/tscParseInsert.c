@@ -553,12 +553,13 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, b
 
   if (!isParseBindParam) {
     // 2. check and set convert flag
+    bool isNeedConvertRow = false;
     if (pBuilder->compareStat == ROW_COMPARE_NEED) {
-      checkAndConvertMemRow(row, dataLen, kvLen);
+      isNeedConvertRow = checkAndConvertMemRow(row, dataLen, kvLen);
     }
 
     // 3. set the null value for the columns that do not assign values
-    if ((spd->numOfBound < spd->numOfCols) && isDataRow(row) && !isNeedConvertRow(row)) {
+    if ((spd->numOfBound < spd->numOfCols) && isDataRow(row) && !isNeedConvertRow) {
       SDataRow dataRow = memRowDataBody(row);
       for (int32_t i = 0; i < spd->numOfCols; ++i) {
         if (spd->cols[i].valStat == VAL_STAT_NONE) {
@@ -568,13 +569,12 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, b
     }
 
     // 4. perform the convert
-    if (isNeedConvertRow(row)) {
+    if (isNeedConvertRow) {
+      // put converted row to next location to minimize the memcpy
       convertSMemRow(row + rowSize, row, pDataBlocks);
       *isConverted = true;
     }
   }
-
-  // *len = getExtendedRowSize(pDataBlocks);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -651,8 +651,6 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
       ASSERT(tSize > maxRows);  // 1 more row allocated
       maxRows = tSize;
     }
-
-    // int32_t len = 0;
 
     code = tsParseOneRow(str, pDataBlock, precision, &isConverted, extendedRowSize, tmpTokenBuf, pInsertParam);
     if (code != TSDB_CODE_SUCCESS) {  // error message has been set in tsParseOneRow, return directly
@@ -1760,8 +1758,6 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
 
     char *lineptr = line;
     strtolower(line, line);
-
-    // int32_t len = 0;
 
     code = tsParseOneRow(&lineptr, pTableDataBlock, tinfo.precision, &isConverted, extendedRowSize, tokenBuf,
                          pInsertParam);

@@ -529,14 +529,15 @@ static FORCE_INLINE int32_t getExtendedRowSize(STableDataBlocks *pBlock) {
   return pBlock->rowSize + TD_MEM_ROW_DATA_HEAD_SIZE + pBlock->boundColumnInfo.extendedVarLen;
 }
 
-static FORCE_INLINE void checkAndConvertMemRow(SMemRow row, int32_t dataLen, int32_t kvLen) {
+static FORCE_INLINE bool checkAndConvertMemRow(SMemRow row, int32_t dataLen, int32_t kvLen) {
   if (isDataRow(row)) {
     if (kvLen < (dataLen * KVRatioConvert)) {
-      memRowSetConvert(row);
+      return true;
     }
   } else if (kvLen > dataLen) {
-    memRowSetConvert(row);
+    return true;
   }
+  return false;
 }
 
 static FORCE_INLINE void initSMemRow(SMemRow row, uint8_t memRowType, STableDataBlocks *pBlock, int16_t nBoundCols) {
