@@ -177,6 +177,7 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/rmpower   || :
     ${csudo} rm -f ${bin_link_dir}/tarbitrator   || :
     ${csudo} rm -f ${bin_link_dir}/set_core   || :
+    ${csudo} rm -f ${bin_link_dir}/run_taosd.sh || :
 
     ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
@@ -186,6 +187,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/powerdemo ] && ${csudo} ln -s ${install_main_dir}/bin/powerdemo ${bin_link_dir}/powerdemo            || :
     [ -x ${install_main_dir}/bin/remove_power.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_power.sh ${bin_link_dir}/rmpower  || :
     [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core         || :
+    [ -x ${install_main_dir}/bin/run_taosd.sh ] && ${csudo} ln -s ${install_main_dir}/bin/run_taosd.sh ${bin_link_dir}/run_taosd.sh     || :
     [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo} ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator      || :
 
     if [ "$verMode" == "cluster" ]; then
@@ -258,7 +260,7 @@ function install_jemalloc() {
         fi
 
         if [ -d /etc/ld.so.conf.d ]; then
-            ${csudo} echo "/usr/local/lib" > /etc/ld.so.conf.d/jemalloc.conf
+            echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf > /dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
             ${csudo} ldconfig
         else
             echo "/etc/ld.so.conf.d not found!"
@@ -267,9 +269,10 @@ function install_jemalloc() {
 }
 
 function install_header() {
-    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h    || :
     ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+    ${csudo} ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 

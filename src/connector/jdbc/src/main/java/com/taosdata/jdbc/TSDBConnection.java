@@ -1,17 +1,3 @@
-/***************************************************************************
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************/
 package com.taosdata.jdbc;
 
 import java.sql.*;
@@ -66,7 +52,7 @@ public class TSDBConnection extends AbstractConnection {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         }
 
-        long id = this.connector.subscribe(topic, sql, restart, 0);
+        long id = this.connector.subscribe(topic, sql, restart);
         if (id == 0) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_SUBSCRIBE_FAILED);
         }

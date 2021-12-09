@@ -49,16 +49,16 @@ class TDTestCase:
         binPath = buildPath+ "/build/bin/"
 
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql 
-        os.system("%staosdemo -f tools/taosdemoAllTest/stmt/1174-small-stmt-random.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/stmt/1174-small-stmt-random.json -y " % binPath)
         # sleep(60)
 
-        # os.system("%staosdemo -f tools/taosdemoAllTest/stmt/1174-small-taosc.json -y " % binPath)
+        # os.system("%staosBenchmark -f tools/taosdemoAllTest/stmt/1174-small-taosc.json -y " % binPath)
         # sleep(60)
-        # os.system("%staosdemo -f tools/taosdemoAllTest/stmt/1174-small-stmt.json -y " % binPath)
+        # os.system("%staosBenchmark -f tools/taosdemoAllTest/stmt/1174-small-stmt.json -y " % binPath)
         # sleep(60)
-        # os.system("%staosdemo -f tools/taosdemoAllTest/stmt/1174-large-taosc.json -y " % binPath)
+        # os.system("%staosBenchmark -f tools/taosdemoAllTest/stmt/1174-large-taosc.json -y " % binPath)
         # sleep(60)
-        # os.system("%staosdemo -f tools/taosdemoAllTest/stmt/1174-large-stmt.json -y " % binPath)
+        # os.system("%staosBenchmark -f tools/taosdemoAllTest/stmt/1174-large-stmt.json -y " % binPath)
 
         # tdSql.execute("use db")
         # tdSql.query("select count (tbname) from stb0")

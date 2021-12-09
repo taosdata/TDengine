@@ -76,6 +76,7 @@ function clean_bin() {
     ${csudo} rm -f ${bin_link_dir}/rmpower      || :
     ${csudo} rm -f ${bin_link_dir}/tarbitrator  || :
     ${csudo} rm -f ${bin_link_dir}/set_core     || :
+    ${csudo} rm -f ${bin_link_dir}/run_taosd.sh || :
 }
 
 function clean_lib() {
@@ -88,6 +89,7 @@ function clean_lib() {
 function clean_header() {
     # Remove link
     ${csudo} rm -f ${inc_link_dir}/taos.h       || :
+    ${csudo} rm -f ${inc_link_dir}/taosdef.h    || :
     ${csudo} rm -f ${inc_link_dir}/taoserror.h  || :
 }
 

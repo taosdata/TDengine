@@ -66,6 +66,7 @@ def pre_test(){
     }
     sh'''
     cd ${WKC}
+    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
@@ -139,6 +140,7 @@ def pre_test_noinstall(){
     }
     sh'''
     cd ${WKC}
+    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
@@ -209,6 +211,7 @@ def pre_test_mac(){
     }
     sh'''
     cd ${WKC}
+    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
@@ -247,6 +250,8 @@ def pre_test_mac(){
     mkdir debug
     cd debug
     cmake .. > /dev/null
+    go env -w GOPROXY=https://goproxy.cn,direct
+    go env -w GO111MODULE=on
     cmake --build .
     '''
     return 1
@@ -578,10 +583,15 @@ pipeline {
             timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
+              cd ${WKC}/tests
+              ./test-all.sh develop-test
+              '''
+              sh '''
               date
               cd ${WKC}/tests
               ./test-all.sh b6fq
               date'''
+              
             }
           }
         }
@@ -590,6 +600,10 @@ pipeline {
           steps {     
             timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
+              sh '''
+              cd ${WKC}/tests
+              ./test-all.sh system-test
+              '''
               sh '''
               date
               cd ${WKC}/tests

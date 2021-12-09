@@ -152,7 +152,9 @@ static int32_t buildSmlKvSchema(TAOS_SML_KV* smlKv, SHashObj* hash, SArray* arra
 static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableName, int* tableNameLen,
                                        SSmlLinesInfo* info) {
   tscDebug("SML:0x%"PRIx64" taos_sml_insert get child table name through md5", info->id);
-  qsort(point->tags, point->tagNum, sizeof(TAOS_SML_KV), compareSmlColKv);
+  if (point->tagNum) {
+    qsort(point->tags, point->tagNum, sizeof(TAOS_SML_KV), compareSmlColKv);
+  }
 
   SStringBuilder sb; memset(&sb, 0, sizeof(sb));
   char sTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
@@ -185,6 +187,18 @@ static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableNa
   return 0;
 }
 
+static int32_t buildSmlChildTableName(TAOS_SML_DATA_POINT* point, SSmlLinesInfo* info) {
+  tscDebug("SML:0x%"PRIx64" taos_sml_insert build child table name", info->id);
+  char childTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE];
+  int32_t tableNameLen = TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE;
+  getSmlMd5ChildTableName(point, childTableName, &tableNameLen, info);
+  point->childTableName = calloc(1, tableNameLen+1);
+  strncpy(point->childTableName, childTableName, tableNameLen);
+  point->childTableName[tableNameLen] = '\0';
+  return 0;
+}
+
+
 static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, SArray* stableSchemas, SSmlLinesInfo* info) {
   int32_t code = 0;
   SHashObj* sname2shema = taosHashInit(32,
@@ -216,18 +230,34 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
     for (int j = 0; j < point->tagNum; ++j) {
       TAOS_SML_KV* tagKv = point->tags + j;
       if (!point->childTableName) {
-        char childTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE];
-        int32_t tableNameLen = TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE;
-        getSmlMd5ChildTableName(point, childTableName, &tableNameLen, info);
-        point->childTableName = calloc(1, tableNameLen+1);
-        strncpy(point->childTableName, childTableName, tableNameLen);
-        point->childTableName[tableNameLen] = '\0';
+        buildSmlChildTableName(point, info);
       }
 
       code = buildSmlKvSchema(tagKv, pStableSchema->tagHash, pStableSchema->tags, info);
       if (code != 0) {
         tscError("SML:0x%"PRIx64" build data point schema failed. point no.: %d, tag key: %s", info->id, i, tagKv->key);
         return code;
+      }
+    }
+
+    //for Line Protocol tags may be omitted, add a tag with NULL value
+    if (point->tagNum == 0) {
+      if (!point->childTableName) {
+        buildSmlChildTableName(point, info);
+      }
+      char tagNullName[TSDB_COL_NAME_LEN] = {0};
+      size_t nameLen = strlen(tsSmlTagNullName);
+      strncpy(tagNullName, tsSmlTagNullName, nameLen);
+      addEscapeCharToString(tagNullName, (int32_t)nameLen);
+      size_t* pTagNullIdx = taosHashGet(pStableSchema->tagHash, tagNullName, nameLen + TS_ESCAPE_CHAR_SIZE);
+      if (!pTagNullIdx) {
+        SSchema tagNull = {0};
+        tagNull.type  = TSDB_DATA_TYPE_NCHAR;
+        tagNull.bytes = TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+        strncpy(tagNull.name, tagNullName, nameLen + TS_ESCAPE_CHAR_SIZE);
+        taosArrayPush(pStableSchema->tags, &tagNull);
+        size_t tagNullIdx = taosArrayGetSize(pStableSchema->tags) - 1;
+        taosHashPut(pStableSchema->tagHash, tagNull.name, nameLen + TS_ESCAPE_CHAR_SIZE, &tagNullIdx, sizeof(tagNullIdx));
       }
     }
 
@@ -951,7 +981,7 @@ static int32_t applyChildTableTags(TAOS* taos, char* cTableName, char* sTableNam
       tagKVs[kv->fieldSchemaIdx] = kv;
     }
   }
-  
+
   SArray* tagBinds = taosArrayInit(numTags, sizeof(TAOS_BIND));
   taosArraySetSize(tagBinds, numTags);
   int isNullColBind = TSDB_TRUE;

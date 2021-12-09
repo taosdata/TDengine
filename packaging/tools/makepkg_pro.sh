@@ -32,7 +32,7 @@ else
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
-header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
+header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
 if [ "$verMode" == "cluster" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else
@@ -56,6 +56,7 @@ else
   cp ${build_dir}/bin/taosdump      ${install_dir}/bin/prodump
   cp ${build_dir}/bin/tarbitrator   ${install_dir}/bin
   cp ${script_dir}/set_core.sh      ${install_dir}/bin
+  cp ${script_dir}/run_taosd.sh     ${install_dir}/bin
   cp ${script_dir}/get_client.sh    ${install_dir}/bin
   cp ${script_dir}/startPre.sh      ${install_dir}/bin
   cp ${script_dir}/taosd-dump-cfg.gdb  ${install_dir}/bin

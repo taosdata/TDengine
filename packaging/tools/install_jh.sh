@@ -172,6 +172,7 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/rmjh        || :
     ${csudo} rm -f ${bin_link_dir}/tarbitrator || :
     ${csudo} rm -f ${bin_link_dir}/set_core    || :
+    ${csudo} rm -f ${bin_link_dir}/run_taosd.sh || :
 
     ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
@@ -181,6 +182,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/jhdemo ] && ${csudo} ln -s ${install_main_dir}/bin/jhdemo ${bin_link_dir}/jhdemo            || :
     [ -x ${install_main_dir}/bin/remove_jh.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_jh.sh ${bin_link_dir}/rmjh  || :
     [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core         || :
+    [ -x ${install_main_dir}/bin/run_taosd.sh ] && ${csudo} ln -s ${install_main_dir}/bin/run_taosd.sh ${bin_link_dir}/run_taosd.sh     || :
     [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo} ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator      || :
 
     if [ "$verMode" == "cluster" ]; then
@@ -263,7 +265,7 @@ function install_jemalloc() {
         fi
 
         if [ -d /etc/ld.so.conf.d ]; then
-            ${csudo} echo "/usr/local/lib" > /etc/ld.so.conf.d/jemalloc.conf
+            echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf > /dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
             ${csudo} ldconfig
         else
             echo "/etc/ld.so.conf.d not found!"

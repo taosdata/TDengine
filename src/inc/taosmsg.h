@@ -475,6 +475,7 @@ typedef struct {
   bool        tsCompQuery;      // is tscomp query
   bool        simpleAgg;
   bool        pointInterpQuery; // point interpolation query
+  bool        needTableSeqScan; // need scan table by table
   bool        needReverseScan;  // need reverse scan
   bool        stateWindow;       // state window flag 
 

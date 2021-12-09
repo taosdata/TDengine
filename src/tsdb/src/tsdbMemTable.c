@@ -564,7 +564,7 @@ static void tsdbFreeTableData(STableData *pTableData) {
   }
 }
 
-static char *tsdbGetTsTupleKey(const void *data) { return memRowTuple((SMemRow)data); }
+static char *tsdbGetTsTupleKey(const void *data) { return memRowKeys((SMemRow)data); }
 
 static int tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables) {
   ASSERT(pMemTable->maxTables < maxTables);
@@ -714,12 +714,16 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
 static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRepo,
                                      STSchema **ppSchema1, STSchema **ppSchema2,
                                      STable* pTable, int32_t* pPoints, SMemRow* pLastRow) {
-  
+
   //for compatiblity, duplicate key inserted when update=0 should be also calculated as affected rows!
   if(row1 == NULL && row2 == NULL && pRepo->config.update == TD_ROW_DISCARD_UPDATE) {
     (*pPoints)++;
     return NULL;
   }
+
+  tsdbTrace("vgId:%d a row is %s table %s tid %d uid %" PRIu64 " key %" PRIu64, REPO_ID(pRepo),
+            "updated in", TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable),
+            memRowKey(row1));
 
   if(row2 == NULL || pRepo->config.update != TD_ROW_PARTIAL_UPDATE) {
     void* pMem = tsdbAllocBytes(pRepo, memRowTLen(row1));
@@ -840,7 +844,6 @@ static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *
   tSkipListPutBatchByIter(pTableData->pData, &blkIter, (iter_next_fn_t)tsdbGetSubmitBlkNext);
   int64_t dsize = SL_SIZE(pTableData->pData) - osize;
   (*pAffectedRows) += points;
-
 
   if(lastRow != NULL) {
     TSKEY lastRowKey = memRowKey(lastRow);

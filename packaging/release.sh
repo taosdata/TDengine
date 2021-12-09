@@ -14,6 +14,7 @@ set -e
 #             -d [taos | power | tq | pro | kh | jh]
 #             -n [2.0.0.3]
 #             -m [2.0.0.0]
+#             -H [ false | true]
 
 # set parameters by default value
 verMode=edge     # [cluster, edge]
@@ -26,8 +27,9 @@ dbName=taos      # [taos | power | tq | pro | kh | jh]
 allocator=glibc  # [glibc | jemalloc]
 verNumber=""
 verNumberComp="1.0.0.0"
+httpdBuild=false
 
-while getopts "hv:V:c:o:l:s:d:a:n:m:" arg
+while getopts "hv:V:c:o:l:s:d:a:n:m:H:" arg
 do
   case $arg in
     v)
@@ -70,6 +72,10 @@ do
       #echo "osType=$OPTARG"
       osType=$(echo $OPTARG)
       ;;
+    H)
+      #echo "httpdBuild=$OPTARG"
+      httpdBuild=$(echo $OPTARG)
+      ;;
     h)
       echo "Usage: `basename $0` -v [cluster | edge] "
       echo "                  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] "
@@ -81,6 +87,7 @@ do
       echo "                  -d [taos | power | tq | pro | kh | jh] "
       echo "                  -n [version number] "
       echo "                  -m [compatible version number] "
+      echo "                  -H [false | true] "
       exit 0
       ;;
     ?) #unknow option
@@ -90,7 +97,7 @@ do
   esac
 done
 
-echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} dbName=${dbName} allocator=${allocator} verNumber=${verNumber} verNumberComp=${verNumberComp}"
+echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} dbName=${dbName} allocator=${allocator} verNumber=${verNumber} verNumberComp=${verNumberComp} httpdBuild=${httpdBuild}"
 
 curr_dir=$(pwd)
 
@@ -405,16 +412,19 @@ if [[ "$dbName" == "jh" ]]; then
   # TODO: src/dnode/CMakeLists.txt
 fi
 
-echo "build ${pagMode} package ..."
-if [[ "$pagMode" == "lite" ]]; then
+if [[ "$httpdBuild" == "true" ]]; then
     BUILD_HTTP=true
+    BUILD_TOOLS=false
+else
+    BUILD_HTTP=false
+    BUILD_TOOLS=true
 fi
 
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "mips64" ]] ; then
   if [ "$verMode" != "cluster" ]; then
     # community-version compile
-    cmake ../    -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} ${allocator_macro}
+    cmake ../    -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   else
     # enterprise-version compile
     if [[ "$dbName" == "power" ]]; then
@@ -473,7 +483,7 @@ if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" =
       #sed -i "s/taos\.cfg/taos\.cfg/g"  ${top_dir}/../enterprise/src/plugins/module/src/moduleMain.c
     fi
 
-    cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} ${allocator_macro}
+    cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   fi
 else
   echo "input cpuType=${cpuType} error!!!"
@@ -482,9 +492,9 @@ fi
 
 if [[ "$allocator" == "jemalloc" ]]; then
     # jemalloc need compile first, so disable parallel build
-    make V=1 && ${csudo} make install
+    make -j 8 && ${csudo} make install
 else
-    make -j8 && ${csudo} make install
+    make -j 8 && ${csudo} make install
 fi
 
 cd ${curr_dir}
@@ -503,6 +513,15 @@ if [ "$osType" != "Darwin" ]; then
       ${csudo} mkdir -p ${output_dir}
       cd ${script_dir}/deb
       ${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
+
+      if [ -d ${top_dir}/src/kit/taos-tools/packaging/deb ]; then
+          cd ${top_dir}/src/kit/taos-tools/packaging/deb
+          [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
+
+          taos_tools_ver=$(git describe --tags|sed -e 's/ver-//g'|awk -F '-' '{print $1}')
+          ${csudo} ./make-taos-tools-deb.sh ${top_dir} \
+              ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
+      fi
     else
       echo "==========dpkg command not exist, so not release deb package!!!"
     fi
@@ -517,6 +536,15 @@ if [ "$osType" != "Darwin" ]; then
       ${csudo} mkdir -p ${output_dir}
       cd ${script_dir}/rpm
       ${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
+
+      if [ -d ${top_dir}/src/kit/taos-tools/packaging/rpm ]; then
+          cd ${top_dir}/src/kit/taos-tools/packaging/rpm
+          [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
+
+          taos_tools_ver=$(git describe --tags|sed -e 's/ver-//g'|awk -F '-' '{print $1}'|sed -e 's/-/_/g')
+          ${csudo} ./make-taos-tools-rpm.sh ${top_dir} \
+              ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
+      fi
     else
       echo "==========rpmbuild command not exist, so not release rpm package!!!"
     fi

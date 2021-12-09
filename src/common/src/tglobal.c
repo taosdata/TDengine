@@ -291,7 +291,11 @@ int8_t tsDeadLockKillQuery = 0;
 
 // default JSON string type
 char tsDefaultJSONStrType[7] = "nchar";
-char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = ""; //user defined child table name can be specified in tag value. If set to empty system will generate table name using MD5 hash.
+char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = ""; //user defined child table name can be specified in tag value.
+                                                    //If set to empty system will generate table name using MD5 hash.
+char tsSmlTagNullName[TSDB_COL_NAME_LEN] = "_tag_null"; //for line protocol if tag is omitted, add a tag with NULL value
+                                                        //to make sure inserted records belongs to the same measurement
+                                                        //default name is _tag_null and can be user configurable
 
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
@@ -1328,7 +1332,7 @@ static void doInitGlobalConfig(void) {
   cfg.option = "httpDbNameMandatory";
   cfg.ptr = &tsHttpDbNameMandatory;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;
   cfg.maxValue = 1;
   cfg.ptrLength = 0;
@@ -1698,6 +1702,17 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = 0;
   cfg.maxValue = 0;
   cfg.ptrLength = tListLen(tsSmlChildTableName);
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // name for a NULL value tag added for Line Protocol when tag fields are omitted
+  cfg.option = "smlTagNullName";
+  cfg.ptr = tsSmlTagNullName;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = tListLen(tsSmlTagNullName);
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 

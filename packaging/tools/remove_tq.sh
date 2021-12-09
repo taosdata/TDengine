@@ -76,6 +76,7 @@ function clean_bin() {
     ${csudo} rm -f ${bin_link_dir}/rmtq      || :
     ${csudo} rm -f ${bin_link_dir}/tarbitrator  || :
     ${csudo} rm -f ${bin_link_dir}/set_core     || :
+    ${csudo} rm -f ${bin_link_dir}/run_taosd.sh || :
 }
 
 function clean_lib() {
@@ -87,13 +88,14 @@ function clean_lib() {
 
 function clean_header() {
     # Remove link
-    ${csudo} rm -f ${inc_link_dir}/taos.h       || :
-    ${csudo} rm -f ${inc_link_dir}/taoserror.h  || :
+    ${csudo} rm -f ${inc_link_dir}/taos.h           || :
+    ${csudo} rm -f ${inc_link_dir}/taosdef.h        || :
+    ${csudo} rm -f ${inc_link_dir}/taoserror.h      || :
 }
 
 function clean_config() {
     # Remove link
-    ${csudo} rm -f ${cfg_link_dir}/*            || :    
+    ${csudo} rm -f ${cfg_link_dir}/*            || :
 }
 
 function clean_log() {
@@ -109,7 +111,7 @@ function clean_service_on_systemd() {
     fi
     ${csudo} systemctl disable ${tq_service_name} &> /dev/null || echo &> /dev/null
     ${csudo} rm -f ${tq_service_config}
-    
+
     tarbitratord_service_config="${service_config_dir}/${tarbitrator_service_name}.service"
     if systemctl is-active --quiet ${tarbitrator_service_name}; then
         echo "TQ tarbitrator is running, stopping it..."
