@@ -40,7 +40,7 @@ static int32_t  mndRetrieveDbs(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int
 static void     mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 
 int32_t mndInitDb(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_USER,
+  SSdbTable table = {.sdbType = SDB_DB,
                      .keyType = SDB_KEY_BINARY,
                      .encodeFp = (SdbEncodeFp)mndDbActionEncode,
                      .decodeFp = (SdbDecodeFp)mndDbActionDecode,

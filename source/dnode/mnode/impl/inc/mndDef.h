@@ -223,29 +223,23 @@ typedef struct SDbObj {
 
 typedef struct {
   int32_t    dnodeId;
-  int8_t     role;
-  SDnodeObj *pDnode;
+  ESyncState role;
 } SVnodeGid;
 
 typedef struct SVgObj {
-  uint32_t  vgId;
-  int32_t   numOfVnodes;
+  int32_t   vgId;
   int64_t   createdTime;
   int64_t   updateTime;
-  int32_t   lbDnodeId;
-  int32_t   lbTime;
+  int32_t   version;
   char      dbName[TSDB_FULL_DB_NAME_LEN];
-  int8_t    inUse;
-  int8_t    accessState;
-  int8_t    status;
-  SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
-  int32_t   vgCfgVersion;
-  int8_t    compact;
   int32_t   numOfTables;
+  int32_t   numOfTimeSeries;
   int64_t   totalStorage;
   int64_t   compStorage;
   int64_t   pointsWritten;
-  SDbObj   *pDb;
+  int8_t    compact;
+  int8_t    replica;
+  SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
 
 typedef struct SSTableObj {
