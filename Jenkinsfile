@@ -460,7 +460,19 @@ pipeline {
               sh '''
                 cd ${WKC}/src/connector/python
                 export PYTHONPATH=$PWD/
+                export LD_LIBRARY_PATH=${WKC}/debug/build/lib
+                pip3 install pytest
                 pytest tests/
+
+                python3 examples/bind-multi.py
+                python3 examples/bind-row.py
+                python3 examples/demo.py
+                python3 examples/insert-lines.py
+                python3 examples/pep-249.py
+                python3 examples/query-async.py
+                python3 examples/query-objectively.py
+                python3 examples/subscribe-sync.py
+                python3 examples/subscribe-async.py
               '''
 
               sh '''

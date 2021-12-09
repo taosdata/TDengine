@@ -308,16 +308,14 @@ def taos_subscribe(connection, restart, topic, sql, interval, callback=None, par
     """
     if callback != None:
         callback = subscribe_callback_type(callback)
-    if param != None:
-        param = c_void_p(param)
     return c_void_p(
         _libtaos.taos_subscribe(
             connection,
             1 if restart else 0,
             c_char_p(topic.encode("utf-8")),
             c_char_p(sql.encode("utf-8")),
-            callback or None,
-            param,
+            callback,
+            c_void_p(param),
             interval,
         )
     )
