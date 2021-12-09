@@ -39,7 +39,7 @@ class TDTestCase:
     def run(self):
         tbNum = 10
         rowNum = 20
-        ts_begin = 1617552000000
+        ts_begin = 1633017600000
 
         tdSql.prepare()
 
@@ -51,7 +51,7 @@ class TDTestCase:
             for j in range(rowNum):
                 tdSql.execute(
                     "insert into tb%d values (%d, %d, %d)" %
-                    (i, ts_begin + 1440 - j, j, j))
+                    (i, ts_begin + j, j, j))
         time.sleep(0.1)
 
         self.createFuncStream("count(*)", "c1", 200)
