@@ -182,7 +182,7 @@ In the output plugins section, add the [[outputs.http]] configuration:
 In agent section:
 
 - hostname: The machine name that distinguishes different collection devices, and it is necessary to ensure its uniqueness
-- metric_batch_size: 100, which is the max number of records per batch wriiten by Telegraf allowed. Increasing the number can reduce the request sending frequency of Telegraf.
+- metric_batch_size: 100, which is the max number of records per batch written by Telegraf allowed. Increasing the number can reduce the request sending frequency of Telegraf.
 
 For information on how to use Telegraf to collect data and more about using Telegraf, please refer to the official [document](https://docs.influxdata.com/telegraf/v1.11/) of Telegraf.
 

@@ -884,7 +884,7 @@ dotnet new console
 ``` cmd
 dotnet add package TDengine.Connector
 ```
-* inlucde the TDnengineDriver in you application's namespace 
+* include the TDnengineDriver in you application's namespace 
 ```C#
 using TDengineDriver;
 ```
