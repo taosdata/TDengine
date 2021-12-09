@@ -51,6 +51,7 @@ int32_t mndInitFunc(SMnode *pMnode) {
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_FUNCTION, mndGetFuncMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_FUNCTION, mndRetrieveFuncs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_FUNCTION, mndCancelGetNextFunc);
+  
   return sdbSetTable(pMnode->pSdb, table);
 }
 

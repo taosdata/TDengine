@@ -65,7 +65,7 @@ int32_t mndInitVgroup(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VNODES, mndRetrieveVnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VNODES, mndCancelGetNextVnode);
 
-  return 0;
+  return sdbSetTable(pMnode->pSdb, table);
 }
 
 void mndCleanupVgroup(SMnode *pMnode) {}
@@ -139,7 +139,7 @@ static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pMsg) { return 0; }
 static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pMsg) { return 0; }
 static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pMsg) { return 0; }
 
-static int32_t  mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup) {
+static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup) {
   mTrace("vgId:%d, perform update action", pOldVgroup->vgId);
   pOldVgroup->vgId = pNewVgroup->vgId;
   pOldVgroup->createdTime = pNewVgroup->createdTime;
@@ -267,7 +267,7 @@ static int32_t mndRetrieveVgroups(SMnodeMsg *pMsg, SShowObj *pShow, char *data, 
 
     for (int32_t i = 0; i < pShow->replica; ++i) {
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int16_t *) pWrite = pVgroup->vnodeGid[i].dnodeId;
+      *(int16_t *)pWrite = pVgroup->vnodeGid[i].dnodeId;
       cols++;
 
       const char *role = mndGetRoleStr(pVgroup->vnodeGid[i].role);
@@ -275,11 +275,11 @@ static int32_t mndRetrieveVgroups(SMnodeMsg *pMsg, SShowObj *pShow, char *data, 
       STR_WITH_MAXSIZE_TO_VARSTR(pWrite, role, pShow->bytes[cols]);
       cols++;
     }
-      
+
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pVgroup->compact; 
+    *(int8_t *)pWrite = pVgroup->compact;
     cols++;
-    
+
     sdbRelease(pSdb, pVgroup);
     numOfRows++;
   }

@@ -59,7 +59,7 @@ int32_t mndInitDb(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_DB, mndRetrieveDbs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_DB, mndCancelGetNextDb);
 
-  return 0;
+  return sdbSetTable(pMnode->pSdb, table);
 }
 
 void mndCleanupDb(SMnode *pMnode) {}

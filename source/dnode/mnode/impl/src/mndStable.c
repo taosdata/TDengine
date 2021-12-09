@@ -53,6 +53,8 @@ int32_t mndInitStable(SMnode *pMnode) {
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_DB, mndGetStableMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_DB, mndRetrieveStables);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_DB, mndCancelGetNextStable);
+
+  return sdbSetTable(pMnode->pSdb, table);
 }
 
 void mndCleanupStable(SMnode *pMnode) {}
