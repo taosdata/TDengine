@@ -65,6 +65,16 @@ extern "C" {
     dataPos += valLen;                                      \
   }
 
+#define SDB_GET_RESERVE(pRaw, pRow, dataPos, valLen)        \
+  {                                                         \
+    char val[valLen] = {0};                                 \
+    if (sdbGetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
+      sdbFreeRow(pRow);                                     \
+      return NULL;                                          \
+    }                                                       \
+    dataPos += valLen;                                      \
+  }
+
 #define SDB_SET_INT64(pRaw, dataPos, val)          \
   {                                                \
     if (sdbSetRawInt64(pRaw, dataPos, val) != 0) { \
@@ -103,6 +113,16 @@ extern "C" {
 
 #define SDB_SET_BINARY(pRaw, dataPos, val, valLen)          \
   {                                                         \
+    if (sdbSetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
+      sdbFreeRaw(pRaw);                                     \
+      return NULL;                                          \
+    }                                                       \
+    dataPos += valLen;                                      \
+  }
+
+#define SDB_SET_RESERVE(pRaw, dataPos, valLen)              \
+  {                                                         \
+    char val[valLen] = {0};                                 \
     if (sdbSetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
       sdbFreeRaw(pRaw);                                     \
       return NULL;                                          \

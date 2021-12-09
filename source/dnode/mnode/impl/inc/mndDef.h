@@ -195,7 +195,6 @@ typedef struct SUserObj {
 typedef struct {
   int32_t cacheBlockSize;
   int32_t totalBlocks;
-  int32_t maxTables;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -204,14 +203,13 @@ typedef struct {
   int32_t maxRowsPerFileBlock;
   int32_t commitTime;
   int32_t fsyncPeriod;
+  int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
-  int8_t  walLevel;
   int8_t  replications;
   int8_t  quorum;
   int8_t  update;
   int8_t  cacheLastRow;
-  int8_t  dbType;
 } SDbCfg;
 
 typedef struct SDbObj {

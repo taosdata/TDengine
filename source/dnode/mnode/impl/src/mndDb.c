@@ -15,11 +15,14 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDb.h"
+#include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 
-#define TSDB_DB_VER 1
+#define TSDB_DB_VER_NUM 1
+#define TSDB_DB_RESERVE_SIZE 64
 
 static SSdbRaw *mndDbActionEncode(SDbObj *pDb);
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
@@ -62,7 +65,7 @@ int32_t mndInitDb(SMnode *pMnode) {
 void mndCleanupDb(SMnode *pMnode) {}
 
 static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_DB_VER, sizeof(SDbObj));
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_DB_VER_NUM, sizeof(SDbObj));
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
@@ -73,7 +76,6 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT64(pRaw, dataPos, pDb->uid)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.cacheBlockSize)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.totalBlocks)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.maxTables)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysPerFile)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep0)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep1)
@@ -82,14 +84,14 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.maxRowsPerFileBlock)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.commitTime)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.fsyncPeriod)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.walLevel)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.precision)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.compression)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.walLevel)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.replications)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.quorum)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.update)
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.cacheLastRow)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.dbType)
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_DB_RESERVE_SIZE)
   SDB_SET_DATALEN(pRaw, dataPos);
 
   return pRaw;
@@ -99,7 +101,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
-  if (sver != TSDB_DB_VER) {
+  if (sver != TSDB_DB_VER_NUM) {
     mError("failed to decode db since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     return NULL;
@@ -117,7 +119,6 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, pRow, dataPos, &pDb->uid)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.cacheBlockSize)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.totalBlocks)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.maxTables)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.daysPerFile)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.daysToKeep0)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.daysToKeep1)
@@ -126,14 +127,14 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.maxRowsPerFileBlock)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.commitTime)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.fsyncPeriod)
+  SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.walLevel)
   SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.precision)
   SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.compression)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.walLevel)
   SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.replications)
   SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.quorum)
   SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.update)
   SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.cacheLastRow)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.dbType)
+  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_DB_RESERVE_SIZE)
 
   return pRow;
 }
@@ -164,20 +165,459 @@ void mndReleaseDb(SMnode *pMnode, SDbObj *pDb) {
   sdbRelease(pSdb, pDb);
 }
 
-static int32_t mndProcessCreateDbMsg(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
+  if (pCfg->cacheBlockSize < TSDB_MIN_CACHE_BLOCK_SIZE || pCfg->cacheBlockSize > TSDB_MAX_CACHE_BLOCK_SIZE) {
+    terrno = TSDB_CODE_MND_INVALID_DB_CACHE_SIZE;
+    return -1;
+  }
 
-static int32_t mndProcessAlterDbMsg(SMnodeMsg *pMsg) { return 0; }
+  if (pCfg->totalBlocks < TSDB_MIN_TOTAL_BLOCKS || pCfg->totalBlocks > TSDB_MAX_TOTAL_BLOCKS) {
+    terrno = TSDB_CODE_MND_INVALID_DB_TOTAL_BLOCKS;
+    return -1;
+  }
 
-static int32_t mndProcessDropDbMsg(SMnodeMsg *pMsg) { return 0; }
+  if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) {
+    terrno = TSDB_CODE_MND_INVALID_DB_DAYS;
+    return -1;
+  }
+
+  if (pCfg->daysToKeep0 < pCfg->daysPerFile) {
+    terrno = TSDB_CODE_MND_INVALID_DB_KEEP0;
+    return -1;
+  }
+
+  if (pCfg->daysToKeep0 < TSDB_MIN_KEEP || pCfg->daysToKeep0 > TSDB_MAX_KEEP || pCfg->daysToKeep0 > pCfg->daysToKeep1) {
+    terrno = TSDB_CODE_MND_INVALID_DB_KEEP0;
+    return -1;
+  }
+
+  if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > TSDB_MAX_KEEP || pCfg->daysToKeep1 > pCfg->daysToKeep2) {
+    terrno = TSDB_CODE_MND_INVALID_DB_KEEP1;
+    return -1;
+  }
+
+  if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > TSDB_MAX_KEEP) {
+    terrno = TSDB_CODE_MND_INVALID_DB_KEEP1;
+    return -1;
+  }
+
+  if (pCfg->minRowsPerFileBlock < TSDB_MIN_MIN_ROW_FBLOCK || pCfg->minRowsPerFileBlock > TSDB_MAX_MIN_ROW_FBLOCK) {
+    terrno = TSDB_CODE_MND_INVALID_DB_MIN_ROWS;
+    return -1;
+  }
+
+  if (pCfg->maxRowsPerFileBlock < TSDB_MIN_MAX_ROW_FBLOCK || pCfg->maxRowsPerFileBlock > TSDB_MAX_MAX_ROW_FBLOCK) {
+    terrno = TSDB_CODE_MND_INVALID_DB_MAX_ROWS;
+    return -1;
+  }
+
+  if (pCfg->minRowsPerFileBlock > pCfg->maxRowsPerFileBlock) {
+    terrno = TSDB_CODE_MND_INVALID_DB_MIN_ROWS;
+    return -1;
+  }
+
+  if (pCfg->commitTime < TSDB_MIN_COMMIT_TIME || pCfg->commitTime > TSDB_MAX_COMMIT_TIME) {
+    terrno = TSDB_CODE_MND_INVALID_DB_COMMIT_TIME;
+    return -1;
+  }
+
+  if (pCfg->fsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pCfg->fsyncPeriod > TSDB_MAX_FSYNC_PERIOD) {
+    terrno = TSDB_CODE_MND_INVALID_DB_FSYNC_PERIOD;
+    return -1;
+  }
+
+  if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL || pCfg->walLevel > TSDB_MAX_WAL_LEVEL) {
+    terrno = TSDB_CODE_MND_INVALID_DB_WAL_LEVEL;
+    return -1;
+  }
+
+  if (pCfg->precision < TSDB_MIN_PRECISION && pCfg->precision > TSDB_MAX_PRECISION) {
+    terrno = TSDB_CODE_MND_INVALID_DB_PRECISION;
+    return -1;
+  }
+
+  if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) {
+    terrno = TSDB_CODE_MND_INVALID_DB_COMP;
+    return -1;
+  }
+
+  if (pCfg->replications < TSDB_MIN_DB_REPLICA_OPTION || pCfg->replications > TSDB_MAX_DB_REPLICA_OPTION) {
+    terrno = TSDB_CODE_MND_INVALID_DB_REPLICA;
+    return -1;
+  }
+
+  if (pCfg->replications > mndGetDnodeSize(pMnode)) {
+    terrno = TSDB_CODE_MND_INVALID_DB_REPLICA;
+    return -1;
+  }
+
+  if (pCfg->quorum < TSDB_MIN_DB_QUORUM_OPTION || pCfg->quorum > TSDB_MAX_DB_QUORUM_OPTION) {
+    terrno = TSDB_CODE_MND_INVALID_DB_QUORUM;
+    return -1;
+  }
+
+  if (pCfg->quorum > pCfg->replications) {
+    terrno = TSDB_CODE_MND_INVALID_DB_QUORUM;
+    return -1;
+  }
+
+  if (pCfg->update < TSDB_MIN_DB_UPDATE || pCfg->update > TSDB_MAX_DB_UPDATE) {
+    terrno = TSDB_CODE_MND_INVALID_DB_UPDATE;
+    return -1;
+  }
+
+  if (pCfg->cacheLastRow < TSDB_MIN_DB_CACHE_LAST_ROW || pCfg->cacheLastRow > TSDB_MAX_DB_CACHE_LAST_ROW) {
+    terrno = TSDB_CODE_MND_INVALID_DB_CACHE_LAST;
+    return -1;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
+  if (pCfg->cacheBlockSize < 0) pCfg->cacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
+  if (pCfg->totalBlocks < 0) pCfg->totalBlocks = TSDB_DEFAULT_TOTAL_BLOCKS;
+  if (pCfg->daysPerFile < 0) pCfg->daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
+  if (pCfg->daysToKeep0 < 0) pCfg->daysToKeep0 = TSDB_DEFAULT_KEEP;
+  if (pCfg->daysToKeep1 < 0) pCfg->daysToKeep1 = TSDB_DEFAULT_KEEP;
+  if (pCfg->daysToKeep2 < 0) pCfg->daysToKeep2 = TSDB_DEFAULT_KEEP;
+  if (pCfg->minRowsPerFileBlock < 0) pCfg->minRowsPerFileBlock = TSDB_DEFAULT_MIN_ROW_FBLOCK;
+  if (pCfg->maxRowsPerFileBlock < 0) pCfg->maxRowsPerFileBlock = TSDB_DEFAULT_MAX_ROW_FBLOCK;
+  if (pCfg->commitTime < 0) pCfg->commitTime = TSDB_DEFAULT_COMMIT_TIME;
+  if (pCfg->fsyncPeriod < 0) pCfg->fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
+  if (pCfg->walLevel < 0) pCfg->walLevel = TSDB_DEFAULT_WAL_LEVEL;
+  if (pCfg->precision < 0) pCfg->precision = TSDB_DEFAULT_PRECISION;
+  if (pCfg->compression < 0) pCfg->compression = TSDB_DEFAULT_COMP_LEVEL;
+  if (pCfg->replications < 0) pCfg->replications = TSDB_DEFAULT_DB_REPLICA_OPTION;
+  if (pCfg->quorum < 0) pCfg->quorum = TSDB_DEFAULT_DB_QUORUM_OPTION;
+  if (pCfg->update < 0) pCfg->update = TSDB_DEFAULT_DB_UPDATE_OPTION;
+  if (pCfg->cacheLastRow < 0) pCfg->cacheLastRow = TSDB_DEFAULT_CACHE_LAST_ROW;
+}
+
+static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreate, char *acct) {
+  SDbObj dbObj = {0};
+  tstrncpy(dbObj.name, pCreate->db, TSDB_FULL_DB_NAME_LEN);
+  tstrncpy(dbObj.acct, acct, TSDB_USER_LEN);
+  dbObj.createdTime = taosGetTimestampMs();
+  dbObj.updateTime = dbObj.createdTime;
+  dbObj.uid = 1234;
+  dbObj.cfg = (SDbCfg){.cacheBlockSize = pCreate->cacheBlockSize,
+                       .totalBlocks = pCreate->totalBlocks,
+                       .daysPerFile = pCreate->daysPerFile,
+                       .daysToKeep0 = pCreate->daysToKeep0,
+                       .daysToKeep1 = pCreate->daysToKeep1,
+                       .daysToKeep2 = pCreate->daysToKeep2,
+                       .minRowsPerFileBlock = pCreate->minRowsPerFileBlock,
+                       .maxRowsPerFileBlock = pCreate->maxRowsPerFileBlock,
+                       .fsyncPeriod = pCreate->fsyncPeriod,
+                       .commitTime = pCreate->commitTime,
+                       .precision = pCreate->precision,
+                       .compression = pCreate->compression,
+                       .walLevel = pCreate->walLevel,
+                       .replications = pCreate->replications,
+                       .quorum = pCreate->quorum,
+                       .update = pCreate->update,
+                       .cacheLastRow = pCreate->cacheLastRow};
+
+  mndSetDefaultDbCfg(&dbObj.cfg);
+
+  if (mndCheckDbCfg(pMnode, &dbObj.cfg) != 0) {
+    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
+    return -1;
+  }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  if (pTrans == NULL) {
+    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
+
+  SSdbRaw *pRedoRaw = mndDbActionEncode(&dbObj);
+  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
+    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING);
+
+  SSdbRaw *pUndoRaw = mndDbActionEncode(&dbObj);
+  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) {
+    mError("trans:%d, failed to append undo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED);
+
+  SSdbRaw *pCommitRaw = mndDbActionEncode(&dbObj);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
+}
+
+static int32_t mndProcessCreateDbMsg(SMnodeMsg *pMsg) {
+  SMnode       *pMnode = pMsg->pMnode;
+  SCreateDbMsg *pCreate = pMsg->rpcMsg.pCont;
+
+  pCreate->cacheBlockSize = htonl(pCreate->cacheBlockSize);
+  pCreate->totalBlocks = htonl(pCreate->totalBlocks);
+  pCreate->daysPerFile = htonl(pCreate->daysPerFile);
+  pCreate->daysToKeep0 = htonl(pCreate->daysToKeep0);
+  pCreate->daysToKeep1 = htonl(pCreate->daysToKeep1);
+  pCreate->daysToKeep2 = htonl(pCreate->daysToKeep2);
+  pCreate->minRowsPerFileBlock = htonl(pCreate->minRowsPerFileBlock);
+  pCreate->maxRowsPerFileBlock = htonl(pCreate->maxRowsPerFileBlock);
+  pCreate->commitTime = htonl(pCreate->commitTime);
+  pCreate->fsyncPeriod = htonl(pCreate->fsyncPeriod);
+
+  mDebug("db:%s, start to create", pCreate->db);
+
+  SDbObj *pDb = mndAcquireDb(pMnode, pCreate->db);
+  if (pDb != NULL) {
+    sdbRelease(pMnode->pSdb, pDb);
+    if (pCreate->ignoreExist) {
+      mDebug("db:%s, already exist, ignore exist is set", pCreate->db);
+      return 0;
+    } else {
+      terrno = TSDB_CODE_MND_DB_ALREADY_EXIST;
+      mError("db:%s, failed to create since %s", pCreate->db, terrstr());
+      return -1;
+    }
+  }
+
+  SUserObj *pOperUser = mndAcquireUser(pMnode, pMsg->user);
+  if (pOperUser == NULL) {
+    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
+    return -1;
+  }
+
+  int32_t code = mndCreateDb(pMnode, pMsg, pCreate, pOperUser->acct);
+  mndReleaseUser(pMnode, pOperUser);
+
+  if (code != 0) {
+    terrno = code;
+    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
+    return -1;
+  }
+
+  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+}
+
+static int32_t mnodeSetDbCfgFromAlterDbMsg(SDbObj *pDb, SAlterDbMsg *pAlter) {
+  bool changed = false;
+
+  if (pAlter->totalBlocks >= 0 && pAlter->totalBlocks != pDb->cfg.totalBlocks) {
+    pDb->cfg.totalBlocks = pAlter->totalBlocks;
+    changed = true;
+  }
+
+  if (pAlter->daysToKeep0 >= 0 && pAlter->daysToKeep0 != pDb->cfg.daysToKeep0) {
+    pDb->cfg.daysToKeep0 = pAlter->daysToKeep0;
+    changed = true;
+  }
+
+  if (pAlter->daysToKeep1 >= 0 && pAlter->daysToKeep1 != pDb->cfg.daysToKeep1) {
+    pDb->cfg.daysToKeep1 = pAlter->daysToKeep1;
+    changed = true;
+  }
+
+  if (pAlter->daysToKeep2 >= 0 && pAlter->daysToKeep2 != pDb->cfg.daysToKeep2) {
+    pDb->cfg.daysToKeep2 = pAlter->daysToKeep2;
+    changed = true;
+  }
+
+  if (pAlter->fsyncPeriod >= 0 && pAlter->fsyncPeriod != pDb->cfg.fsyncPeriod) {
+    pDb->cfg.fsyncPeriod = pAlter->fsyncPeriod;
+    changed = true;
+  }
+
+  if (pAlter->walLevel >= 0 && pAlter->walLevel != pDb->cfg.walLevel) {
+    pDb->cfg.walLevel = pAlter->walLevel;
+    changed = true;
+  }
+
+  if (pAlter->quorum >= 0 && pAlter->quorum != pDb->cfg.quorum) {
+    pDb->cfg.quorum = pAlter->quorum;
+    changed = true;
+  }
+
+  if (pAlter->cacheLastRow >= 0 && pAlter->cacheLastRow != pDb->cfg.cacheLastRow) {
+    pDb->cfg.cacheLastRow = pAlter->cacheLastRow;
+    changed = true;
+  }
+
+  if (!changed) {
+    terrno = TSDB_CODE_MND_DB_OPTION_UNCHANGED;
+    return -1;
+  }
+
+  return 0;
+}
+
+static int32_t mndUpdateDb(SMnode *pMnode, SMnodeMsg *pMsg, SDbObj *pOldDb, SDbObj *pNewDb) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  if (pTrans == NULL) {
+    mError("db:%s, failed to update since %s", pOldDb->name, terrstr());
+    return terrno;
+  }
+
+  mDebug("trans:%d, used to update db:%s", pTrans->id, pOldDb->name);
+
+  SSdbRaw *pRedoRaw = mndDbActionEncode(pNewDb);
+  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
+    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
+
+  SSdbRaw *pUndoRaw = mndDbActionEncode(pOldDb);
+  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) {
+    mError("trans:%d, failed to append undo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
+}
+
+static int32_t mndProcessAlterDbMsg(SMnodeMsg *pMsg) {
+  SMnode      *pMnode = pMsg->pMnode;
+  SAlterDbMsg *pAlter = pMsg->rpcMsg.pCont;
+  pAlter->totalBlocks = htonl(pAlter->totalBlocks);
+  pAlter->daysToKeep0 = htonl(pAlter->daysToKeep0);
+  pAlter->daysToKeep1 = htonl(pAlter->daysToKeep1);
+  pAlter->daysToKeep2 = htonl(pAlter->daysToKeep2);
+  pAlter->fsyncPeriod = htonl(pAlter->fsyncPeriod);
+
+  mDebug("db:%s, start to alter", pAlter->db);
+
+  SDbObj *pDb = mndAcquireDb(pMnode, pAlter->db);
+  if (pDb == NULL) {
+    mError("db:%s, failed to alter since %s", pAlter->db, terrstr());
+    return TSDB_CODE_MND_DB_NOT_EXIST;
+  }
+
+  SDbObj dbObj = {0};
+  memcpy(&dbObj, pDb, sizeof(SDbObj));
+
+  int32_t code = mnodeSetDbCfgFromAlterDbMsg(&dbObj, pAlter);
+  if (code != 0) {
+    mndReleaseDb(pMnode, pDb);
+    mError("db:%s, failed to alter since %s", pAlter->db, tstrerror(code));
+    return code;
+  }
+
+  code = mndUpdateDb(pMnode, pMsg, pDb, &dbObj);
+  mndReleaseDb(pMnode, pDb);
+
+  if (code != 0) {
+    mError("db:%s, failed to alter since %s", pAlter->db, tstrerror(code));
+    return code;
+  }
+
+  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+}
+
+static int32_t mndDropDb(SMnode *pMnode, SMnodeMsg *pMsg, SDbObj *pDb) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  if (pTrans == NULL) {
+    mError("db:%s, failed to drop since %s", pDb->name, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to drop db:%s", pTrans->id, pDb->name);
+
+  SSdbRaw *pRedoRaw = mndDbActionEncode(pDb);
+  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
+    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING);
+
+  SSdbRaw *pUndoRaw = mndDbActionEncode(pDb);
+  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) {
+    mError("trans:%d, failed to append undo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY);
+
+  SSdbRaw *pCommitRaw = mndDbActionEncode(pDb);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+
+  if (mndTransPrepare(pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
+}
+
+static int32_t mndProcessDropDbMsg(SMnodeMsg *pMsg) {
+  SMnode     *pMnode = pMsg->pMnode;
+  SDropDbMsg *pDrop = pMsg->rpcMsg.pCont;
+
+  mDebug("db:%s, start to drop", pDrop->db);
+
+  SDbObj *pDb = mndAcquireDb(pMnode, pDrop->db);
+  if (pDb == NULL) {
+    if (pDrop->ignoreNotExists) {
+      mDebug("db:%s, not exist, ignore not exist is set", pDrop->db);
+      return TSDB_CODE_SUCCESS;
+    } else {
+      terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+      mError("db:%s, failed to drop since %s", pDrop->db, terrstr());
+      return -1;
+    }
+  }
+
+  int32_t code = mndDropDb(pMnode, pMsg, pDb);
+  mndReleaseDb(pMnode, pDb);
+
+  if (code != 0) {
+    terrno = code;
+    mError("db:%s, failed to drop since %s", pDrop->db, terrstr());
+    return code;
+  }
+
+  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+}
 
 static int32_t mndProcessUseDbMsg(SMnodeMsg *pMsg) {
   SMnode    *pMnode = pMsg->pMnode;
   SUseDbMsg *pUse = pMsg->rpcMsg.pCont;
 
-  strncpy(pMsg->db, pUse->db, TSDB_FULL_DB_NAME_LEN);
-
   SDbObj *pDb = mndAcquireDb(pMnode, pMsg->db);
   if (pDb != NULL) {
+    strncpy(pMsg->db, pUse->db, TSDB_FULL_DB_NAME_LEN);
     mndReleaseDb(pMnode, pDb);
     return 0;
   } else {
@@ -186,9 +626,33 @@ static int32_t mndProcessUseDbMsg(SMnodeMsg *pMsg) {
   }
 }
 
-static int32_t mndProcessSyncDbMsg(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessSyncDbMsg(SMnodeMsg *pMsg) {
+  SMnode     *pMnode = pMsg->pMnode;
+  SSyncDbMsg *pSync = pMsg->rpcMsg.pCont;
 
-static int32_t mndProcessCompactDbMsg(SMnodeMsg *pMsg) { return 0; }
+  SDbObj *pDb = mndAcquireDb(pMnode, pMsg->db);
+  if (pDb == NULL) {
+    mError("db:%s, failed to process sync db msg since %s", pMsg->db, terrstr());
+    return -1;
+  } else {
+    mndReleaseDb(pMnode, pDb);
+    return 0;
+  }
+}
+
+static int32_t mndProcessCompactDbMsg(SMnodeMsg *pMsg) {
+  SMnode        *pMnode = pMsg->pMnode;
+  SCompactDbMsg *pCompact = pMsg->rpcMsg.pCont;
+
+  SDbObj *pDb = mndAcquireDb(pMnode, pMsg->db);
+  if (pDb == NULL) {
+    mError("db:%s, failed to process compact db msg since %s", pMsg->db, terrstr());
+    return -1;
+  } else {
+    mndReleaseDb(pMnode, pDb);
+    return 0;
+  }
+}
 
 static int32_t mndGetDbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
   SMnode *pMnode = pMsg->pMnode;

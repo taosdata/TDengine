@@ -567,7 +567,6 @@ typedef struct {
   char    db[TSDB_FULL_DB_NAME_LEN];
   int32_t cacheBlockSize;  // MB
   int32_t totalBlocks;
-  int32_t maxTables;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -576,18 +575,51 @@ typedef struct {
   int32_t maxRowsPerFileBlock;
   int32_t commitTime;
   int32_t fsyncPeriod;
+  int8_t  walLevel;
   int8_t  precision;  // time resolution
   int8_t  compression;
-  int8_t  walLevel;
   int8_t  replications;
   int8_t  quorum;
-  int8_t  ignoreExist;
   int8_t  update;
   int8_t  cacheLastRow;
-  int8_t  dbType;
-  int16_t partitions;
-  int8_t  reserve[5];
-} SCreateDbMsg, SAlterDbMsg;
+  int8_t  ignoreExist;
+  int32_t reserve[8];
+} SCreateDbMsg;
+
+typedef struct {
+  char    db[TSDB_FULL_DB_NAME_LEN];
+  int32_t totalBlocks;
+  int32_t daysToKeep0;
+  int32_t daysToKeep1;
+  int32_t daysToKeep2;
+  int32_t fsyncPeriod;
+  int8_t  walLevel;
+  int8_t  quorum;
+  int8_t  cacheLastRow;
+  int32_t reserve[8];
+} SAlterDbMsg;
+
+typedef struct {
+  char    db[TSDB_TABLE_FNAME_LEN];
+  int8_t  ignoreNotExists;
+  int32_t reserve[8];
+} SDropDbMsg;
+
+typedef struct {
+  char    db[TSDB_TABLE_FNAME_LEN];
+  int8_t  ignoreNotExists;
+  int32_t reserve[8];
+} SUseDbMsg;
+
+typedef struct {
+  char    db[TSDB_TABLE_FNAME_LEN];
+  int32_t reserve[8];
+} SSyncDbMsg;
+
+typedef struct {
+  char    db[TSDB_TABLE_FNAME_LEN];
+  int32_t reserve[8];
+} SCompactDbMsg;
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
@@ -630,11 +662,6 @@ typedef struct {
   int32_t numOfFuncs;
   char    pFuncInfos[];
 } SRetrieveFuncRsp;
-
-typedef struct {
-  char   db[TSDB_TABLE_FNAME_LEN];
-  int8_t ignoreNotExists;
-} SDropDbMsg, SUseDbMsg, SSyncDbMsg;
 
 typedef struct {
   int32_t statusInterval;

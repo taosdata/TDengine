@@ -216,7 +216,7 @@ static SDnodeObj *mndAcquireDnodeByEp(SMnode *pMnode, char *pEpStr) {
   return NULL;
 }
 
-static int32_t mndGetDnodeSize(SMnode *pMnode) {
+int32_t mndGetDnodeSize(SMnode *pMnode) {
   SSdb *pSdb = pMnode->pSdb;
   return sdbGetSize(pSdb, SDB_DNODE);
 }
