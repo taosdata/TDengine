@@ -272,14 +272,12 @@ typedef struct {
   SShellSubmitRspBlock failedBlocks[];
 } SShellSubmitRspMsg;
 
-//#if 0
 typedef struct SSchema {
-  uint8_t type;
-  char    name[TSDB_COL_NAME_LEN];
+  int8_t  type;
   int16_t colId;
   int32_t bytes;
+  char    name[TSDB_COL_NAME_LEN];
 } SSchema;
-//#endif
 
 typedef struct {
   int32_t  contLen;

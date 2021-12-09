@@ -47,7 +47,7 @@ typedef struct SAcctObj    SAcctObj;
 typedef struct SUserObj    SUserObj;
 typedef struct SDbObj      SDbObj;
 typedef struct SVgObj      SVgObj;
-typedef struct SSTableObj  SSTableObj;
+typedef struct STableObj   STableObj;
 typedef struct SFuncObj    SFuncObj;
 typedef struct SOperObj    SOperObj;
 
@@ -242,15 +242,19 @@ typedef struct SVgObj {
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
 
-typedef struct SSTableObj {
-  char     tableId[TSDB_TABLE_NAME_LEN];
-  uint64_t uid;
+typedef struct SStableObj {
+  char     name[TSDB_TABLE_FNAME_LEN];
+  char     db[TSDB_FULL_DB_NAME_LEN];
   int64_t  createdTime;
   int64_t  updateTime;
-  int32_t  numOfColumns;  // used by normal table
-  int32_t  numOfTags;
-  SSchema *schema;
-} SSTableObj;
+  uint64_t uid;
+  int32_t  version;
+  int16_t  numOfFields;
+  int16_t  numOfTags;
+  SSchema *fieldSchema;
+  SSchema *tagSchema;
+  char     pCont[];
+} SStableObj;
 
 typedef struct SFuncObj {
   char    name[TSDB_FUNC_NAME_LEN];

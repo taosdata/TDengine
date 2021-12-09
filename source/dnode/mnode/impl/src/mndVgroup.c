@@ -161,8 +161,15 @@ void mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup) {
   sdbRelease(pSdb, pVgroup);
 }
 
-static void mndGetVgroupMaxReplica(SMnode *pMnode, char *dbName, int8_t *pReplica, int32_t *pNumOfVgroups) {
-  SSdb   *pSdb = pMnode->pSdb;
+static int32_t mndGetVgroupMaxReplica(SMnode *pMnode, char *dbName, int8_t *pReplica, int32_t *pNumOfVgroups) {
+  SSdb *pSdb = pMnode->pSdb;
+
+  SDbObj *pDb = mndAcquireDb(pMnode, dbName);
+  if (pDb == NULL) {
+    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+    return -1;
+  }
+
   int8_t  replica = 1;
   int32_t numOfVgroups = 0;
 
@@ -182,13 +189,16 @@ static void mndGetVgroupMaxReplica(SMnode *pMnode, char *dbName, int8_t *pReplic
 
   *pReplica = replica;
   *pNumOfVgroups = numOfVgroups;
+  return 0;
 }
 
 static int32_t mndGetVgroupMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
   SMnode *pMnode = pMsg->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
-  mndGetVgroupMaxReplica(pMnode, pShow->db, &pShow->replica, &pShow->numOfRows);
+  if (mndGetVgroupMaxReplica(pMnode, pShow->db, &pShow->replica, &pShow->numOfRows) != 0) {
+    return -1;
+  }
 
   int32_t  cols = 0;
   SSchema *pSchema = pMeta->schema;
