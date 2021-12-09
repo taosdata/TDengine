@@ -1104,7 +1104,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       if (code != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         tscDestroyBoundColumnInfo(&spd);
-        if (TK_STRING == sToken.type) free(sToken.z);
         return code;
       }
 
@@ -1115,17 +1114,17 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
         if(sToken.n > TSDB_MAX_JSON_TAGS_LEN/TSDB_NCHAR_SIZE){
           tdDestroyKVRowBuilder(&kvRowBuilder);
           tscDestroyBoundColumnInfo(&spd);
-          if (TK_STRING == sToken.type) free(sToken.z);
           return tscSQLSyntaxErrMsg(pInsertParam->msg, "json tag too long", NULL);
         }
-        code = parseJsontoTagData(sToken.z, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
+        char* json = strndup(sToken.z, sToken.n);
+        code = parseJsontoTagData(json, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
         if (code != TSDB_CODE_SUCCESS) {
           tdDestroyKVRowBuilder(&kvRowBuilder);
           tscDestroyBoundColumnInfo(&spd);
-          if (TK_STRING == sToken.type) free(sToken.z);
+          tfree(json);
           return code;
         }
-        if (TK_STRING == sToken.type) free(sToken.z);
+        tfree(json);
       }
     }
     tscDestroyBoundColumnInfo(&spd);
