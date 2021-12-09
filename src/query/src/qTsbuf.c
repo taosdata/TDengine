@@ -580,8 +580,11 @@ static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSGroupBlockInfo* pBlockInfo
   return -1;
 }
 
-static void tsBufGetBlock(STSBuf* pTSBuf, int32_t groupIndex, int32_t blockIndex) {
+static bool tsBufGetBlock(STSBuf* pTSBuf, int32_t groupIndex, int32_t blockIndex) {
   STSGroupBlockInfo* pBlockInfo = &pTSBuf->pData[groupIndex].info;
+  if(pBlockInfo->numOfBlocks == 0) {
+    return false;
+  }
   if (pBlockInfo->numOfBlocks <= blockIndex) {
     assert(false);
   }
@@ -595,7 +598,7 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t groupIndex, int32_t blockIndex
     
     while ((++i) <= step) {
       if (readDataFromDisk(pTSBuf, pCur->order, decomp) == NULL) {
-        return;
+        return true;
       }
     }
   } else {
@@ -630,6 +633,7 @@ static void tsBufGetBlock(STSBuf* pTSBuf, int32_t groupIndex, int32_t blockIndex
   pCur->blockIndex = blockIndex;
   
   pCur->tsIndex = (pCur->order == TSDB_ORDER_ASC) ? 0 : pBlock->numOfElem - 1;
+  return true;
 }
 
 static int32_t doUpdateGroupInfo(STSBuf* pTSBuf, int64_t offset, STSGroupBlockInfo* pVInfo) {
@@ -681,11 +685,14 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
   }
   
   STSCursor* pCur = &pTSBuf->cur;
+  bool ret = true;
   
   // get the first/last position according to traverse order
   if (pCur->vgroupIndex == -1) {
     if (pCur->order == TSDB_ORDER_ASC) {
-      tsBufGetBlock(pTSBuf, 0, 0);
+      if(!tsBufGetBlock(pTSBuf, 0, 0)) {
+        return false;
+      }
       
       if (pTSBuf->block.numOfElem == 0) {  // the whole list is empty, return
         tsBufResetPos(pTSBuf);
@@ -704,7 +711,9 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
       STSGroupBlockInfo* pBlockInfo = &pTSBuf->pData[pCur->vgroupIndex].info;
       int32_t            blockIndex = pBlockInfo->numOfBlocks - 1;
       
-      tsBufGetBlock(pTSBuf, groupIndex, blockIndex);
+      if(!tsBufGetBlock(pTSBuf, groupIndex, blockIndex)) {
+        return false;
+      }
       
       pCur->tsIndex = pTSBuf->block.numOfElem - 1;
       if (pTSBuf->block.numOfElem == 0) {
@@ -748,12 +757,12 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
         pBlockInfo = &pTSBuf->pData[nextGroupIdx].info;
         int32_t blockIndex = (pCur->order == TSDB_ORDER_ASC) ? 0 : (pBlockInfo->numOfBlocks - 1);
         // vgroupIndex move next and set value in tsBufGetBlock()
-        tsBufGetBlock(pTSBuf, pCur->vgroupIndex + step, blockIndex);
+        ret = tsBufGetBlock(pTSBuf, pCur->vgroupIndex + step, blockIndex);
         break;
         
       } else {
         // blockIndex move next and set value in tsBufGetBlock()
-        tsBufGetBlock(pTSBuf, pCur->vgroupIndex, pCur->blockIndex + step);
+        ret = tsBufGetBlock(pTSBuf, pCur->vgroupIndex, pCur->blockIndex + step);
         break;
       }
     } else {
@@ -763,7 +772,7 @@ bool tsBufNextPos(STSBuf* pTSBuf) {
     }
   }
   
-  return true;
+  return ret;
 }
 
 void tsBufResetPos(STSBuf* pTSBuf) {
