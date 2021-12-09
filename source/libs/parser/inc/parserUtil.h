@@ -46,7 +46,7 @@ SInternalField* getInternalField(SFieldInfo* pFieldInfo, int32_t index);
 
 int32_t parserValidateIdToken(SToken* pToken);
 int32_t buildInvalidOperationMsg(SMsgBuf* pMsgBuf, const char* msg);
-int32_t buildSyntaxErrMsg(char* dst, int32_t dstBufLen, const char* additionalInfo,  const char* sourceStr);
+int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo,  const char* sourceStr);
 
 STableMetaInfo* addEmptyMetaInfo(SQueryStmtInfo* pQueryInfo);
 
@@ -60,6 +60,8 @@ void cleanupColumnCond(SArray** pCond);
 
 uint32_t convertRelationalOperator(SToken *pToken);
 int32_t    getExprFunctionId(SExprInfo *pExprInfo);
+
+STableMeta* tableMetaDup(const STableMeta* pTableMeta);
 
 #ifdef __cplusplus
 }

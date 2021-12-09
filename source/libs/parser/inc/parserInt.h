@@ -26,14 +26,6 @@ extern "C" {
 
 struct SSqlNode;
 
-typedef struct SInsertStmtInfo {
-  SHashObj *pTableBlockHashList;     // data block for each table
-  SArray   *pDataBlocks;             // SArray<STableDataBlocks*>. Merged submit block for each vgroup
-  int8_t    schemaAttached;          // denote if submit block is built with table schema or not
-  uint8_t   payloadType;             // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
-  uint32_t  insertType;              // insert data from [file|sql statement| bound statement]
-  char     *sql;                     // current sql statement position
-} SInsertStmtInfo;
 
 typedef struct SInternalField {
   TAOS_FIELD      field;

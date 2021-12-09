@@ -284,7 +284,7 @@ static int32_t tKeywordCode(const char* z, int n) {
  * Return the length of the token that begins at z[0].
  * Store the token type in *type before returning.
  */
-uint32_t tGetToken(char* z, uint32_t* tokenId) {
+uint32_t tGetToken(const char* z, uint32_t* tokenId) {
   uint32_t i;
   switch (*z) {
     case ' ':
@@ -595,7 +595,7 @@ SToken tscReplaceStrToken(char **str, SToken *token, const char* newToken) {
   return ntoken;
 }
 
-SToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
+SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
   SToken t0 = {0};
 
   // here we reach the end of sql string, null-terminated string
@@ -689,13 +689,12 @@ void taosCleanupKeywordsTable() {
 }
 
 SToken taosTokenDup(SToken* pToken, char* buf, int32_t len) {
-  assert(pToken != NULL && buf != NULL);
+  assert(pToken != NULL && buf != NULL && len > pToken->n);
+  
+  strncpy(buf, pToken->z, pToken->n);
+  buf[pToken->n] = 0;
+
   SToken token = *pToken;
   token.z = buf;
-
-  assert(len > token.n);
-  strncpy(token.z, pToken->z, pToken->n);
-  token.z[token.n] = 0;
-
   return token;
 }

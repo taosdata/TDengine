@@ -37,7 +37,7 @@ char *taosCharsetReplace(char *charsetstr) {
   return strdup(charsetstr);
 }
 
-int64_t taosStr2int64(char *str) {
+int64_t taosStr2int64(const char *str) {
   char *endptr = NULL;
   return strtoll(str, &endptr, 10);
 }
@@ -107,7 +107,7 @@ int32_t taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs) {
   return len;
 }
 
-bool taosMbsToUcs4(char *mbs, size_t mbsLength, char *ucs4, int32_t ucs4_max_len, int32_t *len) {
+bool taosMbsToUcs4(const char *mbs, size_t mbsLength, char *ucs4, int32_t ucs4_max_len, int32_t *len) {
   memset(ucs4, 0, ucs4_max_len);
   mbstate_t state = {0};
   int32_t retlen = mbsnrtowcs((wchar_t *)ucs4, (const char **)&mbs, mbsLength, ucs4_max_len / 4, &state);

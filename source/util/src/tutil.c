@@ -166,7 +166,7 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
   return split;
 }
 
-char *strnchr(char *haystack, char needle, int32_t len, bool skipquote) {
+char *strnchr(const char *haystack, char needle, int32_t len, bool skipquote) {
   for (int32_t i = 0; i < len; ++i) {
 
     // skip the needle in quote, jump to the end of quoted string
@@ -179,7 +179,7 @@ char *strnchr(char *haystack, char needle, int32_t len, bool skipquote) {
     }
 
     if (haystack[i] == needle) {
-      return &haystack[i];
+      return (char *)&haystack[i];
     }
   }
 

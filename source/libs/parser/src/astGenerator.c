@@ -191,7 +191,7 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
   pExpr->type = SQL_NODE_EXPR;
 
   if (pLeft != NULL && pRight != NULL && (optrType != TK_IN)) {
-    char* endPos   = pRight->exprToken.z + pRight->exprToken.n;
+    const char* endPos   = pRight->exprToken.z + pRight->exprToken.n;
     pExpr->exprToken.z = pLeft->exprToken.z;
     pExpr->exprToken.n = (uint32_t)(endPos - pExpr->exprToken.z);
     pExpr->exprToken.type = pLeft->exprToken.type;

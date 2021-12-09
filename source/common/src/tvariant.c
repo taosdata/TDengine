@@ -75,7 +75,7 @@ int32_t toInteger(const char* z, int32_t n, int32_t base, int64_t* value, bool* 
   return 0;
 }
 
-void taosVariantCreate(SVariant *pVar, char* z, int32_t n, int32_t type) {
+void taosVariantCreate(SVariant *pVar, const char* z, int32_t n, int32_t type) {
   int32_t ret = 0;
   memset(pVar, 0, sizeof(SVariant));
 
