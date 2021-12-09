@@ -597,13 +597,13 @@ static int32_t getSuperTableMetaFromLocalCache(TAOS* taos, char* tableName, STab
 
   size_t size = 0;
   taosHashGetCloneExt(UTIL_GET_TABLEMETA(pSql), fullTableName, strlen(fullTableName), NULL, (void**)&tableMeta, &size);
-  taosReleaseRef(tscObjRef, pSql->self);
 
   STableMeta* stableMeta = tableMeta;
   if (tableMeta != NULL && tableMeta->tableType == TSDB_CHILD_TABLE) {
       taosHashGetCloneExt(UTIL_GET_TABLEMETA(pSql), tableMeta->sTableName, strlen(tableMeta->sTableName), NULL,
                           (void**)stableMeta, &size);
   }
+  taosReleaseRef(tscObjRef, pSql->self);
 
   if (stableMeta != tableMeta) {
     free(tableMeta);
