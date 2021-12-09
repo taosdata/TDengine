@@ -45,7 +45,7 @@ static SKVRow createBasicTag() {
 
   tdInitKVRowBuilder(&rb);
 
-  for (int i = 10; i < 12; i++) {
+  for (int i = 0; i < 2; i++) {
     void *pVal = malloc(sizeof(VarDataLenT) + strlen("foo"));
     varDataLen(pVal) = strlen("foo");
     memcpy(varDataVal(pVal), "foo", strlen("foo"));
