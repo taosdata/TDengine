@@ -132,13 +132,13 @@ class FstReadMemory {
 
 void Performance_fstWriteRecords(FstWriter *b) {
   std::string str("aa"); 
-  for (int i = 0; i < 26; i++) {
+  for (int i = 0; i < 100; i++) {
     str[0] = 'a' + i;
     str.resize(2); 
-    for(int j = 0; j < 26; j++) {
+    for(int j = 0; j < 100; j++) {
       str[1] = 'a' + j;
       str.resize(2);
-      for (int k = 0; k < 10; k++) {
+      for (int k = 0; k < 100; k++) {
         str.push_back('a');
         b->Put(str, k);
       }
@@ -161,16 +161,17 @@ void Performance_fstReadRecords(FstReadMemory *m) {
    }
 }
 
-int main(int argc, char** argv) {
-  // test write
-  //
+void validateFst() {
+  r
+  int val = 100;
+  int count = 100;
   FstWriter *fw = new FstWriter;
   {
     std::string key("ab");
     int64_t val = 100; 
-    for (int i = 0; i < 26; i++) {
+    for (int i = 0; i < count; i++) {
       key.push_back('a' + i);
-      fw->Put(key, val++);
+      fw->Put(key, val + i);
     }
   }
   delete fw;
@@ -188,16 +189,22 @@ int main(int argc, char** argv) {
    } else {
      printf("failed to get(%s)\n", key.c_str());
    }
-   for (int i = 0; i < 26; i++) {
+   for (int i = 0; i < count; i++) {
      key.push_back('a' + i);
-     if (m->Get(key, &out)) {
+     if (m->Get(key, &out) ) {
+       assert(val + i ==  out);
        printf("success to get (%s, %" PRId64")\n", key.c_str(), out);
      } else {
        printf("failed to get(%s)\n", key.c_str());
     }
    }
   } 
-  
+  delete m;
+
+} 
+int main(int argc, char** argv) {
+  // test write
+  validateFst(); 
      
   return 1;
 }
