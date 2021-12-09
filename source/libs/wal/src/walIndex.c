@@ -27,7 +27,7 @@ static int walSeekFilePos(SWal* pWal, int64_t ver) {
   int64_t logTfd = pWal->curLogTfd;
   
   //seek position
-  int64_t offset = (ver - pWal->curFileFirstVersion) * WAL_IDX_ENTRY_SIZE;
+  int64_t offset = (ver - walGetCurFileFirstVer(pWal)) * WAL_IDX_ENTRY_SIZE;
   code = tfLseek(idxTfd, offset, SEEK_SET);
   if(code != 0) {
 
@@ -43,7 +43,7 @@ static int walSeekFilePos(SWal* pWal, int64_t ver) {
   if (code != 0) {
 
   }
-  pWal->curLogOffset = readBuf[1];
+  /*pWal->curLogOffset = readBuf[1];*/
   pWal->curVersion = ver;
   return code;
 }
@@ -60,27 +60,27 @@ static int walChangeFile(SWal *pWal, int64_t ver) {
   if(code != 0) {
    //TODO 
   }
+  WalFileInfo tmpInfo;
+  tmpInfo.firstVer = ver;
   //bsearch in fileSet
-  int64_t* pRet = taosArraySearch(pWal->fileSet, &ver, compareInt64Val, TD_LE);
+  WalFileInfo* pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
   ASSERT(pRet != NULL);
-  int64_t fname = *pRet;
-  if(fname < pWal->lastFileName) {
+  int64_t fileFirstVer = pRet->firstVer;
+  //closed
+  if(taosArrayGetLast(pWal->fileInfoSet) != pRet) {
     pWal->curStatus &= ~WAL_CUR_FILE_WRITABLE;
-    pWal->curFileLastVersion = pRet[1]-1;
-    sprintf(fnameStr, "%"PRId64"."WAL_INDEX_SUFFIX, fname);
+    walBuildIdxName(pWal, fileFirstVer, fnameStr);
     idxTfd = tfOpenRead(fnameStr);
-    sprintf(fnameStr, "%"PRId64"."WAL_LOG_SUFFIX, fname);
+    walBuildLogName(pWal, fileFirstVer, fnameStr);
     logTfd = tfOpenRead(fnameStr);
   } else {
     pWal->curStatus |= WAL_CUR_FILE_WRITABLE;
-    pWal->curFileLastVersion = -1;
-    sprintf(fnameStr, "%"PRId64"."WAL_INDEX_SUFFIX, fname);
+    walBuildIdxName(pWal, fileFirstVer, fnameStr);
     idxTfd = tfOpenReadWrite(fnameStr);
-    sprintf(fnameStr, "%"PRId64"."WAL_LOG_SUFFIX, fname);
+    walBuildLogName(pWal, fileFirstVer, fnameStr);
     logTfd = tfOpenReadWrite(fnameStr);
   }
 
-  pWal->curFileFirstVersion = fname;
   pWal->curLogTfd = logTfd;
   pWal->curIdxTfd = idxTfd;
   return code;
@@ -102,8 +102,7 @@ int walSeekVer(SWal *pWal, int64_t ver) {
   if(ver < pWal->snapshotVersion) {
     //TODO: seek snapshotted log, invalid in some cases
   }
-  if(ver < pWal->curFileFirstVersion ||
-     (pWal->curFileLastVersion != -1 && ver > pWal->curFileLastVersion)) {
+  if(ver < walGetCurFileFirstVer(pWal) || (ver > walGetCurFileLastVer(pWal))) {
     walChangeFile(pWal, ver);
   }
   walSeekFilePos(pWal, ver);

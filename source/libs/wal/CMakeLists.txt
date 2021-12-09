@@ -8,6 +8,11 @@ target_include_directories(
 
 target_link_libraries(
     wal
+    PUBLIC cjson
     PUBLIC os
     PUBLIC util
 )
+
+if(${BUILD_TEST})
+    add_subdirectory(test)
+endif(${BUILD_TEST})
