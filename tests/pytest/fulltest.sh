@@ -425,7 +425,7 @@ python3 ./test.py -f tools/taosdemoTestdatatype.py
 #python3 ./test.py -f insert/schemalessInsert.py
 #python3 ./test.py -f insert/openTsdbTelnetLinesInsert.py
 #python3 ./test.py -f insert/openTsdbJsonInsert.py
-
+python3 ./test.py -f functions/variable_httpDbNameMandatory.py
 #======================p4-end===============
 
 
