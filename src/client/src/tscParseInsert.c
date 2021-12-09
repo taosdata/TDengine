@@ -1095,8 +1095,8 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
       // Remove quotation marks
       if (TK_STRING == sToken.type) {
-        sToken.z = strndup(sToken.z, sToken.n);
-        sToken.n = strRmquote(sToken.z, sToken.n);
+        sToken.z++;
+        sToken.n -= 2;
       }
 
       char tagVal[TSDB_MAX_TAGS_LEN];
