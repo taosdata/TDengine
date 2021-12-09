@@ -297,9 +297,10 @@ void fstStateCompileForAnyTrans(FstCountingWriter *w, CompiledAddr addr, FstBuil
     // any value greater than or equal to the number of transitions in
     // this node indicates an absent transition.
     uint8_t *index = (uint8_t *)malloc(sizeof(uint8_t) * 256); 
-    for (uint8_t i = 0; i < 256; i++) {
-      index[i] = 255;
-    }
+    memset(index, 255, sizeof(uint8_t) * 256);
+    ///for (uint8_t i = 0; i < 256; i++) {
+    //  index[i] = 255;
+    ///}
     for (size_t i = 0; i < sz; i++) {
       FstTransition *t = taosArrayGet(node->trans, i);
       index[t->inp] = i;
@@ -1126,6 +1127,7 @@ FstBoundWithData* fstBoundStateCreate(FstBound type, FstSlice *data) {
   return b; 
 }
 
+
 bool fstBoundWithDataExceededBy(FstBoundWithData *bound, FstSlice *slice) {
   int comp = fstSliceCompare(slice, &bound->data);
   if (bound->type == Included) {
@@ -1378,7 +1380,9 @@ FstStreamBuilder *fstStreamBuilderCreate(Fst *fst, Automation *aut) {
 }
 void fstStreamBuilderDestroy(FstStreamBuilder *b) {
   fstSliceDestroy(&b->min->data);
+  tfree(b->min);  
   fstSliceDestroy(&b->max->data);
+  tfree(b->max);
   free(b);
 }
 FstStreamBuilder *fstStreamBuilderRange(FstStreamBuilder *b, FstSlice *val, RangeType type) {
