@@ -332,12 +332,24 @@ static int metaNtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey
 
 static int metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey) {
   STbCfg *pTbCfg = (STbCfg *)(pValue->app_data);
+  DBT *   pDbt;
 
   if (pTbCfg->type == META_CHILD_TABLE) {
+    pDbt = calloc(2, sizeof(DBT));
+
+    // First key is suid
+    pDbt[0].data = &(pTbCfg->ctbCfg.suid);
+    pDbt[0].size = sizeof(pTbCfg->ctbCfg.suid);
+
+    // Second key is the first tag
+    pDbt[1].data = NULL;
+    pDbt[1].size = 0;
+
     // Set index key
     memset(pSKey, 0, sizeof(*pSKey));
-    pSKey->data = pKey->data;
-    pSKey->size = pKey->size;
+    pSKey->flags = DB_DBT_MULTIPLE | DB_DBT_APPMALLOC;
+    pSKey->data = pDbt;
+    pSKey->size = 2;
 
     return 0;
   } else {
