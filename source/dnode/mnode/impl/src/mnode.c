@@ -22,7 +22,6 @@
 #include "mndDnode.h"
 #include "mndFunc.h"
 #include "mndMnode.h"
-#include "mndOper.h"
 #include "mndProfile.h"
 #include "mndShow.h"
 #include "mndStable.h"
@@ -333,7 +332,7 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   SMnodeMsg *pMsg = taosAllocateQitem(sizeof(SMnodeMsg));
   if (pMsg == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("failed to create msg since %s", terrstr());
+    mError("RPC:%p, app:%p failed to create msg since %s", pRpcMsg->handle, pRpcMsg->ahandle, terrstr());
     return NULL;
   }
 
@@ -341,7 +340,7 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   if (rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
     mndCleanupMsg(pMsg);
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    mError("failed to create msg since %s", terrstr());
+    mError("RPC:%p, app:%p failed to create msg since %s", pRpcMsg->handle, pRpcMsg->ahandle, terrstr());
     return NULL;
   }
   memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
@@ -350,13 +349,13 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   pMsg->rpcMsg = *pRpcMsg;
   pMsg->createdTime = taosGetTimestampSec();
 
-  mTrace("msg:%p, is created", pMsg);
+  mTrace("msg:%p, app:%p is created, RPC:%p", pMsg, pRpcMsg->ahandle, pRpcMsg->handle);
   return pMsg;
 }
 
 void mndCleanupMsg(SMnodeMsg *pMsg) {
+  mTrace("msg:%p, app:%p is destroyed, RPC:%p", pMsg, pMsg->rpcMsg.ahandle, pMsg->rpcMsg.handle);
   taosFreeQitem(pMsg);
-  mTrace("msg:%p, is destroyed", pMsg);
 }
 
 void mndSendRsp(SMnodeMsg *pMsg, int32_t code) {
@@ -371,7 +370,7 @@ static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
   void   *ahandle = pMsg->rpcMsg.ahandle;
   bool    isReq = (msgType % 2 == 1);
 
-  mTrace("msg:%p, app:%p will be processed", pMsg, ahandle);
+  mTrace("msg:%p, app:%p type:%s will be processed", pMsg, ahandle, taosMsg[msgType]);
 
   if (isReq && !mndIsMaster(pMnode)) {
     code = TSDB_CODE_APP_NOT_READY;
@@ -393,7 +392,10 @@ static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
   }
 
   code = (*fp)(pMsg);
-  if (code != 0) {
+  if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mTrace("msg:%p, app:%p in progressing", pMsg, ahandle);
+    return;
+  } else if (code != 0) {
     code = terrno;
     mError("msg:%p, app:%p failed to process since %s", pMsg, ahandle, terrstr());
     goto PROCESS_RPC_END;

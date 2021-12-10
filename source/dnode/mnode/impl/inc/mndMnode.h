@@ -26,6 +26,7 @@ int32_t mndInitMnode(SMnode *pMnode);
 void    mndCleanupMnode(SMnode *pMnode);
 bool    mndIsMnode(SMnode *pMnode, int32_t dnodeId);
 void    mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet);
+char   *mndGetRoleStr(int32_t role);
 
 #ifdef __cplusplus
 }

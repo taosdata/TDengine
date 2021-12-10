@@ -196,7 +196,6 @@ extern SDiskCfg tsDiskCfg[];
 void    taosInitGlobalCfg();
 int32_t taosCheckGlobalCfg();
 int32_t taosCfgDynamicOptions(char *msg);
-int     taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port);
 bool    taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId);
 void    taosAddDataDir(int index, char *v1, int level, int primary);
 void    taosReadDataDirCfg(char *v1, char *v2, char *v3);

@@ -20,6 +20,7 @@
 #include "sdb.h"
 #include "tcache.h"
 #include "tqueue.h"
+#include "ttime.h"
 
 #ifdef __cplusplus
 extern "C" {

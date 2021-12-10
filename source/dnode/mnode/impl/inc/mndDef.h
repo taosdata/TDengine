@@ -47,7 +47,6 @@ typedef struct SAcctObj    SAcctObj;
 typedef struct SUserObj    SUserObj;
 typedef struct SDbObj      SDbObj;
 typedef struct SVgObj      SVgObj;
-typedef struct SSTableObj  SSTableObj;
 typedef struct SFuncObj    SFuncObj;
 typedef struct SOperObj    SOperObj;
 
@@ -195,7 +194,6 @@ typedef struct SUserObj {
 typedef struct {
   int32_t cacheBlockSize;
   int32_t totalBlocks;
-  int32_t maxTables;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -204,102 +202,91 @@ typedef struct {
   int32_t maxRowsPerFileBlock;
   int32_t commitTime;
   int32_t fsyncPeriod;
+  int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
-  int8_t  walLevel;
   int8_t  replications;
   int8_t  quorum;
   int8_t  update;
   int8_t  cacheLastRow;
-  int8_t  dbType;
-  int16_t partitions;
 } SDbCfg;
 
 typedef struct SDbObj {
-  char      name[TSDB_FULL_DB_NAME_LEN];
-  char      acct[TSDB_USER_LEN];
-  int64_t   createdTime;
-  int64_t   updateTime;
-  SDbCfg    cfg;
-  int64_t   uid;
-  int8_t    status;
-  int32_t   numOfVgroups;
-  int32_t   numOfTables;
-  int32_t   numOfSuperTables;
-  int32_t   vgListSize;
-  int32_t   vgListIndex;
-  SVgObj  **vgList;
-  SAcctObj *pAcct;
+  char    name[TSDB_FULL_DB_NAME_LEN];
+  char    acct[TSDB_USER_LEN];
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t uid;
+  SDbCfg  cfg;
 } SDbObj;
 
 typedef struct {
   int32_t    dnodeId;
-  int8_t     role;
-  SDnodeObj *pDnode;
+  ESyncState role;
 } SVnodeGid;
 
 typedef struct SVgObj {
-  uint32_t  vgId;
-  int32_t   numOfVnodes;
+  int32_t   vgId;
   int64_t   createdTime;
   int64_t   updateTime;
-  int32_t   lbDnodeId;
-  int32_t   lbTime;
+  int32_t   version;
   char      dbName[TSDB_FULL_DB_NAME_LEN];
-  int8_t    inUse;
-  int8_t    accessState;
-  int8_t    status;
-  SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
-  int32_t   vgCfgVersion;
-  int8_t    compact;
   int32_t   numOfTables;
+  int32_t   numOfTimeSeries;
   int64_t   totalStorage;
   int64_t   compStorage;
   int64_t   pointsWritten;
-  SDbObj   *pDb;
+  int8_t    compact;
+  int8_t    replica;
+  SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
 
-typedef struct SSTableObj {
-  char     tableId[TSDB_TABLE_NAME_LEN];
-  uint64_t uid;
+typedef struct SStableObj {
+  char     name[TSDB_TABLE_FNAME_LEN];
+  char     db[TSDB_FULL_DB_NAME_LEN];
   int64_t  createdTime;
   int64_t  updateTime;
-  int32_t  numOfColumns;  // used by normal table
+  uint64_t uid;
+  int32_t  version;
+  int32_t  numOfColumns;
   int32_t  numOfTags;
-  SSchema *schema;
-} SSTableObj;
+  SRWLatch lock;
+  SSchema *columnSchema;
+  SSchema *tagSchema;
+} SStableObj;
 
 typedef struct SFuncObj {
   char    name[TSDB_FUNC_NAME_LEN];
-  char    path[128];
-  int32_t contLen;
-  char    cont[TSDB_FUNC_CODE_LEN];
-  int32_t funcType;
-  int32_t bufSize;
   int64_t createdTime;
-  uint8_t resType;
-  int16_t resBytes;
-  int64_t sig;
-  int16_t type;
+  int8_t  funcType;
+  int8_t  scriptType;
+  int8_t  align;
+  int8_t  outputType;
+  int32_t outputLen;
+  int32_t bufSize;
+  int64_t sigature;
+  int32_t commentSize;
+  int32_t codeSize;
+  char   *pComment;
+  char   *pCode;
+  char    pData[];
 } SFuncObj;
 
-typedef struct SShowObj SShowObj;
-typedef struct SShowObj {
-  int8_t     type;
-  int8_t     maxReplica;
-  int16_t    numOfColumns;
-  int32_t    id;
-  int32_t    rowSize;
-  int32_t    numOfRows;
-  int32_t    numOfReads;
-  uint16_t   payloadLen;
-  void      *pIter;
-  void      *pVgIter;
-  SMnode    *pMnode;
-  char       db[TSDB_FULL_DB_NAME_LEN];
-  int16_t    offset[TSDB_MAX_COLUMNS];
-  int32_t    bytes[TSDB_MAX_COLUMNS];
-  char       payload[];
+typedef struct {
+  int32_t id;
+  int8_t  type;
+  int8_t  replica;
+  int16_t numOfColumns;
+  int32_t rowSize;
+  int32_t numOfRows;
+  int32_t numOfReads;
+  int32_t payloadLen;
+  void   *pIter;
+  SMnode *pMnode;
+  char    db[TSDB_FULL_DB_NAME_LEN];
+  int16_t offset[TSDB_MAX_COLUMNS];
+  int32_t bytes[TSDB_MAX_COLUMNS];
+  char    payload[];
 } SShowObj;
 
 typedef struct SMnodeMsg {
@@ -317,6 +304,11 @@ typedef struct SMnodeMsg {
   int32_t contLen;
   void   *pCont;
 } SMnodeMsg;
+
+typedef struct {
+  int32_t id;
+  void   *rpcHandle;
+} STransMsg;
 
 #ifdef __cplusplus
 }

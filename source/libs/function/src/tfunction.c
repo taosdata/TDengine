@@ -343,7 +343,7 @@ bool isProjectionQueryOnSTable(SArray* pFunctionIdList, int32_t tableIndex) {
 //
 //    if (functionId < 0) {
 //      SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * functionId - 1);
-//      if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
+//      if (pUdfInfo->funcType == TSDB_FUNC_TYPE_AGGREGATE) {
 //        return false;
 //      }
 //

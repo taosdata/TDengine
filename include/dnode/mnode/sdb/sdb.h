@@ -65,6 +65,16 @@ extern "C" {
     dataPos += valLen;                                      \
   }
 
+#define SDB_GET_RESERVE(pRaw, pRow, dataPos, valLen)        \
+  {                                                         \
+    char val[valLen] = {0};                                 \
+    if (sdbGetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
+      sdbFreeRow(pRow);                                     \
+      return NULL;                                          \
+    }                                                       \
+    dataPos += valLen;                                      \
+  }
+
 #define SDB_SET_INT64(pRaw, dataPos, val)          \
   {                                                \
     if (sdbSetRawInt64(pRaw, dataPos, val) != 0) { \
@@ -103,6 +113,16 @@ extern "C" {
 
 #define SDB_SET_BINARY(pRaw, dataPos, val, valLen)          \
   {                                                         \
+    if (sdbSetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
+      sdbFreeRaw(pRaw);                                     \
+      return NULL;                                          \
+    }                                                       \
+    dataPos += valLen;                                      \
+  }
+
+#define SDB_SET_RESERVE(pRaw, dataPos, valLen)              \
+  {                                                         \
+    char val[valLen] = {0};                                 \
     if (sdbSetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
       sdbFreeRaw(pRaw);                                     \
       return NULL;                                          \
@@ -258,13 +278,22 @@ int32_t sdbDeploy(SSdb *pSdb);
 int32_t sdbReadFile(SSdb *pSdb);
 
 /**
- * @brief Parse and write raw data to sdb.
+ * @brief Parse and write raw data to sdb, then free the pRaw object
  *
  * @param pSdb The sdb object.
  * @param pRaw The raw data.
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw);
+
+/**
+ * @brief Parse and write raw data to sdb.
+ *
+ * @param pSdb The sdb object.
+ * @param pRaw The raw data.
+ * @return int32_t 0 for success, -1 for failure.
+ */
+int32_t sdbWriteNotFree(SSdb *pSdb, SSdbRaw *pRaw);
 
 /**
  * @brief Acquire a row from sdb
