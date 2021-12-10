@@ -444,12 +444,12 @@ int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t *convertIndex, int32_t rowSize,
+int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t *convertOffset, int32_t rowSize,
                   char *tmpTokenBuf, SInsertStatementParam *pInsertParam) {
   int32_t   index = 0;
   SStrToken sToken = {0};
 
-  char *row = pDataBlocks->pData + (pDataBlocks->size - (*convertIndex) * rowSize);  // skip the SSubmitBlk header
+  char *row = pDataBlocks->pData + (pDataBlocks->size - (*convertOffset) * rowSize);  // skip the SSubmitBlk header
 
   SParsedDataColInfo *spd = &pDataBlocks->boundColumnInfo;
   STableMeta *        pTableMeta = pDataBlocks->pTableMeta;
@@ -568,11 +568,11 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     // 4. perform the convert
     if (isNeedConvertRow) {
       // put converted row to next location to minimize the memcpy
-      ++(*convertIndex);
-      convertSMemRow(row + (*convertIndex) * rowSize, row, pDataBlocks);
+      ++(*convertOffset);
+      convertSMemRow(row + (*convertOffset) * rowSize, row, pDataBlocks);
       pDataBlocks->ordered = false;
     } else {
-      *convertIndex = 0;
+      *convertOffset = 0;
     }
   }
 
@@ -632,7 +632,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
                                 pDataBlock->boundColumnInfo.allNullLen))) {
     return code;
   }
-  int32_t convertIndex = 0;
+  int32_t convertOffset = 0;
   while (1) {
     index = 0;
     sToken = tStrGetToken(*str, &index, false);
@@ -652,7 +652,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
       maxRows = tSize;
     }
 
-    code = tsParseOneRow(str, pDataBlock, precision, &convertIndex, extendedRowSize, tmpTokenBuf, pInsertParam);
+    code = tsParseOneRow(str, pDataBlock, precision, &convertOffset, extendedRowSize, tmpTokenBuf, pInsertParam);
     if (code != TSDB_CODE_SUCCESS) {  // error message has been set in tsParseOneRow, return directly
       return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
@@ -669,9 +669,9 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
 
     (*numOfRows)++;
   }
-  if (convertIndex) {
+  if (convertOffset) {
     char *convertedSMemRow = pDataBlock->pData + pDataBlock->size;
-    memcpy(convertedSMemRow - convertIndex * extendedRowSize, convertedSMemRow, (size_t)memRowTLen(convertedSMemRow));
+    memcpy(convertedSMemRow - convertOffset * extendedRowSize, convertedSMemRow, (size_t)memRowTLen(convertedSMemRow));
   }
 
   if ((*numOfRows) <= 0) {
@@ -1780,7 +1780,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   --maxRows;  // 1 more row needed to facilitate the SDataRow/SKVRow convert
   ASSERT(maxRows > 0);
 
-  int32_t convertIndex = 0;
+  int32_t convertOffset = 0;
   while ((readLen = tgetline(&line, &n, fp)) != -1) {
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
       line[--readLen] = 0;
@@ -1793,7 +1793,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
     char *lineptr = line;
     strtolower(line, line);
 
-    code = tsParseOneRow(&lineptr, pTableDataBlock, tinfo.precision, &convertIndex, extendedRowSize, tokenBuf,
+    code = tsParseOneRow(&lineptr, pTableDataBlock, tinfo.precision, &convertOffset, extendedRowSize, tokenBuf,
                          pInsertParam);
     if (code != TSDB_CODE_SUCCESS || pTableDataBlock->numOfParams > 0) {
       pSql->res.code = code;
@@ -1806,9 +1806,9 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
       break;
     }
   }
-  if (convertIndex) {
+  if (convertOffset) {
     char *convertedSMemRow = pTableDataBlock->pData + pTableDataBlock->size;
-    memcpy(convertedSMemRow - convertIndex * extendedRowSize, convertedSMemRow, (size_t)memRowTLen(convertedSMemRow));
+    memcpy(convertedSMemRow - convertOffset * extendedRowSize, convertedSMemRow, (size_t)memRowTLen(convertedSMemRow));
   }
 
   tfree(tokenBuf);
