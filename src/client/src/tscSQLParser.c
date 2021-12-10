@@ -4574,7 +4574,7 @@ static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
     if (pExpr->dataType.type < 0 || pExpr->dataType.bytes <= 0) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
-    *type = SQLEXPR_TYPE_SCALAR;    
+    *type = SQLEXPR_TYPE_VALUE;
   } else {
     if ((pExpr->tokenId == TK_FLOAT && (isnan(pExpr->value.dKey) || isinf(pExpr->value.dKey))) ||
         pExpr->tokenId == TK_NULL) {
