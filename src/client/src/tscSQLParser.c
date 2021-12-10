@@ -3437,7 +3437,9 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  strncpy(pCmd->payload, idStr->z, idStr->n);
+  SKillQueryMsg* msg = (SKillQueryMsg*)pCmd->payload;
+
+  strncpy(msg->queryId, idStr->z, idStr->n);
 
   const char delim = ':';
   char* connIdStr = strtok(idStr->z, &delim);
@@ -3445,7 +3447,7 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType) {
 
   int32_t connId = (int32_t)strtol(connIdStr, NULL, 10);
   if (connId <= 0) {
-    memset(pCmd->payload, 0, strlen(pCmd->payload));
+    memset(msg, 0, sizeof(*msg));
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
@@ -3455,7 +3457,7 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType) {
 
   int32_t queryId = (int32_t)strtol(queryIdStr, NULL, 10);
   if (queryId <= 0) {
-    memset(pCmd->payload, 0, strlen(pCmd->payload));
+    memset(msg, 0, sizeof(*msg));
     if (killType == TSDB_SQL_KILL_QUERY) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     } else {
