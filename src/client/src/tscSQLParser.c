@@ -9821,7 +9821,7 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
     assert(pSqlExpr->pRight == NULL);
 
     if (pSqlExpr->type == SQL_NODE_VALUE) {
-      if(!isValidDataType(pSqlExpr->value.nType)){
+      if(pSqlExpr->value.nType == -1){
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
       int32_t ret = TSDB_CODE_SUCCESS;
