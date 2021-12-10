@@ -607,10 +607,9 @@ static void doMergeResultImpl(SMultiwayMergeInfo* pInfo, SQLFunctionCtx *pCtx, i
     if (functionId < 0) {
       SUdfInfo* pUdfInfo = taosArrayGet(pInfo->udfInfo, -1 * functionId - 1);
       doInvokeUdf(pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_MERGE);
-    } else if (!TSDB_FUNC_IS_SCALAR(functionId)){
-      aAggs[functionId].mergeFunc(&pCtx[j]);
     } else {
-      assert(0);
+      assert(!TSDB_FUNC_IS_SCALAR(functionId));
+      aAggs[functionId].mergeFunc(&pCtx[j]);
     }
   }
 }
@@ -625,10 +624,9 @@ static void doFinalizeResultImpl(SMultiwayMergeInfo* pInfo, SQLFunctionCtx *pCtx
     if (functionId < 0) {
       SUdfInfo* pUdfInfo = taosArrayGet(pInfo->udfInfo, -1 * functionId - 1);
       doInvokeUdf(pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
-    } else if (!TSDB_FUNC_IS_SCALAR(functionId)){
-      aAggs[functionId].xFinalize(&pCtx[j]);
     } else {
-      assert(0);
+      assert(!TSDB_FUNC_IS_SCALAR(functionId));
+      aAggs[functionId].xFinalize(&pCtx[j]);
     }
   }
 }
@@ -667,9 +665,8 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
           if (pCtx[j].functionId < 0) {
             continue;
           }
-          if (TSDB_FUNC_IS_SCALAR(pCtx[j].functionId)) {
-            assert(0);
-          } else {
+          {
+            assert(!TSDB_FUNC_IS_SCALAR(pCtx[j].functionId));
             aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
           }
         }
@@ -713,7 +710,7 @@ SGlobalMerger* tscInitResObjForLocalQuery(int32_t numOfRes, int32_t rowLen, uint
 }
 
 // todo remove it
-int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize) {
+int32_t doScalarExprCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize) {
   int32_t maxRowSize = MAX(rowSize, finalRowSize);
   char* pbuf = calloc(1, (size_t)(pOutput->num * maxRowSize));
 
@@ -914,10 +911,9 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
             clearOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity);
             continue;
           }
-          if (!TSDB_FUNC_IS_SCALAR(pCtx->functionId)) {
+          {
+            assert(!TSDB_FUNC_IS_SCALAR(pCtx->functionId));
             aAggs[pCtx->functionId].init(pCtx, pCtx->resultInfo);
-          } else {
-            assert(0);
           }
         }
       }

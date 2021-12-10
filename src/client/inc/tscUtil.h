@@ -364,7 +364,7 @@ bool subAndCheckDone(SSqlObj *pSql, SSqlObj *pParentSql, int idx);
 
 bool tscSetSqlOwner(SSqlObj* pSql);
 void tscClearSqlOwner(SSqlObj* pSql);
-int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize);
+int32_t doScalarExprCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize);
 
 char*   serializeTagData(STagData* pTagData, char* pMsg);
 int32_t copyTagData(STagData* dst, const STagData* src);

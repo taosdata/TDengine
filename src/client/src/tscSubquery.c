@@ -3600,7 +3600,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
     finalRowSize += pField->bytes;
   }
 
-  doArithmeticCalculate(pQueryInfo, pFilePage, rowSize, finalRowSize);
+  doScalarExprCalculate(pQueryInfo, pFilePage, rowSize, finalRowSize);
 
   pRes->data = pFilePage->data;
   tscSetResRawPtr(pRes, pQueryInfo, pRes->dataConverted);
