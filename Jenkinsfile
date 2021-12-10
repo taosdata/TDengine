@@ -468,9 +468,15 @@ pipeline {
               '''
               catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
-                  cd ${WKC}/tests/examples/C#/taosdemo
-                  mcs -out:taosdemo *.cs > /dev/null 2>&1
-                  echo '' |./taosdemo -c /etc/taos
+                  cd ${WKC}/src/connector/C#
+                  dotnet test
+                  dotnet run --project src/test/Cases/Cases.csproj
+                  
+                  cd ${WKC}/tests/examples/C#
+                  dotnet run --project C#checker/C#checker.csproj
+                  dotnet run --project TDengineTest/TDengineTest.csproj
+                  dotnet run --project taosdemo/taosdemo.csproj 
+                  dotnet run --project schemaless/schemaless.csproj 
                 '''
               } 
               sh '''
