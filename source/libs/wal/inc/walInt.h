@@ -23,9 +23,73 @@
 extern "C" {
 #endif
 
-int walGetFile(SWal* pWal, int32_t version);
+//meta section begin
+typedef struct WalFileInfo {
+  int64_t firstVer;
+  int64_t lastVer;
+  int64_t createTs;
+  int64_t closeTs;
+  int64_t fileSize;
+} WalFileInfo;
+
+static inline int32_t compareWalFileInfo(const void* pLeft, const void* pRight) {
+  WalFileInfo* pInfoLeft = (WalFileInfo*)pLeft;
+  WalFileInfo* pInfoRight = (WalFileInfo*)pRight;
+  return compareInt64Val(&pInfoLeft->firstVer, &pInfoRight->firstVer);
+}
+
+static inline int64_t walGetLastFileSize(SWal* pWal) {
+  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
+  return pInfo->fileSize;
+}
+
+static inline int64_t walGetLastFileFirstVer(SWal* pWal) {
+  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
+  return pInfo->firstVer;
+}
+
+static inline int64_t walGetCurFileFirstVer(SWal* pWal) {
+  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
+  return pInfo->firstVer;
+}
+
+static inline int64_t walGetCurFileLastVer(SWal* pWal) {
+  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
+  return pInfo->firstVer;
+}
+
+static inline int64_t walGetCurFileOffset(SWal* pWal) {
+  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
+  return pInfo->fileSize;
+}
+
+static inline bool walCurFileClosed(SWal* pWal) {
+  return taosArrayGetSize(pWal->fileInfoSet) != pWal->writeCur;
+}
+
+static inline WalFileInfo* walGetCurFileInfo(SWal* pWal) {
+  return (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
+}
+
+static inline int walBuildLogName(SWal*pWal, int64_t fileFirstVer, char* buf) {
+  return sprintf(buf, "%s/%" PRId64 "." WAL_LOG_SUFFIX, pWal->path, fileFirstVer);
+}
+
+static inline int walBuildIdxName(SWal*pWal, int64_t fileFirstVer, char* buf) {
+  return sprintf(buf, "%s/%" PRId64 "." WAL_INDEX_SUFFIX, pWal->path, fileFirstVer);
+}
+
+int walReadMeta(SWal* pWal);
+int walWriteMeta(SWal* pWal);
+int walRollFileInfo(SWal* pWal);
+
+char* walMetaSerialize(SWal* pWal);
+int walMetaDeserialize(SWal* pWal, const char* bytes);
+//meta section end
 
 int64_t walGetSeq();
+int walSeekVer(SWal *pWal, int64_t ver);
+int walRoll(SWal *pWal);
 
 #ifdef __cplusplus
 }

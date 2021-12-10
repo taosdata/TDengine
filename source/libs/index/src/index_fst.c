@@ -297,15 +297,16 @@ void fstStateCompileForAnyTrans(FstCountingWriter *w, CompiledAddr addr, FstBuil
     // any value greater than or equal to the number of transitions in
     // this node indicates an absent transition.
     uint8_t *index = (uint8_t *)malloc(sizeof(uint8_t) * 256); 
-    for (uint8_t i = 0; i < 256; i++) {
-      index[i] = 255;
-    }
+    memset(index, 255, sizeof(uint8_t) * 256);
+    ///for (uint8_t i = 0; i < 256; i++) {
+    //  index[i] = 255;
+    ///}
     for (size_t i = 0; i < sz; i++) {
       FstTransition *t = taosArrayGet(node->trans, i);
       index[t->inp] = i;
-      fstCountingWriterWrite(w, (char *)index, sizeof(index)); 
       //fstPackDeltaIn(w, addr, t->addr, tSize);
     }
+    fstCountingWriterWrite(w, (char *)index, 256); 
     free(index);
   }
   fstCountingWriterWrite(w, (char *)&packSizes, 1);
@@ -478,6 +479,7 @@ Output fstStateOutputForAnyTrans(FstState *s, FstNode *node, uint64_t i) {
     return 0;    
   }  
   FstSlice *slice = &node->data;
+  uint8_t *data = fstSliceData(slice, NULL);              
   uint64_t at = node->start
                 - fstStateNtransLen(s)
                 - 1 // pack size
@@ -485,7 +487,6 @@ Output fstStateOutputForAnyTrans(FstState *s, FstNode *node, uint64_t i) {
                 - (i * oSizes)
                 - oSizes;
 
-  uint8_t *data = fstSliceData(slice, NULL);              
   return unpackUint64(data + at, oSizes);
 }
 
@@ -555,6 +556,7 @@ Output  fstStateFinalOutput(FstState *s, uint64_t version, FstSlice *slice, Pack
    uint64_t at = FST_SLICE_LEN(slice) 
                  - 1 
                  - fstStateNtransLen(s)
+                 - 1 // pack size
                  - fstStateTotalTransSize(s, version, sizes, nTrans)
                  - (nTrans * oSizes)
                  - oSizes;
@@ -587,7 +589,8 @@ uint64_t fstStateFindInput(FstState *s, FstNode *node, uint8_t b, bool *null) {
     FstSlice t = fstSliceCopy(slice, start, end - 1);
     int32_t len = 0; 
     uint8_t *data = fstSliceData(&t, &len);
-    for(int i = 0; i < len; i++) {
+    int i = 0;
+    for(; i < len; i++) {
       //uint8_t v = slice->data[slice->start + i];
       ////slice->data[slice->start + i];
       uint8_t v = data[i]; 
@@ -595,6 +598,7 @@ uint64_t fstStateFindInput(FstState *s, FstNode *node, uint8_t b, bool *null) {
         return node->nTrans - i - 1; // bug  
       }
     } 
+    if (i == len) { *null = true; }
   } 
 }
 
@@ -774,7 +778,7 @@ FstBuilder *fstBuilderCreate(void *w, FstType ty) {
   if (NULL == b) { return b; }
 
    
-  b->wrt = fstCountingWriterCreate(w, false);
+  b->wrt        = fstCountingWriterCreate(w, false);
   b->unfinished = fstUnFinishedNodesCreate();   
   b->registry   = fstRegistryCreate(10000, 2) ;
   b->last       = fstSliceCreate(NULL, 0);
@@ -857,6 +861,7 @@ OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup) {
       return OutOfOrdered;
     }
     // deep copy or not
+    fstSliceDestroy(&b->last);
     b->last = fstSliceCopy(&bs, input->start, input->end); 
   }       
   return Ordered;
@@ -1007,8 +1012,7 @@ Fst* fstCreate(FstSlice *slice) {
   uint64_t fstLen; 
   len -= sizeof(fstLen); 
   taosDecodeFixedU64(buf + len, &fstLen);
-  //TODO(validat root addr)
-  // 
+  //TODO(validate root addr)
   Fst *fst= (Fst *)calloc(1, sizeof(Fst)); 
   if (fst == NULL) { return NULL; }  
   
@@ -1023,6 +1027,7 @@ Fst* fstCreate(FstSlice *slice) {
   fst->meta->len      = fstLen;
   fst->meta->checkSum = checkSum;
   fst->data = slice; 
+  
   return fst;
 
 FST_CREAT_FAILED: 
@@ -1121,6 +1126,7 @@ FstBoundWithData* fstBoundStateCreate(FstBound type, FstSlice *data) {
 
   return b; 
 }
+
 
 bool fstBoundWithDataExceededBy(FstBoundWithData *bound, FstSlice *slice) {
   int comp = fstSliceCompare(slice, &bound->data);
@@ -1374,7 +1380,9 @@ FstStreamBuilder *fstStreamBuilderCreate(Fst *fst, Automation *aut) {
 }
 void fstStreamBuilderDestroy(FstStreamBuilder *b) {
   fstSliceDestroy(&b->min->data);
+  tfree(b->min);  
   fstSliceDestroy(&b->max->data);
+  tfree(b->max);
   free(b);
 }
 FstStreamBuilder *fstStreamBuilderRange(FstStreamBuilder *b, FstSlice *val, RangeType type) {

@@ -23,27 +23,27 @@
 static int walSeekFilePos(SWal* pWal, int64_t ver) {
   int code = 0;
 
-  int64_t idxTfd = pWal->curIdxTfd;
-  int64_t logTfd = pWal->curLogTfd;
+  int64_t idxTfd = pWal->writeIdxTfd;
+  int64_t logTfd = pWal->writeLogTfd;
   
   //seek position
-  int64_t offset = (ver - pWal->curFileFirstVersion) * WAL_IDX_ENTRY_SIZE;
+  int64_t offset = (ver - walGetCurFileFirstVer(pWal)) * WAL_IDX_ENTRY_SIZE;
   code = tfLseek(idxTfd, offset, SEEK_SET);
   if(code != 0) {
-
+    return -1;
   }
   int64_t readBuf[2];
   code = tfRead(idxTfd, readBuf, sizeof(readBuf));
   if(code != 0) {
-
+    return -1;
   }
   //TODO:deserialize
   ASSERT(readBuf[0] == ver);
   code = tfLseek(logTfd, readBuf[1], SEEK_CUR);
   if (code != 0) {
-
+    return -1;
   }
-  pWal->curLogOffset = readBuf[1];
+  /*pWal->curLogOffset = readBuf[1];*/
   pWal->curVersion = ver;
   return code;
 }
@@ -52,43 +52,43 @@ static int walChangeFile(SWal *pWal, int64_t ver) {
   int code = 0;
   int64_t idxTfd, logTfd;
   char fnameStr[WAL_FILE_LEN];
-  code = tfClose(pWal->curLogTfd);
+  code = tfClose(pWal->writeLogTfd);
   if(code != 0) {
    //TODO 
   }
-  code = tfClose(pWal->curIdxTfd);
+  code = tfClose(pWal->writeIdxTfd);
   if(code != 0) {
    //TODO 
   }
+  WalFileInfo tmpInfo;
+  tmpInfo.firstVer = ver;
   //bsearch in fileSet
-  int64_t* pRet = taosArraySearch(pWal->fileSet, &ver, compareInt64Val, TD_LE);
+  WalFileInfo* pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
   ASSERT(pRet != NULL);
-  int64_t fname = *pRet;
-  if(fname < pWal->lastFileName) {
+  int64_t fileFirstVer = pRet->firstVer;
+  //closed
+  if(taosArrayGetLast(pWal->fileInfoSet) != pRet) {
     pWal->curStatus &= ~WAL_CUR_FILE_WRITABLE;
-    pWal->curFileLastVersion = pRet[1]-1;
-    sprintf(fnameStr, "%"PRId64"."WAL_INDEX_SUFFIX, fname);
+    walBuildIdxName(pWal, fileFirstVer, fnameStr);
     idxTfd = tfOpenRead(fnameStr);
-    sprintf(fnameStr, "%"PRId64"."WAL_LOG_SUFFIX, fname);
+    walBuildLogName(pWal, fileFirstVer, fnameStr);
     logTfd = tfOpenRead(fnameStr);
   } else {
     pWal->curStatus |= WAL_CUR_FILE_WRITABLE;
-    pWal->curFileLastVersion = -1;
-    sprintf(fnameStr, "%"PRId64"."WAL_INDEX_SUFFIX, fname);
+    walBuildIdxName(pWal, fileFirstVer, fnameStr);
     idxTfd = tfOpenReadWrite(fnameStr);
-    sprintf(fnameStr, "%"PRId64"."WAL_LOG_SUFFIX, fname);
+    walBuildLogName(pWal, fileFirstVer, fnameStr);
     logTfd = tfOpenReadWrite(fnameStr);
   }
 
-  pWal->curFileFirstVersion = fname;
-  pWal->curLogTfd = logTfd;
-  pWal->curIdxTfd = idxTfd;
+  pWal->writeLogTfd = logTfd;
+  pWal->writeIdxTfd = idxTfd;
   return code;
 }
 
 int walSeekVer(SWal *pWal, int64_t ver) {
-  if((!(pWal->curStatus & WAL_CUR_FAILED))
-      && ver == pWal->curVersion) {
+  int code;
+  if((!(pWal->curStatus & WAL_CUR_FAILED)) && ver == pWal->curVersion) {
     return 0;
   }
   if(ver > pWal->lastVersion) {
@@ -102,11 +102,16 @@ int walSeekVer(SWal *pWal, int64_t ver) {
   if(ver < pWal->snapshotVersion) {
     //TODO: seek snapshotted log, invalid in some cases
   }
-  if(ver < pWal->curFileFirstVersion ||
-     (pWal->curFileLastVersion != -1 && ver > pWal->curFileLastVersion)) {
-    walChangeFile(pWal, ver);
+  if(ver < walGetCurFileFirstVer(pWal) || (ver > walGetCurFileLastVer(pWal))) {
+    code = walChangeFile(pWal, ver);
+    if(code != 0) {
+      return -1;
+    }
   }
-  walSeekFilePos(pWal, ver);
-  
+  code = walSeekFilePos(pWal, ver);
+  if(code != 0) {
+    return -1;
+  }
+   
   return 0;
 }

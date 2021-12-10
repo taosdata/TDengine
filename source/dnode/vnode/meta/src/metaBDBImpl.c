@@ -20,6 +20,11 @@
 #include "tcoding.h"
 #include "thash.h"
 
+typedef struct {
+  tb_uid_t uid;
+  int32_t  sver;
+} SSchemaKey;
+
 struct SMetaDB {
   // DB
   DB *pTbDB;
@@ -39,13 +44,17 @@ static SMetaDB *metaNewDB();
 static void     metaFreeDB(SMetaDB *pDB);
 static int      metaOpenBDBEnv(DB_ENV **ppEnv, const char *path);
 static void     metaCloseBDBEnv(DB_ENV *pEnv);
-static int      metaOpenBDBDb(DB **ppDB, DB_ENV *pEnv, const char *pFName);
+static int      metaOpenBDBDb(DB **ppDB, DB_ENV *pEnv, const char *pFName, bool isDup);
 static void     metaCloseBDBDb(DB *pDB);
-static int      metaOpenBDBIdx(DB **ppIdx, DB_ENV *pEnv, const char *pFName, DB *pDB, bdbIdxCbPtr cbf);
+static int      metaOpenBDBIdx(DB **ppIdx, DB_ENV *pEnv, const char *pFName, DB *pDB, bdbIdxCbPtr cbf, bool isDup);
+static void     metaCloseBDBIdx(DB *pIdx);
 static int      metaNameIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
 static int      metaStbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
 static int      metaNtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
 static int      metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
+static int      metaEncodeTbInfo(void **buf, STbCfg *pTbCfg);
+static void *   metaDecodeTbInfo(void *buf, STbCfg *pTbCfg);
+static void     metaClearTbCfg(STbCfg *pTbCfg);
 
 #define BDB_PERR(info, code) fprintf(stderr, info " reason: %s", db_strerror(code))
 
@@ -67,33 +76,33 @@ int metaOpenDB(SMeta *pMeta) {
   }
 
   // Open DBs
-  if (metaOpenBDBDb(&(pDB->pTbDB), pDB->pEvn, "meta.db") < 0) {
+  if (metaOpenBDBDb(&(pDB->pTbDB), pDB->pEvn, "meta.db", false) < 0) {
     metaCloseDB(pMeta);
     return -1;
   }
 
-  if (metaOpenBDBDb(&(pDB->pSchemaDB), pDB->pEvn, "meta.db") < 0) {
+  if (metaOpenBDBDb(&(pDB->pSchemaDB), pDB->pEvn, "meta.db", false) < 0) {
     metaCloseDB(pMeta);
     return -1;
   }
 
   // Open Indices
-  if (metaOpenBDBIdx(&(pDB->pNameIdx), pDB->pEvn, "index.db", pDB->pTbDB, &metaNameIdxCb) < 0) {
+  if (metaOpenBDBIdx(&(pDB->pNameIdx), pDB->pEvn, "name.index", pDB->pTbDB, &metaNameIdxCb, false) < 0) {
     metaCloseDB(pMeta);
     return -1;
   }
 
-  if (metaOpenBDBIdx(&(pDB->pStbIdx), pDB->pEvn, "index.db", pDB->pTbDB, &metaStbIdxCb) < 0) {
+  if (metaOpenBDBIdx(&(pDB->pStbIdx), pDB->pEvn, "stb.index", pDB->pTbDB, &metaStbIdxCb, false) < 0) {
     metaCloseDB(pMeta);
     return -1;
   }
 
-  if (metaOpenBDBIdx(&(pDB->pNtbIdx), pDB->pEvn, "index.db", pDB->pTbDB, &metaNtbIdxCb) < 0) {
+  if (metaOpenBDBIdx(&(pDB->pNtbIdx), pDB->pEvn, "ntb.index", pDB->pTbDB, &metaNtbIdxCb, false) < 0) {
     metaCloseDB(pMeta);
     return -1;
   }
 
-  if (metaOpenBDBIdx(&(pDB->pCtbIdx), pDB->pEvn, "index.db", pDB->pTbDB, &metaCtbIdxCb) < 0) {
+  if (metaOpenBDBIdx(&(pDB->pCtbIdx), pDB->pEvn, "ctb.index", pDB->pTbDB, &metaCtbIdxCb, true) < 0) {
     metaCloseDB(pMeta);
     return -1;
   }
@@ -103,6 +112,12 @@ int metaOpenDB(SMeta *pMeta) {
 
 void metaCloseDB(SMeta *pMeta) {
   if (pMeta->pDB) {
+    metaCloseBDBIdx(pMeta->pDB->pCtbIdx);
+    metaCloseBDBIdx(pMeta->pDB->pNtbIdx);
+    metaCloseBDBIdx(pMeta->pDB->pStbIdx);
+    metaCloseBDBIdx(pMeta->pDB->pNameIdx);
+    metaCloseBDBDb(pMeta->pDB->pSchemaDB);
+    metaCloseBDBDb(pMeta->pDB->pTbDB);
     metaCloseBDBEnv(pMeta->pDB->pEvn);
     metaFreeDB(pMeta->pDB);
     pMeta->pDB = NULL;
@@ -110,7 +125,60 @@ void metaCloseDB(SMeta *pMeta) {
 }
 
 int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
-  // TODO
+  tb_uid_t  uid;
+  char      buf[512];
+  void *    pBuf;
+  DBT       key, value;
+  STSchema *pSchema = NULL;
+
+  if (pTbCfg->type == META_SUPER_TABLE) {
+    uid = pTbCfg->stbCfg.suid;
+  } else {
+    uid = metaGenerateUid(pMeta);
+  }
+
+  {
+    // save table info
+    pBuf = buf;
+    memset(&key, 0, sizeof(key));
+    memset(&value, 0, sizeof(key));
+
+    key.data = &uid;
+    key.size = sizeof(uid);
+
+    metaEncodeTbInfo(&pBuf, pTbCfg);
+
+    value.data = buf;
+    value.size = POINTER_DISTANCE(pBuf, buf);
+    value.app_data = pTbCfg;
+
+    pMeta->pDB->pTbDB->put(pMeta->pDB->pTbDB, NULL, &key, &value, 0);
+  }
+
+  // save schema
+  if (pTbCfg->type == META_SUPER_TABLE) {
+    pSchema = pTbCfg->stbCfg.pSchema;
+  } else if (pTbCfg->type == META_NORMAL_TABLE) {
+    pSchema = pTbCfg->ntbCfg.pSchema;
+  }
+
+  if (pSchema) {
+    pBuf = buf;
+    memset(&key, 0, sizeof(key));
+    memset(&value, 0, sizeof(key));
+    SSchemaKey schemaKey = {uid, schemaVersion(pSchema)};
+
+    key.data = &schemaKey;
+    key.size = sizeof(schemaKey);
+
+    tdEncodeSchema(&pBuf, pSchema);
+
+    value.data = buf;
+    value.size = POINTER_DISTANCE(pBuf, buf);
+
+    pMeta->pDB->pSchemaDB->put(pMeta->pDB->pSchemaDB, NULL, &key, &value, 0);
+  }
+
   return 0;
 }
 
@@ -165,14 +233,22 @@ static void metaCloseBDBEnv(DB_ENV *pEnv) {
   }
 }
 
-static int metaOpenBDBDb(DB **ppDB, DB_ENV *pEnv, const char *pFName) {
+static int metaOpenBDBDb(DB **ppDB, DB_ENV *pEnv, const char *pFName, bool isDup) {
   int ret;
   DB *pDB;
 
-  ret = db_create(&((pDB)), (pEnv), 0);
+  ret = db_create(&(pDB), pEnv, 0);
   if (ret != 0) {
     BDB_PERR("Failed to create META DB", ret);
     return -1;
+  }
+
+  if (isDup) {
+    ret = pDB->set_flags(pDB, DB_DUPSORT);
+    if (ret != 0) {
+      BDB_PERR("Failed to set DB flags", ret);
+      return -1;
+    }
   }
 
   ret = pDB->open(pDB, NULL, pFName, NULL, DB_BTREE, DB_CREATE, 0);
@@ -192,11 +268,11 @@ static void metaCloseBDBDb(DB *pDB) {
   }
 }
 
-static int metaOpenBDBIdx(DB **ppIdx, DB_ENV *pEnv, const char *pFName, DB *pDB, bdbIdxCbPtr cbf) {
+static int metaOpenBDBIdx(DB **ppIdx, DB_ENV *pEnv, const char *pFName, DB *pDB, bdbIdxCbPtr cbf, bool isDup) {
   DB *pIdx;
   int ret;
 
-  if (metaOpenBDBDb(ppIdx, pEnv, pFName) < 0) {
+  if (metaOpenBDBDb(ppIdx, pEnv, pFName, isDup) < 0) {
     return -1;
   }
 
@@ -216,158 +292,70 @@ static void metaCloseBDBIdx(DB *pIdx) {
 }
 
 static int metaNameIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey) {
-  // TODO
+  STbCfg *pTbCfg = (STbCfg *)(pValue->app_data);
+
+  memset(pSKey, 0, sizeof(*pSKey));
+
+  pSKey->data = pTbCfg->name;
+  pSKey->size = strlen(pTbCfg->name);
+
   return 0;
 }
 
 static int metaStbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey) {
-  // TODO
-  return 0;
+  STbCfg *pTbCfg = (STbCfg *)(pValue->app_data);
+
+  if (pTbCfg->type == META_SUPER_TABLE) {
+    memset(pSKey, 0, sizeof(*pSKey));
+    pSKey->data = pKey->data;
+    pSKey->size = pKey->size;
+
+    return 0;
+  } else {
+    return DB_DONOTINDEX;
+  }
 }
 
 static int metaNtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey) {
-  // TODO
-  return 0;
+  STbCfg *pTbCfg = (STbCfg *)(pValue->app_data);
+
+  if (pTbCfg->type == META_NORMAL_TABLE) {
+    memset(pSKey, 0, sizeof(*pSKey));
+    pSKey->data = pKey->data;
+    pSKey->size = pKey->size;
+
+    return 0;
+  } else {
+    return DB_DONOTINDEX;
+  }
 }
 
 static int metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey) {
-  // TODO
-  return 0;
-}
+  STbCfg *pTbCfg = (STbCfg *)(pValue->app_data);
+  DBT *   pDbt;
 
-#if 0
-typedef struct {
-  tb_uid_t uid;
-  int32_t  sver;
-} SSchemaKey;
+  if (pTbCfg->type == META_CHILD_TABLE) {
+    pDbt = calloc(2, sizeof(DBT));
 
+    // First key is suid
+    pDbt[0].data = &(pTbCfg->ctbCfg.suid);
+    pDbt[0].size = sizeof(pTbCfg->ctbCfg.suid);
 
-static SMetaDB *metaNewDB();
-static void     metaFreeDB(SMetaDB *pDB);
-static int      metaCreateDBEnv(SMetaDB *pDB, const char *path);
-static void     metaDestroyDBEnv(SMetaDB *pDB);
-static int      metaEncodeSchemaKey(void **buf, SSchemaKey *pSchemaKey);
-static void *   metaDecodeSchemaKey(void *buf, SSchemaKey *pSchemaKey);
-static int      metaNameIdxCb(DB *sdbp, const DBT *pKey, const DBT *pValue, DBT *pSKey);
-static int      metaUidIdxCb(DB *sdbp, const DBT *pKey, const DBT *pValue, DBT *pSKey);
-static void     metaPutSchema(SMeta *pMeta, tb_uid_t uid, STSchema *pSchema);
-static int      metaEncodeTbInfo(void **buf, STbCfg *pTbCfg);
-static void *   metaDecodeTbInfo(void *buf, STbCfg *pTbCfg);
-static int      metaSaveTbInfo(DB *pDB, tb_uid_t uid, STbCfg *pTbCfg);
+    // Second key is the first tag
+    void *pTagVal = tdGetKVRowValOfCol(pTbCfg->ctbCfg.pTag, 0);
+    pDbt[1].data = varDataVal(pTagVal);
+    pDbt[1].size = varDataLen(pTagVal);
 
-#define META_ASSOCIATE_IDX(pDB, pIdx, cbf)                     \
-  do {                                                         \
-    int ret = (pDB)->associate((pDB), NULL, (pIdx), (cbf), 0); \
-    if (ret != 0) {                                            \
-      P_ERROR("Failed to associate META DB", ret);             \
-      metaCloseDB(pMeta);                                      \
-    }                                                          \
-  } while (0)
+    // Set index key
+    memset(pSKey, 0, sizeof(*pSKey));
+    pSKey->flags = DB_DBT_MULTIPLE | DB_DBT_APPMALLOC;
+    pSKey->data = pDbt;
+    pSKey->size = 2;
 
-
-int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
-  char       buf[512];
-  void *     pBuf;
-  DBT        key = {0};
-  DBT        value = {0};
-  SSchemaKey schemaKey;
-  tb_uid_t   uid;
-
-  if (pTbCfg->type == META_SUPER_TABLE) {
-    // Handle SUPER table
-    uid = pTbCfg->stbCfg.suid;
-
-    // Same table info
-    metaSaveTbInfo(pMeta->pDB->pStbDB, uid, pTbCfg);
-
-    // save schema
-    metaPutSchema(pMeta, uid, pTbCfg->stbCfg.pSchema);
-
-    {
-      // Create a super table DB and corresponding index DB
-      DB *pStbDB;
-      DB *pStbIdxDB;
-
-      META_OPEN_DB(pStbDB, pMeta->pDB->pEvn, "meta.db");
-
-      META_OPEN_DB(pStbIdxDB, pMeta->pDB->pEvn, "index.db");
-
-      // TODO META_ASSOCIATE_IDX();
-    }
-  } else if (pTbCfg->type == META_CHILD_TABLE) {
-    // Handle CHILD table
-    uid = metaGenerateUid(pMeta);
-
-    DB *pCTbDB = taosHashGet(pMeta->pDB->pCtbMap, &(pTbCfg->ctbCfg.suid), sizeof(pTbCfg->ctbCfg.suid));
-    if (pCTbDB == NULL) {
-      ASSERT(0);
-    }
-
-    metaSaveTbInfo(pCTbDB, uid, pTbCfg);
-
-  } else if (pTbCfg->type == META_NORMAL_TABLE) {
-    // Handle NORMAL table
-    uid = metaGenerateUid(pMeta);
-
-    metaSaveTbInfo(pMeta->pDB->pNtbDB, uid, pTbCfg);
-
-    metaPutSchema(pMeta, uid, pTbCfg->stbCfg.pSchema);
+    return 0;
   } else {
-    ASSERT(0);
+    return DB_DONOTINDEX;
   }
-
-  return 0;
-}
-
-int metaRemoveTableFromDb(SMeta *pMeta, tb_uid_t uid) {
-  // TODO
-}
-
-/* ------------------------ STATIC METHODS ------------------------ */
-static int metaEncodeSchemaKey(void **buf, SSchemaKey *pSchemaKey) {
-  int tsize = 0;
-
-  tsize += taosEncodeFixedU64(buf, pSchemaKey->uid);
-  tsize += taosEncodeFixedI32(buf, pSchemaKey->sver);
-
-  return tsize;
-}
-
-static void *metaDecodeSchemaKey(void *buf, SSchemaKey *pSchemaKey) {
-  buf = taosDecodeFixedU64(buf, &(pSchemaKey->uid));
-  buf = taosDecodeFixedI32(buf, &(pSchemaKey->sver));
-
-  return buf;
-}
-
-static int metaNameIdxCb(DB *sdbp, const DBT *pKey, const DBT *pValue, DBT *pSKey) {
-  // TODO
-  return 0;
-}
-
-static int metaUidIdxCb(DB *sdbp, const DBT *pKey, const DBT *pValue, DBT *pSKey) {
-  // TODO
-  return 0;
-}
-
-static void metaPutSchema(SMeta *pMeta, tb_uid_t uid, STSchema *pSchema) {
-  SSchemaKey skey;
-  char       buf[256];
-  void *     pBuf = buf;
-  DBT        key = {0};
-  DBT        value = {0};
-
-  skey.uid = uid;
-  skey.sver = schemaVersion(pSchema);
-
-  key.data = &skey;
-  key.size = sizeof(skey);
-
-  tdEncodeSchema(&pBuf, pSchema);
-  value.data = buf;
-  value.size = POINTER_DISTANCE(pBuf, buf);
-
-  pMeta->pDB->pSchemaDB->put(pMeta->pDB->pSchemaDB, NULL, &key, &value, 0);
 }
 
 static int metaEncodeTbInfo(void **buf, STbCfg *pTbCfg) {
@@ -376,6 +364,7 @@ static int metaEncodeTbInfo(void **buf, STbCfg *pTbCfg) {
   tsize += taosEncodeString(buf, pTbCfg->name);
   tsize += taosEncodeFixedU32(buf, pTbCfg->ttl);
   tsize += taosEncodeFixedU32(buf, pTbCfg->keep);
+  tsize += taosEncodeFixedU8(buf, pTbCfg->type);
 
   if (pTbCfg->type == META_SUPER_TABLE) {
     tsize += tdEncodeSchema(buf, pTbCfg->stbCfg.pTagSchema);
@@ -391,10 +380,10 @@ static int metaEncodeTbInfo(void **buf, STbCfg *pTbCfg) {
 }
 
 static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg) {
-  // TODO
   buf = taosDecodeString(buf, &(pTbCfg->name));
   buf = taosDecodeFixedU32(buf, &(pTbCfg->ttl));
   buf = taosDecodeFixedU32(buf, &(pTbCfg->keep));
+  buf = taosDecodeFixedU8(buf, &(pTbCfg->type));
 
   if (pTbCfg->type == META_SUPER_TABLE) {
     buf = tdDecodeSchema(buf, &(pTbCfg->stbCfg.pTagSchema));
@@ -408,22 +397,11 @@ static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg) {
   return buf;
 }
 
-static int metaSaveTbInfo(DB *pDB, tb_uid_t uid, STbCfg *pTbCfg) {
-  DBT   key = {0};
-  DBT   value = {0};
-  char  buf[512];
-  void *pBuf = buf;
-
-  key.data = &uid;
-  key.size = sizeof(uid);
-
-  metaEncodeTbInfo(&pBuf, pTbCfg);
-
-  value.data = buf;
-  value.size = POINTER_DISTANCE(pBuf, buf);
-
-  pDB->put(pDB, NULL, &key, &value, 0);
-
-  return 0;
+static void metaClearTbCfg(STbCfg *pTbCfg) {
+  tfree(pTbCfg->name);
+  if (pTbCfg->type == META_SUPER_TABLE) {
+    tdFreeSchema(pTbCfg->stbCfg.pTagSchema);
+  } else if (pTbCfg->type == META_CHILD_TABLE) {
+    tfree(pTbCfg->ctbCfg.pTag);
+  }
 }
-#endif

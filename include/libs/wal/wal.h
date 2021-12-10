@@ -55,12 +55,14 @@ typedef struct {
   uint32_t signature;
   uint32_t cksumHead;
   uint32_t cksumBody;
-  //char     cont[];
+  char     cont[];
 } SWalHead;
 
 typedef struct {
   int32_t  vgId;
   int32_t  fsyncPeriod;  // millisecond
+  int32_t  rollPeriod;
+  int64_t  segSize;
   EWalType walLevel;     // wal level
 } SWalCfg;
 
@@ -87,36 +89,41 @@ typedef struct SWal {
   // cfg
   int32_t  vgId;
   int32_t  fsyncPeriod;  // millisecond
-  int32_t  fsyncSeq;
   int32_t  rollPeriod;  // second
   int64_t  segSize;
+  int64_t  retentionSize;
+  int32_t  retentionPeriod;
   EWalType level;
+  //total size
+  int64_t  totSize;
+  //fsync seq
+  int32_t  fsyncSeq;
   //reference
   int64_t refId;
-  //current tfd
-  int64_t curLogTfd;
-  int64_t curIdxTfd;
+  //write tfd
+  int64_t writeLogTfd;
+  int64_t writeIdxTfd;
+  //read tfd
+  int64_t readLogTfd;
+  int64_t readIdxTfd;
   //current version
   int64_t curVersion;
-  int64_t curLogOffset;
-  //current file version
-  int64_t curFileFirstVersion;
-  int64_t curFileLastVersion;
-  //wal fileset version
+  //wal lifecycle
   int64_t firstVersion;
   int64_t snapshotVersion;
+  int64_t commitVersion;
   int64_t lastVersion;
-  int64_t lastFileName;
   //roll status
   int64_t lastRollSeq;
-  int64_t lastFileWriteSize;
+  //file set
+  int32_t writeCur;
+  int32_t readCur;
+  SArray* fileInfoSet;
   //ctl
   int32_t curStatus;
   pthread_mutex_t mutex;
   //path
   char path[WAL_PATH_LEN];
-  //file set
-  SArray* fileSet;
   //reusable write head
   SWalHead head;
 } SWal;  // WAL HANDLE
@@ -133,7 +140,7 @@ int32_t walAlter(SWal *, SWalCfg *pCfg);
 void    walClose(SWal *);
 
 // write
-int64_t walWrite(SWal *, int64_t index, uint8_t msgType, void *body, int32_t bodyLen);
+int64_t walWrite(SWal *, int64_t index, uint8_t msgType, const void *body, int32_t bodyLen);
 void    walFsync(SWal *, bool force);
 
 // apis for lifecycle management
