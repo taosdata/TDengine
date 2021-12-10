@@ -910,7 +910,7 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
             continue;
           }
           {
-            assert(!TSDB_IS_FUNC_SCALAR(pCtx->functionId));
+            assert(!TSDB_FUNC_IS_SCALAR(pCtx->functionId));
             aAggs[pCtx->functionId].init(pCtx, pCtx->resultInfo);
           }
         }
