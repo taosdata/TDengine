@@ -69,10 +69,10 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
   pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_FUNCTION] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_RETRIEVE_FUNCTION] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_DROP_FUNCTION] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STABLE] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STABLE] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STABLE] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_STABLE_VGROUP] = dndProcessMnodeReadMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STB] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STB] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STB] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_STB_VGROUP] = dndProcessMnodeReadMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_KILL_QUERY] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_KILL_STREAM] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_KILL_CONN] = dndProcessMnodeWriteMsg;
@@ -84,12 +84,12 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
   pMgmt->msgFp[TSDB_MSG_TYPE_NETWORK_TEST] = dndProcessDnodeReq;
 
   // message from mnode to vnode
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STABLE_IN] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STABLE_IN_RSP] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STABLE_IN] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STABLE_IN_RSP] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STABLE_IN] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STABLE_IN_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STB_IN] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STB_IN_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STB_IN] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STB_IN_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STB_IN] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STB_IN_RSP] = dndProcessMnodeWriteMsg;
 
   // message from mnode to dnode
   pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_VNODE_IN] = dndProcessVnodeMgmtMsg;

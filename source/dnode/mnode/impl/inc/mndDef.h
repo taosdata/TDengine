@@ -241,7 +241,7 @@ typedef struct SVgObj {
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
 
-typedef struct SStableObj {
+typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
   char     db[TSDB_FULL_DB_NAME_LEN];
   int64_t  createdTime;
@@ -251,9 +251,8 @@ typedef struct SStableObj {
   int32_t  numOfColumns;
   int32_t  numOfTags;
   SRWLatch lock;
-  SSchema *columnSchema;
-  SSchema *tagSchema;
-} SStableObj;
+  SSchema *pSchema;
+} SStbObj;
 
 typedef struct SFuncObj {
   char    name[TSDB_FUNC_NAME_LEN];

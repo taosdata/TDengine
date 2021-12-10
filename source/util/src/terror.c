@@ -193,8 +193,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USERS,           "Too many users")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MNODE_ALREADY_EXIST,       "Mnode already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MNODE_NOT_EXIST,           "Mnode not there")
 
-
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TABLE_ALREADY_EXIST,      "Table already exists")
+// mnode-stable
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_ALREADY_EXIST,        "Stable already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_ID,         "Table name too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_NAME,       "Table does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_TYPE,       "Invalid table type in tsdb")
