@@ -571,7 +571,7 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
   
   //Precheck for FQDN lgenth
   if (strlen(host) >= TSDB_FQDN_LEN) {
-    uError("FQDN length is to long");
+    uError("FQDN length is too long");
     return;
   }
 
