@@ -48,9 +48,15 @@ int32_t walInit() {
   int8_t old = atomic_val_compare_exchange_8(&tsWal.inited, 0, 1);
   if(old == 1) return 0;
 
+  int code = tfInit();
+  if(code != 0) {
+    wError("failed to init tfile since %s", tstrerror(code));
+    atomic_store_8(&tsWal.inited, 0);
+    return code;
+  }
   tsWal.refSetId = taosOpenRef(TSDB_MIN_VNODES, walFreeObj);
 
-  int code = walCreateThread();
+  code = walCreateThread();
   if (code != 0) {
     wError("failed to init wal module since %s", tstrerror(code));
     atomic_store_8(&tsWal.inited, 0);
@@ -74,8 +80,8 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return NULL;
   }
-  pWal->curLogTfd = -1;
-  pWal->curIdxTfd = -1;
+  pWal->writeLogTfd = -1;
+  pWal->writeIdxTfd = -1;
 
   //set config
   pWal->vgId = pCfg->vgId;
@@ -138,8 +144,8 @@ void walClose(SWal *pWal) {
   if (pWal == NULL) return;
 
   pthread_mutex_lock(&pWal->mutex);
-  tfClose(pWal->curLogTfd);
-  tfClose(pWal->curIdxTfd);
+  tfClose(pWal->writeLogTfd);
+  tfClose(pWal->writeIdxTfd);
   /*taosArrayDestroy(pWal->fileInfoSet);*/
   /*pWal->fileInfoSet = NULL;*/
   pthread_mutex_unlock(&pWal->mutex);
@@ -165,8 +171,8 @@ static void walFreeObj(void *wal) {
   SWal *pWal = wal;
   wDebug("vgId:%d, wal:%p is freed", pWal->vgId, pWal);
 
-  tfClose(pWal->curLogTfd);
-  tfClose(pWal->curIdxTfd);
+  tfClose(pWal->writeLogTfd);
+  tfClose(pWal->writeIdxTfd);
   taosArrayDestroy(pWal->fileInfoSet);
   pWal->fileInfoSet = NULL;
   taosArrayDestroy(pWal->fileInfoSet);
@@ -197,7 +203,7 @@ static void walFsyncAll() {
   while (pWal) {
     if (walNeedFsync(pWal)) {
       wTrace("vgId:%d, do fsync, level:%d seq:%d rseq:%d", pWal->vgId, pWal->level, pWal->fsyncSeq, atomic_load_32(&tsWal.seq));
-      int32_t code = tfFsync(pWal->curLogTfd);
+      int32_t code = tfFsync(pWal->writeLogTfd);
       if (code != 0) {
         wError("vgId:%d, file:%"PRId64".log, failed to fsync since %s", pWal->vgId, walGetLastFileFirstVer(pWal), strerror(code));
       }

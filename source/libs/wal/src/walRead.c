@@ -42,7 +42,7 @@ int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
     }
     *ppHead = ptr;
   }
-  if(tfRead(pWal->curLogTfd, *ppHead, sizeof(SWalHead)) != sizeof(SWalHead)) {
+  if(tfRead(pWal->writeLogTfd, *ppHead, sizeof(SWalHead)) != sizeof(SWalHead)) {
     return -1;
   }
   //TODO: endian compatibility processing after read
@@ -55,7 +55,7 @@ int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
     *ppHead = NULL;
     return -1;
   }
-  if(tfRead(pWal->curLogTfd, (*ppHead)->cont, (*ppHead)->len) != (*ppHead)->len) {
+  if(tfRead(pWal->writeLogTfd, (*ppHead)->cont, (*ppHead)->len) != (*ppHead)->len) {
     return -1;
   }
   //TODO: endian compatibility processing after read

@@ -237,6 +237,16 @@ void taosArraySet(SArray* pArray, size_t index, void* pData) {
   memcpy(TARRAY_GET_ELEM(pArray, index), pData, pArray->elemSize);
 }
 
+void taosArrayPopFrontBatch(SArray* pArray, size_t cnt) {
+  assert(cnt <= pArray->size);
+  pArray->size = pArray->size - cnt;
+  if(pArray->size == 0) {
+    pArray->size = 0;
+    return;
+  }
+  memmove(pArray->pData, (char*)pArray->pData + cnt * pArray->elemSize, pArray->size);
+}
+
 void taosArrayRemove(SArray* pArray, size_t index) {
   assert(index < pArray->size);
   

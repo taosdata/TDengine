@@ -49,26 +49,26 @@ static inline int64_t walGetLastFileFirstVer(SWal* pWal) {
 }
 
 static inline int64_t walGetCurFileFirstVer(SWal* pWal) {
-  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->fileCursor);
+  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
   return pInfo->firstVer;
 }
 
 static inline int64_t walGetCurFileLastVer(SWal* pWal) {
-  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->fileCursor);
+  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
   return pInfo->firstVer;
 }
 
 static inline int64_t walGetCurFileOffset(SWal* pWal) {
-  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->fileCursor);
+  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
   return pInfo->fileSize;
 }
 
 static inline bool walCurFileClosed(SWal* pWal) {
-  return taosArrayGetSize(pWal->fileInfoSet) != pWal->fileCursor;
+  return taosArrayGetSize(pWal->fileInfoSet) != pWal->writeCur;
 }
 
 static inline WalFileInfo* walGetCurFileInfo(SWal* pWal) {
-  return (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->fileCursor);
+  return (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
 }
 
 static inline int walBuildLogName(SWal*pWal, int64_t fileFirstVer, char* buf) {

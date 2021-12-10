@@ -22,20 +22,26 @@
 
 static int32_t tsFileRsetId = -1;
 
+static int8_t tfInited = 0;
+
 static void tfCloseFile(void *p) {
   taosCloseFile((int32_t)(uintptr_t)p);
 }
 
 int32_t tfInit() {
+  int8_t old = atomic_val_compare_exchange_8(&tfInited, 0, 1);
+  if(old == 1) return 0;
   tsFileRsetId = taosOpenRef(2000, tfCloseFile);
   if (tsFileRsetId > 0) {
     return 0;
   } else {
+    atomic_store_8(&tfInited, 0);
     return -1;
   }
 }
 
 void tfCleanup() {
+  atomic_store_8(&tfInited, 0);
   if (tsFileRsetId >= 0) taosCloseRef(tsFileRsetId);
   tsFileRsetId = -1;
 }

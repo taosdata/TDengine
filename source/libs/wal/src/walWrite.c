@@ -44,18 +44,39 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
 
 int32_t walTakeSnapshot(SWal *pWal, int64_t ver) {
   pWal->snapshotVersion = ver;
+  int ts = taosGetTimestampSec();
 
+  int deleteCnt = 0;
+  int64_t newTotSize = pWal->totSize;
   WalFileInfo tmp;
   tmp.firstVer = ver;
   //mark files safe to delete
   WalFileInfo* pInfo = taosArraySearch(pWal->fileInfoSet, &tmp, compareWalFileInfo, TD_LE);
   //iterate files, until the searched result
-  //if totSize > rtSize, delete
-  //if createTs > retentionTs, delete
+  for(WalFileInfo* iter = pWal->fileInfoSet->pData; iter < pInfo; iter++) {
+    if(pWal->totSize > pWal->retentionSize ||
+        iter->closeTs + pWal->retentionPeriod > ts) {
+      //delete according to file size or close time
+      deleteCnt++;
+      newTotSize -= iter->fileSize;
+    }
+  }
+  char fnameStr[WAL_FILE_LEN];
+  //remove file
+  for(int i = 0; i < deleteCnt; i++) {
+    WalFileInfo* pInfo = taosArrayGet(pWal->fileInfoSet, i);
+    walBuildLogName(pWal, pInfo->firstVer, fnameStr); 
+    remove(fnameStr);
+    walBuildIdxName(pWal, pInfo->firstVer, fnameStr); 
+    remove(fnameStr);
+  }
 
   //save snapshot ver, commit ver
 
+
   //make new array, remove files
+  taosArrayPopFrontBatch(pWal->fileInfoSet, deleteCnt); 
+  pWal->totSize = newTotSize;
 
   return 0;
 }
@@ -153,14 +174,14 @@ void walRemoveAllOldFiles(void *handle) {
 
 int walRoll(SWal *pWal) {
   int code = 0;
-  if(pWal->curIdxTfd != -1) {
-    code = tfClose(pWal->curIdxTfd);
+  if(pWal->writeIdxTfd != -1) {
+    code = tfClose(pWal->writeIdxTfd);
     if(code != 0) {
       return -1;
     }
   }
-  if(pWal->curLogTfd != -1) {
-    code = tfClose(pWal->curLogTfd);
+  if(pWal->writeLogTfd != -1) {
+    code = tfClose(pWal->writeLogTfd);
     if(code != 0) {
       return -1;
     }
@@ -188,8 +209,8 @@ int walRoll(SWal *pWal) {
   }
 
   //switch file
-  pWal->curIdxTfd = idxTfd;
-  pWal->curLogTfd = logTfd;
+  pWal->writeIdxTfd = idxTfd;
+  pWal->writeLogTfd = logTfd;
   //change status
   pWal->curStatus = WAL_CUR_FILE_WRITABLE & WAL_CUR_POS_WRITABLE;
 
@@ -215,8 +236,8 @@ int walChangeFileToLast(SWal *pWal) {
     return -1;
   }
   //switch file
-  pWal->curIdxTfd = idxTfd;
-  pWal->curLogTfd = logTfd;
+  pWal->writeIdxTfd = idxTfd;
+  pWal->writeLogTfd = logTfd;
   //change status
   pWal->curVersion = fileFirstVer;
   pWal->curStatus = WAL_CUR_FILE_WRITABLE;
@@ -226,15 +247,14 @@ int walChangeFileToLast(SWal *pWal) {
 static int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   int code = 0;
   //get index file
-  if(!tfValid(pWal->curIdxTfd)) {
+  if(!tfValid(pWal->writeIdxTfd)) {
     code = TAOS_SYSTEM_ERROR(errno);
 
-    WalFileInfo* pInfo = taosArrayGet(pWal->fileInfoSet, pWal->fileCursor);
-    wError("vgId:%d, file:%"PRId64".idx, failed to open since %s", pWal->vgId, pInfo->firstVer, strerror(errno));
+    wError("vgId:%d, file:%"PRId64".idx, failed to open since %s", pWal->vgId, walGetLastFileFirstVer(pWal), strerror(errno));
     return code;
   }
   int64_t writeBuf[2] = { ver, offset };
-  int size = tfWrite(pWal->curIdxTfd, writeBuf, sizeof(writeBuf));
+  int size = tfWrite(pWal->writeIdxTfd, writeBuf, sizeof(writeBuf));
   if(size != sizeof(writeBuf)) {
     return -1;
   }
@@ -278,13 +298,13 @@ int64_t walWrite(SWal *pWal, int64_t index, uint8_t msgType, const void *body, i
 
   pthread_mutex_lock(&pWal->mutex);
 
-  if (tfWrite(pWal->curLogTfd, &pWal->head, sizeof(SWalHead)) != sizeof(SWalHead)) {
+  if (tfWrite(pWal->writeLogTfd, &pWal->head, sizeof(SWalHead)) != sizeof(SWalHead)) {
     //ftruncate
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%"PRId64".log, failed to write since %s", pWal->vgId, walGetLastFileFirstVer(pWal), strerror(errno));
   }
 
-  if (tfWrite(pWal->curLogTfd, &body, bodyLen) != bodyLen) {
+  if (tfWrite(pWal->writeLogTfd, &body, bodyLen) != bodyLen) {
     //ftruncate
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%"PRId64".log, failed to write since %s", pWal->vgId, walGetLastFileFirstVer(pWal), strerror(errno));
@@ -296,6 +316,7 @@ int64_t walWrite(SWal *pWal, int64_t index, uint8_t msgType, const void *body, i
 
   //set status
   pWal->lastVersion = index;
+  pWal->totSize += sizeof(SWalHead) + bodyLen;
   walGetCurFileInfo(pWal)->lastVer = index;
   walGetCurFileInfo(pWal)->fileSize += sizeof(SWalHead) + bodyLen;
   
@@ -305,11 +326,11 @@ int64_t walWrite(SWal *pWal, int64_t index, uint8_t msgType, const void *body, i
 }
 
 void walFsync(SWal *pWal, bool forceFsync) {
-  if (pWal == NULL || !tfValid(pWal->curLogTfd)) return;
+  if (pWal == NULL || !tfValid(pWal->writeLogTfd)) return;
 
   if (forceFsync || (pWal->level == TAOS_WAL_FSYNC && pWal->fsyncPeriod == 0)) {
     wTrace("vgId:%d, fileId:%"PRId64".log, do fsync", pWal->vgId, walGetCurFileFirstVer(pWal));
-    if (tfFsync(pWal->curLogTfd) < 0) {
+    if (tfFsync(pWal->writeLogTfd) < 0) {
       wError("vgId:%d, file:%"PRId64".log, fsync failed since %s", pWal->vgId, walGetCurFileFirstVer(pWal), strerror(errno));
     }
   }
@@ -408,10 +429,10 @@ static int64_t walGetOffset(SWal* pWal, int64_t ver) {
 }
 
 static void walFtruncate(SWal *pWal, int64_t ver) {
-  int64_t tfd = pWal->curLogTfd;
+  int64_t tfd = pWal->writeLogTfd;
   tfFtruncate(tfd, ver);
   tfFsync(tfd);
-  tfd = pWal->curIdxTfd;
+  tfd = pWal->writeIdxTfd;
   tfFtruncate(tfd, ver * WAL_IDX_ENTRY_SIZE);
   tfFsync(tfd);
 }
