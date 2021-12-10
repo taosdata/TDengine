@@ -591,14 +591,14 @@ uint64_t fstStateFindInput(FstState *s, FstNode *node, uint8_t b, bool *null) {
     uint8_t *data = fstSliceData(&t, &len);
     int i = 0;
     for(; i < len; i++) {
-      //uint8_t v = slice->data[slice->start + i];
-      ////slice->data[slice->start + i];
       uint8_t v = data[i]; 
       if (v == b) {
+        fstSliceDestroy(&t);
         return node->nTrans - i - 1; // bug  
       }
     } 
     if (i == len) { *null = true; }
+    fstSliceDestroy(&t);
   } 
 }
 
@@ -634,7 +634,7 @@ FstNode *fstNodeCreate(int64_t version, CompiledAddr addr, FstSlice *slice) {
   } else if (st.state == OneTrans) {
      FstSlice data = fstSliceCopy(slice, 0, addr); 
      PackSizes sz = fstStateSizes(&st, &data);
-     n->data    =   fstSliceCopy(slice, 0, addr); 
+     n->data    =   data; 
      n->version = version; 
      n->state   = st; 
      n->start   = addr;
@@ -852,8 +852,9 @@ void fstBuilderInsertOutput(FstBuilder *b, FstSlice bs, Output in) {
 OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup) {
   FstSlice *input = &bs;
   if (fstSliceIsEmpty(&b->last)) {
+    fstSliceDestroy(&b->last);
     // deep copy or not
-    b->last = fstSliceCopy(&bs, input->start, input->end);
+    b->last = fstSliceDeepCopy(&bs, input->start, input->end);
   } else {
     int comp = fstSliceCompare(&b->last, &bs);
     if (comp == 0 && ckDup) {
@@ -863,7 +864,7 @@ OrderType fstBuilderCheckLastKey(FstBuilder *b, FstSlice bs, bool ckDup) {
     }
     // deep copy or not
     fstSliceDestroy(&b->last);
-    b->last = fstSliceCopy(&bs, input->start, input->end); 
+    b->last = fstSliceDeepCopy(&bs, input->start, input->end); 
   }       
   return Ordered;
 } 
@@ -1078,14 +1079,14 @@ bool fstGet(Fst *fst, FstSlice *b, Output *out) {
   } else {
     tOut = tOut + FST_NODE_FINAL_OUTPUT(root); 
   }
+
   for (size_t i = 0; i < taosArrayGetSize(nodes); i++) {
      FstNode **node = (FstNode **)taosArrayGet(nodes, i); 
      fstNodeDestroy(*node);
   }
   taosArrayDestroy(nodes);
+
   fst->root = NULL;
-  
-  
   *out = tOut;
   
   return true; 
