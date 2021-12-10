@@ -92,7 +92,7 @@ TEST_F(WalCleanEnv, serialize) {
   ASSERT(code == 0);
   code = walRollFileInfo(pWal);
   ASSERT(code == 0);
-  char*ss = walFileInfoSerialize(pWal);
+  char*ss = walMetaSerialize(pWal);
   printf("%s\n", ss);
   code = walWriteMeta(pWal);
   ASSERT(code == 0);
@@ -113,20 +113,19 @@ TEST_F(WalCleanEnv, removeOldMeta) {
 TEST_F(WalKeepEnv, readOldMeta) {
   int code = walRollFileInfo(pWal);
   ASSERT(code == 0);
-  ASSERT(pWal->fileInfoSet != NULL);
   code = walWriteMeta(pWal);
   ASSERT(code == 0);
   code = walRollFileInfo(pWal);
   ASSERT(code == 0);
   code = walWriteMeta(pWal);
   ASSERT(code == 0);
-  char*oldss = walFileInfoSerialize(pWal);
+  char*oldss = walMetaSerialize(pWal);
 
   TearDown();
   SetUp();
   code = walReadMeta(pWal);
   ASSERT(code == 0);
-  char* newss = walFileInfoSerialize(pWal);
+  char* newss = walMetaSerialize(pWal);
 
   int len = strlen(oldss);
   ASSERT_EQ(len, strlen(newss));
