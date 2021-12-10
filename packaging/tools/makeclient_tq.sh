@@ -69,10 +69,10 @@ if [ "$osType" != "Darwin" ]; then
   if [ "$pagMode" == "lite" ]; then
     strip ${build_dir}/bin/taos
     cp ${build_dir}/bin/taos          ${install_dir}/bin/tq
-    cp ${script_dir}/remove_tq.sh  ${install_dir}/bin
+    cp ${script_dir}/remove_client_tq.sh  ${install_dir}/bin
   else 
     cp ${build_dir}/bin/taos          ${install_dir}/bin/tq
-    cp ${script_dir}/remove_tq.sh  ${install_dir}/bin
+    cp ${script_dir}/remove_client_tq.sh  ${install_dir}/bin
     cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/tqdemo
     cp ${build_dir}/bin/taosdump      ${install_dir}/bin/tqdump
     cp ${script_dir}/set_core.sh      ${install_dir}/bin

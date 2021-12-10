@@ -28,7 +28,7 @@ The overall system architecture of a typical DevOps application scenario is show
 
 In this application scenario, there are Agent tools deployed in the application environment to collect machine metrics, network metrics, and application metrics, data collectors to aggregate information collected by agents, systems for data persistence storage and management, and tools for monitoring data visualization (e.g., Grafana, etc.).
 
-Among them, Agents deployed in application nodes are responsible for providing operational metrics from different sources to collectd/Statsd, and collectd/StatsD is responsible for pushing the aggregated data to the OpenTSDB cluster system and then visualizing the data using the visualization kanban board Grafana.
+Among them, Agents deployed in application nodes are responsible for providing operational metrics from different sources to collectd/Statsd, and collectd/StatsD is responsible for pushing the aggregated data to the OpenTSDB cluster system and then visualizing the data using the visualization board of Grafana.
 
 ### 2. Migration Service
 
@@ -127,11 +127,11 @@ On the one hand, TDengine requires a strict schema definition for its incoming d
 
 Now let's assume a DevOps scenario where we use collectd to collect base metrics of devices, including memory, swap, disk, etc. The schema in OpenTSDB is as follows:
 
-| No.  | metric         | value  | type   | tag1 | tag2        | tag3                 | tag4      | tag5   |
-| ---- | -------------- | ------ | ------ | ---- | ----------- | -------------------- | --------- | ------ |
-| 1    | memory         | value  | double | host | memory_type | memory_type_instance | source    |        |
-| 2    | swap           | value  | double | host | swap_type   | swap_type_instance   | source    |        |
-| 3    | disk           | value  | double | host | disk_point  | disk_instance        | disk_type | source |
+| No. | metric | value | type   | tag1 | tag2        | tag3                 | tag4      | tag5   |
+| --- | ------ | ----- | ------ | ---- | ----------- | -------------------- | --------- | ------ |
+| 1   | memory | value | double | host | memory_type | memory_type_instance | source    |        |
+| 2   | swap   | value | double | host | swap_type   | swap_type_instance   | source    |        |
+| 3   | disk   | value | double | host | disk_point  | disk_instance        | disk_type | source |
 
 
 
