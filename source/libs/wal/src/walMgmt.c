@@ -175,8 +175,6 @@ static void walFreeObj(void *wal) {
   tfClose(pWal->writeIdxTfd);
   taosArrayDestroy(pWal->fileInfoSet);
   pWal->fileInfoSet = NULL;
-  taosArrayDestroy(pWal->fileInfoSet);
-  pWal->fileInfoSet = NULL;
   pthread_mutex_destroy(&pWal->mutex);
   tfree(pWal);
 }

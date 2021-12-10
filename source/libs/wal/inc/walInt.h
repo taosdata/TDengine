@@ -83,8 +83,8 @@ int walReadMeta(SWal* pWal);
 int walWriteMeta(SWal* pWal);
 int walRollFileInfo(SWal* pWal);
 
-char* walFileInfoSerialize(SWal* pWal);
-SArray* walFileInfoDeserialize(const char* bytes);
+char* walMetaSerialize(SWal* pWal);
+int walMetaDeserialize(SWal* pWal, const char* bytes);
 //meta section end
 
 int64_t walGetSeq();
