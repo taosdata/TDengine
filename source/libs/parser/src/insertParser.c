@@ -233,7 +233,6 @@ static int32_t checkTimestamp(STableDataBlocks *pDataBlocks, const char *start) 
 
   if (k <= pDataBlocks->prevTS && (pDataBlocks->tsSource == TSDB_USE_CLI_TS)) {
     pDataBlocks->ordered = false;
-    // tscWarn("NOT ordered input timestamp");
   }
 
   pDataBlocks->prevTS = k;

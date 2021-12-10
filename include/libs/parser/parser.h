@@ -158,9 +158,15 @@ typedef enum {
   PAYLOAD_TYPE_RAW = 1,
 } EPayloadType;
 
+typedef struct SVgDataBlocks {
+  int64_t     vgId;         // virtual group id
+  int32_t     numOfTables;  // number of tables in current submit block
+  uint32_t    size;
+  char       *pData;
+} SVgDataBlocks;
+
 typedef struct SInsertStmtInfo {
-  // SHashObj*   pTableBlockHashList; // data block for each table
-  SArray*     pDataBlocks;         // SArray<STableDataBlocks*>. Merged submit block for each vgroup
+  SArray*     pDataBlocks;         // data block for each vgroup, SArray<SVgDataBlocks*>.
   int8_t      schemaAttache;        // denote if submit block is built with table schema or not
   uint8_t     payloadType;         // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
   uint32_t    insertType;          // insert data from [file|sql statement| bound statement]

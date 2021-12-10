@@ -507,22 +507,16 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t 
   const int INSERT_HEAD_SIZE = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
   int       code = 0;
   bool      isRawPayload = IS_RAW_PAYLOAD(payloadType);
-  void*     pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+  SHashObj* pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
   SArray*   pVnodeDataBlockList = taosArrayInit(8, POINTER_BYTES);
 
   STableDataBlocks** p = taosHashIterate(pHashObj, NULL);
-
   STableDataBlocks* pOneTableBlock = *p;
-
   SBlockKeyInfo blkKeyInfo = {0};  // share by pOneTableBlock
-
-  while(pOneTableBlock) {
+  while (pOneTableBlock) {
     SSubmitBlk* pBlocks = (SSubmitBlk*) pOneTableBlock->pData;
     if (pBlocks->numOfRows > 0) {
-      // the maximum expanded size in byte when a row-wise data is converted to SDataRow format
-      int32_t           expandSize = isRawPayload ? getRowExpandSize(pOneTableBlock->pTableMeta) : 0;
       STableDataBlocks* dataBuf = NULL;
-
       int32_t ret = getDataBlockFromList(pVnodeDataBlockHashList, pOneTableBlock->vgId, TSDB_PAYLOAD_SIZE,
                                   INSERT_HEAD_SIZE, 0, &pOneTableBlock->tableName, pOneTableBlock->pTableMeta, &dataBuf, pVnodeDataBlockList);
       if (ret != TSDB_CODE_SUCCESS) {
@@ -532,22 +526,21 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t 
         return ret;
       }
 
+      // the maximum expanded size in byte when a row-wise data is converted to SDataRow format
+      int32_t           expandSize = isRawPayload ? getRowExpandSize(pOneTableBlock->pTableMeta) : 0;
       int64_t destSize = dataBuf->size + pOneTableBlock->size + pBlocks->numOfRows * expandSize +
                          sizeof(STColumn) * getNumOfColumns(pOneTableBlock->pTableMeta);
 
       if (dataBuf->nAllocSize < destSize) {
         dataBuf->nAllocSize = (uint32_t)(destSize * 1.5);
-
         char* tmp = realloc(dataBuf->pData, dataBuf->nAllocSize);
         if (tmp != NULL) {
           dataBuf->pData = tmp;
-          //memset(dataBuf->pData + dataBuf->size, 0, dataBuf->nAllocSize - dataBuf->size);
         } else {  // failed to allocate memory, free already allocated memory and return error code
           taosHashCleanup(pVnodeDataBlockHashList);
           destroyBlockArrayList(pVnodeDataBlockList);
           tfree(dataBuf->pData);
           tfree(blkKeyInfo.pKeyTuple);
-
           return TSDB_CODE_TSC_OUT_OF_MEMORY;
         }
       }
