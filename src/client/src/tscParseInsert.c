@@ -446,15 +446,12 @@ int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, bool *isConverted, int32_t rowSize,
+int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t *convertOffset, int32_t rowSize,
                   char *tmpTokenBuf, SInsertStatementParam *pInsertParam) {
   int32_t   tsc_index = 0;
   SStrToken sToken = {0};
 
-  char *row = pDataBlocks->pData +
-              ((*isConverted) ? (pDataBlocks->size - rowSize) : pDataBlocks->size);  // skip the SSubmitBlk header
-  *isConverted = false;
-
+  char *row = pDataBlocks->pData + (pDataBlocks->size - (*convertOffset) * rowSize);  // skip the SSubmitBlk header
   SParsedDataColInfo *spd = &pDataBlocks->boundColumnInfo;
   STableMeta *        pTableMeta = pDataBlocks->pTableMeta;
   SSchema *           schema = tscGetTableSchema(pTableMeta);
@@ -633,7 +630,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
                                 pDataBlock->boundColumnInfo.allNullLen))) {
     return code;
   }
-  bool isConverted = false;
+  int32_t convertOffset = 0;
   while (1) {
     tsc_index = 0;
     sToken = tStrGetToken(*str, &tsc_index, false);
@@ -653,7 +650,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
       maxRows = tSize;
     }
 
-    code = tsParseOneRow(str, pDataBlock, precision, &isConverted, extendedRowSize, tmpTokenBuf, pInsertParam);
+    code = tsParseOneRow(str, pDataBlock, precision, &convertOffset, extendedRowSize, tmpTokenBuf, pInsertParam);
     if (code != TSDB_CODE_SUCCESS) {  // error message has been set in tsParseOneRow, return directly
       return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
@@ -670,9 +667,9 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
 
     (*numOfRows)++;
   }
-  if (isConverted) {
-    void *convertedSMemRow = pDataBlock->pData + pDataBlock->size;
-    memcpy(POINTER_SHIFT(convertedSMemRow, -extendedRowSize), convertedSMemRow, (size_t)memRowTLen(convertedSMemRow));
+  if (convertOffset) {
+    char *convertedSMemRow = pDataBlock->pData + pDataBlock->size;
+    memcpy(convertedSMemRow - convertOffset * extendedRowSize, convertedSMemRow, (size_t)memRowTLen(convertedSMemRow));
   }
 
   if ((*numOfRows) <= 0) {
@@ -1747,7 +1744,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   --maxRows;  // 1 more row needed to facilitate the SDataRow/SKVRow convert
   ASSERT(maxRows > 0);
 
-  bool isConverted = false;
+  int32_t convertOffset = 0;
   while ((readLen = tgetline(&line, &n, fp)) != -1) {
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
       line[--readLen] = 0;
@@ -1760,7 +1757,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
     char *lineptr = line;
     strtolower(line, line);
 
-    code = tsParseOneRow(&lineptr, pTableDataBlock, tinfo.precision, &isConverted, extendedRowSize, tokenBuf,
+    code = tsParseOneRow(&lineptr, pTableDataBlock, tinfo.precision, &convertOffset, extendedRowSize, tokenBuf,
                          pInsertParam);
     if (code != TSDB_CODE_SUCCESS || pTableDataBlock->numOfParams > 0) {
       pSql->res.code = code;
@@ -1773,9 +1770,9 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
       break;
     }
   }
-  if (isConverted) {
-    void *convertedSMemRow = pTableDataBlock->pData + pTableDataBlock->size;
-    memcpy(POINTER_SHIFT(convertedSMemRow, -extendedRowSize), convertedSMemRow, (size_t)memRowTLen(convertedSMemRow));
+  if (convertOffset) {
+    char *convertedSMemRow = pTableDataBlock->pData + pTableDataBlock->size;
+    memcpy(convertedSMemRow - convertOffset * extendedRowSize, convertedSMemRow, (size_t)memRowTLen(convertedSMemRow));
   }
 
   tfree(tokenBuf);
