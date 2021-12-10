@@ -131,7 +131,7 @@ void taosCloseLog() {
   taosStopLog();
   //tsem_post(&(tsLogObj.logHandle->buffNotEmpty));
   taosMsleep(MAX_LOG_INTERVAL/1000);
-  if (taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
+  if (tsLogObj.logHandle && tsLogObj.logHandle->asyncThread && taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
     pthread_join(tsLogObj.logHandle->asyncThread, NULL);
   }
   // In case that other threads still use log resources causing invalid write in valgrind
