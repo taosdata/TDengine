@@ -262,6 +262,27 @@ sql_error select concat_ws(c2) from $tb session(ts, 30s);
 sql_error select concat_ws(c2) from $stb slimit 2;
 
 sql_error select concat_ws(c2) from $stb interval(1m) slimit 2;
+
+sql_error select char_length(c2) from $stb group by tbname;
+
+sql_error select char_length(c2) from $stb group by tgcol;
+
+sql_error select char_length(c2) from $stb group by c3;
+
+sql_error select char_length(c2) from $stb interval(1m);
+
+sql_error select char_length(c2) from $stb state_window(c7);
+
+sql_error select char_length(c2) from $tb state_window(c7);
+
+sql_error select char_length(c2) from $stb session(ts, 30s);
+
+sql_error select char_length(c2) from $tb session(ts, 30s);
+
+sql_error select char_length(c2) from $stb slimit 2;
+
+sql_error select char_length(c2) from $stb interval(1m) slimit 2;
+
 print =============== trival test
 
 print execute sql select concat(c2,c3),concat(c2,c3,c4),concat(c2,c3,c4,c5) from ct1
