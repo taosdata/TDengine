@@ -35,6 +35,8 @@ class TDTestCase:
         tdSql.prepare()
 
         print("============== STEP 1 ===== prepare data & validate json string")
+        tdSql.error("create table if not exists jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json, tagint int)")
+        tdSql.error("create table if not exists jsons1(ts timestamp, data json) tags(tagint int)")
         tdSql.execute("create table if not exists jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json)")
         tdSql.execute("insert into jsons1_1 using jsons1 tags('{\"tag1\":\"fff\",\"tag2\":5, \"tag3\":true}') values(1591060618000, 1, false, 'json1', '你是') (1591060608000, 23, true, '等等', 'json')")
         tdSql.execute("insert into jsons1_2 using jsons1 tags('{\"tag1\":5,\"tag2\":\"beijing\"}') values (1591060628000, 2, true, 'json2', 'sss')")
@@ -46,6 +48,8 @@ class TDTestCase:
 
         # test duplicate key using the first one. elimate empty key
         tdSql.execute("CREATE TABLE if not exists jsons1_8 using jsons1 tags('{\"tag1\":null, \"tag1\":true, \"tag1\":45, \"1tag$\":2, \" \":90, \"\":32}')")
+        tdSql.query("select jtag from jsons1_8")
+        tdSql.checkData(0, 0, '{"tag1":null,"1tag$":2," ":90}')
 
         # test empty json string, save as jtag is NULL
         tdSql.execute("insert into jsons1_9  using jsons1 tags('\t') values (1591062328000, 24, NULL, '你就会', '2sdw')")
@@ -84,9 +88,13 @@ class TDTestCase:
         print("============== STEP 2 ===== alter table json tag")
         tdSql.error("ALTER STABLE jsons1 add tag tag2 nchar(20)")
         tdSql.error("ALTER STABLE jsons1 drop tag jtag")
-        tdSql.error("ALTER TABLE jsons1_1 SET TAG jtag=4")
+        tdSql.error("ALTER TABLE jsons1 MODIFY TAG jtag nchar(128)")
 
         tdSql.execute("ALTER TABLE jsons1_1 SET TAG jtag='{\"tag1\":\"femail\",\"tag2\":35,\"tag3\":true}'")
+        tdSql.query("select jtag from jsons1_1")
+        tdSql.checkData(0, 0, '{"tag1":"femail","tag2":35,"tag3":true}')
+        tdSql.execute("ALTER TABLE jsons1 CHANGE TAG jtag jtag_new")
+        tdSql.execute("ALTER TABLE jsons1 CHANGE TAG jtag_new jtag")
 
         print("============== STEP 3 ===== query table")
         # test error syntax
@@ -125,17 +133,10 @@ class TDTestCase:
         tdSql.checkRows(5)
         tdSql.query("select jtag from jsons1 where jtag is not null")
         tdSql.checkRows(8)
-        # test #line 41
-        tdSql.query("select jtag from jsons1_8")
-        tdSql.checkData(0, 0, '{"tag1":null,"1tag$":2," ":90}')
-        # test #line 72
-        tdSql.query("select jtag from jsons1_1")
-        tdSql.checkData(0, 0, '{"tag1":"femail","tag2":35,"tag3":true}')
+
         # test jtag is NULL
         tdSql.query("select jtag from jsons1_9")
         tdSql.checkData(0, 0, None)
-
-
 
         # test select json tag->'key', value is string
         tdSql.query("select jtag->'tag1' from jsons1_1")
@@ -404,10 +405,6 @@ class TDTestCase:
         tdSql.checkData(7, 0, 11)
         tdSql.checkData(7, 1, '"femail"')
 
-        # test having
-        tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tag1' having stddev(dataint) > 0")
-        tdSql.checkRows(2)
-
         res = tdSql.getColNameList("select stddev(dataint) from jsons1 group by jsons1.jtag->'tag1'")
         cname_list = []
         cname_list.append("stddev(dataint)")
@@ -423,6 +420,9 @@ class TDTestCase:
         tdSql.checkData(10, 1, 1)
         tdSql.checkData(10, 2, '"femail"')
 
+        # test having
+        tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tag1' having stddev(dataint) > 0")
+        tdSql.checkRows(2)
 
         # subquery with json tag
         tdSql.query("select * from (select jtag, dataint from jsons1)")
@@ -453,7 +453,12 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query("select dataint,jtag->'tag1',tbname from jsons1 union all select dataint,jtag->'tag1',tbname from jsons2")
         tdSql.checkRows(13)
+        tdSql.query("select dataint,jtag,tbname from jsons1 union all select dataint,jtag,tbname from jsons2")
+        tdSql.checkRows(13)
 
+        #show create table
+        tdSql.query("show create table jsons1")
+        tdSql.checkData(0, 1, 'create table `jsons1` (ts TIMESTAMP,dataint INT,databool BOOL,datastr NCHAR(50),datastrbin BINARY(150)) TAGS (jtag JSON)')
 
     def stop(self):
         tdSql.close()
