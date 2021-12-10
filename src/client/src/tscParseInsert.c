@@ -672,7 +672,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
   }
   if (isConverted) {
     void *convertedSMemRow = pDataBlock->pData + pDataBlock->size;
-    memcpy(convertedSMemRow - extendedRowSize, convertedSMemRow, memRowTLen(convertedSMemRow));
+    memcpy(POINTER_SHIFT(convertedSMemRow, -extendedRowSize), convertedSMemRow, (size_t)memRowTLen(convertedSMemRow));
   }
 
   if ((*numOfRows) <= 0) {
@@ -1775,7 +1775,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   }
   if (isConverted) {
     void *convertedSMemRow = pTableDataBlock->pData + pTableDataBlock->size;
-    memcpy(convertedSMemRow - extendedRowSize, convertedSMemRow, memRowTLen(convertedSMemRow));
+    memcpy(POINTER_SHIFT(convertedSMemRow, -extendedRowSize), convertedSMemRow, (size_t)memRowTLen(convertedSMemRow));
   }
 
   tfree(tokenBuf);
