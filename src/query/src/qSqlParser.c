@@ -53,7 +53,7 @@ SSqlInfo qSqlParse(const char *pStr) {
         Parse(pParser, 0, t0, &sqlInfo);
         goto abort_parse;
       }
-      
+      case TK_QUESTION:
       case TK_ILLEGAL: {
         snprintf(sqlInfo.msg, tListLen(sqlInfo.msg), "unrecognized token: \"%s\"", t0.z);
         sqlInfo.valid = false;
