@@ -985,7 +985,7 @@ void splitStreamSql(const char *str, char **sql, char **to, char **split) {
     strcpy(*to, p);
     return ;
   }
-  len = p2 - p1 - LABEL_TO_LEN;
+  len = (int32_t)(p2 - p1 - LABEL_TO_LEN);
   *to = (char *)tmalloc(len + 1);
   strncpy(*to, p1 + LABEL_TO_LEN, len);
   (*to)[len] = 0;  // str end 
