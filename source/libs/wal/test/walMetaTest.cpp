@@ -3,7 +3,6 @@
 #include <iostream>
 #include <queue>
 
-#include "tfile.h"
 #include "walInt.h"
 
 class WalCleanEnv : public ::testing::Test {
@@ -11,13 +10,10 @@ class WalCleanEnv : public ::testing::Test {
     static void SetUpTestCase() {
       int code = walInit();
       ASSERT(code == 0);
-      code = tfInit();
-      ASSERT(code == 0);
     }
 
     static void TearDownTestCase() {
       walCleanUp();
-      tfCleanup();
     }
 
     void SetUp() override {
@@ -45,13 +41,10 @@ class WalKeepEnv : public ::testing::Test {
     static void SetUpTestCase() {
       int code = walInit();
       ASSERT(code == 0);
-      code = tfInit();
-      ASSERT(code == 0);
     }
 
     static void TearDownTestCase() {
       walCleanUp();
-      tfCleanup();
     }
 
     void SetUp() override {

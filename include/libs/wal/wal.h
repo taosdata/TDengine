@@ -91,7 +91,8 @@ typedef struct SWal {
   int32_t  fsyncPeriod;  // millisecond
   int32_t  rollPeriod;  // second
   int64_t  segSize;
-  int64_t  rtSize;
+  int64_t  retentionSize;
+  int32_t  retentionPeriod;
   EWalType level;
   //total size
   int64_t  totSize;
@@ -99,31 +100,24 @@ typedef struct SWal {
   int32_t  fsyncSeq;
   //reference
   int64_t refId;
-  //current tfd
-  int64_t curLogTfd;
-  int64_t curIdxTfd;
+  //write tfd
+  int64_t writeLogTfd;
+  int64_t writeIdxTfd;
+  //read tfd
+  int64_t readLogTfd;
+  int64_t readIdxTfd;
   //current version
   int64_t curVersion;
-
-  //current file version
-  //int64_t curFileFirstVersion;
-  //int64_t curFileLastVersion;
-
   //wal lifecycle
   int64_t firstVersion;
   int64_t snapshotVersion;
   int64_t commitVersion;
   int64_t lastVersion;
-
-  //last file
-  //int64_t lastFileName;
-
   //roll status
   int64_t lastRollSeq;
-  //int64_t lastFileWriteSize;
-
   //file set
-  int32_t fileCursor;
+  int32_t writeCur;
+  int32_t readCur;
   SArray* fileInfoSet;
   //ctl
   int32_t curStatus;
