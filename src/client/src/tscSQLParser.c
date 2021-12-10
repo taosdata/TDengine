@@ -6615,19 +6615,17 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
     SKVRowBuilder kvRowBuilder = {0};
     if (pTagsSchema->type == TSDB_DATA_TYPE_JSON) {
-
-      if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
-        return TSDB_CODE_TSC_OUT_OF_MEMORY;
-      }
       if (pItem->pVar.nType != TSDB_DATA_TYPE_BINARY) {
         tscError("json type error, should be string");
-        tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidOperationMsg(pMsg, msg25);
       }
       if (pItem->pVar.nType > TSDB_MAX_JSON_TAGS_LEN / TSDB_NCHAR_SIZE) {
         tscError("json tag too long");
-        tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidOperationMsg(pMsg, msg14);
+      }
+
+      if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
       }
 
       int8_t tagVal = TSDB_DATA_JSON_PLACEHOLDER;
