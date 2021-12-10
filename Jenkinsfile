@@ -475,7 +475,6 @@ pipeline {
                   cd ${WKC}/tests/examples/C#
                   dotnet run --project C#checker/C#checker.csproj
                   dotnet run --project TDengineTest/TDengineTest.csproj
-                  dotnet run --project taosdemo/taosdemo.csproj 
                   dotnet run --project schemaless/schemaless.csproj 
                 '''
               } 
