@@ -572,6 +572,8 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
       pDataBlocks->ordered = false;
       ++(*convertOffset);
       convertSMemRow(row + (*convertOffset) * rowSize, row, pDataBlocks);
+      // revise the predicted memRowType for batch insert
+      pBuilder->memRowType = pBuilder->memRowType == SMEM_ROW_DATA ? SMEM_ROW_KV : SMEM_ROW_DATA;
     } else {
       *convertOffset = 0;
     }
