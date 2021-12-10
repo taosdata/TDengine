@@ -379,9 +379,9 @@ bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
            "%s %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64
            " %" PRId64,
            nouse0, &o_rbytes, &rpackets, &nouse1, &nouse2, &nouse3, &nouse4, &nouse5, &nouse6, &o_tbytes, &tpackets);
-    if (rbytes) *rbytes = o_rbytes;
-    if (tbytes) *tbytes = o_tbytes;
-    if (bytes)  *bytes += (o_rbytes + o_tbytes);
+    if (rbytes) *rbytes += o_rbytes;
+    if (tbytes) *tbytes += o_tbytes;
+    if (bytes)  *bytes  += (o_rbytes + o_tbytes);
   }
 
   tfree(line);

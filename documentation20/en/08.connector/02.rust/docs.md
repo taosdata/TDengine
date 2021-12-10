@@ -15,7 +15,7 @@ if you use the default features, it'll depend on:
 - [TDengine Client](https://www.taosdata.com/cn/getting-started/#%E9%80%9A%E8%BF%87%E5%AE%89%E8%A3%85%E5%8C%85%E5%AE%89%E8%A3%85)  library and headers.
 - clang because bindgen will requires the clang AST library.
 
-## Fetures
+## Features
 
 In-design features:
 
