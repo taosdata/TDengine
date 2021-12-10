@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndStable.h"
+#include "mndStb.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"

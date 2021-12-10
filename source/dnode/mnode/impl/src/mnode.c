@@ -24,7 +24,7 @@
 #include "mndMnode.h"
 #include "mndProfile.h"
 #include "mndShow.h"
-#include "mndStable.h"
+#include "mndStb.h"
 #include "mndSync.h"
 #include "mndTelem.h"
 #include "mndTrans.h"
