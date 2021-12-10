@@ -23,10 +23,10 @@ from util.sql import tdSql
 class TDTestCase:
     def caseDescription(self):
         '''
-        column & tag 支持特殊字符
-        包含在超级表的创建、查看、删除；包含特殊字符的表列和tag的创建、增加、修改（binary和nchar）、删除。
-        超级表子表的创建、查看、删除；
-        普通表创建、查看、删除；包含特殊字符的表列的创建、增加、修改（binary和nchar）、删除。
+        case1:The escape char "`" can be used for both tag name and column name 
+        case2:create stable(column&tag); insert data; show stable; show create table; add stable(column&tag);change stable(tag);drop stable(column&tag);modify stable(column&tag)(binary和nchar);drop stable;
+        case3:create stable_child; insert data; show stable_child; show create stable_child; drop stable_child;
+        case4:create regular_table(column); insert data; show regular_table; show create regular_table; add regular_table(column);drop regular_table(column);modify regular_table(column)(binary和nchar);drop regular_table;
         ''' 
         return
 
