@@ -10963,8 +10963,6 @@ static int insertTestProcess() {
     assert(cmdBuffer);
 
     if(createDatabasesAndStables(cmdBuffer) != 0) {
-        if (g_fpOfInsertResult)
-            fclose(g_fpOfInsertResult);
         free(cmdBuffer);
         return -1;
     }
