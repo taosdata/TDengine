@@ -93,7 +93,8 @@ class TDTestCase:
 
     def run(self):
 
-        os.system("rm -rf 0-management/1-stable/create_col_tag.py.sql")
+        testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf 0-management/1-stable/%s.sql" % testcaseFilename ) 
         tdSql.prepare()
 
         print("==============step1")
