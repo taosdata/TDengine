@@ -33,6 +33,10 @@ static int32_t  mndStableActionUpdate(SSdb *pSdb, SStableObj *pOldStable, SStabl
 static int32_t  mndProcessCreateStableMsg(SMnodeMsg *pMsg);
 static int32_t  mndProcessAlterStableMsg(SMnodeMsg *pMsg);
 static int32_t  mndProcessDropStableMsg(SMnodeMsg *pMsg);
+static int32_t  mndProcessCreateStableInRsp(SMnodeMsg *pMsg);
+static int32_t  mndProcessAlterStableInRsp(SMnodeMsg *pMsg);
+static int32_t  mndProcessDropStableInRsp(SMnodeMsg *pMsg);
+static int32_t  mndProcessStableMetaMsg(SMnodeMsg *pMsg);
 static int32_t  mndGetStableMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
 static int32_t  mndRetrieveStables(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextStable(SMnode *pMnode, void *pIter);
@@ -46,13 +50,17 @@ int32_t mndInitStable(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndStableActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndStableActionDelete};
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_DB, mndProcessCreateStableMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_DB, mndProcessAlterStableMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_DB, mndProcessDropStableMsg);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_STABLE, mndProcessCreateStableMsg);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_STABLE, mndProcessAlterStableMsg);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_STABLE, mndProcessDropStableMsg);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_STABLE_IN_RSP, mndProcessCreateStableInRsp);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_STABLE_IN_RSP, mndProcessAlterStableInRsp);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_STABLE_IN_RSP, mndProcessDropStableInRsp);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_TABLE_META, mndProcessStableMetaMsg);
 
-  mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_DB, mndGetStableMeta);
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_DB, mndRetrieveStables);
-  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_DB, mndCancelGetNextStable);
+  mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_STABLE, mndGetStableMeta);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STABLE, mndRetrieveStables);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STABLE, mndCancelGetNextStable);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -119,8 +127,8 @@ static SSdbRow *mndStableActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT16(pRaw, pRow, dataPos, &pStable->numOfFields)
   SDB_GET_INT16(pRaw, pRow, dataPos, &pStable->numOfTags)
 
-  pStable->fieldSchema = (SSchema *)pStable->pCont;
-  pStable->tagSchema = (SSchema *)(pStable->pCont + pStable->numOfFields * sizeof(SSchema));
+  pStable->fieldSchema = calloc(pStable->numOfFields, sizeof(SSchema));
+  pStable->tagSchema = calloc(pStable->numOfTags, sizeof(SSchema));
 
   for (int32_t i = 0; i < pStable->numOfFields; ++i) {
     SSchema *pSchema = &pStable->fieldSchema[i];
@@ -155,27 +163,41 @@ static int32_t mndStableActionDelete(SSdb *pSdb, SStableObj *pStable) {
 
 static int32_t mndStableActionUpdate(SSdb *pSdb, SStableObj *pOldStable, SStableObj *pNewStable) {
   mTrace("stable:%s, perform update action", pOldStable->name);
-  memcpy(pOldStable->name, pNewStable->name, TSDB_TABLE_NAME_LEN);
-  pOldStable->createdTime = pNewStable->createdTime;
-  pOldStable->updateTime = pNewStable->updateTime;
-  pOldStable->uid = pNewStable->uid;
-  pOldStable->version = pNewStable->version;
-  pOldStable->numOfFields = pNewStable->numOfFields;
-  pOldStable->numOfTags = pNewStable->numOfTags;
-  pOldStable->createdTime = pNewStable->createdTime;
+  atomic_exchange_32(&pOldStable->updateTime, pNewStable->updateTime);
+  atomic_exchange_32(&pOldStable->version, pNewStable->version);
 
-  memcpy(pOldStable->pCont, pNewStable, sizeof(SDbObj));
-  // pStable->fieldSchema = pStable->pCont;
-  // pStable->tagSchema = pStable->pCont + pStable->numOfFields * sizeof(SSchema);
+  taosWLockLatch(&pOldStable->lock);
+  int16_t numOfTags = pNewStable->numOfTags;
+  int32_t tagSize = numOfTags * sizeof(SSchema);
+  int16_t numOfFields = pNewStable->numOfFields;
+  int32_t fieldSize = numOfFields * sizeof(SSchema);
 
+  if (pOldStable->numOfTags < numOfTags) {
+    pOldStable->tagSchema = malloc(tagSize);
+  }
+  if (pOldStable->numOfFields < numOfFields) {
+    pOldStable->fieldSchema = malloc(fieldSize);
+  }
+
+  memcpy(pOldStable->tagSchema, pNewStable->tagSchema, tagSize);
+  memcpy(pOldStable->fieldSchema, pNewStable->fieldSchema, fieldSize);
+  taosWUnLockLatch(&pOldStable->lock);
   return 0;
 }
 
 static int32_t mndProcessCreateStableMsg(SMnodeMsg *pMsg) { return 0; }
 
+static int32_t mndProcessCreateStableInRsp(SMnodeMsg *pMsg) { return 0; }
+
 static int32_t mndProcessAlterStableMsg(SMnodeMsg *pMsg) { return 0; }
 
+static int32_t mndProcessAlterStableInRsp(SMnodeMsg *pMsg) { return 0; }
+
 static int32_t mndProcessDropStableMsg(SMnodeMsg *pMsg) { return 0; }
+
+static int32_t mndProcessDropStableInRsp(SMnodeMsg *pMsg) { return 0; }
+
+static int32_t mndProcessStableMetaMsg(SMnodeMsg *pMsg) { return 0; }
 
 static int32_t mndGetNumOfStables(SMnode *pMnode, char *dbName, int32_t *pNumOfStables) {
   SSdb *pSdb = pMnode->pSdb;

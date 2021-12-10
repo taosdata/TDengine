@@ -251,9 +251,9 @@ typedef struct SStableObj {
   int32_t  version;
   int16_t  numOfFields;
   int16_t  numOfTags;
+  SRWLatch lock;
   SSchema *fieldSchema;
   SSchema *tagSchema;
-  char     pCont[];
 } SStableObj;
 
 typedef struct SFuncObj {

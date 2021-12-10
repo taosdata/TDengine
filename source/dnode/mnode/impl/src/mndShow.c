@@ -270,7 +270,7 @@ char *mndShowStr(int32_t showType) {
       return "show mnodes";
     case TSDB_MGMT_TABLE_VGROUP:
       return "show vgroups";
-    case TSDB_MGMT_TABLE_METRIC:
+    case TSDB_MGMT_TABLE_STABLE:
       return "show stables";
     case TSDB_MGMT_TABLE_MODULE:
       return "show modules";

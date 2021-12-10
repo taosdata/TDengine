@@ -277,9 +277,9 @@ static int32_t mndRetrieveVgroups(SMnodeMsg *pMsg, SShowObj *pShow, char *data, 
     }
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pVgroup->compact;
+    *(int8_t *)pWrite = pVgroup->compact; 
     cols++;
-
+    
     sdbRelease(pSdb, pVgroup);
     numOfRows++;
   }
