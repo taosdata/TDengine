@@ -51,7 +51,19 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *tar
   MD5Init(&context);
   MD5Update(&context, inBuf, (unsigned int)inLen);
   MD5Final(&context);
-  memcpy(target, context.digest, TSDB_KEY_LEN);
+  memcpy(target, context.digest, tListLen(context.digest));
+}
+
+static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *target) {
+  MD5_CTX context;
+  MD5Init(&context);
+  MD5Update(&context, inBuf, (unsigned int)len);
+
+  MD5Final(&context);
+  sprintf(target, "%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x", context.digest[0], context.digest[1], context.digest[2],
+          context.digest[3], context.digest[4], context.digest[5], context.digest[6], context.digest[7],
+          context.digest[8], context.digest[9], context.digest[10], context.digest[11], context.digest[12],
+          context.digest[13], context.digest[14], context.digest[15]);
 }
 
 #ifdef __cplusplus

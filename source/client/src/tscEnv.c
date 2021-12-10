@@ -70,6 +70,22 @@ static void deregisterRequest(SRequestObj* pRequest) {
   taosReleaseRef(tscConnRef, pTscObj->id);
 }
 
+static void tscInitLogFile() {
+  taosReadGlobalLogCfg();
+  if (mkdir(tsLogDir, 0755) != 0 && errno != EEXIST) {
+    printf("failed to create log dir:%s\n", tsLogDir);
+  }
+
+  const char    *defaultLogFileNamePrefix = "taoslog";
+  const int32_t  maxLogFileNum = 10;
+
+  char temp[128] = {0};
+  sprintf(temp, "%s/%s", tsLogDir, defaultLogFileNamePrefix);
+  if (taosInitLog(temp, tsNumOfLogLines, maxLogFileNum) < 0) {
+    printf("failed to open log file in directory:%s\n", tsLogDir);
+  }
+}
+
 void tscFreeRpcObj(void *param) {
 #if 0
   assert(param);
@@ -200,22 +216,6 @@ void destroyRequest(void* p) {
   deregisterRequest(pRequest);
 }
 
-static void tscInitLogFile() {
-  taosReadGlobalLogCfg();
-  if (mkdir(tsLogDir, 0755) != 0 && errno != EEXIST) {
-    printf("failed to create log dir:%s\n", tsLogDir);
-  }
-
-  const char    *defaultLogFileNamePrefix = "taoslog";
-  const int32_t  maxLogFileNum = 10;
-
-  char temp[128] = {0};
-  sprintf(temp, "%s/%s", tsLogDir, defaultLogFileNamePrefix);
-  if (taosInitLog(temp, tsNumOfLogLines, maxLogFileNum) < 0) {
-    printf("failed to open log file in directory:%s\n", tsLogDir);
-  }
-}
-
 void taos_init_imp(void) {
   // In the APIs of other program language, taos_cleanup is not available yet.
   // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
@@ -268,7 +268,7 @@ void taos_init_imp(void) {
   tscDebug("client is initialized successfully");
 }
 
-int taos_options_imp(TSDB_OPTION option, const char *pStr) {
+int taos_options_imp(TSDB_OPTION option, const char *str) {
   SGlobalCfg *cfg = NULL;
 
   switch (option) {
@@ -277,11 +277,11 @@ int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       assert(cfg != NULL);
 
       if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
-        tstrncpy(configDir, pStr, TSDB_FILENAME_LEN);
+        tstrncpy(configDir, str, TSDB_FILENAME_LEN);
         cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-        tscInfo("set config file directory:%s", pStr);
+        tscInfo("set config file directory:%s", str);
       } else {
-        tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, pStr, tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
+        tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, str, tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
       }
       break;
 
@@ -290,13 +290,13 @@ int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       assert(cfg != NULL);
 
       if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
-        tsShellActivityTimer = atoi(pStr);
+        tsShellActivityTimer = atoi(str);
         if (tsShellActivityTimer < 1) tsShellActivityTimer = 1;
         if (tsShellActivityTimer > 3600) tsShellActivityTimer = 3600;
         cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         tscInfo("set shellActivityTimer:%d", tsShellActivityTimer);
       } else {
-        tscWarn("config option:%s, input value:%s, is configured by %s, use %d", cfg->option, pStr, tsCfgStatusStr[cfg->cfgStatus], *(int32_t *)cfg->ptr);
+        tscWarn("config option:%s, input value:%s, is configured by %s, use %d", cfg->option, str, tsCfgStatusStr[cfg->cfgStatus], *(int32_t *)cfg->ptr);
       }
       break;
 
@@ -304,9 +304,9 @@ int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       cfg = taosGetConfigOption("locale");
       assert(cfg != NULL);
 
-      size_t len = strlen(pStr);
+      size_t len = strlen(str);
       if (len == 0 || len > TSDB_LOCALE_LEN) {
-        tscInfo("Invalid locale:%s, use default", pStr);
+        tscInfo("Invalid locale:%s, use default", str);
         return -1;
       }
 
@@ -327,14 +327,14 @@ int taos_options_imp(TSDB_OPTION option, const char *pStr) {
         }
 
         // set the user specified locale
-        char *locale = setlocale(LC_CTYPE, pStr);
+        char *locale = setlocale(LC_CTYPE, str);
 
         if (locale != NULL) { // failed to set the user specified locale
           tscInfo("locale set, prev locale:%s, new locale:%s", tsLocale, locale);
           cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         } else { // set the user specified locale failed, use default LC_CTYPE as current locale
           locale = setlocale(LC_CTYPE, tsLocale);
-          tscInfo("failed to set locale:%s, current locale:%s", pStr, tsLocale);
+          tscInfo("failed to set locale:%s, current locale:%s", str, tsLocale);
         }
 
         tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
@@ -364,7 +364,7 @@ int taos_options_imp(TSDB_OPTION option, const char *pStr) {
           tscInfo("charset remains:%s", tsCharset);
         }
       } else {
-        tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, pStr, tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
+        tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, str, tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
       }
       break;
     }
@@ -374,27 +374,27 @@ int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       cfg = taosGetConfigOption("charset");
       assert(cfg != NULL);
 
-      size_t len = strlen(pStr);
+      size_t len = strlen(str);
       if (len == 0 || len > TSDB_LOCALE_LEN) {
-        tscInfo("failed to set charset:%s", pStr);
+        tscInfo("failed to set charset:%s", str);
         return -1;
       }
 
       if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
-        if (taosValidateEncodec(pStr)) {
+        if (taosValidateEncodec(str)) {
           if (strlen(tsCharset) == 0) {
-            tscInfo("charset is set:%s", pStr);
+            tscInfo("charset is set:%s", str);
           } else {
-            tscInfo("charset changed from %s to %s", tsCharset, pStr);
+            tscInfo("charset changed from %s to %s", tsCharset, str);
           }
 
-          tstrncpy(tsCharset, pStr, TSDB_LOCALE_LEN);
+          tstrncpy(tsCharset, str, TSDB_LOCALE_LEN);
           cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         } else {
-          tscInfo("charset:%s not valid", pStr);
+          tscInfo("charset:%s not valid", str);
         }
       } else {
-        tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, pStr, tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
+        tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, str, tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
       }
 
       break;
@@ -405,12 +405,12 @@ int taos_options_imp(TSDB_OPTION option, const char *pStr) {
       assert(cfg != NULL);
 
       if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
-        tstrncpy(tsTimezone, pStr, TSDB_TIMEZONE_LEN);
+        tstrncpy(tsTimezone, str, TSDB_TIMEZONE_LEN);
         tsSetTimeZone();
         cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-        tscDebug("timezone set:%s, input:%s by taos_options", tsTimezone, pStr);
+        tscDebug("timezone set:%s, input:%s by taos_options", tsTimezone, str);
       } else {
-        tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, pStr, tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
+        tscWarn("config option:%s, input value:%s, is configured by %s, use %s", cfg->option, str, tsCfgStatusStr[cfg->cfgStatus], (char *)cfg->ptr);
       }
       break;
 

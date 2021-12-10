@@ -107,7 +107,7 @@ SClient* createClient(const char* user, const char* pass, const char* fqdn, uint
   SClient* pClient = (SClient*)calloc(1, sizeof(SClient));
   ASSERT(pClient);
 
-  char secretEncrypt[32] = {0};
+  char secretEncrypt[TSDB_PASSWORD_LEN] = {0};
   taosEncryptPass((uint8_t*)pass, strlen(pass), secretEncrypt);
 
   SRpcInit rpcInit;

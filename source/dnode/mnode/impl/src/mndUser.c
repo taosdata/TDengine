@@ -92,7 +92,7 @@ static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
 
   int32_t dataPos = 0;
   SDB_SET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN)
-  SDB_SET_BINARY(pRaw, dataPos, pUser->pass, TSDB_KEY_LEN)
+  SDB_SET_BINARY(pRaw, dataPos, pUser->pass, TSDB_PASSWORD_LEN)
   SDB_SET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN)
   SDB_SET_INT64(pRaw, dataPos, pUser->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pUser->updateTime)
@@ -120,7 +120,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
   int32_t dataPos = 0;
   SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->user, TSDB_USER_LEN)
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->pass, TSDB_KEY_LEN)
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->pass, TSDB_PASSWORD_LEN)
   SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->acct, TSDB_USER_LEN)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pUser->createdTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pUser->updateTime)
@@ -165,7 +165,7 @@ static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
 static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pSrcUser, SUserObj *pDstUser) {
   mTrace("user:%s, perform update action", pSrcUser->user);
   memcpy(pSrcUser->user, pDstUser->user, TSDB_USER_LEN);
-  memcpy(pSrcUser->pass, pDstUser->pass, TSDB_KEY_LEN);
+  memcpy(pSrcUser->pass, pDstUser->pass, TSDB_PASSWORD_LEN);
   memcpy(pSrcUser->acct, pDstUser->acct, TSDB_USER_LEN);
   pSrcUser->createdTime = pDstUser->createdTime;
   pSrcUser->updateTime = pDstUser->updateTime;

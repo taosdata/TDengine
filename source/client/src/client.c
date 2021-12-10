@@ -53,11 +53,11 @@ TAOS *taos_connect_l(const char *ip, int ipLen, const char *user, int userLen, c
   char ipStr[TSDB_EP_LEN]      = {0};
   char dbStr[TSDB_DB_NAME_LEN] = {0};
   char userStr[TSDB_USER_LEN]  = {0};
-  char passStr[TSDB_KEY_LEN]   = {0};
+  char passStr[TSDB_PASSWORD_LEN]   = {0};
 
   strncpy(ipStr,   ip,   MIN(TSDB_EP_LEN - 1, ipLen));
   strncpy(userStr, user, MIN(TSDB_USER_LEN - 1, userLen));
-  strncpy(passStr, pass, MIN(TSDB_KEY_LEN - 1, passLen));
+  strncpy(passStr, pass, MIN(TSDB_PASSWORD_LEN - 1, passLen));
   strncpy(dbStr,   db,   MIN(TSDB_DB_NAME_LEN - 1, dbLen));
   return taos_connect(ipStr, userStr, passStr, dbStr, port);
 }

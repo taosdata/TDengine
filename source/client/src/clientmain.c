@@ -74,6 +74,10 @@ void taos_cleanup(void) {
 }
 
 void taos_close(TAOS* taos) {
+  if (taos == NULL) {
+    return;
+  }
+
 
 }
 

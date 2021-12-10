@@ -71,7 +71,7 @@ typedef struct SAppInfo {
 
 typedef struct STscObj {
   char               user[TSDB_USER_LEN];
-  char               pass[TSDB_KEY_LEN];
+  char               pass[TSDB_PASSWORD_LEN];
   char               acctId[TSDB_ACCT_ID_LEN];
   char               db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   uint32_t           connId;
@@ -117,7 +117,7 @@ void destroyRequest(void* p);
 TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, const char *auth, const char *db, uint16_t port);
 
 void taos_init_imp(void);
-int taos_options_imp(TSDB_OPTION option, const char *pStr);
+int taos_options_imp(TSDB_OPTION option, const char *str);
 
 #ifdef __cplusplus
 }

@@ -51,8 +51,8 @@ typedef struct {
   char     user[TSDB_UNI_LEN];   // meter ID
   char     spi;                  // security parameter index
   char     encrypt;              // encrypt algorithm
-  char     secret[TSDB_KEY_LEN]; // secret for the link
-  char     ckey[TSDB_KEY_LEN];   // ciphering key 
+  char     secret[TSDB_PASSWORD_LEN]; // secret for the link
+  char     ckey[TSDB_PASSWORD_LEN];   // ciphering key
 
   void   (*cfp)(void *parent, SRpcMsg *, SEpSet *);
   int    (*afp)(void *parent, char *user, char *spi, char *encrypt, char *secret, char *ckey); 
@@ -97,8 +97,8 @@ typedef struct SRpcConn {
   char      user[TSDB_UNI_LEN]; // user ID for the link
   char      spi;     // security parameter index
   char      encrypt; // encryption, 0:1 
-  char      secret[TSDB_KEY_LEN]; // secret for the link
-  char      ckey[TSDB_KEY_LEN];   // ciphering key 
+  char      secret[TSDB_PASSWORD_LEN]; // secret for the link
+  char      ckey[TSDB_PASSWORD_LEN];   // ciphering key
   char      secured;              // if set to 1, no authentication
   uint16_t  localPort;      // for UDP only
   uint32_t  linkUid;        // connection unique ID assigned by client
@@ -698,7 +698,7 @@ static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc) {
     pConn->linkUid = (uint32_t)((int64_t)pConn + taosGetPid() + (int64_t)pConn->tranId);
     pConn->spi = pRpc->spi;
     pConn->encrypt = pRpc->encrypt;
-    if (pConn->spi) memcpy(pConn->secret, pRpc->secret, TSDB_KEY_LEN);
+    if (pConn->spi) memcpy(pConn->secret, pRpc->secret, TSDB_PASSWORD_LEN);
     tDebug("%s %p client connection is allocated, uid:0x%x", pRpc->label, pConn, pConn->linkUid);
   }
 
@@ -1527,9 +1527,9 @@ static int rpcAuthenticateMsg(void *pMsg, int msgLen, void *pAuth, void *pKey) {
   int     ret = -1;
 
   MD5Init(&context);
-  MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
+  MD5Update(&context, (uint8_t *)pKey, TSDB_PASSWORD_LEN);
   MD5Update(&context, (uint8_t *)pMsg, msgLen);
-  MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
+  MD5Update(&context, (uint8_t *)pKey, TSDB_PASSWORD_LEN);
   MD5Final(&context);
 
   if (memcmp(context.digest, pAuth, sizeof(context.digest)) == 0) ret = 0;
@@ -1541,9 +1541,9 @@ static void rpcBuildAuthHead(void *pMsg, int msgLen, void *pAuth, void *pKey) {
   MD5_CTX context;
 
   MD5Init(&context);
-  MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
+  MD5Update(&context, (uint8_t *)pKey, TSDB_PASSWORD_LEN);
   MD5Update(&context, (uint8_t *)pMsg, msgLen);
-  MD5Update(&context, (uint8_t *)pKey, TSDB_KEY_LEN);
+  MD5Update(&context, (uint8_t *)pKey, TSDB_PASSWORD_LEN);
   MD5Final(&context);
 
   memcpy(pAuth, context.digest, sizeof(context.digest));

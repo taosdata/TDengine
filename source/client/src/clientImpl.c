@@ -26,7 +26,7 @@ static bool validateUserName(const char* user) {
 }
 
 static bool validatePassword(const char* passwd) {
-  return stringLengthCheck(passwd, TSDB_KEY_LEN - 1);
+  return stringLengthCheck(passwd, TSDB_PASSWORD_LEN - 1);
 }
 
 static bool validateDbName(const char* db) {
@@ -52,14 +52,14 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     strdequote(tmp);
   }
 
-  char secretEncrypt[32] = {0};
+  char secretEncrypt[64] = {0};
   if (auth == NULL) {
     if (!validatePassword(pass)) {
       terrno = TSDB_CODE_TSC_INVALID_PASS_LENGTH;
       return NULL;
     }
 
-    taosEncryptPass((uint8_t *)pass, strlen(pass), secretEncrypt);
+    taosEncryptPass_c((uint8_t *)pass, strlen(pass), secretEncrypt);
   } else {
     tstrncpy(secretEncrypt, auth, tListLen(secretEncrypt));
   }
@@ -79,7 +79,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     }
   }
 
-  return taosConnectImpl(ip, user, auth, db, port, NULL, NULL);
+  return taosConnectImpl(ip, user, &secretEncrypt[0], db, port, NULL, NULL);
 }
 
 int initEpSetFromCfg(const char *firstEp, const char *secondEp, SRpcCorEpSet *pEpSet) {

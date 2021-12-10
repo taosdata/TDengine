@@ -379,7 +379,7 @@ typedef struct {
 
 typedef struct {
   char    user[TSDB_USER_LEN];
-  char    pass[TSDB_KEY_LEN];
+  char    pass[TSDB_PASSWORD_LEN];
   int32_t maxUsers;
   int32_t maxDbs;
   int32_t maxTimeSeries;
@@ -394,7 +394,7 @@ typedef struct {
 
 typedef struct {
   char user[TSDB_USER_LEN];
-  char pass[TSDB_KEY_LEN];
+  char pass[TSDB_PASSWORD_LEN];
 } SCreateUserMsg, SAlterUserMsg;
 
 typedef struct {
@@ -912,8 +912,8 @@ typedef struct {
   char user[TSDB_USER_LEN];
   char spi;
   char encrypt;
-  char secret[TSDB_KEY_LEN];
-  char ckey[TSDB_KEY_LEN];
+  char secret[TSDB_PASSWORD_LEN];
+  char ckey[TSDB_PASSWORD_LEN];
 } SAuthMsg, SAuthRsp;
 
 typedef struct {
