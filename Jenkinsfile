@@ -38,7 +38,8 @@ def pre_test(){
     sudo rmtaos || echo "taosd has not installed"
     '''
     sh '''
-    killall -9 taosd ||echo "no taosd running"
+    kill -9 $(pidof taosd) ||echo "no taosd running"
+    kill -9 $(pidof taosadapter) ||echo "no taosadapter running"
     killall -9 gdb || echo "no gdb running"
     killall -9 python3.8 || echo "no python program running"
     cd ${WKC}
@@ -104,7 +105,7 @@ def pre_test(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. > /dev/null
+    cmake .. -DBUILD_HTTP=false > /dev/null
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
@@ -178,7 +179,7 @@ def pre_test_noinstall(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. > /dev/null
+    cmake .. -DBUILD_HTTP=false > /dev/null
     make
     '''
     return 1
