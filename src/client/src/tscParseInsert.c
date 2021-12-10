@@ -569,9 +569,9 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     // 4. perform the convert
     if (isNeedConvertRow) {
       // put converted row to next location to minimize the memcpy
+      pDataBlocks->ordered = false;
       ++(*convertOffset);
       convertSMemRow(row + (*convertOffset) * rowSize, row, pDataBlocks);
-      pDataBlocks->ordered = false;
     } else {
       *convertOffset = 0;
     }
