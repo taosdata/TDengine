@@ -100,7 +100,7 @@ sudo dnf install -y maven
 #### Install build dependencies for taos-tools 
 To build the [taos-tools](https://github.com/taosdata/taos-tools) on CentOS, the following packages need to be installed.
 ```bash
-sudo yum install libz-devel xz-devel snappy-devel jansson-devel pkgconfig libatomic
+sudo yum install zlib-devel xz-devel snappy-devel jansson-devel pkgconfig libatomic
 ```
 Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)), it lead a cmake prompt libsnappy not found. But snappy will works well.
 
@@ -142,15 +142,15 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-Note TDengine 2.3.x.0 and later use a component named 'taosadapter' to play http daemon role by default instead of the http daemon embedded in the early version of TDengine. The taosadapter is programmed by go language. If you pull TDengine source code to the latest from an existing codebase, please execute 'git submodule update --init --recursive' to pull taosadapter source code. Please install go language 1.14 or above for compiling taosadapter. If you meet difficulties regarding 'go mod', especially you are from China, you can use a proxy to solve the problem.
+Note TDengine 2.3.x.0 and later use a component named 'taosAdapter' to play http daemon role by default instead of the http daemon embedded in the early version of TDengine. The taosAdapter is programmed by go language. If you pull TDengine source code to the latest from an existing codebase, please execute 'git submodule update --init --recursive' to pull taosAdapter source code. Please install go language 1.14 or above for compiling taosAdapter. If you meet difficulties regarding 'go mod', especially you are from China, you can use a proxy to solve the problem.
 ```
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
 ```
 
-Or you can use the following command to choose to embed old httpd too.
+The embedded http daemon still be built from TDengine source code by default. Or you can use the following command to choose to build taosAdapter.
 ```
-cmake .. -DBUILD_HTTP=true
+cmake .. -DBUILD_HTTP=false
 ```
 
 You can use Jemalloc as memory allocator instead of glibc:

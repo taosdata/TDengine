@@ -74,6 +74,7 @@ function clean_bin() {
     ${csudo} rm -f ${bin_link_dir}/rmkh          || :
     ${csudo} rm -f ${bin_link_dir}/tarbitrator   || :
     ${csudo} rm -f ${bin_link_dir}/set_core      || :
+    ${csudo} rm -f ${bin_link_dir}/run_taosd.sh     || :
 }
 
 function clean_lib() {
