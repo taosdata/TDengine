@@ -33,12 +33,9 @@ int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendRedoAction(STrans *pTrans, SEpSet *, void *pMsg);
 int32_t mndTransAppendUndoAction(STrans *pTrans, SEpSet *, void *pMsg);
 
-int32_t mndTransPrepare(STrans *pTrans, int32_t (*syncfp)(SSdbRaw *pRaw, void *pData));
-int32_t mndTransApply(SMnode *pMnode, SSdbRaw *pRaw, void *pData, int32_t code);
+int32_t mndTransPrepare(STrans *pTrans);
+void    mndTransApply(SMnode *pMnode, SSdbRaw *pRaw, STransMsg *pMsg, int32_t code);
 int32_t mndTransExecute(SSdb *pSdb, int32_t tranId);
-
-SSdbRaw *mndTransActionEncode(STrans *pTrans);
-SSdbRow *mndTransActionDecode(SSdbRaw *pRaw);
 
 #ifdef __cplusplus
 }

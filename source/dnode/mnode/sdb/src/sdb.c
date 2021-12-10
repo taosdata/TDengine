@@ -94,7 +94,7 @@ void sdbCleanup(SSdb *pSdb) {
     taosHashClear(hash);
     taosHashCleanup(hash);
     pSdb->hashObjs[i] = NULL;
-    mTrace("sdb table:%d is cleaned up", i);
+    mDebug("sdb table:%d is cleaned up", i);
   }
 
   free(pSdb);
@@ -129,7 +129,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
 
   pSdb->hashObjs[sdbType] = hash;
   taosInitRWLatch(&pSdb->locks[sdbType]);
-  mTrace("sdb table:%d is initialized", sdbType);
+  mDebug("sdb table:%d is initialized", sdbType);
 
   return 0;
 }

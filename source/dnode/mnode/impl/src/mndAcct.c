@@ -24,7 +24,7 @@ static SSdbRaw *mnodeAcctActionEncode(SAcctObj *pAcct);
 static SSdbRow *mnodeAcctActionDecode(SSdbRaw *pRaw);
 static int32_t  mnodeAcctActionInsert(SSdb *pSdb, SAcctObj *pAcct);
 static int32_t  mnodeAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct);
-static int32_t  mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pSrcAcct, SAcctObj *pDstAcct);
+static int32_t  mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pOldAcct, SAcctObj *pNewAcct);
 static int32_t  mndProcessCreateAcctMsg(SMnodeMsg *pMnodeMsg);
 static int32_t  mndProcessAlterAcctMsg(SMnodeMsg *pMnodeMsg);
 static int32_t  mndProcessDropAcctMsg(SMnodeMsg *pMnodeMsg);
@@ -65,7 +65,7 @@ static int32_t mnodeCreateDefaultAcct(SMnode *pMnode) {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mTrace("acct:%s, will be created while deploy sdb", acctObj.acct);
+  mDebug("acct:%s, will be created while deploy sdb", acctObj.acct);
   return sdbWrite(pMnode->pSdb, pRaw);
 }
 
@@ -131,15 +131,15 @@ static int32_t mnodeAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct) {
   return 0;
 }
 
-static int32_t mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pSrcAcct, SAcctObj *pDstAcct) {
-  mTrace("acct:%s, perform update action", pSrcAcct->acct);
+static int32_t mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pOldAcct, SAcctObj *pNewAcct) {
+  mTrace("acct:%s, perform update action", pOldAcct->acct);
 
-  memcpy(pSrcAcct->acct, pDstAcct->acct, TSDB_USER_LEN);
-  pSrcAcct->createdTime = pDstAcct->createdTime;
-  pSrcAcct->updateTime = pDstAcct->updateTime;
-  pSrcAcct->acctId = pDstAcct->acctId;
-  pSrcAcct->status = pDstAcct->status;
-  pSrcAcct->cfg = pDstAcct->cfg;
+  memcpy(pOldAcct->acct, pNewAcct->acct, TSDB_USER_LEN);
+  pOldAcct->createdTime = pNewAcct->createdTime;
+  pOldAcct->updateTime = pNewAcct->updateTime;
+  pOldAcct->acctId = pNewAcct->acctId;
+  pOldAcct->status = pNewAcct->status;
+  pOldAcct->cfg = pNewAcct->cfg;
   return 0;
 }
 

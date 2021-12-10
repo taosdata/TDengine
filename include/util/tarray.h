@@ -147,6 +147,13 @@ void* taosArrayInsert(SArray* pArray, size_t index, void* pData);
 void taosArraySet(SArray* pArray, size_t index, void* pData);
 
 /**
+ * remove some data entry from front
+ * @param pArray
+ * @param cnt
+ */
+void taosArrayPopFrontBatch(SArray* pArray, size_t cnt);
+
+/**
  * remove data entry of the given index
  * @param pArray
  * @param index
