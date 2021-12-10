@@ -31,14 +31,12 @@
 #define TSC_VAR_RELEASED    0
 
 SAppInfo   appInfo;
-int32_t    sentinel = TSC_VAR_NOT_RELEASE;
-
 int32_t    tscReqRef = -1;
 void      *tscQhandle;
 int32_t    tscConnRef = -1;
 void      *tscRpcCache;            // TODO removed from here.
 
-static pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently
+pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently
 static pthread_once_t  tscinit = PTHREAD_ONCE_INIT;
 static pthread_mutex_t setConfMutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -104,7 +102,6 @@ void* tscAcquireRpc(const char *key, const char *user, const char *secretEncrypt
   pthread_mutex_unlock(&rpcObjMutex);
   return pRpcObj;
 #endif
-
 }
 
 void destroyTscObj(void *pTscObj) {
@@ -139,6 +136,72 @@ void* createTscObj(const char* user, const char* auth, const char *ip, uint32_t 
   tstrncpy(pObj->pass, auth, len);
 
   pthread_mutex_init(&pObj->mutex, NULL);
+  pObj->id = taosAddRef(tscConnRef, pObj);
+}
+
+static void registerRequest(SRequestObj* pRequest) {
+  STscObj*pTscObj = (STscObj*) taosAcquireRef(tscConnRef, pRequest->pTscObj->id);
+  assert(pTscObj != NULL);
+
+  // connection has been released already, abort creating request.
+  pRequest->self = taosAddRef(tscReqRef, pRequest);
+
+  int32_t num   = atomic_add_fetch_32(&pTscObj->numOfReqs, 1);
+
+  SInstanceActivity* pActivity = &pTscObj->pAppInfo->summary;
+  int32_t total       = atomic_add_fetch_32(&pActivity->totalRequests, 1);
+  int32_t currentInst = atomic_add_fetch_32(&pActivity->currentRequests, 1);
+
+  tscDebug("0x%"PRIx64" new Request from 0x%"PRIx64", current:%d, app current:%d, total:%d", pRequest->self, pRequest->pTscObj->id, num, currentInst, total);
+}
+
+void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t type) {
+  assert(pObj != NULL);
+
+  SRequestObj *pRequest = (SRequestObj *)calloc(1, sizeof(SRequestObj));
+  if (NULL == pRequest) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  // TODO generated request uuid
+  pRequest->requestId  = 0;
+
+  pRequest->type       = type;
+  pRequest->pTscObj    = pObj;
+  pRequest->body.fp    = fp;
+  pRequest->body.param = param;
+  tsem_init(&pRequest->body.rspSem, 0, 0);
+
+  registerRequest(pRequest);
+}
+
+static void deregisterRequest(SRequestObj* pRequest) {
+  assert(pRequest != NULL);
+
+  STscObj* pTscObj = pRequest->pTscObj;
+  SInstanceActivity* pActivity = &pTscObj->pAppInfo->summary;
+
+  taosReleaseRef(tscReqRef, pRequest->self);
+
+  int32_t currentInst = atomic_sub_fetch_32(&pActivity->currentRequests, 1);
+  int32_t num   = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
+
+  tscDebug("0x%"PRIx64" free Request from 0x%"PRIx64", current:%d, app current:%d", pRequest->self, pTscObj->id, num, currentInst);
+  taosReleaseRef(tscConnRef, pTscObj->id);
+}
+
+void destroyRequest(void* p) {
+  assert(p != NULL);
+  SRequestObj* pRequest = *(SRequestObj**)p;
+
+  assert(RID_VALID(pRequest->self));
+
+  tfree(pRequest->msgBuf);
+  tfree(pRequest->sqlstr);
+  tfree(pRequest->pInfo);
+
+  deregisterRequest(pRequest);
 }
 
 static void tscInitLogFile() {
@@ -167,11 +230,10 @@ void taos_init_imp(void) {
 
   deltaToUtcInitOnce();
   taosInitGlobalCfg();
-  taosReadGlobalCfg();
+  taosReadCfgFromFile();
 
   tscInitLogFile();
-
-  if (taosCheckGlobalCfg()) {
+  if (taosCheckAndPrintCfg()) {
     tscInitRes = -1;
     return;
   }
@@ -179,8 +241,7 @@ void taos_init_imp(void) {
   taosInitNotes();
   rpcInit();
 
-  tscDebug("starting to initialize TAOS client ...");
-  tscDebug("Local End Point is:%s", tsLocalEp);
+  tscDebug("starting to initialize TAOS client ...\nLocal End Point is:%s", tsLocalEp);
 
   taosSetCoreDump(true);
 
@@ -202,55 +263,16 @@ void taos_init_imp(void) {
   pthread_mutex_init(&rpcObjMutex, NULL);
 
   tscConnRef = taosOpenRef(200, destroyTscObj);
-  tscReqRef  = taosOpenRef(40960, tscFreeRegisteredSqlObj);
+  tscReqRef  = taosOpenRef(40960, destroyRequest);
 
-  taosGetCurrentAPPName(appInfo.appName, NULL);
+  taosGetAppName(appInfo.appName, NULL);
   appInfo.pid = taosGetPId();
   appInfo.startTime = taosGetTimestampMs();
 
   tscDebug("client is initialized successfully");
 }
 
-int taos_init() {
-  pthread_once(&tscinit, taos_init_imp);
-  return tscInitRes;
-}
-
-// this function may be called by user or system, or by both simultaneously.
-void taos_cleanup(void) {
-  tscDebug("start to cleanup client environment");
-
-  if (atomic_val_compare_exchange_32(&sentinel, TSC_VAR_NOT_RELEASE, TSC_VAR_RELEASED) != TSC_VAR_NOT_RELEASE) {
-    return;
-  }
-
-  int32_t id = tscReqRef;
-  tscReqRef = -1;
-  taosCloseRef(id);
-
-  void* p = tscQhandle;
-  tscQhandle = NULL;
-  taosCleanUpScheduler(p);
-
-  id = tscConnRef;
-  tscConnRef = -1;
-  taosCloseRef(id);
-
-  p = tscRpcCache;
-  tscRpcCache = NULL;
-
-  if (p != NULL) {
-    taosCacheCleanup(p);
-    pthread_mutex_destroy(&rpcObjMutex);
-  }
-
-  pthread_mutex_destroy(&setConfMutex);
-
-  rpcCleanup();
-  taosCloseLog();
-}
-
-static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
+int taos_options_imp(TSDB_OPTION option, const char *pStr) {
   SGlobalCfg *cfg = NULL;
 
   switch (option) {
@@ -403,22 +425,6 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
   }
 
   return 0;
-}
-
-int taos_options(TSDB_OPTION option, const void *arg, ...) {
-  static int32_t lock = 0;
-
-  for (int i = 1; atomic_val_compare_exchange_32(&lock, 0, 1) != 0; ++i) {
-    if (i % 1000 == 0) {
-      tscInfo("haven't acquire lock after spin %d times.", i);
-      sched_yield();
-    }
-  }
-
-  int ret = taos_options_imp(option, (const char*)arg);
-
-  atomic_store_32(&lock, 0);
-  return ret;
 }
 
 #if 0

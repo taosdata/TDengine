@@ -1,4 +1,6 @@
-
+#include "os.h"
+#include "tep.h"
+#include "tglobal.h"
 
 int taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {
   *port = 0;

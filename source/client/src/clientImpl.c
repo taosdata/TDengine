@@ -33,11 +33,9 @@ static bool validateDbName(const char* db) {
   return stringLengthCheck(db, TSDB_DB_NAME_LEN - 1);
 }
 
-static SRequestObj* taosConnectImpl(const char *ip, const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param);
+static STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param);
 
 TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, const char *auth, const char *db, uint16_t port) {
-  STscObj *pObj = NULL;
-
   if (!validateUserName(user)) {
     terrno = TSDB_CODE_TSC_INVALID_USER_LENGTH;
     return NULL;
@@ -81,34 +79,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     }
   }
 
-  SRequestObj *pRequest = taosConnectImpl(ip, user, auth, db, port, NULL, NULL);
-  if (pRequest != NULL) {
-    pObj = pRequest->pTscObj;
-
-    pRequest->body.fp =  NULL;
-    pRequest->body.param = pRequest;
-
-//    tscBuildAndSendRequest(pRequest, NULL);
-    tsem_wait(&pRequest->body.rspSem);
-
-    if (pRequest->code != TSDB_CODE_SUCCESS) {
-      if (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) {
-        printf("taos connect failed, reason: %s\n\n", taos_errstr(pRequest));
-      } else {
-        printf("taos connect failed, reason: %s.\n\n", tstrerror(terrno));
-      }
-
-      taos_free_result(pRequest);
-      taos_close(pObj);
-      return NULL;
-    }
-
-//    tscDebug("%p DB connection is opening, rpcObj: %p, dnodeConn:%p", pObj, pObj->pRpcObj, pObj->pRpcObj->pDnodeConn);
-    taos_free_result(pRequest);
-    return pObj;
-  }
-
-  return NULL;
+  return taosConnectImpl(ip, user, auth, db, port, NULL, NULL);
 }
 
 int initEpSetFromCfg(const char *firstEp, const char *secondEp, SRpcCorEpSet *pEpSet) {
@@ -147,7 +118,7 @@ int initEpSetFromCfg(const char *firstEp, const char *secondEp, SRpcCorEpSet *pE
   return 0;
 }
 
-SRequestObj* taosConnectImpl(const char *ip, const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param) {
+STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param) {
   if (taos_init() != TSDB_CODE_SUCCESS) {
     return NULL;
   }
@@ -155,36 +126,40 @@ SRequestObj* taosConnectImpl(const char *ip, const char *user, const char *auth,
   STscObj *pObj = createTscObj(user, auth, ip, port);
   if (NULL == pObj) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return NULL;
+    return pObj;
   }
 
-  SRequestObj *pRequest = (SRequestObj *)calloc(1, sizeof(SRequestObj));
-  if (NULL == pRequest) {
+  //  void *pRpcObj = NULL;
+  //
+  //  char rpcKey[512] = {0};
+  //  snprintf(rpcKey, sizeof(rpcKey), "%s:%s:%s:%d", user, auth, ip, port);
+  //  if (tscAcquireRpc(rpcKey, user, auth, &pRpcObj) != 0) {
+  //    terrno = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+  //    return NULL;
+  //  }
+
+  SRequestObj *pRequest = createRequest(pObj, fp, param, TSDB_SQL_CONNECT);
+  if (pRequest == NULL) {
+    destroyTscObj(pObj);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    free(pObj);
+  }
+
+  //    tscBuildAndSendRequest(pRequest, NULL);
+  //    tsem_wait(&pRequest->body.rspSem);
+  if (pRequest->code != TSDB_CODE_SUCCESS) {
+    const char *errorMsg = (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR)
+                               ? taos_errstr(pRequest)
+                               : tstrerror(terrno);
+
+    printf("connect failed, reason: %s\n\n", errorMsg);
+
+    taos_free_result(pRequest);
+    taos_close(pObj);
     return NULL;
   }
 
-  void *pRpcObj = NULL;
-
-  char rpcKey[512] = {0};
-  snprintf(rpcKey, sizeof(rpcKey), "%s:%s:%s:%d", user, auth, ip, port);
-  if (tscAcquireRpc(rpcKey, user, auth, &pRpcObj) != 0) {
-    terrno = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-    return NULL;
-  }
-
-  pObj->pRpcObj = (SRpcObj *)pRpcObj;
-
-  pRequest->pTscObj = pObj;
-  pRequest->body.fp = fp;
-  pRequest->body.param = param;
-  pRequest->type  = TSDB_SQL_CONNECT;
-
-  tsem_init(&pRequest->body.rspSem, 0, 0);
-
-  pObj->id = taosAddRef(tscConn, pObj);
-  registerSqlObj(pRequest);
-
-  return pRequest;
+//  tscDebug("0x%"PRIx64" connection is opening, rpcObj: %p, dnodeConn:%p", pObj, pObj->pRpcObj,
+//      pObj->pRpcObj->pDnodeConn);
+  destroyRequest(pRequest);
+  return pObj;
 }

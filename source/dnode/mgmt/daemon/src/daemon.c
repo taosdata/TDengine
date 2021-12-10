@@ -117,7 +117,7 @@ int dmnReadConfig(const char *path) {
     return -1;
   }
 
-  if (taosCheckGlobalCfg() != 0) {
+  if (taosCheckAndPrintCfg() != 0) {
     uError("failed to check global config");
     return -1;
   }

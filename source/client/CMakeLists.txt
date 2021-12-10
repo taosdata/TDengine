@@ -10,3 +10,5 @@ target_link_libraries(
     INTERFACE api
     PRIVATE os util common transport parser
 )
+
+ADD_SUBDIRECTORY(test)

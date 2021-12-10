@@ -185,7 +185,7 @@ extern SDiskCfg tsDiskCfg[];
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 void    taosInitGlobalCfg();
-int32_t taosCheckGlobalCfg();
+int32_t taosCheckAndPrintCfg();
 int32_t taosCfgDynamicOptions(char *msg);
 bool    taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId);
 void    taosAddDataDir(int index, char *v1, int level, int primary);
