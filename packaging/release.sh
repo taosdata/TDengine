@@ -363,7 +363,7 @@ if [[ "$dbName" == "kh" ]]; then
   sed -i "s/taosinfo/khinfo/g"  ${top_dir}/src/util/src/tnote.c
   # src/dnode/CMakeLists.txt
   sed -i "s/taos\.cfg/kinghistorian\.cfg/g"  ${top_dir}/src/dnode/CMakeLists.txt
-  # src/dnode/CMakeLists.txt
+  # src/kit/taosdump/taosdump.c
   sed -i "s/Default is taosdata/Default is khroot/g" ${top_dir}/src/kit/taosdump/taosdump.c
   sed -i "s/\"taosdata\"/\"khroot\"/g" ${top_dir}/src/kit/taosdump/taosdump.c
   sed -i "s/TDengine/KingHistorian/g" ${top_dir}/src/kit/taosdump/taosdump.c
@@ -372,6 +372,12 @@ if [[ "$dbName" == "kh" ]]; then
   sed -i "s/etc\/taos/etc\/kinghistorian/g" ${top_dir}/src/os/src/linux/linuxEnv.c
   sed -i "s/lib\/taos/lib\/kinghistorian/g" ${top_dir}/src/os/src/linux/linuxEnv.c
   sed -i "s/log\/taos/log\/kinghistorian/g" ${top_dir}/src/os/src/linux/linuxEnv.c
+  # src/kit/shell/src/shellDarwin.c
+  sed -i "s/TDengine shell/KingHistorian shell/g" ${top_dir}/src/kit/shell/src/shellDarwin.c
+  sed -i "s/2020 by TAOS Data/2021 by Wellintech/g" ${top_dir}/src/kit/shell/src/shellDarwin.c
+  # src/kit/shell/src/shellLinux.c
+  sed -i "s/TDengine shell/KingHistorian shell/g" ${top_dir}/src/kit/shell/src/shellLinux.c
+  sed -i "s/2020 by TAOS Data/2021 by Wellintech/g" ${top_dir}/src/kit/shell/src/shellLinux.c
   # src/os/src/windows/wEnv.c
   sed -i "s/TDengine/KingHistorian/g" ${top_dir}/src/os/src/windows/wEnv.c
   # src/kit/shell/src/shellEngine.c
