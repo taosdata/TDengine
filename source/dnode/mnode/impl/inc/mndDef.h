@@ -47,7 +47,6 @@ typedef struct SAcctObj    SAcctObj;
 typedef struct SUserObj    SUserObj;
 typedef struct SDbObj      SDbObj;
 typedef struct SVgObj      SVgObj;
-typedef struct STableObj   STableObj;
 typedef struct SFuncObj    SFuncObj;
 typedef struct SOperObj    SOperObj;
 
@@ -249,10 +248,10 @@ typedef struct SStableObj {
   int64_t  updateTime;
   uint64_t uid;
   int32_t  version;
-  int16_t  numOfFields;
-  int16_t  numOfTags;
+  int32_t  numOfColumns;
+  int32_t  numOfTags;
   SRWLatch lock;
-  SSchema *fieldSchema;
+  SSchema *columnSchema;
   SSchema *tagSchema;
 } SStableObj;
 

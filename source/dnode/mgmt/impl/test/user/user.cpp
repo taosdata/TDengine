@@ -93,28 +93,28 @@ TEST_F(DndTestUser, ShowUser) {
 
   SSchema* pSchema = NULL;
 
-  pSchema = &pMeta->schema[0];
+  pSchema = &pMeta->pSchema[0];
   pSchema->bytes = htons(pSchema->bytes);
   EXPECT_EQ(pSchema->colId, 0);
   EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
   EXPECT_EQ(pSchema->bytes, TSDB_USER_LEN + VARSTR_HEADER_SIZE);
   EXPECT_STREQ(pSchema->name, "name");
 
-  pSchema = &pMeta->schema[1];
+  pSchema = &pMeta->pSchema[1];
   pSchema->bytes = htons(pSchema->bytes);
   EXPECT_EQ(pSchema->colId, 0);
   EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
   EXPECT_EQ(pSchema->bytes, 10 + VARSTR_HEADER_SIZE);
   EXPECT_STREQ(pSchema->name, "privilege");
 
-  pSchema = &pMeta->schema[2];
+  pSchema = &pMeta->pSchema[2];
   pSchema->bytes = htons(pSchema->bytes);
   EXPECT_EQ(pSchema->colId, 0);
   EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TIMESTAMP);
   EXPECT_EQ(pSchema->bytes, 8);
   EXPECT_STREQ(pSchema->name, "create_time");
 
-  pSchema = &pMeta->schema[3];
+  pSchema = &pMeta->pSchema[3];
   pSchema->bytes = htons(pSchema->bytes);
   EXPECT_EQ(pSchema->colId, 0);
   EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);

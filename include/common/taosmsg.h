@@ -274,7 +274,7 @@ typedef struct {
 
 typedef struct SSchema {
   int8_t  type;
-  int16_t colId;
+  int32_t colId;
   int32_t bytes;
   char    name[TSDB_COL_NAME_LEN];
 } SSchema;
@@ -764,13 +764,17 @@ typedef struct {
 } SAuthVnodeMsg;
 
 typedef struct {
-  char    tableFname[TSDB_TABLE_FNAME_LEN];
-  int16_t createFlag;
-  char    tags[];
+  char name[TSDB_TABLE_FNAME_LEN];
+} SStableInfoMsg;
+
+typedef struct {
+  char   tableFname[TSDB_TABLE_FNAME_LEN];
+  int8_t createFlag;
+  char   tags[];
 } STableInfoMsg;
 
 typedef struct {
-  uint8_t metaClone;     // create local clone of the cached table meta
+  int8_t  metaClone;  // create local clone of the cached table meta
   int32_t numOfVgroups;
   int32_t numOfTables;
   int32_t numOfUdfs;
@@ -788,25 +792,24 @@ typedef struct {
 } SVgroupMsg;
 
 typedef struct {
-  int32_t numOfVgroups;
+  int32_t    numOfVgroups;
   SVgroupMsg vgroups[];
 } SVgroupsMsg, SVgroupsInfo;
 
-typedef struct STableMetaMsg {
-  int32_t    contLen;
+typedef struct {
   char       tableFname[TSDB_TABLE_FNAME_LEN];  // table id
-  int8_t     numOfTags;
+  char       stableFname[TSDB_TABLE_FNAME_LEN];
+  int32_t    numOfTags;
+  int32_t    numOfColumns;
   int8_t     precision;
   int8_t     tableType;
-  int16_t    numOfColumns;
-  int16_t    sversion;
-  int16_t    tversion;
-  int32_t    tid;
-  int64_t    uid;
+  int8_t     update;
+  int32_t    sversion;
+  int32_t    tversion;
+  uint64_t   tuid;
+  uint64_t   suid;
   SVgroupMsg vgroup;
-  char       sTableName[TSDB_TABLE_FNAME_LEN];
-  int64_t    suid;
-  SSchema    schema[];
+  SSchema    pSchema[];
 } STableMetaMsg;
 
 typedef struct SMultiTableMeta {

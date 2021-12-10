@@ -21,6 +21,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndDb.h"
+#include "tname.h"
 
 #define TSDB_STABLE_VER_NUM 1
 #define TSDB_STABLE_RESERVE_SIZE 64
@@ -68,7 +69,7 @@ int32_t mndInitStable(SMnode *pMnode) {
 void mndCleanupStable(SMnode *pMnode) {}
 
 static SSdbRaw *mndStableActionEncode(SStableObj *pStable) {
-  int32_t  size = sizeof(SStableObj) + (pStable->numOfFields + pStable->numOfTags) * sizeof(SSchema);
+  int32_t  size = sizeof(SStableObj) + (pStable->numOfColumns + pStable->numOfTags) * sizeof(SSchema);
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STABLE, TSDB_STABLE_VER_NUM, size);
   if (pRaw == NULL) return NULL;
 
@@ -78,14 +79,14 @@ static SSdbRaw *mndStableActionEncode(SStableObj *pStable) {
   SDB_SET_INT64(pRaw, dataPos, pStable->updateTime)
   SDB_SET_INT64(pRaw, dataPos, pStable->uid)
   SDB_SET_INT64(pRaw, dataPos, pStable->version)
-  SDB_SET_INT16(pRaw, dataPos, pStable->numOfFields)
-  SDB_SET_INT16(pRaw, dataPos, pStable->numOfTags)
+  SDB_SET_INT32(pRaw, dataPos, pStable->numOfColumns)
+  SDB_SET_INT32(pRaw, dataPos, pStable->numOfTags)
 
-  for (int32_t i = 0; i < pStable->numOfFields; ++i) {
-    SSchema *pSchema = &pStable->fieldSchema[i];
+  for (int32_t i = 0; i < pStable->numOfColumns; ++i) {
+    SSchema *pSchema = &pStable->columnSchema[i];
     SDB_SET_INT8(pRaw, dataPos, pSchema->type);
-    SDB_SET_INT16(pRaw, dataPos, pSchema->colId);
-    SDB_SET_INT16(pRaw, dataPos, pSchema->bytes);
+    SDB_SET_INT32(pRaw, dataPos, pSchema->colId);
+    SDB_SET_INT32(pRaw, dataPos, pSchema->bytes);
     SDB_SET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN);
   }
 
@@ -124,16 +125,16 @@ static SSdbRow *mndStableActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, pRow, dataPos, &pStable->updateTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pStable->uid)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pStable->version)
-  SDB_GET_INT16(pRaw, pRow, dataPos, &pStable->numOfFields)
-  SDB_GET_INT16(pRaw, pRow, dataPos, &pStable->numOfTags)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pStable->numOfColumns)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pStable->numOfTags)
 
-  pStable->fieldSchema = calloc(pStable->numOfFields, sizeof(SSchema));
+  pStable->columnSchema = calloc(pStable->numOfColumns, sizeof(SSchema));
   pStable->tagSchema = calloc(pStable->numOfTags, sizeof(SSchema));
 
-  for (int32_t i = 0; i < pStable->numOfFields; ++i) {
-    SSchema *pSchema = &pStable->fieldSchema[i];
+  for (int32_t i = 0; i < pStable->numOfColumns; ++i) {
+    SSchema *pSchema = &pStable->columnSchema[i];
     SDB_GET_INT8(pRaw, pRow, dataPos, &pSchema->type);
-    SDB_GET_INT16(pRaw, pRow, dataPos, &pSchema->colId);
+    SDB_GET_INT32(pRaw, pRow, dataPos, &pSchema->colId);
     SDB_GET_INT32(pRaw, pRow, dataPos, &pSchema->bytes);
     SDB_GET_BINARY(pRaw, pRow, dataPos, pSchema->name, TSDB_COL_NAME_LEN);
   }
@@ -141,7 +142,7 @@ static SSdbRow *mndStableActionDecode(SSdbRaw *pRaw) {
   for (int32_t i = 0; i < pStable->numOfTags; ++i) {
     SSchema *pSchema = &pStable->tagSchema[i];
     SDB_GET_INT8(pRaw, pRow, dataPos, &pSchema->type);
-    SDB_GET_INT16(pRaw, pRow, dataPos, &pSchema->colId);
+    SDB_GET_INT32(pRaw, pRow, dataPos, &pSchema->colId);
     SDB_GET_INT32(pRaw, pRow, dataPos, &pSchema->bytes);
     SDB_GET_BINARY(pRaw, pRow, dataPos, pSchema->name, TSDB_COL_NAME_LEN);
   }
@@ -167,22 +168,32 @@ static int32_t mndStableActionUpdate(SSdb *pSdb, SStableObj *pOldStable, SStable
   atomic_exchange_32(&pOldStable->version, pNewStable->version);
 
   taosWLockLatch(&pOldStable->lock);
-  int16_t numOfTags = pNewStable->numOfTags;
+  int32_t numOfTags = pNewStable->numOfTags;
   int32_t tagSize = numOfTags * sizeof(SSchema);
-  int16_t numOfFields = pNewStable->numOfFields;
-  int32_t fieldSize = numOfFields * sizeof(SSchema);
+  int32_t numOfColumns = pNewStable->numOfColumns;
+  int32_t columnSize = numOfColumns * sizeof(SSchema);
 
   if (pOldStable->numOfTags < numOfTags) {
     pOldStable->tagSchema = malloc(tagSize);
   }
-  if (pOldStable->numOfFields < numOfFields) {
-    pOldStable->fieldSchema = malloc(fieldSize);
+  if (pOldStable->numOfColumns < numOfColumns) {
+    pOldStable->columnSchema = malloc(columnSize);
   }
 
   memcpy(pOldStable->tagSchema, pNewStable->tagSchema, tagSize);
-  memcpy(pOldStable->fieldSchema, pNewStable->fieldSchema, fieldSize);
+  memcpy(pOldStable->columnSchema, pNewStable->columnSchema, columnSize);
   taosWUnLockLatch(&pOldStable->lock);
   return 0;
+}
+
+SStableObj *mndAcquireStb(SMnode *pMnode, char *stbName) {
+  SSdb *pSdb = pMnode->pSdb;
+  return sdbAcquire(pSdb, SDB_STABLE, stbName);
+}
+
+void mndReleaseStb(SMnode *pMnode, SStableObj *pStb) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbRelease(pSdb, pStb);
 }
 
 static int32_t mndProcessCreateStableMsg(SMnodeMsg *pMsg) { return 0; }
@@ -197,7 +208,78 @@ static int32_t mndProcessDropStableMsg(SMnodeMsg *pMsg) { return 0; }
 
 static int32_t mndProcessDropStableInRsp(SMnodeMsg *pMsg) { return 0; }
 
-static int32_t mndProcessStableMetaMsg(SMnodeMsg *pMsg) { return 0; }
+static SDbObj *mndGetDbByStbName(SMnode *pMnode, char *stbName) {
+  SName name = {0};
+  tNameFromString(&name, stbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
+  char db[TSDB_TABLE_FNAME_LEN] = {0};
+  tNameGetFullDbName(&name, db);
+
+  return mndAcquireDb(pMnode, db);
+}
+
+static int32_t mndProcessStableMetaMsg(SMnodeMsg *pMsg) {
+  SMnode         *pMnode = pMsg->pMnode;
+  SStableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
+
+  mDebug("stable:%s, start to retrieve meta", pInfo->name);
+
+  SDbObj *pDb = mndGetDbByStbName(pMnode, pInfo->name);
+  if (pDb == NULL) {
+    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+    mError("stable:%s, failed to retrieve meta since %s", pInfo->name, terrstr());
+    return -1;
+  }
+
+  SStableObj *pStb = mndAcquireStb(pMnode, pInfo->name);
+  if (pStb == NULL) {
+    mndReleaseDb(pMnode, pDb);
+    terrno = TSDB_CODE_MND_INVALID_TABLE_NAME;
+    mError("stable:%s, failed to get meta since %s", pInfo->name, terrstr());
+    return -1;
+  }
+
+  int32_t        contLen = sizeof(STableMetaMsg) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema);
+  STableMetaMsg *pMeta = rpcMallocCont(contLen);
+  if (pMeta == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    mError("stable:%s, failed to get meta since %s", pInfo->name, terrstr());
+    return -1;
+  }
+
+  memcpy(pMeta->stableFname, pStb->name, TSDB_TABLE_FNAME_LEN);
+  pMeta->numOfTags = htonl(pStb->numOfTags);
+  pMeta->numOfColumns = htonl(pStb->numOfColumns);
+  pMeta->precision = pDb->cfg.precision;
+  pMeta->tableType = TSDB_SUPER_TABLE;
+  pMeta->update = pDb->cfg.update;
+  pMeta->sversion = htonl(pStb->version);
+  pMeta->suid = htonl(pStb->uid);
+
+  for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
+    SSchema *pSchema = &pMeta->pSchema[i];
+    SSchema *pColumn = &pStb->columnSchema[i];
+    memcpy(pSchema->name, pColumn->name, TSDB_COL_NAME_LEN);
+    pSchema->type = pColumn->type;
+    pSchema->colId = htonl(pColumn->colId);
+    pSchema->bytes = htonl(pColumn->bytes);
+  }
+
+  for (int32_t i = 0; i < pStb->numOfTags; ++i) {
+    SSchema *pSchema = &pMeta->pSchema[i + pStb->numOfColumns];
+    SSchema *pTag = &pStb->tagSchema[i];
+    memcpy(pSchema->name, pTag->name, TSDB_COL_NAME_LEN);
+    pSchema->type = pTag->type;
+    pSchema->colId = htons(pTag->colId);
+    pSchema->bytes = htonl(pTag->bytes);
+  }
+
+  pMsg->pCont = pMeta;
+  pMsg->contLen = contLen;
+
+  mDebug("stable:%s, meta is retrieved, cols:%d tags:%d", pInfo->name, pStb->numOfColumns, pStb->numOfTags);
+  return 0;
+}
 
 static int32_t mndGetNumOfStables(SMnode *pMnode, char *dbName, int32_t *pNumOfStables) {
   SSdb *pSdb = pMnode->pSdb;
@@ -235,7 +317,7 @@ static int32_t mndGetStableMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg 
   }
 
   int32_t  cols = 0;
-  SSchema *pSchema = pMeta->schema;
+  SSchema *pSchema = pMeta->pSchema;
 
   pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
@@ -323,7 +405,7 @@ static int32_t mndRetrieveStables(SMnodeMsg *pMsg, SShowObj *pShow, char *data, 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pStable->numOfFields;
+    *(int16_t *)pWrite = pStable->numOfColumns;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
