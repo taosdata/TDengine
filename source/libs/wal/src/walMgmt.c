@@ -82,6 +82,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   }
   pWal->writeLogTfd = -1;
   pWal->writeIdxTfd = -1;
+  pWal->writeCur = -1;
 
   //set config
   pWal->vgId = pCfg->vgId;
@@ -90,13 +91,20 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->segSize = pCfg->segSize;
   pWal->level = pCfg->walLevel;
 
-  //init status
+  //init version info
+  pWal->firstVersion = -1;
+  pWal->commitVersion = -1;
+  pWal->snapshotVersion = -1;
   pWal->lastVersion = -1;
+
+  pWal->snapshottingVer = -1;
+
+  //init status
   pWal->lastRollSeq = -1;
 
   //init write buffer
   memset(&pWal->head, 0, sizeof(SWalHead));
-  pWal->head.sver = 0;
+  pWal->head.head.sver = 0;
 
   tstrncpy(pWal->path, path, sizeof(pWal->path));
   pthread_mutex_init(&pWal->mutex, NULL);
