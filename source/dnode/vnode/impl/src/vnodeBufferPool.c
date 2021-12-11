@@ -148,6 +148,24 @@ void *vnodeMalloc(SVnode *pVnode, uint64_t size) {
   return vBufPoolMalloc(pvma, size);
 }
 
+bool vnodeBufPoolIsFull(SVnode *pVnode) {
+  SVBufPool *     pBufPool = pVnode->pBufPool;
+  SVMemAllocator *pvma;
+
+  if (pBufPool->inuse == NULL) return false;
+
+  pvma = (SVMemAllocator *)(pBufPool->inuse->data);
+  if (pvma->type == E_V_HEAP_ALLOCATOR) {
+    ASSERT(0);
+  } else {
+    SVArenaNode *pNode = pvma->vaa.inuse;
+    bool         ret =
+        (pNode != &(pvma->vaa.node)) || ((pNode->size - POINTER_DISTANCE(pNode->ptr, pNode->data)) <= pvma->vaa.lsize);
+
+    return ret;
+  }
+}
+
 /* ------------------------ STATIC METHODS ------------------------ */
 static void vArenaAllocatorInit(SVArenaAllocator *pvaa, uint64_t capacity, uint64_t ssize, uint64_t lsize) { /* TODO */
   pvaa->ssize = ssize;
@@ -171,8 +189,8 @@ static SListNode *vBufPoolNewNode(uint64_t capacity, EVMemAllocatorT type) {
   SListNode *     pNode;
   SVMemAllocator *pvma;
   uint64_t        msize;
-  uint64_t        ssize = 0;  // TODO
-  uint64_t        lsize = 0;  // TODO
+  uint64_t        ssize = 4096;  // TODO
+  uint64_t        lsize = 1024;  // TODO
 
   msize = sizeof(SListNode) + sizeof(SVMemAllocator);
   if (type == E_V_ARENA_ALLOCATOR) {

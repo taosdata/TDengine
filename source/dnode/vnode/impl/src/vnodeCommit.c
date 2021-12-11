@@ -18,8 +18,6 @@
 static int vnodeStartCommit(SVnode *pVnode);
 static int vnodeEndCommit(SVnode *pVnode);
 
-bool vnodeShouldCommit(SVnode *pVnode) { return false; }
-
 int vnodeAsyncCommit(SVnode *pVnode) {
 #if 0
   if (vnodeStartCommit(pVnode) < 0) {
