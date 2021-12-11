@@ -275,6 +275,7 @@ FstNode*     fstGetRoot(Fst *fst);
 FstType      fstGetType(Fst *fst); 
 CompiledAddr fstGetRootAddr(Fst *fst);
 Output       fstEmptyFinalOutput(Fst *fst, bool *null);
+
 bool         fstVerify(Fst *fst);
 
 
@@ -291,11 +292,11 @@ typedef struct StreamState {
 void streamStateDestroy(void *s);
 
 typedef struct StreamWithState {
-  Fst        *fst;
-  Automation *aut; 
-  SArray     *inp;
-  FstOutput   emptyOutput;
-  SArray     *stack; // <StreamState>
+  Fst           *fst;
+  AutomationCtx *aut; 
+  SArray        *inp;
+  FstOutput     emptyOutput;
+  SArray        *stack; // <StreamState>
   FstBoundWithData *endAt;
 } StreamWithState ;
 
@@ -310,19 +311,19 @@ StreamWithStateResult *swsResultCreate(FstSlice *data, FstOutput fOut, void *sta
 void swsResultDestroy(StreamWithStateResult *result);
 
 typedef void* (*StreamCallback)(void *);
-StreamWithState *streamWithStateCreate(Fst *fst, Automation *automation, FstBoundWithData *min, FstBoundWithData *max) ;
+StreamWithState *streamWithStateCreate(Fst *fst, AutomationCtx *automation, FstBoundWithData *min, FstBoundWithData *max) ;
 void streamWithStateDestroy(StreamWithState *sws);
 bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min);           
 StreamWithStateResult* streamWithStateNextWith(StreamWithState *sws, StreamCallback callback);
 
 typedef struct FstStreamBuilder {
   Fst *fst; 
-  Automation *aut;
+  AutomationCtx *aut;
   FstBoundWithData *min;  
   FstBoundWithData *max;
 } FstStreamBuilder;
 
-FstStreamBuilder *fstStreamBuilderCreate(Fst *fst, Automation *aut); 
+FstStreamBuilder *fstStreamBuilderCreate(Fst *fst, AutomationCtx *aut); 
 // set up bound range
 // refator, simple code by marco 
 

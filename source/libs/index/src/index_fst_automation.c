@@ -13,3 +13,85 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "index_fst_automation.h"
+
+
+// prefix query, impl later
+static void* prefixStart(AutomationCtx *ctx) {
+  return NULL;
+};
+static bool prefixIsMatch(AutomationCtx *ctx, void *data) {
+  return true;
+} 
+static bool prefixCanMatch(AutomationCtx *ctx, void *data) {
+  return true;
+}
+static bool prefixWillAlwaysMatch(AutomationCtx *ctx, void *state) {
+  return true;
+}
+static void* prefixAccept(AutomationCtx *ctx, void *state, uint8_t byte) {
+  return NULL;
+}
+static void* prefixAcceptEof(AutomationCtx *ctx, void *state) {
+  return NULL;
+}
+
+// pattern query, impl later
+
+static void* patternStart(AutomationCtx *ctx) {
+  return NULL;
+}
+static bool patternIsMatch(AutomationCtx *ctx, void *data) {
+  return true;
+} 
+static bool patternCanMatch(AutomationCtx *ctx, void *data) {
+  return true;
+} 
+static bool patternWillAlwaysMatch(AutomationCtx *ctx, void *state) {
+  return true;
+}
+
+static void* patternAccept(AutomationCtx *ctx, void *state, uint8_t byte) {
+  return NULL;
+}
+
+static void* patternAcceptEof(AutomationCtx *ctx, void *state) {
+  return NULL;
+}
+
+AutomationFunc automFuncs[]  = {{
+    prefixStart,        
+    prefixIsMatch, 
+    prefixCanMatch,
+    prefixWillAlwaysMatch,
+    prefixAccept,
+    prefixAcceptEof
+  },  
+  {
+    patternStart,
+    patternIsMatch,
+    patternCanMatch,
+    patternWillAlwaysMatch,
+    patternAccept,
+    patternAcceptEof
+  }
+  // add more search type
+};
+
+AutomationCtx* automCtxCreate(void *data, AutomationType type) {
+  AutomationCtx *ctx = calloc(1, sizeof(AutomationCtx));
+  if (ctx == NULL) { return NULL; }
+
+  ctx->type = type;
+  if (ctx->type == AUTOMATION_PREFIX) {
+
+  } else if (ctx->type == AUTMMATION_MATCH) {
+
+  } else {
+    // add more search type
+  }
+  return ctx; 
+} 
+void autoCtxDestroy(AutomationCtx *ctx) {
+  free(ctx);
+}

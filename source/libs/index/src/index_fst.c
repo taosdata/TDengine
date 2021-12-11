@@ -1072,7 +1072,6 @@ bool fstGet(Fst *fst, FstSlice *b, Output *out) {
     tOut += trn.out; 
     root = fstGetNode(fst, trn.addr);
     taosArrayPush(nodes, &root);
-    //fstNodeDestroy(root);
   }
   if (!FST_NODE_IS_FINAL(root)) {
     return false;
@@ -1177,7 +1176,7 @@ void fstBoundDestroy(FstBoundWithData *bound) {
   free(bound);
 }
 
-StreamWithState *streamWithStateCreate(Fst *fst, Automation *automation, FstBoundWithData *min, FstBoundWithData *max) {
+StreamWithState *streamWithStateCreate(Fst *fst, AutomationCtx *automation, FstBoundWithData *min, FstBoundWithData *max) {
   StreamWithState *sws = calloc(1, sizeof(StreamWithState));
   if (sws == NULL) { return NULL; } 
 
@@ -1204,6 +1203,8 @@ void streamWithStateDestroy(StreamWithState *sws) {
 }
 
 bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min) {
+
+  AutomationCtx *aut = sws->aut;
   if (fstBoundWithDataIsEmpty(min)) {
     if (fstBoundWithDataIsIncluded(min)) {
        sws->emptyOutput.out = fstEmptyFinalOutput(sws->fst, &(sws->emptyOutput.null));
@@ -1211,7 +1212,7 @@ bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min) {
     StreamState s = {.node     = fstGetRoot(sws->fst),
                      .trans    = 0,
                      .out      = {.null = false, .out = 0},
-                     .autState = sws->aut->start()}; // auto.start callback 
+                     .autState = automFuncs[aut->type].start(aut)}; // auto.start callback 
     taosArrayPush(sws->stack, &s);
     return true;
   } 
@@ -1229,7 +1230,8 @@ bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min) {
 
   FstNode *node = fstGetRoot(sws->fst); 
   Output  out = 0;
-  void*   autState = sws->aut->start();  
+  //void*   autState = sws->aut->start();  
+  void* autState = automFuncs[aut->type].start(aut);
 
   int32_t len; 
   uint8_t *data = fstSliceData(key, &len);  
@@ -1241,7 +1243,8 @@ bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min) {
       FstTransition trn;
       fstNodeGetTransitionAt(node, res, &trn);   
       void *preState = autState;
-      autState = sws->aut->accept(preState, b);
+      // autState = sws->aut->accept(preState, b);
+      autState = automFuncs[aut->type].accept(aut, preState, b);
       taosArrayPush(sws->inp, &b);
       StreamState s = {.node     = node, 
                        .trans    = res + 1, 
@@ -1298,6 +1301,7 @@ bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min) {
 }          
 
 StreamWithStateResult *streamWithStateNextWith(StreamWithState *sws, StreamCallback callback) {
+  AutomationCtx *aut = sws->aut;
   FstOutput output = sws->emptyOutput; 
   if (output.null == false) {
     FstSlice emptySlice = fstSliceCreate(NULL, 0);   
@@ -1306,15 +1310,15 @@ StreamWithStateResult *streamWithStateNextWith(StreamWithState *sws, StreamCallb
       sws->stack = (SArray *)taosArrayInit(256, sizeof(StreamState)); 
       return NULL;
     }
-    void* start = sws->aut->start();
-    if (sws->aut->isMatch(start)) { 
+    void *start = automFuncs[aut->type].start(aut);
+    if (automFuncs[aut->type].isMatch(aut, start)) {
       FstSlice s = fstSliceCreate(NULL, 0);
       return swsResultCreate(&s, output, callback(start));
     }
   }
   while (taosArrayGetSize(sws->stack) > 0) {
     StreamState *p = (StreamState *)taosArrayPop(sws->stack);     
-    if (p->trans >= FST_NODE_LEN(p->node) || !sws->aut->canMatch(p->autState)) {
+    if (p->trans >= FST_NODE_LEN(p->node) || automFuncs[aut->type].canMatch(aut, p->autState)) {
       if (FST_NODE_ADDR(p->node) != fstGetRootAddr(sws->fst)) {
         taosArrayPop(sws->inp);
       }
@@ -1324,16 +1328,18 @@ StreamWithStateResult *streamWithStateNextWith(StreamWithState *sws, StreamCallb
     FstTransition trn; 
     fstNodeGetTransitionAt(p->node, p->trans, &trn);
     Output out = p->out.out + trn.out;
-    void* nextState = sws->aut->accept(p->autState, trn.inp);
+    void* nextState = automFuncs[aut->type].accept(aut, p->autState, trn.inp);
     void* tState = callback(nextState);
-    bool isMatch = sws->aut->isMatch(nextState);
+    bool isMatch = automFuncs[aut->type].isMatch(aut, nextState);
+    //bool isMatch = sws->aut->isMatch(nextState);
     FstNode *nextNode = fstGetNode(sws->fst, trn.addr); 
     taosArrayPush(sws->inp, &(trn.inp)); 
 
     if (FST_NODE_IS_FINAL(nextNode)) {
-      void *eofState = sws->aut->acceptEof(nextState); 
+      //void *eofState = sws->aut->acceptEof(nextState); 
+      void *eofState = automFuncs[aut->type].acceptEof(aut, nextState);
       if (eofState != NULL) {
-        isMatch = sws->aut->isMatch(eofState); 
+        isMatch = automFuncs[aut->type].isMatch(aut, eofState);
       }
     } 
     StreamState s1 = { .node = p->node, .trans = p->trans + 1, .out = p->out, .autState = p->autState};  
@@ -1391,7 +1397,7 @@ void streamStateDestroy(void *s) {
   //free(s->autoState);
 }
 
-FstStreamBuilder *fstStreamBuilderCreate(Fst *fst, Automation *aut) {
+FstStreamBuilder *fstStreamBuilderCreate(Fst *fst, AutomationCtx *aut) {
   FstStreamBuilder *b = calloc(1, sizeof(FstStreamBuilder));
   if (NULL == b) { return NULL; }
 
