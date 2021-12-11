@@ -101,4 +101,3 @@ TAGS
 contrib/*
 !contrib/CMakeLists.txt
 !contrib/test
-.devcontainer/
