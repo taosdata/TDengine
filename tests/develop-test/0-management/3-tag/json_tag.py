@@ -458,7 +458,7 @@ class TDTestCase:
 
         #show create table
         tdSql.query("show create table jsons1")
-        tdSql.checkData(0, 1, 'create table `jsons1` (ts TIMESTAMP,dataint INT,databool BOOL,datastr NCHAR(50),datastrbin BINARY(150)) TAGS (jtag JSON)')
+        tdSql.checkData(0, 1, 'create table `jsons1` (`ts` TIMESTAMP,`dataint` INT,`databool` BOOL,`datastr` NCHAR(50),`datastrbin` BINARY(150)) TAGS (`jtag` JSON)')
 
     def stop(self):
         tdSql.close()
