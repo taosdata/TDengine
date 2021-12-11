@@ -44,7 +44,7 @@ typedef struct SToken {
  * @param tokenType
  * @return
  */
-uint32_t tGetToken(char *z, uint32_t *tokenType);
+uint32_t tGetToken(const char *z, uint32_t *tokenType);
 
 /**
  * enhanced tokenizer for sql string.
@@ -54,7 +54,7 @@ uint32_t tGetToken(char *z, uint32_t *tokenType);
  * @param isPrevOptr
  * @return
  */
-SToken tStrGetToken(char *str, int32_t *i, bool isPrevOptr);
+SToken tStrGetToken(const char *str, int32_t *i, bool isPrevOptr);
 
 /**
  * check if it is a keyword or not

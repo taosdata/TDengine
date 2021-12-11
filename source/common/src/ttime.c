@@ -82,18 +82,18 @@ void deltaToUtcInitOnce() {
 }
 
 static int64_t parseFraction(char* str, char** end, int32_t timePrec);
-static int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim);
+static int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, char delim);
 static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec);
 static int32_t parseLocaltimeDst(char* timestr, int64_t* time, int32_t timePrec);
 static char* forwardToTimeStringEnd(char* str);
-static bool checkTzPresent(char *str, int32_t len);
+static bool checkTzPresent(const char *str, int32_t len);
 
 static int32_t (*parseLocaltimeFp[]) (char* timestr, int64_t* time, int32_t timePrec) = {
   parseLocaltime,
   parseLocaltimeDst
 };
 
-int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
+int32_t taosParseTime(const char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
   /* parse datatime string in with tz */
   if (strnchr(timestr, 'T', len, false) != NULL) {
     return parseTimeWithTz(timestr, time, timePrec, 'T');
@@ -104,7 +104,7 @@ int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePre
   }
 }
 
-bool checkTzPresent(char *str, int32_t len) {
+bool checkTzPresent(const char *str, int32_t len) {
   char *seg = forwardToTimeStringEnd(str);
   int32_t seg_len = len - (int32_t)(seg - str);
 
@@ -237,7 +237,7 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
  * 2013-04-12T15:52:01+0800
  * 2013-04-12T15:52:01.123+0800
  */
-int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim) {
+int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, char delim) {
 
   int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
                              (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
@@ -432,7 +432,7 @@ static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t time
  * d - Days (24 hours)
  * w - Weeks (7 days)
  */
-int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* duration, char* unit, int32_t timePrecision) {
+int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* duration, char* unit, int32_t timePrecision) {
   errno = 0;
   char* endPtr = NULL;
 
