@@ -150,15 +150,55 @@ class Dnode:
             ready_count = self.dnode_conn.exec_cmd(f'taos -s "show dnodes" | grep {firstEp} | grep ready | wc -l')
             if int(ready_count) == 1:
                 logger.success(f'deploy dnode {firstEp} success')
+
+    def downloadNodeExporter(self):
+        logger.info(f'downloading node_exporter from {config["prometheus"]["node_exporter_addr"]}')
+        if not bool(int(self.dnode_conn.exec_cmd(f'[ -e ~/{config["prometheus"]["node_exporter_addr"]} ] && echo 1 || echo 0'))):
+            self.dnode_conn.exec_cmd(f'wget -P ~ {config["prometheus"]["node_exporter_addr"]}')
+
+    def configNodeExporterService(self):
+        logger.info('configing /lib/systemd/system/node_exporter.service')
+        if not bool(int(self.dnode_conn.exec_cmd(f'[ -e /lib/systemd/system/node_exporter.service ] && echo 1 || echo 0'))):
+            self.dnode_conn.exec_cmd(f'echo -e [Service]\n\
+                                    User=prometheus\n\
+                                    Group=prometheus\n\
+                                    ExecStart=/usr/local/bin/node_exporter\n\
+                                    [Install]\n\
+                                    WantedBy=multi-user.target\n\
+                                    [Unit]\n\
+                                    Description=node_exporter\n\
+                                    After=network.target \
+                                    >> /lib/systemd/system/node_exporter.service')
+
+    def deployNodeExporter(self):
+        logger.info(f'deploying node_exporter')
+        tar_file_name = config["prometheus"]["node_exporter_addr"].split("/")[-1]
+        tar_file_dir = tar_file_name.replace(".tar.gz", "")
+        self.dnode_conn.exec_cmd(f'cd ~ && tar -xvf {tar_file_name} && cd {tar_file_dir} && cp node_exporter /usr/local/bin')
+        self.configNodeExporterService()
+        self.dnode_conn.exec_cmd('sudo groupadd -r prometheus')
+        self.dnode_conn.exec_cmd('sudo useradd -r -g prometheus -s /sbin/nologin -M -c "prometheus Daemons" prometheus')
+        self.dnode_conn.exec_cmd('systemctl start node_exporter && systemctl enable node_exporter && systemctl status node_exporter')
         
+    def downloadProcessExporter(self):
+        logger.info(f'downloading process_exporter from {config["prometheus"]["process_exporter_addr"]}')
+        if not bool(int(self.dnode_conn.exec_cmd(f'[ -e ~/{config["prometheus"]["process_exporter_addr"]} ] && echo 1 || echo 0'))):
+            self.dnode_conn.exec_cmd(f'wget -P ~ {config["prometheus"]["process_exporter_addr"]}')
+
+    def deployProcessExporter():
+        # TODO
+        pass
+
+
     def deployTaosd(self, firstEp=None, deploy_type="taosd"):
         '''
             deploy_type = taosd/taosadapter
         '''
-        if self.dnode_username == "root":
-            remote_dir = "/root"
-        else:
-            remote_dir = f"/home/{self.dnode_username}"
+        # if self.dnode_username == "root":
+        #     remote_dir = "/root"
+        # else:
+        #     remote_dir = f"/home/{self.dnode_username}"
+        remote_dir = "~"
         self.dnode_conn.upload_file(remote_dir, self.install_package)
         if config["clean_env"]:
             self.rmTaosCfg()
@@ -305,6 +345,41 @@ class Dnodes:
             for index in range(len(self.dnodes)):
                 if index != 0:
                     self.dnodes[index].taoscCreateDnodes()
+
+    class Monitor:
+        def __init__(self):
+            self.install_package = config["install_package"]
+            self.monitor_ip = config["prometheus"]["ip"]
+            self.monitor_port = config["prometheus"]["port"]
+            self.monitor_username = config["prometheus"]["username"]
+            self.monitor_password = config["prometheus"]["password"]
+            self.monitor_conn = RemoteModule(self.monitor_ip, self.monitor_port, self.monitor_username, self.monitor_password)
+            self.dnodes = list()
+            self.ip_list = list()
+            index = 1
+            for key in config:
+                if "taosd_dnode" in str(key):
+                    self.dnodes.append(Dnode(index, config[key]["ip"], config[key]["port"], config[key]["username"], config[key]["password"]))
+                    self.ip_list.append(config[key]["ip"])
+                    index += 1
+
+        def downloadPrometheus(self):
+            logger.info(f'downloading prometheus from {config["prometheus"]["prometheus_addr"]}')
+            self.monitor_conn.exec_cmd(f'wget -P ~ {config["prometheus"]["prometheus_addr"]}')
+
+        def deployPrometheus(self):
+            pass
+
+        def configPrometheusYml(self):
+            pass
+
+        def deployAllNodeExporters(self):
+            for index in range(len(self.dnodes)):
+                self.dnodes[index].deployNodeExporter()
+        
+
+        
+
 
 
     # def deployTaosadapters(self, firstEp):
