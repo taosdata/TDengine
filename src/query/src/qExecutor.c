@@ -148,7 +148,7 @@ if(exprInfo->base.numOfParams > 0){ \
 uint64_t queryHandleId = 0;
 
 int32_t getMaximumIdleDurationSec() {
-  return tsShellActivityTimer * 2;
+  return tsShellActivityTimer * 10;
 }
 int64_t genQueryId(void) {
   int64_t uid = 0;
