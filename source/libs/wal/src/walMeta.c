@@ -24,6 +24,18 @@
 #include <libgen.h>
 #include <regex.h>
 
+int64_t walGetFirstVer(SWal *pWal) {
+  return pWal->firstVersion;
+}
+
+int64_t walGetSnaphostVer(SWal *pWal) {
+  return pWal->snapshotVersion;
+}
+
+int64_t walGetLastVer(SWal *pWal) {
+  return pWal->lastVersion;
+}
+
 int walRollFileInfo(SWal* pWal) {
   int64_t ts = taosGetTimestampSec();
 
