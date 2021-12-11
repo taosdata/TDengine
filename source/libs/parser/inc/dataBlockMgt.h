@@ -42,7 +42,7 @@ typedef enum ERowCompareStat {
 typedef struct SBoundColumn {
   int32_t offset;   // all column offset value
   int32_t toffset;  // first part offset for SDataRow TODO: get offset from STSchema on future
-  uint8_t valStat;  // denote if current column bound or not(0 means has val, 1 means no val)
+  uint8_t valStat;  // EValStat. denote if current column bound or not(0 means has val, 1 means no val)
 } SBoundColumn;
 
 typedef struct {
@@ -63,15 +63,7 @@ typedef struct SParsedDataColInfo {
   int8_t         orderStatus;  // bound columns
 } SParsedDataColInfo;
 
-typedef struct SParamInfo {
-  int32_t  idx;
-  uint8_t  type;
-  uint8_t  timePrec;
-  int16_t  bytes;
-  uint32_t offset;
-} SParamInfo;
-
-typedef struct {
+typedef struct SMemRowInfo {
   int32_t dataLen;  // len of SDataRow
   int32_t kvLen;    // len of SKVRow
 } SMemRowInfo;
@@ -83,15 +75,13 @@ typedef struct {
   SMemRowInfo *rowInfo;
 } SMemRowBuilder;
 
-typedef struct SBlockKeyTuple {
-  TSKEY skey;
-  void* payloadAddr;
-} SBlockKeyTuple;
-
-typedef struct SBlockKeyInfo {
-  int32_t         maxBytesAlloc;
-  SBlockKeyTuple* pKeyTuple;
-} SBlockKeyInfo;
+typedef struct SParamInfo {
+  int32_t  idx;
+  uint8_t  type;
+  uint8_t  timePrec;
+  int16_t  bytes;
+  uint32_t offset;
+} SParamInfo;
 
 typedef struct STableDataBlocks {
   SName       tableName;
@@ -147,7 +137,7 @@ static FORCE_INLINE void appendMemRowColValEx(SMemRow row, const void *value, bo
 }
 
 static FORCE_INLINE void getMemRowAppendInfo(SSchema *pSchema, uint8_t memRowType, SParsedDataColInfo *spd,
-                                                int32_t idx, int32_t *toffset, int16_t *colId) {
+                                                int32_t idx, int32_t *toffset) {
   int32_t schemaIdx = 0;
   if (IS_DATA_COL_ORDERED(spd)) {
     schemaIdx = spd->boundedColumns[idx];
@@ -165,10 +155,9 @@ static FORCE_INLINE void getMemRowAppendInfo(SSchema *pSchema, uint8_t memRowTyp
       *toffset = ((spd->colIdxInfo + idx)->finalIdx) * sizeof(SColIdx);
     }
   }
-  *colId = pSchema[schemaIdx].colId;
 }
 
-static FORCE_INLINE void checkAndConvertMemRow(SMemRow row, int32_t dataLen, int32_t kvLen) {
+static FORCE_INLINE void convertMemRow(SMemRow row, int32_t dataLen, int32_t kvLen) {
   if (isDataRow(row)) {
     if (kvLen < (dataLen * KVRatioConvert)) {
       memRowSetConvert(row);

@@ -15,19 +15,23 @@
 
 #include "dataBlockMgt.h"
 
-// #include "astGenerator.h"
-// #include "parserInt.h"
 #include "catalog.h"
 #include "parserUtil.h"
 #include "queryInfoUtil.h"
-// #include "ttoken.h"
-// #include "function.h"
-// #include "ttime.h"
-// #include "tglobal.h"
 #include "taosmsg.h"
 
 #define IS_RAW_PAYLOAD(t) \
   (((int)(t)) == PAYLOAD_TYPE_RAW)  // 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
+
+typedef struct SBlockKeyTuple {
+  TSKEY skey;
+  void* payloadAddr;
+} SBlockKeyTuple;
+
+typedef struct SBlockKeyInfo {
+  int32_t         maxBytesAlloc;
+  SBlockKeyTuple* pKeyTuple;
+} SBlockKeyInfo;
 
 static int32_t rowDataCompar(const void *lhs, const void *rhs) {
   TSKEY left = *(TSKEY *)lhs;
@@ -189,8 +193,7 @@ static int32_t getRowExpandSize(STableMeta* pTableMeta) {
  * TODO: Move to tdataformat.h and refactor when STSchema available.
  *    - fetch flen and toffset from STSChema and remove param spd
  */
-static FORCE_INLINE void convertToSDataRow(SMemRow dest, SMemRow src, SSchema *pSchema, int nCols,
-                                           SParsedDataColInfo *spd) {
+static FORCE_INLINE void convertToSDataRow(SMemRow dest, SMemRow src, SSchema *pSchema, int nCols, SParsedDataColInfo *spd) {
   ASSERT(isKvRow(src));
   SKVRow   kvRow = memRowKvBody(src);
   SDataRow dataRow = memRowDataBody(dest);
@@ -209,8 +212,7 @@ static FORCE_INLINE void convertToSDataRow(SMemRow dest, SMemRow src, SSchema *p
 }
 
 // TODO: Move to tdataformat.h and refactor when STSchema available.
-static FORCE_INLINE void convertToSKVRow(SMemRow dest, SMemRow src, SSchema *pSchema, int nCols, int nBoundCols,
-                                         SParsedDataColInfo *spd) {
+static FORCE_INLINE void convertToSKVRow(SMemRow dest, SMemRow src, SSchema *pSchema, int nCols, int nBoundCols, SParsedDataColInfo *spd) {
   ASSERT(isDataRow(src));
 
   SDataRow dataRow = memRowDataBody(src);
@@ -485,22 +487,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SB
 }
 
 static void extractTableNameList(SHashObj* pHashObj, bool freeBlockMap) {
-  // pInsertParam->numOfTables = (int32_t) taosHashGetSize(pInsertParam->pTableBlockHashList);
-  // if (pInsertParam->pTableNameList == NULL) {
-  //   pInsertParam->pTableNameList = malloc(pInsertParam->numOfTables * POINTER_BYTES);
-  // }
-
-  // STableDataBlocks **p1 = taosHashIterate(pInsertParam->pTableBlockHashList, NULL);
-  // int32_t i = 0;
-  // while(p1) {
-  //   STableDataBlocks* pBlocks = *p1;
-  //   pInsertParam->pTableNameList[i++] = tNameDup(&pBlocks->tableName);
-  //   p1 = taosHashIterate(pInsertParam->pTableBlockHashList, p1);
-  // }
-
-  // if (freeBlockMap) {
-  //   pInsertParam->pTableBlockHashList = tscDestroyBlockHashTable(pInsertParam->pTableBlockHashList, false);
-  // }
+  // todo
 }
 
 int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t payloadType, bool freeBlockMap) {
