@@ -972,13 +972,6 @@ void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo) {
   memset(&pDBInfo->precision, 0, sizeof(SToken));
 }
 
-void setDefaultCreateTopicOption(SCreateDbInfo *pDBInfo) {
-  setDefaultCreateDbOption(pDBInfo);
-
-  pDBInfo->dbType = TSDB_DB_TYPE_TOPIC;
-  pDBInfo->partitions = TSDB_DEFAULT_DB_PARTITON_OPTION;
-}
-
 // prefix show db.tables;
 void tSetDbName(SToken *pCpxName, SToken *pDb) {
   pCpxName->type = pDb->type;

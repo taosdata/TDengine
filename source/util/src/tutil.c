@@ -187,7 +187,7 @@ char *strnchr(const char *haystack, char needle, int32_t len, bool skipquote) {
 }
 
 char* strtolower(char *dst, const char *src) {
-  int esc = 0;
+  int32_t esc = 0;
   char quote = 0, *p = dst, c;
 
   assert(dst != NULL);
@@ -214,7 +214,7 @@ char* strtolower(char *dst, const char *src) {
 }
 
 char* strntolower(char *dst, const char *src, int32_t n) {
-  int esc = 0;
+  int32_t esc = 0;
   char quote = 0, *p = dst, c;
 
   assert(dst != NULL);
@@ -347,7 +347,7 @@ char *strbetween(char *string, char *begin, char *end) {
   char *_begin = strstr(string, begin);
   if (_begin != NULL) {
     char *_end = strstr(_begin + strlen(begin), end);
-    int   size = (int)(_end - _begin);
+    int32_t   size = (int32_t)(_end - _begin);
     if (_end != NULL && size > 0) {
       result = (char *)calloc(1, size);
       memcpy(result, _begin + strlen(begin), size - +strlen(begin));
@@ -402,7 +402,7 @@ int32_t taosHexStrToByteArray(char hexstr[], char bytes[]) {
 
 char *taosIpStr(uint32_t ipInt) {
   static char ipStrArray[3][30];
-  static int ipStrIndex = 0;
+  static int32_t ipStrIndex = 0;
 
   char *ipStr = ipStrArray[(ipStrIndex++) % 3];
   //sprintf(ipStr, "0x%x:%u.%u.%u.%u", ipInt, ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
@@ -416,4 +416,17 @@ void taosIp2String(uint32_t ip, char *str) {
 
 void taosIpPort2String(uint32_t ip, uint16_t port, char *str) {
   sprintf(str, "%u.%u.%u.%u:%u", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (uint8_t)(ip >> 24), port);
+}
+
+int32_t taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {
+  *port = 0;
+  strcpy(fqdn, ep);
+
+  char *temp = strchr(fqdn, ':');
+  if (temp) {
+    *temp = 0;
+    *port = atoi(temp + 1);
+  }
+
+  return 0;
 }

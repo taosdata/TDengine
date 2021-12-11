@@ -1495,7 +1495,7 @@ STableMeta* createSuperTableMeta(STableMetaMsg* pChild) {
   pTableMeta->tversion = pChild->tversion;
   pTableMeta->sversion = pChild->sversion;
 
-  memcpy(pTableMeta->schema, pChild->schema, sizeof(SSchema) * total);
+  memcpy(pTableMeta->schema, pChild->pSchema, sizeof(SSchema) * total);
 
   int32_t num = pTableMeta->tableInfo.numOfColumns;
   for(int32_t i = 0; i < num; ++i) {

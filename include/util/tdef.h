@@ -163,9 +163,14 @@ do { \
 #define TSDB_TABLE_NAME_LEN       193     // it is a null-terminated string
 #define TSDB_DB_NAME_LEN          33
 #define TSDB_FULL_DB_NAME_LEN     (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN)
-#define TSDB_FUNC_NAME_LEN        65
-#define TSDB_FUNC_CODE_LEN        (65535 - 512)
-#define TSDB_FUNC_BUF_SIZE        512
+
+#define TSDB_FUNC_NAME_LEN         65
+#define TSDB_FUNC_COMMENT_LEN      4096
+#define TSDB_FUNC_CODE_LEN         (65535 - 512)
+#define TSDB_FUNC_BUF_SIZE         512
+#define TSDB_FUNC_TYPE_SCALAR      1
+#define TSDB_FUNC_TYPE_AGGREGATE   2
+
 #define TSDB_TYPE_STR_MAX_LEN     32
 #define TSDB_TABLE_FNAME_LEN      (TSDB_FULL_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
 #define TSDB_COL_NAME_LEN         65
@@ -245,12 +250,6 @@ do { \
 #define TSDB_MAX_TOTAL_BLOCKS           10000
 #define TSDB_DEFAULT_TOTAL_BLOCKS       6
 
-#define TSDB_MIN_TABLES                 4
-#define TSDB_MAX_TABLES                 10000000
-#define TSDB_DEFAULT_TABLES             1000000
-#define TSDB_TABLES_STEP                1000
-#define TSDB_META_COMPACT_RATIO         0       // disable tsdb meta compact by default
-
 #define TSDB_MIN_DAYS_PER_FILE          1
 #define TSDB_MAX_DAYS_PER_FILE          3650 
 #define TSDB_DEFAULT_DAYS_PER_FILE      10
@@ -259,17 +258,25 @@ do { \
 #define TSDB_MAX_KEEP                   365000   // data in db to be reserved.
 #define TSDB_DEFAULT_KEEP               3650     // ten years
 
-#define TSDB_DEFAULT_MIN_ROW_FBLOCK     100
 #define TSDB_MIN_MIN_ROW_FBLOCK         10
 #define TSDB_MAX_MIN_ROW_FBLOCK         1000
+#define TSDB_DEFAULT_MIN_ROW_FBLOCK     100
 
-#define TSDB_DEFAULT_MAX_ROW_FBLOCK     4096
 #define TSDB_MIN_MAX_ROW_FBLOCK         200
 #define TSDB_MAX_MAX_ROW_FBLOCK         10000
+#define TSDB_DEFAULT_MAX_ROW_FBLOCK     4096
 
 #define TSDB_MIN_COMMIT_TIME            30
 #define TSDB_MAX_COMMIT_TIME            40960
 #define TSDB_DEFAULT_COMMIT_TIME        3600
+
+#define TSDB_MIN_FSYNC_PERIOD           0
+#define TSDB_MAX_FSYNC_PERIOD           180000   // millisecond
+#define TSDB_DEFAULT_FSYNC_PERIOD       3000     // three second
+
+#define TSDB_MIN_WAL_LEVEL              0
+#define TSDB_MAX_WAL_LEVEL              2
+#define TSDB_DEFAULT_WAL_LEVEL          1
 
 #define TSDB_MIN_PRECISION              TSDB_TIME_PRECISION_MILLI
 #define TSDB_MAX_PRECISION              TSDB_TIME_PRECISION_NANO
@@ -279,9 +286,13 @@ do { \
 #define TSDB_MAX_COMP_LEVEL             2
 #define TSDB_DEFAULT_COMP_LEVEL         2
 
-#define TSDB_MIN_WAL_LEVEL              0
-#define TSDB_MAX_WAL_LEVEL              2
-#define TSDB_DEFAULT_WAL_LEVEL          1
+#define TSDB_MIN_DB_REPLICA_OPTION      1
+#define TSDB_MAX_DB_REPLICA_OPTION      3
+#define TSDB_DEFAULT_DB_REPLICA_OPTION  1
+
+#define TSDB_MIN_DB_QUORUM_OPTION       1
+#define TSDB_MAX_DB_QUORUM_OPTION       2
+#define TSDB_DEFAULT_DB_QUORUM_OPTION   1
 
 #define TSDB_MIN_DB_UPDATE              0
 #define TSDB_MAX_DB_UPDATE              2
@@ -290,22 +301,6 @@ do { \
 #define TSDB_MIN_DB_CACHE_LAST_ROW      0
 #define TSDB_MAX_DB_CACHE_LAST_ROW      3
 #define TSDB_DEFAULT_CACHE_LAST_ROW     0
-
-#define TSDB_MIN_FSYNC_PERIOD           0
-#define TSDB_MAX_FSYNC_PERIOD           180000   // millisecond
-#define TSDB_DEFAULT_FSYNC_PERIOD       3000     // three second
-
-#define TSDB_MIN_DB_REPLICA_OPTION      1
-#define TSDB_MAX_DB_REPLICA_OPTION      3
-#define TSDB_DEFAULT_DB_REPLICA_OPTION  1
-
-#define TSDB_MIN_DB_PARTITON_OPTION     0
-#define TSDB_MAX_DB_PARTITON_OPTION     1000
-#define TSDB_DEFAULT_DB_PARTITON_OPTION 4
-
-#define TSDB_MIN_DB_QUORUM_OPTION       1
-#define TSDB_MAX_DB_QUORUM_OPTION       2
-#define TSDB_DEFAULT_DB_QUORUM_OPTION   1
 
 #define TSDB_MAX_JOIN_TABLE_NUM         10
 #define TSDB_MAX_UNION_CLAUSE           5
@@ -319,6 +314,11 @@ do { \
 
 #define TSDB_QUERY_TYPE_NON_TYPE               0x00u     // none type
 #define TSDB_QUERY_TYPE_FREE_RESOURCE          0x01u     // free qhandle at vnode
+
+
+#define TSDB_META_COMPACT_RATIO         0       // disable tsdb meta compact by default
+
+
 
 /*
  * 1. ordinary sub query for select * from super_table

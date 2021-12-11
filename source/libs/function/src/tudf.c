@@ -146,7 +146,7 @@ void doInvokeUdf(struct SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, i
           pCtx->pOutput, interBuf, (char *)pCtx->ptsOutputBuf, &output, pCtx->resDataInfo.type, pCtx->resDataInfo.bytes, &pUdfInfo->init);
       }
 
-      if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
+      if (pUdfInfo->funcType == TSDB_FUNC_TYPE_AGGREGATE) {
         pCtx->resultInfo->numOfRes = output;
       } else {
         pCtx->resultInfo->numOfRes += output;
