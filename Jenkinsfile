@@ -488,7 +488,8 @@ pipeline {
                 sh '''
                   cd ${WKC}/tests/examples/C#/taosdemo
                   dotnet build -c Release
-                  ./bin/Release/taosdemo -c /etc/taos -y
+                  tree | true
+                  ./bin/Release/net5.0/taosdemo -c /etc/taos -y
                 '''
               }
               sh '''
