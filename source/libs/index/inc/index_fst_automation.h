@@ -19,7 +19,13 @@
 extern "C" {
 #endif
 
+#include "index_fst_util.h"
 typedef struct AutomationCtx AutomationCtx;
+
+typedef enum AutomationType {
+  AUTOMATION_PREFIX,
+  AUTMMATION_MATCH 
+} AutomationType;
 
 typedef struct StartWith {
   AutomationCtx  *autoSelf;
@@ -27,25 +33,25 @@ typedef struct StartWith {
 
 typedef struct Complement {
   AutomationCtx *autoSelf;
-  
 } Complement;
 
 // automation 
 typedef struct AutomationCtx {
-// automation interface
-  void *data;
+  AutomationType type; 
 } AutomationCtx;
 
-typedef struct Automation {
-  void* (*start)() ; 
-  bool (*isMatch)(void *);
-  bool (*canMatch)(void *data);
-  bool (*willAlwaysMatch)(void *state); 
-  void* (*accept)(void *state, uint8_t byte);
-  void* (*acceptEof)(void *state);
-  void *data;
-} Automation; 
+typedef struct AutomationFunc {
+  void* (*start)(AutomationCtx *ctx) ; 
+  bool (*isMatch)(AutomationCtx *ctx, void *);
+  bool (*canMatch)(AutomationCtx *ctx, void *data);
+  bool (*willAlwaysMatch)(AutomationCtx *ctx, void *state); 
+  void* (*accept)(AutomationCtx *ctx, void *state, uint8_t byte);
+  void* (*acceptEof)(AutomationCtx *ct, void *state);
+} AutomationFunc; 
 
+AutomationCtx *automCtxCreate(void *data, AutomationType type);
+
+extern AutomationFunc automFuncs[]; 
 #ifdef __cplusplus
 }
 #endif
