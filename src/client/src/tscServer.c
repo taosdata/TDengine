@@ -2806,7 +2806,11 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
   tscAddQueryInfo(&pNew->cmd);
 
   SQueryInfo *pNewQueryInfo = tscGetQueryInfoS(&pNew->cmd);
-  if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, TSDB_DEFAULT_PAYLOAD_SIZE + pSql->cmd.payloadLen)) {
+  int payLoadLen = TSDB_DEFAULT_PAYLOAD_SIZE + pSql->cmd.payloadLen;
+  if (autocreate && pSql->cmd.insertParam.tagData.dataLen != 0) {
+    payLoadLen += pSql->cmd.insertParam.tagData.dataLen;
+  }
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, payLoadLen)) {
     tscError("0x%"PRIx64" malloc failed for payload to get table meta", pSql->self);
 
     tscFreeSqlObj(pNew);

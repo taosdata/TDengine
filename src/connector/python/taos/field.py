@@ -144,7 +144,7 @@ def _crow_nchar_to_python(data, num_of_rows, nbytes=None, precision=FieldType.C_
         try:
             if num_of_rows >= 0:
                 tmpstr = ctypes.c_char_p(data)
-                res.append(tmpstr.value.decode())
+                res.append(tmpstr.value.decode("utf-8"))
             else:
                 res.append(
                     (
@@ -172,7 +172,7 @@ def _crow_binary_to_python_block(data, num_of_rows, nbytes=None, precision=Field
         if rbyte == 1 and buffer[0] == b'\xff':
             res.append(None)
         else:
-            res.append(cast(buffer, c_char_p).value.decode())
+            res.append(cast(buffer, c_char_p).value.decode("utf-8"))
     return res
 
 
@@ -188,7 +188,7 @@ def _crow_nchar_to_python_block(data, num_of_rows, nbytes=None, precision=FieldT
         if rbyte == 4 and buffer[:4] == b'\xff'*4:
             res.append(None)
         else:
-            res.append(cast(buffer, c_char_p).value.decode())
+            res.append(cast(buffer, c_char_p).value.decode("utf-8"))
     return res
 
 
