@@ -75,15 +75,23 @@ AutomationFunc automFuncs[]  = {{
     patternAccept,
     patternAcceptEof
   }
+  // add more search type
 };
 
 AutomationCtx* automCtxCreate(void *data, AutomationType type) {
-  AutomationCtx *ctx =  calloc(1, sizeof(AutomationCtx));
+  AutomationCtx *ctx = calloc(1, sizeof(AutomationCtx));
   if (ctx == NULL) { return NULL; }
 
   ctx->type = type;
-  if (type == AUTOMATION_PREFIX) {
+  if (ctx->type == AUTOMATION_PREFIX) {
 
+  } else if (ctx->type == AUTMMATION_MATCH) {
+
+  } else {
+    // add more search type
   }
+  return ctx; 
 } 
-
+void autoCtxDestroy(AutomationCtx *ctx) {
+  free(ctx);
+}

@@ -1072,7 +1072,6 @@ bool fstGet(Fst *fst, FstSlice *b, Output *out) {
     tOut += trn.out; 
     root = fstGetNode(fst, trn.addr);
     taosArrayPush(nodes, &root);
-    //fstNodeDestroy(root);
   }
   if (!FST_NODE_IS_FINAL(root)) {
     return false;
