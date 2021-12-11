@@ -118,7 +118,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
       break;
     }
 
-    code = sdbWriteRaw(pSdb, pRaw);
+    code = sdbWriteNotFree(pSdb, pRaw);
     if (code != 0) {
       mError("failed to read file:%s since %s", file, terrstr());
       goto PARSE_SDB_DATA_ERROR;

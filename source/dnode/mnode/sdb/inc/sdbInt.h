@@ -71,7 +71,6 @@ typedef struct SSdb {
 } SSdb;
 
 int32_t sdbWriteFile(SSdb *pSdb);
-int32_t sdbWriteRaw(SSdb *pSdb, SSdbRaw *pRaw);
 
 #ifdef __cplusplus
 }

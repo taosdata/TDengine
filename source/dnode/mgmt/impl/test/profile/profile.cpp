@@ -152,49 +152,49 @@ TEST_F(DndTestProfile, SConnectMsg_03) {
     EXPECT_EQ(pMeta->suid, 0);
 
     SSchema* pSchema = NULL;
-    pSchema = &pMeta->schema[0];
+    pSchema = &pMeta->pSchema[0];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
     EXPECT_EQ(pSchema->bytes, 4);
     EXPECT_STREQ(pSchema->name, "connId");
 
-    pSchema = &pMeta->schema[1];
+    pSchema = &pMeta->pSchema[1];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
     EXPECT_EQ(pSchema->bytes, TSDB_USER_LEN + VARSTR_HEADER_SIZE);
     EXPECT_STREQ(pSchema->name, "user");
 
-    pSchema = &pMeta->schema[2];
+    pSchema = &pMeta->pSchema[2];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
     EXPECT_EQ(pSchema->bytes, TSDB_USER_LEN + VARSTR_HEADER_SIZE);
     EXPECT_STREQ(pSchema->name, "program");
 
-    pSchema = &pMeta->schema[3];
+    pSchema = &pMeta->pSchema[3];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
     EXPECT_EQ(pSchema->bytes, 4);
     EXPECT_STREQ(pSchema->name, "pid");
 
-    pSchema = &pMeta->schema[4];
+    pSchema = &pMeta->pSchema[4];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
     EXPECT_EQ(pSchema->bytes, TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE);
     EXPECT_STREQ(pSchema->name, "ip:port");
 
-    pSchema = &pMeta->schema[5];
+    pSchema = &pMeta->pSchema[5];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TIMESTAMP);
     EXPECT_EQ(pSchema->bytes, 8);
     EXPECT_STREQ(pSchema->name, "login_time");
 
-    pSchema = &pMeta->schema[6];
+    pSchema = &pMeta->pSchema[6];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TIMESTAMP);
@@ -493,28 +493,28 @@ TEST_F(DndTestProfile, SKillQueryMsg_03) {
     EXPECT_EQ(pMeta->suid, 0);
 
     SSchema* pSchema = NULL;
-    pSchema = &pMeta->schema[0];
+    pSchema = &pMeta->pSchema[0];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
     EXPECT_EQ(pSchema->bytes, 4);
     EXPECT_STREQ(pSchema->name, "queryId");
 
-    pSchema = &pMeta->schema[1];
+    pSchema = &pMeta->pSchema[1];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
     EXPECT_EQ(pSchema->bytes, 4);
     EXPECT_STREQ(pSchema->name, "connId");
 
-    pSchema = &pMeta->schema[2];
+    pSchema = &pMeta->pSchema[2];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
     EXPECT_EQ(pSchema->bytes, TSDB_USER_LEN + VARSTR_HEADER_SIZE);
     EXPECT_STREQ(pSchema->name, "user");
 
-    pSchema = &pMeta->schema[3];
+    pSchema = &pMeta->pSchema[3];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
@@ -680,21 +680,21 @@ TEST_F(DndTestProfile, SKillStreamMsg_03) {
     EXPECT_EQ(pMeta->suid, 0);
 
     SSchema* pSchema = NULL;
-    pSchema = &pMeta->schema[0];
+    pSchema = &pMeta->pSchema[0];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
     EXPECT_EQ(pSchema->bytes, 4);
     EXPECT_STREQ(pSchema->name, "streamId");
 
-    pSchema = &pMeta->schema[1];
+    pSchema = &pMeta->pSchema[1];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
     EXPECT_EQ(pSchema->bytes, 4);
     EXPECT_STREQ(pSchema->name, "connId");
 
-    pSchema = &pMeta->schema[2];
+    pSchema = &pMeta->pSchema[2];
     pSchema->bytes = htons(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);

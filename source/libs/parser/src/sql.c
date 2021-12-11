@@ -2312,14 +2312,14 @@ static void yy_reduce(
         break;
       case 26: /* cmd ::= SHOW dbPrefix STABLES */
 {
-    setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &yymsp[-1].minor.yy0, 0);
+    setShowOptions(pInfo, TSDB_MGMT_TABLE_STABLE, &yymsp[-1].minor.yy0, 0);
 }
         break;
       case 27: /* cmd ::= SHOW dbPrefix STABLES LIKE ids */
 {
     SToken token;
     tSetDbName(&token, &yymsp[-3].minor.yy0);
-    setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &token, &yymsp[0].minor.yy0);
+    setShowOptions(pInfo, TSDB_MGMT_TABLE_STABLE, &token, &yymsp[0].minor.yy0);
 }
         break;
       case 28: /* cmd ::= SHOW dbPrefix VGROUPS */

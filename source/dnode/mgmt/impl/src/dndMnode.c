@@ -366,7 +366,7 @@ static void dndBuildMnodeOpenOption(SDnode *pDnode, SMnodeOpt *pOption) {
   memcpy(&pOption->replicas, pMgmt->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
 }
 
-static int32_t dndBuildMnodeOptionFromMsg(SDnode *pDnode, SMnodeOpt *pOption, SCreateMnodeMsg *pMsg) {
+static int32_t dndBuildMnodeOptionFromMsg(SDnode *pDnode, SMnodeOpt *pOption, SCreateMnodeInMsg *pMsg) {
   dndInitMnodeOption(pDnode, pOption);
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
@@ -488,8 +488,8 @@ static int32_t dndDropMnode(SDnode *pDnode) {
   return 0;
 }
 
-static SCreateMnodeMsg *dndParseCreateMnodeMsg(SRpcMsg *pRpcMsg) {
-  SCreateMnodeMsg *pMsg = pRpcMsg->pCont;
+static SCreateMnodeInMsg *dndParseCreateMnodeMsg(SRpcMsg *pRpcMsg) {
+  SCreateMnodeInMsg *pMsg = pRpcMsg->pCont;
   pMsg->dnodeId = htonl(pMsg->dnodeId);
   for (int32_t i = 0; i < pMsg->replica; ++i) {
     pMsg->replicas[i].id = htonl(pMsg->replicas[i].id);
@@ -500,7 +500,7 @@ static SCreateMnodeMsg *dndParseCreateMnodeMsg(SRpcMsg *pRpcMsg) {
 }
 
 static int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SCreateMnodeMsg *pMsg = dndParseCreateMnodeMsg(pRpcMsg->pCont);
+  SCreateMnodeInMsg *pMsg = dndParseCreateMnodeMsg(pRpcMsg->pCont);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_ID_INVALID;
@@ -516,7 +516,7 @@ static int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
 }
 
 static int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SAlterMnodeMsg *pMsg = dndParseCreateMnodeMsg(pRpcMsg->pCont);
+  SAlterMnodeInMsg *pMsg = dndParseCreateMnodeMsg(pRpcMsg->pCont);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_ID_INVALID;
@@ -531,7 +531,8 @@ static int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
 }
 
 static int32_t dndProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SDropMnodeMsg *pMsg = dndParseCreateMnodeMsg(pRpcMsg->pCont);
+  SDropMnodeInMsg *pMsg = pRpcMsg->pCont;
+  pMsg->dnodeId = htonl(pMsg->dnodeId);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_ID_INVALID;

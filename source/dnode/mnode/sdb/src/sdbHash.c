@@ -52,11 +52,12 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   SRWLatch *pLock = &pSdb->locks[pRow->type];
   taosWLockLatch(pLock);
 
-  SSdbRow *pDstRow = taosHashGet(hash, pRow->pObj, keySize);
-  if (pDstRow != NULL) {
+  SSdbRow *pOldRow = taosHashGet(hash, pRow->pObj, keySize);
+  if (pOldRow != NULL) {
     taosWUnLockLatch(pLock);
     sdbFreeRow(pRow);
-    return TSDB_CODE_SDB_OBJ_ALREADY_THERE;
+    terrno = TSDB_CODE_SDB_OBJ_ALREADY_THERE;
+    return terrno;
   }
 
   pRow->refCount = 1;
@@ -65,7 +66,8 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   if (taosHashPut(hash, pRow->pObj, keySize, &pRow, sizeof(void *)) != 0) {
     taosWUnLockLatch(pLock);
     sdbFreeRow(pRow);
-    return TSDB_CODE_SDB_OBJ_ALREADY_THERE;
+    terrno = TSDB_CODE_SDB_OBJ_ALREADY_THERE;
+    return terrno;
   }
 
   taosWUnLockLatch(pLock);
@@ -78,35 +80,36 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
       taosHashRemove(hash, pRow->pObj, keySize);
       taosWUnLockLatch(pLock);
       sdbFreeRow(pRow);
-      return code;
+      terrno = code;
+      return terrno;
     }
   }
 
   return 0;
 }
 
-static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_t keySize) {
+static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pNewRow, int32_t keySize) {
   int32_t code = 0;
 
-  SRWLatch *pLock = &pSdb->locks[pRow->type];
+  SRWLatch *pLock = &pSdb->locks[pNewRow->type];
   taosRLockLatch(pLock);
 
-  SSdbRow **ppDstRow = taosHashGet(hash, pRow->pObj, keySize);
-  if (ppDstRow == NULL || *ppDstRow == NULL) {
+  SSdbRow **ppOldRow = taosHashGet(hash, pNewRow->pObj, keySize);
+  if (ppOldRow == NULL || *ppOldRow == NULL) {
     taosRUnLockLatch(pLock);
-    return sdbInsertRow(pSdb, hash, pRaw, pRow, keySize);
+    return sdbInsertRow(pSdb, hash, pRaw, pNewRow, keySize);
   }
-  SSdbRow *pDstRow = *ppDstRow;
+  SSdbRow *pOldRow = *ppOldRow;
 
-  pRow->status = pRaw->status;
+  pOldRow->status = pRaw->status;
   taosRUnLockLatch(pLock);
 
-  SdbUpdateFp updateFp = pSdb->updateFps[pRow->type];
+  SdbUpdateFp updateFp = pSdb->updateFps[pNewRow->type];
   if (updateFp != NULL) {
-    code = (*updateFp)(pSdb, pRow->pObj, pDstRow->pObj);
+    code = (*updateFp)(pSdb, pOldRow->pObj, pNewRow->pObj);
   }
 
-  sdbFreeRow(pRow);
+  sdbFreeRow(pNewRow);
   return code;
 }
 
@@ -116,29 +119,30 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   SRWLatch *pLock = &pSdb->locks[pRow->type];
   taosWLockLatch(pLock);
 
-  SSdbRow **ppDstRow = taosHashGet(hash, pRow->pObj, keySize);
-  if (ppDstRow == NULL || *ppDstRow == NULL) {
+  SSdbRow **ppOldRow = taosHashGet(hash, pRow->pObj, keySize);
+  if (ppOldRow == NULL || *ppOldRow == NULL) {
     taosWUnLockLatch(pLock);
     sdbFreeRow(pRow);
-    return TSDB_CODE_SDB_OBJ_NOT_THERE;
+    terrno = TSDB_CODE_SDB_OBJ_NOT_THERE;
+    return terrno;
   }
-  SSdbRow *pDstRow = *ppDstRow;
+  SSdbRow *pOldRow = *ppOldRow;
 
-  pDstRow->status = pRaw->status;
-  taosHashRemove(hash, pDstRow->pObj, keySize);
+  pOldRow->status = pRaw->status;
+  taosHashRemove(hash, pOldRow->pObj, keySize);
   taosWUnLockLatch(pLock);
 
-  SdbDeleteFp deleteFp = pSdb->deleteFps[pDstRow->type];
+  SdbDeleteFp deleteFp = pSdb->deleteFps[pOldRow->type];
   if (deleteFp != NULL) {
-    code = (*deleteFp)(pSdb, pDstRow->pObj);
+    code = (*deleteFp)(pSdb, pOldRow->pObj);
   }
 
-  sdbRelease(pSdb, pDstRow->pObj);
+  sdbRelease(pSdb, pOldRow->pObj);
   sdbFreeRow(pRow);
   return code;
 }
 
-int32_t sdbWriteRaw(SSdb *pSdb, SSdbRaw *pRaw) {
+int32_t sdbWriteNotFree(SSdb *pSdb, SSdbRaw *pRaw) {
   SHashObj *hash = sdbGetHash(pSdb, pRaw->type);
   if (hash == NULL) return terrno;
 
@@ -170,7 +174,7 @@ int32_t sdbWriteRaw(SSdb *pSdb, SSdbRaw *pRaw) {
 }
 
 int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw) {
-  int32_t code = sdbWriteRaw(pSdb, pRaw);
+  int32_t code = sdbWriteNotFree(pSdb, pRaw);
   sdbFreeRaw(pRaw);
   return code;
 }

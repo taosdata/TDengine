@@ -14,8 +14,372 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "mndInt.h"
+#include "mndVgroup.h"
+#include "mndDb.h"
+#include "mndDnode.h"
+#include "mndMnode.h"
+#include "mndShow.h"
+#include "mndTrans.h"
 
-int32_t mndInitVgroup(SMnode *pMnode) { return 0; }
-void    mndCleanupVgroup(SMnode *pMnode) {}
+#define TSDB_VGROUP_VER_NUM 1
+#define TSDB_VGROUP_RESERVE_SIZE 64
+
+static SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup);
+static SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw);
+static int32_t  mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
+static int32_t  mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
+static int32_t  mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup);
+
+static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pMsg);
+static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pMsg);
+static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pMsg);
+static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pMsg);
+static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pMsg);
+
+static int32_t mndGetVgroupMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
+static int32_t mndRetrieveVgroups(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+static void    mndCancelGetNextVgroup(SMnode *pMnode, void *pIter);
+static int32_t mndGetVnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
+static int32_t mndRetrieveVnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+static void    mndCancelGetNextVnode(SMnode *pMnode, void *pIter);
+
+int32_t mndInitVgroup(SMnode *pMnode) {
+  SSdbTable table = {.sdbType = SDB_VGROUP,
+                     .keyType = SDB_KEY_BINARY,
+                     .encodeFp = (SdbEncodeFp)mndVgroupActionEncode,
+                     .decodeFp = (SdbDecodeFp)mndVgroupActionDecode,
+                     .insertFp = (SdbInsertFp)mndVgroupActionInsert,
+                     .updateFp = (SdbUpdateFp)mndVgroupActionDelete,
+                     .deleteFp = (SdbDeleteFp)mndVgroupActionUpdate};
+
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_VNODE_IN_RSP, mndProcessCreateVnodeRsp);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_VNODE_IN_RSP, mndProcessAlterVnodeRsp);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_VNODE_IN_RSP, mndProcessDropVnodeRsp);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_SYNC_VNODE_IN_RSP, mndProcessSyncVnodeRsp);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_COMPACT_VNODE_IN_RSP, mndProcessCompactVnodeRsp);
+
+  mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndGetVgroupMeta);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndRetrieveVgroups);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndCancelGetNextVgroup);
+  mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_VNODES, mndGetVnodeMeta);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VNODES, mndRetrieveVnodes);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VNODES, mndCancelGetNextVnode);
+
+  return sdbSetTable(pMnode->pSdb, table);
+}
+
+void mndCleanupVgroup(SMnode *pMnode) {}
+
+static SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_VGROUP_VER_NUM, sizeof(SDbObj));
+  if (pRaw == NULL) return NULL;
+
+  int32_t dataPos = 0;
+  SDB_SET_INT32(pRaw, dataPos, pVgroup->vgId)
+  SDB_SET_INT64(pRaw, dataPos, pVgroup->createdTime)
+  SDB_SET_INT64(pRaw, dataPos, pVgroup->updateTime)
+  SDB_SET_INT32(pRaw, dataPos, pVgroup->version)
+  SDB_SET_BINARY(pRaw, dataPos, pVgroup->dbName, TSDB_FULL_DB_NAME_LEN)
+  SDB_SET_INT8(pRaw, dataPos, pVgroup->replica)
+  for (int8_t i = 0; i < pVgroup->replica; ++i) {
+    SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
+    SDB_SET_INT32(pRaw, dataPos, pVgid->dnodeId)
+    SDB_SET_INT8(pRaw, dataPos, pVgid->role)
+  }
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_VGROUP_RESERVE_SIZE)
+  SDB_SET_DATALEN(pRaw, dataPos);
+
+  return pRaw;
+}
+
+static SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
+  int8_t sver = 0;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+
+  if (sver != TSDB_VGROUP_VER_NUM) {
+    mError("failed to decode vgroup since %s", terrstr());
+    terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
+    return NULL;
+  }
+
+  SSdbRow *pRow = sdbAllocRow(sizeof(SDbObj));
+  SVgObj  *pVgroup = sdbGetRowObj(pRow);
+  if (pVgroup == NULL) return NULL;
+
+  int32_t dataPos = 0;
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->vgId)
+  SDB_GET_INT64(pRaw, pRow, dataPos, &pVgroup->createdTime)
+  SDB_GET_INT64(pRaw, pRow, dataPos, &pVgroup->updateTime)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->version)
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pVgroup->dbName, TSDB_FULL_DB_NAME_LEN)
+  SDB_GET_INT8(pRaw, pRow, dataPos, &pVgroup->replica)
+  for (int8_t i = 0; i < pVgroup->replica; ++i) {
+    SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
+    SDB_GET_INT32(pRaw, pRow, dataPos, &pVgid->dnodeId)
+    SDB_GET_INT8(pRaw, pRow, dataPos, (int8_t *)&pVgid->role)
+  }
+  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_VGROUP_RESERVE_SIZE)
+
+  return pRow;
+}
+
+static int32_t mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup) {
+  mTrace("vgId:%d, perform insert action", pVgroup->vgId);
+  return 0;
+}
+
+static int32_t mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup) {
+  mTrace("vgId:%d, perform delete action", pVgroup->vgId);
+  return 0;
+}
+
+static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+
+static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup) {
+  mTrace("vgId:%d, perform update action", pOldVgroup->vgId);
+  pOldVgroup->vgId = pNewVgroup->vgId;
+  pOldVgroup->createdTime = pNewVgroup->createdTime;
+  pOldVgroup->updateTime = pNewVgroup->updateTime;
+  pOldVgroup->version = pNewVgroup->version;
+  memcpy(pOldVgroup->dbName, pNewVgroup->dbName, TSDB_FULL_DB_NAME_LEN);
+  pOldVgroup->replica = pNewVgroup->replica;
+  memcpy(pOldVgroup->vnodeGid, pNewVgroup->vnodeGid, TSDB_MAX_REPLICA * sizeof(SVnodeGid));
+  return 0;
+}
+
+SVgObj *mndAcquireVgroup(SMnode *pMnode, int32_t vgId) {
+  SSdb *pSdb = pMnode->pSdb;
+  return sdbAcquire(pSdb, SDB_VGROUP, &vgId);
+}
+
+void mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbRelease(pSdb, pVgroup);
+}
+
+static int32_t mndGetVgroupMaxReplica(SMnode *pMnode, char *dbName, int8_t *pReplica, int32_t *pNumOfVgroups) {
+  SSdb *pSdb = pMnode->pSdb;
+
+  SDbObj *pDb = mndAcquireDb(pMnode, dbName);
+  if (pDb == NULL) {
+    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+    return -1;
+  }
+
+  int8_t  replica = 1;
+  int32_t numOfVgroups = 0;
+
+  void *pIter = NULL;
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    if (strcmp(pVgroup->dbName, dbName) == 0) {
+      replica = MAX(replica, pVgroup->replica);
+      numOfVgroups++;
+    }
+
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  *pReplica = replica;
+  *pNumOfVgroups = numOfVgroups;
+  return 0;
+}
+
+static int32_t mndGetVgroupMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
+  SMnode *pMnode = pMsg->pMnode;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  if (mndGetVgroupMaxReplica(pMnode, pShow->db, &pShow->replica, &pShow->numOfRows) != 0) {
+    return -1;
+  }
+
+  int32_t  cols = 0;
+  SSchema *pSchema = pMeta->pSchema;
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "vgId");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "tables");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  for (int32_t i = 0; i < pShow->replica; ++i) {
+    pShow->bytes[cols] = 4;
+    pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%d_dnode", i + 1);
+    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+    cols++;
+
+    pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
+    pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%d_status", i + 1);
+    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+    cols++;
+  }
+
+  pMeta->numOfColumns = htons(cols);
+  pShow->numOfColumns = cols;
+
+  pShow->offset[0] = 0;
+  for (int32_t i = 1; i < cols; ++i) {
+    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  }
+
+  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+  strcpy(pMeta->tableFname, mndShowStr(pShow->type));
+
+  return 0;
+}
+
+static int32_t mndRetrieveVgroups(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode *pMnode = pMsg->pMnode;
+  SSdb   *pSdb = pMnode->pSdb;
+  int32_t numOfRows = 0;
+  SVgObj *pVgroup = NULL;
+  int32_t cols = 0;
+  char   *pWrite;
+
+  while (numOfRows < rows) {
+    pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);
+    if (pShow->pIter == NULL) break;
+
+    cols = 0;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int32_t *)pWrite = pVgroup->vgId;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int32_t *)pWrite = pVgroup->numOfTables;
+    cols++;
+
+    for (int32_t i = 0; i < pShow->replica; ++i) {
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int16_t *)pWrite = pVgroup->vnodeGid[i].dnodeId;
+      cols++;
+
+      const char *role = mndGetRoleStr(pVgroup->vnodeGid[i].role);
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, role, pShow->bytes[cols]);
+      cols++;
+    }
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int8_t *)pWrite = pVgroup->compact; 
+    cols++;
+    
+    sdbRelease(pSdb, pVgroup);
+    numOfRows++;
+  }
+
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  pShow->numOfReads += numOfRows;
+  return numOfRows;
+}
+
+static void mndCancelGetNextVgroup(SMnode *pMnode, void *pIter) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetch(pSdb, pIter);
+}
+
+static int32_t mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId) {
+  if (dnodeId == 0) {
+    return 0;
+  }
+
+  return 0;
+}
+
+static int32_t mndGetVnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
+  SMnode *pMnode = pMsg->pMnode;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  int32_t  cols = 0;
+  SSchema *pSchema = pMeta->pSchema;
+
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "vgId");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 12 + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "status");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pMeta->numOfColumns = htons(cols);
+  pShow->numOfColumns = cols;
+
+  pShow->offset[0] = 0;
+  for (int32_t i = 1; i < cols; ++i) {
+    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  }
+
+  int32_t dnodeId = 0;
+  if (pShow->payloadLen > 0) {
+    dnodeId = atoi(pShow->payload);
+  }
+
+  pShow->replica = dnodeId;
+  pShow->numOfRows = mndGetVnodesNum(pMnode, dnodeId);
+  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+  strcpy(pMeta->tableFname, mndShowStr(pShow->type));
+
+  return 0;
+}
+
+static int32_t mndRetrieveVnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode *pMnode = pMsg->pMnode;
+  SSdb   *pSdb = pMnode->pSdb;
+  int32_t numOfRows = 0;
+  SVgObj *pVgroup = NULL;
+  char   *pWrite;
+  int32_t cols = 0;
+  int32_t dnodeId = pShow->replica;
+
+  while (numOfRows < rows) {
+    pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);
+    if (pShow->pIter == NULL) break;
+
+    for (int32_t i = 0; i < pVgroup->replica && numOfRows < rows; ++i) {
+      SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
+      if (pVgid->dnodeId != dnodeId) continue;
+
+      cols = 0;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(uint32_t *)pWrite = pVgroup->vgId;
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_TO_VARSTR(pWrite, mndGetRoleStr(pVgid->role));
+      cols++;
+      numOfRows++;
+    }
+
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  pShow->numOfReads += numOfRows;
+  return numOfRows;
+}
+
+static void mndCancelGetNextVnode(SMnode *pMnode, void *pIter) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetch(pSdb, pIter);
+}

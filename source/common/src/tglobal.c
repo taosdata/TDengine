@@ -142,13 +142,9 @@ int8_t  tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
 int32_t tsFsyncPeriod   = TSDB_DEFAULT_FSYNC_PERIOD;
 int32_t tsReplications  = TSDB_DEFAULT_DB_REPLICA_OPTION;
 int32_t tsQuorum        = TSDB_DEFAULT_DB_QUORUM_OPTION;
-int16_t tsPartitons     = TSDB_DEFAULT_DB_PARTITON_OPTION;
 int8_t  tsUpdate        = TSDB_DEFAULT_DB_UPDATE_OPTION;
 int8_t  tsCacheLastRow  = TSDB_DEFAULT_CACHE_LAST_ROW;
 int32_t tsMaxVgroupsPerDb  = 0;
-int32_t tsMinTablePerVnode = TSDB_TABLES_STEP;
-int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
-int32_t tsTableIncStepPerVnode = TSDB_TABLES_STEP;
 int32_t tsTsdbMetaCompactRatio = TSDB_META_COMPACT_RATIO;
 
 // tsdb config 
@@ -736,37 +732,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  // database configs
-  cfg.option = "maxTablesPerVnode";
-  cfg.ptr = &tsMaxTablePerVnode;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_TABLES;
-  cfg.maxValue = TSDB_MAX_TABLES;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "minTablesPerVnode";
-  cfg.ptr = &tsMinTablePerVnode;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_TABLES;
-  cfg.maxValue = TSDB_MAX_TABLES;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "tableIncStepPerVnode";
-  cfg.ptr = &tsTableIncStepPerVnode;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_TABLES;
-  cfg.maxValue = TSDB_MAX_TABLES;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
   cfg.option = "cache";
   cfg.ptr = &tsCacheBlockSize;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -873,16 +838,6 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MIN_DB_REPLICA_OPTION;
   cfg.maxValue = TSDB_MAX_DB_REPLICA_OPTION;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "partitions";
-  cfg.ptr = &tsPartitons;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_DB_PARTITON_OPTION;
-  cfg.maxValue = TSDB_MAX_DB_PARTITON_OPTION;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -1704,12 +1659,6 @@ int32_t taosCheckGlobalCfg() {
     }
   }
 
-  if (tsMaxTablePerVnode < tsMinTablePerVnode) {
-    uError("maxTablesPerVnode(%d) < minTablesPerVnode(%d), reset to minTablesPerVnode(%d)",
-	   tsMaxTablePerVnode, tsMinTablePerVnode, tsMinTablePerVnode);
-    tsMaxTablePerVnode = tsMinTablePerVnode;
-  }
-
   // todo refactor
   tsVersion = 0;
   for (int ver = 0, i = 0; i < TSDB_VERSION_LEN; ++i) {
@@ -1736,24 +1685,6 @@ int32_t taosCheckGlobalCfg() {
   taosPrintGlobalCfg();
 
   return 0;
-}
-
-int taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {
-  *port = 0;
-  strcpy(fqdn, ep);
-
-  char *temp = strchr(fqdn, ':');
-  if (temp) {   
-    *temp = 0;
-    *port = atoi(temp+1);
-  } 
-  
-  if (*port == 0) {
-    *port = tsServerPort;
-    return -1;
-  }
-
-  return 0; 
 }
 
 /*
