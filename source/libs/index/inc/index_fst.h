@@ -275,6 +275,7 @@ FstNode*     fstGetRoot(Fst *fst);
 FstType      fstGetType(Fst *fst); 
 CompiledAddr fstGetRootAddr(Fst *fst);
 Output       fstEmptyFinalOutput(Fst *fst, bool *null);
+
 bool         fstVerify(Fst *fst);
 
 
