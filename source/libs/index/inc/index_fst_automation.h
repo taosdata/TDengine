@@ -50,7 +50,7 @@ typedef struct AutomationFunc {
 } AutomationFunc; 
 
 AutomationCtx *automCtxCreate(void *data, AutomationType type);
-void autoCtxDestroy(AutomationCtx *ctx);
+void automCtxDestroy(AutomationCtx *ctx);
 
 extern AutomationFunc automFuncs[]; 
 #ifdef __cplusplus

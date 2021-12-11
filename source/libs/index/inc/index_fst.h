@@ -26,10 +26,24 @@ extern "C" {
 #include "index_fst_counting_writer.h"
 #include "index_fst_automation.h"
 
-
-typedef struct FstNode FstNode;
 #define OUTPUT_PREFIX(a, b) ((a) > (b) ? (b) : (a) 
 
+typedef struct Fst     Fst;
+typedef struct FstNode FstNode;
+
+typedef enum { Included, Excluded, Unbounded} FstBound; 
+
+typedef struct FstBoundWithData {
+  FstSlice data; 
+  FstBound type;
+} FstBoundWithData;
+
+typedef struct FstStreamBuilder {
+  Fst *fst; 
+  AutomationCtx *aut;
+  FstBoundWithData *min;  
+  FstBoundWithData *max;
+} FstStreamBuilder, FstStreamWithStateBuilder;
 
 typedef struct FstRange {
   uint64_t start;
@@ -39,15 +53,8 @@ typedef struct FstRange {
 
 typedef enum {GE, GT, LE, LT} RangeType;
 typedef enum { OneTransNext, OneTrans, AnyTrans, EmptyFinal} State;
-
 typedef enum {Ordered, OutOfOrdered, DuplicateKey} OrderType;
 
-
-typedef enum { Included, Excluded, Unbounded} FstBound; 
-typedef struct FstBoundWithData {
-  FstSlice data; 
-  FstBound type;
-} FstBoundWithData;
 
 FstBoundWithData* fstBoundStateCreate(FstBound type, FstSlice *data);
 bool fstBoundWithDataExceededBy(FstBoundWithData *bound, FstSlice *slice);
@@ -59,8 +66,6 @@ typedef struct FstOutput {
   bool   null;
   Output out;
 } FstOutput;
-
- 
 
 /*
  * 
@@ -275,6 +280,8 @@ FstNode*     fstGetRoot(Fst *fst);
 FstType      fstGetType(Fst *fst); 
 CompiledAddr fstGetRootAddr(Fst *fst);
 Output       fstEmptyFinalOutput(Fst *fst, bool *null);
+FstStreamBuilder *fstSearch(Fst *fst, AutomationCtx *ctx);
+FstStreamWithStateBuilder *fstSearchWithState(Fst *fst, AutomationCtx *ctx);
 
 bool         fstVerify(Fst *fst);
 
@@ -298,7 +305,7 @@ typedef struct StreamWithState {
   FstOutput     emptyOutput;
   SArray        *stack; // <StreamState>
   FstBoundWithData *endAt;
-} StreamWithState ;
+} StreamWithState;
 
 typedef struct StreamWithStateResult {
   FstSlice data;  
@@ -314,14 +321,8 @@ typedef void* (*StreamCallback)(void *);
 StreamWithState *streamWithStateCreate(Fst *fst, AutomationCtx *automation, FstBoundWithData *min, FstBoundWithData *max) ;
 void streamWithStateDestroy(StreamWithState *sws);
 bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min);           
-StreamWithStateResult* streamWithStateNextWith(StreamWithState *sws, StreamCallback callback);
 
-typedef struct FstStreamBuilder {
-  Fst *fst; 
-  AutomationCtx *aut;
-  FstBoundWithData *min;  
-  FstBoundWithData *max;
-} FstStreamBuilder;
+StreamWithStateResult* streamWithStateNextWith(StreamWithState *sws, StreamCallback callback);
 
 FstStreamBuilder *fstStreamBuilderCreate(Fst *fst, AutomationCtx *aut); 
 // set up bound range
