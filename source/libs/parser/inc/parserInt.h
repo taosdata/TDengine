@@ -87,13 +87,13 @@ int32_t checkForInvalidExpr(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf);
  * @param msgBufLen
  * @return
  */
-int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMetaInfo, char* msg, int32_t msgBufLen);
+int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SCatalogReq* pMetaInfo, char* msg, int32_t msgBufLen);
 
 /**
  * Destroy the meta data request structure.
  * @param pMetaInfo
  */
-void qParserClearupMetaRequestInfo(SMetaReq* pMetaInfo);
+void qParserClearupMetaRequestInfo(SCatalogReq* pMetaInfo);
 
 #ifdef __cplusplus
 }

@@ -38,7 +38,7 @@ void setSchema(SSchema* p, int32_t type, int32_t bytes, const char* name, int32_
   strcpy(p->name, name);
 }
 
-void setTableMetaInfo(SQueryStmtInfo* pQueryInfo, SMetaReq* req) {
+void setTableMetaInfo(SQueryStmtInfo* pQueryInfo, SCatalogReq* req) {
   pQueryInfo->numOfTables = 1;
 
   pQueryInfo->pTableMetaInfo = (STableMetaInfo**)calloc(1, POINTER_BYTES);
@@ -80,7 +80,7 @@ void sqlCheck(const char* sql, bool valid) {
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
-  SMetaReq req = {0};
+  SCatalogReq req = {0};
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
@@ -117,7 +117,7 @@ TEST(testCase, validateAST_test) {
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
-  SMetaReq req = {0};
+  SCatalogReq req = {0};
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
@@ -175,7 +175,7 @@ TEST(testCase, function_Test) {
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
-  SMetaReq req = {0};
+  SCatalogReq req = {0};
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
@@ -221,7 +221,7 @@ TEST(testCase, function_Test2) {
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
-  SMetaReq req = {0};
+  SCatalogReq req = {0};
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
@@ -267,7 +267,7 @@ TEST(testCase, function_Test3) {
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
-  SMetaReq req = {0};
+  SCatalogReq req = {0};
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
@@ -312,7 +312,7 @@ TEST(testCase, function_Test4) {
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
-  SMetaReq req = {0};
+  SCatalogReq req = {0};
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
@@ -360,7 +360,7 @@ TEST(testCase, function_Test5) {
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
-  SMetaReq req = {0};
+  SCatalogReq req = {0};
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
@@ -445,7 +445,7 @@ TEST(testCase, function_Test6) {
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
-  SMetaReq req = {0};
+  SCatalogReq req = {0};
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
@@ -523,7 +523,7 @@ TEST(testCase, function_Test6) {
   int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
-  SMetaReq req = {0};
+  SCatalogReq req = {0};
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
@@ -585,7 +585,7 @@ TEST(testCase, function_Test6) {
   int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
-  SMetaReq req = {0};
+  SCatalogReq req = {0};
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
@@ -664,7 +664,7 @@ TEST(testCase, function_Test6) {
   int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
-  SMetaReq req = {0};
+  SCatalogReq req = {0};
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);

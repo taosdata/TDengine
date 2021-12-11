@@ -4077,8 +4077,8 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
   }
 #endif
 
-  SMetaReq req = {0};
-  SMetaData data = {0};
+  SCatalogReq req = {0};
+  SCatalogRsp data = {0};
 
   // TODO: check if the qnode info has been cached already
   req.qNodeEpset = true;
@@ -4088,7 +4088,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
   }
 
   // load the meta data from catalog
-  code = catalogGetMetaData(pCatalog, &req, &data);
+  code = catalogGetAllMeta(pCatalog, NULL, &req, &data);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

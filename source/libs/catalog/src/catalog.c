@@ -15,10 +15,18 @@
 
 #include "catalogInt.h"
 
-struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps) {
+SCatalogMgmt ctgMgmt = {0};
+
+
+int32_t catalogInit(SCatalog *cfg) {
+  ctgMgmt = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+}
+
+
+struct SCatalog* catalogGetHandle(const char *clusterId) {
   return (struct SCatalog*) 0x1;
 }
 
-int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData) {
+int32_t catalogGetAllMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const SCatalogReq* pMetaReq, SCatalogRsp* pMetaData) {
   return 0;
 }
