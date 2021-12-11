@@ -92,6 +92,6 @@ AutomationCtx* automCtxCreate(void *data, AutomationType type) {
   }
   return ctx; 
 } 
-void autoCtxDestroy(AutomationCtx *ctx) {
+void automCtxDestroy(AutomationCtx *ctx) {
   free(ctx);
 }
