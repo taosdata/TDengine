@@ -21,8 +21,26 @@
 
 extern char configDir[];
 
+#ifdef _TD_POWER_
+char      WINCLIENT_VERSION[] = "Welcome to the PowerDB shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2020 by PowerDB, Inc. All rights reserved.\n\n";
+#elif (_TD_TQ_ == true)
+char      WINCLIENT_VERSION[] = "Welcome to the TQ shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+#elif (_TD_PRO_ == true)
+char      WINCLIENT_VERSION[] = "Welcome to the ProDB shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2020 by Hanatech, Inc. All rights reserved.\n\n";
+#elif (_TD_KH_ == true)
+char      WINCLIENT_VERSION[] = "Welcome to the KingHistorian shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2021 by Wellintech, Inc. All rights reserved.\n\n";
+#elif (_TD_JH_ == true)
+char      WINCLIENT_VERSION[] = "Welcome to the jh_iot shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2021 by jinheng, Inc. All rights reserved.\n\n";
+#else
 char      WINCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+#endif
+
 
 void printVersion() {
   printf("version: %s\n", version);
@@ -30,10 +48,10 @@ void printVersion() {
 
 void printHelp() {
   char indent[10] = "        ";
-  printf("taos shell is used to test the TDengine database\n");
+  printf("taos shell is used to test the database\n");
 
   printf("%s%s\n", indent, "-h");
-  printf("%s%s%s\n", indent, indent, "TDengine server FQDN to connect. The default host is localhost.");
+  printf("%s%s%s\n", indent, indent, "Server FQDN to connect. The default host is localhost.");
   printf("%s%s\n", indent, "-p");
   printf("%s%s%s\n", indent, indent, "The password to use when connecting to the server.");
   printf("%s%s\n", indent, "-P");

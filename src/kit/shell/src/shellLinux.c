@@ -37,8 +37,8 @@ const char *argp_program_bug_address = "<support@taosdata.com>";
 static char doc[] = "";
 static char args_doc[] = "";
 static struct argp_option options[] = {
-  {"host",       'h', "HOST",       0,                   "TDengine server FQDN to connect. The default host is localhost."},
-  {"password",   'p', 0,   0,                   "The password to use when connecting to the server."},
+  {"host",       'h', "HOST",       0,                   "Server FQDN to connect. The default host is localhost."},
+  {"password",   'p', 0,            0,                   "The password to use when connecting to the server."},
   {"port",       'P', "PORT",       0,                   "The TCP/IP port number to use for the connection."},
   {"user",       'u', "USER",       0,                   "The user name to use when connecting to the server."},
   {"auth",       'A', "Auth",       0,                   "The auth string to use when connecting to the server."},

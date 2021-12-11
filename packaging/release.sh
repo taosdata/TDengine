@@ -349,8 +349,16 @@ if [[ "$dbName" == "kh" ]]; then
   sed -i "s/taos\.cfg/kinghistorian\.cfg/g"  ${top_dir}/src/util/src/tconfig.c
   sed -i "s/etc\/taos/etc\/kinghistorian/g"   ${top_dir}/src/util/src/tconfig.c
   # src/kit/taosdemo/taosdemo.c
+  sed -i "s/taosdemo --help/khdemo --help/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+  sed -i "s/taosdemo --usage/khdemo --usage/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+  sed -i "s/Usage: taosdemo/Usage: khdemo/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+  sed -i "s/taosdemo is simulating/khdemo is simulating/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+  sed -i "s/taosdemo version/khdemo version/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
   sed -i "s/\"taosdata\"/\"khroot\"/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
   sed -i "s/support@taosdata.com/support@wellintech.com/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+  sed -i "s/taosc, rest, and stmt/khclient, rest, and stmt/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+  sed -i "s/taosdemo uses/khdemo uses/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+  sed -i "s/use 'taosc'/use 'khclient'/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
   # src/util/src/tlog.c
   sed -i "s/log\/taos/log\/kinghistorian/g"   ${top_dir}/src/util/src/tlog.c
   # src/dnode/src/dnodeSystem.c
@@ -363,7 +371,7 @@ if [[ "$dbName" == "kh" ]]; then
   sed -i "s/taosinfo/khinfo/g"  ${top_dir}/src/util/src/tnote.c
   # src/dnode/CMakeLists.txt
   sed -i "s/taos\.cfg/kinghistorian\.cfg/g"  ${top_dir}/src/dnode/CMakeLists.txt
-  # src/dnode/CMakeLists.txt
+  # src/kit/taosdump/taosdump.c
   sed -i "s/Default is taosdata/Default is khroot/g" ${top_dir}/src/kit/taosdump/taosdump.c
   sed -i "s/\"taosdata\"/\"khroot\"/g" ${top_dir}/src/kit/taosdump/taosdump.c
   sed -i "s/TDengine/KingHistorian/g" ${top_dir}/src/kit/taosdump/taosdump.c
@@ -372,6 +380,12 @@ if [[ "$dbName" == "kh" ]]; then
   sed -i "s/etc\/taos/etc\/kinghistorian/g" ${top_dir}/src/os/src/linux/linuxEnv.c
   sed -i "s/lib\/taos/lib\/kinghistorian/g" ${top_dir}/src/os/src/linux/linuxEnv.c
   sed -i "s/log\/taos/log\/kinghistorian/g" ${top_dir}/src/os/src/linux/linuxEnv.c
+  # src/kit/shell/src/shellDarwin.c
+  sed -i "s/TDengine shell/KingHistorian shell/g" ${top_dir}/src/kit/shell/src/shellDarwin.c
+  sed -i "s/2020 by TAOS Data/2021 by Wellintech/g" ${top_dir}/src/kit/shell/src/shellDarwin.c
+  # src/kit/shell/src/shellLinux.c
+  sed -i "s/TDengine shell/KingHistorian shell/g" ${top_dir}/src/kit/shell/src/shellLinux.c
+  sed -i "s/2020 by TAOS Data/2021 by Wellintech/g" ${top_dir}/src/kit/shell/src/shellLinux.c
   # src/os/src/windows/wEnv.c
   sed -i "s/TDengine/KingHistorian/g" ${top_dir}/src/os/src/windows/wEnv.c
   # src/kit/shell/src/shellEngine.c
