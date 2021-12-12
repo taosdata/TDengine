@@ -1,4 +1,5 @@
 import sys
+import json
 sys.path.append("../../")
 from config.env_init import *
 from src.util.RemoteModule import RemoteModule
@@ -152,12 +153,13 @@ class Dnode:
                 logger.success(f'deploy dnode {firstEp} success')
 
     def downloadNodeExporter(self):
-        logger.info(f'downloading node_exporter from {config["prometheus"]["node_exporter_addr"]}')
-        if not bool(int(self.dnode_conn.exec_cmd(f'[ -e ~/{config["prometheus"]["node_exporter_addr"]} ] && echo 1 || echo 0'))):
+        logger.info(f'{self.dnode_ip}: downloading node_exporter from {config["prometheus"]["node_exporter_addr"]}')
+        tar_file_name = config["prometheus"]["node_exporter_addr"].split("/")[-1]
+        if not bool(int(self.dnode_conn.exec_cmd(f'[ -e ~/{tar_file_name} ] && echo 1 || echo 0'))):
             self.dnode_conn.exec_cmd(f'wget -P ~ {config["prometheus"]["node_exporter_addr"]}')
 
     def configNodeExporterService(self):
-        logger.info('configing /lib/systemd/system/node_exporter.service')
+        logger.info(f'{self.dnode_ip}: configing /lib/systemd/system/node_exporter.service')
         if not bool(int(self.dnode_conn.exec_cmd(f'[ -e /lib/systemd/system/node_exporter.service ] && echo 1 || echo 0'))):
             self.dnode_conn.exec_cmd(f'echo -e [Service]\n\
                                     User=prometheus\n\
@@ -170,25 +172,59 @@ class Dnode:
                                     After=network.target \
                                     >> /lib/systemd/system/node_exporter.service')
 
+    def killNodeExporter(self):
+        logger.info(f'{self.dnode_ip}: killing node_exporter')
+        self.dnode_conn.exec_cmd("ps -ef | grep -w node_exporter | grep -v grep | awk \'{print $2}\' | sudo xargs kill -9")
+
     def deployNodeExporter(self):
-        logger.info(f'deploying node_exporter')
+        logger.info(f'{self.dnode_ip}: deploying node_exporter')
+        self.killNodeExporter()
+        self.downloadNodeExporter()
         tar_file_name = config["prometheus"]["node_exporter_addr"].split("/")[-1]
         tar_file_dir = tar_file_name.replace(".tar.gz", "")
-        self.dnode_conn.exec_cmd(f'cd ~ && tar -xvf {tar_file_name} && cd {tar_file_dir} && cp node_exporter /usr/local/bin')
+        self.dnode_conn.exec_cmd(f'cd ~ && tar -xvf {tar_file_name} && cd {tar_file_dir} && cp -rf node_exporter /usr/local/bin')
         self.configNodeExporterService()
         self.dnode_conn.exec_cmd('sudo groupadd -r prometheus')
         self.dnode_conn.exec_cmd('sudo useradd -r -g prometheus -s /sbin/nologin -M -c "prometheus Daemons" prometheus')
         self.dnode_conn.exec_cmd('systemctl start node_exporter && systemctl enable node_exporter && systemctl status node_exporter')
         
     def downloadProcessExporter(self):
-        logger.info(f'downloading process_exporter from {config["prometheus"]["process_exporter_addr"]}')
-        if not bool(int(self.dnode_conn.exec_cmd(f'[ -e ~/{config["prometheus"]["process_exporter_addr"]} ] && echo 1 || echo 0'))):
+        tar_file_name = config["prometheus"]["process_exporter_addr"].split("/")[-1]
+        logger.info(f'{self.dnode_ip}: downloading process_exporter from {config["prometheus"]["process_exporter_addr"]}')
+        if not bool(int(self.dnode_conn.exec_cmd(f'[ -e ~/{tar_file_name} ] && echo 1 || echo 0'))):
             self.dnode_conn.exec_cmd(f'wget -P ~ {config["prometheus"]["process_exporter_addr"]}')
 
-    def deployProcessExporter():
-        # TODO
-        pass
+    def killProcessExporter(self):
+        logger.info(f'{self.dnode_ip}: killing process_exporter')
+        self.dnode_conn.exec_cmd("ps -ef | grep -w process_exporter | grep -v grep | awk \'{print $2}\' | sudo xargs kill -9")
 
+    def genProcessExporterYml(self, process_list):
+        logger.info('generating process_exporter yml')
+        sub_list = list()
+        for process in process_list:
+            sub_list.append({'name':'{{.Comm}}', 'cmdline': [process]})
+        djson = {'process_names': sub_list}
+        dstr=json.dumps(djson)
+        dyml=yaml.load(dstr)
+        stream = open('process_name.yml', 'w')
+        yaml.safe_dump(dyml, stream, default_flow_style=False)
+        self.dnode_conn.upload_file("~", 'process_name.yml')
+
+    def deployProcessExporter(self, process_list):
+        logger.info(f'{self.dnode_ip}: deploying process_exporter')
+        self.killProcessExporter()
+        self.downloadProcessExporter()
+        self.genProcessExporterYml(process_list)
+        tar_file_name = config["prometheus"]["process_exporter_addr"].split("/")[-1]
+        tar_file_dir = tar_file_name.replace(".tar.gz", "")
+        self.dnode_conn.exec_cmd(f'cd ~ && tar -xvf {tar_file_name} && mv -f ~/process_name.yml ~/{tar_file_dir}')
+        # self.dnode_conn.exec_cmd(f'rm -rf ~/{tar_file_dir}/process_name.yml && \
+        #                             echo -e process_names:\n\
+        #                           - name: "{{.Comm}}"\n\
+        #                             cmdline:\
+        #                             {cmdline}\
+        #                             >> ~/{tar_file_dir}/process_name.yml')
+        self.dnode_conn.exec_cmd(f'nohup ~/{tar_file_dir}/process-exporter --config.path ~/{tar_file_dir}/process_name.yml &')
 
     def deployTaosd(self, firstEp=None, deploy_type="taosd"):
         '''
@@ -220,7 +256,6 @@ class Dnode:
         else:
             logger.error(f'{deploy_type} deploy failed, please check by manual')
             sys.exit(1)
-
 class Dnodes:
     def __init__(self):
         self.dnodes = list()
@@ -346,36 +381,81 @@ class Dnodes:
                 if index != 0:
                     self.dnodes[index].taoscCreateDnodes()
 
-    class Monitor:
-        def __init__(self):
-            self.install_package = config["install_package"]
-            self.monitor_ip = config["prometheus"]["ip"]
-            self.monitor_port = config["prometheus"]["port"]
-            self.monitor_username = config["prometheus"]["username"]
-            self.monitor_password = config["prometheus"]["password"]
-            self.monitor_conn = RemoteModule(self.monitor_ip, self.monitor_port, self.monitor_username, self.monitor_password)
-            self.dnodes = list()
-            self.ip_list = list()
-            index = 1
-            for key in config:
-                if "taosd_dnode" in str(key):
-                    self.dnodes.append(Dnode(index, config[key]["ip"], config[key]["port"], config[key]["username"], config[key]["password"]))
-                    self.ip_list.append(config[key]["ip"])
-                    index += 1
+class Monitor:
+    def __init__(self):
+        self.install_package = config["install_package"]
+        self.monitor_ip = config["prometheus"]["ip"]
+        self.monitor_port = config["prometheus"]["port"]
+        self.monitor_username = config["prometheus"]["username"]
+        self.monitor_password = config["prometheus"]["password"]
+        self.monitor_conn = RemoteModule(self.monitor_ip, self.monitor_port, self.monitor_username, self.monitor_password)
+        self.dnodes = list()
+        self.ip_list = list()
+        index = 1
+        for key in config:
+            if "taosd_dnode" in str(key):
+                self.dnodes.append(Dnode(index, config[key]["ip"], config[key]["port"], config[key]["username"], config[key]["password"]))
+                self.ip_list.append(config[key]["ip"])
+                index += 1
 
-        def downloadPrometheus(self):
-            logger.info(f'downloading prometheus from {config["prometheus"]["prometheus_addr"]}')
+    def deployAllNodeExporters(self):
+        for index in range(len(self.dnodes)):
+            self.dnodes[index].deployNodeExporter()
+
+    def deployAllProcessExporters(self):
+        for index in range(len(self.dnodes)):
+            if index == 0:
+                self.dnodes[index].deployProcessExporter(['taosd', 'taosadapter'])
+            else:
+                if config['taosd_cluster'] and config['taosadapter_separate_deploy']:
+                    self.dnodes[index].deployProcessExporter(['taosd', 'taosadapter'])
+                elif config['taosd_cluster'] and not config['taosadapter_separate_deploy']:
+                    self.dnodes[index].deployProcessExporter(['taosd'])
+                elif not config['taosd_cluster'] and config['taosadapter_separate_deploy']:
+                    self.dnodes[index].deployProcessExporter(['taosadapter'])
+                else:
+                    pass
+
+    def downloadPrometheus(self):
+        logger.info(f'{self.monitor_ip}: downloading prometheus from {config["prometheus"]["prometheus_addr"]}')
+        tar_file_name = config["prometheus"]["prometheus_addr"].split("/")[-1]
+        if not bool(int(self.monitor_conn.exec_cmd(f'[ -e ~/{tar_file_name} ] && echo 1 || echo 0'))):
             self.monitor_conn.exec_cmd(f'wget -P ~ {config["prometheus"]["prometheus_addr"]}')
 
-        def deployPrometheus(self):
-            pass
+    def killPrometheus(self):
+        logger.info(f'{self.dnode_ip}: killing prometheus')
+        self.monitor_conn.exec_cmd("ps -ef | grep -w prometheus | grep -v grep | awk \'{print $2}\' | sudo xargs kill -9")
 
-        def configPrometheusYml(self):
-            pass
+    def uploadPrometheusYml(self):
+        logger.info('generating prometheus yml')
+        scrape_configs = [{'job_name': 'prometheus', 'static_configs': [{'targets': ['localhost:9090']}]}]
+        for index in range(len(self.dnodes)):
+            if not config['taosd_cluster'] and not config['taosadapter_separate_deploy']:
+                pass
+            else:
+                scrape_configs.append({'job_name': f'{self.dnodes[index].dnode_ip}_sys', 'static_configs': [{'targets': [f'{self.dnodes[index].dnode_ip}:9100'], 'labels': {'instance': f'{self.dnodes[index].dnode_ip}_sys'}}]})
+                scrape_configs.append({'job_name': f'{self.dnodes[index].dnode_ip}_process', 'static_configs': [{'targets': [f'{self.dnodes[index].dnode_ip}:9256'], 'labels': {'instance': f'{self.dnodes[index].dnode_ip}_process'}}]})
+        djson = {'global': {'scrape_interval': config["prometheus"]["scrape_interval"], 'evaluation_interval': config["prometheus"]["evaluation_interval"], 'scrape_timeout': config["prometheus"]["scrape_timeout"]}, 'alerting': {'alertmanagers': [{'static_configs': [{'targets': None}]}]}, 'rule_files': None, 'scrape_configs': scrape_configs}
+        dstr=json.dumps(djson)
+        dyml=yaml.load(dstr)
+        stream = open('prometheus.yml', 'w')
+        yaml.safe_dump(dyml, stream, default_flow_style=False)
+        self.monitor_conn.upload_file("~", 'prometheus.yml')
 
-        def deployAllNodeExporters(self):
-            for index in range(len(self.dnodes)):
-                self.dnodes[index].deployNodeExporter()
+    def deployPrometheus(self):
+        logger.info(f'{self.monitor_ip}: deploying prometheus')
+        self.killPrometheus()
+        self.downloadPrometheus()
+        self.uploadPrometheusYml()
+        tar_file_name = config["prometheus"]["prometheus_addr"].split("/")[-1]
+        tar_file_dir = tar_file_name.replace(".tar.gz", "")
+        self.monitor_conn.exec_cmd(f'cd ~ && tar -xvf {tar_file_name} && mv ~/prometheus.yml ~/{tar_file_dir}')
+        self.monitor_conn.exec_cmd(f'nohup ~/{tar_file_dir}/prometheus --config.file=prometheus.yml &')
+    
+    
+
+
+    
         
 
         
