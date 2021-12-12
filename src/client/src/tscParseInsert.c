@@ -41,8 +41,8 @@ enum {
 static int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t *numOfRows);
 static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDataColInfo *pColInfo, SSchema *pSchema,
                                  char *str, char **end);
-int initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, SParsedDataColInfo *pColInfo) {
-  ASSERT(nRows >= 0 && nCols > 0 && (pColInfo->numOfBound <= nCols));
+int initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, SParsedDataColInfo *pColInfo) {
+  ASSERT(nRows >= 0 && pColInfo->numOfCols > 0 && (pColInfo->numOfBound <= pColInfo->numOfCols));
   if (nRows > 0) {
     // already init(bind multiple rows by single column)
     if (pBuilder->compareStat == ROW_COMPARE_NEED && (pBuilder->rowInfo != NULL)) {
@@ -65,7 +65,7 @@ int initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, 
     }
     return TSDB_CODE_SUCCESS;
   } else {
-    float boundRatio = ((float)pColInfo->numOfBound / (float)nCols);
+    float boundRatio = ((float)pColInfo->numOfBound / (float)pColInfo->numOfCols);
 
     if (boundRatio < KVRatioKV) {
       pBuilder->memRowType = SMEM_ROW_KV;
@@ -639,7 +639,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
   int32_t extendedRowSize = getExtendedRowSize(pDataBlock);
 
   if (TSDB_CODE_SUCCESS !=
-      (code = initMemRowBuilder(&pDataBlock->rowBuilder, 0, tinfo.numOfColumns, &pDataBlock->boundColumnInfo))) {
+      (code = initMemRowBuilder(&pDataBlock->rowBuilder, 0, &pDataBlock->boundColumnInfo))) {
     return code;
   }
   int32_t convertOffset = 0;

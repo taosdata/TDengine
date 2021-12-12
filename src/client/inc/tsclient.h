@@ -151,7 +151,7 @@ typedef struct {
 
 int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec);
 
-int  initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, SParsedDataColInfo *pColInfo);
+int  initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, SParsedDataColInfo *pColInfo);
 void destroyMemRowBuilder(SMemRowBuilder *pBuilder);
 
 /**
