@@ -9,15 +9,11 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 /**
- * @author huolibo@qq.com
- * @version v1.0.0
- * @JDK: 1.8
- * @description: this class is an extension of {@link Statement}. use like:
+ * this class is an extension of {@link Statement}. e.g.:
  * Statement statement = conn.createStatement();
  * SchemalessStatement schemalessStatement = new SchemalessStatement(statement);
  * schemalessStatement.execute(sql);
- * schemalessStatement.executeSchemaless(lines, SchemalessProtocolType, SchemalessTimestampType);
- * @since 2021-11-03 17:10
+ * schemalessStatement.insert(lines, SchemalessProtocolType, SchemalessTimestampType);
  */
 public class SchemalessStatement extends AbstractStatementWrapper {
     public SchemalessStatement(Statement statement) {
@@ -27,12 +23,12 @@ public class SchemalessStatement extends AbstractStatementWrapper {
     /**
      * batch insert schemaless lines
      *
-     * @param lines         schemaless data
+     * @param lines         schemaless lines
      * @param protocolType  schemaless type {@link SchemalessProtocolType}
      * @param timestampType Time precision {@link SchemalessTimestampType}
      * @throws SQLException execute insert exception
      */
-    public void executeSchemaless(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException {
+    public void insert(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException {
         Connection connection = this.getConnection();
         if (connection instanceof TSDBConnection) {
             TSDBConnection tsdbConnection = (TSDBConnection) connection;
@@ -52,7 +48,7 @@ public class SchemalessStatement extends AbstractStatementWrapper {
      * @param timestampType Time precision {@link SchemalessTimestampType}
      * @throws SQLException execute insert exception
      */
-    public void executeSchemaless(String line, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException {
-        executeSchemaless(new String[]{line}, protocolType, timestampType);
+    public void insert(String line, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException {
+        insert(new String[]{line}, protocolType, timestampType);
     }
 }

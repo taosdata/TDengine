@@ -143,14 +143,14 @@ tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optr
   if (optrType == TK_NULL) {
     if (pToken){
       pToken->type = TSDB_DATA_TYPE_NULL;
-      tVariantCreate(&pSqlExpr->value, pToken);
+      tVariantCreate(&pSqlExpr->value, pToken, true);
     }
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_VALUE;
   } else if (optrType == TK_INTEGER || optrType == TK_STRING || optrType == TK_FLOAT || optrType == TK_BOOL) {
     if (pToken) {
       toTSDBType(pToken->type);
-      tVariantCreate(&pSqlExpr->value, pToken);
+      tVariantCreate(&pSqlExpr->value, pToken, true);
     }
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_VALUE;
@@ -203,7 +203,7 @@ tSqlExpr *tSqlExprCreateTimestamp(SStrToken *pToken, int32_t optrType) {
   if (optrType == TK_INTEGER || optrType == TK_STRING) {
     if (pToken) {
       toTSDBType(pToken->type);
-      tVariantCreate(&pSqlExpr->value, pToken);
+      tVariantCreate(&pSqlExpr->value, pToken, true);
     }
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_VALUE;
@@ -559,14 +559,14 @@ void tSqlExprDestroy(tSqlExpr *pExpr) {
   doDestroySqlExprNode(pExpr);
 }
 
-SArray *tVariantListAppendToken(SArray *pList, SStrToken *pToken, uint8_t order) {
+SArray *tVariantListAppendToken(SArray *pList, SStrToken *pToken, uint8_t order, bool needRmquoteEscape) {
   if (pList == NULL) {
     pList = taosArrayInit(4, sizeof(tVariantListItem));
   }
 
   if (pToken) {
     tVariantListItem item;
-    tVariantCreate(&item.pVar, pToken);
+    tVariantCreate(&item.pVar, pToken, needRmquoteEscape);
     item.sortOrder = order;
 
     taosArrayPush(pList, &item);
@@ -680,7 +680,7 @@ void tSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) {
 
   // column name is too long, set the it to be invalid.
   if ((int32_t) pName->n >= maxLen) {
-    pName->n = -1;
+    pField->name[0] = 0;
   } else {
     strncpy(pField->name, pName->z, pName->n);
     pField->name[pName->n] = 0;

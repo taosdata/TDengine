@@ -12,7 +12,7 @@
 
 默认情况下，[libtaos-rs] 使用 C 接口连接数据库，所以您需要：
 
-- [TDengine] [客户端](https://www.taosdata.com/cn/getting-started/#%E9%80%9A%E8%BF%87%E5%AE%89%E8%A3%85%E5%8C%85%E5%AE%89%E8%A3%85)
+- [TDengine客户端](https://www.taosdata.com/cn/getting-started/#%E9%80%9A%E8%BF%87%E5%AE%89%E8%A3%85%E5%8C%85%E5%AE%89%E8%A3%85)
 - `clang`: `bindgen` 使用 `libclangAST` 来生成对应的Rust绑定。
 
 ## 特性列表
@@ -62,7 +62,7 @@ libtaos = { version = "*", features = ["r2d2"] }
 libtaos = { version = "*", features = ["rest"] }
 ```
 
-本项目中提供一个 [示例程序]([examples/demo.rs](https://github.com/taosdata/libtaos-rs/blob/main/examples/demo.rs)) 如下：
+本项目中提供一个 [示例程序](https://github.com/taosdata/libtaos-rs/blob/main/examples/demo.rs) 如下：
 
 ```rust
 // ...

@@ -137,7 +137,7 @@ do {                                       \
 uint64_t queryHandleId = 0;
 
 int32_t getMaximumIdleDurationSec() {
-  return tsShellActivityTimer * 2;
+  return tsShellActivityTimer * 10;
 }
 int64_t genQueryId(void) {
   int64_t uid = 0;
@@ -933,9 +933,10 @@ void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t 
 static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, STimeWindow* pWin, int32_t offset,
                              int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput) {
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
-  bool hasAggregates = pCtx[0].preAggVals.isSet;
 
   for (int32_t k = 0; k < numOfOutput; ++k) {
+    bool hasAggregates = pCtx[k].preAggVals.isSet;
+
     pCtx[k].size    = forwardStep;
     pCtx[k].startTs = pWin->skey;
 
@@ -1258,7 +1259,7 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
 
   for (int32_t k = 0; k < pOperator->numOfOutput; ++k) {
     int32_t functionId = pCtx[k].functionId;
-    if (functionId != TSDB_FUNC_TWA && functionId != TSDB_FUNC_INTERP) {
+    if (functionId != TSDB_FUNC_TWA && functionId != TSDB_FUNC_INTERP && functionId != TSDB_FUNC_ELAPSED) {
       pCtx[k].start.key = INT64_MIN;
       continue;
     }
@@ -1301,7 +1302,7 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
           pCtx[k].end.ptr = (char *)pColInfo->pData + curRowIndex * pColInfo->info.bytes;
         }
       }
-    } else if (functionId == TSDB_FUNC_TWA) {
+    } else if (functionId == TSDB_FUNC_TWA || functionId == TSDB_FUNC_ELAPSED) {
       assert(curTs != windowKey);
 
       if (prevRowIndex == -1) {
@@ -1468,7 +1469,6 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
 
   STimeWindow win = getActiveTimeWindow(pResultRowInfo, ts, pQueryAttr);
   bool masterScan = IS_MASTER_SCAN(pRuntimeEnv);
-
   SResultRow* pResult = NULL;
   int32_t ret = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.tid, &win, masterScan, &pResult, tableGroupId, pInfo->pCtx,
                                         numOfOutput, pInfo->rowCellInfoOffset);
@@ -1491,23 +1491,22 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
         continue;
       }
 
-        STimeWindow w = pRes->win;
-        ret = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.tid, &w, masterScan, &pResult,
-                                      tableGroupId, pInfo->pCtx, numOfOutput, pInfo->rowCellInfoOffset);
-        if (ret != TSDB_CODE_SUCCESS) {
-          longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
-        }
-
-        assert(!resultRowInterpolated(pResult, RESULT_ROW_END_INTERP));
-
-        doTimeWindowInterpolation(pOperatorInfo, pInfo, pSDataBlock->pDataBlock, *(TSKEY*)pRuntimeEnv->prevRow[0], -1,
-                                  tsCols[startPos], startPos, w.ekey, RESULT_ROW_END_INTERP);
-
-        setResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
-        setNotInterpoWindowKey(pInfo->pCtx, pQueryAttr->numOfOutput, RESULT_ROW_START_INTERP);
-
-        doApplyFunctions(pRuntimeEnv, pInfo->pCtx, &w, startPos, 0, tsCols, pSDataBlock->info.rows, numOfOutput);
+      STimeWindow w = pRes->win;
+      ret = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.tid, &w, masterScan, &pResult,
+                                    tableGroupId, pInfo->pCtx, numOfOutput, pInfo->rowCellInfoOffset);
+      if (ret != TSDB_CODE_SUCCESS) {
+        longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
+
+      assert(!resultRowInterpolated(pResult, RESULT_ROW_END_INTERP));
+
+      doTimeWindowInterpolation(pOperatorInfo, pInfo, pSDataBlock->pDataBlock, *(TSKEY*)pRuntimeEnv->prevRow[0], -1,
+                                tsCols[startPos], startPos, QUERY_IS_ASC_QUERY(pQueryAttr) ? w.ekey : w.skey, RESULT_ROW_END_INTERP);
+
+      setResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
+      setNotInterpoWindowKey(pInfo->pCtx, pQueryAttr->numOfOutput, RESULT_ROW_START_INTERP);
+      doApplyFunctions(pRuntimeEnv, pInfo->pCtx, &w, startPos, 0, tsCols, pSDataBlock->info.rows, numOfOutput);
+    }
 
     // restore current time window
     ret = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.tid, &win, masterScan, &pResult, tableGroupId, pInfo->pCtx,
@@ -1578,9 +1577,6 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
   int32_t num = 0;
   for (int32_t j = 0; j < pSDataBlock->info.rows; ++j) {
     char* val = ((char*)pColInfoData->pData) + bytes * j;
-    if (isNull(val, type)) {
-      continue;
-    }
 
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (pInfo->prevData == NULL) {
@@ -1824,7 +1820,7 @@ void setBlockStatisInfo(SQLFunctionCtx *pCtx, SSDataBlock* pSDataBlock, SColInde
   pCtx->hasNull = hasNull(pColIndex, pStatis);
 
   // set the statistics data for primary time stamp column
-  if (pCtx->functionId == TSDB_FUNC_SPREAD && pColIndex->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+  if ((pCtx->functionId == TSDB_FUNC_SPREAD || pCtx->functionId == TSDB_FUNC_ELAPSED) && pColIndex->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
     pCtx->preAggVals.isSet  = true;
     pCtx->preAggVals.statis.min = pSDataBlock->info.window.skey;
     pCtx->preAggVals.statis.max = pSDataBlock->info.window.ekey;
@@ -2638,6 +2634,14 @@ static void getIntermediateBufInfo(SQueryRuntimeEnv* pRuntimeEnv, int32_t* ps, i
   *ps = DEFAULT_INTERN_BUF_PAGE_SIZE;
   while(((*rowsize) * MIN_ROWS_PER_PAGE) > (*ps) - overhead) {
     *ps = ((*ps) << 1u);
+  }
+
+  if (*ps > 5 * 1024 * 1024) {
+    MIN_ROWS_PER_PAGE = 2;
+    *ps = DEFAULT_INTERN_BUF_PAGE_SIZE;
+    while(((*rowsize) * MIN_ROWS_PER_PAGE) > (*ps) - overhead) {
+      *ps = ((*ps) << 1u);
+    }
   }
 }
 
@@ -4792,8 +4796,8 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
   int32_t ps = DEFAULT_PAGE_SIZE;
   getIntermediateBufInfo(pRuntimeEnv, &ps, &pQueryAttr->intermediateResultRowSize);
 
-  int32_t TENMB = 1024*1024*10;
-  int32_t code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, ps, TENMB, pQInfo->qId);
+  int32_t TWENTYMB = 1024*1024*20;
+  int32_t code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, ps, TWENTYMB, pQInfo->qId);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -6198,7 +6202,17 @@ group_finished_exit:
   return true;
 }
 
+static void resetInterpolation(SQLFunctionCtx *pCtx, SQueryRuntimeEnv* pRuntimeEnv, int32_t numOfOutput) {
+  if (!pRuntimeEnv->pQueryAttr->timeWindowInterpo) {
+    return;
+  }
 
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    pCtx[i].start.key = INT64_MIN;
+    pCtx[i].end.key = INT64_MIN;
+  }
+  *(TSKEY *)pRuntimeEnv->prevRow[0] = INT64_MIN;
+}
 
 static void doTimeEveryImpl(SOperatorInfo* pOperator, SQLFunctionCtx *pCtx, SSDataBlock* pBlock, bool newgroup) {
   STimeEveryOperatorInfo* pEveryInfo = (STimeEveryOperatorInfo*) pOperator->info;
@@ -6426,6 +6440,7 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
 
   SOperatorInfo* upstream = pOperator->upstream[0];
 
+  STableId prevId = {0, 0};
   while(1) {
     publishOperatorProfEvent(upstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
@@ -6433,6 +6448,12 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
 
     if (pBlock == NULL) {
       break;
+    }
+
+    if (prevId.tid != pBlock->info.tid || prevId.uid != pBlock->info.uid) {
+      resetInterpolation(pIntervalInfo->pCtx, pRuntimeEnv, pOperator->numOfOutput);
+      prevId.uid = pBlock->info.uid;
+      prevId.tid = pBlock->info.tid;
     }
 
     // the pDataBlock are always the same one, no need to call this again
@@ -8124,6 +8145,32 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     goto _cleanup;
   }
 
+
+
+/*
+  //MSG EXTEND DEMO
+  if (pQueryMsg->extend) {
+    pMsg += pQueryMsg->sqlstrLen;
+
+    STLV *tlv = NULL;
+    while (1) {
+      tlv = (STLV *)pMsg;
+      tlv->type = ntohs(tlv->type);
+      tlv->len = ntohl(tlv->len);
+      if (tlv->len > 0) {
+        *(int16_t *)tlv->value = ntohs(*(int16_t *)tlv->value);
+        qDebug("Got TLV,type:%d,len:%d,value:%d", tlv->type, tlv->len, *(int16_t*)tlv->value);
+        pMsg += sizeof(*tlv) + tlv->len;
+        continue;
+      }
+
+      break;
+    }
+  }
+  
+*/
+  
+
   qDebug("qmsg:%p query %d tables, type:%d, qrange:%" PRId64 "-%" PRId64 ", numOfGroupbyTagCols:%d, order:%d, "
          "outputCols:%d, numOfCols:%d, interval:%" PRId64 ", fillType:%d, comptsLen:%d, compNumOfBlocks:%d, limit:%" PRId64 ", offset:%" PRId64,
          pQueryMsg, pQueryMsg->numOfTables, pQueryMsg->queryType, pQueryMsg->window.skey, pQueryMsg->window.ekey, pQueryMsg->numOfGroupCols,
@@ -8240,7 +8287,7 @@ void destroyUdfInfo(SUdfInfo* pUdfInfo) {
   taosCloseDll(pUdfInfo->handle);
   tfree(pUdfInfo);
 }
-
+#ifdef LUA_EMBEDDED
 static char* getUdfFuncName(char* funcname, char* name, int type) {
   switch (type) {
     case TSDB_UDF_FUNC_NORMAL:
@@ -8265,8 +8312,9 @@ static char* getUdfFuncName(char* funcname, char* name, int type) {
 
   return funcname;
 }
-
+#endif
 int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
+#ifdef LUA_EMBEDDED
   if (pUdfInfo == NULL || pUdfInfo->handle) {
     return TSDB_CODE_SUCCESS;
   }
@@ -8350,7 +8398,7 @@ int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
       return (*(udfInitFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_INIT])(&pUdfInfo->init);
     }
   }
-
+#endif //LUA_EMBEDDED
   return TSDB_CODE_SUCCESS;
 }
 
@@ -8779,6 +8827,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   pQueryAttr->tsCompQuery     = pQueryMsg->tsCompQuery;
   pQueryAttr->simpleAgg       = pQueryMsg->simpleAgg;
   pQueryAttr->pointInterpQuery = pQueryMsg->pointInterpQuery;
+  pQueryAttr->needTableSeqScan = pQueryMsg->needTableSeqScan;
   pQueryAttr->needReverseScan  = pQueryMsg->needReverseScan;
   pQueryAttr->stateWindow      = pQueryMsg->stateWindow;
   pQueryAttr->vgId            = vgId;

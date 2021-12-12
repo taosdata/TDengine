@@ -10,9 +10,8 @@ const ArrayType = require('ref-array-napi');
 const Struct = require('ref-struct-napi');
 const FieldTypes = require('./constants');
 const errors = require('./error');
+const _ = require('lodash')
 const TaosObjects = require('./taosobjects');
-const { NULL_POINTER } = require('ref-napi');
-const { Console } = require('console');
 
 module.exports = CTaosInterface;
 
@@ -223,6 +222,8 @@ TaosField.fields.name.type.size = 65;
 TaosField.defineProperty('type', ref.types.char);
 TaosField.defineProperty('bytes', ref.types.short);
 
+//define schemaless line array
+var smlLine = ArrayType(ref.coerceType('char *'))
 
 /**
  *
@@ -238,7 +239,6 @@ function CTaosInterface(config = null, pass = false) {
   ref.types.void_ptr2 = ref.refType(ref.types.void_ptr);
   /*Declare a bunch of functions first*/
   /* Note, pointers to TAOS_RES, TAOS, are ref.types.void_ptr. The connection._conn buffer is supplied for pointers to TAOS *  */
-
   if ('win32' == os.platform()) {
     taoslibname = 'taos';
   } else {
@@ -303,9 +303,15 @@ function CTaosInterface(config = null, pass = false) {
     //                              int64_t stime, void *param, void (*callback)(void *));
     'taos_open_stream': [ref.types.void_ptr, [ref.types.void_ptr, ref.types.char_ptr, ref.types.void_ptr, ref.types.int64, ref.types.void_ptr, ref.types.void_ptr]],
     //void taos_close_stream(TAOS_STREAM *tstr);
-    'taos_close_stream': [ref.types.void, [ref.types.void_ptr]]
+    'taos_close_stream': [ref.types.void, [ref.types.void_ptr]],
+
+    //Schemaless insert 
+    //TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol，int precision)
+    // 'taos_schemaless_insert': [ref.types.void_ptr, [ref.types.void_ptr, ref.types.char_ptr, ref.types.int, ref.types.int, ref.types.int]]
+    'taos_schemaless_insert': [ref.types.void_ptr, [ref.types.void_ptr, smlLine, 'int', 'int', 'int']]
 
   });
+
   if (pass == false) {
     if (config == null) {
       this._config = ref.alloc(ref.types.char_ptr, ref.NULL);
@@ -663,4 +669,39 @@ CTaosInterface.prototype.openStream = function openStream(connection, sql, callb
 CTaosInterface.prototype.closeStream = function closeStream(stream) {
   this.libtaos.taos_close_stream(stream);
   console.log("Closed stream");
+}
+//Schemaless insert API 
+/**
+ * TAOS* taos, char* lines[], int numLines, int protocol，int precision)
+ * using  taos_errstr get error info, taos_errno get error code. Remmember 
+ * to release taos_res, otherwile will lead memory leak.
+ * TAOS schemaless insert api
+ * @param {*} connection a valid database connection
+ * @param {*} lines string data, which statisfied with line proctocol
+ * @param {*} numLines number of rows in param lines.
+ * @param {*} protocal Line protocol, enum type (0,1,2,3),indicate different line protocol
+ * @param {*} precision timestamp precision in lines, enum type (0,1,2,3,4,5,6)
+ * @returns TAOS_RES 
+ * 
+ */
+CTaosInterface.prototype.schemalessInsert = function schemalessInsert(connection,lines, protocal, precision) {
+  let _numLines = null;
+  let _lines = null;
+   
+  if(_.isString(lines)){
+    _numLines = 1;
+    _lines = Buffer.alloc(_numLines * ref.sizeof.pointer);
+    ref.set(_lines,0,ref.allocCString(lines),ref.types.char_ptr);
+  }
+  else if(_.isArray(lines)){
+    _numLines = lines.length;
+    _lines = Buffer.alloc(_numLines * ref.sizeof.pointer);
+    for(let i = 0; i < _numLines ; i++){
+      ref.set(_lines,i*ref.sizeof.pointer,ref.allocCString(lines[i]),ref.types.char_ptr)
+    }
+  }
+  else{
+    throw new errors.InterfaceError("Unsupport lines input")
+  }
+  return this.libtaos.taos_schemaless_insert(connection, _lines, _numLines, protocal, precision);
 }

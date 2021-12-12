@@ -109,7 +109,6 @@ function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
     ${csudo} rm -f ${lib64_link_dir}/libtaos.*       || :
-    #${csudo} rm -rf ${v15_java_app_dir}              || :
 
     ${csudo} cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
 
@@ -130,23 +129,22 @@ function install_lib() {
 }
 
 function install_header() {
-    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h    || :
     ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+    ${csudo} ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
 function install_config() {
-    #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
-
-    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
+    if [ ! -f ${cfg_install_dir}/prodb.cfg ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${script_dir}/cfg/taos.cfg ] && ${csudo} cp ${script_dir}/cfg/taos.cfg ${cfg_install_dir}
+        [ -f ${script_dir}/cfg/prodb.cfg ] && ${csudo} cp ${script_dir}/cfg/prodb.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
     fi
 
-    ${csudo} cp -f ${script_dir}/cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
-    ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
+    ${csudo} cp -f ${script_dir}/cfg/prodb.cfg ${install_main_dir}/cfg/prodb.cfg.org
+    ${csudo} ln -s ${cfg_install_dir}/prodb.cfg ${install_main_dir}/cfg
 }
 
 
@@ -191,9 +189,6 @@ function update_prodb() {
     install_log
     install_header
     install_lib
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
-    fi
     install_examples
     install_bin
     install_config
@@ -218,9 +213,6 @@ function install_prodb() {
     install_log
     install_header
     install_lib
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
-    fi
     install_examples
     install_bin
     install_config
@@ -235,14 +227,14 @@ function install_prodb() {
 ## ==============================Main program starts from here============================
 # Install or updata client and client
 # if server is already install, don't install client
-  if [ -e ${bin_dir}/prodbs ]; then
-      echo -e "\033[44;32;1mThere are already installed ProDB server, so don't need install client!${NC}"
-      exit 0
-  fi
+if [ -e ${bin_dir}/prodbs ]; then
+  echo -e "\033[44;32;1mThere are already installed ProDB server, so don't need install client!${NC}"
+  exit 0
+fi
 
-  if [ -x ${bin_dir}/prodbc ]; then
-      update_flag=1
-      update_prodb
-  else
-      install_prodb
-  fi
+if [ -x ${bin_dir}/prodbc ]; then
+  update_flag=1
+  update_prodb
+else
+  install_prodb
+fi

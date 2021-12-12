@@ -152,6 +152,7 @@ extern char   tsMqttTopic[];
 
 // monitor
 extern int8_t  tsEnableMonitorModule;
+extern int8_t  tsMonitorReplica;
 extern char    tsMonitorDbName[];
 extern char    tsInternalPass[];
 extern int32_t tsMonitorInterval;
@@ -240,6 +241,7 @@ extern int8_t tsDeadLockKillQuery;
 // schemaless
 extern char tsDefaultJSONStrType[];
 extern char tsSmlChildTableName[];
+extern char tsSmlTagNullName[];
 
 
 typedef struct {

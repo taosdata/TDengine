@@ -4,7 +4,7 @@
 # is required to use systemd to manage services at boot
 
 set -e
-# set -x
+#set -x
 
 # -----------------------Variables definition
 source_dir=$1
@@ -165,6 +165,7 @@ function install_bin() {
     if [ "$osType" != "Darwin" ]; then
         ${csudo} rm -f ${bin_link_dir}/perfMonitor || :
         ${csudo} rm -f ${bin_link_dir}/set_core || :
+        ${csudo} rm -f ${bin_link_dir}/run_taosd.sh || :
         ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
 
         ${csudo} cp -r ${binary_dir}/build/bin/* ${install_main_dir}/bin
@@ -172,6 +173,7 @@ function install_bin() {
 
         ${csudo} cp -r ${script_dir}/remove.sh     ${install_main_dir}/bin
         ${csudo} cp -r ${script_dir}/set_core.sh   ${install_main_dir}/bin
+        ${csudo} cp -r ${script_dir}/run_taosd.sh   ${install_main_dir}/bin
         ${csudo} cp -r ${script_dir}/startPre.sh   ${install_main_dir}/bin
 
         ${csudo} chmod 0555 ${install_main_dir}/bin/*
@@ -183,6 +185,7 @@ function install_bin() {
         [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
         [ -x ${install_main_dir}/bin/perfMonitor ]  && ${csudo} ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor || :
         [ -x ${install_main_dir}/set_core.sh ]  && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
+        [ -x ${install_main_dir}/run_taosd.sh ]  && ${csudo} ln -s ${install_main_dir}/bin/run_taosd.sh ${bin_link_dir}/run_taosd.sh || :
         [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos  || :
    else
 
@@ -232,7 +235,7 @@ function install_jemalloc() {
                     /usr/local/lib/pkgconfig
             fi
             if [ -d /etc/ld.so.conf.d ]; then
-                echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf
+                echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf > /dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
                 ${csudo} ldconfig
             else
                 echo "/etc/ld.so.conf.d not found!"
@@ -253,7 +256,7 @@ function install_jemalloc() {
 
 function install_avro() {
     if [ "$osType" != "Darwin" ]; then
-        if [ -f "${binary_dir}/build/$1/libavro.so.23.0.0" ]; then
+        if [ -f "${binary_dir}/build/$1/libavro.so.23.0.0" ] && [ -d /usr/local/$1 ]; then
             ${csudo} /usr/bin/install -c -d /usr/local/$1
             ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/$1/libavro.so.23.0.0 /usr/local/$1
             ${csudo} ln -sf libavro.so.23.0.0 /usr/local/$1/libavro.so.23
@@ -263,7 +266,7 @@ function install_avro() {
                 ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/$1/libavro.a /usr/local/$1
 
             if [ -d /etc/ld.so.conf.d ]; then
-                echo "/usr/local/$1" | ${csudo} tee /etc/ld.so.conf.d/libavro.conf
+                echo "/usr/local/$1" | ${csudo} tee /etc/ld.so.conf.d/libavro.conf > /dev/null || echo -e "failed to write /etc/ld.so.conf.d/libavro.conf"
                 ${csudo} ldconfig
             else
                 echo "/etc/ld.so.conf.d not found!"
@@ -329,15 +332,16 @@ function install_lib() {
 function install_header() {
 
     if [ "$osType" != "Darwin" ]; then
-        ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h     || :
-        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h \
+        ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h     || :
+        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taosdef.h ${source_dir}/src/inc/taoserror.h \
             ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
         ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+        ${csudo} ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
         ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
     else
-        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h \
+        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taosdef.h ${source_dir}/src/inc/taoserror.h \
             ${install_main_dir}/include \
-            || ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h \
+            || ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taosdef.h ${source_dir}/src/inc/taoserror.h \
             ${install_main_2_dir}/include \
             && ${csudo} chmod 644 ${install_main_dir}/include/* \
             || ${csudo} chmod 644 ${install_main_2_dir}/include/*
@@ -345,9 +349,7 @@ function install_header() {
 }
 
 function install_config() {
-    #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
-
-    if [ ! -f "${cfg_install_dir}/taos.cfg" ]; then
+    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
         [ -f ${script_dir}/../cfg/taos.cfg ] &&
         ${csudo} cp ${script_dir}/../cfg/taos.cfg ${cfg_install_dir}
