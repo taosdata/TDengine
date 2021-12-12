@@ -880,7 +880,7 @@ int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlk
         ++j;
       }
       pBlocks->numOfRows = i + 1;
-    }
+    } 
   }
 
   dataBuf->size = sizeof(SSubmitBlk) + pBlocks->numOfRows * extendedRowSize;
