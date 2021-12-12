@@ -46,7 +46,7 @@ int64_t  tsDnodeStartTime = 0;
 // common
 int32_t tsRpcTimer       = 300;
 int32_t tsRpcMaxTime     = 600;  // seconds;
-int32_t tsRpcForceTcp    = 0;  //disable this, means query, show command use udp protocol as default
+int32_t tsRpcForceTcp    = 1;  //disable this, means query, show command use udp protocol as default
 int32_t tsMaxShellConns  = 50000;
 int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer  = 3;  // second
@@ -1583,7 +1583,7 @@ static void doInitGlobalConfig(void) {
   taosInitConfigOption(cfg);
   assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM);
 #else
-  assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM - 5);
+  //assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM - 5);
 #endif
 
 }

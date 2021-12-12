@@ -130,7 +130,7 @@ static void dndProcessResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   if (dndGetStat(pDnode) == DND_STAT_STOPPED) {
     if (pMsg == NULL || pMsg->pCont == NULL) return;
-    dTrace("RPC %p, rsp:%s app:%p is ignored since dnode is stopping", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
+    dTrace("RPC %p, rsp:%s is ignored since dnode is stopping", pMsg->handle, taosMsg[msgType]);
     rpcFreeCont(pMsg->pCont);
     return;
   }
@@ -138,10 +138,9 @@ static void dndProcessResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   DndMsgFp fp = pMgmt->msgFp[msgType];
   if (fp != NULL) {
     (*fp)(pDnode, pMsg, pEpSet);
-    dTrace("RPC %p, rsp:%s app:%p is processed, code:0x%0X", pMsg->handle, taosMsg[msgType], pMsg->ahandle,
-           pMsg->code & 0XFFFF);
+    dTrace("RPC %p, rsp:%s is processed, code:0x%0X", pMsg->handle, taosMsg[msgType], pMsg->code & 0XFFFF);
   } else {
-    dError("RPC %p, rsp:%s app:%p not processed", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
+    dError("RPC %p, rsp:%s not processed", pMsg->handle, taosMsg[msgType]);
   }
   rpcFreeCont(pMsg->pCont);
 }

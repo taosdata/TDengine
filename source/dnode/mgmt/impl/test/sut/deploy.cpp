@@ -16,7 +16,7 @@
 #include "deploy.h"
 
 void initLog(const char* path) {
-  dDebugFlag = 0;
+  dDebugFlag = 207;
   vDebugFlag = 0;
   mDebugFlag = 207;
   cDebugFlag = 0;
@@ -90,6 +90,7 @@ SServer* createServer(const char* path, const char* fqdn, uint16_t port, const c
 }
 
 void dropServer(SServer* pServer) {
+  if (pServer == NULL) return;
   if (pServer->threadId != NULL) {
     taosDestoryThread(pServer->threadId);
   }
@@ -98,6 +99,8 @@ void dropServer(SServer* pServer) {
 void processClientRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SClient* pClient = (SClient*)parent;
   pClient->pRsp = pMsg;
+  uInfo("response:%s from dnode, pCont:%p contLen:%d code:0x%X", taosMsg[pMsg->msgType], pMsg->pCont, pMsg->contLen,
+        pMsg->code);
   tsem_post(&pClient->sem);
 }
 
@@ -143,7 +146,7 @@ void sendMsg(SClient* pClient, SRpcMsg* pMsg) {
   epSet.inUse = 0;
   epSet.numOfEps = 1;
   epSet.port[0] = pClient->port;
-  strcpy(epSet.fqdn[0], pClient->fqdn);
+  memcpy(epSet.fqdn[0], pClient->fqdn, TSDB_FQDN_LEN);
 
   rpcSendRequest(pClient->clientRpc, &epSet, pMsg, NULL);
   tsem_wait(&pClient->sem);

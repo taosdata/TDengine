@@ -126,6 +126,8 @@ typedef struct SRpcConn {
   SRpcReqContext *pContext; // request context
 } SRpcConn;
 
+static pthread_once_t tsRpcInitOnce = PTHREAD_ONCE_INIT;
+
 int tsRpcMaxUdpSize = 15000;  // bytes
 int tsProgressTimer = 100;
 // not configurable
@@ -220,17 +222,22 @@ static void rpcFree(void *p) {
   free(p);
 }
 
-int32_t rpcInit(void) {
-  tsProgressTimer = tsRpcTimer/2; 
-  tsRpcMaxRetry = tsRpcMaxTime * 1000/tsProgressTimer;
-  tsRpcHeadSize = RPC_MSG_OVERHEAD; 
+static void rpcInitImp(void) {
+  tsProgressTimer = tsRpcTimer / 2;
+  tsRpcMaxRetry = tsRpcMaxTime * 1000 / tsProgressTimer;
+  tsRpcHeadSize = RPC_MSG_OVERHEAD;
   tsRpcOverhead = sizeof(SRpcReqContext);
 
   tsRpcRefId = taosOpenRef(200, rpcFree);
 
   return 0;
 }
- 
+
+int32_t rpcInit(void) {
+  pthread_once(&tsRpcInitOnce, rpcInitImp);
+  return 0;
+}
+
 void rpcCleanup(void) {
   taosCloseRef(tsRpcRefId);
   tsRpcRefId = -1;

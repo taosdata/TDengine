@@ -45,7 +45,7 @@ static void    mndCancelGetNextVnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitVgroup(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_VGROUP,
-                     .keyType = SDB_KEY_BINARY,
+                     .keyType = SDB_KEY_INT32,
                      .encodeFp = (SdbEncodeFp)mndVgroupActionEncode,
                      .decodeFp = (SdbDecodeFp)mndVgroupActionDecode,
                      .insertFp = (SdbInsertFp)mndVgroupActionInsert,

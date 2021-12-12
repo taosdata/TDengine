@@ -80,6 +80,8 @@ TEST_F(DndTestDnode, ShowDnode) {
 
   sendMsg(pClient, &showRpcMsg);
   ASSERT_NE(pClient->pRsp, nullptr);
+  ASSERT_EQ(pClient->pRsp->code, 0);
+  ASSERT_NE(pClient->pRsp->pCont, nullptr);
 
   SShowRsp* pShowRsp = (SShowRsp*)pClient->pRsp->pCont;
   ASSERT_NE(pShowRsp, nullptr);
@@ -170,6 +172,7 @@ TEST_F(DndTestDnode, ShowDnode) {
   sendMsg(pClient, &retrieveRpcMsg);
   ASSERT_NE(pClient->pRsp, nullptr);
   ASSERT_EQ(pClient->pRsp->code, 0);
+  ASSERT_NE(pClient->pRsp->pCont, nullptr);
 
   SRetrieveTableRsp* pRetrieveRsp = (SRetrieveTableRsp*)pClient->pRsp->pCont;
   ASSERT_NE(pRetrieveRsp, nullptr);

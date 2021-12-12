@@ -335,7 +335,7 @@ static int32_t dndWriteDnodes(SDnode *pDnode) {
   return 0;
 }
 
-static void dndSendStatusMsg(SDnode *pDnode) {
+void dndSendStatusMsg(SDnode *pDnode) {
   int32_t contLen = sizeof(SStatusMsg) + TSDB_MAX_VNODES * sizeof(SVnodeLoad);
 
   SStatusMsg *pStatus = rpcMallocCont(contLen);
