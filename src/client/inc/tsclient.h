@@ -117,6 +117,7 @@ typedef struct SParsedDataColInfo {
   uint16_t       flen;        // TODO: get from STSchema
   uint16_t       allNullLen;  // TODO: get from STSchema
   uint16_t       extendedVarLen;
+  uint16_t       boundColsLen;    // len of bound columns
   int32_t *      boundedColumns;  // bound column idx according to schema
   SBoundColumn * cols;
   SBoundIdxInfo *colIdxInfo;
@@ -150,8 +151,7 @@ typedef struct {
 
 int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec);
 
-int  initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, uint32_t nBoundCols,
-                       int32_t allNullLen);
+int  initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, SParsedDataColInfo *pColInfo);
 void destroyMemRowBuilder(SMemRowBuilder *pBuilder);
 
 /**
@@ -531,12 +531,12 @@ static FORCE_INLINE int32_t getExtendedRowSize(STableDataBlocks *pBlock) {
   return pBlock->rowSize + TD_MEM_ROW_DATA_HEAD_SIZE + pBlock->boundColumnInfo.extendedVarLen;
 }
 
-static FORCE_INLINE bool checkAndConvertMemRow(SMemRow row, int32_t dataLen, int32_t kvLen) {
+static FORCE_INLINE bool checkConvertMemRow(SMemRow row, int32_t dataLen, int32_t kvLen) {
   if (isDataRow(row)) {
-    if (kvLen < (dataLen * KVRatioConvert)) {
+    if (isConvertToKvRow(kvLen, dataLen)) {
       return true;
     }
-  } else if (kvLen > dataLen) {
+  } else if (isConvertToDataRow(kvLen, dataLen)) {
     return true;
   }
   return false;
