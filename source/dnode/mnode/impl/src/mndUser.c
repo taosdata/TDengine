@@ -489,7 +489,7 @@ static int32_t mndGetUserMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *p
 
   pShow->numOfRows = sdbGetSize(pSdb, SDB_USER);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tableFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
 
   return 0;
 }

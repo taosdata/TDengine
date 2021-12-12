@@ -15,45 +15,62 @@
 
 #include "deploy.h"
 
-class DndTestUser : public ::testing::Test {
+class DndTestDnode : public ::testing::Test {
  protected:
   void SetUp() override {}
   void TearDown() override {}
 
-  static void SetUpTestSuite() {
-    const char* user = "root";
-    const char* pass = "taosdata";
-    const char* path = "/tmp/dndTestUser";
-    const char* fqdn = "localhost";
-    uint16_t    port = 9524;
-    const char* firstEp = "localhost:9524";
-
-    pServer = createServer(path, fqdn, port, firstEp);
+  static SServer* CreateServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
+    SServer* pServer = createServer(path, fqdn, port, firstEp);
     ASSERT(pServer);
-    pClient = createClient(user, pass, fqdn, port);
+    return pServer;
+  }
+
+  static void SetUpTestSuite() {
+    const char* fqdn = "localhost";
+    const char* firstEp = "localhost:9521";
+    pServer1 = CreateServer("/tmp/dndTestDnode1", fqdn, 9521, firstEp);
+    pServer2 = CreateServer("/tmp/dndTestDnode2", fqdn, 9522, firstEp);
+    pServer3 = CreateServer("/tmp/dndTestDnode3", fqdn, 9523, firstEp);
+    pServer4 = CreateServer("/tmp/dndTestDnode4", fqdn, 9524, firstEp);
+    pServer5 = CreateServer("/tmp/dndTestDnode5", fqdn, 9525, firstEp);
+    pClient = createClient("root", "taosdata", fqdn, 9521);
   }
 
   static void TearDownTestSuite() {
-    dropServer(pServer);
+    dropServer(pServer1);
+    dropServer(pServer2);
+    dropServer(pServer3);
+    dropServer(pServer4);
+    dropServer(pServer5);
     dropClient(pClient);
   }
 
-  static SServer* pServer;
+  static SServer* pServer1;
+  static SServer* pServer2;
+  static SServer* pServer3;
+  static SServer* pServer4;
+  static SServer* pServer5;
   static SClient* pClient;
-  static int32_t  connId;
+
+  void CheckShowMsg(int8_t msgType) {
+
+  }
 };
 
-SServer* DndTestUser::pServer;
-SClient* DndTestUser::pClient;
-int32_t  DndTestUser::connId;
+SServer* DndTestDnode::pServer1;
+SServer* DndTestDnode::pServer2;
+SServer* DndTestDnode::pServer3;
+SServer* DndTestDnode::pServer4;
+SServer* DndTestDnode::pServer5;
+SClient* DndTestDnode::pClient;
 
-#if 0
-TEST_F(DndTestUser, ShowUser) {
+TEST_F(DndTestDnode, ShowDnode) {
   int32_t showId = 0;
 
   //--- meta ---
   SShowMsg* pShow = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
-  pShow->type = TSDB_MGMT_TABLE_USER;
+  pShow->type = TSDB_MGMT_TABLE_DNODE;
   strcpy(pShow->db, "");
 
   SRpcMsg showRpcMsg = {0};
@@ -68,59 +85,77 @@ TEST_F(DndTestUser, ShowUser) {
   ASSERT_NE(pShowRsp, nullptr);
   pShowRsp->showId = htonl(pShowRsp->showId);
   STableMetaMsg* pMeta = &pShowRsp->tableMeta;
-  pMeta->contLen = htonl(pMeta->contLen);
+  pMeta->numOfTags = htons(pMeta->numOfTags);
   pMeta->numOfColumns = htons(pMeta->numOfColumns);
   pMeta->sversion = htons(pMeta->sversion);
   pMeta->tversion = htons(pMeta->tversion);
-  pMeta->tid = htonl(pMeta->tid);
-  pMeta->uid = htobe64(pMeta->uid);
+  pMeta->tuid = htobe64(pMeta->tuid);
   pMeta->suid = htobe64(pMeta->suid);
 
   showId = pShowRsp->showId;
 
   EXPECT_NE(pShowRsp->showId, 0);
-  EXPECT_EQ(pMeta->contLen, 0);
-  EXPECT_STREQ(pMeta->tbFname, "show users");
+  EXPECT_STREQ(pMeta->tbFname, "show dnodes");
   EXPECT_EQ(pMeta->numOfTags, 0);
+  EXPECT_EQ(pMeta->numOfColumns, 7);
   EXPECT_EQ(pMeta->precision, 0);
   EXPECT_EQ(pMeta->tableType, 0);
-  EXPECT_EQ(pMeta->numOfColumns, 4);
+  EXPECT_EQ(pMeta->update, 0);
   EXPECT_EQ(pMeta->sversion, 0);
   EXPECT_EQ(pMeta->tversion, 0);
-  EXPECT_EQ(pMeta->tid, 0);
-  EXPECT_EQ(pMeta->uid, 0);
-  EXPECT_STREQ(pMeta->sTableName, "");
+  EXPECT_EQ(pMeta->tuid, 0);
   EXPECT_EQ(pMeta->suid, 0);
-
+  
   SSchema* pSchema = NULL;
 
   pSchema = &pMeta->pSchema[0];
   pSchema->bytes = htons(pSchema->bytes);
   EXPECT_EQ(pSchema->colId, 0);
-  EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
-  EXPECT_EQ(pSchema->bytes, TSDB_USER_LEN + VARSTR_HEADER_SIZE);
-  EXPECT_STREQ(pSchema->name, "name");
+  EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_SMALLINT);
+  EXPECT_EQ(pSchema->bytes, 2);
+  EXPECT_STREQ(pSchema->name, "id");
 
   pSchema = &pMeta->pSchema[1];
   pSchema->bytes = htons(pSchema->bytes);
   EXPECT_EQ(pSchema->colId, 0);
   EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
-  EXPECT_EQ(pSchema->bytes, 10 + VARSTR_HEADER_SIZE);
-  EXPECT_STREQ(pSchema->name, "privilege");
+  EXPECT_EQ(pSchema->bytes, TSDB_EP_LEN + VARSTR_HEADER_SIZE);
+  EXPECT_STREQ(pSchema->name, "end point");
 
   pSchema = &pMeta->pSchema[2];
   pSchema->bytes = htons(pSchema->bytes);
   EXPECT_EQ(pSchema->colId, 0);
-  EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TIMESTAMP);
-  EXPECT_EQ(pSchema->bytes, 8);
-  EXPECT_STREQ(pSchema->name, "create_time");
+  EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_SMALLINT);
+  EXPECT_EQ(pSchema->bytes, 2);
+  EXPECT_STREQ(pSchema->name, "vnodes");
 
   pSchema = &pMeta->pSchema[3];
   pSchema->bytes = htons(pSchema->bytes);
   EXPECT_EQ(pSchema->colId, 0);
+  EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_SMALLINT);
+  EXPECT_EQ(pSchema->bytes, 2);
+  EXPECT_STREQ(pSchema->name, "max vnodes");
+
+  pSchema = &pMeta->pSchema[4];
+  pSchema->bytes = htons(pSchema->bytes);
+  EXPECT_EQ(pSchema->colId, 0);
+  EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
+  EXPECT_EQ(pSchema->bytes, 10 + VARSTR_HEADER_SIZE);
+  EXPECT_STREQ(pSchema->name, "status");
+
+  pSchema = &pMeta->pSchema[5];
+  pSchema->bytes = htons(pSchema->bytes);
+  EXPECT_EQ(pSchema->colId, 0);
+  EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TIMESTAMP);
+  EXPECT_EQ(pSchema->bytes, 8);
+  EXPECT_STREQ(pSchema->name, "create time");
+
+  pSchema = &pMeta->pSchema[6];
+  pSchema->bytes = htons(pSchema->bytes);
+  EXPECT_EQ(pSchema->colId, 0);
   EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
   EXPECT_EQ(pSchema->bytes, TSDB_USER_LEN + VARSTR_HEADER_SIZE);
-  EXPECT_STREQ(pSchema->name, "account");
+  EXPECT_STREQ(pSchema->name, "offline reason");
 
   //--- retrieve ---
   SRetrieveTableMsg* pRetrieve = (SRetrieveTableMsg*)rpcMallocCont(sizeof(SRetrieveTableMsg));
@@ -143,7 +178,7 @@ TEST_F(DndTestUser, ShowUser) {
   pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);
   pRetrieveRsp->compLen = htonl(pRetrieveRsp->compLen);
 
-  EXPECT_EQ(pRetrieveRsp->numOfRows, 2);
+  EXPECT_EQ(pRetrieveRsp->numOfRows, 1);
   EXPECT_EQ(pRetrieveRsp->offset, 0);
   EXPECT_EQ(pRetrieveRsp->useconds, 0);
   EXPECT_EQ(pRetrieveRsp->completed, 1);
@@ -156,60 +191,55 @@ TEST_F(DndTestUser, ShowUser) {
   int32_t pos = 0;
   char*   strVal = NULL;
   int64_t int64Val = 0;
+  int16_t int16Val = 0;
 
   //--- name ---
   {
-    pos += sizeof(VarDataLenT);
-    strVal = (char*)(pData + pos);
-    pos += TSDB_USER_LEN;
-    EXPECT_STREQ(strVal, "root");
-
-    pos += sizeof(VarDataLenT);
-    strVal = (char*)(pData + pos);
-    pos += TSDB_USER_LEN;
-    EXPECT_STREQ(strVal, "_root");
+    int16Val = *((int16_t*)(pData + pos));
+    pos += sizeof(int16_t);
+    EXPECT_EQ(int16Val, 1);
   }
 
-  //--- privilege ---
-  {
-    pos += sizeof(VarDataLenT);
-    strVal = (char*)(pData + pos);
-    pos += 10;
-    EXPECT_STREQ(strVal, "super");
+  // //--- privilege ---
+  // {
+  //   pos += sizeof(VarDataLenT);
+  //   strVal = (char*)(pData + pos);
+  //   pos += 10;
+  //   EXPECT_STREQ(strVal, "super");
 
-    pos += sizeof(VarDataLenT);
-    strVal = (char*)(pData + pos);
-    pos += 10;
-    EXPECT_STREQ(strVal, "writable");
-  }
+  //   pos += sizeof(VarDataLenT);
+  //   strVal = (char*)(pData + pos);
+  //   pos += 10;
+  //   EXPECT_STREQ(strVal, "writable");
+  // }
 
-  //--- create_time ---
-  {
-    int64Val = *((int64_t*)(pData + pos));
-    pos += sizeof(int64_t);
-    EXPECT_GT(int64Val, 0);
+  // //--- create_time ---
+  // {
+  //   int64Val = *((int64_t*)(pData + pos));
+  //   pos += sizeof(int64_t);
+  //   EXPECT_GT(int64Val, 0);
 
-    int64Val = *((int64_t*)(pData + pos));
-    pos += sizeof(int64_t);
-    EXPECT_GT(int64Val, 0);
-  }
+  //   int64Val = *((int64_t*)(pData + pos));
+  //   pos += sizeof(int64_t);
+  //   EXPECT_GT(int64Val, 0);
+  // }
 
-  //--- account ---
-  {
-    pos += sizeof(VarDataLenT);
-    strVal = (char*)(pData + pos);
-    pos += TSDB_USER_LEN;
-    EXPECT_STREQ(strVal, "root");
+  // //--- account ---
+  // {
+  //   pos += sizeof(VarDataLenT);
+  //   strVal = (char*)(pData + pos);
+  //   pos += TSDB_USER_LEN;
+  //   EXPECT_STREQ(strVal, "root");
 
-    pos += sizeof(VarDataLenT);
-    strVal = (char*)(pData + pos);
-    pos += TSDB_USER_LEN;
-    EXPECT_STREQ(strVal, "root");
-  }
+  //   pos += sizeof(VarDataLenT);
+  //   strVal = (char*)(pData + pos);
+  //   pos += TSDB_USER_LEN;
+  //   EXPECT_STREQ(strVal, "root");
+  // }
 }
-#endif
 
-TEST_F(DndTestUser, CreateUser_01) {
+#if 0
+TEST_F(DndTestDnode, CreateUser_01) {
   ASSERT_NE(pClient, nullptr);
 
   //--- create user ---
@@ -277,7 +307,7 @@ TEST_F(DndTestUser, CreateUser_01) {
   }
 }
 
-TEST_F(DndTestUser, AlterUser_01) {
+TEST_F(DndTestDnode, AlterUser_01) {
   ASSERT_NE(pClient, nullptr);
 
   //--- drop user ---
@@ -345,7 +375,7 @@ TEST_F(DndTestUser, AlterUser_01) {
   }
 }
 
-TEST_F(DndTestUser, DropUser_01) {
+TEST_F(DndTestDnode, DropUser_01) {
   ASSERT_NE(pClient, nullptr);
 
   //--- drop user ---
@@ -406,3 +436,5 @@ TEST_F(DndTestUser, DropUser_01) {
     EXPECT_STREQ(strVal, "_root");
   }
 }
+
+#endif

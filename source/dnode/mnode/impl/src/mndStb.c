@@ -600,7 +600,7 @@ static int32_t mndGetStbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pM
   }
 
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tableFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
 
   return 0;
 }

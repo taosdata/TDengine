@@ -281,7 +281,7 @@ static void mndParseStatusMsg(SStatusMsg *pStatus) {
   pStatus->sver = htonl(pStatus->sver);
   pStatus->dnodeId = htonl(pStatus->dnodeId);
   pStatus->clusterId = htonl(pStatus->clusterId);
-  pStatus->rebootTime = htonl(pStatus->rebootTime);
+  pStatus->rebootTime = htobe64(pStatus->rebootTime);
   pStatus->numOfCores = htons(pStatus->numOfCores);
   pStatus->numOfSupportMnodes = htons(pStatus->numOfSupportMnodes);
   pStatus->numOfSupportVnodes = htons(pStatus->numOfSupportVnodes);
@@ -604,7 +604,7 @@ static int32_t mndGetConfigMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg 
 
   pShow->numOfRows = TSDB_CONFIG_NUMBER;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tableFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
 
   return 0;
 }
@@ -711,7 +711,7 @@ static int32_t mndGetDnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
 
   pShow->numOfRows = sdbGetSize(pSdb, SDB_DNODE);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tableFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
 
   return 0;
 }

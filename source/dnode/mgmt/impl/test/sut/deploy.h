@@ -39,7 +39,7 @@ typedef struct {
   tsem_t   sem;
 } SClient;
 
-SServer* createServer(const char* path, const char* fqdn, uint16_t port);
+SServer* createServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp);
 void     dropServer(SServer* pServer);
 SClient* createClient(const char* user, const char* pass, const char* fqdn, uint16_t port);
 void     dropClient(SClient* pClient);

@@ -159,7 +159,7 @@ static int32_t mndGetClusterMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg
   cols++;
 
   pMeta->numOfColumns = htons(cols);
-  strcpy(pMeta->tableFname, "show cluster");
+  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;

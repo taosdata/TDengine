@@ -50,7 +50,7 @@ void* runServer(void* param) {
   }
 }
 
-void initOption(SDnodeOpt* pOption, const char* path, const char* fqdn, uint16_t port) {
+void initOption(SDnodeOpt* pOption, const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
   pOption->sver = 1;
   pOption->numOfCores = 1;
   pOption->numOfSupportMnodes = 1;
@@ -65,16 +65,16 @@ void initOption(SDnodeOpt* pOption, const char* path, const char* fqdn, uint16_t
   strcpy(pOption->dataDir, path);
   snprintf(pOption->localEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
   snprintf(pOption->localFqdn, TSDB_FQDN_LEN, "%s", fqdn);
-  snprintf(pOption->firstEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
+  snprintf(pOption->firstEp, TSDB_EP_LEN, "%s", firstEp);
 }
 
-SServer* createServer(const char* path, const char* fqdn, uint16_t port) {
+SServer* createServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
   taosRemoveDir(path);
   taosMkDir(path);
   initLog(path);
 
   SDnodeOpt option = {0};
-  initOption(&option, path, fqdn, port);
+  initOption(&option, path, fqdn, port, firstEp);
 
   SDnode* pDnode = dndInit(&option);
   ASSERT(pDnode);
@@ -98,7 +98,6 @@ void dropServer(SServer* pServer) {
 void processClientRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SClient* pClient = (SClient*)parent;
   pClient->pRsp = pMsg;
-  // taosMsleep(1000000);
   tsem_post(&pClient->sem);
 }
 

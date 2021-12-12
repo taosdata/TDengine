@@ -695,7 +695,7 @@ typedef struct SStatusMsg {
   int32_t     sver;
   int32_t     dnodeId;
   int32_t     clusterId;
-  uint32_t    rebootTime;  // time stamp for last reboot
+  int64_t     rebootTime;  // time stamp for last reboot
   int16_t     numOfCores;
   int16_t     numOfSupportMnodes;
   int16_t     numOfSupportVnodes;
@@ -803,7 +803,7 @@ typedef struct {
 } SVgroupsMsg, SVgroupsInfo;
 
 typedef struct {
-  char       tableFname[TSDB_TABLE_FNAME_LEN];  // table id
+  char       tbFname[TSDB_TABLE_FNAME_LEN];  // table id
   char       stbFname[TSDB_TABLE_FNAME_LEN];
   int32_t    numOfTags;
   int32_t    numOfColumns;
