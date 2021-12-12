@@ -756,7 +756,11 @@ static int32_t mndRetrieveDnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, i
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, offlineReason[pDnode->offlineReason]);
+    if (pDnode->status == DND_STATUS_READY) {
+      STR_TO_VARSTR(pWrite, "");
+    } else {
+      STR_TO_VARSTR(pWrite, offlineReason[pDnode->offlineReason]);
+    }
     cols++;
 
     numOfRows++;

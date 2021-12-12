@@ -71,7 +71,6 @@ void initOption(SDnodeOpt* pOption, const char* path, const char* fqdn, uint16_t
 SServer* createServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
   taosRemoveDir(path);
   taosMkDir(path);
-  initLog(path);
 
   SDnodeOpt option = {0};
   initOption(&option, path, fqdn, port, firstEp);
