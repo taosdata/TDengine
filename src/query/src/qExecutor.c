@@ -137,7 +137,7 @@ do {                                       \
 uint64_t queryHandleId = 0;
 
 int32_t getMaximumIdleDurationSec() {
-  return tsShellActivityTimer * 2;
+  return tsShellActivityTimer * 10;
 }
 int64_t genQueryId(void) {
   int64_t uid = 0;
@@ -8144,6 +8144,32 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     code = TSDB_CODE_QRY_INVALID_MSG;
     goto _cleanup;
   }
+
+
+
+/*
+  //MSG EXTEND DEMO
+  if (pQueryMsg->extend) {
+    pMsg += pQueryMsg->sqlstrLen;
+
+    STLV *tlv = NULL;
+    while (1) {
+      tlv = (STLV *)pMsg;
+      tlv->type = ntohs(tlv->type);
+      tlv->len = ntohl(tlv->len);
+      if (tlv->len > 0) {
+        *(int16_t *)tlv->value = ntohs(*(int16_t *)tlv->value);
+        qDebug("Got TLV,type:%d,len:%d,value:%d", tlv->type, tlv->len, *(int16_t*)tlv->value);
+        pMsg += sizeof(*tlv) + tlv->len;
+        continue;
+      }
+
+      break;
+    }
+  }
+  
+*/
+  
 
   qDebug("qmsg:%p query %d tables, type:%d, qrange:%" PRId64 "-%" PRId64 ", numOfGroupbyTagCols:%d, order:%d, "
          "outputCols:%d, numOfCols:%d, interval:%" PRId64 ", fillType:%d, comptsLen:%d, compNumOfBlocks:%d, limit:%" PRId64 ", offset:%" PRId64,

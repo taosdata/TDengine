@@ -49,7 +49,7 @@ class TDTestCase:
         binPath = buildPath+ "/build/bin/"
 
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql 
-        os.system("%staosdemo -f query/nestedQuery/insertData.json -y " % binPath)
+        os.system("%staosBenchmark -f query/nestedQuery/insertData.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 1000)
