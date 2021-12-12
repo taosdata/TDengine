@@ -145,16 +145,10 @@ static int32_t toInt64(const char* z, int16_t type, int32_t n, int64_t* value, b
 }
 
 static int32_t createInsertStmtInfo(SInsertStmtInfo **pInsertInfo) {
-  SInsertStmtInfo *info = calloc(1, sizeof(SQueryStmtInfo));
-  if (NULL == info) {
+  *pInsertInfo = calloc(1, sizeof(SQueryStmtInfo));
+  if (NULL == *pInsertInfo) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  // info->pTableBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
-  // if (NULL == info->pTableBlockHashList) {
-  //   tfree(info);
-  //   return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  // }
-  *pInsertInfo = info;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -808,7 +802,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     // no data in the sql string anymore.
     if (sToken.n == 0) {
       if (0 == pCxt->totalNum) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
+        return buildInvalidOperationMsg(&pCxt->msg, "no data in sql");;
       }
       break;
     }

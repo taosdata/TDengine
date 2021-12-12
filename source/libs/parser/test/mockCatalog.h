@@ -13,19 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_INSERTPARSER_H
-#define TDENGINE_INSERTPARSER_H
+#ifndef MOCK_CATALOG_H
+#define MOCK_CATALOG_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "mockCatalogService.h"
 
-#include "parser.h"
+void generateMetaData(MockCatalogService* mcs);
 
-int32_t parseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo);
+// mock
+struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps);
+int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData);
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif  // TDENGINE_INSERTPARSER_H
+#endif  // MOCK_CATALOG_H
