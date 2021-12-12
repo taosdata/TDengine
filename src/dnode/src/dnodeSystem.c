@@ -44,6 +44,7 @@ int32_t main(int32_t argc, char *argv[]) {
       dump_config = 1;
     } else if (strcmp(argv[i], "--force-compact-file") == 0) {
       tsdbForceCompactFile = true;
+      printf("--force-compact-file\n");
     } else if (strcmp(argv[i], "--force-keep-file") == 0) {
       tsdbForceKeepFile = true;
     } else if (strcmp(argv[i], "--compact-mnode-wal") == 0) {
