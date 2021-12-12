@@ -152,22 +152,23 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_SDB_INVALID_DATA_LEN          TAOS_DEF_ERROR_CODE(0, 0x032A)
 #define TSDB_CODE_SDB_INVALID_DATA_CONTENT      TAOS_DEF_ERROR_CODE(0, 0x032B)
 
-#define TSDB_CODE_MND_DNODE_ALREADY_EXIST       TAOS_DEF_ERROR_CODE(0, 0x0330)  //"DNode already exists")
-#define TSDB_CODE_MND_DNODE_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x0331)  //"DNode does not exist")
+// mnode-dnode
+#define TSDB_CODE_MND_DNODE_ALREADY_EXIST       TAOS_DEF_ERROR_CODE(0, 0x0330)
+#define TSDB_CODE_MND_DNODE_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x0331)
+#define TSDB_CODE_MND_NO_ENOUGH_DNODES          TAOS_DEF_ERROR_CODE(0, 0x0332)
+#define TSDB_CODE_MND_INVALID_CLUSTER_CFG       TAOS_DEF_ERROR_CODE(0, 0x0333)
+#define TSDB_CODE_MND_INVALID_CLUSTER_ID        TAOS_DEF_ERROR_CODE(0, 0x0334)
+#define TSDB_CODE_MND_INVALID_DNODE_CFG         TAOS_DEF_ERROR_CODE(0, 0x0335)
+#define TSDB_CODE_MND_INVALID_DNODE_EP          TAOS_DEF_ERROR_CODE(0, 0x0336)
+#define TSDB_CODE_MND_INVALID_DNODE_ID          TAOS_DEF_ERROR_CODE(0, 0x0337)
+
+// mnode-vgroup
 #define TSDB_CODE_MND_VGROUP_NOT_EXIST          TAOS_DEF_ERROR_CODE(0, 0x0332)  //"VGroup does not exist")
-#define TSDB_CODE_MND_NO_REMOVE_MASTER          TAOS_DEF_ERROR_CODE(0, 0x0333)  //"Master DNode cannot be removed")
-#define TSDB_CODE_MND_NO_ENOUGH_DNODES          TAOS_DEF_ERROR_CODE(0, 0x0334)  //"Out of DNodes")
-#define TSDB_CODE_MND_CLUSTER_CFG_INCONSISTENT  TAOS_DEF_ERROR_CODE(0, 0x0335)  //"Cluster cfg inconsistent")
-#define TSDB_CODE_MND_INVALID_DNODE_CFG_OPTION  TAOS_DEF_ERROR_CODE(0, 0x0336)  //"Invalid dnode cfg option")
-#define TSDB_CODE_MND_BALANCE_ENABLED           TAOS_DEF_ERROR_CODE(0, 0x0337)  //"Balance already enabled")
 #define TSDB_CODE_MND_VGROUP_NOT_IN_DNODE       TAOS_DEF_ERROR_CODE(0, 0x0338)  //"Vgroup not in dnode")
 #define TSDB_CODE_MND_VGROUP_ALREADY_IN_DNODE   TAOS_DEF_ERROR_CODE(0, 0x0339)  //"Vgroup already in dnode")
-#define TSDB_CODE_MND_DNODE_NOT_FREE            TAOS_DEF_ERROR_CODE(0, 0x033A)  //"Dnode not avaliable")
-#define TSDB_CODE_MND_INVALID_CLUSTER_ID        TAOS_DEF_ERROR_CODE(0, 0x033B)  //"Cluster id not match")
 #define TSDB_CODE_MND_NOT_READY                 TAOS_DEF_ERROR_CODE(0, 0x033C)  //"Cluster not ready")
-#define TSDB_CODE_MND_DNODE_ID_NOT_CONFIGURED   TAOS_DEF_ERROR_CODE(0, 0x033D)  //"Dnode Id not configured")
-#define TSDB_CODE_MND_DNODE_EP_NOT_CONFIGURED   TAOS_DEF_ERROR_CODE(0, 0x033E)  //"Dnode Ep not configured")
 
+// mnode-acct
 #define TSDB_CODE_MND_ACCT_ALREADY_EXIST        TAOS_DEF_ERROR_CODE(0, 0x0340)  //"Account already exists")
 #define TSDB_CODE_MND_ACCT_NOT_EXIST            TAOS_DEF_ERROR_CODE(0, 0x0341)  //"Invalid account")
 #define TSDB_CODE_MND_INVALID_ACCT_OPTION       TAOS_DEF_ERROR_CODE(0, 0x0342)  //"Invalid account options")

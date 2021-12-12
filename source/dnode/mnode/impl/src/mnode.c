@@ -205,7 +205,6 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->cfg.sver = pOption->cfg.sver;
   pMnode->cfg.enableTelem = pOption->cfg.enableTelem;
   pMnode->cfg.statusInterval = pOption->cfg.statusInterval;
-  pMnode->cfg.mnodeEqualVnodeNum = pOption->cfg.mnodeEqualVnodeNum;
   pMnode->cfg.shellActivityTimer = pOption->cfg.shellActivityTimer;
   pMnode->cfg.timezone = strdup(pOption->cfg.timezone);
   pMnode->cfg.locale = strdup(pOption->cfg.locale);
@@ -215,7 +214,7 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
 
   if (pMnode->sendMsgToDnodeFp == NULL || pMnode->sendMsgToMnodeFp == NULL || pMnode->sendRedirectMsgFp == NULL ||
       pMnode->putMsgToApplyMsgFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0 ||
-      pMnode->cfg.statusInterval < 1 || pOption->cfg.mnodeEqualVnodeNum < 0) {
+      pMnode->cfg.statusInterval < 1) {
     terrno = TSDB_CODE_MND_INVALID_OPTIONS;
     return -1;
   }

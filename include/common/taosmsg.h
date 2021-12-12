@@ -670,7 +670,6 @@ typedef struct {
 
 typedef struct {
   int32_t statusInterval;
-  int32_t mnodeEqualVnodeNum;
   int64_t checkTime;                    // 1970-01-01 00:00:00.000
   char    timezone[TSDB_TIMEZONE_LEN];  // tsTimezone
   char    locale[TSDB_LOCALE_LEN];      // tsLocale
@@ -869,7 +868,7 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
-  char    config[128];
+  char    config[TSDB_DNODE_CONFIG_LEN];
 } SCfgDnodeMsg;
 
 typedef struct {

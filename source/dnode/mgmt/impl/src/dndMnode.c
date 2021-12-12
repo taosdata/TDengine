@@ -334,7 +334,6 @@ static void dndInitMnodeOption(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->cfg.sver = pDnode->opt.sver;
   pOption->cfg.enableTelem = pDnode->opt.enableTelem;
   pOption->cfg.statusInterval = pDnode->opt.statusInterval;
-  pOption->cfg.mnodeEqualVnodeNum = pDnode->opt.mnodeEqualVnodeNum;
   pOption->cfg.shellActivityTimer = pDnode->opt.shellActivityTimer;
   pOption->cfg.timezone = pDnode->opt.timezone;
   pOption->cfg.charset = pDnode->opt.charset;

@@ -357,7 +357,6 @@ static void dndSendStatusMsg(SDnode *pDnode) {
   tstrncpy(pStatus->dnodeEp, pDnode->opt.localEp, TSDB_EP_LEN);
 
   pStatus->clusterCfg.statusInterval = htonl(pDnode->opt.statusInterval);
-  pStatus->clusterCfg.mnodeEqualVnodeNum = htonl(pDnode->opt.mnodeEqualVnodeNum);
   pStatus->clusterCfg.checkTime = 0;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &pStatus->clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);

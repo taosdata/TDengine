@@ -92,7 +92,6 @@ typedef enum {
   DND_REASON_VERSION_NOT_MATCH,
   DND_REASON_DNODE_ID_NOT_MATCH,
   DND_REASON_CLUSTER_ID_NOT_MATCH,
-  DND_REASON_MN_EQUAL_VN_NOT_MATCH,
   DND_REASON_STATUS_INTERVAL_NOT_MATCH,
   DND_REASON_TIME_ZONE_NOT_MATCH,
   DND_REASON_LOCALE_NOT_MATCH,
@@ -125,6 +124,7 @@ typedef struct SDnodeObj {
   int64_t    createdTime;
   int64_t    updateTime;
   int64_t    rebootTime;
+  int64_t    lastAccessTime;
   int32_t    accessTimes;
   int16_t    numOfMnodes;
   int16_t    numOfVnodes;

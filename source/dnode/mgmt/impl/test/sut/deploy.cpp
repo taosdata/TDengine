@@ -57,7 +57,6 @@ void initOption(SDnodeOpt* pOption, const char* path, const char* fqdn, uint16_t
   pOption->numOfSupportVnodes = 1;
   pOption->numOfSupportQnodes = 1;
   pOption->statusInterval = 1;
-  pOption->mnodeEqualVnodeNum = 1;
   pOption->numOfThreadsPerCore = 1;
   pOption->ratioOfQueryCores = 1;
   pOption->maxShellConns = 1000;
