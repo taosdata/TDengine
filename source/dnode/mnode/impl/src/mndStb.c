@@ -240,7 +240,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateStbMsg *pCre
   tstrncpy(stbObj.db, pDb->name, TSDB_FULL_DB_NAME_LEN);
   stbObj.createdTime = taosGetTimestampMs();
   stbObj.updateTime = stbObj.createdTime;
-  stbObj.uid = 1234;
+  stbObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
   stbObj.version = 1;
   stbObj.numOfColumns = pCreate->numOfColumns;
   stbObj.numOfTags = pCreate->numOfTags;
@@ -340,11 +340,138 @@ static int32_t mndProcessCreateStbMsg(SMnodeMsg *pMsg) {
 
 static int32_t mndProcessCreateStbInRsp(SMnodeMsg *pMsg) { return 0; }
 
-static int32_t mndProcessAlterStbMsg(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndCheckAlterStbMsg(SAlterStbMsg *pAlter) {
+  SSchema *pSchema = &pAlter->schema;
+  pSchema->colId = htonl(pSchema->colId);
+  pSchema->bytes = htonl(pSchema->bytes);
+
+  if (pSchema->type <= 0) {
+    terrno = TSDB_CODE_MND_STB_INVALID_COL_TYPE;
+    return -1;
+  }
+  if (pSchema->colId < 0 || pSchema->colId >= (TSDB_MAX_COLUMNS + TSDB_MAX_TAGS)) {
+    terrno = TSDB_CODE_MND_STB_INVALID_COL_ID;
+    return -1;
+  }
+  if (pSchema->bytes <= 0) {
+    terrno = TSDB_CODE_MND_STB_INVALID_COL_BYTES;
+    return -1;
+  }
+  if (pSchema->name[0] == 0) {
+    terrno = TSDB_CODE_MND_STB_INVALID_COL_NAME;
+    return -1;
+  }
+
+  return 0;
+}
+
+static int32_t mndUpdateStb(SMnode *pMnode, SMnodeMsg *pMsg, SStbObj *pOldStb, SStbObj *pNewStb) { return 0; }
+
+static int32_t mndProcessAlterStbMsg(SMnodeMsg *pMsg) {
+  SMnode       *pMnode = pMsg->pMnode;
+  SAlterStbMsg *pAlter = pMsg->rpcMsg.pCont;
+
+  mDebug("stb:%s, start to alter", pAlter->name);
+
+  if (mndCheckAlterStbMsg(pAlter) != 0) {
+    mError("stb:%s, failed to alter since %s", pAlter->name, terrstr());
+    return -1;
+  }
+
+  SStbObj *pStb = mndAcquireStb(pMnode, pAlter->name);
+  if (pStb == NULL) {
+    terrno = TSDB_CODE_MND_STB_NOT_EXIST;
+    mError("stb:%s, failed to alter since %s", pAlter->name, terrstr());
+    return -1;
+  }
+
+  SStbObj stbObj = {0};
+  memcpy(&stbObj, pStb, sizeof(SStbObj));
+
+  int32_t code = mndUpdateStb(pMnode, pMsg, pStb, &stbObj);
+  mndReleaseStb(pMnode, pStb);
+
+  if (code != 0) {
+    mError("stb:%s, failed to alter since %s", pAlter->name, tstrerror(code));
+    return code;
+  }
+
+  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+}
 
 static int32_t mndProcessAlterStbInRsp(SMnodeMsg *pMsg) { return 0; }
 
-static int32_t mndProcessDropStbMsg(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndDropStb(SMnode *pMnode, SMnodeMsg *pMsg, SStbObj *pStb) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  if (pTrans == NULL) {
+    mError("stb:%s, failed to drop since %s", pStb->name, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to drop stb:%s", pTrans->id, pStb->name);
+
+  SSdbRaw *pRedoRaw = mndStbActionEncode(pStb);
+  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
+    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING);
+
+  SSdbRaw *pUndoRaw = mndStbActionEncode(pStb);
+  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) {
+    mError("trans:%d, failed to append undo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY);
+
+  SSdbRaw *pCommitRaw = mndStbActionEncode(pStb);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+
+  if (mndTransPrepare(pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
+}
+
+static int32_t mndProcessDropStbMsg(SMnodeMsg *pMsg) {
+  SMnode      *pMnode = pMsg->pMnode;
+  SDropStbMsg *pDrop = pMsg->rpcMsg.pCont;
+
+  mDebug("stb:%s, start to drop", pDrop->name);
+
+  SStbObj *pStb = mndAcquireStb(pMnode, pDrop->name);
+  if (pStb == NULL) {
+    if (pDrop->igNotExists) {
+      mDebug("stb:%s, not exist, ignore not exist is set", pDrop->name);
+      return 0;
+    } else {
+      terrno = TSDB_CODE_MND_STB_NOT_EXIST;
+      mError("stb:%s, failed to drop since %s", pDrop->name, terrstr());
+      return -1;
+    }
+  }
+
+  int32_t code = mndDropStb(pMnode, pMsg, pStb);
+  mndReleaseStb(pMnode, pStb);
+
+  if (code != 0) {
+    terrno = code;
+    mError("stb:%s, failed to drop since %s", pDrop->name, terrstr());
+    return -1;
+  }
+
+  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+}
 
 static int32_t mndProcessDropStbInRsp(SMnodeMsg *pMsg) { return 0; }
 

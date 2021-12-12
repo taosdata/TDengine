@@ -430,3 +430,10 @@ void mndProcessWriteMsg(SMnodeMsg *pMsg) { mndProcessRpcMsg(pMsg); }
 void mndProcessSyncMsg(SMnodeMsg *pMsg) { mndProcessRpcMsg(pMsg); }
 
 void mndProcessApplyMsg(SMnodeMsg *pMsg) {}
+
+uint64_t mndGenerateUid(char *name, int32_t len) {
+  int64_t  us = taosGetTimestampUs();
+  int32_t  hashval = MurmurHash3_32(name, len);
+  uint64_t x = (us & 0x000000FFFFFFFFFF) << 24;
+  return x + ((hashval & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+}
