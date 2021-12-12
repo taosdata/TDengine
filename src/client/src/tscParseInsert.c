@@ -638,8 +638,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
 
   int32_t extendedRowSize = getExtendedRowSize(pDataBlock);
 
-  if (TSDB_CODE_SUCCESS !=
-      (code = initMemRowBuilder(&pDataBlock->rowBuilder, 0, &pDataBlock->boundColumnInfo))) {
+  if (TSDB_CODE_SUCCESS != (code = initMemRowBuilder(&pDataBlock->rowBuilder, 0, &pDataBlock->boundColumnInfo))) {
     return code;
   }
   int32_t convertOffset = 0;
