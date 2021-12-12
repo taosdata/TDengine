@@ -17,8 +17,9 @@
 
 
 // prefix query, impl later
-static void* prefixStart(AutomationCtx *ctx) {
-  return NULL;
+static void* prefixStart(AutomationCtx *ctx) {  
+  StartWithStateValue *data = (StartWithStateValue *)(ctx->data);
+  return data;
 };
 static bool prefixIsMatch(AutomationCtx *ctx, void *data) {
   return true;
@@ -82,16 +83,24 @@ AutomationCtx* automCtxCreate(void *data, AutomationType type) {
   AutomationCtx *ctx = calloc(1, sizeof(AutomationCtx));
   if (ctx == NULL) { return NULL; }
 
-  ctx->type = type;
-  if (ctx->type == AUTOMATION_PREFIX) {
-
-  } else if (ctx->type == AUTMMATION_MATCH) {
-
+  if (type == AUTOMATION_PREFIX) {
+    StartWithStateValue *swsv = (StartWithStateValue *)calloc(1, sizeof(StartWithStateValue));   
+    swsv->kind  = Done; 
+    swsv->value = NULL; 
+    ctx->data = (void *)swsv;
+  } else if (type == AUTMMATION_MATCH) {
+      
   } else {
     // add more search type
   }
+
+  ctx->type = type;
   return ctx; 
 } 
 void automCtxDestroy(AutomationCtx *ctx) {
+  if (ctx->type == AUTOMATION_PREFIX) {
+    free(ctx->data);
+  } else if (ctx->type == AUTMMATION_MATCH) {
+  }
   free(ctx);
 }
