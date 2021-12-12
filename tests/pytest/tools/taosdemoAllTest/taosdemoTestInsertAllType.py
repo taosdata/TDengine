@@ -79,7 +79,61 @@ class TDTestCase:
         tdSql.checkData(0, 0, 200)
         tdSql.query("select count(*) from stb1")
         tdSql.checkData(0, 0, 200000)
-        
+
+         # insert-interface: sml
+        os.system("%staosdemo -f tools/taosdemoAllTest/sml/insert-allDataType-sml.json -y " % binPath)
+        tdSql.execute("use db")
+        tdSql.query("select count (tbname) from stb0")
+        tdSql.checkData(0, 0, 10)
+        tdSql.query("select count (tbname) from stb1")
+        tdSql.checkData(0, 0, 20)
+        tdSql.query("select last(ts) from db.stb00_0")
+        tdSql.checkData(0, 0, "2020-10-01 00:00:00.019000")   
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 200) 
+        tdSql.query("select last(ts) from db.stb01_0")
+        tdSql.checkData(0, 0, "2020-11-01 00:00:00.190000")   
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 400) 
+
+
+         # insert-interface: sml-json
+        os.system("%staosdemo -f tools/taosdemoAllTest/sml/insert-sml-json-alltype.json -y " % binPath)
+        tdSql.execute("use db")
+        tdSql.query("select count (tbname) from stb0")
+        tdSql.checkData(0, 0, 10)
+        tdSql.query("select count (tbname) from stb1")
+        tdSql.checkData(0, 0, 20)
+        tdSql.query("select last(ts) from db.stb00_0")
+        tdSql.checkData(0, 0, "2020-10-01 00:00:00.019000")   
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 200) 
+        tdSql.query("select last(ts) from db.stb01_0")
+        tdSql.checkData(0, 0, "2020-11-01 00:00:00.190000")   
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 400) 
+
+        # insert-interface: sml-telnet
+        os.system("%staosdemo -f tools/taosdemoAllTest/sml/insert-sml-telnet-alltype.json -y " % binPath)
+        tdSql.execute("use db")
+        tdSql.query("select count (tbname) from stb0")
+        tdSql.checkData(0, 0, 10)
+        tdSql.query("select count (tbname) from stb1")
+        tdSql.checkData(0, 0, 20)
+        tdSql.query("select last(ts) from db.stb00_0")
+        tdSql.checkData(0, 0, "2020-10-01 00:00:00.019000")   
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 200) 
+        tdSql.query("select last(ts) from db.stb01_0")
+        tdSql.checkData(0, 0, "2020-11-01 00:00:00.190000")   
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 400) 
+
+
+        # insert-interface: sml-telnet
+        assert os.system("%staosdemo -f tools/taosdemoAllTest/sml/insert-sml-timestamp.json -y " % binPath) !=0
+
+
         # taosdemo command line
         os.system("%staosdemo  -t 1000 -n 100 -T 10 -b INT,TIMESTAMP,BIGINT,FLOAT,DOUBLE,SMALLINT,TINYINT,BOOL,NCHAR,UINT,UBIGINT,UTINYINT,USMALLINT,BINARY  -y " % binPath)
         tdSql.execute("use test")
