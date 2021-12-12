@@ -3,7 +3,7 @@
 # Generate the deb package for ubuntu, or rpm package for centos, or tar.gz package for other linux os
 
 set -e
-#set -x
+set -x
 
 # release.sh  -v [cluster | edge]
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...]
@@ -414,10 +414,14 @@ fi
 
 if [[ "$httpdBuild" == "true" ]]; then
     BUILD_HTTP=true
-    BUILD_TOOLS=false
 else
     BUILD_HTTP=false
+fi
+
+if [[ "$pagMode" == "full" ]]; then
     BUILD_TOOLS=true
+else
+    BUILD_TOOLS=false
 fi
 
 # check support cpu type
@@ -514,15 +518,17 @@ if [ "$osType" != "Darwin" ]; then
       cd ${script_dir}/deb
       ${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
 
-      if [ -d ${top_dir}/src/kit/taos-tools/packaging/deb ]; then
-          cd ${top_dir}/src/kit/taos-tools/packaging/deb
-          [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
+      if [[ "$pagMode" == "full" ]]; then
+          if [ -d ${top_dir}/src/kit/taos-tools/packaging/deb ]; then
+              cd ${top_dir}/src/kit/taos-tools/packaging/deb
+              [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-          taos_tools_ver=$(git describe --tags|sed -e 's/ver-//g'|awk -F '-' '{print $1}')
-          ${csudo} ./make-taos-tools-deb.sh ${top_dir} \
-              ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
+              taos_tools_ver=$(git describe --tags|sed -e 's/ver-//g'|awk -F '-' '{print $1}')
+              ${csudo} ./make-taos-tools-deb.sh ${top_dir} \
+                  ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
+          fi
       fi
-    else
+  else
       echo "==========dpkg command not exist, so not release deb package!!!"
     fi
     ret='0'
@@ -537,15 +543,17 @@ if [ "$osType" != "Darwin" ]; then
       cd ${script_dir}/rpm
       ${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
 
-      if [ -d ${top_dir}/src/kit/taos-tools/packaging/rpm ]; then
-          cd ${top_dir}/src/kit/taos-tools/packaging/rpm
-          [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
+      if [[ "$pagMode" == "full" ]]; then
+          if [ -d ${top_dir}/src/kit/taos-tools/packaging/rpm ]; then
+              cd ${top_dir}/src/kit/taos-tools/packaging/rpm
+              [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-          taos_tools_ver=$(git describe --tags|sed -e 's/ver-//g'|awk -F '-' '{print $1}'|sed -e 's/-/_/g')
-          ${csudo} ./make-taos-tools-rpm.sh ${top_dir} \
-              ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
+              taos_tools_ver=$(git describe --tags|sed -e 's/ver-//g'|awk -F '-' '{print $1}'|sed -e 's/-/_/g')
+              ${csudo} ./make-taos-tools-rpm.sh ${top_dir} \
+                  ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
+          fi
       fi
-    else
+  else
       echo "==========rpmbuild command not exist, so not release rpm package!!!"
     fi
   fi
