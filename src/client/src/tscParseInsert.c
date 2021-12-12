@@ -41,9 +41,8 @@ enum {
 static int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t *numOfRows);
 static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDataColInfo *pColInfo, SSchema *pSchema,
                                  char *str, char **end);
-int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, uint32_t nBoundCols,
-                                 int32_t allNullLen) {
-  ASSERT(nRows >= 0 && nCols > 0 && (nBoundCols <= nCols));
+int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, SParsedDataColInfo *pColInfo) {
+  ASSERT(nRows >= 0 && pColInfo->numOfCols > 0 && (pColInfo->numOfBound <= pColInfo->numOfCols));
   if (nRows > 0) {
     // already init(bind multiple rows by single column)
     if (pBuilder->compareStat == ROW_COMPARE_NEED && (pBuilder->rowInfo != NULL)) {
@@ -52,11 +51,21 @@ int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint3
   }
 
   // default compareStat is  ROW_COMPARE_NO_NEED
-  if (nBoundCols == 0) {  // file input
+  if (pColInfo->numOfBound == 0) {  // file input
     pBuilder->memRowType = SMEM_ROW_DATA;
     return TSDB_CODE_SUCCESS;
+  } else if (pColInfo->extendedVarLen == 0) {
+    // all columns are NoVarType, we can calculate the memRowType precisely
+    uint32_t dataLen = pColInfo->allNullLen + TD_MEM_ROW_DATA_HEAD_SIZE;
+    uint32_t kvLen = TD_MEM_ROW_KV_HEAD_SIZE + pColInfo->numOfBound * sizeof(SColIdx) + pColInfo->boundColsLen;
+    if (isConvertToKvRow(kvLen, dataLen)) {
+      pBuilder->memRowType = SMEM_ROW_KV;
+    } else {
+      pBuilder->memRowType = SMEM_ROW_DATA;
+    }
+    return TSDB_CODE_SUCCESS;
   } else {
-    float boundRatio = ((float)nBoundCols / (float)nCols);
+    float boundRatio = ((float)pColInfo->numOfBound / (float)pColInfo->numOfCols);
 
     if (boundRatio < KVRatioKV) {
       pBuilder->memRowType = SMEM_ROW_KV;
@@ -74,7 +83,7 @@ int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint3
     }
   }
 
-  pBuilder->kvRowInitLen = TD_MEM_ROW_KV_HEAD_SIZE + nBoundCols * sizeof(SColIdx);
+  pBuilder->kvRowInitLen = TD_MEM_ROW_KV_HEAD_SIZE + pColInfo->numOfBound * sizeof(SColIdx);
 
   if (nRows > 0) {
     pBuilder->rowInfo = tcalloc(nRows, sizeof(SMemRowInfo));
@@ -83,7 +92,7 @@ int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint3
     }
 
     for (int i = 0; i < nRows; ++i) {
-      (pBuilder->rowInfo + i)->dataLen = TD_MEM_ROW_DATA_HEAD_SIZE + allNullLen;
+      (pBuilder->rowInfo + i)->dataLen = TD_MEM_ROW_DATA_HEAD_SIZE + pColInfo->allNullLen;
       (pBuilder->rowInfo + i)->kvLen = pBuilder->kvRowInitLen;
     }
   }
@@ -553,7 +562,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     // 2. check and set convert flag
     bool isNeedConvertRow = false;
     if (pBuilder->compareStat == ROW_COMPARE_NEED) {
-      isNeedConvertRow = checkAndConvertMemRow(row, dataLen, kvLen);
+      isNeedConvertRow = checkConvertMemRow(row, dataLen, kvLen);
     }
 
     // 3. set the null value for the columns that do not assign values
@@ -630,9 +639,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
 
   int32_t extendedRowSize = getExtendedRowSize(pDataBlock);
 
-  if (TSDB_CODE_SUCCESS !=
-      (code = initMemRowBuilder(&pDataBlock->rowBuilder, 0, tinfo.numOfColumns, pDataBlock->boundColumnInfo.numOfBound,
-                                pDataBlock->boundColumnInfo.allNullLen))) {
+  if (TSDB_CODE_SUCCESS != (code = initMemRowBuilder(&pDataBlock->rowBuilder, 0, &pDataBlock->boundColumnInfo))) {
     return code;
   }
   int32_t convertOffset = 0;
@@ -1270,6 +1277,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
         pColInfo->cols[t].valStat = VAL_STAT_HAS;
         pColInfo->boundedColumns[pColInfo->numOfBound] = t;
         ++pColInfo->numOfBound;
+        pColInfo->boundColsLen += pSchema[t].bytes;
         findColumnIndex = true;
         if (isOrdered && (lastColIdx > t)) {
           isOrdered = false;
@@ -1293,6 +1301,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
           pColInfo->cols[t].valStat = VAL_STAT_HAS;
           pColInfo->boundedColumns[pColInfo->numOfBound] = t;
           ++pColInfo->numOfBound;
+          pColInfo->boundColsLen += pSchema[t].bytes;
           findColumnIndex = true;
           if (isOrdered && (lastColIdx > t)) {
             isOrdered = false;
