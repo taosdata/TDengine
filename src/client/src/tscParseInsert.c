@@ -419,7 +419,8 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
   int32_t   index = 0;
   SStrToken sToken = {0};
 
-  char *              row = pDataBlocks->pData + pDataBlocks->size;  // skip the SSubmitBlk header
+  char *row = pDataBlocks->pData + pDataBlocks->size;  // skip the SSubmitBlk header
+
   SParsedDataColInfo *spd = &pDataBlocks->boundColumnInfo;
   STableMeta *        pTableMeta = pDataBlocks->pTableMeta;
   SSchema *           schema = tscGetTableSchema(pTableMeta);
