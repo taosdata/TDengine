@@ -15,7 +15,7 @@
 
 #include "vnodeDef.h"
 
-const SVnodeCfg defaultVnodeOptions = {0}; /* TODO */
+const SVnodeCfg defaultVnodeOptions = {.wsize = 16*1024*1024, .walCfg = {.walLevel = TAOS_WAL_WRITE}}; /* TODO */
 
 void vnodeOptionsInit(SVnodeCfg *pVnodeOptions) { /* TODO */
   vnodeOptionsCopy(pVnodeOptions, &defaultVnodeOptions);
