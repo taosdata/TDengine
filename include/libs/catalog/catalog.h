@@ -30,6 +30,19 @@ extern "C" {
 
 struct SCatalog;
 
+typedef struct SVgroupInfo {
+  int32_t    vgId;
+  int8_t     numOfEps;
+  SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
+} SVgroupInfo;
+
+typedef struct SDBVgroupInfo {
+  int32_t vgroupVersion;
+  SArray *vgId;
+  int32_t hashRange;
+  int32_t hashNum;
+} SDBVgroupInfo;
+
 typedef struct SCatalogReq {
   char    clusterId[TSDB_CLUSTER_ID_LEN];  //????
   SArray *pTableName;     // table full name
@@ -38,8 +51,8 @@ typedef struct SCatalogReq {
 } SCatalogReq;
 
 typedef struct SCatalogRsp {
-  SArray    *pTableMeta;  // tableMeta
-  SArray    *pVgroupInfo; // vgroupInfo list
+  SArray    *pTableMeta;  // STableMeta array
+  SArray    *pVgroupInfo; // SVgroupInfo list
   SArray    *pUdfList;    // udf info list
   SEpSet    *pEpSet;      // qnode epset list
 } SCatalogRsp;
@@ -78,11 +91,6 @@ typedef struct STableMeta {
   SSchema        schema[];
 } STableMeta;
 
-typedef struct SCatalogCfg {
-
-} SCatalogCfg;
-
-
 int32_t catalogInit(SCatalog *cfg);
 
 /**
@@ -91,9 +99,19 @@ int32_t catalogInit(SCatalog *cfg);
  * @param clusterId
  * @return
  */
-struct SCatalog* catalogGetHandle(const char *clusterId);
+int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle);
 
-int32_t catalogGetTableMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const char* pTableName, const STagData* tagData, STableMeta* pTableMeta);
+int32_t catalogGetVgroupVersion(struct SCatalog* pCatalog, int32_t* version);
+
+int32_t catalogUpdateVgroupList(struct SCatalog* pCatalog, int32_t version, SArray* vgroupList);
+
+int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName, int32_t* version);
+
+int32_t catalogGetDBVgroupInfo(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
+
+int32_t catalogUpdateDBVgroupInfo(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
+
+int32_t catalogGetTableMeta(struct SCatalog* pCatalog, SRpcObj *pRpcObj, const SEpSet* pMgmtEps, const char* pTableName, const STagData* tagData, STableMeta* pTableMeta);
 
 
 /**

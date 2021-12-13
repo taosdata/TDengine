@@ -214,6 +214,12 @@ typedef enum _mgmt_table {
 
 extern char *taosMsg[];
 
+typedef struct SBuildTableMetaInput {
+  int32_t   vgId;
+  STagData *tagData;
+  char     *tableFullName;
+} SBuildTableMetaInput;
+
 #pragma pack(push, 1)
 
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
@@ -768,6 +774,7 @@ typedef struct {
 } SStableInfoMsg;
 
 typedef struct {
+  SMsgHead  msgHead;
   char   tableFname[TSDB_TABLE_FNAME_LEN];
   int8_t createFlag;
   char   tags[];

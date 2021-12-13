@@ -17,14 +17,16 @@
 
 #include "taosmsg.h"
 
-int32_t (*tscBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize) = {0};
+int32_t (*tscBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen) = {0};
 
 int32_t (*tscProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize) = {0};
 
 
 void msgInit() {
-  tscBuildMsg[TSDB_MSG_TYPE_TABLE_META] = buildTableMetaReqMsg;
-  
+  tscBuildMsg[TSDB_MSG_TYPE_TABLE_META] = tscBuildTableMetaReqMsg;
+
+
+
   tscProcessMsgRsp[TSDB_MSG_TYPE_TABLE_META] = ;
 
 /*
@@ -102,6 +104,65 @@ void msgInit() {
   tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_DATABASE] = tscProcessShowCreateRsp;
 */
 }
+
+
+char* msgSerializeTagData(STagData* pTagData, char* pMsg) {
+  int32_t n = (int32_t) strlen(pTagData->name);
+  *(int32_t*) pMsg = htonl(n);
+  pMsg += sizeof(n);
+
+  memcpy(pMsg, pTagData->name, n);
+  pMsg += n;
+
+  *(int32_t*)pMsg = htonl(pTagData->dataLen);
+  pMsg += sizeof(int32_t);
+
+  memcpy(pMsg, pTagData->data, pTagData->dataLen);
+  pMsg += pTagData->dataLen;
+
+  return pMsg;
+}
+
+
+int32_t tscBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int32_t *msgLen) {
+  if (NULL == input || NULL == msg || NULL == msgLen) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SBuildTableMetaInput* bInput = (SBuildTableMetaInput *)input;
+
+  int32_t estimateSize = sizeof(STableInfoMsg) + (bInput->tagData ? (sizeof(*bInput->tagData) + bInput->tagData->dataLen) : 0);
+  if (NULL == *msg || msgSize < estimateSize) {
+    tfree(*msg);
+    *msg = calloc(1, estimateSize);
+    if (NULL == *msg) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+  }
+
+  STableInfoMsg *bMsg = (STableInfoMsg *)*msg;
+
+  bMsg->msgHead.vgId = bInput->vgId;
+
+  strncpy(bMsg->tableFname, bInput->tableFullName, sizeof(bMsg->tableFname));
+  bMsg->tableFname[sizeof(bMsg->tableFname) - 1] = 0;
+
+  int32_t autoCreate = (bInput->tagData && bInput->tagData->dataLen > 0);
+  
+  bMsg->createFlag = htons(autoCreate ? 1 : 0);
+  
+  char *pMsg = NULL;
+
+  // tag data exists
+  if (autoCreate) {
+    pMsg = msgSerializeTagData(bInput->tagData, (char *)bMsg->tags);
+  }
+
+  *msgLen = (int32_t)(pMsg - (char*)bMsg);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 
 

@@ -24,8 +24,6 @@ int32_t catalogInit(SCatalog *cfg) {
     CTG_ERR_LRET(TSDB_CODE_CTG_INTERNAL_EROR, "init %d cluster cache failed", CTG_DEFAULT_CLUSTER_NUMBER);
   }
 
-  ctgGetVnodeInfo();
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -62,11 +60,31 @@ struct SCatalog* catalogGetHandle(const char *clusterId) {
   return clusterCtg;
 }
 
-int32_t catalogGetTableMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const char* pTableName, STableMeta* pTableMeta) {
+int32_t catalogGetTableMeta(struct SCatalog* pCatalog, SRpcObj *pRpcObj, const SEpSet* pMgmtEps, const char* pTableName, const STagData* tagData, STableMeta* pTableMeta) {
   if (NULL == pCatalog || NULL == pMgmtEps || NULL == pTableName || NULL == pTableMeta) {
     return TSDB_CODE_CTG_INVALID_INPUT;
   }
 
+  SBuildTableMetaInput bInput = {0};
+  char *msg = NULL;
+  SEpSet *pVnodeEpSet = NULL;
+  int32_t msgLen = 0;
+
+  int32_t code = tscBuildMsg[TSDB_MSG_TYPE_TABLE_META](&bInput, &msg, 0, &msgLen);
+  if (code) {
+    return code;
+  }
+
+  SRpcMsg rpcMsg = {
+      .msgType = TSDB_MSG_TYPE_TABLE_META,
+      .pCont   = msg,
+      .contLen = msgLen,
+      .ahandle = (void*)pSql->self,
+      .handle  = NULL,
+      .code    = 0
+  };
+
+  rpcSendRequest(pRpcObj->pDnodeConn, pVnodeEpSet, &rpcMsg, &pSql->rpcRid);
 }
 
 

@@ -117,6 +117,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TSC_INVALID_JSON              TAOS_DEF_ERROR_CODE(0, 0x0221)  //"Invalid JSON format")
 #define TSDB_CODE_TSC_INVALID_JSON_TYPE         TAOS_DEF_ERROR_CODE(0, 0x0222)  //"Invalid JSON data type")
 #define TSDB_CODE_TSC_VALUE_OUT_OF_RANGE        TAOS_DEF_ERROR_CODE(0, 0x0223)  //"Value out of range")
+#define TSDB_CODE_TSC_INVALID_INPUT             TAOS_DEF_ERROR_CODE(0, 0X0224)  //"Invalid tsc input")
 
 // mnode
 #define TSDB_CODE_MND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0300)

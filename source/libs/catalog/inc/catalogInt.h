@@ -24,8 +24,24 @@ extern "C" {
 
 #define CTG_DEFAULT_CLUSTER_NUMBER 3
 
-typedef struct SCatalog {
+typedef struct SVgroupListCache {
+  int32_t vgroupNum;
+  int32_t vgroupVersion;
+  SHashObj *cache;      //key:vgId, value:SVgroupInfo
+} SVgroupListCache;
 
+typedef struct SDBVgroupCache {
+  SHashObj *cache;      //key:dbname, value:SDBVgroupInfo
+} SDBVgroupCache;
+
+typedef struct STableMetaCache {
+  SHashObj *cache;     //key:fulltablename, value:STableMeta
+} STableMetaCache;
+
+typedef struct SCatalog {
+  SVgroupListCache vgroupCache;
+  SDBVgroupCache dbCache;
+  STableMetaCache tableCache;
 } SCatalog;
 
 typedef struct SCatalogMgmt {
