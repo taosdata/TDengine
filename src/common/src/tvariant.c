@@ -16,6 +16,7 @@
 
 #include "hash.h"
 #include "taos.h"
+#include "taoserror.h"
 #include "taosdef.h"
 #include "ttoken.h"
 #include "ttokendef.h"
@@ -24,6 +25,10 @@
 #include "tvariant.h"
 
 void tVariantCreate(tVariant *pVar, SStrToken *token) {
+  tVariantCreateExt(pVar, token, TK_ID);
+}
+
+void tVariantCreateExt(tVariant *pVar, SStrToken *token, int32_t optrType) {
   int32_t ret = 0;
   int32_t type = token->type;
 
@@ -47,7 +52,7 @@ void tVariantCreate(tVariant *pVar, SStrToken *token) {
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_INT:{
       ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, true);
-      if (ret != 0) {
+      if (ret != TSDB_CODE_SUCCESS) {
         SStrToken t = {0};
         tGetToken(token->z, &t.type);
         if (t.type == TK_MINUS) {  // it is a signed number which is greater than INT64_MAX or less than INT64_MIN
@@ -57,7 +62,7 @@ void tVariantCreate(tVariant *pVar, SStrToken *token) {
 
         // data overflow, try unsigned parse the input number
         ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, false);
-        if (ret != 0) {
+        if (ret != TSDB_CODE_SUCCESS) {
           pVar->nType = -1;   // -1 means error type
           return;
         }
@@ -78,15 +83,29 @@ void tVariantCreate(tVariant *pVar, SStrToken *token) {
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP: {
-      pVar->i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);                           
-      break;                             
-    }                            
-    
+      if (optrType == TK_NOW) {
+        pVar->i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+      } else if (optrType == TK_PLUS || optrType == TK_MINUS) {
+        char unit = 0;
+        ret = parseAbsoluteDuration(token->z, token->n, &pVar->i64, &unit, TSDB_TIME_PRECISION_NANO);
+        if (ret != TSDB_CODE_SUCCESS) {
+          pVar->nType = -1;   // -1 means error type
+          return;
+        }
+        if (optrType == TK_PLUS) {
+          pVar->i64 += taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+        } else {
+          pVar->i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO) - pVar->i64;
+        }
+      }
+      break;
+    }
+
     default: {  // nType == 0 means the null value
       type = TSDB_DATA_TYPE_NULL;
     }
   }
-  
+
   pVar->nType = type;
 }
 

@@ -41,6 +41,8 @@ bool tVariantIsValid(tVariant *pVar);
 
 void tVariantCreate(tVariant *pVar, SStrToken *token);
 
+void tVariantCreateExt(tVariant *pVar, SStrToken *token, int32_t optrType);
+
 void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32_t type);
 
 void tVariantDestroy(tVariant *pV);
