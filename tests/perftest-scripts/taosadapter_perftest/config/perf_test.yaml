@@ -4,7 +4,7 @@ clean_env: True
 hostname_prefix: vm
 timeout: 10
 taosd_dnode1: 
-  ip: 192.168.1.189
+  ip: 192.168.1.188
   port: 22
   username: root
   password: tbase125!
@@ -14,7 +14,7 @@ taosd_dnode1:
     logDir: /data/log/taos
 
 
-taosd_cluster: True
+taosd_cluster: False
 taosadapter_separate_deploy: True
 taosd_dnode2: 
   ip: 192.168.1.101
@@ -32,9 +32,12 @@ prometheus:
   port: 22
   username: root
   password: cpwu101
-  download_addr: https://github.com/prometheus/prometheus/releases/download/v2.31.1/prometheus-2.31.1.linux-amd64.tar.gz
-  node_exporter: https://github.com/prometheus/node_exporter/releases/download/v1.3.0/node_exporter-1.3.0.linux-amd64.tar.gz
-  process_exporter: https://github.com/ncabatoff/process-exporter/releases/download/v0.7.10/process-exporter-0.7.10.linux-amd64.tar.gz
+  scrape_interval: 3s
+  evaluation_interval: 1s
+  scrape_timeout: 3s
+  prometheus_addr: http://39.105.163.10:9000/prometheus-2.31.1.linux-amd64.tar.gz
+  node_exporter_addr: http://39.105.163.10:9000/node_exporter-1.3.0.linux-amd64.tar.gz
+  process_exporter_addr: http://39.105.163.10:9000/process-exporter-0.7.10.linux-amd64.tar.gz
 
 grafana:
   autodeploy: True
