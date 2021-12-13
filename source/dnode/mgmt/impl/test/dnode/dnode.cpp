@@ -24,15 +24,15 @@ class DndTestDnode : public ::testing::Test {
   }
 
   static void SetUpTestSuite() {
-    initLog("/tmp/dndTestDnode1");
+    initLog("/tmp/dndTestDnode");
 
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9521";
     pServer1 = CreateServer("/tmp/dndTestDnode1", fqdn, 9521, firstEp);
     pServer2 = CreateServer("/tmp/dndTestDnode2", fqdn, 9522, firstEp);
-    // pServer3 = CreateServer("/tmp/dndTestDnode3", fqdn, 9523, firstEp);
-    // pServer4 = CreateServer("/tmp/dndTestDnode4", fqdn, 9524, firstEp);
-    // pServer5 = CreateServer("/tmp/dndTestDnode5", fqdn, 9525, firstEp);
+    pServer3 = CreateServer("/tmp/dndTestDnode3", fqdn, 9523, firstEp);
+    pServer4 = CreateServer("/tmp/dndTestDnode4", fqdn, 9524, firstEp);
+    pServer5 = CreateServer("/tmp/dndTestDnode5", fqdn, 9525, firstEp);
     pClient = createClient("root", "taosdata", fqdn, 9521);
     taosMsleep(300);
   }
@@ -58,7 +58,6 @@ class DndTestDnode : public ::testing::Test {
   void TearDown() override {}
 
   void SendTheCheckShowMetaMsg(int8_t showType, const char* showName, int32_t columns) {
-    //--- meta ---
     SShowMsg* pShow = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
     pShow->type = showType;
     strcpy(pShow->db, "");
@@ -108,7 +107,7 @@ class DndTestDnode : public ::testing::Test {
     EXPECT_STREQ(pSchema->name, name);
   }
 
-  void SendThenCheckShowRetrieveMsg(int32_t rows) {
+  void SendThenCheckShowRetrieveMsg(int32_t rows, int32_t completed) {
     SRetrieveTableMsg* pRetrieve = (SRetrieveTableMsg*)rpcMallocCont(sizeof(SRetrieveTableMsg));
     pRetrieve->showId = htonl(showId);
     pRetrieve->free = 0;
@@ -134,7 +133,7 @@ class DndTestDnode : public ::testing::Test {
     EXPECT_EQ(pRetrieveRsp->numOfRows, rows);
     EXPECT_EQ(pRetrieveRsp->offset, 0);
     EXPECT_EQ(pRetrieveRsp->useconds, 0);
-    EXPECT_EQ(pRetrieveRsp->completed, 1);
+    EXPECT_EQ(pRetrieveRsp->completed, completed);
     EXPECT_EQ(pRetrieveRsp->precision, TSDB_TIME_PRECISION_MILLI);
     EXPECT_EQ(pRetrieveRsp->compressed, 0);
     EXPECT_EQ(pRetrieveRsp->reserved, 0);
@@ -193,7 +192,7 @@ TEST_F(DndTestDnode, ShowDnode) {
   CheckSchema(5, TSDB_DATA_TYPE_TIMESTAMP, 8, "create time");
   CheckSchema(6, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "offline reason");
 
-  SendThenCheckShowRetrieveMsg(1);
+  SendThenCheckShowRetrieveMsg(1, 1);
   CheckInt16(1);
   CheckBinary("localhost:9521", TSDB_EP_LEN);
   CheckInt16(0);
@@ -201,6 +200,22 @@ TEST_F(DndTestDnode, ShowDnode) {
   CheckBinary("ready", 10);
   CheckTimestamp();
   CheckBinary("", 24);
+}
+
+TEST_F(DndTestDnode, ConfigDnode_01) {
+  SCfgDnodeMsg* pReq = (SCfgDnodeMsg*)rpcMallocCont(sizeof(SCfgDnodeMsg));
+  pReq->dnodeId = htonl(1);
+  strcpy(pReq->config, "ddebugflag 131");
+
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.pCont = pReq;
+  rpcMsg.contLen = sizeof(SCfgDnodeMsg);
+  rpcMsg.msgType = TSDB_MSG_TYPE_CONFIG_DNODE;
+
+  sendMsg(pClient, &rpcMsg);
+  SRpcMsg* pMsg = pClient->pRsp;
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_EQ(pMsg->code, 0);
 }
 
 TEST_F(DndTestDnode, CreateDnode_01) {
@@ -219,7 +234,7 @@ TEST_F(DndTestDnode, CreateDnode_01) {
 
   taosMsleep(1300);
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
-  SendThenCheckShowRetrieveMsg(2);
+  SendThenCheckShowRetrieveMsg(2, 1);
   CheckInt16(1);
   CheckInt16(2);
   CheckBinary("localhost:9521", TSDB_EP_LEN);
@@ -236,135 +251,107 @@ TEST_F(DndTestDnode, CreateDnode_01) {
   CheckBinary("", 24);
 }
 
-#if 0
-TEST_F(DndTestDnode, AlterUser_01) {
-  ASSERT_NE(pClient, nullptr);
-
-  //--- drop user ---
-  SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(sizeof(SAlterUserMsg));
-  strcpy(pReq->user, "u1");
-  strcpy(pReq->pass, "p2");
+TEST_F(DndTestDnode, DropDnode_01) {
+  SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(sizeof(SDropDnodeMsg));
+  pReq->dnodeId = htonl(2);
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SAlterUserMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_ALTER_USER;
+  rpcMsg.contLen = sizeof(SDropDnodeMsg);
+  rpcMsg.msgType = TSDB_MSG_TYPE_DROP_DNODE;
 
   sendMsg(pClient, &rpcMsg);
   SRpcMsg* pMsg = pClient->pRsp;
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, 0);
 
-  //--- meta ---
-  SShowMsg* pShow = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
-  pShow->type = TSDB_MGMT_TABLE_USER;
-  SRpcMsg showRpcMsg = {0};
-  showRpcMsg.pCont = pShow;
-  showRpcMsg.contLen = sizeof(SShowMsg);
-  showRpcMsg.msgType = TSDB_MSG_TYPE_SHOW;
-
-  sendMsg(pClient, &showRpcMsg);
-  SShowRsp*      pShowRsp = (SShowRsp*)pClient->pRsp->pCont;
-  STableMetaMsg* pMeta = &pShowRsp->tableMeta;
-  pMeta->numOfColumns = htons(pMeta->numOfColumns);
-  EXPECT_EQ(pMeta->numOfColumns, 4);
-
-  //--- retrieve ---
-  SRetrieveTableMsg* pRetrieve = (SRetrieveTableMsg*)rpcMallocCont(sizeof(SRetrieveTableMsg));
-  pRetrieve->showId = pShowRsp->showId;
-  SRpcMsg retrieveRpcMsg = {0};
-  retrieveRpcMsg.pCont = pRetrieve;
-  retrieveRpcMsg.contLen = sizeof(SRetrieveTableMsg);
-  retrieveRpcMsg.msgType = TSDB_MSG_TYPE_SHOW_RETRIEVE;
-
-  sendMsg(pClient, &retrieveRpcMsg);
-  SRetrieveTableRsp* pRetrieveRsp = (SRetrieveTableRsp*)pClient->pRsp->pCont;
-  pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
-  EXPECT_EQ(pRetrieveRsp->numOfRows, 3);
-
-  char*   pData = pRetrieveRsp->data;
-  int32_t pos = 0;
-  char*   strVal = NULL;
-
-  //--- name ---
-  {
-    pos += sizeof(VarDataLenT);
-    strVal = (char*)(pData + pos);
-    pos += TSDB_USER_LEN;
-    EXPECT_STREQ(strVal, "u1");
-
-    pos += sizeof(VarDataLenT);
-    strVal = (char*)(pData + pos);
-    pos += TSDB_USER_LEN;
-    EXPECT_STREQ(strVal, "root");
-
-    pos += sizeof(VarDataLenT);
-    strVal = (char*)(pData + pos);
-    pos += TSDB_USER_LEN;
-    EXPECT_STREQ(strVal, "_root");
-  }
+  taosMsleep(1300);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
+  SendThenCheckShowRetrieveMsg(1, 0);
+  CheckInt16(1);
+  CheckBinary("localhost:9521", TSDB_EP_LEN);
+  CheckInt16(0);
+  CheckInt16(1);
+  CheckBinary("ready", 10);
+  CheckTimestamp();
+  CheckBinary("", 24);
 }
 
-TEST_F(DndTestDnode, DropUser_01) {
-  ASSERT_NE(pClient, nullptr);
-
-  //--- drop user ---
-  SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(sizeof(SDropUserMsg));
-  strcpy(pReq->user, "u1");
-
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SDropUserMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_DROP_USER;
-
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
-
-  //--- meta ---
-  SShowMsg* pShow = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
-  pShow->type = TSDB_MGMT_TABLE_USER;
-  SRpcMsg showRpcMsg = {0};
-  showRpcMsg.pCont = pShow;
-  showRpcMsg.contLen = sizeof(SShowMsg);
-  showRpcMsg.msgType = TSDB_MSG_TYPE_SHOW;
-
-  sendMsg(pClient, &showRpcMsg);
-  SShowRsp*      pShowRsp = (SShowRsp*)pClient->pRsp->pCont;
-  STableMetaMsg* pMeta = &pShowRsp->tableMeta;
-  pMeta->numOfColumns = htons(pMeta->numOfColumns);
-  EXPECT_EQ(pMeta->numOfColumns, 4);
-
-  //--- retrieve ---
-  SRetrieveTableMsg* pRetrieve = (SRetrieveTableMsg*)rpcMallocCont(sizeof(SRetrieveTableMsg));
-  pRetrieve->showId = pShowRsp->showId;
-  SRpcMsg retrieveRpcMsg = {0};
-  retrieveRpcMsg.pCont = pRetrieve;
-  retrieveRpcMsg.contLen = sizeof(SRetrieveTableMsg);
-  retrieveRpcMsg.msgType = TSDB_MSG_TYPE_SHOW_RETRIEVE;
-
-  sendMsg(pClient, &retrieveRpcMsg);
-  SRetrieveTableRsp* pRetrieveRsp = (SRetrieveTableRsp*)pClient->pRsp->pCont;
-  pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
-  EXPECT_EQ(pRetrieveRsp->numOfRows, 2);
-
-  char*   pData = pRetrieveRsp->data;
-  int32_t pos = 0;
-  char*   strVal = NULL;
-
-  //--- name ---
+TEST_F(DndTestDnode, CreateDnode_02) {
   {
-    pos += sizeof(VarDataLenT);
-    strVal = (char*)(pData + pos);
-    pos += TSDB_USER_LEN;
-    EXPECT_STREQ(strVal, "root");
+    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
+    strcpy(pReq->ep, "localhost:9523");
 
-    pos += sizeof(VarDataLenT);
-    strVal = (char*)(pData + pos);
-    pos += TSDB_USER_LEN;
-    EXPECT_STREQ(strVal, "_root");
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SCreateDnodeMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DNODE;
+
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
   }
-}
 
-#endif
+  {
+    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
+    strcpy(pReq->ep, "localhost:9524");
+
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SCreateDnodeMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DNODE;
+
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
+
+  {
+    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
+    strcpy(pReq->ep, "localhost:9525");
+
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SCreateDnodeMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DNODE;
+
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
+
+  taosMsleep(1300);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
+  SendThenCheckShowRetrieveMsg(4, 0);
+  CheckInt16(1);
+  CheckInt16(3);
+  CheckInt16(4);
+  CheckInt16(5);
+  CheckBinary("localhost:9521", TSDB_EP_LEN);
+  CheckBinary("localhost:9523", TSDB_EP_LEN);
+  CheckBinary("localhost:9524", TSDB_EP_LEN);
+  CheckBinary("localhost:9525", TSDB_EP_LEN);
+  CheckInt16(0);
+  CheckInt16(0);
+  CheckInt16(0);
+  CheckInt16(0);
+  CheckInt16(1);
+  CheckInt16(1);
+  CheckInt16(1);
+  CheckInt16(1);
+  CheckBinary("ready", 10);
+  CheckBinary("ready", 10);
+  CheckBinary("ready", 10);
+  CheckBinary("ready", 10);
+  CheckTimestamp();
+  CheckTimestamp();
+  CheckTimestamp();
+  CheckTimestamp();
+  CheckBinary("", 24);
+  CheckBinary("", 24);
+  CheckBinary("", 24);
+  CheckBinary("", 24);
+}

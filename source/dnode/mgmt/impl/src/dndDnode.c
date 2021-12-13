@@ -281,9 +281,8 @@ PRASE_DNODE_OVER:
   if (pMgmt->dnodeEps == NULL) {
     pMgmt->dnodeEps = calloc(1, sizeof(SDnodeEps) + sizeof(SDnodeEp));
     pMgmt->dnodeEps->num = 1;
-    pMgmt->dnodeEps->eps[0].isMnode = 1;
-    pMgmt->dnodeEps->eps[0].port = pDnode->opt.serverPort;
-    tstrncpy(pMgmt->dnodeEps->eps[0].fqdn, pDnode->opt.localFqdn, TSDB_FQDN_LEN);
+    pMgmt->dnodeEps->eps[0].isMnode = 1;   
+    taosGetFqdnPortFromEp(pDnode->opt.firstEp, pMgmt->dnodeEps->eps[0].fqdn, &pMgmt->dnodeEps->eps[0].port);
   }
 
   dndResetDnodes(pDnode, pMgmt->dnodeEps);
@@ -371,6 +370,8 @@ void dndSendStatusMsg(SDnode *pDnode) {
 
   SRpcMsg rpcMsg = {.pCont = pStatus, .contLen = contLen, .msgType = TSDB_MSG_TYPE_STATUS};
   pMgmt->statusSent = 1;
+
+  dTrace("pDnode:%p, send status msg to mnode", pDnode);
   dndSendMsgToMnode(pDnode, &rpcMsg);
 }
 
@@ -447,7 +448,7 @@ static void dndProcessAuthRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) { a
 static void dndProcessGrantRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) { assert(1); }
 
 static void dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pMsg) {
-  dDebug("config msg is received");
+  dError("config msg is received, but not supported yet");
   SCfgDnodeMsg *pCfg = pMsg->pCont;
 
   int32_t code = TSDB_CODE_OPS_NOT_SUPPORT;
@@ -476,11 +477,11 @@ static void *dnodeThreadRoutine(void *param) {
 
   while (true) {
     pthread_testcancel();
+    taosMsleep(ms);
 
     if (dndGetStat(pDnode) == DND_STAT_RUNNING && !pMgmt->statusSent) {
       dndSendStatusMsg(pDnode);
     }
-    taosMsleep(ms);
   }
 }
 
@@ -584,4 +585,5 @@ void dndProcessDnodeRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
     default:
       dError("RPC %p, dnode rsp:%s not processed", pMsg->handle, taosMsg[pMsg->msgType]);
   }
+  rpcFreeCont(pMsg->pCont);
 }

@@ -196,7 +196,7 @@ SDnode *dndInit(SDnodeOpt *pOption) {
   dndSetStat(pDnode, DND_STAT_RUNNING);
   dndSendStatusMsg(pDnode);
   dndReportStartup(pDnode, "TDengine", "initialized successfully");
-  dInfo("TDengine is initialized successfully");
+  dInfo("TDengine is initialized successfully, pDnode:%p", pDnode);
 
   return pDnode;
 }

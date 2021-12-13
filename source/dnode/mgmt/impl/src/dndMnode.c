@@ -559,9 +559,12 @@ static void dndProcessMnodeMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
       break;
   }
 
-  SRpcMsg rsp = {.code = code, .handle = pMsg->handle};
-  rpcSendResponse(&rsp);
+  if (pMsg->msgType & 1u) {
+    SRpcMsg rsp = {.code = code, .handle = pMsg->handle};
+    rpcSendResponse(&rsp);
+  }
   rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = NULL;
   taosFreeQitem(pMsg);
 }
 
@@ -645,9 +648,12 @@ void dndProcessMnodeMgmtMsg(SDnode *pDnode, SRpcMsg *pRpcMsg, SEpSet *pEpSet) {
 
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg));
   if (pMsg == NULL || taosWriteQitem(pMgmt->pMgmtQ, pMsg) != 0) {
-    SRpcMsg rsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_OUT_OF_MEMORY};
-    rpcSendResponse(&rsp);
+    if (pRpcMsg->msgType & 1u) {
+      SRpcMsg rsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_OUT_OF_MEMORY};
+      rpcSendResponse(&rsp);
+    }
     rpcFreeCont(pRpcMsg->pCont);
+    pRpcMsg->pCont = NULL;
     taosFreeQitem(pMsg);
   }
 }
@@ -656,9 +662,12 @@ void dndProcessMnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   SMnode     *pMnode = dndAcquireMnode(pDnode);
   if (pMnode == NULL || dndWriteMnodeMsgToQueue(pMnode, pMgmt->pWriteQ, pMsg) != 0) {
-    SRpcMsg rsp = {.handle = pMsg->handle, .code = terrno};
-    rpcSendResponse(&rsp);
+    if (pMsg->msgType & 1u) {
+      SRpcMsg rsp = {.handle = pMsg->handle, .code = terrno};
+      rpcSendResponse(&rsp);
+    }
     rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
   }
 
   dndReleaseMnode(pDnode, pMnode);
@@ -668,9 +677,12 @@ void dndProcessMnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   SMnode     *pMnode = dndAcquireMnode(pDnode);
   if (pMnode == NULL || dndWriteMnodeMsgToQueue(pMnode, pMgmt->pSyncQ, pMsg) != 0) {
-    SRpcMsg rsp = {.handle = pMsg->handle, .code = terrno};
-    rpcSendResponse(&rsp);
+    if (pMsg->msgType & 1u) {
+      SRpcMsg rsp = {.handle = pMsg->handle, .code = terrno};
+      rpcSendResponse(&rsp);
+    }
     rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
   }
 
   dndReleaseMnode(pDnode, pMnode);
@@ -680,9 +692,12 @@ void dndProcessMnodeReadMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   SMnode     *pMnode = dndAcquireMnode(pDnode);
   if (pMnode == NULL || dndWriteMnodeMsgToQueue(pMnode, pMgmt->pReadQ, pMsg) != 0) {
-    SRpcMsg rsp = {.handle = pMsg->handle, .code = terrno};
-    rpcSendResponse(&rsp);
+    if (pMsg->msgType & 1u) {
+      SRpcMsg rsp = {.handle = pMsg->handle, .code = terrno};
+      rpcSendResponse(&rsp);
+    }
     rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
   }
 
   dndReleaseMnode(pDnode, pMnode);

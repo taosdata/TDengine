@@ -16,9 +16,9 @@
 #include "deploy.h"
 
 void initLog(const char* path) {
-  dDebugFlag = 207;
+  dDebugFlag = 143;
   vDebugFlag = 0;
-  mDebugFlag = 207;
+  mDebugFlag = 143;
   cDebugFlag = 0;
   jniDebugFlag = 0;
   tmrDebugFlag = 0;
@@ -34,6 +34,8 @@ void initLog(const char* path) {
   sDebugFlag = 0;
   tsdbDebugFlag = 0;
   cqDebugFlag = 0;
+
+  taosMkDir(path);
 
   char temp[PATH_MAX];
   snprintf(temp, PATH_MAX, "%s/taosdlog", path);
