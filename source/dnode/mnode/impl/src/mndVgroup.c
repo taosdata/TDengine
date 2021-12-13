@@ -45,7 +45,7 @@ static void    mndCancelGetNextVnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitVgroup(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_VGROUP,
-                     .keyType = SDB_KEY_BINARY,
+                     .keyType = SDB_KEY_INT32,
                      .encodeFp = (SdbEncodeFp)mndVgroupActionEncode,
                      .decodeFp = (SdbDecodeFp)mndVgroupActionDecode,
                      .insertFp = (SdbInsertFp)mndVgroupActionInsert,
@@ -238,7 +238,7 @@ static int32_t mndGetVgroupMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg 
   }
 
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tableFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
 
   return 0;
 }
@@ -337,7 +337,7 @@ static int32_t mndGetVnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
   pShow->replica = dnodeId;
   pShow->numOfRows = mndGetVnodesNum(pMnode, dnodeId);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tableFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
 
   return 0;
 }

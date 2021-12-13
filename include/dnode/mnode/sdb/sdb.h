@@ -158,8 +158,8 @@ typedef enum {
   SDB_USER = 5,
   SDB_AUTH = 6,
   SDB_ACCT = 7,
-  SDB_VGROUP = 9,
-  SDB_STABLE = 9,
+  SDB_VGROUP = 8,
+  SDB_STB = 9,
   SDB_DB = 10,
   SDB_FUNC = 11,
   SDB_MAX = 12

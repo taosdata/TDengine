@@ -108,7 +108,6 @@ extern int8_t  tsEnableBalance;
 extern int8_t  tsAlternativeRole;
 extern int32_t tsBalanceInterval;
 extern int32_t tsOfflineThreshold;
-extern int32_t tsMnodeEqualVnodeNum;
 extern int8_t  tsEnableFlowCtrl;
 extern int8_t  tsEnableSlaveQuery;
 extern int8_t  tsEnableAdjustMaster;

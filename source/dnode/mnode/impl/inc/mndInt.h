@@ -88,6 +88,8 @@ void mndSendMsgToMnode(SMnode *pMnode, SRpcMsg *pMsg);
 void mndSendRedirectMsg(SMnode *pMnode, SRpcMsg *pMsg);
 void mndSetMsgHandle(SMnode *pMnode, int32_t msgType, MndMsgFp fp);
 
+uint64_t mndGenerateUid(char *name, int32_t len) ;
+
 #ifdef __cplusplus
 }
 #endif

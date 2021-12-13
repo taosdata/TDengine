@@ -61,15 +61,15 @@ static int32_t dndCheckRunning(char *dataDir) {
 
   FileFd fd = taosOpenFileCreateWriteTrunc(filepath);
   if (fd < 0) {
-    dError("failed to lock file:%s since %s, quit", filepath, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to lock file:%s since %s, quit", filepath, terrstr());
     return -1;
   }
 
   int32_t ret = taosLockFile(fd);
   if (ret != 0) {
-    dError("failed to lock file:%s since %s, quit", filepath, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to lock file:%s since %s, quit", filepath, terrstr());
     taosCloseFile(fd);
     return -1;
   }
@@ -194,6 +194,7 @@ SDnode *dndInit(SDnodeOpt *pOption) {
   }
 
   dndSetStat(pDnode, DND_STAT_RUNNING);
+  dndSendStatusMsg(pDnode);
   dndReportStartup(pDnode, "TDengine", "initialized successfully");
   dInfo("TDengine is initialized successfully");
 

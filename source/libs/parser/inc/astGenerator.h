@@ -121,7 +121,7 @@ typedef struct SRelationInfo {
 
 typedef struct SCreatedTableInfo {
   SToken             name;        // table name token
-  SToken             stableName;  // super table name token , for using clause
+  SToken             stbName;     // super table name token , for using clause
   SArray            *pTagNames;   // create by using super table, tag name
   SArray            *pTagVals;    // create by using super table, tag value
   char              *fullname;    // table full name

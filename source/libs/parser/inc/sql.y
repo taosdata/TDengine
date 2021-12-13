@@ -112,13 +112,13 @@ cmd ::= SHOW dbPrefix(X) TABLES LIKE ids(Y).         {
 }
 
 cmd ::= SHOW dbPrefix(X) STABLES.      {
-    setShowOptions(pInfo, TSDB_MGMT_TABLE_STABLE, &X, 0);
+    setShowOptions(pInfo, TSDB_MGMT_TABLE_STB, &X, 0);
 }
 
 cmd ::= SHOW dbPrefix(X) STABLES LIKE ids(Y).      {
     SToken token;
     tSetDbName(&token, &X);
-    setShowOptions(pInfo, TSDB_MGMT_TABLE_STABLE, &token, &Y);
+    setShowOptions(pInfo, TSDB_MGMT_TABLE_STB, &token, &Y);
 }
 
 cmd ::= SHOW dbPrefix(X) VGROUPS.    {

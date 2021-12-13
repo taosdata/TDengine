@@ -142,7 +142,6 @@ void dmnInitOption(SDnodeOpt *pOption) {
   pOption->numOfSupportVnodes = 1;
   pOption->numOfSupportQnodes = 1;
   pOption->statusInterval = tsStatusInterval;
-  pOption->mnodeEqualVnodeNum = tsMnodeEqualVnodeNum;
   pOption->numOfThreadsPerCore = tsNumOfThreadsPerCore;
   pOption->ratioOfQueryCores = tsRatioOfQueryCores;
   pOption->maxShellConns = tsMaxShellConns;

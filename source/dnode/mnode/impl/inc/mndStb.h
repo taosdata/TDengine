@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_STABLE_H_
-#define _TD_MND_STABLE_H_
+#ifndef _TD_MND_STB_H_
+#define _TD_MND_STB_H_
 
 #include "mndInt.h"
 
@@ -22,11 +22,11 @@
 extern "C" {
 #endif
 
-int32_t mndInitStable(SMnode *pMnode);
-void    mndCleanupStable(SMnode *pMnode);
+int32_t mndInitStb(SMnode *pMnode);
+void    mndCleanupStb(SMnode *pMnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_STABLE_H_*/
+#endif /*_TD_MND_STB_H_*/

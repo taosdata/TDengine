@@ -139,7 +139,7 @@ TEST_F(DndTestProfile, SConnectMsg_03) {
 
     EXPECT_NE(pRsp->showId, 0);
     EXPECT_EQ(pMeta->contLen, 0);
-    EXPECT_STREQ(pMeta->tableFname, "");
+    EXPECT_STREQ(pMeta->tbFname, "");
     EXPECT_EQ(pMeta->numOfTags, 0);
     EXPECT_EQ(pMeta->precision, 0);
     EXPECT_EQ(pMeta->tableType, 0);
@@ -480,7 +480,7 @@ TEST_F(DndTestProfile, SKillQueryMsg_03) {
 
     EXPECT_NE(pRsp->showId, 0);
     EXPECT_EQ(pMeta->contLen, 0);
-    EXPECT_STREQ(pMeta->tableFname, "");
+    EXPECT_STREQ(pMeta->tbFname, "");
     EXPECT_EQ(pMeta->numOfTags, 0);
     EXPECT_EQ(pMeta->precision, 0);
     EXPECT_EQ(pMeta->tableType, 0);
@@ -667,7 +667,7 @@ TEST_F(DndTestProfile, SKillStreamMsg_03) {
 
     EXPECT_NE(pRsp->showId, 0);
     EXPECT_EQ(pMeta->contLen, 0);
-    EXPECT_STREQ(pMeta->tableFname, "");
+    EXPECT_STREQ(pMeta->tbFname, "");
     EXPECT_EQ(pMeta->numOfTags, 0);
     EXPECT_EQ(pMeta->precision, 0);
     EXPECT_EQ(pMeta->tableType, 0);

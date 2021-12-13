@@ -634,7 +634,7 @@ SCreatedTableInfo createNewChildTableInfo(SToken *pTableName, SArray *pTagNames,
   info.name       = *pToken;
   info.pTagNames  = pTagNames;
   info.pTagVals   = pTagVals;
-  info.stableName = *pTableName;
+  info.stbName    = *pTableName;
   info.igExist    = (igExists->n > 0)? 1:0;
 
   return info;

@@ -126,6 +126,8 @@ typedef struct SRpcConn {
   SRpcReqContext *pContext; // request context
 } SRpcConn;
 
+static pthread_once_t tsRpcInitOnce = PTHREAD_ONCE_INIT;
+
 int tsRpcMaxUdpSize = 15000;  // bytes
 int tsProgressTimer = 100;
 // not configurable
@@ -220,17 +222,22 @@ static void rpcFree(void *p) {
   free(p);
 }
 
-int32_t rpcInit(void) {
-  tsProgressTimer = tsRpcTimer/2; 
-  tsRpcMaxRetry = tsRpcMaxTime * 1000/tsProgressTimer;
-  tsRpcHeadSize = RPC_MSG_OVERHEAD; 
+static void rpcInitImp(void) {
+  tsProgressTimer = tsRpcTimer / 2;
+  tsRpcMaxRetry = tsRpcMaxTime * 1000 / tsProgressTimer;
+  tsRpcHeadSize = RPC_MSG_OVERHEAD;
   tsRpcOverhead = sizeof(SRpcReqContext);
 
   tsRpcRefId = taosOpenRef(200, rpcFree);
 
   return 0;
 }
- 
+
+int32_t rpcInit(void) {
+  pthread_once(&tsRpcInitOnce, rpcInitImp);
+  return 0;
+}
+
 void rpcCleanup(void) {
   taosCloseRef(tsRpcRefId);
   tsRpcRefId = -1;
@@ -406,7 +413,7 @@ void rpcSendRequest(void *shandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t 
   // for TDengine, all the query, show commands shall have TCP connection
   char type = pMsg->msgType;
   if (type == TSDB_MSG_TYPE_QUERY || type == TSDB_MSG_TYPE_SHOW_RETRIEVE
-    || type == TSDB_MSG_TYPE_FETCH || type == TSDB_MSG_TYPE_STABLE_VGROUP
+    || type == TSDB_MSG_TYPE_FETCH || type == TSDB_MSG_TYPE_STB_VGROUP
     || type == TSDB_MSG_TYPE_TABLES_META || type == TSDB_MSG_TYPE_TABLE_META
     || type == TSDB_MSG_TYPE_SHOW || type == TSDB_MSG_TYPE_STATUS || type == TSDB_MSG_TYPE_ALTER_TABLE)
     pContext->connType = RPC_CONN_TCPC;

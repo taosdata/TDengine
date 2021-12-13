@@ -335,7 +335,7 @@ static int32_t dndWriteDnodes(SDnode *pDnode) {
   return 0;
 }
 
-static void dndSendStatusMsg(SDnode *pDnode) {
+void dndSendStatusMsg(SDnode *pDnode) {
   int32_t contLen = sizeof(SStatusMsg) + TSDB_MAX_VNODES * sizeof(SVnodeLoad);
 
   SStatusMsg *pStatus = rpcMallocCont(contLen);
@@ -349,7 +349,7 @@ static void dndSendStatusMsg(SDnode *pDnode) {
   pStatus->sver = htonl(pDnode->opt.sver);
   pStatus->dnodeId = htonl(pMgmt->dnodeId);
   pStatus->clusterId = htonl(pMgmt->clusterId);
-  pStatus->rebootTime = htonl(pMgmt->rebootTime);
+  pStatus->rebootTime = htobe64(pMgmt->rebootTime);
   pStatus->numOfCores = htons(pDnode->opt.numOfCores);
   pStatus->numOfSupportMnodes = htons(pDnode->opt.numOfCores);
   pStatus->numOfSupportVnodes = htons(pDnode->opt.numOfCores);
@@ -357,7 +357,6 @@ static void dndSendStatusMsg(SDnode *pDnode) {
   tstrncpy(pStatus->dnodeEp, pDnode->opt.localEp, TSDB_EP_LEN);
 
   pStatus->clusterCfg.statusInterval = htonl(pDnode->opt.statusInterval);
-  pStatus->clusterCfg.mnodeEqualVnodeNum = htonl(pDnode->opt.mnodeEqualVnodeNum);
   pStatus->clusterCfg.checkTime = 0;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &pStatus->clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
@@ -371,6 +370,7 @@ static void dndSendStatusMsg(SDnode *pDnode) {
   contLen = sizeof(SStatusMsg) + pStatus->vnodeLoads.num * sizeof(SVnodeLoad);
 
   SRpcMsg rpcMsg = {.pCont = pStatus, .contLen = contLen, .msgType = TSDB_MSG_TYPE_STATUS};
+  pMgmt->statusSent = 1;
   dndSendMsgToMnode(pDnode, &rpcMsg);
 }
 
@@ -383,7 +383,7 @@ static void dndUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
     pMgmt->dnodeId = pCfg->dnodeId;
     pMgmt->clusterId = pCfg->clusterId;
     pMgmt->dropped = pCfg->dropped;
-    (void)dndWriteDnodes(pDnode);
+    dndWriteDnodes(pDnode);
     taosWUnLockLatch(&pMgmt->latch);
   }
 }
@@ -409,11 +409,16 @@ static void dndUpdateDnodeEps(SDnode *pDnode, SDnodeEps *pDnodeEps) {
 }
 
 static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+
   if (pEpSet && pEpSet->numOfEps > 0) {
     dndUpdateMnodeEpSet(pDnode, pEpSet);
   }
 
-  if (pMsg->code != TSDB_CODE_SUCCESS) return;
+  if (pMsg->code != TSDB_CODE_SUCCESS) {
+    pMgmt->statusSent = 0;
+    return;
+  }
 
   SStatusRsp *pRsp = pMsg->pCont;
   SDnodeCfg  *pCfg = &pRsp->dnodeCfg;
@@ -421,7 +426,10 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   pCfg->clusterId = htonl(pCfg->clusterId);
   dndUpdateDnodeCfg(pDnode, pCfg);
 
-  if (pCfg->dropped) return;
+  if (pCfg->dropped) {
+    pMgmt->statusSent = 0;
+    return;
+  }
 
   SDnodeEps *pDnodeEps = &pRsp->dnodeEps;
   pDnodeEps->num = htonl(pDnodeEps->num);
@@ -431,6 +439,7 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   }
 
   dndUpdateDnodeEps(pDnode, pDnodeEps);
+  pMgmt->statusSent = 0;
 }
 
 static void dndProcessAuthRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) { assert(1); }
@@ -461,16 +470,17 @@ static void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg) {
 }
 
 static void *dnodeThreadRoutine(void *param) {
-  SDnode *pDnode = param;
-  int32_t ms = pDnode->opt.statusInterval * 1000;
+  SDnode     *pDnode = param;
+  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+  int32_t     ms = pDnode->opt.statusInterval * 1000;
 
   while (true) {
-    taosMsleep(ms);
     pthread_testcancel();
 
-    if (dndGetStat(pDnode) == DND_STAT_RUNNING) {
+    if (dndGetStat(pDnode) == DND_STAT_RUNNING && !pMgmt->statusSent) {
       dndSendStatusMsg(pDnode);
     }
+    taosMsleep(ms);
   }
 }
 
@@ -478,7 +488,7 @@ int32_t dndInitDnode(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
 
   pMgmt->dnodeId = 0;
-  pMgmt->rebootTime = taosGetTimestampSec();
+  pMgmt->rebootTime = taosGetTimestampMs();
   pMgmt->dropped = 0;
   pMgmt->clusterId = 0;
 

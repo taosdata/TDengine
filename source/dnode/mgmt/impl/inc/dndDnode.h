@@ -31,6 +31,7 @@ int32_t dndGetClusterId(SDnode *pDnode);
 void    dndGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
 void    dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
 void    dndSendRedirectMsg(SDnode *pDnode, SRpcMsg *pMsg);
+void    dndSendStatusMsg(SDnode *pDnode);
 
 #ifdef __cplusplus
 }

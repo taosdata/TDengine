@@ -24,7 +24,7 @@
 #include "mndMnode.h"
 #include "mndProfile.h"
 #include "mndShow.h"
-#include "mndStable.h"
+#include "mndStb.h"
 #include "mndSync.h"
 #include "mndTelem.h"
 #include "mndTrans.h"
@@ -131,7 +131,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-stable", mndInitStable, mndCleanupStable) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc) != 0) return -1;
   if (pMnode->clusterId <= 0) {
     if (mndAllocStep(pMnode, "mnode-sdb-deploy", mndDeploySdb, NULL) != 0) return -1;
@@ -205,7 +205,6 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->cfg.sver = pOption->cfg.sver;
   pMnode->cfg.enableTelem = pOption->cfg.enableTelem;
   pMnode->cfg.statusInterval = pOption->cfg.statusInterval;
-  pMnode->cfg.mnodeEqualVnodeNum = pOption->cfg.mnodeEqualVnodeNum;
   pMnode->cfg.shellActivityTimer = pOption->cfg.shellActivityTimer;
   pMnode->cfg.timezone = strdup(pOption->cfg.timezone);
   pMnode->cfg.locale = strdup(pOption->cfg.locale);
@@ -215,7 +214,7 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
 
   if (pMnode->sendMsgToDnodeFp == NULL || pMnode->sendMsgToMnodeFp == NULL || pMnode->sendRedirectMsgFp == NULL ||
       pMnode->putMsgToApplyMsgFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0 ||
-      pMnode->cfg.statusInterval < 1 || pOption->cfg.mnodeEqualVnodeNum < 0) {
+      pMnode->cfg.statusInterval < 1) {
     terrno = TSDB_CODE_MND_INVALID_OPTIONS;
     return -1;
   }
@@ -430,3 +429,10 @@ void mndProcessWriteMsg(SMnodeMsg *pMsg) { mndProcessRpcMsg(pMsg); }
 void mndProcessSyncMsg(SMnodeMsg *pMsg) { mndProcessRpcMsg(pMsg); }
 
 void mndProcessApplyMsg(SMnodeMsg *pMsg) {}
+
+uint64_t mndGenerateUid(char *name, int32_t len) {
+  int64_t  us = taosGetTimestampUs();
+  int32_t  hashval = MurmurHash3_32(name, len);
+  uint64_t x = (us & 0x000000FFFFFFFFFF) << 24;
+  return x + ((hashval & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+}
