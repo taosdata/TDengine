@@ -49,9 +49,10 @@ public:
 
   MockCatalogService();
   ~MockCatalogService();
-  struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps);
-  int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData);
+  struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps) const;
+  int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData) const;
   ITableBuilder& createTableBuilder(const std::string& db, const std::string& tbname, int8_t tableType, int32_t numOfColumns, int32_t numOfTags = 0);
+  void createSubTable(const std::string& db, const std::string& stbname, const std::string& tbname, int16_t vgid);
   void showTables() const;
 
 private:
