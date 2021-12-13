@@ -52,7 +52,7 @@ int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, SPars
 
   uint32_t dataLen = TD_MEM_ROW_DATA_HEAD_SIZE + pColInfo->allNullLen;
   uint32_t kvLen = TD_MEM_ROW_KV_HEAD_SIZE + pColInfo->numOfBound * sizeof(SColIdx) + pColInfo->boundNullLen;
-  if (isConvertToKVRow(kvLen, dataLen)) {
+  if (isUtilizeKVRow(kvLen, dataLen)) {
     pBuilder->memRowType = SMEM_ROW_KV;
   } else {
     pBuilder->memRowType = SMEM_ROW_DATA;
