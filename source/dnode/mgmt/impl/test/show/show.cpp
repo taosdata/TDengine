@@ -33,7 +33,7 @@ class DndTestShow : public ::testing::Test {
   }
 
   static void TearDownTestSuite() {
-    dropServer(pServer);
+    stopServer(pServer);
     dropClient(pClient);
   }
 
@@ -141,7 +141,7 @@ TEST_F(DndTestShow, SShowMsg_04) {
 
     EXPECT_NE(pRsp->showId, 0);
     EXPECT_EQ(pMeta->contLen, 0);
-    EXPECT_STREQ(pMeta->tableFname, "");
+    EXPECT_STREQ(pMeta->tbFname, "");
     EXPECT_EQ(pMeta->numOfTags, 0);
     EXPECT_EQ(pMeta->precision, 0);
     EXPECT_EQ(pMeta->tableType, 0);

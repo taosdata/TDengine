@@ -81,8 +81,6 @@ extern int64_t tsMaxRetentWindow;
 // db parameters in client
 extern int32_t tsCacheBlockSize;
 extern int32_t tsBlocksPerVnode;
-extern int32_t tsMinTablePerVnode;
-extern int32_t tsMaxTablePerVnode;
 extern int32_t tsTableIncStepPerVnode;
 extern int32_t tsMaxVgroupsPerDb;
 extern int16_t tsDaysPerFile;
@@ -108,7 +106,6 @@ extern int8_t  tsEnableBalance;
 extern int8_t  tsAlternativeRole;
 extern int32_t tsBalanceInterval;
 extern int32_t tsOfflineThreshold;
-extern int32_t tsMnodeEqualVnodeNum;
 extern int8_t  tsEnableFlowCtrl;
 extern int8_t  tsEnableSlaveQuery;
 extern int8_t  tsEnableAdjustMaster;

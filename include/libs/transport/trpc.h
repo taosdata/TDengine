@@ -29,11 +29,6 @@ extern "C" {
 
 extern int tsRpcHeadSize;
 
-typedef struct SRpcCorEpSet {
-  int32_t version; 
-  SEpSet epSet; 
-} SRpcCorEpSet;
-
 typedef struct SRpcConnInfo {
   uint32_t  clientIp;
   uint16_t  clientPort;

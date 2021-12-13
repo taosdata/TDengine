@@ -193,7 +193,7 @@ do { \
 #define TSDB_MAX_TAG_CONDITIONS   1024
 
 #define TSDB_AUTH_LEN             16
-#define TSDB_PASSWORD_LEN         64
+#define TSDB_PASSWORD_LEN         32
 #define TSDB_VERSION_LEN          12
 #define TSDB_LABEL_LEN            8 
 
@@ -208,6 +208,8 @@ do { \
 
 #define TSDB_STEP_NAME_LEN        32
 #define TSDB_STEP_DESC_LEN        128
+
+#define TSDB_DNODE_CONFIG_LEN     128
 
 #define TSDB_MQTT_HOSTNAME_LEN    64
 #define TSDB_MQTT_PORT_LEN        8

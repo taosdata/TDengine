@@ -80,23 +80,36 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return NULL;
   }
+  memset(pWal, 0, sizeof(SWal));
   pWal->writeLogTfd = -1;
   pWal->writeIdxTfd = -1;
+  pWal->writeCur = -1;
 
   //set config
   pWal->vgId = pCfg->vgId;
   pWal->fsyncPeriod = pCfg->fsyncPeriod;
   pWal->rollPeriod = pCfg->rollPeriod;
   pWal->segSize = pCfg->segSize;
+  pWal->retentionSize = pCfg->retentionSize;
+  pWal->retentionPeriod = pCfg->retentionPeriod;
   pWal->level = pCfg->walLevel;
 
-  //init status
+  //init version info
+  pWal->firstVersion = -1;
+  pWal->commitVersion = -1;
+  pWal->snapshotVersion = -1;
   pWal->lastVersion = -1;
+
+  pWal->snapshottingVer = -1;
+
+  pWal->totSize = 0;
+
+  //init status
   pWal->lastRollSeq = -1;
 
   //init write buffer
   memset(&pWal->head, 0, sizeof(SWalHead));
-  pWal->head.sver = 0;
+  pWal->head.head.sver = 0;
 
   tstrncpy(pWal->path, path, sizeof(pWal->path));
   pthread_mutex_init(&pWal->mutex, NULL);
@@ -114,6 +127,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     walFreeObj(pWal);
     return NULL;
   }
+  walReadMeta(pWal);
 
   wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->vgId, pWal, pWal->level, pWal->fsyncPeriod);
 
@@ -145,9 +159,12 @@ void walClose(SWal *pWal) {
 
   pthread_mutex_lock(&pWal->mutex);
   tfClose(pWal->writeLogTfd);
+  pWal->writeLogTfd = -1;
   tfClose(pWal->writeIdxTfd);
-  /*taosArrayDestroy(pWal->fileInfoSet);*/
-  /*pWal->fileInfoSet = NULL;*/
+  pWal->writeIdxTfd = -1;
+  walWriteMeta(pWal);
+  taosArrayDestroy(pWal->fileInfoSet);
+  pWal->fileInfoSet = NULL;
   pthread_mutex_unlock(&pWal->mutex);
   taosRemoveRef(tsWal.refSetId, pWal->refId);
 }
@@ -157,7 +174,7 @@ static int32_t walInitObj(SWal *pWal) {
     wError("vgId:%d, path:%s, failed to create directory since %s", pWal->vgId, pWal->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }
-  pWal->fileInfoSet = taosArrayInit(0, sizeof(WalFileInfo));
+  pWal->fileInfoSet = taosArrayInit(8, sizeof(WalFileInfo));
   if(pWal->fileInfoSet == NULL) {
     wError("vgId:%d, path:%s, failed to init taosArray %s", pWal->vgId, pWal->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
@@ -241,8 +258,9 @@ static int32_t walCreateThread() {
 static void walStopThread() {
   atomic_store_8(&tsWal.stop, 1);
 
-  if (taosCheckPthreadValid(tsWal.thread)) {
+  if (tsWal.thread != NULL && taosCheckPthreadValid(tsWal.thread)) {
     pthread_join(tsWal.thread, NULL);
+    tsWal.thread = NULL;
   }
 
   wDebug("wal thread is stopped");

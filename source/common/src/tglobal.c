@@ -47,7 +47,7 @@ int64_t  tsDnodeStartTime = 0;
 // common
 int32_t tsRpcTimer       = 300;
 int32_t tsRpcMaxTime     = 600;  // seconds;
-int32_t tsRpcForceTcp    = 0;  //disable this, means query, show command use udp protocol as default
+int32_t tsRpcForceTcp    = 1;  //disable this, means query, show command use udp protocol as default
 int32_t tsMaxShellConns  = 50000;
 int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer  = 3;  // second
@@ -157,7 +157,6 @@ int8_t  tsEnableBalance = 1;
 int8_t  tsAlternativeRole = 0;
 int32_t tsBalanceInterval = 300;           // seconds
 int32_t tsOfflineThreshold = 86400 * 10;  // seconds of 10 days
-int32_t tsMnodeEqualVnodeNum = 4;
 int8_t  tsEnableFlowCtrl = 1;
 int8_t  tsEnableSlaveQuery = 1;
 int8_t  tsEnableAdjustMaster = 1;
@@ -1065,17 +1064,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_GB;
   taosAddConfigOption(cfg);
 
-  // module configs
-  cfg.option = "mnodeEqualVnodeNum";
-  cfg.ptr = &tsMnodeEqualVnodeNum;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
     // module configs
   cfg.option = "flowctrl";
   cfg.ptr = &tsEnableFlowCtrl;
@@ -1546,7 +1534,7 @@ static void doInitGlobalConfig(void) {
   taosAddConfigOption(cfg);
   assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM);
 #else
-  assert(tsGlobalConfigNum == (TSDB_CFG_MAX_NUM - 5));
+  //assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM - 5);
 #endif
 
 }
@@ -1601,12 +1589,6 @@ int32_t taosCheckAndPrintCfg() {
 
   if (tsNumOfCores <= 0) {
     tsNumOfCores = 1;
-  }
-
-  if (tsMaxTablePerVnode < tsMinTablePerVnode) {
-    uError("maxTablesPerVnode(%d) < minTablesPerVnode(%d), reset to minTablesPerVnode(%d)",
-	   tsMaxTablePerVnode, tsMinTablePerVnode, tsMinTablePerVnode);
-    tsMaxTablePerVnode = tsMinTablePerVnode;
   }
 
   if (tsQueryBufferSize >= 0) {

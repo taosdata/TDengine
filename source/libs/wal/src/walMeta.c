@@ -24,6 +24,18 @@
 #include <libgen.h>
 #include <regex.h>
 
+int64_t walGetFirstVer(SWal *pWal) {
+  return pWal->firstVersion;
+}
+
+int64_t walGetSnaphostVer(SWal *pWal) {
+  return pWal->snapshotVersion;
+}
+
+int64_t walGetLastVer(SWal *pWal) {
+  return pWal->lastVersion;
+}
+
 int walRollFileInfo(SWal* pWal) {
   int64_t ts = taosGetTimestampSec();
 
@@ -34,6 +46,7 @@ int walRollFileInfo(SWal* pWal) {
     pInfo->closeTs = ts;
   }
 
+  //TODO: change to emplace back
   WalFileInfo *pNewInfo = malloc(sizeof(WalFileInfo));
   if(pNewInfo == NULL) {
     return -1;
@@ -44,12 +57,13 @@ int walRollFileInfo(SWal* pWal) {
   pNewInfo->closeTs = -1;
   pNewInfo->fileSize = 0;
   taosArrayPush(pWal->fileInfoSet, pNewInfo);
+  free(pNewInfo);
   return 0;
 }
 
 char* walMetaSerialize(SWal* pWal) {
   char buf[30];
-  if(pWal == NULL || pWal->fileInfoSet == NULL) return 0;
+  ASSERT(pWal->fileInfoSet);
   int sz = pWal->fileInfoSet->size;
   cJSON* pRoot = cJSON_CreateObject();
   cJSON* pMeta = cJSON_CreateObject();
@@ -91,7 +105,9 @@ char* walMetaSerialize(SWal* pWal) {
     sprintf(buf, "%" PRId64, pInfo->fileSize);
     cJSON_AddStringToObject(pField, "fileSize", buf);
   }
-  return cJSON_Print(pRoot);
+  char* serialized = cJSON_Print(pRoot);
+  cJSON_Delete(pRoot);
+  return serialized;
 }
 
 int walMetaDeserialize(SWal* pWal, const char* bytes) {
@@ -111,7 +127,8 @@ int walMetaDeserialize(SWal* pWal, const char* bytes) {
   pFiles = cJSON_GetObjectItem(pRoot, "files");
   int sz = cJSON_GetArraySize(pFiles);
   //deserialize
-  SArray* pArray = taosArrayInit(sz, sizeof(WalFileInfo));
+  SArray* pArray = pWal->fileInfoSet;
+  taosArrayEnsureCap(pArray, sz);
   WalFileInfo *pData = pArray->pData;
   for(int i = 0; i < sz; i++) {
     cJSON* pInfoJson = cJSON_GetArrayItem(pFiles, i);
@@ -129,6 +146,7 @@ int walMetaDeserialize(SWal* pWal, const char* bytes) {
   }
   taosArraySetSize(pArray, sz);
   pWal->fileInfoSet = pArray;
+  cJSON_Delete(pRoot);
   return 0;
 }
 
@@ -159,6 +177,8 @@ static int walFindCurMetaVer(SWal* pWal) {
       break;
     }
   }
+  closedir(dir);
+  regfree(&walMetaRegexPattern);
   return metaVer;
 }
 
@@ -183,6 +203,7 @@ int walWriteMeta(SWal* pWal) {
     walBuildMetaName(pWal, metaVer, fnameStr);
     remove(fnameStr);
   }
+  free(serialized);
   return 0;
 }
 
@@ -203,6 +224,7 @@ int walReadMeta(SWal* pWal) {
   if(buf == NULL) {
     return -1;
   }
+  memset(buf, 0, size+5);
   int tfd = tfOpenRead(fnameStr);
   if(tfRead(tfd, buf, size) != size) {
     free(buf);

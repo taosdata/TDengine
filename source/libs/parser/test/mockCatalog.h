@@ -13,20 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_STABLE_H_
-#define _TD_MND_STABLE_H_
+#ifndef MOCK_CATALOG_H
+#define MOCK_CATALOG_H
 
-#include "mndInt.h"
+#include "mockCatalogService.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+void generateMetaData(MockCatalogService* mcs);
 
-int32_t mndInitStable(SMnode *pMnode);
-void    mndCleanupStable(SMnode *pMnode);
+// mock
+struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps);
+int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData);
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_MND_STABLE_H_*/
+#endif  // MOCK_CATALOG_H

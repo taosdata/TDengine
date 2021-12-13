@@ -16,6 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
 
+#define SHOW_STEP_SIZE 100
+
 static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowMsg *pMsg);
 static void      mndFreeShowObj(SShowObj *pShow);
 static SShowObj *mndAcquireShowObj(SMnode *pMnode, int32_t showId);
@@ -211,7 +213,7 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
   }
 
   /* return no more than 100 tables in one round trip */
-  if (rowsToRead > 100) rowsToRead = 100;
+  if (rowsToRead > SHOW_STEP_SIZE) rowsToRead = SHOW_STEP_SIZE;
 
   /*
    * the actual number of table may be larger than the value of pShow->numOfRows, if a query is
@@ -220,7 +222,7 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
   if (rowsToRead < 0) rowsToRead = 0;
   size = pShow->rowSize * rowsToRead;
 
-  size += 100;
+  size += SHOW_STEP_SIZE;
   SRetrieveTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
     mndReleaseShowObj(pShow, false);
@@ -270,7 +272,7 @@ char *mndShowStr(int32_t showType) {
       return "show mnodes";
     case TSDB_MGMT_TABLE_VGROUP:
       return "show vgroups";
-    case TSDB_MGMT_TABLE_STABLE:
+    case TSDB_MGMT_TABLE_STB:
       return "show stables";
     case TSDB_MGMT_TABLE_MODULE:
       return "show modules";

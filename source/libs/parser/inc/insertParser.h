@@ -16,4 +16,16 @@
 #ifndef TDENGINE_INSERTPARSER_H
 #define TDENGINE_INSERTPARSER_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "parser.h"
+
+int32_t parseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif  // TDENGINE_INSERTPARSER_H

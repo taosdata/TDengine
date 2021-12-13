@@ -26,14 +26,15 @@ class DndTestUser : public ::testing::Test {
     const char* path = "/tmp/dndTestUser";
     const char* fqdn = "localhost";
     uint16_t    port = 9524;
+    const char* firstEp = "localhost:9524";
 
-    pServer = createServer(path, fqdn, port);
+    pServer = createServer(path, fqdn, port, firstEp);
     ASSERT(pServer);
     pClient = createClient(user, pass, fqdn, port);
   }
 
   static void TearDownTestSuite() {
-    dropServer(pServer);
+    stopServer(pServer);
     dropClient(pClient);
   }
 
@@ -79,7 +80,7 @@ TEST_F(DndTestUser, ShowUser) {
 
   EXPECT_NE(pShowRsp->showId, 0);
   EXPECT_EQ(pMeta->contLen, 0);
-  EXPECT_STREQ(pMeta->tableFname, "show users");
+  EXPECT_STREQ(pMeta->tbFname, "show users");
   EXPECT_EQ(pMeta->numOfTags, 0);
   EXPECT_EQ(pMeta->precision, 0);
   EXPECT_EQ(pMeta->tableType, 0);

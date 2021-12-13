@@ -65,6 +65,7 @@ class FstReadMemory {
     
    ~FstReadMemory() {
     fstCountingWriterDestroy(_w);
+    fstDestroy(_fst);
     fstSliceDestroy(&_s);
   } 
   
@@ -129,10 +130,12 @@ class FstReadMemory {
 //}
 
 
+#define L 100
+#define M 100
+#define N 100
 
 int Performance_fstWriteRecords(FstWriter *b) {
   std::string str("aa"); 
-  int L = 100, M = 100, N = 10;
   for (int i = 0; i < L; i++) {
     str[0] = 'a' + i;
     str.resize(2); 
@@ -150,22 +153,29 @@ int Performance_fstWriteRecords(FstWriter *b) {
 }
 
 void Performance_fstReadRecords(FstReadMemory *m) {
-   std::string str("a");
-   for (int i = 0; i < 50; i++) {
-     //std::string str("aa"); 
-     str.push_back('a');
-     uint64_t out, cost;
-     bool ok = m->GetWithTimeCostUs(str, &out, &cost); 
-     if (ok == true) {
-      printf("success to get (%s, %" PRId64"), time cost: %" PRId64")\n", str.c_str(), out, cost);
-     } else {
-      printf("failed to get(%s)\n", str.c_str());
-     }
-   }
+  std::string str("aa");
+  for (int i = 0; i < M; i++) {
+    str[0] = 'a' + i;
+    str.resize(2); 
+    for(int j = 0; j < N; j++) {
+      str[1] = 'a' + j;
+      str.resize(2);
+      for (int k = 0; k < L; k++) {
+        str.push_back('a');
+        uint64_t val, cost; 
+        if (m->GetWithTimeCostUs(str, &val, &cost)) {
+          printf("succes to get kv(%s, %" PRId64"), cost: %" PRId64"\n", str.c_str(), val, cost);
+        } else {
+          printf("failed to get key: %s\n", str.c_str());
+        }
+      }
+    } 
+  }
 }
 void checkFstPerf() {
   FstWriter *fw = new FstWriter;
   int64_t s = taosGetTimestampUs();
+
   int num = Performance_fstWriteRecords(fw);
   int64_t e = taosGetTimestampUs();
   printf("write %d record cost %" PRId64"us\n", num,  e - s);
@@ -173,13 +183,11 @@ void checkFstPerf() {
 
   FstReadMemory *m = new FstReadMemory(1024 * 64);
   if (m->init()) {
-    uint64_t val;
-    if(m->Get("aaaaaaa", &val)) {
-      std::cout << "succes to Get val: " << val << std::endl;
-    } else {
-      std::cout << "failed to Get " << std::endl;
-    } 
+    printf("success to init fst read");  
   }  
+  Performance_fstReadRecords(m); 
+   
+  delete m;
 } 
 
 

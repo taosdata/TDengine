@@ -36,23 +36,28 @@ int32_t    tscConnRef = -1;
 void      *tscQhandle = NULL;
 void      *tscRpcCache= NULL;            // TODO removed from here.
 
+int32_t tsNumOfThreads = 1;
+
 pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently
 volatile int32_t tscInitRes = 0;
 
 static void registerRequest(SRequestObj* pRequest) {
-  STscObj*pTscObj = (STscObj*) taosAcquireRef(tscConnRef, pRequest->pTscObj->id);
+  STscObj *pTscObj = (STscObj *)taosAcquireRef(tscConnRef, pRequest->pTscObj->id);
   assert(pTscObj != NULL);
 
   // connection has been released already, abort creating request.
   pRequest->self = taosAddRef(tscReqRef, pRequest);
 
-  int32_t num   = atomic_add_fetch_32(&pTscObj->numOfReqs, 1);
+  int32_t num = atomic_add_fetch_32(&pTscObj->numOfReqs, 1);
 
-  SInstanceActivity* pActivity = &pTscObj->pAppInfo->summary;
-  int32_t total       = atomic_add_fetch_32(&pActivity->totalRequests, 1);
-  int32_t currentInst = atomic_add_fetch_32(&pActivity->currentRequests, 1);
+  if (pTscObj->pAppInfo) {
+    SInstanceActivity *pActivity = &pTscObj->pAppInfo->summary;
 
-  tscDebug("0x%"PRIx64" new Request from 0x%"PRIx64", current:%d, app current:%d, total:%d", pRequest->self, pRequest->pTscObj->id, num, currentInst, total);
+    int32_t total = atomic_add_fetch_32(&pActivity->totalRequests, 1);
+    int32_t currentInst = atomic_add_fetch_32(&pActivity->currentRequests, 1);
+    tscDebug("0x%" PRIx64 " new Request from 0x%" PRIx64 ", current:%d, app current:%d, total:%d", pRequest->self,
+             pRequest->pTscObj->id, num, currentInst, total);
+  }
 }
 
 static void deregisterRequest(SRequestObj* pRequest) {
@@ -103,80 +108,52 @@ void tscReleaseRpc(void *param)  {
   taosCacheRelease(tscRpcCache, (void *)&param, false);
 }
 
-void* tscAcquireRpc(const char *key, const char *user, const char *secretEncrypt) {
-#if 0
-  SRpcObj *pRpcObj = (SRpcObj *)taosCacheAcquireByKey(tscRpcCache, key, strlen(key));
-  pthread_mutex_lock(&rpcObjMutex);
-  if (pRpcObj != NULL) {
-    pthread_mutex_unlock(&rpcObjMutex);
-    return pRpcObj;
-  }
-
+// TODO refactor
+void* openTransporter(const char *user, const char *auth) {
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = 0;
   rpcInit.label = "TSC";
-  rpcInit.numOfThreads = tscNumOfThreads;
-  rpcInit.cfp = tscProcessMsgFromServer;
+  rpcInit.numOfThreads = tsNumOfThreads;
+  rpcInit.cfp = processMsgFromServer;
   rpcInit.sessions = tsMaxConnections;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.ckey = "key";
-  rpcInit.spi = 1;
-  rpcInit.secret = (char *)secretEncrypt;
+//  rpcInit.spi = 1;
+  rpcInit.secret = (char *)auth;
 
-  SRpcObj rpcObj = {0};
-  strncpy(rpcObj.key, key, strlen(key));
-  rpcObj.pDnodeConn = rpcOpen(&rpcInit);
-  if (rpcObj.pDnodeConn == NULL) {
-    pthread_mutex_unlock(&rpcObjMutex);
+  void* pDnodeConn = rpcOpen(&rpcInit);
+  if (pDnodeConn == NULL) {
     tscError("failed to init connection to server");
     return NULL;
   }
 
-  pRpcObj = taosCachePut(tscRpcCache, rpcObj.key, strlen(rpcObj.key), &rpcObj, sizeof(rpcObj), 1000*5);
-  if (pRpcObj == NULL) {
-    rpcClose(rpcObj.pDnodeConn);
-    pthread_mutex_unlock(&rpcObjMutex);
-    return NULL;
-  }
-
-  pthread_mutex_unlock(&rpcObjMutex);
-  return pRpcObj;
-#endif
+  return pDnodeConn;
 }
 
 void destroyTscObj(void *pTscObj) {
   STscObj *pObj = pTscObj;
-//  tfree(pObj->tscCorMgmtEpSet);
 //  tscReleaseRpc(pObj->pRpcObj);
   pthread_mutex_destroy(&pObj->mutex);
   tfree(pObj);
 }
 
-void* createTscObj(const char* user, const char* auth, const char *ip, uint32_t port) {
+void* createTscObj(const char* user, const char* auth, const char *ip, uint32_t port, SAppInstInfo* pAppInfo) {
   STscObj *pObj = (STscObj *)calloc(1, sizeof(STscObj));
   if (NULL == pObj) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
   }
 
-//  char rpcKey[512] = {0};
-//  snprintf(rpcKey, sizeof(rpcKey), "%s:%s:%s:%d", user, auth, ip, port);
-
-//  pObj->tscCorMgmtEpSet = malloc(sizeof(SRpcCorEpSet));
-//  if (pObj->tscCorMgmtEpSet == NULL) {
-//    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-//    free(pObj);
-//    return NULL;
-//  }
-//
-//  memcpy(pObj->tscCorMgmtEpSet, &corMgmtEpSet, sizeof(corMgmtEpSet));
+  pObj->pAppInfo = pAppInfo;
+  if (pAppInfo != NULL) {
+    pObj->pTransporter = pAppInfo->pTransporter;
+  }
 
   tstrncpy(pObj->user, user, sizeof(pObj->user));
-  int32_t len = MIN(strlen(auth) + 1, sizeof(pObj->pass));
-  tstrncpy(pObj->pass, auth, len);
+  memcpy(pObj->pass, auth, TSDB_PASSWORD_LEN);
 
   pthread_mutex_init(&pObj->mutex, NULL);
   pObj->id = taosAddRef(tscConnRef, pObj);
@@ -194,6 +171,8 @@ void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t ty
   // TODO generated request uuid
   pRequest->requestId  = 0;
 
+  pRequest->metric.start = taosGetTimestampMs();
+
   pRequest->type       = type;
   pRequest->pTscObj    = pObj;
   pRequest->body.fp    = fp;
@@ -201,6 +180,7 @@ void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t ty
   tsem_init(&pRequest->body.rspSem, 0, 0);
 
   registerRequest(pRequest);
+  return pRequest;
 }
 
 void destroyRequest(void* p) {
@@ -235,6 +215,8 @@ void taos_init_imp(void) {
   }
 
   taosInitNotes();
+  initMsgHandleFp();
+
   rpcInit();
 
   tscDebug("starting to initialize TAOS client ...\nLocal End Point is:%s", tsLocalEp);
@@ -262,8 +244,9 @@ void taos_init_imp(void) {
   tscReqRef  = taosOpenRef(40960, destroyRequest);
 
   taosGetAppName(appInfo.appName, NULL);
-  appInfo.pid = taosGetPId();
+  appInfo.pid       = taosGetPId();
   appInfo.startTime = taosGetTimestampMs();
+  appInfo.pInstMap  = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
 
   tscDebug("client is initialized successfully");
 }

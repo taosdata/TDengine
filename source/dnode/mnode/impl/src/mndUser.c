@@ -171,7 +171,7 @@ static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
 static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOldUser, SUserObj *pNewUser) {
   mTrace("user:%s, perform update action", pOldUser->user);
   memcpy(pOldUser->user, pNewUser->user, TSDB_USER_LEN);
-  memcpy(pOldUser->pass, pNewUser->pass, TSDB_KEY_LEN);
+  memcpy(pOldUser->pass, pNewUser->pass, TSDB_PASSWORD_LEN);
   memcpy(pOldUser->acct, pNewUser->acct, TSDB_USER_LEN);
   pOldUser->createdTime = pNewUser->createdTime;
   pOldUser->updateTime = pNewUser->updateTime;
@@ -489,7 +489,7 @@ static int32_t mndGetUserMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *p
 
   pShow->numOfRows = sdbGetSize(pSdb, SDB_USER);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tableFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
 
   return 0;
 }

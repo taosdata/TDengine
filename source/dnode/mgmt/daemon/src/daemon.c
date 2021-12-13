@@ -112,7 +112,7 @@ int dmnReadConfig(const char *path) {
     return -1;
   }
 
-  if (taosReadGlobalCfg() != 0) {
+  if (taosReadCfgFromFile() != 0) {
     uError("failed to read global config");
     return -1;
   }
@@ -142,7 +142,6 @@ void dmnInitOption(SDnodeOpt *pOption) {
   pOption->numOfSupportVnodes = 1;
   pOption->numOfSupportQnodes = 1;
   pOption->statusInterval = tsStatusInterval;
-  pOption->mnodeEqualVnodeNum = tsMnodeEqualVnodeNum;
   pOption->numOfThreadsPerCore = tsNumOfThreadsPerCore;
   pOption->ratioOfQueryCores = tsRatioOfQueryCores;
   pOption->maxShellConns = tsMaxShellConns;

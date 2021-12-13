@@ -74,10 +74,10 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_COMPACT_DB, "compact-db" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_FUNCTION, "create-function" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_RETRIEVE_FUNCTION, "retrieve-function" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_FUNCTION, "drop-function" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STABLE, "create-stable" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STABLE, "alter-stable" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STABLE, "drop-stable" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_STABLE_VGROUP, "stable-vgroup" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STB, "create-stb" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STB, "alter-stb" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STB, "drop-stb" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_STB_VGROUP, "stb-vgroup" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_QUERY, "kill-query" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_STREAM, "kill-stream" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_CONN, "kill-conn" )
@@ -94,9 +94,9 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "nettest" )
 // message from vnode to dnode
 
 // message from mnode to vnode
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STABLE_IN, "create-stable" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STABLE_IN, "alter-stable" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STABLE_IN, "drop-stable" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STB_IN, "create-stb-in" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STB_IN, "alter-stb-in" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STB_IN, "drop-stb-in" )
 // message from mnode to mnode
 // message from mnode to qnode
 // message from mnode to dnode
@@ -159,7 +159,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_DNODE,
   TSDB_MGMT_TABLE_MNODE,
   TSDB_MGMT_TABLE_VGROUP,
-  TSDB_MGMT_TABLE_STABLE,
+  TSDB_MGMT_TABLE_STB,
   TSDB_MGMT_TABLE_MODULE,
   TSDB_MGMT_TABLE_QUERIES,
   TSDB_MGMT_TABLE_STREAMS,
@@ -294,7 +294,7 @@ typedef struct {
   uint64_t superTableUid;
   uint64_t createdTime;
   char     tableFname[TSDB_TABLE_FNAME_LEN];
-  char     stableFname[TSDB_TABLE_FNAME_LEN];
+  char     stbFname[TSDB_TABLE_FNAME_LEN];
   char     data[];
 } SMDCreateTableMsg;
 
@@ -311,16 +311,23 @@ typedef struct {
 } SCreateTableMsg;
 
 typedef struct {
-  int32_t numOfTables;
-  int32_t contLen;
-} SCMCreateTableMsg;
+  char    name[TSDB_TABLE_FNAME_LEN];
+  int8_t  igExists;
+  int32_t numOfTags;
+  int32_t numOfColumns;
+  SSchema pSchema[];
+} SCreateStbMsg;
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
-  // if user specify DROP STABLE, this flag will be set. And an error will be returned if it is not a super table
-  int8_t supertable;
   int8_t igNotExists;
-} SCMDropTableMsg;
+} SDropStbMsg;
+
+typedef struct {
+  char    name[TSDB_TABLE_FNAME_LEN];
+  int8_t  alterType;
+  SSchema schema;
+} SAlterStbMsg;
 
 typedef struct {
   char    tableFname[TSDB_TABLE_FNAME_LEN];
@@ -663,7 +670,6 @@ typedef struct {
 
 typedef struct {
   int32_t statusInterval;
-  int32_t mnodeEqualVnodeNum;
   int64_t checkTime;                    // 1970-01-01 00:00:00.000
   char    timezone[TSDB_TIMEZONE_LEN];  // tsTimezone
   char    locale[TSDB_LOCALE_LEN];      // tsLocale
@@ -689,7 +695,7 @@ typedef struct SStatusMsg {
   int32_t     sver;
   int32_t     dnodeId;
   int32_t     clusterId;
-  uint32_t    rebootTime;  // time stamp for last reboot
+  int64_t     rebootTime;  // time stamp for last reboot
   int16_t     numOfCores;
   int16_t     numOfSupportMnodes;
   int16_t     numOfSupportVnodes;
@@ -765,7 +771,7 @@ typedef struct {
 
 typedef struct {
   char name[TSDB_TABLE_FNAME_LEN];
-} SStableInfoMsg;
+} SStbInfoMsg;
 
 typedef struct {
   char   tableFname[TSDB_TABLE_FNAME_LEN];
@@ -797,8 +803,8 @@ typedef struct {
 } SVgroupsMsg, SVgroupsInfo;
 
 typedef struct {
-  char       tableFname[TSDB_TABLE_FNAME_LEN];  // table id
-  char       stableFname[TSDB_TABLE_FNAME_LEN];
+  char       tbFname[TSDB_TABLE_FNAME_LEN];  // table id
+  char       stbFname[TSDB_TABLE_FNAME_LEN];
   int32_t    numOfTags;
   int32_t    numOfColumns;
   int8_t     precision;
@@ -862,7 +868,7 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
-  char    config[128];
+  char    config[TSDB_DNODE_CONFIG_LEN];
 } SCfgDnodeMsg;
 
 typedef struct {
