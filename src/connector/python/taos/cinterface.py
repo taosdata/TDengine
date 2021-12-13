@@ -110,7 +110,7 @@ _libtaos.taos_get_client_info.restype = c_char_p
 def taos_get_client_info():
     # type: () -> str
     """Get client version info."""
-    return _libtaos.taos_get_client_info().decode()
+    return _libtaos.taos_get_client_info().decode("utf-8")
 
 
 _libtaos.taos_get_server_info.restype = c_char_p
@@ -120,7 +120,7 @@ _libtaos.taos_get_server_info.argtypes = (c_void_p,)
 def taos_get_server_info(connection):
     # type: (c_void_p) -> str
     """Get server version as string."""
-    return _libtaos.taos_get_server_info(connection).decode()
+    return _libtaos.taos_get_server_info(connection).decode("utf-8")
 
 
 _libtaos.taos_close.restype = None
@@ -308,16 +308,14 @@ def taos_subscribe(connection, restart, topic, sql, interval, callback=None, par
     """
     if callback != None:
         callback = subscribe_callback_type(callback)
-    if param != None:
-        param = c_void_p(param)
     return c_void_p(
         _libtaos.taos_subscribe(
             connection,
             1 if restart else 0,
             c_char_p(topic.encode("utf-8")),
             c_char_p(sql.encode("utf-8")),
-            callback or None,
-            param,
+            callback,
+            c_void_p(param),
             interval,
         )
     )
