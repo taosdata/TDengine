@@ -27,7 +27,7 @@ typedef struct SVMemAllocator SVMemAllocator;
 
 struct SVArenaNode {
   TD_LIST_NODE(SVArenaNode);
-  uint64_t nsize;  // current node size
+  uint64_t size;  // current node size
   void *   ptr;
   char     data[];
 };
@@ -45,6 +45,7 @@ void            vmaDestroy(SVMemAllocator *pVMA);
 void            vmaReset(SVMemAllocator *pVMA);
 void *          vmaMalloc(SVMemAllocator *pVMA, uint64_t size);
 void            vmaFree(SVMemAllocator *pVMA, void *ptr);
+bool            vmaIsFull(SVMemAllocator *pVMA);
 
 #ifdef __cplusplus
 }

@@ -21,7 +21,6 @@ static void         vArenaNodeFree(SVArenaNode *pNode);
 SVMemAllocator *vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize) {
   SVMemAllocator *pVMA = (SVMemAllocator *)malloc(sizeof(*pVMA));
   if (pVMA == NULL) {
-    // TODO: handle error
     return NULL;
   }
 
@@ -32,7 +31,7 @@ SVMemAllocator *vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize) {
 
   SVArenaNode *pNode = vArenaNodeNew(capacity);
   if (pNode == NULL) {
-    // TODO
+    free(pVMA);
     return NULL;
   }
 
@@ -42,29 +41,79 @@ SVMemAllocator *vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize) {
 }
 
 void vmaDestroy(SVMemAllocator *pVMA) {
-  // TODO
+  if (pVMA) {
+    while (true) {
+      SVArenaNode *pNode = tlistPopTail(&(pVMA->nlist));
+
+      if (pNode) {
+        vArenaNodeFree(pNode);
+      } else {
+        break;
+      }
+    }
+
+    free(pVMA);
+  }
 }
 
 void vmaReset(SVMemAllocator *pVMA) {
-  // TODO
+  while (tlistNEles(&(pVMA->nlist)) > 1) {
+    SVArenaNode *pNode = tlistPopTail(&(pVMA->nlist));
+    vArenaNodeFree(pNode);
+  }
+
+  SVArenaNode *pNode = tlistHead(&(pVMA->nlist));
+  pNode->ptr = pNode->data;
 }
 
 void *vmaMalloc(SVMemAllocator *pVMA, uint64_t size) {
-  // TODO
-  return NULL;
+  SVArenaNode *pNode = tlistTail(&(pVMA->nlist));
+  void *       ptr;
+
+  if (pNode->size < POINTER_DISTANCE(pNode->ptr, pNode->data) + size) {
+    uint64_t capacity = MAX(pVMA->ssize, size);
+    pNode = vArenaNodeNew(capacity);
+    if (pNode == NULL) {
+      // TODO: handle error
+      return NULL;
+    }
+
+    tlistAppend(&(pVMA->nlist), pNode);
+  }
+
+  ptr = pNode->ptr;
+  pNode->ptr = POINTER_SHIFT(ptr, size);
+
+  return ptr;
 }
 
 void vmaFree(SVMemAllocator *pVMA, void *ptr) {
   // TODO
 }
 
+bool vmaIsFull(SVMemAllocator *pVMA) {
+  SVArenaNode *pNode = tlistTail(&(pVMA->nlist));
+
+  return (tlistNEles(&(pVMA->nlist)) > 1) || (pNode->size < POINTER_DISTANCE(pNode->ptr, pNode->data) + pVMA->lsize);
+}
+
 /* ------------------------ STATIC METHODS ------------------------ */
 static SVArenaNode *vArenaNodeNew(uint64_t capacity) {
   SVArenaNode *pNode = NULL;
-  // TODO
+
+  pNode = (SVArenaNode *)malloc(sizeof(*pNode) + capacity);
+  if (pNode == NULL) {
+    return NULL;
+  }
+
+  pNode->size = capacity;
+  pNode->ptr = pNode->data;
+
   return pNode;
 }
 
 static void vArenaNodeFree(SVArenaNode *pNode) {
-  // TODO
+  if (pNode) {
+    free(pNode);
+  }
 }

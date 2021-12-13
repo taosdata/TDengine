@@ -90,8 +90,6 @@ extern "C" {
 
 #define tlistPopTail(l) tlistPop(l, (l)->tail_)
 
-#define tlistIterInit(it, l, dir)
-
 // List iterator
 #define TD_LIST_FITER 0
 #define TD_LIST_BITER 1
