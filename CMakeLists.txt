@@ -20,6 +20,10 @@ add_library(api INTERFACE)
 target_include_directories(api INTERFACE "include/client")
 
 # src
+if(${BUILD_TEST})
+    include(CTest)
+    enable_testing()
+endif(${BUILD_TEST})
 add_subdirectory(source)
 
 # docs 
