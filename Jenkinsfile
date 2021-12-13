@@ -38,7 +38,8 @@ def pre_test(){
     sudo rmtaos || echo "taosd has not installed"
     '''
     sh '''
-    killall -9 taosd ||echo "no taosd running"
+    kill -9 $(pidof taosd) ||echo "no taosd running"
+    kill -9 $(pidof taosadapter) ||echo "no taosadapter running"
     killall -9 gdb || echo "no gdb running"
     killall -9 python3.8 || echo "no python program running"
     cd ${WKC}
@@ -104,7 +105,7 @@ def pre_test(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. > /dev/null
+    cmake .. -DBUILD_HTTP=false > /dev/null
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
@@ -178,7 +179,7 @@ def pre_test_noinstall(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. > /dev/null
+    cmake .. -DBUILD_HTTP=false > /dev/null
     make
     '''
     return 1
@@ -455,23 +456,42 @@ pipeline {
                 nohup taosd >/dev/null &
                 sleep 10
               '''
-              sh '''
-              cd ${WKC}/tests/examples/nodejs
-              npm install td2.0-connector > /dev/null 2>&1
-              node nodejsChecker.js host=localhost
-              node test1970.js
-              cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
-              npm install td2.0-connector > /dev/null 2>&1
-              node nanosecondTest.js
 
+              sh '''
+                cd ${WKC}/src/connector/python
+                export PYTHONPATH=$PWD/
+                export LD_LIBRARY_PATH=${WKC}/debug/build/lib
+                pip3 install pytest
+                pytest tests/
+
+                python3 examples/bind-multi.py
+                python3 examples/bind-row.py
+                python3 examples/demo.py
+                python3 examples/insert-lines.py
+                python3 examples/pep-249.py
+                python3 examples/query-async.py
+                python3 examples/query-objectively.py
+                python3 examples/subscribe-sync.py
+                python3 examples/subscribe-async.py
+              '''
+
+              sh '''
+                cd ${WKC}/tests/examples/nodejs
+                npm install td2.0-connector > /dev/null 2>&1
+                node nodejsChecker.js host=localhost
+                node test1970.js
+                cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
+                npm install td2.0-connector > /dev/null 2>&1
+                node nanosecondTest.js
               '''
               catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
                   cd ${WKC}/tests/examples/C#/taosdemo
-                  mcs -out:taosdemo *.cs > /dev/null 2>&1
-                  echo '' |./taosdemo -c /etc/taos
+                  dotnet build -c Release
+                  tree | true
+                  ./bin/Release/net5.0/taosdemo -c /etc/taos -y
                 '''
-              } 
+              }
               sh '''
                 cd ${WKC}/tests/gotest
                 bash batchtest.sh

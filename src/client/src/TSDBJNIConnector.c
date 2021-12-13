@@ -547,6 +547,11 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
                                jniFromNCharToByteArray(env, (char *)row[i], length[i]));
         break;
       }
+      case TSDB_DATA_TYPE_JSON: {
+        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetByteArrayFp, i,
+                               jniFromNCharToByteArray(env, (char *)row[i], length[i]));
+        break;
+      }
       case TSDB_DATA_TYPE_TIMESTAMP: {
         int precision = taos_result_precision(result);
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetTimestampFp, i, (jlong) * ((int64_t *)row[i]), precision);

@@ -110,10 +110,10 @@ First, use `taos_subscribe` to create a subscription:
 ```c
 TAOS_SUB* tsub = NULL;
 if (async) {
-　　// create an asynchronized subscription, the callback function will be called every 1s
+　　// create an asynchronous subscription, the callback function will be called every 1s
 　　tsub = taos_subscribe(taos, restart, topic, sql, subscribe_callback, &blockFetch, 1000);
 } else {
-　　// create an synchronized subscription, need to call 'taos_consume' manually
+　　// create an synchronous subscription, need to call 'taos_consume' manually
 　　tsub = taos_subscribe(taos, restart, topic, sql, NULL, NULL, 0);
 }
 ```
@@ -201,7 +201,7 @@ taos_unsubscribe(tsub, keep);
 
 Its second parameter is used to decide whether to keep the progress information of subscription on the client. If this parameter is **false** (zero), the subscription can only be restarted no matter what the `restart` parameter is when `taos_subscribe` is called next time. In addition, progress information is saved in the directory {DataDir}/subscribe/. Each subscription has a file with the same name as its `topic`. Deleting a file will also lead to a new start when the corresponding subscription is created next time.
 
-After introducing the code, let's take a look at the actual running effect. For exmaple:
+After introducing the code, let's take a look at the actual running effect. For example:
 
 - Sample code has been downloaded locally
 - TDengine has been installed on the same machine
