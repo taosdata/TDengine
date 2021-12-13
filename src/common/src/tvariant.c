@@ -285,7 +285,7 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
       }
   }
 
-  if (pDst->nType != TSDB_DATA_TYPE_POINTER_ARRAY && pDst->nType != TSDB_DATA_TYPE_VALUE_ARRAY) {
+  if (pDst->nType != TSDB_DATA_TYPE_POINTER_ARRAY && pDst->nType != TSDB_DATA_TYPE_VALUE_ARRAY && isValidDataType(pDst->nType)) { // if pDst->nType=-1, core dump. eg: where intcolumn=999999999999999999999999999
     pDst->nLen = tDataTypes[pDst->nType].bytes;
   }
 }

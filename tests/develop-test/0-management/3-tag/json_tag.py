@@ -458,7 +458,52 @@ class TDTestCase:
 
         #show create table
         tdSql.query("show create table jsons1")
-        tdSql.checkData(0, 1, 'create table `jsons1` (ts TIMESTAMP,dataint INT,databool BOOL,datastr NCHAR(50),datastrbin BINARY(150)) TAGS (jtag JSON)')
+        tdSql.checkData(0, 1, 'create table `jsons1` (`ts` TIMESTAMP,`dataint` INT,`databool` BOOL,`datastr` NCHAR(50),`datastrbin` BINARY(150)) TAGS (`jtag` JSON)')
+
+        #test aggregate function:count/avg/twa/irate/sum/stddev/leastsquares
+        tdSql.query("select count(*) from jsons1 where jtag is not null")
+        tdSql.checkData(0, 0, 10)
+        tdSql.query("select avg(dataint) from jsons1 where jtag is not null")
+        tdSql.checkData(0, 0, 5.3)
+        tdSql.error("select twa(dataint) from jsons1 where jtag is not null")
+        tdSql.error("select irate(dataint) from jsons1 where jtag is not null")
+        tdSql.query("select sum(dataint) from jsons1 where jtag->'tag1' is not null")
+        tdSql.checkData(0, 0, 49)
+        tdSql.query("select stddev(dataint) from jsons1 where jtag->'tag1'>1")
+        tdSql.checkData(0, 0, 4.496912521)
+        tdSql.error("SELECT LEASTSQUARES(dataint, 1, 1) from jsons1 where jtag is not null")
+
+        #test selection function:min/max/first/last/top/bottom/percentile/apercentile/last_row/interp
+        tdSql.query("select min(dataint) from jsons1 where jtag->'tag1'>1")
+        tdSql.checkData(0, 0, 1)
+        tdSql.query("select max(dataint) from jsons1 where jtag->'tag1'>1")
+        tdSql.checkData(0, 0, 11)
+        tdSql.query("select first(dataint) from jsons1 where jtag->'tag1'>1")
+        tdSql.checkData(0, 0, 2)
+        tdSql.query("select last(dataint) from jsons1 where jtag->'tag1'>1")
+        tdSql.checkData(0, 0, 11)
+        tdSql.query("select top(dataint,100) from jsons1 where jtag->'tag1'>1")
+        tdSql.checkRows(3)
+        tdSql.query("select bottom(dataint,100) from jsons1 where jtag->'tag1'>1")
+        tdSql.checkRows(3)
+        tdSql.error("select percentile(dataint,20) from jsons1 where jtag->'tag1'>1")
+        tdSql.query("select apercentile(dataint, 50) from jsons1 where jtag->'tag1'>1")
+        tdSql.checkData(0, 0, 1.5)
+        tdSql.query("select last_row(dataint) from jsons1 where jtag->'tag1'>1")
+        tdSql.checkData(0, 0, 11)
+        tdSql.error("select interp(dataint) from jsons1 where ts = '2020-06-02 09:17:08.000' and jtag->'tag1'>1")
+
+        #test calculation function:diff/derivative/spread/ceil/floor/round/
+        tdSql.error("select diff(dataint) from jsons1 where jtag->'tag1'>1")
+        tdSql.error("select derivative(dataint, 10m, 0) from jsons1 where jtag->'tag1'>1")
+        tdSql.query("select spread(dataint) from jsons1 where jtag->'tag1'>1")
+        tdSql.checkData(0, 0, 10)
+        tdSql.query("select ceil(dataint) from jsons1 where jtag->'tag1'>1")
+        tdSql.checkRows(3)
+        tdSql.query("select floor(dataint) from jsons1 where jtag->'tag1'>1")
+        tdSql.checkRows(3)
+        tdSql.query("select round(dataint) from jsons1 where jtag->'tag1'>1")
+        tdSql.checkRows(3)
 
     def stop(self):
         tdSql.close()
@@ -467,3 +512,4 @@ class TDTestCase:
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
+

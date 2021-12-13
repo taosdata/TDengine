@@ -3524,7 +3524,9 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  strncpy(pCmd->payload, idStr->z, idStr->n);
+  SKillQueryMsg* msg = (SKillQueryMsg*)pCmd->payload;
+
+  strncpy(msg->queryId, idStr->z, idStr->n);
 
   const char delim = ':';
   char* connIdStr = strtok(idStr->z, &delim);
@@ -3532,7 +3534,7 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType) {
 
   int32_t connId = (int32_t)strtol(connIdStr, NULL, 10);
   if (connId <= 0) {
-    memset(pCmd->payload, 0, strlen(pCmd->payload));
+    memset(msg, 0, sizeof(*msg));
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
@@ -3542,7 +3544,7 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType) {
 
   int32_t queryId = (int32_t)strtol(queryIdStr, NULL, 10);
   if (queryId <= 0) {
-    memset(pCmd->payload, 0, strlen(pCmd->payload));
+    memset(msg, 0, sizeof(*msg));
     if (killType == TSDB_SQL_KILL_QUERY) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     } else {
@@ -9821,6 +9823,9 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
     assert(pSqlExpr->pRight == NULL);
 
     if (pSqlExpr->type == SQL_NODE_VALUE) {
+      if(pSqlExpr->value.nType == -1){
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
       int32_t ret = TSDB_CODE_SUCCESS;
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_VALUE;

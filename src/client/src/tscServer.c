@@ -506,7 +506,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     }
   }
 
-  if (pRes->code == TSDB_CODE_SUCCESS && tscProcessMsgRsp[pCmd->command]) {
+  if (pRes->code == TSDB_CODE_SUCCESS && pCmd->command < TSDB_SQL_MAX && tscProcessMsgRsp[pCmd->command]) {
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
 
@@ -906,6 +906,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SArray* queryOperator = createExecOperatorPlan(&query);
 
   SQueryTableMsg *pQueryMsg = (SQueryTableMsg *)pCmd->payload;
+
   tstrncpy(pQueryMsg->version, version, tListLen(pQueryMsg->version));
 
   int32_t numOfTags = query.numOfTags;
@@ -1145,6 +1146,23 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   memcpy(pMsg, pSql->sqlstr, sqlLen);
   pMsg += sqlLen;
+
+
+/*
+  //MSG EXTEND DEMO
+  pQueryMsg->extend = 1;
+  
+  STLV *tlv = (STLV *)pMsg;
+  tlv->type = htons(TLV_TYPE_DUMMY);
+  tlv->len  = htonl(sizeof(int16_t));
+  *(int16_t *)tlv->value = htons(12345);
+  pMsg += sizeof(*tlv) + ntohl(tlv->len);
+
+  tlv = (STLV *)pMsg;
+  tlv->len = 0;
+  pMsg += sizeof(*tlv);
+
+*/
 
   int32_t msgLen = (int32_t)(pMsg - pCmd->payload);
 
@@ -2806,7 +2824,11 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
   tscAddQueryInfo(&pNew->cmd);
 
   SQueryInfo *pNewQueryInfo = tscGetQueryInfoS(&pNew->cmd);
-  if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, TSDB_DEFAULT_PAYLOAD_SIZE + pSql->cmd.payloadLen)) {
+  int payLoadLen = TSDB_DEFAULT_PAYLOAD_SIZE + pSql->cmd.payloadLen;
+  if (autocreate && pSql->cmd.insertParam.tagData.dataLen != 0) {
+    payLoadLen += pSql->cmd.insertParam.tagData.dataLen;
+  }
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, payLoadLen)) {
     tscError("0x%"PRIx64" malloc failed for payload to get table meta", pSql->self);
 
     tscFreeSqlObj(pNew);
