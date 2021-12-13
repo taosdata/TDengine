@@ -162,7 +162,7 @@ public:
         int16_t numOfFields = numOfTags + table.second->tableInfo.numOfColumns;
         for (int16_t i = 0; i < numOfFields; ++i) {
           const SSchema* schema = table.second->schema + i;
-          std::cout << SF(std::string(schema->name)) << SH((i < numOfTags ? std::string("tag") : std::string("column"))) << SH(dtToString(schema->type)) << IF(schema->bytes) << std::endl;
+          std::cout << SF(std::string(schema->name)) << SH(ftToString(i, numOfTags)) << SH(dtToString(schema->type)) << IF(schema->bytes) << std::endl;
         }
         std::cout << std::endl;
       }
@@ -201,6 +201,10 @@ private:
 
   std::string dtToString(int8_t type) const {
     return tDataTypes[type].name;
+  }
+
+  std::string ftToString(int16_t colid, int16_t numOfTags) const {
+    return (0 == colid ? "column" : (colid <= numOfTags ? "tag" : "column"));
   }
 
   std::shared_ptr<STableMeta> getTableMeta(const std::string& db, const std::string& tbname) const {
