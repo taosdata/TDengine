@@ -26,18 +26,18 @@ typedef struct SVArenaNode    SVArenaNode;
 typedef struct SVMemAllocator SVMemAllocator;
 
 struct SVArenaNode {
-  TD_LIST_NODE(SVArenaNode);
+  TD_DLIST_NODE(SVArenaNode);
   uint64_t size;  // current node size
   void *   ptr;
   char     data[];
 };
 
 struct SVMemAllocator {
-  TD_LIST_NODE(SVMemAllocator);
+  TD_DLIST_NODE(SVMemAllocator);
   uint64_t capacity;
   uint64_t ssize;
   uint64_t lsize;
-  TD_LIST(SVArenaNode) nlist;
+  TD_DLIST(SVArenaNode) nlist;
 };
 
 SVMemAllocator *vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize);

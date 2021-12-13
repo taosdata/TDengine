@@ -19,8 +19,8 @@
 #define VNODE_BUF_POOL_SHARDS 3
 
 struct SVBufPool {
-  TD_LIST(SVMemAllocator) free;
-  TD_LIST(SVMemAllocator) incycle;
+  TD_DLIST(SVMemAllocator) free;
+  TD_DLIST(SVMemAllocator) incycle;
   SVMemAllocator *inuse;
   // MAF for submodules
   // SMemAllocatorFactory maf;
