@@ -35,7 +35,8 @@ namespace TDengineDriver
         TSDB_DATA_TYPE_UTINYINT = 11,// 1 byte
         TSDB_DATA_TYPE_USMALLINT = 12,// 2 bytes
         TSDB_DATA_TYPE_UINT = 13,    // 4 bytes
-        TSDB_DATA_TYPE_UBIGINT = 14   // 8 bytes
+        TSDB_DATA_TYPE_UBIGINT = 14,   // 8 bytes
+        TSDB_DATA_TYPE_JSONTAG = 15   //4096 bytes 
     }
 
     public enum TDengineInitOption
@@ -46,7 +47,6 @@ namespace TDengineDriver
         TDDB_OPTION_CONFIGDIR = 3,
         TDDB_OPTION_SHELL_ACTIVITY_TIMER = 4
     }
-
     enum TaosField
     {
         STRUCT_SIZE = 68,
@@ -92,6 +92,8 @@ namespace TDengineDriver
                     return "TIMESTAMP";
                 case TDengineDataType.TSDB_DATA_TYPE_NCHAR:
                     return "NCHAR";
+                case TDengineDataType.TSDB_DATA_TYPE_JSONTAG:
+                    return "JSON";
                 default:
                     return "undefine";
             }
@@ -203,6 +205,7 @@ namespace TDengineDriver
                 meta.size = Marshal.ReadInt16(fieldsPtr + offset + (int)TaosField.BYTES_OFFSET);
                 metas.Add(meta);
             }
+
 
             return metas;
         }
