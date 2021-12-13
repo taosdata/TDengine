@@ -271,7 +271,6 @@ TEST_F(DndTestDnode, DropDnode_01) {
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, 0);
 
-  taosMsleep(1300);
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
   SendThenCheckShowRetrieveMsg(1);
   CheckInt16(1);
@@ -363,7 +362,7 @@ TEST_F(DndTestDnode, CreateDnode_02) {
 }
 
 TEST_F(DndTestDnode, RestartDnode_01) {
-  uInfo("===> stop all server");
+  uInfo("stop all server");
   stopServer(pServer1);
   stopServer(pServer2);
   stopServer(pServer3);
@@ -375,14 +374,16 @@ TEST_F(DndTestDnode, RestartDnode_01) {
   pServer4 = NULL;
   pServer5 = NULL;
 
-  taosMsleep(3000);  // wait tcp port cleanedup
-  uInfo("===> start all server");
+  uInfo("start all server");
 
   const char* fqdn = "localhost";
   const char* firstEp = "localhost:9521";
   pServer1 = startServer("/tmp/dndTestDnode1", fqdn, 9521, firstEp);
+  // pServer1 = startServer("/tmp/dndTestDnode3", fqdn, 9523, firstEp);
+  // pServer1 = startServer("/tmp/dndTestDnode4", fqdn, 9524, firstEp);
+  // pServer1 = startServer("/tmp/dndTestDnode5", fqdn, 9525, firstEp);
 
-  uInfo("===> all server is running");
+  uInfo("all server is running");
 
   // taosMsleep(1300);
   // SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
