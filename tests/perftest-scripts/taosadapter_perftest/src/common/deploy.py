@@ -17,12 +17,31 @@ class Dnode:
         self.dnode_password = dnode_password
         self.dnode_conn = RemoteModule(self.dnode_ip, self.dnode_port, self.dnode_username, self.dnode_password)
 
+        if self.dnode_username == "root":
+            self.home_dir = "/root"
+        else:
+            self.home_dir = f"/home/{self.dnode_username}"
+
         # self.dnode_ip = config["taosd_dnode1"]["ip"]
         # self.dnode_port = config["taosd_dnode1"]["port"]
         # self.dnode_username = config["taosd_dnode1"]["username"]
         # self.dnode_password = config["taosd_dnode1"]["password"]
         # self.RM_dnode_conn = RemoteModule(self.dnode1_ip, self.dnode1_port, self.dnode1_username, self.dnode1_password)
         # self.RM_dnode1 = RemoteModule(self.dnode1_ip, self.dnode1_port, self.dnode1_username, self.dnode1_password)
+
+    def installPackage(self):
+        if bool(int(self.dnode_conn.exec_cmd(f'cat /etc/os-release | grep ubuntu >> /dev/null && echo 1 || echo 0'))):
+            package_list = ["wget", "screen"]
+            for package in package_list:
+                if not bool(int(self.dnode_conn.exec_cmd(f'sudo dpkg -s {package} >> /dev/null && echo 1 || echo 0'))):
+                    self.dnode_conn.exec_cmd(f'apt update -y && apt install -y {package}')
+        elif bool(int(self.dnode_conn.exec_cmd(f'cat /etc/os-release | grep centos >> /dev/null && echo 1 || echo 0'))):
+            package_list = ["wget", "screen"]
+            for package in package_list:
+                if not bool(int(self.dnode_conn.exec_cmd(f'sudo rpm -qa | grep {package} >> /dev/null && echo 1 || echo 0'))):
+                    self.dnode_conn.exec_cmd(f'yum update -y && yum install -y {package}')
+        else:
+            pass
 
     def startTaosd(self):
         logger.info(f'starting {self.dnode_ip}-taosd')
@@ -161,7 +180,7 @@ class Dnode:
     def configNodeExporterService(self):
         logger.info(f'{self.dnode_ip}: configing /lib/systemd/system/node_exporter.service')
         if not bool(int(self.dnode_conn.exec_cmd(f'[ -e /lib/systemd/system/node_exporter.service ] && echo 1 || echo 0'))):
-            self.dnode_conn.exec_cmd(f'echo -e [Service]\n\
+            self.dnode_conn.exec_cmd(f'sudo echo -e [Service]\n\
                                     User=prometheus\n\
                                     Group=prometheus\n\
                                     ExecStart=/usr/local/bin/node_exporter\n\
@@ -198,7 +217,7 @@ class Dnode:
         logger.info(f'{self.dnode_ip}: killing process_exporter')
         self.dnode_conn.exec_cmd("ps -ef | grep -w process_exporter | grep -v grep | awk \'{print $2}\' | sudo xargs kill -9")
 
-    def genProcessExporterYml(self, process_list):
+    def uploadProcessExporterYml(self, process_list):
         logger.info('generating process_exporter yml')
         sub_list = list()
         for process in process_list:
@@ -208,13 +227,14 @@ class Dnode:
         dyml=yaml.load(dstr)
         stream = open('process_name.yml', 'w')
         yaml.safe_dump(dyml, stream, default_flow_style=False)
-        self.dnode_conn.upload_file("~", 'process_name.yml')
+        print(self.home_dir)
+        self.dnode_conn.upload_file(self.home_dir, 'process_name.yml')
 
     def deployProcessExporter(self, process_list):
         logger.info(f'{self.dnode_ip}: deploying process_exporter')
         self.killProcessExporter()
         self.downloadProcessExporter()
-        self.genProcessExporterYml(process_list)
+        self.uploadProcessExporterYml(process_list)
         tar_file_name = config["prometheus"]["process_exporter_addr"].split("/")[-1]
         tar_file_dir = tar_file_name.replace(".tar.gz", "")
         self.dnode_conn.exec_cmd(f'cd ~ && tar -xvf {tar_file_name} && mv -f ~/process_name.yml ~/{tar_file_dir}')
@@ -224,7 +244,8 @@ class Dnode:
         #                             cmdline:\
         #                             {cmdline}\
         #                             >> ~/{tar_file_dir}/process_name.yml')
-        self.dnode_conn.exec_cmd(f'nohup ~/{tar_file_dir}/process-exporter --config.path ~/{tar_file_dir}/process_name.yml &')
+        self.dnode_conn.exec_cmd(f'screen -d -m ~/{tar_file_dir}/process-exporter --config.path ~/{tar_file_dir}/process_name.yml')
+        # self.dnode_conn.exec_cmd(f'nohup ~/{tar_file_dir}/process-exporter --config.path ~/{tar_file_dir}/process_name.yml &')
 
     def deployTaosd(self, firstEp=None, deploy_type="taosd"):
         '''
@@ -266,6 +287,10 @@ class Dnodes:
                 self.dnodes.append(Dnode(index, config[key]["ip"], config[key]["port"], config[key]["username"], config[key]["password"]))
                 self.ip_list.append(config[key]["ip"])
                 index += 1
+
+    def installDnodesPackage(self):
+        for index in range(len(self.dnodes)):
+            self.dnodes[index].installPackage()
 
     def rmDnodeTaosd(self, index):
         self.dnodes[index - 1].rmTaosd()
@@ -398,6 +423,15 @@ class Monitor:
                 self.ip_list.append(config[key]["ip"])
                 index += 1
 
+        if self.monitor_username == "root":
+            self.home_dir = "/root"
+        else:
+            self.home_dir = f"/home/{self.monitor_username}"
+
+    def installDnodesPackage(self):
+        for index in range(len(self.dnodes)):
+            self.dnodes[index].installPackage()
+
     def deployAllNodeExporters(self):
         for index in range(len(self.dnodes)):
             self.dnodes[index].deployNodeExporter()
@@ -423,7 +457,7 @@ class Monitor:
             self.monitor_conn.exec_cmd(f'wget -P ~ {config["prometheus"]["prometheus_addr"]}')
 
     def killPrometheus(self):
-        logger.info(f'{self.dnode_ip}: killing prometheus')
+        logger.info(f'{self.monitor_ip}: killing prometheus')
         self.monitor_conn.exec_cmd("ps -ef | grep -w prometheus | grep -v grep | awk \'{print $2}\' | sudo xargs kill -9")
 
     def uploadPrometheusYml(self):
@@ -440,17 +474,48 @@ class Monitor:
         dyml=yaml.load(dstr)
         stream = open('prometheus.yml', 'w')
         yaml.safe_dump(dyml, stream, default_flow_style=False)
-        self.monitor_conn.upload_file("~", 'prometheus.yml')
+        self.monitor_conn.upload_file(self.home_dir, 'prometheus.yml')
 
     def deployPrometheus(self):
         logger.info(f'{self.monitor_ip}: deploying prometheus')
+        self.installDnodesPackage()
         self.killPrometheus()
         self.downloadPrometheus()
         self.uploadPrometheusYml()
         tar_file_name = config["prometheus"]["prometheus_addr"].split("/")[-1]
         tar_file_dir = tar_file_name.replace(".tar.gz", "")
         self.monitor_conn.exec_cmd(f'cd ~ && tar -xvf {tar_file_name} && mv ~/prometheus.yml ~/{tar_file_dir}')
-        self.monitor_conn.exec_cmd(f'nohup ~/{tar_file_dir}/prometheus --config.file=prometheus.yml &')
+        self.monitor_conn.exec_cmd(f'screen -d -m ~/{tar_file_dir}/prometheus --config.file={self.home_dir}/{tar_file_dir}/prometheus.yml')
+
+    def installGrafana(self):
+        logger.info(f'{self.monitor_ip}: installing grafana')
+        if bool(int(self.monitor_conn.exec_cmd(f'cat /etc/os-release | grep ubuntu >> /dev/null && echo 1 || echo 0'))):
+            if not bool(int(self.monitor_conn.exec_cmd(f'sudo dpkg -s grafana >> /dev/null && echo 1 || echo 0'))):
+                self.monitor_conn.exec_cmd('sudo apt-get install -y apt-transport-https')
+                self.monitor_conn.exec_cmd('sudo apt-get install -y software-properties-common wget')
+                self.monitor_conn.exec_cmd('wget -q -O - https://packages.grafana.com/gpg.key | sudo apt-key add -')
+                self.monitor_conn.exec_cmd('echo "deb https://packages.grafana.com/oss/deb stable main" | sudo tee -a /etc/apt/sources.list.d/grafana.list')
+                self.monitor_conn.exec_cmd('apt-get update')
+                self.monitor_conn.exec_cmd('sudo apt-get -y install grafana')
+        elif bool(int(self.monitor_conn.exec_cmd(f'cat /etc/os-release | grep centos >> /dev/null && echo 1 || echo 0'))):
+            if not bool(int(self.monitor_conn.exec_cmd(f'sudo rpm -qa | grep grafana >> /dev/null && echo 1 || echo 0'))):
+                self.monitor_conn.exec_cmd('rm -rf /etc/yum.repos.d/grafana.repo')
+                self.monitor_conn.exec_cmd('sudo echo -e "[grafana]\nname=grafana\nbaseurl=https://packages.grafana.com/oss/rpm\nrepo_gpgcheck=1\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.grafana.com/gpg.key\nsslverify=1\nsslcacert=/etc/pki/tls/certs/ca-bundle.crt" \
+                                            >> /etc/yum.repos.d/grafana.repo')
+                self.monitor_conn.exec_cmd('yum install -y grafana')
+        else:
+            pass
+
+    def deployGrafana(self):
+        self.installGrafana()
+        self.monitor_conn.exec_cmd('systemctl daemon-reload')
+        self.monitor_conn.exec_cmd('systemctl start grafana-server')
+        self.monitor_conn.exec_cmd('systemctl enable grafana-server.service')
+        self.monitor_conn.exec_cmd('systemctl status grafana-server')
+
+
+
+
     
     
 
@@ -535,20 +600,11 @@ class Monitor:
 #                 self.dnodes[i].deployTaosd(firstEp, "taosadapter")
 
 if __name__ == '__main__':
-    # dnode_ip = config["taosd_dnode1"]["ip"]
-    # dnode_port = config["taosd_dnode1"]["port"]
-    # dnode_username = config["taosd_dnode1"]["username"]
-    # dnode_password = config["taosd_dnode1"]["password"]
-    # deploy = Dnode(1, dnode_ip, dnode_port, dnode_username, dnode_password)
-    # deploy.deployTaosd()
-    # firstEp = f'{deploy.dnode_name}:6030'
-
-    # deploy_cluster = Cluster()
-    # deploy_cluster.deployClusters()
-
-    # deploy_taosadapter = TaosAdapter()
-    # deploy_taosadapter.deployTaosadapters(firstEp)
     deploy = Dnodes()
     deploy.deployNodes()
-
+    monitor = Monitor()
+    monitor.deployAllNodeExporters()
+    monitor.deployAllProcessExporters()
+    monitor.deployPrometheus()
+    monitor.deployGrafana()
     
