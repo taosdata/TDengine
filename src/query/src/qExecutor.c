@@ -8230,7 +8230,7 @@ int32_t cloneExprFilterInfo(SColumnFilterInfo **dst, SColumnFilterInfo* src, int
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t buildArithmeticExprFromMsg(SExprInfo *pExprInfo, void *pQueryMsg) {
+int32_t buildScalarExprFromMsg(SExprInfo *pExprInfo, void *pQueryMsg) {
   qDebug("qmsg:%p create arithmetic expr from binary", pQueryMsg);
 
   tExprNode* pExprNode = NULL;
@@ -8444,7 +8444,7 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
 
     // parse the arithmetic expression
     if (pExprs[i].base.functionId == TSDB_FUNC_SCALAR_EXPR) {
-      code = buildArithmeticExprFromMsg(&pExprs[i], pMsg);
+      code = buildScalarExprFromMsg(&pExprs[i], pMsg);
 
       if (code != TSDB_CODE_SUCCESS) {
         tfree(pExprs);
@@ -8580,30 +8580,31 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t nu
 
     // parse the arithmetic expression
     if (pExprs[i].base.functionId == TSDB_FUNC_SCALAR_EXPR) {
-      code = buildArithmeticExprFromMsg(&pExprs[i], pQueryMsg);
+      code = buildScalarExprFromMsg(&pExprs[i], pQueryMsg);
 
       if (code != TSDB_CODE_SUCCESS) {
         tfree(pExprs);
         return code;
       }
 
-      type  = TSDB_DATA_TYPE_DOUBLE;
-      bytes = tDataTypes[type].bytes;
+      pExprs[i].base.resBytes = pExprs[i].pExpr->resultBytes;
+      pExprs[i].base.resType = pExprs[i].pExpr->resultType;
+      pExprs[i].base.interBytes = 0;
     } else {
       int32_t index = pExprs[i].base.colInfo.colIndex;
       assert(prevExpr[index].base.resColId == pExprs[i].base.colInfo.colId);
 
-      type  = prevExpr[index].base.resType;
+      type = prevExpr[index].base.resType;
       bytes = prevExpr[index].base.resBytes;
-    }
 
-    int32_t param = (int32_t)pExprs[i].base.param[0].i64;
-    if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].base.resType, &pExprs[i].base.resBytes,
-                          &pExprs[i].base.interBytes, 0, isSuperTable, pUdfInfo) != TSDB_CODE_SUCCESS) {
-      tfree(pExprs);
-      return TSDB_CODE_QRY_INVALID_MSG;
+      int32_t param = (int32_t)pExprs[i].base.param[0].i64;
+      if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].base.resType,
+                            &pExprs[i].base.resBytes, &pExprs[i].base.interBytes, 0, isSuperTable,
+                            pUdfInfo) != TSDB_CODE_SUCCESS) {
+        tfree(pExprs);
+        return TSDB_CODE_QRY_INVALID_MSG;
+      }
     }
-
     assert(isValidDataType(pExprs[i].base.resType));
   }
 
@@ -9370,52 +9371,5 @@ void freeQueryAttr(SQueryAttr* pQueryAttr) {
     }
 
     filterFreeInfo(pQueryAttr->pFilters);
-  }
-}
-
-void qInfoLogSSDataBlock(SSDataBlock* block) {
-  if (block == NULL) {
-    qInfo("SSDataBlock : NULL");
-    return;
-  }
-
-  qInfo("SSDataBlock rows:%d, cols:%d, tid:%d, uid:%" PRId64 ", skey:%" PRId64 ", ekey:%" PRId64, block->info.rows,
-        block->info.numOfCols, block->info.tid, block->info.uid, block->info.window.skey, block->info.window.ekey);
-  if (block->pBlockStatis != NULL) {
-    qInfo("SSDataBlock statics: null %d, max %" PRId64 ", min %" PRId64
-          ", colId %d, maxIndex %d, minIndex %d, colId %d, sum %" PRId64,
-          block->pBlockStatis->numOfNull, block->pBlockStatis->max, block->pBlockStatis->min,
-          block->pBlockStatis->colId, block->pBlockStatis->maxIndex, block->pBlockStatis->minIndex,
-          block->pBlockStatis->colId, block->pBlockStatis->sum);
-  }
-
-  for (int i = 0; i < block->info.numOfCols; ++i) {
-    SColumnInfoData* infoData = taosArrayGet(block->pDataBlock, i);
-    qInfo("column %d, bytes %d, colId %d, type %d", i, infoData->info.bytes, infoData->info.colId, infoData->info.type);
-    for (int j = 0; j < block->info.rows; ++j) {
-      if (IS_SIGNED_NUMERIC_TYPE(infoData->info.type)) {
-        int64_t v;
-        GET_TYPED_DATA(v, int64_t, infoData->info.type, infoData->pData + j * infoData->info.bytes);
-        qInfo("%d, %" PRId64, j, v);
-      } else if (IS_UNSIGNED_NUMERIC_TYPE(infoData->info.type)) {
-        uint64_t v;
-        GET_TYPED_DATA(v, uint64_t, infoData->info.type, infoData->pData + j * infoData->info.bytes);
-        qInfo("%d, %" PRIu64, j, v);
-      } else if (IS_FLOAT_TYPE(infoData->info.type)) {
-        double v;
-        GET_TYPED_DATA(v, double, infoData->info.type, infoData->pData + j * infoData->info.bytes);
-        qInfo("%d, %lf", j, v);
-      } else if (infoData->info.type == TSDB_DATA_TYPE_BOOL) {
-        bool v;
-        GET_TYPED_DATA(v, bool, infoData->info.type, infoData->pData + j * infoData->info.bytes);
-        qInfo("%d, %s", j, v ? "true" : "false");
-      } else if (infoData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-        int64_t v;
-        GET_TYPED_DATA(v, int64_t, infoData->info.type, infoData->pData + j * infoData->info.bytes);
-        qInfo("%d, %" PRId64, j, v);
-      } else {
-        qInfo("can not print binary or nchar");
-      }
-    }
   }
 }

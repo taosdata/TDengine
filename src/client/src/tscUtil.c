@@ -4919,16 +4919,17 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
       pse->colInfo.colId = pSource->base.colInfo.colId;
       pse->colType  = pSource->base.colType;
       pse->colBytes = pSource->base.colBytes;
-      pse->resBytes = sizeof(double);
-      pse->resType  = TSDB_DATA_TYPE_DOUBLE;
 
       pse->functionId = pSource->base.functionId;
       pse->numOfParams = pSource->base.numOfParams;
 
       for (int32_t j = 0; j < pSource->base.numOfParams; ++j) {
         tVariantAssign(&pse->param[j], &pSource->base.param[j]);
-        buildArithmeticExprFromMsg(px, NULL);
+        buildScalarExprFromMsg(px, NULL);
       }
+
+      pse->resBytes = px->pExpr->resultBytes;
+      pse->resType  = px->pExpr->resultType;
     }
   }
 
@@ -5123,7 +5124,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
 
     if (pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_SCALAR_EXPR) {
       for (int32_t j = 0; j < pQueryAttr->pExpr1[i].base.numOfParams; ++j) {
-        buildArithmeticExprFromMsg(&pQueryAttr->pExpr1[i], NULL);
+        buildScalarExprFromMsg(&pQueryAttr->pExpr1[i], NULL);
       }
     }
   }
