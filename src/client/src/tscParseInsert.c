@@ -1720,6 +1720,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
  // insert from .csv means full and ordered columns, thus use SDataRow all the time
   ASSERT(SMEM_ROW_DATA == pTableDataBlock->rowBuilder.memRowType);
   pTableDataBlock->rowBuilder.rowSize = extendedRowSize;
+  
   while ((readLen = tgetline(&line, &n, fp)) != -1) {
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
       line[--readLen] = 0;
