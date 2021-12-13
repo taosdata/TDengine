@@ -416,7 +416,7 @@ int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t rowSize, char *tmpTokenBuf,
+int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, char *tmpTokenBuf,
                   SInsertStatementParam *pInsertParam) {
   int32_t   tsc_index = 0;
   SStrToken sToken = {0};
@@ -602,7 +602,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
       maxRows = tSize;
     }
 
-    code = tsParseOneRow(str, pDataBlock, precision, extendedRowSize, tmpTokenBuf, pInsertParam);
+    code = tsParseOneRow(str, pDataBlock, precision, tmpTokenBuf, pInsertParam);
     if (code != TSDB_CODE_SUCCESS) {  // error message has been set in tsParseOneRow, return directly
       return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
@@ -1726,7 +1726,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
     char *lineptr = line;
     strtolower(line, line);
 
-    code = tsParseOneRow(&lineptr, pTableDataBlock, tinfo.precision, extendedRowSize, tokenBuf, pInsertParam);
+    code = tsParseOneRow(&lineptr, pTableDataBlock, tinfo.precision, tokenBuf, pInsertParam);
     if (code != TSDB_CODE_SUCCESS || pTableDataBlock->numOfParams > 0) {
       pSql->res.code = code;
       break;
