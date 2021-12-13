@@ -131,7 +131,7 @@ TEST(vnodeApiTest, vnodeOpen_vnodeClose_test) {
 
   {
     // Create some child tables
-    int ntables = 1000;
+    int ntables = 1000000;
     int batch = 10;
     for (int i = 0; i < ntables / batch; i++) {
       SArray *pMsgs = (SArray *)taosArrayInit(batch, sizeof(SRpcMsg *));
