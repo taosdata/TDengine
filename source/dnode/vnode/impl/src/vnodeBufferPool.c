@@ -35,8 +35,8 @@ int vnodeOpenBufPool(SVnode *pVnode) {
     return -1;
   }
 
-  tlistInit(&(pVnode->pBufPool->free));
-  tlistInit(&(pVnode->pBufPool->incycle));
+  tDListInit(&(pVnode->pBufPool->free));
+  tDListInit(&(pVnode->pBufPool->incycle));
 
   pVnode->pBufPool->inuse = NULL;
 

@@ -27,7 +27,7 @@ SVMemAllocator *vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize) {
   pVMA->capacity = capacity;
   pVMA->ssize = ssize;
   pVMA->lsize = lsize;
-  tlistInit(&(pVMA->nlist));
+  tDListInit(&(pVMA->nlist));
 
   SVArenaNode *pNode = vArenaNodeNew(capacity);
   if (pNode == NULL) {

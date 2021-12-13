@@ -31,28 +31,35 @@ extern "C" {
     struct TYPE *sl_head_; \
   }
 
-#define TD_SLIST_NODE_NEXT(sln) (sln)->sl_next_
+#define TD_SLIST_HEAD(sl) ((sl)->sl_head_)
+#define TD_SLIST_NODE_NEXT(sln) ((sln)->sl_next_)
 
 #define tSListInit(sl)     \
   do {                     \
     (sl)->sl_head_ = NULL; \
   } while (0)
 
+#define tSListPrepend(sl, sln)                   \
+  do {                                           \
+    TD_SLIST_NODE_NEXT(sln) = TD_SLIST_HEAD(sl); \
+    TD_SLIST_HEAD(sl) = (sln);                   \
+  } while (0);
+
 // Double linked list
-#define TD_DLIST_NODE(S) \
-  struct {               \
-    S *prev_;            \
-    S *next_;            \
+#define TD_DLIST_NODE(TYPE) \
+  struct {                  \
+    TYPE *prev_;            \
+    TYPE *next_;            \
   }
 
-#define TD_DLIST(S) \
-  struct {          \
-    S * head_;      \
-    S * tail_;      \
-    int neles_;     \
+#define TD_DLIST(TYPE) \
+  struct {             \
+    TYPE *head_;       \
+    TYPE *tail_;       \
+    int   neles_;      \
   }
 
-#define tlistInit(l)              \
+#define tDListInit(l)             \
   (l)->head_ = (l)->tail_ = NULL; \
   (l)->neles_ = 0;
 
