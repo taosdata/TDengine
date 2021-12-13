@@ -250,7 +250,7 @@ void taosArrayPopFrontBatch(SArray* pArray, size_t cnt) {
   if(pArray->size == 0) {
     return;
   }
-  memmove(pArray->pData, (char*)pArray->pData + cnt * pArray->elemSize, pArray->size);
+  memmove(pArray->pData, (char*)pArray->pData + cnt * pArray->elemSize, pArray->size * pArray->elemSize);
 }
 
 void taosArrayPopTailBatch(SArray* pArray, size_t cnt) {

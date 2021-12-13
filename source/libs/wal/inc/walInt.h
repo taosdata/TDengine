@@ -90,7 +90,7 @@ static inline int walValidHeadCksum(SWalHead* pHead) {
 }
 
 static inline int walValidBodyCksum(SWalHead* pHead) {
-  return taosCheckChecksum((uint8_t*)pHead->head.cont, pHead->head.len, pHead->cksumBody);
+  return taosCheckChecksum((uint8_t*)pHead->head.body, pHead->head.len, pHead->cksumBody);
 }
 
 static inline int walValidCksum(SWalHead *pHead, void* body, int64_t bodyLen) {
