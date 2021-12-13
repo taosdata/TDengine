@@ -19,13 +19,75 @@
 #define VNODE_BUF_POOL_SHARDS 3
 
 struct SVBufPool {
-  // buffer pool impl
-  SList      free;
-  SList      incycle;
-  SListNode *inuse;
+  TD_LIST(SVMemAllocator) free;
+  TD_LIST(SVMemAllocator) incycle;
+  SVMemAllocator *inuse;
   // MAF for submodules
-  SMemAllocatorFactory maf;
+  // SMemAllocatorFactory maf;
 };
+
+int vnodeOpenBufPool(SVnode *pVnode) {
+  uint64_t capacity;
+  // EVMemAllocatorT type = E_V_ARENA_ALLOCATOR;
+
+  if ((pVnode->pBufPool = (SVBufPool *)calloc(1, sizeof(SVBufPool))) == NULL) {
+    /* TODO */
+    return -1;
+  }
+
+  tlistInit(&(pVnode->pBufPool->free));
+  tlistInit(&(pVnode->pBufPool->incycle));
+
+  pVnode->pBufPool->inuse = NULL;
+
+  // TODO
+  capacity = pVnode->config.wsize / VNODE_BUF_POOL_SHARDS;
+
+  for (int i = 0; i < VNODE_BUF_POOL_SHARDS; i++) {
+    SVMemAllocator *pVMA = vmaCreate(capacity, pVnode->config.ssize, pVnode->config.lsize);
+    if (pVMA == NULL) {
+      // TODO: handle error
+      return -1;
+    }
+
+    tlistAppend(&(pVnode->pBufPool->free), pVMA);
+  }
+
+  return 0;
+}
+
+void vnodeCloseBufPool(SVnode *pVnode) {
+  if (pVnode->pBufPool) {
+    vmaDestroy(pVnode->pBufPool->inuse);
+
+    while (true) {
+      SVMemAllocator *pVMA = tlistPopHead(&(pVnode->pBufPool->incycle));
+      if (pVMA == NULL) break;
+      vmaDestroy(pVMA);
+    }
+
+    while (true) {
+      SVMemAllocator *pVMA = tlistPopHead(&(pVnode->pBufPool->free));
+      if (pVMA == NULL) break;
+      vmaDestroy(pVMA);
+    }
+
+    free(pVnode->pBufPool);
+    pVnode->pBufPool = NULL;
+  }
+}
+
+void *vnodeMalloc(SVnode *pVnode, uint64_t size) {
+  // TODO
+  return NULL;
+}
+
+bool vnodeBufPoolIsFull(SVnode *pVnode) {
+  // TODO
+  return false;
+}
+
+#if 0
 
 typedef enum {
   // Heap allocator
@@ -57,78 +119,12 @@ typedef struct {
   SListNode *pNode;
 } SVMAWrapper;
 
-typedef struct {
-  T_REF_DECLARE()
-  uint64_t        capacity;
-  EVMemAllocatorT type;
-  union {
-    SVHeapAllocator  vha;
-    SVArenaAllocator vaa;
-  };
-} SVMemAllocator;
 
 static SListNode *    vBufPoolNewNode(uint64_t capacity, EVMemAllocatorT type);
 static void           vBufPoolFreeNode(SListNode *pNode);
 static SMemAllocator *vBufPoolCreateMA(SMemAllocatorFactory *pmaf);
 static void           vBufPoolDestroyMA(SMemAllocatorFactory *pmaf, SMemAllocator *pma);
 static void *         vBufPoolMalloc(SVMemAllocator *pvma, uint64_t size);
-
-int vnodeOpenBufPool(SVnode *pVnode) {
-  uint64_t        capacity;
-  EVMemAllocatorT type = E_V_ARENA_ALLOCATOR;
-
-  if ((pVnode->pBufPool = (SVBufPool *)calloc(1, sizeof(SVBufPool))) == NULL) {
-    /* TODO */
-    return -1;
-  }
-
-  tdListInit(&(pVnode->pBufPool->free), 0);
-  tdListInit(&(pVnode->pBufPool->incycle), 0);
-
-  capacity = pVnode->config.wsize / VNODE_BUF_POOL_SHARDS;
-  if (pVnode->config.isHeapAllocator) {
-    type = E_V_HEAP_ALLOCATOR;
-  }
-
-  for (int i = 0; i < VNODE_BUF_POOL_SHARDS; i++) {
-    SListNode *pNode = vBufPoolNewNode(capacity, type);
-    if (pNode == NULL) {
-      vnodeCloseBufPool(pVnode);
-      return -1;
-    }
-
-    tdListAppendNode(&(pVnode->pBufPool->free), pNode);
-  }
-
-  pVnode->pBufPool->maf.impl = pVnode;
-  pVnode->pBufPool->maf.create = vBufPoolCreateMA;
-  pVnode->pBufPool->maf.destroy = vBufPoolDestroyMA;
-
-  return 0;
-}
-
-void vnodeCloseBufPool(SVnode *pVnode) {
-  SListNode *pNode;
-  if (pVnode->pBufPool) {
-    // Clear free list
-    while ((pNode = tdListPopHead(&(pVnode->pBufPool->free))) != NULL) {
-      vBufPoolFreeNode(pNode);
-    }
-
-    // Clear incycle list
-    while ((pNode = tdListPopHead(&(pVnode->pBufPool->incycle))) != NULL) {
-      vBufPoolFreeNode(pNode);
-    }
-
-    // Free inuse node
-    if (pVnode->pBufPool->inuse) {
-      vBufPoolFreeNode(pVnode->pBufPool->inuse);
-    }
-
-    free(pVnode->pBufPool);
-    pVnode->pBufPool = NULL;
-  }
-}
 
 void *vnodeMalloc(SVnode *pVnode, uint64_t size) {
   void *ptr;
@@ -336,3 +332,4 @@ static void vBufPoolDestroyMA(SMemAllocatorFactory *pmaf, SMemAllocator *pma) { 
     // tsem_post(); todo: sem_post
   }
 }
+#endif
