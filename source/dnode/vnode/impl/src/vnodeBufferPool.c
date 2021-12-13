@@ -137,61 +137,7 @@ static SMemAllocator *vBufPoolCreateMA(SMemAllocatorFactory *pmaf);
 static void           vBufPoolDestroyMA(SMemAllocatorFactory *pmaf, SMemAllocator *pma);
 static void *         vBufPoolMalloc(SVMemAllocator *pvma, uint64_t size);
 
-void *vnodeMalloc(SVnode *pVnode, uint64_t size) {
-  void *ptr;
-
-  if (pVnode->pBufPool->inuse == NULL) {
-    SListNode *pNode;
-    while ((pNode = tdListPopHead(&(pVnode->pBufPool->free))) == NULL) {
-      // todo
-      // tsem_wait();
-      ASSERT(0);
-    }
-
-    pVnode->pBufPool->inuse = pNode;
-  }
-
-  SVMemAllocator *pvma = (SVMemAllocator *)(pVnode->pBufPool->inuse->data);
-  return vBufPoolMalloc(pvma, size);
-}
-
-bool vnodeBufPoolIsFull(SVnode *pVnode) {
-  SVBufPool *     pBufPool = pVnode->pBufPool;
-  SVMemAllocator *pvma;
-
-  if (pBufPool->inuse == NULL) return false;
-
-  pvma = (SVMemAllocator *)(pBufPool->inuse->data);
-  if (pvma->type == E_V_HEAP_ALLOCATOR) {
-    ASSERT(0);
-  } else {
-    SVArenaNode *pNode = pvma->vaa.inuse;
-    bool         ret =
-        (pNode != &(pvma->vaa.node)) || ((pNode->size - POINTER_DISTANCE(pNode->ptr, pNode->data)) <= pvma->vaa.lsize);
-
-    return ret;
-  }
-}
-
 /* ------------------------ STATIC METHODS ------------------------ */
-static void vArenaAllocatorInit(SVArenaAllocator *pvaa, uint64_t capacity, uint64_t ssize, uint64_t lsize) { /* TODO */
-  pvaa->ssize = ssize;
-  pvaa->lsize = lsize;
-  pvaa->inuse = &pvaa->node;
-
-  pvaa->node.prev = NULL;
-  pvaa->node.size = capacity;
-  pvaa->node.ptr = pvaa->node.data;
-}
-
-static void vArenaAllocatorClear(SVArenaAllocator *pvaa) { /* TODO */
-  while (pvaa->inuse != &(pvaa->node)) {
-    SVArenaNode *pANode = pvaa->inuse;
-    pvaa->inuse = pANode->prev;
-    free(pANode);
-  }
-}
-
 static SListNode *vBufPoolNewNode(uint64_t capacity, EVMemAllocatorT type) {
   SListNode *     pNode;
   SVMemAllocator *pvma;
