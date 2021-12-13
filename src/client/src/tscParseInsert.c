@@ -603,7 +603,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
       ASSERT(tSize >= maxRows);
       maxRows = tSize;
     }
-    
+
     int32_t len = 0;
     code = tsParseOneRow(str, pDataBlock, precision, &len, tmpTokenBuf, pInsertParam);
     if (code != TSDB_CODE_SUCCESS) {  // error message has been set in tsParseOneRow, return directly
