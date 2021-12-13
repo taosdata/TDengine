@@ -773,7 +773,7 @@ static void printHelp() {
     printf("%s%s%s%s\n", indent, "-c, --config-dir=CONFIG_DIR", "\t",
             "Configuration directory.");
     printf("%s%s%s%s\n", indent, "-h, --host=HOST", "\t\t",
-            "TDengine server FQDN to connect. The default host is localhost.");
+            "Server FQDN to connect. The default host is localhost.");
     printf("%s%s%s%s\n", indent, "-P, --port=PORT", "\t\t",
             "The TCP/IP port number to use for the connection.");
     printf("%s%s%s%s\n", indent, "-I, --interface=INTERFACE", "\t",
@@ -10963,8 +10963,6 @@ static int insertTestProcess() {
     assert(cmdBuffer);
 
     if(createDatabasesAndStables(cmdBuffer) != 0) {
-        if (g_fpOfInsertResult)
-            fclose(g_fpOfInsertResult);
         free(cmdBuffer);
         return -1;
     }

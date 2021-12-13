@@ -38,7 +38,8 @@ def pre_test(){
     sudo rmtaos || echo "taosd has not installed"
     '''
     sh '''
-    killall -9 taosd ||echo "no taosd running"
+    kill -9 $(pidof taosd) ||echo "no taosd running"
+    kill -9 $(pidof taosadapter) ||echo "no taosadapter running"
     killall -9 gdb || echo "no gdb running"
     killall -9 python3.8 || echo "no python program running"
     cd ${WKC}
