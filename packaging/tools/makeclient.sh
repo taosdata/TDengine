@@ -47,7 +47,8 @@ if [ "$osType" != "Darwin" ]; then
   else
     bin_files="${script_dir}/remove_client.sh \
         ${script_dir}/set_core.sh \
-        ${script_dir}/get_client.sh ${script_dir}/taosd-dump-cfg.gdb"
+        ${script_dir}/get_client.sh"
+        #${script_dir}/get_client.sh ${script_dir}/taosd-dump-cfg.gdb"
   fi
   lib_files="${build_dir}/lib/libtaos.so.${version}"
 else
