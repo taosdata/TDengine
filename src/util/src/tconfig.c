@@ -467,7 +467,7 @@ bool taosReadGlobalCfg() {
 }
 
 void taosPrintGlobalCfg() {
-  uInfo("   taos config & system info:");
+  uInfo("        config & system info:");
   uInfo("==================================");
 
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
@@ -553,7 +553,7 @@ static void taosDumpCfg(SGlobalCfg *cfg) {
 }
 
 void taosDumpGlobalCfg() {
-  printf("taos global config:\n");
+  printf("         global config:\n");
   printf("==================================\n");
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
@@ -564,7 +564,7 @@ void taosDumpGlobalCfg() {
     taosDumpCfg(cfg);
   }
 
-  printf("\ntaos local config:\n");
+  printf("\n      local config:\n");
   printf("==================================\n");
 
   for (int i = 0; i < tsGlobalConfigNum; ++i) {

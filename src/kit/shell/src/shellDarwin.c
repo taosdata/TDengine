@@ -34,10 +34,10 @@ void insertChar(Command *cmd, char *c, int size);
 
 void printHelp() {
   char indent[10] = "        ";
-  printf("taos shell is used to test the TDengine database\n");
+  printf("taos shell is used to test the database\n");
 
   printf("%s%s\n", indent, "-h");
-  printf("%s%s%s\n", indent, indent, "TDengine server IP address to connect. The default host is localhost.");
+  printf("%s%s%s\n", indent, indent, "Server IP address to connect. The default host is localhost.");
   printf("%s%s\n", indent, "-p");
   printf("%s%s%s\n", indent, indent, "The password to use when connecting to the server.");
   printf("%s%s\n", indent, "-P");
