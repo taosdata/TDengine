@@ -21,6 +21,11 @@
 #include "tulog.h"
 #include "taoserror.h"
 
+bool isInteger(double x){
+  int truncated = (int)x;
+  return (x == truncated);
+}
+
 int32_t strdequote(char *z) {
   if (z == NULL) {
     return 0;
@@ -105,7 +110,7 @@ size_t strtrim(char *z) {
   int32_t j = 0;
 
   int32_t delta = 0;
-  while (z[j] == ' ') {
+  while (isspace(z[j])) {
     ++j;
   }
 
@@ -118,9 +123,9 @@ size_t strtrim(char *z) {
 
   int32_t stop = 0;
   while (z[j] != 0) {
-    if (z[j] == ' ' && stop == 0) {
+    if (isspace(z[j]) && stop == 0) {
       stop = j;
-    } else if (z[j] != ' ' && stop != 0) {
+    } else if (!isspace(z[j]) && stop != 0) {
       stop = 0;
     }
 
@@ -507,6 +512,24 @@ char *taosIpStr(uint32_t ipInt) {
   //sprintf(ipStr, "0x%x:%u.%u.%u.%u", ipInt, ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
   sprintf(ipStr, "%u.%u.%u.%u", ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
   return ipStr;
+}
+
+void jsonKeyMd5(void *pMsg, int msgLen, void *pKey) {
+  MD5_CTX context;
+
+  MD5Init(&context);
+  MD5Update(&context, (uint8_t *)pMsg, msgLen);
+  MD5Final(&context);
+
+  memcpy(pKey, context.digest, sizeof(context.digest));
+}
+
+bool isValidateTag(char *input) {
+  if (!input) return false;
+  for (size_t i = 0; i < strlen(input); ++i) {
+    if (isprint(input[i]) == 0) return false;
+  }
+  return true;
 }
 
 FORCE_INLINE float taos_align_get_float(const char* pBuf) {

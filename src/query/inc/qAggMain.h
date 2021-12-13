@@ -200,7 +200,7 @@ typedef struct SQLFunctionCtx {
 
   SResultRowCellInfo *resultInfo;
 
-  int16_t      colId;
+  int16_t      colId;         // used for user-specified constant value
   SExtTagsInfo tagInfo;
   SPoint1      start;
   SPoint1      end;

@@ -6,18 +6,19 @@
 %default_type {SStrToken}
 %extra_argument {SSqlInfo* pInfo}
 
-%fallback ID BOOL TINYINT SMALLINT INTEGER BIGINT FLOAT DOUBLE STRING TIMESTAMP BINARY NCHAR.
+%fallback ID BOOL TINYINT SMALLINT INTEGER BIGINT FLOAT DOUBLE STRING TIMESTAMP BINARY NCHAR JSON.
 
 %left OR.
 %left AND.
 %right NOT.
-%left EQ NE ISNULL NOTNULL IS LIKE MATCH NMATCH GLOB BETWEEN IN.
+%left EQ NE ISNULL NOTNULL IS LIKE MATCH NMATCH CONTAINS GLOB BETWEEN IN.
 %left GT GE LT LE.
 %left BITAND BITOR LSHIFT RSHIFT.
 %left PLUS MINUS.
 %left DIVIDE TIMES.
 %left STAR SLASH REM.
 %right UMINUS UPLUS BITNOT.
+%right ARROW.
 
 %include {
 #include <stdio.h>
@@ -629,25 +630,33 @@ sliding_opt(K) ::= .                            {K.n = 0; K.z = NULL; K.type = 0
 %type sortlist {SArray*}
 %destructor sortlist {taosArrayDestroy($$);}
 
-%type sortitem {tVariant}
-%destructor sortitem {tVariantDestroy(&$$);}
-
 orderby_opt(A) ::= .                          {A = 0;}
 orderby_opt(A) ::= ORDER BY sortlist(X).      {A = X;}
 
 sortlist(A) ::= sortlist(X) COMMA item(Y) sortorder(Z). {
-    A = tVariantListAppend(X, &Y, Z);
+  A = commonItemAppend(X, &Y, NULL, false, Z);
+}
+
+sortlist(A) ::= sortlist(X) COMMA arrow(Y) sortorder(Z). {
+  A = commonItemAppend(X, NULL, Y, true, Z);
 }
 
 sortlist(A) ::= item(Y) sortorder(Z). {
-  A = tVariantListAppend(NULL, &Y, Z);
+  A = commonItemAppend(NULL, &Y, NULL, false, Z);
+}
+
+sortlist(A) ::= arrow(Y) sortorder(Z). {
+  A = commonItemAppend(NULL, NULL, Y, true, Z);
 }
 
 %type item {tVariant}
-item(A) ::= ids(X) cpxName(Y).   {
+item(A) ::= ID(X).   {
   toTSDBType(X.type);
-  X.n += Y.n;
-
+  tVariantCreate(&A, &X, true);
+}
+item(A) ::= ID(X) DOT ID(Y).   {
+  toTSDBType(X.type);
+  X.n += (1+Y.n);
   tVariantCreate(&A, &X, true);
 }
 
@@ -666,11 +675,19 @@ groupby_opt(A) ::= .                       { A = 0;}
 groupby_opt(A) ::= GROUP BY grouplist(X).  { A = X;}
 
 grouplist(A) ::= grouplist(X) COMMA item(Y).    {
-  A = tVariantListAppend(X, &Y, -1);
+  A = commonItemAppend(X, &Y, NULL, false, -1);
+}
+
+grouplist(A) ::= grouplist(X) COMMA arrow(Y).    {
+  A = commonItemAppend(X, NULL, Y, true, -1);
 }
 
 grouplist(A) ::= item(X).                       {
-  A = tVariantListAppend(NULL, &X, -1);
+  A = commonItemAppend(NULL, &X, NULL, false, -1);
+}
+
+grouplist(A) ::= arrow(X).                       {
+  A = commonItemAppend(NULL, NULL, X, true, -1);
 }
 
 //having clause, ignore the input condition in having
@@ -766,6 +783,18 @@ expr(A) ::= expr(X) LIKE expr(Y).    {A = tSqlExprCreate(X, Y, TK_LIKE);  }
 // match expression
 expr(A) ::= expr(X) MATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_MATCH);  }
 expr(A) ::= expr(X) NMATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_NMATCH);  }
+
+// contains expression
+expr(A) ::= ID(X) CONTAINS STRING(Y).    { tSqlExpr* S = tSqlExprCreateIdValue(pInfo, &X, TK_ID); tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Y, TK_STRING); A = tSqlExprCreate(S, M, TK_CONTAINS);  }
+expr(A) ::= ID(X) DOT ID(Y) CONTAINS STRING(Z).    { X.n += (1+Y.n); tSqlExpr* S = tSqlExprCreateIdValue(pInfo, &X, TK_ID); tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Z, TK_STRING); A = tSqlExprCreate(S, M, TK_CONTAINS);  }
+
+// arrow expression
+%type arrow {tSqlExpr*}
+%destructor arrow {tSqlExprDestroy($$);}
+arrow(A) ::= ID(X) ARROW STRING(Y).    {tSqlExpr* S = tSqlExprCreateIdValue(pInfo, &X, TK_ID); tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Y, TK_STRING); A = tSqlExprCreate(S, M, TK_ARROW);  }
+arrow(A) ::= ID(X) DOT ID(Y) ARROW STRING(Z).    {X.n += (1+Y.n); tSqlExpr* S = tSqlExprCreateIdValue(pInfo, &X, TK_ID); tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Z, TK_STRING); A = tSqlExprCreate(S, M, TK_ARROW);  }
+
+expr(A) ::= arrow(X). {A = X;}
 
 //in expression
 expr(A) ::= expr(X) IN LP exprlist(Y) RP.   {A = tSqlExprCreate(X, (tSqlExpr*)Y, TK_IN); }

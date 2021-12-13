@@ -1,7 +1,7 @@
 [Unit]
 Description=TDengine server service
-After=network-online.target
-Wants=network-online.target
+After=network-online.target taosadapter.service
+Wants=network-online.target taosadapter.service
 
 [Service]
 Type=simple

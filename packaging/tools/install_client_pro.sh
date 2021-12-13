@@ -189,9 +189,6 @@ function update_prodb() {
     install_log
     install_header
     install_lib
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
-    fi
     install_examples
     install_bin
     install_config
@@ -216,9 +213,6 @@ function install_prodb() {
     install_log
     install_header
     install_lib
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
-    fi
     install_examples
     install_bin
     install_config
