@@ -619,8 +619,7 @@ typedef void *SMemRow;
 #define isDataRow(r) (SMEM_ROW_DATA == memRowType(r))
 #define isKvRowT(t) (SMEM_ROW_KV == (((uint8_t)(t)) & 0x01))
 #define isKvRow(r) (SMEM_ROW_KV == memRowType(r))
-#define isConvertToKvRow(k, d) ((k) < ((d)*KVRatioConvert))
-#define isConvertToDataRow(k, d) ((k) > (d))
+#define isConvertToKVRow(k, d) ((k) < ((d)*KVRatioConvert))
 
 #define memRowDataBody(r) POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE)  // section after flag
 #define memRowKvBody(r) \

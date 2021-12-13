@@ -50,9 +50,9 @@ int initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, SParsedDataColIn
     }
   }
 
-  uint32_t dataLen = pColInfo->allNullLen + TD_MEM_ROW_DATA_HEAD_SIZE;
+  uint32_t dataLen = TD_MEM_ROW_DATA_HEAD_SIZE + pColInfo->allNullLen;
   uint32_t kvLen = TD_MEM_ROW_KV_HEAD_SIZE + pColInfo->numOfBound * sizeof(SColIdx) + pColInfo->boundNullLen;
-  if (isConvertToKvRow(kvLen, dataLen)) {
+  if (isConvertToKVRow(kvLen, dataLen)) {
     pBuilder->memRowType = SMEM_ROW_KV;
   } else {
     pBuilder->memRowType = SMEM_ROW_DATA;
@@ -1240,8 +1240,6 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
         pColInfo->cols[t].valStat = VAL_STAT_HAS;
         pColInfo->boundedColumns[pColInfo->numOfBound] = t;
         ++pColInfo->numOfBound;
-        // N.B. make sure sizeof(VarDataOffsetT) == sizeof(SColIdx)
-        pColInfo->boundNullLen += TYPE_BYTES[pSchema[t].type];
         switch (pSchema[t].type) {
           case TSDB_DATA_TYPE_BINARY:
             pColInfo->boundNullLen += (VARSTR_HEADER_SIZE + CHAR_BYTES);
@@ -1250,6 +1248,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
             pColInfo->boundNullLen += (VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
             break;
           default:
+            pColInfo->boundNullLen += TYPE_BYTES[pSchema[t].type];
             break;
         }
         findColumnIndex = true;
@@ -1275,8 +1274,6 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
           pColInfo->cols[t].valStat = VAL_STAT_HAS;
           pColInfo->boundedColumns[pColInfo->numOfBound] = t;
           ++pColInfo->numOfBound;
-          // N.B. make sure sizeof(VarDataOffsetT) == sizeof(SColIdx)
-          pColInfo->boundNullLen += TYPE_BYTES[pSchema[t].type];
           switch (pSchema[t].type) {
             case TSDB_DATA_TYPE_BINARY:
               pColInfo->boundNullLen += (VARSTR_HEADER_SIZE + CHAR_BYTES);
@@ -1285,6 +1282,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
               pColInfo->boundNullLen += (VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
               break;
             default:
+              pColInfo->boundNullLen += TYPE_BYTES[pSchema[t].type];
               break;
           }
           findColumnIndex = true;

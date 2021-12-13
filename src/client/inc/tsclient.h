@@ -115,9 +115,9 @@ typedef struct SParsedDataColInfo {
   int16_t        numOfCols;
   int16_t        numOfBound;
   uint16_t       flen;        // TODO: get from STSchema
-  uint16_t       allNullLen;  // TODO: get from STSchema
+  uint16_t       allNullLen;  // TODO: get from STSchema(base on SDataRow)
   uint16_t       extendedVarLen;
-  uint16_t       boundNullLen;    // bound column len with all NULL value
+  uint16_t       boundNullLen;    // bound column len with all NULL value(without VarDataOffsetT/SColIdx part)
   int32_t *      boundedColumns;  // bound column idx according to schema
   SBoundColumn * cols;
   SBoundIdxInfo *colIdxInfo;
