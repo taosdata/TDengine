@@ -162,7 +162,7 @@ typedef struct SVgDataBlocks {
   int64_t     vgId;         // virtual group id
   int32_t     numOfTables;  // number of tables in current submit block
   uint32_t    size;
-  char       *pData;
+  char       *pData;        // SMsgDesc + SSubmitMsg + SSubmitBlk + ...
 } SVgDataBlocks;
 
 typedef struct SInsertStmtInfo {

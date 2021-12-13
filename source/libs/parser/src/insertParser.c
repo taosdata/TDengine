@@ -167,11 +167,12 @@ static int32_t skipInsertInto(SInsertParseContext* pCxt) {
 
 static int32_t buildTableName(SInsertParseContext* pCxt, SToken* pStname, SArray* tableNameList) {
   if (parserValidateIdToken(pStname) != TSDB_CODE_SUCCESS) {
-    return buildInvalidOperationMsg(&pCxt->msg, "invalid table name");
+    return buildSyntaxErrMsg(&pCxt->msg, "invalid table name", pStname->z);
   }
 
   SName name = {0};
-  strndequote(name.tname, pStname->z, pStname->n);
+  strcpy(name.dbname, pCxt->pComCxt->pDbname);
+  strncpy(name.tname, pStname->z, pStname->n);
   taosArrayPush(tableNameList, &name);
 
   return TSDB_CODE_SUCCESS;
@@ -686,7 +687,6 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
   // 1. set the parsed value from sql string
   for (int i = 0; i < spd->numOfBound; ++i) {
     NEXT_TOKEN(pCxt->pSql, sToken);
-    // todo bind param
     SSchema *pSchema = &schema[spd->boundedColumns[i]]; 
     param.schema = pSchema;
     param.compareStat = pBuilder->compareStat;
@@ -770,14 +770,6 @@ static int32_t parseValuesClause(SInsertParseContext* pCxt, STableDataBlocks* da
   int32_t numOfRows = 0;
   CHECK_CODE(parseValues(pCxt, dataBuf, maxNumOfRows, &numOfRows));
 
-  for (uint32_t i = 0; i < dataBuf->numOfParams; ++i) {
-    SParamInfo *param = dataBuf->params + i;
-    if (param->idx == -1) {
-      // param->idx = pInsertParam->numOfParams++;
-      param->offset -= sizeof(SSubmitBlk);
-    }
-  }
-
   SSubmitBlk *pBlocks = (SSubmitBlk *)(dataBuf->pData);
   if (TSDB_CODE_SUCCESS != setBlockInfo(pBlocks, dataBuf->pTableMeta, numOfRows)) {
     return buildInvalidOperationMsg(&pCxt->msg, "too many rows in sql, total number of rows should be less than 32767");
@@ -815,12 +807,12 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
       CHECK_CODE(parseUsingClause(pCxt, &tbnameToken));
       NEXT_TOKEN(pCxt->pSql, sToken);
     } else {
-      CHECK_CODE(getTableMeta(pCxt, &sToken));
+      CHECK_CODE(getTableMeta(pCxt, &tbnameToken));
     }
 
     STableDataBlocks *dataBuf = NULL;
     CHECK_CODE(getDataBlockFromList(pCxt->pTableBlockHashObj, pCxt->pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
-        sizeof(SSubmitBlk), getTableInfo(pCxt->pTableMeta).rowSize, NULL/* tbname */, pCxt->pTableMeta, &dataBuf, NULL));
+        sizeof(SSubmitBlk), getTableInfo(pCxt->pTableMeta).rowSize, pCxt->pTableMeta, &dataBuf, NULL));
 
     if (TK_LP == sToken.type) {
       // pSql -> field1_name, ...)
@@ -831,6 +823,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     if (TK_VALUES == sToken.type) {
       // pSql -> (field1_value, ...) [(field1_value2, ...) ...]
       CHECK_CODE(parseValuesClause(pCxt, dataBuf));
+      pCxt->pOutput->insertType = TSDB_QUERY_TYPE_INSERT;
       continue;
     }
 
@@ -842,6 +835,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
         return buildSyntaxErrMsg(&pCxt->msg, "file path is required following keyword FILE", sToken.z);
       }
       // todo
+      pCxt->pOutput->insertType = TSDB_QUERY_TYPE_FILE_INSERT;
       continue;
     }
 
