@@ -414,7 +414,7 @@ int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, char *tmpTokenBuf,
+int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t *len, char *tmpTokenBuf,
                   SInsertStatementParam *pInsertParam) {
   int32_t   index = 0;
   SStrToken sToken = {0};
@@ -528,6 +528,8 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, c
     }
   }
 
+  *len = pBuilder->rowSize;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -582,6 +584,8 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
   if (TSDB_CODE_SUCCESS != (code = initMemRowBuilder(&pDataBlock->rowBuilder, 0, &pDataBlock->boundColumnInfo))) {
     return code;
   }
+  pDataBlock->rowBuilder.rowSize = extendedRowSize;
+
   while (1) {
     index = 0;
     sToken = tStrGetToken(*str, &index, false);
@@ -599,13 +603,13 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
       ASSERT(tSize >= maxRows);
       maxRows = tSize;
     }
-
-    code = tsParseOneRow(str, pDataBlock, precision, tmpTokenBuf, pInsertParam);
+    int32_t len = 0;
+    code = tsParseOneRow(str, pDataBlock, precision, &len, tmpTokenBuf, pInsertParam);
     if (code != TSDB_CODE_SUCCESS) {  // error message has been set in tsParseOneRow, return directly
       return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
 
-    pDataBlock->size += extendedRowSize;
+    pDataBlock->size += len;
 
     index = 0;
     sToken = tStrGetToken(*str, &index, false);
@@ -1746,7 +1750,8 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
 
   // insert from .csv means full and ordered columns, thus use SDataRow all the time
   ASSERT(SMEM_ROW_DATA == pTableDataBlock->rowBuilder.memRowType);
-
+  pTableDataBlock->rowBuilder.rowSize = extendedRowSize;
+  
   while ((readLen = tgetline(&line, &n, fp)) != -1) {
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
       line[--readLen] = 0;
@@ -1759,13 +1764,14 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
     char *lineptr = line;
     strtolower(line, line);
 
-    code = tsParseOneRow(&lineptr, pTableDataBlock, tinfo.precision, tokenBuf, pInsertParam);
+    int32_t len = 0;
+    code = tsParseOneRow(&lineptr, pTableDataBlock, tinfo.precision, &len, tokenBuf, pInsertParam);
     if (code != TSDB_CODE_SUCCESS || pTableDataBlock->numOfParams > 0) {
       pSql->res.code = code;
       break;
     }
 
-    pTableDataBlock->size += extendedRowSize;
+    pTableDataBlock->size += len;
 
     if (++count >= maxRows) {
       break;
