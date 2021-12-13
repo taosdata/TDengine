@@ -78,13 +78,24 @@ void vnodeCloseBufPool(SVnode *pVnode) {
 }
 
 void *vnodeMalloc(SVnode *pVnode, uint64_t size) {
-  // TODO
-  return NULL;
+  SVBufPool *pBufPool = pVnode->pBufPool;
+
+  if (pBufPool->inuse == NULL) {
+    while (true) {
+      // TODO: add sem_wait and sem_post
+      pBufPool->inuse = tlistPopHead(&(pBufPool->free));
+      if (pBufPool->inuse) {
+        break;
+      }
+    }
+  }
+
+  return vmaMalloc(pBufPool->inuse, size);
 }
 
 bool vnodeBufPoolIsFull(SVnode *pVnode) {
-  // TODO
-  return false;
+  if (pVnode->pBufPool->inuse == NULL) return false;
+  return vmaIsFull(pVnode->pBufPool->inuse);
 }
 
 #if 0
