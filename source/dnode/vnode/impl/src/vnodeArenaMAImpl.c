@@ -35,7 +35,7 @@ SVMemAllocator *vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize) {
     return NULL;
   }
 
-  tlistAppend(&(pVMA->nlist), pNode);
+  tDListAppend(&(pVMA->nlist), pNode);
 
   return pVMA;
 }
@@ -43,10 +43,10 @@ SVMemAllocator *vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize) {
 void vmaDestroy(SVMemAllocator *pVMA) {
   if (pVMA) {
     while (true) {
-      SVArenaNode *pNode = tlistTail(&(pVMA->nlist));
+      SVArenaNode *pNode = TD_DLIST_TAIL(&(pVMA->nlist));
 
       if (pNode) {
-        tlistPop(&(pVMA->nlist), pNode);
+        tDListPop(&(pVMA->nlist), pNode);
         vArenaNodeFree(pNode);
       } else {
         break;
@@ -58,18 +58,18 @@ void vmaDestroy(SVMemAllocator *pVMA) {
 }
 
 void vmaReset(SVMemAllocator *pVMA) {
-  while (tlistNEles(&(pVMA->nlist)) > 1) {
-    SVArenaNode *pNode = tlistTail(&(pVMA->nlist));
-    tlistPop(&(pVMA->nlist), pNode);
+  while (TD_DLIST_NELES(&(pVMA->nlist)) > 1) {
+    SVArenaNode *pNode = TD_DLIST_TAIL(&(pVMA->nlist));
+    tDListPop(&(pVMA->nlist), pNode);
     vArenaNodeFree(pNode);
   }
 
-  SVArenaNode *pNode = tlistHead(&(pVMA->nlist));
+  SVArenaNode *pNode = TD_DLIST_HEAD(&(pVMA->nlist));
   pNode->ptr = pNode->data;
 }
 
 void *vmaMalloc(SVMemAllocator *pVMA, uint64_t size) {
-  SVArenaNode *pNode = tlistTail(&(pVMA->nlist));
+  SVArenaNode *pNode = TD_DLIST_TAIL(&(pVMA->nlist));
   void *       ptr;
 
   if (pNode->size < POINTER_DISTANCE(pNode->ptr, pNode->data) + size) {
@@ -80,7 +80,7 @@ void *vmaMalloc(SVMemAllocator *pVMA, uint64_t size) {
       return NULL;
     }
 
-    tlistAppend(&(pVMA->nlist), pNode);
+    tDListAppend(&(pVMA->nlist), pNode);
   }
 
   ptr = pNode->ptr;
@@ -94,9 +94,10 @@ void vmaFree(SVMemAllocator *pVMA, void *ptr) {
 }
 
 bool vmaIsFull(SVMemAllocator *pVMA) {
-  SVArenaNode *pNode = tlistTail(&(pVMA->nlist));
+  SVArenaNode *pNode = TD_DLIST_TAIL(&(pVMA->nlist));
 
-  return (tlistNEles(&(pVMA->nlist)) > 1) || (pNode->size < POINTER_DISTANCE(pNode->ptr, pNode->data) + pVMA->lsize);
+  return (TD_DLIST_NELES(&(pVMA->nlist)) > 1) ||
+         (pNode->size < POINTER_DISTANCE(pNode->ptr, pNode->data) + pVMA->lsize);
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */

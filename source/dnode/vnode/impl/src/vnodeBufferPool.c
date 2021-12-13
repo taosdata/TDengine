@@ -50,7 +50,7 @@ int vnodeOpenBufPool(SVnode *pVnode) {
       return -1;
     }
 
-    tlistAppend(&(pVnode->pBufPool->free), pVMA);
+    tDListAppend(&(pVnode->pBufPool->free), pVMA);
   }
 
   return 0;
@@ -61,16 +61,16 @@ void vnodeCloseBufPool(SVnode *pVnode) {
     vmaDestroy(pVnode->pBufPool->inuse);
 
     while (true) {
-      SVMemAllocator *pVMA = tlistHead(&(pVnode->pBufPool->incycle));
+      SVMemAllocator *pVMA = TD_DLIST_HEAD(&(pVnode->pBufPool->incycle));
       if (pVMA == NULL) break;
-      tlistPop(&(pVnode->pBufPool->incycle), pVMA);
+      tDListPop(&(pVnode->pBufPool->incycle), pVMA);
       vmaDestroy(pVMA);
     }
 
     while (true) {
-      SVMemAllocator *pVMA = tlistHead(&(pVnode->pBufPool->free));
+      SVMemAllocator *pVMA = TD_DLIST_HEAD(&(pVnode->pBufPool->free));
       if (pVMA == NULL) break;
-      tlistPop(&(pVnode->pBufPool->free), pVMA);
+      tDListPop(&(pVnode->pBufPool->free), pVMA);
       vmaDestroy(pVMA);
     }
 
@@ -85,9 +85,9 @@ void *vnodeMalloc(SVnode *pVnode, uint64_t size) {
   if (pBufPool->inuse == NULL) {
     while (true) {
       // TODO: add sem_wait and sem_post
-      pBufPool->inuse = tlistHead(&(pBufPool->free));
+      pBufPool->inuse = TD_DLIST_HEAD(&(pBufPool->free));
       if (pBufPool->inuse) {
-        tlistPop(&(pBufPool->free), pBufPool->inuse);
+        tDListPop(&(pBufPool->free), pBufPool->inuse);
         break;
       }
     }

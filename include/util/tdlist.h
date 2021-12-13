@@ -26,87 +26,108 @@ extern "C" {
     struct type *sl_next_;  \
   }
 
-#define TD_SLIST(TYPE)     \
-  struct {                 \
-    struct TYPE *sl_head_; \
+#define TD_SLIST(TYPE)         \
+  struct {                     \
+    struct TYPE *sl_dl_head_;  \
+    int          sl_dl_neles_; \
   }
 
-#define TD_SLIST_HEAD(sl) ((sl)->sl_head_)
+#define TD_SLIST_HEAD(sl) ((sl)->sl_dl_head_)
+#define TD_SLIST_NELES(sl) ((sl)->sl_dl_neles_)
 #define TD_SLIST_NODE_NEXT(sln) ((sln)->sl_next_)
 
-#define tSListInit(sl)     \
-  do {                     \
-    (sl)->sl_head_ = NULL; \
+#define tSListInit(sl)        \
+  do {                        \
+    (sl)->sl_dl_head_ = NULL; \
+    (sl)->sl_dl_neles_ = 0;   \
   } while (0)
 
-#define tSListPrepend(sl, sln)                   \
+#define tSListPush(sl, sln)                      \
   do {                                           \
     TD_SLIST_NODE_NEXT(sln) = TD_SLIST_HEAD(sl); \
     TD_SLIST_HEAD(sl) = (sln);                   \
-  } while (0);
+    TD_SLIST_NELES(sl) += 1;                     \
+  } while (0)
+
+#define tSListPop(sl)                                          \
+  do {                                                         \
+    TD_SLIST_HEAD(sl) = TD_SLIST_NODE_NEXT(TD_SLIST_HEAD(sl)); \
+    TD_SLIST_NELES(sl) -= 1;                                   \
+  } while (0)
 
 // Double linked list
 #define TD_DLIST_NODE(TYPE) \
   struct {                  \
-    TYPE *prev_;            \
-    TYPE *next_;            \
+    TYPE *dl_prev_;         \
+    TYPE *dl_next_;         \
   }
 
-#define TD_DLIST(TYPE) \
-  struct {             \
-    TYPE *head_;       \
-    TYPE *tail_;       \
-    int   neles_;      \
+#define TD_DLIST(TYPE)      \
+  struct {                  \
+    struct TYPE *dl_head_;  \
+    struct TYPE *dl_tail_;  \
+    int          dl_neles_; \
   }
 
-#define tDListInit(l)             \
-  (l)->head_ = (l)->tail_ = NULL; \
-  (l)->neles_ = 0;
+#define TD_DLIST_NODE_PREV(dln) ((dln)->dl_prev_)
+#define TD_DLIST_NODE_NEXT(dln) ((dln)->dl_next_)
+#define TD_DLIST_HEAD(dl) ((dl)->dl_head_)
+#define TD_DLIST_TAIL(dl) ((dl)->dl_tail_)
+#define TD_DLIST_NELES(dl) ((dl)->dl_neles_)
 
-#define tlistHead(l) (l)->head_
-#define tlistTail(l) (l)->tail_
-#define tlistNEles(l) (l)->neles_
+#define tDListInit(dl)                            \
+  do {                                            \
+    TD_DLIST_HEAD(dl) = TD_DLIST_TAIL(dl) = NULL; \
+    TD_DLIST_NELES(dl) = 0;                       \
+  } while (0)
 
-#define tlistAppend(l, n)           \
-  if ((l)->head_ == NULL) {         \
-    (n)->prev_ = (n)->next_ = NULL; \
-    (l)->head_ = (l)->tail_ = (n);  \
-  } else {                          \
-    (n)->prev_ = (l)->tail_;        \
-    (n)->next_ = NULL;              \
-    (l)->tail_->next_ = (n);        \
-    (l)->tail_ = (n);               \
-  }                                 \
-  (l)->neles_ += 1;
+#define tDListAppend(dl, dln)                                   \
+  do {                                                          \
+    if (TD_DLIST_HEAD(dl) == NULL) {                            \
+      TD_DLIST_NODE_PREV(dln) = TD_DLIST_NODE_NEXT(dln) = NULL; \
+      TD_DLIST_HEAD(dl) = TD_DLIST_TAIL(dl) = (dln);            \
+    } else {                                                    \
+      TD_DLIST_NODE_PREV(dln) = TD_DLIST_TAIL(dl);              \
+      TD_DLIST_NODE_NEXT(dln) = NULL;                           \
+      TD_DLIST_NODE_NEXT(TD_DLIST_TAIL(dl)) = (dln);            \
+      TD_DLIST_TAIL(dl) = (dln);                                \
+    }                                                           \
+    TD_DLIST_NELES(dl) += 1;                                    \
+  } while (0)
 
-#define tlistPrepend(l, n)          \
-  if ((l)->head_ == NULL) {         \
-    (n)->prev_ = (n)->next_ = NULL; \
-    (l)->head_ = (l)->tail_ = (n);  \
-  } else {                          \
-    (n)->prev_ = NULL;              \
-    (n)->next_ = (l)->head_;        \
-    (l)->head_->prev_ = (n);        \
-    (l)->head_ = (n);               \
-  }                                 \
-  (l)->neles_ += 1;
+#define tDListPrepend(dl, dln)                                  \
+  do {                                                          \
+    if (TD_DLIST_HEAD(dl) == NULL) {                            \
+      TD_DLIST_NODE_PREV(dln) = TD_DLIST_NODE_NEXT(dln) = NULL; \
+      TD_DLIST_HEAD(dl) = TD_DLIST_TAIL(dl) = (dln);            \
+    } else {                                                    \
+      TD_DLIST_NODE_PREV(dln) = NULL;                           \
+      TD_DLIST_NODE_NEXT(dln) = TD_DLIST_HEAD(dl);              \
+      TD_DLIST_NODE_PREV(TD_DLIST_HEAD(dl)) = (dln);            \
+      TD_DLIST_HEAD(dl) = (dln);                                \
+    }                                                           \
+    TD_DLIST_NELES(dl) += 1;                                    \
+  } while (0)
 
-#define tlistPop(l, n)              \
-  if ((l)->head_ == (n)) {          \
-    (l)->head_ = (n)->next_;        \
-  }                                 \
-  if ((l)->tail_ == (n)) {          \
-    (l)->tail_ = (n)->prev_;        \
-  }                                 \
-  if ((n)->prev_ != NULL) {         \
-    (n)->prev_->next_ = (n)->next_; \
-  }                                 \
-  if ((n)->next_ != NULL) {         \
-    (n)->next_->prev_ = (n)->prev_; \
-  }                                 \
-  (l)->neles_ -= 1;                 \
-  (n)->prev_ = (n)->next_ = NULL;
+#define tDListPop(dl, dln)                                                   \
+  do {                                                                       \
+    if (TD_DLIST_HEAD(dl) == (dln)) {                                        \
+      TD_DLIST_HEAD(dl) = TD_DLIST_NODE_NEXT(dln);                           \
+    }                                                                        \
+    if (TD_DLIST_TAIL(dl) == (dln)) {                                        \
+      TD_DLIST_TAIL(dl) = TD_DLIST_NODE_PREV(dln);                           \
+    }                                                                        \
+    if (TD_DLIST_NODE_PREV(dln) != NULL) {                                   \
+      TD_DLIST_NODE_NEXT(TD_DLIST_NODE_PREV(dln)) = TD_DLIST_NODE_NEXT(dln); \
+    }                                                                        \
+    if (TD_DLIST_NODE_NEXT(dln) != NULL) {                                   \
+      TD_DLIST_NODE_PREV(TD_DLIST_NODE_NEXT(dln)) = TD_DLIST_NODE_PREV(dln); \
+    }                                                                        \
+    TD_DLIST_NELES(dl) -= 1;                                                 \
+    TD_DLIST_NODE_PREV(dln) = TD_DLIST_NODE_NEXT(dln) = NULL;                \
+  } while (0)
 
+#if 0
 // List iterator
 #define TD_LIST_FITER 0
 #define TD_LIST_BITER 1
@@ -118,13 +139,13 @@ extern "C" {
     TD_DLIST(S) * it_list_; \
   }
 
-#define tlistIterInit(it, l, dir) \
-  (it)->it_dir_ = (dir);          \
-  (it)->it_list_ = l;             \
-  if ((dir) == TD_LIST_FITER) {   \
-    (it)->it_next_ = (l)->head_;  \
-  } else {                        \
-    (it)->it_next_ = (l)->tail_;  \
+#define tlistIterInit(it, l, dir)   \
+  (it)->it_dir_ = (dir);            \
+  (it)->it_list_ = l;               \
+  if ((dir) == TD_LIST_FITER) {     \
+    (it)->it_next_ = (l)->dl_head_; \
+  } else {                          \
+    (it)->it_next_ = (l)->dl_tail_; \
   }
 
 #define tlistIterNext(it)                       \
@@ -139,6 +160,7 @@ extern "C" {
     }                                           \
     (it)->it_ptr_;                              \
   })
+#endif
 
 #ifdef __cplusplus
 }
