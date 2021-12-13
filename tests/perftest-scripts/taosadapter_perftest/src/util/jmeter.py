@@ -1,9 +1,8 @@
 import sys
-import json
+import shutil
 sys.path.append("../../")
 from config.env_init import *
 from src.util.RemoteModule import RemoteModule
-from src.common.dnodes import Dnodes, Dnode
 
 class Jmeter:
     def __init__(self):
@@ -52,6 +51,28 @@ class Jmeter:
         else:
             logger.error('deploy jmeter failed')
             sys.exit(1)
+
+    def genJmx(self):
+        current_dir = os.path.dirname(os.path.realpath(__file__))
+        des_jmx_file_list = list()
+        base_jmx_file = os.path.join(current_dir, '../../config/taosadapter_performance_test.jmx')
+        if config["taosadapter_separate_deploy"]:
+            for key in config:
+                if "taosd_dnode" in str(key):
+                    des_jmx_file = os.path.join(current_dir, f'../../config/{key}.jmx')
+                    # self.ip_list.append(config[key]["ip"])
+                    shutil.copyfile(base_jmx_file, des_jmx_file)
+                    des_jmx_file_list.append(des_jmx_file)
+                    # TODO 
+                    #replace restful_ip port
+        else:
+            des_jmx_file = os.path.join(current_dir, f'../../config/taosd_dnode1.jmx')
+            # self.ip_list.append(config[key]["ip"])
+            shutil.copyfile(base_jmx_file, des_jmx_file)
+            des_jmx_file_list.append(des_jmx_file)
+            # TODO 
+            #replace restful_ip port
+        return des_jmx_file_list
 
 if __name__ == '__main__':
     deploy = Jmeter()

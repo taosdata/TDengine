@@ -4,7 +4,7 @@ from config.env_init import *
 
 class Common:
     def __init__(self):
-        pass
+        self.ip_list = list()
 
     def genTelnetMulTagStr(self, count):
         tag_str = ""
@@ -24,6 +24,15 @@ class Common:
         tb_line = "stb_${stb_counter} " + "1626006833640 " + "32.261068286779754 " + stag
         row_line = "stb_${stb_counter} " + "${ts_counter} " + "32.261068286779754 " + stag
         return stb_line, tb_line, row_line
+
+    # def genJmx(self):
+    #     if config["taosadapter_separate_deploy"]:
+    #         for key in config:
+    #             if "taosd_dnode" in str(key):
+    #                 # self.ip_list.append(config[key]["ip"])
+    #                 shutil.copyfile(self.telnetMixJmxFile, jmxfile)
+
+    #     if 
 
 if __name__ == '__main__':
     com = Common()
