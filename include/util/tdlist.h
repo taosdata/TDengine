@@ -23,23 +23,23 @@ extern "C" {
 // Single linked list
 #define TD_SLIST_NODE(TYPE) \
   struct {                  \
-    struct type *sl_next_;  \
+    struct TYPE *sl_next_;  \
   }
 
-#define TD_SLIST(TYPE)         \
-  struct {                     \
-    struct TYPE *sl_dl_head_;  \
-    int          sl_dl_neles_; \
+#define TD_SLIST(TYPE)      \
+  struct {                  \
+    struct TYPE *sl_head_;  \
+    int          sl_neles_; \
   }
 
-#define TD_SLIST_HEAD(sl) ((sl)->sl_dl_head_)
-#define TD_SLIST_NELES(sl) ((sl)->sl_dl_neles_)
+#define TD_SLIST_HEAD(sl) ((sl)->sl_head_)
+#define TD_SLIST_NELES(sl) ((sl)->sl_neles_)
 #define TD_SLIST_NODE_NEXT(sln) ((sln)->sl_next_)
 
-#define tSListInit(sl)        \
-  do {                        \
-    (sl)->sl_dl_head_ = NULL; \
-    (sl)->sl_dl_neles_ = 0;   \
+#define tSListInit(sl)     \
+  do {                     \
+    (sl)->sl_head_ = NULL; \
+    (sl)->sl_neles_ = 0;   \
   } while (0)
 
 #define tSListPush(sl, sln)                      \

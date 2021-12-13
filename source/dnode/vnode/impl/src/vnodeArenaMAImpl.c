@@ -27,30 +27,25 @@ SVMemAllocator *vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize) {
   pVMA->capacity = capacity;
   pVMA->ssize = ssize;
   pVMA->lsize = lsize;
-  tDListInit(&(pVMA->nlist));
+  tSListInit(&(pVMA->nlist));
 
-  SVArenaNode *pNode = vArenaNodeNew(capacity);
-  if (pNode == NULL) {
+  pVMA->pNode = vArenaNodeNew(capacity);
+  if (pVMA->pNode == NULL) {
     free(pVMA);
     return NULL;
   }
 
-  tDListAppend(&(pVMA->nlist), pNode);
+  tSListPush(&(pVMA->nlist), pVMA->pNode);
 
   return pVMA;
 }
 
 void vmaDestroy(SVMemAllocator *pVMA) {
   if (pVMA) {
-    while (true) {
-      SVArenaNode *pNode = TD_DLIST_TAIL(&(pVMA->nlist));
-
-      if (pNode) {
-        tDListPop(&(pVMA->nlist), pNode);
-        vArenaNodeFree(pNode);
-      } else {
-        break;
-      }
+    while (TD_SLIST_NELES(&(pVMA->nlist)) > 1) {
+      SVArenaNode *pNode = TD_SLIST_HEAD(&(pVMA->nlist));
+      tSListPop(&(pVMA->nlist));
+      vArenaNodeFree(pNode);
     }
 
     free(pVMA);
@@ -58,18 +53,18 @@ void vmaDestroy(SVMemAllocator *pVMA) {
 }
 
 void vmaReset(SVMemAllocator *pVMA) {
-  while (TD_DLIST_NELES(&(pVMA->nlist)) > 1) {
-    SVArenaNode *pNode = TD_DLIST_TAIL(&(pVMA->nlist));
-    tDListPop(&(pVMA->nlist), pNode);
+  while (TD_SLIST_NELES(&(pVMA->nlist)) > 1) {
+    SVArenaNode *pNode = TD_SLIST_HEAD(&(pVMA->nlist));
+    tSListPop(&(pVMA->nlist));
     vArenaNodeFree(pNode);
   }
 
-  SVArenaNode *pNode = TD_DLIST_HEAD(&(pVMA->nlist));
+  SVArenaNode *pNode = TD_SLIST_HEAD(&(pVMA->nlist));
   pNode->ptr = pNode->data;
 }
 
 void *vmaMalloc(SVMemAllocator *pVMA, uint64_t size) {
-  SVArenaNode *pNode = TD_DLIST_TAIL(&(pVMA->nlist));
+  SVArenaNode *pNode = TD_SLIST_HEAD(&(pVMA->nlist));
   void *       ptr;
 
   if (pNode->size < POINTER_DISTANCE(pNode->ptr, pNode->data) + size) {
@@ -80,7 +75,7 @@ void *vmaMalloc(SVMemAllocator *pVMA, uint64_t size) {
       return NULL;
     }
 
-    tDListAppend(&(pVMA->nlist), pNode);
+    tSListPush(&(pVMA->nlist), pNode);
   }
 
   ptr = pNode->ptr;
@@ -94,9 +89,9 @@ void vmaFree(SVMemAllocator *pVMA, void *ptr) {
 }
 
 bool vmaIsFull(SVMemAllocator *pVMA) {
-  SVArenaNode *pNode = TD_DLIST_TAIL(&(pVMA->nlist));
+  SVArenaNode *pNode = TD_SLIST_HEAD(&(pVMA->nlist));
 
-  return (TD_DLIST_NELES(&(pVMA->nlist)) > 1) ||
+  return (TD_SLIST_NELES(&(pVMA->nlist)) > 1) ||
          (pNode->size < POINTER_DISTANCE(pNode->ptr, pNode->data) + pVMA->lsize);
 }
 
