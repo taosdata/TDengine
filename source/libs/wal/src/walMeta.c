@@ -25,15 +25,15 @@
 #include <regex.h>
 
 int64_t walGetFirstVer(SWal *pWal) {
-  return pWal->firstVersion;
+  return pWal->vers.firstVer;
 }
 
 int64_t walGetSnaphostVer(SWal *pWal) {
-  return pWal->snapshotVersion;
+  return pWal->vers.snapshotVer;
 }
 
 int64_t walGetLastVer(SWal *pWal) {
-  return pWal->lastVersion;
+  return pWal->vers.lastVer;
 }
 
 int walRollFileInfo(SWal* pWal) {
@@ -42,7 +42,7 @@ int walRollFileInfo(SWal* pWal) {
   SArray* pArray = pWal->fileInfoSet;
   if(taosArrayGetSize(pArray) != 0) {
     WalFileInfo *pInfo = taosArrayGetLast(pArray);
-    pInfo->lastVer = pWal->lastVersion;
+    pInfo->lastVer = pWal->vers.lastVer;
     pInfo->closeTs = ts;
   }
 
@@ -51,7 +51,7 @@ int walRollFileInfo(SWal* pWal) {
   if(pNewInfo == NULL) {
     return -1;
   }
-  pNewInfo->firstVer = pWal->lastVersion + 1;
+  pNewInfo->firstVer = pWal->vers.lastVer + 1;
   pNewInfo->lastVer = -1;
   pNewInfo->createTs = ts;
   pNewInfo->closeTs = -1;
@@ -74,13 +74,13 @@ char* walMetaSerialize(SWal* pWal) {
     return NULL;
   }
   cJSON_AddItemToObject(pRoot, "meta", pMeta);
-  sprintf(buf, "%" PRId64, pWal->firstVersion);
+  sprintf(buf, "%" PRId64, pWal->vers.firstVer);
   cJSON_AddStringToObject(pMeta, "firstVer", buf);
-  sprintf(buf, "%" PRId64, pWal->snapshotVersion);
+  sprintf(buf, "%" PRId64, pWal->vers.snapshotVer);
   cJSON_AddStringToObject(pMeta, "snapshotVer", buf);
-  sprintf(buf, "%" PRId64, pWal->commitVersion);
+  sprintf(buf, "%" PRId64, pWal->vers.commitVer);
   cJSON_AddStringToObject(pMeta, "commitVer", buf);
-  sprintf(buf, "%" PRId64, pWal->lastVersion);
+  sprintf(buf, "%" PRId64, pWal->vers.lastVer);
   cJSON_AddStringToObject(pMeta, "lastVer", buf);
 
   cJSON_AddItemToObject(pRoot, "files", pFiles);
@@ -116,13 +116,13 @@ int walMetaDeserialize(SWal* pWal, const char* bytes) {
   pRoot = cJSON_Parse(bytes);
   pMeta = cJSON_GetObjectItem(pRoot, "meta");
   pField = cJSON_GetObjectItem(pMeta, "firstVer");
-  pWal->firstVersion = atoll(cJSON_GetStringValue(pField));
+  pWal->vers.firstVer = atoll(cJSON_GetStringValue(pField));
   pField = cJSON_GetObjectItem(pMeta, "snapshotVer");
-  pWal->snapshotVersion = atoll(cJSON_GetStringValue(pField));
+  pWal->vers.snapshotVer = atoll(cJSON_GetStringValue(pField));
   pField = cJSON_GetObjectItem(pMeta, "commitVer");
-  pWal->commitVersion = atoll(cJSON_GetStringValue(pField));
+  pWal->vers.commitVer = atoll(cJSON_GetStringValue(pField));
   pField = cJSON_GetObjectItem(pMeta, "lastVer");
-  pWal->lastVersion = atoll(cJSON_GetStringValue(pField));
+  pWal->vers.lastVer = atoll(cJSON_GetStringValue(pField));
 
   pFiles = cJSON_GetObjectItem(pRoot, "files");
   int sz = cJSON_GetArraySize(pFiles);
@@ -161,7 +161,7 @@ static int walFindCurMetaVer(SWal* pWal) {
 
   DIR *dir = opendir(pWal->path); 
   if(dir == NULL) {
-    wError("vgId:%d, path:%s, failed to open since %s", pWal->vgId, pWal->path, strerror(errno));
+    wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
     return -1;
   }
 

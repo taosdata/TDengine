@@ -44,7 +44,7 @@ typedef struct SWalReadHead {
   int8_t   reserved[2];
   int32_t  len;
   int64_t  version;
-  char     cont[];
+  char     body[];
 } SWalReadHead;
 
 typedef struct {
@@ -52,9 +52,9 @@ typedef struct {
   int32_t  fsyncPeriod;      // millisecond
   int32_t  retentionPeriod;  // secs
   int32_t  rollPeriod;       // secs
-  int32_t  retentionSize;       // secs
+  int64_t  retentionSize;
   int64_t  segSize;
-  EWalType walLevel;         // wal level
+  EWalType level;         // wal level
 } SWalCfg;
 
 typedef struct {
@@ -90,15 +90,17 @@ typedef struct {
 #define WAL_CUR_FILE_WRITABLE 2
 #define WAL_CUR_FAILED        4
 
+typedef struct SWalVer {
+  int64_t firstVer;
+  int64_t verInSnapshotting;
+  int64_t snapshotVer;
+  int64_t commitVer;
+  int64_t lastVer;
+} SWalVer;
+
 typedef struct SWal {
   // cfg
-  int32_t  vgId;
-  int32_t  fsyncPeriod;  // millisecond
-  int32_t  rollPeriod;  // second
-  int64_t  segSize;
-  int64_t  retentionSize;
-  int32_t  retentionPeriod;
-  EWalType level;
+  SWalCfg cfg;
   //total size
   int64_t  totSize;
   //fsync seq
@@ -109,12 +111,7 @@ typedef struct SWal {
   int64_t writeLogTfd;
   int64_t writeIdxTfd;
   //wal lifecycle
-  int64_t firstVersion;
-  int64_t snapshotVersion;
-  int64_t commitVersion;
-  int64_t lastVersion;
-  //snapshotting version
-  int64_t snapshottingVer;
+  SWalVer vers;
   //roll status
   int64_t lastRollSeq;
   //file set
@@ -126,8 +123,19 @@ typedef struct SWal {
   //path
   char path[WAL_PATH_LEN];
   //reusable write head
-  SWalHead head;
+  SWalHead writeHead;
 } SWal;  // WAL HANDLE
+
+typedef struct SWalReadHandle {
+  SWal*        pWal;
+  int64_t      readLogTfd;
+  int64_t      readIdxTfd;
+  int64_t      curFileFirstVer;
+  int64_t      curVersion;
+  int64_t      capacity;
+  int64_t      status;  //if cursor valid
+  SWalHead     head;
+} SWalReadHandle;
 
 typedef int32_t (*FWalWrite)(void *ahandle, void *pHead);
 
@@ -154,6 +162,10 @@ int32_t walEndTakeSnapshot(SWal *);
 //int32_t  walDataCorrupted(SWal*);
 
 // read
+SWalReadHandle* walOpenReadHandle(SWal *);
+void    walCloseReadHandle(SWalReadHandle *);
+int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver);
+
 int32_t walRead(SWal *, SWalHead **, int64_t ver);
 int32_t walReadWithFp(SWal *, FWalWrite writeFp, int64_t verStart, int32_t readNum);
 
