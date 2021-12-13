@@ -1749,7 +1749,6 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   }
 
   int32_t extendedRowSize = getExtendedRowSize(pTableDataBlock);
-
   tscAllocateMemIfNeed(pTableDataBlock, extendedRowSize, &maxRows);
   tokenBuf = calloc(1, TSDB_MAX_BYTES_PER_ROW);
   if (tokenBuf == NULL) {
@@ -1757,9 +1756,9 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
     goto _error;
   }
 
-  --maxRows;  // 1 more row needed to facilitate the SDataRow/SKVRow convert
-  ASSERT(maxRows > 0);
-
+  // insert from .csv means full and ordered columns, thus use SDataRow all the time and no need to covert
+  ASSERT(SMEM_ROW_DATA == pTableDataBlock->rowBuilder.memRowType &&
+         ROW_COMPARE_NO_NEED == pTableDataBlock->rowBuilder.compareStat);
   int32_t convertOffset = 0;
   while ((readLen = tgetline(&line, &n, fp)) != -1) {
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
@@ -1785,10 +1784,6 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
     if (++count >= maxRows) {
       break;
     }
-  }
-  if (convertOffset) {
-    char *convertedSMemRow = pTableDataBlock->pData + pTableDataBlock->size;
-    memcpy(convertedSMemRow - convertOffset * extendedRowSize, convertedSMemRow, (size_t)memRowTLen(convertedSMemRow));
   }
 
   tfree(tokenBuf);
