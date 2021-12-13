@@ -6,4 +6,8 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="TDengine.Connector" Version="1.0.2" />
+  </ItemGroup>
+
 </Project>

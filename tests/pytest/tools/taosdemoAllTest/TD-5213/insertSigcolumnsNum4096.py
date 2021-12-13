@@ -52,7 +52,7 @@ class TDTestCase:
         #-N:regular table  -d:database name   -t:table num  -n:rows num per table  -l:col num  -y:force
         #regular old && new
         startTime = time.time()
-        os.system("%staosdemo -N -d regular_old -t 1 -n 10 -l 1023 -y" % binPath)
+        os.system("%staosBenchmark -N -d regular_old -t 1 -n 10 -l 1023 -y" % binPath)
         tdSql.execute("use regular_old")
         tdSql.query("show tables;")
         tdSql.checkRows(1)
@@ -61,7 +61,7 @@ class TDTestCase:
         tdSql.query("describe d0;")
         tdSql.checkRows(1024)
 
-        os.system("%staosdemo -N -d regular_new -t 1 -n 10 -l 4095 -y" % binPath)
+        os.system("%staosBenchmark -N -d regular_new -t 1 -n 10 -l 4095 -y" % binPath)
         tdSql.execute("use regular_new")
         tdSql.query("show tables;")
         tdSql.checkRows(1)
@@ -71,7 +71,7 @@ class TDTestCase:
         tdSql.checkRows(4096)
 
         #super table  -d:database name   -t:table num  -n:rows num per table  -l:col num  -y:force
-        os.system("%staosdemo -d super_old -t 1 -n 10 -l 1021 -y" % binPath)
+        os.system("%staosBenchmark -d super_old -t 1 -n 10 -l 1021 -y" % binPath)
         tdSql.execute("use super_old")
         tdSql.query("show tables;")
         tdSql.checkRows(1)
@@ -84,7 +84,7 @@ class TDTestCase:
         tdSql.query("describe d0;")
         tdSql.checkRows(1024)
 
-        os.system("%staosdemo -d super_new -t 1 -n 10 -l 4093 -y" % binPath)
+        os.system("%staosBenchmark -d super_new -t 1 -n 10 -l 4093 -y" % binPath)
         tdSql.execute("use super_new")
         tdSql.query("show tables;")
         tdSql.checkRows(1)
@@ -104,8 +104,8 @@ class TDTestCase:
 
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql 
         # test case for https://jira.taosdata.com:18080/browse/TD-5213
-        os.system("%staosdemo -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.json -y " % binPath)
-        tdSql.execute("use json")
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.json -y " % binPath)
+        tdSql.execute("use json_test")
         tdSql.query("select count (tbname) from stb_old")
         tdSql.checkData(0, 0, 1)
 

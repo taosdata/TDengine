@@ -79,6 +79,8 @@ extern "C" {
 
 #define TSDB_FUNC_BLKINFO      39
 
+#define TSDB_FUNC_ELAPSED         40
+
 ///////////////////////////////////////////
 // the following functions is not implemented.
 // after implementation, move them before TSDB_FUNC_BLKINFO. also make TSDB_FUNC_BLKINFO the maxium function index
@@ -202,7 +204,7 @@ typedef struct SQLFunctionCtx {
 
   SResultRowCellInfo *resultInfo;
 
-  int16_t      colId;
+  int16_t      colId;         // used for user-specified constant value
   SExtTagsInfo tagInfo;
   SPoint1      start;
   SPoint1      end;

@@ -69,10 +69,10 @@ if [ "$osType" != "Darwin" ]; then
   if [ "$pagMode" == "lite" ]; then
     strip ${build_dir}/bin/taos
     cp ${build_dir}/bin/taos          ${install_dir}/bin/khclient
-    cp ${script_dir}/remove_kh.sh  ${install_dir}/bin
+    cp ${script_dir}/remove_client_kh.sh  ${install_dir}/bin
   else 
     cp ${build_dir}/bin/taos          ${install_dir}/bin/khclient
-    cp ${script_dir}/remove_kh.sh  ${install_dir}/bin
+    cp ${script_dir}/remove_client_kh.sh  ${install_dir}/bin
     cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/khdemo
     cp ${build_dir}/bin/taosdump      ${install_dir}/bin/khdump
     cp ${script_dir}/set_core.sh      ${install_dir}/bin
