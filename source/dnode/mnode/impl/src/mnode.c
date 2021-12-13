@@ -336,8 +336,8 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   }
 
   SRpcConnInfo connInfo = {0};
-  if (rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
-    mndCleanupMsg(pMsg);
+  if ((pRpcMsg->msgType & 1U) && rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
+    taosFreeQitem(pMsg);
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
     mError("RPC:%p, app:%p failed to create msg since %s", pRpcMsg->handle, pRpcMsg->ahandle, terrstr());
     return NULL;
@@ -354,6 +354,8 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
 
 void mndCleanupMsg(SMnodeMsg *pMsg) {
   mTrace("msg:%p, app:%p is destroyed, RPC:%p", pMsg, pMsg->rpcMsg.ahandle, pMsg->rpcMsg.handle);
+  rpcFreeCont(pMsg->rpcMsg.pCont);
+  pMsg->rpcMsg.pCont = NULL;
   taosFreeQitem(pMsg);
 }
 
@@ -367,7 +369,7 @@ static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
   int32_t code = 0;
   int32_t msgType = pMsg->rpcMsg.msgType;
   void   *ahandle = pMsg->rpcMsg.ahandle;
-  bool    isReq = (msgType % 2 == 1);
+  bool    isReq = (msgType & 1U);
 
   mTrace("msg:%p, app:%p type:%s will be processed", pMsg, ahandle, taosMsg[msgType]);
 

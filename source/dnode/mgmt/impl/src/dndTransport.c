@@ -141,8 +141,8 @@ static void dndProcessResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     dTrace("RPC %p, rsp:%s is processed, code:0x%0X", pMsg->handle, taosMsg[msgType], pMsg->code & 0XFFFF);
   } else {
     dError("RPC %p, rsp:%s not processed", pMsg->handle, taosMsg[msgType]);
+    rpcFreeCont(pMsg->pCont);
   }
-  rpcFreeCont(pMsg->pCont);
 }
 
 static int32_t dndInitClient(SDnode *pDnode) {

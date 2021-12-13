@@ -202,6 +202,22 @@ TEST_F(DndTestDnode, ShowDnode) {
   CheckBinary("", 24);
 }
 
+TEST_F(DndTestDnode, ConfigDnode_01) {
+  SCfgDnodeMsg* pReq = (SCfgDnodeMsg*)rpcMallocCont(sizeof(SCfgDnodeMsg));
+  pReq->dnodeId = htonl(1);
+  strcpy(pReq->config, "ddebugflag 131");
+
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.pCont = pReq;
+  rpcMsg.contLen = sizeof(SCfgDnodeMsg);
+  rpcMsg.msgType = TSDB_MSG_TYPE_CONFIG_DNODE;
+
+  sendMsg(pClient, &rpcMsg);
+  SRpcMsg* pMsg = pClient->pRsp;
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_EQ(pMsg->code, 0);
+}
+
 TEST_F(DndTestDnode, CreateDnode_01) {
   SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
   strcpy(pReq->ep, "localhost:9522");
@@ -234,77 +250,6 @@ TEST_F(DndTestDnode, CreateDnode_01) {
   CheckBinary("", 24);
   CheckBinary("", 24);
 }
-
-#if 0
-TEST_F(DndTestDnode, AlterUser_01) {
-  ASSERT_NE(pClient, nullptr);
-
-  //--- drop user ---
-  SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(sizeof(SAlterUserMsg));
-  strcpy(pReq->user, "u1");
-  strcpy(pReq->pass, "p2");
-
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SAlterUserMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_ALTER_USER;
-
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
-
-  //--- meta ---
-  SShowMsg* pShow = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
-  pShow->type = TSDB_MGMT_TABLE_USER;
-  SRpcMsg showRpcMsg = {0};
-  showRpcMsg.pCont = pShow;
-  showRpcMsg.contLen = sizeof(SShowMsg);
-  showRpcMsg.msgType = TSDB_MSG_TYPE_SHOW;
-
-  sendMsg(pClient, &showRpcMsg);
-  SShowRsp*      pShowRsp = (SShowRsp*)pClient->pRsp->pCont;
-  STableMetaMsg* pMeta = &pShowRsp->tableMeta;
-  pMeta->numOfColumns = htons(pMeta->numOfColumns);
-  EXPECT_EQ(pMeta->numOfColumns, 4);
-
-  //--- retrieve ---
-  SRetrieveTableMsg* pRetrieve = (SRetrieveTableMsg*)rpcMallocCont(sizeof(SRetrieveTableMsg));
-  pRetrieve->showId = pShowRsp->showId;
-  SRpcMsg retrieveRpcMsg = {0};
-  retrieveRpcMsg.pCont = pRetrieve;
-  retrieveRpcMsg.contLen = sizeof(SRetrieveTableMsg);
-  retrieveRpcMsg.msgType = TSDB_MSG_TYPE_SHOW_RETRIEVE;
-
-  sendMsg(pClient, &retrieveRpcMsg);
-  SRetrieveTableRsp* pRetrieveRsp = (SRetrieveTableRsp*)pClient->pRsp->pCont;
-  pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
-  EXPECT_EQ(pRetrieveRsp->numOfRows, 3);
-
-  char*   pData = pRetrieveRsp->data;
-  int32_t pos = 0;
-  char*   strVal = NULL;
-
-  //--- name ---
-  {
-    pos += sizeof(VarDataLenT);
-    strVal = (char*)(pData + pos);
-    pos += TSDB_USER_LEN;
-    EXPECT_STREQ(strVal, "u1");
-
-    pos += sizeof(VarDataLenT);
-    strVal = (char*)(pData + pos);
-    pos += TSDB_USER_LEN;
-    EXPECT_STREQ(strVal, "root");
-
-    pos += sizeof(VarDataLenT);
-    strVal = (char*)(pData + pos);
-    pos += TSDB_USER_LEN;
-    EXPECT_STREQ(strVal, "_root");
-  }
-}
-
-#endif
 
 TEST_F(DndTestDnode, DropDnode_01) {
   SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(sizeof(SDropDnodeMsg));

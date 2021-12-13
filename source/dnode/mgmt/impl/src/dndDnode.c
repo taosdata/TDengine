@@ -448,7 +448,7 @@ static void dndProcessAuthRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) { a
 static void dndProcessGrantRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) { assert(1); }
 
 static void dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pMsg) {
-  dDebug("config msg is received");
+  dError("config msg is received, but not supported yet");
   SCfgDnodeMsg *pCfg = pMsg->pCont;
 
   int32_t code = TSDB_CODE_OPS_NOT_SUPPORT;
@@ -585,4 +585,5 @@ void dndProcessDnodeRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
     default:
       dError("RPC %p, dnode rsp:%s not processed", pMsg->handle, taosMsg[pMsg->msgType]);
   }
+  rpcFreeCont(pMsg->pCont);
 }
