@@ -482,6 +482,7 @@ pipeline {
               node test1970.js
 
               cd ${WKC}/src/connector/nodejs
+              npm install
               npm run test
 
               cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
