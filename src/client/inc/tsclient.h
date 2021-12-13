@@ -202,9 +202,12 @@ static FORCE_INLINE void tscAppendMemRowColVal(SMemRow row, const void *value, b
 
 // Applicable to consume by one row
 static FORCE_INLINE void tscAppendMemRowColValEx(SMemRow row, const void *value, bool isCopyVarData, int16_t colId,
-                                              int8_t colType, int32_t toffset, int32_t *dataLen, int32_t *kvLen,
-                                              uint8_t compareStat) {
+                                                 int8_t colType, int32_t toffset, int32_t *dataLen, int32_t *kvLen,
+                                                 uint8_t compareStat) {
   tdAppendMemRowColVal(row, value, isCopyVarData, colId, colType, toffset);
+  if (compareStat == ROW_COMPARE_NEED) {
+    tdGetColAppendDeltaLen(value, colType, dataLen, kvLen);
+  }
 }
 typedef struct STableDataBlocks {
   SName       tableName;
