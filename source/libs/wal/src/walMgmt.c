@@ -80,6 +80,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return NULL;
   }
+  memset(pWal, 0, sizeof(SWal));
   pWal->writeLogTfd = -1;
   pWal->writeIdxTfd = -1;
   pWal->writeCur = -1;
@@ -89,6 +90,8 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->fsyncPeriod = pCfg->fsyncPeriod;
   pWal->rollPeriod = pCfg->rollPeriod;
   pWal->segSize = pCfg->segSize;
+  pWal->retentionSize = pCfg->retentionSize;
+  pWal->retentionPeriod = pCfg->retentionPeriod;
   pWal->level = pCfg->walLevel;
 
   //init version info
@@ -98,6 +101,8 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->lastVersion = -1;
 
   pWal->snapshottingVer = -1;
+
+  pWal->totSize = 0;
 
   //init status
   pWal->lastRollSeq = -1;
@@ -122,6 +127,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     walFreeObj(pWal);
     return NULL;
   }
+  walReadMeta(pWal);
 
   wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->vgId, pWal, pWal->level, pWal->fsyncPeriod);
 
@@ -153,9 +159,12 @@ void walClose(SWal *pWal) {
 
   pthread_mutex_lock(&pWal->mutex);
   tfClose(pWal->writeLogTfd);
+  pWal->writeLogTfd = -1;
   tfClose(pWal->writeIdxTfd);
-  /*taosArrayDestroy(pWal->fileInfoSet);*/
-  /*pWal->fileInfoSet = NULL;*/
+  pWal->writeIdxTfd = -1;
+  walWriteMeta(pWal);
+  taosArrayDestroy(pWal->fileInfoSet);
+  pWal->fileInfoSet = NULL;
   pthread_mutex_unlock(&pWal->mutex);
   taosRemoveRef(tsWal.refSetId, pWal->refId);
 }
@@ -165,7 +174,7 @@ static int32_t walInitObj(SWal *pWal) {
     wError("vgId:%d, path:%s, failed to create directory since %s", pWal->vgId, pWal->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }
-  pWal->fileInfoSet = taosArrayInit(0, sizeof(WalFileInfo));
+  pWal->fileInfoSet = taosArrayInit(8, sizeof(WalFileInfo));
   if(pWal->fileInfoSet == NULL) {
     wError("vgId:%d, path:%s, failed to init taosArray %s", pWal->vgId, pWal->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);

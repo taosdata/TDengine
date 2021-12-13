@@ -52,6 +52,7 @@ typedef struct {
   int32_t  fsyncPeriod;      // millisecond
   int32_t  retentionPeriod;  // secs
   int32_t  rollPeriod;       // secs
+  int32_t  retentionSize;       // secs
   int64_t  segSize;
   EWalType walLevel;         // wal level
 } SWalCfg;

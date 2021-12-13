@@ -228,6 +228,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   pthread_mutex_unlock(&pWal->mutex);
   return 0;
 }
+
 int32_t walBeginTakeSnapshot(SWal* pWal, int64_t ver) {
   pWal->snapshottingVer = ver;
   //check file rolling
@@ -276,10 +277,12 @@ int32_t walEndTakeSnapshot(SWal *pWal) {
   //make new array, remove files
   taosArrayPopFrontBatch(pWal->fileInfoSet, deleteCnt); 
   if(taosArrayGetSize(pWal->fileInfoSet) == 0) {
+    pWal->writeCur = -1;
     pWal->firstVersion = -1;
   } else {
     pWal->firstVersion = ((WalFileInfo*)taosArrayGet(pWal->fileInfoSet, 0))->firstVer;
   }
+  pWal->writeCur = taosArrayGetSize(pWal->fileInfoSet) - 1;;
   pWal->totSize = newTotSize;
   pWal->snapshottingVer = -1;
 
@@ -340,19 +343,10 @@ int walRoll(SWal *pWal) {
 }
 
 static int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
-  int code = 0;
-  //get index file
-  if(!tfValid(pWal->writeIdxTfd)) {
-    code = TAOS_SYSTEM_ERROR(errno);
-
-    wError("vgId:%d, file:%"PRId64".idx, failed to open since %s", pWal->vgId, walGetLastFileFirstVer(pWal), strerror(errno));
-    return code;
-  }
-  char fnameStr[WAL_FILE_LEN];
-  walBuildIdxName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
   WalIdxEntry entry = { .ver = ver, .offset = offset };
   int size = tfWrite(pWal->writeIdxTfd, &entry, sizeof(WalIdxEntry));
   if(size != sizeof(WalIdxEntry)) {
+    //TODO truncate
     return -1;
   }
   return 0;
