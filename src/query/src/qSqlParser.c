@@ -143,14 +143,14 @@ tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optr
   if (optrType == TK_NULL) {
     if (pToken){
       pToken->type = TSDB_DATA_TYPE_NULL;
-      tVariantCreate(&pSqlExpr->value, pToken, true);
+      tVariantCreate(&pSqlExpr->value, pToken);
     }
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_VALUE;
   } else if (optrType == TK_INTEGER || optrType == TK_STRING || optrType == TK_FLOAT || optrType == TK_BOOL) {
     if (pToken) {
       toTSDBType(pToken->type);
-      tVariantCreate(&pSqlExpr->value, pToken, true);
+      tVariantCreate(&pSqlExpr->value, pToken);
     }
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_VALUE;
@@ -203,7 +203,7 @@ tSqlExpr *tSqlExprCreateTimestamp(SStrToken *pToken, int32_t optrType) {
   if (optrType == TK_INTEGER || optrType == TK_STRING) {
     if (pToken) {
       toTSDBType(pToken->type);
-      tVariantCreate(&pSqlExpr->value, pToken, true);
+      tVariantCreate(&pSqlExpr->value, pToken);
     }
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_VALUE;
@@ -572,7 +572,7 @@ SArray *tVariantListAppendToken(SArray *pList, SStrToken *pToken, uint8_t order,
 
   if (pToken) {
     tVariantListItem item;
-    tVariantCreate(&item.pVar, pToken, needRmquoteEscape);
+    tVariantCreateExt(&item.pVar, pToken, TK_ID, needRmquoteEscape);
     item.sortOrder = order;
 
     taosArrayPush(pList, &item);
