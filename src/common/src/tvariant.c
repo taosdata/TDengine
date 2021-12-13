@@ -176,7 +176,7 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
       pVar->wpz = calloc(1, (lenInwchar + 1) * TSDB_NCHAR_SIZE);
       memcpy(pVar->wpz, pz, lenInwchar * TSDB_NCHAR_SIZE);
       pVar->nLen = (int32_t)len;
-      
+
       break;
     }
     case TSDB_DATA_TYPE_BINARY: {  // todo refactor, extract a method
@@ -185,12 +185,12 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
       pVar->nLen = (int32_t)len;
       break;
     }
-    
+
     default:
       pVar->i64 = GET_INT32_VAL(pz);
       pVar->nLen = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
   }
-  
+
   pVar->nType = type;
 }
 
