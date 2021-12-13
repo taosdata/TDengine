@@ -45,5 +45,3 @@ void     dropServer(SServer* pServer);
 SClient* createClient(const char* user, const char* pass, const char* fqdn, uint16_t port);
 void     dropClient(SClient* pClient);
 void     sendMsg(SClient* pClient, SRpcMsg* pMsg);
-
-// class DndTest 

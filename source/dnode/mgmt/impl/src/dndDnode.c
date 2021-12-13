@@ -281,9 +281,8 @@ PRASE_DNODE_OVER:
   if (pMgmt->dnodeEps == NULL) {
     pMgmt->dnodeEps = calloc(1, sizeof(SDnodeEps) + sizeof(SDnodeEp));
     pMgmt->dnodeEps->num = 1;
-    pMgmt->dnodeEps->eps[0].isMnode = 1;
-    pMgmt->dnodeEps->eps[0].port = pDnode->opt.serverPort;
-    tstrncpy(pMgmt->dnodeEps->eps[0].fqdn, pDnode->opt.localFqdn, TSDB_FQDN_LEN);
+    pMgmt->dnodeEps->eps[0].isMnode = 1;   
+    taosGetFqdnPortFromEp(pDnode->opt.firstEp, pMgmt->dnodeEps->eps[0].fqdn, &pMgmt->dnodeEps->eps[0].port);
   }
 
   dndResetDnodes(pDnode, pMgmt->dnodeEps);
@@ -371,6 +370,8 @@ void dndSendStatusMsg(SDnode *pDnode) {
 
   SRpcMsg rpcMsg = {.pCont = pStatus, .contLen = contLen, .msgType = TSDB_MSG_TYPE_STATUS};
   pMgmt->statusSent = 1;
+
+  dTrace("pDnode:%p, send status msg to mnode", pDnode);
   dndSendMsgToMnode(pDnode, &rpcMsg);
 }
 
@@ -476,11 +477,11 @@ static void *dnodeThreadRoutine(void *param) {
 
   while (true) {
     pthread_testcancel();
+    taosMsleep(ms);
 
     if (dndGetStat(pDnode) == DND_STAT_RUNNING && !pMgmt->statusSent) {
       dndSendStatusMsg(pDnode);
     }
-    taosMsleep(ms);
   }
 }
 
