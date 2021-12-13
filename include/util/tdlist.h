@@ -65,30 +65,21 @@ extern "C" {
   }                                 \
   (l)->neles_ += 1;
 
-#define tlistPop(l, n)                  \
-  ({                                    \
-    if ((n)) {                          \
-      if ((l)->head_ == (n)) {          \
-        (l)->head_ = (n)->next_;        \
-      }                                 \
-      if ((l)->tail_ == (n)) {          \
-        (l)->tail_ = (n)->prev_;        \
-      }                                 \
-      if ((n)->prev_ != NULL) {         \
-        (n)->prev_->next_ = (n)->next_; \
-      }                                 \
-      if ((n)->next_ != NULL) {         \
-        (n)->next_->prev_ = (n)->prev_; \
-      }                                 \
-      (l)->neles_ -= 1;                 \
-      (n)->prev_ = (n)->next_ = NULL;   \
-    }                                   \
-    (n);                                \
-  })
-
-#define tlistPopHead(l) tlistPop(l, (l)->head_)
-
-#define tlistPopTail(l) tlistPop(l, (l)->tail_)
+#define tlistPop(l, n)              \
+  if ((l)->head_ == (n)) {          \
+    (l)->head_ = (n)->next_;        \
+  }                                 \
+  if ((l)->tail_ == (n)) {          \
+    (l)->tail_ = (n)->prev_;        \
+  }                                 \
+  if ((n)->prev_ != NULL) {         \
+    (n)->prev_->next_ = (n)->next_; \
+  }                                 \
+  if ((n)->next_ != NULL) {         \
+    (n)->next_->prev_ = (n)->prev_; \
+  }                                 \
+  (l)->neles_ -= 1;                 \
+  (n)->prev_ = (n)->next_ = NULL;
 
 // List iterator
 #define TD_LIST_FITER 0

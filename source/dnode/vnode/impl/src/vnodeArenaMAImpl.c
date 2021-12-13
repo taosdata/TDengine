@@ -43,9 +43,10 @@ SVMemAllocator *vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize) {
 void vmaDestroy(SVMemAllocator *pVMA) {
   if (pVMA) {
     while (true) {
-      SVArenaNode *pNode = tlistPopTail(&(pVMA->nlist));
+      SVArenaNode *pNode = tlistTail(&(pVMA->nlist));
 
       if (pNode) {
+        tlistPop(&(pVMA->nlist), pNode);
         vArenaNodeFree(pNode);
       } else {
         break;
@@ -58,7 +59,8 @@ void vmaDestroy(SVMemAllocator *pVMA) {
 
 void vmaReset(SVMemAllocator *pVMA) {
   while (tlistNEles(&(pVMA->nlist)) > 1) {
-    SVArenaNode *pNode = tlistPopTail(&(pVMA->nlist));
+    SVArenaNode *pNode = tlistTail(&(pVMA->nlist));
+    tlistPop(&(pVMA->nlist), pNode);
     vArenaNodeFree(pNode);
   }
 
