@@ -88,7 +88,8 @@ taoskeeper_br_1="develop"
 
 
 #cloud group
-TDC_br="main"
+TDC_br_1="main"
+TDC_br_2="develop"
 #########################################
 
 result_file=$script_dir/info_${start_date}_${end_date}.txt
@@ -282,15 +283,11 @@ function getAddRmvLinesPrNumForCloudGroup () {
   total_rmvLines=0
   total_prNum=0
     
-  ######## 4. taoskeeper repository
-  Repository_dir=$script_dir/taoskeeper
-  cd $Repository_dir
-  getBranchInfo $output_usr_name $taoskeeper_br_1
-  
-  ######## 5. TDC repository
+  ######## TDC repository
   Repository_dir=$script_dir/TDC
   cd $Repository_dir
-  getBranchInfo $output_usr_name $TDC_br
+  getBranchInfo $output_usr_name $TDC_br_1
+  getBranchInfo $output_usr_name $TDC_br_2
   
   ################ totaol result ###########################
   if [[ $total_addLines -eq 0 ]] && [[ $total_rmvLines -eq 0 ]] && [[ $total_prNum -eq 0 ]]; then
@@ -409,7 +406,8 @@ echo  "====pull taoskeeper end"
 ######## 5. TDC repository
 Repository_dir=$script_dir/TDC
 cd $Repository_dir 
-gitPullBranchInfo $TDC_br
+gitPullBranchInfo $TDC_br_1
+gitPullBranchInfo $TDC_br_2
 echo  "====pull TDC end"
 
 echo "all repo git pull complete !"
@@ -608,18 +606,18 @@ getAddRmvLinesPrNumForAppGroup $taos_name
 ####============  cloud group members ============####
 #### changshuaiqiang
 taos_name=changshuaiqiang
-filter_usr_name="Shuaiqiang|Chang|changshuaiqiang|ShuaiQChang"
+filter_usr_name="Shuaiqiang Chang|changshuaiqiang|ShuaiQChang"
 getAddRmvLinesPrNumForCloudGroup $taos_name 
 
 #### lianjingtao
 taos_name=lianjingtao
-filter_usr_name="lianjt"
+filter_usr_name="Jingtao Lian|jtlian|lianjt"
 getAddRmvLinesPrNumForCloudGroup $taos_name  
 
 #### wangguan
-taos_name=wangguan
-filter_usr_name="skye0207|skye|Guan Wang"
-getAddRmvLinesPrNumForCloudGroup $taos_name
+#taos_name=wangguan
+#filter_usr_name="skye0207|skye|Guan Wang"
+#getAddRmvLinesPrNumForCloudGroup $taos_name
 
 #### yuanyuan
 taos_name=yuanyuan
