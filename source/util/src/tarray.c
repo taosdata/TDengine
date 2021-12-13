@@ -58,23 +58,30 @@ static int32_t taosArrayResize(SArray* pArray) {
   return 0;
 }
 
-void* taosArrayAddBatch(SArray* pArray, const void* pData, int nEles) {
-  if (pArray == NULL || pData == NULL) {
-    return NULL;
-  }
-
-  if (pArray->size + nEles > pArray->capacity) {
+int32_t taosArrayEnsureCap(SArray* pArray, size_t newCap) {
+  if (newCap > pArray->capacity) {
     size_t tsize = (pArray->capacity << 1u);
-    while (pArray->size + nEles > tsize) {
+    while (newCap > tsize) {
       tsize = (tsize << 1u);
     }
 
     pArray->pData = realloc(pArray->pData, tsize * pArray->elemSize);
     if (pArray->pData == NULL) {
-      return NULL;
+      return -1;
     }
 
     pArray->capacity = tsize;
+  }
+  return 0;
+}
+
+void* taosArrayAddBatch(SArray* pArray, const void* pData, int nEles) {
+  if (pArray == NULL || pData == NULL) {
+    return NULL;
+  }
+
+  if(taosArrayEnsureCap(pArray, pArray->size + nEles) != 0){
+    return NULL;
   }
 
   void* dst = TARRAY_GET_ELEM(pArray, pArray->size);

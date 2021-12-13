@@ -45,6 +45,13 @@ void* taosArrayInit(size_t size, size_t elemSize);
 
 /**
  *
+ * @param tsize
+ * @return
+ */
+int32_t taosArrayEnsureCap(SArray* pArray, size_t tsize);
+
+/**
+ *
  * @param pArray
  * @param pData
  * @param nEles
