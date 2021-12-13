@@ -569,7 +569,7 @@ class TDTestCase:
         tdSql.error(" select stddev(dataint) from jsons7 group by datadouble;")
         tdSql.execute("create table if not exists jsons8(ts timestamp, dataInt int, dataBool bool, datafloat float, datadouble double,dataStr nchar(50),datatime timestamp) tags(jtag json)")
         tdSql.execute("insert into jsons8_1 using jsons8 tags('{\"nv\":null,\"tea\":true,\"\":false,\" \":123,\"tea\":false}') values (now,2,'true',0.9,0.1,'abc',now+60s)")
-        tdSql.execute("insert into jsons8_2 using jsons8 tags('{\"nv\":null,\"tea\":true,\"\":false,\" \":123,\"tea\":false}') values (now+5s,2,'true',0.9,0.1,'abc',now+65s)")
+        tdSql.execute("insert into jsons8_2 using jsons8 tags('{\"nv\":null,\"tea\":true,\"\":true,\" \":123,\"tea\":false}') values (now+5s,2,'true',0.9,0.1,'abc',now+65s)")
         tdSql.query(" select stddev(dataint) from jsons8 group by datatime;")
         tdSql.error(" select stddev(datatime) from jsons8 group by datadouble;")
 
