@@ -54,33 +54,33 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 
 ## JDBC driver version and supported TDengine and JDK versions
 
-| taos-jdbcdriver | TDengine     | JDK |
-| -------------------- | ----------------- | -------- |
-| 2.0.33 - 2.0.34      | 2.0.3.0 and above      | 1.8.x    |
-| 2.0.31 - 2.0.32      | 2.1.3.0 and above      | 1.8.x    |
-| 2.0.22 - 2.0.30    | 2.0.18.0 - 2.1.2.x | 1.8.x    |
-| 2.0.12 - 2.0.21     | 2.0.8.0 - 2.0.17.x | 1.8.x    |
-| 2.0.4 - 2.0.11       | 2.0.0.0 - 2.0.7.x | 1.8.x    |
-| 1.0.3                | 1.6.1.x and above    | 1.8.x    |
-| 1.0.2                | 1.6.1.x and above    | 1.8.x    |
-| 1.0.1                | 1.6.1.x and above    | 1.8.x    |
+| taos-jdbcdriver | TDengine           | JDK   |
+| --------------- | ------------------ | ----- |
+| 2.0.33 - 2.0.34 | 2.0.3.0 and above  | 1.8.x |
+| 2.0.31 - 2.0.32 | 2.1.3.0 and above  | 1.8.x |
+| 2.0.22 - 2.0.30 | 2.0.18.0 - 2.1.2.x | 1.8.x |
+| 2.0.12 - 2.0.21 | 2.0.8.0 - 2.0.17.x | 1.8.x |
+| 2.0.4 - 2.0.11  | 2.0.0.0 - 2.0.7.x  | 1.8.x |
+| 1.0.3           | 1.6.1.x and above  | 1.8.x |
+| 1.0.2           | 1.6.1.x and above  | 1.8.x |
+| 1.0.1           | 1.6.1.x and above  | 1.8.x |
 
 ## DataType in TDengine and Java connector
 
 The TDengine supports the following data types and Java data types:
 
 | TDengine DataType | JDBCType (driver version < 2.0.24) | JDBCType (driver version >= 2.0.24) |
-| ----------------- | ------------------ | ------------------ |
-| TIMESTAMP         | java.lang.Long     | java.sql.Timestamp |
-| INT               | java.lang.Integer  | java.lang.Integer  |
-| BIGINT            | java.lang.Long     | java.lang.Long     |
-| FLOAT             | java.lang.Float    | java.lang.Float    |
-| DOUBLE            | java.lang.Double   | java.lang.Double   |
-| SMALLINT          | java.lang.Short    | java.lang.Short    |
-| TINYINT           | java.lang.Byte     | java.lang.Byte     |
-| BOOL              | java.lang.Boolean  | java.lang.Boolean  |
-| BINARY            | java.lang.String   | byte array         |
-| NCHAR             | java.lang.String   | java.lang.String   |
+| ----------------- | ---------------------------------- | ----------------------------------- |
+| TIMESTAMP         | java.lang.Long                     | java.sql.Timestamp                  |
+| INT               | java.lang.Integer                  | java.lang.Integer                   |
+| BIGINT            | java.lang.Long                     | java.lang.Long                      |
+| FLOAT             | java.lang.Float                    | java.lang.Float                     |
+| DOUBLE            | java.lang.Double                   | java.lang.Double                    |
+| SMALLINT          | java.lang.Short                    | java.lang.Short                     |
+| TINYINT           | java.lang.Byte                     | java.lang.Byte                      |
+| BOOL              | java.lang.Boolean                  | java.lang.Boolean                   |
+| BINARY            | java.lang.String                   | byte array                          |
+| NCHAR             | java.lang.String                   | java.lang.String                    |
 
 ## Install Java connector
 
@@ -448,7 +448,7 @@ public static void main(String[] args) throws SQLException {
     config.setMinimumIdle(10);           //minimum number of idle connection
     config.setMaximumPoolSize(10);      //maximum number of connection in the pool
     config.setConnectionTimeout(30000); //maximum wait milliseconds for get connection from pool
-    config.setMaxLifetime(0);       // maximum life time for each connection
+    config.setMaxLifetime(0);       // maximum lifetime for each connection
     config.setIdleTimeout(0);       // max idle time for recycle idle connection
     config.setConnectionTestQuery("select server_status()"); //validation query
     HikariDataSource ds = new HikariDataSource(config); //create datasource
@@ -456,7 +456,7 @@ public static void main(String[] args) throws SQLException {
     Statement statement = connection.createStatement(); // get statement
     //query or insert
     // ...
-    connection.close(); // put back to conneciton pool
+    connection.close(); // put back to connection pool
 }
 ```
 
@@ -480,7 +480,7 @@ public static void main(String[] args) throws Exception {
     Statement statement = connection.createStatement(); // get statement
     //query or insert 
     // ...
-    connection.close(); // put back to conneciton pool
+    connection.close(); // put back to connection pool
 }
 ```
 

@@ -21,7 +21,6 @@
 #include "tlog.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "tscUtil.h"
 #include "tsclient.h"
 #include "dnode.h"
 #include "vnode.h"

@@ -423,4 +423,48 @@ if $data04 != 1 then
   return -1
 endi
 
+print ======================= test show create table/stable
+sql create table tb3 (ts timestamp, `123` int, `123 456` int, `123.abc` int)
+sql create table stb3 (ts timestamp, `123` int, `123 456` int, `123.abc` int) tags (t1 int)
+sql create table ctb3 using stb3 tags (1)
+
+sql show create table tb3;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @tb3@ then
+  return -1
+endi
+
+if $data01 != @create table `tb3` (`ts` TIMESTAMP,`123` INT,`123 456` INT,`123.abc` INT)@ then
+  return -1
+endi
+
+sql show create stable stb3;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @stb3@ then
+  return -1
+endi
+
+if $data01 != @create table `stb3` (`ts` TIMESTAMP,`123` INT,`123 456` INT,`123.abc` INT) TAGS (`t1` INT)@ then
+  return -1
+endi
+
+sql show create table ctb3;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @ctb3@ then
+  return -1
+endi
+
+if $data01 != @CREATE TABLE `ctb3` USING `stb3` TAGS (1)@ then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

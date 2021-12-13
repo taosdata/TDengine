@@ -168,11 +168,22 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             case TIMESTAMP: {
                 Long value = row.getLong(colIndex);
                 //TODO: this implementation has bug if the timestamp bigger than 9999_9999_9999_9
-                if (value < 1_0000_0000_0000_0L)
+                if (value < 1_0000_0000_0000_0L) {
+                    this.timestampPrecision = TimestampPrecision.MS;
                     return new Timestamp(value);
-                long epochSec = value / 1000_000L;
-                long nanoAdjustment = value % 1000_000L * 1000L;
-                return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+                }
+                if (value >= 1_0000_0000_0000_0L && value < 1_000_000_000_000_000_0l) {
+                    this.timestampPrecision = TimestampPrecision.US;
+                    long epochSec = value / 1000_000L;
+                    long nanoAdjustment = value % 1000_000L * 1000L;
+                    return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+                }
+                if (value >= 1_000_000_000_000_000_0l) {
+                    this.timestampPrecision = TimestampPrecision.NS;
+                    long epochSec = value / 1000_000_000L;
+                    long nanoAdjustment = value % 1000_000_000L;
+                    return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+                }
             }
             case UTC: {
                 String value = row.getString(colIndex);
@@ -182,12 +193,15 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
                 if (value.length() > 31) {
                     // ns timestamp: yyyy-MM-ddTHH:mm:ss.SSSSSSSSS+0x00
                     nanoAdjustment = fractionalSec;
+                    this.timestampPrecision = TimestampPrecision.NS;
                 } else if (value.length() > 28) {
                     // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSSSSS+0x00
                     nanoAdjustment = fractionalSec * 1000L;
+                    this.timestampPrecision = TimestampPrecision.US;
                 } else {
                     // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSS+0x00
                     nanoAdjustment = fractionalSec * 1000_000L;
+                    this.timestampPrecision = TimestampPrecision.MS;
                 }
                 ZoneOffset zoneOffset = ZoneOffset.of(value.substring(value.length() - 5));
                 Instant instant = Instant.ofEpochSecond(epochSec, nanoAdjustment).atOffset(zoneOffset).toInstant();
@@ -196,7 +210,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             case STRING:
             default: {
                 String value = row.getString(colIndex);
-                TimestampPrecision precision = Utils.guessTimestampPrecision(value);
+                int precision = Utils.guessTimestampPrecision(value);
+                this.timestampPrecision = precision;
+
                 if (precision == TimestampPrecision.MS) {
                     // ms timestamp: yyyy-MM-dd HH:mm:ss.SSS
                     return row.getTimestamp(colIndex);
@@ -338,8 +354,18 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         wasNull = value == null;
         if (value == null)
             return 0;
-        if (value instanceof Timestamp)
-            return ((Timestamp) value).getTime();
+        if (value instanceof Timestamp) {
+            Timestamp ts = (Timestamp) value;
+            switch (this.timestampPrecision) {
+                case TimestampPrecision.MS:
+                default:
+                    return ts.getTime();
+                case TimestampPrecision.US:
+                    return ts.getTime() * 1000 + ts.getNanos() / 1000 % 1000;
+                case TimestampPrecision.NS:
+                    return ts.getTime() * 1000_000 + ts.getNanos() % 1000_000;
+            }
+        }
         long valueAsLong = 0;
         try {
             valueAsLong = Long.parseLong(value.toString());
