@@ -22,14 +22,30 @@ extern "C" {
 
 #include "catalog.h"
 
+#define CTG_DEFAULT_CLUSTER_NUMBER 3
+
 typedef struct SCatalog {
 
 } SCatalog;
 
 typedef struct SCatalogMgmt {
   void       *pMsgSender;   // used to send messsage to mnode to fetch necessary metadata
-  SHashObj   *pMeta;        // items cached for each cluster, the hash key is the cluster-id, returned by mgmt node
+  SHashObj   *pCluster;     // items cached for each cluster, the hash key is the cluster-id got from mgmt node
 } SCatalogMgmt;
+
+
+
+#define ctgFatal(...) tscFatal(__VA_ARGS__)
+#define ctgError(...) tscError(__VA_ARGS__)
+#define ctgWarn(...) tscWarn(__VA_ARGS__)
+#define ctgInfo(...) tscInfo(__VA_ARGS__)
+#define ctgDebug(...) tscDebug(__VA_ARGS__)
+#define ctgTrace(...) tscTrace(__VA_ARGS__)
+
+#define CTG_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { return _code; } } while (0)
+#define CTG_ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { ctgError(__VA_ARGS__); return _code; } } while (0)
+#define CTG_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { goto _return; } } while (0)
+
 
 #ifdef __cplusplus
 }

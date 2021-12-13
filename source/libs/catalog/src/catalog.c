@@ -19,14 +19,71 @@ SCatalogMgmt ctgMgmt = {0};
 
 
 int32_t catalogInit(SCatalog *cfg) {
-  ctgMgmt = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  ctgMgmt.pCluster = taosHashInit(CTG_DEFAULT_CLUSTER_NUMBER, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (NULL == ctgMgmt.pCluster) {
+    CTG_ERR_LRET(TSDB_CODE_CTG_INTERNAL_EROR, "init %d cluster cache failed", CTG_DEFAULT_CLUSTER_NUMBER);
+  }
+
+  ctgGetVnodeInfo();
+
+  return TSDB_CODE_SUCCESS;
 }
 
 
 struct SCatalog* catalogGetHandle(const char *clusterId) {
-  return (struct SCatalog*) 0x1;
+  if (NULL == clusterId) {
+    return NULL;
+  }
+
+  if (NULL == ctgMgmt.pCluster) {
+    ctgError("cluster cache are not ready");
+    return NULL;
+  }
+
+  size_t clen = strlen(clusterId);
+  SCatalog *clusterCtg = (SCatalog *)taosHashGet(ctgMgmt.pCluster, clusterId, clen);
+
+  if (clusterCtg) {
+    return clusterCtg;
+  }
+
+  clusterCtg = calloc(1, sizeof(*clusterCtg));
+  if (NULL == clusterCtg) {
+    ctgError("calloc %d failed", sizeof(*clusterCtg));
+    return NULL;
+  }
+
+  if (taosHashPut(ctgMgmt.pCluster, clusterId, clen, &clusterCtg, POINTER_BYTES)) {
+    ctgError("put cluster %s cache to hash failed", clusterId);
+    tfree(clusterCtg);
+    return NULL;
+  }
+  
+  return clusterCtg;
 }
 
-int32_t catalogGetAllMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const SCatalogReq* pMetaReq, SCatalogRsp* pMetaData) {
+int32_t catalogGetTableMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const char* pTableName, STableMeta* pTableMeta) {
+  if (NULL == pCatalog || NULL == pMgmtEps || NULL == pTableName || NULL == pTableMeta) {
+    return TSDB_CODE_CTG_INVALID_INPUT;
+  }
+
+}
+
+
+int32_t catalogGetAllMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SCatalogRsp* pRsp) {
+  if (NULL == pCatalog || NULL == pMgmtEps || NULL == pReq || NULL == pRsp) {
+    return TSDB_CODE_CTG_INVALID_INPUT;
+  }
+  
   return 0;
 }
+
+void catalogDestroy(void) {
+  if (ctgMgmt.pCluster) {
+    taosHashCleanup(ctgMgmt.pCluster); //TBD
+    ctgMgmt.pCluster = NULL;
+  }
+}
+
+
+

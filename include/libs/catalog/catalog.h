@@ -31,10 +31,10 @@ extern "C" {
 struct SCatalog;
 
 typedef struct SCatalogReq {
-  char    clusterId[TSDB_CLUSTER_ID_LEN];
+  char    clusterId[TSDB_CLUSTER_ID_LEN];  //????
   SArray *pTableName;     // table full name
   SArray *pUdf;           // udf name
-  bool    qNodeEpset;     // valid qnode
+  bool    qNodeRequired;  // valid qnode
 } SCatalogReq;
 
 typedef struct SCatalogRsp {
@@ -93,6 +93,9 @@ int32_t catalogInit(SCatalog *cfg);
  */
 struct SCatalog* catalogGetHandle(const char *clusterId);
 
+int32_t catalogGetTableMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const char* pTableName, const STagData* tagData, STableMeta* pTableMeta);
+
+
 /**
  * Get the required meta data from mnode.
  * Note that this is a synchronized API and is also thread-safety.
@@ -102,11 +105,14 @@ struct SCatalog* catalogGetHandle(const char *clusterId);
  * @param pMetaData
  * @return
  */
-int32_t catalogGetAllMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const SCatalogReq* pCatalogReq, SCatalogRsp* pCatalogData);
+int32_t catalogGetAllMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SCatalogRsp* pRsp);
 
 int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const STableMeta* pTableMeta);
 
-int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const STableMeta* pTableMeta, SCatalogRsp* pCatalogData);
+int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const STableMeta* pTableMeta, STableMeta* pNewTableMeta);
+
+int32_t catalogGetQnodeList(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, SEpSet* pQnodeEpSet);
+
 
 
 /**

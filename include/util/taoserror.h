@@ -490,6 +490,13 @@ int32_t* taosGetErrno();
 // monitor
 #define TSDB_CODE_MON_CONNECTION_INVALID        TAOS_DEF_ERROR_CODE(0, 0x2300)  //"monitor invalid monitor db connection")
 
+// catalog
+#define TSDB_CODE_CTG_INTERNAL_EROR             TAOS_DEF_ERROR_CODE(0, 0x2400)  //catalog interval error
+#define TSDB_CODE_CTG_INVALID_INPUT             TAOS_DEF_ERROR_CODE(0, 0x2401)  //invalid catalog input parameters
+#define TSDB_CODE_CTG_NOT_READY                 TAOS_DEF_ERROR_CODE(0, 0x2402)  //catalog is not ready
+#define TSDB_CODE_CTG_MEM_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x2403)  //catalog memory error
+#define TSDB_CODE_CTG_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x2404)  //catalog system error
+
 #ifdef __cplusplus
 }
 #endif
