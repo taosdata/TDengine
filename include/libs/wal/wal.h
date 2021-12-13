@@ -38,6 +38,24 @@ typedef enum {
   TAOS_WAL_FSYNC = 2
 } EWalType;
 
+typedef struct SWalReadHead {
+  int8_t   sver;
+  uint8_t  msgType;
+  int8_t   reserved[2];
+  int32_t  len;
+  int64_t  version;
+  char     cont[];
+} SWalReadHead;
+
+typedef struct {
+  int32_t  vgId;
+  int32_t  fsyncPeriod;      // millisecond
+  int32_t  retentionPeriod;  // secs
+  int32_t  rollPeriod;       // secs
+  int64_t  segSize;
+  EWalType walLevel;         // wal level
+} SWalCfg;
+
 typedef struct {
   //union {
     //uint32_t info;
@@ -47,24 +65,10 @@ typedef struct {
       //uint32_t reserved : 24;
     //};
   //};
-  int8_t   sver;
-  uint8_t  msgType;
-  int8_t   reserved[2];
-  int32_t  len;
-  int64_t  version;
-  uint32_t signature;
   uint32_t cksumHead;
   uint32_t cksumBody;
-  char     cont[];
+  SWalReadHead head;
 } SWalHead;
-
-typedef struct {
-  int32_t  vgId;
-  int32_t  fsyncPeriod;  // millisecond
-  int32_t  rollPeriod;
-  int64_t  segSize;
-  EWalType walLevel;     // wal level
-} SWalCfg;
 
 #define WAL_PREFIX       "wal"
 #define WAL_PREFIX_LEN   3
@@ -80,7 +84,7 @@ typedef struct {
 //#define WAL_FILE_NUM     1 // 3
 #define WAL_FILESET_MAX  128
 
-#define WAL_IDX_ENTRY_SIZE     (sizeof(int64_t)*2)
+#define WAL_IDX_ENTRY_SIZE    (sizeof(int64_t)*2)
 #define WAL_CUR_POS_WRITABLE  1
 #define WAL_CUR_FILE_WRITABLE 2
 #define WAL_CUR_FAILED        4
@@ -103,21 +107,17 @@ typedef struct SWal {
   //write tfd
   int64_t writeLogTfd;
   int64_t writeIdxTfd;
-  //read tfd
-  int64_t readLogTfd;
-  int64_t readIdxTfd;
-  //current version
-  int64_t curVersion;
   //wal lifecycle
   int64_t firstVersion;
   int64_t snapshotVersion;
   int64_t commitVersion;
   int64_t lastVersion;
+  //snapshotting version
+  int64_t snapshottingVer;
   //roll status
   int64_t lastRollSeq;
   //file set
   int32_t writeCur;
-  int32_t readCur;
   SArray* fileInfoSet;
   //ctl
   int32_t curStatus;
@@ -148,7 +148,8 @@ int32_t walCommit(SWal *, int64_t ver);
 // truncate after
 int32_t walRollback(SWal *, int64_t ver);
 // notify that previous logs can be pruned safely
-int32_t walTakeSnapshot(SWal *, int64_t ver);
+int32_t walBeginTakeSnapshot(SWal *, int64_t ver);
+int32_t walEndTakeSnapshot(SWal *);
 //int32_t  walDataCorrupted(SWal*);
 
 // read

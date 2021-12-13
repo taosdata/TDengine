@@ -79,11 +79,6 @@ static void _init_tvariant_nchar(SVariant* t) {
   t->nLen = twcslen(t->wpz);
 }
 
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
-
 TEST(testCase, validateToken_test) {
   char t01[] = "abc";
   EXPECT_EQ(testValidateName(t01), TSDB_CODE_SUCCESS);
