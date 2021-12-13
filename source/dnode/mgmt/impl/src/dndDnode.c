@@ -454,7 +454,6 @@ static void dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pMsg) {
   int32_t code = TSDB_CODE_OPS_NOT_SUPPORT;
   SRpcMsg rspMsg = {.handle = pMsg->handle, .pCont = NULL, .contLen = 0, .code = code};
   rpcSendResponse(&rspMsg);
-  rpcFreeCont(pMsg->pCont);
 }
 
 static void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg) {
@@ -467,7 +466,6 @@ static void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg) {
 
   SRpcMsg rpcRsp = {.handle = pMsg->handle, .pCont = pStartup, .contLen = sizeof(SStartupMsg)};
   rpcSendResponse(&rpcRsp);
-  rpcFreeCont(pMsg->pCont);
 }
 
 static void *dnodeThreadRoutine(void *param) {
@@ -567,8 +565,10 @@ void dndProcessDnodeReq(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
       dError("RPC %p, dnode req:%s not processed", pMsg->handle, taosMsg[pMsg->msgType]);
       SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_MSG_NOT_PROCESSED};
       rpcSendResponse(&rspMsg);
-      rpcFreeCont(pMsg->pCont);
   }
+
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = NULL;
 }
 
 void dndProcessDnodeRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
@@ -585,5 +585,7 @@ void dndProcessDnodeRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
     default:
       dError("RPC %p, dnode rsp:%s not processed", pMsg->handle, taosMsg[pMsg->msgType]);
   }
+
   rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = NULL;
 }

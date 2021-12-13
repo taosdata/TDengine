@@ -112,6 +112,7 @@ typedef struct SDnode {
   EStat       stat;
   SDnodeOpt   opt;
   SDnodeDir   dir;
+  FileFd      lockFd;
   SDnodeMgmt  dmgmt;
   SMnodeMgmt  mmgmt;
   SVnodesMgmt vmgmt;

@@ -26,7 +26,7 @@ void initLog(const char* path) {
   httpDebugFlag = 0;
   mqttDebugFlag = 0;
   monDebugFlag = 0;
-  uDebugFlag = 0;
+  uDebugFlag = 143;
   rpcDebugFlag = 0;
   odbcDebugFlag = 0;
   qDebugFlag = 0;
@@ -34,7 +34,9 @@ void initLog(const char* path) {
   sDebugFlag = 0;
   tsdbDebugFlag = 0;
   cqDebugFlag = 0;
+  tscEmbeddedInUtil = 1;
 
+  taosRemoveDir(path);
   taosMkDir(path);
 
   char temp[PATH_MAX];
@@ -70,8 +72,7 @@ void initOption(SDnodeOpt* pOption, const char* path, const char* fqdn, uint16_t
   snprintf(pOption->firstEp, TSDB_EP_LEN, "%s", firstEp);
 }
 
-SServer* createServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
-  taosRemoveDir(path);
+SServer* startServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
   taosMkDir(path);
 
   SDnodeOpt option = {0};
@@ -90,10 +91,20 @@ SServer* createServer(const char* path, const char* fqdn, uint16_t port, const c
   return pServer;
 }
 
-void dropServer(SServer* pServer) {
+SServer* createServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
+  taosRemoveDir(path);
+  return startServer(path, fqdn, port, firstEp);
+}
+
+void stopServer(SServer* pServer) {
   if (pServer == NULL) return;
   if (pServer->threadId != NULL) {
     taosDestoryThread(pServer->threadId);
+  }
+
+  if (pServer->pDnode != NULL) {
+    dndCleanup(pServer->pDnode);
+    pServer->pDnode = NULL;
   }
 }
 
