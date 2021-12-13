@@ -50,51 +50,12 @@ int initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, SParsedDataColIn
     }
   }
 
-  // default compareStat is  ROW_COMPARE_NO_NEED
-  if (pColInfo->numOfBound == 0) {  // file input
-    pBuilder->memRowType = SMEM_ROW_DATA;
-    return TSDB_CODE_SUCCESS;
-  } else if (pColInfo->extendedVarLen == 0) {
-    // all columns are NoVarType, we can calculate the memRowType precisely
-    uint32_t dataLen = pColInfo->allNullLen + TD_MEM_ROW_DATA_HEAD_SIZE;
-    uint32_t kvLen = TD_MEM_ROW_KV_HEAD_SIZE + pColInfo->numOfBound * sizeof(SColIdx) + pColInfo->boundColsLen;
-    if (isConvertToKvRow(kvLen, dataLen)) {
-      pBuilder->memRowType = SMEM_ROW_KV;
-    } else {
-      pBuilder->memRowType = SMEM_ROW_DATA;
-    }
-    return TSDB_CODE_SUCCESS;
+  uint32_t dataLen = pColInfo->allNullLen + TD_MEM_ROW_DATA_HEAD_SIZE;
+  uint32_t kvLen = TD_MEM_ROW_KV_HEAD_SIZE + pColInfo->numOfBound * sizeof(SColIdx) + pColInfo->boundNullLen;
+  if (isConvertToKvRow(kvLen, dataLen)) {
+    pBuilder->memRowType = SMEM_ROW_KV;
   } else {
-    float boundRatio = ((float)pColInfo->numOfBound / (float)pColInfo->numOfCols);
-
-    if (boundRatio < KVRatioKV) {
-      pBuilder->memRowType = SMEM_ROW_KV;
-      return TSDB_CODE_SUCCESS;
-    } else if (boundRatio > KVRatioData) {
-      pBuilder->memRowType = SMEM_ROW_DATA;
-      return TSDB_CODE_SUCCESS;
-    }
-    pBuilder->compareStat = ROW_COMPARE_NEED;
-
-    if (boundRatio < KVRatioPredict) {
-      pBuilder->memRowType = SMEM_ROW_KV;
-    } else {
-      pBuilder->memRowType = SMEM_ROW_DATA;
-    }
-  }
-
-  pBuilder->kvRowInitLen = TD_MEM_ROW_KV_HEAD_SIZE + pColInfo->numOfBound * sizeof(SColIdx);
-
-  if (nRows > 0) {
-    pBuilder->rowInfo = tcalloc(nRows, sizeof(SMemRowInfo));
-    if (pBuilder->rowInfo == NULL) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-
-    for (int i = 0; i < nRows; ++i) {
-      (pBuilder->rowInfo + i)->dataLen = TD_MEM_ROW_DATA_HEAD_SIZE + pColInfo->allNullLen;
-      (pBuilder->rowInfo + i)->kvLen = pBuilder->kvRowInitLen;
-    }
+    pBuilder->memRowType = SMEM_ROW_DATA;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -453,18 +414,16 @@ int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t *convertOffset, int32_t rowSize,
-                  char *tmpTokenBuf, SInsertStatementParam *pInsertParam) {
+int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t rowSize, char *tmpTokenBuf,
+                  SInsertStatementParam *pInsertParam) {
   int32_t   index = 0;
   SStrToken sToken = {0};
 
-  char *row = pDataBlocks->pData + (pDataBlocks->size - (*convertOffset) * rowSize);  // skip the SSubmitBlk header
+  char *              row = pDataBlocks->pData + pDataBlocks->size;  // skip the SSubmitBlk header
   SParsedDataColInfo *spd = &pDataBlocks->boundColumnInfo;
   STableMeta *        pTableMeta = pDataBlocks->pTableMeta;
   SSchema *           schema = tscGetTableSchema(pTableMeta);
   SMemRowBuilder *    pBuilder = &pDataBlocks->rowBuilder;
-  int32_t             dataLen = spd->allNullLen + TD_MEM_ROW_DATA_HEAD_SIZE;
-  int32_t             kvLen = pBuilder->kvRowInitLen;
   bool                isParseBindParam = false;
 
   initSMemRow(row, pBuilder->memRowType, pDataBlocks, spd->numOfBound);
@@ -541,8 +500,8 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     int16_t colId = -1;
     tscGetMemRowAppendInfo(schema, pBuilder->memRowType, spd, i, &toffset, &colId);
 
-    int32_t ret = tsParseOneColumnKV(pSchema, &sToken, row, pInsertParam->msg, str, isPrimaryKey, timePrec, toffset,
-                                     colId, &dataLen, &kvLen, pBuilder->compareStat);
+    int32_t ret =
+        tsParseOneColumnKV(pSchema, &sToken, row, pInsertParam->msg, str, isPrimaryKey, timePrec, toffset, colId);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -557,32 +516,14 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
   }
 
   if (!isParseBindParam) {
-    // 2. check and set convert flag
-    bool isNeedConvertRow = false;
-    if (pBuilder->compareStat == ROW_COMPARE_NEED) {
-      isNeedConvertRow = checkConvertMemRow(row, dataLen, kvLen);
-    }
-
-    // 3. set the null value for the columns that do not assign values
-    if ((spd->numOfBound < spd->numOfCols) && isDataRow(row) && !isNeedConvertRow) {
+    // set the null value for the columns that do not assign values
+    if ((spd->numOfBound < spd->numOfCols) && isDataRow(row)) {
       SDataRow dataRow = memRowDataBody(row);
       for (int32_t i = 0; i < spd->numOfCols; ++i) {
         if (spd->cols[i].valStat == VAL_STAT_NONE) {
           tdAppendDataColVal(dataRow, getNullValue(schema[i].type), true, schema[i].type, spd->cols[i].toffset);
         }
       }
-    }
-
-    // 4. perform the convert
-    if (isNeedConvertRow) {
-      // put converted row to next location to minimize the memcpy
-      pDataBlocks->ordered = false;
-      ++(*convertOffset);
-      convertSMemRow(row + (*convertOffset) * rowSize, row, pDataBlocks);
-      // revise the predicted memRowType for batch insert
-      pBuilder->memRowType = pBuilder->memRowType == SMEM_ROW_DATA ? SMEM_ROW_KV : SMEM_ROW_DATA;
-    } else {
-      *convertOffset = 0;
     }
   }
 
@@ -640,15 +581,13 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
   if (TSDB_CODE_SUCCESS != (code = initMemRowBuilder(&pDataBlock->rowBuilder, 0, &pDataBlock->boundColumnInfo))) {
     return code;
   }
-  int32_t convertOffset = 0;
   while (1) {
     index = 0;
     sToken = tStrGetToken(*str, &index, false);
     if (sToken.n == 0 || sToken.type != TK_LP) break;
 
     *str += index;
-    // allocate 1 more row size to facilitate the SDataRow/SKVRow convert
-    if ((*numOfRows + 1) >= maxRows || pDataBlock->size + extendedRowSize >= pDataBlock->nAllocSize) {
+    if ((*numOfRows) >= maxRows || pDataBlock->size + extendedRowSize >= pDataBlock->nAllocSize) {
       int32_t tSize;
       code = tscAllocateMemIfNeed(pDataBlock, extendedRowSize, &tSize);
       if (code != TSDB_CODE_SUCCESS) {  //TODO pass the correct error code to client
@@ -656,11 +595,11 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
       }
 
-      ASSERT(tSize > maxRows);  // 1 more row allocated
+      ASSERT(tSize >= maxRows);
       maxRows = tSize;
     }
 
-    code = tsParseOneRow(str, pDataBlock, precision, &convertOffset, extendedRowSize, tmpTokenBuf, pInsertParam);
+    code = tsParseOneRow(str, pDataBlock, precision, extendedRowSize, tmpTokenBuf, pInsertParam);
     if (code != TSDB_CODE_SUCCESS) {  // error message has been set in tsParseOneRow, return directly
       return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
@@ -676,10 +615,6 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
     *str += index;
 
     (*numOfRows)++;
-  }
-  if (convertOffset) {
-    char *convertedSMemRow = pDataBlock->pData + pDataBlock->size;
-    memcpy(convertedSMemRow - convertOffset * extendedRowSize, convertedSMemRow, (size_t)memRowTLen(convertedSMemRow));
   }
 
   if ((*numOfRows) <= 0) {
@@ -723,7 +658,7 @@ void tscSetBoundColumnInfo(SParsedDataColInfo *pColInfo, SSchema *pSchema, int32
     pColInfo->boundedColumns[i] = i;
   }
   pColInfo->allNullLen += pColInfo->flen;
-  pColInfo->boundColsLen = pColInfo->flen;
+  pColInfo->boundNullLen = pColInfo->allNullLen;  // default set allNullLen
   pColInfo->extendedVarLen = (uint16_t)(nVar * sizeof(VarDataOffsetT));
 }
 
@@ -1247,7 +1182,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
   int32_t nCols = pColInfo->numOfCols;
 
   pColInfo->numOfBound = 0;
-  pColInfo->boundColsLen = 0;
+  pColInfo->boundNullLen = 0;
   memset(pColInfo->boundedColumns, 0, sizeof(int32_t) * nCols);
   for (int32_t i = 0; i < nCols; ++i) {
     pColInfo->cols[i].valStat = VAL_STAT_NONE;
@@ -1305,7 +1240,18 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
         pColInfo->cols[t].valStat = VAL_STAT_HAS;
         pColInfo->boundedColumns[pColInfo->numOfBound] = t;
         ++pColInfo->numOfBound;
-        pColInfo->boundColsLen += pSchema[t].bytes;
+        // N.B. make sure sizeof(VarDataOffsetT) == sizeof(SColIdx)
+        pColInfo->boundNullLen += TYPE_BYTES[pSchema[t].type];
+        switch (pSchema[t].type) {
+          case TSDB_DATA_TYPE_BINARY:
+            pColInfo->boundNullLen += (VARSTR_HEADER_SIZE + CHAR_BYTES);
+            break;
+          case TSDB_DATA_TYPE_NCHAR:
+            pColInfo->boundNullLen += (VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
+            break;
+          default:
+            break;
+        }
         findColumnIndex = true;
         if (isOrdered && (lastColIdx > t)) {
           isOrdered = false;
@@ -1329,7 +1275,18 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
           pColInfo->cols[t].valStat = VAL_STAT_HAS;
           pColInfo->boundedColumns[pColInfo->numOfBound] = t;
           ++pColInfo->numOfBound;
-          pColInfo->boundColsLen += pSchema[t].bytes;
+          // N.B. make sure sizeof(VarDataOffsetT) == sizeof(SColIdx)
+          pColInfo->boundNullLen += TYPE_BYTES[pSchema[t].type];
+          switch (pSchema[t].type) {
+            case TSDB_DATA_TYPE_BINARY:
+              pColInfo->boundNullLen += (VARSTR_HEADER_SIZE + CHAR_BYTES);
+              break;
+            case TSDB_DATA_TYPE_NCHAR:
+              pColInfo->boundNullLen += (VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
+              break;
+            default:
+              break;
+          }
           findColumnIndex = true;
           if (isOrdered && (lastColIdx > t)) {
             isOrdered = false;
@@ -1788,10 +1745,9 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
     goto _error;
   }
 
-  // insert from .csv means full and ordered columns, thus use SDataRow all the time and no need to covert
-  ASSERT(SMEM_ROW_DATA == pTableDataBlock->rowBuilder.memRowType &&
-         ROW_COMPARE_NO_NEED == pTableDataBlock->rowBuilder.compareStat);
-  int32_t convertOffset = 0;
+  // insert from .csv means full and ordered columns, thus use SDataRow all the time
+  ASSERT(SMEM_ROW_DATA == pTableDataBlock->rowBuilder.memRowType);
+
   while ((readLen = tgetline(&line, &n, fp)) != -1) {
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
       line[--readLen] = 0;
@@ -1804,8 +1760,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
     char *lineptr = line;
     strtolower(line, line);
 
-    code = tsParseOneRow(&lineptr, pTableDataBlock, tinfo.precision, &convertOffset, extendedRowSize, tokenBuf,
-                         pInsertParam);
+    code = tsParseOneRow(&lineptr, pTableDataBlock, tinfo.precision, extendedRowSize, tokenBuf, pInsertParam);
     if (code != TSDB_CODE_SUCCESS || pTableDataBlock->numOfParams > 0) {
       pSql->res.code = code;
       break;

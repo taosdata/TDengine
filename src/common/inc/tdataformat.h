@@ -610,9 +610,6 @@ typedef void *SMemRow;
 #define SMEM_ROW_DATA 0x0U      // SDataRow
 #define SMEM_ROW_KV 0x01U       // SKVRow
 
-#define KVRatioKV (0.2f)  // all bool
-#define KVRatioPredict (0.4f)
-#define KVRatioData (0.75f)  // all bigint
 #define KVRatioConvert (0.9f)
 
 #define memRowType(r) ((*(uint8_t *)(r)) & 0x01)
@@ -722,31 +719,6 @@ static FORCE_INLINE int32_t tdGetColAppendLen(uint8_t rowType, const void *value
     }
   }
   return len;
-}
-
-/**
- * 1. calculate the delta of AllNullLen for SDataRow.
- * 2. calculate the real len for SKVRow.
- */
-static FORCE_INLINE void tdGetColAppendDeltaLen(const void *value, int8_t colType, int32_t *dataLen, int32_t *kvLen) {
-  switch (colType) {
-    case TSDB_DATA_TYPE_BINARY: {
-      int32_t varLen = varDataLen(value);
-      *dataLen += (varLen - CHAR_BYTES);
-      *kvLen += (varLen + sizeof(SColIdx));
-      break;
-    }
-    case TSDB_DATA_TYPE_NCHAR: {
-      int32_t varLen = varDataLen(value);
-      *dataLen += (varLen - TSDB_NCHAR_SIZE);
-      *kvLen += (varLen + sizeof(SColIdx));
-      break;
-    }
-    default: {
-      *kvLen += (TYPE_BYTES[colType] + sizeof(SColIdx));
-      break;
-    }
-  }
 }
 
 typedef struct {
