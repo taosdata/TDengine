@@ -20,9 +20,9 @@ from util.sql import *
 class TDTestCase:
     def caseDescription(self):
         '''
-        insert 倒序插入
-        语法解析错误同时meta请求也发出去了导致callback中处理逻辑失效
-        insert语句在values之间加入多个逗号
+        case1: insert 倒序插入        
+        case2: 语法解析错误同时meta请求也发出去了导致callback中处理逻辑失效
+        case3: [TD-XXXX]insert语句在values之间加入多个逗号
         ''' 
         return
     def init(self, conn, logSql):
