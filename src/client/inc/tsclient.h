@@ -205,7 +205,7 @@ static FORCE_INLINE void tscAppendMemRowColVal(SMemRow row, const void *value, b
 
 // Applicable to consume by one row
 static FORCE_INLINE void tscAppendMemRowColValEx(SMemRow row, const void *value, bool isCopyVarData, int16_t colId,
-                                                 int8_t colType, int32_t toffset) {
+                                              int8_t colType, int32_t toffset) {
   tdAppendMemRowColVal(row, value, isCopyVarData, colId, colType, toffset);
 }
 typedef struct STableDataBlocks {
@@ -634,22 +634,22 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BOOL: {  // bool
       if (isNullStr(pToken)) {
-        tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
       } else {
         if ((pToken->type == TK_BOOL || pToken->type == TK_STRING) && (pToken->n != 0)) {
           if (strncmp(pToken->z, "true", pToken->n) == 0) {
-            tscAppendMemRowColValEx(row, &TRUE_VALUE, true, colId, pSchema->type, toffset);
+            tdAppendMemRowColVal(row, &TRUE_VALUE, true, colId, pSchema->type, toffset);
           } else if (strncmp(pToken->z, "false", pToken->n) == 0) {
-            tscAppendMemRowColValEx(row, &FALSE_VALUE, true, colId, pSchema->type, toffset);
+            tdAppendMemRowColVal(row, &FALSE_VALUE, true, colId, pSchema->type, toffset);
           } else {
             return tscSQLSyntaxErrMsg(msg, "invalid bool data", pToken->z);
           }
         } else if (pToken->type == TK_INTEGER) {
           iv = strtoll(pToken->z, NULL, 10);
-          tscAppendMemRowColValEx(row, ((iv == 0) ? &FALSE_VALUE : &TRUE_VALUE), true, colId, pSchema->type, toffset);
+          tdAppendMemRowColVal(row, ((iv == 0) ? &FALSE_VALUE : &TRUE_VALUE), true, colId, pSchema->type, toffset);
         } else if (pToken->type == TK_FLOAT) {
           double dv = strtod(pToken->z, NULL);
-          tscAppendMemRowColValEx(row, ((dv == 0) ? &FALSE_VALUE : &TRUE_VALUE), true, colId, pSchema->type, toffset);
+          tdAppendMemRowColVal(row, ((dv == 0) ? &FALSE_VALUE : &TRUE_VALUE), true, colId, pSchema->type, toffset);
         } else {
           return tscInvalidOperationMsg(msg, "invalid bool data", pToken->z);
         }
@@ -659,7 +659,7 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
 
     case TSDB_DATA_TYPE_TINYINT:
       if (isNullStr(pToken)) {
-        tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -669,14 +669,14 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
         }
 
         uint8_t tmpVal = (uint8_t)iv;
-        tscAppendMemRowColValEx(row, &tmpVal, true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, &tmpVal, true, colId, pSchema->type, toffset);
       }
 
       break;
 
     case TSDB_DATA_TYPE_UTINYINT:
       if (isNullStr(pToken)) {
-        tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -686,14 +686,14 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
         }
 
         uint8_t tmpVal = (uint8_t)iv;
-        tscAppendMemRowColValEx(row, &tmpVal, true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, &tmpVal, true, colId, pSchema->type, toffset);
       }
 
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
       if (isNullStr(pToken)) {
-        tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -703,14 +703,14 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
         }
 
         int16_t tmpVal = (int16_t)iv;
-        tscAppendMemRowColValEx(row, &tmpVal, true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, &tmpVal, true, colId, pSchema->type, toffset);
       }
 
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
       if (isNullStr(pToken)) {
-        tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -720,14 +720,14 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
         }
 
         uint16_t tmpVal = (uint16_t)iv;
-        tscAppendMemRowColValEx(row, &tmpVal, true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, &tmpVal, true, colId, pSchema->type, toffset);
       }
 
       break;
 
     case TSDB_DATA_TYPE_INT:
       if (isNullStr(pToken)) {
-        tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -737,14 +737,14 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
         }
 
         int32_t tmpVal = (int32_t)iv;
-        tscAppendMemRowColValEx(row, &tmpVal, true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, &tmpVal, true, colId, pSchema->type, toffset);
       }
 
       break;
 
     case TSDB_DATA_TYPE_UINT:
       if (isNullStr(pToken)) {
-        tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -754,14 +754,14 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
         }
 
         uint32_t tmpVal = (uint32_t)iv;
-        tscAppendMemRowColValEx(row, &tmpVal, true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, &tmpVal, true, colId, pSchema->type, toffset);
       }
 
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
       if (isNullStr(pToken)) {
-        tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -770,13 +770,13 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
           return tscInvalidOperationMsg(msg, "bigint data overflow", pToken->z);
         }
 
-        tscAppendMemRowColValEx(row, &iv, true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, &iv, true, colId, pSchema->type, toffset);
       }
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
       if (isNullStr(pToken)) {
-        tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -786,13 +786,13 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
         }
 
         uint64_t tmpVal = (uint64_t)iv;
-        tscAppendMemRowColValEx(row, &tmpVal, true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, &tmpVal, true, colId, pSchema->type, toffset);
       }
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
       if (isNullStr(pToken)) {
-        tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
       } else {
         double dv;
         if (TK_ILLEGAL == tscToDouble(pToken, &dv, &endptr)) {
@@ -805,13 +805,13 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
         }
 
         float tmpVal = (float)dv;
-        tscAppendMemRowColValEx(row, &tmpVal, true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, &tmpVal, true, colId, pSchema->type, toffset);
       }
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
       if (isNullStr(pToken)) {
-        tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
       } else {
         double dv;
         if (TK_ILLEGAL == tscToDouble(pToken, &dv, &endptr)) {
@@ -822,14 +822,14 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
           return tscInvalidOperationMsg(msg, "illegal double data", pToken->z);
         }
 
-        tscAppendMemRowColValEx(row, &dv, true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, &dv, true, colId, pSchema->type, toffset);
       }
       break;
 
     case TSDB_DATA_TYPE_BINARY:
       // binary data cannot be null-terminated char string, otherwise the last char of the string is lost
       if (pToken->type == TK_NULL) {
-        tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
       } else {  // too long values will return invalid sql, not be truncated automatically
         if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {  // todo refactor
           return tscInvalidOperationMsg(msg, "string data overflow", pToken->z);
@@ -837,13 +837,13 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
         // STR_WITH_SIZE_TO_VARSTR(payload, pToken->z, pToken->n);
         char *rowEnd = memRowEnd(row);
         STR_WITH_SIZE_TO_VARSTR(rowEnd, pToken->z, pToken->n);
-        tscAppendMemRowColValEx(row, rowEnd, false, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, rowEnd, false, colId, pSchema->type, toffset);
       }
       break;
 
     case TSDB_DATA_TYPE_NCHAR:
       if (pToken->type == TK_NULL) {
-        tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
       } else {
         // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
         int32_t output = 0;
@@ -855,7 +855,7 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
           return tscInvalidOperationMsg(msg, buf, pToken->z);
         }
         varDataSetLen(rowEnd, output);
-        tscAppendMemRowColValEx(row, rowEnd, false, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, rowEnd, false, colId, pSchema->type, toffset);
       }
       break;
 
@@ -864,16 +864,16 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
         if (primaryKey) {
           // When building SKVRow primaryKey, we should not skip even with NULL value.
           int64_t tmpVal = 0;
-          tscAppendMemRowColValEx(row, &tmpVal, true, colId, pSchema->type, toffset);
+          tdAppendMemRowColVal(row, &tmpVal, true, colId, pSchema->type, toffset);
         } else {
-          tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
+          tdAppendMemRowColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset);
         }
       } else {
         int64_t tmpVal;
         if (tsParseTime(pToken, &tmpVal, str, msg, timePrec) != TSDB_CODE_SUCCESS) {
           return tscInvalidOperationMsg(msg, "invalid timestamp", pToken->z);
         }
-        tscAppendMemRowColValEx(row, &tmpVal, true, colId, pSchema->type, toffset);
+        tdAppendMemRowColVal(row, &tmpVal, true, colId, pSchema->type, toffset);
       }
 
       break;
