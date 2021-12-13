@@ -185,28 +185,50 @@ TEST_F(DndTestUser, ShowUser) {
 }
 
 TEST_F(DndTestUser, CreateUser_01) {
-  SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(sizeof(SCreateUserMsg));
-  strcpy(pReq->user, "u1");
-  strcpy(pReq->pass, "p1");
+  {
+    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(sizeof(SCreateUserMsg));
+    strcpy(pReq->user, "u1");
+    strcpy(pReq->pass, "p1");
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SCreateUserMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_USER;
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SCreateUserMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_USER;
 
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
+
+  {
+    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(sizeof(SCreateUserMsg));
+    strcpy(pReq->user, "u2");
+    strcpy(pReq->pass, "p2");
+
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SCreateUserMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_USER;
+
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
 
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
-  SendThenCheckShowRetrieveMsg(2);
+  SendThenCheckShowRetrieveMsg(3);
   CheckBinary("u1", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
+  CheckBinary("u2", TSDB_USER_LEN);
   CheckBinary("normal", 10);
   CheckBinary("super", 10);
+  CheckBinary("normal", 10);
   CheckTimestamp();
   CheckTimestamp();
+  CheckTimestamp();
+  CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
 }
@@ -227,13 +249,17 @@ TEST_F(DndTestUser, AlterUser_01) {
   ASSERT_EQ(pMsg->code, 0);
 
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
-  SendThenCheckShowRetrieveMsg(2);
+  SendThenCheckShowRetrieveMsg(3);
   CheckBinary("u1", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
+  CheckBinary("u2", TSDB_USER_LEN);
   CheckBinary("normal", 10);
   CheckBinary("super", 10);
+  CheckBinary("normal", 10);
   CheckTimestamp();
   CheckTimestamp();
+  CheckTimestamp();
+  CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
 }
@@ -253,9 +279,37 @@ TEST_F(DndTestUser, DropUser_01) {
   ASSERT_EQ(pMsg->code, 0);
 
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
-  SendThenCheckShowRetrieveMsg(1);
+  SendThenCheckShowRetrieveMsg(2);
   CheckBinary("root", TSDB_USER_LEN);
+  CheckBinary("u2", TSDB_USER_LEN);
   CheckBinary("super", 10);
+  CheckBinary("normal", 10);
   CheckTimestamp();
+  CheckTimestamp();
+  CheckBinary("root", TSDB_USER_LEN);
+  CheckBinary("root", TSDB_USER_LEN);
+}
+
+TEST_F(DndTestUser, RestartDnode) {
+  stopServer(pServer);
+  pServer = NULL;
+
+  uInfo("start all server");
+
+  const char* fqdn = "localhost";
+  const char* firstEp = "localhost:9530";
+  pServer = startServer("/tmp/dndTestUser", fqdn, 9530, firstEp);
+
+  uInfo("all server is running");
+
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
+  SendThenCheckShowRetrieveMsg(2);
+  CheckBinary("root", TSDB_USER_LEN);
+  CheckBinary("u2", TSDB_USER_LEN);
+  CheckBinary("super", 10);
+  CheckBinary("normal", 10);
+  CheckTimestamp();
+  CheckTimestamp();
+  CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
 }
