@@ -1533,6 +1533,41 @@ int stmtGenInsertStatement(SSqlObj* pSql, STscStmt* pStmt, const char* name, TAO
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t stmtValidateValuesFields(SSqlCmd *pCmd, char * sql) {
+  int32_t loopCont = 1, index0 = 0, values = 0;
+  SStrToken sToken;
+  
+  while (loopCont) {
+    sToken = tStrGetToken(sql, &index0, false);
+    if (sToken.n <= 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+  
+    switch (sToken.type) {
+      case TK_RP:
+        if (values) {
+         return TSDB_CODE_SUCCESS;
+        }
+        break;
+      case TK_VALUES:
+        values = 1;
+        break;
+      case TK_QUESTION:  
+      case TK_LP:
+        break;
+      default:
+        if (values) {
+          tscError("only ? allowed in values");
+          return tscInvalidOperationMsg(pCmd->payload, "only ? allowed in values", NULL);
+        }
+        break;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // interface functions
 
@@ -1633,6 +1668,11 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     pSql->cmd.batchSize   = 0;
 
     int32_t ret = stmtParseInsertTbTags(pSql, pStmt);
+    if (ret != TSDB_CODE_SUCCESS) {
+      STMT_RET(ret);
+    }
+
+    ret = stmtValidateValuesFields(&pSql->cmd, pSql->sqlstr);
     if (ret != TSDB_CODE_SUCCESS) {
       STMT_RET(ret);
     }

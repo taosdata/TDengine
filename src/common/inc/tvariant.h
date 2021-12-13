@@ -25,7 +25,7 @@ extern "C" {
 
 // variant, each number/string/field_id has a corresponding struct during parsing sql
 typedef struct tVariant {
-  uint32_t nType;
+  int32_t nType;      // change uint to int, because in tVariantCreate() pVar->nType = -1;   // -1 means error type
   int32_t  nLen;  // only used for string, for number, it is useless
   union {
     int64_t  i64;
