@@ -476,6 +476,12 @@ pipeline {
                   dotnet run --project C#checker/C#checker.csproj
                   dotnet run --project TDengineTest/TDengineTest.csproj
                   dotnet run --project schemaless/schemaless.csproj 
+
+                  cd ${WKC}/tests/examples/C#/taosdemo
+                  dotnet build -c Release
+                  tree | true
+                  ./bin/Release/net5.0/taosdemo -c /etc/taos -y
+
                 '''
               } 
               sh '''
