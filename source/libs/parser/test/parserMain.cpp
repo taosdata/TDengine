@@ -13,19 +13,29 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_INSERTPARSER_H
-#define TDENGINE_INSERTPARSER_H
+#include <string>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <gtest/gtest.h>
 
-#include "parser.h"
+#include "mockCatalog.h"
 
-int32_t parseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo);
+class ParserEnv : public testing::Environment {
+public:
+  virtual void SetUp() {
+    mockCatalogService.reset(new MockCatalogService());
+    generateMetaData(mockCatalogService.get());
+  }
 
-#ifdef __cplusplus
+  virtual void TearDown() {
+    mockCatalogService.reset();
+  }
+
+  ParserEnv() {}
+  virtual ~ParserEnv() {}
+};
+
+int main(int argc, char* argv[]) {
+	testing::AddGlobalTestEnvironment(new ParserEnv());
+	testing::InitGoogleTest(&argc, argv);
+	return RUN_ALL_TESTS();
 }
-#endif
-
-#endif  // TDENGINE_INSERTPARSER_H

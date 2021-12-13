@@ -38,7 +38,17 @@ typedef struct Complement {
 // automation 
 typedef struct AutomationCtx {
   AutomationType type; 
+  void *data;
 } AutomationCtx;
+
+
+
+typedef enum StartWithStateKind { Done, Running } StartWithStateKind; 
+
+typedef struct StartWithStateValue {
+  StartWithStateKind kind;
+  void *value;
+} StartWithStateValue;
 
 typedef struct AutomationFunc {
   void* (*start)(AutomationCtx *ctx) ; 
@@ -50,7 +60,7 @@ typedef struct AutomationFunc {
 } AutomationFunc; 
 
 AutomationCtx *automCtxCreate(void *data, AutomationType type);
-void autoCtxDestroy(AutomationCtx *ctx);
+void automCtxDestroy(AutomationCtx *ctx);
 
 extern AutomationFunc automFuncs[]; 
 #ifdef __cplusplus

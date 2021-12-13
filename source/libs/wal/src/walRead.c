@@ -15,19 +15,6 @@
 
 #include "walInt.h"
 #include "tfile.h"
-#include "tchecksum.h"
-
-static inline int walValidHeadCksum(SWalHead* pHead) {
-  return taosCheckChecksum((uint8_t*)pHead, sizeof(SWalHead) - sizeof(uint32_t)*2, pHead->cksumHead);
-}
-
-static inline int walValidBodyCksum(SWalHead* pHead) {
-  return taosCheckChecksum((uint8_t*)pHead->cont, pHead->len, pHead->cksumBody);
-}
-
-static int walValidCksum(SWalHead *pHead, void* body, int64_t bodyLen) {
-  return walValidHeadCksum(pHead) && walValidBodyCksum(pHead);
-}
 
 int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
   int code;
@@ -49,13 +36,13 @@ int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
   if(walValidHeadCksum(*ppHead) != 0) {
     return -1;
   }
-  void* ptr = realloc(*ppHead, sizeof(SWalHead) + (*ppHead)->len);
+  void* ptr = realloc(*ppHead, sizeof(SWalHead) + (*ppHead)->head.len);
   if(ptr == NULL) {
     free(*ppHead);
     *ppHead = NULL;
     return -1;
   }
-  if(tfRead(pWal->writeLogTfd, (*ppHead)->cont, (*ppHead)->len) != (*ppHead)->len) {
+  if(tfRead(pWal->writeLogTfd, (*ppHead)->head.cont, (*ppHead)->head.len) != (*ppHead)->head.len) {
     return -1;
   }
   //TODO: endian compatibility processing after read
@@ -68,19 +55,4 @@ int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
 
 int32_t walReadWithFp(SWal *pWal, FWalWrite writeFp, int64_t verStart, int32_t readNum) {
   return 0;
-}
-
-int64_t walGetFirstVer(SWal *pWal) {
-  if (pWal == NULL) return 0;
-  return pWal->firstVersion;
-}
-
-int64_t walGetSnaphostVer(SWal *pWal) {
-  if (pWal == NULL) return 0;
-  return pWal->snapshotVersion;
-}
-
-int64_t walGetLastVer(SWal *pWal) {
-  if (pWal == NULL) return 0;
-  return pWal->lastVersion;
 }

@@ -154,6 +154,13 @@ void taosArraySet(SArray* pArray, size_t index, void* pData);
 void taosArrayPopFrontBatch(SArray* pArray, size_t cnt);
 
 /**
+ * remove some data entry from front
+ * @param pArray
+ * @param cnt
+ */
+void taosArrayPopTailBatch(SArray* pArray, size_t cnt);
+
+/**
  * remove data entry of the given index
  * @param pArray
  * @param index
@@ -212,6 +219,14 @@ void taosArraySortString(SArray* pArray, __compar_fn_t comparFn);
  * @param key
  */
 void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn, int flags);
+
+/**
+ * search the array, return index of the element
+ * @param pArray
+ * @param compar
+ * @param key
+ */
+int32_t taosArraySearchIdx(const SArray* pArray, const void* key, __compar_fn_t comparFn, int flags);
 
 /**
  * search the array

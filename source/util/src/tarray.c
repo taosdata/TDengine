@@ -241,10 +241,14 @@ void taosArrayPopFrontBatch(SArray* pArray, size_t cnt) {
   assert(cnt <= pArray->size);
   pArray->size = pArray->size - cnt;
   if(pArray->size == 0) {
-    pArray->size = 0;
     return;
   }
   memmove(pArray->pData, (char*)pArray->pData + cnt * pArray->elemSize, pArray->size);
+}
+
+void taosArrayPopTailBatch(SArray* pArray, size_t cnt) {
+  assert(cnt <= pArray->size);
+  pArray->size = pArray->size - cnt;
 }
 
 void taosArrayRemove(SArray* pArray, size_t index) {
@@ -327,6 +331,11 @@ void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t compa
   assert(key != NULL);
 
   return taosbsearch(key, pArray->pData, pArray->size, pArray->elemSize, comparFn, flags);
+}
+
+int32_t taosArraySearchIdx(const SArray* pArray, const void* key, __compar_fn_t comparFn, int flags) {
+  void* item = taosArraySearch(pArray, key, comparFn, flags);
+  return (int32_t)((char*)item - (char*)pArray->pData) / pArray->elemSize;
 }
 
 void taosArraySortString(SArray* pArray, __compar_fn_t comparFn) {

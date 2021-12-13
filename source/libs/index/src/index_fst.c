@@ -1090,6 +1090,12 @@ bool fstGet(Fst *fst, FstSlice *b, Output *out) {
   
   return true; 
 }
+FstStreamBuilder *fstSearch(Fst *fst, AutomationCtx *ctx) {
+  return fstStreamBuilderCreate(fst, ctx);
+}
+FstStreamWithStateBuilder *fstSearchWithState(Fst *fst, AutomationCtx *ctx) {
+  return fstStreamBuilderCreate(fst, ctx);
+}
 
 FstNode *fstGetRoot(Fst *fst) {
   if (fst->root != NULL) {
@@ -1436,6 +1442,8 @@ FstStreamBuilder *fstStreamBuilderRange(FstStreamBuilder *b, FstSlice *val, Rang
   }
   return b;
 }
+
+
 
 
 

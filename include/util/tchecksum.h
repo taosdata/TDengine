@@ -39,7 +39,7 @@ static FORCE_INLINE int taosCalcChecksumAppend(TSCKSUM csi, uint8_t *stream, uin
 }
 
 static FORCE_INLINE int taosCheckChecksum(const uint8_t *stream, uint32_t ssize, TSCKSUM checksum) {
-  return (checksum == (*crc32c)(0, stream, (size_t)ssize));
+  return (checksum != (*crc32c)(0, stream, (size_t)ssize));
 }
 
 static FORCE_INLINE int taosCheckChecksumWhole(const uint8_t *stream, uint32_t ssize) {
