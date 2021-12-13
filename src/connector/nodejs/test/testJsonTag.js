@@ -2,6 +2,7 @@ const taos = require('../tdengine');
 var conn = taos.connect({ host: "127.0.0.1", user: "root", password: "taosdata", config: "/etc/taos", port: 10 });
 var c1 = conn.cursor();
 
+
 function executeUpdate(sql) {
   console.log(sql);
   c1.execute(sql);
