@@ -33,7 +33,7 @@ class DndTestCluster : public ::testing::Test {
   }
 
   static void TearDownTestSuite() {
-    dropServer(pServer);
+    stopServer(pServer);
     dropClient(pClient);
   }
 

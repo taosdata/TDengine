@@ -33,7 +33,7 @@ class DndTestProfile : public ::testing::Test {
   }
 
   static void TearDownTestSuite() {
-    dropServer(pServer);
+    stopServer(pServer);
     dropClient(pClient);
   }
 

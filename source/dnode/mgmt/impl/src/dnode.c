@@ -55,7 +55,7 @@ void dndGetStartup(SDnode *pDnode, SStartupMsg *pStartup) {
   pStartup->finished = (dndGetStat(pDnode) == DND_STAT_RUNNING);
 }
 
-static int32_t dndCheckRunning(char *dataDir) {
+static FileFd dndCheckRunning(char *dataDir) {
   char filepath[PATH_MAX] = {0};
   snprintf(filepath, sizeof(filepath), "%s/.running", dataDir);
 
@@ -74,11 +74,12 @@ static int32_t dndCheckRunning(char *dataDir) {
     return -1;
   }
 
-  return 0;
+  return fd;
 }
 
 static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOption) {
-  if (dndCheckRunning(pOption->dataDir) != 0) {
+  pDnode->lockFd = dndCheckRunning(pOption->dataDir);
+  if (pDnode->lockFd < 0) {
     return -1;
   }
 
@@ -131,6 +132,12 @@ static void dndCleanupEnv(SDnode *pDnode) {
 
   if (pDnode->dir.dnode != NULL) {
     tfree(pDnode->dir.dnode);
+  }
+
+  if (pDnode->lockFd >= 0) {
+    taosUnLockFile(pDnode->lockFd);
+    taosCloseFile(pDnode->lockFd);
+    pDnode->lockFd = 0;
   }
 
   taosStopCacheRefreshWorker();
@@ -202,6 +209,8 @@ SDnode *dndInit(SDnodeOpt *pOption) {
 }
 
 void dndCleanup(SDnode *pDnode) {
+  if (pDnode == NULL) return;
+
   if (dndGetStat(pDnode) == DND_STAT_STOPPED) {
     dError("dnode is shutting down");
     return;
