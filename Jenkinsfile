@@ -499,10 +499,6 @@ pipeline {
                   dotnet build -c Release
                   tree | true
                   ./bin/Release/net5.0/taosdemo -c /etc/taos -y
-<<<<<<< HEAD
-
-=======
->>>>>>> develop
                 '''
               }
               sh '''
