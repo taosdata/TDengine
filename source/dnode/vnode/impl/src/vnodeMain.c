@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tmacro.h"
 #include "vnodeDef.h"
 
 static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg);
@@ -20,8 +21,14 @@ static void    vnodeFree(SVnode *pVnode);
 static int     vnodeOpenImpl(SVnode *pVnode);
 static void    vnodeCloseImpl(SVnode *pVnode);
 
+TD_DEF_MOD_INIT_FLAG(vnode);
+TD_DEF_MOD_CLEAR_FLAG(vnode);
+
 int vnodeInit() {
-  // TODO
+  if (TD_CHECK_AND_SET_MODE_INIT(vnode) == TD_MOD_INITIALIZED) {
+    return 0;
+  }
+
   if (walInit() < 0) {
     return -1;
   }
@@ -30,6 +37,10 @@ int vnodeInit() {
 }
 
 void vnodeClear() {
+  if (TD_CHECK_AND_SET_MOD_CLEAR(vnode) == TD_MOD_CLEARD) {
+    return;
+  }
+
   walCleanUp();
 }
 
