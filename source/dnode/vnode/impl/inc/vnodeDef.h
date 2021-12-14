@@ -18,15 +18,17 @@
 
 #include "mallocator.h"
 #include "sync.h"
+#include "tcoding.h"
+#include "tdlist.h"
 #include "tlockfree.h"
 #include "wal.h"
-#include "tcoding.h"
 
 #include "vnode.h"
 #include "vnodeBufferPool.h"
 #include "vnodeCfg.h"
 #include "vnodeCommit.h"
 #include "vnodeFS.h"
+#include "vnodeMemAllocator.h"
 #include "vnodeRequest.h"
 #include "vnodeStateMgr.h"
 #include "vnodeSync.h"
