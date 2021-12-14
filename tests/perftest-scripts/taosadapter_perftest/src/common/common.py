@@ -2,15 +2,19 @@ import sys
 sys.path.append("../../")
 from config.env_init import *
 import shutil
-
+import threading
+import time
 class Common:
     def __init__(self):
         self.ip_list = list()
         self.current_dir = os.path.dirname(os.path.realpath(__file__))
         self.base_jmx_file = os.path.join(self.current_dir, '../../config/taosadapter_performance_test.jmx')
+        self.log_dir = os.path.join(self.current_dir, '../../log')
 
-    def exec_shell_cmd(self,shell_cmd):
+    def exec_local_cmd(self,shell_cmd):
+        logger.info(f'executing cmd: {shell_cmd}')
         result = os.popen(shell_cmd).read().strip()
+        logger.info(result)
         return result
 
     def genTelnetMulTagStr(self, count):
@@ -81,8 +85,8 @@ class Common:
                                 line = line.replace("restful_ip", config[key]['ip'])
                             if "restful_port" in line:
                                 line = line.replace("restful_port", str(config[key]['restful_port']))
-                            if "db_name" in line:
-                                line = line.replace("db_name", key)
+                            # if "db_name" in line:
+                            #     line = line.replace("db_name", key)
                             file_data += line
                     with open(des_jmx_file, "w", encoding="utf-8") as f:
                         f.write(file_data)
@@ -98,8 +102,8 @@ class Common:
                         line = line.replace("restful_ip", config['taosd_dnode1']['ip'])
                     if "restful_port" in line:
                         line = line.replace("restful_port", str(config['taosd_dnode1']['restful_port']))
-                    if "db_name" in line:
-                        line = line.replace("db_name", "taosd_dnode1")
+                    # if "db_name" in line:
+                    #     line = line.replace("db_name", "taosd_dnode1")
                     file_data += line
             with open(des_jmx_file, "w", encoding="utf-8") as f:
                 f.write(file_data)
@@ -113,7 +117,44 @@ class Common:
             loop_count = int((stb_count * tb_count * row_count) / threads) + 1
         return loop_count
 
+    def recreateReportDir(self, path):
+        '''
+            recreate jmeter report path
+        '''
+        if os.path.exists(path):
+            self.exec_local_cmd(f'rm -rf {path}/*')
+        else:
+            os.makedirs(path)
+
+    def genJmeterCmd(self, jmx_file_list):
+        jmeter_cmd_list = list()
+        for jmx_file in jmx_file_list:
+            current_time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime(time.time()))
+            jmx_filename = jmx_file.split('/')[-1].replace('.jmx', '')
+            jmx_filelog = f'{jmx_filename}_{current_time}'
+            jmeter_report_dir = f'{self.log_dir}/{jmx_filelog}'
+            self.recreateReportDir(jmeter_report_dir)
+            jmeter_cmd = f'jmeter -n -t {jmx_file}'
+            if config['jmeter']['aggregate_report']:
+                jmeter_cmd += f' -l {jmeter_report_dir}/{jmx_filelog}.log -e -o {jmeter_report_dir}'
+            jmeter_cmd_list.append(jmeter_cmd)
+        return jmeter_cmd_list
+
+    def genJmeterThreads(self, jmeter_cmd_list):
+        tlist = list()
+        for jmeter_cmd in jmeter_cmd_list:
+            t = threading.Thread(target=self.exec_local_cmd, args=(jmeter_cmd,))
+            tlist.append(t)
+        return tlist
+    
+    def multiThreadRun(self, tlist):
+        for t in tlist:
+            t.start()
+        for t in tlist:
+            t.join()
+
     def runJmeter(self):
+        self.exec_local_cmd(f'rm -rf {self.log_dir}/*')
         jmx_file_list = list()
         for key, value in config['testcases'].items():
             # if config["taosadapter_separate_deploy"]:
@@ -137,14 +178,16 @@ class Common:
                             line = line.replace("perf_threads", str(value['threads']))
                         if "loop_count" in line:
                             line = line.replace("loop_count", str(loop_count))
+                        if "db_name" in line:
+                            line = line.replace("db_name", key)
                         file_data += line
                 with open(jmx_file, "w", encoding="utf-8") as f:
                     f.write(file_data)
                 jmx_file_list.append(jmx_file)
-            
-                logger.info(self.exec_shell_cmd(f'screen -d -m jmeter -n -t {jmx_file} >> {jmx_file}.log'))
-            
-        
+            jmeter_cmd_list = self.genJmeterCmd(jmx_file_list)
+            self.multiThreadRun(self.genJmeterThreads(jmeter_cmd_list))
+            time.sleep(int(''.join(list(filter(str.isdigit, str(value["sleep_time"]))))))
+
 
             # else:
             #     import_file = os.path.join(self.current_dir, f'../../config/taosd_dnode1.txt')

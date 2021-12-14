@@ -1,11 +1,12 @@
-deploy_mode: single
-install_package: /home/ubuntu/TDengine/release/TDengine-server-2.3.2.0-Linux-x64.tar.gz
+deploy_mode: no
+install_package: /home/ubuntu/TDengine/release/TDengine-server-2.3.4.0-beta-Linux-x64.tar.gz
 clean_env: True
 hostname_prefix: vm
 timeout: 10
 taosd_dnode1: 
   ip: 192.168.1.188
   port: 22
+  restful_port: 6041
   username: root
   password: tbase125!
   modify_cfg: True
@@ -19,6 +20,7 @@ taosadapter_separate_deploy: True
 taosd_dnode2: 
   ip: 192.168.1.101
   port: 22
+  restful_port: 6041
   username: root
   password: cpwu101
   modify_cfg: True
@@ -39,25 +41,36 @@ prometheus:
   node_exporter_addr: http://39.105.163.10:9000/node_exporter-1.3.0.linux-amd64.tar.gz
   process_exporter_addr: http://39.105.163.10:9000/process-exporter-0.7.10.linux-amd64.tar.gz
 
-grafana:
+jmeter:
   autodeploy: True
-  ip: 192.168.1.101
+  aggregate_report: True
+  ip: 127.0.0.1
   port: 22
   username: root
-  password: cpwu101
+  password: tbase125!
+  jmeter_addr: https://dlcdn.apache.org//jmeter/binaries/apache-jmeter-5.4.1.tgz
 
-
-
-# taosadapter_separate_deploy: True
-# taosadapter_node1:
-#   ip: 192.168.1.101
-#   port: 22
-#   username: root
-#   password: cpwu101
-#   modify_cfg: False
-#   cfg: 
-#     dataDir: /var/lib/taos
-#     logDir: /var/log/taos
+testcases:
+  testcase2:
+    threads: 24
+    protocol: telnet
+    taosadapter_count: 1
+    stb_count: 10
+    tag_count: 10
+    col_count: 1
+    tb_count: 10
+    row_count: 100
+    sleep_time: 0s
+  testcase1:
+    threads: 24
+    protocol: telnet
+    taosadapter_count: 1
+    stb_count: 1
+    tag_count: 10
+    col_count: 1
+    tb_count: 5
+    row_count: 100
+    sleep_time: 0s
   
 
 
