@@ -68,9 +68,12 @@ int32_t walInit() {
 }
 
 void walCleanUp() {
+  int old = atomic_val_compare_exchange_8(&tsWal.inited, 1, 0);
+  if(old == 0) {
+    return;
+  }
   walStopThread();
   taosCloseRef(tsWal.refSetId);
-  atomic_store_8(&tsWal.inited, 0);
   wInfo("wal module is cleaned up");
 }
 
