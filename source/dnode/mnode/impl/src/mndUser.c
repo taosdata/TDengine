@@ -83,9 +83,11 @@ static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
     return -1;
   }
 
+#if 0
   if (mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, "_" TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
     return -1;
   }
+#endif
 
   return 0;
 }
@@ -459,7 +461,7 @@ static int32_t mndGetUserMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *p
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create_time");
+  strcpy(pSchema[cols].name, "create time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -506,12 +508,9 @@ static int32_t mndRetrieveUsers(SMnodeMsg *pMsg, SShowObj *pShow, char *data, in
     if (pUser->superUser) {
       const char *src = "super";
       STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
-//    } else if (pUser->writeAuth) {
-//      const char *src = "writable";
-//      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
-//    } else {
-//      const char *src = "readable";
-//      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
+    } else {
+      const char *src = "normal";
+      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
     }
     cols++;
 

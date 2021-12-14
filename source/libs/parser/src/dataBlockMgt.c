@@ -108,7 +108,7 @@ void destroyBoundColumnInfo(SParsedDataColInfo* pColList) {
   tfree(pColList->colIdxInfo);
 }
 
-static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOffset, SName* name,
+static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOffset,
                            const STableMeta* pTableMeta, STableDataBlocks** dataBlocks) {
   STableDataBlocks* dataBuf = (STableDataBlocks*)calloc(1, sizeof(STableDataBlocks));
   if (dataBuf == NULL) {
@@ -145,7 +145,7 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
   dataBuf->tsSource = -1;
   dataBuf->vgId     = dataBuf->pTableMeta->vgId;
 
-  tNameAssign(&dataBuf->tableName, name);
+  // tNameAssign(&dataBuf->tableName, name);
 
   assert(defaultSize > 0 && pTableMeta != NULL && dataBuf->pTableMeta != NULL);
 
@@ -154,8 +154,7 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
 }
 
 int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
-                                SName* name, const STableMeta* pTableMeta, STableDataBlocks** dataBlocks,
-                                SArray* pBlockList) {
+    const STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList) {
   *dataBlocks = NULL;
   STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pHashList, (const char*)&id, sizeof(id));
   if (t1 != NULL) {
@@ -163,7 +162,7 @@ int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int3
   }
 
   if (*dataBlocks == NULL) {
-    int32_t ret = createDataBlock((size_t)size, rowSize, startOffset, name, pTableMeta, dataBlocks);
+    int32_t ret = createDataBlock((size_t)size, rowSize, startOffset, pTableMeta, dataBlocks);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -253,23 +252,13 @@ static FORCE_INLINE void convertSMemRow(SMemRow dest, SMemRow src, STableDataBlo
   }
 }
 
-void destroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta) {
+void destroyDataBlock(STableDataBlocks* pDataBlock) {
   if (pDataBlock == NULL) {
     return;
   }
 
   tfree(pDataBlock->pData);
-
-  if (removeMeta) {
-    char name[TSDB_TABLE_FNAME_LEN] = {0};
-    tNameExtractFullName(&pDataBlock->tableName, name);
-
-    // taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
-  }
-
   if (!pDataBlock->cloned) {
-    tfree(pDataBlock->params);
-
     // free the refcount for metermeta
     if (pDataBlock->pTableMeta != NULL) {
       tfree(pDataBlock->pTableMeta);
@@ -277,7 +266,6 @@ void destroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta) {
 
     destroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
   }
-
   tfree(pDataBlock);
 }
 
@@ -289,7 +277,7 @@ void* destroyBlockArrayList(SArray* pDataBlockList) {
   size_t size = taosArrayGetSize(pDataBlockList);
   for (int32_t i = 0; i < size; i++) {
     void* d = taosArrayGetP(pDataBlockList, i);
-    destroyDataBlock(d, false);
+    destroyDataBlock(d);
   }
 
   taosArrayDestroy(pDataBlockList);
@@ -505,7 +493,7 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t 
     if (pBlocks->numOfRows > 0) {
       STableDataBlocks* dataBuf = NULL;
       int32_t ret = getDataBlockFromList(pVnodeDataBlockHashList, pOneTableBlock->vgId, TSDB_PAYLOAD_SIZE,
-                                  INSERT_HEAD_SIZE, 0, &pOneTableBlock->tableName, pOneTableBlock->pTableMeta, &dataBuf, pVnodeDataBlockList);
+          INSERT_HEAD_SIZE, 0, pOneTableBlock->pTableMeta, &dataBuf, pVnodeDataBlockList);
       if (ret != TSDB_CODE_SUCCESS) {
         taosHashCleanup(pVnodeDataBlockHashList);
         destroyBlockArrayList(pVnodeDataBlockList);
@@ -580,7 +568,6 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t 
   extractTableNameList(pHashObj, freeBlockMap);
 
   // free the table data blocks;
-  // pInsertParam->pDataBlocks = pVnodeDataBlockList;
   taosHashCleanup(pVnodeDataBlockHashList);
   tfree(blkKeyInfo.pKeyTuple);
 

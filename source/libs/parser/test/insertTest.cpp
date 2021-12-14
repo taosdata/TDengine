@@ -36,51 +36,67 @@ namespace {
 //   [...];
 class InsertTest : public Test {
 protected:
+  void setDatabase(const string& db) {
+    db_ = db;
+  }
+
   void bind(const char* sql) {
     reset();
-    cxt.pSql = sql;
-    cxt.sqlLen = strlen(sql);
+    cxt_.sqlLen = strlen(sql);
+    strcpy(sqlBuf_, sql);
+    sqlBuf_[cxt_.sqlLen] = '\0';
+    cxt_.pSql = sqlBuf_;
+    cxt_.pDbname = db_.c_str();
   }
 
   int32_t run() {
-    code = parseInsertSql(&cxt, &res);
-    if (code != TSDB_CODE_SUCCESS) {
-      cout << "code:" << toString(code) << ", msg:" << errMagBuf << endl;
+    code_ = parseInsertSql(&cxt_, &res_);
+    if (code_ != TSDB_CODE_SUCCESS) {
+      cout << "code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
     }
-    return code;
+    return code_;
   }
 
   SInsertStmtInfo* reslut() {
-    return res;
+    return res_;
   }
 
 private:
   static const int max_err_len = 1024;
+  static const int max_sql_len = 1024 * 1024;
 
   void reset() {
-    memset(&cxt, 0, sizeof(cxt));
-    memset(errMagBuf, 0, max_err_len);
-    cxt.pMsg = errMagBuf;
-    cxt.msgLen = max_err_len;
-    code = TSDB_CODE_SUCCESS;
-    res = nullptr;
+    memset(&cxt_, 0, sizeof(cxt_));
+    memset(errMagBuf_, 0, max_err_len);
+    cxt_.pMsg = errMagBuf_;
+    cxt_.msgLen = max_err_len;
+    code_ = TSDB_CODE_SUCCESS;
+    res_ = nullptr;
   }
 
-  char errMagBuf[max_err_len];
-  SParseContext cxt;
-  int32_t code;
-  SInsertStmtInfo* res;
+  string db_;
+  char errMagBuf_[max_err_len];
+  char sqlBuf_[max_sql_len];
+  SParseContext cxt_;
+  int32_t code_;
+  SInsertStmtInfo* res_;
 };
 
 // INSERT INTO tb_name VALUES (field1_value, ...)
 TEST_F(InsertTest, simpleTest) {
-  bind("insert into .. values (...)");
+  setDatabase("test");
+
+  bind("insert into t1 values (now, 1, \"wxy\")");
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   SInsertStmtInfo* res = reslut();
   // todo check
+  ASSERT_EQ(res->insertType, TSDB_QUERY_TYPE_INSERT);
+  // ASSERT_EQ(taosArrayGetSize(res->pDataBlocks), 1);
 }
 
 TEST_F(InsertTest, toleranceTest) {
+  setDatabase("test");
+
   bind("insert into");
   ASSERT_NE(run(), TSDB_CODE_SUCCESS);
   bind("insert into t");

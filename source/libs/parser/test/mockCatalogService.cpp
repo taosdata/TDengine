@@ -19,6 +19,7 @@
 #include <iostream>
 #include <map>
 
+#include "tname.h"
 #include "ttypes.h"
 
 std::unique_ptr<MockCatalogService> mockCatalogService;
@@ -82,12 +83,26 @@ public:
   MockCatalogServiceImpl() {
   }
 
-  struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps) {
+  struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps) const {
     return (struct SCatalog*)0x01;
   }
 
-  int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData) {
-    return 0;
+  int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData) const {
+    assert(nullptr != pMetaReq && 1 == taosArrayGetSize(pMetaReq->pTableName));
+    SName* fullName = (SName*)taosArrayGet(pMetaReq->pTableName, 0);
+    std::unique_ptr<STableMeta> table;
+    int32_t code = copyTableMeta(fullName->dbname, fullName->tname, &table);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    std::unique_ptr<SArray> tables((SArray*)taosArrayInit(1, sizeof(STableMeta*)));
+    if (!tables) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    STableMeta* elem = table.release();
+    taosArrayPush(tables.get(), &elem);
+    pMetaData->pTableMeta = tables.release();
+    return TSDB_CODE_SUCCESS;
   }
 
   TableBuilder& createTableBuilder(const std::string& db, const std::string& tbname, int8_t tableType, int32_t numOfColumns, int32_t numOfTags) {
@@ -95,6 +110,15 @@ public:
     meta_[db][tbname].reset(builder_->table());
     meta_[db][tbname]->uid = id_++;
     return *(builder_.get());
+  }
+
+  void createSubTable(const std::string& db, const std::string& stbname, const std::string& tbname, int16_t vgid) {
+    std::unique_ptr<STableMeta> table;
+    if (TSDB_CODE_SUCCESS != copyTableMeta(db, stbname, &table)) {
+      throw std::runtime_error("copyTableMeta failed");
+    }
+    meta_[db][tbname].reset(table.release());
+    meta_[db][tbname]->uid = id_++;
   }
 
   void showTables() const {
@@ -120,20 +144,35 @@ public:
     #define SL(sn, in) std::setfill('=') << std::setw((sn) * (SFL + 1) + (in) * (IFL + 1)) << "" << std::setfill(' ')
 
     for (const auto& db : meta_) {
-      std::cout << SH("Database") << SH("Table") << SH("Type") << SH("Precision") << IH(std::string("Vgid")) << std::endl;
-      std::cout << SL(4, 1) << std::endl;
+      std::cout << "Databse:" << db.first << std::endl;
+      std::cout << SH("Table") << SH("Type") << SH("Precision") << IH("Vgid") << std::endl;
+      std::cout << SL(3, 1) << std::endl;
       for (const auto& table : db.second) {
-        std::cout << SF(db.first) << SF(table.first) << SF(ttToString(table.second->tableType)) << SF(pToString(table.second->tableInfo.precision)) << IF(table.second->vgId) << std::endl;
-        // int16_t numOfFields = table.second->tableInfo.numOfTags + table.second->tableInfo.numOfColumns;
-        // for (int16_t i = 0; i < numOfFields; ++i) {
-        //   const SSchema* schema = table.second->schema + i;
-        //   std::cout << schema->name << " " << schema->type << " " << schema->bytes << std::endl;
-        // }
+        std::cout << SF(table.first) << SF(ttToString(table.second->tableType)) << SF(pToString(table.second->tableInfo.precision)) << IF(table.second->vgId) << std::endl;
+      }
+      std::cout << std::endl;
+    }
+
+    for (const auto& db : meta_) {
+      for (const auto& table : db.second) {
+        std::cout << "Table:" << table.first << std::endl;
+        std::cout << SH("Field") << SH("Type") << SH("DataType") << IH("Bytes") << std::endl;
+        std::cout << SL(3, 1) << std::endl;
+        int16_t numOfTags = table.second->tableInfo.numOfTags;
+        int16_t numOfFields = numOfTags + table.second->tableInfo.numOfColumns;
+        for (int16_t i = 0; i < numOfFields; ++i) {
+          const SSchema* schema = table.second->schema + i;
+          std::cout << SF(std::string(schema->name)) << SH(ftToString(i, numOfTags)) << SH(dtToString(schema->type)) << IF(schema->bytes) << std::endl;
+        }
+        std::cout << std::endl;
       }
     }
   }
 
 private:
+  typedef std::map<std::string, std::shared_ptr<STableMeta> > TableMetaCache;
+  typedef std::map<std::string, TableMetaCache> DbMetaCache;
+
   std::string ttToString(int8_t tableType) const {
     switch (tableType) {
       case TSDB_SUPER_TABLE:
@@ -160,9 +199,43 @@ private:
     }
   }
 
+  std::string dtToString(int8_t type) const {
+    return tDataTypes[type].name;
+  }
+
+  std::string ftToString(int16_t colid, int16_t numOfTags) const {
+    return (0 == colid ? "column" : (colid <= numOfTags ? "tag" : "column"));
+  }
+
+  std::shared_ptr<STableMeta> getTableMeta(const std::string& db, const std::string& tbname) const {
+    DbMetaCache::const_iterator it = meta_.find(db);
+    if (meta_.end() == it) {
+      return std::shared_ptr<STableMeta>();
+    }
+    TableMetaCache::const_iterator tit = it->second.find(tbname);
+    if (it->second.end() == tit) {
+      return std::shared_ptr<STableMeta>();
+    }
+    return tit->second;
+  }
+
+  int32_t copyTableMeta(const std::string& db, const std::string& tbname, std::unique_ptr<STableMeta>* dst) const {
+    std::shared_ptr<STableMeta> src = getTableMeta(db, tbname);
+    if (!src) {
+      return TSDB_CODE_TSC_INVALID_TABLE_NAME;
+    }
+    int32_t len = sizeof(STableMeta) + sizeof(SSchema) * (src->tableInfo.numOfTags + src->tableInfo.numOfColumns);
+    dst->reset((STableMeta*)std::calloc(1, len));
+    if (!dst) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    memcpy(dst->get(), src.get(), len);
+    return TSDB_CODE_SUCCESS;
+  }
+
   uint64_t id_;
   std::unique_ptr<TableBuilder> builder_;
-  std::map<std::string, std::map<std::string, std::shared_ptr<STableMeta> > > meta_;
+  DbMetaCache meta_;
 };
 
 MockCatalogService::MockCatalogService() : impl_(new MockCatalogServiceImpl()) {
@@ -171,16 +244,20 @@ MockCatalogService::MockCatalogService() : impl_(new MockCatalogServiceImpl()) {
 MockCatalogService::~MockCatalogService() {
 }
 
-struct SCatalog* MockCatalogService::getCatalogHandle(const SEpSet* pMgmtEps) {
+struct SCatalog* MockCatalogService::getCatalogHandle(const SEpSet* pMgmtEps) const {
   return impl_->getCatalogHandle(pMgmtEps);
 }
 
-int32_t MockCatalogService::catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData) {
+int32_t MockCatalogService::catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData) const {
   return impl_->catalogGetMetaData(pCatalog, pMetaReq, pMetaData);
 }
 
 ITableBuilder& MockCatalogService::createTableBuilder(const std::string& db, const std::string& tbname, int8_t tableType, int32_t numOfColumns, int32_t numOfTags) {
   return impl_->createTableBuilder(db, tbname, tableType, numOfColumns, numOfTags);
+}
+
+void MockCatalogService::createSubTable(const std::string& db, const std::string& stbname, const std::string& tbname, int16_t vgid) {
+  impl_->createSubTable(db, stbname, tbname, vgid);
 }
 
 void MockCatalogService::showTables() const {

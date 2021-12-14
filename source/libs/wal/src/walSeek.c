@@ -78,10 +78,12 @@ int walChangeFile(SWal *pWal, int64_t ver) {
   code = tfClose(pWal->writeLogTfd);
   if(code != 0) {
    //TODO 
+    return -1;
   }
   code = tfClose(pWal->writeIdxTfd);
   if(code != 0) {
    //TODO 
+    return -1;
   }
   WalFileInfo tmpInfo;
   tmpInfo.firstVer = ver;
@@ -106,24 +108,19 @@ int walChangeFile(SWal *pWal, int64_t ver) {
 
   pWal->writeLogTfd = logTfd;
   pWal->writeIdxTfd = idxTfd;
-  return code;
-}
-
-int walGetVerOffset(SWal* pWal, int64_t ver) {
-  int code;
-  return 0;
+  return fileFirstVer;
 }
 
 int walSeekVer(SWal *pWal, int64_t ver) {
   int code;
-  if(ver == pWal->lastVersion) {
+  if(ver == pWal->vers.lastVer) {
     return 0;
   }
-  if(ver > pWal->lastVersion || ver < pWal->firstVersion) {
+  if(ver > pWal->vers.lastVer|| ver < pWal->vers.firstVer) {
     return -1;
   }
-  if(ver < pWal->snapshotVersion) {
-    //TODO: set flag to prevent roll back
+  if(ver < pWal->vers.snapshotVer) {
+
   }
   if(ver < walGetCurFileFirstVer(pWal) || (ver > walGetCurFileLastVer(pWal))) {
     code = walChangeFile(pWal, ver);

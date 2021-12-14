@@ -1,3 +1,14 @@
+/**
+ * @file vnodeApiTests.cpp
+ * @author hzcheng (hzcheng@taosdata.com)
+ * @brief VNODE module API tests
+ * @version 0.1
+ * @date 2021-12-13
+ *
+ * @copyright Copyright (c) 2021
+ *
+ */
+
 #include <gtest/gtest.h>
 #include <iostream>
 

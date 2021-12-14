@@ -13,20 +13,32 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_COMMIT_H_
-#define _TD_VNODE_COMMIT_H_
+#ifndef _TD_UTIL_MACRO_H_
+#define _TD_UTIL_MACRO_H_
 
-#include "vnode.h"
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define vnodeShouldCommit vnodeBufPoolIsFull
-int vnodeAsyncCommit(SVnode *pVnode);
+// Module init/clear MACRO definitions
+#define TD_MOD_UNINITIALIZED 0
+#define TD_MOD_INITIALIZED 1
+
+#define TD_MOD_UNCLEARD 0
+#define TD_MOD_CLEARD 1
+
+#define TD_DEF_MOD_INIT_FLAG(MOD) static int8_t MOD##InitFlag = TD_MOD_UNINITIALIZED
+#define TD_DEF_MOD_CLEAR_FLAG(MOD) static int8_t MOD##ClearFlag = TD_MOD_UNCLEARD
+
+#define TD_CHECK_AND_SET_MODE_INIT(MOD) \
+  atomic_val_compare_exchange_8(&(MOD##InitFlag), TD_MOD_UNINITIALIZED, TD_MOD_INITIALIZED)
+
+#define TD_CHECK_AND_SET_MOD_CLEAR(MOD) atomic_val_compare_exchange_8(&(MOD##ClearFlag), TD_MOD_UNCLEARD, TD_MOD_CLEARD)
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_COMMIT_H_*/
+#endif /*_TD_UTIL_MACRO_H_*/

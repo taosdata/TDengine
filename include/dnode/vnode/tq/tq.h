@@ -256,7 +256,7 @@ typedef struct STQ {
   // the collection of group handle
   // the handle of kvstore
   char*  path;
-  STqCfg*    tqConfig;
+  STqCfg*      tqConfig;
   TqLogReader* tqLogReader; 
   TqMemRef     tqMemRef;
   TqMetaStore* tqMeta;
