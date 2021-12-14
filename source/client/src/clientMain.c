@@ -1,5 +1,5 @@
 #include "clientInt.h"
-#include "trpc.h"
+#include "clientLog.h"
 #include "os.h"
 #include "taosmsg.h"
 #include "tcache.h"
@@ -7,7 +7,7 @@
 #include "tglobal.h"
 #include "tnote.h"
 #include "tref.h"
-#include "tscLog.h"
+#include "trpc.h"
 #include "tsched.h"
 #include "ttime.h"
 #include "ttimezone.h"
@@ -82,4 +82,12 @@ const char *taos_errstr(TAOS_RES *res) {
 
 void taos_free_result(TAOS_RES *res) {
 
+}
+
+TAOS_RES *taos_query(TAOS *taos, const char *sql) {
+  if (taos == NULL || sql == NULL) {
+    return NULL;
+  }
+
+  return taos_query_l(taos, sql, strlen(sql));
 }

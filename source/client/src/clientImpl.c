@@ -1,11 +1,14 @@
-#include <tpagedfile.h>
+
+#include <parser.h>
 #include "clientInt.h"
+#include "clientLog.h"
 #include "tdef.h"
 #include "tep.h"
 #include "tglobal.h"
 #include "tmsgtype.h"
+#include "tnote.h"
+#include "tpagedfile.h"
 #include "tref.h"
-#include "tscLog.h"
 
 static int32_t initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet);
 static int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody);
@@ -107,6 +110,59 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
   }
 
   return taosConnectImpl(ip, user, &secretEncrypt[0], db, port, NULL, NULL, pInst);
+}
+
+TAOS_RES *taos_query_l(TAOS *taos, const char *sql, size_t sqlLen) {
+  STscObj *pObj = (STscObj *)taos;
+  if (sqlLen > (size_t) tsMaxSQLStringLen) {
+    tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
+    terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
+    return NULL;
+  }
+
+  nPrintTsc("%s", sql)
+
+  SRequestObj* pRequest = createRequest(pObj, NULL, NULL, TSDB_SQL_SELECT);
+  if (pRequest == NULL) {
+    tscError("failed to malloc sqlObj");
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pRequest->sqlstr = malloc(sqlLen + 1);
+  if (pRequest->sqlstr == NULL) {
+    tscError("0x%"PRIx64" failed to prepare sql string buffer", pRequest->self);
+
+    pRequest->msgBuf = strdup("failed to prepare sql string buffer");
+    terrno = pRequest->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return pRequest;
+  }
+
+  strntolower(pRequest->sqlstr, sql, (int32_t)sqlLen);
+  pRequest->sqlstr[sqlLen] = 0;
+
+  tscDebugL("0x%"PRIx64" SQL: %s", pRequest->requestId, pRequest->sqlstr);
+
+  int32_t code = 0;//tsParseSql(pSql, true);
+  if (qIsInsertSql(pRequest->sqlstr, sqlLen)) {
+//    qParseInsertSql();
+  } else {
+    SQueryStmtInfo *pQueryInfo = qParseQuerySql(pRequest->sqlstr, sqlLen, pRequest->requestId, pRequest->msgBuf, ERROR_MSG_BUF_DEFAULT_SIZE);
+    assert(pQueryInfo != NULL);
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    pRequest->code = code;
+//    tscAsyncResultOnError(pSql);
+//    taosReleaseRef(tscReqRef, p->self);
+    return NULL;
+  }
+
+//  executeQuery(pSql, pQueryInfo);
+//  doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
+
+  tsem_wait(&pRequest->body.rspSem);
+  return pRequest;
 }
 
 int initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet) {

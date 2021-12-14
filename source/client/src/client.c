@@ -16,9 +16,9 @@
 #include "os.h"
 #include "tdef.h"
 
-#include "tglobal.h"
 #include "clientInt.h"
-#include "tscLog.h"
+#include "clientLog.h"
+#include "tglobal.h"
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   int32_t p = (port != 0)? port:tsServerPort;

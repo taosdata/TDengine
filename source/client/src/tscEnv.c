@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "clientInt.h"
+#include "clientLog.h"
 #include "os.h"
 #include "taosmsg.h"
 #include "tcache.h"
@@ -20,12 +22,10 @@
 #include "tglobal.h"
 #include "tnote.h"
 #include "tref.h"
-#include "tscLog.h"
+#include "trpc.h"
 #include "tsched.h"
 #include "ttime.h"
-#include "trpc.h"
 #include "ttimezone.h"
-#include "clientInt.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -172,6 +172,7 @@ void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t ty
   pRequest->pTscObj    = pObj;
   pRequest->body.fp    = fp;
   pRequest->body.param = param;
+  pRequest->msgBuf     = calloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   tsem_init(&pRequest->body.rspSem, 0, 0);
 
   registerRequest(pRequest);

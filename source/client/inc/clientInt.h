@@ -92,6 +92,8 @@ typedef struct SReqBody {
   void*     param;
 } SRequestBody;
 
+#define ERROR_MSG_BUF_DEFAULT_SIZE  512
+
 typedef struct SRequestObj {
   uint64_t         requestId;
   int32_t          type;   // request type
@@ -129,8 +131,6 @@ void  destroyTscObj(void*pObj);
 void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t type);
 void destroyRequest(SRequestObj* pRequest);
 
-TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, const char *auth, const char *db, uint16_t port);
-
 void taos_init_imp(void);
 int taos_options_imp(TSDB_OPTION option, const char *str);
 
@@ -138,6 +138,9 @@ void* openTransporter(const char *user, const char *auth);
 
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 void initMsgHandleFp();
+
+TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, const char *auth, const char *db, uint16_t port);
+TAOS_RES *taos_query_l(TAOS *taos, const char *sql, size_t sqlLen);
 
 #ifdef __cplusplus
 }

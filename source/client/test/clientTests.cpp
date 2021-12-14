@@ -36,5 +36,6 @@ TEST(testCase, driverInit_Test) {
   TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
+  taos_query(pConn, "create user abc pass 'abc'");
   taos_close(pConn);
 }
