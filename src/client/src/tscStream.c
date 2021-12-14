@@ -187,7 +187,7 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
           next_time = taosTimeTruncate(next_time, &pStream->interval, pStream->precision);
           timer = next_time - taosGetTimestamp(pStream->precision); // next time - now()
           if(timer < 0 ) {
-            tscDebug("CQ next time < now so loop add sliding. next_time=%" PRId64, next_time);
+            //tscDebug("CQ next time < now so loop add sliding. next_time=%" PRId64, next_time);
             continue;
           }
 
