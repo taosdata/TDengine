@@ -22,6 +22,9 @@
 extern "C" {
 #endif
 
+int  vnodeInitCommit(uint16_t nthreads);
+void vnodeClearCommit();
+
 #define vnodeShouldCommit vnodeBufPoolIsFull
 int vnodeAsyncCommit(SVnode *pVnode);
 

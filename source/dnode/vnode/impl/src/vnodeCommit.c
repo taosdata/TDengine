@@ -18,6 +18,15 @@
 static int vnodeStartCommit(SVnode *pVnode);
 static int vnodeEndCommit(SVnode *pVnode);
 
+int vnodeInitCommit(uint16_t nthreads) {
+  // TODO
+  return 0;
+}
+
+void vnodeClearCommit() {
+  // TODO
+}
+
 int vnodeAsyncCommit(SVnode *pVnode) {
 #if 0
   if (vnodeStartCommit(pVnode) < 0) {

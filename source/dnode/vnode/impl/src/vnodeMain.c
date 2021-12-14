@@ -24,12 +24,16 @@ static void    vnodeCloseImpl(SVnode *pVnode);
 TD_DEF_MOD_INIT_FLAG(vnode);
 TD_DEF_MOD_CLEAR_FLAG(vnode);
 
-int vnodeInit() {
+int vnodeInit(uint16_t nthreads) {
   if (TD_CHECK_AND_SET_MODE_INIT(vnode) == TD_MOD_INITIALIZED) {
     return 0;
   }
 
   if (walInit() < 0) {
+    return -1;
+  }
+
+  if (vnodeInitCommit(nthreads) < 0) {
     return -1;
   }
 
@@ -42,6 +46,8 @@ void vnodeClear() {
   }
 
   walCleanUp();
+
+  vnodeClearCommit();
 }
 
 SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
