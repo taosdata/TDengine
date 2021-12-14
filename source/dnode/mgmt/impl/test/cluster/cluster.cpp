@@ -33,7 +33,7 @@ class DndTestCluster : public ::testing::Test {
   }
 
   static void TearDownTestSuite() {
-    dropServer(pServer);
+    stopServer(pServer);
     dropClient(pClient);
   }
 
@@ -80,7 +80,7 @@ TEST_F(DndTestCluster, ShowCluster) {
 
     EXPECT_NE(pRsp->showId, 0);
     EXPECT_EQ(pMeta->contLen, 0);
-    EXPECT_STREQ(pMeta->tableFname, "show cluster");
+    EXPECT_STREQ(pMeta->tbFname, "show cluster");
     EXPECT_EQ(pMeta->numOfTags, 0);
     EXPECT_EQ(pMeta->precision, 0);
     EXPECT_EQ(pMeta->tableType, 0);

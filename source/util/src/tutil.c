@@ -166,7 +166,7 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
   return split;
 }
 
-char *strnchr(char *haystack, char needle, int32_t len, bool skipquote) {
+char *strnchr(const char *haystack, char needle, int32_t len, bool skipquote) {
   for (int32_t i = 0; i < len; ++i) {
 
     // skip the needle in quote, jump to the end of quoted string
@@ -179,7 +179,7 @@ char *strnchr(char *haystack, char needle, int32_t len, bool skipquote) {
     }
 
     if (haystack[i] == needle) {
-      return &haystack[i];
+      return (char *)&haystack[i];
     }
   }
 
@@ -416,17 +416,4 @@ void taosIp2String(uint32_t ip, char *str) {
 
 void taosIpPort2String(uint32_t ip, uint16_t port, char *str) {
   sprintf(str, "%u.%u.%u.%u:%u", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (uint8_t)(ip >> 24), port);
-}
-
-int32_t taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {
-  *port = 0;
-  strcpy(fqdn, ep);
-
-  char *temp = strchr(fqdn, ':');
-  if (temp) {
-    *temp = 0;
-    *port = atoi(temp + 1);
-  }
-
-  return 0;
 }

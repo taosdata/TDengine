@@ -39,8 +39,10 @@ typedef struct {
   tsem_t   sem;
 } SClient;
 
-SServer* createServer(const char* path, const char* fqdn, uint16_t port);
-void     dropServer(SServer* pServer);
+void     initLog(const char* path);
+SServer* createServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp);
+SServer* startServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp);
+void     stopServer(SServer* pServer);
 SClient* createClient(const char* user, const char* pass, const char* fqdn, uint16_t port);
 void     dropClient(SClient* pClient);
 void     sendMsg(SClient* pClient, SRpcMsg* pMsg);

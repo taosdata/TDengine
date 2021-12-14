@@ -36,6 +36,8 @@ typedef struct SVnodeCfg {
   struct {
     /** write buffer size */
     uint64_t wsize;
+    uint64_t ssize;
+    uint64_t lsize;
     /** use heap allocator or arena allocator */
     bool isHeapAllocator;
   };

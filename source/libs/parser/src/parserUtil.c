@@ -1,3 +1,19 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+#include "parserUtil.h"
+
 #include "taosmsg.h"
 #include "parser.h"
 #include "taoserror.h"
@@ -18,7 +34,6 @@ typedef struct STableFilterCond {
 
 static STableMetaInfo* addTableMetaInfo(SQueryStmtInfo* pQueryInfo, SName* name, STableMeta* pTableMeta,
                                         SVgroupsInfo* vgroupList, SArray* pTagCols, SArray* pVgroupTables);
-STableMeta* tableMetaDup(STableMeta* pTableMeta);
 
 int32_t parserValidateIdToken(SToken* pToken) {
   if (pToken == NULL || pToken->z == NULL || pToken->type != TK_ID) {
@@ -87,7 +102,7 @@ int32_t buildInvalidOperationMsg(SMsgBuf* pBuf, const char* msg) {
   return TSDB_CODE_TSC_INVALID_OPERATION;
 }
 
-int32_t buildSyntaxErrMsg(char* dst, int32_t dstBufLen, const char* additionalInfo,  const char* sourceStr) {
+int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo,  const char* sourceStr) {
   const char* msgFormat1 = "syntax error near \'%s\'";
   const char* msgFormat2 = "syntax error near \'%s\' (%s)";
   const char* msgFormat3 = "%s";
@@ -95,7 +110,7 @@ int32_t buildSyntaxErrMsg(char* dst, int32_t dstBufLen, const char* additionalIn
   const char* prefix = "syntax error";
   if (sourceStr == NULL) {
     assert(additionalInfo != NULL);
-    snprintf(dst, dstBufLen, msgFormat1, additionalInfo);
+    snprintf(pBuf->buf, pBuf->len, msgFormat1, additionalInfo);
     return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
   }
 
@@ -103,10 +118,10 @@ int32_t buildSyntaxErrMsg(char* dst, int32_t dstBufLen, const char* additionalIn
   strncpy(buf, sourceStr, tListLen(buf) - 1);
 
   if (additionalInfo != NULL) {
-    snprintf(dst, dstBufLen, msgFormat2, buf, additionalInfo);
+    snprintf(pBuf->buf, pBuf->len, msgFormat2, buf, additionalInfo);
   } else {
     const char* msgFormat = (0 == strncmp(sourceStr, prefix, strlen(prefix))) ? msgFormat3 : msgFormat1;
-    snprintf(dst, dstBufLen, msgFormat, buf);
+    snprintf(pBuf->buf, pBuf->len, msgFormat, buf);
   }
 
   return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
@@ -1473,7 +1488,7 @@ STableMeta* createSuperTableMeta(STableMetaMsg* pChild) {
   return pTableMeta;
 }
 
-uint32_t getTableMetaSize(STableMeta* pTableMeta) {
+uint32_t getTableMetaSize(const STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
 
   int32_t totalCols = 0;
@@ -1488,7 +1503,7 @@ uint32_t getTableMetaMaxSize() {
   return sizeof(STableMeta) + TSDB_MAX_COLUMNS * sizeof(SSchema);
 }
 
-STableMeta* tableMetaDup(STableMeta* pTableMeta) {
+STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
   size_t size = getTableMetaSize(pTableMeta);
 

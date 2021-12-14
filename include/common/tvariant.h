@@ -40,7 +40,7 @@ int32_t toInteger(const char* z, int32_t n, int32_t base, int64_t* value, bool* 
 
 bool taosVariantIsValid(SVariant *pVar);
 
-void taosVariantCreate(SVariant *pVar, char* z, int32_t n, int32_t type);
+void taosVariantCreate(SVariant *pVar, const char* z, int32_t n, int32_t type);
 
 void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uint32_t type);
 

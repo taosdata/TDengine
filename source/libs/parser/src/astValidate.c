@@ -4078,7 +4078,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 #endif
 
   SCatalogReq req = {0};
-  SCatalogRsp data = {0};
+  SMetaData data = {0};
 
   // TODO: check if the qnode info has been cached already
   req.qNodeRequired = true;

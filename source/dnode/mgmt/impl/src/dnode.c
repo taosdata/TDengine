@@ -55,30 +55,31 @@ void dndGetStartup(SDnode *pDnode, SStartupMsg *pStartup) {
   pStartup->finished = (dndGetStat(pDnode) == DND_STAT_RUNNING);
 }
 
-static int32_t dndCheckRunning(char *dataDir) {
+static FileFd dndCheckRunning(char *dataDir) {
   char filepath[PATH_MAX] = {0};
   snprintf(filepath, sizeof(filepath), "%s/.running", dataDir);
 
   FileFd fd = taosOpenFileCreateWriteTrunc(filepath);
   if (fd < 0) {
-    dError("failed to lock file:%s since %s, quit", filepath, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to lock file:%s since %s, quit", filepath, terrstr());
     return -1;
   }
 
   int32_t ret = taosLockFile(fd);
   if (ret != 0) {
-    dError("failed to lock file:%s since %s, quit", filepath, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
+    dError("failed to lock file:%s since %s, quit", filepath, terrstr());
     taosCloseFile(fd);
     return -1;
   }
 
-  return 0;
+  return fd;
 }
 
 static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOption) {
-  if (dndCheckRunning(pOption->dataDir) != 0) {
+  pDnode->lockFd = dndCheckRunning(pOption->dataDir);
+  if (pDnode->lockFd < 0) {
     return -1;
   }
 
@@ -131,6 +132,12 @@ static void dndCleanupEnv(SDnode *pDnode) {
 
   if (pDnode->dir.dnode != NULL) {
     tfree(pDnode->dir.dnode);
+  }
+
+  if (pDnode->lockFd >= 0) {
+    taosUnLockFile(pDnode->lockFd);
+    taosCloseFile(pDnode->lockFd);
+    pDnode->lockFd = 0;
   }
 
   taosStopCacheRefreshWorker();
@@ -194,13 +201,16 @@ SDnode *dndInit(SDnodeOpt *pOption) {
   }
 
   dndSetStat(pDnode, DND_STAT_RUNNING);
+  dndSendStatusMsg(pDnode);
   dndReportStartup(pDnode, "TDengine", "initialized successfully");
-  dInfo("TDengine is initialized successfully");
+  dInfo("TDengine is initialized successfully, pDnode:%p", pDnode);
 
   return pDnode;
 }
 
 void dndCleanup(SDnode *pDnode) {
+  if (pDnode == NULL) return;
+
   if (dndGetStat(pDnode) == DND_STAT_STOPPED) {
     dError("dnode is shutting down");
     return;

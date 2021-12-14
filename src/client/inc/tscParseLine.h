@@ -28,7 +28,7 @@ typedef struct {
 } TAOS_SML_KV;
 
 typedef struct {
-  char* stableName;
+  char* stbName;
 
   char* childTableName;
   TAOS_SML_KV* tags;

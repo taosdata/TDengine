@@ -17,6 +17,7 @@
 #include "os.h"
 #include "walInt.h"
 
+#if 0
 int32_t walGetNextFile(SWal *pWal, int64_t *nextFileId) {
   int64_t curFileId = *nextFileId;
   int64_t minFileId = INT64_MAX;
@@ -116,3 +117,4 @@ int32_t walGetNewFile(SWal *pWal, int64_t *newFileId) {
 
   return 0;
 }
+#endif

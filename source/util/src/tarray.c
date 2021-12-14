@@ -58,23 +58,30 @@ static int32_t taosArrayResize(SArray* pArray) {
   return 0;
 }
 
-void* taosArrayAddBatch(SArray* pArray, const void* pData, int nEles) {
-  if (pArray == NULL || pData == NULL) {
-    return NULL;
-  }
-
-  if (pArray->size + nEles > pArray->capacity) {
+int32_t taosArrayEnsureCap(SArray* pArray, size_t newCap) {
+  if (newCap > pArray->capacity) {
     size_t tsize = (pArray->capacity << 1u);
-    while (pArray->size + nEles > tsize) {
+    while (newCap > tsize) {
       tsize = (tsize << 1u);
     }
 
     pArray->pData = realloc(pArray->pData, tsize * pArray->elemSize);
     if (pArray->pData == NULL) {
-      return NULL;
+      return -1;
     }
 
     pArray->capacity = tsize;
+  }
+  return 0;
+}
+
+void* taosArrayAddBatch(SArray* pArray, const void* pData, int nEles) {
+  if (pArray == NULL || pData == NULL) {
+    return NULL;
+  }
+
+  if(taosArrayEnsureCap(pArray, pArray->size + nEles) != 0){
+    return NULL;
   }
 
   void* dst = TARRAY_GET_ELEM(pArray, pArray->size);
@@ -241,10 +248,14 @@ void taosArrayPopFrontBatch(SArray* pArray, size_t cnt) {
   assert(cnt <= pArray->size);
   pArray->size = pArray->size - cnt;
   if(pArray->size == 0) {
-    pArray->size = 0;
     return;
   }
-  memmove(pArray->pData, (char*)pArray->pData + cnt * pArray->elemSize, pArray->size);
+  memmove(pArray->pData, (char*)pArray->pData + cnt * pArray->elemSize, pArray->size * pArray->elemSize);
+}
+
+void taosArrayPopTailBatch(SArray* pArray, size_t cnt) {
+  assert(cnt <= pArray->size);
+  pArray->size = pArray->size - cnt;
 }
 
 void taosArrayRemove(SArray* pArray, size_t index) {
@@ -327,6 +338,11 @@ void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t compa
   assert(key != NULL);
 
   return taosbsearch(key, pArray->pData, pArray->size, pArray->elemSize, comparFn, flags);
+}
+
+int32_t taosArraySearchIdx(const SArray* pArray, const void* key, __compar_fn_t comparFn, int flags) {
+  void* item = taosArraySearch(pArray, key, comparFn, flags);
+  return (int32_t)((char*)item - (char*)pArray->pData) / pArray->elemSize;
 }
 
 void taosArraySortString(SArray* pArray, __compar_fn_t comparFn) {

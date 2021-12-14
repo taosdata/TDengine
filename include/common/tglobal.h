@@ -81,8 +81,6 @@ extern int64_t tsMaxRetentWindow;
 // db parameters in client
 extern int32_t tsCacheBlockSize;
 extern int32_t tsBlocksPerVnode;
-extern int32_t tsMinTablePerVnode;
-extern int32_t tsMaxTablePerVnode;
 extern int32_t tsTableIncStepPerVnode;
 extern int32_t tsMaxVgroupsPerDb;
 extern int16_t tsDaysPerFile;
@@ -108,22 +106,13 @@ extern int8_t  tsEnableBalance;
 extern int8_t  tsAlternativeRole;
 extern int32_t tsBalanceInterval;
 extern int32_t tsOfflineThreshold;
-extern int32_t tsMnodeEqualVnodeNum;
 extern int8_t  tsEnableFlowCtrl;
 extern int8_t  tsEnableSlaveQuery;
 extern int8_t  tsEnableAdjustMaster;
 
 // restful
-extern int8_t   tsEnableHttpModule;
 extern int32_t  tsRestRowLimit;
-extern uint16_t tsHttpPort;
-extern int32_t  tsHttpCacheSessions;
-extern int32_t  tsHttpSessionExpire;
-extern int32_t  tsHttpMaxThreads;
-extern int8_t   tsHttpEnableCompress;
-extern int8_t   tsHttpEnableRecordSql;
 extern int8_t   tsTelegrafUseFieldNum;
-extern int8_t   tsHttpDbNameMandatory;
 
 // mqtt
 extern int8_t tsEnableMqttModule;
@@ -145,7 +134,6 @@ extern int8_t tsEnableStream;
 
 // internal
 extern int8_t  tsPrintAuth;
-extern int8_t  tscEmbedded;
 extern char    tsVnodeDir[];
 extern char    tsMnodeDir[];
 extern int64_t tsTickPerDay[3];
@@ -194,7 +182,7 @@ extern SDiskCfg tsDiskCfg[];
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 void    taosInitGlobalCfg();
-int32_t taosCheckGlobalCfg();
+int32_t taosCheckAndPrintCfg();
 int32_t taosCfgDynamicOptions(char *msg);
 bool    taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId);
 void    taosAddDataDir(int index, char *v1, int level, int primary);

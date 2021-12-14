@@ -18,6 +18,7 @@
 #include "parserUtil.h"
 #include "ttoken.h"
 #include "function.h"
+#include "insertParser.h"
 
 bool qIsInsertSql(const char* pStr, size_t length) {
   int32_t index = 0;
@@ -51,8 +52,8 @@ int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** 
   return qParserValidateSqlNode(pCatalog, &info, *pQueryInfo, id, msg, msgLen);
 }
 
-int32_t qParseInsertSql(const char* pStr, size_t length, struct SInsertStmtInfo** pInsertInfo, int64_t id, char* msg, int32_t msgLen) {
-  return 0;
+int32_t qParseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo) {
+  return parseInsertSql(pContext, pInfo);
 }
 
 int32_t qParserConvertSql(const char* pStr, size_t length, char** pConvertSql) {
@@ -178,7 +179,7 @@ int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SCatalogReq* p
       assert(t != NULL);
 
       if (t->n >= TSDB_FUNC_NAME_LEN) {
-        return buildSyntaxErrMsg(msg, msgBufLen, "too long function name", t->z);
+        return buildSyntaxErrMsg(&msgBuf, "too long function name", t->z);
       }
 
       // Let's assume that it is an UDF/UDAF, if it is not a built-in function.

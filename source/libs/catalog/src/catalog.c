@@ -283,8 +283,12 @@ int32_t catalogGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, cons
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pTableName, STableMeta* pTableMeta) {
 
-int32_t catalogGetAllMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SCatalogRsp* pRsp) {
+}
+
+
+int32_t catalogGetAllMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SMetaData* pRsp) {
   if (NULL == pCatalog || NULL == pMgmtEps || NULL == pReq || NULL == pRsp) {
     return TSDB_CODE_CTG_INVALID_INPUT;
   }

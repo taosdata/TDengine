@@ -73,10 +73,12 @@ typedef struct taosField {
   #define DLL_EXPORT 
 #endif
 
-DLL_EXPORT int   taos_init();
+typedef void (*__taos_async_fn_t)(void *param, TAOS_RES *, int code);
+
 DLL_EXPORT void  taos_cleanup(void);
 DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);
 DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
+DLL_EXPORT TAOS *taos_connect_l(const char *ip, int ipLen, const char *user, int userLen, const char *pass, int passLen, const char *db, int dbLen, uint16_t port);
 DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
 DLL_EXPORT void  taos_close(TAOS *taos);
 
@@ -154,14 +156,14 @@ DLL_EXPORT int* taos_fetch_lengths(TAOS_RES *res);
 // TAOS_RES   *taos_list_dbs(TAOS *mysql, const char *wild);
 
 // TODO: the return value should be `const`
-DLL_EXPORT char *taos_get_server_info(TAOS *taos);
-DLL_EXPORT char *taos_get_client_info();
-DLL_EXPORT char *taos_errstr(TAOS_RES *tres);
+DLL_EXPORT const char *taos_get_server_info(TAOS *taos);
+DLL_EXPORT const char *taos_get_client_info();
+DLL_EXPORT const char *taos_errstr(TAOS_RES *tres);
 
 DLL_EXPORT int taos_errno(TAOS_RES *tres);
 
-DLL_EXPORT void taos_query_a(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, int code), void *param);
-DLL_EXPORT void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);
+DLL_EXPORT void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param);
+DLL_EXPORT void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param);
 
 typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code);
 DLL_EXPORT TAOS_SUB *taos_subscribe(TAOS* taos, int restart, const char* topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval);

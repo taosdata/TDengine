@@ -47,7 +47,6 @@ typedef struct SMnodeCfg {
   int32_t sver;
   int8_t  enableTelem;
   int32_t statusInterval;
-  int32_t mnodeEqualVnodeNum;
   int32_t shellActivityTimer;
   char   *timezone;
   char   *locale;

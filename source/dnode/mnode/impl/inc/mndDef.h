@@ -92,7 +92,6 @@ typedef enum {
   DND_REASON_VERSION_NOT_MATCH,
   DND_REASON_DNODE_ID_NOT_MATCH,
   DND_REASON_CLUSTER_ID_NOT_MATCH,
-  DND_REASON_MN_EQUAL_VN_NOT_MATCH,
   DND_REASON_STATUS_INTERVAL_NOT_MATCH,
   DND_REASON_TIME_ZONE_NOT_MATCH,
   DND_REASON_LOCALE_NOT_MATCH,
@@ -125,6 +124,7 @@ typedef struct SDnodeObj {
   int64_t    createdTime;
   int64_t    updateTime;
   int64_t    rebootTime;
+  int64_t    lastAccessTime;
   int32_t    accessTimes;
   int16_t    numOfMnodes;
   int16_t    numOfVnodes;
@@ -180,13 +180,11 @@ typedef struct SAcctObj {
 
 typedef struct SUserObj {
   char      user[TSDB_USER_LEN];
-  char      pass[TSDB_KEY_LEN];
+  char      pass[TSDB_PASSWORD_LEN];
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
   int64_t   updateTime;
-  int8_t    superAuth;
-  int8_t    readAuth;
-  int8_t    writeAuth;
+  int8_t    superUser;
   int32_t   acctId;
   SHashObj *prohibitDbHash;
 } SUserObj;
@@ -241,7 +239,7 @@ typedef struct SVgObj {
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
 
-typedef struct SStableObj {
+typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
   char     db[TSDB_FULL_DB_NAME_LEN];
   int64_t  createdTime;
@@ -251,9 +249,8 @@ typedef struct SStableObj {
   int32_t  numOfColumns;
   int32_t  numOfTags;
   SRWLatch lock;
-  SSchema *columnSchema;
-  SSchema *tagSchema;
-} SStableObj;
+  SSchema *pSchema;
+} SStbObj;
 
 typedef struct SFuncObj {
   char    name[TSDB_FUNC_NAME_LEN];

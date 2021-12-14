@@ -25,6 +25,7 @@
 #include "tutil.h"
 #include "ttimezone.h"
 #include "tlocale.h"
+#include "tep.h"
 
 // cluster
 char     tsFirst[TSDB_EP_LEN] = {0};
@@ -46,7 +47,7 @@ int64_t  tsDnodeStartTime = 0;
 // common
 int32_t tsRpcTimer       = 300;
 int32_t tsRpcMaxTime     = 600;  // seconds;
-int32_t tsRpcForceTcp    = 0;  //disable this, means query, show command use udp protocol as default
+int32_t tsRpcForceTcp    = 1;  //disable this, means query, show command use udp protocol as default
 int32_t tsMaxShellConns  = 50000;
 int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer  = 3;  // second
@@ -156,22 +157,13 @@ int8_t  tsEnableBalance = 1;
 int8_t  tsAlternativeRole = 0;
 int32_t tsBalanceInterval = 300;           // seconds
 int32_t tsOfflineThreshold = 86400 * 10;  // seconds of 10 days
-int32_t tsMnodeEqualVnodeNum = 4;
 int8_t  tsEnableFlowCtrl = 1;
 int8_t  tsEnableSlaveQuery = 1;
 int8_t  tsEnableAdjustMaster = 1;
 
 // restful
-int8_t   tsEnableHttpModule = 1;
 int32_t  tsRestRowLimit = 10240;
-uint16_t tsHttpPort = 6041;  // only tcp, range tcp[6041]
-int32_t  tsHttpCacheSessions = 1000;
-int32_t  tsHttpSessionExpire = 36000;
-int32_t  tsHttpMaxThreads = 2;
-int8_t   tsHttpEnableCompress = 1;
-int8_t   tsHttpEnableRecordSql = 0;
 int8_t   tsTelegrafUseFieldNum = 0;
-int8_t   tsHttpDbNameMandatory = 0;
 
 // mqtt
 int8_t tsEnableMqttModule = 0;  // not finished yet, not started it by default
@@ -194,7 +186,6 @@ int8_t  tsEnableStream = 1;
 // internal
 int8_t tsCompactMnodeWal = 0;
 int8_t tsPrintAuth = 0;
-int8_t tscEmbedded = 0;
 char   tsVnodeDir[PATH_MAX] = {0};
 char   tsDnodeDir[PATH_MAX] = {0};
 char   tsMnodeDir[PATH_MAX] = {0};
@@ -257,7 +248,6 @@ void taosSetAllDebugFlag() {
     sdbDebugFlag = debugFlag;
     dDebugFlag = debugFlag;
     vDebugFlag = debugFlag;
-    cDebugFlag = debugFlag;
     jniDebugFlag = debugFlag;
     odbcDebugFlag = debugFlag;
     httpDebugFlag = debugFlag;
@@ -331,7 +321,7 @@ int32_t taosCfgDynamicOptions(char *msg) {
 
   if (strncasecmp(option, "resetlog", 8) == 0) {
     taosResetLog();
-    taosPrintGlobalCfg();
+    taosPrintCfg();
     return 0;
   }
 
@@ -395,7 +385,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_EP_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "secondEp";
   cfg.ptr = tsSecond;
@@ -405,7 +395,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_EP_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "fqdn";
   cfg.ptr = tsLocalFqdn;
@@ -415,7 +405,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_FQDN_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   // port
   cfg.option = "serverPort";
@@ -426,7 +416,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 65056;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   // directory
   cfg.option = "configDir";
@@ -437,7 +427,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_FILENAME_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "logDir";
   cfg.ptr = tsLogDir;
@@ -447,7 +437,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_FILENAME_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "scriptDir";
   cfg.ptr = tsScriptDir;
@@ -457,7 +447,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_FILENAME_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "dataDir";
   cfg.ptr = tsDataDir;
@@ -467,7 +457,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_FILENAME_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "arbitrator";
   cfg.ptr = tsArbitrator;
@@ -477,7 +467,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_EP_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   // dnode configs
   cfg.option = "numOfThreadsPerCore";
@@ -488,7 +478,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 10;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "numOfCommitThreads";
   cfg.ptr = &tsNumOfCommitThreads;
@@ -498,7 +488,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 100;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "ratioOfQueryCores";
   cfg.ptr = &tsRatioOfQueryCores;
@@ -508,7 +498,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 2.0f;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "maxNumOfDistinctRes";
   cfg.ptr = &tsMaxNumOfDistinctResults;
@@ -518,7 +508,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 10000*10000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
   
   cfg.option = "numOfMnodes";
   cfg.ptr = &tsNumOfMnodes;
@@ -528,7 +518,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 3;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "vnodeBak";
   cfg.ptr = &tsEnableVnodeBak;
@@ -538,7 +528,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "telemetryReporting";
   cfg.ptr = &tsEnableTelemetryReporting;
@@ -548,7 +538,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "balance";
   cfg.ptr = &tsEnableBalance;
@@ -558,7 +548,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "balanceInterval";
   cfg.ptr = &tsBalanceInterval;
@@ -568,7 +558,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 30000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   // 0-any; 1-mnode; 2-vnode
   cfg.option = "role";
@@ -579,7 +569,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 2;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   // timer
   cfg.option = "maxTmrCtrl";
@@ -590,7 +580,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 2048;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "monitorInterval";
   cfg.ptr = &tsMonitorInterval;
@@ -600,7 +590,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 600;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_SECOND;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "offlineThreshold";
   cfg.ptr = &tsOfflineThreshold;
@@ -610,7 +600,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 86400 * 365;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_SECOND;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "rpcTimer";
   cfg.ptr = &tsRpcTimer;
@@ -620,7 +610,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 3000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MS;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "rpcForceTcp";
   cfg.ptr = &tsRpcForceTcp;
@@ -630,7 +620,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "rpcMaxTime";
   cfg.ptr = &tsRpcMaxTime;
@@ -640,7 +630,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 7200;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_SECOND;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "statusInterval";
   cfg.ptr = &tsStatusInterval;
@@ -650,7 +640,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 10;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_SECOND;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "shellActivityTimer";
   cfg.ptr = &tsShellActivityTimer;
@@ -660,7 +650,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 120;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_SECOND;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "minSlidingTime";
   cfg.ptr = &tsMinSlidingTime;
@@ -670,7 +660,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MS;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "minIntervalTime";
   cfg.ptr = &tsMinIntervalTime;
@@ -680,7 +670,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MS;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "maxStreamCompDelay";
   cfg.ptr = &tsMaxStreamComputDelay;
@@ -690,7 +680,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1000000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MS;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "maxFirstStreamCompDelay";
   cfg.ptr = &tsStreamCompStartDelay;
@@ -700,7 +690,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1000000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MS;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "retryStreamCompDelay";
   cfg.ptr = &tsRetryStreamCompDelay;
@@ -711,7 +701,7 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MS;
 
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
   cfg.option = "streamCompDelayRatio";
   cfg.ptr = &tsStreamComputDelayRatio;
   cfg.valType = TAOS_CFG_VTYPE_FLOAT;
@@ -720,7 +710,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0.9f;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "maxVgroupsPerDb";
   cfg.ptr = &tsMaxVgroupsPerDb;
@@ -730,7 +720,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 8192;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "cache";
   cfg.ptr = &tsCacheBlockSize;
@@ -740,7 +730,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_CACHE_BLOCK_SIZE;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MB;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "blocks";
   cfg.ptr = &tsBlocksPerVnode;
@@ -750,7 +740,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_TOTAL_BLOCKS;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "days";
   cfg.ptr = &tsDaysPerFile;
@@ -760,7 +750,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_DAYS_PER_FILE;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "keep";
   cfg.ptr = &tsDaysToKeep;
@@ -770,7 +760,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_KEEP;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "minRows";
   cfg.ptr = &tsMinRowsInFileBlock;
@@ -780,7 +770,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_MIN_ROW_FBLOCK;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "maxRows";
   cfg.ptr = &tsMaxRowsInFileBlock;
@@ -790,7 +780,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_MAX_ROW_FBLOCK;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "precision";
   cfg.ptr = &tsTimePrecision;
@@ -800,7 +790,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_PRECISION;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "comp";
   cfg.ptr = &tsCompression;
@@ -810,7 +800,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_COMP_LEVEL;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "walLevel";
   cfg.ptr = &tsWAL;
@@ -820,7 +810,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_WAL_LEVEL;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "fsync";
   cfg.ptr = &tsFsyncPeriod;
@@ -830,7 +820,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_FSYNC_PERIOD;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "replica";
   cfg.ptr = &tsReplications;
@@ -840,7 +830,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_DB_REPLICA_OPTION;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "quorum";
   cfg.ptr = &tsQuorum;
@@ -850,7 +840,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_DB_QUORUM_OPTION;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "update";
   cfg.ptr = &tsUpdate;
@@ -860,7 +850,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_DB_UPDATE;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "cachelast";
   cfg.ptr = &tsCacheLastRow;
@@ -870,7 +860,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_DB_CACHE_LAST_ROW;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "mqttHostName";
   cfg.ptr = tsMqttHostName;
@@ -880,7 +870,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_MQTT_HOSTNAME_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "mqttPort";
   cfg.ptr = tsMqttPort;
@@ -890,7 +880,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_MQTT_PORT_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "mqttTopic";
   cfg.ptr = tsMqttTopic;
@@ -900,7 +890,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_MQTT_TOPIC_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "compressMsgSize";
   cfg.ptr = &tsCompressMsgSize;
@@ -910,7 +900,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 100000000.0f;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "compressColData";
   cfg.ptr = &tsCompressColData;
@@ -920,7 +910,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 100000000.0f;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "maxSQLLength";
   cfg.ptr = &tsMaxSQLStringLen;
@@ -930,7 +920,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_ALLOWED_SQL_LEN;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_BYTE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "maxWildCardsLength";
   cfg.ptr = &tsMaxWildCardsLen;
@@ -940,7 +930,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_FIELD_LEN;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_BYTE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "maxRegexStringLen";
   cfg.ptr = &tsMaxRegexStringLen;
@@ -950,7 +940,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_FIELD_LEN;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_BYTE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "maxNumOfOrderedRes";
   cfg.ptr = &tsMaxNumOfOrderedResults;
@@ -960,7 +950,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_ALLOWED_SQL_LEN;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "queryBufferSize";
   cfg.ptr = &tsQueryBufferSize;
@@ -970,7 +960,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 500000000000.0f;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_BYTE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "retrieveBlockingModel";
   cfg.ptr = &tsRetrieveBlockingModel;
@@ -980,7 +970,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "keepColumnName";
   cfg.ptr = &tsKeepOriginalColumnName;
@@ -990,7 +980,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   // locale & charset
   cfg.option = "timezone";
@@ -1001,7 +991,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_TIMEZONE_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "locale";
   cfg.ptr = tsLocale;
@@ -1011,7 +1001,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_LOCALE_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "charset";
   cfg.ptr = tsCharset;
@@ -1021,7 +1011,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_LOCALE_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   // connect configs
   cfg.option = "maxShellConns";
@@ -1032,7 +1022,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 50000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "maxConnections";
   cfg.ptr = &tsMaxConnections;
@@ -1042,7 +1032,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 100000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "minimalLogDirGB";
   cfg.ptr = &tsMinimalLogDirGB;
@@ -1052,7 +1042,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 10000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_GB;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "minimalTmpDirGB";
   cfg.ptr = &tsReservedTmpDirectorySpace;
@@ -1062,7 +1052,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 10000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_GB;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "minimalDataDirGB";
   cfg.ptr = &tsMinimalDataDirGB;
@@ -1072,18 +1062,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 10000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_GB;
-  taosInitConfigOption(cfg);
-
-  // module configs
-  cfg.option = "mnodeEqualVnodeNum";
-  cfg.ptr = &tsMnodeEqualVnodeNum;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
     // module configs
   cfg.option = "flowctrl";
@@ -1094,7 +1073,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "slaveQuery";
   cfg.ptr = &tsEnableSlaveQuery;
@@ -1104,7 +1083,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "adjustMaster";
   cfg.ptr = &tsEnableAdjustMaster;
@@ -1114,17 +1093,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "http";
-  cfg.ptr = &tsEnableHttpModule;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "mqtt";
   cfg.ptr = &tsEnableMqttModule;
@@ -1134,7 +1103,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "monitor";
   cfg.ptr = &tsEnableMonitorModule;
@@ -1144,7 +1113,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "stream";
   cfg.ptr = &tsEnableStream;
@@ -1154,7 +1123,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "topicBianryLen";
   cfg.ptr = &tsTopicBianryLen;
@@ -1164,17 +1133,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 16000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "httpEnableRecordSql";
-  cfg.ptr = &tsHttpEnableRecordSql;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "telegrafUseFieldNum";
   cfg.ptr = &tsTelegrafUseFieldNum;
@@ -1184,17 +1143,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "httpMaxThreads";
-  cfg.ptr = &tsHttpMaxThreads;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 2;
-  cfg.maxValue = 1000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "restfulRowLimit";
   cfg.ptr = &tsRestRowLimit;
@@ -1204,17 +1153,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 10000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "httpDbNameMandatory";
-  cfg.ptr = &tsHttpDbNameMandatory;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   // debug flag
   cfg.option = "numOfLogLines";
@@ -1225,7 +1164,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 2000000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "logKeepDays";
   cfg.ptr = &tsLogKeepDays;
@@ -1235,7 +1174,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 365000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "asyncLog";
   cfg.ptr = &tsAsyncLog;
@@ -1245,7 +1184,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "debugFlag";
   cfg.ptr = &debugFlag;
@@ -1255,7 +1194,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "mDebugFlag";
   cfg.ptr = &mDebugFlag;
@@ -1265,7 +1204,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "dDebugFlag";
   cfg.ptr = &dDebugFlag;
@@ -1275,7 +1214,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "sDebugFlag";
   cfg.ptr = &sDebugFlag;
@@ -1285,7 +1224,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "wDebugFlag";
   cfg.ptr = &wDebugFlag;
@@ -1295,7 +1234,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
 
   cfg.option = "sdbDebugFlag";
@@ -1306,7 +1245,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "rpcDebugFlag";
   cfg.ptr = &rpcDebugFlag;
@@ -1316,7 +1255,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "tmrDebugFlag";
   cfg.ptr = &tmrDebugFlag;
@@ -1326,7 +1265,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "cDebugFlag";
   cfg.ptr = &cDebugFlag;
@@ -1336,7 +1275,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "jniDebugFlag";
   cfg.ptr = &jniDebugFlag;
@@ -1346,7 +1285,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "odbcDebugFlag";
   cfg.ptr = &odbcDebugFlag;
@@ -1356,7 +1295,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "uDebugFlag";
   cfg.ptr = &uDebugFlag;
@@ -1366,7 +1305,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "httpDebugFlag";
   cfg.ptr = &httpDebugFlag;
@@ -1376,7 +1315,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "mqttDebugFlag";
   cfg.ptr = &mqttDebugFlag;
@@ -1386,7 +1325,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "monDebugFlag";
   cfg.ptr = &monDebugFlag;
@@ -1396,7 +1335,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "qDebugFlag";
   cfg.ptr = &qDebugFlag;
@@ -1406,7 +1345,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "vDebugFlag";
   cfg.ptr = &vDebugFlag;
@@ -1416,7 +1355,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "tsdbDebugFlag";
   cfg.ptr = &tsdbDebugFlag;
@@ -1426,7 +1365,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "cqDebugFlag";
   cfg.ptr = &cqDebugFlag;
@@ -1436,7 +1375,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "enableRecordSql";
   cfg.ptr = &tsTscEnableRecordSql;
@@ -1446,7 +1385,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "enableCoreFile";
   cfg.ptr = &tsEnableCoreFile;
@@ -1456,7 +1395,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   // version info
   cfg.option = "gitinfo";
@@ -1467,7 +1406,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "gitinfoOfInternal";
   cfg.ptr = gitinfoOfInternal;
@@ -1477,7 +1416,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "buildinfo";
   cfg.ptr = buildinfo;
@@ -1487,7 +1426,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "version";
   cfg.ptr = version;
@@ -1497,7 +1436,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "maxBinaryDisplayWidth";
   cfg.ptr = &tsMaxBinaryDisplayWidth;
@@ -1507,7 +1446,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 65536;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "tempDir";
   cfg.ptr = tsTempDir;
@@ -1517,7 +1456,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = PATH_MAX;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "tsdbMetaCompactRatio";
   cfg.ptr = &tsTsdbMetaCompactRatio;
@@ -1527,7 +1466,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 100;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
    // enable kill long query
   cfg.option = "deadLockKillQuery";
@@ -1538,7 +1477,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 1;
   cfg.ptrLength = 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
 #ifdef TD_TSZ
   // lossy compress
@@ -1550,7 +1489,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 0;
   cfg.ptrLength = tListLen(lossyColumns);
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "fPrecision";
   cfg.ptr = &fPrecision;
@@ -1562,7 +1501,7 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
 
   
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "dPrecision";
   cfg.ptr = &dPrecision;
@@ -1572,7 +1511,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = MAX_FLOAT;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "maxRange";
   cfg.ptr = &maxRange;
@@ -1582,7 +1521,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 65536;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
 
   cfg.option = "range";
   cfg.ptr = &curRange;
@@ -1592,10 +1531,10 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 65536;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
+  taosAddConfigOption(cfg);
   assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM);
 #else
-  assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM - 5);
+  //assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM - 5);
 #endif
 
 }
@@ -1604,7 +1543,7 @@ void taosInitGlobalCfg() {
   pthread_once(&tsInitGlobalCfgOnce, doInitGlobalConfig);
 }
 
-int32_t taosCheckGlobalCfg() {
+int32_t taosCheckAndPrintCfg() {
   char fqdn[TSDB_FQDN_LEN];
   uint16_t port;
 
@@ -1652,37 +1591,13 @@ int32_t taosCheckGlobalCfg() {
     tsNumOfCores = 1;
   }
 
-  if (tsHttpMaxThreads == 2) {
-    int32_t halfNumOfCores = tsNumOfCores >> 1;
-    if (halfNumOfCores > 2) {
-      tsHttpMaxThreads = halfNumOfCores;
-    }
-  }
-
-  // todo refactor
-  tsVersion = 0;
-  for (int ver = 0, i = 0; i < TSDB_VERSION_LEN; ++i) {
-    if (version[i] >= '0' && version[i] <= '9') {
-      ver = ver * 10 + (version[i] - '0');
-    } else if (version[i] == '.') {
-      tsVersion |= ver & 0xFF;
-      tsVersion <<= 8;
-
-      ver = 0;
-    } else if (version[i] == 0) {
-      tsVersion |= ver & 0xFF;
-
-      break;
-    }
-  }
-
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
 
   uInfo("   check global cfg completed");
   uInfo("==================================");
-  taosPrintGlobalCfg();
+  taosPrintCfg();
 
   return 0;
 }

@@ -44,12 +44,12 @@ typedef struct SCatalogReq {
   bool    qNodeRequired;  // valid qnode
 } SCatalogReq;
 
-typedef struct SCatalogRsp {
+typedef struct SMetaData {
   SArray    *pTableMeta;  // STableMeta array
   SArray    *pVgroupInfo; // SVgroupInfo list
   SArray    *pUdfList;    // udf info list
   SEpSet    *pEpSet;      // qnode epset list
-} SCatalogRsp;
+} SMetaData;
 
 typedef struct STableComInfo {
   uint8_t numOfTags;      // the number of tags in schema
@@ -135,7 +135,7 @@ int32_t catalogGetTableVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSe
  * @param pMetaData
  * @return
  */
-int32_t catalogGetAllMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SCatalogRsp* pRsp);
+int32_t catalogGetAllMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SMetaData* pRsp);
 
 
 int32_t catalogGetQnodeList(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, SEpSet* pQnodeEpSet);

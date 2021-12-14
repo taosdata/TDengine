@@ -52,10 +52,10 @@ SSdb *sdbInit(SSdbOpt *pOption) {
 void sdbCleanup(SSdb *pSdb) {
   mDebug("start to cleanup sdb");
 
-  if (pSdb->curVer != pSdb->lastCommitVer) {
+  // if (pSdb->curVer != pSdb->lastCommitVer) {
     mDebug("write sdb file for curVer:% " PRId64 " and lastVer:%" PRId64, pSdb->curVer, pSdb->lastCommitVer);
     sdbWriteFile(pSdb);
-  }
+  // }
 
   if (pSdb->currDir != NULL) {
     tfree(pSdb->currDir);

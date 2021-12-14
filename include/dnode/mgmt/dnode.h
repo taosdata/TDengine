@@ -33,7 +33,6 @@ typedef struct {
   int16_t  numOfSupportQnodes;
   int8_t   enableTelem;
   int32_t  statusInterval;
-  int32_t  mnodeEqualVnodeNum;
   float    numOfThreadsPerCore;
   float    ratioOfQueryCores;
   int32_t  maxShellConns;

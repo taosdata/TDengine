@@ -16,9 +16,9 @@
 #include "deploy.h"
 
 void initLog(const char* path) {
-  dDebugFlag = 0;
+  dDebugFlag = 143;
   vDebugFlag = 0;
-  mDebugFlag = 207;
+  mDebugFlag = 143;
   cDebugFlag = 0;
   jniDebugFlag = 0;
   tmrDebugFlag = 0;
@@ -26,7 +26,7 @@ void initLog(const char* path) {
   httpDebugFlag = 0;
   mqttDebugFlag = 0;
   monDebugFlag = 0;
-  uDebugFlag = 0;
+  uDebugFlag = 143;
   rpcDebugFlag = 0;
   odbcDebugFlag = 0;
   qDebugFlag = 0;
@@ -34,6 +34,10 @@ void initLog(const char* path) {
   sDebugFlag = 0;
   tsdbDebugFlag = 0;
   cqDebugFlag = 0;
+  tscEmbeddedInUtil = 1;
+
+  taosRemoveDir(path);
+  taosMkDir(path);
 
   char temp[PATH_MAX];
   snprintf(temp, PATH_MAX, "%s/taosdlog", path);
@@ -50,14 +54,13 @@ void* runServer(void* param) {
   }
 }
 
-void initOption(SDnodeOpt* pOption, const char* path, const char* fqdn, uint16_t port) {
+void initOption(SDnodeOpt* pOption, const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
   pOption->sver = 1;
   pOption->numOfCores = 1;
   pOption->numOfSupportMnodes = 1;
   pOption->numOfSupportVnodes = 1;
   pOption->numOfSupportQnodes = 1;
   pOption->statusInterval = 1;
-  pOption->mnodeEqualVnodeNum = 1;
   pOption->numOfThreadsPerCore = 1;
   pOption->ratioOfQueryCores = 1;
   pOption->maxShellConns = 1000;
@@ -66,16 +69,14 @@ void initOption(SDnodeOpt* pOption, const char* path, const char* fqdn, uint16_t
   strcpy(pOption->dataDir, path);
   snprintf(pOption->localEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
   snprintf(pOption->localFqdn, TSDB_FQDN_LEN, "%s", fqdn);
-  snprintf(pOption->firstEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
+  snprintf(pOption->firstEp, TSDB_EP_LEN, "%s", firstEp);
 }
 
-SServer* createServer(const char* path, const char* fqdn, uint16_t port) {
-  taosRemoveDir(path);
+SServer* startServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
   taosMkDir(path);
-  initLog(path);
 
   SDnodeOpt option = {0};
-  initOption(&option, path, fqdn, port);
+  initOption(&option, path, fqdn, port, firstEp);
 
   SDnode* pDnode = dndInit(&option);
   ASSERT(pDnode);
@@ -90,16 +91,28 @@ SServer* createServer(const char* path, const char* fqdn, uint16_t port) {
   return pServer;
 }
 
-void dropServer(SServer* pServer) {
+SServer* createServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
+  taosRemoveDir(path);
+  return startServer(path, fqdn, port, firstEp);
+}
+
+void stopServer(SServer* pServer) {
+  if (pServer == NULL) return;
   if (pServer->threadId != NULL) {
     taosDestoryThread(pServer->threadId);
+  }
+
+  if (pServer->pDnode != NULL) {
+    dndCleanup(pServer->pDnode);
+    pServer->pDnode = NULL;
   }
 }
 
 void processClientRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SClient* pClient = (SClient*)parent;
   pClient->pRsp = pMsg;
-  // taosMsleep(1000000);
+  uInfo("response:%s from dnode, pCont:%p contLen:%d code:0x%X", taosMsg[pMsg->msgType], pMsg->pCont, pMsg->contLen,
+        pMsg->code);
   tsem_post(&pClient->sem);
 }
 
@@ -107,7 +120,7 @@ SClient* createClient(const char* user, const char* pass, const char* fqdn, uint
   SClient* pClient = (SClient*)calloc(1, sizeof(SClient));
   ASSERT(pClient);
 
-  char secretEncrypt[32] = {0};
+  char secretEncrypt[TSDB_PASSWORD_LEN] = {0};
   taosEncryptPass((uint8_t*)pass, strlen(pass), secretEncrypt);
 
   SRpcInit rpcInit;
@@ -145,7 +158,7 @@ void sendMsg(SClient* pClient, SRpcMsg* pMsg) {
   epSet.inUse = 0;
   epSet.numOfEps = 1;
   epSet.port[0] = pClient->port;
-  strcpy(epSet.fqdn[0], pClient->fqdn);
+  memcpy(epSet.fqdn[0], pClient->fqdn, TSDB_FQDN_LEN);
 
   rpcSendRequest(pClient->clientRpc, &epSet, pMsg, NULL);
   tsem_wait(&pClient->sem);

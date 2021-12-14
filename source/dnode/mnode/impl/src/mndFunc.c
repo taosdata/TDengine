@@ -429,7 +429,7 @@ static int32_t mndGetFuncMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *p
 
   pShow->numOfRows = sdbGetSize(pSdb, SDB_FUNC);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tableFname, "show funcs");
+  strcpy(pMeta->tbFname, "show funcs");
 
   return 0;
 }

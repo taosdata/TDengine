@@ -69,9 +69,9 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
   pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_FUNCTION] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_RETRIEVE_FUNCTION] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_DROP_FUNCTION] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STABLE] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STABLE] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STABLE] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STB] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STB] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STB] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_VGROUP_LIST] = dndProcessMnodeReadMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_KILL_QUERY] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_KILL_STREAM] = dndProcessMnodeWriteMsg;
@@ -84,12 +84,12 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
   pMgmt->msgFp[TSDB_MSG_TYPE_NETWORK_TEST] = dndProcessDnodeReq;
 
   // message from mnode to vnode
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STABLE_IN] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STABLE_IN_RSP] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STABLE_IN] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STABLE_IN_RSP] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STABLE_IN] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STABLE_IN_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STB_IN] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STB_IN_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STB_IN] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STB_IN_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STB_IN] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STB_IN_RSP] = dndProcessMnodeWriteMsg;
 
   // message from mnode to dnode
   pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_VNODE_IN] = dndProcessVnodeMgmtMsg;
@@ -130,7 +130,7 @@ static void dndProcessResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   if (dndGetStat(pDnode) == DND_STAT_STOPPED) {
     if (pMsg == NULL || pMsg->pCont == NULL) return;
-    dTrace("RPC %p, rsp:%s app:%p is ignored since dnode is stopping", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
+    dTrace("RPC %p, rsp:%s is ignored since dnode is stopping", pMsg->handle, taosMsg[msgType]);
     rpcFreeCont(pMsg->pCont);
     return;
   }
@@ -138,12 +138,11 @@ static void dndProcessResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   DndMsgFp fp = pMgmt->msgFp[msgType];
   if (fp != NULL) {
     (*fp)(pDnode, pMsg, pEpSet);
-    dTrace("RPC %p, rsp:%s app:%p is processed, code:0x%0X", pMsg->handle, taosMsg[msgType], pMsg->ahandle,
-           pMsg->code & 0XFFFF);
+    dTrace("RPC %p, rsp:%s is processed, code:0x%0X", pMsg->handle, taosMsg[msgType], pMsg->code & 0XFFFF);
   } else {
-    dError("RPC %p, rsp:%s app:%p not processed", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
+    dError("RPC %p, rsp:%s not processed", pMsg->handle, taosMsg[msgType]);
+    rpcFreeCont(pMsg->pCont);
   }
-  rpcFreeCont(pMsg->pCont);
 }
 
 static int32_t dndInitClient(SDnode *pDnode) {
@@ -236,18 +235,18 @@ static void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pRpcMsg, SRpcMsg *pRp
 static int32_t dndAuthInternalMsg(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   if (strcmp(user, INTERNAL_USER) == 0) {
     // A simple temporary implementation
-    char pass[32] = {0};
+    char pass[TSDB_PASSWORD_LEN] = {0};
     taosEncryptPass((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
-    memcpy(secret, pass, TSDB_KEY_LEN);
+    memcpy(secret, pass, TSDB_PASSWORD_LEN);
     *spi = 0;
     *encrypt = 0;
     *ckey = 0;
     return 0;
   } else if (strcmp(user, TSDB_NETTEST_USER) == 0) {
     // A simple temporary implementation
-    char pass[32] = {0};
+    char pass[TSDB_PASSWORD_LEN] = {0};
     taosEncryptPass((uint8_t *)(TSDB_NETTEST_USER), strlen(TSDB_NETTEST_USER), pass);
-    memcpy(secret, pass, TSDB_KEY_LEN);
+    memcpy(secret, pass, TSDB_PASSWORD_LEN);
     *spi = 0;
     *encrypt = 0;
     *ckey = 0;
@@ -289,8 +288,8 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
     dError("user:%s, failed to get user auth from other mnodes since %s", user, terrstr());
   } else {
     SAuthRsp *pRsp = rpcRsp.pCont;
-    memcpy(secret, pRsp->secret, TSDB_KEY_LEN);
-    memcpy(ckey, pRsp->ckey, TSDB_KEY_LEN);
+    memcpy(secret, pRsp->secret, TSDB_PASSWORD_LEN);
+    memcpy(ckey, pRsp->ckey, TSDB_PASSWORD_LEN);
     *spi = pRsp->spi;
     *encrypt = pRsp->encrypt;
     dDebug("user:%s, success to get user auth from other mnodes", user);
