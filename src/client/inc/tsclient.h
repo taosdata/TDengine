@@ -453,7 +453,7 @@ void    tscRestoreFuncForSTableQuery(SQueryInfo *pQueryInfo);
 
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo, bool converted);
-void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBlock, bool convertNchar);
+void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBlock, bool convertNchar, bool convertJson);
 
 void handleDownstreamOperator(SSqlObj** pSqlList, int32_t numOfUpstream, SQueryInfo* px, SSqlObj* pParent);
 void destroyTableNameList(SInsertStatementParam* pInsertParam);
@@ -499,6 +499,8 @@ bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
 void tscSetBoundColumnInfo(SParsedDataColInfo *pColInfo, SSchema *pSchema, int32_t numOfCols);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
+int32_t tscGetErrorMsgLength(SSqlCmd* pCmd);
+
 int32_t tscErrorMsgWithCode(int32_t code, char* dstBuffer, const char* errMsg, const char* sql);
 
 int32_t tscInvalidOperationMsg(char *msg, const char *additionalInfo, const char *sql);

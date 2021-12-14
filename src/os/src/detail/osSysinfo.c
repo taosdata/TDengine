@@ -213,6 +213,8 @@ static void taosGetSystemTimezone() {
   int32_t tz = (-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR;
   tz += daylight;
 
+  tsDaylight = daylight;
+
   /*
    * format example:
    *
@@ -333,7 +335,9 @@ int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
 }
 
 bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
-  *bytes = 0;
+  if (bytes) *bytes = 0;
+  if (rbytes) *rbytes = 0;
+  if (tbytes) *tbytes = 0;
   FILE *fp = fopen(tsSysNetFile, "r");
   if (fp == NULL) {
     uError("open file:%s failed", tsSysNetFile);
@@ -348,7 +352,7 @@ bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
     memset(line, 0, len);
 
     int64_t o_rbytes = 0;
-    int64_t rpackts = 0;
+    int64_t rpackets = 0;
     int64_t o_tbytes = 0;
     int64_t tpackets = 0;
     int64_t nouse1 = 0;
@@ -374,10 +378,10 @@ bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
     sscanf(line,
            "%s %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64
            " %" PRId64,
-           nouse0, &o_rbytes, &rpackts, &nouse1, &nouse2, &nouse3, &nouse4, &nouse5, &nouse6, &o_tbytes, &tpackets);
-    if (rbytes) *rbytes = o_rbytes;
-    if (tbytes) *tbytes = o_tbytes;
-    *bytes += (o_rbytes + o_tbytes);
+           nouse0, &o_rbytes, &rpackets, &nouse1, &nouse2, &nouse3, &nouse4, &nouse5, &nouse6, &o_tbytes, &tpackets);
+    if (rbytes) *rbytes += o_rbytes;
+    if (tbytes) *tbytes += o_tbytes;
+    if (bytes)  *bytes  += (o_rbytes + o_tbytes);
   }
 
   tfree(line);
@@ -422,7 +426,46 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
   return true;
 }
 
-bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
+bool taosGetNetworkIO(float *netInKb, float *netOutKb) {
+  static int64_t lastBytesIn = 0, lastBytesOut = 0;
+  static time_t  lastTimeIO = 0;
+  int64_t        curBytesIn = 0, curBytesOut = 0;
+  time_t         curTime = time(NULL);
+
+  if (!taosGetCardInfo(NULL, &curBytesIn, &curBytesOut)) {
+    return false;
+  }
+
+  if (lastTimeIO == 0 || lastBytesIn == 0 || lastBytesOut == 0) {
+    lastTimeIO = curTime;
+    lastBytesIn = curBytesIn; lastBytesOut = curBytesOut;
+    *netInKb = 0;
+    *netOutKb = 0;
+    return true;
+  }
+
+  if (lastTimeIO >= curTime || lastBytesIn > curBytesIn || lastBytesOut > curBytesOut) {
+    lastTimeIO = curTime;
+    lastBytesIn = curBytesIn; lastBytesOut = curBytesOut;
+    *netInKb = 0;
+    *netOutKb = 0;
+    return true;
+  }
+
+  double totalBytesIn = (double)(curBytesIn - lastBytesIn) / 1024 * 8;  // Kb
+  *netInKb = (float)(totalBytesIn / (double)(curTime - lastTimeIO));
+
+  double totalBytesOut = (double)(curBytesOut - lastBytesOut) / 1024 * 8;  // Kb
+  *netOutKb = (float)(totalBytesOut / (double)(curTime - lastTimeIO));
+
+  lastTimeIO = curTime;
+  lastBytesIn = curBytesIn;
+  lastBytesOut = curBytesOut;
+
+  return true;
+}
+
+bool taosReadProcIO(int64_t *rchars, int64_t *wchars, int64_t *rbytes, int64_t *wbytes) {
   FILE *fp = fopen(tsProcIOFile, "r");
   if (fp == NULL) {
     uError("open file:%s failed", tsProcIOFile);
@@ -432,7 +475,7 @@ bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
   ssize_t _bytes = 0;
   size_t len;
   char * line = NULL;
-  char   tmp[10];
+  char   tmp[15];
   int    readIndex = 0;
 
   while (!feof(fp)) {
@@ -448,16 +491,21 @@ bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
     } else if (strstr(line, "wchar:") != NULL) {
       sscanf(line, "%s %" PRId64, tmp, wchars);
       readIndex++;
-    } else {
+    } else if (strstr(line, "read_bytes:") != NULL){
+      sscanf(line, "%s %" PRId64, tmp, rbytes);
+      readIndex++;
+    } else if (strstr(line, "write_bytes:") != NULL){
+      sscanf(line, "%s %" PRId64, tmp, wbytes);
+      readIndex++;
     }
 
-    if (readIndex >= 2) break;
+    if (readIndex >= 4) break;
   }
 
   tfree(line);
   fclose(fp);
 
-  if (readIndex < 2) {
+  if (readIndex < 4) {
     uError("read file:%s failed", tsProcIOFile);
     return false;
   }
@@ -465,30 +513,43 @@ bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
   return true;
 }
 
-bool taosGetProcIO(float *readKB, float *writeKB) {
-  static int64_t lastReadbyte = -1;
-  static int64_t lastWritebyte = -1;
+bool taosGetProcIO(float *rcharKB, float *wcharKB, float *rbyteKB, float *wbyteKB) {
+  static int64_t lastRchar = -1, lastRbyte = -1;
+  static int64_t lastWchar = -1, lastWbyte = -1;
+  static time_t  lastTime = 0;
+  time_t         curTime = time(NULL);
 
-  int64_t curReadbyte = 0;
-  int64_t curWritebyte = 0;
+  int64_t curRchar = 0, curRbyte = 0;
+  int64_t curWchar = 0, curWbyte = 0;
 
-  if (!taosReadProcIO(&curReadbyte, &curWritebyte)) {
+  if (!taosReadProcIO(&curRchar, &curWchar, &curRbyte, &curWbyte)) {
     return false;
   }
 
-  if (lastReadbyte == -1 || lastWritebyte == -1) {
-    lastReadbyte = curReadbyte;
-    lastWritebyte = curWritebyte;
+  if (lastTime == 0 || lastRchar == -1 || lastWchar == -1 || lastRbyte == -1 || lastWbyte == -1) {
+    lastTime  = curTime;
+    lastRchar = curRchar;
+    lastWchar = curWchar;
+    lastRbyte = curRbyte;
+    lastWbyte = curWbyte;
     return false;
   }
 
-  *readKB = (float)((double)(curReadbyte - lastReadbyte) / 1024);
-  *writeKB = (float)((double)(curWritebyte - lastWritebyte) / 1024);
-  if (*readKB < 0) *readKB = 0;
-  if (*writeKB < 0) *writeKB = 0;
+  *rcharKB = (float)((double)(curRchar - lastRchar) / 1024 / (double)(curTime - lastTime));
+  *wcharKB = (float)((double)(curWchar - lastWchar) / 1024 / (double)(curTime - lastTime));
+  if (*rcharKB < 0) *rcharKB = 0;
+  if (*wcharKB < 0) *wcharKB = 0;
 
-  lastReadbyte = curReadbyte;
-  lastWritebyte = curWritebyte;
+  *rbyteKB = (float)((double)(curRbyte - lastRbyte) / 1024 / (double)(curTime - lastTime));
+  *wbyteKB = (float)((double)(curWbyte - lastWbyte) / 1024 / (double)(curTime - lastTime));
+  if (*rbyteKB < 0) *rbyteKB = 0;
+  if (*wbyteKB < 0) *wbyteKB = 0;
+
+  lastRchar = curRchar;
+  lastWchar = curWchar;
+  lastRbyte = curRbyte;
+  lastWbyte = curWbyte;
+  lastTime  = curTime;
 
   return true;
 }
@@ -499,13 +560,13 @@ void taosGetSystemInfo() {
   tsNumOfCores = taosGetCpuCores();
   tsTotalMemoryMB = taosGetTotalMemory();
 
-  float tmp1, tmp2;
+  float tmp1, tmp2, tmp3, tmp4;
   taosGetSysMemory(&tmp1);
   taosGetProcMemory(&tmp2);
   // taosGetDisk();
   taosGetBandSpeed(&tmp1);
   taosGetCpuUsage(&tmp1, &tmp2);
-  taosGetProcIO(&tmp1, &tmp2);
+  taosGetProcIO(&tmp1, &tmp2, &tmp3, &tmp4);
 
   taosGetSystemTimezone();
   taosGetSystemLocale();

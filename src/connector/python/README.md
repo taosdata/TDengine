@@ -5,14 +5,27 @@
 
 ## Install
 
-```sh
-git clone --depth 1 https://github.com/taosdata/TDengine.git
-pip install ./TDengine/src/connector/python
+You can use `pip` to install the connector from PyPI:
+
+```bash
+pip install taospy
+```
+
+Or with git url:
+
+```bash
+pip install git+https://github.com/taosdata/taos-connector-python.git
+```
+
+If you have installed TDengine server or client with prebuilt packages, then you can install the connector from path:
+
+```bash
+pip install /usr/local/taos/connector/python
 ```
 
 ## Source Code
 
-[TDengine](https://github.com/taosdata/TDengine) connector for Python source code is hosted on [GitHub](https://github.com/taosdata/TDengine/tree/develop/src/connector/python).
+[TDengine](https://github.com/taosdata/TDengine) connector for Python source code is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
 
 ## Examples
 
@@ -38,7 +51,7 @@ conn.close()
 import taos
 
 conn = taos.connect()
-conn.exec("create database if not exists pytest")
+conn.execute("create database if not exists pytest")
 
 result = conn.query("show databases")
 num_of_fields = result.field_count
@@ -47,7 +60,7 @@ for field in result.fields:
 for row in result:
     print(row)
 result.close()
-conn.exec("drop database pytest")
+conn.execute("drop database pytest")
 conn.close()
 ```
 
@@ -123,11 +136,11 @@ from taos import *
 conn = connect()
 
 dbname = "pytest_taos_stmt"
-conn.exec("drop database if exists %s" % dbname)
-conn.exec("create database if not exists %s" % dbname)
+conn.execute("drop database if exists %s" % dbname)
+conn.execute("create database if not exists %s" % dbname)
 conn.select_db(dbname)
 
-conn.exec(
+conn.execute(
     "create table if not exists log(ts timestamp, bo bool, nil tinyint, \
         ti tinyint, si smallint, ii int, bi bigint, tu tinyint unsigned, \
         su smallint unsigned, iu int unsigned, bu bigint unsigned, \
@@ -183,11 +196,11 @@ from taos import *
 conn = connect()
 
 dbname = "pytest_taos_stmt"
-conn.exec("drop database if exists %s" % dbname)
-conn.exec("create database if not exists %s" % dbname)
+conn.execute("drop database if exists %s" % dbname)
+conn.execute("create database if not exists %s" % dbname)
 conn.select_db(dbname)
 
-conn.exec(
+conn.execute(
     "create table if not exists log(ts timestamp, bo bool, nil tinyint, \
         ti tinyint, si smallint, ii int, bi bigint, tu tinyint unsigned, \
         su smallint unsigned, iu int unsigned, bu bigint unsigned, \
@@ -236,12 +249,12 @@ import taos
 
 conn = taos.connect()
 dbname = "pytest_taos_subscribe_callback"
-conn.exec("drop database if exists %s" % dbname)
-conn.exec("create database if not exists %s" % dbname)
+conn.execute("drop database if exists %s" % dbname)
+conn.execute("create database if not exists %s" % dbname)
 conn.select_db(dbname)
-conn.exec("create table if not exists log(ts timestamp, n int)")
+conn.execute("create table if not exists log(ts timestamp, n int)")
 for i in range(10):
-    conn.exec("insert into log values(now, %d)" % i)
+    conn.execute("insert into log values(now, %d)" % i)
 
 sub = conn.subscribe(True, "test", "select * from log", 1000)
 print("# consume from begin")
@@ -250,14 +263,14 @@ for ts, n in sub.consume():
 
 print("# consume new data")
 for i in range(5):
-    conn.exec("insert into log values(now, %d)(now+1s, %d)" % (i, i))
+    conn.execute("insert into log values(now, %d)(now+1s, %d)" % (i, i))
     result = sub.consume()
     for ts, n in result:
         print(ts, n)
 
 print("# consume with a stop condition")
 for i in range(10):
-    conn.exec("insert into log values(now, %d)" % int(random() * 10))
+    conn.execute("insert into log values(now, %d)" % int(random() * 10))
     result = sub.consume()
     try:
         ts, n = next(result)
@@ -271,7 +284,7 @@ for i in range(10):
 
 sub.close()
 
-conn.exec("drop database if exists %s" % dbname)
+conn.execute("drop database if exists %s" % dbname)
 conn.close()
 ```
 
@@ -298,23 +311,23 @@ def test_subscribe_callback(conn):
     # type: (TaosConnection) -> None
     dbname = "pytest_taos_subscribe_callback"
     try:
-        conn.exec("drop database if exists %s" % dbname)
-        conn.exec("create database if not exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
+        conn.execute("create database if not exists %s" % dbname)
         conn.select_db(dbname)
-        conn.exec("create table if not exists log(ts timestamp, n int)")
+        conn.execute("create table if not exists log(ts timestamp, n int)")
 
         print("# subscribe with callback")
         sub = conn.subscribe(False, "test", "select * from log", 1000, subscribe_callback)
 
         for i in range(10):
-            conn.exec("insert into log values(now, %d)" % i)
+            conn.execute("insert into log values(now, %d)" % i)
             time.sleep(0.7)
         sub.close()
 
-        conn.exec("drop database if exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
         conn.close()
     except Exception as err:
-        conn.exec("drop database if exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
         conn.close()
         raise err
 
@@ -361,10 +374,10 @@ def test_stream(conn):
     # type: (TaosConnection) -> None
     dbname = "pytest_taos_stream"
     try:
-        conn.exec("drop database if exists %s" % dbname)
-        conn.exec("create database if not exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
+        conn.execute("create database if not exists %s" % dbname)
         conn.select_db(dbname)
-        conn.exec("create table if not exists log(ts timestamp, n int)")
+        conn.execute("create table if not exists log(ts timestamp, n int)")
 
         result = conn.query("select count(*) from log interval(5s)")
         assert result.field_count == 2
@@ -373,13 +386,13 @@ def test_stream(conn):
         stream = conn.stream("select count(*) from log interval(5s)", stream_callback, param=byref(counter))
 
         for _ in range(0, 20):
-            conn.exec("insert into log values(now,0)(now+1s, 1)(now + 2s, 2)")
+            conn.execute("insert into log values(now,0)(now+1s, 1)(now + 2s, 2)")
             time.sleep(2)
         stream.close()
-        conn.exec("drop database if exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
         conn.close()
     except Exception as err:
-        conn.exec("drop database if exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
         conn.close()
         raise err
 
@@ -395,8 +408,8 @@ import taos
 
 conn = taos.connect()
 dbname = "pytest_line"
-conn.exec("drop database if exists %s" % dbname)
-conn.exec("create database if not exists %s precision 'us'" % dbname)
+conn.execute("drop database if exists %s" % dbname)
+conn.execute("create database if not exists %s precision 'us'" % dbname)
 conn.select_db(dbname)
 
 lines = [
@@ -418,7 +431,7 @@ for row in result:
 result.close()
 
 
-conn.exec("drop database if exists %s" % dbname)
+conn.execute("drop database if exists %s" % dbname)
 conn.close()
 
 ```

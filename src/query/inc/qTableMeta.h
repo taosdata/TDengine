@@ -28,6 +28,7 @@ typedef struct STblCond {
 typedef struct SJoinNode {
   uint64_t uid;
   int16_t  tagColId;
+  char  tagJsonKeyName[TSDB_MAX_JSON_KEY_LEN + 1];   // for tag json key
   SArray*  tsJoin;
   SArray*  tagJoin;
 } SJoinNode;
@@ -144,6 +145,8 @@ typedef struct SQueryInfo {
   bool               udfCopy;
   SArray            *pUdfInfo;
 
+  STimeWindow        range;        // range for interp
+  
   struct SQInfo     *pQInfo;      // global merge operator
   struct SQueryAttr *pQueryAttr;     // query object
 
@@ -152,7 +155,8 @@ typedef struct SQueryInfo {
   struct SQueryInfo *pDownstream;
   int32_t            havingFieldNum;
   bool               stableQuery;
-  bool               groupbyColumn;
+  bool               groupbyColumn;  
+  bool               groupbyTag;
   bool               simpleAgg;
   bool               arithmeticOnAgg;
   bool               projectionQuery;
@@ -162,6 +166,7 @@ typedef struct SQueryInfo {
   bool               stateWindow;
   bool               globalMerge;
   bool               multigroupResult;
+  bool               isStddev;
 } SQueryInfo;
 
 /**

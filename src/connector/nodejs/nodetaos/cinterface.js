@@ -10,8 +10,8 @@ const ArrayType = require('ref-array-napi');
 const Struct = require('ref-struct-napi');
 const FieldTypes = require('./constants');
 const errors = require('./error');
+const _ = require('lodash')
 const TaosObjects = require('./taosobjects');
-const { NULL_POINTER } = require('ref-napi');
 
 module.exports = CTaosInterface;
 
@@ -53,6 +53,18 @@ function convertTinyint(data, num_of_rows, nbytes = 0, offset = 0, precision = 0
   }
   return res;
 }
+function convertTinyintUnsigned(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
+  let res = [];
+  let currOffset = 0;
+  while (currOffset < data.length) {
+    let d = data.readUIntLE(currOffset, 1);
+    res.push(d == FieldTypes.C_TINYINT_UNSIGNED_NULL ? null : d);
+    currOffset += nbytes;
+  }
+  return res;
+}
+
 function convertSmallint(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
@@ -64,6 +76,18 @@ function convertSmallint(data, num_of_rows, nbytes = 0, offset = 0, precision = 
   }
   return res;
 }
+function convertSmallintUnsigned(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
+  let res = [];
+  let currOffset = 0;
+  while (currOffset < data.length) {
+    let d = data.readUIntLE(currOffset, 2);
+    res.push(d == FieldTypes.C_SMALLINT_UNSIGNED_NULL ? null : d);
+    currOffset += nbytes;
+  }
+  return res;
+}
+
 function convertInt(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
@@ -75,6 +99,19 @@ function convertInt(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   }
   return res;
 }
+function convertIntUnsigned(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
+  let res = [];
+  let currOffset = 0;
+  while (currOffset < data.length) {
+    let d = data.readUInt32LE(currOffset);
+    res.push(d == FieldTypes.C_INT_UNSIGNED_NULL ? null : d);
+    currOffset += nbytes;
+  }
+  return res;
+}
+
+
 function convertBigint(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
@@ -86,6 +123,19 @@ function convertBigint(data, num_of_rows, nbytes = 0, offset = 0, precision = 0)
   }
   return res;
 }
+function convertBigintUnsigned(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
+  let res = [];
+  let currOffset = 0;
+  while (currOffset < data.length) {
+    let d = data.readUInt64LE(currOffset);
+    res.push(d == FieldTypes.C_BIGINT_UNSIGNED_NULL ? null : BigInt(d));
+    currOffset += nbytes;
+  }
+  return res;
+}
+
+
 function convertFloat(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
@@ -156,7 +206,11 @@ let convertFunctions = {
   [FieldTypes.C_DOUBLE]: convertDouble,
   [FieldTypes.C_BINARY]: convertBinary,
   [FieldTypes.C_TIMESTAMP]: convertTimestamp,
-  [FieldTypes.C_NCHAR]: convertNchar
+  [FieldTypes.C_NCHAR]: convertNchar,
+  [FieldTypes.C_TINYINT_UNSIGNED]: convertTinyintUnsigned,
+  [FieldTypes.C_SMALLINT_UNSIGNED]: convertSmallintUnsigned,
+  [FieldTypes.C_INT_UNSIGNED]: convertIntUnsigned,
+  [FieldTypes.C_BIGINT_UNSIGNED]: convertBigintUnsigned
 }
 
 // Define TaosField structure
@@ -168,6 +222,8 @@ TaosField.fields.name.type.size = 65;
 TaosField.defineProperty('type', ref.types.char);
 TaosField.defineProperty('bytes', ref.types.short);
 
+//define schemaless line array
+var smlLine = ArrayType(ref.coerceType('char *'))
 
 /**
  *
@@ -183,7 +239,6 @@ function CTaosInterface(config = null, pass = false) {
   ref.types.void_ptr2 = ref.refType(ref.types.void_ptr);
   /*Declare a bunch of functions first*/
   /* Note, pointers to TAOS_RES, TAOS, are ref.types.void_ptr. The connection._conn buffer is supplied for pointers to TAOS *  */
-
   if ('win32' == os.platform()) {
     taoslibname = 'taos';
   } else {
@@ -248,9 +303,15 @@ function CTaosInterface(config = null, pass = false) {
     //                              int64_t stime, void *param, void (*callback)(void *));
     'taos_open_stream': [ref.types.void_ptr, [ref.types.void_ptr, ref.types.char_ptr, ref.types.void_ptr, ref.types.int64, ref.types.void_ptr, ref.types.void_ptr]],
     //void taos_close_stream(TAOS_STREAM *tstr);
-    'taos_close_stream': [ref.types.void, [ref.types.void_ptr]]
+    'taos_close_stream': [ref.types.void, [ref.types.void_ptr]],
+
+    //Schemaless insert 
+    //TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol，int precision)
+    // 'taos_schemaless_insert': [ref.types.void_ptr, [ref.types.void_ptr, ref.types.char_ptr, ref.types.int, ref.types.int, ref.types.int]]
+    'taos_schemaless_insert': [ref.types.void_ptr, [ref.types.void_ptr, smlLine, 'int', 'int', 'int']]
 
   });
+
   if (pass == false) {
     if (config == null) {
       this._config = ref.alloc(ref.types.char_ptr, ref.NULL);
@@ -321,6 +382,7 @@ CTaosInterface.prototype.close = function close(connection) {
 CTaosInterface.prototype.query = function query(connection, sql) {
   return this.libtaos.taos_query(connection, ref.allocCString(sql));
 }
+
 CTaosInterface.prototype.affectedRows = function affectedRows(result) {
   return this.libtaos.taos_affected_rows(result);
 }
@@ -413,6 +475,7 @@ CTaosInterface.prototype.query_a = function query_a(connection, sql, callback, p
   this.libtaos.taos_query_a(connection, ref.allocCString(sql), callback, param);
   return param;
 }
+
 /** Asynchrnously fetches the next block of rows. Wraps callback and transfers a 4th argument to the cursor, the row data as blocks in javascript form
  * Note: This isn't a recursive function, in order to fetch all data either use the TDengine cursor object, TaosQuery object, or implement a recrusive
  * function yourself using the libtaos.taos_fetch_rows_a function
@@ -606,4 +669,39 @@ CTaosInterface.prototype.openStream = function openStream(connection, sql, callb
 CTaosInterface.prototype.closeStream = function closeStream(stream) {
   this.libtaos.taos_close_stream(stream);
   console.log("Closed stream");
+}
+//Schemaless insert API 
+/**
+ * TAOS* taos, char* lines[], int numLines, int protocol，int precision)
+ * using  taos_errstr get error info, taos_errno get error code. Remmember 
+ * to release taos_res, otherwile will lead memory leak.
+ * TAOS schemaless insert api
+ * @param {*} connection a valid database connection
+ * @param {*} lines string data, which statisfied with line proctocol
+ * @param {*} numLines number of rows in param lines.
+ * @param {*} protocal Line protocol, enum type (0,1,2,3),indicate different line protocol
+ * @param {*} precision timestamp precision in lines, enum type (0,1,2,3,4,5,6)
+ * @returns TAOS_RES 
+ * 
+ */
+CTaosInterface.prototype.schemalessInsert = function schemalessInsert(connection,lines, protocal, precision) {
+  let _numLines = null;
+  let _lines = null;
+   
+  if(_.isString(lines)){
+    _numLines = 1;
+    _lines = Buffer.alloc(_numLines * ref.sizeof.pointer);
+    ref.set(_lines,0,ref.allocCString(lines),ref.types.char_ptr);
+  }
+  else if(_.isArray(lines)){
+    _numLines = lines.length;
+    _lines = Buffer.alloc(_numLines * ref.sizeof.pointer);
+    for(let i = 0; i < _numLines ; i++){
+      ref.set(_lines,i*ref.sizeof.pointer,ref.allocCString(lines[i]),ref.types.char_ptr)
+    }
+  }
+  else{
+    throw new errors.InterfaceError("Unsupport lines input")
+  }
+  return this.libtaos.taos_schemaless_insert(connection, _lines, _numLines, protocal, precision);
 }

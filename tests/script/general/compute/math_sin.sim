@@ -1,0 +1,1073 @@
+sleep 100
+sql connect
+sql use db
+
+print execute sql select sin(*) from tb1;
+sql_error select sin(*) from tb1;
+print execute sql select sin(*) from tb1;
+sql_error select sin(*) from tb1;
+print execute sql select sin(*) from tb1;
+sql_error select sin(*) from tb1;
+print execute sql select sin(*) from tb1;
+sql_error select sin(*) from tb1;
+print execute sql select sin(*) as a from tb1;
+sql_error select sin(*) as a from tb1;
+print execute sql select sin(*) + 1 as a from tb1;
+sql_error select sin(*) + 1 as a from tb1;
+print execute sql select sin(tb1.*) + 1 as a from tb1;
+sql_error select sin(tb1.*) + 1 as a from tb1;
+print execute sql select sin(*) from tb1;
+sql_error select sin(*) from tb1;
+print execute sql select sin(c1) from tb1;
+sql_error select sin(c1) from tb1;
+print execute sql select sin(c1) from tb1;
+sql_error select sin(c1) from tb1;
+print execute sql select sin(c1 + c2) from tb1;
+sql_error select sin(c1 + c2) from tb1;
+print execute sql select sin(13) from tb1;
+sql select sin(13) from tb1;
+if $data00 != @0.420167037@ then
+  return -1 
+endi
+if $data10 != @0.420167037@ then
+  return -1 
+endi
+if $data20 != @0.420167037@ then
+  return -1 
+endi
+if $data30 != @0.420167037@ then
+  return -1 
+endi
+if $data40 != @0.420167037@ then
+  return -1 
+endi
+if $data50 != @0.420167037@ then
+  return -1 
+endi
+if $data60 != @0.420167037@ then
+  return -1 
+endi
+print execute sql select sin(c1) from tb1;
+sql_error select sin(c1) from tb1;
+print execute sql select sin(c2) from tb1;
+sql select sin(c2) from tb1;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @0.909297427@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data50 != @0.972630067@ then
+  return -1 
+endi
+if $data60 != @-0.972630067@ then
+  return -1 
+endi
+print execute sql select sin(c3) from tb1;
+sql select sin(c3) from tb1;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @0.141120008@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data50 != @0.187506554@ then
+  return -1 
+endi
+if $data60 != @-0.187506554@ then
+  return -1 
+endi
+print execute sql select sin(c4) from tb1;
+sql select sin(c4) from tb1;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @0.909297427@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data50 != @-0.724916555@ then
+  return -1 
+endi
+if $data60 != @0.724916555@ then
+  return -1 
+endi
+print execute sql select sin(c5) from tb1;
+sql select sin(c5) from tb1;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @0.141120008@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data50 != @0.999930377@ then
+  return -1 
+endi
+if $data60 != @-0.999930377@ then
+  return -1 
+endi
+print execute sql select sin(c6) from tb1;
+sql select sin(c6) from tb1;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @0.909297427@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data50 != @-0.521876523@ then
+  return -1 
+endi
+if $data60 != @0.521876523@ then
+  return -1 
+endi
+print execute sql select sin(c7) from tb1;
+sql select sin(c7) from tb1;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @0.141120008@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data50 != @0.872829297@ then
+  return -1 
+endi
+if $data60 != @-0.872829297@ then
+  return -1 
+endi
+print execute sql select sin(c8) from tb1;
+sql_error select sin(c8) from tb1;
+print execute sql select sin(c9) from tb1;
+sql_error select sin(c9) from tb1;
+print execute sql select sin(c10) from tb1;
+sql select sin(c10) from tb1;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @0.909297427@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data50 != @0.451998898@ then
+  return -1 
+endi
+if $data60 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select sin(c11) from tb1;
+sql select sin(c11) from tb1;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @0.141120008@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data50 != @0.368361632@ then
+  return -1 
+endi
+if $data60 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select sin(c12) from tb1;
+sql select sin(c12) from tb1;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @0.909297427@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data50 != @0.998698243@ then
+  return -1 
+endi
+if $data60 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select sin(c13) from tb1;
+sql select sin(c13) from tb1;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @0.141120008@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data50 != @0.999930377@ then
+  return -1 
+endi
+if $data60 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select sin(12345678900000000000000000) from tb1;
+sql_error select sin(12345678900000000000000000) from tb1;
+print execute sql select distinct sin(123) from tb1;
+sql_error select distinct sin(123) from tb1;
+print execute sql select sin(t1) from stb1;
+sql_error select sin(t1) from stb1;
+print execute sql select sin(c1),avg(c3) from tb1;
+sql_error select sin(c1),avg(c3) from tb1;
+print execute sql select sin(c1),top(c3,1) from tb1;
+sql_error select sin(c1),top(c3,1) from tb1;
+print execute sql select sin(c2+c3) from tb1 session(ts, 1s);
+sql_error select sin(c2+c3) from tb1 session(ts, 1s);
+print execute sql select sin(c2+c3) from tb1 STATE_WINDOW(c1);
+sql_error select sin(c2+c3) from tb1 STATE_WINDOW(c1);
+print execute sql select sin(c2+c3) from tb1 interval(1s) sliding(1s) fill(NULL);
+sql_error select sin(c2+c3) from tb1 interval(1s) sliding(1s) fill(NULL);
+print execute sql select sin(c2+c3) from stb1 group by t1;
+sql_error select sin(c2+c3) from stb1 group by t1;
+print execute sql select sin(c2+c3) from stb1 group by ts;
+sql_error select sin(c2+c3) from stb1 group by ts;
+print execute sql select sin(c2+c3) from stb1 group by c1;
+sql_error select sin(c2+c3) from stb1 group by c1;
+print execute sql select sin(c2+c3) from stb1 group by tbname;
+sql_error select sin(c2+c3) from stb1 group by tbname;
+print execute sql select sin(c2+c3) from tb1 order by c2;
+sql_error select sin(c2+c3) from tb1 order by c2;
+print execute sql select sin(c8),sin(c9) from tbn;
+sql_error select sin(c8),sin(c9) from tbn;
+print execute sql select sin(ts) from (select avg(c2) as a from stb1 interval(1s));
+sql_error select sin(ts) from (select avg(c2) as a from stb1 interval(1s));
+print execute sql select sin(a) from (select sin(c2) as a from tb1);
+sql select sin(a) from (select sin(c2) as a from tb1);
+if $data00 != @0.745624142@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @0.789072344@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @-0.686600261@ then
+  return -1 
+endi
+if $data50 != @0.826369634@ then
+  return -1 
+endi
+if $data60 != @-0.826369634@ then
+  return -1 
+endi
+print execute sql select sin("abc") from tb1;
+sql_error select sin("abc") from tb1;
+print execute sql select sin(c2 + c3) from tb1;
+sql select sin(c2 + c3) from tb1;
+if $data00 != @0.909297427@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @0.989358247@ then
+  return -1 
+endi
+if $data50 != @0.998947724@ then
+  return -1 
+endi
+if $data60 != @-0.998947724@ then
+  return -1 
+endi
+print execute sql select sin((c2 + c3)) from tb1;
+sql select sin((c2 + c3)) from tb1;
+if $data00 != @0.909297427@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @0.989358247@ then
+  return -1 
+endi
+if $data50 != @0.998947724@ then
+  return -1 
+endi
+if $data60 != @-0.998947724@ then
+  return -1 
+endi
+print execute sql select sin((c2 * c3)+c4-6) from tb1;
+sql select sin((c2 * c3)+c4-6) from tb1;
+if $data00 != @0.756802495@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @0.990607356@ then
+  return -1 
+endi
+if $data50 != @0.083417203@ then
+  return -1 
+endi
+if $data60 != @0.990962545@ then
+  return -1 
+endi
+print execute sql select sin(11)+c2 from tb1;
+sql select sin(11)+c2 from tb1;
+if $data00 != @0.000009793@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @1.000009793@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @3.000009793@ then
+  return -1 
+endi
+if $data50 != @126.000009793@ then
+  return -1 
+endi
+if $data60 != @-127.999990207@ then
+  return -1 
+endi
+print execute sql select sin(c1)+c2 from tb1;
+sql_error select sin(c1)+c2 from tb1;
+print execute sql select sin(c2)+11 from tb1;
+sql select sin(c2)+11 from tb1;
+if $data00 != @11.841470985@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @11.909297427@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @10.243197505@ then
+  return -1 
+endi
+if $data50 != @11.972630067@ then
+  return -1 
+endi
+if $data60 != @10.027369933@ then
+  return -1 
+endi
+print execute sql select sin(c1),c1,c2 from tb1;
+sql_error select sin(c1),c1,c2 from tb1;
+print execute sql select sin(c1),t1,ts,tbname,_C0,_c0 from tb1;
+sql_error select sin(c1),t1,ts,tbname,_C0,_c0 from tb1;
+print execute sql select sin(c1),floor(c3) from tb1;
+sql_error select sin(c1),floor(c3) from tb1;
+print execute sql select sin(c1),sin(c2+c3) from tb1;
+sql_error select sin(c1),sin(c2+c3) from tb1;
+print execute sql select sin(c2+c3) from tb1 where c2 is not null and c3 is not null;
+sql select sin(c2+c3) from tb1 where c2 is not null and c3 is not null;
+if $data00 != @0.909297427@ then
+  return -1 
+endi
+if $data10 != @0.989358247@ then
+  return -1 
+endi
+if $data20 != @0.998947724@ then
+  return -1 
+endi
+if $data30 != @-0.998947724@ then
+  return -1 
+endi
+print execute sql select sin(c2) from tb1 order by ts desc;
+sql select sin(c2) from tb1 order by ts desc;
+if $data00 != @-0.972630067@ then
+  return -1 
+endi
+if $data10 != @0.972630067@ then
+  return -1 
+endi
+if $data20 != @-0.756802495@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @0.909297427@ then
+  return -1 
+endi
+if $data50 != @NULL@ then
+  return -1 
+endi
+if $data60 != @0.841470985@ then
+  return -1 
+endi
+print execute sql select sin(c2+c3) from tb1 order by ts desc;
+sql select sin(c2+c3) from tb1 order by ts desc;
+if $data00 != @-0.998947724@ then
+  return -1 
+endi
+if $data10 != @0.998947724@ then
+  return -1 
+endi
+if $data20 != @0.989358247@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @NULL@ then
+  return -1 
+endi
+if $data50 != @NULL@ then
+  return -1 
+endi
+if $data60 != @0.909297427@ then
+  return -1 
+endi
+print execute sql select sin(c2+c3) from tb1 order by ts desc limit 3 offset 2;
+sql select sin(c2+c3) from tb1 order by ts desc limit 3 offset 2;
+if $data00 != @0.989358247@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+print execute sql select sin(c2) from stb1;
+sql select sin(c2) from stb1;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @0.909297427@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data50 != @0.972630067@ then
+  return -1 
+endi
+if $data60 != @-0.972630067@ then
+  return -1 
+endi
+if $data70 != @0.841470985@ then
+  return -1 
+endi
+if $data80 != @0.909297427@ then
+  return -1 
+endi
+if $data90 != @0.141120008@ then
+  return -1 
+endi
+print execute sql select sin(c2) from stb1 order by ts desc;
+sql select sin(c2) from stb1 order by ts desc;
+if $data00 != @0.656986599@ then
+  if $data00 != @-0.972630067@ then
+    return -1 
+  endi
+endi
+if $data20 != @-0.279415498@ then
+  if $data20 != @0.972630067@ then
+    return -1 
+  endi
+endi
+if $data40 != @-0.958924275@ then
+  if $data40 != @-0.756802495@ then
+    return -1 
+  endi
+endi
+if $data60 != @-0.756802495@ then
+  if $data60 != @NULL@ then
+    return -1 
+  endi
+endi
+if $data80 != @0.141120008@ then
+  if $data80 != @0.909297427@ then
+    return -1 
+  endi
+endi
+print execute sql select sin(c4),t1 from stb1 order by ts desc;
+sql select sin(c4),t1 from stb1 order by ts desc;
+if $data00 != @0.656986599@ then
+  if $data00 != @0.724916555@ then
+    return -1 
+  endi
+endi
+if $data01 != @2@ then
+  if $data01 != @1@ then
+    return -1 
+  endi
+endi
+if $data20 != @-0.279415498@ then
+  if $data20 != @-0.724916555@ then
+    return -1 
+  endi
+endi
+if $data21 != @2@ then
+  if $data21 != @1@ then
+    return -1 
+  endi
+endi
+if $data40 != @-0.958924275@ then
+  if $data40 != @-0.756802495@ then
+    return -1 
+  endi
+endi
+if $data41 != @2@ then
+  if $data41 != @1@ then
+    return -1 
+  endi
+endi
+if $data60 != @-0.756802495@ then
+  if $data60 != @NULL@ then
+    return -1 
+  endi
+endi
+if $data61 != @2@ then
+  if $data61 != @1@ then
+    return -1 
+  endi
+endi
+if $data80 != @0.909297427@ then
+  if $data80 != @0.909297427@ then
+    return -1 
+  endi
+endi
+if $data81 != @2@ then
+  if $data81 != @1@ then
+    return -1 
+  endi
+endi
+print execute sql select sin(c3),tbname from stb1;
+sql select sin(c3),tbname from stb1;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data01 != @tb1@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @tb1@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data21 != @tb1@ then
+  return -1 
+endi
+if $data30 != @0.141120008@ then
+  return -1 
+endi
+if $data31 != @tb1@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data41 != @tb1@ then
+  return -1 
+endi
+if $data50 != @0.187506554@ then
+  return -1 
+endi
+if $data51 != @tb1@ then
+  return -1 
+endi
+if $data60 != @-0.187506554@ then
+  return -1 
+endi
+if $data61 != @tb1@ then
+  return -1 
+endi
+if $data70 != @0.841470985@ then
+  return -1 
+endi
+if $data71 != @tb2@ then
+  return -1 
+endi
+if $data80 != @0.909297427@ then
+  return -1 
+endi
+if $data81 != @tb2@ then
+  return -1 
+endi
+if $data90 != @0.141120008@ then
+  return -1 
+endi
+if $data91 != @tb2@ then
+  return -1 
+endi
+print execute sql select sin(c3),tbname from stb1 where t1 > 1;
+sql select sin(c3),tbname from stb1 where t1 > 1;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data01 != @tb2@ then
+  return -1 
+endi
+if $data10 != @0.909297427@ then
+  return -1 
+endi
+if $data11 != @tb2@ then
+  return -1 
+endi
+if $data20 != @0.141120008@ then
+  return -1 
+endi
+if $data21 != @tb2@ then
+  return -1 
+endi
+if $data30 != @-0.756802495@ then
+  return -1 
+endi
+if $data31 != @tb2@ then
+  return -1 
+endi
+if $data40 != @-0.958924275@ then
+  return -1 
+endi
+if $data41 != @tb2@ then
+  return -1 
+endi
+if $data50 != @-0.279415498@ then
+  return -1 
+endi
+if $data51 != @tb2@ then
+  return -1 
+endi
+if $data60 != @0.656986599@ then
+  return -1 
+endi
+if $data61 != @tb2@ then
+  return -1 
+endi
+print execute sql select sin(c8),sin(c9) from tbn;
+sql_error select sin(c8),sin(c9) from tbn;
+print execute sql select sin(c8),sin(c9) from tbn order by ts desc;
+sql_error select sin(c8),sin(c9) from tbn order by ts desc;
+print execute sql select sin(sin(c8)) from tbn;
+sql_error select sin(sin(c8)) from tbn;
+print execute sql select sin(a) from (select avg(c2) as a from stb1 interval(1s));
+sql select sin(a) from (select avg(c2) as a from stb1 interval(1s));
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @0.909297427@ then
+  return -1 
+endi
+if $data20 != @0.598472144@ then
+  return -1 
+endi
+if $data30 != @-0.756802495@ then
+  return -1 
+endi
+if $data40 != @-0.977530118@ then
+  return -1 
+endi
+if $data50 != @-0.502557350@ then
+  return -1 
+endi
+if $data60 != @0.304810621@ then
+  return -1 
+endi
+print execute sql select sin(c2) from (select * from stb1);
+sql select sin(c2) from (select * from stb1);
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @0.909297427@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data50 != @0.972630067@ then
+  return -1 
+endi
+if $data60 != @-0.972630067@ then
+  return -1 
+endi
+if $data70 != @0.841470985@ then
+  return -1 
+endi
+if $data80 != @0.909297427@ then
+  return -1 
+endi
+if $data90 != @0.141120008@ then
+  return -1 
+endi
+print execute sql select sin(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null));
+sql select sin(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null));
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @0.909297427@ then
+  return -1 
+endi
+if $data20 != @0.598472144@ then
+  return -1 
+endi
+if $data30 != @-0.756802495@ then
+  return -1 
+endi
+if $data40 != @-0.977530118@ then
+  return -1 
+endi
+if $data50 != @-0.502557350@ then
+  return -1 
+endi
+if $data60 != @0.304810621@ then
+  return -1 
+endi
+if $data70 != @NULL@ then
+  return -1 
+endi
+if $data80 != @NULL@ then
+  return -1 
+endi
+if $data90 != @NULL@ then
+  return -1 
+endi
+print execute sql select sin(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts;
+sql select sin(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @0.909297427@ then
+  return -1 
+endi
+if $data20 != @0.598472144@ then
+  return -1 
+endi
+if $data30 != @-0.756802495@ then
+  return -1 
+endi
+if $data40 != @-0.977530118@ then
+  return -1 
+endi
+if $data50 != @-0.502557350@ then
+  return -1 
+endi
+if $data60 != @0.304810621@ then
+  return -1 
+endi
+if $data70 != @NULL@ then
+  return -1 
+endi
+if $data80 != @NULL@ then
+  return -1 
+endi
+if $data90 != @NULL@ then
+  return -1 
+endi
+print execute sql select sin(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts desc;
+sql select sin(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts desc;
+if $data00 != @NULL@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @0.304810621@ then
+  return -1 
+endi
+if $data40 != @-0.502557350@ then
+  return -1 
+endi
+if $data50 != @-0.977530118@ then
+  return -1 
+endi
+if $data60 != @-0.756802495@ then
+  return -1 
+endi
+if $data70 != @0.598472144@ then
+  return -1 
+endi
+if $data80 != @0.909297427@ then
+  return -1 
+endi
+if $data90 != @0.841470985@ then
+  return -1 
+endi
+print execute sql select sin(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a desc;
+sql select sin(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a desc;
+if $data00 != @NULL@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @-0.502557350@ then
+  return -1 
+endi
+if $data40 != @-0.977530118@ then
+  return -1 
+endi
+if $data50 != @-0.756802495@ then
+  return -1 
+endi
+if $data60 != @0.598472144@ then
+  return -1 
+endi
+if $data70 != @0.909297427@ then
+  return -1 
+endi
+if $data80 != @0.841470985@ then
+  return -1 
+endi
+if $data90 != @0.304810621@ then
+  return -1 
+endi
+print execute sql select sin(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a;
+sql select sin(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a;
+if $data00 != @0.304810621@ then
+  return -1 
+endi
+if $data10 != @0.841470985@ then
+  return -1 
+endi
+if $data20 != @0.909297427@ then
+  return -1 
+endi
+if $data30 != @0.598472144@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data50 != @-0.977530118@ then
+  return -1 
+endi
+if $data60 != @-0.502557350@ then
+  return -1 
+endi
+if $data70 != @NULL@ then
+  return -1 
+endi
+if $data80 != @NULL@ then
+  return -1 
+endi
+if $data90 != @NULL@ then
+  return -1 
+endi
+print execute sql select sin(a) from (select sin(c2) as a from tb1);
+sql select sin(a) from (select sin(c2) as a from tb1);
+if $data00 != @0.745624142@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @0.789072344@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @-0.686600261@ then
+  return -1 
+endi
+if $data50 != @0.826369634@ then
+  return -1 
+endi
+if $data60 != @-0.826369634@ then
+  return -1 
+endi
+print execute sql select sin(tb1.c3),sin(tb2.c3) from tb1,tb2 where tb1.ts=tb2.ts;
+sql select sin(tb1.c3),sin(tb2.c3) from tb1,tb2 where tb1.ts=tb2.ts;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data01 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @0.909297427@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data21 != @0.141120008@ then
+  return -1 
+endi
+if $data30 != @0.141120008@ then
+  return -1 
+endi
+if $data31 != @-0.756802495@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data41 != @-0.958924275@ then
+  return -1 
+endi
+if $data50 != @0.187506554@ then
+  return -1 
+endi
+if $data51 != @-0.279415498@ then
+  return -1 
+endi
+if $data60 != @-0.187506554@ then
+  return -1 
+endi
+if $data61 != @0.656986599@ then
+  return -1 
+endi
+print execute sql select sin(c3) from tb1 union all select sin(c3) from tb2;
+sql select sin(c3) from tb1 union all select sin(c3) from tb2;
+if $data00 != @0.841470985@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @0.141120008@ then
+  return -1 
+endi
+if $data40 != @-0.756802495@ then
+  return -1 
+endi
+if $data50 != @0.187506554@ then
+  return -1 
+endi
+if $data60 != @-0.187506554@ then
+  return -1 
+endi
+if $data70 != @0.841470985@ then
+  return -1 
+endi
+if $data80 != @0.909297427@ then
+  return -1 
+endi
+if $data90 != @0.141120008@ then
+  return -1 
+endi

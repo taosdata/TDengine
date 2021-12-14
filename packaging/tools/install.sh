@@ -185,23 +185,25 @@ function install_bin() {
     # Remove links
     ${csudo} rm -f ${bin_link_dir}/taos     || :
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
-    ${csudo} rm -f ${bin_link_dir}/blm3     || :
+    ${csudo} rm -f ${bin_link_dir}/taosadapter  || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo || :
     ${csudo} rm -f ${bin_link_dir}/taosdump || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
-    ${csudo} rm -f ${bin_link_dir}/tarbitrator   || :
-    ${csudo} rm -f ${bin_link_dir}/set_core   || :
+    ${csudo} rm -f ${bin_link_dir}/tarbitrator  || :
+    ${csudo} rm -f ${bin_link_dir}/set_core     || :
+    ${csudo} rm -f ${bin_link_dir}/run_taosd.sh || :
 
     ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
     #Make link
     [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                      || :
     [ -x ${install_main_dir}/bin/taosd ] && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd                   || :
-    [ -x ${install_main_dir}/bin/blm3 ] && ${csudo} ln -s ${install_main_dir}/bin/blm3 ${bin_link_dir}/blm3                      || :
+    [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo} ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter || :
     [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo          || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump          || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos          || :
     [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core    || :
+    [ -x ${install_main_dir}/bin/run_taosd.sh ] && ${csudo} ln -s ${install_main_dir}/bin/run_taosd.sh ${bin_link_dir}/run_taosd.sh     || :
     [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo} ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator || :
 
     if [ "$verMode" == "cluster" ]; then
@@ -234,6 +236,29 @@ function install_lib() {
     #fi
 
     ${csudo} ldconfig
+}
+
+function install_avro() {
+    if [ "$osType" != "Darwin" ]; then
+        avro_dir=${script_dir}/avro
+        if [ -f "${avro_dir}/lib/libavro.so.23.0.0" ] && [ -d /usr/local/$1 ]; then
+            ${csudo} /usr/bin/install -c -d /usr/local/$1
+            ${csudo} /usr/bin/install -c -m 755 ${avro_dir}/lib/libavro.so.23.0.0 /usr/local/$1
+            ${csudo} ln -sf /usr/local/$1/libavro.so.23.0.0 /usr/local/$1/libavro.so.23
+            ${csudo} ln -sf /usr/local/$1/libavro.so.23 /usr/local/$1/libavro.so
+
+            ${csudo} /usr/bin/install -c -d /usr/local/$1
+            [ -f ${avro_dir}/lib/libavro.a ] &&
+                ${csudo} /usr/bin/install -c -m 755 ${avro_dir}/lib/libavro.a /usr/local/$1
+
+            if [ -d /etc/ld.so.conf.d ]; then
+                echo "/usr/local/$1" | ${csudo} tee /etc/ld.so.conf.d/libavro.conf > /dev/null || echo -e "failed to write /etc/ld.so.conf.d/libavro.conf"
+                ${csudo} ldconfig
+            else
+                echo "/etc/ld.so.conf.d not found!"
+            fi
+        fi
+    fi
 }
 
 function install_jemalloc() {
@@ -281,7 +306,7 @@ function install_jemalloc() {
         fi
 
         if [ -d /etc/ld.so.conf.d ]; then
-            ${csudo} echo "/usr/local/lib" > /etc/ld.so.conf.d/jemalloc.conf
+            echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf > /dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
             ${csudo} ldconfig
         else
             echo "/etc/ld.so.conf.d not found!"
@@ -290,9 +315,10 @@ function install_jemalloc() {
 }
 
 function install_header() {
-    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h    || :
     ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+    ${csudo} ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
@@ -303,7 +329,7 @@ function add_newHostname_to_hosts() {
   iphost=$(cat /etc/hosts | grep $1 | awk '{print $1}')
   arr=($iphost)
   IFS="$OLD_IFS"
-  for s in ${arr[@]}
+  for s in "${arr[@]}"
   do
     if [[ "$s" == "$localIp" ]]; then
       return
@@ -358,7 +384,7 @@ function is_correct_ipaddr() {
   IFS=" "
   arr=($iplist)
   IFS="$OLD_IFS"
-  for s in ${arr[@]}
+  for s in "${arr[@]}"
   do
    if [[ "$s" == "$newIp" ]]; then
      return 0
@@ -447,18 +473,18 @@ function local_fqdn_check() {
   fi
 }
 
-function install_blm3_config() {
-    if [ ! -f "${cfg_install_dir}/blm.toml" ]; then
+function install_taosadapter_config() {
+    if [ ! -f "${cfg_install_dir}/taosadapter.toml" ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${script_dir}/cfg/blm.toml ] && ${csudo} cp ${script_dir}/cfg/blm.toml ${cfg_install_dir}
-        [ -f ${cfg_install_dir}/blm.toml ] && ${csudo} chmod 644 ${cfg_install_dir}/blm.toml
+        [ -f ${script_dir}/cfg/taosadapter.toml ] && ${csudo} cp ${script_dir}/cfg/taosadapter.toml ${cfg_install_dir}
+        [ -f ${cfg_install_dir}/taosadapter.toml ] && ${csudo} chmod 644 ${cfg_install_dir}/taosadapter.toml
     fi
 
-    [ -f ${script_dir}/cfg/blm.toml ] &&
-        ${csudo} cp -f ${script_dir}/cfg/blm.toml ${install_main_dir}/cfg/blm.toml.org
+    [ -f ${script_dir}/cfg/taosadapter.toml ] &&
+        ${csudo} cp -f ${script_dir}/cfg/taosadapter.toml ${cfg_install_dir}/taosadapter.toml.new
 
-    [ -f ${cfg_install_dir}/blm.toml ] &&
-        ${csudo} ln -s ${cfg_install_dir}/blm.toml ${install_main_dir}/cfg/blm.toml
+    [ -f ${cfg_install_dir}/taosadapter.toml ] &&
+        ${csudo} ln -s ${cfg_install_dir}/taosadapter.toml ${install_main_dir}/cfg/taosadapter.toml
 
     [ ! -z $1 ] && return 0 || : # only install client
 
@@ -473,7 +499,7 @@ function install_config() {
         ${csudo} chmod 644 ${cfg_install_dir}/*
     fi
 
-    ${csudo} cp -f ${script_dir}/cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
+    ${csudo} cp -f ${script_dir}/cfg/taos.cfg ${cfg_install_dir}/taos.cfg.new
     ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
 
     [ ! -z $1 ] && return 0 || : # only install client
@@ -676,83 +702,107 @@ function clean_service_on_systemd() {
 function install_service_on_systemd() {
     clean_service_on_systemd
 
-    taosd_service_config="${service_config_dir}/taosd.service"
-    ${csudo} bash -c "echo '[Unit]'                             >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Description=TDengine server service' >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'After=network-online.target'        >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Wants=network-online.target'        >> ${taosd_service_config}"
-    ${csudo} bash -c "echo                                      >> ${taosd_service_config}"
-    ${csudo} bash -c "echo '[Service]'                          >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'ExecStart=/usr/bin/taosd'           >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'ExecStartPre=/usr/local/taos/bin/startPre.sh'         >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'TimeoutStopSec=1000000s'            >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'LimitNOFILE=infinity'               >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'LimitNPROC=infinity'                >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'LimitCORE=infinity'                 >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'TimeoutStartSec=0'                  >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'StandardOutput=null'                >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Restart=always'                     >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'StartLimitBurst=3'                  >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'StartLimitInterval=60s'             >> ${taosd_service_config}"
-    #${csudo} bash -c "echo 'StartLimitIntervalSec=60s'          >> ${taosd_service_config}"
-    ${csudo} bash -c "echo                                      >> ${taosd_service_config}"
-    ${csudo} bash -c "echo '[Install]'                          >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'WantedBy=multi-user.target'         >> ${taosd_service_config}"
+    [ -f ${script_dir}/cfg/taosd.service ] &&\
+        ${csudo} cp ${script_dir}/cfg/taosd.service \
+        ${service_config_dir}/ || :
+    ${csudo} systemctl daemon-reload
+    
+    #taosd_service_config="${service_config_dir}/taosd.service"
+    #${csudo} bash -c "echo '[Unit]'                             >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'Description=TDengine server service' >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'After=network-online.target taosadapter.service'        >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'Wants=network-online.target taosadapter.service'        >> ${taosd_service_config}"
+    #${csudo} bash -c "echo                                      >> ${taosd_service_config}"
+    #${csudo} bash -c "echo '[Service]'                          >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'ExecStart=/usr/bin/taosd'           >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'ExecStartPre=/usr/local/taos/bin/startPre.sh'         >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'TimeoutStopSec=1000000s'            >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'LimitNOFILE=infinity'               >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'LimitNPROC=infinity'                >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'LimitCORE=infinity'                 >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'TimeoutStartSec=0'                  >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'StandardOutput=null'                >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'Restart=always'                     >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'StartLimitBurst=3'                  >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'StartLimitInterval=60s'             >> ${taosd_service_config}"
+    ##${csudo} bash -c "echo 'StartLimitIntervalSec=60s'          >> ${taosd_service_config}"
+    #${csudo} bash -c "echo                                      >> ${taosd_service_config}"
+    #${csudo} bash -c "echo '[Install]'                          >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'WantedBy=multi-user.target'         >> ${taosd_service_config}"
     ${csudo} systemctl enable taosd
 
-    tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
-    ${csudo} bash -c "echo '[Unit]'                                  >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'Description=TDengine arbitrator service' >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'After=network-online.target'             >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'Wants=network-online.target'             >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo '[Service]'                               >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'Type=simple'                             >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'ExecStart=/usr/bin/tarbitrator'          >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'TimeoutStopSec=1000000s'                 >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'LimitNOFILE=infinity'                    >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'LimitNPROC=infinity'                     >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'LimitCORE=infinity'                      >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'TimeoutStartSec=0'                       >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'StandardOutput=null'                     >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'Restart=always'                          >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'StartLimitBurst=3'                       >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'StartLimitInterval=60s'                  >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo '[Install]'                               >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'WantedBy=multi-user.target'              >> ${tarbitratord_service_config}"
+    [ -f ${script_dir}/cfg/tarbitratord.service ] &&\
+        ${csudo} cp ${script_dir}/cfg/tarbitratord.service \
+        ${service_config_dir}/ || :
+    ${csudo} systemctl daemon-reload
+    
+    #tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
+    #${csudo} bash -c "echo '[Unit]'                                  >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo 'Description=TDengine arbitrator service' >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo 'After=network-online.target'             >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo 'Wants=network-online.target'             >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo '[Service]'                               >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo 'Type=simple'                             >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo 'ExecStart=/usr/bin/tarbitrator'          >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo 'TimeoutStopSec=1000000s'                 >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo 'LimitNOFILE=infinity'                    >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo 'LimitNPROC=infinity'                     >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo 'LimitCORE=infinity'                      >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo 'TimeoutStartSec=0'                       >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo 'StandardOutput=null'                     >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo 'Restart=always'                          >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo 'StartLimitBurst=3'                       >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo 'StartLimitInterval=60s'                  >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo '[Install]'                               >> ${tarbitratord_service_config}"
+    #${csudo} bash -c "echo 'WantedBy=multi-user.target'              >> ${tarbitratord_service_config}"
     #${csudo} systemctl enable tarbitratord
 
     if [ "$verMode" == "cluster" ]; then
-        nginx_service_config="${service_config_dir}/nginxd.service"
-        ${csudo} bash -c "echo '[Unit]'                                             >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'Description=Nginx For TDengine Service'             >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'After=network-online.target'                        >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'Wants=network-online.target'                        >> ${nginx_service_config}"
-        ${csudo} bash -c "echo                                                      >> ${nginx_service_config}"
-        ${csudo} bash -c "echo '[Service]'                                          >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'Type=forking'                                       >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'PIDFile=/usr/local/nginxd/logs/nginx.pid'           >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'ExecStart=/usr/local/nginxd/sbin/nginx'             >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'ExecStop=/usr/local/nginxd/sbin/nginx -s stop'      >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'TimeoutStopSec=1000000s'                            >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'LimitNOFILE=infinity'                               >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'LimitNPROC=infinity'                                >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'LimitCORE=infinity'                                 >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'TimeoutStartSec=0'                                  >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'StandardOutput=null'                                >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'Restart=always'                                     >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'StartLimitBurst=3'                                  >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'StartLimitInterval=60s'                             >> ${nginx_service_config}"
-        ${csudo} bash -c "echo                                                      >> ${nginx_service_config}"
-        ${csudo} bash -c "echo '[Install]'                                          >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'WantedBy=multi-user.target'                         >> ${nginx_service_config}"
+        [ -f ${script_dir}/cfg/nginxd.service ] &&\
+            ${csudo} cp ${script_dir}/cfg/nginxd.service \
+            ${service_config_dir}/ || :
+        ${csudo} systemctl daemon-reload
+
+        #nginx_service_config="${service_config_dir}/nginxd.service"
+        #${csudo} bash -c "echo '[Unit]'                                             >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'Description=Nginx For TDengine Service'             >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'After=network-online.target'                        >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'Wants=network-online.target'                        >> ${nginx_service_config}"
+        #${csudo} bash -c "echo                                                      >> ${nginx_service_config}"
+        #${csudo} bash -c "echo '[Service]'                                          >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'Type=forking'                                       >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'PIDFile=/usr/local/nginxd/logs/nginx.pid'           >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'ExecStart=/usr/local/nginxd/sbin/nginx'             >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'ExecStop=/usr/local/nginxd/sbin/nginx -s stop'      >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'TimeoutStopSec=1000000s'                            >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'LimitNOFILE=infinity'                               >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'LimitNPROC=infinity'                                >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'LimitCORE=infinity'                                 >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'TimeoutStartSec=0'                                  >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'StandardOutput=null'                                >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'Restart=always'                                     >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'StartLimitBurst=3'                                  >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'StartLimitInterval=60s'                             >> ${nginx_service_config}"
+        #${csudo} bash -c "echo                                                      >> ${nginx_service_config}"
+        #${csudo} bash -c "echo '[Install]'                                          >> ${nginx_service_config}"
+        #${csudo} bash -c "echo 'WantedBy=multi-user.target'                         >> ${nginx_service_config}"
         if ! ${csudo} systemctl enable nginxd &> /dev/null; then
             ${csudo} systemctl daemon-reexec
             ${csudo} systemctl enable nginxd
         fi
         ${csudo} systemctl start nginxd
+    fi
+}
+
+function install_taosadapter_service() {
+    if ((${service_mod}==0)); then
+        [ -f ${script_dir}/cfg/taosadapter.service ] &&\
+            ${csudo} cp ${script_dir}/cfg/taosadapter.service \
+            ${service_config_dir}/ || :
+        ${csudo} systemctl daemon-reload
     fi
 }
 
@@ -798,7 +848,7 @@ vercomp () {
 
 function is_version_compatible() {
 
-    curr_version=`ls ${script_dir}/driver/libtaos.so* |cut -d '.' -f 3-6`
+    curr_version=`ls ${script_dir}/driver/libtaos.so* | awk -F 'libtaos.so.' '{print $2}'`
 
     if [ -f ${script_dir}/driver/vercomp.txt ]; then
         min_compatible_version=`cat ${script_dir}/driver/vercomp.txt`
@@ -839,6 +889,8 @@ function update_TDengine() {
     fi
     tar -zxf taos.tar.gz
     install_jemalloc
+    #install_avro lib
+    #install_avro lib64
 
     echo -e "${GREEN}Start to update TDengine...${NC}"
     # Stop the service if running
@@ -878,8 +930,9 @@ function update_TDengine() {
     if [ -z $1 ]; then
         install_bin
         install_service
+        install_taosadapter_service
         install_config
-        install_blm3_config
+        install_taosadapter_config
 
         openresty_work=false
         if [ "$verMode" == "cluster" ]; then
@@ -950,6 +1003,9 @@ function install_TDengine() {
     install_header
     install_lib
     install_jemalloc
+    #install_avro lib
+    #install_avro lib64
+
     if [ "$pagMode" != "lite" ]; then
       install_connector
     fi
@@ -959,6 +1015,7 @@ function install_TDengine() {
         # For installing new
         install_bin
         install_service
+        install_taosadapter_service
 
         openresty_work=false
         if [ "$verMode" == "cluster" ]; then

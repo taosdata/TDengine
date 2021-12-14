@@ -18,9 +18,8 @@ public class InsertDbwithoutUseDbTest {
     private static final Random random = new Random(System.currentTimeMillis());
 
     @Test
-    public void case001() throws ClassNotFoundException, SQLException {
+    public void case001() throws SQLException {
         // prepare schema
-        Class.forName("com.taosdata.jdbc.TSDBDriver");
         String url = "jdbc:TAOS://127.0.0.1:6030/?user=root&password=taosdata";
         Connection conn = DriverManager.getConnection(url, properties);
         try (Statement stmt = conn.createStatement()) {
@@ -51,9 +50,8 @@ public class InsertDbwithoutUseDbTest {
     }
 
     @Test
-    public void case002() throws ClassNotFoundException, SQLException {
+    public void case002() throws SQLException {
         // prepare the schema
-        Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
         final String url = "jdbc:TAOS-RS://" + host + ":6041/inWithoutDb?user=root&password=taosdata";
         Connection conn = DriverManager.getConnection(url, properties);
         try (Statement stmt = conn.createStatement()) {

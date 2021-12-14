@@ -440,19 +440,16 @@ from .cursor import *
 from .result import *
 from .statement import *
 from .subscription import *
+from .schemaless import *
 
-try:
-    import importlib.metadata
-
-    __version__ = importlib.metadata.version("taos")
-except:
-    None
+from taos._version import __version__
 
 # Globals
 threadsafety = 0
 paramstyle = "pyformat"
 
 __all__ = [
+    "__version__",
     # functions
     "connect",
     "new_bind_param",
@@ -468,6 +465,8 @@ __all__ = [
     "TaosRow",
     "TaosStmt",
     "PrecisionEnum",
+    "SmlPrecision",
+    "SmlProtocol"
 ]
 
 def connect(*args, **kwargs):

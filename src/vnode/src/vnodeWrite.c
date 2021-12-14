@@ -27,6 +27,10 @@
 #define MAX_QUEUED_MSG_NUM 100000
 #define MAX_QUEUED_MSG_SIZE 1024*1024*1024  //1GB
 
+static int64_t tsSubmitReqSucNum = 0;
+static int64_t tsSubmitRowNum = 0;
+static int64_t tsSubmitRowSucNum = 0;
+
 extern void *  tsDnodeTmr;
 static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *pCont, SRspRet *);
 static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
@@ -36,6 +40,7 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
 static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite);
+static int32_t vnodeCheckWal(SVnodeObj *pVnode);
 
 int32_t vnodeInitWrite(void) {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]          = vnodeProcessSubmitMsg;
@@ -162,9 +167,25 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
     pRsp = pRet->rsp;
   }
 
-  if (tsdbInsertData(pVnode->tsdb, pCont, pRsp) < 0) code = terrno;
+  if (tsdbInsertData(pVnode->tsdb, pCont, pRsp) < 0) {
+    code = terrno;
+  } else {
+    if (pRsp != NULL) atomic_fetch_add_64(&tsSubmitReqSucNum, 1);
+  }
+
+  if (pRsp) {
+    atomic_fetch_add_64(&tsSubmitRowNum, ntohl(pRsp->numOfRows));
+    atomic_fetch_add_64(&tsSubmitRowSucNum, ntohl(pRsp->affectedRows));
+  }
 
   return code;
+}
+
+static int32_t vnodeCheckWal(SVnodeObj *pVnode) {
+  if (pVnode->isCommiting == 0) {
+    return tsdbCheckWal(pVnode->tsdb, (uint32_t)(walGetFSize(pVnode->wal) >> 20));
+  }
+  return 0;
 }
 
 static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
@@ -179,6 +200,10 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
   if (tsdbCreateTable(pVnode->tsdb, pCfg) < 0) {
     code = terrno;
     ASSERT(code != 0);
+  }
+
+  if (((++pVnode->tblMsgVer) & 32767) == 0) {  // lazy check
+    vnodeCheckWal(pVnode);
   }
 
   tsdbClearTableCfg(pCfg);
@@ -412,4 +437,13 @@ void vnodeWaitWriteCompleted(SVnodeObj *pVnode) {
 
   if (extraSleep)
     taosMsleep(900);
+}
+
+SVnodeStatisInfo vnodeGetStatisInfo() {
+  SVnodeStatisInfo info = {0};
+  info.submitReqSucNum = atomic_exchange_64(&tsSubmitReqSucNum, 0);
+  info.submitRowNum = atomic_exchange_64(&tsSubmitRowNum, 0);
+  info.submitRowSucNum = atomic_exchange_64(&tsSubmitRowSucNum, 0);
+
+  return info;
 }

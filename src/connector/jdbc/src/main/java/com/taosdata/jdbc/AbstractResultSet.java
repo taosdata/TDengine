@@ -11,6 +11,11 @@ import java.util.Map;
 public abstract class AbstractResultSet extends WrapperImpl implements ResultSet {
     private int fetchSize;
     protected boolean wasNull;
+    protected int timestampPrecision;
+
+    public void setTimestampPrecision(int timestampPrecision) {
+        this.timestampPrecision = timestampPrecision;
+    }
 
     protected void checkAvailability(int columnIndex, int bounds) throws SQLException {
         if (isClosed())

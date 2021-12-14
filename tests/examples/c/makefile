@@ -29,7 +29,3 @@ clean:
 	rm $(ROOT)stream
 	rm $(ROOT)subscribe
 	rm $(ROOT)apitest
-
-
-	
-

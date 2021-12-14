@@ -40,20 +40,13 @@ fi
 # Directories and files.
 
 if [ "$osType" != "Darwin" ]; then
-#  if [ "$pagMode" == "lite" ]; then
-#    strip ${build_dir}/bin/tqd
-#    strip ${build_dir}/bin/tq
-#    bin_files="${build_dir}/bin/tq ${script_dir}/remove_client_tq.sh"
-#  else  
-#    bin_files="${build_dir}/bin/tq ${build_dir}/bin/tqdemo ${script_dir}/remove_client_tq.sh ${script_dir}/set_core.sh"
-#  fi
   lib_files="${build_dir}/lib/libtaos.so.${version}"
 else
   bin_files="${build_dir}/bin/tq ${script_dir}/remove_client_tq.sh"
   lib_files="${build_dir}/lib/libtaos.${version}.dylib"
 fi
 
-header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
+header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
 if [ "$verMode" == "cluster" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else
@@ -65,26 +58,26 @@ install_files="${script_dir}/install_client_tq.sh"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/tq.cfg
 
-sed -i '/dataDir/ {s/taos/tq/g}'  ${install_dir}/cfg/taos.cfg
-sed -i '/logDir/  {s/taos/tq/g}'  ${install_dir}/cfg/taos.cfg
-sed -i "s/TDengine/TQ/g"        ${install_dir}/cfg/taos.cfg
+sed -i '/dataDir/ {s/taos/tq/g}'  ${install_dir}/cfg/tq.cfg
+sed -i '/logDir/  {s/taos/tq/g}'  ${install_dir}/cfg/tq.cfg
+sed -i "s/TDengine/TQ/g"        ${install_dir}/cfg/tq.cfg
 
 mkdir -p ${install_dir}/bin
 if [ "$osType" != "Darwin" ]; then
   if [ "$pagMode" == "lite" ]; then
     strip ${build_dir}/bin/taos
     cp ${build_dir}/bin/taos          ${install_dir}/bin/tq
-    cp ${script_dir}/remove_tq.sh  ${install_dir}/bin
+    cp ${script_dir}/remove_client_tq.sh  ${install_dir}/bin
   else 
     cp ${build_dir}/bin/taos          ${install_dir}/bin/tq
-    cp ${script_dir}/remove_tq.sh  ${install_dir}/bin
+    cp ${script_dir}/remove_client_tq.sh  ${install_dir}/bin
     cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/tqdemo
     cp ${build_dir}/bin/taosdump      ${install_dir}/bin/tqdump
     cp ${script_dir}/set_core.sh      ${install_dir}/bin
     cp ${script_dir}/get_client.sh    ${install_dir}/bin
-    cp ${script_dir}/taosd-dump-cfg.gdb    ${install_dir}/bin
+    #cp ${script_dir}/taosd-dump-cfg.gdb    ${install_dir}/bin
   fi
 else
   cp ${bin_files} ${install_dir}/bin
@@ -176,11 +169,6 @@ mkdir -p ${install_dir}/connector
 if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   if [ "$osType" != "Darwin" ]; then
     cp ${build_dir}/lib/*.jar      ${install_dir}/connector ||:
-  fi
-  if [ -d "${connector_dir}/grafanaplugin/dist" ]; then
-    cp -r ${connector_dir}/grafanaplugin/dist ${install_dir}/connector/grafanaplugin
-  else
-    echo "WARNING: grafanaplugin bunlded dir not found, please check if want to use it!"
   fi
   if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
     cp -r ${connector_dir}/go ${install_dir}/connector

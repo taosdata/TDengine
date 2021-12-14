@@ -154,7 +154,7 @@ Under cmd, enter the c:\TDengine directory and directly execute taos.exe, and yo
 | **CPU Type**         | **x64****（****64bit****）** |         |         | **ARM64** | **ARM32**          |
 | -------------------- | ---------------------------- | ------- | ------- | --------- | ------------------ |
 | **OS Type**          | Linux                        | Win64   | Win32   | Linux     | Linux              |
-| **Supported or Not** | Yes                          | **Yes** | **Yes** | **Yes**   | **In development** |
+| **Supported or Not** | Yes                          | **Yes** | **Yes** | **Yes**   | **Yes** |
 
 The C/C++ API is similar to MySQL's C API. When application use it, it needs to include the TDengine header file taos.h (after installed, it is located in/usr/local/taos/include):
 
@@ -419,18 +419,46 @@ or
 
  `pip3 install src/connector/python/`
 
+You can install the `taospy` connector from [PyPI](https://pypi.org/project/taospy/):
+
+```sh
+pip install taospy
+```
+
 #### Windows
 
-With Windows TDengine client installed, copy the file "C:\TDengine\driver\taos.dll" to the "C:\ windows\ system32" directory and enter the Windows <em>cmd</em> command line interface:
+With Windows TDengine client installed, copy the file "C:\TDengine\driver\taos.dll" to the "C:\Windows\system32" directory and enter the Windows *cmd* command line interface:
 
 ```cmd
 cd C:\TDengine\connector\python
 python -m pip install .
 ```
 
+Or install from PyPI:
+
+```cmd
+pip install taospy
+```
+
 - If there is no `pip` command on the machine, the user can copy the taos folder under src/connector/python to the application directory for use. For Windows client, after installing the TDengine Windows client, copy C:\ TDengine\driver\taos.dll to the C:\ windows\ system32 directory.
 
 ### How to use
+
+#### PEP-249 Python Database API
+
+Definitely you can use the [PEP-249](https://www.python.org/dev/peps/pep-0249/) database API like other type of databases:
+
+```python
+import taos
+
+conn = taos.connect()
+cursor = conn.cursor()
+
+cursor.execute("show databases")
+results = cursor.fetchall()
+for row in results:
+    print(row)
+```
 
 #### Code sample
 
@@ -488,6 +516,44 @@ for data in c1:
   print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2]))
 ```
 
+- Since v2.1.0, python connector provides a new API for query:
+
+```python
+import taos
+
+conn = taos.connect()
+conn.execute("create database if not exists pytest")
+
+result = conn.query("show databases")
+num_of_fields = result.field_count
+for field in result.fields:
+    print(field)
+for row in result:
+    print(row)
+conn.execute("drop database pytest")
+```
+
+The `query` method returns `TaosResult` class. It provides high level APIs for convenient use:
+
+Properties:
+
+- `fields`: the `TaosFields` object contains the column metadata, given the collection of each column field metadata by iterator.
+- `field_count`: column number of result.
+- `affected_rows`: the rows completed for insert.
+- `row_count`: the rows number for select.
+- `precision`: the result precision.
+
+Functions:
+
+- `fetch_all()`: get all data as tuple array.
+- `fetch_all_into_dict()`: get all data as dict array, added since v2.1.1
+- `blocks_iter()`: provides iterator by C `taos_fetch_blocks` API
+- `rows_iter()`: provides iterator by C `taos_fetch_row` API
+- `fetch_rows_a`: fetch rows by async API in taosc.
+- `errno`: error code if failed.
+- `errstr`: error string if failed.
+- `close`: close result, you do not need to call it directly, result will auto closed out of scope.
+
 - Create subscription
 
 ```python
@@ -509,6 +575,7 @@ for d in data:
 ```python
 sub.close()
 ```
+
 
 - Close connection
 
@@ -774,37 +841,60 @@ Only some configuration parameters related to RESTful interface are listed below
 
 ## <a class="anchor" id="csharp"></a> CSharp Connector
 
-The C # connector supports: Linux 64/Windows x64/Windows x86.
+
+* The C # connector supports: Linux 64/Windows x64/Windows x86.
+* C# connector can be download and include as normal table form [Nuget.org](https://www.nuget.org/packages/TDengine.Connector/).
+* On Windows, C # applications can use the native C interface of TDengine to perform all database operations, and future versions will provide the ORM (Dapper) framework driver.
 
 ### Installation preparation
 
-- For application driver installation, please refer to the[ steps of installing connector driver](https://www.taosdata.com/en/documentation/connector#driver).
-- . NET interface file TDengineDrivercs.cs and reference sample TDengineTest.cs are both located in the Windows client install_directory/examples/C# directory.
-- On Windows, C # applications can use the native C interface of TDengine to perform all database operations, and future versions will provide the ORM (Dapper) framework driver.
+* For application driver installation, please refer to the[ steps of installing connector driver](https://www.taosdata.com/en/documentation/connector#driver).
+* .NET interface file TDengineDrivercs.cs and reference sample TDengineTest.cs are both located in the Windows client install_directory/examples/C# directory.
+* Install [.NET SDK](https://dotnet.microsoft.com/download)
+
+### Example Source Code
+you can find sample code under follow directions:
+* {client_install_directory}/examples/C#
+* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523)
+
+**Tips:** TDengineTest.cs       One of C# connector's sample code that include basic examples like connection,sql executions and so on.
 
 ### Installation verification
+Run {client_install_directory}/examples/C#/C#Checker/C#Checker.cs
 
-Run install_directory/examples/C#/C#Checker/C#Checker.exe
-
+Need install .Net SDK first
 ```cmd
-cd {install_directory}/examples/C#/C#Checker
-csc /optimize *.cs
-C#Checker.exe -h <fqdn>
+cd {client_install_directory}/examples/C#/C#Checker
+//run c#checker.cs
+dotnet run -- -h <FQDN> //dotnet run will build project first by default.
 ```
 
 ### How to use C# connector
-
 On Windows system, .NET applications can use the .NET interface of TDengine to perform all database operations. The steps to use it are as follows:
 
-1. Add the. NET interface file TDengineDrivercs.cs to the .NET project where the application is located.
-2. Users can refer to TDengineTest.cs to define database connection parameters and how to perform data insert, query and other operations;
+need to install .NET SDK first
+* create a c# project. 
+``` cmd
+mkdir test
+cd test 
+dotnet new console
+```
+* add TDengineDriver as an package through Nuget
 
-This. NET interface requires the taos.dll file, so before executing the application, copy the taos.dll file in the Windows client install_directory/driver directory to the folder where the. NET project finally generated the .exe executable file. After running the exe file, you can access the TDengine database and do operations such as insert and query.
+``` cmd
+dotnet add package TDengine.Connector
+```
+* include the TDnengineDriver in you application's namespace 
+```C#
+using TDengineDriver;
+```
+* user can reference from[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523/TDengineTest) and learn how to define database connection,query,insert and other basic data manipulations.
 
 **Note:**
 
-1. TDengine V2.0. 3.0 supports both 32-bit and 64-bit Windows systems, so when. NET project generates a .exe file, please select the corresponding "X86" or "x64" for the "Platform" under "Solution"/"Project".
-2. This. NET interface has been verified in Visual Studio 2015/2017, and other VS versions have yet to be verified.
+* TDengine V2.0. 3.0 supports both 32-bit and 64-bit Windows systems, so when. NET project generates a .exe file, please select the corresponding "X86" or "x64" for the "Platform" under "Solution"/"Project".
+* This. NET interface has been verified in Visual Studio 2015/2017, and other VS versions have yet to be verified.
+* Since this. NET connector interface requires the taos.dll file, so before executing the application, copy the taos.dll file in the Windows {client_install_directory}/driver directory to the folder where the. NET project finally generated the .exe executable file. After running the exe file, you can access the TDengine database and do operations such as insert and query(This step can be skip if the client has been installed on you machine).
 
 ### Third-party Driver
 
@@ -955,7 +1045,7 @@ Steps:
 
 ### How to use Node.js
 
-The following are some basic uses of node.js connector. Please refer to [TDengine Node.js connector](http://docs.taosdata.com/node) for details.
+The following are some basic uses of node.js connector. Please refer to [TDengine Node.js connector](https://github.com/taosdata/TDengine/tree/develop/src/connector/nodejs)for details.
 
 ### Create connection
 

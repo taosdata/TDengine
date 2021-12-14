@@ -65,11 +65,11 @@ class TwoClients:
 
         # new db ,new super tables , child tables, and insert  data
         tdSql.execute("drop database if exists db2")
-        os.system("%staosdemo -f tsdb/insertDataDb1Replica2.json -y " % binPath)
+        os.system("%staosBenchmark -f tsdb/insertDataDb1Replica2.json -y " % binPath)
         tdSql.execute("drop database if exists db1") 
-        os.system("%staosdemo -f tsdb/insertDataDb2Replica2.json -y " % binPath)
+        os.system("%staosBenchmark -f tsdb/insertDataDb2Replica2.json -y " % binPath)
         tdSql.execute("drop table if exists db2.stb0") 
-        os.system("%staosdemo -f tsdb/insertDataDb2NewstabReplica2.json -y " % binPath)
+        os.system("%staosBenchmark -f tsdb/insertDataDb2NewstabReplica2.json -y " % binPath)
 
         # new general tables and modify general tables;  
         tdSql.execute("use db2")

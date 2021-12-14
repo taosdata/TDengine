@@ -18,6 +18,8 @@ tags = [
 
 fields = [
     # 字段列表，name 为字段名称，type 为字段类型
+	# 除主键外，其他field如果也要设置为timestamp，可以是type ="timestamp" 类型，此时value可同时支持'2006-01-02 15:04:05.000'和millisecond格式
+	# 也可以是type = "bigint",此时value只支持millisecond格式
     { name = "ts",                  type = "timestamp" },
     { name = "temperature",         type = "int" },
     { name = "humidity",            type = "float" },
