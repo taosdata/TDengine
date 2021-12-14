@@ -209,7 +209,7 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
 
 void tVariantDestroy(tVariant *pVar) {
   if (pVar == NULL) return;
-  
+
   if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR || pVar->nType == TSDB_DATA_TYPE_JSON) {
     tfree(pVar->pz);
     pVar->nLen = 0;
@@ -267,7 +267,7 @@ bool tVariantTypeMatch(tVariant *pVar, int8_t dbType){
 
 void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return;
-  
+
   pDst->nType = pSrc->nType;
   if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR || pSrc->nType == TSDB_DATA_TYPE_JSON) {
     int32_t len = pSrc->nLen + TSDB_NCHAR_SIZE;
@@ -351,14 +351,14 @@ int32_t tVariantCompare(const tVariant* p1, const tVariant* p2) {
 
 int32_t tVariantToString(tVariant *pVar, char *dst) {
   if (pVar == NULL || dst == NULL) return 0;
-  
+
   switch (pVar->nType) {
     case TSDB_DATA_TYPE_BINARY: {
       int32_t len = sprintf(dst, "\'%s\'", pVar->pz);
       assert(len <= pVar->nLen + sizeof("\'") * 2);  // two more chars
       return len;
     }
-    
+
     case TSDB_DATA_TYPE_NCHAR: {
       dst[0] = '\'';
       taosUcs4ToMbs(pVar->wpz, (twcslen(pVar->wpz) + 1) * TSDB_NCHAR_SIZE, dst + 1);
@@ -367,7 +367,7 @@ int32_t tVariantToString(tVariant *pVar, char *dst) {
       dst[len + 1] = 0;
       return len + 1;
     }
-    
+
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:
@@ -376,7 +376,7 @@ int32_t tVariantToString(tVariant *pVar, char *dst) {
     case TSDB_DATA_TYPE_USMALLINT:
     case TSDB_DATA_TYPE_UINT:
       return sprintf(dst, "%d", (int32_t)pVar->i64);
-    
+
     case TSDB_DATA_TYPE_BIGINT:
       return sprintf(dst, "%" PRId64, pVar->i64);
     case TSDB_DATA_TYPE_UBIGINT:
@@ -384,7 +384,7 @@ int32_t tVariantToString(tVariant *pVar, char *dst) {
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
       return sprintf(dst, "%.9lf", pVar->dKey);
-    
+
     default:
       return 0;
   }
@@ -422,21 +422,21 @@ static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
   if (*pDest == pVariant->pz) {
     pBuf = calloc(1, INITIAL_ALLOC_SIZE);
   }
-  
+
   if (pVariant->nType == TSDB_DATA_TYPE_NCHAR) {
     size_t newSize = pVariant->nLen * TSDB_NCHAR_SIZE;
     if (pBuf != NULL) {
       if (newSize >= INITIAL_ALLOC_SIZE) {
         pBuf = realloc(pBuf, newSize + 1);
       }
-      
+
       taosUcs4ToMbs(pVariant->wpz, (int32_t)newSize, pBuf);
       free(pVariant->wpz);
       pBuf[newSize] = 0;
     } else {
       taosUcs4ToMbs(pVariant->wpz, (int32_t)newSize, *pDest);
     }
-    
+
   } else {
     if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType)) {
       sprintf(pBuf == NULL ? *pDest : pBuf, "%" PRId64, pVariant->i64);
@@ -448,18 +448,18 @@ static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
       setNull(pBuf == NULL ? *pDest : pBuf, TSDB_DATA_TYPE_BINARY, 0);
     }
   }
-  
+
   if (pBuf != NULL) {
     *pDest = pBuf;
   }
-  
+
   *pDestSize = (int32_t)strlen(*pDest);
   return 0;
 }
 
 static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
   char tmpBuf[40] = {0};
-  
+
   char *  pDst = tmpBuf;
   int32_t nLen = 0;
 
