@@ -15,20 +15,84 @@
 
 #include "plannerInt.h"
 
+// typedef struct SQueryPlanNode {
+//   void               *pExtInfo;     // additional information
+//   SArray             *pPrevNodes;   // children
+//   struct SQueryPlanNode  *nextNode; // parent 
+// } SQueryPlanNode;
+
+// typedef struct SSubplan {
+//   int32_t   type;               // QUERY_TYPE_MERGE|QUERY_TYPE_PARTIAL|QUERY_TYPE_SCAN
+//   SArray   *pDatasource;          // the datasource subplan,from which to fetch the result
+//   struct SPhyNode *pNode;  // physical plan of current subplan
+// } SSubplan;
+
+// typedef struct SQueryDag {
+//   SArray  **pSubplans;
+// } SQueryDag;
+
+// typedef struct SScanPhyNode {
+//   SPhyNode    node;
+//   STimeWindow window;
+//   uint64_t    uid;  // unique id of the table
+// } SScanPhyNode;
+
+// typedef SScanPhyNode STagScanPhyNode;
+
+void fillDataBlockSchema(SQueryPlanNode* pPlanNode, SDataBlockSchema* dataBlockSchema) {
+  dataBlockSchema->index = 0; // todo
+  SWAP(dataBlockSchema->pSchema, pPlanNode->pSchema, SSchema*);
+  dataBlockSchema->numOfCols = pPlanNode->numOfCols;
+}
+
+void fillPhyNode(SQueryPlanNode* pPlanNode, int32_t type, const char* name, SPhyNode* node) {
+  node->info.type = type;
+  node->info.name = name;
+  SWAP(node->pTargets, pPlanNode->pExpr, SArray*);
+  fillDataBlockSchema(pPlanNode, &(node->targetSchema));
+}
+
+SPhyNode* createTagScanNode(SQueryPlanNode* pPlanNode) {
+  STagScanPhyNode* node = calloc(1, sizeof(STagScanPhyNode));
+  fillPhyNode(pPlanNode, OP_TagScan, "TagScan", (SPhyNode*)node);
+  return (SPhyNode*)node;
+}
+
 SPhyNode* createScanNode(SQueryPlanNode* pPlanNode) {
-  return NULL;
+  STagScanPhyNode* node = calloc(1, sizeof(STagScanPhyNode));
+  fillPhyNode(pPlanNode, OP_TableScan, "SingleTableScan", (SPhyNode*)node);
+  return (SPhyNode*)node;
 }
 
-SPhyNode* createPhyNode(SQueryPlanNode* node) {
-  switch (node->info.type) {
-    case LP_SCAN:
-      return createScanNode(node);
+SPhyNode* createPhyNode(SQueryPlanNode* pPlanNode) {
+  SPhyNode* node = NULL;
+  switch (pPlanNode->info.type) {
+    case QNODE_TAGSCAN:
+      node = createTagScanNode(pPlanNode);
+      break;
+    case QNODE_TABLESCAN:
+      node = createScanNode(pPlanNode);
+      break;
+    default:
+      assert(false);
   }
-  return NULL;
+  if (pPlanNode->pChildren != NULL && taosArrayGetSize(pPlanNode->pChildren) > 0) {
+    node->pChildren = taosArrayInit(4, POINTER_BYTES);
+    size_t size = taosArrayGetSize(pPlanNode->pChildren);
+    for(int32_t i = 0; i < size; ++i) {
+      SPhyNode* child = createPhyNode(taosArrayGet(pPlanNode->pChildren, i));
+      child->pParent = node;
+      taosArrayPush(node->pChildren, &child);
+    }
+  }
+  return node;
 }
 
-SPhyNode* createSubplan(SQueryPlanNode* pSubquery) {
-  return NULL;
+SSubplan* createSubplan(SQueryPlanNode* pSubquery) {
+  SSubplan* subplan = calloc(1, sizeof(SSubplan));
+  subplan->pNode = createPhyNode(pSubquery);
+  // todo
+  return subplan;
 }
 
 int32_t createDag(struct SQueryPlanNode* pQueryNode, struct SEpSet* pQnode, struct SQueryDag** pDag) {

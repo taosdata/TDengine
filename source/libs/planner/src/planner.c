@@ -18,21 +18,6 @@
 #include "parser.h"
 #include "plannerInt.h"
 
-#define QNODE_TAGSCAN       1
-#define QNODE_TABLESCAN     2
-#define QNODE_PROJECT       3
-#define QNODE_AGGREGATE     4
-#define QNODE_GROUPBY       5
-#define QNODE_LIMIT         6
-#define QNODE_JOIN          7
-#define QNODE_DISTINCT      8
-#define QNODE_SORT          9
-#define QNODE_UNION         10
-#define QNODE_TIMEWINDOW    11
-#define QNODE_SESSIONWINDOW 12
-#define QNODE_STATEWINDOW   13
-#define QNODE_FILL          14
-
 typedef struct SFillEssInfo {
   int32_t  fillType;  // fill type
   int64_t *val;       // fill value
@@ -104,9 +89,9 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
     taosArrayPush(pNode->pExpr, &pExpr[i]);
   }
 
-  pNode->pPrevNodes = taosArrayInit(4, POINTER_BYTES);
+  pNode->pChildren = taosArrayInit(4, POINTER_BYTES);
   for(int32_t i = 0; i < numOfPrev; ++i) {
-    taosArrayPush(pNode->pPrevNodes, &prev[i]);
+    taosArrayPush(pNode->pChildren, &prev[i]);
   }
 
   switch(type) {
@@ -386,14 +371,14 @@ static void doDestroyQueryNode(SQueryPlanNode* pQueryNode) {
   tfree(pQueryNode->info.name);
 //  dropAllExprInfo(pQueryNode->pExpr);
 
-  if (pQueryNode->pPrevNodes != NULL) {
-    int32_t size = (int32_t) taosArrayGetSize(pQueryNode->pPrevNodes);
+  if (pQueryNode->pChildren != NULL) {
+    int32_t size = (int32_t) taosArrayGetSize(pQueryNode->pChildren);
     for(int32_t i = 0; i < size; ++i) {
-      SQueryPlanNode* p = taosArrayGetP(pQueryNode->pPrevNodes, i);
+      SQueryPlanNode* p = taosArrayGetP(pQueryNode->pChildren, i);
       doDestroyQueryNode(p);
     }
 
-    taosArrayDestroy(pQueryNode->pPrevNodes);
+    taosArrayDestroy(pQueryNode->pChildren);
   }
 
   tfree(pQueryNode);
@@ -607,8 +592,8 @@ int32_t printExprInfo(const char* buf, const SQueryPlanNode* pQueryNode, int32_t
 int32_t queryPlanToStringImpl(char* buf, SQueryPlanNode* pQueryNode, int32_t level, int32_t totalLen) {
   int32_t len = doPrintPlan(buf, pQueryNode, level, totalLen);
 
-  for(int32_t i = 0; i < taosArrayGetSize(pQueryNode->pPrevNodes); ++i) {
-    SQueryPlanNode* p1 = taosArrayGetP(pQueryNode->pPrevNodes, i);
+  for(int32_t i = 0; i < taosArrayGetSize(pQueryNode->pChildren); ++i) {
+    SQueryPlanNode* p1 = taosArrayGetP(pQueryNode->pChildren, i);
     int32_t len1 = queryPlanToStringImpl(buf, p1, level + 1, len);
     len = len1;
   }

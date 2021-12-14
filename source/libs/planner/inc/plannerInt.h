@@ -25,18 +25,20 @@ extern "C" {
 #include "planner.h"
 #include "taosmsg.h"
 
-enum LOGIC_PLAN_E {
-  LP_SCAN     = 1,
-  LP_SESSION  = 2,
-  LP_STATE    = 3,
-  LP_INTERVAL = 4,
-  LP_FILL     = 5,
-  LP_AGG      = 6,
-  LP_JOIN     = 7,
-  LP_PROJECT  = 8,
-  LP_DISTINCT = 9,
-  LP_ORDER    = 10
-};
+#define QNODE_TAGSCAN       1
+#define QNODE_TABLESCAN     2
+#define QNODE_PROJECT       3
+#define QNODE_AGGREGATE     4
+#define QNODE_GROUPBY       5
+#define QNODE_LIMIT         6
+#define QNODE_JOIN          7
+#define QNODE_DISTINCT      8
+#define QNODE_SORT          9
+#define QNODE_UNION         10
+#define QNODE_TIMEWINDOW    11
+#define QNODE_SESSIONWINDOW 12
+#define QNODE_STATEWINDOW   13
+#define QNODE_FILL          14
 
 typedef struct SQueryNodeBasicInfo {
   int32_t   type;          // operator type
@@ -64,10 +66,10 @@ typedef struct SQueryPlanNode {
   SArray             *pExpr;        // the query functions or sql aggregations
   int32_t             numOfExpr;  // number of result columns, which is also the number of pExprs
   void               *pExtInfo;     // additional information
-  // previous operator to generated result for current node to process
+  // children operator to generated result for current node to process
   // in case of join, multiple prev nodes exist.
-  SArray             *pPrevNodes;   // upstream nodes
-  struct SQueryPlanNode  *nextNode;
+  SArray             *pChildren;   // upstream nodes
+  struct SQueryPlanNode  *pParent;
 } SQueryPlanNode;
 
 typedef SSchema SSlotSchema;
@@ -86,11 +88,13 @@ typedef struct SPhyNode {
   // children plan to generated result for current node to process
   // in case of join, multiple plan nodes exist.
   SArray             *pChildren;
+  struct SPhyNode    *pParent;
 } SPhyNode;
 
 typedef struct SScanPhyNode {
-  SPhyNode node;
-  uint64_t     uid;  // unique id of the table
+  SPhyNode    node;
+  STimeWindow window;
+  uint64_t    uid;  // unique id of the table
 } SScanPhyNode;
 
 typedef SScanPhyNode STagScanPhyNode;

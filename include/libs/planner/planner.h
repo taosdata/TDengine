@@ -54,7 +54,6 @@ enum OPERATOR_TYPE_E {
 };
 
 struct SEpSet;
-struct SQueryPlanNode;
 struct SPhyNode;
 struct SQueryStmtInfo;
 
