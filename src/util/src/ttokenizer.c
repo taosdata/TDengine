@@ -73,7 +73,6 @@ static SKeyword keywordTable[] = {
     {"STAR",         TK_STAR},
     {"SLASH",        TK_SLASH},
     {"REM ",         TK_REM},
-    {"CONCAT",       TK_CONCAT},
     {"UMINUS",       TK_UMINUS},
     {"UPLUS",        TK_UPLUS},
     {"BITNOT",       TK_BITNOT},
@@ -400,9 +399,6 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       if (z[1] != '|') {
         *tokenId = TK_BITOR;
         return 1;
-      } else {
-        *tokenId = TK_CONCAT;
-        return 2;
       }
     }
     case ',': {

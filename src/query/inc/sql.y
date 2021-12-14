@@ -17,7 +17,6 @@
 %left PLUS MINUS.
 %left DIVIDE TIMES.
 %left STAR SLASH REM.
-%left CONCAT.
 %right UMINUS UPLUS BITNOT.
 %right ARROW.
 
@@ -760,6 +759,9 @@ expr(A) ::= ID(X) LP exprlist(Y) RP(E). { tStrTokenAppend(pInfo->funcs, &X); A =
 
 // for parsing sql functions with wildcard for parameters. e.g., count(*)/first(*)/last(*) operation
 expr(A) ::= ID(X) LP STAR RP(Y).     { tStrTokenAppend(pInfo->funcs, &X); A = tSqlExprCreateFunction(NULL, &X, &Y, X.type); }
+
+// for parsing sql function CAST(column as typename) 
+expr(A) ::= ID(X) LP expr(B) AS typename(C) RP(Y).     { tStrTokenAppend(pInfo->funcs, &X); A = tSqlExprCreateFuncWithParams(pInfo, B, &C, &X, &Y, X.type); }
 
 // is (not) null expression
 expr(A) ::= expr(X) IS NULL.           {A = tSqlExprCreate(X, NULL, TK_ISNULL);}
