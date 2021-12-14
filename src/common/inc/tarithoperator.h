@@ -25,6 +25,7 @@ typedef void (*_arithmetic_operator_fn_t)(void *left, int32_t numLeft, int32_t l
 
 _arithmetic_operator_fn_t getArithmeticOperatorFn(int32_t arithmeticOptr);
 
+
 #ifdef __cplusplus
 }
 #endif

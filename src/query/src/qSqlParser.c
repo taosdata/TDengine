@@ -178,6 +178,14 @@ tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optr
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;
     pSqlExpr->type    = SQL_NODE_VALUE;
+  } else if (optrType == TK_AS) {
+    // Here it must be column type
+    if (pToken != NULL) {
+      pSqlExpr->dataType = *(TAOS_FIELD *)pToken;
+    }
+  
+    pSqlExpr->tokenId = optrType;
+    pSqlExpr->type    = SQL_NODE_DATA_TYPE;
   } else {
     // Here it must be the column name (tk_id) if it is not a number or string.
     assert(optrType == TK_ID || optrType == TK_ALL);
@@ -274,6 +282,25 @@ tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SStrToken *pFuncToken, SStrToke
 
   return pExpr;
 }
+
+tSqlExpr *tSqlExprCreateFuncWithParams(SSqlInfo *pInfo, tSqlExpr* col, TAOS_FIELD *colType, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType) {
+  if (colType == NULL || col == NULL) {
+    return NULL;
+  }
+  
+  if (NULL == col) {
+    return NULL;
+  }
+  
+  tSqlExpr* ctype = tSqlExprCreateIdValue(pInfo, (SStrToken *)colType, TK_AS);
+
+  SArray *exprList = tSqlExprListAppend(0,col,0, 0);
+
+  tSqlExprListAppend(exprList,ctype,0, 0);
+  
+  return tSqlExprCreateFunction(exprList, pFuncToken, endToken, optType); 
+}
+
 
 /*
  * create binary expression in this procedure
@@ -391,7 +418,7 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
     pExpr->tokenId = optrType;
     pExpr->pLeft = pLeft;
     pExpr->pRight = pRight;
-    pExpr->type = SQL_NODE_TABLE_COLUMN;
+    pExpr->type = SQL_NODE_EXPR;
   } else {
     pExpr->tokenId = optrType;
     pExpr->pLeft = pLeft;
@@ -824,6 +851,10 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
       }
 
       pField->bytes = (int16_t)bytes;
+    }
+  } else {
+    if (type->type > 0) {
+      pField->type = -1;
     }
   }
 }

@@ -28,15 +28,17 @@ extern "C" {
 
 #define ParseTOKENTYPE SStrToken
 
-#define NON_ARITHMEIC_EXPR 0
-#define NORMAL_ARITHMETIC  1
-#define AGG_ARIGHTMEIC     2
+#define SQLEXPR_TYPE_UNASSIGNED 0
+#define SQLEXPR_TYPE_SCALAR 1
+#define SQLEXPR_TYPE_AGG 2
+#define SQLEXPR_TYPE_VALUE 3
 
 enum SQL_NODE_TYPE {
   SQL_NODE_TABLE_COLUMN= 1,
   SQL_NODE_SQLFUNCTION = 2,
   SQL_NODE_VALUE       = 3,
   SQL_NODE_EXPR        = 4,
+  SQL_NODE_DATA_TYPE   = 5,
 };
 
 enum SQL_NODE_FROM_TYPE {
@@ -271,6 +273,7 @@ typedef struct tSqlExpr {
 
   int32_t            functionId;  // function id, todo remove it
   SStrToken          columnName;  // table column info
+  TAOS_FIELD         dataType;  // data type
   tVariant           value;       // the use input value
   SStrToken          exprToken;   // original sql expr string
   uint32_t           flags;       // todo remove it
@@ -300,6 +303,7 @@ SRelationInfo *addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrT
 tSqlExpr *tSqlExprCreateTimestamp(SStrToken *pToken, int32_t optrType);
 tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optrType);
 tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType);
+tSqlExpr *tSqlExprCreateFuncWithParams(SSqlInfo *pInfo, tSqlExpr* col, TAOS_FIELD *colType, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType);
 SArray *tStrTokenAppend(SArray *pList, SStrToken *pToken);
 
 tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType);

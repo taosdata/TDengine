@@ -414,6 +414,10 @@ static bool isSelectivityWithTagsQuery(SQLFunctionCtx *pCtx, int32_t numOfOutput
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
     int32_t functId = pCtx[i].functionId;
+    if (TSDB_FUNC_IS_SCALAR(functId)) {
+      continue;
+    }
+
     if (functId == TSDB_FUNC_TAG_DUMMY || functId == TSDB_FUNC_TS_DUMMY) {
       hasTags = true;
       continue;
@@ -433,13 +437,14 @@ static bool isScalarWithTagsQuery(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
     int32_t functId = pCtx[i].functionId;
-    if (functId == TSDB_FUNC_TAG_DUMMY || functId == TSDB_FUNC_TS_DUMMY) {
-      hasTags = true;
+    if (TSDB_FUNC_IS_SCALAR(functId)) {
+      numOfScalar++;
       continue;
     }
 
-    if ((aAggs[functId].status & TSDB_FUNCSTATE_SCALAR) != 0) {
-      numOfScalar++;
+    if (functId == TSDB_FUNC_TAG_DUMMY || functId == TSDB_FUNC_TS_DUMMY) {
+      hasTags = true;
+      continue;
     }
   }
 
@@ -974,8 +979,10 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
       if (functionId < 0) { // load the script and exec, pRuntimeEnv->pUdfInfo
         SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
         doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
-      } else {
+      } else if (!TSDB_FUNC_IS_SCALAR(functionId)){
         aAggs[functionId].xFunction(&pCtx[k]);
+      } else {
+        assert(0);
       }
     }
 
@@ -1116,7 +1123,7 @@ static TSKEY getStartTsKey(SQueryAttr* pQueryAttr, STimeWindow* win, const TSKEY
   return ts;
 }
 
-static void setArithParams(SArithmeticSupport* sas, SExprInfo *pExprInfo, SSDataBlock* pSDataBlock) {
+static void setArithParams(SScalarExprSupport* sas, SExprInfo *pExprInfo, SSDataBlock* pSDataBlock) {
   sas->numOfCols = (int32_t) pSDataBlock->info.numOfCols;
   sas->pExprInfo = pExprInfo;
   if (sas->colList) {
@@ -1152,8 +1159,8 @@ static void doSetInputDataBlockInfo(SOperatorInfo* pOperator, SQLFunctionCtx* pC
 }
 
 void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order) {
-  if (pCtx[0].functionId == TSDB_FUNC_ARITHM) {
-    SArithmeticSupport* pSupport = (SArithmeticSupport*) pCtx[0].param[1].pz;
+  if (pCtx[0].functionId == TSDB_FUNC_SCALAR_EXPR) {
+    SScalarExprSupport* pSupport = (SScalarExprSupport*) pCtx[0].param[1].pz;
     if (pSupport->colList == NULL) {
       doSetInputDataBlock(pOperator, pCtx, pBlock, order);
     } else {
@@ -1176,8 +1183,8 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
 
     setBlockStatisInfo(&pCtx[i], pBlock, &pOperator->pExpr[i].base.colInfo);
 
-    if (pCtx[i].functionId == TSDB_FUNC_ARITHM) {
-      setArithParams((SArithmeticSupport*)pCtx[i].param[1].pz, &pOperator->pExpr[i], pBlock);
+    if (pCtx[i].functionId == TSDB_FUNC_SCALAR_EXPR) {
+      setArithParams((SScalarExprSupport*)pCtx[i].param[1].pz, &pOperator->pExpr[i], pBlock);
     } else {
       SColIndex* pCol = &pOperator->pExpr[i].base.colInfo;
       if (TSDB_COL_IS_NORMAL_COL(pCol->flag) || (pCtx[i].functionId == TSDB_FUNC_BLKINFO) ||
@@ -1190,10 +1197,9 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
         pCtx[i].colId  = p->info.colId;
         assert(p->info.colId == pColIndex->colId && pCtx[i].inputType == p->info.type);
 
-        if (pCtx[i].functionId < 0) {
+        if (pCtx[i].functionId < 0 || TSDB_FUNC_IS_SCALAR(pCtx[i].functionId)) {
           SColumnInfoData* tsInfo = taosArrayGet(pBlock->pDataBlock, 0);
-          pCtx[i].ptsList = (int64_t*) tsInfo->pData;
-
+          pCtx[i].ptsList = (int64_t*)tsInfo->pData;
           continue;
         }
 
@@ -1234,8 +1240,10 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunction
       if (functionId < 0) {
         SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
         doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
-      } else {
+      } else if (!TSDB_FUNC_IS_SCALAR(functionId)){
         aAggs[functionId].xFunction(&pCtx[k]);
+      } else {
+        assert(0);
       }
     }
   }
@@ -1255,8 +1263,10 @@ static void projectApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
       // load the script and exec
       SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
       doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
-    } else {
+    } else if (!TSDB_FUNC_IS_SCALAR(pCtx[k].functionId)) {
       aAggs[pCtx[k].functionId].xFunction(&pCtx[k]);
+    } else {
+      assert(0);
     }
   }
 }
@@ -1855,11 +1865,14 @@ static int32_t setCtxTagColumnInfo(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
     int32_t functionId = pCtx[i].functionId;
+    if (functionId < 0 || TSDB_FUNC_IS_SCALAR(functionId)) {
+      continue;
+    }
 
     if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
       tagLen += pCtx[i].outputBytes;
       pTagCtx[num++] = &pCtx[i];
-    } else if ((aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0 || (aAggs[functionId].status & TSDB_FUNCSTATE_SCALAR) != 0) {
+    } else if ((aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
       p = &pCtx[i];
     } else if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TAG) {
       // tag function may be the group by tag column
@@ -1972,7 +1985,7 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
       pCtx->param[1].nType = TSDB_DATA_TYPE_BIGINT;
       pCtx->param[2].i64 = pQueryAttr->window.ekey;
       pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
-    } else if (functionId == TSDB_FUNC_ARITHM) {
+    } else if (functionId == TSDB_FUNC_SCALAR_EXPR) {
       pCtx->param[1].pz = (char*) &pRuntimeEnv->sasArray[i];
     }
   }
@@ -2023,7 +2036,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   // NOTE: pTableCheckInfo need to update the query time range and the lastKey info
   pRuntimeEnv->pTableRetrieveTsMap = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
 
-  pRuntimeEnv->sasArray = calloc(pQueryAttr->numOfOutput, sizeof(SArithmeticSupport));
+  pRuntimeEnv->sasArray = calloc(pQueryAttr->numOfOutput, sizeof(SScalarExprSupport));
 
   if (pRuntimeEnv->sasArray == NULL || pRuntimeEnv->pResultRowHashTable == NULL || pRuntimeEnv->keyBuf == NULL ||
       pRuntimeEnv->prevRow == NULL  || pRuntimeEnv->tagVal == NULL) {
@@ -2198,7 +2211,13 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       }
 
       case OP_Order: {
-        pRuntimeEnv->proot = createOrderOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput, &pQueryAttr->order);
+        if (pQueryAttr->pExpr2 != NULL) {
+          pRuntimeEnv->proot = createOrderOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr2,
+                                                       pQueryAttr->numOfExpr2, &pQueryAttr->order);
+        } else {
+          pRuntimeEnv->proot = createOrderOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1,
+                                                       pQueryAttr->numOfOutput, &pQueryAttr->order);
+        }
         break;
       }
 
@@ -2955,7 +2974,7 @@ static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSData
     int32_t colId = pTableScanInfo->pExpr[i].base.colInfo.colId;
 
     // group by + first/last should not apply the first/last block filter
-    if (functionId < 0) {
+    if (functionId < 0 || TSDB_FUNC_IS_SCALAR(functionId)) {
       status |= BLK_DATA_ALL_NEEDED;
       return status;
     } else {
@@ -3665,8 +3684,10 @@ void initCtxOutputBuffer(SQLFunctionCtx* pCtx, int32_t size) {
 
     if (pCtx[j].functionId < 0) { // todo udf initialization
       continue;
-    } else {
+    } else if (!TSDB_FUNC_IS_SCALAR(pCtx[j].functionId)) {
       aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
+    } else {
+      assert(0);
     }
   }
 }
@@ -3725,8 +3746,10 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
         pCtx[j].startTs  = buf->win.skey;
         if (pCtx[j].functionId < 0) {
           doInvokeUdf(pRuntimeEnv->pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
-        } else {
+        } else if (!TSDB_FUNC_IS_SCALAR(pCtx[j].functionId)) {
           aAggs[pCtx[j].functionId].xFinalize(&pCtx[j]);
+        } else {
+          assert(0);
         }
       }
 
@@ -3742,8 +3765,10 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
     for (int32_t j = 0; j < numOfOutput; ++j) {
       if (pCtx[j].functionId < 0) {
         doInvokeUdf(pRuntimeEnv->pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
-      } else {
+      } else if (!TSDB_FUNC_IS_SCALAR(pCtx[j].functionId)) {
         aAggs[pCtx[j].functionId].xFinalize(&pCtx[j]);
+      } else {
+        assert(0);
       }
     }
   }
@@ -3831,9 +3856,6 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
     offset += pCtx[i].outputBytes;
 
     int32_t functionId = pCtx[i].functionId;
-    if (functionId < 0) {
-      continue;
-    }
 
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF ||
         functionId == TSDB_FUNC_CSUM || functionId == TSDB_FUNC_MAVG || functionId == TSDB_FUNC_SAMPLE) {
@@ -3841,7 +3863,13 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
     }
 
     if (!pResInfo->initialized) {
-      aAggs[functionId].init(&pCtx[i], pResInfo);
+      if (functionId < 0 ) {
+        doInvokeUdf(pRuntimeEnv->pUdfInfo, &pCtx[i], 0, TSDB_UDF_FUNC_INIT);
+      } else if (!TSDB_FUNC_IS_SCALAR(functionId)) {
+        aAggs[functionId].init(&pCtx[i], pResInfo);
+      } else {
+        assert(0);
+      }
     }
   }
 }
@@ -5544,8 +5572,8 @@ SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
       for(int32_t i = 0; i < numOfOutput; ++i) {
         SColumnInfoData col = {{0}};
         col.info.colId = pExpr[i].base.colInfo.colId;
-        col.info.bytes = pExpr[i].base.colBytes;
-        col.info.type  = pExpr[i].base.colType;
+        col.info.bytes = pExpr[i].base.resBytes;
+        col.info.type  = pExpr[i].base.resType;
         taosArrayPush(pDataBlock->pDataBlock, &col);
 
         if (col.info.colId == pOrderVal->orderColId) {
@@ -5767,7 +5795,15 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
         break;
       } else { // init output buffer for a new group data
         for (int32_t j = 0; j < pOperator->numOfOutput; ++j) {
-          aAggs[pInfo->pCtx[j].functionId].xFinalize(&pInfo->pCtx[j]);
+          int16_t functionId = pInfo->pCtx[j].functionId;
+          if (functionId < 0 ) {
+            SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
+            doInvokeUdf(pUdfInfo, &pInfo->pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
+          } else if (!TSDB_FUNC_IS_SCALAR(functionId)) {
+            aAggs[pInfo->pCtx[j].functionId].xFinalize(&pInfo->pCtx[j]);
+          } else {
+            assert(0);
+          }
         }
         initCtxOutputBuffer(pInfo->pCtx, pOperator->numOfOutput);
       }
@@ -8261,7 +8297,7 @@ int32_t cloneExprFilterInfo(SColumnFilterInfo **dst, SColumnFilterInfo* src, int
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t buildArithmeticExprFromMsg(SExprInfo *pExprInfo, void *pQueryMsg) {
+int32_t buildScalarExprFromMsg(SExprInfo *pExprInfo, void *pQueryMsg) {
   qDebug("qmsg:%p create arithmetic expr from binary", pQueryMsg);
 
   tExprNode* pExprNode = NULL;
@@ -8474,16 +8510,13 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
     int16_t bytes = 0;
 
     // parse the arithmetic expression
-    if (pExprs[i].base.functionId == TSDB_FUNC_ARITHM) {
-      code = buildArithmeticExprFromMsg(&pExprs[i], pMsg);
+    if (pExprs[i].base.functionId == TSDB_FUNC_SCALAR_EXPR) {
+      code = buildScalarExprFromMsg(&pExprs[i], pMsg);
 
       if (code != TSDB_CODE_SUCCESS) {
         tfree(pExprs);
         return code;
       }
-
-      type  = TSDB_DATA_TYPE_DOUBLE;
-      bytes = tDataTypes[type].bytes;
     } else if (pExprs[i].base.functionId == TSDB_FUNC_BLKINFO) {
       SSchema s = {.type=TSDB_DATA_TYPE_BINARY, .bytes=TSDB_MAX_BINARY_LEN};
       type = s.type;
@@ -8537,14 +8570,14 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
     }
 
     int32_t param = (int32_t)pExprs[i].base.param[0].i64;
-    if (pExprs[i].base.functionId > 0 && pExprs[i].base.functionId != TSDB_FUNC_ARITHM &&
+    if (pExprs[i].base.functionId > 0 && pExprs[i].base.functionId != TSDB_FUNC_SCALAR_EXPR &&
        (type != pExprs[i].base.colType || bytes != pExprs[i].base.colBytes)) {
       tfree(pExprs);
       return TSDB_CODE_QRY_INVALID_MSG;
     }
 
     // todo remove it
-    if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].base.resType, &pExprs[i].base.resBytes,
+    if (pExprs[i].base.functionId != TSDB_FUNC_SCALAR_EXPR && getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].base.resType, &pExprs[i].base.resBytes,
                           &pExprs[i].base.interBytes, 0, isSuperTable, pUdfInfo) != TSDB_CODE_SUCCESS) {
       tfree(pExprs);
       return TSDB_CODE_QRY_INVALID_MSG;
@@ -8613,31 +8646,32 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t nu
     int16_t bytes = 0;
 
     // parse the arithmetic expression
-    if (pExprs[i].base.functionId == TSDB_FUNC_ARITHM) {
-      code = buildArithmeticExprFromMsg(&pExprs[i], pQueryMsg);
+    if (pExprs[i].base.functionId == TSDB_FUNC_SCALAR_EXPR) {
+      code = buildScalarExprFromMsg(&pExprs[i], pQueryMsg);
 
       if (code != TSDB_CODE_SUCCESS) {
         tfree(pExprs);
         return code;
       }
 
-      type  = TSDB_DATA_TYPE_DOUBLE;
-      bytes = tDataTypes[type].bytes;
+      pExprs[i].base.resBytes = pExprs[i].pExpr->resultBytes;
+      pExprs[i].base.resType = pExprs[i].pExpr->resultType;
+      pExprs[i].base.interBytes = 0;
     } else {
       int32_t index = pExprs[i].base.colInfo.colIndex;
       assert(prevExpr[index].base.resColId == pExprs[i].base.colInfo.colId);
 
-      type  = prevExpr[index].base.resType;
+      type = prevExpr[index].base.resType;
       bytes = prevExpr[index].base.resBytes;
-    }
 
-    int32_t param = (int32_t)pExprs[i].base.param[0].i64;
-    if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].base.resType, &pExprs[i].base.resBytes,
-                          &pExprs[i].base.interBytes, 0, isSuperTable, pUdfInfo) != TSDB_CODE_SUCCESS) {
-      tfree(pExprs);
-      return TSDB_CODE_QRY_INVALID_MSG;
+      int32_t param = (int32_t)pExprs[i].base.param[0].i64;
+      if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].base.resType,
+                            &pExprs[i].base.resBytes, &pExprs[i].base.interBytes, 0, isSuperTable,
+                            pUdfInfo) != TSDB_CODE_SUCCESS) {
+        tfree(pExprs);
+        return TSDB_CODE_QRY_INVALID_MSG;
+      }
     }
-
     assert(isValidDataType(pExprs[i].base.resType));
   }
 
@@ -8757,7 +8791,7 @@ static void doUpdateExprColumnIndex(SQueryAttr *pQueryAttr) {
 
   for (int32_t k = 0; k < pQueryAttr->numOfOutput; ++k) {
     SSqlExpr *pSqlExprMsg = &pQueryAttr->pExpr1[k].base;
-    if (pSqlExprMsg->functionId == TSDB_FUNC_ARITHM) {
+    if (pSqlExprMsg->functionId == TSDB_FUNC_SCALAR_EXPR) {
       continue;
     }
 
@@ -9406,4 +9440,3 @@ void freeQueryAttr(SQueryAttr* pQueryAttr) {
     filterFreeInfo(pQueryAttr->pFilters);
   }
 }
-
