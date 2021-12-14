@@ -34,7 +34,8 @@ StartWithStateValue *startWithStateValueCreate(StartWithStateKind kind, ValueTyp
   }
   return nsv;
 }
-void startWithStateValueDestroy(StartWithStateValue *sv) {
+void startWithStateValueDestroy(void *val) {
+  StartWithStateValue *sv = (StartWithStateValue *)val;
   if (sv == NULL) { return; }
 
   if (sv->type == FST_INT) {
@@ -68,19 +69,28 @@ StartWithStateValue *startWithStateValueDump(StartWithStateValue *sv) {
 
 static void* prefixStart(AutomationCtx *ctx) {  
   StartWithStateValue *data = (StartWithStateValue *)(ctx->data);
-  
-  return data;
+  return startWithStateValueDump(data);     
 };
-static bool prefixIsMatch(AutomationCtx *ctx, void *data) {
-  return true;
+static bool prefixIsMatch(AutomationCtx *ctx, void *sv) {
+  StartWithStateValue* ssv = (StartWithStateValue *)sv;  
+  return ssv->val == strlen(ctx->data); 
 } 
-static bool prefixCanMatch(AutomationCtx *ctx, void *data) {
-  return true;
+static bool prefixCanMatch(AutomationCtx *ctx, void *sv) {
+  StartWithStateValue* ssv = (StartWithStateValue *)sv;  
+  return ssv->val >= 0; 
 }
 static bool prefixWillAlwaysMatch(AutomationCtx *ctx, void *state) {
   return true;
 }
 static void* prefixAccept(AutomationCtx *ctx, void *state, uint8_t byte) {
+  StartWithStateValue* ssv = (StartWithStateValue *)state;  
+  if (ssv == NULL || ctx == NULL) {return NULL;}
+
+  char *data = ctx->data;
+  if ((strlen(data) > ssv->val) && data[ssv->val] == byte) {
+    int val = ssv->val + 1;
+    return startWithStateValueCreate(Running, FST_INT, &val);
+  } 
   return NULL;
 }
 static void* prefixAcceptEof(AutomationCtx *ctx, void *state) {
@@ -129,28 +139,33 @@ AutomationFunc automFuncs[]  = {{
   // add more search type
 };
 
-AutomationCtx* automCtxCreate(void *data, AutomationType type) {
+AutomationCtx* automCtxCreate(void *data,AutomationType atype) {
   AutomationCtx *ctx = calloc(1, sizeof(AutomationCtx));
   if (ctx == NULL) { return NULL; }
 
-  if (type == AUTOMATION_PREFIX) {
-    StartWithStateValue *swsv = (StartWithStateValue *)calloc(1, sizeof(StartWithStateValue));   
-    swsv->kind  = Done; 
-    //swsv->value = NULL; 
-    ctx->data = (void *)swsv;
-  } else if (type == AUTMMATION_MATCH) {
+  StartWithStateValue *sv = NULL;
+  if (atype == AUTOMATION_PREFIX) {
+    sv = startWithStateValueCreate(Running, FST_INT, 0);
+    ctx->stdata = (void *)sv;
+  } else if (atype == AUTMMATION_MATCH) {
       
   } else {
     // add more search type
   }
 
-  ctx->type = type;
+  char*  src = (char *)data; 
+  size_t len = strlen(src);
+  char*  dst = (char *)malloc(len * sizeof(char) + 1); 
+  memcpy(dst, src, len);
+  dst[len] = 0;
+  
+  ctx->data   = dst; 
+  ctx->type   = atype;
+  ctx->stdata = (void *)sv; 
   return ctx; 
 } 
 void automCtxDestroy(AutomationCtx *ctx) {
-  if (ctx->type == AUTOMATION_PREFIX) {
-    free(ctx->data);
-  } else if (ctx->type == AUTMMATION_MATCH) {
-  }
+  startWithStateValueDestroy(ctx->stdata);
+  free(ctx->data);
   free(ctx);
 }
