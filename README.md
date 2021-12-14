@@ -59,6 +59,8 @@ sudo apt-get install -y  maven
 ```
 
 #### Install build dependencies for taos-tools 
+We provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. From TDengine 2.3.3.0, they are released in a separate package named 'taos-tools'. By default, TDengine compiling does not include taos-tools. You can use 'cmake .. -DBUILD_TOOLS=true' to make them be compiled with TDengine.
+
 To build the [taos-tools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
 ```bash
 sudo apt install libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
@@ -142,7 +144,7 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-Note TDengine 2.3.x.0 and later use a component named 'taosAdapter' to play http daemon role by default instead of the http daemon embedded in the early version of TDengine. The taosAdapter is programmed by go language. If you pull TDengine source code to the latest from an existing codebase, please execute 'git submodule update --init --recursive' to pull taosAdapter source code. Please install go language 1.14 or above for compiling taosAdapter. If you meet difficulties regarding 'go mod', especially you are from China, you can use a proxy to solve the problem.
+Note TDengine 2.3.x.0 and later use a component named 'taosAdapter' to play http daemon role by default instead of the http daemon embedded in the early version of TDengine. The taosAdapter is programmed by go language. If you pull TDengine source code to the latest from an existing codebase, please execute 'git submodule update --init --recursive' to pull taosAdapter source code. Please install go language version 1.14 or above for compiling taosAdapter. If you meet difficulties regarding 'go mod', especially you are from China, you can use a proxy to solve the problem.
 ```
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
