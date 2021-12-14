@@ -33,9 +33,10 @@ class TDTestCase:
         tdSql.execute("create database db_json")
         tdSql.execute("use db_json")    
         # test  tag format 
-        tdSql.execute("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(128))")
-        tdSql.error("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(64),jtag1 json(100))")
-        tdSql.error("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(64),dataBool bool)")
+        tdSql.execute("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json)")
+        tdSql.error("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(10000000))")
+        tdSql.error("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json,jtag1 json)")
+        tdSql.error("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json,dataBool bool)")
         
         tdSql.execute("CREATE TABLE if not exists  jsons1_1 using  jsons1 tags('{\"loc\":\"fff\",\"id\":5}')")
 
@@ -51,7 +52,7 @@ class TDTestCase:
         tdSql.error("CREATE TABLE if not exists  jsons1_1 using  jsons1 tags('[{\"num\":5}]')")
 
         # test object and key max length. max key length is 256, max object length is 4096 include abcd.
-        tdSql.execute("create table if not exists  jsons4(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(128))")
+        tdSql.execute("create table if not exists  jsons4(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json)")
 
         char1= ''.join(['abcd']*64)
         char2=''.join(char1)
@@ -69,7 +70,7 @@ class TDTestCase:
         tdSql.execute("insert into  jsons1_4 using  jsons1 tags('{\"class\":55,\"location\":\"beijing\",\"name\":\"name4\"}') values (now, 1, 'json4')")
 
         # test : json'vaule is null and 
-        tdSql.execute("create table if not exists  jsons2(ts timestamp, dataInt2 int, dataStr2 nchar(50)) tags(jtag2 json(300))")
+        tdSql.execute("create table if not exists  jsons2(ts timestamp, dataInt2 int, dataStr2 nchar(50)) tags(jtag2 json)")
         tdSql.execute("CREATE TABLE if not exists  jsons2_1 using  jsons2 tags('{}')")
         tdSql.query("select jtag2 from  jsons2_1")
         tdSql.checkData(0, 0, None)
@@ -329,7 +330,7 @@ class TDTestCase:
         tdSql.error("insert into  jsons1_13 using  jsons1 tags(3)")
 
         # test  query  normal column,tag and tbname 
-        tdSql.execute("create stable if not exists  jsons3(ts timestamp, dataInt3 int(100), dataBool3  bool, dataStr3 nchar(50)) tags(jtag3 json)")
+        tdSql.execute("create stable if not exists  jsons3(ts timestamp, dataInt3 int, dataBool3  bool, dataStr3 nchar(50)) tags(jtag3 json)")
         tdSql.execute("create table jsons3_2 using  jsons3 tags('{\"t\":true,\"t123\":123,\"\":\"true\"}')")
         
         tdSql.execute("create table jsons3_3 using  jsons3 tags('{\"t\":true,\"t123\":456,\"k1\":true,\"str1\":\"111\"}')")
