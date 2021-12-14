@@ -476,18 +476,16 @@ pipeline {
               '''
 
               sh '''
-              cd ${WKC}/tests/examples/nodejs
-              npm install td2.0-connector > /dev/null 2>&1
-              node nodejsChecker.js host=localhost
-              node test1970.js
-
-              cd ${WKC}/src/connector/nodejs
-              npm install
-              npm run test
-
-              cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
-              npm install td2.0-connector > /dev/null 2>&1
-              node nanosecondTest.js
+                cd ${WKC}/src/connector/nodejs
+                npm install
+                npm run test
+                cd ${WKC}/tests/examples/nodejs
+                npm install td2.0-connector > /dev/null 2>&1
+                node nodejsChecker.js host=localhost
+                node test1970.js
+                cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
+                npm install td2.0-connector > /dev/null 2>&1
+                node nanosecondTest.js
               '''
               catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
