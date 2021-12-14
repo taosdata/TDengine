@@ -255,9 +255,8 @@ static int32_t walCreateThread() {
 static void walStopThread() {
   atomic_store_8(&tsWal.stop, 1);
 
-  if (tsWal.thread != NULL && taosCheckPthreadValid(tsWal.thread)) {
+  if (taosCheckPthreadValid(tsWal.thread)) {
     pthread_join(tsWal.thread, NULL);
-    tsWal.thread = NULL;
   }
 
   wDebug("wal thread is stopped");

@@ -21,16 +21,25 @@ SWalReadHandle* walOpenReadHandle(SWal* pWal) {
   if(pRead == NULL) {
     return NULL;
   }
-  memset(pRead, 0, sizeof(SWalReadHandle));
   pRead->pWal = pWal;
   pRead->readIdxTfd = -1;
   pRead->readLogTfd = -1;
-  return NULL;
+  pRead->curVersion = -1;
+  pRead->curFileFirstVer = -1;
+  pRead->capacity = 0;
+  pRead->status = 0;
+  pRead->pHead = malloc(sizeof(SWalHead));
+  if(pRead->pHead == NULL) {
+    free(pRead);
+    return NULL;
+  }
+  return pRead;
 }
 
 void walCloseReadHandle(SWalReadHandle *pRead) {
   tfClose(pRead->readIdxTfd);
   tfClose(pRead->readLogTfd);
+  tfree(pRead->pHead);
   free(pRead);
 }
 
@@ -47,18 +56,17 @@ static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, i
   //seek position
   int64_t offset = (ver - fileFirstVer) * WAL_IDX_ENTRY_SIZE;
   code = tfLseek(idxTfd, offset, SEEK_SET);
-  if(code != 0) {
+  if(code < 0) {
     return -1;
   }
   WalIdxEntry entry;
-  code = tfRead(idxTfd, &entry, sizeof(WalIdxEntry));
-  if(code != 0) {
+  if(tfRead(idxTfd, &entry, sizeof(WalIdxEntry)) != sizeof(WalIdxEntry)) {
     return -1;
   }
   //TODO:deserialize
   ASSERT(entry.ver == ver);
   code = tfLseek(logTfd, entry.offset, SEEK_SET);
-  if (code != 0) {
+  if (code < 0) {
     return -1;
   }
   return code;
@@ -71,13 +79,13 @@ static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
   tfClose(pRead->readLogTfd);
 
   walBuildLogName(pRead->pWal, fileFirstVer, fnameStr);
-  int logTfd = tfOpenRead(fnameStr);
+  int64_t logTfd = tfOpenRead(fnameStr);
   if(logTfd < 0) {
     return -1;
   }
 
   walBuildIdxName(pRead->pWal, fileFirstVer, fnameStr);
-  int idxTfd = tfOpenRead(fnameStr);
+  int64_t idxTfd = tfOpenRead(fnameStr);
   if(idxTfd < 0) {
     return -1;
   }
@@ -90,7 +98,7 @@ static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
 static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
   int code;
   SWal *pWal = pRead->pWal;
-  if(ver == pWal->vers.lastVer) {
+  if(ver == pRead->curVersion) {
     return 0;
   }
   if(ver > pWal->vers.lastVer || ver < pWal->vers.firstVer) {
@@ -126,33 +134,41 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   int code;
   //TODO: check wal life
   if(pRead->curVersion != ver) {
-    walReadSeekVer(pRead, ver);   
+    code = walReadSeekVer(pRead, ver);   
+    if(code != 0) {
+      return -1;
+    }
   }
 
   if(!tfValid(pRead->readLogTfd)) return -1;
 
-  if(sizeof(SWalHead) != tfRead(pRead->readLogTfd, &pRead->head, sizeof(SWalHead))) {
+  code = tfRead(pRead->readLogTfd, pRead->pHead, sizeof(SWalHead));
+  if(code != sizeof(SWalHead)) {
     return -1;
   }
-  code = walValidHeadCksum(&pRead->head);
+  code = walValidHeadCksum(pRead->pHead);
   if(code != 0) {
     return -1;
   }
-  if(pRead->capacity < pRead->head.head.len) {
-    void* ptr = realloc(pRead, pRead->head.head.len);
+  if(pRead->capacity < pRead->pHead->head.len) {
+    void* ptr = realloc(pRead->pHead, sizeof(SWalHead) + pRead->pHead->head.len);
     if(ptr == NULL) {
       return -1;
     }
-    pRead = ptr;
-    pRead->capacity = pRead->head.head.len;
+    pRead->pHead = ptr;
+    pRead->capacity = pRead->pHead->head.len;
   }
-  if(pRead->head.head.len != tfRead(pRead->readLogTfd, &pRead->head.head.body, pRead->head.head.len)) {
+  if(pRead->pHead->head.len != tfRead(pRead->readLogTfd, pRead->pHead->head.body, pRead->pHead->head.len)) {
     return -1;
   }
-  code = walValidBodyCksum(&pRead->head);
+
+  /*code = walValidBodyCksum(pRead->pHead);*/
+  ASSERT(pRead->pHead->head.version == ver);
+
   if(code != 0) {
     return -1;
   }
+  pRead->curVersion++;
 
   return 0;
 }
