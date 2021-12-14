@@ -44,6 +44,7 @@ class TDSimClient:
             "jnidebugFlag": "135",
             "qdebugFlag": "135",
             "telemetryReporting": "0",
+            "enableCoreFile": "1",
         }
 
     def getLogDir(self):
@@ -151,7 +152,8 @@ class TDDnode:
             "udebugFlag":"135",
             "jnidebugFlag":"135",
             "qdebugFlag":"135",
-            "maxSQLLength":"1048576"
+            "maxSQLLength":"1048576",
+            "enableCoreFile": "1",
         }
 
     def init(self, path):
