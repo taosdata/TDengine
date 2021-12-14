@@ -58,10 +58,11 @@ typedef struct SRetrieveSupport {
   int32_t           subqueryIndex;     // index of current vnode in vnode list
   struct SSqlObj   *pParentSql;
   tFilePage *       localBuffer;       // temp buffer, there is a buffer for each vnode to
+  uint32_t          localBufferSize;
   uint32_t          numOfRetry;        // record the number of retry times
 } SRetrieveSupport;
 
-int32_t tscCreateGlobalMergerEnv(SQueryInfo* pQueryInfo, tExtMemBuffer ***pMemBuffer, int32_t numOfSub, tOrderDescriptor **pDesc, uint32_t nBufferSize, int64_t id);
+int32_t tscCreateGlobalMergerEnv(SQueryInfo* pQueryInfo, tExtMemBuffer ***pMemBuffer, int32_t numOfSub, tOrderDescriptor **pDesc, uint32_t* nBufferSize, int64_t id);
 
 void tscDestroyGlobalMergerEnv(tExtMemBuffer **pMemBuffer, tOrderDescriptor *pDesc, int32_t numOfVnodes);
 

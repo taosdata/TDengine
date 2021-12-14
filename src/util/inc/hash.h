@@ -36,7 +36,7 @@ typedef struct SHashNode {
   uint32_t          dataLen;     // length of data
   uint32_t          keyLen;      // length of the key
   int8_t            removed;     // flag to indicate removed
-  int8_t            count;       // reference count
+  int32_t           count;       // reference count
   char              data[];
 } SHashNode;
 
@@ -87,6 +87,8 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
  * @return
  */
 void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp);
+
+void taosHashSetFreeFp(SHashObj *pHashObj, _hash_free_fn_t fp);
 
 /**
  * return the size of hash table

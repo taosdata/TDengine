@@ -207,11 +207,6 @@ typedef struct {
 } SEpAddrMsg;
 
 typedef struct {
-  char*    fqdn;
-  uint16_t port;
-} SEpAddr1;
-
-typedef struct {
   int32_t numOfVnodes;
 } SMsgDesc;
 
@@ -235,6 +230,7 @@ typedef struct SSubmitBlk {
 // Submit message for this TSDB
 typedef struct SSubmitMsg {
   SMsgHead   header;
+  int8_t     extend;
   int32_t    length;
   int32_t    numOfBlocks;
   char       blocks[];
@@ -248,6 +244,7 @@ typedef struct {
 } SShellSubmitRspBlock;
 
 typedef struct {
+  int8_t               extend;
   int32_t              code;          // 0-success, > 0 error code
   int32_t              numOfRows;     // number of records the client is trying to write
   int32_t              affectedRows;  // number of records actually written
@@ -283,6 +280,7 @@ typedef struct {
 } SMDCreateTableMsg;
 
 typedef struct {
+  int8_t  extend;
   int32_t len;  // one create table message
   char    tableName[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
@@ -295,11 +293,13 @@ typedef struct {
 } SCreateTableMsg;
 
 typedef struct {
+  int8_t  extend;
   int32_t numOfTables;
   int32_t contLen;
 } SCMCreateTableMsg;
 
 typedef struct {
+  int8_t extend;
   char   name[TSDB_TABLE_FNAME_LEN];
   // if user specify DROP STABLE, this flag will be set. And an error will be returned if it is not a super table
   int8_t supertable;
@@ -307,6 +307,7 @@ typedef struct {
 } SCMDropTableMsg;
 
 typedef struct {
+  int8_t  extend;
   char    tableFname[TSDB_TABLE_FNAME_LEN];
   char    db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int16_t type; /* operation type   */
@@ -319,6 +320,7 @@ typedef struct {
 
 typedef struct {
   SMsgHead  head;
+  int8_t    extend;
   int64_t   uid;
   int32_t   tid;
   int16_t   tversion;
@@ -332,6 +334,7 @@ typedef struct {
 } SUpdateTableTagValMsg;
 
 typedef struct {
+  int8_t  extend;
   char    clientVersion[TSDB_VERSION_LEN];
   char    msgVersion[TSDB_VERSION_LEN];
   char    db[TSDB_TABLE_FNAME_LEN];
@@ -340,6 +343,7 @@ typedef struct {
 } SConnectMsg;
 
 typedef struct {
+  int8_t    extend;
   char      acctId[TSDB_ACCT_ID_LEN];
   char      serverVersion[TSDB_VERSION_LEN];
   char      clusterId[TSDB_CLUSTER_ID_LEN];
@@ -366,16 +370,19 @@ typedef struct {
 } SAcctCfg;
 
 typedef struct {
+  int8_t   extend;
   char     user[TSDB_USER_LEN];
   char     pass[TSDB_KEY_LEN];
   SAcctCfg cfg;
 } SCreateAcctMsg, SAlterAcctMsg;
 
 typedef struct {
-  char user[TSDB_USER_LEN];
+  int8_t     extend;
+  char       user[TSDB_USER_LEN];
 } SDropUserMsg, SDropAcctMsg;
 
 typedef struct {
+  int8_t extend;
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_KEY_LEN];
   int8_t privilege;
@@ -405,7 +412,7 @@ typedef struct SColIndex {
   int16_t  colId;      // column id
   int16_t  colIndex;   // column index in colList if it is a normal column or index in tagColList if a tag
   uint16_t flag;       // denote if it is a tag or a normal column
-  char     name[TSDB_COL_NAME_LEN + TSDB_DB_NAME_LEN + 1];
+  char     name[TSDB_COL_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_MAX_JSON_KEY_LEN + 4 + 1];  // 4 meams ->'' for json tag
 } SColIndex;
 
 typedef struct SColumnFilterInfo {
@@ -443,7 +450,7 @@ typedef struct SColumnFilterList {
 typedef struct SColumnInfo {
   int16_t            colId;
   int16_t            type;
-  int16_t            bytes;
+  int32_t            bytes;
   SColumnFilterList  flist;
 } SColumnInfo;
 
@@ -467,6 +474,7 @@ typedef struct {
 
 typedef struct {
   SMsgHead    head;
+  int8_t      extend;
   char        version[TSDB_VERSION_LEN];
 
   bool        stableQuery;      // super table query or not
@@ -480,18 +488,20 @@ typedef struct {
   bool        tsCompQuery;      // is tscomp query
   bool        simpleAgg;
   bool        pointInterpQuery; // point interpolation query
+  bool        needTableSeqScan; // need scan table by table
   bool        needReverseScan;  // need reverse scan
   bool        stateWindow;       // state window flag 
 
   STimeWindow window;
+  STimeWindow range;            // result range for interp query
   int32_t     numOfTables;
   int16_t     order;
   int16_t     orderColId;
   int16_t     numOfCols;        // the number of columns will be load from vnode
   SInterval   interval;
   SSessionWindow sw;            // session window
-  uint16_t    tagCondLen;       // tag length in current query
-  uint16_t    colCondLen;       // column length in current query
+  uint32_t    tagCondLen;       // tag length in current query
+  int32_t    colCondLen;       // column length in current query
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
@@ -517,6 +527,7 @@ typedef struct {
 } SQueryTableMsg;
 
 typedef struct {
+  int8_t   extend;
   int32_t  code;
   union{uint64_t qhandle; uint64_t qId;}; // query handle
 } SQueryTableRsp;
@@ -524,11 +535,13 @@ typedef struct {
 // todo: the show handle should be replaced with id
 typedef struct {
   SMsgHead header;
+  int8_t     extend;
   union{uint64_t qhandle; uint64_t qId;}; // query handle
   uint16_t free;
 } SRetrieveTableMsg;
 
 typedef struct SRetrieveTableRsp {
+  int8_t  extend;
   int32_t numOfRows;
   int8_t  completed;  // all results are returned to client
   int16_t precision;
@@ -554,6 +567,7 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
+  int8_t   extend;
   char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int32_t  cacheBlockSize; //MB
   int32_t  totalBlocks;
@@ -580,6 +594,7 @@ typedef struct {
 } SCreateDbMsg, SAlterDbMsg;
 
 typedef struct {
+  int8_t   extend;
   char     name[TSDB_FUNC_NAME_LEN];
   char     path[PATH_MAX];
   int32_t  funcType;
@@ -591,11 +606,13 @@ typedef struct {
 } SCreateFuncMsg;
 
 typedef struct {
+  int8_t  extend;
   int32_t num;
   char    name[];
 } SRetrieveFuncMsg;
 
 typedef struct {
+  int8_t  extend;
   char    name[TSDB_FUNC_NAME_LEN];
   int32_t funcType;
   int8_t  resType;
@@ -606,15 +623,18 @@ typedef struct {
 } SFunctionInfoMsg;
 
 typedef struct {
+  int8_t  extend;
   int32_t num;
   char    content[];
 } SUdfFuncMsg;
 
 typedef struct {
+  int8_t   extend;
   char     name[TSDB_FUNC_NAME_LEN];
 } SDropFuncMsg;
 
 typedef struct {
+  int8_t  extend;
   char    db[TSDB_TABLE_FNAME_LEN];
   uint8_t ignoreNotExists;
 } SDropDbMsg, SUseDbMsg, SSyncDbMsg;
@@ -747,12 +767,14 @@ typedef struct {
 } SCreateVnodeMsg, SAlterVnodeMsg;
 
 typedef struct {
+  int8_t  extend;
   char    tableFname[TSDB_TABLE_FNAME_LEN];
   int16_t createFlag;
   char    tags[];
 } STableInfoMsg;
 
 typedef struct {
+  int8_t  extend;
   uint8_t metaClone;     // create local clone of the cached table meta
   int32_t numOfVgroups;
   int32_t numOfTables;
@@ -761,21 +783,25 @@ typedef struct {
 } SMultiTableInfoMsg;
 
 typedef struct SSTableVgroupMsg {
+  int8_t  extend;
   int32_t numOfTables;
 } SSTableVgroupMsg, SSTableVgroupRspMsg;
 
 typedef struct {
+  int8_t     extend;
   int32_t    vgId;
   int8_t     numOfEps;
   SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
-} SVgroupMsg;
+} SVgroupMsg, SVgroupInfo;
 
 typedef struct {
+  int8_t     extend;
   int32_t numOfVgroups;
   SVgroupMsg vgroups[];
 } SVgroupsMsg, SVgroupsInfo;
 
 typedef struct STableMetaMsg {
+  int8_t        extend;
   int32_t       contLen;
   char          tableFname[TSDB_TABLE_FNAME_LEN];   // table id
   uint8_t       numOfTags;
@@ -795,6 +821,7 @@ typedef struct STableMetaMsg {
 } STableMetaMsg;
 
 typedef struct SMultiTableMeta {
+  int8_t        extend;
   int32_t       numOfTables;
   int32_t       numOfVgroup;
   int32_t       numOfUdf;
@@ -817,6 +844,7 @@ typedef struct {
  * payloadLen is the length of payload
  */
 typedef struct {
+  int8_t   extend;
   int8_t   type;
   char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   uint16_t payloadLen;
@@ -824,17 +852,20 @@ typedef struct {
 } SShowMsg;
 
 typedef struct {
+  int8_t     extend;
   char db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int32_t numOfVgroup;
   int32_t vgid[];
 } SCompactMsg;
 
 typedef struct SShowRsp {
+  int8_t        extend;
   uint64_t      qhandle;
   STableMetaMsg tableMeta;
 } SShowRsp;
 
 typedef struct {
+  int8_t     extend;
   char ep[TSDB_EP_LEN];  // end point, hostname:port
 } SCreateDnodeMsg, SDropDnodeMsg;
 
@@ -856,6 +887,7 @@ typedef struct {
 } SConfigVnodeMsg;
 
 typedef struct {
+  int8_t extend;
   char ep[TSDB_EP_LEN];  // end point, hostname:port
   char config[64];
 } SCfgDnodeMsg;
@@ -887,6 +919,7 @@ typedef struct {
 } SStreamDesc;
 
 typedef struct {
+  int8_t   extend;
   char     clientVer[TSDB_VERSION_LEN];
   uint32_t connId;
   int32_t  pid;
@@ -897,6 +930,7 @@ typedef struct {
 } SHeartBeatMsg;
 
 typedef struct {
+  int8_t    extend;
   uint32_t  queryId;
   uint32_t  streamId;
   uint32_t  totalDnodes;
@@ -907,10 +941,12 @@ typedef struct {
 } SHeartBeatRsp;
 
 typedef struct {
+  int8_t     extend;
   char queryId[TSDB_KILL_MSG_LEN + 1];
 } SKillQueryMsg, SKillStreamMsg, SKillConnMsg;
 
 typedef struct {
+  int8_t   extend;
   int32_t  vnode;
   int32_t  sid;
   uint64_t uid;
@@ -934,6 +970,16 @@ typedef struct {
   char    desc[TSDB_STEP_DESC_LEN];
   char    reserved2[64];
 } SStartupStep;
+
+typedef struct {
+  int16_t type;
+  int32_t len;
+  char    value[];
+} STLV;
+
+enum {
+  TLV_TYPE_DUMMY = 1,
+};
 
 #pragma pack(pop)
 

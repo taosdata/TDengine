@@ -42,7 +42,7 @@ int32_t tscHandleInsertRetry(SSqlObj* parent, SSqlObj* child);
 void tscBuildResFromSubqueries(SSqlObj *pSql);
 TAOS_ROW doSetResultRowData(SSqlObj *pSql);
 
-char *getArithmeticInputSrc(void *param, const char *name, int32_t colId);
+char *getScalarExprInputSrc(void *param, const char *name, int32_t colId);
 
 void tscLockByThread(int64_t *lockedBy);
 
@@ -52,7 +52,7 @@ int tsInsertInitialCheck(SSqlObj *pSql);
 
 void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs);
 
-void tscFreeRetrieveSup(SSqlObj *pSql);
+void tscFreeRetrieveSup(void **param);
 
 
 

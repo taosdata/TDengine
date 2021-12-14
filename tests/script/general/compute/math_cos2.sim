@@ -1,0 +1,366 @@
+sleep 100
+sql connect
+sql use db
+
+print execute sql select cos(stb1.c4),cos(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+sql select cos(stb1.c4),cos(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+if $data00 != @0.540302306@ then
+  return -1 
+endi
+if $data01 != @0.540302306@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @-0.416146837@ then
+  return -1 
+endi
+if $data20 != @-0.416146837@ then
+  return -1 
+endi
+if $data21 != @-0.989992497@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data31 != @-0.653643621@ then
+  return -1 
+endi
+if $data40 != @-0.653643621@ then
+  return -1 
+endi
+if $data41 != @0.283662185@ then
+  return -1 
+endi
+if $data50 != @-0.688836692@ then
+  return -1 
+endi
+if $data51 != @0.960170287@ then
+  return -1 
+endi
+if $data60 != @-0.688836692@ then
+  return -1 
+endi
+if $data61 != @0.753902254@ then
+  return -1 
+endi
+print execute sql select cos(c4) as a from stb1 union all select cos(c5) as a from stba;
+sql select cos(c4) as a from stb1 union all select cos(c5) as a from stba;
+if $data00 != @0.540302306@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @-0.416146837@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @-0.653643621@ then
+  return -1 
+endi
+if $data50 != @-0.688836692@ then
+  return -1 
+endi
+if $data60 != @-0.688836692@ then
+  return -1 
+endi
+if $data70 != @0.540302306@ then
+  return -1 
+endi
+if $data80 != @-0.416146837@ then
+  return -1 
+endi
+if $data90 != @-0.416146837@ then
+  return -1 
+endi
+print execute sql select cos(c2) from stba;
+sql select cos(c2) from stba;
+if $data00 != @0.540302306@ then
+  return -1 
+endi
+if $data10 != @-0.416146837@ then
+  return -1 
+endi
+if $data20 != @-0.989992497@ then
+  return -1 
+endi
+if $data30 != @-0.653643621@ then
+  return -1 
+endi
+if $data40 != @0.283662185@ then
+  return -1 
+endi
+if $data50 != @0.960170287@ then
+  return -1 
+endi
+if $data60 != @0.753902254@ then
+  return -1 
+endi
+if $data70 != @-0.145500034@ then
+  return -1 
+endi
+if $data80 != @-0.911130262@ then
+  return -1 
+endi
+if $data90 != @1.000000000@ then
+  return -1 
+endi
+print execute sql select cos(min(c2)) from tba1;
+sql select cos(min(c2)) from tba1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+print execute sql select cos(max(c2)) from tba1;
+sql select cos(max(c2)) from tba1;
+if $data00 != @-0.911130262@ then
+  return -1 
+endi
+print execute sql select cos(count(c2)) from tba1;
+sql select cos(count(c2)) from tba1;
+if $data00 != @0.154251450@ then
+  return -1 
+endi
+print execute sql select cos(sum(c2)) from tba1;
+sql select cos(sum(c2)) from tba1;
+if $data00 != @-0.996087835@ then
+  return -1 
+endi
+print execute sql select cos(avg(c2)) from tba1;
+sql select cos(avg(c2)) from tba1;
+if $data00 != @-0.210795799@ then
+  return -1 
+endi
+print execute sql select cos(percentile(c2, 10)) from tba1;
+sql select cos(percentile(c2, 10)) from tba1;
+if $data00 != @0.621609968@ then
+  return -1 
+endi
+print execute sql select cos(apercentile(c2, 10)) from tba1;
+sql select cos(apercentile(c2, 10)) from tba1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+print execute sql select cos(stddev(c2)) from tba1;
+sql select cos(stddev(c2)) from tba1;
+if $data00 != @-0.963954358@ then
+  return -1 
+endi
+print execute sql select cos(spread(c2)) from tba1;
+sql select cos(spread(c2)) from tba1;
+if $data00 != @-0.911130262@ then
+  return -1 
+endi
+print execute sql select cos(twa(c2)) from tba1;
+sql select cos(twa(c2)) from tba1;
+if $data00 != @-0.074389166@ then
+  return -1 
+endi
+print execute sql select cos(leastsquares(c2, 1, 1)) from tba1;
+sql_error select cos(leastsquares(c2, 1, 1)) from tba1;
+print execute sql select cos(interp(c2)) from tba1 every(1s)
+sql select cos(interp(c2)) from tba1 every(1s)
+if $data00 != @21-11-11 09:00:00.000@ then
+  return -1 
+endi
+if $data01 != @0.540302306@ then
+  return -1 
+endi
+if $data10 != @21-11-11 09:00:01.000@ then
+  return -1 
+endi
+if $data11 != @-0.416146837@ then
+  return -1 
+endi
+if $data20 != @21-11-11 09:00:02.000@ then
+  return -1 
+endi
+if $data21 != @-0.989992497@ then
+  return -1 
+endi
+if $data30 != @21-11-11 09:00:03.000@ then
+  return -1 
+endi
+if $data31 != @-0.653643621@ then
+  return -1 
+endi
+if $data40 != @21-11-11 09:00:04.000@ then
+  return -1 
+endi
+if $data41 != @0.283662185@ then
+  return -1 
+endi
+if $data50 != @21-11-11 09:00:05.000@ then
+  return -1 
+endi
+if $data51 != @0.960170287@ then
+  return -1 
+endi
+if $data60 != @21-11-11 09:00:06.000@ then
+  return -1 
+endi
+if $data61 != @0.753902254@ then
+  return -1 
+endi
+if $data70 != @21-11-11 09:00:07.000@ then
+  return -1 
+endi
+if $data71 != @-0.145500034@ then
+  return -1 
+endi
+if $data80 != @21-11-11 09:00:08.000@ then
+  return -1 
+endi
+if $data81 != @-0.911130262@ then
+  return -1 
+endi
+if $data90 != @21-11-11 09:00:09.000@ then
+  return -1 
+endi
+if $data91 != @1.000000000@ then
+  return -1 
+endi
+print execute sql select cos(interp(c2)) from stba every(1s) group by tbname;
+sql select cos(interp(c2)) from stba every(1s) group by tbname;
+if $data00 != @21-11-11 09:00:00.000@ then
+  return -1 
+endi
+if $data01 != @0.540302306@ then
+  return -1 
+endi
+if $data02 != @tba1@ then
+  return -1 
+endi
+if $data10 != @21-11-11 09:00:01.000@ then
+  return -1 
+endi
+if $data11 != @-0.416146837@ then
+  return -1 
+endi
+if $data12 != @tba1@ then
+  return -1 
+endi
+if $data20 != @21-11-11 09:00:02.000@ then
+  return -1 
+endi
+if $data21 != @-0.989992497@ then
+  return -1 
+endi
+if $data22 != @tba1@ then
+  return -1 
+endi
+if $data30 != @21-11-11 09:00:03.000@ then
+  return -1 
+endi
+if $data31 != @-0.653643621@ then
+  return -1 
+endi
+if $data32 != @tba1@ then
+  return -1 
+endi
+if $data40 != @21-11-11 09:00:04.000@ then
+  return -1 
+endi
+if $data41 != @0.283662185@ then
+  return -1 
+endi
+if $data42 != @tba1@ then
+  return -1 
+endi
+if $data50 != @21-11-11 09:00:05.000@ then
+  return -1 
+endi
+if $data51 != @0.960170287@ then
+  return -1 
+endi
+if $data52 != @tba1@ then
+  return -1 
+endi
+if $data60 != @21-11-11 09:00:06.000@ then
+  return -1 
+endi
+if $data61 != @0.753902254@ then
+  return -1 
+endi
+if $data62 != @tba1@ then
+  return -1 
+endi
+if $data70 != @21-11-11 09:00:07.000@ then
+  return -1 
+endi
+if $data71 != @-0.145500034@ then
+  return -1 
+endi
+if $data72 != @tba1@ then
+  return -1 
+endi
+if $data80 != @21-11-11 09:00:08.000@ then
+  return -1 
+endi
+if $data81 != @-0.911130262@ then
+  return -1 
+endi
+if $data82 != @tba1@ then
+  return -1 
+endi
+if $data90 != @21-11-11 09:00:09.000@ then
+  return -1 
+endi
+if $data91 != @1.000000000@ then
+  return -1 
+endi
+if $data92 != @tba1@ then
+  return -1 
+endi
+print execute sql select cos(elapsed(ts)) from tba1;
+sql select cos(elapsed(ts)) from tba1;
+if $data00 != @-0.999127122@ then
+  return -1 
+endi
+print execute sql select cos(rate(c2)) from tba1;
+sql select cos(rate(c2)) from tba1;
+if $data00 != @0.624307395@ then
+  return -1 
+endi
+print execute sql select cos(irate(c2)) from tba1;
+sql select cos(irate(c2)) from tba1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+print execute sql select cos(first(c2)) from tba1;
+sql select cos(first(c2)) from tba1;
+if $data00 != @0.540302306@ then
+  return -1 
+endi
+print execute sql select cos(last(c2)) from tba1;
+sql select cos(last(c2)) from tba1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+print execute sql select cos(last_row(c2)) from tba1;
+sql select cos(last_row(c2)) from tba1;
+if $data00 != @1.000000000@ then
+  return -1 
+endi
+print execute sql select cos(top(c2, 1)) from tba1;
+sql_error select cos(top(c2, 1)) from tba1;
+print execute sql select cos(bottom(c2, 1)) from tba1;
+sql_error select cos(bottom(c2, 1)) from tba1;
+print execute sql select cos(leastsquares(c2, 1, 1)) from tba1;
+sql_error select cos(leastsquares(c2, 1, 1)) from tba1;
+print execute sql select cos(derivative(c2, 1s, 0)) from tba1;
+sql_error select cos(derivative(c2, 1s, 0)) from tba1;
+print execute sql select cos(diff(c2)) from tba1;
+sql_error select cos(diff(c2)) from tba1;
+print execute sql select cos(csum(c2)) from tba1;
+sql_error select cos(csum(c2)) from tba1;
+print execute sql select cos(mavg(c2,2)) from tba1;
+sql_error select cos(mavg(c2,2)) from tba1;
+print execute sql select cos(sample(c2,2)) from tba1;
+sql_error select cos(sample(c2,2)) from tba1;
+print execute sql select cos(_block_dist()) from tba1;
+sql_error select cos(_block_dist()) from tba1;

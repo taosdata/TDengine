@@ -77,6 +77,11 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [Node.js Connector](/connector#nodejs): driver for connecting to TDengine server from Node.js applications
 - [C# Connector](/connector#csharp): driver for connecting to TDengine server from C# applications
 - [Windows Client](https://www.taosdata.com/blog/2019/07/26/514.html): compile your own Windows client, which is required by various connectors on the Windows environment
+- [Rust Connector](/connector/rust): A taosc/RESTful API based TDengine client for Rust
+
+## [Components and Tools](/tools/adapter)
+
+* [taosAdapter](/tools/adapter)
 
 ## [Connections with Other Tools](/connections)
 
@@ -105,9 +110,10 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [User Management](/administrator#user): add/delete TDengine users, modify user password
 - [Import Data](/administrator#import): import data into TDengine from either script or CSV file
 - [Export Data](/administrator#export): export data either from TDengine shell or from the taosdump tool
-- [System Monitor](/administrator#status): monitor the system connections, queries, streaming calculation, logs, and events
+- [System Connection and Task Query Management](/administrator#status): show the system connections, queries, streaming calculation and others
+- [System Monitor](/administrator#monitoring): monitor TDengine cluster with log database and TDinsight.
 - [File Directory Structure](/administrator#directories): directories where TDengine data files and configuration files located
-- [Parameter Limitss and Reserved Keywords](/administrator#keywords): TDengine’s list of parameter limits and reserved keywords
+- [Parameter Limits and Reserved Keywords](/administrator#keywords): TDengine’s list of parameter limits and reserved keywords
 
 ## Performance: TDengine vs Others
 

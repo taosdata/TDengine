@@ -1,4 +1,4 @@
-#!/bin/bash 
+#!/bin/bash
 #
 # Modified from original source: Elastic Search
 # https://github.com/elasticsearch/elasticsearch
@@ -7,23 +7,28 @@
 # chkconfig: 2345 99 01
 #
 ### BEGIN INIT INFO
-# Provides:          TDEngine
+# Provides:          TDengine
 # Required-Start:    $local_fs $network $syslog
 # Required-Stop:     $local_fs $network $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Starts TDEngine taosd
-# Description:       Starts TDEngine taosd, a time-series database engine
+# Short-Description: Starts TDengine taosd
+# Description:       Starts TDengine taosd, a time-series database engine
 ### END INIT INFO
 
 set -e
 
 PATH="/bin:/usr/bin:/sbin:/usr/sbin"
-NAME="TDEngine"
+NAME="TDengine"
 USER="root"
 GROUP="root"
 DAEMON="/usr/local/taos/bin/taosd"
 DAEMON_OPTS=""
+
+HTTPD_NAME="taosadapter"
+DAEMON_HTTPD_NAME=$HTTPD_NAME
+DAEMON_HTTPD="/usr/local/taos/bin/$HTTPD_NAME"
+
 PID_FILE="/var/run/$NAME.pid"
 APPARGS=""
 
@@ -35,7 +40,8 @@ MAX_OPEN_FILES=65535
 case "$1" in
     start)
 
-        log_action_begin_msg "Starting TDEngine..."
+        log_action_begin_msg "Starting TDengine..."
+        $DAEMON_HTTPD &
         if start-stop-daemon --test --start --chuid "$USER:$GROUP" --background --make-pidfile --pidfile "$PID_FILE" --exec "$DAEMON" -- $APPARGS &> /dev/null; then
 
             touch "$PID_FILE" && chown "$USER":"$GROUP" "$PID_FILE"
@@ -51,7 +57,8 @@ case "$1" in
         ;;
 
     stop)
-        log_action_begin_msg "Stopping TDEngine..."
+        log_action_begin_msg "Stopping TDengine..."
+        pkill -9 $DAEMON_HTTPD_NAME
         set +e
         if [ -f "$PID_FILE" ]; then
             start-stop-daemon --stop --pidfile "$PID_FILE" --user "$USER" --retry=TERM/120/KILL/5 > /dev/null
@@ -59,12 +66,12 @@ case "$1" in
                 log_action_cont_msg "TSD is not running but pid file exists, cleaning up"
             elif [ $? -eq 3 ]; then
                 PID="`cat $PID_FILE`"
-                log_failure_msg "Failed to stop TDEngine (pid $PID)"
+                log_failure_msg "Failed to stop TDengine (pid $PID)"
                 exit 1
             fi
             rm -f "$PID_FILE"
         else
-            log_action_cont_msg "TDEngine was not running"
+            log_action_cont_msg "TDengine was not running"
         fi
         log_action_end_msg 0
         set -e

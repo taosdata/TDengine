@@ -44,6 +44,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   pSql->maxRetry  = TSDB_MAX_REPLICA;
   pSql->fp        = fp;
   pSql->fetchFp   = fp;
+  pSql->rootObj   = pSql;
 
   registerSqlObj(pSql);
 
@@ -176,6 +177,9 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
     } else {
       pRes->code = numOfRows;
     }
+    if (pRes->code == TSDB_CODE_SUCCESS) {
+      pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;           
+    }
 
     tscAsyncResultOnError(pSql);
     return;
@@ -233,7 +237,7 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
     return;
   }
 
-  if (pRes->qId == 0) {
+  if (pRes->qId == 0 && pSql->cmd.command != TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
     tscError("qhandle is invalid");
     pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
     tscAsyncResultOnError(pSql);

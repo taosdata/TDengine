@@ -35,11 +35,11 @@ extern "C" {
 #define UTIL_TABLE_IS_CHILD_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_CHILD_TABLE))
 
-#define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo) \
-  (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo)))
-
 #define UTIL_TABLE_IS_TMP_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_TEMP_TABLE))
+
+#define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo) \
+  (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo) || UTIL_TABLE_IS_TMP_TABLE(metaInfo)))
 
 #define UTIL_GET_VGROUPMAP(pSql) \
   (pSql->pTscObj->pClusterInfo->vgroupMap)
@@ -64,7 +64,7 @@ typedef struct STidTags {
 #pragma pack(pop)
 
 typedef struct SJoinSupporter {
-  SSqlObj*        pObj;           // parent SqlObj
+  int64_t         pObj;           // parent SqlObj
   int32_t         subqueryIndex;  // index of sub query
   SInterval       interval;
   SLimitVal       limit;          // limit info
@@ -83,6 +83,11 @@ typedef struct SJoinSupporter {
   int32_t         totalLen;
   int32_t         num;
   SArray*         pVgroupTables;
+
+  int16_t          fillType;      // final result fill type
+  int64_t *        fillVal;       // default value for fill
+  int32_t          numOfFillVal;  // fill value size
+  
 } SJoinSupporter;
 
 
@@ -119,7 +124,8 @@ typedef struct SBlockKeyInfo {
 int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *len);
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
-void tscDestroyDataBlock(SSqlObj *pSql, STableDataBlocks* pDataBlock, bool removeMeta);
+int32_t tscCreateDataBlockData(STableDataBlocks* dataBuf, size_t defaultSize, int32_t rowSize, int32_t startOffset);
+void    tscDestroyDataBlock(SSqlObj *pSql, STableDataBlocks* pDataBlock, bool removeMeta);
 void    tscSortRemoveDataBlockDupRowsRaw(STableDataBlocks* dataBuf);
 int     tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* pBlkKeyInfo);
 int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows);
@@ -147,6 +153,7 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
  * @return
  */
 bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
+bool tscGetPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
 bool tscIsIrateQuery(SQueryInfo* pQueryInfo);
 bool tscQueryContainsFunction(SQueryInfo* pQueryInfo, int16_t functionId);
@@ -155,6 +162,7 @@ bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo);
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo);
 bool tscGroupbyColumn(SQueryInfo* pQueryInfo);
+bool tscGroupbyTag(SQueryInfo* pQueryInfo);
 int32_t tscGetTopBotQueryExprIndex(SQueryInfo* pQueryInfo);
 bool tscIsTopBotQuery(SQueryInfo* pQueryInfo);
 bool hasTagValOutput(SQueryInfo* pQueryInfo);
@@ -248,14 +256,15 @@ void tscColumnListDestroy(SArray* pColList);
 void tscColumnListCopy(SArray* dst, const SArray* src, uint64_t tableUid);
 void tscColumnListCopyAll(SArray* dst, const SArray* src);
 
-void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo, uint64_t objId, bool convertNchar);
+void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo, uint64_t objId, bool convertNchar, bool convertJson);
 
 void tscDequoteAndTrimToken(SStrToken* pToken);
+void tscRmEscapeAndTrimToken(SStrToken* pToken);
 int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded);
 
 void tscIncStreamExecutionCount(void* pStream);
 
-bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId, int32_t numOfParams);
+bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId);
 
 // get starter position of metric query condition (query on tags) in SSqlCmd.payload
 SCond* tsGetSTableQueryCond(STagCond* pCond, uint64_t uid);
@@ -355,7 +364,7 @@ bool subAndCheckDone(SSqlObj *pSql, SSqlObj *pParentSql, int idx);
 
 bool tscSetSqlOwner(SSqlObj* pSql);
 void tscClearSqlOwner(SSqlObj* pSql);
-int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize);
+int32_t doScalarExprCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize);
 
 char*   serializeTagData(STagData* pTagData, char* pMsg);
 int32_t copyTagData(STagData* dst, const STagData* src);
@@ -385,6 +394,11 @@ void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id);
 
 char* cloneCurrentDBName(SSqlObj* pSql);
 
+int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, int16_t startColId);
+int8_t jsonType2DbType(double data, int jsonType);
+void getJsonKey(SStrToken *t0);
+
+char* cloneCurrentDBName(SSqlObj* pSql);
 
 #ifdef __cplusplus
 }

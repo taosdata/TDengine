@@ -18,6 +18,14 @@
 
 #define TSDB_MAX_TABLE_SCHEMAS 16
 
+#pragma  pack (push,1)
+typedef struct jsonMapValue{
+  void* table;      // STable *
+  int16_t  colId;   // the json col ID.
+}JsonMapValue;
+
+#pragma  pack (pop)
+
 typedef struct STable {
   STableId       tableId;
   ETableType     type;
@@ -28,6 +36,7 @@ typedef struct STable {
   STSchema*      tagSchema;
   SKVRow         tagVal;
   SSkipList*     pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
+  SHashObj*      jsonKeyMap;     // For json tag key  {"key":[t1, t2, t3]}
   void*          eventHandler;   // TODO
   void*          streamHandler;  // TODO
   TSKEY          lastKey;
@@ -41,6 +50,7 @@ typedef struct STable {
   int16_t        restoreColumnNum;
   bool           hasRestoreLastColumn;
   int            lastColSVersion;
+  int16_t        cacheLastConfigVersion;
   T_REF_DECLARE()
 } STable;
 
@@ -74,7 +84,7 @@ void       tsdbFreeMeta(STsdbMeta* pMeta);
 int        tsdbOpenMeta(STsdbRepo* pRepo);
 int        tsdbCloseMeta(STsdbRepo* pRepo);
 STable*    tsdbGetTableByUid(STsdbMeta* pMeta, uint64_t uid);
-STSchema*  tsdbGetTableSchemaByVersion(STable* pTable, int16_t _version);
+STSchema*  tsdbGetTableSchemaByVersion(STable* pTable, int16_t _version, int8_t rowType);
 int        tsdbWLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbRLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbUnlockRepoMeta(STsdbRepo* pRepo);
@@ -88,6 +98,8 @@ int16_t    tsdbGetLastColumnsIndexByColId(STable* pTable, int16_t colId);
 int        tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema);
 STSchema*  tsdbGetTableLatestSchema(STable *pTable);
 void       tsdbFreeLastColumns(STable* pTable);
+int        tsdbCompareJsonMapValue(const void* a, const void* b);
+void*      tsdbGetJsonTagValue(STable* pTable, char* key, int32_t keyLen, int16_t* colId);
 
 static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *key2) {
   if (*(int16_t *)key1 < schemaVersion(*(STSchema **)key2)) {
@@ -99,7 +111,7 @@ static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *k
   }
 }
 
-static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t _version) {
+static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t _version, int8_t rowType) {
   STable*   pDTable = (pTable->pSuper != NULL) ? pTable->pSuper : pTable;  // for performance purpose
   STSchema* pSchema = NULL;
   STSchema* pTSchema = NULL;
@@ -110,8 +122,12 @@ static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, 
   } else {  // get the schema with version
     void* ptr = taosArraySearch(pDTable->schema, &_version, tsdbCompareSchemaVersion, TD_EQ);
     if (ptr == NULL) {
-      terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
-      goto _exit;
+      if (rowType == SMEM_ROW_KV) {
+        ptr = taosArrayGetLast(pDTable->schema);
+      } else {
+        terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
+        goto _exit;
+      }
     }
     pTSchema = *(STSchema**)ptr;
   }
@@ -130,7 +146,7 @@ _exit:
 }
 
 static FORCE_INLINE STSchema* tsdbGetTableSchema(STable* pTable) {
-  return tsdbGetTableSchemaImpl(pTable, false, false, -1);
+  return tsdbGetTableSchemaImpl(pTable, false, false, -1, -1);
 }
 
 static FORCE_INLINE STSchema *tsdbGetTableTagSchema(STable *pTable) {

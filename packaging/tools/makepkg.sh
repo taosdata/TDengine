@@ -31,18 +31,42 @@ else
     install_dir="${release_dir}/TDengine-server-${version}"
 fi
 
+if [ -d ${top_dir}/src/kit/taos-tools/packaging/deb ]; then
+    cd ${top_dir}/src/kit/taos-tools/packaging/deb
+    [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
+
+    taostools_ver=$(git describe --tags|sed -e 's/ver-//g'|awk -F '-' '{print $1}')
+    taostools_install_dir="${release_dir}/taos-tools-${taostools_ver}"
+
+    cd ${curr_dir}
+else
+    taostools_install_dir="${release_dir}/taos-tools-${version}"
+fi
+
 # Directories and files
 if [ "$pagMode" == "lite" ]; then
   strip ${build_dir}/bin/taosd
   strip ${build_dir}/bin/taos
+  # lite version doesn't include taosadapter,  which will lead to no restful interface
   bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${script_dir}/remove.sh ${script_dir}/startPre.sh"
+  taostools_bin_files=""
 else
-  bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${build_dir}/bin/taosdump ${build_dir}/bin/taosdemo ${build_dir}/bin/tarbitrator\
-             ${script_dir}/remove.sh ${script_dir}/set_core.sh ${script_dir}/startPre.sh  ${script_dir}/taosd-dump-cfg.gdb"
+  bin_files="${build_dir}/bin/taosd \
+      ${build_dir}/bin/taos \
+      ${build_dir}/bin/taosadapter \
+      ${build_dir}/bin/tarbitrator\
+      ${script_dir}/remove.sh \
+      ${script_dir}/set_core.sh \
+      ${script_dir}/run_taosd.sh \
+      ${script_dir}/startPre.sh \
+      ${script_dir}/taosd-dump-cfg.gdb"
+
+  taostools_bin_files=" ${build_dir}/bin/taosdump \
+      ${build_dir}/bin/taosBenchmark"
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
-header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
+header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
 if [ "$verMode" == "cluster" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else
@@ -68,11 +92,56 @@ init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
+
+
+if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
+    cp ${compile_dir}/test/cfg/taosadapter.toml                 ${install_dir}/cfg || :
+fi
+
+if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
+    cp ${compile_dir}/test/cfg/taosadapter.service          ${install_dir}/cfg || :
+fi
+
+if [ -f "${cfg_dir}/taosd.service" ]; then
+    cp ${cfg_dir}/taosd.service          ${install_dir}/cfg || :
+fi
+if [ -f "${cfg_dir}/tarbitratord.service" ]; then
+    cp ${cfg_dir}/tarbitratord.service          ${install_dir}/cfg || :
+fi
+if [ -f "${cfg_dir}/nginxd.service" ]; then
+    cp ${cfg_dir}/nginxd.service          ${install_dir}/cfg || :
+fi
+
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/taosd.deb
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/taosd.rpm
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
+
+if [ -n "${taostools_bin_files}" ]; then
+    mkdir -p ${taostools_install_dir} || echo -e "failed to create ${taostools_install_dir}"
+    mkdir -p ${taostools_install_dir}/bin \
+        && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
+        && chmod a+x ${taostools_install_dir}/bin/* || :
+    [ -f ${taostools_install_dir}/bin/taosBenchmark ] && \
+        ln -sf ${taostools_install_dir}/bin/taosBenchmark \
+        ${taostools_install_dir}/bin/taosdemo
+
+    if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh ]; then
+        cp ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh \
+            ${taostools_install_dir}/ > /dev/null \
+            && chmod a+x ${taostools_install_dir}/install-taostools.sh \
+            || echo -e "failed to copy install-taostools.sh"
+    else
+        echo -e "install-taostools.sh not found"
+    fi
+
+    if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
+        mkdir -p ${taostools_install_dir}/avro/{lib,lib/pkgconfig} || echo -e "failed to create ${taostools_install_dir}/avro"
+        cp ${build_dir}/lib/libavro.* ${taostools_install_dir}/avro/lib
+        cp ${build_dir}/lib/pkgconfig/avro-c.pc ${taostools_install_dir}/avro/lib/pkgconfig
+    fi
+fi
 
 if [ -f ${build_dir}/bin/jemalloc-config ]; then
     mkdir -p ${install_dir}/jemalloc/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3}
@@ -183,11 +252,6 @@ connector_dir="${code_dir}/connector"
 mkdir -p ${install_dir}/connector
 if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   cp ${build_dir}/lib/*.jar            ${install_dir}/connector ||:
-  if [ -d "${connector_dir}/grafanaplugin/dist" ]; then
-    cp -r ${connector_dir}/grafanaplugin/dist ${install_dir}/connector/grafanaplugin
-  else
-    echo "WARNING: grafanaplugin bundled dir not found, please check if you want to use it!"
-  fi
   if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
     cp -r ${connector_dir}/go ${install_dir}/connector
   else
@@ -206,6 +270,8 @@ cd ${release_dir}
 #  install_dir has been distinguishes  cluster from  edege, so comments this code
 pkg_name=${install_dir}-${osType}-${cpuType}
 
+taostools_pkg_name=${taostools_install_dir}-${osType}-${cpuType}
+
 # if [ "$verMode" == "cluster" ]; then
 #   pkg_name=${install_dir}-${osType}-${cpuType}
 # elif [ "$verMode" == "edge" ]; then
@@ -216,9 +282,11 @@ pkg_name=${install_dir}-${osType}-${cpuType}
 # fi
 
 if [[ "$verType" == "beta" ]] || [[ "$verType" == "preRelease" ]]; then
-  pkg_name=${install_dir}-${verType}-${osType}-${cpuType} 
+  pkg_name=${install_dir}-${verType}-${osType}-${cpuType}
+  taostools_pkg_name=${taostools_install_dir}-${verType}-${osType}-${cpuType}
 elif [ "$verType" == "stable" ]; then
   pkg_name=${pkg_name}
+  taostools_pkg_name=${taostools_pkg_name}
 else
   echo "unknow verType, nor stabel or beta"
   exit 1
@@ -228,11 +296,20 @@ if [ "$pagMode" == "lite" ]; then
   pkg_name=${pkg_name}-Lite
 fi
 
-tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files || :
+tar -zcv -f "$(basename ${pkg_name}).tar.gz" "$(basename ${install_dir})" --remove-files || :
 exitcode=$?
 if [ "$exitcode" != "0" ]; then
     echo "tar ${pkg_name}.tar.gz error !!!"
     exit $exitcode
+fi
+
+if [ -n "${taostools_bin_files}" ]; then
+    tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" --remove-files || :
+    exitcode=$?
+    if [ "$exitcode" != "0" ]; then
+        echo "tar ${taostools_pkg_name}.tar.gz error !!!"
+        exit $exitcode
+    fi
 fi
 
 cd ${curr_dir}

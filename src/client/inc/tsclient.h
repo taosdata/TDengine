@@ -47,6 +47,7 @@ typedef enum {
 struct SSqlInfo;
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
+typedef void (*_freeSqlSupporter)(void **);
 
 
 typedef struct SNewVgroupInfo {
@@ -311,6 +312,7 @@ typedef struct {
   char *         data;
   TAOS_ROW       tsrow;
   TAOS_ROW       urow;
+  bool           dataConverted;
   int32_t*       length;  // length for each field for current row
   char **        buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   SColumnIndex*  pColumnIndex;
@@ -364,6 +366,7 @@ typedef struct SSqlObj {
   __async_cb_func_t  fp;
   __async_cb_func_t  fetchFp;
   void            *param;
+  _freeSqlSupporter  freeParam;
   int64_t          stime;
   uint32_t         queryId;
   void *           pStream;
@@ -381,6 +384,7 @@ typedef struct SSqlObj {
 
   SSubqueryState   subState;
   struct SSqlObj **pSubs;
+  struct SSqlObj  *rootObj;
 
   int64_t          metaRid;
   int64_t          svgroupRid;
@@ -448,8 +452,8 @@ int32_t tscTansformFuncForSTableQuery(SQueryInfo *pQueryInfo);
 void    tscRestoreFuncForSTableQuery(SQueryInfo *pQueryInfo);
 
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
-void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);
-void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBlock, bool convertNchar);
+void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo, bool converted);
+void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBlock, bool convertNchar, bool convertJson);
 
 void handleDownstreamOperator(SSqlObj** pSqlList, int32_t numOfUpstream, SQueryInfo* px, SSqlObj* pParent);
 void destroyTableNameList(SInsertStatementParam* pInsertParam);
@@ -495,6 +499,8 @@ bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
 void tscSetBoundColumnInfo(SParsedDataColInfo *pColInfo, SSchema *pSchema, int32_t numOfCols);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
+int32_t tscGetErrorMsgLength(SSqlCmd* pCmd);
+
 int32_t tscErrorMsgWithCode(int32_t code, char* dstBuffer, const char* errMsg, const char* sql);
 
 int32_t tscInvalidOperationMsg(char *msg, const char *additionalInfo, const char *sql);

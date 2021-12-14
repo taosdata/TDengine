@@ -21,6 +21,11 @@
 #include "tulog.h"
 #include "taoserror.h"
 
+bool isInteger(double x){
+  int truncated = (int)x;
+  return (x == truncated);
+}
+
 int32_t strdequote(char *z) {
   if (z == NULL) {
     return 0;
@@ -53,18 +58,18 @@ int32_t strdequote(char *z) {
 }
 
 
-int32_t strRmquote(char *z, int32_t len){  
+int32_t strRmquote(char *z, int32_t len){
     // delete escape character: \\, \', \"
     char delim = z[0];
     if (delim != '\'' && delim != '\"') {
       return len;
     }
-  
+
     int32_t cnt = 0;
     int32_t j = 0;
     for (uint32_t k = 1; k < len - 1; ++k) {
       if (z[k] == '\\' || (z[k] == delim && z[k + 1] == delim)) {
-        if (z[k] == '\\' && z[k + 1] == '_') {
+        if ((z[k] == '\\' && z[k + 1] == '_') || (z[k] == '\\' && z[k + 1] == '%')) {
           //match '_' self
         } else {
           z[j] = z[k + 1];
@@ -74,23 +79,24 @@ int32_t strRmquote(char *z, int32_t len){
           continue;
         }
       }
-  
+
       z[j] = z[k];
       j++;
     }
-  
+
     z[j] = 0;
-    
+
     return len - 2 - cnt;
 }
 
 int32_t strRmquoteEscape(char *z, int32_t len) {
   if (len <= 0) return len;
-  
+
   if (z[0] == '\'' || z[0] == '\"') {
     return strRmquote(z, len);
   } else if (len > 1 && z[0] == TS_ESCAPE_CHAR && z[len - 1] == TS_ESCAPE_CHAR) {
     memmove(z, z + 1, len - 2);
+    z[len - 2] = '\0';
     return len - 2;
   }
 
@@ -104,7 +110,7 @@ size_t strtrim(char *z) {
   int32_t j = 0;
 
   int32_t delta = 0;
-  while (z[j] == ' ') {
+  while (isspace(z[j])) {
     ++j;
   }
 
@@ -117,9 +123,9 @@ size_t strtrim(char *z) {
 
   int32_t stop = 0;
   while (z[j] != 0) {
-    if (z[j] == ' ' && stop == 0) {
+    if (isspace(z[j]) && stop == 0) {
       stop = j;
-    } else if (z[j] != ' ' && stop != 0) {
+    } else if (!isspace(z[j]) && stop != 0) {
       stop = 0;
     }
 
@@ -506,6 +512,24 @@ char *taosIpStr(uint32_t ipInt) {
   //sprintf(ipStr, "0x%x:%u.%u.%u.%u", ipInt, ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
   sprintf(ipStr, "%u.%u.%u.%u", ipInt & 0xFF, (ipInt >> 8) & 0xFF, (ipInt >> 16) & 0xFF, (uint8_t)(ipInt >> 24));
   return ipStr;
+}
+
+void jsonKeyMd5(void *pMsg, int msgLen, void *pKey) {
+  MD5_CTX context;
+
+  MD5Init(&context);
+  MD5Update(&context, (uint8_t *)pMsg, msgLen);
+  MD5Final(&context);
+
+  memcpy(pKey, context.digest, sizeof(context.digest));
+}
+
+bool isValidateTag(char *input) {
+  if (!input) return false;
+  for (size_t i = 0; i < strlen(input); ++i) {
+    if (isprint(input[i]) == 0) return false;
+  }
+  return true;
 }
 
 FORCE_INLINE float taos_align_get_float(const char* pBuf) {

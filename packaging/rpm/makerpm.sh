@@ -32,20 +32,20 @@ if command -v sudo > /dev/null; then
 fi
 
 function cp_rpm_package() {
-local cur_dir
-cd $1
-cur_dir=$(pwd)
+    local cur_dir
+    cd $1
+    cur_dir=$(pwd)
 
-for dirlist in $(ls ${cur_dir}); do
-  if test -d ${dirlist}; then
-    cd ${dirlist}
-    cp_rpm_package ${cur_dir}/${dirlist}
-    cd ..
-  fi
-  if test -e ${dirlist}; then
-    cp ${cur_dir}/${dirlist} ${output_dir}/TDengine-${tdengine_ver}.rpm
-  fi
-done
+    for dirlist in "$(ls ${cur_dir})"; do
+        if test -d ${dirlist}; then
+            cd ${dirlist}
+            cp_rpm_package ${cur_dir}/${dirlist}
+            cd ..
+        fi
+        if test -e ${dirlist}; then
+            cp ${cur_dir}/${dirlist} ${output_dir}/TDengine-${tdengine_ver}.rpm
+        fi
+    done
 }
 
 if [ -d ${pkg_dir} ]; then

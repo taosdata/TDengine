@@ -1,6 +1,5 @@
 package com.taosdata.jdbc.cases;
 
-import org.junit.Before;
 import org.junit.Test;
 
 import java.sql.*;
@@ -12,7 +11,7 @@ public class UseNowInsertTimestampTest {
     String url = "jdbc:TAOS://127.0.0.1:6030/?user=root&password=taosdata";
 
     @Test
-    public void millisec() {
+    public void millisec() throws SQLException {
         try (Connection conn = DriverManager.getConnection(url)) {
             Statement stmt = conn.createStatement();
             stmt.execute("drop database if exists test");
@@ -30,13 +29,11 @@ public class UseNowInsertTimestampTest {
             assertEquals(0, nanos % 1000_000);
 
             stmt.execute("drop database if exists test");
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
     @Test
-    public void microsec() {
+    public void microsec() throws SQLException {
         try (Connection conn = DriverManager.getConnection(url)) {
             Statement stmt = conn.createStatement();
             stmt.execute("drop database if exists test");
@@ -53,13 +50,11 @@ public class UseNowInsertTimestampTest {
             assertEquals(0, nanos % 1000);
 
             stmt.execute("drop database if exists test");
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
     @Test
-    public void nanosec() {
+    public void nanosec() throws SQLException {
         try (Connection conn = DriverManager.getConnection(url)) {
             Statement stmt = conn.createStatement();
             stmt.execute("drop database if exists test");
@@ -77,8 +72,6 @@ public class UseNowInsertTimestampTest {
             assertTrue(nanos % 1000 != 0);
 
             stmt.execute("drop database if exists test");
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 }

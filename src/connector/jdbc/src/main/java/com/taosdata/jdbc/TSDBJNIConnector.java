@@ -1,24 +1,11 @@
-/**
- * *************************************************************************
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- * <p>
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- * <p>
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- * <p>
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- * ***************************************************************************
- */
 package com.taosdata.jdbc;
 
 import com.alibaba.fastjson.JSONObject;
+import com.taosdata.jdbc.enums.SchemalessProtocolType;
+import com.taosdata.jdbc.enums.SchemalessTimestampType;
 import com.taosdata.jdbc.utils.TaosInfo;
 
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
@@ -105,8 +92,7 @@ public class TSDBJNIConnector {
         try {
             pSql = this.executeQueryImp(sql.getBytes(TaosGlobalConfig.getCharset()), this.taos);
             taosInfo.stmt_count_increment();
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (UnsupportedEncodingException e) {
             this.freeResultSetImp(this.taos, pSql);
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_ENCODING);
         }
@@ -259,8 +245,8 @@ public class TSDBJNIConnector {
     /**
      * Create a subscription
      */
-    long subscribe(String topic, String sql, boolean restart, int period) {
-        return subscribeImp(this.taos, restart, topic, sql, period);
+    long subscribe(String topic, String sql, boolean restart) {
+        return subscribeImp(this.taos, restart, topic, sql, 0);
     }
 
     private native long subscribeImp(long connection, boolean restart, String topic, String sql, int period);
@@ -282,16 +268,6 @@ public class TSDBJNIConnector {
     }
 
     private native void unsubscribeImp(long subscription, boolean isKeep);
-
-    /**
-     * Validate if a <I>create table</I> SQL statement is correct without actually creating that table
-     */
-    public boolean validateCreateTableSql(String sql) {
-        int res = validateCreateTableSqlImp(taos, sql.getBytes());
-        return res == 0;
-    }
-
-    private native int validateCreateTableSqlImp(long connection, byte[] sqlBytes);
 
     public long prepareStmt(String sql) throws SQLException {
         long stmt = prepareStmtImp(sql.getBytes(), this.taos);
@@ -359,14 +335,14 @@ public class TSDBJNIConnector {
 
     private native int closeStmt(long stmt, long con);
 
-    public void insertLines(String[] lines) throws SQLException {
-        int code = insertLinesImp(lines, this.taos);
+    public void insertLines(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException {
+        int code = insertLinesImp(lines, this.taos, protocolType.ordinal(), timestampType.ordinal());
         if (code != TSDBConstants.JNI_SUCCESS) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to insertLines");
         }
     }
 
-    private native int insertLinesImp(String[] lines, long conn);
+    private native int insertLinesImp(String[] lines, long conn, int type, int precision);
 
 
 }

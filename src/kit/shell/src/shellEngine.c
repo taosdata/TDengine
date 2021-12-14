@@ -34,28 +34,36 @@
 char      CLIENT_VERSION[] = "Welcome to the PowerDB shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by PowerDB, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "power> ";
-
 char      CONTINUE_PROMPT[] = "    -> ";
 int       prompt_size = 7;
 #elif (_TD_TQ_ == true)
 char      CLIENT_VERSION[] = "Welcome to the TQ shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TQ, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "tq> ";
-
-char      CONTINUE_PROMPT[] = "    -> ";
+char      CONTINUE_PROMPT[] = " -> ";
 int       prompt_size = 4;
 #elif (_TD_PRO_ == true)
 char      CLIENT_VERSION[] = "Welcome to the ProDB shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by Hanatech, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "ProDB> ";
-
 char      CONTINUE_PROMPT[] = "    -> ";
 int       prompt_size = 7;
+#elif (_TD_KH_ == true)
+char      CLIENT_VERSION[] = "Welcome to the KingHistorian shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2021 by Hanatech, Inc. All rights reserved.\n\n";
+char      PROMPT_HEADER[] = "kh> ";
+char      CONTINUE_PROMPT[] = " -> ";
+int       prompt_size = 4;
+#elif (_TD_JH_ == true)
+char      CLIENT_VERSION[] = "Welcome to the jh_iot shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2021 by jinheng, Inc. All rights reserved.\n\n";
+char      PROMPT_HEADER[] = "jh_taos> ";
+char      CONTINUE_PROMPT[] = "      -> ";
+int       prompt_size = 9;
 #else
 char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "taos> ";
-
 char      CONTINUE_PROMPT[] = "   -> ";
 int       prompt_size = 6;
 #endif
@@ -262,7 +270,7 @@ int32_t shellRunCommand(TAOS* con, char* command) {
     }
 
     if (c == '\\') {
-      if (quote != 0 && (*command == '_' || *command == '\\')) {
+      if (quote != 0 && (*command == '_' || *command == '%' || *command == '\\')) {
         //DO nothing 
       } else {
         esc = true;
@@ -501,6 +509,7 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
       memcpy(buf, val, length);
       buf[length] = 0;
       fprintf(fp, "\'%s\'", buf);
@@ -637,7 +646,7 @@ static void shellPrintNChar(const char *str, int length, int width) {
 static void printField(const char* val, TAOS_FIELD* field, int width, int32_t length, int precision) {
   if (val == NULL) {
     int w = width;
-    if (field->type < TSDB_DATA_TYPE_TINYINT || field->type > TSDB_DATA_TYPE_DOUBLE) {
+    if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_NCHAR || field->type == TSDB_DATA_TYPE_TIMESTAMP) {
       w = 0;
     }
     w = printf("%*s", w, TSDB_DATA_NULL_STR);
@@ -684,6 +693,7 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
       shellPrintNChar(val, length, width);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
@@ -797,7 +807,8 @@ static int calcColWidth(TAOS_FIELD* field, int precision) {
         return MAX(field->bytes, width);
       }
 
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:{
       int16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
       if (bytes > tsMaxBinaryDisplayWidth) {
         return MAX(tsMaxBinaryDisplayWidth, width);
@@ -1044,56 +1055,4 @@ void source_file(TAOS *con, char *fptr) {
 
 void shellGetGrantInfo(void *con) {
   return;
-#if 0
-  char sql[] = "show grants";
-
-  TAOS_RES* tres = taos_query(con, sql);
-
-  int code = taos_errno(tres);
-  if (code != TSDB_CODE_SUCCESS) {
-    if (code == TSDB_CODE_COM_OPS_NOT_SUPPORT) {
-      fprintf(stdout, "Server is Community Edition, version is %s\n\n", taos_get_server_info(con));
-    } else {
-      fprintf(stderr, "Failed to check Server Edition, Reason:%d:%s\n\n", taos_errno(con), taos_errstr(con));
-    }
-    return;
-  }
-
-  int num_fields = taos_field_count(tres);
-  if (num_fields == 0) {
-    fprintf(stderr, "\nInvalid grant information.\n");
-    exit(0);
-  } else {
-    if (tres == NULL) {
-      fprintf(stderr, "\nGrant information is null.\n");
-      exit(0);
-    }
-
-    TAOS_FIELD *fields = taos_fetch_fields(tres);
-    TAOS_ROW row = taos_fetch_row(tres);
-    if (row == NULL) {
-      fprintf(stderr, "\nFailed to get grant information from server. Abort.\n");
-      exit(0);
-    }
-
-    char serverVersion[32] = {0};
-    char expiretime[32] = {0};
-    char expired[32] = {0};
-
-    memcpy(serverVersion, row[0], fields[0].bytes);
-    memcpy(expiretime, row[1], fields[1].bytes);
-    memcpy(expired, row[2], fields[2].bytes);
-
-    if (strcmp(expiretime, "unlimited") == 0) {
-      fprintf(stdout, "Server is Enterprise %s Edition, version is %s and will never expire.\n", serverVersion, taos_get_server_info(con));
-    } else {
-      fprintf(stdout, "Server is Enterprise %s Edition, version is %s and will expire at %s.\n", serverVersion, taos_get_server_info(con), expiretime);
-    }
-
-    result = NULL;
-    taos_free_result(tres);
-  }
-
-  fprintf(stdout, "\n");
-  #endif
 }

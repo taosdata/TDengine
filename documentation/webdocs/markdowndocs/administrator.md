@@ -36,7 +36,7 @@ This section lists only the most important configuration parameters. Please chec
 - maxUsers: maximum number of users allowed
 - maxDbs: maximum number of databases allowed
 - maxTables: maximum number of tables allowed
-- enableMonitor: turn on/off system monitoring, 0: off, 1: on
+- monitor: turn on/off system monitoring, 0: off, 1: on
 - logDir: log directory, default is /var/log/taos
 - numOfLogLines: maximum number of lines in the log file
 - debugFlag: log level, 131: only error and warnings, 135: all

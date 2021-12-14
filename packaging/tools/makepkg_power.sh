@@ -31,18 +31,8 @@ else
     install_dir="${release_dir}/PowerDB-server-${version}"
 fi
 
-# Directories and files.
-#if [ "$pagMode" == "lite" ]; then
-#  strip ${build_dir}/bin/taosd
-#  strip ${build_dir}/bin/taos
-#  bin_files="${build_dir}/bin/powerd ${build_dir}/bin/power ${script_dir}/remove_power.sh"
-#else
-#  bin_files="${build_dir}/bin/powerd ${build_dir}/bin/power ${build_dir}/bin/powerdemo ${build_dir}/bin/tarbitrator ${script_dir}/remove_power.sh\
-#              ${script_dir}/set_core.sh ${script_dir}/startPre.sh  ${script_dir}/taosd-dump-cfg.gdb"
-#fi
-
 lib_files="${build_dir}/lib/libtaos.so.${version}"
-header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
+header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
 if [ "$verMode" == "cluster" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else
@@ -51,13 +41,6 @@ fi
 install_files="${script_dir}/install_power.sh"
 nginx_dir="${code_dir}/../../enterprise/src/plugins/web"
 
-# Init file
-#init_dir=${script_dir}/deb
-#if [ $package_type = "centos" ]; then
-#    init_dir=${script_dir}/rpm
-#fi
-#init_files=${init_dir}/powerd
-# temp use rpm's powerd. TODO: later modify according to os type
 init_file_deb=${script_dir}/../deb/powerd
 init_file_rpm=${script_dir}/../rpm/powerd
 init_file_tarbitrator_deb=${script_dir}/../deb/tarbitratord
@@ -66,7 +49,7 @@ init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/power.cfg
 
 #mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/bin
@@ -81,11 +64,13 @@ else
 #  bin_files="${build_dir}/bin/powerd ${build_dir}/bin/power ${build_dir}/bin/powerdemo ${build_dir}/bin/tarbitrator ${script_dir}/remove_power.sh ${script_dir}/set_core.sh"
   cp ${build_dir}/bin/taos          ${install_dir}/bin/power
   cp ${build_dir}/bin/taosd         ${install_dir}/bin/powerd
+  cp ${build_dir}/bin/taosadapter   ${install_dir}/bin/taosadapter ||:
   cp ${script_dir}/remove_power.sh  ${install_dir}/bin
   cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/powerdemo
   cp ${build_dir}/bin/taosdump      ${install_dir}/bin/powerdump
   cp ${build_dir}/bin/tarbitrator   ${install_dir}/bin
   cp ${script_dir}/set_core.sh      ${install_dir}/bin
+  cp ${script_dir}/run_taosd.sh     ${install_dir}/bin
   cp ${script_dir}/get_client.sh    ${install_dir}/bin
   cp ${script_dir}/startPre.sh      ${install_dir}/bin
   cp ${script_dir}/taosd-dump-cfg.gdb  ${install_dir}/bin
@@ -108,9 +93,9 @@ if [ "$verMode" == "cluster" ]; then
     sed -i "s/TDengine/PowerDB/g"   ${install_dir}/nginxd/admin/*.html
     sed -i "s/TDengine/PowerDB/g"   ${install_dir}/nginxd/admin/js/*.js
 
-    sed -i '/dataDir/ {s/taos/power/g}'  ${install_dir}/cfg/taos.cfg
-    sed -i '/logDir/  {s/taos/power/g}'  ${install_dir}/cfg/taos.cfg
-    sed -i "s/TDengine/PowerDB/g"        ${install_dir}/cfg/taos.cfg
+    sed -i '/dataDir/ {s/taos/power/g}'  ${install_dir}/cfg/power.cfg
+    sed -i '/logDir/  {s/taos/power/g}'  ${install_dir}/cfg/power.cfg
+    sed -i "s/TDengine/PowerDB/g"        ${install_dir}/cfg/power.cfg
 
     if [ "$cpuType" == "aarch64" ]; then
         cp -f ${install_dir}/nginxd/sbin/arm/64bit/nginx ${install_dir}/nginxd/sbin/
@@ -167,11 +152,6 @@ mkdir -p ${install_dir}/connector
 if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   cp ${build_dir}/lib/*.jar      ${install_dir}/connector ||:
 
-  if [ -d "${connector_dir}/grafanaplugin/dist" ]; then
-    cp -r ${connector_dir}/grafanaplugin/dist ${install_dir}/connector/grafanaplugin
-  else
-    echo "WARNING: grafanaplugin bundled dir not found, please check if want to use it!"
-  fi
   if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
     cp -r ${connector_dir}/go ${install_dir}/connector
   else

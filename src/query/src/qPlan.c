@@ -538,9 +538,9 @@ SArray* createTableScanPlan(SQueryAttr* pQueryAttr) {
   } else {
     if (pQueryAttr->queryBlockDist) {
       op = OP_TableBlockInfoScan;
-    } else if (pQueryAttr->tsCompQuery || pQueryAttr->pointInterpQuery || pQueryAttr->diffQuery) {
+    } else if (pQueryAttr->tsCompQuery || pQueryAttr->diffQuery || pQueryAttr->needTableSeqScan) {
       op = OP_TableSeqScan;
-    } else if (pQueryAttr->needReverseScan) {
+    } else if (pQueryAttr->needReverseScan || pQueryAttr->pointInterpQuery) {
       op = OP_DataBlocksOptScan;
     } else {
       op = OP_TableScan;
@@ -564,20 +564,19 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
       op = OP_Distinct;
       taosArrayPush(plan, &op);
     }
+  } else if (pQueryAttr->pointInterpQuery) {
+    op = OP_TimeEvery;
+    taosArrayPush(plan, &op);
+    if (pQueryAttr->pExpr2 != NULL) {
+      op = OP_Project;
+      taosArrayPush(plan, &op);
+    }
   } else if (pQueryAttr->interval.interval > 0) {
     if (pQueryAttr->stableQuery) {
-      if (pQueryAttr->pointInterpQuery) {
-        op = OP_AllMultiTableTimeInterval;
-      } else {
-        op = OP_MultiTableTimeInterval;
-      }
+      op = OP_MultiTableTimeInterval;
       taosArrayPush(plan, &op);
     } else {      
-      if (pQueryAttr->pointInterpQuery) {
-        op = OP_AllTimeWindow;
-      } else {
-        op = OP_TimeWindow;
-      }
+      op = OP_TimeWindow;
       taosArrayPush(plan, &op);
 
       if (pQueryAttr->pExpr2 != NULL) {
@@ -696,7 +695,6 @@ SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr) {
       op = OP_Filter;
       taosArrayPush(plan, &op);
     }
-
     if (pQueryAttr->pExpr2 != NULL) {
       op = OP_Project;
       taosArrayPush(plan, &op);
@@ -704,7 +702,7 @@ SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr) {
   }
 
   // fill operator
-  if (pQueryAttr->fillType != TSDB_FILL_NONE && pQueryAttr->interval.interval > 0) {
+  if (pQueryAttr->fillType != TSDB_FILL_NONE && pQueryAttr->interval.interval > 0 && !pQueryAttr->pointInterpQuery) {
     op = OP_Fill;
     taosArrayPush(plan, &op);
   }

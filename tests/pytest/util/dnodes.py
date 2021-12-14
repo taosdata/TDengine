@@ -44,6 +44,7 @@ class TDSimClient:
             "jnidebugFlag": "135",
             "qdebugFlag": "135",
             "telemetryReporting": "0",
+            "enableCoreFile": "1",
         }
 
     def getLogDir(self):
@@ -151,7 +152,8 @@ class TDDnode:
             "udebugFlag":"135",
             "jnidebugFlag":"135",
             "qdebugFlag":"135",
-            "maxSQLLength":"1048576"
+            "maxSQLLength":"1048576",
+            "enableCoreFile": "1",
         }
 
     def init(self, path):
@@ -275,6 +277,7 @@ class TDDnode:
             tdLog.info("taosd found in %s" % buildPath)
 
         binPath = buildPath + "/build/bin/taosd"
+        taosadapterBinPath = buildPath + "/build/bin/taosadapter"
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
@@ -290,8 +293,14 @@ class TDDnode:
 
             print(cmd)
 
+        taosadapterCmd = "nohup %s > /dev/null 2>&1 & " % (
+                taosadapterBinPath)
+        if os.system(taosadapterCmd) != 0:
+            tdLog.exit(taosadapterCmd)
+
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
+
         self.running = 1
         tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
         if self.valgrind == 0:
@@ -333,6 +342,7 @@ class TDDnode:
             tdLog.info("taosd found in %s" % buildPath)
 
         binPath = buildPath + "/build/bin/taosd"
+        taosadapterBinPath = buildPath + "/build/bin/taosadapter"
 
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
@@ -348,12 +358,29 @@ class TDDnode:
 
             print(cmd)
 
+        taosadapterCmd = "%s > /dev/null 2>&1 & " % (taosadapterBinPath)
+        if os.system(taosadapterCmd) != 0:
+            tdLog.exit(taosadapterCmd)
+
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
         self.running = 1
         tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
 
     def stop(self):
+        taosadapterToBeKilled = "taosadapter"
+
+        taosadapterPsCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % taosadapterToBeKilled
+        taosadapterProcessID = subprocess.check_output(
+                    taosadapterPsCmd, shell=True).decode("utf-8")
+
+        while(taosadapterProcessID):
+            taosadapterKillCmd = "kill -INT %s > /dev/null 2>&1" % taosadapterProcessID
+            os.system(taosadapterKillCmd)
+            time.sleep(1)
+            taosadapterProcessID = subprocess.check_output(
+                    taosadapterPsCmd, shell=True).decode("utf-8")
+
         if self.valgrind == 0:
             toBeKilled = "taosd"
         else:

@@ -119,7 +119,7 @@ static SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *p
 static FORCE_INLINE SHashNode *doUpdateHashNode(SHashObj *pHashObj, SHashEntry* pe, SHashNode* prev, SHashNode *pNode, SHashNode *pNewNode) {
   assert(pNode->keyLen == pNewNode->keyLen);
 
-  pNode->count--;
+  atomic_sub_fetch_32(&pNode->count, 1);
   if (prev != NULL) {
     prev->next = pNewNode;
   } else {
@@ -203,7 +203,13 @@ void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp) {
   if (pHashObj != NULL && fp != NULL) {
     pHashObj->equalFp = fp;
   } 
-} 
+}
+
+void taosHashSetFreeFp(SHashObj *pHashObj, _hash_free_fn_t fp) {
+  if (pHashObj != NULL && fp != NULL) {
+    pHashObj->freeFp = fp;
+  }
+}
 
 int32_t taosHashGetSize(const SHashObj *pHashObj) {
   if (!pHashObj) {
@@ -459,7 +465,7 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   if (pNode) {
     code = 0;  // it is found
 
-    pNode->count--;
+    atomic_sub_fetch_32(&pNode->count, 1);
     pNode->removed = 1;
     if (pNode->count <= 0) {
       if (prevNode) {
@@ -611,7 +617,7 @@ void taosHashCleanup(SHashObj *pHashObj) {
   taosArrayDestroy(pHashObj->pMemBlock);
 
   memset(pHashObj, 0, sizeof(SHashObj));
-  free(pHashObj);
+  tfree(pHashObj);
 }
 
 // for profile only
@@ -820,7 +826,7 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
       pNode = pNode->next;
     }
 
-    pOld->count--;
+    atomic_sub_fetch_32(&pOld->count, 1);
     if (pOld->count <=0) {
       if (prevNode) {
         prevNode->next = pOld->next;
@@ -886,7 +892,7 @@ void *taosHashIterate(SHashObj *pHashObj, void *p) {
 
   if (pNode) {
     SHashEntry *pe = pHashObj->hashList[slot];
-    pNode->count++;
+    atomic_add_fetch_32(&pNode->count, 1);
     data = GET_HASH_NODE_DATA(pNode);
     if (pHashObj->type == HASH_ENTRY_LOCK) {
       taosWUnLockLatch(&pe->latch);

@@ -25,7 +25,7 @@
 
 static char **shellSQLFiles = NULL;
 static int32_t shellSQLFileNum = 0;
-static char shellTablesSQLFile[TSDB_FILENAME_LEN] = {0};
+static char shellTablesSQLFile[4096] = {0};
 
 typedef struct {
   pthread_t threadID;
@@ -210,7 +210,7 @@ static void shellSourceFile(TAOS *con, char *fptr) {
     /* free local resouce: allocated memory/metric-meta refcnt */
     taos_free_result(pSql);
 
-    memset(cmd, 0, MAX_COMMAND_SIZE);
+    memset(cmd, 0, tsMaxSQLStringLen);
     cmd_len = 0;
   }
 

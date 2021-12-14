@@ -145,7 +145,7 @@ taos>
 | **CPU类型**  | x64（64bit） |          |          | ARM64    | ARM32      |
 | ------------ | ------------ | -------- | -------- | -------- | ---------- |
 | **OS类型**   | Linux        | Win64    | Win32    | Linux    | Linux      |
-| **支持与否** | **支持**     | **支持** | **支持** | **支持** | **开发中** |
+| **支持与否** | **支持**     | **支持** | **支持** | **支持** | **支持** |
 
 C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine头文件 *taos.h*，里面列出了提供的API的函数原型。安装后，taos.h位于：
 
@@ -328,7 +328,7 @@ TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线
 
 除 C/C++ 语言外，TDengine 的 Java 语言 JNI Connector 也提供参数绑定接口支持，具体请另外参见：[参数绑定接口的 Java 用法](https://www.taosdata.com/cn/documentation/connector/java#stmt-java)。
 
-接口相关的具体函数如下（也可以参考 [apitest.c](https://github.com/taosdata/TDengine/blob/develop/tests/examples/c/apitest.c) 文件中使用对应函数的方式）：
+接口相关的具体函数如下（也可以参考 [prepare.c](https://github.com/taosdata/TDengine/blob/develop/tests/examples/c/prepare.c) 文件中使用对应函数的方式）：
 
 - `TAOS_STMT* taos_stmt_init(TAOS *taos)`
 
@@ -405,21 +405,78 @@ typedef struct TAOS_MULTI_BIND {
 <a class="anchor" id="schemaless"></a>
 ### Schemaless 方式写入接口
 
-除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](https://www.taosdata.com/cn/documentation/insert#schemaless) 章节，这里介绍与之配套使用的 C/C++ API。
+除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](https://www.taosdata.com/cn/documentation/insert#schemaless) 章节，这里介绍与之配套使用的 C/C++ API。  
 
-- `int taos_insert_lines(TAOS* taos, char* lines[], int numLines)`
-
-  （2.2.0.0 版本新增）  
-  以 Schemaless 格式写入多行数据。其中：
-    * taos：调用 taos_connect 返回的数据库连接。
-    * lines：由 char 字符串指针组成的数组，指向本次想要写入数据库的多行数据。
-    * numLines：lines 数据的总行数。 
-
-  返回值为 0 表示写入成功，非零值表示出错。具体错误代码请参见 [taoserror.h](https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h) 文件。
-
-  说明：
-    1. 此接口是一个同步阻塞式接口，使用时机与 `taos_query()` 一致。
-    2. 在调用此接口之前，必须先调用 `taos_select_db()` 来确定目前是在向哪个 DB 来写入。
+- `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
+  
+  **功能说明**  
+    该接口将行协议的文本数据写入到TDengine中。
+    
+  **参数说明**  
+    taos:  数据库连接，通过taos_connect 函数建立的数据库连接。  
+    lines：文本数据。满足解析格式要求的无模式文本字符串。  
+    numLines:文本数据的行数，不能为 0 。  
+    protocol: 行协议类型，用于标识文本数据格式。  
+    precision：文本数据中的时间戳精度字符串。  
+    
+  **返回值**  
+    TAOS_RES 结构体，应用可以通过使用 taos_errstr 获得错误信息，也可以使用 taos_errno 获得错误码。  
+    在某些情况下，返回的 TAOS_RES 为 NULL，此时仍然可以调用 taos_errno 来安全地获得错误码信息。  
+    返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。  
+      
+  **说明**  
+    协议类型是枚举类型，包含以下三种格式：  
+    TSDB_SML_LINE_PROTOCOL：InfluxDB行协议（Line Protocol)  
+    TSDB_SML_TELNET_PROTOCOL: OpenTSDB文本行协议  
+    TSDB_SML_JSON_PROTOCOL: OpenTSDB Json协议格式  
+    
+    时间戳分辨率的定义，定义在 taos.h 文件中，具体内容如下：  
+    TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,  
+    TSDB_SML_TIMESTAMP_HOURS,  
+    TSDB_SML_TIMESTAMP_MINUTES,  
+    TSDB_SML_TIMESTAMP_SECONDS,  
+    TSDB_SML_TIMESTAMP_MILLI_SECONDS,  
+    TSDB_SML_TIMESTAMP_MICRO_SECONDS,  
+    TSDB_SML_TIMESTAMP_NANO_SECONDS  
+    
+    需要注意的是，时间戳分辨率参数只在协议类型为 SML_LINE_PROTOCOL 的时候生效。  
+    对于 OpenTSDB 的文本协议，时间戳的解析遵循其官方解析规则 — 按照时间戳包含的字符的数量来确认时间精度。
+    
+  **支持版本**  
+    该功能接口从2.3.0.0版本开始支持。
+  
+```c
+#include <stdlib.h>
+#include <stdio.h>
+#include <taos.h>
+ 
+int main() {
+  const char* host = "127.0.0.1";
+  const char* user = "root";
+  const char* passwd = "taosdata";
+    
+  // connect to server
+  TAOS* taos = taos_connect(host, user, passwd, "test", 0);
+   
+  // prepare the line string
+  char* lines1[] = {
+      "stg,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
+      "stg,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833641000000"
+  };
+ 
+  // schema-less insert
+  TAOS_RES* res = taos_schemaless_insert(taos, lines1, 2, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  if (taos_errno(res) != 0) {
+    printf("failed to insert schema-less data, reason: %s\n", taos_errstr(res));
+  }
+ 
+  taos_free_result(res);
+ 
+  // close the connection
+  taos_close(taos);
+  return (code);
+}
+```
 
 ### 连续查询接口
 
@@ -516,6 +573,14 @@ cd C:\TDengine\connector\python
 python -m pip install .
 ```
 
+**PyPI**
+
+从2.1.1版本开始，用户可以从[PyPI](https://pypi.org/project/taospy/)安装：
+
+```sh
+pip install taospy
+```
+
 * 如果机器上没有pip命令，用户可将src/connector/python下的taos文件夹拷贝到应用程序的目录使用。
 对于windows 客户端，安装TDengine windows 客户端后，将C:\TDengine\driver\taos.dll拷贝到C:\windows\system32目录下即可。
 
@@ -550,6 +615,22 @@ python3 PythonChecker.py -host <fqdn>
 验证通过将打印出成功信息。
 
 ### Python连接器的使用
+
+#### PEP-249 兼容API
+
+您可以像其他数据库一样，使用类似 [PEP-249](https://www.python.org/dev/peps/pep-0249/) 数据库API规范风格的API：
+
+```python
+import taos
+
+conn = taos.connect()
+cursor = conn.cursor()
+
+cursor.execute("show databases")
+results = cursor.fetchall()
+for row in results:
+    print(row)
+```
 
 #### 代码示例
 
@@ -605,6 +686,44 @@ c1.execute('select * from tb')
 for data in c1:
   print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2]))
 ```
+
+* 从v2.1.0版本开始, 我们提供另外一种API：`connection.query`
+
+    ```python
+    import taos
+
+    conn = taos.connect()
+    conn.execute("create database if not exists pytest")
+
+    result = conn.query("show databases")
+    num_of_fields = result.field_count
+    for field in result.fields:
+        print(field)
+    for row in result:
+        print(row)
+    conn.execute("drop database pytest")
+    ```
+
+    `query` 方法会返回一个 `TaosResult` 类对象，并提供了以下有用的属性或方法:
+
+    属性:
+
+    - `fields`: `TaosFields` 集合类，提供返回数据的列信息。
+    - `field_count`: 返回数据的列数.
+    - `affected_rows`: 插入数据的行数.
+    - `row_count`: 查询数据结果数.
+    - `precision`: 当前数据库的时间精度.
+
+    方法:
+
+    - `fetch_all()`: 类似于 `cursor.fetchall()` 返回同样的集合数据
+    - `fetch_all_into_dict()`: v2.1.1 新添加的API，将上面的数据转换成字典类型返回
+    - `blocks_iter()` `rows_iter()`: 根据底层API提供的两种不同迭代器。
+    - `fetch_rows_a`: 异步API
+    - `errno`: 错误码
+    - `errstr`: 错误信息
+    - `close`: 关闭结果对象，一般不需要直接调用
+
 
 * 创建订阅
 
@@ -918,43 +1037,62 @@ HTTP 请求 URL 采用 `sqlutc` 时，返回结果集的时间戳将采用 UTC �
 
 ## <a class="anchor" id="csharp"></a>CSharp Connector
 
-C#连接器支持的系统有：Linux 64/Windows x64/Windows x86
+* C#连接器支持的系统有：Linux 64/Windows x64/Windows x86
 
+* C#连接器现在也支持从[Nuget下载引用](https://www.nuget.org/packages/TDengine.Connector/)
+
+* 在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（Dapper）框架驱动。
 ### 安装准备
 
 * 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector#driver)。
-* 接口文件﻿TDengineDrivercs.cs和参考程序示例TDengineTest.cs均位于Windows客户端install_directory/examples/C#目录下。
-* 在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（Dapper）框架驱动。
+* 接口文件TDengineDrivercs.cs和参考程序示例TDengineTest.cs均位于Windows客户端install_directory/examples/C#目录下。
+* 安装[.NET SDK](https://dotnet.microsoft.com/download)
 
 ### 示例程序
 
-示例程序源码位于install_directory/examples/C#，有：
+示例程序源码位于
+* {client_install_directory}/examples/C#
+* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523)
 
-TDengineTest.cs       C#示例源程序
+**注意:** TDengineTest.cs       C#示例源程序,包含了数据库连接参数，以及如何执行数据插入、查询等操作。
 
 ### 安装验证
 
-运行install_directory/examples/C#/C#Checker/C#Checker.exe
-
+需要先安装 .Net SDK
 ```cmd
-cd {install_directory}/examples/C#/C#Checker
-csc /optimize *.cs
-C#Checker.exe -h <fqdn>
+cd {client_install_directory}/examples/C#/C#Checker
+//运行测试
+dotnet run -- -h <FQDN>. // 此步骤会先build，然后再运行。
 ```
 
 ### C#连接器的使用
 
 在Windows系统上，C#应用程序可以使用TDengine的C#连接器接口来执行所有数据库的操作。使用的具体步骤如下所示：
 
-1. 将接口文件﻿TDengineDrivercs.cs加入到应用程序所在的项目空间中。
-2. 用户可以参考﻿TDengineTest.cs来定义数据库连接参数，以及如何执行数据插入、查询等操作。
+需要 .NET SDK
+* 创建一个c# project. 
+``` cmd
+mkdir test
+cd test 
+dotnet new console
+```
+* 通过Nuget引用TDengineDriver包
+``` cmd
+dotnet add package TDengine.Connector
+```
+* 在项目中需要用到TDengineConnector的地方引用TDengineDriver namespace。
+```c# 
+using TDengineDriver;
+```
+* 用户可以参考[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523/TDengineTest)来定义数据库连接参数，以及如何执行数据插入、查询等操作。
 
-此接口需要用到taos.dll文件，所以在执行应用程序前，拷贝Windows客户端install_directory/driver目录中的taos.dll文件到项目最后生成.exe可执行文件所在的文件夹。之后运行exe文件，即可访问TDengine数据库并做插入、查询等操作。
 
 **注意：**
 
-1. TDengine V2.0.3.0之后同时支持32位和64位Windows系统，所以C#项目在生成.exe文件时，“解决方案”/“项目”的“平台”请选择对应的“X86” 或“x64”。
-2. 此接口目前已经在Visual Studio 2015/2017中验证过，其它VS版本尚待验证。
+* TDengine V2.0.3.0之后同时支持32位和64位Windows系统，所以C#项目在生成.exe文件时，“解决方案”/“项目”的“平台”请选择对应的“X86” 或“x64”。
+* 此接口目前已经在Visual Studio 2015/2017中验证过，其它VS版本尚待验证。
+* 此连接器需要用到taos.dll文件，所以在未安装客户端时需要在执行应用程序前，拷贝Windows{client_install_directory}/driver目录中的taos.dll文件到项目最后生成.exe可执行文件所在的文件夹。之后运行exe文件，即可访问TDengine数据库并做插入、查询等操作。
+
 
 ### 第三方驱动
 
@@ -1133,7 +1271,7 @@ node nodejsChecker.js host=localhost
 
 ### Node.js连接器的使用
 
-以下是Node.js 连接器的一些基本使用方法，详细的使用方法可参考[TDengine Node.js connector](http://docs.taosdata.com/node)。
+以下是Node.js 连接器的一些基本使用方法，详细的使用方法可参考[TDengine Node.js connector](https://github.com/taosdata/TDengine/tree/develop/src/connector/nodejs)。
 
 #### 建立连接
 

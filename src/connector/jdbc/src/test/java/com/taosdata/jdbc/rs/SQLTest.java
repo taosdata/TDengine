@@ -518,7 +518,7 @@ public class SQLTest {
 
     @Test
     public void testCase050() {
-        String sql = "select * from restful_test.t1, restful_test.t3 where t1.ts = t3.ts and t1.location = t3.location";
+        String sql = "select * from restful_test.t1, restful_test.t3 where t1.ts = t3.ts";
         // when
         ResultSet rs = executeQuery(connection, sql);
         // then
@@ -537,15 +537,6 @@ public class SQLTest {
     @Test
     public void testCase052() {
         String sql = "select server_status()";
-        // when
-        ResultSet rs = executeQuery(connection, sql);
-        // then
-        Assert.assertNotNull(rs);
-    }
-
-    @Test
-    public void testCase053() {
-        String sql = "select avg(cpu_taosd), avg(cpu_system), max(cpu_cores), avg(mem_taosd), avg(mem_system), max(mem_total), avg(disk_used), max(disk_total), avg(band_speed), avg(io_read), avg(io_write), sum(req_http), sum(req_select), sum(req_insert) from log.dn1 where ts> now - 60m and ts<= now interval(1m) fill(value, 0)";
         // when
         ResultSet rs = executeQuery(connection, sql);
         // then
@@ -581,11 +572,14 @@ public class SQLTest {
 
     @BeforeClass
     public static void before() throws SQLException {
-        connection = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=root&password=taosdata");
+        connection = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata");
     }
 
     @AfterClass
     public static void after() throws SQLException {
+        Statement stmt = connection.createStatement();
+        stmt.execute("drop database if exists restful_test");
+        stmt.close();
         connection.close();
     }
 

@@ -230,7 +230,7 @@ void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const 
 {
   int32_t  parent;
   int32_t  child;
-  char    *buf;
+  char    *buf = NULL;
 
   if (base && size > 0 && compar) {
     parent = start;
