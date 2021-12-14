@@ -418,7 +418,7 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
     pExpr->tokenId = optrType;
     pExpr->pLeft = pLeft;
     pExpr->pRight = pRight;
-    pExpr->type = SQL_NODE_TABLE_COLUMN;
+    pExpr->type = SQL_NODE_EXPR;
   } else {
     pExpr->tokenId = optrType;
     pExpr->pLeft = pLeft;

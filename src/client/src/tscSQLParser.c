@@ -2196,7 +2196,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
     }
 
     int32_t type = pItem->pNode->type;
-    if (type == SQL_NODE_EXPR) {
+    if (type == SQL_NODE_EXPR && pItem->pNode->tokenId != TK_ARROW) {
       int32_t code = handleSQLExprItem(pCmd, pQueryInfo, i, pItem);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -2236,7 +2236,8 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
       }
-    } else if (type == SQL_NODE_TABLE_COLUMN || type == SQL_NODE_VALUE) {
+    } else if (type == SQL_NODE_TABLE_COLUMN || type == SQL_NODE_VALUE ||
+               (type == SQL_NODE_EXPR && pItem->pNode->tokenId == TK_ARROW)) {
       // use the dynamic array list to decide if the function is valid or not
       // select table_name1.field_name1, table_name2.field_name2  from table_name1, table_name2
       if (addProjectionExprAndResultField(pCmd, pQueryInfo, pItem, outerQuery) != TSDB_CODE_SUCCESS) {
@@ -4670,10 +4671,6 @@ static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
     }
   } else if (pExpr->type == SQL_NODE_TABLE_COLUMN) {
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-
-    if (pExpr->tokenId == TK_ARROW) {
-      pExpr = pExpr->pLeft;
-    }
 
     if (getColumnIndexByName(&pExpr->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) !=
         TSDB_CODE_SUCCESS) {
