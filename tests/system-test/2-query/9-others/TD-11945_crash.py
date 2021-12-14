@@ -20,7 +20,7 @@ from util.sql import *
 class TDTestCase:
     def caseDescription(self):
         '''
-        case1:<author>:wenzhouwww [TD-11945] this test case is an issue about taoshell and taosd crash , it now has been repaired on branch https://github.com/taosdata/TDengine/tree/feature%2FTD-6140
+        case1:<wenzhouwww>: [TD-11945] this test case is an issue about taoshell and taosd crash , it now has been repaired on branch https://github.com/taosdata/TDengine/tree/feature%2FTD-6140
         the root source maybe :
         The four arithmetic operations do not perform the verification of the numeric type,so that the numeric type and string type will coredump about Four arithmetic operations
         ''' 
