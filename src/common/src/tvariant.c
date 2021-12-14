@@ -969,13 +969,13 @@ int32_t tVariantTypeSetType(tVariant *pVariant, char type) {
   if (pVariant == NULL || pVariant->nType == 0) {  // value is not set
     return 0;
   }
-  
+
   switch (type) {
     case TSDB_DATA_TYPE_BOOL: {  // bool
       if (convertToBool(pVariant, &pVariant->i64) < 0) {
         return -1;
       }
-      
+
       pVariant->nType = type;
       break;
     }
@@ -996,7 +996,7 @@ int32_t tVariantTypeSetType(tVariant *pVariant, char type) {
           free(pVariant->pz);
           return -1;
         }
-        
+
         free(pVariant->pz);
         pVariant->dKey = v;
       } else if (pVariant->nType == TSDB_DATA_TYPE_NCHAR) {
@@ -1006,14 +1006,14 @@ int32_t tVariantTypeSetType(tVariant *pVariant, char type) {
           free(pVariant->pz);
           return -1;
         }
-        
+
         free(pVariant->pz);
         pVariant->dKey = v;
       } else if (pVariant->nType >= TSDB_DATA_TYPE_BOOL && pVariant->nType <= TSDB_DATA_TYPE_BIGINT) {
         double tmp = (double) pVariant->i64;
         pVariant->dKey = tmp;
       }
-      
+
       pVariant->nType = TSDB_DATA_TYPE_DOUBLE;
       break;
     }
@@ -1034,6 +1034,6 @@ int32_t tVariantTypeSetType(tVariant *pVariant, char type) {
       break;
     }
   }
-  
+
   return 0;
 }
