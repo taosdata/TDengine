@@ -354,6 +354,7 @@ pipeline {
             script{
               abort_previous()
               abortPreviousBuilds()
+              println env.CHANGE_FORK
             }
           //   sh'''
           // rm -rf ${WORKSPACE}.tes
