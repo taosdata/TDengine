@@ -46,6 +46,7 @@ void taos_stmt_init_test() {
   }
   stmt = taos_stmt_init(taos);
   assert(stmt != NULL);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_close(stmt) == 0);
   printf("finish taos_stmt_init test\n");
 }
@@ -127,6 +128,7 @@ void taos_stmt_set_tbname_test() {
   assert(taos_stmt_set_tbname(stmt, name) == 0);
   free(name);
   free(stmt_sql);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   taos_stmt_close(stmt);
   printf("finish taos_stmt_set_tbname test\n");
 }
@@ -166,8 +168,47 @@ void taos_stmt_set_tbname_tags_test() {
   free(stmt_sql);
   free(name);
   free(tags);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   taos_stmt_close(stmt);
   printf("finish taos_stmt_set_tbname_tags test\n");
+}
+
+void taos_stmt_set_tbname_tags_json_test() {
+  printf("start taos_stmt_set_tbname_tags_json_test test\n");
+  TAOS_STMT *stmt = NULL;
+  char *     name = calloc(1, 20);
+  TAOS_BIND *tags = calloc(1, sizeof(TAOS_BIND));
+  // ASM ERROR
+  assert(taos_stmt_set_tbname_tags(stmt, name, tags) != 0);
+  void *taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
+  if (taos == NULL) {
+    printf("Cannot connect to tdengine server\n");
+    exit(EXIT_FAILURE);
+  }
+  execute_simple_sql(taos, "drop database if exists stmt_test_json");
+  execute_simple_sql(taos, "create database stmt_test_json");
+  execute_simple_sql(taos, "use stmt_test_json");
+  execute_simple_sql(taos, "create stable super(ts timestamp, c1 int) tags (jtag json)");
+  stmt = taos_stmt_init(taos);
+  assert(stmt != NULL);
+  char *stmt_sql = calloc(1, 1000);
+  sprintf(stmt_sql, "insert into ? using super tags (?) values (?,?)");
+  assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
+  assert(taos_stmt_set_tbname_tags(stmt, name, tags) != 0);
+  sprintf(name, "tb");
+  assert(taos_stmt_set_tbname_tags(stmt, name, tags) != 0);
+  tags->buffer_type = TSDB_DATA_TYPE_JSON;
+  tags->buffer = "{\\\"key1\\\":\\\"value1\\\",\\\"key2\\\":null,\\\"key3\\\":3,\\\"key4\\\":3.2}";
+  tags->buffer_length = strlen(tags->buffer);
+  tags->length = &tags->buffer_length;
+  tags->is_null = NULL;
+  assert(taos_stmt_set_tbname_tags(stmt, name, tags) == 0);
+  free(stmt_sql);
+  free(name);
+  free(tags);
+  assert(taos_stmt_affected_rows(stmt) == 0);
+  taos_stmt_close(stmt);
+  printf("finish taos_stmt_set_tbname_tags_json_test test\n");
 }
 
 void taos_stmt_set_sub_tbname_test() {
@@ -194,8 +235,10 @@ void taos_stmt_set_sub_tbname_test() {
   assert(taos_stmt_set_sub_tbname(stmt, name) != 0);
   sprintf(name, "tb");
   assert(taos_stmt_set_sub_tbname(stmt, name) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_load_table_info(taos, "super, tb") == 0);
   assert(taos_stmt_set_sub_tbname(stmt, name) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   free(name);
   free(stmt_sql);
   assert(taos_stmt_close(stmt) == 0);
@@ -238,6 +281,7 @@ void taos_stmt_bind_param_test() {
   assert(taos_stmt_bind_param(stmt, params) != 0);
   assert(taos_stmt_set_tbname(stmt, "super") == 0);
   assert(taos_stmt_bind_param(stmt, params) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   free(params);
   free(stmt_sql);
   taos_stmt_close(stmt);
@@ -249,6 +293,7 @@ void taos_stmt_bind_single_param_batch_test() {
   TAOS_STMT *      stmt = NULL;
   TAOS_MULTI_BIND *bind = NULL;
   assert(taos_stmt_bind_single_param_batch(stmt, bind, 0) != 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   printf("finish taos_stmt_bind_single_param_batch test\n");
 }
 
@@ -257,6 +302,7 @@ void taos_stmt_bind_param_batch_test() {
   TAOS_STMT *      stmt = NULL;
   TAOS_MULTI_BIND *bind = NULL;
   assert(taos_stmt_bind_param_batch(stmt, bind) != 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   printf("finish taos_stmt_bind_param_batch test\n");
 }
 
@@ -293,10 +339,14 @@ void taos_stmt_add_batch_test() {
   params[1].length = &params[1].buffer_length;
   params[1].is_null = NULL;
   assert(taos_stmt_set_tbname(stmt, "super") == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_bind_param(stmt, params) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_add_batch(stmt) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   free(params);
   free(stmt_sql);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_close(stmt) == 0);
   printf("finish taos_stmt_add_batch test\n");
 }
@@ -317,10 +367,13 @@ void taos_stmt_execute_test() {
   stmt = taos_stmt_init(taos);
   assert(stmt != NULL);
   assert(taos_stmt_execute(stmt) != 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   char *stmt_sql = calloc(1, 1000);
   sprintf(stmt_sql, "insert into ? values (?,?)");
   assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_execute(stmt) != 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   TAOS_BIND *params = calloc(2, sizeof(TAOS_BIND));
   int64_t    ts = (int64_t)1591060628000;
   params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
@@ -335,11 +388,17 @@ void taos_stmt_execute_test() {
   params[1].length = &params[1].buffer_length;
   params[1].is_null = NULL;
   assert(taos_stmt_set_tbname(stmt, "super") == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_execute(stmt) != 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_bind_param(stmt, params) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_execute(stmt) != 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_add_batch(stmt) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 0);
   assert(taos_stmt_execute(stmt) == 0);
+  assert(taos_stmt_affected_rows(stmt) == 1);
   free(params);
   free(stmt_sql);
   assert(taos_stmt_close(stmt) == 0);
@@ -471,6 +530,76 @@ void taos_stmt_use_result_query(void *taos, char *col, int type) {
   free(stmt_sql);
 }
 
+void taos_stmt_use_result_query_json(void *taos, char *col, int type) {
+  TAOS_STMT *stmt = taos_stmt_init(taos);
+  assert(stmt != NULL);
+  char *stmt_sql = calloc(1, 1024);
+  sprintf(stmt_sql, "select * from stmt_test_json.super where jtag->? = ?");
+  printf("stmt_sql: %s\n", stmt_sql);
+  assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
+
+
+  struct {
+    int64_t  long_value;
+    double   double_value;
+    char     nchar_value[32];
+  } v = {0};
+  v.long_value = 4;
+  v.double_value = 3.3;
+  strcpy(v.nchar_value, "一二三四五六七八");
+
+  TAOS_BIND params[2] = {0};
+
+//  char jsonTag[32] = "jtag";
+//  params[0].buffer_type = TSDB_DATA_TYPE_NCHAR;
+//  params[0].buffer_length = strlen(jsonTag);
+//  params[0].buffer = &jsonTag;
+//  params[0].length = &params[0].buffer_length;
+//  params[0].is_null = NULL;
+
+  params[0].buffer_type = TSDB_DATA_TYPE_NCHAR;
+  params[0].buffer_length = strlen(col);
+  params[0].buffer = col;
+  params[0].length = &params[0].buffer_length;
+  params[0].is_null = NULL;
+
+  switch (type) {
+    case TSDB_DATA_TYPE_BIGINT:
+      params[1].buffer_type = type;
+      params[1].buffer_length = sizeof(v.long_value);
+      params[1].buffer = &v.long_value;
+      params[1].length = &params[1].buffer_length;
+      params[1].is_null = NULL;
+      break;
+    case TSDB_DATA_TYPE_NCHAR:
+      params[1].buffer_type = type;
+      params[1].buffer_length = strlen(v.nchar_value);
+      params[1].buffer = &v.nchar_value;
+      params[1].length = &params[1].buffer_length;
+      params[1].is_null = NULL;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      params[1].buffer_type = type;
+      params[1].buffer_length = sizeof(v.double_value);
+      params[1].buffer = &v.double_value;
+      params[1].length = &params[1].buffer_length;
+      params[1].is_null = NULL;
+      break;
+    default:
+      printf("Cannnot find type: %d\n", type);
+      break;
+  }
+
+  assert(taos_stmt_bind_param(stmt, params) == 0);
+  assert(taos_stmt_execute(stmt) == 0);
+  TAOS_RES *result = taos_stmt_use_result(stmt);
+  assert(result != NULL);
+  print_result(result);
+  taos_free_result(result);
+  assert(taos_stmt_close(stmt) == 0);
+  free(stmt_sql);
+}
+
 void taos_stmt_use_result_test() {
   printf("start taos_stmt_use_result test\n");
   void *taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
@@ -513,6 +642,47 @@ void taos_stmt_use_result_test() {
   printf("finish taos_stmt_use_result test\n");
 }
 
+void taos_stmt_use_result_json_test() {
+  printf("start taos_stmt_use_result_json_test test\n");
+  void *taos = taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
+  if (taos == NULL) {
+    printf("Cannot connect to tdengine server\n");
+    exit(EXIT_FAILURE);
+  }
+  execute_simple_sql(taos, "drop database if exists stmt_test_json");
+  execute_simple_sql(taos, "create database stmt_test_json");
+  execute_simple_sql(taos, "use stmt_test_json");
+  execute_simple_sql(
+      taos,
+      "create table super(ts timestamp, c1 int) tags (jtag json)");
+  execute_simple_sql(taos,
+                     "create table t1 using super tags ('{\\\"key1\\\":\\\"一二三四五六七八\\\",\\\"key2\\\":null,\\\"key3\\\":3,\\\"key4\\\":3.1}')");
+  execute_simple_sql(
+      taos, "insert into t1 values (1591060628000, 1)");
+  execute_simple_sql(
+      taos, "insert into t1 values (1591060628001, 2)");
+
+  execute_simple_sql(taos,
+                     "create table t2 using super tags ('{\\\"key1\\\":5,\\\"key2\\\":null,\\\"key3\\\":4,\\\"key4\\\":3.2}')");
+  execute_simple_sql(
+      taos, "insert into t2 values (1591060628003, 21)");
+  execute_simple_sql(
+      taos, "insert into t2 values (1591060628004, 22)");
+
+  execute_simple_sql(taos,
+                     "create table t3 using super tags ('{\\\"key1\\\":\\\"一二\\\",\\\"key2\\\":null,\\\"key3\\\":null,\\\"key4\\\":3.3}')");
+  execute_simple_sql(
+      taos, "insert into t3 values (1591060628005, 31)");
+  execute_simple_sql(
+      taos, "insert into t3 values (1591060628006, 32)");
+
+  taos_stmt_use_result_query_json(taos, "key1", TSDB_DATA_TYPE_NCHAR);
+  taos_stmt_use_result_query_json(taos, "key3", TSDB_DATA_TYPE_BIGINT);
+  taos_stmt_use_result_query_json(taos, "key4", TSDB_DATA_TYPE_DOUBLE);
+
+  printf("finish taos_stmt_use_result_json_test test\n");
+}
+
 void taos_stmt_close_test() {
   printf("start taos_stmt_close test\n");
   // ASM ERROR
@@ -527,6 +697,7 @@ void test_api_reliability() {
   taos_stmt_preprare_test();
   taos_stmt_set_tbname_test();
   taos_stmt_set_tbname_tags_test();
+  taos_stmt_set_tbname_tags_json_test();
   taos_stmt_set_sub_tbname_test();
   taos_stmt_bind_param_test();
   taos_stmt_bind_single_param_batch_test();
@@ -536,7 +707,7 @@ void test_api_reliability() {
   taos_stmt_close_test();
 }
 
-void test_query() { taos_stmt_use_result_test(); }
+void test_query() { taos_stmt_use_result_test(); taos_stmt_use_result_json_test(); }
 
 int main(int argc, char *argv[]) {
   test_api_reliability();

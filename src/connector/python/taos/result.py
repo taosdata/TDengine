@@ -3,6 +3,8 @@ from .cinterface import *
 # from .connection import TaosConnection
 from .error import *
 
+from ctypes import c_void_p
+
 
 class TaosResult(object):
     """TDengine result interface"""
@@ -12,7 +14,11 @@ class TaosResult(object):
         # to make the __del__ order right
         self._conn = conn
         self._close_after = close_after
-        self._result = result
+        if isinstance(result, c_void_p):
+            self._result = result
+        else:
+            self._result = c_void_p(result)
+
         self._fields = None
         self._field_count = None
         self._precision = None
@@ -123,6 +129,12 @@ class TaosResult(object):
             for i in range(len(self._fields)):
                 buffer[i].extend(block[i])
         return list(map(tuple, zip(*buffer)))
+    
+    def fetch_all_into_dict(self):
+        """Fetch all rows and convert it to dict"""
+        names = [field.name for field in self.fields]
+        rows = self.fetch_all()
+        return list(dict(zip(names, row)) for row in rows)
 
     def fetch_rows_a(self, callback, param):
         taos_fetch_rows_a(self._result, callback, param)
@@ -227,6 +239,12 @@ class TaosRow:
             else:
                 blocks[i] = CONVERT_FUNC[fields[i].type](data, 1, field_lens[i], precision)[0]
         return tuple(blocks)
+
+    def as_dict(self):
+        values = self.as_tuple()
+        names = self._result.fields
+        dict(zip(names, values))
+        
 
 
 class TaosBlocks:

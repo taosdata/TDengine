@@ -24,7 +24,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-        self.ts = 1500000000000
+        self.ts = 1600000000000
         self.num = 10
 
     def run(self):
@@ -83,6 +83,73 @@ class TDTestCase:
 
         tdSql.query("select 'dcs' as options from stb where col > 200 limit 1 union all select 'aaa' as options from stb limit 10")
         tdSql.checkData(0, 0, 'aaa')
+
+        # https://jira.taosdata.com:18080/browse/TS-444
+        tdLog.info("test case for TS-444")
+
+        tdSql.query("select count(*) as count, loc from st where ts between 1600000000000 and 1600000000010 group by loc")
+        tdSql.checkRows(6)
+
+        tdSql.query("select count(*) as count, loc from st where ts between 1600000000020 and 1600000000030 group by loc")
+        tdSql.checkRows(0)
+
+        tdSql.query(''' select count(*) as count, loc from st where ts between 1600000000000 and 1600000000010 group by loc
+                    union all
+                    select count(*) as count, loc from st where ts between 1600000000020 and 1600000000030 group by loc''')
+        tdSql.checkRows(6)
+
+        tdSql.query(''' select count(*) as count, loc from st where ts between 1600000000020 and 1600000000030 group by loc
+                    union all
+                    select count(*) as count, loc from st where ts between 1600000000000 and 1600000000010 group by loc''')
+        tdSql.checkRows(6)
+
+        # https://jira.taosdata.com:18080/browse/TS-715
+        tdLog.info("test case for TS-715")
+        sql = ""
+
+        tdSql.execute("create table st2(ts timestamp, c1 int, c2 int, c3 int) tags(loc nchar(20))")
+
+        for i in range(101):
+            if i == 0:
+                sql = "select last(*) from sub0 "
+            else:
+                sql += f"union all select last(*) from sub{i} "
+
+            tdSql.execute("create table sub%d using st2 tags('nchar%d')" % (i, i))
+            tdSql.execute("insert into sub%d values(%d, %d, %d, %d)(%d, %d, %d, %d)" % (i, self.ts + i, i, i, i,self.ts + i + 101, i + 101, i + 101, i + 101))
+
+        tdSql.error(sql)
+
+        # TS-795
+        tdLog.info("test case for TS-795")
+        
+        functions = ["*", "count", "avg", "twa", "irate", "sum", "stddev", "leastsquares", "min", "max", "first", "last", "top", "bottom", "percentile", "apercentile", "last_row"]
+        
+        for func in functions:
+            expr = func
+            if func == "top" or func == "bottom":
+                expr += "(c1, 1)"
+            elif func == "percentile" or func == "apercentile":
+                expr += "(c1, 0.5)"
+            elif func == "leastsquares":
+                expr = func + "(c1, 1, 1)"
+            elif func == "*":
+                expr = func
+            else:
+                expr += "(c1)"
+
+            for i in range(100):
+                if i == 0:
+                    sql = f"select {expr} from sub0 "
+                else:
+                    sql += f"union all select {expr} from sub{i} "
+
+            tdSql.query(sql)
+            if func == "*":
+                tdSql.checkRows(200)
+            else:
+                tdSql.checkRows(100)
+
 
     def stop(self):
         tdSql.close()

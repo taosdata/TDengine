@@ -37,6 +37,7 @@ int32_t tfFsync(int64_t tfd);
 bool    tfValid(int64_t tfd);
 int64_t tfLseek(int64_t tfd, int64_t offset, int32_t whence);
 int32_t tfFtruncate(int64_t tfd, int64_t length);
+int32_t tfStat(int64_t tfd, struct stat *pFstat);
 
 #ifdef __cplusplus
 }

@@ -31,13 +31,42 @@ class TDTestCase:
         tdSql.execute("create database bug6387 ")
         tdSql.execute("use bug6387 ")
         tdSql.execute("create table test(ts timestamp, c1 int) tags(t1 int)")
+        prefix = "insert into "
+        sql = ""
         for i in range(5000):
-            sql = "insert into t%d using test tags(1) values " % i
+            temp = "t%d using test tags(1) values " % i
             for j in range(21):
-                sql = sql + "(now+%ds,%d)" % (j ,j )
-            tdSql.execute(sql)
+                temp = temp + "(now+%ds,%d)" % (j ,j )
+            sql = sql + temp
+            if i % 1000 == 0 :
+                tdSql.execute(prefix + sql)
+                sql = ""
         tdSql.query("select count(*) from test interval(1s) group by tbname")
         tdSql.checkData(0,1,1)
+    
+    def escape_ascii(self):
+        tdSql.execute('drop database if exists db')
+        tdSql.execute('create database db')
+        tdSql.execute('use db')
+        tdSql.execute("create table car (ts timestamp, s int) tags(j int)")
+        for i in range(32,127):
+            if i == 96 : continue    #`
+            sql = 'create table `是否出现%s` using car tags(%d)' % (chr(i), i)
+            tdSql.execute(sql)
+        for i in range(32,65):
+            sql = 'select tbname from car where tbname like "是否出现\%s"' % chr(i)
+            tdSql.query(sql)
+            if i == 37 : continue  # " `
+            tdSql.checkRows(1)
+        for i in range(91,97):
+            sql = 'select tbname from car where tbname like "是否出现\%s"' % chr(i)
+            tdSql.query(sql)
+            if i == 96: continue  #  `
+            tdSql.checkRows(1)
+        for i in range(123,127):
+            sql = 'select tbname from car where tbname like "是否出现\%s"' % chr(i)
+            tdSql.query(sql)
+            tdSql.checkRows(1)
 
     def run(self):
         tdSql.prepare()
@@ -74,7 +103,7 @@ class TDTestCase:
         tdSql.checkData(1, 1, 'dev_01')
         tdSql.checkData(1, 2, 1)
 
-        ## test case for https://jira.taosdata.com:18080/browse/TD-2488
+        ## TD-2488
         tdSql.execute("create table m1(ts timestamp, k int) tags(a int)")
         tdSql.execute("create table t1 using m1 tags(1)")
         tdSql.execute("create table t2 using m1 tags(2)")
@@ -93,7 +122,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
-        ## test case for https://jira.taosdata.com:18080/browse/TD-1930
+        ## TD-1930
         tdSql.execute("create table tb(ts timestamp, c1 int, c2 binary(10), c3 nchar(10), c4 float, c5 bool)")
         for i in range(10):
             tdSql.execute(
@@ -126,7 +155,7 @@ class TDTestCase:
         tdSql.query("select * from tb where c5 = 'true' ")
         tdSql.checkRows(5)
 
-        # For jira: https://jira.taosdata.com:18080/browse/TD-2850
+        # TD-2850
         tdSql.execute("create database 'Test' ")
         tdSql.execute("use 'Test' ")
         tdSql.execute("create table 'TB'(ts timestamp, 'Col1' int) tags('Tag1' int)")
@@ -136,7 +165,7 @@ class TDTestCase:
         tdSql.query("select * from tb0")
         tdSql.checkRows(1)
 
-        # For jira:https://jira.taosdata.com:18080/browse/TD-6314
+        # TD-6314
         tdSql.execute("use db")
         tdSql.execute("create stable stb_001(ts timestamp,v int) tags(c0 int)")
         tdSql.execute("insert into stb1 using stb_001 tags(1) values(now,1)")
@@ -145,9 +174,29 @@ class TDTestCase:
 
         
 
-        #For jira: https://jira.taosdata.com:18080/browse/TD-6387
+        #TD-6387
         tdLog.info("case for bug_6387")
         self.bug_6387()
+
+        #JIRA TS-583
+        tdLog.info("case for JIRA TS-583")
+        tdSql.execute("create database test2")
+        tdSql.execute("use test2")
+        tdSql.execute("create table stb(ts timestamp, c1 int) tags(t1 binary(120))")
+        tdSql.execute("create table t0 using stb tags('abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz')")
+    
+        tdSql.query("show create table t0")        
+        tdSql.checkRows(1)
+
+        tdSql.execute("create table stb2(ts timestamp, c1 int) tags(t1 nchar(120))")
+        tdSql.execute("create table t1 using stb2 tags('abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz')")
+        
+        tdSql.query("show create table t1")        
+        tdSql.checkRows(1)
+
+        #TS-636
+        tdLog.info("case for TS-636")
+        self.escape_ascii()
 
     def stop(self):
         tdSql.close()

@@ -258,9 +258,9 @@ void taosCloseQset(taos_qset param) {
   pthread_mutex_unlock(&qset->mutex);
 
   pthread_mutex_destroy(&qset->mutex);
+  uTrace("qset:%p is closed", qset);
   tsem_destroy(&qset->sem);
   free(qset);
-  uTrace("qset:%p is closed", qset);
 }
 
 // tsem_post 'qset->sem', so that reader threads waiting for it

@@ -468,7 +468,7 @@ SSqlObj* recreateSqlObj(SSub* pSub) {
   }
 
   registerSqlObj(pSql);
-
+  pSql->rootObj = pSql;
   code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     tsem_wait(&pSub->sem);

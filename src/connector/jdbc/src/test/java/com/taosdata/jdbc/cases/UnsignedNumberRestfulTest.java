@@ -16,7 +16,7 @@ public class UnsignedNumberRestfulTest {
     private static long ts;
 
     @Test
-    public void testCase001() {
+    public void testCase001() throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select * from us_table");
             ResultSetMetaData meta = rs.getMetaData();
@@ -28,13 +28,11 @@ public class UnsignedNumberRestfulTest {
                 Assert.assertEquals("2147483647", rs.getString(4));
                 Assert.assertEquals("9223372036854775807", rs.getString(5));
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
     @Test
-    public void testCase002() {
+    public void testCase002() throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select * from us_table");
             ResultSetMetaData meta = rs.getMetaData();
@@ -47,8 +45,6 @@ public class UnsignedNumberRestfulTest {
                 Assert.assertEquals(2147483647, rs.getInt(4));
                 Assert.assertEquals(9223372036854775807L, rs.getLong(5));
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 

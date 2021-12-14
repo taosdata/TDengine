@@ -366,7 +366,7 @@ class TDTestCase:
         calc_select_regular = [ 'PERCENTILE(q_int,10)' ,'PERCENTILE(q_bigint,20)' , 'PERCENTILE(q_smallint,30)' ,'PERCENTILE(q_tinyint,40)' ,'PERCENTILE(q_float,50)' ,'PERCENTILE(q_double,60)']
 
                     
-        calc_select_fill = ['INTERP(q_bool)' ,'INTERP(q_binary)' ,'INTERP(q_nchar)' ,'INTERP(q_ts)', 'INTERP(q_int)' ,'INTERP(*)' ,'INTERP(q_bigint)' ,'INTERP(q_smallint)' ,'INTERP(q_tinyint)', 'INTERP(q_float)' ,'INTERP(q_double)']
+        calc_select_fill = ['INTERP(q_int)' ,'INTERP(q_bigint)' ,'INTERP(q_smallint)' ,'INTERP(q_tinyint)', 'INTERP(q_float)' ,'INTERP(q_double)']
         interp_where = ['ts = now' , 'ts = \'2020-09-13 20:26:40.000\'' , 'ts = \'2020-09-13 20:26:40.009\'' ,'tbname in (\'table_1\') and ts = now' ,'tbname in (\'table_0\' ,\'table_1\',\'table_2\',\'table_3\',\'table_4\',\'table_5\') and ts =  \'2020-09-13 20:26:40.000\'','tbname like \'table%\'  and ts =  \'2020-09-13 20:26:40.002\'']
 
         #two table join
@@ -396,8 +396,8 @@ class TDTestCase:
                     'PERCENTILE(t2.q_int,10)' ,'PERCENTILE(t2.q_bigint,20)' , 'PERCENTILE(t2.q_smallint,30)' ,'PERCENTILE(t2.q_tinyint,40)' ,'PERCENTILE(t2.q_float,50)' ,'PERCENTILE(t2.q_double,60)']
 
                     
-        calc_select_fill_j = ['INTERP(t1.q_bool)' ,'INTERP(t1.q_binary)' ,'INTERP(t1.q_nchar)' ,'INTERP(t1.q_ts)', 'INTERP(t1.q_int)' ,'INTERP(t1.*)' ,'INTERP(t1.q_bigint)' ,'INTERP(t1.q_smallint)' ,'INTERP(t1.q_tinyint)', 'INTERP(t1.q_float)' ,'INTERP(t1.q_double)' ,
-                    'INTERP(t2.q_bool)' ,'INTERP(t2.q_binary)' ,'INTERP(t2.q_nchar)' ,'INTERP(t2.q_ts)', 'INTERP(t2.q_int)' ,'INTERP(t2.*)' ,'INTERP(t2.q_bigint)' ,'INTERP(t2.q_smallint)' ,'INTERP(t2.q_tinyint)', 'INTERP(t2.q_float)' ,'INTERP(t2.q_double)']
+        calc_select_fill_j = ['INTERP(t1.q_int)' ,'INTERP(t1.q_bigint)' ,'INTERP(t1.q_smallint)' ,'INTERP(t1.q_tinyint)', 'INTERP(t1.q_float)' ,'INTERP(t1.q_double)' ,
+                    'INTERP(t2.q_int)' ,'INTERP(t2.q_bigint)' ,'INTERP(t2.q_smallint)' ,'INTERP(t2.q_tinyint)', 'INTERP(t2.q_float)' ,'INTERP(t2.q_double)']
         interp_where_j = ['t1.ts = now' , 't1.ts = \'2020-09-13 20:26:40.000\'' , 't1.ts = \'2020-09-13 20:26:40.009\'' ,'t2.ts = now' , 't2.ts = \'2020-09-13 20:26:40.000\'' , 't2.ts = \'2020-09-13 20:26:40.009\'' ,
                     't1.tbname in (\'table_1\') and t1.ts = now' ,'t1.tbname in (\'table_0\' ,\'table_1\',\'table_2\',\'table_3\',\'table_4\',\'table_5\') and t1.ts =  \'2020-09-13 20:26:40.000\'','t1.tbname like \'table%\'  and t1.ts =  \'2020-09-13 20:26:40.002\'',
                     't2.tbname in (\'table_1\') and t2.ts = now' ,'t2.tbname in (\'table_0\' ,\'table_1\',\'table_2\',\'table_3\',\'table_4\',\'table_5\') and t2.ts =  \'2020-09-13 20:26:40.000\'','t2.tbname like \'table%\'  and t2.ts =  \'2020-09-13 20:26:40.002\'']
@@ -1714,7 +1714,6 @@ class TDTestCase:
             sql += " from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and   "
             sql += "%s " % random.choice(q_u_where)
             sql += "%s " % random.choice(session_u_where)
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -1731,7 +1730,6 @@ class TDTestCase:
             sql += " from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and   "
             sql += "%s " % random.choice(q_u_or_where)
             sql += "%s " % random.choice(session_u_where)
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -1767,7 +1765,6 @@ class TDTestCase:
             sql += " from table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and  "
             sql += "%s " % random.choice(q_u_where)
             sql += "%s " % random.choice(session_u_where)
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -1784,7 +1781,6 @@ class TDTestCase:
             sql += " from table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and  "
             sql += "%s " % random.choice(q_u_or_where)
             sql += "%s " % random.choice(session_u_where)
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -1818,7 +1814,6 @@ class TDTestCase:
             sql += " from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and   "
             sql += "%s " % random.choice(t_join_where)
             sql += "%s " % random.choice(session_u_where)
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -1835,7 +1830,6 @@ class TDTestCase:
             sql += " from stable_1 t1, stable_2 t2 where t1.ts = t2.ts and   "
             sql += "%s " % random.choice(qt_u_or_where)
             sql += "%s " % random.choice(session_u_where)
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -2002,7 +1996,7 @@ class TDTestCase:
             sql += ") "
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            tdSql.query(sql)
+            #tdSql.query(sql)
 
         rsDn = self.restartDnodes()
         tdSql.query("select 20-2 from table_0;")
@@ -2015,13 +2009,12 @@ class TDTestCase:
             sql += " from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and  "
             sql += "%s and " % random.choice(t_join_where)
             sql += "%s " % random.choice(interp_where_j)  
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            tdSql.query(sql)
+            #tdSql.query(sql)
 
         tdSql.query("select 20-2.2 from table_0;")
         for i in range(self.fornum):
@@ -2032,7 +2025,6 @@ class TDTestCase:
             sql += " from stable_1 t1 , stable_2 t2 where t1.ts = t2.ts and  "
             sql += "%s and " % random.choice(qt_u_or_where)
             sql += "%s " % random.choice(interp_where_j)  
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -2065,7 +2057,6 @@ class TDTestCase:
             sql += " from table_0 t1, table_1 t2 where t1.ts = t2.ts and    "             
             #sql += "%s and " % random.choice(t_join_where)
             sql += "%s " % interp_where_j[random.randint(0,5)]
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -2116,7 +2107,6 @@ class TDTestCase:
             sql += " from regular_table_1 t1, regular_table_2 t2 where t1.ts = t2.ts and   "
             #sql += "%s " % random.choice(interp_where_j) 
             sql += "%s " % interp_where_j[random.randint(0,5)] 
-            sql += "%s " % random.choice(fill_where)
             sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
@@ -2230,7 +2220,7 @@ class TDTestCase:
         binPath = buildPath+ "/build/bin/"
 
         # regualr-table
-        os.system("%staosdemo -N -d regular -t 2 -n 1000 -l 4095 -y" % binPath)
+        os.system("%staosBenchmark -N -d regular -t 2 -n 1000 -l 4095 -y" % binPath)
         tdSql.execute("use regular")
         tdSql.query("select * from d0;")
         tdSql.checkCols(4096)
@@ -2291,7 +2281,7 @@ class TDTestCase:
         tdSql.checkRows(1000)
        
         #stable
-        os.system("%staosdemo -d super -t 2 -n 1000 -l 4093 -y" % binPath)
+        os.system("%staosBenchmark -d super -t 2 -n 1000 -l 4093 -y" % binPath)
         tdSql.execute("use super")
         tdSql.query("select * from meters;")
         tdSql.checkCols(4096)

@@ -23,6 +23,8 @@
 #include "tlosertree.h"
 #include "queryLog.h"
 #include "tscompression.h"
+#include "tscUtil.h"
+#include "cJSON.h"
 
 typedef struct SCompSupporter {
   STableQueryInfo **pTableQueryInfo;
@@ -448,7 +450,9 @@ int32_t tsDescOrder(const void* p1, const void* p2) {
   }
 }
 
-void orderTheResultRows(SQueryRuntimeEnv* pRuntimeEnv) {
+void
+
+orderTheResultRows(SQueryRuntimeEnv* pRuntimeEnv) {
   __compar_fn_t  fn = NULL;
   if (pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_ASC) {
     fn = tsAscOrder;
@@ -585,4 +589,3 @@ void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDi
     tfree(outputBuf);
   }
 }
-

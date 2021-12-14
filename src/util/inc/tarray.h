@@ -179,6 +179,12 @@ void taosArrayClear(SArray* pArray);
 void* taosArrayDestroy(SArray* pArray);
 
 /**
+ * destroy array list for hash
+ * @param pArray
+ */
+void taosArrayDestroyForHash(void* para);
+
+/**
  *
  * @param pArray
  * @param fp

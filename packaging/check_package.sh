@@ -128,12 +128,12 @@ function check_link() {
 function check_main_path() {
     #check install main dir and all sub dir
     main_dir=("" "cfg" "bin" "connector" "driver" "examples" "include" "init.d")
-    for i in ${main_dir[@]};do
+    for i in "${main_dir[@]}";do
         check_file ${install_main_dir} $i
     done
     if [ "$verMode" == "cluster" ]; then
         nginx_main_dir=("admin" "conf" "html" "sbin" "logs")
-        for i in ${nginx_main_dir[@]};do
+        for i in "${nginx_main_dir[@]}";do
             check_file ${nginx_dir}  $i
         done
     fi
@@ -142,12 +142,12 @@ function check_main_path() {
 
 function check_bin_path() {
     # check install bin dir and all sub dir
-    bin_dir=("taos" "taosd" "blm3" "taosdemo" "taosdump" "remove.sh" "tarbitrator" "set_core.sh")
-    for i in ${bin_dir[@]};do
+    bin_dir=("taos" "taosd" "taosadapter" "taosdemo" "remove.sh" "tarbitrator" "set_core.sh")
+    for i in "${bin_dir[@]}";do
         check_file ${sbin_dir} $i
     done
-    lbin_dir=("taos" "taosd" "blm3" "taosdemo" "taosdump" "rmtaos" "tarbitrator" "set_core")
-    for i in ${lbin_dir[@]};do
+    lbin_dir=("taos" "taosd" "taosadapter" "taosdemo" "rmtaos" "tarbitrator" "set_core")
+    for i in "${lbin_dir[@]}";do
         check_link ${bin_link_dir}/$i
     done
     if [ "$verMode" == "cluster" ]; then
@@ -170,17 +170,18 @@ function check_lib_path() {
 
 function check_header_path() {
 	# check all header
-	header_dir=("taos.h" "taoserror.h")
-    for i in ${header_dir[@]};do
+	header_dir=("taos.h" "taosdef.h" "taoserror.h")
+    for i in "${header_dir[@]}";do
         check_link ${inc_link_dir}/$i
     done
     echo -e "Check bin  path:\033[32mOK\033[0m!"
 }
 
-function check_blm3_config_dir() {
+function check_taosadapter_config_dir() {
 	# check all config
-	check_file ${cfg_install_dir} blm3.toml
-	check_file ${install_main_dir}/cfg blm.toml.org
+	check_file ${cfg_install_dir} taosadapter.toml
+	check_file ${cfg_install_dir} taosadapter.service
+	check_file ${install_main_dir}/cfg taosadapter.toml.org
 	echo -e "Check conf path:\033[32mOK\033[0m!"
 }
 
@@ -221,7 +222,7 @@ function test_TDengine() {
     check_lib_path
     check_header_path
     check_config_dir
-    check_blm3_config_dir
+    check_taosadapter_config_dir
     check_log_path
     check_data_path
     result=`taos -s 'create database test ;create table test.tt(ts timestamp ,i int);insert into test.tt values(now,11);select * from test.tt' 2>&1 ||:`

@@ -92,75 +92,71 @@ public class TSDBResultSetBlockData {
     }
 
     public void setByteArray(int col, int length, byte[] value) {
-        try {
-            switch (this.columnMetaDataList.get(col).getColType()) {
-                case TSDBConstants.TSDB_DATA_TYPE_BOOL: {
-                    ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
-                    buf.order(ByteOrder.LITTLE_ENDIAN).asCharBuffer();
-                    this.colData.set(col, buf);
-                    break;
-                }
-                case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
-                case TSDBConstants.TSDB_DATA_TYPE_TINYINT: {
-                    ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
-                    buf.order(ByteOrder.LITTLE_ENDIAN);
-                    this.colData.set(col, buf);
-                    break;
-                }
-                case TSDBConstants.TSDB_DATA_TYPE_USMALLINT:
-                case TSDBConstants.TSDB_DATA_TYPE_SMALLINT: {
-                    ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
-                    ShortBuffer sb = buf.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
-                    this.colData.set(col, sb);
-                    break;
-                }
-                case TSDBConstants.TSDB_DATA_TYPE_UINT:
-                case TSDBConstants.TSDB_DATA_TYPE_INT: {
-                    ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
-                    IntBuffer ib = buf.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
-                    this.colData.set(col, ib);
-                    break;
-                }
-                case TSDBConstants.TSDB_DATA_TYPE_UBIGINT:
-                case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
-                    ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
-                    LongBuffer lb = buf.order(ByteOrder.LITTLE_ENDIAN).asLongBuffer();
-                    this.colData.set(col, lb);
-                    break;
-                }
-                case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
-                    ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
-                    FloatBuffer fb = buf.order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
-                    this.colData.set(col, fb);
-                    break;
-                }
-                case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
-                    ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
-                    DoubleBuffer db = buf.order(ByteOrder.LITTLE_ENDIAN).asDoubleBuffer();
-                    this.colData.set(col, db);
-                    break;
-                }
-                case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
-                    ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
-                    buf.order(ByteOrder.LITTLE_ENDIAN);
-                    this.colData.set(col, buf);
-                    break;
-                }
-                case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
-                    ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
-                    LongBuffer lb = buf.order(ByteOrder.LITTLE_ENDIAN).asLongBuffer();
-                    this.colData.set(col, lb);
-                    break;
-                }
-                case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
-                    ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
-                    buf.order(ByteOrder.LITTLE_ENDIAN);
-                    this.colData.set(col, buf);
-                    break;
-                }
+        switch (this.columnMetaDataList.get(col).getColType()) {
+            case TSDBConstants.TSDB_DATA_TYPE_BOOL: {
+                ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+                buf.order(ByteOrder.LITTLE_ENDIAN).asCharBuffer();
+                this.colData.set(col, buf);
+                break;
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+            case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
+            case TSDBConstants.TSDB_DATA_TYPE_TINYINT: {
+                ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+                buf.order(ByteOrder.LITTLE_ENDIAN);
+                this.colData.set(col, buf);
+                break;
+            }
+            case TSDBConstants.TSDB_DATA_TYPE_USMALLINT:
+            case TSDBConstants.TSDB_DATA_TYPE_SMALLINT: {
+                ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+                ShortBuffer sb = buf.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
+                this.colData.set(col, sb);
+                break;
+            }
+            case TSDBConstants.TSDB_DATA_TYPE_UINT:
+            case TSDBConstants.TSDB_DATA_TYPE_INT: {
+                ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+                IntBuffer ib = buf.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
+                this.colData.set(col, ib);
+                break;
+            }
+            case TSDBConstants.TSDB_DATA_TYPE_UBIGINT:
+            case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
+                ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+                LongBuffer lb = buf.order(ByteOrder.LITTLE_ENDIAN).asLongBuffer();
+                this.colData.set(col, lb);
+                break;
+            }
+            case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
+                ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+                FloatBuffer fb = buf.order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
+                this.colData.set(col, fb);
+                break;
+            }
+            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
+                ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+                DoubleBuffer db = buf.order(ByteOrder.LITTLE_ENDIAN).asDoubleBuffer();
+                this.colData.set(col, db);
+                break;
+            }
+            case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
+                ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+                buf.order(ByteOrder.LITTLE_ENDIAN);
+                this.colData.set(col, buf);
+                break;
+            }
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
+                ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+                LongBuffer lb = buf.order(ByteOrder.LITTLE_ENDIAN).asLongBuffer();
+                this.colData.set(col, lb);
+                break;
+            }
+            case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
+                ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
+                buf.order(ByteOrder.LITTLE_ENDIAN);
+                this.colData.set(col, buf);
+                break;
+            }
         }
     }
 
@@ -283,14 +279,8 @@ public class TSDBResultSetBlockData {
         return 0;
     }
 
-    public Timestamp getTimestamp(int col) {
-        try {
-            return new Timestamp(getLong(col));
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-        return null;
+    public Timestamp getTimestamp(int col) throws SQLException {
+        return new Timestamp(getLong(col));
     }
 
     public double getDouble(int col) {
@@ -429,7 +419,7 @@ public class TSDBResultSetBlockData {
                     String charset = TaosGlobalConfig.getCharset();
                     return new String(dest, charset);
                 } catch (UnsupportedEncodingException e) {
-                    e.printStackTrace();
+                    throw new RuntimeException(e.getMessage());
                 }
             }
         }

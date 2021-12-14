@@ -23,7 +23,7 @@ sql create table $table2 (ts timestamp, b binary(20))
 sql insert into $table1 values(now,    "table_name")
 sql insert into $table1 values(now-1m, "tablexname")
 sql insert into $table1 values(now-2m, "tablexxx")
-sql insert into $table1 values(now-2m, "table")
+sql insert into $table1 values(now-3m, "table")
 
 sql select b from $table1 
 if $rows != 4 then
@@ -56,6 +56,45 @@ if $rows != 1 then
   return -1
 endi
 
+sql create database escape_percentage;
+sql use  escape_percentage;
+$table1 = tablename
+$table2 = `table%`
+
+sql create table $table1 (ts timestamp, b binary(20))
+sql create table $table2 (ts timestamp, b binary(20))
+
+sql insert into $table1 values(now,    "table%name")
+sql insert into $table1 values(now-1m, "table%")
+sql insert into $table1 values(now-2m, "table%%%")
+sql insert into $table1 values(now-3m, "table")
+
+sql select b from $table1 where b like 'table\%'
+print $rows
+if $rows != 1 then 
+  return -1
+endi
+sql select b from $table1 where b like 'table\%\%\%'
+print $rows
+if $rows != 1 then 
+  return -1
+endi
+sql select b from $table1 where b like 'table%'
+print $rows
+if $rows != 4 then 
+  return -1
+endi
+sql show tables like 'table\%'
+print $rows
+if $rows != 1 then 
+  return -1
+endi
+sql show tables like 'table%'
+print $rows
+if $rows != 2 then 
+  return -1
+endi
+sql drop database escape_percentage
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
 

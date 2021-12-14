@@ -184,6 +184,10 @@ void verify_prepare(TAOS* taos) {
     taos_stmt_close(stmt);
     exit(EXIT_FAILURE);
   }
+
+  int affectedRows = taos_stmt_affected_rows(stmt);
+  printf("sucessfully inserted %d rows\n", affectedRows);
+
   taos_stmt_close(stmt);
 
   // query the records
@@ -399,6 +403,9 @@ void verify_prepare2(TAOS* taos) {
     taos_stmt_close(stmt);
     exit(EXIT_FAILURE);
   }
+
+  int affectedRows = taos_stmt_affected_rows(stmt);
+  printf("sucessfully inserted %d rows\n", affectedRows);
 
   taos_stmt_close(stmt);
 
@@ -784,6 +791,10 @@ void verify_prepare3(TAOS* taos) {
     taos_stmt_close(stmt);
     exit(EXIT_FAILURE);
   }
+  
+  int affectedRows = taos_stmt_affected_rows(stmt);
+  printf("successfully inserted %d rows\n", affectedRows);
+
   taos_stmt_close(stmt);
 
   // query the records

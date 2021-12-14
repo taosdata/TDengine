@@ -50,10 +50,10 @@ class TDTestCase:
         
         # insert: drop and child_table_exists combination test
         # insert: using parament "childtable_offset and childtable_limit" to control  table'offset point and offset 
-        os.system("%staosdemo -f tools/taosdemoAllTest/moredemo-offset-newdb.json" % binPath)
-        os.system("%staosdemo -f tools/taosdemoAllTest/moredemo-offset-limit1.json & " % binPath)
-        os.system("%staosdemo -f tools/taosdemoAllTest/moredemo-offset-limit94.json & " % binPath)
-        os.system("%staosdemo -f tools/taosdemoAllTest/moredemo-offset-limit5.json & " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/moredemo-offset-newdb.json" % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/moredemo-offset-limit1.json & " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/moredemo-offset-limit94.json & " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/moredemo-offset-limit5.json & " % binPath)
         sleep(15)
         tdSql.execute("use db")             
         tdSql.query("select count(*) from stb0")
