@@ -355,6 +355,19 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
       }
       break;
 
+    case TSDB_DATA_TYPE_JSON:
+      if (pToken->n >= pSchema->bytes) {    // reserve 1 byte for select
+        return tscInvalidOperationMsg(msg, "json tag length too long", pToken->z);
+      }
+      if (pToken->type == TK_NULL) {
+        *(int8_t *)payload = TSDB_DATA_TINYINT_NULL;
+      } else if (pToken->type != TK_STRING){
+        tscInvalidOperationMsg(msg, "invalid json data", pToken->z);
+      } else{
+        *((int8_t *)payload) = TSDB_DATA_JSON_PLACEHOLDER;
+      }
+      break;
+
     case TSDB_DATA_TYPE_TIMESTAMP: {
       if (pToken->type == TK_NULL) {
         if (primaryKey) {
@@ -1058,9 +1071,26 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
         return code;
       }
 
-      tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal);
-    }
+      tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal, false);
 
+      if(pSchema->type == TSDB_DATA_TYPE_JSON){
+        assert(spd.numOfBound == 1);
+        if(sToken.n > TSDB_MAX_JSON_TAGS_LEN/TSDB_NCHAR_SIZE){
+          tdDestroyKVRowBuilder(&kvRowBuilder);
+          tscDestroyBoundColumnInfo(&spd);
+          return tscSQLSyntaxErrMsg(pInsertParam->msg, "json tag too long", NULL);
+        }
+        char* json = strndup(sToken.z, sToken.n);
+        code = parseJsontoTagData(json, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
+        if (code != TSDB_CODE_SUCCESS) {
+          tdDestroyKVRowBuilder(&kvRowBuilder);
+          tscDestroyBoundColumnInfo(&spd);
+          tfree(json);
+          return code;
+        }
+        tfree(json);
+      }
+    }
     tscDestroyBoundColumnInfo(&spd);
 
     SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
@@ -1074,7 +1104,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     if (pInsertParam->tagData.dataLen <= 0){
       return tscSQLSyntaxErrMsg(pInsertParam->msg, "tag value expected", NULL);
     }
-    
+
     char* pTag = realloc(pInsertParam->tagData.data, pInsertParam->tagData.dataLen);
     if (pTag == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
