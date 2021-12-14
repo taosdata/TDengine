@@ -79,6 +79,27 @@ void vnodeCloseBufPool(SVnode *pVnode) {
   }
 }
 
+int vnodeBufPoolSwitch(SVnode *pVnode) {
+  SVMemAllocator *pvma = pVnode->pBufPool->inuse;
+
+  pVnode->pBufPool->inuse = NULL;
+
+  tDListAppend(&(pVnode->pBufPool->incycle), pvma);
+  return 0;
+}
+
+int vnodeBufPoolRecycle(SVnode *pVnode) {
+  SVBufPool *     pBufPool = pVnode->pBufPool;
+  SVMemAllocator *pvma = TD_DLIST_HEAD(&(pBufPool->incycle));
+  ASSERT(pvma != NULL);
+
+  tDListPop(&(pBufPool->incycle), pvma);
+  vmaReset(pvma);
+  tDListAppend(&(pBufPool->free), pvma);
+
+  return 0;
+}
+
 void *vnodeMalloc(SVnode *pVnode, uint64_t size) {
   SVBufPool *pBufPool = pVnode->pBufPool;
 

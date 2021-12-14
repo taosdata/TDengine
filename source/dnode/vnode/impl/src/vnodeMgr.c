@@ -74,6 +74,19 @@ void vnodeClear() {
   pthread_mutex_destroy(&(vnodeMgr.mutex));
 }
 
+int vnodeScheduleTask(SVnodeTask* pTask) {
+  pthread_mutex_lock(&(vnodeMgr.mutex));
+
+  tDListAppend(&(vnodeMgr.queue), pTask);
+
+  pthread_cond_signal(&(vnodeMgr.hasTask));
+
+  pthread_mutex_unlock(&(vnodeMgr.mutex));
+
+  return 0;
+}
+
+/* ------------------------ STATIC METHODS ------------------------ */
 static void* loop(void* arg) {
   SVnodeTask* pTask;
   for (;;) {
