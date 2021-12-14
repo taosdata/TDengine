@@ -417,16 +417,3 @@ void taosIp2String(uint32_t ip, char *str) {
 void taosIpPort2String(uint32_t ip, uint16_t port, char *str) {
   sprintf(str, "%u.%u.%u.%u:%u", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (uint8_t)(ip >> 24), port);
 }
-
-int32_t taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {
-  *port = 0;
-  strcpy(fqdn, ep);
-
-  char *temp = strchr(fqdn, ':');
-  if (temp) {
-    *temp = 0;
-    *port = atoi(temp + 1);
-  }
-
-  return 0;
-}

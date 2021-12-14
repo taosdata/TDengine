@@ -358,6 +358,7 @@ typedef struct {
   int32_t pid;
   char    app[TSDB_APP_NAME_LEN];
   char    db[TSDB_DB_NAME_LEN];
+  int64_t startTime;
 } SConnectMsg;
 
 typedef struct SEpSet {
@@ -368,19 +369,17 @@ typedef struct SEpSet {
 } SEpSet;
 
 typedef struct {
-  int32_t acctId;
-  int32_t clusterId;
-  int32_t connId;
-  int8_t  superAuth;
-  int8_t  readAuth;
-  int8_t  writeAuth;
-  int8_t  reserved[5];
-  SEpSet  epSet;
+  int32_t  acctId;
+  uint32_t clusterId;
+  int32_t  connId;
+  int8_t   superUser;
+  int8_t   reserved[5];
+  SEpSet   epSet;
 } SConnectRsp;
 
 typedef struct {
   char    user[TSDB_USER_LEN];
-  char    pass[TSDB_KEY_LEN];
+  char    pass[TSDB_PASSWORD_LEN];
   int32_t maxUsers;
   int32_t maxDbs;
   int32_t maxTimeSeries;
@@ -395,7 +394,7 @@ typedef struct {
 
 typedef struct {
   char user[TSDB_USER_LEN];
-  char pass[TSDB_KEY_LEN];
+  char pass[TSDB_PASSWORD_LEN];
 } SCreateUserMsg, SAlterUserMsg;
 
 typedef struct {
@@ -961,8 +960,8 @@ typedef struct {
   char user[TSDB_USER_LEN];
   char spi;
   char encrypt;
-  char secret[TSDB_KEY_LEN];
-  char ckey[TSDB_KEY_LEN];
+  char secret[TSDB_PASSWORD_LEN];
+  char ckey[TSDB_PASSWORD_LEN];
 } SAuthMsg, SAuthRsp;
 
 typedef struct {
