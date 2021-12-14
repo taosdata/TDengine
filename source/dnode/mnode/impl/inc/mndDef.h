@@ -73,7 +73,8 @@ typedef enum {
   TRN_STAGE_EXECUTE = 2,
   TRN_STAGE_COMMIT = 3,
   TRN_STAGE_ROLLBACK = 4,
-  TRN_STAGE_RETRY = 5
+  TRN_STAGE_RETRY = 5,
+  TRN_STAGE_OVER = 6,
 } ETrnStage;
 
 typedef enum { TRN_POLICY_ROLLBACK = 1, TRN_POLICY_RETRY = 2 } ETrnPolicy;
