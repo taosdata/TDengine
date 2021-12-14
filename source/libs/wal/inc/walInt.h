@@ -33,12 +33,10 @@ typedef struct WalFileInfo {
   int64_t fileSize;
 } WalFileInfo;
 
-#pragma pack(push,1)
 typedef struct WalIdxEntry {
   int64_t ver;
   int64_t offset;
 } WalIdxEntry;
-#pragma pack(pop)
 
 static inline int32_t compareWalFileInfo(const void* pLeft, const void* pRight) {
   WalFileInfo* pInfoLeft = (WalFileInfo*)pLeft;
@@ -107,8 +105,16 @@ static inline uint32_t walCalcBodyCksum(const void* body, uint32_t len) {
   return taosCalcChecksum(0, (uint8_t*)body, len);
 }
 
-int walReadMeta(SWal* pWal);
-int walWriteMeta(SWal* pWal);
+static inline void walResetVer(SWalVer* pVer) {
+  pVer->firstVer = -1;
+  pVer->verInSnapshotting = -1;
+  pVer->snapshotVer = -1;
+  pVer->commitVer = -1;
+  pVer->lastVer = -1;
+}
+
+int walLoadMeta(SWal* pWal);
+int walSaveMeta(SWal* pWal);
 int walRollFileInfo(SWal* pWal);
 
 char* walMetaSerialize(SWal* pWal);
