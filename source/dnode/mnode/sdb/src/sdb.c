@@ -127,6 +127,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
     return -1;
   }
 
+  pSdb->maxId[sdbType] = 0;
   pSdb->hashObjs[sdbType] = hash;
   taosInitRWLatch(&pSdb->locks[sdbType]);
   mDebug("sdb table:%d is initialized", sdbType);

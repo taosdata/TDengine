@@ -219,58 +219,6 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass,
   return 0;
 }
 
-static int32_t mndUpdateUser(SMnode *pMnode, SUserObj *pOldUser, SUserObj *pNewUser, SMnodeMsg *pMsg) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
-  if (pTrans == NULL) {
-    mError("user:%s, failed to update since %s", pOldUser->user, terrstr());
-    return -1;
-  }
-  mDebug("trans:%d, used to update user:%s", pTrans->id, pOldUser->user);
-
-  SSdbRaw *pRedoRaw = mndUserActionEncode(pNewUser);
-  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
-    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-
-  mndTransDrop(pTrans);
-  return 0;
-}
-
-static int32_t mndDropUser(SMnode *pMnode, SMnodeMsg *pMsg, SUserObj *pUser) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
-  if (pTrans == NULL) {
-    mError("user:%s, failed to drop since %s", pUser->user, terrstr());
-    return -1;
-  }
-  mDebug("trans:%d, used to drop user:%s", pTrans->id, pUser->user);
-
-  SSdbRaw *pRedoRaw = mndUserActionEncode(pUser);
-  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
-    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPED);
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-
-  mndTransDrop(pTrans);
-  return 0;
-}
-
 static int32_t mndProcessCreateUserMsg(SMnodeMsg *pMsg) {
   SMnode         *pMnode = pMsg->pMnode;
   SCreateUserMsg *pCreate = pMsg->rpcMsg.pCont;
@@ -313,6 +261,32 @@ static int32_t mndProcessCreateUserMsg(SMnodeMsg *pMsg) {
   }
 
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+}
+
+static int32_t mndUpdateUser(SMnode *pMnode, SUserObj *pOldUser, SUserObj *pNewUser, SMnodeMsg *pMsg) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  if (pTrans == NULL) {
+    mError("user:%s, failed to update since %s", pOldUser->user, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to update user:%s", pTrans->id, pOldUser->user);
+
+  SSdbRaw *pRedoRaw = mndUserActionEncode(pNewUser);
+  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
+    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
 }
 
 static int32_t mndProcessAlterUserMsg(SMnodeMsg *pMsg) {
@@ -361,6 +335,32 @@ static int32_t mndProcessAlterUserMsg(SMnodeMsg *pMsg) {
   }
 
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+}
+
+static int32_t mndDropUser(SMnode *pMnode, SMnodeMsg *pMsg, SUserObj *pUser) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  if (pTrans == NULL) {
+    mError("user:%s, failed to drop since %s", pUser->user, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to drop user:%s", pTrans->id, pUser->user);
+
+  SSdbRaw *pRedoRaw = mndUserActionEncode(pUser);
+  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
+    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPED);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
 }
 
 static int32_t mndProcessDropUserMsg(SMnodeMsg *pMsg) {
