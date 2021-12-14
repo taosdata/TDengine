@@ -9,7 +9,6 @@ executeUpdate("insert into unsigntest values (now, 0,0,0,0,-9223372036854775807)
 executeQuery("select * from unsigntest;");
 executeUpdate("drop database if exists nodedb;");
 
-
 function executeUpdate(sql) {
     console.log(sql);
     c1.execute(sql);
