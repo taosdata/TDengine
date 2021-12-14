@@ -1,0 +1,1592 @@
+sleep 100
+sql connect
+sql use db
+
+$emptyString = @@
+print execute sql select concat(c8,*) from tb1;
+sql_error select concat(c8,*) from tb1;
+print execute sql select concat(c8,*) from tb1;
+sql_error select concat(c8,*) from tb1;
+print execute sql select concat(c8,*) from tb1;
+sql_error select concat(c8,*) from tb1;
+print execute sql select concat(c8,*) from tb1;
+sql_error select concat(c8,*) from tb1;
+print execute sql select concat(c8,*) as a from tb1;
+sql_error select concat(c8,*) as a from tb1;
+print execute sql select concat(concat(c9,c15), '1') as a from tb1;
+sql select concat(concat(c9,c15), '1') as a from tb1;
+if $data00 != @123411@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @345631@ then
+  return -1 
+endi
+if $data40 != @456741@ then
+  return -1 
+endi
+if $data50 != @56782781@ then
+  return -1 
+endi
+if $data60 != @67891@ then
+  return -1 
+endi
+print execute sql select concat(concat(c8,tb1.*), '1') as a from tb1;
+sql_error select concat(concat(c8,tb1.*), '1') as a from tb1;
+print execute sql select concat(c8,*) from tb1;
+sql_error select concat(c8,*) from tb1;
+print execute sql select concat(c8,c14) from tb1;
+sql select concat(c8,c14) from tb1;
+if $data00 != @1231@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @2342@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @4564@ then
+  return -1 
+endi
+if $data50 != @56727@ then
+  return -1 
+endi
+if $data60 != @678@ then
+  return -1 
+endi
+print execute sql select concat(c8,c15) from tb1;
+sql_error select concat(c8,c15) from tb1;
+print execute sql select concat(c8,concat(c14,c8)) from tb1;
+sql select concat(c8,concat(c14,c8)) from tb1;
+if $data00 != @1231123@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @2342234@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @4564456@ then
+  return -1 
+endi
+if $data50 != @56727567@ then
+  return -1 
+endi
+if $data60 != @678678@ then
+  return -1 
+endi
+print execute sql select concat(c8,13) from tb1;
+sql_error select concat(c8,13) from tb1;
+print execute sql select concat(c8,c14) from tb1;
+sql select concat(c8,c14) from tb1;
+if $data00 != @1231@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @2342@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @4564@ then
+  return -1 
+endi
+if $data50 != @56727@ then
+  return -1 
+endi
+if $data60 != @678@ then
+  return -1 
+endi
+print execute sql select concat(c8,c8) from tb1;
+sql select concat(c8,c8) from tb1;
+if $data00 != @123123@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @234234@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @456456@ then
+  return -1 
+endi
+if $data50 != @567567@ then
+  return -1 
+endi
+if $data60 != @678678@ then
+  return -1 
+endi
+print execute sql select concat(c8,c9) from tb1;
+sql_error select concat(c8,c9) from tb1;
+print execute sql select concat(c8,c4) from tb1;
+sql_error select concat(c8,c4) from tb1;
+print execute sql select concat(c8,c5) from tb1;
+sql_error select concat(c8,c5) from tb1;
+print execute sql select concat(c8,c6) from tb1;
+sql_error select concat(c8,c6) from tb1;
+print execute sql select concat(c8,c7) from tb1;
+sql_error select concat(c8,c7) from tb1;
+print execute sql select concat(c8,c8) from tb1;
+sql select concat(c8,c8) from tb1;
+if $data00 != @123123@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @234234@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @456456@ then
+  return -1 
+endi
+if $data50 != @567567@ then
+  return -1 
+endi
+if $data60 != @678678@ then
+  return -1 
+endi
+print execute sql select concat(c9,c8) from tb1;
+sql_error select concat(c9,c8) from tb1;
+print execute sql select concat(c8,c10) from tb1;
+sql_error select concat(c8,c10) from tb1;
+print execute sql select concat(c8,c11) from tb1;
+sql_error select concat(c8,c11) from tb1;
+print execute sql select concat(c8,c12) from tb1;
+sql_error select concat(c8,c12) from tb1;
+print execute sql select concat(c8,c13) from tb1;
+sql_error select concat(c8,c13) from tb1;
+print execute sql select concat(c8,12345678900000000000000000) from tb1;
+sql_error select concat(c8,12345678900000000000000000) from tb1;
+print execute sql select distinct concat(c8,'123') from tb1;
+sql_error select distinct concat(c8,'123') from tb1;
+print execute sql select concat(c8,t1) from stb1;
+sql_error select concat(c8,t1) from stb1;
+print execute sql select concat(c8,c14),avg(c2) from tb1;
+sql_error select concat(c8,c14),avg(c2) from tb1;
+print execute sql select concat(c8,c14),top(c3,1) from tb1;
+sql_error select concat(c8,c14),top(c3,1) from tb1;
+print execute sql select concat(c8,concat(c8,c14)) from tb1 session(ts, 1s);
+sql_error select concat(c8,concat(c8,c14)) from tb1 session(ts, 1s);
+print execute sql select concat(c8,concat(c8,c14)) from tb1 STATE_WINDOW(c1);
+sql_error select concat(c8,concat(c8,c14)) from tb1 STATE_WINDOW(c1);
+print execute sql select concat(c8,concat(c8,c14)) from tb1 interval(1s) sliding(1s) fill(NULL);
+sql_error select concat(c8,concat(c8,c14)) from tb1 interval(1s) sliding(1s) fill(NULL);
+print execute sql select concat(c8,concat(c8,c14)) from stb1 group by t1;
+sql_error select concat(c8,concat(c8,c14)) from stb1 group by t1;
+print execute sql select concat(c8,concat(c8,c14)) from stb1 group by ts;
+sql_error select concat(c8,concat(c8,c14)) from stb1 group by ts;
+print execute sql select concat(c8,concat(c8,c14)) from stb1 group by c1;
+sql_error select concat(c8,concat(c8,c14)) from stb1 group by c1;
+print execute sql select concat(c8,concat(c8,c14)) from stb1 group by tbname;
+sql_error select concat(c8,concat(c8,c14)) from stb1 group by tbname;
+print execute sql select concat(c8,concat(c8,c14)) from tb1 order by c8;
+sql_error select concat(c8,concat(c8,c14)) from tb1 order by c8;
+print execute sql select concat(c8,c8),concat(c8,c14) from tbn;
+sql select concat(c8,c8),concat(c8,c14) from tbn;
+if $data00 != @111111@ then
+  return -1 
+endi
+if $data01 != @1111@ then
+  return -1 
+endi
+if $data10 != @222222@ then
+  return -1 
+endi
+if $data11 != @2222@ then
+  return -1 
+endi
+if $data20 != @333333@ then
+  return -1 
+endi
+if $data21 != @3333@ then
+  return -1 
+endi
+if $data30 != @444444@ then
+  return -1 
+endi
+if $data31 != @4444@ then
+  return -1 
+endi
+if $data40 != @555555@ then
+  return -1 
+endi
+if $data41 != @5555@ then
+  return -1 
+endi
+if $data50 != @666666@ then
+  return -1 
+endi
+if $data51 != @6666@ then
+  return -1 
+endi
+if $data60 != @777777@ then
+  return -1 
+endi
+if $data61 != @7777@ then
+  return -1 
+endi
+print execute sql select concat(cast(a as binary(4)),cast(a as binary(4))) from (select avg(c2) as a from stb1 interval(1s));
+sql select concat(cast(a as binary(4)),cast(a as binary(4))) from (select avg(c2) as a from stb1 interval(1s));
+if $data00 != @1.001.00@ then
+  return -1 
+endi
+if $data10 != @2.002.00@ then
+  return -1 
+endi
+if $data20 != @2.502.50@ then
+  return -1 
+endi
+if $data30 != @4.004.00@ then
+  return -1 
+endi
+if $data40 != @4.504.50@ then
+  return -1 
+endi
+if $data50 != @66.566.5@ then
+  return -1 
+endi
+if $data60 != @-60.-60.@ then
+  return -1 
+endi
+print execute sql select concat(c8,a) from (select c8, concat(c8,c8) as a from tb1);
+sql select concat(c8,a) from (select c8, concat(c8,c8) as a from tb1);
+if $data00 != @123123123@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @234234234@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @456456456@ then
+  return -1 
+endi
+if $data50 != @567567567@ then
+  return -1 
+endi
+if $data60 != @678678678@ then
+  return -1 
+endi
+print execute sql select concat(c8,"abc") from tb1;
+sql select concat(c8,"abc") from tb1;
+if $data00 != @123abc@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @234abc@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @456abc@ then
+  return -1 
+endi
+if $data50 != @567abc@ then
+  return -1 
+endi
+if $data60 != @678abc@ then
+  return -1 
+endi
+print execute sql select concat(c8,concat(c8,c14)) from tb1;
+sql select concat(c8,concat(c8,c14)) from tb1;
+if $data00 != @1231231@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @2342342@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @4564564@ then
+  return -1 
+endi
+if $data50 != @56756727@ then
+  return -1 
+endi
+if $data60 != @678678@ then
+  return -1 
+endi
+print execute sql select concat(c8,concat(c14,c8)) from tb1;
+sql select concat(c8,concat(c14,c8)) from tb1;
+if $data00 != @1231123@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @2342234@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @4564456@ then
+  return -1 
+endi
+if $data50 != @56727567@ then
+  return -1 
+endi
+if $data60 != @678678@ then
+  return -1 
+endi
+print execute sql select concat(c8,concat(concat(c14,c8), c8, '6') from tb1;
+sql_error select concat(c8,concat(concat(c14,c8), c8, '6') from tb1;
+print execute sql select concat(concat(c8,'11'), c8) from tb1;
+sql select concat(concat(c8,'11'), c8) from tb1;
+if $data00 != @12311123@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @23411234@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @45611456@ then
+  return -1 
+endi
+if $data50 != @56711567@ then
+  return -1 
+endi
+if $data60 != @67811678@ then
+  return -1 
+endi
+print execute sql select concat(concat(c8,c14), c8) from tb1;
+sql select concat(concat(c8,c14), c8) from tb1;
+if $data00 != @1231123@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @2342234@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @4564456@ then
+  return -1 
+endi
+if $data50 != @56727567@ then
+  return -1 
+endi
+if $data60 != @678678@ then
+  return -1 
+endi
+print execute sql select concat(concat(c8,c8), '11') from tb1;
+sql select concat(concat(c8,c8), '11') from tb1;
+if $data00 != @12312311@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @23423411@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @45645611@ then
+  return -1 
+endi
+if $data50 != @56756711@ then
+  return -1 
+endi
+if $data60 != @67867811@ then
+  return -1 
+endi
+print execute sql select concat(c8,c14),c14,c8 from tb1;
+sql select concat(c8,c14),c14,c8 from tb1;
+if $data00 != @1231@ then
+  return -1 
+endi
+if $data01 != @1@ then
+  return -1 
+endi
+if $data02 != @123@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @NULL@ then
+  return -1 
+endi
+if $data12 != @NULL@ then
+  return -1 
+endi
+if $data20 != @2342@ then
+  return -1 
+endi
+if $data21 != @2@ then
+  return -1 
+endi
+if $data22 != @234@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data31 != @NULL@ then
+  return -1 
+endi
+if $data32 != @NULL@ then
+  return -1 
+endi
+if $data40 != @4564@ then
+  return -1 
+endi
+if $data41 != @4@ then
+  return -1 
+endi
+if $data42 != @456@ then
+  return -1 
+endi
+if $data50 != @56727@ then
+  return -1 
+endi
+if $data51 != @27@ then
+  return -1 
+endi
+if $data52 != @567@ then
+  return -1 
+endi
+if $data60 != @678@ then
+  return -1 
+endi
+if $data61 != $emptyString then
+  return -1 
+endi
+if $data62 != @678@ then
+  return -1 
+endi
+print execute sql select concat(c8,c14),t1,ts,tbname,_C0,_c0 from tb1;
+sql select concat(c8,c14),t1,ts,tbname,_C0,_c0 from tb1;
+if $data00 != @1231@ then
+  return -1 
+endi
+if $data01 != @1@ then
+  return -1 
+endi
+if $data02 != @21-11-11 09:00:00.000@ then
+  return -1 
+endi
+if $data03 != @tb1@ then
+  return -1 
+endi
+if $data04 != @21-11-11 09:00:00.000@ then
+  return -1 
+endi
+if $data05 != @21-11-11 09:00:00.000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @1@ then
+  return -1 
+endi
+if $data12 != @21-11-11 09:00:01.000@ then
+  return -1 
+endi
+if $data13 != @tb1@ then
+  return -1 
+endi
+if $data14 != @21-11-11 09:00:01.000@ then
+  return -1 
+endi
+if $data15 != @21-11-11 09:00:01.000@ then
+  return -1 
+endi
+if $data20 != @2342@ then
+  return -1 
+endi
+if $data21 != @1@ then
+  return -1 
+endi
+if $data22 != @21-11-11 09:00:02.000@ then
+  return -1 
+endi
+if $data23 != @tb1@ then
+  return -1 
+endi
+if $data24 != @21-11-11 09:00:02.000@ then
+  return -1 
+endi
+if $data25 != @21-11-11 09:00:02.000@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data31 != @1@ then
+  return -1 
+endi
+if $data32 != @21-11-11 09:00:03.000@ then
+  return -1 
+endi
+if $data33 != @tb1@ then
+  return -1 
+endi
+if $data34 != @21-11-11 09:00:03.000@ then
+  return -1 
+endi
+if $data35 != @21-11-11 09:00:03.000@ then
+  return -1 
+endi
+if $data40 != @4564@ then
+  return -1 
+endi
+if $data41 != @1@ then
+  return -1 
+endi
+if $data42 != @21-11-11 09:00:04.000@ then
+  return -1 
+endi
+if $data43 != @tb1@ then
+  return -1 
+endi
+if $data44 != @21-11-11 09:00:04.000@ then
+  return -1 
+endi
+if $data45 != @21-11-11 09:00:04.000@ then
+  return -1 
+endi
+if $data50 != @56727@ then
+  return -1 
+endi
+if $data51 != @1@ then
+  return -1 
+endi
+if $data52 != @21-11-11 09:00:05.000@ then
+  return -1 
+endi
+if $data53 != @tb1@ then
+  return -1 
+endi
+if $data54 != @21-11-11 09:00:05.000@ then
+  return -1 
+endi
+if $data55 != @21-11-11 09:00:05.000@ then
+  return -1 
+endi
+if $data60 != @678@ then
+  return -1 
+endi
+if $data61 != @1@ then
+  return -1 
+endi
+if $data62 != @21-11-11 09:00:06.000@ then
+  return -1 
+endi
+if $data63 != @tb1@ then
+  return -1 
+endi
+if $data64 != @21-11-11 09:00:06.000@ then
+  return -1 
+endi
+if $data65 != @21-11-11 09:00:06.000@ then
+  return -1 
+endi
+print execute sql select concat(c8,c14),floor(c7) from tb1;
+sql select concat(c8,c14),floor(c7) from tb1;
+if $data00 != @1231@ then
+  return -1 
+endi
+if $data01 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @NULL@ then
+  return -1 
+endi
+if $data20 != @2342@ then
+  return -1 
+endi
+if $data21 != @NULL@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data31 != @3.000000000@ then
+  return -1 
+endi
+if $data40 != @4564@ then
+  return -1 
+endi
+if $data41 != @4.000000000@ then
+  return -1 
+endi
+if $data50 != @56727@ then
+  return -1 
+endi
+if $data51 != @179769000000000006323030492138942643493033036433685336215410983289126434148906289940615299632196609445533816320312774433484859900046491141051651091672734470972759941382582304802812882753059262973637182942535982636884444611376868582636745405553206881859340916340092953230149901406738427651121855107737424232448.000000000@ then
+  return -1 
+endi
+if $data60 != @678@ then
+  return -1 
+endi
+if $data61 != @-179769000000000006323030492138942643493033036433685336215410983289126434148906289940615299632196609445533816320312774433484859900046491141051651091672734470972759941382582304802812882753059262973637182942535982636884444611376868582636745405553206881859340916340092953230149901406738427651121855107737424232448.000000000@ then
+  return -1 
+endi
+print execute sql select concat(c8,c14),concat(c8,concat(c8,c14)) from tb1;
+sql select concat(c8,c14),concat(c8,concat(c8,c14)) from tb1;
+if $data00 != @1231@ then
+  return -1 
+endi
+if $data01 != @1231231@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @NULL@ then
+  return -1 
+endi
+if $data20 != @2342@ then
+  return -1 
+endi
+if $data21 != @2342342@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data31 != @NULL@ then
+  return -1 
+endi
+if $data40 != @4564@ then
+  return -1 
+endi
+if $data41 != @4564564@ then
+  return -1 
+endi
+if $data50 != @56727@ then
+  return -1 
+endi
+if $data51 != @56756727@ then
+  return -1 
+endi
+if $data60 != @678@ then
+  return -1 
+endi
+if $data61 != @678678@ then
+  return -1 
+endi
+print execute sql select concat(c8,concat(c8,c14)) from tb1 where c8 is not null and c9 is not null;
+sql select concat(c8,concat(c8,c14)) from tb1 where c8 is not null and c9 is not null;
+if $data00 != @1231231@ then
+  return -1 
+endi
+if $data10 != @4564564@ then
+  return -1 
+endi
+if $data20 != @56756727@ then
+  return -1 
+endi
+if $data30 != @678678@ then
+  return -1 
+endi
+print execute sql select concat(c8,c8) from tb1 order by ts desc;
+sql select concat(c8,c8) from tb1 order by ts desc;
+if $data00 != @678678@ then
+  return -1 
+endi
+if $data10 != @567567@ then
+  return -1 
+endi
+if $data20 != @456456@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @234234@ then
+  return -1 
+endi
+if $data50 != @NULL@ then
+  return -1 
+endi
+if $data60 != @123123@ then
+  return -1 
+endi
+print execute sql select concat(c8,concat(c8,c14)) from tb1 order by ts desc;
+sql select concat(c8,concat(c8,c14)) from tb1 order by ts desc;
+if $data00 != @678678@ then
+  return -1 
+endi
+if $data10 != @56756727@ then
+  return -1 
+endi
+if $data20 != @4564564@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @2342342@ then
+  return -1 
+endi
+if $data50 != @NULL@ then
+  return -1 
+endi
+if $data60 != @1231231@ then
+  return -1 
+endi
+print execute sql select concat(c8,concat(c8,c14)) from tb1 order by ts desc limit 3 offset 2;
+sql select concat(c8,concat(c8,c14)) from tb1 order by ts desc limit 3 offset 2;
+if $data00 != @4564564@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @2342342@ then
+  return -1 
+endi
+print execute sql select concat(c8,c8) from stb1;
+sql select concat(c8,c8) from stb1;
+if $data00 != @123123@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @234234@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @456456@ then
+  return -1 
+endi
+if $data50 != @567567@ then
+  return -1 
+endi
+if $data60 != @678678@ then
+  return -1 
+endi
+if $data70 != @111111@ then
+  return -1 
+endi
+if $data80 != @222222@ then
+  return -1 
+endi
+if $data90 != @333333@ then
+  return -1 
+endi
+print execute sql select concat(c8,c8) from stb1 order by ts desc;
+sql select concat(c8,c8) from stb1 order by ts desc;
+if $data00 != @777777@ then
+  if $data00 != @678678@ then
+    return -1 
+  endi
+endi
+if $data20 != @666666@ then
+  if $data20 != @567567@ then
+    return -1 
+  endi
+endi
+if $data40 != @555555@ then
+  if $data40 != @456456@ then
+    return -1 
+  endi
+endi
+if $data60 != @444444@ then
+  if $data60 != @NULL@ then
+    return -1 
+  endi
+endi
+if $data80 != @333333@ then
+  if $data80 != @234234@ then
+    return -1 
+  endi
+endi
+print execute sql select concat(c8,c14),t1 from stb1 order by ts desc;
+sql select concat(c8,c14),t1 from stb1 order by ts desc;
+if $data00 != @7777@ then
+  if $data00 != @678@ then
+    return -1 
+  endi
+endi
+if $data01 != @2@ then
+  if $data01 != @1@ then
+    return -1 
+  endi
+endi
+if $data20 != @6666@ then
+  if $data20 != @56727@ then
+    return -1 
+  endi
+endi
+if $data21 != @2@ then
+  if $data21 != @1@ then
+    return -1 
+  endi
+endi
+if $data40 != @5555@ then
+  if $data40 != @4564@ then
+    return -1 
+  endi
+endi
+if $data41 != @2@ then
+  if $data41 != @1@ then
+    return -1 
+  endi
+endi
+if $data60 != @4444@ then
+  if $data60 != @NULL@ then
+    return -1 
+  endi
+endi
+if $data61 != @2@ then
+  if $data61 != @1@ then
+    return -1 
+  endi
+endi
+if $data80 != @3333@ then
+  if $data80 != @2342@ then
+    return -1 
+  endi
+endi
+if $data81 != @2@ then
+  if $data81 != @1@ then
+    return -1 
+  endi
+endi
+print execute sql select concat(c8,c14),tbname from stb1;
+sql select concat(c8,c14),tbname from stb1;
+if $data00 != @1231@ then
+  return -1 
+endi
+if $data01 != @tb1@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @tb1@ then
+  return -1 
+endi
+if $data20 != @2342@ then
+  return -1 
+endi
+if $data21 != @tb1@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data31 != @tb1@ then
+  return -1 
+endi
+if $data40 != @4564@ then
+  return -1 
+endi
+if $data41 != @tb1@ then
+  return -1 
+endi
+if $data50 != @56727@ then
+  return -1 
+endi
+if $data51 != @tb1@ then
+  return -1 
+endi
+if $data60 != @678@ then
+  return -1 
+endi
+if $data61 != @tb1@ then
+  return -1 
+endi
+if $data70 != @1111@ then
+  return -1 
+endi
+if $data71 != @tb2@ then
+  return -1 
+endi
+if $data80 != @2222@ then
+  return -1 
+endi
+if $data81 != @tb2@ then
+  return -1 
+endi
+if $data90 != @3333@ then
+  return -1 
+endi
+if $data91 != @tb2@ then
+  return -1 
+endi
+print execute sql select concat(c8,c14),tbname from stb1 where t1 > 1;
+sql select concat(c8,c14),tbname from stb1 where t1 > 1;
+if $data00 != @1111@ then
+  return -1 
+endi
+if $data01 != @tb2@ then
+  return -1 
+endi
+if $data10 != @2222@ then
+  return -1 
+endi
+if $data11 != @tb2@ then
+  return -1 
+endi
+if $data20 != @3333@ then
+  return -1 
+endi
+if $data21 != @tb2@ then
+  return -1 
+endi
+if $data30 != @4444@ then
+  return -1 
+endi
+if $data31 != @tb2@ then
+  return -1 
+endi
+if $data40 != @5555@ then
+  return -1 
+endi
+if $data41 != @tb2@ then
+  return -1 
+endi
+if $data50 != @6666@ then
+  return -1 
+endi
+if $data51 != @tb2@ then
+  return -1 
+endi
+if $data60 != @7777@ then
+  return -1 
+endi
+if $data61 != @tb2@ then
+  return -1 
+endi
+print execute sql select concat(c8,c8),concat(c8,c14) from tbn;
+sql select concat(c8,c8),concat(c8,c14) from tbn;
+if $data00 != @111111@ then
+  return -1 
+endi
+if $data01 != @1111@ then
+  return -1 
+endi
+if $data10 != @222222@ then
+  return -1 
+endi
+if $data11 != @2222@ then
+  return -1 
+endi
+if $data20 != @333333@ then
+  return -1 
+endi
+if $data21 != @3333@ then
+  return -1 
+endi
+if $data30 != @444444@ then
+  return -1 
+endi
+if $data31 != @4444@ then
+  return -1 
+endi
+if $data40 != @555555@ then
+  return -1 
+endi
+if $data41 != @5555@ then
+  return -1 
+endi
+if $data50 != @666666@ then
+  return -1 
+endi
+if $data51 != @6666@ then
+  return -1 
+endi
+if $data60 != @777777@ then
+  return -1 
+endi
+if $data61 != @7777@ then
+  return -1 
+endi
+print execute sql select concat(c8,c8),concat(c8,c14) from tbn order by ts desc;
+sql select concat(c8,c8),concat(c8,c14) from tbn order by ts desc;
+if $data00 != @777777@ then
+  return -1 
+endi
+if $data01 != @7777@ then
+  return -1 
+endi
+if $data10 != @666666@ then
+  return -1 
+endi
+if $data11 != @6666@ then
+  return -1 
+endi
+if $data20 != @555555@ then
+  return -1 
+endi
+if $data21 != @5555@ then
+  return -1 
+endi
+if $data30 != @444444@ then
+  return -1 
+endi
+if $data31 != @4444@ then
+  return -1 
+endi
+if $data40 != @333333@ then
+  return -1 
+endi
+if $data41 != @3333@ then
+  return -1 
+endi
+if $data50 != @222222@ then
+  return -1 
+endi
+if $data51 != @2222@ then
+  return -1 
+endi
+if $data60 != @111111@ then
+  return -1 
+endi
+if $data61 != @1111@ then
+  return -1 
+endi
+print execute sql select concat(c8,concat(c8,c8)) from tbn;
+sql select concat(c8,concat(c8,c8)) from tbn;
+if $data00 != @111111111@ then
+  return -1 
+endi
+if $data10 != @222222222@ then
+  return -1 
+endi
+if $data20 != @333333333@ then
+  return -1 
+endi
+if $data30 != @444444444@ then
+  return -1 
+endi
+if $data40 != @555555555@ then
+  return -1 
+endi
+if $data50 != @666666666@ then
+  return -1 
+endi
+if $data60 != @777777777@ then
+  return -1 
+endi
+print execute sql select concat(cast(a as binary(10)),cast(a as binary(10))) from (select avg(c6) as a from stb1 interval(1s));
+sql select concat(cast(a as binary(10)),cast(a as binary(10))) from (select avg(c6) as a from stb1 interval(1s));
+if $data00 != @1.0000001.000000@ then
+  return -1 
+endi
+if $data10 != @2.0000002.000000@ then
+  return -1 
+endi
+if $data20 != @2.5000002.500000@ then
+  return -1 
+endi
+if $data30 != @4.0000004.000000@ then
+  return -1 
+endi
+if $data40 != @4.5000004.500000@ then
+  return -1 
+endi
+if $data50 != @17014117331701411733@ then
+  return -1 
+endi
+if $data60 != @-170141173-170141173@ then
+  return -1 
+endi
+print execute sql select concat(c8,c8) from (select * from stb1);
+sql select concat(c8,c8) from (select * from stb1);
+if $data00 != @123123@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @234234@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @456456@ then
+  return -1 
+endi
+if $data50 != @567567@ then
+  return -1 
+endi
+if $data60 != @678678@ then
+  return -1 
+endi
+if $data70 != @111111@ then
+  return -1 
+endi
+if $data80 != @222222@ then
+  return -1 
+endi
+if $data90 != @333333@ then
+  return -1 
+endi
+print execute sql select concat(cast(a as binary(4)),cast(a as binary(4))) from (select avg(c6) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null));
+sql select concat(cast(a as binary(4)),cast(a as binary(4))) from (select avg(c6) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null));
+if $data00 != @1.001.00@ then
+  return -1 
+endi
+if $data10 != @2.002.00@ then
+  return -1 
+endi
+if $data20 != @2.502.50@ then
+  return -1 
+endi
+if $data30 != @4.004.00@ then
+  return -1 
+endi
+if $data40 != @4.504.50@ then
+  return -1 
+endi
+if $data50 != @17011701@ then
+  return -1 
+endi
+if $data60 != @-170-170@ then
+  return -1 
+endi
+if $data70 != @NULL@ then
+  return -1 
+endi
+if $data80 != @NULL@ then
+  return -1 
+endi
+if $data90 != @NULL@ then
+  return -1 
+endi
+print execute sql select concat(cast(a as binary(4)),cast(a as binary(4))) from (select avg(c6) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts;
+sql select concat(cast(a as binary(4)),cast(a as binary(4))) from (select avg(c6) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts;
+if $data00 != @1.001.00@ then
+  return -1 
+endi
+if $data10 != @2.002.00@ then
+  return -1 
+endi
+if $data20 != @2.502.50@ then
+  return -1 
+endi
+if $data30 != @4.004.00@ then
+  return -1 
+endi
+if $data40 != @4.504.50@ then
+  return -1 
+endi
+if $data50 != @17011701@ then
+  return -1 
+endi
+if $data60 != @-170-170@ then
+  return -1 
+endi
+if $data70 != @NULL@ then
+  return -1 
+endi
+if $data80 != @NULL@ then
+  return -1 
+endi
+if $data90 != @NULL@ then
+  return -1 
+endi
+print execute sql select concat(cast(a as binary(4)),cast(a as binary(4))) from (select avg(c6) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts desc;
+sql select concat(cast(a as binary(4)),cast(a as binary(4))) from (select avg(c6) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts desc;
+if $data00 != @NULL@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @-170-170@ then
+  return -1 
+endi
+if $data40 != @17011701@ then
+  return -1 
+endi
+if $data50 != @4.504.50@ then
+  return -1 
+endi
+if $data60 != @4.004.00@ then
+  return -1 
+endi
+if $data70 != @2.502.50@ then
+  return -1 
+endi
+if $data80 != @2.002.00@ then
+  return -1 
+endi
+if $data90 != @1.001.00@ then
+  return -1 
+endi
+print execute sql select concat(cast(a as binary(4)),cast(a as binary(4))) from (select avg(c6) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a desc;
+sql select concat(cast(a as binary(4)),cast(a as binary(4))) from (select avg(c6) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a desc;
+if $data00 != @NULL@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @17011701@ then
+  return -1 
+endi
+if $data40 != @4.504.50@ then
+  return -1 
+endi
+if $data50 != @4.004.00@ then
+  return -1 
+endi
+if $data60 != @2.502.50@ then
+  return -1 
+endi
+if $data70 != @2.002.00@ then
+  return -1 
+endi
+if $data80 != @1.001.00@ then
+  return -1 
+endi
+if $data90 != @-170-170@ then
+  return -1 
+endi
+print execute sql select concat(cast(a as binary(4)),cast(a as binary(4))) from (select avg(c6) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a;
+sql select concat(cast(a as binary(4)),cast(a as binary(4))) from (select avg(c6) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a;
+if $data00 != @-170-170@ then
+  return -1 
+endi
+if $data10 != @1.001.00@ then
+  return -1 
+endi
+if $data20 != @2.002.00@ then
+  return -1 
+endi
+if $data30 != @2.502.50@ then
+  return -1 
+endi
+if $data40 != @4.004.00@ then
+  return -1 
+endi
+if $data50 != @4.504.50@ then
+  return -1 
+endi
+if $data60 != @17011701@ then
+  return -1 
+endi
+if $data70 != @NULL@ then
+  return -1 
+endi
+if $data80 != @NULL@ then
+  return -1 
+endi
+if $data90 != @NULL@ then
+  return -1 
+endi
+print execute sql select concat(cast(a as binary(4)),cast(a as binary(4))) from (select concat(c8,c8) as a from tb1);
+sql select concat(cast(a as binary(4)),cast(a as binary(4))) from (select concat(c8,c8) as a from tb1);
+if $data00 != @12311231@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @23422342@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @45644564@ then
+  return -1 
+endi
+if $data50 != @56755675@ then
+  return -1 
+endi
+if $data60 != @67866786@ then
+  return -1 
+endi
+print execute sql select concat(tb1.c8,tb1.c14),concat(tb2.c8,tb2.c14) from tb1,tb2 where tb1.ts=tb2.ts;
+sql select concat(tb1.c8,tb1.c14),concat(tb2.c8,tb2.c14) from tb1,tb2 where tb1.ts=tb2.ts;
+if $data00 != @1231@ then
+  return -1 
+endi
+if $data01 != @1111@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @2222@ then
+  return -1 
+endi
+if $data20 != @2342@ then
+  return -1 
+endi
+if $data21 != @3333@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data31 != @4444@ then
+  return -1 
+endi
+if $data40 != @4564@ then
+  return -1 
+endi
+if $data41 != @5555@ then
+  return -1 
+endi
+if $data50 != @56727@ then
+  return -1 
+endi
+if $data51 != @6666@ then
+  return -1 
+endi
+if $data60 != @678@ then
+  return -1 
+endi
+if $data61 != @7777@ then
+  return -1 
+endi
+print execute sql select concat(c8,c14) from tb1 union all select concat(c8,c14) from tb2;
+sql select concat(c8,c14) from tb1 union all select concat(c8,c14) from tb2;
+if $data00 != @1231@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @2342@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @4564@ then
+  return -1 
+endi
+if $data50 != @56727@ then
+  return -1 
+endi
+if $data60 != @678@ then
+  return -1 
+endi
+if $data70 != @1111@ then
+  return -1 
+endi
+if $data80 != @2222@ then
+  return -1 
+endi
+if $data90 != @3333@ then
+  return -1 
+endi
+print execute sql select concat(c8, cast(a as binary(10))),c8, a from (select c8,c2 as a from stb1)
+sql select concat(c8, cast(a as binary(10))),c8, a from (select c8,c2 as a from stb1)
+if $data00 != @1231@ then
+  return -1 
+endi
+if $data01 != @123@ then
+  return -1 
+endi
+if $data02 != @1@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @NULL@ then
+  return -1 
+endi
+if $data12 != @NULL@ then
+  return -1 
+endi
+if $data20 != @2342@ then
+  return -1 
+endi
+if $data21 != @234@ then
+  return -1 
+endi
+if $data22 != @2@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data31 != @NULL@ then
+  return -1 
+endi
+if $data32 != @NULL@ then
+  return -1 
+endi
+if $data40 != @4564@ then
+  return -1 
+endi
+if $data41 != @456@ then
+  return -1 
+endi
+if $data42 != @4@ then
+  return -1 
+endi
+if $data50 != @567127@ then
+  return -1 
+endi
+if $data51 != @567@ then
+  return -1 
+endi
+if $data52 != @127@ then
+  return -1 
+endi
+if $data60 != @678-127@ then
+  return -1 
+endi
+if $data61 != @678@ then
+  return -1 
+endi
+if $data62 != @-127@ then
+  return -1 
+endi
+if $data70 != @1111@ then
+  return -1 
+endi
+if $data71 != @111@ then
+  return -1 
+endi
+if $data72 != @1@ then
+  return -1 
+endi
+if $data80 != @2222@ then
+  return -1 
+endi
+if $data81 != @222@ then
+  return -1 
+endi
+if $data82 != @2@ then
+  return -1 
+endi
+if $data90 != @3333@ then
+  return -1 
+endi
+if $data91 != @333@ then
+  return -1 
+endi
+if $data92 != @3@ then
+  return -1 
+endi
+print execute sql select concat(c9,concat(c9,c15)) from tb1;
+sql select concat(c9,concat(c9,c15)) from tb1;
+if $data00 != @123412341@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @345634563@ then
+  return -1 
+endi
+if $data40 != @456745674@ then
+  return -1 
+endi
+if $data50 != @56785678278@ then
+  return -1 
+endi
+if $data60 != @67896789@ then
+  return -1 
+endi
+print execute sql select concat(c9,concat(c15,c9)) from tb1;
+sql select concat(c9,concat(c15,c9)) from tb1;
+if $data00 != @123411234@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @345633456@ then
+  return -1 
+endi
+if $data40 != @456744567@ then
+  return -1 
+endi
+if $data50 != @56782785678@ then
+  return -1 
+endi
+if $data60 != @67896789@ then
+  return -1 
+endi
+print execute sql select concat(c9,concat(concat(c15,c9), c9, '6')) from tb1;
+sql select concat(c9,concat(concat(c15,c9), c9, '6')) from tb1;
+if $data00 != @12341123412346@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @34563345634566@ then
+  return -1 
+endi
+if $data40 != @45674456745676@ then
+  return -1 
+endi
+if $data50 != @5678278567856786@ then
+  return -1 
+endi
+if $data60 != @6789678967896@ then
+  return -1 
+endi

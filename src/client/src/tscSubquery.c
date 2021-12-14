@@ -3621,7 +3621,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
     finalRowSize += pField->bytes;
   }
 
-  doArithmeticCalculate(pQueryInfo, pFilePage, rowSize, finalRowSize);
+  doScalarExprCalculate(pQueryInfo, pFilePage, rowSize, finalRowSize);
 
   pRes->data = pFilePage->data;
   tscSetResRawPtr(pRes, pQueryInfo, pRes->dataConverted);
@@ -3660,8 +3660,8 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
   }
 }
 
-char *getArithmeticInputSrc(void *param, const char *name, int32_t colId) {
-  SArithmeticSupport *pSupport = (SArithmeticSupport *) param;
+char * getScalarExprInputSrc(void *param, const char *name, int32_t colId) {
+  SScalarExprSupport*pSupport = (SScalarExprSupport*) param;
 
   int32_t index = -1;
   SExprInfo* pExpr = NULL;
