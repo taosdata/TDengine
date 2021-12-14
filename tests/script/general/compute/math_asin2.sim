@@ -1,0 +1,366 @@
+sleep 100
+sql connect
+sql use db
+
+print execute sql select asin(stb1.c4),asin(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+sql select asin(stb1.c4),asin(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+if $data00 != @1.570796327@ then
+  return -1 
+endi
+if $data01 != @1.570796327@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data11 != @nan@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data21 != @nan@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data31 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data41 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data51 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+if $data61 != @nan@ then
+  return -1 
+endi
+print execute sql select asin(c4) as a from stb1 union all select asin(c5) as a from stba;
+sql select asin(c4) as a from stb1 union all select asin(c5) as a from stba;
+if $data00 != @1.570796327@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+if $data70 != @1.570796327@ then
+  return -1 
+endi
+if $data80 != @nan@ then
+  return -1 
+endi
+if $data90 != @nan@ then
+  return -1 
+endi
+print execute sql select asin(c2) from stba;
+sql select asin(c2) from stba;
+if $data00 != @1.570796327@ then
+  return -1 
+endi
+if $data10 != @nan@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+if $data70 != @nan@ then
+  return -1 
+endi
+if $data80 != @nan@ then
+  return -1 
+endi
+if $data90 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select asin(min(c2)) from tba1;
+sql select asin(min(c2)) from tba1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select asin(max(c2)) from tba1;
+sql select asin(max(c2)) from tba1;
+if $data00 != @nan@ then
+  return -1 
+endi
+print execute sql select asin(count(c2)) from tba1;
+sql select asin(count(c2)) from tba1;
+if $data00 != @nan@ then
+  return -1 
+endi
+print execute sql select asin(sum(c2)) from tba1;
+sql select asin(sum(c2)) from tba1;
+if $data00 != @nan@ then
+  return -1 
+endi
+print execute sql select asin(avg(c2)) from tba1;
+sql select asin(avg(c2)) from tba1;
+if $data00 != @nan@ then
+  return -1 
+endi
+print execute sql select asin(percentile(c2, 10)) from tba1;
+sql select asin(percentile(c2, 10)) from tba1;
+if $data00 != @1.119769515@ then
+  return -1 
+endi
+print execute sql select asin(apercentile(c2, 10)) from tba1;
+sql select asin(apercentile(c2, 10)) from tba1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select asin(stddev(c2)) from tba1;
+sql select asin(stddev(c2)) from tba1;
+if $data00 != @nan@ then
+  return -1 
+endi
+print execute sql select asin(spread(c2)) from tba1;
+sql select asin(spread(c2)) from tba1;
+if $data00 != @nan@ then
+  return -1 
+endi
+print execute sql select asin(twa(c2)) from tba1;
+sql select asin(twa(c2)) from tba1;
+if $data00 != @nan@ then
+  return -1 
+endi
+print execute sql select asin(leastsquares(c2, 1, 1)) from tba1;
+sql_error select asin(leastsquares(c2, 1, 1)) from tba1;
+print execute sql select asin(interp(c2)) from tba1 every(1s)
+sql select asin(interp(c2)) from tba1 every(1s)
+if $data00 != @21-11-11 09:00:00.000@ then
+  return -1 
+endi
+if $data01 != @1.570796327@ then
+  return -1 
+endi
+if $data10 != @21-11-11 09:00:01.000@ then
+  return -1 
+endi
+if $data11 != @nan@ then
+  return -1 
+endi
+if $data20 != @21-11-11 09:00:02.000@ then
+  return -1 
+endi
+if $data21 != @nan@ then
+  return -1 
+endi
+if $data30 != @21-11-11 09:00:03.000@ then
+  return -1 
+endi
+if $data31 != @nan@ then
+  return -1 
+endi
+if $data40 != @21-11-11 09:00:04.000@ then
+  return -1 
+endi
+if $data41 != @nan@ then
+  return -1 
+endi
+if $data50 != @21-11-11 09:00:05.000@ then
+  return -1 
+endi
+if $data51 != @nan@ then
+  return -1 
+endi
+if $data60 != @21-11-11 09:00:06.000@ then
+  return -1 
+endi
+if $data61 != @nan@ then
+  return -1 
+endi
+if $data70 != @21-11-11 09:00:07.000@ then
+  return -1 
+endi
+if $data71 != @nan@ then
+  return -1 
+endi
+if $data80 != @21-11-11 09:00:08.000@ then
+  return -1 
+endi
+if $data81 != @nan@ then
+  return -1 
+endi
+if $data90 != @21-11-11 09:00:09.000@ then
+  return -1 
+endi
+if $data91 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select asin(interp(c2)) from stba every(1s) group by tbname;
+sql select asin(interp(c2)) from stba every(1s) group by tbname;
+if $data00 != @21-11-11 09:00:00.000@ then
+  return -1 
+endi
+if $data01 != @1.570796327@ then
+  return -1 
+endi
+if $data02 != @tba1@ then
+  return -1 
+endi
+if $data10 != @21-11-11 09:00:01.000@ then
+  return -1 
+endi
+if $data11 != @nan@ then
+  return -1 
+endi
+if $data12 != @tba1@ then
+  return -1 
+endi
+if $data20 != @21-11-11 09:00:02.000@ then
+  return -1 
+endi
+if $data21 != @nan@ then
+  return -1 
+endi
+if $data22 != @tba1@ then
+  return -1 
+endi
+if $data30 != @21-11-11 09:00:03.000@ then
+  return -1 
+endi
+if $data31 != @nan@ then
+  return -1 
+endi
+if $data32 != @tba1@ then
+  return -1 
+endi
+if $data40 != @21-11-11 09:00:04.000@ then
+  return -1 
+endi
+if $data41 != @nan@ then
+  return -1 
+endi
+if $data42 != @tba1@ then
+  return -1 
+endi
+if $data50 != @21-11-11 09:00:05.000@ then
+  return -1 
+endi
+if $data51 != @nan@ then
+  return -1 
+endi
+if $data52 != @tba1@ then
+  return -1 
+endi
+if $data60 != @21-11-11 09:00:06.000@ then
+  return -1 
+endi
+if $data61 != @nan@ then
+  return -1 
+endi
+if $data62 != @tba1@ then
+  return -1 
+endi
+if $data70 != @21-11-11 09:00:07.000@ then
+  return -1 
+endi
+if $data71 != @nan@ then
+  return -1 
+endi
+if $data72 != @tba1@ then
+  return -1 
+endi
+if $data80 != @21-11-11 09:00:08.000@ then
+  return -1 
+endi
+if $data81 != @nan@ then
+  return -1 
+endi
+if $data82 != @tba1@ then
+  return -1 
+endi
+if $data90 != @21-11-11 09:00:09.000@ then
+  return -1 
+endi
+if $data91 != @0.000000000@ then
+  return -1 
+endi
+if $data92 != @tba1@ then
+  return -1 
+endi
+print execute sql select asin(elapsed(ts)) from tba1;
+sql select asin(elapsed(ts)) from tba1;
+if $data00 != @nan@ then
+  return -1 
+endi
+print execute sql select asin(rate(c2)) from tba1;
+sql select asin(rate(c2)) from tba1;
+if $data00 != @1.111922122@ then
+  return -1 
+endi
+print execute sql select asin(irate(c2)) from tba1;
+sql select asin(irate(c2)) from tba1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select asin(first(c2)) from tba1;
+sql select asin(first(c2)) from tba1;
+if $data00 != @1.570796327@ then
+  return -1 
+endi
+print execute sql select asin(last(c2)) from tba1;
+sql select asin(last(c2)) from tba1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select asin(last_row(c2)) from tba1;
+sql select asin(last_row(c2)) from tba1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select asin(top(c2, 1)) from tba1;
+sql_error select asin(top(c2, 1)) from tba1;
+print execute sql select asin(bottom(c2, 1)) from tba1;
+sql_error select asin(bottom(c2, 1)) from tba1;
+print execute sql select asin(leastsquares(c2, 1, 1)) from tba1;
+sql_error select asin(leastsquares(c2, 1, 1)) from tba1;
+print execute sql select asin(derivative(c2, 1s, 0)) from tba1;
+sql_error select asin(derivative(c2, 1s, 0)) from tba1;
+print execute sql select asin(diff(c2)) from tba1;
+sql_error select asin(diff(c2)) from tba1;
+print execute sql select asin(csum(c2)) from tba1;
+sql_error select asin(csum(c2)) from tba1;
+print execute sql select asin(mavg(c2,2)) from tba1;
+sql_error select asin(mavg(c2,2)) from tba1;
+print execute sql select asin(sample(c2,2)) from tba1;
+sql_error select asin(sample(c2,2)) from tba1;
+print execute sql select asin(_block_dist()) from tba1;
+sql_error select asin(_block_dist()) from tba1;

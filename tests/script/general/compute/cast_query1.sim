@@ -1,0 +1,2454 @@
+sleep 100
+sql connect
+
+sql use db;
+
+print "test negative cases"
+
+sql_error select cast(* as tinyint) from tb1;
+sql_error select cast(* as smallint) from tb1;
+sql_error select cast(* as int) from tb1;
+sql_error select cast(* as bool) from tb1;
+sql_error select cast(* as bigint) as a from tb1;
+sql_error select cast(* as bigint) + 1 as a from tb1;
+sql_error select cast(tb1.* as bigint) + 1 as a from tb1;
+sql_error select cast(* as bigint) from tb1;
+sql_error select cast(c1 as binary(16384)) from tb1;
+sql_error select cast(c1 as nchar(16384)) from tb1;
+sql_error select cast(c1 + c2 as bigint) from tb1;
+sql_error select cast(13 as binary(0)) from tb1;
+sql_error select cast(12 as binary(-1)) from tb1;
+sql_error select cast(11 as nchar(0)) from tb1;
+sql_error select cast(10 as nchar(-1)) from tb1;
+sql_error select cast(11 as tinyint) from tb1;
+sql_error select cast(11 as bool) from tb1;
+sql_error select cast(11 as smallint) from tb1;
+sql_error select cast(11 as int) from tb1;
+sql_error select cast(11 as float) from tb1;
+sql_error select cast(11 as double) from tb1;
+sql_error select cast(11 as tinyint unsigned) from tb1;
+sql_error select cast(11 as smallint unsigned) from tb1;
+sql_error select cast(11 as int unsigned) from tb1;
+sql_error select cast(c1 as binary(0)) from tb1;
+sql_error select cast(c1 as binary(-1)) from tb1;
+sql_error select cast(c1 as nchar(0)) from tb1;
+sql_error select cast(c1 as nchar(-1)) from tb1;
+sql_error select cast(c1 as tinyint) from tb1;
+sql_error select cast(c1 as bool) from tb1;
+sql_error select cast(c1 as smallint) from tb1;
+sql_error select cast(c1 as int) from tb1;
+sql_error select cast(c1 as float) from tb1;
+sql_error select cast(c1 as double) from tb1;
+sql_error select cast(c1 as tinyint unsigned) from tb1;
+sql_error select cast(c1 as smallint unsigned) from tb1;
+sql_error select cast(c1 as int unsigned) from tb1;
+sql_error select cast(c2 as binary(0)) from tb1;
+sql_error select cast(c2 as binary(-1)) from tb1;
+sql_error select cast(c2 as nchar(0)) from tb1;
+sql_error select cast(c2 as nchar(-1)) from tb1;
+sql_error select cast(c2 as tinyint) from tb1;
+sql_error select cast(c2 as bool) from tb1;
+sql_error select cast(c2 as smallint) from tb1;
+sql_error select cast(c2 as int) from tb1;
+sql_error select cast(c2 as float) from tb1;
+sql_error select cast(c2 as double) from tb1;
+sql_error select cast(c2 as tinyint unsigned) from tb1;
+sql_error select cast(c2 as smallint unsigned) from tb1;
+sql_error select cast(c2 as int unsigned) from tb1;
+sql_error select cast(c3 as binary(0)) from tb1;
+sql_error select cast(c3 as binary(-1)) from tb1;
+sql_error select cast(c3 as nchar(0)) from tb1;
+sql_error select cast(c3 as nchar(-1)) from tb1;
+sql_error select cast(c3 as tinyint) from tb1;
+sql_error select cast(c3 as bool) from tb1;
+sql_error select cast(c3 as smallint) from tb1;
+sql_error select cast(c3 as int) from tb1;
+sql_error select cast(c3 as float) from tb1;
+sql_error select cast(c3 as double) from tb1;
+sql_error select cast(c3 as tinyint unsigned) from tb1;
+sql_error select cast(c3 as smallint unsigned) from tb1;
+sql_error select cast(c3 as int unsigned) from tb1;
+sql_error select cast(c4 as binary(0)) from tb1;
+sql_error select cast(c4 as binary(-1)) from tb1;
+sql_error select cast(c4 as nchar(0)) from tb1;
+sql_error select cast(c4 as nchar(-1)) from tb1;
+sql_error select cast(c4 as tinyint) from tb1;
+sql_error select cast(c4 as bool) from tb1;
+sql_error select cast(c4 as smallint) from tb1;
+sql_error select cast(c4 as int) from tb1;
+sql_error select cast(c4 as float) from tb1;
+sql_error select cast(c4 as double) from tb1;
+sql_error select cast(c4 as tinyint unsigned) from tb1;
+sql_error select cast(c4 as smallint unsigned) from tb1;
+sql_error select cast(c4 as int unsigned) from tb1;
+sql_error select cast(c5 as binary(0)) from tb1;
+sql_error select cast(c5 as binary(-1)) from tb1;
+sql_error select cast(c5 as nchar(0)) from tb1;
+sql_error select cast(c5 as nchar(-1)) from tb1;
+sql_error select cast(c5 as tinyint) from tb1;
+sql_error select cast(c5 as bool) from tb1;
+sql_error select cast(c5 as smallint) from tb1;
+sql_error select cast(c5 as int) from tb1;
+sql_error select cast(c5 as float) from tb1;
+sql_error select cast(c5 as double) from tb1;
+sql_error select cast(c5 as tinyint unsigned) from tb1;
+sql_error select cast(c5 as smallint unsigned) from tb1;
+sql_error select cast(c5 as int unsigned) from tb1;
+sql_error select cast(c6 as binary(0)) from tb1;
+sql_error select cast(c6 as binary(-1)) from tb1;
+sql_error select cast(c6 as nchar(0)) from tb1;
+sql_error select cast(c6 as nchar(-1)) from tb1;
+sql_error select cast(c6 as tinyint) from tb1;
+sql_error select cast(c6 as bool) from tb1;
+sql_error select cast(c6 as smallint) from tb1;
+sql_error select cast(c6 as int) from tb1;
+sql_error select cast(c6 as float) from tb1;
+sql_error select cast(c6 as double) from tb1;
+sql_error select cast(c6 as tinyint unsigned) from tb1;
+sql_error select cast(c6 as smallint unsigned) from tb1;
+sql_error select cast(c6 as int unsigned) from tb1;
+sql_error select cast(c7 as binary(0)) from tb1;
+sql_error select cast(c7 as binary(-1)) from tb1;
+sql_error select cast(c7 as nchar(0)) from tb1;
+sql_error select cast(c7 as nchar(-1)) from tb1;
+sql_error select cast(c7 as tinyint) from tb1;
+sql_error select cast(c7 as bool) from tb1;
+sql_error select cast(c7 as smallint) from tb1;
+sql_error select cast(c7 as int) from tb1;
+sql_error select cast(c7 as float) from tb1;
+sql_error select cast(c7 as double) from tb1;
+sql_error select cast(c7 as tinyint unsigned) from tb1;
+sql_error select cast(c7 as smallint unsigned) from tb1;
+sql_error select cast(c7 as int unsigned) from tb1;
+sql_error select cast(c8 as binary(0)) from tb1;
+sql_error select cast(c8 as binary(-1)) from tb1;
+sql_error select cast(c8 as nchar(0)) from tb1;
+sql_error select cast(c8 as nchar(-1)) from tb1;
+sql_error select cast(c8 as tinyint) from tb1;
+sql_error select cast(c8 as bool) from tb1;
+sql_error select cast(c8 as smallint) from tb1;
+sql_error select cast(c8 as int) from tb1;
+sql_error select cast(c8 as float) from tb1;
+sql_error select cast(c8 as double) from tb1;
+sql_error select cast(c8 as tinyint unsigned) from tb1;
+sql_error select cast(c8 as smallint unsigned) from tb1;
+sql_error select cast(c8 as int unsigned) from tb1;
+sql_error select cast(c8 as timestamp) from tb1;
+sql_error select cast(c9 as binary(0)) from tb1;
+sql_error select cast(c9 as binary(-1)) from tb1;
+sql_error select cast(c9 as nchar(0)) from tb1;
+sql_error select cast(c9 as nchar(-1)) from tb1;
+sql_error select cast(c9 as tinyint) from tb1;
+sql_error select cast(c9 as bool) from tb1;
+sql_error select cast(c9 as smallint) from tb1;
+sql_error select cast(c9 as int) from tb1;
+sql_error select cast(c9 as float) from tb1;
+sql_error select cast(c9 as double) from tb1;
+sql_error select cast(c9 as tinyint unsigned) from tb1;
+sql_error select cast(c9 as smallint unsigned) from tb1;
+sql_error select cast(c9 as int unsigned) from tb1;
+sql_error select cast(c9 as timestamp) from tb1;
+sql_error select cast(c9 as binary(5)) from tb1; 
+sql_error select cast(c10 as binary(0)) from tb1;
+sql_error select cast(c10 as binary(-1)) from tb1;
+sql_error select cast(c10 as nchar(0)) from tb1;
+sql_error select cast(c10 as nchar(-1)) from tb1;
+sql_error select cast(c10 as tinyint) from tb1;
+sql_error select cast(c10 as bool) from tb1;
+sql_error select cast(c10 as smallint) from tb1;
+sql_error select cast(c10 as int) from tb1;
+sql_error select cast(c10 as float) from tb1;
+sql_error select cast(c10 as double) from tb1;
+sql_error select cast(c10 as tinyint unsigned) from tb1;
+sql_error select cast(c10 as smallint unsigned) from tb1;
+sql_error select cast(c10 as int unsigned) from tb1;
+sql_error select cast(c11 as binary(0)) from tb1;
+sql_error select cast(c11 as binary(-1)) from tb1;
+sql_error select cast(c11 as nchar(0)) from tb1;
+sql_error select cast(c11 as nchar(-1)) from tb1;
+sql_error select cast(c11 as tinyint) from tb1;
+sql_error select cast(c11 as bool) from tb1;
+sql_error select cast(c11 as smallint) from tb1;
+sql_error select cast(c11 as int) from tb1;
+sql_error select cast(c11 as float) from tb1;
+sql_error select cast(c11 as double) from tb1;
+sql_error select cast(c11 as tinyint unsigned) from tb1;
+sql_error select cast(c11 as smallint unsigned) from tb1;
+sql_error select cast(c11 as int unsigned) from tb1;
+sql_error select cast(c12 as binary(0)) from tb1;
+sql_error select cast(c12 as binary(-1)) from tb1;
+sql_error select cast(c12 as nchar(0)) from tb1;
+sql_error select cast(c12 as nchar(-1)) from tb1;
+sql_error select cast(c12 as tinyint) from tb1;
+sql_error select cast(c12 as bool) from tb1;
+sql_error select cast(c12 as smallint) from tb1;
+sql_error select cast(c12 as int) from tb1;
+sql_error select cast(c12 as float) from tb1;
+sql_error select cast(c12 as double) from tb1;
+sql_error select cast(c12 as tinyint unsigned) from tb1;
+sql_error select cast(c12 as smallint unsigned) from tb1;
+sql_error select cast(c12 as int unsigned) from tb1;                  
+sql_error select cast(c13 as binary(0)) from tb1;
+sql_error select cast(c13 as binary(-1)) from tb1;
+sql_error select cast(c13 as nchar(0)) from tb1;
+sql_error select cast(c13 as nchar(-1)) from tb1;
+sql_error select cast(c13 as tinyint) from tb1;
+sql_error select cast(c13 as bool) from tb1;
+sql_error select cast(c13 as smallint) from tb1;
+sql_error select cast(c13 as int) from tb1;
+sql_error select cast(c13 as float) from tb1;
+sql_error select cast(c13 as double) from tb1;
+sql_error select cast(c13 as tinyint unsigned) from tb1;
+sql_error select cast(c13 as smallint unsigned) from tb1;
+sql_error select cast(c13 as int unsigned) from tb1;
+sql_error select cast(12345678900000000000000000 as binary(10)) from tb1;
+sql_error select distinct cast("-abc" as bigint unsigned) from tb1;
+sql_error select cast(c1) from tb1;
+sql_error select cast(t1 as bigint) from stb1;
+sql_error select cast(c2 as bigint)+avg(c2) from tb1;
+sql_error select cast(c2 as bigint)+top(c2,1) from tb1;
+sql_error select cast(c1 as bigint),avg(c3) from tb1;
+sql_error select cast(c1 as bigint),top(c3,1) from tb1;
+sql_error select cast(c2+c3 as binary(6)) from tb1 session(ts, 1s);
+sql_error select cast(c2+c3 as binary(6)) from tb1 STATE_WINDOW(c1);
+sql_error select cast(c2+c3 as binary(6)) from tb1 interval(1s) sliding(1s) fill(NULL);
+sql_error select cast(c2+c3 as binary(6)) from stb1 group by t1;
+sql_error select cast(c2+c3 as binary(6)) from stb1 group by ts;
+sql_error select cast(c2+c3 as binary(6)) from stb1 group by c1;
+sql_error select cast(c2+c3 as binary(6)) from stb1 group by tbname;
+sql_error select cast(c2+c3 as binary(6)) from tb1 order by c2;
+sql_error select cast(c8 as bigint),cast(c9 as bigint(12)) from tbn;
+sql_error select cast(ts as binary(10)) from (select avg(c2) as a from stb1 interval(1s));
+sql_error select cast(a as timestamp) from (select cast(c2 as binary(2)) as a from tb1);
+
+print "test constant"
+
+sql select cast(13 as bigint) from tb1;                  
+if $rows != 7 then 
+  return -1
+endi      
+if $data00 != 13 then 
+  return -1
+endi
+if $data10 != 13 then 
+  return -1
+endi
+sql select cast(13 as timestamp) from tb1; 
+if $rows != 7 then 
+  return -1
+endi      
+if $data00 != @70-01-01 08:00:00.013@ then 
+  return -1
+endi
+if $data10 != @70-01-01 08:00:00.013@ then 
+  return -1
+endi
+sql select cast("abc" as bigint unsigned) from tb1;
+if $rows != 7 then 
+  return -1
+endi      
+if $data00 != 0 then 
+  return -1
+endi
+if $data10 != 0 then 
+  return -1
+endi
+print "test bool column"
+
+sql select cast(c1 as bigint) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 1 then 
+  return -1
+endi
+if $data20 != 1 then 
+  return -1
+endi
+if $data30 != 0 then 
+  return -1
+endi
+if $data40 != 1 then 
+  return -1
+endi
+if $data50 != 1 then 
+  return -1
+endi
+if $data60 != 1 then 
+  return -1
+endi
+sql select cast(c1 as binary(10)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != true then 
+  return -1
+endi
+if $data10 != true then 
+  return -1
+endi
+if $data20 != true then 
+  return -1
+endi
+if $data30 != false then 
+  return -1
+endi
+if $data40 != true then 
+  return -1
+endi
+if $data50 != true then 
+  return -1
+endi
+if $data60 != true then 
+  return -1
+endi
+sql select cast(c1 as binary(1)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != t then 
+  return -1
+endi
+if $data10 != t then 
+  return -1
+endi
+if $data20 != t then 
+  return -1
+endi
+if $data30 != f then 
+  return -1
+endi
+if $data40 != t then 
+  return -1
+endi
+if $data50 != t then 
+  return -1
+endi
+if $data60 != t then 
+  return -1
+endi
+sql select cast(c1 as timestamp) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+if $data10 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+if $data20 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+if $data30 != @70-01-01 08:00:00.000@ then 
+  return -1
+endi
+if $data40 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+if $data50 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+if $data60 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+sql select cast(c1 as nchar(10)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != true then 
+  return -1
+endi
+if $data10 != true then 
+  return -1
+endi
+if $data20 != true then 
+  return -1
+endi
+if $data30 != false then 
+  return -1
+endi
+if $data40 != true then 
+  return -1
+endi
+if $data50 != true then 
+  return -1
+endi
+if $data60 != true then 
+  return -1
+endi
+sql select cast(c1 as nchar(1)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != t then 
+  return -1
+endi
+if $data10 != t then 
+  return -1
+endi
+if $data20 != t then 
+  return -1
+endi
+if $data30 != f then 
+  return -1
+endi
+if $data40 != t then 
+  return -1
+endi
+if $data50 != t then 
+  return -1
+endi
+if $data60 != t then 
+  return -1
+endi
+sql select cast(c1 as bigint unsigned) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 1 then 
+  return -1
+endi
+if $data20 != 1 then 
+  return -1
+endi
+if $data30 != 0 then 
+  return -1
+endi
+if $data40 != 1 then 
+  return -1
+endi
+if $data50 != 1 then 
+  return -1
+endi
+if $data60 != 1 then 
+  return -1
+endi
+
+print "test tinyint column"
+
+sql select cast(c2 as bigint) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 127 then 
+  return -1
+endi
+if $data60 != -127 then 
+  return -1
+endi
+sql select cast(c2 as binary(10)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 127 then 
+  return -1
+endi
+if $data60 != -127 then 
+  return -1
+endi
+sql select cast(c2 as binary(1)) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 1 then 
+  return -1
+endi
+if $data60 != - then 
+  return -1
+endi
+sql select cast(c2 as timestamp) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != @70-01-01 08:00:00.002@ then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != @70-01-01 08:00:00.004@ then 
+  return -1
+endi
+if $data50 != @70-01-01 08:00:00.127@ then 
+  return -1
+endi
+if $data60 != @70-01-01 08:00:00.-127@ then 
+  return -1
+endi
+sql select cast(c2 as nchar(10)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 127 then 
+  return -1
+endi
+if $data60 != -127 then 
+  return -1
+endi
+sql select cast(c2 as nchar(1)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 1 then 
+  return -1
+endi
+if $data60 != - then 
+  return -1
+endi
+sql select cast(c2 as bigint unsigned) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 127 then 
+  return -1
+endi
+if $data60 != 18446744073709551489 then 
+  return -1
+endi
+
+print "test smallint column"
+
+sql select cast(c3 as bigint) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 32767 then 
+  return -1
+endi
+if $data60 != -32767 then 
+  return -1
+endi
+sql select cast(c3 as binary(10)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 32767 then 
+  return -1
+endi
+if $data60 != -32767 then 
+  return -1
+endi
+sql select cast(c3 as binary(2)) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 32 then 
+  return -1
+endi
+if $data60 != -3 then 
+  return -1
+endi
+sql select cast(c3 as timestamp) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != @70-01-01 08:00:00.003@ then 
+  return -1
+endi
+if $data40 != @70-01-01 08:00:00.004@ then 
+  return -1
+endi
+if $data50 != @70-01-01 08:00:32.767@ then 
+  return -1
+endi
+if $data60 != @70-01-01 07:59:28.-767@ then 
+  return -1
+endi
+sql select cast(c3 as nchar(10)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 32767 then 
+  return -1
+endi
+if $data60 != -32767 then 
+  return -1
+endi
+sql select cast(c3 as nchar(3)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 327 then 
+  return -1
+endi
+if $data60 != -32 then 
+  return -1
+endi
+sql select cast(c3 as bigint unsigned) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 32767 then 
+  return -1
+endi
+if $data60 != 18446744073709518849 then 
+  return -1
+endi
+
+print "test int column"
+
+sql select cast(c4 as bigint) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 2147483647 then 
+  return -1
+endi
+if $data60 != -2147483647 then 
+  return -1
+endi
+sql select cast(c4 as binary(10)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 2147483647 then 
+  return -1
+endi
+if $data60 != -214748364 then 
+  return -1
+endi
+sql select cast(c4 as binary(5)) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 21474 then 
+  return -1
+endi
+if $data60 != -2147 then 
+  return -1
+endi
+sql select cast(c4 as timestamp) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != @70-01-01 08:00:00.002@ then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != @70-01-01 08:00:00.004@ then 
+  return -1
+endi
+if $data50 != @70-01-26 04:31:23.647@ then 
+  return -1
+endi
+if $data60 != @69-12-07 11:28:37.-647@ then 
+  return -1
+endi
+sql select cast(c4 as nchar(13)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 2147483647 then 
+  return -1
+endi
+if $data60 != -2147483647 then 
+  return -1
+endi
+sql select cast(c4 as nchar(3)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 214 then 
+  return -1
+endi
+if $data60 != -21 then 
+  return -1
+endi
+sql select cast(c4 as bigint unsigned) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 2147483647 then 
+  return -1
+endi
+if $data60 != 18446744071562067969 then 
+  return -1
+endi
+
+print "test bigint column"
+
+sql select cast(c5 as bigint) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 9223372036854775807 then 
+  return -1
+endi
+if $data60 != -9223372036854775807 then 
+  return -1
+endi
+sql select cast(c5 as binary(20)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 9223372036854775807 then 
+  return -1
+endi
+if $data60 != -9223372036854775807 then 
+  return -1
+endi
+sql select cast(c5 as binary(5)) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 92233 then 
+  return -1
+endi
+if $data60 != -9223 then 
+  return -1
+endi
+sql select cast(c5 as timestamp) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != @70-01-01 08:00:00.003@ then 
+  return -1
+endi
+if $data40 != @70-01-01 08:00:00.004@ then 
+  return -1
+endi
+sql select cast(c5 as nchar(20)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 9223372036854775807 then 
+  return -1
+endi
+if $data60 != -9223372036854775807 then 
+  return -1
+endi
+sql select cast(c5 as nchar(6)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 922337 then 
+  return -1
+endi
+if $data60 != -92233 then 
+  return -1
+endi
+sql select cast(c5 as bigint unsigned) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 9223372036854775807 then 
+  return -1
+endi
+if $data60 != 9223372036854775809 then 
+  return -1
+endi
+
+print "test float column"
+
+sql select cast(c6 as bigint) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != NULL then 
+  return -1
+endi
+if $data60 != NULL then 
+  return -1
+endi
+sql select cast(c6 as binary(60)) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1.000000 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2.000000 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4.000000 then 
+  return -1
+endi
+if $data50 != 340282346638528859811704183484516925440.000000 then 
+  return -1
+endi
+if $data60 != -340282346638528859811704183484516925440.000000 then 
+  return -1
+endi
+sql select cast(c6 as binary(5)) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1.000 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2.000 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4.000 then 
+  return -1
+endi
+if $data50 != 34028 then 
+  return -1
+endi
+if $data60 != -3402 then 
+  return -1
+endi
+sql select cast(c6 as timestamp) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != @70-01-01 08:00:00.002@ then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != @70-01-01 08:00:00.004@ then 
+  return -1
+endi
+if $data50 != NULL then 
+  return -1
+endi
+if $data60 != NULL then 
+  return -1
+endi
+sql select cast(c6 as nchar(50)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1.000000 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2.000000 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4.000000 then 
+  return -1
+endi
+if $data50 != 340282346638528859811704183484516925440.000000 then 
+  return -1
+endi
+if $data60 != -340282346638528859811704183484516925440.000000 then 
+  return -1
+endi
+sql select cast(c6 as nchar(6)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1.0000 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2.0000 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4.0000 then 
+  return -1
+endi
+if $data50 != 340282 then 
+  return -1
+endi
+if $data60 != -34028 then 
+  return -1
+endi
+sql select cast(c6 as bigint unsigned) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+
+
+print "test double column"
+
+sql select cast(c7 as bigint) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != NULL then 
+  return -1
+endi
+if $data60 != NULL then 
+  return -1
+endi
+sql select cast(c7 as binary(400)) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1.000000 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3.000000 then 
+  return -1
+endi
+if $data40 != 4.000000 then 
+  return -1
+endi
+if $data50 != 179769000000000006323030492138942643493033036433685336215410983289126434148906289940615299632196609445533816320312774433484859900046491141051651091672734470972759941382582304802812882753059262973637182942535982636884444611376868582636745405553206881859340916340092953230149901406738427651121855107737424232448.000000 then 
+  return -1
+endi
+if $data60 != -179769000000000006323030492138942643493033036433685336215410983289126434148906289940615299632196609445533816320312774433484859900046491141051651091672734470972759941382582304802812882753059262973637182942535982636884444611376868582636745405553206881859340916340092953230149901406738427651121855107737424232448.000000 then 
+  return -1
+endi
+sql select cast(c7 as binary(5)) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1.000 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3.000 then 
+  return -1
+endi
+if $data40 != 4.000 then 
+  return -1
+endi
+if $data50 != 17976 then 
+  return -1
+endi
+if $data60 != -1797 then 
+  return -1
+endi
+sql select cast(c7 as timestamp) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != @70-01-01 08:00:00.003@ then 
+  return -1
+endi
+if $data40 != @70-01-01 08:00:00.004@ then 
+  return -1
+endi
+if $data50 != NULL then 
+  return -1
+endi
+if $data60 != NULL then 
+  return -1
+endi
+sql select cast(c7 as nchar(500)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1.000000 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3.000000 then 
+  return -1
+endi
+if $data40 != 4.000000 then 
+  return -1
+endi
+if $data50 != 179769000000000006323030492138942643493033036433685336215410983289126434148906289940615299632196609445533816320312774433484859900046491141051651091672734470972759941382582304802812882753059262973637182942535982636884444611376868582636745405553206881859340916340092953230149901406738427651121855107737424232448.000000 then 
+  return -1
+endi
+if $data60 != -179769000000000006323030492138942643493033036433685336215410983289126434148906289940615299632196609445533816320312774433484859900046491141051651091672734470972759941382582304802812882753059262973637182942535982636884444611376868582636745405553206881859340916340092953230149901406738427651121855107737424232448.000000 then 
+  return -1
+endi
+sql select cast(c7 as nchar(6)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1.0000 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3.0000 then 
+  return -1
+endi
+if $data40 != 4.0000 then 
+  return -1
+endi
+if $data50 != 179769 then 
+  return -1
+endi
+if $data60 != -17976 then 
+  return -1
+endi
+sql select cast(c7 as bigint unsigned) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+
+
+print "test binary column"
+
+sql select cast(c8 as bigint) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 123 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 234 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 456 then 
+  return -1
+endi
+if $data50 != 567 then 
+  return -1
+endi
+if $data60 != 678 then 
+  return -1
+endi
+sql select cast(c8 as binary(3)) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 123 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 234 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 456 then 
+  return -1
+endi
+if $data50 != 567 then 
+  return -1
+endi
+if $data60 != 678 then 
+  return -1
+endi
+sql select cast(c8 as binary(2)) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 12 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 23 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 45 then 
+  return -1
+endi
+if $data50 != 56 then 
+  return -1
+endi
+if $data60 != 67 then 
+  return -1
+endi
+sql select cast(c8 as nchar(4)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 123 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 234 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 456 then 
+  return -1
+endi
+if $data50 != 567 then 
+  return -1
+endi
+if $data60 != 678 then 
+  return -1
+endi
+sql select cast(c8 as nchar(1)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 5 then 
+  return -1
+endi
+if $data60 != 6 then 
+  return -1
+endi
+sql select cast(c8 as bigint unsigned) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 123 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 234 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 456 then 
+  return -1
+endi
+if $data50 != 567 then 
+  return -1
+endi
+if $data60 != 678 then 
+  return -1
+endi
+
+
+print "test nchar column"
+
+sql select cast(c9 as bigint) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1234 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3456 then 
+  return -1
+endi
+if $data40 != 4567 then 
+  return -1
+endi
+if $data50 != 5678 then 
+  return -1
+endi
+if $data60 != 6789 then 
+  return -1
+endi
+sql select cast(c9 as nchar(5)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1234 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3456 then 
+  return -1
+endi
+if $data40 != 4567 then 
+  return -1
+endi
+if $data50 != 5678 then 
+  return -1
+endi
+if $data60 != 6789 then 
+  return -1
+endi
+sql select cast(c9 as nchar(2)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 12 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 34 then 
+  return -1
+endi
+if $data40 != 45 then 
+  return -1
+endi
+if $data50 != 56 then 
+  return -1
+endi
+if $data60 != 67 then 
+  return -1
+endi
+sql select cast(c9 as bigint unsigned) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1234 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3456 then 
+  return -1
+endi
+if $data40 != 4567 then 
+  return -1
+endi
+if $data50 != 5678 then 
+  return -1
+endi
+if $data60 != 6789 then 
+  return -1
+endi
+
+
+print "test utinyint column"
+
+sql select cast(c10 as bigint) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 254 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c10 as binary(10)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 254 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c10 as binary(1)) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 2 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c10 as timestamp) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != @70-01-01 08:00:00.002@ then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != @70-01-01 08:00:00.004@ then 
+  return -1
+endi
+if $data50 != @70-01-01 08:00:00.254@ then 
+  return -1
+endi
+if $data60 != @70-01-01 08:00:00.000@ then 
+  return -1
+endi
+sql select cast(c10 as nchar(10)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 254 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c10 as nchar(2)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 25 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c10 as bigint unsigned) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 254 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+
+
+print "test usmallint column"
+
+sql select cast(c11 as bigint) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 65534 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c11 as binary(10)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 65534 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c11 as binary(1)) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 6 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c11 as timestamp) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != @70-01-01 08:00:00.003@ then 
+  return -1
+endi
+if $data40 != @70-01-01 08:00:00.004@ then 
+  return -1
+endi
+if $data50 != @70-01-01 08:01:05.534@ then 
+  return -1
+endi
+if $data60 != @70-01-01 08:00:00.000@ then 
+  return -1
+endi
+sql select cast(c11 as nchar(10)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 65534 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c11 as nchar(2)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 65 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c11 as bigint unsigned) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 65534 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+
+
+print "test uint column"
+
+sql select cast(c12 as bigint) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 4294967294 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c12 as binary(10)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 4294967294 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c12 as binary(2)) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 42 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c12 as timestamp) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != @70-01-01 08:00:00.002@ then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != @70-01-01 08:00:00.004@ then 
+  return -1
+endi
+if $data50 != @70-02-20 01:02:47.294@ then 
+  return -1
+endi
+if $data60 != @70-01-01 08:00:00.000@ then 
+  return -1
+endi
+sql select cast(c12 as nchar(10)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 4294967294 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c12 as nchar(1)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 4 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c12 as bigint unsigned) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data30 != NULL then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 4294967294 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+
+
+print "test ubigint column"
+
+sql select cast(c13 as bigint) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 9223372036854775807 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c13 as binary(20)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 9223372036854775807 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c13 as binary(1)) from tb1; 
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 9 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c13 as timestamp) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != @70-01-01 08:00:00.001@ then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != @70-01-01 08:00:00.003@ then 
+  return -1
+endi
+if $data40 != @70-01-01 08:00:00.004@ then 
+  return -1
+endi
+if $data60 != @70-01-01 08:00:00.000@ then 
+  return -1
+endi
+sql select cast(c13 as nchar(20)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 9223372036854775807 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c13 as nchar(2)) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 92 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
+sql select cast(c13 as bigint unsigned) from tb1;
+if $rows != 7 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != NULL then 
+  return -1
+endi
+if $data20 != NULL then 
+  return -1
+endi
+if $data30 != 3 then 
+  return -1
+endi
+if $data40 != 4 then 
+  return -1
+endi
+if $data50 != 9223372036854775807 then 
+  return -1
+endi
+if $data60 != 0 then 
+  return -1
+endi
