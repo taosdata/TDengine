@@ -459,7 +459,17 @@ tagitem(A) ::= FLOAT(X).        { toTSDBType(X.type); tVariantCreate(&A, &X); }
 tagitem(A) ::= STRING(X).       { toTSDBType(X.type); tVariantCreate(&A, &X); }
 tagitem(A) ::= BOOL(X).         { toTSDBType(X.type); tVariantCreate(&A, &X); }
 tagitem(A) ::= NULL(X).         { X.type = 0; tVariantCreate(&A, &X); }
-tagitem(A) ::= NOW(X).          { X.type = TSDB_DATA_TYPE_TIMESTAMP; tVariantCreate(&A, &X);}
+tagitem(A) ::= NOW(X).          { X.type = TSDB_DATA_TYPE_TIMESTAMP; tVariantCreateExt(&A, &X, TK_NOW);}
+
+tagitem(A) ::= NOW PLUS VARIABLE(X).{
+    X.type = TSDB_DATA_TYPE_TIMESTAMP;
+    tVariantCreateExt(&A, &X, TK_PLUS);
+}
+
+tagitem(A) ::= NOW MINUS VARIABLE(X).{
+    X.type = TSDB_DATA_TYPE_TIMESTAMP;
+    tVariantCreateExt(&A, &X, TK_MINUS);
+}
 
 tagitem(A) ::= MINUS(X) INTEGER(Y).{
     X.n += Y.n;
