@@ -67,6 +67,7 @@ def pre_test(){
     }
     sh'''
     cd ${WKC}
+    git remote prune origin
     [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
@@ -105,7 +106,7 @@ def pre_test(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. -DBUILD_HTTP=false > /dev/null
+    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
@@ -141,6 +142,7 @@ def pre_test_noinstall(){
     }
     sh'''
     cd ${WKC}
+    git remote prune origin
     [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
@@ -179,7 +181,7 @@ def pre_test_noinstall(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. -DBUILD_HTTP=false > /dev/null
+    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true  > /dev/null
     make
     '''
     return 1
@@ -212,6 +214,7 @@ def pre_test_mac(){
     }
     sh'''
     cd ${WKC}
+    git remote prune origin
     [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
@@ -250,7 +253,7 @@ def pre_test_mac(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. > /dev/null
+    cmake .. -DBUILD_TOOLS=true > /dev/null
     go env -w GOPROXY=https://goproxy.cn,direct
     go env -w GO111MODULE=on
     cmake --build .
@@ -289,6 +292,7 @@ def pre_test_win(){
     }
     bat'''
     cd C:\\workspace\\TDinternal\\community
+    git remote prune origin
     git pull 
     git fetch origin +refs/pull/%CHANGE_ID%/merge
     git checkout -qf FETCH_HEAD
