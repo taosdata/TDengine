@@ -13,15 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef MOCK_CATALOG_H
-#define MOCK_CATALOG_H
+#ifndef _TD_COMMON_TMESSAGE_H_
+#define _TD_COMMON_TMESSAGE_H_
 
-#include "mockCatalogService.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-void generateMetaData(MockCatalogService* mcs);
+extern int32_t (*tscBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
+extern int32_t (*tscProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize);
 
-// mock
-struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps);
-int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SCatalogReq* pMetaReq, SMetaData* pMetaData);
 
-#endif  // MOCK_CATALOG_H
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_COMMON_TMESSAGE_H_*/

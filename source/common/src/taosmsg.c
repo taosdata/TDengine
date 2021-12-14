@@ -13,15 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef MOCK_CATALOG_H
-#define MOCK_CATALOG_H
+#define TAOS_MESSAGE_C
 
-#include "mockCatalogService.h"
+#include "taosmsg.h"
 
-void generateMetaData(MockCatalogService* mcs);
 
-// mock
-struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps);
-int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SCatalogReq* pMetaReq, SMetaData* pMetaData);
-
-#endif  // MOCK_CATALOG_H

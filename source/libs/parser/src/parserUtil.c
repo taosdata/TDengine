@@ -1448,23 +1448,6 @@ void* vgroupInfoClear(SVgroupsInfo *vgroupList) {
   return NULL;
 }
 
-char* serializeTagData(STagData* pTagData, char* pMsg) {
-  int32_t n = (int32_t) strlen(pTagData->name);
-  *(int32_t*) pMsg = htonl(n);
-  pMsg += sizeof(n);
-
-  memcpy(pMsg, pTagData->name, n);
-  pMsg += n;
-
-  *(int32_t*)pMsg = htonl(pTagData->dataLen);
-  pMsg += sizeof(int32_t);
-
-  memcpy(pMsg, pTagData->data, pTagData->dataLen);
-  pMsg += pTagData->dataLen;
-
-  return pMsg;
-}
-
 int32_t copyTagData(STagData* dst, const STagData* src) {
   dst->dataLen = src->dataLen;
   tstrncpy(dst->name, src->name, tListLen(dst->name));

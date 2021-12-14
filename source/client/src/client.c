@@ -15,7 +15,6 @@
 
 #include "os.h"
 #include "tdef.h"
-
 #include "tglobal.h"
 #include "clientInt.h"
 #include "tscLog.h"

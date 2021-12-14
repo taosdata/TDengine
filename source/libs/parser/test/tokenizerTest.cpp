@@ -709,7 +709,7 @@ TEST(testCase, extractMeta_test) {
   ASSERT_EQ(info1.valid, true);
 
   char msg[128] = {0};
-  SMetaReq req  = {0};
+  SCatalogReq req  = {0};
   int32_t ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);

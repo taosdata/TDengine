@@ -43,7 +43,12 @@ int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** 
     return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
   }
 
-  struct SCatalog* pCatalog = getCatalogHandle(NULL);
+  struct SCatalog* pCatalog = NULL;
+  int32_t code = catalogGetHandle(NULL, &pCatalog);
+  if (code) {
+    return code;
+  }
+  
   return qParserValidateSqlNode(pCatalog, &info, *pQueryInfo, id, msg, msgLen);
 }
 
@@ -132,7 +137,7 @@ static void freePtrElem(void* p) {
   tfree(*(char**)p);
 }
 
-int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMetaInfo, char* msg, int32_t msgBufLen) {
+int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SCatalogReq* pMetaInfo, char* msg, int32_t msgBufLen) {
   int32_t code  = TSDB_CODE_SUCCESS;
   SMsgBuf msgBuf = {.buf = msg, .len = msgBufLen};
 
@@ -189,7 +194,7 @@ int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMet
   return code;
 }
 
-void qParserClearupMetaRequestInfo(SMetaReq* pMetaReq) {
+void qParserClearupMetaRequestInfo(SCatalogReq* pMetaReq) {
   if (pMetaReq == NULL) {
     return;
   }
