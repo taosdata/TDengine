@@ -14,9 +14,6 @@
 import sys
 import subprocess
 import random
-import math
-import numpy as np
-import inspect
 
 from util.log import *
 from util.cases import *
