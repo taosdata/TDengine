@@ -172,7 +172,7 @@ STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, con
     taos_close(pTscObj);
     pTscObj = NULL;
   } else {
-    tscDebug("%p connection is opening, dnodeConn:%p", pTscObj, pTscObj->pTransporter);
+    tscDebug("0x%"PRIx64" connection is opening, connId:%d, dnodeConn:%p", pTscObj->id, pTscObj->connId, pTscObj->pTransporter);
     destroyRequest(pRequest);
   }
 
@@ -267,6 +267,8 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
              tstrerror(pMsg->code), pMsg->contLen);
   }
 
-  taosReleaseRef(requestRefId, requestRefId);
+  taosReleaseRef(tscReqRef, requestRefId);
   rpcFreeCont(pMsg->pCont);
+
+  sem_post(&pRequest->body.rspSem);
 }

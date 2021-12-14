@@ -58,7 +58,7 @@ typedef struct SAppInstInfo {
   SCorEpSet         mgmtEp;
   SInstanceActivity summary;
   SList            *pConnList;  // STscObj linked list
-  char              clusterId[TSDB_CLUSTER_ID_LEN];
+  uint32_t          clusterId;
   void             *pTransporter;
 } SAppInstInfo;
 
@@ -127,7 +127,7 @@ void* createTscObj(const char* user, const char* auth, const char *ip, uint32_t 
 void  destroyTscObj(void*pObj);
 
 void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t type);
-void destroyRequest(void* p);
+void destroyRequest(SRequestObj* pRequest);
 
 TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, const char *auth, const char *db, uint16_t port);
 

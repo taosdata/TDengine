@@ -70,7 +70,10 @@ void taos_close(TAOS* taos) {
     return;
   }
 
+  STscObj *pTscObj = (STscObj *)taos;
+  tscDebug("0x%"PRIx64" try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
 
+  taosRemoveRef(tscConnRef, pTscObj->id);
 }
 
 const char *taos_errstr(TAOS_RES *res) {

@@ -33,5 +33,8 @@ int main(int argc, char** argv) {
 }
 
 TEST(testCase, driverInit_Test) {
-  TAOS* pTaos = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  assert(pConn != NULL);
+
+  taos_close(pConn);
 }
