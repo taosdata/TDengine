@@ -13,28 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <gtest/gtest.h>
-#include <iostream>
-#include "tglobal.h"
-#pragma GCC diagnostic ignored "-Wwrite-strings"
+#ifndef _TD_COMMON_TMESSAGE_H_
+#define _TD_COMMON_TMESSAGE_H_
 
-#pragma GCC diagnostic ignored "-Wunused-function"
-#pragma GCC diagnostic ignored "-Wunused-variable"
-#pragma GCC diagnostic ignored "-Wsign-compare"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#include "taos.h"
+extern int32_t (*tscBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
+extern int32_t (*tscProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize);
 
-namespace {
-}  // namespace
 
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+
+#ifdef __cplusplus
 }
+#endif
 
-TEST(testCase, driverInit_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
-
-  taos_close(pConn);
-}
+#endif /*_TD_COMMON_TMESSAGE_H_*/

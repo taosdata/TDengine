@@ -377,11 +377,12 @@ int64_t walWrite(SWal *pWal, int64_t index, uint8_t msgType, const void *body, i
     //must truncate explicitly first
     return -1;
   }
-  /*if (!tfValid(pWal->curLogTfd)) return 0;*/
+  /*if (!tfValid(pWal->writeLogTfd)) return -1;*/
 
   pthread_mutex_lock(&pWal->mutex);
   pWal->writeHead.head.version = index;
 
+  int64_t offset = walGetCurFileOffset(pWal);
   pWal->writeHead.head.len = bodyLen;
   pWal->writeHead.head.msgType = msgType;
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
@@ -393,12 +394,12 @@ int64_t walWrite(SWal *pWal, int64_t index, uint8_t msgType, const void *body, i
     wError("vgId:%d, file:%"PRId64".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal), strerror(errno));
   }
 
-  if (tfWrite(pWal->writeLogTfd, &body, bodyLen) != bodyLen) {
+  if (tfWrite(pWal->writeLogTfd, (char*)body, bodyLen) != bodyLen) {
     //ftruncate
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%"PRId64".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal), strerror(errno));
   }
-  code = walWriteIndex(pWal, index, walGetCurFileOffset(pWal));
+  code = walWriteIndex(pWal, index, offset);
   if(code != 0) {
     //TODO
     return -1;

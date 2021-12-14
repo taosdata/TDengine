@@ -17515,7 +17515,7 @@
    fun:gaih_inet.constprop.0
    fun:getaddrinfo
    fun:taosGetFqdn
-   fun:taosCheckGlobalCfg
+   fun:taosCheckAndPrintCfg
    fun:taos_init_imp
 }
 {
@@ -17740,7 +17740,7 @@
    fun:gaih_inet.constprop.7
    fun:getaddrinfo
    fun:taosGetFqdn
-   fun:taosCheckGlobalCfg
+   fun:taosCheckAndPrintCfg
    fun:taos_init_imp
 }
 {

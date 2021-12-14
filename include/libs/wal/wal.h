@@ -32,6 +32,23 @@ extern int32_t wDebugFlag;
 #define wDebug(...) { if (wDebugFlag & DEBUG_DEBUG) { taosPrintLog("WAL ", wDebugFlag, __VA_ARGS__); }}
 #define wTrace(...) { if (wDebugFlag & DEBUG_TRACE) { taosPrintLog("WAL ", wDebugFlag, __VA_ARGS__); }}
 
+#define WAL_PREFIX       "wal"
+#define WAL_PREFIX_LEN   3
+#define WAL_NOSUFFIX_LEN 20
+#define WAL_SUFFIX_AT    (WAL_NOSUFFIX_LEN+1)
+#define WAL_LOG_SUFFIX   "log"
+#define WAL_INDEX_SUFFIX "idx"
+#define WAL_REFRESH_MS   1000
+#define WAL_MAX_SIZE     (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + 16)
+#define WAL_PATH_LEN     (TSDB_FILENAME_LEN + 12)
+#define WAL_FILE_LEN     (WAL_PATH_LEN + 32)
+
+#define WAL_IDX_ENTRY_SIZE    (sizeof(int64_t)*2)
+#define WAL_CUR_POS_WRITABLE  1
+#define WAL_CUR_FILE_WRITABLE 2
+#define WAL_CUR_FAILED        4
+
+#pragma pack(push,1)
 typedef enum {
   TAOS_WAL_NOLOG = 0,
   TAOS_WAL_WRITE = 1,
@@ -43,6 +60,7 @@ typedef struct SWalReadHead {
   uint8_t  msgType;
   int8_t   reserved[2];
   int32_t  len;
+  //int64_t  ingestTs;  //not implemented
   int64_t  version;
   char     body[];
 } SWalReadHead;
@@ -71,25 +89,6 @@ typedef struct {
   SWalReadHead head;
 } SWalHead;
 
-#define WAL_PREFIX       "wal"
-#define WAL_PREFIX_LEN   3
-#define WAL_NOSUFFIX_LEN 20
-#define WAL_SUFFIX_AT    (WAL_NOSUFFIX_LEN+1)
-#define WAL_LOG_SUFFIX   "log"
-#define WAL_INDEX_SUFFIX "idx"
-#define WAL_REFRESH_MS   1000
-#define WAL_MAX_SIZE     (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + 16)
-#define WAL_SIGNATURE    ((uint32_t)(0xFAFBFDFEUL))
-#define WAL_PATH_LEN     (TSDB_FILENAME_LEN + 12)
-#define WAL_FILE_LEN     (WAL_PATH_LEN + 32)
-//#define WAL_FILE_NUM     1 // 3
-#define WAL_FILESET_MAX  128
-
-#define WAL_IDX_ENTRY_SIZE    (sizeof(int64_t)*2)
-#define WAL_CUR_POS_WRITABLE  1
-#define WAL_CUR_FILE_WRITABLE 2
-#define WAL_CUR_FAILED        4
-
 typedef struct SWalVer {
   int64_t firstVer;
   int64_t verInSnapshotting;
@@ -101,24 +100,18 @@ typedef struct SWalVer {
 typedef struct SWal {
   // cfg
   SWalCfg cfg;
-  //total size
-  int64_t  totSize;
-  //fsync seq
-  int32_t  fsyncSeq;
-  //reference
-  int64_t refId;
-  //write tfd
-  int64_t writeLogTfd;
-  int64_t writeIdxTfd;
-  //wal lifecycle
   SWalVer vers;
-  //roll status
-  int64_t lastRollSeq;
   //file set
   int32_t writeCur;
+  int64_t writeLogTfd;
+  int64_t writeIdxTfd;
   SArray* fileInfoSet;
   //ctl
   int32_t curStatus;
+  int32_t fsyncSeq;
+  int64_t totSize;
+  int64_t refId;
+  int64_t lastRollSeq;
   pthread_mutex_t mutex;
   //path
   char path[WAL_PATH_LEN];
@@ -134,8 +127,9 @@ typedef struct SWalReadHandle {
   int64_t      curVersion;
   int64_t      capacity;
   int64_t      status;  //if cursor valid
-  SWalHead     head;
+  SWalHead*    pHead;
 } SWalReadHandle;
+#pragma pack(pop)
 
 typedef int32_t (*FWalWrite)(void *ahandle, void *pHead);
 

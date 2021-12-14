@@ -13,17 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_COMMON_INT_H_
-#define _TD_COMMON_INT_H_
+#ifndef TDENGINE_TSCLOG_H
+#define TDENGINE_TSCLOG_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
 #include "tlog.h"
-
-extern int32_t cDebugFlag;
 
 #define tscFatal(...)  do { if (cDebugFlag & DEBUG_FATAL) { taosPrintLog("TSC FATAL ", cDebugFlag, __VA_ARGS__); }} while(0)
 #define tscError(...)  do { if (cDebugFlag & DEBUG_ERROR) { taosPrintLog("TSC ERROR ", cDebugFlag, __VA_ARGS__); }} while(0)
@@ -37,4 +34,4 @@ extern int32_t cDebugFlag;
 }
 #endif
 
-#endif /*_TD_COMMON_INT_H_*/
+#endif

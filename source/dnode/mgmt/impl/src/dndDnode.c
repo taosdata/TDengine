@@ -17,6 +17,7 @@
 #include "dndDnode.h"
 #include "dndTransport.h"
 #include "dndVnodes.h"
+#include "tep.h"
 
 int32_t dndGetDnodeId(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;

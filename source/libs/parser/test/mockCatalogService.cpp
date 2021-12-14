@@ -87,7 +87,7 @@ public:
     return (struct SCatalog*)0x01;
   }
 
-  int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData) const {
+  int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SCatalogReq* pMetaReq, SMetaData* pMetaData) const {
     assert(nullptr != pMetaReq && 1 == taosArrayGetSize(pMetaReq->pTableName));
     SName* fullName = (SName*)taosArrayGet(pMetaReq->pTableName, 0);
     std::unique_ptr<STableMeta> table;
@@ -248,7 +248,7 @@ struct SCatalog* MockCatalogService::getCatalogHandle(const SEpSet* pMgmtEps) co
   return impl_->getCatalogHandle(pMgmtEps);
 }
 
-int32_t MockCatalogService::catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData) const {
+int32_t MockCatalogService::catalogGetMetaData(struct SCatalog* pCatalog, const SCatalogReq* pMetaReq, SMetaData* pMetaData) const {
   return impl_->catalogGetMetaData(pCatalog, pMetaReq, pMetaData);
 }
 

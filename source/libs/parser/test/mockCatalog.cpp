@@ -48,6 +48,6 @@ struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps) {
   return mockCatalogService->getCatalogHandle(pMgmtEps);
 }
 
-int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData) {
+int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SCatalogReq* pMetaReq, SMetaData* pMetaData) {
   return mockCatalogService->catalogGetMetaData(pCatalog, pMetaReq, pMetaData);
 }

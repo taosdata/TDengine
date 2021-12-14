@@ -178,15 +178,15 @@ static int32_t buildTableName(SInsertParseContext* pCxt, SToken* pStname, SArray
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t buildMetaReq(SInsertParseContext* pCxt, SToken* pStname, SMetaReq* pMetaReq) {
+static int32_t buildMetaReq(SInsertParseContext* pCxt, SToken* pStname, SCatalogReq* pMetaReq) {
   pMetaReq->pTableName = taosArrayInit(4, sizeof(SName));
   return buildTableName(pCxt, pStname, pMetaReq->pTableName);
 }
 
 static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
-  SMetaReq req;
+  SCatalogReq req;
   CHECK_CODE(buildMetaReq(pCxt, pTname, &req));
-  CHECK_CODE(catalogGetMetaData(pCxt->pCatalog, &req, &pCxt->meta));
+  CHECK_CODE(catalogGetTableMeta(pCxt->pCatalog, NULL, NULL, NULL, &pCxt->meta)); //TODO
   pCxt->pTableMeta = (STableMeta*)taosArrayGetP(pCxt->meta.pTableMeta, 0);
   return TSDB_CODE_SUCCESS;
 }
@@ -861,12 +861,14 @@ int32_t parseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo) {
     .pComCxt = pContext,
     .pSql = pContext->pSql,
     .msg = {.buf = pContext->pMsg, .len = pContext->msgLen},
-    .pCatalog = getCatalogHandle(pContext->pEpSet),
+    .pCatalog = NULL,
     .pTableMeta = NULL,
     .pTableBlockHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false),
     .totalNum = 0,
     .pOutput = *pInfo
   };
+
+  CHECK_CODE(catalogGetHandle(NULL, &context.pCatalog)); //TODO
 
   if (NULL == context.pTableBlockHashObj) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;

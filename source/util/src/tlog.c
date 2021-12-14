@@ -99,6 +99,8 @@ int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
 int32_t cqDebugFlag = 131;
 int32_t fsDebugFlag = 135;
+int32_t ctgDebugFlag = 131;
+
 
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;
@@ -112,7 +114,7 @@ static int32_t   taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen
 static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(int32_t oldFd);
 static int32_t   taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum);
-extern void      taosPrintGlobalCfg();
+extern void      taosPrintCfg();
 static int32_t   taosCompressFile(char *srcFileName, char *destFileName);
 
 static int32_t taosStartLog() {
@@ -222,7 +224,7 @@ static void *taosThreadToOpenNewFile(void *param) {
   
   uInfo("   new log file:%d is opened", tsLogObj.flag);
   uInfo("==================================");
-  taosPrintGlobalCfg();
+  taosPrintCfg();
   taosKeepOldLog(keepName);
 
   return NULL;

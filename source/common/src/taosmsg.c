@@ -13,28 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <gtest/gtest.h>
-#include <iostream>
-#include "tglobal.h"
-#pragma GCC diagnostic ignored "-Wwrite-strings"
+#define TAOS_MESSAGE_C
 
-#pragma GCC diagnostic ignored "-Wunused-function"
-#pragma GCC diagnostic ignored "-Wunused-variable"
-#pragma GCC diagnostic ignored "-Wsign-compare"
+#include "taosmsg.h"
 
-#include "taos.h"
 
-namespace {
-}  // namespace
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
-
-TEST(testCase, driverInit_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
-
-  taos_close(pConn);
-}
