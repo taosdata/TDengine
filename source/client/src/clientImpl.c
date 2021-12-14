@@ -9,6 +9,8 @@
 
 static int32_t initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet);
 static int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody);
+static void destroyConnectMsg(SRequestMsgBody* pMsgBody);
+
 static int32_t sendMsgToServer(void *pTransporter, SEpSet* epSet, const SRequestMsgBody *pBody, int64_t* pTransporterId);
 
 static bool stringLengthCheck(const char* str, size_t maxsize) {
@@ -164,6 +166,8 @@ STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, con
   sendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &body, &transporterId);
 
   tsem_wait(&pRequest->body.rspSem);
+  destroyConnectMsg(&body);
+
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char *errorMsg = (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(terrno);
     printf("failed to connect to server, reason: %s\n\n", errorMsg);
@@ -207,6 +211,11 @@ static int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody)
 
   pMsgBody->pData = pConnect;
   return 0;
+}
+
+static void destroyConnectMsg(SRequestMsgBody* pMsgBody) {
+  assert(pMsgBody != NULL);
+  tfree(pMsgBody->pData);
 }
 
 int32_t sendMsgToServer(void *pTransporter, SEpSet* epSet, const SRequestMsgBody *pBody, int64_t* pTransporterId) {

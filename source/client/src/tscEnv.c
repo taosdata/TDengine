@@ -189,6 +189,7 @@ static void doDestroyRequest(void* p) {
   tfree(pRequest->pInfo);
 
   deregisterRequest(pRequest);
+  tfree(pRequest);
 }
 
 void destroyRequest(SRequestObj* pRequest) {
