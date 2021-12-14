@@ -30,12 +30,6 @@ extern "C" {
 
 struct SCatalog;
 
-typedef struct SVgroupInfo {
-  int32_t    vgId;
-  int8_t     numOfEps;
-  SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
-} SVgroupInfo;
-
 typedef struct SDBVgroupInfo {
   int32_t vgroupVersion;
   SArray *vgId;
@@ -91,7 +85,11 @@ typedef struct STableMeta {
   SSchema        schema[];
 } STableMeta;
 
-int32_t catalogInit(SCatalog *cfg);
+typedef struct SCatalogCfg {
+
+} SCatalogCfg;
+
+int32_t catalogInit(SCatalogCfg *cfg);
 
 /**
  * Catalog service object, which is utilized to hold tableMeta (meta/vgroupInfo/udfInfo) at the client-side.
@@ -101,17 +99,31 @@ int32_t catalogInit(SCatalog *cfg);
  */
 int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle);
 
-int32_t catalogGetVgroupVersion(struct SCatalog* pCatalog, int32_t* version);
 
-int32_t catalogUpdateVgroupList(struct SCatalog* pCatalog, int32_t version, SArray* vgroupList);
+
+int32_t catalogGetVgroupVersion(struct SCatalog* pCatalog, int32_t* version);
+int32_t catalogGetVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, SArray** pVgroupList);
+int32_t catalogUpdateVgroup(struct SCatalog* pCatalog, SVgroupListInfo* pVgroup);
+
+
 
 int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName, int32_t* version);
+int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* dbName, int32_t forceUpdate, SDBVgroupInfo* dbInfo);
+int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
 
-int32_t catalogGetDBVgroupInfo(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
 
-int32_t catalogUpdateDBVgroupInfo(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
+int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pTableName, STableMeta* pTableMeta);
+int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const STableMeta* pTableMeta);
+int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const STableMeta* pTableMeta, STableMeta* pNewTableMeta);
 
-int32_t catalogGetTableMeta(struct SCatalog* pCatalog, SRpcObj *pRpcObj, const SEpSet* pMgmtEps, const char* pTableName, const STagData* tagData, STableMeta* pTableMeta);
+
+/**
+ * get table's vgroup list.
+ * @param clusterId
+ * @pVgroupList  - array of SVgroupInfo
+ * @return
+ */
+int32_t catalogGetTableVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pTableName, SArray* pVgroupList);
 
 
 /**
@@ -125,9 +137,6 @@ int32_t catalogGetTableMeta(struct SCatalog* pCatalog, SRpcObj *pRpcObj, const S
  */
 int32_t catalogGetAllMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SCatalogRsp* pRsp);
 
-int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const STableMeta* pTableMeta);
-
-int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const STableMeta* pTableMeta, STableMeta* pNewTableMeta);
 
 int32_t catalogGetQnodeList(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, SEpSet* pQnodeEpSet);
 

@@ -4081,7 +4081,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
   SCatalogRsp data = {0};
 
   // TODO: check if the qnode info has been cached already
-  req.qNodeEpset = true;
+  req.qNodeRequired = true;
   code = qParserExtractRequestedMetaInfo(pInfo, &req, msgBuf, msgBufLen);
   if (code != TSDB_CODE_SUCCESS) {
     return code;

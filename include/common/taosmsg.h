@@ -77,7 +77,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_FUNCTION, "drop-function" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STABLE, "create-stable" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STABLE, "alter-stable" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STABLE, "drop-stable" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_STABLE_VGROUP, "stable-vgroup" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_VGROUP_LIST, "vgroup-list" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_QUERY, "kill-query" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_STREAM, "kill-stream" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_CONN, "kill-conn" )
@@ -216,7 +216,6 @@ extern char *taosMsg[];
 
 typedef struct SBuildTableMetaInput {
   int32_t   vgId;
-  STagData *tagData;
   char     *tableFullName;
 } SBuildTableMetaInput;
 
@@ -776,8 +775,6 @@ typedef struct {
 typedef struct {
   SMsgHead  msgHead;
   char   tableFname[TSDB_TABLE_FNAME_LEN];
-  int8_t createFlag;
-  char   tags[];
 } STableInfoMsg;
 
 typedef struct {
@@ -791,6 +788,20 @@ typedef struct {
 typedef struct SSTableVgroupMsg {
   int32_t numOfTables;
 } SSTableVgroupMsg, SSTableVgroupRspMsg;
+
+typedef struct SVgroupInfo {
+  int32_t    vgId;
+  int8_t     numOfEps;
+  SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
+} SVgroupInfo;
+
+typedef struct SVgroupListRspMsg {
+  int32_t     vgroupNum;
+  int32_t     vgroupVersion;
+  SVgroupInfo vgroupInfo[];
+} SVgroupListRspMsg;
+
+typedef SVgroupListRspMsg SVgroupListInfo;
 
 typedef struct {
   int32_t    vgId;

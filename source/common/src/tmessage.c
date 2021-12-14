@@ -13,21 +13,103 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define TAOS_MESSAGE_C
-
 #include "taosmsg.h"
+#include "commonint.h"
+
 
 int32_t (*tscBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen) = {0};
 
 int32_t (*tscProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize) = {0};
 
 
+int32_t tscBuildVgroupListReqMsg(void* input, char **msg, int32_t msgSize, int32_t *msgLen) {
+  if (NULL == msg || NULL == msgLen) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  *msgLen = 0;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tscBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int32_t *msgLen) {
+  if (NULL == input || NULL == msg || NULL == msgLen) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SBuildTableMetaInput* bInput = (SBuildTableMetaInput *)input;
+
+  int32_t estimateSize = sizeof(STableInfoMsg);
+  if (NULL == *msg || msgSize < estimateSize) {
+    tfree(*msg);
+    *msg = calloc(1, estimateSize);
+    if (NULL == *msg) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+  }
+
+  STableInfoMsg *bMsg = (STableInfoMsg *)*msg;
+
+  bMsg->msgHead.vgId = bInput->vgId;
+
+  strncpy(bMsg->tableFname, bInput->tableFullName, sizeof(bMsg->tableFname));
+  bMsg->tableFname[sizeof(bMsg->tableFname) - 1] = 0;
+
+  *msgLen = (int32_t)sizeof(*bMsg);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t tscProcessVgroupListRsp(void* output, char *msg, int32_t msgSize) {
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SVgroupListRspMsg *pRsp = (SVgroupListRspMsg *)msg;
+
+  pRsp->vgroupNum = htonl(pRsp->vgroupNum);
+  pRsp->vgroupVersion = htonl(pRsp->vgroupVersion);
+
+  if (pRsp->vgroupNum < 0) {
+    tscError("vgroup number[%d] in rsp is invalid", pRsp->vgroupNum);
+    return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+  }
+
+  if (pRsp->vgroupVersion < 0) {
+    tscError("vgroup vgroupVersion[%d] in rsp is invalid", pRsp->vgroupVersion);
+    return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+  }
+
+  if (msgSize != (pRsp->vgroupNum * sizeof(pRsp->vgroupInfo[0]) + sizeof(*pRsp))) {
+    tscError("vgroup list msg size mis-match, msgSize:%d, vgroup number:%d", msgSize, pRsp->vgroupNum);
+    return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+  }
+
+  // keep SVgroupListInfo/SVgroupListRspMsg the same
+  *(SVgroupListInfo **)output = (SVgroupListInfo *)msg;
+
+  if (pRsp->vgroupNum == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < pRsp->vgroupNum; ++i) {
+    pRsp->vgroupInfo[i].vgId = htonl(pRsp->vgroupInfo[i].vgId);
+    for (int32_t n = 0; n < pRsp->vgroupInfo[i].numOfEps; ++n) {
+      pRsp->vgroupInfo[i].epAddr[n].port = htonl(pRsp->vgroupInfo[i].epAddr[n].port);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 void msgInit() {
   tscBuildMsg[TSDB_MSG_TYPE_TABLE_META] = tscBuildTableMetaReqMsg;
+  tscBuildMsg[TSDB_MSG_TYPE_VGROUP_LIST] = tscBuildVgroupListReqMsg;
 
 
-
-  tscProcessMsgRsp[TSDB_MSG_TYPE_TABLE_META] = ;
+  //tscProcessMsgRsp[TSDB_MSG_TYPE_TABLE_META] = tscProcessTableMetaRsp;
+  tscProcessMsgRsp[TSDB_MSG_TYPE_VGROUP_LIST] = tscProcessVgroupListRsp;
 
 /*
   tscBuildMsg[TSDB_SQL_SELECT] = tscBuildQueryMsg;
@@ -105,63 +187,6 @@ void msgInit() {
 */
 }
 
-
-char* msgSerializeTagData(STagData* pTagData, char* pMsg) {
-  int32_t n = (int32_t) strlen(pTagData->name);
-  *(int32_t*) pMsg = htonl(n);
-  pMsg += sizeof(n);
-
-  memcpy(pMsg, pTagData->name, n);
-  pMsg += n;
-
-  *(int32_t*)pMsg = htonl(pTagData->dataLen);
-  pMsg += sizeof(int32_t);
-
-  memcpy(pMsg, pTagData->data, pTagData->dataLen);
-  pMsg += pTagData->dataLen;
-
-  return pMsg;
-}
-
-
-int32_t tscBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int32_t *msgLen) {
-  if (NULL == input || NULL == msg || NULL == msgLen) {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
-
-  SBuildTableMetaInput* bInput = (SBuildTableMetaInput *)input;
-
-  int32_t estimateSize = sizeof(STableInfoMsg) + (bInput->tagData ? (sizeof(*bInput->tagData) + bInput->tagData->dataLen) : 0);
-  if (NULL == *msg || msgSize < estimateSize) {
-    tfree(*msg);
-    *msg = calloc(1, estimateSize);
-    if (NULL == *msg) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-  }
-
-  STableInfoMsg *bMsg = (STableInfoMsg *)*msg;
-
-  bMsg->msgHead.vgId = bInput->vgId;
-
-  strncpy(bMsg->tableFname, bInput->tableFullName, sizeof(bMsg->tableFname));
-  bMsg->tableFname[sizeof(bMsg->tableFname) - 1] = 0;
-
-  int32_t autoCreate = (bInput->tagData && bInput->tagData->dataLen > 0);
-  
-  bMsg->createFlag = htons(autoCreate ? 1 : 0);
-  
-  char *pMsg = NULL;
-
-  // tag data exists
-  if (autoCreate) {
-    pMsg = msgSerializeTagData(bInput->tagData, (char *)bMsg->tags);
-  }
-
-  *msgLen = (int32_t)(pMsg - (char*)bMsg);
-
-  return TSDB_CODE_SUCCESS;
-}
 
 
 

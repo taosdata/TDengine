@@ -13,14 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#include "taos.h"
+#define TAOS_MESSAGE_C
 
-//TAOS_RES *taos_query(TAOS *taos, const char *sql) {
-//
-//}
 #include "taosmsg.h"
-
-int  taos_init() { return 0; }
-void taos_cleanup(void) {}
 
 

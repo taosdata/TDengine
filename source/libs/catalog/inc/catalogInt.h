@@ -21,13 +21,18 @@ extern "C" {
 #endif
 
 #include "catalog.h"
+#include "common.h"
+#include "tlog.h"
 
-#define CTG_DEFAULT_CLUSTER_NUMBER 3
+#define CTG_DEFAULT_CLUSTER_NUMBER 6
+#define CTG_DEFAULT_VGROUP_NUMBER 100
+
+#define CTG_DEFAULT_INVALID_VERSION (-1)
 
 typedef struct SVgroupListCache {
-  int32_t vgroupNum;
   int32_t vgroupVersion;
-  SHashObj *cache;      //key:vgId, value:SVgroupInfo
+  SHashObj *cache;        // key:vgId, value:SVgroupInfo*
+  SArray   *arrayCache;   // SVgroupInfo
 } SVgroupListCache;
 
 typedef struct SDBVgroupCache {
@@ -50,13 +55,16 @@ typedef struct SCatalogMgmt {
 } SCatalogMgmt;
 
 
+extern int32_t ctgDebugFlag;
 
-#define ctgFatal(...) tscFatal(__VA_ARGS__)
-#define ctgError(...) tscError(__VA_ARGS__)
-#define ctgWarn(...) tscWarn(__VA_ARGS__)
-#define ctgInfo(...) tscInfo(__VA_ARGS__)
-#define ctgDebug(...) tscDebug(__VA_ARGS__)
-#define ctgTrace(...) tscTrace(__VA_ARGS__)
+#define ctgFatal(...)  do { if (ctgDebugFlag & DEBUG_FATAL) { taosPrintLog("CTG FATAL ", ctgDebugFlag, __VA_ARGS__); }} while(0)
+#define ctgError(...)  do { if (ctgDebugFlag & DEBUG_ERROR) { taosPrintLog("CTG ERROR ", ctgDebugFlag, __VA_ARGS__); }} while(0)
+#define ctgWarn(...)   do { if (ctgDebugFlag & DEBUG_WARN)  { taosPrintLog("CTG WARN ", ctgDebugFlag, __VA_ARGS__); }}  while(0)
+#define ctgInfo(...)   do { if (ctgDebugFlag & DEBUG_INFO)  { taosPrintLog("CTG ", ctgDebugFlag, __VA_ARGS__); }} while(0)
+#define ctgDebug(...)  do { if (ctgDebugFlag & DEBUG_DEBUG) { taosPrintLog("CTG ", ctgDebugFlag, __VA_ARGS__); }} while(0)
+#define ctgTrace(...)  do { if (ctgDebugFlag & DEBUG_TRACE) { taosPrintLog("CTG ", ctgDebugFlag, __VA_ARGS__); }} while(0)
+#define ctgDebugL(...) do { if (ctgDebugFlag & DEBUG_DEBUG) { taosPrintLongString("CTG ", ctgDebugFlag, __VA_ARGS__); }} while(0)
+
 
 #define CTG_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { return _code; } } while (0)
 #define CTG_ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { ctgError(__VA_ARGS__); return _code; } } while (0)

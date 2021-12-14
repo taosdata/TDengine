@@ -6,5 +6,6 @@ target_include_directories(
 )
 target_link_libraries(
     taos
+    PRIVATE common
     INTERFACE api
 )

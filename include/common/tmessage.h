@@ -13,14 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#include "taos.h"
+#ifndef _TD_COMMON_TMESSAGE_H_
+#define _TD_COMMON_TMESSAGE_H_
 
-//TAOS_RES *taos_query(TAOS *taos, const char *sql) {
-//
-//}
-#include "taosmsg.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-int  taos_init() { return 0; }
-void taos_cleanup(void) {}
+extern int32_t (*tscBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
+extern int32_t (*tscProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize);
 
 
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_COMMON_TMESSAGE_H_*/
