@@ -59,7 +59,8 @@ sudo apt-get install -y  maven
 ```
 
 #### Install build dependencies for taos-tools 
-We provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. From TDengine 2.3.3.0, they are released in a separate package named 'taos-tools'. By default, TDengine compiling does not include taos-tools. You can use 'cmake .. -DBUILD_TOOLS=true' to make them be compiled with TDengine.
+We provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. From TDengine 2.4.0.0, taosBenchmark and taosdump were not released together with TDengine.
+By default, TDengine compiling does not include taos-tools. You can use 'cmake .. -DBUILD_TOOLS=true' to make them be compiled with TDengine.
 
 To build the [taos-tools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
 ```bash
