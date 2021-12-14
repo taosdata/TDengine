@@ -238,7 +238,7 @@ static int32_t mndCreateMnode(SMnode *pMnode, SMnodeMsg *pMsg, SCreateMnodeMsg *
   }
   sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
-  if (mndTransPrepare(pTrans) != 0) {
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
@@ -313,7 +313,7 @@ static int32_t mndDropMnode(SMnode *pMnode, SMnodeMsg *pMsg, SMnodeObj *pMnodeOb
   }
   sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 
-  if (mndTransPrepare(pTrans) != 0) {
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;

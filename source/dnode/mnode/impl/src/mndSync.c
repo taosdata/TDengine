@@ -21,16 +21,16 @@
 int32_t mndInitSync(SMnode *pMnode) { return 0; }
 void    mndCleanupSync(SMnode *pMnode) {}
 
-int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, STransMsg *pMsg) {
+int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
   int32_t code = 0;
 
-  int32_t  len = sdbGetRawTotalSize(pRaw);
-  SSdbRaw *pReceived = calloc(1, len);
-  memcpy(pReceived, pRaw, len);
-  mDebug("trans:%d, data:%p recv from sync, code:0x%x pMsg:%p", pMsg->id, pReceived, code & 0xFFFF, pMsg);
+  // int32_t  len = sdbGetRawTotalSize(pRaw);
+  // SSdbRaw *pReceived = calloc(1, len);
+  // memcpy(pReceived, pRaw, len);
+  // mDebug("trans:%d, data:%p recv from sync, code:0x%x pMsg:%p", pMsg->id, pReceived, code & 0xFFFF, pMsg);
 
-  mndTransApply(pMnode, pReceived, pMsg, code);
-  return 0;
+  // mndTransApply(pMnode, pReceived, code);
+  return code;
 }
 
 bool mndIsMaster(SMnode *pMnode) { return true; }

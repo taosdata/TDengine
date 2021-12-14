@@ -103,7 +103,6 @@ typedef struct STrans {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
-  SMnode    *pMnode;
   void      *rpcHandle;
   SArray    *redoLogs;
   SArray    *undoLogs;
@@ -306,6 +305,7 @@ typedef struct SMnodeMsg {
 
 typedef struct {
   int32_t id;
+  int32_t code;
   void   *rpcHandle;
 } STransMsg;
 
