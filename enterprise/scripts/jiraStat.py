@@ -13,17 +13,19 @@ endDate = '2021/12/12 00:00'
 
 githubInfoFile = "info_2021-12-05_2021-12-11-new.txt"
 
-dict = {'excel': '', 'github': '', 'QA': '', 'APP': '', 'Engine1': '', 'Engine2': '', 'Bussiness': '', 'Cloud': '', 'Archit': ''}
+dict = {'excel': '', 'github': '', 'QA': '', 'APP': '', 'Engine': '', 'Query': '', 'Bussiness': '', 'Cloud': ''}
 
 testGrpUserList = ['huili', 'cpwu', 'hrchen', 'xyguo', 'jbjia', 'cyjia', 'zwen']
 appGrpUserList = ['sdsang', 'bding', 'lbhuo', 'lhhuo', 'xlli', 'xftan', 'yzhao']
-engine1GrpUserList = ['wpan', 'glzhao', 'mmwang', 'slzhou', 'xywang', 'yhdeng']
-engine2GrpUserList = ['hzcheng', 'cli', 'jcliu', 'mhli']
-businessDevGrpUserList = ['mljin', 'yqliu', 'kjduan', 'klxu', 'pxiao', 'xywang', 'zqwang', 'zyyang']
-cloudDevGrpUserList = ['sqchang', 'jtlian', 'mszhang', 'gwang', 'yyuan']
-architectureGrpUserList = ['slguan', 'hjliao']
 
-develop_total = [0, 0, 0]
+engineGrpUserList = ['slguan', 'hzcheng', 'wpan', 'yhdeng', 'mhli', 'xywang', 'jcliu', 'hjliao']
+queryGrpUserList = ['glzhao', 'mmwang', 'slzhou']
+
+businessDevGrpUserList = ['mljin', 'yqliu', 'kjduan', 'klxu', 'pxiao', 'xywang', 'zqwang', 'zyyang']
+cloudDevGrpUserList = ['sqchang', 'jtlian', 'mszhang', 'yyuan']
+
+develop_total = [0, 0, 0, 0]
+fixBugTime = [0, 0]  # first is total bug number, second is total time
 ##################################################
 
 # login jira
@@ -107,98 +109,137 @@ def create_file():
     dict['excel'] = excel
 
     # 添加工作区
-    GITHUB_sheet = excel.add_sheet("github-statInfo")
-    dict['github'] = GITHUB_sheet
-    GITHUB_sheet.col(0).width = 4000
-    GITHUB_sheet.col(1).width = 4000
-    GITHUB_sheet.col(2).width = 4000
-    GITHUB_sheet.col(3).width = 4000
+    sheet = excel.add_sheet("github-statInfo")
+    dict['github'] = sheet
+    sheet.col(0).width = 4000
+    sheet.col(1).width = 4000
+    sheet.col(2).width = 4000
+    sheet.col(3).width = 4000
     head = ["姓名", " 新增代码行数", "删除代码行数", "提交PR数"]
     for index, value in enumerate(head):
-        GITHUB_sheet.write(0, index, value)
+        sheet.write(0, index, value)
 
     # test grp
-    QA_sheet = excel.add_sheet("QA-statInfo")
-    dict['QA'] = QA_sheet
-    QA_sheet.col(0).width = 3000
-    QA_sheet.col(1).width = 3000
-    QA_sheet.col(2).width = 3000
+    sheet = excel.add_sheet("测试组")
+    dict['QA'] = sheet
+    sheet.col(0).width = 3000
+    sheet.col(1).width = 3000
+    sheet.col(2).width = 3000
     head = ["姓名", "提交的bug", "验证的bug"]
     for index, value in enumerate(head):
-        QA_sheet.write(0, index, value)
+        sheet.write(0, index, value)
 
     # develop grp
-    APP_sheet = excel.add_sheet("APP-statInfo")
-    dict['APP'] = APP_sheet
-    APP_sheet.col(0).width = 3000
-    APP_sheet.col(1).width = 4000
-    APP_sheet.col(2).width = 4000
-    APP_sheet.col(3).width = 4000
-    head = ["姓名", "完成的feature", "进行中的feature", "完成的bug"]
+    sheet = excel.add_sheet("应用组")
+    dict['APP'] = sheet
+    sheet.col(0).width = 3000
+    sheet.col(1).width = 4000
+    sheet.col(2).width = 4000
+    sheet.col(3).width = 4000
+    sheet.col(4).width = 4000
+    head = ["姓名", "完成的feature", "进行中的feature", "解决的bug", "新增的bug"]
     for index, value in enumerate(head):
-        APP_sheet.write(0, index, value)
+        sheet.write(0, index, value)
 
-    Engine1_sheet = excel.add_sheet("Engine1-statInfo")
-    dict['Engine1'] = Engine1_sheet
-    Engine1_sheet.col(0).width = 3000
-    Engine1_sheet.col(1).width = 4000
-    Engine1_sheet.col(2).width = 4000
-    Engine1_sheet.col(3).width = 4000
-    head = ["姓名", "完成的feature", "进行中的feature", "完成的bug"]
+    sheet = excel.add_sheet("引擎组")
+    dict['Engine'] = sheet
+    sheet.col(0).width = 3000
+    sheet.col(1).width = 4000
+    sheet.col(2).width = 4000
+    sheet.col(3).width = 4000
+    sheet.col(4).width = 4000
+    head = ["姓名", "完成的feature", "进行中的feature", "解决的bug", "新增的bug"]
     for index, value in enumerate(head):
-        Engine1_sheet.write(0, index, value)
+        sheet.write(0, index, value)
 
-    Engine2_sheet = excel.add_sheet("Engine2-statInfo")
-    dict['Engine2'] = Engine2_sheet
-    Engine2_sheet.col(0).width = 3000
-    Engine2_sheet.col(1).width = 4000
-    Engine2_sheet.col(2).width = 4000
-    Engine2_sheet.col(3).width = 4000
-    head = ["姓名", "完成的feature", "进行中的feature", "完成的bug"]
+    sheet = excel.add_sheet("查询组")
+    dict['Query'] = sheet
+    sheet.col(0).width = 3000
+    sheet.col(1).width = 4000
+    sheet.col(2).width = 4000
+    sheet.col(3).width = 4000
+    sheet.col(4).width = 4000
+    head = ["姓名", "完成的feature", "进行中的feature", "解决的bug", "新增的bug"]
     for index, value in enumerate(head):
-        Engine2_sheet.write(0, index, value)
+        sheet.write(0, index, value)
 
-    Cloud_sheet = excel.add_sheet("Cloud-statInfo")
-    dict['Cloud'] = Cloud_sheet
-    Cloud_sheet.col(0).width = 3000
-    Cloud_sheet.col(1).width = 4000
-    Cloud_sheet.col(2).width = 4000
-    Cloud_sheet.col(3).width = 4000
-    head = ["姓名", "完成的feature", "进行中的feature", "完成的bug"]
+    sheet = excel.add_sheet("云服务组")
+    dict['Cloud'] = sheet
+    sheet.col(0).width = 3000
+    sheet.col(1).width = 4000
+    sheet.col(2).width = 4000
+    sheet.col(3).width = 4000
+    sheet.col(4).width = 4000
+    head = ["姓名", "完成的feature", "进行中的feature", "解决的bug", "新增的bug"]
     for index, value in enumerate(head):
-        Cloud_sheet.write(0, index, value)
+        sheet.write(0, index, value)
 
-    Bussiness_sheet = excel.add_sheet("Bussiness-statInfo")
-    dict['Bussiness'] = Bussiness_sheet
-    Bussiness_sheet.col(0).width = 3000
-    Bussiness_sheet.col(1).width = 4000
-    Bussiness_sheet.col(2).width = 4000
-    Bussiness_sheet.col(3).width = 4000
-    head = ["姓名", "完成的feature", "进行中的feature", "完成的bug"]
+    sheet = excel.add_sheet("业务开发组")
+    dict['Bussiness'] = sheet
+    sheet.col(0).width = 2000
+    sheet.col(1).width = 4000
+    sheet.col(2).width = 4000
+    sheet.col(3).width = 4000
+    sheet.col(4).width = 4000
+    sheet.col(5).width = 5500
+    sheet.col(6).width = 3000
+    head = ["姓名", "完成的feature", "进行中的feature", "解决的bug", "新增的bug", "解决bug平均时长(小时)", "完成的bug"]
     for index, value in enumerate(head):
-        Bussiness_sheet.write(0, index, value)
+        sheet.write(0, index, value)
 
-    Archet_sheet = excel.add_sheet("Archet-statInfo")
-    dict['Archit'] = Archet_sheet
-    Archet_sheet.col(0).width = 3000
-    Archet_sheet.col(1).width = 4000
-    Archet_sheet.col(2).width = 4000
-    Archet_sheet.col(3).width = 4000
-    head = ["姓名", "完成的feature", "进行中的feature", "完成的bug"]
-    for index, value in enumerate(head):
-        Archet_sheet.write(0, index, value)
-
-    sheet = excel.add_sheet("develop-total")
+    sheet = excel.add_sheet("研发汇总")
     dict['develop'] = sheet
     sheet.col(0).width = 4000
     sheet.col(1).width = 4000
     sheet.col(2).width = 4000
     sheet.col(3).width = 4000
-    head = ["类型", "完成的feature", "进行中的feature", "完成的bug"]
+    sheet.col(4).width = 4000
+    head = ["类型", "完成的feature", "进行中的feature", "解决的bug", "新增的bug"]
     for index, value in enumerate(head):
         sheet.write(0, index, value)
 
     return dict
+
+def timeSpent(jiraHandle, lineIndex, group_name, username):
+    filter = "(project = \"Taos Development\" OR project = \"Taos Support\") AND (type = RD-Defect OR type = Bug) AND Developer = \"" + username + "\" AND updatedDate >= \"" + startDate + "\" AND updatedDate < \"" + endDate + "\" AND (status CHANGED FROM \"TESTING\" TO \"DONE\" OR status CHANGED FROM \"VERIFYING\" TO \"DONE\") ORDER BY created DESC"
+    issues = jiraHandle.search_issues(filter, maxResults=-1)
+
+    fix_bugs = 0
+    fix_bugs_time = 0
+    for issue_key in issues:
+        currentIssue = jiraHandle.issue(issue_key)
+        created_str = currentIssue.fields.created
+        created_str2 = created_str[0:10] + ' ' + created_str[11:23]
+        created_ts = time.mktime(time.strptime(created_str2, "%Y-%m-%d %H:%M:%S.%f"))
+        #print('created_ts: ', created_ts)
+        updated_str = currentIssue.fields.updated
+        updated_str2 = updated_str[0:10] + ' ' + updated_str[11:23]
+        updated_ts = time.mktime(time.strptime(updated_str2, "%Y-%m-%d %H:%M:%S.%f"))
+        #print('updated_ts: ', updated_ts)
+        fix_bugs += 1
+        fix_bugs_time += updated_ts - created_ts
+
+    #print(username, fix_bugs)
+    if fix_bugs != 0 :
+      avg_time = fix_bugs_time / fix_bugs / 3600
+    else :
+      avg_time = 0
+
+    #print('avg_time: ', avg_time)
+    Bussiness_sheet = dict[group_name]
+    Bussiness_sheet.write(lineIndex, 5, int(avg_time))
+    Bussiness_sheet.write(lineIndex, 6, fix_bugs)
+
+    fixBugTime[0] += fix_bugs
+    fixBugTime[1] += fix_bugs_time
+
+    return
+
+def newBugs(jiraHandle, username):
+    # new add bugs
+    filter = "(project = \"Taos Development\" OR project = \"Taos Support\") AND (type = RD-Defect OR type = Bug) AND assignee = \"" + username + "\" AND createdDate >= \"" + startDate + "\" AND createdDate < \"" + endDate + "\" ORDER BY created DESC"
+    issue = jiraHandle.search_issues(filter, maxResults=-1)
+    return len(issue)
 
 # each develop group get jira info and save into sheet
 def develop_grp_save_info(group_name, group_user_list):
@@ -207,28 +248,36 @@ def develop_grp_save_info(group_name, group_user_list):
     completedFeatures_total = 0
     developingFeatures_total = 0
     completedBugs_total = 0
+    addNewBugs_total = 0
     for index in range(len(group_user_list)):
         completedFeatures = completed_features(jira, group_user_list[index])
         developingFeatures = developing_features(jira, group_user_list[index])
         completedBugs = completed_bugs(jira, group_user_list[index])
+        addNewBugs = newBugs(jira, group_user_list[index])
+
         completedFeatures_total = completedFeatures_total + completedFeatures
         developingFeatures_total = developingFeatures_total + developingFeatures
         completedBugs_total = completedBugs_total + completedBugs
-        print('userName: %s, completedFeatures:' % group_user_list[index], completedFeatures, ", developingFeatures: ", developingFeatures, ", completedBugs: ", completedBugs)
+        addNewBugs_total = addNewBugs_total + addNewBugs
+
+        print('userName: %s, completedFeatures:' % group_user_list[index], completedFeatures, ", developingFeatures: ", developingFeatures, ", completedBugs: ", completedBugs, ", addNewBugs: ", addNewBugs)
         sheet.write(lineIndex, 0, group_user_list[index])
         sheet.write(lineIndex, 1, completedFeatures)
         sheet.write(lineIndex, 2, developingFeatures)
         sheet.write(lineIndex, 3, completedBugs)
+        sheet.write(lineIndex, 4, addNewBugs)
         lineIndex = lineIndex + 1
 
     sheet.write(lineIndex, 0, "总计")
     sheet.write(lineIndex, 1, completedFeatures_total)
     sheet.write(lineIndex, 2, developingFeatures_total)
     sheet.write(lineIndex, 3, completedBugs_total)
+    sheet.write(lineIndex, 4, addNewBugs_total)
 
     develop_total[0] = develop_total[0] + completedFeatures_total
     develop_total[1] = develop_total[1] + developingFeatures_total
     develop_total[2] = develop_total[2] + completedBugs_total
+    develop_total[3] = develop_total[3] + addNewBugs_total
     return
 
 def develop_total_save_info(jiraHandle):
@@ -237,10 +286,12 @@ def develop_total_save_info(jiraHandle):
     sheet.write(1, 1, develop_total[0])
     sheet.write(1, 2, develop_total[1])
     sheet.write(1, 3, develop_total[2])
+    sheet.write(1, 4, develop_total[3])
 
     completedFeatures_total = 0
     developingFeatures_total = 0
     completedBugs_total = 0
+    addNewBugs_total = 0
 
     filter = "(project = \"Taos Development\" OR project = \"Taos Support\") AND type = RD-Feature AND updatedDate >= \"" + startDate + "\" AND updatedDate < \"" + endDate + "\" AND (status = DONE AND status CHANGED FROM \"TESTING\" TO \"DONE\") ORDER BY created DESC"
     issue = jiraHandle.search_issues(filter, maxResults=-1)
@@ -260,10 +311,16 @@ def develop_total_save_info(jiraHandle):
     # print("completedBugs_total: ", len(issue))
     completedBugs_total = len(issue)
 
+    # new add bugs
+    filter = "(project = \"Taos Development\" OR project = \"Taos Support\") AND (type = RD-Defect OR type = Bug) AND createdDate >= \"" + startDate + "\" AND createdDate < \"" + endDate + "\" ORDER BY created DESC"
+    issue = jiraHandle.search_issues(filter, maxResults=-1)
+    addNewBugs_total = len(issue)
+
     sheet.write(2, 0, "直接查询")
     sheet.write(2, 1, completedFeatures_total)
     sheet.write(2, 2, developingFeatures_total)
     sheet.write(2, 3, completedBugs_total)
+    sheet.write(2, 4, addNewBugs_total)
 
     return
 
@@ -275,8 +332,26 @@ def save_file():
     dict['excel'].save(fileName)
     return
 
+def calcFixBugTime(group_name, group_user_list):
+    lineIndex = 1
+    for index in range(len(group_user_list)):
+        timeSpent(jira, index+1, group_name, group_user_list[index])
+        lineIndex += 1
+
+    #print('lineIndex: ', lineIndex)
+    Bussiness_sheet = dict[group_name]
+    if fixBugTime[0] != 0 :
+      avg_time = fixBugTime[1] / fixBugTime[0] / 3600
+    else :
+        avg_time = 0
+
+    Bussiness_sheet.write(lineIndex, 5, int(avg_time))
+    Bussiness_sheet.write(lineIndex, 6, fixBugTime[0])
+
+    return
+
 if __name__ == '__main__':
-    jira = login_jira('huili','lihui13611161621')
+    jira = login_jira('xxxx','xxxxxx')
     #projects = jira.projects()
     #print(projects)
 
@@ -306,19 +381,21 @@ if __name__ == '__main__':
     sheet.write(lineIndex, 2, verifiedBugs_total)
 
     #### develop groups
-    develop_grp_save_info('Engine1', engine1GrpUserList)
-    develop_grp_save_info('Engine2', engine2GrpUserList)
+    develop_grp_save_info('Engine', engineGrpUserList)
+    develop_grp_save_info('Query', queryGrpUserList)
     develop_grp_save_info('APP', appGrpUserList)
     develop_grp_save_info('Bussiness', businessDevGrpUserList)
     develop_grp_save_info('Cloud', cloudDevGrpUserList)
-    develop_grp_save_info('Archit', architectureGrpUserList)
 
     ####  total devlop department
     develop_total_save_info(jira)
 
+    calcFixBugTime('Bussiness', businessDevGrpUserList)
+
     #githubInfoFile = "info_2021-09-01-2021-10-31.csv"
     add_github_info_to_file(githubInfoFile)
     save_file()
+
 
 
 
