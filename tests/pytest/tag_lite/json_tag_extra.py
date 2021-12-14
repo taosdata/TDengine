@@ -27,19 +27,17 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-
+        tdSql.execute("drop database if exists db_json;")
         print("==============step1 tag format =======")
-        tdLog.info("create database two stables and   ")
-        tdSql.execute("create database db_json_tag_test")
-        tdSql.execute("use db_json_tag_test")    
+        tdLog.info("create database   ")
+        tdSql.execute("create database db_json")
+        tdSql.execute("use db_json")    
         # test  tag format 
         tdSql.execute("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(128))")
         tdSql.error("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(64),jtag1 json(100))")
         tdSql.error("create table if not exists  jsons1(ts timestamp, dataInt int, dataStr nchar(50)) tags(jtag json(64),dataBool bool)")
         
         tdSql.execute("CREATE TABLE if not exists  jsons1_1 using  jsons1 tags('{\"loc\":\"fff\",\"id\":5}')")
-        tdSql.execute("use db_json_tag_test")
-
 
         # two stables: jsons1 jsons2 ,test  tag's value  and  key  
         tdSql.execute("insert into  jsons1_1(ts,dataInt)  using  jsons1 tags('{\"loc+\":\"fff\",\"id\":5}') values (now,12)")
@@ -102,8 +100,8 @@ class TDTestCase:
         tdSql.error("ALTER STABLE  jsons2 add tag jtag3 nchar(20)")
         tdSql.error("ALTER STABLE  jsons2 drop tag jtag2")
         tdSql.execute("ALTER STABLE jsons2 change tag jtag2 jtag3")
-        tdSql.query("select jtag3 from  jsons2_6")
-        tdSql.checkData(0, 0, "{\"tea\":true}")       
+        tdSql.query("select jtag3->'tea' from  jsons2_6")
+        tdSql.checkData(0, 0, "true")       
         tdSql.error("ALTER TABLE  jsons2_6 SET TAG jtag3='{\"tea-=[].;!@#$%^&*()/\":}'")
         tdSql.execute("ALTER TABLE  jsons2_6 SET TAG jtag3='{\"tea-=[].;!@#$%^&*()/\":false}'")
         tdSql.query("select jtag3 from  jsons2_6")
@@ -134,7 +132,7 @@ class TDTestCase:
         tdSql.checkRows(3)
 
         tdSql.query("select jtag->'location' from  jsons1_2")
-        tdSql.checkData(0, 0, "beijing")
+        tdSql.checkData(0, 0, "\"beijing\"")
 
 
         tdSql.query("select jtag->'num' from  jsons1 where jtag->'level'='l1'")
@@ -237,7 +235,7 @@ class TDTestCase:
 
         tdSql.execute("CREATE TABLE if not exists  jsons1_9 using  jsons1 tags('{\"\":4,\"time\":null}')")
         tdSql.query("select jtag from  jsons1_9")
-        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 0, "{\"time\":null}")
 
         tdSql.execute("CREATE TABLE if not exists  jsons1_10 using  jsons1 tags('{\"k1\":\"\",\"k1\":\"v1\",\"k2\":true,\"k3\":false,\"k4\":55}')")
         tdSql.query("select jtag from  jsons1_10")
@@ -253,10 +251,10 @@ class TDTestCase:
         tdSql.checkRows(1)
 
         tdSql.query("select jtag from  jsons1 where jtag is null")
-        tdSql.checkRows(5)
+        tdSql.checkRows(4)
 
         tdSql.query("select jtag from  jsons1 where jtag is not null")
-        tdSql.checkRows(5)
+        tdSql.checkRows(6)
 
         tdSql.query("select * from  jsons1 where jtag->'location' is not null")
         tdSql.checkRows(3)
@@ -275,7 +273,7 @@ class TDTestCase:
 
         # test distinct
         tdSql.query("select distinct jtag from  jsons1")
-        tdSql.checkRows(6)
+        tdSql.checkRows(7)
 
         tdSql.query("select distinct jtag->'location' from  jsons1")
         tdSql.checkRows(2)
@@ -330,14 +328,14 @@ class TDTestCase:
         tdSql.error("CREATE TABLE if not exists  jsons1_13 using  jsons1 tags('{\"试试\":\"fff\",\";id\":5}')")
         tdSql.error("insert into  jsons1_13 using  jsons1 tags(3)")
 
-        # test  query normal column
+        # test  query  normal column,tag and tbname 
         tdSql.execute("create stable if not exists  jsons3(ts timestamp, dataInt3 int(100), dataBool3  bool, dataStr3 nchar(50)) tags(jtag3 json)")
         tdSql.execute("create table jsons3_2 using  jsons3 tags('{\"t\":true,\"t123\":123,\"\":\"true\"}')")
         
-        tdSql.execute("create table jsons3_3 using  jsons3 tags('{\"t\":true,\"t123\":456,\"k1\":true}')")
+        tdSql.execute("create table jsons3_3 using  jsons3 tags('{\"t\":true,\"t123\":456,\"k1\":true,\"str1\":\"111\"}')")
         tdSql.execute("insert into jsons3_3 values(now, 4, true, 'test')")
 
-        tdSql.execute("insert into jsons3_4 using  jsons3 tags('{\"t\":true,\"t123\":789,\"k1\":false,\"s\":null}')  values(now, 5, true, 'test')")
+        tdSql.execute("insert into jsons3_4 using  jsons3 tags('{\"t\":true,\"t123\":789,\"k1\":false,\"s\":null,\"str1\":\"112\"}')  values(now, 5, true, 'test')")
         tdSql.query("select * from  jsons3 where jtag3->'k1'=true")
         tdSql.checkRows(1)
         tdSql.error("select  jtag3->k1 from  jsons3 ")
@@ -569,7 +567,7 @@ class TDTestCase:
         tdSql.error(" select stddev(dataint) from jsons7 group by datadouble;")
         tdSql.execute("create table if not exists jsons8(ts timestamp, dataInt int, dataBool bool, datafloat float, datadouble double,dataStr nchar(50),datatime timestamp) tags(jtag json)")
         tdSql.execute("insert into jsons8_1 using jsons8 tags('{\"nv\":null,\"tea\":true,\"\":false,\" \":123,\"tea\":false}') values (now,2,'true',0.9,0.1,'abc',now+60s)")
-        tdSql.execute("insert into jsons8_2 using jsons8 tags('{\"nv\":null,\"tea\":true,\"\":true,\" \":123,\"tea\":false}') values (now+5s,2,'true',0.9,0.1,'abc',now+65s)")
+        tdSql.execute("insert into jsons8_2 using jsons8 tags('{\"nv\":null,\"tea\":true,\"\":false,\" \":123,\"tea\":false}') values (now+5s,2,'true',0.9,0.1,'abc',now+65s)")
         tdSql.query(" select stddev(dataint) from jsons8 group by datatime;")
         tdSql.error(" select stddev(datatime) from jsons8 group by datadouble;")
 
@@ -579,7 +577,7 @@ class TDTestCase:
         # tdSql.execute("drop stable jsons1")
         # tdSql.execute("drop stable jsons3")
         # tdSql.execute("drop stable jsons2")
-        # tdSql.execute("drop database db_json_tag_test")
+        # tdSql.execute("drop database db_json")
 
 
 
