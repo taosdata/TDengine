@@ -54,7 +54,7 @@ enum OPERATOR_TYPE_E {
 
 struct SEpSet;
 struct SQueryPlanNode;
-struct SQueryDistPlanNode;
+struct SQueryPhyPlanNode;
 struct SQueryStmtInfo;
 
 typedef struct SSubquery {
@@ -62,7 +62,7 @@ typedef struct SSubquery {
   int32_t   type;               // QUERY_TYPE_MERGE|QUERY_TYPE_PARTIAL
   int32_t   level;              // the execution level of current subquery, starting from 0.
   SArray   *pUpstream;          // the upstream,from which to fetch the result
-  struct SQueryDistPlanNode *pNode;  // physical plan of current subquery
+  struct SQueryPhyPlanNode *pNode;  // physical plan of current subquery
 } SSubquery;
 
 typedef struct SQueryJob {
@@ -108,7 +108,7 @@ int32_t qQueryPlanToSql(struct SQueryPlanNode* pQueryNode, char** sql);
  * @param pPhyNode
  * @return
  */
-int32_t qCreatePhysicalPlan(struct SQueryPlanNode* pQueryNode, struct SEpSet* pQnode, struct SQueryDistPlanNode *pPhyNode);
+int32_t qCreatePhysicalPlan(struct SQueryPlanNode* pQueryNode, struct SEpSet* pQnode, struct SQueryPhyPlanNode *pPhyNode);
 
 /**
  * Convert to physical plan to string to enable to print it out in the shell.
@@ -116,7 +116,7 @@ int32_t qCreatePhysicalPlan(struct SQueryPlanNode* pQueryNode, struct SEpSet* pQ
  * @param str
  * @return
  */
-int32_t qPhyPlanToString(struct SQueryDistPlanNode *pPhyNode, char** str);
+int32_t qPhyPlanToString(struct SQueryPhyPlanNode *pPhyNode, char** str);
 
 /**
  * Destroy the query plan object.
@@ -129,7 +129,7 @@ void* qDestroyQueryPlan(struct SQueryPlanNode* pQueryNode);
  * @param pQueryPhyNode
  * @return
  */
-void* qDestroyQueryPhyPlan(struct SQueryDistPlanNode* pQueryPhyNode);
+void* qDestroyQueryPhyPlan(struct SQueryPhyPlanNode* pQueryPhyNode);
 
 /**
  * Create the query job from the physical execution plan
@@ -137,7 +137,7 @@ void* qDestroyQueryPhyPlan(struct SQueryDistPlanNode* pQueryPhyNode);
  * @param pJob
  * @return
  */
-int32_t qCreateQueryJob(const struct SQueryDistPlanNode* pPhyNode, struct SQueryJob** pJob);
+int32_t qCreateQueryJob(const struct SQueryPhyPlanNode* pPhyNode, struct SQueryJob** pJob);
 
 #ifdef __cplusplus
 }

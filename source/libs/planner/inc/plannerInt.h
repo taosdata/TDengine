@@ -57,20 +57,38 @@ typedef struct SQueryPlanNode {
   struct SQueryPlanNode  *nextNode;
 } SQueryPlanNode;
 
-typedef struct SQueryDistPlanNode {
+typedef struct SDataBlockSchema {
+  int32_t             index;
+  SSchema            *pSchema;      // the schema of the SSDatablock
+  int32_t             numOfCols;    // number of columns
+} SDataBlockSchema;
+
+typedef struct SQueryPhyPlanNode {
   SQueryNodeBasicInfo info;
-  SSchema            *pSchema;      // the schema of the input SSDatablock
-  int32_t             numOfCols;    // number of input columns
-  SArray             *pExpr;        // the query functions or sql aggregations
-  int32_t             numOfExpr;    // number of result columns, which is also the number of pExprs
-  void               *pExtInfo;     // additional information
+  SArray             *pTarget;      // target list to be computed at this node
+  SArray             *qual;         // implicitly-ANDed qual conditions
+  SDataBlockSchema    targetSchema;
+  // children plan to generated result for current node to process
+  // in case of join, multiple plan nodes exist.
+  SArray             *pChildren;
+} SQueryPhyPlanNode;
 
-  // previous operator to generated result for current node to process
-  // in case of join, multiple prev nodes exist.
-  SArray             *pPrevNodes;   // upstream nodes, or exchange operator to load data from multiple sources.
-} SQueryDistPlanNode;
+typedef struct SQueryScanPhyNode {
+  SQueryPhyPlanNode node;
+  uint64_t          uid;
+} SQueryScanPhyNode;
 
-typedef struct SQueryCostSummary {
+typedef struct SQueryProjectPhyNode {
+  SQueryPhyPlanNode node;
+} SQueryProjectPhyNode;
+
+typedef struct SQueryAggPhyNode {
+  SQueryPhyPlanNode node;
+  SArray           *pGroup;
+  // SInterval
+} SQueryAggPhyNode;
+
+typedef struct SQueryProfileSummary {
   int64_t startTs;      // Object created and added into the message queue
   int64_t endTs;        // the timestamp when the task is completed
   int64_t cputime;      // total cpu cost, not execute elapsed time
@@ -91,14 +109,14 @@ typedef struct SQueryCostSummary {
   uint32_t loadBlockAgg;
   uint32_t skipBlocks;
   uint64_t resultSize;   // generated result size in Kb.
-} SQueryCostSummary;
+} SQueryProfileSummary;
 
 typedef struct SQueryTask {
   uint64_t            queryId; // query id
   uint64_t            taskId;  // task id
-  SQueryDistPlanNode *pNode;   // operator tree
+  SQueryPhyPlanNode *pNode;   // operator tree
   uint64_t            status;  // task status
-  SQueryCostSummary   summary; // task execution summary
+  SQueryProfileSummary summary; // task execution summary
   void               *pOutputHandle; // result buffer handle, to temporarily keep the output result for next stage
 } SQueryTask;
 
