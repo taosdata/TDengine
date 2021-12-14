@@ -211,7 +211,7 @@ Please find taosAdapter configuration and usage from `taosadapter --help` output
 
 ## <a class="anchor" id="taosadapter2-telegraf"></a> Insert data via Bailongma 2.0 and Telegraf
 
-*Notice:
+**Notice:**
 TDengine 2.3.0.0+ provides taosAdapter to support Telegraf data writing. Bailongma v2 will be abandoned and no more maintained.
 
 

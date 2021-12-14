@@ -319,7 +319,8 @@ taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相
 
 ## <a class="anchor" id="taosadapter2-telegraf"></a> 使用 Bailongma 2.0 接入 Telegraf 数据写入
 
-*注意：TDengine 新版本（2.3.0.0+）提供新版本 Bailongma ，命名为 taosAdapter ，提供更简便的 Telegraf 数据写入以及其他更强大的功能，Bailongma v2 及之前版本将逐步不再维护。
+**注意：**
+TDengine 新版本（2.3.0.0+）提供新版本 Bailongma ，命名为 taosAdapter ，提供更简便的 Telegraf 数据写入以及其他更强大的功能，Bailongma v2 及之前版本将逐步不再维护。
 
 
 ## <a class="anchor" id="emq"></a>EMQ Broker 直接写入
