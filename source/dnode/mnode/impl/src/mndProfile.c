@@ -29,6 +29,7 @@ typedef struct {
   char         user[TSDB_USER_LEN];
   char         app[TSDB_APP_NAME_LEN];  // app name that invokes taosc
   int32_t      pid;                     // pid of app that invokes taosc
+  int64_t      appStartTime;            // app start time
   int32_t      id;
   int8_t       killed;
   int8_t       align;
@@ -44,7 +45,7 @@ typedef struct {
   SQueryDesc  *pQueries;
 } SConnObj;
 
-static SConnObj *mndCreateConn(SMnode *pMnode, char *user, uint32_t ip, uint16_t port, int32_t pid, const char *app);
+static SConnObj *mndCreateConn(SMnode *pMnode, char *user, uint32_t ip, uint16_t port, int32_t pid, const char *app, int64_t startTime);
 static void      mndFreeConn(SConnObj *pConn);
 static SConnObj *mndAcquireConn(SMnode *pMnode, int32_t connId);
 static void      mndReleaseConn(SMnode *pMnode, SConnObj *pConn);
@@ -102,13 +103,14 @@ void mndCleanupProfile(SMnode *pMnode) {
   }
 }
 
-static SConnObj *mndCreateConn(SMnode *pMnode, char *user, uint32_t ip, uint16_t port, int32_t pid, const char *app) {
+static SConnObj *mndCreateConn(SMnode *pMnode, char *user, uint32_t ip, uint16_t port, int32_t pid, const char *app, int64_t startTime) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   int32_t connId = atomic_add_fetch_32(&pMgmt->connId, 1);
   if (connId == 0) atomic_add_fetch_32(&pMgmt->connId, 1);
 
   SConnObj connObj = {.pid = pid,
+                      .appStartTime = startTime,
                       .id = connId,
                       .killed = 0,
                       .port = port,
@@ -195,6 +197,7 @@ static int32_t mndProcessConnectMsg(SMnodeMsg *pMsg) {
   SMnode      *pMnode = pMsg->pMnode;
   SConnectMsg *pReq = pMsg->rpcMsg.pCont;
   pReq->pid = htonl(pReq->pid);
+  pReq->startTime = htobe64(pReq->startTime);
 
   SRpcConnInfo info = {0};
   if (rpcGetConnInfo(pMsg->rpcMsg.handle, &info) != 0) {
@@ -216,7 +219,7 @@ static int32_t mndProcessConnectMsg(SMnodeMsg *pMsg) {
     mndReleaseDb(pMnode, pDb);
   }
 
-  SConnObj *pConn = mndCreateConn(pMnode, info.user, info.clientIp, info.clientPort, pReq->pid, pReq->app);
+  SConnObj *pConn = mndCreateConn(pMnode, info.user, info.clientIp, info.clientPort, pReq->pid, pReq->app, pReq->startTime);
   if (pConn == NULL) {
     mError("user:%s, failed to login from %s while create connection since %s", pMsg->user, ip, terrstr());
     return -1;
@@ -233,9 +236,7 @@ static int32_t mndProcessConnectMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = mndAcquireUser(pMnode, pMsg->user);
   if (pUser != NULL) {
     pRsp->acctId = htonl(pUser->acctId);
-    pRsp->superAuth = pUser->superAuth;
-    pRsp->readAuth = pUser->readAuth;
-    pRsp->writeAuth = pUser->writeAuth;
+    pRsp->superUser = pUser->superUser;
     mndReleaseUser(pMnode, pUser);
   }
 
@@ -246,7 +247,8 @@ static int32_t mndProcessConnectMsg(SMnodeMsg *pMsg) {
 
   pMsg->contLen = sizeof(SConnectRsp);
   pMsg->pCont = pRsp;
-  mDebug("user:%s, login from %s, conn:%d", info.user, ip, pConn->id);
+
+  mDebug("user:%s, login from %s, conn:%d, app:%s", info.user, ip, pConn->id, pReq->app);
   return 0;
 }
 
@@ -301,7 +303,7 @@ static int32_t mndProcessHeartBeatMsg(SMnodeMsg *pMsg) {
 
   SConnObj *pConn = mndAcquireConn(pMnode, pReq->connId);
   if (pConn == NULL) {
-    pConn = mndCreateConn(pMnode, info.user, info.clientIp, info.clientPort, pReq->pid, pReq->app);
+    pConn = mndCreateConn(pMnode, info.user, info.clientIp, info.clientPort, pReq->pid, pReq->app, 0);
     if (pConn == NULL) {
       mError("user:%s, conn:%d is freed and failed to create new conn since %s", pMsg->user, pReq->connId, terrstr());
       return -1;
@@ -368,7 +370,7 @@ static int32_t mndProcessKillQueryMsg(SMnodeMsg *pMsg) {
 
   SUserObj *pUser = mndAcquireUser(pMnode, pMsg->user);
   if (pUser == NULL) return 0;
-  if (!pUser->superAuth) {
+  if (!pUser->superUser) {
     mndReleaseUser(pMnode, pUser);
     terrno = TSDB_CODE_MND_NO_RIGHTS;
     return -1;
@@ -399,7 +401,7 @@ static int32_t mndProcessKillStreamMsg(SMnodeMsg *pMsg) {
 
   SUserObj *pUser = mndAcquireUser(pMnode, pMsg->user);
   if (pUser == NULL) return 0;
-  if (!pUser->superAuth) {
+  if (!pUser->superUser) {
     mndReleaseUser(pMnode, pUser);
     terrno = TSDB_CODE_MND_NO_RIGHTS;
     return -1;
@@ -430,7 +432,7 @@ static int32_t mndProcessKillConnectionMsg(SMnodeMsg *pMsg) {
 
   SUserObj *pUser = mndAcquireUser(pMnode, pMsg->user);
   if (pUser == NULL) return 0;
-  if (!pUser->superAuth) {
+  if (!pUser->superUser) {
     mndReleaseUser(pMnode, pUser);
     terrno = TSDB_CODE_MND_NO_RIGHTS;
     return -1;
@@ -459,7 +461,7 @@ static int32_t mndGetConnsMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
 
   SUserObj *pUser = mndAcquireUser(pMnode, pMsg->user);
   if (pUser == NULL) return 0;
-  if (!pUser->superAuth) {
+  if (!pUser->superUser) {
     mndReleaseUser(pMnode, pUser);
     terrno = TSDB_CODE_MND_NO_RIGHTS;
     return -1;
@@ -587,7 +589,7 @@ static int32_t mndGetQueryMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
 
   SUserObj *pUser = mndAcquireUser(pMnode, pMsg->user);
   if (pUser == NULL) return 0;
-  if (!pUser->superAuth) {
+  if (!pUser->superUser) {
     mndReleaseUser(pMnode, pUser);
     terrno = TSDB_CODE_MND_NO_RIGHTS;
     return -1;
@@ -803,7 +805,7 @@ static int32_t mndGetStreamMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg 
 
   SUserObj *pUser = mndAcquireUser(pMnode, pMsg->user);
   if (pUser == NULL) return 0;
-  if (!pUser->superAuth) {
+  if (!pUser->superUser) {
     mndReleaseUser(pMnode, pUser);
     terrno = TSDB_CODE_MND_NO_RIGHTS;
     return -1;

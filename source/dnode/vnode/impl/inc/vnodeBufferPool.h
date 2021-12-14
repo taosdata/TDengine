@@ -27,7 +27,10 @@ typedef struct SVBufPool SVBufPool;
 
 int   vnodeOpenBufPool(SVnode *pVnode);
 void  vnodeCloseBufPool(SVnode *pVnode);
+int   vnodeBufPoolSwitch(SVnode *pVnode);
+int   vnodeBufPoolRecycle(SVnode *pVnode);
 void *vnodeMalloc(SVnode *pVnode, uint64_t size);
+bool  vnodeBufPoolIsFull(SVnode *pVnode);
 
 #ifdef __cplusplus
 }

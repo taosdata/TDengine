@@ -22,8 +22,9 @@
 extern "C" {
 #endif
 
-bool vnodeShouldCommit(SVnode *pVnode);
-int  vnodeAsyncCommit(SVnode *pVnode);
+#define vnodeShouldCommit vnodeBufPoolIsFull
+int vnodeAsyncCommit(SVnode *pVnode);
+int vnodeCommit(void *arg);
 
 #ifdef __cplusplus
 }

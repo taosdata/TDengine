@@ -13,11 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TSDB_COMMIT_QUEUE_H_
-#define _TD_TSDB_COMMIT_QUEUE_H_
+#ifndef _TD_QUERY_H_
+#define _TD_QUERY_H_
 
-typedef enum { COMMIT_REQ, COMPACT_REQ,COMMIT_CONFIG_REQ } TSDB_REQ_T;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-int tsdbScheduleCommit(STsdbRepo *pRepo, TSDB_REQ_T req);
 
-#endif /* _TD_TSDB_COMMIT_QUEUE_H_ */
+extern int32_t (*queryBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
+extern int32_t (*queryProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize);
+
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_QUERY_H_*/

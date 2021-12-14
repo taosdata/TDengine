@@ -1,3 +1,14 @@
+/**
+ * @file vnodeApiTests.cpp
+ * @author hzcheng (hzcheng@taosdata.com)
+ * @brief VNODE module API tests
+ * @version 0.1
+ * @date 2021-12-13
+ *
+ * @copyright Copyright (c) 2021
+ *
+ */
+
 #include <gtest/gtest.h>
 #include <iostream>
 
@@ -81,7 +92,7 @@ TEST(vnodeApiTest, test_create_table_encode_and_decode_function) {
 #endif
 
 TEST(vnodeApiTest, vnodeOpen_vnodeClose_test) {
-  GTEST_ASSERT_GE(vnodeInit(), 0);
+  GTEST_ASSERT_GE(vnodeInit(2), 0);
 
   // Create and open a vnode
   SVnode *pVnode = vnodeOpen("vnode1", NULL);

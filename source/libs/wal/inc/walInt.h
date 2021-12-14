@@ -33,10 +33,12 @@ typedef struct WalFileInfo {
   int64_t fileSize;
 } WalFileInfo;
 
+#pragma pack(push,1)
 typedef struct WalIdxEntry {
   int64_t ver;
   int64_t offset;
 } WalIdxEntry;
+#pragma pack(pop)
 
 static inline int32_t compareWalFileInfo(const void* pLeft, const void* pRight) {
   WalFileInfo* pInfoLeft = (WalFileInfo*)pLeft;
@@ -78,11 +80,11 @@ static inline WalFileInfo* walGetCurFileInfo(SWal* pWal) {
 }
 
 static inline int walBuildLogName(SWal*pWal, int64_t fileFirstVer, char* buf) {
-  return sprintf(buf, "%s/%" PRId64 "." WAL_LOG_SUFFIX, pWal->path, fileFirstVer);
+  return sprintf(buf, "%s/%020" PRId64 "." WAL_LOG_SUFFIX, pWal->path, fileFirstVer);
 }
 
 static inline int walBuildIdxName(SWal*pWal, int64_t fileFirstVer, char* buf) {
-  return sprintf(buf, "%s/%" PRId64 "." WAL_INDEX_SUFFIX, pWal->path, fileFirstVer);
+  return sprintf(buf, "%s/%020" PRId64 "." WAL_INDEX_SUFFIX, pWal->path, fileFirstVer);
 }
 
 static inline int walValidHeadCksum(SWalHead* pHead) {
@@ -90,7 +92,7 @@ static inline int walValidHeadCksum(SWalHead* pHead) {
 }
 
 static inline int walValidBodyCksum(SWalHead* pHead) {
-  return taosCheckChecksum((uint8_t*)pHead->head.cont, pHead->head.len, pHead->cksumBody);
+  return taosCheckChecksum((uint8_t*)pHead->head.body, pHead->head.len, pHead->cksumBody);
 }
 
 static inline int walValidCksum(SWalHead *pHead, void* body, int64_t bodyLen) {

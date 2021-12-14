@@ -72,7 +72,7 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
   pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STB] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STB] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STB] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_STB_VGROUP] = dndProcessMnodeReadMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_VGROUP_LIST] = dndProcessMnodeReadMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_KILL_QUERY] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_KILL_STREAM] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_KILL_CONN] = dndProcessMnodeWriteMsg;
@@ -235,18 +235,18 @@ static void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pRpcMsg, SRpcMsg *pRp
 static int32_t dndAuthInternalMsg(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   if (strcmp(user, INTERNAL_USER) == 0) {
     // A simple temporary implementation
-    char pass[32] = {0};
+    char pass[TSDB_PASSWORD_LEN] = {0};
     taosEncryptPass((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
-    memcpy(secret, pass, TSDB_KEY_LEN);
+    memcpy(secret, pass, TSDB_PASSWORD_LEN);
     *spi = 0;
     *encrypt = 0;
     *ckey = 0;
     return 0;
   } else if (strcmp(user, TSDB_NETTEST_USER) == 0) {
     // A simple temporary implementation
-    char pass[32] = {0};
+    char pass[TSDB_PASSWORD_LEN] = {0};
     taosEncryptPass((uint8_t *)(TSDB_NETTEST_USER), strlen(TSDB_NETTEST_USER), pass);
-    memcpy(secret, pass, TSDB_KEY_LEN);
+    memcpy(secret, pass, TSDB_PASSWORD_LEN);
     *spi = 0;
     *encrypt = 0;
     *ckey = 0;
@@ -288,8 +288,8 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
     dError("user:%s, failed to get user auth from other mnodes since %s", user, terrstr());
   } else {
     SAuthRsp *pRsp = rpcRsp.pCont;
-    memcpy(secret, pRsp->secret, TSDB_KEY_LEN);
-    memcpy(ckey, pRsp->ckey, TSDB_KEY_LEN);
+    memcpy(secret, pRsp->secret, TSDB_PASSWORD_LEN);
+    memcpy(ckey, pRsp->ckey, TSDB_PASSWORD_LEN);
     *spi = pRsp->spi;
     *encrypt = pRsp->encrypt;
     dDebug("user:%s, success to get user auth from other mnodes", user);

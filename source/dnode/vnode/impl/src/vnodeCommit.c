@@ -18,31 +18,22 @@
 static int vnodeStartCommit(SVnode *pVnode);
 static int vnodeEndCommit(SVnode *pVnode);
 
-bool vnodeShouldCommit(SVnode *pVnode) { return false; }
-
 int vnodeAsyncCommit(SVnode *pVnode) {
-#if 0
-  if (vnodeStartCommit(pVnode) < 0) {
-    // TODO
-  }
+  vnodeBufPoolSwitch(pVnode);
+  SVnodeTask *pTask = (SVnodeTask *)malloc(sizeof(*pTask));
 
-  if (tqCommit(pVnode->pTQ) < 0) {
-    // TODO
-  }
+  pTask->execute = vnodeCommit;  // TODO
+  pTask->arg = pVnode;           // TODO
 
-  if (metaCommit(pVnode->pMeta) < 0) {
-    // TODO
-  }
+  vnodeScheduleTask(pTask);
+  return 0;
+}
 
-  if (tsdbCommit(pVnode->pTsdb) < 0) {
-    // TODO
-  }
+int vnodeCommit(void *arg) {
+  SVnode *pVnode = (SVnode *)arg;
 
-  if (vnodeEndCommit(pVnode) < 0) {
-    // TODO
-  }
-
-#endif
+  vnodeBufPoolRecycle(pVnode);
+  // TODO
   return 0;
 }
 

@@ -180,13 +180,11 @@ typedef struct SAcctObj {
 
 typedef struct SUserObj {
   char      user[TSDB_USER_LEN];
-  char      pass[TSDB_KEY_LEN];
+  char      pass[TSDB_PASSWORD_LEN];
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
   int64_t   updateTime;
-  int8_t    superAuth;
-  int8_t    readAuth;
-  int8_t    writeAuth;
+  int8_t    superUser;
   int32_t   acctId;
   SHashObj *prohibitDbHash;
 } SUserObj;

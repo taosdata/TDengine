@@ -275,13 +275,13 @@ char *strsep(char **stringp, const char *delim) {
 }
 
 char *getpass(const char *prefix) {
-  static char passwd[TSDB_KEY_LEN] = {0};
-  memset(passwd, 0, TSDB_KEY_LEN);
+  static char passwd[TSDB_PASSWORD_LEN] = {0};
+  memset(passwd, 0, TSDB_PASSWORD_LEN);
   //printf("%s", prefix);
 
   int32_t index = 0;
   char    ch;
-  while (index < TSDB_KEY_LEN) {
+  while (index < TSDB_PASSWORD_LEN) {
     ch = getch();
     if (ch == '\n' || ch == '\r') {
       break;

@@ -13,6 +13,30 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define TAOS_MESSAGE_C
+#ifndef _TD_UTIL_MACRO_H_
+#define _TD_UTIL_MACRO_H_
 
-#include "taosmsg.h"
+#include "os.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Module init/clear MACRO definitions
+#define TD_MOD_UNINITIALIZED 0
+#define TD_MOD_INITIALIZED 1
+
+#define TD_MOD_UNCLEARD 0
+#define TD_MOD_CLEARD 1
+
+typedef int8_t td_mode_flag_t;
+
+#define TD_CHECK_AND_SET_MODE_INIT(FLAG) atomic_val_compare_exchange_8((FLAG), TD_MOD_UNINITIALIZED, TD_MOD_INITIALIZED)
+
+#define TD_CHECK_AND_SET_MOD_CLEAR(FLAG) atomic_val_compare_exchange_8((FLAG), TD_MOD_UNCLEARD, TD_MOD_CLEARD)
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_UTIL_MACRO_H_*/
