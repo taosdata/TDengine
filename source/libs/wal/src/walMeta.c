@@ -24,16 +24,20 @@
 #include <libgen.h>
 #include <regex.h>
 
-int64_t walGetFirstVer(SWal *pWal) {
+int64_t inline walGetFirstVer(SWal *pWal) {
   return pWal->vers.firstVer;
 }
 
-int64_t walGetSnaphostVer(SWal *pWal) {
+int64_t inline walGetSnaphostVer(SWal *pWal) {
   return pWal->vers.snapshotVer;
 }
 
-int64_t walGetLastVer(SWal *pWal) {
+int64_t inline walGetLastVer(SWal *pWal) {
   return pWal->vers.lastVer;
+}
+
+static inline int walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
+  return sprintf(buf, "%s/meta-ver%d", pWal->path, metaVer);
 }
 
 int walRollFileInfo(SWal* pWal) {
@@ -150,10 +154,6 @@ int walMetaDeserialize(SWal* pWal, const char* bytes) {
   return 0;
 }
 
-static inline int walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
-  return sprintf(buf, "%s/meta-ver%d", pWal->path, metaVer);
-}
-
 static int walFindCurMetaVer(SWal* pWal) {
   const char * pattern = "^meta-ver[0-9]+$";
   regex_t walMetaRegexPattern;
@@ -182,7 +182,7 @@ static int walFindCurMetaVer(SWal* pWal) {
   return metaVer;
 }
 
-int walWriteMeta(SWal* pWal) {
+int walSaveMeta(SWal* pWal) {
   int metaVer = walFindCurMetaVer(pWal);
   char fnameStr[WAL_FILE_LEN];
   walBuildMetaName(pWal, metaVer+1, fnameStr);
@@ -207,7 +207,7 @@ int walWriteMeta(SWal* pWal) {
   return 0;
 }
 
-int walReadMeta(SWal* pWal) {
+int walLoadMeta(SWal* pWal) {
   ASSERT(pWal->fileInfoSet->size == 0);
   //find existing meta file
   int metaVer = walFindCurMetaVer(pWal);
