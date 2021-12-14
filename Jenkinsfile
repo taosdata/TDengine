@@ -4,8 +4,9 @@ import jenkins.model.CauseOfInterruption
 node {
 }
 
-def skipbuild=0
-def win_stop=0
+def skipbuild = 0
+def win_stop = 0
+def scope = []
 
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
@@ -354,7 +355,22 @@ pipeline {
             script{
               abort_previous()
               abortPreviousBuilds()
-              println env.CHANGE_FORK
+              println env.BRANCH_NAME,env.CHANGE_BRANCH
+              if(env.CHANGE_FORK){
+                scope = ['full']
+              }
+              else{
+                sh'''
+                cd ${WKC}
+                git fetch
+                git checkout ${BRANCH_NAME}
+                git pull
+                '''
+                gitlog = sh(script: "git log -1 --pretty=%B ", returnStdout:true)
+                fun_git = (gitlog =~ \(.?\))
+                scope = fun_git.split(",")
+                println scope
+              }
             }
           //   sh'''
           // rm -rf ${WORKSPACE}.tes
