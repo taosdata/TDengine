@@ -1,3 +1,23 @@
 from config.env_init import *
-print(config)
-# print(f)
+from src.common.common import Common
+from src.common.dnodes import Dnodes
+from src.common.monitor import Monitor
+from src.util.jmeter import Jmeter
+
+if __name__ == '__main__':
+    COM = Common()
+    DNODES = Dnodes()
+    MONITOR = Monitor()
+    JMETER = Jmeter() 
+    if config['deploy_mode'] == "auto":
+        DNODES.deployNodes()
+        if config["prometheus"]["autodeploy"]:
+            MONITOR.deployAllNodeExporters()
+            MONITOR.deployAllProcessExporters()
+            MONITOR.deployPrometheus()
+            MONITOR.deployGrafana()
+        if config["jmeter"]["autodeploy"]:
+            JMETER.deployJmeter()
+    COM.runJmeter()
+
+

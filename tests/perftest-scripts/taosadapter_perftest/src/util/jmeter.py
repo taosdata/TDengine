@@ -1,11 +1,12 @@
 import sys
-import shutil
 sys.path.append("../../")
 from config.env_init import *
 from src.util.RemoteModule import RemoteModule
+from src.common.common import Common
 
 class Jmeter:
     def __init__(self):
+        self.Com = Common()
         self.jmeter_ip = config["jmeter"]["ip"]
         self.jmeter_port = config["jmeter"]["port"]
         self.jmeter_username = config["jmeter"]["username"]
@@ -29,7 +30,7 @@ class Jmeter:
             pass
 
     def installJava(self):
-        self.installPkg("java")
+        self.installPkg("openjdk-8-jdk")
 
     def downloadJmeter(self):
         logger.info(f'{self.jmeter_ip}: downloading jmeter from {config["jmeter"]["jmeter_addr"]}')
@@ -40,39 +41,20 @@ class Jmeter:
         logger.info(f'{self.jmeter_ip}: deploying jmeter')
         self.downloadJmeter()
         self.installJava()
-        self.jmeter_conn.exec_cmd(f'cd ~ && tar -xvf {self.tar_file_name}')
+        if not bool(int(self.jmeter_conn.exec_cmd(f'ls ~/{self.tar_file_dir} >> /dev/null && echo 1 || echo 0'))):
+            self.jmeter_conn.exec_cmd(f'cd ~ && tar -xvf {self.tar_file_name}')
         if not bool(int(self.jmeter_conn.exec_cmd(f'grep "^jmeter.reportgenerator.overall_granularity"  ~/{self.tar_file_dir}/bin/user.properties >> /dev/null && echo 1 || echo 0'))):
             self.jmeter_conn.exec_cmd(f'echo "jmeter.reportgenerator.overall_granularity=300000" >> ~/{self.tar_file_dir}/bin/user.properties')
-        self.jmeter_conn.exec_cmd(f'mv ~/{self.tar_file_dir} /usr/local')
+        if not bool(int(self.jmeter_conn.exec_cmd(f'ls /usr/local/{self.tar_file_dir} >> /dev/null && echo 1 || echo 0'))):
+            self.jmeter_conn.exec_cmd(f'mv ~/{self.tar_file_dir} /usr/local')
         if not bool(int(self.jmeter_conn.exec_cmd(f'grep "jmeter" ~/.bashrc >> /dev/null && echo 1 || echo 0'))):
             self.jmeter_conn.exec_cmd(f'echo "export PATH=$PATH:/usr/local/{self.tar_file_dir}/bin" >> ~/.bashrc')
-        if bool(int(self.jmeter_conn.exec_cmd(f'jmeter -v >> /dev/null && echo 1 || echo 0'))):
-            logger.success('deploy jmeter successful')
-        else:
-            logger.error('deploy jmeter failed')
-            sys.exit(1)
-
-    def genJmx(self):
-        current_dir = os.path.dirname(os.path.realpath(__file__))
-        des_jmx_file_list = list()
-        base_jmx_file = os.path.join(current_dir, '../../config/taosadapter_performance_test.jmx')
-        if config["taosadapter_separate_deploy"]:
-            for key in config:
-                if "taosd_dnode" in str(key):
-                    des_jmx_file = os.path.join(current_dir, f'../../config/{key}.jmx')
-                    # self.ip_list.append(config[key]["ip"])
-                    shutil.copyfile(base_jmx_file, des_jmx_file)
-                    des_jmx_file_list.append(des_jmx_file)
-                    # TODO 
-                    #replace restful_ip port
-        else:
-            des_jmx_file = os.path.join(current_dir, f'../../config/taosd_dnode1.jmx')
-            # self.ip_list.append(config[key]["ip"])
-            shutil.copyfile(base_jmx_file, des_jmx_file)
-            des_jmx_file_list.append(des_jmx_file)
-            # TODO 
-            #replace restful_ip port
-        return des_jmx_file_list
+        # if bool(int(self.jmeter_conn.exec_cmd(f'jmeter -v >> /dev/null && echo 1 || echo 0'))):
+        #     logger.success('deploy jmeter successful')
+        # else:
+        #     logger.error('deploy jmeter failed')
+        #     sys.exit(1)
+        return f"/usr/local/{self.tar_file_dir}/bin/jmeter"
 
 if __name__ == '__main__':
     deploy = Jmeter()
