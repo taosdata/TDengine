@@ -32,10 +32,10 @@ int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendRedoAction(STrans *pTrans, SEpSet *, void *pMsg);
 int32_t mndTransAppendUndoAction(STrans *pTrans, SEpSet *, void *pMsg);
-
-int32_t mndTransPrepare(STrans *pTrans);
+int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 void    mndTransApply(SMnode *pMnode, SSdbRaw *pRaw, STransMsg *pMsg, int32_t code);
-int32_t mndTransExecute(SSdb *pSdb, int32_t tranId);
+char   *mndTransStageStr(ETrnStage stage);
+char   *mndTransPolicyStr(ETrnPolicy policy);
 
 #ifdef __cplusplus
 }

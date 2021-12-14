@@ -144,9 +144,10 @@ typedef struct SSdbRow SSdbRow;
 typedef enum { SDB_KEY_BINARY = 1, SDB_KEY_INT32 = 2, SDB_KEY_INT64 = 3 } EKeyType;
 typedef enum {
   SDB_STATUS_CREATING = 1,
-  SDB_STATUS_READY = 2,
+  SDB_STATUS_UPDATING = 2,
   SDB_STATUS_DROPPING = 3,
-  SDB_STATUS_DROPPED = 4
+  SDB_STATUS_READY = 4,
+  SDB_STATUS_DROPPED = 5
 } ESdbStatus;
 
 typedef enum {
@@ -174,67 +175,19 @@ typedef SSdbRow *(*SdbDecodeFp)(SSdbRaw *pRaw);
 typedef SSdbRaw *(*SdbEncodeFp)(void *pObj);
 
 typedef struct {
-  /**
-   * @brief The sdb type of the table.
-   *
-   */
-  ESdbType sdbType;
-
-  /**
-   * @brief The key type of the table.
-   *
-   */
-  EKeyType keyType;
-
-  /**
-   * @brief The callback function when the table is first deployed.
-   *
-   */
+  ESdbType    sdbType;
+  EKeyType    keyType;
   SdbDeployFp deployFp;
-
-  /**
-   * @brief Encode one row of the table into rawdata.
-   *
-   */
   SdbEncodeFp encodeFp;
-
-  /**
-   * @brief Decode one row of the table from rawdata.
-   *
-   */
   SdbDecodeFp decodeFp;
-
-  /**
-   * @brief The callback function when insert a row to sdb.
-   *
-   */
   SdbInsertFp insertFp;
-
-  /**
-   * @brief The callback function when undate a row in sdb.
-   *
-   */
   SdbUpdateFp updateFp;
-
-  /**
-   * @brief The callback function when delete a row from sdb.
-   *
-   */
   SdbDeleteFp deleteFp;
 } SSdbTable;
 
 typedef struct SSdbOpt {
-  /**
-   * @brief The path of the sdb file.
-   *
-   */
   const char *path;
-
-  /**
-   * @brief The mnode object.
-   *
-   */
-  SMnode *pMnode;
+  SMnode     *pMnode;
 } SSdbOpt;
 
 /**
