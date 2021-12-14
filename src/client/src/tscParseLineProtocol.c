@@ -702,6 +702,7 @@ static int32_t modifyDBSchemas(TAOS* taos, SArray* stableSchemas, SSmlLinesInfo*
 
     if (code == TSDB_CODE_SUCCESS) {
       pointSchema->precision = dbSchema.precision;
+
       size_t pointTagSize = taosArrayGetSize(pointSchema->tags);
       size_t pointFieldSize = taosArrayGetSize(pointSchema->fields);
 
