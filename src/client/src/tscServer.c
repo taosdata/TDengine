@@ -832,7 +832,7 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
     return TSDB_CODE_TSC_INVALID_TABLE_NAME;
   }
 
-  if (validateColumn && !tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
+  if (validateColumn && !tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId)) {
     tscError("0x%"PRIx64" table schema is not matched with parsed sql", id);
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
@@ -1510,7 +1510,8 @@ int tscEstimateCreateTableMsgLength(SSqlObj *pSql, SSqlInfo *pInfo) {
   SCreateTableSql *pCreateTableInfo = pInfo->pCreateTableInfo;
   if (pCreateTableInfo->type == TSQL_CREATE_TABLE_FROM_STABLE) {
     int32_t numOfTables = (int32_t)taosArrayGetSize(pInfo->pCreateTableInfo->childTableInfo);
-    size += numOfTables * (sizeof(SCreateTableMsg) + TSDB_MAX_TAGS_LEN);
+    size += numOfTables * (sizeof(SCreateTableMsg) +
+    ((TSDB_MAX_TAGS_LEN > TSDB_MAX_JSON_TAGS_LEN)?TSDB_MAX_TAGS_LEN:TSDB_MAX_JSON_TAGS_LEN));
   } else {
     size += sizeof(SSchema) * (pCmd->numOfCols + pCmd->count);
   }
@@ -1632,9 +1633,6 @@ int tscEstimateAlterTableMsgLength(SSqlCmd *pCmd) {
 }
 
 int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  char *pMsg;
-  int   msgLen = 0;
-
   SSqlCmd    *pCmd = &pSql->cmd;
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
 
@@ -1663,14 +1661,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pSchema++;
   }
 
-  pMsg = (char *)pSchema;
-  pAlterTableMsg->tagValLen = htonl(pAlterInfo->tagData.dataLen);
-  if (pAlterInfo->tagData.dataLen > 0) {
- 	 memcpy(pMsg, pAlterInfo->tagData.data, pAlterInfo->tagData.dataLen);
-  }
-  pMsg += pAlterInfo->tagData.dataLen;
-
-  msgLen = (int32_t)(pMsg - (char*)pAlterTableMsg);
+  int msgLen = sizeof(SAlterTableMsg) + sizeof(SSchema) * tscNumOfFields(pQueryInfo);
 
   pCmd->payloadLen = msgLen;
   pCmd->msgType = TSDB_MSG_TYPE_CM_ALTER_TABLE;
@@ -1872,7 +1863,9 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
 
   uint64_t localQueryId = pSql->self;
   qTableQuery(pQueryInfo->pQInfo, &localQueryId);
-  convertQueryResult(pRes, pQueryInfo, pSql->self, true);
+  bool convertJson = true;
+  if (pQueryInfo->isStddev == true) convertJson = false;
+  convertQueryResult(pRes, pQueryInfo, pSql->self, true, convertJson);
 
   code = pRes->code;
   if (pRes->code == TSDB_CODE_SUCCESS) {
