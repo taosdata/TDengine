@@ -30,7 +30,6 @@ struct SVBufPool {
 
 int vnodeOpenBufPool(SVnode *pVnode) {
   uint64_t capacity;
-  // EVMemAllocatorT type = E_V_ARENA_ALLOCATOR;
 
   if ((pVnode->pBufPool = (SVBufPool *)calloc(1, sizeof(SVBufPool))) == NULL) {
     /* TODO */

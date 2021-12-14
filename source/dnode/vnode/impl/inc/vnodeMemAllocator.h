@@ -33,6 +33,7 @@ struct SVArenaNode {
 };
 
 struct SVMemAllocator {
+  T_REF_DECLARE()
   TD_DLIST_NODE(SVMemAllocator);
   uint64_t     capacity;
   uint64_t     ssize;
