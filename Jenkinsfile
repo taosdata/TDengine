@@ -105,7 +105,7 @@ def pre_test(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true> /dev/null
+    cmake .. -DBUILD_HTTP=false > /dev/null
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
@@ -179,7 +179,7 @@ def pre_test_noinstall(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null 
+    cmake .. -DBUILD_HTTP=false  > /dev/null 
     make
     '''
     return 1
@@ -250,7 +250,7 @@ def pre_test_mac(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake ..   -DBUILD_TOOLS=true > /dev/null
+    cmake ..    > /dev/null
     go env -w GOPROXY=https://goproxy.cn,direct
     go env -w GO111MODULE=on
     cmake --build .
