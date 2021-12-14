@@ -65,11 +65,9 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   taosEncryptPass((uint8_t *)pass, strlen(pass), userObj.pass);
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
-  userObj.readAuth = 1;
-  userObj.writeAuth = 1;
 
   if (strcmp(user, TSDB_DEFAULT_USER) == 0) {
-    userObj.superAuth = 1;
+    userObj.superUser = 1;
   }
 
   SSdbRaw *pRaw = mndUserActionEncode(&userObj);
@@ -102,9 +100,7 @@ static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN)
   SDB_SET_INT64(pRaw, dataPos, pUser->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pUser->updateTime)
-  SDB_SET_INT8(pRaw, dataPos, pUser->superAuth)
-  SDB_SET_INT8(pRaw, dataPos, pUser->readAuth)
-  SDB_SET_INT8(pRaw, dataPos, pUser->writeAuth)
+  SDB_SET_INT8(pRaw, dataPos, pUser->superUser)
   SDB_SET_DATALEN(pRaw, dataPos);
 
   return pRaw;
@@ -130,9 +126,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->acct, TSDB_USER_LEN)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pUser->createdTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pUser->updateTime)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pUser->superAuth)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pUser->readAuth)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pUser->writeAuth)
+  SDB_GET_INT8(pRaw, pRow, dataPos, &pUser->superUser)
 
   return pRow;
 }
@@ -175,9 +169,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOldUser, SUserObj *pNe
   memcpy(pOldUser->acct, pNewUser->acct, TSDB_USER_LEN);
   pOldUser->createdTime = pNewUser->createdTime;
   pOldUser->updateTime = pNewUser->updateTime;
-  pOldUser->superAuth = pNewUser->superAuth;
-  pOldUser->readAuth = pNewUser->readAuth;
-  pOldUser->writeAuth = pNewUser->writeAuth;
+  pOldUser->superUser = pNewUser->superUser;
   return 0;
 }
 
@@ -198,9 +190,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass,
   taosEncryptPass((uint8_t *)pass, strlen(pass), userObj.pass);
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
-  userObj.superAuth = 0;
-  userObj.readAuth = 1;
-  userObj.writeAuth = 1;
+  userObj.superUser = 0;
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
   if (pTrans == NULL) {
@@ -513,15 +503,15 @@ static int32_t mndRetrieveUsers(SMnodeMsg *pMsg, SShowObj *pShow, char *data, in
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (pUser->superAuth) {
+    if (pUser->superUser) {
       const char *src = "super";
       STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
-    } else if (pUser->writeAuth) {
-      const char *src = "writable";
-      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
-    } else {
-      const char *src = "readable";
-      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
+//    } else if (pUser->writeAuth) {
+//      const char *src = "writable";
+//      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
+//    } else {
+//      const char *src = "readable";
+//      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
     }
     cols++;
 

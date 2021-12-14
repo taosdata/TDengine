@@ -229,8 +229,6 @@ static void rpcInitImp(void) {
   tsRpcOverhead = sizeof(SRpcReqContext);
 
   tsRpcRefId = taosOpenRef(200, rpcFree);
-
-  return 0;
 }
 
 int32_t rpcInit(void) {

@@ -61,14 +61,6 @@ void taos_cleanup(void) {
   tscConnRef = -1;
   taosCloseRef(id);
 
-  p = tscRpcCache;
-  tscRpcCache = NULL;
-
-  if (p != NULL) {
-    taosCacheCleanup(p);
-    pthread_mutex_destroy(&rpcObjMutex);
-  }
-
   rpcCleanup();
   taosCloseLog();
 }

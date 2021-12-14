@@ -117,8 +117,6 @@ extern SAppInfo   appInfo;
 extern int32_t    tscReqRef;
 extern void      *tscQhandle;
 extern int32_t    tscConnRef;
-extern void      *tscRpcCache;
-extern pthread_mutex_t rpcObjMutex;
 
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SRequestObj *pRequest, SRequestMsgBody *pMsg);
 extern int (*handleRequestRspFp[TSDB_SQL_MAX])(SRequestObj *pRequest, const char* pMsg, int32_t msgLen);
@@ -126,7 +124,7 @@ extern int (*handleRequestRspFp[TSDB_SQL_MAX])(SRequestObj *pRequest, const char
 int   taos_init();
 
 void* createTscObj(const char* user, const char* auth, const char *ip, uint32_t port, SAppInstInfo* pAppInfo);
-void  destroyTscObj(void* pTscObj);
+void  destroyTscObj(void*pObj);
 
 void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t type);
 void destroyRequest(void* p);

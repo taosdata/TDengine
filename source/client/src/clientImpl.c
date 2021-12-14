@@ -201,11 +201,10 @@ static int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody)
   tstrncpy(pConnect->db, db, sizeof(pConnect->db));
   pthread_mutex_unlock(&pObj->mutex);
 
-//  tstrncpy(pConnect->clientVersion, version, sizeof(pConnect->clientVersion));
-//  tstrncpy(pConnect->msgVersion, "", sizeof(pConnect->msgVersion));
+  pConnect->pid = htonl(appInfo.pid);
+  pConnect->startTime = htobe64(appInfo.startTime);
+  tstrncpy(pConnect->app, appInfo.appName, tListLen(pConnect->app));
 
-//  pConnect->pid = htonl(taosGetPId());
-//  taosGetCurrentAPPName(pConnect->appName, NULL);
   pMsgBody->pData = pConnect;
   return 0;
 }
@@ -231,23 +230,6 @@ int32_t sendMsgToServer(void *pTransporter, SEpSet* epSet, const SRequestMsgBody
   rpcSendRequest(pTransporter, epSet, &rpcMsg, pTransporterId);
   return TSDB_CODE_SUCCESS;
 }
-
-//
-//int tscBuildAndSendRequest(SRequestObj *pRequest) {
-//  assert(pRequest != NULL);
-//  char name[TSDB_TABLE_FNAME_LEN] = {0};
-//
-//  uint32_t type = 0;
-//  tscDebug("0x%"PRIx64" SQL cmd:%s will be processed, name:%s, type:%d", pRequest->requestId, taosMsg[pRequest->type], name, type);
-//  if (pRequest->type < TSDB_SQL_MGMT) { // the pTableMetaInfo cannot be NULL
-//
-//  } else if (pCmd->command >= TSDB_SQL_LOCAL) {
-//    return (*tscProcessMsgRsp[pCmd->command])(pSql);
-//  }
-//
-//  return buildConnectMsg(pRequest);
-//}
-
 
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   int64_t requestRefId = (int64_t)pMsg->ahandle;
@@ -275,13 +257,13 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
    * The actual inserted number of points is the first number.
    */
   if (pMsg->code == TSDB_CODE_SUCCESS) {
-    tscDebug("0x%" PRIx64 " SQL cmd:%s, code:%s rspLen:%d", pRequest->requestId, taosMsg[pRequest->type],
-             tstrerror(pMsg->code), pMsg->contLen);
+    tscDebug("0x%" PRIx64 " message:%s, code:%s rspLen:%d, elapsed:%"PRId64 " ms", pRequest->requestId, taosMsg[pMsg->msgType],
+             tstrerror(pMsg->code), pMsg->contLen, pRequest->metric.rsp - pRequest->metric.start);
     if (handleRequestRspFp[pRequest->type]) {
       pMsg->code = (*handleRequestRspFp[pRequest->type])(pRequest, pMsg->pCont, pMsg->contLen);
     }
   } else {
-    tscError("0x%" PRIx64 " SQL cmd:%s, code:%s rspLen:%d", pRequest->requestId, taosMsg[pRequest->type],
+    tscError("0x%" PRIx64 " SQL cmd:%s, code:%s rspLen:%d", pRequest->requestId, taosMsg[pMsg->msgType],
              tstrerror(pMsg->code), pMsg->contLen);
   }
 

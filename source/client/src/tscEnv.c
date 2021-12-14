@@ -34,7 +34,6 @@ SAppInfo   appInfo;
 int32_t    tscReqRef  = -1;
 int32_t    tscConnRef = -1;
 void      *tscQhandle = NULL;
-void      *tscRpcCache= NULL;            // TODO removed from here.
 
 int32_t tsNumOfThreads = 1;
 
@@ -55,7 +54,7 @@ static void registerRequest(SRequestObj* pRequest) {
 
     int32_t total = atomic_add_fetch_32(&pActivity->totalRequests, 1);
     int32_t currentInst = atomic_add_fetch_32(&pActivity->currentRequests, 1);
-    tscDebug("0x%" PRIx64 " new Request from 0x%" PRIx64 ", current:%d, app current:%d, total:%d", pRequest->self,
+    tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64 ", current:%d, app current:%d, total:%d", pRequest->self,
              pRequest->pTscObj->id, num, currentInst, total);
   }
 }
@@ -100,12 +99,14 @@ void tscFreeRpcObj(void *param) {
 #endif
 }
 
-void tscReleaseRpc(void *param)  {
-  if (param == NULL) {
+void closeTransporter(STscObj* pTscObj)  {
+  if (pTscObj == NULL || pTscObj->pTransporter == NULL) {
     return;
   }
 
-  taosCacheRelease(tscRpcCache, (void *)&param, false);
+  tscDebug("free transporter:%p in connObj: 0x%"PRIx64, pTscObj->pTransporter, pTscObj->id);
+  rpcClose(pTscObj->pTransporter);
+  pTscObj->pTransporter = NULL;
 }
 
 // TODO refactor
@@ -133,11 +134,13 @@ void* openTransporter(const char *user, const char *auth) {
   return pDnodeConn;
 }
 
-void destroyTscObj(void *pTscObj) {
-  STscObj *pObj = pTscObj;
-//  tscReleaseRpc(pObj->pRpcObj);
-  pthread_mutex_destroy(&pObj->mutex);
-  tfree(pObj);
+void destroyTscObj(void *pObj) {
+  STscObj *pTscObj = pObj;
+  tscDebug("connect obj destroyed, 0x%"PRIx64, pTscObj->id);
+
+  closeTransporter(pTscObj);
+  pthread_mutex_destroy(&pTscObj->mutex);
+  tfree(pTscObj);
 }
 
 void* createTscObj(const char* user, const char* auth, const char *ip, uint32_t port, SAppInstInfo* pAppInfo) {
@@ -157,6 +160,9 @@ void* createTscObj(const char* user, const char* auth, const char *ip, uint32_t 
 
   pthread_mutex_init(&pObj->mutex, NULL);
   pObj->id = taosAddRef(tscConnRef, pObj);
+
+  tscDebug("connect obj created, 0x%"PRIx64, pObj->id);
+  return pObj;
 }
 
 void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t type) {
@@ -219,7 +225,7 @@ void taos_init_imp(void) {
 
   rpcInit();
 
-  tscDebug("starting to initialize TAOS client ...\nLocal End Point is:%s", tsLocalEp);
+  tscDebug("starting to initialize TAOS driver, local ep: %s", tsLocalEp);
 
   taosSetCoreDump(true);
 
@@ -234,12 +240,7 @@ void taos_init_imp(void) {
     return;
   }
 
-  tscDebug("client task queue is initialized, numOfWorkers: %d", numOfThreads);
-
-  int refreshTime = 5;
-  tscRpcCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, true, tscFreeRpcObj, "rpcObj");
-  pthread_mutex_init(&rpcObjMutex, NULL);
-
+  tscDebug("client task queue is initialized, numOfThreads: %d", numOfThreads);
   tscConnRef = taosOpenRef(200, destroyTscObj);
   tscReqRef  = taosOpenRef(40960, destroyRequest);
 

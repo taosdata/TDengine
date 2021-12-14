@@ -358,6 +358,7 @@ typedef struct {
   int32_t pid;
   char    app[TSDB_APP_NAME_LEN];
   char    db[TSDB_DB_NAME_LEN];
+  int64_t startTime;
 } SConnectMsg;
 
 typedef struct SEpSet {
@@ -368,14 +369,12 @@ typedef struct SEpSet {
 } SEpSet;
 
 typedef struct {
-  int32_t acctId;
-  int32_t clusterId;
-  int32_t connId;
-  int8_t  superAuth;
-  int8_t  readAuth;
-  int8_t  writeAuth;
-  int8_t  reserved[5];
-  SEpSet  epSet;
+  int32_t  acctId;
+  uint32_t clusterId;
+  int32_t  connId;
+  int8_t   superUser;
+  int8_t   reserved[5];
+  SEpSet   epSet;
 } SConnectRsp;
 
 typedef struct {
