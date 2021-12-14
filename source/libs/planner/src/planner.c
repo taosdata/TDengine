@@ -48,11 +48,11 @@ static SArray* createQueryPlanImpl(SQueryStmtInfo* pQueryInfo);
 static void doDestroyQueryNode(SQueryPlanNode* pQueryNode);
 
 int32_t printExprInfo(const char* buf, const SQueryPlanNode* pQueryNode, int32_t len);
-int32_t qOptimizeQueryPlan(struct SQueryPlanNode* pQueryNode) {
+int32_t optimizeQueryPlan(struct SQueryPlanNode* pQueryNode) {
   return 0;
 }
 
-int32_t qCreateQueryPlan(const struct SQueryStmtInfo* pQueryInfo, struct SQueryPlanNode** pQueryNode) {
+int32_t createQueryPlan(const struct SQueryStmtInfo* pQueryInfo, struct SQueryPlanNode** pQueryNode) {
   SArray* upstream = createQueryPlanImpl((struct SQueryStmtInfo*) pQueryInfo);
   assert(taosArrayGetSize(upstream) == 1);
 
@@ -62,20 +62,20 @@ int32_t qCreateQueryPlan(const struct SQueryStmtInfo* pQueryInfo, struct SQueryP
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qQueryPlanToSql(struct SQueryPlanNode* pQueryNode, char** sql) {
+int32_t queryPlanToSql(struct SQueryPlanNode* pQueryNode, char** sql) {
   return 0;
 }
 
-int32_t qCreatePhysicalPlan(struct SQueryPlanNode* pQueryNode, struct SEpSet* pQnode, struct SQueryPhyPlanNode *pPhyNode) {
+int32_t qCreatePhysicalPlan(struct SQueryPlanNode* pQueryNode, struct SEpSet* pQnode, struct SQueryDag** pDag) {
 
   return 0;
 }
 
-int32_t qPhyPlanToString(struct SQueryPhyPlanNode *pPhyNode, char** str) {
+int32_t phyPlanToString(struct SPhyNode *pPhyNode, char** str) {
   return 0;
 }
 
-void* qDestroyQueryPlan(SQueryPlanNode* pQueryNode) {
+void* destroyQueryPlan(SQueryPlanNode* pQueryNode) {
   if (pQueryNode == NULL) {
     return NULL;
   }
@@ -84,12 +84,8 @@ void* qDestroyQueryPlan(SQueryPlanNode* pQueryNode) {
   return NULL;
 }
 
-void* qDestroyQueryPhyPlan(struct SQueryPhyPlanNode* pQueryPhyNode) {
+void* destroyQueryPhyPlan(struct SPhyNode* pQueryPhyNode) {
   return NULL;
-}
-
-int32_t qCreateQueryJob(const struct SQueryPhyPlanNode* pPhyNode, struct SQueryJob** pJob) {
-  return 0;
 }
 
 //======================================================================================================================
@@ -620,7 +616,7 @@ int32_t queryPlanToStringImpl(char* buf, SQueryPlanNode* pQueryNode, int32_t lev
   return len;
 }
 
-int32_t qQueryPlanToString(struct SQueryPlanNode* pQueryNode, char** str) {
+int32_t queryPlanToString(struct SQueryPlanNode* pQueryNode, char** str) {
   assert(pQueryNode);
 
   *str = calloc(1, 4096);

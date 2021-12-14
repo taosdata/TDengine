@@ -20,7 +20,42 @@
 extern "C" {
 #endif
 
-struct SQueryJob;
+typedef struct SQueryProfileSummary {
+  int64_t startTs;      // Object created and added into the message queue
+  int64_t endTs;        // the timestamp when the task is completed
+  int64_t cputime;      // total cpu cost, not execute elapsed time
+
+  int64_t loadRemoteDataDuration;       // remote io time
+  int64_t loadNativeDataDuration;       // native disk io time
+
+  uint64_t loadNativeData; // blocks + SMA + header files
+  uint64_t loadRemoteData; // remote data acquired by exchange operator.
+
+  uint64_t waitDuration; // the time to waiting to be scheduled in queue does matter, so we need to record it
+  int64_t  addQTs;       // the time to be added into the message queue, used to calculate the waiting duration in queue.
+
+  uint64_t totalRows;
+  uint64_t loadRows;
+  uint32_t totalBlocks;
+  uint32_t loadBlocks;
+  uint32_t loadBlockAgg;
+  uint32_t skipBlocks;
+  uint64_t resultSize;   // generated result size in Kb.
+} SQueryProfileSummary;
+
+typedef struct SQueryTask {
+  uint64_t            queryId; // query id
+  uint64_t            taskId;  // task id
+  char     *pSubplan;   // operator tree
+  uint64_t            status;  // task status
+  SQueryProfileSummary summary; // task execution summary
+  void               *pOutputHandle; // result buffer handle, to temporarily keep the output result for next stage
+} SQueryTask;
+
+typedef struct SQueryJob {
+  SArray  **pSubtasks;
+  // todo
+} SQueryJob;
 
 /**
  * Process the query job, generated according to the query physical plan.

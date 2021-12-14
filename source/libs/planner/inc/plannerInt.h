@@ -25,6 +25,19 @@ extern "C" {
 #include "planner.h"
 #include "taosmsg.h"
 
+enum LOGIC_PLAN_E {
+  LP_SCAN     = 1,
+  LP_SESSION  = 2,
+  LP_STATE    = 3,
+  LP_INTERVAL = 4,
+  LP_FILL     = 5,
+  LP_AGG      = 6,
+  LP_JOIN     = 7,
+  LP_PROJECT  = 8,
+  LP_DISTINCT = 9,
+  LP_ORDER    = 10
+};
+
 typedef struct SQueryNodeBasicInfo {
   int32_t   type;          // operator type
   char     *name;          // operator name
@@ -57,68 +70,94 @@ typedef struct SQueryPlanNode {
   struct SQueryPlanNode  *nextNode;
 } SQueryPlanNode;
 
+typedef SSchema SSlotSchema;
+
 typedef struct SDataBlockSchema {
   int32_t             index;
-  SSchema            *pSchema;      // the schema of the SSDatablock
+  SSlotSchema        *pSchema;
   int32_t             numOfCols;    // number of columns
 } SDataBlockSchema;
 
-typedef struct SQueryPhyPlanNode {
+typedef struct SPhyNode {
   SQueryNodeBasicInfo info;
-  SArray             *pTarget;      // target list to be computed at this node
-  SArray             *qual;         // implicitly-ANDed qual conditions
+  SArray             *pTargets;      // target list to be computed or scanned at this node
+  SArray             *pConditions;         // implicitly-ANDed qual conditions
   SDataBlockSchema    targetSchema;
   // children plan to generated result for current node to process
   // in case of join, multiple plan nodes exist.
   SArray             *pChildren;
-} SQueryPhyPlanNode;
+} SPhyNode;
 
-typedef struct SQueryScanPhyNode {
-  SQueryPhyPlanNode node;
-  uint64_t          uid;
-} SQueryScanPhyNode;
+typedef struct SScanPhyNode {
+  SPhyNode node;
+  uint64_t     uid;  // unique id of the table
+} SScanPhyNode;
 
-typedef struct SQueryProjectPhyNode {
-  SQueryPhyPlanNode node;
-} SQueryProjectPhyNode;
+typedef SScanPhyNode STagScanPhyNode;
 
-typedef struct SQueryAggPhyNode {
-  SQueryPhyPlanNode node;
-  SArray           *pGroup;
-  // SInterval
-} SQueryAggPhyNode;
+typedef SScanPhyNode SSystemTableScanPhyNode;
 
-typedef struct SQueryProfileSummary {
-  int64_t startTs;      // Object created and added into the message queue
-  int64_t endTs;        // the timestamp when the task is completed
-  int64_t cputime;      // total cpu cost, not execute elapsed time
+typedef struct SMultiTableScanPhyNode {
+  SScanPhyNode scan;
+  SArray      *pTagsConditions; // implicitly-ANDed tag qual conditions
+} SMultiTableScanPhyNode;
 
-  int64_t loadRemoteDataDuration;       // remote io time
-  int64_t loadNativeDataDuration;       // native disk io time
+typedef SMultiTableScanPhyNode SMultiTableSeqScanPhyNode;
 
-  uint64_t loadNativeData; // blocks + SMA + header files
-  uint64_t loadRemoteData; // remote data acquired by exchange operator.
+typedef struct SProjectPhyNode {
+  SPhyNode node;
+} SProjectPhyNode;
 
-  uint64_t waitDuration; // the time to waiting to be scheduled in queue does matter, so we need to record it
-  int64_t  addQTs;       // the time to be added into the message queue, used to calculate the waiting duration in queue.
+/**
+ * Optimize the query execution plan, currently not implement yet.
+ * @param pQueryNode
+ * @return
+ */
+int32_t optimizeQueryPlan(struct SQueryPlanNode* pQueryNode);
 
-  uint64_t totalRows;
-  uint64_t loadRows;
-  uint32_t totalBlocks;
-  uint32_t loadBlocks;
-  uint32_t loadBlockAgg;
-  uint32_t skipBlocks;
-  uint64_t resultSize;   // generated result size in Kb.
-} SQueryProfileSummary;
+/**
+ * Create the query plan according to the bound AST, which is in the form of pQueryInfo
+ * @param pQueryInfo
+ * @param pQueryNode
+ * @return
+ */
+int32_t createQueryPlan(const struct SQueryStmtInfo* pQueryInfo, struct SQueryPlanNode** pQueryNode);
 
-typedef struct SQueryTask {
-  uint64_t            queryId; // query id
-  uint64_t            taskId;  // task id
-  SQueryPhyPlanNode *pNode;   // operator tree
-  uint64_t            status;  // task status
-  SQueryProfileSummary summary; // task execution summary
-  void               *pOutputHandle; // result buffer handle, to temporarily keep the output result for next stage
-} SQueryTask;
+/**
+ * Convert the query plan to string, in order to display it in the shell.
+ * @param pQueryNode
+ * @return
+ */
+int32_t queryPlanToString(struct SQueryPlanNode* pQueryNode, char** str);
+
+/**
+ * Restore the SQL statement according to the logic query plan.
+ * @param pQueryNode
+ * @param sql
+ * @return
+ */
+int32_t queryPlanToSql(struct SQueryPlanNode* pQueryNode, char** sql);
+
+/**
+ * Convert to physical plan to string to enable to print it out in the shell.
+ * @param pPhyNode
+ * @param str
+ * @return
+ */
+int32_t phyPlanToString(struct SPhyNode *pPhyNode, char** str);
+
+/**
+ * Destroy the query plan object.
+ * @return
+ */
+void* destroyQueryPlan(struct SQueryPlanNode* pQueryNode);
+
+/**
+ * Destroy the physical plan.
+ * @param pQueryPhyNode
+ * @return
+ */
+void* destroyQueryPhyPlan(struct SPhyNode* pQueryPhyNode);
 
 #ifdef __cplusplus
 }

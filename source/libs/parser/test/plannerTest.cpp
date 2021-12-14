@@ -30,6 +30,7 @@
 #include "tdef.h"
 #include "tvariant.h"
 #include "planner.h"
+#include "../../planner/inc/plannerInt.h"
 
 namespace {
 void setSchema(SSchema* p, int32_t type, int32_t bytes, const char* name, int32_t colId) {
@@ -92,10 +93,10 @@ void generateLogicplan(const char* sql) {
   ASSERT_EQ(ret, 0);
 
   struct SQueryPlanNode* n = nullptr;
-  code = qCreateQueryPlan(pQueryInfo, &n);
+  code = createQueryPlan(pQueryInfo, &n);
 
   char* str = NULL;
-  qQueryPlanToString(n, &str);
+  queryPlanToString(n, &str);
 
   printf("--------SQL:%s\n", sql);
   printf("%s\n", str);
@@ -155,10 +156,10 @@ TEST(testCase, planner_test) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 2);
 
   struct SQueryPlanNode* n = nullptr;
-  code = qCreateQueryPlan(pQueryInfo, &n);
+  code = createQueryPlan(pQueryInfo, &n);
 
   char* str = NULL;
-  qQueryPlanToString(n, &str);
+  queryPlanToString(n, &str);
   printf("%s\n", str);
 
   destroyQueryInfo(pQueryInfo);
