@@ -19,6 +19,8 @@
 #define VNODE_BUF_POOL_SHARDS 3
 
 struct SVBufPool {
+  pthread_mutex_t mutex;
+  pthread_cond_t  hasFree;
   TD_DLIST(SVMemAllocator) free;
   TD_DLIST(SVMemAllocator) incycle;
   SVMemAllocator *inuse;
@@ -110,6 +112,8 @@ void *vnodeMalloc(SVnode *pVnode, uint64_t size) {
       if (pBufPool->inuse) {
         tDListPop(&(pBufPool->free), pBufPool->inuse);
         break;
+      } else {
+        // tsem_wait(&(pBufPool->hasFree));
       }
     }
   }
