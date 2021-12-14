@@ -13,20 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_COMMON_TMESSAGE_H_
-#define _TD_COMMON_TMESSAGE_H_
+#ifndef _TD_QUERY_H_
+#define _TD_QUERY_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern int32_t (*tscBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
-extern int32_t (*tscProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize);
 
+extern int32_t (*queryBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
+extern int32_t (*queryProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize);
 
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_COMMON_TMESSAGE_H_*/
+#endif /*_TD_QUERY_H_*/
