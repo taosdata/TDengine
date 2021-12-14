@@ -15,7 +15,7 @@
 
 #include "catalogInt.h"
 #include "trpc.h"
-#include "tmessage.h"
+#include "query.h"
 
 SCatalogMgmt ctgMgmt = {0};
 
@@ -24,7 +24,7 @@ int32_t ctgGetVgroupFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEpSe
   SEpSet *pVnodeEpSet = NULL;
   int32_t msgLen = 0;
 
-  int32_t code = tscBuildMsg[TSDB_MSG_TYPE_VGROUP_LIST](NULL, &msg, 0, &msgLen);
+  int32_t code = queryBuildMsg[TSDB_MSG_TYPE_VGROUP_LIST](NULL, &msg, 0, &msgLen);
   if (code) {
     return code;
   }
@@ -39,7 +39,7 @@ int32_t ctgGetVgroupFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEpSe
 
   rpcSendRecv(pRpc, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
 
-  code = tscProcessMsgRsp[TSDB_MSG_TYPE_VGROUP_LIST](pVgroup, rpcRsp.pCont, rpcRsp.contLen);
+  code = queryProcessMsgRsp[TSDB_MSG_TYPE_VGROUP_LIST](pVgroup, rpcRsp.pCont, rpcRsp.contLen);
   if (code) {
     return code;
   }
@@ -63,7 +63,23 @@ int32_t ctgGetVgroupFromCache(SCatalog* pCatalog, SArray** pVgroupList, int32_t*
 }
 
 
+int32_t ctgGetDBVgroupFromCache(SCatalog* pCatalog, char *dbName, SDBVgroupInfo **dbInfo, int32_t *exist) {
+/*
+  if (NULL == pCatalog->dbCache.cache) {
+    *exist = 0;
+    return TSDB_CODE_SUCCESS;
+  }
 
+  taosHashGet(SHashObj * pHashObj, const void * key, size_t keyLen)
+
+  if (dbInfo) {
+    *pVgroupList = taosArrayDup(pCatalog->vgroupCache.arrayCache);
+  }
+
+  *exist = 1;
+*/  
+  return TSDB_CODE_SUCCESS;
+}
 
 
 int32_t catalogInit(SCatalogCfg *cfg) {
@@ -245,12 +261,41 @@ int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName,
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* dbName, int32_t forceUpdate, SDBVgroupInfo* dbInfo) {
+int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo) {
 
 }
 
-int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo) {
 
+
+
+int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* dbName, int32_t forceUpdate, SDBVgroupInfo** dbInfo) {
+  if (NULL == pCatalog || NULL == dbName || NULL == pRpc || NULL == pMgmtEps) {
+    return TSDB_CODE_CTG_INVALID_INPUT;
+  }
+
+/*
+  int32_t exist = 0;
+
+  if (0 == forceUpdate) {
+    CTG_ERR_RET(ctgGetDBVgroupFromCache(pCatalog, dbName, dbInfo, &exist));
+
+    if (exist) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  SDBVgroupInfo* newDbInfo = NULL;
+  
+  CTG_ERR_RET(ctgGetDBVgroupFromMnode(pCatalog, pRpc, pMgmtEps, dbName, &newDbInfo));
+
+  CTG_ERR_RET(catalogUpdateDBVgroup(pCatalog, dbName, newDbInfo));
+
+  if (dbInfo) {
+    *dbInfo = newDbInfo;
+  }
+*/
+
+  return TSDB_CODE_SUCCESS;
 }
 
 
@@ -265,7 +310,7 @@ int32_t catalogGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, cons
   SEpSet *pVnodeEpSet = NULL;
   int32_t msgLen = 0;
 
-  int32_t code = tscBuildMsg[TSDB_MSG_TYPE_TABLE_META](&bInput, &msg, 0, &msgLen);
+  int32_t code = queryBuildMsg[TSDB_MSG_TYPE_TABLE_META](&bInput, &msg, 0, &msgLen);
   if (code) {
     return code;
   }

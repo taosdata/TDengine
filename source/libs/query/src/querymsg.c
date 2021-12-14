@@ -14,15 +14,15 @@
  */
 
 #include "taosmsg.h"
-#include "commonint.h"
+#include "queryInt.h"
 
 
-int32_t (*tscBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen) = {0};
+int32_t (*queryBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen) = {0};
 
-int32_t (*tscProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize) = {0};
+int32_t (*queryProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize) = {0};
 
 
-int32_t tscBuildVgroupListReqMsg(void* input, char **msg, int32_t msgSize, int32_t *msgLen) {
+int32_t queryBuildVgroupListReqMsg(void* input, char **msg, int32_t msgSize, int32_t *msgLen) {
   if (NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
@@ -32,7 +32,7 @@ int32_t tscBuildVgroupListReqMsg(void* input, char **msg, int32_t msgSize, int32
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int32_t *msgLen) {
+int32_t queryBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int32_t *msgLen) {
   if (NULL == input || NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
@@ -61,7 +61,7 @@ int32_t tscBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int32_
 }
 
 
-int32_t tscProcessVgroupListRsp(void* output, char *msg, int32_t msgSize) {
+int32_t queryProcessVgroupListRsp(void* output, char *msg, int32_t msgSize) {
   if (NULL == output || NULL == msg || msgSize <= 0) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
@@ -72,17 +72,17 @@ int32_t tscProcessVgroupListRsp(void* output, char *msg, int32_t msgSize) {
   pRsp->vgroupVersion = htonl(pRsp->vgroupVersion);
 
   if (pRsp->vgroupNum < 0) {
-    tscError("vgroup number[%d] in rsp is invalid", pRsp->vgroupNum);
+    qError("vgroup number[%d] in rsp is invalid", pRsp->vgroupNum);
     return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
   }
 
   if (pRsp->vgroupVersion < 0) {
-    tscError("vgroup vgroupVersion[%d] in rsp is invalid", pRsp->vgroupVersion);
+    qError("vgroup vgroupVersion[%d] in rsp is invalid", pRsp->vgroupVersion);
     return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
   }
 
   if (msgSize != (pRsp->vgroupNum * sizeof(pRsp->vgroupInfo[0]) + sizeof(*pRsp))) {
-    tscError("vgroup list msg size mis-match, msgSize:%d, vgroup number:%d", msgSize, pRsp->vgroupNum);
+    qError("vgroup list msg size mis-match, msgSize:%d, vgroup number:%d", msgSize, pRsp->vgroupNum);
     return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
   }
 
@@ -104,12 +104,11 @@ int32_t tscProcessVgroupListRsp(void* output, char *msg, int32_t msgSize) {
 }
 
 void msgInit() {
-  tscBuildMsg[TSDB_MSG_TYPE_TABLE_META] = tscBuildTableMetaReqMsg;
-  tscBuildMsg[TSDB_MSG_TYPE_VGROUP_LIST] = tscBuildVgroupListReqMsg;
-
+  queryBuildMsg[TSDB_MSG_TYPE_TABLE_META] = queryBuildTableMetaReqMsg;
+  queryBuildMsg[TSDB_MSG_TYPE_VGROUP_LIST] = queryBuildVgroupListReqMsg;
 
   //tscProcessMsgRsp[TSDB_MSG_TYPE_TABLE_META] = tscProcessTableMetaRsp;
-  tscProcessMsgRsp[TSDB_MSG_TYPE_VGROUP_LIST] = tscProcessVgroupListRsp;
+  queryProcessMsgRsp[TSDB_MSG_TYPE_VGROUP_LIST] = queryProcessVgroupListRsp;
 
 /*
   tscBuildMsg[TSDB_SQL_SELECT] = tscBuildQueryMsg;
