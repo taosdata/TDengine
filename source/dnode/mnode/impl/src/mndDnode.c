@@ -218,6 +218,15 @@ int32_t mndGetDnodeSize(SMnode *pMnode) {
   return sdbGetSize(pSdb, SDB_DNODE);
 }
 
+bool mndIsDnodeInReadyStatus(SMnode *pMnode, SDnodeObj *pDnode) {
+  int64_t ms = taosGetTimestampMs();
+  int64_t interval = ABS(pDnode->lastAccessTime - ms);
+  if (interval > 3000 * pMnode->cfg.statusInterval) {
+    return false;
+  }
+  return true;
+}
+
 static void mndGetDnodeData(SMnode *pMnode, SDnodeEps *pEps, int32_t numOfEps) {
   SSdb *pSdb = pMnode->pSdb;
 

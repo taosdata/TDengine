@@ -206,6 +206,8 @@ TEST_F(DndTestDb, 01_ShowDb) {
 
 TEST_F(DndTestDb, 02_CreateDb) {
   {
+    taosMsleep(1100);
+
     SCreateDbMsg* pReq = (SCreateDbMsg*)rpcMallocCont(sizeof(SCreateDbMsg));
     strcpy(pReq->db, "1.d1");
     pReq->numOfVgroups = htonl(2);

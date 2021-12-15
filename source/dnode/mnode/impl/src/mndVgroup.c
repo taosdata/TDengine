@@ -152,16 +152,71 @@ void mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup) {
   sdbRelease(pSdb, pVgroup);
 }
 
-static int32_t mndGetDefaultVgroupSize(SMnode *pMnode) { return 4; }
+static int32_t mndGetDefaultVgroupSize(SMnode *pMnode) {
+  // todo
+  return 2;
+}
 
-int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb) {
-  if (pDb->numOfVgroups == -1) {
-    pDb->numOfVgroups = mndGetDefaultVgroupSize(pMnode);
+static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup) {
+  SSdb   *pSdb = pMnode->pSdb;
+  int32_t allocedVnodes = 0;
+  void   *pIter = NULL;
+
+  while (allocedVnodes < pVgroup->replica) {
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+
+    // todo
+    if (mndIsDnodeInReadyStatus(pMnode, pDnode)) {
+      SVnodeGid *pVgid = &pVgroup->vnodeGid[allocedVnodes];
+      pVgid->dnodeId = pDnode->id;
+      pVgid->role = TAOS_SYNC_STATE_FOLLOWER;
+      allocedVnodes++;
+    }
+    sdbRelease(pSdb, pDnode);
   }
 
-  if (pDb->numOfVgroups < TSDB_MIN_VNODES_PER_DB || pDb->numOfVgroups > TSDB_MAX_VNODES_PER_DB) {
+  if (allocedVnodes != pVgroup->replica) {
+    terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+    return -1;
+  }
+  return 0;
+}
+
+int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb) {
+  if (pDb->numOfVgroups != -1 &&
+      (pDb->numOfVgroups < TSDB_MIN_VNODES_PER_DB || pDb->numOfVgroups > TSDB_MAX_VNODES_PER_DB)) {
     terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
     return -1;
+  }
+
+  if (pDb->numOfVgroups == -1) {
+    pDb->numOfVgroups = mndGetDefaultVgroupSize(pMnode);
+    if (pDb->numOfVgroups < 0) {
+      terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+      return -1;
+    }
+  }
+
+  int32_t alloceVgroups = 0;
+  int32_t maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
+
+  while (alloceVgroups < pDb->numOfVgroups) {
+    SVgObj vgObj = {0};
+    vgObj.vgId == maxVgId++;
+    vgObj.createdTime = taosGetTimestampMs();
+    vgObj.updateTime = vgObj.createdTime;
+    vgObj.version = 0;
+    memcpy(vgObj.dbName, pDb->name, TSDB_FULL_DB_NAME_LEN);
+    vgObj.replica = pDb->cfg.replications;
+
+    if (mndGetAvailableDnode(pMnode, &vgObj) != 0) {
+      terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+      return -1;
+    }
+
+    alloceVgroups++;
   }
 
   return 0;
