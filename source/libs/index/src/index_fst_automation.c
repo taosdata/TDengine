@@ -145,7 +145,8 @@ AutomationCtx* automCtxCreate(void *data,AutomationType atype) {
 
   StartWithStateValue *sv = NULL;
   if (atype == AUTOMATION_PREFIX) {
-    sv = startWithStateValueCreate(Running, FST_INT, 0);
+    int val = 0;
+    sv = startWithStateValueCreate(Running, FST_INT, &val);
     ctx->stdata = (void *)sv;
   } else if (atype == AUTMMATION_MATCH) {
       
