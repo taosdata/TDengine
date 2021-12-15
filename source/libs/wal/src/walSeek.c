@@ -27,20 +27,20 @@ static int walSeekFilePos(SWal* pWal, int64_t ver) {
   int64_t logTfd = pWal->writeLogTfd;
   
   //seek position
-  int64_t offset = (ver - walGetCurFileFirstVer(pWal)) * sizeof(WalIdxEntry);
-  code = tfLseek(idxTfd, offset, SEEK_SET);
+  int64_t idxOff = walGetVerIdxOffset(pWal, ver);
+  code = tfLseek(idxTfd, idxOff, SEEK_SET);
   if(code != 0) {
     return -1;
   }
-  int64_t readBuf[2];
-  code = tfRead(idxTfd, readBuf, sizeof(readBuf));
-  if(code != 0) {
-    return -1;
-  }
+  WalIdxEntry entry;
   //TODO:deserialize
-  ASSERT(readBuf[0] == ver);
-  code = tfLseek(logTfd, readBuf[1], SEEK_CUR);
-  if (code != 0) {
+  code = tfRead(idxTfd, &entry, sizeof(WalIdxEntry));
+  if(code != 0) {
+    return -1;
+  }
+  ASSERT(entry.ver == ver);
+  code = tfLseek(logTfd, entry.offset, SEEK_CUR);
+  if (code < 0) {
     return -1;
   }
   return code;

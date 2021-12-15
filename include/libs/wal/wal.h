@@ -88,17 +88,17 @@ typedef struct SWalVer {
 typedef struct SWal {
   // cfg
   SWalCfg cfg;
+  int32_t fsyncSeq;
+  //meta
   SWalVer vers;
-  //file set
   int64_t writeLogTfd;
   int64_t writeIdxTfd;
   int32_t writeCur;
   SArray* fileInfoSet;
-  //statistics
+  //status
   int64_t totSize;
   int64_t lastRollSeq;
   //ctl
-  int32_t fsyncSeq;
   int64_t refId;
   pthread_mutex_t mutex;
   //path
