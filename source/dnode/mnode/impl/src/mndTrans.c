@@ -262,11 +262,6 @@ void mndReleaseTrans(SMnode *pMnode, STrans *pTrans) {
   sdbRelease(pSdb, pTrans);
 }
 
-static int32_t mndGenerateTransId() {
-  static int32_t tmp = 0;
-  return ++tmp;
-}
-
 char *mndTransStageStr(ETrnStage stage) {
   switch (stage) {
     case TRN_STAGE_PREPARE:
@@ -303,7 +298,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, void *rpcHandle) {
     return NULL;
   }
 
-  pTrans->id = mndGenerateTransId();
+  pTrans->id = sdbGetMaxId(pMnode->pSdb, SDB_TRANS);
   pTrans->stage = TRN_STAGE_PREPARE;
   pTrans->policy = policy;
   pTrans->rpcHandle = rpcHandle;

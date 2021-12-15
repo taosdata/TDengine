@@ -19,15 +19,13 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "ttime.h"
-#include "tutil.h"
+#include "tep.h"
 
 #define TSDB_DNODE_VER 1
 #define TSDB_DNODE_RESERVE_SIZE 64
 #define TSDB_CONFIG_OPTION_LEN 16
 #define TSDB_CONIIG_VALUE_LEN 48
 #define TSDB_CONFIG_NUMBER 8
-
-static int32_t id = 2;
 
 static const char *offlineReason[] = {
     "",
@@ -389,7 +387,7 @@ static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg) {
 
 static int32_t mndCreateDnode(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDnodeMsg *pCreate) {
   SDnodeObj dnodeObj = {0};
-  dnodeObj.id = id++;
+  dnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_DNODE);
   dnodeObj.createdTime = taosGetTimestampMs();
   dnodeObj.updateTime = dnodeObj.createdTime;
   taosGetFqdnPortFromEp(pCreate->ep, dnodeObj.fqdn, &dnodeObj.port);
