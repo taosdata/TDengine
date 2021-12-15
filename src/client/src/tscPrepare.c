@@ -1718,8 +1718,12 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   pStmt->last = STMT_SETTBNAME;
 
   char* tbname = strdup(name);
-  strntolower(tbname, tbname, strlen(tbname));  // N.B. use lowercase in following codes
-  uint32_t nameLen = strlen(tbname);
+  if (!tbname) {
+    tscError("0x%" PRIx64 " out of memory", pSql->self);
+    STMT_RET(TSDB_CODE_TSC_OUT_OF_MEMORY);
+  }
+  strntolower(tbname, tbname, (int32_t)strlen(tbname));  // N.B. use lowercase in following codes
+  uint32_t nameLen = (uint32_t)strlen(tbname);
 
   uint64_t* uid = (uint64_t*)taosHashGet(pStmt->mtb.pTableHash, tbname, nameLen);
   if (uid != NULL) {
@@ -1763,7 +1767,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
 
     SStrToken tname = {0};
     tname.type = TK_STRING;
-    tname.z = (char*)tbname;
+    tname.z = tbname;
     tname.n = nameLen;
     SName fullname = {0};
     tscSetTableFullName(&fullname, &tname, pSql);
