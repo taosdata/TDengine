@@ -67,6 +67,7 @@ def pre_test(){
     }
     sh'''
     cd ${WKC}
+    git remote prune origin 
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
@@ -140,6 +141,7 @@ def pre_test_noinstall(){
     }
     sh'''
     cd ${WKC}
+    git remote prune origin 
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
@@ -210,6 +212,7 @@ def pre_test_ningsi(){
     }
     sh'''
     cd ${WKC}
+    git remote prune origin 
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
@@ -284,6 +287,7 @@ def pre_test_win(){
     }
     bat'''
     cd C:\\workspace\\TDinternal\\community
+    git remote prune origin 
     git pull 
     git fetch origin +refs/pull/%CHANGE_ID%/merge
     git checkout -qf FETCH_HEAD
