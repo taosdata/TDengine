@@ -12,3 +12,56 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#include "tsdbDef.h"
+
+struct STsdbMemTable {
+  T_REF_DECLARE()
+  SRWLatch       latch;
+  TSKEY          keyMin;
+  TSKEY          keyMax;
+  uint32_t       nRow;
+  SHashObj *     pHash;
+  SMemAllocator *pMA;
+};
+
+STsdbMemTable *tsdbNewMemTable(SMemAllocatorFactory *pMAF) {
+  STsdbMemTable *pMemTable;
+  SMemAllocator *pMA;
+
+  pMA = (*pMAF->create)(pMAF);
+  ASSERT(pMA != NULL);
+
+  pMemTable = (STsdbMemTable *)((*pMA->malloc)(pMA, sizeof(*pMemTable)));
+  if (pMemTable == NULL) {
+    (*pMAF->destroy)(pMAF, pMA);
+    return NULL;
+  }
+
+  T_REF_INIT_VAL(pMemTable, 1);
+  taosInitRWLatch(&(pMemTable->latch));
+  pMemTable->keyMin = TSKEY_MAX;
+  pMemTable->keyMax = TSKEY_MIN;
+  pMemTable->nRow = 0;
+  pMemTable->pHash = NULL;  /// TODO
+  pMemTable->pMA = pMA;
+
+  // TODO
+  return pMemTable;
+}
+
+void tsdbFreeMemTable(SMemAllocatorFactory *pMAF, STsdbMemTable *pMemTable) {
+  SMemAllocator *pMA = pMemTable->pMA;
+
+  if (pMA->free) {
+    // TODO
+    ASSERT(0);
+  }
+
+  (*pMAF->destroy)(pMAF, pMA);
+}
+
+int tsdbInsertDataToMemTable(STsdbMemTable *pMemTable, SSubmitMsg *pMsg) {
+  // TODO
+  return 0;
+}

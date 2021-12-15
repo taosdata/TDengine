@@ -13,31 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TSDB_DEF_H_
-#define _TD_TSDB_DEF_H_
+#include "tsdbDef.h"
 
-#include "mallocator.h"
-#include "taosmsg.h"
-#include "thash.h"
-
-#include "tsdb.h"
-#include "tsdbMemTable.h"
-#include "tsdbOptions.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-struct STsdb {
-  char *                path;
-  STsdbCfg              options;
-  STsdbMemTable *       mem;
-  STsdbMemTable *       imem;
-  SMemAllocatorFactory *pmaf;
-};
-
-#ifdef __cplusplus
+int tsdbCommit(STsdb *pTsdb) {
+  // TODO
+  return 0;
 }
-#endif
-
-#endif /*_TD_TSDB_DEF_H_*/

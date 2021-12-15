@@ -21,15 +21,14 @@ extern "C" {
 #endif
 
 // TYPES EXPOSED
-typedef struct STsdb             STsdb;
-typedef struct STsdbCfg          STsdbCfg;
-typedef struct STsdbMemAllocator STsdbMemAllocator;
+typedef struct STsdb    STsdb;
+typedef struct STsdbCfg STsdbCfg;
 
 // STsdb
-STsdb *tsdbOpen(const char *path, const STsdbCfg *);
+STsdb *tsdbOpen(const char *path, const STsdbCfg *pTsdbCfg);
 void   tsdbClose(STsdb *);
 void   tsdbRemove(const char *path);
-int    tsdbInsertData(STsdb *pTsdb, void *pData, int len);
+int    tsdbInsertData(STsdb *pTsdb, SSubmitMsg *pMsg);
 
 // STsdbCfg
 int  tsdbOptionsInit(STsdbCfg *);
@@ -41,7 +40,6 @@ struct STsdbCfg {
   uint32_t keep0;
   uint32_t keep1;
   uint32_t keep2;
-  /* TODO */
 };
 
 #ifdef __cplusplus
