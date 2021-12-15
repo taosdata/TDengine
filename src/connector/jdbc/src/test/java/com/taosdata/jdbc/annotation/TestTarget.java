@@ -9,9 +9,9 @@ import java.lang.annotation.Target;
 @Target({ElementType.TYPE})
 public @interface TestTarget {
 
-    String value();
+    String alias() default "";
 
-    String author() default "";
+    String author();
 
     String version() default "";
 

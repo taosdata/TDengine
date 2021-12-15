@@ -5,16 +5,11 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/**
- *
- */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD})
 public @interface Description {
-    String message();
 
-    // The test is under some conditions
-    String condition() default "";
+    String value();
 
     // git blame author
     String author() default "";
