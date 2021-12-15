@@ -42,13 +42,6 @@ extern int32_t mDebugFlag;
 #define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
 
-typedef struct SClusterObj SClusterObj;
-typedef struct SMnodeObj   SMnodeObj;
-typedef struct SAcctObj    SAcctObj;
-typedef struct SVgObj      SVgObj;
-typedef struct SFuncObj    SFuncObj;
-typedef struct SOperObj    SOperObj;
-
 typedef enum {
   MND_AUTH_ACCT_START = 0,
   MND_AUTH_ACCT_USER,
@@ -99,7 +92,7 @@ typedef enum {
   DND_REASON_OTHERS
 } EDndReason;
 
-typedef struct STrans {
+typedef struct {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
@@ -111,7 +104,7 @@ typedef struct STrans {
   SArray    *undoActions;
 } STrans;
 
-typedef struct SClusterObj {
+typedef struct {
   int32_t id;
   char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
@@ -139,7 +132,7 @@ typedef struct {
   char       ep[TSDB_EP_LEN];
 } SDnodeObj;
 
-typedef struct SMnodeObj {
+typedef struct {
   int32_t    id;
   int64_t    createdTime;
   int64_t    updateTime;
@@ -167,7 +160,7 @@ typedef struct {
   int64_t compStorage;   // Compressed storage on disk
 } SAcctInfo;
 
-typedef struct SAcctObj {
+typedef struct {
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
   int64_t   updateTime;
@@ -223,7 +216,7 @@ typedef struct {
   ESyncState role;
 } SVnodeGid;
 
-typedef struct SVgObj {
+typedef struct {
   int32_t   vgId;
   int64_t   createdTime;
   int64_t   updateTime;
@@ -252,7 +245,7 @@ typedef struct {
   SSchema *pSchema;
 } SStbObj;
 
-typedef struct SFuncObj {
+typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
   int64_t createdTime;
   int8_t  funcType;

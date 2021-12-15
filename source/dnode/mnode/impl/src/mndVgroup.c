@@ -133,12 +133,6 @@ static int32_t mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup) {
   return 0;
 }
 
-static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pMsg) { return 0; }
-static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pMsg) { return 0; }
-static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pMsg) { return 0; }
-static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pMsg) { return 0; }
-static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pMsg) { return 0; }
-
 static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup) {
   mTrace("vgId:%d, perform update action", pOldVgroup->vgId);
   pOldVgroup->updateTime = pNewVgroup->updateTime;
@@ -157,6 +151,12 @@ void mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pVgroup);
 }
+
+static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pMsg) { return 0; }
 
 static int32_t mndGetVgroupMaxReplica(SMnode *pMnode, char *dbName, int8_t *pReplica, int32_t *pNumOfVgroups) {
   SSdb *pSdb = pMnode->pSdb;
@@ -274,9 +274,9 @@ static int32_t mndRetrieveVgroups(SMnodeMsg *pMsg, SShowObj *pShow, char *data, 
     }
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pVgroup->compact; 
+    *(int8_t *)pWrite = pVgroup->compact;
     cols++;
-    
+
     sdbRelease(pSdb, pVgroup);
     numOfRows++;
   }
