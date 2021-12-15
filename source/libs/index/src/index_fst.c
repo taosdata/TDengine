@@ -1180,7 +1180,7 @@ bool fstBoundWithDataIsEmpty(FstBoundWithData *bound) {
 
 
 bool fstBoundWithDataIsIncluded(FstBoundWithData *bound) {
-  return bound->type == Included ? true : false;
+  return bound->type == Excluded? false : true;
 }
 
 void fstBoundDestroy(FstBoundWithData *bound) {
