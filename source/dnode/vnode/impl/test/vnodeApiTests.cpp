@@ -121,6 +121,14 @@ static void vtBuildCreateCtbReq(tb_uid_t suid, char *tbname, SRpcMsg **ppMsg) {
   *ppMsg = pMsg;
 }
 
+static void vtBuildCreateNtbReq(char *tbname, SRpcMsg **ppMsg) {
+  // TODO
+}
+
+static void vtBuildSubmitReq(SRpcMsg **ppMsg) {
+  // TODO
+}
+
 static void vtClearMsgBatch(SArray *pMsgArr) {
   SRpcMsg *pMsg;
   for (size_t i = 0; i < taosArrayGetSize(pMsgArr); i++) {
