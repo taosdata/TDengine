@@ -3,7 +3,6 @@ var conn = taos.connect();
 var c1 = conn.cursor();
 let stime = new Date();
 let interval = 1000;
-
 function convertDateToTS(date) {
   let tsArr = date.toISOString().split("T")
   return "\"" + tsArr[0] + " " + tsArr[1].substring(0, tsArr[1].length - 1) + "\"";
