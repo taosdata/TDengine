@@ -71,7 +71,7 @@ int32_t mndInitVgroup(SMnode *pMnode) {
 void mndCleanupVgroup(SMnode *pMnode) {}
 
 static SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_VGROUP_VER_NUM, sizeof(SDbObj));
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_VGROUP_VER_NUM, sizeof(SVgObj) + TSDB_VGROUP_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;

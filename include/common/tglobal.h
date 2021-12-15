@@ -29,12 +29,7 @@ extern char     tsLocalFqdn[];
 extern char     tsLocalEp[];
 extern uint16_t tsServerPort;
 extern int32_t  tsStatusInterval;
-extern int32_t  tsNumOfMnodes;
-extern int8_t   tsEnableVnodeBak;
 extern int8_t   tsEnableTelemetryReporting;
-extern char     tsArbitrator[];
-extern int8_t   tsArbOnline;
-extern int64_t  tsArbOnlineTimestamp;
 
 // common
 extern int      tsRpcTimer;
@@ -60,7 +55,6 @@ extern int      tsCompatibleModel;     // 2.0 compatible model
 extern int32_t  tsQueryBufferSize;      // maximum allowed usage buffer size in MB for each data node during query processing
 extern int64_t  tsQueryBufferSizeBytes; // maximum allowed usage buffer size in byte for each data node during query processing
 extern int32_t  tsRetrieveBlockingModel;// retrieve threads will be blocked
-
 extern int8_t   tsKeepOriginalColumnName;
 
 // client
@@ -78,66 +72,15 @@ extern float   tsStreamComputDelayRatio;  // the delayed computing ration of the
 extern int32_t tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;
 
-// db parameters in client
-extern int32_t tsCacheBlockSize;
-extern int32_t tsBlocksPerVnode;
-extern int32_t tsTableIncStepPerVnode;
-extern int32_t tsMaxVgroupsPerDb;
-extern int16_t tsDaysPerFile;
-extern int32_t tsDaysToKeep;
-extern int32_t tsMinRowsInFileBlock;
-extern int32_t tsMaxRowsInFileBlock;
-extern int16_t tsCommitTime;  // seconds
-extern int32_t tsTimePrecision;
-extern int8_t  tsCompression;
-extern int8_t  tsWAL;
-extern int32_t tsFsyncPeriod;
-extern int32_t tsReplications;
-extern int16_t tsPartitons;
-extern int32_t tsQuorum;
-extern int8_t  tsUpdate;
-extern int8_t  tsCacheLastRow;
-
-//tsdb 
-extern bool tsdbForceKeepFile;
-
 // balance
-extern int8_t  tsEnableBalance;
-extern int8_t  tsAlternativeRole;
-extern int32_t tsBalanceInterval;
-extern int32_t tsOfflineThreshold;
-extern int8_t  tsEnableFlowCtrl;
 extern int8_t  tsEnableSlaveQuery;
-extern int8_t  tsEnableAdjustMaster;
 
-// restful
-extern int32_t  tsRestRowLimit;
-extern int8_t   tsTelegrafUseFieldNum;
 
-// mqtt
-extern int8_t tsEnableMqttModule;
-extern char   tsMqttHostName[];
-extern char   tsMqttPort[];
-extern char   tsMqttUser[];
-extern char   tsMqttPass[];
-extern char   tsMqttClientId[];
-extern char   tsMqttTopic[];
-
-// monitor
-extern int8_t  tsEnableMonitorModule;
-extern char    tsMonitorDbName[];
-extern char    tsInternalPass[];
-extern int32_t tsMonitorInterval;
-
-// stream
-extern int8_t tsEnableStream;
-
-// internal
+// interna
 extern int8_t  tsPrintAuth;
 extern char    tsVnodeDir[];
 extern char    tsMnodeDir[];
 extern int64_t tsTickPerDay[3];
-extern int32_t tsTopicBianryLen;
 
 // system info
 extern float   tsTotalLogDirGB;

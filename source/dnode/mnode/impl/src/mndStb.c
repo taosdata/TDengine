@@ -69,7 +69,7 @@ int32_t mndInitStb(SMnode *pMnode) {
 void mndCleanupStb(SMnode *pMnode) {}
 
 static SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
-  int32_t  size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema);
+  int32_t  size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + TSDB_STB_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STB, TSDB_STB_VER_NUM, size);
   if (pRaw == NULL) return NULL;
 
