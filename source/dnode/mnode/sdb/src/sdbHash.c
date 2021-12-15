@@ -132,11 +132,6 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   taosHashRemove(hash, pOldRow->pObj, keySize);
   taosWUnLockLatch(pLock);
 
-  SdbDeleteFp deleteFp = pSdb->deleteFps[pOldRow->type];
-  if (deleteFp != NULL) {
-    code = (*deleteFp)(pSdb, pOldRow->pObj);
-  }
-
   sdbRelease(pSdb, pOldRow->pObj);
   sdbFreeRow(pRow);
   return code;
@@ -161,6 +156,7 @@ int32_t sdbWriteNotFree(SSdb *pSdb, SSdbRaw *pRaw) {
     case SDB_STATUS_CREATING:
       code = sdbInsertRow(pSdb, hash, pRaw, pRow, keySize);
       break;
+    case SDB_STATUS_UPDATING:
     case SDB_STATUS_READY:
     case SDB_STATUS_DROPPING:
       code = sdbUpdateRow(pSdb, hash, pRaw, pRow, keySize);
@@ -228,6 +224,11 @@ void sdbRelease(SSdb *pSdb, void *pObj) {
 
   int32_t ref = atomic_sub_fetch_32(&pRow->refCount, 1);
   if (ref <= 0 && pRow->status == SDB_STATUS_DROPPED) {
+    SdbDeleteFp deleteFp = pSdb->deleteFps[pRow->type];
+    if (deleteFp != NULL) {
+      (*deleteFp)(pSdb, pRow->pObj);
+    }
+
     sdbFreeRow(pRow);
   }
 

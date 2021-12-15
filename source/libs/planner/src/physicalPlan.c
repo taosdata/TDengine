@@ -13,11 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TSDB_COMMIT_QUEUE_H_
-#define _TD_TSDB_COMMIT_QUEUE_H_
+#include "plannerInt.h"
 
-typedef enum { COMMIT_REQ, COMPACT_REQ,COMMIT_CONFIG_REQ } TSDB_REQ_T;
+SPhyNode* createScanNode(SQueryPlanNode* pPlanNode) {
+  return NULL;
+}
 
-int tsdbScheduleCommit(STsdbRepo *pRepo, TSDB_REQ_T req);
+SPhyNode* createPhyNode(SQueryPlanNode* node) {
+  switch (node->info.type) {
+    case LP_SCAN:
+      return createScanNode(node);
+  }
+  return NULL;
+}
 
-#endif /* _TD_TSDB_COMMIT_QUEUE_H_ */
+SPhyNode* createSubplan(SQueryPlanNode* pSubquery) {
+  return NULL;
+}
+
+int32_t createDag(struct SQueryPlanNode* pQueryNode, struct SEpSet* pQnode, struct SQueryDag** pDag) {
+  return 0;
+}

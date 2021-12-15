@@ -54,7 +54,7 @@ static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, i
   int64_t logTfd = pRead->readLogTfd;
   
   //seek position
-  int64_t offset = (ver - fileFirstVer) * WAL_IDX_ENTRY_SIZE;
+  int64_t offset = (ver - fileFirstVer) * sizeof(WalIdxEntry);
   code = tfLseek(idxTfd, offset, SEEK_SET);
   if(code < 0) {
     return -1;
@@ -210,6 +210,6 @@ int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
   return 0;
 }
 
-int32_t walReadWithFp(SWal *pWal, FWalWrite writeFp, int64_t verStart, int32_t readNum) {
-  return 0;
-}
+/*int32_t walReadWithFp(SWal *pWal, FWalWrite writeFp, int64_t verStart, int32_t readNum) {*/
+  /*return 0;*/
+/*}*/

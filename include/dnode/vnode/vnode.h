@@ -68,9 +68,11 @@ typedef struct SVnodeCfg {
 /**
  * @brief Initialize the vnode module
  *
+ * @param nthreads number of commit threads. 0 for no threads and
+ *        a schedule queue should be given (TODO)
  * @return int 0 for success and -1 for failure
  */
-int vnodeInit();
+int vnodeInit(uint16_t nthreads);
 
 /**
  * @brief clear a vnode

@@ -17,14 +17,31 @@
 #include "mndTrans.h"
 #include "mndSync.h"
 
-#define SDB_TRANS_VER 1
-#define TRN_DEFAULT_ARRAY_SIZE 8
+#define TSDB_TRANS_VER 1
+#define TSDB_TRN_ARRAY_SIZE 8
+#define TSDB_TRN_RESERVE_SIZE 64
 
 static SSdbRaw *mndTransActionEncode(STrans *pTrans);
 static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw);
 static int32_t  mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
 static int32_t  mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOldTrans);
 static int32_t  mndTransActionDelete(SSdb *pSdb, STrans *pTrans);
+
+static void    mndTransSetRpcHandle(STrans *pTrans, void *rpcHandle);
+static void    mndTransSendRpcRsp(STrans *pTrans, int32_t code);
+static int32_t mndTransAppendArray(SArray *pArray, SSdbRaw *pRaw);
+static void    mndTransDropArray(SArray *pArray);
+static int32_t mndTransExecuteArray(SMnode *pMnode, SArray *pArray);
+static int32_t mndTransExecuteRedoLogs(SMnode *pMnode, STrans *pTrans);
+static int32_t mndTransExecuteUndoLogs(SMnode *pMnode, STrans *pTrans);
+static int32_t mndTransExecuteCommitLogs(SMnode *pMnode, STrans *pTrans);
+static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans);
+static int32_t mndTransExecuteUndoActions(SMnode *pMnode, STrans *pTrans);
+static int32_t mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans);
+static int32_t mndTransPerformExecuteStage(SMnode *pMnode, STrans *pTrans);
+static int32_t mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans);
+static int32_t mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans);
+static void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
 
 int32_t mndInitTrans(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_TRANS,
@@ -41,7 +58,7 @@ int32_t mndInitTrans(SMnode *pMnode) {
 void mndCleanupTrans(SMnode *pMnode) {}
 
 static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
-  int32_t rawDataLen = 16 * sizeof(int32_t);
+  int32_t rawDataLen = 16 * sizeof(int32_t) + TSDB_TRN_RESERVE_SIZE;
   int32_t redoLogNum = taosArrayGetSize(pTrans->redoLogs);
   int32_t undoLogNum = taosArrayGetSize(pTrans->undoLogs);
   int32_t commitLogNum = taosArrayGetSize(pTrans->commitLogs);
@@ -63,7 +80,7 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
     rawDataLen += sdbGetRawTotalSize(pTmp);
   }
 
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_TRANS, SDB_TRANS_VER, rawDataLen);
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_TRANS, TSDB_TRANS_VER, rawDataLen);
   if (pRaw == NULL) {
     mError("trans:%d, failed to alloc raw since %s", pTrans->id, terrstr());
     return NULL;
@@ -71,7 +88,6 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
 
   int32_t dataPos = 0;
   SDB_SET_INT32(pRaw, dataPos, pTrans->id)
-  SDB_SET_INT8(pRaw, dataPos, pTrans->stage)
   SDB_SET_INT8(pRaw, dataPos, pTrans->policy)
   SDB_SET_INT32(pRaw, dataPos, redoLogNum)
   SDB_SET_INT32(pRaw, dataPos, undoLogNum)
@@ -100,6 +116,8 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
     SDB_SET_BINARY(pRaw, dataPos, (void *)pTmp, len)
   }
 
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_TRN_RESERVE_SIZE)
+  SDB_SET_DATALEN(pRaw, dataPos);
   mTrace("trans:%d, encode to raw:%p, len:%d", pTrans->id, pRaw, dataPos);
   return pRaw;
 }
@@ -113,7 +131,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     return NULL;
   }
 
-  if (sver != SDB_TRANS_VER) {
+  if (sver != TSDB_TRANS_VER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     mError("failed to get check soft ver from raw:%p since %s", pRaw, terrstr());
     return NULL;
@@ -126,11 +144,11 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     return NULL;
   }
 
-  pTrans->redoLogs = taosArrayInit(TRN_DEFAULT_ARRAY_SIZE, sizeof(void *));
-  pTrans->undoLogs = taosArrayInit(TRN_DEFAULT_ARRAY_SIZE, sizeof(void *));
-  pTrans->commitLogs = taosArrayInit(TRN_DEFAULT_ARRAY_SIZE, sizeof(void *));
-  pTrans->redoActions = taosArrayInit(TRN_DEFAULT_ARRAY_SIZE, sizeof(void *));
-  pTrans->undoActions = taosArrayInit(TRN_DEFAULT_ARRAY_SIZE, sizeof(void *));
+  pTrans->redoLogs = taosArrayInit(TSDB_TRN_ARRAY_SIZE, sizeof(void *));
+  pTrans->undoLogs = taosArrayInit(TSDB_TRN_ARRAY_SIZE, sizeof(void *));
+  pTrans->commitLogs = taosArrayInit(TSDB_TRN_ARRAY_SIZE, sizeof(void *));
+  pTrans->redoActions = taosArrayInit(TSDB_TRN_ARRAY_SIZE, sizeof(void *));
+  pTrans->undoActions = taosArrayInit(TSDB_TRN_ARRAY_SIZE, sizeof(void *));
 
   if (pTrans->redoLogs == NULL || pTrans->undoLogs == NULL || pTrans->commitLogs == NULL ||
       pTrans->redoActions == NULL || pTrans->undoActions == NULL) {
@@ -147,7 +165,6 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
 
   int32_t dataPos = 0;
   SDB_GET_INT32(pRaw, pRow, dataPos, &pTrans->id)
-  SDB_GET_INT8(pRaw, pRow, dataPos, (int8_t *)&pTrans->stage)
   SDB_GET_INT8(pRaw, pRow, dataPos, (int8_t *)&pTrans->policy)
   SDB_GET_INT32(pRaw, pRow, dataPos, &redoLogNum)
   SDB_GET_INT32(pRaw, pRow, dataPos, &undoLogNum)
@@ -197,6 +214,8 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     }
   }
 
+  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_TRN_RESERVE_SIZE)
+
 TRANS_DECODE_OVER:
   if (code != 0) {
     mError("trans:%d, failed to parse from raw:%p since %s", pTrans->id, pRaw, tstrerror(errno));
@@ -210,62 +229,70 @@ TRANS_DECODE_OVER:
 }
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
-  mTrace("trans:%d, perform insert action, stage:%d", pTrans->id, pTrans->stage);
-
-  SArray *pArray = pTrans->redoLogs;
-  int32_t arraySize = taosArrayGetSize(pArray);
-
-  for (int32_t i = 0; i < arraySize; ++i) {
-    SSdbRaw *pRaw = taosArrayGetP(pArray, i);
-    int32_t  code = sdbWrite(pSdb, pRaw);
-    if (code != 0) {
-      mError("trans:%d, failed to write raw:%p to sdb since %s", pTrans->id, pRaw, terrstr());
-      return code;
-    }
-  }
+  pTrans->stage = TRN_STAGE_PREPARE;
+  mTrace("trans:%d, perform insert action, stage:%s", pTrans->id, mndTransStageStr(pTrans->stage));
   return 0;
 }
 
 static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans) {
-  mTrace("trans:%d, perform delete action, stage:%d", pTrans->id, pTrans->stage);
+  mTrace("trans:%d, perform delete action, stage:%s", pTrans->id, mndTransStageStr(pTrans->stage));
 
-  SArray *pArray = pTrans->undoLogs;
-  int32_t arraySize = taosArrayGetSize(pArray);
-
-  for (int32_t i = 0; i < arraySize; ++i) {
-    SSdbRaw *pRaw = taosArrayGetP(pArray, i);
-    int32_t  code = sdbWrite(pSdb, pRaw);
-    if (code != 0) {
-      mError("trans:%d, failed to write raw:%p to sdb since %s", pTrans->id, pRaw, terrstr());
-      return code;
-    }
-  }
+  mndTransDropArray(pTrans->redoLogs);
+  mndTransDropArray(pTrans->undoLogs);
+  mndTransDropArray(pTrans->commitLogs);
+  mndTransDropArray(pTrans->redoActions);
+  mndTransDropArray(pTrans->undoActions);
 
   return 0;
 }
 
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOldTrans, STrans *pNewTrans) {
-  mTrace("trans:%d, perform update action, stage:%d", pOldTrans->id, pNewTrans->stage);
-
-  SArray *pArray = pOldTrans->commitLogs;
-  int32_t arraySize = taosArrayGetSize(pArray);
-
-  for (int32_t i = 0; i < arraySize; ++i) {
-    SSdbRaw *pRaw = taosArrayGetP(pArray, i);
-    int32_t  code = sdbWrite(pSdb, pRaw);
-    if (code != 0) {
-      mError("trans:%d, failed to write raw:%p to sdb since %s", pOldTrans->id, pRaw, terrstr());
-      return code;
-    }
-  }
-
+  mTrace("trans:%d, perform update action, stage:%s", pOldTrans->id, mndTransStageStr(pNewTrans->stage));
   pOldTrans->stage = pNewTrans->stage;
   return 0;
 }
 
-static int32_t trnGenerateTransId() {
+STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
+  SSdb *pSdb = pMnode->pSdb;
+  return sdbAcquire(pSdb, SDB_TRANS, &transId);
+}
+
+void mndReleaseTrans(SMnode *pMnode, STrans *pTrans) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbRelease(pSdb, pTrans);
+}
+
+static int32_t mndGenerateTransId() {
   static int32_t tmp = 0;
   return ++tmp;
+}
+
+char *mndTransStageStr(ETrnStage stage) {
+  switch (stage) {
+    case TRN_STAGE_PREPARE:
+      return "prepare";
+    case TRN_STAGE_EXECUTE:
+      return "execute";
+    case TRN_STAGE_COMMIT:
+      return "commit";
+    case TRN_STAGE_ROLLBACK:
+      return "rollback";
+    case TRN_STAGE_RETRY:
+      return "retry";
+    default:
+      return "undefined";
+  }
+}
+
+char *mndTransPolicyStr(ETrnPolicy policy) {
+  switch (policy) {
+    case TRN_POLICY_ROLLBACK:
+      return "prepare";
+    case TRN_POLICY_RETRY:
+      return "retry";
+    default:
+      return "undefined";
+  }
 }
 
 STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, void *rpcHandle) {
@@ -276,16 +303,15 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, void *rpcHandle) {
     return NULL;
   }
 
-  pTrans->id = trnGenerateTransId();
+  pTrans->id = mndGenerateTransId();
   pTrans->stage = TRN_STAGE_PREPARE;
   pTrans->policy = policy;
-  pTrans->pMnode = pMnode;
   pTrans->rpcHandle = rpcHandle;
-  pTrans->redoLogs = taosArrayInit(TRN_DEFAULT_ARRAY_SIZE, sizeof(void *));
-  pTrans->undoLogs = taosArrayInit(TRN_DEFAULT_ARRAY_SIZE, sizeof(void *));
-  pTrans->commitLogs = taosArrayInit(TRN_DEFAULT_ARRAY_SIZE, sizeof(void *));
-  pTrans->redoActions = taosArrayInit(TRN_DEFAULT_ARRAY_SIZE, sizeof(void *));
-  pTrans->undoActions = taosArrayInit(TRN_DEFAULT_ARRAY_SIZE, sizeof(void *));
+  pTrans->redoLogs = taosArrayInit(TSDB_TRN_ARRAY_SIZE, sizeof(void *));
+  pTrans->undoLogs = taosArrayInit(TSDB_TRN_ARRAY_SIZE, sizeof(void *));
+  pTrans->commitLogs = taosArrayInit(TSDB_TRN_ARRAY_SIZE, sizeof(void *));
+  pTrans->redoActions = taosArrayInit(TSDB_TRN_ARRAY_SIZE, sizeof(void *));
+  pTrans->undoActions = taosArrayInit(TSDB_TRN_ARRAY_SIZE, sizeof(void *));
 
   if (pTrans->redoLogs == NULL || pTrans->undoLogs == NULL || pTrans->commitLogs == NULL ||
       pTrans->redoActions == NULL || pTrans->undoActions == NULL) {
@@ -298,7 +324,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, void *rpcHandle) {
   return pTrans;
 }
 
-static void trnDropArray(SArray *pArray) {
+static void mndTransDropArray(SArray *pArray) {
   for (int32_t i = 0; i < pArray->size; ++i) {
     SSdbRaw *pRaw = taosArrayGetP(pArray, i);
     tfree(pRaw);
@@ -308,17 +334,17 @@ static void trnDropArray(SArray *pArray) {
 }
 
 void mndTransDrop(STrans *pTrans) {
-  trnDropArray(pTrans->redoLogs);
-  trnDropArray(pTrans->undoLogs);
-  trnDropArray(pTrans->commitLogs);
-  trnDropArray(pTrans->redoActions);
-  trnDropArray(pTrans->undoActions);
+  mndTransDropArray(pTrans->redoLogs);
+  mndTransDropArray(pTrans->undoLogs);
+  mndTransDropArray(pTrans->commitLogs);
+  mndTransDropArray(pTrans->redoActions);
+  mndTransDropArray(pTrans->undoActions);
 
   mDebug("trans:%d, data:%p is dropped", pTrans->id, pTrans);
   tfree(pTrans);
 }
 
-void mndTransSetRpcHandle(STrans *pTrans, void *rpcHandle) {
+static void mndTransSetRpcHandle(STrans *pTrans, void *rpcHandle) {
   pTrans->rpcHandle = rpcHandle;
   mTrace("trans:%d, set rpc handle:%p", pTrans->id, rpcHandle);
 }
@@ -340,19 +366,19 @@ static int32_t mndTransAppendArray(SArray *pArray, SSdbRaw *pRaw) {
 
 int32_t mndTransAppendRedolog(STrans *pTrans, SSdbRaw *pRaw) {
   int32_t code = mndTransAppendArray(pTrans->redoLogs, pRaw);
-  mTrace("trans:%d, raw:%p append to redo logs, code:%d", pTrans->id, pRaw, code);
+  mTrace("trans:%d, raw:%p append to redo logs, code:0x%x", pTrans->id, pRaw, code);
   return code;
 }
 
 int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw) {
   int32_t code = mndTransAppendArray(pTrans->undoLogs, pRaw);
-  mTrace("trans:%d, raw:%p append to undo logs, code:%d", pTrans->id, pRaw, code);
+  mTrace("trans:%d, raw:%p append to undo logs, code:0x%x", pTrans->id, pRaw, code);
   return code;
 }
 
 int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw) {
   int32_t code = mndTransAppendArray(pTrans->commitLogs, pRaw);
-  mTrace("trans:%d, raw:%p append to commit logs, code:%d", pTrans->id, pRaw, code);
+  mTrace("trans:%d, raw:%p append to commit logs, code:0x%x", pTrans->id, pRaw, code);
   return code;
 }
 
@@ -368,7 +394,7 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, SEpSet *pEpSet, void *pMsg) {
   return code;
 }
 
-int32_t mndTransPrepare(STrans *pTrans) {
+int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   mDebug("trans:%d, prepare transaction", pTrans->id);
 
   SSdbRaw *pRaw = mndTransActionEncode(pTrans);
@@ -376,180 +402,295 @@ int32_t mndTransPrepare(STrans *pTrans) {
     mError("trans:%d, failed to decode trans since %s", pTrans->id, terrstr());
     return -1;
   }
-  sdbSetRawStatus(pRaw, SDB_STATUS_CREATING);
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  if (sdbWriteNotFree(pTrans->pMnode->pSdb, pRaw) != 0) {
-    mError("trans:%d, failed to write trans since %s", pTrans->id, terrstr());
-    return -1;
-  }
-
-  STransMsg *pMsg = calloc(1, sizeof(STransMsg));
-  pMsg->id = pTrans->id;
-  pMsg->rpcHandle = pTrans->rpcHandle;
-
-  mDebug("trans:%d, start sync, RPC:%p pMsg:%p", pTrans->id, pTrans->rpcHandle, pMsg);
-  if (mndSyncPropose(pTrans->pMnode, pRaw, pMsg) != 0) {
+  mTrace("trans:%d, start sync", pTrans->id);
+  int32_t code = mndSyncPropose(pMnode, pRaw);
+  if (code != 0) {
     mError("trans:%d, failed to sync since %s", pTrans->id, terrstr());
-    free(pMsg);
     sdbFreeRaw(pRaw);
     return -1;
   }
 
-  sdbFreeRaw(pRaw);
+  mTrace("trans:%d, sync finished", pTrans->id);
+
+  code = sdbWrite(pMnode->pSdb, pRaw);
+  if (code != 0) {
+    mError("trans:%d, failed to write sdb since %s", pTrans->id, terrstr());
+    return -1;
+  }
+
+  STrans *pNewTrans = mndAcquireTrans(pMnode, pTrans->id);
+  if (pNewTrans == NULL) {
+    mError("trans:%d, failed to ready from sdb since %s", pTrans->id, terrstr());
+    return -1;
+  }
+
+  mDebug("trans:%d, prepare finished", pNewTrans->id);
+  pNewTrans->rpcHandle = pTrans->rpcHandle;
+  mndTransExecute(pMnode, pNewTrans);
+  mndReleaseTrans(pMnode, pNewTrans);
   return 0;
 }
 
-static void trnSendRpcRsp(STransMsg *pMsg, int32_t code) {
-  mDebug("trans:%d, send rpc rsp, RPC:%p code:0x%x pMsg:%p", pMsg->id, pMsg->rpcHandle, code & 0xFFFF, pMsg);
-  if (pMsg->rpcHandle != NULL) {
-    SRpcMsg rspMsg = {.handle = pMsg->rpcHandle, .code = code};
-    rpcSendResponse(&rspMsg);
+int32_t mndTransCommit(SMnode *pMnode, STrans *pTrans) {
+  mDebug("trans:%d, commit transaction", pTrans->id);
+
+  SSdbRaw *pRaw = mndTransActionEncode(pTrans);
+  if (pRaw == NULL) {
+    mError("trans:%d, failed to decode trans since %s", pTrans->id, terrstr());
+    return -1;
+  }
+  sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
+
+  if (taosArrayGetSize(pTrans->commitLogs) != 0) {
+    mTrace("trans:%d, start sync", pTrans->id);
+    int32_t code = mndSyncPropose(pMnode, pRaw);
+    if (code != 0) {
+      mError("trans:%d, failed to sync since %s", pTrans->id, terrstr());
+      sdbFreeRaw(pRaw);
+      return -1;
+    }
+
+    mTrace("trans:%d, sync finished", pTrans->id);
+    code = sdbWrite(pMnode->pSdb, pRaw);
+    if (code != 0) {
+      mError("trans:%d, failed to write sdb since %s", pTrans->id, terrstr());
+      return -1;
+    }
   }
 
-  free(pMsg);
+  mDebug("trans:%d, commit finished", pTrans->id);
+  return 0;
+}
+
+int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
+  mDebug("trans:%d, rollback transaction", pTrans->id);
+
+  SSdbRaw *pRaw = mndTransActionEncode(pTrans);
+  if (pRaw == NULL) {
+    mError("trans:%d, failed to decode trans since %s", pTrans->id, terrstr());
+    return -1;
+  }
+  sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
+
+  mTrace("trans:%d, start sync", pTrans->id);
+  int32_t code = mndSyncPropose(pMnode, pRaw);
+  if (code != 0) {
+    mError("trans:%d, failed to sync since %s", pTrans->id, terrstr());
+    sdbFreeRaw(pRaw);
+    return -1;
+  }
+
+  mTrace("trans:%d, sync finished", pTrans->id);
+  code = sdbWrite(pMnode->pSdb, pRaw);
+  if (code != 0) {
+    mError("trans:%d, failed to write sdb since %s", pTrans->id, terrstr());
+    return -1;
+  }
+
+  mDebug("trans:%d, rollback finished", pTrans->id);
+  return 0;
+}
+
+static void mndTransSendRpcRsp(STrans *pTrans, int32_t code) {
+  if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) return;
+  mDebug("trans:%d, send rpc rsp, RPC:%p code:0x%x", pTrans->id, pTrans->rpcHandle, code & 0xFFFF);
+
+  if (pTrans->rpcHandle != NULL) {
+    SRpcMsg rspMsg = {.handle = pTrans->rpcHandle, .code = code};
+    rpcSendResponse(&rspMsg);
+  }
 }
 
 void mndTransApply(SMnode *pMnode, SSdbRaw *pRaw, STransMsg *pMsg, int32_t code) {
-  if (code == 0) {
-    mDebug("trans:%d, commit transaction", pMsg->id);
-    sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-    if (sdbWrite(pMnode->pSdb, pRaw) != 0) {
-      code = terrno;
-      mError("trans:%d, failed to write sdb while commit since %s", pMsg->id, terrstr());
-    }
-    trnSendRpcRsp(pMsg, code);
-  } else {
-    mDebug("trans:%d, rollback transaction", pMsg->id);
-    sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
-    if (sdbWrite(pMnode->pSdb, pRaw) != 0) {
-      mError("trans:%d, failed to write sdb while rollback since %s", pMsg->id, terrstr());
-    }
-    trnSendRpcRsp(pMsg, code);
-  }
+  // todo
 }
 
-static int32_t trnExecuteArray(SMnode *pMnode, SArray *pArray) {
-  for (int32_t i = 0; i < pArray->size; ++i) {
+static int32_t mndTransExecuteArray(SMnode *pMnode, SArray *pArray) {
+  SSdb   *pSdb = pMnode->pSdb;
+  int32_t arraySize = taosArrayGetSize(pArray);
+
+  for (int32_t i = 0; i < arraySize; ++i) {
     SSdbRaw *pRaw = taosArrayGetP(pArray, i);
-    if (sdbWrite(pMnode->pSdb, pRaw) != 0) {
-      return -1;
+    int32_t  code = sdbWriteNotFree(pSdb, pRaw);
+    if (code != 0) {
+      return code;
     }
   }
 
   return 0;
 }
 
-static int32_t trnExecuteRedoLogs(STrans *pTrans) { return trnExecuteArray(pTrans->pMnode, pTrans->redoLogs); }
-
-static int32_t trnExecuteUndoLogs(STrans *pTrans) { return trnExecuteArray(pTrans->pMnode, pTrans->undoLogs); }
-
-static int32_t trnExecuteCommitLogs(STrans *pTrans) { return trnExecuteArray(pTrans->pMnode, pTrans->commitLogs); }
-
-static int32_t trnExecuteRedoActions(STrans *pTrans) { return trnExecuteArray(pTrans->pMnode, pTrans->redoActions); }
-
-static int32_t trnExecuteUndoActions(STrans *pTrans) { return trnExecuteArray(pTrans->pMnode, pTrans->undoActions); }
-
-static int32_t trnPerformPrepareStage(STrans *pTrans) {
-  if (trnExecuteRedoLogs(pTrans) == 0) {
-    pTrans->stage = TRN_STAGE_EXECUTE;
-    return 0;
-  } else {
-    pTrans->stage = TRN_STAGE_ROLLBACK;
-    return -1;
+static int32_t mndTransExecuteRedoLogs(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = 0;
+  if (taosArrayGetSize(pTrans->redoLogs) != 0) {
+    code = mndTransExecuteArray(pMnode, pTrans->redoLogs);
+    if (code != 0) {
+      mError("trans:%d, failed to execute redo logs since %s", pTrans->id, terrstr())
+    } else {
+      mTrace("trans:%d, execute redo logs finished", pTrans->id)
+    }
   }
+
+  return code;
 }
 
-static int32_t trnPerformExecuteStage(STrans *pTrans) {
-  int32_t code = trnExecuteRedoActions(pTrans);
+static int32_t mndTransExecuteUndoLogs(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = 0;
+  if (taosArrayGetSize(pTrans->undoLogs) != 0) {
+    code = mndTransExecuteArray(pMnode, pTrans->undoLogs);
+    if (code != 0) {
+      mError("trans:%d, failed to execute undo logs since %s", pTrans->id, terrstr())
+    } else {
+      mTrace("trans:%d, execute undo logs finished", pTrans->id)
+    }
+  }
+
+  return code;
+}
+
+static int32_t mndTransExecuteCommitLogs(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = 0;
+  if (taosArrayGetSize(pTrans->commitLogs) != 0) {
+    code = mndTransExecuteArray(pMnode, pTrans->commitLogs);
+    if (code != 0) {
+      mError("trans:%d, failed to execute commit logs since %s", pTrans->id, terrstr())
+    } else {
+      mTrace("trans:%d, execute commit logs finished", pTrans->id)
+    }
+  }
+
+  return code;
+}
+
+static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans) {
+  if (taosArrayGetSize(pTrans->redoActions) != 0) {
+    mTrace("trans:%d, execute redo actions finished", pTrans->id);
+  }
+  return 0;
+}
+
+static int32_t mndTransExecuteUndoActions(SMnode *pMnode, STrans *pTrans) {
+  if (taosArrayGetSize(pTrans->undoActions) != 0) {
+    mTrace("trans:%d, execute undo actions finished", pTrans->id);
+  }
+  return 0;
+}
+
+static int32_t mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = mndTransExecuteRedoLogs(pMnode, pTrans);
+
+  if (code == 0) {
+    pTrans->stage = TRN_STAGE_EXECUTE;
+    mTrace("trans:%d, stage from prepare to execute", pTrans->id);
+  } else {
+    pTrans->stage = TRN_STAGE_ROLLBACK;
+    mError("trans:%d, stage from prepare to rollback since %s", pTrans->id, terrstr());
+  }
+
+  return 0;
+}
+
+static int32_t mndTransPerformExecuteStage(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = mndTransExecuteRedoActions(pMnode, pTrans);
 
   if (code == 0) {
     pTrans->stage = TRN_STAGE_COMMIT;
-    return 0;
+    mTrace("trans:%d, stage from execute to commit", pTrans->id);
   } else if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-    return -1;
+    mTrace("trans:%d, stage keep on execute since %s", pTrans->id, terrstr(code));
+    return code;
   } else {
-    if (pTrans->policy == TRN_POLICY_RETRY) {
-      pTrans->stage = TRN_STAGE_RETRY;
-    } else {
+    if (pTrans->policy == TRN_POLICY_ROLLBACK) {
       pTrans->stage = TRN_STAGE_ROLLBACK;
+      mError("trans:%d, stage from execute to rollback since %s", pTrans->id, terrstr());
+    } else {
+      pTrans->stage = TRN_STAGE_RETRY;
+      mError("trans:%d, stage from execute to retry since %s", pTrans->id, terrstr());
     }
-    return 0;
   }
+
+  return 0;
 }
 
-static int32_t trnPerformCommitStage(STrans *pTrans) {
-  if (trnExecuteCommitLogs(pTrans) == 0) {
-    pTrans->stage = TRN_STAGE_EXECUTE;
-    return 0;
+static int32_t mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = mndTransExecuteCommitLogs(pMnode, pTrans);
+
+  if (code == 0) {
+    pTrans->stage = TRN_STAGE_OVER;
+    mTrace("trans:%d, commit stage finished", pTrans->id);
+  } else {
+    if (pTrans->policy == TRN_POLICY_ROLLBACK) {
+      pTrans->stage = TRN_STAGE_ROLLBACK;
+      mError("trans:%d, stage from commit to rollback since %s", pTrans->id, terrstr());
+    } else {
+      pTrans->stage = TRN_STAGE_RETRY;
+      mError("trans:%d, stage from commit to retry since %s", pTrans->id, terrstr());
+    }
+  }
+
+  return code;
+}
+
+static int32_t mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = mndTransExecuteUndoActions(pMnode, pTrans);
+
+  if (code == 0) {
+    mTrace("trans:%d, rollbacked", pTrans->id);
   } else {
     pTrans->stage = TRN_STAGE_ROLLBACK;
-    return -1;
+    mError("trans:%d, stage keep on rollback since %s", pTrans->id, terrstr());
   }
+
+  return code;
 }
 
-static int32_t trnPerformRollbackStage(STrans *pTrans) {
-  if (trnExecuteCommitLogs(pTrans) == 0) {
-    pTrans->stage = TRN_STAGE_EXECUTE;
-    return 0;
+static int32_t mndTransPerformRetryStage(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = mndTransExecuteRedoActions(pMnode, pTrans);
+
+  if (code == 0) {
+    pTrans->stage = TRN_STAGE_COMMIT;
+    mTrace("trans:%d, stage from retry to commit", pTrans->id);
   } else {
-    pTrans->stage = TRN_STAGE_ROLLBACK;
-    return -1;
+    pTrans->stage = TRN_STAGE_RETRY;
+    mError("trans:%d, stage keep on retry since %s", pTrans->id, terrstr());
   }
+
+  return code;
 }
 
-static int32_t trnPerformRetryStage(STrans *pTrans) {
-  if (trnExecuteCommitLogs(pTrans) == 0) {
-    pTrans->stage = TRN_STAGE_EXECUTE;
-    return 0;
-  } else {
-    pTrans->stage = TRN_STAGE_ROLLBACK;
-    return -1;
-  }
-}
-
-int32_t mndTransExecute(SSdb *pSdb, int32_t tranId) {
+static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
   int32_t code = 0;
 
-  STrans *pTrans = sdbAcquire(pSdb, SDB_TRANS, &tranId);
-  if (pTrans == NULL) {
-    return -1;
-  }
-
-  if (pTrans->stage == TRN_STAGE_PREPARE) {
-    if (trnPerformPrepareStage(pTrans) != 0) {
-      sdbRelease(pSdb, pTrans);
-      return -1;
+  while (code == 0) {
+    switch (pTrans->stage) {
+      case TRN_STAGE_PREPARE:
+        code = mndTransPerformPrepareStage(pMnode, pTrans);
+        break;
+      case TRN_STAGE_EXECUTE:
+        code = mndTransPerformExecuteStage(pMnode, pTrans);
+        break;
+      case TRN_STAGE_COMMIT:
+        code = mndTransCommit(pMnode, pTrans);
+        if (code == 0) {
+          code = mndTransPerformCommitStage(pMnode, pTrans);
+        }
+        break;
+      case TRN_STAGE_ROLLBACK:
+        code = mndTransPerformRollbackStage(pMnode, pTrans);
+        if (code == 0) {
+          code = mndTransRollback(pMnode, pTrans);
+        }
+        break;
+      case TRN_STAGE_RETRY:
+        code = mndTransPerformRetryStage(pMnode, pTrans);
+        break;
+      default:
+        mndTransSendRpcRsp(pTrans, 0);
+        return;
     }
   }
 
-  if (pTrans->stage == TRN_STAGE_EXECUTE) {
-    if (trnPerformExecuteStage(pTrans) != 0) {
-      sdbRelease(pSdb, pTrans);
-      return -1;
-    }
-  }
-
-  if (pTrans->stage == TRN_STAGE_COMMIT) {
-    if (trnPerformCommitStage(pTrans) != 0) {
-      sdbRelease(pSdb, pTrans);
-      return -1;
-    }
-  }
-
-  if (pTrans->stage == TRN_STAGE_ROLLBACK) {
-    if (trnPerformRollbackStage(pTrans) != 0) {
-      sdbRelease(pSdb, pTrans);
-      return -1;
-    }
-  }
-
-  if (pTrans->stage == TRN_STAGE_RETRY) {
-    if (trnPerformRetryStage(pTrans) != 0) {
-      sdbRelease(pSdb, pTrans);
-      return -1;
-    }
-  }
-
-  sdbRelease(pSdb, pTrans);
-  return 0;
+  mndTransSendRpcRsp(pTrans, code);
 }

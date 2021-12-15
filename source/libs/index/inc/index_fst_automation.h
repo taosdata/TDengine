@@ -20,6 +20,8 @@ extern "C" {
 #endif
 
 #include "index_fst_util.h"
+
+
 typedef struct AutomationCtx AutomationCtx;
 
 typedef enum AutomationType {
@@ -38,17 +40,29 @@ typedef struct Complement {
 // automation 
 typedef struct AutomationCtx {
   AutomationType type; 
-  void *data;
+  void *stdata;
+  char *data; 
 } AutomationCtx;
 
 
-
+typedef enum ValueType { FST_INT, FST_CHAR, FST_ARRAY} ValueType;
 typedef enum StartWithStateKind { Done, Running } StartWithStateKind; 
 
 typedef struct StartWithStateValue {
   StartWithStateKind kind;
-  void *value;
+  ValueType type;
+  union {
+    int    val; 
+    char   *ptr;
+    SArray *arr;
+    // add more type
+  } ;
 } StartWithStateValue;
+
+StartWithStateValue *startWithStateValueCreate(StartWithStateKind kind, ValueType ty, void *val);
+StartWithStateValue *startWithStateValueDump(StartWithStateValue *sv); 
+void startWithStateValueDestroy(void *sv);
+
 
 typedef struct AutomationFunc {
   void* (*start)(AutomationCtx *ctx) ; 
@@ -59,7 +73,7 @@ typedef struct AutomationFunc {
   void* (*acceptEof)(AutomationCtx *ct, void *state);
 } AutomationFunc; 
 
-AutomationCtx *automCtxCreate(void *data, AutomationType type);
+AutomationCtx *automCtxCreate(void *data, AutomationType atype);
 void automCtxDestroy(AutomationCtx *ctx);
 
 extern AutomationFunc automFuncs[]; 

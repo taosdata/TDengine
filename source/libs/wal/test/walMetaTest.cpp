@@ -142,7 +142,7 @@ TEST_F(WalCleanEnv, serialize) {
   char*ss = walMetaSerialize(pWal);
   printf("%s\n", ss);
   free(ss);
-  code = walWriteMeta(pWal);
+  code = walSaveMeta(pWal);
   ASSERT(code == 0);
 }
 
@@ -150,11 +150,11 @@ TEST_F(WalCleanEnv, removeOldMeta) {
   int code = walRollFileInfo(pWal);
   ASSERT(code == 0);
   ASSERT(pWal->fileInfoSet != NULL);
-  code = walWriteMeta(pWal);
+  code = walSaveMeta(pWal);
   ASSERT(code == 0);
   code = walRollFileInfo(pWal);
   ASSERT(code == 0);
-  code = walWriteMeta(pWal);
+  code = walSaveMeta(pWal);
   ASSERT(code == 0);
 }
 
@@ -199,7 +199,7 @@ TEST_F(WalCleanEnv, write) {
     ASSERT_EQ(code, -1);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
-  code = walWriteMeta(pWal);
+  code = walSaveMeta(pWal);
   ASSERT_EQ(code, 0);
 }
 
@@ -216,7 +216,7 @@ TEST_F(WalCleanEnv, rollback) {
   code = walRollback(pWal, 3);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(pWal->vers.lastVer, 2);
-  code = walWriteMeta(pWal);
+  code = walSaveMeta(pWal);
   ASSERT_EQ(code, 0);
 }
 
@@ -231,9 +231,9 @@ TEST_F(WalCleanDeleteEnv, roll) {
     ASSERT_EQ(pWal->vers.commitVer, i);
   }
 
-  walBeginTakeSnapshot(pWal, i-1);
+  walBeginSnapshot(pWal, i-1);
   ASSERT_EQ(pWal->vers.verInSnapshotting, i-1);
-  walEndTakeSnapshot(pWal);
+  walEndSnapshot(pWal);
   ASSERT_EQ(pWal->vers.snapshotVer, i-1);
   ASSERT_EQ(pWal->vers.verInSnapshotting, -1);
 
@@ -247,9 +247,9 @@ TEST_F(WalCleanDeleteEnv, roll) {
     ASSERT_EQ(pWal->vers.commitVer, i);
   }
 
-  code = walBeginTakeSnapshot(pWal, i - 1);
+  code = walBeginSnapshot(pWal, i - 1);
   ASSERT_EQ(code, 0);
-  code = walEndTakeSnapshot(pWal);
+  code = walEndSnapshot(pWal);
   ASSERT_EQ(code, 0);
 }
 
