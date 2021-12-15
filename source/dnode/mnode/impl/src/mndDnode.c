@@ -175,6 +175,7 @@ static int32_t mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode) {
 
 static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOldDnode, SDnodeObj *pNewDnode) {
   mTrace("dnode:%d, perform update action", pOldDnode->id);
+  pOldDnode->updateTime = pNewDnode->updateTime;
   return 0;
 }
 

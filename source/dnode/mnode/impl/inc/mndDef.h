@@ -45,7 +45,6 @@ extern int32_t mDebugFlag;
 typedef struct SClusterObj SClusterObj;
 typedef struct SMnodeObj   SMnodeObj;
 typedef struct SAcctObj    SAcctObj;
-typedef struct SDbObj      SDbObj;
 typedef struct SVgObj      SVgObj;
 typedef struct SFuncObj    SFuncObj;
 typedef struct SOperObj    SOperObj;
@@ -209,7 +208,7 @@ typedef struct {
   int8_t  cacheLastRow;
 } SDbCfg;
 
-typedef struct SDbObj {
+typedef struct {
   char    name[TSDB_FULL_DB_NAME_LEN];
   char    acct[TSDB_USER_LEN];
   int64_t createdTime;

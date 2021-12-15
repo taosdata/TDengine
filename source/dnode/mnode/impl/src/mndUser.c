@@ -169,12 +169,8 @@ static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
 
 static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOldUser, SUserObj *pNewUser) {
   mTrace("user:%s, perform update action", pOldUser->user);
-  memcpy(pOldUser->user, pNewUser->user, TSDB_USER_LEN);
   memcpy(pOldUser->pass, pNewUser->pass, TSDB_PASSWORD_LEN);
-  memcpy(pOldUser->acct, pNewUser->acct, TSDB_USER_LEN);
-  pOldUser->createdTime = pNewUser->createdTime;
   pOldUser->updateTime = pNewUser->updateTime;
-  pOldUser->superUser = pNewUser->superUser;
   return 0;
 }
 
@@ -328,6 +324,7 @@ static int32_t mndProcessAlterUserMsg(SMnodeMsg *pMsg) {
   memcpy(&newUser, pUser, sizeof(SUserObj));
   memset(pUser->pass, 0, sizeof(pUser->pass));
   taosEncryptPass((uint8_t *)pAlter->pass, strlen(pAlter->pass), pUser->pass);
+  newUser.updateTime = taosGetTimestampMs();
 
   int32_t code = mndUpdateUser(pMnode, pUser, &newUser, pMsg);
   sdbRelease(pMnode->pSdb, pOperUser);
