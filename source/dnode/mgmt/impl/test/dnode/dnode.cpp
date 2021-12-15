@@ -24,16 +24,16 @@ class DndTestDnode : public ::testing::Test {
   }
 
   static void SetUpTestSuite() {
-    initLog("/tmp/dndTestDnode");
+    initLog("/tmp/tdlog");
 
     const char* fqdn = "localhost";
-    const char* firstEp = "localhost:9521";
-    pServer1 = CreateServer("/tmp/dndTestDnode1", fqdn, 9521, firstEp);
-    pServer2 = CreateServer("/tmp/dndTestDnode2", fqdn, 9522, firstEp);
-    pServer3 = CreateServer("/tmp/dndTestDnode3", fqdn, 9523, firstEp);
-    pServer4 = CreateServer("/tmp/dndTestDnode4", fqdn, 9524, firstEp);
-    pServer5 = CreateServer("/tmp/dndTestDnode5", fqdn, 9525, firstEp);
-    pClient = createClient("root", "taosdata", fqdn, 9521);
+    const char* firstEp = "localhost:9041";
+    pServer1 = CreateServer("/tmp/dnode_test_dnode1", fqdn, 9041, firstEp);
+    pServer2 = CreateServer("/tmp/dnode_test_dnode2", fqdn, 9042, firstEp);
+    pServer3 = CreateServer("/tmp/dnode_test_dnode3", fqdn, 9043, firstEp);
+    pServer4 = CreateServer("/tmp/dnode_test_dnode4", fqdn, 9044, firstEp);
+    pServer5 = CreateServer("/tmp/dnode_test_dnode5", fqdn, 9045, firstEp);
+    pClient = createClient("root", "taosdata", fqdn, 9041);
     taosMsleep(300);
   }
 
@@ -188,7 +188,7 @@ SServer* DndTestDnode::pServer4;
 SServer* DndTestDnode::pServer5;
 SClient* DndTestDnode::pClient;
 
-TEST_F(DndTestDnode, ShowDnode) {
+TEST_F(DndTestDnode, 01_ShowDnode) {
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
   CheckSchema(0, TSDB_DATA_TYPE_SMALLINT, 2, "id");
   CheckSchema(1, TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN + VARSTR_HEADER_SIZE, "end point");
@@ -200,7 +200,7 @@ TEST_F(DndTestDnode, ShowDnode) {
 
   SendThenCheckShowRetrieveMsg(1);
   CheckInt16(1);
-  CheckBinary("localhost:9521", TSDB_EP_LEN);
+  CheckBinary("localhost:9041", TSDB_EP_LEN);
   CheckInt16(0);
   CheckInt16(1);
   CheckBinary("ready", 10);
@@ -208,7 +208,7 @@ TEST_F(DndTestDnode, ShowDnode) {
   CheckBinary("", 24);
 }
 
-TEST_F(DndTestDnode, ConfigDnode_01) {
+TEST_F(DndTestDnode, 02_ConfigDnode) {
   SCfgDnodeMsg* pReq = (SCfgDnodeMsg*)rpcMallocCont(sizeof(SCfgDnodeMsg));
   pReq->dnodeId = htonl(1);
   strcpy(pReq->config, "ddebugflag 131");
@@ -224,9 +224,9 @@ TEST_F(DndTestDnode, ConfigDnode_01) {
   ASSERT_EQ(pMsg->code, 0);
 }
 
-TEST_F(DndTestDnode, CreateDnode_01) {
+TEST_F(DndTestDnode, 03_CreateDnode) {
   SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
-  strcpy(pReq->ep, "localhost:9522");
+  strcpy(pReq->ep, "localhost:9042");
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pReq;
@@ -243,8 +243,8 @@ TEST_F(DndTestDnode, CreateDnode_01) {
   SendThenCheckShowRetrieveMsg(2);
   CheckInt16(1);
   CheckInt16(2);
-  CheckBinary("localhost:9521", TSDB_EP_LEN);
-  CheckBinary("localhost:9522", TSDB_EP_LEN);
+  CheckBinary("localhost:9041", TSDB_EP_LEN);
+  CheckBinary("localhost:9042", TSDB_EP_LEN);
   CheckInt16(0);
   CheckInt16(0);
   CheckInt16(1);
@@ -257,7 +257,7 @@ TEST_F(DndTestDnode, CreateDnode_01) {
   CheckBinary("", 24);
 }
 
-TEST_F(DndTestDnode, DropDnode_01) {
+TEST_F(DndTestDnode, 04_DropDnode) {
   SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(sizeof(SDropDnodeMsg));
   pReq->dnodeId = htonl(2);
 
@@ -274,7 +274,7 @@ TEST_F(DndTestDnode, DropDnode_01) {
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
   SendThenCheckShowRetrieveMsg(1);
   CheckInt16(1);
-  CheckBinary("localhost:9521", TSDB_EP_LEN);
+  CheckBinary("localhost:9041", TSDB_EP_LEN);
   CheckInt16(0);
   CheckInt16(1);
   CheckBinary("ready", 10);
@@ -282,10 +282,10 @@ TEST_F(DndTestDnode, DropDnode_01) {
   CheckBinary("", 24);
 }
 
-TEST_F(DndTestDnode, CreateDnode_02) {
+TEST_F(DndTestDnode, 05_CreateDnode) {
   {
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
-    strcpy(pReq->ep, "localhost:9523");
+    strcpy(pReq->ep, "localhost:9043");
 
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = pReq;
@@ -300,7 +300,7 @@ TEST_F(DndTestDnode, CreateDnode_02) {
 
   {
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
-    strcpy(pReq->ep, "localhost:9524");
+    strcpy(pReq->ep, "localhost:9044");
 
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = pReq;
@@ -315,7 +315,7 @@ TEST_F(DndTestDnode, CreateDnode_02) {
 
   {
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
-    strcpy(pReq->ep, "localhost:9525");
+    strcpy(pReq->ep, "localhost:9045");
 
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = pReq;
@@ -335,10 +335,10 @@ TEST_F(DndTestDnode, CreateDnode_02) {
   CheckInt16(3);
   CheckInt16(4);
   CheckInt16(5);
-  CheckBinary("localhost:9521", TSDB_EP_LEN);
-  CheckBinary("localhost:9523", TSDB_EP_LEN);
-  CheckBinary("localhost:9524", TSDB_EP_LEN);
-  CheckBinary("localhost:9525", TSDB_EP_LEN);
+  CheckBinary("localhost:9041", TSDB_EP_LEN);
+  CheckBinary("localhost:9043", TSDB_EP_LEN);
+  CheckBinary("localhost:9044", TSDB_EP_LEN);
+  CheckBinary("localhost:9045", TSDB_EP_LEN);
   CheckInt16(0);
   CheckInt16(0);
   CheckInt16(0);
@@ -361,7 +361,7 @@ TEST_F(DndTestDnode, CreateDnode_02) {
   CheckBinary("", 24);
 }
 
-TEST_F(DndTestDnode, RestartDnode_01) {
+TEST_F(DndTestDnode, 06_RestartDnode) {
   uInfo("stop all server");
   stopServer(pServer1);
   stopServer(pServer2);
@@ -377,11 +377,11 @@ TEST_F(DndTestDnode, RestartDnode_01) {
   uInfo("start all server");
 
   const char* fqdn = "localhost";
-  const char* firstEp = "localhost:9521";
-  pServer1 = startServer("/tmp/dndTestDnode1", fqdn, 9521, firstEp);
-  pServer3 = startServer("/tmp/dndTestDnode3", fqdn, 9523, firstEp);
-  pServer4 = startServer("/tmp/dndTestDnode4", fqdn, 9524, firstEp);
-  pServer5 = startServer("/tmp/dndTestDnode5", fqdn, 9525, firstEp);
+  const char* firstEp = "localhost:9041";
+  pServer1 = startServer("/tmp/dnode_test_dnode1", fqdn, 9041, firstEp);
+  pServer3 = startServer("/tmp/dnode_test_dnode3", fqdn, 9043, firstEp);
+  pServer4 = startServer("/tmp/dnode_test_dnode4", fqdn, 9044, firstEp);
+  pServer5 = startServer("/tmp/dnode_test_dnode5", fqdn, 9045, firstEp);
 
   uInfo("all server is running");
 
@@ -392,10 +392,10 @@ TEST_F(DndTestDnode, RestartDnode_01) {
   CheckInt16(3);
   CheckInt16(4);
   CheckInt16(5);
-  CheckBinary("localhost:9521", TSDB_EP_LEN);
-  CheckBinary("localhost:9523", TSDB_EP_LEN);
-  CheckBinary("localhost:9524", TSDB_EP_LEN);
-  CheckBinary("localhost:9525", TSDB_EP_LEN);
+  CheckBinary("localhost:9041", TSDB_EP_LEN);
+  CheckBinary("localhost:9043", TSDB_EP_LEN);
+  CheckBinary("localhost:9044", TSDB_EP_LEN);
+  CheckBinary("localhost:9045", TSDB_EP_LEN);
   CheckInt16(0);
   CheckInt16(0);
   CheckInt16(0);

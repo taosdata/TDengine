@@ -1,20 +1,20 @@
-add_executable(dnode_test_acct "")
+add_executable(dnode_test_db "")
 
-target_sources(dnode_test_acct
+target_sources(dnode_test_db
     PRIVATE
-    "acct.cpp"
+    "db.cpp"
     "../sut/deploy.cpp"
 )
 
 target_link_libraries(
-    dnode_test_acct
+    dnode_test_db
     PUBLIC dnode
     PUBLIC util
     PUBLIC os
     PUBLIC gtest_main
 )
 
-target_include_directories(dnode_test_acct
+target_include_directories(dnode_test_db
     PUBLIC
     "${CMAKE_SOURCE_DIR}/include/server/dnode/mgmt"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
@@ -24,6 +24,6 @@ target_include_directories(dnode_test_acct
 enable_testing()
 
 add_test(
-    NAME dnode_test_acct
-    COMMAND dnode_test_acct
+    NAME dnode_test_db
+    COMMAND dnode_test_db
 )
