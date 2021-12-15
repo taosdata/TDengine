@@ -2,17 +2,23 @@ package com.taosdata.jdbc;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.taosdata.jdbc.annotation.CatalogRunner;
+import com.taosdata.jdbc.annotation.Description;
+import com.taosdata.jdbc.annotation.TestTarget;
 import com.taosdata.jdbc.enums.SchemalessProtocolType;
 import com.taosdata.jdbc.enums.SchemalessTimestampType;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
+@RunWith(CatalogRunner.class)
+@TestTarget(alias = "Schemaless",author = "huolibo", version = "2.0.36")
 public class SchemalessInsertTest {
     private final String dbname = "test_schemaless_insert";
     private Connection conn;
@@ -23,6 +29,7 @@ public class SchemalessInsertTest {
      * @throws SQLException execute error
      */
     @Test
+    @Description("line insert")
     public void schemalessInsert() throws SQLException {
         // given
         String[] lines = new String[]{
@@ -53,6 +60,7 @@ public class SchemalessInsertTest {
      * @throws SQLException execute error
      */
     @Test
+    @Description("telnet insert")
     public void telnetInsert() throws SQLException {
         // given
         String[] lines = new String[]{
@@ -87,6 +95,7 @@ public class SchemalessInsertTest {
      * @throws SQLException execute error
      */
     @Test
+    @Description("json insert")
     public void jsonInsert() throws SQLException {
         // given
         String json = "[\n" +
