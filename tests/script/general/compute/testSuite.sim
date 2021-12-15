@@ -20,4 +20,9 @@ run general/compute/stddev.sim
 run general/compute/sum.sim
 run general/compute/top.sim
 run general/compute/block_dist.sim
+run general/compute/math_funcs.sim
+run general/compute/string_funcs.sim
+run general/compute/scalar_pow.sim
+run general/compute/scalar_triangle.sim
+run general/compute/scalar_str_concat_len.sim
 run general/compute/table_group.sim

@@ -1,0 +1,211 @@
+sleep 100
+sql connect
+sql use db
+
+$emptyString = @@
+print execute sql select concat(stb1.c8,stb1.c14),pow(stba.c2,stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+sql select concat(stb1.c8,stb1.c14),pow(stba.c2,stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+if $data00 != @1231@ then
+  return -1 
+endi
+if $data01 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @4.000000000@ then
+  return -1 
+endi
+if $data20 != @2342@ then
+  return -1 
+endi
+if $data21 != @27.000000000@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data31 != @256.000000000@ then
+  return -1 
+endi
+if $data40 != @4564@ then
+  return -1 
+endi
+if $data41 != @3125.000000000@ then
+  return -1 
+endi
+if $data50 != @56727@ then
+  return -1 
+endi
+if $data51 != @46656.000000000@ then
+  return -1 
+endi
+if $data60 != @678@ then
+  return -1 
+endi
+if $data61 != @823543.000000000@ then
+  return -1 
+endi
+print execute sql select concat(c8,c14) as a from stb1 union all select concat(c8,c14) as a from stba;
+sql select concat(c8,c14) as a from stb1 union all select concat(c8,c14) as a from stba;
+if $data00 != @1231@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @2342@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @4564@ then
+  return -1 
+endi
+if $data50 != @56727@ then
+  return -1 
+endi
+if $data60 != @678@ then
+  return -1 
+endi
+if $data70 != @1111@ then
+  return -1 
+endi
+if $data80 != @2222@ then
+  return -1 
+endi
+if $data90 != @3333@ then
+  return -1 
+endi
+print execute sql select concat(c8,c14) from stba;
+sql select concat(c8,c14) from stba;
+if $data00 != @1111@ then
+  return -1 
+endi
+if $data10 != @2222@ then
+  return -1 
+endi
+if $data20 != @3333@ then
+  return -1 
+endi
+if $data30 != @4444@ then
+  return -1 
+endi
+if $data40 != @5555@ then
+  return -1 
+endi
+if $data50 != @6666@ then
+  return -1 
+endi
+if $data60 != @7777@ then
+  return -1 
+endi
+if $data70 != @8888@ then
+  return -1 
+endi
+if $data80 != @9999@ then
+  return -1 
+endi
+if $data90 != @0000@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(min(c2) as binary(10))) from tba1;
+sql select concat('c8',cast(min(c2) as binary(10))) from tba1;
+if $data00 != @c80@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(max(c2) as binary(10))) from tba1;
+sql select concat('c8',cast(max(c2) as binary(10))) from tba1;
+if $data00 != @c89@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(count(c2) as binary(10))) from tba1;
+sql select concat('c8',cast(count(c2) as binary(10))) from tba1;
+if $data00 != @c830@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(sum(c2) as binary(10))) from tba1;
+sql select concat('c8',cast(sum(c2) as binary(10))) from tba1;
+if $data00 != @c8135@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(avg(c2) as binary(10))) from tba1;
+sql select concat('c8',cast(avg(c2) as binary(10))) from tba1;
+if $data00 != @c84.500000@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(percentile(c2, 10) as binary(10))) from tba1;
+sql select concat('c8',cast(percentile(c2, 10) as binary(10))) from tba1;
+if $data00 != @c80.900000@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(apercentile(c2, 10) as binary(10))) from tba1;
+sql select concat('c8',cast(apercentile(c2, 10) as binary(10))) from tba1;
+if $data00 != @c80.000000@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(stddev(c2) as binary(10))) from tba1;
+sql select concat('c8',cast(stddev(c2) as binary(10))) from tba1;
+if $data00 != @c82.872281@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(spread(c2) as binary(10))) from tba1;
+sql select concat('c8',cast(spread(c2) as binary(10))) from tba1;
+if $data00 != @c89.000000@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(twa(c2) as binary(10))) from tba1;
+sql select concat('c8',cast(twa(c2) as binary(10))) from tba1;
+if $data00 != @c84.637931@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(elapsed(ts) as binary(10))) from tba1;
+sql select concat('c8',cast(elapsed(ts) as binary(10))) from tba1;
+if $data00 != @c829000.0000@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(rate(c2) as binary(10))) from tba1;
+sql select concat('c8',cast(rate(c2) as binary(10))) from tba1;
+if $data00 != @c80.896552@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(irate(c2) as binary(10))) from tba1;
+sql select concat('c8',cast(irate(c2) as binary(10))) from tba1;
+if $data00 != @c80.000000@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(first(c2) as binary(10))) from tba1;
+sql select concat('c8',cast(first(c2) as binary(10))) from tba1;
+if $data00 != @c81@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(last(c2) as binary(10))) from tba1;
+sql select concat('c8',cast(last(c2) as binary(10))) from tba1;
+if $data00 != @c80@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(last_row(c2) as binary(10))) from tba1;
+sql select concat('c8',cast(last_row(c2) as binary(10))) from tba1;
+if $data00 != @c80@ then
+  return -1 
+endi
+print execute sql select concat('c8',cast(top(c2, 1) as binary(10))) from tba1;
+sql_error select concat('c8',cast(top(c2, 1) as binary(10))) from tba1;
+print execute sql select concat('c8',cast(bottom(c2, 1) as binary(10))) from tba1;
+sql_error select concat('c8',cast(bottom(c2, 1) as binary(10))) from tba1;
+print execute sql select concat('c8',cast(leastsquares(c2, 1, 1) as binary(10))) from tba1;
+sql_error select concat('c8',cast(leastsquares(c2, 1, 1) as binary(10))) from tba1;
+print execute sql select concat('c8',cast(derivative(c2, 1s, 0) as binary(10))) from tba1;
+sql_error select concat('c8',cast(derivative(c2, 1s, 0) as binary(10))) from tba1;
+print execute sql select concat('c8',cast(diff(c2) as binary(10))) from tba1;
+sql_error select concat('c8',cast(diff(c2) as binary(10))) from tba1;
+print execute sql select concat('c8',cast(csum(c2) as binary(10))) from tba1;
+sql_error select concat('c8',cast(csum(c2) as binary(10))) from tba1;
+print execute sql select concat('c8',cast(mavg(c2,2) as binary(10))) from tba1;
+sql_error select concat('c8',cast(mavg(c2,2) as binary(10))) from tba1;
+print execute sql select concat('c8',cast(sample(c2,2) as binary(10))) from tba1;
+sql_error select concat('c8',cast(sample(c2,2) as binary(10))) from tba1;
+print execute sql select concat('c8',cast(_block_dist() as binary(10))) from tba1;
+sql_error select concat('c8',cast(_block_dist() as binary(10))) from tba1;

@@ -287,13 +287,11 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
         functionId != TSDB_FUNC_TAGPRJ &&
         functionId != TSDB_FUNC_TAG &&
         functionId != TSDB_FUNC_TS &&
-        functionId != TSDB_FUNC_ARITHM &&
+        functionId != TSDB_FUNC_SCALAR_EXPR &&
         functionId != TSDB_FUNC_TS_COMP &&
         functionId != TSDB_FUNC_TS_DUMMY &&
         functionId != TSDB_FUNC_TID_TAG &&
-        functionId != TSDB_FUNC_CEIL &&
-        functionId != TSDB_FUNC_FLOOR &&
-        functionId != TSDB_FUNC_ROUND) {
+        !TSDB_FUNC_IS_SCALAR(functionId)) {
       return false;
     }
   }
@@ -330,8 +328,8 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
     }
 
     if (f != TSDB_FUNC_PRJ && f != TSDB_FUNC_TAGPRJ && f != TSDB_FUNC_TAG &&
-        f != TSDB_FUNC_TS && f != TSDB_FUNC_ARITHM && f != TSDB_FUNC_DIFF &&
-        f != TSDB_FUNC_DERIVATIVE) {
+        f != TSDB_FUNC_TS && f != TSDB_FUNC_SCALAR_EXPR && f != TSDB_FUNC_DIFF &&
+        f != TSDB_FUNC_DERIVATIVE && !TSDB_FUNC_IS_SCALAR(f)) {
       return false;
     }
   }
@@ -677,6 +675,10 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
         return true;
       }
 
+      continue;
+    }
+
+    if (TSDB_FUNC_IS_SCALAR(functionId)) {
       continue;
     }
 
@@ -2064,18 +2066,11 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SI
     }
   } else {
     for (int32_t i = 0; i < numOfRows; ++i) {
-      char* payload = (blkKeyTuple + i)->payloadAddr;
-      if (isNeedConvertRow(payload)) {
-        convertSMemRow(pDataBlock, payload, pTableDataBlock);
-        TDRowTLenT rowTLen = memRowTLen(pDataBlock);
-        pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
-        pBlock->dataLen += rowTLen;
-      } else {
-        TDRowTLenT rowTLen = memRowTLen(payload);
-        memcpy(pDataBlock, payload, rowTLen);
-        pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
-        pBlock->dataLen += rowTLen;
-      }
+      char*      payload = (blkKeyTuple + i)->payloadAddr;
+      TDRowTLenT rowTLen = memRowTLen(payload);
+      memcpy(pDataBlock, payload, rowTLen);
+      pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
+      pBlock->dataLen += rowTLen;
     }
   }
 
@@ -4475,6 +4470,8 @@ bool tscHasReachLimitation(SQueryInfo* pQueryInfo, SSqlRes* pRes) {
 
 char* tscGetErrorMsgPayload(SSqlCmd* pCmd) { return pCmd->payload; }
 
+int32_t tscGetErrorMsgLength(SSqlCmd* pCmd) { return (int32_t)strlen(pCmd->payload); }
+
 /**
  *  If current vnode query does not return results anymore (pRes->numOfRows == 0), try the next vnode if exists,
  *  while multi-vnode super table projection query and the result does not reach the limitation.
@@ -4917,7 +4914,7 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
     strncpy(pse->aliasName, pSource->base.aliasName, tListLen(pse->aliasName));
     strncpy(pse->token, pSource->base.token, tListLen(pse->token));
 
-    if (pSource->base.functionId != TSDB_FUNC_ARITHM) {  // this should be switched to projection query
+    if (pSource->base.functionId != TSDB_FUNC_SCALAR_EXPR) {  // this should be switched to projection query
       pse->numOfParams = 0;      // no params for projection query
       pse->functionId  = TSDB_FUNC_PRJ;
       pse->colInfo.colId = pSource->base.resColId;
@@ -4961,16 +4958,17 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
       pse->colInfo.colId = pSource->base.colInfo.colId;
       pse->colType  = pSource->base.colType;
       pse->colBytes = pSource->base.colBytes;
-      pse->resBytes = sizeof(double);
-      pse->resType  = TSDB_DATA_TYPE_DOUBLE;
 
       pse->functionId = pSource->base.functionId;
       pse->numOfParams = pSource->base.numOfParams;
 
       for (int32_t j = 0; j < pSource->base.numOfParams; ++j) {
         tVariantAssign(&pse->param[j], &pSource->base.param[j]);
-        buildArithmeticExprFromMsg(px, NULL);
+        buildScalarExprFromMsg(px, NULL);
       }
+
+      pse->resBytes = px->pExpr->resultBytes;
+      pse->resType  = px->pExpr->resultType;
     }
   }
 
@@ -5163,9 +5161,9 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
     tscExprAssign(&pQueryAttr->pExpr1[i], pExpr);
 
-    if (pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_ARITHM) {
+    if (pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_SCALAR_EXPR) {
       for (int32_t j = 0; j < pQueryAttr->pExpr1[i].base.numOfParams; ++j) {
-        buildArithmeticExprFromMsg(&pQueryAttr->pExpr1[i], NULL);
+        buildScalarExprFromMsg(&pQueryAttr->pExpr1[i], NULL);
       }
     }
   }
