@@ -69,7 +69,7 @@ static void mndCleanupTimer(SMnode *pMnode) {
   }
 }
 
-static int32_t mnodeCreateDir(SMnode *pMnode, const char *path) {
+static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
   pMnode->path = strdup(path);
   if (pMnode->path == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -245,7 +245,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  int32_t code = mnodeCreateDir(pMnode, path);
+  int32_t code = mndCreateDir(pMnode, path);
   if (code != 0) {
     code = terrno;
     mError("failed to open mnode since %s", terrstr());

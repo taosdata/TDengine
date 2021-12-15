@@ -72,6 +72,10 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
 
   taosWUnLockLatch(pLock);
 
+  if (pSdb->keyTypes[pRow->type] == SDB_KEY_INT32) {
+    pSdb->maxId[pRow->type] = MAX(pSdb->maxId[pRow->type], *((int32_t *)pRow->pObj));
+  }
+
   SdbInsertFp insertFp = pSdb->insertFps[pRow->type];
   if (insertFp != NULL) {
     code = (*insertFp)(pSdb, pRow->pObj);
@@ -132,11 +136,6 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   taosHashRemove(hash, pOldRow->pObj, keySize);
   taosWUnLockLatch(pLock);
 
-  SdbDeleteFp deleteFp = pSdb->deleteFps[pOldRow->type];
-  if (deleteFp != NULL) {
-    code = (*deleteFp)(pSdb, pOldRow->pObj);
-  }
-
   sdbRelease(pSdb, pOldRow->pObj);
   sdbFreeRow(pRow);
   return code;
@@ -161,6 +160,7 @@ int32_t sdbWriteNotFree(SSdb *pSdb, SSdbRaw *pRaw) {
     case SDB_STATUS_CREATING:
       code = sdbInsertRow(pSdb, hash, pRaw, pRow, keySize);
       break;
+    case SDB_STATUS_UPDATING:
     case SDB_STATUS_READY:
     case SDB_STATUS_DROPPING:
       code = sdbUpdateRow(pSdb, hash, pRaw, pRow, keySize);
@@ -228,6 +228,11 @@ void sdbRelease(SSdb *pSdb, void *pObj) {
 
   int32_t ref = atomic_sub_fetch_32(&pRow->refCount, 1);
   if (ref <= 0 && pRow->status == SDB_STATUS_DROPPED) {
+    SdbDeleteFp deleteFp = pSdb->deleteFps[pRow->type];
+    if (deleteFp != NULL) {
+      (*deleteFp)(pSdb, pRow->pObj);
+    }
+
     sdbFreeRow(pRow);
   }
 
@@ -288,4 +293,29 @@ int32_t sdbGetSize(SSdb *pSdb, ESdbType type) {
   taosRUnLockLatch(pLock);
 
   return size;
+}
+
+int32_t sdbGetMaxId(SSdb *pSdb, ESdbType type) {
+  SHashObj *hash = sdbGetHash(pSdb, type);
+  if (hash == NULL) return -1;
+
+  if (pSdb->keyTypes[type] != SDB_KEY_INT32) return -1;
+
+  int32_t maxId = 0;
+
+  SRWLatch *pLock = &pSdb->locks[type];
+  taosRLockLatch(pLock);
+
+  SSdbRow **ppRow = taosHashIterate(hash, NULL);
+  while (ppRow != NULL) {
+    SSdbRow *pRow = *ppRow;
+    int32_t  id = *(int32_t *)pRow->pObj;
+    maxId = MAX(id, maxId);
+    ppRow = taosHashIterate(hash, ppRow);
+  }
+
+  taosRUnLockLatch(pLock);
+
+  maxId = MAX(maxId, pSdb->maxId[type]);
+  return maxId + 1;
 }

@@ -19,6 +19,8 @@
 #define VNODE_BUF_POOL_SHARDS 3
 
 struct SVBufPool {
+  pthread_mutex_t mutex;
+  pthread_cond_t  hasFree;
   TD_DLIST(SVMemAllocator) free;
   TD_DLIST(SVMemAllocator) incycle;
   SVMemAllocator *inuse;
@@ -28,7 +30,6 @@ struct SVBufPool {
 
 int vnodeOpenBufPool(SVnode *pVnode) {
   uint64_t capacity;
-  // EVMemAllocatorT type = E_V_ARENA_ALLOCATOR;
 
   if ((pVnode->pBufPool = (SVBufPool *)calloc(1, sizeof(SVBufPool))) == NULL) {
     /* TODO */
@@ -79,6 +80,27 @@ void vnodeCloseBufPool(SVnode *pVnode) {
   }
 }
 
+int vnodeBufPoolSwitch(SVnode *pVnode) {
+  SVMemAllocator *pvma = pVnode->pBufPool->inuse;
+
+  pVnode->pBufPool->inuse = NULL;
+
+  tDListAppend(&(pVnode->pBufPool->incycle), pvma);
+  return 0;
+}
+
+int vnodeBufPoolRecycle(SVnode *pVnode) {
+  SVBufPool *     pBufPool = pVnode->pBufPool;
+  SVMemAllocator *pvma = TD_DLIST_HEAD(&(pBufPool->incycle));
+  ASSERT(pvma != NULL);
+
+  tDListPop(&(pBufPool->incycle), pvma);
+  vmaReset(pvma);
+  tDListAppend(&(pBufPool->free), pvma);
+
+  return 0;
+}
+
 void *vnodeMalloc(SVnode *pVnode, uint64_t size) {
   SVBufPool *pBufPool = pVnode->pBufPool;
 
@@ -89,6 +111,8 @@ void *vnodeMalloc(SVnode *pVnode, uint64_t size) {
       if (pBufPool->inuse) {
         tDListPop(&(pBufPool->free), pBufPool->inuse);
         break;
+      } else {
+        // tsem_wait(&(pBufPool->hasFree));
       }
     }
   }

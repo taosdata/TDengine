@@ -13,11 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TSDB_COMMIT_QUEUE_H_
-#define _TD_TSDB_COMMIT_QUEUE_H_
+#include "tsdbDef.h"
 
-typedef enum { COMMIT_REQ, COMPACT_REQ,COMMIT_CONFIG_REQ } TSDB_REQ_T;
-
-int tsdbScheduleCommit(STsdbRepo *pRepo, TSDB_REQ_T req);
-
-#endif /* _TD_TSDB_COMMIT_QUEUE_H_ */
+int tsdbCommit(STsdb *pTsdb) {
+  // TODO
+  return 0;
+}

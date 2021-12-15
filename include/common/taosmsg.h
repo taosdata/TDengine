@@ -77,7 +77,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_FUNCTION, "drop-function" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STB, "create-stb" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STB, "alter-stb" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STB, "drop-stb" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_STB_VGROUP, "stb-vgroup" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_VGROUP_LIST, "vgroup-list" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_QUERY, "kill-query" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_STREAM, "kill-stream" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_CONN, "kill-conn" )
@@ -168,8 +168,8 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_SCORES,
   TSDB_MGMT_TABLE_GRANTS,
   TSDB_MGMT_TABLE_VNODES,
-  TSDB_MGMT_TABLE_STREAMTABLES,
   TSDB_MGMT_TABLE_CLUSTER,
+  TSDB_MGMT_TABLE_STREAMTABLES,
   TSDB_MGMT_TABLE_TP,
   TSDB_MGMT_TABLE_FUNCTION,
   TSDB_MGMT_TABLE_MAX,
@@ -213,6 +213,18 @@ typedef enum _mgmt_table {
 #define TSDB_COL_REQ_NULL(f)        (((f)&TSDB_COL_NULL) != 0)
 
 extern char *taosMsg[];
+
+typedef struct SBuildTableMetaInput {
+  int32_t   vgId;
+  char     *tableFullName;
+} SBuildTableMetaInput;
+
+typedef struct SBuildUseDBInput {
+  char    db[TSDB_TABLE_FNAME_LEN];
+  int32_t vgroupVersion;
+  int32_t dbGroupVersion;
+} SBuildUseDBInput;
+
 
 #pragma pack(push, 1)
 
@@ -358,6 +370,7 @@ typedef struct {
   int32_t pid;
   char    app[TSDB_APP_NAME_LEN];
   char    db[TSDB_DB_NAME_LEN];
+  int64_t startTime;
 } SConnectMsg;
 
 typedef struct SEpSet {
@@ -368,34 +381,35 @@ typedef struct SEpSet {
 } SEpSet;
 
 typedef struct {
-  int32_t acctId;
-  int32_t clusterId;
-  int32_t connId;
-  int8_t  superAuth;
-  int8_t  readAuth;
-  int8_t  writeAuth;
-  int8_t  reserved[5];
-  SEpSet  epSet;
+  int32_t  acctId;
+  uint32_t clusterId;
+  int32_t  connId;
+  int8_t   superUser;
+  int8_t   reserved[5];
+  SEpSet   epSet;
 } SConnectRsp;
 
 typedef struct {
   char    user[TSDB_USER_LEN];
-  char    pass[TSDB_KEY_LEN];
+  char    pass[TSDB_PASSWORD_LEN];
   int32_t maxUsers;
   int32_t maxDbs;
   int32_t maxTimeSeries;
   int32_t maxStreams;
-  int64_t maxStorage;   // In unit of GB
   int32_t accessState;  // Configured only by command
+  int64_t maxStorage;   // In unit of GB
+  int32_t reserve[8];
 } SCreateAcctMsg, SAlterAcctMsg;
 
 typedef struct {
-  char user[TSDB_USER_LEN];
+  char    user[TSDB_USER_LEN];
+  int32_t reserve[8];
 } SDropUserMsg, SDropAcctMsg;
 
 typedef struct {
-  char user[TSDB_USER_LEN];
-  char pass[TSDB_KEY_LEN];
+  char    user[TSDB_USER_LEN];
+  char    pass[TSDB_PASSWORD_LEN];
+  int32_t reserve[8];
 } SCreateUserMsg, SAlterUserMsg;
 
 typedef struct {
@@ -613,6 +627,8 @@ typedef struct {
 typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];
   int8_t  ignoreNotExists;
+  int32_t vgroupVersion;
+  int32_t dbGroupVersion;
   int32_t reserve[8];
 } SUseDbMsg;
 
@@ -774,9 +790,8 @@ typedef struct {
 } SStbInfoMsg;
 
 typedef struct {
+  SMsgHead  msgHead;
   char   tableFname[TSDB_TABLE_FNAME_LEN];
-  int8_t createFlag;
-  char   tags[];
 } STableInfoMsg;
 
 typedef struct {
@@ -790,6 +805,18 @@ typedef struct {
 typedef struct SSTableVgroupMsg {
   int32_t numOfTables;
 } SSTableVgroupMsg, SSTableVgroupRspMsg;
+
+typedef struct SVgroupInfo {
+  int32_t    vgId;
+  int8_t     numOfEps;
+  SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
+} SVgroupInfo;
+
+typedef struct SVgroupListRspMsg {
+  int32_t     vgroupNum;
+  int32_t     vgroupVersion;
+  SVgroupInfo vgroupInfo[];
+} SVgroupListRspMsg;
 
 typedef struct {
   int32_t    vgId;
@@ -835,6 +862,19 @@ typedef struct {
   char   *data;
 } STagData;
 
+typedef struct {
+  int32_t     vgroupNum;
+  int32_t     vgroupVersion;
+  char        db[TSDB_TABLE_FNAME_LEN];
+  int32_t     dbVgroupVersion;
+  int32_t     dbVgroupNum;
+  int32_t     dbHashRange;
+  SVgroupInfo vgroupInfo[];
+//int32_t     vgIdList[];
+} SUseDbRspMsg;
+
+
+
 /*
  * sql: show tables like '%a_%'
  * payload is the query condition, e.g., '%a_%'
@@ -859,16 +899,19 @@ typedef struct SShowRsp {
 } SShowRsp;
 
 typedef struct {
-  char ep[TSDB_EP_LEN];  // end point, hostname:port
+  char    ep[TSDB_EP_LEN];  // end point, hostname:port
+  int32_t reserve[8];
 } SCreateDnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
+  int32_t reserve[8];
 } SDropDnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
   char    config[TSDB_DNODE_CONFIG_LEN];
+  int32_t reserve[8];
 } SCfgDnodeMsg;
 
 typedef struct {
@@ -961,8 +1004,8 @@ typedef struct {
   char user[TSDB_USER_LEN];
   char spi;
   char encrypt;
-  char secret[TSDB_KEY_LEN];
-  char ckey[TSDB_KEY_LEN];
+  char secret[TSDB_PASSWORD_LEN];
+  char ckey[TSDB_PASSWORD_LEN];
 } SAuthMsg, SAuthRsp;
 
 typedef struct {

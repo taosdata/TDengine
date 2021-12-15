@@ -18,7 +18,7 @@
 void initLog(const char* path) {
   dDebugFlag = 143;
   vDebugFlag = 0;
-  mDebugFlag = 143;
+  mDebugFlag = 207;
   cDebugFlag = 0;
   jniDebugFlag = 0;
   tmrDebugFlag = 0;
@@ -120,7 +120,7 @@ SClient* createClient(const char* user, const char* pass, const char* fqdn, uint
   SClient* pClient = (SClient*)calloc(1, sizeof(SClient));
   ASSERT(pClient);
 
-  char secretEncrypt[32] = {0};
+  char secretEncrypt[TSDB_PASSWORD_LEN] = {0};
   taosEncryptPass((uint8_t*)pass, strlen(pass), secretEncrypt);
 
   SRpcInit rpcInit;

@@ -25,7 +25,9 @@ extern "C" {
 #define TSDB__packed
 
 #define TSKEY int64_t
-#define TSKEY_INITIAL_VAL    INT64_MIN
+#define TSKEY_MIN INT64_MIN
+#define TSKEY_MAX (INT64_MAX - 1)
+#define TSKEY_INITIAL_VAL TSKEY_MIN
 
 // Bytes for each type.
 extern const int32_t TYPE_BYTES[15];
@@ -161,7 +163,7 @@ do { \
 
 #define TSDB_NODE_NAME_LEN        64
 #define TSDB_TABLE_NAME_LEN       193     // it is a null-terminated string
-#define TSDB_DB_NAME_LEN          33
+#define TSDB_DB_NAME_LEN          65
 #define TSDB_FULL_DB_NAME_LEN     (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN)
 
 #define TSDB_FUNC_NAME_LEN         65
@@ -193,7 +195,7 @@ do { \
 #define TSDB_MAX_TAG_CONDITIONS   1024
 
 #define TSDB_AUTH_LEN             16
-#define TSDB_KEY_LEN              16
+#define TSDB_PASSWORD_LEN         32
 #define TSDB_VERSION_LEN          12
 #define TSDB_LABEL_LEN            8 
 
@@ -209,6 +211,7 @@ do { \
 #define TSDB_STEP_NAME_LEN        32
 #define TSDB_STEP_DESC_LEN        128
 
+#define TSDB_ERROR_MSG_LEN        1024
 #define TSDB_DNODE_CONFIG_LEN     128
 
 #define TSDB_MQTT_HOSTNAME_LEN    64

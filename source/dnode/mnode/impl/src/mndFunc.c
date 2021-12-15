@@ -183,7 +183,7 @@ static int32_t mndCreateFunc(SMnode *pMnode, SMnodeMsg *pMsg, SCreateFuncMsg *pC
   }
   sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
-  if (mndTransPrepare(pTrans) != 0) {
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
@@ -226,7 +226,7 @@ static int32_t mndDropFunc(SMnode *pMnode, SMnodeMsg *pMsg, SFuncObj *pFunc) {
   }
   sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 
-  if (mndTransPrepare(pTrans) != 0) {
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
@@ -500,7 +500,7 @@ static int32_t mndRetrieveFuncs(SMnodeMsg *pMsg, SShowObj *pShow, char *data, in
     sdbRelease(pSdb, pFunc);
   }
 
-  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }

@@ -13,6 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define TAOS_MESSAGE_C
+#include "plannerInt.h"
 
-#include "taosmsg.h"
+SPhyNode* createScanNode(SQueryPlanNode* pPlanNode) {
+  return NULL;
+}
+
+SPhyNode* createPhyNode(SQueryPlanNode* node) {
+  switch (node->info.type) {
+    case LP_SCAN:
+      return createScanNode(node);
+  }
+  return NULL;
+}
+
+SPhyNode* createSubplan(SQueryPlanNode* pSubquery) {
+  return NULL;
+}
+
+int32_t createDag(struct SQueryPlanNode* pQueryNode, struct SEpSet* pQnode, struct SQueryDag** pDag) {
+  return 0;
+}

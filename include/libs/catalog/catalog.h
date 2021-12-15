@@ -27,19 +27,20 @@ extern "C" {
 #include "transport.h"
 #include "common.h"
 #include "taosmsg.h"
+#include "query.h"
 
 struct SCatalog;
 
-typedef struct SMetaReq {
-  char    clusterId[TSDB_CLUSTER_ID_LEN];
+typedef struct SCatalogReq {
+  char    clusterId[TSDB_CLUSTER_ID_LEN];  //????
   SArray *pTableName;     // table full name
   SArray *pUdf;           // udf name
-  bool    qNodeEpset;     // valid qnode
-} SMetaReq;
+  bool    qNodeRequired;  // valid qnode
+} SCatalogReq;
 
 typedef struct SMetaData {
-  SArray    *pTableMeta;  // tableMeta
-  SArray    *pVgroupInfo; // vgroupInfo list
+  SArray    *pTableMeta;  // STableMeta array
+  SArray    *pVgroupInfo; // SVgroupInfo list
   SArray    *pUdfList;    // udf info list
   SEpSet    *pEpSet;      // qnode epset list
 } SMetaData;
@@ -78,29 +79,68 @@ typedef struct STableMeta {
   SSchema        schema[];
 } STableMeta;
 
+typedef struct SCatalogCfg {
+
+} SCatalogCfg;
+
+int32_t catalogInit(SCatalogCfg *cfg);
+
 /**
  * Catalog service object, which is utilized to hold tableMeta (meta/vgroupInfo/udfInfo) at the client-side.
  * There is ONLY one SCatalog object for one process space, and this function returns a singleton.
- * @param pMgmtEps
+ * @param clusterId
  * @return
  */
-struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps);
+int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle);
+
+
+
+int32_t catalogGetVgroupVersion(struct SCatalog* pCatalog, int32_t* version);
+int32_t catalogGetVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, SArray** pVgroupList);
+int32_t catalogUpdateVgroup(struct SCatalog* pCatalog, SVgroupListInfo* pVgroup);
+
+
+
+int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName, int32_t* version);
+int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* dbName, int32_t forceUpdate, SDBVgroupInfo** dbInfo);
+int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
+
+
+int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pTableName, STableMeta* pTableMeta);
+int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const STableMeta* pTableMeta);
+int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const STableMeta* pTableMeta, STableMeta* pNewTableMeta);
+
+
+/**
+ * get table's vgroup list.
+ * @param clusterId
+ * @pVgroupList  - array of SVgroupInfo
+ * @return
+ */
+int32_t catalogGetTableVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pTableName, SArray* pVgroupList);
+
 
 /**
  * Get the required meta data from mnode.
  * Note that this is a synchronized API and is also thread-safety.
  * @param pCatalog
+ * @param pMgmtEps
  * @param pMetaReq
  * @param pMetaData
  * @return
  */
-int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData);
+int32_t catalogGetAllMeta(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SMetaData* pRsp);
+
+
+int32_t catalogGetQnodeList(struct SCatalog* pCatalog, const SEpSet* pMgmtEps, SEpSet* pQnodeEpSet);
+
+
 
 /**
- * Destroy catalog service handle
+ * Destroy catalog and relase all resources
  * @param pCatalog
  */
-void destroyCatalog(struct SCatalog* pCatalog);
+void catalogDestroy(void);
 
 #ifdef __cplusplus
 }
