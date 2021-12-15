@@ -31,6 +31,9 @@ python3 test.py -f tools/taosdemoAllTest/TD-5213/insert4096columns_not_use_taosd
 python3 test.py -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py
 #python3 test.py -f tools/taosdemoAllTest/TD-10539/create_taosdemo.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonSml.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertShell.py
+
 
 
 
