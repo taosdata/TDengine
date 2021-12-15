@@ -68,13 +68,12 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   walBuildIdxName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
   int64_t idxTfd = tfOpenReadWrite(fnameStr);
 
-  //change to deserialize function
-
+  //TODO:change to deserialize function
   if(idxTfd < 0) {
     pthread_mutex_unlock(&pWal->mutex);
     return -1;
   }
-  int idxOff = (ver - walGetCurFileFirstVer(pWal)) * sizeof(WalIdxEntry);
+  int64_t idxOff = walGetVerIdxOffset(pWal, ver);
   code = tfLseek(idxTfd, idxOff, SEEK_SET);
   if(code < 0) {
     pthread_mutex_unlock(&pWal->mutex);

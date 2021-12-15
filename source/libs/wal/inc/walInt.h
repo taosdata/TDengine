@@ -105,6 +105,10 @@ static inline uint32_t walCalcBodyCksum(const void* body, uint32_t len) {
   return taosCalcChecksum(0, (uint8_t*)body, len);
 }
 
+static inline int64_t walGetVerIdxOffset(SWal* pWal, int64_t ver) {
+  return (ver - walGetCurFileFirstVer(pWal)) * sizeof(WalIdxEntry);
+}
+
 static inline void walResetVer(SWalVer* pVer) {
   pVer->firstVer = -1;
   pVer->verInSnapshotting = -1;
@@ -116,6 +120,10 @@ static inline void walResetVer(SWalVer* pVer) {
 int walLoadMeta(SWal* pWal);
 int walSaveMeta(SWal* pWal);
 int walRollFileInfo(SWal* pWal);
+
+int walCheckAndRepairMeta(SWal* pWal);
+
+int walCheckAndRepairIdx(SWal* pWal);
 
 char* walMetaSerialize(SWal* pWal);
 int walMetaDeserialize(SWal* pWal, const char* bytes);
