@@ -27,15 +27,9 @@ extern "C" {
 #include "transport.h"
 #include "common.h"
 #include "taosmsg.h"
+#include "query.h"
 
 struct SCatalog;
-
-typedef struct SDBVgroupInfo {
-  int32_t vgroupVersion;
-  SArray *vgId;
-  int32_t hashRange;
-  int32_t hashNum;
-} SDBVgroupInfo;
 
 typedef struct SCatalogReq {
   char    clusterId[TSDB_CLUSTER_ID_LEN];  //????
