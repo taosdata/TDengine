@@ -219,6 +219,13 @@ typedef struct SBuildTableMetaInput {
   char     *tableFullName;
 } SBuildTableMetaInput;
 
+typedef struct SBuildUseDBInput {
+  char    db[TSDB_TABLE_FNAME_LEN];
+  int32_t vgroupVersion;
+  int32_t dbGroupVersion;
+} SBuildUseDBInput;
+
+
 #pragma pack(push, 1)
 
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
@@ -617,8 +624,11 @@ typedef struct {
 typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];
   int8_t  ignoreNotExists;
+  int32_t vgroupVersion;
+  int32_t dbGroupVersion;
   int32_t reserve[8];
 } SUseDbMsg;
+
 
 typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];
@@ -806,8 +816,6 @@ typedef struct SVgroupListRspMsg {
   SVgroupInfo vgroupInfo[];
 } SVgroupListRspMsg;
 
-typedef SVgroupListRspMsg SVgroupListInfo;
-
 typedef struct {
   int32_t    vgId;
   int8_t     numOfEps;
@@ -851,6 +859,19 @@ typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   char   *data;
 } STagData;
+
+typedef struct {
+  int32_t     vgroupNum;
+  int32_t     vgroupVersion;
+  char        db[TSDB_TABLE_FNAME_LEN];
+  int32_t     dbVgroupVersion;
+  int32_t     dbVgroupNum;
+  int32_t     dbHashRange;
+  SVgroupInfo vgroupInfo[];
+//int32_t     vgIdList[];
+} SUseDbRspMsg;
+
+
 
 /*
  * sql: show tables like '%a_%'
