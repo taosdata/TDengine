@@ -5,7 +5,10 @@ from src.common.monitor import Monitor
 from src.util.jmeter import Jmeter
 
 if __name__ == '__main__':
+    current_dir = os.path.dirname(os.path.realpath(__file__))
+    log_dir = os.path.join(current_dir, 'log')
     COM = Common()
+    COM.exec_local_cmd(f'rm -rf {log_dir}/*')
     DNODES = Dnodes()
     MONITOR = Monitor()
     JMETER = Jmeter() 

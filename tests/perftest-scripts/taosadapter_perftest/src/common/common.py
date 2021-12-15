@@ -19,8 +19,8 @@ class Common:
 
     def genTelnetMulTagStr(self, count):
         tag_str = ""
-        for i in range(1, count+1):
-            if i < (count):
+        for i in range(1, count):
+            if i < (count-1):
                 tag_str += f't{i}={i} '
             else:
                 tag_str += f't{i}={i}'
@@ -154,7 +154,7 @@ class Common:
             t.join()
 
     def runJmeter(self):
-        self.exec_local_cmd(f'ls {self.log_dir} | grep -v performance | xargs rm -rf')
+        # self.exec_local_cmd(f'ls {self.log_dir} | grep -v performance | xargs rm -rf')
         for key, value in config['testcases'].items():
             jmx_file_list = list()
             logger.info(f'executing {key}')
@@ -180,7 +180,8 @@ class Common:
                         if "loop_count" in line:
                             line = line.replace("loop_count", str(loop_count))
                         if "db_name" in line:
-                            line = line.replace("db_name", key)
+                            db_name = jmx_filename.split('.')[0] + '_' + key
+                            line = line.replace("db_name", db_name)
                         file_data += line
                 with open(jmx_file, "w", encoding="utf-8") as f:
                     f.write(file_data)
