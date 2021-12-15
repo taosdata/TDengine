@@ -797,7 +797,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
           if (converted) {
             *converted = true;
           }
-          
+
           if (value > FLT_MAX || value < -FLT_MAX) {
             SET_EXT_INFO(converted, value, -FLT_MAX, FLT_MAX, extInfo);
             return -1;
@@ -808,8 +808,8 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
         if (converted) {
           *converted = true;
         }
-        
-        if (pVariant->i64 > FLT_MAX || pVariant->i64 < -FLT_MAX) {          
+
+        if (pVariant->i64 > FLT_MAX || pVariant->i64 < -FLT_MAX) {
           SET_EXT_INFO(converted, pVariant->i64, -FLT_MAX, FLT_MAX, extInfo);
           return -1;
         }
@@ -819,12 +819,12 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
         if (converted) {
           *converted = true;
         }
-        
-        if (pVariant->dKey > FLT_MAX || pVariant->dKey < -FLT_MAX) {          
+
+        if (pVariant->dKey > FLT_MAX || pVariant->dKey < -FLT_MAX) {
           SET_EXT_INFO(converted, pVariant->dKey, -FLT_MAX, FLT_MAX, extInfo);
           return -1;
         }
-      
+
         SET_FLOAT_VAL(payload, pVariant->dKey);
       } else if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
         *((uint32_t *)payload) = TSDB_DATA_FLOAT_NULL;
@@ -869,7 +869,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
 
       break;
     }
-    
+
     case TSDB_DATA_TYPE_BINARY:{
       if (!includeLengthPrefix) {
         if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
@@ -940,7 +940,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
           assert(p == varDataVal(payload));
         }
       }
-      
+
       break;
     }
     case TSDB_DATA_TYPE_JSON:{
@@ -954,7 +954,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
       break;
     }
   }
-  
+
   return 0;
 }
 
