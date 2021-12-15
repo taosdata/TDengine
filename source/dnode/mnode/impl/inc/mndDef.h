@@ -214,6 +214,7 @@ typedef struct {
   int64_t createdTime;
   int64_t updateTime;
   int64_t uid;
+  int32_t version;
   SDbCfg  cfg;
 } SDbObj;
 

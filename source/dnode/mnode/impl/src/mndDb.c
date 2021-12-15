@@ -74,6 +74,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT64(pRaw, dataPos, pDb->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pDb->updateTime)
   SDB_SET_INT64(pRaw, dataPos, pDb->uid)
+  SDB_SET_INT32(pRaw, dataPos, pDb->version)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.cacheBlockSize)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.totalBlocks)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysPerFile)
@@ -117,6 +118,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, pRow, dataPos, &pDb->createdTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pDb->updateTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pDb->uid)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->version)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.cacheBlockSize)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.totalBlocks)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.daysPerFile)
@@ -571,6 +573,7 @@ static int32_t mndProcessAlterDbMsg(SMnodeMsg *pMsg) {
     return code;
   }
 
+  dbObj.version++;
   code = mndUpdateDb(pMnode, pMsg, pDb, &dbObj);
   mndReleaseDb(pMnode, pDb);
 

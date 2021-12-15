@@ -141,11 +141,8 @@ static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pMsg) { return 0; }
 
 static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup) {
   mTrace("vgId:%d, perform update action", pOldVgroup->vgId);
-  pOldVgroup->vgId = pNewVgroup->vgId;
-  pOldVgroup->createdTime = pNewVgroup->createdTime;
   pOldVgroup->updateTime = pNewVgroup->updateTime;
   pOldVgroup->version = pNewVgroup->version;
-  memcpy(pOldVgroup->dbName, pNewVgroup->dbName, TSDB_FULL_DB_NAME_LEN);
   pOldVgroup->replica = pNewVgroup->replica;
   memcpy(pOldVgroup->vnodeGid, pNewVgroup->vnodeGid, TSDB_MAX_REPLICA * sizeof(SVnodeGid));
   return 0;
