@@ -15,14 +15,32 @@
 
 #include "tsdbDef.h"
 
+#if 1
+typedef struct STbData {
+  TD_SLIST_NODE(STbData);
+  SSubmitMsg *pMsg;
+} STbData;
+#else
+typedef struct STbData {
+  TD_SLIST_NODE(STbData);
+  uint64_t   uid;  // TODO: change here as tb_uid_t
+  TSKEY      keyMin;
+  TSKEY      keyMax;
+  uint64_t   nRows;
+  SSkipList *pData;  // Here need a container, may not use the SL
+  T_REF_DECLARE()
+} STbData;
+#endif
+
 struct STsdbMemTable {
   T_REF_DECLARE()
   SRWLatch       latch;
   TSKEY          keyMin;
   TSKEY          keyMax;
-  uint32_t       nRow;
-  SHashObj *     pHash;
+  uint64_t       nRow;
   SMemAllocator *pMA;
+  // Container
+  TD_SLIST(STbData) list;
 };
 
 STsdbMemTable *tsdbNewMemTable(SMemAllocatorFactory *pMAF) {
@@ -43,8 +61,8 @@ STsdbMemTable *tsdbNewMemTable(SMemAllocatorFactory *pMAF) {
   pMemTable->keyMin = TSKEY_MAX;
   pMemTable->keyMax = TSKEY_MIN;
   pMemTable->nRow = 0;
-  pMemTable->pHash = NULL;  /// TODO
   pMemTable->pMA = pMA;
+  tSListInit(&(pMemTable->list));
 
   // TODO
   return pMemTable;
@@ -62,6 +80,15 @@ void tsdbFreeMemTable(SMemAllocatorFactory *pMAF, STsdbMemTable *pMemTable) {
 }
 
 int tsdbInsertDataToMemTable(STsdbMemTable *pMemTable, SSubmitMsg *pMsg) {
-  // TODO
+  SMemAllocator *pMA = pMemTable->pMA;
+  STbData *      pTbData = (STbData *)((*pMA->malloc)(pMA, sizeof(*pTbData)));
+  if (pTbData == NULL) {
+    // TODO
+  }
+
+  tSListPush(&(pMemTable->list), pTbData);
+
   return 0;
 }
+
+/* ------------------------ STATIC METHODS ------------------------ */

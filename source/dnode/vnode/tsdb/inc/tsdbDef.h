@@ -18,7 +18,9 @@
 
 #include "mallocator.h"
 #include "taosmsg.h"
+#include "tdlist.h"
 #include "thash.h"
+#include "tskiplist.h"
 
 #include "tsdb.h"
 #include "tsdbMemTable.h"
