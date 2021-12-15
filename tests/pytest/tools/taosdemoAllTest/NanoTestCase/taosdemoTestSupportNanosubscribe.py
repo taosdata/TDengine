@@ -59,6 +59,7 @@ class TDTestCase:
         assert subResult == expectResult , "Queryfile:%s ,result is %s != expect: %s" % args0    
 
     def run(self):
+        tdSql.prepare()
         buildPath = self.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
@@ -66,24 +67,38 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"      
 
-        # clear env
-        os.system("ps -ef |grep 'taosdemoAllTest/taosdemoTestSupportNanoSubscribe.json' |grep -v 'grep' |awk '{print $2}'|xargs kill -9")
+        # clear envs
+
+        os.system("ps -aux |grep 'taosdemoAllTest/taosdemoTestSupportNanoSubscribe.json'  |awk '{print $2}'|xargs kill -9 >/dev/null 2>&1")
+        os.system("ps -aux |grep 'tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseInsertForSub.json'  |awk '{print $2}'|xargs kill -9 >/dev/null 2>&1")
         os.system("rm -rf ./subscribe_res*")  
         os.system("rm -rf ./all_subscribe_res*")  
-        
 
         # insert data
-        os.system("%staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseInsertForSub.json" % binPath)
-        os.system("nohup %staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoSubscribe.json &" % binPath)
-        query_pid = int(subprocess.getstatusoutput('ps aux|grep "taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoSubscribe.json" |grep -v "grep"|awk \'{print $2}\'')[1])
-
-
-        # merge result files
+        os.system("nohup %staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseInsertForSub.json & >/dev/null 2>&1" % binPath)
         sleep(5)
+        tdSql.query("select count(*) from subnsdb.stb0")
+        if tdSql.checkData(0,0,100):
+            pass
+        else:
+            sleep(5)
+            tdSql.query("select count(*) from subnsdb.stb0")  # if records not write done ,sleep and wait records write done!
+        
+        os.system(" nohup %staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoSubscribe.json & >/dev/null 2>&1" % binPath)
+        sleep(5)
+
+        if os.path.exists("./subscribe_res0.txt") and os.path.exists("./subscribe_res1.txt") and os.path.exists("./subscribe_res2.txt"):
+            pass
+        else:
+            sleep(5)   # make sure query is ok 
+        print('taosBenchmark query done!')
+            
+        # merge result files
+        
         os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
         os.system("cat subscribe_res1.txt* > all_subscribe_res1.txt")
         os.system("cat subscribe_res2.txt* > all_subscribe_res2.txt")
-
+        sleep(5)
         
         # correct subscribeTimes testcase
         subTimes0 = self.subTimes("all_subscribe_res0.txt")
@@ -103,19 +118,18 @@ class TDTestCase:
 
         os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
         subTimes0 = self.subTimes("all_subscribe_res0.txt")
-        print("pass")
         self.assertCheck("all_subscribe_res0.txt",subTimes0 ,202)
 
-        
-
-        # correct data testcase
-        os.system("kill -9 %d" % query_pid)
         sleep(3)
         os.system("rm -rf ./subscribe_res*")   
         os.system("rm -rf ./all_subscribe*")
         os.system("rm -rf ./*.py.sql")
+        os.system("rm -rf ./nohup*")
+        os.system("ps -aux |grep 'taosdemoAllTest/taosdemoTestSupportNanoSubscribe.json' |awk '{print $2}'|xargs kill -9 >/dev/null 2>&1")
+        os.system("ps -aux |grep 'tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoSubscribe.json' |awk '{print $2}'|xargs kill -9 >/dev/null 2>&1")
+        os.system("ps -aux |grep 'tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseInsertForSub.json' |awk '{print $2}'|xargs kill -9 >/dev/null 2>&1")
+        
   
-
          
     def stop(self):
         tdSql.close()
@@ -123,3 +137,4 @@ class TDTestCase:
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())
+
