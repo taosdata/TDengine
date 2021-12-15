@@ -16,6 +16,7 @@ import taos
 from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
+import json
 
 
 class TDTestCase:
@@ -504,6 +505,11 @@ class TDTestCase:
         tdSql.checkRows(3)
         tdSql.query("select round(dataint) from jsons1 where jtag->'tag1'>1")
         tdSql.checkRows(3)
+
+        #test TD-12077
+        tdSql.execute("insert into jsons1_16 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":-2.111}') values(1591062628000, 2, NULL, '你就会', 'dws')")
+        tdSql.query("select jtag->'tag3' from jsons1_16")
+        tdSql.checkData(0, 0, '-2.111000000')
 
     def stop(self):
         tdSql.close()
