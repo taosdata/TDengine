@@ -65,7 +65,7 @@ int32_t mndInitDb(SMnode *pMnode) {
 void mndCleanupDb(SMnode *pMnode) {}
 
 static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_DB_VER_NUM, sizeof(SDbObj));
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_DB_VER_NUM, sizeof(SDbObj) + TSDB_DB_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;

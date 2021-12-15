@@ -20,7 +20,8 @@
 #include "mndTrans.h"
 #include "tkey.h"
 
-#define SDB_USER_VER 1
+#define TSDB_USER_VER 1
+#define TSDB_USER_RESERVE_SIZE 64
 
 static int32_t  mndCreateDefaultUsers(SMnode *pMnode);
 static SSdbRaw *mndUserActionEncode(SUserObj *pUser);
@@ -93,7 +94,7 @@ static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
 }
 
 static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, SDB_USER_VER, sizeof(SUserObj));
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, TSDB_USER_VER, sizeof(SUserObj) + TSDB_USER_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
@@ -103,6 +104,7 @@ static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT64(pRaw, dataPos, pUser->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pUser->updateTime)
   SDB_SET_INT8(pRaw, dataPos, pUser->superUser)
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_USER_RESERVE_SIZE)
   SDB_SET_DATALEN(pRaw, dataPos);
 
   return pRaw;
@@ -112,7 +114,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
-  if (sver != SDB_USER_VER) {
+  if (sver != TSDB_USER_VER) {
     mError("failed to decode user since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     return NULL;
@@ -129,6 +131,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, pRow, dataPos, &pUser->createdTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pUser->updateTime)
   SDB_GET_INT8(pRaw, pRow, dataPos, &pUser->superUser)
+  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_USER_RESERVE_SIZE)
 
   return pRow;
 }
