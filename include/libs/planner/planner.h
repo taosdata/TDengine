@@ -22,6 +22,7 @@ extern "C" {
 
 #define QUERY_TYPE_MERGE       1
 #define QUERY_TYPE_PARTIAL     2
+#define QUERY_TYPE_SCAN        3
 
 enum OPERATOR_TYPE_E {
   OP_TableScan         = 1,
@@ -54,90 +55,37 @@ enum OPERATOR_TYPE_E {
 
 struct SEpSet;
 struct SQueryPlanNode;
-struct SQueryDistPlanNode;
+struct SPhyNode;
 struct SQueryStmtInfo;
 
-typedef struct SSubquery {
-  int64_t   queryId;            // the subquery id created by qnode
-  int32_t   type;               // QUERY_TYPE_MERGE|QUERY_TYPE_PARTIAL
-  int32_t   level;              // the execution level of current subquery, starting from 0.
-  SArray   *pUpstream;          // the upstream,from which to fetch the result
-  struct SQueryDistPlanNode *pNode;  // physical plan of current subquery
-} SSubquery;
+typedef struct SSubplan {
+  int32_t   type;               // QUERY_TYPE_MERGE|QUERY_TYPE_PARTIAL|QUERY_TYPE_SCAN
+  SArray   *pDatasource;          // the datasource subplan,from which to fetch the result
+  struct SPhyNode *pNode;  // physical plan of current subplan
+} SSubplan;
 
-typedef struct SQueryJob {
-  SArray  **pSubqueries;
-  int32_t   numOfLevels;
-  int32_t   currentLevel;
-} SQueryJob;
-
+typedef struct SQueryDag {
+  SArray  **pSubplans;
+} SQueryDag;
 
 /**
- * Optimize the query execution plan, currently not implement yet.
- * @param pQueryNode
- * @return
+ * Create the physical plan for the query, according to the AST.
  */
-int32_t qOptimizeQueryPlan(struct SQueryPlanNode* pQueryNode);
+int32_t qCreateQueryDag(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* pQnode, struct SQueryDag** pDag);
+
+int32_t qExplainQuery(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* pQnode, char** str);
 
 /**
- * Create the query plan according to the bound AST, which is in the form of pQueryInfo
- * @param pQueryInfo
- * @param pQueryNode
- * @return
+ * Convert to subplan to string for the scheduler to send to the executor
  */
-int32_t qCreateQueryPlan(const struct SQueryStmtInfo* pQueryInfo, struct SQueryPlanNode** pQueryNode);
-
-/**
- * Convert the query plan to string, in order to display it in the shell.
- * @param pQueryNode
- * @return
- */
-int32_t qQueryPlanToString(struct SQueryPlanNode* pQueryNode, char** str);
-
-/**
- * Restore the SQL statement according to the logic query plan.
- * @param pQueryNode
- * @param sql
- * @return
- */
-int32_t qQueryPlanToSql(struct SQueryPlanNode* pQueryNode, char** sql);
-
-/**
- * Create the physical plan for the query, according to the logic plan.
- * @param pQueryNode
- * @param pPhyNode
- * @return
- */
-int32_t qCreatePhysicalPlan(struct SQueryPlanNode* pQueryNode, struct SEpSet* pQnode, struct SQueryDistPlanNode *pPhyNode);
-
-/**
- * Convert to physical plan to string to enable to print it out in the shell.
- * @param pPhyNode
- * @param str
- * @return
- */
-int32_t qPhyPlanToString(struct SQueryDistPlanNode *pPhyNode, char** str);
-
-/**
- * Destroy the query plan object.
- * @return
- */
-void* qDestroyQueryPlan(struct SQueryPlanNode* pQueryNode);
+int32_t qSubPlanToString(struct SSubplan *pPhyNode, char** str);
 
 /**
  * Destroy the physical plan.
  * @param pQueryPhyNode
  * @return
  */
-void* qDestroyQueryPhyPlan(struct SQueryDistPlanNode* pQueryPhyNode);
-
-/**
- * Create the query job from the physical execution plan
- * @param pPhyNode
- * @param pJob
- * @return
- */
-int32_t qCreateQueryJob(const struct SQueryDistPlanNode* pPhyNode, struct SQueryJob** pJob);
+void* qDestroyQueryDag(struct SQueryDag* pDag);
 
 #ifdef __cplusplus
 }

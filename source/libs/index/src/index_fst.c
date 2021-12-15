@@ -17,6 +17,7 @@
 #include "tcoding.h"
 #include "tchecksum.h"
 #include "indexInt.h" 
+#include "index_fst_automation.h"
 
 
 static void fstPackDeltaIn(FstCountingWriter *wrt, CompiledAddr nodeAddr, CompiledAddr transAddr, uint8_t nBytes) {
@@ -1402,6 +1403,7 @@ void swsResultDestroy(StreamWithStateResult *result) {
   if (NULL == result) { return; }
   
   fstSliceDestroy(&result->data);
+  startWithStateValueDestroy(result->state); 
   free(result);
 }
 

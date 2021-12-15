@@ -20,6 +20,22 @@
 extern "C" {
 #endif
 
+#include "tarray.h"
+
+typedef SVgroupListRspMsg SVgroupListInfo;
+
+typedef struct SDBVgroupInfo {
+  int32_t vgroupVersion;
+  SArray *vgId;
+  int32_t hashRange;
+} SDBVgroupInfo;
+
+typedef struct SUseDbOutput {
+  SVgroupListInfo *vgroupList;
+  char db[TSDB_TABLE_FNAME_LEN];
+  SDBVgroupInfo *dbVgroup;
+} SUseDbOutput;
+
 
 extern int32_t (*queryBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
 extern int32_t (*queryProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize);

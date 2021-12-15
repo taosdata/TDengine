@@ -21,23 +21,17 @@
 #include "compare.h"
 #include "walInt.h"
 
-//internal
-int32_t walGetNextFile(SWal *pWal, int64_t *nextFileId);
-int32_t walGetOldFile(SWal *pWal, int64_t curFileId, int32_t minDiff, int64_t *oldFileId);
-int32_t walGetNewFile(SWal *pWal, int64_t *newFileId);
-
 typedef struct {
-  int32_t   refSetId;
-  uint32_t  seq;
   int8_t    stop;
   int8_t    inited;
+  uint32_t  seq;
+  int32_t   refSetId;
   pthread_t thread;
 } SWalMgmt;
 
 static SWalMgmt tsWal = {0, .seq = 1};
 static int32_t  walCreateThread();
 static void     walStopThread();
-static int32_t  walInitObj(SWal *pWal);
 static void     walFreeObj(void *pWal);
 
 int64_t walGetSeq() {
@@ -68,7 +62,7 @@ int32_t walInit() {
 }
 
 void walCleanUp() {
-  int old = atomic_val_compare_exchange_8(&tsWal.inited, 1, 0);
+  int8_t old = atomic_val_compare_exchange_8(&tsWal.inited, 1, 0);
   if(old == 0) {
     return;
   }
@@ -83,48 +77,59 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return NULL;
   }
-  memset(pWal, 0, sizeof(SWal));
-  pWal->writeLogTfd = -1;
-  pWal->writeIdxTfd = -1;
-  pWal->writeCur = -1;
 
   //set config
   memcpy(&pWal->cfg, pCfg, sizeof(SWalCfg));
+  pWal->fsyncSeq = pCfg->fsyncPeriod / 1000;
+  if(pWal->fsyncSeq <= 0) pWal->fsyncSeq = 1;
 
-  //init version info
-  pWal->vers.firstVer = -1;
-  pWal->vers.commitVer = -1;
-  pWal->vers.snapshotVer = -1;
-  pWal->vers.lastVer = -1;
+  tstrncpy(pWal->path, path, sizeof(pWal->path));
+  if(taosMkDir(pWal->path) != 0) {
+    wError("vgId:%d, path:%s, failed to create directory since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
+    return NULL;
+  }
 
-  pWal->vers.verInSnapshotting = -1;
-
-  pWal->totSize = 0;
+  //open meta
+  pWal->writeLogTfd = -1;
+  pWal->writeIdxTfd = -1;
+  pWal->writeCur = -1;
+  pWal->fileInfoSet = taosArrayInit(8, sizeof(WalFileInfo));
+  if(pWal->fileInfoSet == NULL) {
+    wError("vgId:%d, path:%s, failed to init taosArray %s", pWal->cfg.vgId, pWal->path, strerror(errno));
+    free(pWal);
+    return NULL;
+  }
 
   //init status
+  walResetVer(&pWal->vers);
+  pWal->totSize = 0;
   pWal->lastRollSeq = -1;
 
   //init write buffer
   memset(&pWal->writeHead, 0, sizeof(SWalHead));
-  pWal->writeHead.head.sver = 0;
+  pWal->writeHead.head.headVer = WAL_HEAD_VER;
 
-  tstrncpy(pWal->path, path, sizeof(pWal->path));
-  pthread_mutex_init(&pWal->mutex, NULL);
-
-  pWal->fsyncSeq = pCfg->fsyncPeriod / 1000;
-  if (pWal->fsyncSeq <= 0) pWal->fsyncSeq = 1;
-
-  if (walInitObj(pWal) != 0) {
-    walFreeObj(pWal);
+  if(pthread_mutex_init(&pWal->mutex, NULL) < 0) {
+    taosArrayDestroy(pWal->fileInfoSet);
+    free(pWal);
     return NULL;
   }
 
-   pWal->refId = taosAddRef(tsWal.refSetId, pWal);
-   if (pWal->refId < 0) {
-    walFreeObj(pWal);
+  pWal->refId = taosAddRef(tsWal.refSetId, pWal);
+  if(pWal->refId < 0) {
+    pthread_mutex_destroy(&pWal->mutex);
+    taosArrayDestroy(pWal->fileInfoSet);
+    free(pWal);
     return NULL;
   }
-  walReadMeta(pWal);
+
+  if(walLoadMeta(pWal) < 0) {
+    taosRemoveRef(tsWal.refSetId, pWal->refId);
+    pthread_mutex_destroy(&pWal->mutex);
+    taosArrayDestroy(pWal->fileInfoSet);
+    free(pWal);
+    return NULL;
+  }
 
   wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->cfg.vgId, pWal, pWal->cfg.level, pWal->cfg.fsyncPeriod);
 
@@ -152,43 +157,23 @@ int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
 }
 
 void walClose(SWal *pWal) {
-  if (pWal == NULL) return;
-
   pthread_mutex_lock(&pWal->mutex);
   tfClose(pWal->writeLogTfd);
   pWal->writeLogTfd = -1;
   tfClose(pWal->writeIdxTfd);
   pWal->writeIdxTfd = -1;
-  walWriteMeta(pWal);
+  walSaveMeta(pWal);
   taosArrayDestroy(pWal->fileInfoSet);
   pWal->fileInfoSet = NULL;
   pthread_mutex_unlock(&pWal->mutex);
+
   taosRemoveRef(tsWal.refSetId, pWal->refId);
-}
-
-static int32_t walInitObj(SWal *pWal) {
-  if (taosMkDir(pWal->path) != 0) {
-    wError("vgId:%d, path:%s, failed to create directory since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
-    return TAOS_SYSTEM_ERROR(errno);
-  }
-  pWal->fileInfoSet = taosArrayInit(8, sizeof(WalFileInfo));
-  if(pWal->fileInfoSet == NULL) {
-    wError("vgId:%d, path:%s, failed to init taosArray %s", pWal->cfg.vgId, pWal->path, strerror(errno));
-    return TAOS_SYSTEM_ERROR(errno);
-  }
-
-  wDebug("vgId:%d, object is initialized", pWal->cfg.vgId);
-  return 0;
 }
 
 static void walFreeObj(void *wal) {
   SWal *pWal = wal;
   wDebug("vgId:%d, wal:%p is freed", pWal->cfg.vgId, pWal);
 
-  tfClose(pWal->writeLogTfd);
-  tfClose(pWal->writeIdxTfd);
-  taosArrayDestroy(pWal->fileInfoSet);
-  pWal->fileInfoSet = NULL;
   pthread_mutex_destroy(&pWal->mutex);
   tfree(pWal);
 }

@@ -40,7 +40,8 @@ typedef struct Complement {
 // automation 
 typedef struct AutomationCtx {
   AutomationType type; 
-  void *data;
+  void *stdata;
+  char *data; 
 } AutomationCtx;
 
 
@@ -58,7 +59,9 @@ typedef struct StartWithStateValue {
   } ;
 } StartWithStateValue;
 
+StartWithStateValue *startWithStateValueCreate(StartWithStateKind kind, ValueType ty, void *val);
 StartWithStateValue *startWithStateValueDump(StartWithStateValue *sv); 
+void startWithStateValueDestroy(void *sv);
 
 
 typedef struct AutomationFunc {
@@ -70,7 +73,7 @@ typedef struct AutomationFunc {
   void* (*acceptEof)(AutomationCtx *ct, void *state);
 } AutomationFunc; 
 
-AutomationCtx *automCtxCreate(void *data, AutomationType type);
+AutomationCtx *automCtxCreate(void *data, AutomationType atype);
 void automCtxDestroy(AutomationCtx *ctx);
 
 extern AutomationFunc automFuncs[]; 

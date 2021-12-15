@@ -13,23 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_OS_MEMORY_H_
-#define _TD_OS_MEMORY_H_
+#include "plannerInt.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define tfree(x)       \
-  do {                 \
-    if (x) {           \
-      free((void *)(x)); \
-      (x) = 0;           \
-    }                  \
-  } while (0)
-
-#ifdef __cplusplus
+SPhyNode* createScanNode(SQueryPlanNode* pPlanNode) {
+  return NULL;
 }
-#endif
 
-#endif /*_TD_OS_MEMORY_H_*/
+SPhyNode* createPhyNode(SQueryPlanNode* node) {
+  switch (node->info.type) {
+    case LP_SCAN:
+      return createScanNode(node);
+  }
+  return NULL;
+}
+
+SPhyNode* createSubplan(SQueryPlanNode* pSubquery) {
+  return NULL;
+}
+
+int32_t createDag(struct SQueryPlanNode* pQueryNode, struct SEpSet* pQnode, struct SQueryDag** pDag) {
+  return 0;
+}

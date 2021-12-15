@@ -27,7 +27,7 @@ static int walSeekFilePos(SWal* pWal, int64_t ver) {
   int64_t logTfd = pWal->writeLogTfd;
   
   //seek position
-  int64_t offset = (ver - walGetCurFileFirstVer(pWal)) * WAL_IDX_ENTRY_SIZE;
+  int64_t offset = (ver - walGetCurFileFirstVer(pWal)) * sizeof(WalIdxEntry);
   code = tfLseek(idxTfd, offset, SEEK_SET);
   if(code != 0) {
     return -1;
@@ -66,8 +66,6 @@ int walChangeFileToLast(SWal *pWal) {
   //switch file
   pWal->writeIdxTfd = idxTfd;
   pWal->writeLogTfd = logTfd;
-  //change status
-  pWal->curStatus = WAL_CUR_FILE_WRITABLE;
   return 0;
 }
 
@@ -93,13 +91,11 @@ int walChangeFile(SWal *pWal, int64_t ver) {
   int64_t fileFirstVer = pRet->firstVer;
   //closed
   if(taosArrayGetLast(pWal->fileInfoSet) != pRet) {
-    pWal->curStatus &= ~WAL_CUR_FILE_WRITABLE;
     walBuildIdxName(pWal, fileFirstVer, fnameStr);
     idxTfd = tfOpenRead(fnameStr);
     walBuildLogName(pWal, fileFirstVer, fnameStr);
     logTfd = tfOpenRead(fnameStr);
   } else {
-    pWal->curStatus |= WAL_CUR_FILE_WRITABLE;
     walBuildIdxName(pWal, fileFirstVer, fnameStr);
     idxTfd = tfOpenReadWrite(fnameStr);
     walBuildLogName(pWal, fileFirstVer, fnameStr);
