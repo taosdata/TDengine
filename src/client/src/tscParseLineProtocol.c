@@ -887,7 +887,7 @@ static int32_t applyChildTableDataPointsWithInsertSQL(TAOS* taos, char* cTableNa
   TAOS_RES* res = taos_query(taos, sql);
   free(sql);
   code = taos_errno(res);
-  info->affectedRows = taos_affected_rows(res);
+  info->affectedRows += taos_affected_rows(res);
   taos_free_result(res);
   return code;
 }
@@ -1300,14 +1300,6 @@ clean_up:
     taosArrayDestroy(schema->tags);
   }
   taosArrayDestroy(stableSchemas);
-  return code;
-}
-
-int tsc_sml_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
-  SSmlLinesInfo* info = calloc(1, sizeof(SSmlLinesInfo));
-  info->id = genLinesSmlId();
-  int code = tscSmlInsert(taos, points, numPoint, info);
-  free(info);
   return code;
 }
 

@@ -81,6 +81,15 @@ typedef struct tVariantListItem {
   uint8_t            sortOrder;
 } tVariantListItem;
 
+typedef struct CommonItem {
+  union {
+    tVariant           pVar;
+    struct tSqlExpr    *jsonExp;
+  };
+  bool               isJsonExp;
+  uint8_t            sortOrder;
+} CommonItem;
+
 typedef struct SIntervalVal {
   int32_t            token;
   SStrToken          interval;
@@ -163,7 +172,6 @@ typedef struct SAlterTableInfo {
   SStrToken          name;
   int16_t            tableType;
   int16_t            type;
-  STagData           tagData;
   SArray            *pAddColumns; // SArray<TAOS_FIELD>
   SArray            *varList;     // set t=val or: change src dst, SArray<tVariantListItem>
 } SAlterTableInfo;
@@ -281,6 +289,7 @@ typedef struct tSqlExprItem {
   bool               distinct;
 } tSqlExprItem;
 
+SArray *commonItemAppend(SArray *pList, tVariant *pVar, tSqlExpr *jsonExp, bool isJsonExp, uint8_t sortOrder);
 
 SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder);
 SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t index);

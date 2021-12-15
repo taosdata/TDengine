@@ -113,82 +113,82 @@ if $data90 != @000sepa0@ then
 endi
 print execute sql select concat_ws('sepa','c8',cast(min(c2) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(min(c2) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa0@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(max(c2) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(max(c2) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa9@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(count(c2) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(count(c2) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa30@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(sum(c2) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(sum(c2) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa135@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(avg(c2) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(avg(c2) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa4.500000@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(percentile(c2, 10) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(percentile(c2, 10) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa0.900000@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(apercentile(c2, 10) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(apercentile(c2, 10) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa0.000000@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(stddev(c2) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(stddev(c2) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa2.872281@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(spread(c2) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(spread(c2) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa9.000000@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(twa(c2) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(twa(c2) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa4.637931@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(elapsed(ts) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(elapsed(ts) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa29000.0000@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(rate(c2) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(rate(c2) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa0.896552@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(irate(c2) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(irate(c2) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa0.000000@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(first(c2) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(first(c2) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa1@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(last(c2) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(last(c2) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa0@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(last_row(c2) as binary(10))) from tba1;
 sql select concat_ws('sepa','c8',cast(last_row(c2) as binary(10))) from tba1;
-if $data00 != @c8sepa@ then
+if $data00 != @c8sepa0@ then
   return -1 
 endi
 print execute sql select concat_ws('sepa','c8',cast(top(c2, 1) as binary(10))) from tba1;

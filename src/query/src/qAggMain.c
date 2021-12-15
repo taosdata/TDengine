@@ -218,6 +218,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   }
 
   assert(!TSDB_FUNC_IS_SCALAR(functionId));
+  assert(functionId != TSDB_FUNC_SCALAR_EXPR);
 
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
       functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ ||
@@ -259,13 +260,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *interBytes = 0;
     return TSDB_CODE_SUCCESS;
   }
-  
-  if (functionId == TSDB_FUNC_SCALAR_EXPR) {
-    *type = TSDB_DATA_TYPE_DOUBLE;
-    *bytes = sizeof(double);
-    *interBytes = 0;
-    return TSDB_CODE_SUCCESS;
-  }
+
   
   if (functionId == TSDB_FUNC_TS_COMP) {
     *type = TSDB_DATA_TYPE_BINARY;
@@ -2940,8 +2935,7 @@ static void date_col_output_function(SQLFunctionCtx *pCtx) {
 }
 
 static void col_project_function(SQLFunctionCtx *pCtx) {
-  // the number of output rows should not affect the final number of rows, so set it to be 0
-  if (pCtx->numOfParams == 2) {
+  if (pCtx->colId <= TSDB_UD_COLUMN_INDEX && pCtx->colId > TSDB_RES_COL_ID) {    // user-specified constant value
     return;
   }
 
@@ -2975,6 +2969,7 @@ static void tag_project_function(SQLFunctionCtx *pCtx) {
   assert(pCtx->inputBytes == pCtx->outputBytes);
 
   tVariantDump(&pCtx->tag, pCtx->pOutput, pCtx->outputType, true);
+
   char* data = pCtx->pOutput;
   pCtx->pOutput += pCtx->outputBytes;
 

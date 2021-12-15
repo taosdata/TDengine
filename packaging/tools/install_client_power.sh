@@ -247,9 +247,6 @@ function update_PowerDB() {
     install_log
     install_header
     install_lib
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
-    fi
     install_examples
     install_bin
     install_config
@@ -275,9 +272,6 @@ function install_PowerDB() {
     install_header
     install_lib
     install_jemalloc
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
-    fi
     install_examples
     install_bin
     install_config

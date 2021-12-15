@@ -22,6 +22,7 @@
 #include "ttoken.h"
 #include "ttokendef.h"
 #include "tutil.h"
+#include "tscUtil.h"
 
 SSqlInfo qSqlParse(const char *pStr) {
   void *pParser = ParseAlloc(malloc);
@@ -52,7 +53,6 @@ SSqlInfo qSqlParse(const char *pStr) {
         Parse(pParser, 0, t0, &sqlInfo);
         goto abort_parse;
       }
-      
       case TK_QUESTION:
       case TK_ILLEGAL: {
         snprintf(sqlInfo.msg, tListLen(sqlInfo.msg), "unrecognized token: \"%s\"", t0.z);
@@ -414,6 +414,11 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
     pRSub->Expr.paramList = (SArray *)pRight;
 
     pExpr->pRight = pRSub;
+  } else if (optrType == TK_ARROW || optrType == TK_CONTAINS) {
+    pExpr->tokenId = optrType;
+    pExpr->pLeft = pLeft;
+    pExpr->pRight = pRight;
+    pExpr->type = SQL_NODE_EXPR;
   } else {
     pExpr->tokenId = optrType;
     pExpr->pLeft = pLeft;
@@ -549,12 +554,13 @@ void tSqlExprCompact(tSqlExpr** pExpr) {
 }
 
 bool tSqlExprIsLeaf(tSqlExpr* pExpr) {
-  return (pExpr->pRight == NULL && pExpr->pLeft == NULL) &&
+  return ((pExpr->pRight == NULL && pExpr->pLeft == NULL) &&
          (pExpr->tokenId == 0 ||
          (pExpr->tokenId == TK_ID) ||
          (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_NCHAR) ||
          (pExpr->tokenId == TK_NULL) ||
-         (pExpr->tokenId == TK_SET));
+         (pExpr->tokenId == TK_SET))) ||
+         (pExpr->tokenId == TK_ARROW);
 }
 
 bool tSqlExprIsParentOfLeaf(tSqlExpr* pExpr) {
@@ -599,6 +605,24 @@ SArray *tVariantListAppendToken(SArray *pList, SStrToken *pToken, uint8_t order,
     taosArrayPush(pList, &item);
   }
 
+  return pList;
+}
+
+SArray *commonItemAppend(SArray *pList, tVariant *pVar, tSqlExpr *jsonExp, bool isJsonExp, uint8_t sortOrder){
+  if (pList == NULL) {
+    pList = taosArrayInit(4, sizeof(CommonItem));
+  }
+
+  CommonItem item;
+  item.sortOrder = sortOrder;
+  item.isJsonExp = isJsonExp;
+  if(isJsonExp){
+    item.jsonExp = jsonExp;
+  }else{
+    item.pVar = *pVar;
+  }
+
+  taosArrayPush(pList, &item);
   return pList;
 }
 
@@ -909,6 +933,15 @@ static void freeVariant(void *pItem) {
   tVariantDestroy(&p->pVar);
 }
 
+static void freeCommonItem(void *pItem) {
+  CommonItem* p = (CommonItem *) pItem;
+  if (p->isJsonExp){
+    tSqlExprDestroy(p->jsonExp);
+  }else{
+    tVariantDestroy(&p->pVar);
+  }
+}
+
 void freeCreateTableInfo(void* p) {
   SCreatedTableInfo* pInfo = (SCreatedTableInfo*) p;  
   taosArrayDestroy(pInfo->pTagNames);
@@ -928,10 +961,10 @@ void destroySqlNode(SSqlNode *pSqlNode) {
   tSqlExprDestroy(pSqlNode->pWhere);
   pSqlNode->pWhere = NULL;
   
-  taosArrayDestroyEx(pSqlNode->pSortOrder, freeVariant);
+  taosArrayDestroyEx(pSqlNode->pSortOrder, freeCommonItem);
   pSqlNode->pSortOrder = NULL;
 
-  taosArrayDestroyEx(pSqlNode->pGroupby, freeVariant);
+  taosArrayDestroyEx(pSqlNode->pGroupby, freeCommonItem);
   pSqlNode->pGroupby = NULL;
 
   pSqlNode->from = destroyRelationInfo(pSqlNode->from);
@@ -1046,7 +1079,6 @@ void SqlInfoDestroy(SSqlInfo *pInfo) {
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
     taosArrayDestroyEx(pInfo->pAlterInfo->varList, freeVariant);
     taosArrayDestroy(pInfo->pAlterInfo->pAddColumns);
-    tfree(pInfo->pAlterInfo->tagData.data);
     tfree(pInfo->pAlterInfo);
   } else if (pInfo->type == TSDB_SQL_COMPACT_VNODE) {
     tSqlExprListDestroy(pInfo->list); 

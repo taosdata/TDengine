@@ -47,6 +47,8 @@ public class TSDBStatement extends AbstractStatement {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEQUERY);
         }
         TSDBResultSet res = new TSDBResultSet(this, this.connection.getConnector(), pSql);
+        int timestampPrecision = this.connection.getConnector().getResultTimePrecision(pSql);
+        res.setTimestampPrecision(timestampPrecision);
         res.setBatchFetch(this.connection.getBatchFetch());
         return res;
     }

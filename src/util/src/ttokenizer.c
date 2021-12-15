@@ -44,6 +44,7 @@ static SKeyword keywordTable[] = {
     {"TIMESTAMP",    TK_TIMESTAMP},
     {"BINARY",       TK_BINARY},
     {"NCHAR",        TK_NCHAR},
+    {"JSON",         TK_JSON},
     {"OR",           TK_OR},
     {"AND",          TK_AND},
     {"NOT",          TK_NOT},
@@ -229,7 +230,8 @@ static SKeyword keywordTable[] = {
     {"OUTPUTTYPE",   TK_OUTPUTTYPE},
     {"AGGREGATE",    TK_AGGREGATE},
     {"BUFSIZE",      TK_BUFSIZE},
-    {"RANGE",        TK_RANGE}
+    {"RANGE",        TK_RANGE},
+    {"CONTAINS",     TK_CONTAINS}
 };
 
 static const char isIdChar[] = {
@@ -310,6 +312,10 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
         }
         *tokenId = TK_COMMENT;
         return i;
+      }
+      if (z[1] == '>') {
+        *tokenId = TK_ARROW;
+        return 2;
       }
       *tokenId = TK_MINUS;
       return 1;

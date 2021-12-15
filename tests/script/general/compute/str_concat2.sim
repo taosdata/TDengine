@@ -2,6 +2,7 @@ sleep 100
 sql connect
 sql use db
 
+$emptyString = @@
 print execute sql select concat(stb1.c8,stb1.c14),pow(stba.c2,stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
 sql select concat(stb1.c8,stb1.c14),pow(stba.c2,stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
 if $data00 != @1231@ then
@@ -132,51 +133,47 @@ if $data00 != @c8135@ then
 endi
 print execute sql select concat('c8',cast(avg(c2) as binary(10))) from tba1;
 sql select concat('c8',cast(avg(c2) as binary(10))) from tba1;
-if $data00 != @c84.50@ then
+if $data00 != @c84.500000@ then
   return -1 
 endi
 print execute sql select concat('c8',cast(percentile(c2, 10) as binary(10))) from tba1;
 sql select concat('c8',cast(percentile(c2, 10) as binary(10))) from tba1;
-if $data00 != @c80.90@ then
+if $data00 != @c80.900000@ then
   return -1 
 endi
 print execute sql select concat('c8',cast(apercentile(c2, 10) as binary(10))) from tba1;
 sql select concat('c8',cast(apercentile(c2, 10) as binary(10))) from tba1;
-if $data00 != @c80.00@ then
+if $data00 != @c80.000000@ then
   return -1 
 endi
 print execute sql select concat('c8',cast(stddev(c2) as binary(10))) from tba1;
 sql select concat('c8',cast(stddev(c2) as binary(10))) from tba1;
-if $data00 != @c82.87@ then
+if $data00 != @c82.872281@ then
   return -1 
 endi
 print execute sql select concat('c8',cast(spread(c2) as binary(10))) from tba1;
 sql select concat('c8',cast(spread(c2) as binary(10))) from tba1;
-if $data00 != @c89.00@ then
+if $data00 != @c89.000000@ then
   return -1 
 endi
 print execute sql select concat('c8',cast(twa(c2) as binary(10))) from tba1;
 sql select concat('c8',cast(twa(c2) as binary(10))) from tba1;
-if $data00 != @c84.63@ then
+if $data00 != @c84.637931@ then
   return -1 
 endi
-print execute sql #select concat('c8',cast(interp(c2) as binary(10))) from tba1 every(1s)
-sql_error #select concat('c8',cast(interp(c2) as binary(10))) from tba1 every(1s)
-print execute sql #select concat('c8',cast(interp(c2) as binary(10))) from stba every(1s) group by tbname;
-sql_error #select concat('c8',cast(interp(c2) as binary(10))) from stba every(1s) group by tbname;
 print execute sql select concat('c8',cast(elapsed(ts) as binary(10))) from tba1;
 sql select concat('c8',cast(elapsed(ts) as binary(10))) from tba1;
-if $data00 != @c82900@ then
+if $data00 != @c829000.0000@ then
   return -1 
 endi
 print execute sql select concat('c8',cast(rate(c2) as binary(10))) from tba1;
 sql select concat('c8',cast(rate(c2) as binary(10))) from tba1;
-if $data00 != @c80.89@ then
+if $data00 != @c80.896552@ then
   return -1 
 endi
 print execute sql select concat('c8',cast(irate(c2) as binary(10))) from tba1;
 sql select concat('c8',cast(irate(c2) as binary(10))) from tba1;
-if $data00 != @c80.00@ then
+if $data00 != @c80.000000@ then
   return -1 
 endi
 print execute sql select concat('c8',cast(first(c2) as binary(10))) from tba1;

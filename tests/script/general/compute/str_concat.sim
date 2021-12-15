@@ -2,6 +2,7 @@ sleep 100
 sql connect
 sql use db
 
+$emptyString = @@
 print execute sql select concat(c8,*) from tb1;
 sql_error select concat(c8,*) from tb1;
 print execute sql select concat(c8,*) from tb1;
@@ -491,6 +492,9 @@ if $data52 != @567@ then
   return -1 
 endi
 if $data60 != @678@ then
+  return -1 
+endi
+if $data61 != $emptyString then
   return -1 
 endi
 if $data62 != @678@ then

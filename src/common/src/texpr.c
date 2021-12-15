@@ -247,6 +247,7 @@ void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *)) {
     doExprTreeDestroy(&pNode, fp);
   } else if (pNode->nodeType == TSQL_NODE_VALUE) {
     tVariantDestroy(pNode->pVal);
+    tfree(pNode->pVal);
   } else if (pNode->nodeType == TSQL_NODE_COL) {
     tfree(pNode->pSchema);
   } else if (pNode->nodeType == TSQL_NODE_FUNC) {
@@ -255,7 +256,7 @@ void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *)) {
     tfree(pNode->pType);
   }
 
-  free(pNode);
+  tfree(pNode);
 }
 
 static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
@@ -272,7 +273,7 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
     }
   } else if ((*pExpr)->nodeType == TSQL_NODE_VALUE) {
     tVariantDestroy((*pExpr)->pVal);
-    free((*pExpr)->pVal);
+    tfree((*pExpr)->pVal);
   } else if ((*pExpr)->nodeType == TSQL_NODE_COL) {
     free((*pExpr)->pSchema);
   } else if ((*pExpr)->nodeType == TSQL_NODE_FUNC) {
@@ -284,7 +285,7 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
     tfree((*pExpr)->pType);
   }
 
-  free(*pExpr);
+  tfree(*pExpr);
   *pExpr = NULL;
 }
 
@@ -502,7 +503,7 @@ static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
     tVariant* pVal = expr->pVal;
     
     tbufWriteUint32(bw, pVal->nType);
-    if (pVal->nType == TSDB_DATA_TYPE_BINARY) {
+    if (pVal->nType == TSDB_DATA_TYPE_BINARY || pVal->nType == TSDB_DATA_TYPE_NCHAR) {
       tbufWriteInt32(bw, pVal->nLen);
       tbufWrite(bw, pVal->pz, pVal->nLen);
     } else {
@@ -571,7 +572,7 @@ static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
     pExpr->pVal = pVal;
   
     pVal->nType = tbufReadUint32(br);
-    if (pVal->nType == TSDB_DATA_TYPE_BINARY) {
+    if (pVal->nType == TSDB_DATA_TYPE_BINARY || pVal->nType == TSDB_DATA_TYPE_NCHAR) {
       tbufReadToBuffer(br, &pVal->nLen, sizeof(pVal->nLen));
       pVal->pz = calloc(1, pVal->nLen + 1);
       tbufReadToBuffer(br, pVal->pz, pVal->nLen);

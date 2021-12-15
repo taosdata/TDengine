@@ -47,6 +47,8 @@ sql insert into tbn values ('2021-11-11 09:00:06',true,7,7,7,7,7,7,"777","7777",
 
 run general/compute/str_concat.sim
 run general/compute/str_concat_ws.sim
+run general/compute/str_length.sim
+run general/compute/str_char_length.sim
 
 sql create table stba (ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 float, c7 double, c8 binary(10), c9 nchar(10), c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned, c14 binary(2), c15 nchar(3)) TAGS(t1 int, t2 binary(10), t3 double);
 
@@ -101,5 +103,9 @@ run general/compute/str_concat.sim
 run general/compute/str_concat2.sim
 run general/compute/str_concat_ws.sim
 run general/compute/str_concat_ws2.sim
+run general/compute/str_length.sim
+run general/compute/str_length2.sim
+run general/compute/str_char_length.sim
+run general/compute/str_char_length2.sim
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
