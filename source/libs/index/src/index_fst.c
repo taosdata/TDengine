@@ -1094,6 +1094,10 @@ bool fstGet(Fst *fst, FstSlice *b, Output *out) {
 FstStreamBuilder *fstSearch(Fst *fst, AutomationCtx *ctx) {
   return fstStreamBuilderCreate(fst, ctx);
 }
+StreamWithState* streamBuilderIntoStream(FstStreamBuilder *sb) {
+  if (sb == NULL) { return NULL; } 
+  return streamWithStateCreate(sb->fst, sb->aut, sb->min, sb->max);
+}
 FstStreamWithStateBuilder *fstSearchWithState(Fst *fst, AutomationCtx *ctx) {
   return fstStreamBuilderCreate(fst, ctx);
 }
