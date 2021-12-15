@@ -62,9 +62,13 @@ namespace Test.UtilsTools
 
             IntPtr rowdata;
             StringBuilder builder = new StringBuilder();
+
             while ((rowdata = TDengine.FetchRows(res)) != IntPtr.Zero)
             {
                 queryRows++;
+                IntPtr colLengthPtr = TDengine.FetchLength(res);
+                int[] colLengthArr = new int[fieldCount];
+                Marshal.Copy(colLengthPtr, colLengthArr, 0, fieldCount);
                 for (int fields = 0; fields < fieldCount; ++fields)
                 {
                     TDengineMeta meta = metas[fields];
@@ -110,7 +114,7 @@ namespace Test.UtilsTools
                             builder.Append(v7);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_BINARY:
-                            string v8 = Marshal.PtrToStringAnsi(data);
+                            string v8 = Marshal.PtrToStringAnsi(data,colLengthArr[fields]);
                             builder.Append(v8);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP:
@@ -118,7 +122,7 @@ namespace Test.UtilsTools
                             builder.Append(v9);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_NCHAR:
-                            string v10 = Marshal.PtrToStringAnsi(data);
+                            string v10 = Marshal.PtrToStringAnsi(data,colLengthArr[fields]);
                             builder.Append(v10);
                             break;
                     }

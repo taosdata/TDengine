@@ -50,6 +50,10 @@ namespace Cases.EntryPoint
             FetchFields fetchFields = new FetchFields();
             fetchFields.Test(conn, "fetchfeilds");
 
+            Console.WriteLine("====================fetchLengthCase===================");
+            FetchLengthCase fetchLengthCase = new FetchLengthCase();
+            fetchLengthCase.TestRetrieveBinary(conn);
+
             UtilsTools.ExecuteQuery(conn, "drop database if  exists csharp");
             UtilsTools.CloseConnection(conn);
             UtilsTools.ExitProgram();
