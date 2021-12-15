@@ -37,63 +37,63 @@ class Dnode:
             pass
 
     def startTaosd(self):
-        logger.info(f'starting {self.dnode_ip}-taosd')
+        logger.info(f'{self.dnode_ip}: starting taosd')
         self.dnode_conn.exec_cmd("sudo systemctl start taosd")
         
     def stopTaosd(self):
-        logger.info(f'stopping {self.dnode_ip}-taosd')
+        logger.info(f'{self.dnode_ip}: stopping taosd')
         self.dnode_conn.exec_cmd("sudo systemctl stop taosd")
 
     def killTaosd(self):
-        logger.info(f'killing {self.dnode_ip}-taosd')
+        logger.info(f'{self.dnode_ip}: killing taosd')
         self.dnode_conn.exec_cmd("ps -ef | grep -w taosd | grep -v grep | awk \'{print $2}\' | sudo xargs kill -9")
     
     def restartTaosd(self):
-        logger.info(f'restarting {self.dnode_ip}-taosd')
+        logger.info(f'{self.dnode_ip}: restarting taosd')
         self.dnode_conn.exec_cmd("sudo systemctl restart taosd")
 
     def startTaosadapter(self):
-        logger.info(f'starting {self.dnode_ip}-Taosadapter')
+        logger.info(f'{self.dnode_ip}: starting taosadapter')
         self.dnode_conn.exec_cmd("sudo systemctl start taosadapter")
         
     def stopTaosadapter(self):
-        logger.info(f'stopping {self.dnode_ip}-Taosdapter')
-        self.dnode_conn.exec_cmd("sudo systemctl stop taosdapter")
+        logger.info(f'{self.dnode_ip}: stopping taosadapter')
+        self.dnode_conn.exec_cmd("sudo systemctl stop taosadapter")
 
     def killTaosadapter(self):
-        logger.info(f'killing {self.dnode_ip}-Taosdapter')
-        self.dnode_conn.exec_cmd("ps -ef | grep -w taosdapter | grep -v grep | awk \'{print $2}\' | sudo xargs kill -9")
+        logger.info(f'{self.dnode_ip}: killing taosadapter')
+        self.dnode_conn.exec_cmd("ps -ef | grep -w taosadapter | grep -v grep | awk \'{print $2}\' | sudo xargs kill -9")
     
     def restartTaosadapter(self):
-        logger.info(f'restarting {self.dnode_ip}-Taosdapter')
-        self.dnode_conn.exec_cmd("sudo systemctl restart taosdapter")
+        logger.info(f'{self.dnode_ip}: restarting taosadapter')
+        self.dnode_conn.exec_cmd("sudo systemctl restart taosadapter")
     
     def rmTaosd(self):
-        logger.info(f'removing {self.dnode_ip}-taosd')
+        logger.info(f'{self.dnode_ip}: removing taosd')
         self.dnode_conn.exec_cmd("rmtaos")
 
     def rmTaosdLog(self):
-        logger.info(f'removing {self.dnode_ip}-taosd\'s log')
+        logger.info(f'{self.dnode_ip}: removing taosd log')
         if self.dnode_dict["modify_cfg"]:
             self.dnode_conn.exec_cmd(f'sudo rm -rf {self.dnode_dict["cfg"]["logDir"]}/*')
         else:
             self.dnode_conn.exec_cmd("sudo rm -rf /var/log/taos/*")
 
     def rmTaosdData(self):
-        logger.info(f'removing {self.dnode_ip}-taosd\'s data')
+        logger.info(f'{self.dnode_ip}: removing taosd data')
         if self.dnode_dict["modify_cfg"]:
             self.dnode_conn.exec_cmd(f'sudo rm -rf {self.dnode_dict["cfg"]["dataDir"]}/*')
         else:
             self.dnode_conn.exec_cmd("sudo rm -rf /var/lib/taos/*")
 
     def rmTaosCfg(self):
-        logger.info(f'removing taos-{self.dnode_ip}\'s cfg')
+        logger.info(f'{self.dnode_ip}: removing taos.cfg')
         self.dnode_conn.exec_cmd("sudo rm -rf /etc/taos/taos.cfg")
 
     def modifyTaosCfg(self, firstEp=None):
         hostname = self.configHostname()
         if self.dnode_dict["modify_cfg"]:
-            logger.info('modify /etc/taos/taos.cfg')
+            logger.info(f'{self.dnode_ip}: modify /etc/taos/taos.cfg')
             for key, value in self.dnode_dict['cfg'].items():
                 self.createRemoteDir(value)
                 self.dnode_conn.exec_cmd(f'echo {key}   {value} >> /etc/taos/taos.cfg')
@@ -117,7 +117,7 @@ class Dnode:
             return False
 
     def configHostname(self):
-        logger.info(f'config {self.dnode_ip}-taosd\'s hostname')
+        logger.info(f'{self.dnode_ip}: config dnode hostname')
         ori_hostname = self.dnode_conn.exec_cmd('hostname').strip()
         if "localhost" in str(ori_hostname).lower():
             self.dnode_conn.exec_cmd(f"sudo hostnamectl set-hostname {self.dnode_name}")
@@ -127,15 +127,15 @@ class Dnode:
     def hostsIsExist(self, ip, hostname):
         host_count = int(self.dnode_conn.exec_cmd(f'grep "^{ip}.*.{hostname}" /etc/hosts | wc -l'))
         if host_count > 0:
-            logger.info(f'check {self.dnode_ip} /etc/hosts: {ip} {hostname} existed')
+            logger.info(f'{self.dnode_ip}: check /etc/hosts: {ip} {hostname} existed')
             return True
         else:
-            logger.info(f'check {self.dnode_ip} /etc/hosts: {ip} {hostname} not exist')
+            logger.info(f'{self.dnode_ip}: check /etc/hosts: {ip} {hostname} not exist')
             return False
 
     def configHosts(self, ip, hostname):
         if not self.hostsIsExist(ip, hostname):
-            logger.info(f'config {self.dnode_ip}-taosd /etc/hosts: {ip} {hostname}')
+            logger.info(f'{self.dnode_ip}: config dnode /etc/hosts: {ip} {hostname}')
             self.dnode_conn.exec_cmd(f'sudo echo "{ip} {hostname}" >> /etc/hosts')
 
     def checkStatus(self,  process):
@@ -211,7 +211,7 @@ class Dnode:
         self.dnode_conn.exec_cmd("ps -ef | grep -w process_exporter | grep -v grep | awk \'{print $2}\' | sudo xargs kill -9")
 
     def uploadProcessExporterYml(self, process_list):
-        logger.info('generating process_exporter yml')
+        logger.info(f'{self.dnode_ip}: generating process_exporter yml')
         sub_list = list()
         for process in process_list:
             sub_list.append({'name':'{{.Comm}}', 'cmdline': [process]})
@@ -245,7 +245,7 @@ class Dnode:
         package_dir = '-'.join(package_name.split("-", 3)[0:3])
         self.stopTaosd()
         self.killTaosd()
-        logger.info(f'install {self.dnode_ip}-taosd')
+        logger.info(f'{self.dnode_ip}: installing taosd')
         logger.info(self.dnode_conn.exec_cmd(f'cd {self.home_dir} && tar -xvf {self.home_dir}/{package_name} && cd {package_dir} && yes|./install.sh'))
         self.modifyTaosCfg(firstEp)
         if deploy_type == "taosd":
@@ -253,9 +253,9 @@ class Dnode:
         elif deploy_type == "taosadapter":
             self.startTaosadapter()
         if self.checkStatus(deploy_type):
-            logger.success(f'{self.dnode_ip}-{deploy_type} deploy success')
+            logger.success(f'{self.dnode_ip}: {deploy_type} deploy success')
         else:
-            logger.error(f'{deploy_type} deploy failed, please check by manual')
+            logger.error(f'{self.dnode_ip}: {deploy_type} deploy failed, please check by manual')
             sys.exit(1)
             
 class Dnodes:

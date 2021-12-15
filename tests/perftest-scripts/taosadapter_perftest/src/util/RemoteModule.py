@@ -15,7 +15,7 @@ class RemoteModule():
             upload_file: local file with path
         """
         try:
-            logger.info(f'uploading {upload_file} to {remote_dir} in {self.ip}')
+            logger.info(f'{self.ip}: uploading {upload_file} to {remote_dir}')
             c = Connection(self.ip, user=self.user, port=self.port, connect_timeout=120, connect_kwargs={"password": self.passwd})
             c.put(upload_file, remote_dir)
             c.close()
@@ -39,7 +39,7 @@ class RemoteModule():
             cmd:: remote exec cmd
         """
         try:
-            logger.info(f'executing cmd: {cmd} in {self.ip}')
+            logger.info(f'{self.ip}: executing cmd: {cmd}')
             c = Connection(self.ip, user=self.user, port=self.port, connect_timeout=120, connect_kwargs={"password": self.passwd})
             result = c.run(cmd, pty=False, warn=True, hide=False)
             c.close()
@@ -47,7 +47,5 @@ class RemoteModule():
         except Exception as e:
             logger.error(f"exec cmd {cmd} failed：{e}");
         
-    
-
 if __name__ == '__main__':
     pass

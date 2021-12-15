@@ -126,16 +126,16 @@ class Common:
         else:
             os.makedirs(path)
 
-    def genJmeterCmd(self, jmx_file_list):
+    def genJmeterCmd(self, jmx_file_list, testcase):
         jmeter_cmd_list = list()
         for jmx_file in jmx_file_list:
-            current_time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime(time.time()))
-            jmx_filename = jmx_file.split('/')[-1].replace('.jmx', '')
-            jmx_filelog = f'{jmx_filename}_{current_time}'
-            jmeter_report_dir = f'{self.log_dir}/{jmx_filelog}'
-            self.recreateReportDir(jmeter_report_dir)
             jmeter_cmd = f'jmeter -n -t {jmx_file}'
             if config['jmeter']['aggregate_report']:
+                current_time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime(time.time()))
+                jmx_filename = jmx_file.split('/')[-1].replace('.jmx', '')
+                jmx_filelog = f'{testcase}_{jmx_filename}_{current_time}'
+                jmeter_report_dir = f'{self.log_dir}/{jmx_filelog}'
+                self.recreateReportDir(jmeter_report_dir)
                 jmeter_cmd += f' -l {jmeter_report_dir}/{jmx_filelog}.log -e -o {jmeter_report_dir}'
             jmeter_cmd_list.append(jmeter_cmd)
         return jmeter_cmd_list
@@ -154,9 +154,10 @@ class Common:
             t.join()
 
     def runJmeter(self):
-        self.exec_local_cmd(f'rm -rf {self.log_dir}/*')
-        jmx_file_list = list()
+        self.exec_local_cmd(f'ls {self.log_dir} | grep -v performance | xargs rm -rf')
         for key, value in config['testcases'].items():
+            jmx_file_list = list()
+            logger.info(f'executing {key}')
             # if config["taosadapter_separate_deploy"]:
             for jmx_file in self.genJmxFile():
                 jmx_filename = jmx_file.split('/')[-1]
@@ -184,7 +185,7 @@ class Common:
                 with open(jmx_file, "w", encoding="utf-8") as f:
                     f.write(file_data)
                 jmx_file_list.append(jmx_file)
-            jmeter_cmd_list = self.genJmeterCmd(jmx_file_list)
+            jmeter_cmd_list = self.genJmeterCmd(jmx_file_list, key)
             self.multiThreadRun(self.genJmeterThreads(jmeter_cmd_list))
             time.sleep(int(''.join(list(filter(str.isdigit, str(value["sleep_time"]))))))
 

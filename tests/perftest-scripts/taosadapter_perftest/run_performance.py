@@ -10,7 +10,8 @@ if __name__ == '__main__':
     MONITOR = Monitor()
     JMETER = Jmeter() 
     if config['deploy_mode'] == "auto":
-        DNODES.deployNodes()
+        if config['taosd_autodeploy']:
+            DNODES.deployNodes()
         if config["prometheus"]["autodeploy"]:
             MONITOR.deployAllNodeExporters()
             MONITOR.deployAllProcessExporters()
