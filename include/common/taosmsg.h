@@ -632,7 +632,6 @@ typedef struct {
   int32_t reserve[8];
 } SUseDbMsg;
 
-
 typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];
   int32_t reserve[8];

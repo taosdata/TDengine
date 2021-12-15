@@ -15,7 +15,7 @@
 
 #include "deploy.h"
 
-class DndTestUser : public ::testing::Test {
+class DndTestDb : public ::testing::Test {
  protected:
   static SServer* CreateServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
     SServer* pServer = createServer(path, fqdn, port, firstEp);
@@ -24,11 +24,11 @@ class DndTestUser : public ::testing::Test {
   }
 
   static void SetUpTestSuite() {
-    initLog("/tmp/dnode_test_user");
+    initLog("/tmp/dnode_test_db");
 
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9530";
-    pServer = CreateServer("/tmp/dnode_test_user", fqdn, 9530, firstEp);
+    pServer = CreateServer("/tmp/dnode_test_db", fqdn, 9530, firstEp);
     pClient = createClient("root", "taosdata", fqdn, 9530);
     taosMsleep(300);
   }
@@ -166,11 +166,11 @@ class DndTestUser : public ::testing::Test {
   int32_t            pos;
 };
 
-SServer* DndTestUser::pServer;
-SClient* DndTestUser::pClient;
-int32_t  DndTestUser::connId;
+SServer* DndTestDb::pServer;
+SClient* DndTestDb::pClient;
+int32_t  DndTestDb::connId;
 
-TEST_F(DndTestUser, ShowUser) {
+TEST_F(DndTestDb, ShowUser) {
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
   CheckSchema(0, TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN + VARSTR_HEADER_SIZE, "name");
   CheckSchema(1, TSDB_DATA_TYPE_BINARY, 10 + VARSTR_HEADER_SIZE, "privilege");
@@ -184,7 +184,7 @@ TEST_F(DndTestUser, ShowUser) {
   CheckBinary("root", TSDB_USER_LEN);
 }
 
-TEST_F(DndTestUser, CreateUser_01) {
+TEST_F(DndTestDb, CreateUser_01) {
   {
     SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(sizeof(SCreateUserMsg));
     strcpy(pReq->user, "u1");
@@ -233,7 +233,7 @@ TEST_F(DndTestUser, CreateUser_01) {
   CheckBinary("root", TSDB_USER_LEN);
 }
 
-TEST_F(DndTestUser, AlterUser_01) {
+TEST_F(DndTestDb, AlterUser_01) {
   SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(sizeof(SAlterUserMsg));
   strcpy(pReq->user, "u1");
   strcpy(pReq->pass, "p2");
@@ -264,7 +264,7 @@ TEST_F(DndTestUser, AlterUser_01) {
   CheckBinary("root", TSDB_USER_LEN);
 }
 
-TEST_F(DndTestUser, DropUser_01) {
+TEST_F(DndTestDb, DropUser_01) {
   SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(sizeof(SDropUserMsg));
   strcpy(pReq->user, "u1");
 
@@ -290,7 +290,7 @@ TEST_F(DndTestUser, DropUser_01) {
   CheckBinary("root", TSDB_USER_LEN);
 }
 
-TEST_F(DndTestUser, RestartDnode) {
+TEST_F(DndTestDb, RestartDnode) {
   stopServer(pServer);
   pServer = NULL;
 
@@ -298,7 +298,7 @@ TEST_F(DndTestUser, RestartDnode) {
 
   const char* fqdn = "localhost";
   const char* firstEp = "localhost:9530";
-  pServer = startServer("/tmp/dnode_test_user", fqdn, 9530, firstEp);
+  pServer = startServer("/tmp/dnode_test_db", fqdn, 9530, firstEp);
 
   uInfo("all server is running");
 

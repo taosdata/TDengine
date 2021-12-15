@@ -24,15 +24,15 @@ class DndTestDnode : public ::testing::Test {
   }
 
   static void SetUpTestSuite() {
-    initLog("/tmp/dndTestDnode");
+    initLog("/tmp/dnode_test_dnode");
 
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9521";
-    pServer1 = CreateServer("/tmp/dndTestDnode1", fqdn, 9521, firstEp);
-    pServer2 = CreateServer("/tmp/dndTestDnode2", fqdn, 9522, firstEp);
-    pServer3 = CreateServer("/tmp/dndTestDnode3", fqdn, 9523, firstEp);
-    pServer4 = CreateServer("/tmp/dndTestDnode4", fqdn, 9524, firstEp);
-    pServer5 = CreateServer("/tmp/dndTestDnode5", fqdn, 9525, firstEp);
+    pServer1 = CreateServer("/tmp/dnode_test_dnode1", fqdn, 9521, firstEp);
+    pServer2 = CreateServer("/tmp/dnode_test_dnode2", fqdn, 9522, firstEp);
+    pServer3 = CreateServer("/tmp/dnode_test_dnode3", fqdn, 9523, firstEp);
+    pServer4 = CreateServer("/tmp/dnode_test_dnode4", fqdn, 9524, firstEp);
+    pServer5 = CreateServer("/tmp/dnode_test_dnode5", fqdn, 9525, firstEp);
     pClient = createClient("root", "taosdata", fqdn, 9521);
     taosMsleep(300);
   }
@@ -378,10 +378,10 @@ TEST_F(DndTestDnode, RestartDnode_01) {
 
   const char* fqdn = "localhost";
   const char* firstEp = "localhost:9521";
-  pServer1 = startServer("/tmp/dndTestDnode1", fqdn, 9521, firstEp);
-  pServer3 = startServer("/tmp/dndTestDnode3", fqdn, 9523, firstEp);
-  pServer4 = startServer("/tmp/dndTestDnode4", fqdn, 9524, firstEp);
-  pServer5 = startServer("/tmp/dndTestDnode5", fqdn, 9525, firstEp);
+  pServer1 = startServer("/tmp/dnode_test_dnode1", fqdn, 9521, firstEp);
+  pServer3 = startServer("/tmp/dnode_test_dnode3", fqdn, 9523, firstEp);
+  pServer4 = startServer("/tmp/dnode_test_dnode4", fqdn, 9524, firstEp);
+  pServer5 = startServer("/tmp/dnode_test_dnode5", fqdn, 9525, firstEp);
 
   uInfo("all server is running");
 
