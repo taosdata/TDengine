@@ -6278,7 +6278,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   const char* msg0 = "only one column allowed in orderby";
   const char* msg1 = "invalid column name in orderby clause";
   const char* msg2 = "too many order by columns";
-  const char* msg3 = "only primary timestamp/column in groupby clause allowed as order column";
+  const char* msg3 = "only primary timestamp, first tag/tbname in groupby clause allowed as order column";
   const char* msg4 = "only tag in groupby clause allowed in order clause";
   const char* msg5 = "only primary timestamp/column in top/bottom function allowed as order column";
   const char* msg6 = "only primary timestamp allowed as the second order column";

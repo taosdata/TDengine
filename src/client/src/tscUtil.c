@@ -5558,7 +5558,7 @@ end:
 int8_t jsonType2DbType(double data, int jsonType){
   switch(jsonType){
     case cJSON_Number:
-      if (data - (int64_t)data > 0) return TSDB_DATA_TYPE_DOUBLE; else return TSDB_DATA_TYPE_BIGINT;
+      if (data - (int64_t)data == 0) return TSDB_DATA_TYPE_BIGINT; else return TSDB_DATA_TYPE_DOUBLE;
     case cJSON_String:
       return TSDB_DATA_TYPE_NCHAR;
     case cJSON_NULL:
