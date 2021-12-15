@@ -2175,16 +2175,16 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
     pQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
   }
 
-  
+
   bool hasDistinct = false;
-  bool hasAgg      = false; 
+  bool hasAgg      = false;
   size_t numOfExpr = taosArrayGetSize(pSelNodeList);
-  int32_t distIdx = -1; 
+  int32_t distIdx = -1;
   for (int32_t i = 0; i < numOfExpr; ++i) {
     int32_t outputIndex = (int32_t)tscNumOfExprs(pQueryInfo);
     tSqlExprItem* pItem = taosArrayGet(pSelNodeList, i);
     if (hasDistinct == false) {
-       hasDistinct = (pItem->distinct == true); 
+       hasDistinct = (pItem->distinct == true);
        distIdx     =  hasDistinct ? i : -1;
     }
     if(pItem->aliasName != NULL && validateColumnName(pItem->aliasName) != TSDB_CODE_SUCCESS){
@@ -2202,7 +2202,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
         return code;
       }
     } else if (type == SQL_NODE_SQLFUNCTION) {
-      hasAgg = true; 
+      hasAgg = true;
       if (hasDistinct)  break;
 
       pItem->pNode->functionId = isValidFunction(pItem->pNode->Expr.operand.z, pItem->pNode->Expr.operand.n);
@@ -2252,12 +2252,12 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
     }
   }
 
-  //TODO(dengyihao), refactor as function     
-  //handle distinct func mixed with other func 
+  //TODO(dengyihao), refactor as function
+  //handle distinct func mixed with other func
   if (hasDistinct == true) {
     if (distIdx != 0 || hasAgg) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
-    } 
+    }
     if (joinQuery) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
     }
@@ -2267,11 +2267,11 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
     if (pQueryInfo->pDownstream != NULL) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
     }
-    
+
     pQueryInfo->distinct = true;
   }
-  
-  
+
+
   // there is only one user-defined column in the final result field, add the timestamp column.
   size_t numOfSrcCols = taosArrayGetSize(pQueryInfo->colList);
   if ((numOfSrcCols <= 0 || !hasNoneUserDefineExpr(pQueryInfo)) && !tscQueryTags(pQueryInfo) && !tscQueryBlockInfo(pQueryInfo)) {
@@ -4693,7 +4693,12 @@ static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
     if (pExpr->value.nType == (uint32_t)-1) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
-    
+
+    //now allowing now +/- value in select expr
+    if (pExpr->tokenId == TK_TIMESTAMP) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
+
     if (pExpr->type == SQL_NODE_VALUE) {
       *type = SQLEXPR_TYPE_VALUE;
     }
