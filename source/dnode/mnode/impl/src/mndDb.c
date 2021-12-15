@@ -20,6 +20,7 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndVgroup.h"
 
 #define TSDB_DB_VER_NUM 1
 #define TSDB_DB_RESERVE_SIZE 64
@@ -75,6 +76,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT64(pRaw, dataPos, pDb->updateTime)
   SDB_SET_INT64(pRaw, dataPos, pDb->uid)
   SDB_SET_INT32(pRaw, dataPos, pDb->version)
+  SDB_SET_INT32(pRaw, dataPos, pDb->numOfVgroups)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.cacheBlockSize)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.totalBlocks)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysPerFile)
@@ -119,6 +121,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, pRow, dataPos, &pDb->updateTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pDb->uid)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->version)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->numOfVgroups)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.cacheBlockSize)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.totalBlocks)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.daysPerFile)
@@ -341,6 +344,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreat
   dbObj.createdTime = taosGetTimestampMs();
   dbObj.updateTime = dbObj.createdTime;
   dbObj.uid = mndGenerateUid(dbObj.name, TSDB_FULL_DB_NAME_LEN);
+  dbObj.numOfVgroups = pCreate->numOfVgroups;
   dbObj.cfg = (SDbCfg){.cacheBlockSize = pCreate->cacheBlockSize,
                        .totalBlocks = pCreate->totalBlocks,
                        .daysPerFile = pCreate->daysPerFile,
@@ -368,6 +372,11 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreat
 
   char errMsg[TSDB_ERROR_MSG_LEN] = {0};
   if (mndCheckDbCfg(pMnode, &dbObj.cfg, errMsg, TSDB_ERROR_MSG_LEN) != 0) {
+    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
+    return -1;
+  }
+
+  if (mndAllocVgroup(pMnode, &dbObj) != 0) {
     mError("db:%s, failed to create since %s", pCreate->db, terrstr());
     return -1;
   }
@@ -417,6 +426,7 @@ static int32_t mndProcessCreateDbMsg(SMnodeMsg *pMsg) {
   SMnode       *pMnode = pMsg->pMnode;
   SCreateDbMsg *pCreate = pMsg->rpcMsg.pCont;
 
+  pCreate->numOfVgroups = htonl(pCreate->numOfVgroups);
   pCreate->cacheBlockSize = htonl(pCreate->cacheBlockSize);
   pCreate->totalBlocks = htonl(pCreate->totalBlocks);
   pCreate->daysPerFile = htonl(pCreate->daysPerFile);

@@ -152,6 +152,21 @@ void mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup) {
   sdbRelease(pSdb, pVgroup);
 }
 
+static int32_t mndGetDefaultVgroupSize(SMnode *pMnode) { return 4; }
+
+int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb) {
+  if (pDb->numOfVgroups == -1) {
+    pDb->numOfVgroups = mndGetDefaultVgroupSize(pMnode);
+  }
+
+  if (pDb->numOfVgroups < TSDB_MIN_VNODES_PER_DB || pDb->numOfVgroups > TSDB_MAX_VNODES_PER_DB) {
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    return -1;
+  }
+
+  return 0;
+}
+
 static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pMsg) { return 0; }
 static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pMsg) { return 0; }
 static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pMsg) { return 0; }

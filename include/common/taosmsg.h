@@ -584,6 +584,7 @@ typedef struct SRetrieveTableRsp {
 
 typedef struct {
   char    db[TSDB_FULL_DB_NAME_LEN];
+  int32_t numOfVgroups;
   int32_t cacheBlockSize;  // MB
   int32_t totalBlocks;
   int32_t daysPerFile;

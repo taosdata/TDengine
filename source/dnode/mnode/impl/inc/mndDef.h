@@ -208,6 +208,7 @@ typedef struct {
   int64_t updateTime;
   int64_t uid;
   int32_t version;
+  int32_t numOfVgroups;
   SDbCfg  cfg;
 } SDbObj;
 

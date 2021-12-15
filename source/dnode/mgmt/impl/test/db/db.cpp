@@ -208,6 +208,7 @@ TEST_F(DndTestDb, 02_CreateDb) {
   {
     SCreateDbMsg* pReq = (SCreateDbMsg*)rpcMallocCont(sizeof(SCreateDbMsg));
     strcpy(pReq->db, "1.d1");
+    pReq->numOfVgroups = htonl(2);
     pReq->cacheBlockSize = htonl(16);
     pReq->totalBlocks = htonl(10);
     pReq->daysPerFile = htonl(10);
