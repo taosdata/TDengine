@@ -57,7 +57,7 @@ def pre_test(){
         cd ${WKC}
         git checkout 2.0
         '''
-      } 
+      }
       else{
         sh '''
         cd ${WKC}
@@ -89,18 +89,18 @@ def pre_test(){
         cd ${WK}
         git checkout 2.0
         '''
-      } 
+      }
       else{
         sh '''
         cd ${WK}
         git checkout develop
         '''
-      } 
+      }
     }
     sh '''
     cd ${WK}
-    git pull >/dev/null 
-    
+    git pull >/dev/null
+
     export TZ=Asia/Harbin
     date
     git clean -dfx
@@ -110,7 +110,7 @@ def pre_test(){
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
-    pip3 install ${WKC}/src/connector/python/ 
+    pip3 install ${WKC}/src/connector/python/
     '''
     return 1
 }
@@ -132,7 +132,7 @@ def pre_test_noinstall(){
         cd ${WKC}
         git checkout 2.0
         '''
-      } 
+      }
       else{
         sh '''
         cd ${WKC}
@@ -164,24 +164,24 @@ def pre_test_noinstall(){
         cd ${WK}
         git checkout 2.0
         '''
-      } 
+      }
       else{
         sh '''
         cd ${WK}
         git checkout develop
         '''
-      } 
+      }
     }
     sh '''
     cd ${WK}
-    git pull >/dev/null 
-    
+    git pull >/dev/null
+
     export TZ=Asia/Harbin
     date
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true  > /dev/null
+    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=false > /dev/null
     make
     '''
     return 1
@@ -204,7 +204,7 @@ def pre_test_mac(){
         cd ${WKC}
         git checkout 2.0
         '''
-      } 
+      }
       else{
         sh '''
         cd ${WKC}
@@ -236,24 +236,24 @@ def pre_test_mac(){
         cd ${WK}
         git checkout 2.0
         '''
-      } 
+      }
       else{
         sh '''
         cd ${WK}
         git checkout develop
         '''
-      } 
+      }
     }
     sh '''
     cd ${WK}
-    git pull >/dev/null 
-    
+    git pull >/dev/null
+
     export TZ=Asia/Harbin
     date
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. -DBUILD_TOOLS=true > /dev/null
+    cmake .. -DBUILD_TOOLS=false > /dev/null
     go env -w GOPROXY=https://goproxy.cn,direct
     go env -w GO111MODULE=on
     cmake --build .
@@ -268,7 +268,7 @@ def pre_test_win(){
     cd C:\\workspace\\TDinternal
     rd /s /Q C:\\workspace\\TDinternal\\debug
     cd C:\\workspace\\TDinternal\\community
-    git reset --hard HEAD~10 
+    git reset --hard HEAD~10
     '''
     script {
       if (env.CHANGE_TARGET == 'master') {
@@ -282,7 +282,7 @@ def pre_test_win(){
         cd C:\\workspace\\TDinternal\\community
         git checkout 2.0
         '''
-      } 
+      }
       else{
         bat '''
         cd C:\\workspace\\TDinternal\\community
@@ -293,7 +293,7 @@ def pre_test_win(){
     bat'''
     cd C:\\workspace\\TDinternal\\community
     git remote prune origin
-    git pull 
+    git pull
     git fetch origin +refs/pull/%CHANGE_ID%/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
@@ -313,36 +313,36 @@ def pre_test_win(){
         cd C:\\workspace\\TDinternal
         git checkout 2.0
         '''
-      } 
+      }
       else{
         bat '''
         cd C:\\workspace\\TDinternal
         git checkout develop
         '''
-      } 
+      }
     }
     bat '''
     cd C:\\workspace\\TDinternal
-    git pull 
+    git pull
 
     date
     git clean -dfx
     mkdir debug
     cd debug
     call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" amd64
-    cmake ../ -G "NMake Makefiles" 
+    cmake ../ -G "NMake Makefiles"
     set CL=/MP nmake nmake || exit 8
     nmake install || exit 8
     xcopy /e/y/i/f C:\\workspace\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32 || exit 8
     cd C:\\workspace\\TDinternal\\community\\src\\connector\\python
     python -m pip install .
-    
+
     '''
     return 1
 }
 pipeline {
   agent none
-  options { skipDefaultCheckout() } 
+  options { skipDefaultCheckout() }
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
@@ -350,7 +350,7 @@ pipeline {
   stages {
       stage('pre_build'){
           agent{label 'master'}
-          options { skipDefaultCheckout() } 
+          options { skipDefaultCheckout() }
           when {
               changeRequest()
           }
@@ -375,32 +375,32 @@ pipeline {
           //     sh '''
           //     git checkout 2.0
           //     '''
-          //   } 
+          //   }
           //   else{
           //     sh '''
           //     git checkout develop
           //     '''
-          //   } 
+          //   }
           // }
           // sh'''
           // git fetch origin +refs/pull/${CHANGE_ID}/merge
           // git checkout -qf FETCH_HEAD
-          // '''     
+          // '''
 
-          // script{  
-          //   skipbuild='2'     
+          // script{
+          //   skipbuild='2'
           //   skipbuild=sh(script: "git log -2 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
           //   println skipbuild
           // }
           // sh'''
           // rm -rf ${WORKSPACE}.tes
           // '''
-          // }       
+          // }
           }
       }
       stage('Parallel test stage') {
         //only build pr
-        options { skipDefaultCheckout() } 
+        options { skipDefaultCheckout() }
         when {
           allOf{
               changeRequest()
@@ -419,13 +419,11 @@ pipeline {
               ./test-all.sh p1
               date'''
             }
-            
           }
         }
         stage('python_2_s5') {
           agent{label " slave5 || slave15 "}
           steps {
-            
             pre_test()
             timeout(time: 55, unit: 'MINUTES'){
                 sh '''
@@ -438,8 +436,8 @@ pipeline {
         }
         stage('python_3_s6') {
           agent{label " slave6 || slave16 "}
-          steps {     
-            timeout(time: 55, unit: 'MINUTES'){       
+          steps {
+            timeout(time: 55, unit: 'MINUTES'){
               pre_test()
               sh '''
               date
@@ -451,8 +449,8 @@ pipeline {
         }
         stage('test_b1_s2') {
           agent{label " slave2 || slave12 "}
-          steps {     
-            timeout(time: 55, unit: 'MINUTES'){       
+          steps {
+            timeout(time: 55, unit: 'MINUTES'){
               pre_test()
               sh '''
                 rm -rf /var/lib/taos/*
@@ -496,11 +494,11 @@ pipeline {
                   cd ${WKC}/src/connector/C#
                   dotnet test
                   dotnet run --project src/test/Cases/Cases.csproj
-                  
+
                   cd ${WKC}/tests/examples/C#
                   dotnet run --project C#checker/C#checker.csproj
                   dotnet run --project TDengineTest/TDengineTest.csproj
-                  dotnet run --project schemaless/schemaless.csproj 
+                  dotnet run --project schemaless/schemaless.csproj
 
                   cd ${WKC}/tests/examples/C#/taosdemo
                   dotnet build -c Release
@@ -521,7 +519,7 @@ pipeline {
         }
         stage('test_crash_gen_s3') {
           agent{label " slave3 || slave13 "}
-          
+
           steps {
             pre_test()
             timeout(time: 60, unit: 'MINUTES'){
@@ -551,7 +549,7 @@ pipeline {
                 ./test-all.sh b2fq
                 date
                 '''
-            }                     
+            }
           }
         }
         stage('test_valgrind_s4') {
@@ -565,8 +563,8 @@ pipeline {
                 ./valgrind-test.sh 2>&1 > mem-error-out.log
                 ./handle_val_log.sh
                 '''
-            }     
-            timeout(time: 55, unit: 'MINUTES'){      
+            }
+            timeout(time: 55, unit: 'MINUTES'){
               sh '''
               date
               cd ${WKC}/tests
@@ -582,8 +580,8 @@ pipeline {
         }
         stage('test_b4_s7') {
           agent{label " slave7 || slave17 "}
-          steps {     
-            timeout(time: 105, unit: 'MINUTES'){       
+          steps {
+            timeout(time: 105, unit: 'MINUTES'){
               pre_test()
               sh '''
               date
@@ -596,14 +594,13 @@ pipeline {
               // ./test-all.sh full jdbc
               // cd ${WKC}/tests
               // ./test-all.sh full unit
-              
             }
           }
         }
         stage('test_b5_s8') {
           agent{label " slave8 || slave18 "}
-          steps {     
-            timeout(time: 55, unit: 'MINUTES'){       
+          steps {
+            timeout(time: 55, unit: 'MINUTES'){
               pre_test()
               sh '''
               date
@@ -615,8 +612,8 @@ pipeline {
         }
         stage('test_b6_s9') {
           agent{label " slave9 || slave19 "}
-          steps {     
-            timeout(time: 55, unit: 'MINUTES'){       
+          steps {
+            timeout(time: 55, unit: 'MINUTES'){
               pre_test()
               sh '''
               cd ${WKC}/tests
@@ -627,14 +624,13 @@ pipeline {
               cd ${WKC}/tests
               ./test-all.sh b6fq
               date'''
-              
             }
           }
         }
         stage('test_b7_s10') {
           agent{label " slave10 || slave20 "}
-          steps {     
-            timeout(time: 55, unit: 'MINUTES'){       
+          steps {
+            timeout(time: 55, unit: 'MINUTES'){
               pre_test()
               sh '''
               cd ${WKC}/tests
@@ -644,68 +640,68 @@ pipeline {
               date
               cd ${WKC}/tests
               ./test-all.sh b7fq
-              date'''              
+              date'''
             }
           }
-        } 
+        }
         stage('arm64centos7') {
           agent{label " arm64centos7 "}
-          steps {     
-              pre_test_noinstall()    
+          steps {
+              pre_test_noinstall()
             }
         }
         stage('arm64centos8') {
           agent{label " arm64centos8 "}
-          steps {     
-              pre_test_noinstall()    
+          steps {
+              pre_test_noinstall()
             }
         }
         stage('arm32bionic') {
           agent{label " arm32bionic "}
-          steps {     
-              pre_test_noinstall()    
+          steps {
+              pre_test_noinstall()
             }
         }
         stage('arm64bionic') {
           agent{label " arm64bionic "}
-          steps {     
-              pre_test_noinstall()    
+          steps {
+              pre_test_noinstall()
             }
         }
         stage('arm64focal') {
           agent{label " arm64focal "}
-          steps {     
-              pre_test_noinstall()    
+          steps {
+              pre_test_noinstall()
             }
         }
         stage('centos7') {
           agent{label " centos7 "}
-          steps {     
-              pre_test_noinstall()    
+          steps {
+              pre_test_noinstall()
             }
         }
         stage('ubuntu:trusty') {
           agent{label " trusty "}
-          steps {     
-              pre_test_noinstall()    
+          steps {
+              pre_test_noinstall()
             }
         }
         stage('ubuntu:xenial') {
           agent{label " xenial "}
-          steps {     
-              pre_test_noinstall()    
+          steps {
+              pre_test_noinstall()
             }
         }
         stage('ubuntu:bionic') {
           agent{label " bionic "}
-          steps {     
-              pre_test_noinstall()    
+          steps {
+              pre_test_noinstall()
             }
         }
         stage('Mac_build') {
           agent{label " catalina "}
-          steps {     
-              pre_test_mac()    
+          steps {
+              pre_test_mac()
             }
         }
 
@@ -713,7 +709,7 @@ pipeline {
           agent{label " wintest "}
           steps {
             pre_test()
-            script{             
+            script{
                 while(win_stop == 0){
                   sleep(1)
                   }
@@ -723,7 +719,6 @@ pipeline {
         stage('test'){
           agent{label "win"}
           steps{
-            
             catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                 pre_test_win()
                 timeout(time: 20, unit: 'MINUTES'){
@@ -732,18 +727,16 @@ pipeline {
                 .\\test-all.bat wintest
                 '''
                 }
-            }     
+            }
             script{
               win_stop=1
             }
           }
         }
-          
-               
     }
   }
   }
-  post {  
+  post {
         success {
             emailext (
                 subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' SUCCESS",
@@ -770,7 +763,6 @@ pipeline {
                                     <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
-                                    
                                 </div>
                                 </ul>
                             </td>
@@ -808,7 +800,6 @@ pipeline {
                                     <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
-                                    
                                 </div>
                                 </ul>
                             </td>
@@ -820,5 +811,5 @@ pipeline {
                 from: "support@taosdata.com"
             )
         }
-    } 
+    }
 }
