@@ -364,7 +364,7 @@ taosdemo 不仅仅可以进行数据写入，也可以执行查询和订阅功�
 }
 ```
 以下为 JSON 文件中和查询相关的特有参数含义：
-
+```
 "query_times": 每种查询类型的查询次数
 "query_mode": 查询数据接口，"taosc"：调用TDengine的c接口；“resetful”：使用restfule接口。可选项。缺省是“taosc”。
 "specified_table_query": { 指定表的查询
@@ -379,7 +379,7 @@ taosdemo 不仅仅可以进行数据写入，也可以执行查询和订阅功�
 "threads": 并发执行sqls的线程数，可选项，缺省是1。每个线程负责一部分子表，执行所有的sqls。
 "sql": "select count(*) from xxxx"。查询超级表内所有子表的查询语句，其中表名必须写成 “xxxx”，实例会自动替换成子表名。
 "result": 查询结果写入的文件名。可选项，缺省是空，表示查询结果不写入文件。
-
+```
 
 以下为一个典型订阅 JSON 示例文件内容：
 ```

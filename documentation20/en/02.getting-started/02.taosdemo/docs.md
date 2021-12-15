@@ -374,7 +374,7 @@ The following is the content of a typical query JSON example file.
 }
 ```
 The following parameters are specific to the query in the JSON file.
-
+```
 "query_times": the number of queries per query type
 "query_mode": query data interface, "tosc": call TDengine's c interface; "resetful": use restfule interface. Options are available. Default is "taosc".
 "specified_table_query": { query for the specified table
@@ -389,7 +389,7 @@ The following parameters are specific to the query in the JSON file.
 "threads": the number of threads to execute sqls concurrently, optional, default is 1. Each thread is responsible for a part of sub-tables and executes all sqls.
 "sql": "select count(*) from xxxx". Query statement for all sub-tables in the super table, where the table name must be written as "xxxx" and the instance will be replaced with the sub-table name automatically.
 "result": the name of the file to which the query result is written. Optional, the default is null, which means the query results are not written to a file.
-
+```
 
 The following is a typical subscription JSON example file content.
 ```
