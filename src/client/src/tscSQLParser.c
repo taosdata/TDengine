@@ -603,11 +603,11 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       char      buf[TSDB_TABLE_FNAME_LEN];
       SStrToken sTblToken;
       sTblToken.z = buf;
-      
+
       if (pInfo->type != TSDB_SQL_DROP_DNODE) {
         if ((escapeEnabled && (validateTableName(pzName->z, pzName->n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS)) ||
             ((!escapeEnabled) && (tscValidateName(pzName, escapeEnabled, &dbIncluded) != TSDB_CODE_SUCCESS))){
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);          
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
         }
       }
 
@@ -623,7 +623,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
         code = tscSetTableFullName(&pTableMetaInfo->name, &sTblToken, pSql, dbIncluded);
         if(code != TSDB_CODE_SUCCESS) {
-          return code; 
+          return code;
         }
       } else if (pInfo->type == TSDB_SQL_DROP_DNODE) {
         if (pzName->type == TK_STRING) {
