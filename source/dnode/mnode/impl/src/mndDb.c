@@ -408,7 +408,6 @@ static int32_t mndProcessCreateDbMsg(SMnodeMsg *pMsg) {
   mndReleaseUser(pMnode, pOperUser);
 
   if (code != 0) {
-    terrno = code;
     mError("db:%s, failed to create since %s", pCreate->db, terrstr());
     return -1;
   }
@@ -416,7 +415,7 @@ static int32_t mndProcessCreateDbMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mnodeSetDbCfgFromAlterDbMsg(SDbObj *pDb, SAlterDbMsg *pAlter) {
+static int32_t mndSetDbCfgFromAlterDbMsg(SDbObj *pDb, SAlterDbMsg *pAlter) {
   bool changed = false;
 
   if (pAlter->totalBlocks >= 0 && pAlter->totalBlocks != pDb->cfg.totalBlocks) {
@@ -522,7 +521,7 @@ static int32_t mndProcessAlterDbMsg(SMnodeMsg *pMsg) {
   SDbObj dbObj = {0};
   memcpy(&dbObj, pDb, sizeof(SDbObj));
 
-  int32_t code = mnodeSetDbCfgFromAlterDbMsg(&dbObj, pAlter);
+  int32_t code = mndSetDbCfgFromAlterDbMsg(&dbObj, pAlter);
   if (code != 0) {
     mndReleaseDb(pMnode, pDb);
     mError("db:%s, failed to alter since %s", pAlter->db, tstrerror(code));
@@ -773,7 +772,7 @@ static int32_t mndGetDbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMe
   return 0;
 }
 
-char *mnodeGetDbStr(char *src) {
+char *mnGetDbStr(char *src) {
   char *pos = strstr(src, TS_PATH_DELIMITER);
   if (pos != NULL) ++pos;
 
@@ -795,7 +794,7 @@ static int32_t mndRetrieveDbs(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int3
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    char *name = mnodeGetDbStr(pDb->name);
+    char *name = mnGetDbStr(pDb->name);
     if (name != NULL) {
       STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
     } else {
@@ -888,7 +887,7 @@ static int32_t mndRetrieveDbs(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int3
     sdbRelease(pSdb, pDb);
   }
 
-  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
 
   return numOfRows;

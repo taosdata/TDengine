@@ -252,7 +252,7 @@ static int32_t mndProcessConnectMsg(SMnodeMsg *pMsg) {
   return 0;
 }
 
-static int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SHeartBeatMsg *pMsg) {
+static int32_t mndSaveQueryStreamList(SConnObj *pConn, SHeartBeatMsg *pMsg) {
   pConn->numOfQueries = 0;
   pConn->numOfStreams = 0;
   int32_t numOfQueries = htonl(pMsg->numOfQueries);
@@ -338,7 +338,7 @@ static int32_t mndProcessHeartBeatMsg(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  mnodeSaveQueryStreamList(pConn, pReq);
+  mndSaveQueryStreamList(pConn, pReq);
   if (pConn->killed != 0) {
     pRsp->killConnection = 1;
   }
