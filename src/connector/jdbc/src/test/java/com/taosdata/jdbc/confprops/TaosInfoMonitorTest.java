@@ -31,7 +31,7 @@ public class TaosInfoMonitorTest {
                     int stmtSize = random.nextInt(100);
                     for (int k = 0; k < stmtSize; k++) {
                         Statement stmt = conn.createStatement();
-                        TimeUnit.MILLISECONDS.sleep(random.nextInt(3000));
+                        TimeUnit.MILLISECONDS.sleep(random.nextInt(30));
 
                         ResultSet rs = stmt.executeQuery("show databases");
                         while (rs.next()) {
