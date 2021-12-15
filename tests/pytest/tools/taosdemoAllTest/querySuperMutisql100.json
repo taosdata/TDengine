@@ -11,7 +11,7 @@
     "super_table_query": {
         "stblname": "stb0",
         "query_interval": 10000,
-        "concurrent": 9,
+        "threads": 9,
         "sqls": [
           {    
               "sql": "select last_row(*) from xxxx",
