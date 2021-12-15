@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "parserUtil.h"
+#include <tmsgtype.h>
 
 #include "taosmsg.h"
 #include "parser.h"
@@ -97,12 +98,35 @@ int32_t parserValidateIdToken(SToken* pToken) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t parserValidatePassword(SToken* pToken, SMsgBuf* pMsgBuf) {
+  const char* msg1 = "password can not be empty";
+  const char* msg2 = "name or password too long";
+  const char* msg3 = "password needs single quote marks enclosed";
+
+  if (pToken->type != TK_STRING) {
+    return buildInvalidOperationMsg(pMsgBuf, msg3);
+  }
+
+  strdequote(pToken->z);
+
+  pToken->n = (uint32_t)strtrim(pToken->z);  // trim space before and after passwords
+  if (pToken->n <= 0) {
+    return buildInvalidOperationMsg(pMsgBuf, msg1);
+  }
+
+  if (pToken->n >= TSDB_USET_PASSWORD_LEN) {
+    return buildInvalidOperationMsg(pMsgBuf, msg2);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t buildInvalidOperationMsg(SMsgBuf* pBuf, const char* msg) {
   strncpy(pBuf->buf, msg, pBuf->len);
   return TSDB_CODE_TSC_INVALID_OPERATION;
 }
 
-int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo,  const char* sourceStr) {
+int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char* sourceStr) {
   const char* msgFormat1 = "syntax error near \'%s\'";
   const char* msgFormat2 = "syntax error near \'%s\' (%s)";
   const char* msgFormat3 = "%s";
@@ -582,21 +606,6 @@ void addIntoSourceParam(SSourceParam* pSourceParam, tExprNode* pNode, SColumn* p
 
 int32_t getNumOfFields(SFieldInfo* pFieldInfo) {
   return pFieldInfo->numOfOutput;
-}
-
-int32_t getFirstInvisibleFieldPos(SQueryStmtInfo* pQueryInfo) {
-  if (pQueryInfo->fieldsInfo.numOfOutput <= 0 || pQueryInfo->fieldsInfo.internalField == NULL) {
-    return 0;
-  }
-
-  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-    SInternalField* pField = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);
-    if (!pField->visible) {
-      return i;
-    }
-  }
-
-  return pQueryInfo->fieldsInfo.numOfOutput;
 }
 
 SInternalField* appendFieldInfo(SFieldInfo* pFieldInfo, TAOS_FIELD* pField) {
@@ -1621,6 +1630,10 @@ uint32_t convertRelationalOperator(SToken *pToken) {
       return TSDB_RELATION_IN;
     default: { return 0; }
   }
+}
+
+bool isDdlSql(SSqlInfo* pSqlInfo) {
+  return (pSqlInfo->type != TSDB_SQL_SELECT);
 }
 
 #if 0

@@ -3091,6 +3091,36 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
 
 #endif
 
+int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
+  pMsgBody->msgType         = TSDB_MSG_TYPE_CONNECT;
+  pMsgBody->msgLen          = sizeof(SConnectMsg);
+  pMsgBody->requestObjRefId = pRequest->self;
+
+  SConnectMsg *pConnect = calloc(1, sizeof(SConnectMsg));
+  if (pConnect == NULL) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  // TODO refactor full_name
+  char *db;  // ugly code to move the space
+
+  STscObj *pObj = pRequest->pTscObj;
+  pthread_mutex_lock(&pObj->mutex);
+  db = strstr(pObj->db, TS_PATH_DELIMITER);
+
+  db = (db == NULL) ? pObj->db : db + 1;
+  tstrncpy(pConnect->db, db, sizeof(pConnect->db));
+  pthread_mutex_unlock(&pObj->mutex);
+
+  pConnect->pid = htonl(appInfo.pid);
+  pConnect->startTime = htobe64(appInfo.startTime);
+  tstrncpy(pConnect->app, appInfo.appName, tListLen(pConnect->app));
+
+  pMsgBody->pData = pConnect;
+  return 0;
+}
+
 int processConnectRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
   STscObj *pTscObj = pRequest->pTscObj;
 
@@ -3098,6 +3128,11 @@ int processConnectRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
   pConnect->acctId    = htonl(pConnect->acctId);
   pConnect->connId    = htonl(pConnect->connId);
   pConnect->clusterId = htonl(pConnect->clusterId);
+
+  assert(pConnect->epSet.numOfEps > 0);
+  for(int32_t i = 0; i < pConnect->epSet.numOfEps; ++i) {
+    pConnect->epSet.port[i] = htons(pConnect->epSet.port[i]);
+  }
 
   // TODO refactor
   pthread_mutex_lock(&pTscObj->mutex);
@@ -3108,13 +3143,12 @@ int processConnectRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
   tstrncpy(pTscObj->db, temp, sizeof(pTscObj->db));
   pthread_mutex_unlock(&pTscObj->mutex);
 
-  assert(pConnect->epSet.numOfEps > 0);
   if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &pConnect->epSet)) {
     updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &pConnect->epSet);
   }
 
   for (int i = 0; i < pConnect->epSet.numOfEps; ++i) {
-    tscDebug("0x%" PRIx64 " epSet.fqdn[%d]: %s, connObj:0x%"PRIx64, pRequest->requestId, i, pConnect->epSet.fqdn[i], pTscObj->id);
+    tscDebug("0x%" PRIx64 " epSet.fqdn[%d]:%s port:%d, connObj:0x%"PRIx64, pRequest->requestId, i, pConnect->epSet.fqdn[i], pConnect->epSet.port[i], pTscObj->id);
   }
 
   pTscObj->connId = pConnect->connId;
@@ -3124,10 +3158,14 @@ int processConnectRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
   atomic_add_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
   tscDebug("0x%" PRIx64 " clusterId:%d, totalConn:%"PRId64, pRequest->requestId, pConnect->clusterId, pTscObj->pAppInfo->numOfConns);
-  //  createHbObj(pTscObj);
+  return 0;
+}
 
-  // launch a timer to send heartbeat to maintain the connection and send status to mnode
-  //  taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, (void *)pTscObj->rid, tscTmr, &pTscObj->pTimer);
+int32_t buildCreateUserMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
+  pMsgBody->msgType         = TSDB_MSG_TYPE_CREATE_USER;
+  pMsgBody->msgLen          = sizeof(SCreateUserMsg);
+  pMsgBody->requestObjRefId = pRequest->self;
+  pMsgBody->pData = pRequest->body.param;
   return 0;
 }
 
@@ -3207,6 +3245,10 @@ void initMsgHandleFp() {
   tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_DATABASE] = tscProcessShowCreateRsp;
 #endif
 
-//  buildRequestMsgFp[TSDB_SQL_CONNECT]  = tscBuildConnectMsg;
+  buildRequestMsgFp[TSDB_SQL_CONNECT]  = buildConnectMsg;
   handleRequestRspFp[TSDB_SQL_CONNECT] = processConnectRsp;
+
+  buildRequestMsgFp[TSDB_SQL_CREATE_USER]  = buildCreateUserMsg;
+
+
 }

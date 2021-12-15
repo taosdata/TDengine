@@ -54,6 +54,15 @@ void clearAllTableMetaInfo(SQueryStmtInfo* pQueryInfo, bool removeMeta, uint64_t
 int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pSqlInfo, SQueryStmtInfo* pQueryInfo, int64_t id, char* msg, int32_t msgLen);
 
 /**
+ * validate the ddl ast, and convert the ast to the corresponding message format
+ * @param pSqlInfo
+ * @param output
+ * @param type
+ * @return
+ */
+int32_t qParserValidateDdlSqlNode(SSqlInfo* pInfo, int64_t id, void** output, int32_t* type, char* msgBuf, int32_t msgBufLen);
+
+/**
  * Evaluate the numeric and timestamp arithmetic expression in the WHERE clause.
  * @param pNode
  * @param tsPrecision

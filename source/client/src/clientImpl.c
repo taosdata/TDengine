@@ -1,5 +1,4 @@
 
-#include <parser.h>
 #include "clientInt.h"
 #include "clientLog.h"
 #include "tdef.h"
@@ -9,6 +8,7 @@
 #include "tnote.h"
 #include "tpagedfile.h"
 #include "tref.h"
+#include "parser.h"
 
 static int32_t initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet);
 static int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody);
@@ -113,7 +113,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
 }
 
 TAOS_RES *taos_query_l(TAOS *taos, const char *sql, size_t sqlLen) {
-  STscObj *pObj = (STscObj *)taos;
+  STscObj *pTscObj = (STscObj *)taos;
   if (sqlLen > (size_t) tsMaxSQLStringLen) {
     tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
@@ -122,7 +122,7 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, size_t sqlLen) {
 
   nPrintTsc("%s", sql)
 
-  SRequestObj* pRequest = createRequest(pObj, NULL, NULL, TSDB_SQL_SELECT);
+  SRequestObj* pRequest = createRequest(pTscObj, NULL, NULL, TSDB_SQL_SELECT);
   if (pRequest == NULL) {
     tscError("failed to malloc sqlObj");
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -143,25 +143,36 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, size_t sqlLen) {
 
   tscDebugL("0x%"PRIx64" SQL: %s", pRequest->requestId, pRequest->sqlstr);
 
-  int32_t code = 0;//tsParseSql(pSql, true);
+  int32_t code = 0;
   if (qIsInsertSql(pRequest->sqlstr, sqlLen)) {
-//    qParseInsertSql();
+    // todo add
   } else {
-    SQueryStmtInfo *pQueryInfo = qParseQuerySql(pRequest->sqlstr, sqlLen, pRequest->requestId, pRequest->msgBuf, ERROR_MSG_BUF_DEFAULT_SIZE);
-    assert(pQueryInfo != NULL);
+    int32_t type = 0;
+    void*   output = NULL;
+
+    code = qParseQuerySql(pRequest->sqlstr, sqlLen, pRequest->requestId, &type, &output, pRequest->msgBuf, ERROR_MSG_BUF_DEFAULT_SIZE);
+    if (type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_SHOW) {
+      pRequest->type = type;
+      pRequest->body.param = output;
+
+      SRequestMsgBody body = {0};
+      buildRequestMsgFp[type](pRequest, &body);
+
+      int64_t transporterId = 0;
+      sendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &body, &transporterId);
+
+      tsem_wait(&pRequest->body.rspSem);
+      destroyConnectMsg(&body);
+    } else {
+      assert(0);
+    }
   }
 
   if (code != TSDB_CODE_SUCCESS) {
     pRequest->code = code;
-//    tscAsyncResultOnError(pSql);
-//    taosReleaseRef(tscReqRef, p->self);
-    return NULL;
+    return pRequest;
   }
 
-//  executeQuery(pSql, pQueryInfo);
-//  doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
-
-  tsem_wait(&pRequest->body.rspSem);
   return pRequest;
 }
 
@@ -328,12 +339,39 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
       pMsg->code = (*handleRequestRspFp[pRequest->type])(pRequest, pMsg->pCont, pMsg->contLen);
     }
   } else {
-    tscError("0x%" PRIx64 " SQL cmd:%s, code:%s rspLen:%d", pRequest->requestId, taosMsg[pMsg->msgType],
-             tstrerror(pMsg->code), pMsg->contLen);
+    tscError("0x%" PRIx64 " SQL cmd:%s, code:%s rspLen:%d, elapsed time:%"PRId64" ms", pRequest->requestId, taosMsg[pMsg->msgType],
+             tstrerror(pMsg->code), pMsg->contLen, pRequest->metric.rsp - pRequest->metric.start);
   }
 
   taosReleaseRef(tscReqRef, requestRefId);
   rpcFreeCont(pMsg->pCont);
 
   sem_post(&pRequest->body.rspSem);
+}
+
+TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port) {
+  tscDebug("try to connect to %s:%u by auth, user:%s db:%s", ip, port, user, db);
+  if (user == NULL) {
+    user = TSDB_DEFAULT_USER;
+  }
+
+  if (auth == NULL) {
+    tscError("No auth info is given, failed to connect to server");
+    return NULL;
+  }
+
+  return taos_connect_internal(ip, user, NULL, auth, db, port);
+}
+
+TAOS *taos_connect_l(const char *ip, int ipLen, const char *user, int userLen, const char *pass, int passLen, const char *db, int dbLen, uint16_t port) {
+  char ipStr[TSDB_EP_LEN]      = {0};
+  char dbStr[TSDB_DB_NAME_LEN] = {0};
+  char userStr[TSDB_USER_LEN]  = {0};
+  char passStr[TSDB_PASSWORD_LEN]   = {0};
+
+  strncpy(ipStr,   ip,   MIN(TSDB_EP_LEN - 1, ipLen));
+  strncpy(userStr, user, MIN(TSDB_USER_LEN - 1, userLen));
+  strncpy(passStr, pass, MIN(TSDB_PASSWORD_LEN - 1, passLen));
+  strncpy(dbStr,   db,   MIN(TSDB_DB_NAME_LEN - 1, dbLen));
+  return taos_connect(ipStr, userStr, passStr, dbStr, port);
 }

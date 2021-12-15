@@ -14,6 +14,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <taoserror.h>
 #include <iostream>
 #include "tglobal.h"
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -36,6 +37,14 @@ TEST(testCase, driverInit_Test) {
   TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
-  taos_query(pConn, "create user abc pass 'abc'");
+  TAOS_RES* pRes = taos_query(pConn, "create user abc pass 'abc'");
+  if (taos_errno(pRes) != TSDB_CODE_SUCCESS) {
+    printf("failed to create user, reason:%s\n", taos_errstr(pRes));
+  }
+
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "show users");
+
   taos_close(pConn);
 }

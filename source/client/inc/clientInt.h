@@ -120,7 +120,7 @@ extern int32_t    tscReqRef;
 extern void      *tscQhandle;
 extern int32_t    tscConnRef;
 
-extern int (*tscBuildMsg[TSDB_SQL_MAX])(SRequestObj *pRequest, SRequestMsgBody *pMsg);
+extern int (*buildRequestMsgFp[TSDB_SQL_MAX])(SRequestObj *pRequest, SRequestMsgBody *pMsgBody);
 extern int (*handleRequestRspFp[TSDB_SQL_MAX])(SRequestObj *pRequest, const char* pMsg, int32_t msgLen);
 
 int   taos_init();

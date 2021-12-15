@@ -393,8 +393,10 @@ typedef struct {
 } SDropUserMsg, SDropAcctMsg;
 
 typedef struct {
+  int8_t type;
   char user[TSDB_USER_LEN];
   char pass[TSDB_PASSWORD_LEN];
+  int8_t superUser;      // denote if it is a super user or not
 } SCreateUserMsg, SAlterUserMsg;
 
 typedef struct {

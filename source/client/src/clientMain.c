@@ -16,9 +16,6 @@
 #define TSC_VAR_RELEASED    0
 
 static int32_t sentinel = TSC_VAR_NOT_RELEASE;
-static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
-
-extern int32_t tscInitRes;
 
 int taos_options(TSDB_OPTION option, const void *arg, ...) {
   static int32_t lock = 0;
@@ -34,11 +31,6 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 
   atomic_store_32(&lock, 0);
   return ret;
-}
-
-int taos_init() {
-  pthread_once(&tscinit, taos_init_imp);
-  return tscInitRes;
 }
 
 // this function may be called by user or system, or by both simultaneously.
@@ -65,6 +57,21 @@ void taos_cleanup(void) {
   taosCloseLog();
 }
 
+TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
+    int32_t p = (port != 0)? port:tsServerPort;
+
+    tscDebug("try to connect to %s:%u, user:%s db:%s", ip, p, user, db);
+    if (user == NULL) {
+        user = TSDB_DEFAULT_USER;
+    }
+
+    if (pass == NULL) {
+        pass = TSDB_DEFAULT_PASS;
+    }
+
+    return taos_connect_internal(ip, user, pass, NULL, db, p);
+}
+
 void taos_close(TAOS* taos) {
   if (taos == NULL) {
     return;
@@ -76,12 +83,31 @@ void taos_close(TAOS* taos) {
   taosRemoveRef(tscConnRef, pTscObj->id);
 }
 
-const char *taos_errstr(TAOS_RES *res) {
+int taos_errno(TAOS_RES *tres) {
+  if (tres == NULL) {
+    return terrno;
+  }
 
+  return ((SRequestObj*) tres)->code;
+}
+
+const char *taos_errstr(TAOS_RES *res) {
+  SRequestObj *pRequest = (SRequestObj *) res;
+
+  if (pRequest == NULL) {
+    return (const char*) tstrerror(terrno);
+  }
+
+  if (strlen(pRequest->msgBuf) > 0 || pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) {
+    return pRequest->msgBuf;
+  } else {
+    return (const char*)tstrerror(pRequest->code);
+  }
 }
 
 void taos_free_result(TAOS_RES *res) {
-
+  SRequestObj* pRequest = (SRequestObj*) res;
+  destroyRequest(pRequest);
 }
 
 TAOS_RES *taos_query(TAOS *taos, const char *sql) {

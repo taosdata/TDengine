@@ -29,6 +29,7 @@
 #include "taos.h"
 #include "tdef.h"
 #include "tvariant.h"
+#include "parserUtil.h"
 
 namespace {
 void setSchema(SSchema* p, int32_t type, int32_t bytes, const char* name, int32_t colId) {
@@ -700,5 +701,49 @@ TEST(testCase, function_Test6) {
 
   destroyQueryInfo(pQueryInfo);
   qParserClearupMetaRequestInfo(&req);
+  destroySqlInfo(&info1);
+}
+
+TEST(testCase, show_user_Test) {
+  char    msg[128] = {0};
+  SMsgBuf buf;
+  buf.len = 128;
+  buf.buf = msg;
+
+  char sql1[] = "show users";
+  SSqlInfo info1 = doGenerateAST(sql1);
+  ASSERT_EQ(info1.valid, true);
+
+  // convert the show command to be the select query
+  // select name, privilege, create_time, account from information_schema.users;
+
+
+  SQueryStmtInfo* pQueryInfo = createQueryInfo();
+//  setTableMetaInfo(pQueryInfo, &req);
+
+//  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
+//  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
+//  ASSERT_NE(ret, 0);
+}
+
+TEST(testCase, create_user_Test) {
+  char    msg[128] = {0};
+  SMsgBuf buf;
+  buf.len = 128;
+  buf.buf = msg;
+
+  char sql[] = {"create user abc pass 'abc'"};
+
+  SSqlInfo info1 = doGenerateAST(sql);
+  ASSERT_EQ(info1.valid, true);
+
+  ASSERT_EQ(isDdlSql(&info1), true);
+
+  void* output = NULL;
+  int32_t type = 0;
+
+  int32_t code = qParserValidateDdlSqlNode(&info1, 1, &output, &type, msg, buf.len);
+  ASSERT_EQ(code, 0);
+
   destroySqlInfo(&info1);
 }

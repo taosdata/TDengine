@@ -35,6 +35,7 @@ int32_t    tscReqRef  = -1;
 int32_t    tscConnRef = -1;
 void      *tscQhandle = NULL;
 
+static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 int32_t tsNumOfThreads = 1;
 volatile int32_t tscInitRes = 0;
 
@@ -64,7 +65,7 @@ static void deregisterRequest(SRequestObj* pRequest) {
   SInstanceActivity* pActivity = &pTscObj->pAppInfo->summary;
 
   int32_t currentInst = atomic_sub_fetch_32(&pActivity->currentRequests, 1);
-  int32_t num   = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
+  int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
 
   tscDebug("0x%"PRIx64" free Request from connObj: 0x%"PRIx64", current:%d, app current:%d", pRequest->self, pTscObj->id, num, currentInst);
   taosReleaseRef(tscConnRef, pTscObj->id);
@@ -249,6 +250,11 @@ void taos_init_imp(void) {
   appInfo.pInstMap  = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
 
   tscDebug("client is initialized successfully");
+}
+
+int taos_init() {
+  pthread_once(&tscinit, taos_init_imp);
+  return tscInitRes;
 }
 
 int taos_options_imp(TSDB_OPTION option, const char *str) {

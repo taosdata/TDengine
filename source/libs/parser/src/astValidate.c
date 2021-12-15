@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <function.h>
 #include "astGenerator.h"
 #include "function.h"
 #include "parserInt.h"
@@ -23,6 +22,7 @@
 #include "tglobal.h"
 #include "tmsgtype.h"
 #include "ttime.h"
+#include "astToMsg.h"
 
 #define TSQL_TBNAME_L "tbname"
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
@@ -3636,11 +3636,14 @@ int32_t evaluateSqlNode(SSqlNode* pNode, int32_t tsPrecision, SMsgBuf* pMsgBuf) 
 }
 
 int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQueryStmtInfo* pQueryInfo, int64_t id, char* msgBuf, int32_t msgBufLen) {
-  //1. if it is a query, get the meta info and continue.
   assert(pCatalog != NULL && pInfo != NULL);
   int32_t code = 0;
-#if 0
+
+  SMsgBuf m = {.buf = msgBuf, .len = msgBufLen};
+  SMsgBuf *pMsgBuf = &m;
+
   switch (pInfo->type) {
+#if 0
     case TSDB_SQL_DROP_TABLE:
     case TSDB_SQL_DROP_USER:
     case TSDB_SQL_DROP_ACCT:
@@ -3651,14 +3654,14 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
       SToken* pzName = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if ((pInfo->type != TSDB_SQL_DROP_DNODE) && (parserValidateIdToken(pzName) != TSDB_CODE_SUCCESS)) {
-        return setInvalidOperatorMsg(pMsgBuf, msg2);
+        return buildInvalidOperationMsg(pMsgBuf, msg2);
       }
 
       if (pInfo->type == TSDB_SQL_DROP_DB) {
         assert(taosArrayGetSize(pInfo->pMiscInfo->a) == 1);
         code = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), pzName);
         if (code != TSDB_CODE_SUCCESS) {
-          return setInvalidOperatorMsg(pMsgBuf, msg2);
+          return buildInvalidOperationMsg(pMsgBuf, msg2);
         }
 
       } else if (pInfo->type == TSDB_SQL_DROP_TABLE) {
@@ -3675,7 +3678,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
         strncpy(pCmd->payload, pzName->z, pzName->n);
       } else {  // drop user/account
         if (pzName->n >= TSDB_USER_LEN) {
-          return setInvalidOperatorMsg(pMsgBuf, msg3);
+          return buildInvalidOperationMsg(pMsgBuf, msg3);
         }
 
         strncpy(pCmd->payload, pzName->z, pzName->n);
@@ -3689,12 +3692,12 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       SToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorMsg(pMsgBuf, msg);
+        return buildInvalidOperationMsg(pMsgBuf, msg);
       }
 
       int32_t ret = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), pToken);
       if (ret != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorMsg(pMsgBuf, msg);
+        return buildInvalidOperationMsg(pMsgBuf, msg);
       }
 
       break;
@@ -3729,19 +3732,19 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
       SCreateDbInfo* pCreateDB = &(pInfo->pMiscInfo->dbOpt);
       if (pCreateDB->dbname.n >= TSDB_DB_NAME_LEN) {
-        return setInvalidOperatorMsg(pMsgBuf, msg2);
+        return buildInvalidOperationMsg(pMsgBuf, msg2);
       }
 
       char buf[TSDB_DB_NAME_LEN] = {0};
       SToken token = taosTokenDup(&pCreateDB->dbname, buf, tListLen(buf));
 
       if (tscValidateName(&token) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorMsg(pMsgBuf, msg1);
+        return buildInvalidOperationMsg(pMsgBuf, msg1);
       }
 
       int32_t ret = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), &token);
       if (ret != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorMsg(pMsgBuf, msg2);
+        return buildInvalidOperationMsg(pMsgBuf, msg2);
       }
 
       if (parseCreateDBOptions(pCmd, pCreateDB) != TSDB_CODE_SUCCESS) {
@@ -3755,7 +3758,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       const char* msg = "invalid host name (ip address)";
 
       if (taosArrayGetSize(pInfo->pMiscInfo->a) > 1) {
-        return setInvalidOperatorMsg(pMsgBuf, msg);
+        return buildInvalidOperationMsg(pMsgBuf, msg);
       }
 
       SToken* id = taosArrayGet(pInfo->pMiscInfo->a, 0);
@@ -3779,11 +3782,11 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       }
 
       if (pName->n >= TSDB_USER_LEN) {
-        return setInvalidOperatorMsg(pMsgBuf, msg3);
+        return buildInvalidOperationMsg(pMsgBuf, msg3);
       }
 
       if (tscValidateName(pName) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorMsg(pMsgBuf, msg2);
+        return buildInvalidOperationMsg(pMsgBuf, msg2);
       }
 
       SCreateAcctInfo* pAcctOpt = &pInfo->pMiscInfo->acctOpt;
@@ -3793,7 +3796,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
         } else if (strncmp(pAcctOpt->stat.z, "all", 3) == 0 && pAcctOpt->stat.n == 3) {
         } else if (strncmp(pAcctOpt->stat.z, "no", 2) == 0 && pAcctOpt->stat.n == 2) {
         } else {
-          return setInvalidOperatorMsg(pMsgBuf, msg1);
+          return buildInvalidOperationMsg(pMsgBuf, msg1);
         }
       }
 
@@ -3805,7 +3808,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
       SToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorMsg(pMsgBuf, msg1);
+        return buildInvalidOperationMsg(pMsgBuf, msg1);
       }
       // additional msg has been attached already
       code = tscSetTableFullName(&pTableMetaInfo->name, pToken, pSql);
@@ -3821,7 +3824,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
       SToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorMsg(pMsgBuf, msg1);
+        return buildInvalidOperationMsg(pMsgBuf, msg1);
       }
 
       code = tscSetTableFullName(&pTableMetaInfo->name, pToken, pSql);
@@ -3836,11 +3839,11 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
       SToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorMsg(pMsgBuf, msg1);
+        return buildInvalidOperationMsg(pMsgBuf, msg1);
       }
 
       if (pToken->n > TSDB_DB_NAME_LEN) {
-        return setInvalidOperatorMsg(pMsgBuf, msg1);
+        return buildInvalidOperationMsg(pMsgBuf, msg1);
       }
       return tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), pToken);
     }
@@ -3853,7 +3856,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
       /* validate the parameter names and options */
       if (validateDNodeConfig(pMiscInfo) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorMsg(pMsgBuf, msg2);
+        return buildInvalidOperationMsg(pMsgBuf, msg2);
       }
 
       char* pMsg = pCmd->payload;
@@ -3867,7 +3870,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       strncpy(pCfg->ep, t0->z, t0->n);
 
       if (validateEp(pCfg->ep) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorMsg(pMsgBuf, msg3);
+        return buildInvalidOperationMsg(pMsgBuf, msg3);
       }
 
       strncpy(pCfg->config, t1->z, t1->n);
@@ -3882,65 +3885,13 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       break;
     }
 
-    case TSDB_SQL_CREATE_USER:
-    case TSDB_SQL_ALTER_USER: {
-      const char* msg2 = "invalid user/account name";
-      const char* msg3 = "name too long";
-      const char* msg5 = "invalid user rights";
-      const char* msg7 = "not support options";
-
-      pCmd->command = pInfo->type;
-
-      SUserInfo* pUser = &pInfo->pMiscInfo->user;
-      SToken* pName = &pUser->user;
-      SToken* pPwd = &pUser->passwd;
-
-      if (pName->n >= TSDB_USER_LEN) {
-        return setInvalidOperatorMsg(pMsgBuf, msg3);
-      }
-
-      if (tscValidateName(pName) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorMsg(pMsgBuf, msg2);
-      }
-
-      if (pCmd->command == TSDB_SQL_CREATE_USER) {
-        if (handlePassword(pCmd, pPwd) != TSDB_CODE_SUCCESS) {
-          return TSDB_CODE_TSC_INVALID_OPERATION;
-        }
-      } else {
-        if (pUser->type == TSDB_ALTER_USER_PASSWD) {
-          if (handlePassword(pCmd, pPwd) != TSDB_CODE_SUCCESS) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-        } else if (pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
-          assert(pPwd->type == TSDB_DATA_TYPE_NULL);
-
-          SToken* pPrivilege = &pUser->privilege;
-
-          if (strncasecmp(pPrivilege->z, "super", 5) == 0 && pPrivilege->n == 5) {
-            pCmd->count = 1;
-          } else if (strncasecmp(pPrivilege->z, "read", 4) == 0 && pPrivilege->n == 4) {
-            pCmd->count = 2;
-          } else if (strncasecmp(pPrivilege->z, "write", 5) == 0 && pPrivilege->n == 5) {
-            pCmd->count = 3;
-          } else {
-            return setInvalidOperatorMsg(pMsgBuf, msg5);
-          }
-        } else {
-          return setInvalidOperatorMsg(pMsgBuf, msg7);
-        }
-      }
-
-      break;
-    }
-
     case TSDB_SQL_CFG_LOCAL: {
       SMiscInfo  *pMiscInfo = pInfo->pMiscInfo;
       const char *msg = "invalid configure options or values";
 
       // validate the parameter names and options
       if (validateLocalConfig(pMiscInfo) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorMsg(pMsgBuf, msg);
+        return buildInvalidOperationMsg(pMsgBuf, msg);
       }
 
       int32_t numOfToken = (int32_t) taosArrayGetSize(pMiscInfo->a);
@@ -3995,7 +3946,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
         tscTrace("0x%"PRIx64" start to parse the %dth subclause, total:%"PRIzu, pSql->self, i, size);
 
         if (size > 1 && pSqlNode->from && pSqlNode->from->type == SQL_FROM_NODE_SUBQUERY) {
-          return setInvalidOperatorMsg(pMsgBuf, msg1);
+          return buildInvalidOperationMsg(pMsgBuf, msg1);
         }
 
 //        normalizeSqlNode(pSqlNode); // normalize the column name in each function
@@ -4061,21 +4012,22 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       assert(taosArrayGetSize(pInfo->pMiscInfo->a) == 1);
       code = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), pzName);
       if (code != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorMsg(pMsgBuf, msg1);
+        return buildInvalidOperationMsg(pMsgBuf, msg1);
       }
       break;
     }
     case TSDB_SQL_COMPACT_VNODE:{
       const char* msg = "invalid compact";
       if (setCompactVnodeInfo(pSql, pInfo) != TSDB_CODE_SUCCESS) {
-        return setInvalidOperatorMsg(pMsgBuf, msg);
+        return buildInvalidOperationMsg(pMsgBuf, msg);
       }
       break;
     }
+    #endif
     default:
-      return setInvalidOperatorMsg(pMsgBuf, "not support sql expression");
+      return buildInvalidOperationMsg(pMsgBuf, "not support sql expression");
   }
-#endif
+
 
   SMetaReq req = {0};
   SMetaData data = {0};
@@ -4115,4 +4067,67 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
 
   return code;
+}
+
+int32_t qParserValidateDdlSqlNode(SSqlInfo* pInfo, int64_t id, void** output, int32_t* type, char* msgBuf, int32_t msgBufLen) {
+  int32_t code = 0;
+
+  SMsgBuf m = {.buf = msgBuf, .len = msgBufLen};
+  SMsgBuf *pMsgBuf = &m;
+
+  *type = pInfo->type;
+
+  switch (pInfo->type) {
+    case TSDB_SQL_CREATE_USER:
+    case TSDB_SQL_ALTER_USER: {
+      const char* msg1 = "not support options";
+      const char* msg2 = "invalid user/account name";
+      const char* msg3 = "name too long";
+      const char* msg4 = "invalid user rights";
+
+      SUserInfo* pUser = &pInfo->pMiscInfo->user;
+      SToken*    pName = &pUser->user;
+      SToken*    pPwd = &pUser->passwd;
+
+      if (pName->n >= TSDB_USER_LEN) {
+        return buildInvalidOperationMsg(pMsgBuf, msg3);
+      }
+
+      if (parserValidateIdToken(pName) != TSDB_CODE_SUCCESS) {
+        return buildInvalidOperationMsg(pMsgBuf, msg2);
+      }
+
+      if (pInfo->type == TSDB_SQL_CREATE_USER) {
+        if (parserValidatePassword(pPwd, pMsgBuf) != TSDB_CODE_SUCCESS) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+      } else {
+        if (pUser->type == TSDB_ALTER_USER_PASSWD) {
+          if (parserValidatePassword(pPwd, pMsgBuf) != TSDB_CODE_SUCCESS) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+        } else if (pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
+          assert(pPwd->type == TSDB_DATA_TYPE_NULL);
+
+          SToken* pPrivilege = &pUser->privilege;
+          if (strncasecmp(pPrivilege->z, "super", 5) == 0 && pPrivilege->n == 5) {
+            //            pCmd->count = 1;
+          } else if (strncasecmp(pPrivilege->z, "normal", 4) == 0 && pPrivilege->n == 4) {
+            //            pCmd->count = 2;
+          } else {
+            return buildInvalidOperationMsg(pMsgBuf, msg4);
+          }
+        } else {
+          return buildInvalidOperationMsg(pMsgBuf, msg1);
+        }
+      }
+
+      *output = buildUserManipulationMsg(pInfo, id, msgBuf, msgBufLen);
+      break;
+    }
+    default:
+      break;
+  }
+
+  return 0;
 }
