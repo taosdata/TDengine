@@ -432,13 +432,13 @@ The following is a typical subscription JSON example file content.
   }
 ```
 The following are the meanings of the parameters specific to the subscription function.
-
+```
 "interval": interval for executing subscriptions, in seconds. Optional, default is 0.
 "restart": subscription restart." yes": restart the subscription if it already exists, "no": continue the previous subscription. (Please note that the executing user needs to have read/write access to the dataDir directory)
 "keepProgress": keep the progress of the subscription information. yes means keep the subscription information, no means don't keep it. The value is yes and restart is no to continue the previous subscriptions.
 "resubAfterConsume": Used in conjunction with keepProgress to call unsubscribe after the subscription has been consumed the appropriate number of times and to subscribe again.
 "result": the name of the file to which the query result is written. Optional, default is null, means the query result will not be written to the file. Note: The file to save the result after each sql statement cannot be renamed, and the file name will be appended with the thread number when generating the result file.
-
+```
 Conclusion
 --
 TDengine is a big data platform designed and optimized for IoT, Telematics, Industrial Internet, DevOps, etc. TDengine shows a high performance that far exceeds similar products due to the innovative data storage and query engine design in the database kernel. And withSQL syntax support and connectors for multiple programming languages (currently Java, Python, Go, C#, NodeJS, Rust, etc. are supported), it is extremely easy to use and has zero learning cost. To facilitate the operation and maintenance needs, we also provide data migration and monitoring functions and other related ecological tools and software.
