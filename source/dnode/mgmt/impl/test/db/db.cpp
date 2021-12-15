@@ -182,7 +182,7 @@ SServer* DndTestDb::pServer;
 SClient* DndTestDb::pClient;
 int32_t  DndTestDb::connId;
 
-TEST_F(DndTestDb, ShowDb) {
+TEST_F(DndTestDb, 01_ShowDb) {
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
   CheckSchema(0, TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN - 1 + VARSTR_HEADER_SIZE, "name");
   CheckSchema(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create time");
@@ -204,7 +204,7 @@ TEST_F(DndTestDb, ShowDb) {
   SendThenCheckShowRetrieveMsg(0);
 }
 
-TEST_F(DndTestDb, CreateDb_01) {
+TEST_F(DndTestDb, 02_CreateDb) {
   {
     SCreateDbMsg* pReq = (SCreateDbMsg*)rpcMallocCont(sizeof(SCreateDbMsg));
     strcpy(pReq->db, "1.d1");
@@ -258,65 +258,51 @@ TEST_F(DndTestDb, CreateDb_01) {
   CheckInt8(0);                       // update
 }
 
-#if 0
-TEST_F(DndTestDb, AlterUser_01) {
-  SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(sizeof(SAlterUserMsg));
-  strcpy(pReq->user, "u1");
-  strcpy(pReq->pass, "p2");
+TEST_F(DndTestDb, 03_AlterDb) {
+  {
+    SAlterDbMsg* pReq = (SAlterDbMsg*)rpcMallocCont(sizeof(SAlterDbMsg));
+    strcpy(pReq->db, "1.d1");
+    pReq->totalBlocks = htonl(12);
+    pReq->daysToKeep0 = htonl(300);
+    pReq->daysToKeep1 = htonl(400);
+    pReq->daysToKeep2 = htonl(500);
+    pReq->fsyncPeriod = htonl(4000);
+    pReq->walLevel = 2;
+    pReq->quorum = 2;
+    pReq->cacheLastRow = 1;
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SAlterUserMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_ALTER_USER;
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SAlterDbMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_ALTER_DB;
 
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
-  SendThenCheckShowRetrieveMsg(3);
-  CheckBinary("u1", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("u2", TSDB_USER_LEN);
-  CheckBinary("normal", 10);
-  CheckBinary("super", 10);
-  CheckBinary("normal", 10);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
+  SendThenCheckShowRetrieveMsg(1);
+  CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
+  CheckInt16(1);                   // replica
+  CheckInt16(2);                   // quorum
+  CheckInt16(10);                  // days
+  CheckBinary("300,400,500", 24);  // days
+  CheckInt32(16);                  // cache
+  CheckInt32(12);                  // blocks
+  CheckInt32(100);                 // minrows
+  CheckInt32(4096);                // maxrows
+  CheckInt8(2);                    // wallevel
+  CheckInt32(4000);                // fsync
+  CheckInt8(2);                    // comp
+  CheckInt8(1);                    // cachelast
+  CheckBinary("ms", 3);            // precision
+  CheckInt8(0);                    // update
 }
 
-TEST_F(DndTestDb, DropUser_01) {
-  SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(sizeof(SDropUserMsg));
-  strcpy(pReq->user, "u1");
-
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SDropUserMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_DROP_USER;
-
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
-
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
-  SendThenCheckShowRetrieveMsg(2);
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("u2", TSDB_USER_LEN);
-  CheckBinary("super", 10);
-  CheckBinary("normal", 10);
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
-}
-
-TEST_F(DndTestDb, RestartDnode) {
+TEST_F(DndTestDb, 04_RestartDnode) {
   stopServer(pServer);
   pServer = NULL;
 
@@ -328,16 +314,42 @@ TEST_F(DndTestDb, RestartDnode) {
 
   uInfo("all server is running");
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
-  SendThenCheckShowRetrieveMsg(2);
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("u2", TSDB_USER_LEN);
-  CheckBinary("super", 10);
-  CheckBinary("normal", 10);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
+  SendThenCheckShowRetrieveMsg(1);
+  CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
+  CheckInt16(1);                   // replica
+  CheckInt16(2);                   // quorum
+  CheckInt16(10);                  // days
+  CheckBinary("300,400,500", 24);  // days
+  CheckInt32(16);                  // cache
+  CheckInt32(12);                  // blocks
+  CheckInt32(100);                 // minrows
+  CheckInt32(4096);                // maxrows
+  CheckInt8(2);                    // wallevel
+  CheckInt32(4000);                // fsync
+  CheckInt8(2);                    // comp
+  CheckInt8(1);                    // cachelast
+  CheckBinary("ms", 3);            // precision
+  CheckInt8(0);                    // update
 }
 
-#endif
+TEST_F(DndTestDb, 05_DropDb) {
+  {
+    SDropDbMsg* pReq = (SDropDbMsg*)rpcMallocCont(sizeof(SAlterDbMsg));
+    strcpy(pReq->db, "1.d1");
+
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SDropDbMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_DROP_DB;
+
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
+
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
+  SendThenCheckShowRetrieveMsg(0);
+}

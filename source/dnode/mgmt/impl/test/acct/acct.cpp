@@ -17,24 +17,27 @@
 
 class DndTestAcct : public ::testing::Test {
  protected:
-  void SetUp() override {}
-  void TearDown() override {}
+   static SServer* CreateServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
+    SServer* pServer = createServer(path, fqdn, port, firstEp);
+    ASSERT(pServer);
+    return pServer;
+  }
 
   static void SetUpTestSuite() {
-    const char* user = "root";
-    const char* pass = "taosdata";
-    const char* path = "/tmp/dndTestAcct";
-    const char* fqdn = "localhost";
-    uint16_t    port = 9520;
+    initLog("/tmp/tdlog");
 
-    pServer = createServer(path, fqdn, port);
-    ASSERT(pServer);
-    pClient = createClient(user, pass, fqdn, port);
+    const char* fqdn = "localhost";
+    const char* firstEp = "localhost:9012";
+    pServer = CreateServer("/tmp/dnode_test_user", fqdn, 9012, firstEp);
+    pClient = createClient("root", "taosdata", fqdn, 9012);
+    taosMsleep(300);
   }
 
   static void TearDownTestSuite() {
     stopServer(pServer);
     dropClient(pClient);
+    pServer = NULL;
+    pClient = NULL;
   }
 
   static SServer* pServer;

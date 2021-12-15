@@ -1,5 +1,5 @@
 
-# add_subdirectory(acct)
+add_subdirectory(acct)
 # add_subdirectory(auth)
 # add_subdirectory(balance)
 # add_subdirectory(cluster)

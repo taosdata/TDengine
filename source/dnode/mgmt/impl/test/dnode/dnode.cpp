@@ -24,7 +24,7 @@ class DndTestDnode : public ::testing::Test {
   }
 
   static void SetUpTestSuite() {
-    initLog("/tmp/dnode_test_dnode");
+    initLog("/tmp/tdlog");
 
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9041";
@@ -188,7 +188,7 @@ SServer* DndTestDnode::pServer4;
 SServer* DndTestDnode::pServer5;
 SClient* DndTestDnode::pClient;
 
-TEST_F(DndTestDnode, ShowDnode) {
+TEST_F(DndTestDnode, 01_ShowDnode) {
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
   CheckSchema(0, TSDB_DATA_TYPE_SMALLINT, 2, "id");
   CheckSchema(1, TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN + VARSTR_HEADER_SIZE, "end point");
@@ -208,7 +208,7 @@ TEST_F(DndTestDnode, ShowDnode) {
   CheckBinary("", 24);
 }
 
-TEST_F(DndTestDnode, ConfigDnode_01) {
+TEST_F(DndTestDnode, 02_ConfigDnode) {
   SCfgDnodeMsg* pReq = (SCfgDnodeMsg*)rpcMallocCont(sizeof(SCfgDnodeMsg));
   pReq->dnodeId = htonl(1);
   strcpy(pReq->config, "ddebugflag 131");
@@ -224,7 +224,7 @@ TEST_F(DndTestDnode, ConfigDnode_01) {
   ASSERT_EQ(pMsg->code, 0);
 }
 
-TEST_F(DndTestDnode, CreateDnode_01) {
+TEST_F(DndTestDnode, 03_CreateDnode) {
   SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
   strcpy(pReq->ep, "localhost:9042");
 
@@ -257,7 +257,7 @@ TEST_F(DndTestDnode, CreateDnode_01) {
   CheckBinary("", 24);
 }
 
-TEST_F(DndTestDnode, DropDnode_01) {
+TEST_F(DndTestDnode, 04_DropDnode) {
   SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(sizeof(SDropDnodeMsg));
   pReq->dnodeId = htonl(2);
 
@@ -282,7 +282,7 @@ TEST_F(DndTestDnode, DropDnode_01) {
   CheckBinary("", 24);
 }
 
-TEST_F(DndTestDnode, CreateDnode_02) {
+TEST_F(DndTestDnode, 05_CreateDnode) {
   {
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
     strcpy(pReq->ep, "localhost:9043");
@@ -361,7 +361,7 @@ TEST_F(DndTestDnode, CreateDnode_02) {
   CheckBinary("", 24);
 }
 
-TEST_F(DndTestDnode, RestartDnode_01) {
+TEST_F(DndTestDnode, 06_RestartDnode) {
   uInfo("stop all server");
   stopServer(pServer1);
   stopServer(pServer2);

@@ -646,7 +646,6 @@ static int32_t mndProcessDropDbMsg(SMnodeMsg *pMsg) {
   mndReleaseDb(pMnode, pDb);
 
   if (code != 0) {
-    terrno = code;
     mError("db:%s, failed to drop since %s", pDrop->db, terrstr());
     return code;
   }
