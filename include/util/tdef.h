@@ -25,7 +25,9 @@ extern "C" {
 #define TSDB__packed
 
 #define TSKEY int64_t
-#define TSKEY_INITIAL_VAL    INT64_MIN
+#define TSKEY_MIN INT64_MIN
+#define TSKEY_MAX (INT64_MAX - 1)
+#define TSKEY_INITIAL_VAL TSKEY_MIN
 
 // Bytes for each type.
 extern const int32_t TYPE_BYTES[15];
