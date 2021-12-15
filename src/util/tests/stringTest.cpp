@@ -6,6 +6,28 @@
 #include "taos.h"
 #include "tutil.h"
 
+TEST(testCase, str_rmquote_test) {
+  char    t1[] = "\"\".dd";
+  int32_t len = strRmquote(t1);
+
+  printf("t1:%s, len:%d\n", t1, len);
+
+  char    t2[] = "\"fsd\\\"fs\".dd";
+  len = strRmquote(t2);
+
+  printf("t2:%s, len:%d\n", t2, len);
+
+  char    t3[] = "fs\\_d\\%.d\\d";
+  len = strRmquote(t3);
+
+  printf("t3:%s, len:%d\n", t3, len);
+
+  char    t4[] = "\"fs\\_d\\%\".dd";
+  len = strRmquote(t4);
+
+  printf("t4:%s, len:%d\n", t4, len);
+}
+
 TEST(testCase, string_dequote_test) {
   char    t1[] = "'abc'";
   int32_t len = strdequote(t1);

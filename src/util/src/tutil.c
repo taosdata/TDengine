@@ -59,34 +59,30 @@ int32_t strdequote(char *z) {
 
 
 int32_t strRmquote(char *z, int32_t len){
-    // delete escape character: \\, \', \"
-    char delim = z[0];
-    if (delim != '\'' && delim != '\"') {
-      return len;
+  // delete escape character: \\, \', \"
+  char delim = 0;
+  int32_t cnt = 0;
+  int32_t j = 0;
+  for (size_t k = 0; k < len; ++k) {
+    if (!delim && (z[k] == '\'' || z[k] == '"')){   // find the start ' or "
+      delim = z[k];
     }
 
-    int32_t cnt = 0;
-    int32_t j = 0;
-    for (uint32_t k = 1; k < len - 1; ++k) {
-      if (z[k] == '\\' || (z[k] == delim && z[k + 1] == delim)) {
-        if ((z[k] == '\\' && z[k + 1] == '_') || (z[k] == '\\' && z[k + 1] == '%')) {
-          //match '_' self
-        } else {
-          z[j] = z[k + 1];
-          cnt++;
-          j++;
-          k++;
-          continue;
-        }
-      }
-
-      z[j] = z[k];
+    if ((z[k] == '\\' && z[k + 1] == '_') || (z[k] == '\\' && z[k + 1] == '%')) {
+      //match '_' '%' self
+    }else if(z[k] == '\\'){
+      z[j] = z[k + 1];
+      cnt++;
       j++;
+      k++;
+      continue;
+    }else if(z[k] == delim){
+      continue;
     }
-
-    z[j] = 0;
-
-    return len - 2 - cnt;
+    z[j] = z[k];
+    j++;
+  }
+  return j;
 }
 
 int32_t strRmquoteEscape(char *z, int32_t len) {
