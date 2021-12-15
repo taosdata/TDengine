@@ -24,7 +24,7 @@ class DndTestUser : public ::testing::Test {
   }
 
   static void SetUpTestSuite() {
-    initLog("/tmp/dnode_test_user");
+    initLog("/tmp/tdlog");
 
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9140";

@@ -152,7 +152,7 @@ static int32_t mndDbActionDelete(SSdb *pSdb, SDbObj *pDb) {
 static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOldDb, SDbObj *pNewDb) {
   mTrace("db:%s, perform update action", pOldDb->name);
   pOldDb->updateTime = pNewDb->createdTime;
-  memcpy(&pOldDb->cfg, &pNewDb->cfg, sizeof(SDbObj));
+  memcpy(&pOldDb->cfg, &pNewDb->cfg, sizeof(SDbCfg));
   return 0;
 }
 
@@ -166,109 +166,146 @@ void mndReleaseDb(SMnode *pMnode, SDbObj *pDb) {
   sdbRelease(pSdb, pDb);
 }
 
-static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
+static int32_t mndCheckDbName(char *dbName, SUserObj *pUser) {
+  char *pos = strstr(dbName, TS_PATH_DELIMITER);
+  if (pos == NULL) {
+    terrno = TSDB_CODE_MND_INVALID_DB;
+    return -1;
+  }
+
+  int32_t acctId = atoi(dbName);
+  if (acctId != pUser->acctId) {
+    terrno = TSDB_CODE_MND_INVALID_DB_ACCT;
+    return -1;
+  }
+
+  return 0;
+}
+
+static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg, char *errMsg, int32_t len) {
   if (pCfg->cacheBlockSize < TSDB_MIN_CACHE_BLOCK_SIZE || pCfg->cacheBlockSize > TSDB_MAX_CACHE_BLOCK_SIZE) {
-    terrno = TSDB_CODE_MND_INVALID_DB_CACHE_SIZE;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database cache block size option", len);
     return -1;
   }
 
   if (pCfg->totalBlocks < TSDB_MIN_TOTAL_BLOCKS || pCfg->totalBlocks > TSDB_MAX_TOTAL_BLOCKS) {
-    terrno = TSDB_CODE_MND_INVALID_DB_TOTAL_BLOCKS;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database total blocks option", len);
     return -1;
   }
 
   if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) {
-    terrno = TSDB_CODE_MND_INVALID_DB_DAYS;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database days option", len);
     return -1;
   }
 
   if (pCfg->daysToKeep0 < pCfg->daysPerFile) {
-    terrno = TSDB_CODE_MND_INVALID_DB_KEEP0;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database days option", len);
     return -1;
   }
 
   if (pCfg->daysToKeep0 < TSDB_MIN_KEEP || pCfg->daysToKeep0 > TSDB_MAX_KEEP || pCfg->daysToKeep0 > pCfg->daysToKeep1) {
-    terrno = TSDB_CODE_MND_INVALID_DB_KEEP0;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database keep0 option", len);
     return -1;
   }
 
   if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > TSDB_MAX_KEEP || pCfg->daysToKeep1 > pCfg->daysToKeep2) {
-    terrno = TSDB_CODE_MND_INVALID_DB_KEEP1;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database keep1 option", len);
     return -1;
   }
 
   if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > TSDB_MAX_KEEP) {
-    terrno = TSDB_CODE_MND_INVALID_DB_KEEP1;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database keep2 option", len);
     return -1;
   }
 
   if (pCfg->minRowsPerFileBlock < TSDB_MIN_MIN_ROW_FBLOCK || pCfg->minRowsPerFileBlock > TSDB_MAX_MIN_ROW_FBLOCK) {
-    terrno = TSDB_CODE_MND_INVALID_DB_MIN_ROWS;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database minrows option", len);
     return -1;
   }
 
   if (pCfg->maxRowsPerFileBlock < TSDB_MIN_MAX_ROW_FBLOCK || pCfg->maxRowsPerFileBlock > TSDB_MAX_MAX_ROW_FBLOCK) {
-    terrno = TSDB_CODE_MND_INVALID_DB_MAX_ROWS;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database maxrows option", len);
     return -1;
   }
 
   if (pCfg->minRowsPerFileBlock > pCfg->maxRowsPerFileBlock) {
-    terrno = TSDB_CODE_MND_INVALID_DB_MIN_ROWS;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database minrows option", len);
     return -1;
   }
 
   if (pCfg->commitTime < TSDB_MIN_COMMIT_TIME || pCfg->commitTime > TSDB_MAX_COMMIT_TIME) {
-    terrno = TSDB_CODE_MND_INVALID_DB_COMMIT_TIME;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database commit option", len);
     return -1;
   }
 
   if (pCfg->fsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pCfg->fsyncPeriod > TSDB_MAX_FSYNC_PERIOD) {
-    terrno = TSDB_CODE_MND_INVALID_DB_FSYNC_PERIOD;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database fsync option", len);
     return -1;
   }
 
   if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL || pCfg->walLevel > TSDB_MAX_WAL_LEVEL) {
-    terrno = TSDB_CODE_MND_INVALID_DB_WAL_LEVEL;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database wal level option", len);
     return -1;
   }
 
   if (pCfg->precision < TSDB_MIN_PRECISION && pCfg->precision > TSDB_MAX_PRECISION) {
-    terrno = TSDB_CODE_MND_INVALID_DB_PRECISION;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid precision option", len);
     return -1;
   }
 
   if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) {
-    terrno = TSDB_CODE_MND_INVALID_DB_COMP;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database compression option", len);
     return -1;
   }
 
   if (pCfg->replications < TSDB_MIN_DB_REPLICA_OPTION || pCfg->replications > TSDB_MAX_DB_REPLICA_OPTION) {
-    terrno = TSDB_CODE_MND_INVALID_DB_REPLICA;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database replication option", len);
     return -1;
   }
 
   if (pCfg->replications > mndGetDnodeSize(pMnode)) {
-    terrno = TSDB_CODE_MND_INVALID_DB_REPLICA;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database replication option", len);
     return -1;
   }
 
   if (pCfg->quorum < TSDB_MIN_DB_QUORUM_OPTION || pCfg->quorum > TSDB_MAX_DB_QUORUM_OPTION) {
-    terrno = TSDB_CODE_MND_INVALID_DB_QUORUM;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database quorum option", len);
     return -1;
   }
 
   if (pCfg->quorum > pCfg->replications) {
-    terrno = TSDB_CODE_MND_INVALID_DB_QUORUM;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database quorum option", len);
     return -1;
   }
 
   if (pCfg->update < TSDB_MIN_DB_UPDATE || pCfg->update > TSDB_MAX_DB_UPDATE) {
-    terrno = TSDB_CODE_MND_INVALID_DB_UPDATE;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database update option", len);
     return -1;
   }
 
   if (pCfg->cacheLastRow < TSDB_MIN_DB_CACHE_LAST_ROW || pCfg->cacheLastRow > TSDB_MAX_DB_CACHE_LAST_ROW) {
-    terrno = TSDB_CODE_MND_INVALID_DB_CACHE_LAST;
+    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    tstrncpy(errMsg, "Invalid database cachelast option", len);
     return -1;
   }
 
@@ -295,10 +332,10 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->cacheLastRow < 0) pCfg->cacheLastRow = TSDB_DEFAULT_CACHE_LAST_ROW;
 }
 
-static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreate, char *acct) {
+static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreate, SUserObj *pUser) {
   SDbObj dbObj = {0};
   tstrncpy(dbObj.name, pCreate->db, TSDB_FULL_DB_NAME_LEN);
-  tstrncpy(dbObj.acct, acct, TSDB_USER_LEN);
+  tstrncpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
   dbObj.createdTime = taosGetTimestampMs();
   dbObj.updateTime = dbObj.createdTime;
   dbObj.uid = mndGenerateUid(dbObj.name, TSDB_FULL_DB_NAME_LEN);
@@ -322,7 +359,13 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreat
 
   mndSetDefaultDbCfg(&dbObj.cfg);
 
-  if (mndCheckDbCfg(pMnode, &dbObj.cfg) != 0) {
+  if (mndCheckDbName(dbObj.name, pUser) != 0) {
+    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
+    return -1;
+  }
+
+  char errMsg[TSDB_ERROR_MSG_LEN] = {0};
+  if (mndCheckDbCfg(pMnode, &dbObj.cfg, errMsg, TSDB_ERROR_MSG_LEN) != 0) {
     mError("db:%s, failed to create since %s", pCreate->db, terrstr());
     return -1;
   }
@@ -404,7 +447,7 @@ static int32_t mndProcessCreateDbMsg(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  int32_t code = mndCreateDb(pMnode, pMsg, pCreate, pOperUser->acct);
+  int32_t code = mndCreateDb(pMnode, pMsg, pCreate, pOperUser);
   mndReleaseUser(pMnode, pOperUser);
 
   if (code != 0) {
@@ -775,6 +818,10 @@ static int32_t mndGetDbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMe
 char *mnGetDbStr(char *src) {
   char *pos = strstr(src, TS_PATH_DELIMITER);
   if (pos != NULL) ++pos;
+
+  if (pos == NULL) {
+    return src;
+  }
 
   return pos;
 }

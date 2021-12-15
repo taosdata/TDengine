@@ -24,7 +24,7 @@ class DndTestDb : public ::testing::Test {
   }
 
   static void SetUpTestSuite() {
-    initLog("/tmp/dnode_test_db");
+    initLog("/tmp/tdlog");
 
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9040";
@@ -207,17 +207,17 @@ TEST_F(DndTestDb, ShowDb) {
 TEST_F(DndTestDb, CreateDb_01) {
   {
     SCreateDbMsg* pReq = (SCreateDbMsg*)rpcMallocCont(sizeof(SCreateDbMsg));
-    strcpy(pReq->db, "d1");
-    pReq->cacheBlockSize = 16;
-    pReq->totalBlocks = 10;
-    pReq->daysPerFile = 10;
-    pReq->daysToKeep0 = 3650;
-    pReq->daysToKeep1 = 3650;
-    pReq->daysToKeep2 = 3650;
-    pReq->minRowsPerFileBlock = 100;
-    pReq->maxRowsPerFileBlock = 4096;
-    pReq->commitTime = 3600;
-    pReq->fsyncPeriod = 3000;
+    strcpy(pReq->db, "1.d1");
+    pReq->cacheBlockSize = htonl(16);
+    pReq->totalBlocks = htonl(10);
+    pReq->daysPerFile = htonl(10);
+    pReq->daysToKeep0 = htonl(3650);
+    pReq->daysToKeep1 = htonl(3650);
+    pReq->daysToKeep2 = htonl(3650);
+    pReq->minRowsPerFileBlock = htonl(100);
+    pReq->maxRowsPerFileBlock = htonl(4096);
+    pReq->commitTime = htonl(3600);
+    pReq->fsyncPeriod = htonl(3000);
     pReq->walLevel = 1;
     pReq->precision = 0;
     pReq->compression = 2;
@@ -229,7 +229,7 @@ TEST_F(DndTestDb, CreateDb_01) {
 
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = pReq;
-    rpcMsg.contLen = sizeof(SCreateUserMsg);
+    rpcMsg.contLen = sizeof(SCreateDbMsg);
     rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DB;
 
     sendMsg(pClient, &rpcMsg);
@@ -238,8 +238,8 @@ TEST_F(DndTestDb, CreateDb_01) {
     ASSERT_EQ(pMsg->code, 0);
   }
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show databases", 6);
-  SendThenCheckShowRetrieveMsg(3);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
+  SendThenCheckShowRetrieveMsg(1);
   CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
   CheckInt16(1);                      // replica

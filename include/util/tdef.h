@@ -209,6 +209,7 @@ do { \
 #define TSDB_STEP_NAME_LEN        32
 #define TSDB_STEP_DESC_LEN        128
 
+#define TSDB_ERROR_MSG_LEN        1024
 #define TSDB_DNODE_CONFIG_LEN     128
 
 #define TSDB_MQTT_HOSTNAME_LEN    64
