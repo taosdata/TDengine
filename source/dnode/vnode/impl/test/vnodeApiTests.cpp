@@ -71,89 +71,115 @@ static SKVRow vtCreateBasicTag() {
   return pTag;
 }
 
-TEST(vnodeApiTest, vnode_simple_create_table_test) {
-  vnodeDestroy("vnode1");
+static void vtBuildCreateStbReq(tb_uid_t suid, char *tbname, SRpcMsg **ppMsg) {
+  SRpcMsg * pMsg;
+  STSchema *pSchema;
+  STSchema *pTagSchema;
+  int       zs;
+  void *    pBuf;
 
+  pSchema = vtCreateBasicSchema();
+  pTagSchema = vtCreateBasicTagSchema();
+
+  SVnodeReq vCreateSTbReq = VNODE_INIT_CREATE_STB_REQ(tbname, UINT32_MAX, UINT32_MAX, suid, pSchema, pTagSchema);
+
+  zs = vnodeBuildReq(NULL, &vCreateSTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
+  pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg) + zs);
+  pMsg->msgType = TSDB_MSG_TYPE_CREATE_TABLE;
+  pMsg->contLen = zs;
+  pMsg->pCont = POINTER_SHIFT(pMsg, sizeof(SRpcMsg));
+
+  pBuf = pMsg->pCont;
+  vnodeBuildReq(&pBuf, &vCreateSTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
+  META_CLEAR_TB_CFG(&vCreateSTbReq);
+
+  tdFreeSchema(pSchema);
+  tdFreeSchema(pTagSchema);
+
+  *ppMsg = pMsg;
+}
+
+static void vtBuildCreateCtbReq(tb_uid_t suid, char *tbname, SRpcMsg **ppMsg) {
+  SRpcMsg *pMsg;
+  int      tz;
+  SKVRow   pTag;
+
+  pTag = vtCreateBasicTag();
+  SVnodeReq vCreateCTbReq = VNODE_INIT_CREATE_CTB_REQ(tbname, UINT32_MAX, UINT32_MAX, suid, pTag);
+
+  tz = vnodeBuildReq(NULL, &vCreateCTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
+  pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg) + tz);
+  pMsg->msgType = TSDB_MSG_TYPE_CREATE_TABLE;
+  pMsg->contLen = tz;
+  pMsg->pCont = POINTER_SHIFT(pMsg, sizeof(*pMsg));
+  void *pBuf = pMsg->pCont;
+
+  vnodeBuildReq(&pBuf, &vCreateCTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
+  META_CLEAR_TB_CFG(&vCreateCTbReq);
+  free(pTag);
+
+  *ppMsg = pMsg;
+}
+
+static void vtClearMsgBatch(SArray *pMsgArr) {
+  SRpcMsg *pMsg;
+  for (size_t i = 0; i < taosArrayGetSize(pMsgArr); i++) {
+    pMsg = *(SRpcMsg **)taosArrayGet(pMsgArr, i);
+    free(pMsg);
+  }
+
+  taosArrayClear(pMsgArr);
+}
+
+TEST(vnodeApiTest, vnode_simple_create_table_test) {
+  tb_uid_t suid = 1638166374163;
+  SRpcMsg *pMsg;
+  SArray * pMsgArr = NULL;
+  SVnode * pVnode;
+  int      rcode;
+  int      ntables = 1000000;
+  int      batch = 10;
+  char     tbname[128];
+
+  pMsgArr = (SArray *)taosArrayInit(batch, sizeof(pMsg));
+
+  vnodeDestroy("vnode1");
   GTEST_ASSERT_GE(vnodeInit(2), 0);
 
-  // Create and open a vnode
-  SVnode *pVnode = vnodeOpen("vnode1", NULL);
+  // CREATE AND OPEN A VNODE
+  pVnode = vnodeOpen("vnode1", NULL);
   ASSERT_NE(pVnode, nullptr);
 
-  tb_uid_t suid = 1638166374163;
-  {
-    // Create a super table
-    STSchema *pSchema = vtCreateBasicSchema();
-    STSchema *pTagSchema = vtCreateBasicTagSchema();
-    char      tbname[128] = "st";
+  // CREATE A SUPER TABLE
+  sprintf(tbname, "st");
+  vtBuildCreateStbReq(suid, tbname, &pMsg);
+  taosArrayPush(pMsgArr, &pMsg);
+  rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
+  ASSERT_EQ(rcode, 0);
+  vtClearMsgBatch(pMsgArr);
 
-    SArray *  pMsgs = (SArray *)taosArrayInit(1, sizeof(SRpcMsg *));
-    SVnodeReq vCreateSTbReq = VNODE_INIT_CREATE_STB_REQ(tbname, UINT32_MAX, UINT32_MAX, suid, pSchema, pTagSchema);
-
-    int      zs = vnodeBuildReq(NULL, &vCreateSTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
-    SRpcMsg *pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg) + zs);
-    pMsg->msgType = TSDB_MSG_TYPE_CREATE_TABLE;
-    pMsg->contLen = zs;
-    pMsg->pCont = POINTER_SHIFT(pMsg, sizeof(SRpcMsg));
-
-    void *pBuf = pMsg->pCont;
-
-    vnodeBuildReq(&pBuf, &vCreateSTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
-    META_CLEAR_TB_CFG(&vCreateSTbReq);
-
-    taosArrayPush(pMsgs, &(pMsg));
-
-    vnodeProcessWMsgs(pVnode, pMsgs);
-
-    free(pMsg);
-    taosArrayDestroy(pMsgs);
-    tdFreeSchema(pSchema);
-    tdFreeSchema(pTagSchema);
-  }
-
-  {
-    // Create some child tables
-    int ntables = 1000000;
-    int batch = 10;
-    for (int i = 0; i < ntables / batch; i++) {
-      SArray *pMsgs = (SArray *)taosArrayInit(batch, sizeof(SRpcMsg *));
-      for (int j = 0; j < batch; j++) {
-        SKVRow pTag = vtCreateBasicTag();
-        char   tbname[128];
-        sprintf(tbname, "tb%d", i * batch + j);
-        SVnodeReq vCreateCTbReq = VNODE_INIT_CREATE_CTB_REQ(tbname, UINT32_MAX, UINT32_MAX, suid, pTag);
-
-        int      tz = vnodeBuildReq(NULL, &vCreateCTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
-        SRpcMsg *pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg) + tz);
-        pMsg->msgType = TSDB_MSG_TYPE_CREATE_TABLE;
-        pMsg->contLen = tz;
-        pMsg->pCont = POINTER_SHIFT(pMsg, sizeof(*pMsg));
-        void *pBuf = pMsg->pCont;
-
-        vnodeBuildReq(&pBuf, &vCreateCTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
-        META_CLEAR_TB_CFG(&vCreateCTbReq);
-        free(pTag);
-
-        taosArrayPush(pMsgs, &(pMsg));
-      }
-
-      vnodeProcessWMsgs(pVnode, pMsgs);
-
-      for (int j = 0; j < batch; j++) {
-        SRpcMsg *pMsg = *(SRpcMsg **)taosArrayPop(pMsgs);
-        free(pMsg);
-      }
-
-      taosArrayDestroy(pMsgs);
-
-      // std::cout << "the " << i << "th batch is created" << std::endl;
+  // CREATE A LOT OF CHILD TABLES
+  for (int i = 0; i < ntables / batch; i++) {
+    // Build request batch
+    for (int j = 0; j < batch; j++) {
+      sprintf(tbname, "ct%d", i * batch + j + 1);
+      vtBuildCreateCtbReq(suid, tbname, &pMsg);
+      taosArrayPush(pMsgArr, &pMsg);
     }
+
+    // Process request batch
+    rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
+    ASSERT_EQ(rcode, 0);
+
+    // Clear request batch
+    vtClearMsgBatch(pMsgArr);
   }
 
-  // Close the vnode
+  // CLOSE THE VNODE
   vnodeClose(pVnode);
-
   vnodeClear();
+
+  taosArrayDestroy(pMsgArr);
 }
 
 TEST(vnodeApiTest, vnode_simple_insert_test) {
