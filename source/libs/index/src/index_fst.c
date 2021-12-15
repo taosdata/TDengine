@@ -1123,7 +1123,7 @@ CompiledAddr fstGetRootAddr(Fst *fst) {
 
 Output fstEmptyFinalOutput(Fst *fst, bool *null) {
   Output res = 0;
-  FstNode *node = fst->root;
+  FstNode *node = fstGetRoot(fst);
   if (FST_NODE_IS_FINAL(node)) {
     *null = false;
     res = FST_NODE_FINAL_OUTPUT(node); 

@@ -68,7 +68,7 @@ StartWithStateValue *startWithStateValueDump(StartWithStateValue *sv) {
 // prefix query, impl later
 
 static void* prefixStart(AutomationCtx *ctx) {  
-  StartWithStateValue *data = (StartWithStateValue *)(ctx->data);
+  StartWithStateValue *data = (StartWithStateValue *)(ctx->stdata);
   return startWithStateValueDump(data);     
 };
 static bool prefixIsMatch(AutomationCtx *ctx, void *sv) {
