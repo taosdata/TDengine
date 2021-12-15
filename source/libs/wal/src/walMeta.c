@@ -40,6 +40,47 @@ static inline int walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
   return sprintf(buf, "%s/meta-ver%d", pWal->path, metaVer);
 }
 
+int walCheckAndRepairMeta(SWal* pWal) {
+  // load log files, get first/snapshot/last version info
+  const char* logPattern = "^[0-9]+.log$";
+  const char* idxPattern = "^[0-9]+.idx$";
+  regex_t logRegPattern;
+  regex_t idxRegPattern;
+  SArray* pLogArray = taosArrayInit(8, sizeof(int64_t));
+
+  regcomp(&logRegPattern, logPattern, REG_EXTENDED);
+  regcomp(&idxRegPattern, idxPattern, REG_EXTENDED);
+  
+  DIR *dir = opendir(pWal->path); 
+  if(dir == NULL) {
+    wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
+    return -1;
+  }
+
+  struct dirent* ent;
+  while((ent = readdir(dir)) != NULL) {
+    char *name = basename(ent->d_name);
+    int code = regexec(&logRegPattern, name, 0, NULL, 0);
+    if(code == 0) {
+      int64_t firstVer;
+      sscanf(name, "%" PRId64 ".log", &firstVer);
+      taosArrayPush(pLogArray, &firstVer);
+    }
+  }
+
+  
+  // load meta
+  // if not match, or meta missing
+  // rebuild meta
+  return 0;
+}
+
+int walCheckAndRepairIdx(SWal* pWal) {
+  // iterate all idx files
+  // check first and last entry of each idx file valid
+  return 0;
+}
+
 int walRollFileInfo(SWal* pWal) {
   int64_t ts = taosGetTimestampSec();
 

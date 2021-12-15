@@ -90,6 +90,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   }
 
   //open meta
+  walResetVer(&pWal->vers);
   pWal->writeLogTfd = -1;
   pWal->writeIdxTfd = -1;
   pWal->writeCur = -1;
@@ -101,7 +102,6 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   }
 
   //init status
-  walResetVer(&pWal->vers);
   pWal->totSize = 0;
   pWal->lastRollSeq = -1;
 
@@ -123,12 +123,16 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     return NULL;
   }
 
-  if(walLoadMeta(pWal) < 0) {
+  if(walLoadMeta(pWal) < 0 && walCheckAndRepairMeta(pWal) < 0) {
     taosRemoveRef(tsWal.refSetId, pWal->refId);
     pthread_mutex_destroy(&pWal->mutex);
     taosArrayDestroy(pWal->fileInfoSet);
     free(pWal);
     return NULL;
+  }
+
+  if(walCheckAndRepairIdx(pWal) < 0) {
+
   }
 
   wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->cfg.vgId, pWal, pWal->cfg.level, pWal->cfg.fsyncPeriod);
