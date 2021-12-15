@@ -1705,7 +1705,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
 
   SSqlObj* pSql = pStmt->pSql;
   SSqlCmd* pCmd = &pSql->cmd;
-  uint32_t nameLen = (uint32_t)strlen(name);
+  int32_t nameLen = (int32_t)strlen(name);
 
   if (name == NULL || nameLen <= 0) {
     tscError("0x%"PRIx64" tbname is NULL", pSql->self);
@@ -1727,6 +1727,10 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   SStrToken tname = {0};
   tname.type = TK_STRING;
   tname.z = (char *)strdup(name);
+  if (!tname.z) {
+    tscError("0x%" PRIx64 " out of memory", pSql->self);
+    STMT_RET(TSDB_CODE_TSC_OUT_OF_MEMORY);
+  }
   strntolower(tname.z, name, nameLen);
   tname.n = (uint32_t)strlen(tname.z);
 
