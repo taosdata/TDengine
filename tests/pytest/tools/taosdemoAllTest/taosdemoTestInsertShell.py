@@ -33,6 +33,7 @@ class TDTestCase:
             
         else:
             projPath = selfPath[:selfPath.find("tests")]
+            cfgPath = projPath + "/sim/dnode1/cfg"
 
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files):
