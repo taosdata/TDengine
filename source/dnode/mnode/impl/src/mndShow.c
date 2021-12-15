@@ -296,6 +296,8 @@ char *mndShowStr(int32_t showType) {
       return "show streamtables";
     case TSDB_MGMT_TABLE_TP:
       return "show topics";
+    case TSDB_MGMT_TABLE_FUNCTION:
+      return "show functions";
     default:
       return "undefined";
   }

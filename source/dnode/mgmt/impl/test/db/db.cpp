@@ -27,9 +27,9 @@ class DndTestDb : public ::testing::Test {
     initLog("/tmp/dnode_test_db");
 
     const char* fqdn = "localhost";
-    const char* firstEp = "localhost:9530";
-    pServer = CreateServer("/tmp/dnode_test_db", fqdn, 9530, firstEp);
-    pClient = createClient("root", "taosdata", fqdn, 9530);
+    const char* firstEp = "localhost:9040";
+    pServer = CreateServer("/tmp/dnode_test_db", fqdn, 9040, firstEp);
+    pClient = createClient("root", "taosdata", fqdn, 9040);
     taosMsleep(300);
   }
 
@@ -134,9 +134,21 @@ class DndTestDb : public ::testing::Test {
     pos = 0;
   }
 
+  void CheckInt8(int8_t val) {
+    int8_t data = *((int8_t*)(pData + pos));
+    pos += sizeof(int8_t);
+    EXPECT_EQ(data, val);
+  }
+
   void CheckInt16(int16_t val) {
     int16_t data = *((int16_t*)(pData + pos));
     pos += sizeof(int16_t);
+    EXPECT_EQ(data, val);
+  }
+
+  void CheckInt32(int32_t val) {
+    int32_t data = *((int32_t*)(pData + pos));
+    pos += sizeof(int32_t);
     EXPECT_EQ(data, val);
   }
 
@@ -170,30 +182,55 @@ SServer* DndTestDb::pServer;
 SClient* DndTestDb::pClient;
 int32_t  DndTestDb::connId;
 
-TEST_F(DndTestDb, ShowUser) {
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
-  CheckSchema(0, TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN + VARSTR_HEADER_SIZE, "name");
-  CheckSchema(1, TSDB_DATA_TYPE_BINARY, 10 + VARSTR_HEADER_SIZE, "privilege");
-  CheckSchema(2, TSDB_DATA_TYPE_TIMESTAMP, 8, "create time");
-  CheckSchema(3, TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN + VARSTR_HEADER_SIZE, "account");
+TEST_F(DndTestDb, ShowDb) {
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
+  CheckSchema(0, TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN - 1 + VARSTR_HEADER_SIZE, "name");
+  CheckSchema(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create time");
+  CheckSchema(2, TSDB_DATA_TYPE_SMALLINT, 2, "replica");
+  CheckSchema(3, TSDB_DATA_TYPE_SMALLINT, 2, "quorum");
+  CheckSchema(4, TSDB_DATA_TYPE_SMALLINT, 2, "days");
+  CheckSchema(5, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "keep0,keep1,keep2");
+  CheckSchema(6, TSDB_DATA_TYPE_INT, 4, "cache(MB)");
+  CheckSchema(7, TSDB_DATA_TYPE_INT, 4, "blocks");
+  CheckSchema(8, TSDB_DATA_TYPE_INT, 4, "minrows");
+  CheckSchema(9, TSDB_DATA_TYPE_INT, 4, "maxrows");
+  CheckSchema(10, TSDB_DATA_TYPE_TINYINT, 1, "wallevel");
+  CheckSchema(11, TSDB_DATA_TYPE_INT, 4, "fsync");
+  CheckSchema(12, TSDB_DATA_TYPE_TINYINT, 1, "comp");
+  CheckSchema(13, TSDB_DATA_TYPE_TINYINT, 1, "cachelast");
+  CheckSchema(14, TSDB_DATA_TYPE_BINARY, 3 + VARSTR_HEADER_SIZE, "precision");
+  CheckSchema(15, TSDB_DATA_TYPE_TINYINT, 1, "update");
 
-  SendThenCheckShowRetrieveMsg(1);
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("super", 10);
-  CheckTimestamp();
-  CheckBinary("root", TSDB_USER_LEN);
+  SendThenCheckShowRetrieveMsg(0);
 }
 
-TEST_F(DndTestDb, CreateUser_01) {
+TEST_F(DndTestDb, CreateDb_01) {
   {
-    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(sizeof(SCreateUserMsg));
-    strcpy(pReq->user, "u1");
-    strcpy(pReq->pass, "p1");
+    SCreateDbMsg* pReq = (SCreateDbMsg*)rpcMallocCont(sizeof(SCreateDbMsg));
+    strcpy(pReq->db, "d1");
+    pReq->cacheBlockSize = 16;
+    pReq->totalBlocks = 10;
+    pReq->daysPerFile = 10;
+    pReq->daysToKeep0 = 3650;
+    pReq->daysToKeep1 = 3650;
+    pReq->daysToKeep2 = 3650;
+    pReq->minRowsPerFileBlock = 100;
+    pReq->maxRowsPerFileBlock = 4096;
+    pReq->commitTime = 3600;
+    pReq->fsyncPeriod = 3000;
+    pReq->walLevel = 1;
+    pReq->precision = 0;
+    pReq->compression = 2;
+    pReq->replications = 1;
+    pReq->quorum = 1;
+    pReq->update = 0;
+    pReq->cacheLastRow = 0;
+    pReq->ignoreExist = 1;
 
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = pReq;
     rpcMsg.contLen = sizeof(SCreateUserMsg);
-    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_USER;
+    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DB;
 
     sendMsg(pClient, &rpcMsg);
     SRpcMsg* pMsg = pClient->pRsp;
@@ -201,38 +238,27 @@ TEST_F(DndTestDb, CreateUser_01) {
     ASSERT_EQ(pMsg->code, 0);
   }
 
-  {
-    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(sizeof(SCreateUserMsg));
-    strcpy(pReq->user, "u2");
-    strcpy(pReq->pass, "p2");
-
-    SRpcMsg rpcMsg = {0};
-    rpcMsg.pCont = pReq;
-    rpcMsg.contLen = sizeof(SCreateUserMsg);
-    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_USER;
-
-    sendMsg(pClient, &rpcMsg);
-    SRpcMsg* pMsg = pClient->pRsp;
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
-  }
-
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show databases", 6);
   SendThenCheckShowRetrieveMsg(3);
-  CheckBinary("u1", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("u2", TSDB_USER_LEN);
-  CheckBinary("normal", 10);
-  CheckBinary("super", 10);
-  CheckBinary("normal", 10);
+  CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
+  CheckInt16(1);                      // replica
+  CheckInt16(1);                      // quorum
+  CheckInt16(10);                     // days
+  CheckBinary("3650,3650,3650", 24);  // days
+  CheckInt32(16);                     // cache
+  CheckInt32(10);                     // blocks
+  CheckInt32(100);                    // minrows
+  CheckInt32(4096);                   // maxrows
+  CheckInt8(1);                       // wallevel
+  CheckInt32(3000);                   // fsync
+  CheckInt8(2);                       // comp
+  CheckInt8(0);                       // cachelast
+  CheckBinary("ms", 3);               // precision
+  CheckInt8(0);                       // update
 }
 
+#if 0
 TEST_F(DndTestDb, AlterUser_01) {
   SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(sizeof(SAlterUserMsg));
   strcpy(pReq->user, "u1");
@@ -297,8 +323,8 @@ TEST_F(DndTestDb, RestartDnode) {
   uInfo("start all server");
 
   const char* fqdn = "localhost";
-  const char* firstEp = "localhost:9530";
-  pServer = startServer("/tmp/dnode_test_db", fqdn, 9530, firstEp);
+  const char* firstEp = "localhost:9040";
+  pServer = startServer("/tmp/dnode_test_db", fqdn, 9040, firstEp);
 
   uInfo("all server is running");
 
@@ -313,3 +339,5 @@ TEST_F(DndTestDb, RestartDnode) {
   CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
 }
+
+#endif

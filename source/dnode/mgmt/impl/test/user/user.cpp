@@ -27,9 +27,9 @@ class DndTestUser : public ::testing::Test {
     initLog("/tmp/dnode_test_user");
 
     const char* fqdn = "localhost";
-    const char* firstEp = "localhost:9530";
-    pServer = CreateServer("/tmp/dnode_test_user", fqdn, 9530, firstEp);
-    pClient = createClient("root", "taosdata", fqdn, 9530);
+    const char* firstEp = "localhost:9140";
+    pServer = CreateServer("/tmp/dnode_test_user", fqdn, 9140, firstEp);
+    pClient = createClient("root", "taosdata", fqdn, 9140);
     taosMsleep(300);
   }
 
@@ -297,8 +297,8 @@ TEST_F(DndTestUser, RestartDnode) {
   uInfo("start all server");
 
   const char* fqdn = "localhost";
-  const char* firstEp = "localhost:9530";
-  pServer = startServer("/tmp/dnode_test_user", fqdn, 9530, firstEp);
+  const char* firstEp = "localhost:9140";
+  pServer = startServer("/tmp/dnode_test_user", fqdn, 9140, firstEp);
 
   uInfo("all server is running");
 

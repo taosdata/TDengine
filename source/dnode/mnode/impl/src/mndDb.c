@@ -151,7 +151,8 @@ static int32_t mndDbActionDelete(SSdb *pSdb, SDbObj *pDb) {
 
 static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOldDb, SDbObj *pNewDb) {
   mTrace("db:%s, perform update action", pOldDb->name);
-  memcpy(pOldDb, pNewDb, sizeof(SDbObj));
+  pOldDb->updateTime = pNewDb->createdTime;
+  memcpy(&pOldDb->cfg, &pNewDb->cfg, sizeof(SDbObj));
   return 0;
 }
 
