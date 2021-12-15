@@ -191,7 +191,7 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, 
       }
       if (colType == TSDB_DATA_TYPE_BOOL && (var->i64 > 1 ||var->i64 < 0)) {
         break;
-      }      
+      }
       tbufWriteInt64(&bw, var->i64);
     } else if (IS_UNSIGNED_NUMERIC_TYPE(colType)) {
       if (IS_SIGNED_NUMERIC_TYPE(var->nType) || IS_UNSIGNED_NUMERIC_TYPE(var->nType)) {
@@ -472,7 +472,7 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       createInfo->name.z[createInfo->name.n] = 0;
-      // funcname's naming rule is same to column 
+      // funcname's naming rule is same to column
       if (validateColumnName(createInfo->name.z) != TSDB_CODE_SUCCESS) {
         return  invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
