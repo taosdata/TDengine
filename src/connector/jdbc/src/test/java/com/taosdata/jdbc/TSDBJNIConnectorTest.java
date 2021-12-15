@@ -21,20 +21,20 @@ public class TSDBJNIConnectorTest {
 
     @Test
     public void test() throws SQLException {
-//        try {
-//            //change sleepSeconds when debugging with attach to process to find PID
-//            int sleepSeconds = -1;
-//            if (sleepSeconds > 0) {
-//                RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
-//                String jvmName = runtimeBean.getName();
-//                long pid = Long.valueOf(jvmName.split("@")[0]);
-//                System.out.println("JVM PID  = " + pid);
-//
-//                Thread.sleep(sleepSeconds * 1000);
-//            }
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
+        try {
+            //change sleepSeconds when debugging with attach to process to find PID
+            int sleepSeconds = -1;
+            if (sleepSeconds > 0) {
+                RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
+                String jvmName = runtimeBean.getName();
+                long pid = Long.valueOf(jvmName.split("@")[0]);
+                System.out.println("JVM PID  = " + pid);
+
+                Thread.sleep(sleepSeconds * 1000);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         // init
         Properties properties = new Properties();
