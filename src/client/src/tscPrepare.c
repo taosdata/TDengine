@@ -1724,6 +1724,8 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
 
   pStmt->last = STMT_SETTBNAME;
 
+  strtolower(name, name);
+
   SStrToken tname = {0};
   tname.type = TK_STRING;
   tname.z = (char *)strdup(name);
