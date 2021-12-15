@@ -419,12 +419,14 @@ if $data03 != @20-09-15 00:00:00.000@ then
   return -1
 endi
 
-sql select diff(val) from (select c1 val from nest_tb0);
+sql_error select diff(val) from (select c1 val from nest_tb0);
+
+sql select diff(val) from (select ts,c1 val from nest_tb0);
 if $rows != 9999 then
   return -1
 endi
 
-if $data00 != @70-01-01 08:00:00.000@ then
+if $data00 != @20-09-15 00:01:00.000@ then
   return -1
 endi
 
@@ -925,5 +927,18 @@ if $data00 != 24 then
   return -1
 endi
 
+sql select sum(a)/sum(b) from meters where ts >= '2021-09-30 15:00:00.000' and ts <= '2021-09-30 15:00:05.000' interval(1s) fill(null) group by area order by area;
+if $rows != 12 then
+  return -1
+endi
+if $data00 != @21-09-30 15:00:00.000@ then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data02 != 0 then
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

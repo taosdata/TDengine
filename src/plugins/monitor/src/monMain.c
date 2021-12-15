@@ -21,7 +21,6 @@
 #include "tlog.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "tscUtil.h"
 #include "tsclient.h"
 #include "dnode.h"
 #include "vnode.h"
@@ -42,6 +41,8 @@
 #define DNODE_INFO_LEN      128
 #define QUERY_ID_LEN        24
 #define CHECK_INTERVAL      1000
+
+#define SQL_STR_FMT "\"%s\""
 
 static SMonHttpStatus monHttpStatusTable[] = {
   {"HTTP_CODE_CONTINUE",                100},
@@ -611,11 +612,11 @@ static int32_t monGetRowElemCharLen(TAOS_FIELD field, char *rowElem) {
 }
 
 static int32_t monBuildFirstEpSql(char *sql) {
-  return snprintf(sql, SQL_LENGTH, ", \"%s\"", tsFirst);
+  return snprintf(sql, SQL_LENGTH, ", "SQL_STR_FMT, tsFirst);
 }
 
 static int32_t monBuildVersionSql(char *sql) {
-  return snprintf(sql, SQL_LENGTH, ", \"%s\"", version);
+  return snprintf(sql, SQL_LENGTH, ", "SQL_STR_FMT, version);
 }
 
 static int32_t monBuildMasterUptimeSql(char *sql) {
@@ -628,7 +629,8 @@ static int32_t monBuildMasterUptimeSql(char *sql) {
 
   while ((row = taos_fetch_row(result))) {
     for (int i = 0; i < num_fields; ++i) {
-      if (strcmp(fields[i].name, "role") == 0 && strcmp((char *)row[i], "master") == 0) {
+      int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
+      if (strcmp(fields[i].name, "role") == 0 && strncmp((char *)row[i], "master", charLen) == 0) {
         if (strcmp(fields[i + 1].name, "role_time") == 0) {
           int64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
           //master uptime in seconds
@@ -768,11 +770,11 @@ static int32_t monGetVnodesTotalStats(char *ep, int32_t *totalVnodes,
                                            int32_t *totalVnodesAlive) {
   char subsql[TSDB_EP_LEN + 15];
   memset(subsql, 0, sizeof(subsql));
-  snprintf(subsql, TSDB_EP_LEN, "show vnodes \"%s\"", ep);
+  snprintf(subsql, TSDB_EP_LEN, "show vnodes "SQL_STR_FMT, ep);
   TAOS_RES *result = taos_query(tsMonitor.conn, subsql);
   int32_t code = taos_errno(result);
   if (code != TSDB_CODE_SUCCESS) {
-    monError("failed to execute cmd: show vnodes \"%s\", reason:%s", ep, tstrerror(code));
+    monError("failed to execute cmd: show vnodes "SQL_STR_FMT", reason:%s", ep, tstrerror(code));
   }
 
   TAOS_ROW    row;
@@ -931,11 +933,11 @@ static int32_t monBuildDnodeVnodesSql(char *sql) {
   int32_t vnodeNum = 0, masterNum = 0;
   char sqlStr[TSDB_EP_LEN + 15];
   memset(sqlStr, 0, sizeof(sqlStr));
-  snprintf(sqlStr, TSDB_EP_LEN + 14, "show vnodes \"%s\"", tsLocalEp);
+  snprintf(sqlStr, TSDB_EP_LEN + 14, "show vnodes "SQL_STR_FMT, tsLocalEp);
   TAOS_RES *result = taos_query(tsMonitor.conn, sqlStr);
   int32_t code = taos_errno(result);
   if (code != TSDB_CODE_SUCCESS) {
-    monError("failed to execute cmd: show vnodes \"%s\", reason:%s", tsLocalEp, tstrerror(code));
+    monError("failed to execute cmd: show vnodes "SQL_STR_FMT", reason:%s", tsLocalEp, tstrerror(code));
   }
 
   TAOS_ROW    row;
@@ -970,17 +972,18 @@ static int32_t monBuildDnodeMnodeSql(char *sql) {
   int32_t     num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
+  int32_t charLen;
   while ((row = taos_fetch_row(result))) {
     has_mnode_row = false;
     for (int i = 0; i < num_fields; ++i) {
       if (strcmp(fields[i].name, "end_point") == 0) {
-        int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
+        charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
         if (strncmp((char *)row[i], tsLocalEp, charLen) == 0)  {
           has_mnode = true;
           has_mnode_row = true;
         }
       } else if (strcmp(fields[i].name, "role") == 0) {
-        int32_t charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
+        charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
         if (strncmp((char *)row[i], "master", charLen) == 0)  {
           if (has_mnode_row) {
             monHasMnodeMaster = true;
@@ -1107,7 +1110,7 @@ static int32_t checkCreateVgroupTable(int32_t vgId) {
 }
 
 static uint32_t monBuildVgroupsInfoSql(char *sql, char *dbName) {
-  char v_dnode_ids[256], v_dnode_status[1024];
+  char v_dnode_ids[256] = {0}, v_dnode_status[1024] = {0};
   int64_t ts = taosGetTimestampUs();
 
   memset(sql, 0, SQL_LENGTH + 1);
@@ -1122,6 +1125,7 @@ static uint32_t monBuildVgroupsInfoSql(char *sql, char *dbName) {
   int32_t     num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
+  int32_t charLen;
   while ((row = taos_fetch_row(result))) {
     int32_t vgId;
     int32_t pos = 0;
@@ -1132,25 +1136,26 @@ static uint32_t monBuildVgroupsInfoSql(char *sql, char *dbName) {
         vgId = *(int32_t *)row[i];
         if (checkCreateVgroupTable(vgId) == TSDB_CODE_SUCCESS) {
           memset(sql, 0, SQL_LENGTH + 1);
-          pos += snprintf(sql, SQL_LENGTH, "insert into %s.vgroup_%d values(%" PRId64 ", \"%s\"",
+          pos += snprintf(sql, SQL_LENGTH, "insert into %s.vgroup_%d values(%" PRId64 ", "SQL_STR_FMT,
                    tsMonitorDbName, vgId, ts, dbName);
         } else {
           return TSDB_CODE_SUCCESS;
         }
       } else if (strcmp(fields[i].name, "tables") == 0) {
-          pos += snprintf(sql + pos, SQL_LENGTH, ", %d", *(int32_t *)row[i]);
-
+        pos += snprintf(sql + pos, SQL_LENGTH, ", %d", *(int32_t *)row[i]);
       } else if (strcmp(fields[i].name, "status") == 0) {
-        pos += snprintf(sql + pos, SQL_LENGTH, ", \"%s\"", (char *)row[i]);
+        charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
+        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
       } else if (strcmp(fields[i].name, "onlines") == 0) {
         pos += snprintf(sql + pos, SQL_LENGTH, ", %d", *(int32_t *)row[i]);
       } else if (v_dnode_str && strcmp(v_dnode_str, "_dnode") == 0) {
         snprintf(v_dnode_ids, sizeof(v_dnode_ids), "%d;", *(int16_t *)row[i]);
       } else if (v_dnode_str && strcmp(v_dnode_str, "_status") == 0) {
-        snprintf(v_dnode_status, sizeof(v_dnode_status), "%s;", (char *)row[i]);
+        charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
+        snprintf(v_dnode_status, charLen + 1, "%s;", (char *)row[i]);
       } else if (strcmp(fields[i].name, "compacting") == 0) {
         //flush dnode_ids and dnode_role in to sql
-        pos += snprintf(sql + pos, SQL_LENGTH, ", \"%s\", \"%s\")", v_dnode_ids, v_dnode_status);
+        pos += snprintf(sql + pos, SQL_LENGTH, ", "SQL_STR_FMT", "SQL_STR_FMT")", v_dnode_ids, v_dnode_status);
       }
     }
     monDebug("save vgroups, sql:%s", sql);
@@ -1209,15 +1214,19 @@ static void monSaveSlowQueryInfo() {
   int32_t     num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
+  int32_t charLen;
   while ((row = taos_fetch_row(result))) {
     for (int i = 0; i < num_fields; ++i) {
       if (strcmp(fields[i].name, "query_id") == 0) {
         has_slowquery = true;
-        pos += snprintf(sql + pos, SQL_LENGTH, ", \"%s\"", (char *)row[i]);
+        charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
+        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
       } else if (strcmp(fields[i].name, "user") == 0) {
-        pos += snprintf(sql + pos, SQL_LENGTH, ", \"%s\"", (char *)row[i]);
+        charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
+        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
       } else if (strcmp(fields[i].name, "qid") == 0) {
-        pos += snprintf(sql + pos, SQL_LENGTH, ", \"%s\"", (char *)row[i]);
+        charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
+        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
       } else if (strcmp(fields[i].name, "created_time") == 0) {
         int64_t create_time = *(int64_t *)row[i];
         create_time = convertTimePrecision(create_time, TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO);
@@ -1225,9 +1234,11 @@ static void monSaveSlowQueryInfo() {
       } else if (strcmp(fields[i].name, "time") == 0) {
         pos += snprintf(sql + pos, SQL_LENGTH, ", %" PRId64 "", *(int64_t *)row[i]);
       } else if (strcmp(fields[i].name, "ep") == 0) {
-        pos += snprintf(sql + pos, SQL_LENGTH, ", \"%s\"", (char *)row[i]);
+        charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
+        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
       } else if (strcmp(fields[i].name, "sql") == 0) {
-        pos += snprintf(sql + pos, SQL_LENGTH, ", \"%s\")", (char *)row[i]);
+        charLen = monGetRowElemCharLen(fields[i], (char *)row[i]);
+        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 2, ", "SQL_STR_FMT")", (char *)row[i]);
       }
     }
   }

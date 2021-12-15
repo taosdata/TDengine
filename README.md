@@ -34,7 +34,7 @@ At the moment, TDengine only supports building and running on Linux systems. You
 
 To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in the project directory.
 
-## Install tools
+## Install build dependencies
 
 ### Ubuntu 16.04 and above & Debian:
 ```bash
@@ -58,7 +58,16 @@ To install Apache Maven:
 sudo apt-get install -y  maven
 ```
 
-### Centos 7:
+#### Install build dependencies for taos-tools 
+We provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. From TDengine 2.4.0.0, taosBenchmark and taosdump were not released together with TDengine.
+By default, TDengine compiling does not include taos-tools. You can use 'cmake .. -DBUILD_TOOLS=true' to make them be compiled with TDengine.
+
+To build the [taos-tools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
+```bash
+sudo apt install libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+```
+
+### CentOS 7:
 ```bash
 sudo yum install epel-release
 sudo yum update
@@ -76,7 +85,7 @@ To install Apache Maven:
 sudo yum install -y maven
 ```
 
-### Centos 8 & Fedora:
+### CentOS 8 & Fedora:
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git
 ```
@@ -90,6 +99,13 @@ To install Apache Maven:
 ```bash
 sudo dnf install -y maven
 ```
+
+#### Install build dependencies for taos-tools 
+To build the [taos-tools](https://github.com/taosdata/taos-tools) on CentOS, the following packages need to be installed.
+```bash
+sudo yum install zlib-devel xz-devel snappy-devel jansson-devel pkgconfig libatomic
+```
+Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)), it lead a cmake prompt libsnappy not found. But snappy will works well.
 
 ### Setup golang environment
 TDengine includes few components developed by Go language. Please refer to golang.org official documentation for golang environment setup.
@@ -108,7 +124,7 @@ git clone https://github.com/taosdata/TDengine.git
 cd TDengine
 ```
 
-The connectors for go & grafana have been moved to separated repositories,
+The connectors for go & grafana and some tools have been moved to separated repositories,
 so you should run this command in the TDengine directory to install them:
 ```bash
 git submodule update --init --recursive
@@ -129,15 +145,15 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-Note TDengine 2.3.x.0 and later use a component named 'taosadapter' to play http daemon role by default instead of the http daemon embedded in the early version of TDengine. The taosadapter is programmed by go language. If you pull TDengine source code to the latest from an existing codebase, please execute 'git submodule update --init --recursive' to pull taosadapter source code. Please install go language 1.14 or above for compiling taosadapter. If you meet difficulties regarding 'go mod', especially you are from China, you can use a proxy to solve the problem.
+Note TDengine 2.3.x.0 and later use a component named 'taosAdapter' to play http daemon role by default instead of the http daemon embedded in the early version of TDengine. The taosAdapter is programmed by go language. If you pull TDengine source code to the latest from an existing codebase, please execute 'git submodule update --init --recursive' to pull taosAdapter source code. Please install go language version 1.14 or above for compiling taosAdapter. If you meet difficulties regarding 'go mod', especially you are from China, you can use a proxy to solve the problem.
 ```
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
 ```
 
-Or you can use the following command to choose to embed old httpd too.
+The embedded http daemon still be built from TDengine source code by default. Or you can use the following command to choose to build taosAdapter.
 ```
-cmake .. -DBUILD_HTTP=true
+cmake .. -DBUILD_HTTP=false
 ```
 
 You can use Jemalloc as memory allocator instead of glibc:
@@ -234,7 +250,7 @@ wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
 echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
 [Optional] echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
 sudo apt-get update
-apt-get policy tdengine
+apt-cache policy tdengine
 sudo apt-get install tdengine
 ```
 
@@ -269,18 +285,19 @@ drop database db;
 
 TDengine provides abundant developing tools for users to develop on TDengine. Follow the links below to find your desired connectors and relevant documentation.
 
-- [Java](https://www.taosdata.com/en/documentation/connector/#Java-Connector)
-- [C/C++](https://www.taosdata.com/en/documentation/connector/#C/C++-Connector)
-- [Python](https://www.taosdata.com/en/documentation/connector/#Python-Connector)
-- [Go](https://www.taosdata.com/en/documentation/connector/#Go-Connector)
-- [RESTful API](https://www.taosdata.com/en/documentation/connector/#RESTful-Connector)
-- [Node.js](https://www.taosdata.com/en/documentation/connector/#Node.js-Connector)
+- [Java](https://www.taosdata.com/en/documentation/connector/java)
+- [C/C++](https://www.taosdata.com/en/documentation/connector#c-cpp)
+- [Python](https://www.taosdata.com/en/documentation/connector#python)
+- [Go](https://www.taosdata.com/en/documentation/connector#go)
+- [RESTful API](https://www.taosdata.com/en/documentation/connector#restful)
+- [Node.js](https://www.taosdata.com/en/documentation/connector#nodejs)
+- [Rust](https://www.taosdata.com/en/documentation/connector/rust)
 
 ### Third Party Connectors
 
 The TDengine community has also kindly built some of their own connectors! Follow the links below to find the source code for them.
 
-- [Rust Connector](https://github.com/taosdata/TDengine/tree/master/tests/examples/rust)
+- [Rust Bindings](https://github.com/songtianyi/tdengine-rust-bindings/tree/master/examples)
 - [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
 - [Lua Connector](https://github.com/taosdata/TDengine/tree/develop/tests/examples/lua)
 

@@ -81,29 +81,12 @@ function kill_taosd() {
 }
 
 function install_include() {
-    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h|| :
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h|| :
     ${csudo} ln -s ${inc_dir}/taos.h ${inc_link_dir}/taos.h
+    ${csudo} ln -s ${inc_dir}/taosdef.h ${inc_link_dir}/taosdef.h
     ${csudo} ln -s ${inc_dir}/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
-function install_avro_lib() {
-    ${csudo} rm -f ${lib_link_dir}/libavro* || :
-    ${csudo} rm -f ${lib64_link_dir}/libavro* || :
-
-    if [[ -f ${lib_dir}/libavro.so.23.0.0 ]]; then
-        ${csudo} ln -s ${lib_dir}/libavro.so.23.0.0 ${lib_link_dir}/libavro.so.23.0.0
-        ${csudo} ln -s ${lib_link_dir}/libavro.so.23.0.0 ${lib_link_dir}/libavro.so.23
-        ${csudo} ln -s ${lib_link_dir}/libavro.so.23 ${lib_link_dir}/libavro.so
-
-        if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libavro.so ]]; then
-            ${csudo} ln -s ${lib_dir}/libavro.so.23.0.0 ${lib64_link_dir}/libavro.so.23.0.0           || :
-            ${csudo} ln -s ${lib64_link_dir}/libavro.so.23.0.0 ${lib64_link_dir}/libavro.so.23   || :
-            ${csudo} ln -s ${lib64_link_dir}/libavro.so.23 ${lib64_link_dir}/libavro.so   || :
-        fi
-    fi
-
-    ${csudo} ldconfig
-}
 function install_lib() {
     ${csudo} rm -f ${lib_link_dir}/libtaos* || :
     ${csudo} rm -f ${lib64_link_dir}/libtaos* || :
@@ -468,8 +451,8 @@ function install_service_on_systemd() {
 
 function install_taosadapter_service() {
     if ((${service_mod}==0)); then
-        [ -f ${script_dir}/cfg/taosadapter.service ] &&\
-            ${csudo} cp ${script_dir}/cfg/taosadapter.service \
+        [ -f ${script_dir}/../cfg/taosadapter.service ] &&\
+            ${csudo} cp ${script_dir}/../cfg/taosadapter.service \
             ${service_config_dir}/ || :
         ${csudo} systemctl daemon-reload
     fi
@@ -503,7 +486,6 @@ function install_TDengine() {
     # Install include, lib, binary and service
     install_include
     install_lib
-    install_avro_lib
     install_bin
     install_config
     install_taosadapter_config

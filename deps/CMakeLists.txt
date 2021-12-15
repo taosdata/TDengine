@@ -15,7 +15,10 @@ ADD_SUBDIRECTORY(cJson)
 ADD_SUBDIRECTORY(wepoll)
 ADD_SUBDIRECTORY(MsvcLibX)
 ADD_SUBDIRECTORY(rmonotonic)
-ADD_SUBDIRECTORY(lua)
+
+IF (TD_BUILD_LUA)
+  ADD_SUBDIRECTORY(lua)
+ENDIF ()
 
 IF (TD_LINUX AND TD_MQTT)
   ADD_SUBDIRECTORY(MQTT-C)
@@ -23,30 +26,6 @@ ENDIF ()
 
 IF (TD_DARWIN AND TD_MQTT)
   ADD_SUBDIRECTORY(MQTT-C)
-ENDIF ()
-
-IF (TD_AVRO_SUPPORT)
-  MESSAGE("")
-  MESSAGE("${Green} ENABLE avro format support ${ColourReset}")
-  MESSAGE("")
-  include(ExternalProject)
-  ExternalProject_Add(
-    apache-avro
-    PREFIX          "avro"
-    SOURCE_DIR      ${CMAKE_CURRENT_SOURCE_DIR}/avro/lang/c
-    BUILD_IN_SOURCE 1
-    PATCH_COMMAND
-        COMMAND   git clean -f -d
-        COMMAND   sed -i.bak -e "/TARGETS avroappend/d" ${CMAKE_CURRENT_SOURCE_DIR}/avro/lang/c/src/CMakeLists.txt
-        COMMAND   sed -i.bak -e "/TARGETS avrocat/d" ${CMAKE_CURRENT_SOURCE_DIR}/avro/lang/c/src/CMakeLists.txt
-        COMMAND   sed -i.bak -e "/TARGETS avromod/d" ${CMAKE_CURRENT_SOURCE_DIR}/avro/lang/c/src/CMakeLists.txt
-        COMMAND   sed -i.bak -e "/TARGETS avropipe/d" ${CMAKE_CURRENT_SOURCE_DIR}/avro/lang/c/src/CMakeLists.txt
-    CONFIGURE_COMMAND   cmake -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}/build
-    )
-ELSE ()
-  MESSAGE("")
-  MESSAGE("${Yellow} NO avro format support ${ColourReset}")
-  MESSAGE("")
 ENDIF ()
 
 IF (TD_LINUX_64 AND JEMALLOC_ENABLED)

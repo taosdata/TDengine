@@ -101,9 +101,16 @@ if $data11 != -2 then
 endi
 
 print ==========>TD10758
+sql create database groupby_tbname
+sql use groupby_tbname
 sql create stable st(ts timestamp, c1 int) tags(t int);
 sql create table ct1 using st tags(1)
 sql insert into ct1 values(now, 1)(now+1s, 2)(now+2s, 3)
+sql create table ct2 using st tags(2)
+sql insert into ct2 values(now, 21)(now+1s, 22)(now+2s, 23)
+sql create table ct3 using st tags(3)
+sql insert into ct3 values(now, 31)(now+1s, 32)(now+2s, 33)
+
 sql select csum(c1),ts,tbname,t from ct1
 print $data10 , $data11 , $data12, $data13, $data14
 if $data13 != ct1 then
@@ -169,6 +176,81 @@ if $data14 != 1 then
   return -1
 endi
 
+sql select mavg(c1,2),tbname from st group by tbname
+print $data10 , $data11 , $data12 , $data13
+if $data12 != ct1 then
+  return -1
+endi
+if $data13 != ct1 then
+  return -1
+endi
+
+sql select diff(c1),tbname from st group by tbname
+print $data10 , $data11 , $data12 , $data13
+if $data12 != ct1 then
+  return -1
+endi
+if $data13 != ct1 then
+  return -1
+endi
+
+sql select csum(c1),tbname from st group by tbname
+print $data10 , $data11 , $data12, $data13, $data14
+print $data10 , $data11 , $data12 , $data13
+if $data12 != ct1 then
+  return -1
+endi
+if $data13 != ct1 then
+  return -1
+endi
+
+sql select csum(c1),t,tbname from st group by tbname limit 2
+print $data10 , $data11 , $data12 , $data13 , $data14
+print $data30 , $data31 , $data32 , $data33 , $data34
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != ct1 then
+  return -1
+endi
+if $data33 != ct2 then
+  return -1
+endi
+if $data34 != ct2 then
+  return -1
+endi
+
+sql select mavg(c1,2),t,tbname from st group by tbname limit 2
+print $data10 , $data11 , $data12 , $data13 , $data14
+print $data30 , $data31 , $data32 , $data33 , $data34
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != ct1 then
+  return -1
+endi
+if $data33 != ct2 then
+  return -1
+endi
+if $data34 != ct2 then
+  return -1
+endi
+sql select diff(c1),t,tbname from st group by tbname limit 2
+print $data10 , $data11 , $data12 , $data13 , $data14
+print $data30 , $data31 , $data32 , $data33 , $data34
+if $data13 != ct1 then
+  return -1
+endi
+if $data14 != ct1 then
+  return -1
+endi
+if $data33 != ct2 then
+  return -1
+endi
+if $data34 != ct2 then
+  return -1
+endi
+sql drop database groupby_tbname
 
 print =============== clear
 sql drop database $db

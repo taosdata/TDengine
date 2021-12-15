@@ -53,7 +53,7 @@ else
   lib_files="${build_dir}/lib/libtaos.${version}.dylib"
 fi
 
-header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
+header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
 if [ "$verMode" == "cluster" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else
@@ -109,15 +109,15 @@ if [ "$osType" != "Darwin" ]; then
   if [ "$pagMode" == "lite" ]; then
     strip ${build_dir}/bin/taos
     cp ${build_dir}/bin/taos          ${install_dir}/bin/power
-    cp ${script_dir}/remove_power.sh  ${install_dir}/bin
+    cp ${script_dir}/remove_client_power.sh  ${install_dir}/bin
   else
     cp ${build_dir}/bin/taos          ${install_dir}/bin/power
-    cp ${script_dir}/remove_power.sh  ${install_dir}/bin
+    cp ${script_dir}/remove_client_power.sh  ${install_dir}/bin
     cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/powerdemo
     cp ${build_dir}/bin/taosdump      ${install_dir}/bin/powerdump
     cp ${script_dir}/set_core.sh      ${install_dir}/bin
     cp ${script_dir}/get_client.sh    ${install_dir}/bin
-    cp ${script_dir}/taosd-dump-cfg.gdb    ${install_dir}/bin
+    #cp ${script_dir}/taosd-dump-cfg.gdb    ${install_dir}/bin
   fi
 else
   cp ${bin_files} ${install_dir}/bin

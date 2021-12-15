@@ -46,6 +46,7 @@ typedef void **TAOS_ROW;
 #define TSDB_DATA_TYPE_USMALLINT  12    // 2 bytes
 #define TSDB_DATA_TYPE_UINT       13    // 4 bytes
 #define TSDB_DATA_TYPE_UBIGINT    14    // 8 bytes
+#define TSDB_DATA_TYPE_JSON       15    // json string
 
 typedef enum {
   TSDB_OPTION_LOCALE,
@@ -207,6 +208,8 @@ DLL_EXPORT void taos_close_stream(TAOS_STREAM *tstr);
 DLL_EXPORT int taos_load_table_info(TAOS *taos, const char* tableNameList);
 
 DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision);
+
+DLL_EXPORT int32_t taos_parse_time(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t dayligth);
 
 #ifdef __cplusplus
 }

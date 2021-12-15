@@ -230,6 +230,7 @@ typedef struct SQueryAttr {
   bool             diffQuery;        // is diff query
   bool             simpleAgg;
   bool             pointInterpQuery; // point interpolation query
+  bool             needTableSeqScan; // need scan table by table
   bool             needReverseScan;  // need reverse scan
   bool             distinct;         // distinct  query or not
   bool             stateWindow;       // window State on sub/normal table
@@ -310,7 +311,7 @@ typedef struct SQueryRuntimeEnv {
   STSCursor             cur;
 
   char*                 tagVal;           // tag value of current data block
-  SArithmeticSupport   *sasArray;
+  SScalarExprSupport*sasArray;
 
   SSDataBlock          *outputBuf;
   STableGroupInfo       tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
@@ -685,7 +686,7 @@ void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);
 STableQueryInfo *createTableQueryInfo(SQueryAttr* pQueryAttr, void* pTable, bool groupbyColumn, STimeWindow win, void* buf);
 STableQueryInfo* createTmpTableQueryInfo(STimeWindow win);
 
-int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, void *pQueryMsg);
+int32_t buildScalarExprFromMsg(SExprInfo * pExprInfo, void *pQueryMsg);
 
 bool isQueryKilled(SQInfo *pQInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
@@ -716,4 +717,5 @@ int32_t getMaximumIdleDurationSec();
 void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
 int32_t getColumnDataFromId(void *param, int32_t id, void **data);
 
+void qInfoLogSSDataBlock(SSDataBlock* block, char* location);
 #endif  // TDENGINE_QEXECUTOR_H

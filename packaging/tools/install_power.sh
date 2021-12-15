@@ -177,6 +177,7 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/rmpower   || :
     ${csudo} rm -f ${bin_link_dir}/tarbitrator   || :
     ${csudo} rm -f ${bin_link_dir}/set_core   || :
+    ${csudo} rm -f ${bin_link_dir}/run_taosd.sh || :
 
     ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
@@ -186,6 +187,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/powerdemo ] && ${csudo} ln -s ${install_main_dir}/bin/powerdemo ${bin_link_dir}/powerdemo            || :
     [ -x ${install_main_dir}/bin/remove_power.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_power.sh ${bin_link_dir}/rmpower  || :
     [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core         || :
+    [ -x ${install_main_dir}/bin/run_taosd.sh ] && ${csudo} ln -s ${install_main_dir}/bin/run_taosd.sh ${bin_link_dir}/run_taosd.sh     || :
     [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo} ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator      || :
 
     if [ "$verMode" == "cluster" ]; then
@@ -209,13 +211,6 @@ function install_lib() {
       ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
       ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
     fi
-
-    #if [ "$verMode" == "cluster" ]; then
-    #    # Compatible with version 1.5
-    #    ${csudo} mkdir -p ${v15_java_app_dir}
-    #    ${csudo} ln -s ${install_main_dir}/connector/taos-jdbcdriver-1.0.2-dist.jar ${v15_java_app_dir}/JDBCDriver-1.0.2-dist.jar
-    #    ${csudo} chmod 777 ${v15_java_app_dir} || :
-    #fi
 
     ${csudo} ldconfig
 }
@@ -265,7 +260,7 @@ function install_jemalloc() {
         fi
 
         if [ -d /etc/ld.so.conf.d ]; then
-            ${csudo} echo "/usr/local/lib" > /etc/ld.so.conf.d/jemalloc.conf
+            echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf > /dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
             ${csudo} ldconfig
         else
             echo "/etc/ld.so.conf.d not found!"
@@ -274,9 +269,10 @@ function install_jemalloc() {
 }
 
 function install_header() {
-    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h    || :
     ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+    ${csudo} ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
@@ -328,7 +324,7 @@ function set_hostname() {
     ${csudo} sed -i -r "s/#*\s*(HOSTNAME=\s*).*/\1$newHostname/" /etc/sysconfig/network   ||:
   fi
 
-  ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${cfg_install_dir}/taos.cfg
+  ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${cfg_install_dir}/power.cfg
   serverFqdn=$newHostname
 
   if [[ -e /etc/hosts ]]; then
@@ -363,7 +359,7 @@ function set_ipAsFqdn() {
     echo -e -n "${GREEN}Unable to get local ip, use 127.0.0.1${NC}"
     localFqdn="127.0.0.1"
     # Write the local FQDN to configuration file
-    ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/taos.cfg
+    ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/power.cfg
     serverFqdn=$localFqdn
     echo
     return
@@ -385,7 +381,7 @@ function set_ipAsFqdn() {
           read -p "Please choose an IP from local IP list:" localFqdn
         else
           # Write the local FQDN to configuration file
-          ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/taos.cfg
+          ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/power.cfg
           serverFqdn=$localFqdn
           break
         fi
@@ -432,16 +428,14 @@ function local_fqdn_check() {
 }
 
 function install_config() {
-    #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
-
-    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
+    if [ ! -f ${cfg_install_dir}/power.cfg ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${script_dir}/cfg/taos.cfg ] && ${csudo} cp ${script_dir}/cfg/taos.cfg ${cfg_install_dir}
+        [ -f ${script_dir}/cfg/power.cfg ] && ${csudo} cp ${script_dir}/cfg/power.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
     fi
 
-    ${csudo} cp -f ${script_dir}/cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
-    ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
+    ${csudo} cp -f ${script_dir}/cfg/power.cfg ${install_main_dir}/cfg/power.cfg.org
+    ${csudo} ln -s ${cfg_install_dir}/power.cfg ${install_main_dir}/cfg
 
     [ ! -z $1 ] && return 0 || : # only install client
 
@@ -471,7 +465,7 @@ function install_config() {
             # check the format of the firstEp
             #if [[ $firstEp == $FQDN_PATTERN ]]; then
                 # Write the first FQDN to configuration file
-                ${csudo} sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${cfg_install_dir}/taos.cfg
+                ${csudo} sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${cfg_install_dir}/power.cfg
                 break
             #else
             #    read -p "Please enter the correct FQDN:port: " firstEp
@@ -607,7 +601,7 @@ function clean_service_on_systemd() {
     if [ "$verMode" == "cluster" ]; then
       nginx_service_config="${service_config_dir}/nginxd.service"
       if systemctl is-active --quiet nginxd; then
-        echo "Nginx for TDengine is running, stopping it..."
+        echo "Nginx for PowerDB is running, stopping it..."
         ${csudo} systemctl stop nginxd &> /dev/null || echo &> /dev/null
       fi
       ${csudo} systemctl disable nginxd &> /dev/null || echo &> /dev/null
@@ -646,7 +640,7 @@ function install_service_on_systemd() {
 
     tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
     ${csudo} bash -c "echo '[Unit]'                                  >> ${tarbitratord_service_config}"
-    ${csudo} bash -c "echo 'Description=TDengine arbitrator service' >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'Description=PowerDB arbitrator service' >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'After=network-online.target'             >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'Wants=network-online.target'             >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo                                           >> ${tarbitratord_service_config}"
@@ -828,7 +822,7 @@ function update_PowerDB() {
         #echo
         #echo -e "\033[44;32;1mPowerDB is updated successfully!${NC}"
         echo
-        echo -e "${GREEN_DARK}To configure PowerDB ${NC}: edit /etc/power/taos.cfg"
+        echo -e "${GREEN_DARK}To configure PowerDB ${NC}: edit /etc/power/power.cfg"
         if ((${service_mod}==0)); then
             echo -e "${GREEN_DARK}To start PowerDB     ${NC}: ${csudo} systemctl start powerd${NC}"
         elif ((${service_mod}==1)); then
@@ -905,7 +899,7 @@ function install_PowerDB() {
         #echo
         #echo -e "\033[44;32;1mPowerDB is installed successfully!${NC}"
         echo
-        echo -e "${GREEN_DARK}To configure PowerDB ${NC}: edit /etc/power/taos.cfg"
+        echo -e "${GREEN_DARK}To configure PowerDB ${NC}: edit /etc/power/power.cfg"
         if ((${service_mod}==0)); then
             echo -e "${GREEN_DARK}To start PowerDB     ${NC}: ${csudo} systemctl start powerd${NC}"
         elif ((${service_mod}==1)); then

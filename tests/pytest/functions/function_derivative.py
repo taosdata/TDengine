@@ -29,7 +29,6 @@ class TDTestCase:
 
     def insertAndCheckData(self):
         types = ["tinyint", "tinyint unsigned", "smallint", "smallint unsigned", "int", "int unsigned", "bigint", "bigint unsigned", "float", "double", "bool", "binary(20)", "nchar(20)"]
-
         for type in types:
             print("============== create table using %s type ================" % type)
             tdSql.execute("drop table if exists stb")
