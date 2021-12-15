@@ -100,7 +100,7 @@ static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
 
 static int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem, bool outerQuery);
 
-static int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql);
+static int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql, bool joinQuery);
 static int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode);
 static int32_t validateRangeNode(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode);
 static int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode, SSchema* pSchema);
@@ -472,7 +472,7 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       createInfo->name.z[createInfo->name.n] = 0;
-      // funcname's naming rule is same to column 
+      // funcname's naming rule is same to column
       if (validateColumnName(createInfo->name.z) != TSDB_CODE_SUCCESS) {
         return  invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
@@ -5036,11 +5036,13 @@ int32_t handleNeOptr(tSqlExpr** rexpr, tSqlExpr* expr) {
 
 
 static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SCondExpr* pCondExpr,
-                                     int32_t* type, int32_t* tbIdx, int32_t parentOptr, tSqlExpr** columnExpr, tSqlExpr** tsExpr) {
+                                     int32_t* type, int32_t* tbIdx, int32_t parentOptr, tSqlExpr** columnExpr,
+                                     tSqlExpr** tsExpr, bool joinQuery) {
   const char* msg1 = "table query cannot use tags filter";
   const char* msg2 = "illegal column name";
   const char* msg4 = "too many join tables";
   const char* msg5 = "not support ordinary column join";
+  const char* msg6 = "illegal condition expression";
 
   tSqlExpr* pLeft  = (*pExpr)->pLeft;
   tSqlExpr* pRight = (*pExpr)->pRight;
@@ -5157,7 +5159,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       } else {
         rexpr = *pExpr;
       }
-      
+
       ret = setNormalExprToCond(tsExpr, rexpr, parentOptr);
       if (type) {
         *type |= TSQL_EXPR_TS;
@@ -5189,7 +5191,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       *pExpr = NULL;
       if (type) {
         *type |= TSQL_EXPR_JOIN;
-      }        
+      }
     } else {
       // do nothing
       //                ret = setExprToCond(pCmd, &pCondExpr->pTagCond,
@@ -5202,7 +5204,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
         handleNeOptr(&rexpr, *pExpr);
         *pExpr = rexpr;
       }
-      
+
       if (type) {
         *type |= TSQL_EXPR_TAG;
       }
@@ -5211,9 +5213,13 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
     if (type) {
       *type |= TSQL_EXPR_COLUMN;
     }
-    
-    if (pRight->tokenId == TK_ID) {  // other column cannot be served as the join column
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
+
+    if (pRight->tokenId == TK_ID) {
+      if (joinQuery) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5); // other column cannot be served as the join column
+      } else {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+      }
     }
 
     tSqlExpr *rexpr = NULL;
@@ -5231,7 +5237,8 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
 }
 
 int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SCondExpr* pCondExpr,
-                        int32_t* type, int32_t* tbIdx, int32_t parentOptr, tSqlExpr** columnExpr, tSqlExpr** tsExpr) {
+                        int32_t* type, int32_t* tbIdx, int32_t parentOptr, tSqlExpr** columnExpr,
+                        tSqlExpr** tsExpr, bool joinQuery) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -5263,12 +5270,12 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
   int32_t rightTbIdx = 0;
 
   if (!tSqlExprIsParentOfLeaf(*pExpr)) {
-    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pLeft, pCondExpr, type ? &leftType : NULL, &leftTbIdx, (*pExpr)->tokenId, &columnLeft, &tsLeft);
+    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pLeft, pCondExpr, type ? &leftType : NULL, &leftTbIdx, (*pExpr)->tokenId, &columnLeft, &tsLeft, joinQuery);
     if (ret != TSDB_CODE_SUCCESS) {
       goto err_ret;
     }
 
-    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pRight, pCondExpr, type ? &rightType : NULL, &rightTbIdx, (*pExpr)->tokenId, &columnRight, &tsRight);
+    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pRight, pCondExpr, type ? &rightType : NULL, &rightTbIdx, (*pExpr)->tokenId, &columnRight, &tsRight, joinQuery);
     if (ret != TSDB_CODE_SUCCESS) {
       goto err_ret;
     }
@@ -5323,7 +5330,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
     goto err_ret;
   }
 
-  ret = handleExprInQueryCond(pCmd, pQueryInfo, pExpr, pCondExpr, type, tbIdx, parentOptr, columnExpr, tsExpr);
+  ret = handleExprInQueryCond(pCmd, pQueryInfo, pExpr, pCondExpr, type, tbIdx, parentOptr, columnExpr, tsExpr, joinQuery);
   if (ret) {
     goto err_ret;
   }
@@ -5863,12 +5870,11 @@ _ret:
 
 
 
-int32_t
-validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql) {
+int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql, bool joinQuery) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
-  
+
   const char* msg1 = "invalid expression";
 //  const char* msg2 = "invalid filter expression";
 
@@ -5892,7 +5898,7 @@ validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql) {
   }
 #endif
 
-  if ((ret = getQueryCondExpr(&pSql->cmd, pQueryInfo, pExpr, &condExpr, etype, &tbIdx, (*pExpr)->tokenId, &condExpr.pColumnCond, &condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
+  if ((ret = getQueryCondExpr(&pSql->cmd, pQueryInfo, pExpr, &condExpr, etype, &tbIdx, (*pExpr)->tokenId, &condExpr.pColumnCond, &condExpr.pTimewindow, joinQuery)) != TSDB_CODE_SUCCESS) {
     goto PARSE_WHERE_EXIT;
   }
 
@@ -6271,7 +6277,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   const char* msg0 = "only one column allowed in orderby";
   const char* msg1 = "invalid column name in orderby clause";
   const char* msg2 = "too many order by columns";
-  const char* msg3 = "only primary timestamp/column in groupby clause allowed as order column";
+  const char* msg3 = "only primary timestamp, first tag/tbname in groupby clause allowed as order column";
   const char* msg4 = "only tag in groupby clause allowed in order clause";
   const char* msg5 = "only primary timestamp/column in top/bottom function allowed as order column";
   const char* msg6 = "only primary timestamp allowed as the second order column";
@@ -8742,7 +8748,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   if (tscValidateName(pName, true, &dbIncluded1) != TSDB_CODE_SUCCESS) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
-  
+
   SRelationInfo* pFromInfo = pInfo->pCreateTableInfo->pSelect->from;
   if (pFromInfo == NULL || taosArrayGetSize(pFromInfo->list) == 0) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
@@ -8759,7 +8765,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   char      buf[TSDB_TABLE_FNAME_LEN];
   SStrToken sTblToken;
   sTblToken.z = buf;
-  
+
   int32_t code = validateTableName(srcToken.z, srcToken.n, &sTblToken, &dbIncluded2);
   if (code != TSDB_CODE_SUCCESS) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -8779,8 +8785,10 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
+  int32_t joinQuery = (pSqlNode->from != NULL && taosArrayGetSize(pSqlNode->from->list) > 1);
+
   if (pSqlNode->pWhere != NULL) {  // query condition in stream computing
-    if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql) != TSDB_CODE_SUCCESS) {
+    if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql, joinQuery) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
   }
@@ -9721,11 +9729,13 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
         (TPARSER_HAS_TOKEN(pSqlNode->interval.interval) || TPARSER_HAS_TOKEN(pSqlNode->sessionVal.gap));
     TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TABLE_QUERY);
 
+    int32_t joinQuery = (pSqlNode->from != NULL && taosArrayGetSize(pSqlNode->from->list) > 1);
+
     // parse the group by clause in the first place
     if (validateGroupbyNode(pQueryInfo, pSqlNode->pGroupby, pCmd) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
-    
+
 
     if (validateSelectNodeList(pCmd, pQueryInfo, pSqlNode->pSelNodeList, false, timeWindowQuery, true) !=
         TSDB_CODE_SUCCESS) {
@@ -9757,7 +9767,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
         SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
 
         int32_t f = pExpr->base.functionId;
-        if (f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE || 
+        if (f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE ||
             f == TSDB_FUNC_RATE       || f == TSDB_FUNC_DIFF) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
         }
@@ -9766,7 +9776,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
 
     // validate the query filter condition info
     if (pSqlNode->pWhere != NULL) {
-      if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql) != TSDB_CODE_SUCCESS) {
+      if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql, joinQuery) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
     } else {
@@ -9811,7 +9821,6 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     }
 
     // parse the having clause in the first place
-    int32_t joinQuery = (pSqlNode->from != NULL && taosArrayGetSize(pSqlNode->from->list) > 1);
     if (validateHavingClause(pQueryInfo, pSqlNode->pHaving, pCmd, pSqlNode->pSelNodeList, joinQuery, timeWindowQuery) !=
         TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -9863,6 +9872,8 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     int32_t type = isSTable? TSDB_QUERY_TYPE_STABLE_QUERY:TSDB_QUERY_TYPE_TABLE_QUERY;
     TSDB_QUERY_SET_TYPE(pQueryInfo->type, type);
 
+    int32_t joinQuery = (pSqlNode->from != NULL && taosArrayGetSize(pSqlNode->from->list) > 1);
+
     // parse the group by clause in the first place
     if (validateGroupbyNode(pQueryInfo, pSqlNode->pGroupby, pCmd) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -9870,7 +9881,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     pQueryInfo->onlyHasTagCond = true;
     // set where info
     if (pSqlNode->pWhere != NULL) {
-      if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql) != TSDB_CODE_SUCCESS) {
+      if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql, joinQuery) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
 
@@ -9881,7 +9892,6 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       }
     }
 
-    int32_t joinQuery = (pSqlNode->from != NULL && taosArrayGetSize(pSqlNode->from->list) > 1);
     int32_t timeWindowQuery =
         (TPARSER_HAS_TOKEN(pSqlNode->interval.interval) || TPARSER_HAS_TOKEN(pSqlNode->sessionVal.gap));
 
@@ -9891,7 +9901,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     }
 
     if (isSTable && tscQueryTags(pQueryInfo) && pQueryInfo->distinct && !pQueryInfo->onlyHasTagCond) {
-      return TSDB_CODE_TSC_INVALID_OPERATION; 
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
     // parse the window_state
