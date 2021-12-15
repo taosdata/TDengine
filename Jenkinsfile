@@ -476,6 +476,9 @@ pipeline {
               '''
 
               sh '''
+                cd ${WKC}/src/connector/nodejs
+                npm install
+                npm run test
                 cd ${WKC}/tests/examples/nodejs
                 npm install td2.0-connector > /dev/null 2>&1
                 node nodejsChecker.js host=localhost
@@ -486,6 +489,15 @@ pipeline {
               '''
               catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
+                  cd ${WKC}/src/connector/C#
+                  dotnet test
+                  dotnet run --project src/test/Cases/Cases.csproj
+                  
+                  cd ${WKC}/tests/examples/C#
+                  dotnet run --project C#checker/C#checker.csproj
+                  dotnet run --project TDengineTest/TDengineTest.csproj
+                  dotnet run --project schemaless/schemaless.csproj 
+
                   cd ${WKC}/tests/examples/C#/taosdemo
                   dotnet build -c Release
                   tree | true
