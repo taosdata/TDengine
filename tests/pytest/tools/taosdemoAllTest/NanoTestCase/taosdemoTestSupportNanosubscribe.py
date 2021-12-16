@@ -75,7 +75,7 @@ class TDTestCase:
         os.system("rm -rf ./all_subscribe_res*")  
 
         # insert data
-        os.system("nohup %staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseInsertForSub.json & >/dev/null 2>&1" % binPath)
+        os.system("nohup %staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseInsertForSub.json & >/dev/null 2>&1" % binPath)
         sleep(5)
         tdSql.query("select count(*) from subnsdb.stb0")
         if tdSql.checkData(0,0,100):
@@ -84,14 +84,14 @@ class TDTestCase:
             sleep(5)
             tdSql.query("select count(*) from subnsdb.stb0")  # if records not write done ,sleep and wait records write done!
         
-        os.system(" nohup %staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoSubscribe.json & >/dev/null 2>&1" % binPath)
+        os.system(" nohup %staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoSubscribe.json & >/dev/null 2>&1" % binPath)
         sleep(5)
 
         if os.path.exists("./subscribe_res0.txt") and os.path.exists("./subscribe_res1.txt") and os.path.exists("./subscribe_res2.txt"):
             pass
         else:
             sleep(5)   # make sure query is ok 
-        print('taosBenchmark query done!')
+        print('taosdemo query done!')
             
         # merge result files
         
