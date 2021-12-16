@@ -1,16 +1,12 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/**
+ * @file vnodeApiTests.cpp
+ * @author slguan (slguan@taosdata.com)
+ * @brief DNODE module acct-msg tests
+ * @version 0.1
+ * @date 2021-12-15
  *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * @copyright Copyright (c) 2021
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "deploy.h"
@@ -49,7 +45,7 @@ SServer* DndTestAcct::pServer;
 SClient* DndTestAcct::pClient;
 int32_t  DndTestAcct::connId;
 
-TEST_F(DndTestAcct, CreateAcct) {
+TEST_F(DndTestAcct, 01_CreateAcct) {
   ASSERT_NE(pClient, nullptr);
 
   SCreateAcctMsg* pReq = (SCreateAcctMsg*)rpcMallocCont(sizeof(SCreateAcctMsg));
@@ -65,7 +61,7 @@ TEST_F(DndTestAcct, CreateAcct) {
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
 
-TEST_F(DndTestAcct, AlterAcct) {
+TEST_F(DndTestAcct, 02_AlterAcct) {
   ASSERT_NE(pClient, nullptr);
 
   SAlterAcctMsg* pReq = (SAlterAcctMsg*)rpcMallocCont(sizeof(SAlterAcctMsg));
@@ -81,7 +77,7 @@ TEST_F(DndTestAcct, AlterAcct) {
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
 
-TEST_F(DndTestAcct, DropAcct) {
+TEST_F(DndTestAcct, 03_DropAcct) {
   ASSERT_NE(pClient, nullptr);
 
   SDropAcctMsg* pReq = (SDropAcctMsg*)rpcMallocCont(sizeof(SDropAcctMsg));
@@ -97,7 +93,7 @@ TEST_F(DndTestAcct, DropAcct) {
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
 
-TEST_F(DndTestAcct, ShowAcct) {
+TEST_F(DndTestAcct, 04_ShowAcct) {
   ASSERT_NE(pClient, nullptr);
 
   SShowMsg* pReq = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));

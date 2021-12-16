@@ -28,6 +28,7 @@ SDnodeObj *mndAcquireDnode(SMnode *pMnode, int32_t dnodeId);
 void       mndReleaseDnode(SMnode *pMnode, SDnodeObj *pDnode);
 SEpSet     mndGetDnodeEpset(SDnodeObj *pDnode);
 int32_t    mndGetDnodeSize(SMnode *pMnode);
+bool       mndIsDnodeInReadyStatus(SMnode *pMnode, SDnodeObj *pDnode);
 
 #ifdef __cplusplus
 }

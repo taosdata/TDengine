@@ -1,16 +1,12 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/**
+ * @file vnodeApiTests.cpp
+ * @author slguan (slguan@taosdata.com)
+ * @brief DNODE module db-msg tests
+ * @version 0.1
+ * @date 2021-12-15
  *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * @copyright Copyright (c) 2021
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "deploy.h"
@@ -30,7 +26,7 @@ class DndTestDb : public ::testing::Test {
     const char* firstEp = "localhost:9040";
     pServer = CreateServer("/tmp/dnode_test_db", fqdn, 9040, firstEp);
     pClient = createClient("root", "taosdata", fqdn, 9040);
-    taosMsleep(300);
+    taosMsleep(1100);
   }
 
   static void TearDownTestSuite() {
@@ -48,11 +44,12 @@ class DndTestDb : public ::testing::Test {
   void SetUp() override {}
   void TearDown() override {}
 
-  void SendTheCheckShowMetaMsg(int8_t showType, const char* showName, int32_t columns) {
+  void SendTheCheckShowMetaMsg(int8_t showType, const char* showName, int32_t columns, const char* db) {
     SShowMsg* pShow = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
     pShow->type = showType;
-    strcpy(pShow->db, "");
-
+    if (db != NULL) {
+      strcpy(pShow->db, db);
+    }
     SRpcMsg showRpcMsg = {0};
     showRpcMsg.pCont = pShow;
     showRpcMsg.contLen = sizeof(SShowMsg);
@@ -183,31 +180,33 @@ SClient* DndTestDb::pClient;
 int32_t  DndTestDb::connId;
 
 TEST_F(DndTestDb, 01_ShowDb) {
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 17, NULL);
   CheckSchema(0, TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN - 1 + VARSTR_HEADER_SIZE, "name");
   CheckSchema(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create time");
-  CheckSchema(2, TSDB_DATA_TYPE_SMALLINT, 2, "replica");
-  CheckSchema(3, TSDB_DATA_TYPE_SMALLINT, 2, "quorum");
-  CheckSchema(4, TSDB_DATA_TYPE_SMALLINT, 2, "days");
-  CheckSchema(5, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "keep0,keep1,keep2");
-  CheckSchema(6, TSDB_DATA_TYPE_INT, 4, "cache(MB)");
-  CheckSchema(7, TSDB_DATA_TYPE_INT, 4, "blocks");
-  CheckSchema(8, TSDB_DATA_TYPE_INT, 4, "minrows");
-  CheckSchema(9, TSDB_DATA_TYPE_INT, 4, "maxrows");
-  CheckSchema(10, TSDB_DATA_TYPE_TINYINT, 1, "wallevel");
-  CheckSchema(11, TSDB_DATA_TYPE_INT, 4, "fsync");
-  CheckSchema(12, TSDB_DATA_TYPE_TINYINT, 1, "comp");
-  CheckSchema(13, TSDB_DATA_TYPE_TINYINT, 1, "cachelast");
-  CheckSchema(14, TSDB_DATA_TYPE_BINARY, 3 + VARSTR_HEADER_SIZE, "precision");
-  CheckSchema(15, TSDB_DATA_TYPE_TINYINT, 1, "update");
+  CheckSchema(2, TSDB_DATA_TYPE_SMALLINT, 2, "vgroups");
+  CheckSchema(3, TSDB_DATA_TYPE_SMALLINT, 2, "replica");
+  CheckSchema(4, TSDB_DATA_TYPE_SMALLINT, 2, "quorum");
+  CheckSchema(5, TSDB_DATA_TYPE_SMALLINT, 2, "days");
+  CheckSchema(6, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "keep0,keep1,keep2");
+  CheckSchema(7, TSDB_DATA_TYPE_INT, 4, "cache(MB)");
+  CheckSchema(8, TSDB_DATA_TYPE_INT, 4, "blocks");
+  CheckSchema(9, TSDB_DATA_TYPE_INT, 4, "minrows");
+  CheckSchema(10, TSDB_DATA_TYPE_INT, 4, "maxrows");
+  CheckSchema(11, TSDB_DATA_TYPE_TINYINT, 1, "wallevel");
+  CheckSchema(12, TSDB_DATA_TYPE_INT, 4, "fsync");
+  CheckSchema(13, TSDB_DATA_TYPE_TINYINT, 1, "comp");
+  CheckSchema(14, TSDB_DATA_TYPE_TINYINT, 1, "cachelast");
+  CheckSchema(15, TSDB_DATA_TYPE_BINARY, 3 + VARSTR_HEADER_SIZE, "precision");
+  CheckSchema(16, TSDB_DATA_TYPE_TINYINT, 1, "update");
 
   SendThenCheckShowRetrieveMsg(0);
 }
 
-TEST_F(DndTestDb, 02_CreateDb) {
+TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
   {
     SCreateDbMsg* pReq = (SCreateDbMsg*)rpcMallocCont(sizeof(SCreateDbMsg));
     strcpy(pReq->db, "1.d1");
+    pReq->numOfVgroups = htonl(2);
     pReq->cacheBlockSize = htonl(16);
     pReq->totalBlocks = htonl(10);
     pReq->daysPerFile = htonl(10);
@@ -238,10 +237,11 @@ TEST_F(DndTestDb, 02_CreateDb) {
     ASSERT_EQ(pMsg->code, 0);
   }
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 17, NULL);
   SendThenCheckShowRetrieveMsg(1);
   CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
+  CheckInt16(2);                      // vgroups
   CheckInt16(1);                      // replica
   CheckInt16(1);                      // quorum
   CheckInt16(10);                     // days
@@ -256,9 +256,22 @@ TEST_F(DndTestDb, 02_CreateDb) {
   CheckInt8(0);                       // cachelast
   CheckBinary("ms", 3);               // precision
   CheckInt8(0);                       // update
-}
 
-TEST_F(DndTestDb, 03_AlterDb) {
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_VGROUP, "show vgroups", 4, "1.d1");
+  CheckSchema(0, TSDB_DATA_TYPE_INT, 4, "vgId");
+  CheckSchema(1, TSDB_DATA_TYPE_INT, 4, "tables");
+  CheckSchema(2, TSDB_DATA_TYPE_SMALLINT, 2, "v1_dnode");
+  CheckSchema(3, TSDB_DATA_TYPE_BINARY, 9 + VARSTR_HEADER_SIZE, "v1_status");
+  SendThenCheckShowRetrieveMsg(2);
+  CheckInt32(1);
+  CheckInt32(2);
+  CheckInt32(0);
+  CheckInt32(0);
+  CheckInt16(1);
+  CheckInt16(1);
+  CheckBinary("master", 9);
+  CheckBinary("master", 9);
+
   {
     SAlterDbMsg* pReq = (SAlterDbMsg*)rpcMallocCont(sizeof(SAlterDbMsg));
     strcpy(pReq->db, "1.d1");
@@ -282,10 +295,11 @@ TEST_F(DndTestDb, 03_AlterDb) {
     ASSERT_EQ(pMsg->code, 0);
   }
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 17, NULL);
   SendThenCheckShowRetrieveMsg(1);
   CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
+  CheckInt16(2);                   // vgroups
   CheckInt16(1);                   // replica
   CheckInt16(2);                   // quorum
   CheckInt16(10);                  // days
@@ -300,9 +314,8 @@ TEST_F(DndTestDb, 03_AlterDb) {
   CheckInt8(1);                    // cachelast
   CheckBinary("ms", 3);            // precision
   CheckInt8(0);                    // update
-}
 
-TEST_F(DndTestDb, 04_RestartDnode) {
+  // restart
   stopServer(pServer);
   pServer = NULL;
 
@@ -314,10 +327,11 @@ TEST_F(DndTestDb, 04_RestartDnode) {
 
   uInfo("all server is running");
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 17, NULL);
   SendThenCheckShowRetrieveMsg(1);
   CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
+  CheckInt16(2);                   // vgroups
   CheckInt16(1);                   // replica
   CheckInt16(2);                   // quorum
   CheckInt16(10);                  // days
@@ -332,11 +346,9 @@ TEST_F(DndTestDb, 04_RestartDnode) {
   CheckInt8(1);                    // cachelast
   CheckBinary("ms", 3);            // precision
   CheckInt8(0);                    // update
-}
 
-TEST_F(DndTestDb, 05_DropDb) {
   {
-    SDropDbMsg* pReq = (SDropDbMsg*)rpcMallocCont(sizeof(SAlterDbMsg));
+    SDropDbMsg* pReq = (SDropDbMsg*)rpcMallocCont(sizeof(SDropDbMsg));
     strcpy(pReq->db, "1.d1");
 
     SRpcMsg rpcMsg = {0};
@@ -350,6 +362,103 @@ TEST_F(DndTestDb, 05_DropDb) {
     ASSERT_EQ(pMsg->code, 0);
   }
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 17, NULL);
   SendThenCheckShowRetrieveMsg(0);
+}
+
+TEST_F(DndTestDb, 03_Create_Use_Restart_Use_Db) {
+  {
+    SCreateDbMsg* pReq = (SCreateDbMsg*)rpcMallocCont(sizeof(SCreateDbMsg));
+    strcpy(pReq->db, "1.d2");
+    pReq->numOfVgroups = htonl(2);
+    pReq->cacheBlockSize = htonl(16);
+    pReq->totalBlocks = htonl(10);
+    pReq->daysPerFile = htonl(10);
+    pReq->daysToKeep0 = htonl(3650);
+    pReq->daysToKeep1 = htonl(3650);
+    pReq->daysToKeep2 = htonl(3650);
+    pReq->minRowsPerFileBlock = htonl(100);
+    pReq->maxRowsPerFileBlock = htonl(4096);
+    pReq->commitTime = htonl(3600);
+    pReq->fsyncPeriod = htonl(3000);
+    pReq->walLevel = 1;
+    pReq->precision = 0;
+    pReq->compression = 2;
+    pReq->replications = 1;
+    pReq->quorum = 1;
+    pReq->update = 0;
+    pReq->cacheLastRow = 0;
+    pReq->ignoreExist = 1;
+
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SCreateDbMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DB;
+
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
+
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 17, NULL);
+  SendThenCheckShowRetrieveMsg(1);
+  CheckBinary("d2", TSDB_DB_NAME_LEN - 1);
+
+  {
+    SUseDbMsg* pReq = (SUseDbMsg*)rpcMallocCont(sizeof(SUseDbMsg));
+    strcpy(pReq->db, "1.d2");
+    pReq->vgVersion = htonl(-1);
+
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SUseDbMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_USE_DB;
+
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+
+    SUseDbRsp* pRsp = (SUseDbRsp*)pMsg->pCont;
+    EXPECT_STREQ(pRsp->db, "1.d2");
+    pRsp->vgVersion = htonl(pRsp->vgVersion);
+    pRsp->vgNum = htonl(pRsp->vgNum);
+    pRsp->hashMethod = pRsp->hashMethod;
+    EXPECT_EQ(pRsp->vgVersion, 1);
+    EXPECT_EQ(pRsp->vgNum, 2);
+    EXPECT_EQ(pRsp->hashMethod, 1);
+
+    {
+      SVgroupInfo* pInfo = &pRsp->vgroupInfo[0];
+      pInfo->vgId = htonl(pInfo->vgId);
+      pInfo->hashBegin = htonl(pInfo->hashBegin);
+      pInfo->hashEnd = htonl(pInfo->hashEnd);
+      EXPECT_GT(pInfo->vgId, 0);
+      EXPECT_EQ(pInfo->hashBegin, 0);
+      EXPECT_EQ(pInfo->hashEnd, INT32_MAX / 2 - 1);
+      EXPECT_EQ(pInfo->inUse, 0);
+      EXPECT_EQ(pInfo->numOfEps, 1);
+      SEpAddrMsg* pAddr = &pInfo->epAddr[0];
+      pAddr->port = htons(pAddr->port);
+      EXPECT_EQ(pAddr->port, 9040);
+      EXPECT_STREQ(pAddr->fqdn, "localhost");
+    }
+
+    {
+      SVgroupInfo* pInfo = &pRsp->vgroupInfo[1];
+      pInfo->vgId = htonl(pInfo->vgId);
+      pInfo->hashBegin = htonl(pInfo->hashBegin);
+      pInfo->hashEnd = htonl(pInfo->hashEnd);
+      EXPECT_GT(pInfo->vgId, 0);
+      EXPECT_EQ(pInfo->hashBegin, INT32_MAX / 2);
+      EXPECT_EQ(pInfo->hashEnd, INT32_MAX);
+      EXPECT_EQ(pInfo->inUse, 0);
+      EXPECT_EQ(pInfo->numOfEps, 1);
+      SEpAddrMsg* pAddr = &pInfo->epAddr[0];
+      pAddr->port = htons(pAddr->port);
+      EXPECT_EQ(pAddr->port, 9040);
+      EXPECT_STREQ(pAddr->fqdn, "localhost");
+    }
+  }
 }
