@@ -63,6 +63,10 @@ int32_t ctgGetDBVgroupFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEp
   SRpcMsg rpcRsp = {0};
 
   rpcSendRecv(pRpc, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
+  if (TSDB_CODE_SUCCESS != rpcRsp.code) {
+    ctgError("error rsp for use db, code:%x", rpcRsp.code);
+    return rpcRsp.code;
+  }
 
   code = queryProcessMsgRsp[TSDB_MSG_TYPE_USE_DB](out, rpcRsp.pCont, rpcRsp.contLen);
   if (code) {
@@ -169,9 +173,9 @@ int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SE
   ctgGenEpSet(&epSet, vgroupInfo);
 
   rpcSendRecv(pRpc, &epSet, &rpcMsg, &rpcRsp);
-
+  
   if (TSDB_CODE_SUCCESS != rpcRsp.code) {
-    ctgError("get table meta from mnode failed, error code:%d", rpcRsp.code);
+    ctgError("error rsp for table meta, code:%x", rpcRsp.code);
     return rpcRsp.code;
   }
 
@@ -251,24 +255,6 @@ int32_t ctgGetVgInfoFromHashValue(SDBVgroupInfo *dbInfo, const char *pDBName, co
   *pVgroup = *vgInfo;
 
   return TSDB_CODE_SUCCESS;
-}
-
-
-int32_t ctgGetTableHashVgroup(struct SCatalog *pCatalog, void *pRpc, const SEpSet *pMgmtEps, const char *pDBName, const char *pTableName, SVgroupInfo *pVgroup) {
-  SDBVgroupInfo dbInfo = {0};
-  int32_t code = 0;
-  int32_t vgId = 0;
-
-  CTG_ERR_RET(catalogGetDBVgroup(pCatalog, pRpc, pMgmtEps, pDBName, false, &dbInfo));
-
-  if (dbInfo.vgVersion < 0 || NULL == dbInfo.vgInfo) {
-    ctgError("db[%s] vgroup cache invalid, vgroup version:%d, vgInfo:%p", pDBName, dbInfo.vgVersion, dbInfo.vgInfo);
-    return TSDB_CODE_TSC_DB_NOT_SELECTED;
-  }
-
-  CTG_ERR_RET(ctgGetVgInfoFromHashValue(&dbInfo, pDBName, pTableName, pVgroup));
-
-  return code;
 }
 
 
@@ -554,7 +540,7 @@ int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSe
 
   SVgroupInfo vgroupInfo = {0};
   
-  CTG_ERR_RET(ctgGetTableHashVgroup(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, &vgroupInfo));
+  CTG_ERR_RET(catalogGetTableHashVgroup(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, &vgroupInfo));
 
   STableMetaOutput output = {0};
   
@@ -571,7 +557,7 @@ int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const
   return ctgGetTableMetaImpl(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, true, pTableMeta);
 }
 
-int32_t catalogGetTableVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, SArray* pVgroupList) {
+int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, SArray* pVgroupList) {
   if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pDBName || NULL == pTableName || NULL == pVgroupList) {
     return TSDB_CODE_CTG_INVALID_INPUT;
   }
@@ -603,6 +589,24 @@ int32_t catalogGetTableVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSe
 _return:
   tfree(tbMeta);
   
+  return code;
+}
+
+
+int32_t catalogGetTableHashVgroup(struct SCatalog *pCatalog, void *pRpc, const SEpSet *pMgmtEps, const char *pDBName, const char *pTableName, SVgroupInfo *pVgroup) {
+  SDBVgroupInfo dbInfo = {0};
+  int32_t code = 0;
+  int32_t vgId = 0;
+
+  CTG_ERR_RET(catalogGetDBVgroup(pCatalog, pRpc, pMgmtEps, pDBName, false, &dbInfo));
+
+  if (dbInfo.vgVersion < 0 || NULL == dbInfo.vgInfo) {
+    ctgError("db[%s] vgroup cache invalid, vgroup version:%d, vgInfo:%p", pDBName, dbInfo.vgVersion, dbInfo.vgInfo);
+    return TSDB_CODE_TSC_DB_NOT_SELECTED;
+  }
+
+  CTG_ERR_RET(ctgGetVgInfoFromHashValue(&dbInfo, pDBName, pTableName, pVgroup));
+
   return code;
 }
 
