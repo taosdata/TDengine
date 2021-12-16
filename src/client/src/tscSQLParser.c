@@ -4479,6 +4479,22 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+static void convertWhereStringCharset(tSqlExpr* pRight){
+  if(pRight->value.nType != TSDB_DATA_TYPE_BINARY){
+    return;
+  }
+
+  char newData[TSDB_MAX_NCHAR_LEN] = {0};
+  int len = 0;
+  if(!taosMbsToUcs4(pRight->value.pz, pRight->value.nLen, newData, TSDB_MAX_NCHAR_LEN, &len)){
+    tscError("nchar in where condition mbsToUcs4 error");
+  }
+  pRight->value.pz = realloc(pRight->value.pz, len);
+  memcpy(pRight->value.pz, newData, len);
+  pRight->value.nLen = len;
+  pRight->value.nType = TSDB_DATA_TYPE_NCHAR;
+}
+
 static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SCondExpr* pCondExpr,
                                      int32_t* type, int32_t parentOptr, int32_t* tbIdx, bool joinQuery) {
   const char* msg1 = "table query cannot use tags filter";
@@ -4520,6 +4536,11 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   }
 
   SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, tsc_index.columnIndex);
+
+  if(pSchema->type == TSDB_DATA_TYPE_NCHAR){
+    convertWhereStringCharset(pRight);
+  }
+
   if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP && tsc_index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX) {  // query on time range
     if (!validateJoinExprNode(pCmd, pQueryInfo, *pExpr, &tsc_index)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
