@@ -126,7 +126,19 @@ static void vtBuildCreateNtbReq(char *tbname, SRpcMsg **ppMsg) {
 }
 
 static void vtBuildSubmitReq(SRpcMsg **ppMsg) {
-  // TODO
+  SRpcMsg *pMsg;
+  void *   pBuf;
+  int      tz = 0;
+
+  pMsg = (SRpcMsg *)malloc(sizeof(*pMsg) + tz);
+  pMsg->msgType = TSDB_MSG_TYPE_SUBMIT;
+  pMsg->contLen = tz;
+  pMsg->pCont = POINTER_SHIFT(pMsg, sizeof(*pMsg));
+
+  pBuf = pMsg->pCont;
+  vnodeBuildReq(&pBuf, NULL /*TODO*/, TSDB_MSG_TYPE_SUBMIT);
+
+  *ppMsg = pMsg;
 }
 
 static void vtClearMsgBatch(SArray *pMsgArr) {
@@ -198,6 +210,7 @@ TEST(vnodeApiTest, vnode_simple_insert_test) {
   SArray *    pMsgArr;
   int         rcode;
   SVnode *    pVnode;
+  int         batch = 1;
 
   pMsgArr = (SArray *)taosArrayInit(0, sizeof(pMsg));
 
@@ -226,6 +239,13 @@ TEST(vnodeApiTest, vnode_simple_insert_test) {
   vtClearMsgBatch(pMsgArr);
 
   // 3. WRITE A LOT OF TIME-SERIES DATA
+  for (int i = 0; i < batch; i++) {
+    vtBuildSubmitReq(&pMsg);
+    taosArrayPush(pMsgArr, &pMsg);
+  }
+  rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
+  GTEST_ASSERT_EQ(rcode, 0);
+  vtClearMsgBatch(pMsgArr);
 
   // Close the vnode
   vnodeClose(pVnode);
