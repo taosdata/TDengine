@@ -157,11 +157,17 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOldStb, SStbObj *pNewStb
   atomic_exchange_32(&pOldStb->version, pNewStb->version);
 
   taosWLockLatch(&pOldStb->lock);
+  pOldStb->numOfColumns = pNewStb->numOfColumns;
+  pOldStb->numOfTags = pNewStb->numOfTags;
   int32_t totalCols = pNewStb->numOfTags + pNewStb->numOfColumns;
   int32_t totalSize = totalCols * sizeof(SSchema);
 
   if (pOldStb->numOfTags + pOldStb->numOfColumns < totalCols) {
-    pOldStb->pSchema = malloc(totalSize);
+    void *pSchema = malloc(totalSize);
+    if (pSchema != NULL) {
+      free(pOldStb->pSchema);
+      pOldStb->pSchema = pSchema;
+    }
   }
 
   memcpy(pOldStb->pSchema, pNewStb->pSchema, totalSize);
@@ -200,37 +206,37 @@ static int32_t mndCheckStbMsg(SCreateStbMsg *pCreate) {
   }
 
   if (pCreate->igExists < 0 || pCreate->igExists > 1) {
-    terrno = TSDB_CODE_MND_STB_INVALID_IGEXIST;
+    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
   }
 
   if (pCreate->numOfColumns < TSDB_MIN_COLUMNS || pCreate->numOfColumns > TSDB_MAX_COLUMNS) {
-    terrno = TSDB_CODE_MND_STB_INVALID_COLS_NUM;
+    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
   }
 
   if (pCreate->numOfTags <= 0 || pCreate->numOfTags > TSDB_MAX_TAGS) {
-    terrno = TSDB_CODE_MND_STB_INVALID_TAGS_NUM;
+    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
   }
 
   int32_t maxColId = (TSDB_MAX_COLUMNS + TSDB_MAX_TAGS);
   for (int32_t i = 0; i < totalCols; ++i) {
     SSchema *pSchema = &pCreate->pSchema[i];
-    if (pSchema->type <= 0) {
-      terrno = TSDB_CODE_MND_STB_INVALID_COL_TYPE;
+    if (pSchema->type < 0) {
+      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
     }
     if (pSchema->colId < 0 || pSchema->colId >= maxColId) {
-      terrno = TSDB_CODE_MND_STB_INVALID_COL_ID;
+      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
     }
     if (pSchema->bytes <= 0) {
-      terrno = TSDB_CODE_MND_STB_INVALID_COL_BYTES;
+      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
     }
     if (pSchema->name[0] == 0) {
-      terrno = TSDB_CODE_MND_STB_INVALID_COL_NAME;
+      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
     }
   }
@@ -245,6 +251,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateStbMsg *pCre
   stbObj.createdTime = taosGetTimestampMs();
   stbObj.updateTime = stbObj.createdTime;
   stbObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
+  stbObj.dbUid = pDb->uid;
   stbObj.version = 1;
   stbObj.numOfColumns = pCreate->numOfColumns;
   stbObj.numOfTags = pCreate->numOfTags;
@@ -350,19 +357,19 @@ static int32_t mndCheckAlterStbMsg(SAlterStbMsg *pAlter) {
   pSchema->bytes = htonl(pSchema->bytes);
 
   if (pSchema->type <= 0) {
-    terrno = TSDB_CODE_MND_STB_INVALID_COL_TYPE;
+    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
   }
   if (pSchema->colId < 0 || pSchema->colId >= (TSDB_MAX_COLUMNS + TSDB_MAX_TAGS)) {
-    terrno = TSDB_CODE_MND_STB_INVALID_COL_ID;
+    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
   }
   if (pSchema->bytes <= 0) {
-    terrno = TSDB_CODE_MND_STB_INVALID_COL_BYTES;
+    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
   }
   if (pSchema->name[0] == 0) {
-    terrno = TSDB_CODE_MND_STB_INVALID_COL_NAME;
+    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
   }
 
@@ -495,7 +502,7 @@ static int32_t mndProcessStbMetaMsg(SMnodeMsg *pMsg) {
   SStbObj *pStb = mndAcquireStb(pMnode, pInfo->name);
   if (pStb == NULL) {
     mndReleaseDb(pMnode, pDb);
-    terrno = TSDB_CODE_MND_INVALID_TABLE_NAME;
+    terrno = TSDB_CODE_MND_INVALID_STB;
     mError("stb:%s, failed to get meta since %s", pInfo->name, terrstr());
     return -1;
   }
@@ -583,14 +590,14 @@ static int32_t mndGetStbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pM
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 2;
-  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "columns");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 2;
-  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "tags");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
