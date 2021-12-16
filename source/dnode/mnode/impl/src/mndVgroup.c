@@ -24,9 +24,9 @@
 #define TSDB_VGROUP_VER_NUM 1
 #define TSDB_VGROUP_RESERVE_SIZE 64
 
-static int32_t  mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
-static int32_t  mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
-static int32_t  mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup);
+static int32_t mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
+static int32_t mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
+static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup);
 
 static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pMsg);
 static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pMsg);
@@ -80,6 +80,7 @@ SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
   SDB_SET_INT32(pRaw, dataPos, pVgroup->hashBegin)
   SDB_SET_INT32(pRaw, dataPos, pVgroup->hashEnd)
   SDB_SET_BINARY(pRaw, dataPos, pVgroup->dbName, TSDB_FULL_DB_NAME_LEN)
+  SDB_SET_INT64(pRaw, dataPos, pVgroup->dbUid)
   SDB_SET_INT8(pRaw, dataPos, pVgroup->replica)
   for (int8_t i = 0; i < pVgroup->replica; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
@@ -102,7 +103,7 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
     return NULL;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SDbObj));
+  SSdbRow *pRow = sdbAllocRow(sizeof(SVgObj));
   SVgObj  *pVgroup = sdbGetRowObj(pRow);
   if (pVgroup == NULL) return NULL;
 
@@ -114,6 +115,7 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->hashBegin)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->hashEnd)
   SDB_GET_BINARY(pRaw, pRow, dataPos, pVgroup->dbName, TSDB_FULL_DB_NAME_LEN)
+  SDB_GET_INT64(pRaw, pRow, dataPos, &pVgroup->dbUid)
   SDB_GET_INT8(pRaw, pRow, dataPos, &pVgroup->replica)
   for (int8_t i = 0; i < pVgroup->replica; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
@@ -222,12 +224,13 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
     pVgroup->vgId = maxVgId++;
     pVgroup->createdTime = taosGetTimestampMs();
     pVgroup->updateTime = pVgroups->createdTime;
-    pVgroup->version = 0;
+    pVgroup->version = 1;
+    pVgroup->dbUid = pDb->uid;
     pVgroup->hashBegin = hashMin + hashInterval * v;
     if (v == pDb->numOfVgroups - 1) {
       pVgroup->hashEnd = hashMax;
     } else {
-      pVgroup->hashEnd = hashMin + hashInterval * (v + 1);
+      pVgroup->hashEnd = hashMin + hashInterval * (v + 1) - 1;
     }
 
     memcpy(pVgroup->dbName, pDb->name, TSDB_FULL_DB_NAME_LEN);

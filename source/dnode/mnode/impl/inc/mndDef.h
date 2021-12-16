@@ -210,7 +210,7 @@ typedef struct {
   int32_t cfgVersion;
   int32_t vgVersion;
   int32_t numOfVgroups;
-  int8_t  hashMethod; // default is 1
+  int8_t  hashMethod;  // default is 1
   SDbCfg  cfg;
 } SDbObj;
 
@@ -227,6 +227,7 @@ typedef struct {
   int32_t   hashBegin;
   int32_t   hashEnd;
   char      dbName[TSDB_FULL_DB_NAME_LEN];
+  int64_t   dbUid;
   int32_t   numOfTables;
   int32_t   numOfTimeSeries;
   int64_t   totalStorage;

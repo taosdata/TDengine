@@ -292,8 +292,8 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreat
   dbObj.uid = mndGenerateUid(dbObj.name, TSDB_FULL_DB_NAME_LEN);
   dbObj.numOfVgroups = pCreate->numOfVgroups;
   dbObj.hashMethod = 1;
-  dbObj.cfgVersion = 0;
-  dbObj.vgVersion = 0;
+  dbObj.cfgVersion = 1;
+  dbObj.vgVersion = 1;
   dbObj.cfg = (SDbCfg){.cacheBlockSize = pCreate->cacheBlockSize,
                        .totalBlocks = pCreate->totalBlocks,
                        .daysPerFile = pCreate->daysPerFile,
@@ -614,17 +614,69 @@ static int32_t mndProcessDropDbMsg(SMnodeMsg *pMsg) {
 
 static int32_t mndProcessUseDbMsg(SMnodeMsg *pMsg) {
   SMnode    *pMnode = pMsg->pMnode;
+  SSdb      *pSdb = pMnode->pSdb;
   SUseDbMsg *pUse = pMsg->rpcMsg.pCont;
+  pUse->vgVersion = htonl(pUse->vgVersion);
 
-  SDbObj *pDb = mndAcquireDb(pMnode, pMsg->db);
-  if (pDb != NULL) {
-    strncpy(pMsg->db, pUse->db, TSDB_FULL_DB_NAME_LEN);
-    mndReleaseDb(pMnode, pDb);
-    return 0;
-  } else {
-    mError("db:%s, failed to process use db msg since %s", pMsg->db, terrstr());
+  SDbObj *pDb = mndAcquireDb(pMnode, pUse->db);
+  if (pDb == NULL) {
+    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+    mError("db:%s, failed to process use db msg since %s", pUse->db, terrstr());
     return -1;
   }
+
+  int32_t contLen = sizeof(SUseDbRsp) + pDb->numOfVgroups * sizeof(SVgroupInfo);
+  SUseDbRsp *pRsp = rpcMallocCont(contLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  int32_t vindex = 0;
+
+  if (pUse->vgVersion < pDb->vgVersion) {
+    void *pIter = NULL;
+    while (vindex < pDb->numOfVgroups) {
+      SVgObj *pVgroup = NULL;
+      pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+      if (pIter == NULL) break;
+
+      if (pVgroup->dbUid == pDb->uid) {
+        SVgroupInfo *pInfo = &pRsp->vgroupInfo[vindex];
+        pInfo->vgId = htonl(pVgroup->vgId);
+        pInfo->hashBegin = htonl(pVgroup->hashBegin);
+        pInfo->hashEnd = htonl(pVgroup->hashEnd);
+        pInfo->numOfEps = pVgroup->replica;
+        for (int32_t gid = 0; gid < pVgroup->replica; ++gid) {
+          SVnodeGid  *pVgid = &pVgroup->vnodeGid[gid];
+          SEpAddrMsg *pEpArrr = &pInfo->epAddr[gid];
+          SDnodeObj  *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+          if (pDnode != NULL) {
+            memcpy(pEpArrr->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+            pEpArrr->port = htons(pDnode->port);
+          }
+          mndReleaseDnode(pMnode, pDnode);
+          if (pVgid->role == TAOS_SYNC_STATE_LEADER) {
+            pInfo->inUse = gid;
+          }
+        }
+        vindex++;
+      }
+
+      sdbRelease(pSdb, pVgroup);
+    }
+  }
+
+  memcpy(pRsp->db, pDb->name, TSDB_FULL_DB_NAME_LEN);
+  pRsp->vgVersion = htonl(pDb->vgVersion);
+  pRsp->vgNum = htonl(vindex);
+  pRsp->hashMethod = pDb->hashMethod;
+
+  pMsg->pCont = pRsp;
+  pMsg->contLen = contLen;
+  mndReleaseDb(pMnode, pDb);
+
+  return 0;
 }
 
 static int32_t mndProcessSyncDbMsg(SMnodeMsg *pMsg) {
@@ -671,6 +723,12 @@ static int32_t mndGetDbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMe
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "create time");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = 2;
+  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
+  strcpy(pSchema[cols].name, "vgroups");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -809,6 +867,10 @@ static int32_t mndRetrieveDbs(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int3
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     *(int64_t *)pWrite = pDb->createdTime;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *)pWrite = pDb->numOfVgroups;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
