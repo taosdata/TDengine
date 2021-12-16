@@ -48,11 +48,12 @@ class DndTestDb : public ::testing::Test {
   void SetUp() override {}
   void TearDown() override {}
 
-  void SendTheCheckShowMetaMsg(int8_t showType, const char* showName, int32_t columns) {
+  void SendTheCheckShowMetaMsg(int8_t showType, const char* showName, int32_t columns, const char* db) {
     SShowMsg* pShow = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
     pShow->type = showType;
-    strcpy(pShow->db, "");
-
+    if (db != NULL) {
+      strcpy(pShow->db, db);
+    }
     SRpcMsg showRpcMsg = {0};
     showRpcMsg.pCont = pShow;
     showRpcMsg.contLen = sizeof(SShowMsg);
@@ -183,7 +184,7 @@ SClient* DndTestDb::pClient;
 int32_t  DndTestDb::connId;
 
 TEST_F(DndTestDb, 01_ShowDb) {
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16, NULL);
   CheckSchema(0, TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN - 1 + VARSTR_HEADER_SIZE, "name");
   CheckSchema(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create time");
   CheckSchema(2, TSDB_DATA_TYPE_SMALLINT, 2, "replica");
@@ -204,7 +205,7 @@ TEST_F(DndTestDb, 01_ShowDb) {
   SendThenCheckShowRetrieveMsg(0);
 }
 
-TEST_F(DndTestDb, 02_CreateDb) {
+TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
   {
     taosMsleep(1100);
 
@@ -241,7 +242,7 @@ TEST_F(DndTestDb, 02_CreateDb) {
     ASSERT_EQ(pMsg->code, 0);
   }
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16, NULL);
   SendThenCheckShowRetrieveMsg(1);
   CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
@@ -259,9 +260,22 @@ TEST_F(DndTestDb, 02_CreateDb) {
   CheckInt8(0);                       // cachelast
   CheckBinary("ms", 3);               // precision
   CheckInt8(0);                       // update
-}
 
-TEST_F(DndTestDb, 03_AlterDb) {
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_VGROUP, "show vgroups", 4, "1.d1");
+  CheckSchema(0, TSDB_DATA_TYPE_INT, 4, "vgId");
+  CheckSchema(1, TSDB_DATA_TYPE_INT, 4, "tables");
+  CheckSchema(2, TSDB_DATA_TYPE_SMALLINT, 2, "v1_dnode");
+  CheckSchema(3, TSDB_DATA_TYPE_BINARY, 9 + VARSTR_HEADER_SIZE, "v1_status");
+  SendThenCheckShowRetrieveMsg(2);
+  CheckInt32(1);
+  CheckInt32(2);
+  CheckInt32(0);
+  CheckInt32(0);
+  CheckInt16(1);
+  CheckInt16(1);
+  CheckBinary("master", 9);
+  CheckBinary("master", 9);
+
   {
     SAlterDbMsg* pReq = (SAlterDbMsg*)rpcMallocCont(sizeof(SAlterDbMsg));
     strcpy(pReq->db, "1.d1");
@@ -285,7 +299,7 @@ TEST_F(DndTestDb, 03_AlterDb) {
     ASSERT_EQ(pMsg->code, 0);
   }
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16, NULL);
   SendThenCheckShowRetrieveMsg(1);
   CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
@@ -303,9 +317,8 @@ TEST_F(DndTestDb, 03_AlterDb) {
   CheckInt8(1);                    // cachelast
   CheckBinary("ms", 3);            // precision
   CheckInt8(0);                    // update
-}
 
-TEST_F(DndTestDb, 04_RestartDnode) {
+  // restart
   stopServer(pServer);
   pServer = NULL;
 
@@ -317,7 +330,7 @@ TEST_F(DndTestDb, 04_RestartDnode) {
 
   uInfo("all server is running");
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16, NULL);
   SendThenCheckShowRetrieveMsg(1);
   CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
@@ -335,9 +348,7 @@ TEST_F(DndTestDb, 04_RestartDnode) {
   CheckInt8(1);                    // cachelast
   CheckBinary("ms", 3);            // precision
   CheckInt8(0);                    // update
-}
 
-TEST_F(DndTestDb, 05_DropDb) {
   {
     SDropDbMsg* pReq = (SDropDbMsg*)rpcMallocCont(sizeof(SAlterDbMsg));
     strcpy(pReq->db, "1.d1");
@@ -353,6 +364,6 @@ TEST_F(DndTestDb, 05_DropDb) {
     ASSERT_EQ(pMsg->code, 0);
   }
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 16, NULL);
   SendThenCheckShowRetrieveMsg(0);
 }

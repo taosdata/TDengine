@@ -173,7 +173,11 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup) {
     if (mndIsDnodeInReadyStatus(pMnode, pDnode)) {
       SVnodeGid *pVgid = &pVgroup->vnodeGid[allocedVnodes];
       pVgid->dnodeId = pDnode->id;
-      pVgid->role = TAOS_SYNC_STATE_FOLLOWER;
+      if (pVgroup->replica == 1) {
+        pVgid->role = TAOS_SYNC_STATE_LEADER;
+      } else {
+        pVgid->role = TAOS_SYNC_STATE_FOLLOWER;
+      }
       allocedVnodes++;
     }
     sdbRelease(pSdb, pDnode);
@@ -303,7 +307,7 @@ static int32_t mndGetVgroupMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg 
   cols++;
 
   for (int32_t i = 0; i < pShow->replica; ++i) {
-    pShow->bytes[cols] = 4;
+    pShow->bytes[cols] = 2;
     pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
     snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%d_dnode", i + 1);
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -362,10 +366,6 @@ static int32_t mndRetrieveVgroups(SMnodeMsg *pMsg, SShowObj *pShow, char *data, 
       STR_WITH_MAXSIZE_TO_VARSTR(pWrite, role, pShow->bytes[cols]);
       cols++;
     }
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pVgroup->compact;
-    cols++;
 
     sdbRelease(pSdb, pVgroup);
     numOfRows++;

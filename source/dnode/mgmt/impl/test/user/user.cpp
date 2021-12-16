@@ -184,7 +184,7 @@ TEST_F(DndTestUser, 01_ShowUser) {
   CheckBinary("root", TSDB_USER_LEN);
 }
 
-TEST_F(DndTestUser, 02_CreateUser) {
+TEST_F(DndTestUser, 02_Create_Drop_Alter_User) {
   {
     SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(sizeof(SCreateUserMsg));
     strcpy(pReq->user, "u1");
@@ -231,23 +231,22 @@ TEST_F(DndTestUser, 02_CreateUser) {
   CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
-}
 
-TEST_F(DndTestUser, 03_AlterUser) {
-  SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(sizeof(SAlterUserMsg));
-  strcpy(pReq->user, "u1");
-  strcpy(pReq->pass, "p2");
+  {
+    SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(sizeof(SAlterUserMsg));
+    strcpy(pReq->user, "u1");
+    strcpy(pReq->pass, "p2");
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SAlterUserMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_ALTER_USER;
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SAlterUserMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_ALTER_USER;
 
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
-
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
   SendThenCheckShowRetrieveMsg(3);
   CheckBinary("u1", TSDB_USER_LEN);
@@ -262,22 +261,21 @@ TEST_F(DndTestUser, 03_AlterUser) {
   CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
-}
 
-TEST_F(DndTestUser, 04_DropUser) {
-  SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(sizeof(SDropUserMsg));
-  strcpy(pReq->user, "u1");
+  {
+    SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(sizeof(SDropUserMsg));
+    strcpy(pReq->user, "u1");
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SDropUserMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_DROP_USER;
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SDropUserMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_DROP_USER;
 
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
-
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
   SendThenCheckShowRetrieveMsg(2);
   CheckBinary("root", TSDB_USER_LEN);
@@ -288,9 +286,8 @@ TEST_F(DndTestUser, 04_DropUser) {
   CheckTimestamp();
   CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
-}
 
-TEST_F(DndTestUser, 05_RestartDnode) {
+  // restart
   stopServer(pServer);
   pServer = NULL;
 

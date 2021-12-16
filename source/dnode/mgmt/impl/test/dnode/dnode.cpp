@@ -224,19 +224,21 @@ TEST_F(DndTestDnode, 02_ConfigDnode) {
   ASSERT_EQ(pMsg->code, 0);
 }
 
-TEST_F(DndTestDnode, 03_CreateDnode) {
-  SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
-  strcpy(pReq->ep, "localhost:9042");
+TEST_F(DndTestDnode, 03_Create_Drop_Reatrt_Dnode) {
+  {
+    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
+    strcpy(pReq->ep, "localhost:9042");
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SCreateDnodeMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DNODE;
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SCreateDnodeMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DNODE;
 
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
 
   taosMsleep(1300);
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
@@ -255,21 +257,21 @@ TEST_F(DndTestDnode, 03_CreateDnode) {
   CheckTimestamp();
   CheckBinary("", 24);
   CheckBinary("", 24);
-}
 
-TEST_F(DndTestDnode, 04_DropDnode) {
-  SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(sizeof(SDropDnodeMsg));
-  pReq->dnodeId = htonl(2);
+  {
+    SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(sizeof(SDropDnodeMsg));
+    pReq->dnodeId = htonl(2);
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SDropDnodeMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_DROP_DNODE;
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SDropDnodeMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_DROP_DNODE;
 
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
 
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
   SendThenCheckShowRetrieveMsg(1);
@@ -280,9 +282,7 @@ TEST_F(DndTestDnode, 04_DropDnode) {
   CheckBinary("ready", 10);
   CheckTimestamp();
   CheckBinary("", 24);
-}
 
-TEST_F(DndTestDnode, 05_CreateDnode) {
   {
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
     strcpy(pReq->ep, "localhost:9043");
@@ -359,9 +359,8 @@ TEST_F(DndTestDnode, 05_CreateDnode) {
   CheckBinary("", 24);
   CheckBinary("", 24);
   CheckBinary("", 24);
-}
 
-TEST_F(DndTestDnode, 06_RestartDnode) {
+  // restart
   uInfo("stop all server");
   stopServer(pServer1);
   stopServer(pServer2);

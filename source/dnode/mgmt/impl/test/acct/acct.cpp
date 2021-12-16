@@ -49,7 +49,7 @@ SServer* DndTestAcct::pServer;
 SClient* DndTestAcct::pClient;
 int32_t  DndTestAcct::connId;
 
-TEST_F(DndTestAcct, CreateAcct) {
+TEST_F(DndTestAcct, 01_CreateAcct) {
   ASSERT_NE(pClient, nullptr);
 
   SCreateAcctMsg* pReq = (SCreateAcctMsg*)rpcMallocCont(sizeof(SCreateAcctMsg));
@@ -65,7 +65,7 @@ TEST_F(DndTestAcct, CreateAcct) {
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
 
-TEST_F(DndTestAcct, AlterAcct) {
+TEST_F(DndTestAcct, 02_AlterAcct) {
   ASSERT_NE(pClient, nullptr);
 
   SAlterAcctMsg* pReq = (SAlterAcctMsg*)rpcMallocCont(sizeof(SAlterAcctMsg));
@@ -81,7 +81,7 @@ TEST_F(DndTestAcct, AlterAcct) {
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
 
-TEST_F(DndTestAcct, DropAcct) {
+TEST_F(DndTestAcct, 03_DropAcct) {
   ASSERT_NE(pClient, nullptr);
 
   SDropAcctMsg* pReq = (SDropAcctMsg*)rpcMallocCont(sizeof(SDropAcctMsg));
@@ -97,7 +97,7 @@ TEST_F(DndTestAcct, DropAcct) {
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
 
-TEST_F(DndTestAcct, ShowAcct) {
+TEST_F(DndTestAcct, 04_ShowAcct) {
   ASSERT_NE(pClient, nullptr);
 
   SShowMsg* pReq = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
