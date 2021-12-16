@@ -2773,12 +2773,17 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
 
+      pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+      SSchema* pColumnSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
+
       // elapsed only can be applied to primary key
-      if (functionId == TSDB_FUNC_ELAPSED && index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "elapsed only can be applied to primary key");
+      if (functionId == TSDB_FUNC_ELAPSED) {
+        if ( index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX || pColumnSchema->colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "elapsed only can be applied to primary key");
+        }
       }
 
-      pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+
       STableComInfo info = tscGetTableInfo(pTableMetaInfo->pTableMeta);
 
       // functions can not be applied to tags
