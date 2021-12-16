@@ -364,7 +364,7 @@ static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t p
   reqMsg.code = 0;
   reqMsg.handle = NULL;   // rpc handle returned to app
   reqMsg.ahandle = NULL;  // app handle set by client
-  tstrncpy((char*)reqMsg.pCont, "nettest", pkgLen);
+  tstrncpy((char*)reqMsg.pCont, "nettest", pktLen);
 
   rpcSendRecv(pRpcConn, &epSet, &reqMsg, &rspMsg);
 
