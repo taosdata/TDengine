@@ -4088,7 +4088,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
   }
 
   // load the meta data from catalog
-  code = catalogGetAllMeta(pCatalog, NULL, &req, &data);
+  code = catalogGetAllMeta(pCatalog, NULL, NULL, &req, &data);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
