@@ -9,5 +9,5 @@ target_include_directories(
 
 target_link_libraries(
         scheduler
-        PRIVATE os util planner
+        PRIVATE os util planner common
 )
