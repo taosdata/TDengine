@@ -5016,7 +5016,7 @@ int32_t handleNeOptr(tSqlExpr** rexpr, tSqlExpr* expr) {
 }
 
 static void convertWhereStringCharset(tSqlExpr* pRight){
-  if(pRight->value.nType != TSDB_DATA_TYPE_BINARY || pRight->value.nLen){
+  if(pRight->value.nType != TSDB_DATA_TYPE_BINARY || pRight->value.nLen == 0){
     return;
   }
   char newData[TSDB_MAX_NCHAR_LEN] = {0};
