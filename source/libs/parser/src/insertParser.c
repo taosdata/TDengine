@@ -186,7 +186,7 @@ static int32_t buildMetaReq(SInsertParseContext* pCxt, SToken* pStname, SCatalog
 static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
   SCatalogReq req;
   CHECK_CODE(buildMetaReq(pCxt, pTname, &req));
-  CHECK_CODE(catalogGetTableMeta(pCxt->pCatalog, NULL, NULL, NULL, &pCxt->meta)); //TODO
+  CHECK_CODE(catalogGetTableMeta(pCxt->pCatalog, NULL, NULL, NULL, NULL, NULL)); //TODO
   pCxt->pTableMeta = (STableMeta*)taosArrayGetP(pCxt->meta.pTableMeta, 0);
   return TSDB_CODE_SUCCESS;
 }
