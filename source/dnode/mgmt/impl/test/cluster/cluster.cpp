@@ -1,5 +1,5 @@
 /**
- * @file vnodeApiTests.cpp
+ * @file cluster.cpp
  * @author slguan (slguan@taosdata.com)
  * @brief DNODE module cluster-msg tests
  * @version 0.1

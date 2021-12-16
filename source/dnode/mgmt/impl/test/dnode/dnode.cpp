@@ -1,5 +1,5 @@
 /**
- * @file vnodeApiTests.cpp
+ * @file dnode.cpp
  * @author slguan (slguan@taosdata.com)
  * @brief DNODE module dnode-msg tests
  * @version 0.1

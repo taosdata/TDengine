@@ -1,3 +1,4 @@
+enable_testing()
 
 add_subdirectory(acct)
 # add_subdirectory(auth)
@@ -9,7 +10,7 @@ add_subdirectory(dnode)
 # add_subdirectory(mnode)
 # add_subdirectory(profile)
 # add_subdirectory(show)
-# add_subdirectory(stb)
+add_subdirectory(stb)
 # add_subdirectory(sync)
 # add_subdirectory(telem)
 # add_subdirectory(trans)

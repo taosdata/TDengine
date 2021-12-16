@@ -1,9 +1,9 @@
 /**
- * @file db.cpp
+ * @file stb.cpp
  * @author slguan (slguan@taosdata.com)
  * @brief DNODE module db-msg tests
  * @version 0.1
- * @date 2021-12-15
+ * @date 2021-12-17
  *
  * @copyright Copyright (c) 2021
  *
@@ -11,7 +11,7 @@
 
 #include "deploy.h"
 
-class DndTestDb : public ::testing::Test {
+class DndTestStb : public ::testing::Test {
  protected:
   static SServer* CreateServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
     SServer* pServer = createServer(path, fqdn, port, firstEp);
@@ -23,9 +23,9 @@ class DndTestDb : public ::testing::Test {
     initLog("/tmp/tdlog");
 
     const char* fqdn = "localhost";
-    const char* firstEp = "localhost:9040";
-    pServer = CreateServer("/tmp/dnode_test_db", fqdn, 9040, firstEp);
-    pClient = createClient("root", "taosdata", fqdn, 9040);
+    const char* firstEp = "localhost:9101";
+    pServer = CreateServer("/tmp/dnode_test_stb", fqdn, 9101, firstEp);
+    pClient = createClient("root", "taosdata", fqdn, 9101);
     taosMsleep(1100);
   }
 
@@ -175,34 +175,11 @@ class DndTestDb : public ::testing::Test {
   int32_t            pos;
 };
 
-SServer* DndTestDb::pServer;
-SClient* DndTestDb::pClient;
-int32_t  DndTestDb::connId;
+SServer* DndTestStb::pServer;
+SClient* DndTestStb::pClient;
+int32_t  DndTestStb::connId;
 
-TEST_F(DndTestDb, 01_ShowDb) {
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 17, NULL);
-  CheckSchema(0, TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN - 1 + VARSTR_HEADER_SIZE, "name");
-  CheckSchema(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create time");
-  CheckSchema(2, TSDB_DATA_TYPE_SMALLINT, 2, "vgroups");
-  CheckSchema(3, TSDB_DATA_TYPE_SMALLINT, 2, "replica");
-  CheckSchema(4, TSDB_DATA_TYPE_SMALLINT, 2, "quorum");
-  CheckSchema(5, TSDB_DATA_TYPE_SMALLINT, 2, "days");
-  CheckSchema(6, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "keep0,keep1,keep2");
-  CheckSchema(7, TSDB_DATA_TYPE_INT, 4, "cache(MB)");
-  CheckSchema(8, TSDB_DATA_TYPE_INT, 4, "blocks");
-  CheckSchema(9, TSDB_DATA_TYPE_INT, 4, "minrows");
-  CheckSchema(10, TSDB_DATA_TYPE_INT, 4, "maxrows");
-  CheckSchema(11, TSDB_DATA_TYPE_TINYINT, 1, "wallevel");
-  CheckSchema(12, TSDB_DATA_TYPE_INT, 4, "fsync");
-  CheckSchema(13, TSDB_DATA_TYPE_TINYINT, 1, "comp");
-  CheckSchema(14, TSDB_DATA_TYPE_TINYINT, 1, "cachelast");
-  CheckSchema(15, TSDB_DATA_TYPE_BINARY, 3 + VARSTR_HEADER_SIZE, "precision");
-  CheckSchema(16, TSDB_DATA_TYPE_TINYINT, 1, "update");
-
-  SendThenCheckShowRetrieveMsg(0);
-}
-
-TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
+TEST_F(DndTestStb, 01_Create_Alter_Drop_Stb) {
   {
     SCreateDbMsg* pReq = (SCreateDbMsg*)rpcMallocCont(sizeof(SCreateDbMsg));
     strcpy(pReq->db, "1.d1");
@@ -237,41 +214,81 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
     ASSERT_EQ(pMsg->code, 0);
   }
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 17, NULL);
+  {
+    int32_t tags = 2;
+    int32_t cols = 3;
+    int32_t size = (tags + cols) * sizeof(SSchema) + sizeof(SCreateStbMsg);
+
+    SCreateStbMsg* pReq = (SCreateStbMsg*)rpcMallocCont(size);
+    strcpy(pReq->name, "1.d1.stb");
+    pReq->numOfTags = htonl(tags);
+    pReq->numOfColumns = htonl(cols);
+
+    {
+      SSchema* pSchema = &pReq->pSchema[0];
+      pSchema->colId = htonl(0);
+      pSchema->bytes = htonl(8);
+      pSchema->type = TSDB_DATA_TYPE_TIMESTAMP;
+      strcpy(pSchema->name, "ts");
+    }
+
+    {
+      SSchema* pSchema = &pReq->pSchema[1];
+      pSchema->colId = htonl(1);
+      pSchema->bytes = htonl(4);
+      pSchema->type = TSDB_DATA_TYPE_INT;
+      strcpy(pSchema->name, "col1");
+    }
+
+    {
+      SSchema* pSchema = &pReq->pSchema[2];
+      pSchema->colId = htonl(2);
+      pSchema->bytes = htonl(2);
+      pSchema->type = TSDB_DATA_TYPE_TINYINT;
+      strcpy(pSchema->name, "tag1");
+    }
+
+    {
+      SSchema* pSchema = &pReq->pSchema[3];
+      pSchema->colId = htonl(3);
+      pSchema->bytes = htonl(8);
+      pSchema->type = TSDB_DATA_TYPE_BIGINT;
+      strcpy(pSchema->name, "tag2");
+    }
+
+    {
+      SSchema* pSchema = &pReq->pSchema[4];
+      pSchema->colId = htonl(4);
+      pSchema->bytes = htonl(16);
+      pSchema->type = TSDB_DATA_TYPE_BINARY;
+      strcpy(pSchema->name, "tag3");
+    }
+
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SCreateStbMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_STB;
+
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
+  taosMsleep(10000);
+
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show stables", 4, NULL);
+  CheckSchema(0, TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, "name");
+  CheckSchema(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create time");
+  CheckSchema(2, TSDB_DATA_TYPE_INT, 2, "columns");
+  CheckSchema(3, TSDB_DATA_TYPE_INT, 2, "tags");
+
   SendThenCheckShowRetrieveMsg(1);
-  CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
+  CheckBinary("stb", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
-  CheckInt16(2);                      // vgroups
-  CheckInt16(1);                      // replica
-  CheckInt16(1);                      // quorum
-  CheckInt16(10);                     // days
-  CheckBinary("3650,3650,3650", 24);  // days
-  CheckInt32(16);                     // cache
-  CheckInt32(10);                     // blocks
-  CheckInt32(100);                    // minrows
-  CheckInt32(4096);                   // maxrows
-  CheckInt8(1);                       // wallevel
-  CheckInt32(3000);                   // fsync
-  CheckInt8(2);                       // comp
-  CheckInt8(0);                       // cachelast
-  CheckBinary("ms", 3);               // precision
-  CheckInt8(0);                       // update
+  CheckInt16(2);
+  CheckInt16(3);
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_VGROUP, "show vgroups", 4, "1.d1");
-  CheckSchema(0, TSDB_DATA_TYPE_INT, 4, "vgId");
-  CheckSchema(1, TSDB_DATA_TYPE_INT, 4, "tables");
-  CheckSchema(2, TSDB_DATA_TYPE_SMALLINT, 2, "v1_dnode");
-  CheckSchema(3, TSDB_DATA_TYPE_BINARY, 9 + VARSTR_HEADER_SIZE, "v1_status");
-  SendThenCheckShowRetrieveMsg(2);
-  CheckInt32(1);
-  CheckInt32(2);
-  CheckInt32(0);
-  CheckInt32(0);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckBinary("master", 9);
-  CheckBinary("master", 9);
-
+#if 0
   {
     SAlterDbMsg* pReq = (SAlterDbMsg*)rpcMallocCont(sizeof(SAlterDbMsg));
     strcpy(pReq->db, "1.d1");
@@ -315,6 +332,8 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
   CheckBinary("ms", 3);            // precision
   CheckInt8(0);                    // update
 
+#endif
+
   // restart
   stopServer(pServer);
   pServer = NULL;
@@ -322,39 +341,32 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
   uInfo("start all server");
 
   const char* fqdn = "localhost";
-  const char* firstEp = "localhost:9040";
-  pServer = startServer("/tmp/dnode_test_db", fqdn, 9040, firstEp);
+  const char* firstEp = "localhost:9101";
+  pServer = startServer("/tmp/dnode_test_stb", fqdn, 9101, firstEp);
 
   uInfo("all server is running");
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 17, NULL);
-  SendThenCheckShowRetrieveMsg(1);
-  CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
-  CheckTimestamp();
-  CheckInt16(2);                   // vgroups
-  CheckInt16(1);                   // replica
-  CheckInt16(2);                   // quorum
-  CheckInt16(10);                  // days
-  CheckBinary("300,400,500", 24);  // days
-  CheckInt32(16);                  // cache
-  CheckInt32(12);                  // blocks
-  CheckInt32(100);                 // minrows
-  CheckInt32(4096);                // maxrows
-  CheckInt8(2);                    // wallevel
-  CheckInt32(4000);                // fsync
-  CheckInt8(2);                    // comp
-  CheckInt8(1);                    // cachelast
-  CheckBinary("ms", 3);            // precision
-  CheckInt8(0);                    // update
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show stables", 4, NULL);
+  CheckSchema(0, TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, "name");
+  CheckSchema(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create time");
+  CheckSchema(2, TSDB_DATA_TYPE_INT, 2, "columns");
+  CheckSchema(3, TSDB_DATA_TYPE_INT, 2, "tags");
 
+  SendThenCheckShowRetrieveMsg(1);
+  CheckBinary("stb", TSDB_DB_NAME_LEN - 1);
+  CheckTimestamp();
+  CheckInt16(2);
+  CheckInt16(3);
+
+#if 0
   {
-    SDropDbMsg* pReq = (SDropDbMsg*)rpcMallocCont(sizeof(SDropDbMsg));
-    strcpy(pReq->db, "1.d1");
+    SDropStbMsg* pReq = (SDropStbMsg*)rpcMallocCont(sizeof(SDropStbMsg));
+    strcpy(pReq->name, "1.d1.stb");
 
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = pReq;
-    rpcMsg.contLen = sizeof(SDropDbMsg);
-    rpcMsg.msgType = TSDB_MSG_TYPE_DROP_DB;
+    rpcMsg.contLen = sizeof(SDropStbMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_DROP_STB;
 
     sendMsg(pClient, &rpcMsg);
     SRpcMsg* pMsg = pClient->pRsp;
@@ -362,11 +374,13 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
     ASSERT_EQ(pMsg->code, 0);
   }
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 17, NULL);
+  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show stables", 4, NULL);
   SendThenCheckShowRetrieveMsg(0);
+#endif  
 }
 
-TEST_F(DndTestDb, 03_Create_Use_Restart_Use_Db) {
+#if 0
+TEST_F(DndTestStb, 03_Create_Use_Restart_Use_Db) {
   {
     SCreateDbMsg* pReq = (SCreateDbMsg*)rpcMallocCont(sizeof(SCreateDbMsg));
     strcpy(pReq->db, "1.d2");
@@ -441,7 +455,7 @@ TEST_F(DndTestDb, 03_Create_Use_Restart_Use_Db) {
       EXPECT_EQ(pInfo->numOfEps, 1);
       SEpAddrMsg* pAddr = &pInfo->epAddr[0];
       pAddr->port = htons(pAddr->port);
-      EXPECT_EQ(pAddr->port, 9040);
+      EXPECT_EQ(pAddr->port, 9101);
       EXPECT_STREQ(pAddr->fqdn, "localhost");
     }
 
@@ -457,8 +471,9 @@ TEST_F(DndTestDb, 03_Create_Use_Restart_Use_Db) {
       EXPECT_EQ(pInfo->numOfEps, 1);
       SEpAddrMsg* pAddr = &pInfo->epAddr[0];
       pAddr->port = htons(pAddr->port);
-      EXPECT_EQ(pAddr->port, 9040);
+      EXPECT_EQ(pAddr->port, 9101);
       EXPECT_STREQ(pAddr->fqdn, "localhost");
     }
   }
 }
+#endif
