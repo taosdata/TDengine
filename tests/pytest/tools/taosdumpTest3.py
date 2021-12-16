@@ -137,7 +137,6 @@ class TDTestCase:
 
         # verify ns 
         os.system("%staosdump  -o ./taosdumptest/tmp6 dp3 st0_0" % binPath)
-        assert os.system("%staosdump  -o ./taosdumptest/tmp6 dp3 st0_0 -C ns " % binPath) != 0
 
         # verify -D:--database
         os.system("%staosdump  -o ./taosdumptest/tmp5  --databases dp1,dp2 " % binPath)
