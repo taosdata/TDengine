@@ -153,7 +153,7 @@ typedef struct SParseContext {
  * @param msg      extended error message if exists.
  * @return         error code
  */
-int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** pQueryInfo, int64_t id, char* msg, int32_t msgLen);
+int32_t qParseQuerySql(const char* pStr, size_t length, int64_t id, int32_t* type, void** pOutput, int32_t* outputLen, char* msg, int32_t msgLen);
 
 typedef enum {
   PAYLOAD_TYPE_KV = 0,

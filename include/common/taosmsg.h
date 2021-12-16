@@ -406,8 +406,10 @@ typedef struct {
 } SDropUserMsg, SDropAcctMsg;
 
 typedef struct {
+  int8_t  type;
   char    user[TSDB_USER_LEN];
   char    pass[TSDB_PASSWORD_LEN];
+  int8_t  superUser;      // denote if it is a super user or not
   int32_t reserve[8];
 } SCreateUserMsg, SAlterUserMsg;
 
@@ -831,7 +833,7 @@ typedef struct {
 } SVgroupsMsg, SVgroupsInfo;
 
 typedef struct {
-  char       tbFname[TSDB_TABLE_FNAME_LEN];  // table id
+  char       tbFname[TSDB_TABLE_FNAME_LEN];  // table full name
   char       stbFname[TSDB_TABLE_FNAME_LEN];
   int32_t    numOfTags;
   int32_t    numOfColumns;
@@ -866,7 +868,7 @@ typedef struct {
 typedef struct {
   char        db[TSDB_FULL_DB_NAME_LEN];
   int32_t     vgVersion;
-  int32_t     vgNum;  
+  int32_t     vgNum;
   int8_t      hashMethod;
   SVgroupInfo vgroupInfo[];
 } SUseDbRsp;
