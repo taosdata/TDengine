@@ -17,12 +17,12 @@
 
 #include "metaDef.h"
 
-static SMeta *metaNew(const char *path, const SMetaCfg *pMetaCfg);
+static SMeta *metaNew(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF);
 static void   metaFree(SMeta *pMeta);
 static int    metaOpenImpl(SMeta *pMeta);
 static void   metaCloseImpl(SMeta *pMeta);
 
-SMeta *metaOpen(const char *path, const SMetaCfg *pMetaCfg) {
+SMeta *metaOpen(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF) {
   SMeta *pMeta = NULL;
 
   // Set default options
@@ -37,7 +37,7 @@ SMeta *metaOpen(const char *path, const SMetaCfg *pMetaCfg) {
   }
 
   // Allocate handle
-  pMeta = metaNew(path, pMetaCfg);
+  pMeta = metaNew(path, pMetaCfg, pMAF);
   if (pMeta == NULL) {
     // TODO: handle error
     return NULL;
@@ -65,7 +65,7 @@ void metaClose(SMeta *pMeta) {
 void metaRemove(const char *path) { taosRemoveDir(path); }
 
 /* ------------------------ STATIC METHODS ------------------------ */
-static SMeta *metaNew(const char *path, const SMetaCfg *pMetaCfg) {
+static SMeta *metaNew(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF) {
   SMeta *pMeta;
   size_t psize = strlen(path);
 
@@ -81,6 +81,7 @@ static SMeta *metaNew(const char *path, const SMetaCfg *pMetaCfg) {
   }
 
   metaOptionsCopy(&(pMeta->options), pMetaCfg);
+  pMeta->pmaf = pMAF;
 
   return pMeta;
 };

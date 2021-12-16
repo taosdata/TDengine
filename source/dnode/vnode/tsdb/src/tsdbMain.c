@@ -15,7 +15,7 @@
 
 #include "tsdbDef.h"
 
-static STsdb *tsdbNew(const char *path, const STsdbCfg *pTsdbCfg);
+static STsdb *tsdbNew(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF);
 static void   tsdbFree(STsdb *pTsdb);
 static int    tsdbOpenImpl(STsdb *pTsdb);
 static void   tsdbCloseImpl(STsdb *pTsdb);
@@ -35,7 +35,7 @@ STsdb *tsdbOpen(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory
   }
 
   // Create the handle
-  pTsdb = tsdbNew(path, pTsdbCfg);
+  pTsdb = tsdbNew(path, pTsdbCfg, pMAF);
   if (pTsdb == NULL) {
     // TODO: handle error
     return NULL;
@@ -62,7 +62,7 @@ void tsdbClose(STsdb *pTsdb) {
 void tsdbRemove(const char *path) { taosRemoveDir(path); }
 
 /* ------------------------ STATIC METHODS ------------------------ */
-static STsdb *tsdbNew(const char *path, const STsdbCfg *pTsdbCfg) {
+static STsdb *tsdbNew(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF) {
   STsdb *pTsdb = NULL;
 
   pTsdb = (STsdb *)calloc(1, sizeof(STsdb));
@@ -73,6 +73,7 @@ static STsdb *tsdbNew(const char *path, const STsdbCfg *pTsdbCfg) {
 
   pTsdb->path = strdup(path);
   tsdbOptionsCopy(&(pTsdb->options), pTsdbCfg);
+  pTsdb->pmaf = pMAF;
 
   return pTsdb;
 }
