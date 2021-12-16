@@ -45,42 +45,10 @@ typedef struct SMetaData {
   SEpSet    *pEpSet;      // qnode epset list
 } SMetaData;
 
-typedef struct STableComInfo {
-  uint8_t numOfTags;      // the number of tags in schema
-  uint8_t precision;      // the number of precision
-  int16_t numOfColumns;   // the number of columns
-  int32_t rowSize;        // row size of the schema
-} STableComInfo;
-
-/*
- * ASSERT(sizeof(SCTableMeta) == 24)
- * ASSERT(tableType == TSDB_CHILD_TABLE)
- * The cached child table meta info. For each child table, 24 bytes are required to keep the essential table info.
- */
-typedef struct SCTableMeta {
-  int32_t  vgId:24;
-  int8_t   tableType;
-  uint64_t uid;
-  uint64_t suid;
-} SCTableMeta;
-
-/*
- * Note that the first 24 bytes of STableMeta are identical to SCTableMeta, it is safe to cast a STableMeta to be a SCTableMeta.
- */
-typedef struct STableMeta {
-  int32_t        vgId:24;
-  int8_t         tableType;
-  uint64_t       uid;
-  uint64_t       suid;
-  // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta info
-  int16_t        sversion;
-  int16_t        tversion;
-  STableComInfo  tableInfo;
-  SSchema        schema[];
-} STableMeta;
-
 typedef struct SCatalogCfg {
-
+  bool     enableVgroupCache;
+  uint32_t maxTblCacheNum;
+  uint32_t maxDBCacheNum;
 } SCatalogCfg;
 
 int32_t catalogInit(SCatalogCfg *cfg);
@@ -96,19 +64,25 @@ int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle)
 
 
 int32_t catalogGetVgroupVersion(struct SCatalog* pCatalog, int32_t* version);
-int32_t catalogGetVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, SArray** pVgroupList);
-int32_t catalogUpdateVgroup(struct SCatalog* pCatalog, SVgroupListInfo* pVgroup);
+
+/**
+ * get cluster vgroup list.
+ * @pVgroupList  - hash of vgroup list, key:vgId, value:SVgroupInfo
+ * @return
+ */
+int32_t catalogGetVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, SHashObj** pVgroupHash);
+int32_t catalogUpdateVgroupCache(struct SCatalog* pCatalog, SVgroupListInfo* pVgroup);
 
 
 
 int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName, int32_t* version);
 int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* dbName, int32_t forceUpdate, SDBVgroupInfo** dbInfo);
-int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
+int32_t catalogUpdateDBVgroupCache(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
 
 
-int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pTableName, STableMeta* pTableMeta);
-int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const STableMeta* pTableMeta);
-int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const STableMeta* pTableMeta, STableMeta* pNewTableMeta);
+int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta);
+int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName);
+int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta* pTableMeta);
 
 
 /**

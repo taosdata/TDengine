@@ -22,11 +22,10 @@
 #define TQ_META_NAME "tq.meta"
 #define TQ_IDX_NAME  "tq.idx"
 
+static int32_t tqHandlePutCommitted(STqMetaStore*, int64_t key, void* value);
+static void*   tqHandleGetUncommitted(STqMetaStore*, int64_t key);
 
-static int32_t tqHandlePutCommitted(TqMetaStore*, int64_t key, void* value);
-static void*   tqHandleGetUncommitted(TqMetaStore*, int64_t key);
-
-static inline void tqLinkUnpersist(TqMetaStore *pMeta, TqMetaList* pNode) {
+static inline void tqLinkUnpersist(STqMetaStore *pMeta, STqMetaList* pNode) {
   if(pNode->unpersistNext == NULL) {
     pNode->unpersistNext = pMeta->unpersistHead->unpersistNext;
     pNode->unpersistPrev = pMeta->unpersistHead;
@@ -68,18 +67,18 @@ static inline int tqReadLastPage(int fd, TqIdxPageBuf* pBuf) {
   return lseek(fd, offset, SEEK_SET);
 }
 
-TqMetaStore* tqStoreOpen(const char* path,
+STqMetaStore* tqStoreOpen(const char* path,
     TqSerializeFun   serializer,
     TqDeserializeFun deserializer,
     TqDeleteFun      deleter,
     int32_t          tqConfigFlag
     ) {
-  TqMetaStore* pMeta = malloc(sizeof(TqMetaStore)); 
+  STqMetaStore* pMeta = malloc(sizeof(STqMetaStore)); 
   if(pMeta == NULL) {
     //close
     return NULL;
   }
-  memset(pMeta, 0, sizeof(TqMetaStore));
+  memset(pMeta, 0, sizeof(STqMetaStore));
 
   //concat data file name and index file name
   size_t pathLen = strlen(path);
@@ -105,14 +104,14 @@ TqMetaStore* tqStoreOpen(const char* path,
   }
 
   pMeta->idxFd = idxFd;
-  pMeta->unpersistHead = malloc(sizeof(TqMetaList));
+  pMeta->unpersistHead = malloc(sizeof(STqMetaList));
   if(pMeta->unpersistHead == NULL) {
     ASSERT(false);
     //close file
     //free memory
     return NULL;
   }
-  memset(pMeta->unpersistHead, 0, sizeof(TqMetaList));
+  memset(pMeta->unpersistHead, 0, sizeof(STqMetaList));
   pMeta->unpersistHead->unpersistNext
     = pMeta->unpersistHead->unpersistPrev
     = pMeta->unpersistHead;
@@ -149,11 +148,11 @@ TqMetaStore* tqStoreOpen(const char* path,
     ASSERT(idxBuf.head.writeOffset == idxRead);
     //loop read every entry
     for(int i = 0; i < idxBuf.head.writeOffset - TQ_IDX_PAGE_HEAD_SIZE; i += TQ_IDX_SIZE) {
-      TqMetaList *pNode = malloc(sizeof(TqMetaList));
+      STqMetaList *pNode = malloc(sizeof(STqMetaList));
       if(pNode == NULL) {
         //TODO: free memory and return error
       }
-      memset(pNode, 0, sizeof(TqMetaList));
+      memset(pNode, 0, sizeof(STqMetaList));
       memcpy(&pNode->handle, &idxBuf.buffer[i], TQ_IDX_SIZE);
 
       lseek(fileFd, pNode->handle.offset, SEEK_SET);
@@ -199,7 +198,7 @@ TqMetaStore* tqStoreOpen(const char* path,
 
       //put into list
       int bucketKey = pNode->handle.key & TQ_BUCKET_MASK;
-      TqMetaList* pBucketNode = pMeta->bucket[bucketKey];
+      STqMetaList* pBucketNode = pMeta->bucket[bucketKey];
       if(pBucketNode == NULL) {
         pMeta->bucket[bucketKey] = pNode;
       } else if(pBucketNode->handle.key == pNode->handle.key) {
@@ -212,7 +211,7 @@ TqMetaStore* tqStoreOpen(const char* path,
         }
         if(pBucketNode->next) {
           ASSERT(pBucketNode->next->handle.key == pNode->handle.key);
-          TqMetaList *pNodeFound = pBucketNode->next;
+          STqMetaList *pNodeFound = pBucketNode->next;
           pNode->next = pNodeFound->next;
           pBucketNode->next = pNode;
           pBucketNode = pNodeFound;
@@ -239,7 +238,7 @@ TqMetaStore* tqStoreOpen(const char* path,
   return pMeta;
 }
 
-int32_t tqStoreClose(TqMetaStore* pMeta) {
+int32_t tqStoreClose(STqMetaStore* pMeta) {
   //commit data and idx
   tqStorePersist(pMeta);
   ASSERT(pMeta->unpersistHead && pMeta->unpersistHead->next==NULL);
@@ -247,7 +246,7 @@ int32_t tqStoreClose(TqMetaStore* pMeta) {
   close(pMeta->idxFd);
   //free memory
   for(int i = 0; i < TQ_BUCKET_SIZE; i++) {
-    TqMetaList* pNode = pMeta->bucket[i];
+    STqMetaList* pNode = pMeta->bucket[i];
     while(pNode) {
       ASSERT(pNode->unpersistNext == NULL);
       ASSERT(pNode->unpersistPrev == NULL);
@@ -259,7 +258,7 @@ int32_t tqStoreClose(TqMetaStore* pMeta) {
           && pNode->handle.valueInUse != TQ_DELETE_TOKEN) {
         pMeta->pDeleter(pNode->handle.valueInUse);
       }
-      TqMetaList* next = pNode->next;
+      STqMetaList* next = pNode->next;
       free(pNode);
       pNode = next;
     }
@@ -270,12 +269,12 @@ int32_t tqStoreClose(TqMetaStore* pMeta) {
   return 0;
 }
 
-int32_t tqStoreDelete(TqMetaStore* pMeta) {
+int32_t tqStoreDelete(STqMetaStore* pMeta) {
   close(pMeta->fileFd);
   close(pMeta->idxFd);
   //free memory
   for(int i = 0; i < TQ_BUCKET_SIZE; i++) {
-    TqMetaList* pNode = pMeta->bucket[i];
+    STqMetaList* pNode = pMeta->bucket[i];
     pMeta->bucket[i] = NULL;
     while(pNode) {
       if(pNode->handle.valueInTxn
@@ -286,7 +285,7 @@ int32_t tqStoreDelete(TqMetaStore* pMeta) {
           && pNode->handle.valueInUse != TQ_DELETE_TOKEN) {
         pMeta->pDeleter(pNode->handle.valueInUse);
       }
-      TqMetaList* next = pNode->next;
+      STqMetaList* next = pNode->next;
       free(pNode);
       pNode = next;
     }
@@ -299,11 +298,11 @@ int32_t tqStoreDelete(TqMetaStore* pMeta) {
 }
 
 //TODO: wrap in tfile
-int32_t tqStorePersist(TqMetaStore* pMeta) {
+int32_t tqStorePersist(STqMetaStore* pMeta) {
   TqIdxPageBuf idxBuf;
   int64_t* bufPtr = (int64_t*)idxBuf.buffer;
-  TqMetaList *pHead = pMeta->unpersistHead;
-  TqMetaList *pNode = pHead->unpersistNext;
+  STqMetaList *pHead = pMeta->unpersistHead;
+  STqMetaList *pNode = pHead->unpersistNext;
   TqSerializedHead *pSHead = malloc(sizeof(TqSerializedHead));
   if(pSHead == NULL) {
     //TODO: memory error
@@ -384,11 +383,11 @@ int32_t tqStorePersist(TqMetaStore* pMeta) {
         pNode->handle.valueInTxn == NULL
         ) {
       int bucketKey = pNode->handle.key & TQ_BUCKET_MASK;
-      TqMetaList* pBucketHead = pMeta->bucket[bucketKey];
+      STqMetaList* pBucketHead = pMeta->bucket[bucketKey];
       if(pBucketHead == pNode) {
         pMeta->bucket[bucketKey] = pNode->next;
       } else {
-        TqMetaList* pBucketNode = pBucketHead;
+        STqMetaList* pBucketNode = pBucketHead;
         while(pBucketNode->next != NULL
             && pBucketNode->next != pNode) {
           pBucketNode = pBucketNode->next; 
@@ -415,9 +414,9 @@ int32_t tqStorePersist(TqMetaStore* pMeta) {
   return 0;
 }
 
-static int32_t tqHandlePutCommitted(TqMetaStore* pMeta, int64_t key, void* value) {
+static int32_t tqHandlePutCommitted(STqMetaStore* pMeta, int64_t key, void* value) {
   int64_t bucketKey = key & TQ_BUCKET_MASK;
-  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  STqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
     if(pNode->handle.key == key) {
       //TODO: think about thread safety
@@ -432,12 +431,12 @@ static int32_t tqHandlePutCommitted(TqMetaStore* pMeta, int64_t key, void* value
       pNode = pNode->next;
     }
   }
-  TqMetaList *pNewNode = malloc(sizeof(TqMetaList));
+  STqMetaList *pNewNode = malloc(sizeof(STqMetaList));
   if(pNewNode == NULL) {
     //TODO: memory error
     return -1;
   }
-  memset(pNewNode, 0, sizeof(TqMetaList));
+  memset(pNewNode, 0, sizeof(STqMetaList));
   pNewNode->handle.key = key;
   pNewNode->handle.valueInUse = value;
   //put into unpersist list
@@ -448,9 +447,9 @@ static int32_t tqHandlePutCommitted(TqMetaStore* pMeta, int64_t key, void* value
   return 0;
 }
 
-void* tqHandleGet(TqMetaStore* pMeta, int64_t key) {
+void* tqHandleGet(STqMetaStore* pMeta, int64_t key) {
   int64_t bucketKey = key & TQ_BUCKET_MASK;
-  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  STqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
     if(pNode->handle.key == key) {
       if(pNode->handle.valueInUse != NULL
@@ -466,9 +465,9 @@ void* tqHandleGet(TqMetaStore* pMeta, int64_t key) {
   return NULL;
 }
 
-void* tqHandleTouchGet(TqMetaStore* pMeta, int64_t key) {
+void* tqHandleTouchGet(STqMetaStore* pMeta, int64_t key) {
   int64_t bucketKey = key & TQ_BUCKET_MASK;
-  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  STqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
     if(pNode->handle.key == key) {
       if(pNode->handle.valueInUse != NULL
@@ -485,9 +484,9 @@ void* tqHandleTouchGet(TqMetaStore* pMeta, int64_t key) {
   return NULL;
 }
 
-static inline int32_t tqHandlePutImpl(TqMetaStore* pMeta, int64_t key, void* value) {
+static inline int32_t tqHandlePutImpl(STqMetaStore* pMeta, int64_t key, void* value) {
   int64_t bucketKey = key & TQ_BUCKET_MASK;
-  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  STqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
     if(pNode->handle.key == key) {
       //TODO: think about thread safety
@@ -506,12 +505,12 @@ static inline int32_t tqHandlePutImpl(TqMetaStore* pMeta, int64_t key, void* val
       pNode = pNode->next;
     }
   }
-  TqMetaList *pNewNode = malloc(sizeof(TqMetaList));
+  STqMetaList *pNewNode = malloc(sizeof(STqMetaList));
   if(pNewNode == NULL) {
     //TODO: memory error
     return -1;
   }
-  memset(pNewNode, 0, sizeof(TqMetaList));
+  memset(pNewNode, 0, sizeof(STqMetaList));
   pNewNode->handle.key = key;
   pNewNode->handle.valueInTxn = value;
   pNewNode->next = pMeta->bucket[bucketKey];
@@ -520,11 +519,11 @@ static inline int32_t tqHandlePutImpl(TqMetaStore* pMeta, int64_t key, void* val
   return 0;
 }
 
-int32_t tqHandleMovePut(TqMetaStore* pMeta, int64_t key, void* value) {
+int32_t tqHandleMovePut(STqMetaStore* pMeta, int64_t key, void* value) {
   return tqHandlePutImpl(pMeta, key, value);
 }
 
-int32_t tqHandleCopyPut(TqMetaStore* pMeta, int64_t key, void* value, size_t vsize) {
+int32_t tqHandleCopyPut(STqMetaStore* pMeta, int64_t key, void* value, size_t vsize) {
   void *vmem = malloc(vsize);
   if(vmem == NULL) {
     //TODO: memory error
@@ -534,9 +533,9 @@ int32_t tqHandleCopyPut(TqMetaStore* pMeta, int64_t key, void* value, size_t vsi
   return tqHandlePutImpl(pMeta, key, vmem);
 }
 
-static void* tqHandleGetUncommitted(TqMetaStore* pMeta, int64_t key) {
+static void* tqHandleGetUncommitted(STqMetaStore* pMeta, int64_t key) {
   int64_t bucketKey = key & TQ_BUCKET_MASK;
-  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  STqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
     if(pNode->handle.key == key) {
       if(pNode->handle.valueInTxn != NULL
@@ -552,9 +551,9 @@ static void* tqHandleGetUncommitted(TqMetaStore* pMeta, int64_t key) {
   return NULL;
 }
 
-int32_t tqHandleCommit(TqMetaStore* pMeta, int64_t key) {
+int32_t tqHandleCommit(STqMetaStore* pMeta, int64_t key) {
   int64_t bucketKey = key & TQ_BUCKET_MASK;
-  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  STqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
     if(pNode->handle.key == key) {
       if(pNode->handle.valueInTxn == NULL) {
@@ -575,9 +574,9 @@ int32_t tqHandleCommit(TqMetaStore* pMeta, int64_t key) {
   return -2;
 }
 
-int32_t tqHandleAbort(TqMetaStore* pMeta, int64_t key) {
+int32_t tqHandleAbort(STqMetaStore* pMeta, int64_t key) {
   int64_t bucketKey = key & TQ_BUCKET_MASK;
-  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  STqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
     if(pNode->handle.key == key) {
       if(pNode->handle.valueInTxn) {
@@ -596,9 +595,9 @@ int32_t tqHandleAbort(TqMetaStore* pMeta, int64_t key) {
   return -2;
 }
 
-int32_t tqHandleDel(TqMetaStore* pMeta, int64_t key) {
+int32_t tqHandleDel(STqMetaStore* pMeta, int64_t key) {
   int64_t bucketKey = key & TQ_BUCKET_MASK;
-  TqMetaList* pNode = pMeta->bucket[bucketKey];
+  STqMetaList* pNode = pMeta->bucket[bucketKey];
   while(pNode) {
     if(pNode->handle.valueInTxn != TQ_DELETE_TOKEN) {
       if(pNode->handle.valueInTxn) {
@@ -616,6 +615,6 @@ int32_t tqHandleDel(TqMetaStore* pMeta, int64_t key) {
 }
 
 //TODO: clean deleted idx and data from persistent file
-int32_t tqStoreCompact(TqMetaStore *pMeta) {
+int32_t tqStoreCompact(STqMetaStore *pMeta) {
   return 0;
 }

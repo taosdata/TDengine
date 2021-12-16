@@ -71,7 +71,7 @@ int32_t mndInitVgroup(SMnode *pMnode) {
 void mndCleanupVgroup(SMnode *pMnode) {}
 
 static SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_VGROUP_VER_NUM, sizeof(SDbObj));
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_VGROUP_VER_NUM, sizeof(SVgObj) + TSDB_VGROUP_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
@@ -141,11 +141,8 @@ static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pMsg) { return 0; }
 
 static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup) {
   mTrace("vgId:%d, perform update action", pOldVgroup->vgId);
-  pOldVgroup->vgId = pNewVgroup->vgId;
-  pOldVgroup->createdTime = pNewVgroup->createdTime;
   pOldVgroup->updateTime = pNewVgroup->updateTime;
   pOldVgroup->version = pNewVgroup->version;
-  memcpy(pOldVgroup->dbName, pNewVgroup->dbName, TSDB_FULL_DB_NAME_LEN);
   pOldVgroup->replica = pNewVgroup->replica;
   memcpy(pOldVgroup->vnodeGid, pNewVgroup->vnodeGid, TSDB_MAX_REPLICA * sizeof(SVnodeGid));
   return 0;
@@ -284,7 +281,7 @@ static int32_t mndRetrieveVgroups(SMnodeMsg *pMsg, SShowObj *pShow, char *data, 
     numOfRows++;
   }
 
-  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }
@@ -374,7 +371,7 @@ static int32_t mndRetrieveVnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, i
     sdbRelease(pSdb, pVgroup);
   }
 
-  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }

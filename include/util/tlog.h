@@ -32,7 +32,6 @@ extern int32_t mDebugFlag;
 extern int32_t cDebugFlag;
 extern int32_t jniDebugFlag;
 extern int32_t tmrDebugFlag;
-extern int32_t sdbDebugFlag;
 extern int32_t httpDebugFlag;
 extern int32_t mqttDebugFlag;
 extern int32_t monDebugFlag;

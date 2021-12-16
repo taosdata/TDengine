@@ -226,21 +226,21 @@ typedef struct TqMetaHandle {
   int64_t serializedSize;
   void*   valueInUse;
   void*   valueInTxn;
-} TqMetaHandle;
+} STqMetaHandle;
 
 typedef struct TqMetaList {
-  TqMetaHandle handle;
+  STqMetaHandle handle;
   struct TqMetaList* next;
   //struct TqMetaList* inTxnPrev;
   //struct TqMetaList* inTxnNext;
   struct TqMetaList* unpersistPrev;
   struct TqMetaList* unpersistNext;
-} TqMetaList;
+} STqMetaList;
 
 typedef struct TqMetaStore {
-  TqMetaList*      bucket[TQ_BUCKET_SIZE];
+  STqMetaList*      bucket[TQ_BUCKET_SIZE];
   //a table head
-  TqMetaList*      unpersistHead;
+  STqMetaList*      unpersistHead;
  //TODO:temporaral use, to be replaced by unified tfile
   int              fileFd;
   //TODO:temporaral use, to be replaced by unified tfile
@@ -250,7 +250,7 @@ typedef struct TqMetaStore {
   TqSerializeFun   pSerializer;
   TqDeserializeFun pDeserializer;
   TqDeleteFun      pDeleter;
-} TqMetaStore;
+} STqMetaStore;
 
 typedef struct STQ {
   // the collection of group handle
@@ -259,7 +259,7 @@ typedef struct STQ {
   STqCfg*      tqConfig;
   TqLogReader* tqLogReader; 
   TqMemRef     tqMemRef;
-  TqMetaStore* tqMeta;
+  STqMetaStore* tqMeta;
 } STQ;
 
 // open in each vnode

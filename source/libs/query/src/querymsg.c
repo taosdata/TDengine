@@ -222,6 +222,13 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
     
     pOut->dbVgroup->vgroupVersion = pRsp->dbVgroupVersion;
     pOut->dbVgroup->hashRange = htonl(pRsp->dbHashRange);
+    pOut->dbVgroup->hashType = htonl(pRsp->dbHashType);
+
+    if (pOut->dbVgroup->hashRange < 0) {
+      qError("invalid hashRange[%d] for db[%s]", pOut->dbVgroup->hashRange, pRsp->db);
+      code = TSDB_CODE_TSC_INVALID_INPUT;
+      goto _exit;
+    }
 
     for (int32_t i = 0; i < pRsp->dbVgroupNum; ++i) {
       *(vgIdList + i) = htonl(*(vgIdList + i));
@@ -244,13 +251,134 @@ _exit:
   return code;
 }
 
+static int32_t queryConvertTableMetaMsg(STableMetaMsg* pMetaMsg) {
+  pMetaMsg->numOfTags = htonl(pMetaMsg->numOfTags);
+  pMetaMsg->numOfColumns = htonl(pMetaMsg->numOfColumns);
+  pMetaMsg->sversion = htonl(pMetaMsg->sversion);
+  pMetaMsg->tversion = htonl(pMetaMsg->tversion);
+  pMetaMsg->tuid = htobe64(pMetaMsg->tuid);
+  pMetaMsg->suid = htobe64(pMetaMsg->suid);
+  pMetaMsg->vgId = htonl(pMetaMsg->vgId);
+
+  if (pMetaMsg->numOfTags < 0 || pMetaMsg->numOfTags > TSDB_MAX_TAGS) {
+    qError("invalid numOfTags[%d] in table meta rsp msg", pMetaMsg->numOfTags);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  if (pMetaMsg->numOfColumns > TSDB_MAX_COLUMNS || pMetaMsg->numOfColumns <= 0) {
+    qError("invalid numOfColumns[%d] in table meta rsp msg", pMetaMsg->numOfColumns);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  if (pMetaMsg->tableType != TSDB_SUPER_TABLE && pMetaMsg->tableType != TSDB_CHILD_TABLE && pMetaMsg->tableType != TSDB_NORMAL_TABLE) {
+    qError("invalid tableType[%d] in table meta rsp msg", pMetaMsg->tableType);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  if (pMetaMsg->sversion < 0) {
+    qError("invalid sversion[%d] in table meta rsp msg", pMetaMsg->sversion);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  if (pMetaMsg->tversion < 0) {
+    qError("invalid tversion[%d] in table meta rsp msg", pMetaMsg->tversion);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+  
+  SSchema* pSchema = pMetaMsg->pSchema;
+
+  int32_t numOfTotalCols = pMetaMsg->numOfColumns + pMetaMsg->numOfTags;
+  for (int i = 0; i < numOfTotalCols; ++i) {
+    pSchema->bytes = htonl(pSchema->bytes);
+    pSchema->colId = htonl(pSchema->colId);
+
+    pSchema++;
+  }
+
+  if (pMetaMsg->pSchema[0].colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+    qError("invalid colId[%d] for the first column in table meta rsp msg", pMetaMsg->pSchema[0].colId);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryCreateTableMetaFromMsg(STableMetaMsg* msg, bool isSuperTable, STableMeta **pMeta) {
+  int32_t total = msg->numOfColumns + msg->numOfTags;
+  int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
+  
+  STableMeta* pTableMeta = calloc(1, metaSize);
+  if (NULL == pTableMeta) {
+    qError("calloc size[%d] failed", metaSize);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  
+  pTableMeta->tableType = isSuperTable ? TSDB_SUPER_TABLE : msg->tableType;
+  pTableMeta->uid = msg->suid;
+  pTableMeta->suid = msg->suid;
+  pTableMeta->sversion = msg->sversion;
+  pTableMeta->tversion = msg->tversion;
+
+  pTableMeta->tableInfo.numOfTags = msg->numOfTags;
+  pTableMeta->tableInfo.precision = msg->precision;
+  pTableMeta->tableInfo.numOfColumns = msg->numOfColumns;
+
+  for(int32_t i = 0; i < msg->numOfColumns; ++i) {
+    pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
+  }
+
+  memcpy(pTableMeta->schema, msg->pSchema, sizeof(SSchema) * total);
+
+  *pMeta = pTableMeta;
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
+  STableMetaMsg *pMetaMsg = (STableMetaMsg *)msg;
+  int32_t code = queryConvertTableMetaMsg(pMetaMsg);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  STableMetaOutput *pOut = (STableMetaOutput *)output;
+  
+  if (!tIsValidSchema(pMetaMsg->pSchema, pMetaMsg->numOfColumns, pMetaMsg->numOfTags)) {
+    qError("validate table meta schema in rsp msg failed");
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  if (pMetaMsg->tableType == TSDB_CHILD_TABLE) {
+    pOut->metaNum = 2;
+    
+    memcpy(pOut->ctbFname, pMetaMsg->tbFname, sizeof(pOut->ctbFname));
+    memcpy(pOut->tbFname, pMetaMsg->stbFname, sizeof(pOut->tbFname));
+    
+    pOut->ctbMeta.vgId = pMetaMsg->vgId;
+    pOut->ctbMeta.tableType = pMetaMsg->tableType;
+    pOut->ctbMeta.uid = pMetaMsg->tuid;
+    pOut->ctbMeta.suid = pMetaMsg->suid;
+
+    code = queryCreateTableMetaFromMsg(pMetaMsg, true, &pOut->tbMeta);
+  } else {
+    pOut->metaNum = 1;
+    
+    memcpy(pOut->tbFname, pMetaMsg->tbFname, sizeof(pOut->tbFname));
+    
+    code = queryCreateTableMetaFromMsg(pMetaMsg, false, &pOut->tbMeta);
+  }
+  
+  return code;
+}
+
 
 void msgInit() {
   queryBuildMsg[TSDB_MSG_TYPE_TABLE_META] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TSDB_MSG_TYPE_VGROUP_LIST] = queryBuildVgroupListReqMsg;
   queryBuildMsg[TSDB_MSG_TYPE_USE_DB] = queryBuildUseDbMsg;
 
-  //tscProcessMsgRsp[TSDB_MSG_TYPE_TABLE_META] = tscProcessTableMetaRsp;
+  queryProcessMsgRsp[TSDB_MSG_TYPE_TABLE_META] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TSDB_MSG_TYPE_VGROUP_LIST] = queryProcessVgroupListRsp;
   queryProcessMsgRsp[TSDB_MSG_TYPE_USE_DB] = queryProcessUseDBRsp;
 
