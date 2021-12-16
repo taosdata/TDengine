@@ -31,6 +31,20 @@ typedef struct SQuery {
   int32_t      currentLevel;
 } SQuery;
 
+typedef struct SQueryTask {
+  uint64_t            queryId; // query id
+  uint64_t            taskId;  // task id
+  char     *pSubplan;   // operator tree
+  uint64_t            status;  // task status
+  SQueryProfileSummary summary; // task execution summary
+  void               *pOutputHandle; // result buffer handle, to temporarily keep the output result for next stage
+} SQueryTask;
+
+typedef struct SQueryJob {
+  SArray  **pSubtasks;
+  // todo
+} SQueryJob;
+
 #ifdef __cplusplus
 }
 #endif

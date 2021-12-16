@@ -14,3 +14,44 @@
  */
 
 #include "schedulerInt.h"
+#include "taosmsg.h"
+
+
+int32_t schBuildAndSendRequest(void *pRpc, const SEpSet* pMgmtEps, __taos_async_fn_t fp) {
+/*
+  SRequestObj *pRequest = createRequest(pTscObj, fp, param, TSDB_SQL_CONNECT);
+  if (pRequest == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  SRequestMsgBody body = {0};
+  buildConnectMsg(pRequest, &body);
+
+  int64_t transporterId = 0;
+  sendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &body, &transporterId);
+
+  tsem_wait(&pRequest->body.rspSem);
+  destroyConnectMsg(&body);
+
+  if (pRequest->code != TSDB_CODE_SUCCESS) {
+    const char *errorMsg = (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(terrno);
+    printf("failed to connect to server, reason: %s\n\n", errorMsg);
+
+    destroyRequest(pRequest);
+    taos_close(pTscObj);
+    pTscObj = NULL;
+  } else {
+    tscDebug("0x%"PRIx64" connection is opening, connId:%d, dnodeConn:%p", pTscObj->id, pTscObj->connId, pTscObj->pTransporter);
+    destroyRequest(pRequest);
+  }
+*/  
+}
+
+
+int32_t scheduleQueryJob(SQueryDag* pDag, void** pJob);
+
+int32_t scheduleFetchRows(void *pJob, void *data);
+
+int32_t scheduleCancelJob(void *pJob);
+
+
