@@ -807,8 +807,8 @@ typedef struct SSTableVgroupMsg {
 
 typedef struct SVgroupInfo {
   int32_t    vgId;
-  int32_t    hashBegin;
-  int32_t    hashEnd;
+  uint32_t   hashBegin;
+  uint32_t   hashEnd;
   int8_t     inUse;
   int8_t     numOfEps;
   SEpAddrMsg epAddr[TSDB_MAX_REPLICA];

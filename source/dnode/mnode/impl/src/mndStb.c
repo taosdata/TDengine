@@ -74,10 +74,12 @@ static SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pStb->name, TSDB_TABLE_NAME_LEN)
+  SDB_SET_BINARY(pRaw, dataPos, pStb->name, TSDB_TABLE_FNAME_LEN)
+  SDB_SET_BINARY(pRaw, dataPos, pStb->db, TSDB_FULL_DB_NAME_LEN)
   SDB_SET_INT64(pRaw, dataPos, pStb->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pStb->updateTime)
   SDB_SET_INT64(pRaw, dataPos, pStb->uid)
+  SDB_SET_INT64(pRaw, dataPos, pStb->dbUid)
   SDB_SET_INT64(pRaw, dataPos, pStb->version)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfColumns)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfTags)
@@ -113,10 +115,12 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   if (pStb == NULL) return NULL;
 
   int32_t dataPos = 0;
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pStb->name, TSDB_TABLE_NAME_LEN)
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pStb->name, TSDB_TABLE_FNAME_LEN)
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pStb->db, TSDB_FULL_DB_NAME_LEN)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pStb->createdTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pStb->updateTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pStb->uid)
+  SDB_GET_INT64(pRaw, pRow, dataPos, &pStb->dbUid)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pStb->version)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pStb->numOfColumns)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pStb->numOfTags)

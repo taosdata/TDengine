@@ -220,7 +220,7 @@ TEST_F(DndTestDnode, 02_ConfigDnode) {
   ASSERT_EQ(pMsg->code, 0);
 }
 
-TEST_F(DndTestDnode, 03_Create_Drop_Reatrt_Dnode) {
+TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   {
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
     strcpy(pReq->ep, "localhost:9042");

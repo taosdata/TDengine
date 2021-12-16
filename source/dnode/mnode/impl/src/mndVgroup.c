@@ -213,13 +213,13 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
     return -1;
   }
 
-  int32_t alloceVgroups = 0;
-  int32_t maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
-  int32_t hashMin = 0;
-  int32_t hashMax = INT32_MAX;
-  int32_t hashInterval = (hashMax - hashMin) / pDb->numOfVgroups;
+  int32_t  alloceVgroups = 0;
+  int32_t  maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
+  uint32_t hashMin = 0;
+  uint32_t hashMax = UINT32_MAX;
+  uint32_t hashInterval = (hashMax - hashMin) / pDb->numOfVgroups;
 
-  for (int32_t v = 0; v < pDb->numOfVgroups; v++) {
+  for (uint32_t v = 0; v < pDb->numOfVgroups; v++) {
     SVgObj *pVgroup = &pVgroups[v];
     pVgroup->vgId = maxVgId++;
     pVgroup->createdTime = taosGetTimestampMs();

@@ -224,8 +224,8 @@ typedef struct {
   int64_t   createdTime;
   int64_t   updateTime;
   int32_t   version;
-  int32_t   hashBegin;
-  int32_t   hashEnd;
+  uint32_t  hashBegin;
+  uint32_t  hashEnd;
   char      dbName[TSDB_FULL_DB_NAME_LEN];
   int64_t   dbUid;
   int32_t   numOfTables;
@@ -244,6 +244,7 @@ typedef struct {
   int64_t  createdTime;
   int64_t  updateTime;
   uint64_t uid;
+  uint64_t dbUid;
   int32_t  version;
   int32_t  numOfColumns;
   int32_t  numOfTags;
