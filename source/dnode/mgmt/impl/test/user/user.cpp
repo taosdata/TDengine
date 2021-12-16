@@ -63,10 +63,10 @@ class DndTestUser : public ::testing::Test {
     ASSERT_NE(pShowRsp, nullptr);
     pShowRsp->showId = htonl(pShowRsp->showId);
     pMeta = &pShowRsp->tableMeta;
-    pMeta->numOfTags = htons(pMeta->numOfTags);
-    pMeta->numOfColumns = htons(pMeta->numOfColumns);
-    pMeta->sversion = htons(pMeta->sversion);
-    pMeta->tversion = htons(pMeta->tversion);
+    pMeta->numOfTags = htonl(pMeta->numOfTags);
+    pMeta->numOfColumns = htonl(pMeta->numOfColumns);
+    pMeta->sversion = htonl(pMeta->sversion);
+    pMeta->tversion = htonl(pMeta->tversion);
     pMeta->tuid = htobe64(pMeta->tuid);
     pMeta->suid = htobe64(pMeta->suid);
 
