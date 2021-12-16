@@ -69,7 +69,7 @@ class TDTestCase:
 
         os.system("rm /tmp/*.sql")
         os.system(
-            "%staosdump --databases db -o /tmp -B 32766 -L 1048576" %
+            "%staosdump --databases db -o /tmp -B 16384 -L 1048576" %
             binPath)
 
         tdSql.execute("drop database db")
