@@ -139,7 +139,7 @@ static void vtClearMsgBatch(SArray *pMsgArr) {
   taosArrayClear(pMsgArr);
 }
 
-TEST(vnodeApiTest, vnode_simple_create_table_test) {
+TEST(vnodeApiTest, DISABLED_vnode_simple_create_table_test) {
   tb_uid_t suid = 1638166374163;
   SRpcMsg *pMsg;
   SArray * pMsgArr = NULL;
@@ -192,12 +192,44 @@ TEST(vnodeApiTest, vnode_simple_create_table_test) {
 
 TEST(vnodeApiTest, vnode_simple_insert_test) {
   const char *vname = "vnode2";
+  char        tbname[128];
+  tb_uid_t    suid = 1638166374163;
+  SRpcMsg *   pMsg;
+  SArray *    pMsgArr;
+  int         rcode;
+  SVnode *    pVnode;
+
+  pMsgArr = (SArray *)taosArrayInit(0, sizeof(pMsg));
+
   vnodeDestroy(vname);
 
   GTEST_ASSERT_GE(vnodeInit(2), 0);
 
-  SVnode *pVnode = vnodeOpen(vname, NULL);
+  // Open a vnode
+  pVnode = vnodeOpen(vname, NULL);
+  GTEST_ASSERT_NE(pVnode, nullptr);
 
+  // 1. CREATE A SUPER TABLE
+  sprintf(tbname, "st");
+  vtBuildCreateStbReq(suid, tbname, &pMsg);
+  taosArrayPush(pMsgArr, &pMsg);
+  rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
+  GTEST_ASSERT_EQ(rcode, 0);
+  vtClearMsgBatch(pMsgArr);
+
+  // 2. CREATE A CHILD TABLE
+  sprintf(tbname, "t0");
+  vtBuildCreateCtbReq(suid, tbname, &pMsg);
+  taosArrayPush(pMsgArr, &pMsg);
+  rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
+  GTEST_ASSERT_EQ(rcode, 0);
+  vtClearMsgBatch(pMsgArr);
+
+  // 3. WRITE A LOT OF TIME-SERIES DATA
+
+  // Close the vnode
   vnodeClose(pVnode);
   vnodeClear();
+
+  taosArrayDestroy(pMsgArr);
 }
