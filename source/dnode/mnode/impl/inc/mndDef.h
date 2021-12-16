@@ -42,13 +42,6 @@ extern int32_t mDebugFlag;
 #define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
 
-typedef struct SClusterObj SClusterObj;
-typedef struct SMnodeObj   SMnodeObj;
-typedef struct SAcctObj    SAcctObj;
-typedef struct SVgObj      SVgObj;
-typedef struct SFuncObj    SFuncObj;
-typedef struct SOperObj    SOperObj;
-
 typedef enum {
   MND_AUTH_ACCT_START = 0,
   MND_AUTH_ACCT_USER,
@@ -99,7 +92,7 @@ typedef enum {
   DND_REASON_OTHERS
 } EDndReason;
 
-typedef struct STrans {
+typedef struct {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
@@ -111,7 +104,7 @@ typedef struct STrans {
   SArray    *undoActions;
 } STrans;
 
-typedef struct SClusterObj {
+typedef struct {
   int32_t id;
   char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
@@ -139,7 +132,7 @@ typedef struct {
   char       ep[TSDB_EP_LEN];
 } SDnodeObj;
 
-typedef struct SMnodeObj {
+typedef struct {
   int32_t    id;
   int64_t    createdTime;
   int64_t    updateTime;
@@ -167,7 +160,7 @@ typedef struct {
   int64_t compStorage;   // Compressed storage on disk
 } SAcctInfo;
 
-typedef struct SAcctObj {
+typedef struct {
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
   int64_t   updateTime;
@@ -195,8 +188,8 @@ typedef struct {
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
-  int32_t minRowsPerFileBlock;
-  int32_t maxRowsPerFileBlock;
+  int32_t minRows;
+  int32_t maxRows;
   int32_t commitTime;
   int32_t fsyncPeriod;
   int8_t  walLevel;
@@ -214,7 +207,10 @@ typedef struct {
   int64_t createdTime;
   int64_t updateTime;
   int64_t uid;
-  int32_t version;
+  int32_t cfgVersion;
+  int32_t vgVersion;
+  int32_t numOfVgroups;
+  int8_t  hashMethod;  // default is 1
   SDbCfg  cfg;
 } SDbObj;
 
@@ -223,12 +219,15 @@ typedef struct {
   ESyncState role;
 } SVnodeGid;
 
-typedef struct SVgObj {
+typedef struct {
   int32_t   vgId;
   int64_t   createdTime;
   int64_t   updateTime;
   int32_t   version;
+  int32_t   hashBegin;
+  int32_t   hashEnd;
   char      dbName[TSDB_FULL_DB_NAME_LEN];
+  int64_t   dbUid;
   int32_t   numOfTables;
   int32_t   numOfTimeSeries;
   int64_t   totalStorage;
@@ -252,7 +251,7 @@ typedef struct {
   SSchema *pSchema;
 } SStbObj;
 
-typedef struct SFuncObj {
+typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
   int64_t createdTime;
   int8_t  funcType;
