@@ -71,8 +71,7 @@ typedef struct SInsertParseContext {
   const char* pSql;
   SMsgBuf msg;
   struct SCatalog* pCatalog;
-  SMetaData meta;               // need release
-  const STableMeta* pTableMeta;
+  STableMeta tableMeta;
   SHashObj* pTableBlockHashObj; // data block for each table. need release
   int32_t totalNum;
   SInsertStmtInfo* pOutput;
@@ -165,29 +164,29 @@ static int32_t skipInsertInto(SInsertParseContext* pCxt) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t buildTableName(SInsertParseContext* pCxt, SToken* pStname, SArray* tableNameList) {
+static int32_t buildName(SInsertParseContext* pCxt, SToken* pStname, char* fullDbName, char* tableName) {
   if (parserValidateIdToken(pStname) != TSDB_CODE_SUCCESS) {
     return buildSyntaxErrMsg(&pCxt->msg, "invalid table name", pStname->z);
   }
 
-  SName name = {0};
-  strcpy(name.dbname, pCxt->pComCxt->pDbname);
-  strncpy(name.tname, pStname->z, pStname->n);
-  taosArrayPush(tableNameList, &name);
-
+  char* p = strnchr(pStname->z, TS_PATH_DELIMITER[0], pStname->n, false);
+  if (NULL != p) { // db.table
+    strcpy(fullDbName, pCxt->pComCxt->pAcctId);
+    fullDbName[strlen(pCxt->pComCxt->pAcctId)] = TS_PATH_DELIMITER[0];
+    strncpy(fullDbName, pStname->z, p - pStname->z);
+    strncpy(tableName, p + 1, pStname->n - (p - pStname->z) - 1);
+  } else {
+    snprintf(fullDbName, TSDB_FULL_DB_NAME_LEN, "%s.%s", pCxt->pComCxt->pAcctId, pCxt->pComCxt->pDbname);
+    strncpy(tableName, pStname->z, pStname->n);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t buildMetaReq(SInsertParseContext* pCxt, SToken* pStname, SCatalogReq* pMetaReq) {
-  pMetaReq->pTableName = taosArrayInit(4, sizeof(SName));
-  return buildTableName(pCxt, pStname, pMetaReq->pTableName);
-}
-
 static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
-  SCatalogReq req;
-  CHECK_CODE(buildMetaReq(pCxt, pTname, &req));
-  CHECK_CODE(catalogGetTableMeta(pCxt->pCatalog, NULL, NULL, NULL, &pCxt->meta)); //TODO
-  pCxt->pTableMeta = (STableMeta*)taosArrayGetP(pCxt->meta.pTableMeta, 0);
+  char fullDbName[TSDB_FULL_DB_NAME_LEN] = {0};
+  char tableName[TSDB_TABLE_NAME_LEN] = {0};
+  CHECK_CODE(buildName(pCxt, pTname, fullDbName, tableName));
+  CHECK_CODE(catalogGetTableMeta(pCxt->pCatalog, pCxt->pComCxt->pRpc, pCxt->pComCxt->pEpSet, fullDbName, &pCxt->tableMeta));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -646,13 +645,13 @@ static int32_t parseUsingClause(SInsertParseContext* pCxt, SToken* pTbnameToken)
   // pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
   NEXT_TOKEN(pCxt->pSql, sToken);
   CHECK_CODE(getTableMeta(pCxt, &sToken));
-  if (TSDB_SUPER_TABLE != pCxt->pTableMeta->tableType) {
+  if (TSDB_SUPER_TABLE != pCxt->tableMeta.tableType) {
     return buildInvalidOperationMsg(&pCxt->msg, "create table only from super table is allowed");
   }
 
-  SSchema* pTagsSchema = getTableTagSchema(pCxt->pTableMeta);
+  SSchema* pTagsSchema = getTableTagSchema(&pCxt->tableMeta);
   SParsedDataColInfo spd = {0};
-  setBoundColumnInfo(&spd, pTagsSchema, getNumOfTags(pCxt->pTableMeta));
+  setBoundColumnInfo(&spd, pTagsSchema, getNumOfTags(&pCxt->tableMeta));
 
   // pSql -> [(tag1_name, ...)] TAGS (tag1_value, ...)
   NEXT_TOKEN(pCxt->pSql, sToken);
@@ -669,7 +668,7 @@ static int32_t parseUsingClause(SInsertParseContext* pCxt, SToken* pTbnameToken)
   if (TK_LP != sToken.type) {
     return buildSyntaxErrMsg(&pCxt->msg, "( is expected", sToken.z);
   }
-  CHECK_CODE(parseTagsClause(pCxt, &spd, pTagsSchema, getTableInfo(pCxt->pTableMeta).precision));
+  CHECK_CODE(parseTagsClause(pCxt, &spd, pTagsSchema, getTableInfo(&pCxt->tableMeta).precision));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -811,12 +810,12 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     }
 
     STableDataBlocks *dataBuf = NULL;
-    CHECK_CODE(getDataBlockFromList(pCxt->pTableBlockHashObj, pCxt->pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
-        sizeof(SSubmitBlk), getTableInfo(pCxt->pTableMeta).rowSize, pCxt->pTableMeta, &dataBuf, NULL));
+    CHECK_CODE(getDataBlockFromList(pCxt->pTableBlockHashObj, pCxt->tableMeta.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
+        sizeof(SSubmitBlk), getTableInfo(&pCxt->tableMeta).rowSize, &pCxt->tableMeta, &dataBuf, NULL));
 
     if (TK_LP == sToken.type) {
       // pSql -> field1_name, ...)
-      CHECK_CODE_1(parseBoundColumns(pCxt, &dataBuf->boundColumnInfo, getTableColumnSchema(pCxt->pTableMeta)), destroyBoundColumnInfo(&dataBuf->boundColumnInfo));
+      CHECK_CODE_1(parseBoundColumns(pCxt, &dataBuf->boundColumnInfo, getTableColumnSchema(&pCxt->tableMeta)), destroyBoundColumnInfo(&dataBuf->boundColumnInfo));
       NEXT_TOKEN(pCxt->pSql, sToken);
     }
 
@@ -862,18 +861,17 @@ int32_t parseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo) {
     .pSql = pContext->pSql,
     .msg = {.buf = pContext->pMsg, .len = pContext->msgLen},
     .pCatalog = NULL,
-    .pTableMeta = NULL,
+    .tableMeta = {0},
     .pTableBlockHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false),
     .totalNum = 0,
     .pOutput = *pInfo
   };
 
-  CHECK_CODE(catalogGetHandle(NULL, &context.pCatalog)); //TODO
-
   if (NULL == context.pTableBlockHashObj) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
+  CHECK_CODE(catalogGetHandle(pContext->pClusterId, &context.pCatalog));
   CHECK_CODE(skipInsertInto(&context));
   CHECK_CODE(parseInsertBody(&context));
 

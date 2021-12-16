@@ -14,64 +14,107 @@
  */
 
 #include "plannerInt.h"
+#include "parser.h"
 
-// typedef struct SQueryPlanNode {
-//   void               *pExtInfo;     // additional information
-//   SArray             *pPrevNodes;   // children
-//   struct SQueryPlanNode  *nextNode; // parent 
-// } SQueryPlanNode;
+static const char* gOpName[] = {
+  "Unknown",
+#define INCLUDE_AS_NAME
+#include "plannerOp.h"
+#undef INCLUDE_AS_NAME
+};
 
-// typedef struct SSubplan {
-//   int32_t   type;               // QUERY_TYPE_MERGE|QUERY_TYPE_PARTIAL|QUERY_TYPE_SCAN
-//   SArray   *pDatasource;          // the datasource subplan,from which to fetch the result
-//   struct SPhyNode *pNode;  // physical plan of current subplan
-// } SSubplan;
+typedef struct SPlanContext {
+  struct SCatalog* pCatalog;
+  struct SQueryDag* pDag;
+  SSubplan* pCurrentSubplan;
+  SSubplanId nextId;
+} SPlanContext;
 
-// typedef struct SQueryDag {
-//   SArray  **pSubplans;
-// } SQueryDag;
-
-// typedef struct SScanPhyNode {
-//   SPhyNode    node;
-//   STimeWindow window;
-//   uint64_t    uid;  // unique id of the table
-// } SScanPhyNode;
-
-// typedef SScanPhyNode STagScanPhyNode;
-
-void fillDataBlockSchema(SQueryPlanNode* pPlanNode, SDataBlockSchema* dataBlockSchema) {
-  dataBlockSchema->index = 0; // todo
+static void toDataBlockSchema(SQueryPlanNode* pPlanNode, SDataBlockSchema* dataBlockSchema) {
   SWAP(dataBlockSchema->pSchema, pPlanNode->pSchema, SSchema*);
   dataBlockSchema->numOfCols = pPlanNode->numOfCols;
 }
 
-void fillPhyNode(SQueryPlanNode* pPlanNode, int32_t type, const char* name, SPhyNode* node) {
+static SPhyNode* initPhyNode(SQueryPlanNode* pPlanNode, int32_t type, int32_t size) {
+  SPhyNode* node = (SPhyNode*)calloc(1, size);
   node->info.type = type;
-  node->info.name = name;
+  node->info.name = gOpName[type];
   SWAP(node->pTargets, pPlanNode->pExpr, SArray*);
-  fillDataBlockSchema(pPlanNode, &(node->targetSchema));
+  toDataBlockSchema(pPlanNode, &(node->targetSchema));
 }
 
-SPhyNode* createTagScanNode(SQueryPlanNode* pPlanNode) {
-  STagScanPhyNode* node = calloc(1, sizeof(STagScanPhyNode));
-  fillPhyNode(pPlanNode, OP_TagScan, "TagScan", (SPhyNode*)node);
-  return (SPhyNode*)node;
+static SPhyNode* createTagScanNode(SQueryPlanNode* pPlanNode) {
+  return initPhyNode(pPlanNode, OP_TagScan, sizeof(STagScanPhyNode));
 }
 
-SPhyNode* createScanNode(SQueryPlanNode* pPlanNode) {
-  STagScanPhyNode* node = calloc(1, sizeof(STagScanPhyNode));
-  fillPhyNode(pPlanNode, OP_TableScan, "SingleTableScan", (SPhyNode*)node);
-  return (SPhyNode*)node;
+static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
+  SSubplan* subplan = calloc(1, sizeof(SSubplan));
+  subplan->id = pCxt->nextId;
+  ++(pCxt->nextId.subplanId);
+  subplan->type = type;
+  subplan->level = 0;
+  if (NULL != pCxt->pCurrentSubplan) {
+    subplan->level = pCxt->pCurrentSubplan->level + 1;
+    if (NULL == pCxt->pCurrentSubplan->pChildern) {
+      pCxt->pCurrentSubplan->pChildern = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+    }
+    taosArrayPush(pCxt->pCurrentSubplan->pChildern, subplan);
+    subplan->pParents = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+    taosArrayPush(subplan->pParents, pCxt->pCurrentSubplan);
+  }
+  pCxt->pCurrentSubplan = subplan;
+  return subplan;
 }
 
-SPhyNode* createPhyNode(SQueryPlanNode* pPlanNode) {
+static uint8_t getScanFlag(SQueryPlanNode* pPlanNode) {
+  // todo
+  return MASTER_SCAN;
+}
+
+static SPhyNode* createTableScanNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable) {
+  STableScanPhyNode* node = (STableScanPhyNode*)initPhyNode(pPlanNode, OP_TableScan, sizeof(STableScanPhyNode));
+  node->scan.uid = pTable->pMeta->pTableMeta->uid;
+  node->scan.tableType = pTable->pMeta->pTableMeta->tableType;
+  node->scanFlag = getScanFlag(pPlanNode);
+  node->window = pTable->window;
+  // todo tag cond
+}
+
+static void vgroupToEpSet(const SVgroupMsg* vg, SEpSet* epSet) {
+  // todo
+}
+
+static void splitSubplanBySTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable) {
+  SVgroupsInfo* vgroupList = pTable->pMeta->vgroupList;
+  for (int32_t i = 0; i < pTable->pMeta->vgroupList->numOfVgroups; ++i) {
+    SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_SCAN);
+    vgroupToEpSet(&(pTable->pMeta->vgroupList->vgroups[i]), &subplan->execEpSet);
+    subplan->pNode = createTableScanNode(pCxt, pPlanNode, pTable);
+    // todo reset pCxt->pCurrentSubplan
+  }
+}
+
+static SPhyNode* createExchangeNode() {
+
+}
+
+static SPhyNode* createScanNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
+  SQueryTableInfo* pTable = (SQueryTableInfo*)pPlanNode->pExtInfo;
+  if (TSDB_SUPER_TABLE == pTable->pMeta->pTableMeta->tableType) {
+    splitSubplanBySTable(pCxt, pPlanNode, pTable);
+    return createExchangeNode(pCxt, pTable);
+  }
+  return createTableScanNode(pCxt, pPlanNode, pTable);
+}
+
+static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
   SPhyNode* node = NULL;
   switch (pPlanNode->info.type) {
     case QNODE_TAGSCAN:
       node = createTagScanNode(pPlanNode);
       break;
     case QNODE_TABLESCAN:
-      node = createScanNode(pPlanNode);
+      node = createScanNode(pCxt, pPlanNode);
       break;
     default:
       assert(false);
@@ -80,7 +123,7 @@ SPhyNode* createPhyNode(SQueryPlanNode* pPlanNode) {
     node->pChildren = taosArrayInit(4, POINTER_BYTES);
     size_t size = taosArrayGetSize(pPlanNode->pChildren);
     for(int32_t i = 0; i < size; ++i) {
-      SPhyNode* child = createPhyNode(taosArrayGet(pPlanNode->pChildren, i));
+      SPhyNode* child = createPhyNode(pCxt, taosArrayGet(pPlanNode->pChildren, i));
       child->pParent = node;
       taosArrayPush(node->pChildren, &child);
     }
@@ -88,13 +131,30 @@ SPhyNode* createPhyNode(SQueryPlanNode* pPlanNode) {
   return node;
 }
 
-SSubplan* createSubplan(SQueryPlanNode* pSubquery) {
-  SSubplan* subplan = calloc(1, sizeof(SSubplan));
-  subplan->pNode = createPhyNode(pSubquery);
-  // todo
-  return subplan;
+static void createSubplanByLevel(SPlanContext* pCxt, SQueryPlanNode* pRoot) {
+  SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_MERGE);
+  subplan->pNode = createPhyNode(pCxt, pRoot);
+  SArray* l0 = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+  taosArrayPush(l0, &subplan);
+  taosArrayPush(pCxt->pDag->pSubplans, &l0);
+  // todo deal subquery
 }
 
-int32_t createDag(struct SQueryPlanNode* pQueryNode, struct SEpSet* pQnode, struct SQueryDag** pDag) {
-  return 0;
+int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag) {
+  SPlanContext context = {
+    .pCatalog = pCatalog,
+    .pDag = calloc(1, sizeof(SQueryDag)),
+    .pCurrentSubplan = NULL
+  };
+  if (NULL == context.pDag) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  context.pDag->pSubplans = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+  createSubplanByLevel(&context, pQueryNode);
+  *pDag = context.pDag;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t subPlanToString(struct SSubplan *pPhyNode, char** str) {
+  return TSDB_CODE_SUCCESS;
 }

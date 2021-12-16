@@ -23,6 +23,7 @@ extern "C" {
 #include "common.h"
 #include "tarray.h"
 #include "planner.h"
+#include "parser.h"
 #include "taosmsg.h"
 
 #define QNODE_TAGSCAN       1
@@ -40,11 +41,6 @@ extern "C" {
 #define QNODE_STATEWINDOW   13
 #define QNODE_FILL          14
 
-typedef struct SQueryNodeBasicInfo {
-  int32_t   type;          // operator type
-  char     *name;          // operator name
-} SQueryNodeBasicInfo;
-
 typedef struct SQueryDistPlanNodeInfo {
   bool      stableQuery;   // super table query or not
   int32_t   phase;         // merge|partial
@@ -54,8 +50,9 @@ typedef struct SQueryDistPlanNodeInfo {
 } SQueryDistPlanNodeInfo;
 
 typedef struct SQueryTableInfo {
-  char       *tableName;
-  uint64_t    uid;
+  char           *tableName; // to be deleted
+  uint64_t        uid;       // to be deleted
+  STableMetaInfo* pMeta;
   STimeWindow window;
 } SQueryTableInfo;
 
@@ -71,46 +68,6 @@ typedef struct SQueryPlanNode {
   SArray             *pChildren;   // upstream nodes
   struct SQueryPlanNode  *pParent;
 } SQueryPlanNode;
-
-typedef SSchema SSlotSchema;
-
-typedef struct SDataBlockSchema {
-  int32_t             index;
-  SSlotSchema        *pSchema;
-  int32_t             numOfCols;    // number of columns
-} SDataBlockSchema;
-
-typedef struct SPhyNode {
-  SQueryNodeBasicInfo info;
-  SArray             *pTargets;      // target list to be computed or scanned at this node
-  SArray             *pConditions;         // implicitly-ANDed qual conditions
-  SDataBlockSchema    targetSchema;
-  // children plan to generated result for current node to process
-  // in case of join, multiple plan nodes exist.
-  SArray             *pChildren;
-  struct SPhyNode    *pParent;
-} SPhyNode;
-
-typedef struct SScanPhyNode {
-  SPhyNode    node;
-  STimeWindow window;
-  uint64_t    uid;  // unique id of the table
-} SScanPhyNode;
-
-typedef SScanPhyNode STagScanPhyNode;
-
-typedef SScanPhyNode SSystemTableScanPhyNode;
-
-typedef struct SMultiTableScanPhyNode {
-  SScanPhyNode scan;
-  SArray      *pTagsConditions; // implicitly-ANDed tag qual conditions
-} SMultiTableScanPhyNode;
-
-typedef SMultiTableScanPhyNode SMultiTableSeqScanPhyNode;
-
-typedef struct SProjectPhyNode {
-  SPhyNode node;
-} SProjectPhyNode;
 
 /**
  * Optimize the query execution plan, currently not implement yet.

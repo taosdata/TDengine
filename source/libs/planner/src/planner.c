@@ -95,6 +95,7 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
   }
 
   switch(type) {
+    case QNODE_TAGSCAN:
     case QNODE_TABLESCAN: {
       SQueryTableInfo* info = calloc(1, sizeof(SQueryTableInfo));
       memcpy(info, pExtInfo, sizeof(SQueryTableInfo));
@@ -162,7 +163,7 @@ static SQueryPlanNode* doAddTableColumnNode(SQueryStmtInfo* pQueryInfo, STableMe
                                         SArray* pExprs, SArray* tableCols) {
   if (pQueryInfo->info.onlyTagQuery) {
     int32_t num = (int32_t) taosArrayGetSize(pExprs);
-    SQueryPlanNode* pNode = createQueryNode(QNODE_TAGSCAN, "TableTagScan", NULL, 0, pExprs->pData, num, NULL);
+    SQueryPlanNode* pNode = createQueryNode(QNODE_TAGSCAN, "TableTagScan", NULL, 0, pExprs->pData, num, info);
 
     if (pQueryInfo->info.distinct) {
       pNode = createQueryNode(QNODE_DISTINCT, "Distinct", &pNode, 1, pExprs->pData, num, NULL);
