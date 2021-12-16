@@ -10,3 +10,5 @@ target_link_libraries(
    catalog
    PRIVATE os util common transport query
 )
+
+ADD_SUBDIRECTORY(test)

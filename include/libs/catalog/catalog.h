@@ -61,22 +61,8 @@ int32_t catalogInit(SCatalogCfg *cfg);
  */
 int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle);
 
-
-
-int32_t catalogGetVgroupVersion(struct SCatalog* pCatalog, int32_t* version);
-
-/**
- * get cluster vgroup list.
- * @pVgroupList  - hash of vgroup list, key:vgId, value:SVgroupInfo
- * @return
- */
-int32_t catalogGetVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, SHashObj** pVgroupHash);
-int32_t catalogUpdateVgroupCache(struct SCatalog* pCatalog, SVgroupListInfo* pVgroup);
-
-
-
 int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName, int32_t* version);
-int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* dbName, int32_t forceUpdate, SDBVgroupInfo** dbInfo);
+int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* dbName, int32_t forceUpdate, SDBVgroupInfo* dbInfo);
 int32_t catalogUpdateDBVgroupCache(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
 
 

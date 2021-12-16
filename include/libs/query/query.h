@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "tarray.h"
+#include "thash.h"
 
 typedef SVgroupListRspMsg SVgroupListInfo;
 
@@ -63,16 +64,14 @@ typedef struct STableMeta {
 
 
 typedef struct SDBVgroupInfo {
-  int32_t vgroupVersion;
-  SArray *vgId;
-  int32_t hashRange;
-  int32_t hashType;
+  int32_t   vgVersion;  
+  int8_t    hashMethod;
+  SHashObj *vgInfo;  //key:vgId, value:SVgroupInfo
 } SDBVgroupInfo;
 
 typedef struct SUseDbOutput {
-  SVgroupListInfo *vgroupList;
-  char db[TSDB_TABLE_FNAME_LEN];
-  SDBVgroupInfo *dbVgroup;
+  char db[TSDB_FULL_DB_NAME_LEN];
+  SDBVgroupInfo dbVgroup;
 } SUseDbOutput;
 
 typedef struct STableMetaOutput {
