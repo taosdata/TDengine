@@ -129,7 +129,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
 
     // for group by
     if (groupFields != -1) {
-      char    target[HTTP_GC_TARGET_SIZE] = {0};
+      char    target[HTTP_GC_TARGET_SIZE << 5] = {0};
       int32_t len;
       len = snprintf(target, HTTP_GC_TARGET_SIZE, "%s{", aliasBuffer);
       for (int32_t i = dataFields + 1; i < num_fields; i++) {
@@ -167,7 +167,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
           case TSDB_DATA_TYPE_NCHAR:
             if (row[i] != NULL) {
               len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:", fields[i].name);
-              memcpy(target + len, (char *)row[i], length[i]);
+              memcpy(target + len, (char *)row[i], MIN(length[i], HTTP_GC_TARGET_SIZE - 1 - len));
               len = (int32_t)strlen(target);
             }
             break;
