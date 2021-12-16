@@ -4959,7 +4959,24 @@ static int32_t validateJsonTagExpr(tSqlExpr* pExpr, char* msgBuf) {
         pRight->value.nLen = INT_BYTES;
         pRight->value.pz = calloc(INT_BYTES, 1);
         *(uint32_t*)pRight->value.pz = TSDB_DATA_JSON_null;
+        return TSDB_CODE_SUCCESS;
       }
+    }
+
+    if (pRight->value.nType == TSDB_DATA_TYPE_BINARY){    // json value store by nchar, so need to convert from binary to nchar
+      if(pRight->value.nLen == 0){
+        pRight->value.nType = TSDB_DATA_TYPE_NCHAR;
+        return TSDB_CODE_SUCCESS;
+      }
+      char newData[TSDB_MAX_JSON_TAGS_LEN] = {0};
+      int len = 0;
+      if(!taosMbsToUcs4(pRight->value.pz, pRight->value.nLen, newData, TSDB_MAX_JSON_TAGS_LEN, &len)){
+        tscError("json where condition mbsToUcs4 error");
+      }
+      pRight->value.pz = realloc(pRight->value.pz, len);
+      memcpy(pRight->value.pz, newData, len);
+      pRight->value.nLen = len;
+      pRight->value.nType = TSDB_DATA_TYPE_NCHAR;
     }
   }
 
@@ -5028,11 +5045,6 @@ static void convertWhereStringCharset(tSqlExpr* pRight){
     return;
   }
 
-  if(pRight->value.nLen == 0){
-    pRight->value.nType = TSDB_DATA_TYPE_NCHAR;   // for json value
-    return;
-  }
-
   char newData[TSDB_MAX_NCHAR_LEN] = {0};
   int len = 0;
   if(!taosMbsToUcs4(pRight->value.pz, pRight->value.nLen, newData, TSDB_MAX_NCHAR_LEN, &len)){
@@ -5096,7 +5108,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
 
   SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
 
-  if (pSchema->type == TSDB_DATA_TYPE_JSON || pSchema->type == TSDB_DATA_TYPE_NCHAR){
+  if (pSchema->type == TSDB_DATA_TYPE_NCHAR){
     convertWhereStringCharset(pRight);
   }
 
