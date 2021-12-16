@@ -841,7 +841,7 @@ typedef struct {
   int32_t    tversion;
   uint64_t   tuid;
   uint64_t   suid;
-  SVgroupMsg vgroup;
+  int32_t    vgId;
   SSchema    pSchema[];
 } STableMetaMsg;
 
@@ -869,6 +869,7 @@ typedef struct {
   int32_t     dbVgroupVersion;
   int32_t     dbVgroupNum;
   int32_t     dbHashRange;
+  int32_t     dbHashType;
   SVgroupInfo vgroupInfo[];
 //int32_t     vgIdList[];
 } SUseDbRspMsg;
