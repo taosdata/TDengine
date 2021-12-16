@@ -361,7 +361,10 @@ namespace TDengineDriver
 
                 threadArr[i] = new Thread(createTableThread.ThreadMain);
                 threadArr[i].Start();
-                threadArr[i].Join();
+            }
+            for (int j = 0; j < numOfThreads; j++)
+            {
+                threadArr[j].Join();
             }
         }
 
@@ -482,7 +485,10 @@ namespace TDengineDriver
 
                 threadArr[i] = new Thread(insertThread.ThreadMain);
                 threadArr[i].Start();
-                threadArr[i].Join();
+            }
+            for (int j = 0; j < numOfThreads; j++)
+            {
+                threadArr[j].Join();
             }
         }
 
