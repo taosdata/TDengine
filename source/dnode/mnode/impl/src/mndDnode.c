@@ -19,15 +19,13 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "ttime.h"
-#include "tutil.h"
+#include "tep.h"
 
 #define TSDB_DNODE_VER 1
 #define TSDB_DNODE_RESERVE_SIZE 64
 #define TSDB_CONFIG_OPTION_LEN 16
 #define TSDB_CONIIG_VALUE_LEN 48
 #define TSDB_CONFIG_NUMBER 8
-
-static int32_t id = 2;
 
 static const char *offlineReason[] = {
     "",
@@ -110,7 +108,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
 }
 
 static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_DNODE, TSDB_DNODE_VER, sizeof(SDnodeObj));
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_DNODE, TSDB_DNODE_VER, sizeof(SDnodeObj) + TSDB_DNODE_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
@@ -177,6 +175,7 @@ static int32_t mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode) {
 
 static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOldDnode, SDnodeObj *pNewDnode) {
   mTrace("dnode:%d, perform update action", pOldDnode->id);
+  pOldDnode->updateTime = pNewDnode->updateTime;
   return 0;
 }
 
@@ -389,7 +388,7 @@ static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg) {
 
 static int32_t mndCreateDnode(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDnodeMsg *pCreate) {
   SDnodeObj dnodeObj = {0};
-  dnodeObj.id = id++;
+  dnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_DNODE);
   dnodeObj.createdTime = taosGetTimestampMs();
   dnodeObj.updateTime = dnodeObj.createdTime;
   taosGetFqdnPortFromEp(pCreate->ep, dnodeObj.fqdn, &dnodeObj.port);
@@ -613,7 +612,7 @@ static int32_t mndRetrieveConfigs(SMnodeMsg *pMsg, SShowObj *pShow, char *data, 
     cols++;
   }
 
-  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }
@@ -735,7 +734,7 @@ static int32_t mndRetrieveDnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, i
     sdbRelease(pSdb, pDnode);
   }
 
-  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
 
   return numOfRows;

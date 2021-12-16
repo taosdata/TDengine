@@ -24,16 +24,16 @@ extern "C" {
 #include "common.h"
 #include "tlog.h"
 
-#define CTG_DEFAULT_CLUSTER_NUMBER 6
-#define CTG_DEFAULT_VGROUP_NUMBER 100
-#define CTG_DEFAULT_DB_NUMBER 20
+#define CTG_DEFAULT_CACHE_CLUSTER_NUMBER 6
+#define CTG_DEFAULT_CACHE_VGROUP_NUMBER 100
+#define CTG_DEFAULT_CACHE_DB_NUMBER 20
+#define CTG_DEFAULT_CACHE_TABLEMETA_NUMBER 100000
 
 #define CTG_DEFAULT_INVALID_VERSION (-1)
 
 typedef struct SVgroupListCache {
   int32_t vgroupVersion;
-  SHashObj *cache;        // key:vgId, value:SVgroupInfo*
-  SArray   *arrayCache;   // SVgroupInfo
+  SHashObj *cache;        // key:vgId, value:SVgroupInfo
 } SVgroupListCache;
 
 typedef struct SDBVgroupCache {
@@ -41,20 +41,23 @@ typedef struct SDBVgroupCache {
 } SDBVgroupCache;
 
 typedef struct STableMetaCache {
-  SHashObj *cache;     //key:fulltablename, value:STableMeta
+  SHashObj *cache;           //key:fulltablename, value:STableMeta
+  SHashObj *stableCache;     //key:suid, value:STableMeta*
 } STableMetaCache;
 
 typedef struct SCatalog {
   SVgroupListCache vgroupCache;
-  SDBVgroupCache dbCache;
-  STableMetaCache tableCache;
+  SDBVgroupCache   dbCache;
+  STableMetaCache  tableCache;
 } SCatalog;
 
 typedef struct SCatalogMgmt {
   void       *pMsgSender;   // used to send messsage to mnode to fetch necessary metadata
   SHashObj   *pCluster;     // items cached for each cluster, the hash key is the cluster-id got from mgmt node
+  SCatalogCfg cfg;
 } SCatalogMgmt;
 
+typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 
 extern int32_t ctgDebugFlag;
 

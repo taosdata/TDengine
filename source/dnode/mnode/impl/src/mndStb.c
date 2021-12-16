@@ -69,7 +69,7 @@ int32_t mndInitStb(SMnode *pMnode) {
 void mndCleanupStb(SMnode *pMnode) {}
 
 static SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
-  int32_t  size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema);
+  int32_t  size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + TSDB_STB_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STB, TSDB_STB_VER_NUM, size);
   if (pRaw == NULL) return NULL;
 
@@ -605,7 +605,7 @@ static int32_t mndGetStbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pM
   return 0;
 }
 
-static void mnodeExtractTableName(char *tableId, char *name) {
+static void mndExtractTableName(char *tableId, char *name) {
   int pos = -1;
   int num = 0;
   for (pos = 0; tableId[pos] != 0; ++pos) {
@@ -665,7 +665,7 @@ static int32_t mndRetrieveStb(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int3
   }
 
   pShow->numOfReads += numOfRows;
-  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   return numOfRows;
 }
 

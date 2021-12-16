@@ -22,10 +22,6 @@ void initLog(const char* path) {
   cDebugFlag = 0;
   jniDebugFlag = 0;
   tmrDebugFlag = 0;
-  sdbDebugFlag = 0;
-  httpDebugFlag = 0;
-  mqttDebugFlag = 0;
-  monDebugFlag = 0;
   uDebugFlag = 143;
   rpcDebugFlag = 0;
   odbcDebugFlag = 0;

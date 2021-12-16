@@ -92,6 +92,8 @@ TEST(vnodeApiTest, test_create_table_encode_and_decode_function) {
 #endif
 
 TEST(vnodeApiTest, vnodeOpen_vnodeClose_test) {
+  vnodeDestroy("vnode1");
+
   GTEST_ASSERT_GE(vnodeInit(2), 0);
 
   // Create and open a vnode

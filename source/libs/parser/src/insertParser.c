@@ -71,7 +71,7 @@ typedef struct SInsertParseContext {
   const char* pSql;
   SMsgBuf msg;
   struct SCatalog* pCatalog;
-  STableMeta tableMeta;
+  STableMeta* pTableMeta;
   SHashObj* pTableBlockHashObj; // data block for each table. need release
   int32_t totalNum;
   SInsertStmtInfo* pOutput;
@@ -186,7 +186,7 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
   char fullDbName[TSDB_FULL_DB_NAME_LEN] = {0};
   char tableName[TSDB_TABLE_NAME_LEN] = {0};
   CHECK_CODE(buildName(pCxt, pTname, fullDbName, tableName));
-  CHECK_CODE(catalogGetTableMeta(pCxt->pCatalog, pCxt->pComCxt->pRpc, pCxt->pComCxt->pEpSet, fullDbName, &pCxt->tableMeta));
+  CHECK_CODE(catalogGetTableMeta(pCxt->pCatalog, pCxt->pComCxt->pRpc, pCxt->pComCxt->pEpSet, fullDbName, tableName, &pCxt->pTableMeta));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -645,13 +645,13 @@ static int32_t parseUsingClause(SInsertParseContext* pCxt, SToken* pTbnameToken)
   // pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
   NEXT_TOKEN(pCxt->pSql, sToken);
   CHECK_CODE(getTableMeta(pCxt, &sToken));
-  if (TSDB_SUPER_TABLE != pCxt->tableMeta.tableType) {
+  if (TSDB_SUPER_TABLE != pCxt->pTableMeta->tableType) {
     return buildInvalidOperationMsg(&pCxt->msg, "create table only from super table is allowed");
   }
 
-  SSchema* pTagsSchema = getTableTagSchema(&pCxt->tableMeta);
+  SSchema* pTagsSchema = getTableTagSchema(pCxt->pTableMeta);
   SParsedDataColInfo spd = {0};
-  setBoundColumnInfo(&spd, pTagsSchema, getNumOfTags(&pCxt->tableMeta));
+  setBoundColumnInfo(&spd, pTagsSchema, getNumOfTags(pCxt->pTableMeta));
 
   // pSql -> [(tag1_name, ...)] TAGS (tag1_value, ...)
   NEXT_TOKEN(pCxt->pSql, sToken);
@@ -668,7 +668,7 @@ static int32_t parseUsingClause(SInsertParseContext* pCxt, SToken* pTbnameToken)
   if (TK_LP != sToken.type) {
     return buildSyntaxErrMsg(&pCxt->msg, "( is expected", sToken.z);
   }
-  CHECK_CODE(parseTagsClause(pCxt, &spd, pTagsSchema, getTableInfo(&pCxt->tableMeta).precision));
+  CHECK_CODE(parseTagsClause(pCxt, &spd, pTagsSchema, getTableInfo(pCxt->pTableMeta).precision));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -810,12 +810,12 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     }
 
     STableDataBlocks *dataBuf = NULL;
-    CHECK_CODE(getDataBlockFromList(pCxt->pTableBlockHashObj, pCxt->tableMeta.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
-        sizeof(SSubmitBlk), getTableInfo(&pCxt->tableMeta).rowSize, &pCxt->tableMeta, &dataBuf, NULL));
+    CHECK_CODE(getDataBlockFromList(pCxt->pTableBlockHashObj, pCxt->pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
+        sizeof(SSubmitBlk), getTableInfo(pCxt->pTableMeta).rowSize, pCxt->pTableMeta, &dataBuf, NULL));
 
     if (TK_LP == sToken.type) {
       // pSql -> field1_name, ...)
-      CHECK_CODE_1(parseBoundColumns(pCxt, &dataBuf->boundColumnInfo, getTableColumnSchema(&pCxt->tableMeta)), destroyBoundColumnInfo(&dataBuf->boundColumnInfo));
+      CHECK_CODE_1(parseBoundColumns(pCxt, &dataBuf->boundColumnInfo, getTableColumnSchema(pCxt->pTableMeta)), destroyBoundColumnInfo(&dataBuf->boundColumnInfo));
       NEXT_TOKEN(pCxt->pSql, sToken);
     }
 
@@ -861,7 +861,7 @@ int32_t parseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo) {
     .pSql = pContext->pSql,
     .msg = {.buf = pContext->pMsg, .len = pContext->msgLen},
     .pCatalog = NULL,
-    .tableMeta = {0},
+    .pTableMeta = NULL,
     .pTableBlockHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false),
     .totalNum = 0,
     .pOutput = *pInfo

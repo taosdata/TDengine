@@ -22,10 +22,11 @@
 extern "C" {
 #endif
 
-typedef struct SMemTable {
-  /* TODO */
-  SMemAllocator *pma;
-} SMemTable;
+typedef struct STsdbMemTable STsdbMemTable;
+
+STsdbMemTable *tsdbNewMemTable(SMemAllocatorFactory *pMAF);
+void           tsdbFreeMemTable(SMemAllocatorFactory *pMAF, STsdbMemTable *pMemTable);
+int            tsdbInsertDataToMemTable(STsdbMemTable *pMemTable, SSubmitMsg *pMsg);
 
 #ifdef __cplusplus
 }

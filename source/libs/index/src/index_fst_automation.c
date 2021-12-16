@@ -68,7 +68,7 @@ StartWithStateValue *startWithStateValueDump(StartWithStateValue *sv) {
 // prefix query, impl later
 
 static void* prefixStart(AutomationCtx *ctx) {  
-  StartWithStateValue *data = (StartWithStateValue *)(ctx->data);
+  StartWithStateValue *data = (StartWithStateValue *)(ctx->stdata);
   return startWithStateValueDump(data);     
 };
 static bool prefixIsMatch(AutomationCtx *ctx, void *sv) {
@@ -145,7 +145,8 @@ AutomationCtx* automCtxCreate(void *data,AutomationType atype) {
 
   StartWithStateValue *sv = NULL;
   if (atype == AUTOMATION_PREFIX) {
-    sv = startWithStateValueCreate(Running, FST_INT, 0);
+    int val = 0;
+    sv = startWithStateValueCreate(Running, FST_INT, &val);
     ctx->stdata = (void *)sv;
   } else if (atype == AUTMMATION_MATCH) {
       

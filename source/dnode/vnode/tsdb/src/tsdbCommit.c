@@ -13,23 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_HTTP_H
-#define TDENGINE_HTTP_H
+#include "tsdbDef.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <stdint.h>
-
-int32_t httpGetReqCount();
-int32_t httpInitSystem();
-int32_t httpStartSystem();
-void httpStopSystem();
-void httpCleanUpSystem();
-
-#ifdef __cplusplus
+int tsdbCommit(STsdb *pTsdb) {
+  // TODO
+  return 0;
 }
-#endif
-
-#endif
