@@ -16,6 +16,8 @@
 #ifndef _TD_TSDB_H_
 #define _TD_TSDB_H_
 
+#include "mallocator.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -25,7 +27,7 @@ typedef struct STsdb    STsdb;
 typedef struct STsdbCfg STsdbCfg;
 
 // STsdb
-STsdb *tsdbOpen(const char *path, const STsdbCfg *pTsdbCfg);
+STsdb *tsdbOpen(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF);
 void   tsdbClose(STsdb *);
 void   tsdbRemove(const char *path);
 int    tsdbInsertData(STsdb *pTsdb, SSubmitMsg *pMsg);

@@ -24,8 +24,8 @@ struct SVBufPool {
   TD_DLIST(SVMemAllocator) free;
   TD_DLIST(SVMemAllocator) incycle;
   SVMemAllocator *inuse;
-  // MAF for submodules
-  // SMemAllocatorFactory maf;
+  // MAF for submodules to use
+  SMemAllocatorFactory *pMAF;
 };
 
 int vnodeOpenBufPool(SVnode *pVnode) {
@@ -124,6 +124,8 @@ bool vnodeBufPoolIsFull(SVnode *pVnode) {
   if (pVnode->pBufPool->inuse == NULL) return false;
   return vmaIsFull(pVnode->pBufPool->inuse);
 }
+
+SMemAllocatorFactory *vBufPoolGetMAF(SVnode *pVnode) { return pVnode->pBufPool->pMAF; }
 
 #if 0
 

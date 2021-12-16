@@ -13,29 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_BUFFER_POOL_H_
-#define _TD_VNODE_BUFFER_POOL_H_
+#ifndef _TD_VNODE_MAF_H_
+#define _TD_VNODE_MAF_H_
 
-#include "tlist.h"
 #include "vnode.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SVBufPool SVBufPool;
-
-int   vnodeOpenBufPool(SVnode *pVnode);
-void  vnodeCloseBufPool(SVnode *pVnode);
-int   vnodeBufPoolSwitch(SVnode *pVnode);
-int   vnodeBufPoolRecycle(SVnode *pVnode);
-void *vnodeMalloc(SVnode *pVnode, uint64_t size);
-bool  vnodeBufPoolIsFull(SVnode *pVnode);
-
-SMemAllocatorFactory *vBufPoolGetMAF(SVnode *pVnode);
+int  vnodeOpenMAF(SVnode *pVnode);
+void vnodeCloseMAF(SVnode *pVnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_BUFFER_POOL_H_*/
+#endif /*_TD_VNODE_MAF_H_*/

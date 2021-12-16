@@ -264,7 +264,7 @@ typedef struct STQ {
 
 // open in each vnode
 STQ* tqOpen(const char* path, STqCfg* tqConfig, TqLogReader* tqLogReader, SMemAllocatorFactory *allocFac);
-void tqDestroy(STQ*);
+void tqClose(STQ*);
 
 // void* will be replace by a msg type
 int tqPushMsg(STQ*, void* msg, int64_t version);
