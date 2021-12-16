@@ -765,7 +765,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       char      buf[TSDB_TABLE_FNAME_LEN];
       SStrToken sTblToken;
       sTblToken.z = buf;
-      
+
       if (validateTableName(pToken->z, pToken->n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
@@ -788,7 +788,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       char      buf[TSDB_TABLE_FNAME_LEN];
       SStrToken sTblToken;
       sTblToken.z = buf;
-      
+
       if (validateTableName(pToken->z, pToken->n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
@@ -804,7 +804,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg1 = "invalid database name";
 
       SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
-      
+
       if (tscValidateName(pToken, false, NULL) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
