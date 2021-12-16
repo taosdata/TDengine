@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "clientInt.h"
+#include "clientLog.h"
 #include "os.h"
 #include "taosmsg.h"
 #include "tcache.h"
@@ -20,12 +22,10 @@
 #include "tglobal.h"
 #include "tnote.h"
 #include "tref.h"
-#include "tscLog.h"
+#include "trpc.h"
 #include "tsched.h"
 #include "ttime.h"
-#include "trpc.h"
 #include "ttimezone.h"
-#include "clientInt.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -35,6 +35,7 @@ int32_t    tscReqRef  = -1;
 int32_t    tscConnRef = -1;
 void      *tscQhandle = NULL;
 
+static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 int32_t tsNumOfThreads = 1;
 volatile int32_t tscInitRes = 0;
 
@@ -64,7 +65,7 @@ static void deregisterRequest(SRequestObj* pRequest) {
   SInstanceActivity* pActivity = &pTscObj->pAppInfo->summary;
 
   int32_t currentInst = atomic_sub_fetch_32(&pActivity->currentRequests, 1);
-  int32_t num   = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
+  int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
 
   tscDebug("0x%"PRIx64" free Request from connObj: 0x%"PRIx64", current:%d, app current:%d", pRequest->self, pTscObj->id, num, currentInst);
   taosReleaseRef(tscConnRef, pTscObj->id);
@@ -172,6 +173,7 @@ void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t ty
   pRequest->pTscObj    = pObj;
   pRequest->body.fp    = fp;
   pRequest->body.param = param;
+  pRequest->msgBuf     = calloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   tsem_init(&pRequest->body.rspSem, 0, 0);
 
   registerRequest(pRequest);
@@ -248,6 +250,11 @@ void taos_init_imp(void) {
   appInfo.pInstMap  = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
 
   tscDebug("client is initialized successfully");
+}
+
+int taos_init() {
+  pthread_once(&tscinit, taos_init_imp);
+  return tscInitRes;
 }
 
 int taos_options_imp(TSDB_OPTION option, const char *str) {

@@ -25,9 +25,9 @@ extern "C" {
 
 
 STqMetaStore*  tqStoreOpen(const char* path,
-    TqSerializeFun   pSerializer,
-    TqDeserializeFun pDeserializer,
-    TqDeleteFun      pDeleter,
+    FTqSerialize   pSerializer,
+    FTqDeserialize pDeserializer,
+    FTqDelete      pDeleter,
     int32_t          tqConfigFlag
   );
 int32_t       tqStoreClose(STqMetaStore*);
