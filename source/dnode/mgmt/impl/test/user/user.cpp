@@ -1,9 +1,9 @@
 /**
  * @file vnodeApiTests.cpp
  * @author slguan (slguan@taosdata.com)
- * @brief DNODE module API tests
+ * @brief DNODE module user-msg tests
  * @version 0.1
- * @date 2021-12-12
+ * @date 2021-12-15
  *
  * @copyright Copyright (c) 2021
  *
