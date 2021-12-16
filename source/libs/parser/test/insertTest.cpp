@@ -27,6 +27,27 @@ namespace {
   }
 }
 
+extern "C" {
+
+#include <execinfo.h>
+
+void *__real_malloc(size_t);
+
+void *__wrap_malloc(size_t c) {  
+  // printf("My MALLOC called: %d\n", c);
+  // void *array[32]; 
+  // int size = backtrace(array, 32); 
+  // char **symbols = backtrace_symbols(array, size); 
+  // for (int i = 0; i < size; ++i) { 
+  //   cout << symbols[i] << endl;
+  // } 
+  // free(symbols); 
+
+  return __real_malloc(c);
+}
+
+}
+
 // syntax:
 // INSERT INTO
 //   tb_name

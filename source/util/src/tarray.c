@@ -17,7 +17,7 @@
 #include "tarray.h"
 #include "talgo.h"
 
-void* taosArrayInit(size_t size, size_t elemSize) {
+SArray* taosArrayInit(size_t size, size_t elemSize) {
   assert(elemSize > 0);
 
   if (size < TARRAY_MIN_SIZE) {
