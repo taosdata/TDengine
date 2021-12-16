@@ -1,4 +1,4 @@
-deploy_mode: auto
+deploy_mode: no
 taosd_autodeploy: False
 install_package: /home/ubuntu/TDengine/release/TDengine-server-2.3.4.0-beta-Linux-x64.tar.gz
 clean_env: True
@@ -79,26 +79,215 @@ jmeter:
   jmeter_addr: https://dlcdn.apache.org//jmeter/binaries/apache-jmeter-5.4.1.tgz
 
 testcases:
-  testcase1:
-    threads: 24
-    protocol: telnet-tcp
-    taosadapter_count: 1
-    stb_count: 1
-    tb_count: 10
-    row_count: 100
-    sleep_time: 0s
-    tag_count: 10
-    col_count: 1
-  # testcase2:
+  # testcase1:
   #   threads: 24
   #   protocol: telnet-restful
   #   taosadapter_count: 1
   #   stb_count: 1
-  #   tb_count: 10
-  #   row_count: 1000
-  #   sleep_time: 0s
+  #   tb_count: 1
+  #   row_count: 3000000
+  #   sleep_time: 60s
   #   tag_count: 10
   #   col_count: 1
+  # testcase2:
+  #   threads: 32
+  #   protocol: telnet-restful
+  #   taosadapter_count: 1
+  #   stb_count: 1
+  #   tb_count: 1
+  #   row_count: 3000000
+  #   sleep_time: 60s
+  #   tag_count: 10
+  #   col_count: 1
+  # testcase3:
+  #   threads: 64
+  #   protocol: telnet-restful
+  #   taosadapter_count: 1
+  #   stb_count: 1
+  #   tb_count: 1
+  #   row_count: 3000000
+  #   sleep_time: 60s
+  #   tag_count: 10
+  #   col_count: 1
+  # testcase4:
+  #   threads: 100
+  #   protocol: telnet-restful
+  #   taosadapter_count: 1
+  #   stb_count: 1
+  #   tb_count: 1
+  #   row_count: 5000000
+  #   sleep_time: 60s
+  #   tag_count: 10
+  #   col_count: 1
+  
+  # testcase5:
+  #   threads: 100
+  #   protocol: telnet-restful
+  #   taosadapter_count: 2
+  #   stb_count: 1
+  #   tb_count: 1
+  #   row_count: 5000000
+  #   sleep_time: 60s
+  #   tag_count: 10
+  #   col_count: 1
+  # testcase6:
+  #   threads: 100
+  #   protocol: telnet-restful
+  #   taosadapter_count: 3
+  #   stb_count: 1
+  #   tb_count: 1
+  #   row_count: 5000000
+  #   sleep_time: 60s
+  #   tag_count: 10
+  #   col_count: 1
+
+  # testcase7:
+  #   threads: 100
+  #   protocol: telnet-restful
+  #   taosadapter_count: 1
+  #   stb_count: 1000000
+  #   tb_count: 1
+  #   row_count: 1
+  #   sleep_time: 60s
+  #   tag_count: 10
+  #   col_count: 1
+  # testcase8:
+  #   threads: 100
+  #   protocol: telnet-restful
+  #   taosadapter_count: 1
+  #   stb_count: 1
+  #   tb_count: 5000000
+  #   row_count: 1
+  #   sleep_time: 60s
+  #   tag_count: 10
+  #   col_count: 1
+
+  # testcase9:
+  #   threads: 100
+  #   protocol: telnet-restful
+  #   taosadapter_count: 1
+  #   stb_count: 1
+  #   tb_count: 100000
+  #   row_count: 1000
+  #   sleep_time: 60s
+  #   tag_count: 10
+  #   col_count: 1
+
+  # testcase10:
+  #   threads: 100
+  #   protocol: telnet-restful
+  #   taosadapter_count: 1
+  #   stb_count: 1
+  #   tb_count: 10
+  #   row_count: 10000000
+  #   sleep_time: 60s
+  #   tag_count: 10
+  #   col_count: 1
+  testcase11:
+    threads: 24
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 3000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase12:
+    threads: 32
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 3000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase13:
+    threads: 64
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 3000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase14:
+    threads: 100
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 5000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  
+  testcase15:
+    threads: 100
+    protocol: json
+    taosadapter_count: 2
+    stb_count: 1
+    tb_count: 1
+    row_count: 5000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase16:
+    threads: 100
+    protocol: json
+    taosadapter_count: 3
+    stb_count: 1
+    tb_count: 1
+    row_count: 5000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+
+  testcase17:
+    threads: 100
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1000000
+    tb_count: 1
+    row_count: 1
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase18:
+    threads: 100
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 5000000
+    row_count: 1
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+
+  testcase19:
+    threads: 100
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 100000
+    row_count: 1000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+
+  testcase20:
+    threads: 100
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 10
+    row_count: 10000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+
   
 
 

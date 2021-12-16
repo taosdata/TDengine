@@ -4,6 +4,7 @@ from config.env_init import *
 import shutil
 import threading
 import time
+import json
 class Common:
     def __init__(self):
         self.ip_list = list()
@@ -26,6 +27,12 @@ class Common:
                 tag_str += f't{i}={i}'
         return tag_str
 
+    def genJsonMulTagDict(self, count):
+        tag_dict = dict()
+        for i in range(1, count):
+            tag_dict[f"t{i}"] = f"{i}"
+        return tag_dict
+        
     def genProtocolLine(self, protocol, tag_count, col_count=None):
         if protocol == "telnet-restful":
             base_str = 'stb_${stb_csv_count} ${row_csv_count} 32.261068286779754 t0=${tb_csv_count} '
@@ -38,25 +45,16 @@ class Common:
             telnet_line = base_str + tag_str + '${__unescape(\r\n)}'
             return telnet_line
         elif protocol == "json":
-            # TODO
-            pass
+            base_tag_dict = {"t0":"${tb_csv_count}"}
+            dict_merged = base_tag_dict.copy()
+            dict_merged.update(self.genJsonMulTagDict(tag_count))
+            json_line = '{"metric": "stb_${stb_csv_count}", "timestamp":${row_csv_count}, "value":32.261068286779754, ' + f'"tags": {dict_merged}' + '}'
+            return json_line.replace('\'','"')
         elif protocol == "influxdb":
             # TODO
             pass
         else:
             pass
-
-    # def genTelnetLine(self, tag_count):
-    #     base_str = 'stb_${stb_csv_count} ${row_csv_count} 32.261068286779754 t0=0 '
-
-    #     tag_str = self.genTelnetMulTagStr(tag_count)
-    #     stb_line = "stb_${stb_counter} " + "1626006833640 " + "32.261068286779754 " + tag_str
-    #     ltag = tag_str.split("=")
-    #     ltag[-1] = "${tb_counter}"
-    #     stag = '='.join(ltag)
-    #     tb_line = "stb_${stb_counter} " + "1626006833640 " + "32.261068286779754 " + stag
-    #     row_line = "stb_${stb_counter} " + "${ts_counter} " + "32.261068286779754 " + stag
-    #     return stb_line, tb_line, row_line
 
     def genMixStbTbRows(self, filename, stb_count, tb_count, row_count):
         if stb_count == 0:
@@ -65,7 +63,7 @@ class Common:
             tb_count = 1
         if row_count == 0:
             row_count = 1
-        logger.info('generating import data file')
+        logger.info(f'generating import data file: {filename}')
         ts_start = 1614530008000
         with open(filename, "w", encoding="utf-8") as f_w:
             for k in range(stb_count):
@@ -78,9 +76,14 @@ class Common:
     def genJmxFile(self, testcase):
         des_jmx_file_list = list()
         base_jmx_file = os.path.join(self.current_dir, '../../config/taosadapter_performance_test.jmx')
+        count_flag = 0
         if config["taosadapter_separate_deploy"]:
             for key in config:
                 if "taosd_dnode" in str(key) and "taosd_dnode1" not in str(key):
+                    if count_flag < int(config['testcases'][testcase]['taosadapter_count']):
+                        count_flag += 1
+                    else:
+                        break
                     des_jmx_file = os.path.join(self.current_dir, f'../../config/{testcase}_{key}.jmx')
                     shutil.copyfile(base_jmx_file, des_jmx_file)
                     with open(des_jmx_file, 'r', encoding='utf-8') as f:
@@ -135,7 +138,7 @@ class Common:
             recreate jmeter report path
         '''
         if os.path.exists(path):
-            self.exec_local_cmd(f'rm -rf {path}/*')
+            self.exec_local_cmd(f'ls {path} | grep -v performance_ | xargs rm -rf')
         else:
             os.makedirs(path)
 
@@ -167,14 +170,11 @@ class Common:
             t.join()
 
     def runJmeter(self):
-        # self.exec_local_cmd(f'ls {self.log_dir} | grep -v performance | xargs rm -rf')
         for key, value in config['testcases'].items():
             jmx_file_list = list()
             logger.info(f'executing {key}')
-            # if config["taosadapter_separate_deploy"]:
-            for jmx_file in self.genJmxFile(key):
+            for jmx_file in self.genJmxFile(key)[:value["taosadapter_count"]]:
                 jmx_filename = jmx_file.split('/')[-1]
-                # jmx_filename = key + "_" + jmx_filename
                 import_file_name = jmx_filename.replace('jmx', 'txt')
                 import_file = os.path.join(self.current_dir, f'../../config/{import_file_name}')
                 loop_count = self.getLoopCount(value["stb_count"], value["tb_count"], value["row_count"], value["threads"])
@@ -186,7 +186,7 @@ class Common:
                         if value['protocol'] == 'telnet-tcp':
                             if "telnet_tcp_status" in line:
                                 line = line.replace("telnet_tcp_status", "true")
-                        if value['protocol'] == 'telnet-restful':
+                        if value['protocol'] == 'telnet-restful' or value['protocol'] == 'json':
                             if "drop_db_status" in line:
                                 line = line.replace("drop_db_status", "true")
                             if "create_db_status" in line:
@@ -194,7 +194,12 @@ class Common:
                             if "telnet_restful_status" in line:
                                 line = line.replace("telnet_restful_status", "true")
                             if "line_protocol" in line:
-                                line = line.replace("line_protocol", 'telnet')
+                                if value['protocol'] == 'telnet-restful':
+                                    line = line.replace("line_protocol", 'telnet')
+                                elif value['protocol'] == 'json':
+                                    line = line.replace("line_protocol", 'json')
+                                else:
+                                    pass
                             if "db_name" in line:
                                 db_name = jmx_filename.split('.')[0]
                                 line = line.replace("db_name", db_name)
