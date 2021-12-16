@@ -2759,7 +2759,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       if (pItem->pNode->Expr.paramList == NULL ||
           (functionId != TSDB_FUNC_LEASTSQR && functionId != TSDB_FUNC_DERIVATIVE && functionId != TSDB_FUNC_ELAPSED && numOfParams != 1) ||
           ((functionId == TSDB_FUNC_LEASTSQR || functionId == TSDB_FUNC_DERIVATIVE) && numOfParams != 3) ||
-          (functionId == TSDB_FUNC_ELAPSED && numOfParams > 2)) {
+          (functionId == TSDB_FUNC_ELAPSED && numOfParams != 1 && numOfParams != 2)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
