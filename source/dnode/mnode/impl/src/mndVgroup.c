@@ -24,8 +24,6 @@
 #define TSDB_VGROUP_VER_NUM 1
 #define TSDB_VGROUP_RESERVE_SIZE 64
 
-static SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup);
-static SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw);
 static int32_t  mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
 static int32_t  mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
 static int32_t  mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup);
@@ -70,8 +68,8 @@ int32_t mndInitVgroup(SMnode *pMnode) {
 
 void mndCleanupVgroup(SMnode *pMnode) {}
 
-static SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_VGROUP_VER_NUM, sizeof(SVgObj) + TSDB_VGROUP_RESERVE_SIZE);
+SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_VGROUP, TSDB_VGROUP_VER_NUM, sizeof(SVgObj) + TSDB_VGROUP_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
@@ -94,7 +92,7 @@ static SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
   return pRaw;
 }
 
-static SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
+SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
@@ -217,7 +215,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
 
   for (int32_t v = 0; v < pDb->numOfVgroups; v++) {
     SVgObj *pVgroup = &pVgroups[v];
-    pVgroup->vgId == maxVgId++;
+    pVgroup->vgId = maxVgId++;
     pVgroup->createdTime = taosGetTimestampMs();
     pVgroup->updateTime = pVgroups->createdTime;
     pVgroup->version = 0;

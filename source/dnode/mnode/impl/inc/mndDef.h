@@ -188,8 +188,8 @@ typedef struct {
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
-  int32_t minRowsPerFileBlock;
-  int32_t maxRowsPerFileBlock;
+  int32_t minRows;
+  int32_t maxRows;
   int32_t commitTime;
   int32_t fsyncPeriod;
   int8_t  walLevel;
