@@ -20,50 +20,7 @@
 
 SCatalogMgmt ctgMgmt = {0};
 
-int32_t ctgGetVgroupFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, SVgroupListInfo** pVgroup) {
-  char *msg = NULL;
-  SEpSet *pVnodeEpSet = NULL;
-  int32_t msgLen = 0;
-
-  int32_t code = queryBuildMsg[TSDB_MSG_TYPE_VGROUP_LIST](NULL, &msg, 0, &msgLen);
-  if (code) {
-    return code;
-  }
-
-  SRpcMsg rpcMsg = {
-      .msgType = TSDB_MSG_TYPE_VGROUP_LIST,
-      .pCont   = msg,
-      .contLen = msgLen,
-  };
-
-  SRpcMsg rpcRsp = {0};
-
-  rpcSendRecv(pRpc, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
-
-  code = queryProcessMsgRsp[TSDB_MSG_TYPE_VGROUP_LIST](pVgroup, rpcRsp.pCont, rpcRsp.contLen);
-  if (code) {
-    return code;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t ctgGetVgroupFromCache(struct SCatalog* pCatalog, SHashObj** pVgroupList, int32_t* exist) {
-  if (NULL == pCatalog->vgroupCache.cache || pCatalog->vgroupCache.vgroupVersion < 0) {
-    *exist = 0;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (pVgroupList) {
-    *pVgroupList = pCatalog->vgroupCache.cache;
-  }
-
-  *exist = 1;
-  
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t ctgGetDBVgroupFromCache(struct SCatalog* pCatalog, const char *dbName, SDBVgroupInfo **dbInfo, int32_t *exist) {
+int32_t ctgGetDBVgroupFromCache(struct SCatalog* pCatalog, const char *dbName, SDBVgroupInfo *dbInfo, int32_t *exist) {
   if (NULL == pCatalog->dbCache.cache) {
     *exist = 0;
     return TSDB_CODE_SUCCESS;
@@ -71,28 +28,13 @@ int32_t ctgGetDBVgroupFromCache(struct SCatalog* pCatalog, const char *dbName, S
 
   SDBVgroupInfo *info = taosHashGet(pCatalog->dbCache.cache, dbName, strlen(dbName));
 
-  if (NULL == info || info->vgroupVersion < pCatalog->vgroupCache.vgroupVersion) {
+  if (NULL == info) {
     *exist = 0;
     return TSDB_CODE_SUCCESS;
   }
 
   if (dbInfo) {
-    *dbInfo = calloc(1, sizeof(**dbInfo));
-    if (NULL == *dbInfo) {
-      ctgError("calloc size[%d] failed", (int32_t)sizeof(**dbInfo));
-      return TSDB_CODE_CTG_MEM_ERROR;
-    }
-    
-    (*dbInfo)->vgId = taosArrayDup(info->vgId);
-    if (NULL == (*dbInfo)->vgId) {
-      ctgError("taos array duplicate failed");
-      tfree(*dbInfo);
-      return TSDB_CODE_CTG_MEM_ERROR;
-    }
-
-    (*dbInfo)->vgroupVersion = info->vgroupVersion;
-    (*dbInfo)->hashRange = info->hashRange;
-    (*dbInfo)->hashType = info->hashType;
+    *dbInfo = *info;
   }
 
   *exist = 1;
@@ -242,8 +184,8 @@ int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SE
 }
 
 
-int32_t ctgGetHashFunction(int32_t hashType, tableNameHashFp *fp) {
-  switch (hashType) {
+int32_t ctgGetHashFunction(int8_t hashMethod, tableNameHashFp *fp) {
+  switch (hashMethod) {
     default:
       *fp = MurmurHash3_32;
       break;
@@ -252,96 +194,79 @@ int32_t ctgGetHashFunction(int32_t hashType, tableNameHashFp *fp) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetVgroupFromVgId(struct SCatalog *pCatalog, void *pRpc, const SEpSet *pMgmtEps, int32_t vgId, SVgroupInfo *pVgroup) {
+int32_t ctgGetVgInfoFromDB(struct SCatalog *pCatalog, void *pRpc, const SEpSet *pMgmtEps, SDBVgroupInfo *dbInfo, SArray* vgroupList) {
   SHashObj *vgroupHash = NULL;
-  
-  CTG_ERR_RET(catalogGetVgroup(pCatalog, pRpc, pMgmtEps, &vgroupHash));
-  if (NULL == vgroupHash) {
-    ctgError("get empty vgroup cache");
-    return TSDB_CODE_CTG_INTERNAL_ERROR;    
-  }
+  SVgroupInfo *vgInfo = NULL;
 
-  if (NULL == taosHashGetClone(vgroupHash, &vgId, sizeof(vgId), pVgroup)) {
-    ctgError("vgId[%d] not found in vgroup list", vgId);
-    return TSDB_CODE_CTG_INTERNAL_ERROR;    
-  }
+  void *pIter = taosHashIterate(dbInfo->vgInfo, NULL);
+  while (pIter) {
+    vgInfo = pIter;
 
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t ctgGetVgroupFromVgIdBatch(struct SCatalog *pCatalog, void *pRpc, const SEpSet *pMgmtEps, SArray* vgIds, SArray* vgroupList) {
-  SHashObj *vgroupHash = NULL;
-  SVgroupInfo pVgroup = {0};
-  int32_t vgIdNum = taosArrayGetSize(vgIds);
-  
-  CTG_ERR_RET(catalogGetVgroup(pCatalog, pRpc, pMgmtEps, &vgroupHash));
-  if (NULL == vgroupHash) {
-    ctgError("get empty vgroup cache");
-    return TSDB_CODE_CTG_INTERNAL_ERROR;    
-  }
-
-  for (int32_t i = 0; i < vgIdNum; ++i) {
-    int32_t *vgId = taosArrayGet(vgIds, i);
+    if (NULL == taosArrayPush(vgroupList, vgInfo)) {
+      ctgError("taosArrayPush failed");
+      break;
+    }
     
-    if (NULL == taosHashGetClone(vgroupHash, vgId, sizeof(*vgId), &pVgroup)) {
-      ctgError("vgId[%d] not found in vgroup list", vgId);
-      return TSDB_CODE_CTG_INTERNAL_ERROR;    
-    }
-
-    if (NULL == taosArrayPush(vgroupList, &pVgroup)) {
-      ctgError("push vgroup to array failed, idx:%d", i);
-      return TSDB_CODE_CTG_INTERNAL_ERROR;    
-    }
+    pIter = taosHashIterate(dbInfo->vgInfo, pIter);
+    vgInfo = NULL;
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-
-
-int32_t ctgGetTableHashVgroup(struct SCatalog *pCatalog, void *pRpc, const SEpSet *pMgmtEps, const char *pDBName, const char *pTableName, SVgroupInfo *pVgroup) {
-  SDBVgroupInfo *dbInfo = NULL;
-  int32_t code = 0;
-
-  CTG_ERR_RET(catalogGetDBVgroup(pCatalog, pRpc, pMgmtEps, pDBName, false, &dbInfo));
-
-  if (NULL == dbInfo) {
-    ctgWarn("db[%s] vgroup info not found", pDBName);
+int32_t ctgGetVgInfoFromHashValue(SDBVgroupInfo *dbInfo, const char *pDBName, const char *pTableName, SVgroupInfo *pVgroup) {
+  int32_t vgNum = taosHashGetSize(dbInfo->vgInfo);
+  if (vgNum <= 0) {
+    ctgError("db[%s] vgroup cache invalid, vgroup number:%d", pDBName, vgNum);
     return TSDB_CODE_TSC_DB_NOT_SELECTED;
   }
 
-  if (dbInfo->vgroupVersion < 0 || NULL == dbInfo->vgId) {
-    ctgError("db[%s] vgroup cache invalid, vgroup version:%d, vgId:%p", pDBName, dbInfo->vgroupVersion, dbInfo->vgId);
-    CTG_ERR_JRET(TSDB_CODE_TSC_DB_NOT_SELECTED);
-  }
-
-  int32_t vgNum = taosArrayGetSize(dbInfo->vgId);
-  if (vgNum <= 0) {
-    ctgError("db[%s] vgroup cache invalid, vgroup number:%d", pDBName, vgNum);
-    CTG_ERR_JRET(TSDB_CODE_TSC_DB_NOT_SELECTED);
-  }
-
   tableNameHashFp fp = NULL;
+  SVgroupInfo *vgInfo = NULL;
 
-  CTG_ERR_JRET(ctgGetHashFunction(dbInfo->hashType, &fp));
+  CTG_ERR_RET(ctgGetHashFunction(dbInfo->hashMethod, &fp));
 
   char tbFullName[TSDB_TABLE_FNAME_LEN];
 
   snprintf(tbFullName, sizeof(tbFullName), "%s.%s", pDBName, pTableName);
 
   uint32_t hashValue = (*fp)(tbFullName, (uint32_t)strlen(tbFullName));
-  uint32_t hashUnit = dbInfo->hashRange / vgNum;
-  uint32_t vgId = hashValue / hashUnit;
 
-  CTG_ERR_JRET(ctgGetVgroupFromVgId(pCatalog, pRpc, pMgmtEps, vgId, pVgroup));
-
-_return:
-  if (dbInfo && dbInfo->vgId) {
-    taosArrayDestroy(dbInfo->vgId);
-    dbInfo->vgId = NULL;
+  void *pIter = taosHashIterate(dbInfo->vgInfo, NULL);
+  while (pIter) {
+    vgInfo = pIter;
+    if (hashValue >= vgInfo->hashBegin && hashValue <= vgInfo->hashEnd) {
+      break;
+    }
+    
+    pIter = taosHashIterate(dbInfo->vgInfo, pIter);
+    vgInfo = NULL;
   }
-  
-  tfree(dbInfo);
+
+  if (NULL == vgInfo) {
+    ctgError("no hash range found for hashvalue[%u]", hashValue);
+    return TSDB_CODE_CTG_INTERNAL_ERROR;
+  }
+
+  *pVgroup = *vgInfo;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t ctgGetTableHashVgroup(struct SCatalog *pCatalog, void *pRpc, const SEpSet *pMgmtEps, const char *pDBName, const char *pTableName, SVgroupInfo *pVgroup) {
+  SDBVgroupInfo dbInfo = {0};
+  int32_t code = 0;
+  int32_t vgId = 0;
+
+  CTG_ERR_RET(catalogGetDBVgroup(pCatalog, pRpc, pMgmtEps, pDBName, false, &dbInfo));
+
+  if (dbInfo.vgVersion < 0 || NULL == dbInfo.vgInfo) {
+    ctgError("db[%s] vgroup cache invalid, vgroup version:%d, vgInfo:%p", pDBName, dbInfo.vgVersion, dbInfo.vgInfo);
+    return TSDB_CODE_TSC_DB_NOT_SELECTED;
+  }
+
+  CTG_ERR_RET(ctgGetVgInfoFromHashValue(&dbInfo, pDBName, pTableName, pVgroup));
 
   return code;
 }
@@ -524,95 +449,6 @@ int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle)
   return TSDB_CODE_SUCCESS;
 }
 
-
-int32_t catalogGetVgroupVersion(struct SCatalog* pCatalog, int32_t* version) {
-  if (NULL == pCatalog || NULL == version) {
-    return TSDB_CODE_CTG_INVALID_INPUT;
-  }
-  
-  *version = pCatalog->vgroupCache.vgroupVersion;
-
-  return TSDB_CODE_SUCCESS;
-}
-
-
-
-int32_t catalogUpdateVgroupCache(struct SCatalog* pCatalog, SVgroupListInfo* pVgroup) {
-  if (NULL == pVgroup) {
-    ctgError("no valid vgroup list info to update");
-    return TSDB_CODE_CTG_INTERNAL_ERROR;
-  }
-
-  if (pVgroup->vgroupVersion < 0) {
-    ctgError("vgroup version[%d] is invalid", pVgroup->vgroupVersion);
-    return TSDB_CODE_CTG_INVALID_INPUT;
-  }
-
-  if (NULL == pCatalog->vgroupCache.cache) {
-    pCatalog->vgroupCache.cache = taosHashInit(CTG_DEFAULT_CACHE_VGROUP_NUMBER, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-    if (NULL == pCatalog->vgroupCache.cache) {
-      ctgError("init hash[%d] for cluster cache failed", CTG_DEFAULT_CACHE_VGROUP_NUMBER);
-      return TSDB_CODE_CTG_MEM_ERROR;
-    }
-  } else {
-    taosHashClear(pCatalog->vgroupCache.cache);
-  }
-
-  SVgroupInfo *vInfo = NULL;
-  for (int32_t i = 0; i < pVgroup->vgroupNum; ++i) {
-    if (taosHashPut(pCatalog->vgroupCache.cache, &pVgroup->vgroupInfo[i].vgId, sizeof(pVgroup->vgroupInfo[i].vgId), &pVgroup->vgroupInfo[i], sizeof(pVgroup->vgroupInfo[i])) != 0) {
-      ctgError("push to vgroup hash cache failed");
-      goto error_exit;
-    }
-  }
-
-  pCatalog->vgroupCache.vgroupVersion = pVgroup->vgroupVersion;
-
-  return TSDB_CODE_SUCCESS;
-
-error_exit:
-  if (pCatalog->vgroupCache.cache) {
-    taosHashCleanup(pCatalog->vgroupCache.cache);
-    pCatalog->vgroupCache.cache = NULL;
-  }
-
-  pCatalog->vgroupCache.vgroupVersion = CTG_DEFAULT_INVALID_VERSION;
-
-  return TSDB_CODE_CTG_INTERNAL_ERROR;
-}
-
-int32_t catalogGetVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, SHashObj** pVgroupHash) {
-  if (NULL == pCatalog || NULL == pMgmtEps || NULL == pRpc) {
-    return TSDB_CODE_CTG_INVALID_INPUT;
-  }
-
-  int32_t exist = 0;
-  
-  CTG_ERR_RET(ctgGetVgroupFromCache(pCatalog, pVgroupHash, &exist));
-
-  if (exist) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SVgroupListInfo *pVgroup = NULL;
-  
-  CTG_ERR_RET(ctgGetVgroupFromMnode(pCatalog, pRpc, pMgmtEps, &pVgroup));
-
-  CTG_ERR_RET(catalogUpdateVgroupCache(pCatalog, pVgroup));
-
-  if (pVgroupHash) {
-    CTG_ERR_RET(ctgGetVgroupFromCache(pCatalog, pVgroupHash, &exist));
-  }
-
-  if (0 == exist) {
-    ctgError("catalog fetched but get from cache failed");
-    return TSDB_CODE_CTG_INTERNAL_ERROR;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-
 int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName, int32_t* version) {
   if (NULL == pCatalog || NULL == dbName || NULL == version) {
     return TSDB_CODE_CTG_INVALID_INPUT;
@@ -629,7 +465,7 @@ int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName,
     return TSDB_CODE_SUCCESS;
   }
 
-  *version = dbInfo->vgroupVersion;
+  *version = dbInfo->vgVersion;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -639,7 +475,7 @@ int32_t catalogUpdateDBVgroupCache(struct SCatalog* pCatalog, const char* dbName
     return TSDB_CODE_CTG_INVALID_INPUT;
   }
 
-  if (dbInfo->vgroupVersion < 0) {
+  if (dbInfo->vgVersion < 0) {
     if (pCatalog->dbCache.cache) {
       taosHashRemove(pCatalog->dbCache.cache, dbName, strlen(dbName));
     }
@@ -654,6 +490,12 @@ int32_t catalogUpdateDBVgroupCache(struct SCatalog* pCatalog, const char* dbName
       ctgError("init hash[%d] for db cache failed", CTG_DEFAULT_CACHE_DB_NUMBER);
       return TSDB_CODE_CTG_MEM_ERROR;
     }
+  } else {
+    SDBVgroupInfo *oldInfo = taosHashGet(pCatalog->dbCache.cache, dbName, strlen(dbName));
+    if (oldInfo && oldInfo->vgInfo) {
+      taosHashCleanup(oldInfo->vgInfo);
+      oldInfo->vgInfo = NULL;
+    }
   }
 
   if (taosHashPut(pCatalog->dbCache.cache, dbName, strlen(dbName), dbInfo, sizeof(*dbInfo)) != 0) {
@@ -667,7 +509,7 @@ int32_t catalogUpdateDBVgroupCache(struct SCatalog* pCatalog, const char* dbName
 
 
 
-int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* dbName, int32_t forceUpdate, SDBVgroupInfo** dbInfo) {
+int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* dbName, int32_t forceUpdate, SDBVgroupInfo* dbInfo) {
   if (NULL == pCatalog || NULL == dbName || NULL == pRpc || NULL == pMgmtEps) {
     return TSDB_CODE_CTG_INVALID_INPUT;
   }
@@ -688,27 +530,15 @@ int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* 
 
   strncpy(input.db, dbName, sizeof(input.db));
   input.db[sizeof(input.db) - 1] = 0;
-  input.vgroupVersion = pCatalog->vgroupCache.vgroupVersion;
-  input.dbGroupVersion = CTG_DEFAULT_INVALID_VERSION;
+  input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
   
   CTG_ERR_RET(ctgGetDBVgroupFromMnode(pCatalog, pRpc, pMgmtEps, &input, &DbOut));
 
-  if (DbOut.vgroupList) {
-    CTG_ERR_JRET(catalogUpdateVgroupCache(pCatalog, DbOut.vgroupList));
-  }
-
-  if (DbOut.dbVgroup) {
-    CTG_ERR_JRET(catalogUpdateDBVgroupCache(pCatalog, dbName, DbOut.dbVgroup));
-  }
+  CTG_ERR_RET(catalogUpdateDBVgroupCache(pCatalog, dbName, &DbOut.dbVgroup));
 
   if (dbInfo) {
     *dbInfo = DbOut.dbVgroup;
-    DbOut.dbVgroup = NULL;
   }
-
-_return:
-  tfree(DbOut.dbVgroup);
-  tfree(DbOut.vgroupList);
 
   return code;
 }
@@ -749,16 +579,20 @@ int32_t catalogGetTableVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSe
   STableMeta *tbMeta = NULL;
   int32_t code = 0;
   SVgroupInfo vgroupInfo = {0};
-  SDBVgroupInfo *dbVgroup = NULL;
+  SDBVgroupInfo dbVgroup = {0};
   
   CTG_ERR_JRET(catalogGetTableMeta(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, &tbMeta));
 
-  if (tbMeta->tableType == TSDB_SUPER_TABLE) {
-    CTG_ERR_JRET(catalogGetDBVgroup(pCatalog, pRpc, pMgmtEps, pDBName, false, &dbVgroup));
+  CTG_ERR_JRET(catalogGetDBVgroup(pCatalog, pRpc, pMgmtEps, pDBName, false, &dbVgroup));
 
-    CTG_ERR_JRET(ctgGetVgroupFromVgIdBatch(pCatalog, pRpc, pMgmtEps, dbVgroup->vgId, pVgroupList));
+  if (tbMeta->tableType == TSDB_SUPER_TABLE) {
+    CTG_ERR_JRET(ctgGetVgInfoFromDB(pCatalog, pRpc, pMgmtEps, &dbVgroup, pVgroupList));
   } else {
-    CTG_ERR_JRET(ctgGetVgroupFromVgId(pCatalog, pRpc, pMgmtEps, tbMeta->vgId, &vgroupInfo));
+    int32_t vgId = tbMeta->vgId;
+    if (NULL == taosHashGetClone(dbVgroup.vgInfo, &vgId, sizeof(vgId), &vgroupInfo)) {
+      ctgError("vgId[%d] not found in vgroup list", vgId);
+      return TSDB_CODE_CTG_INTERNAL_ERROR;    
+    }
 
     if (NULL == taosArrayPush(pVgroupList, &vgroupInfo)) {
       ctgError("push vgroupInfo to array failed");
@@ -768,12 +602,6 @@ int32_t catalogGetTableVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSe
 
 _return:
   tfree(tbMeta);
-  if (dbVgroup && dbVgroup->vgId) {
-    taosArrayDestroy(dbVgroup->vgId);
-    dbVgroup->vgId = NULL;
-  }
-  
-  tfree(dbVgroup);
   
   return code;
 }
