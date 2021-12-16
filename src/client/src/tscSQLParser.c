@@ -1092,7 +1092,7 @@ static int32_t addPrimaryTsColumnForTimeWindowQuery(SQueryInfo* pQueryInfo, SSql
   tstrncpy(s.name, aAggs[TSDB_FUNC_TS].name, sizeof(s.name));
 
   SColumnIndex index = {tableIndex, PRIMARYKEY_TIMESTAMP_COL_INDEX};
-  tscAddFuncInSelectClause(pQueryInfo, 0, TSDB_FUNC_TS, &index, &s, TSDB_COL_NORMAL, getNewResColId(pCmd));
+  tscAddFuncInSelectClause(pQueryInfo, 0, TSDB_FUNC_TS, &index, &s, TSDB_COL_NORMAL, 0);
   return TSDB_CODE_SUCCESS;
 }
 
