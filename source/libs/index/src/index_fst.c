@@ -1330,7 +1330,7 @@ StreamWithStateResult *streamWithStateNextWith(StreamWithState *sws, StreamCallb
   SArray *nodes = taosArrayInit(8, sizeof(FstNode *));  
   while (taosArrayGetSize(sws->stack) > 0) {
     StreamState *p = (StreamState *)taosArrayPop(sws->stack);     
-    if (p->trans >= FST_NODE_LEN(p->node) || automFuncs[aut->type].canMatch(aut, p->autState)) {
+    if (p->trans >= FST_NODE_LEN(p->node) || !automFuncs[aut->type].canMatch(aut, p->autState)) {
       if (FST_NODE_ADDR(p->node) != fstGetRootAddr(sws->fst)) {
         taosArrayPop(sws->inp);
       }
