@@ -221,8 +221,7 @@ typedef struct SBuildTableMetaInput {
 
 typedef struct SBuildUseDBInput {
   char    db[TSDB_TABLE_FNAME_LEN];
-  int32_t vgroupVersion;
-  int32_t dbGroupVersion;
+  int32_t vgVersion;
 } SBuildUseDBInput;
 
 
@@ -627,8 +626,7 @@ typedef struct {
 typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];
   int8_t  ignoreNotExists;
-  int32_t vgroupVersion;
-  int32_t dbGroupVersion;
+  int32_t vgVersion;
   int32_t reserve[8];
 } SUseDbMsg;
 
@@ -808,6 +806,9 @@ typedef struct SSTableVgroupMsg {
 
 typedef struct SVgroupInfo {
   int32_t    vgId;
+  int32_t    hashBegin;
+  int32_t    hashEnd;
+  int8_t     inUse;
   int8_t     numOfEps;
   SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
 } SVgroupInfo;
@@ -841,7 +842,7 @@ typedef struct {
   int32_t    tversion;
   uint64_t   tuid;
   uint64_t   suid;
-  SVgroupMsg vgroup;
+  int32_t    vgId;
   SSchema    pSchema[];
 } STableMetaMsg;
 
@@ -863,15 +864,12 @@ typedef struct {
 } STagData;
 
 typedef struct {
-  int32_t     vgroupNum;
-  int32_t     vgroupVersion;
-  char        db[TSDB_TABLE_FNAME_LEN];
-  int32_t     dbVgroupVersion;
-  int32_t     dbVgroupNum;
-  int32_t     dbHashRange;
+  char        db[TSDB_FULL_DB_NAME_LEN];
+  int32_t     vgVersion;
+  int32_t     vgNum;  
+  int8_t      hashMethod;
   SVgroupInfo vgroupInfo[];
-//int32_t     vgIdList[];
-} SUseDbRspMsg;
+} SUseDbRsp;
 
 
 

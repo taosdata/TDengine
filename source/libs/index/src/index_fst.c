@@ -1094,6 +1094,10 @@ bool fstGet(Fst *fst, FstSlice *b, Output *out) {
 FstStreamBuilder *fstSearch(Fst *fst, AutomationCtx *ctx) {
   return fstStreamBuilderCreate(fst, ctx);
 }
+StreamWithState* streamBuilderIntoStream(FstStreamBuilder *sb) {
+  if (sb == NULL) { return NULL; } 
+  return streamWithStateCreate(sb->fst, sb->aut, sb->min, sb->max);
+}
 FstStreamWithStateBuilder *fstSearchWithState(Fst *fst, AutomationCtx *ctx) {
   return fstStreamBuilderCreate(fst, ctx);
 }
@@ -1119,7 +1123,7 @@ CompiledAddr fstGetRootAddr(Fst *fst) {
 
 Output fstEmptyFinalOutput(Fst *fst, bool *null) {
   Output res = 0;
-  FstNode *node = fst->root;
+  FstNode *node = fstGetRoot(fst);
   if (FST_NODE_IS_FINAL(node)) {
     *null = false;
     res = FST_NODE_FINAL_OUTPUT(node); 
@@ -1176,7 +1180,7 @@ bool fstBoundWithDataIsEmpty(FstBoundWithData *bound) {
 
 
 bool fstBoundWithDataIsIncluded(FstBoundWithData *bound) {
-  return bound->type == Included ? true : false;
+  return bound->type == Excluded? false : true;
 }
 
 void fstBoundDestroy(FstBoundWithData *bound) {

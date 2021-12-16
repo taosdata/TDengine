@@ -30,6 +30,7 @@ extern "C" {
 
 typedef struct Fst     Fst;
 typedef struct FstNode FstNode;
+typedef struct StreamWithState StreamWithState;
 
 typedef enum { Included, Excluded, Unbounded} FstBound; 
 
@@ -282,6 +283,9 @@ CompiledAddr fstGetRootAddr(Fst *fst);
 Output       fstEmptyFinalOutput(Fst *fst, bool *null);
 FstStreamBuilder *fstSearch(Fst *fst, AutomationCtx *ctx);
 FstStreamWithStateBuilder *fstSearchWithState(Fst *fst, AutomationCtx *ctx);
+
+// into stream to expand later 
+StreamWithState* streamBuilderIntoStream(FstStreamBuilder *sb);
 
 bool         fstVerify(Fst *fst);
 

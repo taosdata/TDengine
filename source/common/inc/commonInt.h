@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+extern bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
 
 
 
