@@ -139,7 +139,7 @@ static void vtClearMsgBatch(SArray *pMsgArr) {
   taosArrayClear(pMsgArr);
 }
 
-TEST(vnodeApiTest, DISABLED_vnode_simple_create_table_test) {
+TEST(vnodeApiTest, vnode_simple_create_table_test) {
   tb_uid_t suid = 1638166374163;
   SRpcMsg *pMsg;
   SArray * pMsgArr = NULL;
