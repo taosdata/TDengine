@@ -108,10 +108,10 @@ class TDTestCase:
 
         # taosc query: query specified  table  and query  super table
         os.system(
-            "%staosdemo -f tools/taosdemoAllTest/queryInsertdata.json" %
+            "%staosBenchmark -f tools/taosdemoAllTest/queryInsertdata.json" %
             binPath)
         os.system(
-            "%staosdemo -f tools/taosdemoAllTest/queryTaosc.json" %
+            "%staosBenchmark -f tools/taosdemoAllTest/queryTaosc.json" %
             binPath)
         os.system("cat query_res0.txt* > all_query_res0_taosc.txt")
         os.system("cat query_res1.txt* > all_query_res1_taosc.txt")
@@ -138,10 +138,10 @@ class TDTestCase:
 
         # use restful api to query
         os.system(
-            "%staosdemo -f tools/taosdemoAllTest/queryInsertrestdata.json" %
+            "%staosBenchmark -f tools/taosdemoAllTest/queryInsertrestdata.json" %
             binPath)
         os.system(
-            "%staosdemo -f tools/taosdemoAllTest/queryRestful.json" %
+            "%staosBenchmark -f tools/taosdemoAllTest/queryRestful.json" %
             binPath)
         os.system("cat query_res0.txt*  > all_query_res0_rest.txt")
         os.system("cat query_res1.txt*  > all_query_res1_rest.txt")
@@ -174,56 +174,56 @@ class TDTestCase:
             "2020-11-01 00:00:00.004")
 
         # query times less than or equal to 100
-        os.system(
-            "%staosdemo -f tools/taosdemoAllTest/queryInsertdata.json" %
-            binPath)
-        os.system(
-            "%staosdemo -f tools/taosdemoAllTest/querySpeciMutisql100.json" %
-            binPath)
-        os.system(
-            "%staosdemo -f tools/taosdemoAllTest/querySuperMutisql100.json" %
-            binPath)
+        assert os.system(
+            "%staosBenchmark -f tools/taosdemoAllTest/queryInsertdata.json" %
+            binPath) == 0
+        assert os.system(
+            "%staosBenchmark -f tools/taosdemoAllTest/querySpeciMutisql100.json" %
+            binPath) != 0
+        assert os.system(
+            "%staosBenchmark -f tools/taosdemoAllTest/querySuperMutisql100.json" %
+            binPath) == 0
 
         # query result print QPS
         os.system(
-            "%staosdemo -f tools/taosdemoAllTest/queryInsertdata.json" %
+            "%staosBenchmark -f tools/taosdemoAllTest/queryInsertdata.json" %
             binPath)
         exceptcode = os.system(
-            "%staosdemo -f tools/taosdemoAllTest/queryQps.json" %
+            "%staosBenchmark -f tools/taosdemoAllTest/queryQps.json" %
             binPath)
         assert exceptcode == 0
 
         # use illegal or out of range parameters query json file
         os.system(
-            "%staosdemo -f tools/taosdemoAllTest/queryInsertdata.json" %
+            "%staosBenchmark -f tools/taosdemoAllTest/queryInsertdata.json" %
             binPath)
         exceptcode = os.system(
-            "%staosdemo -f tools/taosdemoAllTest/queryTimes0.json" %
+            "%staosBenchmark -f tools/taosdemoAllTest/queryTimes0.json" %
             binPath)
         assert exceptcode != 0
 
         exceptcode0 = os.system(
-            "%staosdemo -f tools/taosdemoAllTest/queryTimesless0.json" %
+            "%staosBenchmark -f tools/taosdemoAllTest/queryTimesless0.json" %
             binPath)
         assert exceptcode0 != 0
 
         exceptcode1 = os.system(
-            "%staosdemo -f tools/taosdemoAllTest/queryConcurrentless0.json" %
+            "%staosBenchmark -f tools/taosdemoAllTest/queryConcurrentless0.json" %
             binPath)
         assert exceptcode1 != 0
 
         exceptcode2 = os.system(
-            "%staosdemo -f tools/taosdemoAllTest/queryConcurrent0.json" %
+            "%staosBenchmark -f tools/taosdemoAllTest/queryConcurrent0.json" %
             binPath)
         assert exceptcode2 != 0
 
         exceptcode3 = os.system(
-            "%staosdemo -f tools/taosdemoAllTest/querrThreadsless0.json" %
+            "%staosBenchmark -f tools/taosdemoAllTest/querrThreadsless0.json" %
             binPath)
         assert exceptcode3 != 0
 
         exceptcode4 = os.system(
-            "%staosdemo -f tools/taosdemoAllTest/querrThreads0.json" %
+            "%staosBenchmark -f tools/taosdemoAllTest/querrThreads0.json" %
             binPath)
         assert exceptcode4 != 0
 

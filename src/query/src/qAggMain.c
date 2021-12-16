@@ -217,11 +217,12 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
+  assert(!TSDB_FUNC_IS_SCALAR(functionId));
+  assert(functionId != TSDB_FUNC_SCALAR_EXPR);
 
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
       functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ ||
-      functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP || functionId == TSDB_FUNC_CEIL ||
-      functionId == TSDB_FUNC_FLOOR || functionId == TSDB_FUNC_ROUND)
+      functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP)
   {
     *type = (int16_t)dataType;
     *bytes = dataBytes;
@@ -259,13 +260,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *interBytes = 0;
     return TSDB_CODE_SUCCESS;
   }
-  
-  if (functionId == TSDB_FUNC_ARITHM) {
-    *type = TSDB_DATA_TYPE_DOUBLE;
-    *bytes = sizeof(double);
-    *interBytes = 0;
-    return TSDB_CODE_SUCCESS;
-  }
+
   
   if (functionId == TSDB_FUNC_TS_COMP) {
     *type = TSDB_DATA_TYPE_BINARY;
@@ -495,6 +490,18 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
 // TODO use hash table
 int32_t isValidFunction(const char* name, int32_t len) {
+
+  for (int32_t i = 0; i < TSDB_FUNC_SCALAR_MAX_NUM; ++i) {
+    int32_t nameLen = (int32_t) strlen(aScalarFunctions[i].name);
+    if (len != nameLen) {
+      continue;
+    }
+
+    if (strncasecmp(aScalarFunctions[i].name, name, len) == 0) {
+      return aScalarFunctions[i].functionId;
+    }
+  }
+  
   for(int32_t i = 0; i <= TSDB_FUNC_ELAPSED; ++i) {
     int32_t nameLen = (int32_t) strlen(aAggs[i].name);
     if (len != nameLen) {
@@ -505,7 +512,6 @@ int32_t isValidFunction(const char* name, int32_t len) {
       return i;
     }
   }
-
   return -1;
 }
 
@@ -2929,8 +2935,7 @@ static void date_col_output_function(SQLFunctionCtx *pCtx) {
 }
 
 static void col_project_function(SQLFunctionCtx *pCtx) {
-  // the number of output rows should not affect the final number of rows, so set it to be 0
-  if (pCtx->numOfParams == 2) {
+  if (pCtx->colId <= TSDB_UD_COLUMN_INDEX && pCtx->colId > TSDB_RES_COL_ID) {    // user-specified constant value
     return;
   }
 
@@ -2964,6 +2969,7 @@ static void tag_project_function(SQLFunctionCtx *pCtx) {
   assert(pCtx->inputBytes == pCtx->outputBytes);
 
   tVariantDump(&pCtx->tag, pCtx->pOutput, pCtx->outputType, true);
+
   char* data = pCtx->pOutput;
   pCtx->pOutput += pCtx->outputBytes;
 
@@ -3400,8 +3406,8 @@ static void diff_function(SQLFunctionCtx *pCtx) {
   }
 }
 
-char *getArithColumnData(void *param, const char* name, int32_t colId) {
-  SArithmeticSupport *pSupport = (SArithmeticSupport *)param;
+char *getScalarExprColumnData(void *param, const char* name, int32_t colId) {
+  SScalarExprSupport *pSupport = (SScalarExprSupport *)param;
   
   int32_t index = -1;
   for (int32_t i = 0; i < pSupport->numOfCols; ++i) {
@@ -3415,11 +3421,12 @@ char *getArithColumnData(void *param, const char* name, int32_t colId) {
   return pSupport->data[index] + pSupport->offset * pSupport->colList[index].bytes;
 }
 
-static void arithmetic_function(SQLFunctionCtx *pCtx) {
+static void scalar_expr_function(SQLFunctionCtx *pCtx) {
   GET_RES_INFO(pCtx)->numOfRes += pCtx->size;
-  SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[1].pz;
-  
-  arithmeticTreeTraverse(sas->pExprInfo->pExpr, pCtx->size, pCtx->pOutput, sas, pCtx->order, getArithColumnData);
+  SScalarExprSupport *sas = (SScalarExprSupport *)pCtx->param[1].pz;
+  tExprOperandInfo output;
+  output.data = pCtx->pOutput;
+  exprTreeNodeTraverse(sas->pExprInfo->pExpr, pCtx->size, &output, sas, pCtx->order, getScalarExprColumnData);
 }
 
 #define LIST_MINMAX_N(ctx, minOutput, maxOutput, elemCnt, data, type, tsdbType, numOfNotNullElem) \
@@ -4431,185 +4438,6 @@ void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
   doFinalizer(pCtx);
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#define CFR_SET_VAL(type, data, pCtx, func, i, step)                           \
-  do {                                                                         \
-    type *pData = (type *) data;                                               \
-    type *pOutput = (type *) pCtx->pOutput;                                    \
-                                                                               \
-    for (; i < pCtx->size && i >= 0; i += step) {                              \
-      if (pCtx->hasNull && isNull((const char *)&pData[i], pCtx->inputType)) { \
-        *pOutput++ = pData[i];                                                 \
-      } else {                                                                 \
-        *pOutput++ = (type)func((double)pData[i]);                             \
-      }                                                                        \
-    }                                                                          \
-  } while (0)
-
-static void ceil_function(SQLFunctionCtx *pCtx) {
-  void *data = GET_INPUT_DATA_LIST(pCtx);
-
-  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
-  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
-
-  switch (pCtx->inputType) {
-    case TSDB_DATA_TYPE_INT: {
-      CFR_SET_VAL(int32_t, data, pCtx, ceil, i, step);
-      break;
-    };
-    case TSDB_DATA_TYPE_UINT: {
-      CFR_SET_VAL(uint32_t, data, pCtx, ceil, i, step);
-      break;
-    };
-    case TSDB_DATA_TYPE_BIGINT: {
-      CFR_SET_VAL(int64_t, data, pCtx, ceil, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_UBIGINT: {
-      CFR_SET_VAL(uint64_t, data, pCtx, ceil, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      CFR_SET_VAL(double, data, pCtx, ceil, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      CFR_SET_VAL(float, data, pCtx, ceil, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_SMALLINT: {
-      CFR_SET_VAL(int16_t, data, pCtx, ceil, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_USMALLINT: {
-      CFR_SET_VAL(uint16_t, data, pCtx, ceil, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_TINYINT: {
-      CFR_SET_VAL(int8_t, data, pCtx, ceil, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_UTINYINT: {
-      CFR_SET_VAL(uint8_t, data, pCtx, ceil, i, step);
-      break;
-    }
-    default:
-      qError("error input type");
-  }
-
-  GET_RES_INFO(pCtx)->numOfRes += pCtx->size;
-}
-
-static void floor_function(SQLFunctionCtx *pCtx) {
-  void *data = GET_INPUT_DATA_LIST(pCtx);
-
-  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
-  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
-
-  switch (pCtx->inputType) {
-    case TSDB_DATA_TYPE_INT: {
-      CFR_SET_VAL(int32_t, data, pCtx, floor, i, step);
-      break;
-    };
-    case TSDB_DATA_TYPE_UINT: {
-      CFR_SET_VAL(uint32_t, data, pCtx, floor, i, step);
-      break;
-    };
-    case TSDB_DATA_TYPE_BIGINT: {
-      CFR_SET_VAL(int64_t, data, pCtx, floor, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_UBIGINT: {
-      CFR_SET_VAL(uint64_t, data, pCtx, floor, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      CFR_SET_VAL(double, data, pCtx, floor, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      CFR_SET_VAL(float, data, pCtx, floor, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_SMALLINT: {
-      CFR_SET_VAL(int16_t, data, pCtx, floor, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_USMALLINT: {
-      CFR_SET_VAL(uint16_t, data, pCtx, floor, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_TINYINT: {
-      CFR_SET_VAL(int8_t, data, pCtx, floor, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_UTINYINT: {
-      CFR_SET_VAL(uint8_t, data, pCtx, floor, i, step);
-      break;
-    }
-    default:
-      qError("error input type");
-  }
-
-  GET_RES_INFO(pCtx)->numOfRes += pCtx->size;
-}
-
-static void round_function(SQLFunctionCtx *pCtx) {
-  void *data = GET_INPUT_DATA_LIST(pCtx);
-
-  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
-  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
-
-  switch (pCtx->inputType) {
-    case TSDB_DATA_TYPE_INT: {
-      CFR_SET_VAL(int32_t, data, pCtx, round, i, step);
-      break;
-    };
-    case TSDB_DATA_TYPE_UINT: {
-      CFR_SET_VAL(uint32_t, data, pCtx, round, i, step);
-      break;
-    };
-    case TSDB_DATA_TYPE_BIGINT: {
-      CFR_SET_VAL(int64_t, data, pCtx, round, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_UBIGINT: {
-      CFR_SET_VAL(uint64_t, data, pCtx, round, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      CFR_SET_VAL(double, data, pCtx, round, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      CFR_SET_VAL(float, data, pCtx, round, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_SMALLINT: {
-      CFR_SET_VAL(int16_t, data, pCtx, round, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_USMALLINT: {
-      CFR_SET_VAL(uint16_t, data, pCtx, round, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_TINYINT: {
-      CFR_SET_VAL(int8_t, data, pCtx, round, i, step);
-      break;
-    }
-    case TSDB_DATA_TYPE_UTINYINT: {
-      CFR_SET_VAL(uint8_t, data, pCtx, round, i, step);
-      break;
-    }
-    default:
-      qError("error input type");
-  }
-  GET_RES_INFO(pCtx)->numOfRes += pCtx->size;
-}
-
-#undef CFR_SET_VAL
-
 //////////////////////////////////////////////////////////////////////////////////
 //cumulative_sum function
 
@@ -5069,13 +4897,13 @@ int32_t functionCompatList[] = {
     4,         -1,       -1,         1,        1,      1,          1,           1,          1,          -1,
     //  tag,    colprj,   tagprj,    arithm,  diff,    first_dist, last_dist,   stddev_dst, interp    rate,    irate
     1,          1,        1,         1,       -1,      1,          1,           1,          5,          1,      1,
-    // tid_tag, deriv,    ceil,     floor,    round,   csum,       mavg,        sample,
-    6,          8,        1,        1,         1,      -1,         -1,          -1,
+    // tid_tag, deriv,    csum,       mavg,        sample,
+    6,          8,        -1,         -1,          -1,
     // block_info, elapsed
     7,             1
 };
 
-SAggFunctionInfo aAggs[] = {{
+SAggFunctionInfo aAggs[40] = {{
                               // 0, count function does not invoke the finalize function
                               "count",
                               TSDB_FUNC_COUNT,
@@ -5357,11 +5185,11 @@ SAggFunctionInfo aAggs[] = {{
                           {
                               // 23
                               "arithmetic",
-                              TSDB_FUNC_ARITHM,
-                              TSDB_FUNC_ARITHM,
+                              TSDB_FUNC_SCALAR_EXPR,
+                              TSDB_FUNC_SCALAR_EXPR,
                               TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
                               function_setup,
-                              arithmetic_function,
+                              scalar_expr_function,
                               doFinalizer,
                               copy_function,
                               dataBlockRequired,
@@ -5474,41 +5302,8 @@ SAggFunctionInfo aAggs[] = {{
                               noop1,
                               dataBlockRequired,
                           },
-                          {// 33
-                           "ceil",
-                           TSDB_FUNC_CEIL,
-                           TSDB_FUNC_CEIL,
-                           TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SCALAR,
-                           function_setup,
-                           ceil_function,
-                           doFinalizer,
-                           noop1,
-                           dataBlockRequired
-                          },
-                          {// 34
-                           "floor",
-                           TSDB_FUNC_FLOOR,
-                           TSDB_FUNC_FLOOR,
-                           TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SCALAR,
-                           function_setup,
-                           floor_function,
-                           doFinalizer,
-                           noop1,
-                           dataBlockRequired
-                          },
-                          {// 35
-                           "round",
-                           TSDB_FUNC_ROUND,
-                           TSDB_FUNC_ROUND,
-                           TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SCALAR,
-                           function_setup,
-                           round_function,
-                           doFinalizer,
-                           noop1,
-                           dataBlockRequired
-                          },
                           {
-                              // 36
+                              // 33
                               "csum",
                               TSDB_FUNC_CSUM,
                               TSDB_FUNC_INVALID_ID,
@@ -5520,7 +5315,7 @@ SAggFunctionInfo aAggs[] = {{
                               dataBlockRequired,
                           },
                           {
-                              // 37
+                              // 34
                               "mavg",
                               TSDB_FUNC_MAVG,
                               TSDB_FUNC_INVALID_ID,
@@ -5532,7 +5327,7 @@ SAggFunctionInfo aAggs[] = {{
                               dataBlockRequired,
                           },
                           {
-                              // 38
+                              // 35
                               "sample",
                               TSDB_FUNC_SAMPLE,
                               TSDB_FUNC_SAMPLE,
@@ -5544,7 +5339,7 @@ SAggFunctionInfo aAggs[] = {{
                               dataBlockRequired,
                           },
                           {
-                              // 39
+                              // 36
                               "_block_dist",
                               TSDB_FUNC_BLKINFO,
                               TSDB_FUNC_BLKINFO,
@@ -5556,7 +5351,7 @@ SAggFunctionInfo aAggs[] = {{
                               dataBlockRequired,
                           },
                           {
-                              // 40
+                              // 37
                               "elapsed",
                               TSDB_FUNC_ELAPSED,
                               TSDB_FUNC_ELAPSED,

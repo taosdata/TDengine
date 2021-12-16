@@ -154,7 +154,7 @@ Under cmd, enter the c:\TDengine directory and directly execute taos.exe, and yo
 | **CPU Type**         | **x64****（****64bit****）** |         |         | **ARM64** | **ARM32**          |
 | -------------------- | ---------------------------- | ------- | ------- | --------- | ------------------ |
 | **OS Type**          | Linux                        | Win64   | Win32   | Linux     | Linux              |
-| **Supported or Not** | Yes                          | **Yes** | **Yes** | **Yes**   | **In development** |
+| **Supported or Not** | Yes                          | **Yes** | **Yes** | **Yes**   | **Yes** |
 
 The C/C++ API is similar to MySQL's C API. When application use it, it needs to include the TDengine header file taos.h (after installed, it is located in/usr/local/taos/include):
 
@@ -200,6 +200,8 @@ Create a database connection and initialize the connection context. The paramete
 * port: Port number
 
 A null return value indicates a failure. The application needs to save the returned parameters for subsequent API calls.
+Note: The same process can connect to multiple taosd processes based on ip/port
+
 
 - `char *taos_get_server_info(TAOS *taos)`
 
@@ -884,7 +886,7 @@ dotnet new console
 ``` cmd
 dotnet add package TDengine.Connector
 ```
-* inlucde the TDnengineDriver in you application's namespace 
+* include the TDnengineDriver in you application's namespace 
 ```C#
 using TDengineDriver;
 ```
