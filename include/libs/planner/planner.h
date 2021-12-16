@@ -84,8 +84,8 @@ typedef struct SProjectPhyNode {
 
 typedef struct SExchangePhyNode {
   SPhyNode    node;
-  uint64_t    templateId;
-  SArray     *pSourceEpSet;  // SEpSet
+  uint64_t    srcTemplateId; // template id of datasource suplans
+  SArray     *pSourceEpSet;  // SEpSet, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhyNode;
 
 typedef struct SSubplanId {
@@ -113,6 +113,8 @@ typedef struct SQueryDag {
  */
 int32_t qCreateQueryDag(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* pQnode, struct SQueryDag** pDag);
 
+int32_t qSetSuplanExecutionNode(SArray* subplans, SArray* nodes);
+
 int32_t qExplainQuery(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* pQnode, char** str);
 
 
@@ -126,7 +128,7 @@ int32_t qSubPlanToString(struct SSubplan *pPhyNode, char** str);
  * @param pQueryPhyNode
  * @return
  */
-void* qDestroyQueryDag(struct SQueryDag* pDag);
+void qDestroyQueryDag(struct SQueryDag* pDag);
 
 #ifdef __cplusplus
 }

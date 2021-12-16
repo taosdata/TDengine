@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSCLOG_H
-#define TDENGINE_TSCLOG_H
+#ifndef TDENGINE_CLIENTLOG_H
+#define TDENGINE_CLIENTLOG_H
 
 #ifdef __cplusplus
 extern "C" {

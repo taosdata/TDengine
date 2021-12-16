@@ -31,25 +31,35 @@ bool qIsInsertSql(const char* pStr, size_t length) {
   } while (1);
 }
 
-int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** pQueryInfo, int64_t id, char* msg, int32_t msgLen) {
-  *pQueryInfo = calloc(1, sizeof(SQueryStmtInfo));
-  if (*pQueryInfo == NULL) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY; // set correct error code.
+int32_t qParseQuerySql(const char* pStr, size_t length, int64_t id, int32_t *type, void** pOutput, int32_t* outputLen, char* msg, int32_t msgLen) {
+  SQueryStmtInfo* pQueryInfo = calloc(1, sizeof(SQueryStmtInfo));
+  if (pQueryInfo == NULL) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY; // set correct error code.
+    return terrno;
   }
 
   SSqlInfo info = doGenerateAST(pStr);
   if (!info.valid) {
     strncpy(msg, info.msg, msgLen);
-    return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+    terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+    return terrno;
   }
 
-  struct SCatalog* pCatalog = NULL;
-  int32_t code = catalogGetHandle(NULL, &pCatalog);
-  if (code) {
-    return code;
+  if (isDclSqlStatement(&info)) {
+    int32_t code = qParserValidateDclSqlNode(&info, id, pOutput, outputLen, type, msg, msgLen);
+    if (code == TSDB_CODE_SUCCESS) {
+      // do nothing
+    }
+  } else {
+    struct SCatalog* pCatalog = NULL;
+    int32_t code = catalogGetHandle(NULL, &pCatalog);
+    code = qParserValidateSqlNode(pCatalog, &info, pQueryInfo, id, msg, msgLen);
+    if (code == TSDB_CODE_SUCCESS) {
+      *pOutput = pQueryInfo;
+    }
   }
-  
-  return qParserValidateSqlNode(pCatalog, &info, *pQueryInfo, id, msg, msgLen);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qParseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo) {
