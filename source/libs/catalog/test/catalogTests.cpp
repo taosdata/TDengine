@@ -28,6 +28,7 @@
 #include "tvariant.h"
 #include "catalog.h"
 #include "tep.h"
+#include "trpc.h"
 
 typedef struct SAppInstInfo {
   int64_t           numOfConns;
@@ -50,6 +51,41 @@ typedef struct STscObj {
 
 namespace {
 
+void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
+  SCreateDbMsg* pReq = (SCreateDbMsg*)rpcMallocCont(sizeof(SCreateDbMsg));
+  strcpy(pReq->db, "1.db1");
+  pReq->numOfVgroups = htonl(2);
+  pReq->cacheBlockSize = htonl(16);
+  pReq->totalBlocks = htonl(10);
+  pReq->daysPerFile = htonl(10);
+  pReq->daysToKeep0 = htonl(3650);
+  pReq->daysToKeep1 = htonl(3650);
+  pReq->daysToKeep2 = htonl(3650);
+  pReq->minRowsPerFileBlock = htonl(100);
+  pReq->maxRowsPerFileBlock = htonl(4096);
+  pReq->commitTime = htonl(3600);
+  pReq->fsyncPeriod = htonl(3000);
+  pReq->walLevel = 1;
+  pReq->precision = 0;
+  pReq->compression = 2;
+  pReq->replications = 1;
+  pReq->quorum = 1;
+  pReq->update = 0;
+  pReq->cacheLastRow = 0;
+  pReq->ignoreExist = 1;
+  
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.pCont = pReq;
+  rpcMsg.contLen = sizeof(SCreateDbMsg);
+  rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DB;
+
+  SRpcMsg rpcRsp = {0};
+
+  rpcSendRecv(shandle, pEpSet, &rpcMsg, &rpcRsp);
+
+  ASSERT_EQ(rpcRsp.code, 0);
+}
+
 }
 
 TEST(testCase, normalCase) {
@@ -57,13 +93,15 @@ TEST(testCase, normalCase) {
   assert(pConn != NULL);
 
   char *clusterId = "cluster1";
-  char *dbname = "db1";
+  char *dbname = "1.db1";
   char *tablename = "table1";
   struct SCatalog* pCtg = NULL;
   void *mockPointer = (void *)0x1;
   SVgroupInfo vgInfo = {0};
 
   msgInit();
+
+  sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
   
   int32_t code = catalogInit(NULL);
   ASSERT_EQ(code, 0);

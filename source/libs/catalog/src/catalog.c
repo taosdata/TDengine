@@ -54,9 +54,20 @@ int32_t ctgGetDBVgroupFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEp
     return code;
   }
 
+  char *pMsg = rpcMallocCont(msgLen);
+  if (NULL == pMsg) {
+    ctgError("rpc malloc %d failed", msgLen);
+    tfree(msg);
+    return TSDB_CODE_CTG_MEM_ERROR;
+  }
+
+  memcpy(pMsg, msg, msgLen);
+
+  tfree(msg);
+  
   SRpcMsg rpcMsg = {
       .msgType = TSDB_MSG_TYPE_USE_DB,
-      .pCont   = msg,
+      .pCont   = pMsg,
       .contLen = msgLen,
   };
 
