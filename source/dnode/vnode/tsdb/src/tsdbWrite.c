@@ -13,19 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TP
-#define TDENGINE_TP
+#include "tsdbDef.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int32_t tpInit();
-void    tpCleanUp();
-void    tpUpdateTs(int32_t vgId, int64_t *seq, void *pMsg);
-
-#ifdef __cplusplus
+int tsdbInsertData(STsdb *pTsdb, SSubmitMsg *pMsg) {
+  // Check if mem is there. If not, create one.
+  pTsdb->mem = tsdbNewMemTable(pTsdb->pmaf);
+  if (pTsdb->mem == NULL) {
+    return -1;
+  }
+  return tsdbInsertDataToMemTable(pTsdb->mem, pMsg);
 }
-#endif
-
-#endif

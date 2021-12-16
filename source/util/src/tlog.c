@@ -81,15 +81,11 @@ int32_t writeInterval = DEFAULT_LOG_INTERVAL;
 // log
 int32_t tsNumOfLogLines = 10000000;
 int32_t mDebugFlag = 131;
-int32_t sdbDebugFlag = 131;
 int32_t dDebugFlag = 135;
 int32_t vDebugFlag = 135;
 int32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
 int32_t odbcDebugFlag = 131;
-int32_t httpDebugFlag = 131;
-int32_t mqttDebugFlag = 131;
-int32_t monDebugFlag = 131;
 int32_t qDebugFlag = 131;
 int32_t rpcDebugFlag = 131;
 int32_t uDebugFlag = 131;

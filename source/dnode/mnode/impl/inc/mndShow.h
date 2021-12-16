@@ -27,7 +27,7 @@ void    mndCleanupShow(SMnode *pMnode);
 void    mndAddShowMetaHandle(SMnode *pMnode, EShowType showType, ShowMetaFp fp);
 void    mndAddShowRetrieveHandle(SMnode *pMnode, EShowType showType, ShowRetrieveFp fp);
 void    mndAddShowFreeIterHandle(SMnode *pMnode, EShowType msgType, ShowFreeIterFp fp);
-void    mnodeVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow);
+void    mndVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow);
 char   *mndShowStr(int32_t showType);
 
 #ifdef __cplusplus

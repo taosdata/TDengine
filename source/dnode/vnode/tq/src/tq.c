@@ -49,8 +49,8 @@ STQ* tqOpen(const char* path, STqCfg* tqConfig, TqLogReader* tqLogReader, SMemAl
   pTq->path = strdup(path);
   pTq->tqConfig = tqConfig;
   pTq->tqLogReader = tqLogReader;
-  // pTq->tqMemRef.pAlloctorFactory = allocFac;
-  // pTq->tqMemRef.pAllocator = allocFac->create(allocFac);
+   pTq->tqMemRef.pAlloctorFactory = allocFac;
+   pTq->tqMemRef.pAllocator = allocFac->create(allocFac);
   if(pTq->tqMemRef.pAllocator == NULL) {
     //TODO
   }
@@ -201,7 +201,6 @@ static int tqFetch(TqGroupHandle* gHandle, void** msg) {
   }
   return totSize;
 }
-
 
 TqGroupHandle* tqGetGroupHandle(STQ* pTq, int64_t cId) {
   return NULL;

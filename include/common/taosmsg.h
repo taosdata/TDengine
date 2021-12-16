@@ -168,8 +168,8 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_SCORES,
   TSDB_MGMT_TABLE_GRANTS,
   TSDB_MGMT_TABLE_VNODES,
-  TSDB_MGMT_TABLE_STREAMTABLES,
   TSDB_MGMT_TABLE_CLUSTER,
+  TSDB_MGMT_TABLE_STREAMTABLES,
   TSDB_MGMT_TABLE_TP,
   TSDB_MGMT_TABLE_FUNCTION,
   TSDB_MGMT_TABLE_MAX,
@@ -396,17 +396,20 @@ typedef struct {
   int32_t maxDbs;
   int32_t maxTimeSeries;
   int32_t maxStreams;
-  int64_t maxStorage;   // In unit of GB
   int32_t accessState;  // Configured only by command
+  int64_t maxStorage;   // In unit of GB
+  int32_t reserve[8];
 } SCreateAcctMsg, SAlterAcctMsg;
 
 typedef struct {
-  char user[TSDB_USER_LEN];
+  char    user[TSDB_USER_LEN];
+  int32_t reserve[8];
 } SDropUserMsg, SDropAcctMsg;
 
 typedef struct {
-  char user[TSDB_USER_LEN];
-  char pass[TSDB_PASSWORD_LEN];
+  char    user[TSDB_USER_LEN];
+  char    pass[TSDB_PASSWORD_LEN];
+  int32_t reserve[8];
 } SCreateUserMsg, SAlterUserMsg;
 
 typedef struct {
@@ -628,7 +631,6 @@ typedef struct {
   int32_t dbGroupVersion;
   int32_t reserve[8];
 } SUseDbMsg;
-
 
 typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];
@@ -898,16 +900,19 @@ typedef struct SShowRsp {
 } SShowRsp;
 
 typedef struct {
-  char ep[TSDB_EP_LEN];  // end point, hostname:port
+  char    ep[TSDB_EP_LEN];  // end point, hostname:port
+  int32_t reserve[8];
 } SCreateDnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
+  int32_t reserve[8];
 } SDropDnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
   char    config[TSDB_DNODE_CONFIG_LEN];
+  int32_t reserve[8];
 } SCfgDnodeMsg;
 
 typedef struct {

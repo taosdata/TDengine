@@ -99,7 +99,7 @@ extern "C" {
       sdbFreeRaw(pRaw);                            \
       return NULL;                                 \
     }                                              \
-    dataPos += sizeof(int16_t);                     \
+    dataPos += sizeof(int16_t);                    \
   }
 
 #define SDB_SET_INT8(pRaw, dataPos, val)          \
@@ -294,6 +294,15 @@ void sdbCancelFetch(SSdb *pSdb, void *pIter);
  * @record int32_t The number of rows in the table
  */
 int32_t sdbGetSize(SSdb *pSdb, ESdbType type);
+
+/**
+ * @brief Get the max id of the table, keyType of table should be INT32
+ *
+ * @param pSdb The sdb object.
+ * @param pIter The type of the table.
+ * @record int32_t The max id of the table
+ */
+int32_t sdbGetMaxId(SSdb *pSdb, ESdbType type);
 
 SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen);
 void     sdbFreeRaw(SSdbRaw *pRaw);
