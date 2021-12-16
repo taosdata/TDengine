@@ -102,9 +102,8 @@ static void vtBuildCreateStbReq(tb_uid_t suid, char *tbname, SRpcMsg **ppMsg) {
 static void vtBuildCreateCtbReq(tb_uid_t suid, char *tbname, SRpcMsg **ppMsg) {
   SRpcMsg *pMsg;
   int      tz;
-  SKVRow   pTag;
+  SKVRow   pTag = vtCreateBasicTag();
 
-  pTag = vtCreateBasicTag();
   SVnodeReq vCreateCTbReq = VNODE_INIT_CREATE_CTB_REQ(tbname, UINT32_MAX, UINT32_MAX, suid, pTag);
 
   tz = vnodeBuildReq(NULL, &vCreateCTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
@@ -126,17 +125,33 @@ static void vtBuildCreateNtbReq(char *tbname, SRpcMsg **ppMsg) {
 }
 
 static void vtBuildSubmitReq(SRpcMsg **ppMsg) {
-  SRpcMsg *pMsg;
-  void *   pBuf;
-  int      tz = 0;
+  SRpcMsg *   pMsg;
+  SSubmitMsg *pSubmitMsg;
+  SSubmitBlk *pSubmitBlk;
+  int         tz = 1024;  // TODO
 
   pMsg = (SRpcMsg *)malloc(sizeof(*pMsg) + tz);
   pMsg->msgType = TSDB_MSG_TYPE_SUBMIT;
   pMsg->contLen = tz;
   pMsg->pCont = POINTER_SHIFT(pMsg, sizeof(*pMsg));
 
-  pBuf = pMsg->pCont;
-  vnodeBuildReq(&pBuf, NULL /*TODO*/, TSDB_MSG_TYPE_SUBMIT);
+  // For submit msg header
+  pSubmitMsg = (SSubmitMsg *)(pMsg->pCont);
+  // pSubmitMsg->header.contLen = 0;
+  // pSubmitMsg->header.vgId = 0;
+  // pSubmitMsg->length = 0;
+  pSubmitMsg->numOfBlocks = 1;
+
+  // For submit blk
+  pSubmitBlk = (SSubmitBlk *)(pSubmitMsg->blocks);
+  pSubmitBlk->uid = 0;
+  pSubmitBlk->tid = 0;
+  pSubmitBlk->padding = 0;
+  pSubmitBlk->sversion = 0;
+  pSubmitBlk->dataLen = 0;
+  pSubmitBlk->numOfRows = 0;
+
+  // For row batch
 
   *ppMsg = pMsg;
 }
