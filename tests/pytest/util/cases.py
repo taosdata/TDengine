@@ -17,6 +17,7 @@ import time
 import datetime
 import inspect
 import importlib
+from util.dnodes import *
 from util.log import *
 
 
@@ -34,8 +35,9 @@ class TDCases:
         self.clusterCases = []
 
     def __dynamicLoadModule(self, fileName):
-        moduleName = fileName.replace(".py", "").replace(os.sep, ".")
-        return importlib.import_module(moduleName, package='..')
+        # moduleName = fileName.replace(".py", "").replace(os.sep, ".")
+        # return importlib.import_module(moduleName, package='..')
+        return tdDnodes.import_module(fileName)
 
     def logSql(self, logSql):
         self._logSql = logSql
@@ -63,10 +65,11 @@ class TDCases:
 
         tdLog.info("total %d Linux test case(s) executed" % (runNum))
 
-    def runOneLinux(self, conn, fileName):
-        testModule = self.__dynamicLoadModule(fileName)
-
+    def runOneLinux(self, conn, fileName, testModule):
+        # testModule = self.__dynamicLoadModule(fileName)
         runNum = 0
+        if fileName.startswith(".."):
+            fileName = fileName[3:]
         for tmp in self.linuxCases:
             if tmp.name.find(fileName) != -1:
                 case = testModule.TDTestCase()
@@ -95,7 +98,7 @@ class TDCases:
         tdLog.notice("total %d Windows test case(s) executed" % (runNum))
 
     def runOneWindows(self, conn, fileName):
-        testModule = self.__dynamicLoadModule(fileName)
+        # testModule = self.__dynamicLoadModule(fileName)
 
         runNum = 0
         for tmp in self.windowsCases:
@@ -130,7 +133,7 @@ class TDCases:
         tdLog.notice("total %d Cluster test case(s) executed" % (runNum))
 
     def runOneCluster(self, fileName):
-        testModule = self.__dynamicLoadModule(fileName)
+        # testModule = self.__dynamicLoadModule(fileName)
 
         runNum = 0
         for tmp in self.clusterCases:
