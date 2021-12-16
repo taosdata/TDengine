@@ -296,6 +296,8 @@ char *mndShowStr(int32_t showType) {
       return "show streamtables";
     case TSDB_MGMT_TABLE_TP:
       return "show topics";
+    case TSDB_MGMT_TABLE_FUNCTION:
+      return "show functions";
     default:
       return "undefined";
   }
@@ -308,7 +310,7 @@ static bool mndCheckRetrieveFinished(SShowObj *pShow) {
   return false;
 }
 
-void mnodeVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {
+void mndVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {
   if (rows < capacity) {
     for (int32_t i = 0; i < numOfCols; ++i) {
       memmove(data + pShow->offset[i] * rows, data + pShow->offset[i] * capacity, pShow->bytes[i] * rows);

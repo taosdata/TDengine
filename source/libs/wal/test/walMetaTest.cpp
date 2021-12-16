@@ -6,111 +6,105 @@
 #include "walInt.h"
 
 const char* ranStr = "tvapq02tcp";
-const int ranStrLen = strlen(ranStr);
+const int   ranStrLen = strlen(ranStr);
 
 class WalCleanEnv : public ::testing::Test {
-  protected:
-    static void SetUpTestCase() {
-      int code = walInit();
-      ASSERT(code == 0);
-    }
+ protected:
+  static void SetUpTestCase() {
+    int code = walInit();
+    ASSERT(code == 0);
+  }
 
-    static void TearDownTestCase() {
-      walCleanUp();
-    }
+  static void TearDownTestCase() { walCleanUp(); }
 
-    void SetUp() override {
-      taosRemoveDir(pathName);
-      SWalCfg* pCfg = (SWalCfg*)malloc(sizeof(SWalCfg));
-      memset(pCfg, 0, sizeof(SWalCfg));
-      pCfg->rollPeriod = -1;
-      pCfg->segSize = -1;
-      pCfg->retentionPeriod = 0;
-      pCfg->retentionSize = 0;
-      pCfg->level = TAOS_WAL_FSYNC;
-      pWal = walOpen(pathName, pCfg);
-      free(pCfg);
-      ASSERT(pWal != NULL);
-    }
+  void SetUp() override {
+    taosRemoveDir(pathName);
+    SWalCfg* pCfg = (SWalCfg*)malloc(sizeof(SWalCfg));
+    memset(pCfg, 0, sizeof(SWalCfg));
+    pCfg->rollPeriod = -1;
+    pCfg->segSize = -1;
+    pCfg->retentionPeriod = 0;
+    pCfg->retentionSize = 0;
+    pCfg->level = TAOS_WAL_FSYNC;
+    pWal = walOpen(pathName, pCfg);
+    free(pCfg);
+    ASSERT(pWal != NULL);
+  }
 
-    void TearDown() override {
-      walClose(pWal);
-      pWal = NULL;
-    }
+  void TearDown() override {
+    walClose(pWal);
+    pWal = NULL;
+  }
 
-    SWal* pWal = NULL;
-    const char* pathName = "/tmp/wal_test";
+  SWal*       pWal = NULL;
+  const char* pathName = "/tmp/wal_test";
 };
 
 class WalCleanDeleteEnv : public ::testing::Test {
-  protected:
-    static void SetUpTestCase() {
-      int code = walInit();
-      ASSERT(code == 0);
-    }
+ protected:
+  static void SetUpTestCase() {
+    int code = walInit();
+    ASSERT(code == 0);
+  }
 
-    static void TearDownTestCase() {
-      walCleanUp();
-    }
+  static void TearDownTestCase() { walCleanUp(); }
 
-    void SetUp() override {
-      taosRemoveDir(pathName);
-      SWalCfg* pCfg = (SWalCfg*)malloc(sizeof(SWalCfg));
-      memset(pCfg, 0, sizeof(SWalCfg));
-      pCfg->retentionPeriod = 0;
-      pCfg->retentionSize = 0;
-      pCfg->level = TAOS_WAL_FSYNC;
-      pWal = walOpen(pathName, pCfg);
-      free(pCfg);
-      ASSERT(pWal != NULL);
-    }
+  void SetUp() override {
+    taosRemoveDir(pathName);
+    SWalCfg* pCfg = (SWalCfg*)malloc(sizeof(SWalCfg));
+    memset(pCfg, 0, sizeof(SWalCfg));
+    pCfg->retentionPeriod = 0;
+    pCfg->retentionSize = 0;
+    pCfg->level = TAOS_WAL_FSYNC;
+    pWal = walOpen(pathName, pCfg);
+    free(pCfg);
+    ASSERT(pWal != NULL);
+  }
 
-    void TearDown() override {
-      walClose(pWal);
-      pWal = NULL;
-    }
+  void TearDown() override {
+    walClose(pWal);
+    pWal = NULL;
+  }
 
-    SWal* pWal = NULL;
-    const char* pathName = "/tmp/wal_test";
+  SWal*       pWal = NULL;
+  const char* pathName = "/tmp/wal_test";
 };
 
 class WalKeepEnv : public ::testing::Test {
-  protected:
-    static void SetUpTestCase() {
-      int code = walInit();
-      ASSERT(code == 0);
-    }
+ protected:
+  static void SetUpTestCase() {
+    int code = walInit();
+    ASSERT(code == 0);
+  }
 
-    static void TearDownTestCase() {
-      walCleanUp();
-    }
+  static void TearDownTestCase() { walCleanUp(); }
 
-    void walResetEnv() {
-      TearDown();
-      taosRemoveDir(pathName);
-      SetUp();
-    }
+  void walResetEnv() {
+    TearDown();
+    taosRemoveDir(pathName);
+    SetUp();
+  }
 
-    void SetUp() override {
-      SWalCfg* pCfg = (SWalCfg*)malloc(sizeof(SWalCfg)); 
-      memset(pCfg, 0, sizeof(SWalCfg));
-      pCfg->rollPeriod = -1;
-      pCfg->segSize = -1;
-      pCfg->retentionPeriod = 0;
-      pCfg->retentionSize = 0;
-      pCfg->level = TAOS_WAL_FSYNC;
-      pWal = walOpen(pathName, pCfg);
-      free(pCfg);
-      ASSERT(pWal != NULL);
-    }
+  void SetUp() override {
+    SWalCfg* pCfg = (SWalCfg*)malloc(sizeof(SWalCfg));
+    memset(pCfg, 0, sizeof(SWalCfg));
+    pCfg->rollPeriod = -1;
+    pCfg->segSize = -1;
+    pCfg->retentionPeriod = 0;
+    pCfg->retentionSize = 0;
+    pCfg->level = TAOS_WAL_FSYNC;
+    pWal = walOpen(pathName, pCfg);
+    free(pCfg);
+    ASSERT(pWal != NULL);
+  }
 
-    void TearDown() override {
-      walClose(pWal);
-      pWal = NULL;
-    }
+  void TearDown() override {
+    walClose(pWal);
+    pWal = NULL;
+  }
 
-    SWal* pWal = NULL;
-    const char* pathName = "/tmp/wal_test";
+  SWal*       pWal = NULL;
+  const char* pathName = "/tmp/wal_test";
 };
 
 TEST_F(WalCleanEnv, createNew) {
@@ -139,10 +133,10 @@ TEST_F(WalCleanEnv, serialize) {
   ASSERT(code == 0);
   code = walRollFileInfo(pWal);
   ASSERT(code == 0);
-  char*ss = walMetaSerialize(pWal);
+  char* ss = walMetaSerialize(pWal);
   printf("%s\n", ss);
   free(ss);
-  code = walWriteMeta(pWal);
+  code = walSaveMeta(pWal);
   ASSERT(code == 0);
 }
 
@@ -150,11 +144,11 @@ TEST_F(WalCleanEnv, removeOldMeta) {
   int code = walRollFileInfo(pWal);
   ASSERT(code == 0);
   ASSERT(pWal->fileInfoSet != NULL);
-  code = walWriteMeta(pWal);
+  code = walSaveMeta(pWal);
   ASSERT(code == 0);
   code = walRollFileInfo(pWal);
   ASSERT(code == 0);
-  code = walWriteMeta(pWal);
+  code = walSaveMeta(pWal);
   ASSERT(code == 0);
 }
 
@@ -162,11 +156,11 @@ TEST_F(WalKeepEnv, readOldMeta) {
   walResetEnv();
   int code;
 
-  for(int i = 0; i < 10; i++) {
-    code = walWrite(pWal, i, i+1, (void*)ranStr, ranStrLen); 
+  for (int i = 0; i < 10; i++) {
+    code = walWrite(pWal, i, i + 1, (void*)ranStr, ranStrLen);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
-    code = walWrite(pWal, i+2, i, (void*)ranStr, ranStrLen);
+    code = walWrite(pWal, i + 2, i, (void*)ranStr, ranStrLen);
     ASSERT_EQ(code, -1);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
@@ -182,7 +176,7 @@ TEST_F(WalKeepEnv, readOldMeta) {
 
   int len = strlen(oldss);
   ASSERT_EQ(len, strlen(newss));
-  for(int i = 0; i < len; i++) {
+  for (int i = 0; i < len; i++) {
     EXPECT_EQ(oldss[i], newss[i]);
   }
   free(oldss);
@@ -191,22 +185,22 @@ TEST_F(WalKeepEnv, readOldMeta) {
 
 TEST_F(WalCleanEnv, write) {
   int code;
-  for(int i = 0; i < 10; i++) {
-    code = walWrite(pWal, i, i+1, (void*)ranStr, ranStrLen); 
+  for (int i = 0; i < 10; i++) {
+    code = walWrite(pWal, i, i + 1, (void*)ranStr, ranStrLen);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
-    code = walWrite(pWal, i+2, i, (void*)ranStr, ranStrLen);
+    code = walWrite(pWal, i + 2, i, (void*)ranStr, ranStrLen);
     ASSERT_EQ(code, -1);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
-  code = walWriteMeta(pWal);
+  code = walSaveMeta(pWal);
   ASSERT_EQ(code, 0);
 }
 
 TEST_F(WalCleanEnv, rollback) {
   int code;
-  for(int i = 0; i < 10; i++) {
-    code = walWrite(pWal, i, i+1, (void*)ranStr, ranStrLen); 
+  for (int i = 0; i < 10; i++) {
+    code = walWrite(pWal, i, i + 1, (void*)ranStr, ranStrLen);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
@@ -216,14 +210,14 @@ TEST_F(WalCleanEnv, rollback) {
   code = walRollback(pWal, 3);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(pWal->vers.lastVer, 2);
-  code = walWriteMeta(pWal);
+  code = walSaveMeta(pWal);
   ASSERT_EQ(code, 0);
 }
 
 TEST_F(WalCleanDeleteEnv, roll) {
   int code;
   int i;
-  for(i = 0; i < 100; i++) {
+  for (i = 0; i < 100; i++) {
     code = walWrite(pWal, i, 0, (void*)ranStr, ranStrLen);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
@@ -231,60 +225,60 @@ TEST_F(WalCleanDeleteEnv, roll) {
     ASSERT_EQ(pWal->vers.commitVer, i);
   }
 
-  walBeginTakeSnapshot(pWal, i-1);
-  ASSERT_EQ(pWal->vers.verInSnapshotting, i-1);
-  walEndTakeSnapshot(pWal);
-  ASSERT_EQ(pWal->vers.snapshotVer, i-1);
+  walBeginSnapshot(pWal, i - 1);
+  ASSERT_EQ(pWal->vers.verInSnapshotting, i - 1);
+  walEndSnapshot(pWal);
+  ASSERT_EQ(pWal->vers.snapshotVer, i - 1);
   ASSERT_EQ(pWal->vers.verInSnapshotting, -1);
 
   code = walWrite(pWal, 5, 0, (void*)ranStr, ranStrLen);
   ASSERT_NE(code, 0);
 
-  for(; i < 200; i++) {
+  for (; i < 200; i++) {
     code = walWrite(pWal, i, 0, (void*)ranStr, ranStrLen);
     ASSERT_EQ(code, 0);
     code = walCommit(pWal, i);
     ASSERT_EQ(pWal->vers.commitVer, i);
   }
 
-  code = walBeginTakeSnapshot(pWal, i - 1);
+  code = walBeginSnapshot(pWal, i - 1);
   ASSERT_EQ(code, 0);
-  code = walEndTakeSnapshot(pWal);
+  code = walEndSnapshot(pWal);
   ASSERT_EQ(code, 0);
 }
 
 TEST_F(WalKeepEnv, readHandleRead) {
   walResetEnv();
-  int code;
+  int             code;
   SWalReadHandle* pRead = walOpenReadHandle(pWal);
   ASSERT(pRead != NULL);
 
-  int i ;
-  for(i = 0; i < 100; i++) {
+  int i;
+  for (i = 0; i < 100; i++) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
     code = walWrite(pWal, i, 0, newStr, len);
     ASSERT_EQ(code, 0);
   }
-  for(int i = 0; i < 1000; i++) {
+  for (int i = 0; i < 1000; i++) {
     int ver = rand() % 100;
     code = walReadWithHandle(pRead, ver);
     ASSERT_EQ(code, 0);
 
-    //printf("rrbody: \n");
-    //for(int i = 0; i < pRead->pHead->head.len; i++) {
-      //printf("%d ", pRead->pHead->head.body[i]);
+    // printf("rrbody: \n");
+    // for(int i = 0; i < pRead->pHead->head.len; i++) {
+    // printf("%d ", pRead->pHead->head.body[i]);
     //}
-    //printf("\n");
+    // printf("\n");
 
     ASSERT_EQ(pRead->pHead->head.version, ver);
-    ASSERT_EQ(pRead->curVersion, ver+1);
+    ASSERT_EQ(pRead->curVersion, ver + 1);
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, ver);
     int len = strlen(newStr);
     ASSERT_EQ(pRead->pHead->head.len, len);
-    for(int j = 0; j < len; j++) {
+    for (int j = 0; j < len; j++) {
       EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
     }
   }

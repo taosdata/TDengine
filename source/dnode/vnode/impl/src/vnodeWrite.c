@@ -72,7 +72,9 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
           }
           break;
         case TSDB_MSG_TYPE_SUBMIT:
-          /* code */
+          if (tsdbInsertData(pVnode->pTsdb, (SSubmitMsg *)ptr) < 0) {
+            // TODO: handle error
+          }
           break;
         default:
           break;

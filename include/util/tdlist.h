@@ -58,8 +58,8 @@ extern "C" {
 // Double linked list
 #define TD_DLIST_NODE(TYPE) \
   struct {                  \
-    TYPE *dl_prev_;         \
-    TYPE *dl_next_;         \
+    struct TYPE *dl_prev_;         \
+    struct TYPE *dl_next_;         \
   }
 
 #define TD_DLIST(TYPE)      \

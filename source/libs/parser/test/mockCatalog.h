@@ -22,6 +22,6 @@ void generateMetaData(MockCatalogService* mcs);
 
 // mock
 struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps);
-int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData);
+int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SCatalogReq* pMetaReq, SMetaData* pMetaData);
 
 #endif  // MOCK_CATALOG_H

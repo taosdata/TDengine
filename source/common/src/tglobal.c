@@ -30,19 +30,12 @@
 // cluster
 char     tsFirst[TSDB_EP_LEN] = {0};
 char     tsSecond[TSDB_EP_LEN] = {0};
-char     tsArbitrator[TSDB_EP_LEN] = {0};
 char     tsLocalFqdn[TSDB_FQDN_LEN] = {0};
 char     tsLocalEp[TSDB_EP_LEN] = {0};  // Local End Point, hostname:port
 uint16_t tsServerPort = 6030;
 int32_t  tsStatusInterval = 1;  // second
-int32_t  tsNumOfMnodes = 1;
-int8_t   tsEnableVnodeBak = 1;
 int8_t   tsEnableTelemetryReporting = 0;
-int8_t   tsArbOnline = 0;
-int64_t  tsArbOnlineTimestamp = TSDB_ARB_DUMMY_TIME;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
-int32_t  tsDnodeId = 0;
-int64_t  tsDnodeStartTime = 0;
 
 // common
 int32_t tsRpcTimer       = 300;
@@ -129,59 +122,19 @@ int32_t tsRetrieveBlockingModel = 0;
 // last_row(*), first(*), last_row(ts, col1, col2) query, the result fields will be the original column name
 int8_t  tsKeepOriginalColumnName = 0;
 
-// db parameters
-int32_t tsCacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
-int32_t tsBlocksPerVnode = TSDB_DEFAULT_TOTAL_BLOCKS;
-int16_t tsDaysPerFile    = TSDB_DEFAULT_DAYS_PER_FILE;
-int32_t tsDaysToKeep     = TSDB_DEFAULT_KEEP;
-int32_t tsMinRowsInFileBlock = TSDB_DEFAULT_MIN_ROW_FBLOCK;
-int32_t tsMaxRowsInFileBlock = TSDB_DEFAULT_MAX_ROW_FBLOCK;
-int16_t tsCommitTime    = TSDB_DEFAULT_COMMIT_TIME;  // seconds
-int32_t tsTimePrecision = TSDB_DEFAULT_PRECISION;
-int8_t  tsCompression   = TSDB_DEFAULT_COMP_LEVEL;
-int8_t  tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
-int32_t tsFsyncPeriod   = TSDB_DEFAULT_FSYNC_PERIOD;
-int32_t tsReplications  = TSDB_DEFAULT_DB_REPLICA_OPTION;
-int32_t tsQuorum        = TSDB_DEFAULT_DB_QUORUM_OPTION;
-int8_t  tsUpdate        = TSDB_DEFAULT_DB_UPDATE_OPTION;
-int8_t  tsCacheLastRow  = TSDB_DEFAULT_CACHE_LAST_ROW;
-int32_t tsMaxVgroupsPerDb  = 0;
-int32_t tsTsdbMetaCompactRatio = TSDB_META_COMPACT_RATIO;
-
 // tsdb config 
 // For backward compatibility
 bool tsdbForceKeepFile = false;
 
 // balance
-int8_t  tsEnableBalance = 1;
-int8_t  tsAlternativeRole = 0;
-int32_t tsBalanceInterval = 300;           // seconds
-int32_t tsOfflineThreshold = 86400 * 10;  // seconds of 10 days
 int8_t  tsEnableFlowCtrl = 1;
 int8_t  tsEnableSlaveQuery = 1;
 int8_t  tsEnableAdjustMaster = 1;
 
-// restful
-int32_t  tsRestRowLimit = 10240;
-int8_t   tsTelegrafUseFieldNum = 0;
-
-// mqtt
-int8_t tsEnableMqttModule = 0;  // not finished yet, not started it by default
-char    tsMqttHostName[TSDB_MQTT_HOSTNAME_LEN] = "test.mosquitto.org";
-char    tsMqttPort[TSDB_MQTT_PORT_LEN] = "1883";
-char    tsMqttUser[TSDB_MQTT_USER_LEN] = {0};
-char    tsMqttPass[TSDB_MQTT_PASS_LEN] = {0};
-char    tsMqttClientId[TSDB_MQTT_CLIENT_ID_LEN] = "TDengineMqttSubscriber";
-char    tsMqttTopic[TSDB_MQTT_TOPIC_LEN] = "/test"; // #
 
 // monitor
-int8_t  tsEnableMonitorModule = 1;
 char    tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
 char    tsInternalPass[] = "secretkey";
-int32_t tsMonitorInterval = 30;  // seconds
-
-// stream
-int8_t  tsEnableStream = 1;
 
 // internal
 int8_t tsCompactMnodeWal = 0;
@@ -191,7 +144,6 @@ char   tsDnodeDir[PATH_MAX] = {0};
 char   tsMnodeDir[PATH_MAX] = {0};
 
 int32_t  tsDiskCfgNum = 0;
-int32_t tsTopicBianryLen = 16000;
 
 #ifndef _STORAGE
 SDiskCfg tsDiskCfg[1];
@@ -245,14 +197,10 @@ static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 void taosSetAllDebugFlag() {
   if (debugFlag != 0) { 
     mDebugFlag = debugFlag;
-    sdbDebugFlag = debugFlag;
     dDebugFlag = debugFlag;
     vDebugFlag = debugFlag;
     jniDebugFlag = debugFlag;
     odbcDebugFlag = debugFlag;
-    httpDebugFlag = debugFlag;
-    mqttDebugFlag = debugFlag;
-    monDebugFlag = debugFlag;
     qDebugFlag = debugFlag;    
     rpcDebugFlag = debugFlag;
     uDebugFlag = debugFlag;
@@ -459,16 +407,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
 
-  cfg.option = "arbitrator";
-  cfg.ptr = tsArbitrator;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_EP_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
   // dnode configs
   cfg.option = "numOfThreadsPerCore";
   cfg.ptr = &tsNumOfThreadsPerCore;
@@ -509,26 +447,6 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
-  
-  cfg.option = "numOfMnodes";
-  cfg.ptr = &tsNumOfMnodes;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 1;
-  cfg.maxValue = 3;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "vnodeBak";
-  cfg.ptr = &tsEnableVnodeBak;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
 
   cfg.option = "telemetryReporting";
   cfg.ptr = &tsEnableTelemetryReporting;
@@ -537,37 +455,6 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = 0;
   cfg.maxValue = 1;
   cfg.ptrLength = 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "balance";
-  cfg.ptr = &tsEnableBalance;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "balanceInterval";
-  cfg.ptr = &tsBalanceInterval;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 1;
-  cfg.maxValue = 30000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  // 0-any; 1-mnode; 2-vnode
-  cfg.option = "role";
-  cfg.ptr = &tsAlternativeRole;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 2;
-  cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
 
@@ -580,26 +467,6 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 2048;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "monitorInterval";
-  cfg.ptr = &tsMonitorInterval;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 1;
-  cfg.maxValue = 600;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_SECOND;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "offlineThreshold";
-  cfg.ptr = &tsOfflineThreshold;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 3;
-  cfg.maxValue = 86400 * 365;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_SECOND;
   taosAddConfigOption(cfg);
 
   cfg.option = "rpcTimer";
@@ -709,186 +576,6 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = 0.1f;
   cfg.maxValue = 0.9f;
   cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "maxVgroupsPerDb";
-  cfg.ptr = &tsMaxVgroupsPerDb;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 8192;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "cache";
-  cfg.ptr = &tsCacheBlockSize;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_CACHE_BLOCK_SIZE;
-  cfg.maxValue = TSDB_MAX_CACHE_BLOCK_SIZE;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_MB;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "blocks";
-  cfg.ptr = &tsBlocksPerVnode;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_TOTAL_BLOCKS;
-  cfg.maxValue = TSDB_MAX_TOTAL_BLOCKS;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "days";
-  cfg.ptr = &tsDaysPerFile;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_DAYS_PER_FILE;
-  cfg.maxValue = TSDB_MAX_DAYS_PER_FILE;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "keep";
-  cfg.ptr = &tsDaysToKeep;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_KEEP;
-  cfg.maxValue = TSDB_MAX_KEEP;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "minRows";
-  cfg.ptr = &tsMinRowsInFileBlock;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_MIN_ROW_FBLOCK;
-  cfg.maxValue = TSDB_MAX_MIN_ROW_FBLOCK;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "maxRows";
-  cfg.ptr = &tsMaxRowsInFileBlock;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_MAX_ROW_FBLOCK;
-  cfg.maxValue = TSDB_MAX_MAX_ROW_FBLOCK;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "precision";
-  cfg.ptr = &tsTimePrecision;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_PRECISION;
-  cfg.maxValue = TSDB_MAX_PRECISION;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "comp";
-  cfg.ptr = &tsCompression;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_COMP_LEVEL;
-  cfg.maxValue = TSDB_MAX_COMP_LEVEL;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "walLevel";
-  cfg.ptr = &tsWAL;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_WAL_LEVEL;
-  cfg.maxValue = TSDB_MAX_WAL_LEVEL;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "fsync";
-  cfg.ptr = &tsFsyncPeriod;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_FSYNC_PERIOD;
-  cfg.maxValue = TSDB_MAX_FSYNC_PERIOD;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "replica";
-  cfg.ptr = &tsReplications;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_DB_REPLICA_OPTION;
-  cfg.maxValue = TSDB_MAX_DB_REPLICA_OPTION;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "quorum";
-  cfg.ptr = &tsQuorum;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_DB_QUORUM_OPTION;
-  cfg.maxValue = TSDB_MAX_DB_QUORUM_OPTION;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "update";
-  cfg.ptr = &tsUpdate;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_DB_UPDATE;
-  cfg.maxValue = TSDB_MAX_DB_UPDATE;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "cachelast";
-  cfg.ptr = &tsCacheLastRow;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_DB_CACHE_LAST_ROW;
-  cfg.maxValue = TSDB_MAX_DB_CACHE_LAST_ROW;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "mqttHostName";
-  cfg.ptr = tsMqttHostName;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_NOT_PRINT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_MQTT_HOSTNAME_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "mqttPort";
-  cfg.ptr = tsMqttPort;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_NOT_PRINT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_MQTT_PORT_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "mqttTopic";
-  cfg.ptr = tsMqttTopic;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_NOT_PRINT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_MQTT_TOPIC_LEN;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
 
@@ -1085,76 +772,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
 
-  cfg.option = "adjustMaster";
-  cfg.ptr = &tsEnableAdjustMaster;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "mqtt";
-  cfg.ptr = &tsEnableMqttModule;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "monitor";
-  cfg.ptr = &tsEnableMonitorModule;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "stream";
-  cfg.ptr = &tsEnableStream;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "topicBianryLen";
-  cfg.ptr = &tsTopicBianryLen;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 16;
-  cfg.maxValue = 16000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "telegrafUseFieldNum";
-  cfg.ptr = &tsTelegrafUseFieldNum;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "restfulRowLimit";
-  cfg.ptr = &tsRestRowLimit;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 1;
-  cfg.maxValue = 10000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
   // debug flag
   cfg.option = "numOfLogLines";
   cfg.ptr = &tsNumOfLogLines;
@@ -1236,17 +853,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
 
-
-  cfg.option = "sdbDebugFlag";
-  cfg.ptr = &sdbDebugFlag;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
-  cfg.minValue = 0;
-  cfg.maxValue = 255;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
   cfg.option = "rpcDebugFlag";
   cfg.ptr = &rpcDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -1301,36 +907,6 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &uDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 255;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "httpDebugFlag";
-  cfg.ptr = &httpDebugFlag;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
-  cfg.minValue = 0;
-  cfg.maxValue = 255;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "mqttDebugFlag";
-  cfg.ptr = &mqttDebugFlag;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
-  cfg.minValue = 0;
-  cfg.maxValue = 255;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "monDebugFlag";
-  cfg.ptr = &monDebugFlag;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
   cfg.minValue = 0;
   cfg.maxValue = 255;
   cfg.ptrLength = 0;
@@ -1455,16 +1031,6 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = 0;
   cfg.maxValue = 0;
   cfg.ptrLength = PATH_MAX;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "tsdbMetaCompactRatio";
-  cfg.ptr = &tsTsdbMetaCompactRatio;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 100;
-  cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
 

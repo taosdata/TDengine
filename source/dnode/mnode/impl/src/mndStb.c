@@ -69,7 +69,7 @@ int32_t mndInitStb(SMnode *pMnode) {
 void mndCleanupStb(SMnode *pMnode) {}
 
 static SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
-  int32_t  size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema);
+  int32_t  size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + TSDB_STB_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STB, TSDB_STB_VER_NUM, size);
   if (pRaw == NULL) return NULL;
 
@@ -285,7 +285,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateStbMsg *pCre
   }
   sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
-  if (mndTransPrepare(pTrans) != 0) {
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
@@ -433,7 +433,7 @@ static int32_t mndDropStb(SMnode *pMnode, SMnodeMsg *pMsg, SStbObj *pStb) {
   }
   sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 
-  if (mndTransPrepare(pTrans) != 0) {
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
@@ -605,7 +605,7 @@ static int32_t mndGetStbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pM
   return 0;
 }
 
-static void mnodeExtractTableName(char *tableId, char *name) {
+static void mndExtractTableName(char *tableId, char *name) {
   int pos = -1;
   int num = 0;
   for (pos = 0; tableId[pos] != 0; ++pos) {
@@ -665,7 +665,7 @@ static int32_t mndRetrieveStb(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int3
   }
 
   pShow->numOfReads += numOfRows;
-  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   return numOfRows;
 }
 

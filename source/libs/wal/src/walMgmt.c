@@ -14,42 +14,34 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "compare.h"
 #include "os.h"
 #include "taoserror.h"
-#include "tref.h"
 #include "tfile.h"
-#include "compare.h"
+#include "tref.h"
 #include "walInt.h"
 
-//internal
-int32_t walGetNextFile(SWal *pWal, int64_t *nextFileId);
-int32_t walGetOldFile(SWal *pWal, int64_t curFileId, int32_t minDiff, int64_t *oldFileId);
-int32_t walGetNewFile(SWal *pWal, int64_t *newFileId);
-
 typedef struct {
-  int32_t   refSetId;
-  uint32_t  seq;
   int8_t    stop;
   int8_t    inited;
+  uint32_t  seq;
+  int32_t   refSetId;
   pthread_t thread;
 } SWalMgmt;
 
 static SWalMgmt tsWal = {0, .seq = 1};
 static int32_t  walCreateThread();
 static void     walStopThread();
-static int32_t  walInitObj(SWal *pWal);
 static void     walFreeObj(void *pWal);
 
-int64_t walGetSeq() {
-  return (int64_t)atomic_load_32(&tsWal.seq);
-}
+int64_t walGetSeq() { return (int64_t)atomic_load_32(&tsWal.seq); }
 
 int32_t walInit() {
   int8_t old = atomic_val_compare_exchange_8(&tsWal.inited, 0, 1);
-  if(old == 1) return 0;
+  if (old == 1) return 0;
 
   int code = tfInit();
-  if(code != 0) {
+  if (code != 0) {
     wError("failed to init tfile since %s", tstrerror(code));
     atomic_store_8(&tsWal.inited, 0);
     return code;
@@ -68,8 +60,8 @@ int32_t walInit() {
 }
 
 void walCleanUp() {
-  int old = atomic_val_compare_exchange_8(&tsWal.inited, 1, 0);
-  if(old == 0) {
+  int8_t old = atomic_val_compare_exchange_8(&tsWal.inited, 1, 0);
+  if (old == 0) {
     return;
   }
   walStopThread();
@@ -83,50 +75,65 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return NULL;
   }
-  memset(pWal, 0, sizeof(SWal));
-  pWal->writeLogTfd = -1;
-  pWal->writeIdxTfd = -1;
-  pWal->writeCur = -1;
 
-  //set config
+  // set config
   memcpy(&pWal->cfg, pCfg, sizeof(SWalCfg));
-
-  //init version info
-  pWal->vers.firstVer = -1;
-  pWal->vers.commitVer = -1;
-  pWal->vers.snapshotVer = -1;
-  pWal->vers.lastVer = -1;
-
-  pWal->vers.verInSnapshotting = -1;
-
-  pWal->totSize = 0;
-
-  //init status
-  pWal->lastRollSeq = -1;
-
-  //init write buffer
-  memset(&pWal->writeHead, 0, sizeof(SWalHead));
-  pWal->writeHead.head.sver = 0;
-
-  tstrncpy(pWal->path, path, sizeof(pWal->path));
-  pthread_mutex_init(&pWal->mutex, NULL);
-
   pWal->fsyncSeq = pCfg->fsyncPeriod / 1000;
   if (pWal->fsyncSeq <= 0) pWal->fsyncSeq = 1;
 
-  if (walInitObj(pWal) != 0) {
-    walFreeObj(pWal);
+  tstrncpy(pWal->path, path, sizeof(pWal->path));
+  if (taosMkDir(pWal->path) != 0) {
+    wError("vgId:%d, path:%s, failed to create directory since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
     return NULL;
   }
 
-   pWal->refId = taosAddRef(tsWal.refSetId, pWal);
-   if (pWal->refId < 0) {
-    walFreeObj(pWal);
+  // open meta
+  walResetVer(&pWal->vers);
+  pWal->writeLogTfd = -1;
+  pWal->writeIdxTfd = -1;
+  pWal->writeCur = -1;
+  pWal->fileInfoSet = taosArrayInit(8, sizeof(WalFileInfo));
+  if (pWal->fileInfoSet == NULL) {
+    wError("vgId:%d, path:%s, failed to init taosArray %s", pWal->cfg.vgId, pWal->path, strerror(errno));
+    free(pWal);
     return NULL;
   }
-  walReadMeta(pWal);
 
-  wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->cfg.vgId, pWal, pWal->cfg.level, pWal->cfg.fsyncPeriod);
+  // init status
+  pWal->totSize = 0;
+  pWal->lastRollSeq = -1;
+
+  // init write buffer
+  memset(&pWal->writeHead, 0, sizeof(SWalHead));
+  pWal->writeHead.head.headVer = WAL_HEAD_VER;
+
+  if (pthread_mutex_init(&pWal->mutex, NULL) < 0) {
+    taosArrayDestroy(pWal->fileInfoSet);
+    free(pWal);
+    return NULL;
+  }
+
+  pWal->refId = taosAddRef(tsWal.refSetId, pWal);
+  if (pWal->refId < 0) {
+    pthread_mutex_destroy(&pWal->mutex);
+    taosArrayDestroy(pWal->fileInfoSet);
+    free(pWal);
+    return NULL;
+  }
+
+  if (walLoadMeta(pWal) < 0 && walCheckAndRepairMeta(pWal) < 0) {
+    taosRemoveRef(tsWal.refSetId, pWal->refId);
+    pthread_mutex_destroy(&pWal->mutex);
+    taosArrayDestroy(pWal->fileInfoSet);
+    free(pWal);
+    return NULL;
+  }
+
+  if (walCheckAndRepairIdx(pWal) < 0) {
+  }
+
+  wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->cfg.vgId, pWal, pWal->cfg.level,
+         pWal->cfg.fsyncPeriod);
 
   return pWal;
 }
@@ -152,43 +159,23 @@ int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
 }
 
 void walClose(SWal *pWal) {
-  if (pWal == NULL) return;
-
   pthread_mutex_lock(&pWal->mutex);
   tfClose(pWal->writeLogTfd);
   pWal->writeLogTfd = -1;
   tfClose(pWal->writeIdxTfd);
   pWal->writeIdxTfd = -1;
-  walWriteMeta(pWal);
+  walSaveMeta(pWal);
   taosArrayDestroy(pWal->fileInfoSet);
   pWal->fileInfoSet = NULL;
   pthread_mutex_unlock(&pWal->mutex);
+
   taosRemoveRef(tsWal.refSetId, pWal->refId);
-}
-
-static int32_t walInitObj(SWal *pWal) {
-  if (taosMkDir(pWal->path) != 0) {
-    wError("vgId:%d, path:%s, failed to create directory since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
-    return TAOS_SYSTEM_ERROR(errno);
-  }
-  pWal->fileInfoSet = taosArrayInit(8, sizeof(WalFileInfo));
-  if(pWal->fileInfoSet == NULL) {
-    wError("vgId:%d, path:%s, failed to init taosArray %s", pWal->cfg.vgId, pWal->path, strerror(errno));
-    return TAOS_SYSTEM_ERROR(errno);
-  }
-
-  wDebug("vgId:%d, object is initialized", pWal->cfg.vgId);
-  return 0;
 }
 
 static void walFreeObj(void *wal) {
   SWal *pWal = wal;
   wDebug("vgId:%d, wal:%p is freed", pWal->cfg.vgId, pWal);
 
-  tfClose(pWal->writeLogTfd);
-  tfClose(pWal->writeIdxTfd);
-  taosArrayDestroy(pWal->fileInfoSet);
-  pWal->fileInfoSet = NULL;
   pthread_mutex_destroy(&pWal->mutex);
   tfree(pWal);
 }
@@ -214,10 +201,12 @@ static void walFsyncAll() {
   SWal *pWal = taosIterateRef(tsWal.refSetId, 0);
   while (pWal) {
     if (walNeedFsync(pWal)) {
-      wTrace("vgId:%d, do fsync, level:%d seq:%d rseq:%d", pWal->cfg.vgId, pWal->cfg.level, pWal->fsyncSeq, atomic_load_32(&tsWal.seq));
+      wTrace("vgId:%d, do fsync, level:%d seq:%d rseq:%d", pWal->cfg.vgId, pWal->cfg.level, pWal->fsyncSeq,
+             atomic_load_32(&tsWal.seq));
       int32_t code = tfFsync(pWal->writeLogTfd);
       if (code != 0) {
-        wError("vgId:%d, file:%"PRId64".log, failed to fsync since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal), strerror(code));
+        wError("vgId:%d, file:%" PRId64 ".log, failed to fsync since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
+               strerror(code));
       }
     }
     pWal = taosIterateRef(tsWal.refSetId, pWal->refId);

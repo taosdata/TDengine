@@ -25,7 +25,9 @@ extern "C" {
 #define TSDB__packed
 
 #define TSKEY int64_t
-#define TSKEY_INITIAL_VAL    INT64_MIN
+#define TSKEY_MIN INT64_MIN
+#define TSKEY_MAX (INT64_MAX - 1)
+#define TSKEY_INITIAL_VAL TSKEY_MIN
 
 // Bytes for each type.
 extern const int32_t TYPE_BYTES[15];
@@ -210,6 +212,7 @@ do { \
 #define TSDB_STEP_NAME_LEN        32
 #define TSDB_STEP_DESC_LEN        128
 
+#define TSDB_ERROR_MSG_LEN        1024
 #define TSDB_DNODE_CONFIG_LEN     128
 
 #define TSDB_MQTT_HOSTNAME_LEN    64

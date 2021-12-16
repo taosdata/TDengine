@@ -1458,23 +1458,6 @@ void* vgroupInfoClear(SVgroupsInfo *vgroupList) {
   return NULL;
 }
 
-char* serializeTagData(STagData* pTagData, char* pMsg) {
-  int32_t n = (int32_t) strlen(pTagData->name);
-  *(int32_t*) pMsg = htonl(n);
-  pMsg += sizeof(n);
-
-  memcpy(pMsg, pTagData->name, n);
-  pMsg += n;
-
-  *(int32_t*)pMsg = htonl(pTagData->dataLen);
-  pMsg += sizeof(int32_t);
-
-  memcpy(pMsg, pTagData->data, pTagData->dataLen);
-  pMsg += pTagData->dataLen;
-
-  return pMsg;
-}
-
 int32_t copyTagData(STagData* dst, const STagData* src) {
   dst->dataLen = src->dataLen;
   tstrncpy(dst->name, src->name, tListLen(dst->name));
@@ -1491,29 +1474,6 @@ int32_t copyTagData(STagData* dst, const STagData* src) {
   return 0;
 }
 
-STableMeta* createSuperTableMeta(STableMetaMsg* pChild) {
-  assert(pChild != NULL);
-  int32_t total = pChild->numOfColumns + pChild->numOfTags;
-
-  STableMeta* pTableMeta = calloc(1, sizeof(STableMeta) + sizeof(SSchema) * total);
-  pTableMeta->tableType = TSDB_SUPER_TABLE;
-  pTableMeta->tableInfo.numOfTags = pChild->numOfTags;
-  pTableMeta->tableInfo.numOfColumns = pChild->numOfColumns;
-  pTableMeta->tableInfo.precision = pChild->precision;
-
-  pTableMeta->uid = pChild->suid;
-  pTableMeta->tversion = pChild->tversion;
-  pTableMeta->sversion = pChild->sversion;
-
-  memcpy(pTableMeta->schema, pChild->pSchema, sizeof(SSchema) * total);
-
-  int32_t num = pTableMeta->tableInfo.numOfColumns;
-  for(int32_t i = 0; i < num; ++i) {
-    pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
-  }
-
-  return pTableMeta;
-}
 
 uint32_t getTableMetaSize(const STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);

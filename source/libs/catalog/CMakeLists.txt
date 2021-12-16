@@ -8,5 +8,7 @@ target_include_directories(
 
 target_link_libraries(
    catalog
-   PRIVATE os util common transport
+   PRIVATE os util common transport query
 )
+
+ADD_SUBDIRECTORY(test)

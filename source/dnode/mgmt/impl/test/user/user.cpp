@@ -24,12 +24,12 @@ class DndTestUser : public ::testing::Test {
   }
 
   static void SetUpTestSuite() {
-    initLog("/tmp/dndTestUser");
+    initLog("/tmp/tdlog");
 
     const char* fqdn = "localhost";
-    const char* firstEp = "localhost:9530";
-    pServer = CreateServer("/tmp/dndTestUser", fqdn, 9530, firstEp);
-    pClient = createClient("root", "taosdata", fqdn, 9530);
+    const char* firstEp = "localhost:9140";
+    pServer = CreateServer("/tmp/dnode_test_user", fqdn, 9140, firstEp);
+    pClient = createClient("root", "taosdata", fqdn, 9140);
     taosMsleep(300);
   }
 
@@ -170,7 +170,7 @@ SServer* DndTestUser::pServer;
 SClient* DndTestUser::pClient;
 int32_t  DndTestUser::connId;
 
-TEST_F(DndTestUser, ShowUser) {
+TEST_F(DndTestUser, 01_ShowUser) {
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
   CheckSchema(0, TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN + VARSTR_HEADER_SIZE, "name");
   CheckSchema(1, TSDB_DATA_TYPE_BINARY, 10 + VARSTR_HEADER_SIZE, "privilege");
@@ -184,7 +184,7 @@ TEST_F(DndTestUser, ShowUser) {
   CheckBinary("root", TSDB_USER_LEN);
 }
 
-TEST_F(DndTestUser, CreateUser_01) {
+TEST_F(DndTestUser, 02_CreateUser) {
   {
     SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(sizeof(SCreateUserMsg));
     strcpy(pReq->user, "u1");
@@ -233,7 +233,7 @@ TEST_F(DndTestUser, CreateUser_01) {
   CheckBinary("root", TSDB_USER_LEN);
 }
 
-TEST_F(DndTestUser, AlterUser_01) {
+TEST_F(DndTestUser, 03_AlterUser) {
   SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(sizeof(SAlterUserMsg));
   strcpy(pReq->user, "u1");
   strcpy(pReq->pass, "p2");
@@ -264,7 +264,7 @@ TEST_F(DndTestUser, AlterUser_01) {
   CheckBinary("root", TSDB_USER_LEN);
 }
 
-TEST_F(DndTestUser, DropUser_01) {
+TEST_F(DndTestUser, 04_DropUser) {
   SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(sizeof(SDropUserMsg));
   strcpy(pReq->user, "u1");
 
@@ -290,15 +290,15 @@ TEST_F(DndTestUser, DropUser_01) {
   CheckBinary("root", TSDB_USER_LEN);
 }
 
-TEST_F(DndTestUser, RestartDnode) {
+TEST_F(DndTestUser, 05_RestartDnode) {
   stopServer(pServer);
   pServer = NULL;
 
   uInfo("start all server");
 
   const char* fqdn = "localhost";
-  const char* firstEp = "localhost:9530";
-  pServer = startServer("/tmp/dndTestUser", fqdn, 9530, firstEp);
+  const char* firstEp = "localhost:9140";
+  pServer = startServer("/tmp/dnode_test_user", fqdn, 9140, firstEp);
 
   uInfo("all server is running");
 

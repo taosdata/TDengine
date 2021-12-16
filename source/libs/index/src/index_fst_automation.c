@@ -16,21 +16,81 @@
 #include "index_fst_automation.h"
 
 
+StartWithStateValue *startWithStateValueCreate(StartWithStateKind kind, ValueType ty, void *val) {
+  StartWithStateValue *nsv = calloc(1, sizeof(StartWithStateValue));
+  if (nsv == NULL) { return NULL; }
+
+  nsv->kind = kind;
+  nsv->type = ty;
+  if (ty == FST_INT) {
+    nsv->val = *(int *)val;
+  } else if (ty == FST_CHAR) {
+    size_t len = strlen((char *)val);  
+    nsv->ptr = (char *)calloc(1, len + 1);  
+    memcpy(nsv->ptr, val, len);
+  } else if (ty == FST_ARRAY) {
+    //TODO, 
+    //nsv->arr = taosArrayFromList() 
+  }
+  return nsv;
+}
+void startWithStateValueDestroy(void *val) {
+  StartWithStateValue *sv = (StartWithStateValue *)val;
+  if (sv == NULL) { return; }
+
+  if (sv->type == FST_INT) {
+    //  
+  } else if (sv->type == FST_CHAR) {
+    free(sv->ptr);
+  } else if (sv->type == FST_ARRAY) {
+    taosArrayDestroy(sv->arr);
+  }
+  free(sv); 
+}
+StartWithStateValue *startWithStateValueDump(StartWithStateValue *sv) {
+  StartWithStateValue *nsv = calloc(1, sizeof(StartWithStateValue));
+  if (nsv == NULL) { return NULL; }
+
+  nsv->kind = sv->kind;
+  nsv->type= sv->type;
+  if (nsv->type == FST_INT) {
+    nsv->val = sv->val;
+  } else if (nsv->type == FST_CHAR) {
+    size_t len = strlen(sv->ptr);
+    nsv->ptr = (char *)calloc(1, len + 1);
+    memcpy(nsv->ptr, sv->ptr, len);
+  } else if (nsv->type == FST_ARRAY) {
+  }
+  return nsv;
+}
+
+
 // prefix query, impl later
+
 static void* prefixStart(AutomationCtx *ctx) {  
-  StartWithStateValue *data = (StartWithStateValue *)(ctx->data);
-  return data;
+  StartWithStateValue *data = (StartWithStateValue *)(ctx->stdata);
+  return startWithStateValueDump(data);     
 };
-static bool prefixIsMatch(AutomationCtx *ctx, void *data) {
-  return true;
+static bool prefixIsMatch(AutomationCtx *ctx, void *sv) {
+  StartWithStateValue* ssv = (StartWithStateValue *)sv;  
+  return ssv->val == strlen(ctx->data); 
 } 
-static bool prefixCanMatch(AutomationCtx *ctx, void *data) {
-  return true;
+static bool prefixCanMatch(AutomationCtx *ctx, void *sv) {
+  StartWithStateValue* ssv = (StartWithStateValue *)sv;  
+  return ssv->val >= 0; 
 }
 static bool prefixWillAlwaysMatch(AutomationCtx *ctx, void *state) {
   return true;
 }
 static void* prefixAccept(AutomationCtx *ctx, void *state, uint8_t byte) {
+  StartWithStateValue* ssv = (StartWithStateValue *)state;  
+  if (ssv == NULL || ctx == NULL) {return NULL;}
+
+  char *data = ctx->data;
+  if ((strlen(data) > ssv->val) && data[ssv->val] == byte) {
+    int val = ssv->val + 1;
+    return startWithStateValueCreate(Running, FST_INT, &val);
+  } 
   return NULL;
 }
 static void* prefixAcceptEof(AutomationCtx *ctx, void *state) {
@@ -79,28 +139,34 @@ AutomationFunc automFuncs[]  = {{
   // add more search type
 };
 
-AutomationCtx* automCtxCreate(void *data, AutomationType type) {
+AutomationCtx* automCtxCreate(void *data,AutomationType atype) {
   AutomationCtx *ctx = calloc(1, sizeof(AutomationCtx));
   if (ctx == NULL) { return NULL; }
 
-  if (type == AUTOMATION_PREFIX) {
-    StartWithStateValue *swsv = (StartWithStateValue *)calloc(1, sizeof(StartWithStateValue));   
-    swsv->kind  = Done; 
-    swsv->value = NULL; 
-    ctx->data = (void *)swsv;
-  } else if (type == AUTMMATION_MATCH) {
+  StartWithStateValue *sv = NULL;
+  if (atype == AUTOMATION_PREFIX) {
+    int val = 0;
+    sv = startWithStateValueCreate(Running, FST_INT, &val);
+    ctx->stdata = (void *)sv;
+  } else if (atype == AUTMMATION_MATCH) {
       
   } else {
     // add more search type
   }
 
-  ctx->type = type;
+  char*  src = (char *)data; 
+  size_t len = strlen(src);
+  char*  dst = (char *)malloc(len * sizeof(char) + 1); 
+  memcpy(dst, src, len);
+  dst[len] = 0;
+  
+  ctx->data   = dst; 
+  ctx->type   = atype;
+  ctx->stdata = (void *)sv; 
   return ctx; 
 } 
 void automCtxDestroy(AutomationCtx *ctx) {
-  if (ctx->type == AUTOMATION_PREFIX) {
-    free(ctx->data);
-  } else if (ctx->type == AUTMMATION_MATCH) {
-  }
+  startWithStateValueDestroy(ctx->stdata);
+  free(ctx->data);
   free(ctx);
 }

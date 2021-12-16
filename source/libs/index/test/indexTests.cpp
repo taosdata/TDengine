@@ -59,8 +59,21 @@ class FstReadMemory {
      return ok; 
    }
    // add later
-   bool Search(const std::string &key, std::vector<uint64_t> &result) {
+   bool Search(AutomationCtx *ctx, std::vector<uint64_t> &result) { 
+      FstStreamBuilder *sb = fstSearch(_fst, ctx);
+      StreamWithState *st = streamBuilderIntoStream(sb);  
+      StreamWithStateResult *rt = NULL;  
+      
+      while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
+        result.push_back((uint64_t)(rt->out.out));
+      }
       return true;
+   }
+   bool SearchWithTimeCostUs(AutomationCtx *ctx, std::vector<uint64_t> &result) {
+     int64_t s = taosGetTimestampUs();
+     bool ok = this->Search(ctx, result); 
+     int64_t e = taosGetTimestampUs();
+     return ok;
    }
     
    ~FstReadMemory() {
@@ -186,11 +199,43 @@ void checkFstPerf() {
     printf("success to init fst read");  
   }  
   Performance_fstReadRecords(m); 
-   
   delete m;
 } 
 
+void checkFstPrefixSearch() {
+  FstWriter *fw = new FstWriter;
+  int64_t s = taosGetTimestampUs();
+  int count = 2;
+  std::string key("ab");
+  
+  for (int i = 0; i < count; i++) {
+    key[1] = key[1] + i;   
+    fw->Put(key, i); 
+  }
+  int64_t e = taosGetTimestampUs();
+  
+  std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
+  delete fw;
 
+  FstReadMemory *m = new FstReadMemory(1024 * 64);
+  if (m->init() == false) {
+    std::cout << "init readMemory failed" << std::endl; 
+    delete m;
+    return;
+  }
+  
+  // prefix search 
+  std::vector<uint64_t> result;
+  AutomationCtx *ctx = automCtxCreate((void *)"ab", AUTOMATION_PREFIX); 
+  m->Search(ctx, result);   
+  assert(result.size() == count); 
+  for (int i = 0; i < result.size(); i++) {
+    assert(result[i] == i); // check result
+  }
+
+  free(ctx);
+  delete m;
+}  
 void validateFst() {
   int val = 100;
   int count = 100;
@@ -209,6 +254,8 @@ void validateFst() {
   FstReadMemory *m = new FstReadMemory(1024 * 64);
   if (m->init() == false) { 
     std::cout << "init readMemory failed" << std::endl; 
+    delete m;
+    return;
   }
 
   {
@@ -230,10 +277,12 @@ void validateFst() {
    }
   } 
   delete m;
-
 } 
+
+
 int main(int argc, char** argv) {
   checkFstPerf(); 
+  //checkFstPrefixSearch();
   return 1;
 }
 

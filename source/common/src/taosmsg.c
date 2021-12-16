@@ -13,23 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_HTTP_H
-#define TDENGINE_HTTP_H
+#define TAOS_MESSAGE_C
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "taosmsg.h"
 
-#include <stdint.h>
 
-int32_t httpGetReqCount();
-int32_t httpInitSystem();
-int32_t httpStartSystem();
-void httpStopSystem();
-void httpCleanUpSystem();
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif

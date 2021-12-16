@@ -13,6 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define TAOS_MESSAGE_C
+#include "tsdbDef.h"
 
-#include "taosmsg.h"
+int tsdbCommit(STsdb *pTsdb) {
+  // TODO
+  return 0;
+}

@@ -17,14 +17,16 @@
 #define _TD_MND_DEF_H_
 
 #include "os.h"
+
+#include "cJSON.h"
+#include "sync.h"
 #include "taosmsg.h"
+#include "thash.h"
 #include "tlog.h"
 #include "trpc.h"
 #include "ttimer.h"
-#include "thash.h"
-#include "cJSON.h"
+
 #include "mnode.h"
-#include "sync.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,11 +43,8 @@ extern int32_t mDebugFlag;
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
 
 typedef struct SClusterObj SClusterObj;
-typedef struct SDnodeObj   SDnodeObj;
 typedef struct SMnodeObj   SMnodeObj;
 typedef struct SAcctObj    SAcctObj;
-typedef struct SUserObj    SUserObj;
-typedef struct SDbObj      SDbObj;
 typedef struct SVgObj      SVgObj;
 typedef struct SFuncObj    SFuncObj;
 typedef struct SOperObj    SOperObj;
@@ -73,7 +72,8 @@ typedef enum {
   TRN_STAGE_EXECUTE = 2,
   TRN_STAGE_COMMIT = 3,
   TRN_STAGE_ROLLBACK = 4,
-  TRN_STAGE_RETRY = 5
+  TRN_STAGE_RETRY = 5,
+  TRN_STAGE_OVER = 6,
 } ETrnStage;
 
 typedef enum { TRN_POLICY_ROLLBACK = 1, TRN_POLICY_RETRY = 2 } ETrnPolicy;
@@ -103,7 +103,6 @@ typedef struct STrans {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
-  SMnode    *pMnode;
   void      *rpcHandle;
   SArray    *redoLogs;
   SArray    *undoLogs;
@@ -119,7 +118,7 @@ typedef struct SClusterObj {
   int64_t updateTime;
 } SClusterObj;
 
-typedef struct SDnodeObj {
+typedef struct {
   int32_t    id;
   int64_t    createdTime;
   int64_t    updateTime;
@@ -178,7 +177,7 @@ typedef struct SAcctObj {
   SAcctInfo info;
 } SAcctObj;
 
-typedef struct SUserObj {
+typedef struct {
   char      user[TSDB_USER_LEN];
   char      pass[TSDB_PASSWORD_LEN];
   char      acct[TSDB_USER_LEN];
@@ -209,12 +208,13 @@ typedef struct {
   int8_t  cacheLastRow;
 } SDbCfg;
 
-typedef struct SDbObj {
+typedef struct {
   char    name[TSDB_FULL_DB_NAME_LEN];
   char    acct[TSDB_USER_LEN];
   int64_t createdTime;
   int64_t updateTime;
   int64_t uid;
+  int32_t version;
   SDbCfg  cfg;
 } SDbObj;
 
@@ -304,6 +304,7 @@ typedef struct SMnodeMsg {
 
 typedef struct {
   int32_t id;
+  int32_t code;
   void   *rpcHandle;
 } STransMsg;
 

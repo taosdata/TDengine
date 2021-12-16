@@ -1,20 +1,20 @@
-add_executable(dndTestAcct "")
+add_executable(dnode_test_acct "")
 
-target_sources(dndTestAcct
+target_sources(dnode_test_acct
     PRIVATE
     "acct.cpp"
     "../sut/deploy.cpp"
 )
 
 target_link_libraries(
-    dndTestAcct
+    dnode_test_acct
     PUBLIC dnode
     PUBLIC util
     PUBLIC os
     PUBLIC gtest_main
 )
 
-target_include_directories(dndTestAcct
+target_include_directories(dnode_test_acct
     PUBLIC
     "${CMAKE_SOURCE_DIR}/include/server/dnode/mgmt"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
@@ -24,6 +24,6 @@ target_include_directories(dndTestAcct
 enable_testing()
 
 add_test(
-    NAME dndTestAcct
-    COMMAND dndTestAcct
+    NAME dnode_test_acct
+    COMMAND dnode_test_acct
 )

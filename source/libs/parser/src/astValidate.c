@@ -4029,18 +4029,18 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
   }
 
 
-  SMetaReq req = {0};
+  SCatalogReq req = {0};
   SMetaData data = {0};
 
   // TODO: check if the qnode info has been cached already
-  req.qNodeEpset = true;
+  req.qNodeRequired = true;
   code = qParserExtractRequestedMetaInfo(pInfo, &req, msgBuf, msgBufLen);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
   // load the meta data from catalog
-  code = catalogGetMetaData(pCatalog, &req, &data);
+  code = catalogGetAllMeta(pCatalog, NULL, NULL, &req, &data);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

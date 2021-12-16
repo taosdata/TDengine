@@ -17,6 +17,7 @@
 #include "tcoding.h"
 #include "tchecksum.h"
 #include "indexInt.h" 
+#include "index_fst_automation.h"
 
 
 static void fstPackDeltaIn(FstCountingWriter *wrt, CompiledAddr nodeAddr, CompiledAddr transAddr, uint8_t nBytes) {
@@ -1093,6 +1094,10 @@ bool fstGet(Fst *fst, FstSlice *b, Output *out) {
 FstStreamBuilder *fstSearch(Fst *fst, AutomationCtx *ctx) {
   return fstStreamBuilderCreate(fst, ctx);
 }
+StreamWithState* streamBuilderIntoStream(FstStreamBuilder *sb) {
+  if (sb == NULL) { return NULL; } 
+  return streamWithStateCreate(sb->fst, sb->aut, sb->min, sb->max);
+}
 FstStreamWithStateBuilder *fstSearchWithState(Fst *fst, AutomationCtx *ctx) {
   return fstStreamBuilderCreate(fst, ctx);
 }
@@ -1118,7 +1123,7 @@ CompiledAddr fstGetRootAddr(Fst *fst) {
 
 Output fstEmptyFinalOutput(Fst *fst, bool *null) {
   Output res = 0;
-  FstNode *node = fst->root;
+  FstNode *node = fstGetRoot(fst);
   if (FST_NODE_IS_FINAL(node)) {
     *null = false;
     res = FST_NODE_FINAL_OUTPUT(node); 
@@ -1175,7 +1180,7 @@ bool fstBoundWithDataIsEmpty(FstBoundWithData *bound) {
 
 
 bool fstBoundWithDataIsIncluded(FstBoundWithData *bound) {
-  return bound->type == Included ? true : false;
+  return bound->type == Excluded? false : true;
 }
 
 void fstBoundDestroy(FstBoundWithData *bound) {
@@ -1322,6 +1327,7 @@ StreamWithStateResult *streamWithStateNextWith(StreamWithState *sws, StreamCallb
       return swsResultCreate(&s, output, callback(start));
     }
   }
+  SArray *nodes = taosArrayInit(8, sizeof(FstNode *));  
   while (taosArrayGetSize(sws->stack) > 0) {
     StreamState *p = (StreamState *)taosArrayPop(sws->stack);     
     if (p->trans >= FST_NODE_LEN(p->node) || automFuncs[aut->type].canMatch(aut, p->autState)) {
@@ -1337,8 +1343,8 @@ StreamWithStateResult *streamWithStateNextWith(StreamWithState *sws, StreamCallb
     void* nextState = automFuncs[aut->type].accept(aut, p->autState, trn.inp);
     void* tState = callback(nextState);
     bool isMatch = automFuncs[aut->type].isMatch(aut, nextState);
-    //bool isMatch = sws->aut->isMatch(nextState);
     FstNode *nextNode = fstGetNode(sws->fst, trn.addr); 
+    taosArrayPush(nodes, &nextNode); 
     taosArrayPush(sws->inp, &(trn.inp)); 
 
     if (FST_NODE_IS_FINAL(nextNode)) {
@@ -1354,26 +1360,35 @@ StreamWithStateResult *streamWithStateNextWith(StreamWithState *sws, StreamCallb
     StreamState s2 = {.node = nextNode, .trans = 0, .out = {.null = false, .out = out}, .autState = nextState};
     taosArrayPush(sws->stack, &s2);
     
-    uint8_t *buf = (uint8_t *)malloc(taosArrayGetSize(sws->inp) * sizeof(uint8_t)); 
-    for (uint32_t i = 0; i < taosArrayGetSize(sws->inp); i++) {
-      uint8_t *t = (uint8_t *)taosArrayGet(sws->inp, i);
-      buf[i] = *t; 
+
+    size_t isz = taosArrayGetSize(sws->inp);
+    uint8_t *buf = (uint8_t *)malloc(isz * sizeof(uint8_t)); 
+    for (uint32_t i = 0; i < isz; i++) {
+      buf[i] = *(uint8_t *)taosArrayGet(sws->inp, i);
     }
     FstSlice slice = fstSliceCreate(buf, taosArrayGetSize(sws->inp));
     if (fstBoundWithDataExceededBy(sws->endAt, &slice)) {
       taosArrayDestroyEx(sws->stack, streamStateDestroy);
       sws->stack = (SArray *)taosArrayInit(256, sizeof(StreamState)); 
+      free(buf);
       fstSliceDestroy(&slice);
       return NULL;
     }
     if (FST_NODE_IS_FINAL(nextNode) && isMatch) {
       FstOutput fOutput = {.null = false, .out = out + FST_NODE_FINAL_OUTPUT(nextNode)};
-      StreamWithStateResult *result =  swsResultCreate(&slice, fOutput , tState);     
+      StreamWithStateResult *result =  swsResultCreate(&slice, fOutput, tState);     
+      free(buf);
       fstSliceDestroy(&slice);
       return result; 
     }
+    free(buf);
     fstSliceDestroy(&slice);
   }
+  for (size_t i = 0; i < taosArrayGetSize(nodes); i++) {
+    FstNode** node = (FstNode **)taosArrayGet(nodes, i);
+    fstNodeDestroy(*node);
+  }
+  taosArrayDestroy(nodes);
   return NULL; 
   
 }
@@ -1392,6 +1407,7 @@ void swsResultDestroy(StreamWithStateResult *result) {
   if (NULL == result) { return; }
   
   fstSliceDestroy(&result->data);
+  startWithStateValueDestroy(result->state); 
   free(result);
 }
 
