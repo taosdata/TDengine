@@ -71,8 +71,7 @@ typedef struct SInsertParseContext {
   const char* pSql;
   SMsgBuf msg;
   struct SCatalog* pCatalog;
-  SMetaData meta;               // need release
-  const STableMeta* pTableMeta;
+  STableMeta* pTableMeta;
   SHashObj* pTableBlockHashObj; // data block for each table. need release
   int32_t totalNum;
   SInsertStmtInfo* pOutput;
@@ -165,29 +164,29 @@ static int32_t skipInsertInto(SInsertParseContext* pCxt) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t buildTableName(SInsertParseContext* pCxt, SToken* pStname, SArray* tableNameList) {
+static int32_t buildName(SInsertParseContext* pCxt, SToken* pStname, char* fullDbName, char* tableName) {
   if (parserValidateIdToken(pStname) != TSDB_CODE_SUCCESS) {
     return buildSyntaxErrMsg(&pCxt->msg, "invalid table name", pStname->z);
   }
 
-  SName name = {0};
-  strcpy(name.dbname, pCxt->pComCxt->pDbname);
-  strncpy(name.tname, pStname->z, pStname->n);
-  taosArrayPush(tableNameList, &name);
-
+  char* p = strnchr(pStname->z, TS_PATH_DELIMITER[0], pStname->n, false);
+  if (NULL != p) { // db.table
+    strcpy(fullDbName, pCxt->pComCxt->pAcctId);
+    fullDbName[strlen(pCxt->pComCxt->pAcctId)] = TS_PATH_DELIMITER[0];
+    strncpy(fullDbName, pStname->z, p - pStname->z);
+    strncpy(tableName, p + 1, pStname->n - (p - pStname->z) - 1);
+  } else {
+    snprintf(fullDbName, TSDB_FULL_DB_NAME_LEN, "%s.%s", pCxt->pComCxt->pAcctId, pCxt->pComCxt->pDbname);
+    strncpy(tableName, pStname->z, pStname->n);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t buildMetaReq(SInsertParseContext* pCxt, SToken* pStname, SCatalogReq* pMetaReq) {
-  pMetaReq->pTableName = taosArrayInit(4, sizeof(SName));
-  return buildTableName(pCxt, pStname, pMetaReq->pTableName);
-}
-
 static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
-  SCatalogReq req;
-  CHECK_CODE(buildMetaReq(pCxt, pTname, &req));
-  CHECK_CODE(catalogGetTableMeta(pCxt->pCatalog, NULL, NULL, NULL, &pCxt->meta)); //TODO
-  pCxt->pTableMeta = (STableMeta*)taosArrayGetP(pCxt->meta.pTableMeta, 0);
+  char fullDbName[TSDB_FULL_DB_NAME_LEN] = {0};
+  char tableName[TSDB_TABLE_NAME_LEN] = {0};
+  CHECK_CODE(buildName(pCxt, pTname, fullDbName, tableName));
+  CHECK_CODE(catalogGetTableMeta(pCxt->pCatalog, pCxt->pComCxt->pRpc, pCxt->pComCxt->pEpSet, fullDbName, tableName, &pCxt->pTableMeta));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -868,12 +867,11 @@ int32_t parseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo) {
     .pOutput = *pInfo
   };
 
-  CHECK_CODE(catalogGetHandle(NULL, &context.pCatalog)); //TODO
-
   if (NULL == context.pTableBlockHashObj) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
+  CHECK_CODE(catalogGetHandle(pContext->pClusterId, &context.pCatalog));
   CHECK_CODE(skipInsertInto(&context));
   CHECK_CODE(parseInsertBody(&context));
 
