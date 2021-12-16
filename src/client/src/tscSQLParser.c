@@ -4952,6 +4952,14 @@ static int32_t validateJsonTagExpr(tSqlExpr* pExpr, char* msgBuf) {
         return invalidOperationMsg(msgBuf, msg3);
       if (pLeft->pRight && (pLeft->pRight->value.nLen > TSDB_MAX_JSON_KEY_LEN || pLeft->pRight->value.nLen <= 0))
         return invalidOperationMsg(msgBuf, msg2);
+      if (pRight->tokenId == TK_NULL && pExpr->tokenId == TK_EQ) {
+        // transform for json->'key'=null
+        pRight->tokenId = TK_STRING;
+        pRight->value.nType = TSDB_DATA_TYPE_BINARY;
+        pRight->value.nLen = INT_BYTES;
+        pRight->value.pz = calloc(INT_BYTES, 1);
+        *(uint32_t*)pRight->value.pz = TSDB_DATA_JSON_null;
+      }
     }
   }
 
@@ -5016,9 +5024,15 @@ int32_t handleNeOptr(tSqlExpr** rexpr, tSqlExpr* expr) {
 }
 
 static void convertWhereStringCharset(tSqlExpr* pRight){
-  if(pRight->value.nType != TSDB_DATA_TYPE_BINARY || pRight->value.nLen == 0){
+  if(pRight->value.nType != TSDB_DATA_TYPE_BINARY){
     return;
   }
+
+  if(pRight->value.nLen == 0){
+    pRight->value.nType = TSDB_DATA_TYPE_NCHAR;   // for json value
+    return;
+  }
+
   char newData[TSDB_MAX_NCHAR_LEN] = {0};
   int len = 0;
   if(!taosMbsToUcs4(pRight->value.pz, pRight->value.nLen, newData, TSDB_MAX_NCHAR_LEN, &len)){
@@ -5042,19 +5056,9 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   tSqlExpr* pLeft  = (*pExpr)->pLeft;
   tSqlExpr* pRight = (*pExpr)->pRight;
 
-  convertWhereStringCharset(pRight);
-
   SStrToken* colName = NULL;
   if(pLeft->tokenId == TK_ARROW){
     colName = &(pLeft->pLeft->columnName);
-    if (pRight->tokenId == TK_NULL && (*pExpr)->tokenId == TK_EQ) {
-      // transform for json->'key'=null
-      pRight->tokenId = TK_STRING;
-      pRight->value.nType = TSDB_DATA_TYPE_BINARY;
-      pRight->value.nLen = INT_BYTES;
-      pRight->value.pz = calloc(INT_BYTES, 1);
-      *(uint32_t*)pRight->value.pz = TSDB_DATA_JSON_null;
-    }
   }else{
     colName = &(pLeft->columnName);
   }
@@ -5091,6 +5095,11 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   }
 
   SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
+
+  if (pSchema->type == TSDB_DATA_TYPE_JSON || pSchema->type == TSDB_DATA_TYPE_NCHAR){
+    convertWhereStringCharset(pRight);
+  }
+
   if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP && index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX) {  // query on time range
     if (!validateJoinExprNode(pCmd, pQueryInfo, *pExpr, &index)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
