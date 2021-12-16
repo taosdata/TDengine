@@ -31,7 +31,7 @@ bool qIsInsertSql(const char* pStr, size_t length) {
   } while (1);
 }
 
-int32_t qParseQuerySql(const char* pStr, size_t length, int64_t id, int32_t *type, void** pOutput, char* msg, int32_t msgLen) {
+int32_t qParseQuerySql(const char* pStr, size_t length, int64_t id, int32_t *type, void** pOutput, int32_t* outputLen, char* msg, int32_t msgLen) {
   SQueryStmtInfo* pQueryInfo = calloc(1, sizeof(SQueryStmtInfo));
   if (pQueryInfo == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY; // set correct error code.
@@ -45,8 +45,8 @@ int32_t qParseQuerySql(const char* pStr, size_t length, int64_t id, int32_t *typ
     return terrno;
   }
 
-  if (isDdlSql(&info)) {
-    int32_t code = qParserValidateDdlSqlNode(&info, id, pOutput, type, msg, msgLen);
+  if (isDclSqlStatement(&info)) {
+    int32_t code = qParserValidateDclSqlNode(&info, id, pOutput, outputLen, type, msg, msgLen);
     if (code == TSDB_CODE_SUCCESS) {
       // do nothing
     }

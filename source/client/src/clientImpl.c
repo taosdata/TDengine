@@ -149,11 +149,12 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, size_t sqlLen) {
   } else {
     int32_t type = 0;
     void*   output = NULL;
-
-    code = qParseQuerySql(pRequest->sqlstr, sqlLen, pRequest->requestId, &type, &output, pRequest->msgBuf, ERROR_MSG_BUF_DEFAULT_SIZE);
+    int32_t outputLen = 0;
+    code = qParseQuerySql(pRequest->sqlstr, sqlLen, pRequest->requestId, &type, &output, &outputLen, pRequest->msgBuf, ERROR_MSG_BUF_DEFAULT_SIZE);
     if (type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_SHOW) {
       pRequest->type = type;
       pRequest->body.param = output;
+      pRequest->body.paramLen = outputLen;
 
       SRequestMsgBody body = {0};
       buildRequestMsgFp[type](pRequest, &body);
@@ -374,4 +375,21 @@ TAOS *taos_connect_l(const char *ip, int ipLen, const char *user, int userLen, c
   strncpy(passStr, pass, MIN(TSDB_PASSWORD_LEN - 1, passLen));
   strncpy(dbStr,   db,   MIN(TSDB_DB_NAME_LEN - 1, dbLen));
   return taos_connect(ipStr, userStr, passStr, dbStr, port);
+}
+
+void* doFetchRow(SRequestObj* pRequest) {
+  assert(pRequest != NULL);
+  SClientResultInfo* pResultInfo = pRequest->body.pResInfo;
+
+  if (pResultInfo == NULL || pResultInfo->current >= pResultInfo->pData->info.rows) {
+    if (pResultInfo == NULL) {
+      pRequest->body.pResInfo = calloc(1, sizeof(SClientResultInfo));
+//      pRequest->body.pResInfo.
+    }
+    // current data set are exhausted, fetch more result from node
+//    if (pRes->row >= pRes->numOfRows && needToFetchNewBlock(pSql)) {
+//      taos_fetch_rows_a(res, waitForRetrieveRsp, pSql->pTscObj);
+//      tsem_wait(&pSql->rspSem);
+//    }
+  }
 }

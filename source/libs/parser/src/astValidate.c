@@ -4069,7 +4069,93 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
   return code;
 }
 
-int32_t qParserValidateDdlSqlNode(SSqlInfo* pInfo, int64_t id, void** output, int32_t* type, char* msgBuf, int32_t msgBufLen) {
+// todo remove it
+static int32_t setShowInfo(struct SSqlInfo* pInfo, void** output, int32_t* msgLen, SMsgBuf* pMsgBuf) {
+  const char* msg1 = "invalid name";
+  const char* msg2 = "wildcard string should be less than %d characters";
+  const char* msg3 = "database name too long";
+  const char* msg4 = "pattern is invalid";
+  const char* msg5 = "database name is empty";
+  const char* msg6 = "pattern string is empty";
+
+  /*
+   * database prefix in pInfo->pMiscInfo->a[0]
+   * wildcard in like clause in pInfo->pMiscInfo->a[1]
+   */
+  SShowInfo* pShowInfo = &pInfo->pMiscInfo->showOpt;
+  int16_t    showType = pShowInfo->showType;
+  if (showType == TSDB_MGMT_TABLE_TABLE || showType == TSDB_MGMT_TABLE_VGROUP) {
+    SToken* pDbPrefixToken = &pShowInfo->prefix;
+    if (pDbPrefixToken->type != 0) {
+      if (pDbPrefixToken->n >= TSDB_DB_NAME_LEN) {  // db name is too long
+        return buildInvalidOperationMsg(pMsgBuf, msg3);
+      }
+
+      if (pDbPrefixToken->n <= 0) {
+        return buildInvalidOperationMsg(pMsgBuf, msg5);
+      }
+
+      if (parserValidateIdToken(pDbPrefixToken) != TSDB_CODE_SUCCESS) {
+        return buildInvalidOperationMsg(pMsgBuf, msg1);
+      }
+
+      //      int32_t ret = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pRequest->pTsc), pDbPrefixToken);
+      //      if (ret != TSDB_CODE_SUCCESS) {
+      //        return buildInvalidOperationMsg(pMsgBuf, msg1);
+      //      }
+    }
+
+    // show table/stable like 'xxxx', set the like pattern for show tables
+    SToken* pPattern = &pShowInfo->pattern;
+    if (pPattern->type != 0) {
+      if (pPattern->type == TK_ID && pPattern->z[0] == TS_ESCAPE_CHAR) {
+        return buildInvalidOperationMsg(pMsgBuf, msg4);
+      }
+
+      pPattern->n = strdequote(pPattern->z);
+      if (pPattern->n <= 0) {
+        return buildInvalidOperationMsg(pMsgBuf, msg6);
+      }
+
+      if (pPattern->n > tsMaxWildCardsLen) {
+        char tmp[64] = {0};
+        sprintf(tmp, msg2, tsMaxWildCardsLen);
+        return buildInvalidOperationMsg(pMsgBuf, tmp);
+      }
+    }
+  } else if (showType == TSDB_MGMT_TABLE_VNODES) {
+    if (pShowInfo->prefix.type == 0) {
+      return buildInvalidOperationMsg(pMsgBuf, "No specified dnode ep");
+    }
+
+    if (pShowInfo->prefix.type == TK_STRING) {
+      pShowInfo->prefix.n = strdequote(pShowInfo->prefix.z);
+    }
+  }
+
+  SShowMsg* pShowMsg = calloc(1, sizeof(SShowMsg));
+  pShowMsg->type = pShowInfo->showType;
+
+  if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {
+    SToken* pPattern = &pShowInfo->pattern;
+    if (pPattern->type > 0) {  // only show tables support wildcard query
+      strncpy(pShowMsg->payload, pPattern->z, pPattern->n);
+      pShowMsg->payloadLen = htons(pPattern->n);
+    }
+  } else {
+    SToken* pEpAddr = &pShowInfo->prefix;
+    assert(pEpAddr->n > 0 && pEpAddr->type > 0);
+
+    strncpy(pShowMsg->payload, pEpAddr->z, pEpAddr->n);
+    pShowMsg->payloadLen = htons(pEpAddr->n);
+  }
+
+  *output = pShowMsg;
+  *msgLen = sizeof(SShowMsg) + htons(pShowMsg->payloadLen);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, int64_t id, void** output, int32_t* outputLen, int32_t* type, char* msgBuf, int32_t msgBufLen) {
   int32_t code = 0;
 
   SMsgBuf m = {.buf = msgBuf, .len = msgBufLen};
@@ -4125,9 +4211,14 @@ int32_t qParserValidateDdlSqlNode(SSqlInfo* pInfo, int64_t id, void** output, in
       *output = buildUserManipulationMsg(pInfo, id, msgBuf, msgBufLen);
       break;
     }
+    
+    case TSDB_SQL_SHOW: {
+      code = setShowInfo(pInfo, output, outputLen, pMsgBuf);
+      break;
+    }
     default:
       break;
   }
 
-  return 0;
+  return code;
 }

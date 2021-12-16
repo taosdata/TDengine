@@ -20,14 +20,15 @@
 extern "C" {
 #endif
 
+#include <common.h>
 #include "taos.h"
 #include "taosmsg.h"
+#include "tdef.h"
+#include "tep.h"
 #include "thash.h"
 #include "tlist.h"
-#include "trpc.h"
-#include "tdef.h"
 #include "tmsgtype.h"
-#include "tep.h"
+#include "trpc.h"
 
 typedef struct SQueryExecMetric {
   int64_t      start;    // start timestamp
@@ -86,10 +87,18 @@ typedef struct STscObj {
   SAppInstInfo      *pAppInfo;
 } STscObj;
 
+typedef struct SClientResultInfo {
+  SSDataBlock *pData;
+  TAOS_FIELD  *resultFields;
+  int32_t      current;
+} SClientResultInfo;
+
 typedef struct SReqBody {
   tsem_t    rspSem;        // not used now
   void*     fp;
   void*     param;
+  int32_t   paramLen;
+  SClientResultInfo* pResInfo;
 } SRequestBody;
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE  512
@@ -141,6 +150,8 @@ void initMsgHandleFp();
 
 TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, const char *auth, const char *db, uint16_t port);
 TAOS_RES *taos_query_l(TAOS *taos, const char *sql, size_t sqlLen);
+
+void* doFetchRow(SRequestObj* pRequest);
 
 #ifdef __cplusplus
 }

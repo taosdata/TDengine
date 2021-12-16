@@ -804,7 +804,7 @@ typedef struct {
 } SVgroupsMsg, SVgroupsInfo;
 
 typedef struct {
-  char       tbFname[TSDB_TABLE_FNAME_LEN];  // table id
+  char       tbFname[TSDB_TABLE_FNAME_LEN];  // table full name
   char       stbFname[TSDB_TABLE_FNAME_LEN];
   int32_t    numOfTags;
   int32_t    numOfColumns;

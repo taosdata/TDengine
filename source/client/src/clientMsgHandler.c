@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <catalog.h>
 #include "clientInt.h"
 #include "clientLog.h"
 #include "os.h"
@@ -3165,7 +3166,74 @@ int32_t buildCreateUserMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
   pMsgBody->msgType         = TSDB_MSG_TYPE_CREATE_USER;
   pMsgBody->msgLen          = sizeof(SCreateUserMsg);
   pMsgBody->requestObjRefId = pRequest->self;
-  pMsgBody->pData = pRequest->body.param;
+  pMsgBody->pData           = pRequest->body.param;
+  return 0;
+}
+
+int32_t buildShowMsg(SRequestObj* pRequest, SRequestMsgBody* pMsgBody) {
+  pMsgBody->msgType         = TSDB_MSG_TYPE_SHOW;
+  pMsgBody->msgLen          = pRequest->body.paramLen;
+  pMsgBody->requestObjRefId = pRequest->self;
+  pMsgBody->pData           = pRequest->body.param;
+}
+
+STableMeta* createTableMetaFromMsg(STableMetaMsg* pTableMetaMsg) {
+  assert(pTableMetaMsg != NULL && pTableMetaMsg->numOfColumns >= 2);
+
+  size_t schemaSize = (pTableMetaMsg->numOfColumns + pTableMetaMsg->numOfTags) * sizeof(SSchema);
+  STableMeta* pTableMeta = calloc(1, sizeof(STableMeta) + schemaSize);
+
+  pTableMeta->tableType = pTableMetaMsg->tableType;
+  pTableMeta->vgId      = pTableMetaMsg->vgroup.vgId;
+  pTableMeta->suid      = pTableMetaMsg->suid;
+  pTableMeta->uid       = pTableMetaMsg->tuid;
+
+  pTableMeta->tableInfo = (STableComInfo) {
+      .numOfTags    = pTableMetaMsg->numOfTags,
+      .precision    = pTableMetaMsg->precision,
+      .numOfColumns = pTableMetaMsg->numOfColumns,
+  };
+
+  pTableMeta->sversion = pTableMetaMsg->sversion;
+  pTableMeta->tversion = pTableMetaMsg->tversion;
+
+  memcpy(pTableMeta->schema, pTableMetaMsg->pSchema, schemaSize);
+
+  int32_t numOfTotalCols = pTableMeta->tableInfo.numOfColumns;
+  for(int32_t i = 0; i < numOfTotalCols; ++i) {
+    pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
+  }
+
+  return pTableMeta;
+}
+
+int32_t processShowRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
+  SShowRsp* pShow = (SShowRsp *)pMsg;
+  pShow->showId   = htonl(pShow->showId);
+
+  STableMetaMsg *pMetaMsg = &(pShow->tableMeta);
+  pMetaMsg->numOfColumns = htonl(pMetaMsg->numOfColumns);
+
+  SSchema* pSchema = pMetaMsg->pSchema;
+  pMetaMsg->tuid = htobe64(pMetaMsg->tuid);
+  for (int i = 0; i < pMetaMsg->numOfColumns; ++i) {
+    pSchema->bytes = htons(pSchema->bytes);
+    pSchema++;
+  }
+
+  STableMeta* pTableMeta = createTableMetaFromMsg(pMetaMsg);
+  SSchema *pTableSchema = pTableMeta->schema;
+
+  TAOS_FIELD* pFields = calloc(1, pTableMeta->tableInfo.numOfColumns);
+  for (int16_t i = 0; i < pTableMeta->tableInfo.numOfColumns; ++i, ++pSchema) {
+    tstrncpy(pFields[i].name, pTableSchema[i].name, tListLen(pFields[i].name));
+    pFields[i].type  = pTableSchema[i].type;
+    pFields[i].bytes = pTableSchema[i].bytes;
+  }
+
+//  pRequest->body.resultFields = pFields;
+//  pRequest->body.numOfFields = pTableMeta->tableInfo.numOfColumns;
+
   return 0;
 }
 
@@ -3250,5 +3318,7 @@ void initMsgHandleFp() {
 
   buildRequestMsgFp[TSDB_SQL_CREATE_USER]  = buildCreateUserMsg;
 
+  buildRequestMsgFp[TSDB_SQL_SHOW]         = buildShowMsg;
+  handleRequestRspFp[TSDB_SQL_SHOW]        = processShowRsp;
 
 }

@@ -714,16 +714,14 @@ TEST(testCase, show_user_Test) {
   SSqlInfo info1 = doGenerateAST(sql1);
   ASSERT_EQ(info1.valid, true);
 
+  void* output = NULL;
+  int32_t type = 0;
+  int32_t len = 0;
+  int32_t code = qParserValidateDclSqlNode(&info1, 1, &output, &len, &type, msg, buf.len);
+  ASSERT_EQ(code, 0);
+
   // convert the show command to be the select query
   // select name, privilege, create_time, account from information_schema.users;
-
-
-  SQueryStmtInfo* pQueryInfo = createQueryInfo();
-//  setTableMetaInfo(pQueryInfo, &req);
-
-//  SSqlNode* pSqlNode = (SSqlNode*)taosArrayGetP(info1.sub.node, 0);
-//  ret = validateSqlNode(pSqlNode, pQueryInfo, &buf);
-//  ASSERT_NE(ret, 0);
 }
 
 TEST(testCase, create_user_Test) {
@@ -737,12 +735,12 @@ TEST(testCase, create_user_Test) {
   SSqlInfo info1 = doGenerateAST(sql);
   ASSERT_EQ(info1.valid, true);
 
-  ASSERT_EQ(isDdlSql(&info1), true);
+  ASSERT_EQ(isDclSqlStatement(&info1), true);
 
   void* output = NULL;
   int32_t type = 0;
-
-  int32_t code = qParserValidateDdlSqlNode(&info1, 1, &output, &type, msg, buf.len);
+  int32_t len = 0;
+  int32_t code = qParserValidateDclSqlNode(&info1, 1, &output, &len, &type, msg, buf.len);
   ASSERT_EQ(code, 0);
 
   destroySqlInfo(&info1);

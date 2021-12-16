@@ -117,3 +117,17 @@ TAOS_RES *taos_query(TAOS *taos, const char *sql) {
 
   return taos_query_l(taos, sql, strlen(sql));
 }
+
+TAOS_ROW taos_fetch_row(TAOS_RES *pRes) {
+  if (pRes == NULL) {
+    return NULL;
+  }
+
+  SRequestObj *pRequest = (SRequestObj *) pRes;
+  if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
+      pRequest->type == TSDB_SQL_INSERT) {
+    return NULL;
+  }
+
+  return doFetchRow(pRequest);
+}

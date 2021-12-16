@@ -12,8 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "parserUtil.h"
-#include <tmsgtype.h>
+
 
 #include "taosmsg.h"
 #include "parser.h"
@@ -23,6 +22,8 @@
 #include "thash.h"
 #include "tbuffer.h"
 #include "parserInt.h"
+#include "parserUtil.h"
+#include "tmsgtype.h"
 #include "queryInfoUtil.h"
 #include "function.h"
 
@@ -1632,7 +1633,7 @@ uint32_t convertRelationalOperator(SToken *pToken) {
   }
 }
 
-bool isDdlSql(SSqlInfo* pSqlInfo) {
+bool isDclSqlStatement(SSqlInfo* pSqlInfo) {
   return (pSqlInfo->type != TSDB_SQL_SELECT);
 }
 
