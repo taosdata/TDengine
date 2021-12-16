@@ -364,7 +364,7 @@ static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t p
   reqMsg.code = 0;
   reqMsg.handle = NULL;   // rpc handle returned to app
   reqMsg.ahandle = NULL;  // app handle set by client
-  tstrncpy(reqMsg.pCont, "nettest", sizeof(reqMsg.pCont));
+  tstrncpy((char*)reqMsg.pCont, "nettest", pkgLen);
 
   rpcSendRecv(pRpcConn, &epSet, &reqMsg, &rspMsg);
 
@@ -608,8 +608,8 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
     reqMsg.code = 0;
     reqMsg.handle = NULL;   // rpc handle returned to app
     reqMsg.ahandle = NULL;  // app handle set by client
-    tstrncpy(reqMsg.pCont, "nettest speed", sizeof(reqMsg.pCont));
-
+    tstrncpy((char*)reqMsg.pCont, "nettest speed", pkgLen);
+    
     rpcSendRecv(pRpcConn, &epSet, &reqMsg, &rspMsg);
 
     int code = 0;
