@@ -87,9 +87,18 @@ static void* prefixAccept(AutomationCtx *ctx, void *state, uint8_t byte) {
   if (ssv == NULL || ctx == NULL) {return NULL;}
 
   char *data = ctx->data;
+  if (ssv->kind == Done) {
+    return startWithStateValueCreate(Done, FST_INT, &ssv->val);
+  }
   if ((strlen(data) > ssv->val) && data[ssv->val] == byte) {
     int val = ssv->val + 1;
-    return startWithStateValueCreate(Running, FST_INT, &val);
+    StartWithStateValue *nsv = startWithStateValueCreate(Running, FST_INT, &val);
+    if (prefixIsMatch(ctx, nsv)) {
+      nsv->kind = Done;
+    } else {
+      nsv->kind = Running;
+    } 
+    return nsv;
   } 
   return NULL;
 }

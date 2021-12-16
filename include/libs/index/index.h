@@ -28,6 +28,15 @@ typedef struct SIndexOpts SIndexOpts;
 typedef struct SIndexMultiTermQuery SIndexMultiTermQuery;
 typedef struct SArray               SIndexMultiTerm;
 
+typedef enum  {
+   ADD_VALUE,    // add index colume value   
+   DEL_VALUE,    // delete index column value  
+   UPDATE_VALUE, // update index column value 
+   ADD_INDEX,    // add index on specify column
+   DROP_INDEX,   // drop existed index 
+   DROP_SATBLE   // drop stable 
+} SIndexColumnType;
+
 typedef enum  { MUST = 0, SHOULD = 1, NOT = 2 } EIndexOperatorType;
 typedef enum  { QUERY_TERM = 0, QUERY_PREFIX = 1, QUERY_SUFFIX = 2,QUERY_REGEX = 3} EIndexQueryType;
 /*
