@@ -1725,13 +1725,12 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   pStmt->last = STMT_SETTBNAME;
 
   SStrToken tname = {0};
-  tname.type = TK_STRING;
+  tname.type = TK_ID;
   tname.z = (char *)strdup(name);
   if (!tname.z) {
     tscError("0x%" PRIx64 " out of memory", pSql->self);
     STMT_RET(TSDB_CODE_TSC_OUT_OF_MEMORY);
   }
-  strntolower(tname.z, name, nameLen);
   tname.n = (uint32_t)strlen(tname.z);
 
   bool dbIncluded = false;
@@ -1830,7 +1829,8 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
       STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "no tags set"));
     }
 
-    int32_t ret = stmtGenInsertStatement(pSql, pStmt, tname.z, tags);
+    // N.B. Use 'name' while not 'tname.z' as tscValidateName is invoked in tsParseSql.
+    int32_t ret = stmtGenInsertStatement(pSql, pStmt, name, tags);
     if (ret != TSDB_CODE_SUCCESS) {
       free(tname.z);
       STMT_RET(ret);
