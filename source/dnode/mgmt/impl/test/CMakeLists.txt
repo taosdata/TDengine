@@ -2,7 +2,7 @@
 add_subdirectory(acct)
 # add_subdirectory(auth)
 # add_subdirectory(balance)
-# add_subdirectory(cluster)
+add_subdirectory(cluster)
 add_subdirectory(db)
 add_subdirectory(dnode)
 # add_subdirectory(func)

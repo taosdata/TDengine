@@ -81,8 +81,8 @@ class DndTestDnode : public ::testing::Test {
     pMeta->numOfTags = htonl(pMeta->numOfTags);
     pMeta->numOfColumns = htonl(pMeta->numOfColumns);
     pMeta->sversion = htonl(pMeta->sversion);
-    pMeta->tversion = htons(pMeta->tversion);
-    pMeta->tuid = htonl(pMeta->tuid);
+    pMeta->tversion = htonl(pMeta->tversion);
+    pMeta->tuid = htobe64(pMeta->tuid);
     pMeta->suid = htobe64(pMeta->suid);
 
     showId = pShowRsp->showId;
