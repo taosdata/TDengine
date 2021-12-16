@@ -283,6 +283,14 @@ static int32_t mndSetCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVg
   return 0;
 }
 
+static int32_t mndSetRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
+  return 0;
+}
+
+static int32_t mndSetUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
+  return 0;
+}
+
 static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreate, SUserObj *pUser) {
   SDbObj dbObj = {0};
   tstrncpy(dbObj.name, pCreate->db, TSDB_FULL_DB_NAME_LEN);
@@ -351,6 +359,16 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreat
 
   if (mndSetCommitLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) {
     mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
+    goto CREATE_DB_OVER;
+  }
+
+  if (mndSetRedoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) {
+    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
+    goto CREATE_DB_OVER;
+  }
+
+  if (mndSetUndoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) {
+    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
     goto CREATE_DB_OVER;
   }
 
@@ -816,7 +834,7 @@ static int32_t mndGetDbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMe
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pMeta->numOfColumns = htons(cols);
+  pMeta->numOfColumns = htonl(cols);
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
