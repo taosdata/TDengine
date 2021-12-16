@@ -9,7 +9,7 @@ target_link_libraries(
     taos
     PRIVATE common
     INTERFACE api
-    PRIVATE os util common transport parser catalog function
+    PRIVATE os util common transport parser catalog function query
 )
 
 ADD_SUBDIRECTORY(test)
