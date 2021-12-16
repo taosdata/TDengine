@@ -112,7 +112,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
   return taosConnectImpl(ip, user, &secretEncrypt[0], db, port, NULL, NULL, pInst);
 }
 
-TAOS_RES *taos_query_l(TAOS *taos, const char *sql, size_t sqlLen) {
+TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   STscObj *pTscObj = (STscObj *)taos;
   if (sqlLen > (size_t) tsMaxSQLStringLen) {
     tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);

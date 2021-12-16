@@ -3184,7 +3184,7 @@ STableMeta* createTableMetaFromMsg(STableMetaMsg* pTableMetaMsg) {
   STableMeta* pTableMeta = calloc(1, sizeof(STableMeta) + schemaSize);
 
   pTableMeta->tableType = pTableMetaMsg->tableType;
-  pTableMeta->vgId      = pTableMetaMsg->vgroup.vgId;
+  pTableMeta->vgId      = pTableMetaMsg->vgId;
   pTableMeta->suid      = pTableMetaMsg->suid;
   pTableMeta->uid       = pTableMetaMsg->tuid;
 
