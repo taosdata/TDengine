@@ -57,9 +57,8 @@ int32_t strdequote(char *z) {
   return j + 1;  // only one quote, do nothing
 }
 
-
+// delete escape character: \\, \', \"
 int32_t strRmquote(char *z, int32_t len){
-  // delete escape character: \\, \', \"
   char delim = 0;
   int32_t cnt = 0;
   int32_t j = 0;
@@ -82,6 +81,7 @@ int32_t strRmquote(char *z, int32_t len){
     z[j] = z[k];
     j++;
   }
+  z[j] = 0;
   return j;
 }
 
