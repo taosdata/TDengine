@@ -75,8 +75,10 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT64(pRaw, dataPos, pDb->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pDb->updateTime)
   SDB_SET_INT64(pRaw, dataPos, pDb->uid)
-  SDB_SET_INT32(pRaw, dataPos, pDb->version)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfgVersion)
+  SDB_SET_INT32(pRaw, dataPos, pDb->vgVersion)
   SDB_SET_INT32(pRaw, dataPos, pDb->numOfVgroups)
+  SDB_SET_INT8(pRaw, dataPos, pDb->hashMethod)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.cacheBlockSize)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.totalBlocks)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysPerFile)
@@ -120,8 +122,10 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, pRow, dataPos, &pDb->createdTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pDb->updateTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pDb->uid)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->version)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfgVersion)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->vgVersion)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->numOfVgroups)
+  SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->hashMethod)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.cacheBlockSize)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.totalBlocks)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.daysPerFile)
@@ -345,6 +349,9 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreat
   dbObj.updateTime = dbObj.createdTime;
   dbObj.uid = mndGenerateUid(dbObj.name, TSDB_FULL_DB_NAME_LEN);
   dbObj.numOfVgroups = pCreate->numOfVgroups;
+  dbObj.hashMethod = 1;
+  dbObj.cfgVersion = 0;
+  dbObj.vgVersion = 0;
   dbObj.cfg = (SDbCfg){.cacheBlockSize = pCreate->cacheBlockSize,
                        .totalBlocks = pCreate->totalBlocks,
                        .daysPerFile = pCreate->daysPerFile,
@@ -376,50 +383,53 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreat
     return -1;
   }
 
-  if (mndAllocVgroup(pMnode, &dbObj) != 0) {
+  SVgObj *pVgroups = NULL;
+  if (mndAllocVgroup(pMnode, &dbObj, &pVgroups) != 0) {
     mError("db:%s, failed to create since %s", pCreate->db, terrstr());
     return -1;
   }
 
+  int32_t code = -1;
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
   if (pTrans == NULL) {
     mError("db:%s, failed to create since %s", pCreate->db, terrstr());
-    return -1;
+    goto CREATE_DB_OVER;
   }
   mDebug("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
 
   SSdbRaw *pRedoRaw = mndDbActionEncode(&dbObj);
   if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
     mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
+    goto CREATE_DB_OVER;
   }
   sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING);
 
   SSdbRaw *pUndoRaw = mndDbActionEncode(&dbObj);
   if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) {
     mError("trans:%d, failed to append undo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
+    goto CREATE_DB_OVER;
   }
   sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED);
 
   SSdbRaw *pCommitRaw = mndDbActionEncode(&dbObj);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
+    goto CREATE_DB_OVER;
   }
   sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
+    goto CREATE_DB_OVER;
   }
 
+  code = 0;
+
+CREATE_DB_OVER:
+  free(pVgroups);
   mndTransDrop(pTrans);
-  return 0;
+  return code;
 }
 
 static int32_t mndProcessCreateDbMsg(SMnodeMsg *pMsg) {
@@ -583,7 +593,8 @@ static int32_t mndProcessAlterDbMsg(SMnodeMsg *pMsg) {
     return code;
   }
 
-  dbObj.version++;
+  dbObj.cfgVersion++;
+  dbObj.updateTime = taosGetTimestampMs();
   code = mndUpdateDb(pMnode, pMsg, pDb, &dbObj);
   mndReleaseDb(pMnode, pDb);
 

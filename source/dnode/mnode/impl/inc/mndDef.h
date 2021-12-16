@@ -207,8 +207,10 @@ typedef struct {
   int64_t createdTime;
   int64_t updateTime;
   int64_t uid;
-  int32_t version;
+  int32_t cfgVersion;
+  int32_t vgVersion;
   int32_t numOfVgroups;
+  int8_t  hashMethod; // default is 1
   SDbCfg  cfg;
 } SDbObj;
 
@@ -222,6 +224,8 @@ typedef struct {
   int64_t   createdTime;
   int64_t   updateTime;
   int32_t   version;
+  int32_t   hashBegin;
+  int32_t   hashEnd;
   char      dbName[TSDB_FULL_DB_NAME_LEN];
   int32_t   numOfTables;
   int32_t   numOfTimeSeries;

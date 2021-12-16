@@ -79,6 +79,8 @@ static SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
   SDB_SET_INT64(pRaw, dataPos, pVgroup->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pVgroup->updateTime)
   SDB_SET_INT32(pRaw, dataPos, pVgroup->version)
+  SDB_SET_INT32(pRaw, dataPos, pVgroup->hashBegin)
+  SDB_SET_INT32(pRaw, dataPos, pVgroup->hashEnd)
   SDB_SET_BINARY(pRaw, dataPos, pVgroup->dbName, TSDB_FULL_DB_NAME_LEN)
   SDB_SET_INT8(pRaw, dataPos, pVgroup->replica)
   for (int8_t i = 0; i < pVgroup->replica; ++i) {
@@ -111,6 +113,8 @@ static SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, pRow, dataPos, &pVgroup->createdTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pVgroup->updateTime)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->version)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->hashBegin)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->hashEnd)
   SDB_GET_BINARY(pRaw, pRow, dataPos, pVgroup->dbName, TSDB_FULL_DB_NAME_LEN)
   SDB_GET_INT8(pRaw, pRow, dataPos, &pVgroup->replica)
   for (int8_t i = 0; i < pVgroup->replica; ++i) {
@@ -184,7 +188,7 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup) {
   return 0;
 }
 
-int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb) {
+int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
   if (pDb->numOfVgroups != -1 &&
       (pDb->numOfVgroups < TSDB_MIN_VNODES_PER_DB || pDb->numOfVgroups > TSDB_MAX_VNODES_PER_DB)) {
     terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
@@ -199,26 +203,44 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb) {
     }
   }
 
+  SVgObj *pVgroups = calloc(pDb->numOfVgroups, sizeof(SVgObj));
+  if (pVgroups == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
   int32_t alloceVgroups = 0;
   int32_t maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
+  int32_t hashMin = 0;
+  int32_t hashMax = INT32_MAX;
+  int32_t hashInterval = (hashMax - hashMin) / pDb->numOfVgroups;
 
-  while (alloceVgroups < pDb->numOfVgroups) {
-    SVgObj vgObj = {0};
-    vgObj.vgId == maxVgId++;
-    vgObj.createdTime = taosGetTimestampMs();
-    vgObj.updateTime = vgObj.createdTime;
-    vgObj.version = 0;
-    memcpy(vgObj.dbName, pDb->name, TSDB_FULL_DB_NAME_LEN);
-    vgObj.replica = pDb->cfg.replications;
+  for (int32_t v = 0; v < pDb->numOfVgroups; v++) {
+    SVgObj *pVgroup = &pVgroups[v];
+    pVgroup->vgId == maxVgId++;
+    pVgroup->createdTime = taosGetTimestampMs();
+    pVgroup->updateTime = pVgroups->createdTime;
+    pVgroup->version = 0;
+    pVgroup->hashBegin = hashMin + hashInterval * v;
+    if (v == pDb->numOfVgroups - 1) {
+      pVgroup->hashEnd = hashMax;
+    } else {
+      pVgroup->hashEnd = hashMin + hashInterval * (v + 1);
+    }
 
-    if (mndGetAvailableDnode(pMnode, &vgObj) != 0) {
+    memcpy(pVgroup->dbName, pDb->name, TSDB_FULL_DB_NAME_LEN);
+    pVgroup->replica = pDb->cfg.replications;
+
+    if (mndGetAvailableDnode(pMnode, pVgroup) != 0) {
       terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+      free(pVgroups);
       return -1;
     }
 
     alloceVgroups++;
   }
 
+  *ppVgroups = pVgroups;
   return 0;
 }
 
