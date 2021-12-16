@@ -226,6 +226,7 @@ TEST(vnodeApiTest, vnode_simple_insert_test) {
   int         rcode;
   SVnode *    pVnode;
   int         batch = 1;
+  int         loop = 1000000;
 
   pMsgArr = (SArray *)taosArrayInit(0, sizeof(pMsg));
 
@@ -254,13 +255,15 @@ TEST(vnodeApiTest, vnode_simple_insert_test) {
   vtClearMsgBatch(pMsgArr);
 
   // 3. WRITE A LOT OF TIME-SERIES DATA
-  for (int i = 0; i < batch; i++) {
-    vtBuildSubmitReq(&pMsg);
-    taosArrayPush(pMsgArr, &pMsg);
+  for (int j = 0; j < loop; j++) {
+    for (int i = 0; i < batch; i++) {
+      vtBuildSubmitReq(&pMsg);
+      taosArrayPush(pMsgArr, &pMsg);
+    }
+    rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
+    GTEST_ASSERT_EQ(rcode, 0);
+    vtClearMsgBatch(pMsgArr);
   }
-  rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
-  GTEST_ASSERT_EQ(rcode, 0);
-  vtClearMsgBatch(pMsgArr);
 
   // Close the vnode
   vnodeClose(pVnode);
