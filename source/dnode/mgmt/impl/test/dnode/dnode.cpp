@@ -78,11 +78,11 @@ class DndTestDnode : public ::testing::Test {
     ASSERT_NE(pShowRsp, nullptr);
     pShowRsp->showId = htonl(pShowRsp->showId);
     pMeta = &pShowRsp->tableMeta;
-    pMeta->numOfTags = htons(pMeta->numOfTags);
-    pMeta->numOfColumns = htons(pMeta->numOfColumns);
-    pMeta->sversion = htons(pMeta->sversion);
+    pMeta->numOfTags = htonl(pMeta->numOfTags);
+    pMeta->numOfColumns = htonl(pMeta->numOfColumns);
+    pMeta->sversion = htonl(pMeta->sversion);
     pMeta->tversion = htons(pMeta->tversion);
-    pMeta->tuid = htobe64(pMeta->tuid);
+    pMeta->tuid = htonl(pMeta->tuid);
     pMeta->suid = htobe64(pMeta->suid);
 
     showId = pShowRsp->showId;
@@ -220,7 +220,7 @@ TEST_F(DndTestDnode, 02_ConfigDnode) {
   ASSERT_EQ(pMsg->code, 0);
 }
 
-TEST_F(DndTestDnode, 03_Create_Drop_Reatrt_Dnode) {
+TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   {
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
     strcpy(pReq->ep, "localhost:9042");

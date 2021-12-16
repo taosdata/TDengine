@@ -515,7 +515,7 @@ static int32_t mndGetConnsMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pMeta->numOfColumns = htons(cols);
+  pMeta->numOfColumns = htonl(cols);
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
@@ -683,7 +683,7 @@ static int32_t mndGetQueryMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pMeta->numOfColumns = htons(cols);
+  pMeta->numOfColumns = htonl(cols);
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
@@ -875,7 +875,7 @@ static int32_t mndGetStreamMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg 
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pMeta->numOfColumns = htons(cols);
+  pMeta->numOfColumns = htonl(cols);
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
