@@ -1,4 +1,4 @@
-configure_file(src/version.c.in src/version.c)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/version.c.in" "${CMAKE_CURRENT_SOURCE_DIR}/src/version.c")
 aux_source_directory(src UTIL_SRC)
 add_library(util STATIC ${UTIL_SRC})
 target_include_directories(
