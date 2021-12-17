@@ -99,7 +99,7 @@ pipeline {
   }
   stages {
       stage('pre_build'){
-          agent{label 'master'}
+          agent{label 'slave3_0'}
           options { skipDefaultCheckout() } 
           when {
               changeRequest()
