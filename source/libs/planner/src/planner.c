@@ -41,3 +41,11 @@ int32_t qCreateQueryDag(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* 
   destroyQueryPlan(logicPlan);
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t qSubPlanToString(const SSubplan *subplan, char** str) {
+  return subPlanToString(subplan, str);
+}
+
+int32_t qStringToSubplan(const char* str, SSubplan** subplan) {
+  return stringToSubplan(str, subplan);
+}
