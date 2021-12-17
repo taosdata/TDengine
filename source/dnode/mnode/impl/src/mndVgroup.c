@@ -156,11 +156,6 @@ void mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup) {
   sdbRelease(pSdb, pVgroup);
 }
 
-static int32_t mndGetDefaultVgroupSize(SMnode *pMnode) {
-  // todo
-  return 2;
-}
-
 static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup) {
   SSdb   *pSdb = pMnode->pSdb;
   int32_t allocedVnodes = 0;
@@ -193,21 +188,7 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup) {
 }
 
 int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
-  if (pDb->numOfVgroups != -1 &&
-      (pDb->numOfVgroups < TSDB_MIN_VNODES_PER_DB || pDb->numOfVgroups > TSDB_MAX_VNODES_PER_DB)) {
-    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
-    return -1;
-  }
-
-  if (pDb->numOfVgroups == -1) {
-    pDb->numOfVgroups = mndGetDefaultVgroupSize(pMnode);
-    if (pDb->numOfVgroups < 0) {
-      terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
-      return -1;
-    }
-  }
-
-  SVgObj *pVgroups = calloc(pDb->numOfVgroups, sizeof(SVgObj));
+  SVgObj *pVgroups = calloc(pDb->cfg.numOfVgroups, sizeof(SVgObj));
   if (pVgroups == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -217,9 +198,9 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
   int32_t  maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
   uint32_t hashMin = 0;
   uint32_t hashMax = UINT32_MAX;
-  uint32_t hashInterval = (hashMax - hashMin) / pDb->numOfVgroups;
+  uint32_t hashInterval = (hashMax - hashMin) / pDb->cfg.numOfVgroups;
 
-  for (uint32_t v = 0; v < pDb->numOfVgroups; v++) {
+  for (uint32_t v = 0; v < pDb->cfg.numOfVgroups; v++) {
     SVgObj *pVgroup = &pVgroups[v];
     pVgroup->vgId = maxVgId++;
     pVgroup->createdTime = taosGetTimestampMs();
@@ -227,7 +208,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
     pVgroup->version = 1;
     pVgroup->dbUid = pDb->uid;
     pVgroup->hashBegin = hashMin + hashInterval * v;
-    if (v == pDb->numOfVgroups - 1) {
+    if (v == pDb->cfg.numOfVgroups - 1) {
       pVgroup->hashEnd = hashMax;
     } else {
       pVgroup->hashEnd = hashMin + hashInterval * (v + 1) - 1;
