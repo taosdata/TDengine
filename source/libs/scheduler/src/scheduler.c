@@ -51,16 +51,17 @@ int32_t schBuildAndSendRequest(void *pRpc, const SEpSet* pMgmtEps, __taos_async_
 }
 
 int32_t schValidateAndBuildJob(SQueryDag *dag, SQueryJob *job) {
+  int32_t code = 0;
   int32_t levelNum = (int32_t)taosArrayGetSize(dag->pSubplans);
   if (levelNum <= 0) {
     qError("invalid level num:%d", levelNum);
-    return TSDB_CODE_QRY_INVALID_INPUT;
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
   job->levels = taosArrayInit(levelNum, sizeof(SQueryLevel));
   if (NULL == job->levels) {
     qError("taosArrayInit %d failed", levelNum);
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
   job->levelNum = levelNum;
@@ -73,27 +74,65 @@ int32_t schValidateAndBuildJob(SQueryDag *dag, SQueryJob *job) {
   SArray *levelPlans = NULL;
   int32_t levelPlanNum = 0;
 
+  level.status = SCH_STATUS_NOT_START;
+
   for (int32_t i = 0; i < levelNum; ++i) {
     levelPlans = taosArrayGetP(dag->pSubplans, i);
     if (NULL == levelPlans) {
       qError("no level plans for level %d", i);
-      return TSDB_CODE_QRY_INVALID_INPUT;
+      SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
     }
 
     levelPlanNum = (int32_t)taosArrayGetSize(levelPlans);
     if (levelPlanNum <= 0) {
       qError("invalid level plans number:%d, level:%d", levelPlanNum, i);
-      return TSDB_CODE_QRY_INVALID_INPUT;
+      SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+    }
+
+    level.taskNum = levelPlanNum;
+    level.subPlans = levelPlans;
+    
+    level.subTasks = taosArrayInit(levelPlanNum, sizeof(SQueryTask));
+    if (NULL == level.subTasks) {
+      qError("taosArrayInit %d failed", levelPlanNum);
+      SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
     
     for (int32_t n = 0; n < levelPlanNum; ++n) {
+      SQueryTask *task = taosArrayGet(level.subTasks, n);
+      
+      task->taskId = atomic_add_fetch_64(&schMgmt.taskId, 1);
+      task->status = SCH_STATUS_NOT_START;
+    }
 
+    if (NULL == taosArrayPush(job->levels, &level)) {
+      qError("taosArrayPush failed");
+      SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
   }
 
   return TSDB_CODE_SUCCESS;
+
+_return:
+  if (level.subTasks) {
+    taosArrayDestroy(level.subTasks);
+  }
+
+  SCH_RET(code);
 }
 
+
+int32_t schJobExecute(SQueryJob *job) {
+  switch (job->status) {
+    case SCH_STATUS_NOT_START:
+
+      break;
+      
+    default:
+      SCH_JOB_ERR_LOG("invalid job status:%d", job->status);
+      SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+  }
+}
 
 
 int32_t schedulerInit(SSchedulerCfg *cfg) {
@@ -108,31 +147,38 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
 
 int32_t scheduleQueryJob(SQueryDag* pDag, void** pJob) {
   if (NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
-    return TSDB_CODE_QRY_INVALID_INPUT;
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-
+  int32_t code = 0;
   SQueryJob *job = calloc(1, sizeof(SQueryJob));
   if (NULL == job) {
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  schValidateAndBuildJob(pDag, job);
+  SCH_ERR_JRET(schValidateAndBuildJob(pDag, job));
 
-
-
-
+  SCH_ERR_JRET(schJobExecute(job));
 
   *(SQueryJob **)pJob = job;
+  
+  return TSDB_CODE_SUCCESS;
 
+_return:
 
-
-
+  *(SQueryJob **)pJob = NULL;
+  scheduleFreeJob(job);
+  
+  SCH_RET(code);
 }
 
 int32_t scheduleFetchRows(void *pJob, void *data);
 
 int32_t scheduleCancelJob(void *pJob);
+
+void scheduleFreeJob(void *pJob) {
+
+}
 
 void schedulerDestroy(void) {
   if (schMgmt.Jobs) {

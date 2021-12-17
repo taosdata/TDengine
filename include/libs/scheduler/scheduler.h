@@ -67,6 +67,8 @@ int32_t scheduleFetchRows(void *pJob, void *data);
  */
 int32_t scheduleCancelJob(void *pJob);
 
+void scheduleFreeJob(void *pJob);
+
 #ifdef __cplusplus
 }
 #endif
