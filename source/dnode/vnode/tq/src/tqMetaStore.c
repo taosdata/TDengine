@@ -472,7 +472,7 @@ static inline int32_t tqHandlePutImpl(STqMetaStore* pMeta, int64_t key, void* va
     if (pNode->handle.key == key) {
       // TODO: think about thread safety
       if (pNode->handle.valueInTxn) {
-        if (TqDupIntxnReject(pMeta->tqConfigFlag)) {
+        if (tqDupIntxnReject(pMeta->tqConfigFlag)) {
           return -2;
         }
         if (pNode->handle.valueInTxn != TQ_DELETE_TOKEN) {
