@@ -341,7 +341,8 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     return;
   }
 
-  if (true /*!tscIsUpdateQuery(pSql)*/) {  // select and show kinds of commands
+  TAOS_FIELD* pFields = taos_fetch_fields(pSql);
+  if (pFields != NULL) {  // select and show kinds of commands
     int error_no = 0;
 
     int numOfRows = shellDumpResult(pSql, fname, &error_no, printMode);

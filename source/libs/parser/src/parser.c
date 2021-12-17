@@ -77,7 +77,7 @@ static int32_t tnameComparFn(const void* p1, const void* p2) {
   SName* pn1 = (SName*)p1;
   SName* pn2 = (SName*)p2;
 
-  int32_t ret = strncmp(pn1->acctId, pn2->acctId, tListLen(pn1->acctId));
+  int32_t ret = pn1->acctId - pn2->acctId;
   if (ret != 0) {
     return ret > 0? 1:-1;
   } else {

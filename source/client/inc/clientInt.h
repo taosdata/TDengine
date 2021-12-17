@@ -76,11 +76,10 @@ typedef struct SAppInfo {
 typedef struct STscObj {
   char               user[TSDB_USER_LEN];
   char               pass[TSDB_PASSWORD_LEN];
-  char               acctId[TSDB_ACCT_ID_LEN];
   char               db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  int32_t            acctId;
   uint32_t           connId;
   uint64_t           id;       // ref ID returned by taosAddRef
-//  struct SSqlObj    *sqlList;
   void              *pTransporter;
   pthread_mutex_t    mutex;     // used to protect the operation on db
   int32_t            numOfReqs; // number of sqlObj from this tscObj

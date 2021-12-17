@@ -46,6 +46,7 @@ SInternalField* getInternalField(SFieldInfo* pFieldInfo, int32_t index);
 
 int32_t parserValidateIdToken(SToken* pToken);
 int32_t parserValidatePassword(SToken* pToken, SMsgBuf* pMsgBuf);
+int32_t parserValidateNameToken(SToken* pToken);
 
 int32_t buildInvalidOperationMsg(SMsgBuf* pMsgBuf, const char* msg);
 int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo,  const char* sourceStr);

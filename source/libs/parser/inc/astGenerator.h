@@ -171,8 +171,8 @@ typedef struct SCreateDbInfo {
   int8_t             update;
   int8_t             cachelast;
   SArray            *keep;
-  int8_t             dbType;
-  int16_t            partitions;
+//  int8_t             dbType;
+//  int16_t            partitions;
 } SCreateDbInfo;
 
 typedef struct SCreateFuncInfo {

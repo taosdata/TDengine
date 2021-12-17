@@ -759,11 +759,6 @@ int32_t validateIntervalNode(SQueryStmtInfo *pQueryInfo, SSqlNode* pSqlNode, SMs
   // It is a time window query
   pQueryInfo->info.timewindow = true;
   return TSDB_CODE_SUCCESS;
-  // disable it temporarily
-//  bool interpQuery = tscIsPointInterpQuery(pQueryInfo);
-//  if ((pSqlNode->interval.token == TK_EVERY && (!interpQuery)) || (pSqlNode->interval.token == TK_INTERVAL && interpQuery)) {
-//    return buildInvalidOperationMsg(pMsgBuf, msg4);
-//  }
 }
 
 int32_t validateSessionNode(SQueryStmtInfo *pQueryInfo, SSessionWindowVal* pSession, int32_t precision, SMsgBuf* pMsgBuf) {
@@ -3707,48 +3702,11 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       return TSDB_CODE_SUCCESS;
     }
 
-    case TSDB_SQL_SHOW: {
-      if (setShowInfo(pSql, pInfo) != TSDB_CODE_SUCCESS) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-
-      break;
-    }
-
     case TSDB_SQL_CREATE_FUNCTION:
     case TSDB_SQL_DROP_FUNCTION:  {
       code = handleUserDefinedFunc(pSql, pInfo);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
-      }
-
-      break;
-    }
-
-    case TSDB_SQL_ALTER_DB:
-    case TSDB_SQL_CREATE_DB: {
-      const char* msg1 = "invalid db name";
-      const char* msg2 = "name too long";
-
-      SCreateDbInfo* pCreateDB = &(pInfo->pMiscInfo->dbOpt);
-      if (pCreateDB->dbname.n >= TSDB_DB_NAME_LEN) {
-        return buildInvalidOperationMsg(pMsgBuf, msg2);
-      }
-
-      char buf[TSDB_DB_NAME_LEN] = {0};
-      SToken token = taosTokenDup(&pCreateDB->dbname, buf, tListLen(buf));
-
-      if (tscValidateName(&token) != TSDB_CODE_SUCCESS) {
-        return buildInvalidOperationMsg(pMsgBuf, msg1);
-      }
-
-      int32_t ret = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), &token);
-      if (ret != TSDB_CODE_SUCCESS) {
-        return buildInvalidOperationMsg(pMsgBuf, msg2);
-      }
-
-      if (parseCreateDBOptions(pCmd, pCreateDB) != TSDB_CODE_SUCCESS) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
       }
 
       break;
@@ -4133,25 +4091,83 @@ static int32_t setShowInfo(struct SSqlInfo* pInfo, void** output, int32_t* msgLe
     }
   }
 
-  SShowMsg* pShowMsg = calloc(1, sizeof(SShowMsg));
-  pShowMsg->type = pShowInfo->showType;
+  *output = buildShowMsg(pShowInfo, 0, pMsgBuf->buf, pMsgBuf->len);
+  *msgLen = sizeof(SShowMsg)/* + htons(pShowMsg->payloadLen)*/;
+  return TSDB_CODE_SUCCESS;
+}
 
-  if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {
-    SToken* pPattern = &pShowInfo->pattern;
-    if (pPattern->type > 0) {  // only show tables support wildcard query
-      strncpy(pShowMsg->payload, pPattern->z, pPattern->n);
-      pShowMsg->payloadLen = htons(pPattern->n);
-    }
-  } else {
-    SToken* pEpAddr = &pShowInfo->prefix;
-    assert(pEpAddr->n > 0 && pEpAddr->type > 0);
+// can only perform the parameters based on the macro definitation
+static int32_t doCheckDbOptions(SCreateDbMsg* pCreate, SMsgBuf* pMsgBuf) {
+  char msg[512] = {0};
 
-    strncpy(pShowMsg->payload, pEpAddr->z, pEpAddr->n);
-    pShowMsg->payloadLen = htons(pEpAddr->n);
+  if (pCreate->walLevel != -1 && (pCreate->walLevel < TSDB_MIN_WAL_LEVEL || pCreate->walLevel > TSDB_MAX_WAL_LEVEL)) {
+    snprintf(msg, tListLen(msg), "invalid db option walLevel: %d, only 1-2 allowed", pCreate->walLevel);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
   }
 
-  *output = pShowMsg;
-  *msgLen = sizeof(SShowMsg) + htons(pShowMsg->payloadLen);
+  if (pCreate->replications != -1 &&
+      (pCreate->replications < TSDB_MIN_DB_REPLICA_OPTION || pCreate->replications > TSDB_MAX_DB_REPLICA_OPTION)) {
+    snprintf(msg, tListLen(msg), "invalid db option replications: %d valid range: [%d, %d]", pCreate->replications,
+             TSDB_MIN_DB_REPLICA_OPTION, TSDB_MAX_DB_REPLICA_OPTION);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  int32_t blocks = ntohl(pCreate->totalBlocks);
+  if (blocks != -1 && (blocks < TSDB_MIN_TOTAL_BLOCKS || blocks > TSDB_MAX_TOTAL_BLOCKS)) {
+    snprintf(msg, tListLen(msg), "invalid db option totalBlocks: %d valid range: [%d, %d]", blocks,
+             TSDB_MIN_TOTAL_BLOCKS, TSDB_MAX_TOTAL_BLOCKS);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  if (pCreate->quorum != -1 &&
+      (pCreate->quorum < TSDB_MIN_DB_QUORUM_OPTION || pCreate->quorum > TSDB_MAX_DB_QUORUM_OPTION)) {
+    snprintf(msg, tListLen(msg), "invalid db option quorum: %d valid range: [%d, %d]", pCreate->quorum,
+             TSDB_MIN_DB_QUORUM_OPTION, TSDB_MAX_DB_QUORUM_OPTION);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  int32_t val = htonl(pCreate->daysPerFile);
+  if (val != -1 && (val < TSDB_MIN_DAYS_PER_FILE || val > TSDB_MAX_DAYS_PER_FILE)) {
+    snprintf(msg, tListLen(msg), "invalid db option daysPerFile: %d valid range: [%d, %d]", val,
+             TSDB_MIN_DAYS_PER_FILE, TSDB_MAX_DAYS_PER_FILE);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  val = htonl(pCreate->cacheBlockSize);
+  if (val != -1 && (val < TSDB_MIN_CACHE_BLOCK_SIZE || val > TSDB_MAX_CACHE_BLOCK_SIZE)) {
+    snprintf(msg, tListLen(msg), "invalid db option cacheBlockSize: %d valid range: [%d, %d]", val,
+             TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MAX_CACHE_BLOCK_SIZE);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  if (pCreate->precision != TSDB_TIME_PRECISION_MILLI && pCreate->precision != TSDB_TIME_PRECISION_MICRO &&
+      pCreate->precision != TSDB_TIME_PRECISION_NANO) {
+    snprintf(msg, tListLen(msg), "invalid db option timePrecision: %d valid value: [%d, %d, %d]", pCreate->precision,
+             TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  val = htonl(pCreate->commitTime);
+  if (val != -1 && (val < TSDB_MIN_COMMIT_TIME || val > TSDB_MAX_COMMIT_TIME)) {
+    snprintf(msg, tListLen(msg), "invalid db option commitTime: %d valid range: [%d, %d]", val,
+             TSDB_MIN_COMMIT_TIME, TSDB_MAX_COMMIT_TIME);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  val = htonl(pCreate->fsyncPeriod);
+  if (val != -1 && (val < TSDB_MIN_FSYNC_PERIOD || val > TSDB_MAX_FSYNC_PERIOD)) {
+    snprintf(msg, tListLen(msg), "invalid db option fsyncPeriod: %d valid range: [%d, %d]", val,
+             TSDB_MIN_FSYNC_PERIOD, TSDB_MAX_FSYNC_PERIOD);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  if (pCreate->compression != -1 &&
+      (pCreate->compression < TSDB_MIN_COMP_LEVEL || pCreate->compression > TSDB_MAX_COMP_LEVEL)) {
+    snprintf(msg, tListLen(msg), "invalid db option compression: %d valid range: [%d, %d]", pCreate->compression,
+             TSDB_MIN_COMP_LEVEL, TSDB_MAX_COMP_LEVEL);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4216,6 +4232,36 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, int64_t id, void** output, in
       code = setShowInfo(pInfo, output, outputLen, pMsgBuf);
       break;
     }
+
+    case TSDB_SQL_ALTER_DB:
+    case TSDB_SQL_CREATE_DB: {
+      const char* msg1 = "invalid db name";
+      const char* msg2 = "name too long";
+
+      SCreateDbInfo* pCreateDB = &(pInfo->pMiscInfo->dbOpt);
+      if (pCreateDB->dbname.n >= TSDB_DB_NAME_LEN) {
+        return buildInvalidOperationMsg(pMsgBuf, msg2);
+      }
+
+      char buf[TSDB_DB_NAME_LEN] = {0};
+      SToken token = taosTokenDup(&pCreateDB->dbname, buf, tListLen(buf));
+
+      if (parserValidateNameToken(&token) != TSDB_CODE_SUCCESS) {
+        return buildInvalidOperationMsg(pMsgBuf, msg1);
+      }
+
+      SCreateDbMsg* pCreateMsg = buildCreateDbMsg(pCreateDB, pMsgBuf->buf, pMsgBuf->len);
+      if (doCheckDbOptions(pCreateMsg, pMsgBuf) != TSDB_CODE_SUCCESS) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      strncpy(pCreateMsg->db, token.z, token.n);
+
+      *output = pCreateMsg;
+      *outputLen = sizeof(SCreateDbMsg);
+      break;
+    }
+
     default:
       break;
   }
