@@ -25,9 +25,10 @@ int vnodeBuildReq(void **buf, const SVnodeReq *pReq, uint8_t type) {
   switch (type) {
     case TSDB_MSG_TYPE_CREATE_TABLE:
       tsize += vnodeBuildCreateTableReq(buf, &(pReq->ctReq));
+      break;
+    case TSDB_MSG_TYPE_SUBMIT:
       /* code */
       break;
-
     default:
       break;
   }

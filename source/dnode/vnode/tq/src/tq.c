@@ -63,7 +63,13 @@ STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemA
   return pTq;
 }
 
-static int tqProtoCheck(TmqMsgHead* pMsg) { return pMsg->protoVer == 0; }
+void tqClose(STQ*pTq) {
+  // TODO
+}
+
+static int tqProtoCheck(TmqMsgHead *pMsg) {
+  return pMsg->protoVer == 0;
+}
 
 static int tqAckOneTopic(STqBufferHandle* bHandle, TmqOneAck* pAck, STqQueryMsg** ppQuery) {
   // clean old item and move forward
