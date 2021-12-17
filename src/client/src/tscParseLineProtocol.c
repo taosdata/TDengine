@@ -387,7 +387,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
           tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
-        taosMsleep(5000);
+        taosMsleep(500);
       }
       break;
     }
@@ -412,7 +412,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
           tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
-        taosMsleep(5000);
+        taosMsleep(500);
       }
       break;
     }
@@ -434,7 +434,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
           tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
-        taosMsleep(5000);
+        taosMsleep(500);
       }
       break;
     }
@@ -456,7 +456,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
           tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
-        taosMsleep(5000);
+        taosMsleep(500);
       }
       break;
     }
@@ -498,7 +498,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
           tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
-        taosMsleep(5000);
+        taosMsleep(500);
       }
       break;
     }
