@@ -1,6 +1,7 @@
 package com.taosdata.jdbc.confprops;
 
 import com.taosdata.jdbc.TSDBDriver;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -34,6 +35,20 @@ public class CharsetTest {
                 Assert.assertTrue(value instanceof String);
                 Assert.assertEquals("北京", value.toString());
             }
+        }
+    }
+
+    @AfterClass
+    public static void afterClass(){
+        String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
+        Properties props = new Properties();
+        props.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+
+        try (Connection conn = DriverManager.getConnection(url, props);
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("drop database if exists test");
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 
