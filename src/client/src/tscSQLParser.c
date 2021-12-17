@@ -9508,7 +9508,7 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
     char      buf[TSDB_TABLE_FNAME_LEN];
     SStrToken sTblToken;
     sTblToken.z = buf;
-    
+
     if (validateTableName(oriName->z, oriName->n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
