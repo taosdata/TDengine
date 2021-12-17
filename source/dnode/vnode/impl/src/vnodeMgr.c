@@ -34,7 +34,7 @@ int vnodeInit(uint16_t nthreads) {
 
     pthread_mutex_init(&(vnodeMgr.mutex), NULL);
     pthread_cond_init(&(vnodeMgr.hasTask), NULL);
-    tDListInit(&(vnodeMgr.queue));
+    TD_DLIST_INIT(&(vnodeMgr.queue));
 
     for (uint16_t i = 0; i < nthreads; i++) {
       pthread_create(&(vnodeMgr.threads[i]), NULL, loop, NULL);
@@ -77,7 +77,7 @@ void vnodeClear() {
 int vnodeScheduleTask(SVnodeTask* pTask) {
   pthread_mutex_lock(&(vnodeMgr.mutex));
 
-  tDListAppend(&(vnodeMgr.queue), pTask);
+  TD_DLIST_APPEND(&(vnodeMgr.queue), pTask);
 
   pthread_cond_signal(&(vnodeMgr.hasTask));
 
@@ -101,7 +101,7 @@ static void* loop(void* arg) {
           pthread_cond_wait(&(vnodeMgr.hasTask), &(vnodeMgr.mutex));
         }
       } else {
-        tDListPop(&(vnodeMgr.queue), pTask);
+        TD_DLIST_POP(&(vnodeMgr.queue), pTask);
         break;
       }
     }

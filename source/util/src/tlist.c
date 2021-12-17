@@ -17,9 +17,8 @@
 #include "os.h"
 
 void tdListInit(SList *list, int eleSize) {
-  list->eleSize = eleSize;
-  list->numOfEles = 0;
-  list->head = list->tail = NULL;
+  TD_DLIST_INIT(list);
+  listEleSize(list) = eleSize;
 }
 
 SList *tdListNew(int eleSize) {
@@ -31,14 +30,11 @@ SList *tdListNew(int eleSize) {
 }
 
 void tdListEmpty(SList *list) {
-  SListNode *node = list->head;
-  while (node) {
-    list->head = node->next;
+  SListNode *node;
+  while ((node = TD_DLIST_HEAD(list)) != NULL) {
+    TD_DLIST_POP(list, node);
     free(node);
-    node = list->head;
   }
-  list->head = list->tail = 0;
-  list->numOfEles = 0;
 }
 
 void *tdListFree(SList *list) {
@@ -50,40 +46,16 @@ void *tdListFree(SList *list) {
   return NULL;
 }
 
-void tdListPrependNode(SList *list, SListNode *node) {
-  if (list->head == NULL) {
-    list->head = node;
-    list->tail = node;
-  } else {
-    node->next = list->head;
-    node->prev = NULL;
-    list->head->prev = node;
-    list->head = node;
-  }
-  list->numOfEles++;
-}
+void tdListPrependNode(SList *list, SListNode *node) { TD_DLIST_PREPEND(list, node); }
 
-void tdListAppendNode(SList *list, SListNode *node) {
-  if (list->head == NULL) {
-    list->head = node;
-    list->tail = node;
-  } else {
-    node->prev = list->tail;
-    node->next = NULL;
-    list->tail->next = node;
-    list->tail = node;
-  }
-
-  list->numOfEles++;
-}
+void tdListAppendNode(SList *list, SListNode *node) { TD_DLIST_APPEND(list, node); }
 
 int tdListPrepend(SList *list, void *data) {
   SListNode *node = (SListNode *)malloc(sizeof(SListNode) + list->eleSize);
   if (node == NULL) return -1;
 
-  node->next = node->prev = NULL;
   memcpy((void *)(node->data), data, list->eleSize);
-  tdListPrependNode(list, node);
+  TD_DLIST_PREPEND(list, node);
 
   return 0;
 }
@@ -93,73 +65,40 @@ int tdListAppend(SList *list, void *data) {
   if (node == NULL) return -1;
 
   memcpy((void *)(node->data), data, list->eleSize);
-  tdListAppendNode(list, node);
+  TD_DLIST_APPEND(list, node);
 
   return 0;
 }
 
 SListNode *tdListPopHead(SList *list) {
-  if (list->head == NULL) return NULL;
-  SListNode *node = list->head;
-  if (node->next == NULL) {
-    list->head = NULL;
-    list->tail = NULL;
-  } else {
-    list->head = node->next;
+  SListNode *node;
+
+  node = TD_DLIST_HEAD(list);
+
+  if (node) {
+    TD_DLIST_POP(list, node);
   }
-  list->numOfEles--;
-  node->next = NULL;
-  node->prev = NULL;
+
   return node;
 }
 
 SListNode *tdListPopTail(SList *list) {
-  if (list->tail == NULL) return NULL;
-  SListNode *node = list->tail;
-  if (node->prev == NULL) {
-    list->head = NULL;
-    list->tail = NULL;
-  } else {
-    list->tail = node->prev;
+  SListNode *node;
+
+  node = TD_DLIST_TAIL(list);
+  if (node) {
+    TD_DLIST_POP(list, node);
   }
-  list->numOfEles--;
-  node->next = node->prev = NULL;
+
   return node;
 }
 
-SListNode *tdListGetHead(SList *list) {
-  if (list == NULL || list->numOfEles == 0) {
-    return NULL;
-  }
+SListNode *tdListGetHead(SList *list) { return TD_DLIST_HEAD(list); }
 
-  return list->head;
-}
-
-SListNode *tsListGetTail(SList *list) {
-  if (list == NULL || list->numOfEles == 0) {
-    return NULL;
-  }
-
-  return list->tail;
-}
+SListNode *tsListGetTail(SList *list) { return TD_DLIST_TAIL(list); }
 
 SListNode *tdListPopNode(SList *list, SListNode *node) {
-  if (list->head == node) {
-    list->head = node->next;
-  }
-  if (list->tail == node) {
-    list->tail = node->prev;
-  }
-
-  if (node->prev != NULL) {
-    node->prev->next = node->next;
-  }
-  if (node->next != NULL) {
-    node->next->prev = node->prev;
-  }
-  list->numOfEles--;
-  node->next = node->prev = NULL;
-
+  TD_DLIST_POP(list, node);
   return node;
 }
 
@@ -174,19 +113,19 @@ void tdListMove(SList *src, SList *dst) {
 
 void tdListDiscard(SList *list) {
   if (list) {
-    list->head = list->tail = NULL;
-    list->numOfEles = 0;
+    listHead(list) = listTail(list) = NULL;
+    listNEles(list) = 0;
   }
 }
 
-void tdListNodeGetData(SList *list, SListNode *node, void *target) { memcpy(target, node->data, list->eleSize); }
+void tdListNodeGetData(SList *list, SListNode *node, void *target) { memcpy(target, node->data, listEleSize(list)); }
 
 void tdListInitIter(SList *list, SListIter *pIter, TD_LIST_DIRECTION_T direction) {
   pIter->direction = direction;
   if (direction == TD_LIST_FORWARD) {
-    pIter->next = list->head;
+    pIter->next = listHead(list);
   } else {
-    pIter->next = list->tail;
+    pIter->next = listTail(list);
   }
 }
 
@@ -194,9 +133,9 @@ SListNode *tdListNext(SListIter *pIter) {
   SListNode *node = pIter->next;
   if (node == NULL) return NULL;
   if (pIter->direction == TD_LIST_FORWARD) {
-    pIter->next = node->next;
+    pIter->next = TD_DLIST_NODE_NEXT(node);
   } else {
-    pIter->next = node->prev;
+    pIter->next = TD_DLIST_NODE_PREV(node);
   }
 
   return node;
