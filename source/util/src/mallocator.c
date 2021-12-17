@@ -16,6 +16,7 @@
 #include "mallocator.h"
 
 /* ------------------------ HEAP ALLOCATOR ------------------------ */
+#if 0
 typedef struct {
   size_t tusage;
 } SHeapAllocator;
@@ -105,3 +106,4 @@ static size_t haUsage(SMemAllocator *pma) { return ((SHeapAllocator *)(pma->impl
 typedef struct {
   size_t usage;
 } SArenaAllocator;
+#endif
