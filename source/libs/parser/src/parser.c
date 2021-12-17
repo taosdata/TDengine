@@ -32,12 +32,6 @@ bool qIsInsertSql(const char* pStr, size_t length) {
 }
 
 int32_t qParseQuerySql(const char* pStr, size_t length, int64_t id, int32_t *type, void** pOutput, int32_t* outputLen, char* msg, int32_t msgLen) {
-  SQueryStmtInfo* pQueryInfo = calloc(1, sizeof(SQueryStmtInfo));
-  if (pQueryInfo == NULL) {
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY; // set correct error code.
-    return terrno;
-  }
-
   SSqlInfo info = doGenerateAST(pStr);
   if (!info.valid) {
     strncpy(msg, info.msg, msgLen);
@@ -51,6 +45,12 @@ int32_t qParseQuerySql(const char* pStr, size_t length, int64_t id, int32_t *typ
       // do nothing
     }
   } else {
+    SQueryStmtInfo* pQueryInfo = calloc(1, sizeof(SQueryStmtInfo));
+    if (pQueryInfo == NULL) {
+      terrno = TSDB_CODE_TSC_OUT_OF_MEMORY; // set correct error code.
+      return terrno;
+    }
+
     struct SCatalog* pCatalog = NULL;
     int32_t code = catalogGetHandle(NULL, &pCatalog);
     code = qParserValidateSqlNode(pCatalog, &info, pQueryInfo, id, msg, msgLen);
@@ -59,6 +59,7 @@ int32_t qParseQuerySql(const char* pStr, size_t length, int64_t id, int32_t *typ
     }
   }
 
+  destroySqlInfo(&info);
   return TSDB_CODE_SUCCESS;
 }
 

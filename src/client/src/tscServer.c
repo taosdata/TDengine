@@ -539,7 +539,7 @@ int doBuildAndSendMsg(SSqlObj *pSql) {
 
   if (pCmd->command == TSDB_SQL_SELECT ||
       pCmd->command == TSDB_SQL_FETCH ||
-      pCmd->command == TSDB_SQL_RETRIEVE ||
+      pCmd->command == TSDB_SQL_RETRIEVE_MNODE ||
       pCmd->command == TSDB_SQL_INSERT ||
       pCmd->command == TSDB_SQL_CONNECT ||
       pCmd->command == TSDB_SQL_HB ||
@@ -2749,7 +2749,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   }
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  if ((pCmd->command == TSDB_SQL_RETRIEVE) ||
+  if ((pCmd->command == TSDB_SQL_RETRIEVE_MNODE) ||
       ((UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo) || UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) &&
        !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_SUBQUERY)) ||
       (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
@@ -3174,7 +3174,7 @@ void tscInitMsgsFp() {
 
   tscBuildMsg[TSDB_SQL_HB] = tscBuildHeartBeatMsg;
   tscBuildMsg[TSDB_SQL_SHOW] = tscBuildShowMsg;
-  tscBuildMsg[TSDB_SQL_RETRIEVE] = tscBuildRetrieveFromMgmtMsg;
+  tscBuildMsg[TSDB_SQL_RETRIEVE_MNODE] = tscBuildRetrieveFromMgmtMsg;
   tscBuildMsg[TSDB_SQL_KILL_QUERY] = tscBuildKillMsg;
   tscBuildMsg[TSDB_SQL_KILL_STREAM] = tscBuildKillMsg;
   tscBuildMsg[TSDB_SQL_KILL_CONNECTION] = tscBuildKillMsg;
@@ -3192,7 +3192,7 @@ void tscInitMsgsFp() {
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_FUNC] = tscProcessRetrieveFuncRsp;
 
   tscProcessMsgRsp[TSDB_SQL_SHOW] = tscProcessShowRsp;
-  tscProcessMsgRsp[TSDB_SQL_RETRIEVE] = tscProcessRetrieveRspFromNode;  // rsp handled by same function.
+  tscProcessMsgRsp[TSDB_SQL_RETRIEVE_MNODE] = tscProcessRetrieveRspFromNode;  // rsp handled by same function.
   tscProcessMsgRsp[TSDB_SQL_DESCRIBE_TABLE] = tscProcessDescribeTableRsp;
 
   tscProcessMsgRsp[TSDB_SQL_CURRENT_DB]   = tscProcessLocalRetrieveRsp;
@@ -3214,7 +3214,7 @@ void tscInitMsgsFp() {
   tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_DATABASE] = tscProcessShowCreateRsp;
 
   tscKeepConn[TSDB_SQL_SHOW] = 1;
-  tscKeepConn[TSDB_SQL_RETRIEVE] = 1;
+  tscKeepConn[TSDB_SQL_RETRIEVE_MNODE] = 1;
   tscKeepConn[TSDB_SQL_SELECT] = 1;
   tscKeepConn[TSDB_SQL_FETCH] = 1;
   tscKeepConn[TSDB_SQL_HB] = 1;

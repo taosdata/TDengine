@@ -308,6 +308,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_QRY_INCONSISTAN               TAOS_DEF_ERROR_CODE(0, 0x070C)  //"File inconsistency in replica")
 #define TSDB_CODE_QRY_INVALID_TIME_CONDITION    TAOS_DEF_ERROR_CODE(0, 0x070D)  //"invalid time condition")
 #define TSDB_CODE_QRY_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x070E)  //"System error")
+#define TSDB_CODE_QRY_INVALID_INPUT             TAOS_DEF_ERROR_CODE(0, 0x070F)  //"invalid input")
 
 
 // grant

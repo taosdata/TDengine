@@ -127,8 +127,6 @@ void destroyTscObj(void *pObj) {
 
   atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   tscDebug("connObj 0x%"PRIx64" destroyed, totalConn:%"PRId64, pTscObj->id, pTscObj->pAppInfo->numOfConns);
-
-  closeTransporter(pTscObj);
   pthread_mutex_destroy(&pTscObj->mutex);
   tfree(pTscObj);
 }
@@ -189,6 +187,12 @@ static void doDestroyRequest(void* p) {
   tfree(pRequest->msgBuf);
   tfree(pRequest->sqlstr);
   tfree(pRequest->pInfo);
+
+  if (pRequest->body.pResInfo != NULL) {
+    tfree(pRequest->body.pResInfo->pData);
+    tfree(pRequest->body.pResInfo->pMsg);
+    tfree(pRequest->body.pResInfo);
+  }
 
   deregisterRequest(pRequest);
   tfree(pRequest);

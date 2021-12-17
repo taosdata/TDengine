@@ -17,7 +17,10 @@
 #define _TD_INDEX_INT_H_
 
 #include "index.h"
+#include "index_fst.h"
 #include "tlog.h"
+#include "thash.h"
+#include "taos.h"
 
 #ifdef USE_LUCENE
 #include <lucene++/Lucene_c.h>
@@ -32,12 +35,20 @@ struct SIndex {
 #ifdef USE_LUCENE 
  index_t *index; 
 #endif  
+ void     *cache;
+ void     *tindex; 
+ SHashObj *fieldObj;  // <field name, field id> 
+ uint64_t suid; 
+ int      fieldId; 
+ pthread_mutex_t mtx;
 };   
 
 struct SIndexOpts {
 #ifdef USE_LUCENE 
   void *opts; 
 #endif  
+  int32_t numOfItermLimit;
+  int8_t  mergeInterval; 
 };
 
 struct SIndexMultiTermQuery {
