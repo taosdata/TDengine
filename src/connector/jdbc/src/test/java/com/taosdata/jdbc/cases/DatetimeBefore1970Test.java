@@ -38,13 +38,13 @@ public class DatetimeBefore1970Test {
             rs.next();
             // then
             ts = rs.getTimestamp("ts");
-            Assert.assertEquals("1970-01-01 08:00:00.000", TimestampUtil.longToDatetime(ts.getTime()));
+            Assert.assertEquals("1970-01-01 07:59:59.999", TimestampUtil.longToDatetime(ts.getTime()));
 
             // when
             rs.next();
             // then
             ts = rs.getTimestamp("ts");
-            Assert.assertEquals("1970-01-01 07:59:59.999", TimestampUtil.longToDatetime(ts.getTime()));
+            Assert.assertEquals("1970-01-01 08:00:00.000", TimestampUtil.longToDatetime(ts.getTime()));
         }
     }
 

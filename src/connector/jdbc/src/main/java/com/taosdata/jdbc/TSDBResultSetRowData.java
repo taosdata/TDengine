@@ -443,16 +443,19 @@ public class TSDBResultSetRowData {
             case 0: {
                 milliseconds = ts;
                 fracNanoseconds = (int) (ts * 1_000_000 % 1_000_000_000);
+                fracNanoseconds = fracNanoseconds < 0 ? 1000_000_000 + fracNanoseconds : fracNanoseconds;
                 break;
             }
             case 1: {
                 milliseconds = ts / 1_000;
                 fracNanoseconds = (int) (ts * 1_000 % 1_000_000_000);
+                fracNanoseconds = fracNanoseconds < 0 ? 1_000_000 + fracNanoseconds : fracNanoseconds;
                 break;
             }
             case 2: {
                 milliseconds = ts / 1_000_000;
                 fracNanoseconds = (int) (ts % 1_000_000_000);
+                fracNanoseconds = fracNanoseconds < 0 ? 1_000 + fracNanoseconds : fracNanoseconds;
                 break;
             }
             default: {
