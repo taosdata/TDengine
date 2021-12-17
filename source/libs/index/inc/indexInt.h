@@ -37,9 +37,11 @@ struct SIndex {
 #endif  
  void     *cache;
  void     *tindex; 
- SHashObj *fieldObj;  // <field name, field id> 
- uint64_t suid; 
- int      fieldId; 
+ SHashObj *fieldObj;// < field name, field id> 
+ 
+ int64_t  suid;      // current super table id, -1 is normal table    
+ int      fieldId;  // field id allocated to cache
+ int32_t  cVersion; // current version allocated to cache 
  pthread_mutex_t mtx;
 };   
 
@@ -58,6 +60,7 @@ struct SIndexMultiTermQuery {
 
 // field and key;
 typedef struct SIndexTerm {
+  uint8_t type;  // term data type, str/interger/json
   char    *key;
   int32_t nKey;
   char    *val;

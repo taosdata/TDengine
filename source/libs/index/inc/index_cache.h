@@ -20,8 +20,8 @@
 // ----------------- row structure in skiplist ---------------------
 
 /* A data row, the format is like below:
- * |<--totalLen-->|<-- fieldId-->|<-- value len--->|<-- value-->|<--version--->|<-- itermType -->|
- *
+ * content: |<--totalLen-->|<-- fieldid-->|<--field type -->|<-- value len--->|<-- value -->|<--  uid  -->|<--version--->|<-- itermType -->|
+ * len    : |<--int32_t -->|<-- int16_t-->|<--  int16_t --->|<--- int32_t --->|<--valuelen->|<--uint64_t->|<-- int32_t-->|<--  int8_t  --->| 
  */
 
 #ifdef __cplusplus
@@ -30,7 +30,6 @@ extern "C" {
 
 typedef struct IndexCache {
   T_REF_DECLARE() 
-  int cVersion; // 
 } IndexCache;
 
 
@@ -39,7 +38,8 @@ IndexCache *indexCacheCreate();
 
 void indexCacheDestroy(IndexCache *cache);
 
-int indexCachePut(IndexCache *cache, int32_t fieldId,  const char *fieldVale,  int32_t fvlen, uint64_t uid, int8_t operaType); 
+int indexCachePut(IndexCache *cache, int16_t fieldId, int16_t fieldType, const char *fieldValue,  int32_t fvLen, 
+              uint32_t version, uint64_t uid, int8_t operType);
 
 int indexCacheGet(IndexCache *cache, uint64_t *rst);
 int indexCacheSearch(IndexCache *cache, SIndexMultiTermQuery *query, SArray *result);
