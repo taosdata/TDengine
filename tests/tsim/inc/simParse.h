@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __SIM_PARSE_H__
-#define __SIM_PARSE_H__
+#ifndef _TD_SIM_PARSE_H_
+#define _TD_SIM_PARSE_H_
 
 #define MAX_NUM_CMD 64
 #define MAX_NUM_LABLES 100
@@ -52,4 +52,4 @@ typedef struct {
 
 bool simParseExpression(char *token, int32_t lineNum);
 
-#endif
+#endif /*_TD_SIM_PARSE_H_*/

@@ -6,7 +6,7 @@ target_link_libraries(
     PUBLIC util
     PUBLIC common
     PUBLIC os
-    PUBLIC cJson
+    PUBLIC cjson
 )
 target_include_directories(
     tsim

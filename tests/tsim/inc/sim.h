@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __SIM_H__
-#define __SIM_H__
+#ifndef _TD_SIM_H_
+#define _TD_SIM_H_
 
 #include <semaphore.h>
 #include <stdbool.h>
@@ -150,7 +150,6 @@ extern int32_t  simScriptPos;
 extern int32_t  simScriptSucced;
 extern int32_t  simDebugFlag;
 extern char     tsScriptDir[];
-extern bool     simAsyncQuery;
 extern bool     abortExecution;
 
 SScript *simParseScript(char *fileName);
@@ -178,4 +177,4 @@ bool     simExecuteLineInsertCmd(SScript *script, char *option);
 bool     simExecuteLineInsertErrorCmd(SScript *script, char *option);
 void     simVisuallizeOption(SScript *script, char *src, char *dst);
 
-#endif
+#endif /*_TD_SIM_H_*/

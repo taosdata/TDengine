@@ -14,15 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "../../../include/client/taos.h"
+#include "taos.h"
 #include "os.h"
 #include "sim.h"
 #include "taoserror.h"
 #include "tglobal.h"
-#include "tsocket.h"
 #include "ttimer.h"
 #include "tutil.h"
-#undef TAOS_MEM_CHECK
 
 SScript *simScriptList[MAX_MAIN_SCRIPT_NUM];
 SCommand simCmdList[SIM_CMD_END];
@@ -81,9 +79,6 @@ char *simParseHostName(char *varName) {
 }
 
 bool simSystemInit() {
-  if (taos_init()) {
-    return false;
-  }
   taosGetFqdn(simHostName);
   simInitsimCmdList();
   memset(simScriptList, 0, sizeof(SScript *) * MAX_MAIN_SCRIPT_NUM);
