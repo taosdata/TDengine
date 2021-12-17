@@ -122,6 +122,25 @@ int32_t parserValidatePassword(SToken* pToken, SMsgBuf* pMsgBuf) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t parserValidateNameToken(SToken* pToken) {
+  if (pToken == NULL || pToken->z == NULL || pToken->type != TK_ID) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  // it is a token quoted with escape char '`'
+  if (pToken->z[0] == TS_ESCAPE_CHAR && pToken->z[pToken->n - 1] == TS_ESCAPE_CHAR) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
+  if (sep != NULL) {  // It is a complex type, not allow
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  strntolower(pToken->z, pToken->z, pToken->n);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t buildInvalidOperationMsg(SMsgBuf* pBuf, const char* msg) {
   strncpy(pBuf->buf, msg, pBuf->len);
   return TSDB_CODE_TSC_INVALID_OPERATION;

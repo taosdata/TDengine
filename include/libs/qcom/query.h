@@ -84,8 +84,8 @@ typedef struct STableMetaOutput {
 extern int32_t (*queryBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
 extern int32_t (*queryProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize);
 
+SSchema* tGetTbnameColumnSchema();
 extern void msgInit();
-
 
 extern int32_t qDebugFlag;
 

@@ -2519,7 +2519,7 @@ static void yy_reduce(
 { yymsp[-1].minor.yy0 = yymsp[0].minor.yy0; }
         break;
       case 105: /* db_optr ::= */
-{setDefaultCreateDbOption(&yymsp[1].minor.yy256); yymsp[1].minor.yy256.dbType = TSDB_DB_TYPE_DEFAULT;}
+{setDefaultCreateDbOption(&yymsp[1].minor.yy256);}
         break;
       case 106: /* db_optr ::= db_optr cache */
 { yylhsminor.yy256 = yymsp[-1].minor.yy256; yylhsminor.yy256.cacheBlockSize = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
@@ -2590,16 +2590,16 @@ static void yy_reduce(
         break;
       case 121: /* topic_optr ::= db_optr */
       case 131: /* alter_topic_optr ::= alter_db_optr */ yytestcase(yyruleno==131);
-{ yylhsminor.yy256 = yymsp[0].minor.yy256; yylhsminor.yy256.dbType = TSDB_DB_TYPE_TOPIC; }
+{ yylhsminor.yy256 = yymsp[0].minor.yy256;}
   yymsp[0].minor.yy256 = yylhsminor.yy256;
         break;
       case 122: /* topic_optr ::= topic_optr partitions */
       case 132: /* alter_topic_optr ::= alter_topic_optr partitions */ yytestcase(yyruleno==132);
-{ yylhsminor.yy256 = yymsp[-1].minor.yy256; yylhsminor.yy256.partitions = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
+{ yylhsminor.yy256 = yymsp[-1].minor.yy256; }
   yymsp[-1].minor.yy256 = yylhsminor.yy256;
         break;
       case 123: /* alter_db_optr ::= */
-{ setDefaultCreateDbOption(&yymsp[1].minor.yy256); yymsp[1].minor.yy256.dbType = TSDB_DB_TYPE_DEFAULT;}
+{ setDefaultCreateDbOption(&yymsp[1].minor.yy256); }
         break;
       case 133: /* typename ::= ids */
 { 

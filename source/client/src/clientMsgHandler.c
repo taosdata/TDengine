@@ -14,6 +14,7 @@
  */
 
 #include <catalog.h>
+#include <tname.h>
 #include "clientInt.h"
 #include "clientLog.h"
 #include "os.h"
@@ -2885,7 +2886,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
 }
 
 int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool autocreate, bool onlyLocal) {
-  assert(tIsValidName(&pTableMetaInfo->name));
+  assert(tNameIsValid(&pTableMetaInfo->name));
 
   char name[TSDB_TABLE_FNAME_LEN] = {0};
   tNameExtractFullName(&pTableMetaInfo->name, name);
@@ -3138,7 +3139,7 @@ int processConnectRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
   // TODO refactor
   pthread_mutex_lock(&pTscObj->mutex);
   char temp[TSDB_TABLE_FNAME_LEN * 2] = {0};
-  int32_t len = sprintf(temp, "%s%s%s", pTscObj->acctId, TS_PATH_DELIMITER, pTscObj->db);
+  int32_t len = sprintf(temp, "%d%s%s", pTscObj->acctId, TS_PATH_DELIMITER, pTscObj->db);
 
   assert(len <= sizeof(pTscObj->db));
   tstrncpy(pTscObj->db, temp, sizeof(pTscObj->db));
@@ -3153,6 +3154,7 @@ int processConnectRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
   }
 
   pTscObj->connId = pConnect->connId;
+  pTscObj->acctId = pConnect->acctId;
 
   // update the appInstInfo
   pTscObj->pAppInfo->clusterId = pConnect->clusterId;
@@ -3165,19 +3167,33 @@ int processConnectRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
   return 0;
 }
 
-int32_t buildCreateUserMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
-  pMsgBody->msgType         = TSDB_MSG_TYPE_CREATE_USER;
-  pMsgBody->msgLen          = sizeof(SCreateUserMsg);
+int32_t doBuildMsgSupp(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
   pMsgBody->requestObjRefId = pRequest->self;
-  pMsgBody->pData           = pRequest->body.param;
-  return 0;
-}
-
-int32_t buildShowMsg(SRequestObj* pRequest, SRequestMsgBody* pMsgBody) {
-  pMsgBody->msgType         = TSDB_MSG_TYPE_SHOW;
   pMsgBody->msgLen          = pRequest->body.paramLen;
-  pMsgBody->requestObjRefId = pRequest->self;
   pMsgBody->pData           = pRequest->body.param;
+
+  switch(pRequest->type) {
+    case TSDB_SQL_CREATE_USER:
+      pMsgBody->msgType = TSDB_MSG_TYPE_CREATE_USER;
+      break;
+    case TSDB_SQL_CREATE_DB: {
+      pMsgBody->msgType = TSDB_MSG_TYPE_CREATE_DB;
+
+      SCreateDbMsg* pCreateMsg = pRequest->body.param;
+      SName name = {0};
+      int32_t ret = tNameSetDbName(&name, pRequest->pTscObj->acctId, pCreateMsg->db, strnlen(pCreateMsg->db, tListLen(pCreateMsg->db)));
+      if (ret != TSDB_CODE_SUCCESS) {
+        return -1;
+      }
+
+      tNameGetFullDbName(&name, pCreateMsg->db);
+
+      break;
+    }
+    case TSDB_SQL_SHOW:
+      pMsgBody->msgType = TSDB_MSG_TYPE_SHOW;
+      break;
+  }
 }
 
 STableMeta* createTableMetaFromMsg(STableMetaMsg* pTableMetaMsg) {
@@ -3283,6 +3299,9 @@ int32_t processRetrieveMnodeRsp(SRequestObj *pRequest, const char* pMsg, int32_t
   return 0;
 }
 
+int32_t processCreateDbRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
+  // todo rsp with the vnode id list
+}
 
 void initMsgHandleFp() {
 #if 0
@@ -3363,11 +3382,14 @@ void initMsgHandleFp() {
   buildRequestMsgFp[TSDB_SQL_CONNECT]  = buildConnectMsg;
   handleRequestRspFp[TSDB_SQL_CONNECT] = processConnectRsp;
 
-  buildRequestMsgFp[TSDB_SQL_CREATE_USER]  = buildCreateUserMsg;
+  buildRequestMsgFp[TSDB_SQL_CREATE_USER]  = doBuildMsgSupp;
 
-  buildRequestMsgFp[TSDB_SQL_SHOW]         = buildShowMsg;
+  buildRequestMsgFp[TSDB_SQL_SHOW]         = doBuildMsgSupp;
   handleRequestRspFp[TSDB_SQL_SHOW]        = processShowRsp;
 
   buildRequestMsgFp[TSDB_SQL_RETRIEVE_MNODE] = buildRetrieveMnodeMsg;
   handleRequestRspFp[TSDB_SQL_RETRIEVE_MNODE]= processRetrieveMnodeRsp;
+
+  buildRequestMsgFp[TSDB_SQL_CREATE_DB]      = doBuildMsgSupp;
+  handleRequestRspFp[TSDB_SQL_CREATE_DB]     = processCreateDbRsp;
 }
