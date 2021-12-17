@@ -440,7 +440,7 @@ int tsParseSql(SSqlObj *pSql, bool initial);
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet);
 int  tscBuildAndSendRequest(SSqlObj *pSql, SQueryInfo* pQueryInfo);
 
-int  tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex);
+int  tscRenewTableMeta(SSqlObj *pSql);
 void tscAsyncResultOnError(SSqlObj *pSql);
 
 void tscQueueAsyncError(void(*fp), void *param, int32_t code);
