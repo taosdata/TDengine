@@ -4928,7 +4928,11 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
         }
       }
 
-      pse->colInfo.flag = pSource->base.colInfo.flag; //TSDB_COL_NORMAL;
+      if (!pQueryInfo->stableQuery && TSDB_COL_IS_TAG(pSource->base.colInfo.flag)) {
+        pse->colInfo.flag = (pSource->base.colInfo.flag) & (~TSDB_COL_TAG);
+      } else {
+        pse->colInfo.flag = pSource->base.colInfo.flag;
+      }
       pse->resType  = pSource->base.resType;
       pse->resBytes = pSource->base.resBytes;
       strncpy(pse->colInfo.name, pSource->base.aliasName, tListLen(pse->colInfo.name));
@@ -5558,7 +5562,7 @@ end:
 int8_t jsonType2DbType(double data, int jsonType){
   switch(jsonType){
     case cJSON_Number:
-      if (data - (int64_t)data > 0) return TSDB_DATA_TYPE_DOUBLE; else return TSDB_DATA_TYPE_BIGINT;
+      if (data - (int64_t)data == 0) return TSDB_DATA_TYPE_BIGINT; else return TSDB_DATA_TYPE_DOUBLE;
     case cJSON_String:
       return TSDB_DATA_TYPE_NCHAR;
     case cJSON_NULL:
