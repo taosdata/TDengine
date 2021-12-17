@@ -52,13 +52,13 @@ static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, i
   int64_t logTfd = pRead->readLogTfd;
 
   // seek position
-  int64_t offset = (ver - fileFirstVer) * sizeof(WalIdxEntry);
+  int64_t offset = (ver - fileFirstVer) * sizeof(SWalIdxEntry);
   code = tfLseek(idxTfd, offset, SEEK_SET);
   if (code < 0) {
     return -1;
   }
-  WalIdxEntry entry;
-  if (tfRead(idxTfd, &entry, sizeof(WalIdxEntry)) != sizeof(WalIdxEntry)) {
+  SWalIdxEntry entry;
+  if (tfRead(idxTfd, &entry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) {
     return -1;
   }
   // TODO:deserialize
@@ -105,10 +105,10 @@ static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
   if (ver < pWal->vers.snapshotVer) {
   }
 
-  WalFileInfo tmpInfo;
+  SWalFileInfo tmpInfo;
   tmpInfo.firstVer = ver;
   // bsearch in fileSet
-  WalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
+  SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
   ASSERT(pRet != NULL);
   if (pRead->curFileFirstVer != pRet->firstVer) {
     code = walReadChangeFile(pRead, pRet->firstVer);
@@ -159,9 +159,9 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
     return -1;
   }
 
-  /*code = walValidBodyCksum(pRead->pHead);*/
   ASSERT(pRead->pHead->head.version == ver);
 
+  code = walValidBodyCksum(pRead->pHead);
   if (code != 0) {
     return -1;
   }
