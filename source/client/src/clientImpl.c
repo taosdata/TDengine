@@ -430,7 +430,7 @@ void setResultDataPtr(SClientResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   int32_t offset = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
     pResultInfo->length[i] = pResultInfo->fields[i].bytes;
-    pResultInfo->row[i]    = pResultInfo->pData + offset * pResultInfo->numOfRows;
+    pResultInfo->row[i]    = (char*) (pResultInfo->pData + offset * pResultInfo->numOfRows);
     pResultInfo->pCol[i]   = pResultInfo->row[i];
     offset += pResultInfo->fields[i].bytes;
   }
