@@ -187,7 +187,6 @@ public class SchemalessInsertTest {
     public void after() {
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("drop database if exists " + dbname);
-            stmt.close();
             conn.close();
         } catch (SQLException e) {
             e.printStackTrace();

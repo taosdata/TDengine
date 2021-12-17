@@ -47,7 +47,11 @@ public class NullValueInResultSetRestfulTest {
 
     @After
     public void after() throws SQLException {
-        if (conn != null)
+        if (conn != null) {
+            Statement statement = conn.createStatement();
+            statement.execute("drop database if exists test_null");
+            statement.close();
             conn.close();
+        }
     }
 }
