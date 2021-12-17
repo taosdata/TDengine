@@ -1,17 +1,17 @@
 package com.taosdata.jdbc.confprops;
 
 import com.taosdata.jdbc.TSDBDriver;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
 
 import java.sql.*;
 import java.time.Instant;
+import java.util.Calendar;
 import java.util.Properties;
 
 public class TimestampFormatTest {
     private static final String host = "127.0.0.1";
     private long ts = Instant.now().toEpochMilli();
+    private Connection conn;
 
     @Test
     public void string() throws SQLException {
@@ -154,13 +154,27 @@ public class TimestampFormatTest {
     @Before
     public void before() throws SQLException {
         String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
-        try (Connection conn = DriverManager.getConnection(url);
-             Statement stmt = conn.createStatement()) {
-            stmt.execute("drop database if exists test");
-            stmt.execute("create database if not exists test");
-            stmt.execute("use test");
-            stmt.execute("create table weather(ts timestamp, temperature nchar(10))");
-            stmt.execute("insert into weather values(" + ts + ", '北京')");
+        conn = DriverManager.getConnection(url);
+        Statement stmt = conn.createStatement();
+        stmt.execute("drop database if exists test");
+        stmt.execute("create database if not exists test");
+        stmt.execute("use test");
+        stmt.execute("create table weather(ts timestamp, temperature nchar(10))");
+        stmt.execute("insert into weather values(" + ts + ", '北京')");
+        stmt.close();
+    }
+
+    @After
+    public void after() {
+        try {
+            if (null != conn) {
+                Statement stmt = conn.createStatement();
+                stmt.execute("drop database if exists test");
+                stmt.close();
+                conn.close();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 
