@@ -15,16 +15,31 @@
 
 #include "vnodeDef.h"
 
+int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
+  SVnodeReq *pVnodeReq;
+
+  switch (pMsg->msgType) {
+    case TSDB_MSG_TYPE_MQ_SET:
+      if (tqSetCursor(pVnode->pTq, pMsg->pCont) < 0) {
+        // TODO: handle error
+      }
+      break;
+  }
+
+  void *pBuf = pMsg->pCont;
+  return 0;
+}
+
 int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
-  SRpcMsg *  pMsg;
+  SRpcMsg   *pMsg;
   SVnodeReq *pVnodeReq;
 
   for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
     pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
 
     // ser request version
-    void *   pBuf = pMsg->pCont;
-    uint64_t ver = pVnode->state.processed++;
+    void   *pBuf = pMsg->pCont;
+    int64_t ver = pVnode->state.processed++;
     taosEncodeFixedU64(&pBuf, ver);
 
     if (walWrite(pVnode->pWal, ver, pMsg->msgType, pMsg->pCont, pMsg->contLen) < 0) {

@@ -196,6 +196,7 @@ do { \
 
 #define TSDB_AUTH_LEN             16
 #define TSDB_PASSWORD_LEN         32
+#define TSDB_USET_PASSWORD_LEN    129
 #define TSDB_VERSION_LEN          12
 #define TSDB_LABEL_LEN            8 
 
@@ -232,8 +233,8 @@ do { \
 #define TSDB_CQ_SQL_SIZE          1024
 #define TSDB_MIN_VNODES           64
 #define TSDB_MAX_VNODES           512
-#define TSDB_MIN_VNODES_PER_DB    2
-#define TSDB_MAX_VNODES_PER_DB    64
+#define TSDB_MIN_VNODES_PER_DB    1
+#define TSDB_MAX_VNODES_PER_DB    4096
 
 #define TSDB_DNODE_ROLE_ANY       0
 #define TSDB_DNODE_ROLE_MGMT      1
@@ -246,7 +247,7 @@ do { \
 #define TSDB_RES_COL_ID                 (-5000)
 
 #define TSDB_MULTI_TABLEMETA_MAX_NUM    100000  // maximum batch size allowed to load table meta
-
+     
 #define TSDB_MIN_CACHE_BLOCK_SIZE       1
 #define TSDB_MAX_CACHE_BLOCK_SIZE       128     // 128MB for each vnode
 #define TSDB_DEFAULT_CACHE_BLOCK_SIZE   16

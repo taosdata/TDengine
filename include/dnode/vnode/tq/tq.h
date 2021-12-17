@@ -16,9 +16,9 @@
 #ifndef _TD_TQ_H_
 #define _TD_TQ_H_
 
+#include "mallocator.h"
 #include "os.h"
 #include "tutil.h"
-#include "mallocator.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,10 +62,10 @@ typedef struct TmqDisconnectRsp {
   int8_t     status;
 } TmqDisconnectRsp;
 
-typedef struct TmqConsumeReq {
+typedef struct STqConsumeReq {
   TmqMsgHead head;
   TmqAcks    acks;
-} TmqConsumeReq;
+} STqConsumeReq;
 
 typedef struct TmqMsgContent {
   int64_t topicId;
@@ -73,11 +73,11 @@ typedef struct TmqMsgContent {
   char    msg[];
 } TmqMsgContent;
 
-typedef struct TmqConsumeRsp {
+typedef struct STqConsumeRsp {
   TmqMsgHead    head;
   int64_t       bodySize;
   TmqMsgContent msgs[];
-} TmqConsumeRsp;
+} STqConsumeRsp;
 
 typedef struct TmqSubscribeReq {
   TmqMsgHead head;
@@ -97,128 +97,125 @@ typedef struct TmqHeartbeatReq {
 typedef struct TmqHeartbeatRsp {
 } TmqHeartbeatRsp;
 
-typedef struct TqTopicVhandle {
+typedef struct STqTopicVhandle {
   int64_t topicId;
   // executor for filter
   void* filterExec;
   // callback for mnode
   // trigger when vnode list associated topic change
   void* (*mCallback)(void*, void*);
-} TqTopicVhandle;
-
+} STqTopicVhandle;
 
 #define TQ_BUFFER_SIZE 8
 
-typedef struct TqBufferItem {
+typedef struct STqBufferItem {
   int64_t offset;
   // executors are identical but not concurrent
   // so there must be a copy in each item
   void*   executor;
   int64_t size;
   void*   content;
-} TqBufferItem;
+} STqBufferItem;
 
-typedef struct TqBufferHandle {
+typedef struct STqBufferHandle {
   // char* topic; //c style, end with '\0'
   // int64_t cgId;
   // void* ahandle;
-  int64_t      nextConsumeOffset;
-  int64_t      topicId;
-  int32_t      head;
-  int32_t      tail;
-  TqBufferItem buffer[TQ_BUFFER_SIZE];
-} TqBufferHandle;
+  int64_t       nextConsumeOffset;
+  int64_t       floatingCursor;
+  int64_t       topicId;
+  int32_t       head;
+  int32_t       tail;
+  STqBufferItem buffer[TQ_BUFFER_SIZE];
+} STqBufferHandle;
 
-typedef struct TqListHandle {
-  TqBufferHandle       bufHandle;
-  struct TqListHandle* next;
-} TqListHandle;
+typedef struct STqListHandle {
+  STqBufferHandle       bufHandle;
+  struct STqListHandle* next;
+} STqListHandle;
 
-typedef struct TqGroupHandle {
-  int64_t       cId;
-  int64_t       cgId;
-  void*         ahandle;
-  int32_t       topicNum;
-  TqListHandle* head;
-} TqGroupHandle;
+typedef struct STqGroupHandle {
+  int64_t        cId;
+  int64_t        cgId;
+  void*          ahandle;
+  int32_t        topicNum;
+  STqListHandle* head;
+} STqGroupHandle;
 
-typedef struct TqQueryExec {
-  void*         src;
-  TqBufferItem* dest;
-  void*         executor;
-} TqQueryExec;
+typedef struct STqQueryExec {
+  void*          src;
+  STqBufferItem* dest;
+  void*          executor;
+} STqQueryExec;
 
-typedef struct TqQueryMsg {
-  TqQueryExec*       exec;
-  struct TqQueryMsg* next;
-} TqQueryMsg;
+typedef struct STqQueryMsg {
+  STqQueryExec*       exec;
+  struct STqQueryMsg* next;
+} STqQueryMsg;
 
-typedef struct TqLogReader {
+typedef struct STqLogReader {
   void* logHandle;
   int32_t (*logRead)(void* logHandle, void** data, int64_t ver);
   int64_t (*logGetFirstVer)(void* logHandle);
   int64_t (*logGetSnapshotVer)(void* logHandle);
   int64_t (*logGetLastVer)(void* logHandle);
-} TqLogReader;
+} STqLogReader;
 
 typedef struct STqCfg {
   // TODO
 } STqCfg;
 
-typedef struct TqMemRef {
-  SMemAllocatorFactory *pAlloctorFactory;
-  SMemAllocator *pAllocator;
-} TqMemRef;
+typedef struct STqMemRef {
+  SMemAllocatorFactory* pAlloctorFactory;
+  SMemAllocator*        pAllocator;
+} STqMemRef;
 
-typedef struct TqSerializedHead {
+typedef struct STqSerializedHead {
   int16_t ver;
   int16_t action;
   int32_t checksum;
   int64_t ssize;
   char    content[];
-} TqSerializedHead;
+} STqSerializedHead;
 
-typedef int (*TqSerializeFun)(const void* pObj, TqSerializedHead** ppHead);
-typedef const void* (*TqDeserializeFun)(const TqSerializedHead* pHead, void** ppObj);
-typedef void (*TqDeleteFun)(void*);
+typedef int (*FTqSerialize)(const void* pObj, STqSerializedHead** ppHead);
+typedef const void* (*FTqDeserialize)(const STqSerializedHead* pHead, void** ppObj);
+typedef void (*FTqDelete)(void*);
 
 #define TQ_BUCKET_MASK 0xFF
 #define TQ_BUCKET_SIZE 256
 
 #define TQ_PAGE_SIZE 4096
-//key + offset + size
+// key + offset + size
 #define TQ_IDX_SIZE 24
-//4096 / 24
+// 4096 / 24
 #define TQ_MAX_IDX_ONE_PAGE 170
-//24 * 170
+// 24 * 170
 #define TQ_IDX_PAGE_BODY_SIZE 4080
-//4096 - 4080
+// 4096 - 4080
 #define TQ_IDX_PAGE_HEAD_SIZE 16
 
-#define TQ_ACTION_CONST      0
-#define TQ_ACTION_INUSE      1
+#define TQ_ACTION_CONST 0
+#define TQ_ACTION_INUSE 1
 #define TQ_ACTION_INUSE_CONT 2
-#define TQ_ACTION_INTXN      3
+#define TQ_ACTION_INTXN 3
 
-#define TQ_SVER              0
+#define TQ_SVER 0
 
-//TODO: inplace mode is not implemented
-#define TQ_UPDATE_INPLACE    0
-#define TQ_UPDATE_APPEND     1
+// TODO: inplace mode is not implemented
+#define TQ_UPDATE_INPLACE 0
+#define TQ_UPDATE_APPEND 1
 
 #define TQ_DUP_INTXN_REWRITE 0
-#define TQ_DUP_INTXN_REJECT  2
+#define TQ_DUP_INTXN_REJECT 2
 
-static inline bool TqUpdateAppend(int32_t tqConfigFlag) {
-  return tqConfigFlag & TQ_UPDATE_APPEND;
-}
+static inline bool TqUpdateAppend(int32_t tqConfigFlag) { return tqConfigFlag & TQ_UPDATE_APPEND; }
 
-static inline bool TqDupIntxnReject(int32_t tqConfigFlag) {
-  return tqConfigFlag & TQ_DUP_INTXN_REJECT;
-}
+static inline bool TqDupIntxnReject(int32_t tqConfigFlag) { return tqConfigFlag & TQ_DUP_INTXN_REJECT; }
 
 static const int8_t TQ_CONST_DELETE = TQ_ACTION_CONST;
-#define TQ_DELETE_TOKEN  (void*)&TQ_CONST_DELETE
+
+#define TQ_DELETE_TOKEN (void*)&TQ_CONST_DELETE
 
 typedef struct TqMetaHandle {
   int64_t key;
@@ -229,62 +226,63 @@ typedef struct TqMetaHandle {
 } STqMetaHandle;
 
 typedef struct TqMetaList {
-  STqMetaHandle handle;
+  STqMetaHandle      handle;
   struct TqMetaList* next;
-  //struct TqMetaList* inTxnPrev;
-  //struct TqMetaList* inTxnNext;
+  // struct TqMetaList* inTxnPrev;
+  // struct TqMetaList* inTxnNext;
   struct TqMetaList* unpersistPrev;
   struct TqMetaList* unpersistNext;
 } STqMetaList;
 
 typedef struct TqMetaStore {
-  STqMetaList*      bucket[TQ_BUCKET_SIZE];
-  //a table head
-  STqMetaList*      unpersistHead;
- //TODO:temporaral use, to be replaced by unified tfile
-  int              fileFd;
-  //TODO:temporaral use, to be replaced by unified tfile
-  int              idxFd;
-  char*            dirPath;
-  int32_t          tqConfigFlag;
-  TqSerializeFun   pSerializer;
-  TqDeserializeFun pDeserializer;
-  TqDeleteFun      pDeleter;
+  STqMetaList* bucket[TQ_BUCKET_SIZE];
+  // a table head
+  STqMetaList* unpersistHead;
+  // TODO:temporaral use, to be replaced by unified tfile
+  int fileFd;
+  // TODO:temporaral use, to be replaced by unified tfile
+  int            idxFd;
+  char*          dirPath;
+  int32_t        tqConfigFlag;
+  FTqSerialize   pSerializer;
+  FTqDeserialize pDeserializer;
+  FTqDelete      pDeleter;
 } STqMetaStore;
 
 typedef struct STQ {
   // the collection of group handle
   // the handle of kvstore
-  char*  path;
-  STqCfg*      tqConfig;
-  TqLogReader* tqLogReader; 
-  TqMemRef     tqMemRef;
+  char*         path;
+  STqCfg*       tqConfig;
+  STqLogReader* tqLogReader;
+  STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
 } STQ;
 
 // open in each vnode
-STQ* tqOpen(const char* path, STqCfg* tqConfig, TqLogReader* tqLogReader, SMemAllocatorFactory *allocFac);
+STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemAllocatorFactory* allocFac);
 void tqClose(STQ*);
 
 // void* will be replace by a msg type
 int tqPushMsg(STQ*, void* msg, int64_t version);
 int tqCommit(STQ*);
+int tqSetCursor(STQ*, void* msg);
 
-int tqConsume(STQ*, TmqConsumeReq*);
+int tqConsume(STQ*, STqConsumeReq*);
 
-TqGroupHandle* tqGetGroupHandle(STQ*, int64_t cId);
+STqGroupHandle* tqGetGroupHandle(STQ*, int64_t cId);
 
-TqGroupHandle* tqOpenTCGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
-int tqCloseTCGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
-int tqMoveOffsetToNext(TqGroupHandle*);
-int tqResetOffset(STQ*, int64_t topicId, int64_t cgId, int64_t offset);
-int tqRegisterContext(TqGroupHandle*, void* ahandle);
-int tqLaunchQuery(TqGroupHandle*);
-int tqSendLaunchQuery(TqGroupHandle*);
+STqGroupHandle* tqOpenTCGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
+int             tqCloseTCGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
+int             tqMoveOffsetToNext(STqGroupHandle*);
+int             tqResetOffset(STQ*, int64_t topicId, int64_t cgId, int64_t offset);
+int             tqRegisterContext(STqGroupHandle*, void* ahandle);
+int             tqLaunchQuery(STqGroupHandle*);
+int             tqSendLaunchQuery(STqGroupHandle*);
 
-int   tqSerializeGroupHandle(const TqGroupHandle* gHandle, TqSerializedHead** ppHead);
+int tqSerializeGroupHandle(const STqGroupHandle* gHandle, STqSerializedHead** ppHead);
 
-const void* tqDeserializeGroupHandle(const TqSerializedHead* pHead, TqGroupHandle** gHandle);
+const void* tqDeserializeGroupHandle(const STqSerializedHead* pHead, STqGroupHandle** gHandle);
 
 #ifdef __cplusplus
 }

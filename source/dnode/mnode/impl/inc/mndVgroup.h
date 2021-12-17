@@ -22,10 +22,13 @@
 extern "C" {
 #endif
 
-int32_t mndInitVgroup(SMnode *pMnode);
-void    mndCleanupVgroup(SMnode *pMnode);
-SVgObj *mndAcquireVgroup(SMnode *pMnode, int32_t vgId);
-void    mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup);
+int32_t  mndInitVgroup(SMnode *pMnode);
+void     mndCleanupVgroup(SMnode *pMnode);
+SVgObj  *mndAcquireVgroup(SMnode *pMnode, int32_t vgId);
+void     mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup);
+int32_t  mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups);
+SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup);
+SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw);
 
 #ifdef __cplusplus
 }

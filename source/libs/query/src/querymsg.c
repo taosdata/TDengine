@@ -21,17 +21,6 @@ int32_t (*queryBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msg
 
 int32_t (*queryProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize) = {0};
 
-
-int32_t queryBuildVgroupListReqMsg(void* input, char **msg, int32_t msgSize, int32_t *msgLen) {
-  if (NULL == msg || NULL == msgLen) {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
-
-  *msgLen = 0;
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t queryBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int32_t *msgLen) {
   if (NULL == input || NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -81,8 +70,7 @@ int32_t queryBuildUseDbMsg(void* input, char **msg, int32_t msgSize, int32_t *ms
   strncpy(bMsg->db, bInput->db, sizeof(bMsg->db));
   bMsg->db[sizeof(bMsg->db) - 1] = 0;
 
-  bMsg->vgroupVersion = bInput->vgroupVersion;
-  bMsg->dbGroupVersion = bInput->dbGroupVersion;
+  bMsg->vgVersion = bInput->vgVersion;
 
   *msgLen = (int32_t)sizeof(*bMsg);
 
@@ -90,58 +78,12 @@ int32_t queryBuildUseDbMsg(void* input, char **msg, int32_t msgSize, int32_t *ms
 }
 
 
-
-int32_t queryProcessVgroupListRsp(void* output, char *msg, int32_t msgSize) {
-  if (NULL == output || NULL == msg || msgSize <= 0) {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
-
-  SVgroupListRspMsg *pRsp = (SVgroupListRspMsg *)msg;
-
-  pRsp->vgroupNum = htonl(pRsp->vgroupNum);
-  pRsp->vgroupVersion = htonl(pRsp->vgroupVersion);
-
-  if (pRsp->vgroupNum < 0) {
-    qError("vgroup number[%d] in rsp is invalid", pRsp->vgroupNum);
-    return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
-  }
-
-  if (pRsp->vgroupVersion < 0) {
-    qError("vgroup vgroupVersion[%d] in rsp is invalid", pRsp->vgroupVersion);
-    return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
-  }
-
-  if (msgSize != (pRsp->vgroupNum * sizeof(pRsp->vgroupInfo[0]) + sizeof(*pRsp))) {
-    qError("vgroup list msg size mis-match, msgSize:%d, vgroup number:%d", msgSize, pRsp->vgroupNum);
-    return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
-  }
-
-  // keep SVgroupListInfo/SVgroupListRspMsg the same
-  *(SVgroupListInfo **)output = (SVgroupListInfo *)msg;
-
-  if (pRsp->vgroupNum == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  for (int32_t i = 0; i < pRsp->vgroupNum; ++i) {
-    pRsp->vgroupInfo[i].vgId = htonl(pRsp->vgroupInfo[i].vgId);
-    for (int32_t n = 0; n < pRsp->vgroupInfo[i].numOfEps; ++n) {
-      pRsp->vgroupInfo[i].epAddr[n].port = htonl(pRsp->vgroupInfo[i].epAddr[n].port);
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-
-
-
 int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
   if (NULL == output || NULL == msg || msgSize <= 0) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
-  SUseDbRspMsg *pRsp = (SUseDbRspMsg *)msg;
+  SUseDbRsp *pRsp = (SUseDbRsp *)msg;
   SUseDbOutput *pOut = (SUseDbOutput *)output;
   int32_t code = 0;
 
@@ -150,104 +92,52 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
     return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
   }
   
-  pRsp->vgroupVersion = htonl(pRsp->vgroupVersion);
-  pRsp->dbVgroupVersion = htonl(pRsp->dbVgroupVersion);
+  pRsp->vgVersion = htonl(pRsp->vgVersion);
+  pRsp->vgNum = htonl(pRsp->vgNum);
 
-  pRsp->vgroupNum = htonl(pRsp->vgroupNum);
-  pRsp->dbVgroupNum = htonl(pRsp->dbVgroupNum);
-
-  if (pRsp->vgroupNum < 0) {
-    qError("invalid vgroup number[%d]", pRsp->vgroupNum);
+  if (pRsp->vgNum < 0) {
+    qError("invalid db[%s] vgroup number[%d]", pRsp->db, pRsp->vgNum);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  if (pRsp->dbVgroupNum < 0) {
-    qError("invalid db vgroup number[%d]", pRsp->dbVgroupNum);
-    return TSDB_CODE_TSC_INVALID_VALUE;
-  }
-
-  int32_t expectSize = pRsp->vgroupNum * sizeof(pRsp->vgroupInfo[0]) + pRsp->dbVgroupNum * sizeof(int32_t) + sizeof(*pRsp);
+  int32_t expectSize = pRsp->vgNum * sizeof(pRsp->vgroupInfo[0]) + sizeof(*pRsp);
   if (msgSize != expectSize) {
-    qError("vgroup list msg size mis-match, msgSize:%d, expected:%d, vgroup number:%d, db vgroup number:%d", msgSize, expectSize, pRsp->vgroupNum, pRsp->dbVgroupNum);
+    qError("use db rsp size mis-match, msgSize:%d, expected:%d, vgnumber:%d", msgSize, expectSize, pRsp->vgNum);
     return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
   }
 
-  if (pRsp->vgroupVersion < 0) {
-    qInfo("no new vgroup list info");
-    if (pRsp->vgroupNum != 0) {
-      qError("invalid vgroup number[%d] for no new vgroup list case", pRsp->vgroupNum);
-      return TSDB_CODE_TSC_INVALID_VALUE;
-    }
-  } else {
-    int32_t s = sizeof(*pOut->vgroupList) + sizeof(pOut->vgroupList->vgroupInfo[0]) * pRsp->vgroupNum;
-    pOut->vgroupList = calloc(1, s);
-    if (NULL == pOut->vgroupList) {
-      qError("calloc size[%d] failed", s);
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-
-    pOut->vgroupList->vgroupNum = pRsp->vgroupNum;
-    pOut->vgroupList->vgroupVersion = pRsp->vgroupVersion;
-
-    for (int32_t i = 0; i < pRsp->vgroupNum; ++i) {
-      pRsp->vgroupInfo[i].vgId = htonl(pRsp->vgroupInfo[i].vgId);
-      for (int32_t n = 0; n < pRsp->vgroupInfo[i].numOfEps; ++n) {
-        pRsp->vgroupInfo[i].epAddr[n].port = htonl(pRsp->vgroupInfo[i].epAddr[n].port);
-      }
-
-      memcpy(&pOut->vgroupList->vgroupInfo[i], &pRsp->vgroupInfo[i], sizeof(pRsp->vgroupInfo[i]));
-    }
+  pOut->dbVgroup.vgVersion = pRsp->vgVersion;
+  pOut->dbVgroup.hashMethod = pRsp->hashMethod;
+  pOut->dbVgroup.vgInfo = taosHashInit(pRsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  if (NULL == pOut->dbVgroup.vgInfo) {
+    qError("hash init[%d] failed", pRsp->vgNum);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  int32_t *vgIdList = (int32_t *)((char *)pRsp->vgroupInfo + sizeof(pRsp->vgroupInfo[0]) * pRsp->vgroupNum);
+  for (int32_t i = 0; i < pRsp->vgNum; ++i) {
+    pRsp->vgroupInfo[i].vgId = htonl(pRsp->vgroupInfo[i].vgId);
+    pRsp->vgroupInfo[i].hashBegin = htonl(pRsp->vgroupInfo[i].hashBegin);
+    pRsp->vgroupInfo[i].hashEnd = htonl(pRsp->vgroupInfo[i].hashEnd);
+
+    for (int32_t n = 0; n < pRsp->vgroupInfo[i].numOfEps; ++n) {
+      pRsp->vgroupInfo[i].epAddr[n].port = htons(pRsp->vgroupInfo[i].epAddr[n].port);
+    }
+
+    if (0 != taosHashPut(pOut->dbVgroup.vgInfo, &pRsp->vgroupInfo[i].vgId, sizeof(pRsp->vgroupInfo[i].vgId), &pRsp->vgroupInfo[i], sizeof(pRsp->vgroupInfo[i]))) {
+      qError("hash push failed");
+      goto _return;
+    }
+  }
 
   memcpy(pOut->db, pRsp->db, sizeof(pOut->db));
-  
-  if (pRsp->dbVgroupVersion < 0) {
-    qInfo("no new vgroup info for db[%s]", pRsp->db);
-  } else {
-    pOut->dbVgroup = calloc(1, sizeof(*pOut->dbVgroup));
-    if (NULL == pOut->dbVgroup) {
-      qError("calloc size[%d] failed", (int32_t)sizeof(*pOut->dbVgroup));
-      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      goto _exit;
-    }
-
-    pOut->dbVgroup->vgId = taosArrayInit(pRsp->dbVgroupNum, sizeof(int32_t));
-    if (NULL == pOut->dbVgroup->vgId) {
-      qError("taosArrayInit size[%d] failed", pRsp->dbVgroupNum);
-      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      goto _exit;
-    }
-    
-    pOut->dbVgroup->vgroupVersion = pRsp->dbVgroupVersion;
-    pOut->dbVgroup->hashRange = htonl(pRsp->dbHashRange);
-    pOut->dbVgroup->hashType = htonl(pRsp->dbHashType);
-
-    if (pOut->dbVgroup->hashRange < 0) {
-      qError("invalid hashRange[%d] for db[%s]", pOut->dbVgroup->hashRange, pRsp->db);
-      code = TSDB_CODE_TSC_INVALID_INPUT;
-      goto _exit;
-    }
-
-    for (int32_t i = 0; i < pRsp->dbVgroupNum; ++i) {
-      *(vgIdList + i) = htonl(*(vgIdList + i));
-      
-      taosArrayPush(pOut->dbVgroup->vgId, vgIdList + i) ;
-    }
-  }
 
   return code;
 
-_exit:
-  if (pOut->dbVgroup && pOut->dbVgroup->vgId) {
-    taosArrayDestroy(pOut->dbVgroup->vgId);
-    pOut->dbVgroup->vgId = NULL;
+_return:
+  if (pOut) {
+    tfree(pOut->dbVgroup.vgInfo);
   }
   
-  tfree(pOut->dbVgroup);
-  tfree(pOut->vgroupList);
-
   return code;
 }
 
@@ -375,11 +265,9 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
 
 void msgInit() {
   queryBuildMsg[TSDB_MSG_TYPE_TABLE_META] = queryBuildTableMetaReqMsg;
-  queryBuildMsg[TSDB_MSG_TYPE_VGROUP_LIST] = queryBuildVgroupListReqMsg;
   queryBuildMsg[TSDB_MSG_TYPE_USE_DB] = queryBuildUseDbMsg;
 
   queryProcessMsgRsp[TSDB_MSG_TYPE_TABLE_META] = queryProcessTableMetaRsp;
-  queryProcessMsgRsp[TSDB_MSG_TYPE_VGROUP_LIST] = queryProcessVgroupListRsp;
   queryProcessMsgRsp[TSDB_MSG_TYPE_USE_DB] = queryProcessUseDBRsp;
 
 /*
@@ -417,7 +305,7 @@ void msgInit() {
 
   tscBuildMsg[TSDB_SQL_HB] = tscBuildHeartBeatMsg;
   tscBuildMsg[TSDB_SQL_SHOW] = tscBuildShowMsg;
-  tscBuildMsg[TSDB_SQL_RETRIEVE] = tscBuildRetrieveFromMgmtMsg;
+  tscBuildMsg[TSDB_SQL_RETRIEVE_MNODE] = tscBuildRetrieveFromMgmtMsg;
   tscBuildMsg[TSDB_SQL_KILL_QUERY] = tscBuildKillMsg;
   tscBuildMsg[TSDB_SQL_KILL_STREAM] = tscBuildKillMsg;
   tscBuildMsg[TSDB_SQL_KILL_CONNECTION] = tscBuildKillMsg;
@@ -435,7 +323,7 @@ void msgInit() {
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_FUNC] = tscProcessRetrieveFuncRsp;
 
   tscProcessMsgRsp[TSDB_SQL_SHOW] = tscProcessShowRsp;
-  tscProcessMsgRsp[TSDB_SQL_RETRIEVE] = tscProcessRetrieveRspFromNode;  // rsp handled by same function.
+  tscProcessMsgRsp[TSDB_SQL_RETRIEVE_MNODE] = tscProcessRetrieveRspFromNode;  // rsp handled by same function.
   tscProcessMsgRsp[TSDB_SQL_DESCRIBE_TABLE] = tscProcessDescribeTableRsp;
 
   tscProcessMsgRsp[TSDB_SQL_CURRENT_DB]   = tscProcessLocalRetrieveRsp;

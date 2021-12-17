@@ -474,48 +474,48 @@ static int32_t mndGetConnsMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "connId");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "user");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   // app name
   pShow->bytes[cols] = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "program");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   // app pid
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "pid");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "ip:port");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "login_time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "last_access");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
-  pMeta->numOfColumns = htons(cols);
+  pMeta->numOfColumns = htonl(cols);
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
@@ -602,88 +602,88 @@ static int32_t mndGetQueryMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "queryId");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "connId");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "user");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "ip:port");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 24;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "qid");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "created_time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_BIGINT;
   strcpy(pSchema[cols].name, "time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = QUERY_OBJ_ID_SIZE + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "sql_obj_id");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "pid");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_EP_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "ep");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 1;
   pSchema[cols].type = TSDB_DATA_TYPE_BOOL;
   strcpy(pSchema[cols].name, "stable_query");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "sub_queries");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "sub_query_info");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "sql");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
-  pMeta->numOfColumns = htons(cols);
+  pMeta->numOfColumns = htonl(cols);
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
@@ -818,64 +818,64 @@ static int32_t mndGetStreamMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "streamId");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "connId");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "user");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "dest table");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  strcpy(pSchema[cols].name, "destination");
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "ip:port");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "created time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  strcpy(pSchema[cols].name, "create_time");
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "exec time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  strcpy(pSchema[cols].name, "exec");
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_BIGINT;
   strcpy(pSchema[cols].name, "time(us)");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "sql");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "cycles");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
-  pMeta->numOfColumns = htons(cols);
+  pMeta->numOfColumns = htonl(cols);
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;

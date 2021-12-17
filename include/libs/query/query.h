@@ -21,6 +21,8 @@ extern "C" {
 #endif
 
 #include "tarray.h"
+#include "thash.h"
+#include "tlog.h"
 
 typedef SVgroupListRspMsg SVgroupListInfo;
 
@@ -63,16 +65,14 @@ typedef struct STableMeta {
 
 
 typedef struct SDBVgroupInfo {
-  int32_t vgroupVersion;
-  SArray *vgId;
-  int32_t hashRange;
-  int32_t hashType;
+  int32_t   vgVersion;  
+  int8_t    hashMethod;
+  SHashObj *vgInfo;  //key:vgId, value:SVgroupInfo
 } SDBVgroupInfo;
 
 typedef struct SUseDbOutput {
-  SVgroupListInfo *vgroupList;
-  char db[TSDB_TABLE_FNAME_LEN];
-  SDBVgroupInfo *dbVgroup;
+  char db[TSDB_FULL_DB_NAME_LEN];
+  SDBVgroupInfo dbVgroup;
 } SUseDbOutput;
 
 typedef struct STableMetaOutput {
@@ -85,6 +85,19 @@ typedef struct STableMetaOutput {
 
 extern int32_t (*queryBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
 extern int32_t (*queryProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize);
+
+extern void msgInit();
+
+
+extern int32_t qDebugFlag;
+
+#define qFatal(...)  do { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", qDebugFlag, __VA_ARGS__); }} while(0)
+#define qError(...)  do { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", qDebugFlag, __VA_ARGS__); }} while(0)
+#define qWarn(...)   do { if (qDebugFlag & DEBUG_WARN)  { taosPrintLog("QRY WARN ", qDebugFlag, __VA_ARGS__); }}  while(0)
+#define qInfo(...)   do { if (qDebugFlag & DEBUG_INFO)  { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
+#define qDebug(...)  do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
+#define qTrace(...)  do { if (qDebugFlag & DEBUG_TRACE) { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
+#define qDebugL(...) do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLongString("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
 
 
 #ifdef __cplusplus

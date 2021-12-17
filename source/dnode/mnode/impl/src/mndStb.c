@@ -74,10 +74,12 @@ static SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pStb->name, TSDB_TABLE_NAME_LEN)
+  SDB_SET_BINARY(pRaw, dataPos, pStb->name, TSDB_TABLE_FNAME_LEN)
+  SDB_SET_BINARY(pRaw, dataPos, pStb->db, TSDB_FULL_DB_NAME_LEN)
   SDB_SET_INT64(pRaw, dataPos, pStb->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pStb->updateTime)
   SDB_SET_INT64(pRaw, dataPos, pStb->uid)
+  SDB_SET_INT64(pRaw, dataPos, pStb->dbUid)
   SDB_SET_INT64(pRaw, dataPos, pStb->version)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfColumns)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfTags)
@@ -113,10 +115,12 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   if (pStb == NULL) return NULL;
 
   int32_t dataPos = 0;
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pStb->name, TSDB_TABLE_NAME_LEN)
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pStb->name, TSDB_TABLE_FNAME_LEN)
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pStb->db, TSDB_FULL_DB_NAME_LEN)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pStb->createdTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pStb->updateTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pStb->uid)
+  SDB_GET_INT64(pRaw, pRow, dataPos, &pStb->dbUid)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pStb->version)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pStb->numOfColumns)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pStb->numOfTags)
@@ -570,28 +574,28 @@ static int32_t mndGetStbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pM
   pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  strcpy(pSchema[cols].name, "create_time");
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
   strcpy(pSchema[cols].name, "columns");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
   strcpy(pSchema[cols].name, "tags");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
-  pMeta->numOfColumns = htons(cols);
+  pMeta->numOfColumns = htonl(cols);
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;

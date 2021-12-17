@@ -9,17 +9,17 @@ struct Foo {
   int32_t a;
 };
 
-int FooSerializer(const void* pObj, TqSerializedHead** ppHead) {
+int FooSerializer(const void* pObj, STqSerializedHead** ppHead) {
   Foo* foo = (Foo*) pObj;
-  if((*ppHead) == NULL || (*ppHead)->ssize < sizeof(TqSerializedHead) + sizeof(int32_t)) {
-    *ppHead = (TqSerializedHead*)realloc(*ppHead, sizeof(TqSerializedHead) + sizeof(int32_t));
-    (*ppHead)->ssize = sizeof(TqSerializedHead) + sizeof(int32_t);
+  if((*ppHead) == NULL || (*ppHead)->ssize < sizeof(STqSerializedHead) + sizeof(int32_t)) {
+    *ppHead = (STqSerializedHead*)realloc(*ppHead, sizeof(STqSerializedHead) + sizeof(int32_t));
+    (*ppHead)->ssize = sizeof(STqSerializedHead) + sizeof(int32_t);
   }
   *(int32_t*)(*ppHead)->content = foo->a;
   return (*ppHead)->ssize;
 }
 
-const void* FooDeserializer(const TqSerializedHead* pHead, void** ppObj) {
+const void* FooDeserializer(const STqSerializedHead* pHead, void** ppObj) {
   if(*ppObj == NULL) {
     *ppObj = realloc(*ppObj, sizeof(int32_t));
   }

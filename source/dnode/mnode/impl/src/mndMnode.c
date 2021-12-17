@@ -368,34 +368,34 @@ static int32_t mndGetMnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
   strcpy(pSchema[cols].name, "id");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_EP_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "end point");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  strcpy(pSchema[cols].name, "endpoint");
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 12 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "role");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "role time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  strcpy(pSchema[cols].name, "role_time");
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  strcpy(pSchema[cols].name, "create_time");
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
-  pMeta->numOfColumns = htons(cols);
+  pMeta->numOfColumns = htonl(cols);
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
