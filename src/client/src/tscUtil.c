@@ -2936,13 +2936,15 @@ void tscDequoteAndTrimToken(SStrToken* pToken) {
   }
 
   // there are still at least two characters
-  if (first < last - 1) {
+  while (first < last - 1) {
     char c = pToken->z[first];
     // dequote
     if ((c == '\'' || c == '"') && c == pToken->z[last - 1]) {
       first++;
       last--;
+      continue;
     }
+    break;
   }
 
   // left shift the string and pad spaces
