@@ -14,15 +14,15 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "../../../include/client/taos.h"
 #include "os.h"
 #include "sim.h"
+#include "taos.h"
 #include "taoserror.h"
 #include "tglobal.h"
-#include "tsocket.h"
 #include "ttimer.h"
 #include "tutil.h"
-#undef TAOS_MEM_CHECK
+#include "tglobal.h"
+#include "tconfig.h"
 
 SScript *simScriptList[MAX_MAIN_SCRIPT_NUM];
 SCommand simCmdList[SIM_CMD_END];
@@ -81,10 +81,11 @@ char *simParseHostName(char *varName) {
 }
 
 bool simSystemInit() {
-  if (taos_init()) {
-    return false;
-  }
   taosGetFqdn(simHostName);
+
+  taosInitGlobalCfg();
+  taosReadCfgFromFile();
+
   simInitsimCmdList();
   memset(simScriptList, 0, sizeof(SScript *) * MAX_MAIN_SCRIPT_NUM);
   return true;
@@ -171,7 +172,7 @@ void *simExecuteScript(void *inputScript) {
       }
     } else {
       SCmdLine *line = &script->lines[script->linePos];
-      char *    option = script->optionBuffer + line->optionOffset;
+      char     *option = script->optionBuffer + line->optionOffset;
       simDebug("script:%s, line:%d with option \"%s\"", script->fileName, line->lineNum, option);
 
       SCommand *cmd = &simCmdList[line->cmdno];

@@ -15,19 +15,17 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tglobal.h"
 #include "sim.h"
-#undef TAOS_MEM_CHECK
+#include "tglobal.h"
 
-bool simAsyncQuery = false;
 bool simExecSuccess = false;
 bool abortExecution = false;
 
 void simHandleSignal(int32_t signo, void *sigInfo, void *context) {
   simSystemCleanUp();
   abortExecution = true;
-//  runningScript->killed = true;
-//  exit(1);
+  //  runningScript->killed = true;
+  //  exit(1);
 }
 
 int32_t main(int32_t argc, char *argv[]) {
@@ -38,8 +36,6 @@ int32_t main(int32_t argc, char *argv[]) {
       tstrncpy(configDir, argv[++i], 128);
     } else if (strcmp(argv[i], "-f") == 0 && i < argc - 1) {
       strcpy(scriptFile, argv[++i]);
-    } else if (strcmp(argv[i], "-a") == 0) {
-      simAsyncQuery = true;
     } else {
       printf("usage: %s [options] \n", argv[0]);
       printf("       [-c config]: config directory, default is: %s\n", configDir);

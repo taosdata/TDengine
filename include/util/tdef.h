@@ -235,6 +235,7 @@ do { \
 #define TSDB_MAX_VNODES           512
 #define TSDB_MIN_VNODES_PER_DB    1
 #define TSDB_MAX_VNODES_PER_DB    4096
+#define TSDB_DEFAULT_VN_PER_DB    2 
 
 #define TSDB_DNODE_ROLE_ANY       0
 #define TSDB_DNODE_ROLE_MGMT      1
