@@ -40,10 +40,10 @@ typedef struct {
 
 /* block definition */
 typedef struct {
-  char     top;                  /* the number of blocks stacked */
-  char     type[MAX_NUM_BLOCK];  /* the block type */
-  int16_t *pos[MAX_NUM_BLOCK];   /* position of the jump for if/elif/case */
-  int16_t  back[MAX_NUM_BLOCK];  /* go back, endw and continue */
+  char     top;                 /* the number of blocks stacked */
+  char     type[MAX_NUM_BLOCK]; /* the block type */
+  int16_t *pos[MAX_NUM_BLOCK];  /* position of the jump for if/elif/case */
+  int16_t  back[MAX_NUM_BLOCK]; /* go back, endw and continue */
   char     numJump[MAX_NUM_BLOCK];
   int16_t *jump[MAX_NUM_BLOCK][MAX_NUM_JUMP]; /* break or elif */
   char     sexp[MAX_NUM_BLOCK][40];           /*switch expression */

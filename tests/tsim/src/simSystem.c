@@ -14,9 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "taos.h"
 #include "os.h"
 #include "sim.h"
+#include "taos.h"
 #include "taoserror.h"
 #include "tglobal.h"
 #include "ttimer.h"
@@ -166,7 +166,7 @@ void *simExecuteScript(void *inputScript) {
       }
     } else {
       SCmdLine *line = &script->lines[script->linePos];
-      char *    option = script->optionBuffer + line->optionOffset;
+      char     *option = script->optionBuffer + line->optionOffset;
       simDebug("script:%s, line:%d with option \"%s\"", script->fileName, line->lineNum, option);
 
       SCommand *cmd = &simCmdList[line->cmdno];
