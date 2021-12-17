@@ -39,8 +39,8 @@ int vnodeOpenBufPool(SVnode *pVnode) {
     return -1;
   }
 
-  tDListInit(&(pVnode->pBufPool->free));
-  tDListInit(&(pVnode->pBufPool->incycle));
+  TD_DLIST_INIT(&(pVnode->pBufPool->free));
+  TD_DLIST_INIT(&(pVnode->pBufPool->incycle));
 
   pVnode->pBufPool->inuse = NULL;
 
@@ -54,7 +54,7 @@ int vnodeOpenBufPool(SVnode *pVnode) {
       return -1;
     }
 
-    tDListAppend(&(pVnode->pBufPool->free), pVMA);
+    TD_DLIST_APPEND(&(pVnode->pBufPool->free), pVMA);
   }
 
   pVnode->pBufPool->pMAF = (SMemAllocatorFactory *)malloc(sizeof(SMemAllocatorFactory));
@@ -76,14 +76,14 @@ void vnodeCloseBufPool(SVnode *pVnode) {
     while (true) {
       SVMemAllocator *pVMA = TD_DLIST_HEAD(&(pVnode->pBufPool->incycle));
       if (pVMA == NULL) break;
-      tDListPop(&(pVnode->pBufPool->incycle), pVMA);
+      TD_DLIST_POP(&(pVnode->pBufPool->incycle), pVMA);
       vmaDestroy(pVMA);
     }
 
     while (true) {
       SVMemAllocator *pVMA = TD_DLIST_HEAD(&(pVnode->pBufPool->free));
       if (pVMA == NULL) break;
-      tDListPop(&(pVnode->pBufPool->free), pVMA);
+      TD_DLIST_POP(&(pVnode->pBufPool->free), pVMA);
       vmaDestroy(pVMA);
     }
 
@@ -97,7 +97,7 @@ int vnodeBufPoolSwitch(SVnode *pVnode) {
 
   pVnode->pBufPool->inuse = NULL;
 
-  tDListAppend(&(pVnode->pBufPool->incycle), pvma);
+  TD_DLIST_APPEND(&(pVnode->pBufPool->incycle), pvma);
   return 0;
 }
 
@@ -106,9 +106,9 @@ int vnodeBufPoolRecycle(SVnode *pVnode) {
   SVMemAllocator *pvma = TD_DLIST_HEAD(&(pBufPool->incycle));
   ASSERT(pvma != NULL);
 
-  tDListPop(&(pBufPool->incycle), pvma);
+  TD_DLIST_POP(&(pBufPool->incycle), pvma);
   vmaReset(pvma);
-  tDListAppend(&(pBufPool->free), pvma);
+  TD_DLIST_APPEND(&(pBufPool->free), pvma);
 
   return 0;
 }
@@ -121,7 +121,7 @@ void *vnodeMalloc(SVnode *pVnode, uint64_t size) {
       // TODO: add sem_wait and sem_post
       pBufPool->inuse = TD_DLIST_HEAD(&(pBufPool->free));
       if (pBufPool->inuse) {
-        tDListPop(&(pBufPool->free), pBufPool->inuse);
+        TD_DLIST_POP(&(pBufPool->free), pBufPool->inuse);
         break;
       } else {
         // tsem_wait(&(pBufPool->hasFree));
@@ -184,7 +184,7 @@ static void vBufPoolDestroyMA(SMemAllocatorFactory *pMAF, SMemAllocator *pMA) {
 
   free(pMA);
   if (--pVMA->_ref.val == 0) {
-    tDListPop(&(pVnode->pBufPool->incycle), pVMA);
-    tDListAppend(&(pVnode->pBufPool->free), pVMA);
+    TD_DLIST_POP(&(pVnode->pBufPool->incycle), pVMA);
+    TD_DLIST_APPEND(&(pVnode->pBufPool->free), pVMA);
   }
 }

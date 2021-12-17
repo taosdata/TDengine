@@ -62,7 +62,7 @@ STsdbMemTable *tsdbNewMemTable(SMemAllocatorFactory *pMAF) {
   pMemTable->keyMax = TSKEY_MIN;
   pMemTable->nRow = 0;
   pMemTable->pMA = pMA;
-  tSListInit(&(pMemTable->list));
+  TD_SLIST_INIT(&(pMemTable->list));
 
   // TODO
   return pMemTable;
@@ -86,7 +86,7 @@ int tsdbInsertDataToMemTable(STsdbMemTable *pMemTable, SSubmitMsg *pMsg) {
     // TODO
   }
 
-  tSListPush(&(pMemTable->list), pTbData);
+  TD_SLIST_PUSH(&(pMemTable->list), pTbData);
 
   return 0;
 }
