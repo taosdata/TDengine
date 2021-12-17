@@ -28,7 +28,6 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   }
 
   int ret = taos_options_imp(option, (const char*)arg);
-
   atomic_store_32(&lock, 0);
   return ret;
 }
@@ -58,18 +57,18 @@ void taos_cleanup(void) {
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
-    int32_t p = (port != 0)? port:tsServerPort;
+  int32_t p = (port != 0) ? port : tsServerPort;
 
-    tscDebug("try to connect to %s:%u, user:%s db:%s", ip, p, user, db);
-    if (user == NULL) {
-        user = TSDB_DEFAULT_USER;
-    }
+  tscDebug("try to connect to %s:%u, user:%s db:%s", ip, p, user, db);
+  if (user == NULL) {
+    user = TSDB_DEFAULT_USER;
+  }
 
-    if (pass == NULL) {
-        pass = TSDB_DEFAULT_PASS;
-    }
+  if (pass == NULL) {
+    pass = TSDB_DEFAULT_PASS;
+  }
 
-    return taos_connect_internal(ip, user, pass, NULL, db, p);
+  return taos_connect_internal(ip, user, pass, NULL, db, p);
 }
 
 void taos_close(TAOS* taos) {
@@ -110,6 +109,34 @@ void taos_free_result(TAOS_RES *res) {
   destroyRequest(pRequest);
 }
 
+int  taos_field_count(TAOS_RES *res) {
+  if (res == NULL) {
+    return 0;
+  }
+
+  SRequestObj* pRequest = (SRequestObj*) res;
+
+  SClientResultInfo* pResInfo = pRequest->body.pResInfo;
+  if (pResInfo == NULL) {
+    return 0;
+  }
+
+  return pResInfo->numOfCols;
+}
+
+int  taos_num_fields(TAOS_RES *res) {
+  return taos_field_count(res);
+}
+
+TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
+  if (taos_num_fields(res) == 0) {
+    return NULL;
+  }
+
+  SClientResultInfo* pResInfo = ((SRequestObj*) res)->body.pResInfo;
+  return pResInfo->fields;
+}
+
 TAOS_RES *taos_query(TAOS *taos, const char *sql) {
   if (taos == NULL || sql == NULL) {
     return NULL;
@@ -130,4 +157,88 @@ TAOS_ROW taos_fetch_row(TAOS_RES *pRes) {
   }
 
   return doFetchRow(pRequest);
+}
+
+int  taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
+  int32_t len = 0;
+  for (int i = 0; i < num_fields; ++i) {
+    if (i > 0) {
+      str[len++] = ' ';
+    }
+
+    if (row[i] == NULL) {
+      len += sprintf(str + len, "%s", TSDB_DATA_NULL_STR);
+      continue;
+    }
+
+    switch (fields[i].type) {
+      case TSDB_DATA_TYPE_TINYINT:
+        len += sprintf(str + len, "%d", *((int8_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_UTINYINT:
+        len += sprintf(str + len, "%u", *((uint8_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_SMALLINT:
+        len += sprintf(str + len, "%d", *((int16_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_USMALLINT:
+        len += sprintf(str + len, "%u", *((uint16_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_INT:
+        len += sprintf(str + len, "%d", *((int32_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_UINT:
+        len += sprintf(str + len, "%u", *((uint32_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_BIGINT:
+        len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_UBIGINT:
+        len += sprintf(str + len, "%" PRIu64, *((uint64_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_FLOAT: {
+        float fv = 0;
+        fv = GET_FLOAT_VAL(row[i]);
+        len += sprintf(str + len, "%f", fv);
+      } break;
+
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double dv = 0;
+        dv = GET_DOUBLE_VAL(row[i]);
+        len += sprintf(str + len, "%lf", dv);
+      } break;
+
+      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_NCHAR: {
+        int32_t charLen = varDataLen((char*)row[i] - VARSTR_HEADER_SIZE);
+        if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
+          assert(charLen <= fields[i].bytes && charLen >= 0);
+        } else {
+          assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
+        }
+
+        memcpy(str + len, row[i], charLen);
+        len += charLen;
+      } break;
+
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
+        break;
+
+      case TSDB_DATA_TYPE_BOOL:
+        len += sprintf(str + len, "%d", *((int8_t *)row[i]));
+      default:
+        break;
+    }
+  }
+
+  return len;
 }
