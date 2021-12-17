@@ -143,6 +143,7 @@ static bool    validateDebugFlag(int32_t v);
 static int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo);
 static tSqlExpr* extractExprForSTable(SSqlCmd* pCmd, tSqlExpr** pExpr, SQueryInfo* pQueryInfo, int32_t tableIndex);
+static void convertWhereStringCharset(tSqlExpr* pRight);
 
 int validateTableName(char *tblName, int len, SStrToken* psTblToken, bool *dbIncluded);
 
@@ -4968,15 +4969,7 @@ static int32_t validateJsonTagExpr(tSqlExpr* pExpr, char* msgBuf) {
         pRight->value.nType = TSDB_DATA_TYPE_NCHAR;
         return TSDB_CODE_SUCCESS;
       }
-      char newData[TSDB_MAX_JSON_TAGS_LEN] = {0};
-      int len = 0;
-      if(!taosMbsToUcs4(pRight->value.pz, pRight->value.nLen, newData, TSDB_MAX_JSON_TAGS_LEN, &len)){
-        tscError("json where condition mbsToUcs4 error");
-      }
-      pRight->value.pz = realloc(pRight->value.pz, len);
-      memcpy(pRight->value.pz, newData, len);
-      pRight->value.nLen = len;
-      pRight->value.nType = TSDB_DATA_TYPE_NCHAR;
+      convertWhereStringCharset(pRight);
     }
   }
 
@@ -5040,7 +5033,7 @@ int32_t handleNeOptr(tSqlExpr** rexpr, tSqlExpr* expr) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void convertWhereStringCharset(tSqlExpr* pRight){
+void convertWhereStringCharset(tSqlExpr* pRight){
   if(pRight->value.nType != TSDB_DATA_TYPE_BINARY){
     return;
   }
