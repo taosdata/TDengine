@@ -16,6 +16,10 @@
 #include "parser.h"
 #include "plannerInt.h"
 
+void qDestroySubplan(SSubplan* pSubplan) {
+  // todo
+}
+
 void qDestroyQueryDag(struct SQueryDag* pDag) {
   // todo
 }
