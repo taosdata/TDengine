@@ -32,9 +32,9 @@ static int walSeekFilePos(SWal* pWal, int64_t ver) {
   if (code != 0) {
     return -1;
   }
-  WalIdxEntry entry;
+  SWalIdxEntry entry;
   // TODO:deserialize
-  code = tfRead(idxTfd, &entry, sizeof(WalIdxEntry));
+  code = tfRead(idxTfd, &entry, sizeof(SWalIdxEntry));
   if (code != 0) {
     return -1;
   }
@@ -47,8 +47,8 @@ static int walSeekFilePos(SWal* pWal, int64_t ver) {
 }
 
 int walChangeFileToLast(SWal* pWal) {
-  int64_t      idxTfd, logTfd;
-  WalFileInfo* pRet = taosArrayGetLast(pWal->fileInfoSet);
+  int64_t       idxTfd, logTfd;
+  SWalFileInfo* pRet = taosArrayGetLast(pWal->fileInfoSet);
   ASSERT(pRet != NULL);
   int64_t fileFirstVer = pRet->firstVer;
 
@@ -83,10 +83,10 @@ int walChangeFile(SWal* pWal, int64_t ver) {
     // TODO
     return -1;
   }
-  WalFileInfo tmpInfo;
+  SWalFileInfo tmpInfo;
   tmpInfo.firstVer = ver;
   // bsearch in fileSet
-  WalFileInfo* pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
+  SWalFileInfo* pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
   ASSERT(pRet != NULL);
   int64_t fileFirstVer = pRet->firstVer;
   // closed

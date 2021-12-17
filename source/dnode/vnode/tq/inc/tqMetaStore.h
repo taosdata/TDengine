@@ -23,27 +23,22 @@
 extern "C" {
 #endif
 
-
-STqMetaStore*  tqStoreOpen(const char* path,
-    FTqSerialize   pSerializer,
-    FTqDeserialize pDeserializer,
-    FTqDelete      pDeleter,
-    int32_t          tqConfigFlag
-  );
+STqMetaStore* tqStoreOpen(const char* path, FTqSerialize pSerializer, FTqDeserialize pDeserializer, FTqDelete pDeleter,
+                          int32_t tqConfigFlag);
 int32_t       tqStoreClose(STqMetaStore*);
-//int32_t       tqStoreDelete(TqMetaStore*);
-//int32_t       tqStoreCommitAll(TqMetaStore*);
-int32_t       tqStorePersist(STqMetaStore*);
-//clean deleted idx and data from persistent file
-int32_t       tqStoreCompact(STqMetaStore*);
+// int32_t       tqStoreDelete(TqMetaStore*);
+// int32_t       tqStoreCommitAll(TqMetaStore*);
+int32_t tqStorePersist(STqMetaStore*);
+// clean deleted idx and data from persistent file
+int32_t tqStoreCompact(STqMetaStore*);
 
-void*   tqHandleGet(STqMetaStore*, int64_t key);
-//make it unpersist
+void* tqHandleGet(STqMetaStore*, int64_t key);
+// make it unpersist
 void*   tqHandleTouchGet(STqMetaStore*, int64_t key);
 int32_t tqHandleMovePut(STqMetaStore*, int64_t key, void* value);
 int32_t tqHandleCopyPut(STqMetaStore*, int64_t key, void* value, size_t vsize);
-//delete committed kv pair
-//notice that a delete action still needs to be committed
+// delete committed kv pair
+// notice that a delete action still needs to be committed
 int32_t tqHandleDel(STqMetaStore*, int64_t key);
 int32_t tqHandleCommit(STqMetaStore*, int64_t key);
 int32_t tqHandleAbort(STqMetaStore*, int64_t key);

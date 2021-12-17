@@ -214,7 +214,11 @@ int tqCommit(STQ* pTq) {
   return 0;
 }
 
-int tqConsume(STQ* pTq, TmqConsumeReq* pMsg) {
+int tqSetCursor(STQ* pTq, void* msg) {
+  return 0;
+}
+
+int tqConsume(STQ* pTq, STqConsumeReq* pMsg) {
   if (!tqProtoCheck((TmqMsgHead*)pMsg)) {
     // proto version invalid
     return -1;
@@ -232,7 +236,7 @@ int tqConsume(STQ* pTq, TmqConsumeReq* pMsg) {
     }
   }
 
-  TmqConsumeRsp* pRsp = (TmqConsumeRsp*)pMsg;
+  STqConsumeRsp* pRsp = (STqConsumeRsp*)pMsg;
 
   if (tqFetch(gHandle, (void**)&pRsp->msgs) <= 0) {
     // fetch error
