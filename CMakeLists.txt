@@ -25,6 +25,7 @@ if(${BUILD_TEST})
     enable_testing()
 endif(${BUILD_TEST})
 add_subdirectory(source)
+add_subdirectory(tools)
 
 # docs 
 add_subdirectory(docs)
