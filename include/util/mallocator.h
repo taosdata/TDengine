@@ -39,6 +39,9 @@ typedef struct SMemAllocator {
   TD_MEM_ALCT(SMemAllocator);
 } SMemAllocator;
 
+#define tMalloc(pMA, SIZE) TD_MA_MALLOC(PMA, SIZE)
+#define tFree(pMA, PTR) TD_MA_FREE(PMA, PTR)
+
 typedef struct SMemAllocatorFactory {
   void *impl;
   SMemAllocator *(*create)(struct SMemAllocatorFactory *);

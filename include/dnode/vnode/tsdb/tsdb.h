@@ -23,26 +23,26 @@ extern "C" {
 #endif
 
 // TYPES EXPOSED
-typedef struct STsdb    STsdb;
-typedef struct STsdbCfg STsdbCfg;
+typedef struct STsdb STsdb;
+
+typedef struct STsdbCfg {
+  uint64_t lruCacheSize;
+  uint32_t keep0;
+  uint32_t keep1;
+  uint32_t keep2;
+} STsdbCfg;
 
 // STsdb
 STsdb *tsdbOpen(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF);
 void   tsdbClose(STsdb *);
 void   tsdbRemove(const char *path);
 int    tsdbInsertData(STsdb *pTsdb, SSubmitMsg *pMsg);
+int    tsdbPrepareCommit(STsdb *pTsdb);
+int    tsdbCommit(STsdb *pTsdb);
 
 // STsdbCfg
 int  tsdbOptionsInit(STsdbCfg *);
 void tsdbOptionsClear(STsdbCfg *);
-
-/* ------------------------ STRUCT DEFINITIONS ------------------------ */
-struct STsdbCfg {
-  uint64_t lruCacheSize;
-  uint32_t keep0;
-  uint32_t keep1;
-  uint32_t keep2;
-};
 
 #ifdef __cplusplus
 }
