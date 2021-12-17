@@ -373,11 +373,11 @@ pipeline {
                 dir('/var/lib/jenkins/workspace/TDinternal/community'){
                   gitlog = sh(script: "git log -1 --pretty=%B ", returnStdout:true)
                   println gitlog
-                  if (!(gitlog =~ /\((.*)\)/)){
+                  if (!(gitlog =~ /\((.*?)\)/)){
                     autoCancelled = true
                     error('Aborting the build.')
                   }
-                  temp = (gitlog =~ /\((.*)\)/)
+                  temp = (gitlog =~ /\((.*?)\)/)
                   temp = temp[0].remove(1)
                   scope = temp.split(",")
                 }
