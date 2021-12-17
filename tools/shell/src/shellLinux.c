@@ -19,7 +19,11 @@
 #include "shell.h"
 #include "shellCommand.h"
 #include "tkey.h"
-#include "tulog.h"
+#include "ulog.h"
+
+#include <wordexp.h>
+#include <argp.h>
+#include <termio.h>
 
 #define OPT_ABORT 1 /* �Cabort */
 
@@ -68,7 +72,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'P':
       if (arg) {
-        tsDnodeShellPort = atoi(arg);
         arguments->port  = atoi(arg);
       } else {
         fprintf(stderr, "Invalid port\n");
