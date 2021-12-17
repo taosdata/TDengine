@@ -9,7 +9,7 @@
 # fi
 
 set +e
-set -x
+#set -x
 
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
