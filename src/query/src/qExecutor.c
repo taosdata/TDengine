@@ -291,7 +291,7 @@ static int compareRowData(const void *a, const void *b, const void *userData) {
 static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, SSDataBlock* pDataBlock, SQLFunctionCtx *pCtx) {
   SArray *columnOrderList = getOrderCheckColumns(pRuntimeEnv->pQueryAttr);
   size_t size = taosArrayGetSize(columnOrderList);
-  taosArrayDestroy(columnOrderList);
+  taosArrayDestroy(&columnOrderList);
 
   if (size <= 0) {
     return;
@@ -368,7 +368,7 @@ void* destroyOutputBuf(SSDataBlock* pBlock) {
     tfree(pColInfoData->pData);
   }
 
-  taosArrayDestroy(pBlock->pDataBlock);
+  taosArrayDestroy(&pBlock->pDataBlock);
   tfree(pBlock->pBlockStatis);
   tfree(pBlock);
   return NULL;

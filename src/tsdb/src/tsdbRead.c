@@ -219,7 +219,7 @@ static void tsdbMayTakeMemSnapshot(STsdbQueryHandle* pQueryHandle, SArray* psTab
     tsdbTakeMemSnapshot(pQueryHandle->pTsdb, &(pMemRef->snapshot), psTable);
   }
 
-  taosArrayDestroy(psTable);
+  taosArrayDestroy(&psTable);
 }
 
 static void tsdbMayUnTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
@@ -277,7 +277,7 @@ static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STa
 
   SArray* pTable = taosArrayInit(4, sizeof(STable*));
   if (pTable == NULL) {
-    taosArrayDestroy(pTableCheckInfo);
+    taosArrayDestroy(&pTableCheckInfo);
     return NULL;
   }
 
@@ -505,7 +505,7 @@ TsdbQueryHandleT* tsdbQueryTables(STsdbRepo* tsdb, STsdbQueryCond* pCond, STable
   pQueryHandle->pTableCheckInfo = createCheckInfoFromTableGroup(pQueryHandle, groupList, pMeta, &psTable);
   if (pQueryHandle->pTableCheckInfo == NULL) {
     tsdbCleanupQueryHandle(pQueryHandle);
-    taosArrayDestroy(psTable);
+    taosArrayDestroy(&psTable);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
   }
@@ -3125,7 +3125,7 @@ static int32_t doGetExternalRow(STsdbQueryHandle* pQueryHandle, int16_t type, SM
   SArray* psTable = NULL;
   pSecQueryHandle->pTableCheckInfo = createCheckInfoFromCheckInfo(pCurrent, pSecQueryHandle->window.skey, &psTable);
   if (pSecQueryHandle->pTableCheckInfo == NULL) {
-    taosArrayDestroy(psTable);
+    taosArrayDestroy(&psTable);
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto out_of_memory;
   }
@@ -3331,7 +3331,7 @@ STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList) {
         taosArrayPush(pGroup, &keyInfo);
       }
     } else {  // mark all the empty groups, and remove it later
-      taosArrayDestroy(pGroup);
+      taosArrayDestroy(&pGroup);
       taosArrayPush(emptyGroup, &j);
     }
   }
@@ -3343,7 +3343,7 @@ STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList) {
   }
 
   taosArrayRemoveBatch(groupList->pGroupList, TARRAY_GET_START(emptyGroup), (int32_t) taosArrayGetSize(emptyGroup));
-  taosArrayDestroy(emptyGroup);
+  taosArrayDestroy(&emptyGroup);
 
   groupList->numOfTables = totalNumOfTable;
   return window;

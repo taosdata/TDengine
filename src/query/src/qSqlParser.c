@@ -117,7 +117,7 @@ void tSqlExprListDestroy(SArray *pList) {
     return;
   }
 
-  taosArrayDestroyEx(pList, freeExprElem);
+  taosArrayDestroyEx(&pList, freeExprElem);
 }
 
 
@@ -687,14 +687,14 @@ void* destroyRelationInfo(SRelationInfo* pRelationInfo) {
   }
 
   if (pRelationInfo->type == SQL_NODE_FROM_TABLELIST) {
-    taosArrayDestroy(pRelationInfo->list);
+    taosArrayDestroy(&pRelationInfo->list);
   } else {
     size_t size = taosArrayGetSize(pRelationInfo->list);
     for(int32_t i = 0; i < size; ++i) {
       SArray* pa = taosArrayGetP(pRelationInfo->list, i);
       destroyAllSqlNode(pa);
     }
-    taosArrayDestroy(pRelationInfo->list);
+    taosArrayDestroy(&pRelationInfo->list);
   }
 
   tfree(pRelationInfo);

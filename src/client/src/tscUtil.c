@@ -1540,7 +1540,7 @@ void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeCachedMeta, uint64_t id) {
     }
 
     if (pQueryInfo->udfCopy) {
-      pQueryInfo->pUdfInfo = taosArrayDestroy(pQueryInfo->pUdfInfo);
+      pQueryInfo->pUdfInfo = taosArrayDestroy(&pQueryInfo->pUdfInfo);
     } else {
       pQueryInfo->pUdfInfo = tscDestroyUdfArrayList(pQueryInfo->pUdfInfo);
     }
@@ -1602,7 +1602,7 @@ void* tscCleanupTableMetaMap(SHashObj* pTableMetaMap) {
 
   STableMetaVgroupInfo* p = taosHashIterate(pTableMetaMap, NULL);
   while (p) {
-    taosArrayDestroy(p->vgroupIdList);
+    taosArrayDestroy(&p->vgroupIdList);
     tfree(p->pTableMeta);
     p = taosHashIterate(pTableMetaMap, p);
   }
@@ -1795,7 +1795,7 @@ void*  tscDestroyBlockArrayList(SSqlObj *pSql, SArray* pDataBlockList) {
     tscDestroyDataBlock(pSql, d, false);
   }
 
-  taosArrayDestroy(pDataBlockList);
+  taosArrayDestroy(&pDataBlockList);
   return NULL;
 }
 
@@ -1834,7 +1834,7 @@ void*  tscDestroyUdfArrayList(SArray* pUdfList) {
     freeUdfInfo(udf);
   }
 
-  taosArrayDestroy(pUdfList);
+  taosArrayDestroy(&pUdfList);
   return NULL;
 }
 
@@ -2470,7 +2470,7 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
     }
   }
 
-  taosArrayDestroy(pFieldInfo->internalField);
+  taosArrayDestroy(&pFieldInfo->internalField);
   tfree(pFieldInfo->final);
 
   memset(pFieldInfo, 0, sizeof(SFieldInfo));

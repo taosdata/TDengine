@@ -472,7 +472,7 @@ cleanup:
     destroySmlDataPoint(points+i);
   }
 
-  taosArrayDestroy(lpPoints);
+  taosArrayDestroy(&lpPoints);
 
   tfree(info);
   return code;
