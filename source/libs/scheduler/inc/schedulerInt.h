@@ -38,12 +38,13 @@ enum {
 };
 
 typedef struct SSchedulerMgmt {
+  uint64_t  taskId;
   SHashObj *Jobs;  // key: queryId, value: SQueryJob*
 } SSchedulerMgmt;
 
 typedef struct SQueryTask {
   uint64_t             taskId;  // task id
-  char                *pSubplan;   // operator tree
+  char                *msg;     // operator tree
   int8_t               status;  // task status
   SQueryProfileSummary summary; // task execution summary
 } SQueryTask;
@@ -68,9 +69,12 @@ typedef struct SQueryJob {
 } SQueryJob;
 
 
-#define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { return _code; } } while (0)
-#define SCH_ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { qError(__VA_ARGS__); return _code; } } while (0)
-#define SCH_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { goto _return; } } while (0)
+#define SCH_JOB_ERR_LOG(param, ...) qError("QID:%"PRIx64 param, job->queryId, __VA_ARGS__)
+
+#define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
+#define SCH_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
+#define SCH_ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { qError(__VA_ARGS__); terrno = _code; return _code; } } while (0)
+#define SCH_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
 
 #ifdef __cplusplus

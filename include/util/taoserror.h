@@ -490,6 +490,11 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_CTG_MEM_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x2403)  //catalog memory error
 #define TSDB_CODE_CTG_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x2404)  //catalog system error
 
+//scheduler
+#define TSDB_CODE_SCH_STATUS_ERROR              TAOS_DEF_ERROR_CODE(0, 0x2501)  //scheduler status error
+
+
+
 #ifdef __cplusplus
 }
 #endif
