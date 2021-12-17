@@ -466,9 +466,8 @@ pipeline {
                 pip3 install pytest
                 pytest tests/
               '''
+              
               sh '''
-
-
                 python3 examples/bind-multi.py
                 python3 examples/bind-row.py
                 python3 examples/demo.py
