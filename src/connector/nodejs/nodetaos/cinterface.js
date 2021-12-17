@@ -13,8 +13,6 @@ const errors = require('./error');
 const _ = require('lodash')
 const TaosObjects = require('./taosobjects');
 
-
-
 module.exports = CTaosInterface;
 const TAOSFIELD = {
   NAME_LENGTH: 65,
@@ -246,7 +244,7 @@ var TaosField = Struct({
 });
 TaosField.fields.name.type.size = 65;
 TaosField.defineProperty('type', ref.types.uint8);
-TaosField.defineProperty('bytes', ref.types.uint16);
+TaosField.defineProperty('bytes', ref.types.int16);
 
 //define schemaless line array
 var smlLine = ArrayType(ref.coerceType('char *'))
