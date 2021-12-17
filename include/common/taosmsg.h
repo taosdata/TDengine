@@ -783,12 +783,8 @@ typedef struct {
 } SAuthVnodeMsg;
 
 typedef struct {
-  char name[TSDB_TABLE_FNAME_LEN];
-} SStbInfoMsg;
-
-typedef struct {
-  SMsgHead msgHead;
-  char     tableFname[TSDB_TABLE_FNAME_LEN];
+  int32_t vgId;
+  char    tableFname[TSDB_TABLE_FNAME_LEN];
 } STableInfoMsg;
 
 typedef struct {
@@ -799,10 +795,6 @@ typedef struct {
   char    tableNames[];
 } SMultiTableInfoMsg;
 
-typedef struct SSTableVgroupMsg {
-  int32_t numOfTables;
-} SSTableVgroupMsg, SSTableVgroupRspMsg;
-
 typedef struct SVgroupInfo {
   int32_t    vgId;
   uint32_t   hashBegin;
@@ -811,12 +803,6 @@ typedef struct SVgroupInfo {
   int8_t     numOfEps;
   SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
 } SVgroupInfo;
-
-typedef struct SVgroupListRspMsg {
-  int32_t     vgroupNum;
-  int32_t     vgroupVersion;
-  SVgroupInfo vgroupInfo[];
-} SVgroupListRspMsg;
 
 typedef struct {
   int32_t    vgId;
@@ -839,8 +825,8 @@ typedef struct {
   int8_t   update;
   int32_t  sversion;
   int32_t  tversion;
-  uint64_t tuid;
   uint64_t suid;
+  uint64_t tuid;
   int32_t  vgId;
   SSchema  pSchema[];
 } STableMetaMsg;

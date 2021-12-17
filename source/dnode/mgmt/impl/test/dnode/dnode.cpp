@@ -1,5 +1,5 @@
 /**
- * @file vnodeApiTests.cpp
+ * @file dnode.cpp
  * @author slguan (slguan@taosdata.com)
  * @brief DNODE module dnode-msg tests
  * @version 0.1
@@ -81,8 +81,8 @@ class DndTestDnode : public ::testing::Test {
     pMeta->numOfTags = htonl(pMeta->numOfTags);
     pMeta->numOfColumns = htonl(pMeta->numOfColumns);
     pMeta->sversion = htonl(pMeta->sversion);
-    pMeta->tversion = htons(pMeta->tversion);
-    pMeta->tuid = htonl(pMeta->tuid);
+    pMeta->tversion = htonl(pMeta->tversion);
+    pMeta->tuid = htobe64(pMeta->tuid);
     pMeta->suid = htobe64(pMeta->suid);
 
     showId = pShowRsp->showId;
@@ -102,7 +102,7 @@ class DndTestDnode : public ::testing::Test {
 
   void CheckSchema(int32_t index, int8_t type, int32_t bytes, const char* name) {
     SSchema* pSchema = &pMeta->pSchema[index];
-    pSchema->bytes = htons(pSchema->bytes);
+    pSchema->bytes = htonl(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, type);
     EXPECT_EQ(pSchema->bytes, bytes);
@@ -128,17 +128,14 @@ class DndTestDnode : public ::testing::Test {
     pRetrieveRsp = (SRetrieveTableRsp*)pClient->pRsp->pCont;
     ASSERT_NE(pRetrieveRsp, nullptr);
     pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
-    pRetrieveRsp->offset = htobe64(pRetrieveRsp->offset);
     pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);
     pRetrieveRsp->compLen = htonl(pRetrieveRsp->compLen);
 
     EXPECT_EQ(pRetrieveRsp->numOfRows, rows);
-    EXPECT_EQ(pRetrieveRsp->offset, 0);
     EXPECT_EQ(pRetrieveRsp->useconds, 0);
     // EXPECT_EQ(pRetrieveRsp->completed, completed);
     EXPECT_EQ(pRetrieveRsp->precision, TSDB_TIME_PRECISION_MILLI);
     EXPECT_EQ(pRetrieveRsp->compressed, 0);
-    EXPECT_EQ(pRetrieveRsp->reserved, 0);
     EXPECT_EQ(pRetrieveRsp->compLen, 0);
 
     pData = pRetrieveRsp->data;
@@ -187,12 +184,12 @@ SClient* DndTestDnode::pClient;
 TEST_F(DndTestDnode, 01_ShowDnode) {
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
   CheckSchema(0, TSDB_DATA_TYPE_SMALLINT, 2, "id");
-  CheckSchema(1, TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN + VARSTR_HEADER_SIZE, "end point");
+  CheckSchema(1, TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN + VARSTR_HEADER_SIZE, "endpoint");
   CheckSchema(2, TSDB_DATA_TYPE_SMALLINT, 2, "vnodes");
-  CheckSchema(3, TSDB_DATA_TYPE_SMALLINT, 2, "max vnodes");
+  CheckSchema(3, TSDB_DATA_TYPE_SMALLINT, 2, "max_vnodes");
   CheckSchema(4, TSDB_DATA_TYPE_BINARY, 10 + VARSTR_HEADER_SIZE, "status");
-  CheckSchema(5, TSDB_DATA_TYPE_TIMESTAMP, 8, "create time");
-  CheckSchema(6, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "offline reason");
+  CheckSchema(5, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
+  CheckSchema(6, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "offline_reason");
 
   SendThenCheckShowRetrieveMsg(1);
   CheckInt16(1);

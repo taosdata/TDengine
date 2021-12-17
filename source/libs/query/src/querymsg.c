@@ -39,7 +39,7 @@ int32_t queryBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int3
 
   STableInfoMsg *bMsg = (STableInfoMsg *)*msg;
 
-  bMsg->msgHead.vgId = bInput->vgId;
+  bMsg->vgId = bInput->vgId;
 
   strncpy(bMsg->tableFname, bInput->tableFullName, sizeof(bMsg->tableFname));
   bMsg->tableFname[sizeof(bMsg->tableFname) - 1] = 0;
