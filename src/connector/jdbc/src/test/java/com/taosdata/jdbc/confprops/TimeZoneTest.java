@@ -29,7 +29,7 @@ public class TimeZoneTest {
     }
 
     @Test
-    public void taosTimeZone() {
+    public void taosTimeZone() throws SQLException {
         // given
         Properties props = new Properties();
         props.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
@@ -39,7 +39,7 @@ public class TimeZoneTest {
             Statement stmt = connection.createStatement();
 
             stmt.execute("drop database if exists timezone_test");
-            stmt.execute("create database if not exists timezone_test keep 365000");
+            stmt.execute("create database if not exists timezone_test keep 36500");
             stmt.execute("use timezone_test");
             stmt.execute("create table weather(ts timestamp, temperature float)");
 
@@ -51,7 +51,7 @@ public class TimeZoneTest {
                 System.out.println("ts: " + ts.getTime() + "," + ts);
             }
 
-            stmt.execute("insert into timezone_test.weather(ts, temperature, humidity) values('1970-01-02 00:00:00', 1.0, 2.0)");
+            stmt.execute("insert into timezone_test.weather(ts, temperature) values('1970-01-02 00:00:00', 1.0)");
 
             rs = stmt.executeQuery("select * from timezone_test.weather");
             while (rs.next()) {
@@ -63,8 +63,6 @@ public class TimeZoneTest {
             stmt.execute("drop database if exists timezone_test");
 
             stmt.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 

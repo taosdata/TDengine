@@ -320,6 +320,8 @@ class ElapsedCase:
 
     def selectIllegalTest(self):
         tdSql.execute("use wxy_db")
+        tdSql.error("select elapsed() from t1")
+        tdSql.error("select elapsed(,) from t1")
         tdSql.error("select elapsed(1) from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'")
         tdSql.error("select elapsed('2021-11-18 00:00:10') from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'")
         tdSql.error("select elapsed(now) from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00'")

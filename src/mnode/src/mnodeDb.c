@@ -1003,6 +1003,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
     newCfg.daysToKeep0 = daysToKeep0;
   }
 
+#ifdef _STORAGE
   if (daysToKeep1 > 0 && (daysToKeep1 != pDb->cfg.daysToKeep1 || newCfg.daysToKeep1 != pDb->cfg.daysToKeep1)) {
     mDebug("db:%s, daysToKeep1:%d change to %d", pDb->name, pDb->cfg.daysToKeep1, daysToKeep1);
     newCfg.daysToKeep1 = daysToKeep1;
@@ -1012,6 +1013,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
     mDebug("db:%s, daysToKeep2:%d change to %d", pDb->name, pDb->cfg.daysToKeep2, daysToKeep2);
     newCfg.daysToKeep2 = daysToKeep2;
   }
+#endif
 
   if (minRows > 0 && minRows != pDb->cfg.minRowsPerFileBlock) {
     mError("db:%s, can't alter minRows option", pDb->name);
@@ -1100,6 +1102,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
 
 // community version can only change daysToKeep
 // but enterprise version can change all daysToKeep options
+
 #ifndef _STORAGE
   newCfg.daysToKeep1 = newCfg.daysToKeep0;
   newCfg.daysToKeep2 = newCfg.daysToKeep0;

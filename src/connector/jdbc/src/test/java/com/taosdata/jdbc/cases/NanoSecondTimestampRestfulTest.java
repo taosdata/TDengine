@@ -1,9 +1,6 @@
 package com.taosdata.jdbc.cases;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 import java.sql.*;
 import java.time.Instant;
@@ -83,9 +80,9 @@ public class NanoSecondTimestampRestfulTest {
 
         // then
         long actual = rs.getLong(1);
-        Assert.assertEquals(ms, actual);
+        Assert.assertEquals(ns, actual);
         actual = rs.getLong("ts");
-        Assert.assertEquals(ms, actual);
+        Assert.assertEquals(ns, actual);
     }
 
     @Test
@@ -157,6 +154,16 @@ public class NanoSecondTimestampRestfulTest {
             stmt.execute("drop database if exists " + dbname);
             stmt.execute("create database if not exists " + dbname + " precision 'ns'");
             stmt.execute("use " + dbname);
+        }
+    }
+
+    @AfterClass
+    public static void afterClass() throws SQLException {
+        if (conn != null){
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("drop database if exists " + dbname);
+            }
+            conn.close();
         }
     }
 

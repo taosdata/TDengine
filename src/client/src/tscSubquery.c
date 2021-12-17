@@ -3783,7 +3783,7 @@ void tscSetQuerySort(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr) {
     size_t size = taosArrayGetSize(pQueryInfo->pUpstream);
     for(int32_t i = 0; i < size; ++i) {
       SQueryInfo* pq = taosArrayGetP(pQueryInfo->pUpstream, i);
-      if (pq->groupbyTag && pq->interval.interval > 0) {
+      if (pq->groupbyTag) {
         pQueryAttr->needSort = true;
         return;
       }
