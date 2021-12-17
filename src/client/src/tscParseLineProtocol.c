@@ -1296,10 +1296,10 @@ int tscSmlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLine
 clean_up:
   for (int i = 0; i < taosArrayGetSize(stableSchemas); ++i) {
     SSmlSTableSchema* schema = taosArrayGet(stableSchemas, i);
-    taosArrayDestroy(schema->fields);
-    taosArrayDestroy(schema->tags);
+    taosArrayDestroy(&schema->fields);
+    taosArrayDestroy(&schema->tags);
   }
-  taosArrayDestroy(stableSchemas);
+  taosArrayDestroy(&stableSchemas);
   return code;
 }
 
@@ -2496,7 +2496,7 @@ cleanup:
     destroySmlDataPoint(points+i);
   }
 
-  taosArrayDestroy(lpPoints);
+  taosArrayDestroy(&lpPoints);
 
   tfree(info);
   return code;

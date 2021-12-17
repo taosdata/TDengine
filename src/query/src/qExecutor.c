@@ -2304,8 +2304,8 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   destroyOperatorInfo(pRuntimeEnv->proot);
 
   pRuntimeEnv->pool = destroyResultRowPool(pRuntimeEnv->pool);
-  taosArrayDestroy(pRuntimeEnv->pResultRowArrayList);
-  taosArrayDestroyEx(pRuntimeEnv->prevResult, freeInterResult);
+  taosArrayDestroy(&pRuntimeEnv->pResultRowArrayList);
+  taosArrayDestroyEx(&pRuntimeEnv->prevResult, freeInterResult);
   pRuntimeEnv->prevResult = NULL;
 }
 
@@ -4414,7 +4414,7 @@ void calculateOperatorProfResults(SQInfo* pQInfo) {
     }
   }
 
-  taosArrayDestroy(opStack);
+  taosArrayDestroy(&opStack);
 }
 
 void queryCostStatis(SQInfo *pQInfo) {
@@ -5370,14 +5370,14 @@ static void destroyGlobalAggOperatorInfo(void* param, int32_t numOfOutput) {
   SMultiwayMergeInfo *pInfo = (SMultiwayMergeInfo*) param;
   destroyBasicOperatorInfo(&pInfo->binfo, numOfOutput);
 
-  taosArrayDestroy(pInfo->orderColumnList);
-  taosArrayDestroy(pInfo->groupColumnList);
+  taosArrayDestroy(&pInfo->orderColumnList);
+  taosArrayDestroy(&pInfo->groupColumnList);
   tfree(pInfo->prevRow);
   tfree(pInfo->currentGroupColData);
 }
 static void destroySlimitOperatorInfo(void* param, int32_t numOfOutput) {
   SSLimitOperatorInfo *pInfo = (SSLimitOperatorInfo*) param;
-  taosArrayDestroy(pInfo->orderColumnList);
+  taosArrayDestroy(&pInfo->orderColumnList);
   pInfo->pRes = destroyOutputBuf(pInfo->pRes);
   tfree(pInfo->prevRow);
 }
@@ -7035,7 +7035,7 @@ static void destroyDistinctOperatorInfo(void* param, int32_t numOfOutput) {
   SDistinctOperatorInfo* pInfo = (SDistinctOperatorInfo*) param;
   taosHashCleanup(pInfo->pSet);
   tfree(pInfo->buf);
-  taosArrayDestroy(pInfo->pDistinctDataInfo);
+  taosArrayDestroy(&pInfo->pDistinctDataInfo);
   pInfo->pRes = destroyOutputBuf(pInfo->pRes);
 }
 
@@ -9036,7 +9036,7 @@ _cleanup_qinfo:
   tsdbDestroyTableGroup(pTableGroupInfo);
 
   if (pGroupbyExpr != NULL) {
-    taosArrayDestroy(pGroupbyExpr->columnInfo);
+    taosArrayDestroy(&pGroupbyExpr->columnInfo);
     free(pGroupbyExpr);
   }
 
@@ -9168,11 +9168,11 @@ static void doDestroyTableQueryInfo(STableGroupInfo* pTableqinfoGroupInfo) {
         destroyTableQueryInfoImpl(item);
       }
 
-      taosArrayDestroy(p);
+      taosArrayDestroy(&p);
     }
   }
 
-  taosArrayDestroy(pTableqinfoGroupInfo->pGroupList);
+  taosArrayDestroy(&pTableqinfoGroupInfo->pGroupList);
   taosHashCleanup(pTableqinfoGroupInfo->map);
 
   pTableqinfoGroupInfo->pGroupList = NULL;
@@ -9239,10 +9239,10 @@ void freeQInfo(SQInfo *pQInfo) {
   tfree(pQInfo->pBuf);
   tfree(pQInfo->sql);
 
-  taosArrayDestroy(pQInfo->summary.queryProfEvents);
+  taosArrayDestroy(&pQInfo->summary.queryProfEvents);
   taosHashCleanup(pQInfo->summary.operatorProfResults);
 
-  taosArrayDestroy(pRuntimeEnv->groupResInfo.pRows);
+  taosArrayDestroy(&pRuntimeEnv->groupResInfo.pRows);
   pQInfo->signature = 0;
 
   qDebug("QInfo:0x%"PRIx64" QInfo is freed", pQInfo->qId);
@@ -9433,7 +9433,7 @@ void freeQueryAttr(SQueryAttr* pQueryAttr) {
     pQueryAttr->tableCols = freeColumnInfo(pQueryAttr->tableCols, pQueryAttr->numOfCols);
 
     if (pQueryAttr->pGroupbyExpr != NULL) {
-      taosArrayDestroy(pQueryAttr->pGroupbyExpr->columnInfo);
+      taosArrayDestroy(&pQueryAttr->pGroupbyExpr->columnInfo);
       tfree(pQueryAttr->pGroupbyExpr);
     }
 

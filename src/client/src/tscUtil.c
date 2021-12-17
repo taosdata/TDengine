@@ -2675,7 +2675,7 @@ void tscExprDestroy(SArray* pExprInfo) {
     sqlExprDestroy(pExpr);
   }
 
-  taosArrayDestroy(pExprInfo);
+  taosArrayDestroy(&pExprInfo);
 }
 
 int32_t tscExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy) {
@@ -2883,7 +2883,7 @@ void tscColumnListDestroy(SArray* pColumnList) {
     tscColumnDestroy(pCol);
   }
 
-  taosArrayDestroy(pColumnList);
+  taosArrayDestroy(&pColumnList);
 }
 
 /*
@@ -3260,7 +3260,7 @@ void tscColCondRelease(SArray** pCond) {
     tfree(p->cond);
   }
 
-  taosArrayDestroy(*pCond);
+  taosArrayDestroy(pCond);
 
   *pCond = NULL;
 }
@@ -3274,7 +3274,7 @@ void tscTagCondRelease(STagCond* pTagCond) {
       tfree(p->cond);
     }
 
-    taosArrayDestroy(pTagCond->pCond);
+    taosArrayDestroy(&pTagCond->pCond);
   }
 
   for (int32_t i = 0; i < TSDB_MAX_JOIN_TABLE_NUM; ++i) {
@@ -3284,11 +3284,11 @@ void tscTagCondRelease(STagCond* pTagCond) {
     }
 
     if (node->tsJoin != NULL) {
-      taosArrayDestroy(node->tsJoin);
+      taosArrayDestroy(&node->tsJoin);
     }
 
     if (node->tagJoin != NULL) {
-      taosArrayDestroy(node->tagJoin);
+      taosArrayDestroy(&node->tagJoin);
     }
 
     tfree(node);
@@ -3471,7 +3471,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   pQueryInfo->colList = NULL;
 
   if (pQueryInfo->groupbyExpr.columnInfo != NULL) {
-    taosArrayDestroy(pQueryInfo->groupbyExpr.columnInfo);
+    taosArrayDestroy(&pQueryInfo->groupbyExpr.columnInfo);
     pQueryInfo->groupbyExpr.columnInfo = NULL;
     pQueryInfo->groupbyExpr.numOfGroupCols = 0;
   }
@@ -3483,7 +3483,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   pQueryInfo->fillType = 0;
   tfree(pQueryInfo->buf);
 
-  taosArrayDestroy(pQueryInfo->pUpstream);
+  taosArrayDestroy(&pQueryInfo->pUpstream);
   pQueryInfo->pUpstream = NULL;
   pQueryInfo->bufLen = 0;
 }
@@ -3618,10 +3618,10 @@ void tscFreeVgroupTableInfo(SArray* pVgroupTables) {
       tfree(pInfo->vgInfo.epAddr[j].fqdn);
     }
 #endif
-    taosArrayDestroy(pInfo->itemList);
+    taosArrayDestroy(&pInfo->itemList);
   }
 
-  taosArrayDestroy(pVgroupTables);
+  taosArrayDestroy(&pVgroupTables);
 }
 
 void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index) {
@@ -3635,7 +3635,7 @@ void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index) {
 //    tfree(pInfo->vgInfo.epAddr[j].fqdn);
 //  }
 
-  taosArrayDestroy(pInfo->itemList);
+  taosArrayDestroy(&pInfo->itemList);
   taosArrayRemove(pVgroupTable, index);
 }
 
