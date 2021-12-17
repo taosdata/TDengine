@@ -21,6 +21,8 @@
 #include "tglobal.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "tglobal.h"
+#include "tconfig.h"
 
 SScript *simScriptList[MAX_MAIN_SCRIPT_NUM];
 SCommand simCmdList[SIM_CMD_END];
@@ -80,6 +82,10 @@ char *simParseHostName(char *varName) {
 
 bool simSystemInit() {
   taosGetFqdn(simHostName);
+
+  taosInitGlobalCfg();
+  taosReadCfgFromFile();
+
   simInitsimCmdList();
   memset(simScriptList, 0, sizeof(SScript *) * MAX_MAIN_SCRIPT_NUM);
   return true;
