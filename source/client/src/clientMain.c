@@ -242,3 +242,28 @@ int  taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields)
 
   return len;
 }
+
+int* taos_fetch_lengths(TAOS_RES *res) {
+  if (res == NULL) {
+    return NULL;
+  }
+
+  return ((SRequestObj*) res)->body.pResInfo->length;
+}
+
+const char *taos_data_type(int type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_NULL:            return "TSDB_DATA_TYPE_NULL";
+    case TSDB_DATA_TYPE_BOOL:            return "TSDB_DATA_TYPE_BOOL";
+    case TSDB_DATA_TYPE_TINYINT:         return "TSDB_DATA_TYPE_TINYINT";
+    case TSDB_DATA_TYPE_SMALLINT:        return "TSDB_DATA_TYPE_SMALLINT";
+    case TSDB_DATA_TYPE_INT:             return "TSDB_DATA_TYPE_INT";
+    case TSDB_DATA_TYPE_BIGINT:          return "TSDB_DATA_TYPE_BIGINT";
+    case TSDB_DATA_TYPE_FLOAT:           return "TSDB_DATA_TYPE_FLOAT";
+    case TSDB_DATA_TYPE_DOUBLE:          return "TSDB_DATA_TYPE_DOUBLE";
+    case TSDB_DATA_TYPE_BINARY:          return "TSDB_DATA_TYPE_BINARY";
+    case TSDB_DATA_TYPE_TIMESTAMP:       return "TSDB_DATA_TYPE_TIMESTAMP";
+    case TSDB_DATA_TYPE_NCHAR:           return "TSDB_DATA_TYPE_NCHAR";
+    default: return "UNKNOWN";
+  }
+}
