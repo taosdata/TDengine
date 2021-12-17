@@ -1,54 +1,13 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8...3.20)
-PROJECT(TDengine)
+aux_source_directory(src SHELL_SRC)
+list(REMOVE_ITEM SHELL_SRC ./src/shellWindows.c)
+list(REMOVE_ITEM SHELL_SRC ./src/shellDarwin.c)
 
-INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/client/inc)
-INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/query/inc)
-INCLUDE_DIRECTORIES(inc)
+add_executable(shell ${SHELL_SRC})
+target_link_libraries(
+    shell
+    PUBLIC taos
+    PUBLIC util
+    PUBLIC os
+)
 
-IF (TD_LINUX)
-  AUX_SOURCE_DIRECTORY(./src SRC)
-  LIST(REMOVE_ITEM SRC ./src/shellWindows.c)
-  LIST(REMOVE_ITEM SRC ./src/shellDarwin.c)
-  ADD_EXECUTABLE(shell ${SRC})
-
-IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
-  ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
-  SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
-ELSE ()
-  SET(LINK_JEMALLOC "")
-ENDIF ()
-
-  IF (TD_SOMODE_STATIC)
-      TARGET_LINK_LIBRARIES(shell taos_static lua ${LINK_JEMALLOC})
-  ELSE ()
-      TARGET_LINK_LIBRARIES(shell taos lua ${LINK_JEMALLOC})
-  ENDIF ()
-
-  SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
-ELSEIF (TD_WINDOWS)
-  LIST(APPEND SRC ./src/shellEngine.c)
-  LIST(APPEND SRC ./src/shellMain.c)
-  LIST(APPEND SRC ./src/shellWindows.c)
-  ADD_EXECUTABLE(shell ${SRC})
-  TARGET_LINK_LIBRARIES(shell taos_static)
-
-  IF (TD_POWER)
-    SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME power)
-  ELSE ()
-    SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
-  ENDIF ()
-ELSEIF (TD_DARWIN)
-  LIST(APPEND SRC ./src/shellEngine.c)
-  LIST(APPEND SRC ./src/shellMain.c)
-  LIST(APPEND SRC ./src/shellDarwin.c)
-  LIST(APPEND SRC ./src/shellCommand.c)
-  LIST(APPEND SRC ./src/shellImport.c)
-  LIST(APPEND SRC ./src/shellCheck.c)
-  ADD_EXECUTABLE(shell ${SRC})
-  # linking with dylib
-  TARGET_LINK_LIBRARIES(shell taos)
-  # linking taos statically
-  # TARGET_LINK_LIBRARIES(shell taos_static)
-  SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
-ENDIF ()
-
+SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)

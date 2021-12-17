@@ -1,7 +1,1 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8...3.20)
-PROJECT(TDengine)
-
-ADD_SUBDIRECTORY(shell)
-ADD_SUBDIRECTORY(taosdemo)
-ADD_SUBDIRECTORY(taosdump)
-ADD_SUBDIRECTORY(taospack)
+add_subdirectory(shell)
