@@ -1,5 +1,5 @@
 /**
- * @file vnodeApiTests.cpp
+ * @file db.cpp
  * @author slguan (slguan@taosdata.com)
  * @brief DNODE module db-msg tests
  * @version 0.1
@@ -88,7 +88,7 @@ class DndTestDb : public ::testing::Test {
 
   void CheckSchema(int32_t index, int8_t type, int32_t bytes, const char* name) {
     SSchema* pSchema = &pMeta->pSchema[index];
-    pSchema->bytes = htons(pSchema->bytes);
+    pSchema->bytes = htonl(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, type);
     EXPECT_EQ(pSchema->bytes, bytes);
@@ -114,17 +114,14 @@ class DndTestDb : public ::testing::Test {
     pRetrieveRsp = (SRetrieveTableRsp*)pClient->pRsp->pCont;
     ASSERT_NE(pRetrieveRsp, nullptr);
     pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
-    pRetrieveRsp->offset = htobe64(pRetrieveRsp->offset);
     pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);
     pRetrieveRsp->compLen = htonl(pRetrieveRsp->compLen);
 
     EXPECT_EQ(pRetrieveRsp->numOfRows, rows);
-    EXPECT_EQ(pRetrieveRsp->offset, 0);
     EXPECT_EQ(pRetrieveRsp->useconds, 0);
     // EXPECT_EQ(pRetrieveRsp->completed, completed);
     EXPECT_EQ(pRetrieveRsp->precision, TSDB_TIME_PRECISION_MILLI);
     EXPECT_EQ(pRetrieveRsp->compressed, 0);
-    EXPECT_EQ(pRetrieveRsp->reserved, 0);
     EXPECT_EQ(pRetrieveRsp->compLen, 0);
 
     pData = pRetrieveRsp->data;
@@ -182,13 +179,13 @@ int32_t  DndTestDb::connId;
 TEST_F(DndTestDb, 01_ShowDb) {
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 17, NULL);
   CheckSchema(0, TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN - 1 + VARSTR_HEADER_SIZE, "name");
-  CheckSchema(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create time");
+  CheckSchema(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
   CheckSchema(2, TSDB_DATA_TYPE_SMALLINT, 2, "vgroups");
   CheckSchema(3, TSDB_DATA_TYPE_SMALLINT, 2, "replica");
   CheckSchema(4, TSDB_DATA_TYPE_SMALLINT, 2, "quorum");
   CheckSchema(5, TSDB_DATA_TYPE_SMALLINT, 2, "days");
   CheckSchema(6, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "keep0,keep1,keep2");
-  CheckSchema(7, TSDB_DATA_TYPE_INT, 4, "cache(MB)");
+  CheckSchema(7, TSDB_DATA_TYPE_INT, 4, "cache");
   CheckSchema(8, TSDB_DATA_TYPE_INT, 4, "blocks");
   CheckSchema(9, TSDB_DATA_TYPE_INT, 4, "minrows");
   CheckSchema(10, TSDB_DATA_TYPE_INT, 4, "maxrows");

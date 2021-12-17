@@ -215,7 +215,3 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
   *pDag = context.pDag;
   return TSDB_CODE_SUCCESS;
 }
-
-int32_t subPlanToString(struct SSubplan *pPhyNode, char** str) {
-  return TSDB_CODE_SUCCESS;
-}

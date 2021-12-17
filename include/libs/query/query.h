@@ -24,8 +24,6 @@ extern "C" {
 #include "thash.h"
 #include "tlog.h"
 
-typedef SVgroupListRspMsg SVgroupListInfo;
-
 typedef struct STableComInfo {
   uint8_t numOfTags;      // the number of tags in schema
   uint8_t precision;      // the number of precision

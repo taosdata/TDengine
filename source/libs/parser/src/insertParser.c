@@ -77,6 +77,14 @@ typedef struct SInsertParseContext {
   SInsertStmtInfo* pOutput;
 } SInsertParseContext;
 
+typedef int32_t (*FRowAppend)(const void *value, int32_t len, void *param);
+
+typedef struct SKvParam {
+  char buf[TSDB_MAX_TAGS_LEN];
+  SKVRowBuilder* builder;
+  SSchema* schema;
+} SKvParam;
+
 static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
 static uint8_t FALSE_VALUE = (uint8_t)TSDB_FALSE;
 
@@ -299,14 +307,6 @@ static int parseTime(SInsertParseContext* pCxt, SToken *pToken, int16_t timePrec
   *time = useconds;
   return TSDB_CODE_SUCCESS;
 }
-
-typedef int32_t (*FRowAppend)(const void *value, int32_t len, void *param);
-
-typedef struct SKvParam {
-  char buf[TSDB_MAX_TAGS_LEN];
-  SKVRowBuilder* builder;
-  SSchema* schema;
-} SKvParam;
 
 static FORCE_INLINE int32_t KvRowAppend(const void *value, int32_t len, void *param) {
   SKvParam* pa = (SKvParam*)param;

@@ -8,7 +8,7 @@ target_include_directories(
 
 target_link_libraries(
     planner
-    PRIVATE os util common catalog parser transport function query
+    PRIVATE os util common cjson catalog parser transport function query
 )
 
 ADD_SUBDIRECTORY(test)
