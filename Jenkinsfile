@@ -397,7 +397,7 @@ pipeline {
           }
       parallel {
         stage('python_1') {
-          agent{label " slave1 || slave 6 || slave11 || slave16 "}
+          agent{label " slave1 || slave6 || slave11 || slave16 "}
           steps {
             pre_test()
             timeout(time: 55, unit: 'MINUTES'){
