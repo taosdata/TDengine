@@ -1102,12 +1102,12 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
 
 // community version can only change daysToKeep
 // but enterprise version can change all daysToKeep options
-/*
+
 #ifndef _STORAGE
   newCfg.daysToKeep1 = newCfg.daysToKeep0;
   newCfg.daysToKeep2 = newCfg.daysToKeep0;
 #endif
-*/
+
   return newCfg;
 }
 
