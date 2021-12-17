@@ -571,14 +571,13 @@ typedef struct {
 } SRetrieveTableMsg;
 
 typedef struct SRetrieveTableRsp {
-  int32_t numOfRows;
-  int64_t offset;  // updated offset value for multi-vnode projection query
   int64_t useconds;
   int8_t  completed;  // all results are returned to client
   int8_t  precision;
   int8_t  compressed;
-  int8_t  reserved;
   int32_t compLen;
+
+  int32_t numOfRows;
   char    data[];
 } SRetrieveTableRsp;
 

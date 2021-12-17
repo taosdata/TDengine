@@ -300,26 +300,26 @@ static int32_t mndGetVgroupMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "vgId");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "tables");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   for (int32_t i = 0; i < pShow->replica; ++i) {
     pShow->bytes[cols] = 2;
     pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
     snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%d_dnode", i + 1);
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+    pSchema[cols].bytes = htonl(pShow->bytes[cols]);
     cols++;
 
     pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
     pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
     snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%d_status", i + 1);
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+    pSchema[cols].bytes = htonl(pShow->bytes[cols]);
     cols++;
   }
 
@@ -402,13 +402,13 @@ static int32_t mndGetVnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "vgId");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 12 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "status");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pMeta->numOfColumns = htonl(cols);

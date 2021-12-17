@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
-#include <common.h>
 #include "taos.h"
+#include "common.h"
 #include "taosmsg.h"
 #include "tdef.h"
 #include "tep.h"
@@ -88,9 +88,15 @@ typedef struct STscObj {
 } STscObj;
 
 typedef struct SClientResultInfo {
-  SSDataBlock *pData;
-  TAOS_FIELD  *resultFields;
+  const char  *pMsg;
+  const char  *pData;
+  TAOS_FIELD  *fields;
+  int32_t      numOfCols;
+  int32_t      numOfRows;
   int32_t      current;
+  int32_t     *length;
+  TAOS_ROW     row;
+  char       **pCol;
 } SClientResultInfo;
 
 typedef struct SReqBody {
@@ -98,6 +104,7 @@ typedef struct SReqBody {
   void*     fp;
   void*     param;
   int32_t   paramLen;
+  int64_t   execId;    // showId/queryId
   SClientResultInfo* pResInfo;
 } SRequestBody;
 
@@ -152,6 +159,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
 TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen);
 
 void* doFetchRow(SRequestObj* pRequest);
+void setResultDataPtr(SClientResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows);
 
 #ifdef __cplusplus
 }
