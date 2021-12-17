@@ -135,7 +135,7 @@ typedef struct _script_t {
   int32_t   numOfLines;  // number of lines in the script
   int32_t   bgScriptLen;
   char      fileName[MAX_FILE_NAME_LEN];  // script file name
-  char      error[MAX_ERROR_LEN];
+  char      error[TSDB_MAX_BINARY_LEN + 100];
   char *    optionBuffer;
   SCmdLine *lines;  // command list
   SVariable variables[MAX_VAR_LEN];

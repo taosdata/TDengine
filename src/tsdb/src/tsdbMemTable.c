@@ -99,17 +99,22 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
     STsdbBufPool *pBufPool = pRepo->pPool;
 
     SListNode *pNode = NULL;
-    bool recycleBlocks = pBufPool->nRecycleBlocks > 0;
+    bool addNew = false;
     if (tsdbLockRepo(pRepo) < 0) return -1;
     while ((pNode = tdListPopHead(pMemTable->bufBlockList)) != NULL) {
       if (pBufPool->nRecycleBlocks > 0) {
-        tsdbRecycleBufferBlock(pBufPool, pNode);
+        tsdbRecycleBufferBlock(pBufPool, pNode, false);
         pBufPool->nRecycleBlocks -= 1;
       } else {
-        tdListAppendNode(pBufPool->bufBlockList, pNode);
+       if(pBufPool->nElasticBlocks > 0 && listNEles(pBufPool->bufBlockList) > 2) {
+          tsdbRecycleBufferBlock(pBufPool, pNode, true);
+        } else {
+          tdListAppendNode(pBufPool->bufBlockList, pNode);
+          addNew = true;
+        }
       }      
     }
-    if (!recycleBlocks) {
+    if (addNew) {
       int code = pthread_cond_signal(&pBufPool->poolNotEmpty);
       if (code != 0) {
         if (tsdbUnlockRepo(pRepo) < 0) return -1;
@@ -555,7 +560,7 @@ static void tsdbFreeTableData(STableData *pTableData) {
   }
 }
 
-static char *tsdbGetTsTupleKey(const void *data) { return memRowTuple((SMemRow)data); }
+static char *tsdbGetTsTupleKey(const void *data) { return memRowKeys((SMemRow)data); }
 
 static int tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables) {
   ASSERT(pMemTable->maxTables < maxTables);
@@ -996,7 +1001,8 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
     if ((value == NULL) || isNull(value, pTCol->type)) {
       continue;
     }
-
+    // lock
+    TSDB_WLOCK_TABLE(pTable); 
     SDataCol *pDataCol = &(pLatestCols[idx]);
     if (pDataCol->pData == NULL) {
       pDataCol->pData = malloc(pTCol->bytes);
@@ -1012,6 +1018,8 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
     memcpy(pDataCol->pData, value, bytes);
     //tsdbInfo("updateTableLatestColumn vgId:%d cache column %d for %d,%s", REPO_ID(pRepo), j, pDataCol->bytes, (char*)pDataCol->pData);
     pDataCol->ts = memRowKey(row);
+    // unlock
+    TSDB_WUNLOCK_TABLE(pTable); 
   }
 }
 
@@ -1058,5 +1066,8 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow r
       updateTableLatestColumn(pRepo, pTable, row);
     }
   }
+
+  pTable->cacheLastConfigVersion = pRepo->cacheLastConfigVersion;
+
   return 0;
 }

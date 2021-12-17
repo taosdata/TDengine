@@ -392,9 +392,9 @@ void taosCleanUpTcpClient(void *chandle) {
 
 void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uint16_t port) {
   SClientObj *    pClientObj = shandle;
-  int32_t index = atomic_load_32(&pClientObj->index) % pClientObj->numOfThreads;
-    atomic_store_32(&pClientObj->index, index + 1);
-  SThreadObj *pThreadObj = pClientObj->pThreadObj[index];
+  int32_t rpc_index = atomic_load_32(&pClientObj->index) % pClientObj->numOfThreads;
+    atomic_store_32(&pClientObj->index, rpc_index + 1);
+  SThreadObj *pThreadObj = pClientObj->pThreadObj[rpc_index];
 
   SOCKET fd = taosOpenTcpClientSocket(ip, port, pThreadObj->ip);
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
@@ -403,12 +403,12 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
   if (fd <= 0) return NULL;
 #endif
 
-  struct sockaddr_in sin;
+  struct sockaddr_in rpc_sin;
   uint16_t localPort = 0;
-  unsigned int addrlen = sizeof(sin);
-  if (getsockname(fd, (struct sockaddr *)&sin, &addrlen) == 0 &&
-      sin.sin_family == AF_INET && addrlen == sizeof(sin)) {
-    localPort = (uint16_t)ntohs(sin.sin_port);
+  unsigned int addrlen = sizeof(rpc_sin);
+  if (getsockname(fd, (struct sockaddr *)&rpc_sin, &addrlen) == 0 &&
+      rpc_sin.sin_family == AF_INET && addrlen == sizeof(rpc_sin)) {
+    localPort = (uint16_t)ntohs(rpc_sin.sin_port);
   }
 
   SFdObj *pFdObj = taosMallocFdObj(pThreadObj, fd);
@@ -488,6 +488,12 @@ static int taosReadTcpData(SFdObj *pFdObj, SRecvInfo *pInfo) {
 
   msgLen = (int32_t)htonl((uint32_t)rpcHead.msgLen);
   int32_t size = msgLen + tsRpcOverhead;
+  // TODO: reason not found yet, workaround to avoid first
+  if (msgLen <= 0 || size < 0) {
+    tError("%s %p invalid size for malloc, msgLen:%d, size:%d", pThreadObj->label, pFdObj->thandle, msgLen, size);
+    return -1;
+  }
+
   buffer = malloc(size);
   if (NULL == buffer) {
     tError("%s %p TCP malloc(size:%d) fail", pThreadObj->label, pFdObj->thandle, msgLen);

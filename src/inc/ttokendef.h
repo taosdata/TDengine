@@ -135,12 +135,12 @@
 #define TK_USING                          117
 #define TK_NULL                           118
 #define TK_NOW                            119
-#define TK_SELECT                         120
-#define TK_UNION                          121
-#define TK_ALL                            122
-#define TK_DISTINCT                       123
-#define TK_FROM                           124
-#define TK_VARIABLE                       125
+#define TK_VARIABLE                       120
+#define TK_SELECT                         121
+#define TK_UNION                          122
+#define TK_ALL                            123
+#define TK_DISTINCT                       124
+#define TK_FROM                           125
 #define TK_INTERVAL                       126
 #define TK_EVERY                          127
 #define TK_SESSION                        128
@@ -211,6 +211,7 @@
 #define TK_INSERT                         193
 #define TK_INTO                           194
 #define TK_VALUES                         195
+#define TK_FILE                           196
 
 
 #define TK_SPACE                          300
@@ -219,7 +220,6 @@
 #define TK_HEX                            303   // hex number  0x123
 #define TK_OCT                            304   // oct number
 #define TK_BIN                            305   // bin format data 0b111
-#define TK_FILE                           306
 #define TK_QUESTION                       307   // denoting the placeholder of "?",when invoking statement bind query
 
 #endif

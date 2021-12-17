@@ -145,8 +145,8 @@ static int32_t mnodeCreateCluster() {
   SClusterObj *pCluster = malloc(sizeof(SClusterObj));
   memset(pCluster, 0, sizeof(SClusterObj));
   pCluster->createdTime = taosGetTimestampMs();
-  bool getuid = taosGetSystemUid(pCluster->uid);
-  if (!getuid) {
+  bool mnd_getuid = taosGetSystemUid(pCluster->uid);
+  if (!mnd_getuid) {
     strcpy(pCluster->uid, "tdengine2.0");
     mError("failed to get uid from system, set to default val %s", pCluster->uid);
   } else {

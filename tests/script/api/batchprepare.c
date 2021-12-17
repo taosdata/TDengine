@@ -1761,7 +1761,7 @@ int stmt_funcb_autoctb_e1(TAOS_STMT *stmt) {
   int code = taos_stmt_prepare(stmt, sql, 0);
   if (code != 0){
     printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
-    return -1;
+    exit(1);
   }
 
   int id = 0;
@@ -1797,9 +1797,44 @@ int stmt_funcb_autoctb_e1(TAOS_STMT *stmt) {
   return 0;
 }
 
+int stmt_multi_insert_check(TAOS_STMT *stmt) {
+  char *sql;
 
+  // The number of tag column list is not equal to the number of tag value list
+  sql = "insert into ? using stb1 (id1) tags(1,?) values(?,?,?,?,?,?,?,?,?,?)";
+  if (0 == taos_stmt_prepare(stmt, sql, 0)) {
+    printf("failed to check taos_stmt_prepare. sql:%s\n", sql);
+    exit(1);
+  }
 
+  // The number of column list is not equal to the number of value list
+  sql = "insert into ? using stb1 tags(1,?,2,?,4,?,6.0,?,'b') "
+      "(ts, b, v1, v2, v4, v8, f4, f8, bin) values(?,?,?,?,?,?,?,?,?,?)";
+  if (0 == taos_stmt_prepare(stmt, sql, 0)) {
+    printf("failed to check taos_stmt_prepare. sql:%s\n", sql);
+    exit(1);
+  }
 
+  sql = "insert into ? using stb1 () tags(1,?) values(?,?,?,?,?,?,?,?,?,?)";
+  if (0 == taos_stmt_prepare(stmt, sql, 0)) {
+    printf("failed to check taos_stmt_prepare. sql:%s\n", sql);
+    exit(1);
+  }
+
+  sql = "insert into ? using stb1 ( tags(1,?) values(?,?,?,?,?,?,?,?,?,?)";
+  if (0 == taos_stmt_prepare(stmt, sql, 0)) {
+    printf("failed to check taos_stmt_prepare. sql:%s\n", sql);
+    exit(1);
+  }
+
+  sql = "insert into ? using stb1 ) tags(1,?) values(?,?,?,?,?,?,?,?,?,?)";
+  if (0 == taos_stmt_prepare(stmt, sql, 0)) {
+    printf("failed to check taos_stmt_prepare. sql:%s\n", sql);
+    exit(1);
+  }
+
+  return 0;
+}
 
 //1 tables 10 records
 int stmt_funcb_autoctb_e2(TAOS_STMT *stmt) {
@@ -1985,7 +2020,7 @@ int stmt_funcb_autoctb_e2(TAOS_STMT *stmt) {
     code = taos_stmt_set_tbname_tags(stmt, buf, NULL);
     if (code != 0){
       printf("failed to execute taos_stmt_set_tbname_tags. code:%s\n", taos_stmt_errstr(stmt));
-      return -1;
+      goto exit;
     }  
 
     taos_stmt_bind_param_batch(stmt, params + id * 10);
@@ -2002,6 +2037,7 @@ int stmt_funcb_autoctb_e2(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
+exit:
   free(v.ts);  
   free(lb);
   free(params);
@@ -2192,7 +2228,7 @@ int stmt_funcb_autoctb_e3(TAOS_STMT *stmt) {
   int code = taos_stmt_prepare(stmt, sql, 0);
   if (code != 0){
     printf("failed to execute taos_stmt_prepare. code:%s\n", taos_stmt_errstr(stmt));
-    return -1;
+    goto exit;
     //exit(1);
   }
 
@@ -2220,6 +2256,7 @@ int stmt_funcb_autoctb_e3(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
+exit:
   free(v.ts);  
   free(lb);
   free(params);
@@ -2429,7 +2466,7 @@ int stmt_funcb_autoctb_e4(TAOS_STMT *stmt) {
     code = taos_stmt_bind_param_batch(stmt, params + id * 10);
     if (code != 0) {
       printf("failed to execute taos_stmt_bind_param_batch. error:%s\n", taos_stmt_errstr(stmt));
-      return -1;
+      goto exit;
     }
     
     taos_stmt_add_batch(stmt);
@@ -2445,6 +2482,7 @@ int stmt_funcb_autoctb_e4(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
+exit:
   free(v.ts);  
   free(lb);
   free(params);
@@ -2656,7 +2694,7 @@ int stmt_funcb_autoctb_e5(TAOS_STMT *stmt) {
     code = taos_stmt_bind_param_batch(stmt, params + id * 10);
     if (code != 0) {
       printf("failed to execute taos_stmt_bind_param_batch. error:%s\n", taos_stmt_errstr(stmt));
-      return -1;
+      goto exit;
     }
     
     taos_stmt_add_batch(stmt);
@@ -2672,6 +2710,8 @@ int stmt_funcb_autoctb_e5(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
 
+
+exit:
   free(v.ts);  
   free(lb);
   free(params);
@@ -2682,6 +2722,38 @@ int stmt_funcb_autoctb_e5(TAOS_STMT *stmt) {
   return 0;
 }
 
+
+int stmt_funcb_autoctb_e6(TAOS_STMT *stmt) {
+  char *sql = "insert into ? using stb1 tags(?,?,?,?,?,?,?,?,?) values(now,?,?,?,?,?,?,?,?,?)";
+  int code = taos_stmt_prepare(stmt, sql, 0);
+  if (code != 0){
+    printf("case success:failed to execute taos_stmt_prepare. code:%s\n", taos_stmt_errstr(stmt));
+  }
+
+  return 0;
+}
+
+
+int stmt_funcb_autoctb_e7(TAOS_STMT *stmt) {
+  char *sql = "insert into ? using stb1 tags(?,?,?,?,?,?,?,?,?) values(?,true,?,?,?,?,?,?,?,?)";
+  int code = taos_stmt_prepare(stmt, sql, 0);
+  if (code != 0){
+    printf("case success:failed to execute taos_stmt_prepare. code:%s\n", taos_stmt_errstr(stmt));
+  }
+
+  return 0;
+}
+
+
+int stmt_funcb_autoctb_e8(TAOS_STMT *stmt) {
+  char *sql = "insert into ? using stb1 tags(?,?,?,?,?,?,?,?,?) values(?,?,1,?,?,?,?,?,?,?)";
+  int code = taos_stmt_prepare(stmt, sql, 0);
+  if (code != 0){
+    printf("case success:failed to execute taos_stmt_prepare. code:%s\n", taos_stmt_errstr(stmt));
+  }
+
+  return 0;
+}
 
 
 //300 tables 60 records
@@ -4505,7 +4577,6 @@ void* runcase(void *par) {
 
   (void)idx;
 
-
 #if 1
     prepare(taos, 1, 1);
   
@@ -4820,6 +4891,54 @@ void* runcase(void *par) {
 #endif
 
 
+#if 1  
+  prepare(taos, 1, 0);
+
+  stmt = taos_stmt_init(taos);
+
+  printf("e6 start\n");
+  stmt_funcb_autoctb_e6(stmt);
+  printf("e6 end\n");
+  taos_stmt_close(stmt);
+
+#endif
+
+#if 1  
+  prepare(taos, 1, 0);
+
+  stmt = taos_stmt_init(taos);
+
+  printf("e7 start\n");
+  stmt_funcb_autoctb_e7(stmt);
+  printf("e7 end\n");
+  taos_stmt_close(stmt);
+
+#endif
+
+#if 1  
+  prepare(taos, 1, 0);
+
+  stmt = taos_stmt_init(taos);
+
+  printf("e8 start\n");
+  stmt_funcb_autoctb_e8(stmt);
+  printf("e8 end\n");
+  taos_stmt_close(stmt);
+  
+#endif
+
+
+#if 1
+  prepare(taos, 1, 0);
+
+  stmt = taos_stmt_init(taos);
+
+  printf("stmt_multi_insert_check start\n");
+  stmt_multi_insert_check(stmt);
+  printf("stmt_multi_insert_check end\n");
+  taos_stmt_close(stmt);
+#endif
+
 #if 1
   prepare(taos, 1, 1);
 
@@ -5006,7 +5125,6 @@ void* runcase(void *par) {
   check_result(taos, "m99", 0, 180000);
   printf("check result end\n");
 #endif  
-
 
 #if 1 
   preparem(taos, 0, idx);

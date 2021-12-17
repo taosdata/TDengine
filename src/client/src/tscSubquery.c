@@ -380,7 +380,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, STimeWindow * win) {
 
 
 // todo handle failed to create sub query
-SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, int32_t index) {
+SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, int32_t tsc_index) {
   SJoinSupporter* pSupporter = calloc(1, sizeof(SJoinSupporter));
   if (pSupporter == NULL) {
     return NULL;
@@ -388,13 +388,13 @@ SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, int32_t index) {
 
   pSupporter->pObj = pSql->self;
 
-  pSupporter->subqueryIndex = index;
+  pSupporter->subqueryIndex = tsc_index;
   SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
   
   memcpy(&pSupporter->interval, &pQueryInfo->interval, sizeof(pSupporter->interval));
   pSupporter->limit = pQueryInfo->limit;
 
-  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, index);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, tsc_index);
   pSupporter->uid = pTableMetaInfo->pTableMeta->id.uid;
   assert (pSupporter->uid != 0);
 
@@ -598,7 +598,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
      * during the timestamp intersection.
      */
     pSupporter->limit = pQueryInfo->limit;
-    SColumnIndex index = {.tableIndex = 0, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
+    SColumnIndex tsc_index = {.tableIndex = 0, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
     SSchema* s = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, 0);
 
     SExprInfo* pExpr = tscExprGet(pQueryInfo, 0);
@@ -610,7 +610,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
 
       int16_t functionId = tscIsProjectionQuery(pQueryInfo)? TSDB_FUNC_PRJ : TSDB_FUNC_TS;
 
-      tscAddFuncInSelectClause(pQueryInfo, 0, functionId, &index, s, TSDB_COL_NORMAL, getNewResColId(&pNew->cmd));
+      tscAddFuncInSelectClause(pQueryInfo, 0, functionId, &tsc_index, s, TSDB_COL_NORMAL, getNewResColId(&pNew->cmd));
       tscPrintSelNodeList(pNew, 0);
       tscFieldInfoUpdateOffset(pQueryInfo);
 
@@ -806,8 +806,8 @@ static void issueTsCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   
   SSchema colSchema = {.type = TSDB_DATA_TYPE_BINARY, .bytes = 1};
   
-  SColumnIndex index = {0, PRIMARYKEY_TIMESTAMP_COL_INDEX};
-  tscAddFuncInSelectClause(pQueryInfo, 0, TSDB_FUNC_TS_COMP, &index, &colSchema, TSDB_COL_NORMAL, getNewResColId(pCmd));
+  SColumnIndex tsc_index = {0, PRIMARYKEY_TIMESTAMP_COL_INDEX};
+  tscAddFuncInSelectClause(pQueryInfo, 0, TSDB_FUNC_TS_COMP, &tsc_index, &colSchema, TSDB_COL_NORMAL, getNewResColId(pCmd));
   
   // set the tags value for ts_comp function
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
@@ -2272,7 +2272,15 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
             if (row[i] == NULL) {
               setNull(p + offset, pExpr->base.resType, pExpr->base.resBytes);
             } else {
-              memcpy(p + offset, row[i], length[i]);
+              if(pExpr->base.resType == TSDB_DATA_TYPE_NCHAR){
+                int32_t output = 0;
+                bool ret = taosMbsToUcs4(row[i], length[i], p + offset, pExpr->base.resBytes, &output);
+                if (!ret) {
+                  tscError("stddev convert tag error:%d", ret);
+                }
+              }else{
+                memcpy(p + offset, row[i], length[i]);
+              }
             }
             offset += pExpr->base.resBytes;
           }
@@ -2424,7 +2432,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
 
   int32_t numOfExprs = (int32_t) tscNumOfExprs(pQueryInfo);
 
-  int32_t index = 0;
+  int32_t tsc_index = 0;
   for(int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
     if (pExpr->base.functionId == TSDB_FUNC_TS && pQueryInfo->interval.interval > 0) {
@@ -2433,7 +2441,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
       SColumnIndex colIndex = {.tableIndex = 0, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
       SSchema* schema = tscGetColumnSchemaById(pTableMetaInfo1->pTableMeta, pExpr->base.colInfo.colId);
 
-      SExprInfo* p = tscAddFuncInSelectClause(pNewQueryInfo, index++, TSDB_FUNC_TS, &colIndex, schema, TSDB_COL_NORMAL, getNewResColId(pCmd));
+      SExprInfo* p = tscAddFuncInSelectClause(pNewQueryInfo, tsc_index++, TSDB_FUNC_TS, &colIndex, schema, TSDB_COL_NORMAL, getNewResColId(pCmd));
       p->base.resColId = pExpr->base.resColId;  // update the result column id
     } else if (pExpr->base.functionId == TSDB_FUNC_STDDEV_DST) {
       taosArrayPush(pSup->pColsInfo, &pExpr->base.resColId);
@@ -2442,7 +2450,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
       SSchema schema = {.type = TSDB_DATA_TYPE_DOUBLE, .bytes = sizeof(double)};
       tstrncpy(schema.name, pExpr->base.aliasName, tListLen(schema.name));
 
-      SExprInfo* p = tscAddFuncInSelectClause(pNewQueryInfo, index++, TSDB_FUNC_AVG, &colIndex, &schema, TSDB_COL_NORMAL, getNewResColId(pCmd));
+      SExprInfo* p = tscAddFuncInSelectClause(pNewQueryInfo, tsc_index++, TSDB_FUNC_AVG, &colIndex, &schema, TSDB_COL_NORMAL, getNewResColId(pCmd));
       p->base.resColId = pExpr->base.resColId;  // update the result column id
     } else if (pExpr->base.functionId == TSDB_FUNC_TAG) {
       pSup->tagLen += pExpr->base.resBytes;
@@ -2455,7 +2463,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
         schema = tGetTbnameColumnSchema();
       }
 
-      SExprInfo* p = tscAddFuncInSelectClause(pNewQueryInfo, index++, TSDB_FUNC_TAG, &colIndex, schema, TSDB_COL_TAG, getNewResColId(pCmd));
+      SExprInfo* p = tscAddFuncInSelectClause(pNewQueryInfo, tsc_index++, TSDB_FUNC_TAG, &colIndex, schema, TSDB_COL_TAG, getNewResColId(pCmd));
       p->base.resColId = pExpr->base.resColId;
     } else if (pExpr->base.functionId == TSDB_FUNC_PRJ) {
       int32_t num = (int32_t) taosArrayGetSize(pNewQueryInfo->groupbyExpr.columnInfo);
@@ -2469,7 +2477,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
           SSchema* schema = tscGetColumnSchemaById(pTableMetaInfo1->pTableMeta, pExpr->base.colInfo.colId);
 
           //doLimitOutputNormalColOfGroupby
-          SExprInfo* p = tscAddFuncInSelectClause(pNewQueryInfo, index++, TSDB_FUNC_PRJ, &colIndex, schema, TSDB_COL_NORMAL, getNewResColId(pCmd));
+          SExprInfo* p = tscAddFuncInSelectClause(pNewQueryInfo, tsc_index++, TSDB_FUNC_PRJ, &colIndex, schema, TSDB_COL_NORMAL, getNewResColId(pCmd));
           p->base.numOfParams = 1;
           p->base.param[0].i64 = 1;
           p->base.param[0].nType = TSDB_DATA_TYPE_INT;
@@ -2511,7 +2519,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
       "0x%"PRIx64" first round subquery:0x%"PRIx64" tableIndex:%d, vgroupIndex:%d, numOfVgroups:%d, type:%d, query to retrieve timestamps, "
       "numOfExpr:%" PRIzu ", colList:%d, numOfOutputFields:%d, name:%s",
       pSql->self, pNew->self, 0, pTableMetaInfo->vgroupIndex, pTableMetaInfo->vgroupList->numOfVgroups, pNewQueryInfo->type,
-      tscNumOfExprs(pNewQueryInfo), index+1, pNewQueryInfo->fieldsInfo.numOfOutput, tNameGetTableName(&pTableMetaInfo->name));
+      tscNumOfExprs(pNewQueryInfo), tsc_index+1, pNewQueryInfo->fieldsInfo.numOfOutput, tNameGetTableName(&pTableMetaInfo->name));
 
   pSql->pSubs = calloc(1, POINTER_BYTES);
   if (pSql->pSubs == NULL) {
@@ -2881,7 +2889,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
     SSqlObj *userSql = pParentSql->rootObj;
 
     if ((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && userSql->retry < userSql->maxRetry) {
-      if (userSql != pParentSql) {
+      if (userSql != pParentSql && pParentSql->freeParam != NULL) {
         (*pParentSql->freeParam)(&pParentSql->param);
       }
 
@@ -3145,7 +3153,7 @@ static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsuppo
 
     assert(trsupport->subqueryIndex < pSql->subState.numOfSub);
     
-    // launch subquery for each vnode, so the subquery index equals to the vgroupIndex.
+    // launch subquery for each vnode, so the subquery tsc_index equals to the vgroupIndex.
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, table_index);
     pTableMetaInfo->vgroupIndex = trsupport->subqueryIndex;
 
@@ -3628,19 +3636,19 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
 char *getArithmeticInputSrc(void *param, const char *name, int32_t colId) {
   SArithmeticSupport *pSupport = (SArithmeticSupport *) param;
 
-  int32_t index = -1;
+  int32_t tsc_index = -1;
   SExprInfo* pExpr = NULL;
   
   for (int32_t i = 0; i < pSupport->numOfCols; ++i) {
     pExpr = taosArrayGetP(pSupport->exprList, i);
     if (strncmp(name, pExpr->base.aliasName, sizeof(pExpr->base.aliasName) - 1) == 0) {
-      index = i;
+      tsc_index = i;
       break;
     }
   }
 
-  assert(index >= 0 && index < pSupport->numOfCols);
-  return pSupport->data[index] + pSupport->offset * pExpr->base.resBytes;
+  assert(tsc_index >= 0 && tsc_index < pSupport->numOfCols);
+  return pSupport->data[tsc_index] + pSupport->offset * pExpr->base.resBytes;
 }
 
 TAOS_ROW doSetResultRowData(SSqlObj *pSql) {
@@ -3819,7 +3827,7 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
   pthread_mutex_init(&pQInfo->lock, NULL);
   tsem_init(&pQInfo->ready, 0, 0);
 
-  int32_t index = 0;
+  int32_t tsc_index = 0;
   for(int32_t i = 0; i < numOfGroups; ++i) {
     SArray* pa = taosArrayGetP(pQueryAttr->tableGroupInfo.pGroupList, i);
 
@@ -3836,7 +3844,7 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
       STableKeyInfo* info = taosArrayGet(pa, j);
       window.skey = info->lastKey;
 
-      void* buf = (char*) pQInfo->pBuf + index * sizeof(STableQueryInfo);
+      void* buf = (char*) pQInfo->pBuf + tsc_index * sizeof(STableQueryInfo);
       STableQueryInfo* item = createTableQueryInfo(pQueryAttr, info->pTable, pQueryAttr->groupbyColumn, window, buf);
       if (item == NULL) {
         goto _cleanup;
@@ -3847,7 +3855,7 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
 
       STableId id = {.tid = 0, .uid = 0};
       taosHashPut(pRuntimeEnv->tableqinfoGroupInfo.map, &id.tid, sizeof(id.tid), &item, POINTER_BYTES);
-      index += 1;
+      tsc_index += 1;
     }
   }
 

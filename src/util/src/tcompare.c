@@ -263,6 +263,7 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
 
     if (j <= size) {
       if (c == '\\' && patterStr[i] == '_' && c1 == '_') { i++; continue; }
+      if (c == '\\' && patterStr[i] == '%' && c1 == '%') { i++; continue; }
       if (c == c1 || tolower(c) == tolower(c1) || (c == pInfo->matchOne && c1 != 0)) {
         continue;
       }
@@ -294,9 +295,9 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
         return TSDB_PATTERN_MATCH;
       }
 
-      wchar_t accept[3] = {towupper(c), towlower(c), 0};
+      wchar_t utl_accept[3] = {towupper(c), towlower(c), 0};
       while (1) {
-        size_t n = wcscspn(str, accept);
+        size_t n = wcscspn(str, utl_accept);
 
         str += n;
         if (str[0] == 0 || (n >= size)) {
@@ -357,14 +358,20 @@ int32_t compareFindItemInSet(const void *pLeft, const void* pRight)  {
 
 int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
+  size_t size = varDataLen(pLeft)/TSDB_NCHAR_SIZE;
 
   assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
 
   wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
-  memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
+  wchar_t *str = calloc(size + 1, sizeof(wchar_t));
 
-  int32_t ret = WCSPatternMatch(pattern, varDataVal(pLeft), varDataLen(pLeft)/TSDB_NCHAR_SIZE, &pInfo);
+  memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
+  memcpy(str, varDataVal(pLeft), size * sizeof(wchar_t));
+
+  int32_t ret = WCSPatternMatch(pattern, str, size, &pInfo);
+
   free(pattern);
+  free(str);
 
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }

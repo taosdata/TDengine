@@ -45,15 +45,15 @@
 //}
 //
 ////min heap
-// void tHeapAdjust(SHeapEntry* pEntry, int32_t index, int32_t len) {
+// void tHeapAdjust(SHeapEntry* pEntry, int32_t qry_index, int32_t len) {
 //    SHeapEntry* ptr = NULL;
 //
 //    int32_t end = len - 1;
 //
-//    SHeapEntry p1 = pEntry[index];
-//    int32_t next = index;
+//    SHeapEntry p1 = pEntry[qry_index];
+//    int32_t next = qry_index;
 //
-//    for(int32_t i=index; i<=(end-1)/2; ) {
+//    for(int32_t i=qry_index; i<=(end-1)/2; ) {
 //        int32_t lc = (i<<1) + 1;
 //        int32_t rc = (i+1) << 1;
 //
@@ -119,7 +119,7 @@
 //    }
 //}
 
-static int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t index, double val);
+static int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t qry_index, double val);
 
 SHistogramInfo* tHistogramCreate(int32_t numOfEntries) {
   /* need one redundant slot */
@@ -390,39 +390,39 @@ static void histogramMergeImpl(SHistBin* pHistBin, int32_t* size) {
   int32_t oldSize = *size;
 
   double  delta = DBL_MAX;
-  int32_t index = -1;
+  int32_t qry_index = -1;
   for (int32_t i = 1; i < oldSize; ++i) {
     double d = pHistBin[i].val - pHistBin[i - 1].val;
     if (d < delta) {
       delta = d;
-      index = i - 1;
+      qry_index = i - 1;
     }
   }
 
-  SHistBin* s1 = &pHistBin[index];
-  SHistBin* s2 = &pHistBin[index + 1];
+  SHistBin* s1 = &pHistBin[qry_index];
+  SHistBin* s2 = &pHistBin[qry_index + 1];
 
   double newVal = (s1->val * s1->num + s2->val * s2->num) / (s1->num + s2->num);
   s1->val = newVal;
   s1->num = s1->num + s2->num;
 
-  memmove(&pHistBin[index + 1], &pHistBin[index + 2], (oldSize - index - 2) * sizeof(SHistBin));
+  memmove(&pHistBin[qry_index + 1], &pHistBin[qry_index + 2], (oldSize - qry_index - 2) * sizeof(SHistBin));
   (*size) -= 1;
 #endif
 }
 
 /* optimize this procedure */
-int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t index, double val) {
+int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t qry_index, double val) {
 #if defined(USE_ARRAYLIST)
-  int32_t remain = pHisto->numOfEntries - index;
+  int32_t remain = pHisto->numOfEntries - qry_index;
   if (remain > 0) {
-    memmove(&pHisto->elems[index + 1], &pHisto->elems[index], sizeof(SHistBin) * remain);
+    memmove(&pHisto->elems[qry_index + 1], &pHisto->elems[qry_index], sizeof(SHistBin) * remain);
   }
 
-  assert(index >= 0 && index <= pHisto->maxEntries);
+  assert(qry_index >= 0 && qry_index <= pHisto->maxEntries);
 
-  pHisto->elems[index].num = 1;
-  pHisto->elems[index].val = val;
+  pHisto->elems[qry_index].num = 1;
+  pHisto->elems[qry_index].val = val;
   pHisto->numOfEntries += 1;
 
   /* we need to merge the slot */

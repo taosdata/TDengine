@@ -231,7 +231,12 @@ SDbInfo **g_dbInfos = NULL;
 TableInfo *g_tablesList = NULL;
 
 const char *argp_program_version = version;
+#ifdef _TD_KH_
+const char *argp_program_bug_address = "<support@wellintech.com>";
+#else
 const char *argp_program_bug_address = "<support@taosdata.com>";
+#endif
+
 
 /* Program documentation. */
 static char doc[] = "";
@@ -252,22 +257,14 @@ static struct argp_option options[] = {
     // connection option
     {"host", 'h', "HOST",    0,  "Server host dumping data from. Default is localhost.", 0},
     {"user", 'u', "USER",    0,  "User name used to connect to server. Default is root.", 0},
-#ifdef _TD_POWER_
-    {"password", 'p', 0,    0,  "User password to connect to server. Default is powerdb.", 0},
-#else
     {"password", 'p', 0,    0,  "User password to connect to server. Default is taosdata.", 0},
-#endif
     {"port", 'P', "PORT",        0,  "Port to connect", 0},
     {"mysqlFlag",     'q', "MYSQLFLAG",   0,  "mysqlFlag, Default is 0", 0},
     // input/output file
     {"outpath", 'o', "OUTPATH",     0,  "Output file path.", 1},
     {"inpath", 'i', "INPATH",      0,  "Input file path.", 1},
     {"resultFile", 'r', "RESULTFILE",  0,  "DumpOut/In Result file path and name.", 1},
-#ifdef _TD_POWER_
-    {"config-dir", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/power/taos.cfg.", 1},
-#else
     {"config-dir", 'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/taos/taos.cfg.", 1},
-#endif
     {"encode", 'e', "ENCODE", 0,  "Input file encoding.", 1},
     // dump unit options
     {"all-databases", 'A', 0, 0,  "Dump all databases.", 2},
@@ -364,6 +361,12 @@ struct arguments g_args = {
     "root",
 #ifdef _TD_POWER_
     "powerdb",
+#elif (_TD_TQ_ == true)
+    "tqueue",
+#elif (_TD_PRO_ == true)
+    "prodb",
+#elif (_TD_KH_ == true)
+    "khroot",
 #else
     "taosdata",
 #endif
@@ -1972,7 +1975,7 @@ static int getTableDes(
     while ((row = taos_fetch_row(res)) != NULL) {
         tstrncpy(tableDes->cols[colCount].field,
                 (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
-                min(TSDB_COL_NAME_LEN + 1,
+                min(TSDB_COL_NAME_LEN,
                     fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes + 1));
         tstrncpy(tableDes->cols[colCount].type,
                 (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
@@ -2091,7 +2094,7 @@ static int getTableDes(
                     memset(tableDes->cols[i].value, 0, sizeof(tableDes->cols[i].note));
                     char tbuf[COL_NOTE_LEN-2];    // need reserve 2 bytes for ' '
                     convertNCharToReadable((char *)row[TSDB_SHOW_TABLES_NAME_INDEX], length[0], tbuf, COL_NOTE_LEN);
-                    sprintf(tableDes->cols[i].value, "\'%s\'", tbuf);
+                    sprintf(tableDes->cols[i].value, "%s", tbuf);
                     break;
                 }
             case TSDB_DATA_TYPE_TIMESTAMP:

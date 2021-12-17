@@ -45,7 +45,17 @@ int32_t    tscNumOfObj = 0;         // number of sqlObj in current process.
 static void  *tscCheckDiskUsageTmr;
 void      *tscRpcCache;            // cache to keep rpc obj
 int32_t    tscNumOfThreads = 1;     // num of rpc threads
+#ifdef _TD_POWER_
+char       tscLogFileName[12] = "powerlog";
+#elif (_TD_TQ_ == true)
+char       tscLogFileName[12] = "tqlog";
+#elif (_TD_PRO_ == true)
+char       tscLogFileName[12] = "prolog";
+#elif (_TD_KH_ == true)
+char       tscLogFileName[12] = "khclientlog";
+#else
 char       tscLogFileName[12] = "taoslog";
+#endif
 int        tscLogFileNum = 10;
 
 static pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently
@@ -84,27 +94,27 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
     return 0;
   }
 
-  SRpcInit rpcInit;
-  memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localPort = 0;
-  rpcInit.label = "TSC";
-  rpcInit.numOfThreads = tscNumOfThreads;    
-  rpcInit.cfp = tscProcessMsgFromServer;
-  rpcInit.sessions = tsMaxConnections;
-  rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcInit.user = (char *)user;
-  rpcInit.idleTime = tsShellActivityTimer * 1000; 
-  rpcInit.ckey = "key"; 
-  rpcInit.spi = 1; 
-  rpcInit.secret = (char *)secretEncrypt;
+  SRpcInit tsc_rpcInit;
+  memset(&tsc_rpcInit, 0, sizeof(tsc_rpcInit));
+  tsc_rpcInit.localPort = 0;
+  tsc_rpcInit.label = "TSC";
+  tsc_rpcInit.numOfThreads = tscNumOfThreads;    
+  tsc_rpcInit.cfp = tscProcessMsgFromServer;
+  tsc_rpcInit.sessions = tsMaxConnections;
+  tsc_rpcInit.connType = TAOS_CONN_CLIENT;
+  tsc_rpcInit.user = (char *)user;
+  tsc_rpcInit.idleTime = tsShellActivityTimer * 1000; 
+  tsc_rpcInit.ckey = "key"; 
+  tsc_rpcInit.spi = 1; 
+  tsc_rpcInit.secret = (char *)secretEncrypt;
 
   SRpcObj rpcObj;
   memset(&rpcObj, 0, sizeof(rpcObj));
   strncpy(rpcObj.key, key, strlen(key));
-  rpcObj.pDnodeConn = rpcOpen(&rpcInit);
+  rpcObj.pDnodeConn = rpcOpen(&tsc_rpcInit);
   if (rpcObj.pDnodeConn == NULL) {
     pthread_mutex_unlock(&rpcObjMutex);
-    tscError("failed to init connection to TDengine");
+    tscError("failed to init connection to server");
     return -1;
   }
 
@@ -158,8 +168,7 @@ void taos_init_imp(void) {
     rpcInit();
 
     scriptEnvPoolInit();
-
-    tscDebug("starting to initialize TAOS client ...");
+    tscDebug("starting to initialize client ...");
     tscDebug("Local End Point is:%s", tsLocalEp);
   }
 

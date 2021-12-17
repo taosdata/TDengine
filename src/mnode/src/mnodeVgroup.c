@@ -298,7 +298,7 @@ void mnodeCheckUnCreatedVgroup(SDnodeObj *pDnode, SVnodeLoad *pVloads, int32_t o
 
         if (have) continue;
 
-        if (pVgroup->status == TAOS_VG_STATUS_CREATING || pVgroup->status == TAOS_VG_STATUS_DROPPING) {
+        if (/*pVgroup->status == TAOS_VG_STATUS_CREATING ||*/ pVgroup->status == TAOS_VG_STATUS_DROPPING) {
           mDebug("vgId:%d, not exist in dnode:%d and status is %s, do nothing", pVgroup->vgId, pDnode->dnodeId,
                  vgroupStatus[pVgroup->status]);
         } else {
@@ -742,19 +742,6 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
   return 0;
 }
 
-static bool mnodeFilterVgroups(SVgObj *pVgroup, STableObj *pTable) {
-  if (NULL == pTable || pTable->type == TSDB_SUPER_TABLE) {
-    return true;
-  }
-
-  SCTableObj *pCTable = (SCTableObj *)pTable;
-  if (pVgroup->vgId == pCTable->vgId) {
-    return true;
-  } else {
-    return false;
-  }
-}
-
 static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t numOfRows = 0;
   SVgObj *pVgroup = NULL;
@@ -770,21 +757,11 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
     return 0;
   }
 
-  STableObj *pTable = NULL;
-  if (pShow->payloadLen > 0 ) {
-    pTable = mnodeGetTable(pShow->payload);
-  }
-
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextVgroup(pShow->pIter, &pVgroup);
     if (pVgroup == NULL) break;
 
     if (pVgroup->pDb != pDb) {
-      mnodeDecVgroupRef(pVgroup);
-      continue;
-    }
-
-    if (!mnodeFilterVgroups(pVgroup, pTable)) {
       mnodeDecVgroupRef(pVgroup);
       continue;
     }
@@ -842,7 +819,6 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
   mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
 
   pShow->numOfReads += numOfRows;
-  mnodeDecTableRef(pTable);
   mnodeDecDbRef(pDb);
 
   return numOfRows;

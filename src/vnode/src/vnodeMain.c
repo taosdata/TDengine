@@ -519,9 +519,9 @@ void vnodeCleanUp(SVnodeObj *pVnode) {
 
   // stop replication module
   if (pVnode->sync > 0) {
-    int64_t sync = pVnode->sync;
+    int64_t vnd_sync = pVnode->sync;
     pVnode->sync = -1;
-    syncStop(sync);
+    syncStop(vnd_sync);
   }
 
   vDebug("vgId:%d, vnode is cleaned, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
@@ -558,6 +558,11 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
       walRemoveOneOldFile(pVnode->wal);
     }
     return vnodeSaveVersion(pVnode);
+  }
+
+  // timer thread callback
+  if(status == TSDB_STATUS_COMMIT_NOBLOCK) {
+    qSolveCommitNoBlock(pVnode->tsdb, pVnode->qMgmt);
   }
 
   return 0;

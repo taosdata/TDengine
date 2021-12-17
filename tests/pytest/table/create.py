@@ -28,6 +28,8 @@ class TDTestCase:
 
         print("==============step1")
         print("prepare data")
+        tdSql.error("create table db.st1 (ts timestamp(8), i int) tags(j int)")
+        tdSql.error("create table db.st2 (ts timestamp, i int(2)) tags(j int)")
         tdSql.execute("create table db.st (ts timestamp, i int) tags(j int)")
         tdSql.execute("create table db.tb using st tags(1)")
         tdSql.execute("insert into db.tb values(now, 1)")
@@ -61,6 +63,9 @@ class TDTestCase:
         tdSql.execute("use db2")
         tdSql.execute("create table stb(ts timestamp, c int) tags(t int)")
         tdSql.error("insert into db2.tb6 using db2.stb tags(1) values(now 1) tb2 using db2. tags( )values(now 2)")
+
+        # case for TD-10691
+        tdSql.error("create table ttb1(ts timestamp, file int )")
         
     def stop(self):
         tdSql.close()

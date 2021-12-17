@@ -860,13 +860,13 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
     
     int32_t vgId = -1;
     if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-      int32_t index = pTableMetaInfo->vgroupIndex;
-      assert(index >= 0);
+      int32_t tsc_index = pTableMetaInfo->vgroupIndex;
+      assert(tsc_index >= 0);
 
       SVgroupInfo* pVgroupInfo = NULL;
       if (pTableMetaInfo->vgroupList && pTableMetaInfo->vgroupList->numOfVgroups > 0) {
-        assert(index < pTableMetaInfo->vgroupList->numOfVgroups);
-        pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[index];
+        assert(tsc_index < pTableMetaInfo->vgroupList->numOfVgroups);
+        pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[tsc_index];
       } else {
         tscError("0x%"PRIx64" No vgroup info found", pSql->self);
         
@@ -876,7 +876,7 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
 
       vgId = pVgroupInfo->vgId;
       tscSetDnodeEpSet(&pSql->epSet, pVgroupInfo);
-      tscDebug("0x%"PRIx64" query on stable, vgIndex:%d, numOfVgroups:%d", pSql->self, index, pTableMetaInfo->vgroupList->numOfVgroups);
+      tscDebug("0x%"PRIx64" query on stable, vgIndex:%d, numOfVgroups:%d", pSql->self, tsc_index, pTableMetaInfo->vgroupList->numOfVgroups);
     } else {
       vgId = pTableMeta->vgId;
 
@@ -898,11 +898,11 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
     pQueryMsg->numOfTables = htonl(1);  // set the number of tables
     pMsg += sizeof(STableIdInfo);
   } else { // it is a subquery of the super table query, this EP info is acquired from vgroupInfo
-    int32_t index = pTableMetaInfo->vgroupIndex;
+    int32_t tsc_index = pTableMetaInfo->vgroupIndex;
     int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
-    assert(index >= 0 && index < numOfVgroups);
+    assert(tsc_index >= 0 && tsc_index < numOfVgroups);
 
-    SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, index);
+    SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, tsc_index);
 
     // set the vgroup info 
     tscSetDnodeEpSet(&pSql->epSet, &pTableIdList->vgInfo);
@@ -912,7 +912,7 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
     pQueryMsg->numOfTables = htonl(numOfTables);  // set the number of tables
 
     tscDebug("0x%"PRIx64" query on stable, vgId:%d, numOfTables:%d, vgIndex:%d, numOfVgroups:%d", pSql->self,
-             pTableIdList->vgInfo.vgId, numOfTables, index, numOfVgroups);
+             pTableIdList->vgInfo.vgId, numOfTables, tsc_index, numOfVgroups);
 
     // serialize each table id info
     for(int32_t i = 0; i < numOfTables; ++i) {
@@ -980,7 +980,11 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  assert(pExpr->resColId < 0);
+  if (pExpr->resColId >= 0) {
+    tscError("result column id underflowed: %d", pExpr->resColId);
+    return TSDB_CODE_TSC_RES_TOO_MANY;
+  }
+
   SSqlExpr* pSqlExpr = (SSqlExpr *)(*pMsg);
 
   SColIndex* pIndex = &pSqlExpr->colInfo;
@@ -1237,6 +1241,11 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // support only one udf
   if (pQueryInfo->pUdfInfo != NULL && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0) {
+    if (taosArrayGetSize(pQueryInfo->pUdfInfo) > 1) {
+      code = tscInvalidOperationMsg(pCmd->payload, "only one udf allowed", NULL);
+      goto _end;
+    }
+    
     pQueryMsg->udfContentOffset = htonl((int32_t) (pMsg - pCmd->payload));
     for(int32_t i = 0; i < taosArrayGetSize(pQueryInfo->pUdfInfo); ++i) {
       SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, i);
@@ -2616,18 +2625,18 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   
   SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
   
-  SColumnIndex index = {0};
+  SColumnIndex tsc_index = {0};
   pSchema = pMetaMsg->schema;
 
   uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
   for (int16_t i = 0; i < pMetaMsg->numOfColumns; ++i, ++pSchema) {
-    index.columnIndex = i;
+    tsc_index.columnIndex = i;
     tscColumnListInsert(pQueryInfo->colList, i, uid, pSchema);
     
     TAOS_FIELD f = tscCreateField(pSchema->type, pSchema->name, pSchema->bytes);
     SInternalField* pInfo = tscFieldInfoAppend(pFieldInfo, &f);
     
-    pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index,
+    pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &tsc_index,
                      pTableSchema[i].type, pTableSchema[i].bytes, getNewResColId(pCmd), pTableSchema[i].bytes, false);
   }
   
@@ -3137,15 +3146,19 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   SSqlCmd* pCmd2 = &pSql->rootObj->cmd;
   pCmd2->pTableMetaMap = tscCleanupTableMetaMap(pCmd2->pTableMetaMap);
   pCmd2->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-  
+
   pSql->rootObj->retryReason = pSql->retryReason;
+
+  SSqlObj *tmpSql = pSql->rootObj;
+  tscFreeSubobj(pSql->rootObj);
+  tfree(tmpSql->pSubs);
 
   SArray* pNameList = taosArrayInit(1, POINTER_BYTES);
   SArray* vgroupList = taosArrayInit(1, POINTER_BYTES);
 
   char* n = strdup(name);
   taosArrayPush(pNameList, &n);
-  code = getMultiTableMetaFromMnode(pSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
+  code = getMultiTableMetaFromMnode(tmpSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
   taosArrayDestroyEx(pNameList, freeElem);
   taosArrayDestroyEx(vgroupList, freeElem);
 

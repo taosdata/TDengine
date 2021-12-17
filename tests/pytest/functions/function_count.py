@@ -74,6 +74,25 @@ class TDTestCase:
         tdSql.execute("alter table test add column col10 int")
         tdSql.query("select count(col10) from test")        
         tdSql.checkRows(0)
+        
+        #TS-653 forbidden count(tbname) to mix up with agg, proj etc.
+        tdSql.error("select count(*),count(tbname) from test")
+        tdSql.error("select col11,count(tbname) from test;")
+        tdSql.error("select count(tbname),count(*) from test")
+        tdSql.error("select count(tbname),col11 from test;")
+        func_list=['avg','count','twa','sum','stddev','leastsquares','min',
+                    'max','first','last','top','bottom','percentile','apercentile',
+                    'last_row','diff','spread'
+        ]
+        for j in func_list:
+            if j == 'leastsquares':
+                pick_func=j+'(col1,1,1)'
+            elif j == 'top' or j == 'bottom' or j == 'percentile' or j == 'apercentile':
+                pick_func=j+'(col1,1)'
+            else:
+                pick_func=j+'(col)'
+            tdSql.error("select {0},count(tbname) from test".format(pick_func))
+            tdSql.error("select count(tbname),{0} from test".format(pick_func))
 
         tdSql.execute("insert into test1 values(now, 1, 2, 3, 4, 1.1, 2.2, false, 'test', 'test' , 1, 1, 1, 1, 1)")
         tdSql.query("select count(col10) from test")        

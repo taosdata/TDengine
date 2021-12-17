@@ -126,9 +126,9 @@ static SQueryNode* doAddTableColumnNode(SQueryInfo* pQueryInfo, STableMetaInfo* 
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumn* pCol = taosArrayGetP(tableCols, i);
 
-      SColumnIndex index = {.tableIndex = 0, .columnIndex = pCol->columnIndex};
-      STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo, index.tableIndex);
-      SExprInfo*   p = tscExprCreate(pTableMetaInfo1, TSDB_FUNC_PRJ, &index, pCol->info.type, pCol->info.bytes,
+      SColumnIndex qry_index = {.tableIndex = 0, .columnIndex = pCol->columnIndex};
+      STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo, qry_index.tableIndex);
+      SExprInfo*   p = tscExprCreate(pTableMetaInfo1, TSDB_FUNC_PRJ, &qry_index, pCol->info.type, pCol->info.bytes,
                                      pCol->info.colId, 0, TSDB_COL_NORMAL);
       strncpy(p->base.aliasName, pSchema[pCol->columnIndex].name, tListLen(p->base.aliasName));
 
@@ -645,6 +645,12 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     } else {
       op = OP_Project;
       taosArrayPush(plan, &op);
+
+      if (pQueryAttr->pExpr2 != NULL) {
+        op = OP_Project;
+        taosArrayPush(plan, &op);
+      }
+
       if (pQueryAttr->distinct) {
         op = OP_Distinct;
         taosArrayPush(plan, &op);

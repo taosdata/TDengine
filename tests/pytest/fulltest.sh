@@ -29,6 +29,7 @@ python3 ./test.py -f insert/in_function.py
 python3 ./test.py -f insert/modify_column.py
 python3 ./test.py -f insert/line_insert.py
 python3 ./test.py -f insert/specialSql.py
+python3 ./test.py -f insert/timestamp.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
@@ -42,6 +43,7 @@ python3 ./test.py -f table/alter_column.py
 python3 ./test.py -f table/boundary.py
 python3 ./test.py -f table/create.py
 python3 ./test.py -f table/del_stable.py
+python3 ./test.py -f table/create_db_from_normal_db.py
 
 #stable
 python3 ./test.py -f stable/insert.py
@@ -264,10 +266,12 @@ python3 ./test.py -f query/queryStateWindow.py
 # python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
 python3 ./test.py -f query/nestedQuery/nestedQuery.py
+python3 ./test.py -f query/nestedQuery/nestedQuery_datacheck.py
 python3 ./test.py -f query/queryCnameDisplay.py
 python3 ./test.py -f query/operator_cost.py
 python3 test.py -f query/nestedQuery/queryWithSpread.py
 python3 ./test.py -f query/bug6586.py
+# python3 ./test.py -f query/bug5903.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -357,7 +361,7 @@ python3 ./test.py -f query/last_row_cache.py
 python3 ./test.py -f account/account_create.py
 python3 ./test.py -f alter/alter_table.py
 python3 ./test.py -f query/queryGroupbySort.py
-python3 ./test.py -f functions/queryTestCases.py
+#python3 ./test.py -f functions/queryTestCases.py
 python3 ./test.py -f functions/function_stateWindow.py
 python3 ./test.py -f functions/function_derivative.py
 python3 ./test.py  -f functions/function_irate.py
@@ -398,6 +402,7 @@ python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
 python3 ./test.py -f query/queryGroupTbname.py
 python3 ./test.py -f insert/verifyMemToDiskCrash.py
+python3 ./test.py -f functions/variable_httpDbNameMandatory.py
 
 #======================p4-end===============
 

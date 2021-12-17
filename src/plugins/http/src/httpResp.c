@@ -52,8 +52,14 @@ static void httpSendErrorRespImp(HttpContext *pContext, int32_t httpCode, char *
 
   int8_t httpVersion = 0;
   int8_t keepAlive = 0;
+
   if (pContext->parser != NULL) {
     httpVersion = pContext->parser->httpVersion;
+  }
+
+  if (pContext->error == true) {
+    keepAlive = HTTP_KEEPALIVE_DISABLE;
+  } else if (pContext->parser != NULL) {
     keepAlive = pContext->parser->keepAlive;
   }
 

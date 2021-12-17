@@ -12,12 +12,17 @@ https://grafana.com/grafana/download.
 
 ### Configure Grafana
 
-TDengine Grafana plugin is in the /usr/local/taos/connector/grafanaplugin directory. 
+Download grafana plugin from <https://github.com/taosdata/grafanaplugin/releases/latest> .
+
+```bash
+GF_VERSION=3.1.1
+wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
+```
 
 Taking Centos 7.2 as an example, just copy grafanaplugin directory to /var/lib/grafana/plugins directory and restart Grafana.
 
 ```bash
-sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/plugins/tdengine
+sudo unzip tdengine-datasource-$GF_VERSION.zip /var/lib/grafana/plugins/
 ```
 
 ### Use Grafana
@@ -64,15 +69,15 @@ According to the default prompt, query the average system memory usage at the sp
 
 #### Import Dashboard
 
-A `tdengine-grafana.json` importable dashboard is provided under the Grafana plug-in directory/usr/local/taos/connector/grafana/tdengine/dashboard/.
+We provide an example dashboard [Grafana Dashboard 15146](https://grafana.com/grafana/dashboards/15146)。
 
-Click the `Import` button on the left panel and upload the  `tdengine-grafana.json` file:
+Click the `Import` button on the left panel and load the grafana id:
 
 ![img](page://images/connections/import_dashboard1.jpg)
 
 You can see as follows after Dashboard imported.
 
-![img](page://images/connections/import_dashboard2.jpg)
+![img](../images/connections/dashboard-15146.png)
 
 ## <a class="anchor" id="matlab"></a> MATLAB
 

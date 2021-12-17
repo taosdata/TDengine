@@ -43,6 +43,8 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 
 #define GET_NUM_OF_RESULTS(_r) (((_r)->outputBuf) == NULL? 0:((_r)->outputBuf)->info.rows)
 
+#define RESET_NUM_OF_RESULTS(_r) (((_r)->outputBuf) == NULL? 0:(((_r)->outputBuf)->info.rows = 0))
+
 enum {
   // when query starts to execute, this status will set
       QUERY_NOT_COMPLETED = 0x1u,
@@ -310,7 +312,8 @@ typedef struct SQueryRuntimeEnv {
   STableQueryInfo      *current;
   SRspResultInfo        resultInfo;
   SHashObj             *pTableRetrieveTsMap;
-  SUdfInfo             *pUdfInfo;
+  SUdfInfo             *pUdfInfo;  
+  bool                  udfIsCopy;
 } SQueryRuntimeEnv;
 
 enum {
@@ -389,6 +392,7 @@ typedef struct SQInfo {
   int32_t          dataReady;   // denote if query result is ready or not
   void*            rspContext;  // response context
   int64_t          startExecTs; // start to exec timestamp
+  int64_t          lastRetrieveTs; // last retrieve timestamp
   char*            sql;         // query sql string
   SQueryCostInfo   summary;
 } SQInfo;
