@@ -4171,7 +4171,6 @@ static int32_t doCheckDbOptions(SCreateDbMsg* pCreate, SMsgBuf* pMsgBuf) {
   return TSDB_CODE_SUCCESS;
 }
 
-
 int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, int64_t id, void** output, int32_t* outputLen, int32_t* type, char* msgBuf, int32_t msgBufLen) {
   int32_t code = 0;
 

@@ -79,7 +79,6 @@ static int32_t setKeepOption(SCreateDbMsg* pMsg, const SCreateDbInfo* pCreateDb,
 //    pMsg->daysToKeep0 = htonl((int32_t)p0->pVar.i64);
 //    pMsg->daysToKeep1 = htonl((int32_t)p1->pVar.i64);
 //    pMsg->daysToKeep2 = htonl((int32_t)p2->pVar.i64);
-
   }
 
   return TSDB_CODE_SUCCESS;
@@ -152,7 +151,9 @@ SCreateDbMsg* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, char* msgBuf, int32
   SMsgBuf msg = {.buf = msgBuf, .len = msgLen};
   if (setDbOptions(pCreateMsg, pCreateDbInfo, &msg) != TSDB_CODE_SUCCESS) {
     tfree(pCreateMsg);
-    return TSDB_CODE_TSC_INVALID_OPERATION;
+    terrno = TSDB_CODE_TSC_INVALID_OPERATION;
+
+    return NULL;
   }
 
   return pCreateMsg;
