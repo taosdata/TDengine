@@ -34,6 +34,13 @@ enum OPERATOR_TYPE_E {
   OP_TotalNum
 };
 
+enum DATASINK_TYPE_E {
+  DSINK_Unknown,
+  DSINK_Dispatch,
+  DSINK_Insert,
+  DSINK_TotalNum
+};
+
 struct SEpSet;
 struct SQueryStmtInfo;
 
@@ -48,6 +55,22 @@ typedef struct SQueryNodeBasicInfo {
   int32_t     type;          // operator type
   const char *name;          // operator name
 } SQueryNodeBasicInfo;
+
+typedef struct SDataSink {
+  SQueryNodeBasicInfo info;
+  SDataBlockSchema schema;
+} SDataSink;
+
+typedef struct SDataDispatcher {
+  SDataSink sink;
+  // todo
+} SDataDispatcher;
+
+typedef struct SDataInserter {
+  SDataSink sink;
+  uint64_t    uid;  // unique id of the table
+  // todo data field
+} SDataInserter;
 
 typedef struct SPhyNode {
   SQueryNodeBasicInfo info;
@@ -113,15 +136,16 @@ typedef struct SQueryDag {
  */
 int32_t qCreateQueryDag(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* pQnode, struct SQueryDag** pDag);
 
-int32_t qSetSuplanExecutionNode(SArray* subplans, SArray* nodes);
+int32_t qSetSuplanExecutionNode(SSubplan* subplan, SArray* nodes);
 
 int32_t qExplainQuery(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* pQnode, char** str);
-
 
 /**
  * Convert to subplan to string for the scheduler to send to the executor
  */
-int32_t qSubPlanToString(struct SSubplan *pPhyNode, char** str);
+int32_t qSubPlanToString(const SSubplan* subplan, char** str);
+
+int32_t qStringToSubplan(const char* str, SSubplan** subplan);
 
 /**
  * Destroy the physical plan.
