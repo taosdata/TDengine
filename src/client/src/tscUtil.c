@@ -132,7 +132,7 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
   return TSDB_CODE_SUCCESS;
 }
 
-static void tscStrToLower(char* str, int32_t n) {
+UNUSED_FUNC static void tscStrToLower(char* str, int32_t n) {
   if (str == NULL || n <= 0) { return;}
   for (int32_t i = 0; i < n; i++) {
     if (str[i] >= 'A' && str[i] <= 'Z') {
@@ -3028,7 +3028,8 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
     if (pToken->type == TK_STRING) {
 
       tscDequoteAndTrimToken(pToken);
-      tscStrToLower(pToken->z, pToken->n);
+      // tscStrToLower(pToken->z, pToken->n);
+      strntolower(pToken->z, pToken->z, pToken->n);
       //pToken->n = (uint32_t)strtrim(pToken->z);
 
       int len = tGetToken(pToken->z, &pToken->type);
@@ -3046,7 +3047,6 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
         return tscValidateName(pToken, escapeEnabled, NULL);
       }
     } else if (pToken->type == TK_ID) {
-      strntolower(pToken->z, pToken->z, pToken->n);
       tscRmEscapeAndTrimToken(pToken);
 
       if (pToken->n == 0) {
