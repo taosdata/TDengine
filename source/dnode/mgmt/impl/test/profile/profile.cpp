@@ -216,17 +216,14 @@ TEST_F(DndTestProfile, SConnectMsg_03) {
     SRetrieveTableRsp* pRsp = (SRetrieveTableRsp*)pMsg->pCont;
     ASSERT_NE(pRsp, nullptr);
     pRsp->numOfRows = htonl(pRsp->numOfRows);
-    pRsp->offset = htobe64(pRsp->offset);
     pRsp->useconds = htobe64(pRsp->useconds);
     pRsp->compLen = htonl(pRsp->compLen);
 
     EXPECT_EQ(pRsp->numOfRows, 1);
-    EXPECT_EQ(pRsp->offset, 0);
     EXPECT_EQ(pRsp->useconds, 0);
     EXPECT_EQ(pRsp->completed, 1);
     EXPECT_EQ(pRsp->precision, TSDB_TIME_PRECISION_MILLI);
     EXPECT_EQ(pRsp->compressed, 0);
-    EXPECT_EQ(pRsp->reserved, 0);
     EXPECT_EQ(pRsp->compLen, 0);
   }
 }
@@ -497,7 +494,7 @@ TEST_F(DndTestProfile, SKillQueryMsg_03) {
     EXPECT_STREQ(pSchema->name, "queryId");
 
     pSchema = &pMeta->pSchema[1];
-    pSchema->bytes = htons(pSchema->bytes);
+    pSchema->bytes = htonl(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
     EXPECT_EQ(pSchema->bytes, 4);

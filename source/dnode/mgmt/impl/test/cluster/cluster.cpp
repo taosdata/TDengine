@@ -88,7 +88,7 @@ class DndTestCluster : public ::testing::Test {
 
   void CheckSchema(int32_t index, int8_t type, int32_t bytes, const char* name) {
     SSchema* pSchema = &pMeta->pSchema[index];
-    pSchema->bytes = htons(pSchema->bytes);
+    pSchema->bytes = htonl(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, type);
     EXPECT_EQ(pSchema->bytes, bytes);
@@ -114,17 +114,14 @@ class DndTestCluster : public ::testing::Test {
     pRetrieveRsp = (SRetrieveTableRsp*)pClient->pRsp->pCont;
     ASSERT_NE(pRetrieveRsp, nullptr);
     pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
-    pRetrieveRsp->offset = htobe64(pRetrieveRsp->offset);
     pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);
     pRetrieveRsp->compLen = htonl(pRetrieveRsp->compLen);
 
     EXPECT_EQ(pRetrieveRsp->numOfRows, rows);
-    EXPECT_EQ(pRetrieveRsp->offset, 0);
     EXPECT_EQ(pRetrieveRsp->useconds, 0);
     // EXPECT_EQ(pRetrieveRsp->completed, completed);
     EXPECT_EQ(pRetrieveRsp->precision, TSDB_TIME_PRECISION_MILLI);
     EXPECT_EQ(pRetrieveRsp->compressed, 0);
-    EXPECT_EQ(pRetrieveRsp->reserved, 0);
     EXPECT_EQ(pRetrieveRsp->compLen, 0);
 
     pData = pRetrieveRsp->data;
@@ -164,7 +161,7 @@ TEST_F(DndTestCluster, 01_ShowCluster) {
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_CLUSTER, "show cluster", 3, NULL);
   CheckSchema(0, TSDB_DATA_TYPE_INT, 4, "id");
   CheckSchema(1, TSDB_DATA_TYPE_BINARY, TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE, "name");
-  CheckSchema(2, TSDB_DATA_TYPE_TIMESTAMP, 8, "create time");
+  CheckSchema(2, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
 
   SendThenCheckShowRetrieveMsg(1);
   CheckInt32();
