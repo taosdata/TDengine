@@ -168,11 +168,7 @@ static SMemAllocator *vBufPoolCreateMA(SMemAllocatorFactory *pMAF) {
   pWrapper->pVMA = pVnode->pBufPool->inuse;
 
   pMA->impl = pWrapper;
-  pMA->malloc = vmaMaloocCb;
-  pMA->calloc = NULL;
-  pMA->realloc = NULL;
-  pMA->free = NULL;
-  pMA->usage = NULL;
+  TD_MA_MALLOC_FUNC(pMA) = vmaMaloocCb;
 
   return pMA;
 }
