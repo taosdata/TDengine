@@ -512,6 +512,7 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   }
 
   // Check keep
+#if 0  // already checked and set in mnodeSetDefaultDbCfg
   if (pCfg->keep == -1) {
     pCfg->keep = TSDB_DEFAULT_KEEP;
   } else {
@@ -532,7 +533,25 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   if (pCfg->keep2 == 0) {
     pCfg->keep2 = pCfg->keep;
   }
+#endif
 
+  int32_t keepMin = pCfg->keep1;
+  int32_t keepMid = pCfg->keep2;
+  int32_t keepMax = pCfg->keep;
+
+  if (keepMin > keepMid) {
+    SWAP(keepMin, keepMid, int32_t);
+  }
+  if (keepMin > keepMax) {
+    SWAP(keepMin, keepMax, int32_t);
+  }
+  if (keepMid > keepMax) {
+    SWAP(keepMid, keepMax, int32_t);
+  }
+
+  pCfg->keep = keepMax;
+  pCfg->keep1 = keepMin;
+  pCfg->keep2 = keepMid;
   // update check
   if (pCfg->update < TD_ROW_DISCARD_UPDATE || pCfg->update > TD_ROW_PARTIAL_UPDATE)
     pCfg->update = TD_ROW_DISCARD_UPDATE;
@@ -660,9 +679,9 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   int numColumns;
   int32_t blockIdx;
   SDataStatis* pBlockStatis = NULL;
-  SMemRow      row = NULL;
+  // SMemRow      row = NULL;
   // restore last column data with last schema
-  
+
   int err = 0;
 
   numColumns = schemaNCols(pSchema);
@@ -676,15 +695,15 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
     }
   }
 
-  row = taosTMalloc(memRowMaxBytesFromSchema(pSchema));
-  if (row == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    err = -1;
-    goto out;
-  }
+  // row = taosTMalloc(memRowMaxBytesFromSchema(pSchema));
+  // if (row == NULL) {
+  //   terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+  //   err = -1;
+  //   goto out;
+  // }
 
-  memRowSetType(row, SMEM_ROW_DATA);
-  tdInitDataRow(memRowDataBody(row), pSchema);
+  // memRowSetType(row, SMEM_ROW_DATA);
+  // tdInitDataRow(memRowDataBody(row), pSchema);
 
   // first load block index info
   if (tsdbLoadBlockInfo(pReadh, NULL, NULL) < 0) {
@@ -743,10 +762,12 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
       for (int32_t rowId = pBlock->numOfRows - 1; rowId >= 0; rowId--) {
         SDataCol *pDataCol = pReadh->pDCols[0]->cols + i;
         const void* pColData = tdGetColDataOfRow(pDataCol, rowId);
-        tdAppendColVal(memRowDataBody(row), pColData, pCol->type, pCol->offset);
-        //SDataCol *pDataCol = readh.pDCols[0]->cols + j;
-        void *value = tdGetRowDataOfCol(memRowDataBody(row), (int8_t)pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
-        if (isNull(value, pCol->type)) {
+        // tdAppendColVal(memRowDataBody(row), pColData, pCol->type, pCol->offset);
+        //  SDataCol *pDataCol = readh.pDCols[0]->cols + j;
+        // void *value = tdGetRowDataOfCol(memRowDataBody(row), (int8_t)pCol->type, TD_DATA_ROW_HEAD_SIZE +
+        //
+        // pCol->offset);
+        if (isNull(pColData, pCol->type)) {
           continue;
         }
 
@@ -761,13 +782,14 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
         pLastCol->pData = malloc(bytes);
         pLastCol->bytes = bytes;
         pLastCol->colId = pCol->colId;
-        memcpy(pLastCol->pData, value, bytes);
+        memcpy(pLastCol->pData, pColData, bytes);
 
         // save row ts(in column 0)
         pDataCol = pReadh->pDCols[0]->cols + 0;
-        pCol = schemaColAt(pSchema, 0);
-        tdAppendColVal(memRowDataBody(row), tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->offset);
-        pLastCol->ts = memRowKey(row);
+        // pCol = schemaColAt(pSchema, 0);
+        // tdAppendColVal(memRowDataBody(row), tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->offset);
+        // pLastCol->ts = memRowKey(row);
+        pLastCol->ts = tdGetKey(*(TKEY *)(tdGetColDataOfRow(pDataCol, rowId)));
 
         pTable->restoreColumnNum += 1;
 
@@ -779,7 +801,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   }
 
 out:
-  taosTZfree(row);
+  // taosTZfree(row);
   tfree(pBlockStatis);
 
   if (err == 0 && numColumns <= pTable->restoreColumnNum) {

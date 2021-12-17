@@ -29,6 +29,7 @@
 #include "ttimer.h"
 #include "tscProfile.h"
 
+static char clusterDefaultId[] = "clusterDefaultId";
 static bool validImpl(const char* str, size_t maxsize) {
   if (str == NULL) {
     return false;
@@ -193,7 +194,9 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
 
     tscBuildAndSendRequest(pSql, NULL);
     tsem_wait(&pSql->rspSem);
-
+    if (0 == strlen(pSql->pTscObj->clusterId)) {
+      memcpy(pSql->pTscObj->clusterId, clusterDefaultId, strlen(clusterDefaultId));
+    } 
     pSql->pTscObj->pClusterInfo = (SClusterInfo *)tscAcquireClusterInfo(pSql->pTscObj->clusterId);
     if (pSql->res.code != TSDB_CODE_SUCCESS) {
       terrno = pSql->res.code;
@@ -442,7 +445,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
         // revise the length for binary and nchar fields
         if (f[j].type == TSDB_DATA_TYPE_BINARY) {
           f[j].bytes -= VARSTR_HEADER_SIZE;
-        } else if (f[j].type == TSDB_DATA_TYPE_NCHAR) {
+        } else if (f[j].type == TSDB_DATA_TYPE_NCHAR || f[j].type == TSDB_DATA_TYPE_JSON) {
           f[j].bytes = (f[j].bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
         }
 

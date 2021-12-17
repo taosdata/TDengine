@@ -4,7 +4,7 @@
 # is required to use systemd to manage services at boot
 
 set -e
-# set -x
+#set -x
 
 # -----------------------Variables definition
 source_dir=$1
@@ -62,12 +62,14 @@ NC='\033[0m'
 
 csudo=""
 
+service_mod=2
+os_type=0
+
 if [ "$osType" != "Darwin" ]; then
     if command -v sudo > /dev/null; then
     csudo="sudo"
     fi
     initd_mod=0
-    service_mod=2
     if pidof systemd &> /dev/null; then
         service_mod=0
     elif $(which service &> /dev/null); then
@@ -91,7 +93,6 @@ if [ "$osType" != "Darwin" ]; then
     #osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
     osinfo=$(cat /etc/os-release | grep "NAME" | cut -d '"' -f2)
     #echo "osinfo: ${osinfo}"
-    os_type=0
     if echo $osinfo | grep -qwi "ubuntu" ; then
         echo "this is ubuntu system"
         os_type=1
@@ -122,7 +123,8 @@ function kill_taosadapter() {
 }
 
 function kill_taosd() {
-    pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
+    ps -ef | grep "taosd"
+    pid=$(ps -ef | grep -w "taosd" | grep -v "grep" | awk '{print $2}')
     if [ -n "$pid" ]; then
         ${csudo} kill -9 $pid   || :
     fi
@@ -163,6 +165,7 @@ function install_bin() {
     if [ "$osType" != "Darwin" ]; then
         ${csudo} rm -f ${bin_link_dir}/perfMonitor || :
         ${csudo} rm -f ${bin_link_dir}/set_core || :
+        ${csudo} rm -f ${bin_link_dir}/run_taosd.sh || :
         ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
 
         ${csudo} cp -r ${binary_dir}/build/bin/* ${install_main_dir}/bin
@@ -170,6 +173,7 @@ function install_bin() {
 
         ${csudo} cp -r ${script_dir}/remove.sh     ${install_main_dir}/bin
         ${csudo} cp -r ${script_dir}/set_core.sh   ${install_main_dir}/bin
+        ${csudo} cp -r ${script_dir}/run_taosd.sh   ${install_main_dir}/bin
         ${csudo} cp -r ${script_dir}/startPre.sh   ${install_main_dir}/bin
 
         ${csudo} chmod 0555 ${install_main_dir}/bin/*
@@ -181,6 +185,7 @@ function install_bin() {
         [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
         [ -x ${install_main_dir}/bin/perfMonitor ]  && ${csudo} ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor || :
         [ -x ${install_main_dir}/set_core.sh ]  && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
+        [ -x ${install_main_dir}/run_taosd.sh ]  && ${csudo} ln -s ${install_main_dir}/bin/run_taosd.sh ${bin_link_dir}/run_taosd.sh || :
         [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos  || :
    else
 
@@ -202,67 +207,66 @@ function install_jemalloc() {
         /usr/bin/install -c -d /usr/local/bin
 
         if [ -f "${binary_dir}/build/bin/jemalloc-config" ]; then
-            /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc-config /usr/local/bin
+            ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc-config /usr/local/bin
         fi
         if [ -f "${binary_dir}/build/bin/jemalloc.sh" ]; then
-            /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc.sh /usr/local/bin
+            ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc.sh /usr/local/bin
         fi
         if [ -f "${binary_dir}/build/bin/jeprof" ]; then
-            /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jeprof /usr/local/bin
+            ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jeprof /usr/local/bin
         fi
         if [ -f "${binary_dir}/build/include/jemalloc/jemalloc.h" ]; then
-            /usr/bin/install -c -d /usr/local/include/jemalloc
-            /usr/bin/install -c -m 644 ${binary_dir}/build/include/jemalloc/jemalloc.h\
+            ${csudo} /usr/bin/install -c -d /usr/local/include/jemalloc
+            ${csudo} /usr/bin/install -c -m 644 ${binary_dir}/build/include/jemalloc/jemalloc.h\
                 /usr/local/include/jemalloc
         fi
         if [ -f "${binary_dir}/build/lib/libjemalloc.so.2" ]; then
-            /usr/bin/install -c -d /usr/local/lib
-            /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.so.2 /usr/local/lib
-            ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
-            /usr/bin/install -c -d /usr/local/lib
+            ${csudo} /usr/bin/install -c -d /usr/local/lib
+            ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.so.2 /usr/local/lib
+            ${csudo} ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
+            ${csudo} /usr/bin/install -c -d /usr/local/lib
             [ -f ${binary_dir}/build/lib/libjemalloc.a ] &&
-                /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.a /usr/local/lib
+                ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.a /usr/local/lib
             [ -f ${binary_dir}/build/lib/libjemalloc_pic.a ] &&
-                /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc_pic.a /usr/local/lib
+                ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc_pic.a /usr/local/lib
             if [ -f "${binary_dir}/build/lib/pkgconfig/jemalloc.pc" ]; then
-                /usr/bin/install -c -d /usr/local/lib/pkgconfig
-                /usr/bin/install -c -m 644 ${binary_dir}/build/lib/pkgconfig/jemalloc.pc\
+                ${csudo} /usr/bin/install -c -d /usr/local/lib/pkgconfig
+                ${csudo} /usr/bin/install -c -m 644 ${binary_dir}/build/lib/pkgconfig/jemalloc.pc\
                     /usr/local/lib/pkgconfig
             fi
             if [ -d /etc/ld.so.conf.d ]; then
-                echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf
+                echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf > /dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
                 ${csudo} ldconfig
             else
                 echo "/etc/ld.so.conf.d not found!"
             fi
         fi
         if [ -f "${binary_dir}/build/share/doc/jemalloc/jemalloc.html" ]; then
-            /usr/bin/install -c -d /usr/local/share/doc/jemalloc
-            /usr/bin/install -c -m 644 ${binary_dir}/build/share/doc/jemalloc/jemalloc.html\
+            ${csudo} /usr/bin/install -c -d /usr/local/share/doc/jemalloc
+            ${csudo} /usr/bin/install -c -m 644 ${binary_dir}/build/share/doc/jemalloc/jemalloc.html\
                 /usr/local/share/doc/jemalloc
         fi
         if [ -f "${binary_dir}/build/share/man/man3/jemalloc.3" ]; then
-            /usr/bin/install -c -d /usr/local/share/man/man3
-            /usr/bin/install -c -m 644 ${binary_dir}/build/share/man/man3/jemalloc.3\
+            ${csudo} /usr/bin/install -c -d /usr/local/share/man/man3
+            ${csudo} /usr/bin/install -c -m 644 ${binary_dir}/build/share/man/man3/jemalloc.3\
                 /usr/local/share/man/man3
         fi
-
     fi
 }
 
 function install_avro() {
     if [ "$osType" != "Darwin" ]; then
-        if [ -f "${binary_dir}/build/$1/libavro.so.23.0.0" ]; then
-            /usr/bin/install -c -d /usr/local/$1
-            /usr/bin/install -c -m 755 ${binary_dir}/build/$1/libavro.so.23.0.0 /usr/local/$1
-            ln -sf libavro.so.23.0.0 /usr/local/$1/libavro.so.23
-            ln -sf libavro.so.23 /usr/local/$1/libavro.so
-            /usr/bin/install -c -d /usr/local/$1
+        if [ -f "${binary_dir}/build/$1/libavro.so.23.0.0" ] && [ -d /usr/local/$1 ]; then
+            ${csudo} /usr/bin/install -c -d /usr/local/$1
+            ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/$1/libavro.so.23.0.0 /usr/local/$1
+            ${csudo} ln -sf libavro.so.23.0.0 /usr/local/$1/libavro.so.23
+            ${csudo} ln -sf libavro.so.23 /usr/local/$1/libavro.so
+            ${csudo} /usr/bin/install -c -d /usr/local/$1
             [ -f ${binary_dir}/build/$1/libavro.a ] &&
-                /usr/bin/install -c -m 755 ${binary_dir}/build/$1/libavro.a /usr/local/$1
+                ${csudo} /usr/bin/install -c -m 755 ${binary_dir}/build/$1/libavro.a /usr/local/$1
 
             if [ -d /etc/ld.so.conf.d ]; then
-                echo "/usr/local/$1" | ${csudo} tee /etc/ld.so.conf.d/libavro.conf
+                echo "/usr/local/$1" | ${csudo} tee /etc/ld.so.conf.d/libavro.conf > /dev/null || echo -e "failed to write /etc/ld.so.conf.d/libavro.conf"
                 ${csudo} ldconfig
             else
                 echo "/etc/ld.so.conf.d not found!"
@@ -328,15 +332,16 @@ function install_lib() {
 function install_header() {
 
     if [ "$osType" != "Darwin" ]; then
-        ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h     || :
-        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h \
+        ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h     || :
+        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taosdef.h ${source_dir}/src/inc/taoserror.h \
             ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
         ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+        ${csudo} ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
         ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
     else
-        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h \
+        ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taosdef.h ${source_dir}/src/inc/taoserror.h \
             ${install_main_dir}/include \
-            || ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h \
+            || ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taosdef.h ${source_dir}/src/inc/taoserror.h \
             ${install_main_2_dir}/include \
             && ${csudo} chmod 644 ${install_main_dir}/include/* \
             || ${csudo} chmod 644 ${install_main_2_dir}/include/*
@@ -344,9 +349,7 @@ function install_header() {
 }
 
 function install_config() {
-    #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
-
-    if [ ! -f "${cfg_install_dir}/taos.cfg" ]; then
+    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
         [ -f ${script_dir}/../cfg/taos.cfg ] &&
         ${csudo} cp ${script_dir}/../cfg/taos.cfg ${cfg_install_dir}
@@ -455,11 +458,11 @@ function install_service_on_sysvinit() {
 
     # Install taosd service
     if ((${os_type}==1)); then
-    ${csudo} cp -f ${script_dir}/../deb/taosd ${install_main_dir}/init.d
-    ${csudo} cp    ${script_dir}/../deb/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
+        ${csudo} cp -f ${script_dir}/../deb/taosd ${install_main_dir}/init.d
+        ${csudo} cp    ${script_dir}/../deb/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
     elif ((${os_type}==2)); then
-    ${csudo} cp -f ${script_dir}/../rpm/taosd ${install_main_dir}/init.d
-    ${csudo} cp    ${script_dir}/../rpm/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
+        ${csudo} cp -f ${script_dir}/../rpm/taosd ${install_main_dir}/init.d
+        ${csudo} cp    ${script_dir}/../rpm/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
     fi
 
     #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
@@ -543,7 +546,6 @@ function update_TDengine() {
     echo -e "${GREEN}Start to update TDengine...${NC}"
     # Stop the service if running
 
-    if [ "$osType" != "Darwin" ]; then
       if pidof taosd &> /dev/null; then
         if ((${service_mod}==0)); then
             ${csudo} systemctl stop taosd || :
@@ -555,7 +557,6 @@ function update_TDengine() {
         fi
         sleep 1
       fi
-    fi
 
     install_main_path
 
@@ -566,50 +567,35 @@ function update_TDengine() {
     install_examples
     install_bin
 
-    if [ "$osType" != "Darwin" ]; then
-        install_service
-        install_taosadapter_service
-    fi
+    install_service
+    install_taosadapter_service
 
     install_config
     install_taosadapter_config
 
-    if [ "$osType" != "Darwin" ]; then
-        echo
-        echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
-        echo
+    echo
+    echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
+    echo
 
-        echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
-        echo -e "${GREEN_DARK}To configure taosadapter (if has) ${NC}: edit /etc/taos/taosadapter.toml"
-        if ((${service_mod}==0)); then
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
-        elif ((${service_mod}==1)); then
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} service taosd start${NC}"
-        else
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
-        fi
-
-        echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-        echo
-        echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
+    echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
+    echo -e "${GREEN_DARK}To configure Taos Adapter (if has) ${NC}: edit /etc/taos/taosadapter.toml"
+    if ((${service_mod}==0)); then
+        echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
+    elif ((${service_mod}==1)); then
+        echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} service taosd start${NC}"
     else
-        echo
-        echo -e "\033[44;32;1mTDengine Client is updated successfully!${NC}"
-        echo
-
-        echo -e "${GREEN_DARK}To access TDengine Client   ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-        echo
-        echo -e "\033[44;32;1mTDengine Client is updated successfully!${NC}"
+        echo -e "${GREEN_DARK}To start Taos Adapter (if has)${NC}: taosadapter &${NC}"
+        echo -e "${GREEN_DARK}To start TDengine     ${NC}: taosd${NC}"
     fi
+
+    echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+    echo
+    echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
 }
 
 function install_TDengine() {
     # Start to install
-    if [ "$osType" != "Darwin" ]; then
-        echo -e "${GREEN}Start to install TDEngine...${NC}"
-    else
-        echo -e "${GREEN}Start to install TDEngine Client ...${NC}"
-    fi
+    echo -e "${GREEN}Start to install TDengine...${NC}"
 
     install_main_path
 
@@ -621,37 +607,29 @@ function install_TDengine() {
     install_examples
     install_bin
 
-    if [ "$osType" != "Darwin" ]; then
-        install_service
-        install_taosadapter_service
-    fi
+    install_service
+    install_taosadapter_service
 
     install_config
     install_taosadapter_config
 
-    if [ "$osType" != "Darwin" ]; then
-        # Ask if to start the service
-        echo
-        echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
-        echo
-        echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
-        echo -e "${GREEN_DARK}To configure taosadapter (if has) ${NC}: edit /etc/taos/taosadapter.toml"
-        if ((${service_mod}==0)); then
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
-        elif ((${service_mod}==1)); then
-                echo -e "${GREEN_DARK}To start TDengine    ${NC}: ${csudo} service taosd start${NC}"
-        else
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
-        fi
-
-        echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-        echo
-        echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+    # Ask if to start the service
+    echo
+    echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+    echo
+    echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
+    echo -e "${GREEN_DARK}To configure taosadapter (if has) ${NC}: edit /etc/taos/taosadapter.toml"
+    if ((${service_mod}==0)); then
+        echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
+    elif ((${service_mod}==1)); then
+        echo -e "${GREEN_DARK}To start TDengine    ${NC}: ${csudo} service taosd start${NC}"
     else
-        echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-        echo
-        echo -e "\033[44;32;1mTDengine Client is installed successfully!${NC}"
+        echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
     fi
+
+    echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+    echo
+    echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
 }
 
 ## ==============================Main program starts from here============================

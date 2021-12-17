@@ -4,7 +4,7 @@
 
 自从 TDengine 2019年 7 月开源以来，凭借创新的数据建模设计、快捷的安装方式、易用的编程接口和强大的数据写入查询性能博得了大量时序数据开发者的青睐。其中写入和查询性能往往令刚接触 TDengine 的用户称叹不已。为了便于用户在最短时间内就可以体验到 TDengine 的高性能特点，我们专门开发了一个应用程序 taosdemo 用于对 TDengine 进行写入和查询的性能测试，用户可以通过 taosdemo 轻松模拟大量设备产生海量数据的场景，并且可以通过 taosdemo 参数灵活控制表的列数、数据类型、乱序比例以及并发线程数量。
 
-运行 taosdemo 很简单，通过下载 TDengine 安装包（https://www.taosdata.com/cn/all-downloads/）或者自行下载 TDengine 代码（https://github.com/taosdata/TDengine）编译都可以在安装目录或者编译结果目录中找到并运行。
+运行 taosdemo 很简单，通过下载 TDengine 安装包（ https://www.taosdata.com/cn/all-downloads/ ）或者自行下载 TDengine 代码（ https://github.com/taosdata/TDengine ）编译都可以在安装目录或者编译结果目录中找到并运行。
 
 接下来本文为大家讲解 taosdemo 的使用介绍及注意事项。
 
@@ -364,7 +364,7 @@ taosdemo 不仅仅可以进行数据写入，也可以执行查询和订阅功�
 }
 ```
 以下为 JSON 文件中和查询相关的特有参数含义：
-
+```
 "query_times": 每种查询类型的查询次数
 "query_mode": 查询数据接口，"taosc"：调用TDengine的c接口；“resetful”：使用restfule接口。可选项。缺省是“taosc”。
 "specified_table_query": { 指定表的查询
@@ -379,7 +379,7 @@ taosdemo 不仅仅可以进行数据写入，也可以执行查询和订阅功�
 "threads": 并发执行sqls的线程数，可选项，缺省是1。每个线程负责一部分子表，执行所有的sqls。
 "sql": "select count(*) from xxxx"。查询超级表内所有子表的查询语句，其中表名必须写成 “xxxx”，实例会自动替换成子表名。
 "result": 查询结果写入的文件名。可选项，缺省是空，表示查询结果不写入文件。
-
+```
 
 以下为一个典型订阅 JSON 示例文件内容：
 ```
@@ -422,13 +422,13 @@ taosdemo 不仅仅可以进行数据写入，也可以执行查询和订阅功�
   }
 ```
 以下为订阅功能相关的特有参数含义：
-
+```
 "interval": 执行订阅的间隔，单位是秒。可选项，缺省是0。
 "restart": 订阅重启。"yes"：如果订阅已经存在，重新开始，"no": 继续之前的订阅。(请注意执行用户需要对 dataDir 目录有读写权限)
 "keepProgress": 保留订阅信息进度。yes表示保留订阅信息，no表示不保留。该值为yes，restart为no时，才能继续之前的订阅。
 "resubAfterConsume": 配合 keepProgress 使用，在订阅消费了相应次数后调用 unsubscribe 取消订阅并再次订阅。
 "result": 查询结果写入的文件名。可选项，缺省是空，表示查询结果不写入文件。 注意：每条sql语句后的保存结果的文件不能重名，且生成结果文件时，文件名会附加线程号。
-
+```
 结语
 --
 TDengine是涛思数据专为物联网、车联网、工业互联网、IT运维等设计和优化的大数据平台。TDengine 由于数据库内核中创新的数据存储和查询引擎设计，展现出远超同类产品的高效性能。并且由于支持 SQL 语法和多种编程语言的连接器（目前支持 Java, Python, Go, C#, NodeJS, Rust 等），易用性极强，学习成本为零。为了便于运维需求，我们还提供数据迁移和监控功能等相关生态工具软件。
@@ -439,7 +439,8 @@ TDengine是涛思数据专为物联网、车联网、工业互联网、IT运维�
 
 附录 - 完整 taosdemo 参数介绍
 --
-taosdemo支持两种配置参数的模式，一种是命令行参数，一种是使用json格式的配置文件。
+taosdemo支持两种配置参数的模式，一种是命令行参数，一种是使用 JSON 格式的配置文件。
+
 一、命令行参数
 
 -f：指定taosdemo所需参数的meta文件。当使用该参数时，其他所有命令行参数都失效。可选项，缺省是NULL。目前仅支持不含 BOM（byte-order mark）的标准 UTF-8 编码文件。
@@ -505,11 +506,12 @@ taosdemo支持两种配置参数的模式，一种是命令行参数，一种是
 --help: 打印命令参数列表。
 
 
-二、json格式的配置文件中所有参数说明
+二、JSON 格式的配置文件中所有参数说明
 
 taosdemo支持3种功能的测试，包括插入、查询、订阅。但一个taosdemo实例不能同时支持三种功能，一个 taosdemo 实例只能支持其中的一种功能，通过配置文件来指定进行哪种功能的测试。
-1、插入功能测试的json配置文件
 
+1、插入功能测试的 JSON 配置文件
+```
 {
     "filetype": "insert",
     "cfgdir": "/etc/taos",
@@ -571,6 +573,7 @@ taosdemo支持3种功能的测试，包括插入、查询、订阅。但一个ta
         }]
     }]
 }
+```
 
 "filetype": 本taosdemo实例进行哪种功能测试。"insert"表示数据插入功能。必选项。
 
@@ -596,11 +599,11 @@ taosdemo支持3种功能的测试，包括插入、查询、订阅。但一个ta
 
 "interlace_rows": 设置轮询插入每个单表数据的条目数，如果interlace_rows*childtable_count*supertable_num小于num_of_records_per_req时，则请求插入的数目以interlace_rows*childtable_count*supertable_num为准。可选项，缺省是0。
 
-"num_of_records_per_req": 每条请求数据内容包含的插入数据记录数目，该数据组成的sql不能大于maxsqllen，如果过大，则取taood限制的1M长度(1048576)。可选项，缺省是INT64_MAX  32766（受服务端限制）。0代表不插入数据，建议配置大于0。
+"num_of_records_per_req": 每条请求数据内容包含的插入数据记录数目，该数据组成的sql不能大于maxsqllen，如果过大，则取taosd限制的1M长度(1048576)。0代表不插入数据，建议配置大于0。
 
 "databases": [{
 
-"dbinfo": { ​ "name": 数据库名称。必选项。
+"dbinfo": {"name": 数据库名称。必选项。
 
 "drop": 如果数据库已经存在，”yes“：删除后重建；”no“：不删除，直接使用。可选项，缺省是”no“。drop = yes 会使其他子表创建相关条目无效。
 
@@ -695,8 +698,9 @@ taosdemo支持3种功能的测试，包括插入、查询、订阅。但一个ta
 "count":该类型的连续列个数，可选项，缺省是1。
 
 }]
-2、查询功能测试的json配置文件
 
+2、查询功能测试的 JSON 配置文件
+```
 {
   "filetype": "query",
   "cfgdir": "/etc/taos",
@@ -734,7 +738,7 @@ taosdemo支持3种功能的测试，包括插入、查询、订阅。但一个ta
     ]
   }
 }
-​
+```
 
 "filetype": 本taosdemo实例进行哪种功能测试。"query"表示数据查询功能。必选项。
 
@@ -784,8 +788,9 @@ taosdemo支持3种功能的测试，包括插入、查询、订阅。但一个ta
 注意：每条sql语句后的保存结果的文件不能重名，且生成结果文件时，文件名会附加线程号。
 
 查询结果显示：如果查询线程结束一次查询距开始执行时间超过30秒打印一次查询次数、用时和QPS。所有查询结束时，汇总打印总的查询次数和QPS。
-3、订阅功能测试的json配置文件
 
+3、订阅功能测试的 JSON 配置文件
+```
 {
     "filetype":"subscribe",
     "cfgdir": "/etc/taos",
@@ -822,7 +827,8 @@ taosdemo支持3种功能的测试，包括插入、查询、订阅。但一个ta
           "result": "./subscribe_res1.txt"
         }]
       }
-  }
+}
+```
 
 "filetype": 本taosdemo实例进行哪种功能测试。"subscribe"表示数据查询功能。必选项。**
 
@@ -878,4 +884,4 @@ taosdemo支持3种功能的测试，包括插入、查询、订阅。但一个ta
 
 "sql": " select count(*) from xxxx "。查询语句，其中表名必须写成 “xxxx”，实例会自动替换成子表名。
 
-​ "result": 查询结果写入的文件名。可选项，缺省是空，表示查询结果不写入文件。 注意：每条sql语句后的保存结果的文件不能重名，且生成结果文件时，文件名会附加线程号。
+"result": 查询结果写入的文件名。可选项，缺省是空，表示查询结果不写入文件。 注意：每条sql语句后的保存结果的文件不能重名，且生成结果文件时，文件名会附加线程号。

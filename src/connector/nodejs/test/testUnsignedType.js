@@ -1,14 +1,13 @@
 const taos = require('../tdengine');
 var conn = taos.connect({ host: "127.0.0.1", user: "root", password: "taosdata", config: "/etc/taos", port: 10 });
 var c1 = conn.cursor();
-executeUpdate("create database nodedb;");
+executeUpdate("create database if not exists nodedb;");
 executeUpdate("use nodedb;");
-executeUpdate("create table unsigntest(ts timestamp,ut tinyint unsigned,us smallint unsigned,ui int unsigned,ub bigint unsigned,bi bigint);");
+executeUpdate("create table if not exists unsigntest(ts timestamp,ut tinyint unsigned,us smallint unsigned,ui int unsigned,ub bigint unsigned,bi bigint);");
 executeUpdate("insert into unsigntest values (now, 254,65534,4294967294,18446744073709551614,9223372036854775807);");
 executeUpdate("insert into unsigntest values (now, 0,0,0,0,-9223372036854775807);");
 executeQuery("select * from unsigntest;");
-executeUpdate("drop database nodedb;");
-
+executeUpdate("drop database if exists nodedb;");
 
 function executeUpdate(sql) {
     console.log(sql);

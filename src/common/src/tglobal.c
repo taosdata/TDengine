@@ -47,6 +47,7 @@ int64_t  tsArbOnlineTimestamp = TSDB_ARB_DUMMY_TIME;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
 int32_t  tsDnodeId = 0;
 int64_t  tsDnodeStartTime = 0;
+int8_t   tsDnodeNopLoop = 0;
 
 // common
 int32_t tsRpcTimer = 300;
@@ -73,7 +74,7 @@ int32_t tsMaxBinaryDisplayWidth = 30;
  * -1: all data are not compressed
  * other values: if the message payload size is greater than the tsCompressMsgSize, the message will be compressed.
  */
-int32_t tsCompressMsgSize = -1;
+int32_t tsCompressMsgSize = 512 * 1024;
 
 /* denote if server needs to compress the retrieved column data before adding to the rpc response message body.
  * 0: all data are compressed
@@ -193,6 +194,7 @@ char   tsMqttTopic[TSDB_MQTT_TOPIC_LEN] = "/test";  // #
 
 // monitor
 int8_t  tsEnableMonitorModule = 1;
+int8_t  tsMonitorReplica = 1;
 char    tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
 char    tsInternalPass[] = "secretkey";
 int32_t tsMonitorInterval = 30;  // seconds
@@ -289,8 +291,12 @@ char     Compressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRES
 int8_t tsDeadLockKillQuery = 0;
 
 // default JSON string type
-char tsDefaultJSONStrType[7] = "binary";
-char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = ""; //user defined child table name can be specified in tag value. If set to empty system will generate table name using MD5 hash.
+char tsDefaultJSONStrType[7] = "nchar";
+char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = ""; //user defined child table name can be specified in tag value.
+                                                    //If set to empty system will generate table name using MD5 hash.
+char tsSmlTagNullName[TSDB_COL_NAME_LEN] = "_tag_null"; //for line protocol if tag is omitted, add a tag with NULL value
+                                                        //to make sure inserted records belongs to the same measurement
+                                                        //default name is _tag_null and can be user configurable
 
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
@@ -617,6 +623,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "dnodeNopLoop";
+  cfg.ptr = &tsDnodeNopLoop;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "balance";
   cfg.ptr = &tsEnableBalance;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -667,6 +683,16 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 600;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_SECOND;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "monitorReplica";
+  cfg.ptr = &tsMonitorReplica;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 1;
+  cfg.maxValue = 3;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
   cfg.option = "offlineThreshold";
@@ -1317,7 +1343,7 @@ static void doInitGlobalConfig(void) {
   cfg.option = "httpDbNameMandatory";
   cfg.ptr = &tsHttpDbNameMandatory;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;
   cfg.maxValue = 1;
   cfg.ptrLength = 0;
@@ -1687,6 +1713,17 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = 0;
   cfg.maxValue = 0;
   cfg.ptrLength = tListLen(tsSmlChildTableName);
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // name for a NULL value tag added for Line Protocol when tag fields are omitted
+  cfg.option = "smlTagNullName";
+  cfg.ptr = tsSmlTagNullName;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = tListLen(tsSmlTagNullName);
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 

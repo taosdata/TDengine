@@ -129,7 +129,7 @@ class TDTestCase:
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_3")
-        tdSql.checkData(1, 1, "BINARY")
+        tdSql.checkData(1, 1, "NCHAR")
 
         payload = ['''
         {
@@ -686,10 +686,10 @@ class TDTestCase:
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe `1234`")
-        tdSql.checkRows(8)
+        tdSql.checkRows(9)
 
-        tdSql.query("select * from `123`")
-        tdSql.checkRows(1)
+        #tdSql.query("select * from `123`")
+        #tdSql.checkRows(1)
 
         payload = ['''
         {
@@ -711,10 +711,10 @@ class TDTestCase:
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe `int`")
-        tdSql.checkRows(8)
+        tdSql.checkRows(9)
 
-        tdSql.query("select * from `and`")
-        tdSql.checkRows(1)
+        #tdSql.query("select * from `and`")
+        #tdSql.checkRows(1)
 
         payload = ['''
         {
@@ -736,10 +736,10 @@ class TDTestCase:
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe `double`")
-        tdSql.checkRows(8)
+        tdSql.checkRows(9)
 
-        tdSql.query("select * from `for`")
-        tdSql.checkRows(1)
+        #tdSql.query("select * from `for`")
+        #tdSql.checkRows(1)
 
         payload = ['''
         {
@@ -761,10 +761,10 @@ class TDTestCase:
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe `from`")
-        tdSql.checkRows(8)
+        tdSql.checkRows(9)
 
-        tdSql.query("select * from `!@#.^&`")
-        tdSql.checkRows(1)
+        #tdSql.query("select * from `!@#.^&`")
+        #tdSql.checkRows(1)
 
         payload = ['''
         {
@@ -786,10 +786,10 @@ class TDTestCase:
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe `!@#$.%^&*()`")
-        tdSql.checkRows(8)
+        tdSql.checkRows(9)
 
-        tdSql.query("select * from `none`")
-        tdSql.checkRows(1)
+        #tdSql.query("select * from `none`")
+        #tdSql.checkRows(1)
 
         payload = ['''
         {
@@ -835,12 +835,11 @@ class TDTestCase:
         code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
-        tdSql.query("describe `stable`")
-        tdSql.checkRows(8)
+        tdSql.query("describe `STABLE`")
+        tdSql.checkRows(9)
 
-        tdSql.query("select * from `key`")
-        tdSql.checkRows(1)
-
+        #tdSql.query("select * from `key`")
+        #tdSql.checkRows(1)
 
     def stop(self):
         tdSql.close()
