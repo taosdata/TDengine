@@ -153,7 +153,7 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
     void*   output = NULL;
     int32_t outputLen = 0;
     code = qParseQuerySql(pRequest->sqlstr, sqlLen, pRequest->requestId, &type, &output, &outputLen, pRequest->msgBuf, ERROR_MSG_BUF_DEFAULT_SIZE);
-    if (type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_SHOW) {
+    if (type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_SHOW || type == TSDB_SQL_DROP_USER || type == TSDB_SQL_CREATE_DB) {
       pRequest->type = type;
       pRequest->body.param = output;
       pRequest->body.paramLen = outputLen;
@@ -430,7 +430,7 @@ void setResultDataPtr(SClientResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   int32_t offset = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
     pResultInfo->length[i] = pResultInfo->fields[i].bytes;
-    pResultInfo->row[i]    = pResultInfo->pData + offset * pResultInfo->numOfRows;
+    pResultInfo->row[i]    = (char*) (pResultInfo->pData + offset * pResultInfo->numOfRows);
     pResultInfo->pCol[i]   = pResultInfo->row[i];
     offset += pResultInfo->fields[i].bytes;
   }

@@ -8,7 +8,7 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 ADD_EXECUTABLE(plannerTest ${SOURCE_LIST})
 TARGET_LINK_LIBRARIES(
         plannerTest
-        PUBLIC os util common planner parser catalog transport gtest function query
+        PUBLIC os util common planner parser catalog transport gtest function qcom
 )
 
 TARGET_INCLUDE_DIRECTORIES(

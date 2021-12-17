@@ -19,7 +19,7 @@
 #include "mallocator.h"
 #include "sync.h"
 #include "tcoding.h"
-#include "tdlist.h"
+#include "tlist.h"
 #include "tlockfree.h"
 #include "tmacro.h"
 #include "wal.h"

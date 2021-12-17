@@ -50,7 +50,7 @@ STsdbMemTable *tsdbNewMemTable(SMemAllocatorFactory *pMAF) {
   pMA = (*pMAF->create)(pMAF);
   ASSERT(pMA != NULL);
 
-  pMemTable = (STsdbMemTable *)((*pMA->malloc)(pMA, sizeof(*pMemTable)));
+  pMemTable = (STsdbMemTable *)TD_MA_MALLOC(pMA, sizeof(*pMemTable));
   if (pMemTable == NULL) {
     (*pMAF->destroy)(pMAF, pMA);
     return NULL;
@@ -62,7 +62,7 @@ STsdbMemTable *tsdbNewMemTable(SMemAllocatorFactory *pMAF) {
   pMemTable->keyMax = TSKEY_MIN;
   pMemTable->nRow = 0;
   pMemTable->pMA = pMA;
-  tSListInit(&(pMemTable->list));
+  TD_SLIST_INIT(&(pMemTable->list));
 
   // TODO
   return pMemTable;
@@ -71,7 +71,7 @@ STsdbMemTable *tsdbNewMemTable(SMemAllocatorFactory *pMAF) {
 void tsdbFreeMemTable(SMemAllocatorFactory *pMAF, STsdbMemTable *pMemTable) {
   SMemAllocator *pMA = pMemTable->pMA;
 
-  if (pMA->free) {
+  if (TD_MA_FREE_FUNC(pMA) != NULL) {
     // TODO
     ASSERT(0);
   }
@@ -81,12 +81,12 @@ void tsdbFreeMemTable(SMemAllocatorFactory *pMAF, STsdbMemTable *pMemTable) {
 
 int tsdbInsertDataToMemTable(STsdbMemTable *pMemTable, SSubmitMsg *pMsg) {
   SMemAllocator *pMA = pMemTable->pMA;
-  STbData *      pTbData = (STbData *)((*pMA->malloc)(pMA, sizeof(*pTbData)));
+  STbData *      pTbData = (STbData *)TD_MA_MALLOC(pMA, sizeof(*pTbData));
   if (pTbData == NULL) {
     // TODO
   }
 
-  tSListPush(&(pMemTable->list), pTbData);
+  TD_SLIST_PUSH(&(pMemTable->list), pTbData);
 
   return 0;
 }

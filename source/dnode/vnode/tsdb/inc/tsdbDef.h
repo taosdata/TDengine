@@ -18,7 +18,7 @@
 
 #include "mallocator.h"
 #include "taosmsg.h"
-#include "tdlist.h"
+#include "tlist.h"
 #include "thash.h"
 #include "tskiplist.h"
 
