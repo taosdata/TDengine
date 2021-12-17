@@ -465,32 +465,7 @@ pipeline {
                 export LD_LIBRARY_PATH=${WKC}/debug/build/lib
                 pip3 install pytest
                 pytest tests/
-
-
-                python3 examples/bind-multi.py
-                python3 examples/bind-row.py
-                python3 examples/demo.py
-                python3 examples/insert-lines.py
-                python3 examples/pep-249.py
-                python3 examples/query-async.py
-                python3 examples/query-objectively.py
-                python3 examples/subscribe-sync.py
-                python3 examples/subscribe-async.py
               '''
-
-              sh '''
-                cd ${WKC}/src/connector/nodejs
-                npm install
-                npm run test
-                cd ${WKC}/tests/examples/nodejs
-                npm install td2.0-connector > /dev/null 2>&1
-                node nodejsChecker.js host=localhost
-                node test1970.js
-                cd ${WKC}/tests/connectorTest/nodejsTest/nanosupport
-                npm install td2.0-connector > /dev/null 2>&1
-                node nanosecondTest.js
-              '''
-              
               sh '''
 
 
