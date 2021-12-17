@@ -83,8 +83,7 @@ def pre_test(){
     mkdir debug
     cd debug
     cmake .. > /dev/null
-    make > /dev/null
-    make install > /dev/null
+    make -j4> /dev/null
 
     '''
     return 1
