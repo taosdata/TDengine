@@ -75,6 +75,10 @@ class TDTestCase:
         tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"\t\":\"fff\"}')")
         tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"试试\":\"fff\"}')")
 
+        # test invalidate json value, value number can not be inf,nan TD-12166
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"k\":1.8e308}')")
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"k\":-1.8e308}')")
+
         #test length limit
         char1= ''.join(['abcd']*64)
         char3= ''.join(['abcd']*1022)
