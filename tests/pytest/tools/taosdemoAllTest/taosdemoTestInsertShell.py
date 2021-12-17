@@ -95,18 +95,18 @@ class TDTestCase:
         tdSql.query("select count(*) from `test.0`")
         tdSql.checkData(0, 0, 100)
 
-        # tdLog.info("use diffrent interface rest")
-        # tdSql.execute("drop database db1;")
-        # # use diffrent interface -rest
-        # os.system("%staosBenchmark -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,NCHAR\(15\) -w 4097 \
-        # -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. -I rest " % (binPath,cfgPath))
-        # tdSql.execute("use db1")
-        # tdSql.query("select count(*) from meters")
-        # tdSql.checkData(0, 0, 1000)
-        # tdSql.query("select count(tbname) from meters")
-        # tdSql.checkData(0, 0, 10)
-        # tdSql.query("select count(*) from `test.0`")
-        # tdSql.checkData(0, 0, 100)
+        tdLog.info("use diffrent interface rest")
+        tdSql.execute("drop database db1;")
+        # use diffrent interface -rest
+        os.system("%staosBenchmark -u root  -c %s -h localhost -P 6030 -d db1  -a 1 -l 10 -b float,int,NCHAR\(15\) -w 4097 \
+        -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M  -x -y -O 10 -R 100  -E  -m test. -I rest " % (binPath,cfgPath))
+        tdSql.execute("use db1")
+        tdSql.query("select count(*) from meters")
+        tdSql.checkData(0, 0, 1000)
+        tdSql.query("select count(tbname) from meters")
+        tdSql.checkData(0, 0, 10)
+        tdSql.query("select count(*) from `test.0`")
+        tdSql.checkData(0, 0, 100)
 
         tdLog.info("use diffrent interface sml")
         tdSql.execute("drop database db1;")
@@ -164,11 +164,11 @@ class TDTestCase:
         tdSql.query("select count(*) from `test.0`")
         tdSql.checkData(0, 0, 100)
 
-        # tdLog.info("%staosBenchmark -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b float,int,NCHAR\(4096\) \
-        #         -w 40 -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I stmt" % (binPath,cfgPath))
-        # # taosdemo error-exceeds  max length
-        # assert os.system("%staosBenchmark -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b float,int,NCHAR\(4096\) \
-        #         -w 40 -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I taosc" % (binPath,cfgPath)) != 0       
+        tdLog.info("%staosBenchmark -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b float,int,NCHAR\(4096\) \
+                -w 40 -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I stmt" % (binPath,cfgPath))
+        # taosdemo error-exceeds  max length
+        assert os.system("%staosBenchmark -u root -c %s -h localhost -P 6030 -d db1 -a 1 -l 10 -b float,int,NCHAR\(4096\) \
+                -w 40 -T 8 -i 10 -S 1000 -r 1000000 -t 10 -n 100 -M -x -y -O 10 -R 100 -E -m test. -I taosc" % (binPath,cfgPath)) != 0       
 
         testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf ./insert_res*.txt*")
