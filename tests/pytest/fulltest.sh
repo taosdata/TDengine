@@ -52,6 +52,8 @@ python3 ./test.py -f table/create_db_from_normal_db.py
 #stable
 python3 ./test.py -f stable/insert.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonSml.py
+python3 test.py -f tag_lite/json_tag_extra.py
 
 # tag
 python3 ./test.py -f tag_lite/filter.py
@@ -223,6 +225,7 @@ python3 ./test.py -f perfbenchmark/bug3433.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertShell.py
 
 #query
 python3 test.py -f query/distinctOneColTb.py

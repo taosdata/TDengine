@@ -62,6 +62,7 @@ python3 ./test.py -f tag_lite/unsignedSmallint.py
 python3 ./test.py -f tag_lite/unsignedTinyint.py
 python3 ./test.py -f tag_lite/alter_tag.py
 python3 ./test.py -f tag_lite/drop_auto_create.py
+python3 ./test.py -f tag_lite/json_tag_extra.py
 
 #query
 python3 ./test.py -f query/distinctOneColTb.py

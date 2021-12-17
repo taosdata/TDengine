@@ -4930,7 +4930,11 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
         }
       }
 
-      pse->colInfo.flag = pSource->base.colInfo.flag; //TSDB_COL_NORMAL;
+      if (!pQueryInfo->stableQuery && TSDB_COL_IS_TAG(pSource->base.colInfo.flag)) {
+        pse->colInfo.flag = (pSource->base.colInfo.flag) & (~TSDB_COL_TAG);
+      } else {
+        pse->colInfo.flag = pSource->base.colInfo.flag;
+      }
       pse->resType  = pSource->base.resType;
       pse->resBytes = pSource->base.resBytes;
       strncpy(pse->colInfo.name, pSource->base.aliasName, tListLen(pse->colInfo.name));
