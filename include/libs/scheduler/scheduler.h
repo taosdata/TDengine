@@ -22,6 +22,10 @@ extern "C" {
 
 #include "planner.h"
 
+typedef struct SSchedulerCfg {
+
+} SSchedulerCfg;
+
 typedef struct SQueryProfileSummary {
   int64_t startTs;      // Object created and added into the message queue
   int64_t endTs;        // the timestamp when the task is completed

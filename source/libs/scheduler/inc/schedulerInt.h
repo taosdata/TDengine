@@ -24,26 +24,54 @@ extern "C" {
 #include "tarray.h"
 #include "planner.h"
 #include "scheduler.h"
+#include "thash.h"
 
-typedef struct SQuery {
-  SArray     **pSubquery;
-  int32_t      numOfLevels;
-  int32_t      currentLevel;
-} SQuery;
+#define SCHEDULE_DEFAULT_JOB_NUMBER 1000
+
+enum {
+  SCH_STATUS_NOT_START = 1,
+  SCH_STATUS_EXECUTING,
+  SCH_STATUS_SUCCEED,
+  SCH_STATUS_FAILED,
+  SCH_STATUS_CANCELLING,
+  SCH_STATUS_CANCELLED
+};
+
+typedef struct SSchedulerMgmt {
+  SHashObj *Jobs;  // key: queryId, value: SQueryJob*
+} SSchedulerMgmt;
 
 typedef struct SQueryTask {
-  uint64_t            queryId; // query id
-  uint64_t            taskId;  // task id
-  char     *pSubplan;   // operator tree
-  uint64_t            status;  // task status
+  uint64_t             taskId;  // task id
+  char                *pSubplan;   // operator tree
+  int8_t               status;  // task status
   SQueryProfileSummary summary; // task execution summary
-  void               *pOutputHandle; // result buffer handle, to temporarily keep the output result for next stage
 } SQueryTask;
 
+typedef struct SQueryLevel {
+  int8_t  status;
+  int32_t taskNum;
+  
+  SArray *subTasks;  // Element is SQueryTask
+  SArray *subPlans;  // Element is SSubplan
+} SQueryLevel;
+
 typedef struct SQueryJob {
-  SArray  **pSubtasks;
-  // todo
+  uint64_t  queryId;
+  int32_t   levelNum;
+  int32_t   levelIdx;
+  int8_t    status;
+  SQueryProfileSummary summary;
+  
+  SArray  *levels;    // Element is SQueryLevel, starting from 0.
+  SArray  *subPlans;  // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0.
 } SQueryJob;
+
+
+#define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { return _code; } } while (0)
+#define SCH_ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { qError(__VA_ARGS__); return _code; } } while (0)
+#define SCH_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { goto _return; } } while (0)
+
 
 #ifdef __cplusplus
 }
