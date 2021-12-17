@@ -14,7 +14,13 @@
  */
 
 #include "index_cache.h"
+#include "tcompare.h"
 
+#define MAX_INDEX_KEY_LEN 128 // test only, change later
+
+static char*  getIndexKey(const void *pData) {
+  return NULL;  
+} 
 static int32_t compareKey(const void *l, const void *r) {
   char *lp = (char *)l;
   char *rp = (char *)r;
@@ -85,10 +91,14 @@ static int32_t compareKey(const void *l, const void *r) {
 } 
 IndexCache *indexCacheCreate() {
   IndexCache *cache = calloc(1, sizeof(IndexCache));
+  cache->skiplist = tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, MAX_INDEX_KEY_LEN, compareKey, SL_ALLOW_DUP_KEY, getIndexKey);
   return cache;
+  
 }
 
 void indexCacheDestroy(IndexCache *cache) {
+  if (cache == NULL) { return; } 
+  tSkipListDestroy(cache->skiplist);
   free(cache);
 }
 
@@ -96,6 +106,7 @@ int indexCachePut(IndexCache *cache, int16_t fieldId, int16_t fieldType, const c
               uint32_t version, uint64_t uid, int8_t operType) {
   if (cache == NULL) { return -1;} 
 
+  // encode data
   int32_t total = sizeof(int32_t) + sizeof(fieldId) + sizeof(fieldType) + sizeof(fvLen) + fvLen  + sizeof(version) + sizeof(uid) + sizeof(operType); 
 
   char *buf = calloc(1, total); 
@@ -123,6 +134,10 @@ int indexCachePut(IndexCache *cache, int16_t fieldId, int16_t fieldType, const c
 
   memcpy(p, &operType, sizeof(operType));
   p += sizeof(operType); 
+
+  tSkipListPut(cache->skiplist, (void *)buf);  
+  // encode end
+ 
     
 }
 int indexCacheDel(IndexCache *cache, int32_t fieldId, const char *fieldValue, int32_t fvlen, uint64_t uid, int8_t operType) {

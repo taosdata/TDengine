@@ -17,6 +17,7 @@
 
 #include "index.h"
 #include "tlockfree.h"
+#include "tskiplist.h"
 // ----------------- row structure in skiplist ---------------------
 
 /* A data row, the format is like below:
@@ -30,6 +31,7 @@ extern "C" {
 
 typedef struct IndexCache {
   T_REF_DECLARE() 
+  SSkipList *skiplist;
 } IndexCache;
 
 
