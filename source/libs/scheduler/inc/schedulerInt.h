@@ -27,6 +27,7 @@ extern "C" {
 #include "thash.h"
 
 #define SCHEDULE_DEFAULT_JOB_NUMBER 1000
+#define SCHEDULE_DEFAULT_TASK_NUMBER 1000
 
 enum {
   SCH_STATUS_NOT_START = 1,
@@ -43,18 +44,21 @@ typedef struct SSchedulerMgmt {
 } SSchedulerMgmt;
 
 typedef struct SQueryTask {
-  uint64_t             taskId;  // task id
-  char                *msg;     // operator tree
-  int8_t               status;  // task status
-  SQueryProfileSummary summary; // task execution summary
+  uint64_t             taskId;    // task id
+  SSubplan            *plan;      // subplan
+  char                *msg;       // operator tree
+  int8_t               status;    // task status
+  SEpAddr              execAddr;  // task actual executed node address
+  SQueryProfileSummary summary;   // task execution summary
+  SArray              *childern; // the datasource tasks,from which to fetch the result, element is SQueryTask*
+  SArray              *parents;  // the data destination tasks, get data from current task, element is SQueryTask*
 } SQueryTask;
 
 typedef struct SQueryLevel {
+  int32_t level;
   int8_t  status;
   int32_t taskNum;
-  
   SArray *subTasks;  // Element is SQueryTask
-  SArray *subPlans;  // Element is SSubplan
 } SQueryLevel;
 
 typedef struct SQueryJob {
@@ -70,6 +74,7 @@ typedef struct SQueryJob {
 
 
 #define SCH_JOB_ERR_LOG(param, ...) qError("QID:%"PRIx64 param, job->queryId, __VA_ARGS__)
+#define SCH_TASK_ERR_LOG(param, ...) qError("QID:%"PRIx64",TID:%"PRIx64 param, job->queryId, task->taskId, __VA_ARGS__)
 
 #define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define SCH_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)

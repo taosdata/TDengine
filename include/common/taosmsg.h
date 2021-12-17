@@ -233,9 +233,9 @@ typedef struct {
 } SEpAddrMsg;
 
 typedef struct {
-  char    *fqdn;
+  char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
-} SEpAddr1;
+} SEpAddr;
 
 typedef struct {
   int32_t numOfVnodes;

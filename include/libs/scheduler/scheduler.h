@@ -55,9 +55,9 @@ typedef struct SQueryProfileSummary {
  * @param pJob
  * @return
  */
-int32_t scheduleQueryJob(SQueryDag* pDag, void** pJob);
+int32_t scheduleQueryJob(void *pRpc, SQueryDag* pDag, void** pJob);
 
-int32_t scheduleFetchRows(void *pJob, void *data);
+int32_t scheduleFetchRows(void *pRpc, void *pJob, void *data);
 
 
 /**
@@ -65,7 +65,7 @@ int32_t scheduleFetchRows(void *pJob, void *data);
  * @param pJob
  * @return
  */
-int32_t scheduleCancelJob(void *pJob);
+int32_t scheduleCancelJob(void *pRpc, void *pJob);
 
 void scheduleFreeJob(void *pJob);
 
