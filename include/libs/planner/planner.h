@@ -128,6 +128,7 @@ typedef struct SSubplan {
 } SSubplan;
 
 typedef struct SQueryDag {
+  uint64_t queryId;
   SArray  *pSubplans; // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0.
 } SQueryDag;
 
@@ -136,7 +137,7 @@ typedef struct SQueryDag {
  */
 int32_t qCreateQueryDag(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* pQnode, struct SQueryDag** pDag);
 
-int32_t qSetSuplanExecutionNode(SSubplan* subplan, SArray* nodes);
+int32_t qSetSubplanExecutionNode(SSubplan* subplan, SArray* eps);
 
 int32_t qExplainQuery(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* pQnode, char** str);
 
@@ -147,12 +148,14 @@ int32_t qSubPlanToString(const SSubplan* subplan, char** str);
 
 int32_t qStringToSubplan(const char* str, SSubplan** subplan);
 
+void qDestroySubplan(SSubplan* pSubplan);
+
 /**
  * Destroy the physical plan.
  * @param pQueryPhyNode
  * @return
  */
-void qDestroyQueryDag(struct SQueryDag* pDag);
+void qDestroyQueryDag(SQueryDag* pDag);
 
 #ifdef __cplusplus
 }

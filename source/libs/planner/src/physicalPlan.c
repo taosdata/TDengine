@@ -179,7 +179,7 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
       assert(false);
   }
   if (pPlanNode->pChildren != NULL && taosArrayGetSize(pPlanNode->pChildren) > 0) {
-    node->pChildren = taosArrayInit(4, POINTER_BYTES);
+    node->pChildren = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
     size_t size = taosArrayGetSize(pPlanNode->pChildren);
     for(int32_t i = 0; i < size; ++i) {
       SPhyNode* child = createPhyNode(pCxt, taosArrayGet(pPlanNode->pChildren, i));
@@ -214,4 +214,13 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
   createSubplanByLevel(&context, pQueryNode);
   *pDag = context.pDag;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t opNameToOpType(const char* name) {
+  for (int32_t i = 1; i < sizeof(gOpName) / sizeof(gOpName[0]); ++i) {
+    if (strcmp(name, gOpName[i])) {
+      return i;
+    }
+  }
+  return OP_Unknown;
 }
