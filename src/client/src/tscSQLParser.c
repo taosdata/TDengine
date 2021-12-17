@@ -5045,15 +5045,28 @@ static void convertWhereStringCharset(tSqlExpr* pRight){
     return;
   }
 
-  char newData[TSDB_MAX_NCHAR_LEN] = {0};
-  int len = 0;
-  if(!taosMbsToUcs4(pRight->value.pz, pRight->value.nLen, newData, TSDB_MAX_NCHAR_LEN, &len)){
-    tscError("nchar in where condition mbsToUcs4 error");
+  char *newData = calloc(pRight->value.nLen * TSDB_NCHAR_SIZE, 1);
+  if(!newData){
+    tscError("convertWhereStringCharset calloc memory error");
+    return;
   }
-  pRight->value.pz = realloc(pRight->value.pz, len);
+  int len = 0;
+  if(!taosMbsToUcs4(pRight->value.pz, pRight->value.nLen, newData, pRight->value.nLen * TSDB_NCHAR_SIZE, &len)){
+    tscError("nchar in where condition mbsToUcs4 error");
+    free(newData);
+    return;
+  }
+  char* tmp = realloc(pRight->value.pz, len);
+  if (!tmp){
+    tscError("convertWhereStringCharset realloc memory error");
+    free(newData);
+    return;
+  }
+  pRight->value.pz = tmp;
   memcpy(pRight->value.pz, newData, len);
   pRight->value.nLen = len;
   pRight->value.nType = TSDB_DATA_TYPE_NCHAR;
+  free(newData);
 }
 
 static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SCondExpr* pCondExpr,
