@@ -137,8 +137,6 @@ class Common:
         '''
             recreate jmeter report path
         '''
-        if config["jmeter"]["clean_aggregate_report"]:
-            self.exec_local_cmd(f'sudo rm -rf {self.log_dir}/testcase*')
         if os.path.exists(path):
             self.exec_local_cmd(f'rm -rf {path}/*')
         else:
