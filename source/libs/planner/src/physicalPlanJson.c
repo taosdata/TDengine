@@ -463,6 +463,191 @@ static bool exprInfoFromJson(const cJSON* json, void* obj) {
   return res;
 }
 
+static const char* jkTimeWindowStartKey = "StartKey";
+static const char* jkTimeWindowEndKey = "EndKey";
+
+static bool timeWindowToJson(const void* obj, cJSON* json) {
+  const STimeWindow* win = (const STimeWindow*)obj;
+  bool res = cJSON_AddNumberToObject(json, jkTimeWindowStartKey, win->skey);
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkTimeWindowEndKey, win->ekey);
+  }
+  return res;
+}
+
+static bool timeWindowFromJson(const cJSON* json, void* obj) {
+  STimeWindow* win = (STimeWindow*)obj;
+  win->skey = getNumber(json, jkTimeWindowStartKey);
+  win->ekey = getNumber(json, jkTimeWindowEndKey);
+  return true;
+}
+
+static const char* jkScanNodeTableId = "TableId";
+static const char* jkScanNodeTableType = "TableType";
+
+static bool scanNodeToJson(const void* obj, cJSON* json) {
+  const SScanPhyNode* scan = (const SScanPhyNode*)obj;
+  bool res = cJSON_AddNumberToObject(json, jkScanNodeTableId, scan->uid);
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkScanNodeTableType, scan->tableType);
+  }
+  return res;
+}
+
+static bool scanNodeFromJson(const cJSON* json, void* obj) {
+  SScanPhyNode* scan = (SScanPhyNode*)obj;
+  scan->uid = getNumber(json, jkScanNodeTableId);
+  scan->tableType = getNumber(json, jkScanNodeTableType);
+  return true;
+}
+
+static const char* jkTableScanNodeFlag = "Flag";
+static const char* jkTableScanNodeWindow = "Window";
+static const char* jkTableScanNodeTagsConditions = "TagsConditions";
+
+static bool tableScanNodeToJson(const void* obj, cJSON* json) {
+  const STableScanPhyNode* scan = (const STableScanPhyNode*)obj;
+  bool res = scanNodeToJson(obj, json);
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkTableScanNodeFlag, scan->scanFlag);
+  }
+  if (res) {
+    res = addObject(json, jkTableScanNodeWindow, timeWindowToJson, &scan->window);
+  }
+  if (res) {
+    res = addArray(json, jkTableScanNodeTagsConditions, exprInfoToJson, scan->pTagsConditions);
+  }
+  return res;
+}
+
+static bool tableScanNodeFromJson(const cJSON* json, void* obj) {
+  STableScanPhyNode* scan = (STableScanPhyNode*)obj;
+  bool res = scanNodeFromJson(json, obj);
+  if (res) {
+    scan->scanFlag = getNumber(json, jkTableScanNodeFlag);
+  }
+  if (res) {
+    res = fromObject(json, jkTableScanNodeWindow, timeWindowFromJson, &scan->window, true);
+  }
+  if (res) {
+    res = fromArray(json, jkTableScanNodeTagsConditions, exprInfoFromJson, &scan->pTagsConditions, sizeof(SExprInfo));
+  }
+  return res;
+}
+
+static const char* jkEpAddrFqdn = "Fqdn";
+static const char* jkEpAddrPort = "Port";
+
+static bool epAddrToJson(const void* obj, cJSON* json) {
+  const SEpAddrMsg* ep = (const SEpAddrMsg*)obj;
+  bool res = cJSON_AddStringToObject(json, jkEpAddrFqdn, ep->fqdn);
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkEpAddrPort, ep->port);
+  }
+  return res;
+}
+
+static bool epAddrFromJson(const cJSON* json, void* obj) {
+  SEpAddrMsg* ep = (SEpAddrMsg*)obj;
+  copyString(json, jkEpAddrFqdn, ep->fqdn);
+  ep->port = getNumber(json, jkEpAddrPort);
+  return true;
+}
+
+static const char* jkExchangeNodeSrcTemplateId = "SrcTemplateId";
+static const char* jkExchangeNodeSrcEndPoints = "SrcEndPoints";
+
+static bool exchangeNodeToJson(const void* obj, cJSON* json) {
+  const SExchangePhyNode* exchange = (const SExchangePhyNode*)obj;
+  bool res = cJSON_AddNumberToObject(json, jkExchangeNodeSrcTemplateId, exchange->srcTemplateId);
+  if (res) {
+    res = addArray(json, jkExchangeNodeSrcEndPoints, epAddrToJson, exchange->pSrcEndPoints);
+  }
+  return res;
+}
+
+static bool exchangeNodeFromJson(const cJSON* json, void* obj) {
+  SExchangePhyNode* exchange = (SExchangePhyNode*)obj;
+  exchange->srcTemplateId = getNumber(json, jkExchangeNodeSrcTemplateId);
+  return fromArray(json, jkExchangeNodeSrcEndPoints, epAddrFromJson, &exchange->pSrcEndPoints, sizeof(SEpAddrMsg));
+}
+
+static bool specificPhyNodeToJson(const void* obj, cJSON* json) {
+  const SPhyNode* phyNode = (const SPhyNode*)obj;
+  switch (phyNode->info.type) {
+    case OP_TableScan:
+    case OP_DataBlocksOptScan:
+    case OP_TableSeqScan:
+      return tableScanNodeToJson(obj, json);
+    case OP_TagScan:
+    case OP_SystemTableScan:
+      return scanNodeToJson(obj, json);
+    case OP_Aggregate:
+      break; // todo
+    case OP_Project:
+      return true;
+    case OP_Groupby:
+    case OP_Limit:
+    case OP_SLimit:
+    case OP_TimeWindow:
+    case OP_SessionWindow:
+    case OP_StateWindow:
+    case OP_Fill:
+    case OP_MultiTableAggregate:
+    case OP_MultiTableTimeInterval:
+    case OP_Filter:
+    case OP_Distinct:
+    case OP_Join:
+    case OP_AllTimeWindow:
+    case OP_AllMultiTableTimeInterval:
+    case OP_Order:
+      break; // todo
+    case OP_Exchange:
+      return exchangeNodeToJson(obj, json);
+    default:
+      break;
+  }
+  return false;
+}
+
+static bool specificPhyNodeFromJson(const cJSON* json, void* obj) {
+  SPhyNode* phyNode = (SPhyNode*)obj;
+  switch (phyNode->info.type) {
+    case OP_TableScan:
+    case OP_DataBlocksOptScan:
+    case OP_TableSeqScan:
+      return tableScanNodeFromJson(json, obj);
+    case OP_TagScan:
+    case OP_SystemTableScan:
+      return scanNodeFromJson(json, obj);
+    case OP_Aggregate:
+      break; // todo
+    case OP_Project:
+      return true;
+    case OP_Groupby:
+    case OP_Limit:
+    case OP_SLimit:
+    case OP_TimeWindow:
+    case OP_SessionWindow:
+    case OP_StateWindow:
+    case OP_Fill:
+    case OP_MultiTableAggregate:
+    case OP_MultiTableTimeInterval:
+    case OP_Filter:
+    case OP_Distinct:
+    case OP_Join:
+    case OP_AllTimeWindow:
+    case OP_AllMultiTableTimeInterval:
+    case OP_Order:
+      break; // todo
+    case OP_Exchange:
+      return exchangeNodeFromJson(json, obj);
+    default:
+      break;
+  }
+  return false;
+}
+
 static const char* jkPnodeName = "Name";
 static const char* jkPnodeTargets = "Targets";
 static const char* jkPnodeConditions = "Conditions";
@@ -484,6 +669,9 @@ static bool phyNodeToJson(const void* obj, cJSON* jNode) {
   if (res) {
     res = addArray(jNode, jkPnodeChildren, phyNodeToJson, phyNode->pChildren);
   }
+  if (res) {
+    res = addObject(jNode, phyNode->info.name, specificPhyNodeToJson, phyNode);
+  }
   return res;
 }
 
@@ -500,6 +688,9 @@ static bool phyNodeFromJson(const cJSON* json, void* obj) {
   }
   if (res) {
     res = fromArray(json, jkPnodeChildren, phyNodeFromJson, &node->pChildren, sizeof(SSlotSchema));
+  }
+  if (res) {
+    res = fromObject(json, node->info.name, specificPhyNodeFromJson, node, true);
   }
   return res;
 }
