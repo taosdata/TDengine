@@ -4,7 +4,6 @@ install_package: /home/ubuntu/TDengine/release/TDengine-server-2.3.4.0-beta-Linu
 clean_env: True
 hostname_prefix: vm
 timeout: 10
-taosd_autodeploy: False
 taosd_dnode1: 
   ip: 192.168.1.85
   port: 22
