@@ -54,7 +54,7 @@ typedef struct SQueryTask {
   SEpAddr              execAddr;   // task actual executed node address
   SQueryProfileSummary summary;    // task execution summary
   int32_t              childReady; // child task ready number
-  SArray              *childern;   // the datasource tasks,from which to fetch the result, element is SQueryTask*
+  SArray              *children;   // the datasource tasks,from which to fetch the result, element is SQueryTask*
   SArray              *parents;    // the data destination tasks, get data from current task, element is SQueryTask*
 } SQueryTask;
 
@@ -87,6 +87,7 @@ typedef struct SQueryJob {
   SArray   *subPlans;  // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0.
 } SQueryJob;
 
+#define SCH_HAS_QNODE_IN_CLUSTER(type) (false) //TODO CLUSTER TYPE
 #define SCH_TASK_READY_TO_LUNCH(task) ((task)->childReady >= taosArrayGetSize((task)->children))   // MAY NEED TO ENHANCE
 #define SCH_IS_DATA_SRC_TASK(task) (task->plan->type == QUERY_TYPE_SCAN)
 
@@ -98,6 +99,8 @@ typedef struct SQueryJob {
 #define SCH_ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { qError(__VA_ARGS__); terrno = _code; return _code; } } while (0)
 #define SCH_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
+
+extern int32_t schTaskRun(SQueryJob *job, SQueryTask *task);
 
 #ifdef __cplusplus
 }

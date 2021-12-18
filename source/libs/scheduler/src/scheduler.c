@@ -62,8 +62,8 @@ int32_t schBuildTaskRalation(SQueryJob *job, SHashObj *planToTask) {
       int32_t parentNum = (int32_t)taosArrayGetSize(plan->pParents);
 
       if (childNum > 0) {
-        task->childern = taosArrayInit(childNum, POINTER_BYTES);
-        if (NULL == task->childern) {
+        task->children = taosArrayInit(childNum, POINTER_BYTES);
+        if (NULL == task->children) {
           qError("taosArrayInit %d failed", childNum);
           SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
         }
@@ -77,7 +77,7 @@ int32_t schBuildTaskRalation(SQueryJob *job, SHashObj *planToTask) {
           SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
         }
 
-        if (NULL == taosArrayPush(task->childern, &childTask)) {
+        if (NULL == taosArrayPush(task->children, &childTask)) {
           qError("taosArrayPush failed");
           SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
         }
@@ -233,13 +233,39 @@ int32_t schAvailableEpSet(SQueryJob *job, SEpSet *epSet) {
     SCH_ERR_RET(catalogGetQnodeList(job->catalog, job->rpc, job->mgmtEpSet, epSet));
   } else {
     for (int32_t i = 0; i < job->dataSrcEps.numOfEps; ++i) {
-      strncpy(epSet->fqdn[epSet->numOfEps], &job->dataSrcEps.fqdn[i], sizeof(job->dataSrcEps.fqdn));
+      strncpy(epSet->fqdn[epSet->numOfEps], job->dataSrcEps.fqdn[i], sizeof(job->dataSrcEps.fqdn[i]));
       epSet->port[epSet->numOfEps] = job->dataSrcEps.port[i];
       
       ++epSet->numOfEps;
     }
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t schPushTaskToExecList(SQueryJob *job, SQueryTask *task) {
+  if (0 != taosHashPut(job->execTasks, &task->taskId, sizeof(task->taskId), &task, POINTER_BYTES)) {
+    qError("taosHashPut failed");
+    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t schMoveTaskToSuccList(SQueryJob *job, SQueryTask *task, bool *moved) {
+  if (0 != taosHashRemove(job->execTasks, &task->taskId, sizeof(task->taskId))) {
+    qWarn("remove task[%"PRIx64"] from execTasks failed", task->taskId);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (0 != taosHashPut(job->execTasks, &task->taskId, sizeof(task->taskId), &task, POINTER_BYTES)) {
+    qError("taosHashPut failed");
+    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  *moved = true;
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -271,7 +297,7 @@ int32_t schProcessOnTaskSuccess(SQueryJob *job, SQueryTask *task) {
   
   SCH_ERR_RET(schMoveTaskToSuccList(job, task, &moved));
   if (!moved) {
-    qWarn("task[%d] already moved", task->taskId);
+    SCH_TASK_ERR_LOG("task may already moved, status:%d", task->status);
     return TSDB_CODE_SUCCESS;
   }
   
@@ -285,7 +311,7 @@ int32_t schProcessOnTaskSuccess(SQueryJob *job, SQueryTask *task) {
     strncpy(job->resEp.fqdn, task->execAddr.fqdn, sizeof(job->resEp.fqdn));
     job->resEp.port = task->execAddr.port;
 
-    SCH_ERR_RET(schProcessOnJobSuccess());
+    SCH_ERR_RET(schProcessOnJobSuccess(job));
 
     return TSDB_CODE_SUCCESS;
   }
@@ -331,30 +357,6 @@ int32_t schProcessOnTaskFailure(SQueryJob *job, SQueryTask *task, int32_t errCod
 }
 
 
-int32_t schPushTaskToExecList(SQueryJob *job, SQueryTask *task) {
-  if (0 != taosHashPut(job->execTasks, &task->taskId, sizeof(task->taskId), &task, POINTER_BYTES)) {
-    qError("taosHashPut failed");
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t schMoveTaskToSuccList(SQueryJob *job, SQueryTask *task, bool *moved) {
-  if (0 != taosHashRemove(job->execTasks, &task->taskId, sizeof(task->taskId))) {
-    qWarn("remove task[%"PRIx64"] from execTasks failed", task->taskId);
-    return TSDB_CODE_SUCCESS
-  }
-
-  if (0 != taosHashPut(job->execTasks, &task->taskId, sizeof(task->taskId), &task, POINTER_BYTES)) {
-    qError("taosHashPut failed");
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  *moved = true;
-  
-  return TSDB_CODE_SUCCESS;
-}
 
 
 int32_t schTaskRun(SQueryJob *job, SQueryTask *task) {
@@ -367,7 +369,7 @@ int32_t schTaskRun(SQueryJob *job, SQueryTask *task) {
   
   SCH_ERR_RET(schAsyncLaunchTask(job, task));
 
-  SCH_ERR_RET(schPushTaskToExecList(job, task))
+  SCH_ERR_RET(schPushTaskToExecList(job, task));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -410,7 +412,7 @@ int32_t scheduleQueryJob(struct SCatalog *pCatalog, void *pRpc, const SEpSet* pM
 
   job->catalog = pCatalog;
   job->rpc = pRpc;
-  job->mgmtEpSet = pMgmtEps;
+  job->mgmtEpSet = (SEpSet *)pMgmtEps;
 
   SCH_ERR_JRET(schValidateAndBuildJob(pDag, job));
 
