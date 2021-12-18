@@ -31,7 +31,7 @@ tarbitrator_service_name="tarbitratord"
 nginx_service_name="nginxd"
 csudo=""
 if command -v sudo > /dev/null; then
-    csudo="sudo"
+    csudo="sudo "
 fi
 
 initd_mod=0
@@ -57,125 +57,125 @@ fi
 function kill_tqd() {
   pid=$(ps -ef | grep "tqd" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
-    ${csudo} kill -9 $pid   || :
+    ${csudo}kill -9 $pid   || :
   fi
 }
 
 function kill_tarbitrator() {
   pid=$(ps -ef | grep "tarbitrator" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
-    ${csudo} kill -9 $pid   || :
+    ${csudo}kill -9 $pid   || :
   fi
 }
 function clean_bin() {
     # Remove link
-    ${csudo} rm -f ${bin_link_dir}/tq        || :
-    ${csudo} rm -f ${bin_link_dir}/tqd       || :
-    ${csudo} rm -f ${bin_link_dir}/tqdemo    || :
-    ${csudo} rm -f ${bin_link_dir}/tqdump    || :
-    ${csudo} rm -f ${bin_link_dir}/rmtq      || :
-    ${csudo} rm -f ${bin_link_dir}/tarbitrator  || :
-    ${csudo} rm -f ${bin_link_dir}/set_core     || :
-    ${csudo} rm -f ${bin_link_dir}/run_taosd.sh || :
+    ${csudo}rm -f ${bin_link_dir}/tq        || :
+    ${csudo}rm -f ${bin_link_dir}/tqd       || :
+    ${csudo}rm -f ${bin_link_dir}/tqdemo    || :
+    ${csudo}rm -f ${bin_link_dir}/tqdump    || :
+    ${csudo}rm -f ${bin_link_dir}/rmtq      || :
+    ${csudo}rm -f ${bin_link_dir}/tarbitrator  || :
+    ${csudo}rm -f ${bin_link_dir}/set_core     || :
+    ${csudo}rm -f ${bin_link_dir}/run_taosd.sh || :
 }
 
 function clean_lib() {
     # Remove link
-    ${csudo} rm -f ${lib_link_dir}/libtaos.*      || :
-    ${csudo} rm -f ${lib64_link_dir}/libtaos.*    || :
-    #${csudo} rm -rf ${v15_java_app_dir}           || :
+    ${csudo}rm -f ${lib_link_dir}/libtaos.*      || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaos.*    || :
+    #${csudo}rm -rf ${v15_java_app_dir}           || :
 }
 
 function clean_header() {
     # Remove link
-    ${csudo} rm -f ${inc_link_dir}/taos.h           || :
-    ${csudo} rm -f ${inc_link_dir}/taosdef.h        || :
-    ${csudo} rm -f ${inc_link_dir}/taoserror.h      || :
+    ${csudo}rm -f ${inc_link_dir}/taos.h           || :
+    ${csudo}rm -f ${inc_link_dir}/taosdef.h        || :
+    ${csudo}rm -f ${inc_link_dir}/taoserror.h      || :
 }
 
 function clean_config() {
     # Remove link
-    ${csudo} rm -f ${cfg_link_dir}/*            || :
+    ${csudo}rm -f ${cfg_link_dir}/*            || :
 }
 
 function clean_log() {
     # Remove link
-    ${csudo} rm -rf ${log_link_dir}    || :
+    ${csudo}rm -rf ${log_link_dir}    || :
 }
 
 function clean_service_on_systemd() {
     tq_service_config="${service_config_dir}/${tq_service_name}.service"
     if systemctl is-active --quiet ${tq_service_name}; then
         echo "TQ tqd is running, stopping it..."
-        ${csudo} systemctl stop ${tq_service_name} &> /dev/null || echo &> /dev/null
+        ${csudo}systemctl stop ${tq_service_name} &> /dev/null || echo &> /dev/null
     fi
-    ${csudo} systemctl disable ${tq_service_name} &> /dev/null || echo &> /dev/null
-    ${csudo} rm -f ${tq_service_config}
+    ${csudo}systemctl disable ${tq_service_name} &> /dev/null || echo &> /dev/null
+    ${csudo}rm -f ${tq_service_config}
 
     tarbitratord_service_config="${service_config_dir}/${tarbitrator_service_name}.service"
     if systemctl is-active --quiet ${tarbitrator_service_name}; then
         echo "TQ tarbitrator is running, stopping it..."
-        ${csudo} systemctl stop ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
+        ${csudo}systemctl stop ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
     fi
-    ${csudo} systemctl disable ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
-    ${csudo} rm -f ${tarbitratord_service_config}
+    ${csudo}systemctl disable ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
+    ${csudo}rm -f ${tarbitratord_service_config}
     
     if [ "$verMode" == "cluster" ]; then
 		  nginx_service_config="${service_config_dir}/${nginx_service_name}.service"	
    	 	if [ -d ${bin_dir}/web ]; then
    	    if systemctl is-active --quiet ${nginx_service_name}; then
    	        echo "Nginx for TQ is running, stopping it..."
-   	        ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
+   	        ${csudo}systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
    	    fi
-   	    ${csudo} systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
+   	    ${csudo}systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
       
-   	    ${csudo} rm -f ${nginx_service_config}
+   	    ${csudo}rm -f ${nginx_service_config}
    	  fi
     fi 
 }
 
 function clean_service_on_sysvinit() {
     #restart_config_str="tq:2345:respawn:${service_config_dir}/tqd start"
-    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :    
+    #${csudo}sed -i "\|${restart_config_str}|d" /etc/inittab || :    
     
     if pidof tqd &> /dev/null; then
         echo "TQ tqd is running, stopping it..."
-        ${csudo} service tqd stop || :
+        ${csudo}service tqd stop || :
     fi
     
     if pidof tarbitrator &> /dev/null; then
         echo "TQ tarbitrator is running, stopping it..."
-        ${csudo} service tarbitratord stop || :
+        ${csudo}service tarbitratord stop || :
     fi
     
     if ((${initd_mod}==1)); then    
       if [ -e ${service_config_dir}/tqd ]; then
-        ${csudo} chkconfig --del tqd || :
+        ${csudo}chkconfig --del tqd || :
       fi
       if [ -e ${service_config_dir}/tarbitratord ]; then 
-        ${csudo} chkconfig --del tarbitratord || :
+        ${csudo}chkconfig --del tarbitratord || :
       fi
     elif ((${initd_mod}==2)); then   
       if [ -e ${service_config_dir}/tqd ]; then
-        ${csudo} insserv -r tqd || :
+        ${csudo}insserv -r tqd || :
       fi
       if [ -e ${service_config_dir}/tarbitratord ]; then 
-        ${csudo} insserv -r tarbitratord || :
+        ${csudo}insserv -r tarbitratord || :
       fi
     elif ((${initd_mod}==3)); then  
       if [ -e ${service_config_dir}/tqd ]; then
-        ${csudo} update-rc.d -f tqd remove || :
+        ${csudo}update-rc.d -f tqd remove || :
       fi
       if [ -e ${service_config_dir}/tarbitratord ]; then 
-        ${csudo} update-rc.d -f tarbitratord remove || :
+        ${csudo}update-rc.d -f tarbitratord remove || :
       fi
     fi
     
-    ${csudo} rm -f ${service_config_dir}/tqd || :
-    ${csudo} rm -f ${service_config_dir}/tarbitratord || :
+    ${csudo}rm -f ${service_config_dir}/tqd || :
+    ${csudo}rm -f ${service_config_dir}/tarbitratord || :
    
     if $(which init &> /dev/null); then
-        ${csudo} init q || :
+        ${csudo}init q || :
     fi
 }
 
@@ -203,10 +203,10 @@ clean_log
 # Remove link configuration file
 clean_config
 # Remove data link directory
-${csudo} rm -rf ${data_link_dir}    || : 
+${csudo}rm -rf ${data_link_dir}    || : 
 
-${csudo} rm -rf ${install_main_dir}
-${csudo} rm -rf ${install_nginxd_dir}
+${csudo}rm -rf ${install_main_dir}
+${csudo}rm -rf ${install_nginxd_dir}
 if [[ -e /etc/os-release ]]; then
   osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
 else
