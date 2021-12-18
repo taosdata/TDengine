@@ -158,7 +158,7 @@ void mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup) {
 }
 
 SCreateVnodeMsg *mndBuildCreateVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup) {
-  SCreateVnodeMsg *pCreate = rpcMallocCont(sizeof(SCreateVnodeMsg));
+  SCreateVnodeMsg *pCreate = malloc(sizeof(SCreateVnodeMsg));
   if (pCreate == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -192,7 +192,7 @@ SCreateVnodeMsg *mndBuildCreateVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbOb
     SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
     SDnodeObj *pVgidDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
     if (pVgidDnode == NULL) {
-      rpcFreeCont(pCreate);
+      free(pCreate);
       terrno = TSDB_CODE_MND_APP_ERROR;
       return NULL;
     }
@@ -208,7 +208,7 @@ SCreateVnodeMsg *mndBuildCreateVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbOb
   }
 
   if (pCreate->selfIndex == -1) {
-    rpcFreeCont(pCreate);
+    free(pCreate);
     terrno = TSDB_CODE_MND_APP_ERROR;
     return NULL;
   }
@@ -217,7 +217,7 @@ SCreateVnodeMsg *mndBuildCreateVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbOb
 }
 
 SDropVnodeMsg *mndBuildDropVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup) {
-  SDropVnodeMsg *pDrop = rpcMallocCont(sizeof(SDropVnodeMsg));
+  SDropVnodeMsg *pDrop = malloc(sizeof(SDropVnodeMsg));
   if (pDrop == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;

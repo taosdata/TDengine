@@ -303,9 +303,8 @@ static int32_t mndSetRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SV
         return -1;
       }
 
-      SRpcMsg rpcMsg = {.msgType = TSDB_MSG_TYPE_ALTER_VNODE_IN, .pCont = pMsg, .contLen = sizeof(SCreateVnodeMsg)};
-      if (mndTransAppendRedoAction(pTrans, &epset, &rpcMsg) != 0) {
-        rpcFreeCont(pMsg);
+      if (mndTransAppendRedoAction(pTrans, &epset, TSDB_MSG_TYPE_ALTER_VNODE_IN, sizeof(SCreateVnodeMsg), pMsg) != 0) {
+        free(pMsg);
         return -1;
       }
     }
@@ -333,9 +332,8 @@ static int32_t mndSetUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SV
         return -1;
       }
 
-      SRpcMsg rpcMsg = {.msgType = TSDB_MSG_TYPE_DROP_VNODE_IN, .pCont = pMsg, .contLen = sizeof(SDropVnodeMsg)};
-      if (mndTransAppendUndoAction(pTrans, &epset, &rpcMsg) != 0) {
-        rpcFreeCont(pMsg);
+      if (mndTransAppendUndoAction(pTrans, &epset, TSDB_MSG_TYPE_DROP_VNODE_IN, sizeof(SDropVnodeMsg), pMsg) != 0) {
+        free(pMsg);
         return -1;
       }
     }
