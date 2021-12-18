@@ -285,10 +285,62 @@ static int32_t mndSetCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVg
 }
 
 static int32_t mndSetRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
+  for (int v = 0; v < pDb->cfg.numOfVgroups; ++v) {
+    SVgObj *pVgroup = pVgroups + v;
+
+    for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
+      SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
+      SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+      if (pDnode == NULL) {
+        return -1;
+      }
+
+      SEpSet epset = mndGetDnodeEpset(pDnode);
+      mndReleaseDnode(pMnode, pDnode);
+
+      SCreateVnodeMsg *pMsg = mndBuildCreateVnodeMsg(pMnode, pDnode, pDb, pVgroup);
+      if (pMsg == NULL) {
+        return -1;
+      }
+
+      SRpcMsg rpcMsg = {.msgType = TSDB_MSG_TYPE_ALTER_VNODE_IN, .pCont = pMsg, .contLen = sizeof(SCreateVnodeMsg)};
+      if (mndTransAppendRedoAction(pTrans, &epset, &rpcMsg) != 0) {
+        rpcFreeCont(pMsg);
+        return -1;
+      }
+    }
+  }
+
   return 0;
 }
 
 static int32_t mndSetUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
+  for (int v = 0; v < pDb->cfg.numOfVgroups; ++v) {
+    SVgObj *pVgroup = pVgroups + v;
+
+    for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
+      SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
+      SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+      if (pDnode == NULL) {
+        return -1;
+      }
+
+      SEpSet epset = mndGetDnodeEpset(pDnode);
+      mndReleaseDnode(pMnode, pDnode);
+
+      SDropVnodeMsg *pMsg = mndBuildDropVnodeMsg(pMnode, pDnode, pDb, pVgroup);
+      if (pMsg == NULL) {
+        return -1;
+      }
+
+      SRpcMsg rpcMsg = {.msgType = TSDB_MSG_TYPE_DROP_VNODE_IN, .pCont = pMsg, .contLen = sizeof(SDropVnodeMsg)};
+      if (mndTransAppendUndoAction(pTrans, &epset, &rpcMsg) != 0) {
+        rpcFreeCont(pMsg);
+        return -1;
+      }
+    }
+  }
+
   return 0;
 }
 
@@ -644,7 +696,7 @@ static int32_t mndProcessUseDbMsg(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  int32_t contLen = sizeof(SUseDbRsp) + pDb->cfg.numOfVgroups * sizeof(SVgroupInfo);
+  int32_t    contLen = sizeof(SUseDbRsp) + pDb->cfg.numOfVgroups * sizeof(SVgroupInfo);
   SUseDbRsp *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
