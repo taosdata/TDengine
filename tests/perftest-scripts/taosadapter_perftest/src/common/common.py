@@ -40,7 +40,7 @@ class Common:
             telnet_line = base_str + tag_str
             return telnet_line
         elif protocol == "telnet-tcp":
-            base_str = 'stb_${stb_csv_count} ${row_csv_count} 32.261068286779754 t0=${tb_csv_count} '
+            base_str = 'tstb_${stb_csv_count} ${row_csv_count} 32.261068286779754 t0=${tb_csv_count} '
             tag_str = self.genTelnetMulTagStr(tag_count)
             telnet_line = base_str + tag_str + '${__unescape(\r\n)}'
             return telnet_line
@@ -169,85 +169,5 @@ class Common:
         for t in tlist:
             t.join()
 
-    def runJmeter(self):
-        for key, value in config['testcases'].items():
-            jmx_file_list = list()
-            logger.info(f'executing {key}')
-            for jmx_file in self.genJmxFile(key)[:value["taosadapter_count"]]:
-                jmx_filename = jmx_file.split('/')[-1]
-                import_file_name = jmx_filename.replace('jmx', 'txt')
-                import_file = os.path.join(self.current_dir, f'../../config/{import_file_name}')
-                loop_count = self.getLoopCount(value["stb_count"], value["tb_count"], value["row_count"], value["threads"])
-                self.genMixStbTbRows(import_file, value["stb_count"], value["tb_count"], value["row_count"])
-                input_line = self.genProtocolLine(value["protocol"], value["tag_count"])
-                with open(jmx_file, 'r', encoding='utf-8') as f:
-                    file_data = ""
-                    for line in f:
-                        if value['protocol'] == 'telnet-tcp':
-                            if "telnet_tcp_status" in line:
-                                line = line.replace("telnet_tcp_status", "true")
-                        if value['protocol'] == 'telnet-restful' or value['protocol'] == 'json':
-                            if "drop_db_status" in line:
-                                line = line.replace("drop_db_status", "true")
-                            if "create_db_status" in line:
-                                line = line.replace("create_db_status", "true")
-                            if "telnet_restful_status" in line:
-                                line = line.replace("telnet_restful_status", "true")
-                            if "line_protocol" in line:
-                                if value['protocol'] == 'telnet-restful':
-                                    line = line.replace("line_protocol", 'telnet')
-                                elif value['protocol'] == 'json':
-                                    line = line.replace("line_protocol", 'json')
-                                else:
-                                    pass
-                            if "db_name" in line:
-                                db_name = jmx_filename.split('.')[0]
-                                line = line.replace("db_name", db_name)
-                        if "import_file" in line:
-                            line = line.replace("import_file", import_file)
-                        if "input_line" in line:
-                            line = line.replace("input_line", input_line)
-                        if "perf_threads" in line:
-                            line = line.replace("perf_threads", str(value['threads']))
-                        if "loop_count" in line:
-                            line = line.replace("loop_count", str(loop_count))
-                        file_data += line
-                with open(jmx_file, "w", encoding="utf-8") as f:
-                    f.write(file_data)
-                jmx_file_list.append(jmx_file)
-            jmeter_cmd_list = self.genJmeterCmd(jmx_file_list)
-            self.multiThreadRun(self.genJmeterThreads(jmeter_cmd_list))
-            time.sleep(int(''.join(list(filter(str.isdigit, str(value["sleep_time"]))))))
-
-
-            # else:
-            #     import_file = os.path.join(self.current_dir, f'../../config/taosd_dnode1.txt')
-            #     loop_count = self.getLoopCount(value["stb_count"], value["tb_count"], value["row_count"], value["threads"])
-            #     self.genMixStbTbRows(import_file, value["stb_count"], value["tb_count"], value["row_count"])
-            #     input_line = self.genProtocolLine(value["protocol"], value["tag_count"])
-            #     jmx_file = self.genJmxFile()[0]
-            #     with open(jmx_file, 'r', encoding='utf-8') as f:
-            #         file_data = ""
-            #         for line in f:
-            #             if "import_file" in line:
-            #                 line = line.replace("import_file", import_file)
-            #             if "input_line" in line:
-            #                 line = line.replace("input_line", input_line)
-            #             if "perf_threads" in line:
-            #                 line = line.replace("perf_threads", str(value['threads']))
-            #             if "loop_count" in line:
-            #                 line = line.replace("loop_count", str(loop_count))
-            #             file_data += line
-            #     with open(jmx_file, "w", encoding="utf-8") as f:
-            #         f.write(file_data)
-
 if __name__ == '__main__':
     com = Common()
-    # print(com.genProtocolLine("telnet", 5))
-    # print(com.genJmxFile())
-    # print(com.genTelnetLine(10))
-    # stb_count = 5
-    # tb_count = 10
-    # row_count = 1
-    # com.genMixStbTbRows("mix.txt", 5, 10, 1)
-    print(com.runJmeter())

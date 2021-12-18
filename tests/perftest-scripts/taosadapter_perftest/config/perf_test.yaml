@@ -17,7 +17,6 @@ taosd_dnode1:
     dataDir: /data/lib/taos
     logDir: /data/log/taos
 
-
 taosd_cluster: False
 taosadapter_separate_deploy: True
 taosd_dnode2: 
@@ -79,110 +78,110 @@ jmeter:
   jmeter_addr: https://dlcdn.apache.org//jmeter/binaries/apache-jmeter-5.4.1.tgz
 
 testcases:
-  # testcase1:
-  #   threads: 24
-  #   protocol: telnet-restful
-  #   taosadapter_count: 1
-  #   stb_count: 1
-  #   tb_count: 1
-  #   row_count: 3000000
-  #   sleep_time: 60s
-  #   tag_count: 10
-  #   col_count: 1
-  # testcase2:
-  #   threads: 32
-  #   protocol: telnet-restful
-  #   taosadapter_count: 1
-  #   stb_count: 1
-  #   tb_count: 1
-  #   row_count: 3000000
-  #   sleep_time: 60s
-  #   tag_count: 10
-  #   col_count: 1
-  # testcase3:
-  #   threads: 64
-  #   protocol: telnet-restful
-  #   taosadapter_count: 1
-  #   stb_count: 1
-  #   tb_count: 1
-  #   row_count: 3000000
-  #   sleep_time: 60s
-  #   tag_count: 10
-  #   col_count: 1
-  # testcase4:
-  #   threads: 100
-  #   protocol: telnet-restful
-  #   taosadapter_count: 1
-  #   stb_count: 1
-  #   tb_count: 1
-  #   row_count: 5000000
-  #   sleep_time: 60s
-  #   tag_count: 10
-  #   col_count: 1
+  testcase1:
+    threads: 24
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 3000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase2:
+    threads: 32
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 3000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase3:
+    threads: 64
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 3000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase4:
+    threads: 100
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 5000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
   
-  # testcase5:
-  #   threads: 100
-  #   protocol: telnet-restful
-  #   taosadapter_count: 2
-  #   stb_count: 1
-  #   tb_count: 1
-  #   row_count: 5000000
-  #   sleep_time: 60s
-  #   tag_count: 10
-  #   col_count: 1
-  # testcase6:
-  #   threads: 100
-  #   protocol: telnet-restful
-  #   taosadapter_count: 3
-  #   stb_count: 1
-  #   tb_count: 1
-  #   row_count: 5000000
-  #   sleep_time: 60s
-  #   tag_count: 10
-  #   col_count: 1
+  testcase5:
+    threads: 100
+    protocol: telnet-restful
+    taosadapter_count: 2
+    stb_count: 1
+    tb_count: 1
+    row_count: 5000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase6:
+    threads: 100
+    protocol: telnet-restful
+    taosadapter_count: 3
+    stb_count: 1
+    tb_count: 1
+    row_count: 5000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
 
-  # testcase7:
-  #   threads: 100
-  #   protocol: telnet-restful
-  #   taosadapter_count: 1
-  #   stb_count: 1000000
-  #   tb_count: 1
-  #   row_count: 1
-  #   sleep_time: 60s
-  #   tag_count: 10
-  #   col_count: 1
-  # testcase8:
-  #   threads: 100
-  #   protocol: telnet-restful
-  #   taosadapter_count: 1
-  #   stb_count: 1
-  #   tb_count: 5000000
-  #   row_count: 1
-  #   sleep_time: 60s
-  #   tag_count: 10
-  #   col_count: 1
+  testcase7:
+    threads: 100
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1000000
+    tb_count: 1
+    row_count: 1
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase8:
+    threads: 100
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 5000000
+    row_count: 1
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
 
-  # testcase9:
-  #   threads: 100
-  #   protocol: telnet-restful
-  #   taosadapter_count: 1
-  #   stb_count: 1
-  #   tb_count: 100000
-  #   row_count: 1000
-  #   sleep_time: 60s
-  #   tag_count: 10
-  #   col_count: 1
+  testcase9:
+    threads: 100
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 100000
+    row_count: 1000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
 
-  # testcase10:
-  #   threads: 100
-  #   protocol: telnet-restful
-  #   taosadapter_count: 1
-  #   stb_count: 1
-  #   tb_count: 10
-  #   row_count: 10000000
-  #   sleep_time: 60s
-  #   tag_count: 10
-  #   col_count: 1
+  testcase10:
+    threads: 100
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 10
+    row_count: 10000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
   testcase11:
     threads: 24
     protocol: json
