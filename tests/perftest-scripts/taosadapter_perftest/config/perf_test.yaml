@@ -4,14 +4,13 @@ install_package: /home/ubuntu/TDengine/release/TDengine-server-2.3.4.0-beta-Linu
 clean_env: True
 hostname_prefix: vm
 timeout: 10
-taosd_autodeploy: False
 taosd_dnode1: 
   ip: 192.168.1.85
   port: 22
   restful_port: 6041
   telnet_port: 6051
   username: root
-  password: tbase125!
+  password: ******
   modify_cfg: False
   cfg: 
     dataDir: /data/lib/taos
@@ -25,7 +24,7 @@ taosd_dnode2:
   restful_port: 6041
   telnet_port: 6046
   username: root
-  password: tbase125!
+  password: ******
   modify_cfg: False
   cfg: 
     dataDir: /data/lib/taos
@@ -37,7 +36,7 @@ taosd_dnode3:
   restful_port: 6041
   telnet_port: 6046
   username: root
-  password: tbase125!
+  password: ******
   modify_cfg: False
   cfg: 
     dataDir: /data/lib/taos
@@ -49,7 +48,7 @@ taosd_dnode4:
   restful_port: 6041
   telnet_port: 6046
   username: root
-  password: tbase125!
+  password: ******
   modify_cfg: False
   cfg: 
     dataDir: /data/lib/taos
@@ -74,7 +73,7 @@ jmeter:
   ip: 127.0.0.1
   port: 22
   username: root
-  password: tbase125!
+  password: ******
   jmeter_addr: https://dlcdn.apache.org//jmeter/binaries/apache-jmeter-5.4.1.tgz
 
 testcases:
