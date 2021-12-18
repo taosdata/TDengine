@@ -23,7 +23,7 @@ extern "C" {
 #include "planner.h"
 
 typedef struct SSchedulerCfg {
-
+  int32_t clusterType;
 } SSchedulerCfg;
 
 typedef struct SQueryProfileSummary {
@@ -55,7 +55,7 @@ typedef struct SQueryProfileSummary {
  * @param pJob
  * @return
  */
-int32_t scheduleQueryJob(void *pRpc, SQueryDag* pDag, void** pJob);
+int32_t scheduleQueryJob(struct SCatalog *pCatalog, void *pRpc, const SEpSet* pMgmtEps, SQueryDag* pDag, void** pJob);
 
 int32_t scheduleFetchRows(void *pRpc, void *pJob, void *data);
 

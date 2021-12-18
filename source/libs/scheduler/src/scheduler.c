@@ -16,6 +16,7 @@
 #include "schedulerInt.h"
 #include "taosmsg.h"
 #include "query.h"
+#include "catalog.h"
 
 SSchedulerMgmt schMgmt = {0};
 
@@ -223,8 +224,16 @@ _return:
   SCH_RET(code);
 }
 
-int32_t schAvailableEpSet(SEpSet *epSet) {
+int32_t schAvailableEpSet(SQueryJob *job, SEpSet *epSet) {
+  SCH_ERR_RET(catalogGetQnodeList(job->catalog, job->rpc, job->mgmtEpSet, epSet));
 
+  if (epSet->numOfEps > SCHEDULE_MAX_CONDIDATE_EP_NUM) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  //TODO COPY dataSrcEps TO epSet
+
+  return TSDB_CODE_SUCCESS;
 }
 
 
@@ -265,6 +274,13 @@ int32_t schProcessOnTaskSuccess(SQueryJob *job, SQueryTask *task) {
     SCH_ERR_RET(schProcessOnJobSuccess());
 
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (SCH_IS_DATA_SRC_TASK(task) && job->dataSrcEps.numOfEps < SCHEDULE_MAX_CONDIDATE_EP_NUM) {
+    strncpy(job->dataSrcEps.fqdn[job->dataSrcEps.numOfEps], task->execAddr.fqdn, sizeof(task->execAddr.fqdn));
+    job->dataSrcEps.port[job->dataSrcEps.numOfEps] = task->execAddr.port;
+
+    ++job->dataSrcEps.numOfEps;
   }
 
   for (int32_t i = 0; i < parentNum; ++i) {
@@ -335,7 +351,7 @@ int32_t schTaskRun(SQueryJob *job, SQueryTask *task) {
   
   SCH_ERR_RET(qSubPlanToString(plan, &task->msg));
   if (plan->execEpSet.numOfEps <= 0) {
-    SCH_ERR_RET(schAvailableEpSet(&plan->execEpSet));
+    SCH_ERR_RET(schAvailableEpSet(job, &plan->execEpSet));
   }
   
   SCH_ERR_RET(schAsyncLaunchTask(job, task));
@@ -362,12 +378,16 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
     SCH_ERR_LRET(TSDB_CODE_QRY_OUT_OF_MEMORY, "init %d schduler jobs failed", SCHEDULE_DEFAULT_JOB_NUMBER);
   }
 
+  if (cfg) {
+    schMgmt.cfg = *cfg;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
 
-int32_t scheduleQueryJob(void *pRpc, SQueryDag* pDag, void** pJob) {
-  if (NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
+int32_t scheduleQueryJob(struct SCatalog *pCatalog, void *pRpc, const SEpSet* pMgmtEps, SQueryDag* pDag, void** pJob) {
+  if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
@@ -376,6 +396,10 @@ int32_t scheduleQueryJob(void *pRpc, SQueryDag* pDag, void** pJob) {
   if (NULL == job) {
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
+
+  job->catalog = pCatalog;
+  job->rpc = pRpc;
+  job->mgmtEpSet = pMgmtEps;
 
   SCH_ERR_JRET(schValidateAndBuildJob(pDag, job));
 

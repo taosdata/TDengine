@@ -29,6 +29,8 @@ extern "C" {
 #define SCHEDULE_DEFAULT_JOB_NUMBER 1000
 #define SCHEDULE_DEFAULT_TASK_NUMBER 1000
 
+#define SCHEDULE_MAX_CONDIDATE_EP_NUM 3
+
 enum {
   SCH_STATUS_NOT_START = 1,
   SCH_STATUS_EXECUTING,
@@ -40,6 +42,7 @@ enum {
 
 typedef struct SSchedulerMgmt {
   uint64_t  taskId;
+  SSchedulerCfg cfg;
   SHashObj *Jobs;  // key: queryId, value: SQueryJob*
 } SSchedulerMgmt;
 
@@ -69,6 +72,10 @@ typedef struct SQueryJob {
   int32_t   levelIdx;
   int8_t    status;
   SQueryProfileSummary summary;
+  SEpSet    dataSrcEps;
+  struct SCatalog *catalog;
+  void            *rpc;
+  SEpSet          *mgmtEpSet;
 
   SHashObj *execTasks; // executing tasks, key:taskid, value:SQueryTask*
   SHashObj *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
@@ -78,7 +85,7 @@ typedef struct SQueryJob {
 } SQueryJob;
 
 #define SCH_TASK_READY_TO_LUNCH(task) ((task)->childReady >= taosArrayGetSize((task)->children))   // MAY NEED TO ENHANCE
-
+#define SCH_IS_DATA_SRC_TASK(task) (task->plan->type == QUERY_TYPE_SCAN)
 
 #define SCH_JOB_ERR_LOG(param, ...) qError("QID:%"PRIx64 param, job->queryId, __VA_ARGS__)
 #define SCH_TASK_ERR_LOG(param, ...) qError("QID:%"PRIx64",TID:%"PRIx64 param, job->queryId, task->taskId, __VA_ARGS__)

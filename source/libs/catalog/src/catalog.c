@@ -634,6 +634,18 @@ _return:
   CTG_RET(code);
 }
 
+int32_t catalogGetQnodeList(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, SEpSet* pQnodeEpSet) {
+  if (NULL == pCatalog || NULL == pRpc  || NULL == pMgmtEps || NULL == pQnodeEpSet) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  pQnodeEpSet->inUse = 0;
+  pQnodeEpSet->numOfEps = 0;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 void catalogDestroy(void) {
   if (ctgMgmt.pCluster) {
     taosHashCleanup(ctgMgmt.pCluster); //TBD
