@@ -37,10 +37,10 @@ struct SIndex {
 #endif  
  void     *cache;
  void     *tindex; 
- SHashObj *fieldObj;// < field name, field id> 
+ SHashObj *colObj;// < field name, field id> 
  
  int64_t  suid;      // current super table id, -1 is normal table    
- int      fieldId;  // field id allocated to cache
+ int      colId;  // field id allocated to cache
  int32_t  cVersion; // current version allocated to cache 
  pthread_mutex_t mtx;
 };   

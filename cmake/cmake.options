@@ -57,7 +57,7 @@ option(
 )
 
 option(
-   USE_INVERTEDINDEX
+   BUILD_WITH_INVERTEDINDEX
    "If use invertedIndex" 
    ON 
 )

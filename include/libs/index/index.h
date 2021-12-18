@@ -51,7 +51,7 @@ int             indexMultiTermQueryAdd(SIndexMultiTermQuery *pQuery, SIndexTerm 
  * @param:    
  * @param:
  */
-SIndex* indexOpen(SIndexOpts *opt, const char *path);
+int   indexOpen(SIndexOpts *opt, const char *path, SIndex **index);
 void  indexClose(SIndex *index);
 int   indexPut(SIndex *index,    SIndexMultiTerm *terms, int uid);
 int   indexDelete(SIndex *index, SIndexMultiTermQuery *query); 
