@@ -639,8 +639,6 @@ int32_t catalogGetQnodeList(struct SCatalog* pCatalog, void *pRpc, const SEpSet*
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  pQnodeEpSet->inUse = 0;
-  pQnodeEpSet->numOfEps = 0;
 
   return TSDB_CODE_SUCCESS;
 }

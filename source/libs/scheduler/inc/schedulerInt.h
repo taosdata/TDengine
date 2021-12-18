@@ -29,7 +29,7 @@ extern "C" {
 #define SCHEDULE_DEFAULT_JOB_NUMBER 1000
 #define SCHEDULE_DEFAULT_TASK_NUMBER 1000
 
-#define SCHEDULE_MAX_CONDIDATE_EP_NUM 3
+#define SCH_MAX_CONDIDATE_EP_NUM TSDB_MAX_REPLICA
 
 enum {
   SCH_STATUS_NOT_START = 1,
@@ -54,7 +54,6 @@ typedef struct SQueryTask {
   SEpAddr              execAddr;   // task actual executed node address
   SQueryProfileSummary summary;    // task execution summary
   int32_t              childReady; // child task ready number
-  SArray              *childSrcEp; // child Eps, element is SEpAddr
   SArray              *childern;   // the datasource tasks,from which to fetch the result, element is SQueryTask*
   SArray              *parents;    // the data destination tasks, get data from current task, element is SQueryTask*
 } SQueryTask;
@@ -73,9 +72,13 @@ typedef struct SQueryJob {
   int8_t    status;
   SQueryProfileSummary summary;
   SEpSet    dataSrcEps;
+  SEpAddr   resEp;
   struct SCatalog *catalog;
   void            *rpc;
   SEpSet          *mgmtEpSet;
+  tsem_t           rspSem;
+  int32_t          userFetch;
+  void            *res;
 
   SHashObj *execTasks; // executing tasks, key:taskid, value:SQueryTask*
   SHashObj *succTasks; // succeed tasks, key:taskid, value:SQueryTask*

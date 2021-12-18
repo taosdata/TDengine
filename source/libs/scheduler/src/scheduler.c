@@ -224,14 +224,21 @@ _return:
   SCH_RET(code);
 }
 
-int32_t schAvailableEpSet(SQueryJob *job, SEpSet *epSet) {
-  SCH_ERR_RET(catalogGetQnodeList(job->catalog, job->rpc, job->mgmtEpSet, epSet));
-
-  if (epSet->numOfEps > SCHEDULE_MAX_CONDIDATE_EP_NUM) {
+int32_t schAvailableEpSet(SQueryJob *job, SEpSet *epSet) {  
+  if (epSet->numOfEps >= SCH_MAX_CONDIDATE_EP_NUM) {
     return TSDB_CODE_SUCCESS;
   }
 
-  //TODO COPY dataSrcEps TO epSet
+  if (SCH_HAS_QNODE_IN_CLUSTER(schMgmt.cfg.clusterType)) {
+    SCH_ERR_RET(catalogGetQnodeList(job->catalog, job->rpc, job->mgmtEpSet, epSet));
+  } else {
+    for (int32_t i = 0; i < job->dataSrcEps.numOfEps; ++i) {
+      strncpy(epSet->fqdn[epSet->numOfEps], &job->dataSrcEps.fqdn[i], sizeof(job->dataSrcEps.fqdn));
+      epSet->port[epSet->numOfEps] = job->dataSrcEps.port[i];
+      
+      ++epSet->numOfEps;
+    }
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -242,6 +249,10 @@ int32_t schAsyncLaunchTask(SQueryJob *job, SQueryTask *task) {
 }
 
 int32_t schTaskCheckAndSetRetry(SQueryJob *job, SQueryTask *task, int32_t errCode, bool *needRetry) {
+
+}
+
+int32_t schFetchFromRemote(SQueryJob *job) {
 
 }
 
@@ -271,12 +282,15 @@ int32_t schProcessOnTaskSuccess(SQueryJob *job, SQueryTask *task) {
       SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
     }
 
+    strncpy(job->resEp.fqdn, task->execAddr.fqdn, sizeof(job->resEp.fqdn));
+    job->resEp.port = task->execAddr.port;
+
     SCH_ERR_RET(schProcessOnJobSuccess());
 
     return TSDB_CODE_SUCCESS;
   }
 
-  if (SCH_IS_DATA_SRC_TASK(task) && job->dataSrcEps.numOfEps < SCHEDULE_MAX_CONDIDATE_EP_NUM) {
+  if (SCH_IS_DATA_SRC_TASK(task) && job->dataSrcEps.numOfEps < SCH_MAX_CONDIDATE_EP_NUM) {
     strncpy(job->dataSrcEps.fqdn[job->dataSrcEps.numOfEps], task->execAddr.fqdn, sizeof(task->execAddr.fqdn));
     job->dataSrcEps.port[job->dataSrcEps.numOfEps] = task->execAddr.port;
 
@@ -288,10 +302,7 @@ int32_t schProcessOnTaskSuccess(SQueryJob *job, SQueryTask *task) {
 
     ++par->childReady;
 
-    if (NULL == taosArrayPush(par->childSrcEp, &task->execAddr)) {
-      qError("taosArrayPush failed");
-      SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-    }
+    SCH_ERR_RET(qSetSubplanExecutionNode(par->plan, task->plan->id.templateId, &task->execAddr));
     
     if (SCH_TASK_READY_TO_LUNCH(par)) {
       SCH_ERR_RET(schTaskRun(job, task));
@@ -414,6 +425,8 @@ int32_t scheduleQueryJob(struct SCatalog *pCatalog, void *pRpc, const SEpSet* pM
     qError("taosHashInit %d failed", pDag->numOfSubplans);
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
+
+  tsem_init(&job->rspSem, 0, 0);
   
   SCH_ERR_JRET(schJobRun(job));
 
@@ -429,7 +442,26 @@ _return:
   SCH_RET(code);
 }
 
-int32_t scheduleFetchRows(void *pRpc, void *pJob, void *data);
+int32_t scheduleFetchRows(void *pRpc, void *pJob, void **data) {
+  if (NULL == pRpc || NULL == pJob || NULL == data) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  SQueryJob *job = pJob;
+
+  if (atomic_val_compare_exchange_32(&job->userFetch, 0, 1) != 0) {
+    qError("prior fetching not finished");
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+
+  SCH_ERR_RET(schFetchFromRemote(job));
+
+  tsem_wait(&job->rspSem);
+
+  *data = job->res;
+
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t scheduleCancelJob(void *pRpc, void *pJob);
 
