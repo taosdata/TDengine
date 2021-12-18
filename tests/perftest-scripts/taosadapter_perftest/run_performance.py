@@ -8,6 +8,9 @@ class RunPerformance:
     def __init__(self):
         self.COM = Common()
         self.current_dir = os.path.dirname(os.path.realpath(__file__))
+        self.log_dir = os.path.join(self.current_dir, f'./log')
+        if config["jmeter"]["clean_aggregate_report"]:
+            self.COM.exec_local_cmd(f'sudo rm -rf {self.log_dir}/testcase*')
 
     def runJmeter(self):
         for key, value in config['testcases'].items():
@@ -60,8 +63,6 @@ class RunPerformance:
             time.sleep(int(''.join(list(filter(str.isdigit, str(value["sleep_time"]))))))
 
 if __name__ == '__main__':
-    current_dir = os.path.dirname(os.path.realpath(__file__))
-    log_dir = os.path.join(current_dir, 'log')
     Performance = RunPerformance()
     DNODES = Dnodes()
     MONITOR = Monitor()
