@@ -38,13 +38,13 @@ typedef struct IndexCache {
 // 
 IndexCache *indexCacheCreate();
 
-void indexCacheDestroy(IndexCache *cache);
+void indexCacheDestroy(void *cache);
 
-int indexCachePut(IndexCache *cache, int16_t fieldId, int16_t fieldType, const char *fieldValue,  int32_t fvLen, 
+int indexCachePut(void *cache, int16_t fieldId, int16_t fieldType, const char *fieldValue,  int32_t fvLen, 
               uint32_t version, uint64_t uid, int8_t operType);
 
-int indexCacheGet(IndexCache *cache, uint64_t *rst);
-int indexCacheSearch(IndexCache *cache, SIndexMultiTermQuery *query, SArray *result);
+int indexCacheGet(void *cache, uint64_t *rst);
+int indexCacheSearch(void *cache, SIndexMultiTermQuery *query, SArray *result);
 
 #ifdef __cplusplus
 }

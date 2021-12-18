@@ -46,7 +46,7 @@ SIndex *indexOpen(SIndexOpts *opts, const char *path) {
   index_t *index = index_open(path);      
   sIdx->index = index;
 #endif
-  
+
   sIdx->cache    = (void*)indexCacheCreate();     
   sIdx->tindex   = NULL;
   sIdx->fieldObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
@@ -61,9 +61,12 @@ void indexClose(SIndex *sIdx) {
   index_close(sIdex->index); 
   sIdx->index = NULL;
 #endif
+
+#ifdef USE_INVERTEDINDEX
   indexCacheDestroy(sIdx->cache);
   taosHashCleanup(sIdx->fieldObj); 
   pthread_mutex_destroy(&sIdx->mtx);
+#endif
   free(sIdx);  
   return;
 }
@@ -86,6 +89,7 @@ int indexPut(SIndex *index, SArray* fVals, int uid) {
     index_document_destroy(doc);
 #endif
 
+#ifdef USE_INVERTEDINDEX
    //TODO(yihao): reduce the lock range 
   pthread_mutex_lock(&index->mtx);   
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
@@ -106,11 +110,16 @@ int indexPut(SIndex *index, SArray* fVals, int uid) {
     SIdxFieldInfo *fi = taosHashGet(index->fieldObj, p->key, p->nKey);
     assert(fi !=  NULL); 
     int32_t fieldId = fi->fieldId; 
-    int32_t colType = fi->type;  
+    int32_t fieldType = fi->type;  
     int32_t version = index->cVersion;
-     
+    int res = indexCachePut(index->cache, fieldId, fieldType, p->val, p->nVal, version, uid, p->operType);     
+    if (ret != 0) {
+      return  
+    }
   }
   pthread_mutex_unlock(&index->mtx);
+#endif
+
   return 1;
 }
 int indexSearch(SIndex *index, SIndexMultiTermQuery *multiQuerys, SArray *result) {
@@ -149,15 +158,25 @@ int indexSearch(SIndex *index, SIndexMultiTermQuery *multiQuerys, SArray *result
   free(keys);
   free(types);
 #endif
+
+#ifdef USE_INVERTEDINDEX
+  
+#endif
   return 1;
 }
 
 
 int indexDelete(SIndex *index, SIndexMultiTermQuery *query) {
+#ifdef USE_INVERTEDINDEX
+#endif
     
   return 1;
 }
-int indexRebuild(SIndex *index, SIndexOpts *opts);
+int indexRebuild(SIndex *index, SIndexOpts *opts) {
+#ifdef USE_INVERTEDINDEX
+#endif
+
+}
 
 
 SIndexOpts *indexOptsCreate() {
@@ -184,53 +203,55 @@ SIndexMultiTermQuery *indexMultiTermQueryCreate(EIndexOperatorType opera) {
 void indexMultiTermQueryDestroy(SIndexMultiTermQuery *pQuery) {
   for (int i = 0; i < taosArrayGetSize(pQuery->query); i++) {
     SIndexTermQuery *p = (SIndexTermQuery *)taosArrayGet(pQuery->query, i);
-    indexTermDestroy(p->field_value);
+    indexTermDestroy(p->term);
   }
   taosArrayDestroy(pQuery->query);     
   free(pQuery);
 };
-int indexMultiTermQueryAdd(SIndexMultiTermQuery *pQuery, const char *field, int32_t nFields, const char *value, int32_t nValue, EIndexQueryType type){
-  SIndexTerm *t = indexTermCreate(field, nFields, value, nValue);  
-  if (t == NULL) {return -1;}
-  SIndexTermQuery q = {.type = type, .field_value = t};   
+int indexMultiTermQueryAdd(SIndexMultiTermQuery *pQuery, SIndexTerm *term, EIndexQueryType qType){
+  SIndexTermQuery q = {.qType = qType, .term = term};   
   taosArrayPush(pQuery->query, &q);
   return 0;
 }
 
 
-SIndexTerm *indexTermCreate(const char *key, int32_t nKey, const char *val, int32_t nVal) {
-  SIndexTerm *t = (SIndexTerm *)malloc(sizeof(SIndexTerm)); 
-  t->key  = (char *)calloc(nKey + 1, 1);
-  memcpy(t->key, key, nKey);
-  t->nKey = nKey;
+SIndexTerm *indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colType, const char *colName, int32_t nColName, const char *colVal, int32_t nColVal) {
+  SIndexTerm *t = (SIndexTerm *)calloc(1, (sizeof(SIndexTerm))); 
+  if (t == NULL) { return NULL; }
 
-  t->val = (char *)calloc(nVal + 1, 1);
-  memcpy(t->val, val, nVal);
-  t->nVal = nVal;
+  t->suid    = suid;
+  t->operType= oper; 
+  t->colType = colType;
+
+  t->colName  = (char *)calloc(1, nColName + 1);
+  memcpy(t->colName, colName, nColName);
+  t->nColName = nColName;
+
+  t->colVal = (char *)calloc(1, nColVal + 1);
+  memcpy(t->colVal, colVal, nColVal);
+  t->nColVal = nColVal;
   return t;
 }
 void indexTermDestroy(SIndexTerm *p) {
-  free(p->key);
-  free(p->val);
+  free(p->colName);
+  free(p->colVal);
   free(p);
 }  
 
-SArray *indexMultiTermCreate() {
+SIndexMultiTerm *indexMultiTermCreate() {
   return taosArrayInit(4, sizeof(SIndexTerm *)); 
 }
 
-int indexMultiTermAdd(SArray *array, const char *field, int32_t nField, const char *val, int32_t nVal) {
-   SIndexTerm *term = indexTermCreate(field,  nField, val, nVal);  
-   if (term == NULL) { return -1; }
-   taosArrayPush(array, &term);
+int indexMultiTermAdd(SIndexMultiTerm *terms, SIndexTerm *term) {
+   taosArrayPush(terms, &term);
    return 0;
 }
-void indexMultiTermDestroy(SArray *array) {
-  for (int32_t i = 0; i < taosArrayGetSize(array); i++) {
-    SIndexTerm *p = taosArrayGetP(array, i);
+void indexMultiTermDestroy(SIndexMultiTerm *terms) {
+  for (int32_t i = 0; i < taosArrayGetSize(terms); i++) {
+    SIndexTerm *p = taosArrayGetP(terms, i);
     indexTermDestroy(p);
   }
-  taosArrayDestroy(array);
+  taosArrayDestroy(terms);
 }
 
 void indexInit() {

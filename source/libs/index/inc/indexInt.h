@@ -60,21 +60,20 @@ struct SIndexMultiTermQuery {
 
 // field and key;
 typedef struct SIndexTerm {
-  uint8_t type;  // term data type, str/interger/json
-  char    *key;
-  int32_t nKey;
-  char    *val;
-  int32_t nVal;
+  int64_t           suid; 
+  SIndexOperOnColumn operType; // oper type, add/del/update
+  uint8_t            colType;  // term data type, str/interger/json
+  char    *colName;
+  int32_t nColName;
+  char    *colVal;
+  int32_t nColVal;
 } SIndexTerm;
 
 typedef struct SIndexTermQuery {
-  SIndexTerm*     field_value;
-  EIndexQueryType type;
+  SIndexTerm*     term;
+  EIndexQueryType qType;
 } SIndexTermQuery;
 
-
-SIndexTerm *indexTermCreate(const char *key, int32_t nKey, const char *val, int32_t nVal);
-void        indexTermDestroy(SIndexTerm *p);
 
 
 #define indexFatal(...) do { if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("index FATAL ", 255, __VA_ARGS__); }}     while(0)
