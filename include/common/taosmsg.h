@@ -50,10 +50,9 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONSUME, "mq-consume" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_QUERY, "mq-query" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONNECT, "mq-connect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_DISCONNECT, "mq-disconnect" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_ACK, "mq-ack" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_RESET, "mq-reset" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_SET, "mq-set" )
 // message from client to mnode
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONNECT, "connect" )	 
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONNECT, "connect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_ACCT, "create-acct" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_ACCT, "alter-acct" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_ACCT, "drop-acct" )
@@ -571,14 +570,13 @@ typedef struct {
 } SRetrieveTableMsg;
 
 typedef struct SRetrieveTableRsp {
-  int32_t numOfRows;
-  int64_t offset;  // updated offset value for multi-vnode projection query
   int64_t useconds;
   int8_t  completed;  // all results are returned to client
   int8_t  precision;
   int8_t  compressed;
-  int8_t  reserved;
   int32_t compLen;
+
+  int32_t numOfRows;
   char    data[];
 } SRetrieveTableRsp;
 
@@ -785,12 +783,8 @@ typedef struct {
 } SAuthVnodeMsg;
 
 typedef struct {
-  char name[TSDB_TABLE_FNAME_LEN];
-} SStbInfoMsg;
-
-typedef struct {
-  SMsgHead msgHead;
-  char     tableFname[TSDB_TABLE_FNAME_LEN];
+  int32_t vgId;
+  char    tableFname[TSDB_TABLE_FNAME_LEN];
 } STableInfoMsg;
 
 typedef struct {
@@ -801,10 +795,6 @@ typedef struct {
   char    tableNames[];
 } SMultiTableInfoMsg;
 
-typedef struct SSTableVgroupMsg {
-  int32_t numOfTables;
-} SSTableVgroupMsg, SSTableVgroupRspMsg;
-
 typedef struct SVgroupInfo {
   int32_t    vgId;
   uint32_t   hashBegin;
@@ -813,12 +803,6 @@ typedef struct SVgroupInfo {
   int8_t     numOfEps;
   SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
 } SVgroupInfo;
-
-typedef struct SVgroupListRspMsg {
-  int32_t     vgroupNum;
-  int32_t     vgroupVersion;
-  SVgroupInfo vgroupInfo[];
-} SVgroupListRspMsg;
 
 typedef struct {
   int32_t    vgId;
@@ -841,8 +825,8 @@ typedef struct {
   int8_t   update;
   int32_t  sversion;
   int32_t  tversion;
-  uint64_t tuid;
   uint64_t suid;
+  uint64_t tuid;
   int32_t  vgId;
   SSchema  pSchema[];
 } STableMetaMsg;

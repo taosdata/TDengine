@@ -27,7 +27,7 @@ SVMemAllocator *vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize) {
   pVMA->capacity = capacity;
   pVMA->ssize = ssize;
   pVMA->lsize = lsize;
-  tSListInit(&(pVMA->nlist));
+  TD_SLIST_INIT(&(pVMA->nlist));
 
   pVMA->pNode = vArenaNodeNew(capacity);
   if (pVMA->pNode == NULL) {
@@ -35,7 +35,7 @@ SVMemAllocator *vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize) {
     return NULL;
   }
 
-  tSListPush(&(pVMA->nlist), pVMA->pNode);
+  TD_SLIST_PUSH(&(pVMA->nlist), pVMA->pNode);
 
   return pVMA;
 }
@@ -44,7 +44,7 @@ void vmaDestroy(SVMemAllocator *pVMA) {
   if (pVMA) {
     while (TD_SLIST_NELES(&(pVMA->nlist)) > 1) {
       SVArenaNode *pNode = TD_SLIST_HEAD(&(pVMA->nlist));
-      tSListPop(&(pVMA->nlist));
+      TD_SLIST_POP(&(pVMA->nlist));
       vArenaNodeFree(pNode);
     }
 
@@ -55,7 +55,7 @@ void vmaDestroy(SVMemAllocator *pVMA) {
 void vmaReset(SVMemAllocator *pVMA) {
   while (TD_SLIST_NELES(&(pVMA->nlist)) > 1) {
     SVArenaNode *pNode = TD_SLIST_HEAD(&(pVMA->nlist));
-    tSListPop(&(pVMA->nlist));
+    TD_SLIST_POP(&(pVMA->nlist));
     vArenaNodeFree(pNode);
   }
 
@@ -75,7 +75,7 @@ void *vmaMalloc(SVMemAllocator *pVMA, uint64_t size) {
       return NULL;
     }
 
-    tSListPush(&(pVMA->nlist), pNode);
+    TD_SLIST_PUSH(&(pVMA->nlist), pNode);
   }
 
   ptr = pNode->ptr;

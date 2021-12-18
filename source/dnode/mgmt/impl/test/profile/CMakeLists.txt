@@ -21,8 +21,6 @@ target_include_directories(dndTestProfile
     "${CMAKE_CURRENT_SOURCE_DIR}/../sut"
 )
 
-enable_testing()
-
 add_test(
     NAME dndTestProfile
     COMMAND dndTestProfile

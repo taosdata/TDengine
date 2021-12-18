@@ -16,6 +16,7 @@
 #ifndef _TD_META_H_
 #define _TD_META_H_
 
+#include "mallocator.h"
 #include "os.h"
 #include "trow.h"
 
@@ -71,7 +72,7 @@ typedef struct STbCfg {
 } STbCfg;
 
 // SMeta operations
-SMeta *metaOpen(const char *path, const SMetaCfg *pOptions);
+SMeta *metaOpen(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF);
 void   metaClose(SMeta *pMeta);
 void   metaRemove(const char *path);
 int    metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg);
@@ -79,8 +80,8 @@ int    metaDropTable(SMeta *pMeta, tb_uid_t uid);
 int    metaCommit(SMeta *pMeta);
 
 // Options
-void metaOptionsInit(SMetaCfg *pOptions);
-void metaOptionsClear(SMetaCfg *pOptions);
+void metaOptionsInit(SMetaCfg *pMetaCfg);
+void metaOptionsClear(SMetaCfg *pMetaCfg);
 
 // STbCfg
 #define META_INIT_STB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA, PTAGSCHEMA)                   \

@@ -100,14 +100,9 @@ int32_t queryPlanToString(struct SQueryPlanNode* pQueryNode, char** str);
 int32_t queryPlanToSql(struct SQueryPlanNode* pQueryNode, char** sql);
 
 int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag);
-
-/**
- * Convert to physical plan to string to enable to print it out in the shell.
- * @param pPhyNode
- * @param str
- * @return
- */
-int32_t phyPlanToString(struct SPhyNode *pPhyNode, char** str);
+int32_t setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SArray* eps);
+int32_t subPlanToString(const SSubplan *pPhyNode, char** str);
+int32_t stringToSubplan(const char* str, SSubplan** subplan);
 
 /**
  * Destroy the query plan object.
@@ -121,6 +116,8 @@ void destroyQueryPlan(struct SQueryPlanNode* pQueryNode);
  * @return
  */
 void* destroyQueryPhyPlan(struct SPhyNode* pQueryPhyNode);
+
+int32_t opNameToOpType(const char* name);
 
 #ifdef __cplusplus
 }

@@ -92,7 +92,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->writeLogTfd = -1;
   pWal->writeIdxTfd = -1;
   pWal->writeCur = -1;
-  pWal->fileInfoSet = taosArrayInit(8, sizeof(WalFileInfo));
+  pWal->fileInfoSet = taosArrayInit(8, sizeof(SWalFileInfo));
   if (pWal->fileInfoSet == NULL) {
     wError("vgId:%d, path:%s, failed to init taosArray %s", pWal->cfg.vgId, pWal->path, strerror(errno));
     free(pWal);

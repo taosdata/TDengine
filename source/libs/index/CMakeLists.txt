@@ -9,6 +9,7 @@ target_link_libraries(
     index 
     PUBLIC os
     PUBLIC util
+    PUBLIC common
 )
 
 if (${BUILD_WITH_LUCENE})

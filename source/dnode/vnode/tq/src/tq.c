@@ -63,7 +63,13 @@ STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemA
   return pTq;
 }
 
-static int tqProtoCheck(TmqMsgHead* pMsg) { return pMsg->protoVer == 0; }
+void tqClose(STQ*pTq) {
+  // TODO
+}
+
+static int tqProtoCheck(TmqMsgHead *pMsg) {
+  return pMsg->protoVer == 0;
+}
 
 static int tqAckOneTopic(STqBufferHandle* bHandle, TmqOneAck* pAck, STqQueryMsg** ppQuery) {
   // clean old item and move forward
@@ -214,7 +220,11 @@ int tqCommit(STQ* pTq) {
   return 0;
 }
 
-int tqConsume(STQ* pTq, TmqConsumeReq* pMsg) {
+int tqSetCursor(STQ* pTq, void* msg) {
+  return 0;
+}
+
+int tqConsume(STQ* pTq, STqConsumeReq* pMsg) {
   if (!tqProtoCheck((TmqMsgHead*)pMsg)) {
     // proto version invalid
     return -1;
@@ -232,7 +242,7 @@ int tqConsume(STQ* pTq, TmqConsumeReq* pMsg) {
     }
   }
 
-  TmqConsumeRsp* pRsp = (TmqConsumeRsp*)pMsg;
+  STqConsumeRsp* pRsp = (STqConsumeRsp*)pMsg;
 
   if (tqFetch(gHandle, (void**)&pRsp->msgs) <= 0) {
     // fetch error

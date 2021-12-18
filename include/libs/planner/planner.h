@@ -34,6 +34,13 @@ enum OPERATOR_TYPE_E {
   OP_TotalNum
 };
 
+enum DATASINK_TYPE_E {
+  DSINK_Unknown,
+  DSINK_Dispatch,
+  DSINK_Insert,
+  DSINK_TotalNum
+};
+
 struct SEpSet;
 struct SQueryStmtInfo;
 
@@ -48,6 +55,22 @@ typedef struct SQueryNodeBasicInfo {
   int32_t     type;          // operator type
   const char *name;          // operator name
 } SQueryNodeBasicInfo;
+
+typedef struct SDataSink {
+  SQueryNodeBasicInfo info;
+  SDataBlockSchema schema;
+} SDataSink;
+
+typedef struct SDataDispatcher {
+  SDataSink sink;
+  // todo
+} SDataDispatcher;
+
+typedef struct SDataInserter {
+  SDataSink sink;
+  uint64_t    uid;  // unique id of the table
+  // todo data field
+} SDataInserter;
 
 typedef struct SPhyNode {
   SQueryNodeBasicInfo info;
@@ -85,7 +108,7 @@ typedef struct SProjectPhyNode {
 typedef struct SExchangePhyNode {
   SPhyNode    node;
   uint64_t    srcTemplateId; // template id of datasource suplans
-  SArray     *pSourceEpSet;  // SEpSet, scheduler fill by calling qSetSuplanExecutionNode
+  SArray     *pSrcEndPoints;  // SEpAddrMsg, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhyNode;
 
 typedef struct SSubplanId {
@@ -115,22 +138,29 @@ typedef struct SQueryDag {
  */
 int32_t qCreateQueryDag(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* pQnode, struct SQueryDag** pDag);
 
-int32_t qSetSuplanExecutionNode(SArray* subplans, SArray* nodes);
+// Set datasource of this subplan, multiple calls may be made to a subplan.
+// @subplan subplan to be schedule
+// @templateId templateId of a group of datasource subplans of this @subplan
+// @eps Execution location of this group of datasource subplans, is an array of SEpAddr structures 
+int32_t qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SArray* eps);
 
 int32_t qExplainQuery(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* pQnode, char** str);
-
 
 /**
  * Convert to subplan to string for the scheduler to send to the executor
  */
-int32_t qSubPlanToString(struct SSubplan *pPhyNode, char** str);
+int32_t qSubPlanToString(const SSubplan* subplan, char** str);
+
+int32_t qStringToSubplan(const char* str, SSubplan** subplan);
+
+void qDestroySubplan(SSubplan* pSubplan);
 
 /**
  * Destroy the physical plan.
  * @param pQueryPhyNode
  * @return
  */
-void qDestroyQueryDag(struct SQueryDag* pDag);
+void qDestroyQueryDag(SQueryDag* pDag);
 
 #ifdef __cplusplus
 }

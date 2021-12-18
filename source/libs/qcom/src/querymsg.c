@@ -39,7 +39,7 @@ int32_t queryBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int3
 
   STableInfoMsg *bMsg = (STableInfoMsg *)*msg;
 
-  bMsg->msgHead.vgId = bInput->vgId;
+  bMsg->vgId = bInput->vgId;
 
   strncpy(bMsg->tableFname, bInput->tableFullName, sizeof(bMsg->tableFname));
   bMsg->tableFname[sizeof(bMsg->tableFname) - 1] = 0;
@@ -305,7 +305,7 @@ void msgInit() {
 
   tscBuildMsg[TSDB_SQL_HB] = tscBuildHeartBeatMsg;
   tscBuildMsg[TSDB_SQL_SHOW] = tscBuildShowMsg;
-  tscBuildMsg[TSDB_SQL_RETRIEVE] = tscBuildRetrieveFromMgmtMsg;
+  tscBuildMsg[TSDB_SQL_RETRIEVE_MNODE] = tscBuildRetrieveFromMgmtMsg;
   tscBuildMsg[TSDB_SQL_KILL_QUERY] = tscBuildKillMsg;
   tscBuildMsg[TSDB_SQL_KILL_STREAM] = tscBuildKillMsg;
   tscBuildMsg[TSDB_SQL_KILL_CONNECTION] = tscBuildKillMsg;
@@ -323,7 +323,7 @@ void msgInit() {
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE_FUNC] = tscProcessRetrieveFuncRsp;
 
   tscProcessMsgRsp[TSDB_SQL_SHOW] = tscProcessShowRsp;
-  tscProcessMsgRsp[TSDB_SQL_RETRIEVE] = tscProcessRetrieveRspFromNode;  // rsp handled by same function.
+  tscProcessMsgRsp[TSDB_SQL_RETRIEVE_MNODE] = tscProcessRetrieveRspFromNode;  // rsp handled by same function.
   tscProcessMsgRsp[TSDB_SQL_DESCRIBE_TABLE] = tscProcessDescribeTableRsp;
 
   tscProcessMsgRsp[TSDB_SQL_CURRENT_DB]   = tscProcessLocalRetrieveRsp;

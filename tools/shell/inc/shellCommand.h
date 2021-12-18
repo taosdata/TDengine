@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __COMMAND_STRUCT__
-#define __COMMAND_STRUCT__
+#ifndef _TD_SHELL_COMMAND_H_
+#define _TD_SHELL_COMMAND_H_
 
 #include "shell.h"
 

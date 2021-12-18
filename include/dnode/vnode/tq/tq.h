@@ -62,10 +62,10 @@ typedef struct TmqDisconnectRsp {
   int8_t     status;
 } TmqDisconnectRsp;
 
-typedef struct TmqConsumeReq {
+typedef struct STqConsumeReq {
   TmqMsgHead head;
   TmqAcks    acks;
-} TmqConsumeReq;
+} STqConsumeReq;
 
 typedef struct TmqMsgContent {
   int64_t topicId;
@@ -73,11 +73,11 @@ typedef struct TmqMsgContent {
   char    msg[];
 } TmqMsgContent;
 
-typedef struct TmqConsumeRsp {
+typedef struct STqConsumeRsp {
   TmqMsgHead    head;
   int64_t       bodySize;
   TmqMsgContent msgs[];
-} TmqConsumeRsp;
+} STqConsumeRsp;
 
 typedef struct TmqSubscribeReq {
   TmqMsgHead head;
@@ -261,13 +261,14 @@ typedef struct STQ {
 
 // open in each vnode
 STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemAllocatorFactory* allocFac);
-void tqDestroy(STQ*);
+void tqClose(STQ*);
 
 // void* will be replace by a msg type
 int tqPushMsg(STQ*, void* msg, int64_t version);
 int tqCommit(STQ*);
+int tqSetCursor(STQ*, void* msg);
 
-int tqConsume(STQ*, TmqConsumeReq*);
+int tqConsume(STQ*, STqConsumeReq*);
 
 STqGroupHandle* tqGetGroupHandle(STQ*, int64_t cId);
 

@@ -92,6 +92,7 @@ void dmnPrintVersion() {
 }
 
 int dmnReadConfig(const char *path) {
+  tstrncpy(configDir, global.configDir, PATH_MAX);
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
 

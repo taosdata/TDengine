@@ -13,19 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_COMMON_INT_H_
-#define _TD_COMMON_INT_H_
+#ifndef _TD_VNODE_MAF_H_
+#define _TD_VNODE_MAF_H_
+
+#include "vnode.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
-
-
+int  vnodeOpenMAF(SVnode *pVnode);
+void vnodeCloseMAF(SVnode *pVnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_COMMON_INT_H_*/
+#endif /*_TD_VNODE_MAF_H_*/

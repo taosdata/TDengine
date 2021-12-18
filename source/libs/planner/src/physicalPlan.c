@@ -19,6 +19,13 @@
 #define STORE_CURRENT_SUBPLAN(cxt) SSubplan* _ = cxt->pCurrentSubplan
 #define RECOVERY_CURRENT_SUBPLAN(cxt) cxt->pCurrentSubplan = _
 
+typedef struct SPlanContext {
+  struct SCatalog* pCatalog;
+  struct SQueryDag* pDag;
+  SSubplan* pCurrentSubplan;
+  SSubplanId nextId;
+} SPlanContext;
+
 static const char* gOpName[] = {
   "Unknown",
 #define INCLUDE_AS_NAME
@@ -26,12 +33,14 @@ static const char* gOpName[] = {
 #undef INCLUDE_AS_NAME
 };
 
-typedef struct SPlanContext {
-  struct SCatalog* pCatalog;
-  struct SQueryDag* pDag;
-  SSubplan* pCurrentSubplan;
-  SSubplanId nextId;
-} SPlanContext;
+int32_t opNameToOpType(const char* name) {
+  for (int32_t i = 1; i < sizeof(gOpName) / sizeof(gOpName[0]); ++i) {
+    if (strcmp(name, gOpName[i])) {
+      return i;
+    }
+  }
+  return OP_Unknown;
+}
 
 static void toDataBlockSchema(SQueryPlanNode* pPlanNode, SDataBlockSchema* dataBlockSchema) {
   SWAP(dataBlockSchema->pSchema, pPlanNode->pSchema, SSchema*);
@@ -179,7 +188,7 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
       assert(false);
   }
   if (pPlanNode->pChildren != NULL && taosArrayGetSize(pPlanNode->pChildren) > 0) {
-    node->pChildren = taosArrayInit(4, POINTER_BYTES);
+    node->pChildren = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
     size_t size = taosArrayGetSize(pPlanNode->pChildren);
     for(int32_t i = 0; i < size; ++i) {
       SPhyNode* child = createPhyNode(pCxt, taosArrayGet(pPlanNode->pChildren, i));
@@ -216,6 +225,6 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t subPlanToString(struct SSubplan *pPhyNode, char** str) {
-  return TSDB_CODE_SUCCESS;
+int32_t setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SArray* eps) {
+  //todo
 }

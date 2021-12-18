@@ -79,13 +79,13 @@ int walRollFileInfo(SWal* pWal) {
 
   SArray* pArray = pWal->fileInfoSet;
   if (taosArrayGetSize(pArray) != 0) {
-    WalFileInfo* pInfo = taosArrayGetLast(pArray);
+    SWalFileInfo* pInfo = taosArrayGetLast(pArray);
     pInfo->lastVer = pWal->vers.lastVer;
     pInfo->closeTs = ts;
   }
 
   // TODO: change to emplace back
-  WalFileInfo* pNewInfo = malloc(sizeof(WalFileInfo));
+  SWalFileInfo* pNewInfo = malloc(sizeof(SWalFileInfo));
   if (pNewInfo == NULL) {
     return -1;
   }
@@ -122,9 +122,9 @@ char* walMetaSerialize(SWal* pWal) {
   cJSON_AddStringToObject(pMeta, "lastVer", buf);
 
   cJSON_AddItemToObject(pRoot, "files", pFiles);
-  WalFileInfo* pData = pWal->fileInfoSet->pData;
+  SWalFileInfo* pData = pWal->fileInfoSet->pData;
   for (int i = 0; i < sz; i++) {
-    WalFileInfo* pInfo = &pData[i];
+    SWalFileInfo* pInfo = &pData[i];
     cJSON_AddItemToArray(pFiles, pField = cJSON_CreateObject());
     if (pField == NULL) {
       cJSON_Delete(pRoot);
@@ -167,10 +167,10 @@ int walMetaDeserialize(SWal* pWal, const char* bytes) {
   // deserialize
   SArray* pArray = pWal->fileInfoSet;
   taosArrayEnsureCap(pArray, sz);
-  WalFileInfo* pData = pArray->pData;
+  SWalFileInfo* pData = pArray->pData;
   for (int i = 0; i < sz; i++) {
-    cJSON*       pInfoJson = cJSON_GetArrayItem(pFiles, i);
-    WalFileInfo* pInfo = &pData[i];
+    cJSON*        pInfoJson = cJSON_GetArrayItem(pFiles, i);
+    SWalFileInfo* pInfo = &pData[i];
     pField = cJSON_GetObjectItem(pInfoJson, "firstVer");
     pInfo->firstVer = atoll(cJSON_GetStringValue(pField));
     pField = cJSON_GetObjectItem(pInfoJson, "lastVer");

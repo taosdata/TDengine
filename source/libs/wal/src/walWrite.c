@@ -56,9 +56,9 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     // delete files
     int fileSetSize = taosArrayGetSize(pWal->fileInfoSet);
     for (int i = pWal->writeCur; i < fileSetSize; i++) {
-      walBuildLogName(pWal, ((WalFileInfo *)taosArrayGet(pWal->fileInfoSet, i))->firstVer, fnameStr);
+      walBuildLogName(pWal, ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, i))->firstVer, fnameStr);
       remove(fnameStr);
-      walBuildIdxName(pWal, ((WalFileInfo *)taosArrayGet(pWal->fileInfoSet, i))->firstVer, fnameStr);
+      walBuildIdxName(pWal, ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, i))->firstVer, fnameStr);
       remove(fnameStr);
     }
     // pop from fileInfoSet
@@ -81,8 +81,8 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   }
   // read idx file and get log file pos
   // TODO:change to deserialize function
-  WalIdxEntry entry;
-  if (tfRead(idxTfd, &entry, sizeof(WalIdxEntry)) != sizeof(WalIdxEntry)) {
+  SWalIdxEntry entry;
+  if (tfRead(idxTfd, &entry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) {
     pthread_mutex_unlock(&pWal->mutex);
     return -1;
   }
@@ -128,8 +128,8 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     return -1;
   }
   pWal->vers.lastVer = ver - 1;
-  ((WalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->lastVer = ver - 1;
-  ((WalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->fileSize = entry.offset;
+  ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->lastVer = ver - 1;
+  ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->fileSize = entry.offset;
 
   // unlock
   pthread_mutex_unlock(&pWal->mutex);
@@ -153,17 +153,17 @@ int32_t walEndSnapshot(SWal *pWal) {
   pWal->vers.snapshotVer = ver;
   int ts = taosGetTimestampSec();
 
-  int         deleteCnt = 0;
-  int64_t     newTotSize = pWal->totSize;
-  WalFileInfo tmp;
+  int          deleteCnt = 0;
+  int64_t      newTotSize = pWal->totSize;
+  SWalFileInfo tmp;
   tmp.firstVer = ver;
   // find files safe to delete
-  WalFileInfo *pInfo = taosArraySearch(pWal->fileInfoSet, &tmp, compareWalFileInfo, TD_LE);
+  SWalFileInfo *pInfo = taosArraySearch(pWal->fileInfoSet, &tmp, compareWalFileInfo, TD_LE);
   if (ver >= pInfo->lastVer) {
     pInfo++;
   }
   // iterate files, until the searched result
-  for (WalFileInfo *iter = pWal->fileInfoSet->pData; iter < pInfo; iter++) {
+  for (SWalFileInfo *iter = pWal->fileInfoSet->pData; iter < pInfo; iter++) {
     if (pWal->totSize > pWal->cfg.retentionSize || iter->closeTs + pWal->cfg.retentionPeriod > ts) {
       // delete according to file size or close time
       deleteCnt++;
@@ -173,7 +173,7 @@ int32_t walEndSnapshot(SWal *pWal) {
   char fnameStr[WAL_FILE_LEN];
   // remove file
   for (int i = 0; i < deleteCnt; i++) {
-    WalFileInfo *pInfo = taosArrayGet(pWal->fileInfoSet, i);
+    SWalFileInfo *pInfo = taosArrayGet(pWal->fileInfoSet, i);
     walBuildLogName(pWal, pInfo->firstVer, fnameStr);
     remove(fnameStr);
     walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
@@ -186,7 +186,7 @@ int32_t walEndSnapshot(SWal *pWal) {
     pWal->writeCur = -1;
     pWal->vers.firstVer = -1;
   } else {
-    pWal->vers.firstVer = ((WalFileInfo *)taosArrayGet(pWal->fileInfoSet, 0))->firstVer;
+    pWal->vers.firstVer = ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, 0))->firstVer;
   }
   pWal->writeCur = taosArrayGetSize(pWal->fileInfoSet) - 1;
   ;
@@ -248,9 +248,9 @@ int walRoll(SWal *pWal) {
 }
 
 static int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
-  WalIdxEntry entry = {.ver = ver, .offset = offset};
-  int         size = tfWrite(pWal->writeIdxTfd, &entry, sizeof(WalIdxEntry));
-  if (size != sizeof(WalIdxEntry)) {
+  SWalIdxEntry entry = {.ver = ver, .offset = offset};
+  int          size = tfWrite(pWal->writeIdxTfd, &entry, sizeof(SWalIdxEntry));
+  if (size != sizeof(SWalIdxEntry)) {
     // TODO truncate
     return -1;
   }
