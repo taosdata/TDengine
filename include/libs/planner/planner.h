@@ -105,6 +105,8 @@ typedef struct SSubplan {
 } SSubplan;
 
 typedef struct SQueryDag {
+  uint64_t queryId;
+  int32_t  numOfSubplans;
   SArray  *pSubplans; // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0.
 } SQueryDag;
 

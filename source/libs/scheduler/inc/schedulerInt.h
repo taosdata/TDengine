@@ -44,14 +44,16 @@ typedef struct SSchedulerMgmt {
 } SSchedulerMgmt;
 
 typedef struct SQueryTask {
-  uint64_t             taskId;    // task id
-  SSubplan            *plan;      // subplan
-  char                *msg;       // operator tree
-  int8_t               status;    // task status
-  SEpAddr              execAddr;  // task actual executed node address
-  SQueryProfileSummary summary;   // task execution summary
-  SArray              *childern; // the datasource tasks,from which to fetch the result, element is SQueryTask*
-  SArray              *parents;  // the data destination tasks, get data from current task, element is SQueryTask*
+  uint64_t             taskId;     // task id
+  SSubplan            *plan;       // subplan
+  char                *msg;        // operator tree
+  int8_t               status;     // task status
+  SEpAddr              execAddr;   // task actual executed node address
+  SQueryProfileSummary summary;    // task execution summary
+  int32_t              childReady; // child task ready number
+  SArray              *childSrcEp; // child Eps, element is SEpAddr
+  SArray              *childern;   // the datasource tasks,from which to fetch the result, element is SQueryTask*
+  SArray              *parents;    // the data destination tasks, get data from current task, element is SQueryTask*
 } SQueryTask;
 
 typedef struct SQueryLevel {
@@ -67,10 +69,15 @@ typedef struct SQueryJob {
   int32_t   levelIdx;
   int8_t    status;
   SQueryProfileSummary summary;
-  
-  SArray  *levels;    // Element is SQueryLevel, starting from 0.
-  SArray  *subPlans;  // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0.
+
+  SHashObj *execTasks; // executing tasks, key:taskid, value:SQueryTask*
+  SHashObj *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
+    
+  SArray   *levels;    // Element is SQueryLevel, starting from 0.
+  SArray   *subPlans;  // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0.
 } SQueryJob;
+
+#define SCH_TASK_READY_TO_LUNCH(task) ((task)->childReady >= taosArrayGetSize((task)->children))   // MAY NEED TO ENHANCE
 
 
 #define SCH_JOB_ERR_LOG(param, ...) qError("QID:%"PRIx64 param, job->queryId, __VA_ARGS__)
