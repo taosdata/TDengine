@@ -750,31 +750,36 @@ typedef struct {
 } SReplica;
 
 typedef struct {
-  char     db[TSDB_FULL_DB_NAME_LEN];
   int32_t  vgId;
+  int32_t  dnodeId;
+  char     db[TSDB_FULL_DB_NAME_LEN];
+  uint64_t dbUid;
   int32_t  cacheBlockSize;
   int32_t  totalBlocks;
   int32_t  daysPerFile;
   int32_t  daysToKeep0;
   int32_t  daysToKeep1;
   int32_t  daysToKeep2;
-  int32_t  minRowsPerFileBlock;
-  int32_t  maxRowsPerFileBlock;
+  int32_t  minRows;
+  int32_t  maxRows;
+  int32_t  commitTime;
   int32_t  fsyncPeriod;
-  int8_t   reserved[16];
+  int8_t   walLevel;
   int8_t   precision;
   int8_t   compression;
-  int8_t   cacheLastRow;
-  int8_t   update;
-  int8_t   walLevel;
   int8_t   quorum;
+  int8_t   update;
+  int8_t   cacheLastRow;
   int8_t   replica;
   int8_t   selfIndex;
   SReplica replicas[TSDB_MAX_REPLICA];
 } SCreateVnodeMsg, SAlterVnodeMsg;
 
 typedef struct {
-  int32_t vgId;
+  int32_t  vgId;
+  int32_t  dnodeId;
+  char     db[TSDB_FULL_DB_NAME_LEN];
+  uint64_t dbUid;
 } SDropVnodeMsg, SSyncVnodeMsg, SCompactVnodeMsg;
 
 typedef struct {

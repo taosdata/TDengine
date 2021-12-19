@@ -95,7 +95,7 @@ static int32_t dndProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg);
 
 static SVnodeObj *dndAcquireVnode(SDnode *pDnode, int32_t vgId) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
-  SVnodeObj *  pVnode = NULL;
+  SVnodeObj   *pVnode = NULL;
   int32_t      refCount = 0;
 
   taosRLockLatch(&pMgmt->latch);
@@ -107,23 +107,23 @@ static SVnodeObj *dndAcquireVnode(SDnode *pDnode, int32_t vgId) {
   }
   taosRUnLockLatch(&pMgmt->latch);
 
-  dTrace("vgId:%d, acquire vnode, refCount:%d", pVnode->vgId, refCount);
+  if (pVnode != NULL) {
+    dTrace("vgId:%d, acquire vnode, refCount:%d", pVnode->vgId, refCount);
+  }
+
   return pVnode;
 }
 
 static void dndReleaseVnode(SDnode *pDnode, SVnodeObj *pVnode) {
+  if (pVnode == NULL) return;
+
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
-  int32_t      refCount = 0;
 
   taosRLockLatch(&pMgmt->latch);
-  if (pVnode != NULL) {
-    refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
-  }
+  int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
   taosRUnLockLatch(&pMgmt->latch);
 
-  if (pVnode != NULL) {
-    dTrace("vgId:%d, release vnode, refCount:%d", pVnode->vgId, refCount);
-  }
+  dTrace("vgId:%d, release vnode, refCount:%d", pVnode->vgId, refCount);
 }
 
 static int32_t dndCreateVnodeWrapper(SDnode *pDnode, int32_t vgId, char *path, SVnode *pImpl) {
@@ -457,7 +457,7 @@ static int32_t dndOpenVnodes(SDnode *pDnode) {
 
   pMgmt->totalVnodes = numOfVnodes;
 
-  int32_t threadNum = tsNumOfCores;
+  int32_t threadNum = pDnode->opt.numOfCores;
   int32_t vnodesPerThread = numOfVnodes / threadNum + 1;
 
   SVnodeThread *threads = calloc(threadNum, sizeof(SVnodeThread));
@@ -525,33 +525,49 @@ static void dndCloseVnodes(SDnode *pDnode) {
 
 static int32_t dndParseCreateVnodeReq(SRpcMsg *rpcMsg, int32_t *vgId, SVnodeCfg *pCfg) {
   SCreateVnodeMsg *pCreate = rpcMsg->pCont;
-  *vgId = htonl(pCreate->vgId);
+  pCreate->vgId = htonl(pCreate->vgId);
+  pCreate->dnodeId = htonl(pCreate->dnodeId);
+  pCreate->dbUid = htobe64(pCreate->dbUid);
+  pCreate->cacheBlockSize = htonl(pCreate->cacheBlockSize);
+  pCreate->totalBlocks = htonl(pCreate->totalBlocks);
+  pCreate->daysPerFile = htonl(pCreate->daysPerFile);
+  pCreate->daysToKeep0 = htonl(pCreate->daysToKeep0);
+  pCreate->daysToKeep1 = htonl(pCreate->daysToKeep1);
+  pCreate->daysToKeep2 = htonl(pCreate->daysToKeep2);
+  pCreate->minRows = htonl(pCreate->minRows);
+  pCreate->maxRows = htonl(pCreate->maxRows);
+  pCreate->commitTime = htonl(pCreate->commitTime);
+  pCreate->fsyncPeriod = htonl(pCreate->fsyncPeriod);
+  for (int r = 0; r < pCreate->replica; ++r) {
+    SReplica *pReplica = &pCreate->replicas[r];
+    pReplica->id = htonl(pReplica->id);
+    pReplica->port = htons(pReplica->port);
+  }
+
+  *vgId = pCreate->vgId;
 
 #if 0
-  tstrncpy(pCfg->db, pCreate->db, TSDB_FULL_DB_NAME_LEN);
-  pCfg->cacheBlockSize = htonl(pCreate->cacheBlockSize);
-  pCfg->totalBlocks = htonl(pCreate->totalBlocks);
-  pCfg->daysPerFile = htonl(pCreate->daysPerFile);
-  pCfg->daysToKeep0 = htonl(pCreate->daysToKeep0);
-  pCfg->daysToKeep1 = htonl(pCreate->daysToKeep1);
-  pCfg->daysToKeep2 = htonl(pCreate->daysToKeep2);
-  pCfg->minRowsPerFileBlock = htonl(pCreate->minRowsPerFileBlock);
-  pCfg->maxRowsPerFileBlock = htonl(pCreate->maxRowsPerFileBlock);
-  pCfg->precision = pCreate->precision;
-  pCfg->compression = pCreate->compression;
-  pCfg->cacheLastRow = pCreate->cacheLastRow;
-  pCfg->update = pCreate->update;
-  pCfg->quorum = pCreate->quorum;
-  pCfg->replica = pCreate->replica;
-  pCfg->walLevel = pCreate->walLevel;
-  pCfg->fsyncPeriod = htonl(pCreate->fsyncPeriod);
-
-  for (int32_t i = 0; i < pCfg->replica; ++i) {
-    pCfg->replicas[i].port = htons(pCreate->replicas[i].port);
-    tstrncpy(pCfg->replicas[i].fqdn, pCreate->replicas[i].fqdn, TSDB_FQDN_LEN);
-  }
+  pCfg->wsize = pCreate->cacheBlockSize;
+  pCfg->ssize = pCreate->cacheBlockSize;
+  pCfg->wsize = pCreate->cacheBlockSize;
+  pCfg->lsize = pCreate->cacheBlockSize;
+  pCfg->isHeapAllocator = true;
+  pCfg->ttl = 4;
+  pCfg->keep = pCreate->daysToKeep0;
+  pCfg->isWeak = true;
+  pCfg->tsdbCfg.keep0 = pCreate->daysToKeep0;
+  pCfg->tsdbCfg.keep1 = pCreate->daysToKeep2;
+  pCfg->tsdbCfg.keep2 = pCreate->daysToKeep0;
+  pCfg->tsdbCfg.lruCacheSize = pCreate->cacheBlockSize;
+  pCfg->metaCfg.lruSize = pCreate->cacheBlockSize;
+  pCfg->walCfg.fsyncPeriod = pCreate->fsyncPeriod;
+  pCfg->walCfg.level = pCreate->walLevel;
+  pCfg->walCfg.retentionPeriod = 10;
+  pCfg->walCfg.retentionSize = 128;
+  pCfg->walCfg.rollPeriod = 128;
+  pCfg->walCfg.segSize = 128;
+  pCfg->walCfg.vgId = pCreate->vgId;
 #endif
-
   return 0;
 }
 
@@ -1016,7 +1032,7 @@ static int32_t dndInitVnodeWriteWorker(SDnode *pDnode) {
   SVnodesMgmt * pMgmt = &pDnode->vmgmt;
   SMWorkerPool *pPool = &pMgmt->writePool;
   pPool->name = "vnode-write";
-  pPool->max = tsNumOfCores;
+  pPool->max = pDnode->opt.numOfCores;
   if (tMWorkerInit(pPool) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -1050,7 +1066,7 @@ static void dndFreeVnodeSyncQueue(SDnode *pDnode, SVnodeObj *pVnode) {
 }
 
 static int32_t dndInitVnodeSyncWorker(SDnode *pDnode) {
-  int32_t maxThreads = tsNumOfCores / 2;
+  int32_t maxThreads = pDnode->opt.numOfCores / 2;
   if (maxThreads < 1) maxThreads = 1;
 
   SVnodesMgmt  *pMgmt = &pDnode->vmgmt;

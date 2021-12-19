@@ -15,6 +15,6 @@ add_subdirectory(stb)
 # add_subdirectory(telem)
 # add_subdirectory(trans)
 add_subdirectory(user)
-# add_subdirectory(vgroup)
+add_subdirectory(vgroup)
 
 # add_subdirectory(common)
