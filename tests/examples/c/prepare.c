@@ -1395,11 +1395,11 @@ int main(int argc, char* argv[]) {
   info = taos_get_client_info(taos);
   printf("client info: %s\n", info);
   printf("************  verify prepare  *************\n");
-  // verify_prepare(taos);
+  verify_prepare(taos);
   printf("************  verify prepare2  *************\n");
-  // verify_prepare2(taos);
+  verify_prepare2(taos);
   printf("************  verify prepare3  *************\n");
-  // verify_prepare3(taos);
+  verify_prepare3(taos);
   printf("************  verify prepare4  *************\n");
   verify_prepare4(taos);
   printf("************  verify end  *************\n");
