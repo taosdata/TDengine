@@ -160,7 +160,7 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
 * 在编译时需要链接TDengine动态库。Linux 为 *libtaos.so* ，安装后，位于 _/usr/local/taos/driver_。Windows为 taos.dll，安装后位于  *C:\TDengine*。
 * 如未特别说明，当API的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
-* 在 taoserror.h中有所有的错误码，以及对应的原因描述。
+* 在 taoserror.h中有所有的错误码，以及对应的原因描述。`tstrerror(errno)` 可以获取错误码对应的错误信息。
 
 ### 示例程序
 
@@ -192,6 +192,8 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
    设置客户端选项，目前支持区域设置（`TSDB_OPTION_LOCALE`）、字符集设置（`TSDB_OPTION_CHARSET`）、时区设置（`TSDB_OPTION_TIMEZONE`）、配置文件路径设置（`TSDB_OPTION_CONFIGDIR`）。区域设置、字符集、时区默认为操作系统当前设置。 
 
+   返回值为 `0` 表示成功，`-1` 表示失败。
+
 - `char *taos_get_client_info()`
 
   获取客户端版本信息。
@@ -217,6 +219,8 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 - `int taos_select_db(TAOS *taos, const char *db)`
 
   将当前的缺省数据库设置为`db`。
+
+  返回值为错误码。
 
 - `void taos_close(TAOS *taos)`
 
