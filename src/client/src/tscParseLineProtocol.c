@@ -1191,7 +1191,7 @@ static int32_t applyChildTableDataPoints(TAOS* taos, char* cTableName, char* sTa
                                                  SArray* cTablePoints, size_t rowSize, SSmlLinesInfo* info) {
   int32_t code = TSDB_CODE_SUCCESS;
   size_t childTableDataPoints = taosArrayGetSize(cTablePoints);
-  if (childTableDataPoints < 10) {
+  if (childTableDataPoints == -1) {
     code = applyChildTableDataPointsWithInsertSQL(taos, cTableName, sTableName, sTableSchema, cTablePoints, rowSize, info);
   } else {
     code = applyChildTableDataPointsWithStmt(taos, cTableName, sTableName, sTableSchema, cTablePoints, rowSize, info);
