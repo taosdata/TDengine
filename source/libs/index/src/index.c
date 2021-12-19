@@ -74,7 +74,7 @@ void indexClose(SIndex *sIdx) {
   return;
 }
 
-int indexPut(SIndex *index, SIndexMultiTerm * fVals, int uid) {
+int indexPut(SIndex *index, SIndexMultiTerm * fVals, uint64_t uid) {
   
 #ifdef USE_LUCENE 
     index_document_t *doc = index_document_create(); 
@@ -116,7 +116,7 @@ int indexPut(SIndex *index, SIndexMultiTerm * fVals, int uid) {
     assert(fi !=  NULL); 
     int32_t colId = fi->colId; 
     int32_t version = index->cVersion;
-    int ret = indexCachePut(index->cache, colId, p->colType, p->colVal, p->nColVal, version, uid, p->operType);     
+    int ret = indexCachePut(index->cache, p, colId, version, uid);     
     if (ret != 0) {
       return ret; 
     }
@@ -275,6 +275,7 @@ void indexInit() {
 }
 static int indexTermSearch(SIndex *sIdx, SIndexTermQuery *term, SArray **result) {
   
+  return 0; 
 }
 static void indexInterResultsDestroy(SArray *results) {
   if (results == NULL) { return; }
@@ -288,12 +289,17 @@ static void indexInterResultsDestroy(SArray *results) {
   
 }
 static int indexMergeFinalResults(SArray *interResults, EIndexOperatorType oType, SArray *fResults) {
+  //refactor, merge interResults into fResults by oType
+  SArray *first = taosArrayGetP(interResults, 0);  
+  
+  //taosArraySort(first, getCom)  
   if (oType == MUST) {
-    
-    // tag1 condition && tag2 condition   
+      
   } else if (oType == SHOULD) {
+     
     // tag1 condistion || tag2 condition
   } else if (oType == NOT) {
+    
     // not use currently   
   }
   return 0;

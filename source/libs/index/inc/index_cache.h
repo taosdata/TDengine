@@ -16,13 +16,14 @@
 #define __INDEX_CACHE_H__
 
 #include "index.h"
+#include "indexInt.h"
 #include "tlockfree.h"
 #include "tskiplist.h"
 // ----------------- row structure in skiplist ---------------------
 
 /* A data row, the format is like below:
  * content: |<--totalLen-->|<-- fieldid-->|<--field type -->|<-- value len--->|<-- value -->|<--  uid  -->|<--version--->|<-- itermType -->|
- * len    : |<--int32_t -->|<-- int16_t-->|<--  int16_t --->|<--- int32_t --->|<--valuelen->|<--uint64_t->|<-- int32_t-->|<--  int8_t  --->| 
+ * len    : |<--int32_t -->|<-- int16_t-->|<--  int8_t --->|<--- int32_t --->|<--valuelen->|<--uint64_t->|<-- int32_t-->|<--  int8_t  --->| 
  */
 
 #ifdef __cplusplus
@@ -40,11 +41,10 @@ IndexCache *indexCacheCreate();
 
 void indexCacheDestroy(void *cache);
 
-int indexCachePut(void *cache, int16_t fieldId, int16_t fieldType, const char *fieldValue,  int32_t fvLen, 
-              uint32_t version, uint64_t uid, int8_t operType);
+int indexCachePut(void *cache,  SIndexTerm *term, int16_t colId, int32_t version, uint64_t uid);
 
-int indexCacheGet(void *cache, uint64_t *rst);
-int indexCacheSearch(void *cache, SIndexMultiTermQuery *query, SArray *result);
+//int indexCacheGet(void *cache, uint64_t *rst);
+int indexCacheSearch(void *cache, SIndexTermQuery *query, int16_t colId, int32_t version, SArray *result);
 
 #ifdef __cplusplus
 }

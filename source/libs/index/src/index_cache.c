@@ -103,14 +103,13 @@ void indexCacheDestroy(void *cache) {
   free(pCache);
 }
 
-int indexCachePut(void *cache, int16_t fieldId, int16_t fieldType, const char *fieldValue,  int32_t fvLen, 
-              uint32_t version, uint64_t uid, int8_t operType) {
+int indexCachePut(void *cache, SIndexTerm *term, int16_t colId, int32_t version, uint64_t uid) {
   if (cache == NULL) { return -1;} 
 
   IndexCache *pCache = cache;
 
   // encode data
-  int32_t total = sizeof(int32_t) + sizeof(fieldId) + sizeof(fieldType) + sizeof(fvLen) + fvLen  + sizeof(version) + sizeof(uid) + sizeof(operType); 
+  int32_t total = sizeof(int32_t) + sizeof(colId) + sizeof(term->colType) + sizeof(term->nColVal) + term->nColVal + sizeof(version) + sizeof(uid) + sizeof(term->operType); 
 
   char *buf = calloc(1, total); 
   char *p   = buf;
@@ -118,16 +117,16 @@ int indexCachePut(void *cache, int16_t fieldId, int16_t fieldType, const char *f
   memcpy(p, &total, sizeof(total)); 
   p += sizeof(total);
 
-  memcpy(p, &fieldId, sizeof(fieldId));   
-  p += sizeof(fieldId);
+  memcpy(p, &colId, sizeof(colId));   
+  p += sizeof(colId);
 
-  memcpy(p, &fieldType, sizeof(fieldType));
-  p += sizeof(fieldType);
+  memcpy(p, &term->colType, sizeof(term->colType));
+  p += sizeof(term->colType);
   
-  memcpy(p, &fvLen, sizeof(fvLen));
-  p += sizeof(fvLen);
-  memcpy(p, fieldValue, fvLen); 
-  p += fvLen;
+  memcpy(p, &term->nColVal, sizeof(term->nColVal));
+  p += sizeof(term->nColVal);
+  memcpy(p, term->colVal, term->nColVal); 
+  p += term->nColVal;
 
   memcpy(p, &version, sizeof(version));
   p += sizeof(version);
@@ -135,8 +134,8 @@ int indexCachePut(void *cache, int16_t fieldId, int16_t fieldType, const char *f
   memcpy(p, &uid, sizeof(uid));  
   p += sizeof(uid);
 
-  memcpy(p, &operType, sizeof(operType));
-  p += sizeof(operType); 
+  memcpy(p, &term->operType, sizeof(term->operType));
+  p += sizeof(term->operType); 
 
   tSkipListPut(pCache->skiplist, (void *)buf);  
   // encode end
@@ -146,7 +145,7 @@ int indexCacheDel(void *cache, int32_t fieldId, const char *fieldValue, int32_t 
   IndexCache *pCache = cache;
   return 0;
 }
-int indexCacheSearch(void *cache, SIndexMultiTermQuery *query, SArray *result) {
-   
-  return 0;  
+int indexCacheSearch(void *cache, SIndexTermQuery *query, int16_t colId, int32_t version, SArray *result) {
+  return 0;
 }
+    
