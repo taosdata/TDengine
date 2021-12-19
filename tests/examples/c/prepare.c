@@ -1183,10 +1183,10 @@ void verify_prepare4(TAOS* taos) {
   pTbName = &tbName[3];
   pTbNameResult = &tbNameResult[3];
   strcpy(pTbName->setTbName, "\"Mn1\"");
-  strcpy(pTbName->showName, "mn1");
-  strcpy(pTbName->describeName, "mn1");
+  strcpy(pTbName->showName, "'mn1'");
+  strcpy(pTbName->describeName, "'mn1'");
   strcpy(pTbName->queryName, "mn1");
-  strcpy(pTbName->dropName, "mn1");
+  strcpy(pTbName->dropName, "\"mn1\"");
 
   pTbName = &tbName[4];
   pTbNameResult = &tbNameResult[4];
@@ -1286,7 +1286,7 @@ void verify_prepare4(TAOS* taos) {
     taos_stmt_prepare(stmt, tmpStr, 0);
     code = taos_stmt_execute(stmt);
     if ((!pTbNameResult->showName && (0 != code)) || (pTbNameResult->showName && (0 == code))) {
-      printf("\033[31m[%d] failed to execute show tables. error:%s\033[0m\n", n, taos_stmt_errstr(stmt));
+      printf("\033[31m[%d] failed to execute show tables like. error:%s\033[0m\n", n, taos_stmt_errstr(stmt));
       taos_stmt_close(stmt);
       exit(EXIT_FAILURE);
     }
@@ -1355,12 +1355,12 @@ void verify_prepare4(TAOS* taos) {
     taos_stmt_close(stmt);
 
     // drop table
-    printf("[%d] drop table, tbName = %s\n", n, pTbName->showName);
+    printf("[%d] drop table, tbName = %s\n", n, pTbName->dropName);
     stmt = taos_stmt_init(taos);
-    sprintf(tmpStr, "drop table %s", pTbName->showName);
+    sprintf(tmpStr, "drop table %s", pTbName->dropName);
     taos_stmt_prepare(stmt, tmpStr, 0);
     code = taos_stmt_execute(stmt);
-    if ((!pTbNameResult->showName && (0 != code)) || (pTbNameResult->showName && (0 == code))) {
+    if ((!pTbNameResult->dropName && (0 != code)) || (pTbNameResult->dropName && (0 == code))) {
       printf("\033[31m[%d] failed to drop table. error:%s\033[0m\n", n, taos_stmt_errstr(stmt));
       taos_stmt_close(stmt);
       exit(EXIT_FAILURE);
