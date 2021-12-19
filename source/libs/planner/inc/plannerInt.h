@@ -117,6 +117,7 @@ void destroyQueryPlan(struct SQueryPlanNode* pQueryNode);
  */
 void* destroyQueryPhyPlan(struct SPhyNode* pQueryPhyNode);
 
+const char* opTypeToOpName(int32_t type);
 int32_t opNameToOpType(const char* name);
 
 #ifdef __cplusplus

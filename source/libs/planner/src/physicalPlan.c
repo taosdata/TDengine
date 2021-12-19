@@ -33,6 +33,10 @@ static const char* gOpName[] = {
 #undef INCLUDE_AS_NAME
 };
 
+const char* opTypeToOpName(int32_t type) {
+  return gOpName[type];
+}
+
 int32_t opNameToOpType(const char* name) {
   for (int32_t i = 1; i < sizeof(gOpName) / sizeof(gOpName[0]); ++i) {
     if (strcmp(name, gOpName[i])) {
@@ -42,17 +46,43 @@ int32_t opNameToOpType(const char* name) {
   return OP_Unknown;
 }
 
-static void toDataBlockSchema(SQueryPlanNode* pPlanNode, SDataBlockSchema* dataBlockSchema) {
-  SWAP(dataBlockSchema->pSchema, pPlanNode->pSchema, SSchema*);
+static bool toDataBlockSchema(SQueryPlanNode* pPlanNode, SDataBlockSchema* dataBlockSchema) {
   dataBlockSchema->numOfCols = pPlanNode->numOfCols;
+  dataBlockSchema->pSchema = malloc(sizeof(SSlotSchema) * pPlanNode->numOfCols);
+  if (NULL == dataBlockSchema->pSchema) {
+    return false;
+  }
+  memcpy(dataBlockSchema->pSchema, pPlanNode->pSchema, sizeof(SSlotSchema) * pPlanNode->numOfCols);
+  return true;
+}
+
+static bool cloneExprArray(SArray** dst, SArray* src) {
+  if (NULL == src) {
+    return true;
+  }
+  size_t size = taosArrayGetSize(src);
+  if (0 == size) {
+    return true;
+  }
+  *dst = taosArrayInit(size, POINTER_BYTES);
+  if (NULL == *dst) {
+    return false;
+  }
+  return (TSDB_CODE_SUCCESS == copyAllExprInfo(*dst, src, true) ? true : false);
 }
 
 static SPhyNode* initPhyNode(SQueryPlanNode* pPlanNode, int32_t type, int32_t size) {
   SPhyNode* node = (SPhyNode*)calloc(1, size);
+  if (NULL == node) {
+    return NULL;
+  }
   node->info.type = type;
-  node->info.name = gOpName[type];
-  SWAP(node->pTargets, pPlanNode->pExpr, SArray*);
-  toDataBlockSchema(pPlanNode, &(node->targetSchema));
+  node->info.name = opTypeToOpName(type);
+  if (!cloneExprArray(&node->pTargets, pPlanNode->pExpr) || !toDataBlockSchema(pPlanNode, &(node->targetSchema))) {
+    free(node);
+    return NULL;
+  }
+  return node;
 }
 
 static SPhyNode* initScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable, int32_t type, int32_t size) {
@@ -203,9 +233,6 @@ static void createSubplanByLevel(SPlanContext* pCxt, SQueryPlanNode* pRoot) {
   SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_MERGE);
   ++(pCxt->nextId.templateId);
   subplan->pNode = createPhyNode(pCxt, pRoot);
-  SArray* l0 = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
-  taosArrayPush(l0, &subplan);
-  taosArrayPush(pCxt->pDag->pSubplans, &l0);
   // todo deal subquery
 }
 

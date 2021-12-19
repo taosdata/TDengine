@@ -209,6 +209,7 @@ typedef struct SSourceParam {
 
 SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, const char* funcName, SSourceParam* pSource, SSchema* pResSchema, int16_t interSize);
 int32_t copyExprInfoList(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
+int32_t copyAllExprInfo(SArray* dst, const SArray* src, bool deepcopy);
 int32_t getExprFunctionLevel(SQueryStmtInfo* pQueryInfo);
 
 STableMetaInfo* getMetaInfo(SQueryStmtInfo* pQueryInfo, int32_t tableIndex);
