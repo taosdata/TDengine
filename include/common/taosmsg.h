@@ -754,6 +754,7 @@ typedef struct {
   int32_t  dnodeId;
   char     db[TSDB_FULL_DB_NAME_LEN];
   uint64_t dbUid;
+  int32_t  vgVersion;
   int32_t  cacheBlockSize;
   int32_t  totalBlocks;
   int32_t  daysPerFile;

@@ -176,7 +176,6 @@ SServer* DndTestVgroup::pServer;
 SClient* DndTestVgroup::pClient;
 int32_t  DndTestVgroup::connId;
 
-
 TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
   {
     SCreateVnodeMsg* pReq = (SCreateVnodeMsg*)rpcMallocCont(sizeof(SCreateVnodeMsg));
@@ -184,6 +183,7 @@ TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
     pReq->dnodeId = htonl(1);
     strcpy(pReq->db, "1.d1");
     pReq->dbUid = htobe64(9527);
+    pReq->vgVersion = htonl(1);
     pReq->cacheBlockSize = htonl(16);
     pReq->totalBlocks = htonl(10);
     pReq->daysPerFile = htonl(10);
@@ -217,8 +217,6 @@ TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
     SRpcMsg* pMsg = pClient->pRsp;
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
-    taosMsleep(1000000);
+    // taosMsleep(1000000);
   }
-
 }
-

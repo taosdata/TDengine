@@ -168,6 +168,7 @@ SCreateVnodeMsg *mndBuildCreateVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbOb
   pCreate->vgId = htonl(pVgroup->vgId);
   memcpy(pCreate->db, pDb->name, TSDB_FULL_DB_NAME_LEN);
   pCreate->dbUid = htobe64(pDb->uid);
+  pCreate->vgVersion = htonl(pVgroup->version);
   pCreate->cacheBlockSize = htonl(pDb->cfg.cacheBlockSize);
   pCreate->totalBlocks = htonl(pDb->cfg.totalBlocks);
   pCreate->daysPerFile = htonl(pDb->cfg.daysPerFile);
