@@ -25,12 +25,20 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   pTask->execute = vnodeCommit;  // TODO
   pTask->arg = pVnode;           // TODO
 
+  tsdbPrepareCommit(pVnode->pTsdb);
+  // metaPrepareCommit(pVnode->pMeta);
+  // walPreapareCommit(pVnode->pWal);
+
   vnodeScheduleTask(pTask);
   return 0;
 }
 
 int vnodeCommit(void *arg) {
   SVnode *pVnode = (SVnode *)arg;
+
+  metaCommit(pVnode->pMeta);
+  tqCommit(pVnode->pTq);
+  tsdbCommit(pVnode->pTq);
 
   vnodeBufPoolRecycle(pVnode);
   // TODO
