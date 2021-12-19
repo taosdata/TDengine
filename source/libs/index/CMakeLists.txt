@@ -22,8 +22,12 @@ if (${BUILD_WITH_LUCENE})
     index
     PUBLIC lucene++
   )
-
 endif(${BUILD_WITH_LUCENE})
+
+if (${BUILD_WITH_INVERTEDINDEX})
+  add_definitions(-DUSE_INVERTED_INDEX) 
+endif(${BUILD_WITH_INVERTEDINDEX})
+
 
 if (${BUILD_TEST})
   add_subdirectory(test)
