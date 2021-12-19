@@ -19,7 +19,7 @@
 #include "indexInt.h"
 #include "tlockfree.h"
 #include "tskiplist.h"
-// ----------------- row structure in skiplist ---------------------
+// ----------------- key structure in skiplist ---------------------
 
 /* A data row, the format is like below:
  * content: |<--totalLen-->|<-- fieldid-->|<--field type -->|<-- value len--->|<-- value -->|<--  uid  -->|<--version--->|<-- itermType -->|

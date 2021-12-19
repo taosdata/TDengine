@@ -31,6 +31,14 @@
 extern "C" {
 #endif
 
+typedef struct SIndexStat {
+  int32_t totalAdded;   //  
+  int32_t totalDeled;   //
+  int32_t totalUpdated; // 
+  int32_t totalTerms    //  
+  int32_t distCol; // distinct column 
+} SIndexStat; 
+
 struct SIndex {
 #ifdef USE_LUCENE 
  index_t *index; 
@@ -42,6 +50,8 @@ struct SIndex {
  int64_t  suid;      // current super table id, -1 is normal table    
  int      colId;  // field id allocated to cache
  int32_t  cVersion; // current version allocated to cache 
+
+ SIndexStat stat;
  pthread_mutex_t mtx;
 };   
 

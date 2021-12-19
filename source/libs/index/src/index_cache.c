@@ -18,6 +18,9 @@
 
 #define MAX_INDEX_KEY_LEN 256// test only, change later
 
+// ref index_cache.h:22 
+#define CACHE_KEY_LEN(p) (sizeof(int32_t) + sizeof(uint16_t) + sizeof(p->colType) + sizeof(p->nColVal) + p->nColVal +  sizeof(uint64_t) + sizeof(p->operType))
+
 static char*  getIndexKey(const void *pData) {
   return NULL;  
 } 
@@ -109,7 +112,7 @@ int indexCachePut(void *cache, SIndexTerm *term, int16_t colId, int32_t version,
   IndexCache *pCache = cache;
 
   // encode data
-  int32_t total = sizeof(int32_t) + sizeof(colId) + sizeof(term->colType) + sizeof(term->nColVal) + term->nColVal + sizeof(version) + sizeof(uid) + sizeof(term->operType); 
+  int32_t total = CACHE_KEY_LEN(term); 
 
   char *buf = calloc(1, total); 
   char *p   = buf;
@@ -138,6 +141,7 @@ int indexCachePut(void *cache, SIndexTerm *term, int16_t colId, int32_t version,
   p += sizeof(term->operType); 
 
   tSkipListPut(pCache->skiplist, (void *)buf);  
+  return 0;
   // encode end
     
 }
@@ -146,6 +150,24 @@ int indexCacheDel(void *cache, int32_t fieldId, const char *fieldValue, int32_t 
   return 0;
 }
 int indexCacheSearch(void *cache, SIndexTermQuery *query, int16_t colId, int32_t version, SArray *result) {
+  if (cache == NULL) { return -1; }
+  IndexCache *pCache = cache; 
+  SIndexTerm       *term = query->term;
+  EIndexQueryType  qtype  = query->qType; 
+ 
+  int32_t keyLen = CACHE_KEY_LEN(term); 
+
+  char *buf = calloc(1, keyLen);
+  if (qtype == QUERY_TERM) {
+       
+  } else if (qtype == QUERY_PREFIX) {
+
+  } else if (qtype == QUERY_SUFFIX) {
+
+  } else if (qtype == QUERY_REGEX) {
+
+  }
+  
   return 0;
 }
     
