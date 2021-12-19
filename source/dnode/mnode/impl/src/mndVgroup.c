@@ -24,9 +24,10 @@
 #define TSDB_VGROUP_VER_NUM 1
 #define TSDB_VGROUP_RESERVE_SIZE 64
 
-static int32_t mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
-static int32_t mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
-static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup);
+static SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw);
+static int32_t  mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
+static int32_t  mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
+static int32_t  mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup);
 
 static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pMsg);
 static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pMsg);
@@ -156,9 +157,78 @@ void mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup) {
   sdbRelease(pSdb, pVgroup);
 }
 
-static int32_t mndGetDefaultVgroupSize(SMnode *pMnode) {
-  // todo
-  return 2;
+SCreateVnodeMsg *mndBuildCreateVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup) {
+  SCreateVnodeMsg *pCreate = malloc(sizeof(SCreateVnodeMsg));
+  if (pCreate == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pCreate->dnodeId = htonl(pDnode->id);
+  pCreate->vgId = htonl(pVgroup->vgId);
+  memcpy(pCreate->db, pDb->name, TSDB_FULL_DB_NAME_LEN);
+  pCreate->dbUid = htobe64(pDb->uid);
+  pCreate->cacheBlockSize = htonl(pDb->cfg.cacheBlockSize);
+  pCreate->totalBlocks = htonl(pDb->cfg.totalBlocks);
+  pCreate->daysPerFile = htonl(pDb->cfg.daysPerFile);
+  pCreate->daysToKeep0 = htonl(pDb->cfg.daysToKeep0);
+  pCreate->daysToKeep1 = htonl(pDb->cfg.daysToKeep1);
+  pCreate->daysToKeep2 = htonl(pDb->cfg.daysToKeep2);
+  pCreate->minRows = htonl(pDb->cfg.minRows);
+  pCreate->maxRows = htonl(pDb->cfg.maxRows);
+  pCreate->commitTime = htonl(pDb->cfg.commitTime);
+  pCreate->fsyncPeriod = htonl(pDb->cfg.fsyncPeriod);
+  pCreate->walLevel = pDb->cfg.walLevel;
+  pCreate->precision = pDb->cfg.precision;
+  pCreate->compression = pDb->cfg.compression;
+  pCreate->quorum = pDb->cfg.quorum;
+  pCreate->update = pDb->cfg.update;
+  pCreate->cacheLastRow = pDb->cfg.cacheLastRow;
+  pCreate->replica = pVgroup->replica;
+  pCreate->selfIndex = -1;
+
+  for (int32_t v = 0; v < pVgroup->replica; ++v) {
+    SReplica  *pReplica = &pCreate->replicas[v];
+    SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
+    SDnodeObj *pVgidDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+    if (pVgidDnode == NULL) {
+      free(pCreate);
+      terrno = TSDB_CODE_MND_APP_ERROR;
+      return NULL;
+    }
+
+    pReplica->id = htonl(pVgidDnode->id);
+    pReplica->port = htons(pVgidDnode->port);
+    memcpy(pReplica->fqdn, pVgidDnode->fqdn, TSDB_FQDN_LEN);
+    mndReleaseDnode(pMnode, pVgidDnode);
+
+    if (pDnode->id == pVgid->dnodeId) {
+      pCreate->selfIndex = v;
+    }
+  }
+
+  if (pCreate->selfIndex == -1) {
+    free(pCreate);
+    terrno = TSDB_CODE_MND_APP_ERROR;
+    return NULL;
+  }
+
+  return pCreate;
+}
+
+SDropVnodeMsg *mndBuildDropVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup) {
+  SDropVnodeMsg *pDrop = malloc(sizeof(SDropVnodeMsg));
+  if (pDrop == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pDrop->dnodeId = htonl(pDnode->id);
+  pDrop->vgId = htonl(pVgroup->vgId);
+  memcpy(pDrop->db, pDb->name, TSDB_FULL_DB_NAME_LEN);
+  pDrop->dbUid = htobe64(pDb->uid);
+
+  return pDrop;
 }
 
 static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup) {
@@ -193,21 +263,7 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup) {
 }
 
 int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
-  if (pDb->numOfVgroups != -1 &&
-      (pDb->numOfVgroups < TSDB_MIN_VNODES_PER_DB || pDb->numOfVgroups > TSDB_MAX_VNODES_PER_DB)) {
-    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
-    return -1;
-  }
-
-  if (pDb->numOfVgroups == -1) {
-    pDb->numOfVgroups = mndGetDefaultVgroupSize(pMnode);
-    if (pDb->numOfVgroups < 0) {
-      terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
-      return -1;
-    }
-  }
-
-  SVgObj *pVgroups = calloc(pDb->numOfVgroups, sizeof(SVgObj));
+  SVgObj *pVgroups = calloc(pDb->cfg.numOfVgroups, sizeof(SVgObj));
   if (pVgroups == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -217,9 +273,9 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
   int32_t  maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
   uint32_t hashMin = 0;
   uint32_t hashMax = UINT32_MAX;
-  uint32_t hashInterval = (hashMax - hashMin) / pDb->numOfVgroups;
+  uint32_t hashInterval = (hashMax - hashMin) / pDb->cfg.numOfVgroups;
 
-  for (uint32_t v = 0; v < pDb->numOfVgroups; v++) {
+  for (uint32_t v = 0; v < pDb->cfg.numOfVgroups; v++) {
     SVgObj *pVgroup = &pVgroups[v];
     pVgroup->vgId = maxVgId++;
     pVgroup->createdTime = taosGetTimestampMs();
@@ -227,7 +283,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
     pVgroup->version = 1;
     pVgroup->dbUid = pDb->uid;
     pVgroup->hashBegin = hashMin + hashInterval * v;
-    if (v == pDb->numOfVgroups - 1) {
+    if (v == pDb->cfg.numOfVgroups - 1) {
       pVgroup->hashEnd = hashMax;
     } else {
       pVgroup->hashEnd = hashMin + hashInterval * (v + 1) - 1;

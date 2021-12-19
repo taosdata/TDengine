@@ -14,12 +14,18 @@
  */
 
 #include "index_cache.h"
+#include "tcompare.h"
 
+#define MAX_INDEX_KEY_LEN 256// test only, change later
+
+static char*  getIndexKey(const void *pData) {
+  return NULL;  
+} 
 static int32_t compareKey(const void *l, const void *r) {
   char *lp = (char *)l;
   char *rp = (char *)r;
 
-  // skip total len
+  // skip total len, not compare
   int32_t ll, rl;  // len    
   memcpy(&ll, lp, sizeof(int32_t));
   memcpy(&rl, rp, sizeof(int32_t));
@@ -27,7 +33,7 @@ static int32_t compareKey(const void *l, const void *r) {
   rp += sizeof(int32_t);
   
   // compare field id
-  int32_t lf, rf; // field id
+  int16_t lf, rf; // field id
   memcpy(&lf, lp, sizeof(lf));
   memcpy(&rf, rp, sizeof(rf));
   if (lf != rf) {
@@ -36,14 +42,22 @@ static int32_t compareKey(const void *l, const void *r) {
   lp += sizeof(lf);
   rp += sizeof(rf);
 
-  // compare field value 
+  // compare field type
+  int16_t lft, rft; 
+  memcpy(&lft, lp, sizeof(lft));
+  memcpy(&rft, rp, sizeof(rft));
+  lp += sizeof(lft);
+  rp += sizeof(rft);
+  assert(rft == rft);
+  
+  // skip value len  
   int32_t lfl, rfl;
   memcpy(&lfl, lp, sizeof(lfl)); 
   memcpy(&rfl, rp, sizeof(rfl)); 
   lp += sizeof(lfl);
   rp += sizeof(rfl);
   
-  //refator later
+  // compare value 
   int32_t i, j;
   for (i = 0, j = 0; i < lfl && j < rfl; i++, j++) {
     if (lp[i] == rp[j]) { continue; }
@@ -54,66 +68,85 @@ static int32_t compareKey(const void *l, const void *r) {
   lp += lfl;
   rp += rfl; 
 
-  // compare version
+  // skip uid 
+  uint64_t lu, ru;
+  memcpy(&lu, lp, sizeof(lu)); 
+  memcpy(&ru, rp, sizeof(ru));
+  lp += sizeof(lu);
+  rp += sizeof(ru);
+  
+  // compare version, desc order
   int32_t lv, rv;
   memcpy(&lv, lp, sizeof(lv));
   memcpy(&rv, rp, sizeof(rv));
   if (lv != rv) {
     return lv > rv ? -1 : 1; 
-  }  
+  }   
   lp += sizeof(lv);
   rp += sizeof(rv);
+  // not care item type
 
-  
   return 0;  
   
 } 
 IndexCache *indexCacheCreate() {
   IndexCache *cache = calloc(1, sizeof(IndexCache));
+  cache->skiplist = tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, MAX_INDEX_KEY_LEN, compareKey, SL_ALLOW_DUP_KEY, getIndexKey);
   return cache;
+  
 }
 
-void indexCacheDestroy(IndexCache *cache) {
-  free(cache);
+void indexCacheDestroy(void *cache) {
+  IndexCache *pCache = cache; 
+  if (pCache == NULL) { return; } 
+  tSkipListDestroy(pCache->skiplist);
+  free(pCache);
 }
 
-int indexCachePut(IndexCache *cache, int32_t fieldId, const char *fieldValue,  int32_t fvlen, uint64_t uid, int8_t operType) {
+int indexCachePut(void *cache, int16_t fieldId, int16_t fieldType, const char *fieldValue,  int32_t fvLen, 
+              uint32_t version, uint64_t uid, int8_t operType) {
   if (cache == NULL) { return -1;} 
-  int32_t version = T_REF_INC(cache);     
 
-  int32_t total = sizeof(int32_t) + sizeof(fieldId) + 4 + fvlen  + sizeof(version) + sizeof(uid) + sizeof(operType); 
+  IndexCache *pCache = cache;
+
+  // encode data
+  int32_t total = sizeof(int32_t) + sizeof(fieldId) + sizeof(fieldType) + sizeof(fvLen) + fvLen  + sizeof(version) + sizeof(uid) + sizeof(operType); 
 
   char *buf = calloc(1, total); 
   char *p   = buf;
 
-  memcpy(buf, &total, sizeof(total)); 
-  total += total;
+  memcpy(p, &total, sizeof(total)); 
+  p += sizeof(total);
 
-  memcpy(buf, &fieldId, sizeof(fieldId));   
-  buf += sizeof(fieldId);
+  memcpy(p, &fieldId, sizeof(fieldId));   
+  p += sizeof(fieldId);
 
-  memcpy(buf, &fvlen, sizeof(fvlen));
-  buf += sizeof(fvlen);
-  memcpy(buf, fieldValue, fvlen); 
-  buf += fvlen;
-
-  memcpy(buf, &version, sizeof(version));
-  buf += sizeof(version);
-
-  memcpy(buf, &uid, sizeof(uid));  
-  buf += sizeof(uid);
-
-  memcpy(buf, &operType, sizeof(operType));
-  buf += sizeof(operType); 
- 
-
-}
-int indexCacheSearch(IndexCache *cache, SIndexMultiTermQuery *query, SArray *result) {
+  memcpy(p, &fieldType, sizeof(fieldType));
+  p += sizeof(fieldType);
   
+  memcpy(p, &fvLen, sizeof(fvLen));
+  p += sizeof(fvLen);
+  memcpy(p, fieldValue, fvLen); 
+  p += fvLen;
+
+  memcpy(p, &version, sizeof(version));
+  p += sizeof(version);
+
+  memcpy(p, &uid, sizeof(uid));  
+  p += sizeof(uid);
+
+  memcpy(p, &operType, sizeof(operType));
+  p += sizeof(operType); 
+
+  tSkipListPut(pCache->skiplist, (void *)buf);  
+  // encode end
+    
+}
+int indexCacheDel(void *cache, int32_t fieldId, const char *fieldValue, int32_t fvlen, uint64_t uid, int8_t operType) {
+  IndexCache *pCache = cache;
+  return 0;
+}
+int indexCacheSearch(void *cache, SIndexMultiTermQuery *query, SArray *result) {
+   
   return 0;  
 }
-
-
-
-
-

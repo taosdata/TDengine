@@ -28,7 +28,9 @@ SVgObj  *mndAcquireVgroup(SMnode *pMnode, int32_t vgId);
 void     mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup);
 int32_t  mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups);
 SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup);
-SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw);
+
+SCreateVnodeMsg *mndBuildCreateVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup);
+SDropVnodeMsg   *mndBuildDropVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup);
 
 #ifdef __cplusplus
 }

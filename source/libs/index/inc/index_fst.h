@@ -315,7 +315,6 @@ typedef struct StreamWithStateResult {
   FstSlice data;  
   FstOutput out;
   void     *state; 
-
 } StreamWithStateResult;
 
 StreamWithStateResult *swsResultCreate(FstSlice *data, FstOutput fOut, void *state);

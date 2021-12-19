@@ -16,6 +16,10 @@
 #include "parser.h"
 #include "plannerInt.h"
 
+void qDestroySubplan(SSubplan* pSubplan) {
+  // todo
+}
+
 void qDestroyQueryDag(struct SQueryDag* pDag) {
   // todo
 }
@@ -40,6 +44,10 @@ int32_t qCreateQueryDag(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* 
   }
   destroyQueryPlan(logicPlan);
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SArray* eps) {
+  return setSubplanExecutionNode(subplan, templateId, eps);
 }
 
 int32_t qSubPlanToString(const SSubplan *subplan, char** str) {

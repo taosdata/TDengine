@@ -60,9 +60,9 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "sim.h"
-#include "simParse.h"
 #include "tutil.h"
-#undef TAOS_MEM_CHECK
+
+#include "simParse.h"
 
 static SCommand *cmdHashList[MAX_NUM_CMD];
 static SCmdLine  cmdLine[MAX_CMD_LINES];
@@ -177,11 +177,11 @@ SScript *simBuildScriptObj(char *fileName) {
 }
 
 SScript *simParseScript(char *fileName) {
-  FILE *    fd;
+  FILE     *fd;
   int32_t   tokenLen, lineNum = 0;
   char      buffer[MAX_LINE_LEN], name[128], *token, *rest;
   SCommand *pCmd;
-  SScript * script;
+  SScript  *script;
 
   if ((fileName[0] == '.') || (fileName[0] == '/')) {
     strcpy(name, fileName);
@@ -252,7 +252,7 @@ SScript *simParseScript(char *fileName) {
 }
 
 int32_t simCheckExpression(char *exp) {
-  char *  op1, *op2, *op, *rest;
+  char   *op1, *op2, *op, *rest;
   int32_t op1Len, op2Len, opLen;
 
   rest = paGetToken(exp, &op1, &op1Len);
@@ -336,7 +336,7 @@ bool simParseExpression(char *token, int32_t lineNum) {
 }
 
 bool simParseIfCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
-  char *  ret;
+  char   *ret;
   int32_t expLen;
 
   expLen = simCheckExpression(rest);
@@ -502,7 +502,7 @@ bool simParseEndwCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
 }
 
 bool simParseSwitchCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
-  char *  token;
+  char   *token;
   int32_t tokenLen;
 
   rest = paGetToken(rest, &token, &tokenLen);
@@ -525,7 +525,7 @@ bool simParseSwitchCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
 }
 
 bool simParseCaseCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
-  char *  token;
+  char   *token;
   int32_t tokenLen;
 
   rest = paGetToken(rest, &token, &tokenLen);
@@ -666,7 +666,7 @@ bool simParsePrintCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
 
 void simCheckSqlOption(char *rest) {
   int32_t valueLen;
-  char *  value, *xpos;
+  char   *value, *xpos;
 
   xpos = strstr(rest, " -x");  // need a blank
   if (xpos) {
@@ -750,7 +750,7 @@ bool simParseSystemContentCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
 }
 
 bool simParseSleepCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
-  char *  token;
+  char   *token;
   int32_t tokenLen;
 
   cmdLine[numOfLines].cmdno = SIM_CMD_SLEEP;
@@ -769,7 +769,7 @@ bool simParseSleepCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
 }
 
 bool simParseReturnCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
-  char *  token;
+  char   *token;
   int32_t tokenLen;
 
   cmdLine[numOfLines].cmdno = SIM_CMD_RETURN;
@@ -788,7 +788,7 @@ bool simParseReturnCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
 }
 
 bool simParseGotoCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
-  char *  token;
+  char   *token;
   int32_t tokenLen;
 
   rest = paGetToken(rest, &token, &tokenLen);
@@ -811,7 +811,7 @@ bool simParseGotoCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
 }
 
 bool simParseRunCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
-  char *  token;
+  char   *token;
   int32_t tokenLen;
 
   rest = paGetToken(rest, &token, &tokenLen);
@@ -838,7 +838,7 @@ bool simParseRunBackCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
   return true;
 }
 
-bool simParseLineInsertCmd(char* rest, SCommand* pCmd, int32_t lineNum) {
+bool simParseLineInsertCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
   int32_t expLen;
 
   rest++;
@@ -854,7 +854,7 @@ bool simParseLineInsertCmd(char* rest, SCommand* pCmd, int32_t lineNum) {
   return true;
 }
 
-bool simParseLineInsertErrorCmd(char* rest, SCommand* pCmd, int32_t lineNum) {
+bool simParseLineInsertErrorCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
   int32_t expLen;
 
   rest++;

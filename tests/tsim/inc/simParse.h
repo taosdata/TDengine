@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __SIM_PARSE_H__
-#define __SIM_PARSE_H__
+#ifndef _TD_SIM_PARSE_H_
+#define _TD_SIM_PARSE_H_
 
 #define MAX_NUM_CMD 64
 #define MAX_NUM_LABLES 100
@@ -40,10 +40,10 @@ typedef struct {
 
 /* block definition */
 typedef struct {
-  char     top;                  /* the number of blocks stacked */
-  char     type[MAX_NUM_BLOCK];  /* the block type */
-  int16_t *pos[MAX_NUM_BLOCK];   /* position of the jump for if/elif/case */
-  int16_t  back[MAX_NUM_BLOCK];  /* go back, endw and continue */
+  char     top;                 /* the number of blocks stacked */
+  char     type[MAX_NUM_BLOCK]; /* the block type */
+  int16_t *pos[MAX_NUM_BLOCK];  /* position of the jump for if/elif/case */
+  int16_t  back[MAX_NUM_BLOCK]; /* go back, endw and continue */
   char     numJump[MAX_NUM_BLOCK];
   int16_t *jump[MAX_NUM_BLOCK][MAX_NUM_JUMP]; /* break or elif */
   char     sexp[MAX_NUM_BLOCK][40];           /*switch expression */
@@ -52,4 +52,4 @@ typedef struct {
 
 bool simParseExpression(char *token, int32_t lineNum);
 
-#endif
+#endif /*_TD_SIM_PARSE_H_*/

@@ -108,7 +108,7 @@ typedef struct SProjectPhyNode {
 typedef struct SExchangePhyNode {
   SPhyNode    node;
   uint64_t    srcTemplateId; // template id of datasource suplans
-  SArray     *pSourceEpSet;  // SEpSet, scheduler fill by calling qSetSuplanExecutionNode
+  SArray     *pSrcEndPoints;  // SEpAddrMsg, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhyNode;
 
 typedef struct SSubplanId {
@@ -128,6 +128,8 @@ typedef struct SSubplan {
 } SSubplan;
 
 typedef struct SQueryDag {
+  uint64_t queryId;
+  int32_t  numOfSubplans;
   SArray  *pSubplans; // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0.
 } SQueryDag;
 
@@ -136,7 +138,11 @@ typedef struct SQueryDag {
  */
 int32_t qCreateQueryDag(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* pQnode, struct SQueryDag** pDag);
 
-int32_t qSetSuplanExecutionNode(SSubplan* subplan, SArray* nodes);
+// Set datasource of this subplan, multiple calls may be made to a subplan.
+// @subplan subplan to be schedule
+// @templateId templateId of a group of datasource subplans of this @subplan
+// @eps Execution location of this group of datasource subplans, is an array of SEpAddr structures 
+int32_t qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SArray* eps);
 
 int32_t qExplainQuery(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* pQnode, char** str);
 
@@ -147,12 +153,14 @@ int32_t qSubPlanToString(const SSubplan* subplan, char** str);
 
 int32_t qStringToSubplan(const char* str, SSubplan** subplan);
 
+void qDestroySubplan(SSubplan* pSubplan);
+
 /**
  * Destroy the physical plan.
  * @param pQueryPhyNode
  * @return
  */
-void qDestroyQueryDag(struct SQueryDag* pDag);
+void qDestroyQueryDag(SQueryDag* pDag);
 
 #ifdef __cplusplus
 }

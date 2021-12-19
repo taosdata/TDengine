@@ -13,13 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __SHELL__
-#define __SHELL__
+#ifndef _TD_SHELL_H_
+#define _TD_SHELL_H_
 
-#include "../../../../include/client/taos.h"
-#include "stdbool.h"
+#include "os.h"
+
+#include "taos.h"
 #include "taosdef.h"
-#include "tsclient.h"
 
 #define MAX_USERNAME_SIZE      64
 #define MAX_DBNAME_SIZE        64

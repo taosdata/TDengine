@@ -948,26 +948,23 @@ void setCompactVnodeSql(SSqlInfo *pInfo, int32_t type, SArray *pParam) {
 void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo) {
   pDBInfo->compressionLevel = -1;
 
-  pDBInfo->walLevel = -1;
+  pDBInfo->walLevel    = -1;
   pDBInfo->fsyncPeriod = -1;
-  pDBInfo->commitTime = -1;
+  pDBInfo->commitTime  = -1;
   pDBInfo->maxTablesPerVnode = -1;
 
-  pDBInfo->cacheBlockSize = -1;
-  pDBInfo->numOfBlocks = -1;
+  pDBInfo->cacheBlockSize  = -1;
+  pDBInfo->numOfBlocks     = -1;
   pDBInfo->maxRowsPerBlock = -1;
   pDBInfo->minRowsPerBlock = -1;
-  pDBInfo->daysPerFile = -1;
+  pDBInfo->daysPerFile     = -1;
 
   pDBInfo->replica = -1;
-  pDBInfo->quorum = -1;
-  pDBInfo->keep = NULL;
+  pDBInfo->quorum  = -1;
+  pDBInfo->keep    = NULL;
 
-  pDBInfo->update = -1;
+  pDBInfo->update  = -1;
   pDBInfo->cachelast = -1;
-
-  pDBInfo->dbType = -1;
-  pDBInfo->partitions = -1;
 
   memset(&pDBInfo->precision, 0, sizeof(SToken));
 }
