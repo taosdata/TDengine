@@ -35,8 +35,8 @@ typedef struct SIndexStat {
   int32_t totalAdded;   //  
   int32_t totalDeled;   //
   int32_t totalUpdated; // 
-  int32_t totalTerms    //  
-  int32_t distCol; // distinct column 
+  int32_t totalTerms;   //  
+  int32_t distinctCol; // distinct column 
 } SIndexStat; 
 
 struct SIndex {
