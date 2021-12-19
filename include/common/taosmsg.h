@@ -51,6 +51,8 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_QUERY, "mq-query" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONNECT, "mq-connect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_DISCONNECT, "mq-disconnect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_SET, "mq-set" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_RSP_READY, "rsp-ready" )
+
 // message from client to mnode
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONNECT, "connect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_ACCT, "create-acct" )	
@@ -1073,6 +1075,24 @@ typedef struct {
 typedef struct {
   /* data */
 } SUpdateTagValRsp;
+
+typedef struct SSchedulerQueryMsg {
+  uint64_t  queryId;
+  uint64_t  taskId;
+  uint32_t  contentLen;
+  char      msg[];
+} SSchedulerQueryMsg;
+
+typedef struct SSchedulerReadyMsg {
+  uint64_t  queryId;
+  uint64_t  taskId;
+} SSchedulerReadyMsg;
+
+typedef struct SSchedulerFetchMsg {
+  uint64_t  queryId;
+  uint64_t  taskId;
+} SSchedulerFetchMsg;
+
 
 #pragma pack(pop)
 

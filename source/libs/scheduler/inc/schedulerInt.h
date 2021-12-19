@@ -78,6 +78,7 @@ typedef struct SQueryJob {
   SEpSet          *mgmtEpSet;
   tsem_t           rspSem;
   int32_t          userFetch;
+  int32_t          remoteFetch;
   void            *res;
 
   SHashObj *execTasks; // executing tasks, key:taskid, value:SQueryTask*
