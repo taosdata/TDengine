@@ -16,6 +16,7 @@
 #include "index.h"
 #include "indexInt.h"
 #include "index_cache.h"
+#include "tdef.h"
 
 #ifdef USE_LUCENE
 #include "lucene++/Lucene_c.h"
@@ -30,13 +31,13 @@ typedef struct SIdxColInfo {
 static pthread_once_t isInit = PTHREAD_ONCE_INIT;
 static void indexInit();
 
-static int indexMergeCacheIntoTindex(struct SIndex *sIdx) {
-  if (sIdx == NULL) {
-    return -1; 
-  }
-  indexWarn("suid %" PRIu64 " merge cache into tindex", sIdx->suid); 
-  return 0;
-}
+
+static int indexTermSearch(SIndex *sIdx, SIndexTermQuery *term, SArray **result);
+static int indexMergeCacheIntoTindex(SIndex *sIdx);
+
+static void indexInterResultsDestroy(SArray *results);
+static int indexMergeFinalResults(SArray *interResults, EIndexOperatorType oType, SArray *finalResult); 
+
 int indexOpen(SIndexOpts *opts, const char *path, SIndex **index) {
   pthread_once(&isInit, indexInit);
   SIndex *sIdx = calloc(1, sizeof(SIndex));
@@ -49,8 +50,8 @@ int indexOpen(SIndexOpts *opts, const char *path, SIndex **index) {
 
   sIdx->cache    = (void*)indexCacheCreate();     
   sIdx->tindex   = NULL;
-  sIdx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  sIdx->colId  = 1; 
+  sIdx->colObj   = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  sIdx->colId    = 1; 
   sIdx->cVersion = 1; 
   pthread_mutex_init(&sIdx->mtx, NULL);
 
@@ -162,10 +163,23 @@ int indexSearch(SIndex *index, SIndexMultiTermQuery *multiQuerys, SArray *result
 #endif
 
 #ifdef USE_INVERTED_INDEX
+  EIndexOperatorType opera = multiQuerys->opera;  // relation of querys 
   
+  SArray *interResults = taosArrayInit(4, POINTER_BYTES);
+  int nQuery = taosArrayGetSize(multiQuerys->query);    
+  for (size_t i = 0; i < nQuery; i++) {
+     SIndexTermQuery *qTerm  = taosArrayGet(multiQuerys->query, i); 
+     SArray *tResult = NULL;  
+     indexTermSearch(index, qTerm, &tResult); 
+     taosArrayPush(interResults, (void *)&tResult);
+  } 
+  indexMergeFinalResults(interResults, opera, result);
+  indexInterResultsDestroy(interResults);
+   
 #endif
   return 1;
 }
+
 
 
 int indexDelete(SIndex *index, SIndexMultiTermQuery *query) {
@@ -258,4 +272,36 @@ void indexMultiTermDestroy(SIndexMultiTerm *terms) {
 
 void indexInit() {
   //do nothing
+}
+static int indexTermSearch(SIndex *sIdx, SIndexTermQuery *term, SArray **result) {
+  
+}
+static void indexInterResultsDestroy(SArray *results) {
+  if (results == NULL) { return; }
+
+  size_t sz = taosArrayGetSize(results);
+  for (size_t i = 0; i < sz; i++) {
+    SArray *p = taosArrayGetP(results, i);
+    taosArrayDestroy(p); 
+  }  
+  taosArrayDestroy(results);
+  
+}
+static int indexMergeFinalResults(SArray *interResults, EIndexOperatorType oType, SArray *fResults) {
+  if (oType == MUST) {
+    
+    // tag1 condition && tag2 condition   
+  } else if (oType == SHOULD) {
+    // tag1 condistion || tag2 condition
+  } else if (oType == NOT) {
+    // not use currently   
+  }
+  return 0;
+}
+static int indexMergeCacheIntoTindex(SIndex *sIdx) {
+  if (sIdx == NULL) {
+    return -1; 
+  }
+  indexWarn("suid %" PRIu64 " merge cache into tindex", sIdx->suid); 
+  return 0;
 }

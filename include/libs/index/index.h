@@ -71,7 +71,6 @@ void indexMultiTermDestroy(SIndexMultiTerm *terms);
 SIndexOpts *indexOptsCreate();
 void       indexOptsDestroy(SIndexOpts *opts);
 
-
 /*
  * @param:
  * @param:

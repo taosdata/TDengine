@@ -48,9 +48,13 @@ struct SIndex {
 struct SIndexOpts {
 #ifdef USE_LUCENE 
   void *opts; 
-#endif  
-  int32_t numOfItermLimit;
-  int8_t  mergeInterval; 
+#endif   
+
+#ifdef USE_INVERTED_INDEX
+  int32_t cacheSize;  // MB  
+  // add cache module later
+#endif
+
 };
 
 struct SIndexMultiTermQuery {
