@@ -58,7 +58,7 @@ typedef struct SQueryProfileSummary {
  */
 int32_t scheduleQueryJob(struct SCatalog *pCatalog, void *pRpc, const SEpSet* pMgmtEps, SQueryDag* pDag, void** pJob);
 
-int32_t scheduleFetchRows(void *pRpc, void *pJob, void **data);
+int32_t scheduleFetchRows(void *pJob, void **data);
 
 
 /**
@@ -66,7 +66,7 @@ int32_t scheduleFetchRows(void *pRpc, void *pJob, void **data);
  * @param pJob
  * @return
  */
-int32_t scheduleCancelJob(void *pRpc, void *pJob);
+int32_t scheduleCancelJob(void *pJob);
 
 void scheduleFreeJob(void *pJob);
 
