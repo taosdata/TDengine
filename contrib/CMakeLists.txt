@@ -34,6 +34,11 @@ if(${BUILD_WITH_ROCKSDB})
     add_definitions(-DUSE_ROCKSDB)
 endif(${BUILD_WITH_ROCKSDB})
 
+# canonical-raft
+if(${BUILD_WITH_CRAFT})
+    cat("${CMAKE_SUPPORT_DIR}/craft_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(${BUILD_WITH_CRAFT})
+
 # bdb
 if(${BUILD_WITH_BDB})
     cat("${CMAKE_SUPPORT_DIR}/bdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -143,6 +148,18 @@ endif(${BUILD_WITH_LUCENE})
 if(${BUILD_WITH_NURAFT})
     add_subdirectory(nuraft)
 endif(${BUILD_WITH_NURAFT})
+
+# CRAFT
+if(${BUILD_WITH_CRAFT})
+    add_library(craft STATIC IMPORTED GLOBAL)
+    set_target_properties(craft PROPERTIES
+        IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/craft/.libs/libraft.a"
+        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/craft"
+    )
+    target_link_libraries(craft
+        INTERFACE pthread
+    )
+endif(${BUILD_WITH_CRAFT})
 
 # BDB
 if(${BUILD_WITH_BDB})
