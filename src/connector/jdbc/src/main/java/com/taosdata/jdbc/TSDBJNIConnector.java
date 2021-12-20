@@ -9,6 +9,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 
@@ -293,7 +294,7 @@ public class TSDBJNIConnector {
     public void setBindTableName(long stmt, String tableName) throws SQLException {
         int code = setBindTableNameImp(stmt, tableName, this.taos);
         if (code != TSDBConstants.JNI_SUCCESS) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to set table name");
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "table name: " + tableName + ", failed to set table name");
         }
     }
 
@@ -338,7 +339,7 @@ public class TSDBJNIConnector {
     public void insertLines(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException {
         int code = insertLinesImp(lines, this.taos, protocolType.ordinal(), timestampType.ordinal());
         if (code != TSDBConstants.JNI_SUCCESS) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to insertLines");
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "schemaless line: " + Arrays.toString(lines) + ", failed to insertLines");
         }
     }
 
