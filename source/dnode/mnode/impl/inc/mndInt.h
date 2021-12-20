@@ -70,6 +70,7 @@ typedef struct SMnode {
   tmr_h             timer;
   char             *path;
   SMnodeCfg         cfg;
+  int64_t           checkTime;
   SSdb             *pSdb;
   SDnode           *pDnode;
   SArray           *pSteps;

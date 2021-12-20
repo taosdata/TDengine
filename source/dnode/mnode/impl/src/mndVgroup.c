@@ -311,7 +311,11 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
   return 0;
 }
 
-static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pMsg) {
+  mndTransHandleActionRsp(pMsg);
+  return 0;
+}
+
 static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pMsg) { return 0; }
 static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pMsg) { return 0; }
 static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pMsg) { return 0; }

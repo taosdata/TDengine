@@ -311,7 +311,7 @@ static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 
       action.pCont = pMsg;
       action.contLen = sizeof(SCreateVnodeMsg);
-      action.msgType = TSDB_MSG_TYPE_ALTER_VNODE_IN;
+      action.msgType = TSDB_MSG_TYPE_CREATE_VNODE_IN;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         free(pMsg);
         return -1;

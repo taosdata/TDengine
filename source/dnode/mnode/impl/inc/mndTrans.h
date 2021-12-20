@@ -25,6 +25,9 @@ extern "C" {
 typedef struct {
   SEpSet  epSet;
   int8_t  msgType;
+  int8_t  msgSent;
+  int8_t  msgReceived;
+  int32_t errCode;
   int32_t contLen;
   void   *pCont;
 } STransAction;
@@ -39,10 +42,13 @@ int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction);
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
+
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 void    mndTransApply(SMnode *pMnode, SSdbRaw *pRaw, STransMsg *pMsg, int32_t code);
-char   *mndTransStageStr(ETrnStage stage);
-char   *mndTransPolicyStr(ETrnPolicy policy);
+void    mndTransHandleActionRsp(SMnodeMsg *pMsg);
+
+char *mndTransStageStr(ETrnStage stage);
+char *mndTransPolicyStr(ETrnPolicy policy);
 
 #ifdef __cplusplus
 }

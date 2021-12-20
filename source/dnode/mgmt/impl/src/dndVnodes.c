@@ -48,7 +48,7 @@ typedef struct {
   int32_t      opened;
   int32_t      failed;
   int32_t      threadIndex;
-  pthread_t   *pThreadId;
+  pthread_t    thread;
   SDnode      *pDnode;
   SWrapperCfg *pCfgs;
 } SVnodeThread;
@@ -463,6 +463,7 @@ static int32_t dndOpenVnodes(SDnode *pDnode) {
   SVnodeThread *threads = calloc(threadNum, sizeof(SVnodeThread));
   for (int32_t t = 0; t < threadNum; ++t) {
     threads[t].threadIndex = t;
+    threads[t].pDnode = pDnode;
     threads[t].pCfgs = calloc(vnodesPerThread, sizeof(SWrapperCfg));
   }
 
@@ -478,16 +479,21 @@ static int32_t dndOpenVnodes(SDnode *pDnode) {
     SVnodeThread *pThread = &threads[t];
     if (pThread->vnodeNum == 0) continue;
 
-    pThread->pThreadId = taosCreateThread(dnodeOpenVnodeFunc, pThread);
-    if (pThread->pThreadId == NULL) {
+    pthread_attr_t thAttr;
+    pthread_attr_init(&thAttr);
+    pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
+    if (pthread_create(&pThread->thread, &thAttr, dnodeOpenVnodeFunc, pThread) != 0) {
       dError("thread:%d, failed to create thread to open vnode, reason:%s", pThread->threadIndex, strerror(errno));
     }
+
+    pthread_attr_destroy(&thAttr);
   }
 
   for (int32_t t = 0; t < threadNum; ++t) {
     SVnodeThread *pThread = &threads[t];
-    taosDestoryThread(pThread->pThreadId);
-    pThread->pThreadId = NULL;
+    if (pThread->vnodeNum > 0 && taosCheckPthreadValid(pThread->thread)) {
+      pthread_join(pThread->thread, NULL);
+    }
     free(pThread->pCfgs);
   }
   free(threads);
@@ -790,7 +796,7 @@ static void dndProcessVnodeMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
       break;
   }
 
-  SRpcMsg rsp = {.code = code, .handle = pMsg->handle};
+  SRpcMsg rsp = {.code = code, .handle = pMsg->handle, .ahandle = pMsg->ahandle};
   rpcSendResponse(&rsp);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
