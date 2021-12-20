@@ -16,8 +16,11 @@
 #ifndef _TD_TQ_H_
 #define _TD_TQ_H_
 
+#include "common.h"
 #include "mallocator.h"
 #include "os.h"
+#include "taoserror.h"
+#include "taosmsg.h"
 #include "tlist.h"
 #include "tutil.h"
 
@@ -97,10 +100,9 @@ typedef struct STqTopicVhandle {
 
 typedef struct STqExec {
   void* runtimeEnv;
-  // return type will be SSDataBlock
-  void* (*exec)(void* runtimeEnv);
-  // inputData type will be submitblk
-  void* (*assign)(void* runtimeEnv, void* inputData);
+  SSDataBlock* (*exec)(void* runtimeEnv);
+  void* (*assign)(void* runtimeEnv, SSubmitBlk* inputData);
+  void (*clear)(void* runtimeEnv);
   char* (*serialize)(struct STqExec*);
   struct STqExec* (*deserialize)(char*);
 } STqExec;
@@ -133,22 +135,17 @@ typedef struct STqListHandle {
 } STqList;
 
 typedef struct STqGroup {
-  int64_t  cId;
+  int64_t  clientId;
   int64_t  cgId;
   void*    ahandle;
   int32_t  topicNum;
   STqList* head;
   SList*   topicList;  // SList<STqTopic>
+  void*    returnMsg;  // SVReadMsg
 } STqGroup;
 
-typedef struct STqQueryExec {
-  void*       src;
-  STqMsgItem* dest;
-  void*       executor;
-} STqQueryExec;
-
 typedef struct STqQueryMsg {
-  STqQueryExec*       exec;
+  STqMsgItem*         item;
   struct STqQueryMsg* next;
 } STqQueryMsg;
 
@@ -258,12 +255,10 @@ typedef struct STQ {
   STqLogReader* tqLogReader;
   STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
-  STqExec*      tqExec;
 } STQ;
 
 // open in each vnode
-STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemAllocatorFactory* allocFac,
-            STqExec* tqExec);
+STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemAllocatorFactory* allocFac);
 void tqClose(STQ*);
 
 // void* will be replace by a msg type

@@ -35,11 +35,10 @@ void* tqSerializeItem(STqMsgItem* pItem, void* ptr);
 const void* tqDeserializeTopic(const void* pBytes, STqTopic* pTopic);
 const void* tqDeserializeItem(const void* pBytes, STqMsgItem* pItem);
 
-STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemAllocatorFactory* allocFac,
-            STqExec* tqExec) {
+STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemAllocatorFactory* allocFac) {
   STQ* pTq = malloc(sizeof(STQ));
   if (pTq == NULL) {
-    // TODO: memory error
+    terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return NULL;
   }
   pTq->path = strdup(path);
@@ -48,14 +47,13 @@ STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemA
   pTq->tqMemRef.pAlloctorFactory = allocFac;
   pTq->tqMemRef.pAllocator = allocFac->create(allocFac);
   if (pTq->tqMemRef.pAllocator == NULL) {
-    // TODO
+    // TODO: error code of buffer pool
   }
   pTq->tqMeta = tqStoreOpen(path, (FTqSerialize)tqSerializeGroup, (FTqDeserialize)tqDeserializeGroup, free, 0);
   if (pTq->tqMeta == NULL) {
     // TODO: free STQ
     return NULL;
   }
-  pTq->tqExec = tqExec;
   return pTq;
 }
 
@@ -70,16 +68,16 @@ static int tqAckOneTopic(STqTopic* pTopic, STqOneAck* pAck, STqQueryMsg** ppQuer
   if (1 /* TODO: need to launch new query */) {
     STqQueryMsg* pNewQuery = malloc(sizeof(STqQueryMsg));
     if (pNewQuery == NULL) {
-      // TODO: memory insufficient
+      terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
       return -1;
     }
     // TODO: lock executor
-    pNewQuery->exec->executor = pTopic->buffer[idx].executor;
     // TODO: read from wal and assign to src
-    pNewQuery->exec->src = 0;
-    pNewQuery->exec->dest = &pTopic->buffer[idx];
-    pNewQuery->next = *ppQuery;
-    *ppQuery = pNewQuery;
+    /*pNewQuery->exec->executor = pTopic->buffer[idx].executor;*/
+    /*pNewQuery->exec->src = 0;*/
+    /*pNewQuery->exec->dest = &pTopic->buffer[idx];*/
+    /*pNewQuery->next = *ppQuery;*/
+    /**ppQuery = pNewQuery;*/
   }
   return 0;
 }
@@ -134,10 +132,10 @@ STqGroup* tqOpenGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId) {
       // TODO
       return NULL;
     }
+    tqHandleMovePut(pTq->tqMeta, cId, pGroup);
   }
+  ASSERT(pGroup);
 
-  // create
-  // open
   return pGroup;
 }
 
@@ -273,6 +271,33 @@ int tqSetCursor(STQ* pTq, STqSetCurReq* pMsg) {
 }
 
 int tqConsume(STQ* pTq, STqConsumeReq* pMsg) {
+  int64_t   clientId = pMsg->head.clientId;
+  STqGroup* pGroup = tqGetGroup(pTq, clientId);
+  if (pGroup == NULL) {
+    terrno = TSDB_CODE_TQ_GROUP_NOT_SET;
+    return -1;
+  }
+
+  STqConsumeRsp* pRsp = (STqConsumeRsp*)pMsg;
+  int            numOfMsgs = tqFetch(pGroup, (void**)&pRsp->msgs);
+  if (numOfMsgs < 0) {
+    return -1;
+  }
+  if (numOfMsgs == 0) {
+    // most recent data has been fetched
+
+    // enable timer for blocking wait
+    // once new data written during wait time
+    // launch query and response
+  }
+
+  // fetched a num of msgs, rpc response
+
+  return 0;
+}
+
+#if 0
+int tqConsume(STQ* pTq, STqConsumeReq* pMsg) {
   if (!tqProtoCheck((STqMsgHead*)pMsg)) {
     // proto version invalid
     return -1;
@@ -304,6 +329,7 @@ int tqConsume(STQ* pTq, STqConsumeReq* pMsg) {
   /*}*/
   return 0;
 }
+#endif
 
 int tqSerializeGroup(const STqGroup* pGroup, STqSerializedHead** ppHead) {
   // calculate size
@@ -320,7 +346,7 @@ int tqSerializeGroup(const STqGroup* pGroup, STqSerializedHead** ppHead) {
   }
   void* ptr = (*ppHead)->content;
   // do serialization
-  *(int64_t*)ptr = pGroup->cId;
+  *(int64_t*)ptr = pGroup->clientId;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
   *(int64_t*)ptr = pGroup->cgId;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
@@ -366,7 +392,7 @@ void* tqSerializeItem(STqMsgItem* bufItem, void* ptr) {
 const void* tqDeserializeGroup(const STqSerializedHead* pHead, STqGroup** ppGroup) {
   STqGroup*   gHandle = *ppGroup;
   const void* ptr = pHead->content;
-  gHandle->cId = *(int64_t*)ptr;
+  gHandle->clientId = *(int64_t*)ptr;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
   gHandle->cgId = *(int64_t*)ptr;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
