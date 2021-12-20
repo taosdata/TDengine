@@ -38,7 +38,7 @@ public:
 
   virtual TableBuilder& setVgid(int16_t vgid) {
     schema()->vgId = vgid;
-    meta_->vgs.emplace_back(SVgroupInfo{.vgId = vgid, .numOfEps = 3, .epAddr = {{"dnode_1", 6030}, {"dnode_2", 6030}, {"dnode_3", 6030}}});
+    meta_->vgs.emplace_back(SVgroupInfo{.vgId = vgid, .hashBegin = 0, .hashEnd = 0, .inUse = 0, .numOfEps = 3, .epAddr = {{"dnode_1", 6030}, {"dnode_2", 6030}, {"dnode_3", 6030}}});
     return *this;
   }
 
@@ -118,9 +118,9 @@ public:
     meta_[db][tbname].reset(new MockTableMeta());
     meta_[db][tbname]->schema.reset(table.release());
     meta_[db][tbname]->schema->uid = id_++;
-    meta_[db][tbname]->vgs.emplace_back(SVgroupInfo{.vgId = vgid, .numOfEps = 3, .epAddr = {{"dnode_1", 6030}, {"dnode_2", 6030}, {"dnode_3", 6030}}});
+    meta_[db][tbname]->vgs.emplace_back((SVgroupInfo){.vgId = vgid, .hashBegin = 0, .hashEnd = 0, .inUse = 0, .numOfEps = 3, .epAddr = {{"dnode_1", 6030}, {"dnode_2", 6030}, {"dnode_3", 6030}}});
     // super table
-    meta_[db][stbname]->vgs.emplace_back(SVgroupInfo{.vgId = vgid, .numOfEps = 3, .epAddr = {{"dnode_1", 6030}, {"dnode_2", 6030}, {"dnode_3", 6030}}});
+    meta_[db][stbname]->vgs.emplace_back((SVgroupInfo){.vgId = vgid, .hashBegin = 0, .hashEnd = 0, .inUse = 0, .numOfEps = 3, .epAddr = {{"dnode_1", 6030}, {"dnode_2", 6030}, {"dnode_3", 6030}}});
   }
 
   void showTables() const {
