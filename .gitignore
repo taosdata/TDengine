@@ -86,22 +86,6 @@ tests/script/api/batchprepare
 tests/script/api/stmt
 tests/script/api/stmtBatchTest
 tests/script/api/stmtTest
-src/connector/C#/src/TDengineDriver/bin/
-src/connector/C#/src/TDengineDriver/obj/
-src/connector/C#/src/test/Cases/bin/
-src/connector/C#/src/test/Cases/obj/
-src/connector/C#/src/test/XUnitTest/bin/
-src/connector/C#/src/test/XUnitTest/obj/
-src/connector/nodejs/package-lock.json
-tests/examples/C#/C#checker/bin/
-tests/examples/C#/C#checker/obj/
-tests/examples/C#/TDengineTest/bin/
-tests/examples/C#/TDengineTest/obj/
-tests/examples/C#/schemaless/bin/
-tests/examples/C#/schemaless/obj/
-tests/examples/C#/stmt/obj/
-tests/examples/C#/taosdemo/bin/
-tests/examples/C#/taosdemo/obj/
 # Emacs
 # -*- mode: gitignore; -*-
 *~
