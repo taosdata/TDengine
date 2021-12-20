@@ -46,7 +46,7 @@ static int32_t compareKey(const void *l, const void *r) {
   rp += sizeof(rf);
 
   // compare field type
-  int16_t lft, rft; 
+  int8_t lft, rft; 
   memcpy(&lft, lp, sizeof(lft));
   memcpy(&rft, rp, sizeof(rft));
   lp += sizeof(lft);
@@ -149,7 +149,7 @@ int indexCacheDel(void *cache, int32_t fieldId, const char *fieldValue, int32_t 
   IndexCache *pCache = cache;
   return 0;
 }
-int indexCacheSearch(void *cache, SIndexTermQuery *query, int16_t colId, int32_t version, SArray *result) {
+int indexCacheSearch(void *cache, SIndexTermQuery *query, int16_t colId, int32_t version, SArray *result, STermValueType *s) {
   if (cache == NULL) { return -1; }
   IndexCache *pCache = cache; 
   SIndexTerm       *term = query->term;
@@ -159,7 +159,7 @@ int indexCacheSearch(void *cache, SIndexTermQuery *query, int16_t colId, int32_t
 
   char *buf = calloc(1, keyLen);
   if (qtype == QUERY_TERM) {
-       
+           
   } else if (qtype == QUERY_PREFIX) {
 
   } else if (qtype == QUERY_SUFFIX) {

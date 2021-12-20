@@ -31,6 +31,8 @@
 extern "C" {
 #endif
 
+typedef enum {kTypeValue, kTypeDeletion} STermValueType ;
+
 typedef struct SIndexStat {
   int32_t totalAdded;   //  
   int32_t totalDeled;   //

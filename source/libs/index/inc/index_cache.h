@@ -44,7 +44,7 @@ void indexCacheDestroy(void *cache);
 int indexCachePut(void *cache,  SIndexTerm *term, int16_t colId, int32_t version, uint64_t uid);
 
 //int indexCacheGet(void *cache, uint64_t *rst);
-int indexCacheSearch(void *cache, SIndexTermQuery *query, int16_t colId, int32_t version, SArray *result);
+int indexCacheSearch(void *cache, SIndexTermQuery *query, int16_t colId, int32_t version, SArray *result, STermValueType *s);
 
 #ifdef __cplusplus
 }
