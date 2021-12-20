@@ -50,9 +50,8 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONSUME, "mq-consume" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_QUERY, "mq-query" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONNECT, "mq-connect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_DISCONNECT, "mq-disconnect" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_SET, "mq-set" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_SET_CUR, "mq-set-cur" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_RSP_READY, "rsp-ready" )
-
 // message from client to mnode
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONNECT, "connect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_ACCT, "create-acct" )	
@@ -225,6 +224,7 @@ typedef struct SBuildUseDBInput {
   int32_t vgVersion;
 } SBuildUseDBInput;
 
+
 #pragma pack(push, 1)
 
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
@@ -343,7 +343,7 @@ typedef struct {
 typedef struct {
   char    tableFname[TSDB_TABLE_FNAME_LEN];
   char    db[TSDB_FULL_DB_NAME_LEN];
-  int16_t type;      /* operation type   */
+  int16_t type; /* operation type   */
   int16_t numOfCols; /* number of schema */
   int32_t tagValLen;
   SSchema schema[];
@@ -545,8 +545,8 @@ typedef struct {
   int32_t     sqlstrLen;      // sql query string
   int32_t     prevResultLen;  // previous result length
   int32_t     numOfOperator;
-  int32_t     tableScanOperator;  // table scan operator. -1 means no scan operator
-  int32_t     udfNum;             // number of udf function
+  int32_t     tableScanOperator;// table scan operator. -1 means no scan operator
+  int32_t     udfNum;           // number of udf function
   int32_t     udfContentOffset;
   int32_t     udfContentLen;
   SColumnInfo tableCols[];
@@ -1005,27 +1005,35 @@ typedef struct {
 
 // mq related
 typedef struct {
+
 } SMqConnectReq;
 
 typedef struct {
+
 } SMqConnectRsp;
 
 typedef struct {
+
 } SMqDisconnectReq;
 
 typedef struct {
+
 } SMqDisconnectRsp;
 
 typedef struct {
+
 } SMqAckReq;
 
 typedef struct {
+
 } SMqAckRsp;
 
 typedef struct {
+
 } SMqResetReq;
 
 typedef struct {
+
 } SMqResetRsp;
 // mq related end
 

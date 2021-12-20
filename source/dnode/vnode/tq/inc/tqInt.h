@@ -17,10 +17,19 @@
 #define _TD_TQ_INT_H_
 
 #include "tq.h"
-
+#include "tlog.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+extern int32_t tqDebugFlag;
+
+#define tqFatal(...) { if (tqDebugFlag & DEBUG_FATAL) { taosPrintLog("TQ  FATAL ", 255, __VA_ARGS__); }}
+#define tqError(...) { if (tqDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", 255, __VA_ARGS__); }}
+#define tqWarn(...)  { if (tqDebugFlag & DEBUG_WARN)  { taosPrintLog("TQ  WARN ", 255, __VA_ARGS__); }}
+#define tqInfo(...)  { if (tqDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  ", 255, __VA_ARGS__); }}
+#define tqDebug(...) { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  ", tqDebugFlag, __VA_ARGS__); }}
+#define tqTrace(...) { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  ", tqDebugFlag, __VA_ARGS__); }}
 
 // create persistent storage for meta info such as consuming offset
 // return value > 0: cgId

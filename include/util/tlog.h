@@ -42,10 +42,10 @@ extern int32_t qDebugFlag;
 extern int32_t wDebugFlag;
 extern int32_t sDebugFlag;
 extern int32_t tsdbDebugFlag;
+extern int32_t tqDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
 extern int32_t ctgDebugFlag;
-
 
 #define DEBUG_FATAL 1U
 #define DEBUG_ERROR DEBUG_FATAL
