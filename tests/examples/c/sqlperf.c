@@ -81,24 +81,32 @@ int main(int argc, char *argv[]) {
   int numSTables = 20000;
   int numThreads = 32;
 
+  int opt;
+  while ((opt = getopt(argc, argv, "s:t:fvh")) != -1) {
+    switch (opt) {
+      case 's':
+        numSTables = atoi(optarg);
+        break;
+      case 't':
+        numThreads = atoi(optarg);
+        break;
+      case 'f':
+        describeTableFirst = true;
+        break;
+      case 'v':
+        verbose = true;
+        break;	
+      case 'h':
+        fprintf(stderr, "Usage: %s -s supertable -t thread -FirstDescribeSTable -Verbose\n", argv[0]);
+        exit(0);
+      default:
+        fprintf(stderr, "Usage: %s -s supertable -t thread -FirstDescribeSTable -Verbose\n", argv[0]);
+        exit(-1);
+    }
+  }
+
+
   // connect to server
-  if (argc > 1) {
-    numSTables = atoi(argv[1]);
-  }
-
-  if (argc > 2) {
-    numThreads = atoi(argv[2]);
-  }
-
-  if (argc > 3) {
-    describeTableFirst = atoi(argv[3]) ? true : false;
-  }
-
-  if (argc > 4) {
-    verbose = atoi(argv[4]) ? true : false;
-  }
-
-
   TAOS *taos = taos_connect(NULL, "root", "taosdata", NULL, 0);
   if (taos == NULL) {
     printf("failed to connect to server, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
@@ -124,7 +132,7 @@ int main(int argc, char *argv[]) {
     pthread_join(tids[i], NULL);
   }
   int64_t end = taosGetTimestampUs();
-  printf("TIME: %ld\n", end-begin);
+  printf("TIME: %d(ms)\n", (int)((end-begin)/1000));
   printf("THROUGHPUT: %d\n", (int)((numSTables * 1e6) / (end-begin)));
   free(threadArgs);
   free(tids);
