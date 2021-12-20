@@ -61,8 +61,12 @@ int32_t mndInitMnode(SMnode *pMnode) {
 void mndCleanupMnode(SMnode *pMnode) {}
 
 static SMnodeObj *mndAcquireMnode(SMnode *pMnode, int32_t mnodeId) {
-  SSdb *pSdb = pMnode->pSdb;
-  return sdbAcquire(pSdb, SDB_MNODE, &mnodeId);
+  SSdb      *pSdb = pMnode->pSdb;
+  SMnodeObj *pObj = sdbAcquire(pSdb, SDB_MNODE, &mnodeId);
+  if (pObj == NULL) {
+    terrno = TSDB_CODE_MND_MNODE_NOT_EXIST;
+  }
+  return pObj;
 }
 
 static void mndReleaseMnode(SMnode *pMnode, SMnodeObj *pMnodeObj) {
