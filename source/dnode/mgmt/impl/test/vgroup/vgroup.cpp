@@ -178,45 +178,110 @@ int32_t  DndTestVgroup::connId;
 
 TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
   {
-    SCreateVnodeMsg* pReq = (SCreateVnodeMsg*)rpcMallocCont(sizeof(SCreateVnodeMsg));
-    pReq->vgId = htonl(2);
-    pReq->dnodeId = htonl(1);
-    strcpy(pReq->db, "1.d1");
-    pReq->dbUid = htobe64(9527);
-    pReq->vgVersion = htonl(1);
-    pReq->cacheBlockSize = htonl(16);
-    pReq->totalBlocks = htonl(10);
-    pReq->daysPerFile = htonl(10);
-    pReq->daysToKeep0 = htonl(3650);
-    pReq->daysToKeep1 = htonl(3650);
-    pReq->daysToKeep2 = htonl(3650);
-    pReq->minRows = htonl(100);
-    pReq->minRows = htonl(4096);
-    pReq->commitTime = htonl(3600);
-    pReq->fsyncPeriod = htonl(3000);
-    pReq->walLevel = 1;
-    pReq->precision = 0;
-    pReq->compression = 2;
-    pReq->replica = 1;
-    pReq->quorum = 1;
-    pReq->update = 0;
-    pReq->cacheLastRow = 0;
-    pReq->selfIndex = 0;
-    for (int r = 0; r < pReq->replica; ++r) {
-      SReplica* pReplica = &pReq->replicas[r];
-      pReplica->id = htonl(1);
-      pReplica->port = htons(9150);
+    for (int i = 0; i < 3; ++i) {
+      SCreateVnodeMsg* pReq = (SCreateVnodeMsg*)rpcMallocCont(sizeof(SCreateVnodeMsg));
+      pReq->vgId = htonl(2);
+      pReq->dnodeId = htonl(1);
+      strcpy(pReq->db, "1.d1");
+      pReq->dbUid = htobe64(9527);
+      pReq->vgVersion = htonl(1);
+      pReq->cacheBlockSize = htonl(16);
+      pReq->totalBlocks = htonl(10);
+      pReq->daysPerFile = htonl(10);
+      pReq->daysToKeep0 = htonl(3650);
+      pReq->daysToKeep1 = htonl(3650);
+      pReq->daysToKeep2 = htonl(3650);
+      pReq->minRows = htonl(100);
+      pReq->minRows = htonl(4096);
+      pReq->commitTime = htonl(3600);
+      pReq->fsyncPeriod = htonl(3000);
+      pReq->walLevel = 1;
+      pReq->precision = 0;
+      pReq->compression = 2;
+      pReq->replica = 1;
+      pReq->quorum = 1;
+      pReq->update = 0;
+      pReq->cacheLastRow = 0;
+      pReq->selfIndex = 0;
+      for (int r = 0; r < pReq->replica; ++r) {
+        SReplica* pReplica = &pReq->replicas[r];
+        pReplica->id = htonl(1);
+        pReplica->port = htons(9150);
+      }
+
+      SRpcMsg rpcMsg = {0};
+      rpcMsg.pCont = pReq;
+      rpcMsg.contLen = sizeof(SCreateVnodeMsg);
+      rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_VNODE_IN;
+
+      sendMsg(pClient, &rpcMsg);
+      SRpcMsg* pMsg = pClient->pRsp;
+      ASSERT_NE(pMsg, nullptr);
+      ASSERT_EQ(pMsg->code, 0);
     }
+  }
 
-    SRpcMsg rpcMsg = {0};
-    rpcMsg.pCont = pReq;
-    rpcMsg.contLen = sizeof(SCreateVnodeMsg);
-    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_VNODE_IN;
+  {
+    for (int i = 0; i < 3; ++i) {
+      SAlterVnodeMsg* pReq = (SAlterVnodeMsg*)rpcMallocCont(sizeof(SAlterVnodeMsg));
+      pReq->vgId = htonl(2);
+      pReq->dnodeId = htonl(1);
+      strcpy(pReq->db, "1.d1");
+      pReq->dbUid = htobe64(9527);
+      pReq->vgVersion = htonl(2);
+      pReq->cacheBlockSize = htonl(16);
+      pReq->totalBlocks = htonl(10);
+      pReq->daysPerFile = htonl(10);
+      pReq->daysToKeep0 = htonl(3650);
+      pReq->daysToKeep1 = htonl(3650);
+      pReq->daysToKeep2 = htonl(3650);
+      pReq->minRows = htonl(100);
+      pReq->minRows = htonl(4096);
+      pReq->commitTime = htonl(3600);
+      pReq->fsyncPeriod = htonl(3000);
+      pReq->walLevel = 1;
+      pReq->precision = 0;
+      pReq->compression = 2;
+      pReq->replica = 1;
+      pReq->quorum = 1;
+      pReq->update = 0;
+      pReq->cacheLastRow = 0;
+      pReq->selfIndex = 0;
+      for (int r = 0; r < pReq->replica; ++r) {
+        SReplica* pReplica = &pReq->replicas[r];
+        pReplica->id = htonl(1);
+        pReplica->port = htons(9150);
+      }
 
-    sendMsg(pClient, &rpcMsg);
-    SRpcMsg* pMsg = pClient->pRsp;
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
-    // taosMsleep(1000000);
+      SRpcMsg rpcMsg = {0};
+      rpcMsg.pCont = pReq;
+      rpcMsg.contLen = sizeof(SAlterVnodeMsg);
+      rpcMsg.msgType = TSDB_MSG_TYPE_ALTER_VNODE_IN;
+
+      sendMsg(pClient, &rpcMsg);
+      SRpcMsg* pMsg = pClient->pRsp;
+      ASSERT_NE(pMsg, nullptr);
+      ASSERT_EQ(pMsg->code, 0);
+    }
+  }
+
+  {
+    for (int i = 0; i < 3; ++i) {
+      SDropVnodeMsg* pReq = (SDropVnodeMsg*)rpcMallocCont(sizeof(SDropVnodeMsg));
+      pReq->vgId = htonl(2);
+      pReq->dnodeId = htonl(1);
+      strcpy(pReq->db, "1.d1");
+      pReq->dbUid = htobe64(9527);
+
+      SRpcMsg rpcMsg = {0};
+      rpcMsg.pCont = pReq;
+      rpcMsg.contLen = sizeof(SCreateVnodeMsg);
+      rpcMsg.msgType = TSDB_MSG_TYPE_DROP_VNODE_IN;
+
+      sendMsg(pClient, &rpcMsg);
+      SRpcMsg* pMsg = pClient->pRsp;
+      ASSERT_NE(pMsg, nullptr);
+      ASSERT_EQ(pMsg->code, 0);
+    }
   }
 }
