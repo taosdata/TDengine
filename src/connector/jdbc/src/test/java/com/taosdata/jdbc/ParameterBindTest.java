@@ -128,8 +128,8 @@ public class ParameterBindTest {
     @After
     public void after() {
         try {
-//            Statement stmt = conn.createStatement();
-//            stmt.execute("drop database if exists test_pd");
+            Statement stmt = conn.createStatement();
+            stmt.execute("drop database if exists test_pd");
             if (conn != null)
                 conn.close();
         } catch (SQLException e) {
