@@ -49,13 +49,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 
   walFsync(pVnode->pWal, false);
 
-  // Apply each request now
-  for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
-    pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
-
-    // TODO: Now we just need a 
-    vnodeApplyWMsg(pVnode, pMsg, NULL);
-  }
+  // TODO: Integrate RAFT module here
 
   return 0;
 }

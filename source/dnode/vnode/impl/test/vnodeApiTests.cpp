@@ -166,6 +166,21 @@ static void vtClearMsgBatch(SArray *pMsgArr) {
   taosArrayClear(pMsgArr);
 }
 
+static void vtProcessAndApplyReqs(SVnode *pVnode, SArray *pMsgArr) {
+  int      rcode;
+  SRpcMsg *pReq;
+  SRpcMsg *pRsp;
+
+  rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
+  GTEST_ASSERT_EQ(rcode, 0);
+
+  for (size_t i = 0; i < taosArrayGetSize(pMsgArr); i++) {
+    pReq = *(SRpcMsg **)taosArrayGet(pMsgArr, i);
+    rcode = vnodeApplyWMsg(pVnode, pReq, NULL);
+    GTEST_ASSERT_EQ(rcode, 0);
+  }
+}
+
 TEST(vnodeApiTest, vnode_simple_create_table_test) {
   tb_uid_t suid = 1638166374163;
   SRpcMsg *pMsg;
@@ -189,8 +204,7 @@ TEST(vnodeApiTest, vnode_simple_create_table_test) {
   sprintf(tbname, "st");
   vtBuildCreateStbReq(suid, tbname, &pMsg);
   taosArrayPush(pMsgArr, &pMsg);
-  rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
-  ASSERT_EQ(rcode, 0);
+  vtProcessAndApplyReqs(pVnode, pMsgArr);
   vtClearMsgBatch(pMsgArr);
 
   // CREATE A LOT OF CHILD TABLES
@@ -203,8 +217,7 @@ TEST(vnodeApiTest, vnode_simple_create_table_test) {
     }
 
     // Process request batch
-    rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
-    ASSERT_EQ(rcode, 0);
+    vtProcessAndApplyReqs(pVnode, pMsgArr);
 
     // Clear request batch
     vtClearMsgBatch(pMsgArr);
@@ -242,16 +255,14 @@ TEST(vnodeApiTest, vnode_simple_insert_test) {
   sprintf(tbname, "st");
   vtBuildCreateStbReq(suid, tbname, &pMsg);
   taosArrayPush(pMsgArr, &pMsg);
-  rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
-  GTEST_ASSERT_EQ(rcode, 0);
+  vtProcessAndApplyReqs(pVnode, pMsgArr);
   vtClearMsgBatch(pMsgArr);
 
   // 2. CREATE A CHILD TABLE
   sprintf(tbname, "t0");
   vtBuildCreateCtbReq(suid, tbname, &pMsg);
   taosArrayPush(pMsgArr, &pMsg);
-  rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
-  GTEST_ASSERT_EQ(rcode, 0);
+  vtProcessAndApplyReqs(pVnode, pMsgArr);
   vtClearMsgBatch(pMsgArr);
 
   // 3. WRITE A LOT OF TIME-SERIES DATA
@@ -260,8 +271,7 @@ TEST(vnodeApiTest, vnode_simple_insert_test) {
       vtBuildSubmitReq(&pMsg);
       taosArrayPush(pMsgArr, &pMsg);
     }
-    rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
-    GTEST_ASSERT_EQ(rcode, 0);
+    vtProcessAndApplyReqs(pVnode, pMsgArr);
     vtClearMsgBatch(pMsgArr);
   }
 
