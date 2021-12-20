@@ -10,3 +10,9 @@
 [submodule "deps/TSZ"]
 	path = deps/TSZ
 	url = https://github.com/taosdata/TSZ.git
+[submodule "src/plugins/taosadapter"]
+	path = src/plugins/taosadapter
+	url = git@github.com:taosdata/taosadapter.git
+[submodule "src/kit/taos-tools"]
+	path = src/kit/taos-tools
+	url = git@github.com:taosdata/taos-tools.git
