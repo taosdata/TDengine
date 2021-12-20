@@ -1,16 +1,12 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/**
+ * @file dnode.cpp
+ * @author slguan (slguan@taosdata.com)
+ * @brief DNODE module dnode-msg tests
+ * @version 0.1
+ * @date 2021-12-15
  *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * @copyright Copyright (c) 2021
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "deploy.h"
@@ -82,10 +78,10 @@ class DndTestDnode : public ::testing::Test {
     ASSERT_NE(pShowRsp, nullptr);
     pShowRsp->showId = htonl(pShowRsp->showId);
     pMeta = &pShowRsp->tableMeta;
-    pMeta->numOfTags = htons(pMeta->numOfTags);
-    pMeta->numOfColumns = htons(pMeta->numOfColumns);
-    pMeta->sversion = htons(pMeta->sversion);
-    pMeta->tversion = htons(pMeta->tversion);
+    pMeta->numOfTags = htonl(pMeta->numOfTags);
+    pMeta->numOfColumns = htonl(pMeta->numOfColumns);
+    pMeta->sversion = htonl(pMeta->sversion);
+    pMeta->tversion = htonl(pMeta->tversion);
     pMeta->tuid = htobe64(pMeta->tuid);
     pMeta->suid = htobe64(pMeta->suid);
 
@@ -106,7 +102,7 @@ class DndTestDnode : public ::testing::Test {
 
   void CheckSchema(int32_t index, int8_t type, int32_t bytes, const char* name) {
     SSchema* pSchema = &pMeta->pSchema[index];
-    pSchema->bytes = htons(pSchema->bytes);
+    pSchema->bytes = htonl(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, type);
     EXPECT_EQ(pSchema->bytes, bytes);
@@ -132,17 +128,14 @@ class DndTestDnode : public ::testing::Test {
     pRetrieveRsp = (SRetrieveTableRsp*)pClient->pRsp->pCont;
     ASSERT_NE(pRetrieveRsp, nullptr);
     pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
-    pRetrieveRsp->offset = htobe64(pRetrieveRsp->offset);
     pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);
     pRetrieveRsp->compLen = htonl(pRetrieveRsp->compLen);
 
     EXPECT_EQ(pRetrieveRsp->numOfRows, rows);
-    EXPECT_EQ(pRetrieveRsp->offset, 0);
     EXPECT_EQ(pRetrieveRsp->useconds, 0);
     // EXPECT_EQ(pRetrieveRsp->completed, completed);
     EXPECT_EQ(pRetrieveRsp->precision, TSDB_TIME_PRECISION_MILLI);
     EXPECT_EQ(pRetrieveRsp->compressed, 0);
-    EXPECT_EQ(pRetrieveRsp->reserved, 0);
     EXPECT_EQ(pRetrieveRsp->compLen, 0);
 
     pData = pRetrieveRsp->data;
@@ -191,12 +184,12 @@ SClient* DndTestDnode::pClient;
 TEST_F(DndTestDnode, 01_ShowDnode) {
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
   CheckSchema(0, TSDB_DATA_TYPE_SMALLINT, 2, "id");
-  CheckSchema(1, TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN + VARSTR_HEADER_SIZE, "end point");
+  CheckSchema(1, TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN + VARSTR_HEADER_SIZE, "endpoint");
   CheckSchema(2, TSDB_DATA_TYPE_SMALLINT, 2, "vnodes");
-  CheckSchema(3, TSDB_DATA_TYPE_SMALLINT, 2, "max vnodes");
+  CheckSchema(3, TSDB_DATA_TYPE_SMALLINT, 2, "max_vnodes");
   CheckSchema(4, TSDB_DATA_TYPE_BINARY, 10 + VARSTR_HEADER_SIZE, "status");
-  CheckSchema(5, TSDB_DATA_TYPE_TIMESTAMP, 8, "create time");
-  CheckSchema(6, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "offline reason");
+  CheckSchema(5, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
+  CheckSchema(6, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "offline_reason");
 
   SendThenCheckShowRetrieveMsg(1);
   CheckInt16(1);
@@ -224,19 +217,21 @@ TEST_F(DndTestDnode, 02_ConfigDnode) {
   ASSERT_EQ(pMsg->code, 0);
 }
 
-TEST_F(DndTestDnode, 03_CreateDnode) {
-  SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
-  strcpy(pReq->ep, "localhost:9042");
+TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
+  {
+    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
+    strcpy(pReq->ep, "localhost:9042");
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SCreateDnodeMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DNODE;
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SCreateDnodeMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DNODE;
 
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
 
   taosMsleep(1300);
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
@@ -255,21 +250,21 @@ TEST_F(DndTestDnode, 03_CreateDnode) {
   CheckTimestamp();
   CheckBinary("", 24);
   CheckBinary("", 24);
-}
 
-TEST_F(DndTestDnode, 04_DropDnode) {
-  SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(sizeof(SDropDnodeMsg));
-  pReq->dnodeId = htonl(2);
+  {
+    SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(sizeof(SDropDnodeMsg));
+    pReq->dnodeId = htonl(2);
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SDropDnodeMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_DROP_DNODE;
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SDropDnodeMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_DROP_DNODE;
 
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
 
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
   SendThenCheckShowRetrieveMsg(1);
@@ -280,9 +275,7 @@ TEST_F(DndTestDnode, 04_DropDnode) {
   CheckBinary("ready", 10);
   CheckTimestamp();
   CheckBinary("", 24);
-}
 
-TEST_F(DndTestDnode, 05_CreateDnode) {
   {
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
     strcpy(pReq->ep, "localhost:9043");
@@ -359,9 +352,8 @@ TEST_F(DndTestDnode, 05_CreateDnode) {
   CheckBinary("", 24);
   CheckBinary("", 24);
   CheckBinary("", 24);
-}
 
-TEST_F(DndTestDnode, 06_RestartDnode) {
+  // restart
   uInfo("stop all server");
   stopServer(pServer1);
   stopServer(pServer2);

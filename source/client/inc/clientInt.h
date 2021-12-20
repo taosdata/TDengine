@@ -21,13 +21,14 @@ extern "C" {
 #endif
 
 #include "taos.h"
+#include "common.h"
 #include "taosmsg.h"
+#include "tdef.h"
+#include "tep.h"
 #include "thash.h"
 #include "tlist.h"
-#include "trpc.h"
-#include "tdef.h"
 #include "tmsgtype.h"
-#include "tep.h"
+#include "trpc.h"
 
 typedef struct SQueryExecMetric {
   int64_t      start;    // start timestamp
@@ -75,22 +76,38 @@ typedef struct SAppInfo {
 typedef struct STscObj {
   char               user[TSDB_USER_LEN];
   char               pass[TSDB_PASSWORD_LEN];
-  char               acctId[TSDB_ACCT_ID_LEN];
   char               db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  int32_t            acctId;
   uint32_t           connId;
   uint64_t           id;       // ref ID returned by taosAddRef
-//  struct SSqlObj    *sqlList;
   void              *pTransporter;
   pthread_mutex_t    mutex;     // used to protect the operation on db
   int32_t            numOfReqs; // number of sqlObj from this tscObj
   SAppInstInfo      *pAppInfo;
 } STscObj;
 
+typedef struct SClientResultInfo {
+  const char  *pMsg;
+  const char  *pData;
+  TAOS_FIELD  *fields;
+  int32_t      numOfCols;
+  int32_t      numOfRows;
+  int32_t      current;
+  int32_t     *length;
+  TAOS_ROW     row;
+  char       **pCol;
+} SClientResultInfo;
+
 typedef struct SReqBody {
   tsem_t    rspSem;        // not used now
   void*     fp;
   void*     param;
+  int32_t   paramLen;
+  int64_t   execId;    // showId/queryId
+  SClientResultInfo* pResInfo;
 } SRequestBody;
+
+#define ERROR_MSG_BUF_DEFAULT_SIZE  512
 
 typedef struct SRequestObj {
   uint64_t         requestId;
@@ -118,7 +135,7 @@ extern int32_t    tscReqRef;
 extern void      *tscQhandle;
 extern int32_t    tscConnRef;
 
-extern int (*tscBuildMsg[TSDB_SQL_MAX])(SRequestObj *pRequest, SRequestMsgBody *pMsg);
+extern int (*buildRequestMsgFp[TSDB_SQL_MAX])(SRequestObj *pRequest, SRequestMsgBody *pMsgBody);
 extern int (*handleRequestRspFp[TSDB_SQL_MAX])(SRequestObj *pRequest, const char* pMsg, int32_t msgLen);
 
 int   taos_init();
@@ -129,8 +146,6 @@ void  destroyTscObj(void*pObj);
 void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t type);
 void destroyRequest(SRequestObj* pRequest);
 
-TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, const char *auth, const char *db, uint16_t port);
-
 void taos_init_imp(void);
 int taos_options_imp(TSDB_OPTION option, const char *str);
 
@@ -138,6 +153,12 @@ void* openTransporter(const char *user, const char *auth);
 
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 void initMsgHandleFp();
+
+TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, const char *auth, const char *db, uint16_t port);
+TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen);
+
+void* doFetchRow(SRequestObj* pRequest);
+void setResultDataPtr(SClientResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows);
 
 #ifdef __cplusplus
 }

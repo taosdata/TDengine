@@ -24,7 +24,6 @@
 #define TSDB_VGROUP_VER_NUM 1
 #define TSDB_VGROUP_RESERVE_SIZE 64
 
-static SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup);
 static SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw);
 static int32_t  mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
 static int32_t  mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
@@ -70,8 +69,8 @@ int32_t mndInitVgroup(SMnode *pMnode) {
 
 void mndCleanupVgroup(SMnode *pMnode) {}
 
-static SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_VGROUP_VER_NUM, sizeof(SVgObj) + TSDB_VGROUP_RESERVE_SIZE);
+SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_VGROUP, TSDB_VGROUP_VER_NUM, sizeof(SVgObj) + TSDB_VGROUP_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
@@ -79,7 +78,10 @@ static SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
   SDB_SET_INT64(pRaw, dataPos, pVgroup->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pVgroup->updateTime)
   SDB_SET_INT32(pRaw, dataPos, pVgroup->version)
+  SDB_SET_INT32(pRaw, dataPos, pVgroup->hashBegin)
+  SDB_SET_INT32(pRaw, dataPos, pVgroup->hashEnd)
   SDB_SET_BINARY(pRaw, dataPos, pVgroup->dbName, TSDB_FULL_DB_NAME_LEN)
+  SDB_SET_INT64(pRaw, dataPos, pVgroup->dbUid)
   SDB_SET_INT8(pRaw, dataPos, pVgroup->replica)
   for (int8_t i = 0; i < pVgroup->replica; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
@@ -92,7 +94,7 @@ static SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
   return pRaw;
 }
 
-static SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
+SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
@@ -102,7 +104,7 @@ static SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
     return NULL;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(SDbObj));
+  SSdbRow *pRow = sdbAllocRow(sizeof(SVgObj));
   SVgObj  *pVgroup = sdbGetRowObj(pRow);
   if (pVgroup == NULL) return NULL;
 
@@ -111,7 +113,10 @@ static SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, pRow, dataPos, &pVgroup->createdTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pVgroup->updateTime)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->version)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->hashBegin)
+  SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->hashEnd)
   SDB_GET_BINARY(pRaw, pRow, dataPos, pVgroup->dbName, TSDB_FULL_DB_NAME_LEN)
+  SDB_GET_INT64(pRaw, pRow, dataPos, &pVgroup->dbUid)
   SDB_GET_INT8(pRaw, pRow, dataPos, &pVgroup->replica)
   for (int8_t i = 0; i < pVgroup->replica; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
@@ -133,12 +138,6 @@ static int32_t mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup) {
   return 0;
 }
 
-static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pMsg) { return 0; }
-static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pMsg) { return 0; }
-static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pMsg) { return 0; }
-static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pMsg) { return 0; }
-static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pMsg) { return 0; }
-
 static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup) {
   mTrace("vgId:%d, perform update action", pOldVgroup->vgId);
   pOldVgroup->updateTime = pNewVgroup->updateTime;
@@ -157,6 +156,160 @@ void mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pVgroup);
 }
+
+SCreateVnodeMsg *mndBuildCreateVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup) {
+  SCreateVnodeMsg *pCreate = malloc(sizeof(SCreateVnodeMsg));
+  if (pCreate == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pCreate->dnodeId = htonl(pDnode->id);
+  pCreate->vgId = htonl(pVgroup->vgId);
+  memcpy(pCreate->db, pDb->name, TSDB_FULL_DB_NAME_LEN);
+  pCreate->dbUid = htobe64(pDb->uid);
+  pCreate->cacheBlockSize = htonl(pDb->cfg.cacheBlockSize);
+  pCreate->totalBlocks = htonl(pDb->cfg.totalBlocks);
+  pCreate->daysPerFile = htonl(pDb->cfg.daysPerFile);
+  pCreate->daysToKeep0 = htonl(pDb->cfg.daysToKeep0);
+  pCreate->daysToKeep1 = htonl(pDb->cfg.daysToKeep1);
+  pCreate->daysToKeep2 = htonl(pDb->cfg.daysToKeep2);
+  pCreate->minRows = htonl(pDb->cfg.minRows);
+  pCreate->maxRows = htonl(pDb->cfg.maxRows);
+  pCreate->commitTime = htonl(pDb->cfg.commitTime);
+  pCreate->fsyncPeriod = htonl(pDb->cfg.fsyncPeriod);
+  pCreate->walLevel = pDb->cfg.walLevel;
+  pCreate->precision = pDb->cfg.precision;
+  pCreate->compression = pDb->cfg.compression;
+  pCreate->quorum = pDb->cfg.quorum;
+  pCreate->update = pDb->cfg.update;
+  pCreate->cacheLastRow = pDb->cfg.cacheLastRow;
+  pCreate->replica = pVgroup->replica;
+  pCreate->selfIndex = -1;
+
+  for (int32_t v = 0; v < pVgroup->replica; ++v) {
+    SReplica  *pReplica = &pCreate->replicas[v];
+    SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
+    SDnodeObj *pVgidDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+    if (pVgidDnode == NULL) {
+      free(pCreate);
+      terrno = TSDB_CODE_MND_APP_ERROR;
+      return NULL;
+    }
+
+    pReplica->id = htonl(pVgidDnode->id);
+    pReplica->port = htons(pVgidDnode->port);
+    memcpy(pReplica->fqdn, pVgidDnode->fqdn, TSDB_FQDN_LEN);
+    mndReleaseDnode(pMnode, pVgidDnode);
+
+    if (pDnode->id == pVgid->dnodeId) {
+      pCreate->selfIndex = v;
+    }
+  }
+
+  if (pCreate->selfIndex == -1) {
+    free(pCreate);
+    terrno = TSDB_CODE_MND_APP_ERROR;
+    return NULL;
+  }
+
+  return pCreate;
+}
+
+SDropVnodeMsg *mndBuildDropVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup) {
+  SDropVnodeMsg *pDrop = malloc(sizeof(SDropVnodeMsg));
+  if (pDrop == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pDrop->dnodeId = htonl(pDnode->id);
+  pDrop->vgId = htonl(pVgroup->vgId);
+  memcpy(pDrop->db, pDb->name, TSDB_FULL_DB_NAME_LEN);
+  pDrop->dbUid = htobe64(pDb->uid);
+
+  return pDrop;
+}
+
+static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup) {
+  SSdb   *pSdb = pMnode->pSdb;
+  int32_t allocedVnodes = 0;
+  void   *pIter = NULL;
+
+  while (allocedVnodes < pVgroup->replica) {
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+
+    // todo
+    if (mndIsDnodeInReadyStatus(pMnode, pDnode)) {
+      SVnodeGid *pVgid = &pVgroup->vnodeGid[allocedVnodes];
+      pVgid->dnodeId = pDnode->id;
+      if (pVgroup->replica == 1) {
+        pVgid->role = TAOS_SYNC_STATE_LEADER;
+      } else {
+        pVgid->role = TAOS_SYNC_STATE_FOLLOWER;
+      }
+      allocedVnodes++;
+    }
+    sdbRelease(pSdb, pDnode);
+  }
+
+  if (allocedVnodes != pVgroup->replica) {
+    terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+    return -1;
+  }
+  return 0;
+}
+
+int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
+  SVgObj *pVgroups = calloc(pDb->cfg.numOfVgroups, sizeof(SVgObj));
+  if (pVgroups == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  int32_t  alloceVgroups = 0;
+  int32_t  maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
+  uint32_t hashMin = 0;
+  uint32_t hashMax = UINT32_MAX;
+  uint32_t hashInterval = (hashMax - hashMin) / pDb->cfg.numOfVgroups;
+
+  for (uint32_t v = 0; v < pDb->cfg.numOfVgroups; v++) {
+    SVgObj *pVgroup = &pVgroups[v];
+    pVgroup->vgId = maxVgId++;
+    pVgroup->createdTime = taosGetTimestampMs();
+    pVgroup->updateTime = pVgroups->createdTime;
+    pVgroup->version = 1;
+    pVgroup->dbUid = pDb->uid;
+    pVgroup->hashBegin = hashMin + hashInterval * v;
+    if (v == pDb->cfg.numOfVgroups - 1) {
+      pVgroup->hashEnd = hashMax;
+    } else {
+      pVgroup->hashEnd = hashMin + hashInterval * (v + 1) - 1;
+    }
+
+    memcpy(pVgroup->dbName, pDb->name, TSDB_FULL_DB_NAME_LEN);
+    pVgroup->replica = pDb->cfg.replications;
+
+    if (mndGetAvailableDnode(pMnode, pVgroup) != 0) {
+      terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+      free(pVgroups);
+      return -1;
+    }
+
+    alloceVgroups++;
+  }
+
+  *ppVgroups = pVgroups;
+  return 0;
+}
+
+static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pMsg) { return 0; }
 
 static int32_t mndGetVgroupMaxReplica(SMnode *pMnode, char *dbName, int8_t *pReplica, int32_t *pNumOfVgroups) {
   SSdb *pSdb = pMnode->pSdb;
@@ -203,30 +356,30 @@ static int32_t mndGetVgroupMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "vgId");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "tables");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   for (int32_t i = 0; i < pShow->replica; ++i) {
-    pShow->bytes[cols] = 4;
+    pShow->bytes[cols] = 2;
     pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
     snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%d_dnode", i + 1);
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+    pSchema[cols].bytes = htonl(pShow->bytes[cols]);
     cols++;
 
     pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
     pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
     snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%d_status", i + 1);
-    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+    pSchema[cols].bytes = htonl(pShow->bytes[cols]);
     cols++;
   }
 
-  pMeta->numOfColumns = htons(cols);
+  pMeta->numOfColumns = htonl(cols);
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
@@ -273,10 +426,6 @@ static int32_t mndRetrieveVgroups(SMnodeMsg *pMsg, SShowObj *pShow, char *data, 
       cols++;
     }
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pVgroup->compact; 
-    cols++;
-    
     sdbRelease(pSdb, pVgroup);
     numOfRows++;
   }
@@ -309,16 +458,16 @@ static int32_t mndGetVnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "vgId");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 12 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "status");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
-  pMeta->numOfColumns = htons(cols);
+  pMeta->numOfColumns = htonl(cols);
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;

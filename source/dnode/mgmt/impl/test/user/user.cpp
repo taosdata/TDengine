@@ -1,16 +1,12 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/**
+ * @file user.cpp
+ * @author slguan (slguan@taosdata.com)
+ * @brief DNODE module user-msg tests
+ * @version 0.1
+ * @date 2021-12-15
  *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * @copyright Copyright (c) 2021
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "deploy.h"
@@ -67,10 +63,10 @@ class DndTestUser : public ::testing::Test {
     ASSERT_NE(pShowRsp, nullptr);
     pShowRsp->showId = htonl(pShowRsp->showId);
     pMeta = &pShowRsp->tableMeta;
-    pMeta->numOfTags = htons(pMeta->numOfTags);
-    pMeta->numOfColumns = htons(pMeta->numOfColumns);
-    pMeta->sversion = htons(pMeta->sversion);
-    pMeta->tversion = htons(pMeta->tversion);
+    pMeta->numOfTags = htonl(pMeta->numOfTags);
+    pMeta->numOfColumns = htonl(pMeta->numOfColumns);
+    pMeta->sversion = htonl(pMeta->sversion);
+    pMeta->tversion = htonl(pMeta->tversion);
     pMeta->tuid = htobe64(pMeta->tuid);
     pMeta->suid = htobe64(pMeta->suid);
 
@@ -91,7 +87,7 @@ class DndTestUser : public ::testing::Test {
 
   void CheckSchema(int32_t index, int8_t type, int32_t bytes, const char* name) {
     SSchema* pSchema = &pMeta->pSchema[index];
-    pSchema->bytes = htons(pSchema->bytes);
+    pSchema->bytes = htonl(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, type);
     EXPECT_EQ(pSchema->bytes, bytes);
@@ -117,17 +113,14 @@ class DndTestUser : public ::testing::Test {
     pRetrieveRsp = (SRetrieveTableRsp*)pClient->pRsp->pCont;
     ASSERT_NE(pRetrieveRsp, nullptr);
     pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
-    pRetrieveRsp->offset = htobe64(pRetrieveRsp->offset);
     pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);
     pRetrieveRsp->compLen = htonl(pRetrieveRsp->compLen);
 
     EXPECT_EQ(pRetrieveRsp->numOfRows, rows);
-    EXPECT_EQ(pRetrieveRsp->offset, 0);
     EXPECT_EQ(pRetrieveRsp->useconds, 0);
     // EXPECT_EQ(pRetrieveRsp->completed, completed);
     EXPECT_EQ(pRetrieveRsp->precision, TSDB_TIME_PRECISION_MILLI);
     EXPECT_EQ(pRetrieveRsp->compressed, 0);
-    EXPECT_EQ(pRetrieveRsp->reserved, 0);
     EXPECT_EQ(pRetrieveRsp->compLen, 0);
 
     pData = pRetrieveRsp->data;
@@ -174,7 +167,7 @@ TEST_F(DndTestUser, 01_ShowUser) {
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
   CheckSchema(0, TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN + VARSTR_HEADER_SIZE, "name");
   CheckSchema(1, TSDB_DATA_TYPE_BINARY, 10 + VARSTR_HEADER_SIZE, "privilege");
-  CheckSchema(2, TSDB_DATA_TYPE_TIMESTAMP, 8, "create time");
+  CheckSchema(2, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
   CheckSchema(3, TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN + VARSTR_HEADER_SIZE, "account");
 
   SendThenCheckShowRetrieveMsg(1);
@@ -184,7 +177,7 @@ TEST_F(DndTestUser, 01_ShowUser) {
   CheckBinary("root", TSDB_USER_LEN);
 }
 
-TEST_F(DndTestUser, 02_CreateUser) {
+TEST_F(DndTestUser, 02_Create_Drop_Alter_User) {
   {
     SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(sizeof(SCreateUserMsg));
     strcpy(pReq->user, "u1");
@@ -231,23 +224,22 @@ TEST_F(DndTestUser, 02_CreateUser) {
   CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
-}
 
-TEST_F(DndTestUser, 03_AlterUser) {
-  SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(sizeof(SAlterUserMsg));
-  strcpy(pReq->user, "u1");
-  strcpy(pReq->pass, "p2");
+  {
+    SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(sizeof(SAlterUserMsg));
+    strcpy(pReq->user, "u1");
+    strcpy(pReq->pass, "p2");
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SAlterUserMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_ALTER_USER;
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SAlterUserMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_ALTER_USER;
 
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
-
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
   SendThenCheckShowRetrieveMsg(3);
   CheckBinary("u1", TSDB_USER_LEN);
@@ -262,22 +254,21 @@ TEST_F(DndTestUser, 03_AlterUser) {
   CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
-}
 
-TEST_F(DndTestUser, 04_DropUser) {
-  SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(sizeof(SDropUserMsg));
-  strcpy(pReq->user, "u1");
+  {
+    SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(sizeof(SDropUserMsg));
+    strcpy(pReq->user, "u1");
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SDropUserMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_DROP_USER;
+    SRpcMsg rpcMsg = {0};
+    rpcMsg.pCont = pReq;
+    rpcMsg.contLen = sizeof(SDropUserMsg);
+    rpcMsg.msgType = TSDB_MSG_TYPE_DROP_USER;
 
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
-
+    sendMsg(pClient, &rpcMsg);
+    SRpcMsg* pMsg = pClient->pRsp;
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_USER, "show users", 4);
   SendThenCheckShowRetrieveMsg(2);
   CheckBinary("root", TSDB_USER_LEN);
@@ -288,9 +279,8 @@ TEST_F(DndTestUser, 04_DropUser) {
   CheckTimestamp();
   CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
-}
 
-TEST_F(DndTestUser, 05_RestartDnode) {
+  // restart
   stopServer(pServer);
   pServer = NULL;
 

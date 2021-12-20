@@ -1120,11 +1120,11 @@ SysNameInfo taosGetSysNameInfo() {
 
   struct utsname uts;
   if (!uname(&uts)) {
-    info.sysname = strdup(uts.sysname);
-    info.nodename = strdup(uts.nodename);
-    info.release = strdup(uts.release);
-    info.version = strdup(uts.version);
-    info.machine = strdup(uts.machine);
+    tstrncpy(info.sysname, uts.sysname, sizeof(info.sysname));
+    tstrncpy(info.nodename, uts.nodename, sizeof(info.nodename));
+    tstrncpy(info.release, uts.release, sizeof(info.release));
+    tstrncpy(info.version, uts.version, sizeof(info.version));
+    tstrncpy(info.machine, uts.machine, sizeof(info.machine));
   }
 
   return info;

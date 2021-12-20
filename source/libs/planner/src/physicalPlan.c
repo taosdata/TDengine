@@ -16,12 +16,8 @@
 #include "plannerInt.h"
 #include "parser.h"
 
-static const char* gOpName[] = {
-  "Unknown",
-#define INCLUDE_AS_NAME
-#include "plannerOp.h"
-#undef INCLUDE_AS_NAME
-};
+#define STORE_CURRENT_SUBPLAN(cxt) SSubplan* _ = cxt->pCurrentSubplan
+#define RECOVERY_CURRENT_SUBPLAN(cxt) cxt->pCurrentSubplan = _
 
 typedef struct SPlanContext {
   struct SCatalog* pCatalog;
@@ -30,21 +26,115 @@ typedef struct SPlanContext {
   SSubplanId nextId;
 } SPlanContext;
 
-static void toDataBlockSchema(SQueryPlanNode* pPlanNode, SDataBlockSchema* dataBlockSchema) {
-  SWAP(dataBlockSchema->pSchema, pPlanNode->pSchema, SSchema*);
+static const char* gOpName[] = {
+  "Unknown",
+#define INCLUDE_AS_NAME
+#include "plannerOp.h"
+#undef INCLUDE_AS_NAME
+};
+
+const char* opTypeToOpName(int32_t type) {
+  return gOpName[type];
+}
+
+int32_t opNameToOpType(const char* name) {
+  for (int32_t i = 1; i < sizeof(gOpName) / sizeof(gOpName[0]); ++i) {
+    if (strcmp(name, gOpName[i])) {
+      return i;
+    }
+  }
+  return OP_Unknown;
+}
+
+static bool toDataBlockSchema(SQueryPlanNode* pPlanNode, SDataBlockSchema* dataBlockSchema) {
   dataBlockSchema->numOfCols = pPlanNode->numOfCols;
+  dataBlockSchema->pSchema = malloc(sizeof(SSlotSchema) * pPlanNode->numOfCols);
+  if (NULL == dataBlockSchema->pSchema) {
+    return false;
+  }
+  memcpy(dataBlockSchema->pSchema, pPlanNode->pSchema, sizeof(SSlotSchema) * pPlanNode->numOfCols);
+  return true;
+}
+
+static bool cloneExprArray(SArray** dst, SArray* src) {
+  if (NULL == src) {
+    return true;
+  }
+  size_t size = taosArrayGetSize(src);
+  if (0 == size) {
+    return true;
+  }
+  *dst = taosArrayInit(size, POINTER_BYTES);
+  if (NULL == *dst) {
+    return false;
+  }
+  return (TSDB_CODE_SUCCESS == copyAllExprInfo(*dst, src, true) ? true : false);
 }
 
 static SPhyNode* initPhyNode(SQueryPlanNode* pPlanNode, int32_t type, int32_t size) {
   SPhyNode* node = (SPhyNode*)calloc(1, size);
+  if (NULL == node) {
+    return NULL;
+  }
   node->info.type = type;
-  node->info.name = gOpName[type];
-  SWAP(node->pTargets, pPlanNode->pExpr, SArray*);
-  toDataBlockSchema(pPlanNode, &(node->targetSchema));
+  node->info.name = opTypeToOpName(type);
+  if (!cloneExprArray(&node->pTargets, pPlanNode->pExpr) || !toDataBlockSchema(pPlanNode, &(node->targetSchema))) {
+    free(node);
+    return NULL;
+  }
+  return node;
+}
+
+static SPhyNode* initScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable, int32_t type, int32_t size) {
+  SScanPhyNode* node = (SScanPhyNode*)initPhyNode(pPlanNode, type, size);
+  node->uid = pTable->pMeta->pTableMeta->uid;
+  node->tableType = pTable->pMeta->pTableMeta->tableType;
+  return (SPhyNode*)node;
+}
+
+static SPhyNode* createPseudoScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable, int32_t op) {
+  return initScanNode(pPlanNode, pTable, op, sizeof(SScanPhyNode));
 }
 
 static SPhyNode* createTagScanNode(SQueryPlanNode* pPlanNode) {
-  return initPhyNode(pPlanNode, OP_TagScan, sizeof(STagScanPhyNode));
+  SQueryTableInfo* pTable = (SQueryTableInfo*)pPlanNode->pExtInfo;
+  return createPseudoScanNode(pPlanNode, pTable, OP_TagScan);
+}
+
+static uint8_t getScanFlag(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable) {
+  // todo
+  return MASTER_SCAN;
+}
+
+static SPhyNode* createUserTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable, int32_t op) {
+  STableScanPhyNode* node = (STableScanPhyNode*)initScanNode(pPlanNode, pTable, op, sizeof(STableScanPhyNode));
+  node->scanFlag = getScanFlag(pPlanNode, pTable);
+  node->window = pTable->window;
+  // todo tag cond
+  return (SPhyNode*)node;
+}
+
+static SPhyNode* createSingleTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable) {
+  return createUserTableScanNode(pPlanNode, pTable, OP_TableScan);
+}
+
+static bool isSystemTable(SQueryTableInfo* pTable) {
+  // todo
+  return false;
+}
+
+static bool needSeqScan(SQueryPlanNode* pPlanNode) {
+  // todo
+  return false;
+}
+
+static SPhyNode* createMultiTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable) {
+  if (isSystemTable(pTable)) {
+    return createPseudoScanNode(pPlanNode, pTable, OP_SystemTableScan);
+  } else if (needSeqScan(pPlanNode)) {
+    return createUserTableScanNode(pPlanNode, pTable, OP_TableSeqScan);
+  }
+  return createUserTableScanNode(pPlanNode, pTable, OP_DataBlocksOptScan);
 }
 
 static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
@@ -58,53 +148,61 @@ static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
     if (NULL == pCxt->pCurrentSubplan->pChildern) {
       pCxt->pCurrentSubplan->pChildern = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
     }
-    taosArrayPush(pCxt->pCurrentSubplan->pChildern, subplan);
+    taosArrayPush(pCxt->pCurrentSubplan->pChildern, &subplan);
     subplan->pParents = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
-    taosArrayPush(subplan->pParents, pCxt->pCurrentSubplan);
+    taosArrayPush(subplan->pParents, &pCxt->pCurrentSubplan);
   }
+  SArray* currentLevel;
+  if (subplan->level >= taosArrayGetSize(pCxt->pDag->pSubplans)) {
+    currentLevel = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+    taosArrayPush(pCxt->pDag->pSubplans, &currentLevel);
+  } else {
+    currentLevel = taosArrayGetP(pCxt->pDag->pSubplans, subplan->level);
+  }
+  taosArrayPush(currentLevel, &subplan);
   pCxt->pCurrentSubplan = subplan;
   return subplan;
 }
 
-static uint8_t getScanFlag(SQueryPlanNode* pPlanNode) {
-  // todo
-  return MASTER_SCAN;
-}
-
-static SPhyNode* createTableScanNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable) {
-  STableScanPhyNode* node = (STableScanPhyNode*)initPhyNode(pPlanNode, OP_TableScan, sizeof(STableScanPhyNode));
-  node->scan.uid = pTable->pMeta->pTableMeta->uid;
-  node->scan.tableType = pTable->pMeta->pTableMeta->tableType;
-  node->scanFlag = getScanFlag(pPlanNode);
-  node->window = pTable->window;
-  // todo tag cond
-}
-
 static void vgroupToEpSet(const SVgroupMsg* vg, SEpSet* epSet) {
-  // todo
+  epSet->inUse = 0; // todo
+  epSet->numOfEps = vg->numOfEps;
+  for (int8_t i = 0; i < vg->numOfEps; ++i) {
+    epSet->port[i] = vg->epAddr[i].port;
+    strcpy(epSet->fqdn[i], vg->epAddr[i].fqdn);
+  }
+  return;
 }
 
-static void splitSubplanBySTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable) {
+static uint64_t splitSubplanByTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable) {
   SVgroupsInfo* vgroupList = pTable->pMeta->vgroupList;
   for (int32_t i = 0; i < pTable->pMeta->vgroupList->numOfVgroups; ++i) {
+    STORE_CURRENT_SUBPLAN(pCxt);
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_SCAN);
     vgroupToEpSet(&(pTable->pMeta->vgroupList->vgroups[i]), &subplan->execEpSet);
-    subplan->pNode = createTableScanNode(pCxt, pPlanNode, pTable);
-    // todo reset pCxt->pCurrentSubplan
+    subplan->pNode = createMultiTableScanNode(pPlanNode, pTable);
+    RECOVERY_CURRENT_SUBPLAN(pCxt);
   }
+  return pCxt->nextId.templateId++;
 }
 
-static SPhyNode* createExchangeNode() {
-
+static SPhyNode* createExchangeNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode, uint64_t srcTemplateId) {
+  SExchangePhyNode* node = (SExchangePhyNode*)initPhyNode(pPlanNode, OP_Exchange, sizeof(SExchangePhyNode));
+  node->srcTemplateId = srcTemplateId;
+  return (SPhyNode*)node;
 }
 
-static SPhyNode* createScanNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
+static bool needMultiNodeScan(SQueryTableInfo* pTable) {
+  // todo system table, for instance, user_tables
+  return (TSDB_SUPER_TABLE == pTable->pMeta->pTableMeta->tableType);
+}
+
+static SPhyNode* createTableScanNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
   SQueryTableInfo* pTable = (SQueryTableInfo*)pPlanNode->pExtInfo;
-  if (TSDB_SUPER_TABLE == pTable->pMeta->pTableMeta->tableType) {
-    splitSubplanBySTable(pCxt, pPlanNode, pTable);
-    return createExchangeNode(pCxt, pTable);
+  if (needMultiNodeScan(pTable)) {
+    return createExchangeNode(pCxt, pPlanNode, splitSubplanByTable(pCxt, pPlanNode, pTable));
   }
-  return createTableScanNode(pCxt, pPlanNode, pTable);
+  return createSingleTableScanNode(pPlanNode, pTable);
 }
 
 static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
@@ -114,13 +212,13 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
       node = createTagScanNode(pPlanNode);
       break;
     case QNODE_TABLESCAN:
-      node = createScanNode(pCxt, pPlanNode);
+      node = createTableScanNode(pCxt, pPlanNode);
       break;
     default:
       assert(false);
   }
   if (pPlanNode->pChildren != NULL && taosArrayGetSize(pPlanNode->pChildren) > 0) {
-    node->pChildren = taosArrayInit(4, POINTER_BYTES);
+    node->pChildren = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
     size_t size = taosArrayGetSize(pPlanNode->pChildren);
     for(int32_t i = 0; i < size; ++i) {
       SPhyNode* child = createPhyNode(pCxt, taosArrayGet(pPlanNode->pChildren, i));
@@ -133,10 +231,8 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
 
 static void createSubplanByLevel(SPlanContext* pCxt, SQueryPlanNode* pRoot) {
   SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_MERGE);
+  ++(pCxt->nextId.templateId);
   subplan->pNode = createPhyNode(pCxt, pRoot);
-  SArray* l0 = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
-  taosArrayPush(l0, &subplan);
-  taosArrayPush(pCxt->pDag->pSubplans, &l0);
   // todo deal subquery
 }
 
@@ -144,7 +240,8 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
   SPlanContext context = {
     .pCatalog = pCatalog,
     .pDag = calloc(1, sizeof(SQueryDag)),
-    .pCurrentSubplan = NULL
+    .pCurrentSubplan = NULL,
+    .nextId = {0} // todo queryid
   };
   if (NULL == context.pDag) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -155,6 +252,6 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t subPlanToString(struct SSubplan *pPhyNode, char** str) {
-  return TSDB_CODE_SUCCESS;
+int32_t setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SEpAddr* ep) {
+  //todo
 }

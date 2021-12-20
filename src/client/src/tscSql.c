@@ -460,7 +460,7 @@ static bool needToFetchNewBlock(SSqlObj* pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   return (pRes->completed != true || hasMoreVnodesToTry(pSql) || hasMoreClauseToTry(pSql)) &&
-         (pCmd->command == TSDB_SQL_RETRIEVE ||
+         (pCmd->command == TSDB_SQL_RETRIEVE_MNODE ||
           pCmd->command == TSDB_SQL_RETRIEVE_GLOBALMERGE ||
           pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE ||
           pCmd->command == TSDB_SQL_FETCH ||
@@ -582,10 +582,10 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
   if (pRes->code == TSDB_CODE_SUCCESS && pRes->completed == false && pSql->pStream == NULL && (pTableMetaInfo->pTableMeta != NULL) &&
       (cmd == TSDB_SQL_SELECT ||
        cmd == TSDB_SQL_SHOW ||
-       cmd == TSDB_SQL_RETRIEVE ||
+       cmd == TSDB_SQL_RETRIEVE_MNODE ||
        cmd == TSDB_SQL_FETCH)) {
     pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
-    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
+    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE_MNODE : TSDB_SQL_FETCH;
     tscDebug("0x%"PRIx64" send msg to dnode to free qhandle ASAP before free sqlObj, command:%s", pSql->self, sqlCmd[pCmd->command]);
 
     tscBuildAndSendRequest(pSql, NULL);

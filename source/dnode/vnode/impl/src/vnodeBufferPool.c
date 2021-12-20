@@ -24,9 +24,12 @@ struct SVBufPool {
   TD_DLIST(SVMemAllocator) free;
   TD_DLIST(SVMemAllocator) incycle;
   SVMemAllocator *inuse;
-  // MAF for submodules
-  // SMemAllocatorFactory maf;
+  // MAF for submodules to use
+  SMemAllocatorFactory *pMAF;
 };
+
+static SMemAllocator *vBufPoolCreateMA(SMemAllocatorFactory *pMAF);
+static void           vBufPoolDestroyMA(SMemAllocatorFactory *pMAF, SMemAllocator *pMA);
 
 int vnodeOpenBufPool(SVnode *pVnode) {
   uint64_t capacity;
@@ -36,8 +39,8 @@ int vnodeOpenBufPool(SVnode *pVnode) {
     return -1;
   }
 
-  tDListInit(&(pVnode->pBufPool->free));
-  tDListInit(&(pVnode->pBufPool->incycle));
+  TD_DLIST_INIT(&(pVnode->pBufPool->free));
+  TD_DLIST_INIT(&(pVnode->pBufPool->incycle));
 
   pVnode->pBufPool->inuse = NULL;
 
@@ -51,8 +54,17 @@ int vnodeOpenBufPool(SVnode *pVnode) {
       return -1;
     }
 
-    tDListAppend(&(pVnode->pBufPool->free), pVMA);
+    TD_DLIST_APPEND(&(pVnode->pBufPool->free), pVMA);
   }
+
+  pVnode->pBufPool->pMAF = (SMemAllocatorFactory *)malloc(sizeof(SMemAllocatorFactory));
+  if (pVnode->pBufPool->pMAF == NULL) {
+    // TODO: handle error
+    return -1;
+  }
+  pVnode->pBufPool->pMAF->impl = pVnode;
+  pVnode->pBufPool->pMAF->create = vBufPoolCreateMA;
+  pVnode->pBufPool->pMAF->destroy = vBufPoolDestroyMA;
 
   return 0;
 }
@@ -64,14 +76,14 @@ void vnodeCloseBufPool(SVnode *pVnode) {
     while (true) {
       SVMemAllocator *pVMA = TD_DLIST_HEAD(&(pVnode->pBufPool->incycle));
       if (pVMA == NULL) break;
-      tDListPop(&(pVnode->pBufPool->incycle), pVMA);
+      TD_DLIST_POP(&(pVnode->pBufPool->incycle), pVMA);
       vmaDestroy(pVMA);
     }
 
     while (true) {
       SVMemAllocator *pVMA = TD_DLIST_HEAD(&(pVnode->pBufPool->free));
       if (pVMA == NULL) break;
-      tDListPop(&(pVnode->pBufPool->free), pVMA);
+      TD_DLIST_POP(&(pVnode->pBufPool->free), pVMA);
       vmaDestroy(pVMA);
     }
 
@@ -85,7 +97,7 @@ int vnodeBufPoolSwitch(SVnode *pVnode) {
 
   pVnode->pBufPool->inuse = NULL;
 
-  tDListAppend(&(pVnode->pBufPool->incycle), pvma);
+  TD_DLIST_APPEND(&(pVnode->pBufPool->incycle), pvma);
   return 0;
 }
 
@@ -94,9 +106,9 @@ int vnodeBufPoolRecycle(SVnode *pVnode) {
   SVMemAllocator *pvma = TD_DLIST_HEAD(&(pBufPool->incycle));
   ASSERT(pvma != NULL);
 
-  tDListPop(&(pBufPool->incycle), pvma);
+  TD_DLIST_POP(&(pBufPool->incycle), pvma);
   vmaReset(pvma);
-  tDListAppend(&(pBufPool->free), pvma);
+  TD_DLIST_APPEND(&(pBufPool->free), pvma);
 
   return 0;
 }
@@ -109,7 +121,7 @@ void *vnodeMalloc(SVnode *pVnode, uint64_t size) {
       // TODO: add sem_wait and sem_post
       pBufPool->inuse = TD_DLIST_HEAD(&(pBufPool->free));
       if (pBufPool->inuse) {
-        tDListPop(&(pBufPool->free), pBufPool->inuse);
+        TD_DLIST_POP(&(pBufPool->free), pBufPool->inuse);
         break;
       } else {
         // tsem_wait(&(pBufPool->hasFree));
@@ -125,195 +137,50 @@ bool vnodeBufPoolIsFull(SVnode *pVnode) {
   return vmaIsFull(pVnode->pBufPool->inuse);
 }
 
-#if 0
-
-typedef enum {
-  // Heap allocator
-  E_V_HEAP_ALLOCATOR = 0,
-  // Arena allocator
-  E_V_ARENA_ALLOCATOR
-} EVMemAllocatorT;
-
-typedef struct {
-  /* TODO */
-} SVHeapAllocator;
-
-typedef struct SVArenaNode {
-  struct SVArenaNode *prev;
-  uint64_t            size;
-  void *              ptr;
-  char                data[];
-} SVArenaNode;
-
-typedef struct {
-  uint64_t     ssize;  // step size
-  uint64_t     lsize;  // limit size
-  SVArenaNode *inuse;
-  SVArenaNode  node;
-} SVArenaAllocator;
-
-typedef struct {
-  SVnode *   pVnode;
-  SListNode *pNode;
-} SVMAWrapper;
-
-
-static SListNode *    vBufPoolNewNode(uint64_t capacity, EVMemAllocatorT type);
-static void           vBufPoolFreeNode(SListNode *pNode);
-static SMemAllocator *vBufPoolCreateMA(SMemAllocatorFactory *pmaf);
-static void           vBufPoolDestroyMA(SMemAllocatorFactory *pmaf, SMemAllocator *pma);
-static void *         vBufPoolMalloc(SVMemAllocator *pvma, uint64_t size);
+SMemAllocatorFactory *vBufPoolGetMAF(SVnode *pVnode) { return pVnode->pBufPool->pMAF; }
 
 /* ------------------------ STATIC METHODS ------------------------ */
-static SListNode *vBufPoolNewNode(uint64_t capacity, EVMemAllocatorT type) {
-  SListNode *     pNode;
-  SVMemAllocator *pvma;
-  uint64_t        msize;
-  uint64_t        ssize = 4096;  // TODO
-  uint64_t        lsize = 1024;  // TODO
-
-  msize = sizeof(SListNode) + sizeof(SVMemAllocator);
-  if (type == E_V_ARENA_ALLOCATOR) {
-    msize += capacity;
-  }
-
-  pNode = (SListNode *)calloc(1, msize);
-  if (pNode == NULL) {
-    // TODO: handle error
-    return NULL;
-  }
-
-  pvma = (SVMemAllocator *)(pNode->data);
-  pvma->capacity = capacity;
-  pvma->type = type;
-
-  switch (type) {
-    case E_V_ARENA_ALLOCATOR:
-      vArenaAllocatorInit(&(pvma->vaa), capacity, ssize, lsize);
-      break;
-    case E_V_HEAP_ALLOCATOR:
-      // vHeapAllocatorInit(&(pvma->vha));
-      break;
-    default:
-      ASSERT(0);
-  }
-
-  return pNode;
-}
-
-static void vBufPoolFreeNode(SListNode *pNode) {
-  SVMemAllocator *pvma = (SVMemAllocator *)(pNode->data);
-
-  switch (pvma->type) {
-    case E_V_ARENA_ALLOCATOR:
-      vArenaAllocatorClear(&(pvma->vaa));
-      break;
-    case E_V_HEAP_ALLOCATOR:
-      // vHeapAllocatorClear(&(pvma->vha));
-      break;
-    default:
-      break;
-  }
-
-  free(pNode);
-}
-
-static void *vBufPoolMalloc(SVMemAllocator *pvma, uint64_t size) {
-  void *ptr = NULL;
-
-  if (pvma->type == E_V_ARENA_ALLOCATOR) {
-    SVArenaAllocator *pvaa = &(pvma->vaa);
-
-    if (POINTER_DISTANCE(pvaa->inuse->ptr, pvaa->inuse->data) + size > pvaa->inuse->size) {
-      SVArenaNode *pNode = (SVArenaNode *)malloc(sizeof(*pNode) + MAX(size, pvaa->ssize));
-      if (pNode == NULL) {
-        // TODO: handle error
-        return NULL;
-      }
-
-      pNode->prev = pvaa->inuse;
-      pNode->size = MAX(size, pvaa->ssize);
-      pNode->ptr = pNode->data;
-
-      pvaa->inuse = pNode;
-    }
-
-    ptr = pvaa->inuse->ptr;
-    pvaa->inuse->ptr = POINTER_SHIFT(ptr, size);
-  } else if (pvma->type == E_V_HEAP_ALLOCATOR) {
-    /* TODO */
-  }
-
-  return ptr;
-}
-
-static SMemAllocator *vBufPoolCreateMA(SMemAllocatorFactory *pmaf) {
+typedef struct {
   SVnode *        pVnode;
-  SMemAllocator * pma;
-  SVMemAllocator *pvma;
-  SVMAWrapper *   pvmaw;
+  SVMemAllocator *pVMA;
+} SVMAWrapper;
 
-  pVnode = (SVnode *)(pmaf->impl);
-  pma = (SMemAllocator *)calloc(1, sizeof(*pma) + sizeof(SVMAWrapper));
-  if (pma == NULL) {
-    // TODO: handle error
+static FORCE_INLINE void *vmaMaloocCb(SMemAllocator *pMA, uint64_t size) {
+  SVMAWrapper *pWrapper = (SVMAWrapper *)(pMA->impl);
+
+  return vmaMalloc(pWrapper->pVMA, size);
+}
+
+// TODO: Add atomic operations here
+static SMemAllocator *vBufPoolCreateMA(SMemAllocatorFactory *pMAF) {
+  SMemAllocator *pMA;
+  SVnode *       pVnode = (SVnode *)(pMAF->impl);
+  SVMAWrapper *  pWrapper;
+
+  pMA = (SMemAllocator *)calloc(1, sizeof(*pMA) + sizeof(SVMAWrapper));
+  if (pMA == NULL) {
     return NULL;
   }
-  pvmaw = (SVMAWrapper *)POINTER_SHIFT(pma, sizeof(*pma));
 
-  // No allocator used currently
-  if (pVnode->pBufPool->inuse == NULL) {
-    while (listNEles(&(pVnode->pBufPool->free)) == 0) {
-      // TODO: wait until all released ro kill query
-      // tsem_wait();
-      ASSERT(0);
-    }
+  pVnode->pBufPool->inuse->_ref.val++;
+  pWrapper = POINTER_SHIFT(pMA, sizeof(*pMA));
+  pWrapper->pVnode = pVnode;
+  pWrapper->pVMA = pVnode->pBufPool->inuse;
 
-    pVnode->pBufPool->inuse = tdListPopHead(&(pVnode->pBufPool->free));
-    pvma = (SVMemAllocator *)(pVnode->pBufPool->inuse->data);
-    T_REF_INIT_VAL(pvma, 1);
-  } else {
-    pvma = (SVMemAllocator *)(pVnode->pBufPool->inuse->data);
-  }
+  pMA->impl = pWrapper;
+  TD_MA_MALLOC_FUNC(pMA) = vmaMaloocCb;
 
-  T_REF_INC(pvma);
-
-  pvmaw->pVnode = pVnode;
-  pvmaw->pNode = pVnode->pBufPool->inuse;
-
-  pma->impl = pvmaw;
-  pma->malloc = NULL;
-  pma->calloc = NULL;  /* TODO */
-  pma->realloc = NULL; /* TODO */
-  pma->free = NULL;    /* TODO */
-  pma->usage = NULL;   /* TODO */
-
-  return pma;
+  return pMA;
 }
 
-static void vBufPoolDestroyMA(SMemAllocatorFactory *pmaf, SMemAllocator *pma) { /* TODO */
-  SVnode *        pVnode = (SVnode *)(pmaf->impl);
-  SListNode *     pNode = ((SVMAWrapper *)(pma->impl))->pNode;
-  SVMemAllocator *pvma = (SVMemAllocator *)(pNode->data);
+static void vBufPoolDestroyMA(SMemAllocatorFactory *pMAF, SMemAllocator *pMA) {
+  SVMAWrapper *   pWrapper = (SVMAWrapper *)(pMA->impl);
+  SVnode *        pVnode = pWrapper->pVnode;
+  SVMemAllocator *pVMA = pWrapper->pVMA;
 
-  if (T_REF_DEC(pvma) == 0) {
-    if (pvma->type == E_V_ARENA_ALLOCATOR) {
-      SVArenaAllocator *pvaa = &(pvma->vaa);
-      while (pvaa->inuse != &(pvaa->node)) {
-        SVArenaNode *pNode = pvaa->inuse;
-        pvaa->inuse = pNode->prev;
-        /* code */
-      }
-
-      pvaa->inuse->ptr = pvaa->inuse->data;
-    } else if (pvma->type == E_V_HEAP_ALLOCATOR) {
-    } else {
-      ASSERT(0);
-    }
-
-    // Move node from incycle to free
-    tdListAppendNode(&(pVnode->pBufPool->free), tdListPopNode(&(pVnode->pBufPool->incycle), pNode));
-    // tsem_post(); todo: sem_post
+  free(pMA);
+  if (--pVMA->_ref.val == 0) {
+    TD_DLIST_POP(&(pVnode->pBufPool->incycle), pVMA);
+    TD_DLIST_APPEND(&(pVnode->pBufPool->free), pVMA);
   }
 }
-#endif

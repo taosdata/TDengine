@@ -94,7 +94,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open meta
   sprintf(dir, "%s/meta", pVnode->path);
-  pVnode->pMeta = metaOpen(dir, &(pVnode->config.metaCfg));
+  pVnode->pMeta = metaOpen(dir, &(pVnode->config.metaCfg), vBufPoolGetMAF(pVnode));
   if (pVnode->pMeta == NULL) {
     // TODO: handle error
     return -1;
@@ -102,7 +102,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open tsdb
   sprintf(dir, "%s/tsdb", pVnode->path);
-  pVnode->pTsdb = tsdbOpen(dir, &(pVnode->config.tsdbCfg));
+  pVnode->pTsdb = tsdbOpen(dir, &(pVnode->config.tsdbCfg), vBufPoolGetMAF(pVnode));
   if (pVnode->pTsdb == NULL) {
     // TODO: handle error
     return -1;
@@ -110,7 +110,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // TODO: Open TQ
   sprintf(dir, "%s/tq", pVnode->path);
-  pVnode->pTq = tqOpen(dir, &(pVnode->config.tqCfg), NULL, NULL);
+  pVnode->pTq = tqOpen(dir, &(pVnode->config.tqCfg), NULL, vBufPoolGetMAF(pVnode));
   if (pVnode->pTq == NULL) {
     // TODO: handle error
     return -1;
@@ -131,7 +131,9 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 static void vnodeCloseImpl(SVnode *pVnode) {
   if (pVnode) {
     vnodeCloseBufPool(pVnode);
-    tsdbClose(pVnode->pTsdb);
     metaClose(pVnode->pMeta);
+    tsdbClose(pVnode->pTsdb);
+    tqClose(pVnode->pTq);
+    walClose(pVnode->pWal);
   }
 }

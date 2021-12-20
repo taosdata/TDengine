@@ -153,7 +153,7 @@ typedef struct SParseContext {
  * @param msg      extended error message if exists.
  * @return         error code
  */
-int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** pQueryInfo, int64_t id, char* msg, int32_t msgLen);
+int32_t qParseQuerySql(const char* pStr, size_t length, int64_t id, int32_t* type, void** pOutput, int32_t* outputLen, char* msg, int32_t msgLen);
 
 typedef enum {
   PAYLOAD_TYPE_KV = 0,
@@ -209,6 +209,7 @@ typedef struct SSourceParam {
 
 SExprInfo* createExprInfo(STableMetaInfo* pTableMetaInfo, const char* funcName, SSourceParam* pSource, SSchema* pResSchema, int16_t interSize);
 int32_t copyExprInfoList(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
+int32_t copyAllExprInfo(SArray* dst, const SArray* src, bool deepcopy);
 int32_t getExprFunctionLevel(SQueryStmtInfo* pQueryInfo);
 
 STableMetaInfo* getMetaInfo(SQueryStmtInfo* pQueryInfo, int32_t tableIndex);

@@ -183,7 +183,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
 
   pSql->fp = fp;
   if (pCmd->command != TSDB_SQL_RETRIEVE_GLOBALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
-    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
+    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE_MNODE : TSDB_SQL_FETCH;
   }
 
   if (pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
@@ -265,7 +265,7 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
       }
 
       return;
-    } else if (pCmd->command == TSDB_SQL_RETRIEVE || pCmd->command == TSDB_SQL_RETRIEVE_GLOBALMERGE) {
+    } else if (pCmd->command == TSDB_SQL_RETRIEVE_MNODE || pCmd->command == TSDB_SQL_RETRIEVE_GLOBALMERGE) {
       // in case of show command, return no data
       (*pSql->fetchFp)(param, pSql, 0);
     } else {
@@ -273,7 +273,7 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
     }
   } else { // current query is not completed, continue retrieve from node
     if (pCmd->command != TSDB_SQL_RETRIEVE_GLOBALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
-      pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
+      pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE_MNODE : TSDB_SQL_FETCH;
     }
 
     SQueryInfo* pQueryInfo1 = tscGetQueryInfo(&pSql->cmd);

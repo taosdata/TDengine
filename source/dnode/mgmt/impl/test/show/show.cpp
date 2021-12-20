@@ -1,16 +1,12 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/**
+ * @file show.cpp
+ * @author slguan (slguan@taosdata.com)
+ * @brief DNODE module show-msg tests
+ * @version 0.1
+ * @date 2021-12-15
  *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * @copyright Copyright (c) 2021
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "deploy.h"
@@ -155,49 +151,49 @@ TEST_F(DndTestShow, SShowMsg_04) {
 
     SSchema* pSchema = NULL;
     pSchema = &pMeta->pSchema[0];
-    pSchema->bytes = htons(pSchema->bytes);
+    pSchema->bytes = htonl(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
     EXPECT_EQ(pSchema->bytes, 4);
     EXPECT_STREQ(pSchema->name, "connId");
 
     pSchema = &pMeta->pSchema[1];
-    pSchema->bytes = htons(pSchema->bytes);
+    pSchema->bytes = htonl(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
     EXPECT_EQ(pSchema->bytes, TSDB_USER_LEN + VARSTR_HEADER_SIZE);
     EXPECT_STREQ(pSchema->name, "user");
 
     pSchema = &pMeta->pSchema[2];
-    pSchema->bytes = htons(pSchema->bytes);
+    pSchema->bytes = htonl(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
     EXPECT_EQ(pSchema->bytes, TSDB_USER_LEN + VARSTR_HEADER_SIZE);
     EXPECT_STREQ(pSchema->name, "program");
 
     pSchema = &pMeta->pSchema[3];
-    pSchema->bytes = htons(pSchema->bytes);
+    pSchema->bytes = htonl(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
     EXPECT_EQ(pSchema->bytes, 4);
     EXPECT_STREQ(pSchema->name, "pid");
 
     pSchema = &pMeta->pSchema[4];
-    pSchema->bytes = htons(pSchema->bytes);
+    pSchema->bytes = htonl(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
     EXPECT_EQ(pSchema->bytes, TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE);
     EXPECT_STREQ(pSchema->name, "ip:port");
 
     pSchema = &pMeta->pSchema[5];
-    pSchema->bytes = htons(pSchema->bytes);
+    pSchema->bytes = htonl(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TIMESTAMP);
     EXPECT_EQ(pSchema->bytes, 8);
     EXPECT_STREQ(pSchema->name, "login_time");
 
     pSchema = &pMeta->pSchema[6];
-    pSchema->bytes = htons(pSchema->bytes);
+    pSchema->bytes = htonl(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TIMESTAMP);
     EXPECT_EQ(pSchema->bytes, 8);

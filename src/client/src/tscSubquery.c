@@ -1670,7 +1670,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
       pSql1->fp = joinRetrieveFinalResCallback;
 
       if (pCmd1->command < TSDB_SQL_LOCAL) {
-        pCmd1->command = (pCmd1->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
+        pCmd1->command = (pCmd1->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE_MNODE : TSDB_SQL_FETCH;
       }
 
       tscBuildAndSendRequest(pSql1, NULL);

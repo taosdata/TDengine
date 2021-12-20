@@ -21,8 +21,6 @@ target_include_directories(dnode_test_user
     "${CMAKE_CURRENT_SOURCE_DIR}/../sut"
 )
 
-enable_testing()
-
 add_test(
     NAME dnode_test_user
     COMMAND dnode_test_user

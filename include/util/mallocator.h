@@ -22,23 +22,31 @@
 extern "C" {
 #endif
 
-typedef struct SMemAllocator        SMemAllocator;
-typedef struct SMemAllocatorFactory SMemAllocatorFactory;
+// Memory allocator
+#define TD_MEM_ALCT(TYPE)                           \
+  struct {                                          \
+    void *(*malloc_)(struct TYPE *, uint64_t size); \
+    void (*free_)(struct TYPE *, void *ptr);        \
+  }
+#define TD_MA_MALLOC_FUNC(TMA) (TMA)->malloc_
+#define TD_MA_FREE_FUNC(TMA) (TMA)->free_
 
-struct SMemAllocator {
-  void *impl;
-  void *(*malloc)(SMemAllocator *, uint64_t size);
-  void *(*calloc)(SMemAllocator *, uint64_t nmemb, uint64_t size);
-  void *(*realloc)(SMemAllocator *, void *ptr, uint64_t size);
-  void (*free)(SMemAllocator *, void *ptr);
-  uint64_t (*usage)(SMemAllocator *);
-};
+#define TD_MA_MALLOC(TMA, SIZE) (*((TMA)->malloc_))(TMA, (SIZE))
+#define TD_MA_FREE(TMA, PTR) (*((TMA)->free_))(TMA, (PTR))
 
-struct SMemAllocatorFactory {
+typedef struct SMemAllocator {
   void *impl;
-  SMemAllocator *(*create)(SMemAllocatorFactory *);
-  void (*destroy)(SMemAllocatorFactory *, SMemAllocator *);
-};
+  TD_MEM_ALCT(SMemAllocator);
+} SMemAllocator;
+
+#define tMalloc(pMA, SIZE) TD_MA_MALLOC(PMA, SIZE)
+#define tFree(pMA, PTR) TD_MA_FREE(PMA, PTR)
+
+typedef struct SMemAllocatorFactory {
+  void *impl;
+  SMemAllocator *(*create)(struct SMemAllocatorFactory *);
+  void (*destroy)(struct SMemAllocatorFactory *, SMemAllocator *);
+} SMemAllocatorFactory;
 
 #ifdef __cplusplus
 }

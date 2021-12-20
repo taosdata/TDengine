@@ -37,9 +37,22 @@ option(
     off 
 )
 
+
 option(
     BUILD_WITH_NURAFT
     "If build with NuRaft" 
+    OFF
+)
+
+option(
+    BUILD_WITH_UV
+    "If build with libuv" 
+    OFF
+)
+
+option(
+    BUILD_WITH_CRAFT
+    "If build with canonical-raft"
     OFF
 )
 
@@ -53,4 +66,10 @@ option(
     BUILD_DOCS
     "If use doxygen build documents" 
     OFF
+)
+
+option(
+   BUILD_WITH_INVERTEDINDEX
+   "If use invertedIndex" 
+   ON 
 )

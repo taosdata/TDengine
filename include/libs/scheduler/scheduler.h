@@ -20,6 +20,13 @@
 extern "C" {
 #endif
 
+#include "planner.h"
+#include "catalog.h"
+
+typedef struct SSchedulerCfg {
+  int32_t clusterType;
+} SSchedulerCfg;
+
 typedef struct SQueryProfileSummary {
   int64_t startTs;      // Object created and added into the message queue
   int64_t endTs;        // the timestamp when the task is completed
@@ -43,43 +50,29 @@ typedef struct SQueryProfileSummary {
   uint64_t resultSize;   // generated result size in Kb.
 } SQueryProfileSummary;
 
-typedef struct SQueryTask {
-  uint64_t            queryId; // query id
-  uint64_t            taskId;  // task id
-  char     *pSubplan;   // operator tree
-  uint64_t            status;  // task status
-  SQueryProfileSummary summary; // task execution summary
-  void               *pOutputHandle; // result buffer handle, to temporarily keep the output result for next stage
-} SQueryTask;
-
-typedef struct SQueryJob {
-  SArray  **pSubtasks;
-  // todo
-} SQueryJob;
+int32_t schedulerInit(SSchedulerCfg *cfg);
 
 /**
  * Process the query job, generated according to the query physical plan.
  * This is a synchronized API, and is also thread-safety.
- * @param pJob
+ * @param qnodeList  Qnode address list, element is SEpAddr
  * @return
  */
-int32_t qProcessQueryJob(struct SQueryJob* pJob);
+int32_t scheduleExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob);
 
-/**
- * The SSqlObj should not be here????
- * @param pSql
- * @param pVgroupId
- * @param pRetVgroupId
- * @return
- */
-//SArray* qGetInvolvedVgroupIdList(struct SSqlObj* pSql, SArray* pVgroupId, SArray* pRetVgroupId);
+int32_t scheduleFetchRows(void *pJob, void **data);
+
 
 /**
  * Cancel query job
  * @param pJob
  * @return
  */
-int32_t qKillQueryJob(struct SQueryJob* pJob);
+int32_t scheduleCancelJob(void *pJob);
+
+void scheduleFreeJob(void *pJob);
+
+void schedulerDestroy(void);
 
 #ifdef __cplusplus
 }

@@ -14,20 +14,20 @@
  */
 
 #if defined(INCLUDE_AS_ENUM)  // enum define mode
-    #undef OP_ENUM_MACRO
-    #define OP_ENUM_MACRO(op)    OP_##op,
+  #undef OP_ENUM_MACRO
+  #define OP_ENUM_MACRO(op)    OP_##op,
 #elif defined(INCLUDE_AS_NAME)  // comment define mode
-    #undef OP_ENUM_MACRO
-    #define OP_ENUM_MACRO(op)    #op,
+  #undef OP_ENUM_MACRO
+  #define OP_ENUM_MACRO(op)    #op,
 #else
-    #error To use this include file, first define either INCLUDE_AS_ENUM or INCLUDE_AS_NAME
+  #error To use this include file, first define either INCLUDE_AS_ENUM or INCLUDE_AS_NAME
 #endif
 
 OP_ENUM_MACRO(TableScan)
 OP_ENUM_MACRO(DataBlocksOptScan)
 OP_ENUM_MACRO(TableSeqScan)
 OP_ENUM_MACRO(TagScan)
-OP_ENUM_MACRO(TableBlockInfoScan)
+OP_ENUM_MACRO(SystemTableScan)
 OP_ENUM_MACRO(Aggregate)
 OP_ENUM_MACRO(Project)
 OP_ENUM_MACRO(Groupby)

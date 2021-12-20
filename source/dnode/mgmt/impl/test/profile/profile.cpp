@@ -1,16 +1,12 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/**
+ * @file profile.cpp
+ * @author slguan (slguan@taosdata.com)
+ * @brief DNODE module profile-msg tests
+ * @version 0.1
+ * @date 2021-12-15
  *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * @copyright Copyright (c) 2021
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "deploy.h"
@@ -220,17 +216,14 @@ TEST_F(DndTestProfile, SConnectMsg_03) {
     SRetrieveTableRsp* pRsp = (SRetrieveTableRsp*)pMsg->pCont;
     ASSERT_NE(pRsp, nullptr);
     pRsp->numOfRows = htonl(pRsp->numOfRows);
-    pRsp->offset = htobe64(pRsp->offset);
     pRsp->useconds = htobe64(pRsp->useconds);
     pRsp->compLen = htonl(pRsp->compLen);
 
     EXPECT_EQ(pRsp->numOfRows, 1);
-    EXPECT_EQ(pRsp->offset, 0);
     EXPECT_EQ(pRsp->useconds, 0);
     EXPECT_EQ(pRsp->completed, 1);
     EXPECT_EQ(pRsp->precision, TSDB_TIME_PRECISION_MILLI);
     EXPECT_EQ(pRsp->compressed, 0);
-    EXPECT_EQ(pRsp->reserved, 0);
     EXPECT_EQ(pRsp->compLen, 0);
   }
 }
@@ -501,7 +494,7 @@ TEST_F(DndTestProfile, SKillQueryMsg_03) {
     EXPECT_STREQ(pSchema->name, "queryId");
 
     pSchema = &pMeta->pSchema[1];
-    pSchema->bytes = htons(pSchema->bytes);
+    pSchema->bytes = htonl(pSchema->bytes);
     EXPECT_EQ(pSchema->colId, 0);
     EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
     EXPECT_EQ(pSchema->bytes, 4);

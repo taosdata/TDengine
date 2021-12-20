@@ -17,7 +17,10 @@
 #define _TD_INDEX_INT_H_
 
 #include "index.h"
+#include "index_fst.h"
 #include "tlog.h"
+#include "thash.h"
+#include "taos.h"
 
 #ifdef USE_LUCENE
 #include <lucene++/Lucene_c.h>
@@ -28,16 +31,42 @@
 extern "C" {
 #endif
 
+typedef enum {kTypeValue, kTypeDeletion} STermValueType ;
+
+typedef struct SIndexStat {
+  int32_t totalAdded;   //  
+  int32_t totalDeled;   //
+  int32_t totalUpdated; // 
+  int32_t totalTerms;   //  
+  int32_t distinctCol; // distinct column 
+} SIndexStat; 
+
 struct SIndex {
 #ifdef USE_LUCENE 
  index_t *index; 
 #endif  
+ void     *cache;
+ void     *tindex; 
+ SHashObj *colObj;// < field name, field id> 
+ 
+ int64_t  suid;      // current super table id, -1 is normal table    
+ int      colId;  // field id allocated to cache
+ int32_t  cVersion; // current version allocated to cache 
+
+ SIndexStat stat;
+ pthread_mutex_t mtx;
 };   
 
 struct SIndexOpts {
 #ifdef USE_LUCENE 
   void *opts; 
-#endif  
+#endif   
+
+#ifdef USE_INVERTED_INDEX
+  int32_t cacheSize;  // MB  
+  // add cache module later
+#endif
+
 };
 
 struct SIndexMultiTermQuery {
@@ -47,20 +76,20 @@ struct SIndexMultiTermQuery {
 
 // field and key;
 typedef struct SIndexTerm {
-  char    *key;
-  int32_t nKey;
-  char    *val;
-  int32_t nVal;
+  int64_t           suid; 
+  SIndexOperOnColumn operType; // oper type, add/del/update
+  uint8_t            colType;  // term data type, str/interger/json
+  char    *colName;
+  int32_t nColName;
+  char    *colVal;
+  int32_t nColVal;
 } SIndexTerm;
 
 typedef struct SIndexTermQuery {
-  SIndexTerm*     field_value;
-  EIndexQueryType type;
+  SIndexTerm*     term;
+  EIndexQueryType qType;
 } SIndexTermQuery;
 
-
-SIndexTerm *indexTermCreate(const char *key, int32_t nKey, const char *val, int32_t nVal);
-void        indexTermDestroy(SIndexTerm *p);
 
 
 #define indexFatal(...) do { if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("index FATAL ", 255, __VA_ARGS__); }}     while(0)

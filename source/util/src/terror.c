@@ -130,6 +130,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_VALUE_OUT_OF_RANGE,       "Value out of range")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_INPUT,            "Invalid tsc input")
 
 // mnode-common
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_APP_ERROR,                "Mnode internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NOT_READY,                "Cluster not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MSG_NOT_PROCESSED,        "Message not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACTION_IN_PROGRESS,       "Message is progressing")
@@ -217,22 +218,20 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_EXIST,         "VGroup does not exist
 
 // mnode-stable
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_ALREADY_EXIST,        "Stable already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_ID,         "Table name too long")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_NAME,       "Table does not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_TYPE,       "Invalid table type in tsdb")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_NOT_EXIST,            "Stable not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_STBS,            "Too many stables")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STB,              "Invalid stable name")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STB_OPTION,       "Invalid stable options")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_OPTION_UNCHNAGED,     "Stable options not changed")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TAGS,            "Too many tags")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_COLUMNS,         "Too many columns")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TIMESERIES,      "Too many time series")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_NOT_SUPER_TABLE,          "Not super table")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_COL_NAME_TOO_LONG,        "Tag name too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_ALREAY_EXIST,         "Tag already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_NOT_EXIST,            "Tag does not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_ALREAY_EXIST,       "Field already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_NOT_EXIST,          "Field does not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STABLE_NAME,      "Super table does not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG, "Invalid create table message")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_COLUMNS,         "Too many columns")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_ALREAY_EXIST,       "Column already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_NOT_EXIST,          "Column does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_EXCEED_MAX_ROW_BYTES,     "Exceed max row bytes")
 
+// mnode-func
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FUNC_ALREADY_EXIST,       "Func already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FUNC_NOT_EXIST,           "Func not exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC,             "Invalid func")
@@ -240,9 +239,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_NAME,        "Invalid func name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_COMMENT,     "Invalid func comment")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_CODE,        "Invalid func code")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_BUFSIZE,     "Invalid func bufSize")
-
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TAG_LENGTH,        "invalid tag length")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_COLUMN_LENGTH,     "invalid column length")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_ACTION_IN_PROGRESS,       "Action in progress")
@@ -322,6 +318,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER,        "Query buffer limit ha
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INCONSISTAN,              "File inconsistance in replica")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_TIME_CONDITION,   "One valid time range condition expected")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SYS_ERROR,                "System error")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_INPUT,            "invalid input")
 
 
 // grant
@@ -500,6 +497,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_CTG_NOT_READY,                "catalog is not ready"
 TAOS_DEFINE_ERROR(TSDB_CODE_CTG_MEM_ERROR,                "catalog memory error")
 TAOS_DEFINE_ERROR(TSDB_CODE_CTG_SYS_ERROR,                "catalog system error")
 
+//scheduler
+TAOS_DEFINE_ERROR(TSDB_CODE_SCH_STATUS_ERROR,             "scheduler status error")
+TAOS_DEFINE_ERROR(TSDB_CODE_SCH_INTERNAL_ERROR,           "scheduler internal error")
 
 
 #ifdef TAOS_ERROR_C

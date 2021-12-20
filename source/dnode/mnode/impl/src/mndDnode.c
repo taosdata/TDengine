@@ -180,8 +180,12 @@ static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOldDnode, SDnodeObj 
 }
 
 SDnodeObj *mndAcquireDnode(SMnode *pMnode, int32_t dnodeId) {
-  SSdb *pSdb = pMnode->pSdb;
-  return sdbAcquire(pSdb, SDB_DNODE, &dnodeId);
+  SSdb      *pSdb = pMnode->pSdb;
+  SDnodeObj *pDnode = sdbAcquire(pSdb, SDB_DNODE, &dnodeId);
+  if (pDnode == NULL) {
+    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+  }
+  return pDnode;
 }
 
 void mndReleaseDnode(SMnode *pMnode, SDnodeObj *pDnode) {
@@ -216,6 +220,15 @@ static SDnodeObj *mndAcquireDnodeByEp(SMnode *pMnode, char *pEpStr) {
 int32_t mndGetDnodeSize(SMnode *pMnode) {
   SSdb *pSdb = pMnode->pSdb;
   return sdbGetSize(pSdb, SDB_DNODE);
+}
+
+bool mndIsDnodeInReadyStatus(SMnode *pMnode, SDnodeObj *pDnode) {
+  int64_t ms = taosGetTimestampMs();
+  int64_t interval = ABS(pDnode->lastAccessTime - ms);
+  if (interval > 3000 * pMnode->cfg.statusInterval) {
+    return false;
+  }
+  return true;
 }
 
 static void mndGetDnodeData(SMnode *pMnode, SDnodeEps *pEps, int32_t numOfEps) {
@@ -552,16 +565,16 @@ static int32_t mndGetConfigMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg 
   pShow->bytes[cols] = TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   tstrncpy(pSchema[cols].name, "name", sizeof(pSchema[cols].name));
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_CONIIG_VALUE_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   tstrncpy(pSchema[cols].name, "value", sizeof(pSchema[cols].name));
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
-  pMeta->numOfColumns = htons(cols);
+  pMeta->numOfColumns = htonl(cols);
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
@@ -629,46 +642,46 @@ static int32_t mndGetDnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
   strcpy(pSchema[cols].name, "id");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_EP_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "end point");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  strcpy(pSchema[cols].name, "endpoint");
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
   strcpy(pSchema[cols].name, "vnodes");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "max vnodes");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  strcpy(pSchema[cols].name, "max_vnodes");
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "status");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  strcpy(pSchema[cols].name, "create_time");
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 24 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "offline reason");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  strcpy(pSchema[cols].name, "offline_reason");
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
-  pMeta->numOfColumns = htons(cols);
+  pMeta->numOfColumns = htonl(cols);
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;

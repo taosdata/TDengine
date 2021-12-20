@@ -15,7 +15,19 @@
 
 #include "tsdbDef.h"
 
+int tsdbPrepareCommit(STsdb *pTsdb) {
+  if (pTsdb->mem == NULL) return 0;
+
+  // tsem_wait(&(pTsdb->canCommit));
+  ASSERT(pTsdb->imem == NULL);
+
+  pTsdb->imem = pTsdb->mem;
+  pTsdb->mem = NULL;
+}
+
 int tsdbCommit(STsdb *pTsdb) {
   // TODO
+  pTsdb->imem = NULL;
+  // tsem_post(&(pTsdb->canCommit));
   return 0;
 }

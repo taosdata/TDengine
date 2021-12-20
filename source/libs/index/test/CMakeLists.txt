@@ -1,7 +1,7 @@
 add_executable(indexTest "")
 target_sources(indexTest
   PRIVATE 
-  "indexTests.cpp" 
+  "indexTests.cc" 
 )
 target_include_directories ( indexTest
   PUBLIC

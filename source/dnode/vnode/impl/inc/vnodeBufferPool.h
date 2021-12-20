@@ -32,6 +32,8 @@ int   vnodeBufPoolRecycle(SVnode *pVnode);
 void *vnodeMalloc(SVnode *pVnode, uint64_t size);
 bool  vnodeBufPoolIsFull(SVnode *pVnode);
 
+SMemAllocatorFactory *vBufPoolGetMAF(SVnode *pVnode);
+
 #ifdef __cplusplus
 }
 #endif

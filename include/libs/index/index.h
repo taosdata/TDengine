@@ -24,9 +24,19 @@ extern "C" {
 #endif
 
 typedef struct SIndex SIndex;
+typedef struct SIndexTerm SIndexTerm;
 typedef struct SIndexOpts SIndexOpts;
 typedef struct SIndexMultiTermQuery SIndexMultiTermQuery;
 typedef struct SArray               SIndexMultiTerm;
+
+typedef enum  {
+   ADD_VALUE,    // add index colume value   
+   DEL_VALUE,    // delete index column value  
+   UPDATE_VALUE, // update index column value 
+   ADD_INDEX,    // add index on specify column
+   DROP_INDEX,   // drop existed index 
+   DROP_SATBLE   // drop stable 
+} SIndexOperOnColumn;
 
 typedef enum  { MUST = 0, SHOULD = 1, NOT = 2 } EIndexOperatorType;
 typedef enum  { QUERY_TERM = 0, QUERY_PREFIX = 1, QUERY_SUFFIX = 2,QUERY_REGEX = 3} EIndexQueryType;
@@ -36,14 +46,14 @@ typedef enum  { QUERY_TERM = 0, QUERY_PREFIX = 1, QUERY_SUFFIX = 2,QUERY_REGEX =
 */
 SIndexMultiTermQuery *indexMultiTermQueryCreate(EIndexOperatorType oper);
 void            indexMultiTermQueryDestroy(SIndexMultiTermQuery *pQuery);
-int             indexMultiTermQueryAdd(SIndexMultiTermQuery *pQuery, const char *field, int32_t nFields, const char *value, int32_t nValue, EIndexQueryType type);
+int             indexMultiTermQueryAdd(SIndexMultiTermQuery *pQuery, SIndexTerm *term, EIndexQueryType type);
 /* 
  * @param:    
  * @param:
  */
-SIndex* indexOpen(SIndexOpts *opt, const char *path);
+int   indexOpen(SIndexOpts *opt, const char *path, SIndex **index);
 void  indexClose(SIndex *index);
-int   indexPut(SIndex *index,    SIndexMultiTerm *terms, int uid);
+int   indexPut(SIndex *index,    SIndexMultiTerm *terms, uint64_t uid);
 int   indexDelete(SIndex *index, SIndexMultiTermQuery *query); 
 int   indexSearch(SIndex *index, SIndexMultiTermQuery *query, SArray *result);
 int   indexRebuild(SIndex *index, SIndexOpts *opt);
@@ -52,14 +62,24 @@ int   indexRebuild(SIndex *index, SIndexOpts *opt);
  * @param
  */
 SIndexMultiTerm *indexMultiTermCreate(); 
-int     indexMultiTermAdd(SIndexMultiTerm *terms, const char *field, int32_t nFields, const char *value, int32_t nValue);
-void    indexMultiTermDestroy(SIndexMultiTerm *terms);
+int indexMultiTermAdd(SIndexMultiTerm  *terms, SIndexTerm *term);
+void indexMultiTermDestroy(SIndexMultiTerm *terms);
 /*
  * @param: 
  * @param:
  */
 SIndexOpts *indexOptsCreate();
 void       indexOptsDestroy(SIndexOpts *opts);
+
+/*
+ * @param:
+ * @param:
+ */
+
+SIndexTerm *indexTermCreate(int64_t suid, SIndexOperOnColumn operType, uint8_t colType, 
+                            const char *colName, int32_t nColName, const char *colVal, int32_t nColVal);
+void        indexTermDestroy(SIndexTerm *p);
+
 
 #ifdef __cplusplus
 }
