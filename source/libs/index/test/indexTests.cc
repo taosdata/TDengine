@@ -45,7 +45,7 @@ class FstWriter {
 class FstReadMemory {
   public:
    FstReadMemory(size_t size) {
-     _w    = fstCountingWriterCreate(NULL, true); 
+     _w    = fstCountingWriterCreate(NULL); 
      _size = size; 
      memset((void *)&_s, 0, sizeof(_s));
    }
