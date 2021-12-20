@@ -18,22 +18,35 @@
 #include "index.h"
 #include "indexInt.h"
 #include "tlockfree.h"
-#include "tskiplist.h"
+#include "index_tfile.h"
+#include "index_fst.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef struct TFileWriter {
+  FstBuilder *fb;
+} TFileWriter;
+
+typedef struct TFileReader {
+  T_REF_DECLARE() 
+  Fst *fst;
+} TFileReader; 
+
 typedef struct IndexTFile {
   T_REF_DECLARE() 
+  TFileReader *tb;
+  TFileWriter *tw;      
 } IndexTFile;
-
 
 
 IndexTFile *indexTFileCreate();
 
+int indexTFilePut(void *tfile, SIndexTerm *term,  uint64_t uid);
 
 int indexTFileSearch(void *tfile, SIndexTermQuery *query, SArray *result);
+
 
 #ifdef __cplusplus
 }

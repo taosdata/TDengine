@@ -23,9 +23,9 @@ static int writeCtxDoWrite(WriterCtx *ctx, uint8_t *buf, int len) {
   }
 
   if (ctx->type == TFile) {
-    assert(len == tfWrite(ctx->fd, buf, len));
+    assert(len == tfWrite(ctx->file.fd, buf, len));
   } else {
-    memcpy(ctx->mem + ctx->offset, buf, len);
+    memcpy(ctx->mem.buf+ ctx->offset, buf, len);
   } 
   ctx->offset += len;
   return len;
@@ -33,9 +33,9 @@ static int writeCtxDoWrite(WriterCtx *ctx, uint8_t *buf, int len) {
 static int writeCtxDoRead(WriterCtx *ctx, uint8_t *buf, int len) {
   int nRead = 0; 
   if (ctx->type == TFile) {
-    nRead = tfRead(ctx->fd, buf, len);
+    nRead = tfRead(ctx->file.fd, buf, len);
   } else {
-    memcpy(buf, ctx->mem + ctx->offset, len);
+    memcpy(buf, ctx->mem.buf + ctx->offset, len);
   }
   ctx->offset += nRead;
 
@@ -44,63 +44,64 @@ static int writeCtxDoRead(WriterCtx *ctx, uint8_t *buf, int len) {
 static int writeCtxDoFlush(WriterCtx *ctx) {
   if (ctx->type == TFile) {
     //tfFsync(ctx->fd);
-    //tfFlush(ctx->fd);
+    //tfFlush(ctx->file.fd);
   } else {
     // do nothing
   }
   return 1;
 }
 
-WriterCtx* writerCtxCreate(WriterType type, bool readOnly) {     
+WriterCtx* writerCtxCreate(WriterType type, const char *path, bool readOnly, int32_t capacity) {     
   WriterCtx *ctx = calloc(1, sizeof(WriterCtx));
   if (ctx == NULL) { return NULL; }
 
   ctx->type = type;
   if (ctx->type == TFile) {
-    tfInit();
     // ugly code, refactor later
+    ctx->file.readOnly = readOnly;
     if (readOnly == false) {
-      ctx->fd = tfOpenCreateWriteAppend(tmpFile);  
+      ctx->file.fd = tfOpenCreateWriteAppend(tmpFile);  
     } else {
-      ctx->fd = tfOpenReadWrite(tmpFile);
+      ctx->file.fd = tfOpenReadWrite(tmpFile);
     } 
-    if (ctx->fd < 0) {
+    if (ctx->file.fd < 0) {
       indexError("open file error %d", errno);       
     }
   } else if (ctx->type == TMemory) {
-    ctx->mem = calloc(1, DefaultMem * sizeof(uint8_t));
+    ctx->mem.buf  = calloc(1, sizeof(char) * capacity); 
+    ctx->mem.capa = capacity; 
   } 
   ctx->write = writeCtxDoWrite;
   ctx->read  = writeCtxDoRead;
   ctx->flush = writeCtxDoFlush;
 
   ctx->offset = 0;
-  ctx->limit  = DefaultMem;
+  ctx->limit  = capacity;
 
   return ctx;
 }
 void writerCtxDestroy(WriterCtx *ctx) {
   if (ctx->type == TMemory) {
-    free(ctx->mem);
+    free(ctx->mem.buf);
   } else {
-    tfClose(ctx->fd);    
-    tfCleanup();
+    tfClose(ctx->file.fd);    
   }
   free(ctx);
 }
 
 
-FstCountingWriter *fstCountingWriterCreate(void *wrt, bool readOnly) {
+FstCountingWriter *fstCountingWriterCreate(void *wrt) {
   FstCountingWriter *cw = calloc(1, sizeof(FstCountingWriter)); 
   if (cw == NULL) { return NULL; }
   
-  cw->wrt = (void *)(writerCtxCreate(TFile, readOnly)); 
+  cw->wrt = wrt;
+  //(void *)(writerCtxCreate(TFile, readOnly)); 
   return cw; 
 }
 void fstCountingWriterDestroy(FstCountingWriter *cw) {
   // free wrt object: close fd or free mem 
   fstCountingWriterFlush(cw);
-  writerCtxDestroy((WriterCtx *)(cw->wrt));
+  //writerCtxDestroy((WriterCtx *)(cw->wrt));
   free(cw);
 }
 
@@ -124,6 +125,7 @@ int fstCountingWriterRead(FstCountingWriter *write, uint8_t *buf, uint32_t len) 
 } 
 
 uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter *write) {
+  
   return 0;
 }
 int fstCountingWriterFlush(FstCountingWriter *write) {

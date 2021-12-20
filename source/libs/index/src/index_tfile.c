@@ -14,18 +14,24 @@
  */
 
 #include "index_tfile.h"
+#include "index_fst.h"
 
 IndexTFile *indexTFileCreate() {
   IndexTFile *tfile = calloc(1, sizeof(IndexTFile));   
+  
   return tfile;
 }
 void IndexTFileDestroy(IndexTFile *tfile) {
   free(tfile); 
 }
+
+
 int indexTFileSearch(void *tfile, SIndexTermQuery *query, SArray *result) {
   IndexTFile *ptfile = (IndexTFile *)tfile;
+  
   return 0;
 }
+int indexTFilePut(void *tfile, SIndexTerm *term,  uint64_t uid);
 
 
 

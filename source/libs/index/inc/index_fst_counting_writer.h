@@ -34,8 +34,14 @@ typedef struct WriterCtx {
   int (*flush)(struct WriterCtx *ctx);
   WriterType type; 
   union {
-    int fd;
-    void *mem;
+    struct {
+      int fd; 
+      bool readOnly;
+    } file; 
+    struct {
+      int32_t capa;
+      char *buf;
+    } mem;
   };
   int32_t offset;
   int32_t limit;
@@ -45,7 +51,7 @@ static int writeCtxDoWrite(WriterCtx *ctx, uint8_t *buf, int len);
 static int writeCtxDoRead(WriterCtx *ctx, uint8_t *buf, int len);
 static int writeCtxDoFlush(WriterCtx *ctx);
 
-WriterCtx* writerCtxCreate(WriterType type, bool readOnly);
+WriterCtx* writerCtxCreate(WriterType type, const char *path, bool readOnly, int32_t capacity);
 void writerCtxDestroy(WriterCtx *w);
 
 typedef uint32_t CheckSummer;
@@ -66,7 +72,7 @@ int fstCountingWriterFlush(FstCountingWriter *write);
 
 uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter *write);
 
-FstCountingWriter *fstCountingWriterCreate(void *wtr, bool readOnly);
+FstCountingWriter *fstCountingWriterCreate(void *wtr);
 void fstCountingWriterDestroy(FstCountingWriter *w); 
 
 
