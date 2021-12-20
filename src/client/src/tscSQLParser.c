@@ -5034,7 +5034,7 @@ int32_t handleNeOptr(tSqlExpr** rexpr, tSqlExpr* expr) {
 }
 
 void convertWhereStringCharset(tSqlExpr* pRight){
-  if(pRight->value.nType != TSDB_DATA_TYPE_BINARY){
+  if(pRight->value.nType != TSDB_DATA_TYPE_BINARY || pRight->value.nLen == 0){
     return;
   }
 
