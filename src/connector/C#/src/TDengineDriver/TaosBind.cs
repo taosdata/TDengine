@@ -264,7 +264,7 @@ namespace TDengineDriver
         public static TAOS_BIND BindNchar(String val)
         {
             TAOS_BIND bind = new TAOS_BIND();
-            IntPtr umanageNchar = (IntPtr)Marshal.StringToHGlobalAnsi(val);
+            IntPtr umanageNchar = (IntPtr)Marshal.StringToHGlobalAuto(val);
 
             int leng = val.Length;
             IntPtr lenPtr = Marshal.AllocHGlobal(sizeof(ulong));

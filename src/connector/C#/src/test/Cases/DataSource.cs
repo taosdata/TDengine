@@ -54,8 +54,8 @@ namespace Test.UtilsTools.DataSource
             binds[8] = TaosBind.BindUBigInt(UInt64.MinValue + 1);
             binds[9] = TaosBind.BindFloat(11.11F);
             binds[10] = TaosBind.BindDouble(22.22D);
-            binds[11] = TaosBind.BindBinary("qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKZXCVBNM`1234567890-=+_)(*&^%$#@!~[];,./<>?:{}");
-            binds[12] = TaosBind.BindNchar("qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKZXCVBNM`1234567890-=+_)(*&^%$#@!~[];,./<>?:{}");
+            binds[11] = TaosBind.BindBinary("binaryString");
+            binds[12] = TaosBind.BindNchar("涛思数据");
             binds[13] = TaosBind.BindBool(true);
             binds[14] = TaosBind.BindNil();
             return binds;

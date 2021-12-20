@@ -18,39 +18,42 @@ namespace Cases.EntryPoint
             UtilsTools.ExecuteQuery(conn, "create database if not exists csharp keep 3650");
             UtilsTools.ExecuteQuery(conn, "use csharp");
 
-            Console.WriteLine("====================StableColumnByColumn===================");
-            StableColumnByColumn columnByColumn = new StableColumnByColumn();
-            columnByColumn.Test(conn, "stablecolumnbycolumn");
-            Console.WriteLine("====================StmtStableQuery===================");
-            StmtStableQuery stmtStableQuery = new StmtStableQuery();
-            stmtStableQuery.Test(conn, "stablecolumnbycolumn");
+            // Console.WriteLine("====================StableColumnByColumn===================");
+            // StableColumnByColumn columnByColumn = new StableColumnByColumn();
+            // columnByColumn.Test(conn, "stablecolumnbycolumn");
+            // Console.WriteLine("====================StmtStableQuery===================");
+            // StmtStableQuery stmtStableQuery = new StmtStableQuery();
+            // stmtStableQuery.Test(conn, "stablecolumnbycolumn");
 
-            Console.WriteLine("====================StableMutipleLine===================");
-            StableMutipleLine mutipleLine = new StableMutipleLine();
-            mutipleLine.Test(conn, "stablemutipleline");
+            // Console.WriteLine("====================StableMutipleLine===================");
+            // StableMutipleLine mutipleLine = new StableMutipleLine();
+            // mutipleLine.Test(conn, "stablemutipleline");
 
-            //================================================================================
+            // //================================================================================
 
             Console.WriteLine("====================NtableSingleLine===================");
             NtableSingleLine ntableSingleLine = new NtableSingleLine();
             ntableSingleLine.Test(conn, "stablesingleline");
+             IntPtr resPtr = UtilsTools.ExecuteQuery(conn,"select * from stablesingleline ");
+             UtilsTools.DisplayRes(resPtr);
+    // insert into stablesingleline values(now,-3,1,1,1,1,1,2,2,2.2,2.22,'涛思数据','baoli square', true,null);
+    // insert into stablesingleline values(now,-3,1,1,1,1,1,2,2,2.2,2.22,'涛思数据','保利广场', true,null);
+            // Console.WriteLine("====================NtableMutipleLine===================");
+            // NtableMutipleLine ntableMutipleLine = new NtableMutipleLine();
+            // ntableMutipleLine.Test(conn, "ntablemutipleline");
+            // Console.WriteLine("====================StmtNtableQuery===================");
+            // StmtNtableQuery stmtNtableQuery = new StmtNtableQuery();
+            // stmtNtableQuery.Test(conn, "ntablemutipleline");
 
-            Console.WriteLine("====================NtableMutipleLine===================");
-            NtableMutipleLine ntableMutipleLine = new NtableMutipleLine();
-            ntableMutipleLine.Test(conn, "ntablemutipleline");
-            Console.WriteLine("====================StmtNtableQuery===================");
-            StmtNtableQuery stmtNtableQuery = new StmtNtableQuery();
-            stmtNtableQuery.Test(conn, "ntablemutipleline");
+            // Console.WriteLine("====================NtableColumnByColumn===================");
+            // NtableColumnByColumn ntableColumnByColumn = new NtableColumnByColumn();
+            // ntableColumnByColumn.Test(conn, "ntablecolumnbycolumn");
 
-            Console.WriteLine("====================NtableColumnByColumn===================");
-            NtableColumnByColumn ntableColumnByColumn = new NtableColumnByColumn();
-            ntableColumnByColumn.Test(conn, "ntablecolumnbycolumn");
+            // Console.WriteLine("====================fetchfeilds===================");
+            // FetchFields fetchFields = new FetchFields();
+            // fetchFields.Test(conn, "fetchfeilds");
 
-            Console.WriteLine("====================fetchfeilds===================");
-            FetchFields fetchFields = new FetchFields();
-            fetchFields.Test(conn, "fetchfeilds");
-
-            UtilsTools.ExecuteQuery(conn, "drop database if  exists csharp");
+            // UtilsTools.ExecuteQuery(conn, "drop database if  exists csharp");
             UtilsTools.CloseConnection(conn);
             UtilsTools.ExitProgram();
 
