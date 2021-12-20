@@ -168,7 +168,7 @@ namespace TDengineDriver
             host = this.GetArgumentAsString(argv, "-h", "127.0.0.1");
             user = this.GetArgumentAsString(argv, "-u", "root");
             password = this.GetArgumentAsString(argv, "-p", "taosdata");
-            dbName = this.GetArgumentAsString(argv, "-d", "db");
+            dbName = this.GetArgumentAsString(argv, "-d", "tdengint_test_cs");
             stableName = this.GetArgumentAsString(argv, "-s", "st");
             tablePrefix = this.GetArgumentAsString(argv, "-t", "t");
             isInsertData = this.GetArgumentAsLong(argv, "-w", 0, 1, 1) != 0;

@@ -132,8 +132,7 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
   return TSDB_CODE_SUCCESS;
 }
 
-
-static void tscStrToLower(char *str, int32_t n) {
+UNUSED_FUNC static void tscStrToLower(char* str, int32_t n) {
   if (str == NULL || n <= 0) { return;}
   for (int32_t i = 0; i < n; i++) {
     if (str[i] >= 'A' && str[i] <= 'Z') {
@@ -3029,7 +3028,8 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
     if (pToken->type == TK_STRING) {
 
       tscDequoteAndTrimToken(pToken);
-      tscStrToLower(pToken->z, pToken->n);
+      // tscStrToLower(pToken->z, pToken->n);
+      strntolower(pToken->z, pToken->z, pToken->n);
       //pToken->n = (uint32_t)strtrim(pToken->z);
 
       int len = tGetToken(pToken->z, &pToken->type);
@@ -3083,7 +3083,8 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
       if (validateQuoteToken(pToken, escapeEnabled, NULL) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       } else {
-        tscStrToLower(pToken->z,pToken->n);
+        // tscStrToLower(pToken->z,pToken->n);
+        strntolower(pToken->z, pToken->z, pToken->n);
         firstPartQuote = true;
       }
     }
@@ -3101,7 +3102,8 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
       if (validateQuoteToken(pToken, escapeEnabled, NULL) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       } else {
-        tscStrToLower(pToken->z,pToken->n);
+        // tscStrToLower(pToken->z,pToken->n);
+        strntolower(pToken->z, pToken->z, pToken->n);
       }
     }
 
@@ -4928,7 +4930,11 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
         }
       }
 
-      pse->colInfo.flag = pSource->base.colInfo.flag; //TSDB_COL_NORMAL;
+      if (!pQueryInfo->stableQuery && TSDB_COL_IS_TAG(pSource->base.colInfo.flag)) {
+        pse->colInfo.flag = (pSource->base.colInfo.flag) & (~TSDB_COL_TAG);
+      } else {
+        pse->colInfo.flag = pSource->base.colInfo.flag;
+      }
       pse->resType  = pSource->base.resType;
       pse->resBytes = pSource->base.resBytes;
       strncpy(pse->colInfo.name, pSource->base.aliasName, tListLen(pse->colInfo.name));
@@ -5518,6 +5524,11 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       varDataSetLen(tagData, outLen);
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal, true);
     }else if(item->type == cJSON_Number){
+      if(!isfinite(item->valuedouble)){
+        tscError("json value is invalidate");
+        retCode =  tscSQLSyntaxErrMsg(errMsg, "json value number is illegal", NULL);
+        goto end;
+      }
       char tagVal[LONG_BYTES + CHAR_BYTES] = {0};
       *tagVal = jsonType2DbType(item->valuedouble, item->type);    // type
       char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
@@ -5558,7 +5569,7 @@ end:
 int8_t jsonType2DbType(double data, int jsonType){
   switch(jsonType){
     case cJSON_Number:
-      if (data - (int64_t)data > 0) return TSDB_DATA_TYPE_DOUBLE; else return TSDB_DATA_TYPE_BIGINT;
+      if (data - (int64_t)data == 0) return TSDB_DATA_TYPE_BIGINT; else return TSDB_DATA_TYPE_DOUBLE;
     case cJSON_String:
       return TSDB_DATA_TYPE_NCHAR;
     case cJSON_NULL:
