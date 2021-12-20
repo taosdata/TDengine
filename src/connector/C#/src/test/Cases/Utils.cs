@@ -164,8 +164,6 @@ namespace Test.UtilsTools
             result.Add(colName);
 
             IntPtr rowdata;
-            // StringBuilder builder = new StringBuilder();
-
             while ((rowdata = TDengine.FetchRows(res)) != IntPtr.Zero)
             {
                 queryRows++;
@@ -178,7 +176,6 @@ namespace Test.UtilsTools
                     TDengineMeta meta = metas[fields];
                     int offset = IntPtr.Size * fields;
                     IntPtr data = Marshal.ReadIntPtr(rowdata, offset);
-
 
                     if (data == IntPtr.Zero)
                     {
@@ -231,12 +228,6 @@ namespace Test.UtilsTools
                     }
                 }
 
-
-                //     if (queryRows <= 10)
-                //     {
-                //         Console.WriteLine(builder.ToString());
-                //     }
-                //     builder.Clear();
             }
             result.Add(dataRaw);
 
@@ -283,13 +274,13 @@ namespace Test.UtilsTools
         }
         public static void AssertEqual(string expectVal, string actualVal)
         {
-            if(expectVal == actualVal)
+            if (expectVal == actualVal)
             {
-                Console.WriteLine("{0}=={1} pass",expectVal,actualVal);
+                Console.WriteLine("{0}=={1} pass", expectVal, actualVal);
             }
             else
             {
-                Console.WriteLine("{0}=={1} failed",expectVal,actualVal);
+                Console.WriteLine("{0}=={1} failed", expectVal, actualVal);
                 ExitProgram();
             }
         }
