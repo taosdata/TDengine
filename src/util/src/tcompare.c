@@ -340,7 +340,7 @@ taosWcscspn (const uint32_t *wcs, const uint32_t *reject)
   return count;
 }
 
-int WCSPatternMatch(uint32_t *patterStr, size_t paSize, uint32_t *str, size_t size, const SPatternCompareInfo *pInfo) {
+int WCSPatternMatch(const uint32_t *patterStr, size_t paSize, const uint32_t *str, size_t size, const SPatternCompareInfo *pInfo) {
   wchar_t c, c1;
   wchar_t matchOne = L'_';  // "_"
   wchar_t matchAll = L'%';  // "%"
