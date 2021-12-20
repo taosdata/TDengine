@@ -85,7 +85,11 @@ public class NullValueInResultSetTest {
     public static void afterClass() throws SQLException {
         if (conn_restful != null)
             conn_restful.close();
-        if (conn_jni != null)
+        if (conn_jni != null) {
+            Statement statement = conn_jni.createStatement();
+            statement.execute("drop database if exists test_null");
+            statement.close();
             conn_jni.close();
+        }
     }
 }

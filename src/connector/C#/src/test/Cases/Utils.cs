@@ -3,7 +3,6 @@ using TDengineDriver;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Collections.Generic;
-
 namespace Test.UtilsTools
 {
     public class UtilsTools

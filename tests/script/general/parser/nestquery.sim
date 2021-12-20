@@ -941,6 +941,17 @@ if $data02 != 0 then
   return -1
 endi
 
+print ==============> TD-11969
+sql create database test11969;
+sql use test11969;
+sql create stable st (ts timestamp , id int ) tags (ind int );
+sql insert into sub1 using st tags(1) values(now ,1);
+sql insert into sub1 using st tags(1) values(now ,2);
+sql insert into sub2 using st tags(2) values(now ,3);
+sql insert into sub2 using st tags(2) values(now ,4);
+sql_error select max(ts_inter) ,tbname from (select elapsed(ts) ts_inter ,tbname from st interval (1s) group by tbname) order by ts
+sql drop database test11969
+
 print ==========================================> TD-11097
 sql create database td11097
 sql use td11097
@@ -1144,4 +1155,5 @@ if $data51 != @43@ then
   return -1 
 endi
 sql drop database td11097
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
