@@ -704,7 +704,7 @@ typedef struct {
   SVnodeLoad data[];
 } SVnodeLoads;
 
-typedef struct SStatusMsg {
+typedef struct {
   int32_t     sver;
   int32_t     dnodeId;
   int32_t     clusterId;

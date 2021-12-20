@@ -237,6 +237,9 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
+  char timestr[24] = "1970-01-01 00:00:00.00";
+  (void)taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+
   pMnode->pSteps = taosArrayInit(24, sizeof(SMnodeStep));
   if (pMnode->pSteps == NULL) {
     free(pMnode);

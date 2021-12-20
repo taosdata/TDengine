@@ -16,13 +16,12 @@
 #define _DEFAULT_SOURCE
 #include "mndDb.h"
 #include "mndDnode.h"
-#include "mndMnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 
-#define TSDB_DB_VER_NUM 1
+#define TSDB_DB_VER_NUMBER 1
 #define TSDB_DB_RESERVE_SIZE 64
 
 static SSdbRaw *mndDbActionEncode(SDbObj *pDb);
@@ -66,7 +65,7 @@ int32_t mndInitDb(SMnode *pMnode) {
 void mndCleanupDb(SMnode *pMnode) {}
 
 static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_DB_VER_NUM, sizeof(SDbObj) + TSDB_DB_RESERVE_SIZE);
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_DB_VER_NUMBER, sizeof(SDbObj) + TSDB_DB_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
@@ -106,7 +105,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
-  if (sver != TSDB_DB_VER_NUM) {
+  if (sver != TSDB_DB_VER_NUMBER) {
     mError("failed to decode db since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     return NULL;
