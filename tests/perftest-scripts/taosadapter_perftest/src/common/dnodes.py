@@ -217,7 +217,7 @@ class Dnode:
             sub_list.append({'name':'{{.Comm}}', 'cmdline': [process]})
         djson = {'process_names': sub_list}
         dstr=json.dumps(djson)
-        dyml=yaml.load(dstr)
+        dyml=yaml.load(dstr, Loader=yaml.FullLoader)
         stream = open('process_name.yml', 'w')
         yaml.safe_dump(dyml, stream, default_flow_style=False)
         self.dnode_conn.upload_file(self.home_dir, 'process_name.yml')
