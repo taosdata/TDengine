@@ -73,9 +73,8 @@ typedef struct SQueryJob {
   SQueryProfileSummary summary;
   SEpSet    dataSrcEps;
   SEpAddr   resEp;
-  struct SCatalog *catalog;
-  void            *rpc;
-  SEpSet          *mgmtEpSet;
+  void            *transport;
+  SArray          *qnodeList;
   tsem_t           rspSem;
   int32_t          userFetch;
   int32_t          remoteFetch;
