@@ -5513,7 +5513,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       *tagVal = jsonType2DbType(0, item->type);     // type
       char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
       if (!taosMbsToUcs4(jsonValue, strlen(jsonValue), varDataVal(tagData),
-                         strlen(jsonValue) * TSDB_NCHAR_SIZE, &outLen)) {
+                         (int32_t)(strlen(jsonValue) * TSDB_NCHAR_SIZE), &outLen)) {
         tscError("json string error:%s|%s", strerror(errno), jsonValue);
         retCode = tscSQLSyntaxErrMsg(errMsg, "serizelize json error", NULL);
         free(tagVal);
