@@ -23,6 +23,21 @@ SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int64_t id, char* msgB
   return pMsg;
 }
 
+SDropUserMsg* buildDropUserMsg(SSqlInfo* pInfo, int64_t id, char* msgBuf, int32_t msgLen) {
+  if (pInfo->pMiscInfo->user.user.n >= TSDB_USER_LEN) {
+    return NULL;
+  }
+
+  SDropUserMsg* pMsg = calloc(1, sizeof(SDropUserMsg));
+  if (pMsg == NULL) {
+    return NULL;
+  }
+
+  SToken* pName = taosArrayGet(pInfo->pMiscInfo->a, 0);
+  strncpy(pMsg->user, pName->z, pName->n);
+  return TSDB_CODE_SUCCESS;
+}
+
 SShowMsg* buildShowMsg(SShowInfo* pShowInfo, int64_t id, char* msgBuf, int32_t msgLen) {
   SShowMsg* pShowMsg = calloc(1, sizeof(SShowMsg));
 
@@ -89,7 +104,7 @@ static int32_t setTimePrecision(SCreateDbMsg* pMsg, const SCreateDbInfo* pCreate
 
   pMsg->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond by default
 
-  SToken* pToken = &pCreateDbInfo->precision;
+  SToken* pToken = (SToken*) &pCreateDbInfo->precision;
   if (pToken->n > 0) {
     pToken->n = strdequote(pToken->z);
 
@@ -141,7 +156,6 @@ int32_t setDbOptions(SCreateDbMsg* pCreateDbMsg, const SCreateDbInfo* pCreateDbS
 
   // todo configurable
   pCreateDbMsg->numOfVgroups = htonl(2);
-
   return TSDB_CODE_SUCCESS;
 }
 
