@@ -53,7 +53,7 @@ int             indexMultiTermQueryAdd(SIndexMultiTermQuery *pQuery, SIndexTerm 
  */
 int   indexOpen(SIndexOpts *opt, const char *path, SIndex **index);
 void  indexClose(SIndex *index);
-int   indexPut(SIndex *index,    SIndexMultiTerm *terms, int uid);
+int   indexPut(SIndex *index,    SIndexMultiTerm *terms, uint64_t uid);
 int   indexDelete(SIndex *index, SIndexMultiTermQuery *query); 
 int   indexSearch(SIndex *index, SIndexMultiTermQuery *query, SArray *result);
 int   indexRebuild(SIndex *index, SIndexOpts *opt);
@@ -70,7 +70,6 @@ void indexMultiTermDestroy(SIndexMultiTerm *terms);
  */
 SIndexOpts *indexOptsCreate();
 void       indexOptsDestroy(SIndexOpts *opts);
-
 
 /*
  * @param:
