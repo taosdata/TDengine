@@ -1,10 +1,24 @@
 aux_source_directory(src TSDB_SRC)
-add_library(tsdb ${TSDB_SRC})
+if(0)
+    add_library(tsdb ${TSDB_SRC})
+else(0)
+    add_library(tsdb "")
+    target_sources(tsdb
+        PRIVATE
+        "src/tsdbCommit.c"
+        "src/tsdbMain.c"
+        "src/tsdbMemTable.c"
+        "src/tsdbOptions.c"
+        "src/tsdbWrite.c"
+    )
+endif(0)
+
 target_include_directories(
     tsdb
     PUBLIC "${CMAKE_SOURCE_DIR}/include/dnode/vnode/tsdb"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+
 target_link_libraries(
     tsdb
     PUBLIC os
