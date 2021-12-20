@@ -9,4 +9,8 @@
     <TargetFramework>net5.0</TargetFramework>
   </PropertyGroup>
 
+  <PropertyGroup>
+      <GenerateDocumentationFile>true</GenerateDocumentationFile>
+      <DocumentationFile>..\doc\FunctionTest.XML</DocumentationFile>
+  </PropertyGroup>
 </Project>

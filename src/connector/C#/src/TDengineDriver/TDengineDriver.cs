@@ -397,6 +397,6 @@ namespace TDengineDriver
         }
 
         [DllImport("taos", EntryPoint = "taos_fetch_lengths", CallingConvention = CallingConvention.Cdecl)]
-        static extern public IntPtr FetchLength(IntPtr taos);
+        static extern public IntPtr FetchLengths(IntPtr taos);
     }
 }
