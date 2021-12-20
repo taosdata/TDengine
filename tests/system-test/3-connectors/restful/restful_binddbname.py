@@ -139,8 +139,8 @@ class TDTestCase():
         "show test.tables",
         "show tables",
         "insert into tb values (now , 2, 2.0) ",
-        "create table test.tb (ts timestamp, id int , data double)",
-        "insert into test.tb values (now , 2, 2.0) ",
+        "create table test01.tb (ts timestamp, id int , data double)",
+        "insert into test01.tb values (now , 2, 2.0) ",
         "select * from tb",
         "select * from test.tb"
         ]
