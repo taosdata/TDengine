@@ -156,9 +156,8 @@ class TDTestCase():
             check_bind_db(url,sql,header)
         # check data
         tdSql.query("select * from test.tb")
-        tdSql.checkRows(1)
-        tdSql.query("select * from test01.tb")
         tdSql.checkRows(2)
+       
 
         os.system('sudo timedatectl set-ntp on')
 
