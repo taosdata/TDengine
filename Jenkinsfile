@@ -75,9 +75,6 @@ def pre_test(){
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    git clean -dfx
-    
-    git clean -dfx
     export TZ=Asia/Harbin
     date
     mkdir debug
