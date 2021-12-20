@@ -147,7 +147,7 @@ int indexCacheSearch(void *cache, SIndexTermQuery *query, int16_t colId, int32_t
 
   char *buf = calloc(1, keyLen);
   if (qtype == QUERY_TERM) {
-           
+               
   } else if (qtype == QUERY_PREFIX) {
 
   } else if (qtype == QUERY_SUFFIX) {
