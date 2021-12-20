@@ -35,7 +35,8 @@ void* tqSerializeItem(STqMsgItem* pItem, void* ptr);
 const void* tqDeserializeTopic(const void* pBytes, STqTopic* pTopic);
 const void* tqDeserializeItem(const void* pBytes, STqMsgItem* pItem);
 
-STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemAllocatorFactory* allocFac) {
+STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemAllocatorFactory* allocFac,
+            STqExec* tqExec) {
   STQ* pTq = malloc(sizeof(STQ));
   if (pTq == NULL) {
     // TODO: memory error
@@ -54,6 +55,7 @@ STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemA
     // TODO: free STQ
     return NULL;
   }
+  pTq->tqExec = tqExec;
   return pTq;
 }
 

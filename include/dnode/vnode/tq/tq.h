@@ -95,14 +95,24 @@ typedef struct STqTopicVhandle {
 
 #define TQ_BUFFER_SIZE 8
 
+typedef struct STqExec {
+  void* runtimeEnv;
+  // return type will be SSDataBlock
+  void* (*exec)(void* runtimeEnv);
+  // inputData type will be submitblk
+  void* (*assign)(void* runtimeEnv, void* inputData);
+  char* (*serialize)(struct STqExec*);
+  struct STqExec* (*deserialize)(char*);
+} STqExec;
+
 typedef struct STqBufferItem {
   int64_t offset;
   // executors are identical but not concurrent
   // so there must be a copy in each item
-  void*   executor;
-  int32_t status;
-  int64_t size;
-  void*   content;
+  STqExec* executor;
+  int32_t  status;
+  int64_t  size;
+  void*    content;
 } STqMsgItem;
 
 typedef struct STqTopic {
@@ -248,10 +258,12 @@ typedef struct STQ {
   STqLogReader* tqLogReader;
   STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
+  STqExec*      tqExec;
 } STQ;
 
 // open in each vnode
-STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemAllocatorFactory* allocFac);
+STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemAllocatorFactory* allocFac,
+            STqExec* tqExec);
 void tqClose(STQ*);
 
 // void* will be replace by a msg type
