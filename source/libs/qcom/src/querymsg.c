@@ -294,7 +294,7 @@ void msgInit() {
   tscBuildMsg[TSDB_SQL_DROP_DNODE] = tscBuildDropDnodeMsg;
   tscBuildMsg[TSDB_SQL_CFG_DNODE] = tscBuildCfgDnodeMsg;
   tscBuildMsg[TSDB_SQL_ALTER_TABLE] = tscBuildAlterTableMsg;
-  tscBuildMsg[TSDB_SQL_UPDATE_TAGS_VAL] = tscBuildUpdateTagMsg;
+  tscBuildMsg[TSDB_SQL_UPDATE_TAG_VAL] = tscBuildUpdateTagMsg;
   tscBuildMsg[TSDB_SQL_ALTER_DB] = tscAlterDbMsg;
   tscBuildMsg[TSDB_SQL_COMPACT_VNODE] = tscBuildCompactMsg;  
 

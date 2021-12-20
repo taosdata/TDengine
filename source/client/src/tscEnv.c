@@ -189,7 +189,6 @@ static void doDestroyRequest(void* p) {
   tfree(pRequest->pInfo);
 
   if (pRequest->body.pResInfo != NULL) {
-    tfree(pRequest->body.pResInfo->pData);
     tfree(pRequest->body.pResInfo->pMsg);
     tfree(pRequest->body.pResInfo);
   }

@@ -1,7 +1,7 @@
 #include "parserInt.h"
 #include "parserUtil.h"
 
-SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int64_t id, char* msgBuf, int32_t msgLen) {
+SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
   SCreateUserMsg* pMsg = (SCreateUserMsg*)calloc(1, sizeof(SCreateUserMsg));
   if (pMsg == NULL) {
     //    tscError("0x%" PRIx64 " failed to malloc for query msg", id);
@@ -20,6 +20,24 @@ SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int64_t id, char* msgB
     strncpy(pMsg->pass, pUser->passwd.z, pUser->passwd.n);
   }
 
+  *outputLen = sizeof(SUserInfo);
+  return pMsg;
+}
+
+SDropUserMsg* buildDropUserMsg(SSqlInfo* pInfo, int32_t *msgLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
+  SToken* pName = taosArrayGet(pInfo->pMiscInfo->a, 0);
+  if (pName->n >= TSDB_USER_LEN) {
+    return NULL;
+  }
+
+
+  SDropUserMsg* pMsg = calloc(1, sizeof(SDropUserMsg));
+  if (pMsg == NULL) {
+    return NULL;
+  }
+
+  strncpy(pMsg->user, pName->z, pName->n);
+  *msgLen = sizeof(SDropUserMsg);
   return pMsg;
 }
 
@@ -89,7 +107,7 @@ static int32_t setTimePrecision(SCreateDbMsg* pMsg, const SCreateDbInfo* pCreate
 
   pMsg->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond by default
 
-  SToken* pToken = &pCreateDbInfo->precision;
+  SToken* pToken = (SToken*) &pCreateDbInfo->precision;
   if (pToken->n > 0) {
     pToken->n = strdequote(pToken->z);
 
@@ -141,7 +159,6 @@ int32_t setDbOptions(SCreateDbMsg* pCreateDbMsg, const SCreateDbInfo* pCreateDbS
 
   // todo configurable
   pCreateDbMsg->numOfVgroups = htonl(2);
-
   return TSDB_CODE_SUCCESS;
 }
 

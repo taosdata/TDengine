@@ -14,6 +14,50 @@
  */
 
 #include "index_tfile.h"
+#include "index_fst.h"
+#include "index_util.h"
+
+
+
+static void tfileSerialCacheKey(TFileCacheKey *key, char *buf) {
+  SERIALIZE_MEM_TO_BUF(buf, key, suid);
+  SERIALIZE_VAR_TO_BUF(buf, '_', char); 
+  SERIALIZE_MEM_TO_BUF(buf, key, colType);
+  SERIALIZE_VAR_TO_BUF(buf, '_', char); 
+  SERIALIZE_MEM_TO_BUF(buf, key, version);
+  SERIALIZE_VAR_TO_BUF(buf, '_', char); 
+  SERIALIZE_STR_MEM_TO_BUF(buf, key, colName, key->nColName);
+}
+
+TFileCache *tfileCacheCreate() {
+  TFileCache *tcache = calloc(1, sizeof(TFileCache)); 
+  if (tcache == NULL) { return NULL; }
+  
+  tcache->tableCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK); 
+  tcache->capacity   = 64;
+  return tcache;
+}
+void tfileCacheDestroy(TFileCache *tcache) {
+  
+  free(tcache);    
+   
+}
+
+TFileReader *tfileCacheGet(TFileCache *tcache, TFileCacheKey *key) {
+  char buf[128] = {0}; 
+  tfileSerialCacheKey(key, buf);
+  TFileReader *reader = taosHashGet(tcache->tableCache, buf, strlen(buf)); 
+  return reader; 
+}
+void tfileCachePut(TFileCache *tcache, TFileCacheKey *key, TFileReader *reader) {
+  char buf[128] = {0};
+  tfileSerialCacheKey(key, buf);
+  taosHashPut(tcache->tableCache, buf, strlen(buf), &reader, sizeof(void *));     
+  return;
+} 
+
+
+
 
 IndexTFile *indexTFileCreate() {
   IndexTFile *tfile = calloc(1, sizeof(IndexTFile));   
@@ -22,9 +66,23 @@ IndexTFile *indexTFileCreate() {
 void IndexTFileDestroy(IndexTFile *tfile) {
   free(tfile); 
 }
+
+
 int indexTFileSearch(void *tfile, SIndexTermQuery *query, SArray *result) {
   IndexTFile *ptfile = (IndexTFile *)tfile;
+     
   return 0;
+}
+int indexTFilePut(void *tfile, SIndexTerm *term,  uint64_t uid) {
+  TFileWriterOpt wOpt = {.suid    = term->suid,
+                         .colType = term->colType,
+                         .colName = term->colName,
+                         .nColName= term->nColName,
+                         .version = 1}; 
+
+  
+   
+  return 0; 
 }
 
 

@@ -779,7 +779,7 @@ FstBuilder *fstBuilderCreate(void *w, FstType ty) {
   if (NULL == b) { return b; }
 
    
-  b->wrt        = fstCountingWriterCreate(w, false);
+  b->wrt        = fstCountingWriterCreate(w);
   b->unfinished = fstUnFinishedNodesCreate();   
   b->registry   = fstRegistryCreate(10000, 2) ;
   b->last       = fstSliceCreate(NULL, 0);
