@@ -59,7 +59,7 @@ prometheus:
   ip: 192.168.1.101
   port: 22
   username: root
-  password: cpwu101
+  password: ******
   scrape_interval: 3s
   evaluation_interval: 1s
   scrape_timeout: 3s
