@@ -17,7 +17,7 @@
 #include "mndTrans.h"
 #include "mndSync.h"
 
-#define TSDB_TRANS_VER 1
+#define TSDB_TRANS_VER_NUMBER 1
 #define TSDB_TRN_ARRAY_SIZE 8
 #define TSDB_TRN_RESERVE_SIZE 64
 
@@ -93,7 +93,7 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
     rawDataLen += (sizeof(STransAction) + pAction->contLen);
   }
 
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_TRANS, TSDB_TRANS_VER, rawDataLen);
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_TRANS, TSDB_TRANS_VER_NUMBER, rawDataLen);
   if (pRaw == NULL) {
     mError("trans:%d, failed to alloc raw since %s", pTrans->id, terrstr());
     return NULL;
@@ -160,7 +160,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     return NULL;
   }
 
-  if (sver != TSDB_TRANS_VER) {
+  if (sver != TSDB_TRANS_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     mError("failed to get check soft ver from raw:%p since %s", pRaw, terrstr());
     return NULL;

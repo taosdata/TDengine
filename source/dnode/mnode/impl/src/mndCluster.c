@@ -18,7 +18,8 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 
-#define SDB_CLUSTER_VER 1
+#define TSDB_CLUSTER_VER_NUMBE 1
+#define TSDB_CLUSTER_RESERVE_SIZE 64
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster);
 static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw);
@@ -62,7 +63,7 @@ int32_t mndGetClusterName(SMnode *pMnode, char *clusterName, int32_t len) {
 }
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_CLUSTER, SDB_CLUSTER_VER, sizeof(SClusterObj));
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_CLUSTER, TSDB_CLUSTER_VER_NUMBE, sizeof(SClusterObj));
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
@@ -70,6 +71,7 @@ static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
   SDB_SET_INT64(pRaw, dataPos, pCluster->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pCluster->updateTime)
   SDB_SET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN)
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_CLUSTER_RESERVE_SIZE)
 
   return pRaw;
 }
@@ -78,7 +80,7 @@ static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
-  if (sver != SDB_CLUSTER_VER) {
+  if (sver != TSDB_CLUSTER_VER_NUMBE) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     mError("failed to decode cluster since %s", terrstr());
     return NULL;
@@ -93,6 +95,7 @@ static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, pRow, dataPos, &pCluster->createdTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pCluster->updateTime)
   SDB_GET_BINARY(pRaw, pRow, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN)
+  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_CLUSTER_RESERVE_SIZE)
 
   return pRow;
 }
@@ -169,6 +172,7 @@ static int32_t mndGetClusterMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg
 
   pShow->numOfRows = 1;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
 
   return 0;
 }
