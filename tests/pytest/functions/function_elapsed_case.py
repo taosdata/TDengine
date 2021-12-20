@@ -59,7 +59,7 @@ class ElapsedCase:
         tdSql.query("select elapsed(ts), elapsed(ts, 10m), elapsed(ts, 100m) from st1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' group by tbname")
         tdSql.checkEqual(int(tdSql.getData(0, 1)), 99)
         tdSql.checkEqual(int(tdSql.getData(0, 2)), 9)
-        # stddev(f), 
+        # stddev(f),
         tdSql.query("select elapsed(ts), count(*), avg(f), twa(f), irate(f), sum(f), min(f), max(f), first(f), last(f), apercentile(i, 30), last_row(i), spread(i) "
                     "from st1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' group by tbname")
         tdSql.checkRows(2)
@@ -100,7 +100,7 @@ class ElapsedCase:
 
         tdSql.query("select elapsed(ts) from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' session(ts, 70s)")
         tdSql.checkRows(1)
-    
+
     # It has little to do with the elapsed function, so just simple test.
     def stateWindowTest(self):
         tdSql.execute("use wxy_db")
@@ -110,7 +110,7 @@ class ElapsedCase:
 
         tdSql.query("select elapsed(ts) from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' state_window(b)")
         tdSql.checkRows(2)
-    
+
     def intervalTest(self):
         tdSql.execute("use wxy_db")
 
@@ -186,7 +186,7 @@ class ElapsedCase:
             else:
                 subtable[result[i][tbnameCol]].append(result[i][elapsedCol])
         return subtable
-    
+
     def doOrderbyCheck(self, resultAsc, resultdesc):
         resultRows = len(resultAsc)
         for i in range(resultRows):
@@ -314,7 +314,7 @@ class ElapsedCase:
                            "select elapsed(ts) from st1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-22 02:00:00' group by tbname")
         self.unionAllCheck("select elapsed(ts) from st1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' interval(1m) group by tbname",
                            "select elapsed(ts) from st1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' interval(222m) group by tbname")
-    
+
     # It has little to do with the elapsed function, so just simple test.
     def continuousQueryTest(self):
         tdSql.execute("use wxy_db")
