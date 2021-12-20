@@ -104,7 +104,7 @@ class Common:
                         f.write(file_data)
                     des_jmx_file_list.append(des_jmx_file)
         else:
-            des_jmx_file = os.path.join(self.current_dir, f'../../config/taosd_dnode1.jmx')
+            des_jmx_file = os.path.join(self.current_dir, f'../../config/{testcase}_taosd_dnode1.jmx')
             shutil.copyfile(base_jmx_file, des_jmx_file)
 
             with open(des_jmx_file, 'r', encoding='utf-8') as f:
