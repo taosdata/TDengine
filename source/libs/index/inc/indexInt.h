@@ -76,7 +76,7 @@ struct SIndexMultiTermQuery {
 
 // field and key;
 typedef struct SIndexTerm {
-  int64_t           suid; 
+  int64_t            suid; 
   SIndexOperOnColumn operType; // oper type, add/del/update
   uint8_t            colType;  // term data type, str/interger/json
   char    *colName;
