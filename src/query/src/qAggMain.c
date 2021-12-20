@@ -4870,7 +4870,8 @@ static void elapsedFinalizer(SQLFunctionCtx *pCtx) {
   }
 
   SElapsedInfo *pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  *(double *)pCtx->pOutput = (double)pInfo->max - (double)pInfo->min;
+  double result = (double)pInfo->max - (double)pInfo->min;
+  *(double *)pCtx->pOutput = result >= 0 ? result : -result;
   if (pCtx->numOfParams > 0 && pCtx->param[0].i64 > 0) {
     *(double *)pCtx->pOutput = *(double *)pCtx->pOutput / pCtx->param[0].i64;
   }
