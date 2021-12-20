@@ -67,7 +67,7 @@ class Monitor:
                 scrape_configs.append({'job_name': f'{self.dnodes[index].dnode_ip}', 'static_configs': [{'targets': [f'{self.dnodes[index].dnode_ip}:9256'], 'labels': {'instance': f'{self.dnodes[index].dnode_ip}'}}]})
         djson = {'global': {'scrape_interval': config["prometheus"]["scrape_interval"], 'evaluation_interval': config["prometheus"]["evaluation_interval"], 'scrape_timeout': config["prometheus"]["scrape_timeout"]}, 'alerting': {'alertmanagers': [{'static_configs': [{'targets': None}]}]}, 'rule_files': None, 'scrape_configs': scrape_configs}
         dstr=json.dumps(djson)
-        dyml=yaml.load(dstr)
+        dyml=yaml.load(dstr, Loader=yaml.FullLoader)
         stream = open('prometheus.yml', 'w')
         yaml.safe_dump(dyml, stream, default_flow_style=False)
         self.monitor_conn.upload_file(self.home_dir, 'prometheus.yml')
