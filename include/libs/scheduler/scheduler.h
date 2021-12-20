@@ -25,6 +25,7 @@ extern "C" {
 
 typedef struct SSchedulerCfg {
   int32_t clusterType;
+  int32_t maxJobNum;
 } SSchedulerCfg;
 
 typedef struct SQueryProfileSummary {

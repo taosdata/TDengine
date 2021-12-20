@@ -13,13 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_QNODE_H_
-#define _TD_QNODE_H_
+#ifndef _TD_QUERY_WORKER_H_
+#define _TD_QUERY_WORKER_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "trpc.h"
+
+typedef struct SQWorkerCfg {
+  uint32_t maxSchedulerNum;
+  uint32_t maxResCacheNum;
+} SQWorkerCfg;
 
 typedef struct {
   uint64_t numOfStartTask;
@@ -30,39 +34,12 @@ typedef struct {
   uint64_t numOfTaskInQueue;
   uint64_t numOfFetchInQueue;
   uint64_t numOfErrors;
-} SQnodeStat;
+} SQWorkerStat;
 
 
-/**
- * Start one Qnode in Dnode.
- * @return Error Code.
- */
-int32_t qnodeStart();
+int32_t qWorkerInit(SQWorkerCfg *cfg);
 
-/**
- * Stop Qnode in Dnode.
- *
- * @param qnodeId Qnode ID to stop, -1 for all Qnodes.
- */
-void qnodeStop(int64_t qnodeId);
-
- 
-/**
- * Get the statistical information of Qnode
- *
- * @param qnodeId Qnode ID to get statistics, -1 for all 
- * @param stat Statistical information.
- * @return Error Code.
- */
-int32_t qnodeGetStatistics(int64_t qnodeId, SQnodeStat *stat);
-
-/**
- * Interface for processing Qnode messages.
- * 
- * @param pMsg Message to be processed.
- * @return Error code
- */
-void qnodeProcessReq(SRpcMsg *pMsg);
+int32_t qWorkerProcessQueryMsg(char *msg, int32_t msgLen, int32_t *code, char **rspMsg);
 
 
 
@@ -70,4 +47,4 @@ void qnodeProcessReq(SRpcMsg *pMsg);
 }
 #endif
 
-#endif /*_TD_QNODE_H_*/
+#endif /*_TD_QUERY_WORKER_H_*/

@@ -1082,6 +1082,7 @@ typedef struct {
 } SUpdateTagValRsp;
 
 typedef struct SSchedulerQueryMsg {
+  uint64_t  schedulerId;
   uint64_t  queryId;
   uint64_t  taskId;
   uint32_t  contentLen;
@@ -1097,6 +1098,10 @@ typedef struct SSchedulerFetchMsg {
   uint64_t  queryId;
   uint64_t  taskId;
 } SSchedulerFetchMsg;
+
+typedef struct SSchedulerStatusMsg {
+  uint64_t  schedulerId;
+} SSchedulerStatusMsg;
 
 
 #pragma pack(pop)

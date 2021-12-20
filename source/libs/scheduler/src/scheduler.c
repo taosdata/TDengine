@@ -291,6 +291,8 @@ int32_t schAsyncSendMsg(SQueryJob *job, SQueryTask *task, int32_t msgType) {
       }
 
       SSchedulerQueryMsg *pMsg = msg;
+      
+      pMsg->schedulerId = schMgmt.schedulerId;
       pMsg->queryId = job->queryId;
       pMsg->taskId = task->taskId;
       pMsg->contentLen = len;
@@ -535,15 +537,19 @@ int32_t schLaunchJob(SQueryJob *job) {
 
 
 int32_t schedulerInit(SSchedulerCfg *cfg) {
-  schMgmt.Jobs = taosHashInit(SCHEDULE_DEFAULT_JOB_NUMBER, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
-  if (NULL == schMgmt.Jobs) {
-    SCH_ERR_LRET(TSDB_CODE_QRY_OUT_OF_MEMORY, "init %d schduler jobs failed", SCHEDULE_DEFAULT_JOB_NUMBER);
-  }
-
   if (cfg) {
     schMgmt.cfg = *cfg;
+  } else {
+    schMgmt.cfg.maxJobNum = SCHEDULE_DEFAULT_JOB_NUMBER;
   }
 
+  schMgmt.Jobs = taosHashInit(schMgmt.cfg.maxJobNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
+  if (NULL == schMgmt.Jobs) {
+    SCH_ERR_LRET(TSDB_CODE_QRY_OUT_OF_MEMORY, "init %d schduler jobs failed", schMgmt.cfg.maxJobNum);
+  }
+
+  schMgmt.schedulerId = 1; //TODO GENERATE A UUID
+  
   return TSDB_CODE_SUCCESS;
 }
 
