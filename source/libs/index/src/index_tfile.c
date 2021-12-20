@@ -42,9 +42,12 @@ static int tfileCompare(const void *a, const void *b) {
   size_t bLen = strlen(bName);
   return strncmp(aName, bName, aLen > bLen ? aLen : bLen);
 }
-static int tfileParseFileName(const char *filename, uint64_t *suid) {
-     
-  return 0;  
+static int tfileParseFileName(const char *filename, uint64_t *suid, int *colId, int *version) {
+  if (3 == sscanf(filename, "%" PRIu64 "-%d-%d.tindex", suid, colId, version)) {
+    // read suid & colid & version  success
+    return 0;
+  }  
+  return -1;  
 } 
 static void tfileSerialCacheKey(TFileCacheKey *key, char *buf) {
   SERIALIZE_MEM_TO_BUF(buf, key, suid);
@@ -68,6 +71,12 @@ TFileCache *tfileCacheCreate(const char *path) {
   taosArraySort(files, tfileCompare);
   for (size_t i = 0; i < taosArrayGetSize(files); i++) {
     char *file = taosArrayGetP(files, i); 
+    uint64_t suid; 
+    int colId, version;
+    if (0 != tfileParseFileName(file, &suid, &colId, &version)) {
+      // invalid file, just skip 
+      continue; 
+    } 
     free((void *)file);    
   }
   taosArrayDestroy(files);
