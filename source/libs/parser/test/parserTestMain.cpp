@@ -22,12 +22,12 @@
 class ParserEnv : public testing::Environment {
 public:
   virtual void SetUp() {
-    mockCatalogService.reset(new MockCatalogService());
-    generateMetaData(mockCatalogService.get());
+    initMetaDataEnv();
+    generateMetaData();
   }
 
   virtual void TearDown() {
-    mockCatalogService.reset();
+    destroyMetaDataEnv();
   }
 
   ParserEnv() {}
