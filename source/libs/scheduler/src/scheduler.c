@@ -58,8 +58,8 @@ int32_t schBuildTaskRalation(SQueryJob *job, SHashObj *planToTask) {
     for (int32_t m = 0; m < level->taskNum; ++m) {
       SQueryTask *task = taosArrayGet(level->subTasks, m);
       SSubplan *plan = task->plan;
-      int32_t childNum = (int32_t)taosArrayGetSize(plan->pChildern);
-      int32_t parentNum = (int32_t)taosArrayGetSize(plan->pParents);
+      int32_t childNum = plan->pChildern ? (int32_t)taosArrayGetSize(plan->pChildern) : 0;
+      int32_t parentNum = plan->pParents ? (int32_t)taosArrayGetSize(plan->pParents) : 0;
 
       if (childNum > 0) {
         task->children = taosArrayInit(childNum, POINTER_BYTES);
@@ -187,13 +187,19 @@ int32_t schValidateAndBuildJob(SQueryDag *dag, SQueryJob *job) {
     
     for (int32_t n = 0; n < levelPlanNum; ++n) {
       SSubplan *plan = taosArrayGet(levelPlans, n);
-      SQueryTask *task = taosArrayGet(level.subTasks, n);
+      SQueryTask task = {0};
       
-      task->taskId = atomic_add_fetch_64(&schMgmt.taskId, 1);
-      task->plan = plan;
-      task->status = SCH_STATUS_NOT_START;
+      task.taskId = atomic_add_fetch_64(&schMgmt.taskId, 1);
+      task.plan = plan;
+      task.status = SCH_STATUS_NOT_START;
 
-      if (0 != taosHashPut(planToTask, &plan, POINTER_BYTES, &task, POINTER_BYTES)) {
+      void *p = taosArrayPush(level.subTasks, &task);
+      if (NULL == p) {
+        qError("taosArrayPush failed");
+        SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
+      
+      if (0 != taosHashPut(planToTask, &plan, POINTER_BYTES, &p, POINTER_BYTES)) {
         qError("taosHashPut failed");
         SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
@@ -548,7 +554,7 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
 }
 
 
-int32_t scheduleQueryJob(struct SCatalog *pCatalog, void *pRpc, const SEpSet* pMgmtEps, SQueryDag* pDag, void** pJob) {
+int32_t scheduleExecJob(struct SCatalog *pCatalog, void *pRpc, const SEpSet* pMgmtEps, SQueryDag* pDag, void** pJob) {
   if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
