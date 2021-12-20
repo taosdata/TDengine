@@ -15,7 +15,7 @@ https://grafana.com/grafana/download.
 Download grafana plugin from <https://github.com/taosdata/grafanaplugin/releases/latest> .
 
 ```bash
-GF_VERSION=3.1.1
+GF_VERSION=3.1.3
 wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
 ```
 
@@ -69,15 +69,7 @@ According to the default prompt, query the average system memory usage at the sp
 
 #### Import Dashboard
 
-We provide an example dashboard [Grafana Dashboard 15146](https://grafana.com/grafana/dashboards/15146)。
-
-Click the `Import` button on the left panel and load the grafana id:
-
-![img](../images/connections/import_dashboard1.jpg)
-
-You can see as follows after Dashboard imported.
-
-![img](../images/connections/dashboard-15146.png)
+We provide a TDinsight dashboard (via Grafana dashboard id: [15167](https://grafana.com/grafana/dashboards/15167)) for TDengine cluster monitoring since TDengine 2.3.3.x . Please refer to [TDinsight User Manual](https://www.taosdata.com/en/documentation/tools/insight) for the details.
 
 ## <a class="anchor" id="matlab"></a> MATLAB
 
