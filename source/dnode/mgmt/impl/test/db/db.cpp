@@ -232,6 +232,7 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
     SRpcMsg* pMsg = pClient->pRsp;
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
+    // taosMsleep(1000000);
   }
 
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DB, "show databases", 17, NULL);

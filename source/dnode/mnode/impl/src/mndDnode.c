@@ -180,8 +180,12 @@ static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOldDnode, SDnodeObj 
 }
 
 SDnodeObj *mndAcquireDnode(SMnode *pMnode, int32_t dnodeId) {
-  SSdb *pSdb = pMnode->pSdb;
-  return sdbAcquire(pSdb, SDB_DNODE, &dnodeId);
+  SSdb      *pSdb = pMnode->pSdb;
+  SDnodeObj *pDnode = sdbAcquire(pSdb, SDB_DNODE, &dnodeId);
+  if (pDnode == NULL) {
+    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+  }
+  return pDnode;
 }
 
 void mndReleaseDnode(SMnode *pMnode, SDnodeObj *pDnode) {

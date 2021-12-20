@@ -1,3 +1,17 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 #include <gtest/gtest.h>
 #include <string>
 #include <iostream>
@@ -61,7 +75,7 @@ class FstReadMemory {
    // add later
    bool Search(AutomationCtx *ctx, std::vector<uint64_t> &result) { 
       FstStreamBuilder *sb = fstSearch(_fst, ctx);
-      StreamWithState *st = streamBuilderIntoStream(sb);  
+      StreamWithState  *st = streamBuilderIntoStream(sb);  
       StreamWithStateResult *rt = NULL;  
       
       while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
@@ -279,15 +293,71 @@ void validateFst() {
   delete m;
 } 
 
+class IndexEnv : public ::testing::Test {
+  protected:
+    virtual void SetUp() {
+      taosRemoveDir(path);  
+      opts = indexOptsCreate(); 
+      int ret = indexOpen(opts, path, &index); 
+      assert(ret == 0);
+    } 
+    virtual void TearDown() {
+      indexClose(index);
+      indexOptsDestroy(opts);
+    }
+    
+    const char *path = "/tmp/tindex";
+    SIndexOpts *opts;  
+    SIndex *index; 
+};
 
-int main(int argc, char** argv) {
-  checkFstPerf(); 
-  //checkFstPrefixSearch();
-  return 1;
+TEST_F(IndexEnv, testPut) {
+
+   // single index column 
+   {
+     
+    std::string colName("tag1"), colVal("Hello world");
+    SIndexTerm *term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());  
+    SIndexMultiTerm *terms = indexMultiTermCreate();
+    indexMultiTermAdd(terms, term);
+   
+    for (size_t i = 0; i < 100; i++) {
+      int tableId = i;
+      int ret = indexPut(index, terms, tableId);
+      assert(ret == 0); 
+    }
+    indexMultiTermDestroy(terms);
+   }
+   // multi index column
+   {
+    
+    SIndexMultiTerm *terms = indexMultiTermCreate();
+    {
+      std::string colName("tag1"), colVal("Hello world");
+      SIndexTerm *term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());  
+      indexMultiTermAdd(terms, term);
+    }
+    {
+      std::string colName("tag2"), colVal("Hello world");
+      SIndexTerm *term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());  
+      indexMultiTermAdd(terms, term);
+    }
+    
+    for (int i = 0; i < 100; i++) {
+      int tableId = i;
+      int ret = indexPut(index, terms, tableId);
+      assert(ret == 0); 
+    } 
+    indexMultiTermDestroy(terms);
+   }
+   //   
+} 
+
+TEST_F(IndexEnv, testDel) {
+     
 }
 
-//TEST(IndexFstBuilder, IndexFstInput) {
-//
-//}
+
+
 
 

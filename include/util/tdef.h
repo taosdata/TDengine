@@ -231,7 +231,7 @@ do { \
 #define TSDB_DEFAULT_PAYLOAD_SIZE 5120   // default payload size, greater than PATH_MAX value
 #define TSDB_EXTRA_PAYLOAD_SIZE   128    // extra bytes for auth
 #define TSDB_CQ_SQL_SIZE          1024
-#define TSDB_MIN_VNODES           64
+#define TSDB_MIN_VNODES           16
 #define TSDB_MAX_VNODES           512
 #define TSDB_MIN_VNODES_PER_DB    1
 #define TSDB_MAX_VNODES_PER_DB    4096
