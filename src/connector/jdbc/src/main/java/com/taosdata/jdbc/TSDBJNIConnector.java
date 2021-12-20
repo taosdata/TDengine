@@ -1,33 +1,23 @@
-/**
- * *************************************************************************
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- * <p>
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- * <p>
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- * <p>
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- * ***************************************************************************
- */
 package com.taosdata.jdbc;
 
+import com.alibaba.fastjson.JSONObject;
+import com.taosdata.jdbc.enums.SchemalessProtocolType;
+import com.taosdata.jdbc.enums.SchemalessTimestampType;
 import com.taosdata.jdbc.utils.TaosInfo;
 
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
+import java.util.Properties;
 
 /**
  * JNI connector
  */
 public class TSDBJNIConnector {
-    private static volatile Boolean isInitialized = false;
+    private static final Object LOCK = new Object();
+    private static volatile boolean isInitialized;
 
     private final TaosInfo taosInfo = TaosInfo.getInstance();
     private long taos = TSDBConstants.JNI_NULL_POINTER;     // Connection pointer used in C
@@ -38,24 +28,27 @@ public class TSDBJNIConnector {
         System.loadLibrary("taos");
     }
 
-    public boolean isClosed() {
-        return this.taos == TSDBConstants.JNI_NULL_POINTER;
-    }
-
-    public boolean isResultsetClosed() {
-        return this.isResultsetClosed;
-    }
-
-    public static void init(String configDir, String locale, String charset, String timezone) throws SQLWarning {
-        synchronized (isInitialized) {
+    public static void init(Properties props) throws SQLWarning {
+        synchronized (LOCK) {
             if (!isInitialized) {
-                initImp(configDir);
+
+                JSONObject configJSON = new JSONObject();
+                for (String key : props.stringPropertyNames()) {
+                    configJSON.put(key, props.getProperty(key));
+                }
+                setConfigImp(configJSON.toJSONString());
+
+                initImp(props.getProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR, null));
+
+                String locale = props.getProperty(TSDBDriver.PROPERTY_KEY_LOCALE);
                 if (setOptions(0, locale) < 0) {
                     throw TSDBError.createSQLWarning("Failed to set locale: " + locale + ". System default will be used.");
                 }
+                String charset = props.getProperty(TSDBDriver.PROPERTY_KEY_CHARSET);
                 if (setOptions(1, charset) < 0) {
                     throw TSDBError.createSQLWarning("Failed to set charset: " + charset + ". System default will be used.");
                 }
+                String timezone = props.getProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE);
                 if (setOptions(2, timezone) < 0) {
                     throw TSDBError.createSQLWarning("Failed to set timezone: " + timezone + ". System default will be used.");
                 }
@@ -65,11 +58,13 @@ public class TSDBJNIConnector {
         }
     }
 
-    public static native void initImp(String configDir);
+    private static native void initImp(String configDir);
 
-    public static native int setOptions(int optionIndex, String optionValue);
+    private static native int setOptions(int optionIndex, String optionValue);
 
-    public static native String getTsCharset();
+    private static native String getTsCharset();
+
+    private static native TSDBException setConfigImp(String config);
 
     public boolean connect(String host, int port, String dbName, String user, String password) throws SQLException {
         if (this.taos != TSDBConstants.JNI_NULL_POINTER) {
@@ -97,8 +92,7 @@ public class TSDBJNIConnector {
         try {
             pSql = this.executeQueryImp(sql.getBytes(TaosGlobalConfig.getCharset()), this.taos);
             taosInfo.stmt_count_increment();
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (UnsupportedEncodingException e) {
             this.freeResultSetImp(this.taos, pSql);
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_ENCODING);
         }
@@ -158,6 +152,14 @@ public class TSDBJNIConnector {
     }
 
     private native long isUpdateQueryImp(long connection, long pSql);
+
+    public boolean isClosed() {
+        return this.taos == TSDBConstants.JNI_NULL_POINTER;
+    }
+
+    public boolean isResultsetClosed() {
+        return this.isResultsetClosed;
+    }
 
     /**
      * Free result set operation from C to release result set pointer by JNI
@@ -243,8 +245,8 @@ public class TSDBJNIConnector {
     /**
      * Create a subscription
      */
-    long subscribe(String topic, String sql, boolean restart, int period) {
-        return subscribeImp(this.taos, restart, topic, sql, period);
+    long subscribe(String topic, String sql, boolean restart) {
+        return subscribeImp(this.taos, restart, topic, sql, 0);
     }
 
     private native long subscribeImp(long connection, boolean restart, String topic, String sql, int period);
@@ -266,16 +268,6 @@ public class TSDBJNIConnector {
     }
 
     private native void unsubscribeImp(long subscription, boolean isKeep);
-
-    /**
-     * Validate if a <I>create table</I> SQL statement is correct without actually creating that table
-     */
-    public boolean validateCreateTableSql(String sql) {
-        int res = validateCreateTableSqlImp(taos, sql.getBytes());
-        return res == 0;
-    }
-
-    private native int validateCreateTableSqlImp(long connection, byte[] sqlBytes);
 
     public long prepareStmt(String sql) throws SQLException {
         long stmt = prepareStmtImp(sql.getBytes(), this.taos);
@@ -343,12 +335,14 @@ public class TSDBJNIConnector {
 
     private native int closeStmt(long stmt, long con);
 
-    public void insertLines(String[] lines) throws SQLException {
-        int code = insertLinesImp(lines, this.taos);
+    public void insertLines(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException {
+        int code = insertLinesImp(lines, this.taos, protocolType.ordinal(), timestampType.ordinal());
         if (code != TSDBConstants.JNI_SUCCESS) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to insertLines");
         }
     }
 
-    private native int insertLinesImp(String[] lines, long conn);
+    private native int insertLinesImp(String[] lines, long conn, int type, int precision);
+
+
 }
