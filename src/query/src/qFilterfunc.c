@@ -190,7 +190,7 @@ bool likeOperator(SColumnFilterElem *pFilter, const char *minval, const char *ma
     }
 
     memcpy(pz, (void *) pFilter->filterInfo.pz, size * TSDB_NCHAR_SIZE);
-    int32_t ret = WCSPatternMatch((wchar_t *) pz, size, varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE, &info, true);
+    int32_t ret = WCSPatternMatch((uint32_t *) pz, size, (uint32_t *) varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE, &info);
     free(pz);
 
     return ret == TSDB_PATTERN_MATCH;
