@@ -55,10 +55,10 @@ int32_t schedulerInit(SSchedulerCfg *cfg);
 /**
  * Process the query job, generated according to the query physical plan.
  * This is a synchronized API, and is also thread-safety.
- * @param pJob
+ * @param qnodeList  Qnode address list, element is SEpAddr
  * @return
  */
-int32_t scheduleExecJob(struct SCatalog *pCatalog, void *pRpc, const SEpSet* pMgmtEps, SQueryDag* pDag, void** pJob);
+int32_t scheduleExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob);
 
 int32_t scheduleFetchRows(void *pJob, void **data);
 

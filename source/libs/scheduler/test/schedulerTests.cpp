@@ -79,17 +79,17 @@ TEST(testCase, normalCase) {
   char *clusterId = "cluster1";
   char *dbname = "1.db1";
   char *tablename = "table1";
-  struct SCatalog* pCtg = (struct SCatalog*)mockPointer;
   SVgroupInfo vgInfo = {0};
   void *pJob = NULL;
   SQueryDag dag = {0};
+  SArray *qnodeList = taosArrayInit(1, sizeof(SEpAddr));
   
   int32_t code = schedulerInit(NULL);
   ASSERT_EQ(code, 0);
 
   mockBuildDag(&dag);
   
-  code = scheduleExecJob(pCtg, mockPointer, (const SEpSet*)mockPointer, &dag, &pJob);
+  code = scheduleExecJob(mockPointer, qnodeList, &dag, &pJob);
   ASSERT_EQ(code, 0);
 }
 
