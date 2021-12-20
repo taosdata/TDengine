@@ -9596,7 +9596,11 @@ static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
     meta->schema[n].type  = pField->field.type;
 
     SExprInfo* pExpr = pField->pExpr;
-    meta->schema[n].colId = pExpr->base.resColId;
+    if (pExpr->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+      meta->schema[n].colId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
+    } else {
+      meta->schema[n].colId = pExpr->base.resColId;
+    }
     tstrncpy(meta->schema[n].name, pField->pExpr->base.aliasName, TSDB_COL_NAME_LEN);
     info->rowSize += meta->schema[n].bytes;
 
