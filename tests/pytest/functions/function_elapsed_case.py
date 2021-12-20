@@ -222,6 +222,13 @@ class ElapsedCase:
         self.orderbyForStableCheck("select elapsed(ts) from st1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' interval(222m) group by tbname", 1, 2)
         self.orderbyForStableCheck("select elapsed(ts) from st1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' interval(1000m) group by tbname", 1, 2)
 
+        #nested query
+        resAsc = tdSql.getResult("select elapsed(ts) from (select * from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00')")
+        resDesc = tdSql.getResult("select elapsed(ts) from (select * from t1 where ts > '2021-11-22 00:00:00' and ts < '2021-11-23 00:00:00' order by ts desc)")
+        resRows = len(resAsc)
+        for i in range(resRows):
+            tdSql.checkEqual(resAsc[i][0], resDesc[resRows - i - 1][0])
+
     def slimitCheck(self, sql):
         tdSql.checkEqual(tdSql.query(sql + " slimit 0"), 0)
         tdSql.checkEqual(tdSql.query(sql + " slimit 1 soffset 0"), tdSql.query(sql + " slimit 0, 1"))
