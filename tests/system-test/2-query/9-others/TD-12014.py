@@ -48,9 +48,8 @@ class TDTestCase:
     def caseDescription(self):
 
         '''
-        case1 <wenzhouwww>: [TD-11389] : 
-            this test case is an test case for cache error , it will let  the cached data obtained by the client that has connected to taosd incorrect，
-            root cause : table schema is changed, tag hostname size is increased through schema-less insertion. The schema cache of client taos is not refreshed.
+        case1 <author>:wenzhouwww [TD-12014] : 
+            this test case is an test case for taoshell crash ， it will coredump when query such as "select 1*now from st "
 
         ''' 
         return 
