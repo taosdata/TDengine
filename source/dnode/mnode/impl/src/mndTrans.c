@@ -21,13 +21,6 @@
 #define TSDB_TRN_ARRAY_SIZE 8
 #define TSDB_TRN_RESERVE_SIZE 64
 
-typedef struct {
-  SEpSet  epSet;
-  int8_t  msgType;
-  int32_t contLen;
-  void   *pCont;
-} STransAction;
-
 static SSdbRaw *mndTransActionEncode(STrans *pTrans);
 static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw);
 static int32_t  mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
@@ -37,7 +30,7 @@ static int32_t  mndTransActionDelete(SSdb *pSdb, STrans *pTrans);
 static void    mndTransSetRpcHandle(STrans *pTrans, void *rpcHandle);
 static void    mndTransSendRpcRsp(STrans *pTrans, int32_t code);
 static int32_t mndTransAppendLog(SArray *pArray, SSdbRaw *pRaw);
-static int32_t mndTransAppendAction(SArray *pArray, SEpSet *pEpSet, int8_t msgType, int32_t contLen, void *pCont);
+static int32_t mndTransAppendAction(SArray *pArray, STransAction *pAction);
 static void    mndTransDropLogs(SArray *pArray);
 static void    mndTransDropActions(SArray *pArray);
 static int32_t mndTransExecuteLogs(SMnode *pMnode, SArray *pArray);
@@ -459,10 +452,8 @@ int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw) {
   return code;
 }
 
-static int32_t mndTransAppendAction(SArray *pArray, SEpSet *pEpSet, int8_t msgType, int32_t contLen, void *pCont) {
-  STransAction action = {.epSet = *pEpSet, .msgType = msgType, .contLen = contLen, .pCont = pCont};
-
-  void *ptr = taosArrayPush(pArray, &action);
+static int32_t mndTransAppendAction(SArray *pArray, STransAction *pAction) {
+  void *ptr = taosArrayPush(pArray, &pAction);
   if (ptr == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -471,16 +462,12 @@ static int32_t mndTransAppendAction(SArray *pArray, SEpSet *pEpSet, int8_t msgTy
   return 0;
 }
 
-int32_t mndTransAppendRedoAction(STrans *pTrans, SEpSet *pEpSet, int8_t msgType, int32_t contLen, void *pCont) {
-  int32_t code = mndTransAppendAction(pTrans->redoActions, pEpSet, msgType, contLen, pCont);
-  mTrace("trans:%d, msg:%s len:%d append to redo actions", pTrans->id, taosMsg[msgType], contLen);
-  return code;
+int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction) {
+  return mndTransAppendAction(pTrans->redoActions, pAction);
 }
 
-int32_t mndTransAppendUndoAction(STrans *pTrans, SEpSet *pEpSet, int8_t msgType, int32_t contLen, void *pCont) {
-  int32_t code = mndTransAppendAction(pTrans->undoActions, pEpSet, msgType, contLen, pCont);
-  mTrace("trans:%d, msg:%s len:%d append to undo actions", pTrans->id, taosMsg[msgType], contLen);
-  return code;
+int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction) {
+  return mndTransAppendAction(pTrans->undoActions, pAction);
 }
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {

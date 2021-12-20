@@ -275,7 +275,7 @@ TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
 
       SRpcMsg rpcMsg = {0};
       rpcMsg.pCont = pReq;
-      rpcMsg.contLen = sizeof(SCreateVnodeMsg);
+      rpcMsg.contLen = sizeof(SDropVnodeMsg);
       rpcMsg.msgType = TSDB_MSG_TYPE_DROP_VNODE_IN;
 
       sendMsg(pClient, &rpcMsg);

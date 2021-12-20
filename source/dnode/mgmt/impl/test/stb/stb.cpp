@@ -187,8 +187,8 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     pReq->daysToKeep0 = htonl(3650);
     pReq->daysToKeep1 = htonl(3650);
     pReq->daysToKeep2 = htonl(3650);
-    pReq->minRowsPerFileBlock = htonl(100);
-    pReq->maxRowsPerFileBlock = htonl(4096);
+    pReq->minRows = htonl(100);
+    pReq->maxRows = htonl(4096);
     pReq->commitTime = htonl(3600);
     pReq->fsyncPeriod = htonl(3000);
     pReq->walLevel = 1;

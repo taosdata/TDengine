@@ -244,13 +244,15 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
 
 static int32_t mndSetRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
   SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
-  if (pDbRaw == NULL || mndTransAppendRedolog(pTrans, pDbRaw) != 0) return -1;
-  sdbSetRawStatus(pDbRaw, SDB_STATUS_CREATING);
+  if (pDbRaw == NULL) return -1;
+  if (mndTransAppendRedolog(pTrans, pDbRaw) != 0) return -1;
+  if (sdbSetRawStatus(pDbRaw, SDB_STATUS_CREATING) != 0) return -1;
 
   for (int v = 0; v < pDb->cfg.numOfVgroups; ++v) {
     SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroups + v);
-    if (pVgRaw == NULL || mndTransAppendRedolog(pTrans, pVgRaw) != 0) return -1;
-    sdbSetRawStatus(pVgRaw, SDB_STATUS_CREATING);
+    if (pVgRaw == NULL) return -1;
+    if (mndTransAppendRedolog(pTrans, pVgRaw) != 0) return -1;
+    if (sdbSetRawStatus(pVgRaw, SDB_STATUS_CREATING) != 0) return -1;
   }
 
   return 0;
@@ -258,13 +260,15 @@ static int32_t mndSetRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgOb
 
 static int32_t mndSetUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
   SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
-  if (pDbRaw == NULL || mndTransAppendUndolog(pTrans, pDbRaw) != 0) return -1;
-  sdbSetRawStatus(pDbRaw, SDB_STATUS_DROPPED);
+  if (pDbRaw == NULL) return -1;
+  if (mndTransAppendUndolog(pTrans, pDbRaw) != 0) return -1;
+  if (sdbSetRawStatus(pDbRaw, SDB_STATUS_DROPPED) != 0) return -1;
 
   for (int v = 0; v < pDb->cfg.numOfVgroups; ++v) {
     SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroups + v);
-    if (pVgRaw == NULL || mndTransAppendUndolog(pTrans, pVgRaw) != 0) return -1;
-    sdbSetRawStatus(pVgRaw, SDB_STATUS_DROPPED);
+    if (pVgRaw == NULL) return -1;
+    if (mndTransAppendUndolog(pTrans, pVgRaw) != 0) return -1;
+    if (sdbSetRawStatus(pVgRaw, SDB_STATUS_DROPPED) != 0) return -1;
   }
 
   return 0;
@@ -272,38 +276,40 @@ static int32_t mndSetUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgOb
 
 static int32_t mndSetCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
   SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
-  if (pDbRaw == NULL || mndTransAppendCommitlog(pTrans, pDbRaw) != 0) return -1;
-  sdbSetRawStatus(pDbRaw, SDB_STATUS_READY);
+  if (pDbRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pDbRaw) != 0) return -1;
+  if (sdbSetRawStatus(pDbRaw, SDB_STATUS_READY) != 0) return -1;
 
   for (int v = 0; v < pDb->cfg.numOfVgroups; ++v) {
     SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroups + v);
-    if (pVgRaw == NULL || mndTransAppendCommitlog(pTrans, pVgRaw) != 0) return -1;
-    sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+    if (pVgRaw == NULL) return -1;
+    if (mndTransAppendCommitlog(pTrans, pVgRaw) != 0) return -1;
+    if (sdbSetRawStatus(pVgRaw, SDB_STATUS_READY) != 0) return -1;
   }
 
   return 0;
 }
 
 static int32_t mndSetRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
-  for (int v = 0; v < pDb->cfg.numOfVgroups; ++v) {
-    SVgObj *pVgroup = pVgroups + v;
+  for (int vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
+    SVgObj *pVgroup = pVgroups + vg;
 
     for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
-      SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
-      SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
-      if (pDnode == NULL) {
-        return -1;
-      }
+      STransAction action = {0};
+      SVnodeGid   *pVgid = pVgroup->vnodeGid + vn;
 
-      SEpSet epset = mndGetDnodeEpset(pDnode);
+      SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+      if (pDnode == NULL) return -1;
+      action.epSet = mndGetDnodeEpset(pDnode);
       mndReleaseDnode(pMnode, pDnode);
 
       SCreateVnodeMsg *pMsg = mndBuildCreateVnodeMsg(pMnode, pDnode, pDb, pVgroup);
-      if (pMsg == NULL) {
-        return -1;
-      }
+      if (pMsg == NULL) return -1;
 
-      if (mndTransAppendRedoAction(pTrans, &epset, TSDB_MSG_TYPE_ALTER_VNODE_IN, sizeof(SCreateVnodeMsg), pMsg) != 0) {
+      action.pCont = pMsg;
+      action.contLen = sizeof(SCreateVnodeMsg);
+      action.msgType = TSDB_MSG_TYPE_ALTER_VNODE_IN;
+      if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         free(pMsg);
         return -1;
       }
@@ -314,25 +320,25 @@ static int32_t mndSetRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SV
 }
 
 static int32_t mndSetUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
-  for (int v = 0; v < pDb->cfg.numOfVgroups; ++v) {
-    SVgObj *pVgroup = pVgroups + v;
+  for (int vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
+    SVgObj *pVgroup = pVgroups + vg;
 
     for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
-      SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
-      SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
-      if (pDnode == NULL) {
-        return -1;
-      }
+      STransAction action = {0};
+      SVnodeGid   *pVgid = pVgroup->vnodeGid + vn;
 
-      SEpSet epset = mndGetDnodeEpset(pDnode);
+      SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+      if (pDnode == NULL) return -1;
+      action.epSet = mndGetDnodeEpset(pDnode);
       mndReleaseDnode(pMnode, pDnode);
 
       SDropVnodeMsg *pMsg = mndBuildDropVnodeMsg(pMnode, pDnode, pDb, pVgroup);
-      if (pMsg == NULL) {
-        return -1;
-      }
+      if (pMsg == NULL) return -1;
 
-      if (mndTransAppendUndoAction(pTrans, &epset, TSDB_MSG_TYPE_DROP_VNODE_IN, sizeof(SDropVnodeMsg), pMsg) != 0) {
+      action.pCont = pMsg;
+      action.contLen = sizeof(SDropVnodeMsg);
+      action.msgType = TSDB_MSG_TYPE_DROP_VNODE_IN;
+      if (mndTransAppendUndoAction(pTrans, &action) != 0) {
         free(pMsg);
         return -1;
       }
@@ -344,14 +350,14 @@ static int32_t mndSetUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SV
 
 static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreate, SUserObj *pUser) {
   SDbObj dbObj = {0};
-  tstrncpy(dbObj.name, pCreate->db, TSDB_FULL_DB_NAME_LEN);
-  tstrncpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
+  memcpy(dbObj.name, pCreate->db, TSDB_FULL_DB_NAME_LEN);
+  memcpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
   dbObj.createdTime = taosGetTimestampMs();
   dbObj.updateTime = dbObj.createdTime;
   dbObj.uid = mndGenerateUid(dbObj.name, TSDB_FULL_DB_NAME_LEN);
-  dbObj.hashMethod = 1;
   dbObj.cfgVersion = 1;
   dbObj.vgVersion = 1;
+  dbObj.hashMethod = 1;
   dbObj.cfg = (SDbCfg){.numOfVgroups = pCreate->numOfVgroups,
                        .cacheBlockSize = pCreate->cacheBlockSize,
                        .totalBlocks = pCreate->totalBlocks,
@@ -359,8 +365,8 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreat
                        .daysToKeep0 = pCreate->daysToKeep0,
                        .daysToKeep1 = pCreate->daysToKeep1,
                        .daysToKeep2 = pCreate->daysToKeep2,
-                       .minRows = pCreate->minRowsPerFileBlock,
-                       .maxRows = pCreate->maxRowsPerFileBlock,
+                       .minRows = pCreate->minRows,
+                       .maxRows = pCreate->maxRows,
                        .fsyncPeriod = pCreate->fsyncPeriod,
                        .commitTime = pCreate->commitTime,
                        .precision = pCreate->precision,
@@ -447,8 +453,8 @@ static int32_t mndProcessCreateDbMsg(SMnodeMsg *pMsg) {
   pCreate->daysToKeep0 = htonl(pCreate->daysToKeep0);
   pCreate->daysToKeep1 = htonl(pCreate->daysToKeep1);
   pCreate->daysToKeep2 = htonl(pCreate->daysToKeep2);
-  pCreate->minRowsPerFileBlock = htonl(pCreate->minRowsPerFileBlock);
-  pCreate->maxRowsPerFileBlock = htonl(pCreate->maxRowsPerFileBlock);
+  pCreate->minRows = htonl(pCreate->minRows);
+  pCreate->maxRows = htonl(pCreate->maxRows);
   pCreate->commitTime = htonl(pCreate->commitTime);
   pCreate->fsyncPeriod = htonl(pCreate->fsyncPeriod);
 

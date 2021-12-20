@@ -197,8 +197,8 @@ void *vnodeParseReq(void *buf, SVnodeReq *pReq, uint8_t type);
 //   int32_t  daysToKeep0;
 //   int32_t  daysToKeep1;
 //   int32_t  daysToKeep2;
-//   int32_t  minRowsPerFileBlock;
-//   int32_t  maxRowsPerFileBlock;
+//   int32_t  minRows;
+//   int32_t  maxRows;
 //   int8_t   precision;  // time resolution
 //   int8_t   compression;
 //   int8_t   cacheLastRow;

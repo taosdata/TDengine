@@ -22,6 +22,13 @@
 extern "C" {
 #endif
 
+typedef struct {
+  SEpSet  epSet;
+  int8_t  msgType;
+  int32_t contLen;
+  void   *pCont;
+} STransAction;
+
 int32_t mndInitTrans(SMnode *pMnode);
 void    mndCleanupTrans(SMnode *pMnode);
 
@@ -30,8 +37,8 @@ void    mndTransDrop(STrans *pTrans);
 int32_t mndTransAppendRedolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw);
-int32_t mndTransAppendRedoAction(STrans *pTrans, SEpSet *pEpSet, int8_t msgType, int32_t contLen, void *pCont);
-int32_t mndTransAppendUndoAction(STrans *pTrans, SEpSet *pEpSet, int8_t msgType, int32_t contLen, void *pCont);
+int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction);
+int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 void    mndTransApply(SMnode *pMnode, SSdbRaw *pRaw, STransMsg *pMsg, int32_t code);
 char   *mndTransStageStr(ETrnStage stage);

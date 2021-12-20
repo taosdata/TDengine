@@ -683,7 +683,7 @@ static int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, vgId);
   if (pVnode == NULL) {
     dDebug("vgId:%d, failed to drop since %s", vgId, terrstr());
-    return terrno;
+    return 0;
   }
 
   pVnode->dropped = 1;
