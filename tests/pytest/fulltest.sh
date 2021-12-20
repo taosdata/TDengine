@@ -156,6 +156,7 @@ python3 ./test.py -f import_merge/import_update_0.py
 python3 ./test.py -f import_merge/import_update_1.py
 python3 ./test.py -f import_merge/import_update_2.py
 python3 ./test.py -f update/merge_commit_data.py
+python3 ./test.py -f update/updateWithClientMerge.py
 #======================p1-end===============
 #======================p2-start===============
 # tools
