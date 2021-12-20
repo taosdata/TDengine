@@ -591,8 +591,8 @@ typedef struct {
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
-  int32_t minRowsPerFileBlock;
-  int32_t maxRowsPerFileBlock;
+  int32_t minRows;
+  int32_t maxRows;
   int32_t commitTime;
   int32_t fsyncPeriod;
   int8_t  walLevel;
@@ -706,7 +706,7 @@ typedef struct {
   SVnodeLoad data[];
 } SVnodeLoads;
 
-typedef struct SStatusMsg {
+typedef struct {
   int32_t     sver;
   int32_t     dnodeId;
   int32_t     clusterId;
@@ -756,6 +756,7 @@ typedef struct {
   int32_t  dnodeId;
   char     db[TSDB_FULL_DB_NAME_LEN];
   uint64_t dbUid;
+  int32_t  vgVersion;
   int32_t  cacheBlockSize;
   int32_t  totalBlocks;
   int32_t  daysPerFile;

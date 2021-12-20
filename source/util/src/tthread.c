@@ -13,16 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
 #include "tthread.h"
+#include "os.h"
+#include "taoserror.h"
 #include "tdef.h"
 #include "tutil.h"
 #include "ulog.h"
-#include "taoserror.h"
 
 // create new thread
-pthread_t* taosCreateThread( void *(*__start_routine) (void *), void* param) {
-  pthread_t* pthread = (pthread_t*)malloc(sizeof(pthread_t));
+pthread_t* taosCreateThread(void* (*__start_routine)(void*), void* param) {
+  pthread_t*     pthread = (pthread_t*)malloc(sizeof(pthread_t));
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
@@ -36,26 +36,24 @@ pthread_t* taosCreateThread( void *(*__start_routine) (void *), void* param) {
   return pthread;
 }
 
-// destory thread 
+// destory thread
 bool taosDestoryThread(pthread_t* pthread) {
-  if(pthread == NULL) return false;
-  if(taosThreadRunning(pthread)) {
+  if (pthread == NULL) return false;
+  if (taosThreadRunning(pthread)) {
     pthread_cancel(*pthread);
     pthread_join(*pthread, NULL);
   }
-  
+
   free(pthread);
   return true;
 }
 
 // thread running return true
 bool taosThreadRunning(pthread_t* pthread) {
-  if(pthread == NULL) return false;
+  if (pthread == NULL) return false;
   int ret = pthread_kill(*pthread, 0);
-  if(ret == ESRCH)
-    return false;
-  if(ret == EINVAL) 
-    return false;   
+  if (ret == ESRCH) return false;
+  if (ret == EINVAL) return false;
   // alive
   return true;
 }

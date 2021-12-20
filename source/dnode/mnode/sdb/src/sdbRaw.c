@@ -27,12 +27,12 @@ SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen) {
   pRaw->sver = sver;
   pRaw->dataLen = dataLen;
 
-  mTrace("raw:%p, is created, len:%d", pRaw, dataLen);
+  // mTrace("raw:%p, is created, len:%d", pRaw, dataLen);
   return pRaw;
 }
 
 void sdbFreeRaw(SSdbRaw *pRaw) {
-  mTrace("raw:%p, is freed", pRaw);
+  // mTrace("raw:%p, is freed", pRaw);
   free(pRaw);
 }
 

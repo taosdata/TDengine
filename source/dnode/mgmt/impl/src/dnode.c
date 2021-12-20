@@ -176,6 +176,12 @@ SDnode *dndInit(SDnodeOpt *pOption) {
     return NULL;
   }
 
+  if (vnodeInit(1) != 0) {
+    dError("failed to init vnode env");
+    dndCleanup(pDnode);
+    return NULL;
+  }
+
   if (dndInitDnode(pDnode) != 0) {
     dError("failed to init dnode");
     dndCleanup(pDnode);
@@ -222,8 +228,10 @@ void dndCleanup(SDnode *pDnode) {
   dndCleanupMnode(pDnode);
   dndCleanupVnodes(pDnode);
   dndCleanupDnode(pDnode);
+  vnodeClear();
   walCleanUp();
   rpcCleanup();
+
   dndCleanupEnv(pDnode);
   free(pDnode);
   dInfo("TDengine is cleaned up successfully");
