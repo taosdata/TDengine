@@ -56,6 +56,9 @@ STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemA
   }
   return pTq;
 }
+void tqClose(STQ* pTq) {
+  // TODO
+}
 
 static int tqProtoCheck(STqMsgHead* pMsg) { return pMsg->protoVer == 0; }
 
