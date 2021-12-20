@@ -9,5 +9,5 @@ target_include_directories(
 
 target_link_libraries(
         scheduler
-        PRIVATE os util planner qcom common
+        PRIVATE os util planner qcom common catalog transport
 )

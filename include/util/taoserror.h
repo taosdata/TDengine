@@ -493,6 +493,7 @@ int32_t* taosGetErrno();
 
 //scheduler
 #define TSDB_CODE_SCH_STATUS_ERROR              TAOS_DEF_ERROR_CODE(0, 0x2501)  //scheduler status error
+#define TSDB_CODE_SCH_INTERNAL_ERROR            TAOS_DEF_ERROR_CODE(0, 0x2502)  //scheduler internal error
 
 
 
