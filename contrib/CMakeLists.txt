@@ -37,7 +37,7 @@ endif(${BUILD_WITH_ROCKSDB})
 # canonical-raft
 if(${BUILD_WITH_CRAFT})
     cat("${CMAKE_SUPPORT_DIR}/craft_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    option(BUILD_WITH_UV "" ON)
+    SET(BUILD_WITH_UV ON CACHE BOOL "craft need libuv" FORCE)
 endif(${BUILD_WITH_CRAFT})
 
 #libuv
