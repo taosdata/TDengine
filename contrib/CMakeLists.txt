@@ -37,7 +37,13 @@ endif(${BUILD_WITH_ROCKSDB})
 # canonical-raft
 if(${BUILD_WITH_CRAFT})
     cat("${CMAKE_SUPPORT_DIR}/craft_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    option(BUILD_WITH_UV "" ON)
 endif(${BUILD_WITH_CRAFT})
+
+#libuv
+if(${BUILD_WITH_UV})
+    cat("${CMAKE_SUPPORT_DIR}/libuv_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(${BUILD_WITH_UV})
 
 # bdb
 if(${BUILD_WITH_BDB})
@@ -160,6 +166,11 @@ if(${BUILD_WITH_CRAFT})
     #     INTERFACE pthread
     # )
 endif(${BUILD_WITH_CRAFT})
+
+# LIBUV
+if(${BUILD_WITH_UV})
+    add_subdirectory(libuv)
+endif(${BUILD_WITH_UV})
 
 # BDB
 if(${BUILD_WITH_BDB})
