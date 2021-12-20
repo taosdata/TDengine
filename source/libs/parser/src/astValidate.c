@@ -4224,13 +4224,13 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, int64_t id, void** output, in
         }
       }
 
-      *output = buildUserManipulationMsg(pInfo, id, msgBuf, msgBufLen);
+      *output = buildUserManipulationMsg(pInfo, outputLen, id, msgBuf, msgBufLen);
       break;
     }
 
     case TSDB_SQL_DROP_ACCT:
     case TSDB_SQL_DROP_USER: {
-      *output = buildDropUserMsg(pInfo, id, msgBuf, msgBufLen);
+      *output = buildDropUserMsg(pInfo, outputLen, id, msgBuf, msgBufLen);
       break;
     }
     
