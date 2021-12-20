@@ -15,36 +15,18 @@
 
 #include "index_tfile.h"
 #include "index_fst.h"
+#include "index_util.h"
 
-
-#define SERIALIZE_TO_BUF(buf, key, mem) \
-  do { \
-   memcpy(buf, &key->mem, sizeof(key->mem)); \
-   buf += sizeof(key->mem);  \
-  } while (0)
-
-#define SERIALIZE_STR_TO_BUF(buf, key, mem, len) \
-  do { \
-    memcpy(buf, key->mem, len); \
-    buf += len; \
-  } while (0)
-
-#define SERIALIZE_DELIMITER_TO_BUF(buf, delim) \
-  do { \
-    char c = delim; \
-    memcpy(buf, &c, sizeof(c)); \
-    buf += sizeof(c); \
-  } while (0)
 
 
 static void tfileSerialCacheKey(TFileCacheKey *key, char *buf) {
-  SERIALIZE_TO_BUF(buf, key, suid);
-  SERIALIZE_DELIMITER_TO_BUF(buf, '_'); 
-  SERIALIZE_TO_BUF(buf, key, colType);
-  SERIALIZE_DELIMITER_TO_BUF(buf, '_'); 
-  SERIALIZE_TO_BUF(buf, key, version);
-  SERIALIZE_DELIMITER_TO_BUF(buf, '_'); 
-  SERIALIZE_STR_TO_BUF(buf, key, colName,  key->nColName);
+  SERIALIZE_MEM_TO_BUF(buf, key, suid);
+  SERIALIZE_VAR_TO_BUF(buf, '_', char); 
+  SERIALIZE_MEM_TO_BUF(buf, key, colType);
+  SERIALIZE_VAR_TO_BUF(buf, '_', char); 
+  SERIALIZE_MEM_TO_BUF(buf, key, version);
+  SERIALIZE_VAR_TO_BUF(buf, '_', char); 
+  SERIALIZE_STR_MEM_TO_BUF(buf, key, colName, key->nColName);
 }
 
 TFileCache *tfileCacheCreate() {
@@ -57,6 +39,8 @@ TFileCache *tfileCacheCreate() {
 }
 void tfileCacheDestroy(TFileCache *tcache) {
   
+  free(tcache);    
+   
 }
 
 TFileReader *tfileCacheGet(TFileCache *tcache, TFileCacheKey *key) {
@@ -86,7 +70,7 @@ void IndexTFileDestroy(IndexTFile *tfile) {
 
 int indexTFileSearch(void *tfile, SIndexTermQuery *query, SArray *result) {
   IndexTFile *ptfile = (IndexTFile *)tfile;
-   
+     
   return 0;
 }
 int indexTFilePut(void *tfile, SIndexTerm *term,  uint64_t uid) {
