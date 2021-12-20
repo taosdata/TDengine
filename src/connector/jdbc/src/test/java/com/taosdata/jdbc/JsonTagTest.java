@@ -9,6 +9,7 @@ import org.junit.runners.MethodSorters;
 
 import java.sql.*;
 
+@Ignore
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @RunWith(CatalogRunner.class)
 @TestTarget(alias = "JsonTag", author = "huolibo", version = "2.0.36")
