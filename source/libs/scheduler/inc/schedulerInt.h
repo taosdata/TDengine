@@ -101,7 +101,7 @@ typedef struct SQueryJob {
 #define SCH_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
 
-extern int32_t schTaskRun(SQueryJob *job, SQueryTask *task);
+extern int32_t schLaunchTask(SQueryJob *job, SQueryTask *task);
 
 #ifdef __cplusplus
 }
