@@ -15,4 +15,8 @@ if(${BUILD_WITH_SQLITE})
     add_subdirectory(sqlite)
 endif(${BUILD_WITH_SQLITE})
 
+if(${BUILD_WITH_CRAFT})
+    add_subdirectory(craft)
+endif(${BUILD_WITH_CRAFT})
+
 add_subdirectory(tdev)
