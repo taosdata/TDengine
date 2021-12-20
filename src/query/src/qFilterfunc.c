@@ -183,17 +183,17 @@ bool likeOperator(SColumnFilterElem *pFilter, const char *minval, const char *ma
     return patternMatch((char *)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval), &info) == TSDB_PATTERN_MATCH;
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
     SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
-	size_t size = (size_t)(pFilter->filterInfo.len / TSDB_NCHAR_SIZE);
-	void *pz = calloc(size + 1, TSDB_NCHAR_SIZE);
-	if (pz == NULL) {
-		return false;
-	}
+    size_t size =  (size_t)(pFilter->filterInfo.len/TSDB_NCHAR_SIZE);
+    void *pz = calloc(size + 1, TSDB_NCHAR_SIZE);
+    if (pz == NULL) {
+      return false;
+    }
 
-	memcpy(pz, (void *)pFilter->filterInfo.pz, size * TSDB_NCHAR_SIZE);
-	int32_t ret = WCSPatternMatch((wchar_t *)pz, size, varDataVal(minval), varDataLen(minval) / TSDB_NCHAR_SIZE, &info, true);
-	free(pz);
+    memcpy(pz, (void *) pFilter->filterInfo.pz, size * TSDB_NCHAR_SIZE);
+    int32_t ret = WCSPatternMatch((uint32_t *) pz, size, (uint32_t *) varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE, &info);
+    free(pz);
 
-	return ret == TSDB_PATTERN_MATCH;
+    return ret == TSDB_PATTERN_MATCH;
   } else {
     return false;
   }

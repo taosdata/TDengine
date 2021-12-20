@@ -44,7 +44,7 @@ typedef struct SPatternCompareInfo {
 
 int patternMatch(const char *pattern, const char *str, size_t size, const SPatternCompareInfo *pInfo);
 
-int WCSPatternMatch(wchar_t *pattern, size_t paSize, wchar_t *str, size_t size, const SPatternCompareInfo *pInfo, const bool preProc);
+int WCSPatternMatch(uint32_t *pattern, size_t paSize, uint32_t *str, size_t size, const SPatternCompareInfo *pInfo);
 
 int32_t doCompare(const char* a, const char* b, int32_t type, size_t size);
 
