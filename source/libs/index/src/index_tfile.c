@@ -13,14 +13,38 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <sys/types.h>
-#include <dirent.h>
+//#include <sys/types.h>
+//#include <dirent.h>
 #include "index_tfile.h"
 #include "index_fst.h"
 #include "index_util.h"
+#include "taosdef.h"
+#include "index.h"
+#include "index_fst_counting_writer.h"
 
 
-// tfile name suid-colId-version.tindex
+static FORCE_INLINE int tfileLoadHeader(WriterCtx *ctx, TFileReadHeader *header) {
+  //TODO simple tfile header later
+  char buf[TFILE_HADER_PRE_SIZE];
+  char *p = buf;
+  int64_t nread = ctx->read(ctx, buf, TFILE_HADER_PRE_SIZE);
+  assert(nread == TFILE_HADER_PRE_SIZE);
+  
+  memcpy(&header->suid, p, sizeof(header->suid));
+  p += sizeof(header->suid);
+
+  memcpy(&header->version, p, sizeof(header->version));
+  p += sizeof(header->version);
+
+  int32_t colLen = 0; 
+  memcpy(&colLen, p, sizeof(colLen));
+  assert(colLen < sizeof(header->colName)); 
+  nread = ctx->read(ctx, header->colName, colLen); 
+  assert(nread == colLen);
+
+  nread = ctx->read(ctx, &header->colType, sizeof(header->colType)); 
+  return 0;    
+};
 static int tfileGetFileList(const char *path, SArray *result) {
   DIR *dir = opendir(path);  
   if (NULL == dir) { return -1; } 
@@ -35,6 +59,10 @@ static int tfileGetFileList(const char *path, SArray *result) {
   closedir(dir);
   return 0;
 } 
+static void tfileDestroyFileName(void *elem) {
+  char *p = *(char **)elem;
+  free(p);
+} 
 static int tfileCompare(const void *a, const void *b) {
   const char *aName = *(char **)a;
   const char *bName = *(char **)b;
@@ -42,6 +70,7 @@ static int tfileCompare(const void *a, const void *b) {
   size_t bLen = strlen(bName);
   return strncmp(aName, bName, aLen > bLen ? aLen : bLen);
 }
+// tfile name suid-colId-version.tindex
 static int tfileParseFileName(const char *filename, uint64_t *suid, int *colId, int *version) {
   if (3 == sscanf(filename, "%" PRIu64 "-%d-%d.tindex", suid, colId, version)) {
     // read suid & colid & version  success
@@ -74,14 +103,28 @@ TFileCache *tfileCacheCreate(const char *path) {
     uint64_t suid; 
     int colId, version;
     if (0 != tfileParseFileName(file, &suid, &colId, &version)) {
-      // invalid file, just skip 
+      goto End;
       continue; 
     } 
-    free((void *)file);    
+
+    TFileReader *reader = calloc(1, sizeof(TFileReader));  
+    reader->ctx = writerCtxCreate(TFile, file, true, 1024 * 64); 
+    if (reader->ctx == NULL) {
+      TFileReaderDestroy(reader);  
+      indexError("failed to open index:  %s", file);
+      goto End; 
+    }
+    TFileReadHeader header = {0}; 
+    if (0 != tfileLoadHeader(reader->ctx, &header)) {
+      TFileReaderDestroy(reader);  
+      indexError("failed to load index header, index Id: %s", file);  
+    }
   }
-  taosArrayDestroy(files);
-  
+  taosArrayDestroyEx(files, tfileDestroyFileName);
   return tcache;
+End:
+  taosArrayDestroyEx(files, tfileDestroyFileName);
+  return NULL; 
 }
 void tfileCacheDestroy(TFileCache *tcache) {
   
@@ -103,12 +146,24 @@ void tfileCachePut(TFileCache *tcache, TFileCacheKey *key, TFileReader *reader) 
 } 
 
 
+TFileReader* tfileReaderCreate() {
+  
+}
+void TFileReaderDestroy(TFileReader *reader) {
+  if (reader == NULL) { return; }
+
+  writerCtxDestroy(reader->ctx); 
+  free(reader);
+}
+
+
+TFileWriter *tfileWriterCreate(const char *suid, const char *colName);
+void tfileWriterDestroy(TFileWriter *tw);
 
 
 IndexTFile *indexTFileCreate(const char *path) {
   IndexTFile *tfile = calloc(1, sizeof(IndexTFile));   
   tfile->cache = tfileCacheCreate(path);    
-  
   
   return tfile;
 }
