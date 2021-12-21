@@ -78,8 +78,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STB, "create-stb" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STB, "alter-stb" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STB, "drop-stb" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_VGROUP_LIST, "vgroup-list" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_QUERY, "kill-query" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_STREAM, "kill-stream" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_QUERY, "kill-query" )		
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_CONN, "kill-conn" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_HEARTBEAT, "heartbeat" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SHOW, "show" )
@@ -945,18 +944,6 @@ typedef struct {
   int32_t numOfSub;
   char    subSqlInfo[TSDB_SHOW_SUBQUERY_LEN];  // include subqueries' index, Obj IDs and states(C-complete/I-imcomplete)
 } SQueryDesc;
-
-typedef struct {
-  char    sql[TSDB_SHOW_SQL_LEN];
-  char    dstTable[TSDB_TABLE_NAME_LEN];
-  int32_t streamId;
-  int64_t num;  // number of computing/cycles
-  int64_t useconds;
-  int64_t ctime;
-  int64_t stime;
-  int64_t slidingTime;
-  int64_t interval;
-} SStreamDesc;
 
 typedef struct {
   int32_t connId;

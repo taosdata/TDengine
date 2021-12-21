@@ -1,20 +1,20 @@
-add_executable(dndTestProfile "")
+add_executable(dnode_test_profile "")
 
-target_sources(dndTestProfile
+target_sources(dnode_test_profile
     PRIVATE
     "profile.cpp"
     "../sut/deploy.cpp"
 )
 
 target_link_libraries(
-    dndTestProfile
+    dnode_test_profile
     PUBLIC dnode
     PUBLIC util
     PUBLIC os
     PUBLIC gtest_main
 )
 
-target_include_directories(dndTestProfile
+target_include_directories(dnode_test_profile
     PUBLIC
     "${CMAKE_SOURCE_DIR}/include/server/dnode/mgmt"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
@@ -22,6 +22,6 @@ target_include_directories(dndTestProfile
 )
 
 add_test(
-    NAME dndTestProfile
-    COMMAND dndTestProfile
+    NAME dnode_test_profile
+    COMMAND dnode_test_profile
 )
