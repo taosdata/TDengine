@@ -411,38 +411,22 @@ See [video tutorials](https://www.taosdata.com/blog/2020/11/11/1963.html) for th
 
 ### Python connector installation
 
-#### Linux
+From TDengine 2.4, users can install python connector for TDengine with `pip`. Note that the package name is **taospy** (not `taos` - a fully unrelated package). For backward compatibility, we still use `import taos` to import connector package.
 
-Users can find the connector package for python2 and python3 in the source code src/connector/python (or tar.gz/connector/python) folder. Users can install it through `pip` command:
-
-`pip install src/connector/python/`
-
-or
-
- `pip3 install src/connector/python/`
-
-You can install the `taospy` connector from [PyPI](https://pypi.org/project/taospy/):
-
-```sh
+```bash
 pip install taospy
 ```
 
-#### Windows
+Use your version-specific `pip` command as if you need.
 
-With Windows TDengine client installed, copy the file "C:\TDengine\driver\taos.dll" to the "C:\Windows\system32" directory and enter the Windows *cmd* command line interface:
-
-```cmd
-cd C:\TDengine\connector\python
-python -m pip install .
+```bash
+pip2 install taospy
+pip3 install taospy
 ```
 
-Or install from PyPI:
+The python connector requires `libtaos` library (`libtaos.so` in Linux, or `taos.dll` in Windows). For Windows client, if `import taos` failed, you could copy the dll `C:\TDengine\driver\taos.dll` to `C:\windows\system32` and try it again.
 
-```cmd
-pip install taospy
-```
-
-- If there is no `pip` command on the machine, the user can copy the taos folder under src/connector/python to the application directory for use. For Windows client, after installing the TDengine Windows client, copy C:\ TDengine\driver\taos.dll to the C:\ windows\ system32 directory.
+For users that has a limited network environment, just add the `connector/python` of installed directory(commonly `/usr/local/taos/connector/python/` in Linux,  `C:\TDengine\connector\python` in Windows) to `PYTHONPATH` environment variable.
 
 ### How to use
 

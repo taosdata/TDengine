@@ -556,40 +556,22 @@ Python连接器支持的系统有：Linux 64/Windows x64
 
 ### Python连接器安装
 
-#### Linux
-
-用户可以在源代码的src/connector/python（或者tar.gz的/connector/python）文件夹下找到connector安装包。用户可以通过pip命令安装：
+Python 连接器可以通过 `pip` 从 PyPI 下载安装。注意 TDengine Python 连接器的包名为 `taospy` 而不是 `taos`（这是一个与 TDengine 无关的另一个程序）。但为保持向后兼容性，仍然使用 `import taos` 导入。
 
 ```bash
-pip install src/connector/python/
-```
-
-或
-
-```bash
-pip3 install src/connector/python/
-```
-
-#### Windows
-
-在已安装Windows TDengine 客户端的情况下， 将文件"C:\TDengine\driver\taos.dll" 拷贝到 "C:\Windows\system32" 目录下, 然后进入Windows *cmd* 命令行界面。
-
-```bash
-cd C:\TDengine\connector\python
-python -m pip install .
-```
-
-#### PyPI
-
-从2.1.1版本开始，用户可以从[PyPI](https://pypi.org/project/taospy/)安装：
-
-```sh
 pip install taospy
 ```
 
-* 如果机器上没有pip命令，用户可将src/connector/python下的taos文件夹拷贝到应用程序的目录使用。
+如果不使用系统默认的 `python` 和 `pip`，则需要指定 `pip` 的版本或路径：
 
-Python 命令行依赖 `libtaos.so` 或 `taos.dll`, 对于windows 客户端，安装TDengine windows 客户端后，将 `C:\TDengine\driver\taos.dll` 拷贝到 `C:\windows\system32` 目录下方可正常调用。
+```bash
+pip2 install taospy
+pip3 install taospy
+```
+
+Python 命令行依赖 taos 动态库 `libtaos.so` 或 `taos.dll`, 对于 Windows 客户端，安装TDengine windows 客户端后，如果不能正常 `import taos`，可以将 `C:\TDengine\driver\taos.dll` 拷贝到 `C:\windows\system32` 目录后重新尝试。
+
+对于无法联网用户，可以将TDengine客户端中的 `connector/python` 路径（Linux 下其安装路径为 `/usr/local/taos/connector/python/`，Windows 下默认安装路径为 `C:\TDengine\connector\python`）添加到 `PYTHONPATH` 环境变量中使用。
 
 ### 示例程序
 
