@@ -102,7 +102,7 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
 }
 
 static SSdbRaw *mndMnodeActionEncode(SMnodeObj *pMnodeObj) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_MNODE, TSDB_MNODE_VER_NUMBER, sizeof(SMnodeObj));
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_MNODE, TSDB_MNODE_VER_NUMBER, sizeof(SMnodeObj) + TSDB_MNODE_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
