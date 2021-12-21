@@ -24,6 +24,50 @@ SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, in
   return pMsg;
 }
 
+SCreateAcctMsg* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
+  SCreateAcctMsg* pMsg = (SCreateAcctMsg*)calloc(1, sizeof(SCreateAcctMsg));
+  if (pMsg == NULL) {
+    //    tscError("0x%" PRIx64 " failed to malloc for query msg", id);
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  SCreateAcctMsg *pCreateMsg = (SCreateAcctMsg *) calloc(1, sizeof(SCreateAcctMsg));
+
+  SToken *pName = &pInfo->pMiscInfo->user.user;
+  SToken *pPwd = &pInfo->pMiscInfo->user.passwd;
+
+  strncpy(pCreateMsg->user, pName->z, pName->n);
+  strncpy(pCreateMsg->pass, pPwd->z, pPwd->n);
+
+  SCreateAcctInfo *pAcctOpt = &pInfo->pMiscInfo->acctOpt;
+
+  pCreateMsg->maxUsers = htonl(pAcctOpt->maxUsers);
+  pCreateMsg->maxDbs = htonl(pAcctOpt->maxDbs);
+  pCreateMsg->maxTimeSeries = htonl(pAcctOpt->maxTimeSeries);
+  pCreateMsg->maxStreams = htonl(pAcctOpt->maxStreams);
+//  pCreateMsg->maxPointsPerSecond = htonl(pAcctOpt->maxPointsPerSecond);
+  pCreateMsg->maxStorage = htobe64(pAcctOpt->maxStorage);
+//  pCreateMsg->maxQueryTime = htobe64(pAcctOpt->maxQueryTime);
+//  pCreateMsg->maxConnections = htonl(pAcctOpt->maxConnections);
+
+  if (pAcctOpt->stat.n == 0) {
+    pCreateMsg->accessState = -1;
+  } else {
+    if (pAcctOpt->stat.z[0] == 'r' && pAcctOpt->stat.n == 1) {
+      pCreateMsg->accessState = TSDB_VN_READ_ACCCESS;
+    } else if (pAcctOpt->stat.z[0] == 'w' && pAcctOpt->stat.n == 1) {
+      pCreateMsg->accessState = TSDB_VN_WRITE_ACCCESS;
+    } else if (strncmp(pAcctOpt->stat.z, "all", 3) == 0 && pAcctOpt->stat.n == 3) {
+      pCreateMsg->accessState = TSDB_VN_ALL_ACCCESS;
+    } else if (strncmp(pAcctOpt->stat.z, "no", 2) == 0 && pAcctOpt->stat.n == 2) {
+      pCreateMsg->accessState = 0;
+    }
+  }
+
+  *outputLen = sizeof(SCreateAcctMsg);
+  return pMsg;
+}
 SDropUserMsg* buildDropUserMsg(SSqlInfo* pInfo, int32_t *msgLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
   SToken* pName = taosArrayGet(pInfo->pMiscInfo->a, 0);
   if (pName->n >= TSDB_USER_LEN) {

@@ -4228,6 +4228,42 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, int64_t id, void** output, in
       break;
     }
 
+    case TSDB_SQL_CREATE_ACCT:
+    case TSDB_SQL_ALTER_ACCT: {
+      const char* msg1 = "invalid state option, available options[no, r, w, all]";
+      const char* msg2 = "invalid user/account name";
+      const char* msg3 = "name too long";
+
+      SToken* pName = &pInfo->pMiscInfo->user.user;
+      SToken* pPwd = &pInfo->pMiscInfo->user.passwd;
+
+      if (parserValidatePassword(pPwd, pMsgBuf) != TSDB_CODE_SUCCESS) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      if (pName->n >= TSDB_USER_LEN) {
+        return buildInvalidOperationMsg(pMsgBuf, msg3);
+      }
+
+      if (parserValidateNameToken(pName) != TSDB_CODE_SUCCESS) {
+        return buildInvalidOperationMsg(pMsgBuf, msg2);
+      }
+
+      SCreateAcctInfo* pAcctOpt = &pInfo->pMiscInfo->acctOpt;
+      if (pAcctOpt->stat.n > 0) {
+        if (pAcctOpt->stat.z[0] == 'r' && pAcctOpt->stat.n == 1) {
+        } else if (pAcctOpt->stat.z[0] == 'w' && pAcctOpt->stat.n == 1) {
+        } else if (strncmp(pAcctOpt->stat.z, "all", 3) == 0 && pAcctOpt->stat.n == 3) {
+        } else if (strncmp(pAcctOpt->stat.z, "no", 2) == 0 && pAcctOpt->stat.n == 2) {
+        } else {
+          return buildInvalidOperationMsg(pMsgBuf, msg1);
+        }
+      }
+
+      *output = buildAcctManipulationMsg(pInfo, outputLen, id, msgBuf, msgBufLen);
+      break;
+    }
+
     case TSDB_SQL_DROP_ACCT:
     case TSDB_SQL_DROP_USER: {
       *output = buildDropUserMsg(pInfo, outputLen, id, msgBuf, msgBufLen);
