@@ -22,6 +22,7 @@
 #include "taoserror.h"
 #include "taosmsg.h"
 #include "tlist.h"
+#include "trpc.h"
 #include "tutil.h"
 
 #ifdef __cplusplus
@@ -54,6 +55,7 @@ typedef struct STqSetCurReq {
 
 typedef struct STqConsumeReq {
   STqMsgHead head;
+  int64_t    blockingTime;  // milisec
   STqAcks    acks;
 } STqConsumeReq;
 
@@ -107,6 +109,17 @@ typedef struct STqExec {
   struct STqExec* (*deserialize)(char*);
 } STqExec;
 
+typedef struct STqRspHandle {
+  void* handle;
+  void* ahandle;
+} STqRspHandle;
+
+typedef enum {
+  TQ_ITEM_READY,
+  TQ_ITEM_PROCESS,
+  TQ_ITEM_EMPTY
+} STqItemStatus;
+
 typedef struct STqBufferItem {
   int64_t offset;
   // executors are identical but not concurrent
@@ -135,13 +148,13 @@ typedef struct STqListHandle {
 } STqList;
 
 typedef struct STqGroup {
-  int64_t  clientId;
-  int64_t  cgId;
-  void*    ahandle;
-  int32_t  topicNum;
-  STqList* head;
-  SList*   topicList;  // SList<STqTopic>
-  void*    returnMsg;  // SVReadMsg
+  int64_t      clientId;
+  int64_t      cgId;
+  void*        ahandle;
+  int32_t      topicNum;
+  //STqList*     head;
+  SList*       topicList;  // SList<STqTopic>
+  STqRspHandle rspHandle;
 } STqGroup;
 
 typedef struct STqQueryMsg {
@@ -264,7 +277,7 @@ void tqClose(STQ*);
 // void* will be replace by a msg type
 int tqPushMsg(STQ*, void* msg, int64_t version);
 int tqCommit(STQ*);
-int tqConsume(STQ*, STqConsumeReq*);
+int tqConsume(STQ*, SRpcMsg* pReq, SRpcMsg** pRsp);
 
 int tqSetCursor(STQ*, STqSetCurReq* pMsg);
 int tqBufferSetOffset(STqTopic*, int64_t offset);

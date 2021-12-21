@@ -14,7 +14,9 @@
  */
 
 #include "tqInt.h"
+#include "osSocket.h"
 #include "tqMetaStore.h"
+#include "osAtomic.h"
 
 // static
 // read next version data
@@ -51,16 +53,22 @@ STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemA
   }
   pTq->tqMeta = tqStoreOpen(path, (FTqSerialize)tqSerializeGroup, (FTqDeserialize)tqDeserializeGroup, free, 0);
   if (pTq->tqMeta == NULL) {
-    // TODO: free STQ
+    free(pTq);
+    allocFac->destroy(allocFac, pTq->tqMemRef.pAllocator);
     return NULL;
   }
+
   return pTq;
 }
+
 void tqClose(STQ* pTq) {
   // TODO
 }
 
-static int tqProtoCheck(STqMsgHead* pMsg) { return pMsg->protoVer == 0; }
+static int tqProtoCheck(STqMsgHead* pMsg) {
+  // TODO
+  return pMsg->protoVer == 0;
+}
 
 static int tqAckOneTopic(STqTopic* pTopic, STqOneAck* pAck, STqQueryMsg** ppQuery) {
   // clean old item and move forward
@@ -121,8 +129,14 @@ int tqCreateGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId, STqGroup
     // TODO
     return -1;
   }
-  *ppGroup = pGroup;
   memset(pGroup, 0, sizeof(STqGroup));
+
+  pGroup->topicList = tdListNew(sizeof(STqTopic));
+  if(pGroup->topicList == NULL) {
+    free(pGroup);
+    return -1;
+  }
+  *ppGroup = pGroup;
 
   return 0;
 }
@@ -152,46 +166,55 @@ int tqDropGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId) {
   return 0;
 }
 
-static int tqFetch(STqGroup* pGroup, void** msg) {
-  STqList* head = pGroup->head;
-  STqList* node = head;
+static int tqFetch(STqGroup* pGroup, STqConsumeRsp** pRsp) {
+  STqList* pHead = pGroup->head;
+  STqList* pNode = pHead;
   int      totSize = 0;
+  int      numOfMsgs = 0;
   // TODO: make it a macro
-  int            sizeLimit = 4 * 1024;
-  STqMsgContent* buffer = malloc(sizeLimit);
-  if (buffer == NULL) {
-    // TODO:memory insufficient
+  int   sizeLimit = 4 * 1024;
+
+  void* ptr = realloc(*pRsp, sizeof(STqConsumeRsp) + sizeLimit);
+  if (ptr == NULL) {
+    terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return -1;
   }
+  *pRsp = ptr;
+  STqMsgContent* buffer = (*pRsp)->msgs;
+
   // iterate the list to get msgs of all topics
   // until all topic iterated or msgs over sizeLimit
-  while (node->next) {
-    node = node->next;
-    STqTopic* topicHandle = &node->topic;
-    int       idx = topicHandle->nextConsumeOffset % TQ_BUFFER_SIZE;
-    if (topicHandle->buffer[idx].content != NULL && topicHandle->buffer[idx].offset == topicHandle->nextConsumeOffset) {
-      totSize += topicHandle->buffer[idx].size;
+  while (pNode->next) {
+    pNode = pNode->next;
+    STqTopic* pTopic = &pNode->topic;
+    int       idx = pTopic->nextConsumeOffset % TQ_BUFFER_SIZE;
+    if (pTopic->buffer[idx].content != NULL && pTopic->buffer[idx].offset == pTopic->nextConsumeOffset) {
+      totSize += pTopic->buffer[idx].size;
       if (totSize > sizeLimit) {
-        void* ptr = realloc(buffer, totSize);
+        void* ptr = realloc(*pRsp, sizeof(STqConsumeRsp) + totSize);
         if (ptr == NULL) {
-          totSize -= topicHandle->buffer[idx].size;
-          // TODO:memory insufficient
+          totSize -= pTopic->buffer[idx].size;
+          terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
           // return msgs already copied
           break;
         }
+        *pRsp = ptr;
+        break;
       }
-      *((int64_t*)buffer) = topicHandle->topicId;
+      *((int64_t*)buffer) = pTopic->topicId;
       buffer = POINTER_SHIFT(buffer, sizeof(int64_t));
-      *((int64_t*)buffer) = topicHandle->buffer[idx].size;
+      *((int64_t*)buffer) = pTopic->buffer[idx].size;
       buffer = POINTER_SHIFT(buffer, sizeof(int64_t));
-      memcpy(buffer, topicHandle->buffer[idx].content, topicHandle->buffer[idx].size);
-      buffer = POINTER_SHIFT(buffer, topicHandle->buffer[idx].size);
+      memcpy(buffer, pTopic->buffer[idx].content, pTopic->buffer[idx].size);
+      buffer = POINTER_SHIFT(buffer, pTopic->buffer[idx].size);
+      numOfMsgs++;
       if (totSize > sizeLimit) {
         break;
       }
     }
   }
-  return totSize;
+  (*pRsp)->bodySize = totSize;
+  return numOfMsgs;
 }
 
 STqGroup* tqGetGroup(STQ* pTq, int64_t clientId) { return tqHandleGet(pTq->tqMeta, clientId); }
@@ -273,7 +296,22 @@ int tqSetCursor(STQ* pTq, STqSetCurReq* pMsg) {
   return 0;
 }
 
-int tqConsume(STQ* pTq, STqConsumeReq* pMsg) {
+// temporary
+int tqProcessCMsg(STQ* pTq, STqConsumeReq* pMsg, STqRspHandle* pRsp) {
+  int64_t   clientId = pMsg->head.clientId;
+  STqGroup* pGroup = tqGetGroup(pTq, clientId);
+  if (pGroup == NULL) {
+    terrno = TSDB_CODE_TQ_GROUP_NOT_SET;
+    return -1;
+  }
+  pGroup->rspHandle.handle = pRsp->handle;
+  pGroup->rspHandle.ahandle = pRsp->ahandle;
+
+  return 0;
+}
+
+int tqConsume(STQ* pTq, SRpcMsg* pReq, SRpcMsg** pRsp) {
+  STqConsumeReq *pMsg = pReq->pCont;
   int64_t   clientId = pMsg->head.clientId;
   STqGroup* pGroup = tqGetGroup(pTq, clientId);
   if (pGroup == NULL) {
@@ -281,17 +319,103 @@ int tqConsume(STQ* pTq, STqConsumeReq* pMsg) {
     return -1;
   }
 
-  STqConsumeRsp* pRsp = (STqConsumeRsp*)pMsg;
-  int            numOfMsgs = tqFetch(pGroup, (void**)&pRsp->msgs);
+  SList* topicList = pGroup->topicList;
+
+  int totSize = 0;
+  int numOfMsgs = 0;
+  int sizeLimit = 4096;
+
+
+  STqConsumeRsp *pCsmRsp = (*pRsp)->pCont;
+  void* ptr = realloc((*pRsp)->pCont, sizeof(STqConsumeRsp) + sizeLimit);
+  if (ptr == NULL) {
+    terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
+    return -1;
+  }
+  (*pRsp)->pCont = ptr;
+
+  SListIter iter;
+  tdListInitIter(topicList, &iter, TD_LIST_FORWARD);
+
+  STqMsgContent* buffer = NULL;
+  SArray* pArray = taosArrayInit(0, sizeof(void*));
+
+  SListNode *pn;
+  while((pn = tdListNext(&iter)) != NULL) {
+    STqTopic* pTopic = *(STqTopic**)pn->data;
+    int idx = pTopic->floatingCursor % TQ_BUFFER_SIZE;
+    STqMsgItem* pItem = &pTopic->buffer[idx];
+    if (pItem->content != NULL && pItem->offset == pTopic->floatingCursor) {
+      if(pItem->status == TQ_ITEM_READY) {
+        //if has data
+        totSize += pTopic->buffer[idx].size;
+        if (totSize > sizeLimit) {
+          void* ptr = realloc((*pRsp)->pCont, sizeof(STqConsumeRsp) + totSize);
+          if (ptr == NULL) {
+            totSize -= pTopic->buffer[idx].size;
+            terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
+            // return msgs already copied
+            break;
+          }
+          (*pRsp)->pCont = ptr;
+          break;
+        }
+        *((int64_t*)buffer) = htonll(pTopic->topicId);
+        buffer = POINTER_SHIFT(buffer, sizeof(int64_t));
+        *((int64_t*)buffer) = htonll(pTopic->buffer[idx].size);
+        buffer = POINTER_SHIFT(buffer, sizeof(int64_t));
+        memcpy(buffer, pTopic->buffer[idx].content, pTopic->buffer[idx].size);
+        buffer = POINTER_SHIFT(buffer, pTopic->buffer[idx].size);
+        numOfMsgs++;
+        if (totSize > sizeLimit) {
+          break;
+        }
+      } else if(pItem->status == TQ_ITEM_PROCESS) {
+        //if not have data but in process
+
+      } else if(pItem->status == TQ_ITEM_EMPTY){
+        //if not have data and not in process
+        int32_t old = atomic_val_compare_exchange_32(&pItem->status, TQ_ITEM_EMPTY, TQ_ITEM_PROCESS);
+        if(old != TQ_ITEM_EMPTY) {
+          continue;
+        }
+        pItem->offset = pTopic->floatingCursor;
+        taosArrayPush(pArray, &pItem);
+      } else {
+        ASSERT(0);
+      }
+
+    }
+  }
+
+  for(int i = 0; i < pArray->size; i++) {
+    STqMsgItem* pItem = taosArrayGet(pArray, i);
+
+    void* raw;
+    //read from wal
+    //get msgType
+    //if submitblk
+    pItem->executor->assign(pItem->executor->runtimeEnv, raw);
+    SSDataBlock* content = pItem->executor->exec(pItem->executor->runtimeEnv);
+    pItem->content = content;
+    //if other type, send just put into buffer
+    pItem->content = raw;
+
+    int32_t old = atomic_val_compare_exchange_32(&pItem->status, TQ_ITEM_PROCESS, TQ_ITEM_READY);
+    ASSERT(old == TQ_ITEM_PROCESS);
+    
+  }
+
   if (numOfMsgs < 0) {
     return -1;
   }
+
   if (numOfMsgs == 0) {
     // most recent data has been fetched
 
     // enable timer for blocking wait
-    // once new data written during wait time
-    // launch query and response
+    // once new data written when waiting, launch query and rsp
+    return -1;
   }
 
   // fetched a num of msgs, rpc response

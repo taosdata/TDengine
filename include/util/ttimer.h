@@ -16,6 +16,8 @@
 #ifndef _TD_UTIL_TIMER_H
 #define _TD_UTIL_TIMER_H
 
+#include "os.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
