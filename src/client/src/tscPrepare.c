@@ -1933,7 +1933,7 @@ int taos_stmt_close(TAOS_STMT* stmt) {
         pStmt->pSql->cmd.insertParam.pTableBlockHashList = NULL;
       }
 
-      taosArrayDestroy(pStmt->mtb.tags);
+      taosArrayDestroy(&pStmt->mtb.tags);
       tfree(pStmt->mtb.sqlstr);
     }
   }
