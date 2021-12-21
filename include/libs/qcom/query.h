@@ -24,6 +24,15 @@ extern "C" {
 #include "thash.h"
 #include "tlog.h"
 
+enum {
+  JOB_TASK_STATUS_NOT_START = 1,
+  JOB_TASK_STATUS_EXECUTING,
+  JOB_TASK_STATUS_SUCCEED,
+  JOB_TASK_STATUS_FAILED,
+  JOB_TASK_STATUS_CANCELLING,
+  JOB_TASK_STATUS_CANCELLED
+};
+
 typedef struct STableComInfo {
   uint8_t numOfTags;      // the number of tags in schema
   uint8_t precision;      // the number of precision

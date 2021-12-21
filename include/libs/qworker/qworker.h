@@ -13,16 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_QUERY_WORKER_H_
-#define _TD_QUERY_WORKER_H_
+#ifndef _TD_QWORKER_H_
+#define _TD_QWORKER_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#include "trpc.h"
+
 typedef struct SQWorkerCfg {
   uint32_t maxSchedulerNum;
   uint32_t maxResCacheNum;
+  uint32_t maxSchTaskNum;
 } SQWorkerCfg;
 
 typedef struct {
@@ -37,14 +40,23 @@ typedef struct {
 } SQWorkerStat;
 
 
-int32_t qWorkerInit(SQWorkerCfg *cfg);
+int32_t qWorkerInit(SQWorkerCfg *cfg, void **qWorkerMgmt);
 
-int32_t qWorkerProcessQueryMsg(char *msg, int32_t msgLen, int32_t *code, char **rspMsg);
+int32_t qWorkerProcessQueryMsg(void *qWorkerMgmt, SSchedulerQueryMsg *msg, SRpcMsg *rsp);
 
+int32_t qWorkerProcessReadyMsg(void *qWorkerMgmt, SSchedulerReadyMsg *msg, SRpcMsg *rsp);
+
+int32_t qWorkerProcessStatusMsg(void *qWorkerMgmt, SSchedulerStatusMsg *msg, SRpcMsg *rsp);
+
+int32_t qWorkerProcessFetchMsg(void *qWorkerMgmt, SSchedulerFetchMsg *msg, SRpcMsg *rsp);
+
+int32_t qWorkerProcessCancelMsg(void *qWorkerMgmt, SSchedulerCancelMsg *msg, SRpcMsg *rsp);
+
+void qWorkerDestroy(void **qWorkerMgmt);
 
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_QUERY_WORKER_H_*/
+#endif /*_TD_QWORKER_H_*/
