@@ -48,12 +48,17 @@ namespace Cases.EntryPoint
 
             Console.WriteLine("====================fetchfeilds===================");
             FetchFields fetchFields = new FetchFields();
-            fetchFields.Test(conn, "fetchfeilds");
+            fetchFields.Test(conn,"fetchfeilds");
 
-            UtilsTools.ExecuteQuery(conn, "drop database if  exists csharp");
+            Console.WriteLine("===================JsonTagTest====================");
+            JsonTagTest jsonTagTest = new JsonTagTest();
+            jsonTagTest.Test(conn);
+            
+            // UtilsTools.ExecuteQuery(conn, "drop database if  exists csharp");
             UtilsTools.CloseConnection(conn);
             UtilsTools.ExitProgram();
 
+            
         }
     }
 }

@@ -892,9 +892,9 @@ static int tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo) {
 
 static void tsdbDestroyCommitH(SCommitH *pCommith) {
   pCommith->pDataCols = tdFreeDataCols(pCommith->pDataCols);
-  pCommith->aSubBlk = taosArrayDestroy(pCommith->aSubBlk);
-  pCommith->aSupBlk = taosArrayDestroy(pCommith->aSupBlk);
-  pCommith->aBlkIdx = taosArrayDestroy(pCommith->aBlkIdx);
+  pCommith->aSubBlk = taosArrayDestroy(&pCommith->aSubBlk);
+  pCommith->aSupBlk = taosArrayDestroy(&pCommith->aSupBlk);
+  pCommith->aBlkIdx = taosArrayDestroy(&pCommith->aBlkIdx);
   tsdbDestroyCommitIters(pCommith);
   tsdbDestroyReadH(&(pCommith->readh));
   tsdbCloseDFileSet(TSDB_COMMIT_WRITE_FSET(pCommith));

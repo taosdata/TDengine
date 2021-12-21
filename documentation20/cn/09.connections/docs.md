@@ -14,7 +14,7 @@ TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/
 TDengine 的 Grafana 插件请从 <https://github.com/taosdata/grafanaplugin/releases/latest> 下载。
 
 ```bash
-GF_VERSION=3.1.1
+GF_VERSION=3.1.3
 wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
 ```
 
@@ -75,15 +75,7 @@ allow_loading_unsigned_plugins = tdengine-datasource
 
 #### 导入 Dashboard
 
-我们提供一个 TDengine Dashboard 可以作为 TDengine 集群的监控可视化工具使用，见 [Grafana Dashboard 15146](https://grafana.com/grafana/dashboards/15146)。
-
-点击左侧 `Import` 按钮，选择 **Grafana.com Dashboard**,j将id `15146` 填入并加载：
-
-![img](../images/connections/import_dashboard1.jpg)
-
-导入完成之后可看到如下效果：
-
-![img](../images/connections/dashboard-15146.png)
+在 2.3.3.0 及以上版本，您可以导入 TDinsight Dashboard (Grafana Dashboard ID： [15167](https://grafana.com/grafana/dashboards/15167)) 作为 TDengine 集群的监控可视化工具。安装和使用说明请见 [TDinsight 用户手册](https://www.taosdata.com/cn/documentation/tools/insight)。
 
 ## <a class="anchor" id="matlab"></a>MATLAB
 
