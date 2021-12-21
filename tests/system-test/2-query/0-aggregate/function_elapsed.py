@@ -85,64 +85,6 @@ class TDTestCase:
         ''' 
         return 
 
-    def checkData(self, row, col, data):
-        self.checkRowCol(row, col)
-        if self.queryResult[row][col] != data:
-            if self.cursor.istype(col, "TIMESTAMP"):
-                # suppose user want to check nanosecond timestamp if a longer data passed
-                if isinstance(data, int) or isinstance(data, float):
-                    if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(data):
-                        tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%s" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
-                elif (len(data) >= 28):
-                    if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(data):
-                        tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%s" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
-                else:
-                    if self.queryResult[row][col] == _parse_datetime(data):
-                        tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
-                return
-
-            if str(self.queryResult[row][col]) == str(data):
-                tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
-                return
-            elif isinstance(data, float) and abs(self.queryResult[row][col] - data) <= 0.000001:
-                tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
-                return
-            else:
-                caller = inspect.getframeinfo(inspect.stack()[1][0])
-                args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
-                tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
-
-        if data is None:
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
-        elif isinstance(data, str):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
-        elif isinstance(data, datetime.date):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
-        elif isinstance(data, float):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
-        else:
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%d" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
-
-    def check_results(self , sql ,results):
-        data = tdSql.getResult(sql)
-        if results == data:
-            tdLog.info("sql:%s,check results data:%s == expect:%d" %
-                       (self.sql, data,results))
-        else:
-            tdLog.exit("sql:%s,check results failed data:%s == expect:%d" %
-                       (self.sql, data,results))
-        
-
     def prepare_data(self):
 
         tdLog.info (" ====================================== prepare data ==================================================")
@@ -512,12 +454,8 @@ class TDTestCase:
             tdSql.checkData(1,0,6)
             tdSql.checkData(2,0,6)
 
-            tdSql.query("select elapsed(ts,10s) from stable_1 where ts between '2015-01-01 00:00:00.000'  and '2015-01-01 00:01:00.000'  and bin_chars ='bintest1' or bin_chars ='bintest2' and tscol <= '2015-01-01 00:01:00.000' group by tbname; ")
-            tdSql.checkRows(3)
-            tdSql.checkData(0,0,6)
-            tdSql.checkData(1,0,6)
-            tdSql.checkData(2,0,6)
-            
+            tdSql.error("select elapsed(ts,10s) from stable_1 where ts between '2015-01-01 00:00:00.000'  and '2015-01-01 00:01:00.000'  and bin_chars ='bintest1' or bin_chars ='bintest2' and tscol <= '2015-01-01 00:01:00.000' group by tbname; ")
+        
             tdSql.query("select elapsed(ts,10s) from stable_1 where (ts between '2015-01-01 00:00:00.000'  and '2015-01-01 00:01:00.000')  or (ts between '2015-01-01 00:01:00.000'  and '2015-01-01 00:02:00.000') group by tbname; ")
             tdSql.checkRows(3)
             tdSql.checkData(0,0,9)
@@ -757,11 +695,11 @@ class TDTestCase:
 
         tdSql.query("select elapsed(ts,10s) from stable_1 where ts between '2015-01-01 00:00:00.000'  and '2015-01-01 00:01:00.000'  and ind =1  group by tbname; ")
         tdSql.checkRows(1)
-        tdSql.checkData(6)
+        tdSql.checkData(0,0,6)
 
         tdSql.query("select elapsed(ts,10s) from sub_table1_1 where ts between '2015-01-01 00:00:00.000'  and '2015-01-01 00:01:00.000'  ; ")
         tdSql.checkRows(1)
-        tdSql.checkData(6)
+        tdSql.checkData(0,0,6)
 
         tdSql.error("select ts,elapsed(ts,10s) from sub_empty_1 where ts between '2015-01-01 00:00:00.000'  and '2015-01-01 00:01:00.000' ; ")
         tdSql.error("select ts,elapsed(ts,10s) from stable_empty where ts between '2015-01-01 00:00:00.000'  and '2015-01-01 00:01:00.000'  group by tbname; ")
@@ -790,19 +728,7 @@ class TDTestCase:
             tdSql.query(sql)
             tdSql.checkData(0,0,data[0][index])
 
-        tdSql.query("select count(*),avg(q_int) , twa(q_tinyint), irate(q_int),sum(q_double),stddev(q_float),LEASTSQUARES(q_int,0,1), elapsed(ts,10s) from stable_1  group by tbname; ")
-
-        data = tdSql.getResult("select count(*),avg(q_int) , twa(q_tinyint), irate(q_int),sum(q_double),stddev(q_float),LEASTSQUARES(q_int,0,1), elapsed(ts,10s) from stable_1 ; ")
-
-        querys = ["count(*)","avg(q_int)", "twa(q_tinyint)", "irate(q_int)","sum(q_double)","stddev(q_float)","LEASTSQUARES(q_int,0,1)", "elapsed(ts,10s)"]
-
-        for index , query in enumerate(querys):
-            sql = "select %s from stable_1 group by tbname  " %(query)
-            tdSql.query(sql)
-            tdSql.checkData(0,0,data[0][index])
-            tdSql.checkData(1,0,data[0][index])
-            tdSql.checkData(2,0,data[0][index])
-
+        tdSql.error("select count(*),avg(q_int) , twa(q_tinyint), irate(q_int),sum(q_double),stddev(q_float),LEASTSQUARES(q_int,0,1), elapsed(ts,10s) from stable_1  group by tbname; ")
         
         # Arithmetic with elapsed for common table
 
@@ -1396,8 +1322,10 @@ class TDTestCase:
         
         # regular table
 
-        tdSql.query("select elapsed(ts,10s) from (select ts from regular_table_1 );")
-        tdSql.checkData(0,0,9)
+        # ts can't be used at outer query
+
+        # tdSql.query("select elapsed(ts,10s) from (select ts from regular_table_1 );")
+        # tdSql.checkData(0,0,9)
 
         # bug : TD-12164 
 
@@ -1415,59 +1343,59 @@ class TDTestCase:
         # tdSql.query("select elapsed(ts,10s) from (select ts,tbname  from regular_table_1 order by ts desc );")
         # tdSql.checkData(0,0,9)
 
-        tdSql.query("select elapsed(ts,10s) from (select ts ,max(q_int),tbname  from regular_table_1 order by ts  ) interval(1s);")
-        tdSql.checkRows(1)
-        tdSql.checkData(0,0,9)
+        # tdSql.query("select elapsed(ts,10s) from (select ts ,max(q_int),tbname  from regular_table_1 order by ts  ) interval(1s);")
+        # tdSql.checkRows(1)
+        # tdSql.checkData(0,0,9)
 
-        tdSql.query("select elapsed(ts,10s) from (select ts ,q_int,tbname  from regular_table_1 order by ts  ) interval(1s);")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,0)
+        # tdSql.query("select elapsed(ts,10s) from (select ts ,q_int,tbname  from regular_table_1 order by ts  ) interval(1s);")
+        # tdSql.checkRows(10)
+        # tdSql.checkData(0,0,0)
 
         # sub table
 
-        tdSql.query("select elapsed(ts,10s) from (select ts from sub_table1_1  );")
-        tdSql.checkData(0,0,9)
+        # tdSql.query("select elapsed(ts,10s) from (select ts from sub_table1_1  );")
+        # tdSql.checkData(0,0,9)
 
-        tdSql.query("select elapsed(ts,10s) from (select ts ,max(q_int),tbname  from sub_table1_1 order by ts  ) interval(1s);")
-        tdSql.checkRows(1)
-        tdSql.checkData(0,0,9)
+        # tdSql.query("select elapsed(ts,10s) from (select ts ,max(q_int),tbname  from sub_table1_1 order by ts  ) interval(1s);")
+        # tdSql.checkRows(1)
+        # tdSql.checkData(0,0,9)
 
-        tdSql.query("select elapsed(ts,10s) from (select ts ,q_int,tbname  from sub_table1_1 order by ts  ) interval(1s);")
-        tdSql.checkRows(10)
-        tdSql.checkData(0,0,0)
+        # tdSql.query("select elapsed(ts,10s) from (select ts ,q_int,tbname  from sub_table1_1 order by ts  ) interval(1s);")
+        # tdSql.checkRows(10)
+        # tdSql.checkData(0,0,0)
 
-        tdSql.query("select elapsed(ts,10s) from (select ts ,tbname,top(q_int,3)  from sub_table1_1   ) interval(10s);")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,1)
+        # tdSql.query("select elapsed(ts,10s) from (select ts ,tbname,top(q_int,3)  from sub_table1_1   ) interval(10s);")
+        # tdSql.checkRows(3)
+        # tdSql.checkData(0,0,1)
 
-        tdSql.query("select elapsed(ts,10s) from (select ts ,tbname,bottom(q_int,3)  from sub_table1_1   ) interval(10s);")
-        tdSql.checkRows(3)
-        tdSql.checkData(0,0,1)
+        # tdSql.query("select elapsed(ts,10s) from (select ts ,tbname,bottom(q_int,3)  from sub_table1_1   ) interval(10s);")
+        # tdSql.checkRows(3)
+        # tdSql.checkData(0,0,1)
 
-        tdSql.query("select elapsed(ts,10s) from (select ts ,tbname,last_row(*)  from sub_table1_1   ) interval(10s);")
-        tdSql.checkRows(1)
-        tdSql.checkData(0,0,0)
+        # tdSql.query("select elapsed(ts,10s) from (select ts ,tbname,last_row(*)  from sub_table1_1   ) interval(10s);")
+        # tdSql.checkRows(1)
+        # tdSql.checkData(0,0,0)
 
-        tdSql.query("select elapsed(ts,10s) from (select ts ,tbname,last_row(q_int)  from sub_table1_1   ) interval(10s);")
-        tdSql.checkRows(1)
-        tdSql.checkData(0,0,0)
+        # tdSql.query("select elapsed(ts,10s) from (select ts ,tbname,last_row(q_int)  from sub_table1_1   ) interval(10s);")
+        # tdSql.checkRows(1)
+        # tdSql.checkData(0,0,0)
 
-        tdSql.error("select elapsed(ts,10s) from (select ts ,count(*),tbname  from sub_table1_1 order by ts  ) interval(1s);")
+        # tdSql.error("select elapsed(ts,10s) from (select ts ,count(*),tbname  from sub_table1_1 order by ts  ) interval(1s);")
 
-        querys = ["count(*)","avg(q_int)","twa(q_tinyint)", "irate(q_int)","sum(q_double)","stddev(q_float)","LEASTSQUARES(q_int,0,1)","elapsed(ts,10s)"]
+        # querys = ["count(*)","avg(q_int)","twa(q_tinyint)", "irate(q_int)","sum(q_double)","stddev(q_float)","LEASTSQUARES(q_int,0,1)","elapsed(ts,10s)"]
         
-        for query in querys:
-            sql1 = "select elapsed(ts,10s) from (select %s from regular_table_1 order by ts  ) interval(1s); " % query
-            sql2 = "select elapsed(ts,10s) from (select ts , tbname ,%s from regular_table_1 order by ts  ) interval(1s); " % query
-            sql3 = "select elapsed(ts,10s) from (select ts , tbname ,%s from stable_1 group by tbname, ind order by ts  ) interval(1s); " % query
-            sql4 = "select elapsed(ts,10s) from (select %s from sub_table2_1  order by ts  ) interval(1s); " % query
-            sql5 = "select elapsed(ts,10s) from (select ts , tbname ,%s from sub_table2_1  order by ts  ) interval(1s); " % query
+        # for query in querys:
+        #     sql1 = "select elapsed(ts,10s) from (select %s from regular_table_1 order by ts  ) interval(1s); " % query
+        #     sql2 = "select elapsed(ts,10s) from (select ts , tbname ,%s from regular_table_1 order by ts  ) interval(1s); " % query
+        #     sql3 = "select elapsed(ts,10s) from (select ts , tbname ,%s from stable_1 group by tbname, ind order by ts  ) interval(1s); " % query
+        #     sql4 = "select elapsed(ts,10s) from (select %s from sub_table2_1  order by ts  ) interval(1s); " % query
+        #     sql5 = "select elapsed(ts,10s) from (select ts , tbname ,%s from sub_table2_1  order by ts  ) interval(1s); " % query
 
-            tdSql.error(sql1)
-            tdSql.error(sql2)
-            tdSql.error(sql3)
-            tdSql.error(sql4)
-            tdSql.error(sql5)
+        #     tdSql.error(sql1)
+        #     tdSql.error(sql2)
+        #     tdSql.error(sql3)
+        #     tdSql.error(sql4)
+        #     tdSql.error(sql5)
 
         
         # # bug TD-12164
@@ -1491,27 +1419,27 @@ class TDTestCase:
         querys = ["max(q_int)","min(q_int)" , "first(q_tinyint)", "first(*)","last(q_int)","last(*)","top(q_double,1)",
         "bottom(q_float,1)","PERCENTILE(q_int,10)","APERCENTILE(q_int,10)","last_row(q_int)", "last_row(*)" , "interp(q_int)" ,"elapsed(ts,10s)"]
 
-        for index , query in enumerate(querys):
+        # for index , query in enumerate(querys):
 
-            sql1 = "select elapsed(ts,10s) from (select %s from sub_table1_1) where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" interval(10s) fill(prev) ;  " %(query)
-            sql2 = "select elapsed(ts,10s) from (select %s from stable_1 ) where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" interval(10s) fill(prev)  group by tbname; " %(query)
-            sql3 = "select elapsed(ts,10s) from (select %s from stable_1 group by tbname) where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" interval(10s) fill(prev)  group by tbname; " %(query)
+        #     sql1 = "select elapsed(ts,10s) from (select %s from sub_table1_1) where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" interval(10s) fill(prev) ;  " %(query)
+        #     sql2 = "select elapsed(ts,10s) from (select %s from stable_1 ) where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" interval(10s) fill(prev)  group by tbname; " %(query)
+        #     sql3 = "select elapsed(ts,10s) from (select %s from stable_1 group by tbname) where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" interval(10s) fill(prev)  group by tbname; " %(query)
 
-            if query in ["top(q_double,1)","bottom(q_float,1)","interp(q_int)"  ]: 
-                print(sql1 )
-                print(sql2)
-                tdSql.query(sql1)
-                tdSql.error(sql2)
-            else:
-                tdSql.error(sql1)
-                tdSql.error(sql2)
-                tdSql.error(sql3)
+        #     if query in ["top(q_double,1)","bottom(q_float,1)","interp(q_int)"  ]: 
+        #         print(sql1 )
+        #         print(sql2)
+        #         tdSql.query(sql1)
+        #         tdSql.error(sql2)
+        #     else:
+        #         tdSql.error(sql1)
+        #         tdSql.error(sql2)
+        #         tdSql.error(sql3)
 
-        tdSql.query("select elapsed(ts,10s) from (select ts,tbname  from regular_table_1 order by ts  ) where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" interval(1s) fill(prev);")
-        tdSql.checkRows(600)
+        # tdSql.query("select elapsed(ts,10s) from (select ts,tbname  from regular_table_1 order by ts  ) where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" interval(1s) fill(prev);")
+        # tdSql.checkRows(600)
 
-        tdSql.query("select elapsed(ts,10s) from (select ts ,max(q_int),tbname  from regular_table_1 order by ts  ) where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" interval(1s) fill(prev);")
-        tdSql.checkRows(600)
+        # tdSql.query("select elapsed(ts,10s) from (select ts ,max(q_int),tbname  from regular_table_1 order by ts  ) where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" interval(1s) fill(prev);")
+        # tdSql.checkRows(600)
 
         # ===============================================inner nest============================================
 
@@ -1643,13 +1571,78 @@ class TDTestCase:
         tdSql.execute('create table elapsed_t as select elapsed(ts) from sub_table1_1  interval(1m) sliding(30s);')
         tdSql.execute('create table elapsed_tb as select elapsed(ts) from stable_1  interval(1m) sliding(30s) group by tbname;')
         tdSql.error('create table elapsed_tc as select elapsed(ts) from stable_1  interval(10s) sliding(5s) interval(1m) sliding(30s) group by tbname;')
+    
+    def query_precision(self):
+        def generate_data(precision="ms"):
+            
+            tdSql.execute("create database if not exists db_%s precision '%s';" %(precision, precision))
+            tdSql.execute("use db_%s;" %precision)
+            tdSql.execute("create stable db_%s.st (ts timestamp,value int) tags(ind int);"%precision)
+            tdSql.execute("create table db_%s.tb1 using st tags(1);"%precision)
+            tdSql.execute("create table db_%s.tb2 using st tags(2);"%precision)
+            
+            if precision == "ms":
+                start_ts = self.ts
+                step = 10000
+            elif precision == "us":
+                start_ts = self.ts*1000
+                step = 10000000
+            elif precision == "ns":
+                start_ts = self.ts*1000000
+                step = 10000000000
+            else:
+                pass
 
+            for i in range(10):
+
+                sql1 = "insert into db_%s.tb1 values (%d,%d)"%(precision ,start_ts+i*step,i)
+                sql2 = "insert into db_%s.tb1 values (%d,%d)"%(precision, start_ts+i*step,i)
+                tdSql.execute(sql1)
+                tdSql.execute(sql2)
+
+        time_units = ["10s","10a","10u","10b"]
+
+        precision_list = ["ms","us","ns"]
+        for pres in precision_list:
+            generate_data(pres)
+
+            for index,unit in enumerate(time_units):
+
+                if pres == "ms":
+                    if unit in ["10u","10b"]:
+                        tdSql.error("select elapsed(ts,%s) from db_%s.st group by tbname "%(unit,pres))
+                    else:
+                        tdSql.query("select elapsed(ts,%s) from db_%s.st group by tbname "%(unit,pres))
+                elif pres == "us" and unit in ["10b"]:
+                    if unit in ["10b"]:
+                        tdSql.error("select elapsed(ts,%s) from db_%s.st group by tbname "%(unit,pres))
+                    else:
+                        tdSql.query("select elapsed(ts,%s) from db_%s.st group by tbname "%(unit,pres))
+                else:
+
+                    tdSql.query("select elapsed(ts,%s) from db_%s.st group by tbname "%(unit,pres))
+                    basic_result = 9
+                    tdSql.checkData(0,0,basic_result*pow(1000,index))
+          
     def run(self):
         tdSql.prepare()
         self.prepare_data()
+        # self.abnormal_common_test()
+        self.abnormal_use_test()
+        self.query_filter()
+        self.query_interval()
+        self.query_mix_common()
+        self.query_mix_Aggregate()
+        self.query_mix_select()
+        self.query_mix_compute()
+        self.query_mix_arithmetic()
+        self.query_with_join()
+        self.query_with_union()
+        self.query_nest()
         self.query_session_windows()
+        self.continuous_query()
+        self.query_precision()
   
-
 
     def stop(self):
         tdSql.close()
