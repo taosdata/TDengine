@@ -269,19 +269,17 @@ void destroyDataBlock(STableDataBlocks* pDataBlock) {
   tfree(pDataBlock);
 }
 
-void* destroyBlockArrayList(SArray* pDataBlockList) {
+void destroyBlockArrayList(SArray* pDataBlockList) {
   if (pDataBlockList == NULL) {
-    return NULL;
+    return;
   }
 
   size_t size = taosArrayGetSize(pDataBlockList);
   for (int32_t i = 0; i < size; i++) {
-    void* d = taosArrayGetP(pDataBlockList, i);
-    destroyDataBlock(d);
+    destroyDataBlock(taosArrayGetP(pDataBlockList, i));
   }
 
   taosArrayDestroy(pDataBlockList);
-  return NULL;
 }
 
 // data block is disordered, sort it in ascending order
@@ -298,6 +296,7 @@ void sortRemoveDataBlockDupRowsRaw(STableDataBlocks *dataBuf) {
     int32_t i = 0;
     int32_t j = 1;
 
+    // delete rows with timestamp conflicts
     while (j < pBlocks->numOfRows) {
       TSKEY ti = *(TSKEY *)(pBlockData + dataBuf->rowSize * i);
       TSKEY tj = *(TSKEY *)(pBlockData + dataBuf->rowSize * j);
@@ -430,7 +429,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SB
 
   char* p = pTableDataBlock->pData + sizeof(SSubmitBlk);
   pBlock->dataLen = 0;
-  int32_t numOfRows = htons(pBlock->numOfRows);
+  int32_t numOfRows = pBlock->numOfRows;
 
   if (isRawPayload) {
     for (int32_t i = 0; i < numOfRows; ++i) {
@@ -467,18 +466,10 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SB
     }
   }
 
-  int32_t len = pBlock->dataLen + pBlock->schemaLen;
-  pBlock->dataLen = htonl(pBlock->dataLen);
-  pBlock->schemaLen = htonl(pBlock->schemaLen);
-
-  return len;
+  return pBlock->dataLen + pBlock->schemaLen;
 }
 
-static void extractTableNameList(SHashObj* pHashObj, bool freeBlockMap) {
-  // todo
-}
-
-int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t payloadType, bool freeBlockMap) {
+int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t payloadType, SArray** pVgDataBlocks) {
   const int INSERT_HEAD_SIZE = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
   int       code = 0;
   bool      isRawPayload = IS_RAW_PAYLOAD(payloadType);
@@ -537,24 +528,13 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t 
                         (isRawPayload ? (pOneTableBlock->rowSize + expandSize) : getExtendedRowSize(pOneTableBlock)) +
                     sizeof(STColumn) * getNumOfColumns(pOneTableBlock->pTableMeta);
 
-      pBlocks->tid = htonl(pBlocks->tid);
-      pBlocks->uid = htobe64(pBlocks->uid);
-      pBlocks->sversion = htonl(pBlocks->sversion);
-      pBlocks->numOfRows = htons(pBlocks->numOfRows);
-      pBlocks->schemaLen = 0;
-
       // erase the empty space reserved for binary data
       int32_t finalLen = trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock, blkKeyInfo.pKeyTuple, schemaAttached, isRawPayload);
       assert(finalLen <= len);
 
       dataBuf->size += (finalLen + sizeof(SSubmitBlk));
       assert(dataBuf->size <= dataBuf->nAllocSize);
-
-      // the length does not include the SSubmitBlk structure
-      pBlocks->dataLen = htonl(finalLen);
       dataBuf->numOfTables += 1;
-
-      pBlocks->numOfRows = 0;
     }
 
     p = taosHashIterate(pHashObj, p);
@@ -565,12 +545,10 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t 
     pOneTableBlock = *p;
   }
 
-  extractTableNameList(pHashObj, freeBlockMap);
-
   // free the table data blocks;
   taosHashCleanup(pVnodeDataBlockHashList);
   tfree(blkKeyInfo.pKeyTuple);
-
+  *pVgDataBlocks = pVnodeDataBlockList;
   return TSDB_CODE_SUCCESS;
 }
 
