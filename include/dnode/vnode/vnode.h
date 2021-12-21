@@ -140,7 +140,7 @@ int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
  * @param pRsp The response message
  * @return int 0 for success, -1 for failure
  */
-int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
 /**
  * @brief Process a fetch message.
@@ -150,7 +150,7 @@ int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
  * @param pRsp The response message
  * @return int 0 for success, -1 for failure
  */
-int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
 /**
  * @brief Process a consume message.
@@ -160,7 +160,7 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
  * @param pRsp The response message
  * @return int 0 for success, -1 for failure
  */
-int vnodeProcessConsumeMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int vnodeProcessConsumeReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
 /* ------------------------ SVnodeCfg ------------------------ */
 /**
@@ -241,33 +241,10 @@ void *vnodeParseReq(void *buf, SVnodeReq *pReq, uint8_t type);
 
 /* ------------------------ FOR COMPILE ------------------------ */
 
-#if 1
-
-typedef enum {
-  VN_MSG_TYPE_WRITE = 1,
-  VN_MSG_TYPE_APPLY,
-  VN_MSG_TYPE_SYNC,
-  VN_MSG_TYPE_QUERY,
-  VN_MSG_TYPE_FETCH
-} EVnMsgType;
-
-typedef struct {
-  int32_t curNum;
-  int32_t allocNum;
-  SRpcMsg rpcMsg[];
-} SVnodeMsg;
-
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
 int32_t vnodeCompact(SVnode *pVnode);
 int32_t vnodeSync(SVnode *pVnode);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
-
-SVnodeMsg *vnodeInitMsg(int32_t msgNum);
-int32_t    vnodeAppendMsg(SVnodeMsg *pMsg, SRpcMsg *pRpcMsg);
-void       vnodeCleanupMsg(SVnodeMsg *pMsg);
-void       vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg, EVnMsgType msgType);
-
-#endif
 
 #ifdef __cplusplus
 }
