@@ -28,7 +28,7 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
-class ParserEnv : public testing::Environment {
+class PlannerEnv : public testing::Environment {
 public:
   virtual void SetUp() {
     initMetaDataEnv();
@@ -39,12 +39,12 @@ public:
     destroyMetaDataEnv();
   }
 
-  ParserEnv() {}
-  virtual ~ParserEnv() {}
+  PlannerEnv() {}
+  virtual ~PlannerEnv() {}
 };
 
 int main(int argc, char* argv[]) {
-	testing::AddGlobalTestEnvironment(new ParserEnv());
+	testing::AddGlobalTestEnvironment(new PlannerEnv());
 	testing::InitGoogleTest(&argc, argv);
 	return RUN_ALL_TESTS();
 }

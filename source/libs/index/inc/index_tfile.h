@@ -26,7 +26,19 @@
 extern "C" {
 #endif
 
+// tfile header
+// |<---suid--->|<---version--->|<--colLen-->|<-colName->|<---type-->|
+// |<-uint64_t->|<---int32_t--->|<--int32_t->|<-colLen-->|<-uint8_t->|
   
+typedef struct TFileReadHeader {
+  uint64_t suid;
+  int32_t  version;
+  char     colName[128]; //
+  uint8_t  colType; 
+} TFileReadHeader;
+
+#define TFILE_HEADER_SIZE (sizeof(TFILE_HEADER_SIZE) + sizeof(uint32_t)); 
+#define TFILE_HADER_PRE_SIZE (sizeof(uint64_t) + sizeof(int32_t) + sizeof(int32_t))
 
 typedef struct TFileCacheKey {
   uint64_t   suid;
@@ -48,13 +60,13 @@ typedef struct TFileCache {
 
 typedef struct TFileWriter {
   FstBuilder *fb;
-  WriterCtx  *wc; 
+  WriterCtx  *ctx; 
 } TFileWriter;
 
 typedef struct TFileReader {
   T_REF_DECLARE() 
   Fst *fst;
-  
+  WriterCtx *ctx;  
 } TFileReader; 
 
 typedef struct IndexTFile {
@@ -78,18 +90,22 @@ typedef struct TFileReaderOpt {
   
 } TFileReaderOpt;
 
-// tfile cache 
+// tfile cache, manage tindex reader  
 TFileCache *tfileCacheCreate(const char *path);
 void tfileCacheDestroy(TFileCache *tcache);
 TFileReader* tfileCacheGet(TFileCache *tcache, TFileCacheKey *key);
 void tfileCachePut(TFileCache *tcache, TFileCacheKey *key, TFileReader *reader);
   
+TFileReader* tfileReaderCreate();
+void TFileReaderDestroy(TFileReader *reader);
+
+
 TFileWriter *tfileWriterCreate(const char *suid, const char *colName);
+void tfileWriterDestroy(TFileWriter *tw);
 
+// 
 IndexTFile *indexTFileCreate(const char *path);
-
 int indexTFilePut(void *tfile, SIndexTerm *term,  uint64_t uid); 
-
 int indexTFileSearch(void *tfile, SIndexTermQuery *query, SArray *result);
 
 
