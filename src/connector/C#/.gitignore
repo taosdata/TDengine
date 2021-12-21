@@ -1,0 +1,6 @@
+src/TDengineDriver/bin/
+src/TDengineDriver/obj/
+src/test/Cases/bin/
+src/test/Cases/obj/
+src/test/XUnitTest/bin/
+src/test/XUnitTest/obj/
