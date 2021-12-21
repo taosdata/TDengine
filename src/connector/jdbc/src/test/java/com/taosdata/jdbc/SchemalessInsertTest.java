@@ -7,16 +7,14 @@ import com.taosdata.jdbc.annotation.Description;
 import com.taosdata.jdbc.annotation.TestTarget;
 import com.taosdata.jdbc.enums.SchemalessProtocolType;
 import com.taosdata.jdbc.enums.SchemalessTimestampType;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.runner.RunWith;
 
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
+@Ignore
 @RunWith(CatalogRunner.class)
 @TestTarget(alias = "Schemaless",author = "huolibo", version = "2.0.36")
 public class SchemalessInsertTest {
