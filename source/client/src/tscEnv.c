@@ -170,7 +170,7 @@ void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t ty
   pRequest->type       = type;
   pRequest->pTscObj    = pObj;
   pRequest->body.fp    = fp;
-  pRequest->body.param = param;
+//  pRequest->body.requestMsg. = param;
   pRequest->msgBuf     = calloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   tsem_init(&pRequest->body.rspSem, 0, 0);
 
@@ -188,10 +188,7 @@ static void doDestroyRequest(void* p) {
   tfree(pRequest->sqlstr);
   tfree(pRequest->pInfo);
 
-  if (pRequest->body.pResInfo != NULL) {
-    tfree(pRequest->body.pResInfo->pMsg);
-    tfree(pRequest->body.pResInfo);
-  }
+  tfree(pRequest->body.resInfo.pRspMsg);
 
   deregisterRequest(pRequest);
   tfree(pRequest);

@@ -115,12 +115,7 @@ int  taos_field_count(TAOS_RES *res) {
   }
 
   SRequestObj* pRequest = (SRequestObj*) res;
-
-  SClientResultInfo* pResInfo = pRequest->body.pResInfo;
-  if (pResInfo == NULL) {
-    return 0;
-  }
-
+  SReqResultInfo* pResInfo = &pRequest->body.resInfo;
   return pResInfo->numOfCols;
 }
 
@@ -133,7 +128,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
     return NULL;
   }
 
-  SClientResultInfo* pResInfo = ((SRequestObj*) res)->body.pResInfo;
+  SReqResultInfo* pResInfo = &(((SRequestObj*) res)->body.resInfo);
   return pResInfo->fields;
 }
 
@@ -248,7 +243,7 @@ int* taos_fetch_lengths(TAOS_RES *res) {
     return NULL;
   }
 
-  return ((SRequestObj*) res)->body.pResInfo->length;
+  return ((SRequestObj*) res)->body.resInfo.length;
 }
 
 const char *taos_data_type(int type) {

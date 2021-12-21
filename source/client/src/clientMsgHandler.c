@@ -2793,7 +2793,7 @@ static bool allVgroupInfoRetrieved(SQueryInfo* pQueryInfo) {
 
 int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
   pMsgBody->msgType         = TSDB_MSG_TYPE_CONNECT;
-  pMsgBody->msgLen          = sizeof(SConnectMsg);
+  pMsgBody->msgInfo.len     = sizeof(SConnectMsg);
   pMsgBody->requestObjRefId = pRequest->self;
 
   SConnectMsg *pConnect = calloc(1, sizeof(SConnectMsg));
@@ -2817,7 +2817,7 @@ int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
   pConnect->startTime = htobe64(appInfo.startTime);
   tstrncpy(pConnect->app, appInfo.appName, tListLen(pConnect->app));
 
-  pMsgBody->pData = pConnect;
+  pMsgBody->msgInfo.pMsg = pConnect;
   return 0;
 }
 
@@ -2858,17 +2858,14 @@ int processConnectRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
   pTscObj->pAppInfo->clusterId = pConnect->clusterId;
   atomic_add_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
-  pRequest->body.pResInfo = calloc(1, sizeof(SClientResultInfo));
-  pRequest->body.pResInfo->pMsg = pMsg;
-
+  pRequest->body.resInfo.pRspMsg = pMsg;
   tscDebug("0x%" PRIx64 " clusterId:%d, totalConn:%"PRId64, pRequest->requestId, pConnect->clusterId, pTscObj->pAppInfo->numOfConns);
   return 0;
 }
 
 int32_t doBuildMsgSupp(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
   pMsgBody->requestObjRefId = pRequest->self;
-  pMsgBody->msgLen          = pRequest->body.paramLen;
-  pMsgBody->pData           = pRequest->body.param;
+  pMsgBody->msgInfo     = pRequest->body.requestMsg;
 
   switch(pRequest->type) {
     case TSDB_SQL_CREATE_USER:
@@ -2886,7 +2883,7 @@ int32_t doBuildMsgSupp(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
     case TSDB_SQL_CREATE_DB: {
       pMsgBody->msgType = TSDB_MSG_TYPE_CREATE_DB;
 
-      SCreateDbMsg* pCreateMsg = pRequest->body.param;
+      SCreateDbMsg* pCreateMsg = pRequest->body.requestMsg.pMsg;
       SName name = {0};
       int32_t ret = tNameSetDbName(&name, pRequest->pTscObj->acctId, pCreateMsg->db, strnlen(pCreateMsg->db, tListLen(pCreateMsg->db)));
       if (ret != TSDB_CODE_SUCCESS) {
@@ -2925,12 +2922,8 @@ int32_t processShowRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) 
     pFields[i].bytes = pSchema[i].bytes;
   }
 
-  if (pRequest->body.pResInfo == NULL) {
-    pRequest->body.pResInfo = calloc(1, sizeof(SClientResultInfo));
-  }
-
-  pRequest->body.pResInfo->pMsg = pMsg;
-  SClientResultInfo* pResInfo = pRequest->body.pResInfo;
+  pRequest->body.resInfo.pRspMsg = pMsg;
+  SReqResultInfo* pResInfo = &pRequest->body.resInfo;
 
   pResInfo->fields    = pFields;
   pResInfo->numOfCols = pMetaMsg->numOfColumns;
@@ -2944,27 +2937,27 @@ int32_t processShowRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) 
 
 int buildRetrieveMnodeMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
   pMsgBody->msgType = TSDB_MSG_TYPE_SHOW_RETRIEVE;
-  pMsgBody->msgLen = sizeof(SRetrieveTableMsg);
+  pMsgBody->msgInfo.len = sizeof(SRetrieveTableMsg);
   pMsgBody->requestObjRefId = pRequest->self;
 
   SRetrieveTableMsg *pRetrieveMsg = calloc(1, sizeof(SRetrieveTableMsg));
   pRetrieveMsg->showId  = htonl(pRequest->body.execId);
 
-  pMsgBody->pData = pRetrieveMsg;
+  pMsgBody->msgInfo.pMsg = pRetrieveMsg;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t processRetrieveMnodeRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
   assert(msgLen >= sizeof(SRetrieveTableRsp));
 
-  tfree(pRequest->body.pResInfo->pMsg);
-  pRequest->body.pResInfo->pMsg = pMsg;
+  tfree(pRequest->body.resInfo.pRspMsg);
+  pRequest->body.resInfo.pRspMsg = pMsg;
 
   SRetrieveTableRsp *pRetrieve = (SRetrieveTableRsp *) pMsg;
   pRetrieve->numOfRows  = htonl(pRetrieve->numOfRows);
   pRetrieve->precision  = htons(pRetrieve->precision);
 
-  SClientResultInfo* pResInfo = pRequest->body.pResInfo;
+  SReqResultInfo* pResInfo = &pRequest->body.resInfo;
   pResInfo->numOfRows = pRetrieve->numOfRows;
   pResInfo->pData = pRetrieve->data;              // todo fix this in async model
 
