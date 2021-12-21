@@ -86,7 +86,6 @@ tests/script/api/batchprepare
 tests/script/api/stmt
 tests/script/api/stmtBatchTest
 tests/script/api/stmtTest
-
 # Emacs
 # -*- mode: gitignore; -*-
 *~

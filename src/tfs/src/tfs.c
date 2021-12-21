@@ -265,7 +265,10 @@ int tfsMkdirRecurAt(const char *rname, int level, int id) {
     if (errno == ENOENT) {
       // Try to create upper
       char *s = strdup(rname);
-
+      if (strcmp(s, ".") == 0){     // TD-12238, if mkdir failed, rname will be ".", it will be always failed, so need to jump recursion
+        free(s);
+        return -1;
+      }
       // Make a copy of dirname(s) because the implementation of 'dirname' differs on different platforms.
       // Some platform may modify the contents of the string passed into dirname(). Others may return a pointer to
       // internal static storage space that will be overwritten by next call. For case like that, we should not use

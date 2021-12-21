@@ -1216,7 +1216,7 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
       }
     }
 
-    taosArrayDestroy(res);
+    taosArrayDestroy(&res);
   }
   return 0;
 }
@@ -1680,7 +1680,7 @@ static void tsdbFreeTableSchema(STable *pTable) {
       tdFreeSchema(pSchema);
     }
 
-    taosArrayDestroy(pTable->schema);
+    taosArrayDestroy(&pTable->schema);
   }
 }
 
