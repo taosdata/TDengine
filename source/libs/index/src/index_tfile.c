@@ -117,7 +117,7 @@ TFileCache *tfileCacheCreate(const char *path) {
     }
     TFileReader *reader = tfileReaderCreate(wc);
     if (0 != tfileReadLoadHeader(reader)) {
-      TFileReaderDestroy(reader);
+      tfileReaderDestroy(reader);
       indexError("failed to load index header, index Id: %s", file);
       goto End;
     }
@@ -126,7 +126,6 @@ TFileCache *tfileCacheCreate(const char *path) {
     TFileHeader * header = &reader->header;
     TFileCacheKey key = {
         .suid = header->suid, .version = header->version, .colName = header->colName, .nColName = strlen(header->colName), .colType = header->colType};
-
     char buf[128] = {0};
     tfileSerialCacheKey(&key, buf);
     taosHashPut(tcache->tableCache, buf, strlen(buf), &reader, sizeof(void *));
@@ -147,7 +146,7 @@ void tfileCacheDestroy(TFileCache *tcache) {
     TFileReader *p = *reader;
     indexInfo("drop table cache suid: %" PRIu64 ", colName: %s, colType: %d", p->header.suid, p->header.colName, p->header.colType);
 
-    TFileReaderDestroy(p);
+    tfileReaderDestroy(p);
     reader = taosHashIterate(tcache->tableCache, reader);
   }
   taosHashCleanup(tcache->tableCache);
@@ -175,11 +174,30 @@ TFileReader *tfileReaderCreate(WriterCtx *ctx) {
   reader->ctx = ctx;
   return reader;
 }
-void TFileReaderDestroy(TFileReader *reader) {
+void tfileReaderDestroy(TFileReader *reader) {
   if (reader == NULL) { return; }
   // T_REF_INC(reader);
   writerCtxDestroy(reader->ctx);
   free(reader);
+}
+
+int tfileReaderSearch(TFileReader *reader, SIndexTermQuery *query, SArray *result) {
+  SIndexTerm *term = query->term;
+  // refactor to callback later
+  if (query->qType == QUERY_TERM) {
+    uint64_t offset;
+    FstSlice key = fstSliceCreate(term->colVal, term->nColVal);
+    if (fstGet(reader->fst, &key, &offset)) {
+      //
+    } else {
+      indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, not found in tindex", term->suid, term->colName, term->colVal);
+    }
+    return 0;
+  } else if (query->qType == QUERY_PREFIX) {
+    //
+    //
+  }
+  return 0;
 }
 
 TFileWriter *tfileWriterCreate(WriterCtx *ctx, TFileHeader *header) {
@@ -196,7 +214,7 @@ TFileWriter *tfileWriterCreate(WriterCtx *ctx, TFileHeader *header) {
   }
   TFileWriter *tw = calloc(1, sizeof(TFileWriter));
   if (tw == NULL) {
-    indexError("index: % " PRIu64 " failed to write header info");
+    indexError("index: %" PRIu64 " failed to alloc TFilerWriter", header->suid);
     return NULL;
   }
   return tw;
@@ -218,15 +236,14 @@ IndexTFile *indexTFileCreate(const char *path) {
 void IndexTFileDestroy(IndexTFile *tfile) { free(tfile); }
 
 int indexTFileSearch(void *tfile, SIndexTermQuery *query, SArray *result) {
+  if (tfile == NULL) { return -1; }
   IndexTFile *pTfile = (IndexTFile *)tfile;
-  if (pTfile == NULL) { return -1; }
 
   SIndexTerm *  term = query->term;
   TFileCacheKey key = {.suid = term->suid, .colType = term->colType, .version = 0, .colName = term->colName, .nColName = term->nColName};
 
   TFileReader *reader = tfileCacheGet(pTfile->cache, &key);
-
-  return 0;
+  return tfileReaderSearch(reader, query, result);
 }
 int indexTFilePut(void *tfile, SIndexTerm *term, uint64_t uid) {
   TFileWriterOpt wOpt = {.suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName = term->nColName, .version = 1};

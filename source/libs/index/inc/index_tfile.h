@@ -96,7 +96,8 @@ TFileReader *tfileCacheGet(TFileCache *tcache, TFileCacheKey *key);
 void         tfileCachePut(TFileCache *tcache, TFileCacheKey *key, TFileReader *reader);
 
 TFileReader *tfileReaderCreate(WriterCtx *ctx);
-void         TFileReaderDestroy(TFileReader *reader);
+void         tfileReaderDestroy(TFileReader *reader);
+int          tfileReaderSearch(TFileReader *reader, SIndexTermQuery *query, SArray *result);
 
 TFileWriter *tfileWriterCreate(WriterCtx *ctx, TFileHeader *header);
 void         tfileWriterDestroy(TFileWriter *tw);
