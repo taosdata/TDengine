@@ -627,6 +627,14 @@ class TDTestCase:
         tdSql.query(" select stddev(dataint) from jsons8 group by datatime;")
         tdSql.error(" select stddev(datatime) from jsons8 group by datadouble;")
 
+        # # verify the tag length of the super table and the child table 
+        # TD-12389
+        # tdSql.query("describe jsons1;")
+        # jtagLengthSup=tdSql.queryResult[3][2]
+        # tdSql.query("describe jsons1_1;")
+        # tdSql.checkData(3, 2, jtagLengthSup)
+
+        
         # #test import and export
         # tdSql.execute("select * from jsons1 >> jsons1_data.csv;")
         # tdSql.query("select * from jsons1 ")
