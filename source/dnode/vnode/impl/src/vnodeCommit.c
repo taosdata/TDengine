@@ -38,9 +38,10 @@ int vnodeCommit(void *arg) {
 
   metaCommit(pVnode->pMeta);
   tqCommit(pVnode->pTq);
-  tsdbCommit(pVnode->pTq);
+  tsdbCommit(pVnode->pTsdb);
 
   vnodeBufPoolRecycle(pVnode);
+  tsem_post(&(pVnode->canCommit));
   // TODO
   return 0;
 }

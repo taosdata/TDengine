@@ -16,6 +16,7 @@
 #ifndef _TD_TSDB_COMMIT_H_
 #define _TD_TSDB_COMMIT_H_
 
+#if 0
 typedef struct {
   int   minFid;
   int   midFid;
@@ -53,5 +54,6 @@ static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
     return -1;
   }
 }
+#endif
 
 #endif /* _TD_TSDB_COMMIT_H_ */

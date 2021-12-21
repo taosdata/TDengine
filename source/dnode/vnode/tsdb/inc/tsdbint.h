@@ -16,6 +16,7 @@
 #ifndef _TD_TSDB_INT_H_
 #define _TD_TSDB_INT_H_
 
+#if 0
 // // TODO: remove the include
 // #include <errno.h>
 // #include <fcntl.h>
@@ -144,4 +145,5 @@ static FORCE_INLINE int tsdbGetNextMaxTables(int tid) {
 }
 #endif
 
+#endif
 #endif /* _TD_TSDB_INT_H_ */
