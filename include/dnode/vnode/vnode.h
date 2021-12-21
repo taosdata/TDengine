@@ -132,6 +132,36 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
  */
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
+/**
+ * @brief Process a query message.
+ *
+ * @param pVnode The vnode object.
+ * @param pMsg The request message
+ * @param pRsp The response message
+ * @return int 0 for success, -1 for failure
+ */
+int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+
+/**
+ * @brief Process a fetch message.
+ *
+ * @param pVnode The vnode object.
+ * @param pMsg The request message
+ * @param pRsp The response message
+ * @return int 0 for success, -1 for failure
+ */
+int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+
+/**
+ * @brief Process a consume message.
+ *
+ * @param pVnode The vnode object.
+ * @param pMsg The request message
+ * @param pRsp The response message
+ * @return int 0 for success, -1 for failure
+ */
+int vnodeProcessConsumeMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+
 /* ------------------------ SVnodeCfg ------------------------ */
 /**
  * @brief Initialize VNODE options.
@@ -185,31 +215,6 @@ void *vnodeParseReq(void *buf, SVnodeReq *pReq, uint8_t type);
 /* ------------------------ FOR COMPILE ------------------------ */
 
 #if 1
-
-#include "taosmsg.h"
-#include "trpc.h"
-
-// typedef struct {
-//   char     db[TSDB_FULL_DB_NAME_LEN];
-//   int32_t  cacheBlockSize;  // MB
-//   int32_t  totalBlocks;
-//   int32_t  daysPerFile;
-//   int32_t  daysToKeep0;
-//   int32_t  daysToKeep1;
-//   int32_t  daysToKeep2;
-//   int32_t  minRows;
-//   int32_t  maxRows;
-//   int8_t   precision;  // time resolution
-//   int8_t   compression;
-//   int8_t   cacheLastRow;
-//   int8_t   update;
-//   int8_t   quorum;
-//   int8_t   replica;
-//   int8_t   selfIndex;
-//   int8_t   walLevel;
-//   int32_t  fsyncPeriod;  // millisecond
-//   SReplica replicas[TSDB_MAX_REPLICA];
-// } SVnodeCfg;
 
 typedef enum {
   VN_MSG_TYPE_WRITE = 1,

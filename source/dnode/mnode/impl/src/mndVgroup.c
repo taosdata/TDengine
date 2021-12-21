@@ -311,6 +311,27 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
   return 0;
 }
 
+SEpSet mndGetVgroupEpset(SMnode *pMnode, SVgObj *pVgroup) {
+  SEpSet epset = {0};
+
+  for (int32_t v = 0; v < pVgroup->replica; ++v) {
+    SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
+    SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+    if (pDnode == NULL) continue;
+
+    if (pVgid->role == TAOS_SYNC_STATE_LEADER) {
+      epset.inUse = epset.numOfEps;
+    }
+
+    epset.port[epset.numOfEps] = pDnode->port;
+    memcpy(&epset.fqdn[epset.numOfEps], pDnode->fqdn, TSDB_FQDN_LEN);
+    epset.numOfEps++;
+    mndReleaseDnode(pMnode, pDnode);
+  }
+
+  return epset;
+}
+
 static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pMsg) {
   mndTransHandleActionRsp(pMsg);
   return 0;

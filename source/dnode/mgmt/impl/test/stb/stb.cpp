@@ -270,6 +270,8 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     SRpcMsg* pMsg = pClient->pRsp;
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
+
+    taosMsleep(100000);
   }
 
   SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_STB, "show stables", 4, "1.d1");

@@ -21,6 +21,7 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndVgroup.h"
 #include "tname.h"
 
 #define TSDB_STB_VER_NUMBER 1
@@ -199,7 +200,54 @@ static SDbObj *mndAcquireDbByStb(SMnode *pMnode, char *stbName) {
   return mndAcquireDb(pMnode, db);
 }
 
-static int32_t mndCheckStbMsg(SCreateStbMsg *pCreate) {
+static SCreateStbInternalMsg *mndBuildCreateStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb) {
+  int32_t totalCols = pStb->numOfTags + pStb->numOfColumns;
+  int32_t contLen = totalCols * sizeof(SSchema) + sizeof(SCreateStbInternalMsg);
+
+  SCreateStbInternalMsg *pCreate = calloc(1, contLen);
+  if (pCreate == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pCreate->head.contLen = htonl(contLen);
+  pCreate->head.vgId = htonl(pVgroup->vgId);
+  memcpy(pCreate->name, pStb->name, TSDB_TABLE_FNAME_LEN);
+  pCreate->suid = htobe64(pStb->uid);
+  pCreate->sverson = htonl(pStb->version);
+  pCreate->ttl = 0;
+  pCreate->keep = 0;
+  pCreate->numOfTags = htonl(pStb->numOfTags);
+  pCreate->numOfColumns = htonl(pStb->numOfColumns);
+
+  memcpy(pCreate->pSchema, pStb->pSchema, totalCols * sizeof(SSchema));
+  for (int32_t t = 0; t < totalCols; ++t) {
+    SSchema *pSchema = &pCreate->pSchema[t];
+    pSchema->bytes = htonl(pSchema->bytes);
+    pSchema->colId = htonl(pSchema->colId);
+  }
+
+  return pCreate;
+}
+
+static SDropStbInternalMsg *mndBuildDropStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb) {
+  int32_t contLen = sizeof(SDropStbInternalMsg);
+
+  SDropStbInternalMsg *pDrop = calloc(1, contLen);
+  if (pDrop == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pDrop->head.contLen = htonl(contLen);
+  pDrop->head.vgId = htonl(pVgroup->vgId);
+  memcpy(pDrop->name, pStb->name, TSDB_TABLE_FNAME_LEN);
+  pDrop->suid = htobe64(pStb->uid);
+
+  return pDrop;
+}
+
+static int32_t mndCheckCreateStbMsg(SCreateStbMsg *pCreate) {
   pCreate->numOfColumns = htonl(pCreate->numOfColumns);
   pCreate->numOfTags = htonl(pCreate->numOfTags);
   int32_t totalCols = pCreate->numOfColumns + pCreate->numOfTags;
@@ -248,7 +296,7 @@ static int32_t mndCheckStbMsg(SCreateStbMsg *pCreate) {
   return 0;
 }
 
-static int32_t mndSetCreateStbRedoLogs(SMnode *pMnode, STrans *pTrans, SStbObj *pStb) {
+static int32_t mndSetCreateStbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
   SSdbRaw *pRedoRaw = mndStbActionEncode(pStb);
   if (pRedoRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
@@ -257,7 +305,7 @@ static int32_t mndSetCreateStbRedoLogs(SMnode *pMnode, STrans *pTrans, SStbObj *
   return 0;
 }
 
-static int32_t mndSetCreateStbUndoLogs(SMnode *pMnode, STrans *pTrans, SStbObj *pStb) {
+static int32_t mndSetCreateStbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
   SSdbRaw *pUndoRaw = mndStbActionEncode(pStb);
   if (pUndoRaw == NULL) return -1;
   if (mndTransAppendUndolog(pTrans, pUndoRaw) != 0) return -1;
@@ -266,7 +314,7 @@ static int32_t mndSetCreateStbUndoLogs(SMnode *pMnode, STrans *pTrans, SStbObj *
   return 0;
 }
 
-static int32_t mndSetCreateStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStbObj *pStb) {
+static int32_t mndSetCreateStbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
   SSdbRaw *pCommitRaw = mndStbActionEncode(pStb);
   if (pCommitRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
@@ -275,60 +323,72 @@ static int32_t mndSetCreateStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStbObj
   return 0;
 }
 
-static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SStbObj *pStb) {
-  // for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
-  //   SVgObj *pVgroup = pVgroups + vg;
+static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = NULL;
+  void   *pIter = NULL;
 
-  //   for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
-  //     STransAction action = {0};
-  //     SVnodeGid   *pVgid = pVgroup->vnodeGid + vn;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+    if (pVgroup->dbUid != pDb->uid) continue;
 
-  //     SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
-  //     if (pDnode == NULL) return -1;
-  //     action.epSet = mndGetDnodeEpset(pDnode);
-  //     mndReleaseDnode(pMnode, pDnode);
+    SCreateStbInternalMsg *pMsg = mndBuildCreateStbMsg(pMnode, pVgroup, pStb);
+    if (pMsg == NULL) {
+      sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, pVgroup);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
 
-  //     SCreateVnodeMsg *pMsg = mndBuildCreateVnodeMsg(pMnode, pDnode, pDb, pVgroup);
-  //     if (pMsg == NULL) return -1;
-
-  //     action.pCont = pMsg;
-  //     action.contLen = sizeof(SCreateVnodeMsg);
-  //     action.msgType = TSDB_MSG_TYPE_CREATE_VNODE_IN;
-  //     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-  //       free(pMsg);
-  //       return -1;
-  //     }
-  //   }
-  // }
+    STransAction action = {0};
+    action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    action.pCont = pMsg;
+    action.contLen = sizeof(SCreateStbInternalMsg);
+    action.msgType = TSDB_MSG_TYPE_CREATE_STB_IN;
+    if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+      free(pMsg);
+      sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, pVgroup);
+      return -1;
+    }
+    sdbRelease(pSdb, pVgroup);
+  }
 
   return 0;
 }
 
-static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SStbObj *pStb) {
-  // for (int32_t vg = 0; vg < pDb->cfg.numOfVgroups; ++vg) {
-  //   SVgObj *pVgroup = pVgroups + vg;
+static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = NULL;
+  void   *pIter = NULL;
 
-  //   for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
-  //     STransAction action = {0};
-  //     SVnodeGid   *pVgid = pVgroup->vnodeGid + vn;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+    if (pVgroup->dbUid != pDb->uid) continue;
 
-  //     SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
-  //     if (pDnode == NULL) return -1;
-  //     action.epSet = mndGetDnodeEpset(pDnode);
-  //     mndReleaseDnode(pMnode, pDnode);
+    SDropStbInternalMsg *pMsg = mndBuildDropStbMsg(pMnode, pVgroup, pStb);
+    if (pMsg == NULL) {
+      sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, pVgroup);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
 
-  //     SDropVnodeMsg *pMsg = mndBuildDropVnodeMsg(pMnode, pDnode, pDb, pVgroup);
-  //     if (pMsg == NULL) return -1;
-
-  //     action.pCont = pMsg;
-  //     action.contLen = sizeof(SDropVnodeMsg);
-  //     action.msgType = TSDB_MSG_TYPE_DROP_VNODE_IN;
-  //     if (mndTransAppendUndoAction(pTrans, &action) != 0) {
-  //       free(pMsg);
-  //       return -1;
-  //     }
-  //   }
-  // }
+    STransAction action = {0};
+    action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    action.pCont = pMsg;
+    action.contLen = sizeof(SDropStbInternalMsg);
+    action.msgType = TSDB_MSG_TYPE_DROP_STB_IN;
+    if (mndTransAppendUndoAction(pTrans, &action) != 0) {
+      free(pMsg);
+      sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, pVgroup);
+      return -1;
+    }
+    sdbRelease(pSdb, pVgroup);
+  }
 
   return 0;
 }
@@ -362,27 +422,27 @@ static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateStbMsg *pCre
   }
   mDebug("trans:%d, used to create stb:%s", pTrans->id, pCreate->name);
 
-  if (mndSetCreateStbRedoLogs(pMnode, pTrans, &stbObj) != 0) {
+  if (mndSetCreateStbRedoLogs(pMnode, pTrans, pDb, &stbObj) != 0) {
     mError("trans:%d, failed to set redo log since %s", pTrans->id, terrstr());
     goto CREATE_STB_OVER;
   }
 
-  if (mndSetCreateStbUndoLogs(pMnode, pTrans, &stbObj) != 0) {
+  if (mndSetCreateStbUndoLogs(pMnode, pTrans, pDb, &stbObj) != 0) {
     mError("trans:%d, failed to set undo log since %s", pTrans->id, terrstr());
     goto CREATE_STB_OVER;
   }
 
-  if (mndSetCreateStbCommitLogs(pMnode, pTrans, &stbObj) != 0) {
+  if (mndSetCreateStbCommitLogs(pMnode, pTrans, pDb, &stbObj) != 0) {
     mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
     goto CREATE_STB_OVER;
   }
 
-  if (mndSetCreateStbRedoActions(pMnode, pTrans, &stbObj) != 0) {
+  if (mndSetCreateStbRedoActions(pMnode, pTrans, pDb, &stbObj) != 0) {
     mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
     goto CREATE_STB_OVER;
   }
 
-  if (mndSetCreateStbUndoActions(pMnode, pTrans, &stbObj) != 0) {
+  if (mndSetCreateStbUndoActions(pMnode, pTrans, pDb, &stbObj) != 0) {
     mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
     goto CREATE_STB_OVER;
   }
@@ -406,7 +466,7 @@ static int32_t mndProcessCreateStbMsg(SMnodeMsg *pMsg) {
 
   mDebug("stb:%s, start to create", pCreate->name);
 
-  if (mndCheckStbMsg(pCreate) != 0) {
+  if (mndCheckCreateStbMsg(pCreate) != 0) {
     mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
     return -1;
   }
@@ -443,7 +503,10 @@ static int32_t mndProcessCreateStbMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessCreateStbInRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessCreateStbInRsp(SMnodeMsg *pMsg) {
+  mndTransHandleActionRsp(pMsg);
+  return 0;
+}
 
 static int32_t mndCheckAlterStbMsg(SAlterStbMsg *pAlter) {
   SSchema *pSchema = &pAlter->schema;
@@ -504,7 +567,10 @@ static int32_t mndProcessAlterStbMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessAlterStbInRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessAlterStbInRsp(SMnodeMsg *pMsg) {
+  mndTransHandleActionRsp(pMsg);
+  return 0;
+}
 
 static int32_t mndSetDropStbRedoLogs(SMnode *pMnode, STrans *pTrans, SStbObj *pStb) {
   SSdbRaw *pRedoRaw = mndStbActionEncode(pStb);
@@ -613,7 +679,10 @@ static int32_t mndProcessDropStbMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessDropStbInRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessDropStbInRsp(SMnodeMsg *pMsg) {
+  mndTransHandleActionRsp(pMsg);
+  return 0;
+}
 
 static int32_t mndProcessStbMetaMsg(SMnodeMsg *pMsg) {
   SMnode        *pMnode = pMsg->pMnode;

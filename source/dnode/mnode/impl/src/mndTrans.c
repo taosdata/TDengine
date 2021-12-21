@@ -465,11 +465,15 @@ static int32_t mndTransAppendAction(SArray *pArray, STransAction *pAction) {
 }
 
 int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction) {
-  return mndTransAppendAction(pTrans->redoActions, pAction);
+  int32_t code = mndTransAppendAction(pTrans->redoActions, pAction);
+  mTrace("trans:%d, msg:%s append to redo actions, code:0x%x", pTrans->id, taosMsg[pAction->msgType], code);
+  return code;
 }
 
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction) {
-  return mndTransAppendAction(pTrans->undoActions, pAction);
+  int32_t code = mndTransAppendAction(pTrans->undoActions, pAction);
+  mTrace("trans:%d, msg:%s append to undo actions, code:0x%x", pTrans->id, taosMsg[pAction->msgType], code);
+  return code;
 }
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
@@ -504,7 +508,6 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
     return -1;
   }
 
-  mDebug("trans:%d, prepare finished", pNewTrans->id);
   pNewTrans->rpcHandle = pTrans->rpcHandle;
   mndTransExecute(pMnode, pNewTrans);
   mndReleaseTrans(pMnode, pNewTrans);
