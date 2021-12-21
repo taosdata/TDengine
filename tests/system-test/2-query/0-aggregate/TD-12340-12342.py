@@ -47,18 +47,6 @@ class TDTestCase:
 
         pass
 
-    def check_td12340(self):
-        # this case expect return two column when using "group by ts"
-        tdSql.query("select count(*) from stb1 group by ts")
-        try:
-            tdSql.checkCols(2)
-            self.curret_case += 1
-            tdLog.printNoPrefix("the case1: td-12340 run passed")
-        except:
-            self.err_case += 1
-            tdLog.printNoPrefix("the case1: td-12340 run failed")
-        pass
-
     def check_td12342(self):
         # this case expect return err when using "group by ts order by first-tag"
         try:
@@ -73,7 +61,6 @@ class TDTestCase:
     def run(self):
         self.create_stb()
 
-        self.check_td12340()
         self.check_td12342()
 
         if self.err_case > 0:
