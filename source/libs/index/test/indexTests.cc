@@ -26,6 +26,7 @@
 class FstWriter {
   public:
     FstWriter() {
+      _wc = writerCtxCreate(TFile, "/tmp/tindex", false, 0); 
       _b = fstBuilderCreate(NULL, 0);
     }  
    bool Put(const std::string &key, uint64_t val) {
@@ -37,15 +38,19 @@ class FstWriter {
    ~FstWriter() {
      fstBuilderFinish(_b);
      fstBuilderDestroy(_b);
+
+     writerCtxDestroy(_wc);
    }
   private:
     FstBuilder *_b; 
+    WriterCtx *_wc;
 };
 
 class FstReadMemory {
   public:
    FstReadMemory(size_t size) {
-     _w    = fstCountingWriterCreate(NULL); 
+     _wc   = writerCtxCreate(TFile, "/tmp/tindex", true, 0);   
+     _w    = fstCountingWriterCreate(_wc); 
      _size = size; 
      memset((void *)&_s, 0, sizeof(_s));
    }
@@ -94,12 +99,14 @@ class FstReadMemory {
     fstCountingWriterDestroy(_w);
     fstDestroy(_fst);
     fstSliceDestroy(&_s);
+    writerCtxDestroy(_wc);
   } 
   
   private:
    FstCountingWriter *_w; 
    Fst *_fst;
    FstSlice _s;  
+   WriterCtx *_wc;
    size_t _size;
    
 }; 
