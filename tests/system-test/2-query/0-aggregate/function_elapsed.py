@@ -1640,9 +1640,9 @@ class TDTestCase:
 
         
     def continuous_query(self):
-        tdSql.query('select elapsed(ts,10s) from  ( select ts ,q_int from sub_table1_1   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000") session(ts,1w) ; ')
-        tdSql.checkRows(1)
-        
+        tdSql.execute('create table elapsed_t as select elapsed(ts) from sub_table1_1  interval(1m) sliding(30s);')
+        tdSql.execute('create table elapsed_tb as select elapsed(ts) from stable_1  interval(1m) sliding(30s) group by tbname;')
+        tdSql.error('create table elapsed_tc as select elapsed(ts) from stable_1  interval(10s) sliding(5s) interval(1m) sliding(30s) group by tbname;')
 
     def run(self):
         tdSql.prepare()
