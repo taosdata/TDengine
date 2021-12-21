@@ -3,7 +3,6 @@ using TDengineDriver;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Collections.Generic;
-
 namespace Test.UtilsTools
 {
     public class UtilsTools
@@ -40,6 +39,28 @@ namespace Test.UtilsTools
             }
             return res;
         }
+
+        public static IntPtr ExecuteErrorQuery(IntPtr conn, String sql)
+        {
+            IntPtr res = TDengine.Query(conn, sql);
+            if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
+            {
+                Console.Write(sql.ToString() + " failure, ");
+                if (res != IntPtr.Zero)
+                {
+                    Console.Write("reason: " + TDengine.Error(res));
+
+                }
+                Console.WriteLine("");
+            }
+            else
+            {
+                Console.WriteLine(sql.ToString() + " success");
+
+            }
+            return res;
+        }
+
         public static void DisplayRes(IntPtr res)
         {
             long queryRows = 0;
@@ -120,6 +141,10 @@ namespace Test.UtilsTools
                         case TDengineDataType.TSDB_DATA_TYPE_NCHAR:
                             string v10 = Marshal.PtrToStringAnsi(data);
                             builder.Append(v10);
+                            break;
+                        case TDengineDataType.TSDB_DATA_TYPE_JSONTAG:
+                            string v11 = Marshal.PtrToStringAnsi(data);
+                            builder.Append(v11);
                             break;
                     }
                 }

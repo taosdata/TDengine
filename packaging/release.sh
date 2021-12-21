@@ -496,7 +496,7 @@ fi
 
 if [[ "$allocator" == "jemalloc" ]]; then
     # jemalloc need compile first, so disable parallel build
-    make -j 8 && ${csudo}make install
+    make && ${csudo}make install
 else
     make -j 8 && ${csudo}make install
 fi
