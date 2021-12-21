@@ -344,7 +344,7 @@ static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     STransAction action = {0};
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     action.pCont = pMsg;
-    action.contLen = sizeof(SCreateStbInternalMsg);
+    action.contLen = htonl(pMsg->head.contLen);
     action.msgType = TSDB_MSG_TYPE_CREATE_STB_IN;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pMsg);

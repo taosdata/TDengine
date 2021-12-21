@@ -813,19 +813,38 @@ static void dndProcessVnodeFetchQueue(SVnodeObj *pVnode, SRpcMsg *pMsg) {
 }
 
 static void dndProcessVnodeWriteQueue(SVnodeObj *pVnode, taos_qall qall, int32_t numOfMsgs) {
-  SRpcMsg *pRpcMsg = NULL;
-  SArray  *pArray = taosArrayInit(numOfMsgs, sizeof(SRpcMsg));
+  SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SRpcMsg *));
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
-    taosGetQitem(qall, (void **)&pRpcMsg);
-
-    void *ptr = taosArrayPush(pArray, pRpcMsg);
+    SRpcMsg *pMsg = NULL;
+    taosGetQitem(qall, (void **)&pMsg);
+    void *ptr = taosArrayPush(pArray, &pMsg);
     assert(ptr != NULL);
-
-    taosFreeQitem(pRpcMsg);
   }
 
   vnodeProcessWMsgs(pVnode->pImpl, pArray);
+
+  for (size_t i = 0; i < numOfMsgs; i++) {
+    SRpcMsg *pRsp = NULL;
+    SRpcMsg *pMsg = *(SRpcMsg **)taosArrayGet(pArray, i);
+    int32_t  code = vnodeApplyWMsg(pVnode->pImpl, pMsg, &pRsp);
+    if (pRsp != NULL) {
+      rpcSendResponse(pRsp);
+      free(pRsp);
+    } else {
+      if (code != 0) code = terrno;
+      SRpcMsg rpcRsp = {.handle = pMsg->handle, .ahandle = pMsg->ahandle, .code = code};
+      rpcSendResponse(&rpcRsp);
+    }
+  }
+
+  for (size_t i = 0; i < numOfMsgs; i++) {
+    SRpcMsg *pMsg = *(SRpcMsg **)taosArrayGet(pArray, i);
+    rpcFreeCont(pMsg->pCont);
+    taosFreeQitem(pMsg);
+  }
+
+  taosArrayDestroy(pArray);
 }
 
 static void dndProcessVnodeApplyQueue(SVnodeObj *pVnode, taos_qall qall, int32_t numOfMsgs) {
@@ -876,6 +895,7 @@ static int32_t dndWriteRpcMsgToVnodeQueue(taos_queue pQueue, SRpcMsg *pRpcMsg) {
 
 static SVnodeObj *dndAcquireVnodeFromMsg(SDnode *pDnode, SRpcMsg *pMsg) {
   SMsgHead *pHead = (SMsgHead *)pMsg->pCont;
+  pHead->contLen = htonl(pHead->contLen);
   pHead->vgId = htonl(pHead->vgId);
 
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, pHead->vgId);
