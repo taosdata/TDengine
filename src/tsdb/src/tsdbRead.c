@@ -4231,7 +4231,6 @@ char* parseTagDatatoJson(void *p){
       memset(tagJsonKey, 0, sizeof(tagJsonKey));
       memcpy(tagJsonKey, varDataVal(val), varDataLen(val));
     }else{  // json value
-      char tagJsonValue[TSDB_MAX_JSON_TAGS_LEN] = {0};
       char* realData = POINTER_SHIFT(val, CHAR_BYTES);
       char type = *(char*)val;
       if(type == TSDB_DATA_TYPE_BINARY) {
@@ -4244,14 +4243,16 @@ char* parseTagDatatoJson(void *p){
         }
         cJSON_AddItemToObject(json, tagJsonKey, value);
       }else if(type == TSDB_DATA_TYPE_NCHAR) {
+        char *tagJsonValue = calloc(varDataLen(realData), 1);
         int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), tagJsonValue);
         if (length < 0) {
           tsdbError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
                    (char*)val);
+          free(tagJsonValue);
           goto end;
         }
         cJSON* value = cJSON_CreateString(tagJsonValue);
-
+        free(tagJsonValue);
         if (value == NULL)
         {
           goto end;
