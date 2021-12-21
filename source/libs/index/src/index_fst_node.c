@@ -14,60 +14,46 @@
  */
 #include "index_fst_node.h"
 
-FstBuilderNode *fstBuilderNodeDefault() {
-  FstBuilderNode *bn = malloc(sizeof(FstBuilderNode));
+FstBuilderNode* fstBuilderNodeDefault() {
+  FstBuilderNode* bn = malloc(sizeof(FstBuilderNode));
   bn->isFinal = false;
   bn->finalOutput = 0;
   bn->trans = taosArrayInit(16, sizeof(FstTransition));
   return bn;
 }
-void fstBuilderNodeDestroy(FstBuilderNode *node) {
-  if (node == NULL) {
-    return;
-  }
+void fstBuilderNodeDestroy(FstBuilderNode* node) {
+  if (node == NULL) { return; }
 
   taosArrayDestroy(node->trans);
   free(node);
 }
 
-bool fstBuilderNodeEqual(FstBuilderNode *n1, FstBuilderNode *n2) {
-  if (n1 == n2) {
-    return true;
-  }
-  if (n1 == NULL || n2 == NULL) {
-    return false;
-  }
+bool fstBuilderNodeEqual(FstBuilderNode* n1, FstBuilderNode* n2) {
+  if (n1 == n2) { return true; }
+  if (n1 == NULL || n2 == NULL) { return false; }
 
-  if (n1->isFinal != n2->isFinal || n1->finalOutput != n2->finalOutput) {
-    return false;
-  }
+  if (n1->isFinal != n2->isFinal || n1->finalOutput != n2->finalOutput) { return false; }
   size_t s1 = n1->trans ? taosArrayGetSize(n1->trans) : 0;
   size_t s2 = n2->trans ? taosArrayGetSize(n2->trans) : 0;
-  if (s1 != s2) {
-    return false;
-  }
+  if (s1 != s2) { return false; }
   for (size_t i = 0; i < s1; i++) {
-    FstTransition *t1 = taosArrayGet(n1->trans, i);
-    FstTransition *t2 = taosArrayGet(n2->trans, i);
-    if (t1->inp != t2->inp || t1->out != t2->out || t1->addr != t2->addr) {
-      return false;
-    }
+    FstTransition* t1 = taosArrayGet(n1->trans, i);
+    FstTransition* t2 = taosArrayGet(n2->trans, i);
+    if (t1->inp != t2->inp || t1->out != t2->out || t1->addr != t2->addr) { return false; }
   }
 
   return true;
 }
-FstBuilderNode *fstBuilderNodeClone(FstBuilderNode *src) {
-  FstBuilderNode *node = malloc(sizeof(FstBuilderNode));
-  if (node == NULL) {
-    return NULL;
-  }
+FstBuilderNode* fstBuilderNodeClone(FstBuilderNode* src) {
+  FstBuilderNode* node = malloc(sizeof(FstBuilderNode));
+  if (node == NULL) { return NULL; }
 
   //
   size_t  sz = taosArrayGetSize(src->trans);
-  SArray *trans = taosArrayInit(sz, sizeof(FstTransition));
+  SArray* trans = taosArrayInit(sz, sizeof(FstTransition));
 
   for (size_t i = 0; i < sz; i++) {
-    FstTransition *tran = taosArrayGet(src->trans, i);
+    FstTransition* tran = taosArrayGet(src->trans, i);
     taosArrayPush(trans, tran);
   }
 
@@ -77,10 +63,8 @@ FstBuilderNode *fstBuilderNodeClone(FstBuilderNode *src) {
   return node;
 }
 // not destroy src, User's bussiness
-void fstBuilderNodeCloneFrom(FstBuilderNode *dst, FstBuilderNode *src) {
-  if (dst == NULL || src == NULL) {
-    return;
-  }
+void fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src) {
+  if (dst == NULL || src == NULL) { return; }
 
   dst->isFinal = src->isFinal;
   dst->finalOutput = src->finalOutput;
@@ -90,7 +74,7 @@ void fstBuilderNodeCloneFrom(FstBuilderNode *dst, FstBuilderNode *src) {
   size_t sz = taosArrayGetSize(src->trans);
   dst->trans = taosArrayInit(sz, sizeof(FstTransition));
   for (size_t i = 0; i < sz; i++) {
-    FstTransition *trn = taosArrayGet(src->trans, i);
+    FstTransition* trn = taosArrayGet(src->trans, i);
     taosArrayPush(dst->trans, trn);
   }
 }

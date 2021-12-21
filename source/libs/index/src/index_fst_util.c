@@ -61,7 +61,7 @@ uint8_t packSize(uint64_t n) {
   }
 }
 
-uint64_t unpackUint64(uint8_t *ch, uint8_t sz) {
+uint64_t unpackUint64(uint8_t* ch, uint8_t sz) {
   uint64_t n = 0;
   for (uint8_t i = 0; i < sz; i++) {
     //
@@ -76,7 +76,7 @@ uint8_t packDeltaSize(CompiledAddr nodeAddr, CompiledAddr transAddr) {
     return packSize(nodeAddr - transAddr);
   }
 }
-CompiledAddr unpackDelta(char *data, uint64_t len, uint64_t nodeAddr) {
+CompiledAddr unpackDelta(char* data, uint64_t len, uint64_t nodeAddr) {
   uint64_t delta = unpackUint64(data, len);
   // delta_add = u64_to_usize
   if (delta == EMPTY_ADDRESS) {
@@ -89,8 +89,8 @@ CompiledAddr unpackDelta(char *data, uint64_t len, uint64_t nodeAddr) {
 // fst slice func
 //
 
-FstSlice fstSliceCreate(uint8_t *data, uint64_t len) {
-  FstString *str = (FstString *)malloc(sizeof(FstString));
+FstSlice fstSliceCreate(uint8_t* data, uint64_t len) {
+  FstString* str = (FstString*)malloc(sizeof(FstString));
   str->ref = 1;
   str->len = len;
   str->data = malloc(len * sizeof(uint8_t));
@@ -100,8 +100,8 @@ FstSlice fstSliceCreate(uint8_t *data, uint64_t len) {
   return s;
 }
 // just shallow copy
-FstSlice fstSliceCopy(FstSlice *s, int32_t start, int32_t end) {
-  FstString *str = s->str;
+FstSlice fstSliceCopy(FstSlice* s, int32_t start, int32_t end) {
+  FstString* str = s->str;
   str->ref++;
   // uint8_t *buf = fstSliceData(s, &alen);
   // start = buf + start - (buf - s->start);
@@ -110,16 +110,16 @@ FstSlice fstSliceCopy(FstSlice *s, int32_t start, int32_t end) {
   FstSlice t = {.str = str, .start = start + s->start, .end = end + s->start};
   return t;
 }
-FstSlice fstSliceDeepCopy(FstSlice *s, int32_t start, int32_t end) {
+FstSlice fstSliceDeepCopy(FstSlice* s, int32_t start, int32_t end) {
   int32_t  tlen = end - start + 1;
   int32_t  slen;
-  uint8_t *data = fstSliceData(s, &slen);
+  uint8_t* data = fstSliceData(s, &slen);
   assert(tlen <= slen);
 
-  uint8_t *buf = malloc(sizeof(uint8_t) * tlen);
+  uint8_t* buf = malloc(sizeof(uint8_t) * tlen);
   memcpy(buf, data + start, tlen);
 
-  FstString *str = malloc(sizeof(FstString));
+  FstString* str = malloc(sizeof(FstString));
   str->data = buf;
   str->len = tlen;
   str->ref = 1;
@@ -130,15 +130,17 @@ FstSlice fstSliceDeepCopy(FstSlice *s, int32_t start, int32_t end) {
   ans.end = tlen - 1;
   return ans;
 }
-bool fstSliceIsEmpty(FstSlice *s) { return s->str == NULL || s->str->len == 0 || s->start < 0 || s->end < 0; }
+bool fstSliceIsEmpty(FstSlice* s) {
+  return s->str == NULL || s->str->len == 0 || s->start < 0 || s->end < 0;
+}
 
-uint8_t *fstSliceData(FstSlice *s, int32_t *size) {
-  FstString *str = s->str;
+uint8_t* fstSliceData(FstSlice* s, int32_t* size) {
+  FstString* str = s->str;
   if (size != NULL) { *size = s->end - s->start + 1; }
   return str->data + s->start;
 }
-void fstSliceDestroy(FstSlice *s) {
-  FstString *str = s->str;
+void fstSliceDestroy(FstSlice* s) {
+  FstString* str = s->str;
   str->ref--;
   if (str->ref <= 0) {
     free(str->data);
@@ -147,10 +149,10 @@ void fstSliceDestroy(FstSlice *s) {
   }
 }
 
-int fstSliceCompare(FstSlice *a, FstSlice *b) {
+int fstSliceCompare(FstSlice* a, FstSlice* b) {
   int32_t  alen, blen;
-  uint8_t *aBuf = fstSliceData(a, &alen);
-  uint8_t *bBuf = fstSliceData(b, &blen);
+  uint8_t* aBuf = fstSliceData(a, &alen);
+  uint8_t* bBuf = fstSliceData(b, &blen);
 
   uint32_t i, j;
   for (i = 0, j = 0; i < alen && j < blen; i++, j++) {

@@ -25,12 +25,14 @@ extern "C" {
 
 typedef struct FstRegistryCell {
   CompiledAddr    addr;
-  FstBuilderNode *node;
+  FstBuilderNode* node;
 } FstRegistryCell;
 
 #define FST_REGISTRY_CELL_IS_EMPTY(cell) (cell->addr == NONE_ADDRESS)
 #define FST_REGISTRY_CELL_INSERT(cell, tAddr) \
-  do { cell->addr = tAddr; } while (0)
+  do {                                        \
+    cell->addr = tAddr;                       \
+  } while (0)
 
 // typedef struct FstRegistryCache {
 //  SArray *cells;
@@ -43,22 +45,22 @@ typedef enum { FOUND, NOTFOUND, REJECTED } FstRegistryEntryState;
 typedef struct FstRegistryEntry {
   FstRegistryEntryState state;
   CompiledAddr          addr;
-  FstRegistryCell *     cell;
+  FstRegistryCell*      cell;
 } FstRegistryEntry;
 
 // Registry relation function
 typedef struct FstRegistry {
-  SArray * table;      //<FstRegistryCell>
+  SArray*  table;      //<FstRegistryCell>
   uint64_t tableSize;  // num of rows
   uint64_t mruSize;    // num of columns
 } FstRegistry;
 
 //
-FstRegistry *fstRegistryCreate(uint64_t tableSize, uint64_t mruSize);
-void         fstRegistryDestroy(FstRegistry *registry);
+FstRegistry* fstRegistryCreate(uint64_t tableSize, uint64_t mruSize);
+void         fstRegistryDestroy(FstRegistry* registry);
 
-FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNode);
-void              fstRegistryEntryDestroy(FstRegistryEntry *entry);
+FstRegistryEntry* fstRegistryGetEntry(FstRegistry* registry, FstBuilderNode* bNode);
+void              fstRegistryEntryDestroy(FstRegistryEntry* entry);
 
 #ifdef __cplusplus
 }
