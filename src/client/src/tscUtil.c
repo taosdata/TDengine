@@ -132,8 +132,7 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
   return TSDB_CODE_SUCCESS;
 }
 
-
-static void tscStrToLower(char *str, int32_t n) {
+UNUSED_FUNC static void tscStrToLower(char* str, int32_t n) {
   if (str == NULL || n <= 0) { return;}
   for (int32_t i = 0; i < n; i++) {
     if (str[i] >= 'A' && str[i] <= 'Z') {
@@ -3029,7 +3028,8 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
     if (pToken->type == TK_STRING) {
 
       tscDequoteAndTrimToken(pToken);
-      tscStrToLower(pToken->z, pToken->n);
+      // tscStrToLower(pToken->z, pToken->n);
+      strntolower(pToken->z, pToken->z, pToken->n);
       //pToken->n = (uint32_t)strtrim(pToken->z);
 
       int len = tGetToken(pToken->z, &pToken->type);
@@ -3083,7 +3083,8 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
       if (validateQuoteToken(pToken, escapeEnabled, NULL) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       } else {
-        tscStrToLower(pToken->z,pToken->n);
+        // tscStrToLower(pToken->z,pToken->n);
+        strntolower(pToken->z, pToken->z, pToken->n);
         firstPartQuote = true;
       }
     }
@@ -3101,7 +3102,8 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
       if (validateQuoteToken(pToken, escapeEnabled, NULL) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       } else {
-        tscStrToLower(pToken->z,pToken->n);
+        // tscStrToLower(pToken->z,pToken->n);
+        strntolower(pToken->z, pToken->z, pToken->n);
       }
     }
 
@@ -5524,6 +5526,11 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal, true);
       free(tagVal);
     }else if(item->type == cJSON_Number){
+      if(!isfinite(item->valuedouble)){
+        tscError("json value is invalidate");
+        retCode =  tscSQLSyntaxErrMsg(errMsg, "json value number is illegal", NULL);
+        goto end;
+      }
       char tagVal[LONG_BYTES + CHAR_BYTES] = {0};
       *tagVal = jsonType2DbType(item->valuedouble, item->type);    // type
       char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
