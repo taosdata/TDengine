@@ -211,6 +211,8 @@ extern int32_t  wDebugFlag;
 extern int32_t  cqDebugFlag;
 extern int32_t  debugFlag;
 
+extern int32_t tsSpecificLogType;
+
 extern int8_t tsClientMerge;
 
 #ifdef TD_TSZ
@@ -245,6 +247,7 @@ bool    taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t
 void    taosAddDataDir(int index, char *v1, int level, int primary);
 void    taosReadDataDirCfg(char *v1, char *v2, char *v3);
 void    taosPrintDataDirCfg();
+bool    taosPrintCreateTable();
 
 #ifdef __cplusplus
 }

@@ -255,6 +255,8 @@ int32_t  tsdbDebugFlag = 131;
 int32_t  cqDebugFlag = 131;
 int32_t  fsDebugFlag = 135;
 
+int32_t tsSpecificLogType = 0;  // show specific log(bit operation): 0x01 create table, 0x02 ...
+
 int8_t tsClientMerge = 0;
 
 #ifdef TD_TSZ
@@ -1620,6 +1622,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "specificLogType";
+  cfg.ptr = &tsSpecificLogType;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 2147483647;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
 #ifdef TD_TSZ
   // lossy compress
   cfg.option = "lossyColumns";
@@ -1819,3 +1831,5 @@ bool taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *d
 
   return true;
 }
+
+bool taosPrintCreateTable() { return (tsSpecificLogType & LOG_CREATE_TABLE) ? true : false; }

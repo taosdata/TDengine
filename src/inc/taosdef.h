@@ -451,6 +451,11 @@ typedef enum {
   TD_ROW_PARTIAL_UPDATE   = 2
 } TDUpdateConfig;
 
+typedef enum {
+  LOG_CREATE_TABLE = 0x01,
+  // ...
+} ESpecificLogType;  // bit operation
+
 extern char *qtypeStr[];
 
 #ifdef __cplusplus
