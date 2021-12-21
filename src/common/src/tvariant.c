@@ -23,6 +23,7 @@
 #include "ttype.h"
 #include "tutil.h"
 #include "tvariant.h"
+#include "tulog.h"
 
 #define SET_EXT_INFO(converted, res, minv, maxv, exti) do {                                                       \
                                                         if (converted == NULL || exti == NULL || *converted == false) { break; }  \
@@ -361,8 +362,12 @@ int32_t tVariantToString(tVariant *pVar, char *dst) {
 
     case TSDB_DATA_TYPE_NCHAR: {
       dst[0] = '\'';
-      taosUcs4ToMbs(pVar->wpz, (twcslen(pVar->wpz) + 1) * TSDB_NCHAR_SIZE, dst + 1);
-      int32_t len = (int32_t)strlen(dst);
+      int32_t len = taosUcs4ToMbs(pVar->wpz, (twcslen(pVar->wpz) + 1) * TSDB_NCHAR_SIZE, dst + 1);
+      if (len < 0){
+        uError("castConvert1 taosUcs4ToMbs error");
+        return 0 ;
+      }
+      len = (int32_t)strlen(dst);
       dst[len] = '\'';
       dst[len + 1] = 0;
       return len + 1;
@@ -430,11 +435,17 @@ static int32_t toBinary(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
         pBuf = realloc(pBuf, newSize + 1);
       }
 
-      taosUcs4ToMbs(pVariant->wpz, (int32_t)newSize, pBuf);
+      int32_t len = taosUcs4ToMbs(pVariant->wpz, (int32_t)newSize, pBuf);
+      if (len < 0){
+        uError("castConvert1 taosUcs4ToMbs error");
+      }
       free(pVariant->wpz);
       pBuf[newSize] = 0;
     } else {
-      taosUcs4ToMbs(pVariant->wpz, (int32_t)newSize, *pDest);
+      int32_t len = taosUcs4ToMbs(pVariant->wpz, (int32_t)newSize, *pDest);
+      if (len < 0){
+        uError("castConvert1 taosUcs4ToMbs error");
+      }
     }
 
   } else {
