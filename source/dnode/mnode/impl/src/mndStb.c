@@ -23,7 +23,7 @@
 #include "mndUser.h"
 #include "tname.h"
 
-#define TSDB_STB_VER_NUM 1
+#define TSDB_STB_VER_NUMBER 1
 #define TSDB_STB_RESERVE_SIZE 64
 
 static SSdbRaw *mndStbActionEncode(SStbObj *pStb);
@@ -70,7 +70,7 @@ void mndCleanupStb(SMnode *pMnode) {}
 
 static SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   int32_t  size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + TSDB_STB_RESERVE_SIZE;
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_STB, TSDB_STB_VER_NUM, size);
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_STB, TSDB_STB_VER_NUMBER, size);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
@@ -103,7 +103,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
-  if (sver != TSDB_STB_VER_NUM) {
+  if (sver != TSDB_STB_VER_NUMBER) {
     mError("failed to decode stable since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     return NULL;
@@ -176,8 +176,12 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOldStb, SStbObj *pNewStb
 }
 
 SStbObj *mndAcquireStb(SMnode *pMnode, char *stbName) {
-  SSdb *pSdb = pMnode->pSdb;
-  return sdbAcquire(pSdb, SDB_STB, stbName);
+  SSdb    *pSdb = pMnode->pSdb;
+  SStbObj *pStb = sdbAcquire(pSdb, SDB_STB, stbName);
+  if (pStb == NULL) {
+    terrno = TSDB_CODE_MND_STB_NOT_EXIST;
+  }
+  return pStb;
 }
 
 void mndReleaseStb(SMnode *pMnode, SStbObj *pStb) {

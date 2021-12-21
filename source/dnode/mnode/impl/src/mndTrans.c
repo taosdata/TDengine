@@ -317,8 +317,12 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOldTrans, STrans *pNewT
 }
 
 STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
-  SSdb *pSdb = pMnode->pSdb;
-  return sdbAcquire(pSdb, SDB_TRANS, &transId);
+  SSdb   *pSdb = pMnode->pSdb;
+  STrans *pTrans = sdbAcquire(pSdb, SDB_TRANS, &transId);
+  if (pTrans == NULL) {
+    terrno = TSDB_CODE_MND_TRANS_NOT_EXIST;
+  }
+  return pTrans;
 }
 
 void mndReleaseTrans(SMnode *pMnode, STrans *pTrans) {

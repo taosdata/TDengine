@@ -175,8 +175,12 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOldUser, SUserObj *pNe
 }
 
 SUserObj *mndAcquireUser(SMnode *pMnode, char *userName) {
-  SSdb *pSdb = pMnode->pSdb;
-  return sdbAcquire(pSdb, SDB_USER, userName);
+  SSdb     *pSdb = pMnode->pSdb;
+  SUserObj *pUser = sdbAcquire(pSdb, SDB_USER, userName);
+  if (pUser == NULL) {
+    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+  }
+  return pUser;
 }
 
 void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
