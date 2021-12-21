@@ -81,15 +81,27 @@ typedef struct STableMetaOutput {
   STableMeta *tbMeta;
 } STableMetaOutput;
 
+typedef int32_t __async_exec_fn_t(void* param);
+
 bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
+
+int32_t initTaskQueue();
+int32_t cleanupTaskQueue();
+
+/**
+ *
+ * @param execFn      The asynchronously execution function
+ * @param execParam   The parameters of the execFn
+ * @param code        The response code during execution the execFn
+ * @return
+ */
+int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
+
+SSchema* tGetTbnameColumnSchema();
+void msgInit();
 
 extern int32_t (*queryBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
 extern int32_t (*queryProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize);
-
-SSchema* tGetTbnameColumnSchema();
-extern void msgInit();
-
-extern int32_t qDebugFlag;
 
 #define qFatal(...)  do { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", qDebugFlag, __VA_ARGS__); }} while(0)
 #define qError(...)  do { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", qDebugFlag, __VA_ARGS__); }} while(0)

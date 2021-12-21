@@ -154,7 +154,7 @@ void destroyRequest(SRequestObj* pRequest);
 void taos_init_imp(void);
 int taos_options_imp(TSDB_OPTION option, const char *str);
 
-void* openTransporter(const char *user, const char *auth);
+void* openTransporter(const char *user, const char *auth, int32_t numOfThreads);
 
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 void initMsgHandleFp();

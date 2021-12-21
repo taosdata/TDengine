@@ -67,6 +67,7 @@ int32_t    getExprFunctionId(SExprInfo *pExprInfo);
 STableMeta* tableMetaDup(const STableMeta* pTableMeta);
 
 bool isDclSqlStatement(SSqlInfo* pSqlInfo);
+bool isDdlSqlStatement(SSqlInfo* pSqlInfo);
 
 #ifdef __cplusplus
 }

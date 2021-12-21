@@ -1,5 +1,8 @@
 #include "os.h"
 #include "taosmsg.h"
+#include "query.h"
+#include "tglobal.h"
+#include "tsched.h"
 
 #define VALIDNUMOFCOLS(x)  ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
 #define VALIDNUMOFTAGS(x)  ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
@@ -75,4 +78,46 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
   }
 
   return true;
+}
+
+static void* pTaskQueue = NULL;
+
+int32_t initTaskQueue() {
+  double factor = 4.0;
+  int32_t numOfThreads = MAX((int)(tsNumOfCores * tsNumOfThreadsPerCore / factor), 2);
+
+  int32_t queueSize = tsMaxConnections * 2;
+  pTaskQueue = taosInitScheduler(queueSize, numOfThreads, "tsc");
+  if (NULL == pTaskQueue) {
+    qError("failed to init task queue");
+    return -1;
+  }
+
+  qDebug("task queue is initialized, numOfThreads: %d", numOfThreads);
+}
+
+int32_t cleanupTaskQueue() {
+  taosCleanUpScheduler(pTaskQueue);
+}
+
+static void execHelper(struct SSchedMsg* pSchedMsg) {
+  assert(pSchedMsg != NULL && pSchedMsg->ahandle != NULL);
+
+  __async_exec_fn_t* execFn = (__async_exec_fn_t*) pSchedMsg->ahandle;
+  int32_t code = execFn(pSchedMsg->thandle);
+  if (code != 0 && pSchedMsg->msg != NULL) {
+    *(int32_t*) pSchedMsg->msg = code;
+  }
+}
+
+int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) {
+  assert(execFn != NULL);
+
+  SSchedMsg schedMsg = {0};
+  schedMsg.fp      = execHelper;
+  schedMsg.ahandle = execFn;
+  schedMsg.thandle = execParam;
+  schedMsg.msg     = code;
+
+  taosScheduleTask(pTaskQueue, &schedMsg);
 }

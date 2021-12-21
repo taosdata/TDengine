@@ -1613,7 +1613,14 @@ uint32_t convertRelationalOperator(SToken *pToken) {
 }
 
 bool isDclSqlStatement(SSqlInfo* pSqlInfo) {
-  return (pSqlInfo->type != TSDB_SQL_SELECT);
+  int32_t type = pSqlInfo->type;
+  return (type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_CREATE_ACCT || type == TSDB_SQL_DROP_USER ||
+          type == TSDB_SQL_DROP_ACCT || type == TSDB_SQL_SHOW);
+}
+
+bool isDdlSqlStatement(SSqlInfo* pSqlInfo) {
+  int32_t type = pSqlInfo->type;
+  return (type == TSDB_SQL_CREATE_TABLE || type == TSDB_SQL_CREATE_DB);
 }
 
 #if 0

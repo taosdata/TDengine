@@ -148,3 +148,18 @@ TEST(testCase, create_db_Test) {
 
   taos_close(pConn);
 }
+
+TEST(testCase, create_stable_Test) {
+  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  assert(pConn != NULL);
+
+  TAOS_RES* pRes = taos_query(pConn, "create stable st1(ts timestamp, k int) tags(a int)");
+
+  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+  ASSERT_TRUE(pFields == NULL);
+
+  int32_t numOfFields = taos_num_fields(pRes);
+  ASSERT_EQ(numOfFields, 0);
+
+  taos_close(pConn);
+}
