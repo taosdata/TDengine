@@ -15,6 +15,7 @@
 
 #ifndef _TD_TSDB_READ_IMPL_H_
 #define _TD_TSDB_READ_IMPL_H_
+#if 0
 
 #include "tfs.h"
 #include "tsdb.h"
@@ -149,5 +150,7 @@ static FORCE_INLINE int tsdbMakeRoom(void **ppBuf, size_t size) {
 
   return 0;
 }
+
+#endif
 
 #endif /*_TD_TSDB_READ_IMPL_H_*/

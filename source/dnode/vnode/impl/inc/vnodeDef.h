@@ -71,6 +71,7 @@ struct SVnode {
   SWal*       pWal;
   SVnodeSync* pSync;
   SVnodeFS*   pFs;
+  tsem_t      canCommit;
 };
 
 int vnodeScheduleTask(SVnodeTask* task);

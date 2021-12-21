@@ -16,6 +16,8 @@
 #ifndef _TD_TSDB_FS_H_
 #define _TD_TSDB_FS_H_
 
+#if 0
+
 #define TSDB_FS_VERSION 0
 
 // ================== TSDB global config
@@ -112,5 +114,7 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS* pFs) {
   }
   return 0;
 }
+
+#endif
 
 #endif /* _TD_TSDB_FS_H_ */

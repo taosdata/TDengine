@@ -44,11 +44,13 @@ STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemA
   pTq->path = strdup(path);
   pTq->tqConfig = tqConfig;
   pTq->tqLogReader = tqLogReader;
+#if 0
   pTq->tqMemRef.pAlloctorFactory = allocFac;
   pTq->tqMemRef.pAllocator = allocFac->create(allocFac);
   if (pTq->tqMemRef.pAllocator == NULL) {
     // TODO: error code of buffer pool
   }
+#endif
   pTq->tqMeta = tqStoreOpen(path, (FTqSerialize)tqSerializeGroup, (FTqDeserialize)tqDeserializeGroup, free, 0);
   if (pTq->tqMeta == NULL) {
     // TODO: free STQ

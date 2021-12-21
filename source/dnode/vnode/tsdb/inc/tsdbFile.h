@@ -16,6 +16,8 @@
 #ifndef _TS_TSDB_FILE_H_
 #define _TS_TSDB_FILE_H_
 
+#if 0
+
 #define TSDB_FILE_HEAD_SIZE 512
 #define TSDB_FILE_DELIMITER 0xF00AFA0F
 #define TSDB_FILE_INIT_MAGIC 0xFFFFFFFF
@@ -364,4 +366,5 @@ static FORCE_INLINE bool tsdbFSetIsOk(SDFileSet* pSet) {
   return true;
 }
 
+#endif
 #endif /* _TS_TSDB_FILE_H_ */
