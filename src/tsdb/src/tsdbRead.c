@@ -219,7 +219,7 @@ static void tsdbMayTakeMemSnapshot(STsdbQueryHandle* pQueryHandle, SArray* psTab
     tsdbTakeMemSnapshot(pQueryHandle->pTsdb, &(pMemRef->snapshot), psTable);
   }
 
-  taosArrayDestroy(psTable);
+  taosArrayDestroy(&psTable);
 }
 
 static void tsdbMayUnTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
@@ -277,7 +277,7 @@ static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STa
 
   SArray* pTable = taosArrayInit(4, sizeof(STable*));
   if (pTable == NULL) {
-    taosArrayDestroy(pTableCheckInfo);
+    taosArrayDestroy(&pTableCheckInfo);
     return NULL;
   }
 
@@ -505,7 +505,7 @@ TsdbQueryHandleT* tsdbQueryTables(STsdbRepo* tsdb, STsdbQueryCond* pCond, STable
   pQueryHandle->pTableCheckInfo = createCheckInfoFromTableGroup(pQueryHandle, groupList, pMeta, &psTable);
   if (pQueryHandle->pTableCheckInfo == NULL) {
     tsdbCleanupQueryHandle(pQueryHandle);
-    taosArrayDestroy(psTable);
+    taosArrayDestroy(&psTable);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
   }
@@ -3125,7 +3125,7 @@ static int32_t doGetExternalRow(STsdbQueryHandle* pQueryHandle, int16_t type, SM
   SArray* psTable = NULL;
   pSecQueryHandle->pTableCheckInfo = createCheckInfoFromCheckInfo(pCurrent, pSecQueryHandle->window.skey, &psTable);
   if (pSecQueryHandle->pTableCheckInfo == NULL) {
-    taosArrayDestroy(psTable);
+    taosArrayDestroy(&psTable);
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto out_of_memory;
   }
@@ -3331,7 +3331,7 @@ STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList) {
         taosArrayPush(pGroup, &keyInfo);
       }
     } else {  // mark all the empty groups, and remove it later
-      taosArrayDestroy(pGroup);
+      taosArrayDestroy(&pGroup);
       taosArrayPush(emptyGroup, &j);
     }
   }
@@ -3343,7 +3343,7 @@ STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList) {
   }
 
   taosArrayRemoveBatch(groupList->pGroupList, TARRAY_GET_START(emptyGroup), (int32_t) taosArrayGetSize(emptyGroup));
-  taosArrayDestroy(emptyGroup);
+  taosArrayDestroy(&emptyGroup);
 
   groupList->numOfTables = totalNumOfTable;
   return window;
@@ -3651,7 +3651,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
   if (numOfOrderCols == 0 || size == 1) { // no group by tags clause or only one table
     SArray* sa = taosArrayInit(size, sizeof(STableKeyInfo));
     if (sa == NULL) {
-      taosArrayDestroy(pTableGroup);
+      taosArrayDestroy(&pTableGroup);
       return NULL;
     }
 
@@ -3719,7 +3719,7 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
     tsdbDebug("%p no table name/tag condition, all tables qualified, numOfTables:%u, group:%zu", tsdb,
               pGroupInfo->numOfTables, taosArrayGetSize(pGroupInfo->pGroupList));
 
-    taosArrayDestroy(res);
+    taosArrayDestroy(&res);
     if (tsdbUnlockRepoMeta(tsdb) < 0) goto _error;
     return ret;
   }
@@ -3768,14 +3768,14 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
   tsdbDebug("%p stable tid:%d, uid:%"PRIu64" query, numOfTables:%u, belong to %" PRIzu " groups", tsdb, pTable->tableId.tid,
       pTable->tableId.uid, pGroupInfo->numOfTables, taosArrayGetSize(pGroupInfo->pGroupList));
 
-  taosArrayDestroy(res);
+  taosArrayDestroy(&res);
 
   if (tsdbUnlockRepoMeta(tsdb) < 0) goto _error;
   return ret;
 
   _error:
 
-  taosArrayDestroy(res);
+  taosArrayDestroy(&res);
   return terrno;
 }
 
@@ -3831,7 +3831,7 @@ int32_t tsdbGetTableGroupFromIdList(STsdbRepo* tsdb, SArray* pTableIdList, STabl
       tsdbError("direct query on super tale is not allowed, table uid:%"PRIu64", tid:%d", id->uid, id->tid);
       terrno = TSDB_CODE_QRY_INVALID_MSG;
       tsdbUnlockRepoMeta(tsdb);
-      taosArrayDestroy(group);
+      taosArrayDestroy(&group);
       return terrno;
     }
 
@@ -3842,7 +3842,7 @@ int32_t tsdbGetTableGroupFromIdList(STsdbRepo* tsdb, SArray* pTableIdList, STabl
   }
 
   if (tsdbUnlockRepoMeta(tsdb) < 0) {
-    taosArrayDestroy(group);
+    taosArrayDestroy(&group);
     return terrno;
   }
 
@@ -3850,7 +3850,7 @@ int32_t tsdbGetTableGroupFromIdList(STsdbRepo* tsdb, SArray* pTableIdList, STabl
   if (pGroupInfo->numOfTables > 0) {
     taosArrayPush(pGroupInfo->pGroupList, &group);
   } else {
-    taosArrayDestroy(group);
+    taosArrayDestroy(&group);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3867,7 +3867,7 @@ static void* doFreeColumnInfoData(SArray* pColumnInfoData) {
     tfree(pColInfo->pData);
   }
 
-  taosArrayDestroy(pColumnInfoData);
+  taosArrayDestroy(&pColumnInfoData);
   return NULL;
 }
 
@@ -3880,7 +3880,7 @@ static void* destroyTableCheckInfo(SArray* pTableCheckInfo) {
     tfree(p->pCompInfo);
   }
 
-  taosArrayDestroy(pTableCheckInfo);
+  taosArrayDestroy(&pTableCheckInfo);
   return NULL;
 }
 
@@ -3892,7 +3892,7 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
 
   pQueryHandle->pColumns = doFreeColumnInfoData(pQueryHandle->pColumns);
 
-  taosArrayDestroy(pQueryHandle->defaultLoadColumn);
+  taosArrayDestroy(&pQueryHandle->defaultLoadColumn);
   tfree(pQueryHandle->pDataBlockInfo);
   tfree(pQueryHandle->statis);
 
@@ -3939,11 +3939,11 @@ void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {
       //assert(pTable != NULL);
     }
 
-    taosArrayDestroy(p);
+    taosArrayDestroy(&p);
   }
 
   taosHashCleanup(pGroupList->map);
-  taosArrayDestroy(pGroupList->pGroupList);
+  taosArrayDestroy(&pGroupList->pGroupList);
   pGroupList->numOfTables = 0;
 }
 
@@ -4123,7 +4123,7 @@ static int32_t queryByJsonTag(STable* pTable, void* filterInfo, SArray* res){
     }
   }
   tfree(addToResult);
-  taosArrayDestroy(tabList);
+  taosArrayDestroy(&tabList);
   return TSDB_CODE_SUCCESS;
 }
 

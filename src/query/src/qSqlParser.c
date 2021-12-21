@@ -117,7 +117,7 @@ void tSqlExprListDestroy(SArray *pList) {
     return;
   }
 
-  taosArrayDestroyEx(pList, freeExprElem);
+  taosArrayDestroyEx(&pList, freeExprElem);
 }
 
 
@@ -687,14 +687,14 @@ void* destroyRelationInfo(SRelationInfo* pRelationInfo) {
   }
 
   if (pRelationInfo->type == SQL_NODE_FROM_TABLELIST) {
-    taosArrayDestroy(pRelationInfo->list);
+    taosArrayDestroy(&pRelationInfo->list);
   } else {
     size_t size = taosArrayGetSize(pRelationInfo->list);
     for(int32_t i = 0; i < size; ++i) {
       SArray* pa = taosArrayGetP(pRelationInfo->list, i);
       destroyAllSqlNode(pa);
     }
-    taosArrayDestroy(pRelationInfo->list);
+    taosArrayDestroy(&pRelationInfo->list);
   }
 
   tfree(pRelationInfo);
@@ -944,8 +944,8 @@ static void freeCommonItem(void *pItem) {
 
 void freeCreateTableInfo(void* p) {
   SCreatedTableInfo* pInfo = (SCreatedTableInfo*) p;  
-  taosArrayDestroy(pInfo->pTagNames);
-  taosArrayDestroyEx(pInfo->pTagVals, freeVariant);
+  taosArrayDestroy(&pInfo->pTagNames);
+  taosArrayDestroyEx(&pInfo->pTagVals, freeVariant);
   tfree(pInfo->fullname);
   tfree(pInfo->tagdata.data);
 }
@@ -961,15 +961,15 @@ void destroySqlNode(SSqlNode *pSqlNode) {
   tSqlExprDestroy(pSqlNode->pWhere);
   pSqlNode->pWhere = NULL;
   
-  taosArrayDestroyEx(pSqlNode->pSortOrder, freeCommonItem);
+  taosArrayDestroyEx(&pSqlNode->pSortOrder, freeCommonItem);
   pSqlNode->pSortOrder = NULL;
 
-  taosArrayDestroyEx(pSqlNode->pGroupby, freeCommonItem);
+  taosArrayDestroyEx(&pSqlNode->pGroupby, freeCommonItem);
   pSqlNode->pGroupby = NULL;
 
   pSqlNode->from = destroyRelationInfo(pSqlNode->from);
 
-  taosArrayDestroyEx(pSqlNode->fillType, freeVariant);
+  taosArrayDestroyEx(&pSqlNode->fillType, freeVariant);
   pSqlNode->fillType = NULL;
 
   tSqlExprDestroy(pSqlNode->pHaving);
@@ -987,7 +987,7 @@ void destroyAllSqlNode(SArray *pList) {
     destroySqlNode(pNode);
   }
 
-  taosArrayDestroy(pList);
+  taosArrayDestroy(&pList);
 }
 
 SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SSqlNode *pSelect, int32_t type) {
@@ -1060,10 +1060,10 @@ SAlterTableInfo *tSetAlterTableInfo(SStrToken *pTableName, SArray *pCols, SArray
 void* destroyCreateTableSql(SCreateTableSql* pCreate) {
   destroySqlNode(pCreate->pSelect);
 
-  taosArrayDestroy(pCreate->colInfo.pColumns);
-  taosArrayDestroy(pCreate->colInfo.pTagColumns);
+  taosArrayDestroy(&pCreate->colInfo.pColumns);
+  taosArrayDestroy(&pCreate->colInfo.pTagColumns);
 
-  taosArrayDestroyEx(pCreate->childTableInfo, freeCreateTableInfo);
+  taosArrayDestroyEx(&pCreate->childTableInfo, freeCreateTableInfo);
   tfree(pCreate);
 
   return NULL;
@@ -1071,24 +1071,24 @@ void* destroyCreateTableSql(SCreateTableSql* pCreate) {
 
 void SqlInfoDestroy(SSqlInfo *pInfo) {
   if (pInfo == NULL) return;;
-  taosArrayDestroy(pInfo->funcs); 
+  taosArrayDestroy(&pInfo->funcs);
   if (pInfo->type == TSDB_SQL_SELECT) {
     destroyAllSqlNode(pInfo->list);
   } else if (pInfo->type == TSDB_SQL_CREATE_TABLE) {
     pInfo->pCreateTableInfo = destroyCreateTableSql(pInfo->pCreateTableInfo);
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
-    taosArrayDestroyEx(pInfo->pAlterInfo->varList, freeVariant);
-    taosArrayDestroy(pInfo->pAlterInfo->pAddColumns);
+    taosArrayDestroyEx(&pInfo->pAlterInfo->varList, freeVariant);
+    taosArrayDestroy(&pInfo->pAlterInfo->pAddColumns);
     tfree(pInfo->pAlterInfo);
   } else if (pInfo->type == TSDB_SQL_COMPACT_VNODE) {
     tSqlExprListDestroy(pInfo->list); 
   } else {
     if (pInfo->pMiscInfo != NULL) {
-      taosArrayDestroy(pInfo->pMiscInfo->a);
+      taosArrayDestroy(&pInfo->pMiscInfo->a);
     }
 
     if (pInfo->pMiscInfo != NULL && (pInfo->type == TSDB_SQL_CREATE_DB || pInfo->type == TSDB_SQL_ALTER_DB)) {
-      taosArrayDestroyEx(pInfo->pMiscInfo->dbOpt.keep, freeVariant);
+      taosArrayDestroyEx(&pInfo->pMiscInfo->dbOpt.keep, freeVariant);
     }
 
     tfree(pInfo->pMiscInfo);
