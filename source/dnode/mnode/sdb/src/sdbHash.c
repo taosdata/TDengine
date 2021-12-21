@@ -240,6 +240,8 @@ void sdbRelease(SSdb *pSdb, void *pObj) {
 }
 
 void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
+  *ppObj = NULL;
+
   SHashObj *hash = sdbGetHash(pSdb, type);
   if (hash == NULL) return NULL;
 

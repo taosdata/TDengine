@@ -18,10 +18,10 @@
 #include "mndMnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
-#include "ttime.h"
 #include "tep.h"
+#include "ttime.h"
 
-#define TSDB_DNODE_VER 1
+#define TSDB_DNODE_VER_NUMBER 1
 #define TSDB_DNODE_RESERVE_SIZE 64
 #define TSDB_CONFIG_OPTION_LEN 16
 #define TSDB_CONIIG_VALUE_LEN 48
@@ -101,14 +101,14 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
 
   SSdbRaw *pRaw = mndDnodeActionEncode(&dnodeObj);
   if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  if (sdbSetRawStatus(pRaw, SDB_STATUS_READY) != 0) return -1;
 
   mDebug("dnode:%d, will be created while deploy sdb", dnodeObj.id);
   return sdbWrite(pMnode->pSdb, pRaw);
 }
 
 static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_DNODE, TSDB_DNODE_VER, sizeof(SDnodeObj) + TSDB_DNODE_RESERVE_SIZE);
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_DNODE, TSDB_DNODE_VER_NUMBER, sizeof(SDnodeObj) + TSDB_DNODE_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
@@ -127,7 +127,7 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
-  if (sver != TSDB_DNODE_VER) {
+  if (sver != TSDB_DNODE_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     mError("failed to decode dnode since %s", terrstr());
     return NULL;
@@ -150,21 +150,8 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
 
 static int32_t mndDnodeActionInsert(SSdb *pSdb, SDnodeObj *pDnode) {
   mTrace("dnode:%d, perform insert action", pDnode->id);
-
-  pDnode->rebootTime = 0;
-  pDnode->lastAccessTime = 0;
-  pDnode->accessTimes = 0;
-  pDnode->numOfMnodes = 0;
-  pDnode->numOfVnodes = 0;
-  pDnode->numOfQnodes = 0;
-  pDnode->numOfSupportMnodes = 0;
-  pDnode->numOfSupportVnodes = 0;
-  pDnode->numOfSupportQnodes = 0;
-  pDnode->numOfCores = 0;
-  pDnode->status = DND_STATUS_OFFLINE;
   pDnode->offlineReason = DND_REASON_STATUS_NOT_RECEIVED;
   snprintf(pDnode->ep, TSDB_EP_LEN, "%s:%u", pDnode->fqdn, pDnode->port);
-
   return 0;
 }
 
@@ -225,7 +212,7 @@ int32_t mndGetDnodeSize(SMnode *pMnode) {
 bool mndIsDnodeInReadyStatus(SMnode *pMnode, SDnodeObj *pDnode) {
   int64_t ms = taosGetTimestampMs();
   int64_t interval = ABS(pDnode->lastAccessTime - ms);
-  if (interval > 3000 * pMnode->cfg.statusInterval) {
+  if (interval > 3500 * pMnode->cfg.statusInterval) {
     return false;
   }
   return true;
@@ -267,12 +254,9 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
     return DND_REASON_STATUS_INTERVAL_NOT_MATCH;
   }
 
-  int64_t checkTime = 0;
-  char    timestr[32] = "1970-01-01 00:00:00.00";
-  (void)taosParseTime(timestr, &checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
-  if ((0 != strcasecmp(pCfg->timezone, pMnode->cfg.timezone)) && (checkTime != pCfg->checkTime)) {
+  if ((0 != strcasecmp(pCfg->timezone, pMnode->cfg.timezone)) && (pMnode->checkTime != pCfg->checkTime)) {
     mError("timezone [%s - %s] [%" PRId64 " - %" PRId64 "] cfg inconsistent", pCfg->timezone, pMnode->cfg.timezone,
-           pCfg->checkTime, checkTime);
+           pCfg->checkTime, pMnode->checkTime);
     return DND_REASON_TIME_ZONE_NOT_MATCH;
   }
 

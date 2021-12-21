@@ -81,7 +81,8 @@ static void vtBuildCreateStbReq(tb_uid_t suid, char *tbname, SRpcMsg **ppMsg) {
   pSchema = vtCreateBasicSchema();
   pTagSchema = vtCreateBasicTagSchema();
 
-  SVnodeReq vCreateSTbReq = VNODE_INIT_CREATE_STB_REQ(tbname, UINT32_MAX, UINT32_MAX, suid, pSchema, pTagSchema);
+  SVnodeReq vCreateSTbReq;
+  vnodeSetCreateStbReq(&vCreateSTbReq, tbname, UINT32_MAX, UINT32_MAX, suid, pSchema, pTagSchema);
 
   zs = vnodeBuildReq(NULL, &vCreateSTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
   pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg) + zs);
@@ -104,7 +105,8 @@ static void vtBuildCreateCtbReq(tb_uid_t suid, char *tbname, SRpcMsg **ppMsg) {
   int      tz;
   SKVRow   pTag = vtCreateBasicTag();
 
-  SVnodeReq vCreateCTbReq = VNODE_INIT_CREATE_CTB_REQ(tbname, UINT32_MAX, UINT32_MAX, suid, pTag);
+  SVnodeReq vCreateCTbReq;
+  vnodeSetCreateCtbReq(&vCreateCTbReq, tbname, UINT32_MAX, UINT32_MAX, suid, pTag);
 
   tz = vnodeBuildReq(NULL, &vCreateCTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
   pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg) + tz);
@@ -166,6 +168,21 @@ static void vtClearMsgBatch(SArray *pMsgArr) {
   taosArrayClear(pMsgArr);
 }
 
+static void vtProcessAndApplyReqs(SVnode *pVnode, SArray *pMsgArr) {
+  int      rcode;
+  SRpcMsg *pReq;
+  SRpcMsg *pRsp;
+
+  rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
+  GTEST_ASSERT_EQ(rcode, 0);
+
+  for (size_t i = 0; i < taosArrayGetSize(pMsgArr); i++) {
+    pReq = *(SRpcMsg **)taosArrayGet(pMsgArr, i);
+    rcode = vnodeApplyWMsg(pVnode, pReq, NULL);
+    GTEST_ASSERT_EQ(rcode, 0);
+  }
+}
+
 TEST(vnodeApiTest, vnode_simple_create_table_test) {
   tb_uid_t suid = 1638166374163;
   SRpcMsg *pMsg;
@@ -189,8 +206,7 @@ TEST(vnodeApiTest, vnode_simple_create_table_test) {
   sprintf(tbname, "st");
   vtBuildCreateStbReq(suid, tbname, &pMsg);
   taosArrayPush(pMsgArr, &pMsg);
-  rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
-  ASSERT_EQ(rcode, 0);
+  vtProcessAndApplyReqs(pVnode, pMsgArr);
   vtClearMsgBatch(pMsgArr);
 
   // CREATE A LOT OF CHILD TABLES
@@ -203,8 +219,7 @@ TEST(vnodeApiTest, vnode_simple_create_table_test) {
     }
 
     // Process request batch
-    rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
-    ASSERT_EQ(rcode, 0);
+    vtProcessAndApplyReqs(pVnode, pMsgArr);
 
     // Clear request batch
     vtClearMsgBatch(pMsgArr);
@@ -242,16 +257,14 @@ TEST(vnodeApiTest, vnode_simple_insert_test) {
   sprintf(tbname, "st");
   vtBuildCreateStbReq(suid, tbname, &pMsg);
   taosArrayPush(pMsgArr, &pMsg);
-  rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
-  GTEST_ASSERT_EQ(rcode, 0);
+  vtProcessAndApplyReqs(pVnode, pMsgArr);
   vtClearMsgBatch(pMsgArr);
 
   // 2. CREATE A CHILD TABLE
   sprintf(tbname, "t0");
   vtBuildCreateCtbReq(suid, tbname, &pMsg);
   taosArrayPush(pMsgArr, &pMsg);
-  rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
-  GTEST_ASSERT_EQ(rcode, 0);
+  vtProcessAndApplyReqs(pVnode, pMsgArr);
   vtClearMsgBatch(pMsgArr);
 
   // 3. WRITE A LOT OF TIME-SERIES DATA
@@ -260,8 +273,7 @@ TEST(vnodeApiTest, vnode_simple_insert_test) {
       vtBuildSubmitReq(&pMsg);
       taosArrayPush(pMsgArr, &pMsg);
     }
-    rcode = vnodeProcessWMsgs(pVnode, pMsgArr);
-    GTEST_ASSERT_EQ(rcode, 0);
+    vtProcessAndApplyReqs(pVnode, pMsgArr);
     vtClearMsgBatch(pMsgArr);
   }
 

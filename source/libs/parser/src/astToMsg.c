@@ -1,7 +1,7 @@
 #include "parserInt.h"
 #include "parserUtil.h"
 
-SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int64_t id, char* msgBuf, int32_t msgLen) {
+SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
   SCreateUserMsg* pMsg = (SCreateUserMsg*)calloc(1, sizeof(SCreateUserMsg));
   if (pMsg == NULL) {
     //    tscError("0x%" PRIx64 " failed to malloc for query msg", id);
@@ -20,6 +20,68 @@ SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int64_t id, char* msgB
     strncpy(pMsg->pass, pUser->passwd.z, pUser->passwd.n);
   }
 
+  *outputLen = sizeof(SUserInfo);
+  return pMsg;
+}
+
+SCreateAcctMsg* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
+  SCreateAcctMsg* pMsg = (SCreateAcctMsg*)calloc(1, sizeof(SCreateAcctMsg));
+  if (pMsg == NULL) {
+    //    tscError("0x%" PRIx64 " failed to malloc for query msg", id);
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  SCreateAcctMsg *pCreateMsg = (SCreateAcctMsg *) calloc(1, sizeof(SCreateAcctMsg));
+
+  SToken *pName = &pInfo->pMiscInfo->user.user;
+  SToken *pPwd = &pInfo->pMiscInfo->user.passwd;
+
+  strncpy(pCreateMsg->user, pName->z, pName->n);
+  strncpy(pCreateMsg->pass, pPwd->z, pPwd->n);
+
+  SCreateAcctInfo *pAcctOpt = &pInfo->pMiscInfo->acctOpt;
+
+  pCreateMsg->maxUsers = htonl(pAcctOpt->maxUsers);
+  pCreateMsg->maxDbs = htonl(pAcctOpt->maxDbs);
+  pCreateMsg->maxTimeSeries = htonl(pAcctOpt->maxTimeSeries);
+  pCreateMsg->maxStreams = htonl(pAcctOpt->maxStreams);
+//  pCreateMsg->maxPointsPerSecond = htonl(pAcctOpt->maxPointsPerSecond);
+  pCreateMsg->maxStorage = htobe64(pAcctOpt->maxStorage);
+//  pCreateMsg->maxQueryTime = htobe64(pAcctOpt->maxQueryTime);
+//  pCreateMsg->maxConnections = htonl(pAcctOpt->maxConnections);
+
+  if (pAcctOpt->stat.n == 0) {
+    pCreateMsg->accessState = -1;
+  } else {
+    if (pAcctOpt->stat.z[0] == 'r' && pAcctOpt->stat.n == 1) {
+      pCreateMsg->accessState = TSDB_VN_READ_ACCCESS;
+    } else if (pAcctOpt->stat.z[0] == 'w' && pAcctOpt->stat.n == 1) {
+      pCreateMsg->accessState = TSDB_VN_WRITE_ACCCESS;
+    } else if (strncmp(pAcctOpt->stat.z, "all", 3) == 0 && pAcctOpt->stat.n == 3) {
+      pCreateMsg->accessState = TSDB_VN_ALL_ACCCESS;
+    } else if (strncmp(pAcctOpt->stat.z, "no", 2) == 0 && pAcctOpt->stat.n == 2) {
+      pCreateMsg->accessState = 0;
+    }
+  }
+
+  *outputLen = sizeof(SCreateAcctMsg);
+  return pMsg;
+}
+SDropUserMsg* buildDropUserMsg(SSqlInfo* pInfo, int32_t *msgLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
+  SToken* pName = taosArrayGet(pInfo->pMiscInfo->a, 0);
+  if (pName->n >= TSDB_USER_LEN) {
+    return NULL;
+  }
+
+
+  SDropUserMsg* pMsg = calloc(1, sizeof(SDropUserMsg));
+  if (pMsg == NULL) {
+    return NULL;
+  }
+
+  strncpy(pMsg->user, pName->z, pName->n);
+  *msgLen = sizeof(SDropUserMsg);
   return pMsg;
 }
 
@@ -89,7 +151,7 @@ static int32_t setTimePrecision(SCreateDbMsg* pMsg, const SCreateDbInfo* pCreate
 
   pMsg->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond by default
 
-  SToken* pToken = &pCreateDbInfo->precision;
+  SToken* pToken = (SToken*) &pCreateDbInfo->precision;
   if (pToken->n > 0) {
     pToken->n = strdequote(pToken->z);
 
@@ -116,8 +178,8 @@ static void doSetDbOptions(SCreateDbMsg* pMsg, const SCreateDbInfo* pCreateDb) {
   pMsg->totalBlocks  = htonl(pCreateDb->numOfBlocks);
   pMsg->daysPerFile  = htonl(pCreateDb->daysPerFile);
   pMsg->commitTime   = htonl((int32_t)pCreateDb->commitTime);
-  pMsg->minRowsPerFileBlock = htonl(pCreateDb->minRowsPerBlock);
-  pMsg->maxRowsPerFileBlock = htonl(pCreateDb->maxRowsPerBlock);
+  pMsg->minRows = htonl(pCreateDb->minRowsPerBlock);
+  pMsg->maxRows = htonl(pCreateDb->maxRowsPerBlock);
   pMsg->fsyncPeriod  = htonl(pCreateDb->fsyncPeriod);
   pMsg->compression  = pCreateDb->compressionLevel;
   pMsg->walLevel     = (char)pCreateDb->walLevel;
@@ -141,7 +203,6 @@ int32_t setDbOptions(SCreateDbMsg* pCreateDbMsg, const SCreateDbInfo* pCreateDbS
 
   // todo configurable
   pCreateDbMsg->numOfVgroups = htonl(2);
-
   return TSDB_CODE_SUCCESS;
 }
 

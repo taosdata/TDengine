@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "catalog.h"
 
@@ -41,19 +42,24 @@ public:
   virtual void done() = 0;
 };
 
-class MockCatalogServiceImpl;
+struct MockTableMeta {
+  std::shared_ptr<STableMeta> schema;
+  std::vector<SVgroupInfo> vgs;
+};
 
+class MockCatalogServiceImpl;
 class MockCatalogService {
 public:
-  static const int32_t numOfDataTypes = sizeof(tDataTypes) / sizeof(tDataTypes[0]);
-
   MockCatalogService();
   ~MockCatalogService();
-  struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps) const;
-  int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SCatalogReq* pMetaReq, SMetaData* pMetaData) const;
   ITableBuilder& createTableBuilder(const std::string& db, const std::string& tbname, int8_t tableType, int32_t numOfColumns, int32_t numOfTags = 0);
   void createSubTable(const std::string& db, const std::string& stbname, const std::string& tbname, int16_t vgid);
   void showTables() const;
+  std::shared_ptr<MockTableMeta> getTableMeta(const std::string& db, const std::string& tbname) const;
+
+  // mock interface
+  int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle) const;
+  int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta) const;
 
 private:
   std::unique_ptr<MockCatalogServiceImpl> impl_;

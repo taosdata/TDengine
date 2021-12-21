@@ -74,11 +74,14 @@ static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg) {
   pVnode->path = strdup(path);
   vnodeOptionsCopy(&(pVnode->config), pVnodeCfg);
 
+  tsem_init(&(pVnode->canCommit), 0, 1);
+
   return pVnode;
 }
 
 static void vnodeFree(SVnode *pVnode) {
   if (pVnode) {
+    tsem_destroy(&(pVnode->canCommit));
     tfree(pVnode->path);
     free(pVnode);
   }

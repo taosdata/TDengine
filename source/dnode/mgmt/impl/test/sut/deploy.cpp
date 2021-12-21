@@ -16,7 +16,7 @@
 #include "deploy.h"
 
 void initLog(const char* path) {
-  dDebugFlag = 143;
+  dDebugFlag = 207;
   vDebugFlag = 0;
   mDebugFlag = 207;
   cDebugFlag = 0;

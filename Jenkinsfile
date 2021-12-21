@@ -42,7 +42,6 @@ def pre_test(){
     killall -9 gdb || echo "no gdb running"
     killall -9 python3.8 || echo "no python program running"
     cd ${WKC}
-    git reset --hard HEAD~10 >/dev/null
     '''
     script {
       if (env.CHANGE_TARGET == 'master') {
@@ -75,11 +74,9 @@ def pre_test(){
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    git clean -dfx
-    
-    git clean -dfx
     export TZ=Asia/Harbin
     date
+    rm -rf debug
     mkdir debug
     cd debug
     cmake .. > /dev/null
@@ -109,6 +106,10 @@ pipeline {
               abortPreviousBuilds()
             }
           pre_test()
+          sh'''
+          cd ${WKC}/tests
+          ./test-all.sh b1fq
+          '''
           }
       }
   //     stage('Parallel test stage') {

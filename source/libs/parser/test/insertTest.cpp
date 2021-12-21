@@ -57,17 +57,20 @@ void *__wrap_malloc(size_t c) {
 //   [...];
 class InsertTest : public Test {
 protected:
-  void setDatabase(const string& db) {
+  void setDatabase(const string& acctId, const string& db) {
+    acctId_ = acctId;
     db_ = db;
   }
 
   void bind(const char* sql) {
     reset();
-    cxt_.sqlLen = strlen(sql);
+    cxt_.pAcctId = acctId_.c_str();
+    cxt_.pDbname = db_.c_str();
     strcpy(sqlBuf_, sql);
+    cxt_.sqlLen = strlen(sql);
     sqlBuf_[cxt_.sqlLen] = '\0';
     cxt_.pSql = sqlBuf_;
-    cxt_.pDbname = db_.c_str();
+
   }
 
   int32_t run() {
@@ -95,6 +98,7 @@ private:
     res_ = nullptr;
   }
 
+  string acctId_;
   string db_;
   char errMagBuf_[max_err_len];
   char sqlBuf_[max_sql_len];
@@ -105,7 +109,7 @@ private:
 
 // INSERT INTO tb_name VALUES (field1_value, ...)
 TEST_F(InsertTest, simpleTest) {
-  setDatabase("test");
+  setDatabase("root", "test");
 
   bind("insert into t1 values (now, 1, \"wxy\")");
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
@@ -116,7 +120,7 @@ TEST_F(InsertTest, simpleTest) {
 }
 
 TEST_F(InsertTest, toleranceTest) {
-  setDatabase("test");
+  setDatabase("root", "test");
 
   bind("insert into");
   ASSERT_NE(run(), TSDB_CODE_SUCCESS);

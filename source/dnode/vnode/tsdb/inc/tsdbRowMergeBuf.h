@@ -12,17 +12,38 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TD_TSDB_COMPACT_H_
-#define _TD_TSDB_COMPACT_H_
+
+#ifndef TSDB_ROW_MERGE_BUF_H
+#define TSDB_ROW_MERGE_BUF_H 
+
+#if 0
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void *tsdbCompactImpl(STsdbRepo *pRepo);
+#include "tsdb.h"
+#include "tchecksum.h"
+#include "tsdbReadImpl.h"
+
+typedef void* SMergeBuf;
+
+SDataRow tsdbMergeTwoRows(SMergeBuf *pBuf, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2);
+
+static FORCE_INLINE int tsdbMergeBufMakeSureRoom(SMergeBuf *pBuf, STSchema* pSchema1, STSchema* pSchema2) {
+  size_t len1 = dataRowMaxBytesFromSchema(pSchema1);
+  size_t len2 = dataRowMaxBytesFromSchema(pSchema2);
+  return tsdbMakeRoom(pBuf, MAX(len1, len2));
+}
+
+static FORCE_INLINE void tsdbFreeMergeBuf(SMergeBuf buf) {
+  taosTZfree(buf);
+}
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _TD_TSDB_COMPACT_H_ */
+#endif
+
+#endif /* ifndef TSDB_ROW_MERGE_BUF_H */

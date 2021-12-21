@@ -210,8 +210,8 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
     pReq->daysToKeep0 = htonl(3650);
     pReq->daysToKeep1 = htonl(3650);
     pReq->daysToKeep2 = htonl(3650);
-    pReq->minRowsPerFileBlock = htonl(100);
-    pReq->maxRowsPerFileBlock = htonl(4096);
+    pReq->minRows = htonl(100);
+    pReq->maxRows = htonl(4096);
     pReq->commitTime = htonl(3600);
     pReq->fsyncPeriod = htonl(3000);
     pReq->walLevel = 1;
@@ -375,8 +375,8 @@ TEST_F(DndTestDb, 03_Create_Use_Restart_Use_Db) {
     pReq->daysToKeep0 = htonl(3650);
     pReq->daysToKeep1 = htonl(3650);
     pReq->daysToKeep2 = htonl(3650);
-    pReq->minRowsPerFileBlock = htonl(100);
-    pReq->maxRowsPerFileBlock = htonl(4096);
+    pReq->minRows = htonl(100);
+    pReq->maxRows = htonl(4096);
     pReq->commitTime = htonl(3600);
     pReq->fsyncPeriod = htonl(3000);
     pReq->walLevel = 1;

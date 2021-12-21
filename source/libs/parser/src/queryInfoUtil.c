@@ -1,10 +1,7 @@
-#include "queryInfoUtil.h"
-#include <function.h>
-#include "astGenerator.h"
-#include "function.h"
 #include "os.h"
+#include "queryInfoUtil.h"
+#include "function.h"
 #include "parser.h"
-#include "parserInt.h"
 #include "parserUtil.h"
 
 static struct SSchema _s = {

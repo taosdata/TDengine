@@ -153,10 +153,9 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
     void*   output = NULL;
     int32_t outputLen = 0;
     code = qParseQuerySql(pRequest->sqlstr, sqlLen, pRequest->requestId, &type, &output, &outputLen, pRequest->msgBuf, ERROR_MSG_BUF_DEFAULT_SIZE);
-    if (type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_SHOW || type == TSDB_SQL_DROP_USER || type == TSDB_SQL_CREATE_DB) {
+    if (type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_SHOW || type == TSDB_SQL_DROP_USER || type == TSDB_SQL_DROP_ACCT || type == TSDB_SQL_CREATE_DB || type == TSDB_SQL_CREATE_ACCT) {
       pRequest->type = type;
-      pRequest->body.param = output;
-      pRequest->body.paramLen = outputLen;
+      pRequest->body.requestMsg = (SReqMsgInfo){.pMsg = output, .len = outputLen};
 
       SRequestMsgBody body = {0};
       buildRequestMsgFp[type](pRequest, &body);
@@ -165,6 +164,8 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
       sendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &body, &transporterId);
 
       tsem_wait(&pRequest->body.rspSem);
+
+
       destroyRequestMsgBody(&body);
     } else {
       assert(0);
@@ -255,7 +256,7 @@ STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, con
 
 static int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
   pMsgBody->msgType         = TSDB_MSG_TYPE_CONNECT;
-  pMsgBody->msgLen          = sizeof(SConnectMsg);
+  pMsgBody->msgInfo.len     = sizeof(SConnectMsg);
   pMsgBody->requestObjRefId = pRequest->self;
 
   SConnectMsg *pConnect = calloc(1, sizeof(SConnectMsg));
@@ -279,28 +280,28 @@ static int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody)
   pConnect->startTime = htobe64(appInfo.startTime);
   tstrncpy(pConnect->app, appInfo.appName, tListLen(pConnect->app));
 
-  pMsgBody->pData = pConnect;
+  pMsgBody->msgInfo.pMsg = pConnect;
   return 0;
 }
 
 static void destroyRequestMsgBody(SRequestMsgBody* pMsgBody) {
   assert(pMsgBody != NULL);
-  tfree(pMsgBody->pData);
+  tfree(pMsgBody->msgInfo.pMsg);
 }
 
 int32_t sendMsgToServer(void *pTransporter, SEpSet* epSet, const SRequestMsgBody *pBody, int64_t* pTransporterId) {
-  char *pMsg = rpcMallocCont(pBody->msgLen);
+  char *pMsg = rpcMallocCont(pBody->msgInfo.len);
   if (NULL == pMsg) {
     tscError("0x%"PRIx64" msg:%s malloc failed", pBody->requestId, taosMsg[pBody->msgType]);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return -1;
   }
 
-  memcpy(pMsg, pBody->pData, pBody->msgLen);
+  memcpy(pMsg, pBody->msgInfo.pMsg, pBody->msgInfo.len);
   SRpcMsg rpcMsg = {
       .msgType = pBody->msgType,
       .pCont   = pMsg,
-      .contLen = pBody->msgLen,
+      .contLen = pBody->msgInfo.len,
       .ahandle = (void*) pBody->requestObjRefId,
       .handle  = NULL,
       .code    = 0
@@ -388,7 +389,7 @@ TAOS *taos_connect_l(const char *ip, int ipLen, const char *user, int userLen, c
 
 void* doFetchRow(SRequestObj* pRequest) {
   assert(pRequest != NULL);
-  SClientResultInfo* pResultInfo = pRequest->body.pResInfo;
+  SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
   if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
     pRequest->type = TSDB_SQL_RETRIEVE_MNODE;
@@ -421,7 +422,7 @@ void* doFetchRow(SRequestObj* pRequest) {
   return pResultInfo->row;
 }
 
-void setResultDataPtr(SClientResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows) {
+void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows) {
   assert(numOfCols > 0 && pFields != NULL && pResultInfo != NULL);
   if (numOfRows == 0) {
     return;

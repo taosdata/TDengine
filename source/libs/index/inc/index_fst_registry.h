@@ -19,49 +19,48 @@
 extern "C" {
 #endif
 
+#include "index_fst_node.h"
 #include "index_fst_util.h"
 #include "tarray.h"
-#include "index_fst_node.h"
 
 typedef struct FstRegistryCell {
-  CompiledAddr addr; 
-  FstBuilderNode *node;    
+  CompiledAddr    addr;
+  FstBuilderNode *node;
 } FstRegistryCell;
 
 #define FST_REGISTRY_CELL_IS_EMPTY(cell) (cell->addr == NONE_ADDRESS)
-#define FST_REGISTRY_CELL_INSERT(cell, tAddr) do {cell->addr = tAddr;} while(0)
+#define FST_REGISTRY_CELL_INSERT(cell, tAddr) \
+  do {                                        \
+    cell->addr = tAddr;                       \
+  } while (0)
 
-
-//typedef struct FstRegistryCache {
-//  SArray *cells;  
+// typedef struct FstRegistryCache {
+//  SArray *cells;
 //  uint32_t start;
 //  uint32_t end;
 //} FstRegistryCache;
 
-typedef enum {FOUND, NOTFOUND, REJECTED} FstRegistryEntryState;
+typedef enum { FOUND, NOTFOUND, REJECTED } FstRegistryEntryState;
 
 typedef struct FstRegistryEntry {
   FstRegistryEntryState state;
-  CompiledAddr addr; 
-  FstRegistryCell *cell; 
-} FstRegistryEntry; 
+  CompiledAddr          addr;
+  FstRegistryCell *     cell;
+} FstRegistryEntry;
 
-
-
-// Registry relation function 
+// Registry relation function
 typedef struct FstRegistry {
-   SArray *table;  //<FstRegistryCell> 
-   uint64_t tableSize; // num of rows
-   uint64_t mruSize;   // num of columns
-} FstRegistry;      
+  SArray * table;      //<FstRegistryCell>
+  uint64_t tableSize;  // num of rows
+  uint64_t mruSize;    // num of columns
+} FstRegistry;
 
-// 
-FstRegistry* fstRegistryCreate(uint64_t tableSize, uint64_t mruSize);
-void fstRegistryDestroy(FstRegistry *registry);
+//
+FstRegistry *fstRegistryCreate(uint64_t tableSize, uint64_t mruSize);
+void         fstRegistryDestroy(FstRegistry *registry);
 
-
-FstRegistryEntry* fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNode);
-void fstRegistryEntryDestroy(FstRegistryEntry *entry);
+FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNode);
+void              fstRegistryEntryDestroy(FstRegistryEntry *entry);
 
 #ifdef __cplusplus
 }

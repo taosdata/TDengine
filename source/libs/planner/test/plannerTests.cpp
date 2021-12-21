@@ -20,6 +20,7 @@
 
 #include "taos.h"
 #include "parser.h"
+#include "mockCatalog.h"
 
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 
@@ -27,9 +28,25 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+class PlannerEnv : public testing::Environment {
+public:
+  virtual void SetUp() {
+    initMetaDataEnv();
+    generateMetaData();
+  }
+
+  virtual void TearDown() {
+    destroyMetaDataEnv();
+  }
+
+  PlannerEnv() {}
+  virtual ~PlannerEnv() {}
+};
+
+int main(int argc, char* argv[]) {
+	testing::AddGlobalTestEnvironment(new PlannerEnv());
+	testing::InitGoogleTest(&argc, argv);
+	return RUN_ALL_TESTS();
 }
 
 TEST(testCase, planner_test) {
