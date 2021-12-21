@@ -333,13 +333,17 @@ static int indexMergeFinalResults(SArray *interResults, EIndexOperatorType oType
   //refactor, merge interResults into fResults by oType
   SArray *first = taosArrayGetP(interResults, 0);  
   taosArraySort(first, uidCompare);  
+  taosArrayRemoveDuplicate(first, uidCompare, NULL);
   if (oType == MUST) {
-      
+    // just one column index, enhance later  
+    taosArrayAddAll(fResults, first); 
   } else if (oType == SHOULD) {
-     
+    // just one column index, enhance later  
+    taosArrayAddAll(fResults, first); 
     // tag1 condistion || tag2 condition
   } else if (oType == NOT) {
-    
+    // just one column index, enhance later  
+    taosArrayAddAll(fResults, first); 
     // not use currently   
   }
   return 0;

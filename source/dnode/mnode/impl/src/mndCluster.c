@@ -63,7 +63,7 @@ int32_t mndGetClusterName(SMnode *pMnode, char *clusterName, int32_t len) {
 }
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_CLUSTER, TSDB_CLUSTER_VER_NUMBE, sizeof(SClusterObj));
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_CLUSTER, TSDB_CLUSTER_VER_NUMBE, sizeof(SClusterObj) + TSDB_CLUSTER_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;

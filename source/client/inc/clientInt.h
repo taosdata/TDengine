@@ -86,26 +86,32 @@ typedef struct STscObj {
   SAppInstInfo      *pAppInfo;
 } STscObj;
 
-typedef struct SClientResultInfo {
-  const char  *pMsg;
+typedef struct SReqResultInfo {
+  const char  *pRspMsg;
   const char  *pData;
   TAOS_FIELD  *fields;
-  int32_t      numOfCols;
-  int32_t      numOfRows;
-  int32_t      current;
+  uint32_t     numOfCols;
+
   int32_t     *length;
   TAOS_ROW     row;
   char       **pCol;
-} SClientResultInfo;
 
-typedef struct SReqBody {
-  tsem_t    rspSem;        // not used now
-  void*     fp;
-  void*     param;
-  int32_t   paramLen;
-  int64_t   execId;    // showId/queryId
-  SClientResultInfo* pResInfo;
-} SRequestBody;
+  uint32_t     numOfRows;
+  uint32_t     current;
+} SReqResultInfo;
+
+typedef struct SReqMsg {
+  void     *pMsg;
+  uint32_t  len;
+} SReqMsgInfo;
+
+typedef struct SRequestSendRecvBody {
+  tsem_t          rspSem;        // not used now
+  void*           fp;
+  int64_t         execId;        // showId/queryId
+  SReqMsgInfo     requestMsg;
+  SReqResultInfo  resInfo;
+} SRequestSendRecvBody;
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE  512
 
@@ -115,7 +121,7 @@ typedef struct SRequestObj {
   STscObj         *pTscObj;
   SQueryExecMetric metric;
   char            *sqlstr;  // sql string
-  SRequestBody     body;
+  SRequestSendRecvBody     body;
   int64_t          self;
   char            *msgBuf;
   int32_t          code;
@@ -123,11 +129,10 @@ typedef struct SRequestObj {
 } SRequestObj;
 
 typedef struct SRequestMsgBody {
-  int32_t  msgType;
-  void    *pData;
-  int32_t  msgLen;
-  uint64_t requestId;
-  uint64_t requestObjRefId;
+  int32_t     msgType;
+  SReqMsgInfo msgInfo;
+  uint64_t    requestId;
+  uint64_t    requestObjRefId;
 } SRequestMsgBody;
 
 extern SAppInfo   appInfo;
@@ -158,7 +163,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
 TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen);
 
 void* doFetchRow(SRequestObj* pRequest);
-void setResultDataPtr(SClientResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows);
+void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows);
 
 #ifdef __cplusplus
 }

@@ -71,7 +71,7 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
 }
 
 static SSdbRaw *mndAcctActionEncode(SAcctObj *pAcct) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_ACCT, TSDB_ACCT_VER_NUMBER, sizeof(SAcctObj));
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_ACCT, TSDB_ACCT_VER_NUMBER, sizeof(SAcctObj) + TSDB_ACCT_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
