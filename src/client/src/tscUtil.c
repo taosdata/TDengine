@@ -5511,18 +5511,20 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
     if(item->type == cJSON_String){     // add json value  format: type|data
       char *jsonValue = item->valuestring;
       outLen = 0;
-      char tagVal[TSDB_MAX_JSON_TAGS_LEN] = {0};
+      char *tagVal = calloc(strlen(jsonValue) * TSDB_NCHAR_SIZE + TSDB_NCHAR_SIZE, 1);
       *tagVal = jsonType2DbType(0, item->type);     // type
       char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
       if (!taosMbsToUcs4(jsonValue, strlen(jsonValue), varDataVal(tagData),
-                         TSDB_MAX_JSON_TAGS_LEN - CHAR_BYTES - VARSTR_HEADER_SIZE, &outLen)) {
+                         (int32_t)(strlen(jsonValue) * TSDB_NCHAR_SIZE), &outLen)) {
         tscError("json string error:%s|%s", strerror(errno), jsonValue);
         retCode = tscSQLSyntaxErrMsg(errMsg, "serizelize json error", NULL);
+        free(tagVal);
         goto end;
       }
 
       varDataSetLen(tagData, outLen);
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal, true);
+      free(tagVal);
     }else if(item->type == cJSON_Number){
       if(!isfinite(item->valuedouble)){
         tscError("json value is invalidate");
