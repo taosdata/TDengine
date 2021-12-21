@@ -108,7 +108,7 @@ pipeline {
           pre_test()
           sh'''
           cd ${WKC}/tests
-          ./test-all.sh p1
+          ./test-all.sh b1
           '''
           }
       }
