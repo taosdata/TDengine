@@ -106,6 +106,10 @@ pipeline {
               abortPreviousBuilds()
             }
           pre_test()
+          bash'''
+          cd ${WKC}/tests
+          ./test-all.sh p1
+          '''
           }
       }
   //     stage('Parallel test stage') {
