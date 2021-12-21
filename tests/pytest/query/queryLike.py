@@ -36,6 +36,17 @@ class TDTestCase:
         tdSql.query("select * from test_cars where t1 like '%50 90 30 04 00 00%'")        
         tdSql.checkRows(1)
 
+        tdSql.execute("create table stb(ts timestamp, c0 int) tags(t0 nchar(64))")
+        tdSql.execute("insert into tb1 using stb tags('测试ABCabc') values(now, 1)")
+        tdSql.query("select * from stb where t0 like '%试AB%'")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from stb where t0 like '测试AB%'")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from stb where t0 like '%ABCabc'")
+        tdSql.checkRows(1)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
