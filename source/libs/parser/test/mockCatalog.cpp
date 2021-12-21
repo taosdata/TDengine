@@ -17,6 +17,9 @@
 
 #include <iostream>
 
+#include "stub.h"
+#include "addr_any.h"
+
 namespace {
 
 void generateTestT1(MockCatalogService* mcs) {
@@ -38,16 +41,36 @@ void generateTestST1(MockCatalogService* mcs) {
 
 }
 
-int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle) {
+int32_t __catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle) {
   return mockCatalogService->catalogGetHandle(clusterId, catalogHandle);
 }
 
-int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta) {
+int32_t __catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta) {
   return mockCatalogService->catalogGetTableMeta(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, pTableMeta);
 }
 
 void initMetaDataEnv() {
   mockCatalogService.reset(new MockCatalogService());
+
+  static Stub stub;
+  stub.set(catalogGetHandle, __catalogGetHandle);
+  stub.set(catalogGetTableMeta, __catalogGetTableMeta);
+  {
+    AddrAny any("libcatalog.so");
+    std::map<std::string,void*> result;
+    any.get_global_func_addr_dynsym("^catalogGetHandle$", result);
+    for (const auto& f : result) {
+      stub.set(f.second, __catalogGetHandle);
+    }
+  }
+  {
+    AddrAny any("libcatalog.so");
+    std::map<std::string,void*> result;
+    any.get_global_func_addr_dynsym("^catalogGetTableMeta$", result);
+    for (const auto& f : result) {
+      stub.set(f.second, __catalogGetTableMeta);
+    }
+  }
 }
 
 void generateMetaData() {
