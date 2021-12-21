@@ -24,89 +24,80 @@
 // handle management message
 //
 
-int tqGetgHandleSSize(const STqGroupHandle* gHandle);
-int tqBufHandleSSize();
-int tqBufItemSSize();
+int tqGroupSSize(const STqGroup* pGroup);
+int tqTopicSSize();
+int tqItemSSize();
 
-STqGroupHandle* tqFindHandle(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId) {
-  STqGroupHandle* gHandle;
-  return NULL;
-}
+void* tqSerializeListHandle(STqList* listHandle, void* ptr);
+void* tqSerializeTopic(STqTopic* pTopic, void* ptr);
+void* tqSerializeItem(STqMsgItem* pItem, void* ptr);
 
-void* tqSerializeListHandle(STqListHandle* listHandle, void* ptr);
-void* tqSerializeBufHandle(STqBufferHandle* bufHandle, void* ptr);
-void* tqSerializeBufItem(STqBufferItem* bufItem, void* ptr);
-
-const void* tqDeserializeBufHandle(const void* pBytes, STqBufferHandle* bufHandle);
-const void* tqDeserializeBufItem(const void* pBytes, STqBufferItem* bufItem);
+const void* tqDeserializeTopic(const void* pBytes, STqTopic* pTopic);
+const void* tqDeserializeItem(const void* pBytes, STqMsgItem* pItem);
 
 STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemAllocatorFactory* allocFac) {
   STQ* pTq = malloc(sizeof(STQ));
   if (pTq == NULL) {
-    // TODO: memory error
+    terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return NULL;
   }
   pTq->path = strdup(path);
   pTq->tqConfig = tqConfig;
   pTq->tqLogReader = tqLogReader;
   pTq->tqMemRef.pAlloctorFactory = allocFac;
-  // pTq->tqMemRef.pAllocator = allocFac->create(allocFac);
+  pTq->tqMemRef.pAllocator = allocFac->create(allocFac);
   if (pTq->tqMemRef.pAllocator == NULL) {
-    // TODO
+    // TODO: error code of buffer pool
   }
-  pTq->tqMeta =
-      tqStoreOpen(path, (FTqSerialize)tqSerializeGroupHandle, (FTqDeserialize)tqDeserializeGroupHandle, free, 0);
+  pTq->tqMeta = tqStoreOpen(path, (FTqSerialize)tqSerializeGroup, (FTqDeserialize)tqDeserializeGroup, free, 0);
   if (pTq->tqMeta == NULL) {
     // TODO: free STQ
     return NULL;
   }
   return pTq;
 }
-
-void tqClose(STQ*pTq) {
+void tqClose(STQ* pTq) {
   // TODO
 }
 
-static int tqProtoCheck(TmqMsgHead *pMsg) {
-  return pMsg->protoVer == 0;
-}
+static int tqProtoCheck(STqMsgHead* pMsg) { return pMsg->protoVer == 0; }
 
-static int tqAckOneTopic(STqBufferHandle* bHandle, TmqOneAck* pAck, STqQueryMsg** ppQuery) {
+static int tqAckOneTopic(STqTopic* pTopic, STqOneAck* pAck, STqQueryMsg** ppQuery) {
   // clean old item and move forward
   int32_t consumeOffset = pAck->consumeOffset;
   int     idx = consumeOffset % TQ_BUFFER_SIZE;
-  ASSERT(bHandle->buffer[idx].content && bHandle->buffer[idx].executor);
-  tfree(bHandle->buffer[idx].content);
+  ASSERT(pTopic->buffer[idx].content && pTopic->buffer[idx].executor);
+  tfree(pTopic->buffer[idx].content);
   if (1 /* TODO: need to launch new query */) {
     STqQueryMsg* pNewQuery = malloc(sizeof(STqQueryMsg));
     if (pNewQuery == NULL) {
-      // TODO: memory insufficient
+      terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
       return -1;
     }
     // TODO: lock executor
-    pNewQuery->exec->executor = bHandle->buffer[idx].executor;
     // TODO: read from wal and assign to src
-    pNewQuery->exec->src = 0;
-    pNewQuery->exec->dest = &bHandle->buffer[idx];
-    pNewQuery->next = *ppQuery;
-    *ppQuery = pNewQuery;
+    /*pNewQuery->exec->executor = pTopic->buffer[idx].executor;*/
+    /*pNewQuery->exec->src = 0;*/
+    /*pNewQuery->exec->dest = &pTopic->buffer[idx];*/
+    /*pNewQuery->next = *ppQuery;*/
+    /**ppQuery = pNewQuery;*/
   }
   return 0;
 }
 
-static int tqAck(STqGroupHandle* gHandle, TmqAcks* pAcks) {
+static int tqAck(STqGroup* pGroup, STqAcks* pAcks) {
   int32_t    ackNum = pAcks->ackNum;
-  TmqOneAck* acks = pAcks->acks;
+  STqOneAck* acks = pAcks->acks;
   // double ptr for acks and list
-  int            i = 0;
-  STqListHandle* node = gHandle->head;
-  int            ackCnt = 0;
-  STqQueryMsg*   pQuery = NULL;
+  int          i = 0;
+  STqList*     node = pGroup->head;
+  int          ackCnt = 0;
+  STqQueryMsg* pQuery = NULL;
   while (i < ackNum && node->next) {
-    if (acks[i].topicId == node->next->bufHandle.topicId) {
+    if (acks[i].topicId == node->next->topic.topicId) {
       ackCnt++;
-      tqAckOneTopic(&node->next->bufHandle, &acks[i], &pQuery);
-    } else if (acks[i].topicId < node->next->bufHandle.topicId) {
+      tqAckOneTopic(&node->next->topic, &acks[i], &pQuery);
+    } else if (acks[i].topicId < node->next->topic.topicId) {
       i++;
     } else {
       node = node->next;
@@ -118,52 +109,56 @@ static int tqAck(STqGroupHandle* gHandle, TmqAcks* pAcks) {
   return ackCnt;
 }
 
-static int tqCommitTCGroup(STqGroupHandle* handle) {
+static int tqCommitGroup(STqGroup* pGroup) {
   // persist modification into disk
   return 0;
 }
 
-int tqCreateTCGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId, STqGroupHandle** handle) {
+int tqCreateGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId, STqGroup** ppGroup) {
   // create in disk
-  STqGroupHandle* gHandle = (STqGroupHandle*)malloc(sizeof(STqGroupHandle));
-  if (gHandle == NULL) {
+  STqGroup* pGroup = (STqGroup*)malloc(sizeof(STqGroup));
+  if (pGroup == NULL) {
     // TODO
     return -1;
   }
-  memset(gHandle, 0, sizeof(STqGroupHandle));
+  *ppGroup = pGroup;
+  memset(pGroup, 0, sizeof(STqGroup));
 
   return 0;
 }
 
-STqGroupHandle* tqOpenTCGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId) {
-  STqGroupHandle* gHandle = tqHandleGet(pTq->tqMeta, cId);
-  if (gHandle == NULL) {
-    int code = tqCreateTCGroup(pTq, topicId, cgId, cId, &gHandle);
-    if (code != 0) {
+STqGroup* tqOpenGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId) {
+  STqGroup* pGroup = tqHandleGet(pTq->tqMeta, cId);
+  if (pGroup == NULL) {
+    int code = tqCreateGroup(pTq, topicId, cgId, cId, &pGroup);
+    if (code < 0) {
       // TODO
       return NULL;
     }
+    tqHandleMovePut(pTq->tqMeta, cId, pGroup);
   }
+  ASSERT(pGroup);
 
-  // create
-  // open
-  return gHandle;
+  return pGroup;
 }
 
-int tqCloseTCGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId) { return 0; }
+int tqCloseGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId) {
+  // TODO
+  return 0;
+}
 
-int tqDropTCGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId) {
+int tqDropGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId) {
   // delete from disk
   return 0;
 }
 
-static int tqFetch(STqGroupHandle* gHandle, void** msg) {
-  STqListHandle* head = gHandle->head;
-  STqListHandle* node = head;
-  int            totSize = 0;
+static int tqFetch(STqGroup* pGroup, void** msg) {
+  STqList* head = pGroup->head;
+  STqList* node = head;
+  int      totSize = 0;
   // TODO: make it a macro
   int            sizeLimit = 4 * 1024;
-  TmqMsgContent* buffer = malloc(sizeLimit);
+  STqMsgContent* buffer = malloc(sizeLimit);
   if (buffer == NULL) {
     // TODO:memory insufficient
     return -1;
@@ -172,25 +167,25 @@ static int tqFetch(STqGroupHandle* gHandle, void** msg) {
   // until all topic iterated or msgs over sizeLimit
   while (node->next) {
     node = node->next;
-    STqBufferHandle* bufHandle = &node->bufHandle;
-    int              idx = bufHandle->nextConsumeOffset % TQ_BUFFER_SIZE;
-    if (bufHandle->buffer[idx].content != NULL && bufHandle->buffer[idx].offset == bufHandle->nextConsumeOffset) {
-      totSize += bufHandle->buffer[idx].size;
+    STqTopic* topicHandle = &node->topic;
+    int       idx = topicHandle->nextConsumeOffset % TQ_BUFFER_SIZE;
+    if (topicHandle->buffer[idx].content != NULL && topicHandle->buffer[idx].offset == topicHandle->nextConsumeOffset) {
+      totSize += topicHandle->buffer[idx].size;
       if (totSize > sizeLimit) {
         void* ptr = realloc(buffer, totSize);
         if (ptr == NULL) {
-          totSize -= bufHandle->buffer[idx].size;
+          totSize -= topicHandle->buffer[idx].size;
           // TODO:memory insufficient
           // return msgs already copied
           break;
         }
       }
-      *((int64_t*)buffer) = bufHandle->topicId;
+      *((int64_t*)buffer) = topicHandle->topicId;
       buffer = POINTER_SHIFT(buffer, sizeof(int64_t));
-      *((int64_t*)buffer) = bufHandle->buffer[idx].size;
+      *((int64_t*)buffer) = topicHandle->buffer[idx].size;
       buffer = POINTER_SHIFT(buffer, sizeof(int64_t));
-      memcpy(buffer, bufHandle->buffer[idx].content, bufHandle->buffer[idx].size);
-      buffer = POINTER_SHIFT(buffer, bufHandle->buffer[idx].size);
+      memcpy(buffer, topicHandle->buffer[idx].content, topicHandle->buffer[idx].size);
+      buffer = POINTER_SHIFT(buffer, topicHandle->buffer[idx].size);
       if (totSize > sizeLimit) {
         break;
       }
@@ -199,11 +194,19 @@ static int tqFetch(STqGroupHandle* gHandle, void** msg) {
   return totSize;
 }
 
-STqGroupHandle* tqGetGroupHandle(STQ* pTq, int64_t cId) { return NULL; }
+STqGroup* tqGetGroup(STQ* pTq, int64_t clientId) { return tqHandleGet(pTq->tqMeta, clientId); }
 
-int tqLaunchQuery(STqGroupHandle* gHandle) { return 0; }
-
-int tqSendLaunchQuery(STqGroupHandle* gHandle) { return 0; }
+int tqSendLaunchQuery(STqMsgItem* bufItem, int64_t offset) {
+  if (tqQueryExecuting(bufItem->status)) {
+    return 0;
+  }
+  bufItem->status = 1;
+  // load data from wal or buffer pool
+  // put into exec
+  // send exec into non blocking queue
+  // when query finished, put into buffer pool
+  return 0;
+}
 
 /*int tqMoveOffsetToNext(TqGroupHandle* gHandle) {*/
 /*return 0;*/
@@ -220,23 +223,96 @@ int tqCommit(STQ* pTq) {
   return 0;
 }
 
-int tqSetCursor(STQ* pTq, void* msg) {
+int tqBufferSetOffset(STqTopic* pTopic, int64_t offset) {
+  int code;
+  memset(pTopic->buffer, 0, sizeof(pTopic->buffer));
+  // launch query
+  for (int i = offset; i < offset + TQ_BUFFER_SIZE; i++) {
+    int pos = i % TQ_BUFFER_SIZE;
+    code = tqSendLaunchQuery(&pTopic->buffer[pos], offset);
+    if (code < 0) {
+      // TODO: error handling
+    }
+  }
+  // set offset
+  pTopic->nextConsumeOffset = offset;
+  pTopic->floatingCursor = offset;
   return 0;
 }
 
-int tqConsume(STQ* pTq, STqConsumeReq* pMsg) {
-  if (!tqProtoCheck((TmqMsgHead*)pMsg)) {
-    // proto version invalid
-    return -1;
-  }
-  int64_t         clientId = pMsg->head.clientId;
-  STqGroupHandle* gHandle = tqGetGroupHandle(pTq, clientId);
+STqTopic* tqFindTopic(STqGroup* pGroup, int64_t topicId) {
+  // TODO
+  return NULL;
+}
+
+int tqSetCursor(STQ* pTq, STqSetCurReq* pMsg) {
+  int       code;
+  int64_t   clientId = pMsg->head.clientId;
+  int64_t   topicId = pMsg->topicId;
+  int64_t   offset = pMsg->offset;
+  STqGroup* gHandle = tqGetGroup(pTq, clientId);
   if (gHandle == NULL) {
     // client not connect
     return -1;
   }
+  STqTopic* topicHandle = tqFindTopic(gHandle, topicId);
+  if (topicHandle == NULL) {
+    return -1;
+  }
+  if (pMsg->offset == topicHandle->nextConsumeOffset) {
+    return 0;
+  }
+  // TODO: check log last version
+
+  code = tqBufferSetOffset(topicHandle, offset);
+  if (code < 0) {
+    // set error code
+    return -1;
+  }
+
+  return 0;
+}
+
+int tqConsume(STQ* pTq, STqConsumeReq* pMsg) {
+  int64_t   clientId = pMsg->head.clientId;
+  STqGroup* pGroup = tqGetGroup(pTq, clientId);
+  if (pGroup == NULL) {
+    terrno = TSDB_CODE_TQ_GROUP_NOT_SET;
+    return -1;
+  }
+
+  STqConsumeRsp* pRsp = (STqConsumeRsp*)pMsg;
+  int            numOfMsgs = tqFetch(pGroup, (void**)&pRsp->msgs);
+  if (numOfMsgs < 0) {
+    return -1;
+  }
+  if (numOfMsgs == 0) {
+    // most recent data has been fetched
+
+    // enable timer for blocking wait
+    // once new data written during wait time
+    // launch query and response
+  }
+
+  // fetched a num of msgs, rpc response
+
+  return 0;
+}
+
+#if 0
+int tqConsume(STQ* pTq, STqConsumeReq* pMsg) {
+  if (!tqProtoCheck((STqMsgHead*)pMsg)) {
+    // proto version invalid
+    return -1;
+  }
+  int64_t   clientId = pMsg->head.clientId;
+  STqGroup* pGroup = tqGetGroup(pTq, clientId);
+  if (pGroup == NULL) {
+    // client not connect
+    return -1;
+  }
   if (pMsg->acks.ackNum != 0) {
-    if (tqAck(gHandle, &pMsg->acks) != 0) {
+    if (tqAck(pGroup, &pMsg->acks) != 0) {
       // ack not success
       return -1;
     }
@@ -244,22 +320,23 @@ int tqConsume(STQ* pTq, STqConsumeReq* pMsg) {
 
   STqConsumeRsp* pRsp = (STqConsumeRsp*)pMsg;
 
-  if (tqFetch(gHandle, (void**)&pRsp->msgs) <= 0) {
+  if (tqFetch(pGroup, (void**)&pRsp->msgs) <= 0) {
     // fetch error
     return -1;
   }
 
   // judge and launch new query
-  if (tqLaunchQuery(gHandle)) {
-    // launch query error
-    return -1;
-  }
+  /*if (tqSendLaunchQuery(gHandle)) {*/
+  // launch query error
+  /*return -1;*/
+  /*}*/
   return 0;
 }
+#endif
 
-int tqSerializeGroupHandle(const STqGroupHandle* gHandle, STqSerializedHead** ppHead) {
+int tqSerializeGroup(const STqGroup* pGroup, STqSerializedHead** ppHead) {
   // calculate size
-  int sz = tqGetgHandleSSize(gHandle) + sizeof(STqSerializedHead);
+  int sz = tqGroupSSize(pGroup) + sizeof(STqSerializedHead);
   if (sz > (*ppHead)->ssize) {
     void* tmpPtr = realloc(*ppHead, sz);
     if (tmpPtr == NULL) {
@@ -272,53 +349,53 @@ int tqSerializeGroupHandle(const STqGroupHandle* gHandle, STqSerializedHead** pp
   }
   void* ptr = (*ppHead)->content;
   // do serialization
-  *(int64_t*)ptr = gHandle->cId;
+  *(int64_t*)ptr = pGroup->clientId;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
-  *(int64_t*)ptr = gHandle->cgId;
+  *(int64_t*)ptr = pGroup->cgId;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
-  *(int32_t*)ptr = gHandle->topicNum;
+  *(int32_t*)ptr = pGroup->topicNum;
   ptr = POINTER_SHIFT(ptr, sizeof(int32_t));
-  if (gHandle->topicNum > 0) {
-    tqSerializeListHandle(gHandle->head, ptr);
+  if (pGroup->topicNum > 0) {
+    tqSerializeListHandle(pGroup->head, ptr);
   }
   return 0;
 }
 
-void* tqSerializeListHandle(STqListHandle* listHandle, void* ptr) {
-  STqListHandle* node = listHandle;
+void* tqSerializeListHandle(STqList* listHandle, void* ptr) {
+  STqList* node = listHandle;
   ASSERT(node != NULL);
   while (node) {
-    ptr = tqSerializeBufHandle(&node->bufHandle, ptr);
+    ptr = tqSerializeTopic(&node->topic, ptr);
     node = node->next;
   }
   return ptr;
 }
 
-void* tqSerializeBufHandle(STqBufferHandle* bufHandle, void* ptr) {
-  *(int64_t*)ptr = bufHandle->nextConsumeOffset;
+void* tqSerializeTopic(STqTopic* pTopic, void* ptr) {
+  *(int64_t*)ptr = pTopic->nextConsumeOffset;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
-  *(int64_t*)ptr = bufHandle->topicId;
+  *(int64_t*)ptr = pTopic->topicId;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
-  *(int32_t*)ptr = bufHandle->head;
+  *(int32_t*)ptr = pTopic->head;
   ptr = POINTER_SHIFT(ptr, sizeof(int32_t));
-  *(int32_t*)ptr = bufHandle->tail;
+  *(int32_t*)ptr = pTopic->tail;
   ptr = POINTER_SHIFT(ptr, sizeof(int32_t));
   for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
-    ptr = tqSerializeBufItem(&bufHandle->buffer[i], ptr);
+    ptr = tqSerializeItem(&pTopic->buffer[i], ptr);
   }
   return ptr;
 }
 
-void* tqSerializeBufItem(STqBufferItem* bufItem, void* ptr) {
+void* tqSerializeItem(STqMsgItem* bufItem, void* ptr) {
   // TODO: do we need serialize this?
   // mainly for executor
   return ptr;
 }
 
-const void* tqDeserializeGroupHandle(const STqSerializedHead* pHead, STqGroupHandle** ppGHandle) {
-  STqGroupHandle* gHandle = *ppGHandle;
-  const void*     ptr = pHead->content;
-  gHandle->cId = *(int64_t*)ptr;
+const void* tqDeserializeGroup(const STqSerializedHead* pHead, STqGroup** ppGroup) {
+  STqGroup*   gHandle = *ppGroup;
+  const void* ptr = pHead->content;
+  gHandle->clientId = *(int64_t*)ptr;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
   gHandle->cgId = *(int64_t*)ptr;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
@@ -326,63 +403,63 @@ const void* tqDeserializeGroupHandle(const STqSerializedHead* pHead, STqGroupHan
   gHandle->topicNum = *(int32_t*)ptr;
   ptr = POINTER_SHIFT(ptr, sizeof(int32_t));
   gHandle->head = NULL;
-  STqListHandle* node = gHandle->head;
+  STqList* node = gHandle->head;
   for (int i = 0; i < gHandle->topicNum; i++) {
     if (gHandle->head == NULL) {
-      if ((node = malloc(sizeof(STqListHandle))) == NULL) {
+      if ((node = malloc(sizeof(STqList))) == NULL) {
         // TODO: error
         return NULL;
       }
       node->next = NULL;
-      ptr = tqDeserializeBufHandle(ptr, &node->bufHandle);
+      ptr = tqDeserializeTopic(ptr, &node->topic);
       gHandle->head = node;
     } else {
-      node->next = malloc(sizeof(STqListHandle));
+      node->next = malloc(sizeof(STqList));
       if (node->next == NULL) {
         // TODO: error
         return NULL;
       }
       node->next->next = NULL;
-      ptr = tqDeserializeBufHandle(ptr, &node->next->bufHandle);
+      ptr = tqDeserializeTopic(ptr, &node->next->topic);
       node = node->next;
     }
   }
   return ptr;
 }
 
-const void* tqDeserializeBufHandle(const void* pBytes, STqBufferHandle* bufHandle) {
+const void* tqDeserializeTopic(const void* pBytes, STqTopic* topic) {
   const void* ptr = pBytes;
-  bufHandle->nextConsumeOffset = *(int64_t*)ptr;
+  topic->nextConsumeOffset = *(int64_t*)ptr;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
-  bufHandle->topicId = *(int64_t*)ptr;
+  topic->topicId = *(int64_t*)ptr;
   ptr = POINTER_SHIFT(ptr, sizeof(int64_t));
-  bufHandle->head = *(int32_t*)ptr;
+  topic->head = *(int32_t*)ptr;
   ptr = POINTER_SHIFT(ptr, sizeof(int32_t));
-  bufHandle->tail = *(int32_t*)ptr;
+  topic->tail = *(int32_t*)ptr;
   ptr = POINTER_SHIFT(ptr, sizeof(int32_t));
   for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
-    ptr = tqDeserializeBufItem(ptr, &bufHandle->buffer[i]);
+    ptr = tqDeserializeItem(ptr, &topic->buffer[i]);
   }
   return ptr;
 }
 
-const void* tqDeserializeBufItem(const void* pBytes, STqBufferItem* bufItem) { return pBytes; }
+const void* tqDeserializeItem(const void* pBytes, STqMsgItem* bufItem) { return pBytes; }
 
 // TODO: make this a macro
-int tqGetgHandleSSize(const STqGroupHandle* gHandle) {
+int tqGroupSSize(const STqGroup* gHandle) {
   return sizeof(int64_t) * 2  // cId + cgId
          + sizeof(int32_t)    // topicNum
-         + gHandle->topicNum * tqBufHandleSSize();
+         + gHandle->topicNum * tqTopicSSize();
 }
 
 // TODO: make this a macro
-int tqBufHandleSSize() {
+int tqTopicSSize() {
   return sizeof(int64_t) * 2    // nextConsumeOffset + topicId
          + sizeof(int32_t) * 2  // head + tail
-         + TQ_BUFFER_SIZE * tqBufItemSSize();
+         + TQ_BUFFER_SIZE * tqItemSSize();
 }
 
-int tqBufItemSSize() {
+int tqItemSSize() {
   // TODO: do this need serialization?
   // mainly for executor
   return 0;

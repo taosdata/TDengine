@@ -407,7 +407,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   }
 
   // single table query error need to be handled here.
-  if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
+  if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_UPDATE_TAG_VAL) &&
       (((rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID)) ||
        rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || rpcMsg->code == TSDB_CODE_APP_NOT_READY)) {
 
@@ -3176,6 +3176,15 @@ int32_t doBuildMsgSupp(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
     case TSDB_SQL_CREATE_USER:
       pMsgBody->msgType = TSDB_MSG_TYPE_CREATE_USER;
       break;
+    case TSDB_SQL_DROP_USER:
+      pMsgBody->msgType = TSDB_MSG_TYPE_DROP_USER;
+      break;
+    case TSDB_SQL_CREATE_ACCT:
+      pMsgBody->msgType = TSDB_MSG_TYPE_CREATE_ACCT;
+      break;
+    case TSDB_SQL_DROP_ACCT:
+      pMsgBody->msgType = TSDB_MSG_TYPE_DROP_ACCT;
+      break;
     case TSDB_SQL_CREATE_DB: {
       pMsgBody->msgType = TSDB_MSG_TYPE_CREATE_DB;
 
@@ -3328,7 +3337,7 @@ void initMsgHandleFp() {
   tscBuildMsg[TSDB_SQL_DROP_DNODE] = tscBuildDropDnodeMsg;
   tscBuildMsg[TSDB_SQL_CFG_DNODE] = tscBuildCfgDnodeMsg;
   tscBuildMsg[TSDB_SQL_ALTER_TABLE] = tscBuildAlterTableMsg;
-  tscBuildMsg[TSDB_SQL_UPDATE_TAGS_VAL] = tscBuildUpdateTagMsg;
+  tscBuildMsg[TSDB_SQL_UPDATE_TAG_VAL] = tscBuildUpdateTagMsg;
   tscBuildMsg[TSDB_SQL_ALTER_DB] = tscAlterDbMsg;
   tscBuildMsg[TSDB_SQL_COMPACT_VNODE] = tscBuildCompactMsg;
 
@@ -3383,6 +3392,10 @@ void initMsgHandleFp() {
   handleRequestRspFp[TSDB_SQL_CONNECT] = processConnectRsp;
 
   buildRequestMsgFp[TSDB_SQL_CREATE_USER]  = doBuildMsgSupp;
+  buildRequestMsgFp[TSDB_SQL_DROP_USER]    = doBuildMsgSupp;
+
+  buildRequestMsgFp[TSDB_SQL_CREATE_ACCT]  = doBuildMsgSupp;
+  buildRequestMsgFp[TSDB_SQL_DROP_ACCT]    = doBuildMsgSupp;
 
   buildRequestMsgFp[TSDB_SQL_SHOW]         = doBuildMsgSupp;
   handleRequestRspFp[TSDB_SQL_SHOW]        = processShowRsp;

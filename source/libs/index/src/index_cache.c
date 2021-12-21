@@ -15,6 +15,7 @@
 
 #include "index_cache.h"
 #include "tcompare.h"
+#include "index_util.h"
 
 #define MAX_INDEX_KEY_LEN 256// test only, change later
 
@@ -110,35 +111,22 @@ int indexCachePut(void *cache, SIndexTerm *term, int16_t colId, int32_t version,
   if (cache == NULL) { return -1;} 
 
   IndexCache *pCache = cache;
-
   // encode data
   int32_t total = CACHE_KEY_LEN(term); 
-
   char *buf = calloc(1, total); 
   char *p   = buf;
 
-  memcpy(p, &total, sizeof(total)); 
-  p += sizeof(total);
+  SERIALIZE_VAR_TO_BUF(p, total,int32_t);
+  SERIALIZE_VAR_TO_BUF(p, colId, int16_t);
 
-  memcpy(p, &colId, sizeof(colId));   
-  p += sizeof(colId);
-
-  memcpy(p, &term->colType, sizeof(term->colType));
-  p += sizeof(term->colType);
+  SERIALIZE_MEM_TO_BUF(p, term, colType);
+  SERIALIZE_MEM_TO_BUF(p, term, nColVal); 
+  SERIALIZE_STR_MEM_TO_BUF(p, term, colVal, term->nColVal); 
   
-  memcpy(p, &term->nColVal, sizeof(term->nColVal));
-  p += sizeof(term->nColVal);
-  memcpy(p, term->colVal, term->nColVal); 
-  p += term->nColVal;
+  SERIALIZE_VAR_TO_BUF(p, version, int32_t);
+  SERIALIZE_VAR_TO_BUF(p, uid, uint64_t); 
 
-  memcpy(p, &version, sizeof(version));
-  p += sizeof(version);
-
-  memcpy(p, &uid, sizeof(uid));  
-  p += sizeof(uid);
-
-  memcpy(p, &term->operType, sizeof(term->operType));
-  p += sizeof(term->operType); 
+  SERIALIZE_MEM_TO_BUF(p, term, operType);
 
   tSkipListPut(pCache->skiplist, (void *)buf);  
   return 0;

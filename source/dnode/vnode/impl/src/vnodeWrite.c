@@ -16,17 +16,13 @@
 #include "vnodeDef.h"
 
 int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
-  SVnodeReq *pVnodeReq;
-
   switch (pMsg->msgType) {
-    case TSDB_MSG_TYPE_MQ_SET:
+    case TSDB_MSG_TYPE_MQ_SET_CUR:
       if (tqSetCursor(pVnode->pTq, pMsg->pCont) < 0) {
         // TODO: handle error
       }
       break;
   }
-
-  void *pBuf = pMsg->pCont;
   return 0;
 }
 

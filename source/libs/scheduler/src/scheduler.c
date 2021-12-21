@@ -58,8 +58,8 @@ int32_t schBuildTaskRalation(SQueryJob *job, SHashObj *planToTask) {
     for (int32_t m = 0; m < level->taskNum; ++m) {
       SQueryTask *task = taosArrayGet(level->subTasks, m);
       SSubplan *plan = task->plan;
-      int32_t childNum = (int32_t)taosArrayGetSize(plan->pChildern);
-      int32_t parentNum = (int32_t)taosArrayGetSize(plan->pParents);
+      int32_t childNum = plan->pChildern ? (int32_t)taosArrayGetSize(plan->pChildern) : 0;
+      int32_t parentNum = plan->pParents ? (int32_t)taosArrayGetSize(plan->pParents) : 0;
 
       if (childNum > 0) {
         task->children = taosArrayInit(childNum, POINTER_BYTES);
@@ -187,13 +187,19 @@ int32_t schValidateAndBuildJob(SQueryDag *dag, SQueryJob *job) {
     
     for (int32_t n = 0; n < levelPlanNum; ++n) {
       SSubplan *plan = taosArrayGet(levelPlans, n);
-      SQueryTask *task = taosArrayGet(level.subTasks, n);
+      SQueryTask task = {0};
       
-      task->taskId = atomic_add_fetch_64(&schMgmt.taskId, 1);
-      task->plan = plan;
-      task->status = SCH_STATUS_NOT_START;
+      task.taskId = atomic_add_fetch_64(&schMgmt.taskId, 1);
+      task.plan = plan;
+      task.status = SCH_STATUS_NOT_START;
 
-      if (0 != taosHashPut(planToTask, &plan, POINTER_BYTES, &task, POINTER_BYTES)) {
+      void *p = taosArrayPush(level.subTasks, &task);
+      if (NULL == p) {
+        qError("taosArrayPush failed");
+        SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
+      
+      if (0 != taosHashPut(planToTask, &plan, POINTER_BYTES, &p, POINTER_BYTES)) {
         qError("taosHashPut failed");
         SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
@@ -225,20 +231,27 @@ _return:
   SCH_RET(code);
 }
 
-int32_t schAvailableEpSet(SQueryJob *job, SEpSet *epSet) {  
+int32_t schSetTaskExecEpSet(SQueryJob *job, SEpSet *epSet) {  
   if (epSet->numOfEps >= SCH_MAX_CONDIDATE_EP_NUM) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (SCH_HAS_QNODE_IN_CLUSTER(schMgmt.cfg.clusterType)) {
-    SCH_ERR_RET(catalogGetQnodeList(job->catalog, job->rpc, job->mgmtEpSet, epSet));
-  } else {
-    for (int32_t i = 0; i < job->dataSrcEps.numOfEps; ++i) {
-      strncpy(epSet->fqdn[epSet->numOfEps], job->dataSrcEps.fqdn[i], sizeof(job->dataSrcEps.fqdn[i]));
-      epSet->port[epSet->numOfEps] = job->dataSrcEps.port[i];
-      
-      ++epSet->numOfEps;
-    }
+  int32_t qnodeNum = taosArrayGetSize(job->qnodeList);
+  
+  for (int32_t i = 0; i < qnodeNum && epSet->numOfEps < tListLen(epSet->port); ++i) {
+    SEpAddr *addr = taosArrayGet(job->qnodeList, i);
+    
+    strncpy(epSet->fqdn[epSet->numOfEps], addr->fqdn, sizeof(addr->fqdn));
+    epSet->port[epSet->numOfEps] = addr->port;
+    
+    ++epSet->numOfEps;
+  }
+
+  for (int32_t i = 0; i < job->dataSrcEps.numOfEps && epSet->numOfEps < tListLen(epSet->port); ++i) {
+    strncpy(epSet->fqdn[epSet->numOfEps], job->dataSrcEps.fqdn[i], sizeof(job->dataSrcEps.fqdn[i]));
+    epSet->port[epSet->numOfEps] = job->dataSrcEps.port[i];
+    
+    ++epSet->numOfEps;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -509,7 +522,12 @@ int32_t schLaunchTask(SQueryJob *job, SQueryTask *task) {
   
   SCH_ERR_RET(qSubPlanToString(plan, &task->msg));
   if (plan->execEpSet.numOfEps <= 0) {
-    SCH_ERR_RET(schAvailableEpSet(job, &plan->execEpSet));
+    SCH_ERR_RET(schSetTaskExecEpSet(job, &plan->execEpSet));
+  }
+
+  if (plan->execEpSet.numOfEps <= 0) {
+    SCH_TASK_ERR_LOG("invalid execEpSet num:%d", plan->execEpSet.numOfEps);
+    SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
   
   SCH_ERR_RET(schAsyncSendMsg(job, task, TSDB_MSG_TYPE_QUERY));
@@ -548,9 +566,13 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
 }
 
 
-int32_t scheduleQueryJob(struct SCatalog *pCatalog, void *pRpc, const SEpSet* pMgmtEps, SQueryDag* pDag, void** pJob) {
-  if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
+int32_t scheduleExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob) {
+  if (NULL == transport || NULL == transport ||NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  if (taosArrayGetSize(qnodeList) <= 0) {
+    qInfo("qnodeList is empty");
   }
 
   int32_t code = 0;
@@ -559,9 +581,8 @@ int32_t scheduleQueryJob(struct SCatalog *pCatalog, void *pRpc, const SEpSet* pM
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  job->catalog = pCatalog;
-  job->rpc = pRpc;
-  job->mgmtEpSet = (SEpSet *)pMgmtEps;
+  job->transport = transport;
+  job->qnodeList = qnodeList;
 
   SCH_ERR_JRET(schValidateAndBuildJob(pDag, job));
 
