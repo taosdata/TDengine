@@ -200,14 +200,41 @@ typedef struct {
   char info[];
 } SVnodeRsp;
 
-#define VNODE_INIT_CREATE_STB_REQ(NAME, TTL, KEEP, SUID, PSCHEMA, PTAGSCHEMA) \
-  { .ver = 0, .ctReq = META_INIT_STB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA, PTAGSCHEMA) }
+static FORCE_INLINE void vnodeSetCreateStbReq(SVnodeReq *pReq, char *name, uint32_t ttl, uint32_t keep, tb_uid_t suid,
+                                              STSchema *pSchema, STSchema *pTagSchema) {
+  pReq->ver = 0;
 
-#define VNODE_INIT_CREATE_CTB_REQ(NAME, TTL, KEEP, SUID, PTAG) \
-  { .ver = 0, .ctReq = META_INIT_CTB_CFG(NAME, TTL, KEEP, SUID, PTAG) }
+  pReq->ctReq.name = name;
+  pReq->ctReq.ttl = ttl;
+  pReq->ctReq.keep = keep;
+  pReq->ctReq.type = META_SUPER_TABLE;
+  pReq->ctReq.stbCfg.suid = suid;
+  pReq->ctReq.stbCfg.pSchema = pSchema;
+  pReq->ctReq.stbCfg.pTagSchema = pTagSchema;
+}
 
-#define VNODE_INIT_CREATE_NTB_REQ(NAME, TTL, KEEP, SUID, PSCHEMA) \
-  { .ver = 0, .ctReq = META_INIT_NTB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA) }
+static FORCE_INLINE void vnodeSetCreateCtbReq(SVnodeReq *pReq, char *name, uint32_t ttl, uint32_t keep, tb_uid_t suid,
+                                              SKVRow pTag) {
+  pReq->ver = 0;
+
+  pReq->ctReq.name = name;
+  pReq->ctReq.ttl = ttl;
+  pReq->ctReq.keep = keep;
+  pReq->ctReq.type = META_CHILD_TABLE;
+  pReq->ctReq.ctbCfg.suid = suid;
+  pReq->ctReq.ctbCfg.pTag = pTag;
+}
+
+static FORCE_INLINE void vnodeSetCreateNtbReq(SVnodeReq *pReq, char *name, uint32_t ttl, uint32_t keep,
+                                              STSchema *pSchema) {
+  pReq->ver = 0;
+
+  pReq->ctReq.name = name;
+  pReq->ctReq.ttl = ttl;
+  pReq->ctReq.keep = keep;
+  pReq->ctReq.type = META_NORMAL_TABLE;
+  pReq->ctReq.ntbCfg.pSchema = pSchema;
+}
 
 int   vnodeBuildReq(void **buf, const SVnodeReq *pReq, uint8_t type);
 void *vnodeParseReq(void *buf, SVnodeReq *pReq, uint8_t type);

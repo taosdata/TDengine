@@ -81,7 +81,8 @@ static void vtBuildCreateStbReq(tb_uid_t suid, char *tbname, SRpcMsg **ppMsg) {
   pSchema = vtCreateBasicSchema();
   pTagSchema = vtCreateBasicTagSchema();
 
-  SVnodeReq vCreateSTbReq = VNODE_INIT_CREATE_STB_REQ(tbname, UINT32_MAX, UINT32_MAX, suid, pSchema, pTagSchema);
+  SVnodeReq vCreateSTbReq;
+  vnodeSetCreateStbReq(&vCreateSTbReq, tbname, UINT32_MAX, UINT32_MAX, suid, pSchema, pTagSchema);
 
   zs = vnodeBuildReq(NULL, &vCreateSTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
   pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg) + zs);
@@ -104,7 +105,8 @@ static void vtBuildCreateCtbReq(tb_uid_t suid, char *tbname, SRpcMsg **ppMsg) {
   int      tz;
   SKVRow   pTag = vtCreateBasicTag();
 
-  SVnodeReq vCreateCTbReq = VNODE_INIT_CREATE_CTB_REQ(tbname, UINT32_MAX, UINT32_MAX, suid, pTag);
+  SVnodeReq vCreateCTbReq;
+  vnodeSetCreateCtbReq(&vCreateCTbReq, tbname, UINT32_MAX, UINT32_MAX, suid, pTag);
 
   tz = vnodeBuildReq(NULL, &vCreateCTbReq, TSDB_MSG_TYPE_CREATE_TABLE);
   pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg) + tz);
