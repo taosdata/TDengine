@@ -462,63 +462,66 @@ for row in results:
     print(row)
 ```
 
-#### Code sample
+##### Code sample
 
 - Import the TDengine client module
 
-```python
-import taos
-```
+    ```python
+    import taos
+    ```
 
 - Get the connection and cursor object
 
-```python
-conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
-c1 = conn.cursor()
-```
+    ```python
+    conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
+    c1 = conn.cursor()
+    ```
 
-- *host* covers all IPs of TDengine server-side, and *config* is the directory where the client configuration files is located
+    *host* covers all IPs of TDengine server-side, and *config* is the directory where the client configuration files is located
+
 - Write data
 
-```python
-import datetime
+    ```python
+    import datetime
 
-# Create a database
-c1.execute('create database db')
-c1.execute('use db')
-# Create a table
-c1.execute('create table tb (ts timestamp, temperature int, humidity float)')
-# Insert data
-start_time = datetime.datetime(2019, 11, 1)
-affected_rows = c1.execute('insert into tb values (\'%s\', 0, 0.0)' %start_time)
-# Insert data in batch
-time_interval = datetime.timedelta(seconds=60)
-sqlcmd = ['insert into tb values']
-for irow in range(1,11):
-  start_time += time_interval
-  sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
-affected_rows = c1.execute(' '.join(sqlcmd))
-```
+    # Create a database
+    c1.execute('create database db')
+    c1.execute('use db')
+    # Create a table
+    c1.execute('create table tb (ts timestamp, temperature int, humidity float)')
+    # Insert data
+    start_time = datetime.datetime(2019, 11, 1)
+    affected_rows = c1.execute('insert into tb values (\'%s\', 0, 0.0)' %start_time)
+    # Insert data in batch
+    time_interval = datetime.timedelta(seconds=60)
+    sqlcmd = ['insert into tb values']
+    for irow in range(1,11):
+    start_time += time_interval
+    sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
+    affected_rows = c1.execute(' '.join(sqlcmd))
+    ```
 
 - Query data
 
-```python
-c1.execute('select * from tb')
-# pull query result
-data = c1.fetchall()
-# The result is a list, with each row as an element
-numOfRows = c1.rowcount
-numOfCols = len(c1.description)
-for irow in range(numOfRows):
-  print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2]))
+    ```python
+    c1.execute('select * from tb')
+    # pull query result
+    data = c1.fetchall()
+    # The result is a list, with each row as an element
+    numOfRows = c1.rowcount
+    numOfCols = len(c1.description)
+    for irow in range(numOfRows):
+    print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2]))
 
-# Use cursor loop directly to pull query result
-c1.execute('select * from tb')
-for data in c1:
-  print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2]))
-```
+    # Use cursor loop directly to pull query result
+    c1.execute('select * from tb')
+    for data in c1:
+    print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2]))
+    ```
 
-- Since v2.1.0, python connector provides a new API for query:
+#### Query API
+
+Since v2.1.0, python connector provides a new API for query:
 
 ```python
 import taos
@@ -556,15 +559,19 @@ Functions:
 - `errstr`: error string if failed.
 - `close`: close result, you do not need to call it directly, result will auto closed out of scope.
 
-- Create subscription
+#### Subscription API
+
+Create subscription
 
 ```python
 # Create a subscription with the topic ‘test’ and a consumption cycle of 1000 milliseconds
-# If the first parameter is True, it means restarting the subscription. If it is False and a subscription with the topic 'test 'has been created before, it means continuing to consume the data of this subscription instead of restarting to consume all the data
+# If the first parameter is True, it means restarting the subscription. 
+# If it is False and a subscription with the topic 'test 'has been created before,
+# it means continuing to consume the data of this subscription instead of restarting to consume all the data
 sub = conn.subscribe(True, "test", "select * from tb;", 1000)
 ```
 
-- Consume subscription data
+Consume subscription data.
 
 ```python
 data = sub.consume()
@@ -572,17 +579,15 @@ for d in data:
     print(d)
 ```
 
-- Unsubscription
+Unsubscribe.
 
 ```python
 sub.close()
 ```
 
-
-- Close connection
+Close connection.
 
 ```python
-c1.close()
 conn.close()
 ```
 
