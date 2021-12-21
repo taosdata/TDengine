@@ -22,14 +22,16 @@
 #include "index_util.h"
 #include "taosdef.h"
 
+static FORCE_INLINE int tfileWriteHeader(TFileWriter *writer) {}
 static FORCE_INLINE int tfileReadLoadHeader(TFileReader *reader) {
   // TODO simple tfile header later
-  char             buf[TFILE_HADER_PRE_SIZE];
-  char *           p = buf;
-  TFileReadHeader *header = &reader->header;
-  int64_t          nread = reader->ctx->read(reader->ctx, buf, TFILE_HADER_PRE_SIZE);
+  char  buf[TFILE_HADER_PRE_SIZE];
+  char *p = buf;
+
+  int64_t nread = reader->ctx->read(reader->ctx, buf, TFILE_HADER_PRE_SIZE);
   assert(nread == TFILE_HADER_PRE_SIZE);
 
+  TFileHeader *header = &reader->header;
   memcpy(&header->suid, p, sizeof(header->suid));
   p += sizeof(header->suid);
 
@@ -47,9 +49,7 @@ static FORCE_INLINE int tfileReadLoadHeader(TFileReader *reader) {
 };
 static int tfileGetFileList(const char *path, SArray *result) {
   DIR *dir = opendir(path);
-  if (NULL == dir) {
-    return -1;
-  }
+  if (NULL == dir) { return -1; }
 
   struct dirent *entry;
   while ((entry = readdir(dir)) != NULL) {
@@ -68,8 +68,10 @@ static void tfileDestroyFileName(void *elem) {
 static int tfileCompare(const void *a, const void *b) {
   const char *aName = *(char **)a;
   const char *bName = *(char **)b;
-  size_t      aLen = strlen(aName);
-  size_t      bLen = strlen(bName);
+
+  size_t aLen = strlen(aName);
+  size_t bLen = strlen(bName);
+
   return strncmp(aName, bName, aLen > bLen ? aLen : bLen);
 }
 // tfile name suid-colId-version.tindex
@@ -92,9 +94,7 @@ static void tfileSerialCacheKey(TFileCacheKey *key, char *buf) {
 
 TFileCache *tfileCacheCreate(const char *path) {
   TFileCache *tcache = calloc(1, sizeof(TFileCache));
-  if (tcache == NULL) {
-    return NULL;
-  }
+  if (tcache == NULL) { return NULL; }
 
   tcache->tableCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   tcache->capacity = 64;
@@ -102,15 +102,14 @@ TFileCache *tfileCacheCreate(const char *path) {
   SArray *files = taosArrayInit(4, sizeof(void *));
   tfileGetFileList(path, files);
   taosArraySort(files, tfileCompare);
+  uint64_t suid;
+  int32_t  colId, version;
   for (size_t i = 0; i < taosArrayGetSize(files); i++) {
-    char *   file = taosArrayGetP(files, i);
-    uint64_t suid;
-    int      colId, version;
-    if (0 != tfileParseFileName(file, &suid, &colId, &version)) {
-      goto End;
+    char *file = taosArrayGetP(files, i);
+    if (0 != tfileParseFileName(file, &suid, (int *)&colId, (int *)&version)) {
+      indexInfo("try parse invalid file:  %s, skip it", file);
       continue;
     }
-
     WriterCtx *wc = writerCtxCreate(TFile, file, true, 1024 * 64);
     if (wc == NULL) {
       indexError("failed to open index:  %s", file);
@@ -122,6 +121,15 @@ TFileCache *tfileCacheCreate(const char *path) {
       indexError("failed to load index header, index Id: %s", file);
       goto End;
     }
+    // loader fst and validate it
+
+    TFileHeader * header = &reader->header;
+    TFileCacheKey key = {
+        .suid = header->suid, .version = header->version, .colName = header->colName, .nColName = strlen(header->colName), .colType = header->colType};
+
+    char buf[128] = {0};
+    tfileSerialCacheKey(&key, buf);
+    taosHashPut(tcache->tableCache, buf, strlen(buf), &reader, sizeof(void *));
   }
   taosArrayDestroyEx(files, tfileDestroyFileName);
   return tcache;
@@ -131,16 +139,14 @@ End:
   return NULL;
 }
 void tfileCacheDestroy(TFileCache *tcache) {
-  if (tcache == NULL) {
-    return;
-  }
+  if (tcache == NULL) { return; }
 
   // free table cache
   TFileReader **reader = taosHashIterate(tcache->tableCache, NULL);
   while (reader) {
     TFileReader *p = *reader;
-    indexInfo("drop table cache suid: %" PRIu64 ", colName: %s, colType: %d", p->header.suid, p->header.colName,
-        p->header.colType);
+    indexInfo("drop table cache suid: %" PRIu64 ", colName: %s, colType: %d", p->header.suid, p->header.colName, p->header.colType);
+
     TFileReaderDestroy(p);
     reader = taosHashIterate(tcache->tableCache, reader);
   }
@@ -163,45 +169,67 @@ void tfileCachePut(TFileCache *tcache, TFileCacheKey *key, TFileReader *reader) 
 
 TFileReader *tfileReaderCreate(WriterCtx *ctx) {
   TFileReader *reader = calloc(1, sizeof(TFileReader));
-  if (reader == NULL) {
-    return NULL;
-  }
-  reader->ctx = ctx;
+  if (reader == NULL) { return NULL; }
+
   // T_REF_INC(reader);
+  reader->ctx = ctx;
   return reader;
 }
 void TFileReaderDestroy(TFileReader *reader) {
-  if (reader == NULL) {
-    return;
-  }
+  if (reader == NULL) { return; }
   // T_REF_INC(reader);
   writerCtxDestroy(reader->ctx);
   free(reader);
 }
 
-TFileWriter *tfileWriterCreate(const char *suid, const char *colName);
-void         tfileWriterDestroy(TFileWriter *tw);
+TFileWriter *tfileWriterCreate(WriterCtx *ctx, TFileHeader *header) {
+  // char pathBuf[128] = {0};
+  // sprintf(pathBuf, "%s/% " PRIu64 "-%d-%d.tindex", path, suid, colId, version);
+  // TFileHeader header = {.suid = suid, .version = version, .colName = {0}, colType = colType};
+  // memcpy(header.colName, );
+
+  char buf[TFILE_HADER_PRE_SIZE];
+  int  len = TFILE_HADER_PRE_SIZE;
+  if (len != ctx->write(ctx, buf, len)) {
+    indexError("index: %" PRIu64 " failed to write header info", header->suid);
+    return NULL;
+  }
+  TFileWriter *tw = calloc(1, sizeof(TFileWriter));
+  if (tw == NULL) {
+    indexError("index: % " PRIu64 " failed to write header info");
+    return NULL;
+  }
+  return tw;
+}
+void tfileWriterDestroy(TFileWriter *tw) {
+  if (tw == NULL) { return; }
+
+  writerCtxDestroy(tw->ctx);
+  free(tw);
+}
 
 IndexTFile *indexTFileCreate(const char *path) {
   IndexTFile *tfile = calloc(1, sizeof(IndexTFile));
-  tfile->cache = tfileCacheCreate(path);
+  if (tfile == NULL) { return NULL; }
 
+  tfile->cache = tfileCacheCreate(path);
   return tfile;
 }
 void IndexTFileDestroy(IndexTFile *tfile) { free(tfile); }
 
 int indexTFileSearch(void *tfile, SIndexTermQuery *query, SArray *result) {
   IndexTFile *pTfile = (IndexTFile *)tfile;
+  if (pTfile == NULL) { return -1; }
 
   SIndexTerm *  term = query->term;
-  TFileCacheKey key = {
-      .suid = term->suid, .colType = term->colType, .version = 0, .colName = term->colName, .nColName = term->nColName};
+  TFileCacheKey key = {.suid = term->suid, .colType = term->colType, .version = 0, .colName = term->colName, .nColName = term->nColName};
+
   TFileReader *reader = tfileCacheGet(pTfile->cache, &key);
+
   return 0;
 }
 int indexTFilePut(void *tfile, SIndexTerm *term, uint64_t uid) {
-  TFileWriterOpt wOpt = {
-      .suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName = term->nColName, .version = 1};
+  TFileWriterOpt wOpt = {.suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName = term->nColName, .version = 1};
 
   return 0;
 }

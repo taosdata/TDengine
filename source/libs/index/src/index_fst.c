@@ -31,9 +31,7 @@ static uint8_t fstPackDetla(FstCountingWriter *wrt, CompiledAddr nodeAddr, Compi
 
 FstUnFinishedNodes *fstUnFinishedNodesCreate() {
   FstUnFinishedNodes *nodes = malloc(sizeof(FstUnFinishedNodes));
-  if (nodes == NULL) {
-    return NULL;
-  }
+  if (nodes == NULL) { return NULL; }
 
   nodes->stack = (SArray *)taosArrayInit(64, sizeof(FstBuilderNodeUnfinished));
   fstUnFinishedNodesPushEmpty(nodes, false);
@@ -46,9 +44,7 @@ void unFinishedNodeDestroyElem(void *elem) {
   b->last = NULL;
 }
 void fstUnFinishedNodesDestroy(FstUnFinishedNodes *nodes) {
-  if (nodes == NULL) {
-    return;
-  }
+  if (nodes == NULL) { return; }
 
   taosArrayDestroyEx(nodes->stack, unFinishedNodeDestroyElem);
   free(nodes);
@@ -97,9 +93,7 @@ void fstUnFinishedNodesTopLastFreeze(FstUnFinishedNodes *nodes, CompiledAddr add
 }
 void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes *nodes, FstSlice bs, Output out) {
   FstSlice *s = &bs;
-  if (fstSliceIsEmpty(s)) {
-    return;
-  }
+  if (fstSliceIsEmpty(s)) { return; }
   size_t                    sz = taosArrayGetSize(nodes->stack) - 1;
   FstBuilderNodeUnfinished *un = taosArrayGet(nodes->stack, sz);
   assert(un->last == NULL);
@@ -179,9 +173,7 @@ uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes *node, 
 
 FstState fstStateCreateFrom(FstSlice *slice, CompiledAddr addr) {
   FstState fs = {.state = EmptyFinal, .val = 0};
-  if (addr == EMPTY_ADDRESS) {
-    return fs;
-  }
+  if (addr == EMPTY_ADDRESS) { return fs; }
 
   uint8_t *data = fstSliceData(slice, NULL);
   uint8_t  v = data[addr];
@@ -236,9 +228,7 @@ void fstStateCompileForOneTrans(FstCountingWriter *w, CompiledAddr addr, FstTran
   fstStateSetCommInput(&st, trn->inp);
   bool    null = false;
   uint8_t inp = fstStateCommInput(&st, &null);
-  if (null == true) {
-    fstCountingWriterWrite(w, (char *)&trn->inp, sizeof(trn->inp));
-  }
+  if (null == true) { fstCountingWriterWrite(w, (char *)&trn->inp, sizeof(trn->inp)); }
   fstCountingWriterWrite(w, (char *)(&(st.val)), sizeof(st.val));
   return;
 }
@@ -272,9 +262,7 @@ void fstStateCompileForAnyTrans(FstCountingWriter *w, CompiledAddr addr, FstBuil
   fstStateSetStateNtrans(&st, (uint8_t)sz);
 
   if (anyOuts) {
-    if (FST_BUILDER_NODE_IS_FINAL(node)) {
-      fstCountingWriterPackUintIn(w, node->finalOutput, oSize);
-    }
+    if (FST_BUILDER_NODE_IS_FINAL(node)) { fstCountingWriterPackUintIn(w, node->finalOutput, oSize); }
     for (int32_t i = sz - 1; i >= 0; i--) {
       FstTransition *t = taosArrayGet(node->trans, i);
       fstCountingWriterPackUintIn(w, t->out, oSize);
@@ -439,9 +427,7 @@ Output fstStateOutput(FstState *s, FstNode *node) {
   assert(s->state == OneTrans);
 
   uint8_t oSizes = FST_GET_OUTPUT_PACK_SIZE(node->sizes);
-  if (oSizes == 0) {
-    return 0;
-  }
+  if (oSizes == 0) { return 0; }
   FstSlice *slice = &node->data;
   uint8_t   tSizes = FST_GET_TRANSITION_PACK_SIZE(node->sizes);
 
@@ -453,9 +439,7 @@ Output fstStateOutputForAnyTrans(FstState *s, FstNode *node, uint64_t i) {
   assert(s->state == AnyTrans);
 
   uint8_t oSizes = FST_GET_OUTPUT_PACK_SIZE(node->sizes);
-  if (oSizes == 0) {
-    return 0;
-  }
+  if (oSizes == 0) { return 0; }
   FstSlice *slice = &node->data;
   uint8_t * data = fstSliceData(slice, NULL);
   uint64_t  at = node->start - fstStateNtransLen(s) - 1  // pack size
@@ -468,9 +452,7 @@ Output fstStateOutputForAnyTrans(FstState *s, FstNode *node, uint64_t i) {
 
 void fstStateSetFinalState(FstState *s, bool yes) {
   assert(s->state == AnyTrans);
-  if (yes) {
-    s->val |= 0b01000000;
-  }
+  if (yes) { s->val |= 0b01000000; }
   return;
 }
 bool fstStateIsFinalState(FstState *s) {
@@ -480,9 +462,7 @@ bool fstStateIsFinalState(FstState *s) {
 
 void fstStateSetStateNtrans(FstState *s, uint8_t n) {
   assert(s->state == AnyTrans);
-  if (n <= 0b00111111) {
-    s->val = (s->val & 0b11000000) | n;
-  }
+  if (n <= 0b00111111) { s->val = (s->val & 0b11000000) | n; }
   return;
 }
 // state_ntrans
@@ -514,9 +494,7 @@ uint64_t fstStateNtransLen(FstState *s) {
 uint64_t fstStateNtrans(FstState *s, FstSlice *slice) {
   bool    null = false;
   uint8_t n = fstStateStateNtrans(s, &null);
-  if (null != true) {
-    return n;
-  }
+  if (null != true) { return n; }
   int32_t  len;
   uint8_t *data = fstSliceData(slice, &len);
   n = data[len - 2];
@@ -526,9 +504,7 @@ uint64_t fstStateNtrans(FstState *s, FstSlice *slice) {
 }
 Output fstStateFinalOutput(FstState *s, uint64_t version, FstSlice *slice, PackSizes sizes, uint64_t nTrans) {
   uint8_t oSizes = FST_GET_OUTPUT_PACK_SIZE(sizes);
-  if (oSizes == 0 || !fstStateIsFinalState(s)) {
-    return 0;
-  }
+  if (oSizes == 0 || !fstStateIsFinalState(s)) { return 0; }
 
   uint64_t at = FST_SLICE_LEN(slice) - 1 - fstStateNtransLen(s) - 1  // pack size
                 - fstStateTotalTransSize(s, version, sizes, nTrans) - (nTrans * oSizes) - oSizes;
@@ -545,9 +521,7 @@ uint64_t fstStateFindInput(FstState *s, FstNode *node, uint8_t b, bool *null) {
     uint8_t *data = fstSliceData(slice, &dlen);
     uint64_t i = data[at + b];
     // uint64_t i = slice->data[slice->start + at + b];
-    if (i >= node->nTrans) {
-      *null = true;
-    }
+    if (i >= node->nTrans) { *null = true; }
     return i;
   } else {
     uint64_t start = node->start - fstStateNtransLen(s) - 1  // pack size
@@ -564,9 +538,7 @@ uint64_t fstStateFindInput(FstState *s, FstNode *node, uint8_t b, bool *null) {
         return node->nTrans - i - 1;  // bug
       }
     }
-    if (i == len) {
-      *null = true;
-    }
+    if (i == len) { *null = true; }
     fstSliceDestroy(&t);
   }
 }
@@ -575,9 +547,7 @@ uint64_t fstStateFindInput(FstState *s, FstNode *node, uint8_t b, bool *null) {
 
 FstNode *fstNodeCreate(int64_t version, CompiledAddr addr, FstSlice *slice) {
   FstNode *n = (FstNode *)malloc(sizeof(FstNode));
-  if (n == NULL) {
-    return NULL;
-  }
+  if (n == NULL) { return NULL; }
 
   FstState st = fstStateCreateFrom(slice, addr);
 
@@ -643,9 +613,7 @@ void fstNodeDestroy(FstNode *node) {
 }
 FstTransitions *fstNodeTransitions(FstNode *node) {
   FstTransitions *t = malloc(sizeof(FstTransitions));
-  if (NULL == t) {
-    return NULL;
-  }
+  if (NULL == t) { return NULL; }
   FstRange range = {.start = 0, .end = FST_NODE_LEN(node)};
   t->range = range;
   t->node = node;
@@ -752,9 +720,7 @@ bool fstBuilderNodeCompileTo(FstBuilderNode *b, FstCountingWriter *wrt, Compiled
 
 FstBuilder *fstBuilderCreate(void *w, FstType ty) {
   FstBuilder *b = malloc(sizeof(FstBuilder));
-  if (NULL == b) {
-    return b;
-  }
+  if (NULL == b) { return b; }
 
   b->wrt = fstCountingWriterCreate(w);
   b->unfinished = fstUnFinishedNodesCreate();
@@ -776,9 +742,7 @@ FstBuilder *fstBuilderCreate(void *w, FstType ty) {
   return b;
 }
 void fstBuilderDestroy(FstBuilder *b) {
-  if (b == NULL) {
-    return;
-  }
+  if (b == NULL) { return; }
 
   fstCountingWriterDestroy(b->wrt);
   fstUnFinishedNodesDestroy(b->unfinished);
@@ -879,9 +843,7 @@ CompiledAddr fstBuilderCompile(FstBuilder *b, FstBuilderNode *bn) {
 
   fstBuilderNodeCompileTo(bn, b->wrt, b->lastAddr, startAddr);
   b->lastAddr = (CompiledAddr)(FST_WRITER_COUNT(b->wrt) - 1);
-  if (entry->state == NOTFOUND) {
-    FST_REGISTRY_CELL_INSERT(entry->cell, b->lastAddr);
-  }
+  if (entry->state == NOTFOUND) { FST_REGISTRY_CELL_INSERT(entry->cell, b->lastAddr); }
   fstRegistryEntryDestroy(entry);
 
   return b->lastAddr;
@@ -924,9 +886,7 @@ FstSlice fstNodeAsSlice(FstNode *node) {
 
 FstLastTransition *fstLastTransitionCreate(uint8_t inp, Output out) {
   FstLastTransition *trn = malloc(sizeof(FstLastTransition));
-  if (trn == NULL) {
-    return NULL;
-  }
+  if (trn == NULL) { return NULL; }
 
   trn->inp = inp;
   trn->out = out;
@@ -936,9 +896,7 @@ FstLastTransition *fstLastTransitionCreate(uint8_t inp, Output out) {
 void fstLastTransitionDestroy(FstLastTransition *trn) { free(trn); }
 void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished *unNode, CompiledAddr addr) {
   FstLastTransition *trn = unNode->last;
-  if (trn == NULL) {
-    return;
-  }
+  if (trn == NULL) { return; }
   FstTransition t = {.inp = trn->inp, .out = trn->out, .addr = addr};
   taosArrayPush(unNode->node->trans, &t);
   fstLastTransitionDestroy(trn);
@@ -947,35 +905,27 @@ void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished *unNode, Comp
 }
 
 void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished *unNode, Output out) {
-  if (FST_BUILDER_NODE_IS_FINAL(unNode->node)) {
-    unNode->node->finalOutput += out;
-  }
+  if (FST_BUILDER_NODE_IS_FINAL(unNode->node)) { unNode->node->finalOutput += out; }
   size_t sz = taosArrayGetSize(unNode->node->trans);
   for (size_t i = 0; i < sz; i++) {
     FstTransition *trn = taosArrayGet(unNode->node->trans, i);
     trn->out += out;
   }
-  if (unNode->last) {
-    unNode->last->out += out;
-  }
+  if (unNode->last) { unNode->last->out += out; }
   return;
 }
 
 Fst *fstCreate(FstSlice *slice) {
   int32_t slen;
   char *  buf = fstSliceData(slice, &slen);
-  if (slen < 36) {
-    return NULL;
-  }
+  if (slen < 36) { return NULL; }
   uint64_t len = slen;
   uint64_t skip = 0;
 
   uint64_t version;
   taosDecodeFixedU64(buf, &version);
   skip += sizeof(version);
-  if (version == 0 || version > VERSION) {
-    return NULL;
-  }
+  if (version == 0 || version > VERSION) { return NULL; }
 
   uint64_t type;
   taosDecodeFixedU64(buf + skip, &type);
@@ -994,14 +944,10 @@ Fst *fstCreate(FstSlice *slice) {
   taosDecodeFixedU64(buf + len, &fstLen);
   // TODO(validate root addr)
   Fst *fst = (Fst *)calloc(1, sizeof(Fst));
-  if (fst == NULL) {
-    return NULL;
-  }
+  if (fst == NULL) { return NULL; }
 
   fst->meta = (FstMeta *)malloc(sizeof(FstMeta));
-  if (NULL == fst->meta) {
-    goto FST_CREAT_FAILED;
-  }
+  if (NULL == fst->meta) { goto FST_CREAT_FAILED; }
 
   fst->meta->version = version;
   fst->meta->rootAddr = rootAddr;
@@ -1039,9 +985,7 @@ bool fstGet(Fst *fst, FstSlice *b, Output *out) {
   for (uint32_t i = 0; i < len; i++) {
     uint8_t inp = data[i];
     Output  res = 0;
-    if (false == fstNodeFindInput(root, inp, &res)) {
-      return false;
-    }
+    if (false == fstNodeFindInput(root, inp, &res)) { return false; }
 
     FstTransition trn;
     fstNodeGetTransitionAt(root, res, &trn);
@@ -1068,17 +1012,13 @@ bool fstGet(Fst *fst, FstSlice *b, Output *out) {
 }
 FstStreamBuilder *fstSearch(Fst *fst, AutomationCtx *ctx) { return fstStreamBuilderCreate(fst, ctx); }
 StreamWithState * streamBuilderIntoStream(FstStreamBuilder *sb) {
-  if (sb == NULL) {
-    return NULL;
-  }
+  if (sb == NULL) { return NULL; }
   return streamWithStateCreate(sb->fst, sb->aut, sb->min, sb->max);
 }
 FstStreamWithStateBuilder *fstSearchWithState(Fst *fst, AutomationCtx *ctx) { return fstStreamBuilderCreate(fst, ctx); }
 
 FstNode *fstGetRoot(Fst *fst) {
-  if (fst->root != NULL) {
-    return fst->root;
-  }
+  if (fst->root != NULL) { return fst->root; }
   CompiledAddr rAddr = fstGetRootAddr(fst);
   fst->root = fstGetNode(fst, rAddr);
   return fst->root;
@@ -1104,18 +1044,14 @@ bool fstVerify(Fst *fst) {
   int32_t  len;
   uint8_t *data = fstSliceData(fst->data, &len);
   TSCKSUM  initSum = 0;
-  if (!taosCheckChecksumWhole(data, len)) {
-    return false;
-  }
+  if (!taosCheckChecksumWhole(data, len)) { return false; }
   return true;
 }
 
 // data bound function
 FstBoundWithData *fstBoundStateCreate(FstBound type, FstSlice *data) {
   FstBoundWithData *b = calloc(1, sizeof(FstBoundWithData));
-  if (b == NULL) {
-    return NULL;
-  }
+  if (b == NULL) { return NULL; }
 
   if (data != NULL) {
     b->data = fstSliceCopy(data, data->start, data->end);
@@ -1152,9 +1088,7 @@ void fstBoundDestroy(FstBoundWithData *bound) { free(bound); }
 StreamWithState *streamWithStateCreate(
     Fst *fst, AutomationCtx *automation, FstBoundWithData *min, FstBoundWithData *max) {
   StreamWithState *sws = calloc(1, sizeof(StreamWithState));
-  if (sws == NULL) {
-    return NULL;
-  }
+  if (sws == NULL) { return NULL; }
 
   sws->fst = fst;
   sws->aut = automation;
@@ -1170,9 +1104,7 @@ StreamWithState *streamWithStateCreate(
   return sws;
 }
 void streamWithStateDestroy(StreamWithState *sws) {
-  if (sws == NULL) {
-    return;
-  }
+  if (sws == NULL) { return; }
 
   taosArrayDestroy(sws->inp);
   taosArrayDestroyEx(sws->stack, streamStateDestroy);
@@ -1195,7 +1127,6 @@ bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min) {
   }
   FstSlice *key = NULL;
   bool      inclusize = false;
-  ;
 
   if (min->type == Included) {
     key = &min->data;
@@ -1239,9 +1170,7 @@ bool streamWithStateSeekMin(StreamWithState *sws, FstBoundWithData *min) {
       uint64_t        i = 0;
       for (i = trans->range.start; i < trans->range.end; i++) {
         FstTransition trn;
-        if (fstNodeGetTransitionAt(node, i, &trn) && trn.inp > b) {
-          break;
-        }
+        if (fstNodeGetTransitionAt(node, i, &trn) && trn.inp > b) { break; }
       }
 
       StreamState s = {.node = node, .trans = i, .out = {.null = false, .out = out}, .autState = autState};
@@ -1289,9 +1218,7 @@ StreamWithStateResult *streamWithStateNextWith(StreamWithState *sws, StreamCallb
   while (taosArrayGetSize(sws->stack) > 0) {
     StreamState *p = (StreamState *)taosArrayPop(sws->stack);
     if (p->trans >= FST_NODE_LEN(p->node) || !automFuncs[aut->type].canMatch(aut, p->autState)) {
-      if (FST_NODE_ADDR(p->node) != fstGetRootAddr(sws->fst)) {
-        taosArrayPop(sws->inp);
-      }
+      if (FST_NODE_ADDR(p->node) != fstGetRootAddr(sws->fst)) { taosArrayPop(sws->inp); }
       streamStateDestroy(p);
       continue;
     }
@@ -1308,9 +1235,7 @@ StreamWithStateResult *streamWithStateNextWith(StreamWithState *sws, StreamCallb
     if (FST_NODE_IS_FINAL(nextNode)) {
       // void *eofState = sws->aut->acceptEof(nextState);
       void *eofState = automFuncs[aut->type].acceptEof(aut, nextState);
-      if (eofState != NULL) {
-        isMatch = automFuncs[aut->type].isMatch(aut, eofState);
-      }
+      if (eofState != NULL) { isMatch = automFuncs[aut->type].isMatch(aut, eofState); }
     }
     StreamState s1 = {.node = p->node, .trans = p->trans + 1, .out = p->out, .autState = p->autState};
     taosArrayPush(sws->stack, &s1);
@@ -1320,9 +1245,7 @@ StreamWithStateResult *streamWithStateNextWith(StreamWithState *sws, StreamCallb
 
     size_t   isz = taosArrayGetSize(sws->inp);
     uint8_t *buf = (uint8_t *)malloc(isz * sizeof(uint8_t));
-    for (uint32_t i = 0; i < isz; i++) {
-      buf[i] = *(uint8_t *)taosArrayGet(sws->inp, i);
-    }
+    for (uint32_t i = 0; i < isz; i++) { buf[i] = *(uint8_t *)taosArrayGet(sws->inp, i); }
     FstSlice slice = fstSliceCreate(buf, taosArrayGetSize(sws->inp));
     if (fstBoundWithDataExceededBy(sws->endAt, &slice)) {
       taosArrayDestroyEx(sws->stack, streamStateDestroy);
@@ -1351,9 +1274,7 @@ StreamWithStateResult *streamWithStateNextWith(StreamWithState *sws, StreamCallb
 
 StreamWithStateResult *swsResultCreate(FstSlice *data, FstOutput fOut, void *state) {
   StreamWithStateResult *result = calloc(1, sizeof(StreamWithStateResult));
-  if (result == NULL) {
-    return NULL;
-  }
+  if (result == NULL) { return NULL; }
 
   result->data = fstSliceCopy(data, 0, FST_SLICE_LEN(data) - 1);
   result->out = fOut;
@@ -1362,9 +1283,7 @@ StreamWithStateResult *swsResultCreate(FstSlice *data, FstOutput fOut, void *sta
   return result;
 }
 void swsResultDestroy(StreamWithStateResult *result) {
-  if (NULL == result) {
-    return;
-  }
+  if (NULL == result) { return; }
 
   fstSliceDestroy(&result->data);
   startWithStateValueDestroy(result->state);
@@ -1372,9 +1291,7 @@ void swsResultDestroy(StreamWithStateResult *result) {
 }
 
 void streamStateDestroy(void *s) {
-  if (NULL == s) {
-    return;
-  }
+  if (NULL == s) { return; }
   StreamState *ss = (StreamState *)s;
 
   fstNodeDestroy(ss->node);
@@ -1383,9 +1300,7 @@ void streamStateDestroy(void *s) {
 
 FstStreamBuilder *fstStreamBuilderCreate(Fst *fst, AutomationCtx *aut) {
   FstStreamBuilder *b = calloc(1, sizeof(FstStreamBuilder));
-  if (NULL == b) {
-    return NULL;
-  }
+  if (NULL == b) { return NULL; }
 
   b->fst = fst;
   b->aut = aut;
@@ -1401,9 +1316,7 @@ void fstStreamBuilderDestroy(FstStreamBuilder *b) {
   free(b);
 }
 FstStreamBuilder *fstStreamBuilderRange(FstStreamBuilder *b, FstSlice *val, RangeType type) {
-  if (b == NULL) {
-    return NULL;
-  }
+  if (b == NULL) { return NULL; }
 
   if (type == GE) {
     b->min->type = Included;

@@ -18,9 +18,7 @@
 #include "tutil.h"
 
 static int writeCtxDoWrite(WriterCtx *ctx, uint8_t *buf, int len) {
-  if (ctx->offset + len > ctx->limit) {
-    return -1;
-  }
+  if (ctx->offset + len > ctx->limit) { return -1; }
 
   if (ctx->type == TFile) {
     assert(len == tfWrite(ctx->file.fd, buf, len));
@@ -53,9 +51,7 @@ static int writeCtxDoFlush(WriterCtx *ctx) {
 
 WriterCtx *writerCtxCreate(WriterType type, const char *path, bool readOnly, int32_t capacity) {
   WriterCtx *ctx = calloc(1, sizeof(WriterCtx));
-  if (ctx == NULL) {
-    return NULL;
-  }
+  if (ctx == NULL) { return NULL; }
 
   ctx->type = type;
   if (ctx->type == TFile) {
@@ -67,8 +63,8 @@ WriterCtx *writerCtxCreate(WriterType type, const char *path, bool readOnly, int
       ctx->file.fd = tfOpenReadWrite(tmpFile);
     }
     if (ctx->file.fd < 0) {
-      goto END;
       indexError("open file error %d", errno);
+      goto END;
     }
   } else if (ctx->type == TMemory) {
     ctx->mem.buf = calloc(1, sizeof(char) * capacity);
@@ -83,9 +79,7 @@ WriterCtx *writerCtxCreate(WriterType type, const char *path, bool readOnly, int
 
   return ctx;
 END:
-  if (ctx->type == TMemory) {
-    free(ctx->mem.buf);
-  }
+  if (ctx->type == TMemory) { free(ctx->mem.buf); }
   free(ctx);
 }
 void writerCtxDestroy(WriterCtx *ctx) {
@@ -99,9 +93,7 @@ void writerCtxDestroy(WriterCtx *ctx) {
 
 FstCountingWriter *fstCountingWriterCreate(void *wrt) {
   FstCountingWriter *cw = calloc(1, sizeof(FstCountingWriter));
-  if (cw == NULL) {
-    return NULL;
-  }
+  if (cw == NULL) { return NULL; }
 
   cw->wrt = wrt;
   //(void *)(writerCtxCreate(TFile, readOnly));
@@ -115,9 +107,7 @@ void fstCountingWriterDestroy(FstCountingWriter *cw) {
 }
 
 int fstCountingWriterWrite(FstCountingWriter *write, uint8_t *buf, uint32_t len) {
-  if (write == NULL) {
-    return 0;
-  }
+  if (write == NULL) { return 0; }
   // update checksum
   // write data to file/socket or mem
   WriterCtx *ctx = write->wrt;
@@ -128,9 +118,7 @@ int fstCountingWriterWrite(FstCountingWriter *write, uint8_t *buf, uint32_t len)
   return len;
 }
 int fstCountingWriterRead(FstCountingWriter *write, uint8_t *buf, uint32_t len) {
-  if (write == NULL) {
-    return 0;
-  }
+  if (write == NULL) { return 0; }
   WriterCtx *ctx = write->wrt;
   int        nRead = ctx->read(ctx, buf, len);
   // assert(nRead == len);

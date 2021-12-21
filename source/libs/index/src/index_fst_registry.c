@@ -34,9 +34,7 @@ uint64_t fstRegistryHash(FstRegistry *registry, FstBuilderNode *bNode) {
 }
 static void fstRegistryCellSwap(SArray *arr, uint32_t a, uint32_t b) {
   size_t sz = taosArrayGetSize(arr);
-  if (a >= sz || b >= sz) {
-    return;
-  }
+  if (a >= sz || b >= sz) { return; }
 
   FstRegistryCell *cell1 = (FstRegistryCell *)taosArrayGet(arr, a);
   FstRegistryCell *cell2 = (FstRegistryCell *)taosArrayGet(arr, b);
@@ -53,9 +51,7 @@ static void fstRegistryCellSwap(SArray *arr, uint32_t a, uint32_t b) {
 
 static void fstRegistryCellPromote(SArray *arr, uint32_t start, uint32_t end) {
   size_t sz = taosArrayGetSize(arr);
-  if (start >= sz && end >= sz) {
-    return;
-  }
+  if (start >= sz && end >= sz) { return; }
 
   assert(start >= end);
 
@@ -69,9 +65,7 @@ static void fstRegistryCellPromote(SArray *arr, uint32_t start, uint32_t end) {
 
 FstRegistry *fstRegistryCreate(uint64_t tableSize, uint64_t mruSize) {
   FstRegistry *registry = malloc(sizeof(FstRegistry));
-  if (registry == NULL) {
-    return NULL;
-  }
+  if (registry == NULL) { return NULL; }
 
   uint64_t nCells = tableSize * mruSize;
   SArray * tb = (SArray *)taosArrayInit(nCells, sizeof(FstRegistryCell));
@@ -92,9 +86,7 @@ FstRegistry *fstRegistryCreate(uint64_t tableSize, uint64_t mruSize) {
 }
 
 void fstRegistryDestroy(FstRegistry *registry) {
-  if (registry == NULL) {
-    return;
-  }
+  if (registry == NULL) { return; }
 
   SArray *tb = registry->table;
   size_t  sz = taosArrayGetSize(tb);
@@ -107,9 +99,7 @@ void fstRegistryDestroy(FstRegistry *registry) {
 }
 
 FstRegistryEntry *fstRegistryGetEntry(FstRegistry *registry, FstBuilderNode *bNode) {
-  if (taosArrayGetSize(registry->table) <= 0) {
-    return NULL;
-  }
+  if (taosArrayGetSize(registry->table) <= 0) { return NULL; }
   uint64_t bucket = fstRegistryHash(registry, bNode);
   uint64_t start = registry->mruSize * bucket;
   uint64_t end = start + registry->mruSize;

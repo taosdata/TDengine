@@ -26,26 +26,26 @@
 extern "C" {
 #endif
 
-// tfile header
+// tfile header content
 // |<---suid--->|<---version--->|<--colLen-->|<-colName->|<---type-->|
 // |<-uint64_t->|<---int32_t--->|<--int32_t->|<-colLen-->|<-uint8_t->|
 
-typedef struct TFileReadHeader {
+typedef struct TFileHeader {
   uint64_t suid;
   int32_t  version;
   char     colName[128];  //
   uint8_t  colType;
-} TFileReadHeader;
+} TFileHeader;
 
 #define TFILE_HEADER_SIZE (sizeof(TFILE_HEADER_SIZE) + sizeof(uint32_t));
 #define TFILE_HADER_PRE_SIZE (sizeof(uint64_t) + sizeof(int32_t) + sizeof(int32_t))
 
 typedef struct TFileCacheKey {
-  uint64_t    suid;
-  uint8_t     colType;
-  int32_t     version;
-  const char *colName;
-  int32_t     nColName;
+  uint64_t suid;
+  uint8_t  colType;
+  int32_t  version;
+  char *   colName;
+  int32_t  nColName;
 } TFileCacheKey;
 
 // table cache
@@ -59,13 +59,14 @@ typedef struct TFileCache {
 typedef struct TFileWriter {
   FstBuilder *fb;
   WriterCtx * ctx;
+  TFileHeader header;
 } TFileWriter;
 
 typedef struct TFileReader {
   T_REF_DECLARE()
-  Fst *           fst;
-  WriterCtx *     ctx;
-  TFileReadHeader header;
+  Fst *       fst;
+  WriterCtx * ctx;
+  TFileHeader header;
 } TFileReader;
 
 typedef struct IndexTFile {
@@ -94,11 +95,13 @@ void         tfileCacheDestroy(TFileCache *tcache);
 TFileReader *tfileCacheGet(TFileCache *tcache, TFileCacheKey *key);
 void         tfileCachePut(TFileCache *tcache, TFileCacheKey *key, TFileReader *reader);
 
-TFileReader *tfileReaderCreate();
+TFileReader *tfileReaderCreate(WriterCtx *ctx);
 void         TFileReaderDestroy(TFileReader *reader);
 
-TFileWriter *tfileWriterCreate(const char *suid, const char *colName);
+TFileWriter *tfileWriterCreate(WriterCtx *ctx, TFileHeader *header);
 void         tfileWriterDestroy(TFileWriter *tw);
+int          tfileWriterPut(TFileWriter *tw, const char *key, int32_t nKey, const char *val, int32_t nVal);
+int          tfileWriterFinish(TFileWriter *tw);
 
 //
 IndexTFile *indexTFileCreate(const char *path);

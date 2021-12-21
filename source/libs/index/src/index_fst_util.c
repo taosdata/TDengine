@@ -64,6 +64,7 @@ uint8_t packSize(uint64_t n) {
 uint64_t unpackUint64(uint8_t *ch, uint8_t sz) {
   uint64_t n = 0;
   for (uint8_t i = 0; i < sz; i++) {
+    //
     n = n | (ch[i] << (8 * i));
   }
   return n;
@@ -133,9 +134,7 @@ bool fstSliceIsEmpty(FstSlice *s) { return s->str == NULL || s->str->len == 0 ||
 
 uint8_t *fstSliceData(FstSlice *s, int32_t *size) {
   FstString *str = s->str;
-  if (size != NULL) {
-    *size = s->end - s->start + 1;
-  }
+  if (size != NULL) { *size = s->end - s->start + 1; }
   return str->data + s->start;
 }
 void fstSliceDestroy(FstSlice *s) {

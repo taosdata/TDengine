@@ -49,15 +49,14 @@ static int  indexMergeFinalResults(SArray *interResults, EIndexOperatorType oTyp
 int indexOpen(SIndexOpts *opts, const char *path, SIndex **index) {
   pthread_once(&isInit, indexInit);
   SIndex *sIdx = calloc(1, sizeof(SIndex));
-  if (sIdx == NULL) {
-    return -1;
-  }
+  if (sIdx == NULL) { return -1; }
 
 #ifdef USE_LUCENE
   index_t *index = index_open(path);
   sIdx->index = index;
 #endif
 
+#ifdef USE_INVERTED_INDEX
   sIdx->cache = (void *)indexCacheCreate();
   sIdx->tindex = NULL;
   sIdx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
@@ -67,6 +66,10 @@ int indexOpen(SIndexOpts *opts, const char *path, SIndex **index) {
 
   *index = sIdx;
   return 0;
+#endif
+
+  *index = NULL;
+  return -1;
 }
 
 void indexClose(SIndex *sIdx) {
@@ -126,9 +129,7 @@ int indexPut(SIndex *index, SIndexMultiTerm *fVals, uint64_t uid) {
     int32_t colId = fi->colId;
     int32_t version = index->cVersion;
     int     ret = indexCachePut(index->cache, p, colId, version, uid);
-    if (ret != 0) {
-      return ret;
-    }
+    if (ret != 0) { return ret; }
   }
 #endif
 
@@ -158,9 +159,7 @@ int indexSearch(SIndex *index, SIndexMultiTermQuery *multiQuerys, SArray *result
   int  tsz = 0;
   index_multi_search(index->index, (const char **)fields, (const char **)keys, types, nQuery, opera, &tResult, &tsz);
 
-  for (int i = 0; i < tsz; i++) {
-    taosArrayPush(result, &tResult[i]);
-  }
+  for (int i = 0; i < tsz; i++) { taosArrayPush(result, &tResult[i]); }
 
   for (int i = 0; i < nQuery; i++) {
     free(fields[i]);
@@ -216,9 +215,7 @@ void indexOptsDestroy(SIndexOpts *opts){
 
 SIndexMultiTermQuery *indexMultiTermQueryCreate(EIndexOperatorType opera) {
   SIndexMultiTermQuery *p = (SIndexMultiTermQuery *)malloc(sizeof(SIndexMultiTermQuery));
-  if (p == NULL) {
-    return NULL;
-  }
+  if (p == NULL) { return NULL; }
   p->opera = opera;
   p->query = taosArrayInit(4, sizeof(SIndexTermQuery));
   return p;
@@ -240,9 +237,7 @@ int indexMultiTermQueryAdd(SIndexMultiTermQuery *pQuery, SIndexTerm *term, EInde
 SIndexTerm *indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colType, const char *colName,
     int32_t nColName, const char *colVal, int32_t nColVal) {
   SIndexTerm *t = (SIndexTerm *)calloc(1, (sizeof(SIndexTerm)));
-  if (t == NULL) {
-    return NULL;
-  }
+  if (t == NULL) { return NULL; }
 
   t->suid = suid;
   t->operType = oper;
@@ -320,9 +315,7 @@ static int indexTermSearch(SIndex *sIdx, SIndexTermQuery *query, SArray **result
   return 0;
 }
 static void indexInterResultsDestroy(SArray *results) {
-  if (results == NULL) {
-    return;
-  }
+  if (results == NULL) { return; }
 
   size_t sz = taosArrayGetSize(results);
   for (size_t i = 0; i < sz; i++) {
@@ -336,6 +329,7 @@ static int indexMergeFinalResults(SArray *interResults, EIndexOperatorType oType
   SArray *first = taosArrayGetP(interResults, 0);
   taosArraySort(first, uidCompare);
   taosArrayRemoveDuplicate(first, uidCompare, NULL);
+
   if (oType == MUST) {
     // just one column index, enhance later
     taosArrayAddAll(fResults, first);
@@ -351,9 +345,7 @@ static int indexMergeFinalResults(SArray *interResults, EIndexOperatorType oType
   return 0;
 }
 static int indexMergeCacheIntoTindex(SIndex *sIdx) {
-  if (sIdx == NULL) {
-    return -1;
-  }
+  if (sIdx == NULL) { return -1; }
   indexWarn("suid %" PRIu64 " merge cache into tindex", sIdx->suid);
   return 0;
 }
