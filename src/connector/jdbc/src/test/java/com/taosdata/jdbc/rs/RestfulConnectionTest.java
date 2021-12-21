@@ -23,14 +23,12 @@ public class RestfulConnectionTest {
     }
 
     @Test
-    public void createStatement() {
+    public void createStatement() throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select server_status()");
             rs.next();
             int status = rs.getInt("server_status()");
             assertEquals(1, status);
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
@@ -359,13 +357,9 @@ public class RestfulConnectionTest {
     }
 
     @Test
-    public void unwrap() {
-        try {
-            RestfulConnection restfulConnection = conn.unwrap(RestfulConnection.class);
-            Assert.assertNotNull(restfulConnection);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    public void unwrap() throws SQLException {
+        RestfulConnection restfulConnection = conn.unwrap(RestfulConnection.class);
+        Assert.assertNotNull(restfulConnection);
     }
 
     @Test
@@ -388,12 +382,12 @@ public class RestfulConnectionTest {
     }
 
     @AfterClass
-    public static void afterClass() {
-        try {
-            if (conn != null)
-                conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
+    public static void afterClass() throws SQLException {
+        if (conn != null) {
+            Statement statement = conn.createStatement();
+            statement.execute("drop database if exists test");
+            statement.close();
+            conn.close();
         }
     }
 

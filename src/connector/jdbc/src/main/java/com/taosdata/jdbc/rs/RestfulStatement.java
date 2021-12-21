@@ -22,7 +22,6 @@ public class RestfulStatement extends AbstractStatement {
     private final RestfulConnection conn;
 
     private volatile RestfulResultSet resultSet;
-    private volatile int affectedRows;
 
     public RestfulStatement(RestfulConnection conn, String database) {
         this.conn = conn;
@@ -73,6 +72,7 @@ public class RestfulStatement extends AbstractStatement {
             }
             this.database = sql.trim().replace("use", "").trim();
             this.conn.setCatalog(this.database);
+            this.conn.setClientInfo(TSDBDriver.PROPERTY_KEY_DBNAME, this.database);
             result = false;
         } else if (SqlSyntaxValidator.isDatabaseUnspecifiedQuery(sql)) {
             executeOneQuery(sql);
@@ -122,7 +122,7 @@ public class RestfulStatement extends AbstractStatement {
             throw TSDBError.createSQLException(resultJson.getInteger("code"), "sql: " + sql + ", desc: " + resultJson.getString("desc"));
         }
         this.resultSet = new RestfulResultSet(database, this, resultJson);
-        this.affectedRows = 0;
+        this.affectedRows = -1;
         return resultSet;
     }
 
@@ -142,8 +142,9 @@ public class RestfulStatement extends AbstractStatement {
         if (head.size() != 1 || !"affected_rows".equals(head.getString(0)))
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE, "invalid variable: [" + head.toJSONString() + "]");
         JSONArray data = jsonObject.getJSONArray("data");
-        if (data != null)
+        if (data != null) {
             return data.getJSONArray(0).getInteger(0);
+        }
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE, "invalid variable: [" + jsonObject.toJSONString() + "]");
     }
 
