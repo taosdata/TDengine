@@ -59,7 +59,7 @@ typedef struct TFileReader {
 
 typedef struct IndexTFile {
   char *path;
-  TFileReader *tb;
+  TFileCache *cache;
   TFileWriter *tw;      
 } IndexTFile;
 
@@ -79,14 +79,14 @@ typedef struct TFileReaderOpt {
 } TFileReaderOpt;
 
 // tfile cache 
-TFileCache *tfileCacheCreate();
+TFileCache *tfileCacheCreate(const char *path);
 void tfileCacheDestroy(TFileCache *tcache);
 TFileReader* tfileCacheGet(TFileCache *tcache, TFileCacheKey *key);
 void tfileCachePut(TFileCache *tcache, TFileCacheKey *key, TFileReader *reader);
   
 TFileWriter *tfileWriterCreate(const char *suid, const char *colName);
 
-IndexTFile *indexTFileCreate();
+IndexTFile *indexTFileCreate(const char *path);
 
 int indexTFilePut(void *tfile, SIndexTerm *term,  uint64_t uid); 
 
