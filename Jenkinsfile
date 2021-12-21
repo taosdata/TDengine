@@ -106,7 +106,7 @@ pipeline {
               abortPreviousBuilds()
             }
           pre_test()
-          bash'''
+          sh'''
           cd ${WKC}/tests
           ./test-all.sh p1
           '''
