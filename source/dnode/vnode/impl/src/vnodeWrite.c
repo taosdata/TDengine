@@ -70,6 +70,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   vnodeParseReq(pMsg->pCont, &vReq, pMsg->msgType);
 
   switch (pMsg->msgType) {
+    case TSDB_MSG_TYPE_CREATE_STB_IN:
     case TSDB_MSG_TYPE_CREATE_TABLE:
       if (metaCreateTable(pVnode->pMeta, &(vReq.ctReq)) < 0) {
         // TODO: handle error
@@ -77,6 +78,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
       // TODO: maybe need to clear the requst struct
       break;
+    case TSDB_MSG_TYPE_DROP_STB_IN:
     case TSDB_MSG_TYPE_DROP_TABLE:
       if (metaDropTable(pVnode->pMeta, vReq.dtReq.uid) < 0) {
         // TODO: handle error

@@ -21,6 +21,7 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndVgroup.h"
 #include "tname.h"
 
 #define TSDB_STB_VER_NUMBER 1
@@ -199,7 +200,54 @@ static SDbObj *mndAcquireDbByStb(SMnode *pMnode, char *stbName) {
   return mndAcquireDb(pMnode, db);
 }
 
-static int32_t mndCheckStbMsg(SCreateStbMsg *pCreate) {
+static SCreateStbInternalMsg *mndBuildCreateStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb) {
+  int32_t totalCols = pStb->numOfTags + pStb->numOfColumns;
+  int32_t contLen = totalCols * sizeof(SSchema) + sizeof(SCreateStbInternalMsg);
+
+  SCreateStbInternalMsg *pCreate = calloc(1, contLen);
+  if (pCreate == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pCreate->head.contLen = htonl(contLen);
+  pCreate->head.vgId = htonl(pVgroup->vgId);
+  memcpy(pCreate->name, pStb->name, TSDB_TABLE_FNAME_LEN);
+  pCreate->suid = htobe64(pStb->uid);
+  pCreate->sverson = htonl(pStb->version);
+  pCreate->ttl = 0;
+  pCreate->keep = 0;
+  pCreate->numOfTags = htonl(pStb->numOfTags);
+  pCreate->numOfColumns = htonl(pStb->numOfColumns);
+
+  memcpy(pCreate->pSchema, pStb->pSchema, totalCols * sizeof(SSchema));
+  for (int32_t t = 0; t < totalCols; ++t) {
+    SSchema *pSchema = &pCreate->pSchema[t];
+    pSchema->bytes = htonl(pSchema->bytes);
+    pSchema->colId = htonl(pSchema->colId);
+  }
+
+  return pCreate;
+}
+
+static SDropStbInternalMsg *mndBuildDropStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb) {
+  int32_t contLen = sizeof(SDropStbInternalMsg);
+
+  SDropStbInternalMsg *pDrop = calloc(1, contLen);
+  if (pDrop == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pDrop->head.contLen = htonl(contLen);
+  pDrop->head.vgId = htonl(pVgroup->vgId);
+  memcpy(pDrop->name, pStb->name, TSDB_TABLE_FNAME_LEN);
+  pDrop->suid = htobe64(pStb->uid);
+
+  return pDrop;
+}
+
+static int32_t mndCheckCreateStbMsg(SCreateStbMsg *pCreate) {
   pCreate->numOfColumns = htonl(pCreate->numOfColumns);
   pCreate->numOfTags = htonl(pCreate->numOfTags);
   int32_t totalCols = pCreate->numOfColumns + pCreate->numOfTags;
@@ -248,6 +296,103 @@ static int32_t mndCheckStbMsg(SCreateStbMsg *pCreate) {
   return 0;
 }
 
+static int32_t mndSetCreateStbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
+  SSdbRaw *pRedoRaw = mndStbActionEncode(pStb);
+  if (pRedoRaw == NULL) return -1;
+  if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING) != 0) return -1;
+
+  return 0;
+}
+
+static int32_t mndSetCreateStbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
+  SSdbRaw *pUndoRaw = mndStbActionEncode(pStb);
+  if (pUndoRaw == NULL) return -1;
+  if (mndTransAppendUndolog(pTrans, pUndoRaw) != 0) return -1;
+  if (sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED) != 0) return -1;
+
+  return 0;
+}
+
+static int32_t mndSetCreateStbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
+  SSdbRaw *pCommitRaw = mndStbActionEncode(pStb);
+  if (pCommitRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) return -1;
+
+  return 0;
+}
+
+static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = NULL;
+  void   *pIter = NULL;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+    if (pVgroup->dbUid != pDb->uid) continue;
+
+    SCreateStbInternalMsg *pMsg = mndBuildCreateStbMsg(pMnode, pVgroup, pStb);
+    if (pMsg == NULL) {
+      sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, pVgroup);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    STransAction action = {0};
+    action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    action.pCont = pMsg;
+    action.contLen = htonl(pMsg->head.contLen);
+    action.msgType = TSDB_MSG_TYPE_CREATE_STB_IN;
+    if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+      free(pMsg);
+      sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, pVgroup);
+      return -1;
+    }
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return 0;
+}
+
+static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = NULL;
+  void   *pIter = NULL;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+    if (pVgroup->dbUid != pDb->uid) continue;
+
+    SDropStbInternalMsg *pMsg = mndBuildDropStbMsg(pMnode, pVgroup, pStb);
+    if (pMsg == NULL) {
+      sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, pVgroup);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    STransAction action = {0};
+    action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    action.pCont = pMsg;
+    action.contLen = sizeof(SDropStbInternalMsg);
+    action.msgType = TSDB_MSG_TYPE_DROP_STB_IN;
+    if (mndTransAppendUndoAction(pTrans, &action) != 0) {
+      free(pMsg);
+      sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, pVgroup);
+      return -1;
+    }
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return 0;
+}
+
 static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateStbMsg *pCreate, SDbObj *pDb) {
   SStbObj stbObj = {0};
   tstrncpy(stbObj.name, pCreate->name, TSDB_TABLE_FNAME_LEN);
@@ -269,6 +414,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateStbMsg *pCre
   }
   memcpy(stbObj.pSchema, pCreate->pSchema, totalSize);
 
+  int32_t code = 0;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
   if (pTrans == NULL) {
     mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
@@ -276,29 +422,30 @@ static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateStbMsg *pCre
   }
   mDebug("trans:%d, used to create stb:%s", pTrans->id, pCreate->name);
 
-  SSdbRaw *pRedoRaw = mndStbActionEncode(&stbObj);
-  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
-    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
+  if (mndSetCreateStbRedoLogs(pMnode, pTrans, pDb, &stbObj) != 0) {
+    mError("trans:%d, failed to set redo log since %s", pTrans->id, terrstr());
+    goto CREATE_STB_OVER;
   }
-  sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING);
 
-  SSdbRaw *pUndoRaw = mndStbActionEncode(&stbObj);
-  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) {
-    mError("trans:%d, failed to append undo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
+  if (mndSetCreateStbUndoLogs(pMnode, pTrans, pDb, &stbObj) != 0) {
+    mError("trans:%d, failed to set undo log since %s", pTrans->id, terrstr());
+    goto CREATE_STB_OVER;
   }
-  sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED);
 
-  SSdbRaw *pCommitRaw = mndStbActionEncode(&stbObj);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
+  if (mndSetCreateStbCommitLogs(pMnode, pTrans, pDb, &stbObj) != 0) {
+    mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
+    goto CREATE_STB_OVER;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+
+  if (mndSetCreateStbRedoActions(pMnode, pTrans, pDb, &stbObj) != 0) {
+    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
+    goto CREATE_STB_OVER;
+  }
+
+  if (mndSetCreateStbUndoActions(pMnode, pTrans, pDb, &stbObj) != 0) {
+    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
+    goto CREATE_STB_OVER;
+  }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -306,8 +453,11 @@ static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateStbMsg *pCre
     return -1;
   }
 
+  code = 0;
+
+CREATE_STB_OVER:
   mndTransDrop(pTrans);
-  return 0;
+  return code;
 }
 
 static int32_t mndProcessCreateStbMsg(SMnodeMsg *pMsg) {
@@ -316,7 +466,7 @@ static int32_t mndProcessCreateStbMsg(SMnodeMsg *pMsg) {
 
   mDebug("stb:%s, start to create", pCreate->name);
 
-  if (mndCheckStbMsg(pCreate) != 0) {
+  if (mndCheckCreateStbMsg(pCreate) != 0) {
     mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
     return -1;
   }
@@ -353,7 +503,10 @@ static int32_t mndProcessCreateStbMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessCreateStbInRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessCreateStbInRsp(SMnodeMsg *pMsg) {
+  mndTransHandleActionRsp(pMsg);
+  return 0;
+}
 
 static int32_t mndCheckAlterStbMsg(SAlterStbMsg *pAlter) {
   SSchema *pSchema = &pAlter->schema;
@@ -414,9 +567,44 @@ static int32_t mndProcessAlterStbMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessAlterStbInRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessAlterStbInRsp(SMnodeMsg *pMsg) {
+  mndTransHandleActionRsp(pMsg);
+  return 0;
+}
+
+static int32_t mndSetDropStbRedoLogs(SMnode *pMnode, STrans *pTrans, SStbObj *pStb) {
+  SSdbRaw *pRedoRaw = mndStbActionEncode(pStb);
+  if (pRedoRaw == NULL) return -1;
+  if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING) != 0) return -1;
+
+  return 0;
+}
+
+static int32_t mndSetDropStbUndoLogs(SMnode *pMnode, STrans *pTrans, SStbObj *pStb) {
+  SSdbRaw *pUndoRaw = mndStbActionEncode(pStb);
+  if (pUndoRaw == NULL) return -1;
+  if (mndTransAppendUndolog(pTrans, pUndoRaw) != 0) return -1;
+  if (sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY) != 0) return -1;
+
+  return 0;
+}
+
+static int32_t mndSetDropStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStbObj *pStb) {
+  SSdbRaw *pCommitRaw = mndStbActionEncode(pStb);
+  if (pCommitRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) != 0) return -1;
+
+  return 0;
+}
+
+static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SStbObj *pStb) { return 0; }
+
+static int32_t mndSetDropStbUndoActions(SMnode *pMnode, STrans *pTrans, SStbObj *pStb) { return 0; }
 
 static int32_t mndDropStb(SMnode *pMnode, SMnodeMsg *pMsg, SStbObj *pStb) {
+  int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
   if (pTrans == NULL) {
     mError("stb:%s, failed to drop since %s", pStb->name, terrstr());
@@ -424,36 +612,39 @@ static int32_t mndDropStb(SMnode *pMnode, SMnodeMsg *pMsg, SStbObj *pStb) {
   }
   mDebug("trans:%d, used to drop stb:%s", pTrans->id, pStb->name);
 
-  SSdbRaw *pRedoRaw = mndStbActionEncode(pStb);
-  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
-    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
+  if (mndSetDropStbRedoLogs(pMnode, pTrans, pStb) != 0) {
+    mError("trans:%d, failed to set redo log since %s", pTrans->id, terrstr());
+    goto DROP_STB_OVER;
   }
-  sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING);
 
-  SSdbRaw *pUndoRaw = mndStbActionEncode(pStb);
-  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) {
-    mError("trans:%d, failed to append undo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
+  if (mndSetDropStbUndoLogs(pMnode, pTrans, pStb) != 0) {
+    mError("trans:%d, failed to set undo log since %s", pTrans->id, terrstr());
+    goto DROP_STB_OVER;
   }
-  sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY);
 
-  SSdbRaw *pCommitRaw = mndStbActionEncode(pStb);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
+  if (mndSetDropStbCommitLogs(pMnode, pTrans, pStb) != 0) {
+    mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
+    goto DROP_STB_OVER;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+
+  if (mndSetDropStbRedoActions(pMnode, pTrans, pStb) != 0) {
+    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
+    goto DROP_STB_OVER;
+  }
+
+  if (mndSetDropStbUndoActions(pMnode, pTrans, pStb) != 0) {
+    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
+    goto DROP_STB_OVER;
+  }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
+    goto DROP_STB_OVER;
   }
 
+  code = 0;
+
+DROP_STB_OVER:
   mndTransDrop(pTrans);
   return 0;
 }
@@ -488,7 +679,10 @@ static int32_t mndProcessDropStbMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessDropStbInRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessDropStbInRsp(SMnodeMsg *pMsg) {
+  mndTransHandleActionRsp(pMsg);
+  return 0;
+}
 
 static int32_t mndProcessStbMetaMsg(SMnodeMsg *pMsg) {
   SMnode        *pMnode = pMsg->pMnode;

@@ -94,22 +94,22 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "nettest" )
 // message from vnode to dnode
 
 // message from mnode to vnode
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STB_IN, "create-stb-in" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STB_IN, "alter-stb-in" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STB_IN, "drop-stb-in" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STB_IN, "create-stb-internal" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STB_IN, "alter-stb-internal" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STB_IN, "drop-stb-internal" )
 // message from mnode to mnode
 // message from mnode to qnode
 // message from mnode to dnode
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_VNODE_IN, "create-vnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_VNODE_IN, "alter-vnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_VNODE_IN, "drop-vnode" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_AUTH_VNODE_IN, "auth-vnode" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SYNC_VNODE_IN, "sync-vnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_COMPACT_VNODE_IN, "compact-vnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_MNODE_IN, "create-mnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_MNODE_IN, "alter-mnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_MNODE_IN, "drop-mnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONFIG_DNODE_IN, "config-dnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_VNODE_IN, "create-vnode-internal" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_VNODE_IN, "alter-vnode-internal" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_VNODE_IN, "drop-vnode-internal" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_AUTH_VNODE_IN, "auth-vnode-internal" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SYNC_VNODE_IN, "sync-vnode-internal" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_COMPACT_VNODE_IN, "compact-vnode-internal" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_MNODE_IN, "create-mnode-internal" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_MNODE_IN, "alter-mnode-internal" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_MNODE_IN, "drop-mnode-internal" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONFIG_DNODE_IN, "config-dnode-internal" )
 
 // message from qnode to vnode
 // message from qnode to mnode
@@ -291,37 +291,6 @@ typedef struct SSchema {
 } SSchema;
 
 typedef struct {
-  int32_t  contLen;
-  int32_t  vgId;
-  int8_t   tableType;
-  int16_t  numOfColumns;
-  int16_t  numOfTags;
-  int32_t  tid;
-  int32_t  sversion;
-  int32_t  tversion;
-  int32_t  tagDataLen;
-  int32_t  sqlDataLen;
-  uint64_t uid;
-  uint64_t superTableUid;
-  uint64_t createdTime;
-  char     tableFname[TSDB_TABLE_FNAME_LEN];
-  char     stbFname[TSDB_TABLE_FNAME_LEN];
-  char     data[];
-} SMDCreateTableMsg;
-
-typedef struct {
-  int32_t len;  // one create table message
-  char    tableName[TSDB_TABLE_FNAME_LEN];
-  int8_t  igExists;
-  int8_t  getMeta;
-  int16_t numOfTags;
-  int16_t numOfColumns;
-  int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
-  int8_t  reserved[16];
-  char    schema[];
-} SCreateTableMsg;
-
-typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
   int32_t numOfTags;
@@ -341,15 +310,49 @@ typedef struct {
 } SAlterStbMsg;
 
 typedef struct {
-  char    tableFname[TSDB_TABLE_FNAME_LEN];
-  char    db[TSDB_FULL_DB_NAME_LEN];
-  int16_t type; /* operation type   */
-  int16_t numOfCols; /* number of schema */
-  int32_t tagValLen;
-  SSchema schema[];
-  // tagVal is padded after schema
-  // char    tagVal[];
+  SMsgHead head;
+  char     name[TSDB_TABLE_FNAME_LEN];
+  uint64_t suid;
+  int32_t  sverson;
+  uint32_t ttl;
+  uint32_t keep;
+  int32_t  numOfTags;
+  int32_t  numOfColumns;
+  SSchema  pSchema[];
+} SCreateStbInternalMsg;
+
+typedef struct {
+  SMsgHead head;
+  char     name[TSDB_TABLE_FNAME_LEN];
+  uint64_t suid;
+} SDropStbInternalMsg;
+
+typedef struct {
+  SMsgHead head;
+  char     name[TSDB_TABLE_FNAME_LEN];
+  char     stbFname[TSDB_TABLE_FNAME_LEN];
+  int8_t   tableType;
+  uint64_t suid;
+  int32_t  sversion;
+  int32_t  numOfTags;
+  int32_t  numOfColumns;
+  int32_t  tagDataLen;
+  char     data[];
+} SCreateTableMsg;
+
+typedef struct {
+  SMsgHead head;
+  char     name[TSDB_TABLE_FNAME_LEN];
+  int8_t   type;      /* operation type   */
+  int32_t  numOfCols; /* number of schema */
+  int32_t  numOfTags;
+  char     data[];
 } SAlterTableMsg;
+
+typedef struct {
+  SMsgHead head;
+  char     name[TSDB_TABLE_FNAME_LEN];
+} SDropTableMsg;
 
 typedef struct {
   SMsgHead head;
