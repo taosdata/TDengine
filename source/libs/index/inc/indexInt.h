@@ -18,87 +18,112 @@
 
 #include "index.h"
 #include "index_fst.h"
-#include "tlog.h"
-#include "thash.h"
 #include "taos.h"
+#include "thash.h"
+#include "tlog.h"
 
 #ifdef USE_LUCENE
 #include <lucene++/Lucene_c.h>
 #endif
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef enum {kTypeValue, kTypeDeletion} STermValueType ;
+typedef enum { kTypeValue, kTypeDeletion } STermValueType;
 
 typedef struct SIndexStat {
-  int32_t totalAdded;   //  
-  int32_t totalDeled;   //
-  int32_t totalUpdated; // 
-  int32_t totalTerms;   //  
-  int32_t distinctCol; // distinct column 
-} SIndexStat; 
+  int32_t totalAdded;    //
+  int32_t totalDeled;    //
+  int32_t totalUpdated;  //
+  int32_t totalTerms;    //
+  int32_t distinctCol;   // distinct column
+} SIndexStat;
 
 struct SIndex {
-#ifdef USE_LUCENE 
- index_t *index; 
-#endif  
- void     *cache;
- void     *tindex; 
- SHashObj *colObj;// < field name, field id> 
- 
- int64_t  suid;      // current super table id, -1 is normal table    
- int      colId;  // field id allocated to cache
- int32_t  cVersion; // current version allocated to cache 
+#ifdef USE_LUCENE
+  index_t *index;
+#endif
+  void *    cache;
+  void *    tindex;
+  SHashObj *colObj;  // < field name, field id>
 
- SIndexStat stat;
- pthread_mutex_t mtx;
-};   
+  int64_t suid;      // current super table id, -1 is normal table
+  int     colId;     // field id allocated to cache
+  int32_t cVersion;  // current version allocated to cache
+
+  SIndexStat      stat;
+  pthread_mutex_t mtx;
+};
 
 struct SIndexOpts {
-#ifdef USE_LUCENE 
-  void *opts; 
-#endif   
-
-#ifdef USE_INVERTED_INDEX
-  int32_t cacheSize;  // MB  
-  // add cache module later
+#ifdef USE_LUCENE
+  void *opts;
 #endif
 
+#ifdef USE_INVERTED_INDEX
+  int32_t cacheSize;  // MB
+  // add cache module later
+#endif
 };
 
 struct SIndexMultiTermQuery {
-  EIndexOperatorType opera;   
-  SArray *query;
+  EIndexOperatorType opera;
+  SArray *           query;
 };
 
 // field and key;
 typedef struct SIndexTerm {
-  int64_t            suid; 
-  SIndexOperOnColumn operType; // oper type, add/del/update
-  uint8_t            colType;  // term data type, str/interger/json
-  char    *colName;
-  int32_t nColName;
-  char    *colVal;
-  int32_t nColVal;
+  int64_t            suid;
+  SIndexOperOnColumn operType;  // oper type, add/del/update
+  uint8_t            colType;   // term data type, str/interger/json
+  char *             colName;
+  int32_t            nColName;
+  char *             colVal;
+  int32_t            nColVal;
 } SIndexTerm;
 
 typedef struct SIndexTermQuery {
-  SIndexTerm*     term;
+  SIndexTerm *    term;
   EIndexQueryType qType;
 } SIndexTermQuery;
 
-
-
-#define indexFatal(...) do { if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("index FATAL ", 255, __VA_ARGS__); }}     while(0)
-#define indexError(...) do { if (sDebugFlag & DEBUG_ERROR) { taosPrintLog("index ERROR ", 255, __VA_ARGS__); }}     while(0)
-#define indexWarn(...)  do { if (sDebugFlag & DEBUG_WARN)  { taosPrintLog("index WARN ", 255, __VA_ARGS__); }}      while(0)
-#define indexInfo(...)  do { if (sDebugFlag & DEBUG_INFO)  { taosPrintLog("index ", 255, __VA_ARGS__); }}           while(0)
-#define indexDebug(...) do { if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("index ", sDebugFlag, __VA_ARGS__); }} while(0)
-#define indexTrace(...) do { if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("index ", sDebugFlag, __VA_ARGS__); }} while(0)
-
+#define indexFatal(...)                               \
+  do {                                                \
+    if (sDebugFlag & DEBUG_FATAL) {                   \
+      taosPrintLog("index FATAL ", 255, __VA_ARGS__); \
+    }                                                 \
+  } while (0)
+#define indexError(...)                               \
+  do {                                                \
+    if (sDebugFlag & DEBUG_ERROR) {                   \
+      taosPrintLog("index ERROR ", 255, __VA_ARGS__); \
+    }                                                 \
+  } while (0)
+#define indexWarn(...)                               \
+  do {                                               \
+    if (sDebugFlag & DEBUG_WARN) {                   \
+      taosPrintLog("index WARN ", 255, __VA_ARGS__); \
+    }                                                \
+  } while (0)
+#define indexInfo(...)                          \
+  do {                                          \
+    if (sDebugFlag & DEBUG_INFO) {              \
+      taosPrintLog("index ", 255, __VA_ARGS__); \
+    }                                           \
+  } while (0)
+#define indexDebug(...)                                \
+  do {                                                 \
+    if (sDebugFlag & DEBUG_DEBUG) {                    \
+      taosPrintLog("index ", sDebugFlag, __VA_ARGS__); \
+    }                                                  \
+  } while (0)
+#define indexTrace(...)                                \
+  do {                                                 \
+    if (sDebugFlag & DEBUG_TRACE) {                    \
+      taosPrintLog("index ", sDebugFlag, __VA_ARGS__); \
+    }                                                  \
+  } while (0)
 
 #ifdef __cplusplus
 }

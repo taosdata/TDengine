@@ -19,32 +19,31 @@
 extern "C" {
 #endif
 
-#define SERIALIZE_MEM_TO_BUF(buf, key, mem) \
-  do { \
-   memcpy((void *)buf, (void *)(&key->mem), sizeof(key->mem)); \
-   buf += sizeof(key->mem);  \
+#define SERIALIZE_MEM_TO_BUF(buf, key, mem)                     \
+  do {                                                          \
+    memcpy((void *)buf, (void *)(&key->mem), sizeof(key->mem)); \
+    buf += sizeof(key->mem);                                    \
   } while (0)
 
 #define SERIALIZE_STR_MEM_TO_BUF(buf, key, mem, len) \
-  do { \
-    memcpy((void *)buf, (void *)key->mem, len); \
-    buf += len; \
+  do {                                               \
+    memcpy((void *)buf, (void *)key->mem, len);      \
+    buf += len;                                      \
   } while (0)
 
-#define SERIALIZE_VAR_TO_BUF(buf, var, type) \
-  do { \
-     type c = var; \
-     assert(sizeof(var) == sizeof(type));\
-     memcpy((void *)buf, (void *)&c, sizeof(c)); \
-     buf += sizeof(c); \
+#define SERIALIZE_VAR_TO_BUF(buf, var, type)    \
+  do {                                          \
+    type c = var;                               \
+    assert(sizeof(var) == sizeof(type));        \
+    memcpy((void *)buf, (void *)&c, sizeof(c)); \
+    buf += sizeof(c);                           \
   } while (0)
 
 #define SERIALIZE_STR_VAR_TO_BUF(buf, var, len) \
-  do { \
-      memcpy((void *)buf, (void *)var, len); \
-      buf += len;\
+  do {                                          \
+    memcpy((void *)buf, (void *)var, len);      \
+    buf += len;                                 \
   } while (0)
-
 
 #ifdef __cplusplus
 }
