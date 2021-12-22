@@ -386,16 +386,19 @@ static int tfileReadLoadFst(TFileReader* reader) {
 static int tfileReadLoadTableIds(TFileReader* reader, int32_t offset, SArray* result) {
   int32_t    nid;
   WriterCtx* ctx = reader->ctx;
-  int32_t    nread = ctx->readFrom(ctx, (char*)&nid, sizeof(nid), offset);
+
+  int32_t nread = ctx->readFrom(ctx, (char*)&nid, sizeof(nid), offset);
   assert(sizeof(nid) == nread);
 
-  char* buf = calloc(1, sizeof(uint64_t) * nid);
+  int32_t total = sizeof(uint64_t) * nid;
+  char*   buf = calloc(1, total);
   if (buf == NULL) { return -1; }
 
-  nread = ctx->read(ctx, buf, sizeof(uint64_t) * nid);
-  uint64_t* ids = (uint64_t*)buf;
+  nread = ctx->read(ctx, buf, total);
+  assert(total == nread);
+
   for (int32_t i = 0; i < nid; i++) {
-    taosArrayPush(result, ids + i);
+    taosArrayPush(result, (uint64_t*)buf + i);
   }
   free(buf);
   return 0;
