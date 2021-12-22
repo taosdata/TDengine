@@ -221,7 +221,7 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
     node->pChildren = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
     size_t size = taosArrayGetSize(pPlanNode->pChildren);
     for(int32_t i = 0; i < size; ++i) {
-      SPhyNode* child = createPhyNode(pCxt, taosArrayGet(pPlanNode->pChildren, i));
+      SPhyNode* child = createPhyNode(pCxt, taosArrayGetP(pPlanNode->pChildren, i));
       child->pParent = node;
       taosArrayPush(node->pChildren, &child);
     }

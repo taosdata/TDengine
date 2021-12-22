@@ -25,15 +25,15 @@ namespace {
 void generateTestT1(MockCatalogService* mcs) {
   ITableBuilder& builder = mcs->createTableBuilder("root.test", "t1", TSDB_NORMAL_TABLE, 3)
       .setPrecision(TSDB_TIME_PRECISION_MILLI).setVgid(1).addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
-      .addColumn("c1", TSDB_DATA_TYPE_INT).addColumn("c2", TSDB_DATA_TYPE_BINARY, 10);
+      .addColumn("c1", TSDB_DATA_TYPE_INT).addColumn("c2", TSDB_DATA_TYPE_BINARY, 20);
   builder.done();
 }
 
 void generateTestST1(MockCatalogService* mcs) {
   ITableBuilder& builder = mcs->createTableBuilder("root.test", "st1", TSDB_SUPER_TABLE, 3, 2)
       .setPrecision(TSDB_TIME_PRECISION_MILLI).addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
-      .addTag("tag1", TSDB_DATA_TYPE_INT).addTag("tag2", TSDB_DATA_TYPE_BINARY, 10)
-      .addColumn("c1", TSDB_DATA_TYPE_INT).addColumn("c2", TSDB_DATA_TYPE_BINARY, 10);
+      .addTag("tag1", TSDB_DATA_TYPE_INT).addTag("tag2", TSDB_DATA_TYPE_BINARY, 20)
+      .addColumn("c1", TSDB_DATA_TYPE_INT).addColumn("c2", TSDB_DATA_TYPE_BINARY, 20);
   builder.done();
   mcs->createSubTable("root.test", "st1", "st1s1", 1);
   mcs->createSubTable("root.test", "st1", "st1s2", 2);
