@@ -59,6 +59,7 @@ class TDTestCase:
             tdSql.execute(f"create table t14 using stb1 tags(14, now+10h)")
             tdSql.execute(f"create table t15 using stb1 tags(15, now+10d)")
             tdSql.execute(f"create table t16 using stb1 tags(16, now+10w)")
+
             self.curret_case += 1
             tdLog.printNoPrefix("the case for td-11970 run passed")
         except:
