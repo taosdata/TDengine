@@ -31,6 +31,7 @@ typedef struct WriterCtx {
   int (*write)(struct WriterCtx* ctx, uint8_t* buf, int len);
   int (*read)(struct WriterCtx* ctx, uint8_t* buf, int len);
   int (*flush)(struct WriterCtx* ctx);
+  int (*readFrom)(struct WriterCtx* ctx, uint8_t* buf, int len, int32_t offset);
   WriterType type;
   union {
     struct {
@@ -48,6 +49,7 @@ typedef struct WriterCtx {
 
 static int writeCtxDoWrite(WriterCtx* ctx, uint8_t* buf, int len);
 static int writeCtxDoRead(WriterCtx* ctx, uint8_t* buf, int len);
+static int writeCtxDoReadFrom(WriterCtx* ctx, uint8_t* buf, int len, int32_t offset);
 static int writeCtxDoFlush(WriterCtx* ctx);
 
 WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int32_t capacity);
