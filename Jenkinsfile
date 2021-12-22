@@ -361,7 +361,7 @@ pipeline {
               abortPreviousBuilds()
               println env.CHANGE_BRANCH
               if(env.CHANGE_FORK){
-                scope = ['connector','query','insert','other','tools']
+                scope = ['connector','query','insert','other','tools','taosAdapter']
               }
               else{
                 sh'''
