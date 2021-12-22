@@ -48,21 +48,23 @@ static void tfileSerialTableIdsToBuf(char* buf, SArray* tableIds) {
     SERIALIZE_VAR_TO_BUF(buf, *v, uint64_t);
   }
 }
+
+static FORCE_INLINE int tfileWriteFstOffset(TFileWriter* tw, int32_t offset) {
+  int32_t fstOffset = offset + sizeof(tw->header.fstOffset);
+  tw->header.fstOffset = fstOffset;
+  if (sizeof(fstOffset) != tw->ctx->write(tw->ctx, (char*)&fstOffset, sizeof(fstOffset))) { return -1; }
+  return 0;
+}
 static FORCE_INLINE int tfileWriteHeader(TFileWriter* writer) {
-  char  buf[TFILE_HEADER_SIZE] = {0};
+  char  buf[TFILE_HEADER_NO_FST] = {0};
   char* p = buf;
 
   TFileHeader* header = &writer->header;
-  SERIALIZE_MEM_TO_BUF(p, header, suid);
-  SERIALIZE_MEM_TO_BUF(p, header, version);
-  SERIALIZE_VAR_TO_BUF(p, strlen(header->colName), int32_t);
+  memcpy(buf, (char*)header, sizeof(buf));
 
-  SERIALIZE_STR_MEM_TO_BUF(p, header, colName, strlen(header->colName));
-  SERIALIZE_MEM_TO_BUF(p, header, colType);
-  int offset = p - buf;
-  int nwrite = writer->ctx->write(writer->ctx, buf, offset);
-  if (offset != nwrite) { return -1; }
-  writer->offset = offset;
+  int nwrite = writer->ctx->write(writer->ctx, buf, sizeof(buf));
+  if (sizeof(buf) != nwrite) { return -1; }
+  writer->offset = nwrite;
   return 0;
 }
 static int tfileWriteData(TFileWriter* write, TFileValue* tval) {
@@ -82,26 +84,12 @@ static int tfileWriteData(TFileWriter* write, TFileValue* tval) {
 }
 static FORCE_INLINE int tfileReadLoadHeader(TFileReader* reader) {
   // TODO simple tfile header later
-  char  buf[TFILE_HADER_PRE_SIZE];
+  char  buf[TFILE_HEADER_SIZE];
   char* p = buf;
 
-  int64_t nread = reader->ctx->read(reader->ctx, buf, TFILE_HADER_PRE_SIZE);
-  assert(nread == TFILE_HADER_PRE_SIZE);
-
-  TFileHeader* header = &reader->header;
-  memcpy(&header->suid, p, sizeof(header->suid));
-  p += sizeof(header->suid);
-
-  memcpy(&header->version, p, sizeof(header->version));
-  p += sizeof(header->version);
-
-  int32_t colLen = 0;
-  memcpy(&colLen, p, sizeof(colLen));
-  assert(colLen < sizeof(header->colName));
-  nread = reader->ctx->read(reader->ctx, header->colName, colLen);
-  assert(nread == colLen);
-
-  nread = reader->ctx->read(reader->ctx, &header->colType, sizeof(header->colType));
+  int64_t nread = reader->ctx->read(reader->ctx, buf, TFILE_HEADER_SIZE);
+  assert(nread == TFILE_HEADER_SIZE);
+  memcpy(&reader->header, buf, sizeof(buf));
   return 0;
 }
 
@@ -285,7 +273,7 @@ TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header) {
   return tw;
 }
 
-int TFileWriterPut(TFileWriter* tw, void* data) {
+int tfileWriterPut(TFileWriter* tw, void* data) {
   // sort by coltype and write to tindex
   __compar_fn_t fn = getComparFunc(tw->header.colType, 0);
   taosArraySortPWithExt((SArray*)(data), tfileValueCompare, &fn);
@@ -294,6 +282,21 @@ int TFileWriterPut(TFileWriter* tw, void* data) {
   char*   buf = calloc(1, sizeof(bufLimit));
   char*   p = buf;
   int32_t sz = taosArrayGetSize((SArray*)data);
+  int32_t fstOffset = tw->offset;
+
+  // ugly code, refactor later
+  for (size_t i = 0; i < sz; i++) {
+    TFileValue* v = taosArrayGetP((SArray*)data, i);
+
+    int32_t tbsz = taosArrayGetSize(v->tableId);
+    int32_t ttsz = TF_TABLE_TATOAL_SIZE(tbsz);
+    fstOffset += ttsz;
+  }
+  // check result or not
+  tfileWriteFstOffset(tw, fstOffset);
+  // tw->ctx->header.fstOffset = fstOffset;
+  // tw->ctx->write(tw->ctx, &fstOffset, sizeof(fstOffset));
+
   for (size_t i = 0; i < sz; i++) {
     TFileValue* v = taosArrayGetP((SArray*)data, i);
 
@@ -311,7 +314,7 @@ int TFileWriterPut(TFileWriter* tw, void* data) {
     tfileSerialTableIdsToBuf(p, v->tableId);
     offset += ttsz;
     p = buf + offset;
-    // set up value offset and
+    // set up value offset
     v->offset = tw->offset;
     tw->offset += ttsz;
   }
