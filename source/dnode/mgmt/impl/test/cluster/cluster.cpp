@@ -26,24 +26,16 @@ class DndTestCluster : public ::testing::Test {
 Testbase DndTestCluster::test;
 
 TEST_F(DndTestCluster, 01_ShowCluster) {
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_CLUSTER);
-  EXPECT_EQ(test.GetMetaNum(), 3);
-  EXPECT_STREQ(test.GetMetaTbName(), "show cluster");
-
-  EXPECT_EQ(test.GetMetaType(0), TSDB_DATA_TYPE_INT);
-  EXPECT_EQ(test.GetMetaBytes(0), 4);
-  EXPECT_STREQ(test.GetMetaName(0), "id");
-
-  EXPECT_EQ(test.GetMetaType(0), TSDB_DATA_TYPE_BINARY);
-  EXPECT_EQ(test.GetMetaBytes(0), TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE);
-  EXPECT_STREQ(test.GetMetaName(0), "name");
-
-  EXPECT_EQ(test.GetMetaType(0), TSDB_DATA_TYPE_TIMESTAMP);
-  EXPECT_EQ(test.GetMetaBytes(0), 8);
-  EXPECT_STREQ(test.GetMetaName(0), "create_time");
+  test.SendShowMetaMsg(TSDB_MGMT_TABLE_CLUSTER, "");
+  CHECK_META( "show cluster", 3);
+  CHECK_SCHEMA(0, TSDB_DATA_TYPE_INT, 4, "id");
+  CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE, "name");
+  CHECK_SCHEMA(2, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
 
   test.SendShowRetrieveMsg();
-  test.GetShowInt32();
-  test.GetShowBinary(TSDB_CLUSTER_ID_LEN);
-  EXPECT_GT(test.GetShowTimestamp(), 0);
+  EXPECT_EQ(test.GetShowRows(), 1);
+
+  IgnoreInt32();
+  IgnoreBinary(TSDB_CLUSTER_ID_LEN);
+  CheckTimestamp();
 }

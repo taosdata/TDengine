@@ -48,3 +48,40 @@ TEST_F(DndTestShow, 02_ShowMsg_InvalidMsgStart) {
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
 }
+
+TEST_F(DndTestShow, 02_ShowMsg_Conn) {
+  int32_t contLen = sizeof(SConnectMsg);
+
+  SConnectMsg* pReq = (SConnectMsg*)rpcMallocCont(contLen);
+  pReq->pid = htonl(1234);
+  strcpy(pReq->app, "dnode_test_show");
+  strcpy(pReq->db, "");
+
+  SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CONNECT, pReq, contLen);
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_EQ(pMsg->code, 0);
+
+  test.SendShowMetaMsg(TSDB_MGMT_TABLE_CONNS, "");
+
+  STableMetaMsg* pMeta = test.GetShowMeta();
+  EXPECT_STREQ(pMeta->tbFname, "show connections");
+  EXPECT_EQ(pMeta->numOfTags, 0);
+  EXPECT_EQ(pMeta->numOfColumns, 7);
+  EXPECT_EQ(pMeta->precision, 0);
+  EXPECT_EQ(pMeta->tableType, 0);
+  EXPECT_EQ(pMeta->update, 0);
+  EXPECT_EQ(pMeta->sversion, 0);
+  EXPECT_EQ(pMeta->tversion, 0);
+  EXPECT_EQ(pMeta->tuid, 0);
+  EXPECT_EQ(pMeta->suid, 0);
+
+  test.SendShowRetrieveMsg();
+
+  SRetrieveTableRsp* pRetrieveRsp = test.GetRetrieveRsp();
+  EXPECT_EQ(pRetrieveRsp->numOfRows, 1);
+  EXPECT_EQ(pRetrieveRsp->useconds, 0);
+  EXPECT_EQ(pRetrieveRsp->completed, 1);
+  EXPECT_EQ(pRetrieveRsp->precision, TSDB_TIME_PRECISION_MILLI);
+  EXPECT_EQ(pRetrieveRsp->compressed, 0);
+  EXPECT_EQ(pRetrieveRsp->compLen, 0);
+}

@@ -58,20 +58,22 @@ void Testbase::Cleanup() {
   client.Cleanup();
 }
 
+void Testbase::Restart() { server.Restart(); }
+
 SRpcMsg* Testbase::SendMsg(int8_t msgType, void* pCont, int32_t contLen) {
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pCont;
-  rpcMsg.contLen = sizeof(SShowMsg);
+  rpcMsg.contLen = contLen;
   rpcMsg.msgType = msgType;
 
   return client.SendMsg(&rpcMsg);
 }
 
-void Testbase::SendShowMetaMsg(int8_t showType) {
+void Testbase::SendShowMetaMsg(int8_t showType, const char* db) {
   int32_t   contLen = sizeof(SShowMsg);
   SShowMsg* pShow = (SShowMsg*)rpcMallocCont(contLen);
   pShow->type = showType;
-  strcpy(pShow->db, "");
+  strcpy(pShow->db, db);
 
   SRpcMsg*  pMsg = SendMsg(TSDB_MSG_TYPE_SHOW, pShow, contLen);
   SShowRsp* pShowRsp = (SShowRsp*)pMsg->pCont;
@@ -124,6 +126,9 @@ void Testbase::SendShowRetrieveMsg() {
 
   SRpcMsg* pMsg = SendMsg(TSDB_MSG_TYPE_SHOW_RETRIEVE, pRetrieve, contLen);
   pRetrieveRsp = (SRetrieveTableRsp*)pMsg->pCont;
+  pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
+  pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);
+  pRetrieveRsp->compLen = htonl(pRetrieveRsp->compLen);
 
   pData = pRetrieveRsp->data;
   pos = 0;
@@ -167,3 +172,9 @@ const char* Testbase::GetShowBinary(int32_t len) {
   pos += len;
   return data;
 }
+
+int32_t Testbase::GetShowRows() { return pRetrieveRsp->numOfRows; }
+
+STableMetaMsg* Testbase::GetShowMeta() { return pMeta; }
+
+SRetrieveTableRsp* Testbase::GetRetrieveRsp() { return pRetrieveRsp; }

@@ -23,6 +23,8 @@ class DndTestAcct : public ::testing::Test {
   void TearDown() override {}
 };
 
+Testbase DndTestAcct::test;
+
 TEST_F(DndTestAcct, 01_CreateAcct) {
   int32_t contLen = sizeof(SCreateAcctMsg);
 
@@ -61,5 +63,5 @@ TEST_F(DndTestAcct, 04_ShowAcct) {
 
   SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_SHOW, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
+  ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
 }

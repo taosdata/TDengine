@@ -42,9 +42,8 @@ SDnodeOpt TestServer::BuildOption(const char* path, const char* fqdn, uint16_t p
   return option;
 }
 
-bool TestServer::Start(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
+bool TestServer::DoStart() {
   SDnodeOpt option = BuildOption(path, fqdn, port, firstEp);
-  taosRemoveDir(path);
   taosMkDir(path);
 
   pDnode = dndInit(&option);
@@ -57,6 +56,23 @@ bool TestServer::Start(const char* path, const char* fqdn, uint16_t port, const 
     return false;
   }
   return true;
+}
+
+void TestServer::Restart() {
+  uInfo("start all server");
+  Stop();
+  DoStart();
+  uInfo("all server is running");
+}
+
+bool TestServer::Start(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
+  strcpy(this->path, path);
+  strcpy(this->fqdn, fqdn);
+  this->port = port;
+  strcpy(this->firstEp, firstEp);
+
+  taosRemoveDir(path);
+  return DoStart();
 }
 
 void TestServer::Stop() {
