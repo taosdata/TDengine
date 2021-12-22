@@ -170,10 +170,11 @@ int32_t schemaIdxCompar(const void *lhs, const void *rhs);
 int32_t boundIdxCompar(const void *lhs, const void *rhs);
 void setBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, int32_t numOfCols);
 void destroyBoundColumnInfo(SParsedDataColInfo* pColList);
+void destroyBlockArrayList(SArray* pDataBlockList);
 int32_t initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, uint32_t nBoundCols, int32_t allNullLen);
 int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows);
 int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
     const STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList);
-int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t payloadType, bool freeBlockMap);
+int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t payloadType, SArray** pVgDataBlocks);
 
 #endif  // TDENGINE_DATABLOCKMGT_H

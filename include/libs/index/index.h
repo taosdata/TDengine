@@ -44,41 +44,46 @@ typedef enum { QUERY_TERM = 0, QUERY_PREFIX = 1, QUERY_SUFFIX = 2, QUERY_REGEX =
  * @param: oper
  *
  */
-SIndexMultiTermQuery *indexMultiTermQueryCreate(EIndexOperatorType oper);
-void                  indexMultiTermQueryDestroy(SIndexMultiTermQuery *pQuery);
-int                   indexMultiTermQueryAdd(SIndexMultiTermQuery *pQuery, SIndexTerm *term, EIndexQueryType type);
+SIndexMultiTermQuery* indexMultiTermQueryCreate(EIndexOperatorType oper);
+void                  indexMultiTermQueryDestroy(SIndexMultiTermQuery* pQuery);
+int                   indexMultiTermQueryAdd(SIndexMultiTermQuery* pQuery, SIndexTerm* term, EIndexQueryType type);
 /*
  * @param:
  * @param:
  */
-int  indexOpen(SIndexOpts *opt, const char *path, SIndex **index);
-void indexClose(SIndex *index);
-int  indexPut(SIndex *index, SIndexMultiTerm *terms, uint64_t uid);
-int  indexDelete(SIndex *index, SIndexMultiTermQuery *query);
-int  indexSearch(SIndex *index, SIndexMultiTermQuery *query, SArray *result);
-int  indexRebuild(SIndex *index, SIndexOpts *opt);
+int  indexOpen(SIndexOpts* opt, const char* path, SIndex** index);
+void indexClose(SIndex* index);
+int  indexPut(SIndex* index, SIndexMultiTerm* terms, uint64_t uid);
+int  indexDelete(SIndex* index, SIndexMultiTermQuery* query);
+int  indexSearch(SIndex* index, SIndexMultiTermQuery* query, SArray* result);
+int  indexRebuild(SIndex* index, SIndexOpts* opt);
 /*
  * @param
  * @param
  */
-SIndexMultiTerm *indexMultiTermCreate();
-int              indexMultiTermAdd(SIndexMultiTerm *terms, SIndexTerm *term);
-void             indexMultiTermDestroy(SIndexMultiTerm *terms);
+SIndexMultiTerm* indexMultiTermCreate();
+int              indexMultiTermAdd(SIndexMultiTerm* terms, SIndexTerm* term);
+void             indexMultiTermDestroy(SIndexMultiTerm* terms);
 /*
  * @param:
  * @param:
  */
-SIndexOpts *indexOptsCreate();
-void        indexOptsDestroy(SIndexOpts *opts);
+SIndexOpts* indexOptsCreate();
+void        indexOptsDestroy(SIndexOpts* opts);
 
 /*
  * @param:
  * @param:
  */
 
-SIndexTerm *indexTermCreate(int64_t suid, SIndexOperOnColumn operType, uint8_t colType, const char *colName,
-    int32_t nColName, const char *colVal, int32_t nColVal);
-void        indexTermDestroy(SIndexTerm *p);
+SIndexTerm* indexTermCreate(int64_t            suid,
+                            SIndexOperOnColumn operType,
+                            uint8_t            colType,
+                            const char*        colName,
+                            int32_t            nColName,
+                            const char*        colVal,
+                            int32_t            nColVal);
+void        indexTermDestroy(SIndexTerm* p);
 
 #ifdef __cplusplus
 }

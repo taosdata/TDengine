@@ -33,6 +33,7 @@ public:
     col->colId = colId_++;
     col->bytes = bytes;
     strcpy(col->name, name.c_str());
+    rowsize_ += bytes;
     return *this;
   }
 
@@ -147,11 +148,11 @@ public:
 
     for (const auto& db : meta_) {
       std::cout << "Databse:" << db.first << std::endl;
-      std::cout << SH("Table") << SH("Type") << SH("Precision") << IH("Vgid") << std::endl;
+      std::cout << SH("Table") << SH("Type") << SH("Precision") << IH("Vgid") << IH("RowSize") << std::endl;
       std::cout << SL(3, 1) << std::endl;
       for (const auto& table : db.second) {
         const auto& schema = table.second->schema;
-        std::cout << SF(table.first) << SF(ttToString(schema->tableType)) << SF(pToString(schema->tableInfo.precision)) << IF(schema->vgId) << std::endl;
+        std::cout << SF(table.first) << SF(ttToString(schema->tableType)) << SF(pToString(schema->tableInfo.precision)) << IF(schema->vgId) << IF(schema->tableInfo.rowSize) << std::endl;
       }
       std::cout << std::endl;
     }
