@@ -238,7 +238,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
     return TSDB_CODE_SUCCESS;
   }
-  
+
   // (uid, tid) + VGID + TAGSIZE + VARSTR_HEADER_SIZE
   if (functionId == TSDB_FUNC_TID_TAG) { // todo use struct
     *type = TSDB_DATA_TYPE_BINARY;
@@ -679,12 +679,12 @@ int32_t noDataRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
 
 static void do_sum(SQLFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
-  
+
   // Only the pre-computing information loaded and actual data does not loaded
   if (pCtx->preAggVals.isSet) {
     notNullElems = pCtx->size - pCtx->preAggVals.statis.numOfNull;
     assert(pCtx->size >= pCtx->preAggVals.statis.numOfNull);
-    
+
     if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
       int64_t *retVal = (int64_t *)pCtx->pOutput;
       *retVal += pCtx->preAggVals.statis.sum;
@@ -731,10 +731,10 @@ static void do_sum(SQLFunctionCtx *pCtx) {
       LIST_ADD_N_DOUBLE_FLOAT(*retVal, pCtx, pData, float, notNullElems, pCtx->inputType);
     }
   }
-  
+
   // data in the check operation are all null, not output
   SET_VAL(pCtx, notNullElems, 1);
-  
+
   if (notNullElems > 0) {
     GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
   }
@@ -742,7 +742,7 @@ static void do_sum(SQLFunctionCtx *pCtx) {
 
 static void sum_function(SQLFunctionCtx *pCtx) {
   do_sum(pCtx);
-  
+
   // keep the result data in output buffer, not in the intermediate buffer
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   if (pResInfo->hasResult == DATA_SET_FLAG && pCtx->stableQuery) {
@@ -778,7 +778,7 @@ static void sum_func_merge(SQLFunctionCtx *pCtx) {
 
   SET_VAL(pCtx, notNullElems, 1);
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  
+
   if (notNullElems > 0) {
     pResInfo->hasResult = DATA_SET_FLAG;
   }
@@ -797,7 +797,7 @@ static int32_t firstFuncRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t c
   if (pCtx->order == TSDB_ORDER_DESC) {
     return BLK_DATA_NO_NEEDED;
   }
-  
+
   // no result for first query, data block is required
   if (GET_RES_INFO(pCtx) == NULL || GET_RES_INFO(pCtx)->numOfRes <= 0) {
     return BLK_DATA_ALL_NEEDED;
@@ -810,7 +810,7 @@ static int32_t lastFuncRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t co
   if (pCtx->order != pCtx->param[0].i64) {
     return BLK_DATA_NO_NEEDED;
   }
-  
+
   if (GET_RES_INFO(pCtx) == NULL || GET_RES_INFO(pCtx)->numOfRes <= 0) {
     return BLK_DATA_ALL_NEEDED;
   } else {
