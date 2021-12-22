@@ -456,7 +456,7 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 
 #ifdef WINDOWS
   if (tt < 0) {
-    SYSTEMTIME a={1970,1,5,1,0,0,0,0}; // support 1601-01-01 00:00:00
+    SYSTEMTIME a={1970,1,5,1,0,0,0,0}; // SYSTEMTIME struct support 1601-01-01. set 1970 to compatible with Epoch time.
     FILETIME b; // unit is 100ns
     ULARGE_INTEGER c;
     SystemTimeToFileTime(&a,&b);
