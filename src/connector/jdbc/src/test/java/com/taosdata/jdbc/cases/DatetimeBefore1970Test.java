@@ -173,7 +173,8 @@ public class DatetimeBefore1970Test {
     }
 
     @Test
-//    @Ignore
+    @Ignore
+    @Description("nanosecond convert timestamp when timezone is asia shanghai")
     public void asiaShanghaiTest() throws SQLException {
         conn = createEnvironment("ns");
         long now = System.currentTimeMillis() * 1000_000L + System.nanoTime() % 1000_000L;
