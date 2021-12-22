@@ -65,6 +65,21 @@ static FORCE_INLINE int tfileWriteHeader(TFileWriter* writer) {
   writer->offset = offset;
   return 0;
 }
+static int tfileWriteData(TFileWriter* write, TFileValue* tval) {
+  TFileHeader* header = &write->header;
+  uint8_t      colType = header->colType;
+  if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_NCHAR) {
+    FstSlice key = fstSliceCreate((uint8_t*)(tval->colVal), (size_t)strlen(tval->colVal));
+    if (fstBuilderInsert(write->fb, key, tval->offset)) {
+      fstSliceDestroy(&key);
+      return 0;
+    }
+    fstSliceDestroy(&key);
+    return -1;
+  } else {
+    // handle other type later
+  }
+}
 static FORCE_INLINE int tfileReadLoadHeader(TFileReader* reader) {
   // TODO simple tfile header later
   char  buf[TFILE_HADER_PRE_SIZE];
@@ -303,6 +318,16 @@ int TFileWriterPut(TFileWriter* tw, void* data) {
   if (offset != 0) {
     // write reversed data in buf to tindex
     tw->ctx->write(tw->ctx, buf, offset);
+  }
+
+  // write fst
+  for (size_t i = 0; i < sz; i++) {
+    // TODO, fst batch write later
+    TFileValue* v = taosArrayGetP((SArray*)data, i);
+    if (tfileWriteData(tw, v) == 0) {
+      //
+      //
+    }
   }
 
   tfree(buf);

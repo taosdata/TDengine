@@ -757,7 +757,7 @@ bool fstBuilderInsert(FstBuilder* b, FstSlice bs, Output in) {
     fstBuilderInsertOutput(b, bs, in);
     return true;
   }
-  indexInfo("key must be ordered");
+  indexInfo("fst write key must be ordered");
   return false;
 }
 
