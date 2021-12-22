@@ -248,7 +248,7 @@ void* destroyResultRowPool(SResultRowPool* p) {
     tfree(*ptr);
   }
 
-  taosArrayDestroy(p->pData);
+  taosArrayDestroy(&p->pData);
 
   tfree(p);
   return NULL;
@@ -341,23 +341,23 @@ void freeInterResult(void* param) {
   int32_t numOfCols = (int32_t) taosArrayGetSize(pResult->pResult);
   for(int32_t i = 0; i < numOfCols; ++i) {
     SStddevInterResult *p = taosArrayGet(pResult->pResult, i);
-    taosArrayDestroy(p->pResult);
+    taosArrayDestroy(&p->pResult);
   }
 
-  taosArrayDestroy(pResult->pResult);
+  taosArrayDestroy(&pResult->pResult);
 }
 
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   assert(pGroupResInfo != NULL);
 
-  taosArrayDestroy(pGroupResInfo->pRows);
+  taosArrayDestroy(&pGroupResInfo->pRows);
   pGroupResInfo->pRows     = NULL;
   pGroupResInfo->index     = 0;
 }
 
 void initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo) {
   if (pGroupResInfo->pRows != NULL) {
-    taosArrayDestroy(pGroupResInfo->pRows);
+    taosArrayDestroy(&pGroupResInfo->pRows);
   }
 
   pGroupResInfo->pRows = taosArrayFromList(pResultInfo->pResult, pResultInfo->size, POINTER_BYTES);

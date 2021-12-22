@@ -1783,7 +1783,7 @@ tSqlExprListDestroy((yypminor->yy189));
     case 278: /* sortlist */
     case 282: /* grouplist */
 {
-taosArrayDestroy((yypminor->yy189));
+taosArrayDestroy(&(yypminor->yy189));
 }
       break;
     case 246: /* create_table_list */
@@ -4240,14 +4240,13 @@ void Parse(
         yy_destructor(yypParser, (YYCODETYPE)yymajor, &yyminorunion);
         yymajor = YYNOCODE;
       }else{
-        while( yypParser->yytos >= yypParser->yystack
-            && (yyact = yy_find_reduce_action(
-                        yypParser->yytos->stateno,
-                        YYERRORSYMBOL)) > YY_MAX_SHIFTREDUCE
-        ){
+        while( yypParser->yytos > yypParser->yystack ){
+          yyact = yy_find_reduce_action(yypParser->yytos->stateno,
+                                        YYERRORSYMBOL);
+          if( yyact<=YY_MAX_SHIFTREDUCE ) break;
           yy_pop_parser_stack(yypParser);
         }
-        if( yypParser->yytos < yypParser->yystack || yymajor==0 ){
+        if( yypParser->yytos <= yypParser->yystack || yymajor==0 ){
           yy_destructor(yypParser,(YYCODETYPE)yymajor,&yyminorunion);
           yy_parse_failed(yypParser);
 #ifndef YYNOERRORRECOVERY
