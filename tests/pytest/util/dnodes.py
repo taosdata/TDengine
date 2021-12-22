@@ -44,6 +44,7 @@ class TDSimClient:
             "jnidebugFlag": "135",
             "qdebugFlag": "135",
             "telemetryReporting": "0",
+            "enableCoreFile": "1",
         }
 
     def getLogDir(self):
@@ -151,7 +152,8 @@ class TDDnode:
             "udebugFlag":"135",
             "jnidebugFlag":"135",
             "qdebugFlag":"135",
-            "maxSQLLength":"1048576"
+            "maxSQLLength":"1048576",
+            "enableCoreFile": "1",
         }
 
     def init(self, path):
@@ -249,7 +251,7 @@ class TDDnode:
             "dnode:%d is deployed and configured by %s" %
             (self.index, self.cfgPath))
 
-    def getBuildPath(self):
+    def getBuildPath(self, tool="taosd"):
         buildPath = ""
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -259,7 +261,7 @@ class TDDnode:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if (("taosd") in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root)-len("/build/bin")]

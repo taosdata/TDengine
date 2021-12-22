@@ -176,14 +176,20 @@ void taosArrayClear(SArray* pArray);
  * destroy array list
  * @param pArray
  */
-void* taosArrayDestroy(SArray* pArray);
+void* taosArrayDestroy(SArray** pArray);
+
+/**
+ * destroy array list for hash
+ * @param pArray
+ */
+void taosArrayDestroyForHash(void* para);
 
 /**
  *
  * @param pArray
  * @param fp
  */
-void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*));
+void taosArrayDestroyEx(SArray** pArray, void (*fp)(void*));
 
 /**
  * sort the array

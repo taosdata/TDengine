@@ -72,6 +72,7 @@ public class RestfulStatement extends AbstractStatement {
             }
             this.database = sql.trim().replace("use", "").trim();
             this.conn.setCatalog(this.database);
+            this.conn.setClientInfo(TSDBDriver.PROPERTY_KEY_DBNAME, this.database);
             result = false;
         } else if (SqlSyntaxValidator.isDatabaseUnspecifiedQuery(sql)) {
             executeOneQuery(sql);

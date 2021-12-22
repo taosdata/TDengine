@@ -44,7 +44,7 @@ typedef struct SPatternCompareInfo {
 
 int patternMatch(const char *pattern, const char *str, size_t size, const SPatternCompareInfo *pInfo);
 
-int WCSPatternMatch(const wchar_t *pattern, const wchar_t *str, size_t size, const SPatternCompareInfo *pInfo);
+int WCSPatternMatch(const uint32_t *pattern, const uint32_t *str, size_t size, const SPatternCompareInfo *pInfo);
 
 int32_t doCompare(const char* a, const char* b, int32_t type, size_t size);
 
@@ -88,6 +88,9 @@ int32_t compareStrRegexCompMatch(const void* pLeft, const void* pRight);
 int32_t compareStrRegexCompNMatch(const void* pLeft, const void* pRight);
 int32_t compareFindItemInSet(const void *pLeft, const void* pRight);
 int32_t compareWStrPatternComp(const void* pLeft, const void* pRight);
+int32_t compareStrContainJson(const void* pLeft, const void* pRight);
+int32_t compareJsonVal(const void* pLeft, const void* pRight);
+int32_t jsonCompareUnit(const char* f1, const char* f2, bool* canReturn);
 
 #ifdef __cplusplus
 }

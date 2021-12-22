@@ -1,0 +1,115 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 2
+system sh/exec.sh -n dnode1 -s start
+
+sleep 100
+sql connect
+print ======================== dnode1 start
+
+$db = testdb
+
+sql create database $db precision 'ns'
+sql use $db
+
+sql create stable st1 (ts timestamp , c1 int) tags(t1 timestamp, t2 int)
+
+sql create table t1_0 using st1 tags(now, 0)
+#nanoseconds
+sql create table t1_1 using st1 tags(now + 1b, 0)
+#microseconds
+sql create table t1_2 using st1 tags(now + 1u, 0)
+#milliseconds
+sql create table t1_3 using st1 tags(now + 1a, 0)
+#seconds
+sql create table t1_4 using st1 tags(now + 1s, 0)
+#minutes
+sql create table t1_5 using st1 tags(now + 1m, 0)
+#hours
+sql create table t1_6 using st1 tags(now + 1h, 0)
+#days
+sql create table t1_7 using st1 tags(now + 1d, 0)
+#weeks
+sql create table t1_8 using st1 tags(now + 1w, 0)
+#months(not supported)
+sql_error create table t1_9 using st1 tags(now + 1n, 0)
+#years(not supported)
+sql_error create table t1_10 using st1 tags(now + 1y, 0)
+
+
+sql create stable st2 (ts timestamp , c1 int) tags(t1 timestamp, t2 int)
+
+sql create table t2_0 using st2 tags(now, 0)
+#nanoseconds
+sql create table t2_1 using st2 tags(now - 1b, 0)
+#microseconds
+sql create table t2_2 using st2 tags(now - 1u, 0)
+#milliseconds
+sql create table t2_3 using st2 tags(now - 1a, 0)
+#seconds
+sql create table t2_4 using st2 tags(now - 1s, 0)
+#minutes
+sql create table t2_5 using st2 tags(now - 1m, 0)
+#hours
+sql create table t2_6 using st2 tags(now - 1h, 0)
+#days
+sql create table t2_7 using st2 tags(now - 1d, 0)
+#weeks
+sql create table t2_8 using st2 tags(now - 1w, 0)
+#months(not supported)
+sql_error create table t2_9 using st2 tags(now - 1n, 0)
+#years(not supported)
+sql_error create table t2_10 using st2 tags(now - 1y, 0)
+
+sql insert into t1_0 values (now, 0)
+sql insert into t1_1 values (now, 1)
+sql insert into t1_2 values (now, 2)
+sql insert into t1_3 values (now, 3)
+sql insert into t1_4 values (now, 4)
+sql insert into t1_5 values (now, 5)
+sql insert into t1_6 values (now, 6)
+sql insert into t1_7 values (now, 7)
+sql insert into t1_8 values (now, 8)
+
+sql insert into t2_0 values (now, 0)
+sql insert into t2_1 values (now, 1)
+sql insert into t2_2 values (now, 2)
+sql insert into t2_3 values (now, 3)
+sql insert into t2_4 values (now, 4)
+sql insert into t2_5 values (now, 5)
+sql insert into t2_6 values (now, 6)
+sql insert into t2_7 values (now, 7)
+sql insert into t2_8 values (now, 8)
+
+sql select * from st1
+
+if $rows != 9 then
+  return -1
+endi
+
+sql select * from st2
+
+if $rows != 9 then
+  return -1
+endi
+
+sql create stable st3 (ts timestamp , c1 int) tags (t1 timestamp, t2 timestamp, t3 timestamp, t4 timestamp, t5 timestamp, t6 timestamp, t7 timestamp, t8 timestamp, t9 timestamp)
+sql create table t3 using st3 tags(now, now + 1b, now + 1u, now + 1a, now + 1s, now + 1m, now + 1h, now + 1d, now + 1w)
+sql insert into t3 values (now, 1)
+
+sql select * from st3
+if $rows != 1 then
+  return -1
+endi
+
+sql create stable st4 (ts timestamp , c1 int) tags (t1 timestamp, t2 timestamp, t3 timestamp, t4 timestamp, t5 timestamp, t6 timestamp, t7 timestamp, t8 timestamp, t9 timestamp)
+sql create table t4 using st4 tags(now, now - 1b, now - 1u, now - 1a, now - 1s, now - 1m, now - 1h, now - 1d, now - 1w)
+sql insert into t4 values (now, 1)
+
+sql select * from st4
+if $rows != 1 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

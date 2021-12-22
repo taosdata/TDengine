@@ -356,7 +356,7 @@ static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t p
   epSet.inUse = 0;
   epSet.numOfEps = 1;
   epSet.port[0] = port;
-  strcpy(epSet.fqdn[0], serverFqdn);
+  tstrncpy(epSet.fqdn[0], serverFqdn, sizeof(epSet.fqdn[0]));
 
   reqMsg.msgType = TSDB_MSG_TYPE_NETWORK_TEST;
   reqMsg.pCont = rpcMallocCont(pktLen);
@@ -364,7 +364,7 @@ static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t p
   reqMsg.code = 0;
   reqMsg.handle = NULL;   // rpc handle returned to app
   reqMsg.ahandle = NULL;  // app handle set by client
-  strcpy(reqMsg.pCont, "nettest");
+  tstrncpy((char*)reqMsg.pCont, "nettest", pktLen);
 
   rpcSendRecv(pRpcConn, &epSet, &reqMsg, &rspMsg);
 
@@ -568,6 +568,12 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
   int32_t compressTmp = tsCompressMsgSize;
   int32_t maxUdpSize  = tsRpcMaxUdpSize;
   int32_t forceTcp  = tsRpcForceTcp;
+  
+  //Precheck for FQDN lgenth
+  if (strlen(host) >= TSDB_FQDN_LEN) {
+    uError("FQDN length is too long");
+    return;
+  }
 
   if (0 == strcmp("tcp", pkgType)){
     tsRpcForceTcp = 1;
@@ -600,7 +606,7 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
     epSet.inUse = 0;
     epSet.numOfEps = 1;
     epSet.port[0] = port;
-    strcpy(epSet.fqdn[0], host);
+    tstrncpy(epSet.fqdn[0], host, sizeof(epSet.fqdn[0]));
 
     reqMsg.msgType = TSDB_MSG_TYPE_NETWORK_TEST;
     reqMsg.pCont = rpcMallocCont(pkgLen);
@@ -608,8 +614,8 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
     reqMsg.code = 0;
     reqMsg.handle = NULL;   // rpc handle returned to app
     reqMsg.ahandle = NULL;  // app handle set by client
-    strcpy(reqMsg.pCont, "nettest speed");
-
+    tstrncpy((char*)reqMsg.pCont, "nettest speed", pkgLen);
+    
     rpcSendRecv(pRpcConn, &epSet, &reqMsg, &rspMsg);
 
     int code = 0;

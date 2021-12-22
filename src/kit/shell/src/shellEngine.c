@@ -509,6 +509,7 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
       memcpy(buf, val, length);
       buf[length] = 0;
       fprintf(fp, "\'%s\'", buf);
@@ -645,7 +646,7 @@ static void shellPrintNChar(const char *str, int length, int width) {
 static void printField(const char* val, TAOS_FIELD* field, int width, int32_t length, int precision) {
   if (val == NULL) {
     int w = width;
-    if (field->type < TSDB_DATA_TYPE_TINYINT || field->type > TSDB_DATA_TYPE_DOUBLE) {
+    if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_NCHAR || field->type == TSDB_DATA_TYPE_TIMESTAMP) {
       w = 0;
     }
     w = printf("%*s", w, TSDB_DATA_NULL_STR);
@@ -692,6 +693,7 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
       shellPrintNChar(val, length, width);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
@@ -805,7 +807,8 @@ static int calcColWidth(TAOS_FIELD* field, int precision) {
         return MAX(field->bytes, width);
       }
 
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:{
       int16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
       if (bytes > tsMaxBinaryDisplayWidth) {
         return MAX(tsMaxBinaryDisplayWidth, width);

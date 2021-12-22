@@ -445,7 +445,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
         // revise the length for binary and nchar fields
         if (f[j].type == TSDB_DATA_TYPE_BINARY) {
           f[j].bytes -= VARSTR_HEADER_SIZE;
-        } else if (f[j].type == TSDB_DATA_TYPE_NCHAR) {
+        } else if (f[j].type == TSDB_DATA_TYPE_NCHAR || f[j].type == TSDB_DATA_TYPE_JSON) {
           f[j].bytes = (f[j].bytes - VARSTR_HEADER_SIZE)/TSDB_NCHAR_SIZE;
         }
 
@@ -1006,7 +1006,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   SArray* vgroupList = taosArrayInit(4, POINTER_BYTES);
   if (vgroupList == NULL) {
-    taosArrayDestroy(plist);
+    taosArrayDestroy(&plist);
     tfree(str);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -1023,8 +1023,8 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   if (code != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pSql);
-    taosArrayDestroyEx(plist, freeElem);
-    taosArrayDestroyEx(vgroupList, freeElem);
+    taosArrayDestroyEx(&plist, freeElem);
+    taosArrayDestroyEx(&vgroupList, freeElem);
     return code;
   }
 
@@ -1037,8 +1037,8 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     code = TSDB_CODE_SUCCESS;
   }
 
-  taosArrayDestroyEx(plist, freeElem);
-  taosArrayDestroyEx(vgroupList, freeElem);
+  taosArrayDestroyEx(&plist, freeElem);
+  taosArrayDestroyEx(&vgroupList, freeElem);
 
   if (code != TSDB_CODE_SUCCESS) {
     tscFreeRegisteredSqlObj(pSql);

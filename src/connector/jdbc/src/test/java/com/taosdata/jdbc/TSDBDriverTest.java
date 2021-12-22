@@ -1,6 +1,5 @@
 package com.taosdata.jdbc;
 
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.sql.*;

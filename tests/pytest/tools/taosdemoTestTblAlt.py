@@ -30,6 +30,7 @@ class TDTestCase:
         self.numberOfRecords = 1000000
 
     def getBuildPath(self):
+        buildPath=""
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -38,7 +39,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files and "taosBenchmark" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -48,15 +49,15 @@ class TDTestCase:
     def insertDataAndAlterTable(self, threadID):
         buildPath = self.getBuildPath()
         if (buildPath == ""):
-            tdLog.exit("taosd not found!")
+            tdLog.exit("taosd or staosBenchmark not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
 
         if(threadID == 0):
-            print("%staosdemo -y -t %d -n %d -b INT,INT,INT,INT" %
+            print("%staosBenchmark -y -t %d -n %d -b INT,INT,INT,INT" %
                       (binPath, self.numberOfTables, self.numberOfRecords))
-            os.system("%staosdemo -y -t %d -n %d -b INT,INT,INT,INT" %
+            os.system("%staosBenchmark -y -t %d -n %d -b INT,INT,INT,INT" %
                       (binPath, self.numberOfTables, self.numberOfRecords))
         if(threadID == 1):
             time.sleep(2)
