@@ -1,7 +1,7 @@
-bash c#/test.sh
-bash go/test.sh
-bash java/test.sh
-bash nodejs/test.sh
-bash python/test.sh
-bash restful/test.sh
-bash rust/test.sh
+bash 3-connectors/c#/test.sh  || exit 8
+bash 3-connectors/go/test.sh || exit 8
+bash 3-connectors/java/test.sh || exit 8
+bash 3-connectors/nodejs/test.sh || exit 8
+bash 3-connectors/python/test.sh || exit 8
+bash 3-connectors/restful/test.sh || exit 8
+bash 3-connectors/rust/test.sh || exit 8 

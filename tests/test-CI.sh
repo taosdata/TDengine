@@ -121,6 +121,11 @@ function runPyCaseOneByOnefq() {
         $line > /dev/null 2>&1
       fi
       dohavecore $3 2
+    else
+    echo $line
+      if [[ $line =~ ^bash.* ]]; then
+        $line 
+      fi
     fi
    fi
   done 
@@ -208,16 +213,4 @@ else
   cd $tests_dir/system-test
   runPyCaseOneByOnefq fulltest-$1.sh $2 1 $3 
 fi
-totalPySuccess=`grep 'success' pytest-out.log | wc -l`
 
-if [ "$totalPySuccess" -gt "0" ]; then
-  echo -e "\n${GREEN} ### Total $totalPySuccess python case(s) succeed! ### ${NC}"
-fi
-
-totalPyFailed=`grep 'failed\|fault' pytest-out.log | wc -l`
-if [ "$totalPyFailed" -ne "0" ]; then
-  echo -e "\n${RED} ### Total $totalPyFailed python case(s) failed! ### ${NC}"
-#  exit $totalPyFailed
-fi
-
-exit $(($totalFailed + $totalPyFailed + $totalJDBCFailed + $totalUnitFailed + $totalExampleFailed))
