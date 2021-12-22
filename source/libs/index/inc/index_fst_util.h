@@ -69,29 +69,29 @@ extern const uint64_t TRANS_INDEX_THRESHOLD;
 // uint8_t commonIdx(uint8_t v, uint8_t max);
 
 uint8_t      packSize(uint64_t n);
-uint64_t     unpackUint64(uint8_t *ch, uint8_t sz);
+uint64_t     unpackUint64(uint8_t* ch, uint8_t sz);
 uint8_t      packDeltaSize(CompiledAddr nodeAddr, CompiledAddr transAddr);
-CompiledAddr unpackDelta(char *data, uint64_t len, uint64_t nodeAddr);
+CompiledAddr unpackDelta(char* data, uint64_t len, uint64_t nodeAddr);
 
 typedef struct FstString {
-  uint8_t *data;
+  uint8_t* data;
   uint32_t len;
   int32_t  ref;
 } FstString;
 
 typedef struct FstSlice {
-  FstString *str;
+  FstString* str;
   int32_t    start;
   int32_t    end;
 } FstSlice;
 
-FstSlice fstSliceCreate(uint8_t *data, uint64_t len);
-FstSlice fstSliceCopy(FstSlice *s, int32_t start, int32_t end);
-FstSlice fstSliceDeepCopy(FstSlice *s, int32_t start, int32_t end);
-bool     fstSliceIsEmpty(FstSlice *s);
-int      fstSliceCompare(FstSlice *s1, FstSlice *s2);
-void     fstSliceDestroy(FstSlice *s);
-uint8_t *fstSliceData(FstSlice *s, int32_t *sz);
+FstSlice fstSliceCreate(uint8_t* data, uint64_t len);
+FstSlice fstSliceCopy(FstSlice* s, int32_t start, int32_t end);
+FstSlice fstSliceDeepCopy(FstSlice* s, int32_t start, int32_t end);
+bool     fstSliceIsEmpty(FstSlice* s);
+int      fstSliceCompare(FstSlice* s1, FstSlice* s2);
+void     fstSliceDestroy(FstSlice* s);
+uint8_t* fstSliceData(FstSlice* s, int32_t* sz);
 
 #define FST_SLICE_LEN(s) (s->end - s->start + 1)
 
