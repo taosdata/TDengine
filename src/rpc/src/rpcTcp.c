@@ -458,16 +458,18 @@ static void taosReportBrokenLink(SFdObj *pFdObj) {
   if (pFdObj->closedByApp == 0) {
     shutdown(pFdObj->fd, SHUT_WR);
 
-    SRecvInfo recvInfo;
-    recvInfo.msg = NULL;
-    recvInfo.msgLen = 0;
-    recvInfo.ip = 0;
-    recvInfo.port = 0;
-    recvInfo.shandle = pThreadObj->shandle;
-    recvInfo.thandle = pFdObj->thandle;
-    recvInfo.chandle = NULL;
-    recvInfo.connType = RPC_CONN_TCP;
-    (*(pThreadObj->processData))(&recvInfo);
+    if (pThreadObj) {
+      SRecvInfo recvInfo;
+      recvInfo.msg = NULL;
+      recvInfo.msgLen = 0;
+      recvInfo.ip = 0;
+      recvInfo.port = 0;
+      recvInfo.shandle = pThreadObj->shandle;
+      recvInfo.thandle = pFdObj->thandle;
+      recvInfo.chandle = NULL;
+      recvInfo.connType = RPC_CONN_TCP;
+      (*(pThreadObj->processData))(&recvInfo);
+    }
   }
 
   taosFreeFdObj(pFdObj);
@@ -618,14 +620,23 @@ static SFdObj *taosMallocFdObj(SThreadObj *pThreadObj, SOCKET fd) {
 
   event.events = EPOLLIN | EPOLLRDHUP;
   event.data.ptr = pFdObj;
+
+  // if located below the epoll_ctl, client may close connection
+  // between epoll_ctl and pthread_mutex_lock, taosProcessTcpData
+  // (another process) will process close routine, pFdObj will be
+  // deleted from the bidirectional link and freed but added in
+  // bidirectional link here then, that's confusing and dangerous
+  pthread_mutex_lock(&(pThreadObj->mutex));
+
   if (epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
+    pthread_mutex_unlock(&(pThreadObj->mutex));
     tfree(pFdObj);
     terrno = TAOS_SYSTEM_ERROR(errno);
+    tError("%s TCP thread:%d, failed to add:%d into epoll", pThreadObj->label, pThreadObj->threadId, fd);
     return NULL;
   }
 
   // notify the data process, add into the FdObj list
-  pthread_mutex_lock(&(pThreadObj->mutex));
   pFdObj->next = pThreadObj->pHead;
   if (pThreadObj->pHead) (pThreadObj->pHead)->prev = pFdObj;
   pThreadObj->pHead = pFdObj;
@@ -648,8 +659,14 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
     return;
   }
 
+  if (epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_DEL, pFdObj->fd, NULL) < 0) {
+    pthread_mutex_unlock(&pThreadObj->mutex);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    tError("%s TCP thread:%d, failed to delete:%d from epoll", pThreadObj->label, pThreadObj->threadId, pFdObj->fd);
+    return;
+  }
+
   pFdObj->signature = NULL;
-  epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_DEL, pFdObj->fd, NULL);
   taosCloseSocket(pFdObj->fd);
 
   pThreadObj->numOfFds--;
@@ -659,12 +676,14 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
 
   if (pFdObj->prev) {
     (pFdObj->prev)->next = pFdObj->next;
+    pFdObj->prev = NULL;
   } else {
     pThreadObj->pHead = pFdObj->next;
   }
 
   if (pFdObj->next) {
     (pFdObj->next)->prev = pFdObj->prev;
+    pFdObj->next = NULL;
   }
 
   pthread_mutex_unlock(&pThreadObj->mutex);
