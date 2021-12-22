@@ -1073,7 +1073,13 @@ static int32_t binarySearchForBlock(SBlock* pBlock, int32_t numOfBlocks, TSKEY s
 
 // array :1 2 3 5 7 -2 (8 9) skip 4 and 6
 int32_t memMoveByArray(SBlock *blocks, SArray *pArray) {
+  // pArray is NULL or size is zero , no need block to move 
+  if(pArray == NULL)
+    return 0;
   size_t count = taosArrayGetSize(pArray);
+  if(count == 0)
+    return 0;
+
   int32_t *idxs = (int32_t*)TARRAY_GET_START(pArray);
   size_t i = 0;
   assert(count > 0);
@@ -1122,42 +1128,27 @@ int32_t memMoveByArray(SBlock *blocks, SArray *pArray) {
 
 // if block data in memory return false else true
 bool blockNoItemInMem(STsdbQueryHandle* q, SBlock* pBlock) {
-  TSKEY key;
   if(q->pMemRef == NULL) {
     return false;
   }
 
   // mem
   if(q->pMemRef->snapshot.mem) {
-    // first
-    key = q->pMemRef->snapshot.mem->keyFirst;
-    if(key >= pBlock->keyFirst && key <= pBlock->keyLast) {
+    SMemTable* mem = q->pMemRef->snapshot.mem;
+    if(timeIntersect(mem->keyFirst, mem->keyLast, pBlock->keyFirst, pBlock->keyLast))
       return false;
-    }
-    // last
-    key = q->pMemRef->snapshot.mem->keyLast;
-    if(key >= pBlock->keyFirst && key <= pBlock->keyLast) {
-      return false;
-    }
   }
-
   // imem
   if(q->pMemRef->snapshot.imem) {
-    // first
-    key = q->pMemRef->snapshot.imem->keyFirst;
-    if(key >= pBlock->keyFirst && key <= pBlock->keyLast) {
+    SMemTable* imem = q->pMemRef->snapshot.imem;
+    if(timeIntersect(imem->keyFirst, imem->keyLast, pBlock->keyFirst, pBlock->keyLast))
       return false;
-    }
-    // last
-    key = q->pMemRef->snapshot.imem->keyLast;
-    if(key >= pBlock->keyFirst && key <= pBlock->keyLast) {
-      return false;
-    }
   }
 
   return true;
 }
 
+#define MAYBE_IN_MEMORY_ROWS 4000  // approximately the capacity of one block
 // skip blocks . return value is skip blocks number, skip rows reduce from *pOffset
 static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int64_t skey, int64_t ekey,
                               int32_t sblock, int32_t eblock, SArray** ppArray) {
@@ -1179,7 +1170,7 @@ static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int6
         q->frows += pBlock->numOfRows;  // some rows time < s
       } else {
         // check can skip
-        if(q->srows + q->frows + pBlock->numOfRows <= q->offset) { // approximately calculate
+        if(q->srows + q->frows + pBlock->numOfRows + MAYBE_IN_MEMORY_ROWS < q->offset) { // approximately calculate
           if(blockNoItemInMem(q, pBlock)) {
             // can skip
             q->srows += pBlock->numOfRows;
@@ -1286,10 +1277,16 @@ static void shrinkBlocksByQuery(STsdbQueryHandle *pQueryHandle, STableCheckInfo 
 
   int32_t end = start;
   // locate e index of blocks -> end
-  while (end < (int32_t)compIndex->numOfBlocks) {
+  while (1) {
+    // check time
     if(pCompInfo->blocks[end].keyFirst <= e) {
       end += 1;
     } else {
+      end -= 1;
+      break;
+    }
+    // check numOfBlock
+    if(end == (int32_t)compIndex->numOfBlocks) {
       end -= 1;
       break;
     }
@@ -1303,7 +1300,6 @@ static void shrinkBlocksByQuery(STsdbQueryHandle *pQueryHandle, STableCheckInfo 
   }
 
   if(nSkip > 0) { // have offset and can skip
-    assert(pArray);
     pCheckInfo->numOfBlocks = memMoveByArray(pCompInfo->blocks, pArray);
   } else { // no offset
     pCheckInfo->numOfBlocks = end - start + 1;
