@@ -60,6 +60,7 @@ typedef struct TFileWriter {
   FstBuilder* fb;
   WriterCtx*  ctx;
   TFileHeader header;
+  uint32_t    offset;
 } TFileWriter;
 
 typedef struct TFileReader {
@@ -101,7 +102,7 @@ int          tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArr
 
 TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header);
 void         tfileWriterDestroy(TFileWriter* tw);
-int          tfileWriterPut(TFileWriter* tw, const char* key, int32_t nKey, const char* val, int32_t nVal);
+int          tfileWriterPut(TFileWriter* tw, void* data);
 int          tfileWriterFinish(TFileWriter* tw);
 
 //

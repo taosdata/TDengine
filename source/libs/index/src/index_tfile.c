@@ -36,6 +36,8 @@ static FORCE_INLINE int tfileWriteHeader(TFileWriter* writer) {
   int offset = p - buf;
   int nwrite = writer->ctx->write(writer->ctx, buf, offset);
   if (offset != nwrite) { return -1; }
+  writer->offset = offset;
+  return 0;
 }
 static FORCE_INLINE int tfileReadLoadHeader(TFileReader* reader) {
   // TODO simple tfile header later
@@ -238,8 +240,15 @@ TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header) {
   }
   tw->ctx = ctx;
   tw->header = *header;
-
+  tfileWriteHeader(tw);
   return tw;
+}
+
+int TFileWriterPut(TFileWriter* tw, void* data) {
+  int32_t sz = taosArrayGetSize((SArray*)data);
+
+  // sort by and write to
+  return 0;
 }
 void tfileWriterDestroy(TFileWriter* tw) {
   if (tw == NULL) { return; }
