@@ -66,6 +66,7 @@ typedef struct TFileWriter {
   uint32_t    offset;
 } TFileWriter;
 
+// multi reader and single write
 typedef struct TFileReader {
   T_REF_DECLARE()
   Fst*        fst;

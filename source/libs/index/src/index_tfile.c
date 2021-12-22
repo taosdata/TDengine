@@ -134,8 +134,15 @@ TFileReader* tfileCacheGet(TFileCache* tcache, TFileCacheKey* key) {
 void tfileCachePut(TFileCache* tcache, TFileCacheKey* key, TFileReader* reader) {
   char buf[128] = {0};
   tfileSerialCacheKey(key, buf);
-  tfileReadRef(reader);
+  // remove last version index reader
+  TFileReader** p = taosHashGet(tcache->tableCache, buf, strlen(buf));
+  if (*p != NULL) {
+    TFileReader* oldReader = *p;
+    taosHashRemove(tcache->tableCache, buf, strlen(buf));
+    tfileReadUnRef(oldReader);
+  }
 
+  tfileReadRef(reader);
   taosHashPut(tcache->tableCache, buf, strlen(buf), &reader, sizeof(void*));
   return;
 }
