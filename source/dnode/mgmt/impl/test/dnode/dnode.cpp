@@ -9,189 +9,62 @@
  *
  */
 
-#include "deploy.h"
+#include "base.h"
 
 class DndTestDnode : public ::testing::Test {
- public:
-  static SServer* CreateServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
-    SServer* pServer = createServer(path, fqdn, port, firstEp);
-    ASSERT(pServer);
-    return pServer;
-  }
-
-  static void SetUpTestSuite() {
-    initLog("/tmp/tdlog");
-
-    const char* fqdn = "localhost";
-    const char* firstEp = "localhost:9041";
-    pServer1 = CreateServer("/tmp/dnode_test_dnode1", fqdn, 9041, firstEp);
-    pServer2 = CreateServer("/tmp/dnode_test_dnode2", fqdn, 9042, firstEp);
-    pServer3 = CreateServer("/tmp/dnode_test_dnode3", fqdn, 9043, firstEp);
-    pServer4 = CreateServer("/tmp/dnode_test_dnode4", fqdn, 9044, firstEp);
-    pServer5 = CreateServer("/tmp/dnode_test_dnode5", fqdn, 9045, firstEp);
-    pClient = createClient("root", "taosdata", fqdn, 9041);
-    taosMsleep(300);
-  }
-
-  static void TearDownTestSuite() {
-    stopServer(pServer1);
-    stopServer(pServer2);
-    stopServer(pServer3);
-    stopServer(pServer4);
-    stopServer(pServer5);
-    dropClient(pClient);
-    pServer1 = NULL;
-    pServer2 = NULL;
-    pServer3 = NULL;
-    pServer4 = NULL;
-    pServer5 = NULL;
-    pClient = NULL;
-  }
-
-  static SServer* pServer1;
-  static SServer* pServer2;
-  static SServer* pServer3;
-  static SServer* pServer4;
-  static SServer* pServer5;
-  static SClient* pClient;
-
  public:
   void SetUp() override {}
   void TearDown() override {}
 
-  void SendTheCheckShowMetaMsg(int8_t showType, const char* showName, int32_t columns) {
-    SShowMsg* pShow = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
-    pShow->type = showType;
-    strcpy(pShow->db, "");
+ public:
+  static void SetUpTestSuite() {
+    test.Init("/tmp/dnode_test_dnode1", 9041);
+    const char* fqdn = "localhost";
+    const char* firstEp = "localhost:9041";
 
-    SRpcMsg showRpcMsg = {0};
-    showRpcMsg.pCont = pShow;
-    showRpcMsg.contLen = sizeof(SShowMsg);
-    showRpcMsg.msgType = TSDB_MSG_TYPE_SHOW;
-
-    sendMsg(pClient, &showRpcMsg);
-    ASSERT_NE(pClient->pRsp, nullptr);
-    ASSERT_EQ(pClient->pRsp->code, 0);
-    ASSERT_NE(pClient->pRsp->pCont, nullptr);
-
-    SShowRsp* pShowRsp = (SShowRsp*)pClient->pRsp->pCont;
-    ASSERT_NE(pShowRsp, nullptr);
-    pShowRsp->showId = htonl(pShowRsp->showId);
-    pMeta = &pShowRsp->tableMeta;
-    pMeta->numOfTags = htonl(pMeta->numOfTags);
-    pMeta->numOfColumns = htonl(pMeta->numOfColumns);
-    pMeta->sversion = htonl(pMeta->sversion);
-    pMeta->tversion = htonl(pMeta->tversion);
-    pMeta->tuid = htobe64(pMeta->tuid);
-    pMeta->suid = htobe64(pMeta->suid);
-
-    showId = pShowRsp->showId;
-
-    EXPECT_NE(pShowRsp->showId, 0);
-    EXPECT_STREQ(pMeta->tbFname, showName);
-    EXPECT_EQ(pMeta->numOfTags, 0);
-    EXPECT_EQ(pMeta->numOfColumns, columns);
-    EXPECT_EQ(pMeta->precision, 0);
-    EXPECT_EQ(pMeta->tableType, 0);
-    EXPECT_EQ(pMeta->update, 0);
-    EXPECT_EQ(pMeta->sversion, 0);
-    EXPECT_EQ(pMeta->tversion, 0);
-    EXPECT_EQ(pMeta->tuid, 0);
-    EXPECT_EQ(pMeta->suid, 0);
+    server2.Start("/tmp/dnode_test_dnode2", fqdn, 9042, firstEp);
+    server3.Start("/tmp/dnode_test_dnode3", fqdn, 9043, firstEp);
+    server4.Start("/tmp/dnode_test_dnode4", fqdn, 9044, firstEp);
+    server5.Start("/tmp/dnode_test_dnode5", fqdn, 9045, firstEp);
+    taosMsleep(300);
   }
 
-  void CheckSchema(int32_t index, int8_t type, int32_t bytes, const char* name) {
-    SSchema* pSchema = &pMeta->pSchema[index];
-    pSchema->bytes = htonl(pSchema->bytes);
-    EXPECT_EQ(pSchema->colId, 0);
-    EXPECT_EQ(pSchema->type, type);
-    EXPECT_EQ(pSchema->bytes, bytes);
-    EXPECT_STREQ(pSchema->name, name);
+  static void TearDownTestSuite() {
+    server2.Stop();
+    server3.Stop();
+    server4.Stop();
+    server5.Stop();
+    test.Cleanup();
   }
 
-  void SendThenCheckShowRetrieveMsg(int32_t rows) {
-    SRetrieveTableMsg* pRetrieve = (SRetrieveTableMsg*)rpcMallocCont(sizeof(SRetrieveTableMsg));
-    pRetrieve->showId = htonl(showId);
-    pRetrieve->free = 0;
-
-    SRpcMsg retrieveRpcMsg = {0};
-    retrieveRpcMsg.pCont = pRetrieve;
-    retrieveRpcMsg.contLen = sizeof(SRetrieveTableMsg);
-    retrieveRpcMsg.msgType = TSDB_MSG_TYPE_SHOW_RETRIEVE;
-
-    sendMsg(pClient, &retrieveRpcMsg);
-
-    ASSERT_NE(pClient->pRsp, nullptr);
-    ASSERT_EQ(pClient->pRsp->code, 0);
-    ASSERT_NE(pClient->pRsp->pCont, nullptr);
-
-    pRetrieveRsp = (SRetrieveTableRsp*)pClient->pRsp->pCont;
-    ASSERT_NE(pRetrieveRsp, nullptr);
-    pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
-    pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);
-    pRetrieveRsp->compLen = htonl(pRetrieveRsp->compLen);
-
-    EXPECT_EQ(pRetrieveRsp->numOfRows, rows);
-    EXPECT_EQ(pRetrieveRsp->useconds, 0);
-    // EXPECT_EQ(pRetrieveRsp->completed, completed);
-    EXPECT_EQ(pRetrieveRsp->precision, TSDB_TIME_PRECISION_MILLI);
-    EXPECT_EQ(pRetrieveRsp->compressed, 0);
-    EXPECT_EQ(pRetrieveRsp->compLen, 0);
-
-    pData = pRetrieveRsp->data;
-    pos = 0;
-  }
-
-  void CheckInt16(int16_t val) {
-    int16_t data = *((int16_t*)(pData + pos));
-    pos += sizeof(int16_t);
-    EXPECT_EQ(data, val);
-  }
-
-  void CheckInt64(int64_t val) {
-    int64_t data = *((int64_t*)(pData + pos));
-    pos += sizeof(int64_t);
-    EXPECT_EQ(data, val);
-  }
-
-  void CheckTimestamp() {
-    int64_t data = *((int64_t*)(pData + pos));
-    pos += sizeof(int64_t);
-    EXPECT_GT(data, 0);
-  }
-
-  void CheckBinary(const char* val, int32_t len) {
-    pos += sizeof(VarDataLenT);
-    char* data = (char*)(pData + pos);
-    pos += len;
-    EXPECT_STREQ(data, val);
-  }
-
-  int32_t            showId;
-  STableMetaMsg*     pMeta;
-  SRetrieveTableRsp* pRetrieveRsp;
-  char*              pData;
-  int32_t            pos;
+  static Testbase   test;
+  static TestServer server2;
+  static TestServer server3;
+  static TestServer server4;
+  static TestServer server5;
 };
 
-SServer* DndTestDnode::pServer1;
-SServer* DndTestDnode::pServer2;
-SServer* DndTestDnode::pServer3;
-SServer* DndTestDnode::pServer4;
-SServer* DndTestDnode::pServer5;
-SClient* DndTestDnode::pClient;
+Testbase   DndTestDnode::test;
+TestServer DndTestDnode::server2;
+TestServer DndTestDnode::server3;
+TestServer DndTestDnode::server4;
+TestServer DndTestDnode::server5;
 
 TEST_F(DndTestDnode, 01_ShowDnode) {
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
-  CheckSchema(0, TSDB_DATA_TYPE_SMALLINT, 2, "id");
-  CheckSchema(1, TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN + VARSTR_HEADER_SIZE, "endpoint");
-  CheckSchema(2, TSDB_DATA_TYPE_SMALLINT, 2, "vnodes");
-  CheckSchema(3, TSDB_DATA_TYPE_SMALLINT, 2, "max_vnodes");
-  CheckSchema(4, TSDB_DATA_TYPE_BINARY, 10 + VARSTR_HEADER_SIZE, "status");
-  CheckSchema(5, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
-  CheckSchema(6, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "offline_reason");
+  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+  CHECK_META("show dnodes", 7);
 
-  SendThenCheckShowRetrieveMsg(1);
+  CHECK_SCHEMA(0, TSDB_DATA_TYPE_SMALLINT, 2, "id");
+  CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN + VARSTR_HEADER_SIZE, "endpoint");
+  CHECK_SCHEMA(2, TSDB_DATA_TYPE_SMALLINT, 2, "vnodes");
+  CHECK_SCHEMA(3, TSDB_DATA_TYPE_SMALLINT, 2, "max_vnodes");
+  CHECK_SCHEMA(4, TSDB_DATA_TYPE_BINARY, 10 + VARSTR_HEADER_SIZE, "status");
+  CHECK_SCHEMA(5, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
+  CHECK_SCHEMA(6, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "offline_reason");
+
+  test.SendShowRetrieveMsg();
+  EXPECT_EQ(test.GetShowRows(), 1);
+
   CheckInt16(1);
   CheckBinary("localhost:9041", TSDB_EP_LEN);
   CheckInt16(0);
@@ -202,40 +75,36 @@ TEST_F(DndTestDnode, 01_ShowDnode) {
 }
 
 TEST_F(DndTestDnode, 02_ConfigDnode) {
-  SCfgDnodeMsg* pReq = (SCfgDnodeMsg*)rpcMallocCont(sizeof(SCfgDnodeMsg));
+  int32_t contLen = sizeof(SCfgDnodeMsg);
+
+  SCfgDnodeMsg* pReq = (SCfgDnodeMsg*)rpcMallocCont(contLen);
   pReq->dnodeId = htonl(1);
   strcpy(pReq->config, "ddebugflag 131");
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SCfgDnodeMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_CONFIG_DNODE;
-
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
+  SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CONFIG_DNODE, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, 0);
 }
 
 TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   {
-    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
+    int32_t contLen = sizeof(SCreateDnodeMsg);
+
+    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
     strcpy(pReq->ep, "localhost:9042");
 
-    SRpcMsg rpcMsg = {0};
-    rpcMsg.pCont = pReq;
-    rpcMsg.contLen = sizeof(SCreateDnodeMsg);
-    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DNODE;
-
-    sendMsg(pClient, &rpcMsg);
-    SRpcMsg* pMsg = pClient->pRsp;
+    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
 
   taosMsleep(1300);
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
-  SendThenCheckShowRetrieveMsg(2);
+
+  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+  CHECK_META("show dnodes", 7);
+  test.SendShowRetrieveMsg();
+  EXPECT_EQ(test.GetShowRows(), 2);
+
   CheckInt16(1);
   CheckInt16(2);
   CheckBinary("localhost:9041", TSDB_EP_LEN);
@@ -252,22 +121,21 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckBinary("", 24);
 
   {
-    SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(sizeof(SDropDnodeMsg));
+    int32_t contLen = sizeof(SDropDnodeMsg);
+
+    SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg rpcMsg = {0};
-    rpcMsg.pCont = pReq;
-    rpcMsg.contLen = sizeof(SDropDnodeMsg);
-    rpcMsg.msgType = TSDB_MSG_TYPE_DROP_DNODE;
-
-    sendMsg(pClient, &rpcMsg);
-    SRpcMsg* pMsg = pClient->pRsp;
+    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_DROP_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
-  SendThenCheckShowRetrieveMsg(1);
+  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+  CHECK_META("show dnodes", 7);
+  test.SendShowRetrieveMsg();
+  EXPECT_EQ(test.GetShowRows(), 1);
+
   CheckInt16(1);
   CheckBinary("localhost:9041", TSDB_EP_LEN);
   CheckInt16(0);
@@ -277,53 +145,44 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckBinary("", 24);
 
   {
-    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
+    int32_t contLen = sizeof(SCreateDnodeMsg);
+
+    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
     strcpy(pReq->ep, "localhost:9043");
 
-    SRpcMsg rpcMsg = {0};
-    rpcMsg.pCont = pReq;
-    rpcMsg.contLen = sizeof(SCreateDnodeMsg);
-    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DNODE;
-
-    sendMsg(pClient, &rpcMsg);
-    SRpcMsg* pMsg = pClient->pRsp;
+    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
 
   {
-    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
+    int32_t contLen = sizeof(SCreateDnodeMsg);
+
+    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
     strcpy(pReq->ep, "localhost:9044");
 
-    SRpcMsg rpcMsg = {0};
-    rpcMsg.pCont = pReq;
-    rpcMsg.contLen = sizeof(SCreateDnodeMsg);
-    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DNODE;
-
-    sendMsg(pClient, &rpcMsg);
-    SRpcMsg* pMsg = pClient->pRsp;
+    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
 
   {
-    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(sizeof(SCreateDnodeMsg));
+    int32_t contLen = sizeof(SCreateDnodeMsg);
+
+    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
     strcpy(pReq->ep, "localhost:9045");
 
-    SRpcMsg rpcMsg = {0};
-    rpcMsg.pCont = pReq;
-    rpcMsg.contLen = sizeof(SCreateDnodeMsg);
-    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DNODE;
-
-    sendMsg(pClient, &rpcMsg);
-    SRpcMsg* pMsg = pClient->pRsp;
+    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
 
   taosMsleep(1300);
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
-  SendThenCheckShowRetrieveMsg(4);
+  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+  CHECK_META("show dnodes", 7);
+  test.SendShowRetrieveMsg();
+  EXPECT_EQ(test.GetShowRows(), 4);
+
   CheckInt16(1);
   CheckInt16(3);
   CheckInt16(4);
@@ -355,31 +214,18 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
 
   // restart
   uInfo("stop all server");
-  stopServer(pServer1);
-  stopServer(pServer2);
-  stopServer(pServer3);
-  stopServer(pServer4);
-  stopServer(pServer5);
-  pServer1 = NULL;
-  pServer2 = NULL;
-  pServer3 = NULL;
-  pServer4 = NULL;
-  pServer5 = NULL;
-
-  uInfo("start all server");
-
-  const char* fqdn = "localhost";
-  const char* firstEp = "localhost:9041";
-  pServer1 = startServer("/tmp/dnode_test_dnode1", fqdn, 9041, firstEp);
-  pServer3 = startServer("/tmp/dnode_test_dnode3", fqdn, 9043, firstEp);
-  pServer4 = startServer("/tmp/dnode_test_dnode4", fqdn, 9044, firstEp);
-  pServer5 = startServer("/tmp/dnode_test_dnode5", fqdn, 9045, firstEp);
-
-  uInfo("all server is running");
+  test.Restart();
+  server2.Restart();
+  server3.Restart();
+  server4.Restart();
+  server5.Restart();
 
   taosMsleep(1300);
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "show dnodes", 7);
-  SendThenCheckShowRetrieveMsg(4);
+  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+  CHECK_META("show dnodes", 7);
+  test.SendShowRetrieveMsg();
+  EXPECT_EQ(test.GetShowRows(), 4);
+
   CheckInt16(1);
   CheckInt16(3);
   CheckInt16(4);
