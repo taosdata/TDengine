@@ -49,14 +49,9 @@ public class Utils {
             try {
                 return parseMicroSecTimestamp(timeStampStr);
             } catch (DateTimeParseException ee) {
-                try {
-                    return parseNanoSecTimestamp(timeStampStr);
-                } catch (DateTimeParseException eee) {
-                    eee.printStackTrace();
-                }
+                return parseNanoSecTimestamp(timeStampStr);
             }
         }
-        return null;
     }
 
     private static LocalDateTime parseMilliSecTimestamp(String timeStampStr) throws DateTimeParseException {
@@ -199,14 +194,14 @@ public class Utils {
         return timestamp.toLocalDateTime().format(milliSecFormatter);
     }
 
-    public static TimestampPrecision guessTimestampPrecision(String value) {
+    public static int guessTimestampPrecision(String value) {
         if (isMilliSecFormat(value))
             return TimestampPrecision.MS;
         if (isMicroSecFormat(value))
             return TimestampPrecision.US;
         if (isNanoSecFormat(value))
             return TimestampPrecision.NS;
-        return TimestampPrecision.UNKNOWN;
+        return TimestampPrecision.MS;
     }
 
     private static boolean isMilliSecFormat(String timestampStr) {
