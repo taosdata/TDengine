@@ -50,7 +50,7 @@ class TDTestCase:
 
         '''
         case1 <author>:wenzhouwww [TD-12145] : 
-            this test case is an test case for support  nest query to  select key timestamp col  in outer query ;
+            this test case is an test case for support  nest query to  select key timestamp col  in outer query .
         ''' 
         return 
    
