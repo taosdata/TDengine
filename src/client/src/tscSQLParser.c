@@ -6319,7 +6319,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   const char* msg0 = "only one column allowed in orderby";
   const char* msg1 = "invalid column name in orderby clause";
   const char* msg2 = "too many order by columns";
-  const char* msg3 = "only primary timestamp, first tag/tbname in groupby clause allowed as order column";
+  const char* msg3 = "only primary timestamp, tag/tbname in groupby clause allowed as order column";
   const char* msg4 = "only tag in groupby clause allowed in order clause";
   const char* msg5 = "only primary timestamp/column in top/bottom function allowed as order column";
   const char* msg6 = "only primary timestamp allowed as the second order column";
@@ -6341,8 +6341,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   SArray* pSortOrder = pSqlNode->pSortOrder;
 
   /*
-   * for table query, there is only one or none order option is allowed, which is the
-   * ts or values(top/bottom) order is supported.
+   * for table query, there is only one or none order option is allowed
    *
    * for super table query, the order option must be less than 3 and the second must be ts.
    *
@@ -6417,7 +6416,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
         return invalidOperationMsg(pMsgBuf, msg4);
       }
       SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, 0);
-      if (relTagIndex == pColIndex->colIndex) {
+      if (relTagIndex == pColIndex->colIndex && pColIndex->flag == TSDB_COL_TAG) {
         if (tscGetColumnSchemaById(pTableMetaInfo->pTableMeta, pColIndex->colId)->type == TSDB_DATA_TYPE_JSON){
           if(!pItem->isJsonExp){
             return invalidOperationMsg(pMsgBuf, msg14);
