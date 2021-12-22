@@ -60,6 +60,7 @@ In TDengine, the following 10 data types can be used in data model of an ordinar
 
 1. TDengine is case-insensitive to English characters in SQL statements and automatically converts them to lowercase for execution. Therefore, the user's case-sensitive strings and passwords need to be enclosed in single quotation marks.
 2. Avoid using BINARY type to save non-ASCII type strings, which will easily lead to errors such as garbled data. The correct way is to use NCHAR type to save Chinese characters.
+3. The numerical values in SQL statements are treated as floating or integer numbers, depends on if the value contains decimal point or is in scientific notation format. E.g., 9999999999999999999 is overflow as the number is greater than the largest integer number. However, 9999999999999999999.0 is treated as a valid floating number. 
 
 ## <a class="anchor" id="management"></a>Database Management
 
