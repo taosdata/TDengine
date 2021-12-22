@@ -16,86 +16,76 @@
 #ifndef _TD_TQ_H_
 #define _TD_TQ_H_
 
+#include "common.h"
 #include "mallocator.h"
 #include "os.h"
+#include "taoserror.h"
+#include "taosmsg.h"
+#include "tlist.h"
 #include "tutil.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct TmqMsgHead {
+typedef struct STqMsgHead {
   int32_t protoVer;
   int32_t msgType;
   int64_t cgId;
   int64_t clientId;
-} TmqMsgHead;
+} STqMsgHead;
 
-typedef struct TmqOneAck {
+typedef struct STqOneAck {
   int64_t topicId;
   int64_t consumeOffset;
-} TmqOneAck;
+} STqOneAck;
 
-typedef struct TmqAcks {
+typedef struct STqAcks {
   int32_t ackNum;
   // should be sorted
-  TmqOneAck acks[];
-} TmqAcks;
+  STqOneAck acks[];
+} STqAcks;
 
-// TODO: put msgs into common
-typedef struct TmqConnectReq {
-  TmqMsgHead head;
-  TmqAcks    acks;
-} TmqConnectReq;
-
-typedef struct TmqConnectRsp {
-  TmqMsgHead head;
-  int8_t     status;
-} TmqConnectRsp;
-
-typedef struct TmqDisconnectReq {
-  TmqMsgHead head;
-} TmqDiscconectReq;
-
-typedef struct TmqDisconnectRsp {
-  TmqMsgHead head;
-  int8_t     status;
-} TmqDisconnectRsp;
+typedef struct STqSetCurReq {
+  STqMsgHead head;
+  int64_t    topicId;
+  int64_t    offset;
+} STqSetCurReq;
 
 typedef struct STqConsumeReq {
-  TmqMsgHead head;
-  TmqAcks    acks;
+  STqMsgHead head;
+  STqAcks    acks;
 } STqConsumeReq;
 
-typedef struct TmqMsgContent {
+typedef struct STqMsgContent {
   int64_t topicId;
   int64_t msgLen;
   char    msg[];
-} TmqMsgContent;
+} STqMsgContent;
 
 typedef struct STqConsumeRsp {
-  TmqMsgHead    head;
+  STqMsgHead    head;
   int64_t       bodySize;
-  TmqMsgContent msgs[];
+  STqMsgContent msgs[];
 } STqConsumeRsp;
 
-typedef struct TmqSubscribeReq {
-  TmqMsgHead head;
+typedef struct STqSubscribeReq {
+  STqMsgHead head;
   int32_t    topicNum;
   int64_t    topic[];
-} TmqSubscribeReq;
+} STqSubscribeReq;
 
-typedef struct tmqSubscribeRsp {
-  TmqMsgHead head;
+typedef struct STqSubscribeRsp {
+  STqMsgHead head;
   int64_t    vgId;
   char       ep[TSDB_EP_LEN];  // TSDB_EP_LEN
-} TmqSubscribeRsp;
+} STqSubscribeRsp;
 
-typedef struct TmqHeartbeatReq {
-} TmqHeartbeatReq;
+typedef struct STqHeartbeatReq {
+} STqHeartbeatReq;
 
-typedef struct TmqHeartbeatRsp {
-} TmqHeartbeatRsp;
+typedef struct STqHeartbeatRsp {
+} STqHeartbeatRsp;
 
 typedef struct STqTopicVhandle {
   int64_t topicId;
@@ -108,48 +98,54 @@ typedef struct STqTopicVhandle {
 
 #define TQ_BUFFER_SIZE 8
 
+typedef struct STqExec {
+  void* runtimeEnv;
+  SSDataBlock* (*exec)(void* runtimeEnv);
+  void* (*assign)(void* runtimeEnv, SSubmitBlk* inputData);
+  void (*clear)(void* runtimeEnv);
+  char* (*serialize)(struct STqExec*);
+  struct STqExec* (*deserialize)(char*);
+} STqExec;
+
 typedef struct STqBufferItem {
   int64_t offset;
   // executors are identical but not concurrent
   // so there must be a copy in each item
-  void*   executor;
-  int64_t size;
-  void*   content;
-} STqBufferItem;
+  STqExec* executor;
+  int32_t  status;
+  int64_t  size;
+  void*    content;
+} STqMsgItem;
 
-typedef struct STqBufferHandle {
+typedef struct STqTopic {
   // char* topic; //c style, end with '\0'
   // int64_t cgId;
   // void* ahandle;
-  int64_t       nextConsumeOffset;
-  int64_t       floatingCursor;
-  int64_t       topicId;
-  int32_t       head;
-  int32_t       tail;
-  STqBufferItem buffer[TQ_BUFFER_SIZE];
-} STqBufferHandle;
+  int64_t    nextConsumeOffset;
+  int64_t    floatingCursor;
+  int64_t    topicId;
+  int32_t    head;
+  int32_t    tail;
+  STqMsgItem buffer[TQ_BUFFER_SIZE];
+} STqTopic;
 
 typedef struct STqListHandle {
-  STqBufferHandle       bufHandle;
+  STqTopic              topic;
   struct STqListHandle* next;
-} STqListHandle;
+} STqList;
 
-typedef struct STqGroupHandle {
-  int64_t        cId;
-  int64_t        cgId;
-  void*          ahandle;
-  int32_t        topicNum;
-  STqListHandle* head;
-} STqGroupHandle;
-
-typedef struct STqQueryExec {
-  void*          src;
-  STqBufferItem* dest;
-  void*          executor;
-} STqQueryExec;
+typedef struct STqGroup {
+  int64_t  clientId;
+  int64_t  cgId;
+  void*    ahandle;
+  int32_t  topicNum;
+  STqList* head;
+  SList*   topicList;  // SList<STqTopic>
+  void*    returnMsg;  // SVReadMsg
+} STqGroup;
 
 typedef struct STqQueryMsg {
-  STqQueryExec*       exec;
+  STqMsgItem*         item;
   struct STqQueryMsg* next;
 } STqQueryMsg;
 
@@ -209,15 +205,15 @@ typedef void (*FTqDelete)(void*);
 #define TQ_DUP_INTXN_REWRITE 0
 #define TQ_DUP_INTXN_REJECT 2
 
-static inline bool TqUpdateAppend(int32_t tqConfigFlag) { return tqConfigFlag & TQ_UPDATE_APPEND; }
+static inline bool tqUpdateAppend(int32_t tqConfigFlag) { return tqConfigFlag & TQ_UPDATE_APPEND; }
 
-static inline bool TqDupIntxnReject(int32_t tqConfigFlag) { return tqConfigFlag & TQ_DUP_INTXN_REJECT; }
+static inline bool tqDupIntxnReject(int32_t tqConfigFlag) { return tqConfigFlag & TQ_DUP_INTXN_REJECT; }
 
 static const int8_t TQ_CONST_DELETE = TQ_ACTION_CONST;
 
 #define TQ_DELETE_TOKEN (void*)&TQ_CONST_DELETE
 
-typedef struct TqMetaHandle {
+typedef struct STqMetaHandle {
   int64_t key;
   int64_t offset;
   int64_t serializedSize;
@@ -225,23 +221,25 @@ typedef struct TqMetaHandle {
   void*   valueInTxn;
 } STqMetaHandle;
 
-typedef struct TqMetaList {
-  STqMetaHandle      handle;
-  struct TqMetaList* next;
-  // struct TqMetaList* inTxnPrev;
-  // struct TqMetaList* inTxnNext;
-  struct TqMetaList* unpersistPrev;
-  struct TqMetaList* unpersistNext;
+typedef struct STqMetaList {
+  STqMetaHandle       handle;
+  struct STqMetaList* next;
+  // struct STqMetaList* inTxnPrev;
+  // struct STqMetaList* inTxnNext;
+  struct STqMetaList* unpersistPrev;
+  struct STqMetaList* unpersistNext;
 } STqMetaList;
 
-typedef struct TqMetaStore {
+typedef struct STqMetaStore {
   STqMetaList* bucket[TQ_BUCKET_SIZE];
   // a table head
   STqMetaList* unpersistHead;
+
   // TODO:temporaral use, to be replaced by unified tfile
   int fileFd;
   // TODO:temporaral use, to be replaced by unified tfile
-  int            idxFd;
+  int idxFd;
+
   char*          dirPath;
   int32_t        tqConfigFlag;
   FTqSerialize   pSerializer;
@@ -250,8 +248,8 @@ typedef struct TqMetaStore {
 } STqMetaStore;
 
 typedef struct STQ {
-  // the collection of group handle
-  // the handle of kvstore
+  // the collection of groups
+  // the handle of meta kvstore
   char*         path;
   STqCfg*       tqConfig;
   STqLogReader* tqLogReader;
@@ -266,23 +264,25 @@ void tqClose(STQ*);
 // void* will be replace by a msg type
 int tqPushMsg(STQ*, void* msg, int64_t version);
 int tqCommit(STQ*);
-int tqSetCursor(STQ*, void* msg);
-
 int tqConsume(STQ*, STqConsumeReq*);
 
-STqGroupHandle* tqGetGroupHandle(STQ*, int64_t cId);
+int tqSetCursor(STQ*, STqSetCurReq* pMsg);
+int tqBufferSetOffset(STqTopic*, int64_t offset);
 
-STqGroupHandle* tqOpenTCGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
-int             tqCloseTCGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
-int             tqMoveOffsetToNext(STqGroupHandle*);
-int             tqResetOffset(STQ*, int64_t topicId, int64_t cgId, int64_t offset);
-int             tqRegisterContext(STqGroupHandle*, void* ahandle);
-int             tqLaunchQuery(STqGroupHandle*);
-int             tqSendLaunchQuery(STqGroupHandle*);
+STqTopic* tqFindTopic(STqGroup*, int64_t topicId);
 
-int tqSerializeGroupHandle(const STqGroupHandle* gHandle, STqSerializedHead** ppHead);
+STqGroup* tqGetGroup(STQ*, int64_t clientId);
 
-const void* tqDeserializeGroupHandle(const STqSerializedHead* pHead, STqGroupHandle** gHandle);
+STqGroup* tqOpenGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
+int       tqCloseGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
+int       tqRegisterContext(STqGroup*, void* ahandle);
+int       tqSendLaunchQuery(STqMsgItem*, int64_t offset);
+
+int tqSerializeGroup(const STqGroup*, STqSerializedHead**);
+
+const void* tqDeserializeGroup(const STqSerializedHead*, STqGroup**);
+
+static int tqQueryExecuting(int32_t status) { return status; }
 
 #ifdef __cplusplus
 }

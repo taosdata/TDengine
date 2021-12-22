@@ -22,20 +22,25 @@ extern "C" {
 
 #include "tfile.h"
 
-
-#define DefaultMem  1024*1024
+#define DefaultMem 1024 * 1024
 
 static char tmpFile[] = "./index";
-typedef enum WriterType {TMemory, TFile} WriterType;   
+typedef enum WriterType { TMemory, TFile } WriterType;
 
 typedef struct WriterCtx {
   int (*write)(struct WriterCtx *ctx, uint8_t *buf, int len);
   int (*read)(struct WriterCtx *ctx, uint8_t *buf, int len);
   int (*flush)(struct WriterCtx *ctx);
-  WriterType type; 
+  WriterType type;
   union {
-    int fd;
-    void *mem;
+    struct {
+      int  fd;
+      bool readOnly;
+    } file;
+    struct {
+      int32_t capa;
+      char *  buf;
+    } mem;
   };
   int32_t offset;
   int32_t limit;
@@ -45,34 +50,30 @@ static int writeCtxDoWrite(WriterCtx *ctx, uint8_t *buf, int len);
 static int writeCtxDoRead(WriterCtx *ctx, uint8_t *buf, int len);
 static int writeCtxDoFlush(WriterCtx *ctx);
 
-WriterCtx* writerCtxCreate(WriterType type, bool readOnly);
-void writerCtxDestroy(WriterCtx *w);
+WriterCtx *writerCtxCreate(WriterType type, const char *path, bool readOnly, int32_t capacity);
+void       writerCtxDestroy(WriterCtx *w);
 
 typedef uint32_t CheckSummer;
 
-
 typedef struct FstCountingWriter {
-  void*    wrt;  // wrap any writer that counts and checksum bytes written 
-  uint64_t count; 
-  CheckSummer summer;  
+  void *      wrt;  // wrap any writer that counts and checksum bytes written
+  uint64_t    count;
+  CheckSummer summer;
 } FstCountingWriter;
 
-int fstCountingWriterWrite(FstCountingWriter *write, uint8_t *buf, uint32_t len); 
+int fstCountingWriterWrite(FstCountingWriter *write, uint8_t *buf, uint32_t len);
 
 int fstCountingWriterRead(FstCountingWriter *write, uint8_t *buf, uint32_t len);
 
 int fstCountingWriterFlush(FstCountingWriter *write);
 
-
 uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter *write);
 
-FstCountingWriter *fstCountingWriterCreate(void *wtr, bool readOnly);
-void fstCountingWriterDestroy(FstCountingWriter *w); 
+FstCountingWriter *fstCountingWriterCreate(void *wtr);
+void               fstCountingWriterDestroy(FstCountingWriter *w);
 
-
-void fstCountingWriterPackUintIn(FstCountingWriter *writer, uint64_t n,  uint8_t nBytes);
+void    fstCountingWriterPackUintIn(FstCountingWriter *writer, uint64_t n, uint8_t nBytes);
 uint8_t fstCountingWriterPackUint(FstCountingWriter *writer, uint64_t n);
-
 
 #define FST_WRITER_COUNT(writer) (writer->count)
 #define FST_WRITER_INTER_WRITER(writer) (writer->wtr)
@@ -83,5 +84,3 @@ uint8_t fstCountingWriterPackUint(FstCountingWriter *writer, uint64_t n);
 #endif
 
 #endif
-
-

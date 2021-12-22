@@ -230,6 +230,10 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_INVALID_FUNC_CODE         TAOS_DEF_ERROR_CODE(0, 0x03C5)
 #define TSDB_CODE_MND_INVALID_FUNC_BUFSIZE      TAOS_DEF_ERROR_CODE(0, 0x03C6)
 
+// mnode-trans
+#define TSDB_CODE_MND_TRANS_ALREADY_EXIST       TAOS_DEF_ERROR_CODE(0, 0x03D0)
+#define TSDB_CODE_MND_TRANS_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x03D1)
+
 // dnode
 #define TSDB_CODE_DND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0400)
 #define TSDB_CODE_DND_EXITING                   TAOS_DEF_ERROR_CODE(0, 0x0401)
@@ -338,6 +342,20 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_SYN_INVALID_CHECKSUM          TAOS_DEF_ERROR_CODE(0, 0x0908)  //"Invalid msg checksum")
 #define TSDB_CODE_SYN_INVALID_MSGLEN            TAOS_DEF_ERROR_CODE(0, 0x0909)  //"Invalid msg length")
 #define TSDB_CODE_SYN_INVALID_MSGTYPE           TAOS_DEF_ERROR_CODE(0, 0x090A)  //"Invalid msg type")
+
+// tq
+#define TSDB_CODE_TQ_INVALID_CONFIG             TAOS_DEF_ERROR_CODE(0, 0x0A00)  //"Invalid configuration")
+#define TSDB_CODE_TQ_INIT_FAILED                TAOS_DEF_ERROR_CODE(0, 0x0A01)  //"Tq init failed")
+#define TSDB_CODE_TQ_NO_DISKSPACE               TAOS_DEF_ERROR_CODE(0, 0x0A02)  //"No diskspace for tq")
+#define TSDB_CODE_TQ_NO_DISK_PERMISSIONS        TAOS_DEF_ERROR_CODE(0, 0x0A03)  //"No permission for disk files")
+#define TSDB_CODE_TQ_FILE_CORRUPTED             TAOS_DEF_ERROR_CODE(0, 0x0A04)  //"Data file(s) corrupted")
+#define TSDB_CODE_TQ_OUT_OF_MEMORY              TAOS_DEF_ERROR_CODE(0, 0x0A05)  //"Out of memory")
+#define TSDB_CODE_TQ_FILE_ALREADY_EXISTS        TAOS_DEF_ERROR_CODE(0, 0x0A06)  //"File already exists")
+#define TSDB_CODE_TQ_FAILED_TO_CREATE_DIR       TAOS_DEF_ERROR_CODE(0, 0x0A07)  //"Failed to create dir")
+#define TSDB_CODE_TQ_META_NO_SUCH_KEY           TAOS_DEF_ERROR_CODE(0, 0x0A08)  //"Target key not found")
+#define TSDB_CODE_TQ_META_KEY_NOT_IN_TXN        TAOS_DEF_ERROR_CODE(0, 0x0A09)  //"Target key not in transaction")
+#define TSDB_CODE_TQ_META_KEY_DUP_IN_TXN        TAOS_DEF_ERROR_CODE(0, 0x0A0A)  //"Target key duplicated in transaction")
+#define TSDB_CODE_TQ_GROUP_NOT_SET              TAOS_DEF_ERROR_CODE(0, 0x0A0B)  //"Group of corresponding client is not set by mnode")
 
 // wal
 #define TSDB_CODE_WAL_APP_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x1000)  //"Unexpected generic error in wal")

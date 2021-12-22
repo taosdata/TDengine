@@ -20,24 +20,24 @@
 extern "C" {
 #endif
 
-#include "index_fst_util.h"
 #include "index_fst_counting_writer.h"
+#include "index_fst_util.h"
 
-#define FST_BUILDER_NODE_IS_FINAL(bn) (bn->isFinal) 
-#define FST_BUILDER_NODE_TRANS_ISEMPTY(bn) (taosArrayGetSize(bn->trans) == 0) 
+#define FST_BUILDER_NODE_IS_FINAL(bn) (bn->isFinal)
+#define FST_BUILDER_NODE_TRANS_ISEMPTY(bn) (taosArrayGetSize(bn->trans) == 0)
 #define FST_BUILDER_NODE_FINALOUTPUT_ISZERO(bn) (bn->finalOutput == 0)
 
 typedef struct FstTransition {
-  uint8_t      inp;  //The byte input associated with this transition.
-  Output       out;  //The output associated with this transition 
-  CompiledAddr addr; //The address of the node that this transition points to
+  uint8_t      inp;   // The byte input associated with this transition.
+  Output       out;   // The output associated with this transition
+  CompiledAddr addr;  // The address of the node that this transition points to
 } FstTransition;
 
 typedef struct FstBuilderNode {
-  bool isFinal; 
-  Output finalOutput;  
+  bool    isFinal;
+  Output  finalOutput;
   SArray *trans;  // <FstTransition>
-} FstBuilderNode; 
+} FstBuilderNode;
 
 FstBuilderNode *fstBuilderNodeDefault();
 
@@ -45,8 +45,9 @@ FstBuilderNode *fstBuilderNodeClone(FstBuilderNode *src);
 
 void fstBuilderNodeCloneFrom(FstBuilderNode *dst, FstBuilderNode *src);
 
-//bool fstBuilderNodeCompileTo(FstBuilderNode *b, FstCountingWriter *wrt, CompiledAddr lastAddr, CompiledAddr startAddr); 
-bool fstBuilderNodeEqual(FstBuilderNode *n1, FstBuilderNode *n2); 
+// bool fstBuilderNodeCompileTo(FstBuilderNode *b, FstCountingWriter *wrt,
+// CompiledAddr lastAddr, CompiledAddr startAddr);
+bool fstBuilderNodeEqual(FstBuilderNode *n1, FstBuilderNode *n2);
 
 void fstBuilderNodeDestroy(FstBuilderNode *node);
 

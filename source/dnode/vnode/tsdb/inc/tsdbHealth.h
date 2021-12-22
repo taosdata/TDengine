@@ -12,3 +12,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#ifndef _TD_TSDB_HEALTH_H_
+#define _TD_TSDB_HEALTH_H_
+
+#if 0
+
+bool tsdbUrgeQueryFree(STsdbRepo* pRepo);
+int32_t tsdbInsertNewBlock(STsdbRepo* pRepo);
+
+bool tsdbIdleMemEnough();
+bool tsdbAllowNewBlock(STsdbRepo* pRepo);
+
+#endif
+
+#endif /* _TD_TSDB_BUFFER_H_ */

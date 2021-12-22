@@ -178,8 +178,8 @@ static void doSetDbOptions(SCreateDbMsg* pMsg, const SCreateDbInfo* pCreateDb) {
   pMsg->totalBlocks  = htonl(pCreateDb->numOfBlocks);
   pMsg->daysPerFile  = htonl(pCreateDb->daysPerFile);
   pMsg->commitTime   = htonl((int32_t)pCreateDb->commitTime);
-  pMsg->minRowsPerFileBlock = htonl(pCreateDb->minRowsPerBlock);
-  pMsg->maxRowsPerFileBlock = htonl(pCreateDb->maxRowsPerBlock);
+  pMsg->minRows = htonl(pCreateDb->minRowsPerBlock);
+  pMsg->maxRows = htonl(pCreateDb->maxRowsPerBlock);
   pMsg->fsyncPeriod  = htonl(pCreateDb->fsyncPeriod);
   pMsg->compression  = pCreateDb->compressionLevel;
   pMsg->walLevel     = (char)pCreateDb->walLevel;

@@ -17,30 +17,97 @@
 
 #include "index.h"
 #include "indexInt.h"
+#include "index_fst.h"
+#include "index_fst_counting_writer.h"
+#include "index_tfile.h"
 #include "tlockfree.h"
-#include "tskiplist.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// tfile header
+// |<---suid--->|<---version--->|<--colLen-->|<-colName->|<---type-->|
+// |<-uint64_t->|<---int32_t--->|<--int32_t->|<-colLen-->|<-uint8_t->|
+
+typedef struct TFileReadHeader {
+  uint64_t suid;
+  int32_t  version;
+  char     colName[128];  //
+  uint8_t  colType;
+} TFileReadHeader;
+
+#define TFILE_HEADER_SIZE (sizeof(TFILE_HEADER_SIZE) + sizeof(uint32_t));
+#define TFILE_HADER_PRE_SIZE (sizeof(uint64_t) + sizeof(int32_t) + sizeof(int32_t))
+
+typedef struct TFileCacheKey {
+  uint64_t    suid;
+  uint8_t     colType;
+  int32_t     version;
+  const char *colName;
+  int32_t     nColName;
+} TFileCacheKey;
+
+// table cache
+// refactor to LRU cache later
+typedef struct TFileCache {
+  SHashObj *tableCache;
+  int16_t   capacity;
+  // add more param
+} TFileCache;
+
+typedef struct TFileWriter {
+  FstBuilder *fb;
+  WriterCtx * ctx;
+} TFileWriter;
+
+typedef struct TFileReader {
+  T_REF_DECLARE()
+  Fst *           fst;
+  WriterCtx *     ctx;
+  TFileReadHeader header;
+} TFileReader;
+
 typedef struct IndexTFile {
-  T_REF_DECLARE() 
+  char *       path;
+  TFileCache * cache;
+  TFileWriter *tw;
 } IndexTFile;
 
+typedef struct TFileWriterOpt {
+  uint64_t suid;
+  int8_t   colType;
+  char *   colName;
+  int32_t  nColName;
+  int32_t  version;
+} TFileWriterOpt;
 
+typedef struct TFileReaderOpt {
+  uint64_t suid;
+  char *   colName;
+  int32_t  nColName;
+} TFileReaderOpt;
 
-IndexTFile *indexTFileCreate();
+// tfile cache, manage tindex reader
+TFileCache * tfileCacheCreate(const char *path);
+void         tfileCacheDestroy(TFileCache *tcache);
+TFileReader *tfileCacheGet(TFileCache *tcache, TFileCacheKey *key);
+void         tfileCachePut(TFileCache *tcache, TFileCacheKey *key, TFileReader *reader);
 
+TFileReader *tfileReaderCreate();
+void         TFileReaderDestroy(TFileReader *reader);
 
-int indexTFileSearch(void *tfile, SIndexTermQuery *query, SArray *result);
+TFileWriter *tfileWriterCreate(const char *suid, const char *colName);
+void         tfileWriterDestroy(TFileWriter *tw);
+
+//
+IndexTFile *indexTFileCreate(const char *path);
+int         indexTFilePut(void *tfile, SIndexTerm *term, uint64_t uid);
+int         indexTFileSearch(void *tfile, SIndexTermQuery *query, SArray *result);
 
 #ifdef __cplusplus
 }
 
-
 #endif
-
-
 
 #endif

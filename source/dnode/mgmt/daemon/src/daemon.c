@@ -31,7 +31,7 @@ static struct {
 } global = {0};
 
 void dmnSigintHandle(int signum, void *info, void *ctx) {
-  uError("singal:%d is received", signum);
+  uInfo("singal:%d is received", signum);
   global.stop = true;
 }
 
