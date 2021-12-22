@@ -614,7 +614,7 @@ void taosHashCleanup(SHashObj *pHashObj) {
     tfree(p);
   }
 
-  taosArrayDestroy(pHashObj->pMemBlock);
+  taosArrayDestroy(&pHashObj->pMemBlock);
 
   memset(pHashObj, 0, sizeof(SHashObj));
   tfree(pHashObj);

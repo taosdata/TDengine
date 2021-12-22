@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Test.UtilsTools;
 using Cases;
 
@@ -50,6 +50,10 @@ namespace Cases.EntryPoint
             FetchFields fetchFields = new FetchFields();
             fetchFields.Test(conn, "fetchfeilds");
 
+            Console.WriteLine("===================JsonTagTest====================");
+            JsonTagTest jsonTagTest = new JsonTagTest();
+            jsonTagTest.Test(conn);
+
             Console.WriteLine("====================fetchLengthCase===================");
             FetchLengthCase fetchLengthCase = new FetchLengthCase();
             fetchLengthCase.TestRetrieveBinary(conn);
@@ -57,6 +61,7 @@ namespace Cases.EntryPoint
             UtilsTools.ExecuteQuery(conn, "drop database if  exists csharp");
             UtilsTools.CloseConnection(conn);
             UtilsTools.ExitProgram();
+
 
         }
     }

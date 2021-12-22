@@ -298,7 +298,7 @@ void mnodeCheckUnCreatedVgroup(SDnodeObj *pDnode, SVnodeLoad *pVloads, int32_t o
 
         if (have) continue;
 
-        if (pVgroup->status == TAOS_VG_STATUS_CREATING || pVgroup->status == TAOS_VG_STATUS_DROPPING) {
+        if (/*pVgroup->status == TAOS_VG_STATUS_CREATING ||*/ pVgroup->status == TAOS_VG_STATUS_DROPPING) {
           mDebug("vgId:%d, not exist in dnode:%d and status is %s, do nothing", pVgroup->vgId, pDnode->dnodeId,
                  vgroupStatus[pVgroup->status]);
         } else {

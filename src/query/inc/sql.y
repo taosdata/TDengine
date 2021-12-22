@@ -247,16 +247,16 @@ acct_optr(Y) ::= pps(C) tseries(D) storage(P) streams(F) qtime(Q) dbs(E) users(K
 }
 
 %type intitemlist {SArray*}
-%destructor intitemlist {taosArrayDestroy($$);}
+%destructor intitemlist {taosArrayDestroy(&$$);}
 
 %type intitem {tVariant}
 intitemlist(A) ::= intitemlist(X) COMMA intitem(Y). { A = tVariantListAppend(X, &Y, -1);    }
 intitemlist(A) ::= intitem(X).                      { A = tVariantListAppend(NULL, &X, -1); }
 
-intitem(A) ::= INTEGER(X).      { toTSDBType(X.type); tVariantCreate(&A, &X, true); }
+intitem(A) ::= INTEGER(X).      { toTSDBType(X.type); tVariantCreate(&A, &X); }
 
 %type keep {SArray*}
-%destructor keep {taosArrayDestroy($$);}
+%destructor keep {taosArrayDestroy(&$$);}
 keep(Y)    ::= KEEP intitemlist(X).           { Y = X; }
 
 cache(Y)   ::= CACHE INTEGER(X).              { Y = X; }
@@ -405,7 +405,7 @@ create_from_stable(A) ::= ifnotexists(U) ids(V) cpxName(Z) USING ids(X) cpxName(
 }
 
 %type tagNamelist{SArray*}
-%destructor tagNamelist {taosArrayDestroy($$);}
+%destructor tagNamelist {taosArrayDestroy(&$$);}
 tagNamelist(A) ::= tagNamelist(X) COMMA ids(Y).  {taosArrayPush(X, &Y); A = X;  }
 tagNamelist(A) ::= ids(X).                      {A = taosArrayInit(4, sizeof(SStrToken)); taosArrayPush(A, &X);}
 
@@ -421,7 +421,7 @@ create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) AS select(S). {
 
 %type column{TAOS_FIELD}
 %type columnlist{SArray*}
-%destructor columnlist {taosArrayDestroy($$);}
+%destructor columnlist {taosArrayDestroy(&$$);}
 columnlist(A) ::= columnlist(X) COMMA column(Y).  {taosArrayPush(X, &Y); A = X;  }
 columnlist(A) ::= column(X).                      {A = taosArrayInit(4, sizeof(TAOS_FIELD)); taosArrayPush(A, &X);}
 
@@ -432,45 +432,55 @@ column(A) ::= ids(X) typename(Y).          {
 }
 
 %type tagitemlist {SArray*}
-%destructor tagitemlist {taosArrayDestroy($$);}
+%destructor tagitemlist {taosArrayDestroy(&$$);}
 
 %type tagitem {tVariant}
 tagitemlist(A) ::= tagitemlist(X) COMMA tagitem(Y). { A = tVariantListAppend(X, &Y, -1);    }
 tagitemlist(A) ::= tagitem(X).                      { A = tVariantListAppend(NULL, &X, -1); }
 
-tagitem(A) ::= INTEGER(X).      { toTSDBType(X.type); tVariantCreate(&A, &X, true); }
-tagitem(A) ::= FLOAT(X).        { toTSDBType(X.type); tVariantCreate(&A, &X, true); }
-tagitem(A) ::= STRING(X).       { toTSDBType(X.type); tVariantCreate(&A, &X, true); }
-tagitem(A) ::= BOOL(X).         { toTSDBType(X.type); tVariantCreate(&A, &X, true); }
-tagitem(A) ::= NULL(X).         { X.type = 0; tVariantCreate(&A, &X, true); }
-tagitem(A) ::= NOW(X).          { X.type = TSDB_DATA_TYPE_TIMESTAMP; tVariantCreate(&A, &X, true);}
+tagitem(A) ::= INTEGER(X).      { toTSDBType(X.type); tVariantCreate(&A, &X); }
+tagitem(A) ::= FLOAT(X).        { toTSDBType(X.type); tVariantCreate(&A, &X); }
+tagitem(A) ::= STRING(X).       { toTSDBType(X.type); tVariantCreate(&A, &X); }
+tagitem(A) ::= BOOL(X).         { toTSDBType(X.type); tVariantCreate(&A, &X); }
+tagitem(A) ::= NULL(X).         { X.type = 0; tVariantCreate(&A, &X); }
+tagitem(A) ::= NOW(X).          { X.type = TSDB_DATA_TYPE_TIMESTAMP; tVariantCreateExt(&A, &X, TK_NOW, true);}
+
+tagitem(A) ::= NOW PLUS VARIABLE(X).{
+    X.type = TSDB_DATA_TYPE_TIMESTAMP;
+    tVariantCreateExt(&A, &X, TK_PLUS, true);
+}
+
+tagitem(A) ::= NOW MINUS VARIABLE(X).{
+    X.type = TSDB_DATA_TYPE_TIMESTAMP;
+    tVariantCreateExt(&A, &X, TK_MINUS, true);
+}
 
 tagitem(A) ::= MINUS(X) INTEGER(Y).{
     X.n += Y.n;
     X.type = Y.type;
     toTSDBType(X.type);
-    tVariantCreate(&A, &X, true);
+    tVariantCreate(&A, &X);
 }
 
 tagitem(A) ::= MINUS(X) FLOAT(Y).  {
     X.n += Y.n;
     X.type = Y.type;
     toTSDBType(X.type);
-    tVariantCreate(&A, &X, true);
+    tVariantCreate(&A, &X);
 }
 
 tagitem(A) ::= PLUS(X) INTEGER(Y). {
     X.n += Y.n;
     X.type = Y.type;
     toTSDBType(X.type);
-    tVariantCreate(&A, &X, true);
+    tVariantCreate(&A, &X);
 }
 
 tagitem(A) ::= PLUS(X) FLOAT(Y).  {
     X.n += Y.n;
     X.type = Y.type;
     toTSDBType(X.type);
-    tVariantCreate(&A, &X, true);
+    tVariantCreate(&A, &X);
 }
 
 //////////////////////// The SELECT statement /////////////////////////////////
@@ -604,12 +614,12 @@ windowstate_option(X) ::= .                                                { X.c
 windowstate_option(X) ::= STATE_WINDOW LP ids(V) RP.                       { X.col = V; }
 
 %type fill_opt {SArray*}
-%destructor fill_opt {taosArrayDestroy($$);}
+%destructor fill_opt {taosArrayDestroy(&$$);}
 fill_opt(N) ::= .                                           { N = 0;     }
 fill_opt(N) ::= FILL LP ID(Y) COMMA tagitemlist(X) RP.      {
     tVariant A = {0};
     toTSDBType(Y.type);
-    tVariantCreate(&A, &Y, true);
+    tVariantCreate(&A, &Y);
 
     tVariantListInsert(X, &A, -1, 0);
     N = X;
@@ -625,10 +635,10 @@ sliding_opt(K) ::= SLIDING LP tmvar(E) RP.      {K = E;     }
 sliding_opt(K) ::= .                            {K.n = 0; K.z = NULL; K.type = 0;   }
 
 %type orderby_opt {SArray*}
-%destructor orderby_opt {taosArrayDestroy($$);}
+%destructor orderby_opt {taosArrayDestroy(&$$);}
 
 %type sortlist {SArray*}
-%destructor sortlist {taosArrayDestroy($$);}
+%destructor sortlist {taosArrayDestroy(&$$);}
 
 orderby_opt(A) ::= .                          {A = 0;}
 orderby_opt(A) ::= ORDER BY sortlist(X).      {A = X;}
@@ -652,12 +662,12 @@ sortlist(A) ::= arrow(Y) sortorder(Z). {
 %type item {tVariant}
 item(A) ::= ID(X).   {
   toTSDBType(X.type);
-  tVariantCreate(&A, &X, true);
+  tVariantCreate(&A, &X);
 }
 item(A) ::= ID(X) DOT ID(Y).   {
   toTSDBType(X.type);
   X.n += (1+Y.n);
-  tVariantCreate(&A, &X, true);
+  tVariantCreate(&A, &X);
 }
 
 %type sortorder {int}
@@ -667,9 +677,9 @@ sortorder(A) ::= .              { A = TSDB_ORDER_ASC; }  // Ascending order by d
 
 //group by clause
 %type groupby_opt {SArray*}
-%destructor groupby_opt {taosArrayDestroy($$);}
+%destructor groupby_opt {taosArrayDestroy(&$$);}
 %type grouplist {SArray*}
-%destructor grouplist {taosArrayDestroy($$);}
+%destructor grouplist {taosArrayDestroy(&$$);}
 
 groupby_opt(A) ::= .                       { A = 0;}
 groupby_opt(A) ::= GROUP BY grouplist(X).  { A = X;}

@@ -16,7 +16,6 @@
 #ifndef TDENGINE_TTOKENDEF_H
 #define TDENGINE_TTOKENDEF_H
 
-
 #define TK_ID                               1
 #define TK_BOOL                             2
 #define TK_TINYINT                          3
@@ -139,12 +138,12 @@
 #define TK_USING                          120
 #define TK_NULL                           121
 #define TK_NOW                            122
-#define TK_SELECT                         123
-#define TK_UNION                          124
-#define TK_ALL                            125
-#define TK_DISTINCT                       126
-#define TK_FROM                           127
-#define TK_VARIABLE                       128
+#define TK_VARIABLE                       123
+#define TK_SELECT                         124
+#define TK_UNION                          125
+#define TK_ALL                            126
+#define TK_DISTINCT                       127
+#define TK_FROM                           128
 #define TK_RANGE                          129
 #define TK_INTERVAL                       130
 #define TK_EVERY                          131
@@ -217,7 +216,6 @@
 #define TK_INTO                           198
 #define TK_VALUES                         199
 #define TK_FILE                           200
-
 
 
 #define TK_SPACE                          300

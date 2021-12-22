@@ -4319,7 +4319,7 @@ void block_func_merge(SQLFunctionCtx* pCtx) {
   blockDistInfoFromBinary(((char*)pCtx->pInput) + sizeof(int32_t), len, &info);
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   mergeTableBlockDist(pResInfo, &info);
-  taosArrayDestroy(info.dataBlockInfos); 
+  taosArrayDestroy(&info.dataBlockInfos);
 
   pResInfo->numOfRes = 1;
   pResInfo->hasResult = DATA_SET_FLAG;
@@ -4427,7 +4427,7 @@ void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
   generateBlockDistResult(pDist, pCtx->pOutput);
 
   if (pDist->dataBlockInfos != NULL) {
-    taosArrayDestroy(pDist->dataBlockInfos);
+    taosArrayDestroy(&pDist->dataBlockInfos);
     pDist->dataBlockInfos = NULL;
   }
 
