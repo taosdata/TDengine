@@ -279,10 +279,10 @@ void taosArrayClear(SArray* pArray) {
   pArray->size = 0;
 }
 
-void* taosArrayDestroy(SArray* pArray) {
-  if (pArray) {
-    tfree(pArray->pData);
-    tfree(pArray);
+void* taosArrayDestroy(SArray** pArray) {
+  if (*pArray) {
+    tfree((*pArray)->pData);
+    tfree(*pArray);
   }
 
   return NULL;
@@ -292,17 +292,16 @@ void taosArrayDestroyForHash(void* para) {
   SArray** ppArray = (SArray**)para;
   if(ppArray == NULL) return;
 
-  SArray* pArray = *ppArray;
-  if (pArray) {
-    tfree(pArray->pData);
-    tfree(pArray);
+  if (*ppArray) {
+    tfree((*ppArray)->pData);
+    tfree(*ppArray);
   }
 
   return;
 }
 
-void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*)) {
-  if (pArray == NULL) {
+void taosArrayDestroyEx(SArray** pArray, void (*fp)(void*)) {
+  if (*pArray == NULL) {
     return;
   }
 
@@ -311,8 +310,8 @@ void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*)) {
     return;
   }
 
-  for(int32_t i = 0; i < pArray->size; ++i) {
-    fp(TARRAY_GET_ELEM(pArray, i));
+  for(int32_t i = 0; i < (*pArray)->size; ++i) {
+    fp(TARRAY_GET_ELEM(*pArray, i));
   }
 
   taosArrayDestroy(pArray);
