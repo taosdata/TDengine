@@ -39,6 +39,7 @@ static int tfileWriteFstOffset(TFileWriter* tw, int32_t offset);
 static int tfileWriteData(TFileWriter* write, TFileValue* tval);
 
 static int tfileReadLoadHeader(TFileReader* reader);
+static int tfileReadLoadFst(TFileReader* reader);
 static int tfileReadLoadTableIds(TFileReader* reader, int32_t offset, SArray* result);
 
 static int  tfileGetFileList(const char* path, SArray* result);
@@ -73,8 +74,12 @@ TFileCache* tfileCacheCreate(const char* path) {
     TFileReader* reader = tfileReaderCreate(wc);
     if (0 != tfileReadLoadHeader(reader)) {
       tfileReaderDestroy(reader);
-      indexError("failed to load index header, index Id: %s", file);
+      indexError("failed to load index header, index file: %s", file);
       goto End;
+    }
+    if (0 != tfileReadLoadFst(reader)) {
+      tfileReaderDestroy(reader);
+      indexError("failed to load index fst, index file: %s", file);
     }
     // loader fst and validate it
 
@@ -136,6 +141,7 @@ TFileReader* tfileReaderCreate(WriterCtx* ctx) {
 void tfileReaderDestroy(TFileReader* reader) {
   if (reader == NULL) { return; }
   // T_REF_INC(reader);
+  fstDestroy(reader->fst);
   writerCtxDestroy(reader->ctx);
   free(reader);
 }
@@ -339,6 +345,25 @@ static int tfileReadLoadHeader(TFileReader* reader) {
   assert(nread == sizeof(buf));
   memcpy(&reader->header, buf, sizeof(buf));
   return 0;
+}
+static int tfileReadLoadFst(TFileReader* reader) {
+  // current load fst into memory, refactor it later
+  static int FST_MAX_SIZE = 16 * 1024;
+
+  char* buf = calloc(1, sizeof(char) * FST_MAX_SIZE);
+  if (buf == NULL) { return -1; }
+
+  WriterCtx* ctx = reader->ctx;
+  int32_t    nread = ctx->readFrom(ctx, buf, FST_MAX_SIZE, reader->header.fstOffset);
+  // we assuse fst size less than FST_MAX_SIZE
+  assert(nread > 0 && nread < FST_MAX_SIZE);
+
+  FstSlice st = fstSliceCreate((uint8_t*)buf, nread);
+  reader->fst = fstCreate(&st);
+  free(buf);
+  fstSliceDestroy(&st);
+
+  return reader->fst == NULL ? 0 : -1;
 }
 static int tfileReadLoadTableIds(TFileReader* reader, int32_t offset, SArray* result) {
   int32_t    nid;
