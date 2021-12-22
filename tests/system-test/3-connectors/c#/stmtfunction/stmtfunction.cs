@@ -79,7 +79,7 @@ namespace TDengineDriver
         {
             TAOS_BIND[] binds = new TAOS_BIND[2];
             string a = "abcdABCD123`~!@#$%^&*()-=+_[]{}:;\",.<>/?\\\\'";
-            string b = "abcdABCD123`~!@#$%^&*()-=+_[]{}:;\",.<>/?taos";
+            string b = "abcdABCD123`~!@#$%^&*()-=+_[]{}:;\",.<>/?taos涛思";
 
             //Console.WriteLine(a);
             //Console.WriteLine(b);
@@ -147,7 +147,7 @@ namespace TDengineDriver
             TAOS_MULTI_BIND[] mBinds = new TAOS_MULTI_BIND[3];
             long[] tsArr = new long[3] { 1637064040000, 1637064041000, 1637064042000};
             string[] binaryArr = new string[3] { "abcdABCD123`~!@#$%^&*()-=+_[]{}:;\",.<>/?", String.Empty, null};
-            string[] ncharArr = new string[3] { "abcdABCD123`~!@#$%^&*()-=+_[]{}:;\",.<>/?", null, string.Empty };
+            string[] ncharArr = new string[3] { "abcdABCD123`~!@#$%^&*()-=+_[]{}:;\",.<>/?涛思", null, string.Empty };
 
             mBinds[0] = TaosMultiBind.MultiBindTimestamp(tsArr);
             mBinds[1] = TaosMultiBind.MultiBindBinary(binaryArr);
