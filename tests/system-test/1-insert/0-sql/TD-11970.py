@@ -28,7 +28,7 @@ class TDTestCase:
     def caseDescription(self):
 
         '''
-        case1 <cpwu>: [TD-11970] : there is no err return when using slimit/soofset without group by operation
+        case1 <cpwu>: [TD-11970] : there is no err return when create table using now+Ntimes.
         '''
         return
 
@@ -50,6 +50,15 @@ class TDTestCase:
             tdSql.execute(f"create table t6 using stb1 tags(6, now-100h)")
             tdSql.execute(f"create table t7 using stb1 tags(7, now-100d)")
             tdSql.execute(f"create table t8 using stb1 tags(8, now-100w)")
+
+            tdSql.execute(f"create table t9 using stb1 tags(9, now+10b)")
+            tdSql.execute(f"create table t10 using stb1 tags(10, now+10u)")
+            tdSql.execute(f"create table t11 using stb1 tags(11, now+10a)")
+            tdSql.execute(f"create table t12 using stb1 tags(12, now+10s)")
+            tdSql.execute(f"create table t13 using stb1 tags(13, now+10m)")
+            tdSql.execute(f"create table t14 using stb1 tags(14, now+10h)")
+            tdSql.execute(f"create table t15 using stb1 tags(15, now+10d)")
+            tdSql.execute(f"create table t16 using stb1 tags(16, now+10w)")
             self.curret_case += 1
             tdLog.printNoPrefix("the case for td-11970 run passed")
         except:
