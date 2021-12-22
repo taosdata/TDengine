@@ -83,10 +83,9 @@ function runPyCaseOneByOne {
 }
 
 function runPyCaseOneByOnefq() {
-  start=`sed -n "/$2-start/=" $1`
-  end=`sed -n "/$2-end/=" $1`
-
-  for ((i=$start;i<=$end;i++)) ; do
+  end=`sed -n '$=' $1`
+  for ((i=1;i<=$end;i++)) ; do
+   if [[ $(($i%$2)) -eq $4 ]];then
     line=`sed -n "$i"p $1`
     if [[ $line =~ ^python.* ]]; then
       if [[ $line != *sleep* ]]; then
@@ -123,6 +122,7 @@ function runPyCaseOneByOnefq() {
       fi
       dohavecore $3 2
     fi
+   fi
   done 
   rm -rf ../../sim/case.log
 }
@@ -198,10 +198,15 @@ if [ "$1" == "full" ]; then
 else
   echo "### run $1 $2 test ###"
   if [ "$1" != "query" ] && [ "$1" != "other" ] && [ "$1" != "tools" ] && [ "$1" != "insert" ] && [ "$1" != "connector" ] ;then
-    echo " wrong option:$1 must one of [queyr,other,tools,insert,connector]"
+    echo " wrong option:$1 must one of [query,other,tools,insert,connector]"
     exit 8
   fi
-  runPyCaseOneByOnefq fulltest-$1.sh $2 1
+  cd $tests_dir/pytest
+  runPyCaseOneByOnefq fulltest-$1.sh $2 1 $3 
+  cd $tests_dir/develop-test
+  runPyCaseOneByOnefq fulltest-$1.sh $2 1 $3 
+  cd $tests_dir/system-test
+  runPyCaseOneByOnefq fulltest-$1.sh $2 1 $3 
 fi
 totalPySuccess=`grep 'success' pytest-out.log | wc -l`
 

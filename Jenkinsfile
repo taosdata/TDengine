@@ -406,7 +406,7 @@ pipeline {
                   sh """
                     date
                     cd ${WKC}/tests
-                    ./test-CI.sh ${it} p1
+                    ./test-CI.sh ${it} 5 1 
                     date"""
                   }
                 }
@@ -423,7 +423,7 @@ pipeline {
                     sh """
                       date
                       cd ${WKC}/tests
-                      ./test-CI.sh ${it} p2
+                      ./test-CI.sh ${it} 5 2 
                       date"""
                     }
                 }
@@ -440,7 +440,7 @@ pipeline {
                 sh """
                   date
                   cd ${WKC}/tests
-                  ./test-CI.sh ${it} p3
+                  ./test-CI.sh ${it} 5 3 
                   date"""
                 }
               }
@@ -457,7 +457,7 @@ pipeline {
                 sh """
                   date
                   cd ${WKC}/tests
-                  ./test-CI.sh ${it} p4
+                  ./test-CI.sh ${it} 5 4 
                   date"""
                 }
               }
@@ -475,7 +475,7 @@ pipeline {
                 sh """
                   date
                   cd ${WKC}/tests
-                  ./test-CI.sh ${it} p5
+                  ./test-CI.sh ${it} 5 5 
                   date"""
                 }
               }
