@@ -20,7 +20,6 @@ from util.dnodes import *
 
 
 class TDTestCase:
-
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
@@ -64,7 +63,7 @@ class TDTestCase:
         tdLog.sleep(3)
         
         # test case for https://jira.taosdata.com:18080/browse/TS-402
-        tdLog.info("test case for update option 1")        
+        tdLog.info("test case for update option 1")
         tdSql.execute("create database test update 1")
         tdSql.execute("use test")
 
@@ -110,6 +109,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 6)
         tdSql.checkData(0, 2, 4)
         tdSql.checkData(0, 3, 7)
+
         
     def stop(self):
         tdSql.close()

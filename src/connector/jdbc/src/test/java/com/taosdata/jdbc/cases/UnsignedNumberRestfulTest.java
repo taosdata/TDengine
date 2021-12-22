@@ -14,9 +14,10 @@ public class UnsignedNumberRestfulTest {
     private static final String host = "127.0.0.1";
     private static Connection conn;
     private static long ts;
+    private static final String dbname = "unsign_restful";
 
     @Test
-    public void testCase001() {
+    public void testCase001() throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select * from us_table");
             ResultSetMetaData meta = rs.getMetaData();
@@ -28,13 +29,11 @@ public class UnsignedNumberRestfulTest {
                 Assert.assertEquals("2147483647", rs.getString(4));
                 Assert.assertEquals("9223372036854775807", rs.getString(5));
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
     @Test
-    public void testCase002() {
+    public void testCase002() throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select * from us_table");
             ResultSetMetaData meta = rs.getMetaData();
@@ -47,8 +46,6 @@ public class UnsignedNumberRestfulTest {
                 Assert.assertEquals(2147483647, rs.getInt(4));
                 Assert.assertEquals(9223372036854775807L, rs.getLong(5));
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
 
@@ -152,9 +149,9 @@ public class UnsignedNumberRestfulTest {
             final String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
             conn = DriverManager.getConnection(url, properties);
             Statement stmt = conn.createStatement();
-            stmt.execute("drop database if exists unsign_restful");
-            stmt.execute("create database if not exists unsign_restful");
-            stmt.execute("use unsign_restful");
+            stmt.execute("drop database if exists " + dbname);
+            stmt.execute("create database if not exists " + dbname);
+            stmt.execute("use " + dbname);
             stmt.execute("create table us_table(ts timestamp, f1 tinyint unsigned, f2 smallint unsigned, f3 int unsigned, f4 bigint unsigned)");
             stmt.executeUpdate("insert into us_table(ts,f1,f2,f3,f4) values(" + ts + ", 127, 32767,2147483647, 9223372036854775807)");
             stmt.close();
@@ -166,8 +163,12 @@ public class UnsignedNumberRestfulTest {
     @AfterClass
     public static void afterClass() {
         try {
-            if (conn != null)
+            if (conn != null) {
+                Statement statement = conn.createStatement();
+                statement.execute("drop database if exists " + dbname);
+                statement.close();
                 conn.close();
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }

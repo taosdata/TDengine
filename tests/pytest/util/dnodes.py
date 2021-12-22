@@ -249,7 +249,7 @@ class TDDnode:
                     else:
                         self.cfg(value,key)
                 else:
-                    self.addExtraCfg(key,value) 
+                    self.addExtraCfg(key,value)
         for key, value in self.cfgDict.items():
             self.cfg(key, value)
 
