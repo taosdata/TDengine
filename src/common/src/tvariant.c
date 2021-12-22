@@ -223,11 +223,9 @@ void tVariantDestroy(tVariant *pVar) {
       void* p = taosArrayGetP(pVar->arr, i);
       free(p);
     }
-    taosArrayDestroy(pVar->arr);
-    pVar->arr = NULL;
+    taosArrayDestroy(&pVar->arr);
   } else if (pVar->nType == TSDB_DATA_TYPE_VALUE_ARRAY) {
-    taosArrayDestroy(pVar->arr);
-    pVar->arr = NULL;
+    taosArrayDestroy(&pVar->arr);
   }
 }
 

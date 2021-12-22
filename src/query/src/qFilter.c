@@ -1512,8 +1512,8 @@ int32_t filterTreeToGroup(tExprNode* tree, SFilterInfo *info, SArray* group) {
 
     ERR_JRET(filterDetachCnfGroups(group, leftGroup, rightGroup));
 
-    taosArrayDestroyEx(leftGroup, filterFreeGroup);
-    taosArrayDestroyEx(rightGroup, filterFreeGroup);
+    taosArrayDestroyEx(&leftGroup, filterFreeGroup);
+    taosArrayDestroyEx(&rightGroup, filterFreeGroup);
     
     return TSDB_CODE_SUCCESS;
   }
@@ -1530,8 +1530,8 @@ int32_t filterTreeToGroup(tExprNode* tree, SFilterInfo *info, SArray* group) {
 
 _return:
 
-  taosArrayDestroyEx(leftGroup, filterFreeGroup);
-  taosArrayDestroyEx(rightGroup, filterFreeGroup);
+  taosArrayDestroyEx(&leftGroup, filterFreeGroup);
+  taosArrayDestroyEx(&rightGroup, filterFreeGroup);
   
   return code;
 }
@@ -1696,7 +1696,7 @@ void filterFreeColInfo(void *data) {
   } else if (info->type == RANGE_TYPE_MR_CTX) {
     filterFreeRangeCtx(info->info);  
   } else if (info->type == RANGE_TYPE_UNIT) {
-    taosArrayDestroy((SArray *)info->info);
+    taosArrayDestroy((SArray**)&info->info);
   }
 
   //NO NEED TO FREE UNIT
@@ -2075,7 +2075,7 @@ int32_t filterMergeUnits(SFilterInfo *info, SFilterGroupCtx* gRes, uint32_t colI
     }
   }
 
-  taosArrayDestroy(colArray);
+  taosArrayDestroy(&colArray);
 
   FILTER_PUSH_CTX(gRes->colInfo[colIdx], ctx);
 
@@ -2333,7 +2333,7 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx** gRes1, SFilter
     FILTER_PUSH_CTX((*gRes1)->colInfo[pctx->colIdx], pctx->ctx);
   }
 
-  taosArrayDestroy(colCtxs);
+  taosArrayDestroy(&colCtxs);
   
   return TSDB_CODE_SUCCESS;
 
@@ -2341,9 +2341,9 @@ _return:
 
   if (colCtxs) {
     if (taosArrayGetSize(colCtxs) > 0) {
-      taosArrayDestroyEx(colCtxs, filterFreeColCtx);
+      taosArrayDestroyEx(&colCtxs, filterFreeColCtx);
     } else {
-      taosArrayDestroy(colCtxs);
+      taosArrayDestroy(&colCtxs);
     }
   }
 
@@ -2519,7 +2519,7 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t gResNum
 
   filterConvertGroupFromArray(info, group);
 
-  taosArrayDestroy(group);
+  taosArrayDestroy(&group);
 
   filterFreeInfo(&oinfo);
 
@@ -3370,7 +3370,7 @@ int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options) {
   ERR_JRET(code);
 
   filterConvertGroupFromArray(info, group);
-  taosArrayDestroy(group);
+  taosArrayDestroy(&group);
 
   ERR_JRET(filterInitValFieldData(info));
 

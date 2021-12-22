@@ -996,9 +996,16 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return code;
       }
 
-      // set the command/global limit parameters from the first subclause to the sqlcmd object
-      pCmd->active = pCmd->pQueryInfo;
-      pCmd->command = pCmd->pQueryInfo->command;
+      // set the command/global limit parameters from the first not empty subclause to the sqlcmd object
+      SQueryInfo* queryInfo = pCmd->pQueryInfo;
+      int16_t command = queryInfo->command;
+      while (command == TSDB_SQL_RETRIEVE_EMPTY_RESULT && queryInfo->sibling != NULL) {
+        queryInfo = queryInfo->sibling;
+        command = queryInfo->command;
+      }
+
+      pCmd->active = queryInfo;
+      pCmd->command = command;
 
       STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pCmd->active, 0);
       if (pTableMetaInfo1->pTableMeta != NULL) {
@@ -1836,7 +1843,7 @@ static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
 
   int32_t ret = exprTreeFromSqlExpr(pCmd, &pNode, pItem->pNode, pQueryInfo, colList, NULL);
   if (ret != TSDB_CODE_SUCCESS) {
-    taosArrayDestroy(colList);
+    taosArrayDestroy(&colList);
     tExprTreeDestroy(pNode, NULL);
     if (tscGetErrorMsgLength(pCmd) > 0) {
       return ret;
@@ -1851,7 +1858,7 @@ static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
     SColIndex* pIndex = taosArrayGet(colList, k);
     if (TSDB_COL_IS_TAG(pIndex->flag)) {
       tExprTreeDestroy(pNode, NULL);
-      taosArrayDestroy(colList);
+      taosArrayDestroy(&colList);
       
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
@@ -1859,7 +1866,7 @@ static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
 
   ret = exprTreeValidateTree(tscGetErrorMsgPayload(pCmd), pNode);
   if (ret != TSDB_CODE_SUCCESS) {
-    taosArrayDestroy(colList);
+    taosArrayDestroy(&colList);
     tExprTreeDestroy(pNode, NULL);
     if (tscGetErrorMsgLength(pCmd) > 0) {
       return ret;
@@ -1900,7 +1907,7 @@ static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
   tscInsertPrimaryTsSourceColumn(pQueryInfo, pExpr->base.uid);
 
   tbufCloseWriter(&bw);
-  taosArrayDestroy(colList);
+  taosArrayDestroy(&colList);
   tExprTreeDestroy(pNode, NULL);
 
   return TSDB_CODE_SUCCESS;
@@ -4296,7 +4303,7 @@ static int32_t getColQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlEx
 
     SArray* colList = taosArrayInit(10, sizeof(SColIndex));  
     ret = exprTreeFromSqlExpr(pCmd, &p, p1, pQueryInfo, colList, NULL);
-    taosArrayDestroy(colList);
+    taosArrayDestroy(&colList);
 
     SBufferWriter bw = tbufInitWriter(NULL, false);
 
@@ -5762,7 +5769,7 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
     tSqlExprDestroy(p1);
     tExprTreeDestroy(p, NULL);  //TODO
     
-    taosArrayDestroy(colList);
+    taosArrayDestroy(&colList);
     if (pQueryInfo->tagCond.pCond != NULL && taosArrayGetSize(pQueryInfo->tagCond.pCond) > 0 && !UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "filter on tag not supported for normal table");
     }
@@ -5884,7 +5891,7 @@ static int32_t getQueryTimeRange(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr
 
   SArray* colList = taosArrayInit(10, sizeof(SColIndex));  
   ret = exprTreeFromSqlExpr(pCmd, &p, *pExpr, pQueryInfo, colList, NULL);
-  taosArrayDestroy(colList);
+  taosArrayDestroy(&colList);
 
   if (ret != TSDB_CODE_SUCCESS) {
     goto _ret;
@@ -9496,15 +9503,15 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
 _end:
   if (plist != NULL) {
-    taosArrayDestroyEx(plist, freeElem);
+    taosArrayDestroyEx(&plist, freeElem);
   }
 
   if (pVgroupList != NULL) {
-    taosArrayDestroyEx(pVgroupList, freeElem);
+    taosArrayDestroyEx(&pVgroupList, freeElem);
   }
 
   if (tableNameList != NULL) {
-    taosArrayDestroy(tableNameList);
+    taosArrayDestroy(&tableNameList);
   }
 
   tfree(pTableMeta);

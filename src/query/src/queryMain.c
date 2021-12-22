@@ -54,7 +54,7 @@ void freeParam(SQueryParam *param) {
   tfree(param->sql);
   tfree(param->tagCond);
   tfree(param->pTableIdList);
-  taosArrayDestroy(param->pOperator);
+  taosArrayDestroy(&param->pOperator);
   tfree(param->pExprs);
   tfree(param->pSecExprs);
 
@@ -186,15 +186,14 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
   _over:
   if (param.pGroupbyExpr != NULL) {
-    taosArrayDestroy(param.pGroupbyExpr->columnInfo);
+    taosArrayDestroy(&(param.pGroupbyExpr->columnInfo));
   }
 
   tfree(param.colCond);
   
   destroyUdfInfo(param.pUdfInfo);
 
-  taosArrayDestroy(param.pTableIdList);
-  param.pTableIdList = NULL;
+  taosArrayDestroy(&param.pTableIdList);
 
   freeParam(&param);
 
@@ -714,7 +713,7 @@ void* qObtainLongQuery(void* param){
   
   size_t cnt = taosArrayGetSize(qids);
   if(cnt == 0) {
-    taosArrayDestroy(qids);
+    taosArrayDestroy(&qids);
     return NULL;
   } 
   if(cnt > 1)
@@ -754,7 +753,7 @@ bool qFixedNoBlock(void* pRepo, void* pMgmt, int32_t longQueryMs) {
   for(i=0; i < cnt; i++) {
     free(taosArrayGetP(qids, i));
   }
-  taosArrayDestroy(qids);
+  taosArrayDestroy(&qids);
   return fixed;
 }
 
