@@ -1,6 +1,4 @@
 #include <stdio.h>
-#include <raft.h>
-#include <raft/uv.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <string.h>
@@ -8,9 +6,10 @@
 #include <time.h>
 #include <stdlib.h>
 #include <getopt.h>
+#include <raft.h>
+#include <raft/uv.h>
 #include "raftServer.h"
-
-#define COMMAND_LEN 128
+#include "common.h"
 
 const char *exe_name;
 
@@ -52,8 +51,6 @@ void *startConsoleFunc(void *param) {
 }
 
 // Config ---------------------------------
-#define DIR_LEN 128
-#define HOST_LEN 128
 typedef struct SRaftServerConfig {
 	char host[HOST_LEN];
 	uint32_t port;
@@ -61,16 +58,22 @@ typedef struct SRaftServerConfig {
 } SRaftServerConfig;
 
 void parseConf(int argc, char **argv, SRaftServerConfig *pConf) {
-	snprintf(pConf->dir, sizeof(pConf->dir), "%s", argv[1]);
+	snprintf(pConf->host, sizeof(pConf->host), "%s", argv[1]);
 	sscanf(argv[2], "%u", &pConf->port);
 	snprintf(pConf->dir, sizeof(pConf->dir), "%s", argv[3]);
+}
+
+void printConf(SRaftServerConfig *pConf) {
+	printf("conf: %s:%u %s \n", pConf->host, pConf->port, pConf->dir);
 }
 
 // -----------------------------------------
 void usage() {
 	printf("\n");
 	printf("usage: %s host port dir \n", exe_name);
-	printf("eg   : %s 127.0.0.1 10000 ./data \n", exe_name);
+	printf("\n");
+	printf("eg: \n");
+	printf("%s 127.0.0.1 10000 ./data \n", exe_name);
 	printf("\n");
 }
 
@@ -86,12 +89,14 @@ int main(int argc, char **argv) {
 
 	SRaftServerConfig conf;
 	parseConf(argc, argv, &conf);
-	
+	printConf(&conf);	
+
 	struct raft_fsm fsm;
 	initFsm(&fsm);
 
 	SRaftServer raftServer;
-	ret = raftServerInit(&raftServer, &conf, &fsm);
+	ret = raftServerInit(&raftServer, conf.host, conf.port, conf.dir, &fsm);
+	assert(ret == 0);
 
 	pthread_t tidRaftServer;
 	pthread_create(&tidRaftServer, NULL, startServerFunc, &raftServer);
