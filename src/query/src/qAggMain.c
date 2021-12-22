@@ -253,7 +253,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *interBytes = 0;
     return TSDB_CODE_SUCCESS;
   }
-  
+
   if (functionId == TSDB_FUNC_COUNT) {
     *type = TSDB_DATA_TYPE_BIGINT;
     *bytes = sizeof(int64_t);
@@ -261,7 +261,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     return TSDB_CODE_SUCCESS;
   }
 
-  
+
   if (functionId == TSDB_FUNC_TS_COMP) {
     *type = TSDB_DATA_TYPE_BINARY;
     *bytes = 1;  // this results is compressed ts data, only one byte
@@ -316,20 +316,20 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = (dataBytes + DATA_SET_FLAG_SIZE);
       *interBytes = *bytes;
-      
+
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_SUM) {
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = sizeof(SSumInfo);
       *interBytes = *bytes;
-      
+
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_AVG) {
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = sizeof(SAvgInfo);
       *interBytes = *bytes;
       return TSDB_CODE_SUCCESS;
-      
+
     } else if (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_IRATE) {
       *type = TSDB_DATA_TYPE_DOUBLE;
       *bytes = sizeof(SRateInfo);
@@ -339,7 +339,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = (sizeof(STopBotInfo) + (sizeof(tValuePair) + POINTER_BYTES + extLength) * param);
       *interBytes = *bytes;
-      
+
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_SAMPLE) {
       *type = TSDB_DATA_TYPE_BINARY;
@@ -351,7 +351,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = sizeof(SSpreadInfo);
       *interBytes = *bytes;
-      
+
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_APERCT) {
       *type = TSDB_DATA_TYPE_BINARY;
@@ -359,13 +359,13 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       int32_t bytesDigest = (int32_t) (sizeof(SAPercentileInfo) + TDIGEST_SIZE(COMPRESSION));
       *bytes = MAX(bytesHist, bytesDigest);
       *interBytes = *bytes;
-      
+
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_LAST_ROW) {
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = (sizeof(SLastrowInfo) + dataBytes);
       *interBytes = *bytes;
-      
+
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_TWA) {
       *type = TSDB_DATA_TYPE_DOUBLE;
@@ -388,7 +388,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     } else {
       *type = TSDB_DATA_TYPE_DOUBLE;
     }
-    
+
     *bytes = sizeof(int64_t);
     *interBytes = sizeof(SSumInfo);
     return TSDB_CODE_SUCCESS;
@@ -458,9 +458,9 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   } else if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
     *type = (int16_t)dataType;
     *bytes = dataBytes;
-    
+
     size_t size = sizeof(STopBotInfo) + (sizeof(tValuePair) + POINTER_BYTES + extLength) * param;
-    
+
     // the output column may be larger than sizeof(STopBotInfo)
     *interBytes = (int32_t)size;
   } else if (functionId == TSDB_FUNC_SAMPLE) {
@@ -484,7 +484,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   } else {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -501,7 +501,7 @@ int32_t isValidFunction(const char* name, int32_t len) {
       return aScalarFunctions[i].functionId;
     }
   }
-  
+
   for(int32_t i = 0; i <= TSDB_FUNC_ELAPSED; ++i) {
     int32_t nameLen = (int32_t) strlen(aAggs[i].name);
     if (len != nameLen) {
@@ -519,7 +519,7 @@ static bool function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultInfo
   if (pResultInfo->initialized) {
     return false;
   }
-  
+
   memset(pCtx->pOutput, 0, (size_t)pCtx->outputBytes);
   initResultInfo(pResultInfo, pCtx->interBufBytes);
   return true;
@@ -537,7 +537,7 @@ static void function_finalizer(SQLFunctionCtx *pCtx) {
   if (pResInfo->hasResult != DATA_SET_FLAG) {
     setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
   }
-  
+
   doFinalizer(pCtx);
 }
 
@@ -547,7 +547,7 @@ static void function_finalizer(SQLFunctionCtx *pCtx) {
  */
 static void count_function(SQLFunctionCtx *pCtx) {
   int32_t numOfElem = 0;
-  
+
   /*
    * 1. column data missing (schema modified) causes pCtx->hasNull == true. pCtx->preAggVals.isSet == true;
    * 2. for general non-primary key columns, pCtx->hasNull may be true or false, pCtx->preAggVals.isSet == true;
@@ -562,7 +562,7 @@ static void count_function(SQLFunctionCtx *pCtx) {
         if (isNull(val, pCtx->inputType)) {
           continue;
         }
-        
+
         numOfElem += 1;
       }
     } else {
@@ -570,11 +570,11 @@ static void count_function(SQLFunctionCtx *pCtx) {
       numOfElem = pCtx->size;
     }
   }
-  
+
   if (numOfElem > 0) {
     GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
   }
-  
+
   *((int64_t *)pCtx->pOutput) += numOfElem;
   SET_VAL(pCtx, numOfElem, 1);
 }
@@ -584,7 +584,7 @@ static void count_func_merge(SQLFunctionCtx *pCtx) {
   for (int32_t i = 0; i < pCtx->size; ++i) {
     *((int64_t *)pCtx->pOutput) += pData[i];
   }
-  
+
   SET_VAL(pCtx, pCtx->size, 1);
 }
 
