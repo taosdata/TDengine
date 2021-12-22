@@ -1831,5 +1831,3 @@ bool taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *d
 
   return true;
 }
-
-bool taosPrintCreateTable() { return (tsSpecificLogType & LOG_CREATE_TABLE) ? true : false; }

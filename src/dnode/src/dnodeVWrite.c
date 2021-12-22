@@ -203,7 +203,7 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
     bool forceFsync = false;
     for (int32_t i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(pWorker->qall, &qtype, (void **)&pWrite);
-      if ((pWrite->walHead.msgType == TSDB_MSG_TYPE_MD_CREATE_TABLE) && taosPrintCreateTable()) {
+      if ((pWrite->walHead.msgType == TSDB_MSG_TYPE_MD_CREATE_TABLE) && TAOS_PRINT_CREATE_TABLE) {
         SMDCreateTableMsg *pMsg = (SMDCreateTableMsg *)pWrite->walHead.cont;
         dInfo("msg:%p, app:%p type:%s for uid:%" PRIu64 ", tid:%" PRIu32
               " will be processed in vwrite queue, qtype:%s hver:%" PRIu64,

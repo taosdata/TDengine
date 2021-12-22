@@ -247,7 +247,8 @@ bool    taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t
 void    taosAddDataDir(int index, char *v1, int level, int primary);
 void    taosReadDataDirCfg(char *v1, char *v2, char *v3);
 void    taosPrintDataDirCfg();
-bool    taosPrintCreateTable();
+
+#define TAOS_PRINT_CREATE_TABLE (tsSpecificLogType & LOG_CREATE_TABLE)
 
 #ifdef __cplusplus
 }

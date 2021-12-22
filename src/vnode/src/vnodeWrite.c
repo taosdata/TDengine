@@ -191,7 +191,7 @@ static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRe
     ASSERT(code != 0);
   }
 
-  if (taosPrintCreateTable()) {
+  if (TAOS_PRINT_CREATE_TABLE) {
     vInfo("vgId:%d, table[%s], uid:%" PRIu64 ", tid:%" PRIu32 " is created successfully", pVnode->vgId,
           pMsg->tableFname, htobe64(pMsg->uid), htonl(pMsg->tid));
   }
