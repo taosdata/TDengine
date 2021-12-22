@@ -10,8 +10,8 @@ namespace Cases
         public void Test(IntPtr conn, string tableName)
         {
             IntPtr res = IntPtr.Zero;
-            String createTb = "create stable " + tableName + " (ts timestamp ,b bool,v1 tinyint,v2 smallint,v4 int,v8 bigint,f4 float,f8 double,u1 tinyint unsigned,u2 smallint unsigned,u4 int unsigned,u8 bigint unsigned,bin binary(200),blob nchar(200))tags(id int);";
-            String insertSql = "insert into " + tableName + "_t1 using " + tableName + " tags(1) values(1637064040000,true,1,2,3,4,5,6,7,8,9,10,'XI','XII')";
+            String createTb = "create stable " + tableName + " (ts timestamp ,b bool,v1 tinyint,v2 smallint,v4 int,v8 bigint,f4 float,f8 double,u1 tinyint unsigned,u2 smallint unsigned,u4 int unsigned,u8 bigint unsigned,bin binary(200),blob nchar(200))tags(jsontag json);";
+            String insertSql = "insert into " + tableName + "_t1 using " + tableName + " tags('{\"k1\": \"v1\"}') values(1637064040000,true,1,2,3,4,5,6,7,8,9,10,'XI','XII')";
             String selectSql = "select * from " + tableName;
             String dropSql = "drop table " + tableName;
             UtilsTools.ExecuteQuery(conn, createTb);
@@ -35,3 +35,5 @@ namespace Cases
         }
     }
 }
+
+

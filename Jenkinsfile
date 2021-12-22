@@ -433,7 +433,7 @@ pipeline {
         stage('python_3') {
           agent{label " slave3 || slave8 || slave13 ||slave18 "}
           steps {
-            timeout(time: 55, unit: 'MINUTES'){
+            timeout(time: 105, unit: 'MINUTES'){
               pre_test()
               script{
               scope.each {

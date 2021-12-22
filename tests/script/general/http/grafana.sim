@@ -50,6 +50,9 @@ sql insert into t3 values('2017-12-25 21:25:41', 3)
 sql insert into t3 values('2017-12-25 21:26:41', 3)
 sql insert into t3 values('2017-12-25 21:27:41', 3)
 
+sql create table m3 (ts timestamp, col1 int, col2 float, txt binary(500))
+sql insert into m3 values(now, 1, 2.0, 'HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS')
+
 print ===============  step2 - login
 
 system_content curl 127.0.0.1:7111/grafana/
@@ -176,6 +179,12 @@ endi
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d '[{"refId":"A","alias":"","sql":"select sum(v2), count(v1) from d1.m1"},{"refId":"B","alias":"","sql":"select count(v2), sum(v2) from d1.m1"}]'  127.0.0.1:7111/grafana/query
 print 19-> $system_content
 if $system_content != @[{"refId":"A","target":"{count(v1):3}","datapoints":[[15.299999714,"-"]]},{"refId":"B","target":"{sum(v2):15.299999714}","datapoints":[[3,"-"]]}]@ then
+  return -1
+endi
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d '[{"refId":"A","alias":"taosd","sql":"select last(col1), last(col2), last(txt) from d1.m3 group by txt"}]' 127.0.0.1:7111/grafana/query
+print 20-> $system_content
+if $system_content != @[{"refId":"A","target":"taosd{last(col2):2.00000, last(txt):HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS HELLO TAOS}","datapoints":[[1,"-"]]}]@ then
   return -1
 endi
 
