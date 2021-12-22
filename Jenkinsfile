@@ -590,7 +590,7 @@ pipeline {
               cd ${WKC}/tests
               ./test-all.sh p4
               '''
-              '''
+              sh '''
               cd ${WKC}/tests
               ./test-all.sh full jdbc
               '''
