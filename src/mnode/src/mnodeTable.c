@@ -939,7 +939,7 @@ static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *pMsg) {
            p->tableName, pMsg->rpcMsg.handle);
     return mnodeProcessCreateSuperTableMsg(pMsg);
   } else {
-    mDebug("pmsg:%p, app:%p table:%s, create ctable msg is received from thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
+    mDebug("msg:%p, app:%p table:%s, create ctable msg is received from thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
            p->tableName, pMsg->rpcMsg.handle);
     int32_t code = mnodeProcessCreateChildTableMsg(pMsg);
     if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS && code != TSDB_CODE_SUCCESS) {
