@@ -14,6 +14,7 @@
  */
 
 #include "plannerInt.h"
+#include "exception.h"
 #include "parser.h"
 
 #define STORE_CURRENT_SUBPLAN(cxt) SSubplan* _ = cxt->pCurrentSubplan
@@ -33,6 +34,13 @@ static const char* gOpName[] = {
 #undef INCLUDE_AS_NAME
 };
 
+static void* vailidPointer(void* p) {
+  if (NULL == p) {
+    THROW(TSDB_CODE_TSC_OUT_OF_MEMORY);
+  }
+  return p;
+}
+
 const char* opTypeToOpName(int32_t type) {
   return gOpName[type];
 }
@@ -44,6 +52,25 @@ int32_t opNameToOpType(const char* name) {
     }
   }
   return OP_Unknown;
+}
+
+static SDataSink* initDataSink(int32_t type, int32_t size) {
+  SDataSink* sink = (SDataSink*)vailidPointer(calloc(1, size));
+  sink->info.type = type;
+  return sink;
+}
+
+static SDataSink* createDataDispatcher(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
+  SDataDispatcher* dispatcher = (SDataDispatcher*)initDataSink(DSINK_Dispatch, sizeof(SDataDispatcher));
+  return (SDataSink*)dispatcher;
+}
+
+static SDataSink* createDataInserter(SPlanContext* pCxt, SVgDataBlocks* pBlocks) {
+  SDataInserter* inserter = (SDataInserter*)initDataSink(DSINK_Insert, sizeof(SDataInserter));
+  inserter->numOfTables = pBlocks->numOfTables;
+  inserter->size = pBlocks->size;
+  SWAP(inserter->pData, pBlocks->pData, char*);
+  return (SDataSink*)inserter;
 }
 
 static bool toDataBlockSchema(SQueryPlanNode* pPlanNode, SDataBlockSchema* dataBlockSchema) {
@@ -72,10 +99,7 @@ static bool cloneExprArray(SArray** dst, SArray* src) {
 }
 
 static SPhyNode* initPhyNode(SQueryPlanNode* pPlanNode, int32_t type, int32_t size) {
-  SPhyNode* node = (SPhyNode*)calloc(1, size);
-  if (NULL == node) {
-    return NULL;
-  }
+  SPhyNode* node = (SPhyNode*)vailidPointer(calloc(1, size));
   node->info.type = type;
   node->info.name = opTypeToOpName(type);
   if (!cloneExprArray(&node->pTargets, pPlanNode->pExpr) || !toDataBlockSchema(pPlanNode, &(node->targetSchema))) {
@@ -138,7 +162,7 @@ static SPhyNode* createMultiTableScanNode(SQueryPlanNode* pPlanNode, SQueryTable
 }
 
 static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
-  SSubplan* subplan = calloc(1, sizeof(SSubplan));
+  SSubplan* subplan = vailidPointer(calloc(1, sizeof(SSubplan)));
   subplan->id = pCxt->nextId;
   ++(pCxt->nextId.subplanId);
   subplan->type = type;
@@ -146,15 +170,15 @@ static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
   if (NULL != pCxt->pCurrentSubplan) {
     subplan->level = pCxt->pCurrentSubplan->level + 1;
     if (NULL == pCxt->pCurrentSubplan->pChildern) {
-      pCxt->pCurrentSubplan->pChildern = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+      pCxt->pCurrentSubplan->pChildern = vailidPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
     }
     taosArrayPush(pCxt->pCurrentSubplan->pChildern, &subplan);
-    subplan->pParents = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+    subplan->pParents = vailidPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
     taosArrayPush(subplan->pParents, &pCxt->pCurrentSubplan);
   }
   SArray* currentLevel;
   if (subplan->level >= taosArrayGetSize(pCxt->pDag->pSubplans)) {
-    currentLevel = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+    currentLevel = vailidPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
     taosArrayPush(pCxt->pDag->pSubplans, &currentLevel);
   } else {
     currentLevel = taosArrayGetP(pCxt->pDag->pSubplans, subplan->level);
@@ -164,7 +188,17 @@ static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
   return subplan;
 }
 
-static void vgroupToEpSet(const SVgroupMsg* vg, SEpSet* epSet) {
+static void vgroupInfoToEpSet(const SVgroupInfo* vg, SEpSet* epSet) {
+  epSet->inUse = 0; // todo
+  epSet->numOfEps = vg->numOfEps;
+  for (int8_t i = 0; i < vg->numOfEps; ++i) {
+    epSet->port[i] = vg->epAddr[i].port;
+    strcpy(epSet->fqdn[i], vg->epAddr[i].fqdn);
+  }
+  return;
+}
+
+static void vgroupMsgToEpSet(const SVgroupMsg* vg, SEpSet* epSet) {
   epSet->inUse = 0; // todo
   epSet->numOfEps = vg->numOfEps;
   for (int8_t i = 0; i < vg->numOfEps; ++i) {
@@ -179,8 +213,9 @@ static uint64_t splitSubplanByTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNod
   for (int32_t i = 0; i < pTable->pMeta->vgroupList->numOfVgroups; ++i) {
     STORE_CURRENT_SUBPLAN(pCxt);
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_SCAN);
-    vgroupToEpSet(&(pTable->pMeta->vgroupList->vgroups[i]), &subplan->execEpSet);
+    vgroupMsgToEpSet(&(pTable->pMeta->vgroupList->vgroups[i]), &subplan->execEpSet);
     subplan->pNode = createMultiTableScanNode(pPlanNode, pTable);
+    subplan->pDataSink = createDataDispatcher(pCxt, pPlanNode);
     RECOVERY_CURRENT_SUBPLAN(pCxt);
   }
   return pCxt->nextId.templateId++;
@@ -214,6 +249,9 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
     case QNODE_TABLESCAN:
       node = createTableScanNode(pCxt, pPlanNode);
       break;
+    case QNODE_INSERT:
+      // Insert is not an operator in a physical plan.
+      break;
     default:
       assert(false);
   }
@@ -229,26 +267,46 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
   return node;
 }
 
+static void splitInsertSubplan(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
+  SArray* vgs = (SArray*)pPlanNode->pExtInfo;
+  size_t numOfVg = taosArrayGetSize(vgs);
+  for (int32_t i = 0; i < numOfVg; ++i) {
+    SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_MODIFY);
+    SVgDataBlocks* blocks = (SVgDataBlocks*)taosArrayGetP(vgs, i);
+    vgroupInfoToEpSet(&blocks->vg, &subplan->execEpSet);
+    subplan->pNode = NULL;
+    subplan->pDataSink = createDataInserter(pCxt, blocks);
+  }
+}
+
 static void createSubplanByLevel(SPlanContext* pCxt, SQueryPlanNode* pRoot) {
-  SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_MERGE);
-  ++(pCxt->nextId.templateId);
-  subplan->pNode = createPhyNode(pCxt, pRoot);
+  if (QNODE_INSERT == pRoot->info.type) {
+    splitInsertSubplan(pCxt, pRoot);
+  } else {
+    SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_MERGE);
+    ++(pCxt->nextId.templateId);
+    subplan->pNode = createPhyNode(pCxt, pRoot);
+    subplan->pDataSink = createDataDispatcher(pCxt, pRoot);
+  }
   // todo deal subquery
 }
 
 int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag) {
-  SPlanContext context = {
-    .pCatalog = pCatalog,
-    .pDag = calloc(1, sizeof(SQueryDag)),
-    .pCurrentSubplan = NULL,
-    .nextId = {0} // todo queryid
-  };
-  if (NULL == context.pDag) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
-  context.pDag->pSubplans = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
-  createSubplanByLevel(&context, pQueryNode);
-  *pDag = context.pDag;
+  TRY(TSDB_MAX_TAG_CONDITIONS) {
+    SPlanContext context = {
+      .pCatalog = pCatalog,
+      .pDag = vailidPointer(calloc(1, sizeof(SQueryDag))),
+      .pCurrentSubplan = NULL,
+      .nextId = {0} // todo queryid
+    };
+    *pDag = context.pDag;
+    context.pDag->pSubplans = vailidPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
+    createSubplanByLevel(&context, pQueryNode);
+  } CATCH(code) {
+    CLEANUP_EXECUTE();
+    terrno = code;
+    return TSDB_CODE_FAILED;
+  } END_TRY
   return TSDB_CODE_SUCCESS;
 }
 

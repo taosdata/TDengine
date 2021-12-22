@@ -50,15 +50,16 @@ enum {
 };
 
 typedef struct SInsertParseContext {
-  SParseContext* pComCxt;
-  const char* pSql;
-  SMsgBuf msg;
-  STableMeta* pTableMeta;
-  SParsedDataColInfo tags;
-  SKVRowBuilder tagsBuilder;
-  SHashObj* pTableBlockHashObj;
-  SArray* pTableDataBlocks;
-  SArray* pVgDataBlocks;
+  SParseContext* pComCxt;       // input
+  const char* pSql;             // input
+  SMsgBuf msg;                  // input
+  STableMeta* pTableMeta;       // each table
+  SParsedDataColInfo tags;      // each table
+  SKVRowBuilder tagsBuilder;    // each table
+  SHashObj* pVgroupsHashObj;    // global
+  SHashObj* pTableBlockHashObj; // global
+  SArray* pTableDataBlocks;     // global
+  SArray* pVgDataBlocks;        // global
   int32_t totalNum;
   SInsertStmtInfo* pOutput;
 } SInsertParseContext;
@@ -173,10 +174,12 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
   char tableName[TSDB_TABLE_NAME_LEN] = {0};
   CHECK_CODE(buildName(pCxt, pTname, fullDbName, tableName));
   CHECK_CODE(catalogGetTableMeta(pCxt->pComCxt->pCatalog, pCxt->pComCxt->pRpc, pCxt->pComCxt->pEpSet, fullDbName, tableName, &pCxt->pTableMeta));
+  SVgroupInfo vg;
+  CHECK_CODE(catalogGetTableHashVgroup(pCxt->pComCxt->pCatalog, pCxt->pComCxt->pRpc, pCxt->pComCxt->pEpSet, fullDbName, tableName, &vg));
+  CHECK_CODE(taosHashPut(pCxt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg)));
   return TSDB_CODE_SUCCESS;
 }
 
-// todo speedup by using hash list
 static int32_t findCol(SToken* pColname, int32_t start, int32_t end, SSchema* pSchema) {
   while (start < end) {
     if (strlen(pSchema[start].name) == pColname->n && strncmp(pColname->z, pSchema[start].name, pColname->n) == 0) {
@@ -187,16 +190,16 @@ static int32_t findCol(SToken* pColname, int32_t start, int32_t end, SSchema* pS
   return -1;
 }
 
-static void fillMsgHeader(SVgDataBlocks* dst) {
-    SMsgDesc* desc = (SMsgDesc*)dst->pData;
+static void buildMsgHeader(SVgDataBlocks* blocks) {
+    SMsgDesc* desc = (SMsgDesc*)blocks->pData;
     desc->numOfVnodes = htonl(1);
     SSubmitMsg* submit = (SSubmitMsg*)(desc + 1);
-    submit->header.vgId    = htonl(dst->vgId);
-    submit->header.contLen = htonl(dst->size - sizeof(SMsgDesc));
+    submit->header.vgId    = htonl(blocks->vg.vgId);
+    submit->header.contLen = htonl(blocks->size - sizeof(SMsgDesc));
     submit->length         = submit->header.contLen;
-    submit->numOfBlocks    = htonl(dst->numOfTables);
+    submit->numOfBlocks    = htonl(blocks->numOfTables);
     SSubmitBlk* blk = (SSubmitBlk*)(submit + 1);
-    int32_t numOfBlocks = dst->numOfTables;
+    int32_t numOfBlocks = blocks->numOfTables;
     while (numOfBlocks--) {
       int32_t dataLen = blk->dataLen;
       blk->uid = htobe64(blk->uid);
@@ -222,11 +225,11 @@ static int32_t buildOutput(SInsertParseContext* pCxt) {
     if (NULL == dst) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
-    dst->vgId = src->vgId;
+    taosHashGetClone(pCxt->pVgroupsHashObj, (const char*)&src->vgId, sizeof(src->vgId), &dst->vg);
     dst->numOfTables = src->numOfTables;
     dst->size = src->size;
     SWAP(dst->pData, src->pData, char*);
-    fillMsgHeader(dst);
+    buildMsgHeader(dst);
     taosArrayPush(pCxt->pOutput->pDataBlocks, &dst);
   }
   return TSDB_CODE_SUCCESS;
@@ -546,7 +549,7 @@ static FORCE_INLINE int32_t parseOneValue(SInsertParseContext* pCxt, SToken* pTo
     }
     case TSDB_DATA_TYPE_BINARY: {
       // too long values will return invalid sql, not be truncated automatically
-      if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {  // todo refactor
+      if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
         return buildSyntaxErrMsg(&pCxt->msg, "string data overflow", pToken->z);
       }
       return func(pToken->z, pToken->n, param);
@@ -644,9 +647,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pTagsSchema, 
     CHECK_CODE(parseOneValue(pCxt, &sToken, pSchema, precision, tmpTokenBuf, KvRowAppend, &param));
   }
 
-  destroyBoundColumnInfo(&pCxt->tags);
   SKVRow row = tdGetKVRowFromBuilder(&pCxt->tagsBuilder);
-  tdDestroyKVRowBuilder(&pCxt->tagsBuilder);
   if (NULL == row) {
     return buildInvalidOperationMsg(&pCxt->msg, "tag value expected");
   }
@@ -799,13 +800,30 @@ static int32_t parseValuesClause(SInsertParseContext* pCxt, STableDataBlocks* da
   return TSDB_CODE_SUCCESS;
 }
 
+static void destroyInsertParseContextForTable(SInsertParseContext* pCxt) {
+  tfree(pCxt->pTableMeta);
+  destroyBoundColumnInfo(&pCxt->tags);
+  tdDestroyKVRowBuilder(&pCxt->tagsBuilder);
+}
+
+static void destroyInsertParseContext(SInsertParseContext* pCxt) {
+  destroyInsertParseContextForTable(pCxt);
+  taosHashCleanup(pCxt->pVgroupsHashObj);
+  taosHashCleanup(pCxt->pTableBlockHashObj);
+  destroyBlockArrayList(pCxt->pTableDataBlocks);
+  destroyBlockArrayList(pCxt->pVgDataBlocks);
+}
+
 //   tb_name
 //       [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)]
 //       [(field1_name, ...)]
 //       VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
 //   [...];
 static int32_t parseInsertBody(SInsertParseContext* pCxt) {
+  // for each table
   while (1) {
+    destroyInsertParseContextForTable(pCxt);
+
     SToken sToken;
     // pSql -> tb_name ...
     NEXT_TOKEN(pCxt->pSql, sToken);
@@ -867,15 +885,6 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
   return buildOutput(pCxt);
 }
 
-static void destroyInsertParseContext(SInsertParseContext* pCxt) {
-  tfree(pCxt->pTableMeta);
-  destroyBoundColumnInfo(&pCxt->tags);
-  tdDestroyKVRowBuilder(&pCxt->tagsBuilder);
-  taosHashCleanup(pCxt->pTableBlockHashObj);
-  destroyBlockArrayList(pCxt->pTableDataBlocks);
-  destroyBlockArrayList(pCxt->pVgDataBlocks);
-}
-
 // INSERT INTO
 //   tb_name
 //       [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)]
@@ -888,12 +897,13 @@ int32_t parseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo) {
     .pSql = pContext->pSql,
     .msg = {.buf = pContext->pMsg, .len = pContext->msgLen},
     .pTableMeta = NULL,
+    .pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false),
     .pTableBlockHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false),
     .totalNum = 0,
     .pOutput = calloc(1, sizeof(SInsertStmtInfo))
   };
 
-  if (NULL == context.pTableBlockHashObj || NULL == context.pOutput) {
+  if (NULL == context.pVgroupsHashObj || NULL == context.pTableBlockHashObj || NULL == context.pOutput) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return TSDB_CODE_FAILED;
   }

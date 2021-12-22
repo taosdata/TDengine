@@ -69,7 +69,7 @@ protected:
     cout << "schemaAttache:" << (int32_t)res_->schemaAttache << ", payloadType:" << (int32_t)res_->payloadType << ", insertType:" << res_->insertType << ", numOfVgs:" << num << endl;    
     for (size_t i = 0; i < num; ++i) {
       SVgDataBlocks* vg = (SVgDataBlocks*)taosArrayGetP(res_->pDataBlocks, i);
-      cout << "vgId:" << vg->vgId << ", numOfTables:" << vg->numOfTables << ", dataSize:" << vg->size << endl;
+      cout << "vgId:" << vg->vg.vgId << ", numOfTables:" << vg->numOfTables << ", dataSize:" << vg->size << endl;
       SMsgDesc* desc = (SMsgDesc*)(vg->pData);
       cout << "numOfVnodes:" << ntohl(desc->numOfVnodes) << endl;
       SSubmitMsg* submit = (SSubmitMsg*)(desc + 1);

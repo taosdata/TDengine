@@ -78,7 +78,7 @@ typedef struct {
 typedef struct STableDataBlocks {
   int8_t      tsSource;     // where does the UNIX timestamp come from, server or client
   bool        ordered;      // if current rows are ordered or not
-  int64_t     vgId;         // virtual group id
+  int32_t     vgId;         // virtual group id
   int64_t     prevTS;       // previous timestamp, recorded to decide if the records array is ts ascending
   int32_t     numOfTables;  // number of tables in current submit block
   int32_t     rowSize;      // row size for current table
