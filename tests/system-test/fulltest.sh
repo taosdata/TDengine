@@ -4,5 +4,6 @@ python3 test.py -f 0-management/1-stable/create_col_tag.py
 python3 test.py -f 4-taosAdapter/taosAdapter_query.py
 python3 test.py -f 4-taosAdapter/taosAdapter_insert.py
 python3 test.py -f 5-taos-tools/taosdump/basic.py 
-python3 test.py -f 2-query/1-select/TD-11561.py
 
+
+python3 test.py -f 2-query/1-select/TD-11561.py
