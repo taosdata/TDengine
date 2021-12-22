@@ -5,4 +5,5 @@ python3 test.py -f 4-taosAdapter/taosAdapter_query.py
 python3 test.py -f 4-taosAdapter/taosAdapter_insert.py
 python3 test.py -f 5-taos-tools/taosdump/basic.py 
 
+
 python3 test.py -f 4-taosAdapter/TD-12163.py
