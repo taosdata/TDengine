@@ -445,7 +445,7 @@ TEST_F(DndTestProfile, 07_KillQueryMsg) {
   }
 }
 
-TEST_F(DndTestProfile, 08_KillQueryMsg_InvalidCOnn) {
+TEST_F(DndTestProfile, 08_KillQueryMsg_InvalidConn) {
   ASSERT_NE(pClient, nullptr);
 
   SKillQueryMsg* pReq = (SKillQueryMsg*)rpcMallocCont(sizeof(SKillQueryMsg));
