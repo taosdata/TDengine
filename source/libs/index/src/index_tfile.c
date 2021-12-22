@@ -296,9 +296,7 @@ int indexTFileSearch(void* tfile, SIndexTermQuery* query, SArray* result) {
   TFileCacheKey key = {.suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName = term->nColName};
   TFileReader*  reader = tfileCacheGet(pTfile->cache, &key);
 
-  ret = tfileReaderSearch(reader, query, result);
-
-  return ret;
+  return tfileReaderSearch(reader, query, result);
 }
 int indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid) {
   // TFileWriterOpt wOpt = {.suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName = term->nColName, .version =
@@ -331,8 +329,7 @@ static int tfileWriteFstOffset(TFileWriter* tw, int32_t offset) {
   return 0;
 }
 static int tfileWriteHeader(TFileWriter* writer) {
-  char  buf[TFILE_HEADER_NO_FST] = {0};
-  char* p = buf;
+  char buf[TFILE_HEADER_NO_FST] = {0};
 
   TFileHeader* header = &writer->header;
   memcpy(buf, (char*)header, sizeof(buf));
@@ -360,8 +357,7 @@ static int tfileWriteData(TFileWriter* write, TFileValue* tval) {
 }
 static int tfileReadLoadHeader(TFileReader* reader) {
   // TODO simple tfile header later
-  char  buf[TFILE_HEADER_SIZE] = {0};
-  char* p = buf;
+  char buf[TFILE_HEADER_SIZE] = {0};
 
   int64_t nread = reader->ctx->read(reader->ctx, buf, sizeof(buf));
   assert(nread == sizeof(buf));
