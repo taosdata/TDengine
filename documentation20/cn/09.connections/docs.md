@@ -7,11 +7,21 @@ TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/
 
 ### 安装Grafana
 
-目前 TDengine 支持 Grafana 6.2 以上的版本。用户可以根据当前的操作系统，到 Grafana 官网下载安装包，并执行安装。下载地址如下：https://grafana.com/grafana/download。
+目前 TDengine 支持 Grafana 7.0 以上的版本。用户可以根据当前的操作系统，到 Grafana 官网下载安装包，并执行安装。下载地址如下：<https://grafana.com/grafana/download>。
 
 ### 配置Grafana
 
-TDengine 的 Grafana 插件请从 <https://github.com/taosdata/grafanaplugin/releases/latest> 下载。
+TDengine 的 Grafana 插件托管在GitHub，可从 <https://github.com/taosdata/grafanaplugin/releases/latest> 下载，当前最新版本为 3.1.3。
+
+推荐使用 [`grafana-cli` 命令行工具](https://grafana.com/docs/grafana/latest/administration/cli/) 进行插件安装。
+
+```bash
+sudo -u grafana grafana-cli \
+  --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v3.1.3/tdengine-datasource-3.1.3.zip \
+  plugins install tdengine-datasource
+```
+
+或者下载到本地并解压到 Grafana 插件目录。
 
 ```bash
 GF_VERSION=3.1.3
@@ -31,11 +41,18 @@ Grafana 7.3+ / 8.x 版本会对插件进行签名检查，因此还需要在 gra
 allow_loading_unsigned_plugins = tdengine-datasource
 ```
 
+在Docker环境下，可以使用如下的环境变量设置自动安装并设置 TDengine 插件：
+
+```bash
+GF_INSTALL_PLUGINS=https://github.com/taosdata/grafanaplugin/releases/download/v3.1.3/tdengine-datasource-3.1.3.zip;tdengine-datasource
+GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
+```
+
 ### 使用 Grafana
 
 #### 配置数据源
 
-用户可以直接通过 localhost:3000 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，如下图所示：
+用户可以直接通过 <http://localhost:3000> 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，如下图所示：
 
 ![img](../images/connections/add_datasource1.jpg)
 
