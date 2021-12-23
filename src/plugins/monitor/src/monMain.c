@@ -463,7 +463,7 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
     int pos = snprintf(sql, SQL_LENGTH,
                        "create table if not exists %s.restful_info(ts timestamp", tsMonitorDbName);
     for (int i = 0; i < tListLen(monHttpStatusTable); ++i) {
-      pos += snprintf(sql + pos, SQL_LENGTH, ", `%s(%d)` int",
+      pos += snprintf(sql + pos, SQL_LENGTH, ", %s_%d int",
                                 monHttpStatusTable[i].name,
                                 monHttpStatusTable[i].code);
     }
