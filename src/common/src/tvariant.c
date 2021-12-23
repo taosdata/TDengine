@@ -953,7 +953,7 @@ int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool inc
       break;
     }
     case TSDB_DATA_TYPE_JSON:{
-      if (pVariant->nType == TSDB_DATA_TYPE_BINARY){
+      if (pVariant->nType == TSDB_DATA_TYPE_BINARY || pVariant->nType == TSDB_DATA_TYPE_NULL){
         *((int8_t *)payload) = TSDB_DATA_JSON_PLACEHOLDER;
       } else if (pVariant->nType == TSDB_DATA_TYPE_JSON){   // select * from stable, set tag type to json，from setTagValue/tag_project_function
         memcpy(payload, pVariant->pz, pVariant->nLen);
