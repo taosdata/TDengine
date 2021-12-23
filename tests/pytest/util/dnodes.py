@@ -64,10 +64,12 @@ class TDSimClient:
         cmd = "echo %s %s >> %s" % (option, value, self.cfgPath)
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
+    
     def os_string(self,path):
         os_path = path.replace("/",os.sep)
         return os_path
-    def deploy(self):
+
+    def deploy(self, *updatecfgDict):
         self.logDir = self.os_string("%s/sim/psim/log" % (self.path))
         self.cfgDir = self.os_string("%s/sim/psim/cfg" % (self.path))
         self.cfgPath = self.os_string("%s/sim/psim/cfg/taos.cfg" % (self.path))
@@ -107,6 +109,13 @@ class TDSimClient:
             self.cfg("masterIp", "192.168.0.1")
             self.cfg("secondIp", "192.168.0.2")
         self.cfg("logDir", self.logDir)
+        
+        # update extra client config
+        clientCfgkeys = ["clientMerge"]
+        if updatecfgDict[0] and updatecfgDict[0][0]:
+            for key, value in updatecfgDict[0][0].items():                
+                if key in clientCfgkeys:
+                    self.cfg(key, value)
 
         for key, value in self.cfgDict.items():
             self.cfg(key, value)
@@ -505,7 +514,7 @@ class TDDnodes:
         self.sim.setTestCluster(self.testCluster)
 
         if (self.simDeployed == False):
-            self.sim.deploy()
+            self.sim.deploy(updatecfgDict)
             self.simDeployed = True
 
         self.check(index)
