@@ -38,6 +38,14 @@ typedef struct SMsgBuf {
   char   *buf;
 } SMsgBuf;
 
+// create table operation type
+enum TSQL_CREATE_TABLE_TYPE {
+  TSQL_CREATE_TABLE  = 0x1,
+  TSQL_CREATE_STABLE = 0x2,
+  TSQL_CREATE_CTABLE = 0x3,
+  TSQL_CREATE_STREAM = 0x4,
+};
+
 void clearTableMetaInfo(STableMetaInfo* pTableMetaInfo);
 
 void clearAllTableMetaInfo(SQueryStmtInfo* pQueryInfo, bool removeMeta, uint64_t id);
@@ -60,7 +68,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pSqlInfo, SQ
  * @param type
  * @return
  */
-int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, int64_t id, void** output, int32_t* outputLen, int32_t* type, char* msgBuf, int32_t msgBufLen);
+int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, void** output, int32_t* outputLen, int32_t* type, char* msgBuf, int32_t msgBufLen);
 
 /**
  * Evaluate the numeric and timestamp arithmetic expression in the WHERE clause.

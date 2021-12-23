@@ -174,8 +174,11 @@ SWalReadHandle *walOpenReadHandle(SWal *);
 void            walCloseReadHandle(SWalReadHandle *);
 int32_t         walReadWithHandle(SWalReadHandle *pRead, int64_t ver);
 
+// deprecated
+#if 0
 int32_t walRead(SWal *, SWalHead **, int64_t ver);
-// int32_t walReadWithFp(SWal *, FWalWrite writeFp, int64_t verStart, int32_t readNum);
+int32_t walReadWithFp(SWal *, FWalWrite writeFp, int64_t verStart, int32_t readNum);
+#endif
 
 // lifecycle check
 int64_t walGetFirstVer(SWal *);

@@ -51,7 +51,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_QUERY, "mq-query" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONNECT, "mq-connect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_DISCONNECT, "mq-disconnect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_SET_CUR, "mq-set-cur" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_RSP_READY, "rsp-ready" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_RES_READY, "res-ready" )
 // message from client to mnode
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONNECT, "connect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_ACCT, "create-acct" )	
@@ -78,8 +78,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STB, "create-stb" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STB, "alter-stb" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STB, "drop-stb" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_VGROUP_LIST, "vgroup-list" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_QUERY, "kill-query" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_STREAM, "kill-stream" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_QUERY, "kill-query" )		
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_CONN, "kill-conn" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_HEARTBEAT, "heartbeat" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SHOW, "show" )
@@ -95,15 +94,15 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "nettest" )
 
 // message from mnode to vnode
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STB_IN, "create-stb-internal" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STB_IN, "alter-stb-internal" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STB_IN, "alter-stb-internal" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STB_IN, "drop-stb-internal" )
 // message from mnode to mnode
 // message from mnode to qnode
 // message from mnode to dnode
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_VNODE_IN, "create-vnode-internal" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_VNODE_IN, "alter-vnode-internal" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_VNODE_IN, "drop-vnode-internal" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_AUTH_VNODE_IN, "auth-vnode-internal" )	
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_VNODE_IN, "drop-vnode-internal" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_AUTH_VNODE_IN, "auth-vnode-internal" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SYNC_VNODE_IN, "sync-vnode-internal" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_COMPACT_VNODE_IN, "compact-vnode-internal" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_MNODE_IN, "create-mnode-internal" )
@@ -291,6 +290,37 @@ typedef struct SSchema {
 } SSchema;
 
 typedef struct {
+  int32_t  contLen;
+  int32_t  vgId;
+  int8_t   tableType;
+  int16_t  numOfColumns;
+  int16_t  numOfTags;
+  int32_t  tid;
+  int32_t  sversion;
+  int32_t  tversion;
+  int32_t  tagDataLen;
+  int32_t  sqlDataLen;
+  uint64_t uid;
+  uint64_t superTableUid;
+  uint64_t createdTime;
+  char     tableFname[TSDB_TABLE_FNAME_LEN];
+  char     stbFname[TSDB_TABLE_FNAME_LEN];
+  char     data[];
+} SMDCreateTableMsg;
+
+typedef struct {
+  int32_t len;  // one create table message
+  char    tableName[TSDB_TABLE_FNAME_LEN];
+  int16_t numOfTags;
+  int16_t numOfColumns;
+  int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
+  int8_t  igExists;
+  int8_t  rspMeta;
+  int8_t  reserved[16];
+  char    schema[];
+} SCreateTableMsg;
+
+typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
   int32_t numOfTags;
@@ -326,19 +356,6 @@ typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
   uint64_t suid;
 } SDropStbInternalMsg;
-
-typedef struct {
-  SMsgHead head;
-  char     name[TSDB_TABLE_FNAME_LEN];
-  char     stbFname[TSDB_TABLE_FNAME_LEN];
-  int8_t   tableType;
-  uint64_t suid;
-  int32_t  sversion;
-  int32_t  numOfTags;
-  int32_t  numOfColumns;
-  int32_t  tagDataLen;
-  char     data[];
-} SCreateTableMsg;
 
 typedef struct {
   SMsgHead head;
@@ -947,18 +964,6 @@ typedef struct {
 } SQueryDesc;
 
 typedef struct {
-  char    sql[TSDB_SHOW_SQL_LEN];
-  char    dstTable[TSDB_TABLE_NAME_LEN];
-  int32_t streamId;
-  int64_t num;  // number of computing/cycles
-  int64_t useconds;
-  int64_t ctime;
-  int64_t stime;
-  int64_t slidingTime;
-  int64_t interval;
-} SStreamDesc;
-
-typedef struct {
   int32_t connId;
   int32_t pid;
   int32_t numOfQueries;
@@ -1094,6 +1099,7 @@ typedef struct {
 } SUpdateTagValRsp;
 
 typedef struct SSchedulerQueryMsg {
+  uint64_t  schedulerId;
   uint64_t  queryId;
   uint64_t  taskId;
   uint32_t  contentLen;
@@ -1101,14 +1107,38 @@ typedef struct SSchedulerQueryMsg {
 } SSchedulerQueryMsg;
 
 typedef struct SSchedulerReadyMsg {
+  uint64_t  schedulerId;
   uint64_t  queryId;
   uint64_t  taskId;
 } SSchedulerReadyMsg;
 
 typedef struct SSchedulerFetchMsg {
+  uint64_t  schedulerId;
   uint64_t  queryId;
   uint64_t  taskId;
 } SSchedulerFetchMsg;
+
+typedef struct SSchedulerStatusMsg {
+  uint64_t  schedulerId;
+} SSchedulerStatusMsg;
+
+typedef struct STaskStatus {
+  uint64_t  queryId;
+  uint64_t  taskId;
+  int8_t    status;
+} STaskStatus;
+
+typedef struct SSchedulerStatusRsp {
+  uint32_t    num;
+  STaskStatus status[];
+} SSchedulerStatusRsp;
+
+
+typedef struct SSchedulerCancelMsg {
+  uint64_t  schedulerId;
+  uint64_t  queryId;
+  uint64_t  taskId;
+} SSchedulerCancelMsg;
 
 
 #pragma pack(pop)

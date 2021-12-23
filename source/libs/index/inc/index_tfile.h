@@ -26,84 +26,93 @@
 extern "C" {
 #endif
 
-// tfile header
-// |<---suid--->|<---version--->|<--colLen-->|<-colName->|<---type-->|
-// |<-uint64_t->|<---int32_t--->|<--int32_t->|<-colLen-->|<-uint8_t->|
+// tfile header content
+// |<---suid--->|<---version--->|<-------colName------>|<---type-->|<--fstOffset->|
+// |<-uint64_t->|<---int32_t--->|<--TSDB_COL_NAME_LEN-->|<-uint8_t->|<---int32_t-->|
 
-typedef struct TFileReadHeader {
+#pragma pack(push, 1)
+typedef struct TFileHeader {
   uint64_t suid;
   int32_t  version;
-  char     colName[128];  //
+  char     colName[TSDB_COL_NAME_LEN];  //
   uint8_t  colType;
-} TFileReadHeader;
+  int32_t  fstOffset;
+} TFileHeader;
+#pragma pack(pop)
 
-#define TFILE_HEADER_SIZE (sizeof(TFILE_HEADER_SIZE) + sizeof(uint32_t));
-#define TFILE_HADER_PRE_SIZE (sizeof(uint64_t) + sizeof(int32_t) + sizeof(int32_t))
+#define TFILE_HEADER_SIZE (sizeof(TFileHeader))
+#define TFILE_HEADER_NO_FST (TFILE_HEADER_SIZE - sizeof(int32_t))
+//#define TFILE_HADER_PRE_SIZE (sizeof(uint64_t) + sizeof(int32_t) + sizeof(int32_t))
 
 typedef struct TFileCacheKey {
-  uint64_t    suid;
-  uint8_t     colType;
-  int32_t     version;
-  const char *colName;
-  int32_t     nColName;
+  uint64_t suid;
+  uint8_t  colType;
+  char*    colName;
+  int32_t  nColName;
 } TFileCacheKey;
 
 // table cache
 // refactor to LRU cache later
 typedef struct TFileCache {
-  SHashObj *tableCache;
+  SHashObj* tableCache;
   int16_t   capacity;
   // add more param
 } TFileCache;
 
 typedef struct TFileWriter {
-  FstBuilder *fb;
-  WriterCtx * ctx;
+  FstBuilder* fb;
+  WriterCtx*  ctx;
+  TFileHeader header;
+  uint32_t    offset;
 } TFileWriter;
 
+// multi reader and single write
 typedef struct TFileReader {
   T_REF_DECLARE()
-  Fst *           fst;
-  WriterCtx *     ctx;
-  TFileReadHeader header;
+  Fst*        fst;
+  WriterCtx*  ctx;
+  TFileHeader header;
 } TFileReader;
 
 typedef struct IndexTFile {
-  char *       path;
-  TFileCache * cache;
-  TFileWriter *tw;
+  char*        path;
+  TFileCache*  cache;
+  TFileWriter* tw;
 } IndexTFile;
 
 typedef struct TFileWriterOpt {
   uint64_t suid;
   int8_t   colType;
-  char *   colName;
+  char*    colName;
   int32_t  nColName;
   int32_t  version;
 } TFileWriterOpt;
 
 typedef struct TFileReaderOpt {
   uint64_t suid;
-  char *   colName;
+  char*    colName;
   int32_t  nColName;
 } TFileReaderOpt;
 
 // tfile cache, manage tindex reader
-TFileCache * tfileCacheCreate(const char *path);
-void         tfileCacheDestroy(TFileCache *tcache);
-TFileReader *tfileCacheGet(TFileCache *tcache, TFileCacheKey *key);
-void         tfileCachePut(TFileCache *tcache, TFileCacheKey *key, TFileReader *reader);
+TFileCache*  tfileCacheCreate(const char* path);
+void         tfileCacheDestroy(TFileCache* tcache);
+TFileReader* tfileCacheGet(TFileCache* tcache, TFileCacheKey* key);
+void         tfileCachePut(TFileCache* tcache, TFileCacheKey* key, TFileReader* reader);
 
-TFileReader *tfileReaderCreate();
-void         TFileReaderDestroy(TFileReader *reader);
+TFileReader* tfileReaderCreate(WriterCtx* ctx);
+void         tfileReaderDestroy(TFileReader* reader);
+int          tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* result);
 
-TFileWriter *tfileWriterCreate(const char *suid, const char *colName);
-void         tfileWriterDestroy(TFileWriter *tw);
+TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header);
+void         tfileWriterDestroy(TFileWriter* tw);
+int          tfileWriterPut(TFileWriter* tw, void* data);
+int          tfileWriterFinish(TFileWriter* tw);
 
 //
-IndexTFile *indexTFileCreate(const char *path);
-int         indexTFilePut(void *tfile, SIndexTerm *term, uint64_t uid);
-int         indexTFileSearch(void *tfile, SIndexTermQuery *query, SArray *result);
+IndexTFile* indexTFileCreate(const char* path);
+int         indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid);
+int         indexTFileSearch(void* tfile, SIndexTermQuery* query, SArray* result);
 
 #ifdef __cplusplus
 }

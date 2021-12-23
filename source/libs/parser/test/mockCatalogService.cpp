@@ -33,6 +33,7 @@ public:
     col->colId = colId_++;
     col->bytes = bytes;
     strcpy(col->name, name.c_str());
+    rowsize_ += bytes;
     return *this;
   }
 
@@ -89,11 +90,11 @@ public:
   MockCatalogServiceImpl() : id_(1) {
   }
 
-  int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle) const {
+  int32_t catalogGetHandle() const {
     return 0;
   }
 
-  int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta) const {
+  int32_t catalogGetTableMeta(const char* pDBName, const char* pTableName, STableMeta** pTableMeta) const {
     std::unique_ptr<STableMeta> table;
     int32_t code = copyTableSchemaMeta(pDBName, pTableName, &table);
     if (TSDB_CODE_SUCCESS != code) {
@@ -101,6 +102,11 @@ public:
     }
     *pTableMeta = table.release();
     return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t catalogGetTableHashVgroup(const char* pDBName, const char* pTableName, SVgroupInfo* vgInfo) const {
+    // todo
+    return 0;
   }
 
   TableBuilder& createTableBuilder(const std::string& db, const std::string& tbname, int8_t tableType, int32_t numOfColumns, int32_t numOfTags) {
@@ -147,11 +153,11 @@ public:
 
     for (const auto& db : meta_) {
       std::cout << "Databse:" << db.first << std::endl;
-      std::cout << SH("Table") << SH("Type") << SH("Precision") << IH("Vgid") << std::endl;
+      std::cout << SH("Table") << SH("Type") << SH("Precision") << IH("Vgid") << IH("RowSize") << std::endl;
       std::cout << SL(3, 1) << std::endl;
       for (const auto& table : db.second) {
         const auto& schema = table.second->schema;
-        std::cout << SF(table.first) << SF(ttToString(schema->tableType)) << SF(pToString(schema->tableInfo.precision)) << IF(schema->vgId) << std::endl;
+        std::cout << SF(table.first) << SF(ttToString(schema->tableType)) << SF(pToString(schema->tableInfo.precision)) << IF(schema->vgId) << IF(schema->tableInfo.rowSize) << std::endl;
       }
       std::cout << std::endl;
     }
@@ -269,10 +275,10 @@ std::shared_ptr<MockTableMeta> MockCatalogService::getTableMeta(const std::strin
   return impl_->getTableMeta(db, tbname);
 }
 
-int32_t MockCatalogService::catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle) const {
-  return impl_->catalogGetHandle(clusterId, catalogHandle);
+int32_t MockCatalogService::catalogGetTableMeta(const char* pDBName, const char* pTableName, STableMeta** pTableMeta) const {
+  return impl_->catalogGetTableMeta(pDBName, pTableName, pTableMeta);
 }
 
-int32_t MockCatalogService::catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta) const {
-  return impl_->catalogGetTableMeta(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, pTableMeta);
+int32_t MockCatalogService::catalogGetTableHashVgroup(const char* pDBName, const char* pTableName, SVgroupInfo* vgInfo) const {
+  return impl_->catalogGetTableHashVgroup(pDBName, pTableName, vgInfo);
 }

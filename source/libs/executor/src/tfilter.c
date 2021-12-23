@@ -1175,7 +1175,7 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
       void* key = NULL;
       len = 0;
 
-      taosHashGetKey((SHashObj *)data, p, &key, &len);
+      taosHashGetKey(p, &key, &len);
       void *fdata = NULL;
     
       if (IS_VAR_DATA_TYPE(type)) {

@@ -123,6 +123,16 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs);
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
 /**
+ * @brief Process a consume message.
+ *
+ * @param pVnode The vnode object.
+ * @param pMsg The request message
+ * @param pRsp The response message
+ * @return int 0 for success, -1 for failure
+ */
+int vnodeProcessCMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+
+/**
  * @brief Process the sync request
  *
  * @param pVnode

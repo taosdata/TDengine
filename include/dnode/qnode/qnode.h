@@ -19,7 +19,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+#include "trpc.h"
 
 typedef struct {
   uint64_t numOfStartTask;
@@ -31,48 +31,6 @@ typedef struct {
   uint64_t numOfFetchInQueue;
   uint64_t numOfErrors;
 } SQnodeStat;
-
-/* start Task msg */
-typedef struct {
-  uint32_t  schedulerIp;
-  uint16_t  schedulerPort;
-  int64_t   taskId;
-  int64_t   queryId;
-  uint32_t  srcIp;
-  uint16_t  srcPort;
-} SQnodeStartTaskMsg;
-
-/* stop Task msg */
-typedef struct {
-  int64_t   taskId;
-} SQnodeStopTaskMsg;
-
-/* start/stop Task msg response */
-typedef struct {
-  int64_t   taskId;
-  int32_t code;
-} SQnodeTaskRespMsg;
-
-/* Task status msg */
-typedef struct {
-  int64_t   taskId;
-  int32_t   status;
-  int64_t   queryId;
-} SQnodeTaskStatusMsg;
-
-/* Qnode/Scheduler heartbeat msg */
-typedef struct {
-  int32_t status;
-  int32_t load;
-  
-} SQnodeHeartbeatMsg;
-
-/* Qnode sent/received msg */
-typedef struct {
-  int8_t   msgType;
-  int32_t  msgLen;
-  char     msg[];
-} SQnodeMsg;
 
 
 /**

@@ -36,20 +36,20 @@ typedef struct FstTransition {
 typedef struct FstBuilderNode {
   bool    isFinal;
   Output  finalOutput;
-  SArray *trans;  // <FstTransition>
+  SArray* trans;  // <FstTransition>
 } FstBuilderNode;
 
-FstBuilderNode *fstBuilderNodeDefault();
+FstBuilderNode* fstBuilderNodeDefault();
 
-FstBuilderNode *fstBuilderNodeClone(FstBuilderNode *src);
+FstBuilderNode* fstBuilderNodeClone(FstBuilderNode* src);
 
-void fstBuilderNodeCloneFrom(FstBuilderNode *dst, FstBuilderNode *src);
+void fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src);
 
 // bool fstBuilderNodeCompileTo(FstBuilderNode *b, FstCountingWriter *wrt,
 // CompiledAddr lastAddr, CompiledAddr startAddr);
-bool fstBuilderNodeEqual(FstBuilderNode *n1, FstBuilderNode *n2);
+bool fstBuilderNodeEqual(FstBuilderNode* n1, FstBuilderNode* n2);
 
-void fstBuilderNodeDestroy(FstBuilderNode *node);
+void fstBuilderNodeDestroy(FstBuilderNode* node);
 
 #ifdef __cplusplus
 }

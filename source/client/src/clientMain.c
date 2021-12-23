@@ -1,16 +1,11 @@
+#include "os.h"
 #include "clientInt.h"
 #include "clientLog.h"
-#include "os.h"
+#include "query.h"
 #include "taosmsg.h"
-#include "tcache.h"
-#include "tconfig.h"
 #include "tglobal.h"
-#include "tnote.h"
 #include "tref.h"
 #include "trpc.h"
-#include "tsched.h"
-#include "ttime.h"
-#include "ttimezone.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -44,9 +39,7 @@ void taos_cleanup(void) {
   tscReqRef = -1;
   taosCloseRef(id);
 
-  void* p = tscQhandle;
-  tscQhandle = NULL;
-  taosCleanUpScheduler(p);
+  cleanupTaskQueue();
 
   id = tscConnRef;
   tscConnRef = -1;
@@ -262,3 +255,9 @@ const char *taos_data_type(int type) {
     default: return "UNKNOWN";
   }
 }
+
+const char *taos_get_client_info() { return version; }
+
+int taos_affected_rows(TAOS_RES *res) { return 1; }
+
+int taos_result_precision(TAOS_RES *res) { return TSDB_TIME_PRECISION_MILLI; }
