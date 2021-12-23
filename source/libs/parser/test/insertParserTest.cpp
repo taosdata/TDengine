@@ -43,8 +43,8 @@ protected:
 
   void bind(const char* sql) {
     reset();
-    cxt_.pAcctId = acctId_.c_str();
-    cxt_.pDbname = db_.c_str();
+    cxt_.ctx.acctId = atoi(acctId_.c_str());
+    cxt_.ctx.db = (char*) db_.c_str();
     strcpy(sqlBuf_, sql);
     cxt_.sqlLen = strlen(sql);
     sqlBuf_[cxt_.sqlLen] = '\0';
@@ -69,7 +69,7 @@ protected:
     cout << "schemaAttache:" << (int32_t)res_->schemaAttache << ", payloadType:" << (int32_t)res_->payloadType << ", insertType:" << res_->insertType << ", numOfVgs:" << num << endl;    
     for (size_t i = 0; i < num; ++i) {
       SVgDataBlocks* vg = (SVgDataBlocks*)taosArrayGetP(res_->pDataBlocks, i);
-      cout << "vgId:" << vg->vgId << ", numOfTables:" << vg->numOfTables << ", dataSize:" << vg->size << endl;
+      cout << "vgId:" << vg->vg.vgId << ", numOfTables:" << vg->numOfTables << ", dataSize:" << vg->size << endl;
       SMsgDesc* desc = (SMsgDesc*)(vg->pData);
       cout << "numOfVnodes:" << ntohl(desc->numOfVnodes) << endl;
       SSubmitMsg* submit = (SSubmitMsg*)(desc + 1);

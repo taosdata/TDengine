@@ -521,8 +521,8 @@ _return:
 
 int32_t schLaunchTask(SQueryJob *job, SQueryTask *task) {
   SSubplan *plan = task->plan;
-  
-  SCH_ERR_RET(qSubPlanToString(plan, &task->msg));
+  int32_t len = 0;
+  SCH_ERR_RET(qSubPlanToString(plan, &task->msg, &len));
   if (plan->execEpSet.numOfEps <= 0) {
     SCH_ERR_RET(schSetTaskExecEpSet(job, &plan->execEpSet));
   }

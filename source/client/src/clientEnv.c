@@ -13,17 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "clientInt.h"
-#include "clientLog.h"
 #include "os.h"
 #include "taosmsg.h"
+#include "query.h"
+#include "clientInt.h"
+#include "clientLog.h"
 #include "tcache.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tnote.h"
 #include "tref.h"
 #include "trpc.h"
-#include "tsched.h"
 #include "ttime.h"
 #include "ttimezone.h"
 
@@ -33,10 +33,8 @@
 SAppInfo   appInfo;
 int32_t    tscReqRef  = -1;
 int32_t    tscConnRef = -1;
-void      *tscQhandle = NULL;
 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
-int32_t tsNumOfThreads = 1;
 volatile int32_t tscInitRes = 0;
 
 static void registerRequest(SRequestObj* pRequest) {
@@ -98,12 +96,12 @@ void closeTransporter(STscObj* pTscObj)  {
 }
 
 // TODO refactor
-void* openTransporter(const char *user, const char *auth) {
+void* openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = 0;
   rpcInit.label = "TSC";
-  rpcInit.numOfThreads = tsNumOfThreads;
+  rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
   rpcInit.sessions = tsMaxConnections;
   rpcInit.connType = TAOS_CONN_CLIENT;
@@ -229,18 +227,8 @@ void taos_init_imp(void) {
 
   taosSetCoreDump(true);
 
-  double factor = 4.0;
-  int32_t numOfThreads = MAX((int)(tsNumOfCores * tsNumOfThreadsPerCore / factor), 2);
+  initTaskQueue();
 
-  int32_t queueSize = tsMaxConnections * 2;
-  tscQhandle = taosInitScheduler(queueSize, numOfThreads, "tsc");
-  if (NULL == tscQhandle) {
-    tscError("failed to init task queue");
-    tscInitRes = -1;
-    return;
-  }
-
-  tscDebug("client task queue is initialized, numOfThreads: %d", numOfThreads);
   tscConnRef = taosOpenRef(200, destroyTscObj);
   tscReqRef  = taosOpenRef(40960, doDestroyRequest);
 

@@ -62,8 +62,9 @@ protected:
       size_t num = taosArrayGetSize(subplans);
       for (size_t j = 0; j < num; ++j) {
         std::cout << "no " << j << ":" << std::endl;
+        int32_t len = 0;
         char* str = nullptr;
-        ASSERT_EQ (TSDB_CODE_SUCCESS, qSubPlanToString((const SSubplan*)taosArrayGetP(subplans, j), &str));
+        ASSERT_EQ (TSDB_CODE_SUCCESS, qSubPlanToString((const SSubplan*)taosArrayGetP(subplans, j), &str, &len));
         std::cout << str << std::endl;
         free(str);
       }

@@ -1,3 +1,4 @@
+#include <astGenerator.h>
 #include "parserInt.h"
 #include "parserUtil.h"
 
@@ -218,4 +219,127 @@ SCreateDbMsg* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, char* msgBuf, int32
   }
 
   return pCreateMsg;
+}
+
+int32_t createSName(SName* pName, SToken* pTableName, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
+  const char* msg1 = "name too long";
+  const char* msg2 = "acctId too long";
+
+  int32_t  code = TSDB_CODE_SUCCESS;
+  char* p  = strnchr(pTableName->z, TS_PATH_DELIMITER[0], pTableName->n, false);
+
+  if (p != NULL) { // db has been specified in sql string so we ignore current db path
+    code = tNameSetAcctId(pName, pParseCtx->acctId);
+    if (code != 0) {
+      return buildInvalidOperationMsg(pMsgBuf, msg2);
+    }
+
+    char name[TSDB_TABLE_FNAME_LEN] = {0};
+    strncpy(name, pTableName->z, pTableName->n);
+
+    code = tNameFromString(pName, name, T_NAME_DB|T_NAME_TABLE);
+    if (code != 0) {
+      return buildInvalidOperationMsg(pMsgBuf, msg1);
+    }
+  } else {  // get current DB name first, and then set it into path
+    if (pTableName->n >= TSDB_TABLE_NAME_LEN) {
+      return buildInvalidOperationMsg(pMsgBuf, msg1);
+    }
+
+    tNameSetDbName(pName, pParseCtx->acctId, pParseCtx->db, strlen(pParseCtx->db));
+
+    char name[TSDB_TABLE_FNAME_LEN] = {0};
+    strncpy(name, pTableName->z, pTableName->n);
+
+    code = tNameFromString(pName, name, T_NAME_TABLE);
+    if (code != 0) {
+      code = buildInvalidOperationMsg(pMsgBuf, msg1);
+    }
+  }
+
+  return code;
+}
+
+SCreateStbMsg* buildCreateTableMsg(SCreateTableSql* pCreateTableSql, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
+  SSchema* pSchema;
+
+  int32_t numOfCols = (int32_t) taosArrayGetSize(pCreateTableSql->colInfo.pColumns);
+  int32_t numOfTags = (int32_t) taosArrayGetSize(pCreateTableSql->colInfo.pTagColumns);
+
+  SCreateStbMsg* pCreateTableMsg = (SCreateStbMsg*)calloc(1, sizeof(SCreateStbMsg) + (numOfCols + numOfTags) * sizeof(SSchema));
+
+  char* pMsg = NULL;
+  int8_t type = pCreateTableSql->type;
+  if (type == TSQL_CREATE_TABLE) {  // create by using super table, tags value
+#if 0
+    SArray* list = pInfo->pCreateTableInfo->childTableInfo;
+
+    int32_t numOfTables = (int32_t)taosArrayGetSize(list);
+    pCreateTableMsg->numOfTables = htonl(numOfTables);
+
+    pMsg = (char*)pCreateMsg;
+    for (int32_t i = 0; i < numOfTables; ++i) {
+      SCreateTableMsg* pCreate = (SCreateTableMsg*)pMsg;
+
+      pCreate->numOfColumns = htons(pCmd->numOfCols);
+      pCreate->numOfTags = htons(pCmd->count);
+      pMsg += sizeof(SCreateTableMsg);
+
+      SCreatedTableInfo* p = taosArrayGet(list, i);
+      strcpy(pCreate->tableName, p->fullname);
+      pCreate->igExists = (p->igExist) ? 1 : 0;
+
+      // use dbinfo from table id without modifying current db info
+      pMsg = serializeTagData(&p->tagdata, pMsg);
+
+      int32_t len = (int32_t)(pMsg - (char*)pCreate);
+      pCreate->len = htonl(len);
+    }
+#endif
+  } else { // create (super) table
+    SName n = {0};
+    int32_t code = createSName(&n, &pCreateTableSql->name, pParseCtx, pMsgBuf);
+    if (code != 0) {
+      return NULL;
+    }
+
+    code = tNameExtractFullName(&n, pCreateTableMsg->name);
+    if (code != 0) {
+      buildInvalidOperationMsg(pMsgBuf, "invalid table name or database not specified");
+      return NULL;
+    }
+
+    pCreateTableMsg->igExists = pCreateTableSql->existCheck ? 1 : 0;
+
+    pCreateTableMsg->numOfColumns = htonl(numOfCols);
+    pCreateTableMsg->numOfTags = htonl(numOfTags);
+
+    pSchema = (SSchema*) pCreateTableMsg->pSchema;
+    for (int i = 0; i < numOfCols; ++i) {
+      TAOS_FIELD* pField = taosArrayGet(pCreateTableSql->colInfo.pColumns, i);
+
+      pSchema->type  = pField->type;
+      pSchema->bytes = htonl(pField->bytes);
+      strcpy(pSchema->name, pField->name);
+
+      pSchema++;
+    }
+
+    for(int32_t i = 0; i < numOfTags; ++i) {
+      TAOS_FIELD* pField = taosArrayGet(pCreateTableSql->colInfo.pTagColumns, i);
+
+      pSchema->type  = pField->type;
+      pSchema->bytes = htonl(pField->bytes);
+      strcpy(pSchema->name, pField->name);
+
+      pSchema++;
+    }
+
+    pMsg = (char*)pSchema;
+  }
+
+  int32_t msgLen = (int32_t)(pMsg - (char*)pCreateTableMsg);
+  *len = msgLen;
+
+  return pCreateTableMsg;
 }

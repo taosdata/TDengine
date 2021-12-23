@@ -47,7 +47,6 @@ typedef struct TFileHeader {
 typedef struct TFileCacheKey {
   uint64_t suid;
   uint8_t  colType;
-  int32_t  version;
   char*    colName;
   int32_t  nColName;
 } TFileCacheKey;
@@ -67,6 +66,7 @@ typedef struct TFileWriter {
   uint32_t    offset;
 } TFileWriter;
 
+// multi reader and single write
 typedef struct TFileReader {
   T_REF_DECLARE()
   Fst*        fst;
