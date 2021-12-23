@@ -695,6 +695,70 @@ static bool phyNodeFromJson(const cJSON* json, void* obj) {
   return res;
 }
 
+static const char* jkInserterNumOfTables = "NumOfTables";
+static const char* jkInserterDataSize = "DataSize";
+
+static bool inserterToJson(const void* obj, cJSON* json) {
+  const SDataInserter* inserter = (const SDataInserter*)obj;
+  bool res = cJSON_AddNumberToObject(json, jkInserterNumOfTables, inserter->numOfTables);
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkInserterDataSize, inserter->size);
+  }
+  // todo pData
+  return res;
+}
+
+static bool inserterFromJson(const cJSON* json, void* obj) {
+  SDataInserter* inserter = (SDataInserter*)obj;
+  inserter->numOfTables = getNumber(json, jkInserterNumOfTables);
+  inserter->size = getNumber(json, jkInserterDataSize);
+  // todo pData
+}
+
+static bool specificDataSinkToJson(const void* obj, cJSON* json) {
+  const SDataSink* dsink = (const SDataSink*)obj;
+  switch (dsink->info.type) {
+    case DSINK_Dispatch:
+      return true;
+    case DSINK_Insert:
+      return inserterToJson(obj, json);
+    default:
+      break;
+  }
+  return false;
+}
+
+static bool specificDataSinkFromJson(const cJSON* json, void* obj) {
+  SDataSink* dsink = (SDataSink*)obj;
+  switch (dsink->info.type) {
+    case DSINK_Dispatch:
+      return true;
+    case DSINK_Insert:
+      return inserterFromJson(json, obj);
+    default:
+      break;
+  }
+  return false;
+}
+
+static const char* jkDataSinkName = "Name";
+
+static bool dataSinkToJson(const void* obj, cJSON* json) {
+  const SDataSink* dsink = (const SDataSink*)obj;
+  bool res = cJSON_AddStringToObject(json, jkDataSinkName, dsink->info.name);
+  if (res) {
+    res = addObject(json, dsink->info.name, specificDataSinkToJson, dsink);
+  }
+  return res;
+}
+
+static bool dataSinkFromJson(const cJSON* json, void* obj) {
+  SDataSink* dsink = (SDataSink*)obj;
+  dsink->info.name = getString(json, jkDataSinkName);
+  dsink->info.type = dsinkNameToDsinkType(dsink->info.name);
+  return fromObject(json, dsink->info.name, specificDataSinkFromJson, dsink, true);
+}
+
 static const char* jkIdQueryId = "QueryId";
 static const char* jkIdTemplateId = "TemplateId";
 static const char* jkIdSubplanId = "SubplanId";
@@ -721,6 +785,7 @@ static bool subplanIdFromJson(const cJSON* json, void* obj) {
 
 static const char* jkSubplanId = "Id";
 static const char* jkSubplanNode = "Node";
+static const char* jkSubplanDataSink = "DataSink";
 
 static cJSON* subplanToJson(const SSubplan* subplan) {
   cJSON* jSubplan = cJSON_CreateObject();
@@ -733,6 +798,9 @@ static cJSON* subplanToJson(const SSubplan* subplan) {
   bool res = addObject(jSubplan, jkSubplanId, subplanIdToJson, &subplan->id);
   if (res) {
     res = addObject(jSubplan, jkSubplanNode, phyNodeToJson, subplan->pNode);
+  }
+  if (res) {
+    res = addObject(jSubplan, jkSubplanDataSink, dataSinkToJson, subplan->pDataSink);
   }
 
   if (!res) {
@@ -751,6 +819,9 @@ static SSubplan* subplanFromJson(const cJSON* json) {
   if (res) {
     res = fromObjectWithAlloc(json, jkSubplanNode, phyNodeFromJson, (void**)&subplan->pNode, sizeof(SPhyNode), false);
   }
+  if (res) {
+    res = fromObjectWithAlloc(json, jkSubplanDataSink, dataSinkFromJson, (void**)&subplan->pDataSink, sizeof(SDataSink), false);
+  }
   
   if (!res) {
     qDestroySubplan(subplan);
@@ -759,13 +830,22 @@ static SSubplan* subplanFromJson(const cJSON* json) {
   return subplan;
 }
 
-int32_t subPlanToString(const SSubplan* subplan, char** str) {
+int32_t subPlanToString(const SSubplan* subplan, char** str, int32_t* len) {
+  if (QUERY_TYPE_MODIFY == subplan->type) {
+    SDataInserter* insert = (SDataInserter*)(subplan->pDataSink);
+    *len = insert->size;
+    *str = insert->pData;
+    insert->pData == NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
   cJSON* json = subplanToJson(subplan);
   if (NULL == json) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return TSDB_CODE_FAILED;
   }
   *str = cJSON_Print(json);
+  *len = strlen(*str);
   return TSDB_CODE_SUCCESS;
 }
 
