@@ -553,7 +553,19 @@ _return:
 
 
 int32_t qwBuildAndSendQueryRsp(SRpcMsg *pMsg, int32_t code) {
+  SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp));
+  pRsp->code = code;
 
+  SRpcMsg rpcRsp = {
+    .handle  = pMsg->handle,
+    .pCont   = pRsp,
+    .contLen = sizeof(*pRsp),
+    .code    = code,
+  };
+
+  rpcSendResponse(&rpcRsp);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qwBuildAndSendReadyRsp(SRpcMsg *pMsg, int32_t code) {

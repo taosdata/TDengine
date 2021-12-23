@@ -587,10 +587,6 @@ typedef struct {
 
 typedef struct {
   int32_t code;
-  union {
-    uint64_t qhandle;
-    uint64_t qId;
-  };  // query handle
 } SQueryTableRsp;
 
 // todo: the show handle should be replaced with id
