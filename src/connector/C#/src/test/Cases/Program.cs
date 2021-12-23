@@ -61,8 +61,7 @@ namespace Cases.EntryPoint
             UtilsTools.ExecuteQuery(conn, "drop database if  exists csharp");
             UtilsTools.CloseConnection(conn);
             UtilsTools.ExitProgram();
-
-
+            
         }
     }
 }
