@@ -18,7 +18,6 @@ import platform
 import pathlib
 import shutil
 import subprocess
-import importlib
 from time import sleep
 from util.log import *
 
@@ -580,13 +579,6 @@ class TDDnodes:
     def check(self, index):
         if index < 1 or index > 10:
             tdLog.exit("index:%d should on a scale of [1, 10]" % (index))
-    
-    def import_module(self,fileName):
-        module_dir, module_file = os.path.split(fileName)
-        module_name, module_ext = os.path.splitext(module_file)
-        spec = importlib.util.spec_from_file_location(module_name,fileName)
-        uModule = spec.loader.load_module()
-        return uModule
 
     def stopAll(self):
         tdLog.info("stop all dnodes")
