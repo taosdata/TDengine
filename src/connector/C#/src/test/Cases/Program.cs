@@ -73,7 +73,6 @@ namespace Cases.EntryPoint
             Console.WriteLine("====================normalTableStmtCases.TestBindMultiLineCn===================");
             normalTableStmtCases.TestBindMultiLineCn(conn, "normaltablestmtcasestestbindmultilinecn");
 
-            //  UtilsTools.ExecuteQuery(conn, "drop database if  exists csharp");
             UtilsTools.CloseConnection(conn);
             UtilsTools.ExitProgram();
 
