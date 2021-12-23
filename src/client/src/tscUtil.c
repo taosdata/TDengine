@@ -774,10 +774,11 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
         memcpy(dst, p, varDataTLen(p));
       } else if (varDataLen(p) > 0) {
         int32_t length = taosUcs4ToMbs(varDataVal(p), varDataLen(p), varDataVal(dst));
-        varDataSetLen(dst, length);
-
-        if (length == 0) {
+        if (length <= 0) {
           tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)p);
+        }
+        if (length >= 0){
+          varDataSetLen(dst, length);
         }
       } else {
         varDataSetLen(dst, 0);
@@ -809,17 +810,22 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
             varDataSetLen(dst, strlen(varDataVal(dst)));
           }else if (type == TSDB_DATA_TYPE_JSON) {
             int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), varDataVal(dst));
-            varDataSetLen(dst, length);
-            if (length == 0) {
+
+            if (length <= 0) {
               tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)p);
+            }
+            if (length >= 0){
+              varDataSetLen(dst, length);
             }
           }else if (type == TSDB_DATA_TYPE_NCHAR) {   // value -> "value"
             *(char*)varDataVal(dst) = '\"';
             int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), POINTER_SHIFT(varDataVal(dst), CHAR_BYTES));
-            *(char*)(POINTER_SHIFT(varDataVal(dst), length + CHAR_BYTES)) = '\"';
-            varDataSetLen(dst, length + CHAR_BYTES*2);
-            if (length == 0) {
+            if (length <= 0) {
               tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)p);
+            }
+            if (length >= 0){
+              varDataSetLen(dst, length + CHAR_BYTES*2);
+              *(char*)(POINTER_SHIFT(varDataVal(dst), length + CHAR_BYTES)) = '\"';
             }
           }else if (type == TSDB_DATA_TYPE_DOUBLE) {
             double jsonVd = *(double*)(realData);
@@ -5515,10 +5521,10 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
       char *tagVal = calloc(strlen(jsonValue) * TSDB_NCHAR_SIZE + TSDB_NCHAR_SIZE, 1);
       *tagVal = jsonType2DbType(0, item->type);     // type
       char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
-      if (!taosMbsToUcs4(jsonValue, strlen(jsonValue), varDataVal(tagData),
+      if (strlen(jsonValue) > 0 && !taosMbsToUcs4(jsonValue, strlen(jsonValue), varDataVal(tagData),
                          (int32_t)(strlen(jsonValue) * TSDB_NCHAR_SIZE), &outLen)) {
-        tscError("json string error:%s|%s", strerror(errno), jsonValue);
-        retCode = tscSQLSyntaxErrMsg(errMsg, "serizelize json error", NULL);
+        tscError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, jsonValue, strerror(errno));
+        retCode = tscSQLSyntaxErrMsg(errMsg, "charset convert json error", NULL);
         free(tagVal);
         goto end;
       }
