@@ -155,13 +155,13 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   int32_t code = qParseQuerySql(&cxt, &pQuery);
   if (qIsDclQuery(pQuery)) {
     SDclStmtInfo* pDcl = (SDclStmtInfo*)pQuery;
-    pRequest->type = pDcl->nodeType;
+    pRequest->type = pDcl->msgType;
     pRequest->body.requestMsg = (SReqMsgInfo){.pMsg = pDcl->pMsg, .len = pDcl->msgLen};
 
     SRequestMsgBody body = buildRequestMsgImpl(pRequest);
     SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
 
-    if (pDcl->nodeType == TSDB_MSG_TYPE_CREATE_TABLE) {
+    if (pDcl->msgType == TSDB_MSG_TYPE_CREATE_TABLE) {
       struct SCatalog* pCatalog = NULL;
 
       char buf[12] = {0};

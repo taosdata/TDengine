@@ -32,10 +32,7 @@ bool isInsertSql(const char* pStr, size_t length) {
 }
 
 bool qIsDclQuery(const SQueryNode* pQuery) {
-  int16_t type = pQuery->type;
-  return type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_SHOW || type == TSDB_SQL_DROP_USER ||
-        type == TSDB_SQL_DROP_ACCT || type == TSDB_SQL_CREATE_DB || type == TSDB_SQL_CREATE_ACCT ||
-        type == TSDB_SQL_CREATE_TABLE || type == TSDB_SQL_USE_DB;
+  return TSDB_SQL_INSERT != pQuery->type && TSDB_SQL_SELECT != pQuery->type;
 }
 
 int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
@@ -48,6 +45,11 @@ int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
 
   if (!isDqlSqlStatement(&info)) {
     SDclStmtInfo* pDcl = calloc(1, sizeof(SQueryStmtInfo));
+    if (NULL == pDcl) {
+      terrno = TSDB_CODE_TSC_OUT_OF_MEMORY; // set correct error code.
+      return terrno;
+    }
+    pDcl->nodeType = info.type;
     int32_t code = qParserValidateDclSqlNode(&info, &pCxt->ctx, pDcl, pCxt->pMsg, pCxt->msgLen);
     if (code == TSDB_CODE_SUCCESS) {
       *pQuery = (SQueryNode*)pDcl;

@@ -4358,7 +4358,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
       }
 
       pDcl->pMsg = (char*)buildUserManipulationMsg(pInfo, &pDcl->msgLen, pCtx->requestId, msgBuf, msgBufLen);
-      pDcl->nodeType = (pInfo->type == TSDB_SQL_CREATE_USER)? TSDB_MSG_TYPE_CREATE_USER:TSDB_MSG_TYPE_ALTER_USER;
+      pDcl->msgType = (pInfo->type == TSDB_SQL_CREATE_USER)? TSDB_MSG_TYPE_CREATE_USER:TSDB_MSG_TYPE_ALTER_USER;
       break;
     }
 
@@ -4395,20 +4395,20 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
       }
 
       pDcl->pMsg = (char*)buildAcctManipulationMsg(pInfo, &pDcl->msgLen, pCtx->requestId, msgBuf, msgBufLen);
-      pDcl->nodeType = (pInfo->type == TSDB_SQL_CREATE_ACCT)? TSDB_MSG_TYPE_CREATE_ACCT:TSDB_MSG_TYPE_ALTER_ACCT;
+      pDcl->msgType = (pInfo->type == TSDB_SQL_CREATE_ACCT)? TSDB_MSG_TYPE_CREATE_ACCT:TSDB_MSG_TYPE_ALTER_ACCT;
       break;
     }
 
     case TSDB_SQL_DROP_ACCT:
     case TSDB_SQL_DROP_USER: {
       pDcl->pMsg = (char*)buildDropUserMsg(pInfo, &pDcl->msgLen, pCtx->requestId, msgBuf, msgBufLen);
-      pDcl->nodeType = (pInfo->type == TSDB_SQL_DROP_ACCT)? TSDB_MSG_TYPE_DROP_ACCT:TSDB_MSG_TYPE_DROP_USER;
+      pDcl->msgType = (pInfo->type == TSDB_SQL_DROP_ACCT)? TSDB_MSG_TYPE_DROP_ACCT:TSDB_MSG_TYPE_DROP_USER;
       break;
     }
     
     case TSDB_SQL_SHOW: {
       code = setShowInfo(&pInfo->pMiscInfo->showOpt, pCtx, (void**)&pDcl->pMsg, &pDcl->msgLen, pMsgBuf);
-      pDcl->nodeType = TSDB_MSG_TYPE_SHOW;
+      pDcl->msgType = TSDB_MSG_TYPE_SHOW;
       break;
     }
 
@@ -4431,7 +4431,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
 
       pDcl->pMsg = (char*)pUseDbMsg;
       pDcl->msgLen = sizeof(SUseDbMsg);
-      pDcl->nodeType = TSDB_MSG_TYPE_USE_DB;
+      pDcl->msgType = TSDB_MSG_TYPE_USE_DB;
       break;
     }
 
@@ -4461,7 +4461,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
 
       pDcl->pMsg = (char*)pCreateMsg;
       pDcl->msgLen = sizeof(SCreateDbMsg);
-      pDcl->nodeType = (pInfo->type == TSDB_SQL_CREATE_DB)? TSDB_MSG_TYPE_CREATE_DB:TSDB_MSG_TYPE_ALTER_DB;
+      pDcl->msgType = (pInfo->type == TSDB_SQL_CREATE_DB)? TSDB_MSG_TYPE_CREATE_DB:TSDB_MSG_TYPE_ALTER_DB;
       break;
     }
 
@@ -4483,7 +4483,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
       pDropDbMsg->ignoreNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
       assert(code == TSDB_CODE_SUCCESS && name.type == TSDB_DB_NAME_T);
 
-      pDcl->nodeType = TSDB_MSG_TYPE_DROP_DB;
+      pDcl->msgType = TSDB_MSG_TYPE_DROP_DB;
       pDcl->msgLen = sizeof(SDropDbMsg);
       pDcl->pMsg = (char*)pDropDbMsg;
       return TSDB_CODE_SUCCESS;
@@ -4497,7 +4497,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
           return code;
         }
         pDcl->pMsg = (char*)buildCreateTableMsg(pCreateTable, &pDcl->msgLen, pCtx, pMsgBuf);
-        pDcl->nodeType = (pCreateTable->type == TSQL_CREATE_TABLE)? TSDB_MSG_TYPE_CREATE_TABLE:TSDB_MSG_TYPE_CREATE_STB;
+        pDcl->msgType = (pCreateTable->type == TSQL_CREATE_TABLE)? TSDB_MSG_TYPE_CREATE_TABLE:TSDB_MSG_TYPE_CREATE_STB;
       } else if (pCreateTable->type == TSQL_CREATE_CTABLE) {
         //        if ((code = doCheckForCreateFromStable(pSql, pInfo)) != TSDB_CODE_SUCCESS) {
         //          return code;
@@ -4517,7 +4517,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
         return terrno;
       }
 
-      pDcl->nodeType = TSDB_MSG_TYPE_DROP_STB;
+      pDcl->msgType = TSDB_MSG_TYPE_DROP_STB;
       return TSDB_CODE_SUCCESS;
       break;
     }
