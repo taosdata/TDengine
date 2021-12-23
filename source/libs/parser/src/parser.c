@@ -31,7 +31,7 @@ bool qIsInsertSql(const char* pStr, size_t length) {
   } while (1);
 }
 
-int32_t qParseQuerySql(const char* pStr, size_t length, int64_t id, int32_t *type, void** pOutput, int32_t* outputLen, char* msg, int32_t msgLen) {
+int32_t qParseQuerySql(const char* pStr, size_t length, SParseBasicCtx* pParseCtx, int32_t *type, void** pOutput, int32_t* outputLen, char* msg, int32_t msgLen) {
   SSqlInfo info = doGenerateAST(pStr);
   if (!info.valid) {
     strncpy(msg, info.msg, msgLen);
@@ -39,8 +39,8 @@ int32_t qParseQuerySql(const char* pStr, size_t length, int64_t id, int32_t *typ
     return terrno;
   }
 
-  if (isDclSqlStatement(&info)) {
-    int32_t code = qParserValidateDclSqlNode(&info, id, pOutput, outputLen, type, msg, msgLen);
+  if (!isDqlSqlStatement(&info)) {
+    int32_t code = qParserValidateDclSqlNode(&info, pParseCtx, pOutput, outputLen, type, msg, msgLen);
     if (code == TSDB_CODE_SUCCESS) {
       // do nothing
     }
@@ -53,7 +53,7 @@ int32_t qParseQuerySql(const char* pStr, size_t length, int64_t id, int32_t *typ
 
     struct SCatalog* pCatalog = NULL;
     int32_t code = catalogGetHandle(NULL, &pCatalog);
-    code = qParserValidateSqlNode(pCatalog, &info, pQueryInfo, id, msg, msgLen);
+    code = qParserValidateSqlNode(pCatalog, &info, pQueryInfo, pParseCtx->requestId, msg, msgLen);
     if (code == TSDB_CODE_SUCCESS) {
       *pOutput = pQueryInfo;
     }

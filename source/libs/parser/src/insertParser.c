@@ -158,14 +158,14 @@ static int32_t buildName(SInsertParseContext* pCxt, SToken* pStname, char* fullD
 
   char* p = strnchr(pStname->z, TS_PATH_DELIMITER[0], pStname->n, false);
   if (NULL != p) { // db.table
-    strcpy(fullDbName, pCxt->pComCxt->pAcctId);
-    fullDbName[strlen(pCxt->pComCxt->pAcctId)] = TS_PATH_DELIMITER[0];
-    strncpy(fullDbName, pStname->z, p - pStname->z);
+    int32_t n = sprintf(fullDbName, "%d.", pCxt->pComCxt->ctx.acctId);
+    strncpy(fullDbName + n, pStname->z, p - pStname->z);
     strncpy(tableName, p + 1, pStname->n - (p - pStname->z) - 1);
   } else {
-    snprintf(fullDbName, TSDB_FULL_DB_NAME_LEN, "%s.%s", pCxt->pComCxt->pAcctId, pCxt->pComCxt->pDbname);
+    snprintf(fullDbName, TSDB_FULL_DB_NAME_LEN, "%d.%s", pCxt->pComCxt->ctx.acctId, pCxt->pComCxt->ctx.db);
     strncpy(tableName, pStname->z, pStname->n);
   }
+
   return TSDB_CODE_SUCCESS;
 }
 

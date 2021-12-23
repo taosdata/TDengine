@@ -102,9 +102,8 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
   SAppInstInfo** pInst = taosHashGet(appInfo.pInstMap, key, strlen(key));
   if (pInst == NULL) {
     SAppInstInfo* p = calloc(1, sizeof(struct SAppInstInfo));
-
     p->mgmtEp       = epSet;
-    p->pTransporter = openTransporter(user, secretEncrypt);
+    p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
 
     pInst = &p;
@@ -152,8 +151,12 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
     int32_t type = 0;
     void*   output = NULL;
     int32_t outputLen = 0;
-    code = qParseQuerySql(pRequest->sqlstr, sqlLen, pRequest->requestId, &type, &output, &outputLen, pRequest->msgBuf, ERROR_MSG_BUF_DEFAULT_SIZE);
-    if (type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_SHOW || type == TSDB_SQL_DROP_USER || type == TSDB_SQL_DROP_ACCT || type == TSDB_SQL_CREATE_DB || type == TSDB_SQL_CREATE_ACCT) {
+
+    SParseBasicCtx c = {.requestId = pRequest->requestId, .acctId = pTscObj->acctId, .db = getConnectionDB(pTscObj)};
+    code = qParseQuerySql(pRequest->sqlstr, sqlLen, &c, &type, &output, &outputLen, pRequest->msgBuf, ERROR_MSG_BUF_DEFAULT_SIZE);
+    if (type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_SHOW || type == TSDB_SQL_DROP_USER ||
+        type == TSDB_SQL_DROP_ACCT || type == TSDB_SQL_CREATE_DB || type == TSDB_SQL_CREATE_ACCT ||
+        type == TSDB_SQL_CREATE_TABLE || type == TSDB_SQL_USE_DB) {
       pRequest->type = type;
       pRequest->body.requestMsg = (SReqMsgInfo){.pMsg = output, .len = outputLen};
 
@@ -164,12 +167,12 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
       sendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &body, &transporterId);
 
       tsem_wait(&pRequest->body.rspSem);
-
-
       destroyRequestMsgBody(&body);
     } else {
       assert(0);
     }
+
+    tfree(c.db);
   }
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -437,8 +440,19 @@ void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t 
   }
 }
 
-const char *taos_get_client_info() { return version; }
+char* getConnectionDB(STscObj* pObj) {
+  char *p = NULL;
+  pthread_mutex_lock(&pObj->mutex);
+  p = strndup(pObj->db, tListLen(pObj->db));
+  pthread_mutex_unlock(&pObj->mutex);
 
-int taos_affected_rows(TAOS_RES *res) { return 1; }
+  return p;
+}
 
-int taos_result_precision(TAOS_RES *res) { return TSDB_TIME_PRECISION_MILLI; }
+void setConnectionDB(STscObj* pTscObj, const char* db) {
+  assert(db != NULL && pTscObj != NULL);
+  pthread_mutex_lock(&pTscObj->mutex);
+  tstrncpy(pTscObj->db, db, tListLen(pTscObj->db));
+  pthread_mutex_unlock(&pTscObj->mutex);
+}
+

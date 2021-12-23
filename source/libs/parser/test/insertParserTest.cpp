@@ -43,8 +43,8 @@ protected:
 
   void bind(const char* sql) {
     reset();
-    cxt_.pAcctId = acctId_.c_str();
-    cxt_.pDbname = db_.c_str();
+    cxt_.ctx.acctId = atoi(acctId_.c_str());
+    cxt_.ctx.db = (char*) db_.c_str();
     strcpy(sqlBuf_, sql);
     cxt_.sqlLen = strlen(sql);
     sqlBuf_[cxt_.sqlLen] = '\0';
