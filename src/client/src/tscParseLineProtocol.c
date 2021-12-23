@@ -1061,7 +1061,7 @@ static int32_t insertChildTablePointsBatch(TAOS* taos, char* cTableName, char* s
   tscDebug("SML:0x%"PRIx64" insert child table table %s of super table %s : %s", info->id, cTableName, sTableName, sql);
 
   size_t rows = taosArrayGetSize(rowsBind);
-  size_t maxBatchSize = TSDB_MAX_WAL_SIZE/rowSize * 4 / 5;
+  size_t maxBatchSize = TSDB_MAX_WAL_SIZE/rowSize * 2 / 3;
   size_t batchSize = MIN(maxBatchSize, rows);
   tscDebug("SML:0x%"PRIx64" insert rows into child table %s. num of rows: %zu, batch size: %zu",
            info->id, cTableName, rows, batchSize);
