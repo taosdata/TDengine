@@ -252,6 +252,7 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
         }
 
         int32_t ret = patternMatch(&patterStr[i], ++str, size - n - 1, pInfo);
+        size -= n + 1;
         if (ret != TSDB_PATTERN_NOMATCH) {
           return ret;
         }
