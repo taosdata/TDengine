@@ -605,7 +605,7 @@ int32_t catalogGetAllMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* p
       SName *name = taosArrayGet(pReq->pTableName, i);
       STableMeta *pTableMeta = NULL;
       
-      snprintf(dbName, sizeof(dbName), "%s.%s", name->acctId, name->dbname);
+      snprintf(dbName, sizeof(dbName), "%d.%s", name->acctId, name->dbname);
 
       CTG_ERR_JRET(catalogGetTableMeta(pCatalog, pRpc, pMgmtEps, dbName, name->tname, &pTableMeta));
 
