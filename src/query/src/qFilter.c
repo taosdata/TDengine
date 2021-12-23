@@ -545,7 +545,7 @@ int32_t filterAddRangeImpl(void* h, SFilterRange* ra, int32_t optr) {
 int32_t filterAddRange(void* h, SFilterRange* ra, int32_t optr) {
   SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
   
-  if (FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) {
+  if (FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) { // TD-12204
     if (ctx->type == TSDB_DATA_TYPE_FLOAT || ctx->type == TSDB_DATA_TYPE_DOUBLE){
       ra->s = INT64_MIN;
     }else{
