@@ -604,6 +604,7 @@ static int32_t monGetRowElemCharLen(TAOS_FIELD field, char *rowElem) {
   if (field.type != TSDB_DATA_TYPE_BINARY && field.type != TSDB_DATA_TYPE_NCHAR) {
     return -1;
   }
+
   int32_t charLen = varDataLen(rowElem - VARSTR_HEADER_SIZE);
   if (field.type == TSDB_DATA_TYPE_BINARY) {
     assert(charLen <= field.bytes && charLen >= 0);
