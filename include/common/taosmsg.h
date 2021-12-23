@@ -52,6 +52,10 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONNECT, "mq-connect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_DISCONNECT, "mq-disconnect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_SET_CUR, "mq-set-cur" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_RES_READY, "res-ready" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_TASKS_STATUS, "tasks-status" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CANCEL_TASK, "cancel-task" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_TASK, "drop-task" )
+
 // message from client to mnode
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONNECT, "connect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_ACCT, "create-acct" )	
@@ -1107,29 +1111,29 @@ typedef struct {
   /* data */
 } SUpdateTagValRsp;
 
-typedef struct SSchedulerQueryMsg {
+typedef struct SSubQueryMsg {
   uint64_t  schedulerId;
   uint64_t  queryId;
   uint64_t  taskId;
   uint32_t  contentLen;
   char      msg[];
-} SSchedulerQueryMsg;
+} SSubQueryMsg;
 
-typedef struct SSchedulerReadyMsg {
+typedef struct SResReadyMsg {
   uint64_t  schedulerId;
   uint64_t  queryId;
   uint64_t  taskId;
-} SSchedulerReadyMsg;
+} SResReadyMsg;
 
-typedef struct SSchedulerFetchMsg {
+typedef struct SResFetchMsg {
   uint64_t  schedulerId;
   uint64_t  queryId;
   uint64_t  taskId;
-} SSchedulerFetchMsg;
+} SResFetchMsg;
 
-typedef struct SSchedulerStatusMsg {
+typedef struct SSchTasksStatusMsg {
   uint64_t  schedulerId;
-} SSchedulerStatusMsg;
+} SSchTasksStatusMsg;
 
 typedef struct STaskStatus {
   uint64_t  queryId;
@@ -1143,11 +1147,17 @@ typedef struct SSchedulerStatusRsp {
 } SSchedulerStatusRsp;
 
 
-typedef struct SSchedulerCancelMsg {
+typedef struct STaskCancelMsg {
   uint64_t  schedulerId;
   uint64_t  queryId;
   uint64_t  taskId;
-} SSchedulerCancelMsg;
+} STaskCancelMsg;
+
+typedef struct STaskDropMsg {
+  uint64_t  schedulerId;
+  uint64_t  queryId;
+  uint64_t  taskId;
+} STaskDropMsg;
 
 
 #pragma pack(pop)

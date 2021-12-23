@@ -296,44 +296,45 @@ int32_t schAsyncSendMsg(SQueryJob *job, SQueryTask *task, int32_t msgType) {
       }
 
       int32_t len = strlen(task->msg);
-      msgSize = sizeof(SSchedulerQueryMsg) + len;
+      msgSize = sizeof(SSubQueryMsg) + len + 1;
       msg = calloc(1, msgSize);
       if (NULL == msg) {
         qError("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
 
-      SSchedulerQueryMsg *pMsg = msg;
+      SSubQueryMsg *pMsg = msg;
       
       pMsg->schedulerId = htobe64(schMgmt.schedulerId);
       pMsg->queryId = htobe64(job->queryId);
       pMsg->taskId = htobe64(task->taskId);
       pMsg->contentLen = htonl(len);
       memcpy(pMsg->msg, task->msg, len);
+      pMsg->msg[len] = 0;
       break;
     }
     case TSDB_MSG_TYPE_RES_READY: {
-      msgSize = sizeof(SSchedulerReadyMsg);
+      msgSize = sizeof(SResReadyMsg);
       msg = calloc(1, msgSize);
       if (NULL == msg) {
         qError("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
 
-      SSchedulerReadyMsg *pMsg = msg;
+      SResReadyMsg *pMsg = msg;
       pMsg->queryId = htobe64(job->queryId);
       pMsg->taskId = htobe64(task->taskId);      
       break;
     }
     case TSDB_MSG_TYPE_FETCH: {
-      msgSize = sizeof(SSchedulerFetchMsg);
+      msgSize = sizeof(SResFetchMsg);
       msg = calloc(1, msgSize);
       if (NULL == msg) {
         qError("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
     
-      SSchedulerFetchMsg *pMsg = msg;
+      SResFetchMsg *pMsg = msg;
       pMsg->queryId = htobe64(job->queryId);
       pMsg->taskId = htobe64(task->taskId);      
       break;

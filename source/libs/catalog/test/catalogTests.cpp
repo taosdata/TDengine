@@ -29,6 +29,8 @@
 #include "catalog.h"
 #include "tep.h"
 #include "trpc.h"
+#include "stub.h"
+#include "addr_any.h"
 
 typedef struct SAppInstInfo {
   int64_t           numOfConns;
@@ -85,6 +87,27 @@ void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
 
   ASSERT_EQ(rpcRsp.code, 0);
 }
+
+void __rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  SUseDbRsp *rspMsg = NULL; //todo
+
+  return;
+}
+
+
+void initTestEnv() {
+  static Stub stub;
+  stub.set(rpcSendRecv, __rpcSendRecv);
+  {
+    AddrAny any("libtransport.so");
+    std::map<std::string,void*> result;
+    any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+    for (const auto& f : result) {
+      stub.set(f.second, __rpcSendRecv);
+    }
+  }
+}
+
 
 }
 

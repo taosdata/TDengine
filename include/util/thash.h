@@ -33,6 +33,8 @@ typedef void (*_hash_free_fn_t)(void *);
 
 #define HASH_INDEX(v, c) ((v) & ((c)-1))
 
+#define HASH_NODE_EXIST(code) (code == -2)
+
 /**
  * murmur hash algorithm
  * @key  usually string
