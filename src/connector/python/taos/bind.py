@@ -317,7 +317,7 @@ class TaosMultiBind(ctypes.Structure):
 
     def _str_to_buffer(self, values):
         self.num = len(values)
-        is_null = [1 if v == None else 0 for v in values]
+        is_null = [1 if v is None else 0 for v in values]
         self.is_null = cast((c_byte * self.num)(*is_null), c_char_p)
         
         if sum(is_null) == self.num:
