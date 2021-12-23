@@ -207,17 +207,23 @@ int32_t setDbOptions(SCreateDbMsg* pCreateDbMsg, const SCreateDbInfo* pCreateDbS
   return TSDB_CODE_SUCCESS;
 }
 
-SCreateDbMsg* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, char* msgBuf, int32_t msgLen) {
+SCreateDbMsg* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, SParseBasicCtx *pCtx, SMsgBuf* pMsgBuf) {
   SCreateDbMsg* pCreateMsg = calloc(1, sizeof(SCreateDbMsg));
-
-  SMsgBuf msg = {.buf = msgBuf, .len = msgLen};
-  if (setDbOptions(pCreateMsg, pCreateDbInfo, &msg) != TSDB_CODE_SUCCESS) {
+  if (setDbOptions(pCreateMsg, pCreateDbInfo, pMsgBuf) != TSDB_CODE_SUCCESS) {
     tfree(pCreateMsg);
     terrno = TSDB_CODE_TSC_INVALID_OPERATION;
 
     return NULL;
   }
 
+  SName   name = {0};
+  int32_t ret = tNameSetDbName(&name, pCtx->acctId, pCreateDbInfo->dbname.z, pCreateDbInfo->dbname.n);
+  if (ret != TSDB_CODE_SUCCESS) {
+    terrno = ret;
+    return NULL;
+  }
+
+  tNameGetFullDbName(&name, pCreateMsg->db);
   return pCreateMsg;
 }
 
@@ -263,14 +269,17 @@ int32_t createSName(SName* pName, SToken* pTableName, SParseBasicCtx* pParseCtx,
 SCreateStbMsg* buildCreateTableMsg(SCreateTableSql* pCreateTableSql, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
   SSchema* pSchema;
 
+  int32_t numOfTags = 0;
   int32_t numOfCols = (int32_t) taosArrayGetSize(pCreateTableSql->colInfo.pColumns);
-  int32_t numOfTags = (int32_t) taosArrayGetSize(pCreateTableSql->colInfo.pTagColumns);
+  if (pCreateTableSql->colInfo.pTagColumns != NULL) {
+    numOfTags = (int32_t) taosArrayGetSize(pCreateTableSql->colInfo.pTagColumns);
+  }
 
   SCreateStbMsg* pCreateTableMsg = (SCreateStbMsg*)calloc(1, sizeof(SCreateStbMsg) + (numOfCols + numOfTags) * sizeof(SSchema));
 
   char* pMsg = NULL;
-  int8_t type = pCreateTableSql->type;
-  if (type == TSQL_CREATE_TABLE) {  // create by using super table, tags value
+  int32_t tableType = pCreateTableSql->type;
+  if (tableType != TSQL_CREATE_TABLE && tableType != TSQL_CREATE_STABLE) {  // create by using super table, tags value
 #if 0
     SArray* list = pInfo->pCreateTableInfo->childTableInfo;
 
@@ -309,15 +318,13 @@ SCreateStbMsg* buildCreateTableMsg(SCreateTableSql* pCreateTableSql, int32_t* le
       return NULL;
     }
 
-    pCreateTableMsg->igExists = pCreateTableSql->existCheck ? 1 : 0;
-
+    pCreateTableMsg->igExists     = pCreateTableSql->existCheck ? 1 : 0;
     pCreateTableMsg->numOfColumns = htonl(numOfCols);
-    pCreateTableMsg->numOfTags = htonl(numOfTags);
+    pCreateTableMsg->numOfTags    = htonl(numOfTags);
 
     pSchema = (SSchema*) pCreateTableMsg->pSchema;
     for (int i = 0; i < numOfCols; ++i) {
-      TAOS_FIELD* pField = taosArrayGet(pCreateTableSql->colInfo.pColumns, i);
-
+      SField* pField = taosArrayGet(pCreateTableSql->colInfo.pColumns, i);
       pSchema->type  = pField->type;
       pSchema->bytes = htonl(pField->bytes);
       strcpy(pSchema->name, pField->name);
@@ -326,8 +333,7 @@ SCreateStbMsg* buildCreateTableMsg(SCreateTableSql* pCreateTableSql, int32_t* le
     }
 
     for(int32_t i = 0; i < numOfTags; ++i) {
-      TAOS_FIELD* pField = taosArrayGet(pCreateTableSql->colInfo.pTagColumns, i);
-
+      SField* pField = taosArrayGet(pCreateTableSql->colInfo.pTagColumns, i);
       pSchema->type  = pField->type;
       pSchema->bytes = htonl(pField->bytes);
       strcpy(pSchema->name, pField->name);
@@ -343,3 +349,24 @@ SCreateStbMsg* buildCreateTableMsg(SCreateTableSql* pCreateTableSql, int32_t* le
 
   return pCreateTableMsg;
 }
+
+SDropTableMsg* buildDropTableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
+  SToken* tableName = taosArrayGet(pInfo->pMiscInfo->a, 0);
+
+  SName name = {0};
+  int32_t code = createSName(&name, tableName, pParseCtx, pMsgBuf);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = buildInvalidOperationMsg(pMsgBuf, "invalid table name");
+    return NULL;
+  }
+
+  SDropTableMsg *pDropTableMsg = (SDropTableMsg*) calloc(1, sizeof(SDropTableMsg));
+
+  code = tNameExtractFullName(&name, pDropTableMsg->name);
+  assert(code == TSDB_CODE_SUCCESS && name.type == TSDB_TABLE_NAME_T);
+
+  pDropTableMsg->ignoreNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
+  *len = sizeof(SDropTableMsg);
+  return pDropTableMsg;
+}
+

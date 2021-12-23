@@ -21,8 +21,7 @@
 #include "tmsgtype.h"
 #include "trpc.h"
 
-int (*buildRequestMsgFp[TSDB_SQL_MAX])(SRequestObj *pRequest, SRequestMsgBody *pMsgBody) = {0};
-int (*handleRequestRspFp[TSDB_SQL_MAX])(SRequestObj *pRequest, const char* pMsg, int32_t msgLen);
+int (*handleRequestRspFp[TSDB_MSG_TYPE_MAX])(SRequestObj *pRequest, const char* pMsg, int32_t msgLen);
 
 int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
   pMsgBody->msgType         = TSDB_MSG_TYPE_CONNECT;
@@ -67,15 +66,6 @@ int processConnectRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
     pConnect->epSet.port[i] = htons(pConnect->epSet.port[i]);
   }
 
-  // TODO refactor
-  pthread_mutex_lock(&pTscObj->mutex);
-  char temp[TSDB_TABLE_FNAME_LEN * 2] = {0};
-  int32_t len = sprintf(temp, "%d%s%s", pTscObj->acctId, TS_PATH_DELIMITER, pTscObj->db);
-
-  assert(len <= sizeof(pTscObj->db));
-  tstrncpy(pTscObj->db, temp, sizeof(pTscObj->db));
-  pthread_mutex_unlock(&pTscObj->mutex);
-
   if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &pConnect->epSet)) {
     updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &pConnect->epSet);
   }
@@ -96,47 +86,35 @@ int processConnectRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
   return 0;
 }
 
-int32_t doBuildMsgSupp(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
+static int32_t buildRetrieveMnodeMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
+  pMsgBody->msgType = TSDB_MSG_TYPE_SHOW_RETRIEVE;
+  pMsgBody->msgInfo.len = sizeof(SRetrieveTableMsg);
   pMsgBody->requestObjRefId = pRequest->self;
-  pMsgBody->msgInfo     = pRequest->body.requestMsg;
 
-  switch(pRequest->type) {
-    case TSDB_SQL_CREATE_USER:
-      pMsgBody->msgType = TSDB_MSG_TYPE_CREATE_USER;
-      break;
-    case TSDB_SQL_DROP_USER:
-      pMsgBody->msgType = TSDB_MSG_TYPE_DROP_USER;
-      break;
-    case TSDB_SQL_CREATE_ACCT:
-      pMsgBody->msgType = TSDB_MSG_TYPE_CREATE_ACCT;
-      break;
-    case TSDB_SQL_DROP_ACCT:
-      pMsgBody->msgType = TSDB_MSG_TYPE_DROP_ACCT;
-      break;
-    case TSDB_SQL_CREATE_DB: {
-      pMsgBody->msgType = TSDB_MSG_TYPE_CREATE_DB;
+  SRetrieveTableMsg *pRetrieveMsg = calloc(1, sizeof(SRetrieveTableMsg));
+  if (pRetrieveMsg == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
 
-      SCreateDbMsg* pCreateMsg = pRequest->body.requestMsg.pMsg;
-      SName name = {0};
-      int32_t ret = tNameSetDbName(&name, pRequest->pTscObj->acctId, pCreateMsg->db, strnlen(pCreateMsg->db, tListLen(pCreateMsg->db)));
-      if (ret != TSDB_CODE_SUCCESS) {
-        return -1;
-      }
+  pRetrieveMsg->showId  = htonl(pRequest->body.execId);
+  pMsgBody->msgInfo.pMsg = pRetrieveMsg;
+  return TSDB_CODE_SUCCESS;
+}
 
-      tNameGetFullDbName(&name, pCreateMsg->db);
-      break;
-    }
-    case TSDB_SQL_USE_DB: {
-      pMsgBody->msgType = TSDB_MSG_TYPE_USE_DB;
-      break;
-    }
-    case TSDB_SQL_CREATE_TABLE: {
-      pMsgBody->msgType = TSDB_MSG_TYPE_CREATE_STB;
-      break;
-    }
-    case TSDB_SQL_SHOW:
-      pMsgBody->msgType = TSDB_MSG_TYPE_SHOW;
-      break;
+SRequestMsgBody buildRequestMsgImpl(SRequestObj *pRequest) {
+  if (pRequest->type == TSDB_MSG_TYPE_SHOW_RETRIEVE) {
+    SRequestMsgBody body = {0};
+    buildRetrieveMnodeMsg(pRequest, &body);
+    return body;
+  } else {
+    assert(pRequest != NULL);
+    SRequestMsgBody body = {
+        .requestObjRefId = pRequest->self,
+        .msgInfo = pRequest->body.requestMsg,
+        .msgType = pRequest->type,
+        .requestId = pRequest->requestId,
+    };
+    return body;
   }
 }
 
@@ -173,18 +151,6 @@ int32_t processShowRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) 
 
   pRequest->body.execId = pShow->showId;
   return 0;
-}
-
-int buildRetrieveMnodeMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
-  pMsgBody->msgType = TSDB_MSG_TYPE_SHOW_RETRIEVE;
-  pMsgBody->msgInfo.len = sizeof(SRetrieveTableMsg);
-  pMsgBody->requestObjRefId = pRequest->self;
-
-  SRetrieveTableMsg *pRetrieveMsg = calloc(1, sizeof(SRetrieveTableMsg));
-  pRetrieveMsg->showId  = htonl(pRequest->body.execId);
-
-  pMsgBody->msgInfo.pMsg = pRetrieveMsg;
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t processRetrieveMnodeRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
@@ -225,6 +191,10 @@ int32_t processUseDbRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen)
 
 int32_t processCreateTableRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
   assert(pMsg != NULL);
+}
+
+int32_t processDropDbRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
+  // todo: Remove cache in catalog cache.
 }
 
 void initMsgHandleFp() {
@@ -303,27 +273,14 @@ void initMsgHandleFp() {
   tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_DATABASE] = tscProcessShowCreateRsp;
 #endif
 
-  buildRequestMsgFp[TSDB_SQL_CONNECT]  = buildConnectMsg;
-  handleRequestRspFp[TSDB_SQL_CONNECT] = processConnectRsp;
+//  buildRequestMsgFp[TSDB_MSG_TYPE_CONNECT]  = buildConnectMsg;
+//  buildRequestMsgFp[TSDB_MSG_TYPE_SHOW_RETRIEVE] = buildRetrieveMnodeMsg;
 
-  buildRequestMsgFp[TSDB_SQL_CREATE_USER]  = doBuildMsgSupp;
-  buildRequestMsgFp[TSDB_SQL_DROP_USER]    = doBuildMsgSupp;
-
-  buildRequestMsgFp[TSDB_SQL_CREATE_ACCT]  = doBuildMsgSupp;
-  buildRequestMsgFp[TSDB_SQL_DROP_ACCT]    = doBuildMsgSupp;
-
-  buildRequestMsgFp[TSDB_SQL_SHOW]         = doBuildMsgSupp;
-  handleRequestRspFp[TSDB_SQL_SHOW]        = processShowRsp;
-
-  buildRequestMsgFp[TSDB_SQL_RETRIEVE_MNODE] = buildRetrieveMnodeMsg;
-  handleRequestRspFp[TSDB_SQL_RETRIEVE_MNODE]= processRetrieveMnodeRsp;
-
-  buildRequestMsgFp[TSDB_SQL_CREATE_DB]      = doBuildMsgSupp;
-  handleRequestRspFp[TSDB_SQL_CREATE_DB]     = processCreateDbRsp;
-
-  buildRequestMsgFp[TSDB_SQL_USE_DB]         = doBuildMsgSupp;
-  handleRequestRspFp[TSDB_SQL_USE_DB]        = processUseDbRsp;
-
-  buildRequestMsgFp[TSDB_SQL_CREATE_TABLE]   = doBuildMsgSupp;
-  handleRequestRspFp[TSDB_SQL_CREATE_TABLE]  = processCreateTableRsp;
+  handleRequestRspFp[TSDB_MSG_TYPE_CONNECT]       = processConnectRsp;
+  handleRequestRspFp[TSDB_MSG_TYPE_SHOW]          = processShowRsp;
+  handleRequestRspFp[TSDB_MSG_TYPE_SHOW_RETRIEVE] = processRetrieveMnodeRsp;
+  handleRequestRspFp[TSDB_MSG_TYPE_CREATE_DB]     = processCreateDbRsp;
+  handleRequestRspFp[TSDB_MSG_TYPE_USE_DB]        = processUseDbRsp;
+  handleRequestRspFp[TSDB_MSG_TYPE_CREATE_TABLE]  = processCreateTableRsp;
+  handleRequestRspFp[TSDB_MSG_TYPE_DROP_DB]       = processDropDbRsp;
 }
