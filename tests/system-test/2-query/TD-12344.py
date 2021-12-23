@@ -49,7 +49,7 @@ class TDTestCase:
     def caseDescription(self):
 
         '''
-        case1 <author>:wenzhouwww [TD-12344] : 
+        case1 <wenzhouwww>: [TD-12344] : 
             this test case is an test case for unexpectd crash for session function , it will coredump taoshell ;
             
         ''' 
