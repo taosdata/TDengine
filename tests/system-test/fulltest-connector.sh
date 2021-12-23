@@ -1,0 +1,1 @@
+python3 ./test.py -f /3-connectors/restful/restful_binddbname.py
