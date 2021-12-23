@@ -460,14 +460,18 @@ static void monBuildMonitorSql(char *sql, int32_t cmd) {
              ", expire_time int, timeseries_used int, timeseries_total int)",
              tsMonitorDbName);
   } else if (cmd == MON_CMD_CREATE_MT_RESTFUL) {
+    int usedLen = 0, len = 0;
     int pos = snprintf(sql, SQL_LENGTH,
                        "create table if not exists %s.restful_info(ts timestamp", tsMonitorDbName);
+    usedLen += pos;
     for (int i = 0; i < tListLen(monHttpStatusTable); ++i) {
-      pos += snprintf(sql + pos, SQL_LENGTH, ", %s_%d int",
+      len = snprintf(sql + pos, SQL_LENGTH - usedLen, ", %s_%d int",
                                 monHttpStatusTable[i].name,
                                 monHttpStatusTable[i].code);
+      usedLen += len;
+      pos += len;
     }
-    snprintf(sql + pos, SQL_LENGTH,
+    snprintf(sql + pos, SQL_LENGTH - usedLen,
              ") tags (dnode_id int, dnode_ep binary(%d))",
              TSDB_EP_LEN);
   } else if (cmd == MON_CMD_CREATE_TB_RESTFUL) {
