@@ -484,6 +484,16 @@ static int32_t mndProcessCreateStbMsg(SMnodeMsg *pMsg) {
     }
   }
 
+  //topic should have different name with stb
+  SStbObj *pTopic = mndAcquireStb(pMnode, pCreate->name);
+  if (pTopic != NULL) {
+    sdbRelease(pMnode->pSdb, pTopic);
+    terrno = TSDB_CODE_MND_NAME_CONFLICT_WITH_TOPIC;
+    mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
+    return -1;
+  }
+  sdbRelease(pMnode->pSdb, pTopic);
+
   SDbObj *pDb = mndAcquireDbByStb(pMnode, pCreate->name);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
