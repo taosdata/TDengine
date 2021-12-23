@@ -226,6 +226,7 @@ taosd -C
 | 108    | maxNumOfDistinctRes | | **S**|  | 允许返回的distinct结果最大行数 |默认值为10万，最大值1亿 | 10万 ｜ 2.3版本新增。｜
 | 109    | clientMerge | | **C**|  | 是否允许客户端对写入数据去重 |0：不开启，1：开启｜  0 ｜ 2.3版本新增。｜
 | 110   | httpDBNameMandatory | | **S**|  | 是否在URL中输入 数据库名称|0：不开启，1：开启｜  0 ｜ 2.3版本新增。｜
+| 111   | maxRegexStringLen  | | **C**|  | 正则表达式最大允许长度 | 默认值128，最大长度 16384 ｜  0 ｜ 2.3版本新增。｜
 
 **注意：**对于端口，TDengine会使用从serverPort起13个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030到6042共13个端口，而且必须TCP和UDP都打开。（详细的端口情况请参见 [TDengine 2.0 端口说明](https://www.taosdata.com/cn/documentation/faq#port)）
 
