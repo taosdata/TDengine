@@ -112,8 +112,6 @@ class TDTestCase:
             # print(taos_cmd1)
             _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8") 
         
-
-
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
