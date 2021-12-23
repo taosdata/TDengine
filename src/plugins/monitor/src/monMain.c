@@ -1280,7 +1280,7 @@ static void monSaveSlowQueryInfo() {
 
   monDebug("save slow query, sql:%s", sql);
   if (!has_slowquery) {
-    return;
+    goto DONE;
   }
   void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
   code = taos_errno(res);
