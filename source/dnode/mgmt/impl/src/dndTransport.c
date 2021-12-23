@@ -45,6 +45,10 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
   pMgmt->msgFp[TSDB_MSG_TYPE_MQ_CONNECT] = dndProcessVnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_MQ_DISCONNECT] = dndProcessVnodeWriteMsg;
   pMgmt->msgFp[TSDB_MSG_TYPE_MQ_SET_CUR] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_RES_READY] = dndProcessVnodeFetchMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_TASKS_STATUS] = dndProcessVnodeFetchMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_CANCEL_TASK] = dndProcessVnodeFetchMsg;
+  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_TASK] = dndProcessVnodeFetchMsg;
 
   // msg from client to mnode
   pMgmt->msgFp[TSDB_MSG_TYPE_CONNECT] = dndProcessMnodeReadMsg;

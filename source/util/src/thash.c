@@ -291,7 +291,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
     // enable resize
     __rd_unlock(&pHashObj->lock, pHashObj->type);
 
-    return pHashObj->enableUpdate ? 0 : -1;
+    return pHashObj->enableUpdate ? 0 : -2;
   }
 }
 
