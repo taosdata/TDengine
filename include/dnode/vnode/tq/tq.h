@@ -23,6 +23,7 @@
 #include "taosmsg.h"
 #include "tlist.h"
 #include "trpc.h"
+#include "ttimer.h"
 #include "tutil.h"
 
 #ifdef __cplusplus
@@ -103,7 +104,7 @@ typedef struct STqTopicVhandle {
 typedef struct STqExec {
   void* runtimeEnv;
   SSDataBlock* (*exec)(void* runtimeEnv);
-  void* (*assign)(void* runtimeEnv, SSubmitBlk* inputData);
+  void* (*assign)(void* runtimeEnv, void* inputData);
   void (*clear)(void* runtimeEnv);
   char* (*serialize)(struct STqExec*);
   struct STqExec* (*deserialize)(char*);
@@ -114,33 +115,33 @@ typedef struct STqRspHandle {
   void* ahandle;
 } STqRspHandle;
 
-typedef enum {
-  TQ_ITEM_READY,
-  TQ_ITEM_PROCESS,
-  TQ_ITEM_EMPTY
-} STqItemStatus;
+typedef enum { TQ_ITEM_READY, TQ_ITEM_PROCESS, TQ_ITEM_EMPTY } STqItemStatus;
+
+typedef struct STqTopic STqTopic;
 
 typedef struct STqBufferItem {
   int64_t offset;
   // executors are identical but not concurrent
   // so there must be a copy in each item
-  STqExec* executor;
-  int32_t  status;
-  int64_t  size;
-  void*    content;
+  STqExec*  executor;
+  int32_t   status;
+  int64_t   size;
+  void*     content;
+  STqTopic* pTopic;
 } STqMsgItem;
 
-typedef struct STqTopic {
+struct STqTopic {
   // char* topic; //c style, end with '\0'
   // int64_t cgId;
   // void* ahandle;
+  // int32_t    head;
+  // int32_t    tail;
   int64_t    nextConsumeOffset;
   int64_t    floatingCursor;
   int64_t    topicId;
-  int32_t    head;
-  int32_t    tail;
+  void*      logReader;
   STqMsgItem buffer[TQ_BUFFER_SIZE];
-} STqTopic;
+};
 
 typedef struct STqListHandle {
   STqTopic              topic;
@@ -148,11 +149,11 @@ typedef struct STqListHandle {
 } STqList;
 
 typedef struct STqGroup {
-  int64_t      clientId;
-  int64_t      cgId;
-  void*        ahandle;
-  int32_t      topicNum;
-  //STqList*     head;
+  int64_t clientId;
+  int64_t cgId;
+  void*   ahandle;
+  int32_t topicNum;
+  STqList*     head;
   SList*       topicList;  // SList<STqTopic>
   STqRspHandle rspHandle;
 } STqGroup;
@@ -162,20 +163,23 @@ typedef struct STqQueryMsg {
   struct STqQueryMsg* next;
 } STqQueryMsg;
 
-typedef struct STqLogReader {
+typedef struct STqLogHandle {
   void* logHandle;
-  int32_t (*logRead)(void* logHandle, void** data, int64_t ver);
+  void* (*openLogReader)(void* logHandle);
+  void (*closeLogReader)(void* logReader);
+  int32_t (*logRead)(void* logReader, void** data, int64_t ver);
+
   int64_t (*logGetFirstVer)(void* logHandle);
   int64_t (*logGetSnapshotVer)(void* logHandle);
   int64_t (*logGetLastVer)(void* logHandle);
-} STqLogReader;
+} STqLogHandle;
 
 typedef struct STqCfg {
   // TODO
 } STqCfg;
 
 typedef struct STqMemRef {
-  SMemAllocatorFactory* pAlloctorFactory;
+  SMemAllocatorFactory* pAllocatorFactory;
   SMemAllocator*        pAllocator;
 } STqMemRef;
 
@@ -265,13 +269,24 @@ typedef struct STQ {
   // the handle of meta kvstore
   char*         path;
   STqCfg*       tqConfig;
-  STqLogReader* tqLogReader;
+  STqLogHandle* tqLogHandle;
   STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
 } STQ;
 
+typedef struct STqMgmt {
+  int8_t inited;
+  tmr_h  timer;
+} STqMgmt;
+
+static STqMgmt tqMgmt;
+
+// init once
+int  tqInit();
+void tqCleanUp();
+
 // open in each vnode
-STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogReader* tqLogReader, SMemAllocatorFactory* allocFac);
+STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogHandle* tqLogHandle, SMemAllocatorFactory* allocFac);
 void tqClose(STQ*);
 
 // void* will be replace by a msg type
