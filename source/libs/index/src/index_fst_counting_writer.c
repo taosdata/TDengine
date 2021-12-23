@@ -69,9 +69,9 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
     // ugly code, refactor later
     ctx->file.readOnly = readOnly;
     if (readOnly == false) {
-      ctx->file.fd = tfOpenCreateWriteAppend(tmpFile);
+      ctx->file.fd = tfOpenCreateWriteAppend(path);
     } else {
-      ctx->file.fd = tfOpenReadWrite(tmpFile);
+      ctx->file.fd = tfOpenReadWrite(path);
     }
     if (ctx->file.fd < 0) {
       indexError("open file error %d", errno);
@@ -93,6 +93,7 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
 END:
   if (ctx->type == TMemory) { free(ctx->mem.buf); }
   free(ctx);
+  return NULL;
 }
 void writerCtxDestroy(WriterCtx* ctx) {
   if (ctx->type == TMemory) {

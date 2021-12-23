@@ -263,87 +263,12 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
 }
 
 
-void msgInit() {
+void initQueryModuleMsgHandle() {
   queryBuildMsg[TSDB_MSG_TYPE_TABLE_META] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TSDB_MSG_TYPE_USE_DB] = queryBuildUseDbMsg;
 
   queryProcessMsgRsp[TSDB_MSG_TYPE_TABLE_META] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TSDB_MSG_TYPE_USE_DB] = queryProcessUseDBRsp;
-
-/*
-  tscBuildMsg[TSDB_SQL_SELECT] = tscBuildQueryMsg;
-  tscBuildMsg[TSDB_SQL_INSERT] = tscBuildSubmitMsg;
-  tscBuildMsg[TSDB_SQL_FETCH] = tscBuildFetchMsg;
-
-  tscBuildMsg[TSDB_SQL_CREATE_DB] = tscBuildCreateDbMsg;
-  tscBuildMsg[TSDB_SQL_CREATE_USER] = tscBuildUserMsg;
-  tscBuildMsg[TSDB_SQL_CREATE_FUNCTION] = tscBuildCreateFuncMsg;
-
-  tscBuildMsg[TSDB_SQL_CREATE_ACCT] = tscBuildAcctMsg;
-  tscBuildMsg[TSDB_SQL_ALTER_ACCT] = tscBuildAcctMsg;
-
-  tscBuildMsg[TSDB_SQL_CREATE_TABLE] = tscBuildCreateTableMsg;
-  tscBuildMsg[TSDB_SQL_DROP_USER] = tscBuildDropUserAcctMsg;
-  tscBuildMsg[TSDB_SQL_DROP_ACCT] = tscBuildDropUserAcctMsg;
-  tscBuildMsg[TSDB_SQL_DROP_DB] = tscBuildDropDbMsg;
-  tscBuildMsg[TSDB_SQL_DROP_FUNCTION] = tscBuildDropFuncMsg;
-  tscBuildMsg[TSDB_SQL_SYNC_DB_REPLICA] = tscBuildSyncDbReplicaMsg;
-  tscBuildMsg[TSDB_SQL_DROP_TABLE] = tscBuildDropTableMsg;
-  tscBuildMsg[TSDB_SQL_ALTER_USER] = tscBuildUserMsg;
-  tscBuildMsg[TSDB_SQL_CREATE_DNODE] = tscBuildCreateDnodeMsg;
-  tscBuildMsg[TSDB_SQL_DROP_DNODE] = tscBuildDropDnodeMsg;
-  tscBuildMsg[TSDB_SQL_CFG_DNODE] = tscBuildCfgDnodeMsg;
-  tscBuildMsg[TSDB_SQL_ALTER_TABLE] = tscBuildAlterTableMsg;
-  tscBuildMsg[TSDB_SQL_UPDATE_TAG_VAL] = tscBuildUpdateTagMsg;
-  tscBuildMsg[TSDB_SQL_ALTER_DB] = tscAlterDbMsg;
-  tscBuildMsg[TSDB_SQL_COMPACT_VNODE] = tscBuildCompactMsg;  
-
-  tscBuildMsg[TSDB_SQL_CONNECT] = tscBuildConnectMsg;
-  tscBuildMsg[TSDB_SQL_USE_DB] = tscBuildUseDbMsg;
-  tscBuildMsg[TSDB_SQL_STABLEVGROUP] = tscBuildSTableVgroupMsg;
-  tscBuildMsg[TSDB_SQL_RETRIEVE_FUNC] = tscBuildRetrieveFuncMsg;
-
-  tscBuildMsg[TSDB_SQL_HB] = tscBuildHeartBeatMsg;
-  tscBuildMsg[TSDB_SQL_SHOW] = tscBuildShowMsg;
-  tscBuildMsg[TSDB_SQL_RETRIEVE_MNODE] = tscBuildRetrieveFromMgmtMsg;
-  tscBuildMsg[TSDB_SQL_KILL_QUERY] = tscBuildKillMsg;
-  tscBuildMsg[TSDB_SQL_KILL_STREAM] = tscBuildKillMsg;
-  tscBuildMsg[TSDB_SQL_KILL_CONNECTION] = tscBuildKillMsg;
-
-  tscProcessMsgRsp[TSDB_SQL_SELECT] = tscProcessQueryRsp;
-  tscProcessMsgRsp[TSDB_SQL_FETCH] = tscProcessRetrieveRspFromNode;
-
-  tscProcessMsgRsp[TSDB_SQL_DROP_DB] = tscProcessDropDbRsp;
-  tscProcessMsgRsp[TSDB_SQL_DROP_TABLE] = tscProcessDropTableRsp;
-  tscProcessMsgRsp[TSDB_SQL_CONNECT] = tscProcessConnectRsp;
-  tscProcessMsgRsp[TSDB_SQL_USE_DB] = tscProcessUseDbRsp;
-  tscProcessMsgRsp[TSDB_SQL_META] = tscProcessTableMetaRsp;
-  tscProcessMsgRsp[TSDB_SQL_STABLEVGROUP] = tscProcessSTableVgroupRsp;
-  tscProcessMsgRsp[TSDB_SQL_MULTI_META] = tscProcessMultiTableMetaRsp;
-  tscProcessMsgRsp[TSDB_SQL_RETRIEVE_FUNC] = tscProcessRetrieveFuncRsp;
-
-  tscProcessMsgRsp[TSDB_SQL_SHOW] = tscProcessShowRsp;
-  tscProcessMsgRsp[TSDB_SQL_RETRIEVE_MNODE] = tscProcessRetrieveRspFromNode;  // rsp handled by same function.
-  tscProcessMsgRsp[TSDB_SQL_DESCRIBE_TABLE] = tscProcessDescribeTableRsp;
-
-  tscProcessMsgRsp[TSDB_SQL_CURRENT_DB]   = tscProcessLocalRetrieveRsp;
-  tscProcessMsgRsp[TSDB_SQL_CURRENT_USER] = tscProcessLocalRetrieveRsp;
-  tscProcessMsgRsp[TSDB_SQL_SERV_VERSION] = tscProcessLocalRetrieveRsp;
-  tscProcessMsgRsp[TSDB_SQL_CLI_VERSION]  = tscProcessLocalRetrieveRsp;
-  tscProcessMsgRsp[TSDB_SQL_SERV_STATUS]  = tscProcessLocalRetrieveRsp;
-
-  tscProcessMsgRsp[TSDB_SQL_RETRIEVE_EMPTY_RESULT] = tscProcessEmptyResultRsp;
-
-  tscProcessMsgRsp[TSDB_SQL_RETRIEVE_GLOBALMERGE] = tscProcessRetrieveGlobalMergeRsp;
-
-  tscProcessMsgRsp[TSDB_SQL_ALTER_TABLE] = tscProcessAlterTableMsgRsp;
-  tscProcessMsgRsp[TSDB_SQL_ALTER_DB] = tscProcessAlterDbMsgRsp;
-  tscProcessMsgRsp[TSDB_SQL_COMPACT_VNODE] = tscProcessCompactRsp; 
-
-  tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_TABLE] = tscProcessShowCreateRsp;
-  tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_STABLE] = tscProcessShowCreateRsp;
-  tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_DATABASE] = tscProcessShowCreateRsp;
-*/
 }
 
 
