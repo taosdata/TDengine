@@ -48,11 +48,12 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
 | 3    |  BIGINT   | 8      | 长整型，范围 [-2^63+1,   2^63-1], -2^63 用于 NULL                                 |
 | 4    |   FLOAT   | 4      | 浮点型，有效位数 6-7，范围 [-3.4E38, 3.4E38]                  |
 | 5    |  DOUBLE   | 8      | 双精度浮点型，有效位数 15-16，范围 [-1.7E308, 1.7E308]      |
-| 6    |  BINARY   | 自定义 | 记录单字节字符串，建议只用于处理 ASCII 可见字符，中文等多字节字符需使用 nchar。理论上，最长可以有 16374 字节，但由于每行数据最多 16K 字节，实际上限一般小于理论值。binary 仅支持字符串输入，字符串两端需使用单引号引用。使用时须指定大小，如 binary(20) 定义了最长为 20 个单字节字符的字符串，每个字符占 1 byte 的存储空间，总共固定占用 20 bytes 的空间，此时如果用户字符串超出 20 字节将会报错。对于字符串内的单引号，可以用转义字符反斜线加单引号来表示，即 `\’`。 |
+| 6    |  BINARY   | 自定义 | 记录单字节字符串，建议只用于处理 ASCII 可见字符，中文等多字节字符需使用 nchar。理论上，最长可以有 16374 字节。binary 仅支持字符串输入，字符串两端需使用单引号引用。使用时须指定大小，如 binary(20) 定义了最长为 20 个单字节字符的字符串，每个字符占 1 byte 的存储空间，总共固定占用 20 bytes 的空间，此时如果用户字符串超出 20 字节将会报错。对于字符串内的单引号，可以用转义字符反斜线加单引号来表示，即 `\’`。 |
 | 7    | SMALLINT  | 2      | 短整型， 范围 [-32767, 32767], -32768 用于 NULL                                |
 | 8    |  TINYINT  | 1      | 单字节整型，范围 [-127, 127], -128 用于 NULL                                |
 | 9    |   BOOL    | 1      | 布尔型，{true, false}                                      |
 | 10   |   NCHAR   | 自定义 | 记录包含多字节字符在内的字符串，如中文字符。每个 nchar 字符占用 4 bytes 的存储空间。字符串两端使用单引号引用，字符串内的单引号需用转义字符 `\’`。nchar 使用时须指定字符串大小，类型为 nchar(10) 的列表示此列的字符串最多存储 10 个 nchar 字符，会固定占用 40 bytes 的空间。如果用户字符串长度超出声明长度，将会报错。 |
+| 11   |   JSON    |       | json数据类型， 只有tag类型可以是json格式                                    |
 <!-- REPLACE_OPEN_TO_ENTERPRISE__COLUMN_TYPE_ADDONS -->
 
 **Tips**:
@@ -681,6 +682,48 @@ taos> SELECT SERVER_STATUS() AS status;
            1 |
 Query OK, 1 row(s) in set (0.000081s)
 ```
+
+函数_block_dist()使用说明
+<br/>语法
+
+SELECT _block_dist() FROM { tb_name | stb_name }
+
+功能说明：获得指定的（超级）表的数据块分布信息
+
+返回结果类型：字符串。
+
+
+适用数据类型：不能输入任何参数。
+
+嵌套子查询支持：不支持子查询或嵌套查询。
+
+
+说明：
+
+返回 FROM 子句中输入的表或超级表的数据块分布情况。不支持查询条件。
+
+返回的结果是该表或超级表的数据块所包含的行数的数据分布直方图。
+
+返回结果如下：
+```
+summary:
+5th=[392], 10th=[392], 20th=[392], 30th=[392], 40th=[792], 50th=[792] 60th=[792], 70th=[792], 80th=[792], 90th=[792], 95th=[792], 99th=[792] Min=[392(Rows)] Max=[800(Rows)] Avg=[666(Rows)] Stddev=[2.17] Rows=[2000], Blocks=[3], Size=[5.440(Kb)] Comp=[0.23] RowsInMem=[0] SeekHeaderTime=[1(us)]
+```
+上述信息的说明如下：
+<br/>1、查询的（超级）表所包含的存储在文件中的数据块（data block）中所包含的数据行的数量分布直方图信息：5%， 10%， 20%， 30%， 40%， 50%， 60%， 70%， 80%， 90%， 95%， 99% 的数值；
+<br/>2、所有数据块中，包含行数最少的数据块所包含的行数量， 其中的 Min 指标 392 行。
+<br/>3、所有数据块中，包含行数最多的数据块所包含的行数量， 其中的 Max 指标 800 行。
+<br/>4、所有数据块行数的算数平均值 666行（其中的 Avg 项）。
+<br/>5、所有数据块中行数分布的均方差为 2.17 ( stddev ）。
+<br/>6、数据块包含的行的总数为 2000 行（Rows）。
+<br/>7、数据块总数是 3 个数据块 （Blocks）。
+<br/>8、数据块占用磁盘空间大小 5.44 Kb （size）。
+<br/>9、压缩后的数据块的大小除以原始数据的所获得的压缩比例： 23%（Comp），及压缩后的数据规模是原始数据规模的 23%。
+<br/>10、内存中存在的数据行数是0，表示内存中没有数据缓存。
+<br/>11、获取数据块信息的过程中读取头文件的时间开销 1 微秒（SeekHeaderTime）。
+
+支持版本：指定计算算法的功能从2.1.0.x 版本开始，2.1.0.0之前的版本不支持指定使用算法的功能。
+
 
 #### TAOS SQL中特殊关键词
 
@@ -1603,6 +1646,15 @@ TAOS SQL 支持对标签、TBNAME 进行 GROUP BY 操作，也支持普通列进
 
 IS NOT NULL 支持所有类型的列。不为空的表达式为 <>""，仅对非数值类型的列适用。
 
+**ORDER BY的限制**
+
+- 非超级表只能有一个order by.
+- 超级表最多两个order by， 并且第二个必须为ts.
+- order by tag，必须和group by tag一起，并且是同一个tag。 tbname和tag一样逻辑。  只适用于超级表
+- order by 普通列，必须和group by一起或者和top/bottom一起，并且是同一个普通列。 适用于超级表和普通表。如果同时存在 group by和 top/bottom一起，order by优先必须和group by同一列。
+- order by ts. 适用于超级表和普通表。
+- order by ts同时含有group by时 针对group内部用ts排序
+
 ## 表(列)名合法性说明
 TDengine 中的表（列）名命名规则如下：
 只能由字母、数字、下划线构成，数字不能在首位，长度不能超过192字节，不区分大小写。
@@ -1618,3 +1670,87 @@ TDengine 中的表（列）名命名规则如下：
 
 支持版本
 支持转义符的功能从 2.3.0.1 版本开始。
+
+
+## Json类型使用说明
+- 语法说明
+
+  1. 创建json类型tag
+
+     ```mysql
+     create stable s1 (ts timestamp, v1 int) tags (info json)
+
+     create table s1_1 using s1 tags ('{"k1": "v1"}')
+     ```
+  3. json取值操作符 ->
+
+     ```mysql   
+     select * from s1 where info->'k1' = 'v1'
+
+     select info->'k1' from s1 
+     ```
+  4. json key是否存在操作符 contains
+
+     ```mysql
+     select * from s1 where info contains 'k2'
+    
+     select * from s1 where info contains 'k1'
+     ```
+     
+- 支持的操作
+
+  1. 在where条件中时，支持函数match/nmatch/between and/like/and/or/is null/is no null，不支持in
+
+     ```mysql 
+     select * from s1 where info→'k1' match 'v*'; 
+
+     select * from s1 where info→'k1' like 'v%' and info contains 'k2';
+
+     select * from s1 where info is null; 
+  
+     select * from s1 where info->'k1' is not null
+     ```
+
+  2. 支持json tag放在group by、order by、join子句、union all以及子查询中，比如group by json->'key'
+
+  3. 支持distinct操作.
+
+     ```mysql 
+     select distinct info→'k1' from s1
+     ```
+  
+  5. 标签操作
+    
+     支持修改json标签值（全量覆盖）
+
+     支持修改json标签名 
+  
+     不支持添加json标签、删除json标签、修改json标签列宽
+
+- 其他约束条件
+  
+  1. 只有标签列可以使用json类型，如果用json标签，标签列只能有一个。
+  
+  2. 长度限制：json 中key的长度不能超过256，并且key必须为可打印ascii字符；json字符串总长度不超过4096个字节。
+
+  3. json格式限制：
+
+     1. json输入字符串可以为空（"","\t"," "或null）或object，不能为非空的字符串，布尔型和数组。
+     2. object 可为{}，如果object为{}，则整个json串记为空。key可为""，若key为""，则json串中忽略该k-v对。
+     3. value可以为数字(int/double)或字符串或bool或null，暂不可以为数组。不允许嵌套。
+     4. 若json字符串中出现两个相同的key，则第一个生效。
+     5. json字符串里暂不支持转义。
+  
+  4. 当查询json中不存在的key时，返回NULL
+
+  5. 当json tag作为子查询结果时，不再支持上层查询继续对子查询中的json串做解析查询。
+  
+     比如暂不支持 
+     ```mysql 
+     select jtag→'key' from (select jtag from stable)
+     ```
+  
+     不支持 
+     ```mysql 
+     select jtag->'key' from (select jtag from stable) where jtag->'key'>0
+     ```

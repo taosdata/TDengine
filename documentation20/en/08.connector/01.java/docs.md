@@ -575,8 +575,67 @@ public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException
 public void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 ```
+### Set client configuration in JDBC
+Starting with TDEngine-2.3.5.0, JDBC Driver supports setting TDengine client parameters on the first connection of a Java application. The Driver supports jdbcUrl and Properties to set client parameters in JDBC-JNI mode.
 
-### Data Subscription
+Note:
+* JDBC-RESTful does not support setting client parameters.
+* The client parameters set in the java application are process-level. To update the client parameters, the application needs to be restarted. This is because these client parameters are global that take effect the first time the application is set up.
+* The following sample code is based on taos-jdbcdriver-2.0.36.
+
+Sample Code:
+```java
+public class ClientParameterSetting {
+    private static final String host = "127.0.0.1";
+ 
+    public static void main(String[] args) throws SQLException {
+        setParameterInJdbcUrl();
+ 
+        setParameterInProperties();
+    }
+ 
+    private static void setParameterInJdbcUrl() throws SQLException {
+        String jdbcUrl = "jdbc:TAOS://" + host + ":6030/?debugFlag=135&asyncLog=0";
+ 
+        Connection connection = DriverManager.getConnection(jdbcUrl, "root", "taosdata");
+ 
+        printDatabase(connection);
+ 
+        connection.close();
+    }
+ 
+    private static void setParameterInProperties() throws SQLException {
+        String jdbcUrl = "jdbc:TAOS://" + host + ":6030/";
+        Properties properties = new Properties();
+        properties.setProperty("user", "root");
+        properties.setProperty("password", "taosdata");
+        properties.setProperty("debugFlag", "135");
+        properties.setProperty("asyncLog", "0");
+        properties.setProperty("maxSQLLength", "1048576");
+ 
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, properties)) {
+            printDatabase(conn);
+        }
+    }
+ 
+    private static void printDatabase(Connection connection) throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            ResultSet rs = stmt.executeQuery("show databases");
+ 
+            ResultSetMetaData meta = rs.getMetaData();
+            while (rs.next()) {
+                for (int i = 1; i <= meta.getColumnCount(); i++) {
+                    System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
+                }
+                System.out.println();
+            }
+        }
+    }
+}
+```
+
+
+## Data Subscription
 
 #### Subscribe
 
