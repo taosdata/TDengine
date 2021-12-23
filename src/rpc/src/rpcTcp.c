@@ -244,13 +244,9 @@ static void *taosAcceptTcpConnection(void *arg) {
   tDebug("%s TCP server is ready, ip:0x%x:%hu", pServerObj->label, pServerObj->ip, pServerObj->port);
   setThreadName("acceptTcpConn");
 
-  while (1) {
+  while (!pServerObj->stop) {
     socklen_t addrlen = sizeof(caddr);
     connFd = accept(pServerObj->fd, (struct sockaddr *)&caddr, &addrlen);
-    if (pServerObj->stop) {
-      tDebug("%s TCP server stop accepting new connections", pServerObj->label);
-      break;
-    }
 
     if (connFd == -1) {
       if (errno == EINVAL) {
@@ -292,6 +288,8 @@ static void *taosAcceptTcpConnection(void *arg) {
     threadId++;
     threadId = threadId % pServerObj->numOfThreads;
   }
+
+  tDebug("%s TCP server stop accepting new connections", pServerObj->label);
 
   taosCloseSocket(pServerObj->fd);
   return NULL;
@@ -546,12 +544,8 @@ static void *taosProcessTcpData(void *param) {
   snprintf(name, tListLen(name), "%s-tcp", pThreadObj->label);
   setThreadName(name);
 
-  while (1) {
+  while (!pThreadObj->stop) {
     int fdNum = epoll_wait(pThreadObj->pollFd, events, maxEvents, TAOS_EPOLL_WAIT_TIME);
-    if (pThreadObj->stop) {
-      tDebug("%s TCP thread get stop event, exiting...", pThreadObj->label);
-      break;
-    }
     if (fdNum < 0) continue;
 
     for (int i = 0; i < fdNum; ++i) {
@@ -586,6 +580,8 @@ static void *taosProcessTcpData(void *param) {
 
     if (pThreadObj->stop) break;
   }
+
+  tDebug("%s TCP thread get stop event, exiting...", pThreadObj->label);
 
   if (pThreadObj->pollFd >=0) {
     EpollClose(pThreadObj->pollFd);
