@@ -16,15 +16,15 @@
 #include <gtest/gtest.h>
 #include <taoserror.h>
 #include <iostream>
-#include "tglobal.h"
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
-#include "../inc/clientInt.h"
 #include "taos.h"
+#include "tglobal.h"
+#include "../inc/clientInt.h"
 
 namespace {
 }  // namespace
@@ -149,11 +149,29 @@ TEST(testCase, create_db_Test) {
   taos_close(pConn);
 }
 
+TEST(testCase, use_db_test) {
+  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  assert(pConn != NULL);
+
+  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+
+  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+  ASSERT_TRUE(pFields == NULL);
+
+  int32_t numOfFields = taos_num_fields(pRes);
+  ASSERT_EQ(numOfFields, 0);
+
+  taos_close(pConn);
+}
+
 TEST(testCase, create_stable_Test) {
   TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
-  TAOS_RES* pRes = taos_query(pConn, "create stable st1(ts timestamp, k int) tags(a int)");
+  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create stable st1(ts timestamp, k int) tags(a int)");
 
   TAOS_FIELD* pFields = taos_fetch_fields(pRes);
   ASSERT_TRUE(pFields == NULL);

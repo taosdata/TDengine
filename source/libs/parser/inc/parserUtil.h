@@ -68,6 +68,7 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta);
 
 bool isDclSqlStatement(SSqlInfo* pSqlInfo);
 bool isDdlSqlStatement(SSqlInfo* pSqlInfo);
+bool isDqlSqlStatement(SSqlInfo* pSqlInfo);
 
 #ifdef __cplusplus
 }

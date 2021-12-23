@@ -31,6 +31,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include "astGenerator.h"
+#include "parserInt.h"
 #include "tmsgtype.h"
 #include "ttoken.h"
 #include "ttokendef.h"

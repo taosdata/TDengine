@@ -255,3 +255,9 @@ const char *taos_data_type(int type) {
     default: return "UNKNOWN";
   }
 }
+
+const char *taos_get_client_info() { return version; }
+
+int taos_affected_rows(TAOS_RES *res) { return 1; }
+
+int taos_result_precision(TAOS_RES *res) { return TSDB_TIME_PRECISION_MILLI; }

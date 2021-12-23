@@ -2891,7 +2891,14 @@ int32_t doBuildMsgSupp(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
       }
 
       tNameGetFullDbName(&name, pCreateMsg->db);
-
+      break;
+    }
+    case TSDB_SQL_USE_DB: {
+      pMsgBody->msgType = TSDB_MSG_TYPE_USE_DB;
+      break;
+    }
+    case TSDB_SQL_CREATE_TABLE: {
+      pMsgBody->msgType = TSDB_MSG_TYPE_CREATE_STB;
       break;
     }
     case TSDB_SQL_SHOW:
@@ -2971,6 +2978,20 @@ int32_t processRetrieveMnodeRsp(SRequestObj *pRequest, const char* pMsg, int32_t
 
 int32_t processCreateDbRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
   // todo rsp with the vnode id list
+}
+
+int32_t processUseDbRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
+  SUseDbRsp* pUseDbRsp = (SUseDbRsp*) pMsg;
+  SName name = {0};
+  tNameFromString(&name, pUseDbRsp->db, T_NAME_ACCT|T_NAME_DB);
+
+  char db[TSDB_DB_NAME_LEN] = {0};
+  tNameGetDbName(&name, db);
+  setConnectionDB(pRequest->pTscObj, db);
+}
+
+int32_t processCreateTableRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
+  assert(pMsg != NULL);
 }
 
 void initMsgHandleFp() {
@@ -3066,4 +3087,10 @@ void initMsgHandleFp() {
 
   buildRequestMsgFp[TSDB_SQL_CREATE_DB]      = doBuildMsgSupp;
   handleRequestRspFp[TSDB_SQL_CREATE_DB]     = processCreateDbRsp;
+
+  buildRequestMsgFp[TSDB_SQL_USE_DB]         = doBuildMsgSupp;
+  handleRequestRspFp[TSDB_SQL_USE_DB]        = processUseDbRsp;
+
+  buildRequestMsgFp[TSDB_SQL_CREATE_TABLE]   = doBuildMsgSupp;
+  handleRequestRspFp[TSDB_SQL_CREATE_TABLE]  = processCreateTableRsp;
 }

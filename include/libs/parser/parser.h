@@ -29,7 +29,7 @@ extern "C" {
 typedef struct SField {
   char     name[TSDB_COL_NAME_LEN];
   uint8_t  type;
-  int16_t  bytes;
+  int32_t  bytes;
 } SField;
 
 typedef struct SFieldInfo {
@@ -37,6 +37,13 @@ typedef struct SFieldInfo {
   SField     *final;
   SArray     *internalField; // SArray<SInternalField>
 } SFieldInfo;
+
+// TODO merged with SParseContext
+typedef struct SParseCtx {
+  char    *db;
+  int32_t  acctId;
+  uint64_t requestId;
+} SParseCtx;
 
 typedef struct SCond {
   uint64_t uid;
@@ -153,7 +160,7 @@ typedef struct SParseContext {
  * @param msg      extended error message if exists.
  * @return         error code
  */
-int32_t qParseQuerySql(const char* pStr, size_t length, int64_t id, int32_t* type, void** pOutput, int32_t* outputLen, char* msg, int32_t msgLen);
+int32_t qParseQuerySql(const char* pStr, size_t length, SParseCtx* pParseCtx, int32_t* type, void** pOutput, int32_t* outputLen, char* msg, int32_t msgLen);
 
 typedef enum {
   PAYLOAD_TYPE_KV = 0,

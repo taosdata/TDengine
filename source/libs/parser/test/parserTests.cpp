@@ -717,7 +717,9 @@ TEST(testCase, show_user_Test) {
   void* output = NULL;
   int32_t type = 0;
   int32_t len = 0;
-  int32_t code = qParserValidateDclSqlNode(&info1, 1, &output, &len, &type, msg, buf.len);
+
+  SParseCtx ct= {.db= "abc", .acctId = 1, .requestId = 1};
+  int32_t code = qParserValidateDclSqlNode(&info1, &ct, &output, &len, &type, msg, buf.len);
   ASSERT_EQ(code, 0);
 
   // convert the show command to be the select query
@@ -734,13 +736,14 @@ TEST(testCase, create_user_Test) {
 
   SSqlInfo info1 = doGenerateAST(sql);
   ASSERT_EQ(info1.valid, true);
-
   ASSERT_EQ(isDclSqlStatement(&info1), true);
 
   void* output = NULL;
   int32_t type = 0;
   int32_t len = 0;
-  int32_t code = qParserValidateDclSqlNode(&info1, 1, &output, &len, &type, msg, buf.len);
+
+  SParseCtx ct= {.db= "abc", .acctId = 1, .requestId = 1};
+  int32_t code = qParserValidateDclSqlNode(&info1, &ct, &output, &len, &type, msg, buf.len);
   ASSERT_EQ(code, 0);
 
   destroySqlInfo(&info1);

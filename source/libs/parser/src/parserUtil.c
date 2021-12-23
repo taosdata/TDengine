@@ -1620,7 +1620,11 @@ bool isDclSqlStatement(SSqlInfo* pSqlInfo) {
 
 bool isDdlSqlStatement(SSqlInfo* pSqlInfo) {
   int32_t type = pSqlInfo->type;
-  return (type == TSDB_SQL_CREATE_TABLE || type == TSDB_SQL_CREATE_DB);
+  return (type == TSDB_SQL_CREATE_TABLE || type == TSDB_SQL_CREATE_DB || type == TSDB_SQL_DROP_DB);
+}
+
+bool isDqlSqlStatement(SSqlInfo* pSqlInfo) {
+  return pSqlInfo->type == TSDB_SQL_SELECT;
 }
 
 #if 0
