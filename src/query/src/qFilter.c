@@ -555,9 +555,9 @@ int32_t filterAddRange(void* h, SFilterRange* ra, int32_t optr) {
 
   if (FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL)) {
     if (ctx->type == TSDB_DATA_TYPE_FLOAT || ctx->type == TSDB_DATA_TYPE_DOUBLE){
-      ra->s = INT64_MAX;
+      ra->e = INT64_MAX;
     }else{
-      ra->s = tDataTypes[ctx->type].maxValue;
+      ra->e = tDataTypes[ctx->type].maxValue;
     }
   }
 
@@ -1354,7 +1354,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
     SFilterRange *ra = &ctx->rs->ra;
     
-    //assert(!((FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) && (FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL))));
+    assert(!((FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) && (FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL))));
 
     if ((!FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) && (!FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL))) {
       __compar_fn_t func = getComparFunc(type, 0);
