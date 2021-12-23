@@ -14,6 +14,7 @@
  */
 
 #include "os.h"
+#include "tdef.h"
 #include "tname.h"
 #include "clientInt.h"
 #include "clientLog.h"
