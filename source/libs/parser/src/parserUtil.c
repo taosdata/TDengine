@@ -1167,7 +1167,7 @@ void cleanupTagCond(STagCond* pTagCond) {
  * @param tableIndex  denote the table index for join query, where more than one table exists
  * @return
  */
-STableMetaInfo* getMetaInfo(SQueryStmtInfo* pQueryInfo, int32_t tableIndex) {
+STableMetaInfo* getMetaInfo(const SQueryStmtInfo* pQueryInfo, int32_t tableIndex) {
   assert(pQueryInfo != NULL);
   if (pQueryInfo->pTableMetaInfo == NULL) {
     assert(pQueryInfo->numOfTables == 0);

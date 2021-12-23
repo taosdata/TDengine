@@ -93,7 +93,7 @@ void generateLogicplan(const char* sql) {
   ASSERT_EQ(ret, 0);
 
   struct SQueryPlanNode* n = nullptr;
-  code = createQueryPlan(pQueryInfo, &n);
+  code = createQueryPlan((const SQueryNode*)pQueryInfo, &n);
 
   char* str = NULL;
   queryPlanToString(n, &str);
@@ -156,7 +156,7 @@ TEST(testCase, planner_test) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 2);
 
   struct SQueryPlanNode* n = nullptr;
-  code = createQueryPlan(pQueryInfo, &n);
+  code = createQueryPlan((const SQueryNode*)pQueryInfo, &n);
 
   char* str = NULL;
   queryPlanToString(n, &str);

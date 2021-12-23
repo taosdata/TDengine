@@ -152,7 +152,7 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
     void*   output = NULL;
     int32_t outputLen = 0;
 
-    SParseCtx c = {.requestId = pRequest->requestId, .acctId = pTscObj->acctId, .db = getConnectionDB(pTscObj)};
+    SParseBasicCtx c = {.requestId = pRequest->requestId, .acctId = pTscObj->acctId, .db = getConnectionDB(pTscObj)};
     code = qParseQuerySql(pRequest->sqlstr, sqlLen, &c, &type, &output, &outputLen, pRequest->msgBuf, ERROR_MSG_BUF_DEFAULT_SIZE);
     if (type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_SHOW || type == TSDB_SQL_DROP_USER ||
         type == TSDB_SQL_DROP_ACCT || type == TSDB_SQL_CREATE_DB || type == TSDB_SQL_CREATE_ACCT ||
@@ -167,8 +167,6 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
       sendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &body, &transporterId);
 
       tsem_wait(&pRequest->body.rspSem);
-
-
       destroyRequestMsgBody(&body);
     } else {
       assert(0);

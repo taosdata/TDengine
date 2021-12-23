@@ -31,7 +31,7 @@ bool qIsInsertSql(const char* pStr, size_t length) {
   } while (1);
 }
 
-int32_t qParseQuerySql(const char* pStr, size_t length, SParseCtx* pParseCtx, int32_t *type, void** pOutput, int32_t* outputLen, char* msg, int32_t msgLen) {
+int32_t qParseQuerySql(const char* pStr, size_t length, SParseBasicCtx* pParseCtx, int32_t *type, void** pOutput, int32_t* outputLen, char* msg, int32_t msgLen) {
   SSqlInfo info = doGenerateAST(pStr);
   if (!info.valid) {
     strncpy(msg, info.msg, msgLen);

@@ -718,7 +718,7 @@ TEST(testCase, show_user_Test) {
   int32_t type = 0;
   int32_t len = 0;
 
-  SParseCtx ct= {.db= "abc", .acctId = 1, .requestId = 1};
+  SParseBasicCtx ct= {.db= "abc", .acctId = 1, .requestId = 1};
   int32_t code = qParserValidateDclSqlNode(&info1, &ct, &output, &len, &type, msg, buf.len);
   ASSERT_EQ(code, 0);
 
@@ -742,7 +742,7 @@ TEST(testCase, create_user_Test) {
   int32_t type = 0;
   int32_t len = 0;
 
-  SParseCtx ct= {.db= "abc", .acctId = 1, .requestId = 1};
+  SParseBasicCtx ct= {.db= "abc", .acctId = 1, .requestId = 1};
   int32_t code = qParserValidateDclSqlNode(&info1, &ct, &output, &len, &type, msg, buf.len);
   ASSERT_EQ(code, 0);
 

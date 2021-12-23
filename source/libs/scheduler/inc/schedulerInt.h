@@ -31,17 +31,9 @@ extern "C" {
 
 #define SCH_MAX_CONDIDATE_EP_NUM TSDB_MAX_REPLICA
 
-enum {
-  SCH_STATUS_NOT_START = 1,
-  SCH_STATUS_EXECUTING,
-  SCH_STATUS_SUCCEED,
-  SCH_STATUS_FAILED,
-  SCH_STATUS_CANCELLING,
-  SCH_STATUS_CANCELLED
-};
-
 typedef struct SSchedulerMgmt {
-  uint64_t  taskId;
+  uint64_t  taskId; 
+  uint64_t  schedulerId;
   SSchedulerCfg cfg;
   SHashObj *Jobs;  // key: queryId, value: SQueryJob*
 } SSchedulerMgmt;

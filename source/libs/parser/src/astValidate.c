@@ -4308,7 +4308,7 @@ int32_t doCheckForCreateTable(SSqlInfo* pInfo, SMsgBuf* pMsgBuf) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseCtx* pCtx, void** output, int32_t* outputLen, int32_t* type, char* msgBuf, int32_t msgBufLen) {
+int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, void** output, int32_t* outputLen, int32_t* type, char* msgBuf, int32_t msgBufLen) {
   int32_t code = 0;
 
   SMsgBuf m = {.buf = msgBuf, .len = msgBufLen};

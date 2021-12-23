@@ -221,7 +221,7 @@ SCreateDbMsg* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, char* msgBuf, int32
   return pCreateMsg;
 }
 
-int32_t createSName(SName* pName, SToken* pTableName, SParseCtx* pParseCtx, SMsgBuf* pMsgBuf) {
+int32_t createSName(SName* pName, SToken* pTableName, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
   const char* msg1 = "name too long";
   const char* msg2 = "acctId too long";
 
@@ -260,7 +260,7 @@ int32_t createSName(SName* pName, SToken* pTableName, SParseCtx* pParseCtx, SMsg
   return code;
 }
 
-SCreateStbMsg* buildCreateTableMsg(SCreateTableSql* pCreateTableSql, int32_t* len, SParseCtx* pParseCtx, SMsgBuf* pMsgBuf) {
+SCreateStbMsg* buildCreateTableMsg(SCreateTableSql* pCreateTableSql, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
   SSchema* pSchema;
 
   int32_t numOfCols = (int32_t) taosArrayGetSize(pCreateTableSql->colInfo.pColumns);

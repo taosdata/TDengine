@@ -20,14 +20,15 @@
 #define MAX_INDEX_KEY_LEN 256  // test only, change later
 
 // ref index_cache.h:22
-#define CACHE_KEY_LEN(p)                                                                                          \
-  (sizeof(int32_t) + sizeof(uint16_t) + sizeof(p->colType) + sizeof(p->nColVal) + p->nColVal + sizeof(uint64_t) + \
-      sizeof(p->operType))
+#define CACHE_KEY_LEN(p) \
+  (sizeof(int32_t) + sizeof(uint16_t) + sizeof(p->colType) + sizeof(p->nColVal) + p->nColVal + sizeof(uint64_t) + sizeof(p->operType))
 
-static char *  getIndexKey(const void *pData) { return NULL; }
-static int32_t compareKey(const void *l, const void *r) {
-  char *lp = (char *)l;
-  char *rp = (char *)r;
+static char* getIndexKey(const void* pData) {
+  return NULL;
+}
+static int32_t compareKey(const void* l, const void* r) {
+  char* lp = (char*)l;
+  char* rp = (char*)r;
 
   // skip total len, not compare
   int32_t ll, rl;  // len
@@ -40,9 +41,7 @@ static int32_t compareKey(const void *l, const void *r) {
   int16_t lf, rf;  // field id
   memcpy(&lf, lp, sizeof(lf));
   memcpy(&rf, rp, sizeof(rf));
-  if (lf != rf) {
-    return lf < rf ? -1 : 1;
-  }
+  if (lf != rf) { return lf < rf ? -1 : 1; }
   lp += sizeof(lf);
   rp += sizeof(rf);
 
@@ -89,41 +88,41 @@ static int32_t compareKey(const void *l, const void *r) {
   int32_t lv, rv;
   memcpy(&lv, lp, sizeof(lv));
   memcpy(&rv, rp, sizeof(rv));
-  if (lv != rv) {
-    return lv > rv ? -1 : 1;
-  }
+  if (lv != rv) { return lv > rv ? -1 : 1; }
+
   lp += sizeof(lv);
   rp += sizeof(rv);
   // not care item type
 
   return 0;
 }
-IndexCache *indexCacheCreate() {
-  IndexCache *cache = calloc(1, sizeof(IndexCache));
-  cache->skiplist = tSkipListCreate(
-      MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, MAX_INDEX_KEY_LEN, compareKey, SL_ALLOW_DUP_KEY, getIndexKey);
+IndexCache* indexCacheCreate() {
+  IndexCache* cache = calloc(1, sizeof(IndexCache));
+  if (cache == NULL) {
+    indexError("failed to create index cache");
+    return NULL;
+  }
+  cache->skiplist =
+      tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, MAX_INDEX_KEY_LEN, compareKey, SL_ALLOW_DUP_KEY, getIndexKey);
   return cache;
 }
 
-void indexCacheDestroy(void *cache) {
-  IndexCache *pCache = cache;
-  if (pCache == NULL) {
-    return;
-  }
+void indexCacheDestroy(void* cache) {
+  IndexCache* pCache = cache;
+  if (pCache == NULL) { return; }
   tSkipListDestroy(pCache->skiplist);
   free(pCache);
 }
 
-int indexCachePut(void *cache, SIndexTerm *term, int16_t colId, int32_t version, uint64_t uid) {
-  if (cache == NULL) {
-    return -1;
-  }
+int indexCachePut(void* cache, SIndexTerm* term, int16_t colId, int32_t version, uint64_t uid) {
+  if (cache == NULL) { return -1; }
 
-  IndexCache *pCache = cache;
+  IndexCache* pCache = cache;
   // encode data
   int32_t total = CACHE_KEY_LEN(term);
-  char *  buf = calloc(1, total);
-  char *  p = buf;
+
+  char* buf = calloc(1, total);
+  char* p = buf;
 
   SERIALIZE_VAR_TO_BUF(p, total, int32_t);
   SERIALIZE_VAR_TO_BUF(p, colId, int16_t);
@@ -137,30 +136,31 @@ int indexCachePut(void *cache, SIndexTerm *term, int16_t colId, int32_t version,
 
   SERIALIZE_MEM_TO_BUF(p, term, operType);
 
-  tSkipListPut(pCache->skiplist, (void *)buf);
+  tSkipListPut(pCache->skiplist, (void*)buf);
   return 0;
   // encode end
 }
-int indexCacheDel(void *cache, int32_t fieldId, const char *fieldValue, int32_t fvlen, uint64_t uid, int8_t operType) {
-  IndexCache *pCache = cache;
+int indexCacheDel(void* cache, int32_t fieldId, const char* fieldValue, int32_t fvlen, uint64_t uid, int8_t operType) {
+  IndexCache* pCache = cache;
   return 0;
 }
-int indexCacheSearch(
-    void *cache, SIndexTermQuery *query, int16_t colId, int32_t version, SArray *result, STermValueType *s) {
-  if (cache == NULL) {
-    return -1;
-  }
-  IndexCache *    pCache = cache;
-  SIndexTerm *    term = query->term;
+int indexCacheSearch(void* cache, SIndexTermQuery* query, int16_t colId, int32_t version, SArray* result, STermValueType* s) {
+  if (cache == NULL) { return -1; }
+  IndexCache*     pCache = cache;
+  SIndexTerm*     term = query->term;
   EIndexQueryType qtype = query->qType;
 
   int32_t keyLen = CACHE_KEY_LEN(term);
 
-  char *buf = calloc(1, keyLen);
+  char* buf = calloc(1, keyLen);
   if (qtype == QUERY_TERM) {
+    //
   } else if (qtype == QUERY_PREFIX) {
+    //
   } else if (qtype == QUERY_SUFFIX) {
+    //
   } else if (qtype == QUERY_REGEX) {
+    //
   }
 
   return 0;
