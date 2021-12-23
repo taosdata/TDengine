@@ -33,4 +33,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
   return code;
 }
 
-bool mndIsMaster(SMnode *pMnode) { return true; }
+bool mndIsMaster(SMnode *pMnode) {
+  // pMnode->role = TAOS_SYNC_STATE_LEADER;
+  return true;
+}
