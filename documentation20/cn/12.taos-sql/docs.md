@@ -841,6 +841,7 @@ WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 3. 暂不支持参与 JOIN 操作的表之间聚合后的四则运算。
 4. 不支持只对其中一部分表做 GROUP BY。
 5. JOIN 查询的不同表的过滤条件之间不能为 OR。
+6. JOIN 查询要求连接条件不能是普通列，只能针对标签和主时间字段列（第一列）。
 
 <a class="anchor" id="nested"></a>
 ### 嵌套查询
