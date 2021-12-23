@@ -1186,7 +1186,6 @@ static uint32_t monBuildVgroupsInfoSql(char *sql, char *dbName) {
 
 DONE:
   taos_free_result(result);
-
   return TSDB_CODE_SUCCESS;
 }
 
