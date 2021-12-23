@@ -28,14 +28,14 @@ static int l_connect(lua_State *L){
 
   luaL_checktype(L, 1, LUA_TTABLE);
 
-  lua_getfield(L,1,"host");
+  lua_getfield(L, 1,"host");
   if (lua_isstring(L,-1)){
     host = lua_tostring(L, -1);
     // printf("host = %s\n", host);
   }
   
   lua_getfield(L, 1, "port");
-  if (lua_isinteger(L,-1)){
+  if (lua_isinteger(L, -1)){
     port = lua_tointeger(L, -1);
     //printf("port = %d\n", port);
   }
@@ -113,7 +113,6 @@ static int l_query(lua_State *L){
     int         rows = 0;
     int         num_fields = taos_field_count(result);
     const TAOS_FIELD *fields = taos_fetch_fields(result);
-    //char        temp[256];
 
     const int affectRows = taos_affected_rows(result);
     //    printf(" affect rows:%d\r\n", affectRows);
@@ -122,7 +121,7 @@ static int l_query(lua_State *L){
     lua_pushinteger(L, affectRows);
     lua_setfield(L, table_index, "affected");
     lua_newtable(L);
-    
+
     while ((row = taos_fetch_row(result))) {
       //printf("row index:%d\n",rows);
       rows++;
@@ -136,17 +135,21 @@ static int l_query(lua_State *L){
 	}
 
 	lua_pushstring(L,fields[i].name);
-
+	int32_t* length = taos_fetch_lengths(result);
 	switch (fields[i].type) {
+	case TSDB_DATA_TYPE_UTINYINT:
 	case TSDB_DATA_TYPE_TINYINT:
 	  lua_pushinteger(L,*((char *)row[i]));
 	  break;
+	case TSDB_DATA_TYPE_USMALLINT:
 	case TSDB_DATA_TYPE_SMALLINT:
 	  lua_pushinteger(L,*((short *)row[i]));
 	  break;
+	case TSDB_DATA_TYPE_UINT:
 	case TSDB_DATA_TYPE_INT:
 	  lua_pushinteger(L,*((int *)row[i]));
 	  break;
+	case TSDB_DATA_TYPE_UBIGINT:
 	case TSDB_DATA_TYPE_BIGINT:
 	  lua_pushinteger(L,*((int64_t *)row[i]));
 	  break;
@@ -156,9 +159,11 @@ static int l_query(lua_State *L){
 	case TSDB_DATA_TYPE_DOUBLE:
 	  lua_pushnumber(L,*((double *)row[i]));
 	  break;
+	case TSDB_DATA_TYPE_JSON:
 	case TSDB_DATA_TYPE_BINARY:
 	case TSDB_DATA_TYPE_NCHAR:
-	  lua_pushstring(L,(char *)row[i]);
+	  //printf("type:%d, max len:%d, current len:%d\n",fields[i].type, fields[i].bytes, length[i]);
+	  lua_pushlstring(L,(char *)row[i], length[i]);
 	  break;
 	case TSDB_DATA_TYPE_TIMESTAMP:
 	  lua_pushinteger(L,*((int64_t *)row[i]));
@@ -166,6 +171,7 @@ static int l_query(lua_State *L){
 	case TSDB_DATA_TYPE_BOOL:
 	  lua_pushinteger(L,*((char *)row[i]));
 	  break;
+	case TSDB_DATA_TYPE_NULL:
 	default:
 	  lua_pushnil(L);
 	  break;
