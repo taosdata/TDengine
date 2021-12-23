@@ -31,6 +31,7 @@
 #include "ttoken.h"
 #include "ttokendef.h"
 #include "tvariant.h"
+#include "parserInt.h"
 }
 
 %syntax_error {
@@ -173,7 +174,7 @@ cmd ::= ALTER DNODE ids(X) ids(Y) ids(Z).       { setDCLSqlElems(pInfo, TSDB_SQL
 cmd ::= ALTER LOCAL ids(X).                     { setDCLSqlElems(pInfo, TSDB_SQL_CFG_LOCAL, 1, &X);              }
 cmd ::= ALTER LOCAL ids(X) ids(Y).              { setDCLSqlElems(pInfo, TSDB_SQL_CFG_LOCAL, 2, &X, &Y);          }
 cmd ::= ALTER DATABASE ids(X) alter_db_optr(Y). { SToken t = {0};  setCreateDbInfo(pInfo, TSDB_SQL_ALTER_DB, &X, &Y, &t);}
-cmd ::= ALTER TOPIC ids(X) alter_topic_optr(Y). { SToken t = {0};  setCreateDbInfo(pInfo, TSDB_SQL_ALTER_DB, &X, &Y, &t);}
+//cmd ::= ALTER TOPIC ids(X) alter_topic_optr(Y). { SToken t = {0};  setCreateDbInfo(pInfo, TSDB_SQL_ALTER_DB, &X, &Y, &t);}
 
 cmd ::= ALTER ACCOUNT ids(X) acct_optr(Z).      { setCreateAcctSql(pInfo, TSDB_SQL_ALTER_ACCT, &X, NULL, &Z);}
 cmd ::= ALTER ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).      { setCreateAcctSql(pInfo, TSDB_SQL_ALTER_ACCT, &X, &Y, &Z);}
@@ -203,7 +204,7 @@ cmd ::= CREATE DNODE   ids(X).     { setDCLSqlElems(pInfo, TSDB_SQL_CREATE_DNODE
 cmd ::= CREATE ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).
                                 { setCreateAcctSql(pInfo, TSDB_SQL_CREATE_ACCT, &X, &Y, &Z);}
 cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
-cmd ::= CREATE TOPIC ifnotexists(Z) ids(X) topic_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
+//cmd ::= CREATE TOPIC ifnotexists(Z) ids(X) topic_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
 cmd ::= CREATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) bufsize(B).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y, &Z, &B, 1);}
 cmd ::= CREATE AGGREGATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) bufsize(B).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y, &Z, &B, 2);}
 cmd ::= CREATE USER ids(X) PASS ids(Y).     { setCreateUserSql(pInfo, &X, &Y);}
@@ -278,10 +279,10 @@ comp(Y)    ::= COMP INTEGER(X).               { Y = X; }
 prec(Y)    ::= PRECISION STRING(X).           { Y = X; }
 update(Y)  ::= UPDATE INTEGER(X).             { Y = X; }     
 cachelast(Y) ::= CACHELAST INTEGER(X).        { Y = X; }
-partitions(Y) ::= PARTITIONS INTEGER(X).      { Y = X; }
+//partitions(Y) ::= PARTITIONS INTEGER(X).      { Y = X; }
 
 %type db_optr {SCreateDbInfo}
-db_optr(Y) ::= . {setDefaultCreateDbOption(&Y); Y.dbType = TSDB_DB_TYPE_DEFAULT;}
+db_optr(Y) ::= . {setDefaultCreateDbOption(&Y);}
 
 db_optr(Y) ::= db_optr(Z) cache(X).          { Y = Z; Y.cacheBlockSize = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) replica(X).        { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
@@ -299,13 +300,13 @@ db_optr(Y) ::= db_optr(Z) keep(X).           { Y = Z; Y.keep = X; }
 db_optr(Y) ::= db_optr(Z) update(X).         { Y = Z; Y.update = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) cachelast(X).      { Y = Z; Y.cachelast = strtol(X.z, NULL, 10); }
 
-%type topic_optr {SCreateDbInfo}
-
-topic_optr(Y) ::= db_optr(Z).                       { Y = Z; Y.dbType = TSDB_DB_TYPE_TOPIC; }
-topic_optr(Y) ::= topic_optr(Z) partitions(X).      { Y = Z; Y.partitions = strtol(X.z, NULL, 10); }
+//%type topic_optr {SCreateDbInfo}
+//
+//topic_optr(Y) ::= db_optr(Z).                       { Y = Z; Y.dbType = TSDB_DB_TYPE_TOPIC; }
+//topic_optr(Y) ::= topic_optr(Z) partitions(X).      { Y = Z; Y.partitions = strtol(X.z, NULL, 10); }
 
 %type alter_db_optr {SCreateDbInfo}
-alter_db_optr(Y) ::= . { setDefaultCreateDbOption(&Y); Y.dbType = TSDB_DB_TYPE_DEFAULT;}
+alter_db_optr(Y) ::= . { setDefaultCreateDbOption(&Y);}
 
 alter_db_optr(Y) ::= alter_db_optr(Z) replica(X).     { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) quorum(X).      { Y = Z; Y.quorum = strtol(X.z, NULL, 10); }
@@ -319,10 +320,10 @@ alter_db_optr(Y) ::= alter_db_optr(Z) cachelast(X).   { Y = Z; Y.cachelast = str
 //alter_db_optr(Y) ::= alter_db_optr(Z) fsync(X).       { Y = Z; Y.fsyncPeriod = strtol(X.z, NULL, 10); }
 //alter_db_optr(Y) ::= alter_db_optr(Z) wal(X).         { Y = Z; Y.walLevel = strtol(X.z, NULL, 10); } not support yet
 
-%type alter_topic_optr {SCreateDbInfo}
+//%type alter_topic_optr {SCreateDbInfo}
 
-alter_topic_optr(Y) ::= alter_db_optr(Z).                       { Y = Z; Y.dbType = TSDB_DB_TYPE_TOPIC; }
-alter_topic_optr(Y) ::= alter_topic_optr(Z) partitions(X).      { Y = Z; Y.partitions = strtol(X.z, NULL, 10); }
+//alter_topic_optr(Y) ::= alter_db_optr(Z).                       { Y = Z; Y.dbType = TSDB_DB_TYPE_TOPIC; }
+//alter_topic_optr(Y) ::= alter_topic_optr(Z) partitions(X).      { Y = Z; Y.partitions = strtol(X.z, NULL, 10); }
 
 %type typename {SField}
 typename(A) ::= ids(X). { 

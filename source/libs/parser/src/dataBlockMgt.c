@@ -123,7 +123,6 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
     dataBuf->nAllocSize = dataBuf->headerSize * 2;
   }
 
-  //dataBuf->pData = calloc(1, dataBuf->nAllocSize);
   dataBuf->pData = malloc(dataBuf->nAllocSize);
   if (dataBuf->pData == NULL) {
     tfree(dataBuf);
@@ -144,8 +143,6 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
   dataBuf->size     = startOffset;
   dataBuf->tsSource = -1;
   dataBuf->vgId     = dataBuf->pTableMeta->vgId;
-
-  // tNameAssign(&dataBuf->tableName, name);
 
   assert(defaultSize > 0 && pTableMeta != NULL && dataBuf->pTableMeta != NULL);
 

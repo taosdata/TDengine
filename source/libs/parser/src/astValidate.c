@@ -4028,7 +4028,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 }
 
 // todo remove it
-static int32_t setShowInfo(struct SSqlInfo* pInfo, void** output, int32_t* msgLen, SMsgBuf* pMsgBuf) {
+static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, void** output, int32_t* outputLen, SMsgBuf* pMsgBuf) {
   const char* msg1 = "invalid name";
   const char* msg2 = "wildcard string should be less than %d characters";
   const char* msg3 = "database name too long";
@@ -4040,9 +4040,8 @@ static int32_t setShowInfo(struct SSqlInfo* pInfo, void** output, int32_t* msgLe
    * database prefix in pInfo->pMiscInfo->a[0]
    * wildcard in like clause in pInfo->pMiscInfo->a[1]
    */
-  SShowInfo* pShowInfo = &pInfo->pMiscInfo->showOpt;
   int16_t    showType = pShowInfo->showType;
-  if (showType == TSDB_MGMT_TABLE_TABLE || showType == TSDB_MGMT_TABLE_VGROUP) {
+  if (showType == TSDB_MGMT_TABLE_STB || showType == TSDB_MGMT_TABLE_VGROUP) {
     SToken* pDbPrefixToken = &pShowInfo->prefix;
     if (pDbPrefixToken->type != 0) {
       if (pDbPrefixToken->n >= TSDB_DB_NAME_LEN) {  // db name is too long
@@ -4091,8 +4090,8 @@ static int32_t setShowInfo(struct SSqlInfo* pInfo, void** output, int32_t* msgLe
     }
   }
 
-  *output = buildShowMsg(pShowInfo, 0, pMsgBuf->buf, pMsgBuf->len);
-  *msgLen = sizeof(SShowMsg)/* + htons(pShowMsg->payloadLen)*/;
+  *output = buildShowMsg(pShowInfo, pCtx->requestId, pMsgBuf->buf, pMsgBuf->len);
+  *outputLen = sizeof(SShowMsg)/* + htons(pShowMsg->payloadLen)*/;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4171,13 +4170,147 @@ static int32_t doCheckDbOptions(SCreateDbMsg* pCreate, SMsgBuf* pMsgBuf) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, int64_t id, void** output, int32_t* outputLen, int32_t* type, char* msgBuf, int32_t msgBufLen) {
+/* is contained in pFieldList or not */
+static bool has(SArray* pFieldList, int32_t startIndex, const char* name) {
+  size_t numOfCols = taosArrayGetSize(pFieldList);
+  for (int32_t j = startIndex; j < numOfCols; ++j) {
+    TAOS_FIELD* field = taosArrayGet(pFieldList, j);
+    if (strncasecmp(name, field->name, sizeof(field->name) - 1) == 0) return true;
+  }
+
+  return false;
+}
+
+static int32_t validateTableColumns(SArray* pFieldList, int32_t maxRowLength, int32_t maxColumns, SMsgBuf* pMsgBuf) {
+  const char* msg2 = "row length exceeds max length";
+  const char* msg3 = "duplicated column names";
+  const char* msg4 = "invalid data type";
+  const char* msg5 = "invalid binary/nchar column length";
+  const char* msg6 = "invalid column name";
+  const char* msg7 = "too many columns";
+  const char* msg8 = "illegal number of columns";
+
+  size_t numOfCols = taosArrayGetSize(pFieldList);
+  if (numOfCols > maxColumns) {
+    return buildInvalidOperationMsg(pMsgBuf, msg7);
+  }
+
+  int32_t rowLen = 0;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    TAOS_FIELD* pField = taosArrayGet(pFieldList, i);
+    if (!isValidDataType(pField->type)) {
+      return buildInvalidOperationMsg(pMsgBuf, msg4);
+    }
+
+    if (pField->bytes == 0) {
+      return buildInvalidOperationMsg(pMsgBuf, msg5);
+    }
+
+    if ((pField->type == TSDB_DATA_TYPE_BINARY && (pField->bytes <= 0 || pField->bytes > TSDB_MAX_BINARY_LEN)) ||
+        (pField->type == TSDB_DATA_TYPE_NCHAR && (pField->bytes <= 0 || pField->bytes > TSDB_MAX_NCHAR_LEN))) {
+      return buildInvalidOperationMsg(pMsgBuf, msg5);
+    }
+
+    SToken nameToken = {.z = pField->name, .n = strlen(pField->name), .type = TK_ID};
+    if (parserValidateNameToken(&nameToken) != TSDB_CODE_SUCCESS) {
+      return buildInvalidOperationMsg(pMsgBuf, msg6);
+    }
+
+    // field name must be unique
+    if (has(pFieldList, i + 1, pField->name) == true) {
+      return buildInvalidOperationMsg(pMsgBuf, msg3);
+    }
+
+    rowLen += pField->bytes;
+  }
+
+  // max row length must be less than TSDB_MAX_BYTES_PER_ROW
+  if (rowLen > maxRowLength) {
+    return buildInvalidOperationMsg(pMsgBuf, msg2);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t validateTableColumnInfo(SArray* pFieldList, SMsgBuf* pMsgBuf) {
+  assert(pFieldList != NULL);
+
+  const char* msg1 = "first column must be timestamp";
+  const char* msg2 = "row length exceeds max length";
+  const char* msg3 = "duplicated column names";
+  const char* msg4 = "invalid data type";
+  const char* msg5 = "invalid binary/nchar column length";
+  const char* msg6 = "invalid column name";
+  const char* msg7 = "too many columns";
+  const char* msg8 = "illegal number of columns";
+
+  // first column must be timestamp
+  SField* pField = taosArrayGet(pFieldList, 0);
+  if (pField->type != TSDB_DATA_TYPE_TIMESTAMP) {
+    return buildInvalidOperationMsg(pMsgBuf, msg1);
+  }
+
+  // number of fields no less than 2
+  size_t numOfCols = taosArrayGetSize(pFieldList);
+  if (numOfCols <= 1) {
+    return buildInvalidOperationMsg(pMsgBuf, msg8);
+  }
+
+  return validateTableColumns(pFieldList, TSDB_MAX_BYTES_PER_ROW, TSDB_MAX_COLUMNS, pMsgBuf);
+}
+
+static int32_t validateTagParams(SArray* pTagsList, SArray* pFieldList, SMsgBuf* pMsgBuf) {
+  assert(pTagsList != NULL);
+
+  const char* msg1 = "invalid number of tag columns";
+  const char* msg3 = "duplicated column names";
+
+  // number of fields at least 1
+  size_t numOfTags = taosArrayGetSize(pTagsList);
+  if (numOfTags < 1) {
+    return buildInvalidOperationMsg(pMsgBuf, msg1);
+  }
+
+  // field name must be unique
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    SField* p = taosArrayGet(pTagsList, i);
+    if (has(pFieldList, 0, p->name) == true) {
+      return buildInvalidOperationMsg(pMsgBuf, msg3);
+    }
+  }
+
+  return validateTableColumns(pFieldList, TSDB_MAX_TAGS_LEN, TSDB_MAX_TAGS, pMsgBuf);
+}
+
+int32_t doCheckForCreateTable(SSqlInfo* pInfo, SMsgBuf* pMsgBuf) {
+  const char* msg1 = "invalid table name";
+
+  SCreateTableSql* pCreateTable = pInfo->pCreateTableInfo;
+
+  SArray* pFieldList = pCreateTable->colInfo.pColumns;
+  SArray* pTagList = pCreateTable->colInfo.pTagColumns;
+  assert(pFieldList != NULL);
+
+  // if sql specifies db, use it, otherwise use default db
+  SToken* pzTableName = &(pCreateTable->name);
+
+  if (parserValidateNameToken(pzTableName) != TSDB_CODE_SUCCESS) {
+    return buildInvalidOperationMsg(pMsgBuf, msg1);
+  }
+
+  if (validateTableColumnInfo(pFieldList, pMsgBuf) != TSDB_CODE_SUCCESS ||
+      (pTagList != NULL && validateTagParams(pTagList, pFieldList, pMsgBuf) != TSDB_CODE_SUCCESS)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStmtInfo* pDcl, char* msgBuf, int32_t msgBufLen) {
   int32_t code = 0;
 
   SMsgBuf m = {.buf = msgBuf, .len = msgBufLen};
   SMsgBuf *pMsgBuf = &m;
-
-  *type = pInfo->type;
 
   switch (pInfo->type) {
     case TSDB_SQL_CREATE_USER:
@@ -4224,7 +4357,8 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, int64_t id, void** output, in
         }
       }
 
-      *output = buildUserManipulationMsg(pInfo, outputLen, id, msgBuf, msgBufLen);
+      pDcl->pMsg = (char*)buildUserManipulationMsg(pInfo, &pDcl->msgLen, pCtx->requestId, msgBuf, msgBufLen);
+      pDcl->msgType = (pInfo->type == TSDB_SQL_CREATE_USER)? TSDB_MSG_TYPE_CREATE_USER:TSDB_MSG_TYPE_ALTER_USER;
       break;
     }
 
@@ -4260,18 +4394,44 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, int64_t id, void** output, in
         }
       }
 
-      *output = buildAcctManipulationMsg(pInfo, outputLen, id, msgBuf, msgBufLen);
+      pDcl->pMsg = (char*)buildAcctManipulationMsg(pInfo, &pDcl->msgLen, pCtx->requestId, msgBuf, msgBufLen);
+      pDcl->msgType = (pInfo->type == TSDB_SQL_CREATE_ACCT)? TSDB_MSG_TYPE_CREATE_ACCT:TSDB_MSG_TYPE_ALTER_ACCT;
       break;
     }
 
     case TSDB_SQL_DROP_ACCT:
     case TSDB_SQL_DROP_USER: {
-      *output = buildDropUserMsg(pInfo, outputLen, id, msgBuf, msgBufLen);
+      pDcl->pMsg = (char*)buildDropUserMsg(pInfo, &pDcl->msgLen, pCtx->requestId, msgBuf, msgBufLen);
+      pDcl->msgType = (pInfo->type == TSDB_SQL_DROP_ACCT)? TSDB_MSG_TYPE_DROP_ACCT:TSDB_MSG_TYPE_DROP_USER;
       break;
     }
     
     case TSDB_SQL_SHOW: {
-      code = setShowInfo(pInfo, output, outputLen, pMsgBuf);
+      code = setShowInfo(&pInfo->pMiscInfo->showOpt, pCtx, (void**)&pDcl->pMsg, &pDcl->msgLen, pMsgBuf);
+      pDcl->msgType = TSDB_MSG_TYPE_SHOW;
+      break;
+    }
+
+    case TSDB_SQL_USE_DB: {
+      const char* msg = "invalid db name";
+
+      SToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
+      if (parserValidateNameToken(pToken) != TSDB_CODE_SUCCESS) {
+        return buildInvalidOperationMsg(pMsgBuf, msg);
+      }
+
+      SName n = {0};
+      int32_t ret = tNameSetDbName(&n, pCtx->acctId, pToken->z, pToken->n);
+      if (ret != TSDB_CODE_SUCCESS) {
+        return buildInvalidOperationMsg(pMsgBuf, msg);
+      }
+
+      SUseDbMsg *pUseDbMsg = (SUseDbMsg *) calloc(1, sizeof(SUseDbMsg));
+      tNameExtractFullName(&n, pUseDbMsg->db);
+
+      pDcl->pMsg = (char*)pUseDbMsg;
+      pDcl->msgLen = sizeof(SUseDbMsg);
+      pDcl->msgType = TSDB_MSG_TYPE_USE_DB;
       break;
     }
 
@@ -4292,15 +4452,73 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, int64_t id, void** output, in
         return buildInvalidOperationMsg(pMsgBuf, msg1);
       }
 
-      SCreateDbMsg* pCreateMsg = buildCreateDbMsg(pCreateDB, pMsgBuf->buf, pMsgBuf->len);
+      SCreateDbMsg* pCreateMsg = buildCreateDbMsg(pCreateDB, pCtx, pMsgBuf);
       if (doCheckDbOptions(pCreateMsg, pMsgBuf) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
 
       strncpy(pCreateMsg->db, token.z, token.n);
 
-      *output = pCreateMsg;
-      *outputLen = sizeof(SCreateDbMsg);
+      pDcl->pMsg = (char*)pCreateMsg;
+      pDcl->msgLen = sizeof(SCreateDbMsg);
+      pDcl->msgType = (pInfo->type == TSDB_SQL_CREATE_DB)? TSDB_MSG_TYPE_CREATE_DB:TSDB_MSG_TYPE_ALTER_DB;
+      break;
+    }
+
+    case TSDB_SQL_DROP_DB: {
+      const char* msg1 = "invalid database name";
+
+      assert(taosArrayGetSize(pInfo->pMiscInfo->a) == 1);
+      SToken* dbName = taosArrayGet(pInfo->pMiscInfo->a, 0);
+
+      SName name = {0};
+      code = tNameSetDbName(&name, pCtx->acctId, dbName->z, dbName->n);
+      if (code != TSDB_CODE_SUCCESS) {
+        return buildInvalidOperationMsg(pMsgBuf, msg1);
+      }
+
+      SDropDbMsg *pDropDbMsg = (SDropDbMsg*) calloc(1, sizeof(SDropDbMsg));
+
+      code = tNameExtractFullName(&name, pDropDbMsg->db);
+      pDropDbMsg->ignoreNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
+      assert(code == TSDB_CODE_SUCCESS && name.type == TSDB_DB_NAME_T);
+
+      pDcl->msgType = TSDB_MSG_TYPE_DROP_DB;
+      pDcl->msgLen = sizeof(SDropDbMsg);
+      pDcl->pMsg = (char*)pDropDbMsg;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    case TSDB_SQL_CREATE_TABLE: {
+      SCreateTableSql* pCreateTable = pInfo->pCreateTableInfo;
+
+      if (pCreateTable->type == TSQL_CREATE_TABLE || pCreateTable->type == TSQL_CREATE_STABLE) {
+        if ((code = doCheckForCreateTable(pInfo, pMsgBuf)) != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+        pDcl->pMsg = (char*)buildCreateTableMsg(pCreateTable, &pDcl->msgLen, pCtx, pMsgBuf);
+        pDcl->msgType = (pCreateTable->type == TSQL_CREATE_TABLE)? TSDB_MSG_TYPE_CREATE_TABLE:TSDB_MSG_TYPE_CREATE_STB;
+      } else if (pCreateTable->type == TSQL_CREATE_CTABLE) {
+        //        if ((code = doCheckForCreateFromStable(pSql, pInfo)) != TSDB_CODE_SUCCESS) {
+        //          return code;
+        //        }
+
+      } else if (pCreateTable->type == TSQL_CREATE_STREAM) {
+        //        if ((code = doCheckForStream(pSql, pInfo)) != TSDB_CODE_SUCCESS) {
+        //          return code;
+      }
+
+      break;
+    }
+
+    case TSDB_SQL_DROP_TABLE: {
+      pDcl->pMsg = (char*)buildDropTableMsg(pInfo, &pDcl->msgLen, pCtx, pMsgBuf);
+      if (pDcl->pMsg == NULL) {
+        return terrno;
+      }
+
+      pDcl->msgType = TSDB_MSG_TYPE_DROP_STB;
+      return TSDB_CODE_SUCCESS;
       break;
     }
 

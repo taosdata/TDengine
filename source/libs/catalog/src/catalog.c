@@ -371,7 +371,7 @@ int32_t catalogInit(SCatalogCfg *cfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle) {
+int32_t catalogGetHandle(const char* clusterId , struct SCatalog** catalogHandle) {
   if (NULL == clusterId || NULL == catalogHandle) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
@@ -565,12 +565,12 @@ _return:
 }
 
 
-int32_t catalogGetTableHashVgroup(struct SCatalog *pCatalog, void *pRpc, const SEpSet *pMgmtEps, const char *pDBName, const char *pTableName, SVgroupInfo *pVgroup) {
+int32_t catalogGetTableHashVgroup(struct SCatalog *pCatalog, void *pTransporter, const SEpSet *pMgmtEps, const char *pDBName, const char *pTableName, SVgroupInfo *pVgroup) {
   SDBVgroupInfo dbInfo = {0};
   int32_t code = 0;
   int32_t vgId = 0;
 
-  CTG_ERR_RET(catalogGetDBVgroup(pCatalog, pRpc, pMgmtEps, pDBName, false, &dbInfo));
+  CTG_ERR_RET(catalogGetDBVgroup(pCatalog, pTransporter, pMgmtEps, pDBName, false, &dbInfo));
 
   if (dbInfo.vgVersion < 0 || NULL == dbInfo.vgInfo) {
     ctgError("db[%s] vgroup cache invalid, vgroup version:%d, vgInfo:%p", pDBName, dbInfo.vgVersion, dbInfo.vgInfo);
@@ -605,7 +605,7 @@ int32_t catalogGetAllMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* p
       SName *name = taosArrayGet(pReq->pTableName, i);
       STableMeta *pTableMeta = NULL;
       
-      snprintf(dbName, sizeof(dbName), "%s.%s", name->acctId, name->dbname);
+      snprintf(dbName, sizeof(dbName), "%d.%s", name->acctId, name->dbname);
 
       CTG_ERR_JRET(catalogGetTableMeta(pCatalog, pRpc, pMgmtEps, dbName, name->tname, &pTableMeta));
 

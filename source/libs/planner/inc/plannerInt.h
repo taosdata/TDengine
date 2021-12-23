@@ -40,6 +40,7 @@ extern "C" {
 #define QNODE_SESSIONWINDOW 12
 #define QNODE_STATEWINDOW   13
 #define QNODE_FILL          14
+#define QNODE_INSERT        15
 
 typedef struct SQueryDistPlanNodeInfo {
   bool      stableQuery;   // super table query or not
@@ -82,7 +83,7 @@ int32_t optimizeQueryPlan(struct SQueryPlanNode* pQueryNode);
  * @param pQueryNode
  * @return
  */
-int32_t createQueryPlan(const struct SQueryStmtInfo* pQueryInfo, struct SQueryPlanNode** pQueryNode);
+int32_t createQueryPlan(const SQueryNode* pNode, struct SQueryPlanNode** pQueryPlan);
 
 /**
  * Convert the query plan to string, in order to display it in the shell.
@@ -101,7 +102,7 @@ int32_t queryPlanToSql(struct SQueryPlanNode* pQueryNode, char** sql);
 
 int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag);
 int32_t setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SEpAddr* ep);
-int32_t subPlanToString(const SSubplan *pPhyNode, char** str);
+int32_t subPlanToString(const SSubplan *pPhyNode, char** str, int32_t* len);
 int32_t stringToSubplan(const char* str, SSubplan** subplan);
 
 /**
@@ -119,6 +120,9 @@ void* destroyQueryPhyPlan(struct SPhyNode* pQueryPhyNode);
 
 const char* opTypeToOpName(int32_t type);
 int32_t opNameToOpType(const char* name);
+
+const char* dsinkTypeToDsinkName(int32_t type);
+int32_t dsinkNameToDsinkType(const char* name);
 
 #ifdef __cplusplus
 }

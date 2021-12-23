@@ -13,9 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <catalog.h>
 #include "clientInt.h"
 #include "clientLog.h"
 #include "os.h"
+#include "query.h"
 #include "taosmsg.h"
 #include "tcache.h"
 #include "tconfig.h"
@@ -23,7 +25,6 @@
 #include "tnote.h"
 #include "tref.h"
 #include "trpc.h"
-#include "tsched.h"
 #include "ttime.h"
 #include "ttimezone.h"
 
@@ -33,10 +34,8 @@
 SAppInfo   appInfo;
 int32_t    tscReqRef  = -1;
 int32_t    tscConnRef = -1;
-void      *tscQhandle = NULL;
 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
-int32_t tsNumOfThreads = 1;
 volatile int32_t tscInitRes = 0;
 
 static void registerRequest(SRequestObj* pRequest) {
@@ -98,12 +97,12 @@ void closeTransporter(STscObj* pTscObj)  {
 }
 
 // TODO refactor
-void* openTransporter(const char *user, const char *auth) {
+void* openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = 0;
   rpcInit.label = "TSC";
-  rpcInit.numOfThreads = tsNumOfThreads;
+  rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
   rpcInit.sessions = tsMaxConnections;
   rpcInit.connType = TAOS_CONN_CLIENT;
@@ -131,7 +130,7 @@ void destroyTscObj(void *pObj) {
   tfree(pTscObj);
 }
 
-void* createTscObj(const char* user, const char* auth, const char *ip, uint32_t port, SAppInstInfo* pAppInfo) {
+void* createTscObj(const char* user, const char* auth, const char *db, SAppInstInfo* pAppInfo) {
   STscObj *pObj = (STscObj *)calloc(1, sizeof(STscObj));
   if (NULL == pObj) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -145,6 +144,10 @@ void* createTscObj(const char* user, const char* auth, const char *ip, uint32_t 
 
   tstrncpy(pObj->user, user, sizeof(pObj->user));
   memcpy(pObj->pass, auth, TSDB_PASSWORD_LEN);
+
+  if (db != NULL) {
+    tstrncpy(pObj->db, db, tListLen(pObj->db));
+  }
 
   pthread_mutex_init(&pObj->mutex, NULL);
   pObj->id = taosAddRef(tscConnRef, pObj);
@@ -222,25 +225,19 @@ void taos_init_imp(void) {
 
   taosInitNotes();
   initMsgHandleFp();
+  initQueryModuleMsgHandle();
 
   rpcInit();
+
+  SCatalogCfg cfg = {.enableVgroupCache = true, .maxDBCacheNum = 100, .maxTblCacheNum = 100};
+  catalogInit(&cfg);
 
   tscDebug("starting to initialize TAOS driver, local ep: %s", tsLocalEp);
 
   taosSetCoreDump(true);
 
-  double factor = 4.0;
-  int32_t numOfThreads = MAX((int)(tsNumOfCores * tsNumOfThreadsPerCore / factor), 2);
+  initTaskQueue();
 
-  int32_t queueSize = tsMaxConnections * 2;
-  tscQhandle = taosInitScheduler(queueSize, numOfThreads, "tsc");
-  if (NULL == tscQhandle) {
-    tscError("failed to init task queue");
-    tscInitRes = -1;
-    return;
-  }
-
-  tscDebug("client task queue is initialized, numOfThreads: %d", numOfThreads);
   tscConnRef = taosOpenRef(200, destroyTscObj);
   tscReqRef  = taosOpenRef(40960, doDestroyRequest);
 

@@ -102,14 +102,6 @@ enum {
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_MAX, "max" )
 };
 
-// create table operation type
-enum TSQL_CREATE_TABLE_TYPE {
-  TSQL_CREATE_TABLE  = 0x1,
-  TSQL_CREATE_STABLE = 0x2,
-  TSQL_CREATE_CTABLE = 0x3,
-  TSQL_CREATE_STREAM = 0x4,
-};
-
 #ifdef __cplusplus
 }
 #endif

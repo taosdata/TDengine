@@ -39,6 +39,17 @@ static int writeCtxDoRead(WriterCtx* ctx, uint8_t* buf, int len) {
 
   return nRead;
 }
+static int writeCtxDoReadFrom(WriterCtx* ctx, uint8_t* buf, int len, int32_t offset) {
+  int nRead = 0;
+  if (ctx->type == TFile) {
+    tfLseek(ctx->file.fd, offset, 0);
+    nRead = tfRead(ctx->file.fd, buf, len);
+  } else {
+    // refactor later
+    assert(0);
+  }
+  return nRead;
+}
 static int writeCtxDoFlush(WriterCtx* ctx) {
   if (ctx->type == TFile) {
     // tfFsync(ctx->fd);
@@ -58,9 +69,9 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
     // ugly code, refactor later
     ctx->file.readOnly = readOnly;
     if (readOnly == false) {
-      ctx->file.fd = tfOpenCreateWriteAppend(tmpFile);
+      ctx->file.fd = tfOpenCreateWriteAppend(path);
     } else {
-      ctx->file.fd = tfOpenReadWrite(tmpFile);
+      ctx->file.fd = tfOpenReadWrite(path);
     }
     if (ctx->file.fd < 0) {
       indexError("open file error %d", errno);
@@ -73,6 +84,7 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
   ctx->write = writeCtxDoWrite;
   ctx->read = writeCtxDoRead;
   ctx->flush = writeCtxDoFlush;
+  ctx->readFrom = writeCtxDoReadFrom;
 
   ctx->offset = 0;
   ctx->limit = capacity;
@@ -81,6 +93,7 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
 END:
   if (ctx->type == TMemory) { free(ctx->mem.buf); }
   free(ctx);
+  return NULL;
 }
 void writerCtxDestroy(WriterCtx* ctx) {
   if (ctx->type == TMemory) {

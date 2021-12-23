@@ -1167,7 +1167,7 @@ void cleanupTagCond(STagCond* pTagCond) {
  * @param tableIndex  denote the table index for join query, where more than one table exists
  * @return
  */
-STableMetaInfo* getMetaInfo(SQueryStmtInfo* pQueryInfo, int32_t tableIndex) {
+STableMetaInfo* getMetaInfo(const SQueryStmtInfo* pQueryInfo, int32_t tableIndex) {
   assert(pQueryInfo != NULL);
   if (pQueryInfo->pTableMetaInfo == NULL) {
     assert(pQueryInfo->numOfTables == 0);
@@ -1613,7 +1613,18 @@ uint32_t convertRelationalOperator(SToken *pToken) {
 }
 
 bool isDclSqlStatement(SSqlInfo* pSqlInfo) {
-  return (pSqlInfo->type != TSDB_SQL_SELECT);
+  int32_t type = pSqlInfo->type;
+  return (type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_CREATE_ACCT || type == TSDB_SQL_DROP_USER ||
+          type == TSDB_SQL_DROP_ACCT || type == TSDB_SQL_SHOW);
+}
+
+bool isDdlSqlStatement(SSqlInfo* pSqlInfo) {
+  int32_t type = pSqlInfo->type;
+  return (type == TSDB_SQL_CREATE_TABLE || type == TSDB_SQL_CREATE_DB || type == TSDB_SQL_DROP_DB);
+}
+
+bool isDqlSqlStatement(SSqlInfo* pSqlInfo) {
+  return pSqlInfo->type == TSDB_SQL_SELECT;
 }
 
 #if 0

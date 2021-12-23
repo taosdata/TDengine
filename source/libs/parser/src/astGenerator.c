@@ -13,9 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "taos.h"
-#include "os.h"
 #include "astGenerator.h"
+#include <parserInt.h>
+#include "os.h"
+#include "taos.h"
 #include "tmsgtype.h"
 
 SArray *tListItemAppend(SArray *pList, SVariant *pVar, uint8_t sortOrder) {

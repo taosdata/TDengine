@@ -10,3 +10,5 @@ target_link_libraries(
    qcom
    PRIVATE os util transport
 )
+
+ADD_SUBDIRECTORY(test)

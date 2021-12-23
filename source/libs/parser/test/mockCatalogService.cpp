@@ -90,18 +90,23 @@ public:
   MockCatalogServiceImpl() : id_(1) {
   }
 
-  int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle) const {
+  int32_t catalogGetHandle() const {
     return 0;
   }
 
-  int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta) const {
+  int32_t catalogGetTableMeta(const char* pDbFullName, const char* pTableName, STableMeta** pTableMeta) const {
     std::unique_ptr<STableMeta> table;
-    int32_t code = copyTableSchemaMeta(pDBName, pTableName, &table);
+    int32_t code = copyTableSchemaMeta(toDbname(pDbFullName), pTableName, &table);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
     *pTableMeta = table.release();
     return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t catalogGetTableHashVgroup(const char* pDbFullName, const char* pTableName, SVgroupInfo* vgInfo) const {
+    // todo
+    return 0;
   }
 
   TableBuilder& createTableBuilder(const std::string& db, const std::string& tbname, int8_t tableType, int32_t numOfColumns, int32_t numOfTags) {
@@ -190,6 +195,14 @@ private:
   typedef std::map<std::string, std::shared_ptr<MockTableMeta>> TableMetaCache;
   typedef std::map<std::string, TableMetaCache> DbMetaCache;
 
+  std::string toDbname(const std::string& dbFullName) const {
+    std::string::size_type n = dbFullName.find(".");
+    if (n == std::string::npos) {
+      return dbFullName;
+    }
+    return dbFullName.substr(n + 1);
+  }
+
   std::string ttToString(int8_t tableType) const {
     switch (tableType) {
       case TSDB_SUPER_TABLE:
@@ -270,10 +283,10 @@ std::shared_ptr<MockTableMeta> MockCatalogService::getTableMeta(const std::strin
   return impl_->getTableMeta(db, tbname);
 }
 
-int32_t MockCatalogService::catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle) const {
-  return impl_->catalogGetHandle(clusterId, catalogHandle);
+int32_t MockCatalogService::catalogGetTableMeta(const char* pDBName, const char* pTableName, STableMeta** pTableMeta) const {
+  return impl_->catalogGetTableMeta(pDBName, pTableName, pTableMeta);
 }
 
-int32_t MockCatalogService::catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta) const {
-  return impl_->catalogGetTableMeta(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, pTableMeta);
+int32_t MockCatalogService::catalogGetTableHashVgroup(const char* pDBName, const char* pTableName, SVgroupInfo* vgInfo) const {
+  return impl_->catalogGetTableHashVgroup(pDBName, pTableName, vgInfo);
 }
