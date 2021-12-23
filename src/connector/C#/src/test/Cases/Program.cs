@@ -73,9 +73,18 @@ namespace Cases.EntryPoint
             Console.WriteLine("====================normalTableStmtCases.TestBindMultiLineCn===================");
             normalTableStmtCases.TestBindMultiLineCn(conn, "normaltablestmtcasestestbindmultilinecn");
 
+            Console.WriteLine("===================JsonTagTest====================");
+            JsonTagTest jsonTagTest = new JsonTagTest();
+            jsonTagTest.Test(conn);
+
+            Console.WriteLine("====================fetchLengthCase===================");
+            FetchLengthCase fetchLengthCase = new FetchLengthCase();
+            fetchLengthCase.TestRetrieveBinary(conn);
+
+            UtilsTools.ExecuteQuery(conn, "drop database if  exists csharp");
             UtilsTools.CloseConnection(conn);
             UtilsTools.ExitProgram();
-
+            
         }
     }
 }

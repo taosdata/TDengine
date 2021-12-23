@@ -3155,7 +3155,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   _end:
   tfree(str);
   tfree(nameList);
-  taosArrayDestroy(pList);
+  taosArrayDestroy(&pList);
   pMsg->pTable  = NULL;
   pMsg->pVgroup = NULL;
   tfree(pMultiMeta);
