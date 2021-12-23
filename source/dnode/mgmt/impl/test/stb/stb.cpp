@@ -9,176 +9,27 @@
  *
  */
 
-#include "deploy.h"
+#include "base.h"
 
 class DndTestStb : public ::testing::Test {
  protected:
-  static SServer* CreateServer(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
-    SServer* pServer = createServer(path, fqdn, port, firstEp);
-    ASSERT(pServer);
-    return pServer;
-  }
+  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_stb", 9101); }
+  static void TearDownTestSuite() { test.Cleanup(); }
 
-  static void SetUpTestSuite() {
-    initLog("/tmp/tdlog");
-
-    const char* fqdn = "localhost";
-    const char* firstEp = "localhost:9101";
-    pServer = CreateServer("/tmp/dnode_test_stb", fqdn, 9101, firstEp);
-    pClient = createClient("root", "taosdata", fqdn, 9101);
-    taosMsleep(1100);
-  }
-
-  static void TearDownTestSuite() {
-    stopServer(pServer);
-    dropClient(pClient);
-    pServer = NULL;
-    pClient = NULL;
-  }
-
-  static SServer* pServer;
-  static SClient* pClient;
-  static int32_t  connId;
+  static Testbase test;
 
  public:
   void SetUp() override {}
   void TearDown() override {}
-
-  void SendTheCheckShowMetaMsg(int8_t showType, const char* showName, int32_t columns, const char* db) {
-    SShowMsg* pShow = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
-    pShow->type = showType;
-    if (db != NULL) {
-      strcpy(pShow->db, db);
-    }
-    SRpcMsg showRpcMsg = {0};
-    showRpcMsg.pCont = pShow;
-    showRpcMsg.contLen = sizeof(SShowMsg);
-    showRpcMsg.msgType = TSDB_MSG_TYPE_SHOW;
-
-    sendMsg(pClient, &showRpcMsg);
-    ASSERT_NE(pClient->pRsp, nullptr);
-    ASSERT_EQ(pClient->pRsp->code, 0);
-    ASSERT_NE(pClient->pRsp->pCont, nullptr);
-
-    SShowRsp* pShowRsp = (SShowRsp*)pClient->pRsp->pCont;
-    ASSERT_NE(pShowRsp, nullptr);
-    pShowRsp->showId = htonl(pShowRsp->showId);
-    pMeta = &pShowRsp->tableMeta;
-    pMeta->numOfTags = htonl(pMeta->numOfTags);
-    pMeta->numOfColumns = htonl(pMeta->numOfColumns);
-    pMeta->sversion = htonl(pMeta->sversion);
-    pMeta->tversion = htonl(pMeta->tversion);
-    pMeta->tuid = htobe64(pMeta->tuid);
-    pMeta->suid = htobe64(pMeta->suid);
-
-    showId = pShowRsp->showId;
-
-    EXPECT_NE(pShowRsp->showId, 0);
-    EXPECT_STREQ(pMeta->tbFname, showName);
-    EXPECT_EQ(pMeta->numOfTags, 0);
-    EXPECT_EQ(pMeta->numOfColumns, columns);
-    EXPECT_EQ(pMeta->precision, 0);
-    EXPECT_EQ(pMeta->tableType, 0);
-    EXPECT_EQ(pMeta->update, 0);
-    EXPECT_EQ(pMeta->sversion, 0);
-    EXPECT_EQ(pMeta->tversion, 0);
-    EXPECT_EQ(pMeta->tuid, 0);
-    EXPECT_EQ(pMeta->suid, 0);
-  }
-
-  void CheckSchema(int32_t index, int8_t type, int32_t bytes, const char* name) {
-    SSchema* pSchema = &pMeta->pSchema[index];
-    pSchema->bytes = htonl(pSchema->bytes);
-    EXPECT_EQ(pSchema->colId, 0);
-    EXPECT_EQ(pSchema->type, type);
-    EXPECT_EQ(pSchema->bytes, bytes);
-    EXPECT_STREQ(pSchema->name, name);
-  }
-
-  void SendThenCheckShowRetrieveMsg(int32_t rows) {
-    SRetrieveTableMsg* pRetrieve = (SRetrieveTableMsg*)rpcMallocCont(sizeof(SRetrieveTableMsg));
-    pRetrieve->showId = htonl(showId);
-    pRetrieve->free = 0;
-
-    SRpcMsg retrieveRpcMsg = {0};
-    retrieveRpcMsg.pCont = pRetrieve;
-    retrieveRpcMsg.contLen = sizeof(SRetrieveTableMsg);
-    retrieveRpcMsg.msgType = TSDB_MSG_TYPE_SHOW_RETRIEVE;
-
-    sendMsg(pClient, &retrieveRpcMsg);
-
-    ASSERT_NE(pClient->pRsp, nullptr);
-    ASSERT_EQ(pClient->pRsp->code, 0);
-    ASSERT_NE(pClient->pRsp->pCont, nullptr);
-
-    pRetrieveRsp = (SRetrieveTableRsp*)pClient->pRsp->pCont;
-    ASSERT_NE(pRetrieveRsp, nullptr);
-    pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
-    pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);
-    pRetrieveRsp->compLen = htonl(pRetrieveRsp->compLen);
-
-    EXPECT_EQ(pRetrieveRsp->numOfRows, rows);
-    EXPECT_EQ(pRetrieveRsp->useconds, 0);
-    // EXPECT_EQ(pRetrieveRsp->completed, completed);
-    EXPECT_EQ(pRetrieveRsp->precision, TSDB_TIME_PRECISION_MILLI);
-    EXPECT_EQ(pRetrieveRsp->compressed, 0);
-    EXPECT_EQ(pRetrieveRsp->compLen, 0);
-
-    pData = pRetrieveRsp->data;
-    pos = 0;
-  }
-
-  void CheckInt8(int8_t val) {
-    int8_t data = *((int8_t*)(pData + pos));
-    pos += sizeof(int8_t);
-    EXPECT_EQ(data, val);
-  }
-
-  void CheckInt16(int16_t val) {
-    int16_t data = *((int16_t*)(pData + pos));
-    pos += sizeof(int16_t);
-    EXPECT_EQ(data, val);
-  }
-
-  void CheckInt32(int32_t val) {
-    int32_t data = *((int32_t*)(pData + pos));
-    pos += sizeof(int32_t);
-    EXPECT_EQ(data, val);
-  }
-
-  void CheckInt64(int64_t val) {
-    int64_t data = *((int64_t*)(pData + pos));
-    pos += sizeof(int64_t);
-    EXPECT_EQ(data, val);
-  }
-
-  void CheckTimestamp() {
-    int64_t data = *((int64_t*)(pData + pos));
-    pos += sizeof(int64_t);
-    EXPECT_GT(data, 0);
-  }
-
-  void CheckBinary(const char* val, int32_t len) {
-    pos += sizeof(VarDataLenT);
-    char* data = (char*)(pData + pos);
-    pos += len;
-    EXPECT_STREQ(data, val);
-  }
-
-  int32_t            showId;
-  STableMetaMsg*     pMeta;
-  SRetrieveTableRsp* pRetrieveRsp;
-  char*              pData;
-  int32_t            pos;
 };
 
-SServer* DndTestStb::pServer;
-SClient* DndTestStb::pClient;
-int32_t  DndTestStb::connId;
+Testbase DndTestStb::test;
 
 TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   {
-    SCreateDbMsg* pReq = (SCreateDbMsg*)rpcMallocCont(sizeof(SCreateDbMsg));
+    int32_t contLen = sizeof(SCreateDbMsg);
+
+    SCreateDbMsg* pReq = (SCreateDbMsg*)rpcMallocCont(contLen);
     strcpy(pReq->db, "1.d1");
     pReq->numOfVgroups = htonl(2);
     pReq->cacheBlockSize = htonl(16);
@@ -187,8 +38,8 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     pReq->daysToKeep0 = htonl(3650);
     pReq->daysToKeep1 = htonl(3650);
     pReq->daysToKeep2 = htonl(3650);
-    pReq->minRowsPerFileBlock = htonl(100);
-    pReq->maxRowsPerFileBlock = htonl(4096);
+    pReq->minRows = htonl(100);
+    pReq->maxRows = htonl(4096);
     pReq->commitTime = htonl(3600);
     pReq->fsyncPeriod = htonl(3000);
     pReq->walLevel = 1;
@@ -200,13 +51,7 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     pReq->cacheLastRow = 0;
     pReq->ignoreExist = 1;
 
-    SRpcMsg rpcMsg = {0};
-    rpcMsg.pCont = pReq;
-    rpcMsg.contLen = sizeof(SCreateDbMsg);
-    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DB;
-
-    sendMsg(pClient, &rpcMsg);
-    SRpcMsg* pMsg = pClient->pRsp;
+    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -214,9 +59,9 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   {
     int32_t cols = 2;
     int32_t tags = 3;
-    int32_t size = (tags + cols) * sizeof(SSchema) + sizeof(SCreateStbMsg);
+    int32_t contLen = (tags + cols) * sizeof(SSchema) + sizeof(SCreateStbMsg);
 
-    SCreateStbMsg* pReq = (SCreateStbMsg*)rpcMallocCont(size);
+    SCreateStbMsg* pReq = (SCreateStbMsg*)rpcMallocCont(contLen);
     strcpy(pReq->name, "1.d1.stb");
     pReq->numOfTags = htonl(tags);
     pReq->numOfColumns = htonl(cols);
@@ -261,24 +106,21 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
       strcpy(pSchema->name, "tag3");
     }
 
-    SRpcMsg rpcMsg = {0};
-    rpcMsg.pCont = pReq;
-    rpcMsg.contLen = size;
-    rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_STB;
-
-    sendMsg(pClient, &rpcMsg);
-    SRpcMsg* pMsg = pClient->pRsp;
+    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_STB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_STB, "show stables", 4, "1.d1");
-  CheckSchema(0, TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, "name");
-  CheckSchema(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
-  CheckSchema(2, TSDB_DATA_TYPE_INT, 4, "columns");
-  CheckSchema(3, TSDB_DATA_TYPE_INT, 4, "tags");
+  test.SendShowMetaMsg(TSDB_MGMT_TABLE_STB, "1.d1");
+  CHECK_META("show stables", 4);
 
-  SendThenCheckShowRetrieveMsg(1);
+  CHECK_SCHEMA(0, TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, "name");
+  CHECK_SCHEMA(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
+  CHECK_SCHEMA(2, TSDB_DATA_TYPE_INT, 4, "columns");
+  CHECK_SCHEMA(3, TSDB_DATA_TYPE_INT, 4, "tags");
+
+  test.SendShowRetrieveMsg();
+  EXPECT_EQ(test.GetShowRows(), 1);
   CheckBinary("stb", TSDB_TABLE_NAME_LEN);
   CheckTimestamp();
   CheckInt32(2);
@@ -286,16 +128,12 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
   // ----- meta ------
   {
-    STableInfoMsg* pReq = (STableInfoMsg*)rpcMallocCont(sizeof(STableInfoMsg));
+    int32_t contLen = sizeof(STableInfoMsg);
+
+    STableInfoMsg* pReq = (STableInfoMsg*)rpcMallocCont(contLen);
     strcpy(pReq->tableFname, "1.d1.stb");
 
-    SRpcMsg rpcMsg = {0};
-    rpcMsg.pCont = pReq;
-    rpcMsg.contLen = sizeof(STableInfoMsg);
-    rpcMsg.msgType = TSDB_MSG_TYPE_TABLE_META;
-
-    sendMsg(pClient, &rpcMsg);
-    SRpcMsg* pMsg = pClient->pRsp;
+    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_TABLE_META, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
@@ -336,39 +174,31 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   }
 
   // restart
-  stopServer(pServer);
-  pServer = NULL;
+  test.Restart();
 
-  uInfo("start all server");
+  test.SendShowMetaMsg(TSDB_MGMT_TABLE_STB, "1.d1");
+  CHECK_META("show stables", 4);
+  test.SendShowRetrieveMsg();
+  EXPECT_EQ(test.GetShowRows(), 1);
 
-  const char* fqdn = "localhost";
-  const char* firstEp = "localhost:9101";
-  pServer = startServer("/tmp/dnode_test_stb", fqdn, 9101, firstEp);
-
-  uInfo("all server is running");
-
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_STB, "show stables", 4, "1.d1");
-  SendThenCheckShowRetrieveMsg(1);
   CheckBinary("stb", TSDB_TABLE_NAME_LEN);
   CheckTimestamp();
   CheckInt32(2);
   CheckInt32(3);
 
   {
-    SDropStbMsg* pReq = (SDropStbMsg*)rpcMallocCont(sizeof(SDropStbMsg));
+    int32_t contLen = sizeof(SDropStbMsg);
+
+    SDropStbMsg* pReq = (SDropStbMsg*)rpcMallocCont(contLen);
     strcpy(pReq->name, "1.d1.stb");
 
-    SRpcMsg rpcMsg = {0};
-    rpcMsg.pCont = pReq;
-    rpcMsg.contLen = sizeof(SDropStbMsg);
-    rpcMsg.msgType = TSDB_MSG_TYPE_DROP_STB;
-
-    sendMsg(pClient, &rpcMsg);
-    SRpcMsg* pMsg = pClient->pRsp;
+    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_DROP_STB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
 
-  SendTheCheckShowMetaMsg(TSDB_MGMT_TABLE_STB, "show stables", 4, "1.d1");
-  SendThenCheckShowRetrieveMsg(0);
+  test.SendShowMetaMsg(TSDB_MGMT_TABLE_STB, "1.d1");
+  CHECK_META("show stables", 4);
+  test.SendShowRetrieveMsg();
+  EXPECT_EQ(test.GetShowRows(), 0);
 }

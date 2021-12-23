@@ -61,15 +61,14 @@ typedef enum {
 } EAuthOp;
 
 typedef enum {
-  TRN_STAGE_PREPARE = 1,
-  TRN_STAGE_EXECUTE = 2,
+  TRN_STAGE_PREPARE = 0,
+  TRN_STAGE_EXECUTE = 1,
+  TRN_STAGE_ROLLBACK = 2,
   TRN_STAGE_COMMIT = 3,
-  TRN_STAGE_ROLLBACK = 4,
-  TRN_STAGE_RETRY = 5,
-  TRN_STAGE_OVER = 6,
+  TRN_STAGE_OVER = 4,
 } ETrnStage;
 
-typedef enum { TRN_POLICY_ROLLBACK = 1, TRN_POLICY_RETRY = 2 } ETrnPolicy;
+typedef enum { TRN_POLICY_ROLLBACK = 0, TRN_POLICY_RETRY = 1 } ETrnPolicy;
 
 typedef enum {
   DND_STATUS_OFFLINE = 0,

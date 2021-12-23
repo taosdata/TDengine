@@ -41,7 +41,7 @@ function dohavecore(){
     else 
       cd ../../
       if [[ $1 == 1 ]];then 
-        tar -zcPf $corepath'taos_'`date "+%Y_%m_%d_%H_%M_%S"`.tar.gz debug/build/bin/taosd debug/build/bin/tsim debug/build/lib/libtaos*so*
+        #tar -zcPf $corepath'taos_'`date "+%Y_%m_%d_%H_%M_%S"`.tar.gz debug
         cp -r sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
       fi
     fi
@@ -67,8 +67,8 @@ function runSimCaseOneByOne {
       else
         echo -n $case
         ./test.sh -f $case > /dev/null 2>&1 && \
-        ( grep -q 'script.*'$case'.*failed.*, err.*lineNum' ../../sim/tsim/log/taoslog0.0 && echo -e "${RED} failed${NC}" | tee -a out.log  ||  echo -e "${GREEN} success${NC}" | tee -a out.log )|| \
-        ( grep -q 'script.*success.*m$' ../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
+        ( grep -q 'script.*'$case'.*failed.*, err.*lineNum' ../sim/tsim/log/taoslog0.0 && echo -e "${RED} failed${NC}" | tee -a out.log  ||  echo -e "${GREEN} success${NC}" | tee -a out.log )|| \
+        ( grep -q 'script.*success.*m$' ../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
         echo -e "${RED} failed${NC}" | tee -a out.log
       fi
       out_log=`tail -1 out.log  `
@@ -99,11 +99,12 @@ function runSimCaseOneByOnefq {
         ( grep -q 'script.*success.*m$' ../../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
         ( echo -e "${RED} failed${NC}" | tee -a out.log && echo '=====================log=====================' && cat case.log )
       else
+	      pwd
         echo -n $case
         ./test.sh -f $case > ../../sim/case.log 2>&1 && \
         ( grep -q 'script.*'$case'.*failed.*, err.*lineNum' ../../sim/tsim/log/taoslog0.0 && echo -e "${RED} failed${NC}" | tee -a out.log  ||  echo -e "${GREEN} success${NC}" | tee -a out.log )|| \
         ( grep -q 'script.*success.*m$' ../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
-        ( echo -e "${RED} failed${NC}" | tee -a out.log && echo '=====================log=====================' &&  cat case.log )
+        ( echo -e "${RED} failed${NC}" | tee -a out.log && echo '=====================log=====================' &&  pwd && cat ../../sim/case.log )
       fi
       
       out_log=`tail -1 out.log  `

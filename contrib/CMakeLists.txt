@@ -12,6 +12,7 @@ configure_file("${CMAKE_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE}
 # googletest
 if(${BUILD_TEST})
     cat("${CMAKE_SUPPORT_DIR}/gtest_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    cat("${CMAKE_SUPPORT_DIR}/stub_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_TEST})
 
 # lz4
@@ -79,6 +80,11 @@ execute_process(COMMAND "${CMAKE_COMMAND}" --build .
 # googletest
 if(${BUILD_TEST})
     add_subdirectory(googletest)
+    target_include_directories(
+        gtest
+        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src>
+        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src_linux>
+    )
 endif(${BUILD_TEST})
 
 # cJson

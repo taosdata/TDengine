@@ -25,6 +25,7 @@ extern "C" {
 #define QUERY_TYPE_MERGE       1
 #define QUERY_TYPE_PARTIAL     2
 #define QUERY_TYPE_SCAN        3
+#define QUERY_TYPE_MODIFY      4
 
 enum OPERATOR_TYPE_E {
   OP_Unknown,
@@ -58,18 +59,17 @@ typedef struct SQueryNodeBasicInfo {
 
 typedef struct SDataSink {
   SQueryNodeBasicInfo info;
-  SDataBlockSchema schema;
 } SDataSink;
 
 typedef struct SDataDispatcher {
   SDataSink sink;
-  // todo
 } SDataDispatcher;
 
 typedef struct SDataInserter {
   SDataSink sink;
-  uint64_t    uid;  // unique id of the table
-  // todo data field
+  int32_t   numOfTables;
+  uint32_t  size;
+  char     *pData;
 } SDataInserter;
 
 typedef struct SPhyNode {
@@ -119,12 +119,13 @@ typedef struct SSubplanId {
 
 typedef struct SSubplan {
   SSubplanId id;          // unique id of the subplan
-  int32_t   type;         // QUERY_TYPE_MERGE|QUERY_TYPE_PARTIAL|QUERY_TYPE_SCAN
-  int32_t   level;        // the execution level of current subplan, starting from 0.
-  SEpSet    execEpSet;    // for the scan sub plan, the optional execution node
-  SArray   *pChildern;    // the datasource subplan,from which to fetch the result
-  SArray   *pParents;     // the data destination subplan, get data from current subplan
-  SPhyNode *pNode;        // physical plan of current subplan
+  int32_t    type;         // QUERY_TYPE_MERGE|QUERY_TYPE_PARTIAL|QUERY_TYPE_SCAN
+  int32_t    level;        // the execution level of current subplan, starting from 0.
+  SEpSet     execEpSet;    // for the scan sub plan, the optional execution node
+  SArray    *pChildern;    // the datasource subplan,from which to fetch the result
+  SArray    *pParents;     // the data destination subplan, get data from current subplan
+  SPhyNode  *pNode;        // physical plan of current subplan
+  SDataSink *pDataSink;    // data of the subplan flow into the datasink
 } SSubplan;
 
 typedef struct SQueryDag {
@@ -133,10 +134,12 @@ typedef struct SQueryDag {
   SArray  *pSubplans; // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0.
 } SQueryDag;
 
+struct SQueryNode;
+
 /**
  * Create the physical plan for the query, according to the AST.
  */
-int32_t qCreateQueryDag(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* pQnode, struct SQueryDag** pDag);
+int32_t qCreateQueryDag(const struct SQueryNode* pQueryInfo, struct SEpSet* pQnode, struct SQueryDag** pDag);
 
 // Set datasource of this subplan, multiple calls may be made to a subplan.
 // @subplan subplan to be schedule
@@ -144,7 +147,7 @@ int32_t qCreateQueryDag(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* 
 // @ep one execution location of this group of datasource subplans 
 int32_t qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SEpAddr* ep);
 
-int32_t qExplainQuery(const struct SQueryStmtInfo* pQueryInfo, struct SEpSet* pQnode, char** str);
+int32_t qExplainQuery(const struct SQueryNode* pQueryInfo, struct SEpSet* pQnode, char** str);
 
 /**
  * Convert to subplan to string for the scheduler to send to the executor

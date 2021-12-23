@@ -225,7 +225,7 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   }
 
   return 0;
-}
+} 
 
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   mDebug("start to open mnode in %s", path);
@@ -236,6 +236,9 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     mError("failed to open mnode since %s", terrstr());
     return NULL;
   }
+
+  char timestr[24] = "1970-01-01 00:00:00.00";
+  (void)taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
 
   pMnode->pSteps = taosArrayInit(24, sizeof(SMnodeStep));
   if (pMnode->pSteps == NULL) {

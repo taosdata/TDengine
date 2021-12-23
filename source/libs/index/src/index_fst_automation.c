@@ -15,166 +15,149 @@
 
 #include "index_fst_automation.h"
 
-
-StartWithStateValue *startWithStateValueCreate(StartWithStateKind kind, ValueType ty, void *val) {
-  StartWithStateValue *nsv = calloc(1, sizeof(StartWithStateValue));
+StartWithStateValue* startWithStateValueCreate(StartWithStateKind kind, ValueType ty, void* val) {
+  StartWithStateValue* nsv = calloc(1, sizeof(StartWithStateValue));
   if (nsv == NULL) { return NULL; }
 
   nsv->kind = kind;
   nsv->type = ty;
   if (ty == FST_INT) {
-    nsv->val = *(int *)val;
+    nsv->val = *(int*)val;
   } else if (ty == FST_CHAR) {
-    size_t len = strlen((char *)val);  
-    nsv->ptr = (char *)calloc(1, len + 1);  
+    size_t len = strlen((char*)val);
+    nsv->ptr = (char*)calloc(1, len + 1);
     memcpy(nsv->ptr, val, len);
   } else if (ty == FST_ARRAY) {
-    //TODO, 
-    //nsv->arr = taosArrayFromList() 
+    // TODO,
+    // nsv->arr = taosArrayFromList()
   }
   return nsv;
 }
-void startWithStateValueDestroy(void *val) {
-  StartWithStateValue *sv = (StartWithStateValue *)val;
+void startWithStateValueDestroy(void* val) {
+  StartWithStateValue* sv = (StartWithStateValue*)val;
   if (sv == NULL) { return; }
 
   if (sv->type == FST_INT) {
-    //  
+    //
   } else if (sv->type == FST_CHAR) {
     free(sv->ptr);
   } else if (sv->type == FST_ARRAY) {
     taosArrayDestroy(sv->arr);
   }
-  free(sv); 
+  free(sv);
 }
-StartWithStateValue *startWithStateValueDump(StartWithStateValue *sv) {
-  StartWithStateValue *nsv = calloc(1, sizeof(StartWithStateValue));
+StartWithStateValue* startWithStateValueDump(StartWithStateValue* sv) {
+  StartWithStateValue* nsv = calloc(1, sizeof(StartWithStateValue));
   if (nsv == NULL) { return NULL; }
 
   nsv->kind = sv->kind;
-  nsv->type= sv->type;
+  nsv->type = sv->type;
   if (nsv->type == FST_INT) {
     nsv->val = sv->val;
   } else if (nsv->type == FST_CHAR) {
     size_t len = strlen(sv->ptr);
-    nsv->ptr = (char *)calloc(1, len + 1);
+    nsv->ptr = (char*)calloc(1, len + 1);
     memcpy(nsv->ptr, sv->ptr, len);
   } else if (nsv->type == FST_ARRAY) {
+    //
   }
   return nsv;
 }
 
-
 // prefix query, impl later
 
-static void* prefixStart(AutomationCtx *ctx) {  
-  StartWithStateValue *data = (StartWithStateValue *)(ctx->stdata);
-  return startWithStateValueDump(data);     
+static void* prefixStart(AutomationCtx* ctx) {
+  StartWithStateValue* data = (StartWithStateValue*)(ctx->stdata);
+  return startWithStateValueDump(data);
 };
-static bool prefixIsMatch(AutomationCtx *ctx, void *sv) {
-  StartWithStateValue* ssv = (StartWithStateValue *)sv;  
-  return ssv->val == strlen(ctx->data); 
-} 
-static bool prefixCanMatch(AutomationCtx *ctx, void *sv) {
-  StartWithStateValue* ssv = (StartWithStateValue *)sv;  
-  return ssv->val >= 0; 
+static bool prefixIsMatch(AutomationCtx* ctx, void* sv) {
+  StartWithStateValue* ssv = (StartWithStateValue*)sv;
+  return ssv->val == strlen(ctx->data);
 }
-static bool prefixWillAlwaysMatch(AutomationCtx *ctx, void *state) {
+static bool prefixCanMatch(AutomationCtx* ctx, void* sv) {
+  StartWithStateValue* ssv = (StartWithStateValue*)sv;
+  return ssv->val >= 0;
+}
+static bool prefixWillAlwaysMatch(AutomationCtx* ctx, void* state) {
   return true;
 }
-static void* prefixAccept(AutomationCtx *ctx, void *state, uint8_t byte) {
-  StartWithStateValue* ssv = (StartWithStateValue *)state;  
-  if (ssv == NULL || ctx == NULL) {return NULL;}
+static void* prefixAccept(AutomationCtx* ctx, void* state, uint8_t byte) {
+  StartWithStateValue* ssv = (StartWithStateValue*)state;
+  if (ssv == NULL || ctx == NULL) { return NULL; }
 
-  char *data = ctx->data;
-  if (ssv->kind == Done) {
-    return startWithStateValueCreate(Done, FST_INT, &ssv->val);
-  }
+  char* data = ctx->data;
+  if (ssv->kind == Done) { return startWithStateValueCreate(Done, FST_INT, &ssv->val); }
   if ((strlen(data) > ssv->val) && data[ssv->val] == byte) {
-    int val = ssv->val + 1;
-    StartWithStateValue *nsv = startWithStateValueCreate(Running, FST_INT, &val);
+    int                  val = ssv->val + 1;
+    StartWithStateValue* nsv = startWithStateValueCreate(Running, FST_INT, &val);
     if (prefixIsMatch(ctx, nsv)) {
       nsv->kind = Done;
     } else {
       nsv->kind = Running;
-    } 
+    }
     return nsv;
-  } 
+  }
   return NULL;
 }
-static void* prefixAcceptEof(AutomationCtx *ctx, void *state) {
+static void* prefixAcceptEof(AutomationCtx* ctx, void* state) {
   return NULL;
 }
 
 // pattern query, impl later
 
-static void* patternStart(AutomationCtx *ctx) {
+static void* patternStart(AutomationCtx* ctx) {
   return NULL;
 }
-static bool patternIsMatch(AutomationCtx *ctx, void *data) {
+static bool patternIsMatch(AutomationCtx* ctx, void* data) {
   return true;
-} 
-static bool patternCanMatch(AutomationCtx *ctx, void *data) {
+}
+static bool patternCanMatch(AutomationCtx* ctx, void* data) {
   return true;
-} 
-static bool patternWillAlwaysMatch(AutomationCtx *ctx, void *state) {
+}
+static bool patternWillAlwaysMatch(AutomationCtx* ctx, void* state) {
   return true;
 }
 
-static void* patternAccept(AutomationCtx *ctx, void *state, uint8_t byte) {
+static void* patternAccept(AutomationCtx* ctx, void* state, uint8_t byte) {
   return NULL;
 }
 
-static void* patternAcceptEof(AutomationCtx *ctx, void *state) {
+static void* patternAcceptEof(AutomationCtx* ctx, void* state) {
   return NULL;
 }
 
-AutomationFunc automFuncs[]  = {{
-    prefixStart,        
-    prefixIsMatch, 
-    prefixCanMatch,
-    prefixWillAlwaysMatch,
-    prefixAccept,
-    prefixAcceptEof
-  },  
-  {
-    patternStart,
-    patternIsMatch,
-    patternCanMatch,
-    patternWillAlwaysMatch,
-    patternAccept,
-    patternAcceptEof
-  }
-  // add more search type
+AutomationFunc automFuncs[] = {
+    {prefixStart, prefixIsMatch, prefixCanMatch, prefixWillAlwaysMatch, prefixAccept, prefixAcceptEof},
+    {patternStart, patternIsMatch, patternCanMatch, patternWillAlwaysMatch, patternAccept, patternAcceptEof}
+    // add more search type
 };
 
-AutomationCtx* automCtxCreate(void *data,AutomationType atype) {
-  AutomationCtx *ctx = calloc(1, sizeof(AutomationCtx));
+AutomationCtx* automCtxCreate(void* data, AutomationType atype) {
+  AutomationCtx* ctx = calloc(1, sizeof(AutomationCtx));
   if (ctx == NULL) { return NULL; }
 
-  StartWithStateValue *sv = NULL;
+  StartWithStateValue* sv = NULL;
   if (atype == AUTOMATION_PREFIX) {
     int val = 0;
     sv = startWithStateValueCreate(Running, FST_INT, &val);
-    ctx->stdata = (void *)sv;
+    ctx->stdata = (void*)sv;
   } else if (atype == AUTMMATION_MATCH) {
-      
   } else {
     // add more search type
   }
 
-  char*  src = (char *)data; 
+  char*  src = (char*)data;
   size_t len = strlen(src);
-  char*  dst = (char *)malloc(len * sizeof(char) + 1); 
+  char*  dst = (char*)malloc(len * sizeof(char) + 1);
   memcpy(dst, src, len);
   dst[len] = 0;
-  
-  ctx->data   = dst; 
-  ctx->type   = atype;
-  ctx->stdata = (void *)sv; 
-  return ctx; 
-} 
-void automCtxDestroy(AutomationCtx *ctx) {
+
+  ctx->data = dst;
+  ctx->type = atype;
+  ctx->stdata = (void*)sv;
+  return ctx;
+}
+void automCtxDestroy(AutomationCtx* ctx) {
   startWithStateValueDestroy(ctx->stdata);
   free(ctx->data);
   free(ctx);

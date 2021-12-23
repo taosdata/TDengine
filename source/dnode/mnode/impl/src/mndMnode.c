@@ -19,7 +19,8 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 
-#define SDB_MNODE_VER 1
+#define TSDB_MNODE_VER_NUMBER 1
+#define TSDB_MNODE_RESERVE_SIZE 64
 
 static int32_t  mndCreateDefaultMnode(SMnode *pMnode);
 static SSdbRaw *mndMnodeActionEncode(SMnodeObj *pMnodeObj);
@@ -60,8 +61,12 @@ int32_t mndInitMnode(SMnode *pMnode) {
 void mndCleanupMnode(SMnode *pMnode) {}
 
 static SMnodeObj *mndAcquireMnode(SMnode *pMnode, int32_t mnodeId) {
-  SSdb *pSdb = pMnode->pSdb;
-  return sdbAcquire(pSdb, SDB_MNODE, &mnodeId);
+  SSdb      *pSdb = pMnode->pSdb;
+  SMnodeObj *pObj = sdbAcquire(pSdb, SDB_MNODE, &mnodeId);
+  if (pObj == NULL) {
+    terrno = TSDB_CODE_MND_MNODE_NOT_EXIST;
+  }
+  return pObj;
 }
 
 static void mndReleaseMnode(SMnode *pMnode, SMnodeObj *pMnodeObj) {
@@ -97,13 +102,14 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
 }
 
 static SSdbRaw *mndMnodeActionEncode(SMnodeObj *pMnodeObj) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_MNODE, SDB_MNODE_VER, sizeof(SMnodeObj));
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_MNODE, TSDB_MNODE_VER_NUMBER, sizeof(SMnodeObj) + TSDB_MNODE_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
   SDB_SET_INT32(pRaw, dataPos, pMnodeObj->id);
   SDB_SET_INT64(pRaw, dataPos, pMnodeObj->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pMnodeObj->updateTime)
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_MNODE_RESERVE_SIZE)
 
   return pRaw;
 }
@@ -112,7 +118,7 @@ static SSdbRow *mndMnodeActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
-  if (sver != SDB_MNODE_VER) {
+  if (sver != TSDB_MNODE_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     mError("failed to decode mnode since %s", terrstr());
     return NULL;
@@ -126,6 +132,7 @@ static SSdbRow *mndMnodeActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, pRow, dataPos, &pMnodeObj->id)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pMnodeObj->createdTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pMnodeObj->updateTime)
+  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_MNODE_RESERVE_SIZE)
 
   return pRow;
 }

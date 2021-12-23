@@ -1,10 +1,7 @@
-#include "queryInfoUtil.h"
-#include <function.h>
-#include "astGenerator.h"
-#include "function.h"
 #include "os.h"
+#include "queryInfoUtil.h"
+#include "function.h"
 #include "parser.h"
-#include "parserInt.h"
 #include "parserUtil.h"
 
 static struct SSchema _s = {
@@ -357,7 +354,7 @@ bool tscHasColumnFilter(SQueryStmtInfo* pQueryInfo) {
   return false;
 }
 
-int32_t getExprFunctionLevel(SQueryStmtInfo* pQueryInfo) {
+int32_t getExprFunctionLevel(const SQueryStmtInfo* pQueryInfo) {
   int32_t n = 10;
 
   int32_t level = 0;

@@ -20,7 +20,7 @@
 #include "mndTrans.h"
 #include "tkey.h"
 
-#define TSDB_USER_VER 1
+#define TSDB_USER_VER_NUMBER 1
 #define TSDB_USER_RESERVE_SIZE 64
 
 static int32_t  mndCreateDefaultUsers(SMnode *pMnode);
@@ -94,7 +94,7 @@ static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
 }
 
 static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, TSDB_USER_VER, sizeof(SUserObj) + TSDB_USER_RESERVE_SIZE);
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, TSDB_USER_VER_NUMBER, sizeof(SUserObj) + TSDB_USER_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
@@ -114,7 +114,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
-  if (sver != TSDB_USER_VER) {
+  if (sver != TSDB_USER_VER_NUMBER) {
     mError("failed to decode user since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     return NULL;
@@ -175,8 +175,12 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOldUser, SUserObj *pNe
 }
 
 SUserObj *mndAcquireUser(SMnode *pMnode, char *userName) {
-  SSdb *pSdb = pMnode->pSdb;
-  return sdbAcquire(pSdb, SDB_USER, userName);
+  SSdb     *pSdb = pMnode->pSdb;
+  SUserObj *pUser = sdbAcquire(pSdb, SDB_USER, userName);
+  if (pUser == NULL) {
+    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+  }
+  return pUser;
 }
 
 void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {

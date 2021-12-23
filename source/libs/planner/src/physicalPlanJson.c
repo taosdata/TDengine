@@ -651,7 +651,7 @@ static bool specificPhyNodeFromJson(const cJSON* json, void* obj) {
 static const char* jkPnodeName = "Name";
 static const char* jkPnodeTargets = "Targets";
 static const char* jkPnodeConditions = "Conditions";
-static const char* jkPnodeSchema = "Schema";
+static const char* jkPnodeSchema = "InputSchema";
 static const char* jkPnodeChildren = "Children";
 // The 'pParent' field do not need to be serialized.
 static bool phyNodeToJson(const void* obj, cJSON* jNode) {

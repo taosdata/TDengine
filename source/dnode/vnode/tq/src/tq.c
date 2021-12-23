@@ -14,9 +14,7 @@
  */
 
 #include "tqInt.h"
-#include "osSocket.h"
 #include "tqMetaStore.h"
-#include "osAtomic.h"
 
 // static
 // read next version data
@@ -61,15 +59,19 @@ STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogHandle* tqLogHandle, SMemA
   pTq->path = strdup(path);
   pTq->tqConfig = tqConfig;
   pTq->tqLogHandle = tqLogHandle;
+#if 0
   pTq->tqMemRef.pAllocatorFactory = allocFac;
   pTq->tqMemRef.pAllocator = allocFac->create(allocFac);
   if (pTq->tqMemRef.pAllocator == NULL) {
     // TODO: error code of buffer pool
   }
+#endif
   pTq->tqMeta = tqStoreOpen(path, (FTqSerialize)tqSerializeGroup, (FTqDeserialize)tqDeserializeGroup, free, 0);
   if (pTq->tqMeta == NULL) {
     free(pTq);
+#if 0
     allocFac->destroy(allocFac, pTq->tqMemRef.pAllocator);
+#endi
     return NULL;
   }
 
@@ -144,6 +146,7 @@ int tqCreateGroup(STQ* pTq, int64_t topicId, int64_t cgId, int64_t cId, STqGroup
     // TODO
     return -1;
   }
+  *ppGroup = pGroup;
   memset(pGroup, 0, sizeof(STqGroup));
 
   pGroup->topicList = tdListNew(sizeof(STqTopic));

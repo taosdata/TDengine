@@ -22,8 +22,4 @@ void initMetaDataEnv();
 void generateMetaData();
 void destroyMetaDataEnv();
 
-// mock
-int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle);
-int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta);
-
 #endif  // MOCK_CATALOG_H

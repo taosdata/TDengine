@@ -1,24 +1,8 @@
-add_executable(dnode_test_user "")
-
-target_sources(dnode_test_user
-    PRIVATE
-    "user.cpp"
-    "../sut/deploy.cpp"
-)
-
+aux_source_directory(. USER_SRC)
+add_executable(dnode_test_user ${USER_SRC})
 target_link_libraries(
     dnode_test_user
-    PUBLIC dnode
-    PUBLIC util
-    PUBLIC os
-    PUBLIC gtest_main
-)
-
-target_include_directories(dnode_test_user
-    PUBLIC
-    "${CMAKE_SOURCE_DIR}/include/server/dnode/mgmt"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../sut"
+    PUBLIC sut
 )
 
 add_test(
