@@ -40,7 +40,7 @@ typedef struct SQueryNode {
 typedef struct SField {
   char     name[TSDB_COL_NAME_LEN];
   uint8_t  type;
-  int16_t  bytes;
+  int32_t  bytes;
 } SField;
 
 typedef struct SParseBasicCtx {

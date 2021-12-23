@@ -13,11 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "taosmsg.h"
-#include "query.h"
+#include <catalog.h>
 #include "clientInt.h"
 #include "clientLog.h"
+#include "os.h"
+#include "query.h"
+#include "taosmsg.h"
 #include "tcache.h"
 #include "tconfig.h"
 #include "tglobal.h"
@@ -129,7 +130,7 @@ void destroyTscObj(void *pObj) {
   tfree(pTscObj);
 }
 
-void* createTscObj(const char* user, const char* auth, const char *ip, uint32_t port, SAppInstInfo* pAppInfo) {
+void* createTscObj(const char* user, const char* auth, const char *db, SAppInstInfo* pAppInfo) {
   STscObj *pObj = (STscObj *)calloc(1, sizeof(STscObj));
   if (NULL == pObj) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -143,6 +144,10 @@ void* createTscObj(const char* user, const char* auth, const char *ip, uint32_t 
 
   tstrncpy(pObj->user, user, sizeof(pObj->user));
   memcpy(pObj->pass, auth, TSDB_PASSWORD_LEN);
+
+  if (db != NULL) {
+    tstrncpy(pObj->db, db, tListLen(pObj->db));
+  }
 
   pthread_mutex_init(&pObj->mutex, NULL);
   pObj->id = taosAddRef(tscConnRef, pObj);
@@ -220,8 +225,12 @@ void taos_init_imp(void) {
 
   taosInitNotes();
   initMsgHandleFp();
+  initQueryModuleMsgHandle();
 
   rpcInit();
+
+  SCatalogCfg cfg = {.enableVgroupCache = true, .maxDBCacheNum = 100, .maxTblCacheNum = 100};
+  catalogInit(&cfg);
 
   tscDebug("starting to initialize TAOS driver, local ep: %s", tsLocalEp);
 

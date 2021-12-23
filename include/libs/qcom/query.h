@@ -107,7 +107,7 @@ int32_t cleanupTaskQueue();
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
 
 SSchema* tGetTbnameColumnSchema();
-void msgInit();
+void initQueryModuleMsgHandle();
 
 extern int32_t (*queryBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
 extern int32_t (*queryProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize);
