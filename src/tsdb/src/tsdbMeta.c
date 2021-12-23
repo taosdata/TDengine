@@ -58,7 +58,7 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
   STable *   pTable = NULL;
 
   if (tid < 1 || tid > TSDB_MAX_TABLES) {
-    tsdbError("vgId:%d failed to create table since invalid tid %d", REPO_ID(pRepo), tid);
+    tsdbError("vgId:%d failed to create table since invalid tid %d uid%" PRIu64, REPO_ID(pRepo), tid, pCfg->tableId.uid);
     terrno = TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO;
     goto _err;
   }
@@ -942,7 +942,7 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx, boo
     }
     if (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE && addIdx) {  // add STABLE to the index
       if (tsdbAddTableIntoIndex(pMeta, pTable, true) < 0) {
-        tsdbDebug("vgId:%d failed to add table %s to meta while add table to index since %s", REPO_ID(pRepo),
+        tsdbError("vgId:%d failed to add table %s to meta while add table to index since %s", REPO_ID(pRepo),
                   TABLE_CHAR_NAME(pTable), tstrerror(terrno));
         goto _err;
       }

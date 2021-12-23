@@ -203,9 +203,16 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
     bool forceFsync = false;
     for (int32_t i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(pWorker->qall, &qtype, (void **)&pWrite);
-      dTrace("msg:%p, app:%p type:%s will be processed in vwrite queue, qtype:%s hver:%" PRIu64, pWrite,
-             pWrite->rpcMsg.ahandle, taosMsg[pWrite->walHead.msgType], qtypeStr[qtype], pWrite->walHead.version);
-
+      if ((pWrite->walHead.msgType == TSDB_MSG_TYPE_MD_CREATE_TABLE) && TAOS_PRINT_CREATE_TABLE) {
+        SMDCreateTableMsg *pMsg = (SMDCreateTableMsg *)pWrite->walHead.cont;
+        dInfo("msg:%p, app:%p type:%s for uid:%" PRIu64 ", tid:%" PRIu32
+              " will be processed in vwrite queue, qtype:%s hver:%" PRIu64,
+              pWrite, pWrite->rpcMsg.ahandle, taosMsg[pWrite->walHead.msgType], pMsg ? htobe64(pMsg->uid) : -1,
+              pMsg ? htonl(pMsg->tid) : -1, qtypeStr[qtype], pWrite->walHead.version);
+      } else {
+        dTrace("msg:%p, app:%p type:%s will be processed in vwrite queue, qtype:%s hver:%" PRIu64, pWrite,
+               pWrite->rpcMsg.ahandle, taosMsg[pWrite->walHead.msgType], qtypeStr[qtype], pWrite->walHead.version);
+      }
       pWrite->code = vnodeProcessWrite(pVnode, &pWrite->walHead, qtype, pWrite);
       if (pWrite->code <= 0) atomic_add_fetch_32(&pWrite->processedCount, 1);
       if (pWrite->code > 0) pWrite->code = 0;

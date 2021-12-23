@@ -112,6 +112,10 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   code = (*vnodeProcessWriteMsgFp[pHead->msgType])(pVnode, pHead->cont, pRspRet);
   if (code < 0) {
     if (syncCode > 0) atomic_sub_fetch_32(&pWrite->processedCount, 1);
+    vError("app:%p, vgId:%d, hver:%" PRIu64 " vver:%" PRIu64 " msgType:% " PRId8
+           ", code:0x%x, processWrite failed since %s",
+           pWrite->rpcMsg.ahandle, pVnode->vgId, pHead->version, pVnode->version, pHead->msgType, code,
+           tstrerror(code));
     return code;
   }
 
@@ -170,15 +174,26 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
 static int32_t vnodeProcessCreateTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pRet) {
   int code = TSDB_CODE_SUCCESS;
 
-  STableCfg *pCfg = tsdbCreateTableCfgFromMsg((SMDCreateTableMsg *)pCont);
+  SMDCreateTableMsg *pMsg = (SMDCreateTableMsg *)pCont;
+
+  STableCfg *pCfg = tsdbCreateTableCfgFromMsg(pMsg);
   if (pCfg == NULL) {
     ASSERT(terrno != 0);
+    vError("vgId:%d, uid:%" PRIu64 ", tid:%" PRIu32 ", failed to create tableCfgFromMsg since %s", pVnode->vgId,
+           htobe64(pMsg->uid), htonl(pMsg->tid), tstrerror(terrno));
     return terrno;
   }
 
   if (tsdbCreateTable(pVnode->tsdb, pCfg) < 0) {
     code = terrno;
+    vError("vgId:%d, uid:%" PRIu64 ", tid:%" PRIu32 ", failed to create table since %s", pVnode->vgId,
+           htobe64(pMsg->uid), htonl(pMsg->tid), tstrerror(terrno));
     ASSERT(code != 0);
+  }
+
+  if ((code == TSDB_CODE_SUCCESS) && TAOS_PRINT_CREATE_TABLE) {
+    vInfo("vgId:%d, table[%s], uid:%" PRIu64 ", tid:%" PRIu32 " is created successfully", pVnode->vgId,
+          pMsg->tableFname, htobe64(pMsg->uid), htonl(pMsg->tid));
   }
 
   tsdbClearTableCfg(pCfg);

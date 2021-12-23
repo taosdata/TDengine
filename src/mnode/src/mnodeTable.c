@@ -941,7 +941,12 @@ static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *pMsg) {
   } else {
     mDebug("msg:%p, app:%p table:%s, create ctable msg is received from thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
            p->tableName, pMsg->rpcMsg.handle);
-    return mnodeProcessCreateChildTableMsg(pMsg);
+    int32_t code = mnodeProcessCreateChildTableMsg(pMsg);
+    if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS && code != TSDB_CODE_SUCCESS) {
+      mError("msg:%p, app:%p table:%s, failed to create ctable for thandle:%p since %s", pMsg, pMsg->rpcMsg.ahandle,
+             p->tableName, pMsg->rpcMsg.handle, tstrerror(code));
+    }
+    return code;
   }
 }
 
@@ -2201,10 +2206,10 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
 
   int32_t code = sdbInsertRow(&desc);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("msg:%p, app:%p table:%s, failed to create, vgId:%d sid:%d uid:%" PRIu64 " reason:%s", pMsg,
+           pMsg->rpcMsg.ahandle, pCreate->tableName, pVgroup->vgId, pTable->tid, pTable->uid, tstrerror(code));
     mnodeDestroyChildTable(pTable);
     pMsg->pTable = NULL;
-    mError("msg:%p, app:%p table:%s, failed to create, reason:%s", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName,
-           tstrerror(code));
   } else {
     mDebug("msg:%p, app:%p table:%s, allocated in vgroup, vgId:%d sid:%d uid:%" PRIu64, pMsg, pMsg->rpcMsg.ahandle,
            pTable->info.tableId, pVgroup->vgId, pTable->tid, pTable->uid);

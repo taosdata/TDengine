@@ -1161,6 +1161,11 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
     rpcAddRef(pRpc);  // add the refCount for requests
 
     // notify the server app
+    if ((rpcMsg.msgType == TSDB_MSG_TYPE_MD_CREATE_TABLE) && TAOS_PRINT_CREATE_TABLE) {
+      SMDCreateTableMsg *pMsg = (SMDCreateTableMsg *)rpcMsg.pCont;
+      tInfo("%p, msg:%s received, uid:%" PRIu64 ", tid:%" PRIu32, rpcMsg.ahandle, taosMsg[rpcMsg.msgType],
+            htobe64(pMsg->uid), htonl(pMsg->tid));
+    }
     (*(pRpc->cfp))(&rpcMsg, NULL);
   } else {
     // it's a response
@@ -1348,6 +1353,10 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
   }
 
   //tTrace("connection type is: %d", pConn->connType);
+  if ((pConn->outType == TSDB_MSG_TYPE_MD_CREATE_TABLE) && TAOS_PRINT_CREATE_TABLE) {
+    tInfo("%s, msg:%s is sent to 0x%x:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d", pConn->info, taosMsg[pHead->msgType],
+          pConn->peerIp, pConn->peerPort, htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
+  }
   writtenLen = (*taosSendData[pConn->connType])(pConn->peerIp, pConn->peerPort, pHead, msgLen, pConn->chandle);
 
   if (writtenLen != msgLen) {
@@ -1363,6 +1372,7 @@ static void rpcProcessConnError(void *param, void *id) {
   SRpcMsg         rpcMsg;
  
   if (pRpc == NULL) {
+    tError("%p, pRpc is NULL", pContext->ahandle);
     return;
   }
   
