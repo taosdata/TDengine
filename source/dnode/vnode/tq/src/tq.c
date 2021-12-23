@@ -71,7 +71,7 @@ STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogHandle* tqLogHandle, SMemA
     free(pTq);
 #if 0
     allocFac->destroy(allocFac, pTq->tqMemRef.pAllocator);
-#endi
+#endif
     return NULL;
   }
 
