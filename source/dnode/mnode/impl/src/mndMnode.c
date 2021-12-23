@@ -87,6 +87,24 @@ char *mndGetRoleStr(int32_t showType) {
   }
 }
 
+void mndUpdateMnodeRole(SMnode *pMnode) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  while (1) {
+    SMnodeObj *pObj = NULL;
+    pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    if (pObj->id == 1) {
+      pObj->role = TAOS_SYNC_STATE_LEADER;
+    } else {
+      pObj->role = TAOS_SYNC_STATE_CANDIDATE;
+    }
+
+    sdbRelease(pSdb, pObj);
+  }
+}
+
 static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
   SMnodeObj mnodeObj = {0};
   mnodeObj.id = 1;
@@ -595,6 +613,7 @@ static int32_t mndGetMnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   strcpy(pMeta->tbFname, mndShowStr(pShow->type));
 
+  mndUpdateMnodeRole(pMnode);
   return 0;
 }
 

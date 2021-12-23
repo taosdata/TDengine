@@ -51,27 +51,23 @@ TestServer DndTestMnode::server4;
 TestServer DndTestMnode::server5;
 
 TEST_F(DndTestMnode, 01_ShowDnode) {
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
-  CHECK_META("show dnodes", 7);
+  test.SendShowMetaMsg(TSDB_MGMT_TABLE_MNODE, "");
+  CHECK_META("show mnodes", 5);
 
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_SMALLINT, 2, "id");
   CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN + VARSTR_HEADER_SIZE, "endpoint");
-  CHECK_SCHEMA(2, TSDB_DATA_TYPE_SMALLINT, 2, "vnodes");
-  CHECK_SCHEMA(3, TSDB_DATA_TYPE_SMALLINT, 2, "max_vnodes");
-  CHECK_SCHEMA(4, TSDB_DATA_TYPE_BINARY, 10 + VARSTR_HEADER_SIZE, "status");
-  CHECK_SCHEMA(5, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
-  CHECK_SCHEMA(6, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "offline_reason");
+  CHECK_SCHEMA(2, TSDB_DATA_TYPE_BINARY, 12 + VARSTR_HEADER_SIZE, "role");
+  CHECK_SCHEMA(3, TSDB_DATA_TYPE_TIMESTAMP, 8, "role_time");
+  CHECK_SCHEMA(4, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
 
   test.SendShowRetrieveMsg();
   EXPECT_EQ(test.GetShowRows(), 1);
 
   CheckInt16(1);
   CheckBinary("localhost:9061", TSDB_EP_LEN);
-  CheckInt16(0);
-  CheckInt16(1);
-  CheckBinary("ready", 10);
+  CheckBinary("master", 12);
+  CheckInt64(0);
   CheckTimestamp();
-  CheckBinary("", 24);
 }
 
 #if 0
