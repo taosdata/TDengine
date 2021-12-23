@@ -475,7 +475,7 @@ pipeline {
                 sh """
                   date
                   cd ${WKC}/tests
-                  ./test-CI.sh ${it} 5 5 
+                  ./test-CI.sh ${it} 5 0
                   date"""
                 }
               }
