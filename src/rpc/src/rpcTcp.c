@@ -676,14 +676,12 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
 
   if (pFdObj->prev) {
     (pFdObj->prev)->next = pFdObj->next;
-    pFdObj->prev = NULL;
   } else {
     pThreadObj->pHead = pFdObj->next;
   }
 
   if (pFdObj->next) {
     (pFdObj->next)->prev = pFdObj->prev;
-    pFdObj->next = NULL;
   }
 
   pthread_mutex_unlock(&pThreadObj->mutex);
