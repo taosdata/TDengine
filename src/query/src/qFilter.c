@@ -546,13 +546,19 @@ int32_t filterAddRange(void* h, SFilterRange* ra, int32_t optr) {
   SFilterRangeCtx *ctx = (SFilterRangeCtx *)h;
   
   if (FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) {
-    SIMPLE_COPY_VALUES(&ra->s, getDataMin(ctx->type));
-    //FILTER_CLR_FLAG(ra->sflag, RA_NULL);
+    if (ctx->type == TSDB_DATA_TYPE_FLOAT || ctx->type == TSDB_DATA_TYPE_DOUBLE){
+      ra->s = INT64_MIN;
+    }else{
+      ra->s = tDataTypes[ctx->type].minValue;
+    }
   }
 
   if (FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL)) {
-    SIMPLE_COPY_VALUES(&ra->e, getDataMax(ctx->type));
-    //FILTER_CLR_FLAG(ra->eflag, RA_NULL);
+    if (ctx->type == TSDB_DATA_TYPE_FLOAT || ctx->type == TSDB_DATA_TYPE_DOUBLE){
+      ra->s = INT64_MAX;
+    }else{
+      ra->s = tDataTypes[ctx->type].maxValue;
+    }
   }
 
   return filterAddRangeImpl(h, ra, optr);
@@ -1348,7 +1354,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
     SFilterRange *ra = &ctx->rs->ra;
     
-    assert(!((FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) && (FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL))));
+    //assert(!((FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) && (FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL))));
 
     if ((!FILTER_GET_FLAG(ra->sflag, RANGE_FLG_NULL)) && (!FILTER_GET_FLAG(ra->eflag, RANGE_FLG_NULL))) {
       __compar_fn_t func = getComparFunc(type, 0);

@@ -39,7 +39,11 @@ const int32_t TYPE_BYTES[16] = {
 
 #define DO_STATICS(__sum, __min, __max, __minIndex, __maxIndex, _list, _index) \
   do {                                                                         \
-    (__sum) += (_list)[(_index)];                                              \
+    double temp = (__sum);                                                     \
+    temp += (_list)[(_index)];                                                 \
+    if (temp > INT64_MAX){(__sum) = INT64_MAX;}                                \
+    else if(temp < INT64_MIN){(__sum) = INT64_MIN;}                            \
+    else (__sum) += (_list)[(_index)];                                         \
     if ((__min) > (_list)[(_index)]) {                                         \
       (__min) = (_list)[(_index)];                                             \
       (__minIndex) = (_index);                                                 \
