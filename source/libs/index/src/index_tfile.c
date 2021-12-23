@@ -25,12 +25,7 @@
 
 #define TF_TABLE_TATOAL_SIZE(sz) (sizeof(sz) + sz * sizeof(uint64_t))
 
-typedef struct TFileValue {
-  char*   colVal;  // null terminated
-  SArray* tableId;
-  int32_t offset;
-} TFileValue;
-
+static int  tfileStrCompare(const void* a, const void* b);
 static int  tfileValueCompare(const void* a, const void* b, const void* param);
 static void tfileSerialTableIdsToBuf(char* buf, SArray* tableIds);
 
@@ -49,6 +44,7 @@ static int  tfileRmExpireFile(SArray* result);
 static void tfileDestroyFileName(void* elem);
 static int  tfileCompare(const void* a, const void* b);
 static int  tfileParseFileName(const char* filename, uint64_t* suid, int* colId, int* version);
+static void tfileGenFileName(char* filename, uint64_t suid, int colId, int version);
 static void tfileSerialCacheKey(TFileCacheKey* key, char* buf);
 
 TFileCache* tfileCacheCreate(const char* path) {
@@ -209,16 +205,28 @@ TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header) {
   tw->ctx = ctx;
   tw->header = *header;
   tfileWriteHeader(tw);
+  tw->fb = fstBuilderCreate(ctx, 0);
+  if (tw->fb == NULL) {
+    tfileWriterDestroy(tw);
+    return NULL;
+  }
   return tw;
 }
 
 int tfileWriterPut(TFileWriter* tw, void* data) {
   // sort by coltype and write to tindex
-  __compar_fn_t fn = getComparFunc(tw->header.colType, 0);
+  __compar_fn_t fn;
+
+  int8_t colType = tw->header.colType;
+  if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_NCHAR) {
+    fn = tfileStrCompare;
+  } else {
+    fn = getComparFunc(colType, 0);
+  }
   taosArraySortPWithExt((SArray*)(data), tfileValueCompare, &fn);
 
   int32_t bufLimit = 4096, offset = 0;
-  char*   buf = calloc(1, sizeof(bufLimit));
+  char*   buf = calloc(1, sizeof(char) * bufLimit);
   char*   p = buf;
   int32_t sz = taosArrayGetSize((SArray*)data);
   int32_t fstOffset = tw->offset;
@@ -267,6 +275,9 @@ int tfileWriterPut(TFileWriter* tw, void* data) {
       //
     }
   }
+  fstBuilderFinish(tw->fb);
+  fstBuilderDestroy(tw->fb);
+  tw->fb = NULL;
   return 0;
 }
 void tfileWriterDestroy(TFileWriter* tw) {
@@ -303,6 +314,12 @@ int indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid) {
   // 1};
 
   return 0;
+}
+
+static int tfileStrCompare(const void* a, const void* b) {
+  int ret = strcmp((char*)a, (char*)b);
+  if (ret == 0) { return ret; }
+  return ret < 0 ? -1 : 1;
 }
 
 static int tfileValueCompare(const void* a, const void* b, const void* param) {
@@ -445,6 +462,10 @@ static int tfileCompare(const void* a, const void* b) {
   return strncmp(aName, bName, aLen > bLen ? aLen : bLen);
 }
 // tfile name suid-colId-version.tindex
+static void tfileGenFileName(char* filename, uint64_t suid, int colId, int version) {
+  sprintf(filename, "%" PRIu64 "-%d-%d.tindex", suid, colId, version);
+  return;
+}
 static int tfileParseFileName(const char* filename, uint64_t* suid, int* colId, int* version) {
   if (3 == sscanf(filename, "%" PRIu64 "-%d-%d.tindex", suid, colId, version)) {
     // read suid & colid & version  success

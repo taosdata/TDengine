@@ -151,8 +151,7 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, int16_t colId, int32_t
   EIndexQueryType qtype = query->qType;
 
   int32_t keyLen = CACHE_KEY_LEN(term);
-
-  char* buf = calloc(1, keyLen);
+  char*   buf = calloc(1, keyLen);
   if (qtype == QUERY_TERM) {
     //
   } else if (qtype == QUERY_PREFIX) {

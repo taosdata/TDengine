@@ -42,7 +42,12 @@ typedef struct TFileHeader {
 
 #define TFILE_HEADER_SIZE (sizeof(TFileHeader))
 #define TFILE_HEADER_NO_FST (TFILE_HEADER_SIZE - sizeof(int32_t))
-//#define TFILE_HADER_PRE_SIZE (sizeof(uint64_t) + sizeof(int32_t) + sizeof(int32_t))
+
+typedef struct TFileValue {
+  char*   colVal;  // null terminated
+  SArray* tableId;
+  int32_t offset;
+} TFileValue;
 
 typedef struct TFileCacheKey {
   uint64_t suid;
