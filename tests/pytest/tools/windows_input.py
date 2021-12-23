@@ -31,6 +31,7 @@ class TDTestCase:
         # 获取CMD窗口
         # window = DocumentControl(searchDepth=3, Name='Text Area')
         window = WindowControl(searchDepth=1, AutomationId='Console Window')
+        time.sleep(1)
         # 切换英文输入法
         # window.SendKeys('\\')
         # window.SendKeys('{Enter}')
@@ -55,7 +56,6 @@ class TDTestCase:
             temp += 'a'
         sql = "insert into db.tb values(now,'%s');" % temp
         window.SendKeys(sql)
-        window.SendKeys('{Enter}')
         window.SendKeys('{Ctrl}A')
         window.SendKeys('{Ctrl}C')
         # 获取剪切板里面的复制内容
@@ -72,9 +72,11 @@ class TDTestCase:
 
         result = self.win_input_test()
         tdLog.info(result)
+        strFind = 'a'*300
+        if result.find(strFind) == -1 :
+            tdLog.info("input 300 characters error")
+            tdLog.exit(1)
 
-        tdSql.query("select * from tb")
-        tdSql.checkRows(1)
 
 
     def stop(self):
