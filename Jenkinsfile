@@ -450,7 +450,7 @@ pipeline {
         stage('test_b1_s2') {
           agent{label " slave2 || slave12 "}
           steps {
-            timeout(time: 55, unit: 'MINUTES'){
+            timeout(time: 105, unit: 'MINUTES'){
               pre_test()
               sh '''
                 rm -rf /var/lib/taos/*

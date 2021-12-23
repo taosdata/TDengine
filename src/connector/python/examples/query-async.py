@@ -29,7 +29,7 @@ def fetch_callback(p_param, p_result, num_of_rows):
 
 def query_callback(p_param, p_result, code):
     # type: (c_void_p, c_void_p, c_int) -> None
-    if p_result == None:
+    if p_result is None:
         return
     result = TaosResult(p_result)
     if code == 0:

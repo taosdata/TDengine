@@ -224,7 +224,7 @@ SArray* createQueryPlanImpl(SQueryInfo* pQueryInfo) {
 
   if (pQueryInfo->numOfTables > 1) {  // it is a join query
     // 1. separate the select clause according to table
-    taosArrayDestroy(upstream);
+    taosArrayDestroy(&upstream);
     upstream = taosArrayInit(5, POINTER_BYTES);
 
     for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
@@ -279,7 +279,7 @@ SQueryNode* qCreateQueryPlan(SQueryInfo* pQueryInfo) {
   assert(taosArrayGetSize(upstream) == 1);
 
   SQueryNode* p = taosArrayGetP(upstream, 0);
-  taosArrayDestroy(upstream);
+  taosArrayDestroy(&upstream);
 
   return p;
 }
@@ -300,7 +300,7 @@ static void doDestroyQueryNode(SQueryNode* pQueryNode) {
       doDestroyQueryNode(p);
     }
 
-    taosArrayDestroy(pQueryNode->pPrevNodes);
+    taosArrayDestroy(&pQueryNode->pPrevNodes);
   }
 
   tfree(pQueryNode);
@@ -590,7 +590,8 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
       }
       // outer query order by support
       int32_t orderColId = pQueryAttr->order.orderColId;
-      if (pQueryAttr->vgId == 0 && orderColId != PRIMARYKEY_TIMESTAMP_COL_INDEX && orderColId != INT32_MIN) {
+
+      if (pQueryAttr->vgId == 0 && orderColId != INT32_MIN) {
         op = OP_Order;
         taosArrayPush(plan, &op);
       }
@@ -664,7 +665,7 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
 
     // outer query order by support
     int32_t orderColId = pQueryAttr->order.orderColId;
-    if (pQueryAttr->vgId == 0 && orderColId != PRIMARYKEY_TIMESTAMP_COL_INDEX && orderColId != INT32_MIN) {
+    if (pQueryAttr->vgId == 0 && orderColId != INT32_MIN) {
       op = OP_Order;
       taosArrayPush(plan, &op);
     }
