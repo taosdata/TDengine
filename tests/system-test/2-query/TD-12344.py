@@ -19,6 +19,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import *
+import subprocess
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -48,10 +49,9 @@ class TDTestCase:
     def caseDescription(self):
 
         '''
-        case1 <wenzhouwww>: [TD-11389] : 
-            this test case is an test case for cache error , it will let  the cached data obtained by the client that has connected to taosd incorrect，
-            root cause : table schema is changed, tag hostname size is increased through schema-less insertion. The schema cache of client taos is not refreshed.
-
+        case1 <wenzhouwww>: [TD-12344] : 
+            this test case is an test case for unexpectd crash for session function , it will coredump taoshell ;
+            
         ''' 
         return 
 
@@ -81,9 +81,6 @@ class TDTestCase:
         
         cfgPath = projPath + "/sim/dnode1/cfg  "
         return cfgPath
-
-        
-
    
     def run(self):
         tdSql.prepare()
@@ -91,17 +88,17 @@ class TDTestCase:
         tdSql.execute("use testdb;")
         tdSql.execute("create stable st (ts timestamp , id int , value double) tags(hostname binary(10) ,ind int);")
         for i in range(self.num):
+            tdSql.execute("insert into sub_%s using st tags('host_%s' , %d) values (%d , %d , %f );"%(str(i),str(i),i*10,self.ts+100*i,i*2,i+10.00))
+            tdSql.execute("insert into sub_%s using st tags('host_%s' , %d) values (%d , %d , %f );"%(str(i),str(i),i*10,self.ts+200*i,i*2,i+10.00))
+            tdSql.execute("insert into sub_%s using st tags('host_%s' , %d) values (%d , %d , %f );"%(str(i),str(i),i*10,self.ts+300*i,i*2,i+10.00))
             tdSql.execute("insert into sub_%s using st tags('host_%s' , %d) values (%d , %d , %f );"%(str(i),str(i),i*10,self.ts+10000*i,i*2,i+10.00))
-
-        tdSql.query('select elapsed(ts,10s) from sub_1  where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000" session(ts,1d) ;')
 
         cfg_path = self.getcfgPath()
         print(cfg_path)
-        # tdSql.execute('select elapsed(ts,10s) from st   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000" session(ts,1d) group by tbname;')  # session not support super table
-        os.system("taos  -c %s -s 'select elapsed(ts,10s) from testdb.st   where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" session(ts,1d) group by tbname;' " % (cfg_path))
-        
-         
-    
+        tdSql.execute('select elapsed(ts,10s) from testdb.st   where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" session(ts,1d) group by tbname;')  # session not support super table
+        taos_cmd1= "taos  -c %s -s 'select elapsed(ts,10s) from testdb.st   where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" session(ts,1d) group by tbname;' " % (cfg_path)
+        _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8") 
+
 
     def stop(self):
         tdSql.close()
