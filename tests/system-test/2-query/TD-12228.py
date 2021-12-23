@@ -368,7 +368,6 @@ class TDTestCase:
             for qt_where_sub_new in qt_where_sub_new:
                 qt_where_sub_new = str(qt_where_sub_new).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","").replace("=","")
     
-
         conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
        
         cur1 = conn1.cursor()
