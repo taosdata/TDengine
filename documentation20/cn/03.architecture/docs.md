@@ -210,7 +210,7 @@ TDengine 分布式架构的逻辑结构图如下：
 ![TDengine典型的操作流程](../images/architecture/message.png)
 <center> 图 2 TDengine 典型的操作流程 </center>
 
-1. 应用通过 JDBC、ODBC 或其他API接口发起插入数据的请求。
+1. 应用通过 JDBC 或其他API接口发起插入数据的请求。
 2. taosc 会检查缓存，看是否保存有该表的 meta data。如果有，直接到第 4 步。如果没有，taosc 将向 mnode 发出 get meta-data 请求。
 3. mnode 将该表的 meta-data 返回给 taosc。Meta-data 包含有该表的 schema, 而且还有该表所属的 vgroup信息（vnode ID 以及所在的 dnode 的 End Point，如果副本数为 N，就有 N 组 End Point)。如果 taosc 迟迟得不到 mnode 回应，而且存在多个 mnode, taosc 将向下一个 mnode 发出请求。
 4. taosc 向 master vnode 发起插入请求。
