@@ -140,6 +140,28 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
     CheckTimestamp();
     CheckTimestamp();
   }
+
+  {
+    // drop mnode
+    int32_t contLen = sizeof(SDropMnodeMsg);
+
+    SDropMnodeMsg* pReq = (SDropMnodeMsg*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
+
+    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_DROP_MNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+
+    test.SendShowMetaMsg(TSDB_MGMT_TABLE_MNODE, "");
+    test.SendShowRetrieveMsg();
+    EXPECT_EQ(test.GetShowRows(), 1);
+
+    CheckInt16(1);
+    CheckBinary("localhost:9061", TSDB_EP_LEN);
+    CheckBinary("master", 12);
+    CheckInt64(0);
+    CheckTimestamp();
+  }
 }
 // {
 //   int32_t contLen = sizeof(SDropDnodeMsg);

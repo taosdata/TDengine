@@ -479,9 +479,11 @@ static int32_t dndDropMnode(SDnode *pDnode) {
     return -1;
   }
 
+  dndReleaseMnode(pDnode, pMnode);
   dndStopMnodeWorker(pDnode);
   dndWriteMnodeFile(pDnode);
   mndClose(pMnode);
+  pMgmt->pMnode = NULL;
   mndDestroy(pDnode->dir.mnode);
 
   return 0;
@@ -661,6 +663,8 @@ void dndProcessMnodeMgmtMsg(SDnode *pDnode, SRpcMsg *pRpcMsg, SEpSet *pEpSet) {
     rpcFreeCont(pRpcMsg->pCont);
     taosFreeQitem(pMsg);
   }
+
+  dndReleaseMnode(pDnode, pMnode);
 }
 
 void dndProcessMnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
@@ -945,7 +949,7 @@ void dndCleanupMnode(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
   dInfo("dnode-mnode start to clean up");
-  dndStopMnodeWorker(pDnode);
+  if (pMgmt->pMnode) dndStopMnodeWorker(pDnode);
   dndCleanupMnodeMgmtWorker(pDnode);
   dndFreeMnodeMgmtQueue(pDnode);
   tfree(pMgmt->file);

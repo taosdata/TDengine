@@ -290,11 +290,6 @@ typedef struct SMnodeMsg {
   char    db[TSDB_FULL_DB_NAME_LEN];
   int32_t acctId;
   SMnode *pMnode;
-  int16_t received;
-  int16_t successed;
-  int16_t expected;
-  int16_t retry;
-  int32_t code;
   int64_t createdTime;
   SRpcMsg rpcMsg;
   int32_t contLen;

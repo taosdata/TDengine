@@ -625,7 +625,7 @@ void mndTransHandleActionRsp(SMnodeMsg *pMsg) {
     pAction->errCode = pMsg->rpcMsg.code;
   }
 
-  mDebug("trans:%d, action:%d response is received, code:0x%x", transId, action, pMsg->code);
+  mDebug("trans:%d, action:%d response is received, code:0x%x", transId, action, pMsg->rpcMsg.code);
   mndTransExecute(pMnode, pTrans);
 
 HANDLE_ACTION_RSP_OVER:
@@ -696,7 +696,7 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
   for (int32_t action = 0; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pArray, action);
     if (pAction == NULL) continue;
-    if (pAction->msgSent) continue;
+    if (pAction->msgReceived && pAction->errCode == 0) continue;
 
     int64_t signature = pTrans->id;
     signature = (signature << 32);
@@ -736,6 +736,7 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
     terrno = errorCode;
     return errorCode;
   } else {
+    mDebug("trans:%d, %d of %d actions executed, code:0x%x", pTrans->id, numOfReceivedMsgs, numOfActions, errorCode);
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 }

@@ -440,6 +440,8 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
     sdbRelease(pSdb, pMObj);
   }
 
+  alterMsg.replica = numOfReplicas;
+
   while (1) {
     SMnodeObj *pMObj = NULL;
     pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pMObj);
@@ -506,12 +508,12 @@ static int32_t mndDropMnode(SMnode *pMnode, SMnodeMsg *pMsg, SMnodeObj *pObj) {
 
   mDebug("trans:%d, used to drop mnode:%d", pTrans->id, pObj->id);
 
-  if (mndSetCreateMnodeRedoLogs(pMnode, pTrans, pObj) != 0) {
+  if (mndSetDropMnodeRedoLogs(pMnode, pTrans, pObj) != 0) {
     mError("trans:%d, failed to set redo log since %s", pTrans->id, terrstr());
     goto DROP_MNODE_OVER;
   }
 
-  if (mndSetCreateMnodeCommitLogs(pMnode, pTrans, pObj) != 0) {
+  if (mndSetDropMnodeCommitLogs(pMnode, pTrans, pObj) != 0) {
     mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
     goto DROP_MNODE_OVER;
   }
