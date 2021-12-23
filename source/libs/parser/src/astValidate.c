@@ -4308,13 +4308,13 @@ int32_t doCheckForCreateTable(SSqlInfo* pInfo, SMsgBuf* pMsgBuf) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, void** output, int32_t* outputLen, int32_t* type, char* msgBuf, int32_t msgBufLen) {
+int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStmtInfo* pDcl, char* msgBuf, int32_t msgBufLen) {
   int32_t code = 0;
 
   SMsgBuf m = {.buf = msgBuf, .len = msgBufLen};
   SMsgBuf *pMsgBuf = &m;
 
-  *type = pInfo->type;
+  pDcl->nodeType = pInfo->type;
 
   switch (pInfo->type) {
     case TSDB_SQL_CREATE_USER:
@@ -4361,7 +4361,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, void** 
         }
       }
 
-      *output = buildUserManipulationMsg(pInfo, outputLen, pCtx->requestId, msgBuf, msgBufLen);
+      pDcl->pMsg = (char*)buildUserManipulationMsg(pInfo, &pDcl->msgLen, pCtx->requestId, msgBuf, msgBufLen);
       break;
     }
 
@@ -4397,18 +4397,18 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, void** 
         }
       }
 
-      *output = buildAcctManipulationMsg(pInfo, outputLen, pCtx->requestId, msgBuf, msgBufLen);
+      pDcl->pMsg = (char*)buildAcctManipulationMsg(pInfo, &pDcl->msgLen, pCtx->requestId, msgBuf, msgBufLen);
       break;
     }
 
     case TSDB_SQL_DROP_ACCT:
     case TSDB_SQL_DROP_USER: {
-      *output = buildDropUserMsg(pInfo, outputLen, pCtx->requestId, msgBuf, msgBufLen);
+      pDcl->pMsg = (char*)buildDropUserMsg(pInfo, &pDcl->msgLen, pCtx->requestId, msgBuf, msgBufLen);
       break;
     }
     
     case TSDB_SQL_SHOW: {
-      code = setShowInfo(pInfo, output, outputLen, pMsgBuf);
+      code = setShowInfo(pInfo, (void**)&pDcl->pMsg, &pDcl->msgLen, pMsgBuf);
       break;
     }
 
@@ -4429,8 +4429,8 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, void** 
       SUseDbMsg *pUseDbMsg = (SUseDbMsg *) calloc(1, sizeof(SUseDbMsg));
       tNameExtractFullName(&n, pUseDbMsg->db);
 
-      *output = pUseDbMsg;
-      *outputLen = sizeof(SUseDbMsg);
+      pDcl->pMsg = (char*)pUseDbMsg;
+      pDcl->msgLen = sizeof(SUseDbMsg);
       break;
     }
 
@@ -4458,8 +4458,8 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, void** 
 
       strncpy(pCreateMsg->db, token.z, token.n);
 
-      *output = pCreateMsg;
-      *outputLen = sizeof(SCreateDbMsg);
+      pDcl->pMsg = (char*)pCreateMsg;
+      pDcl->msgLen = sizeof(SCreateDbMsg);
       break;
     }
 
@@ -4470,7 +4470,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, void** 
         if ((code = doCheckForCreateTable(pInfo, pMsgBuf)) != TSDB_CODE_SUCCESS) {
           return code;
         }
-        *output = buildCreateTableMsg(pCreateTable, outputLen, pCtx, pMsgBuf);
+        pDcl->pMsg = (char*)buildCreateTableMsg(pCreateTable, &pDcl->msgLen, pCtx, pMsgBuf);
       } else if (pCreateTable->type == TSQL_CREATE_CTABLE) {
         //        if ((code = doCheckForCreateFromStable(pSql, pInfo)) != TSDB_CODE_SUCCESS) {
         //          return code;

@@ -51,16 +51,10 @@ protected:
   }
 
   int32_t run(const string& db, const string& sql) {
-    int32_t code = TSDB_CODE_SUCCESS;
     SParseContext cxt;
     buildParseContext(db, sql, &cxt);
     SQueryNode* query;
-    if (qIsInsertSql(cxt.pSql, cxt.sqlLen)) {
-      code = qParseInsertSql(&cxt, (SInsertStmtInfo**)&query);
-    } else {
-      // todo
-      code = TSDB_CODE_FAILED;
-    }
+    int32_t code = qParseQuerySql(&cxt, &query);
     if (TSDB_CODE_SUCCESS != code) {
       cout << "error no:" << code << ", msg:" << cxt.pMsg << endl;
       return code;

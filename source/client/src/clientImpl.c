@@ -144,36 +144,31 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
 
   tscDebugL("0x%"PRIx64" SQL: %s", pRequest->requestId, pRequest->sqlstr);
 
-  int32_t code = 0;
-  if (qIsInsertSql(pRequest->sqlstr, sqlLen)) {
-    // todo add
-  } else {
-    int32_t type = 0;
-    void*   output = NULL;
-    int32_t outputLen = 0;
+  SParseContext cxt = {
+    .ctx = {.requestId = pRequest->requestId, .acctId = pTscObj->acctId, .db = getConnectionDB(pTscObj)},
+    .pSql = pRequest->sqlstr,
+    .sqlLen = sqlLen,
+    .pMsg = pRequest->msgBuf,
+    .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE
+  };
+  SQueryNode* pQuery = NULL;
+  int32_t code = qParseQuerySql(&cxt, &pQuery);
+  if (qIsDclQuery(pQuery)) {
+    SDclStmtInfo* pDcl = (SDclStmtInfo*)pQuery;
+    pRequest->type = pDcl->nodeType;
+    pRequest->body.requestMsg = (SReqMsgInfo){.pMsg = pDcl->pMsg, .len = pDcl->msgLen};
 
-    SParseBasicCtx c = {.requestId = pRequest->requestId, .acctId = pTscObj->acctId, .db = getConnectionDB(pTscObj)};
-    code = qParseQuerySql(pRequest->sqlstr, sqlLen, &c, &type, &output, &outputLen, pRequest->msgBuf, ERROR_MSG_BUF_DEFAULT_SIZE);
-    if (type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_SHOW || type == TSDB_SQL_DROP_USER ||
-        type == TSDB_SQL_DROP_ACCT || type == TSDB_SQL_CREATE_DB || type == TSDB_SQL_CREATE_ACCT ||
-        type == TSDB_SQL_CREATE_TABLE || type == TSDB_SQL_USE_DB) {
-      pRequest->type = type;
-      pRequest->body.requestMsg = (SReqMsgInfo){.pMsg = output, .len = outputLen};
+    SRequestMsgBody body = {0};
+    buildRequestMsgFp[pDcl->nodeType](pRequest, &body);
 
-      SRequestMsgBody body = {0};
-      buildRequestMsgFp[type](pRequest, &body);
+    int64_t transporterId = 0;
+    sendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &body, &transporterId);
 
-      int64_t transporterId = 0;
-      sendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &body, &transporterId);
-
-      tsem_wait(&pRequest->body.rspSem);
-      destroyRequestMsgBody(&body);
-    } else {
-      assert(0);
-    }
-
-    tfree(c.db);
+    tsem_wait(&pRequest->body.rspSem);
+    destroyRequestMsgBody(&body);
   }
+
+  tfree(cxt.ctx.db);
 
   if (code != TSDB_CODE_SUCCESS) {
     pRequest->code = code;

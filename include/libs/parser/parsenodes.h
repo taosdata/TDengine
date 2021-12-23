@@ -160,6 +160,12 @@ typedef struct SInsertStmtInfo {
   const char* sql;                 // current sql statement position
 } SInsertStmtInfo;
 
+typedef struct SDclStmtInfo {
+  int16_t     nodeType;
+  char*       pMsg;
+  int32_t     msgLen;
+} SDclStmtInfo;
+
 #ifdef __cplusplus
 }
 #endif

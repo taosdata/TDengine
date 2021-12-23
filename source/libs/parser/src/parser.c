@@ -20,7 +20,7 @@
 #include "function.h"
 #include "insertParser.h"
 
-bool qIsInsertSql(const char* pStr, size_t length) {
+bool isInsertSql(const char* pStr, size_t length) {
   int32_t index = 0;
 
   do {
@@ -31,18 +31,26 @@ bool qIsInsertSql(const char* pStr, size_t length) {
   } while (1);
 }
 
-int32_t qParseQuerySql(const char* pStr, size_t length, SParseBasicCtx* pParseCtx, int32_t *type, void** pOutput, int32_t* outputLen, char* msg, int32_t msgLen) {
-  SSqlInfo info = doGenerateAST(pStr);
+bool qIsDclQuery(const SQueryNode* pQuery) {
+  int16_t type = pQuery->type;
+  return type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_SHOW || type == TSDB_SQL_DROP_USER ||
+        type == TSDB_SQL_DROP_ACCT || type == TSDB_SQL_CREATE_DB || type == TSDB_SQL_CREATE_ACCT ||
+        type == TSDB_SQL_CREATE_TABLE || type == TSDB_SQL_USE_DB;
+}
+
+int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
+  SSqlInfo info = doGenerateAST(pCxt->pSql);
   if (!info.valid) {
-    strncpy(msg, info.msg, msgLen);
+    strncpy(pCxt->pMsg, info.msg, pCxt->msgLen);
     terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     return terrno;
   }
 
   if (!isDqlSqlStatement(&info)) {
-    int32_t code = qParserValidateDclSqlNode(&info, pParseCtx, pOutput, outputLen, type, msg, msgLen);
+    SDclStmtInfo* pDcl = calloc(1, sizeof(SQueryStmtInfo));
+    int32_t code = qParserValidateDclSqlNode(&info, &pCxt->ctx, pDcl, pCxt->pMsg, pCxt->msgLen);
     if (code == TSDB_CODE_SUCCESS) {
-      // do nothing
+      *pQuery = (SQueryNode*)pDcl;
     }
   } else {
     SQueryStmtInfo* pQueryInfo = calloc(1, sizeof(SQueryStmtInfo));
@@ -53,9 +61,9 @@ int32_t qParseQuerySql(const char* pStr, size_t length, SParseBasicCtx* pParseCt
 
     struct SCatalog* pCatalog = NULL;
     int32_t code = catalogGetHandle(NULL, &pCatalog);
-    code = qParserValidateSqlNode(pCatalog, &info, pQueryInfo, pParseCtx->requestId, msg, msgLen);
+    code = qParserValidateSqlNode(pCatalog, &info, pQueryInfo, pCxt->ctx.requestId, pCxt->pMsg, pCxt->msgLen);
     if (code == TSDB_CODE_SUCCESS) {
-      *pOutput = pQueryInfo;
+      *pQuery = (SQueryNode*)pQueryInfo;
     }
   }
 
@@ -63,8 +71,12 @@ int32_t qParseQuerySql(const char* pStr, size_t length, SParseBasicCtx* pParseCt
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qParseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo) {
-  return parseInsertSql(pContext, pInfo);
+int32_t qParseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
+  if (isInsertSql(pCxt->pSql, pCxt->sqlLen)) {
+    return parseInsertSql(pCxt, (SInsertStmtInfo**)pQuery);
+  } else {
+    return parseQuerySql(pCxt, pQuery);
+  }
 }
 
 int32_t qParserConvertSql(const char* pStr, size_t length, char** pConvertSql) {
