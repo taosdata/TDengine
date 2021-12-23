@@ -70,21 +70,35 @@ TEST_F(DndTestMnode, 01_ShowDnode) {
   CheckTimestamp();
 }
 
-#if 0
-TEST_F(DndTestMnode, 02_ConfigDnode) {
-  int32_t contLen = sizeof(SCfgDnodeMsg);
+TEST_F(DndTestMnode, 02_Create_Mnode_Invalid_Id) {
+  {
+    int32_t contLen = sizeof(SCreateMnodeMsg);
 
-  SCfgDnodeMsg* pReq = (SCfgDnodeMsg*)rpcMallocCont(contLen);
-  pReq->dnodeId = htonl(1);
-  strcpy(pReq->config, "ddebugflag 131");
+    SCreateMnodeMsg* pReq = (SCreateMnodeMsg*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(1);
 
-  SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CONFIG_DNODE, pReq, contLen);
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_MNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MNODE_ALREADY_EXIST);
+  }
 }
 
-TEST_F(DndTestMnode, 03_Create_Drop_Restart_Dnode) {
+TEST_F(DndTestMnode, 03_Create_Mnode_Invalid_Id) {
   {
+    int32_t contLen = sizeof(SCreateMnodeMsg);
+
+    SCreateMnodeMsg* pReq = (SCreateMnodeMsg*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
+
+    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_MNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_DNODE_NOT_EXIST);
+  }
+}
+
+TEST_F(DndTestMnode, 04_Create_Mnode) {
+  {
+    // create dnode
     int32_t contLen = sizeof(SCreateDnodeMsg);
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
@@ -93,164 +107,172 @@ TEST_F(DndTestMnode, 03_Create_Drop_Restart_Dnode) {
     SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
+
+    taosMsleep(1300);
+    test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+    test.SendShowRetrieveMsg();
+    EXPECT_EQ(test.GetShowRows(), 2);
   }
 
-  taosMsleep(1300);
-
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
-  CHECK_META("show dnodes", 7);
-  test.SendShowRetrieveMsg();
-  EXPECT_EQ(test.GetShowRows(), 2);
-
-  CheckInt16(1);
-  CheckInt16(2);
-  CheckBinary("localhost:9061", TSDB_EP_LEN);
-  CheckBinary("localhost:9062", TSDB_EP_LEN);
-  CheckInt16(0);
-  CheckInt16(0);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckBinary("ready", 10);
-  CheckBinary("ready", 10);
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("", 24);
-  CheckBinary("", 24);
-
   {
-    int32_t contLen = sizeof(SDropDnodeMsg);
+    // create mnode
+    int32_t contLen = sizeof(SCreateMnodeMsg);
 
-    SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(contLen);
+    SCreateMnodeMsg* pReq = (SCreateMnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_DROP_DNODE, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_MNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
+
+    test.SendShowMetaMsg(TSDB_MGMT_TABLE_MNODE, "");
+    test.SendShowRetrieveMsg();
+    EXPECT_EQ(test.GetShowRows(), 2);
+
+    CheckInt16(1);
+    CheckInt16(2);
+    CheckBinary("localhost:9061", TSDB_EP_LEN);
+    CheckBinary("localhost:9062", TSDB_EP_LEN);
+    CheckBinary("master", 12);
+    CheckBinary("slave", 12);
+    CheckInt64(0);
+    CheckInt64(0);
+    CheckTimestamp();
+    CheckTimestamp();
   }
-
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
-  CHECK_META("show dnodes", 7);
-  test.SendShowRetrieveMsg();
-  EXPECT_EQ(test.GetShowRows(), 1);
-
-  CheckInt16(1);
-  CheckBinary("localhost:9061", TSDB_EP_LEN);
-  CheckInt16(0);
-  CheckInt16(1);
-  CheckBinary("ready", 10);
-  CheckTimestamp();
-  CheckBinary("", 24);
-
-  {
-    int32_t contLen = sizeof(SCreateDnodeMsg);
-
-    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
-    strcpy(pReq->ep, "localhost:9063");
-
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
-  }
-
-  {
-    int32_t contLen = sizeof(SCreateDnodeMsg);
-
-    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
-    strcpy(pReq->ep, "localhost:9064");
-
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
-  }
-
-  {
-    int32_t contLen = sizeof(SCreateDnodeMsg);
-
-    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
-    strcpy(pReq->ep, "localhost:9065");
-
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
-  }
-
-  taosMsleep(1300);
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
-  CHECK_META("show dnodes", 7);
-  test.SendShowRetrieveMsg();
-  EXPECT_EQ(test.GetShowRows(), 4);
-
-  CheckInt16(1);
-  CheckInt16(3);
-  CheckInt16(4);
-  CheckInt16(5);
-  CheckBinary("localhost:9061", TSDB_EP_LEN);
-  CheckBinary("localhost:9063", TSDB_EP_LEN);
-  CheckBinary("localhost:9064", TSDB_EP_LEN);
-  CheckBinary("localhost:9065", TSDB_EP_LEN);
-  CheckInt16(0);
-  CheckInt16(0);
-  CheckInt16(0);
-  CheckInt16(0);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckBinary("ready", 10);
-  CheckBinary("ready", 10);
-  CheckBinary("ready", 10);
-  CheckBinary("ready", 10);
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("", 24);
-  CheckBinary("", 24);
-  CheckBinary("", 24);
-  CheckBinary("", 24);
-
-  // restart
-  uInfo("stop all server");
-  test.Restart();
-  server2.Restart();
-  server3.Restart();
-  server4.Restart();
-  server5.Restart();
-
-  taosMsleep(1300);
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
-  CHECK_META("show dnodes", 7);
-  test.SendShowRetrieveMsg();
-  EXPECT_EQ(test.GetShowRows(), 4);
-
-  CheckInt16(1);
-  CheckInt16(3);
-  CheckInt16(4);
-  CheckInt16(5);
-  CheckBinary("localhost:9061", TSDB_EP_LEN);
-  CheckBinary("localhost:9063", TSDB_EP_LEN);
-  CheckBinary("localhost:9064", TSDB_EP_LEN);
-  CheckBinary("localhost:9065", TSDB_EP_LEN);
-  CheckInt16(0);
-  CheckInt16(0);
-  CheckInt16(0);
-  CheckInt16(0);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckBinary("ready", 10);
-  CheckBinary("ready", 10);
-  CheckBinary("ready", 10);
-  CheckBinary("ready", 10);
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("", 24);
-  CheckBinary("", 24);
-  CheckBinary("", 24);
-  CheckBinary("", 24);
 }
+// {
+//   int32_t contLen = sizeof(SDropDnodeMsg);
 
-#endif
+//   SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(contLen);
+//   pReq->dnodeId = htonl(2);
+
+//   SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_DROP_DNODE, pReq, contLen);
+//   ASSERT_NE(pMsg, nullptr);
+//   ASSERT_EQ(pMsg->code, 0);
+// }
+
+// test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+// CHECK_META("show dnodes", 7);
+// test.SendShowRetrieveMsg();
+// EXPECT_EQ(test.GetShowRows(), 1);
+
+// CheckInt16(1);
+// CheckBinary("localhost:9061", TSDB_EP_LEN);
+// CheckInt16(0);
+// CheckInt16(1);
+// CheckBinary("ready", 10);
+// CheckTimestamp();
+// CheckBinary("", 24);
+
+// {
+//   int32_t contLen = sizeof(SCreateDnodeMsg);
+
+//   SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
+//   strcpy(pReq->ep, "localhost:9063");
+
+//   SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
+//   ASSERT_NE(pMsg, nullptr);
+//   ASSERT_EQ(pMsg->code, 0);
+// }
+
+// {
+//   int32_t contLen = sizeof(SCreateDnodeMsg);
+
+//   SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
+//   strcpy(pReq->ep, "localhost:9064");
+
+//   SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
+//   ASSERT_NE(pMsg, nullptr);
+//   ASSERT_EQ(pMsg->code, 0);
+// }
+
+// {
+//   int32_t contLen = sizeof(SCreateDnodeMsg);
+
+//   SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
+//   strcpy(pReq->ep, "localhost:9065");
+
+//   SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
+//   ASSERT_NE(pMsg, nullptr);
+//   ASSERT_EQ(pMsg->code, 0);
+// }
+
+// taosMsleep(1300);
+// test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+// CHECK_META("show dnodes", 7);
+// test.SendShowRetrieveMsg();
+// EXPECT_EQ(test.GetShowRows(), 4);
+
+// CheckInt16(1);
+// CheckInt16(3);
+// CheckInt16(4);
+// CheckInt16(5);
+// CheckBinary("localhost:9061", TSDB_EP_LEN);
+// CheckBinary("localhost:9063", TSDB_EP_LEN);
+// CheckBinary("localhost:9064", TSDB_EP_LEN);
+// CheckBinary("localhost:9065", TSDB_EP_LEN);
+// CheckInt16(0);
+// CheckInt16(0);
+// CheckInt16(0);
+// CheckInt16(0);
+// CheckInt16(1);
+// CheckInt16(1);
+// CheckInt16(1);
+// CheckInt16(1);
+// CheckBinary("ready", 10);
+// CheckBinary("ready", 10);
+// CheckBinary("ready", 10);
+// CheckBinary("ready", 10);
+// CheckTimestamp();
+// CheckTimestamp();
+// CheckTimestamp();
+// CheckTimestamp();
+// CheckBinary("", 24);
+// CheckBinary("", 24);
+// CheckBinary("", 24);
+// CheckBinary("", 24);
+
+// // restart
+// uInfo("stop all server");
+// test.Restart();
+// server2.Restart();
+// server3.Restart();
+// server4.Restart();
+// server5.Restart();
+
+// taosMsleep(1300);
+// test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+// CHECK_META("show dnodes", 7);
+// test.SendShowRetrieveMsg();
+// EXPECT_EQ(test.GetShowRows(), 4);
+
+// CheckInt16(1);
+// CheckInt16(3);
+// CheckInt16(4);
+// CheckInt16(5);
+// CheckBinary("localhost:9061", TSDB_EP_LEN);
+// CheckBinary("localhost:9063", TSDB_EP_LEN);
+// CheckBinary("localhost:9064", TSDB_EP_LEN);
+// CheckBinary("localhost:9065", TSDB_EP_LEN);
+// CheckInt16(0);
+// CheckInt16(0);
+// CheckInt16(0);
+// CheckInt16(0);
+// CheckInt16(1);
+// CheckInt16(1);
+// CheckInt16(1);
+// CheckInt16(1);
+// CheckBinary("ready", 10);
+// CheckBinary("ready", 10);
+// CheckBinary("ready", 10);
+// CheckBinary("ready", 10);
+// CheckTimestamp();
+// CheckTimestamp();
+// CheckTimestamp();
+// CheckTimestamp();
+// CheckBinary("", 24);
+// CheckBinary("", 24);
+// CheckBinary("", 24);
+// CheckBinary("", 24);
+// }

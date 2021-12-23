@@ -622,7 +622,7 @@ void mndTransHandleActionRsp(SMnodeMsg *pMsg) {
   STransAction *pAction = taosArrayGet(pArray, action);
   if (pAction != NULL) {
     pAction->msgReceived = 1;
-    pAction->errCode = pMsg->code;
+    pAction->errCode = pMsg->rpcMsg.code;
   }
 
   mDebug("trans:%d, action:%d response is received, code:0x%x", transId, action, pMsg->code);

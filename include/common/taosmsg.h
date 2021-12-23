@@ -909,36 +909,29 @@ typedef struct SShowRsp {
 
 typedef struct {
   char    ep[TSDB_EP_LEN];  // end point, hostname:port
-  int32_t reserve[8];
 } SCreateDnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
-  int32_t reserve[8];
 } SDropDnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
   char    config[TSDB_DNODE_CONFIG_LEN];
-  int32_t reserve[8];
 } SCfgDnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
-  int32_t reserve[8];
 } SCreateMnodeMsg, SDropMnodeMsg;
 
 typedef struct {
   int32_t  dnodeId;
-  int8_t   align[3];
   int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
-  int32_t  reserve[8];
 } SCreateMnodeInMsg, SAlterMnodeInMsg;
 
 typedef struct {
   int32_t dnodeId;
-  int32_t reserve[8];
 } SDropMnodeInMsg;
 
 typedef struct {

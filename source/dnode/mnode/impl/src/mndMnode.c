@@ -31,6 +31,7 @@ static int32_t  mndMnodeActionUpdate(SSdb *pSdb, SMnodeObj *pOldMnode, SMnodeObj
 static int32_t  mndProcessCreateMnodeReq(SMnodeMsg *pMsg);
 static int32_t  mndProcessDropMnodeReq(SMnodeMsg *pMsg);
 static int32_t  mndProcessCreateMnodeRsp(SMnodeMsg *pMsg);
+static int32_t  mndProcessAlterMnodeRsp(SMnodeMsg *pMsg);
 static int32_t  mndProcessDropMnodeRsp(SMnodeMsg *pMsg);
 static int32_t  mndGetMnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
 static int32_t  mndRetrieveMnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
@@ -49,6 +50,7 @@ int32_t mndInitMnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_MNODE, mndProcessCreateMnodeReq);
   mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_MNODE, mndProcessDropMnodeReq);
   mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_MNODE_IN_RSP, mndProcessCreateMnodeRsp);
+  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_MNODE_IN_RSP, mndProcessAlterMnodeRsp);
   mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_MNODE_IN_RSP, mndProcessDropMnodeRsp);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_MNODE, mndGetMnodeMeta);
@@ -270,6 +272,8 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
   memcpy(pReplica->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
   numOfReplicas++;
 
+  createMsg.replica = numOfReplicas;
+
   while (1) {
     SMnodeObj *pMObj = NULL;
     pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pMObj);
@@ -382,7 +386,7 @@ static int32_t mndProcessCreateMnodeReq(SMnodeMsg *pMsg) {
 
   SDnodeObj *pDnode = mndAcquireDnode(pMnode, pCreate->dnodeId);
   if (pDnode == NULL) {
-    mError("mnode:%d, dnode not exist", pDnode->id);
+    mError("mnode:%d, dnode not exist", pCreate->dnodeId);
     terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
     return -1;
   }
@@ -560,9 +564,20 @@ static int32_t mndProcessDropMnodeReq(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessCreateMnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessCreateMnodeRsp(SMnodeMsg *pMsg) {
+  mndTransHandleActionRsp(pMsg);
+  return 0;
+}
 
-static int32_t mndProcessDropMnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessAlterMnodeRsp(SMnodeMsg *pMsg) {
+  mndTransHandleActionRsp(pMsg);
+  return 0;
+}
+
+static int32_t mndProcessDropMnodeRsp(SMnodeMsg *pMsg) {
+  mndTransHandleActionRsp(pMsg);
+  return 0;
+}
 
 static int32_t mndGetMnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
   SMnode *pMnode = pMsg->pMnode;

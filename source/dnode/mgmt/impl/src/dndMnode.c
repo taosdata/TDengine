@@ -349,7 +349,7 @@ static void dndBuildMnodeDeployOption(SDnode *pDnode, SMnodeOpt *pOption) {
   SReplica *pReplica = &pOption->replicas[0];
   pReplica->id = 1;
   pReplica->port = pDnode->opt.serverPort;
-  tstrncpy(pReplica->fqdn, pDnode->opt.localFqdn, TSDB_FQDN_LEN);
+  memcpy(pReplica->fqdn, pDnode->opt.localFqdn, TSDB_FQDN_LEN);
 
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   pMgmt->selfIndex = pOption->selfIndex;
@@ -376,7 +376,7 @@ static int32_t dndBuildMnodeOptionFromMsg(SDnode *pDnode, SMnodeOpt *pOption, SC
     SReplica *pReplica = &pOption->replicas[i];
     pReplica->id = pMsg->replicas[i].id;
     pReplica->port = pMsg->replicas[i].port;
-    tstrncpy(pReplica->fqdn, pMsg->replicas[i].fqdn, TSDB_FQDN_LEN);
+    memcpy(pReplica->fqdn, pMsg->replicas[i].fqdn, TSDB_FQDN_LEN);
     if (pReplica->id == pOption->dnodeId) {
       pOption->selfIndex = i;
     }
@@ -499,7 +499,7 @@ static SCreateMnodeInMsg *dndParseCreateMnodeMsg(SRpcMsg *pRpcMsg) {
 }
 
 static int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SCreateMnodeInMsg *pMsg = dndParseCreateMnodeMsg(pRpcMsg->pCont);
+  SCreateMnodeInMsg *pMsg = dndParseCreateMnodeMsg(pRpcMsg);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_ID_INVALID;
@@ -515,18 +515,23 @@ static int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
 }
 
 static int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SAlterMnodeInMsg *pMsg = dndParseCreateMnodeMsg(pRpcMsg->pCont);
+  SAlterMnodeInMsg *pMsg = dndParseCreateMnodeMsg(pRpcMsg);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_ID_INVALID;
     return -1;
-  } else {
-    SMnodeOpt option = {0};
-    if (dndBuildMnodeOptionFromMsg(pDnode, &option, pMsg) != 0) {
-      return -1;
-    }
-    return dndAlterMnode(pDnode, &option);
   }
+
+  SMnodeOpt option = {0};
+  if (dndBuildMnodeOptionFromMsg(pDnode, &option, pMsg) != 0) {
+    return -1;
+  }
+
+  if (dndAlterMnode(pDnode, &option) != 0) {
+    return -1;
+  }
+
+  return dndWriteMnodeFile(pDnode);
 }
 
 static int32_t dndProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
@@ -555,16 +560,17 @@ static void dndProcessMnodeMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
       code = dndProcessDropMnodeReq(pDnode, pMsg);
       break;
     default:
-      code = TSDB_CODE_MSG_NOT_PROCESSED;
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      code = -1;
       break;
   }
 
   if (pMsg->msgType & 1u) {
+    if (code != 0) code = terrno;
     SRpcMsg rsp = {.code = code, .handle = pMsg->handle};
     rpcSendResponse(&rsp);
   }
   rpcFreeCont(pMsg->pCont);
-  pMsg->pCont = NULL;
   taosFreeQitem(pMsg);
 }
 
@@ -625,8 +631,6 @@ static void dndProcessMnodeSyncQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
 }
 
 static int32_t dndWriteMnodeMsgToQueue(SMnode *pMnode, taos_queue pQueue, SRpcMsg *pRpcMsg) {
-  assert(pQueue);
-
   SMnodeMsg *pMsg = mndInitMsg(pMnode, pRpcMsg);
   if (pMsg == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -647,13 +651,14 @@ void dndProcessMnodeMgmtMsg(SDnode *pDnode, SRpcMsg *pRpcMsg, SEpSet *pEpSet) {
   SMnode     *pMnode = dndAcquireMnode(pDnode);
 
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg));
+  if (pMsg != NULL) *pMsg = *pRpcMsg;
+
   if (pMsg == NULL || taosWriteQitem(pMgmt->pMgmtQ, pMsg) != 0) {
     if (pRpcMsg->msgType & 1u) {
       SRpcMsg rsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_OUT_OF_MEMORY};
       rpcSendResponse(&rsp);
     }
     rpcFreeCont(pRpcMsg->pCont);
-    pRpcMsg->pCont = NULL;
     taosFreeQitem(pMsg);
   }
 }
@@ -894,6 +899,11 @@ int32_t dndInitMnode(SDnode *pDnode) {
     return -1;
   }
 
+  if (dndAllocMnodeMgmtQueue(pDnode) != 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
   char path[PATH_MAX];
   snprintf(path, PATH_MAX, "%s/mnode.json", pDnode->dir.dnode);
   pMgmt->file = strdup(path);
@@ -937,6 +947,7 @@ void dndCleanupMnode(SDnode *pDnode) {
   dInfo("dnode-mnode start to clean up");
   dndStopMnodeWorker(pDnode);
   dndCleanupMnodeMgmtWorker(pDnode);
+  dndFreeMnodeMgmtQueue(pDnode);
   tfree(pMgmt->file);
   mndClose(pMgmt->pMnode);
   dInfo("dnode-mnode is cleaned up");
