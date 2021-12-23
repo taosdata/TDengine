@@ -124,8 +124,13 @@ function runPyCaseOneByOnefq() {
     else
     echo $line
       if [[ $line =~ ^bash.* ]]; then
-        $line > case.log 2>&1 || cat case.log && exit 8
-        cat case.log
+        # $line > case.log 2>&1 || cat case.log && exit 8
+        # cat case.log
+        $line > case.log 2>&1  
+        if [ $? -ne 0 ];then
+          cat case.log
+          exit 8
+        fi
       fi
     fi
    fi
