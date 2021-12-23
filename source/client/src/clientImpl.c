@@ -144,71 +144,65 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
 
   tscDebugL("0x%"PRIx64" SQL: %s", pRequest->requestId, pRequest->sqlstr);
 
-  int32_t code = 0;
-  if (qIsInsertSql(pRequest->sqlstr, sqlLen)) {
-    // todo add
-  } else {
-    int32_t type = 0;
-    void*   output = NULL;
-    int32_t outputLen = 0;
+  SParseContext cxt = {
+    .ctx = {.requestId = pRequest->requestId, .acctId = pTscObj->acctId, .db = getConnectionDB(pTscObj)},
+    .pSql = pRequest->sqlstr,
+    .sqlLen = sqlLen,
+    .pMsg = pRequest->msgBuf,
+    .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE
+  };
+  SQueryNode* pQuery = NULL;
+  int32_t code = qParseQuerySql(&cxt, &pQuery);
+  if (qIsDclQuery(pQuery)) {
+    SDclStmtInfo* pDcl = (SDclStmtInfo*)pQuery;
+    pRequest->type = pDcl->msgType;
+    pRequest->body.requestMsg = (SReqMsgInfo){.pMsg = pDcl->pMsg, .len = pDcl->msgLen};
 
-    SParseBasicCtx c = {.requestId = pRequest->requestId, .acctId = pTscObj->acctId, .db = getConnectionDB(pTscObj)};
-    code = qParseQuerySql(pRequest->sqlstr, sqlLen, &c, &type, &output, &outputLen, pRequest->msgBuf, ERROR_MSG_BUF_DEFAULT_SIZE);
-    if (type == TSDB_MSG_TYPE_CREATE_USER || type == TSDB_MSG_TYPE_SHOW || type == TSDB_MSG_TYPE_DROP_USER ||
-        type == TSDB_MSG_TYPE_DROP_ACCT || type == TSDB_MSG_TYPE_CREATE_DB || type == TSDB_MSG_TYPE_CREATE_ACCT ||
-        type == TSDB_MSG_TYPE_CREATE_TABLE || type == TSDB_MSG_TYPE_CREATE_STB || type == TSDB_MSG_TYPE_USE_DB ||
-        type == TSDB_MSG_TYPE_DROP_DB || type == TSDB_MSG_TYPE_DROP_STB) {
-      pRequest->type = type;
-      pRequest->body.requestMsg = (SReqMsgInfo){.pMsg = output, .len = outputLen};
+    SRequestMsgBody body = buildRequestMsgImpl(pRequest);
+    SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
 
-      SRequestMsgBody body = buildRequestMsgImpl(pRequest);
-      SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
+    if (pDcl->msgType == TSDB_MSG_TYPE_CREATE_TABLE) {
+      struct SCatalog* pCatalog = NULL;
 
-      if (type == TSDB_MSG_TYPE_CREATE_TABLE) {
-        struct SCatalog* pCatalog = NULL;
-
-        char buf[12] = {0};
-        sprintf(buf, "%d", pTscObj->pAppInfo->clusterId);
-        code = catalogGetHandle(buf, &pCatalog);
-        if (code != 0) {
-          pRequest->code = code;
-          return pRequest;
-        }
-
-        SCreateTableMsg* pMsg = body.msgInfo.pMsg;
-
-        SName t = {0};
-        tNameFromString(&t, pMsg->name, T_NAME_ACCT|T_NAME_DB|T_NAME_TABLE);
-
-        char db[TSDB_DB_NAME_LEN + TS_PATH_DELIMITER_LEN + TSDB_ACCT_ID_LEN] = {0};
-        tNameGetFullDbName(&t, db);
-
-        SVgroupInfo info = {0};
-        catalogGetTableHashVgroup(pCatalog, pTscObj->pTransporter, pEpSet, db, tNameGetTableName(&t), &info);
-
-        int64_t transporterId = 0;
-        SEpSet ep = {0};
-        ep.inUse = info.inUse;
-        ep.numOfEps = info.numOfEps;
-        for(int32_t i = 0; i < ep.numOfEps; ++i) {
-          ep.port[i] = info.epAddr[i].port;
-          tstrncpy(ep.fqdn[i], info.epAddr[i].fqdn, tListLen(ep.fqdn[i]));
-        }
-
-        sendMsgToServer(pTscObj->pTransporter, &ep, &body, &transporterId);
-      } else {
-        int64_t transporterId = 0;
-        sendMsgToServer(pTscObj->pTransporter, pEpSet, &body, &transporterId);
+      char buf[12] = {0};
+      sprintf(buf, "%d", pTscObj->pAppInfo->clusterId);
+      code = catalogGetHandle(buf, &pCatalog);
+      if (code != 0) {
+        pRequest->code = code;
+        return pRequest;
       }
 
-      tsem_wait(&pRequest->body.rspSem);
-      destroyRequestMsgBody(&body);
+      SCreateTableMsg* pMsg = body.msgInfo.pMsg;
+
+      SName t = {0};
+      tNameFromString(&t, pMsg->name, T_NAME_ACCT|T_NAME_DB|T_NAME_TABLE);
+
+      char db[TSDB_DB_NAME_LEN + TS_PATH_DELIMITER_LEN + TSDB_ACCT_ID_LEN] = {0};
+      tNameGetFullDbName(&t, db);
+
+      SVgroupInfo info = {0};
+      catalogGetTableHashVgroup(pCatalog, pTscObj->pTransporter, pEpSet, db, tNameGetTableName(&t), &info);
+
+      int64_t transporterId = 0;
+      SEpSet ep = {0};
+      ep.inUse = info.inUse;
+      ep.numOfEps = info.numOfEps;
+      for(int32_t i = 0; i < ep.numOfEps; ++i) {
+        ep.port[i] = info.epAddr[i].port;
+        tstrncpy(ep.fqdn[i], info.epAddr[i].fqdn, tListLen(ep.fqdn[i]));
+      }
+
+      sendMsgToServer(pTscObj->pTransporter, &ep, &body, &transporterId);
     } else {
-      assert(0);
+      int64_t transporterId = 0;
+      sendMsgToServer(pTscObj->pTransporter, pEpSet, &body, &transporterId);
     }
 
-    tfree(c.db);
+    tsem_wait(&pRequest->body.rspSem);
+    destroyRequestMsgBody(&body);
   }
+
+  tfree(cxt.ctx.db);
 
   if (code != TSDB_CODE_SUCCESS) {
     pRequest->code = code;
