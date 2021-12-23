@@ -350,7 +350,7 @@ pipeline {
   }
   stages {
       stage('pre_build'){
-          agent{label 'master'}
+          agent{label 'catalina'}
           options { skipDefaultCheckout() }
           when {
               changeRequest()
