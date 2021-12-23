@@ -907,6 +907,7 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
+  int32_t reserve[8];
 } SCreateMnodeMsg, SDropMnodeMsg;
 
 typedef struct {
@@ -914,10 +915,12 @@ typedef struct {
   int8_t   align[3];
   int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
+  int32_t  reserve[8];
 } SCreateMnodeInMsg, SAlterMnodeInMsg;
 
 typedef struct {
   int32_t dnodeId;
+  int32_t reserve[8];
 } SDropMnodeInMsg;
 
 typedef struct {
