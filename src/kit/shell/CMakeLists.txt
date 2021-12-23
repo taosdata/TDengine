@@ -32,6 +32,10 @@ ELSEIF (TD_WINDOWS)
   LIST(APPEND SRC ./src/shellMain.c)
   LIST(APPEND SRC ./src/shellWindows.c)
   ADD_EXECUTABLE(shell ${SRC})
+  IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+    ADD_DEPENDENCIES(shell jemalloc)
+  ENDIF ()
+
   TARGET_LINK_LIBRARIES(shell taos_static cJson)
 
   IF (TD_POWER)
