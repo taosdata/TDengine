@@ -308,17 +308,25 @@ typedef struct {
   char     data[];
 } SMDCreateTableMsg;
 
+//typedef struct {
+//  int32_t len;  // one create table message
+//  char    tableName[TSDB_TABLE_FNAME_LEN];
+//  int16_t numOfColumns;
+//  int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
+//  int8_t  igExists;
+//  int8_t  rspMeta;
+//  int8_t  reserved[16];
+//  char    schema[];
+//} SCreateTableMsg;
+
 typedef struct {
-  int32_t len;  // one create table message
   char    tableName[TSDB_TABLE_FNAME_LEN];
-  int16_t numOfTags;
   int16_t numOfColumns;
-  int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
+  int16_t numOfTags;
   int8_t  igExists;
   int8_t  rspMeta;
-  int8_t  reserved[16];
   char    schema[];
-} SCreateTableMsg;
+} SCreateCTableMsg;
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
@@ -326,7 +334,7 @@ typedef struct {
   int32_t numOfTags;
   int32_t numOfColumns;
   SSchema pSchema[];
-} SCreateStbMsg;
+} SCreateStbMsg, SCreateTableMsg;
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
@@ -369,6 +377,7 @@ typedef struct {
 typedef struct {
   SMsgHead head;
   char     name[TSDB_TABLE_FNAME_LEN];
+  int8_t   ignoreNotExists;
 } SDropTableMsg;
 
 typedef struct {

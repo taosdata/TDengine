@@ -99,7 +99,7 @@ TEST(testCase, normalCase) {
   void *mockPointer = (void *)0x1;
   SVgroupInfo vgInfo = {0};
 
-  msgInit();
+  initQueryModuleMsgHandle();
 
   sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
   
