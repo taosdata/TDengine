@@ -7,6 +7,7 @@ node {
 def skipbuild = 0
 def win_stop = 0
 def scope = []
+def mod = [0,1,2,3,4]
 
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
@@ -380,6 +381,7 @@ pipeline {
                   temp = (gitlog =~ /\((.*?)\)/)
                   temp = temp[0].remove(1)
                   scope = temp.split(",")
+                  Collections.shuffle mod
                 }
 
               }
@@ -406,7 +408,7 @@ pipeline {
                   sh """
                     date
                     cd ${WKC}/tests
-                    ./test-CI.sh ${it} 5 1 
+                    ./test-CI.sh ${it} 5 ${mod[0]}
                     date"""
                   }
                 }
@@ -423,7 +425,7 @@ pipeline {
                     sh """
                       date
                       cd ${WKC}/tests
-                      ./test-CI.sh ${it} 5 2 
+                      ./test-CI.sh ${it} 5 ${mod[1]} 
                       date"""
                     }
                 }
@@ -440,7 +442,7 @@ pipeline {
                 sh """
                   date
                   cd ${WKC}/tests
-                  ./test-CI.sh ${it} 5 3 
+                  ./test-CI.sh ${it} 5 ${mod[2]}
                   date"""
                 }
               }
@@ -457,7 +459,7 @@ pipeline {
                 sh """
                   date
                   cd ${WKC}/tests
-                  ./test-CI.sh ${it} 5 4 
+                  ./test-CI.sh ${it} 5 ${mod[3]}
                   date"""
                 }
               }
@@ -475,7 +477,7 @@ pipeline {
                 sh """
                   date
                   cd ${WKC}/tests
-                  ./test-CI.sh ${it} 5 0
+                  ./test-CI.sh ${it} 5 ${mod[4]}
                   date"""
                 }
               }
