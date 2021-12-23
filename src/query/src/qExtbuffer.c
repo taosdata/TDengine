@@ -1040,7 +1040,10 @@ void tColModelDisplay(SColumnModel *pModel, void *pData, int32_t numOfRows, int3
           break;
         case TSDB_DATA_TYPE_NCHAR: {
           char buf[4096] = {0};
-          taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
+          int32_t len = taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
+          if (len < 0){
+            qError("castConvert1 taosUcs4ToMbs error");
+          }
           printf("%s\t", buf);
           break;
         }
@@ -1092,7 +1095,10 @@ void tColModelDisplayEx(SColumnModel *pModel, void *pData, int32_t numOfRows, in
           break;
         case TSDB_DATA_TYPE_NCHAR: {
           char buf[128] = {0};
-          taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
+          int32_t len = taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
+          if (len < 0){
+            qError("castConvert1 taosUcs4ToMbs error");
+          }
           printf("%s\t", buf);
           break;
         }

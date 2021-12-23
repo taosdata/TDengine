@@ -4243,20 +4243,28 @@ char* parseTagDatatoJson(void *p){
         }
         cJSON_AddItemToObject(json, tagJsonKey, value);
       }else if(type == TSDB_DATA_TYPE_NCHAR) {
-        char *tagJsonValue = calloc(varDataLen(realData), 1);
-        int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), tagJsonValue);
-        if (length < 0) {
-          tsdbError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
-                   (char*)val);
+        cJSON* value = NULL;
+        if (varDataLen(realData) > 0){
+          char *tagJsonValue = calloc(varDataLen(realData), 1);
+          int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), tagJsonValue);
+          if (length < 0) {
+            tsdbError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+                      (char*)val);
+            free(tagJsonValue);
+            goto end;
+          }
+          value = cJSON_CreateString(tagJsonValue);
           free(tagJsonValue);
-          goto end;
+          if (value == NULL)
+          {
+            goto end;
+          }
+        }else if(varDataLen(realData) == 0){
+          value = cJSON_CreateString("");
+        }else{
+          assert(0);
         }
-        cJSON* value = cJSON_CreateString(tagJsonValue);
-        free(tagJsonValue);
-        if (value == NULL)
-        {
-          goto end;
-        }
+
         cJSON_AddItemToObject(json, tagJsonKey, value);
       }else if(type == TSDB_DATA_TYPE_DOUBLE){
         double jsonVd = *(double*)(realData);

@@ -83,7 +83,7 @@ TDengine 提供 3 个 UDF 的源代码示例，分别为：
 gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
 ```
 
-这样就准备好了动态链接库 add_one.so 文件，可以供后文创建 UDF 时使用了。
+这样就准备好了动态链接库 add_one.so 文件，可以供后文创建 UDF 时使用了。为了保证可靠的系统运行，编译器 GCC 推荐使用 7.5及以上版本。
 
 ## 在系统中管理和使用 UDF
 
