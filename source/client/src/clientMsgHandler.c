@@ -273,9 +273,6 @@ void initMsgHandleFp() {
   tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_DATABASE] = tscProcessShowCreateRsp;
 #endif
 
-//  buildRequestMsgFp[TSDB_MSG_TYPE_CONNECT]  = buildConnectMsg;
-//  buildRequestMsgFp[TSDB_MSG_TYPE_SHOW_RETRIEVE] = buildRetrieveMnodeMsg;
-
   handleRequestRspFp[TSDB_MSG_TYPE_CONNECT]       = processConnectRsp;
   handleRequestRspFp[TSDB_MSG_TYPE_SHOW]          = processShowRsp;
   handleRequestRspFp[TSDB_MSG_TYPE_SHOW_RETRIEVE] = processRetrieveMnodeRsp;
