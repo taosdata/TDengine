@@ -354,7 +354,7 @@ bool tscHasColumnFilter(SQueryStmtInfo* pQueryInfo) {
   return false;
 }
 
-int32_t getExprFunctionLevel(SQueryStmtInfo* pQueryInfo) {
+int32_t getExprFunctionLevel(const SQueryStmtInfo* pQueryInfo) {
   int32_t n = 10;
 
   int32_t level = 0;

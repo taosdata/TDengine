@@ -29,7 +29,7 @@ typedef struct SJoinCond {
   SColumn *colCond[2];
 } SJoinCond;
 
-static SArray* createQueryPlanImpl(SQueryStmtInfo* pQueryInfo);
+static SArray* createQueryPlanImpl(const SQueryStmtInfo* pQueryInfo);
 static void doDestroyQueryNode(SQueryPlanNode* pQueryNode);
 
 int32_t printExprInfo(char* buf, const SQueryPlanNode* pQueryNode, int32_t len);
@@ -37,13 +37,37 @@ int32_t optimizeQueryPlan(struct SQueryPlanNode* pQueryNode) {
   return 0;
 }
 
-int32_t createQueryPlan(const struct SQueryStmtInfo* pQueryInfo, struct SQueryPlanNode** pQueryNode) {
-  SArray* upstream = createQueryPlanImpl((struct SQueryStmtInfo*) pQueryInfo);
+int32_t createInsertPlan(const SInsertStmtInfo* pInsert, SQueryPlanNode** pQueryPlan) {
+  *pQueryPlan = calloc(1, sizeof(SQueryPlanNode));
+  SArray* blocks = taosArrayInit(taosArrayGetSize(pInsert->pDataBlocks), POINTER_BYTES);
+  if (NULL == *pQueryPlan || NULL == blocks) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  (*pQueryPlan)->info.type = QNODE_INSERT;
+  taosArrayAddAll(blocks, pInsert->pDataBlocks);
+  (*pQueryPlan)->pExtInfo = blocks;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t createSelectPlan(const SQueryStmtInfo* pSelect, SQueryPlanNode** pQueryPlan) {
+  SArray* upstream = createQueryPlanImpl(pSelect);
   assert(taosArrayGetSize(upstream) == 1);
-
-  *pQueryNode = taosArrayGetP(upstream, 0);
-
+  *pQueryPlan = taosArrayGetP(upstream, 0);
   taosArrayDestroy(upstream);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t createQueryPlan(const SQueryNode* pNode, SQueryPlanNode** pQueryPlan) {
+  switch (nodeType(pNode)) {
+    case TSDB_SQL_SELECT: {
+      return createSelectPlan((const SQueryStmtInfo*)pNode, pQueryPlan);
+    }
+    case TSDB_SQL_INSERT:
+      return createInsertPlan((const SInsertStmtInfo*)pNode, pQueryPlan);
+    default:
+      return TSDB_CODE_FAILED;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -62,7 +86,7 @@ void destroyQueryPlan(SQueryPlanNode* pQueryNode) {
 //======================================================================================================================
 
 static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPlanNode** prev, int32_t numOfPrev,
-                                   SExprInfo** pExpr, int32_t numOfOutput, void* pExtInfo) {
+                                   SExprInfo** pExpr, int32_t numOfOutput, const void* pExtInfo) {
   SQueryPlanNode* pNode = calloc(1, sizeof(SQueryPlanNode));
 
   pNode->info.type = type;
@@ -123,7 +147,7 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
     }
 
     case QNODE_FILL: { // todo !!
-      pNode->pExtInfo = pExtInfo;
+      pNode->pExtInfo = (void*)pExtInfo;
       break;
     }
 
@@ -145,7 +169,7 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
   return pNode;
 }
 
-static SQueryPlanNode* doAddTableColumnNode(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SQueryTableInfo* info,
+static SQueryPlanNode* doAddTableColumnNode(const SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SQueryTableInfo* info,
                                         SArray* pExprs, SArray* tableCols) {
   if (pQueryInfo->info.onlyTagQuery) {
     int32_t num = (int32_t) taosArrayGetSize(pExprs);
@@ -186,7 +210,7 @@ static SQueryPlanNode* doAddTableColumnNode(SQueryStmtInfo* pQueryInfo, STableMe
   return pNode;
 }
 
-static SQueryPlanNode* doCreateQueryPlanForSingleTableImpl(SQueryStmtInfo* pQueryInfo, SQueryPlanNode* pNode, SQueryTableInfo* info) {
+static SQueryPlanNode* doCreateQueryPlanForSingleTableImpl(const SQueryStmtInfo* pQueryInfo, SQueryPlanNode* pNode, SQueryTableInfo* info) {
   // group by column not by tag
   size_t numOfGroupCols = taosArrayGetSize(pQueryInfo->groupbyExpr.columnInfo);
 
@@ -239,7 +263,7 @@ static SQueryPlanNode* doCreateQueryPlanForSingleTableImpl(SQueryStmtInfo* pQuer
     memcpy(pInfo->val, pQueryInfo->fillVal, pNode->numOfExpr);
 
     SArray* p = pQueryInfo->exprList[0];  // top expression in select clause
-    pNode = createQueryNode(QNODE_FILL, "Fill", &pNode, 1, p, taosArrayGetSize(p), pInfo);
+    pNode = createQueryNode(QNODE_FILL, "Fill", &pNode, 1, p->pData, taosArrayGetSize(p), pInfo);
   }
 
   if (pQueryInfo->order != NULL) {
@@ -254,7 +278,7 @@ static SQueryPlanNode* doCreateQueryPlanForSingleTableImpl(SQueryStmtInfo* pQuer
   return pNode;
 }
 
-static SQueryPlanNode* doCreateQueryPlanForSingleTable(SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SArray* pExprs,
+static SQueryPlanNode* doCreateQueryPlanForSingleTable(const SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SArray* pExprs,
                                                 SArray* tableCols) {
   char name[TSDB_TABLE_FNAME_LEN] = {0};
   tstrncpy(name, pTableMetaInfo->name.tname, TSDB_TABLE_FNAME_LEN);
@@ -286,7 +310,7 @@ static bool isAllAggExpr(SArray* pList) {
   return true;
 }
 
-SArray* createQueryPlanImpl(SQueryStmtInfo* pQueryInfo) {
+SArray* createQueryPlanImpl(const SQueryStmtInfo* pQueryInfo) {
   SArray* upstream = NULL;
 
   if (pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // subquery in the from clause

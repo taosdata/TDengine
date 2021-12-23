@@ -42,11 +42,11 @@ typedef struct SIndexStat {
 
 struct SIndex {
 #ifdef USE_LUCENE
-  index_t *index;
+  index_t* index;
 #endif
-  void *    cache;
-  void *    tindex;
-  SHashObj *colObj;  // < field name, field id>
+  void*     cache;
+  void*     tindex;
+  SHashObj* colObj;  // < field name, field id>
 
   int64_t suid;      // current super table id, -1 is normal table
   int     colId;     // field id allocated to cache
@@ -58,7 +58,7 @@ struct SIndex {
 
 struct SIndexOpts {
 #ifdef USE_LUCENE
-  void *opts;
+  void* opts;
 #endif
 
 #ifdef USE_INVERTED_INDEX
@@ -69,7 +69,7 @@ struct SIndexOpts {
 
 struct SIndexMultiTermQuery {
   EIndexOperatorType opera;
-  SArray *           query;
+  SArray*            query;
 };
 
 // field and key;
@@ -77,14 +77,14 @@ typedef struct SIndexTerm {
   int64_t            suid;
   SIndexOperOnColumn operType;  // oper type, add/del/update
   uint8_t            colType;   // term data type, str/interger/json
-  char *             colName;
+  char*              colName;
   int32_t            nColName;
-  char *             colVal;
+  char*              colVal;
   int32_t            nColVal;
 } SIndexTerm;
 
 typedef struct SIndexTermQuery {
-  SIndexTerm *    term;
+  SIndexTerm*     term;
   EIndexQueryType qType;
 } SIndexTermQuery;
 

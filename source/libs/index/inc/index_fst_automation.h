@@ -26,18 +26,18 @@ typedef struct AutomationCtx AutomationCtx;
 typedef enum AutomationType { AUTOMATION_PREFIX, AUTMMATION_MATCH } AutomationType;
 
 typedef struct StartWith {
-  AutomationCtx *autoSelf;
+  AutomationCtx* autoSelf;
 } StartWith;
 
 typedef struct Complement {
-  AutomationCtx *autoSelf;
+  AutomationCtx* autoSelf;
 } Complement;
 
 // automation
 typedef struct AutomationCtx {
   AutomationType type;
-  void *         stdata;
-  char *         data;
+  void*          stdata;
+  char*          data;
 } AutomationCtx;
 
 typedef enum ValueType { FST_INT, FST_CHAR, FST_ARRAY } ValueType;
@@ -48,27 +48,27 @@ typedef struct StartWithStateValue {
   ValueType          type;
   union {
     int     val;
-    char *  ptr;
-    SArray *arr;
+    char*   ptr;
+    SArray* arr;
     // add more type
   };
 } StartWithStateValue;
 
-StartWithStateValue *startWithStateValueCreate(StartWithStateKind kind, ValueType ty, void *val);
-StartWithStateValue *startWithStateValueDump(StartWithStateValue *sv);
-void                 startWithStateValueDestroy(void *sv);
+StartWithStateValue* startWithStateValueCreate(StartWithStateKind kind, ValueType ty, void* val);
+StartWithStateValue* startWithStateValueDump(StartWithStateValue* sv);
+void                 startWithStateValueDestroy(void* sv);
 
 typedef struct AutomationFunc {
-  void *(*start)(AutomationCtx *ctx);
-  bool (*isMatch)(AutomationCtx *ctx, void *);
-  bool (*canMatch)(AutomationCtx *ctx, void *data);
-  bool (*willAlwaysMatch)(AutomationCtx *ctx, void *state);
-  void *(*accept)(AutomationCtx *ctx, void *state, uint8_t byte);
-  void *(*acceptEof)(AutomationCtx *ct, void *state);
+  void* (*start)(AutomationCtx* ctx);
+  bool (*isMatch)(AutomationCtx* ctx, void*);
+  bool (*canMatch)(AutomationCtx* ctx, void* data);
+  bool (*willAlwaysMatch)(AutomationCtx* ctx, void* state);
+  void* (*accept)(AutomationCtx* ctx, void* state, uint8_t byte);
+  void* (*acceptEof)(AutomationCtx* ct, void* state);
 } AutomationFunc;
 
-AutomationCtx *automCtxCreate(void *data, AutomationType atype);
-void           automCtxDestroy(AutomationCtx *ctx);
+AutomationCtx* automCtxCreate(void* data, AutomationType atype);
+void           automCtxDestroy(AutomationCtx* ctx);
 
 extern AutomationFunc automFuncs[];
 #ifdef __cplusplus

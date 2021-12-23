@@ -16,8 +16,6 @@
 #ifndef TDENGINE_TNAME_H
 #define TDENGINE_TNAME_H
 
-//#include "taosmsg.h"
-
 #define TSDB_DB_NAME_T     1
 #define TSDB_TABLE_NAME_T  2
 

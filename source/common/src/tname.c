@@ -6,21 +6,6 @@
 
 #define VALID_NAME_TYPE(x)  ((x) == TSDB_DB_NAME_T || (x) == TSDB_TABLE_NAME_T)
 
-char* extractDBName(const char* tableId, char* name) {
-  size_t offset1 = strcspn(tableId, &TS_PATH_DELIMITER[0]);
-  size_t len = strcspn(&tableId[offset1 + 1], &TS_PATH_DELIMITER[0]);
-  
-  return strncpy(name, &tableId[offset1 + 1], len);
-}
-
-// todo remove it
-size_t tableIdPrefix(const char* name, char* prefix, int32_t len) {
-  tstrncpy(prefix, name, len);
-  strcat(prefix, TS_PATH_DELIMITER);
-
-  return strlen(prefix);
-}
-
 bool tscValidateTableNameLength(size_t len) {
   return len < TSDB_TABLE_NAME_LEN;
 }
@@ -125,7 +110,7 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
     return -1;
   }
 
-  int32_t len = snprintf(dst, TSDB_FULL_DB_NAME_LEN, "%s.%s", name->acctId, name->dbname);
+  int32_t len = snprintf(dst, TSDB_FULL_DB_NAME_LEN, "%d.%s", name->acctId, name->dbname);
 
   size_t tnameLen = strlen(name->tname);
   if (tnameLen > 0) {
@@ -141,7 +126,9 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
 
 int32_t tNameLen(const SName* name) {
   assert(name != NULL);
-  int32_t len  = (int32_t) strlen(name->acctId);
+
+  char tmp[12] = {0};
+  int32_t len = sprintf(tmp, "%d", name->acctId);
   int32_t len1 = (int32_t) strlen(name->dbname);
   int32_t len2 = (int32_t) strlen(name->tname);
 
@@ -158,10 +145,6 @@ bool tNameIsValid(const SName* name) {
   assert(name != NULL);
 
   if (!VALID_NAME_TYPE(name->type)) {
-    return false;
-  }
-
-  if (strlen(name->acctId) <= 0) {
     return false;
   }
 
@@ -237,13 +220,6 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
       return -1;
     }
 
-    int32_t len = (int32_t)(p - str);
-
-    // too long account id or too long db name
-//    if ((len >= tListLen(dst->acctId)) || (len <= 0)) {
-//      return -1;
-//    }
-//    memcpy (dst->acctId, str, len);
     dst->acctId = strtoll(str, NULL, 10);
   }
 
@@ -272,9 +248,8 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
     dst->type = TSDB_TABLE_NAME_T;
     char* start = (char*) ((p == NULL)? str: (p+1));
 
-    int32_t len = (int32_t) strlen(start);
-
     // too long account id or too long db name
+    int32_t len = (int32_t) strlen(start);
     if ((len >= tListLen(dst->tname)) || (len <= 0)) {
       return -1;
     }

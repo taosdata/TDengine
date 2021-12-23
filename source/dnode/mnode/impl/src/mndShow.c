@@ -138,7 +138,7 @@ static int32_t mndProcessShowMsg(SMnodeMsg *pMnodeMsg) {
   ShowMetaFp metaFp = pMgmt->metaFps[type];
   if (metaFp == NULL) {
     terrno = TSDB_CODE_MND_INVALID_MSG_TYPE;
-    mError("failed to process show-meta msg:%s since no message handle", mndShowStr(type));
+    mError("failed to process show-meta msg:%s since %s", mndShowStr(type), terrstr());
     return -1;
   }
 

@@ -137,24 +137,26 @@ typedef struct SRequestMsgBody {
 
 extern SAppInfo   appInfo;
 extern int32_t    tscReqRef;
-extern void      *tscQhandle;
 extern int32_t    tscConnRef;
 
-extern int (*buildRequestMsgFp[TSDB_SQL_MAX])(SRequestObj *pRequest, SRequestMsgBody *pMsgBody);
-extern int (*handleRequestRspFp[TSDB_SQL_MAX])(SRequestObj *pRequest, const char* pMsg, int32_t msgLen);
+SRequestMsgBody buildRequestMsgImpl(SRequestObj *pRequest);
+extern int (*handleRequestRspFp[TSDB_MSG_TYPE_MAX])(SRequestObj *pRequest, const char* pMsg, int32_t msgLen);
 
 int   taos_init();
 
-void* createTscObj(const char* user, const char* auth, const char *ip, uint32_t port, SAppInstInfo* pAppInfo);
+void* createTscObj(const char* user, const char* auth, const char *db, SAppInstInfo* pAppInfo);
 void  destroyTscObj(void*pObj);
 
-void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t type);
-void destroyRequest(SRequestObj* pRequest);
+void *createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t type);
+void  destroyRequest(SRequestObj* pRequest);
+
+char *getConnectionDB(STscObj* pObj);
+void  setConnectionDB(STscObj* pTscObj, const char* db);
 
 void taos_init_imp(void);
 int taos_options_imp(TSDB_OPTION option, const char *str);
 
-void* openTransporter(const char *user, const char *auth);
+void* openTransporter(const char *user, const char *auth, int32_t numOfThreads);
 
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 void initMsgHandleFp();

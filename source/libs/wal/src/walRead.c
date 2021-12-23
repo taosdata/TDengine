@@ -170,6 +170,7 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   return 0;
 }
 
+#if 0
 int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
   int code;
   code = walSeekVer(pWal, ver);
@@ -207,6 +208,7 @@ int32_t walRead(SWal *pWal, SWalHead **ppHead, int64_t ver) {
   return 0;
 }
 
-/*int32_t walReadWithFp(SWal *pWal, FWalWrite writeFp, int64_t verStart, int32_t readNum) {*/
-/*return 0;*/
-/*}*/
+int32_t walReadWithFp(SWal *pWal, FWalWrite writeFp, int64_t verStart, int32_t readNum) {
+return 0;
+}
+#endif

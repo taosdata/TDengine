@@ -18,6 +18,7 @@
 
 #include "tq.h"
 #include "tlog.h"
+#include "trpc.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -16,7 +16,6 @@
 #include <gtest/gtest.h>
 #include <taoserror.h>
 #include <iostream>
-#include "tglobal.h"
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 
 #pragma GCC diagnostic ignored "-Wunused-function"
@@ -25,8 +24,22 @@
 
 #include "../inc/clientInt.h"
 #include "taos.h"
+#include "tglobal.h"
 
 namespace {
+void showDB(TAOS* pConn) {
+  TAOS_RES* pRes = taos_query(pConn, "show databases");
+  TAOS_ROW  pRow = NULL;
+
+  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+  int32_t     numOfFields = taos_num_fields(pRes);
+
+  char str[512] = {0};
+  while ((pRow = taos_fetch_row(pRes)) != NULL) {
+    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+    printf("%s\n", str);
+  }
+}
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -34,111 +47,112 @@ int main(int argc, char** argv) {
   return RUN_ALL_TESTS();
 }
 
-TEST(testCase, driverInit_Test) {
-  taos_init();
-}
+TEST(testCase, driverInit_Test) { taos_init(); }
 
-TEST(testCase, connect_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+// TEST(testCase, connect_Test) {
+//  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+////  assert(pConn != NULL);
+//  taos_close(pConn);
+//}
+//
+// TEST(testCase, create_user_Test) {
+//  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
 //  assert(pConn != NULL);
-  taos_close(pConn);
-}
-
-TEST(testCase, create_user_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+//
+//  TAOS_RES* pRes = taos_query(pConn, "create user abc pass 'abc'");
+//  if (taos_errno(pRes) != TSDB_CODE_SUCCESS) {
+//    printf("failed to create user, reason:%s\n", taos_errstr(pRes));
+//  }
+//
+//  taos_free_result(pRes);
+//  taos_close(pConn);
+//}
+//
+// TEST(testCase, create_account_Test) {
+//  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
 //  assert(pConn != NULL);
-
-  TAOS_RES* pRes = taos_query(pConn, "create user abc pass 'abc'");
-  if (taos_errno(pRes) != TSDB_CODE_SUCCESS) {
-    printf("failed to create user, reason:%s\n", taos_errstr(pRes));
-  }
-
-  taos_free_result(pRes);
-  taos_close(pConn);
-}
-
-TEST(testCase, create_account_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
-
-  TAOS_RES* pRes = taos_query(pConn, "create account aabc pass 'abc'");
-  if (taos_errno(pRes) != TSDB_CODE_SUCCESS) {
-    printf("failed to create user, reason:%s\n", taos_errstr(pRes));
-  }
-
-  taos_free_result(pRes);
-  taos_close(pConn);
-}
-
-TEST(testCase, drop_account_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
-
-  TAOS_RES* pRes = taos_query(pConn, "drop account aabc");
-  if (taos_errno(pRes) != TSDB_CODE_SUCCESS) {
-    printf("failed to create user, reason:%s\n", taos_errstr(pRes));
-  }
-
-  taos_free_result(pRes);
-  taos_close(pConn);
-}
-
-TEST(testCase, show_user_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+//
+//  TAOS_RES* pRes = taos_query(pConn, "create account aabc pass 'abc'");
+//  if (taos_errno(pRes) != TSDB_CODE_SUCCESS) {
+//    printf("failed to create user, reason:%s\n", taos_errstr(pRes));
+//  }
+//
+//  taos_free_result(pRes);
+//  taos_close(pConn);
+//}
+//
+// TEST(testCase, drop_account_Test) {
+//  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
 //  assert(pConn != NULL);
-
-  TAOS_RES* pRes = taos_query(pConn, "show users");
-  TAOS_ROW pRow = NULL;
-
-  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-  int32_t numOfFields = taos_num_fields(pRes);
-
-  char str[512] = {0};
-  while((pRow = taos_fetch_row(pRes)) != NULL) {
-    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    printf("%s\n", str);
-  }
-
-  taos_close(pConn);
-}
-
-TEST(testCase, drop_user_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
-
-  TAOS_RES* pRes = taos_query(pConn, "drop user abc");
-  if (taos_errno(pRes) != TSDB_CODE_SUCCESS) {
-    printf("failed to create user, reason:%s\n", taos_errstr(pRes));
-  }
-
-  taos_free_result(pRes);
-  taos_close(pConn);
-}
-
-TEST(testCase, show_db_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+//
+//  TAOS_RES* pRes = taos_query(pConn, "drop account aabc");
+//  if (taos_errno(pRes) != TSDB_CODE_SUCCESS) {
+//    printf("failed to create user, reason:%s\n", taos_errstr(pRes));
+//  }
+//
+//  taos_free_result(pRes);
+//  taos_close(pConn);
+//}
+//
+// TEST(testCase, show_user_Test) {
+//  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+////  assert(pConn != NULL);
+//
+//  TAOS_RES* pRes = taos_query(pConn, "show users");
+//  TAOS_ROW pRow = NULL;
+//
+//  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+//  int32_t numOfFields = taos_num_fields(pRes);
+//
+//  char str[512] = {0};
+//  while((pRow = taos_fetch_row(pRes)) != NULL) {
+//    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+//    printf("%s\n", str);
+//  }
+//
+//  taos_close(pConn);
+//}
+//
+// TEST(testCase, drop_user_Test) {
+//  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
 //  assert(pConn != NULL);
-
-  TAOS_RES* pRes = taos_query(pConn, "show databases");
-  TAOS_ROW pRow = NULL;
-
-  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-  int32_t numOfFields = taos_num_fields(pRes);
-
-  char str[512] = {0};
-  while((pRow = taos_fetch_row(pRes)) != NULL) {
-    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    printf("%s\n", str);
-  }
-
-  taos_close(pConn);
-}
+//
+//  TAOS_RES* pRes = taos_query(pConn, "drop user abc");
+//  if (taos_errno(pRes) != TSDB_CODE_SUCCESS) {
+//    printf("failed to create user, reason:%s\n", taos_errstr(pRes));
+//  }
+//
+//  taos_free_result(pRes);
+//  taos_close(pConn);
+//}
+//
+// TEST(testCase, show_db_Test) {
+//  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+////  assert(pConn != NULL);
+//
+//  TAOS_RES* pRes = taos_query(pConn, "show databases");
+//  TAOS_ROW pRow = NULL;
+//
+//  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+//  int32_t numOfFields = taos_num_fields(pRes);
+//
+//  char str[512] = {0};
+//  while((pRow = taos_fetch_row(pRes)) != NULL) {
+//    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+//    printf("%s\n", str);
+//  }
+//
+//  taos_close(pConn);
+//}
 
 TEST(testCase, create_db_Test) {
   TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "create database abc1");
+  if (taos_errno(pRes) != 0) {
+    printf("error in create db, reason:%s\n", taos_errstr(pRes));
+  }
 
   TAOS_FIELD* pFields = taos_fetch_fields(pRes);
   ASSERT_TRUE(pFields == NULL);
@@ -148,3 +162,143 @@ TEST(testCase, create_db_Test) {
 
   taos_close(pConn);
 }
+
+TEST(testCase, use_db_test) {
+  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  assert(pConn != NULL);
+
+  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+  if (taos_errno(pRes) != 0) {
+    printf("error in use db, reason:%s\n", taos_errstr(pRes));
+  }
+
+  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+  ASSERT_TRUE(pFields == NULL);
+
+  int32_t numOfFields = taos_num_fields(pRes);
+  ASSERT_EQ(numOfFields, 0);
+
+  taos_close(pConn);
+}
+
+TEST(testCase, drop_db_test) {
+  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  assert(pConn != NULL);
+
+  showDB(pConn);
+
+  TAOS_RES* pRes = taos_query(pConn, "drop database abc1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to drop db, reason:%s\n", taos_errstr(pRes));
+  }
+
+  taos_free_result(pRes);
+
+  showDB(pConn);
+  taos_close(pConn);
+}
+
+// TEST(testCase, create_stable_Test) {
+//  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+//  assert(pConn != NULL);
+//
+//  TAOS_RES* pRes = taos_query(pConn, "create database abc1");
+//  if (taos_errno(pRes) != 0) {
+//    printf("error in create db, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
+//
+//  pRes = taos_query(pConn, "use abc1");
+//  if (taos_errno(pRes) != 0) {
+//    printf("error in use db, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
+//
+//  pRes = taos_query(pConn, "create stable st1(ts timestamp, k int) tags(a int)");
+//  if (taos_errno(pRes) != 0) {
+//    printf("error in create stable, reason:%s\n", taos_errstr(pRes));
+//  }
+//
+//  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+//  ASSERT_TRUE(pFields == NULL);
+//
+//  int32_t numOfFields = taos_num_fields(pRes);
+//  ASSERT_EQ(numOfFields, 0);
+//
+//  taos_free_result(pRes);
+//  taos_close(pConn);
+//}
+
+TEST(testCase, create_table_Test) {
+  //  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  //  assert(pConn != NULL);
+  //
+  //  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+  //  taos_free_result(pRes);
+  //
+  //  pRes = taos_query(pConn, "create table tm0(ts timestamp, k int)");
+  //  taos_free_result(pRes);
+  //
+  //  taos_close(pConn);
+}
+
+TEST(testCase, create_ctable_Test) {}
+
+TEST(testCase, show_stable_Test) {
+  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  assert(pConn != NULL);
+
+  TAOS_RES* pRes = taos_query(pConn, "show stables");
+  TAOS_ROW pRow = NULL;
+
+  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+  int32_t numOfFields = taos_num_fields(pRes);
+
+  char str[512] = {0};
+  while((pRow = taos_fetch_row(pRes)) != NULL) {
+    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+    printf("%s\n", str);
+  }
+
+  taos_free_result(pRes);
+
+  taos_close(pConn);
+}
+
+TEST(testCase, drop_stable_Test) {
+  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  assert(pConn != NULL);
+
+  TAOS_RES* pRes = taos_query(pConn, "create database abc1");
+  if (taos_errno(pRes) != 0) {
+    printf("error in creating db, reason:%s\n", taos_errstr(pRes));
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "use abc1");
+  if (taos_errno(pRes) != 0) {
+    printf("error in using db, reason:%s\n", taos_errstr(pRes));
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "drop stable st1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to drop stable, reason:%s\n", taos_errstr(pRes));
+  }
+
+  taos_free_result(pRes);
+  taos_close(pConn);
+}
+
+//TEST(testCase, show_table_Test) {
+//  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+//  assert(pConn != NULL);
+//
+//  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+//  taos_free_result(pRes);
+//
+//  pRes = taos_query(pConn, "show tables");
+//  taos_free_result(pRes);
+//
+//  taos_close(pConn);
+//}

@@ -102,9 +102,8 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
   SAppInstInfo** pInst = taosHashGet(appInfo.pInstMap, key, strlen(key));
   if (pInst == NULL) {
     SAppInstInfo* p = calloc(1, sizeof(struct SAppInstInfo));
-
     p->mgmtEp       = epSet;
-    p->pTransporter = openTransporter(user, secretEncrypt);
+    p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
 
     pInst = &p;
@@ -152,24 +151,63 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
     int32_t type = 0;
     void*   output = NULL;
     int32_t outputLen = 0;
-    code = qParseQuerySql(pRequest->sqlstr, sqlLen, pRequest->requestId, &type, &output, &outputLen, pRequest->msgBuf, ERROR_MSG_BUF_DEFAULT_SIZE);
-    if (type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_SHOW || type == TSDB_SQL_DROP_USER || type == TSDB_SQL_DROP_ACCT || type == TSDB_SQL_CREATE_DB || type == TSDB_SQL_CREATE_ACCT) {
+
+    SParseBasicCtx c = {.requestId = pRequest->requestId, .acctId = pTscObj->acctId, .db = getConnectionDB(pTscObj)};
+    code = qParseQuerySql(pRequest->sqlstr, sqlLen, &c, &type, &output, &outputLen, pRequest->msgBuf, ERROR_MSG_BUF_DEFAULT_SIZE);
+    if (type == TSDB_MSG_TYPE_CREATE_USER || type == TSDB_MSG_TYPE_SHOW || type == TSDB_MSG_TYPE_DROP_USER ||
+        type == TSDB_MSG_TYPE_DROP_ACCT || type == TSDB_MSG_TYPE_CREATE_DB || type == TSDB_MSG_TYPE_CREATE_ACCT ||
+        type == TSDB_MSG_TYPE_CREATE_TABLE || type == TSDB_MSG_TYPE_CREATE_STB || type == TSDB_MSG_TYPE_USE_DB ||
+        type == TSDB_MSG_TYPE_DROP_DB || type == TSDB_MSG_TYPE_DROP_STB) {
       pRequest->type = type;
       pRequest->body.requestMsg = (SReqMsgInfo){.pMsg = output, .len = outputLen};
 
-      SRequestMsgBody body = {0};
-      buildRequestMsgFp[type](pRequest, &body);
+      SRequestMsgBody body = buildRequestMsgImpl(pRequest);
+      SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
 
-      int64_t transporterId = 0;
-      sendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &body, &transporterId);
+      if (type == TSDB_MSG_TYPE_CREATE_TABLE) {
+        struct SCatalog* pCatalog = NULL;
+
+        char buf[12] = {0};
+        sprintf(buf, "%d", pTscObj->pAppInfo->clusterId);
+        code = catalogGetHandle(buf, &pCatalog);
+        if (code != 0) {
+          pRequest->code = code;
+          return pRequest;
+        }
+
+        SCreateTableMsg* pMsg = body.msgInfo.pMsg;
+
+        SName t = {0};
+        tNameFromString(&t, pMsg->name, T_NAME_ACCT|T_NAME_DB|T_NAME_TABLE);
+
+        char db[TSDB_DB_NAME_LEN + TS_PATH_DELIMITER_LEN + TSDB_ACCT_ID_LEN] = {0};
+        tNameGetFullDbName(&t, db);
+
+        SVgroupInfo info = {0};
+        catalogGetTableHashVgroup(pCatalog, pTscObj->pTransporter, pEpSet, db, tNameGetTableName(&t), &info);
+
+        int64_t transporterId = 0;
+        SEpSet ep = {0};
+        ep.inUse = info.inUse;
+        ep.numOfEps = info.numOfEps;
+        for(int32_t i = 0; i < ep.numOfEps; ++i) {
+          ep.port[i] = info.epAddr[i].port;
+          tstrncpy(ep.fqdn[i], info.epAddr[i].fqdn, tListLen(ep.fqdn[i]));
+        }
+
+        sendMsgToServer(pTscObj->pTransporter, &ep, &body, &transporterId);
+      } else {
+        int64_t transporterId = 0;
+        sendMsgToServer(pTscObj->pTransporter, pEpSet, &body, &transporterId);
+      }
 
       tsem_wait(&pRequest->body.rspSem);
-
-
       destroyRequestMsgBody(&body);
     } else {
       assert(0);
     }
+
+    tfree(c.db);
   }
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -217,13 +255,13 @@ int initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSe
 }
 
 STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param, SAppInstInfo* pAppInfo) {
-  STscObj *pTscObj = createTscObj(user, auth, ip, port, pAppInfo);
+  STscObj *pTscObj = createTscObj(user, auth, db, pAppInfo);
   if (NULL == pTscObj) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return pTscObj;
   }
 
-  SRequestObj *pRequest = createRequest(pTscObj, fp, param, TSDB_SQL_CONNECT);
+  SRequestObj *pRequest = createRequest(pTscObj, fp, param, TSDB_MSG_TYPE_CONNECT);
   if (pRequest == NULL) {
     destroyTscObj(pTscObj);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -265,16 +303,11 @@ static int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody)
     return -1;
   }
 
-  // TODO refactor full_name
-  char *db;  // ugly code to move the space
-
   STscObj *pObj = pRequest->pTscObj;
-  pthread_mutex_lock(&pObj->mutex);
-  db = strstr(pObj->db, TS_PATH_DELIMITER);
 
-  db = (db == NULL) ? pObj->db : db + 1;
+  char* db = getConnectionDB(pObj);
   tstrncpy(pConnect->db, db, sizeof(pConnect->db));
-  pthread_mutex_unlock(&pObj->mutex);
+  tfree(db);
 
   pConnect->pid = htonl(appInfo.pid);
   pConnect->startTime = htobe64(appInfo.startTime);
@@ -392,10 +425,9 @@ void* doFetchRow(SRequestObj* pRequest) {
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
   if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
-    pRequest->type = TSDB_SQL_RETRIEVE_MNODE;
+    pRequest->type = TSDB_MSG_TYPE_SHOW_RETRIEVE;
 
-    SRequestMsgBody body = {0};
-    buildRequestMsgFp[pRequest->type](pRequest, &body);
+    SRequestMsgBody body = buildRequestMsgImpl(pRequest);
 
     int64_t transporterId = 0;
     STscObj* pTscObj = pRequest->pTscObj;
@@ -437,8 +469,19 @@ void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t 
   }
 }
 
-const char *taos_get_client_info() { return version; }
+char* getConnectionDB(STscObj* pObj) {
+  char *p = NULL;
+  pthread_mutex_lock(&pObj->mutex);
+  p = strndup(pObj->db, tListLen(pObj->db));
+  pthread_mutex_unlock(&pObj->mutex);
 
-int taos_affected_rows(TAOS_RES *res) { return 1; }
+  return p;
+}
 
-int taos_result_precision(TAOS_RES *res) { return TSDB_TIME_PRECISION_MILLI; }
+void setConnectionDB(STscObj* pTscObj, const char* db) {
+  assert(db != NULL && pTscObj != NULL);
+  pthread_mutex_lock(&pTscObj->mutex);
+  tstrncpy(pTscObj->db, db, tListLen(pTscObj->db));
+  pthread_mutex_unlock(&pTscObj->mutex);
+}
+
