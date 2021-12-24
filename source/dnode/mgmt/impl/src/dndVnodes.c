@@ -829,6 +829,7 @@ static void dndProcessVnodeWriteQueue(SVnodeObj *pVnode, taos_qall qall, int32_t
     SRpcMsg *pMsg = *(SRpcMsg **)taosArrayGet(pArray, i);
     int32_t  code = vnodeApplyWMsg(pVnode->pImpl, pMsg, &pRsp);
     if (pRsp != NULL) {
+      pRsp->ahandle = pMsg->ahandle;
       rpcSendResponse(pRsp);
       free(pRsp);
     } else {

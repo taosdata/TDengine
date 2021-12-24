@@ -1056,6 +1056,43 @@ typedef struct STaskDropRsp {
   int32_t code;
 } STaskDropRsp;
 
+typedef struct {
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  int8_t  igExists;
+  int32_t execLen;
+  void*   executor;
+  int32_t sqlLen;
+  char*   sql;
+} SCreateTopicMsg;
+
+typedef struct {
+  char   name[TSDB_TABLE_FNAME_LEN];
+  int8_t igNotExists;
+} SDropTopicMsg;
+
+typedef struct {
+  char    name[TSDB_TABLE_FNAME_LEN];
+  int8_t  alterType;
+  SSchema schema;
+} SAlterTopicMsg;
+
+typedef struct {
+  SMsgHead head;
+  char     name[TSDB_TABLE_FNAME_LEN];
+  uint64_t tuid;
+  int32_t  sverson;
+  int32_t  execLen;
+  char*    executor;
+  int32_t  sqlLen;
+  char*    sql;
+} SCreateTopicInternalMsg;
+
+typedef struct {
+  SMsgHead head;
+  char     name[TSDB_TABLE_FNAME_LEN];
+  uint64_t tuid;
+} SDropTopicInternalMsg;
+
 #pragma pack(pop)
 
 #ifdef __cplusplus
