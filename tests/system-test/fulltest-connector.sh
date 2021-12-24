@@ -1,5 +1,5 @@
 
-python3 ./test.py -f 3-connectors/restful_binddbname.py
+python3 ./test.py -f 3-connectors/restful/restful_binddbname.py
 
 bash 3-connectors/c#/test.sh 
 bash 3-connectors/go/test.sh
