@@ -127,6 +127,11 @@ static int vnodeOpenImpl(SVnode *pVnode) {
     return -1;
   }
 
+  // Open Query
+  if (vnodeQueryOpen(pVnode)) {
+    return -1;
+  }
+
   // TODO
   return 0;
 }

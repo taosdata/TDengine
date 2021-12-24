@@ -34,6 +34,7 @@
 #include "vnodeRequest.h"
 #include "vnodeStateMgr.h"
 #include "vnodeSync.h"
+#include "vnodeQuery.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -72,6 +73,7 @@ struct SVnode {
   SVnodeSync* pSync;
   SVnodeFS*   pFs;
   tsem_t      canCommit;
+  void*       pQuery;
 };
 
 int vnodeScheduleTask(SVnodeTask* task);

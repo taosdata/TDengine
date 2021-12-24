@@ -113,6 +113,13 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
   return taosConnectImpl(ip, user, &secretEncrypt[0], db, port, NULL, NULL, *pInst);
 }
 
+static bool supportedQueryType(int32_t type) {
+  return (type == TSDB_MSG_TYPE_CREATE_USER || type == TSDB_MSG_TYPE_SHOW || type == TSDB_MSG_TYPE_DROP_USER ||
+          type == TSDB_MSG_TYPE_DROP_ACCT || type == TSDB_MSG_TYPE_CREATE_DB || type == TSDB_MSG_TYPE_CREATE_ACCT ||
+          type == TSDB_MSG_TYPE_CREATE_TABLE || type == TSDB_MSG_TYPE_CREATE_STB || type == TSDB_MSG_TYPE_USE_DB ||
+          type == TSDB_MSG_TYPE_DROP_DB || type == TSDB_MSG_TYPE_DROP_STB);
+}
+
 TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   STscObj *pTscObj = (STscObj *)taos;
   if (sqlLen > (size_t) tsMaxSQLStringLen) {
@@ -145,16 +152,17 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   tscDebugL("0x%"PRIx64" SQL: %s", pRequest->requestId, pRequest->sqlstr);
 
   SParseContext cxt = {
-    .ctx = {.requestId = pRequest->requestId, .acctId = pTscObj->acctId, .db = getConnectionDB(pTscObj)},
-    .pSql = pRequest->sqlstr,
+    .ctx    = {.requestId = pRequest->requestId, .acctId = pTscObj->acctId, .db = getConnectionDB(pTscObj)},
+    .pSql   = pRequest->sqlstr,
     .sqlLen = sqlLen,
-    .pMsg = pRequest->msgBuf,
+    .pMsg   = pRequest->msgBuf,
     .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE
   };
+
   SQueryNode* pQuery = NULL;
   int32_t code = qParseQuerySql(&cxt, &pQuery);
   if (qIsDclQuery(pQuery)) {
-    SDclStmtInfo* pDcl = (SDclStmtInfo*)pQuery;
+    SDclStmtInfo* pDcl = (SDclStmtInfo*) pQuery;
     pRequest->type = pDcl->msgType;
     pRequest->body.requestMsg = (SReqMsgInfo){.pMsg = pDcl->pMsg, .len = pDcl->msgLen};
 
@@ -215,7 +223,7 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
 int initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet) {
   pEpSet->version = 0;
 
-  // init mgmt ip set
+  // init mnode ip set
   SEpSet *mgmtEpSet   = &(pEpSet->epSet);
   mgmtEpSet->numOfEps = 0;
   mgmtEpSet->inUse    = 0;
