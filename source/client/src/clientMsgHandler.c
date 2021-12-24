@@ -110,9 +110,9 @@ SRequestMsgBody buildRequestMsgImpl(SRequestObj *pRequest) {
     assert(pRequest != NULL);
     SRequestMsgBody body = {
         .requestObjRefId = pRequest->self,
-        .msgInfo = pRequest->body.requestMsg,
-        .msgType = pRequest->type,
-        .requestId = pRequest->requestId,
+        .msgInfo         = pRequest->body.requestMsg,
+        .msgType         = pRequest->type,
+        .requestId       = pRequest->requestId,
     };
     return body;
   }
