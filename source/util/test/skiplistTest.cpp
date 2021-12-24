@@ -5,7 +5,7 @@
 #include <iostream>
 
 #include "os.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tskiplist.h"
 #include "tutil.h"
 

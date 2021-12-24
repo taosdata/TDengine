@@ -48,12 +48,12 @@ int32_t mndInitDb(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndDbActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndDbActionDelete};
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_DB, mndProcessCreateDbMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_DB, mndProcessAlterDbMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_DB, mndProcessDropDbMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_USE_DB, mndProcessUseDbMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_SYNC_DB, mndProcessSyncDbMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_COMPACT_DB, mndProcessCompactDbMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_DB, mndProcessCreateDbMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_DB, mndProcessAlterDbMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_DB, mndProcessDropDbMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_USE_DB, mndProcessUseDbMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_SYNC_DB, mndProcessSyncDbMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_DB, mndProcessCompactDbMsg);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_DB, mndGetDbMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_DB, mndRetrieveDbs);
@@ -311,7 +311,7 @@ static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 
       action.pCont = pMsg;
       action.contLen = sizeof(SCreateVnodeMsg);
-      action.msgType = TSDB_MSG_TYPE_CREATE_VNODE_IN;
+      action.msgType = TDMT_DND_CREATE_VNODE;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         free(pMsg);
         return -1;
@@ -340,7 +340,7 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 
       action.pCont = pMsg;
       action.contLen = sizeof(SDropVnodeMsg);
-      action.msgType = TSDB_MSG_TYPE_DROP_VNODE_IN;
+      action.msgType = TDMT_DND_DROP_VNODE;
       if (mndTransAppendUndoAction(pTrans, &action) != 0) {
         free(pMsg);
         return -1;

@@ -75,7 +75,7 @@ void Testbase::SendShowMetaMsg(int8_t showType, const char* db) {
   pShow->type = showType;
   strcpy(pShow->db, db);
 
-  SRpcMsg*  pMsg = SendMsg(TSDB_MSG_TYPE_SHOW, pShow, contLen);
+  SRpcMsg*  pMsg = SendMsg(TDMT_MND_SHOW, pShow, contLen);
   SShowRsp* pShowRsp = (SShowRsp*)pMsg->pCont;
 
   ASSERT(pShowRsp != nullptr);
@@ -124,7 +124,7 @@ void Testbase::SendShowRetrieveMsg() {
   pRetrieve->showId = htonl(showId);
   pRetrieve->free = 0;
 
-  SRpcMsg* pMsg = SendMsg(TSDB_MSG_TYPE_SHOW_RETRIEVE, pRetrieve, contLen);
+  SRpcMsg* pMsg = SendMsg(TDMT_MND_SHOW_RETRIEVE, pRetrieve, contLen);
   pRetrieveRsp = (SRetrieveTableRsp*)pMsg->pCont;
   pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
   pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);

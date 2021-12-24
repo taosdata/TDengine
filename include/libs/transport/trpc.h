@@ -22,7 +22,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 
 #define TAOS_CONN_SERVER   0
 #define TAOS_CONN_CLIENT   1

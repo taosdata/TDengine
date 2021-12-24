@@ -15,7 +15,7 @@
 #include "os.h"
 
 #include "../../../include/client/taos.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
 #include "tscUtil.h"

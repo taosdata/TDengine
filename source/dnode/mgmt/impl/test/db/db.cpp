@@ -77,7 +77,7 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
     pReq->cacheLastRow = 0;
     pReq->ignoreExist = 1;
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DB, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -138,7 +138,7 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
     pReq->quorum = 2;
     pReq->cacheLastRow = 1;
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_ALTER_DB, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_DB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -199,7 +199,7 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
     SDropDbMsg* pReq = (SDropDbMsg*)rpcMallocCont(contLen);
     strcpy(pReq->db, "1.d1");
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_DROP_DB, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_DB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -237,7 +237,7 @@ TEST_F(DndTestDb, 03_Create_Use_Restart_Use_Db) {
     pReq->cacheLastRow = 0;
     pReq->ignoreExist = 1;
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DB, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -256,7 +256,7 @@ TEST_F(DndTestDb, 03_Create_Use_Restart_Use_Db) {
     strcpy(pReq->db, "1.d2");
     pReq->vgVersion = htonl(-1);
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_USE_DB, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_USE_DB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 

@@ -18,7 +18,7 @@
 
 #include "os.h"
 #include "sdb.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "thash.h"
 #include "tlockfree.h"
 #include "tlog.h"

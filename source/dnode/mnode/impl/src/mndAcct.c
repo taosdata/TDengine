@@ -40,9 +40,9 @@ int32_t mndInitAcct(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndAcctActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndAcctActionDelete};
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_ACCT, mndProcessCreateAcctMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_ACCT, mndProcessAlterAcctMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_ACCT, mndProcessDropAcctMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ACCT, mndProcessCreateAcctMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_ACCT, mndProcessAlterAcctMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_ACCT, mndProcessDropAcctMsg);
 
   return sdbSetTable(pMnode->pSdb, table);
 }

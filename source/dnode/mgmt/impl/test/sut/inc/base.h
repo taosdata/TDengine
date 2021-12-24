@@ -20,7 +20,7 @@
 #include "os.h"
 
 #include "dnode.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tconfig.h"
 #include "tdataformat.h"
 #include "tglobal.h"

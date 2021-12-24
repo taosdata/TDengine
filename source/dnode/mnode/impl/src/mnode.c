@@ -376,7 +376,7 @@ static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
   void   *ahandle = pMsg->rpcMsg.ahandle;
   bool    isReq = (msgType & 1U);
 
-  mTrace("msg:%p, app:%p type:%s will be processed", pMsg, ahandle, taosMsg[msgType]);
+  mTrace("msg:%p, app:%p type:%s will be processed", pMsg, ahandle, TMSG_INFO(msgType));
 
   if (isReq && !mndIsMaster(pMnode)) {
     code = TSDB_CODE_APP_NOT_READY;
@@ -424,7 +424,7 @@ PROCESS_RPC_END:
 }
 
 void mndSetMsgHandle(SMnode *pMnode, int32_t msgType, MndMsgFp fp) {
-  if (msgType >= 0 && msgType < TSDB_MSG_TYPE_MAX) {
+  if (msgType >= 0 && msgType < TDMT_MAX) {
     pMnode->msgFp[msgType] = fp;
   }
 }

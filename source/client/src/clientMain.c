@@ -2,7 +2,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "query.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tglobal.h"
 #include "tref.h"
 #include "trpc.h"

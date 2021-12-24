@@ -18,7 +18,7 @@
 #include "catalog.h"
 #include "parserUtil.h"
 #include "queryInfoUtil.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 
 #define IS_RAW_PAYLOAD(t) \
   (((int)(t)) == PAYLOAD_TYPE_RAW)  // 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert

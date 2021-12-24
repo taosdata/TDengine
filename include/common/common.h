@@ -17,7 +17,7 @@
 #define TDENGINE_COMMON_H
 
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tarray.h"
 #include "tvariant.h"
 //typedef struct STimeWindow {

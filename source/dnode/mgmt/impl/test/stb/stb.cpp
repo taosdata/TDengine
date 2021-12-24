@@ -51,7 +51,7 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     pReq->cacheLastRow = 0;
     pReq->ignoreExist = 1;
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DB, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -106,7 +106,7 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
       strcpy(pSchema->name, "tag3");
     }
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_STB, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -133,7 +133,7 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     STableInfoMsg* pReq = (STableInfoMsg*)rpcMallocCont(contLen);
     strcpy(pReq->tableFname, "1.d1.stb");
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_TABLE_META, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_VND_TABLE_META, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
@@ -192,7 +192,7 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     SDropStbMsg* pReq = (SDropStbMsg*)rpcMallocCont(contLen);
     strcpy(pReq->name, "1.d1.stb");
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_DROP_STB, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_STB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
