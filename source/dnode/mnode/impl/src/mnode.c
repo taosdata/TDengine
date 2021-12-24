@@ -374,7 +374,7 @@ void mndSendRsp(SMnodeMsg *pMsg, int32_t code) {
 static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
   SMnode *pMnode = pMsg->pMnode;
   int32_t code = 0;
-  int32_t msgType = pMsg->rpcMsg.msgType;
+  tmsg_t  msgType = pMsg->rpcMsg.msgType;
   void   *ahandle = pMsg->rpcMsg.ahandle;
   bool    isReq = (msgType & 1U);
 
@@ -392,10 +392,10 @@ static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
     goto PROCESS_RPC_END;
   }
 
-  MndMsgFp fp = pMnode->msgFp[msgType];
+  MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(msgType)];
   if (fp == NULL) {
     code = TSDB_CODE_MSG_NOT_PROCESSED;
-    mError("msg:%p, app:%p failed to process since not handle", pMsg, ahandle);
+    mError("msg:%p, app:%p failed to process since no handle", pMsg, ahandle);
     goto PROCESS_RPC_END;
   }
 
@@ -425,9 +425,10 @@ PROCESS_RPC_END:
   }
 }
 
-void mndSetMsgHandle(SMnode *pMnode, int32_t msgType, MndMsgFp fp) {
-  if (msgType >= 0 && msgType < TDMT_MAX) {
-    pMnode->msgFp[msgType] = fp;
+void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp) {
+  tmsg_t type = TMSG_INDEX(msgType);
+  if (type >= 0 && type < TDMT_MAX) {
+    pMnode->msgFp[type] = fp;
   }
 }
 

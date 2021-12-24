@@ -24,7 +24,7 @@ extern "C" {
 
 typedef struct {
   SEpSet  epSet;
-  int8_t  msgType;
+  tmsg_t  msgType;
   int8_t  msgSent;
   int8_t  msgReceived;
   int32_t errCode;

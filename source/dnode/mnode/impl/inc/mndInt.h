@@ -87,7 +87,7 @@ typedef struct SMnode {
 void mndSendMsgToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);
 void mndSendMsgToMnode(SMnode *pMnode, SRpcMsg *pMsg);
 void mndSendRedirectMsg(SMnode *pMnode, SRpcMsg *pMsg);
-void mndSetMsgHandle(SMnode *pMnode, int32_t msgType, MndMsgFp fp);
+void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 
 uint64_t mndGenerateUid(char *name, int32_t len) ;
 
