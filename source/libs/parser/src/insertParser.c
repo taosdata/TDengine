@@ -909,6 +909,7 @@ int32_t parseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo) {
   }
 
   *pInfo = context.pOutput;
+  context.pOutput->nodeType = TSDB_SQL_INSERT;
   context.pOutput->schemaAttache = pContext->schemaAttached;
   context.pOutput->payloadType = PAYLOAD_TYPE_KV;
 

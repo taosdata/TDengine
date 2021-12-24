@@ -13,24 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_MNODE_H_
-#define _TD_MND_MNODE_H_
+#include "vnodeDef.h"
+#include "vnodeQuery.h"
 
-#include "mndInt.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int32_t mndInitMnode(SMnode *pMnode);
-void    mndCleanupMnode(SMnode *pMnode);
-bool    mndIsMnode(SMnode *pMnode, int32_t dnodeId);
-void    mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet);
-char   *mndGetRoleStr(int32_t role);
-void    mndUpdateMnodeRole(SMnode *pMnode);
-
-#ifdef __cplusplus
+int vnodeQueryOpen(SVnode *pVnode) {
+  return qWorkerInit(NULL, &pVnode->pQuery);
 }
-#endif
 
-#endif /*_TD_MND_MNODE_H_*/
+int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+  vInfo("query message is processed");
+  qWorkerProcessQueryMsg(pVnode, pVnode->pQuery, pMsg);
+  return 0;
+}
+
+int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+  vInfo("fetch message is processed");
+  qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg);
+  return 0;
+}
+
+
