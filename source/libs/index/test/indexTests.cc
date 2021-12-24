@@ -16,10 +16,12 @@
 #include <string>
 #include "index.h"
 #include "indexInt.h"
+#include "index_cache.h"
 #include "index_fst.h"
 #include "index_fst_counting_writer.h"
 #include "index_fst_util.h"
 #include "index_tfile.h"
+#include "tskiplist.h"
 #include "tutil.h"
 using namespace std;
 class FstWriter {
@@ -109,58 +111,6 @@ class FstReadMemory {
   WriterCtx*         _wc;
   size_t             _size;
 };
-
-// TEST(IndexTest, index_create_test) {
-//  SIndexOpts *opts = indexOptsCreate();
-//  SIndex *index = indexOpen(opts, "./test");
-//  if (index == NULL) {
-//    std::cout << "index open failed" << std::endl;
-//  }
-//
-//
-//  // write
-//  for (int i = 0; i < 100000; i++) {
-//    SIndexMultiTerm* terms = indexMultiTermCreate();
-//    std::string val = "field";
-//
-//    indexMultiTermAdd(terms, "tag1", strlen("tag1"), val.c_str(), val.size());
-//
-//    val.append(std::to_string(i));
-//    indexMultiTermAdd(terms, "tag2", strlen("tag2"), val.c_str(), val.size());
-//
-//    val.insert(0, std::to_string(i));
-//    indexMultiTermAdd(terms, "tag3", strlen("tag3"), val.c_str(), val.size());
-//
-//    val.append("const");
-//    indexMultiTermAdd(terms, "tag4", strlen("tag4"), val.c_str(), val.size());
-//
-//
-//    indexPut(index, terms, i);
-//    indexMultiTermDestroy(terms);
-//  }
-//
-//
-//  // query
-//  SIndexMultiTermQuery *multiQuery = indexMultiTermQueryCreate(MUST);
-//
-//  indexMultiTermQueryAdd(multiQuery, "tag1", strlen("tag1"), "field", strlen("field"), QUERY_PREFIX);
-//  indexMultiTermQueryAdd(multiQuery, "tag3", strlen("tag3"), "0field0", strlen("0field0"), QUERY_TERM);
-//
-//  SArray *result = (SArray *)taosArrayInit(10, sizeof(int));
-//  indexSearch(index, multiQuery, result);
-//
-//  std::cout << "taos'size : " << taosArrayGetSize(result) << std::endl;
-//  for (int i = 0;  i < taosArrayGetSize(result); i++) {
-//    int *v = (int *)taosArrayGet(result, i);
-//    std::cout << "value --->" << *v  << std::endl;
-//  }
-//  // add more test case
-//  indexMultiTermQueryDestroy(multiQuery);
-//
-//  indexOptsDestroy(opts);
-//  indexClose(index);
-//  //
-//}
 
 #define L 100
 #define M 100
@@ -421,6 +371,7 @@ class TFileObj {
 
   int colId_;
 };
+
 class IndexTFileEnv : public ::testing::Test {
  protected:
   virtual void SetUp() {
@@ -428,22 +379,6 @@ class IndexTFileEnv : public ::testing::Test {
     taosMkDir(dir.c_str());
     tfInit();
     fObj = new TFileObj(dir, colName);
-
-    // std::string colName("voltage");
-    // header.suid = 1;
-    // header.version = 1;
-    // memcpy(header.colName, colName.c_str(), colName.size());
-    // header.colType = TSDB_DATA_TYPE_BINARY;
-
-    // std::string path(dir);
-    // int         colId = 2;
-    // char        buf[64] = {0};
-    // sprintf(buf, "%" PRIu64 "-%d-%d.tindex", header.suid, colId, header.version);
-    // path.append("/").append(buf);
-
-    // ctx = writerCtxCreate(TFile, path.c_str(), false, 64 * 1024 * 1024);
-
-    // twrite = tfileWriterCreate(ctx, &header);
   }
 
   virtual void TearDown() {
@@ -460,16 +395,8 @@ class IndexTFileEnv : public ::testing::Test {
   int coldId = 2;
   int version = 1;
   int colType = TSDB_DATA_TYPE_BINARY;
-
-  // WriterCtx*   ctx = NULL;
-  // TFileHeader  header;
-  // TFileWriter* twrite = NULL;
 };
 
-// static TFileWriter* genTFileWriter(const char* path, TFileHeader* header) {
-//  char       buf[128] = {0};
-//  WriterCtx* ctx = writerCtxCreate(TFile, path, false, )
-//}
 static TFileValue* genTFileValue(const char* val) {
   TFileValue* tv = (TFileValue*)calloc(1, sizeof(TFileValue));
   int32_t     vlen = strlen(val) + 1;
@@ -492,7 +419,7 @@ static void destroyTFileValue(void* val) {
 
 TEST_F(IndexTFileEnv, test_tfile_write) {
   TFileValue* v1 = genTFileValue("c");
-  TFileValue* v2 = genTFileValue("a");
+  TFileValue* v2 = genTFileValue("ab");
   TFileValue* v3 = genTFileValue("b");
   TFileValue* v4 = genTFileValue("d");
 
@@ -510,7 +437,7 @@ TEST_F(IndexTFileEnv, test_tfile_write) {
   taosArrayDestroy(data);
 
   std::string colName("voltage");
-  std::string colVal("b");
+  std::string colVal("ab");
   SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
   SIndexTermQuery query = {.term = term, .qType = QUERY_TERM};
 
@@ -521,3 +448,284 @@ TEST_F(IndexTFileEnv, test_tfile_write) {
 
   // tfileWriterDestroy(twrite);
 }
+class CacheObj {
+ public:
+  CacheObj() {
+    // TODO
+    cache = indexCacheCreate();
+  }
+  int Put(SIndexTerm* term, int16_t colId, int32_t version, uint64_t uid) {
+    int ret = indexCachePut(cache, term, colId, version, uid);
+    if (ret != 0) {
+      //
+      std::cout << "failed to put into cache: " << ret << std::endl;
+    }
+    return ret;
+  }
+  int Get(SIndexTermQuery* query, int16_t colId, int32_t version, SArray* result, STermValueType* s) {
+    int ret = indexCacheSearch(cache, query, colId, version, result, s);
+    if (ret != 0) {
+      //
+      std::cout << "failed to get from cache:" << ret << std::endl;
+    }
+    return ret;
+  }
+  ~CacheObj() {
+    // TODO
+    indexCacheDestroy(cache);
+  }
+
+ private:
+  IndexCache* cache = NULL;
+};
+
+class IndexCacheEnv : public ::testing::Test {
+ protected:
+  virtual void SetUp() {
+    // TODO
+    coj = new CacheObj();
+  }
+  virtual void TearDown() {
+    delete coj;
+    // formate
+  }
+  CacheObj* coj;
+};
+
+TEST_F(IndexCacheEnv, cache_test) {
+  int count = 10;
+
+  int16_t     colId = 1;
+  int32_t     version = 10;
+  uint64_t    suid = 100;
+  std::string colName("voltage");
+  std::string colVal("My God");
+  for (size_t i = 0; i < count; i++) {
+    colVal += ('a' + i);
+    SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
+    coj->Put(term, colId, version, suid);
+    version++;
+  }
+
+  // coj->Get();
+}
+
+typedef struct CTerm {
+  char buf[16];
+  char version[8];
+  int  val;
+  int  other;
+} CTerm;
+CTerm* cTermCreate(const char* str, const char* version, int val) {
+  CTerm* tm = (CTerm*)calloc(1, sizeof(CTerm));
+  memcpy(tm->buf, str, strlen(str));
+  memcpy(tm->version, version, strlen(version));
+  tm->val = val;
+  tm->other = -100;
+  return tm;
+}
+int termCompar(const void* a, const void* b) {
+  printf("a: %s \t b: %s\n", (char*)a, (char*)b);
+  int ret = strncmp((char*)a, (char*)b, 16);
+  if (ret == 0) {
+    //
+    return strncmp((char*)a + 16, (char*)b + 16, 8);
+  }
+  return ret;
+}
+
+int SerialTermTo(char* buf, CTerm* term) {
+  char* p = buf;
+  memcpy(buf, term->buf, sizeof(term->buf));
+  buf += sizeof(term->buf);
+
+  // memcpy(buf,  term->version, sizeof(term->version));
+  // buf += sizeof(term->version);
+  return buf - p;
+}
+static char* getTermKey(const void* pData) {
+  CTerm* p = (CTerm*)pData;
+  return (char*)p->buf;
+}
+#define MAX_TERM_KEY_LEN 128
+class SkiplistObj {
+ public:
+  // max_key_len:
+  //
+  SkiplistObj() {
+    slt = tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, MAX_TERM_KEY_LEN, termCompar, SL_ALLOW_DUP_KEY, getTermKey);
+  }
+  int Put(CTerm* term, uint64_t suid) {
+    char buf[MAX_TERM_KEY_LEN] = {0};
+    int  sz = SerialTermTo(buf, term);
+
+    char* pBuf = (char*)calloc(1, sz + sizeof(suid));
+
+    memcpy(pBuf, buf, sz);
+    memcpy(pBuf + sz, &suid, sizeof(suid));
+    // int32_t level, headsize;
+    // tSkipListNewNodeInfo(slt, &level, &headsize);
+
+    // SSkipListNode* node = (SSkipListNode*)calloc(1, headsize + strlen(buf) + sizeof(suid));
+    // node->level = level;
+    // char* d = (char*)SL_GET_NODE_DATA(node);
+    // memcpy(d, buf, strlen(buf));
+    // memcpy(d + strlen(buf), &suid, sizeof(suid));
+    SSkipListNode* node = tSkipListPut(slt, pBuf);
+    tSkipListPrint(slt, 1);
+    free(pBuf);
+    return 0;
+  }
+
+  int Get(int key, char* buf, int version) {
+    // CTerm term;
+    // term.key = key;
+    //// term.version = version;
+    // memcpy(term.buf, buf, strlen(buf));
+
+    // char tbuf[128] = {0};
+    // SerialTermTo(tbuf, &term);
+
+    // SSkipListIterator* iter = tSkipListCreateIterFromVal(slt, tbuf, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
+    // SSkipListNode*     node = tSkipListIterGet(iter);
+    // CTerm*             ct = (CTerm*)SL_GET_NODE_DATA(node);
+    // printf("key: %d\t, version: %d\t, buf: %s\n", ct->key, ct->version, ct->buf);
+    // while (iter) {
+    //  assert(tSkipListIterNext(iter) == true);
+    //  SSkipListNode* node = tSkipListIterGet(iter);
+    //  // ugly formate
+    //  CTerm* t = (CTerm*)SL_GET_NODE_KEY(slt, node);
+    //  printf("key: %d\t, version: %d\t, buf: %s\n", t->key, t->version, t->buf);
+    //}
+    return 0;
+  }
+  ~SkiplistObj() {
+    // TODO
+    // indexCacheDestroy(cache);
+  }
+
+ private:
+  SSkipList* slt;
+};
+
+typedef struct KV {
+  int32_t k;
+  int32_t v;
+} KV;
+int kvCompare(const void* a, const void* b) {
+  int32_t av = *(int32_t*)a;
+  int32_t bv = *(int32_t*)b;
+  return av - bv;
+}
+char* getKVkey(const void* a) {
+  return (char*)(&(((KV*)a)->v));
+  // KV* kv = (KV*)a;
+}
+int testKV() {
+  SSkipList* slt = tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, MAX_TERM_KEY_LEN, kvCompare, SL_DISCARD_DUP_KEY, getKVkey);
+  {
+    KV t = {.k = 1, .v = 5};
+    tSkipListPut(slt, (void*)&t);
+  }
+  {
+    KV t = {.k = 2, .v = 3};
+    tSkipListPut(slt, (void*)&t);
+  }
+
+  KV    value = {.k = 4, .v = 5};
+  char* key = getKVkey(&value);
+  // const char* key = "Hello";
+  SArray* arr = tSkipListGet(slt, (SSkipListKey)&key);
+  for (size_t i = 0; i < taosArrayGetSize(arr); i++) {
+    SSkipListNode* node = (SSkipListNode*)taosArrayGetP(arr, i);
+    int32_t*       ct = (int32_t*)SL_GET_NODE_KEY(slt, node);
+
+    printf("Get key: %d\n", *ct);
+    // SSkipListIterator* iter = tSkipListCreateIterFromVal(slt, tbuf, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
+  }
+  return 1;
+}
+
+int testComplicate() {
+  SSkipList* slt = tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, MAX_TERM_KEY_LEN, termCompar, SL_ALLOW_DUP_KEY, getTermKey);
+  {
+    CTerm* tm = cTermCreate("val", "v1", 10);
+    tSkipListPut(slt, (char*)tm);
+  }
+  {
+    CTerm* tm = cTermCreate("val1", "v2", 2);
+    tSkipListPut(slt, (char*)tm);
+  }
+  {
+    CTerm* tm = cTermCreate("val3", "v3", -1);
+    tSkipListPut(slt, (char*)tm);
+  }
+  {
+    CTerm* tm = cTermCreate("val3", "v4", 2);
+    tSkipListPut(slt, (char*)tm);
+  }
+  {
+    CTerm*  tm = cTermCreate("val3", "v5", -1);
+    char*   key = getTermKey(tm);
+    SArray* arr = tSkipListGet(slt, (SSkipListKey)key);
+    for (size_t i = 0; i < taosArrayGetSize(arr); i++) {
+      SSkipListNode* node = (SSkipListNode*)taosArrayGetP(arr, i);
+      CTerm*         ct = (CTerm*)SL_GET_NODE_KEY(slt, node);
+      printf("other; %d\tbuf: %s\t, version: %s, val: %d\n", ct->other, ct->buf, ct->version, ct->val);
+      // SSkipListIterator* iter = tSkipListCreateIterFromVal(slt, tbuf, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
+    }
+    free(tm);
+    taosArrayDestroy(arr);
+  }
+  return 1;
+}
+int strCompare(const void* a, const void* b) {
+  const char* sa = (char*)a;
+  const char* sb = (char*)b;
+  return strcmp(sa, sb);
+}
+void testString() {
+  SSkipList* slt = tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, MAX_TERM_KEY_LEN, strCompare, SL_ALLOW_DUP_KEY, getTermKey);
+  {
+    tSkipListPut(slt, (void*)"Hello");
+    tSkipListPut(slt, (void*)"World");
+    tSkipListPut(slt, (void*)"YI");
+  }
+
+  const char* key = "YI";
+  SArray*     arr = tSkipListGet(slt, (SSkipListKey)key);
+  for (size_t i = 0; i < taosArrayGetSize(arr); i++) {
+    SSkipListNode* node = (SSkipListNode*)taosArrayGetP(arr, i);
+    char*          ct = (char*)SL_GET_NODE_KEY(slt, node);
+    printf("Get key: %s\n", ct);
+    // SSkipListIterator* iter = tSkipListCreateIterFromVal(slt, tbuf, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
+  }
+}
+// class IndexSkip : public ::testing::Test {
+// protected:
+//  virtual void SetUp() {
+//    // TODO
+//    sObj = new SkiplistObj();
+//  }
+//  virtual void TearDown() {
+//    delete sObj;
+//    // formate
+//  }
+//  SkiplistObj* sObj;
+//};
+
+// TEST_F(IndexSkip, skip_test) {
+//  std::string val("Hello");
+//  std::string minVal = val;
+//  for (size_t i = 0; i < 10; i++) {
+//    CTerm* t = (CTerm*)calloc(1, sizeof(CTerm));
+//    t->key = 1;
+//    t->version = i;
+//
+//    val[val.size() - 1] = 'a' + i;
+//    memcpy(t->buf, val.c_str(), val.size());
+//    sObj->Put(t, 10);
+//    free(t);
+//  }
+//  sObj->Get(1, (char*)(minVal.c_str()), 1000000);
+//}
