@@ -54,23 +54,25 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 
 ## JDBC driver version and supported TDengine and JDK versions
 
-| taos-jdbcdriver | TDengine           | JDK   |
-| --------------- | ------------------ | ----- |
-| 2.0.33 - 2.0.34 | 2.0.3.0 and above  | 1.8.x |
-| 2.0.31 - 2.0.32 | 2.1.3.0 and above  | 1.8.x |
-| 2.0.22 - 2.0.30 | 2.0.18.0 - 2.1.2.x | 1.8.x |
-| 2.0.12 - 2.0.21 | 2.0.8.0 - 2.0.17.x | 1.8.x |
-| 2.0.4 - 2.0.11  | 2.0.0.0 - 2.0.7.x  | 1.8.x |
-| 1.0.3           | 1.6.1.x and above  | 1.8.x |
-| 1.0.2           | 1.6.1.x and above  | 1.8.x |
-| 1.0.1           | 1.6.1.x and above  | 1.8.x |
+| taos-jdbcdriver | TDengine           | JDK    |
+| --------------- |--------------------|--------|
+| 2.0.36          | 2.4.0 and above    | 1.8.x  |
+| 2.0.35          | 2.3.0 and above    | 1.8.x  |
+| 2.0.33 - 2.0.34 | 2.0.3.0 and above  | 1.8.x  |
+| 2.0.31 - 2.0.32 | 2.1.3.0 and above  | 1.8.x  |
+| 2.0.22 - 2.0.30 | 2.0.18.0 - 2.1.2.x | 1.8.x  |
+| 2.0.12 - 2.0.21 | 2.0.8.0 - 2.0.17.x | 1.8.x  |
+| 2.0.4 - 2.0.11  | 2.0.0.0 - 2.0.7.x  | 1.8.x  |
+| 1.0.3           | 1.6.1.x and above  | 1.8.x  |
+| 1.0.2           | 1.6.1.x and above  | 1.8.x  |
+| 1.0.1           | 1.6.1.x and above  | 1.8.x  |
 
 ## DataType in TDengine and Java connector
 
 The TDengine supports the following data types and Java data types:
 
 | TDengine DataType | JDBCType (driver version < 2.0.24) | JDBCType (driver version >= 2.0.24) |
-| ----------------- | ---------------------------------- | ----------------------------------- |
+|-------------------|------------------------------------| ----------------------------------- |
 | TIMESTAMP         | java.lang.Long                     | java.sql.Timestamp                  |
 | INT               | java.lang.Integer                  | java.lang.Integer                   |
 | BIGINT            | java.lang.Long                     | java.lang.Long                      |
@@ -81,7 +83,8 @@ The TDengine supports the following data types and Java data types:
 | BOOL              | java.lang.Boolean                  | java.lang.Boolean                   |
 | BINARY            | java.lang.String                   | byte array                          |
 | NCHAR             | java.lang.String                   | java.lang.String                    |
-
+| JSON              | -                                  | java.lang.String                    |
+**Note**: JSON type can only be used in tag.
 ## Install Java connector
 
 ### Runtime Requirements
