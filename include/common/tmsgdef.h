@@ -22,6 +22,8 @@
 
 #if defined(TD_MSG_INFO_)
 
+#undef TD_NEW_MSG_SEG
+#undef TD_DEF_MSG_TYPE
 #define TD_NEW_MSG_SEG(TYPE) "null",
 #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP) MSG, MSG "-rsp",
 
@@ -29,6 +31,8 @@ char *tMsgInfo[] = {
 
 #elif defined(TD_MSG_NUMBER_)
 
+#undef TD_NEW_MSG_SEG
+#undef TD_DEF_MSG_TYPE
 #define TD_NEW_MSG_SEG(TYPE) TYPE##_NUM,
 #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP) TYPE##_NUM, TYPE##_RSP_NUM,
 
@@ -36,6 +40,8 @@ enum {
 
 #elif defined(TD_MSG_DICT_)
 
+#undef TD_NEW_MSG_SEG
+#undef TD_DEF_MSG_TYPE
 #define TD_NEW_MSG_SEG(TYPE) TYPE##_NUM,
 #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP)
 
@@ -43,6 +49,8 @@ int tMsgDict[] = {
 
 #elif defined(TD_MSG_SEG_CODE_)
 
+#undef TD_NEW_MSG_SEG
+#undef TD_DEF_MSG_TYPE
 #define TD_NEW_MSG_SEG(TYPE) TYPE##_SEG_CODE,
 #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP)
 
@@ -50,6 +58,8 @@ enum {
 
 #else
 
+#undef TD_NEW_MSG_SEG
+#undef TD_DEF_MSG_TYPE
 #define TD_NEW_MSG_SEG(TYPE) TYPE = ((TYPE##_SEG_CODE) << 8),
 #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP) TYPE, TYPE##_RSP,
 
