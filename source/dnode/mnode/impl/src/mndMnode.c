@@ -47,11 +47,11 @@ int32_t mndInitMnode(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndMnodeActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndMnodeActionDelete};
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_MNODE, mndProcessCreateMnodeReq);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_MNODE, mndProcessDropMnodeReq);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_MNODE_IN_RSP, mndProcessCreateMnodeRsp);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_MNODE_IN_RSP, mndProcessAlterMnodeRsp);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_MNODE_IN_RSP, mndProcessDropMnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_MNODE, mndProcessCreateMnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_MNODE, mndProcessDropMnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_MNODE_RSP, mndProcessCreateMnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_ALTER_MNODE_RSP, mndProcessAlterMnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_DROP_MNODE_RSP, mndProcessDropMnodeRsp);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_MNODE, mndGetMnodeMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_MNODE, mndRetrieveMnodes);
@@ -293,7 +293,7 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
     action.epSet = mndGetDnodeEpset(pMObj->pDnode);
     action.pCont = pMsg;
     action.contLen = sizeof(SAlterMnodeInMsg);
-    action.msgType = TSDB_MSG_TYPE_ALTER_MNODE_IN;
+    action.msgType = TDMT_DND_ALTER_MNODE;
 
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pMsg);
@@ -317,7 +317,7 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
     action.epSet = mndGetDnodeEpset(pDnode);
     action.pCont = pMsg;
     action.contLen = sizeof(SCreateMnodeInMsg);
-    action.msgType = TSDB_MSG_TYPE_CREATE_MNODE_IN;
+    action.msgType = TDMT_DND_CREATE_MNODE;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pMsg);
       return -1;
@@ -461,7 +461,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
       action.epSet = mndGetDnodeEpset(pMObj->pDnode);
       action.pCont = pMsg;
       action.contLen = sizeof(SAlterMnodeInMsg);
-      action.msgType = TSDB_MSG_TYPE_ALTER_MNODE_IN;
+      action.msgType = TDMT_DND_ALTER_MNODE;
 
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         free(pMsg);
@@ -488,7 +488,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
     action.epSet = mndGetDnodeEpset(pDnode);
     action.pCont = pMsg;
     action.contLen = sizeof(SDropMnodeInMsg);
-    action.msgType = TSDB_MSG_TYPE_DROP_MNODE_IN;
+    action.msgType = TDMT_DND_DROP_MNODE;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pMsg);
       return -1;

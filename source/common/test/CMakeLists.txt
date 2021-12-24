@@ -16,3 +16,13 @@ TARGET_INCLUDE_DIRECTORIES(
         PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/common/"
         PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/common/inc"
 )
+
+# tmsg test
+add_executable(tmsgTest "")
+target_sources(tmsgTest 
+        PRIVATE
+        "tmsgTest.cpp"
+        "../src/tmsg.c"
+)
+target_include_directories(tmsgTest PUBLIC "${CMAKE_SOURCE_DIR}/include/common/")
+target_link_libraries(tmsgTest PUBLIC os util gtest gtest_main)

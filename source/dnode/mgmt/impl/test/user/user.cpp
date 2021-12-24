@@ -51,7 +51,7 @@ TEST_F(DndTestUser, 02_Create_Drop_Alter_User) {
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "p1");
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_USER, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_USER, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -63,7 +63,7 @@ TEST_F(DndTestUser, 02_Create_Drop_Alter_User) {
     strcpy(pReq->user, "u2");
     strcpy(pReq->pass, "p2");
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_USER, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_USER, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -94,7 +94,7 @@ TEST_F(DndTestUser, 02_Create_Drop_Alter_User) {
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "p2");
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_ALTER_USER, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_USER, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -124,7 +124,7 @@ TEST_F(DndTestUser, 02_Create_Drop_Alter_User) {
     SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u1");
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_DROP_USER, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_USER, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }

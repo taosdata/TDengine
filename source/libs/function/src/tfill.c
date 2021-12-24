@@ -17,7 +17,7 @@
 #include "os.h"
 
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "ttypes.h"
 
 #include "tfill.h"

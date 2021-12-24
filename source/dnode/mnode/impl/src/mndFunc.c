@@ -44,9 +44,9 @@ int32_t mndInitFunc(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndFuncActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndFuncActionDelete};
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_FUNCTION, mndProcessCreateFuncMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_FUNCTION, mndProcessDropFuncMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_RETRIEVE_FUNCTION, mndProcessRetrieveFuncMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_FUNCTION, mndProcessCreateFuncMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_FUNCTION, mndProcessDropFuncMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_FUNCTION, mndProcessRetrieveFuncMsg);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_FUNCTION, mndGetFuncMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_FUNCTION, mndRetrieveFuncs);

@@ -22,7 +22,7 @@ extern "C" {
 
 #include "cJSON.h"
 #include "os.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "thash.h"
 #include "tlockfree.h"
 #include "tlog.h"
@@ -105,7 +105,7 @@ typedef struct {
 typedef struct {
   void    *serverRpc;
   void    *clientRpc;
-  DndMsgFp msgFp[TSDB_MSG_TYPE_MAX];
+  DndMsgFp msgFp[TDMT_MAX];
 } STransMgmt;
 
 typedef struct SDnode {

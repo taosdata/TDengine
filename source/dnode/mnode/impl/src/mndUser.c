@@ -47,9 +47,9 @@ int32_t mndInitUser(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndUserActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndUserActionDelete};
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_USER, mndProcessCreateUserMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_USER, mndProcessAlterUserMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_USER, mndProcessDropUserMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_USER, mndProcessCreateUserMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_USER, mndProcessAlterUserMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_USER, mndProcessDropUserMsg);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_USER, mndGetUserMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_USER, mndRetrieveUsers);

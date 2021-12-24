@@ -466,13 +466,13 @@ static int32_t mndTransAppendAction(SArray *pArray, STransAction *pAction) {
 
 int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction) {
   int32_t code = mndTransAppendAction(pTrans->redoActions, pAction);
-  mTrace("trans:%d, msg:%s append to redo actions, code:0x%x", pTrans->id, taosMsg[pAction->msgType], code);
+  mTrace("trans:%d, msg:%s append to redo actions, code:0x%x", pTrans->id, TMSG_INFO(pAction->msgType), code);
   return code;
 }
 
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction) {
   int32_t code = mndTransAppendAction(pTrans->undoActions, pAction);
-  mTrace("trans:%d, msg:%s append to undo actions, code:0x%x", pTrans->id, taosMsg[pAction->msgType], code);
+  mTrace("trans:%d, msg:%s append to undo actions, code:0x%x", pTrans->id, TMSG_INFO(pAction->msgType), code);
   return code;
 }
 
