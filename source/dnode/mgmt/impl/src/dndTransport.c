@@ -140,7 +140,7 @@ static void dndProcessResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   DndMsgFp fp = pMgmt->msgFp[msgType];
   if (fp != NULL) {
     (*fp)(pDnode, pMsg, pEpSet);
-    dTrace("RPC %p, rsp:%s is processed, code:0x%0X", pMsg->handle, taosMsg[msgType], pMsg->code & 0XFFFF);
+    dTrace("RPC %p, rsp:%s is processed, code:0x%x", pMsg->handle, taosMsg[msgType], pMsg->code & 0XFFFF);
   } else {
     dError("RPC %p, rsp:%s not processed", pMsg->handle, taosMsg[msgType]);
     rpcFreeCont(pMsg->pCont);
@@ -188,7 +188,7 @@ static void dndProcessRequest(void *param, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   int32_t msgType = pMsg->msgType;
   if (msgType == TSDB_MSG_TYPE_NETWORK_TEST) {
-    dTrace("RPC %p, network test req, app:%p will be processed", pMsg->handle, pMsg->ahandle);
+    dTrace("RPC %p, network test req, app:%p will be processed, code:0x%x", pMsg->handle, pMsg->ahandle, pMsg->code);
     dndProcessDnodeReq(pDnode, pMsg, pEpSet);
     return;
   }
