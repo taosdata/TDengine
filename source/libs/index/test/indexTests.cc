@@ -21,7 +21,7 @@
 #include "index_fst_util.h"
 #include "index_tfile.h"
 #include "tutil.h"
-
+using namespace std;
 class FstWriter {
  public:
   FstWriter() {
@@ -355,41 +355,121 @@ class IndexEnv : public ::testing::Test {
 //  //
 //}
 
+class TFileObj {
+ public:
+  TFileObj(const std::string& path = "/tmp/tindex", const std::string& colName = "voltage") : path_(path), colName_(colName) {
+    colId_ = 10;
+    // Do Nothing
+    //
+  }
+  int Put(SArray* tv) {
+    if (reader_ != NULL) {
+      tfileReaderDestroy(reader_);
+      reader_ = NULL;
+    }
+    if (writer_ == NULL) { InitWriter(); }
+    return tfileWriterPut(writer_, tv);
+  }
+  bool InitWriter() {
+    TFileHeader header;
+    header.suid = 1;
+    header.version = 1;
+    memcpy(header.colName, colName_.c_str(), colName_.size());
+    header.colType = TSDB_DATA_TYPE_BINARY;
+
+    std::string path(path_);
+    int         colId = 2;
+    char        buf[64] = {0};
+    sprintf(buf, "%" PRIu64 "-%d-%d.tindex", header.suid, colId_, header.version);
+    path.append("/").append(buf);
+
+    fileName_ = path;
+
+    WriterCtx* ctx = writerCtxCreate(TFile, path.c_str(), false, 64 * 1024 * 1024);
+
+    writer_ = tfileWriterCreate(ctx, &header);
+    return writer_ != NULL ? true : false;
+  }
+  bool InitReader() {
+    WriterCtx* ctx = writerCtxCreate(TFile, fileName_.c_str(), true, 64 * 1024 * 1024);
+    reader_ = tfileReaderCreate(ctx);
+    return reader_ != NULL ? true : false;
+  }
+  int Get(SIndexTermQuery* query, SArray* result) {
+    if (writer_ != NULL) {
+      tfileWriterDestroy(writer_);
+      writer_ = NULL;
+    }
+    if (reader_ == NULL && InitReader()) {
+      //
+      //
+    }
+    return tfileReaderSearch(reader_, query, result);
+  }
+  ~TFileObj() {
+    if (writer_) { tfileWriterDestroy(writer_); }
+    if (reader_) { tfileReaderDestroy(reader_); }
+  }
+
+ private:
+  std::string path_;
+  std::string colName_;
+  std::string fileName_;
+
+  TFileWriter* writer_;
+  TFileReader* reader_;
+
+  int colId_;
+};
 class IndexTFileEnv : public ::testing::Test {
  protected:
   virtual void SetUp() {
-    taosRemoveDir(dir);
-    taosMkDir(dir);
+    taosRemoveDir(dir.c_str());
+    taosMkDir(dir.c_str());
     tfInit();
-    std::string colName("voltage");
-    header.suid = 1;
-    header.version = 1;
-    memcpy(header.colName, colName.c_str(), colName.size());
-    header.colType = TSDB_DATA_TYPE_BINARY;
+    fObj = new TFileObj(dir, colName);
 
-    std::string path(dir);
-    int         colId = 2;
-    char        buf[64] = {0};
-    sprintf(buf, "%" PRIu64 "-%d-%d.tindex", header.suid, colId, header.version);
-    path.append("/").append(buf);
+    // std::string colName("voltage");
+    // header.suid = 1;
+    // header.version = 1;
+    // memcpy(header.colName, colName.c_str(), colName.size());
+    // header.colType = TSDB_DATA_TYPE_BINARY;
 
-    ctx = writerCtxCreate(TFile, path.c_str(), false, 64 * 1024 * 1024);
+    // std::string path(dir);
+    // int         colId = 2;
+    // char        buf[64] = {0};
+    // sprintf(buf, "%" PRIu64 "-%d-%d.tindex", header.suid, colId, header.version);
+    // path.append("/").append(buf);
 
-    twrite = tfileWriterCreate(ctx, &header);
+    // ctx = writerCtxCreate(TFile, path.c_str(), false, 64 * 1024 * 1024);
+
+    // twrite = tfileWriterCreate(ctx, &header);
   }
 
   virtual void TearDown() {
     // indexClose(index);
     // indexeptsDestroy(opts);
+    delete fObj;
     tfCleanup();
-    tfileWriterDestroy(twrite);
+    // tfileWriterDestroy(twrite);
   }
-  const char*  dir = "/tmp/tindex";
-  WriterCtx*   ctx = NULL;
-  TFileHeader  header;
-  TFileWriter* twrite = NULL;
+  TFileObj*   fObj;
+  std::string dir = "/tmp/tindex";
+  std::string colName = "voltage";
+
+  int coldId = 2;
+  int version = 1;
+  int colType = TSDB_DATA_TYPE_BINARY;
+
+  // WriterCtx*   ctx = NULL;
+  // TFileHeader  header;
+  // TFileWriter* twrite = NULL;
 };
 
+// static TFileWriter* genTFileWriter(const char* path, TFileHeader* header) {
+//  char       buf[128] = {0};
+//  WriterCtx* ctx = writerCtxCreate(TFile, path, false, )
+//}
 static TFileValue* genTFileValue(const char* val) {
   TFileValue* tv = (TFileValue*)calloc(1, sizeof(TFileValue));
   int32_t     vlen = strlen(val) + 1;
@@ -413,17 +493,31 @@ static void destroyTFileValue(void* val) {
 TEST_F(IndexTFileEnv, test_tfile_write) {
   TFileValue* v1 = genTFileValue("c");
   TFileValue* v2 = genTFileValue("a");
+  TFileValue* v3 = genTFileValue("b");
+  TFileValue* v4 = genTFileValue("d");
 
   SArray* data = (SArray*)taosArrayInit(4, sizeof(void*));
 
   taosArrayPush(data, &v1);
   taosArrayPush(data, &v2);
+  taosArrayPush(data, &v3);
+  taosArrayPush(data, &v4);
 
-  tfileWriterPut(twrite, data);
-  // tfileWriterDestroy(twrite);
-
+  fObj->Put(data);
   for (size_t i = 0; i < taosArrayGetSize(data); i++) {
     destroyTFileValue(taosArrayGetP(data, i));
   }
   taosArrayDestroy(data);
+
+  std::string colName("voltage");
+  std::string colVal("b");
+  SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
+  SIndexTermQuery query = {.term = term, .qType = QUERY_TERM};
+
+  SArray* result = (SArray*)taosArrayInit(1, sizeof(uint64_t));
+  fObj->Get(&query, result);
+  assert(taosArrayGetSize(result) == 10);
+  indexTermDestroy(term);
+
+  // tfileWriterDestroy(twrite);
 }

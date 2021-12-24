@@ -33,11 +33,11 @@ static int tfileWriteHeader(TFileWriter* writer);
 static int tfileWriteFstOffset(TFileWriter* tw, int32_t offset);
 static int tfileWriteData(TFileWriter* write, TFileValue* tval);
 
-static int  tfileReadLoadHeader(TFileReader* reader);
-static int  tfileReadLoadFst(TFileReader* reader);
-static int  tfileReadLoadTableIds(TFileReader* reader, int32_t offset, SArray* result);
-static void tfileReadRef(TFileReader* reader);
-static void tfileReadUnRef(TFileReader* reader);
+static int  tfileReaderLoadHeader(TFileReader* reader);
+static int  tfileReaderLoadFst(TFileReader* reader);
+static int  tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result);
+static void tfileReaderRef(TFileReader* reader);
+static void tfileReaderUnRef(TFileReader* reader);
 
 static int  tfileGetFileList(const char* path, SArray* result);
 static int  tfileRmExpireFile(SArray* result);
@@ -70,23 +70,12 @@ TFileCache* tfileCacheCreate(const char* path) {
 
     WriterCtx* wc = writerCtxCreate(TFile, file, true, 1024 * 64);
     if (wc == NULL) {
-      indexError("failed to open index:  %s", file);
+      indexError("failed to open index:%s", file);
       goto End;
     }
 
     TFileReader* reader = tfileReaderCreate(wc);
-    if (0 != tfileReadLoadHeader(reader)) {
-      tfileReaderDestroy(reader);
-      indexError("failed to load index header, index file: %s", file);
-      goto End;
-    }
-
-    if (0 != tfileReadLoadFst(reader)) {
-      tfileReaderDestroy(reader);
-      indexError("failed to load index fst, index file: %s", file);
-      goto End;
-    }
-    tfileReadRef(reader);
+    tfileReaderRef(reader);
     // loader fst and validate it
     TFileHeader*  header = &reader->header;
     TFileCacheKey key = {.suid = header->suid, .colName = header->colName, .nColName = strlen(header->colName), .colType = header->colType};
@@ -111,7 +100,7 @@ void tfileCacheDestroy(TFileCache* tcache) {
     TFileReader* p = *reader;
     indexInfo("drop table cache suid: %" PRIu64 ", colName: %s, colType: %d", p->header.suid, p->header.colName, p->header.colType);
 
-    tfileReadUnRef(p);
+    tfileReaderUnRef(p);
     reader = taosHashIterate(tcache->tableCache, reader);
   }
   taosHashCleanup(tcache->tableCache);
@@ -123,7 +112,7 @@ TFileReader* tfileCacheGet(TFileCache* tcache, TFileCacheKey* key) {
   tfileSerialCacheKey(key, buf);
 
   TFileReader* reader = taosHashGet(tcache->tableCache, buf, strlen(buf));
-  tfileReadRef(reader);
+  tfileReaderRef(reader);
 
   return reader;
 }
@@ -135,10 +124,10 @@ void tfileCachePut(TFileCache* tcache, TFileCacheKey* key, TFileReader* reader) 
   if (*p != NULL) {
     TFileReader* oldReader = *p;
     taosHashRemove(tcache->tableCache, buf, strlen(buf));
-    tfileReadUnRef(oldReader);
+    tfileReaderUnRef(oldReader);
   }
 
-  tfileReadRef(reader);
+  tfileReaderRef(reader);
   taosHashPut(tcache->tableCache, buf, strlen(buf), &reader, sizeof(void*));
   return;
 }
@@ -149,6 +138,19 @@ TFileReader* tfileReaderCreate(WriterCtx* ctx) {
 
   // T_REF_INC(reader);
   reader->ctx = ctx;
+
+  if (0 != tfileReaderLoadHeader(reader)) {
+    tfileReaderDestroy(reader);
+    indexError("failed to load index header, suid: %" PRIu64 ", colName: %s", reader->header.suid, reader->header.colName);
+    return NULL;
+  }
+
+  if (0 != tfileReaderLoadFst(reader)) {
+    tfileReaderDestroy(reader);
+    indexError("failed to load index fst, suid: %" PRIu64 ", colName: %s", reader->header.suid, reader->header.colName);
+    return NULL;
+  }
+
   return reader;
 }
 void tfileReaderDestroy(TFileReader* reader) {
@@ -170,7 +172,7 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* resul
     FstSlice key = fstSliceCreate(term->colVal, term->nColVal);
     if (fstGet(reader->fst, &key, &offset)) {
       indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, found table info in tindex", term->suid, term->colName, term->colVal);
-      ret = tfileReadLoadTableIds(reader, offset, result);
+      ret = tfileReaderLoadTableIds(reader, offset, result);
     } else {
       indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, not found table info in tindex", term->suid, term->colName, term->colVal);
     }
@@ -181,7 +183,7 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* resul
   } else {
     // handle later
   }
-  tfileReadUnRef(reader);
+  tfileReaderUnRef(reader);
   return ret;
 }
 
@@ -205,11 +207,6 @@ TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header) {
   tw->ctx = ctx;
   tw->header = *header;
   tfileWriteHeader(tw);
-  tw->fb = fstBuilderCreate(ctx, 0);
-  if (tw->fb == NULL) {
-    tfileWriterDestroy(tw);
-    return NULL;
-  }
   return tw;
 }
 
@@ -267,6 +264,11 @@ int tfileWriterPut(TFileWriter* tw, void* data) {
   }
   tfree(buf);
 
+  tw->fb = fstBuilderCreate(tw->ctx, 0);
+  if (tw->fb == NULL) {
+    tfileWriterDestroy(tw);
+    return -1;
+  }
   // write fst
   for (size_t i = 0; i < sz; i++) {
     // TODO, fst batch write later
@@ -343,6 +345,7 @@ static int tfileWriteFstOffset(TFileWriter* tw, int32_t offset) {
   int32_t fstOffset = offset + sizeof(tw->header.fstOffset);
   tw->header.fstOffset = fstOffset;
   if (sizeof(fstOffset) != tw->ctx->write(tw->ctx, (char*)&fstOffset, sizeof(fstOffset))) { return -1; }
+  tw->offset += sizeof(fstOffset);
   return 0;
 }
 static int tfileWriteHeader(TFileWriter* writer) {
@@ -372,16 +375,16 @@ static int tfileWriteData(TFileWriter* write, TFileValue* tval) {
   }
   return 0;
 }
-static int tfileReadLoadHeader(TFileReader* reader) {
+static int tfileReaderLoadHeader(TFileReader* reader) {
   // TODO simple tfile header later
   char buf[TFILE_HEADER_SIZE] = {0};
 
-  int64_t nread = reader->ctx->read(reader->ctx, buf, sizeof(buf));
+  int64_t nread = reader->ctx->readFrom(reader->ctx, buf, sizeof(buf), 0);
   assert(nread == sizeof(buf));
   memcpy(&reader->header, buf, sizeof(buf));
   return 0;
 }
-static int tfileReadLoadFst(TFileReader* reader) {
+static int tfileReaderLoadFst(TFileReader* reader) {
   // current load fst into memory, refactor it later
   static int FST_MAX_SIZE = 16 * 1024;
 
@@ -398,9 +401,9 @@ static int tfileReadLoadFst(TFileReader* reader) {
   free(buf);
   fstSliceDestroy(&st);
 
-  return reader->fst == NULL ? 0 : -1;
+  return reader->fst != NULL ? 0 : -1;
 }
-static int tfileReadLoadTableIds(TFileReader* reader, int32_t offset, SArray* result) {
+static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result) {
   int32_t    nid;
   WriterCtx* ctx = reader->ctx;
 
@@ -420,12 +423,12 @@ static int tfileReadLoadTableIds(TFileReader* reader, int32_t offset, SArray* re
   free(buf);
   return 0;
 }
-static void tfileReadRef(TFileReader* reader) {
+static void tfileReaderRef(TFileReader* reader) {
   int ref = T_REF_INC(reader);
   UNUSED(ref);
 }
 
-static void tfileReadUnRef(TFileReader* reader) {
+static void tfileReaderUnRef(TFileReader* reader) {
   int ref = T_REF_DEC(reader);
   if (ref == 0) { tfileReaderDestroy(reader); }
 }
