@@ -432,7 +432,7 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
   SDbObj *pDb = pMsg->pDb;
   pthread_mutex_lock(&pDb->mutex);
 
-  if (tVgId > 0) {
+  if (tVgId > 0 && tVgId < 1048576) {
     for (int32_t v = 0; v < pDb->numOfVgroups; ++v) {
       SVgObj *pVgroup = pDb->vgList[v];
       if (pVgroup == NULL) {
