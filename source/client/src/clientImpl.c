@@ -240,7 +240,7 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
 _return:
   qDestoryQuery(pQuery);
   qDestroyQueryDag(pDag);
-  if (NULL != pRequest) {
+  if (NULL != pRequest && TSDB_CODE_SUCCESS != terrno) {
     pRequest->code = terrno;
   }
   return pRequest;
