@@ -2,7 +2,7 @@
 #include "tutil.h"
 
 #include "tname.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 
 #define VALID_NAME_TYPE(x)  ((x) == TSDB_DB_NAME_T || (x) == TSDB_TABLE_NAME_T)
 

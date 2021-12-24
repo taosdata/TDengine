@@ -77,7 +77,7 @@ TEST_F(DndTestMnode, 02_Create_Mnode_Invalid_Id) {
     SCreateMnodeMsg* pReq = (SCreateMnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(1);
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_MNODE, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_MNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MNODE_ALREADY_EXIST);
   }
@@ -90,7 +90,7 @@ TEST_F(DndTestMnode, 03_Create_Mnode_Invalid_Id) {
     SCreateMnodeMsg* pReq = (SCreateMnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_MNODE, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_MNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, TSDB_CODE_MND_DNODE_NOT_EXIST);
   }
@@ -104,7 +104,7 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
     strcpy(pReq->ep, "localhost:9062");
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
@@ -121,7 +121,7 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
     SCreateMnodeMsg* pReq = (SCreateMnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_MNODE, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_MNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
@@ -148,7 +148,7 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
     SDropMnodeMsg* pReq = (SDropMnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_DROP_MNODE, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_MNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
@@ -169,7 +169,7 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 //   SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(contLen);
 //   pReq->dnodeId = htonl(2);
 
-//   SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_DROP_DNODE, pReq, contLen);
+//   SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_DNODE, pReq, contLen);
 //   ASSERT_NE(pMsg, nullptr);
 //   ASSERT_EQ(pMsg->code, 0);
 // }
@@ -193,7 +193,7 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 //   SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
 //   strcpy(pReq->ep, "localhost:9063");
 
-//   SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
+//   SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
 //   ASSERT_NE(pMsg, nullptr);
 //   ASSERT_EQ(pMsg->code, 0);
 // }
@@ -204,7 +204,7 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 //   SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
 //   strcpy(pReq->ep, "localhost:9064");
 
-//   SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
+//   SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
 //   ASSERT_NE(pMsg, nullptr);
 //   ASSERT_EQ(pMsg->code, 0);
 // }
@@ -215,7 +215,7 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 //   SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
 //   strcpy(pReq->ep, "localhost:9065");
 
-//   SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
+//   SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
 //   ASSERT_NE(pMsg, nullptr);
 //   ASSERT_EQ(pMsg->code, 0);
 // }

@@ -17,7 +17,7 @@
 
 int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
-    case TSDB_MSG_TYPE_MQ_SET_CUR:
+    case TDMT_VND_MQ_SET_CUR:
       if (tqSetCursor(pVnode->pTq, pMsg->pCont) < 0) {
         // TODO: handle error
       }
@@ -70,21 +70,21 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   vnodeParseReq(pMsg->pCont, &vReq, pMsg->msgType);
 
   switch (pMsg->msgType) {
-    case TSDB_MSG_TYPE_CREATE_STB_IN:
-    case TSDB_MSG_TYPE_CREATE_TABLE:
+    case TDMT_VND_CREATE_STB:
+    case TDMT_MND_CREATE_TABLE:
       if (metaCreateTable(pVnode->pMeta, &(vReq.ctReq)) < 0) {
         // TODO: handle error
       }
 
       // TODO: maybe need to clear the requst struct
       break;
-    case TSDB_MSG_TYPE_DROP_STB_IN:
-    case TSDB_MSG_TYPE_DROP_TABLE:
+    case TDMT_VND_DROP_STB:
+    case TDMT_MND_DROP_TABLE:
       if (metaDropTable(pVnode->pMeta, vReq.dtReq.uid) < 0) {
         // TODO: handle error
       }
       break;
-    case TSDB_MSG_TYPE_SUBMIT:
+    case TDMT_VND_SUBMIT:
       if (tsdbInsertData(pVnode->pTsdb, (SSubmitMsg *)ptr) < 0) {
         // TODO: handle error
       }

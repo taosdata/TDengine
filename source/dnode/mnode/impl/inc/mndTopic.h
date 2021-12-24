@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_STB_H_
-#define _TD_MND_STB_H_
+#ifndef _TD_MND_TOPIC_H_
+#define _TD_MND_TOPIC_H_
 
 #include "mndInt.h"
 
@@ -25,11 +25,11 @@ extern "C" {
 int32_t mndInitTopic(SMnode *pMnode);
 void    mndCleanupTopic(SMnode *pMnode);
 
-SStbObj *mndAcquireTopic(SMnode *pMnode, char *topicName);
+STopicObj *mndAcquireTopic(SMnode *pMnode, char *topicName);
 void mndReleaseTopic(SMnode *pMnode, STopicObj *pTopic);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_STB_H_*/
+#endif /*_TD_MND_TOPIC_H_*/

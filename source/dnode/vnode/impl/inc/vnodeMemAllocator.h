@@ -22,17 +22,14 @@
 extern "C" {
 #endif
 
-typedef struct SVArenaNode    SVArenaNode;
-typedef struct SVMemAllocator SVMemAllocator;
-
-struct SVArenaNode {
+typedef struct SVArenaNode {
   TD_SLIST_NODE(SVArenaNode);
   uint64_t size;  // current node size
   void *   ptr;
   char     data[];
-};
+} SVArenaNode;
 
-struct SVMemAllocator {
+typedef struct SVMemAllocator {
   T_REF_DECLARE()
   TD_DLIST_NODE(SVMemAllocator);
   uint64_t     capacity;
@@ -40,7 +37,7 @@ struct SVMemAllocator {
   uint64_t     lsize;
   SVArenaNode *pNode;
   TD_SLIST(SVArenaNode) nlist;
-};
+} SVMemAllocator;
 
 SVMemAllocator *vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize);
 void            vmaDestroy(SVMemAllocator *pVMA);

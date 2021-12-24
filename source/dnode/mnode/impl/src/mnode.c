@@ -27,6 +27,7 @@
 #include "mndStb.h"
 #include "mndSync.h"
 #include "mndTelem.h"
+#include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -132,6 +133,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-topic", mndInitTopic, mndCleanupTopic) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc) != 0) return -1;
   if (pMnode->clusterId <= 0) {
     if (mndAllocStep(pMnode, "mnode-sdb-deploy", mndDeploySdb, NULL) != 0) return -1;
@@ -227,7 +229,7 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   }
 
   return 0;
-} 
+}
 
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   mDebug("start to open mnode in %s", path);
@@ -376,7 +378,7 @@ static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
   void   *ahandle = pMsg->rpcMsg.ahandle;
   bool    isReq = (msgType & 1U);
 
-  mTrace("msg:%p, app:%p type:%s will be processed", pMsg, ahandle, taosMsg[msgType]);
+  mTrace("msg:%p, app:%p type:%s will be processed", pMsg, ahandle, TMSG_INFO(msgType));
 
   if (isReq && !mndIsMaster(pMnode)) {
     code = TSDB_CODE_APP_NOT_READY;
@@ -424,7 +426,7 @@ PROCESS_RPC_END:
 }
 
 void mndSetMsgHandle(SMnode *pMnode, int32_t msgType, MndMsgFp fp) {
-  if (msgType >= 0 && msgType < TSDB_MSG_TYPE_MAX) {
+  if (msgType >= 0 && msgType < TDMT_MAX) {
     pMnode->msgFp[msgType] = fp;
   }
 }

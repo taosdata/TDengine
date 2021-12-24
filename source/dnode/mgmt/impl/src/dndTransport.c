@@ -31,97 +31,97 @@
 
 static void dndInitMsgFp(STransMgmt *pMgmt) {
   // msg from client to dnode
-  pMgmt->msgFp[TSDB_MSG_TYPE_SUBMIT] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_QUERY] = dndProcessVnodeQueryMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_FETCH] = dndProcessVnodeFetchMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_TABLE] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_TABLE] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_TABLE] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_TABLE_META] = dndProcessMnodeReadMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_TABLES_META] = dndProcessVnodeQueryMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_MQ_QUERY] = dndProcessVnodeQueryMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_MQ_CONSUME] = dndProcessVnodeQueryMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_MQ_CONNECT] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_MQ_DISCONNECT] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_MQ_SET_CUR] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_RES_READY] = dndProcessVnodeFetchMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_TASKS_STATUS] = dndProcessVnodeFetchMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CANCEL_TASK] = dndProcessVnodeFetchMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_TASK] = dndProcessVnodeFetchMsg;
+  pMgmt->msgFp[TDMT_VND_SUBMIT] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TDMT_VND_QUERY] = dndProcessVnodeQueryMsg;
+  pMgmt->msgFp[TDMT_VND_FETCH] = dndProcessVnodeFetchMsg;
+  pMgmt->msgFp[TDMT_MND_CREATE_TABLE] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_DROP_TABLE] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TDMT_VND_ALTER_TABLE] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TDMT_VND_UPDATE_TAG_VAL] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TDMT_VND_TABLE_META] = dndProcessMnodeReadMsg;
+  pMgmt->msgFp[TDMT_VND_TABLES_META] = dndProcessVnodeQueryMsg;
+  pMgmt->msgFp[TDMT_VND_MQ_QUERY] = dndProcessVnodeQueryMsg;
+  pMgmt->msgFp[TDMT_VND_MQ_CONSUME] = dndProcessVnodeQueryMsg;
+  pMgmt->msgFp[TDMT_VND_MQ_CONNECT] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TDMT_VND_MQ_DISCONNECT] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TDMT_VND_MQ_SET_CUR] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TDMT_VND_RES_READY] = dndProcessVnodeFetchMsg;
+  pMgmt->msgFp[TDMT_VND_TASKS_STATUS] = dndProcessVnodeFetchMsg;
+  pMgmt->msgFp[TDMT_VND_CANCEL_TASK] = dndProcessVnodeFetchMsg;
+  pMgmt->msgFp[TDMT_VND_DROP_TASK] = dndProcessVnodeFetchMsg;
 
   // msg from client to mnode
-  pMgmt->msgFp[TSDB_MSG_TYPE_CONNECT] = dndProcessMnodeReadMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_ACCT] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_ACCT] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_ACCT] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_USER] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_USER] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_USER] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_DNODE] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CONFIG_DNODE] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_DNODE] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_MNODE] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_MNODE] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_DB] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_DB] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_USE_DB] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_DB] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_SYNC_DB] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_COMPACT_DB] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_FUNCTION] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_RETRIEVE_FUNCTION] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_FUNCTION] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STB] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STB] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STB] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_VGROUP_LIST] = dndProcessMnodeReadMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_KILL_QUERY] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_KILL_CONN] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_HEARTBEAT] = dndProcessMnodeReadMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_SHOW] = dndProcessMnodeReadMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_SHOW_RETRIEVE] = dndProcessMnodeReadMsg;
+  pMgmt->msgFp[TDMT_MND_CONNECT] = dndProcessMnodeReadMsg;
+  pMgmt->msgFp[TDMT_MND_CREATE_ACCT] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_ALTER_ACCT] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_DROP_ACCT] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_CREATE_USER] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_ALTER_USER] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_DROP_USER] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_CREATE_DNODE] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_CONFIG_DNODE] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_DROP_DNODE] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_CREATE_MNODE] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_DROP_MNODE] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_CREATE_DB] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_DROP_DB] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_USE_DB] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_ALTER_DB] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_SYNC_DB] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_COMPACT_DB] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_CREATE_FUNCTION] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_RETRIEVE_FUNCTION] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_DROP_FUNCTION] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_CREATE_STB] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_ALTER_STB] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_DROP_STB] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_VGROUP_LIST] = dndProcessMnodeReadMsg;
+  pMgmt->msgFp[TDMT_MND_KILL_QUERY] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_KILL_CONN] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_HEARTBEAT] = dndProcessMnodeReadMsg;
+  pMgmt->msgFp[TDMT_MND_SHOW] = dndProcessMnodeReadMsg;
+  pMgmt->msgFp[TDMT_MND_SHOW_RETRIEVE] = dndProcessMnodeReadMsg;
 
   // message from client to dnode
-  pMgmt->msgFp[TSDB_MSG_TYPE_NETWORK_TEST] = dndProcessDnodeReq;
+  pMgmt->msgFp[TDMT_DND_NETWORK_TEST] = dndProcessDnodeReq;
 
   // message from mnode to vnode
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STB_IN] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_STB_IN_RSP] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STB_IN] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_STB_IN_RSP] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STB_IN] = dndProcessVnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_STB_IN_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_VND_CREATE_STB] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TDMT_VND_CREATE_STB_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_VND_ALTER_STB] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TDMT_VND_ALTER_STB_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_VND_DROP_STB] = dndProcessVnodeWriteMsg;
+  pMgmt->msgFp[TDMT_VND_DROP_STB_RSP] = dndProcessMnodeWriteMsg;
 
   // message from mnode to dnode
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_VNODE_IN] = dndProcessVnodeMgmtMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_VNODE_IN_RSP] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_VNODE_IN] = dndProcessVnodeMgmtMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_VNODE_IN_RSP] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_VNODE_IN] = dndProcessVnodeMgmtMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_VNODE_IN_RSP] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_SYNC_VNODE_IN] = dndProcessVnodeMgmtMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_SYNC_VNODE_IN_RSP] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_AUTH_VNODE_IN] = dndProcessVnodeMgmtMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_AUTH_VNODE_IN_RSP] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_COMPACT_VNODE_IN] = dndProcessVnodeMgmtMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_COMPACT_VNODE_IN_RSP] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_MNODE_IN] = dndProcessMnodeMgmtMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CREATE_MNODE_IN_RSP] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_MNODE_IN] = dndProcessMnodeMgmtMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_ALTER_MNODE_IN_RSP] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_MNODE_IN] = dndProcessMnodeMgmtMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_DROP_MNODE_IN_RSP] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CONFIG_DNODE_IN] = dndProcessDnodeReq;
-  pMgmt->msgFp[TSDB_MSG_TYPE_CONFIG_DNODE_IN_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_DND_CREATE_VNODE] = dndProcessVnodeMgmtMsg;
+  pMgmt->msgFp[TDMT_DND_CREATE_VNODE_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_DND_ALTER_VNODE] = dndProcessVnodeMgmtMsg;
+  pMgmt->msgFp[TDMT_DND_ALTER_VNODE_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_DND_DROP_VNODE] = dndProcessVnodeMgmtMsg;
+  pMgmt->msgFp[TDMT_DND_DROP_VNODE_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_DND_SYNC_VNODE] = dndProcessVnodeMgmtMsg;
+  pMgmt->msgFp[TDMT_DND_SYNC_VNODE_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_DND_AUTH_VNODE] = dndProcessVnodeMgmtMsg;
+  pMgmt->msgFp[TDMT_DND_AUTH_VNODE_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_DND_COMPACT_VNODE] = dndProcessVnodeMgmtMsg;
+  pMgmt->msgFp[TDMT_DND_COMPACT_VNODE_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_DND_CREATE_MNODE] = dndProcessMnodeMgmtMsg;
+  pMgmt->msgFp[TDMT_DND_CREATE_MNODE_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_DND_ALTER_MNODE] = dndProcessMnodeMgmtMsg;
+  pMgmt->msgFp[TDMT_DND_ALTER_MNODE_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_DND_DROP_MNODE] = dndProcessMnodeMgmtMsg;
+  pMgmt->msgFp[TDMT_DND_DROP_MNODE_RSP] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_DND_CONFIG_DNODE] = dndProcessDnodeReq;
+  pMgmt->msgFp[TDMT_DND_CONFIG_DNODE_RSP] = dndProcessMnodeWriteMsg;
 
   // message from dnode to mnode
-  pMgmt->msgFp[TSDB_MSG_TYPE_GRANT] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_GRANT_RSP] = dndProcessDnodeRsp;
-  pMgmt->msgFp[TSDB_MSG_TYPE_STATUS] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_STATUS_RSP] = dndProcessDnodeRsp;
-  pMgmt->msgFp[TSDB_MSG_TYPE_AUTH] = dndProcessMnodeReadMsg;
-  pMgmt->msgFp[TSDB_MSG_TYPE_AUTH_RSP] = dndProcessDnodeRsp;
+  pMgmt->msgFp[TDMT_MND_GRANT] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_GRANT_RSP] = dndProcessDnodeRsp;
+  pMgmt->msgFp[TDMT_MND_STATUS] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TDMT_MND_STATUS_RSP] = dndProcessDnodeRsp;
+  pMgmt->msgFp[TDMT_MND_AUTH] = dndProcessMnodeReadMsg;
+  pMgmt->msgFp[TDMT_MND_AUTH_RSP] = dndProcessDnodeRsp;
 }
 
 static void dndProcessResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
@@ -132,7 +132,7 @@ static void dndProcessResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   if (dndGetStat(pDnode) == DND_STAT_STOPPED) {
     if (pMsg == NULL || pMsg->pCont == NULL) return;
-    dTrace("RPC %p, rsp:%s is ignored since dnode is stopping", pMsg->handle, taosMsg[msgType]);
+    dTrace("RPC %p, rsp:%s is ignored since dnode is stopping", pMsg->handle, TMSG_INFO(msgType));
     rpcFreeCont(pMsg->pCont);
     return;
   }
@@ -140,9 +140,9 @@ static void dndProcessResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   DndMsgFp fp = pMgmt->msgFp[msgType];
   if (fp != NULL) {
     (*fp)(pDnode, pMsg, pEpSet);
-    dTrace("RPC %p, rsp:%s is processed, code:0x%x", pMsg->handle, taosMsg[msgType], pMsg->code & 0XFFFF);
+    dTrace("RPC %p, rsp:%s is processed, code:0x%x", pMsg->handle, TMSG_INFO(msgType), pMsg->code & 0XFFFF);
   } else {
-    dError("RPC %p, rsp:%s not processed", pMsg->handle, taosMsg[msgType]);
+    dError("RPC %p, rsp:%s not processed", pMsg->handle, TMSG_INFO(msgType));
     rpcFreeCont(pMsg->pCont);
   }
 }
@@ -187,20 +187,20 @@ static void dndProcessRequest(void *param, SRpcMsg *pMsg, SEpSet *pEpSet) {
   STransMgmt *pMgmt = &pDnode->tmgmt;
 
   int32_t msgType = pMsg->msgType;
-  if (msgType == TSDB_MSG_TYPE_NETWORK_TEST) {
+  if (msgType == TDMT_DND_NETWORK_TEST) {
     dTrace("RPC %p, network test req, app:%p will be processed, code:0x%x", pMsg->handle, pMsg->ahandle, pMsg->code);
     dndProcessDnodeReq(pDnode, pMsg, pEpSet);
     return;
   }
 
   if (dndGetStat(pDnode) == DND_STAT_STOPPED) {
-    dError("RPC %p, req:%s app:%p is ignored since dnode exiting", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
+    dError("RPC %p, req:%s app:%p is ignored since dnode exiting", pMsg->handle, TMSG_INFO(msgType), pMsg->ahandle);
     SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_DND_EXITING};
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
     return;
   } else if (dndGetStat(pDnode) != DND_STAT_RUNNING) {
-    dError("RPC %p, req:%s app:%p is ignored since dnode not running", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
+    dError("RPC %p, req:%s app:%p is ignored since dnode not running", pMsg->handle, TMSG_INFO(msgType), pMsg->ahandle);
     SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_APP_NOT_READY};
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
@@ -208,7 +208,7 @@ static void dndProcessRequest(void *param, SRpcMsg *pMsg, SEpSet *pEpSet) {
   }
 
   if (pMsg->pCont == NULL) {
-    dTrace("RPC %p, req:%s app:%p not processed since content is null", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
+    dTrace("RPC %p, req:%s app:%p not processed since content is null", pMsg->handle, TMSG_INFO(msgType), pMsg->ahandle);
     SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_DND_INVALID_MSG_LEN};
     rpcSendResponse(&rspMsg);
     return;
@@ -216,10 +216,10 @@ static void dndProcessRequest(void *param, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   DndMsgFp fp = pMgmt->msgFp[msgType];
   if (fp != NULL) {
-    dTrace("RPC %p, req:%s app:%p will be processed", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
+    dTrace("RPC %p, req:%s app:%p will be processed", pMsg->handle, TMSG_INFO(msgType), pMsg->ahandle);
     (*fp)(pDnode, pMsg, pEpSet);
   } else {
-    dError("RPC %p, req:%s app:%p is not processed since no handle", pMsg->handle, taosMsg[msgType], pMsg->ahandle);
+    dError("RPC %p, req:%s app:%p is not processed since no handle", pMsg->handle, TMSG_INFO(msgType), pMsg->ahandle);
     SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_MSG_NOT_PROCESSED};
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
@@ -281,7 +281,7 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
   SAuthMsg *pMsg = rpcMallocCont(sizeof(SAuthMsg));
   tstrncpy(pMsg->user, user, TSDB_USER_LEN);
 
-  SRpcMsg rpcMsg = {.pCont = pMsg, .contLen = sizeof(SAuthMsg), .msgType = TSDB_MSG_TYPE_AUTH};
+  SRpcMsg rpcMsg = {.pCont = pMsg, .contLen = sizeof(SAuthMsg), .msgType = TDMT_MND_AUTH};
   SRpcMsg rpcRsp = {0};
   dndSendMsgToMnodeRecv(pDnode, &rpcMsg, &rpcRsp);
 

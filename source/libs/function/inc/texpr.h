@@ -22,7 +22,7 @@ extern "C" {
 
 #include "os.h"
 
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "taosdef.h"
 #include "tskiplist.h"
 #include "function.h"

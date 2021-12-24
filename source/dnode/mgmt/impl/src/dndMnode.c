@@ -552,13 +552,13 @@ static void dndProcessMnodeMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
   int32_t code = 0;
 
   switch (pMsg->msgType) {
-    case TSDB_MSG_TYPE_CREATE_MNODE_IN:
+    case TDMT_DND_CREATE_MNODE:
       code = dndProcessCreateMnodeReq(pDnode, pMsg);
       break;
-    case TSDB_MSG_TYPE_ALTER_MNODE_IN:
+    case TDMT_DND_ALTER_MNODE:
       code = dndProcessAlterMnodeReq(pDnode, pMsg);
       break;
-    case TSDB_MSG_TYPE_DROP_MNODE_IN:
+    case TDMT_DND_DROP_MNODE:
       code = dndProcessDropMnodeReq(pDnode, pMsg);
       break;
     default:

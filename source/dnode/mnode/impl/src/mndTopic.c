@@ -52,20 +52,20 @@ int32_t mndInitTopic(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndTopicActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndTopicActionDelete};
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_TOPIC, mndProcessCreateTopicMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_TOPIC, mndProcessAlterTopicMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_TOPIC, mndProcessDropTopicMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_TOPIC_IN_RSP, mndProcessCreateTopicInRsp);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_TOPIC_IN_RSP, mndProcessAlterTopicInRsp);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_TOPIC_IN_RSP, mndProcessDropTopicInRsp);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_TABLE_META, mndProcessTopicMetaMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_TOPIC, mndProcessCreateTopicMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_TOPIC, mndProcessAlterTopicMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_TOPIC, mndProcessDropTopicMsg);
+  mndSetMsgHandle(pMnode, TDMT_VND_CREATE_TOPIC_RSP, mndProcessCreateTopicInRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_TOPIC_RSP, mndProcessAlterTopicInRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_DROP_TOPIC_RSP, mndProcessDropTopicInRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_TABLE_META, mndProcessTopicMetaMsg);
 
   /*mndAddShowMetaHandle(pMnode, TSDB_MGMT_TOPIC, mndGetTopicMeta);*/
   /*mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TOPIC, mndRetrieveTopic);*/
   /*mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TOPIC, mndCancelGetNextTopic);*/
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_TOPIC, mndProcessCreateTopicMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_TOPIC_IN_RSP, mndProcessCreateTopicInRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_TOPIC, mndProcessCreateTopicMsg);
+  mndSetMsgHandle(pMnode, TDMT_VND_CREATE_TOPIC_RSP, mndProcessCreateTopicInRsp);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -297,7 +297,7 @@ static int32_t mndSetCreateTopicRedoActions(SMnode *pMnode, STrans *pTrans, SDbO
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     action.pCont = pMsg;
     action.contLen = htonl(pMsg->head.contLen);
-    action.msgType = TSDB_MSG_TYPE_CREATE_TOPIC_IN;
+    action.msgType = TDMT_VND_CREATE_TOPIC;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pMsg);
       sdbCancelFetch(pSdb, pIter);
@@ -332,7 +332,7 @@ static int32_t mndSetCreateTopicUndoActions(SMnode *pMnode, STrans *pTrans, SDbO
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     action.pCont = pMsg;
     action.contLen = sizeof(SDropTopicInternalMsg);
-    action.msgType = TSDB_MSG_TYPE_DROP_TOPIC_IN;
+    action.msgType = TDMT_VND_DROP_TOPIC;
     if (mndTransAppendUndoAction(pTrans, &action) != 0) {
       free(pMsg);
       sdbCancelFetch(pSdb, pIter);

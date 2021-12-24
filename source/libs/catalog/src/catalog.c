@@ -49,7 +49,7 @@ int32_t ctgGetDBVgroupFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEp
   SEpSet *pVnodeEpSet = NULL;
   int32_t msgLen = 0;
 
-  CTG_ERR_RET(queryBuildMsg[TSDB_MSG_TYPE_USE_DB](input, &msg, 0, &msgLen));
+  CTG_ERR_RET(queryBuildMsg[TDMT_MND_USE_DB](input, &msg, 0, &msgLen));
 
   char *pMsg = rpcMallocCont(msgLen);
   if (NULL == pMsg) {
@@ -63,7 +63,7 @@ int32_t ctgGetDBVgroupFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEp
   tfree(msg);
   
   SRpcMsg rpcMsg = {
-      .msgType = TSDB_MSG_TYPE_USE_DB,
+      .msgType = TDMT_MND_USE_DB,
       .pCont   = pMsg,
       .contLen = msgLen,
   };
@@ -76,7 +76,7 @@ int32_t ctgGetDBVgroupFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEp
     CTG_ERR_RET(rpcRsp.code);
   }
 
-  CTG_ERR_RET(queryProcessMsgRsp[TSDB_MSG_TYPE_USE_DB](out, rpcRsp.pCont, rpcRsp.contLen));
+  CTG_ERR_RET(queryProcessMsgRsp[TDMT_MND_USE_DB](out, rpcRsp.pCont, rpcRsp.contLen));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -161,10 +161,10 @@ int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SE
   SEpSet *pVnodeEpSet = NULL;
   int32_t msgLen = 0;
 
-  CTG_ERR_RET(queryBuildMsg[TSDB_MSG_TYPE_TABLE_META](&bInput, &msg, 0, &msgLen));
+  CTG_ERR_RET(queryBuildMsg[TDMT_VND_TABLE_META](&bInput, &msg, 0, &msgLen));
 
   SRpcMsg rpcMsg = {
-      .msgType = TSDB_MSG_TYPE_TABLE_META,
+      .msgType = TDMT_VND_TABLE_META,
       .pCont   = msg,
       .contLen = msgLen,
   };
@@ -181,7 +181,7 @@ int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SE
     CTG_ERR_RET(rpcRsp.code);
   }
 
-  CTG_ERR_RET(queryProcessMsgRsp[TSDB_MSG_TYPE_TABLE_META](output, rpcRsp.pCont, rpcRsp.contLen));
+  CTG_ERR_RET(queryProcessMsgRsp[TDMT_VND_TABLE_META](output, rpcRsp.pCont, rpcRsp.contLen));
 
   return TSDB_CODE_SUCCESS;
 }

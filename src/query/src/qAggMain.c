@@ -15,7 +15,7 @@
 
 #include "os.h"
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "texpr.h"
 #include "ttype.h"
 #include "tsdb.h"
