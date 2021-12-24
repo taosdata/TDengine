@@ -517,8 +517,8 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
 static int32_t destroySmlSTableSchema(SSmlSTableSchema* schema) {
   taosHashCleanup(schema->tagHash);
   taosHashCleanup(schema->fieldHash);
-  taosArrayDestroy(schema->tags);
-  taosArrayDestroy(schema->fields);
+  taosArrayDestroy(&schema->tags);
+  taosArrayDestroy(&schema->fields);
   return 0;
 }
 
@@ -1009,13 +1009,13 @@ static int32_t applyChildTableDataPointsWithStmt(TAOS* taos, char* cTableName, c
     }
     free(colBinds);
   }
-  taosArrayDestroy(rowsBind);
+  taosArrayDestroy(&rowsBind);
   //free tag bind
   for (int i = 0; i < taosArrayGetSize(tagBinds); ++i) {
     TAOS_BIND* bind = taosArrayGet(tagBinds, i);
     free(bind->length);
   }
-  taosArrayDestroy(tagBinds);
+  taosArrayDestroy(&tagBinds);
   return code;
 }
 
@@ -1060,8 +1060,8 @@ static int32_t insertChildTablePointsBatch(TAOS* taos, char* cTableName, char* s
 
   tscDebug("SML:0x%"PRIx64" insert child table table %s of super table %s : %s", info->id, cTableName, sTableName, sql);
 
+  size_t maxBatchSize = TSDB_MAX_WAL_SIZE/rowSize * 2 / 3;
   size_t rows = taosArrayGetSize(rowsBind);
-  size_t maxBatchSize = TSDB_MAX_WAL_SIZE/rowSize * 4 / 5;
   size_t batchSize = MIN(maxBatchSize, rows);
   tscDebug("SML:0x%"PRIx64" insert rows into child table %s. num of rows: %zu, batch size: %zu",
            info->id, cTableName, rows, batchSize);
@@ -1076,7 +1076,7 @@ static int32_t insertChildTablePointsBatch(TAOS* taos, char* cTableName, char* s
       tscDebug("SML:0x%"PRIx64" insert child table batch from line %d to line %d.", info->id, i, j - 1);
       code = doInsertChildTablePoints(taos, sql, cTableName, tagsBind, batchBind, info);
       if (code != 0) {
-        taosArrayDestroy(batchBind);
+        taosArrayDestroy(&batchBind);
         tfree(sql);
         return code;
       }
@@ -1084,7 +1084,7 @@ static int32_t insertChildTablePointsBatch(TAOS* taos, char* cTableName, char* s
     }
     i = j;
   }
-  taosArrayDestroy(batchBind);
+  taosArrayDestroy(&batchBind);
   tfree(sql);
   return code;
 
@@ -1236,7 +1236,7 @@ cleanup:
   pCTablePoints = taosHashIterate(cname2points, NULL);
   while (pCTablePoints) {
     SArray* pPoints = *pCTablePoints;
-    taosArrayDestroy(pPoints);
+    taosArrayDestroy(&pPoints);
     pCTablePoints = taosHashIterate(cname2points, pCTablePoints);
   }
   taosHashCleanup(cname2points);
@@ -1336,10 +1336,10 @@ int tscSmlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLine
 clean_up:
   for (int i = 0; i < taosArrayGetSize(stableSchemas); ++i) {
     SSmlSTableSchema* schema = taosArrayGet(stableSchemas, i);
-    taosArrayDestroy(schema->fields);
-    taosArrayDestroy(schema->tags);
+    taosArrayDestroy(&schema->fields);
+    taosArrayDestroy(&schema->tags);
   }
-  taosArrayDestroy(stableSchemas);
+  taosArrayDestroy(&stableSchemas);
   return code;
 }
 
@@ -2536,7 +2536,7 @@ cleanup:
     destroySmlDataPoint(points+i);
   }
 
-  taosArrayDestroy(lpPoints);
+  taosArrayDestroy(&lpPoints);
 
   tfree(info);
   return code;

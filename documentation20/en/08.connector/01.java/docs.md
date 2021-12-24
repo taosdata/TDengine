@@ -54,23 +54,25 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 
 ## JDBC driver version and supported TDengine and JDK versions
 
-| taos-jdbcdriver | TDengine           | JDK   |
-| --------------- | ------------------ | ----- |
-| 2.0.33 - 2.0.34 | 2.0.3.0 and above  | 1.8.x |
-| 2.0.31 - 2.0.32 | 2.1.3.0 and above  | 1.8.x |
-| 2.0.22 - 2.0.30 | 2.0.18.0 - 2.1.2.x | 1.8.x |
-| 2.0.12 - 2.0.21 | 2.0.8.0 - 2.0.17.x | 1.8.x |
-| 2.0.4 - 2.0.11  | 2.0.0.0 - 2.0.7.x  | 1.8.x |
-| 1.0.3           | 1.6.1.x and above  | 1.8.x |
-| 1.0.2           | 1.6.1.x and above  | 1.8.x |
-| 1.0.1           | 1.6.1.x and above  | 1.8.x |
+| taos-jdbcdriver | TDengine           | JDK    |
+| --------------- |--------------------|--------|
+| 2.0.36          | 2.4.0 and above    | 1.8.x  |
+| 2.0.35          | 2.3.0 and above    | 1.8.x  |
+| 2.0.33 - 2.0.34 | 2.0.3.0 and above  | 1.8.x  |
+| 2.0.31 - 2.0.32 | 2.1.3.0 and above  | 1.8.x  |
+| 2.0.22 - 2.0.30 | 2.0.18.0 - 2.1.2.x | 1.8.x  |
+| 2.0.12 - 2.0.21 | 2.0.8.0 - 2.0.17.x | 1.8.x  |
+| 2.0.4 - 2.0.11  | 2.0.0.0 - 2.0.7.x  | 1.8.x  |
+| 1.0.3           | 1.6.1.x and above  | 1.8.x  |
+| 1.0.2           | 1.6.1.x and above  | 1.8.x  |
+| 1.0.1           | 1.6.1.x and above  | 1.8.x  |
 
 ## DataType in TDengine and Java connector
 
 The TDengine supports the following data types and Java data types:
 
 | TDengine DataType | JDBCType (driver version < 2.0.24) | JDBCType (driver version >= 2.0.24) |
-| ----------------- | ---------------------------------- | ----------------------------------- |
+|-------------------|------------------------------------| ----------------------------------- |
 | TIMESTAMP         | java.lang.Long                     | java.sql.Timestamp                  |
 | INT               | java.lang.Integer                  | java.lang.Integer                   |
 | BIGINT            | java.lang.Long                     | java.lang.Long                      |
@@ -81,7 +83,8 @@ The TDengine supports the following data types and Java data types:
 | BOOL              | java.lang.Boolean                  | java.lang.Boolean                   |
 | BINARY            | java.lang.String                   | byte array                          |
 | NCHAR             | java.lang.String                   | java.lang.String                    |
-
+| JSON              | -                                  | java.lang.String                    |
+**Note**: JSON type can only be used in tag.
 ## Install Java connector
 
 ### Runtime Requirements
@@ -310,46 +313,239 @@ The Java connector may report three types of error codes: JDBC Driver (error cod
 - https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h
 
 ### Write data through parameter binding
+Starting with version 2.1.2.0, TDengine's JDBC-JNI implementation significantly improves support for data write (INSERT) scenarios with Parameter-Binding. When writing data in this way, you can avoid the resource consumption of SQL parsing, which can significantly improve write performance in many cases.
+Note:
+* Jdbc-restful implementations do not provide Parameter-Binding
+* The following sample code is based on taos-jdbcdriver-2.0.36
+* use setString to bind BINARY data, and use setNString to bind NCHAR data
+* Both setString and setNString require the user to declare the column width of the corresponding column in the table definition in the size parameter
 
-Since version 2.1.2.0, TDengine's JDBC-JNI implementation has significantly improved parameter binding support for data write (INSERT) scenarios. Data can be written in the following way, avoiding SQL parsing and significantly improving the write performance.(**Note**: parameter binding is not supported in JDBC-RESTful)
 
+Sample Code:
 ```java
-Statement stmt = conn.createStatement();
-Random r = new Random();
-
-// In the INSERT statement, the VALUES clause allows you to specify a specific column; If automatic table creation is adopted, the TAGS clause needs to set the parameter values of all TAGS columns
-TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? using weather_test tags (?, ?) (ts, c1, c2) values(?, ?, ?)");
-
-s.setTableName("w1");
-
-// set tags
-s.setTagInt(0, r.nextInt(10));
-s.setTagString(1, "Beijing");
-int numOfRows = 10;
-
-// set values
-ArrayList<Long> ts = new ArrayList<>();
-for (int i = 0; i < numOfRows; i++){
-    ts.add(System.currentTimeMillis() + i);
+public class ParameterBindingDemo {
+ 
+    private static final String host = "127.0.0.1";
+    private static final Random random = new Random(System.currentTimeMillis());
+    private static final int BINARY_COLUMN_SIZE = 20;
+    private static final String[] schemaList = {
+            "create table stable1(ts timestamp, f1 tinyint, f2 smallint, f3 int, f4 bigint) tags(t1 tinyint, t2 smallint, t3 int, t4 bigint)",
+            "create table stable2(ts timestamp, f1 float, f2 double) tags(t1 float, t2 double)",
+            "create table stable3(ts timestamp, f1 bool) tags(t1 bool)",
+            "create table stable4(ts timestamp, f1 binary(" + BINARY_COLUMN_SIZE + ")) tags(t1 binary(" + BINARY_COLUMN_SIZE + "))",
+            "create table stable5(ts timestamp, f1 nchar(" + BINARY_COLUMN_SIZE + ")) tags(t1 nchar(" + BINARY_COLUMN_SIZE + "))"
+    };
+    private static final int numOfSubTable = 10, numOfRow = 10;
+ 
+    public static void main(String[] args) throws SQLException {
+ 
+        String jdbcUrl = "jdbc:TAOS://" + host + ":6030/";
+        Connection conn = DriverManager.getConnection(jdbcUrl, "root", "taosdata");
+ 
+        init(conn);
+ 
+        bindInteger(conn);
+ 
+        bindFloat(conn);
+ 
+        bindBoolean(conn);
+ 
+        bindBytes(conn);
+ 
+        bindString(conn);
+ 
+        conn.close();
+    }
+ 
+    private static void init(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("drop database if exists test_parabind");
+            stmt.execute("create database if not exists test_parabind");
+            stmt.execute("use test_parabind");
+            for (int i = 0; i < schemaList.length; i++) {
+                stmt.execute(schemaList[i]);
+            }
+        }
+    }
+ 
+    private static void bindInteger(Connection conn) throws SQLException {
+        String sql = "insert into ? using stable1 tags(?,?,?,?) values(?,?,?,?,?)";
+ 
+        try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
+ 
+            for (int i = 1; i <= numOfSubTable; i++) {
+                // set table name
+                pstmt.setTableName("t1_" + i);
+                // set tags
+                pstmt.setTagByte(0, Byte.parseByte(Integer.toString(random.nextInt(Byte.MAX_VALUE))));
+                pstmt.setTagShort(1, Short.parseShort(Integer.toString(random.nextInt(Short.MAX_VALUE))));
+                pstmt.setTagInt(2, random.nextInt(Integer.MAX_VALUE));
+                pstmt.setTagLong(3, random.nextLong());
+                // set columns
+                ArrayList<Long> tsList = new ArrayList<>();
+                long current = System.currentTimeMillis();
+                for (int j = 0; j < numOfRow; j++)
+                    tsList.add(current + j);
+                pstmt.setTimestamp(0, tsList);
+ 
+                ArrayList<Byte> f1List = new ArrayList<>();
+                for (int j = 0; j < numOfRow; j++)
+                    f1List.add(Byte.parseByte(Integer.toString(random.nextInt(Byte.MAX_VALUE))));
+                pstmt.setByte(1, f1List);
+ 
+                ArrayList<Short> f2List = new ArrayList<>();
+                for (int j = 0; j < numOfRow; j++)
+                    f2List.add(Short.parseShort(Integer.toString(random.nextInt(Short.MAX_VALUE))));
+                pstmt.setShort(2, f2List);
+ 
+                ArrayList<Integer> f3List = new ArrayList<>();
+                for (int j = 0; j < numOfRow; j++)
+                    f3List.add(random.nextInt(Integer.MAX_VALUE));
+                pstmt.setInt(3, f3List);
+ 
+                ArrayList<Long> f4List = new ArrayList<>();
+                for (int j = 0; j < numOfRow; j++)
+                    f4List.add(random.nextLong());
+                pstmt.setLong(4, f4List);
+ 
+                // add column
+                pstmt.columnDataAddBatch();
+            }
+            // execute column
+            pstmt.columnDataExecuteBatch();
+        }
+    }
+ 
+    private static void bindFloat(Connection conn) throws SQLException {
+        String sql = "insert into ? using stable2 tags(?,?) values(?,?,?)";
+ 
+        TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class);
+ 
+        for (int i = 1; i <= numOfSubTable; i++) {
+            // set table name
+            pstmt.setTableName("t2_" + i);
+            // set tags
+            pstmt.setTagFloat(0, random.nextFloat());
+            pstmt.setTagDouble(1, random.nextDouble());
+            // set columns
+            ArrayList<Long> tsList = new ArrayList<>();
+            long current = System.currentTimeMillis();
+            for (int j = 0; j < numOfRow; j++)
+                tsList.add(current + j);
+            pstmt.setTimestamp(0, tsList);
+ 
+            ArrayList<Float> f1List = new ArrayList<>();
+            for (int j = 0; j < numOfRow; j++)
+                f1List.add(random.nextFloat());
+            pstmt.setFloat(1, f1List);
+ 
+            ArrayList<Double> f2List = new ArrayList<>();
+            for (int j = 0; j < numOfRow; j++)
+                f2List.add(random.nextDouble());
+            pstmt.setDouble(2, f2List);
+ 
+            // add column
+            pstmt.columnDataAddBatch();
+        }
+        // execute
+        pstmt.columnDataExecuteBatch();
+        // close if no try-with-catch statement is used
+        pstmt.close();
+    }
+ 
+    private static void bindBoolean(Connection conn) throws SQLException {
+        String sql = "insert into ? using stable3 tags(?) values(?,?)";
+ 
+        try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
+            for (int i = 1; i <= numOfSubTable; i++) {
+                // set table name
+                pstmt.setTableName("t3_" + i);
+                // set tags
+                pstmt.setTagBoolean(0, random.nextBoolean());
+                // set columns
+                ArrayList<Long> tsList = new ArrayList<>();
+                long current = System.currentTimeMillis();
+                for (int j = 0; j < numOfRow; j++)
+                    tsList.add(current + j);
+                pstmt.setTimestamp(0, tsList);
+ 
+                ArrayList<Boolean> f1List = new ArrayList<>();
+                for (int j = 0; j < numOfRow; j++)
+                    f1List.add(random.nextBoolean());
+                pstmt.setBoolean(1, f1List);
+ 
+                // add column
+                pstmt.columnDataAddBatch();
+            }
+            // execute
+            pstmt.columnDataExecuteBatch();
+        }
+    }
+ 
+    private static void bindBytes(Connection conn) throws SQLException {
+        String sql = "insert into ? using stable4 tags(?) values(?,?)";
+ 
+        try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
+ 
+            for (int i = 1; i <= numOfSubTable; i++) {
+                // set table name
+                pstmt.setTableName("t4_" + i);
+                // set tags
+                pstmt.setTagString(0, new String("abc"));
+ 
+                // set columns
+                ArrayList<Long> tsList = new ArrayList<>();
+                long current = System.currentTimeMillis();
+                for (int j = 0; j < numOfRow; j++)
+                    tsList.add(current + j);
+                pstmt.setTimestamp(0, tsList);
+ 
+                ArrayList<String> f1List = new ArrayList<>();
+                for (int j = 0; j < numOfRow; j++) {
+                    f1List.add(new String("abc"));
+                }
+                pstmt.setString(1, f1List, BINARY_COLUMN_SIZE);
+ 
+                // add column
+                pstmt.columnDataAddBatch();
+            }
+            // execute
+            pstmt.columnDataExecuteBatch();
+        }
+    }
+ 
+    private static void bindString(Connection conn) throws SQLException {
+        String sql = "insert into ? using stable5 tags(?) values(?,?)";
+ 
+        try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
+ 
+            for (int i = 1; i <= numOfSubTable; i++) {
+                // set table name
+                pstmt.setTableName("t5_" + i);
+                // set tags
+                pstmt.setTagNString(0, "北京-abc");
+ 
+                // set columns
+                ArrayList<Long> tsList = new ArrayList<>();
+                long current = System.currentTimeMillis();
+                for (int j = 0; j < numOfRow; j++)
+                    tsList.add(current + j);
+                pstmt.setTimestamp(0, tsList);
+ 
+                ArrayList<String> f1List = new ArrayList<>();
+                for (int j = 0; j < numOfRow; j++) {
+                    f1List.add("北京-abc");
+                }
+                pstmt.setNString(1, f1List, BINARY_COLUMN_SIZE);
+ 
+                // add column
+                pstmt.columnDataAddBatch();
+            }
+            // execute
+            pstmt.columnDataExecuteBatch();
+        }
+    }
 }
-s.setTimestamp(0, ts);
-ArrayList<Integer> s1 = new ArrayList<>();
-for (int i = 0; i < numOfRows; i++){
-    s1.add(r.nextInt(100));
-}
-s.setInt(1, s1);
-ArrayList<String> s2 = new ArrayList<>();
-for (int i = 0; i < numOfRows; i++){
-    s2.add("test" + r.nextInt(100));
-}
-s.setString(2, s2, 10);
-
-// The cache is not cleared after AddBatch. Do not bind new data again before ExecuteBatch
-s.columnDataAddBatch();
-s.columnDataExecuteBatch();
-// Clear the cache, after which you can bind new data(including table names, tags, values):
-s.columnDataClearBatch();
-s.columnDataCloseBatch();
 ```
 
 The methods used to set tags are:
@@ -382,10 +578,67 @@ public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException
 public void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 ```
+### Set client configuration in JDBC
+Starting with TDEngine-2.3.5.0, JDBC Driver supports setting TDengine client parameters on the first connection of a Java application. The Driver supports jdbcUrl and Properties to set client parameters in JDBC-JNI mode.
 
-**Note**: Both setString and setNString require the user to declare the column width of the corresponding column in the table definition in the size parameter.
+Note:
+* JDBC-RESTful does not support setting client parameters.
+* The client parameters set in the java application are process-level. To update the client parameters, the application needs to be restarted. This is because these client parameters are global that take effect the first time the application is set up.
+* The following sample code is based on taos-jdbcdriver-2.0.36.
 
-### Data Subscription
+Sample Code:
+```java
+public class ClientParameterSetting {
+    private static final String host = "127.0.0.1";
+ 
+    public static void main(String[] args) throws SQLException {
+        setParameterInJdbcUrl();
+ 
+        setParameterInProperties();
+    }
+ 
+    private static void setParameterInJdbcUrl() throws SQLException {
+        String jdbcUrl = "jdbc:TAOS://" + host + ":6030/?debugFlag=135&asyncLog=0";
+ 
+        Connection connection = DriverManager.getConnection(jdbcUrl, "root", "taosdata");
+ 
+        printDatabase(connection);
+ 
+        connection.close();
+    }
+ 
+    private static void setParameterInProperties() throws SQLException {
+        String jdbcUrl = "jdbc:TAOS://" + host + ":6030/";
+        Properties properties = new Properties();
+        properties.setProperty("user", "root");
+        properties.setProperty("password", "taosdata");
+        properties.setProperty("debugFlag", "135");
+        properties.setProperty("asyncLog", "0");
+        properties.setProperty("maxSQLLength", "1048576");
+ 
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, properties)) {
+            printDatabase(conn);
+        }
+    }
+ 
+    private static void printDatabase(Connection connection) throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            ResultSet rs = stmt.executeQuery("show databases");
+ 
+            ResultSetMetaData meta = rs.getMetaData();
+            while (rs.next()) {
+                for (int i = 1; i <= meta.getColumnCount(); i++) {
+                    System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
+                }
+                System.out.println();
+            }
+        }
+    }
+}
+```
+
+
+## Data Subscription
 
 #### Subscribe
 
