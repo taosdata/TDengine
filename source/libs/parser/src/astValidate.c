@@ -4457,8 +4457,6 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
 
-      strncpy(pCreateMsg->db, token.z, token.n);
-
       pDcl->pMsg = (char*)pCreateMsg;
       pDcl->msgLen = sizeof(SCreateDbMsg);
       pDcl->msgType = (pInfo->type == TSDB_SQL_CREATE_DB)? TSDB_MSG_TYPE_CREATE_DB:TSDB_MSG_TYPE_ALTER_DB;
