@@ -121,6 +121,7 @@ typedef struct SRequestObj {
   STscObj         *pTscObj;
   SQueryExecMetric metric;
   char            *sqlstr;  // sql string
+  int32_t          sqlLen;
   SRequestSendRecvBody     body;
   int64_t          self;
   char            *msgBuf;
