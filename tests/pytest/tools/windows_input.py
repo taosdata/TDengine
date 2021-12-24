@@ -56,6 +56,7 @@ class TDTestCase:
             temp += 'a'
         sql = "insert into db.tb values(now,'%s');" % temp
         window.SendKeys(sql)
+        window.SendKeys('{Enter}')
         window.SendKeys('{Ctrl}A')
         window.SendKeys('{Ctrl}C')
         # 获取剪切板里面的复制内容
