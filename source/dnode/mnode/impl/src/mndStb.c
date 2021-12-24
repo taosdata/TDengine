@@ -492,7 +492,6 @@ static int32_t mndProcessCreateStbMsg(SMnodeMsg *pMsg) {
     mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
     return -1;
   }
-  sdbRelease(pMnode->pSdb, pTopic);
 
   SDbObj *pDb = mndAcquireDbByStb(pMnode, pCreate->name);
   if (pDb == NULL) {

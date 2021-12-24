@@ -50,8 +50,8 @@ int32_t qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SEpAddr
   return setSubplanExecutionNode(subplan, templateId, ep);
 }
 
-int32_t qSubPlanToString(const SSubplan *subplan, char** str) {
-  return subPlanToString(subplan, str);
+int32_t qSubPlanToString(const SSubplan *subplan, char** str, int32_t* len) {
+  return subPlanToString(subplan, str, len);
 }
 
 int32_t qStringToSubplan(const char* str, SSubplan** subplan) {

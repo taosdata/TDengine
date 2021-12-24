@@ -33,10 +33,6 @@ protected:
   void pushScan(const string& db, const string& table, int32_t scanOp) {
     shared_ptr<MockTableMeta> meta = mockCatalogService->getTableMeta(db, table);
     EXPECT_TRUE(meta);
-// typedef struct SQueryPlanNode {
-//   SArray             *pExpr;        // the query functions or sql aggregations
-//   int32_t             numOfExpr;  // number of result columns, which is also the number of pExprs
-// } SQueryPlanNode;
     unique_ptr<SQueryPlanNode> scan((SQueryPlanNode*)calloc(1, sizeof(SQueryPlanNode)));
     scan->info.type = scanOp;
     scan->numOfCols = meta->schema->tableInfo.numOfColumns;
@@ -54,6 +50,21 @@ protected:
     return code;
   }
 
+  int32_t run(const string& db, const string& sql) {
+    SParseContext cxt;
+    buildParseContext(db, sql, &cxt);
+    SQueryNode* query;
+    int32_t code = qParseQuerySql(&cxt, &query);
+    if (TSDB_CODE_SUCCESS != code) {
+      cout << "error no:" << code << ", msg:" << cxt.pMsg << endl;
+      return code;
+    }
+    SQueryDag* dag = nullptr;
+    code = qCreateQueryDag(query, nullptr, &dag);
+    dag_.reset(dag);
+    return code;
+  }
+
   void explain() {
     size_t level = taosArrayGetSize(dag_->pSubplans);
     for (size_t i = 0; i < level; ++i) {
@@ -62,8 +73,10 @@ protected:
       size_t num = taosArrayGetSize(subplans);
       for (size_t j = 0; j < num; ++j) {
         std::cout << "no " << j << ":" << std::endl;
+        int32_t len = 0;
         char* str = nullptr;
-        ASSERT_EQ (TSDB_CODE_SUCCESS, qSubPlanToString((const SSubplan*)taosArrayGetP(subplans, j), &str));
+        ASSERT_EQ(TSDB_CODE_SUCCESS, qSubPlanToString((const SSubplan*)taosArrayGetP(subplans, j), &str, &len));
+        std::cout << "len:" << len << std::endl;
         std::cout << str << std::endl;
         free(str);
       }
@@ -107,6 +120,25 @@ private:
     return info;
   }
 
+  void buildParseContext(const string& db, const string& sql, SParseContext* pCxt) {
+    static string _db;
+    static string _sql;
+    static const int32_t _msgMaxLen = 4096;
+    static char _msg[_msgMaxLen];
+  
+    _db = db;
+    _sql = sql;
+    memset(_msg, 0, _msgMaxLen);
+  
+    pCxt->ctx.acctId = 1;
+    pCxt->ctx.db = _db.c_str();
+    pCxt->ctx.requestId = 1;
+    pCxt->pSql = _sql.c_str();
+    pCxt->sqlLen = _sql.length();
+    pCxt->pMsg = _msg;
+    pCxt->msgLen = _msgMaxLen;
+  }
+
   shared_ptr<MockTableMeta> meta_;
   unique_ptr<SQueryPlanNode> logicPlan_;
   unique_ptr<SQueryDag> dag_;
@@ -114,7 +146,7 @@ private:
 
 // select * from table
 TEST_F(PhyPlanTest, tableScanTest) {
-  pushScan("root.test", "t1", QNODE_TABLESCAN);
+  pushScan("test", "t1", QNODE_TABLESCAN);
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   explain();
   SQueryDag* dag = reslut();
@@ -123,8 +155,16 @@ TEST_F(PhyPlanTest, tableScanTest) {
 
 // select * from supertable
 TEST_F(PhyPlanTest, superTableScanTest) {
-  pushScan("root.test", "st1", QNODE_TABLESCAN);
+  pushScan("test", "st1", QNODE_TABLESCAN);
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
+  explain();
+  SQueryDag* dag = reslut();
+  // todo check
+}
+
+// insert into t values(...)
+TEST_F(PhyPlanTest, insertTest) {
+  ASSERT_EQ(run("test", "insert into t1 values (now, 1, \"beijing\")"), TSDB_CODE_SUCCESS);
   explain();
   SQueryDag* dag = reslut();
   // todo check

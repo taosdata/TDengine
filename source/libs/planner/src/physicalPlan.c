@@ -47,16 +47,38 @@ const char* opTypeToOpName(int32_t type) {
 
 int32_t opNameToOpType(const char* name) {
   for (int32_t i = 1; i < sizeof(gOpName) / sizeof(gOpName[0]); ++i) {
-    if (strcmp(name, gOpName[i])) {
+    if (0 == strcmp(name, gOpName[i])) {
       return i;
     }
   }
   return OP_Unknown;
 }
 
+const char* dsinkTypeToDsinkName(int32_t type) {
+  switch (type) {
+    case DSINK_Dispatch:
+      return "Dispatch";
+    case DSINK_Insert:
+      return "Insert";
+    default:
+      break;
+  }
+  return "Unknown";
+}
+
+int32_t dsinkNameToDsinkType(const char* name) {
+  if (0 == strcmp(name, "Dispatch")) {
+    return DSINK_Dispatch;
+  } else if (0 == strcmp(name, "Insert")) {
+    return DSINK_Insert;
+  }
+  return DSINK_Unknown;
+}
+
 static SDataSink* initDataSink(int32_t type, int32_t size) {
   SDataSink* sink = (SDataSink*)vailidPointer(calloc(1, size));
   sink->info.type = type;
+  sink->info.name = dsinkTypeToDsinkName(type);
   return sink;
 }
 

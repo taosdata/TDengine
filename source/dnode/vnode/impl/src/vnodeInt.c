@@ -24,16 +24,6 @@ int32_t vnodeSync(SVnode *pVnode) { return 0; }
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) { return 0; }
 
-int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vInfo("query message is processed");
-  return 0;
-}
-
-int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vInfo("fetch message is processed");
-  return 0;
-}
-
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   vInfo("sync message is processed");
   return 0;

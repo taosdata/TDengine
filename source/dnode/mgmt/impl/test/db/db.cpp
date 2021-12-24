@@ -27,24 +27,25 @@ Testbase DndTestDb::test;
 
 TEST_F(DndTestDb, 01_ShowDb) {
   test.SendShowMetaMsg(TSDB_MGMT_TABLE_DB, "");
-  CHECK_META("show databases", 17);
+  CHECK_META("show databases", 18);
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN - 1 + VARSTR_HEADER_SIZE, "name");
   CHECK_SCHEMA(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
   CHECK_SCHEMA(2, TSDB_DATA_TYPE_SMALLINT, 2, "vgroups");
-  CHECK_SCHEMA(3, TSDB_DATA_TYPE_SMALLINT, 2, "replica");
-  CHECK_SCHEMA(4, TSDB_DATA_TYPE_SMALLINT, 2, "quorum");
-  CHECK_SCHEMA(5, TSDB_DATA_TYPE_SMALLINT, 2, "days");
-  CHECK_SCHEMA(6, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "keep0,keep1,keep2");
-  CHECK_SCHEMA(7, TSDB_DATA_TYPE_INT, 4, "cache");
-  CHECK_SCHEMA(8, TSDB_DATA_TYPE_INT, 4, "blocks");
-  CHECK_SCHEMA(9, TSDB_DATA_TYPE_INT, 4, "minrows");
-  CHECK_SCHEMA(10, TSDB_DATA_TYPE_INT, 4, "maxrows");
-  CHECK_SCHEMA(11, TSDB_DATA_TYPE_TINYINT, 1, "wallevel");
-  CHECK_SCHEMA(12, TSDB_DATA_TYPE_INT, 4, "fsync");
-  CHECK_SCHEMA(13, TSDB_DATA_TYPE_TINYINT, 1, "comp");
-  CHECK_SCHEMA(14, TSDB_DATA_TYPE_TINYINT, 1, "cachelast");
-  CHECK_SCHEMA(15, TSDB_DATA_TYPE_BINARY, 3 + VARSTR_HEADER_SIZE, "precision");
-  CHECK_SCHEMA(16, TSDB_DATA_TYPE_TINYINT, 1, "update");
+  CHECK_SCHEMA(3, TSDB_DATA_TYPE_INT, 4, "ntables");
+  CHECK_SCHEMA(4, TSDB_DATA_TYPE_SMALLINT, 2, "replica");
+  CHECK_SCHEMA(5, TSDB_DATA_TYPE_SMALLINT, 2, "quorum");
+  CHECK_SCHEMA(6, TSDB_DATA_TYPE_SMALLINT, 2, "days");
+  CHECK_SCHEMA(7, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "keep0,keep1,keep2");
+  CHECK_SCHEMA(8, TSDB_DATA_TYPE_INT, 4, "cache");
+  CHECK_SCHEMA(9, TSDB_DATA_TYPE_INT, 4, "blocks");
+  CHECK_SCHEMA(10, TSDB_DATA_TYPE_INT, 4, "minrows");
+  CHECK_SCHEMA(11, TSDB_DATA_TYPE_INT, 4, "maxrows");
+  CHECK_SCHEMA(12, TSDB_DATA_TYPE_TINYINT, 1, "wallevel");
+  CHECK_SCHEMA(13, TSDB_DATA_TYPE_INT, 4, "fsync");
+  CHECK_SCHEMA(14, TSDB_DATA_TYPE_TINYINT, 1, "comp");
+  CHECK_SCHEMA(15, TSDB_DATA_TYPE_TINYINT, 1, "cachelast");
+  CHECK_SCHEMA(16, TSDB_DATA_TYPE_BINARY, 3 + VARSTR_HEADER_SIZE, "precision");
+  CHECK_SCHEMA(17, TSDB_DATA_TYPE_TINYINT, 1, "update");
 
   test.SendShowRetrieveMsg();
   EXPECT_EQ(test.GetShowRows(), 0);
@@ -82,13 +83,14 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
   }
 
   test.SendShowMetaMsg(TSDB_MGMT_TABLE_DB, "");
-  CHECK_META("show databases", 17);
+  CHECK_META("show databases", 18);
 
   test.SendShowRetrieveMsg();
   EXPECT_EQ(test.GetShowRows(), 1);
   CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
   CheckInt16(2);                      // vgroups
+  CheckInt32(0);                      // ntables
   CheckInt16(1);                      // replica
   CheckInt16(1);                      // quorum
   CheckInt16(10);                     // days
@@ -147,6 +149,7 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
   CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
   CheckInt16(2);                   // vgroups
+  CheckInt32(0);
   CheckInt16(1);                   // replica
   CheckInt16(2);                   // quorum
   CheckInt16(10);                  // days
@@ -166,7 +169,7 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
   test.Restart();
 
   test.SendShowMetaMsg(TSDB_MGMT_TABLE_DB, "");
-  CHECK_META("show databases", 17);
+  CHECK_META("show databases", 18);
 
   test.SendShowRetrieveMsg();
   EXPECT_EQ(test.GetShowRows(), 1);
@@ -174,6 +177,7 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
   CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
   CheckInt16(2);                   // vgroups
+  CheckInt32(0);
   CheckInt16(1);                   // replica
   CheckInt16(2);                   // quorum
   CheckInt16(10);                  // days
@@ -201,7 +205,7 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
   }
 
   test.SendShowMetaMsg(TSDB_MGMT_TABLE_DB, "");
-  CHECK_META("show databases", 17);
+  CHECK_META("show databases", 18);
 
   test.SendShowRetrieveMsg();
   EXPECT_EQ(test.GetShowRows(), 0);
@@ -239,7 +243,7 @@ TEST_F(DndTestDb, 03_Create_Use_Restart_Use_Db) {
   }
 
   test.SendShowMetaMsg(TSDB_MGMT_TABLE_DB, "");
-  CHECK_META("show databases", 17);
+  CHECK_META("show databases", 18);
 
   test.SendShowRetrieveMsg();
   EXPECT_EQ(test.GetShowRows(), 1);

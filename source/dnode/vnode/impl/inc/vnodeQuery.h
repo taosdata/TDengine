@@ -13,24 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_MNODE_H_
-#define _TD_MND_MNODE_H_
-
-#include "mndInt.h"
+#ifndef _TD_VNODE_READ_H_
+#define _TD_VNODE_READ_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "vnodeInt.h"
+#include "qworker.h"
 
-int32_t mndInitMnode(SMnode *pMnode);
-void    mndCleanupMnode(SMnode *pMnode);
-bool    mndIsMnode(SMnode *pMnode, int32_t dnodeId);
-void    mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet);
-char   *mndGetRoleStr(int32_t role);
-void    mndUpdateMnodeRole(SMnode *pMnode);
+int vnodeQueryOpen(SVnode *pVnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_MNODE_H_*/
+#endif /*_TD_VNODE_READ_H_*/

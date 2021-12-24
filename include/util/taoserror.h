@@ -324,6 +324,11 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_QRY_INVALID_TIME_CONDITION    TAOS_DEF_ERROR_CODE(0, 0x070D)  //"invalid time condition")
 #define TSDB_CODE_QRY_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x070E)  //"System error")
 #define TSDB_CODE_QRY_INVALID_INPUT             TAOS_DEF_ERROR_CODE(0, 0x070F)  //"invalid input")
+#define TSDB_CODE_QRY_SCH_NOT_EXIST             TAOS_DEF_ERROR_CODE(0, 0x0710)  //"Scheduler not exist")
+#define TSDB_CODE_QRY_TASK_NOT_EXIST            TAOS_DEF_ERROR_CODE(0, 0x0711)  //"Task not exist")
+#define TSDB_CODE_QRY_TASK_ALREADY_EXIST        TAOS_DEF_ERROR_CODE(0, 0x0712)  //"Task already exist")
+#define TSDB_CODE_QRY_RES_CACHE_NOT_EXIST       TAOS_DEF_ERROR_CODE(0, 0x0713)  //"Task result cache not exist")
+#define TSDB_CODE_QRY_TASK_CANCELLED            TAOS_DEF_ERROR_CODE(0, 0x0714)  //"Task cancelled")
 
 
 // grant

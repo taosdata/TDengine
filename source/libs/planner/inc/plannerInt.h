@@ -102,7 +102,7 @@ int32_t queryPlanToSql(struct SQueryPlanNode* pQueryNode, char** sql);
 
 int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag);
 int32_t setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SEpAddr* ep);
-int32_t subPlanToString(const SSubplan *pPhyNode, char** str);
+int32_t subPlanToString(const SSubplan *pPhyNode, char** str, int32_t* len);
 int32_t stringToSubplan(const char* str, SSubplan** subplan);
 
 /**
@@ -120,6 +120,9 @@ void* destroyQueryPhyPlan(struct SPhyNode* pQueryPhyNode);
 
 const char* opTypeToOpName(int32_t type);
 int32_t opNameToOpType(const char* name);
+
+const char* dsinkTypeToDsinkName(int32_t type);
+int32_t dsinkNameToDsinkType(const char* name);
 
 #ifdef __cplusplus
 }

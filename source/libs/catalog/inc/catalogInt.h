@@ -59,8 +59,6 @@ typedef struct SCatalogMgmt {
 
 typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 
-extern int32_t ctgDebugFlag;
-
 #define ctgFatal(...)  do { if (ctgDebugFlag & DEBUG_FATAL) { taosPrintLog("CTG FATAL ", ctgDebugFlag, __VA_ARGS__); }} while(0)
 #define ctgError(...)  do { if (ctgDebugFlag & DEBUG_ERROR) { taosPrintLog("CTG ERROR ", ctgDebugFlag, __VA_ARGS__); }} while(0)
 #define ctgWarn(...)   do { if (ctgDebugFlag & DEBUG_WARN)  { taosPrintLog("CTG WARN ", ctgDebugFlag, __VA_ARGS__); }}  while(0)
@@ -74,7 +72,6 @@ extern int32_t ctgDebugFlag;
 #define CTG_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define CTG_ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { ctgError(__VA_ARGS__); terrno = _code; return _code; } } while (0)
 #define CTG_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
-
 
 #ifdef __cplusplus
 }

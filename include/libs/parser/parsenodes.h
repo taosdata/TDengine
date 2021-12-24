@@ -40,7 +40,7 @@ typedef struct SQueryNode {
 typedef struct SField {
   char     name[TSDB_COL_NAME_LEN];
   uint8_t  type;
-  int16_t  bytes;
+  int32_t  bytes;
 } SField;
 
 typedef struct SParseBasicCtx {
@@ -159,6 +159,13 @@ typedef struct SInsertStmtInfo {
   uint32_t    insertType;          // insert data from [file|sql statement| bound statement]
   const char* sql;                 // current sql statement position
 } SInsertStmtInfo;
+
+typedef struct SDclStmtInfo {
+  int16_t     nodeType;
+  int16_t     msgType;
+  char*       pMsg;
+  int32_t     msgLen;
+} SDclStmtInfo;
 
 #ifdef __cplusplus
 }

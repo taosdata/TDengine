@@ -444,7 +444,6 @@ static int32_t mndProcessCreateTopicMsg(SMnodeMsg *pMsg) {
     mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
     return -1;
   }
-  sdbRelease(pMnode->pSdb, pStb);
 
   SDbObj *pDb = mndAcquireDbByTopic(pMnode, pCreate->name);
   if (pDb == NULL) {
@@ -647,6 +646,7 @@ static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pMsg) {
 
   mDebug("topic:%s, start to retrieve meta", pInfo->tableFname);
 
+#if 0
   SDbObj *pDb = mndAcquireDbByTopic(pMnode, pInfo->tableFname);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
@@ -661,7 +661,6 @@ static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pMsg) {
     mError("topic:%s, failed to get meta since %s", pInfo->tableFname, terrstr());
     return -1;
   }
-#if 0
 
   taosRLockLatch(&pTopic->lock);
   int32_t totalCols = pTopic->numOfColumns + pTopic->numOfTags;
