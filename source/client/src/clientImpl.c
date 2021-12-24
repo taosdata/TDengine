@@ -11,10 +11,10 @@
 #include "parser.h"
 
 static int32_t initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet);
-static int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody);
-static void destroyRequestMsgBody(SRequestMsgBody* pMsgBody);
+static SMsgSendInfo* buildConnectMsg(SRequestObj *pRequest);
+static void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
 
-static int32_t sendMsgToServer(void *pTransporter, SEpSet* epSet, const SRequestMsgBody *pBody, int64_t* pTransporterId);
+static int32_t sendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo);
 
 static bool stringLengthCheck(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -163,10 +163,11 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   int32_t code = qParseQuerySql(&cxt, &pQuery);
   if (qIsDclQuery(pQuery)) {
     SDclStmtInfo* pDcl = (SDclStmtInfo*) pQuery;
-    pRequest->type = pDcl->msgType;
-    pRequest->body.requestMsg = (SReqMsgInfo){.pMsg = pDcl->pMsg, .len = pDcl->msgLen};
 
-    SRequestMsgBody body = buildRequestMsgImpl(pRequest);
+    pRequest->type = pDcl->msgType;
+    pRequest->body.requestMsg = (SDataBuf){.pData = pDcl->pMsg, .len = pDcl->msgLen};
+
+    SMsgSendInfo* body = buildSendMsgInfoImpl(pRequest);
     SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
 
     if (pDcl->msgType == TSDB_MSG_TYPE_CREATE_TABLE) {
@@ -180,7 +181,7 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
         return pRequest;
       }
 
-      SCreateTableMsg* pMsg = body.msgInfo.pMsg;
+      SCreateTableMsg* pMsg = body->msgInfo.pData;
 
       SName t = {0};
       tNameFromString(&t, pMsg->name, T_NAME_ACCT|T_NAME_DB|T_NAME_TABLE);
@@ -200,14 +201,14 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
         tstrncpy(ep.fqdn[i], info.epAddr[i].fqdn, tListLen(ep.fqdn[i]));
       }
 
-      sendMsgToServer(pTscObj->pTransporter, &ep, &body, &transporterId);
+      sendMsgToServer(pTscObj->pTransporter, &ep, &transporterId, body);
     } else {
       int64_t transporterId = 0;
-      sendMsgToServer(pTscObj->pTransporter, pEpSet, &body, &transporterId);
+      sendMsgToServer(pTscObj->pTransporter, pEpSet, &transporterId, body);
     }
 
     tsem_wait(&pRequest->body.rspSem);
-    destroyRequestMsgBody(&body);
+    destroySendMsgInfo(body);
   }
 
   tfree(cxt.ctx.db);
@@ -270,14 +271,13 @@ STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, con
     return NULL;
   }
 
-  SRequestMsgBody body = {0};
-  buildConnectMsg(pRequest, &body);
+  SMsgSendInfo* body = buildConnectMsg(pRequest);
 
   int64_t transporterId = 0;
-  sendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &body, &transporterId);
+  sendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
 
   tsem_wait(&pRequest->body.rspSem);
-  destroyRequestMsgBody(&body);
+  destroySendMsgInfo(body);
 
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char *errorMsg = (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(terrno);
@@ -294,15 +294,25 @@ STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, con
   return pTscObj;
 }
 
-static int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
-  pMsgBody->msgType         = TSDB_MSG_TYPE_CONNECT;
-  pMsgBody->msgInfo.len     = sizeof(SConnectMsg);
-  pMsgBody->requestObjRefId = pRequest->self;
+static SMsgSendInfo* buildConnectMsg(SRequestObj *pRequest) {
+  SMsgSendInfo *pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
+  if (pMsgSendInfo == NULL) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pMsgSendInfo->msgType         = TSDB_MSG_TYPE_CONNECT;
+  pMsgSendInfo->msgInfo.len     = sizeof(SConnectMsg);
+  pMsgSendInfo->requestObjRefId = pRequest->self;
+  pMsgSendInfo->requestId       = pRequest->requestId;
+  pMsgSendInfo->fp              = handleRequestRspFp[pMsgSendInfo->msgType];
+  pMsgSendInfo->param           = pRequest;
 
   SConnectMsg *pConnect = calloc(1, sizeof(SConnectMsg));
   if (pConnect == NULL) {
+    tfree(pMsgSendInfo);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return -1;
+    return NULL;
   }
 
   STscObj *pObj = pRequest->pTscObj;
@@ -315,84 +325,78 @@ static int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody)
   pConnect->startTime = htobe64(appInfo.startTime);
   tstrncpy(pConnect->app, appInfo.appName, tListLen(pConnect->app));
 
-  pMsgBody->msgInfo.pMsg = pConnect;
-  return 0;
+  pMsgSendInfo->msgInfo.pData = pConnect;
+  return pMsgSendInfo;
 }
 
-static void destroyRequestMsgBody(SRequestMsgBody* pMsgBody) {
+static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   assert(pMsgBody != NULL);
-  tfree(pMsgBody->msgInfo.pMsg);
+  tfree(pMsgBody->msgInfo.pData);
+  tfree(pMsgBody);
 }
 
-int32_t sendMsgToServer(void *pTransporter, SEpSet* epSet, const SRequestMsgBody *pBody, int64_t* pTransporterId) {
-  char *pMsg = rpcMallocCont(pBody->msgInfo.len);
+int32_t sendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
+  char *pMsg = rpcMallocCont(pInfo->msgInfo.len);
   if (NULL == pMsg) {
-    tscError("0x%"PRIx64" msg:%s malloc failed", pBody->requestId, taosMsg[pBody->msgType]);
+    tscError("0x%"PRIx64" msg:%s malloc failed", pInfo->requestId, taosMsg[pInfo->msgType]);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return -1;
   }
 
-  memcpy(pMsg, pBody->msgInfo.pMsg, pBody->msgInfo.len);
+  memcpy(pMsg, pInfo->msgInfo.pData, pInfo->msgInfo.len);
   SRpcMsg rpcMsg = {
-      .msgType = pBody->msgType,
+      .msgType = pInfo->msgType,
       .pCont   = pMsg,
-      .contLen = pBody->msgInfo.len,
-      .ahandle = (void*) pBody->requestObjRefId,
+      .contLen = pInfo->msgInfo.len,
+      .ahandle = (void*) pInfo,
       .handle  = NULL,
       .code    = 0
   };
+
+  assert(pInfo->fp != NULL);
 
   rpcSendRequest(pTransporter, epSet, &rpcMsg, pTransporterId);
   return TSDB_CODE_SUCCESS;
 }
 
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
-  int64_t requestRefId = (int64_t)pMsg->ahandle;
+  SMsgSendInfo *pSendInfo = (SMsgSendInfo *) pMsg->ahandle;
+  assert(pMsg->ahandle != NULL);
 
-  SRequestObj *pRequest = (SRequestObj *)taosAcquireRef(tscReqRef, requestRefId);
-  if (pRequest == NULL) {
-    rpcFreeCont(pMsg->pCont);
-    return;
-  }
+  if (pSendInfo->requestObjRefId != 0) {
+    SRequestObj *pRequest = (SRequestObj *)taosAcquireRef(msgObjRefPool, pSendInfo->requestObjRefId);
+    assert(pRequest->self == pSendInfo->requestObjRefId);
 
-  assert(pRequest->self == requestRefId);
-  pRequest->metric.rsp = taosGetTimestampMs();
+    pRequest->metric.rsp = taosGetTimestampMs();
+    pRequest->code = pMsg->code;
 
-  pRequest->code = pMsg->code;
-
-  STscObj *pTscObj = pRequest->pTscObj;
-  if (pEpSet) {
-    if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, pEpSet)) {
-      updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, pEpSet);
-    }
-  }
-
-  /*
-   * There is not response callback function for submit response.
-   * The actual inserted number of points is the first number.
-   */
-  if (pMsg->code == TSDB_CODE_SUCCESS) {
-    tscDebug("0x%" PRIx64 " message:%s, code:%s rspLen:%d, elapsed:%"PRId64 " ms", pRequest->requestId, taosMsg[pMsg->msgType],
-             tstrerror(pMsg->code), pMsg->contLen, pRequest->metric.rsp - pRequest->metric.start);
-    if (handleRequestRspFp[pRequest->type]) {
-      char *p = malloc(pMsg->contLen);
-      if (p == NULL) {
-        pRequest->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-        terrno = pRequest->code;
-      } else {
-        memcpy(p, pMsg->pCont, pMsg->contLen);
-        pMsg->code = (*handleRequestRspFp[pRequest->type])(pRequest, p, pMsg->contLen);
+    STscObj *pTscObj = pRequest->pTscObj;
+    if (pEpSet) {
+      if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, pEpSet)) {
+        updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, pEpSet);
       }
     }
-  } else {
-    tscError("0x%" PRIx64 " SQL cmd:%s, code:%s rspLen:%d, elapsed time:%"PRId64" ms", pRequest->requestId, taosMsg[pMsg->msgType],
-             tstrerror(pMsg->code), pMsg->contLen, pRequest->metric.rsp - pRequest->metric.start);
+
+    /*
+   * There is not response callback function for submit response.
+   * The actual inserted number of points is the first number.
+     */
+    if (pMsg->code == TSDB_CODE_SUCCESS) {
+      tscDebug("0x%" PRIx64 " message:%s, code:%s rspLen:%d, elapsed:%" PRId64 " ms", pRequest->requestId,
+               taosMsg[pMsg->msgType], tstrerror(pMsg->code), pMsg->contLen,
+               pRequest->metric.rsp - pRequest->metric.start);
+    } else {
+      tscError("0x%" PRIx64 " SQL cmd:%s, code:%s rspLen:%d, elapsed time:%" PRId64 " ms", pRequest->requestId,
+               taosMsg[pMsg->msgType], tstrerror(pMsg->code), pMsg->contLen,
+               pRequest->metric.rsp - pRequest->metric.start);
+    }
+
+    taosReleaseRef(msgObjRefPool, pSendInfo->requestObjRefId);
   }
 
-  taosReleaseRef(tscReqRef, requestRefId);
+  SDataBuf buf = {.pData = pMsg->pCont, .len = pMsg->contLen};
+  pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
   rpcFreeCont(pMsg->pCont);
-
-  sem_post(&pRequest->body.rspSem);
 }
 
 TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port) {
@@ -429,14 +433,14 @@ void* doFetchRow(SRequestObj* pRequest) {
   if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
     pRequest->type = TSDB_MSG_TYPE_SHOW_RETRIEVE;
 
-    SRequestMsgBody body = buildRequestMsgImpl(pRequest);
+    SMsgSendInfo* body = buildSendMsgInfoImpl(pRequest);
 
-    int64_t transporterId = 0;
-    STscObj* pTscObj = pRequest->pTscObj;
-    sendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &body, &transporterId);
+    int64_t  transporterId = 0;
+    STscObj *pTscObj = pRequest->pTscObj;
+    sendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
 
     tsem_wait(&pRequest->body.rspSem);
-    destroyRequestMsgBody(&body);
+    destroySendMsgInfo(body);
 
     pResultInfo->current = 0;
     if (pResultInfo->numOfRows <= pResultInfo->current) {

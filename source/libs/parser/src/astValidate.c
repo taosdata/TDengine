@@ -4090,7 +4090,7 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, void** ou
     }
   }
 
-  *output = buildShowMsg(pShowInfo, pCtx->requestId, pMsgBuf->buf, pMsgBuf->len);
+  *output = buildShowMsg(pShowInfo, pCtx, pMsgBuf->buf, pMsgBuf->len);
   *outputLen = sizeof(SShowMsg)/* + htons(pShowMsg->payloadLen)*/;
   return TSDB_CODE_SUCCESS;
 }
