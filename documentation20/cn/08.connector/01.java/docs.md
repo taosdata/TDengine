@@ -804,17 +804,16 @@ Query OK, 1 row(s) in set (0.000141s)
 请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC)
 
 ## 常见问题
-
+* 使用Statement的addBatch和executeBatch来执行“批量写入/更行”，为什么没有带来性能上的提升？
+  **原因**：TDengine的JDBC实现中，通过addBatch方法提交的sql语句，会按照添加的顺序，依次执行，这种方式没有减少与服务端的交互次数，不会带来性能上的提升。
+  **解决方法**：1. 在一条insert语句中拼接多个values值；2. 使用多线程的方式并发插入；3. 使用参数绑定的写入方式
+  
 * java.lang.UnsatisfiedLinkError: no taos in java.library.path
-
   **原因**：程序没有找到依赖的本地函数库 taos。
-
   **解决方法**：Windows 下可以将 C:\TDengine\driver\taos.dll 拷贝到 C:\Windows\System32\ 目录下，Linux 下将建立如下软链 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
 
 * java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
-
   **原因**：目前 TDengine 只支持 64 位 JDK。
-
   **解决方法**：重新安装 64 位 JDK。
 
 * 其它问题请参考 [Issues](https://github.com/taosdata/TDengine/issues)
