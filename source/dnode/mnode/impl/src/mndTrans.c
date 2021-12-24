@@ -132,7 +132,7 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   for (int32_t i = 0; i < redoActionNum; ++i) {
     STransAction *pAction = taosArrayGet(pTrans->redoActions, i);
     SDB_SET_BINARY(pRaw, dataPos, (void *)&pAction->epSet, sizeof(SEpSet));
-    SDB_SET_INT8(pRaw, dataPos, pAction->msgType)
+    SDB_SET_INT16(pRaw, dataPos, pAction->msgType)
     SDB_SET_INT32(pRaw, dataPos, pAction->contLen)
     SDB_SET_BINARY(pRaw, dataPos, pAction->pCont, pAction->contLen);
   }
@@ -140,7 +140,7 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   for (int32_t i = 0; i < undoActionNum; ++i) {
     STransAction *pAction = taosArrayGet(pTrans->undoActions, i);
     SDB_SET_BINARY(pRaw, dataPos, (void *)&pAction->epSet, sizeof(SEpSet));
-    SDB_SET_INT8(pRaw, dataPos, pAction->msgType)
+    SDB_SET_INT16(pRaw, dataPos, pAction->msgType)
     SDB_SET_INT32(pRaw, dataPos, pAction->contLen)
     SDB_SET_BINARY(pRaw, dataPos, (void *)pAction->pCont, pAction->contLen);
   }
@@ -243,7 +243,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   for (int32_t i = 0; i < redoActionNum; ++i) {
     STransAction action = {0};
     SDB_GET_BINARY(pRaw, pRow, dataPos, (void *)&action.epSet, sizeof(SEpSet));
-    SDB_GET_INT8(pRaw, pRow, dataPos, &action.msgType)
+    SDB_GET_INT16(pRaw, pRow, dataPos, &action.msgType)
     SDB_GET_INT32(pRaw, pRow, dataPos, &action.contLen)
     action.pCont = malloc(action.contLen);
     if (action.pCont == NULL) {
@@ -262,7 +262,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   for (int32_t i = 0; i < undoActionNum; ++i) {
     STransAction action = {0};
     SDB_GET_BINARY(pRaw, pRow, dataPos, (void *)&action.epSet, sizeof(SEpSet));
-    SDB_GET_INT8(pRaw, pRow, dataPos, &action.msgType)
+    SDB_GET_INT16(pRaw, pRow, dataPos, &action.msgType)
     SDB_GET_INT32(pRaw, pRow, dataPos, &action.contLen)
     action.pCont = malloc(action.contLen);
     if (action.pCont == NULL) {

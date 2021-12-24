@@ -74,7 +74,7 @@ typedef struct {
   SEpSet   epSet;      // ip list provided by app
   void     *ahandle;    // handle provided by app
   struct SRpcConn *pConn; // pConn allocated
-  char      msgType;    // message type
+  tmsg_t    msgType;    // message type
   uint8_t  *pCont;      // content provided by app
   int32_t   contLen;    // content length
   int32_t   code;       // error code
@@ -108,8 +108,8 @@ typedef struct SRpcConn {
   uint16_t  tranId;         // outgoing transcation ID, for build message
   uint16_t  outTranId;      // outgoing transcation ID
   uint16_t  inTranId;       // transcation ID for incoming msg
-  uint8_t   outType;        // message type for outgoing request
-  uint8_t   inType;         // message type for incoming request  
+  tmsg_t    outType;        // message type for outgoing request
+  tmsg_t    inType;         // message type for incoming request  
   void     *chandle;  // handle passed by TCP/UDP connection layer
   void     *ahandle;  // handle provided by upper app layter
   int       retry;    // number of retry for sending request
@@ -409,7 +409,7 @@ void rpcSendRequest(void *shandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t 
 
   // connection type is application specific. 
   // for TDengine, all the query, show commands shall have TCP connection
-  char type = pMsg->msgType;
+  tmsg_t type = pMsg->msgType;
   if (type == TDMT_VND_QUERY || type == TDMT_MND_SHOW_RETRIEVE
     || type == TDMT_VND_FETCH || type == TDMT_MND_VGROUP_LIST
     || type == TDMT_VND_TABLES_META || type == TDMT_VND_TABLE_META
@@ -957,7 +957,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
   sid = htonl(pHead->destId);
   *ppContext = NULL;
 
-  if (pHead->msgType >= TDMT_MAX || pHead->msgType <= 0) {
+  if (TMSG_INDEX(pHead->msgType) >= TDMT_MAX || TMSG_INDEX(pHead->msgType) <= 0) {
     tDebug("%s sid:%d, invalid message type:%d", pRpc->label, sid, pHead->msgType);
     terrno = TSDB_CODE_RPC_INVALID_MSG_TYPE; return NULL;
   }
@@ -1094,7 +1094,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   SRpcReqContext *pContext;
   pConn = rpcProcessMsgHead(pRpc, pRecv, &pContext);
 
-  if (pHead->msgType >= 1 && pHead->msgType < TDMT_MAX) {
+  if (TMSG_INDEX(pHead->msgType) >= 1 && TMSG_INDEX(pHead->msgType) < TDMT_MAX) {
     tDebug("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
            pConn, (void *)pHead->ahandle, TMSG_INFO(pHead->msgType), pRecv->ip, pRecv->port, terrno, pRecv->msgLen,
            pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
@@ -1112,11 +1112,11 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
         if (code == TSDB_CODE_RPC_INVALID_TIME_STAMP || code == TSDB_CODE_RPC_AUTH_FAILURE) {
           rpcCloseConn(pConn);
         }
-        if (pHead->msgType + 1 > 1 && pHead->msgType+1 < TDMT_MAX) {
+        if (TMSG_INDEX(pHead->msgType) + 1 > 1 && TMSG_INDEX(pHead->msgType) + 1 < TDMT_MAX) {
           tDebug("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, TMSG_INFO(pHead->msgType+1), code);
         } else {
           tError("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, TMSG_INFO(pHead->msgType), code);
-        }     
+        }
       } 
     } else { // msg is passed to app only parsing is ok 
       rpcProcessIncomingMsg(pConn, pHead, pContext);
@@ -1262,7 +1262,7 @@ static void rpcSendErrorMsgToPeer(SRecvInfo *pRecv, int32_t code) {
 
   memset(msg, 0, sizeof(SRpcHead));
   pReplyHead->version = pRecvHead->version;
-  pReplyHead->msgType = (char)(pRecvHead->msgType + 1);
+  pReplyHead->msgType = (tmsg_t)(pRecvHead->msgType + 1);
   pReplyHead->spi = 0;
   pReplyHead->encrypt = pRecvHead->encrypt;
   pReplyHead->tranId = pRecvHead->tranId;
@@ -1292,7 +1292,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   SRpcHead  *pHead = rpcHeadFromCont(pContext->pCont);
   char      *msg = (char *)pHead;
   int        msgLen = rpcMsgLenFromCont(pContext->contLen);
-  char       msgType = pContext->msgType;
+  tmsg_t     msgType = pContext->msgType;
 
   pContext->numOfTry++;
   SRpcConn *pConn = rpcSetupConnToServer(pContext);
