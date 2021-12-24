@@ -1,7 +1,11 @@
 
 #======================b1-start===============
 
+# ---- user
 ./test.sh -f general/user/basic1.sim 
+
+# ---- db
+./test.sh -f general/db/basic1.sim 
 
 
 #======================b1-end===============
