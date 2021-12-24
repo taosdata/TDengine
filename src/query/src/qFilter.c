@@ -1512,8 +1512,8 @@ int32_t filterTreeToGroup(tExprNode* tree, SFilterInfo *info, SArray* group) {
 
     ERR_JRET(filterDetachCnfGroups(group, leftGroup, rightGroup));
 
-    taosArrayDestroyEx(leftGroup, filterFreeGroup);
-    taosArrayDestroyEx(rightGroup, filterFreeGroup);
+    taosArrayDestroyEx(&leftGroup, filterFreeGroup);
+    taosArrayDestroyEx(&rightGroup, filterFreeGroup);
     
     return TSDB_CODE_SUCCESS;
   }
@@ -1530,8 +1530,8 @@ int32_t filterTreeToGroup(tExprNode* tree, SFilterInfo *info, SArray* group) {
 
 _return:
 
-  taosArrayDestroyEx(leftGroup, filterFreeGroup);
-  taosArrayDestroyEx(rightGroup, filterFreeGroup);
+  taosArrayDestroyEx(&leftGroup, filterFreeGroup);
+  taosArrayDestroyEx(&rightGroup, filterFreeGroup);
   
   return code;
 }
@@ -1696,7 +1696,7 @@ void filterFreeColInfo(void *data) {
   } else if (info->type == RANGE_TYPE_MR_CTX) {
     filterFreeRangeCtx(info->info);  
   } else if (info->type == RANGE_TYPE_UNIT) {
-    taosArrayDestroy((SArray *)info->info);
+    taosArrayDestroy((SArray**)&info->info);
   }
 
   //NO NEED TO FREE UNIT
@@ -1899,12 +1899,20 @@ int32_t filterInitValFieldData(SFilterInfo *info) {
         (unit->compare.optr == TSDB_RELATION_MATCH || unit->compare.optr == TSDB_RELATION_NMATCH)){
       char newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
       int32_t len = taosUcs4ToMbs(varDataVal(fi->data), varDataLen(fi->data), varDataVal(newValData));
+      if (len < 0){
+        qError("filterInitValFieldData taosUcs4ToMbs error 1");
+        return TSDB_CODE_FAILED;
+      }
       varDataSetLen(newValData, len);
       varDataCopy(fi->data, newValData);
     }else if(type == TSDB_DATA_TYPE_JSON &&
         (unit->compare.optr == TSDB_RELATION_MATCH || unit->compare.optr == TSDB_RELATION_NMATCH)){
       char newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
       int32_t len = taosUcs4ToMbs(((tVariant*)(fi->desc))->pz, ((tVariant*)(fi->desc))->nLen, newValData);
+      if (len < 0){
+        qError("filterInitValFieldData taosUcs4ToMbs error 2");
+        return TSDB_CODE_FAILED;
+      }
       memcpy(((tVariant*)(fi->desc))->pz, newValData, len);
       ((tVariant*)(fi->desc))->nLen = len;
     }
@@ -2067,7 +2075,7 @@ int32_t filterMergeUnits(SFilterInfo *info, SFilterGroupCtx* gRes, uint32_t colI
     }
   }
 
-  taosArrayDestroy(colArray);
+  taosArrayDestroy(&colArray);
 
   FILTER_PUSH_CTX(gRes->colInfo[colIdx], ctx);
 
@@ -2325,7 +2333,7 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx** gRes1, SFilter
     FILTER_PUSH_CTX((*gRes1)->colInfo[pctx->colIdx], pctx->ctx);
   }
 
-  taosArrayDestroy(colCtxs);
+  taosArrayDestroy(&colCtxs);
   
   return TSDB_CODE_SUCCESS;
 
@@ -2333,9 +2341,9 @@ _return:
 
   if (colCtxs) {
     if (taosArrayGetSize(colCtxs) > 0) {
-      taosArrayDestroyEx(colCtxs, filterFreeColCtx);
+      taosArrayDestroyEx(&colCtxs, filterFreeColCtx);
     } else {
-      taosArrayDestroy(colCtxs);
+      taosArrayDestroy(&colCtxs);
     }
   }
 
@@ -2511,7 +2519,7 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t gResNum
 
   filterConvertGroupFromArray(info, group);
 
-  taosArrayDestroy(group);
+  taosArrayDestroy(&group);
 
   filterFreeInfo(&oinfo);
 
@@ -3025,6 +3033,11 @@ static void doJsonCompare(SFilterComUnit *cunit, int8_t *result, void* colData){
     }else{
       char *newColData = calloc(cunit->dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
       int len = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), varDataVal(newColData));
+      if (len < 0){
+        qError("castConvert1 taosUcs4ToMbs error");
+        tfree(newColData);
+        return;
+      }
       varDataSetLen(newColData, len);
       tVariant* val = cunit->valData;
       char newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
@@ -3113,9 +3126,13 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t** p, SDataStat
 
     if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_NCHAR && (info->cunits[uidx].optr == TSDB_RELATION_MATCH || info->cunits[uidx].optr == TSDB_RELATION_NMATCH)){
       char *newColData = calloc(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
-      int len = taosUcs4ToMbs(varDataVal(colData), varDataLen(colData), varDataVal(newColData));
-      varDataSetLen(newColData, len);
-      (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, newColData, info->cunits[uidx].valData);
+      int32_t len = taosUcs4ToMbs(varDataVal(colData), varDataLen(colData), varDataVal(newColData));
+      if (len < 0){
+        qError("castConvert1 taosUcs4ToMbs error");
+      }else{
+        varDataSetLen(newColData, len);
+        (*p)[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, newColData, info->cunits[uidx].valData);
+      }
       tfree(newColData);
     }else if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
       doJsonCompare(&(info->cunits[uidx]), &(*p)[i], colData);
@@ -3170,9 +3187,13 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t** p, SDataStatis *
             } else {
               if(cunit->dataType == TSDB_DATA_TYPE_NCHAR && (cunit->optr == TSDB_RELATION_MATCH || cunit->optr == TSDB_RELATION_NMATCH)){
                 char *newColData = calloc(cunit->dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
-                int len = taosUcs4ToMbs(varDataVal(colData), varDataLen(colData), varDataVal(newColData));
-                varDataSetLen(newColData, len);
-                (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, newColData, cunit->valData);
+                int32_t len = taosUcs4ToMbs(varDataVal(colData), varDataLen(colData), varDataVal(newColData));
+                if (len < 0){
+                  qError("castConvert1 taosUcs4ToMbs error");
+                }else{
+                  varDataSetLen(newColData, len);
+                  (*p)[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, newColData, cunit->valData);
+                }
                 tfree(newColData);
               }else if(cunit->dataType == TSDB_DATA_TYPE_JSON){
                 doJsonCompare(cunit, &(*p)[i], colData);
@@ -3349,7 +3370,7 @@ int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options) {
   ERR_JRET(code);
 
   filterConvertGroupFromArray(info, group);
-  taosArrayDestroy(group);
+  taosArrayDestroy(&group);
 
   ERR_JRET(filterInitValFieldData(info));
 
@@ -3577,7 +3598,11 @@ int32_t filterConverNcharColumns(SFilterInfo* info, int32_t rows, bool *gotNchar
         char *src = FILTER_GET_COL_FIELD_DATA(fi, j);
         char *dst = FILTER_GET_COL_FIELD_DATA(&nfi, j);
         int32_t len = 0;
-        taosMbsToUcs4(varDataVal(src), varDataLen(src), varDataVal(dst), bufSize, &len);
+        bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), varDataVal(dst), bufSize, &len);
+        if(!ret) {
+          qError("filterConverNcharColumns taosMbsToUcs4 error");
+          return TSDB_CODE_FAILED;
+        }
         varDataLen(dst) = len;
       }
 

@@ -444,7 +444,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
         }
 
         pSql->retryReason = rpcMsg->code;
-        rpcMsg->code = tscRenewTableMeta(pSql, 0);
+        rpcMsg->code = tscRenewTableMeta(pSql);
         // if there is an error occurring, proceed to the following error handling procedure.
         if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
           taosReleaseRef(tscObjRef, handle);
@@ -837,7 +837,7 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  if (pExpr->resColId >= 0) {
+  if (pExpr->resColId > 0) {
     tscError("result column id underflowed: %d", pExpr->resColId);
     return TSDB_CODE_TSC_RES_TOO_MANY;
   }
@@ -1175,8 +1175,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   _end:
   freeQueryAttr(&query);
-  taosArrayDestroy(tableScanOperator);
-  taosArrayDestroy(queryOperator);
+  taosArrayDestroy(&tableScanOperator);
+  taosArrayDestroy(&queryOperator);
   return code;
 }
 
@@ -2259,7 +2259,7 @@ int tscProcessRetrieveFuncRsp(SSqlObj* pSql) {
   SQueryInfo* parQueryInfo = tscGetQueryInfo(&parent->cmd);
 
   assert(parent->signature == parent && (int64_t)pSql->param == parent->self);
-  taosArrayDestroy(parQueryInfo->pUdfInfo);
+  taosArrayDestroy(&parQueryInfo->pUdfInfo);
 
   parQueryInfo->pUdfInfo = pQueryInfo->pUdfInfo;   // assigned to parent sql obj.
   pQueryInfo->pUdfInfo = NULL;
@@ -2371,7 +2371,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
 
     int32_t size = 0;
     if (p->vgroupIdList!= NULL) {
-      taosArrayDestroy(p->vgroupIdList);
+      taosArrayDestroy(&p->vgroupIdList);
     }
 
     p->vgroupIdList = createVgroupIdListFromMsg(pParentSql, pMsg, pSet, fname, &size, pSql->self);
@@ -3074,28 +3074,46 @@ static void freeElem(void* p) {
 /**
  * retrieve table meta from mnode, and then update the local table meta hashmap.
  * @param pSql          sql object
- * @param tableIndex    table index
  * @return              status code
  */
-int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
+int tscRenewTableMeta(SSqlObj *pSql) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SSqlCmd* pCmd = &pSql->cmd;
 
   SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd);
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
 
-  char name[TSDB_TABLE_FNAME_LEN] = {0};
-  int32_t code = tNameExtractFullName(&pTableMetaInfo->name, name);
-  if (code != TSDB_CODE_SUCCESS) {
-    tscError("0x%"PRIx64" failed to generate the table full name", pSql->self);
-    return TSDB_CODE_TSC_INVALID_OPERATION;
+  SArray* pNameList = taosArrayInit(1, POINTER_BYTES);
+  SArray* vgroupList = taosArrayInit(1, POINTER_BYTES);
+
+  SHashObj *nameTable = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+
+  while (pQueryInfo) {
+    STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+
+    char name[TSDB_TABLE_FNAME_LEN] = {0};
+    code = tNameExtractFullName(&pTableMetaInfo->name, name);
+    if (code != TSDB_CODE_SUCCESS) {
+      tscError("0x%"PRIx64" failed to generate the table full name", pSql->self);
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    //do not add duplicate names
+    if (!taosHashGet(nameTable, name, strlen(name))) {
+      STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+      if (pTableMeta) {
+        tscDebug("0x%"PRIx64" update table meta:%s, old meta numOfTags:%d, numOfCols:%d, uid:%" PRIu64, pSql->self, name,
+                 tscGetNumOfTags(pTableMeta), tscGetNumOfColumns(pTableMeta), pTableMeta->id.uid);
+      }
+
+      char* n = strdup(name);
+      taosArrayPush(pNameList, &n);
+      uint8_t dummy_val = 0;
+      taosHashPut(nameTable, name, strlen(name), &dummy_val, sizeof(uint8_t));
+    }
+    pQueryInfo = pQueryInfo->sibling;
   }
 
-  STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-  if (pTableMeta) {
-    tscDebug("0x%"PRIx64" update table meta:%s, old meta numOfTags:%d, numOfCols:%d, uid:%" PRIu64, pSql->self, name,
-             tscGetNumOfTags(pTableMeta), tscGetNumOfColumns(pTableMeta), pTableMeta->id.uid);
-  }
-
+  taosHashCleanup(nameTable);
 
   // remove stored tableMeta info in hash table
   tscResetSqlCmd(pCmd, true, pSql->self);
@@ -3103,21 +3121,16 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   SSqlCmd* pCmd2 = &pSql->rootObj->cmd;
   pCmd2->pTableMetaMap = tscCleanupTableMetaMap(pCmd2->pTableMetaMap);
   pCmd2->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-  
+
   pSql->rootObj->retryReason = pSql->retryReason;
 
   SSqlObj *tmpSql = pSql->rootObj;
   tscFreeSubobj(pSql->rootObj);
   tfree(tmpSql->pSubs);
 
-  SArray* pNameList = taosArrayInit(1, POINTER_BYTES);
-  SArray* vgroupList = taosArrayInit(1, POINTER_BYTES);
-
-  char* n = strdup(name);
-  taosArrayPush(pNameList, &n);
   code = getMultiTableMetaFromMnode(tmpSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
-  taosArrayDestroyEx(pNameList, freeElem);
-  taosArrayDestroyEx(vgroupList, freeElem);
+  taosArrayDestroyEx(&pNameList, freeElem);
+  taosArrayDestroyEx(&vgroupList, freeElem);
 
   return code;
 }

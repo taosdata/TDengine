@@ -132,8 +132,7 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
   return TSDB_CODE_SUCCESS;
 }
 
-
-static void tscStrToLower(char *str, int32_t n) {
+UNUSED_FUNC static void tscStrToLower(char* str, int32_t n) {
   if (str == NULL || n <= 0) { return;}
   for (int32_t i = 0; i < n; i++) {
     if (str[i] >= 'A' && str[i] <= 'Z') {
@@ -775,10 +774,11 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
         memcpy(dst, p, varDataTLen(p));
       } else if (varDataLen(p) > 0) {
         int32_t length = taosUcs4ToMbs(varDataVal(p), varDataLen(p), varDataVal(dst));
-        varDataSetLen(dst, length);
-
-        if (length == 0) {
+        if (length <= 0) {
           tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)p);
+        }
+        if (length >= 0){
+          varDataSetLen(dst, length);
         }
       } else {
         varDataSetLen(dst, 0);
@@ -810,17 +810,22 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
             varDataSetLen(dst, strlen(varDataVal(dst)));
           }else if (type == TSDB_DATA_TYPE_JSON) {
             int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), varDataVal(dst));
-            varDataSetLen(dst, length);
-            if (length == 0) {
+
+            if (length <= 0) {
               tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)p);
+            }
+            if (length >= 0){
+              varDataSetLen(dst, length);
             }
           }else if (type == TSDB_DATA_TYPE_NCHAR) {   // value -> "value"
             *(char*)varDataVal(dst) = '\"';
             int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), POINTER_SHIFT(varDataVal(dst), CHAR_BYTES));
-            *(char*)(POINTER_SHIFT(varDataVal(dst), length + CHAR_BYTES)) = '\"';
-            varDataSetLen(dst, length + CHAR_BYTES*2);
-            if (length == 0) {
+            if (length <= 0) {
               tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)p);
+            }
+            if (length >= 0){
+              varDataSetLen(dst, length + CHAR_BYTES*2);
+              *(char*)(POINTER_SHIFT(varDataVal(dst), length + CHAR_BYTES)) = '\"';
             }
           }else if (type == TSDB_DATA_TYPE_DOUBLE) {
             double jsonVd = *(double*)(realData);
@@ -1540,7 +1545,7 @@ void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeCachedMeta, uint64_t id) {
     }
 
     if (pQueryInfo->udfCopy) {
-      pQueryInfo->pUdfInfo = taosArrayDestroy(pQueryInfo->pUdfInfo);
+      pQueryInfo->pUdfInfo = taosArrayDestroy(&pQueryInfo->pUdfInfo);
     } else {
       pQueryInfo->pUdfInfo = tscDestroyUdfArrayList(pQueryInfo->pUdfInfo);
     }
@@ -1602,7 +1607,7 @@ void* tscCleanupTableMetaMap(SHashObj* pTableMetaMap) {
 
   STableMetaVgroupInfo* p = taosHashIterate(pTableMetaMap, NULL);
   while (p) {
-    taosArrayDestroy(p->vgroupIdList);
+    taosArrayDestroy(&p->vgroupIdList);
     tfree(p->pTableMeta);
     p = taosHashIterate(pTableMetaMap, p);
   }
@@ -1795,7 +1800,7 @@ void*  tscDestroyBlockArrayList(SSqlObj *pSql, SArray* pDataBlockList) {
     tscDestroyDataBlock(pSql, d, false);
   }
 
-  taosArrayDestroy(pDataBlockList);
+  taosArrayDestroy(&pDataBlockList);
   return NULL;
 }
 
@@ -1834,7 +1839,7 @@ void*  tscDestroyUdfArrayList(SArray* pUdfList) {
     freeUdfInfo(udf);
   }
 
-  taosArrayDestroy(pUdfList);
+  taosArrayDestroy(&pUdfList);
   return NULL;
 }
 
@@ -2470,7 +2475,7 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
     }
   }
 
-  taosArrayDestroy(pFieldInfo->internalField);
+  taosArrayDestroy(&pFieldInfo->internalField);
   tfree(pFieldInfo->final);
 
   memset(pFieldInfo, 0, sizeof(SFieldInfo));
@@ -2675,7 +2680,7 @@ void tscExprDestroy(SArray* pExprInfo) {
     sqlExprDestroy(pExpr);
   }
 
-  taosArrayDestroy(pExprInfo);
+  taosArrayDestroy(&pExprInfo);
 }
 
 int32_t tscExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy) {
@@ -2883,7 +2888,7 @@ void tscColumnListDestroy(SArray* pColumnList) {
     tscColumnDestroy(pCol);
   }
 
-  taosArrayDestroy(pColumnList);
+  taosArrayDestroy(&pColumnList);
 }
 
 /*
@@ -3029,7 +3034,8 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
     if (pToken->type == TK_STRING) {
 
       tscDequoteAndTrimToken(pToken);
-      tscStrToLower(pToken->z, pToken->n);
+      // tscStrToLower(pToken->z, pToken->n);
+      strntolower(pToken->z, pToken->z, pToken->n);
       //pToken->n = (uint32_t)strtrim(pToken->z);
 
       int len = tGetToken(pToken->z, &pToken->type);
@@ -3083,7 +3089,8 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
       if (validateQuoteToken(pToken, escapeEnabled, NULL) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       } else {
-        tscStrToLower(pToken->z,pToken->n);
+        // tscStrToLower(pToken->z,pToken->n);
+        strntolower(pToken->z, pToken->z, pToken->n);
         firstPartQuote = true;
       }
     }
@@ -3101,7 +3108,8 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
       if (validateQuoteToken(pToken, escapeEnabled, NULL) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       } else {
-        tscStrToLower(pToken->z,pToken->n);
+        // tscStrToLower(pToken->z,pToken->n);
+        strntolower(pToken->z, pToken->z, pToken->n);
       }
     }
 
@@ -3260,7 +3268,7 @@ void tscColCondRelease(SArray** pCond) {
     tfree(p->cond);
   }
 
-  taosArrayDestroy(*pCond);
+  taosArrayDestroy(pCond);
 
   *pCond = NULL;
 }
@@ -3274,7 +3282,7 @@ void tscTagCondRelease(STagCond* pTagCond) {
       tfree(p->cond);
     }
 
-    taosArrayDestroy(pTagCond->pCond);
+    taosArrayDestroy(&pTagCond->pCond);
   }
 
   for (int32_t i = 0; i < TSDB_MAX_JOIN_TABLE_NUM; ++i) {
@@ -3284,11 +3292,11 @@ void tscTagCondRelease(STagCond* pTagCond) {
     }
 
     if (node->tsJoin != NULL) {
-      taosArrayDestroy(node->tsJoin);
+      taosArrayDestroy(&node->tsJoin);
     }
 
     if (node->tagJoin != NULL) {
-      taosArrayDestroy(node->tagJoin);
+      taosArrayDestroy(&node->tagJoin);
     }
 
     tfree(node);
@@ -3471,7 +3479,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   pQueryInfo->colList = NULL;
 
   if (pQueryInfo->groupbyExpr.columnInfo != NULL) {
-    taosArrayDestroy(pQueryInfo->groupbyExpr.columnInfo);
+    taosArrayDestroy(&pQueryInfo->groupbyExpr.columnInfo);
     pQueryInfo->groupbyExpr.columnInfo = NULL;
     pQueryInfo->groupbyExpr.numOfGroupCols = 0;
   }
@@ -3483,7 +3491,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   pQueryInfo->fillType = 0;
   tfree(pQueryInfo->buf);
 
-  taosArrayDestroy(pQueryInfo->pUpstream);
+  taosArrayDestroy(&pQueryInfo->pUpstream);
   pQueryInfo->pUpstream = NULL;
   pQueryInfo->bufLen = 0;
 }
@@ -3618,10 +3626,10 @@ void tscFreeVgroupTableInfo(SArray* pVgroupTables) {
       tfree(pInfo->vgInfo.epAddr[j].fqdn);
     }
 #endif
-    taosArrayDestroy(pInfo->itemList);
+    taosArrayDestroy(&pInfo->itemList);
   }
 
-  taosArrayDestroy(pVgroupTables);
+  taosArrayDestroy(&pVgroupTables);
 }
 
 void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index) {
@@ -3635,7 +3643,7 @@ void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index) {
 //    tfree(pInfo->vgInfo.epAddr[j].fqdn);
 //  }
 
-  taosArrayDestroy(pInfo->itemList);
+  taosArrayDestroy(&pInfo->itemList);
   taosArrayRemove(pVgroupTable, index);
 }
 
@@ -5184,7 +5192,8 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   }
 
   // global aggregate query
-  if (pQueryAttr->stableQuery && (pQueryAttr->simpleAgg || pQueryAttr->interval.interval > 0) && tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+  if (pQueryAttr->stableQuery && (pQueryAttr->simpleAgg || pQueryAttr->interval.interval > 0 || pQueryAttr->sw.gap > 0)
+      && tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     createGlobalAggregateExpr(pQueryAttr, pQueryInfo);
   }
 
@@ -5509,19 +5518,26 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
     if(item->type == cJSON_String){     // add json value  format: type|data
       char *jsonValue = item->valuestring;
       outLen = 0;
-      char tagVal[TSDB_MAX_JSON_TAGS_LEN] = {0};
+      char *tagVal = calloc(strlen(jsonValue) * TSDB_NCHAR_SIZE + TSDB_NCHAR_SIZE, 1);
       *tagVal = jsonType2DbType(0, item->type);     // type
       char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);
-      if (!taosMbsToUcs4(jsonValue, strlen(jsonValue), varDataVal(tagData),
-                         TSDB_MAX_JSON_TAGS_LEN - CHAR_BYTES - VARSTR_HEADER_SIZE, &outLen)) {
-        tscError("json string error:%s|%s", strerror(errno), jsonValue);
-        retCode = tscSQLSyntaxErrMsg(errMsg, "serizelize json error", NULL);
+      if (strlen(jsonValue) > 0 && !taosMbsToUcs4(jsonValue, strlen(jsonValue), varDataVal(tagData),
+                         (int32_t)(strlen(jsonValue) * TSDB_NCHAR_SIZE), &outLen)) {
+        tscError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, jsonValue, strerror(errno));
+        retCode = tscSQLSyntaxErrMsg(errMsg, "charset convert json error", NULL);
+        free(tagVal);
         goto end;
       }
 
       varDataSetLen(tagData, outLen);
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, tagVal, true);
+      free(tagVal);
     }else if(item->type == cJSON_Number){
+      if(!isfinite(item->valuedouble)){
+        tscError("json value is invalidate");
+        retCode =  tscSQLSyntaxErrMsg(errMsg, "json value number is illegal", NULL);
+        goto end;
+      }
       char tagVal[LONG_BYTES + CHAR_BYTES] = {0};
       *tagVal = jsonType2DbType(item->valuedouble, item->type);    // type
       char* tagData = POINTER_SHIFT(tagVal,CHAR_BYTES);

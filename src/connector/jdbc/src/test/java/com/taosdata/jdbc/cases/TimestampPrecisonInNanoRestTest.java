@@ -62,8 +62,12 @@ public class TimestampPrecisonInNanoRestTest {
     @AfterClass
     public static void afterClass() {
         try {
-            if (conn != null)
+            if (conn != null) {
+                Statement statement = conn.createStatement();
+                statement.execute("drop database if exists " + ns_timestamp_db);
+                statement.close();
                 conn.close();
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -83,7 +87,7 @@ public class TimestampPrecisonInNanoRestTest {
         int nanos = rs.getTimestamp(1).getNanos();
         Assert.assertEquals(ts % 1000_000_000l, nanos);
         long test_ts = rs.getLong(1);
-        Assert.assertEquals(ts / 1000_000l, test_ts);
+        Assert.assertEquals(ts, test_ts);
     }
 
     @Test

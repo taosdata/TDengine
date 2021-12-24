@@ -53,13 +53,14 @@ In TDengine, the following 10 data types can be used in data model of an ordinar
 | 8    | TINYINT       | 1         | A nullable integer type with a range of [-127, 127]          |
 | 9    | BOOL          | 1         | Boolean type，{true, false}                                  |
 | 10   | NCHAR         | Custom    | Used to record non-ASCII strings, such as Chinese characters. Each nchar character takes up 4 bytes of storage space. Single quotation marks are used at both ends of the string, and escape characters are required for single quotation marks in the string, that is \’. When nchar is used, the string size must be specified. A column of type nchar (10) indicates that the string of this column stores up to 10 nchar characters, which will take up 40 bytes of space. If the length of the user string exceeds the declared length, an error will be reported. |
-
+| 11   | JSON          |           | Json type，only support for tag                                  |
 
 
 **Tips**:
 
 1. TDengine is case-insensitive to English characters in SQL statements and automatically converts them to lowercase for execution. Therefore, the user's case-sensitive strings and passwords need to be enclosed in single quotation marks.
 2. Avoid using BINARY type to save non-ASCII type strings, which will easily lead to errors such as garbled data. The correct way is to use NCHAR type to save Chinese characters.
+3. The numerical values in SQL statements are treated as floating or integer numbers, depends on if the value contains decimal point or is in scientific notation format. Therefore, caution is needed since overflow might happen for corresponding data types. E.g., 9999999999999999999 is overflowed as the number is greater than the largest integer number. However, 9999999999999999999.0 is treated as a valid floating number. 
 
 ## <a class="anchor" id="management"></a>Database Management
 
@@ -1245,3 +1246,92 @@ TAOS SQL supports join columns of two tables by Primary Key timestamp between th
 **Availability of is no null**
 
 Is not null supports all types of columns. Non-null expression is < > "" and only applies to columns of non-numeric types.
+
+**Restrictions on order by**
+
+- A non super table can only have one order by.
+- The super table can have at most two order by expression, and the second must be ts.
+- Order by tag must be the same tag as group by tag. TBNAME is as logical as tag.
+- Order by ordinary column must be the same ordinary column as group by or top/bottom. If both group by and top / bottom exist, order by must be in the same column as group by.
+- There are both order by and group by. The internal of the group is sorted by ts
+- Order by ts.
+
+## JSON type instructions
+- Syntax description
+
+  1. Create JSON type tag
+
+     ```mysql
+     create stable s1 (ts timestamp, v1 int) tags (info json)
+
+     create table s1_1 using s1 tags ('{"k1": "v1"}')
+     ```
+  3. JSON value operator(->)
+
+     ```mysql   
+     select * from s1 where info->'k1' = 'v1'
+
+     select info->'k1' from s1 
+     ```
+  4. JSON key existence operator(contains)
+
+     ```mysql
+     select * from s1 where info contains 'k2'
+    
+     select * from s1 where info contains 'k1'
+     ```
+
+- Supported operations
+
+  1. In where condition，support match/nmatch/between and/like/and/or/is null/is no null，in operator is not support.
+
+     ```mysql 
+     select * from s1 where info→'k1' match 'v*'; 
+
+     select * from s1 where info→'k1' like 'v%' and info contains 'k2';
+
+     select * from s1 where info is null; 
+  
+     select * from s1 where info->'k1' is not null
+     ```
+
+  2. JSON tag is supported in group by、order by、join clause、union all and subquery，like group by json->'key'
+
+  3. Support distinct operator.
+
+     ```mysql 
+     select distinct info→'k1' from s1
+     ```
+
+  5. Tag
+
+     Support change JSON tag（full coverage）
+
+     Support change the name of JSON tag
+
+     Not support add JSON tag, delete JSON tag
+
+- Other constraints
+
+  1. Only tag columns can use JSON type. If JSON tag is used, there can only be one tag column.
+
+  2. Length limit:The length of the key in JSON cannot exceed 256, and the key must be printable ASCII characters; The total length of JSON string does not exceed 4096 bytes.
+
+  3. JSON format restrictions:
+
+    1. JSON input string can be empty (""," ","\t" or null) or object, and cannot be nonempty string, boolean or array.
+    2. Object can be {}, if the object is {}, the whole JSON string is marked as empty. The key can be "", if the key is "", the K-V pair will be ignored in the JSON string.
+    3. Value can be a number (int/double) or string, bool or null, not an array. Nesting is not allowed.
+    4. If two identical keys appear in the JSON string, the first one will take effect.
+    5. Escape is not supported in JSON string.
+
+  4. Null is returned when querying the key that does not exist in JSON.
+
+  5. When JSON tag is used as the sub query result, parsing and querying the JSON string in the sub query is no longer supported in the upper level query.
+
+     The following query is not supported:
+     ```mysql 
+     select jtag→'key' from (select jtag from stable)
+      
+     select jtag->'key' from (select jtag from stable) where jtag->'key'>0
+     ```

@@ -14,7 +14,12 @@ const _ = require('lodash')
 const TaosObjects = require('./taosobjects');
 
 module.exports = CTaosInterface;
-
+const TAOSFIELD = {
+  NAME_LENGTH: 65,
+  TYPE_OFFSET: 65,
+  BYTES_OFFSET: 66,
+  STRUCT_SIZE: 68,
+}
 function convertTimestamp(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
@@ -195,6 +200,24 @@ function convertNchar(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) 
   return res;
 }
 
+function convertJsonTag(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
+  let res = [];
+
+  let currOffset = 0;
+  while (currOffset < data.length) {
+    let len = data.readIntLE(currOffset, 2);
+    let dataEntry = data.slice(currOffset + 2, currOffset + len + 2); //one entry in a row under a column;
+    if (dataEntry[0] == 255 && dataEntry[1] == 255) {
+      res.push(null)
+    } else {
+      res.push(dataEntry.toString("utf-8"));
+    }
+    currOffset += nbytes;
+  }
+  return res;
+}
+
 // Object with all the relevant converters from pblock data to javascript readable data
 let convertFunctions = {
   [FieldTypes.C_BOOL]: convertBool,
@@ -210,7 +233,8 @@ let convertFunctions = {
   [FieldTypes.C_TINYINT_UNSIGNED]: convertTinyintUnsigned,
   [FieldTypes.C_SMALLINT_UNSIGNED]: convertSmallintUnsigned,
   [FieldTypes.C_INT_UNSIGNED]: convertIntUnsigned,
-  [FieldTypes.C_BIGINT_UNSIGNED]: convertBigintUnsigned
+  [FieldTypes.C_BIGINT_UNSIGNED]: convertBigintUnsigned,
+  [FieldTypes.C_JSON_TAG]: convertJsonTag,
 }
 
 // Define TaosField structure
@@ -219,8 +243,8 @@ var TaosField = Struct({
   'name': char_arr,
 });
 TaosField.fields.name.type.size = 65;
-TaosField.defineProperty('type', ref.types.char);
-TaosField.defineProperty('bytes', ref.types.short);
+TaosField.defineProperty('type', ref.types.uint8);
+TaosField.defineProperty('bytes', ref.types.int16);
 
 //define schemaless line array
 var smlLine = ArrayType(ref.coerceType('char *'))
@@ -390,14 +414,14 @@ CTaosInterface.prototype.useResult = function useResult(result) {
 
   let fields = [];
   let pfields = this.fetchFields(result);
+
   if (ref.isNull(pfields) == false) {
-    pfields = ref.reinterpret(pfields, this.fieldsCount(result) * 68, 0);
-    for (let i = 0; i < pfields.length; i += 68) {
-      //0 - 63 = name //64 - 65 = bytes, 66 - 67 = type
+    pfields = ref.reinterpret(pfields, this.fieldsCount(result) * TAOSFIELD.STRUCT_SIZE, 0);
+    for (let i = 0; i < pfields.length; i += TAOSFIELD.STRUCT_SIZE) {
       fields.push({
-        name: ref.readCString(ref.reinterpret(pfields, 65, i)),
-        type: pfields[i + 65],
-        bytes: pfields[i + 66]
+        name: ref.readCString(ref.reinterpret(pfields, TAOSFIELD.NAME_LENGTH, i)),
+        type: pfields[i + TAOSFIELD.TYPE_OFFSET],
+        bytes: pfields[i + TAOSFIELD.BYTES_OFFSET] + pfields[i + TAOSFIELD.BYTES_OFFSET + 1] * 256
       })
     }
   }
@@ -532,13 +556,12 @@ CTaosInterface.prototype.fetchFields_a = function fetchFields_a(result) {
   let pfieldscount = this.numFields(result);
   let fields = [];
   if (ref.isNull(pfields) == false) {
-    pfields = ref.reinterpret(pfields, 68 * pfieldscount, 0);
-    for (let i = 0; i < pfields.length; i += 68) {
-      //0 - 64 = name //65 = type, 66 - 67 = bytes
+    pfields = ref.reinterpret(pfields, pfieldscount * TAOSFIELD.STRUCT_SIZE, 0);
+    for (let i = 0; i < pfields.length; i += TAOSFIELD.STRUCT_SIZE) {
       fields.push({
-        name: ref.readCString(ref.reinterpret(pfields, 65, i)),
-        type: pfields[i + 65],
-        bytes: pfields[i + 66]
+        name: ref.readCString(ref.reinterpret(pfields, TAOSFIELD.NAME_LENGTH, i)),
+        type: pfields[i + TAOSFIELD.TYPE_OFFSET],
+        bytes: pfields[i + TAOSFIELD.BYTES_OFFSET] + pfields[i + TAOSFIELD.BYTES_OFFSET + 1] * 256
       })
     }
   }
@@ -594,13 +617,12 @@ CTaosInterface.prototype.consume = function consume(subscription) {
   let fields = [];
   let pfields = this.fetchFields(result);
   if (ref.isNull(pfields) == false) {
-    pfields = ref.reinterpret(pfields, this.numFields(result) * 68, 0);
-    for (let i = 0; i < pfields.length; i += 68) {
-      //0 - 63 = name //64 - 65 = bytes, 66 - 67 = type
+    pfields = ref.reinterpret(pfields, this.numFields(result) * TAOSFIELD.STRUCT_SIZE, 0);
+    for (let i = 0; i < pfields.length; i += TAOSFIELD.STRUCT_SIZE) {
       fields.push({
-        name: ref.readCString(ref.reinterpret(pfields, 64, i)),
-        bytes: pfields[i + 64],
-        type: pfields[i + 66]
+        name: ref.readCString(ref.reinterpret(pfields, TAOSFIELD.NAME_LENGTH, i)),
+        bytes: pfields[TAOSFIELD.TYPE_OFFSET],
+        type: pfields[i + TAOSFIELD.BYTES_OFFSET] + pfields[i + TAOSFIELD.BYTES_OFFSET + 1] * 256
       })
     }
   }
@@ -684,23 +706,23 @@ CTaosInterface.prototype.closeStream = function closeStream(stream) {
  * @returns TAOS_RES 
  * 
  */
-CTaosInterface.prototype.schemalessInsert = function schemalessInsert(connection,lines, protocal, precision) {
+CTaosInterface.prototype.schemalessInsert = function schemalessInsert(connection, lines, protocal, precision) {
   let _numLines = null;
   let _lines = null;
-   
-  if(_.isString(lines)){
+
+  if (_.isString(lines)) {
     _numLines = 1;
     _lines = Buffer.alloc(_numLines * ref.sizeof.pointer);
-    ref.set(_lines,0,ref.allocCString(lines),ref.types.char_ptr);
+    ref.set(_lines, 0, ref.allocCString(lines), ref.types.char_ptr);
   }
-  else if(_.isArray(lines)){
+  else if (_.isArray(lines)) {
     _numLines = lines.length;
     _lines = Buffer.alloc(_numLines * ref.sizeof.pointer);
-    for(let i = 0; i < _numLines ; i++){
-      ref.set(_lines,i*ref.sizeof.pointer,ref.allocCString(lines[i]),ref.types.char_ptr)
+    for (let i = 0; i < _numLines; i++) {
+      ref.set(_lines, i * ref.sizeof.pointer, ref.allocCString(lines[i]), ref.types.char_ptr)
     }
   }
-  else{
+  else {
     throw new errors.InterfaceError("Unsupport lines input")
   }
   return this.libtaos.taos_schemaless_insert(connection, _lines, _numLines, protocal, precision);

@@ -4,8 +4,10 @@ import jenkins.model.CauseOfInterruption
 node {
 }
 
-def skipbuild=0
-def win_stop=0
+def skipbuild = 0
+def win_stop = 0
+def scope = []
+def mod = [0,1,2,3,4]
 
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
@@ -349,7 +351,7 @@ pipeline {
   }
   stages {
       stage('pre_build'){
-          agent{label 'master'}
+          agent{label 'catalina'}
           options { skipDefaultCheckout() }
           when {
               changeRequest()
@@ -358,44 +360,32 @@ pipeline {
             script{
               abort_previous()
               abortPreviousBuilds()
-            }
-          //   sh'''
-          // rm -rf ${WORKSPACE}.tes
-          // cp -r ${WORKSPACE} ${WORKSPACE}.tes
-          // cd ${WORKSPACE}.tes
-          // git fetch
-          // '''
-          // script {
-          //   if (env.CHANGE_TARGET == 'master') {
-          //     sh '''
-          //     git checkout master
-          //     '''
-          //     }
-          //   else if(env.CHANGE_TARGET == '2.0'){
-          //     sh '''
-          //     git checkout 2.0
-          //     '''
-          //   }
-          //   else{
-          //     sh '''
-          //     git checkout develop
-          //     '''
-          //   }
-          // }
-          // sh'''
-          // git fetch origin +refs/pull/${CHANGE_ID}/merge
-          // git checkout -qf FETCH_HEAD
-          // '''
+              println env.CHANGE_BRANCH
+              if(env.CHANGE_FORK){
+                scope = ['connector','query','insert','other','tools','taosAdapter']
+              }
+              else{
+                sh'''
+                  cd ${WKC}
+                  git fetch
+                  git checkout ${CHANGE_BRANCH}
+                  git pull
+                '''
+                dir('/var/lib/jenkins/workspace/TDinternal/community'){
+                  gitlog = sh(script: "git log -1 --pretty=%B ", returnStdout:true)
+                  println gitlog
+                  if (!(gitlog =~ /\((.*?)\)/)){
+                    autoCancelled = true
+                    error('Aborting the build.')
+                  }
+                  temp = (gitlog =~ /\((.*?)\)/)
+                  temp = temp[0].remove(1)
+                  scope = temp.split(",")
+                  Collections.shuffle mod
+                }
 
-          // script{
-          //   skipbuild='2'
-          //   skipbuild=sh(script: "git log -2 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
-          //   println skipbuild
-          // }
-          // sh'''
-          // rm -rf ${WORKSPACE}.tes
-          // '''
-          // }
+              }
+            }    
           }
       }
       stage('Parallel test stage') {
@@ -408,24 +398,12 @@ pipeline {
             }
           }
       parallel {
-        stage('python_1_s1') {
-          agent{label " slave1 || slave11 "}
+        stage('python_1') {
+          agent{label " slave1 || slave6 || slave11 || slave16 "}
           steps {
             pre_test()
             timeout(time: 55, unit: 'MINUTES'){
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh p1
-              date'''
-            }
-          }
-        }
-        stage('python_2_s5') {
-          agent{label " slave5 || slave15 "}
-          steps {
-            pre_test()
-            timeout(time: 55, unit: 'MINUTES'){
+
                 sh '''
                 date
                 cd ${WKC}/tests
@@ -555,97 +533,87 @@ pipeline {
                 date
                 '''
             }
+
+              script{
+                scope.each {
+                  sh """
+                    date
+                    cd ${WKC}/tests
+                    ./test-CI.sh ${it} 5 ${mod[0]}
+                    date"""
+                  }
+                }
+            }            
+
           }
         }
-        stage('test_valgrind_s4') {
-          agent{label " slave4 || slave14 "}
-
+        stage('python_2') {
+          agent{label " slave2 || slave7 || slave12 || slave17 "}
           steps {
             pre_test()
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WKC}/tests/pytest
-                ./valgrind-test.sh 2>&1 > mem-error-out.log
-                ./handle_val_log.sh
-                '''
-            }
             timeout(time: 55, unit: 'MINUTES'){
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh b3fq
-              date'''
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh full example
-              date'''
+                 script{
+                  scope.each {
+                    sh """
+                      date
+                      cd ${WKC}/tests
+                      ./test-CI.sh ${it} 5 ${mod[1]} 
+                      date"""
+                    }
+                }
             }
           }
         }
-        stage('test_b4_s7') {
-          agent{label " slave7 || slave17 "}
+        stage('python_3') {
+          agent{label " slave3 || slave8 || slave13 ||slave18 "}
           steps {
             timeout(time: 105, unit: 'MINUTES'){
               pre_test()
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh b4fq
-              cd ${WKC}/tests
-              ./test-all.sh p4
-              '''
-              // cd ${WKC}/tests
-              // ./test-all.sh full jdbc
-              // cd ${WKC}/tests
-              // ./test-all.sh full unit
+              script{
+              scope.each {
+                sh """
+                  date
+                  cd ${WKC}/tests
+                  ./test-CI.sh ${it} 5 ${mod[2]}
+                  date"""
+                }
+              }
             }
           }
         }
-        stage('test_b5_s8') {
-          agent{label " slave8 || slave18 "}
+        stage('python_4') {
+          agent{label " slave4 || slave9 || slave14 || slave19 "}
           steps {
             timeout(time: 55, unit: 'MINUTES'){
               pre_test()
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh b5fq
-              date'''
+              script{
+              scope.each {
+                sh """
+                  date
+                  cd ${WKC}/tests
+                  ./test-CI.sh ${it} 5 ${mod[3]}
+                  date"""
+                }
+              }
+          
             }
           }
         }
-        stage('test_b6_s9') {
-          agent{label " slave9 || slave19 "}
+        stage('python_5') {
+          agent{label " slave5 || slave10 || slave15 || slave20 "}
           steps {
             timeout(time: 55, unit: 'MINUTES'){
               pre_test()
-              sh '''
-              cd ${WKC}/tests
-              ./test-all.sh develop-test
-              '''
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh b6fq
-              date'''
-            }
-          }
-        }
-        stage('test_b7_s10') {
-          agent{label " slave10 || slave20 "}
-          steps {
-            timeout(time: 55, unit: 'MINUTES'){
-              pre_test()
-              sh '''
-              cd ${WKC}/tests
-              ./test-all.sh system-test
-              '''
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh b7fq
-              date'''
+              script{
+              scope.each {
+                sh """
+                  date
+                  cd ${WKC}/tests
+                  ./test-CI.sh ${it} 5 ${mod[4]}
+                  date"""
+                }
+              }
+          
             }
           }
         }
@@ -818,3 +786,4 @@ pipeline {
         }
     }
 }
+
