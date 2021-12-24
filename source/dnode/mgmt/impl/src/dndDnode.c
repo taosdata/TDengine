@@ -63,7 +63,7 @@ void dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
 }
 
 void dndSendRedirectMsg(SDnode *pDnode, SRpcMsg *pMsg) {
-  int32_t msgType = pMsg->msgType;
+  tmsg_t msgType = pMsg->msgType;
 
   SEpSet epSet = {0};
   dndGetMnodeEpSet(pDnode, &epSet);
@@ -369,7 +369,7 @@ void dndSendStatusMsg(SDnode *pDnode) {
   dndGetVnodeLoads(pDnode, &pStatus->vnodeLoads);
   contLen = sizeof(SStatusMsg) + pStatus->vnodeLoads.num * sizeof(SVnodeLoad);
 
-  SRpcMsg rpcMsg = {.pCont = pStatus, .contLen = contLen, .msgType = TDMT_MND_STATUS};
+  SRpcMsg rpcMsg = {.pCont = pStatus, .contLen = contLen, .msgType = TDMT_MND_STATUS, .ahandle = 9527};
   pMgmt->statusSent = 1;
 
   dTrace("pDnode:%p, send status msg to mnode", pDnode);
