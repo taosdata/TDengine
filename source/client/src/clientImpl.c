@@ -248,7 +248,7 @@ _return:
 int initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet) {
   pEpSet->version = 0;
 
-  // init mgmt ip set
+  // init mnode ip set
   SEpSet *mgmtEpSet   = &(pEpSet->epSet);
   mgmtEpSet->numOfEps = 0;
   mgmtEpSet->inUse    = 0;

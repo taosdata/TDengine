@@ -876,6 +876,12 @@ static int32_t mndGetDbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMe
   pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "ntables");
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  cols++;
+
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
   strcpy(pSchema[cols].name, "replica");
@@ -1015,6 +1021,10 @@ static int32_t mndRetrieveDbs(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int3
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     *(int16_t *)pWrite = pDb->cfg.numOfVgroups;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *)pWrite = 0;  // todo
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
