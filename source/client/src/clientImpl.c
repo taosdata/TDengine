@@ -227,6 +227,7 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   SQueryDag* pDag = NULL;
   void* pJob = NULL;
 
+  terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
   CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
   if (qIsDdlQuery(pQuery)) {
