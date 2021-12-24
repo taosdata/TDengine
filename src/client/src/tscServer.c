@@ -3124,12 +3124,12 @@ int tscRenewTableMeta(SSqlObj *pSql) {
 
   pSql->rootObj->retryReason = pSql->retryReason;
 
-  SSqlObj *tmpSql = pSql->rootObj;
-  tscFreeSubobj(pSql->rootObj);
-  tfree(tmpSql->pSubs);
-  tscResetSqlCmd(&pSql->rootObj->cmd, true,pSql->rootObj->self);
+  SSqlObj *rootSql = pSql->rootObj;
+  tscFreeSubobj(rootSql);
+  tfree(rootSql->pSubs);
+  tscResetSqlCmd(&rootSql->cmd, true, rootSql->self);
 
-  code = getMultiTableMetaFromMnode(tmpSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
+  code = getMultiTableMetaFromMnode(rootSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
   taosArrayDestroyEx(&pNameList, freeElem);
   taosArrayDestroyEx(&vgroupList, freeElem);
 
