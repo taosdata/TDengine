@@ -159,6 +159,11 @@ typedef struct STableGroupSupporter {
   STSchema*  pTagSchema;
 } STableGroupSupporter;
 
+typedef struct SRange {
+  int32_t from;
+  int32_t to;
+} SRange;
+
 static STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList);
 static int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList);
 static int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle);
@@ -1080,50 +1085,16 @@ int32_t memMoveByArray(SBlock *blocks, SArray *pArray) {
   if(count == 0)
     return 0;
 
-  int32_t *idxs = (int32_t*)TARRAY_GET_START(pArray);
-  size_t i = 0;
-  assert(count > 0);
-  assert(idxs[0] >= 0);
-
-  // memmove while
-  while(i < count) {
-    size_t step = 1; // self so is 1
-    size_t j = i;
-    bool end = false;
-    // calc consecutive while
-    while(j + 1 < count) {
-      // encounter number with negatived
-      if(idxs[j + 1] < 0) {
-        int32_t num = idxs[j + 1] * -1;
-        step += num;
-        end = true;
-        break;
-      }
-      // next is consecutive, step ++
-      if(idxs[j] + 1 == idxs[j + 1]) {
-        j++;
-        step++;
-      } else {
-        // can't consecutive
-        break;
-      }
-    }
-
-    size_t src_pos = idxs[i];
-    if(i == src_pos) {
-      // same so no need move
-      i += step;
-      continue;
-    }
-
-    // do memmove
-    memmove(blocks + i, blocks + src_pos, sizeof(SBlock) * step);
-    i += step;
-    if(end)
-      break;
+  // memmove
+  int32_t num = 0;
+  SRange* ranges = (SRange*)TARRAY_GET_START(pArray);
+  for(size_t i = 0; i < count; i++) {
+    int32_t step = ranges[i].to - ranges[i].from + 1;
+    memmove(blocks + num, blocks + ranges[i].from, sizeof(SBlock) * step);
+    num += step;
   }
 
-  return i;
+  return num;
 }
 
 // if block data in memory return false else true
@@ -1151,19 +1122,18 @@ bool blockNoItemInMem(STsdbQueryHandle* q, SBlock* pBlock) {
 #define MAYBE_IN_MEMORY_ROWS 4000  // approximately the capacity of one block
 // skip blocks . return value is skip blocks number, skip rows reduce from *pOffset
 static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int64_t skey, int64_t ekey,
-                              int32_t sblock, int32_t eblock, SArray** ppArray) {
+                              int32_t sblock, int32_t eblock, SArray** ppArray, bool order) {
   int32_t num = 0;
   SBlock* blocks = pBlockInfo->blocks;
   SArray* pArray = NULL;
+  SRange range;
+  range.from = -1;
 
+  //
   // ASC
-  if(ASCENDING_TRAVERSE(q->order)) {
-    for(int32_t i = 0; i <= eblock; i++) {
-      // in block index range
-      if(i < sblock) {
-        continue;
-      }
-
+  //
+  if(order) {
+    for(int32_t i = sblock; i < eblock; i++) {
       bool skip = false;
       SBlock* pBlock = &blocks[i];
       if(i == sblock && skey > pBlock->keyFirst) {
@@ -1179,59 +1149,21 @@ static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int6
             q->frows += pBlock->numOfRows; // maybe have some row in memroy
           }
         } else {
+          // the remainder be put to pArray
           if(pArray == NULL)
-              pArray = taosArrayInit(2, sizeof(int32_t));
-          taosArrayPush(pArray, &i);
-          //the remainder be put to pArray
-          int32_t numRemain = eblock - i;
-          if(numRemain > 0) {
-            numRemain *= -1; //if list end element is negative, that is number for the remainder
-            taosArrayPush(pArray, &numRemain);
-          }
-          break;
-        }
-      }
-
-      if(skip) {
-        num ++;
-      } else {
-        // can't skip, append block index to pArray
-        if(pArray == NULL)
-            pArray = taosArrayInit(10, sizeof(int32_t));
-        taosArrayPush(pArray, &i);
-      }
-    }
-  } else { // DES
-    for(int32_t i = eblock; i >= 0; i--) {
-      // in block index range
-      if(i < sblock ) {
-        break;
-      }
-
-      bool skip = false;
-      SBlock* pBlock = &blocks[i];
-      if(i == eblock && ekey < pBlock->keyLast) {
-        q->frows += pBlock->numOfRows; // some rows time > e
-      } else {
-        // check can skip
-        if(q->srows + q->frows + pBlock->numOfRows <= q->offset) { // approximately calculate
-          if(blockNoItemInMem(q, pBlock)) {
-            // can skip
-            q->srows += pBlock->numOfRows;
-            skip = true;
+              pArray = taosArrayInit(1, sizeof(SRange));
+          if(range.from == -1) {
+            range.from = i;
           } else {
-            q->frows += pBlock->numOfRows; // maybe have some row in memroy
+            if(range.to + 1 != i) {
+              // add the previous
+              taosArrayPush(pArray, &range);
+              range.from = i;
+            }
           }
-        } else {
-          if(pArray == NULL)
-              pArray = taosArrayInit(2, sizeof(int32_t));
-          taosArrayPush(pArray, &i);
-          //the remainder be put to pArray
-          int32_t numRemain = i - sblock;
-          if(numRemain > 0) {
-            numRemain *= -1; //if list end element is negative, that is number for the remainder
-            taosArrayPush(pArray, &numRemain);
-          }
+          range.to = eblock - 1;
+          taosArrayPush(pArray, &range);
+          range.from = -1;
           break;
         }
       }
@@ -1241,16 +1173,112 @@ static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int6
       } else {
         // can't skip, append block index to pArray
         if(pArray == NULL)
-            pArray = taosArrayInit(10, sizeof(int32_t));
-        taosArrayPush(pArray, &i);
+            pArray = taosArrayInit(10, sizeof(SRange));
+        if(range.from == -1) {
+          range.from = i;
+        } else {
+          if(range.to + 1 != i) {
+            // add the previous
+            taosArrayPush(pArray, &range);
+            range.from = i;
+          }
+        }
+        range.to = i;
       }
+    }
+    // end append
+    if(range.from != -1) {
+      if(pArray == NULL)
+          pArray = taosArrayInit(1, sizeof(SRange));
+      taosArrayPush(pArray, &range);
+    }
+
+    // ASC return
+    *ppArray = pArray;
+    return num;
+  }
+  
+  // DES
+  for(int32_t i = eblock - 1; i >= sblock; i--) {
+    bool skip = false;
+    SBlock* pBlock = &blocks[i];
+    if(i == eblock - 1 && ekey < pBlock->keyLast) {
+      q->frows += pBlock->numOfRows; // some rows time > e
+    } else {
+      // check can skip
+      if(q->srows + q->frows + pBlock->numOfRows + MAYBE_IN_MEMORY_ROWS < q->offset) { // approximately calculate
+        if(blockNoItemInMem(q, pBlock)) {
+          // can skip
+          q->srows += pBlock->numOfRows;
+          skip = true;
+        } else {
+          q->frows += pBlock->numOfRows; // maybe have some row in memroy
+        }
+      } else {
+          // the remainder be put to pArray
+          if(pArray == NULL)
+              pArray = taosArrayInit(1, sizeof(SRange));
+          if(range.from == -1) {
+            range.from = i;
+          } else {
+            if(range.to - 1 != i) {
+              // add the previous
+              taosArrayPush(pArray, &range);
+              range.from = i;
+            }
+          }
+          range.to = 0;
+          taosArrayPush(pArray, &range);
+          range.from = -1;
+          break;
+      }
+    }
+
+    if(skip) {
+      num ++;
+    } else {
+      // can't skip, append block index to pArray
+      if(pArray == NULL)
+          pArray = taosArrayInit(10, sizeof(SRange));
+      if(range.from == -1) {
+        range.from = i;
+      } else {
+        if(range.to + 1 != i) {
+          // add the previous
+          taosArrayPush(pArray, &range);
+          range.from = i;
+        }
+      }
+      range.to = i;
     }
   }
 
-  if(ppArray && pArray) {
-    *ppArray = pArray;
+  // end append
+  if(range.from != -1) {
+    if(pArray == NULL)
+        pArray = taosArrayInit(1, sizeof(SRange));
+    taosArrayPush(pArray, &range);
+  }
+  if(pArray == NULL)
+    return num;
+
+  // reverse array
+  size_t count = taosArrayGetSize(pArray);
+  SRange* ranges = TARRAY_GET_START(pArray);
+  SArray* pArray1 = taosArrayInit(count, sizeof(SRange));
+
+  size_t i = count - 1;
+  while(i >= 0) {
+    range.from = ranges[i].to;
+    range.to   = ranges[i].from;
+    taosArrayPush(pArray1, &range);
+    if(i == 0)
+      break;
+    i --;
   }
 
+  *ppArray = pArray1;
+  taosArrayDestroy(pArray);
   return num;
 }
 
@@ -1258,8 +1286,9 @@ static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int6
 static void shrinkBlocksByQuery(STsdbQueryHandle *pQueryHandle, STableCheckInfo *pCheckInfo) {
   SBlockInfo *pCompInfo = pCheckInfo->pCompInfo;
   SBlockIdx  *compIndex = pQueryHandle->rhelper.pBlkIdx;
+  bool order = ASCENDING_TRAVERSE(pQueryHandle->order);
 
-  if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
+  if (order) {
     assert(pCheckInfo->lastKey <= pQueryHandle->window.ekey && pQueryHandle->window.skey <= pQueryHandle->window.ekey);
   } else {
     assert(pCheckInfo->lastKey >= pQueryHandle->window.ekey && pQueryHandle->window.skey >= pQueryHandle->window.ekey);
@@ -1277,39 +1306,27 @@ static void shrinkBlocksByQuery(STsdbQueryHandle *pQueryHandle, STableCheckInfo 
 
   int32_t end = start;
   // locate e index of blocks -> end
-  while (1) {
-    // check time
-    if(pCompInfo->blocks[end].keyFirst <= e) {
-      end += 1;
-    } else {
-      end -= 1;
-      break;
-    }
-    // check numOfBlock
-    if(end == (int32_t)compIndex->numOfBlocks) {
-      end -= 1;
-      break;
-    }
+  while (end < (int32_t)compIndex->numOfBlocks && (pCompInfo->blocks[end].keyFirst <= e)) {
+    end += 1;
   }
 
   // calc offset can skip blocks number
   int32_t nSkip = 0;
   SArray *pArray = NULL;
   if(pQueryHandle->offset > 0) {
-     nSkip = offsetSkipBlock(pQueryHandle, pCompInfo, s, e, start, end, &pArray);
+     nSkip = offsetSkipBlock(pQueryHandle, pCompInfo, s, e, start, end, &pArray, order);
   }
 
   if(nSkip > 0) { // have offset and can skip
     pCheckInfo->numOfBlocks = memMoveByArray(pCompInfo->blocks, pArray);
   } else { // no offset
-    pCheckInfo->numOfBlocks = end - start + 1;
+    pCheckInfo->numOfBlocks = end - start;
     if(start > 0)
       memmove(pCompInfo->blocks, &pCompInfo->blocks[start], pCheckInfo->numOfBlocks * sizeof(SBlock));
   }
 
-  if(pArray) {
+  if(pArray)
     taosArrayDestroy(pArray);
-  }
 }
 
 // load one table (tsd_index point to) need load blocks info and put into pCheckInfo->pCompInfo->blocks
