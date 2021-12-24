@@ -360,7 +360,7 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
         return tscInvalidOperationMsg(msg, "json tag length too long", pToken->z);
       }
       if (pToken->type == TK_NULL) {
-        *(int8_t *)payload = TSDB_DATA_TINYINT_NULL;
+        *(int8_t *)payload = TSDB_DATA_JSON_PLACEHOLDER;
       } else if (pToken->type != TK_STRING){
         tscInvalidOperationMsg(msg, "invalid json data", pToken->z);
       } else{
@@ -1063,7 +1063,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
         sToken.n -= 2;
       }
 
-      char tagVal[TSDB_MAX_TAGS_LEN];
+      char tagVal[TSDB_MAX_TAGS_LEN] = {0};
       code = tsParseOneColumn(pSchema, &sToken, tagVal, pInsertParam->msg, &sql, false, tinfo.precision);
       if (code != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
