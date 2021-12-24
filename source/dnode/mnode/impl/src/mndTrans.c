@@ -696,7 +696,8 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
   for (int32_t action = 0; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pArray, action);
     if (pAction == NULL) continue;
-    if (pAction->msgReceived && pAction->errCode == 0) continue;
+    if (pAction->msgSent && !pAction->msgReceived) continue;
+    if (pAction->msgSent && pAction->msgReceived && pAction->errCode == 0) continue;
 
     int64_t signature = pTrans->id;
     signature = (signature << 32);
