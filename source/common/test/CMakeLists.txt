@@ -22,7 +22,7 @@ add_executable(tmsgTest "")
 target_sources(tmsgTest 
         PRIVATE
         "tmsgTest.cpp"
-        "../src/taosmsg.c"
+        "../src/tmsg.c"
 )
 target_include_directories(tmsgTest PUBLIC "${CMAKE_SOURCE_DIR}/include/common/")
 target_link_libraries(tmsgTest PUBLIC os util gtest gtest_main)
