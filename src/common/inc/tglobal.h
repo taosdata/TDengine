@@ -224,12 +224,6 @@ extern int32_t  debugFlag;
 
 extern int8_t tsClientMerge;
 
-// informal
-#define META_SYNC_TABLE_NAME "_taos_meta_sync_table_name_taos_"
-#define META_SYNC_TABLE_NAME_LEN 32
-extern int32_t tVgId;
-// informal
-
 #ifdef TD_TSZ
 // lossy
 extern char     lossyColumns[];

@@ -274,10 +274,6 @@ int32_t  fsDebugFlag = 135;
 
 int8_t tsClientMerge = 0;
 
-// informal
-int32_t tVgId = 0;  // vgroupd ID
-// informal
-
 #ifdef TD_TSZ
 //
 // lossy compress 6

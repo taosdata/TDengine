@@ -428,11 +428,11 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSid) {
+int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSid, int32_t vgId) {
   SDbObj *pDb = pMsg->pDb;
   pthread_mutex_lock(&pDb->mutex);
 
-  if (tVgId > 0 && tVgId < 1048576) {
+  if (vgId > 0 && vgId < 1048576) {
     for (int32_t v = 0; v < pDb->numOfVgroups; ++v) {
       SVgObj *pVgroup = pDb->vgList[v];
       if (pVgroup == NULL) {
@@ -441,7 +441,7 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
         return TSDB_CODE_MND_APP_ERROR;
       }
 
-      if (pVgroup->vgId != (uint32_t)tVgId) {  // find the target vgId
+      if (pVgroup->vgId != (uint32_t)vgId) {  // find the target vgId
         continue;
       }
 
@@ -461,7 +461,7 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
       return TSDB_CODE_SUCCESS;
     }
     pthread_mutex_unlock(&pDb->mutex);
-    mError("db:%s, vgroup: %d not exist", pDb->name, tVgId);
+    mError("db:%s, vgroup: %d not exist", pDb->name, vgId);
     return TSDB_CODE_MND_APP_ERROR;
   }
 
