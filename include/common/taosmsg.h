@@ -1121,6 +1121,10 @@ typedef struct SResReadyMsg {
   uint64_t  taskId;
 } SResReadyMsg;
 
+typedef struct SResReadyRsp {
+  int32_t code;
+} SResReadyRsp;
+
 typedef struct SResFetchMsg {
   uint64_t  schedulerId;
   uint64_t  queryId;
@@ -1149,11 +1153,19 @@ typedef struct STaskCancelMsg {
   uint64_t  taskId;
 } STaskCancelMsg;
 
+typedef struct STaskCancelRsp {
+  int32_t code;
+} STaskCancelRsp;
+
 typedef struct STaskDropMsg {
   uint64_t  schedulerId;
   uint64_t  queryId;
   uint64_t  taskId;
 } STaskDropMsg;
+
+typedef struct STaskDropRsp {
+  int32_t code;
+} STaskDropRsp;
 
 
 #pragma pack(pop)

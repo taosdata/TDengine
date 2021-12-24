@@ -647,9 +647,18 @@ void schDropJobAllTasks(SQueryJob *job) {
   while (pIter) {
     SQueryTask *task = *(SQueryTask **)pIter;
   
-    schAsyncSendMsg(job, task, int32_t msgType);
+    schAsyncSendMsg(job, task, TSDB_MSG_TYPE_DROP_TASK);
     
-    pIter = taosHashIterate(schStatus->tasksHash, pIter);
+    pIter = taosHashIterate(job->succTasks, pIter);
+  }  
+
+  pIter = taosHashIterate(job->failTasks, NULL);
+  while (pIter) {
+    SQueryTask *task = *(SQueryTask **)pIter;
+  
+    schAsyncSendMsg(job, task, TSDB_MSG_TYPE_DROP_TASK);
+    
+    pIter = taosHashIterate(job->succTasks, pIter);
   }  
 }
 

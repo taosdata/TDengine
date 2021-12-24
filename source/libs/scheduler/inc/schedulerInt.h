@@ -43,6 +43,17 @@ typedef struct SSchedulerMgmt {
   SHashObj *jobs;  // key: queryId, value: SQueryJob*
 } SSchedulerMgmt;
 
+typedef struct SQueryLevel {
+  int32_t  level;
+  int8_t   status;
+  SRWLatch lock;
+  int32_t  taskFailed;
+  int32_t  taskSucceed;
+  int32_t  taskNum;
+  SArray  *subTasks;  // Element is SQueryTask
+} SQueryLevel;
+
+
 typedef struct SQueryTask {
   uint64_t             taskId;     // task id
   SQueryLevel         *level;      // level
@@ -56,16 +67,6 @@ typedef struct SQueryTask {
   SArray              *children;   // the datasource tasks,from which to fetch the result, element is SQueryTask*
   SArray              *parents;    // the data destination tasks, get data from current task, element is SQueryTask*
 } SQueryTask;
-
-typedef struct SQueryLevel {
-  int32_t  level;
-  int8_t   status;
-  SRWLatch lock;
-  int32_t  taskFailed;
-  int32_t  taskSucceed;
-  int32_t  taskNum;
-  SArray  *subTasks;  // Element is SQueryTask
-} SQueryLevel;
 
 typedef struct SQueryJob {
   uint64_t  queryId;
@@ -92,8 +93,8 @@ typedef struct SQueryJob {
 
 #define SCH_HAS_QNODE_IN_CLUSTER(type) (false) //TODO CLUSTER TYPE
 #define SCH_TASK_READY_TO_LUNCH(task) ((task)->childReady >= taosArrayGetSize((task)->children))   // MAY NEED TO ENHANCE
-#define SCH_IS_DATA_SRC_TASK(task) (task->plan->type == QUERY_TYPE_SCAN)
-#define SCH_TASK_NEED_WAIT_ALL(type) (task->plan->type == QUERY_TYPE_MODIFY)
+#define SCH_IS_DATA_SRC_TASK(task) ((task)->plan->type == QUERY_TYPE_SCAN)
+#define SCH_TASK_NEED_WAIT_ALL(task) ((task)->plan->type == QUERY_TYPE_MODIFY)
 
 #define SCH_JOB_ERR_LOG(param, ...) qError("QID:%"PRIx64 param, job->queryId, __VA_ARGS__)
 #define SCH_TASK_ERR_LOG(param, ...) qError("QID:%"PRIx64",TID:%"PRIx64 param, job->queryId, task->taskId, __VA_ARGS__)

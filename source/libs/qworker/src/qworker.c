@@ -558,6 +558,7 @@ int32_t qwBuildAndSendQueryRsp(SRpcMsg *pMsg, int32_t code) {
 
   SRpcMsg rpcRsp = {
     .handle  = pMsg->handle,
+    .ahandle = pMsg->ahandle,
     .pCont   = pRsp,
     .contLen = sizeof(*pRsp),
     .code    = code,
@@ -569,24 +570,105 @@ int32_t qwBuildAndSendQueryRsp(SRpcMsg *pMsg, int32_t code) {
 }
 
 int32_t qwBuildAndSendReadyRsp(SRpcMsg *pMsg, int32_t code) {
+  SResReadyRsp *pRsp = (SResReadyRsp *)rpcMallocCont(sizeof(SResReadyRsp));
+  pRsp->code = code;
 
+  SRpcMsg rpcRsp = {
+    .handle  = pMsg->handle,
+    .ahandle = pMsg->ahandle,
+    .pCont   = pRsp,
+    .contLen = sizeof(*pRsp),
+    .code    = code,
+  };
+
+  rpcSendResponse(&rpcRsp);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qwBuildAndSendStatusRsp(SRpcMsg *pMsg, SSchedulerStatusRsp *sStatus) {
+  int32_t size = 0;
+  
+  if (sStatus) {
+    size = sizeof(SSchedulerStatusRsp) + sizeof(sStatus->status[0]) * sStatus->num;
+  } else {
+    size = sizeof(SSchedulerStatusRsp);
+  }
+  
+  SSchedulerStatusRsp *pRsp = (SSchedulerStatusRsp *)rpcMallocCont(size);
 
+  if (sStatus) {
+    memcpy(pRsp, sStatus, size);
+  } else {
+    pRsp->num = 0;
+  }
+
+  SRpcMsg rpcRsp = {
+    .handle  = pMsg->handle,
+    .ahandle = pMsg->ahandle,
+    .pCont   = pRsp,
+    .contLen = size,
+    .code    = 0,
+  };
+
+  rpcSendResponse(&rpcRsp);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qwBuildAndSendFetchRsp(SRpcMsg *pMsg, void *data) {
+  SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
+  memset(pRsp, 0, sizeof(SRetrieveTableRsp));
 
+  //TODO fill msg
+  pRsp->completed = true;
+
+  SRpcMsg rpcRsp = {
+    .handle  = pMsg->handle,
+    .ahandle = pMsg->ahandle,
+    .pCont   = pRsp,
+    .contLen = sizeof(*pRsp),
+    .code    = 0,
+  };
+
+  rpcSendResponse(&rpcRsp);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 
-int32_t qwBuildAndSendCancelRsp(SRpcMsg *pMsg) {
+int32_t qwBuildAndSendCancelRsp(SRpcMsg *pMsg, int32_t code) {
+  STaskCancelRsp *pRsp = (STaskCancelRsp *)rpcMallocCont(sizeof(STaskCancelRsp));
+  pRsp->code = code;
 
+  SRpcMsg rpcRsp = {
+    .handle  = pMsg->handle,
+    .ahandle = pMsg->ahandle,
+    .pCont   = pRsp,
+    .contLen = sizeof(*pRsp),
+    .code    = code,
+  };
+
+  rpcSendResponse(&rpcRsp);
+
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendDropRsp(SRpcMsg *pMsg) {
+int32_t qwBuildAndSendDropRsp(SRpcMsg *pMsg, int32_t code) {
+  STaskDropRsp *pRsp = (STaskDropRsp *)rpcMallocCont(sizeof(STaskDropRsp));
+  pRsp->code = code;
 
+  SRpcMsg rpcRsp = {
+    .handle  = pMsg->handle,
+    .ahandle = pMsg->ahandle,
+    .pCont   = pRsp,
+    .contLen = sizeof(*pRsp),
+    .code    = code,
+  };
+
+  rpcSendResponse(&rpcRsp);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 
@@ -724,8 +806,10 @@ int32_t qwHandleFetch(SQWorkerResCache *res, SQWorkerMgmt *mgmt, uint64_t schedu
   SQWorkerSchStatus *sch = NULL;
   SQWorkerTaskStatus *task = NULL;
   int32_t code = 0;
+  int32_t needRsp = true;
+  void *data = NULL;
 
-  QW_ERR_RET(qwAcquireScheduler(QW_READ, mgmt, schedulerId, &sch));
+  QW_ERR_JRET(qwAcquireScheduler(QW_READ, mgmt, schedulerId, &sch));
   QW_ERR_JRET(qwAcquireTask(QW_READ, sch, queryId, taskId, &task));
 
   QW_LOCK(QW_READ, &task->lock);
@@ -736,7 +820,7 @@ int32_t qwHandleFetch(SQWorkerResCache *res, SQWorkerMgmt *mgmt, uint64_t schedu
   }
   
   if (QW_GOT_RES_DATA(res->data)) {
-    QW_ERR_JRET(qwBuildAndSendFetchRsp(pMsg, res->data));
+    data = res->data;
     if (QW_LOW_RES_DATA(res->data)) {
       if (task->status == JOB_TASK_STATUS_PARTIAL_SUCCEED) {
         //TODO add query back to queue
@@ -749,6 +833,8 @@ int32_t qwHandleFetch(SQWorkerResCache *res, SQWorkerMgmt *mgmt, uint64_t schedu
     }
     
     //TODO SET FLAG FOR QUERY TO SEND RSP WHEN RES READY
+
+    needRsp = false;
   }
 
 _return:
@@ -758,9 +844,12 @@ _return:
   
   if (sch) {
     qwReleaseTask(QW_READ, sch);
+    qwReleaseScheduler(QW_READ, mgmt);
   }
 
-  qwReleaseScheduler(QW_READ, mgmt);
+  if (needRsp) {
+    qwBuildAndSendFetchRsp(pMsg, res->data);
+  }
 
   QW_RET(code);
 }
@@ -844,13 +933,14 @@ int32_t qWorkerInit(SQWorkerCfg *cfg, void **qWorkerMgmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SRpcMsg **rsp) {
-  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg || NULL == rsp) {
+int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
   SSubQueryMsg *msg = pMsg->pCont;
   if (NULL == msg || pMsg->contLen <= sizeof(*msg)) {
+    qError("invalid query msg");
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
   
@@ -863,7 +953,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SRp
   QW_ERR_JRET(qwCheckTaskCancelDrop(qWorkerMgmt, msg->schedulerId, msg->queryId, msg->taskId, &needStop));
   if (needStop) {
     qWarn("task need stop");
-    QW_ERR_RET(TSDB_CODE_QRY_TASK_CANCELLED);
+    QW_ERR_JRET(TSDB_CODE_QRY_TASK_CANCELLED);
   }
   
   code = qStringToSubplan(msg->msg, &plan);
@@ -922,13 +1012,14 @@ _return:
   QW_RET(code);
 }
 
-int32_t qWorkerProcessReadyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SRpcMsg *rsp){
-  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg || NULL == rsp) {
+int32_t qWorkerProcessReadyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg){
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
   SResReadyMsg *msg = pMsg->pCont;
   if (NULL == msg || pMsg->contLen <= sizeof(*msg)) {
+    qError("invalid task status msg");  
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }  
 
@@ -937,27 +1028,31 @@ int32_t qWorkerProcessReadyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SRp
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessStatusMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SRpcMsg *rsp) {
-  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg || NULL == rsp) {
+int32_t qWorkerProcessStatusMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
+  int32_t code = 0;
   SSchTasksStatusMsg *msg = pMsg->pCont;
   if (NULL == msg || pMsg->contLen <= sizeof(*msg)) {
+    qError("invalid task status msg");
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }  
 
   SSchedulerStatusRsp *sStatus = NULL;
   
-  QW_ERR_RET(qwGetSchTasksStatus(qWorkerMgmt, msg->schedulerId, &sStatus));
+  QW_ERR_JRET(qwGetSchTasksStatus(qWorkerMgmt, msg->schedulerId, &sStatus));
+
+_return:
 
   QW_ERR_RET(qwBuildAndSendStatusRsp(pMsg, sStatus));
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SRpcMsg *rsp) {
-  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg || NULL == rsp) {
+int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
@@ -983,36 +1078,44 @@ _return:
   QW_RET(code);
 }
 
-int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SRpcMsg *rsp) {
-  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg || NULL == rsp) {
+int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
+  int32_t code = 0;
   STaskCancelMsg *msg = pMsg->pCont;
   if (NULL == msg || pMsg->contLen <= sizeof(*msg)) {
+    qError("invalid task cancel msg");  
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }  
 
-  QW_ERR_RET(qwCancelTask(qWorkerMgmt, msg->schedulerId, msg->queryId, msg->taskId));
+  QW_ERR_JRET(qwCancelTask(qWorkerMgmt, msg->schedulerId, msg->queryId, msg->taskId));
 
-  QW_ERR_RET(qwBuildAndSendCancelRsp(pMsg));
+_return:
+
+  QW_ERR_RET(qwBuildAndSendCancelRsp(pMsg, code));
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SRpcMsg *rsp) {
-  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg || NULL == rsp) {
+int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
+  int32_t code = 0;
   STaskDropMsg *msg = pMsg->pCont;
   if (NULL == msg || pMsg->contLen <= sizeof(*msg)) {
+    qError("invalid task drop msg");
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }  
 
-  QW_ERR_RET(qwCancelDropTask(qWorkerMgmt, msg->schedulerId, msg->queryId, msg->taskId));
+  QW_ERR_JRET(qwCancelDropTask(qWorkerMgmt, msg->schedulerId, msg->queryId, msg->taskId));
 
-  QW_ERR_RET(qwBuildAndSendDropRsp(pMsg));
+_return:
+
+  QW_ERR_RET(qwBuildAndSendDropRsp(pMsg, code));
 
   return TSDB_CODE_SUCCESS;
 }
