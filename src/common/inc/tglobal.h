@@ -64,6 +64,7 @@ extern int32_t  tsCompressMsgSize;
 extern int32_t  tsCompressColData;
 extern int32_t  tsMaxNumOfDistinctResults;
 extern char     tsTempDir[];
+extern int32_t  tsMetaSyncOption;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
@@ -222,6 +223,12 @@ extern int32_t  cqDebugFlag;
 extern int32_t  debugFlag;
 
 extern int8_t tsClientMerge;
+
+// informal
+#define META_SYNC_TABLE_NAME "_taos_meta_sync_table_name_taos_"
+#define META_SYNC_TABLE_NAME_LEN 32
+extern int32_t tVgId;
+// informal
 
 #ifdef TD_TSZ
 // lossy

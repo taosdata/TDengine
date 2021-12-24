@@ -1726,6 +1726,9 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
     cols++;
 
     numOfRows++;
+
+    mDebug("stable: %s, uid: %" PRIu64, prefix, pTable->uid);
+
     mnodeDecTableRef(pTable);
   }
 
@@ -2227,9 +2230,27 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
     if (pMsg->pTable == NULL) {
       SVgObj *pVgroup = NULL;
       int32_t tid = 0;
+
+      if (tsMetaSyncOption) {
+        char tbName[TSDB_TABLE_NAME_LEN] = "\0";
+        strncpy(tbName, pCreate->tableName, TSDB_TABLE_NAME_LEN);
+        char *pTbName = strtok(tbName, ".");
+        if (pTbName) {
+          pTbName = strtok(NULL, ".");
+          if (pTbName) {
+            pTbName = strtok(NULL, ".");
+            if (pTbName) {
+              if (0 == strncmp(META_SYNC_TABLE_NAME, pTbName, META_SYNC_TABLE_NAME_LEN)) {
+                tVgId = atoi(pTbName + META_SYNC_TABLE_NAME_LEN);
+              }
+            }
+          }
+        }
+      }
+
       code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &tid);
       if (code != TSDB_CODE_SUCCESS) {
-        mDebug("msg:%p, app:%p table:%s, failed to get available vgroup, reason:%s", pMsg, pMsg->rpcMsg.ahandle,
+        mError("msg:%p, app:%p table:%s, failed to get available vgroup, reason:%s", pMsg, pMsg->rpcMsg.ahandle,
                pCreate->tableName, tstrerror(code));
         return code;
       }

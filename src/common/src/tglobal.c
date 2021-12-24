@@ -65,6 +65,7 @@ char    tsLocale[TSDB_LOCALE_LEN] = {0};
 char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
 int8_t  tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
+int32_t tsMetaSyncOption = 0;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -272,6 +273,10 @@ int32_t  cqDebugFlag = 131;
 int32_t  fsDebugFlag = 135;
 
 int8_t tsClientMerge = 0;
+
+// informal
+int32_t tVgId = 0;  // vgroupd ID
+// informal
 
 #ifdef TD_TSZ
 //
@@ -1736,6 +1741,16 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_WAL_FLUSH_SIZE;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MB;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "metaSyncOption";
+  cfg.ptr = &tsMetaSyncOption;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
 #ifdef TD_TSZ
