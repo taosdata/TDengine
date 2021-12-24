@@ -13,23 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
+#ifndef _TD_VNODE_READ_H_
+#define _TD_VNODE_READ_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include "vnodeInt.h"
+#include "qworker.h"
 
-int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg) { return 0; }
+int vnodeQueryOpen(SVnode *pVnode);
 
-int32_t vnodeCompact(SVnode *pVnode) { return 0; }
-
-int32_t vnodeSync(SVnode *pVnode) { return 0; }
-
-int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) { return 0; }
-
-int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vInfo("sync message is processed");
-  return 0;
+#ifdef __cplusplus
 }
+#endif
 
-int vnodeProcessConsumeReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vInfo("consume message is processed");
-  return 0;
-}
+#endif /*_TD_VNODE_READ_H_*/

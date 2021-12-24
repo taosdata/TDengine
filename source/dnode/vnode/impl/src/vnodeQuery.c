@@ -13,23 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "vnodeInt.h"
+#include "vnodeDef.h"
+#include "vnodeQuery.h"
 
-int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg) { return 0; }
+int vnodeQueryOpen(SVnode *pVnode) {
+  return qWorkerInit(NULL, &pVnode->pQuery);
+}
 
-int32_t vnodeCompact(SVnode *pVnode) { return 0; }
-
-int32_t vnodeSync(SVnode *pVnode) { return 0; }
-
-int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) { return 0; }
-
-int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vInfo("sync message is processed");
+int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+  vInfo("query message is processed");
+  qWorkerProcessQueryMsg(pVnode, pVnode->pQuery, pMsg);
   return 0;
 }
 
-int vnodeProcessConsumeReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vInfo("consume message is processed");
+int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+  vInfo("fetch message is processed");
+  qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg);
   return 0;
 }
+
+
