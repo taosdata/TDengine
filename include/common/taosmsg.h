@@ -87,6 +87,10 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_CONN, "kill-conn" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_HEARTBEAT, "heartbeat" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SHOW, "show" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SHOW_RETRIEVE, "retrieve" )  
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_TOPIC, "create-topic" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_TOPIC, "alter-topic" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_TOPIC, "drop-topic" )
+
 // message from client to qnode
 // message from client to dnode
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "nettest" )
@@ -100,6 +104,11 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "nettest" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STB_IN, "create-stb-internal" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STB_IN, "alter-stb-internal" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STB_IN, "drop-stb-internal" )
+
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_TOPIC_IN, "create-topic-internal" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_TOPIC_IN, "alter-topic-internal" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_TOPIC_IN, "drop-topic-internal" )
+
 // message from mnode to mnode
 // message from mnode to qnode
 // message from mnode to dnode
@@ -1163,6 +1172,42 @@ typedef struct STaskDropRsp {
   int32_t code;
 } STaskDropRsp;
 
+typedef struct {
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  int8_t  igExists;
+  int32_t execLen;
+  void*   executor;
+  int32_t sqlLen;
+  char*   sql;
+} SCreateTopicMsg;
+
+typedef struct {
+  char   name[TSDB_TABLE_FNAME_LEN];
+  int8_t igNotExists;
+} SDropTopicMsg;
+
+typedef struct {
+  char    name[TSDB_TABLE_FNAME_LEN];
+  int8_t  alterType;
+  SSchema schema;
+} SAlterTopicMsg;
+
+typedef struct {
+  SMsgHead head;
+  char     name[TSDB_TABLE_FNAME_LEN];
+  uint64_t tuid;
+  int32_t  sverson;
+  int32_t  execLen;
+  char*    executor;
+  int32_t  sqlLen;
+  char*    sql;
+} SCreateTopicInternalMsg;
+
+typedef struct {
+  SMsgHead head;
+  char     name[TSDB_TABLE_FNAME_LEN];
+  uint64_t tuid;
+} SDropTopicInternalMsg;
 
 #pragma pack(pop)
 

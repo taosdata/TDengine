@@ -22,11 +22,11 @@
 extern "C" {
 #endif
 
-int32_t mndInitStb(SMnode *pMnode);
-void    mndCleanupStb(SMnode *pMnode);
+int32_t mndInitTopic(SMnode *pMnode);
+void    mndCleanupTopic(SMnode *pMnode);
 
-SStbObj *mndAcquireStb(SMnode *pMnode, char *stbName);
-void mndReleaseStb(SMnode *pMnode, SStbObj *pStb);
+SStbObj *mndAcquireTopic(SMnode *pMnode, char *topicName);
+void mndReleaseTopic(SMnode *pMnode, STopicObj *pTopic);
 
 #ifdef __cplusplus
 }

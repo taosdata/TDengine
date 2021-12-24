@@ -16,6 +16,8 @@
 #ifndef _TD_SDB_H_
 #define _TD_SDB_H_
 
+#include "os.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -159,11 +161,12 @@ typedef enum {
   SDB_USER = 5,
   SDB_AUTH = 6,
   SDB_ACCT = 7,
-  SDB_VGROUP = 8,
-  SDB_STB = 9,
-  SDB_DB = 10,
-  SDB_FUNC = 11,
-  SDB_MAX = 12
+  SDB_TOPIC = 8,
+  SDB_VGROUP = 9,
+  SDB_STB = 10,
+  SDB_DB = 11,
+  SDB_FUNC = 12,
+  SDB_MAX = 13
 } ESdbType;
 
 typedef struct SSdb SSdb;
