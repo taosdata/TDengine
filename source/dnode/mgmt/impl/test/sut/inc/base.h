@@ -37,7 +37,7 @@ class Testbase {
   void     Init(const char* path, int16_t port);
   void     Cleanup();
   void     Restart();
-  SRpcMsg* SendMsg(int8_t msgType, void* pCont, int32_t contLen);
+  SRpcMsg* SendMsg(tmsg_t msgType, void* pCont, int32_t contLen);
 
  private:
   void InitLog(const char* path);

@@ -60,7 +60,7 @@ void Testbase::Cleanup() {
 
 void Testbase::Restart() { server.Restart(); }
 
-SRpcMsg* Testbase::SendMsg(int8_t msgType, void* pCont, int32_t contLen) {
+SRpcMsg* Testbase::SendMsg(tmsg_t msgType, void* pCont, int32_t contLen) {
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pCont;
   rpcMsg.contLen = contLen;
