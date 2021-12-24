@@ -103,12 +103,20 @@ class TDTestCase:
         tdSql.waitedQuery(sql, 10, WAITS)
         tdSql.checkData(0, 1, 0)
         tdSql.checkData(9, 1, 9)
+        sql = "select * from t1 order by ts desc limit 10" # desc
+        tdSql.waitedQuery(sql, 10, WAITS)
+        tdSql.checkData(0, 1, 2999999)
+        tdSql.checkData(9, 1, 2999990)
 
         # have where
         sql = "select * from t1 where ts>='2017-07-14 10:40:01' and ts<'2017-07-14 10:40:06' limit 10"
         tdSql.waitedQuery(sql, 5, WAITS)
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(4, 1, 5)
+        sql = "select * from t1 where ts>='2017-08-18 03:59:52' and ts<'2017-08-18 03:59:57' order by ts desc limit 10" # desc
+        tdSql.waitedQuery(sql, 5, WAITS)
+        tdSql.checkData(0, 1, 2999996)
+        tdSql.checkData(4, 1, 2999992)
 
         # 
         # offset base function
@@ -118,18 +126,29 @@ class TDTestCase:
         tdSql.waitedQuery(sql, 10, WAITS)
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(9, 1, 14)
+        sql = "select * from t1 order by ts desc limit 10 offset 5" # desc
+        tdSql.waitedQuery(sql, 10, WAITS)
+        tdSql.checkData(0, 1, 2999994)
+        tdSql.checkData(9, 1, 2999985)
 
         # have where only ts
         sql = "select * from t1 where ts>='2017-07-14 10:40:10' and ts<'2017-07-14 10:40:20' limit 10 offset 5"
         tdSql.waitedQuery(sql, 5, WAITS)
         tdSql.checkData(0, 1, 15)
         tdSql.checkData(4, 1, 19)
+        sql = "select * from t1 where ts>='2017-08-18 03:59:52' and ts<'2017-08-18 03:59:57' order by ts desc limit 10 offset 4" # desc
+        tdSql.waitedQuery(sql, 1, WAITS)
+        tdSql.checkData(0, 1, 2999992)
 
         # have where with other column condition
         sql = "select * from t1 where i1>=1 and i1<11 limit 10 offset 5"
         tdSql.waitedQuery(sql, 5, WAITS)
         tdSql.checkData(0, 1, 6)
         tdSql.checkData(4, 1, 10)
+        sql = "select * from t1 where i1>=300000 and i1<=500000 order by ts desc limit 10 offset 100000" # desc
+        tdSql.waitedQuery(sql, 10, WAITS)
+        tdSql.checkData(0, 1, 400000)
+        tdSql.checkData(9, 1, 399991)
 
         # have where with ts and other column condition
         sql = "select * from t1 where ts>='2017-07-14 10:40:10' and ts<'2017-07-14 10:40:50' and i1>=20 and i1<=25 limit 10 offset 5"
@@ -161,6 +180,12 @@ class TDTestCase:
         sql = "select * from t1 where ts>='2017-07-14 10:40:10' and ts<'2017-07-22 18:40:10' limit 10 offset 72000"
         tdSql.waitedQuery(sql, 10, WAITS)
         tdSql.checkData(0, 1, 72000 - 3 + 10 + 1)
+
+        # have where desc
+        sql = "select * from t1 where ts<'2017-07-14 20:40:00' order by ts desc limit 15 offset 36000"
+        tdSql.waitedQuery(sql, 3, WAITS)
+        tdSql.checkData(0, 1, 1)
+
 
 #
 # add case with filename
