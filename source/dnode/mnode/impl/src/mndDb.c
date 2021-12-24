@@ -573,7 +573,7 @@ static int32_t mndBuildUpdateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj
 
     action.pCont = pMsg;
     action.contLen = sizeof(SAlterVnodeMsg);
-    action.msgType = TSDB_MSG_TYPE_ALTER_VNODE_IN;
+    action.msgType = TDMT_DND_ALTER_VNODE;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pMsg);
       return -1;
@@ -737,7 +737,7 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
 
     action.pCont = pMsg;
     action.contLen = sizeof(SCreateVnodeMsg);
-    action.msgType = TSDB_MSG_TYPE_DROP_VNODE_IN;
+    action.msgType = TDMT_DND_DROP_VNODE;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pMsg);
       return -1;

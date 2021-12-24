@@ -103,9 +103,12 @@ enum {
   TD_DEF_MSG_TYPE(TDMT_MND_HEARTBEAT, "mnode-heartbeat", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_SHOW, "mnode-show", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_SHOW_RETRIEVE, "mnode-retrieve", NULL, NULL)
-  TD_DEF_MSG_TYPE(TSDB_MSG_TYPE_STATUS, "mnode-status", NULL, NULL)
-  TD_DEF_MSG_TYPE(TSDB_MSG_TYPE_GRANT, "mnode-grant", NULL, NULL)
-  TD_DEF_MSG_TYPE(TSDB_MSG_TYPE_AUTH, "mnode-auth", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_STATUS, "mnode-status", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_GRANT, "mnode-grant", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_AUTH, "mnode-auth", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_CREATE_TOPIC, "mnode-create-topic", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_ALTER_TOPIC, "mnode-alter-topic", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_DROP_TOPIC, "mnode-drop-topic", NULL, NULL)
 
   // Requests handled by VNODE
   TD_NEW_MSG_SEG(TDMT_VND_MSG)
@@ -128,6 +131,9 @@ enum {
   TD_DEF_MSG_TYPE(TDMT_VND_CREATE_STB, "vnode-create-stb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_ALTER_STB, "vnode-alter-stb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_DROP_STB, "vnode-drop-stb", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_CREATE_TOPIC, "vnode-create-topic", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_ALTER_TOPIC, "vnode-alter-topic", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_DROP_TOPIC, "vnode-drop-topic", NULL, NULL)
 
   // Requests handled by QNODE
   TD_NEW_MSG_SEG(TDMT_QND_MSG)
