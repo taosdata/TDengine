@@ -3127,6 +3127,7 @@ int tscRenewTableMeta(SSqlObj *pSql) {
   SSqlObj *tmpSql = pSql->rootObj;
   tscFreeSubobj(pSql->rootObj);
   tfree(tmpSql->pSubs);
+  tscResetSqlCmd(&pSql->rootObj->cmd, true,pSql->rootObj->self);
 
   code = getMultiTableMetaFromMnode(tmpSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
   taosArrayDestroyEx(&pNameList, freeElem);
