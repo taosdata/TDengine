@@ -128,7 +128,6 @@ class TDTestCase:
                             fake.random_int(min=-9223372036854775807, max=0, step=1), 
                             fake.random_int(min=-32767, max=0, step=1) , fake.random_int(min=-127, max=0, step=1) , 
                             fake.pyfloat() , fake.pyfloat() , fake.pystr() , fake.address() , self.ts + i))
-
             tdSql.query("select count(*) from stable_1;")
             tdSql.checkData(0,0,3000)
             tdSql.query("select count(*) from regular_table_1;")
