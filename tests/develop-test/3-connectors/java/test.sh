@@ -21,7 +21,7 @@ cd ../../../../
 WKC=`pwd`
 cd ${WKC}/src/connector/jdbc
 
-mvn  test > jdbc-out.log 2>&1
+mvn clean test > jdbc-out.log 2>&1
 tail -n 20 jdbc-out.log
 
 cases=`grep 'Tests run' jdbc-out.log | awk 'END{print $3}'`
