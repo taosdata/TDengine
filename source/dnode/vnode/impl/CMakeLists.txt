@@ -15,6 +15,7 @@ target_link_libraries(
     PUBLIC wal
     PUBLIC sync
     PUBLIC cjson
+    PUBLIC qworker
 )
 
 # test
