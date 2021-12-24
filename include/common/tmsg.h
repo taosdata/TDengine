@@ -42,12 +42,14 @@ extern "C" {
 #undef TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
 
-extern char *tMsgInfo[];
+extern char* tMsgInfo[];
 extern int   tMsgDict[];
 
 #define TMSG_SEG_CODE(TYPE) (((TYPE)&0xff00) >> 8)
 #define TMSG_SEG_SEQ(TYPE) ((TYPE)&0xff)
 #define TMSG_INFO(TYPE) tMsgInfo[tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE)]
+
+typedef uint16_t tmsg_t;
 
 // IE type
 #define TSDB_IE_TYPE_SEC 1
@@ -122,7 +124,7 @@ typedef enum _mgmt_table {
 
 typedef struct SBuildTableMetaInput {
   int32_t vgId;
-  char *  tableFullName;
+  char*   tableFullName;
 } SBuildTableMetaInput;
 
 typedef struct SBuildUseDBInput {
@@ -395,7 +397,7 @@ typedef struct SColumnFilterList {
   int16_t numOfFilters;
   union {
     int64_t            placeholder;
-    SColumnFilterInfo *filterInfo;
+    SColumnFilterInfo* filterInfo;
   };
 } SColumnFilterList;
 /*
@@ -784,7 +786,7 @@ typedef struct SMultiTableMeta {
 typedef struct {
   int32_t dataLen;
   char    name[TSDB_TABLE_FNAME_LEN];
-  char *  data;
+  char*   data;
 } STagData;
 
 typedef struct {
