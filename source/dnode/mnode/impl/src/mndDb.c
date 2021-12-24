@@ -541,6 +541,15 @@ static int32_t mndSetDbCfgFromAlterDbMsg(SDbObj *pDb, SAlterDbMsg *pAlter) {
 }
 
 static int32_t mndSetUpdateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) {
+  SSdbRaw *pRedoRaw = mndDbActionEncode(pOldDb);
+  if (pRedoRaw == NULL) return -1;
+  if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_UPDATING) != 0) return -1;
+
+  return 0;
+}
+
+static int32_t mndSetUpdateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) { 
   SSdbRaw *pRedoRaw = mndDbActionEncode(pNewDb);
   if (pRedoRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
@@ -549,24 +558,57 @@ static int32_t mndSetUpdateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pO
   return 0;
 }
 
-static int32_t mndSetUpdateDbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) {
-  SSdbRaw *pUndoRaw = mndDbActionEncode(pOldDb);
-  if (pUndoRaw == NULL) return -1;
-  if (mndTransAppendUndolog(pTrans, pUndoRaw) != 0) return -1;
-  if (sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY) != 0) return -1;
+static int32_t mndBuildUpdateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup) {
+  for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
+    STransAction action = {0};
+    SVnodeGid   *pVgid = pVgroup->vnodeGid + vn;
+
+    SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+    if (pDnode == NULL) return -1;
+    action.epSet = mndGetDnodeEpset(pDnode);
+    mndReleaseDnode(pMnode, pDnode);
+
+    SAlterVnodeMsg *pMsg = (SAlterVnodeMsg *)mndBuildCreateVnodeMsg(pMnode, pDnode, pDb, pVgroup);
+    if (pMsg == NULL) return -1;
+
+    action.pCont = pMsg;
+    action.contLen = sizeof(SAlterVnodeMsg);
+    action.msgType = TSDB_MSG_TYPE_ALTER_VNODE_IN;
+    if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+      free(pMsg);
+      return -1;
+    }
+  }
 
   return 0;
 }
 
-static int32_t mndSetUpdateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) { return 0; }
+static int32_t mndSetUpdateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
 
-static int32_t mndSetUpdateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) { return 0; }
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
 
-static int32_t mndSetUpdateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) { return 0; }
+    if (pVgroup->dbUid == pNewDb->uid) {
+      if (mndBuildUpdateVgroupAction(pMnode, pTrans, pNewDb, pVgroup) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pVgroup);
+        return -1;
+      }
+    }
+
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return 0;
+}
 
 static int32_t mndUpdateDb(SMnode *pMnode, SMnodeMsg *pMsg, SDbObj *pOldDb, SDbObj *pNewDb) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, pMsg->rpcMsg.handle);
   if (pTrans == NULL) {
     mError("db:%s, failed to update since %s", pOldDb->name, terrstr());
     return terrno;
@@ -579,22 +621,12 @@ static int32_t mndUpdateDb(SMnode *pMnode, SMnodeMsg *pMsg, SDbObj *pOldDb, SDbO
     goto UPDATE_DB_OVER;
   }
 
-  if (mndSetUpdateDbUndoLogs(pMnode, pTrans, pOldDb, pNewDb) != 0) {
-    mError("trans:%d, failed to set undo log since %s", pTrans->id, terrstr());
-    goto UPDATE_DB_OVER;
-  }
-
   if (mndSetUpdateDbCommitLogs(pMnode, pTrans, pOldDb, pNewDb) != 0) {
     mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
     goto UPDATE_DB_OVER;
   }
 
   if (mndSetUpdateDbRedoActions(pMnode, pTrans, pOldDb, pNewDb) != 0) {
-    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
-    goto UPDATE_DB_OVER;
-  }
-
-  if (mndSetUpdateDbUndoActions(pMnode, pTrans, pOldDb, pNewDb) != 0) {
     mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
     goto UPDATE_DB_OVER;
   }
@@ -660,31 +692,87 @@ static int32_t mndSetDropDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb)
   return 0;
 }
 
-static int32_t mndSetDropDbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
-  SSdbRaw *pUndoRaw = mndDbActionEncode(pDb);
-  if (pUndoRaw == NULL) return -1;
-  if (mndTransAppendUndolog(pTrans, pUndoRaw) != 0) return -1;
-  if (sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY) != 0) return -1;
-
-  return 0;
-}
-
 static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   SSdbRaw *pCommitRaw = mndDbActionEncode(pDb);
   if (pCommitRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
   if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) != 0) return -1;
 
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    if (pVgroup->dbUid == pDb->uid) {
+      SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroup);
+      if (pVgRaw == NULL || mndTransAppendCommitlog(pTrans, pVgRaw) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pVgroup);
+        return -1;
+      }
+      sdbSetRawStatus(pVgRaw, SDB_STATUS_DROPPED);
+    }
+
+    sdbRelease(pSdb, pVgroup);
+  }
+
   return 0;
 }
 
-static int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) { return 0; }
+static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup) {
+  for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
+    STransAction action = {0};
+    SVnodeGid *  pVgid = pVgroup->vnodeGid + vn;
 
-static int32_t mndSetDropDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) { return 0; }
+    SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+    if (pDnode == NULL) return -1;
+    action.epSet = mndGetDnodeEpset(pDnode);
+    mndReleaseDnode(pMnode, pDnode);
+
+    SDropVnodeMsg *pMsg = mndBuildDropVnodeMsg(pMnode, pDnode, pDb, pVgroup);
+    if (pMsg == NULL) return -1;
+
+    action.pCont = pMsg;
+    action.contLen = sizeof(SCreateVnodeMsg);
+    action.msgType = TSDB_MSG_TYPE_DROP_VNODE_IN;
+    if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+      free(pMsg);
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+static int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    if (pVgroup->dbUid == pDb->uid) {
+      if (mndBuildDropVgroupAction(pMnode, pTrans, pDb, pVgroup) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pVgroup);
+        return -1;
+      }
+    }
+
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return 0;
+}
 
 static int32_t mndDropDb(SMnode *pMnode, SMnodeMsg *pMsg, SDbObj *pDb) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, pMsg->rpcMsg.handle);
   if (pTrans == NULL) {
     mError("db:%s, failed to drop since %s", pDb->name, terrstr());
     return -1;
@@ -697,22 +785,12 @@ static int32_t mndDropDb(SMnode *pMnode, SMnodeMsg *pMsg, SDbObj *pDb) {
     goto DROP_DB_OVER;
   }
 
-  if (mndSetDropDbUndoLogs(pMnode, pTrans, pDb) != 0) {
-    mError("trans:%d, failed to set undo log since %s", pTrans->id, terrstr());
-    goto DROP_DB_OVER;
-  }
-
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) {
     mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
     goto DROP_DB_OVER;
   }
 
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) {
-    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
-    goto DROP_DB_OVER;
-  }
-
-  if (mndSetDropDbUndoActions(pMnode, pTrans, pDb) != 0) {
     mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
     goto DROP_DB_OVER;
   }
