@@ -88,6 +88,7 @@ class TDTestCase:
         tdSql.query("select count(*) from elapsed_vol;")
         tdSql.checkRows(0)
 
+
         taosd_pid = int(subprocess.getstatusoutput('ps aux|grep "taosd" |grep -v "grep"|awk \'{print $2}\'')[1])
         
         sleep(10)
