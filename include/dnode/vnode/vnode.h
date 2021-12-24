@@ -246,8 +246,8 @@ static FORCE_INLINE void vnodeSetCreateNtbReq(SVnodeReq *pReq, char *name, uint3
   pReq->ctReq.ntbCfg.pSchema = pSchema;
 }
 
-int   vnodeBuildReq(void **buf, const SVnodeReq *pReq, uint8_t type);
-void *vnodeParseReq(void *buf, SVnodeReq *pReq, uint8_t type);
+int   vnodeBuildReq(void **buf, const SVnodeReq *pReq, tmsg_t type);
+void *vnodeParseReq(void *buf, SVnodeReq *pReq, tmsg_t type);
 
 /* ------------------------ FOR COMPILE ------------------------ */
 
