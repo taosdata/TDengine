@@ -15,7 +15,7 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "query.h"
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 

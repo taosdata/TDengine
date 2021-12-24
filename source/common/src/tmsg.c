@@ -13,23 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_STB_H_
-#define _TD_MND_STB_H_
+#include "tmsg.h"
 
-#include "mndInt.h"
+#undef TD_MSG_NUMBER_
+#undef TD_MSG_DICT_
+#define TD_MSG_INFO_
+#undef TD_MSG_SEG_CODE_
+#include "tmsgdef.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int32_t mndInitStb(SMnode *pMnode);
-void    mndCleanupStb(SMnode *pMnode);
-
-SStbObj *mndAcquireStb(SMnode *pMnode, char *stbName);
-void mndReleaseStb(SMnode *pMnode, SStbObj *pStb);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_MND_STB_H_*/
+#undef TD_MSG_NUMBER_
+#undef TD_MSG_INFO_
+#define TD_MSG_DICT_
+#undef TD_MSG_SEG_CODE_
+#include "tmsgdef.h"

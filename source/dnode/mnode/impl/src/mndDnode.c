@@ -73,11 +73,11 @@ int32_t mndInitDnode(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndDnodeActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndDnodeActionDelete};
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_DNODE, mndProcessCreateDnodeMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_DNODE, mndProcessDropDnodeMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CONFIG_DNODE, mndProcessConfigDnodeMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CONFIG_DNODE_IN_RSP, mndProcessConfigDnodeRsp);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_STATUS, mndProcessStatusMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_DNODE, mndProcessCreateDnodeMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_DNODE, mndProcessDropDnodeMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeMsg);
+  mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusMsg);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_VARIABLES, mndGetConfigMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VARIABLES, mndRetrieveConfigs);
@@ -527,7 +527,7 @@ static int32_t mndProcessConfigDnodeMsg(SMnodeMsg *pMsg) {
   pCfgDnode->dnodeId = htonl(pCfg->dnodeId);
   memcpy(pCfgDnode->config, pCfg->config, TSDB_DNODE_CONFIG_LEN);
 
-  SRpcMsg rpcMsg = {.msgType = TSDB_MSG_TYPE_CONFIG_DNODE_IN,
+  SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE,
                     .pCont = pCfgDnode,
                     .contLen = sizeof(SCfgDnodeMsg),
                     .ahandle = pMsg->rpcMsg.ahandle};

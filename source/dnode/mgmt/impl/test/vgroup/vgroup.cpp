@@ -60,7 +60,7 @@ TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
         pReplica->port = htons(9150);
       }
 
-      SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_VNODE_IN, pReq, contLen);
+      SRpcMsg* pMsg = test.SendMsg(TDMT_DND_CREATE_VNODE, pReq, contLen);
       ASSERT_NE(pMsg, nullptr);
       ASSERT_EQ(pMsg->code, 0);
     }
@@ -100,7 +100,7 @@ TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
         pReplica->port = htons(9150);
       }
 
-      SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_ALTER_VNODE_IN, pReq, contLen);
+      SRpcMsg* pMsg = test.SendMsg(TDMT_DND_ALTER_VNODE, pReq, contLen);
       ASSERT_NE(pMsg, nullptr);
       ASSERT_EQ(pMsg->code, 0);
     }
@@ -119,9 +119,9 @@ TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
       SRpcMsg rpcMsg = {0};
       rpcMsg.pCont = pReq;
       rpcMsg.contLen = sizeof(SDropVnodeMsg);
-      rpcMsg.msgType = TSDB_MSG_TYPE_DROP_VNODE_IN;
+      rpcMsg.msgType = TDMT_DND_DROP_VNODE;
 
-      SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_DROP_VNODE_IN, pReq, contLen);
+      SRpcMsg* pMsg = test.SendMsg(TDMT_DND_DROP_VNODE, pReq, contLen);
       ASSERT_NE(pMsg, nullptr);
       ASSERT_EQ(pMsg->code, 0);
     }

@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "taoserror.h"
 #include "tulog.h"
 #include "tglobal.h"
@@ -358,7 +358,7 @@ static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t p
   epSet.port[0] = port;
   strcpy(epSet.fqdn[0], serverFqdn);
 
-  reqMsg.msgType = TSDB_MSG_TYPE_NETWORK_TEST;
+  reqMsg.msgType = TDMT_DND_NETWORK_TEST;
   reqMsg.pCont = rpcMallocCont(pktLen);
   reqMsg.contLen = pktLen;
   reqMsg.code = 0;
@@ -368,7 +368,7 @@ static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t p
 
   rpcSendRecv(pRpcConn, &epSet, &reqMsg, &rspMsg);
 
-  if ((rspMsg.code != 0) || (rspMsg.msgType != TSDB_MSG_TYPE_NETWORK_TEST + 1)) {
+  if ((rspMsg.code != 0) || (rspMsg.msgType != TDMT_DND_NETWORK_TEST + 1)) {
     uDebug("ret code 0x%x %s", rspMsg.code, tstrerror(rspMsg.code));
     return rspMsg.code;
   }
@@ -602,7 +602,7 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
     epSet.port[0] = port;
     strcpy(epSet.fqdn[0], host);
 
-    reqMsg.msgType = TSDB_MSG_TYPE_NETWORK_TEST;
+    reqMsg.msgType = TDMT_DND_NETWORK_TEST;
     reqMsg.pCont = rpcMallocCont(pkgLen);
     reqMsg.contLen = pkgLen;
     reqMsg.code = 0;
@@ -613,7 +613,7 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
     rpcSendRecv(pRpcConn, &epSet, &reqMsg, &rspMsg);
 
     int code = 0;
-    if ((rspMsg.code != 0) || (rspMsg.msgType != TSDB_MSG_TYPE_NETWORK_TEST + 1)) {
+    if ((rspMsg.code != 0) || (rspMsg.msgType != TDMT_DND_NETWORK_TEST + 1)) {
       uError("ret code 0x%x %s", rspMsg.code, tstrerror(rspMsg.code));
       code = -1;
     }else{

@@ -26,7 +26,7 @@ extern "C" {
 #include "taosdef.h"
 #include "transport.h"
 #include "common.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "query.h"
 
 struct SCatalog;

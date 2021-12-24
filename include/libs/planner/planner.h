@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "taosmsg.h"
+#include "tmsg.h"
 
 #define QUERY_TYPE_MERGE       1
 #define QUERY_TYPE_PARTIAL     2

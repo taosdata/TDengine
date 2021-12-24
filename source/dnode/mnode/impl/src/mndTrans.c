@@ -466,13 +466,13 @@ static int32_t mndTransAppendAction(SArray *pArray, STransAction *pAction) {
 
 int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction) {
   int32_t code = mndTransAppendAction(pTrans->redoActions, pAction);
-  mTrace("trans:%d, msg:%s append to redo actions, code:0x%x", pTrans->id, taosMsg[pAction->msgType], code);
+  mTrace("trans:%d, msg:%s append to redo actions, code:0x%x", pTrans->id, TMSG_INFO(pAction->msgType), code);
   return code;
 }
 
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction) {
   int32_t code = mndTransAppendAction(pTrans->undoActions, pAction);
-  mTrace("trans:%d, msg:%s append to undo actions, code:0x%x", pTrans->id, taosMsg[pAction->msgType], code);
+  mTrace("trans:%d, msg:%s append to undo actions, code:0x%x", pTrans->id, TMSG_INFO(pAction->msgType), code);
   return code;
 }
 
@@ -696,7 +696,8 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
   for (int32_t action = 0; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pArray, action);
     if (pAction == NULL) continue;
-    if (pAction->msgReceived && pAction->errCode == 0) continue;
+    if (pAction->msgSent && !pAction->msgReceived) continue;
+    if (pAction->msgSent && pAction->msgReceived && pAction->errCode == 0) continue;
 
     int64_t signature = pTrans->id;
     signature = (signature << 32);

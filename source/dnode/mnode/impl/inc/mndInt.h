@@ -77,7 +77,7 @@ typedef struct SMnode {
   SShowMgmt         showMgmt;
   SProfileMgmt      profileMgmt;
   STelemMgmt        telemMgmt;
-  MndMsgFp          msgFp[TSDB_MSG_TYPE_MAX];
+  MndMsgFp          msgFp[TDMT_MAX];
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;
   SendRedirectMsgFp sendRedirectMsgFp;

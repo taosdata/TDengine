@@ -52,13 +52,13 @@ int32_t mndInitStb(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndStbActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndStbActionDelete};
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_STB, mndProcessCreateStbMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_STB, mndProcessAlterStbMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_STB, mndProcessDropStbMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_STB_IN_RSP, mndProcessCreateStbInRsp);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_STB_IN_RSP, mndProcessAlterStbInRsp);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_STB_IN_RSP, mndProcessDropStbInRsp);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_TABLE_META, mndProcessStbMetaMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STB, mndProcessCreateStbMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_STB, mndProcessAlterStbMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_STB, mndProcessDropStbMsg);
+  mndSetMsgHandle(pMnode, TDMT_VND_CREATE_STB_RSP, mndProcessCreateStbInRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_STB_RSP, mndProcessAlterStbInRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_DROP_STB_RSP, mndProcessDropStbInRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_TABLE_META, mndProcessStbMetaMsg);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_STB, mndGetStbMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STB, mndRetrieveStb);
@@ -345,7 +345,7 @@ static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     action.pCont = pMsg;
     action.contLen = htonl(pMsg->head.contLen);
-    action.msgType = TSDB_MSG_TYPE_CREATE_STB_IN;
+    action.msgType = TDMT_VND_CREATE_STB;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pMsg);
       sdbCancelFetch(pSdb, pIter);
@@ -380,7 +380,7 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     action.pCont = pMsg;
     action.contLen = sizeof(SDropStbInternalMsg);
-    action.msgType = TSDB_MSG_TYPE_DROP_STB_IN;
+    action.msgType = TDMT_VND_DROP_STB;
     if (mndTransAppendUndoAction(pTrans, &action) != 0) {
       free(pMsg);
       sdbCancelFetch(pSdb, pIter);
@@ -482,6 +482,15 @@ static int32_t mndProcessCreateStbMsg(SMnodeMsg *pMsg) {
       mError("db:%s, failed to create since %s", pCreate->name, terrstr());
       return -1;
     }
+  }
+
+  //topic should have different name with stb
+  SStbObj *pTopic = mndAcquireStb(pMnode, pCreate->name);
+  if (pTopic != NULL) {
+    sdbRelease(pMnode->pSdb, pTopic);
+    terrno = TSDB_CODE_MND_NAME_CONFLICT_WITH_TOPIC;
+    mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
+    return -1;
   }
 
   SDbObj *pDb = mndAcquireDbByStb(pMnode, pCreate->name);

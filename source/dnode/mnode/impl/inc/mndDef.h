@@ -20,7 +20,7 @@
 
 #include "cJSON.h"
 #include "sync.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "thash.h"
 #include "tlog.h"
 #include "trpc.h"
@@ -284,6 +284,21 @@ typedef struct {
   int32_t bytes[TSDB_MAX_COLUMNS];
   char    payload[];
 } SShowObj;
+
+typedef struct {
+  char name[TSDB_TOPIC_FNAME_LEN];
+  char db[TSDB_FULL_DB_NAME_LEN];
+  int64_t createTime;
+  int64_t updateTime;
+  uint64_t uid;
+  uint64_t dbUid;
+  int32_t version;
+  SRWLatch lock;
+  int32_t  execLen;
+  void*    executor;
+  int32_t  sqlLen;
+  char*    sql;
+} STopicObj;
 
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];

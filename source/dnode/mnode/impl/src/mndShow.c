@@ -36,8 +36,8 @@ int32_t mndInitShow(SMnode *pMnode) {
     return -1;
   }
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_SHOW, mndProcessShowMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_SHOW_RETRIEVE, mndProcessRetrieveMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_SHOW, mndProcessShowMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_SHOW_RETRIEVE, mndProcessRetrieveMsg);
   return 0;
 }
 

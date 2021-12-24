@@ -20,7 +20,7 @@
 #include "mallocator.h"
 #include "os.h"
 #include "taoserror.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tlist.h"
 #include "trpc.h"
 #include "ttimer.h"

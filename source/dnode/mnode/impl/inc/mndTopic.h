@@ -13,8 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define TAOS_MESSAGE_C
+#ifndef _TD_MND_TOPIC_H_
+#define _TD_MND_TOPIC_H_
 
-#include "taosmsg.h"
+#include "mndInt.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
+int32_t mndInitTopic(SMnode *pMnode);
+void    mndCleanupTopic(SMnode *pMnode);
+
+STopicObj *mndAcquireTopic(SMnode *pMnode, char *topicName);
+void mndReleaseTopic(SMnode *pMnode, STopicObj *pTopic);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_MND_TOPIC_H_*/

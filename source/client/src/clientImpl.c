@@ -167,7 +167,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
   SRequestMsgBody body = buildRequestMsgImpl(pRequest);
   SEpSet* pEpSet = &pRequest->pTscObj->pAppInfo->mgmtEp.epSet;
 
-  if (pDcl->msgType == TSDB_MSG_TYPE_CREATE_TABLE) {
+  if (pDcl->msgType == TDMT_MND_CREATE_TABLE) {
     struct SCatalog* pCatalog = NULL;
 
     char buf[12] = {0};
@@ -289,7 +289,7 @@ STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, con
     return pTscObj;
   }
 
-  SRequestObj *pRequest = createRequest(pTscObj, fp, param, TSDB_MSG_TYPE_CONNECT);
+  SRequestObj *pRequest = createRequest(pTscObj, fp, param, TDMT_MND_CONNECT);
   if (pRequest == NULL) {
     destroyTscObj(pTscObj);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -321,7 +321,7 @@ STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, con
 }
 
 static int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
-  pMsgBody->msgType         = TSDB_MSG_TYPE_CONNECT;
+  pMsgBody->msgType         = TDMT_MND_CONNECT;
   pMsgBody->msgInfo.len     = sizeof(SConnectMsg);
   pMsgBody->requestObjRefId = pRequest->self;
 
@@ -353,7 +353,7 @@ static void destroyRequestMsgBody(SRequestMsgBody* pMsgBody) {
 int32_t sendMsgToServer(void *pTransporter, SEpSet* epSet, const SRequestMsgBody *pBody, int64_t* pTransporterId) {
   char *pMsg = rpcMallocCont(pBody->msgInfo.len);
   if (NULL == pMsg) {
-    tscError("0x%"PRIx64" msg:%s malloc failed", pBody->requestId, taosMsg[pBody->msgType]);
+    tscError("0x%"PRIx64" msg:%s malloc failed", pBody->requestId, TMSG_INFO(pBody->msgType));
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return -1;
   }
@@ -398,7 +398,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
    * The actual inserted number of points is the first number.
    */
   if (pMsg->code == TSDB_CODE_SUCCESS) {
-    tscDebug("0x%" PRIx64 " message:%s, code:%s rspLen:%d, elapsed:%"PRId64 " ms", pRequest->requestId, taosMsg[pMsg->msgType],
+    tscDebug("0x%" PRIx64 " message:%s, code:%s rspLen:%d, elapsed:%"PRId64 " ms", pRequest->requestId, TMSG_INFO(pMsg->msgType),
              tstrerror(pMsg->code), pMsg->contLen, pRequest->metric.rsp - pRequest->metric.start);
     if (handleRequestRspFp[pRequest->type]) {
       char *p = malloc(pMsg->contLen);
@@ -411,7 +411,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
       }
     }
   } else {
-    tscError("0x%" PRIx64 " SQL cmd:%s, code:%s rspLen:%d, elapsed time:%"PRId64" ms", pRequest->requestId, taosMsg[pMsg->msgType],
+    tscError("0x%" PRIx64 " SQL cmd:%s, code:%s rspLen:%d, elapsed time:%"PRId64" ms", pRequest->requestId, TMSG_INFO(pMsg->msgType),
              tstrerror(pMsg->code), pMsg->contLen, pRequest->metric.rsp - pRequest->metric.start);
   }
 
@@ -453,7 +453,7 @@ void* doFetchRow(SRequestObj* pRequest) {
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
   if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
-    pRequest->type = TSDB_MSG_TYPE_SHOW_RETRIEVE;
+    pRequest->type = TDMT_MND_SHOW_RETRIEVE;
 
     SRequestMsgBody body = buildRequestMsgImpl(pRequest);
 
