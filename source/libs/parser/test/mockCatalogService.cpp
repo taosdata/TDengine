@@ -94,9 +94,9 @@ public:
     return 0;
   }
 
-  int32_t catalogGetTableMeta(const char* pDBName, const char* pTableName, STableMeta** pTableMeta) const {
+  int32_t catalogGetTableMeta(const char* pDbFullName, const char* pTableName, STableMeta** pTableMeta) const {
     std::unique_ptr<STableMeta> table;
-    int32_t code = copyTableSchemaMeta(pDBName, pTableName, &table);
+    int32_t code = copyTableSchemaMeta(toDbname(pDbFullName), pTableName, &table);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -104,7 +104,7 @@ public:
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t catalogGetTableHashVgroup(const char* pDBName, const char* pTableName, SVgroupInfo* vgInfo) const {
+  int32_t catalogGetTableHashVgroup(const char* pDbFullName, const char* pTableName, SVgroupInfo* vgInfo) const {
     // todo
     return 0;
   }
@@ -194,6 +194,14 @@ public:
 private:
   typedef std::map<std::string, std::shared_ptr<MockTableMeta>> TableMetaCache;
   typedef std::map<std::string, TableMetaCache> DbMetaCache;
+
+  std::string toDbname(const std::string& dbFullName) const {
+    std::string::size_type n = dbFullName.find(".");
+    if (n == std::string::npos) {
+      return dbFullName;
+    }
+    return dbFullName.substr(n + 1);
+  }
 
   std::string ttToString(int8_t tableType) const {
     switch (tableType) {

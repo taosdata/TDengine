@@ -4028,7 +4028,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 }
 
 // todo remove it
-static int32_t setShowInfo(struct SSqlInfo* pInfo, void** output, int32_t* msgLen, SMsgBuf* pMsgBuf) {
+static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, void** output, int32_t* outputLen, SMsgBuf* pMsgBuf) {
   const char* msg1 = "invalid name";
   const char* msg2 = "wildcard string should be less than %d characters";
   const char* msg3 = "database name too long";
@@ -4040,9 +4040,8 @@ static int32_t setShowInfo(struct SSqlInfo* pInfo, void** output, int32_t* msgLe
    * database prefix in pInfo->pMiscInfo->a[0]
    * wildcard in like clause in pInfo->pMiscInfo->a[1]
    */
-  SShowInfo* pShowInfo = &pInfo->pMiscInfo->showOpt;
   int16_t    showType = pShowInfo->showType;
-  if (showType == TSDB_MGMT_TABLE_TABLE || showType == TSDB_MGMT_TABLE_VGROUP) {
+  if (showType == TSDB_MGMT_TABLE_STB || showType == TSDB_MGMT_TABLE_VGROUP) {
     SToken* pDbPrefixToken = &pShowInfo->prefix;
     if (pDbPrefixToken->type != 0) {
       if (pDbPrefixToken->n >= TSDB_DB_NAME_LEN) {  // db name is too long
@@ -4091,8 +4090,8 @@ static int32_t setShowInfo(struct SSqlInfo* pInfo, void** output, int32_t* msgLe
     }
   }
 
-  *output = buildShowMsg(pShowInfo, 0, pMsgBuf->buf, pMsgBuf->len);
-  *msgLen = sizeof(SShowMsg)/* + htons(pShowMsg->payloadLen)*/;
+  *output = buildShowMsg(pShowInfo, pCtx->requestId, pMsgBuf->buf, pMsgBuf->len);
+  *outputLen = sizeof(SShowMsg)/* + htons(pShowMsg->payloadLen)*/;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4246,7 +4245,7 @@ static int32_t validateTableColumnInfo(SArray* pFieldList, SMsgBuf* pMsgBuf) {
   const char* msg8 = "illegal number of columns";
 
   // first column must be timestamp
-  TAOS_FIELD* pField = taosArrayGet(pFieldList, 0);
+  SField* pField = taosArrayGet(pFieldList, 0);
   if (pField->type != TSDB_DATA_TYPE_TIMESTAMP) {
     return buildInvalidOperationMsg(pMsgBuf, msg1);
   }
@@ -4274,7 +4273,7 @@ static int32_t validateTagParams(SArray* pTagsList, SArray* pFieldList, SMsgBuf*
 
   // field name must be unique
   for (int32_t i = 0; i < numOfTags; ++i) {
-    TAOS_FIELD* p = taosArrayGet(pTagsList, i);
+    SField* p = taosArrayGet(pTagsList, i);
     if (has(pFieldList, 0, p->name) == true) {
       return buildInvalidOperationMsg(pMsgBuf, msg3);
     }
@@ -4295,7 +4294,6 @@ int32_t doCheckForCreateTable(SSqlInfo* pInfo, SMsgBuf* pMsgBuf) {
   // if sql specifies db, use it, otherwise use default db
   SToken* pzTableName = &(pCreateTable->name);
 
-  bool dbIncluded = false;
   if (parserValidateNameToken(pzTableName) != TSDB_CODE_SUCCESS) {
     return buildInvalidOperationMsg(pMsgBuf, msg1);
   }
@@ -4308,13 +4306,11 @@ int32_t doCheckForCreateTable(SSqlInfo* pInfo, SMsgBuf* pMsgBuf) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, void** output, int32_t* outputLen, int32_t* type, char* msgBuf, int32_t msgBufLen) {
+int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStmtInfo* pDcl, char* msgBuf, int32_t msgBufLen) {
   int32_t code = 0;
 
   SMsgBuf m = {.buf = msgBuf, .len = msgBufLen};
   SMsgBuf *pMsgBuf = &m;
-
-  *type = pInfo->type;
 
   switch (pInfo->type) {
     case TSDB_SQL_CREATE_USER:
@@ -4361,7 +4357,8 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, void** 
         }
       }
 
-      *output = buildUserManipulationMsg(pInfo, outputLen, pCtx->requestId, msgBuf, msgBufLen);
+      pDcl->pMsg = (char*)buildUserManipulationMsg(pInfo, &pDcl->msgLen, pCtx->requestId, msgBuf, msgBufLen);
+      pDcl->msgType = (pInfo->type == TSDB_SQL_CREATE_USER)? TSDB_MSG_TYPE_CREATE_USER:TSDB_MSG_TYPE_ALTER_USER;
       break;
     }
 
@@ -4397,18 +4394,21 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, void** 
         }
       }
 
-      *output = buildAcctManipulationMsg(pInfo, outputLen, pCtx->requestId, msgBuf, msgBufLen);
+      pDcl->pMsg = (char*)buildAcctManipulationMsg(pInfo, &pDcl->msgLen, pCtx->requestId, msgBuf, msgBufLen);
+      pDcl->msgType = (pInfo->type == TSDB_SQL_CREATE_ACCT)? TSDB_MSG_TYPE_CREATE_ACCT:TSDB_MSG_TYPE_ALTER_ACCT;
       break;
     }
 
     case TSDB_SQL_DROP_ACCT:
     case TSDB_SQL_DROP_USER: {
-      *output = buildDropUserMsg(pInfo, outputLen, pCtx->requestId, msgBuf, msgBufLen);
+      pDcl->pMsg = (char*)buildDropUserMsg(pInfo, &pDcl->msgLen, pCtx->requestId, msgBuf, msgBufLen);
+      pDcl->msgType = (pInfo->type == TSDB_SQL_DROP_ACCT)? TSDB_MSG_TYPE_DROP_ACCT:TSDB_MSG_TYPE_DROP_USER;
       break;
     }
     
     case TSDB_SQL_SHOW: {
-      code = setShowInfo(pInfo, output, outputLen, pMsgBuf);
+      code = setShowInfo(&pInfo->pMiscInfo->showOpt, pCtx, (void**)&pDcl->pMsg, &pDcl->msgLen, pMsgBuf);
+      pDcl->msgType = TSDB_MSG_TYPE_SHOW;
       break;
     }
 
@@ -4429,8 +4429,9 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, void** 
       SUseDbMsg *pUseDbMsg = (SUseDbMsg *) calloc(1, sizeof(SUseDbMsg));
       tNameExtractFullName(&n, pUseDbMsg->db);
 
-      *output = pUseDbMsg;
-      *outputLen = sizeof(SUseDbMsg);
+      pDcl->pMsg = (char*)pUseDbMsg;
+      pDcl->msgLen = sizeof(SUseDbMsg);
+      pDcl->msgType = TSDB_MSG_TYPE_USE_DB;
       break;
     }
 
@@ -4451,16 +4452,41 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, void** 
         return buildInvalidOperationMsg(pMsgBuf, msg1);
       }
 
-      SCreateDbMsg* pCreateMsg = buildCreateDbMsg(pCreateDB, pMsgBuf->buf, pMsgBuf->len);
+      SCreateDbMsg* pCreateMsg = buildCreateDbMsg(pCreateDB, pCtx, pMsgBuf);
       if (doCheckDbOptions(pCreateMsg, pMsgBuf) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
 
       strncpy(pCreateMsg->db, token.z, token.n);
 
-      *output = pCreateMsg;
-      *outputLen = sizeof(SCreateDbMsg);
+      pDcl->pMsg = (char*)pCreateMsg;
+      pDcl->msgLen = sizeof(SCreateDbMsg);
+      pDcl->msgType = (pInfo->type == TSDB_SQL_CREATE_DB)? TSDB_MSG_TYPE_CREATE_DB:TSDB_MSG_TYPE_ALTER_DB;
       break;
+    }
+
+    case TSDB_SQL_DROP_DB: {
+      const char* msg1 = "invalid database name";
+
+      assert(taosArrayGetSize(pInfo->pMiscInfo->a) == 1);
+      SToken* dbName = taosArrayGet(pInfo->pMiscInfo->a, 0);
+
+      SName name = {0};
+      code = tNameSetDbName(&name, pCtx->acctId, dbName->z, dbName->n);
+      if (code != TSDB_CODE_SUCCESS) {
+        return buildInvalidOperationMsg(pMsgBuf, msg1);
+      }
+
+      SDropDbMsg *pDropDbMsg = (SDropDbMsg*) calloc(1, sizeof(SDropDbMsg));
+
+      code = tNameExtractFullName(&name, pDropDbMsg->db);
+      pDropDbMsg->ignoreNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
+      assert(code == TSDB_CODE_SUCCESS && name.type == TSDB_DB_NAME_T);
+
+      pDcl->msgType = TSDB_MSG_TYPE_DROP_DB;
+      pDcl->msgLen = sizeof(SDropDbMsg);
+      pDcl->pMsg = (char*)pDropDbMsg;
+      return TSDB_CODE_SUCCESS;
     }
 
     case TSDB_SQL_CREATE_TABLE: {
@@ -4470,7 +4496,8 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, void** 
         if ((code = doCheckForCreateTable(pInfo, pMsgBuf)) != TSDB_CODE_SUCCESS) {
           return code;
         }
-        *output = buildCreateTableMsg(pCreateTable, outputLen, pCtx, pMsgBuf);
+        pDcl->pMsg = (char*)buildCreateTableMsg(pCreateTable, &pDcl->msgLen, pCtx, pMsgBuf);
+        pDcl->msgType = (pCreateTable->type == TSQL_CREATE_TABLE)? TSDB_MSG_TYPE_CREATE_TABLE:TSDB_MSG_TYPE_CREATE_STB;
       } else if (pCreateTable->type == TSQL_CREATE_CTABLE) {
         //        if ((code = doCheckForCreateFromStable(pSql, pInfo)) != TSDB_CODE_SUCCESS) {
         //          return code;
@@ -4483,6 +4510,18 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, void** 
 
       break;
     }
+
+    case TSDB_SQL_DROP_TABLE: {
+      pDcl->pMsg = (char*)buildDropTableMsg(pInfo, &pDcl->msgLen, pCtx, pMsgBuf);
+      if (pDcl->pMsg == NULL) {
+        return terrno;
+      }
+
+      pDcl->msgType = TSDB_MSG_TYPE_DROP_STB;
+      return TSDB_CODE_SUCCESS;
+      break;
+    }
+
     default:
       break;
   }

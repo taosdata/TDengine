@@ -17,28 +17,6 @@
 #include "sdbInt.h"
 #include "tchecksum.h"
 
-static int32_t sdbCreateDir(SSdb *pSdb) {
-  if (taosMkDir(pSdb->currDir) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", pSdb->currDir, terrstr());
-    return -1;
-  }
-
-  if (taosMkDir(pSdb->syncDir) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", pSdb->syncDir, terrstr());
-    return -1;
-  }
-
-  if (taosMkDir(pSdb->tmpDir) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", pSdb->tmpDir, terrstr());
-    return -1;
-  }
-
-  return 0;
-}
-
 static int32_t sdbRunDeployFp(SSdb *pSdb) {
   mDebug("start to deploy sdb");
 
@@ -77,7 +55,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
     free(pRaw);
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to read file:%s since %s", file, terrstr());
-    return -1;
+    return 0;
   }
 
   while (1) {
@@ -225,10 +203,6 @@ int32_t sdbWriteFile(SSdb *pSdb) {
 }
 
 int32_t sdbDeploy(SSdb *pSdb) {
-  if (sdbCreateDir(pSdb) != 0) {
-    return -1;
-  }
-
   if (sdbRunDeployFp(pSdb) != 0) {
     return -1;
   }

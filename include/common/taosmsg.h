@@ -52,6 +52,10 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONNECT, "mq-connect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_DISCONNECT, "mq-disconnect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_SET_CUR, "mq-set-cur" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_RES_READY, "res-ready" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_TASKS_STATUS, "tasks-status" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CANCEL_TASK, "cancel-task" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_TASK, "drop-task" )
+
 // message from client to mnode
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONNECT, "connect" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_ACCT, "create-acct" )	
@@ -308,17 +312,25 @@ typedef struct {
   char     data[];
 } SMDCreateTableMsg;
 
+//typedef struct {
+//  int32_t len;  // one create table message
+//  char    tableName[TSDB_TABLE_FNAME_LEN];
+//  int16_t numOfColumns;
+//  int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
+//  int8_t  igExists;
+//  int8_t  rspMeta;
+//  int8_t  reserved[16];
+//  char    schema[];
+//} SCreateTableMsg;
+
 typedef struct {
-  int32_t len;  // one create table message
   char    tableName[TSDB_TABLE_FNAME_LEN];
-  int16_t numOfTags;
   int16_t numOfColumns;
-  int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
+  int16_t numOfTags;
   int8_t  igExists;
   int8_t  rspMeta;
-  int8_t  reserved[16];
   char    schema[];
-} SCreateTableMsg;
+} SCreateCTableMsg;
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
@@ -326,7 +338,7 @@ typedef struct {
   int32_t numOfTags;
   int32_t numOfColumns;
   SSchema pSchema[];
-} SCreateStbMsg;
+} SCreateStbMsg, SCreateTableMsg;
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
@@ -369,6 +381,7 @@ typedef struct {
 typedef struct {
   SMsgHead head;
   char     name[TSDB_TABLE_FNAME_LEN];
+  int8_t   ignoreNotExists;
 } SDropTableMsg;
 
 typedef struct {
@@ -909,18 +922,15 @@ typedef struct SShowRsp {
 
 typedef struct {
   char    ep[TSDB_EP_LEN];  // end point, hostname:port
-  int32_t reserve[8];
 } SCreateDnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
-  int32_t reserve[8];
 } SDropDnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
   char    config[TSDB_DNODE_CONFIG_LEN];
-  int32_t reserve[8];
 } SCfgDnodeMsg;
 
 typedef struct {
@@ -929,7 +939,6 @@ typedef struct {
 
 typedef struct {
   int32_t  dnodeId;
-  int8_t   align[3];
   int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
 } SCreateMnodeInMsg, SAlterMnodeInMsg;
@@ -1098,29 +1107,29 @@ typedef struct {
   /* data */
 } SUpdateTagValRsp;
 
-typedef struct SSchedulerQueryMsg {
+typedef struct SSubQueryMsg {
   uint64_t  schedulerId;
   uint64_t  queryId;
   uint64_t  taskId;
   uint32_t  contentLen;
   char      msg[];
-} SSchedulerQueryMsg;
+} SSubQueryMsg;
 
-typedef struct SSchedulerReadyMsg {
+typedef struct SResReadyMsg {
   uint64_t  schedulerId;
   uint64_t  queryId;
   uint64_t  taskId;
-} SSchedulerReadyMsg;
+} SResReadyMsg;
 
-typedef struct SSchedulerFetchMsg {
+typedef struct SResFetchMsg {
   uint64_t  schedulerId;
   uint64_t  queryId;
   uint64_t  taskId;
-} SSchedulerFetchMsg;
+} SResFetchMsg;
 
-typedef struct SSchedulerStatusMsg {
+typedef struct SSchTasksStatusMsg {
   uint64_t  schedulerId;
-} SSchedulerStatusMsg;
+} SSchTasksStatusMsg;
 
 typedef struct STaskStatus {
   uint64_t  queryId;
@@ -1134,11 +1143,17 @@ typedef struct SSchedulerStatusRsp {
 } SSchedulerStatusRsp;
 
 
-typedef struct SSchedulerCancelMsg {
+typedef struct STaskCancelMsg {
   uint64_t  schedulerId;
   uint64_t  queryId;
   uint64_t  taskId;
-} SSchedulerCancelMsg;
+} STaskCancelMsg;
+
+typedef struct STaskDropMsg {
+  uint64_t  schedulerId;
+  uint64_t  queryId;
+  uint64_t  taskId;
+} STaskDropMsg;
 
 
 #pragma pack(pop)

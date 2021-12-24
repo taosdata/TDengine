@@ -323,7 +323,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INCONSISTAN,              "File inconsistance in
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_TIME_CONDITION,   "One valid time range condition expected")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SYS_ERROR,                "System error")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_INPUT,            "invalid input")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SCH_NOT_EXIST,            "Scheduler not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_NOT_EXIST,           "Task not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_ALREADY_EXIST,       "Task already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_RES_CACHE_NOT_EXIST,      "Task result cache not exist")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")

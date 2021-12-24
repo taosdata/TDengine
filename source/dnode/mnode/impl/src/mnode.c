@@ -178,8 +178,10 @@ static int32_t mndExecSteps(SMnode *pMnode) {
     // (*pMnode->reportProgress)(pStep->name, "start initialize");
 
     if ((*pStep->initFp)(pMnode) != 0) {
+      int32_t code = terrno;
       mError("step:%s exec failed since %s, start to cleanup", pStep->name, terrstr());
       mndCleanupSteps(pMnode, pos);
+      terrno = code;
       return -1;
     } else {
       mDebug("step:%s is initialized", pStep->name);

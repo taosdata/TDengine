@@ -845,7 +845,7 @@ int32_t subPlanToString(const SSubplan* subplan, char** str, int32_t* len) {
     return TSDB_CODE_FAILED;
   }
   *str = cJSON_Print(json);
-  *len = strlen(*str);
+  *len = strlen(*str) + 1;
   return TSDB_CODE_SUCCESS;
 }
 

@@ -115,14 +115,14 @@ int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pRpc, const S
 /**
  * Get a table's vgroup from its name's hash value.
  * @param pCatalog (input, got with catalogGetHandle)
- * @param pRpc (input, rpc object)
+ * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
  * @param pDBName (input, full db name)
  * @param pTableName (input, table name, NOT including db name)
  * @param vgInfo (output, vgroup info)
  * @return error code
  */
-int32_t catalogGetTableHashVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, SVgroupInfo* vgInfo);
+int32_t catalogGetTableHashVgroup(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, SVgroupInfo* vgInfo);
 
 
 /**
