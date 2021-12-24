@@ -84,7 +84,7 @@ The TDengine supports the following data types and Java data types:
 | BINARY            | java.lang.String                   | byte array                          |
 | NCHAR             | java.lang.String                   | java.lang.String                    |
 | JSON              | -                                  | java.lang.String                    |
-**Note**: JSON type can only be supported in tag.
+**Note**: JSON type can only be used in tag.
 ## Install Java connector
 
 ### Runtime Requirements
