@@ -88,12 +88,27 @@ typedef struct SUseDbOutput {
 typedef struct STableMetaOutput {
   int32_t     metaNum;
   char        ctbFname[TSDB_TABLE_FNAME_LEN];
-  char        tbFname[TSDB_TABLE_FNAME_LEN];  
+  char        tbFname[TSDB_TABLE_FNAME_LEN];
   SCTableMeta ctbMeta;
   STableMeta *tbMeta;
 } STableMetaOutput;
 
-typedef int32_t __async_exec_fn_t(void* param);
+typedef struct SDataBuf {
+  void     *pData;
+  uint32_t  len;
+} SDataBuf;
+
+typedef int32_t (*__async_send_cb_fn_t)(void* param, const SDataBuf* pMsg, int32_t code);
+typedef int32_t (*__async_exec_fn_t)(void* param);
+
+typedef struct SMsgSendInfo {
+  __async_send_cb_fn_t fp;        //async callback function
+  void     *param;
+  uint64_t  requestId;
+  uint64_t  requestObjRefId;
+  int32_t   msgType;
+  SDataBuf  msgInfo;
+} SMsgSendInfo;
 
 bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
 
@@ -109,7 +124,9 @@ int32_t cleanupTaskQueue();
  */
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
 
-SSchema* tGetTbnameColumnSchema();
+int32_t asyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo);
+
+const SSchema* tGetTbnameColumnSchema();
 void initQueryModuleMsgHandle();
 
 extern int32_t (*queryBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);

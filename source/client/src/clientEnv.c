@@ -32,7 +32,7 @@
 #define TSC_VAR_RELEASED    0
 
 SAppInfo   appInfo;
-int32_t    msgObjRefPool  = -1;
+int32_t    clientReqRefPool  = -1;
 int32_t    clientConnRefPool = -1;
 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
@@ -43,7 +43,7 @@ static void registerRequest(SRequestObj* pRequest) {
   assert(pTscObj != NULL);
 
   // connection has been released already, abort creating request.
-  pRequest->self = taosAddRef(msgObjRefPool, pRequest);
+  pRequest->self = taosAddRef(clientReqRefPool, pRequest);
 
   int32_t num = atomic_add_fetch_32(&pTscObj->numOfReqs, 1);
 
@@ -167,12 +167,11 @@ void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t ty
 
   // TODO generated request uuid
   pRequest->requestId  = 0;
-
   pRequest->metric.start = taosGetTimestampMs();
 
   pRequest->type       = type;
   pRequest->pTscObj    = pObj;
-  pRequest->body.fp    = fp;
+  pRequest->body.fp    = fp;    // not used it yet
   pRequest->msgBuf     = calloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   tsem_init(&pRequest->body.rspSem, 0, 0);
 
@@ -201,7 +200,7 @@ void destroyRequest(SRequestObj* pRequest) {
     return;
   }
 
-  taosReleaseRef(msgObjRefPool, pRequest->self);
+  taosReleaseRef(clientReqRefPool, pRequest->self);
 }
 
 void taos_init_imp(void) {
@@ -238,7 +237,7 @@ void taos_init_imp(void) {
   initTaskQueue();
 
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
-  msgObjRefPool  = taosOpenRef(40960, doDestroyRequest);
+  clientReqRefPool  = taosOpenRef(40960, doDestroyRequest);
 
   taosGetAppName(appInfo.appName, NULL);
   appInfo.pid       = taosGetPId();

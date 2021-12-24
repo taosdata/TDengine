@@ -35,8 +35,8 @@ void taos_cleanup(void) {
     return;
   }
 
-  int32_t id = msgObjRefPool;
-  msgObjRefPool = -1;
+  int32_t id = clientReqRefPool;
+  clientReqRefPool = -1;
   taosCloseRef(id);
 
   cleanupTaskQueue();

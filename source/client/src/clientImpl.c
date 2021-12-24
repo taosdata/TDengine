@@ -14,8 +14,6 @@ static int32_t initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorE
 static SMsgSendInfo* buildConnectMsg(SRequestObj *pRequest);
 static void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
 
-static int32_t sendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo);
-
 static bool stringLengthCheck(const char* str, size_t maxsize) {
   if (str == NULL) {
     return false;
@@ -201,10 +199,10 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
         tstrncpy(ep.fqdn[i], info.epAddr[i].fqdn, tListLen(ep.fqdn[i]));
       }
 
-      sendMsgToServer(pTscObj->pTransporter, &ep, &transporterId, body);
+      asyncSendMsgToServer(pTscObj->pTransporter, &ep, &transporterId, body);
     } else {
       int64_t transporterId = 0;
-      sendMsgToServer(pTscObj->pTransporter, pEpSet, &transporterId, body);
+      asyncSendMsgToServer(pTscObj->pTransporter, pEpSet, &transporterId, body);
     }
 
     tsem_wait(&pRequest->body.rspSem);
@@ -274,7 +272,7 @@ STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, con
   SMsgSendInfo* body = buildConnectMsg(pRequest);
 
   int64_t transporterId = 0;
-  sendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
+  asyncSendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
 
   tsem_wait(&pRequest->body.rspSem);
   destroySendMsgInfo(body);
@@ -335,7 +333,7 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   tfree(pMsgBody);
 }
 
-int32_t sendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
+int32_t asyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
   char *pMsg = rpcMallocCont(pInfo->msgInfo.len);
   if (NULL == pMsg) {
     tscError("0x%"PRIx64" msg:%s malloc failed", pInfo->requestId, taosMsg[pInfo->msgType]);
@@ -364,7 +362,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   assert(pMsg->ahandle != NULL);
 
   if (pSendInfo->requestObjRefId != 0) {
-    SRequestObj *pRequest = (SRequestObj *)taosAcquireRef(msgObjRefPool, pSendInfo->requestObjRefId);
+    SRequestObj *pRequest = (SRequestObj *)taosAcquireRef(clientReqRefPool, pSendInfo->requestObjRefId);
     assert(pRequest->self == pSendInfo->requestObjRefId);
 
     pRequest->metric.rsp = taosGetTimestampMs();
@@ -391,7 +389,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
                pRequest->metric.rsp - pRequest->metric.start);
     }
 
-    taosReleaseRef(msgObjRefPool, pSendInfo->requestObjRefId);
+    taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
   }
 
   SDataBuf buf = {.pData = pMsg->pCont, .len = pMsg->contLen};
@@ -437,7 +435,7 @@ void* doFetchRow(SRequestObj* pRequest) {
 
     int64_t  transporterId = 0;
     STscObj *pTscObj = pRequest->pTscObj;
-    sendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
+    asyncSendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
 
     tsem_wait(&pRequest->body.rspSem);
     destroySendMsgInfo(body);

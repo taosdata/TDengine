@@ -22,7 +22,7 @@
 
 int (*handleRequestRspFp[TSDB_MSG_TYPE_MAX])(void*, const SDataBuf* pMsg, int32_t code);
 
-int genericExecCallback(void* param, const SDataBuf* pMsg, int32_t code) {
+int genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   pRequest->code = code;
   sem_post(&pRequest->body.rspSem);
@@ -96,7 +96,7 @@ SMsgSendInfo* buildSendMsgInfoImpl(SRequestObj *pRequest) {
     pMsgSendInfo->requestId = pRequest->requestId;
     pMsgSendInfo->param = pRequest;
 
-    pMsgSendInfo->fp = (handleRequestRspFp[pRequest->type] == NULL)? genericExecCallback:handleRequestRspFp[pRequest->type];
+    pMsgSendInfo->fp = (handleRequestRspFp[pRequest->type] == NULL)? genericRspCallback:handleRequestRspFp[pRequest->type];
   }
 
   return pMsgSendInfo;
