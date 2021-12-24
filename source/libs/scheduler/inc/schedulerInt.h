@@ -68,11 +68,17 @@ typedef struct SQueryTask {
   SArray              *parents;    // the data destination tasks, get data from current task, element is SQueryTask*
 } SQueryTask;
 
+typedef struct SQueryJobAttr {
+  bool needFetch;
+  bool syncQuery;
+} SQueryJobAttr;
+
 typedef struct SQueryJob {
   uint64_t  queryId;
   int32_t   levelNum;
   int32_t   levelIdx;
   int8_t    status;
+  SQueryJobAttr    attr;
   SQueryProfileSummary summary;
   SEpSet           dataSrcEps;
   SEpAddr          resEp;
@@ -81,8 +87,10 @@ typedef struct SQueryJob {
   tsem_t           rspSem;
   int32_t          userFetch;
   int32_t          remoteFetch;
-  void            *res;
 
+  void            *res;
+  int32_t          resNumOfRows;
+  
   SHashObj *execTasks; // executing tasks, key:taskid, value:SQueryTask*
   SHashObj *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
   SHashObj *failTasks; // failed tasks, key:taskid, value:SQueryTask*

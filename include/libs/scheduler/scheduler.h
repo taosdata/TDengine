@@ -59,7 +59,15 @@ int32_t schedulerInit(SSchedulerCfg *cfg);
  * @param qnodeList  Qnode address list, element is SEpAddr
  * @return
  */
-int32_t scheduleExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob);
+int32_t scheduleExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob, uint64_t *numOfRows);
+
+/**
+ * Process the query job, generated according to the query physical plan.
+ * This is a asynchronized API, and is also thread-safety.
+ * @param qnodeList  Qnode address list, element is SEpAddr
+ * @return
+ */
+int32_t scheduleAsyncExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob);
 
 int32_t scheduleFetchRows(void *pJob, void **data);
 

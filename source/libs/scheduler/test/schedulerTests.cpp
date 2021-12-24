@@ -89,7 +89,7 @@ TEST(testCase, normalCase) {
 
   mockBuildDag(&dag);
   
-  code = scheduleExecJob(mockPointer, qnodeList, &dag, &pJob);
+  code = scheduleAsyncExecJob(mockPointer, qnodeList, &dag, &pJob);
   ASSERT_EQ(code, 0);
 }
 

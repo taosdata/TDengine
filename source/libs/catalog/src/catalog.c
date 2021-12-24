@@ -634,8 +634,8 @@ _return:
   CTG_RET(code);
 }
 
-int32_t catalogGetQnodeList(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, SEpSet* pQnodeEpSet) {
-  if (NULL == pCatalog || NULL == pRpc  || NULL == pMgmtEps || NULL == pQnodeEpSet) {
+int32_t catalogGetQnodeList(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, SArray* pQnodeList) {
+  if (NULL == pCatalog || NULL == pRpc  || NULL == pMgmtEps || NULL == pQnodeList) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 

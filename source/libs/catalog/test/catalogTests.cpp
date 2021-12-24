@@ -53,6 +53,12 @@ typedef struct STscObj {
 
 namespace {
 
+int32_t ctgTestVgNum = 10;
+char *ctgTestClusterId = "cluster1";
+char *ctgTestDbname = "1.db1";
+char *ctgTestTablename = "table1";
+
+
 void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
   SCreateDbMsg* pReq = (SCreateDbMsg*)rpcMallocCont(sizeof(SCreateDbMsg));
   strcpy(pReq->db, "1.db1");
@@ -91,6 +97,34 @@ void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
 void __rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   SUseDbRsp *rspMsg = NULL; //todo
 
+  pRsp->code =0;
+  pRsp->contLen = sizeof(SUseDbRsp) + ctgTestVgNum * sizeof(SVgroupInfo);
+  pRsp->pCont = calloc(1, pRsp->contLen);
+  rspMsg = (SUseDbRsp *)pRsp->pCont;
+  strcpy(rspMsg->db, ctgTestDbname);
+  rspMsg->vgVersion = 1;
+  rspMsg->vgNum = ctgTestVgNum;
+  rspMsg->hashMethod = 0;
+
+  SVgroupInfo *vg = NULL;
+  uint32_t hashUnit = UINT32_MAX / ctgTestVgNum;
+  for (int32_t i = 0; i < ctgTestVgNum; ++i) {
+    vg = &rspMsg->vgroupInfo[i];
+
+    vg->vgId = i + 1;
+    vg->hashBegin = i * hashUnit;
+    vg->hashEnd = hashUnit * (i + 1) - 1;
+    vg->numOfEps = i % TSDB_MAX_REPLICA + 1;
+    vg->inUse = i % vg->numOfEps;
+    for (int32_t n = 0; n < vg->numOfEps; ++n) {
+      SEpAddrMsg *addr = &vg->epAddr[n];
+      strcpy(addr->fqdn, "a0");
+      addr->port = n + 22;
+    }
+  }
+
+  vg->hashEnd = UINT32_MAX;
+  
   return;
 }
 
@@ -112,30 +146,24 @@ void initTestEnv() {
 }
 
 TEST(testCase, normalCase) {
-  STscObj* pConn = (STscObj *)taos_connect("127.0.0.1", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
-
-  char *clusterId = "cluster1";
-  char *dbname = "1.db1";
-  char *tablename = "table1";
   struct SCatalog* pCtg = NULL;
   void *mockPointer = (void *)0x1;
   SVgroupInfo vgInfo = {0};
 
+  initTestEnv();
+
   initQueryModuleMsgHandle();
 
-  sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+  //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
   
   int32_t code = catalogInit(NULL);
   ASSERT_EQ(code, 0);
 
-  code = catalogGetHandle(clusterId, &pCtg);
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  code = catalogGetTableHashVgroup(pCtg, pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet, dbname, tablename, &vgInfo);
+  code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestTablename, &vgInfo);
   ASSERT_EQ(code, 0);
-
-  taos_close(pConn);
 }
 
 

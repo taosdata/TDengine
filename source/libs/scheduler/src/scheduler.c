@@ -152,6 +152,8 @@ int32_t schValidateAndBuildJob(SQueryDag *dag, SQueryJob *job) {
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
+  job->attr.needFetch = true;
+  
   job->levelNum = levelNum;
   job->levelIdx = levelNum - 1;
 
@@ -196,6 +198,10 @@ int32_t schValidateAndBuildJob(SQueryDag *dag, SQueryJob *job) {
     for (int32_t n = 0; n < levelPlanNum; ++n) {
       SSubplan *plan = taosArrayGet(levelPlans, n);
       SQueryTask task = {0};
+
+      if (plan->type == QUERY_TYPE_MODIFY) {
+        job->attr.needFetch = false;
+      }
       
       task.taskId = atomic_add_fetch_64(&schMgmt.taskId, 1);
       task.plan = plan;
@@ -424,8 +430,12 @@ _return:
 }
 
 
-int32_t schProcessOnJobSuccess(SQueryJob *job) {
-  job->status = JOB_TASK_STATUS_SUCCEED;
+int32_t schProcessOnJobPartialSuccess(SQueryJob *job) {
+  job->status = JOB_TASK_STATUS_PARTIAL_SUCCEED;
+
+  if ((!job->attr.needFetch) && job->attr.syncQuery) {
+    tsem_post(&job->rspSem);
+  }
   
   if (job->userFetch) {
     SCH_ERR_RET(schFetchFromRemote(job));
@@ -495,7 +505,7 @@ int32_t schProcessOnTaskSuccess(SQueryJob *job, SQueryTask *task) {
       job->resEp.port = task->execAddr.port;
     }
 
-    SCH_ERR_RET(schProcessOnJobSuccess(job));
+    SCH_ERR_RET(schProcessOnJobPartialSuccess(job));
 
     return TSDB_CODE_SUCCESS;
   }
@@ -560,34 +570,63 @@ int32_t schProcessOnTaskFailure(SQueryJob *job, SQueryTask *task, int32_t errCod
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schHandleRspMsg(SQueryJob *job, SQueryTask *task, int32_t msgType, int32_t rspCode) {
+int32_t schHandleRspMsg(SQueryJob *job, SQueryTask *task, int32_t msgType, char *msg, int32_t msgSize, int32_t rspCode) {
   int32_t code = 0;
   
   switch (msgType) {
-    case TSDB_MSG_TYPE_QUERY:
-      if (rspCode != TSDB_CODE_SUCCESS) {
-        SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rspCode));
-      } else {
-        code = schAsyncSendMsg(job, task, TSDB_MSG_TYPE_RES_READY);
-        if (code) {
-          goto _task_error;
+    case TSDB_MSG_TYPE_SUBMIT: {
+        SShellSubmitRspMsg *rsp = (SShellSubmitRspMsg *)msg;
+        if (rsp->code != TSDB_CODE_SUCCESS) {
+          SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rsp->code));
+        } else {
+          job->resNumOfRows += rsp->numOfRows;
+          
+          code = schProcessOnTaskSuccess(job, task);
+          if (code) {
+            goto _task_error;
+          }               
         }
+        break;
       }
-      break;
-    case TSDB_MSG_TYPE_RES_READY:
-      if (rspCode != TSDB_CODE_SUCCESS) {
-        SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rspCode));
-      } else {
-        code = schProcessOnTaskSuccess(job, task);
-        if (code) {
-          goto _task_error;
-        }        
+    case TSDB_MSG_TYPE_QUERY: {
+        SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
+        
+        if (rsp->code != TSDB_CODE_SUCCESS) {
+          SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rsp->code));
+        } else {
+          code = schAsyncSendMsg(job, task, TSDB_MSG_TYPE_RES_READY);
+          if (code) {
+            goto _task_error;
+          }
+        }
+        break;
       }
-      break;
-    case TSDB_MSG_TYPE_FETCH:
-      SCH_ERR_JRET(rspCode);
-      SCH_ERR_JRET(schProcessOnDataFetched(job));
-      break;
+    case TSDB_MSG_TYPE_RES_READY: {
+        SResReadyRsp *rsp = (SResReadyRsp *)msg;
+        
+        if (rsp->code != TSDB_CODE_SUCCESS) {
+          SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rsp->code));
+        } else {
+          code = schProcessOnTaskSuccess(job, task);
+          if (code) {
+            goto _task_error;
+          }        
+        }
+        break;
+      }
+    case TSDB_MSG_TYPE_FETCH: {        
+        SCH_ERR_JRET(rspCode);
+        SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
+        if (rsp->completed) {
+          job->status = JOB_TASK_STATUS_SUCCEED;
+        }
+
+        job->res = rsp;
+        job->resNumOfRows = rsp->numOfRows;
+        
+        SCH_ERR_JRET(schProcessOnDataFetched(job));
+        break;
+      }
     default:
       qError("unknown msg type:%d received", msgType);
       return TSDB_CODE_QRY_INVALID_INPUT;
@@ -680,7 +719,7 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
 }
 
 
-int32_t scheduleExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob) {
+int32_t scheduleExecJobImpl(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob, bool syncQuery) {
   if (NULL == transport || NULL == transport ||NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -695,6 +734,7 @@ int32_t scheduleExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, voi
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
+  job->attr.syncQuery = syncQuery;
   job->transport = transport;
   job->qnodeList = qnodeList;
 
@@ -719,10 +759,16 @@ int32_t scheduleExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, voi
   }
 
   tsem_init(&job->rspSem, 0, 0);
-  
-  if (0 != taosHashPut(schMgmt.jobs, &job->queryId, sizeof(job->queryId), &job, POINTER_BYTES)) {
-    qError("taosHashPut queryId:%"PRIx64" failed", job->queryId);
-    SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+
+  code = taosHashPut(schMgmt.jobs, &job->queryId, sizeof(job->queryId), &job, POINTER_BYTES);
+  if (0 != code) {
+    if (HASH_NODE_EXIST(code)) {
+      qError("taosHashPut queryId:%"PRIx64" already exist", job->queryId);
+      SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+    } else {
+      qError("taosHashPut queryId:%"PRIx64" failed", job->queryId);
+      SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+    }
   }
 
   job->status = JOB_TASK_STATUS_NOT_START;
@@ -730,6 +776,10 @@ int32_t scheduleExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, voi
   SCH_ERR_JRET(schLaunchJob(job));
 
   *(SQueryJob **)pJob = job;
+
+  if (syncQuery) {
+    tsem_wait(&job->rspSem);
+  }
 
   return TSDB_CODE_SUCCESS;
 
@@ -741,20 +791,47 @@ _return:
   SCH_RET(code);
 }
 
+int32_t scheduleExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob, uint64_t *numOfRows) {
+  *numOfRows = 0;
+  
+  SCH_ERR_RET(scheduleExecJobImpl(transport, qnodeList, pDag, pJob, true));
+
+  SQueryJob *job = *(SQueryJob **)pJob;
+  
+  *numOfRows = job->resNumOfRows;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t scheduleAsyncExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob) {
+  return scheduleExecJobImpl(transport, qnodeList, pDag, pJob, false);
+}
+
+
 int32_t scheduleFetchRows(void *pJob, void **data) {
   if (NULL == pJob || NULL == data) {
-    return TSDB_CODE_QRY_INVALID_INPUT;
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
   SQueryJob *job = pJob;
   int32_t code = 0;
 
-  if (atomic_val_compare_exchange_32(&job->userFetch, 0, 1) != 0) {
-    qError("prior fetching not finished");
-    return TSDB_CODE_QRY_APP_ERROR;
+  if (!job->attr.needFetch) {
+    qError("no need to fetch data");
+    SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
 
   if (job->status == JOB_TASK_STATUS_SUCCEED) {
+    job->res = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (atomic_val_compare_exchange_32(&job->userFetch, 0, 1) != 0) {
+    qError("prior fetching not finished");
+    SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+  }
+
+  if (job->status == JOB_TASK_STATUS_PARTIAL_SUCCEED) {
     SCH_ERR_JRET(schFetchFromRemote(job));
   }
 
@@ -766,7 +843,7 @@ int32_t scheduleFetchRows(void *pJob, void **data) {
 _return:
   atomic_val_compare_exchange_32(&job->userFetch, 1, 0);
 
-  return code;
+  SCH_RET(code);
 }
 
 int32_t scheduleCancelJob(void *pJob) {
