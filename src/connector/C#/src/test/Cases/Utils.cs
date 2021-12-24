@@ -8,7 +8,7 @@ namespace Test.UtilsTools
     public class UtilsTools
     {
 
-        static string configDir = "C:/TDengine/cfg";
+        static string configDir = "/etc/taos";//"C:/TDengine/cfg";
 
         public static IntPtr TDConnection(string ip, string user, string password, string db, short port)
         {
@@ -58,6 +58,28 @@ namespace Test.UtilsTools
 
             }
             return res;
+        }
+
+        public static void ExecuteUpdate(IntPtr conn, String sql)
+        {
+            IntPtr res = TDengine.Query(conn, sql);
+            if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
+            {
+                Console.Write(sql.ToString() + " failure, ");
+                if (res != IntPtr.Zero)
+                {
+                    Console.Write("reason: " + TDengine.Error(res));
+
+                }
+                Console.WriteLine("");
+                ExitProgram();
+            }
+            else
+            {
+                Console.WriteLine(sql.ToString() + " success");
+
+            }
+            TDengine.FreeResult(res);
         }
 
         public static void DisplayRes(IntPtr res)
