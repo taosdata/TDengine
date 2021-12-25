@@ -22,6 +22,7 @@ extern "C" {
 
 #include "taosdef.h"
 #include "taoserror.h"
+#include "tcoding.h"
 #include "tdataformat.h"
 
 #define TD_MSG_NUMBER_
@@ -1095,6 +1096,131 @@ typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
   uint64_t tuid;
 } SDropTopicInternalMsg;
+
+typedef struct SVCreateTbReq {
+  uint64_t ver;  // use a general definition
+  char*    name;
+  uint32_t ttl;
+  uint32_t keep;
+#define TD_SUPER_TABLE 0
+#define TD_CHILD_TABLE 1
+#define TD_NORMAL_TABLE 2
+  uint8_t type;
+  union {
+    struct {
+      tb_uid_t suid;
+      uint32_t nCols;
+      SSchema* pSchema;
+      uint32_t nTagCols;
+      SSchema* pTagSchema;
+    } stbCfg;
+    struct {
+      tb_uid_t suid;
+      SKVRow   pTag;
+    } ctbCfg;
+    struct {
+      uint32_t nCols;
+      SSchema* pSchema;
+    } ntbCfg;
+  };
+} SVCreateTbReq;
+
+static FORCE_INLINE int tSerializeSVCreateTbReq(void** buf, const SVCreateTbReq* pReq) {
+  int tlen = 0;
+
+  tlen += taosEncodeFixedU64(buf, pReq->ver);
+  tlen += taosEncodeString(buf, pReq->name);
+  tlen += taosEncodeFixedU32(buf, pReq->ttl);
+  tlen += taosEncodeFixedU32(buf, pReq->keep);
+  tlen += taosEncodeFixedU8(buf, pReq->type);
+
+  switch (pReq->type) {
+    case TD_SUPER_TABLE:
+      tlen += taosEncodeFixedU64(buf, pReq->stbCfg.suid);
+      tlen += taosEncodeFixedU32(buf, pReq->stbCfg.nCols);
+      for (uint32_t i = 0; i < pReq->stbCfg.nCols; i++) {
+        tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pSchema[i].type);
+        tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pSchema[i].colId);
+        tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pSchema[i].bytes);
+        tlen += taosEncodeString(buf, pReq->stbCfg.pSchema[i].name);
+      }
+      tlen += taosEncodeFixedU32(buf, pReq->stbCfg.nTagCols);
+      for (uint32_t i = 0; i < pReq->stbCfg.nTagCols; i++) {
+        tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pTagSchema[i].type);
+        tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pTagSchema[i].colId);
+        tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pTagSchema[i].bytes);
+        tlen += taosEncodeString(buf, pReq->stbCfg.pTagSchema[i].name);
+      }
+      break;
+    case TD_CHILD_TABLE:
+      tlen += taosEncodeFixedU64(buf, pReq->ctbCfg.suid);
+      tlen += tdEncodeKVRow(buf, pReq->ctbCfg.pTag);
+      break;
+    case TD_NORMAL_TABLE:
+      tlen += taosEncodeFixedU32(buf, pReq->ntbCfg.nCols);
+      for (uint32_t i = 0; i < pReq->ntbCfg.nCols; i++) {
+        tlen += taosEncodeFixedI8(buf, pReq->ntbCfg.pSchema[i].type);
+        tlen += taosEncodeFixedI32(buf, pReq->ntbCfg.pSchema[i].colId);
+        tlen += taosEncodeFixedI32(buf, pReq->ntbCfg.pSchema[i].bytes);
+        tlen += taosEncodeString(buf, pReq->ntbCfg.pSchema[i].name);
+      }
+      break;
+    default:
+      ASSERT(0);
+  }
+
+  return tlen;
+}
+
+static FORCE_INLINE void* tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq) {
+  buf = taosDecodeFixedU64(buf, &(pReq->ver));
+  buf = taosDecodeString(buf, &(pReq->name));
+  buf = taosDecodeFixedU32(buf, &(pReq->ttl));
+  buf = taosDecodeFixedU32(buf, &(pReq->keep));
+  buf = taosDecodeFixedU8(buf, &(pReq->type));
+
+  switch (pReq->type) {
+    case TD_SUPER_TABLE:
+      buf = taosDecodeFixedU64(buf, &(pReq->stbCfg.suid));
+      buf = taosDecodeFixedU32(buf, &(pReq->stbCfg.nCols));
+      pReq->stbCfg.pSchema = (SSchema*)malloc(pReq->stbCfg.nCols * sizeof(SSchema));
+      for (uint32_t i = 0; i < pReq->stbCfg.nCols; i++) {
+        buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pSchema[i].type));
+        buf = taosDecodeFixedI32(buf, &(pReq->stbCfg.pSchema[i].colId));
+        buf = taosDecodeFixedI32(buf, &(pReq->stbCfg.pSchema[i].bytes));
+        buf = taosDecodeStringTo(buf, pReq->stbCfg.pSchema[i].name);
+      }
+      buf = taosDecodeFixedU32(buf, &pReq->stbCfg.nTagCols);
+      pReq->stbCfg.pTagSchema = (SSchema*)malloc(pReq->stbCfg.nTagCols * sizeof(SSchema));
+      for (uint32_t i = 0; i < pReq->stbCfg.nTagCols; i++) {
+        buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pTagSchema[i].type));
+        buf = taosDecodeFixedI32(buf, &pReq->stbCfg.pTagSchema[i].colId);
+        buf = taosDecodeFixedI32(buf, &pReq->stbCfg.pTagSchema[i].bytes);
+        buf = taosDecodeStringTo(buf, pReq->stbCfg.pTagSchema[i].name);
+      }
+      break;
+    case TD_CHILD_TABLE:
+      buf = taosDecodeFixedU64(buf, &pReq->ctbCfg.suid);
+      buf = tdDecodeKVRow(buf, &pReq->ctbCfg.pTag);
+      break;
+    case TD_NORMAL_TABLE:
+      buf = taosDecodeFixedU32(buf, &pReq->ntbCfg.nCols);
+      pReq->ntbCfg.pSchema = (SSchema*)malloc(pReq->ntbCfg.nCols * sizeof(SSchema));
+      for (uint32_t i = 0; i < pReq->ntbCfg.nCols; i++) {
+        buf = taosDecodeFixedI8(buf, &pReq->ntbCfg.pSchema[i].type);
+        buf = taosDecodeFixedI32(buf, &pReq->ntbCfg.pSchema[i].colId);
+        buf = taosDecodeFixedI32(buf, &pReq->ntbCfg.pSchema[i].bytes);
+        buf = taosDecodeStringTo(buf, pReq->ntbCfg.pSchema[i].name);
+      }
+      break;
+    default:
+      ASSERT(0);
+  }
+
+  return buf;
+}
+typedef struct SVCreateTbRsp {
+} SVCreateTbRsp;
 
 #pragma pack(pop)
 
