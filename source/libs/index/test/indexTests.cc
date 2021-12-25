@@ -24,6 +24,22 @@
 #include "tskiplist.h"
 #include "tutil.h"
 using namespace std;
+class DebugInfo {
+ public:
+  DebugInfo(const char* str) : info(str) {
+    std::cout << "------------" << info << "\t"
+              << "begin"
+              << "-------------" << std::endl;
+  }
+  ~DebugInfo() {
+    std::cout << "-----------" << info << "\t"
+              << "end"
+              << "--------------" << std::endl;
+  }
+
+ private:
+  std::string info;
+};
 class FstWriter {
  public:
   FstWriter() {
@@ -133,7 +149,6 @@ int Performance_fstWriteRecords(FstWriter* b) {
   }
   return L * M * N;
 }
-
 void Performance_fstReadRecords(FstReadMemory* m) {
   std::string str("aa");
   for (int i = 0; i < M; i++) {
@@ -168,7 +183,6 @@ void checkFstPerf() {
   Performance_fstReadRecords(m);
   delete m;
 }
-
 void checkFstPrefixSearch() {
   FstWriter*  fw = new FstWriter;
   int64_t     s = taosGetTimestampUs();
@@ -246,7 +260,6 @@ void validateFst() {
   }
   delete m;
 }
-
 class IndexEnv : public ::testing::Test {
  protected:
   virtual void SetUp() {
@@ -265,44 +278,51 @@ class IndexEnv : public ::testing::Test {
   SIndex*     index;
 };
 
-// TEST_F(IndexEnv, testPut) {
-//  // single index column
-//  {
-//    std::string colName("tag1"), colVal("Hello world");
-//    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(),
-//    colVal.size()); SIndexMultiTerm* terms = indexMultiTermCreate(); indexMultiTermAdd(terms, term);
-//
-//    for (size_t i = 0; i < 100; i++) {
-//      int tableId = i;
-//      int ret = indexPut(index, terms, tableId);
-//      assert(ret == 0);
-//    }
-//    indexMultiTermDestroy(terms);
-//  }
-//  // multi index column
-//  {
+/// TEST_F(IndexEnv, testPut) {
+//  /  // single index column
+//      / {
+//    / std::string colName("tag1"), colVal("Hello world");
+//    / SIndexTerm* term =
+//        indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), / colVal.size());
 //    SIndexMultiTerm* terms = indexMultiTermCreate();
-//    {
-//      std::string colName("tag1"), colVal("Hello world");
-//      SIndexTerm* term =
-//          indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
-//      indexMultiTermAdd(terms, term);
+//    indexMultiTermAdd(terms, term);
+//    / / for (size_t i = 0; i < 100; i++) {
+//      / int tableId = i;
+//      / int ret = indexPut(index, terms, tableId);
+//      / assert(ret == 0);
+//      /
 //    }
-//    {
-//      std::string colName("tag2"), colVal("Hello world");
-//      SIndexTerm* term =
-//          indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
-//      indexMultiTermAdd(terms, term);
-//    }
-//
-//    for (int i = 0; i < 100; i++) {
-//      int tableId = i;
-//      int ret = indexPut(index, terms, tableId);
-//      assert(ret == 0);
-//    }
-//    indexMultiTermDestroy(terms);
+//    / indexMultiTermDestroy(terms);
+//    /
 //  }
-//  //
+//  /  // multi index column
+//      / {
+//    / SIndexMultiTerm* terms = indexMultiTermCreate();
+//    / {
+//      / std::string colName("tag1"), colVal("Hello world");
+//      / SIndexTerm* term =
+//          / indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
+//      / indexMultiTermAdd(terms, term);
+//      /
+//    }
+//    / {
+//      / std::string colName("tag2"), colVal("Hello world");
+//      / SIndexTerm* term =
+//          / indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
+//      / indexMultiTermAdd(terms, term);
+//      /
+//    }
+//    / / for (int i = 0; i < 100; i++) {
+//      / int tableId = i;
+//      / int ret = indexPut(index, terms, tableId);
+//      / assert(ret == 0);
+//      /
+//    }
+//    / indexMultiTermDestroy(terms);
+//    /
+//  }
+//  /  //
+//      /
 //}
 
 class TFileObj {
@@ -416,7 +436,6 @@ static void destroyTFileValue(void* val) {
   taosArrayDestroy(tv->tableId);
   free(tv);
 }
-
 TEST_F(IndexTFileEnv, test_tfile_write) {
   TFileValue* v1 = genTFileValue("c");
   TFileValue* v2 = genTFileValue("ab");
@@ -492,241 +511,66 @@ class IndexCacheEnv : public ::testing::Test {
   CacheObj* coj;
 };
 
-TEST_F(IndexCacheEnv, cache_test) {
-  int count = 10;
-
-  int16_t     colId = 1;
-  int32_t     version = 10;
-  uint64_t    suid = 100;
-  std::string colName("voltage");
-  std::string colVal("My God");
-  for (size_t i = 0; i < count; i++) {
-    colVal += ('a' + i);
-    SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
-    coj->Put(term, colId, version, suid);
-    version++;
-  }
-
-  // coj->Get();
-}
-
-typedef struct CTerm {
-  char buf[16];
-  char version[8];
-  int  val;
-  int  other;
-} CTerm;
-CTerm* cTermCreate(const char* str, const char* version, int val) {
-  CTerm* tm = (CTerm*)calloc(1, sizeof(CTerm));
-  memcpy(tm->buf, str, strlen(str));
-  memcpy(tm->version, version, strlen(version));
-  tm->val = val;
-  tm->other = -100;
-  return tm;
-}
-int termCompar(const void* a, const void* b) {
-  printf("a: %s \t b: %s\n", (char*)a, (char*)b);
-  int ret = strncmp((char*)a, (char*)b, 16);
-  if (ret == 0) {
-    //
-    return strncmp((char*)a + 16, (char*)b + 16, 8);
-  }
-  return ret;
-}
-
-int SerialTermTo(char* buf, CTerm* term) {
-  char* p = buf;
-  memcpy(buf, term->buf, sizeof(term->buf));
-  buf += sizeof(term->buf);
-
-  // memcpy(buf,  term->version, sizeof(term->version));
-  // buf += sizeof(term->version);
-  return buf - p;
-}
-static char* getTermKey(const void* pData) {
-  CTerm* p = (CTerm*)pData;
-  return (char*)p->buf;
-}
 #define MAX_TERM_KEY_LEN 128
-class SkiplistObj {
- public:
-  // max_key_len:
-  //
-  SkiplistObj() {
-    slt = tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, MAX_TERM_KEY_LEN, termCompar, SL_ALLOW_DUP_KEY, getTermKey);
-  }
-  int Put(CTerm* term, uint64_t suid) {
-    char buf[MAX_TERM_KEY_LEN] = {0};
-    int  sz = SerialTermTo(buf, term);
+TEST_F(IndexCacheEnv, cache_test) {
+  int     version = 0;
+  int16_t colId = 0;
 
-    char* pBuf = (char*)calloc(1, sz + sizeof(suid));
-
-    memcpy(pBuf, buf, sz);
-    memcpy(pBuf + sz, &suid, sizeof(suid));
-    // int32_t level, headsize;
-    // tSkipListNewNodeInfo(slt, &level, &headsize);
-
-    // SSkipListNode* node = (SSkipListNode*)calloc(1, headsize + strlen(buf) + sizeof(suid));
-    // node->level = level;
-    // char* d = (char*)SL_GET_NODE_DATA(node);
-    // memcpy(d, buf, strlen(buf));
-    // memcpy(d + strlen(buf), &suid, sizeof(suid));
-    SSkipListNode* node = tSkipListPut(slt, pBuf);
-    tSkipListPrint(slt, 1);
-    free(pBuf);
-    return 0;
-  }
-
-  int Get(int key, char* buf, int version) {
-    // TODO
-    // CTerm term;
-    // term.key = key;
-    //// term.version = version;
-    // memcpy(term.buf, buf, strlen(buf));
-
-    // char tbuf[128] = {0};
-    // SerialTermTo(tbuf, &term);
-
-    // SSkipListIterator* iter = tSkipListCreateIterFromVal(slt, tbuf, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
-    // SSkipListNode*     node = tSkipListIterGet(iter);
-    // CTerm*             ct = (CTerm*)SL_GET_NODE_DATA(node);
-    // printf("key: %d\t, version: %d\t, buf: %s\n", ct->key, ct->version, ct->buf);
-    // while (iter) {
-    //  assert(tSkipListIterNext(iter) == true);
-    //  SSkipListNode* node = tSkipListIterGet(iter);
-    //  // ugly formate
-    //  CTerm* t = (CTerm*)SL_GET_NODE_KEY(slt, node);
-    //  printf("key: %d\t, version: %d\t, buf: %s\n", t->key, t->version, t->buf);
-    //}
-    return 0;
-  }
-  ~SkiplistObj() {
-    // TODO
-    // indexCacheDestroy(cache);
-  }
-
- private:
-  SSkipList* slt;
-};
-
-typedef struct KV {
-  int32_t k;
-  int32_t v;
-} KV;
-int kvCompare(const void* a, const void* b) {
-  int32_t av = *(int32_t*)a;
-  int32_t bv = *(int32_t*)b;
-  return av - bv;
-}
-char* getKVkey(const void* a) {
-  return (char*)(&(((KV*)a)->v));
-  // KV* kv = (KV*)a;
-}
-int testKV() {
-  SSkipList* slt = tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, MAX_TERM_KEY_LEN, kvCompare, SL_DISCARD_DUP_KEY, getKVkey);
+  uint64_t    suid = 0;
+  std::string colName("voltage");
   {
-    KV t = {.k = 1, .v = 5};
-    tSkipListPut(slt, (void*)&t);
+    std::string colVal("v1");
+    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
+    coj->Put(term, colId, version++, suid++);
   }
   {
-    KV t = {.k = 2, .v = 3};
-    tSkipListPut(slt, (void*)&t);
+    std::string colVal("v3");
+    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
+    coj->Put(term, colId, version++, suid++);
+  }
+  {
+    std::string colVal("v2");
+    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
+    coj->Put(term, colId, version++, suid++);
+  }
+  {
+    std::string colVal("v3");
+    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
+    coj->Put(term, colId, version++, suid++);
+  }
+  {
+    std::string colVal("v3");
+    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
+    coj->Put(term, colId, version++, suid++);
   }
 
-  KV    value = {.k = 4, .v = 5};
-  char* key = getKVkey(&value);
-  // const char* key = "Hello";
-  SArray* arr = tSkipListGet(slt, (SSkipListKey)&key);
-  for (size_t i = 0; i < taosArrayGetSize(arr); i++) {
-    SSkipListNode* node = (SSkipListNode*)taosArrayGetP(arr, i);
-    int32_t*       ct = (int32_t*)SL_GET_NODE_KEY(slt, node);
-
-    printf("Get key: %d\n", *ct);
-    // SSkipListIterator* iter = tSkipListCreateIterFromVal(slt, tbuf, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
-  }
-  return 1;
-}
-
-int testComplicate() {
-  SSkipList* slt = tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, MAX_TERM_KEY_LEN, termCompar, SL_ALLOW_DUP_KEY, getTermKey);
   {
-    CTerm* tm = cTermCreate("val", "v1", 10);
-    tSkipListPut(slt, (char*)tm);
-  }
-  {
-    CTerm* tm = cTermCreate("val1", "v2", 2);
-    tSkipListPut(slt, (char*)tm);
-  }
-  {
-    CTerm* tm = cTermCreate("val3", "v3", -1);
-    tSkipListPut(slt, (char*)tm);
-  }
-  {
-    CTerm* tm = cTermCreate("val3", "v4", 2);
-    tSkipListPut(slt, (char*)tm);
-  }
-  {
-    CTerm*  tm = cTermCreate("val3", "v5", -1);
-    char*   key = getTermKey(tm);
-    SArray* arr = tSkipListGet(slt, (SSkipListKey)key);
-    for (size_t i = 0; i < taosArrayGetSize(arr); i++) {
-      SSkipListNode* node = (SSkipListNode*)taosArrayGetP(arr, i);
-      CTerm*         ct = (CTerm*)SL_GET_NODE_KEY(slt, node);
-      printf("other; %d\tbuf: %s\t, version: %s, val: %d\n", ct->other, ct->buf, ct->version, ct->val);
-      // SSkipListIterator* iter = tSkipListCreateIterFromVal(slt, tbuf, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
+    std::string colVal("v4");
+    for (size_t i = 0; i < 100; i++) {
+      colVal[colVal.size() - 1] = 'a' + i;
+      SIndexTerm* term =
+          indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
+      coj->Put(term, colId, version++, suid++);
     }
-    free(tm);
-    taosArrayDestroy(arr);
   }
-  return 1;
-}
-int strCompare(const void* a, const void* b) {
-  const char* sa = (char*)a;
-  const char* sb = (char*)b;
-  return strcmp(sa, sb);
-}
-void testString() {
-  SSkipList* slt = tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, MAX_TERM_KEY_LEN, strCompare, SL_ALLOW_DUP_KEY, getTermKey);
   {
-    tSkipListPut(slt, (void*)"Hello");
-    tSkipListPut(slt, (void*)"World");
-    tSkipListPut(slt, (void*)"YI");
-  }
+    std::string colVal("v3");
+    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
+    SIndexTermQuery query = {.term = term, .qType = QUERY_TERM};
+    SArray*         ret = (SArray*)taosArrayInit(4, sizeof(suid));
+    STermValueType  valType;
 
-  const char* key = "YI";
-  SArray*     arr = tSkipListGet(slt, (SSkipListKey)key);
-  for (size_t i = 0; i < taosArrayGetSize(arr); i++) {
-    SSkipListNode* node = (SSkipListNode*)taosArrayGetP(arr, i);
-    char*          ct = (char*)SL_GET_NODE_KEY(slt, node);
-    printf("Get key: %s\n", ct);
-    // SSkipListIterator* iter = tSkipListCreateIterFromVal(slt, tbuf, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
+    coj->Get(&query, colId, 10000, ret, &valType);
+    assert(taosArrayGetSize(ret) == 3);
+  }
+  {
+    std::string colVal("v2");
+    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
+    SIndexTermQuery query = {.term = term, .qType = QUERY_TERM};
+    SArray*         ret = (SArray*)taosArrayInit(4, sizeof(suid));
+    STermValueType  valType;
+
+    coj->Get(&query, colId, 10000, ret, &valType);
+    assert(taosArrayGetSize(ret) == 1);
   }
 }
-// class IndexSkip : public ::testing::Test {
-// protected:
-//  virtual void SetUp() {
-//    // TODO
-//    sObj = new SkiplistObj();
-//  }
-//  virtual void TearDown() {
-//    delete sObj;
-//    // formate
-//  }
-//  SkiplistObj* sObj;
-//};
-
-// TEST_F(IndexSkip, skip_test) {
-//  std::string val("Hello");
-//  std::string minVal = val;
-//  for (size_t i = 0; i < 10; i++) {
-//    CTerm* t = (CTerm*)calloc(1, sizeof(CTerm));
-//    t->key = 1;
-//    t->version = i;
-//
-//    val[val.size() - 1] = 'a' + i;
-//    memcpy(t->buf, val.c_str(), val.size());
-//    sObj->Put(t, 10);
-//    free(t);
-//  }
-//  sObj->Get(1, (char*)(minVal.c_str()), 1000000);
-//}
