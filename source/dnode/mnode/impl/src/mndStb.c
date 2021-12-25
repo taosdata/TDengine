@@ -201,7 +201,7 @@ static SDbObj *mndAcquireDbByStb(SMnode *pMnode, char *stbName) {
 }
 
 static void *mndBuildCreateStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int *pContLen) {
-#if 0
+#if 1
   SVCreateTbReq req;
   void *        buf;
   int           bsize;
