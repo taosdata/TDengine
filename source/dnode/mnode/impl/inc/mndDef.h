@@ -95,6 +95,7 @@ typedef struct {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
+  int32_t    retryTimes;
   void      *rpcHandle;
   void      *rpcAHandle;
   SArray    *redoLogs;
