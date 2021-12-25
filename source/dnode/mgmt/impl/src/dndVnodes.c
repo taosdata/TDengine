@@ -822,12 +822,12 @@ static void dndProcessVnodeWriteQueue(SVnodeObj *pVnode, taos_qall qall, int32_t
     assert(ptr != NULL);
   }
 
-  vnodeProcessWMsgs(pVnode->pImpl, pArray);
+  // vnodeProcessWMsgs(pVnode->pImpl, pArray);
 
   for (size_t i = 0; i < numOfMsgs; i++) {
     SRpcMsg *pRsp = NULL;
     SRpcMsg *pMsg = *(SRpcMsg **)taosArrayGet(pArray, i);
-    int32_t  code = vnodeApplyWMsg(pVnode->pImpl, pMsg, &pRsp);
+    int32_t  code = 0; //vnodeApplyWMsg(pVnode->pImpl, pMsg, &pRsp);
     if (pRsp != NULL) {
       pRsp->ahandle = pMsg->ahandle;
       rpcSendResponse(pRsp);
