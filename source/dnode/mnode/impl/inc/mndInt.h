@@ -61,6 +61,13 @@ typedef struct {
   char             email[TSDB_FQDN_LEN];
 } STelemMgmt;
 
+typedef struct {
+  int32_t    errCode;
+  sem_t      syncSem;
+  SSyncNode *pSyncNode;
+  ESyncState state;
+} SSyncMgmt;
+
 typedef struct SMnode {
   int32_t           dnodeId;
   int32_t           clusterId;
@@ -77,11 +84,11 @@ typedef struct SMnode {
   SShowMgmt         showMgmt;
   SProfileMgmt      profileMgmt;
   STelemMgmt        telemMgmt;
+  SSyncMgmt         syncMgmt;
   MndMsgFp          msgFp[TDMT_MAX];
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;
   SendRedirectMsgFp sendRedirectMsgFp;
-  PutMsgToMnodeQFp  putMsgToApplyMsgFp;
 } SMnode;
 
 void mndSendMsgToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);

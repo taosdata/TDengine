@@ -746,7 +746,7 @@ static int32_t mndTransPerformExecuteStage(SMnode *pMnode, STrans *pTrans) {
     }
   }
 
-  return 0;
+  return code;
 }
 
 static int32_t mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans) {
