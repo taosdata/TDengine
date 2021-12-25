@@ -348,7 +348,18 @@ if [ "$2" != "sim" ] && [ "$2" != "jdbc" ] && [ "$2" != "unit" ]  && [ "$2" != "
     runPyCaseOneByOne regressiontest.sh
   elif [ "$1" == "full" ]; then
     echo "### run Python full test ###"
-    runPyCaseOneByOne fulltest.sh
+    cd $tests_dir/develop-test
+    for name in *.sh
+    do
+      runPyCaseOneByOne $name
+    done
+    cd $tests_dir/system-test
+    for name in *.sh
+    do
+      runPyCaseOneByOne $name
+    done
+    cd $tests_dir/pytest
+    runPyCaseOneByOne fulltest.sh    
   elif [ "$1" == "pytest" ]; then
     echo "### run Python full test ###"
     runPyCaseOneByOne fulltest.sh
