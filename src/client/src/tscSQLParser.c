@@ -2668,6 +2668,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg14 = "third parameter algorithm must be 'default' or 't-digest'";
   const char* msg15 = "parameter is out of range [1, 1000]";
   const char* msg16 = "elapsed duration should be greater than or equal to database precision";
+  const char* msg17 = "the second paramter of diff should be 0 or 1";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -2766,9 +2767,11 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       // no parameters or more than one parameter for function
       if (pItem->pNode->Expr.paramList == NULL ||
-          (functionId != TSDB_FUNC_LEASTSQR && functionId != TSDB_FUNC_DERIVATIVE && functionId != TSDB_FUNC_ELAPSED && numOfParams != 1) ||
+          (functionId != TSDB_FUNC_LEASTSQR && functionId != TSDB_FUNC_DERIVATIVE && functionId != TSDB_FUNC_ELAPSED && functionId != TSDB_FUNC_DIFF
+             && numOfParams != 1) ||
           ((functionId == TSDB_FUNC_LEASTSQR || functionId == TSDB_FUNC_DERIVATIVE) && numOfParams != 3) ||
-          (functionId == TSDB_FUNC_ELAPSED && numOfParams != 1 && numOfParams != 2)) {
+          (functionId == TSDB_FUNC_ELAPSED && numOfParams != 1 && numOfParams != 2) ||
+          (functionId == TSDB_FUNC_DIFF && numOfParams != 1 && numOfParams != 2)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
@@ -2883,6 +2886,21 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
           tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, LONG_BYTES);
         }
+      } else if (functionId == TSDB_FUNC_DIFF) {
+        char val[8] = {0};
+        if (numOfParams == 2) {
+          tVariant* variantDiff = &pParamElem[1].pNode->value;
+          if (variantDiff->nType != TSDB_DATA_TYPE_BIGINT) {
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+          }
+          tVariantDump(variantDiff, val, TSDB_DATA_TYPE_BIGINT, true);
+
+          int64_t ignoreNegative = GET_INT64_VAL(val);
+          if (ignoreNegative != 0 && ignoreNegative != 1) {
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg17);
+          }
+        }
+        tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
       }
 
       SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);
