@@ -138,7 +138,7 @@ enum {
   TD_DEF_MSG_TYPE(TDMT_VND_TASKS_STATUS, "vnode-tasks-status", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_CANCEL_TASK, "vnode-cancel-task", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_DROP_TASK, "vnode-drop-task", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_CREATE_STB, "vnode-create-stb", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_CREATE_STB, "vnode-create-super-table", SVCreateTbReq, SVCreateTbRsp)
   TD_DEF_MSG_TYPE(TDMT_VND_ALTER_STB, "vnode-alter-stb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_DROP_STB, "vnode-drop-stb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_CREATE_TOPIC, "vnode-create-topic", NULL, NULL)

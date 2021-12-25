@@ -25,7 +25,6 @@ extern "C" {
 #endif
 
 // Types exported
-typedef uint64_t     tb_uid_t;
 typedef struct SMeta SMeta;
 
 #define META_SUPER_TABLE 0
