@@ -88,6 +88,8 @@ typedef struct SQueryJob {
   int32_t          userFetch;
   int32_t          remoteFetch;
 
+  SQueryTask      *fetchTask;
+  int32_t          errCode;
   void            *res;
   int32_t          resNumOfRows;
   

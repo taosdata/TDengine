@@ -36,6 +36,7 @@
 
 namespace {
 
+void ctgTestSetPrepareTableMeta();
 void ctgTestSetPrepareCTableMeta();
 void ctgTestSetPrepareSTableMeta();
 
@@ -122,21 +123,7 @@ void ctgTestPrepareDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcM
   return;
 }
 
-void ctgTestPrepareDbVgroupsAndChildMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  ctgTestPrepareDbVgroups(shandle, pEpSet, pMsg, pRsp);
-  
-  ctgTestSetPrepareCTableMeta();
-  
-  return;
-}
 
-void ctgTestPrepareDbVgroupsAndSuperMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  ctgTestPrepareDbVgroups(shandle, pEpSet, pMsg, pRsp);
-  
-  ctgTestSetPrepareSTableMeta();
-  
-  return;
-}
 
 
 void ctgTestPrepareTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
@@ -262,6 +249,32 @@ void ctgTestPrepareSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpc
   return;
 }
 
+void ctgTestPrepareDbVgroupsAndNormalMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  ctgTestPrepareDbVgroups(shandle, pEpSet, pMsg, pRsp);
+  
+  ctgTestSetPrepareTableMeta();
+  
+  return;
+}
+
+
+void ctgTestPrepareDbVgroupsAndChildMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  ctgTestPrepareDbVgroups(shandle, pEpSet, pMsg, pRsp);
+  
+  ctgTestSetPrepareCTableMeta();
+  
+  return;
+}
+
+void ctgTestPrepareDbVgroupsAndSuperMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  ctgTestPrepareDbVgroups(shandle, pEpSet, pMsg, pRsp);
+  
+  ctgTestSetPrepareSTableMeta();
+  
+  return;
+}
+
+
 
 void ctgTestSetPrepareDbVgroups() {
   static Stub stub;
@@ -315,6 +328,19 @@ void ctgTestSetPrepareSTableMeta() {
   }
 }
 
+void ctgTestSetPrepareDbVgroupsAndNormalMeta() {
+  static Stub stub;
+  stub.set(rpcSendRecv, ctgTestPrepareDbVgroupsAndNormalMeta);
+  {
+    AddrAny any("libtransport.so");
+    std::map<std::string,void*> result;
+    any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+    for (const auto& f : result) {
+      stub.set(f.second, ctgTestPrepareDbVgroupsAndNormalMeta);
+    }
+  }
+}
+
 
 void ctgTestSetPrepareDbVgroupsAndChildMeta() {
   static Stub stub;
@@ -324,7 +350,7 @@ void ctgTestSetPrepareDbVgroupsAndChildMeta() {
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
     for (const auto& f : result) {
-      stub.set(f.second, (rpcSendRecv, ctgTestPrepareDbVgroupsAndChildMeta));
+      stub.set(f.second, ctgTestPrepareDbVgroupsAndChildMeta);
     }
   }
 }
@@ -337,7 +363,7 @@ void ctgTestSetPrepareDbVgroupsAndSuperMeta() {
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
     for (const auto& f : result) {
-      stub.set(f.second, (rpcSendRecv, ctgTestPrepareDbVgroupsAndSuperMeta));
+      stub.set(f.second, ctgTestPrepareDbVgroupsAndSuperMeta);
     }
   }
 }
@@ -345,7 +371,7 @@ void ctgTestSetPrepareDbVgroupsAndSuperMeta() {
 
 }
 
-TEST(testCase, normalTableCase) {
+TEST(tableMeta, normalTable) {
   struct SCatalog* pCtg = NULL;
   void *mockPointer = (void *)0x1;
   SVgroupInfo vgInfo = {0};
@@ -396,7 +422,7 @@ TEST(testCase, normalTableCase) {
   catalogDestroy();
 }
 
-TEST(testCase, childTableCase) {
+TEST(tableMeta, childTableCase) {
   struct SCatalog* pCtg = NULL;
   void *mockPointer = (void *)0x1;
   SVgroupInfo vgInfo = {0};
@@ -452,7 +478,7 @@ TEST(testCase, childTableCase) {
   catalogDestroy();
 }
 
-TEST(testCase, superTableCase) {
+TEST(tableMeta, superTableCase) {
   struct SCatalog* pCtg = NULL;
   void *mockPointer = (void *)0x1;
   SVgroupInfo vgInfo = {0};
@@ -496,7 +522,7 @@ TEST(testCase, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestCTablename, &tableMeta);
+  code = catalogRenewAndGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestCTablename, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 9);
   ASSERT_EQ(tableMeta->tableType, TSDB_CHILD_TABLE);
@@ -511,6 +537,100 @@ TEST(testCase, superTableCase) {
 
   catalogDestroy();
 }
+
+TEST(tableDistVgroup, normalTable) {
+  struct SCatalog* pCtg = NULL;
+  void *mockPointer = (void *)0x1;
+  SVgroupInfo *vgInfo = NULL;
+  SArray *vgList = NULL;
+
+  ctgTestSetPrepareDbVgroupsAndNormalMeta();
+
+  initQueryModuleMsgHandle();
+
+  //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+  
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+
+  code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestTablename, &vgList);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
+  vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
+  ASSERT_EQ(vgInfo->vgId, 8);
+  ASSERT_EQ(vgInfo->numOfEps, 3);
+
+  catalogDestroy();
+}
+
+TEST(tableDistVgroup, childTableCase) {
+  struct SCatalog* pCtg = NULL;
+  void *mockPointer = (void *)0x1;
+  SVgroupInfo *vgInfo = NULL;
+  SArray *vgList = NULL;
+
+  ctgTestSetPrepareDbVgroupsAndChildMeta();
+
+  initQueryModuleMsgHandle();
+
+  //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+  
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestCTablename, &vgList);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
+  vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
+  ASSERT_EQ(vgInfo->vgId, 9);
+  ASSERT_EQ(vgInfo->numOfEps, 4);
+
+
+  catalogDestroy();
+}
+
+TEST(tableDistVgroup, superTableCase) {
+  struct SCatalog* pCtg = NULL;
+  void *mockPointer = (void *)0x1;
+  SVgroupInfo *vgInfo = NULL;
+  SArray *vgList = NULL;
+
+  ctgTestSetPrepareDbVgroupsAndSuperMeta();
+
+  initQueryModuleMsgHandle();
+
+  //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+  
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestSTablename, &vgList);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 10);
+  vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
+  ASSERT_EQ(vgInfo->vgId, 1);
+  ASSERT_EQ(vgInfo->numOfEps, 1);
+  vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 1);
+  ASSERT_EQ(vgInfo->vgId, 2);
+  ASSERT_EQ(vgInfo->numOfEps, 2);
+  vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 2);
+  ASSERT_EQ(vgInfo->vgId, 3);
+  ASSERT_EQ(vgInfo->numOfEps, 3);
+
+
+  catalogDestroy();
+}
+
 
 
 int main(int argc, char** argv) {
