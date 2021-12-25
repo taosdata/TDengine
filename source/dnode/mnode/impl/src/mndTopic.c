@@ -14,18 +14,18 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndStb.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndShow.h"
+#include "mndStb.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "tname.h"
 
-#define TSDB_TOPIC_VER_NUMBER 1
-#define TSDB_TOPIC_RESERVE_SIZE 64
+#define MND_TOPIC_VER_NUMBER 1
+#define MND_TOPIC_RESERVE_SIZE 64
 
 static SSdbRaw *mndTopicActionEncode(STopicObj *pTopic);
 static SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw);
@@ -73,8 +73,8 @@ int32_t mndInitTopic(SMnode *pMnode) {
 void mndCleanupTopic(SMnode *pMnode) {}
 
 static SSdbRaw *mndTopicActionEncode(STopicObj *pTopic) {
-  int32_t  size = sizeof(STopicObj) + TSDB_TOPIC_RESERVE_SIZE;
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_TOPIC, TSDB_TOPIC_VER_NUMBER, size);
+  int32_t  size = sizeof(STopicObj) + MND_TOPIC_RESERVE_SIZE;
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_TOPIC, MND_TOPIC_VER_NUMBER, size);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
@@ -90,7 +90,7 @@ static SSdbRaw *mndTopicActionEncode(STopicObj *pTopic) {
   SDB_SET_INT32(pRaw, dataPos, pTopic->sqlLen);
   SDB_SET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen);
 
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_TOPIC_RESERVE_SIZE);
+  SDB_SET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE);
   SDB_SET_DATALEN(pRaw, dataPos);
 
   return pRaw;
@@ -100,14 +100,14 @@ static SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
-  if (sver != TSDB_TOPIC_VER_NUMBER) {
-    mError("failed to decode stable since %s", terrstr());
+  if (sver != MND_TOPIC_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
+    mError("failed to decode topic since %s", terrstr());
     return NULL;
   }
 
-  int32_t  size = sizeof(STopicObj) + TSDB_MAX_COLUMNS * sizeof(SSchema);
-  SSdbRow *pRow = sdbAllocRow(size);
+  int32_t    size = sizeof(STopicObj) + TSDB_MAX_COLUMNS * sizeof(SSchema);
+  SSdbRow   *pRow = sdbAllocRow(size);
   STopicObj *pTopic = sdbGetRowObj(pRow);
   if (pTopic == NULL) return NULL;
 
@@ -124,7 +124,7 @@ static SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, pRow, dataPos, &pTopic->sqlLen);
   SDB_GET_BINARY(pRaw, pRow, dataPos, pTopic->sql, pTopic->sqlLen);
 
-  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_TOPIC_RESERVE_SIZE);
+  SDB_GET_RESERVE(pRaw, pRow, dataPos, MND_TOPIC_RESERVE_SIZE);
 
   return pRow;
 }
@@ -168,7 +168,7 @@ static int32_t mndTopicActionUpdate(SSdb *pSdb, STopicObj *pOldTopic, STopicObj 
 }
 
 STopicObj *mndAcquireTopic(SMnode *pMnode, char *topicName) {
-  SSdb    *pSdb = pMnode->pSdb;
+  SSdb      *pSdb = pMnode->pSdb;
   STopicObj *pTopic = sdbAcquire(pSdb, SDB_TOPIC, topicName);
   if (pTopic == NULL) {
     terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
@@ -208,7 +208,7 @@ static SCreateTopicInternalMsg *mndBuildCreateTopicMsg(SMnode *pMnode, SVgObj *p
   pCreate->sverson = htonl(pTopic->version);
 
   pCreate->sql = malloc(pTopic->sqlLen);
-  if(pCreate->sql == NULL) {
+  if (pCreate->sql == NULL) {
     free(pCreate);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -216,7 +216,7 @@ static SCreateTopicInternalMsg *mndBuildCreateTopicMsg(SMnode *pMnode, SVgObj *p
   memcpy(pCreate->sql, pTopic->sql, pTopic->sqlLen);
 
   pCreate->executor = malloc(pTopic->execLen);
-  if(pCreate->executor == NULL) {
+  if (pCreate->executor == NULL) {
     free(pCreate);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -244,7 +244,7 @@ static SDropTopicInternalMsg *mndBuildDropTopicMsg(SMnode *pMnode, SVgObj *pVgro
 }
 
 static int32_t mndCheckCreateTopicMsg(SCreateTopicMsg *pCreate) {
-  //deserialize and other stuff
+  // deserialize and other stuff
   return 0;
 }
 
@@ -413,7 +413,7 @@ CREATE_TOPIC_OVER:
 }
 
 static int32_t mndProcessCreateTopicMsg(SMnodeMsg *pMsg) {
-  SMnode        *pMnode = pMsg->pMnode;
+  SMnode          *pMnode = pMsg->pMnode;
   SCreateTopicMsg *pCreate = pMsg->rpcMsg.pCont;
 
   mDebug("topic:%s, start to create", pCreate->name);
@@ -436,7 +436,7 @@ static int32_t mndProcessCreateTopicMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  //topic should have different name with stb
+  // topic should have different name with stb
   SStbObj *pStb = mndAcquireStb(pMnode, pCreate->name);
   if (pStb != NULL) {
     sdbRelease(pMnode->pSdb, pStb);
@@ -492,7 +492,7 @@ static int32_t mndCheckAlterTopicMsg(SAlterTopicMsg *pAlter) {
 static int32_t mndUpdateTopic(SMnode *pMnode, SMnodeMsg *pMsg, STopicObj *pOldTopic, STopicObj *pNewTopic) { return 0; }
 
 static int32_t mndProcessAlterTopicMsg(SMnodeMsg *pMsg) {
-  SMnode       *pMnode = pMsg->pMnode;
+  SMnode         *pMnode = pMsg->pMnode;
   SAlterTopicMsg *pAlter = pMsg->rpcMsg.pCont;
 
   mDebug("topic:%s, start to alter", pAlter->name);
@@ -606,7 +606,7 @@ DROP_TOPIC_OVER:
 }
 
 static int32_t mndProcessDropTopicMsg(SMnodeMsg *pMsg) {
-  SMnode      *pMnode = pMsg->pMnode;
+  SMnode        *pMnode = pMsg->pMnode;
   SDropTopicMsg *pDrop = pMsg->rpcMsg.pCont;
 
   mDebug("topic:%s, start to drop", pDrop->name);
@@ -705,7 +705,7 @@ static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pMsg) {
   return 0;
 }
 
-static int32_t mndProcessCreateTopicInRsp(SMnodeMsg* pMsg) {
+static int32_t mndProcessCreateTopicInRsp(SMnodeMsg *pMsg) {
   mndTransHandleActionRsp(pMsg);
   return 0;
 }
@@ -788,8 +788,8 @@ static int32_t mndGetTopicMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
 }
 
 static void mndExtractTableName(char *tableId, char *name) {
-  int pos = -1;
-  int num = 0;
+  int32_t pos = -1;
+  int32_t num = 0;
   for (pos = 0; tableId[pos] != 0; ++pos) {
     if (tableId[pos] == '.') num++;
     if (num == 2) break;
@@ -801,13 +801,13 @@ static void mndExtractTableName(char *tableId, char *name) {
 }
 
 static int32_t mndRetrieveTopic(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode  *pMnode = pMsg->pMnode;
-  SSdb    *pSdb = pMnode->pSdb;
-  int32_t  numOfRows = 0;
+  SMnode    *pMnode = pMsg->pMnode;
+  SSdb      *pSdb = pMnode->pSdb;
+  int32_t    numOfRows = 0;
   STopicObj *pTopic = NULL;
-  int32_t  cols = 0;
-  char    *pWrite;
-  char     prefix[64] = {0};
+  int32_t    cols = 0;
+  char      *pWrite;
+  char       prefix[64] = {0};
 
   tstrncpy(prefix, pShow->db, 64);
   strcat(prefix, TS_PATH_DELIMITER);

@@ -26,7 +26,7 @@ int32_t mndInitTopic(SMnode *pMnode);
 void    mndCleanupTopic(SMnode *pMnode);
 
 STopicObj *mndAcquireTopic(SMnode *pMnode, char *topicName);
-void mndReleaseTopic(SMnode *pMnode, STopicObj *pTopic);
+void       mndReleaseTopic(SMnode *pMnode, STopicObj *pTopic);
 
 #ifdef __cplusplus
 }

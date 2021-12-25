@@ -441,7 +441,7 @@ static void *mnodeGenTypeStr(char *buf, int32_t buflen, uint8_t type, int16_t le
   }
 
   if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
-    int32_t bytes = len > 0 ? (int)(len - VARSTR_HEADER_SIZE) : len;
+    int32_t bytes = len > 0 ? (int32_t)(len - VARSTR_HEADER_SIZE) : len;
 
     snprintf(buf, buflen - 1, "%s(%d)", tDataTypes[type].name, type == TSDB_DATA_TYPE_NCHAR ? bytes / 4 : bytes);
     buf[buflen - 1] = 0;

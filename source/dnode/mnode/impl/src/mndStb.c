@@ -834,8 +834,8 @@ static int32_t mndGetStbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pM
 }
 
 static void mndExtractTableName(char *tableId, char *name) {
-  int pos = -1;
-  int num = 0;
+  int32_t pos = -1;
+  int32_t num = 0;
   for (pos = 0; tableId[pos] != 0; ++pos) {
     if (tableId[pos] == '.') num++;
     if (num == 2) break;
