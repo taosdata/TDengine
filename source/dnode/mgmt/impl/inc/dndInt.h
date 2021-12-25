@@ -80,7 +80,6 @@ typedef struct {
   SRWLatch    latch;
   taos_queue  pReadQ;
   taos_queue  pWriteQ;
-  taos_queue  pApplyQ;
   taos_queue  pSyncQ;
   taos_queue  pMgmtQ;
   SWorkerPool mgmtPool;

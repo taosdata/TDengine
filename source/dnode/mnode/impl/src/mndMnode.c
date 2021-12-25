@@ -334,7 +334,7 @@ static int32_t mndCreateMnode(SMnode *pMnode, SMnodeMsg *pMsg, SDnodeObj *pDnode
   mnodeObj.updateTime = mnodeObj.createdTime;
 
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, pMsg->rpcMsg.handle);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pMsg->rpcMsg);
   if (pTrans == NULL) {
     mError("mnode:%d, failed to create since %s", pCreate->dnodeId, terrstr());
     goto CREATE_MNODE_OVER;
@@ -500,7 +500,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
 
 static int32_t mndDropMnode(SMnode *pMnode, SMnodeMsg *pMsg, SMnodeObj *pObj) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, pMsg->rpcMsg.handle);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pMsg->rpcMsg);
   if (pTrans == NULL) {
     mError("mnode:%d, failed to drop since %s", pObj->id, terrstr());
     goto DROP_MNODE_OVER;

@@ -96,6 +96,7 @@ typedef struct {
   ETrnStage  stage;
   ETrnPolicy policy;
   void      *rpcHandle;
+  void      *rpcAHandle;
   SArray    *redoLogs;
   SArray    *undoLogs;
   SArray    *commitLogs;

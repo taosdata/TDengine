@@ -27,7 +27,6 @@ typedef struct SMnodeMsg SMnodeMsg;
 typedef void (*SendMsgToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
 typedef void (*SendMsgToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef void (*SendRedirectMsgFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
-typedef int32_t (*PutMsgToMnodeQFp)(SDnode *pDnode, SMnodeMsg *pMsg);
 
 typedef struct SMnodeLoad {
   int64_t numOfDnode;
@@ -63,7 +62,6 @@ typedef struct {
   SReplica          replicas[TSDB_MAX_REPLICA];
   SMnodeCfg         cfg;
   SDnode           *pDnode;
-  PutMsgToMnodeQFp  putMsgToApplyMsgFp;
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;
   SendRedirectMsgFp sendRedirectMsgFp;
@@ -171,14 +169,6 @@ void mndProcessWriteMsg(SMnodeMsg *pMsg);
  * @return int32_t 0 for success, -1 for failure.
  */
 void mndProcessSyncMsg(SMnodeMsg *pMsg);
-
-/**
- * @brief Process the apply request.
- *
- * @param pMsg The request msg.
- * @return int32_t 0 for success, -1 for failure.
- */
-void mndProcessApplyMsg(SMnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }
