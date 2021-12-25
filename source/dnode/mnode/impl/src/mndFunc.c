@@ -147,7 +147,7 @@ static int32_t mndCreateFunc(SMnode *pMnode, SMnodeMsg *pMsg, SCreateFuncMsg *pC
   pFunc->pCode = pFunc->pData + pCreate->commentSize;
   memcpy(pFunc->pCode, pCreate->pCont + pCreate->commentSize, pFunc->codeSize);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
   if (pTrans == NULL) {
     free(pFunc);
     mError("func:%s, failed to create since %s", pCreate->name, terrstr());
@@ -195,7 +195,7 @@ static int32_t mndCreateFunc(SMnode *pMnode, SMnodeMsg *pMsg, SCreateFuncMsg *pC
 }
 
 static int32_t mndDropFunc(SMnode *pMnode, SMnodeMsg *pMsg, SFuncObj *pFunc) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
   if (pTrans == NULL) {
     mError("func:%s, failed to drop since %s", pFunc->name, terrstr());
     return -1;

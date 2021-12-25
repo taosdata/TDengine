@@ -27,7 +27,6 @@ static int32_t  mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
 static int32_t  mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOldTrans);
 static int32_t  mndTransActionDelete(SSdb *pSdb, STrans *pTrans);
 
-static void    mndTransSetRpcHandle(STrans *pTrans, void *rpcHandle);
 static void    mndTransSendRpcRsp(STrans *pTrans, int32_t code);
 static int32_t mndTransAppendLog(SArray *pArray, SSdbRaw *pRaw);
 static int32_t mndTransAppendAction(SArray *pArray, STransAction *pAction);
@@ -355,7 +354,7 @@ char *mndTransPolicyStr(ETrnPolicy policy) {
   }
 }
 
-STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, void *rpcHandle) {
+STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, SRpcMsg *pMsg) {
   STrans *pTrans = calloc(1, sizeof(STrans));
   if (pTrans == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -366,7 +365,8 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, void *rpcHandle) {
   pTrans->id = sdbGetMaxId(pMnode->pSdb, SDB_TRANS);
   pTrans->stage = TRN_STAGE_PREPARE;
   pTrans->policy = policy;
-  pTrans->rpcHandle = rpcHandle;
+  pTrans->rpcHandle = pMsg->handle;
+  pTrans->rpcAHandle = pMsg->ahandle;
   pTrans->redoLogs = taosArrayInit(MND_TRANS_ARRAY_SIZE, sizeof(void *));
   pTrans->undoLogs = taosArrayInit(MND_TRANS_ARRAY_SIZE, sizeof(void *));
   pTrans->commitLogs = taosArrayInit(MND_TRANS_ARRAY_SIZE, sizeof(void *));
@@ -411,11 +411,6 @@ void mndTransDrop(STrans *pTrans) {
 
   // mDebug("trans:%d, is dropped, data:%p", pTrans->id, pTrans);
   tfree(pTrans);
-}
-
-static void mndTransSetRpcHandle(STrans *pTrans, void *rpcHandle) {
-  pTrans->rpcHandle = rpcHandle;
-  mTrace("trans:%d, set rpc handle:%p", pTrans->id, rpcHandle);
 }
 
 static int32_t mndTransAppendLog(SArray *pArray, SSdbRaw *pRaw) {
@@ -506,6 +501,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   }
 
   pNewTrans->rpcHandle = pTrans->rpcHandle;
+  pNewTrans->rpcAHandle = pTrans->rpcAHandle;
   mndTransExecute(pMnode, pNewTrans);
   mndReleaseTrans(pMnode, pNewTrans);
   return 0;
@@ -571,10 +567,11 @@ int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
 
 static void mndTransSendRpcRsp(STrans *pTrans, int32_t code) {
   if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) return;
-  mDebug("trans:%d, send rpc rsp, RPC:%p code:0x%x", pTrans->id, pTrans->rpcHandle, code & 0xFFFF);
+  mDebug("trans:%d, send rpc rsp, RPC:%p ahandle:%p code:0x%x", pTrans->id, pTrans->rpcHandle, pTrans->rpcAHandle,
+         code & 0xFFFF);
 
   if (pTrans->rpcHandle != NULL) {
-    SRpcMsg rspMsg = {.handle = pTrans->rpcHandle, .code = code};
+    SRpcMsg rspMsg = {.handle = pTrans->rpcHandle, .code = code, .ahandle = pTrans->rpcAHandle};
     rpcSendResponse(&rspMsg);
   }
 }
@@ -739,7 +736,6 @@ static int32_t mndTransPerformExecuteStage(SMnode *pMnode, STrans *pTrans) {
     mDebug("trans:%d, stage from execute to commit", pTrans->id);
   } else if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mDebug("trans:%d, stage keep on execute since %s", pTrans->id, tstrerror(code));
-    return code;
   } else {
     if (pTrans->policy == TRN_POLICY_ROLLBACK) {
       pTrans->stage = TRN_STAGE_ROLLBACK;
@@ -790,9 +786,9 @@ static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
         }
         break;
       case TRN_STAGE_ROLLBACK:
-        code = mndTransPerformRollbackStage(pMnode, pTrans);
+        code = mndTransRollback(pMnode, pTrans);
         if (code == 0) {
-          code = mndTransRollback(pMnode, pTrans);
+          mndTransPerformRollbackStage(pMnode, pTrans);
         }
         break;
       default:
