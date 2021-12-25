@@ -369,7 +369,7 @@ void dndSendStatusMsg(SDnode *pDnode) {
   dndGetVnodeLoads(pDnode, &pStatus->vnodeLoads);
   contLen = sizeof(SStatusMsg) + pStatus->vnodeLoads.num * sizeof(SVnodeLoad);
 
-  SRpcMsg rpcMsg = {.pCont = pStatus, .contLen = contLen, .msgType = TDMT_MND_STATUS, .ahandle = 9527};
+  SRpcMsg rpcMsg = {.pCont = pStatus, .contLen = contLen, .msgType = TDMT_MND_STATUS, .ahandle = (void *)9527};
   pMgmt->statusSent = 1;
 
   dTrace("pDnode:%p, send status msg to mnode", pDnode);

@@ -454,7 +454,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateStbMsg *pCre
   memcpy(stbObj.pSchema, pCreate->pSchema, totalSize);
 
   int32_t code = 0;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
   if (pTrans == NULL) {
     mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
     return -1;
@@ -653,7 +653,7 @@ static int32_t mndSetDropStbUndoActions(SMnode *pMnode, STrans *pTrans, SStbObj 
 
 static int32_t mndDropStb(SMnode *pMnode, SMnodeMsg *pMsg, SStbObj *pStb) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
   if (pTrans == NULL) {
     mError("stb:%s, failed to drop since %s", pStb->name, terrstr());
     return -1;
@@ -873,8 +873,8 @@ static int32_t mndGetStbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pM
 }
 
 static void mndExtractTableName(char *tableId, char *name) {
-  int pos = -1;
-  int num = 0;
+  int32_t pos = -1;
+  int32_t num = 0;
   for (pos = 0; tableId[pos] != 0; ++pos) {
     if (tableId[pos] == '.') num++;
     if (num == 2) break;

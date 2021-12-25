@@ -28,18 +28,15 @@ static void    dndCleanupMnodeSyncWorker(SDnode *pDnode);
 static void    dndCleanupMnodeMgmtWorker(SDnode *pDnode);
 static int32_t dndAllocMnodeReadQueue(SDnode *pDnode);
 static int32_t dndAllocMnodeWriteQueue(SDnode *pDnode);
-static int32_t dndAllocMnodeApplyQueue(SDnode *pDnode);
 static int32_t dndAllocMnodeSyncQueue(SDnode *pDnode);
 static int32_t dndAllocMnodeMgmtQueue(SDnode *pDnode);
 static void    dndFreeMnodeReadQueue(SDnode *pDnode);
 static void    dndFreeMnodeWriteQueue(SDnode *pDnode);
-static void    dndFreeMnodeApplyQueue(SDnode *pDnode);
 static void    dndFreeMnodeSyncQueue(SDnode *pDnode);
 static void    dndFreeMnodeMgmtQueue(SDnode *pDnode);
 
 static void    dndProcessMnodeReadQueue(SDnode *pDnode, SMnodeMsg *pMsg);
 static void    dndProcessMnodeWriteQueue(SDnode *pDnode, SMnodeMsg *pMsg);
-static void    dndProcessMnodeApplyQueue(SDnode *pDnode, SMnodeMsg *pMsg);
 static void    dndProcessMnodeSyncQueue(SDnode *pDnode, SMnodeMsg *pMsg);
 static void    dndProcessMnodeMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg);
 static int32_t dndWriteMnodeMsgToQueue(SMnode *pMnode, taos_queue pQueue, SRpcMsg *pRpcMsg);
@@ -47,7 +44,6 @@ void           dndProcessMnodeReadMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEp
 void           dndProcessMnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 void           dndProcessMnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 void           dndProcessMnodeMgmtMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-static int32_t dndPutMsgIntoMnodeApplyQueue(SDnode *pDnode, SMnodeMsg *pMsg);
 
 static int32_t dndStartMnodeWorker(SDnode *pDnode);
 static void    dndStopMnodeWorker(SDnode *pDnode);
@@ -271,11 +267,6 @@ static int32_t dndStartMnodeWorker(SDnode *pDnode) {
     return -1;
   }
 
-  if (dndAllocMnodeApplyQueue(pDnode) != 0) {
-    dError("failed to alloc mnode apply queue since %s", terrstr());
-    return -1;
-  }
-
   if (dndAllocMnodeSyncQueue(pDnode) != 0) {
     dError("failed to alloc mnode sync queue since %s", terrstr());
     return -1;
@@ -293,7 +284,6 @@ static void dndStopMnodeWorker(SDnode *pDnode) {
 
   while (pMgmt->refCount > 1) taosMsleep(10);
   while (!taosQueueEmpty(pMgmt->pReadQ)) taosMsleep(10);
-  while (!taosQueueEmpty(pMgmt->pApplyQ)) taosMsleep(10);
   while (!taosQueueEmpty(pMgmt->pWriteQ)) taosMsleep(10);
   while (!taosQueueEmpty(pMgmt->pSyncQ)) taosMsleep(10);
 
@@ -303,7 +293,6 @@ static void dndStopMnodeWorker(SDnode *pDnode) {
 
   dndFreeMnodeReadQueue(pDnode);
   dndFreeMnodeWriteQueue(pDnode);
-  dndFreeMnodeApplyQueue(pDnode);
   dndFreeMnodeSyncQueue(pDnode);
 }
 
@@ -328,7 +317,6 @@ static void dndInitMnodeOption(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->sendMsgToDnodeFp = dndSendMsgToDnode;
   pOption->sendMsgToMnodeFp = dndSendMsgToMnode;
   pOption->sendRedirectMsgFp = dndSendRedirectMsg;
-  pOption->putMsgToApplyMsgFp = dndPutMsgIntoMnodeApplyQueue;
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
   pOption->cfg.sver = pDnode->opt.sver;
@@ -604,20 +592,6 @@ static void dndProcessMnodeWriteQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
   mndCleanupMsg(pMsg);
 }
 
-static void dndProcessMnodeApplyQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-
-  SMnode *pMnode = dndAcquireMnode(pDnode);
-  if (pMnode != NULL) {
-    mndProcessApplyMsg(pMsg);
-    dndReleaseMnode(pDnode, pMnode);
-  } else {
-    mndSendRsp(pMsg, terrno);
-  }
-
-  mndCleanupMsg(pMsg);
-}
-
 static void dndProcessMnodeSyncQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
 
@@ -712,19 +686,6 @@ void dndProcessMnodeReadMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   dndReleaseMnode(pDnode, pMnode);
 }
 
-static int32_t dndPutMsgIntoMnodeApplyQueue(SDnode *pDnode, SMnodeMsg *pMsg) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-
-  SMnode *pMnode = dndAcquireMnode(pDnode);
-  if (pMnode == NULL) {
-    return -1;
-  }
-
-  int32_t code = taosWriteQitem(pMgmt->pApplyQ, pMsg);
-  dndReleaseMnode(pDnode, pMnode);
-  return code;
-}
-
 static int32_t dndAllocMnodeMgmtQueue(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   pMgmt->pMgmtQ = tWorkerAllocQueue(&pMgmt->mgmtPool, pDnode, (FProcessItem)dndProcessMnodeMgmtQueue);
@@ -815,23 +776,6 @@ static void dndFreeMnodeWriteQueue(SDnode *pDnode) {
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   tWorkerFreeQueue(&pMgmt->writePool, pMgmt->pWriteQ);
   pMgmt->pWriteQ = NULL;
-}
-
-static int32_t dndAllocMnodeApplyQueue(SDnode *pDnode) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  pMgmt->pApplyQ = tWorkerAllocQueue(&pMgmt->writePool, pDnode, (FProcessItem)dndProcessMnodeApplyQueue);
-  if (pMgmt->pApplyQ == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  return 0;
-}
-
-static void dndFreeMnodeApplyQueue(SDnode *pDnode) {
-  SMnodeMgmt *pMgmt = &pDnode->mmgmt;
-  tWorkerFreeQueue(&pMgmt->writePool, pMgmt->pApplyQ);
-  pMgmt->pApplyQ = NULL;
 }
 
 static int32_t dndInitMnodeWriteWorker(SDnode *pDnode) {
