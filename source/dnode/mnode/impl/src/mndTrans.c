@@ -39,7 +39,7 @@ static int32_t mndTransExecuteUndoLogs(SMnode *pMnode, STrans *pTrans);
 static int32_t mndTransExecuteCommitLogs(SMnode *pMnode, STrans *pTrans);
 static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans);
 static int32_t mndTransExecuteUndoActions(SMnode *pMnode, STrans *pTrans);
-static int32_t mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans);
+static void    mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans);
 static int32_t mndTransPerformExecuteStage(SMnode *pMnode, STrans *pTrans);
 static int32_t mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans);
 static int32_t mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans);
@@ -714,7 +714,7 @@ static int32_t mndTransExecuteUndoActions(SMnode *pMnode, STrans *pTrans) {
   return mndTransExecuteActions(pMnode, pTrans, pTrans->undoActions);
 }
 
-static int32_t mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans) {
+static void mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans) {
   int32_t code = mndTransExecuteRedoLogs(pMnode, pTrans);
 
   if (code == 0) {
@@ -724,8 +724,6 @@ static int32_t mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans) {
     pTrans->stage = TRN_STAGE_ROLLBACK;
     mError("trans:%d, stage from prepare to rollback since %s", pTrans->id, terrstr());
   }
-
-  return 0;
 }
 
 static int32_t mndTransPerformExecuteStage(SMnode *pMnode, STrans *pTrans) {
@@ -742,6 +740,7 @@ static int32_t mndTransPerformExecuteStage(SMnode *pMnode, STrans *pTrans) {
       mError("trans:%d, stage from execute to rollback since %s", pTrans->id, terrstr());
     } else {
       pTrans->stage = TRN_STAGE_EXECUTE;
+      pTrans->retryTimes++;
       mError("trans:%d, stage keep on execute since %s", pTrans->id, terrstr());
     }
   }
@@ -762,6 +761,7 @@ static int32_t mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans) {
     mDebug("trans:%d, rollbacked", pTrans->id);
   } else {
     pTrans->stage = TRN_STAGE_ROLLBACK;
+    pTrans->retryTimes++;
     mError("trans:%d, stage keep on rollback since %s", pTrans->id, terrstr());
   }
 
@@ -774,7 +774,7 @@ static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
   while (code == 0) {
     switch (pTrans->stage) {
       case TRN_STAGE_PREPARE:
-        code = mndTransPerformPrepareStage(pMnode, pTrans);
+        mndTransPerformPrepareStage(pMnode, pTrans);
         break;
       case TRN_STAGE_EXECUTE:
         code = mndTransPerformExecuteStage(pMnode, pTrans);
