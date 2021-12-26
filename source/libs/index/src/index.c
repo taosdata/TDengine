@@ -41,7 +41,7 @@ static pthread_once_t isInit = PTHREAD_ONCE_INIT;
 static void           indexInit();
 
 static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* term, SArray** result);
-static int indexFlushCacheToTindex(SIndex* sIdx);
+static int indexFlushCacheTFile(SIndex* sIdx);
 
 static void indexInterResultsDestroy(SArray* results);
 static int  indexMergeFinalResults(SArray* interResults, EIndexOperatorType oType, SArray* finalResult);
@@ -353,7 +353,7 @@ static int indexMergeFinalResults(SArray* interResults, EIndexOperatorType oType
   }
   return 0;
 }
-static int indexFlushCacheToTindex(SIndex* sIdx) {
+static int indexFlushCacheTFile(SIndex* sIdx) {
   if (sIdx == NULL) { return -1; }
 
   indexWarn("suid %" PRIu64 " merge cache into tindex", sIdx->suid);

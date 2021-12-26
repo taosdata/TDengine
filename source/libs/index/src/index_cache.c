@@ -20,81 +20,88 @@
 #define MAX_INDEX_KEY_LEN 256  // test only, change later
 
 // ref index_cache.h:22
-#define CACHE_KEY_LEN(p) \
-  (sizeof(int32_t) + sizeof(uint16_t) + sizeof(p->colType) + sizeof(p->nColVal) + p->nColVal + sizeof(uint64_t) + sizeof(p->operType))
+//#define CACHE_KEY_LEN(p) \
+//  (sizeof(int32_t) + sizeof(uint16_t) + sizeof(p->colType) + sizeof(p->nColVal) + p->nColVal + sizeof(uint64_t) + sizeof(p->operType))
 
-static char* getIndexKey(const void* pData) {
-  return NULL;
+static void cacheTermDestroy(CacheTerm* ct) {
+  if (ct == NULL) { return; }
+
+  free(ct->colVal);
+  free(ct);
 }
+static char* getIndexKey(const void* pData) {
+  CacheTerm* p = (CacheTerm*)pData;
+  return (char*)p;
+}
+
 static int32_t compareKey(const void* l, const void* r) {
-  char* lp = (char*)l;
-  char* rp = (char*)r;
+  CacheTerm* lt = (CacheTerm*)l;
+  CacheTerm* rt = (CacheTerm*)r;
 
-  // skip total len, not compare
-  int32_t ll, rl;  // len
-  memcpy(&ll, lp, sizeof(int32_t));
-  memcpy(&rl, rp, sizeof(int32_t));
-  lp += sizeof(int32_t);
-  rp += sizeof(int32_t);
+  // compare colId
+  if (lt->colId != rt->colId) { return lt->colId - rt->colId; }
 
-  // compare field id
-  int16_t lf, rf;  // field id
-  memcpy(&lf, lp, sizeof(lf));
-  memcpy(&rf, rp, sizeof(rf));
-  if (lf != rf) { return lf < rf ? -1 : 1; }
-  lp += sizeof(lf);
-  rp += sizeof(rf);
-
-  // compare field type
-  int8_t lft, rft;
-  memcpy(&lft, lp, sizeof(lft));
-  memcpy(&rft, rp, sizeof(rft));
-  lp += sizeof(lft);
-  rp += sizeof(rft);
-  assert(rft == rft);
-
-  // skip value len
-  int32_t lfl, rfl;
-  memcpy(&lfl, lp, sizeof(lfl));
-  memcpy(&rfl, rp, sizeof(rfl));
-  lp += sizeof(lfl);
-  rp += sizeof(rfl);
-
-  // compare value
-  int32_t i, j;
-  for (i = 0, j = 0; i < lfl && j < rfl; i++, j++) {
-    if (lp[i] == rp[j]) {
+  // compare colVal
+  int i, j;
+  for (i = 0, j = 0; i < lt->nColVal && j < rt->nColVal; i++, j++) {
+    if (lt->colVal[i] == rt->colVal[j]) {
       continue;
     } else {
-      return lp[i] < rp[j] ? -1 : 1;
+      return lt->colVal[i] < rt->colVal[j] ? -1 : 1;
     }
   }
-  if (i < lfl) {
+  if (i < lt->nColVal) {
     return 1;
-  } else if (j < rfl) {
+  } else if (j < rt->nColVal) {
     return -1;
   }
-  lp += lfl;
-  rp += rfl;
+  // compare version
 
-  // skip uid
-  uint64_t lu, ru;
-  memcpy(&lu, lp, sizeof(lu));
-  memcpy(&ru, rp, sizeof(ru));
-  lp += sizeof(lu);
-  rp += sizeof(ru);
+  return rt->version - lt->version;
 
-  // compare version, desc order
-  int32_t lv, rv;
-  memcpy(&lv, lp, sizeof(lv));
-  memcpy(&rv, rp, sizeof(rv));
-  if (lv != rv) { return lv > rv ? -1 : 1; }
+  // char*      lp = (char*)l;
+  // char*      rp = (char*)r;
 
-  lp += sizeof(lv);
-  rp += sizeof(rv);
-  // not care item type
+  //// compare col id
+  // int16_t lf, rf;  // cold id
+  // memcpy(&lf, lp, sizeof(lf));
+  // memcpy(&rf, rp, sizeof(rf));
+  // if (lf != rf) { return lf < rf ? -1 : 1; }
 
-  return 0;
+  // lp += sizeof(lf);
+  // rp += sizeof(rf);
+
+  //// skip value len
+  // int32_t lfl, rfl;
+  // memcpy(&lfl, lp, sizeof(lfl));
+  // memcpy(&rfl, rp, sizeof(rfl));
+  // lp += sizeof(lfl);
+  // rp += sizeof(rfl);
+
+  //// compare value
+  // int32_t i, j;
+  // for (i = 0, j = 0; i < lfl && j < rfl; i++, j++) {
+  //  if (lp[i] == rp[j]) {
+  //    continue;
+  //  } else {
+  //    return lp[i] < rp[j] ? -1 : 1;
+  //  }
+  //}
+  // if (i < lfl) {
+  //  return 1;
+  //} else if (j < rfl) {
+  //  return -1;
+  //}
+  // lp += lfl;
+  // rp += rfl;
+
+  //// compare version, desc order
+  // int32_t lv, rv;
+  // memcpy(&lv, lp, sizeof(lv));
+  // memcpy(&rv, rp, sizeof(rv));
+  // if (lv != rv) { return lv < rv ? 1 : -1; }
+
+  // return 0;
 }
 IndexCache* indexCacheCreate() {
   IndexCache* cache = calloc(1, sizeof(IndexCache));
@@ -105,6 +112,18 @@ IndexCache* indexCacheCreate() {
   cache->skiplist =
       tSkipListCreate(MAX_SKIP_LIST_LEVEL, TSDB_DATA_TYPE_BINARY, MAX_INDEX_KEY_LEN, compareKey, SL_ALLOW_DUP_KEY, getIndexKey);
   return cache;
+}
+void indexCacheDebug(IndexCache* cache) {
+  SSkipListIterator* iter = tSkipListCreateIter(cache->skiplist);
+  while (tSkipListIterNext(iter)) {
+    SSkipListNode* node = tSkipListIterGet(iter);
+    CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
+    if (ct != NULL) {
+      // TODO, add more debug info
+      indexInfo("{colId:%d, colVal: %s, version: %d} \t", ct->colId, ct->colVal, ct->version);
+    }
+  }
+  tSkipListDestroyIter(iter);
 }
 
 void indexCacheDestroy(void* cache) {
@@ -119,24 +138,20 @@ int indexCachePut(void* cache, SIndexTerm* term, int16_t colId, int32_t version,
 
   IndexCache* pCache = cache;
   // encode data
-  int32_t total = CACHE_KEY_LEN(term);
+  CacheTerm* ct = calloc(1, sizeof(CacheTerm));
+  if (cache == NULL) { return -1; }
+  // set up key
+  ct->colId = colId;
+  ct->colType = term->colType;
+  ct->nColVal = term->nColVal;
+  ct->colVal = (char*)calloc(1, sizeof(char) * (ct->nColVal + 1));
+  memcpy(ct->colVal, term->colVal, ct->nColVal);
+  ct->version = version;
 
-  char* buf = calloc(1, total);
-  char* p = buf;
+  ct->uid = uid;
+  ct->operaType = term->operType;
 
-  SERIALIZE_VAR_TO_BUF(p, total, int32_t);
-  SERIALIZE_VAR_TO_BUF(p, colId, int16_t);
-
-  SERIALIZE_MEM_TO_BUF(p, term, colType);
-  SERIALIZE_MEM_TO_BUF(p, term, nColVal);
-  SERIALIZE_STR_MEM_TO_BUF(p, term, colVal, term->nColVal);
-
-  SERIALIZE_VAR_TO_BUF(p, version, int32_t);
-  SERIALIZE_VAR_TO_BUF(p, uid, uint64_t);
-
-  SERIALIZE_MEM_TO_BUF(p, term, operType);
-
-  tSkipListPut(pCache->skiplist, (void*)buf);
+  tSkipListPut(pCache->skiplist, (char*)ct);
   return 0;
   // encode end
 }
@@ -150,8 +165,39 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, int16_t colId, int32_t
   SIndexTerm*     term = query->term;
   EIndexQueryType qtype = query->qType;
 
-  int32_t keyLen = CACHE_KEY_LEN(term);
-  char*   buf = calloc(1, keyLen);
+  CacheTerm* ct = calloc(1, sizeof(CacheTerm));
+  if (ct == NULL) { return -1; }
+  ct->colId = colId;
+  ct->nColVal = term->nColVal;
+  ct->colVal = calloc(1, sizeof(char) * (ct->nColVal + 1));
+  memcpy(ct->colVal, term->colVal, ct->nColVal);
+  ct->version = version;
+
+  char* key = getIndexKey(ct);
+  // TODO handle multi situation later, and refactor
+  SSkipListIterator* iter = tSkipListCreateIterFromVal(pCache->skiplist, key, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
+  while (tSkipListIterNext(iter)) {
+    SSkipListNode* node = tSkipListIterGet(iter);
+    if (node != NULL) {
+      CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
+      if (c->operaType == ADD_VALUE || qtype == QUERY_TERM) {
+        if (c->nColVal == ct->nColVal && strncmp(c->colVal, ct->colVal, c->nColVal) == 0) {
+          taosArrayPush(result, &c->uid);
+          *s = kTypeValue;
+        } else {
+          break;
+        }
+      } else if (c->operaType == DEL_VALUE) {
+        // table is del, not need
+        *s = kTypeDeletion;
+        break;
+      }
+    }
+  }
+  tSkipListDestroyIter(iter);
+  cacheTermDestroy(ct);
+  // int32_t keyLen = CACHE_KEY_LEN(term);
+  // char*   buf = calloc(1, keyLen);
   if (qtype == QUERY_TERM) {
     //
   } else if (qtype == QUERY_PREFIX) {
@@ -161,6 +207,5 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, int16_t colId, int32_t
   } else if (qtype == QUERY_REGEX) {
     //
   }
-
   return 0;
 }
