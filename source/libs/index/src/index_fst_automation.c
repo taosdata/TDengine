@@ -64,6 +64,25 @@ StartWithStateValue* startWithStateValueDump(StartWithStateValue* sv) {
   return nsv;
 }
 
+// iterate fst
+static void* alwaysMatchStart(AutomationCtx* ctx) {
+  return NULL;
+}
+static bool alwaysMatchIsMatch(AutomationCtx* ctx, void* state) {
+  return true;
+}
+static bool alwaysMatchCanMatch(AutomationCtx* ctx, void* state) {
+  return true;
+}
+static bool alwaysMatchWillAlwaysMatch(AutomationCtx* ctx, void* state) {
+  return true;
+}
+static void* alwaysMatchAccpet(AutomationCtx* ctx, void* state, uint8_t byte) {
+  return NULL;
+}
+static void* alwaysMatchAccpetEof(AutomationCtx* ctx, void* state) {
+  return NULL;
+}
 // prefix query, impl later
 
 static void* prefixStart(AutomationCtx* ctx) {
@@ -127,6 +146,7 @@ static void* patternAcceptEof(AutomationCtx* ctx, void* state) {
 }
 
 AutomationFunc automFuncs[] = {
+    {alwaysMatchStart, alwaysMatchIsMatch, alwaysMatchCanMatch, alwaysMatchWillAlwaysMatch, alwaysMatchAccpet, alwaysMatchAccpetEof},
     {prefixStart, prefixIsMatch, prefixCanMatch, prefixWillAlwaysMatch, prefixAccept, prefixAcceptEof},
     {patternStart, patternIsMatch, patternCanMatch, patternWillAlwaysMatch, patternAccept, patternAcceptEof}
     // add more search type
@@ -137,7 +157,11 @@ AutomationCtx* automCtxCreate(void* data, AutomationType atype) {
   if (ctx == NULL) { return NULL; }
 
   StartWithStateValue* sv = NULL;
-  if (atype == AUTOMATION_PREFIX) {
+  if (atype == AUTOMATION_ALWAYS) {
+    int val = 0;
+    sv = startWithStateValueCreate(Running, FST_INT, &val);
+    ctx->stdata = (void*)sv;
+  } else if (atype == AUTOMATION_PREFIX) {
     int val = 0;
     sv = startWithStateValueCreate(Running, FST_INT, &val);
     ctx->stdata = (void*)sv;
