@@ -44,11 +44,7 @@ int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction);
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
-void    mndTransApply(SMnode *pMnode, SSdbRaw *pRaw, STransMsg *pMsg, int32_t code);
-void    mndTransHandleActionRsp(SMnodeMsg *pMsg);
-
-char *mndTransStageStr(ETrnStage stage);
-char *mndTransPolicyStr(ETrnPolicy policy);
+void    mndTransProcessRsp(SMnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

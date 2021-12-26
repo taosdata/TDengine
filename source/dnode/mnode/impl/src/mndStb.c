@@ -552,7 +552,7 @@ static int32_t mndProcessCreateStbMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mndProcessCreateStbInRsp(SMnodeMsg *pMsg) {
-  mndTransHandleActionRsp(pMsg);
+  mndTransProcessRsp(pMsg);
   return 0;
 }
 
@@ -616,7 +616,7 @@ static int32_t mndProcessAlterStbMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mndProcessAlterStbInRsp(SMnodeMsg *pMsg) {
-  mndTransHandleActionRsp(pMsg);
+  mndTransProcessRsp(pMsg);
   return 0;
 }
 
@@ -728,7 +728,7 @@ static int32_t mndProcessDropStbMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mndProcessDropStbInRsp(SMnodeMsg *pMsg) {
-  mndTransHandleActionRsp(pMsg);
+  mndTransProcessRsp(pMsg);
   return 0;
 }
 

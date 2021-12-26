@@ -656,6 +656,10 @@ typedef struct {
 } SStatusMsg;
 
 typedef struct {
+  int32_t reserved;
+} STransMsg;
+
+typedef struct {
   int32_t dnodeId;
   int32_t clusterId;
   int8_t  dropped;
