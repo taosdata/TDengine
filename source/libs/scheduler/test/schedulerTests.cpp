@@ -36,9 +36,9 @@
 
 namespace {
 
-extern "C" int32_t schHandleRspMsg(SQueryJob *job, SQueryTask *task, int32_t msgType, char *msg, int32_t msgSize, int32_t rspCode);
+extern "C" int32_t schHandleRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *msg, int32_t msgSize, int32_t rspCode);
 
-void schtBuildDag(SQueryDag *dag) {
+void schtBuildQueryDag(SQueryDag *dag) {
   uint64_t qId = 0x0000000000000001;
   
   dag->queryId = qId;
@@ -82,6 +82,50 @@ void schtBuildDag(SQueryDag *dag) {
   taosArrayPush(dag->pSubplans, &scan);
 }
 
+void schtBuildInsertDag(SQueryDag *dag) {
+  uint64_t qId = 0x0000000000000002;
+  
+  dag->queryId = qId;
+  dag->numOfSubplans = 2;
+  dag->pSubplans = taosArrayInit(1, POINTER_BYTES);
+  SArray *inserta = taosArrayInit(dag->numOfSubplans, sizeof(SSubplan));
+  
+  SSubplan insertPlan[2] = {0};
+
+  insertPlan[0].id.queryId = qId;
+  insertPlan[0].id.templateId = 0x0000000000000003;
+  insertPlan[0].id.subplanId = 0x0000000000000004;
+  insertPlan[0].type = QUERY_TYPE_MODIFY;
+  insertPlan[0].level = 0;
+  insertPlan[0].execEpSet.numOfEps = 1;
+  insertPlan[0].execEpSet.port[0] = 6030;
+  strcpy(insertPlan[0].execEpSet.fqdn[0], "ep0");
+  insertPlan[0].pChildern = NULL;
+  insertPlan[0].pParents = NULL;
+  insertPlan[0].pNode = NULL;
+  insertPlan[0].pDataSink = (SDataSink*)calloc(1, sizeof(SDataSink));
+
+  insertPlan[1].id.queryId = qId;
+  insertPlan[1].id.templateId = 0x0000000000000003;
+  insertPlan[1].id.subplanId = 0x0000000000000005;
+  insertPlan[1].type = QUERY_TYPE_MODIFY;
+  insertPlan[1].level = 0;
+  insertPlan[1].execEpSet.numOfEps = 1;
+  insertPlan[1].execEpSet.port[0] = 6030;
+  strcpy(insertPlan[1].execEpSet.fqdn[0], "ep1");
+  insertPlan[1].pChildern = NULL;
+  insertPlan[1].pParents = NULL;
+  insertPlan[1].pNode = NULL;
+  insertPlan[1].pDataSink = (SDataSink*)calloc(1, sizeof(SDataSink));
+
+
+  taosArrayPush(inserta, &insertPlan[0]);
+  taosArrayPush(inserta, &insertPlan[1]);
+
+  taosArrayPush(dag->pSubplans, &inserta);  
+}
+
+
 int32_t schtPlanToString(const SSubplan *subplan, char** str, int32_t* len) {
   *str = (char *)calloc(1, 20);
   *len = 20;
@@ -119,6 +163,35 @@ void schtSetExecNode() {
   }
 }
 
+void *schtSendRsp(void *param) {
+  SSchJob *job = NULL;
+  int32_t code = 0;
+
+  while (true) {
+    job = *(SSchJob **)param;
+    if (job) {
+      break;
+    }
+
+    usleep(1000);
+  }
+  
+  void *pIter = taosHashIterate(job->execTasks, NULL);
+  while (pIter) {
+    SSchTask *task = *(SSchTask **)pIter;
+
+    SShellSubmitRspMsg rsp = {0};
+    rsp.affectedRows = 10;
+    schHandleRspMsg(job, task, TSDB_MSG_TYPE_SUBMIT, (char *)&rsp, sizeof(rsp), 0);
+    
+    pIter = taosHashIterate(job->execTasks, pIter);
+  }    
+
+  return NULL;
+}
+
+void *pInsertJob = NULL;
+
 
 }
 
@@ -140,7 +213,7 @@ TEST(queryTest, normalCase) {
   int32_t code = schedulerInit(NULL);
   ASSERT_EQ(code, 0);
 
-  schtBuildDag(&dag);
+  schtBuildQueryDag(&dag);
 
   schtSetPlanToString();
   schtSetExecNode();
@@ -148,10 +221,10 @@ TEST(queryTest, normalCase) {
   code = scheduleAsyncExecJob(mockPointer, qnodeList, &dag, &pJob);
   ASSERT_EQ(code, 0);
 
-  SQueryJob *job = (SQueryJob *)pJob;
+  SSchJob *job = (SSchJob *)pJob;
   void *pIter = taosHashIterate(job->execTasks, NULL);
   while (pIter) {
-    SQueryTask *task = *(SQueryTask **)pIter;
+    SSchTask *task = *(SSchTask **)pIter;
 
     SQueryTableRsp rsp = {0};
     code = schHandleRspMsg(job, task, TSDB_MSG_TYPE_QUERY, (char *)&rsp, sizeof(rsp), 0);
@@ -162,7 +235,7 @@ TEST(queryTest, normalCase) {
 
   pIter = taosHashIterate(job->execTasks, NULL);
   while (pIter) {
-    SQueryTask *task = *(SQueryTask **)pIter;
+    SSchTask *task = *(SSchTask **)pIter;
 
     SResReadyRsp rsp = {0};
     code = schHandleRspMsg(job, task, TSDB_MSG_TYPE_RES_READY, (char *)&rsp, sizeof(rsp), 0);
@@ -173,7 +246,7 @@ TEST(queryTest, normalCase) {
 
   pIter = taosHashIterate(job->execTasks, NULL);
   while (pIter) {
-    SQueryTask *task = *(SQueryTask **)pIter;
+    SSchTask *task = *(SSchTask **)pIter;
 
     SQueryTableRsp rsp = {0};
     code = schHandleRspMsg(job, task, TSDB_MSG_TYPE_QUERY, (char *)&rsp, sizeof(rsp), 0);
@@ -184,7 +257,7 @@ TEST(queryTest, normalCase) {
 
   pIter = taosHashIterate(job->execTasks, NULL);
   while (pIter) {
-    SQueryTask *task = *(SQueryTask **)pIter;
+    SSchTask *task = *(SSchTask **)pIter;
 
     SResReadyRsp rsp = {0};
     code = schHandleRspMsg(job, task, TSDB_MSG_TYPE_RES_READY, (char *)&rsp, sizeof(rsp), 0);
@@ -217,6 +290,46 @@ TEST(queryTest, normalCase) {
 
   scheduleFreeJob(pJob);
 }
+
+
+
+
+TEST(insertTest, normalCase) {
+  void *mockPointer = (void *)0x1;
+  char *clusterId = "cluster1";
+  char *dbname = "1.db1";
+  char *tablename = "table1";
+  SVgroupInfo vgInfo = {0};
+  SQueryDag dag = {0};
+  uint64_t numOfRows = 0;
+  SArray *qnodeList = taosArrayInit(1, sizeof(SEpAddr));
+
+  SEpAddr qnodeAddr = {0};
+  strcpy(qnodeAddr.fqdn, "qnode0.ep");
+  qnodeAddr.port = 6031;
+  taosArrayPush(qnodeList, &qnodeAddr);
+  
+  int32_t code = schedulerInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  schtBuildInsertDag(&dag);
+
+  schtSetPlanToString();
+
+  pthread_attr_t thattr;
+  pthread_attr_init(&thattr);
+
+  pthread_t thread1;
+  pthread_create(&(thread1), &thattr, schtSendRsp, &pInsertJob);
+  
+  code = scheduleExecJob(mockPointer, qnodeList, &dag, &pInsertJob, &numOfRows);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(numOfRows, 20);
+
+  scheduleFreeJob(pInsertJob);
+}
+
+
 
 
 int main(int argc, char** argv) {
