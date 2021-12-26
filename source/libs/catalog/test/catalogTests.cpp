@@ -80,7 +80,7 @@ void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pReq;
   rpcMsg.contLen = sizeof(SCreateDbMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_DB;
+  rpcMsg.msgType = TDMT_MND_CREATE_DB;
 
   SRpcMsg rpcRsp = {0};
 

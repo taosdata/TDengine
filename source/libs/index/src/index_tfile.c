@@ -462,7 +462,9 @@ static int tfileCompare(const void* a, const void* b) {
   size_t aLen = strlen(aName);
   size_t bLen = strlen(bName);
 
-  return strncmp(aName, bName, aLen > bLen ? aLen : bLen);
+  int ret = strncmp(aName, bName, aLen > bLen ? aLen : bLen);
+  if (ret == 0) { return ret; }
+  return ret < 0 ? -1 : 1;
 }
 // tfile name suid-colId-version.tindex
 static void tfileGenFileName(char* filename, uint64_t suid, int colId, int version) {

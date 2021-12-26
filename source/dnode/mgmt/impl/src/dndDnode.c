@@ -63,12 +63,12 @@ void dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
 }
 
 void dndSendRedirectMsg(SDnode *pDnode, SRpcMsg *pMsg) {
-  int32_t msgType = pMsg->msgType;
+  tmsg_t msgType = pMsg->msgType;
 
   SEpSet epSet = {0};
   dndGetMnodeEpSet(pDnode, &epSet);
 
-  dDebug("RPC %p, msg:%s is redirected, num:%d inUse:%d", pMsg->handle, taosMsg[msgType], epSet.numOfEps, epSet.inUse);
+  dDebug("RPC %p, msg:%s is redirected, num:%d inUse:%d", pMsg->handle, TMSG_INFO(msgType), epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
     dDebug("mnode index:%d %s:%u", i, epSet.fqdn[i], epSet.port[i]);
     if (strcmp(epSet.fqdn[i], pDnode->opt.localFqdn) == 0 && epSet.port[i] == pDnode->opt.serverPort) {
@@ -369,7 +369,7 @@ void dndSendStatusMsg(SDnode *pDnode) {
   dndGetVnodeLoads(pDnode, &pStatus->vnodeLoads);
   contLen = sizeof(SStatusMsg) + pStatus->vnodeLoads.num * sizeof(SVnodeLoad);
 
-  SRpcMsg rpcMsg = {.pCont = pStatus, .contLen = contLen, .msgType = TSDB_MSG_TYPE_STATUS};
+  SRpcMsg rpcMsg = {.pCont = pStatus, .contLen = contLen, .msgType = TDMT_MND_STATUS, .ahandle = (void *)9527};
   pMgmt->statusSent = 1;
 
   dTrace("pDnode:%p, send status msg to mnode", pDnode);
@@ -556,14 +556,14 @@ void dndCleanupDnode(SDnode *pDnode) {
 
 void dndProcessDnodeReq(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   switch (pMsg->msgType) {
-    case TSDB_MSG_TYPE_NETWORK_TEST:
+    case TDMT_DND_NETWORK_TEST:
       dndProcessStartupReq(pDnode, pMsg);
       break;
-    case TSDB_MSG_TYPE_CONFIG_DNODE_IN:
+    case TDMT_DND_CONFIG_DNODE:
       dndProcessConfigDnodeReq(pDnode, pMsg);
       break;
     default:
-      dError("RPC %p, dnode req:%s not processed", pMsg->handle, taosMsg[pMsg->msgType]);
+      dError("RPC %p, dnode req:%s not processed", pMsg->handle, TMSG_INFO(pMsg->msgType));
       SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_MSG_NOT_PROCESSED};
       rpcSendResponse(&rspMsg);
   }
@@ -574,17 +574,17 @@ void dndProcessDnodeReq(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
 void dndProcessDnodeRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   switch (pMsg->msgType) {
-    case TSDB_MSG_TYPE_STATUS_RSP:
+    case TDMT_MND_STATUS_RSP:
       dndProcessStatusRsp(pDnode, pMsg, pEpSet);
       break;
-    case TSDB_MSG_TYPE_AUTH_RSP:
+    case TDMT_MND_AUTH_RSP:
       dndProcessAuthRsp(pDnode, pMsg, pEpSet);
       break;
-    case TSDB_MSG_TYPE_GRANT_RSP:
+    case TDMT_MND_GRANT_RSP:
       dndProcessGrantRsp(pDnode, pMsg, pEpSet);
       break;
     default:
-      dError("RPC %p, dnode rsp:%s not processed", pMsg->handle, taosMsg[pMsg->msgType]);
+      dError("RPC %p, dnode rsp:%s not processed", pMsg->handle, TMSG_INFO(pMsg->msgType));
   }
 
   rpcFreeCont(pMsg->pCont);

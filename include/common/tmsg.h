@@ -22,127 +22,36 @@ extern "C" {
 
 #include "taosdef.h"
 #include "taoserror.h"
+#include "tcoding.h"
 #include "tdataformat.h"
 
-// message type
+#define TD_MSG_NUMBER_
+#undef TD_MSG_DICT_
+#undef TD_MSG_INFO_
+#undef TD_MSG_SEG_CODE_
+#include "tmsgdef.h"
 
-#ifdef TAOS_MESSAGE_C
-#define TAOS_DEFINE_MESSAGE_TYPE( name, msg ) msg, msg "-rsp",
-char *taosMsg[] = {
-  "null",
-#else
-#define TAOS_DEFINE_MESSAGE_TYPE( name, msg ) name, name##_RSP,
-enum {
-  TSDB_MESSAGE_NULL = 0,
-#endif
+#undef TD_MSG_NUMBER_
+#undef TD_MSG_DICT_
+#undef TD_MSG_INFO_
+#define TD_MSG_SEG_CODE_
+#include "tmsgdef.h"
 
-// message from client to vnode
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SUBMIT, "submit" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_QUERY, "query" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_FETCH, "fetch" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_TABLE, "create-table" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_TABLE, "drop-table" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_TABLE, "alter-table" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_UPDATE_TAG_VAL, "update-tag-val" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_TABLE_META, "table-meta" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_TABLES_META, "tables-meta" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONSUME, "mq-consume" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_QUERY, "mq-query" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_CONNECT, "mq-connect" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_DISCONNECT, "mq-disconnect" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MQ_SET_CUR, "mq-set-cur" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_RES_READY, "res-ready" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_TASKS_STATUS, "tasks-status" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CANCEL_TASK, "cancel-task" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_TASK, "drop-task" )
+#undef TD_MSG_NUMBER_
+#undef TD_MSG_DICT_
+#undef TD_MSG_INFO_
+#undef TD_MSG_SEG_CODE_
+#include "tmsgdef.h"
 
-// message from client to mnode
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONNECT, "connect" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_ACCT, "create-acct" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_ACCT, "alter-acct" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_ACCT, "drop-acct" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_USER, "create-user" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_USER, "alter-user" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_USER, "drop-user" ) 
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_DNODE, "create-dnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONFIG_DNODE, "config-dnode" ) 
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_DNODE, "drop-dnode" )   
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_MNODE, "create-mnode" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_MNODE, "drop-mnode" ) 
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_DB, "create-db" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_DB, "drop-db" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_USE_DB, "use-db" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_DB, "alter-db" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SYNC_DB, "sync-db" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_COMPACT_DB, "compact-db" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_FUNCTION, "create-function" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_RETRIEVE_FUNCTION, "retrieve-function" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_FUNCTION, "drop-function" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STB, "create-stb" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STB, "alter-stb" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STB, "drop-stb" )	
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_VGROUP_LIST, "vgroup-list" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_QUERY, "kill-query" )		
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_KILL_CONN, "kill-conn" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_HEARTBEAT, "heartbeat" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SHOW, "show" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SHOW_RETRIEVE, "retrieve" )  
-// message from client to qnode
-// message from client to dnode
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "nettest" )
+extern char* tMsgInfo[];
+extern int   tMsgDict[];
 
-// message from vnode to vnode
-// message from vnode to mnode
-// message from vnode to qnode
-// message from vnode to dnode
+#define TMSG_SEG_CODE(TYPE) (((TYPE)&0xff00) >> 8)
+#define TMSG_SEG_SEQ(TYPE) ((TYPE)&0xff)
+#define TMSG_INFO(TYPE) tMsgInfo[tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE)]
+#define TMSG_INDEX(TYPE) (tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE))
 
-// message from mnode to vnode
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_STB_IN, "create-stb-internal" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_STB_IN, "alter-stb-internal" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_STB_IN, "drop-stb-internal" )
-// message from mnode to mnode
-// message from mnode to qnode
-// message from mnode to dnode
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_VNODE_IN, "create-vnode-internal" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_VNODE_IN, "alter-vnode-internal" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_VNODE_IN, "drop-vnode-internal" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_AUTH_VNODE_IN, "auth-vnode-internal" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SYNC_VNODE_IN, "sync-vnode-internal" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_COMPACT_VNODE_IN, "compact-vnode-internal" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CREATE_MNODE_IN, "create-mnode-internal" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_ALTER_MNODE_IN, "alter-mnode-internal" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DROP_MNODE_IN, "drop-mnode-internal" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CONFIG_DNODE_IN, "config-dnode-internal" )
-
-// message from qnode to vnode
-// message from qnode to mnode
-// message from qnode to qnode
-// message from qnode to dnode
-
-// message from dnode to vnode
-// message from dnode to mnode
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_STATUS, "status" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_GRANT, "grant" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_AUTH, "auth" )
-// message from dnode to qnode
-// message from dnode to dnode
-
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY0, "dummy0" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY1, "dummy1" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY2, "dummy2" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY3, "dummy3" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY4, "dummy4" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY5, "dummy5" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY6, "dummy6" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY7, "dummy7" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY8, "dummy8" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY9, "dummy9" )
-
-#ifndef TAOS_MESSAGE_C
-  TSDB_MSG_TYPE_MAX  // 147
-#endif
-
-};
+typedef uint16_t tmsg_t;
 
 // IE type
 #define TSDB_IE_TYPE_SEC 1
@@ -178,55 +87,52 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
-#define TSDB_ALTER_TABLE_ADD_TAG_COLUMN    1
-#define TSDB_ALTER_TABLE_DROP_TAG_COLUMN   2
+#define TSDB_ALTER_TABLE_ADD_TAG_COLUMN 1
+#define TSDB_ALTER_TABLE_DROP_TAG_COLUMN 2
 #define TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN 3
-#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL    4
+#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL 4
 
-#define TSDB_ALTER_TABLE_ADD_COLUMN        5
-#define TSDB_ALTER_TABLE_DROP_COLUMN       6
-#define TSDB_ALTER_TABLE_CHANGE_COLUMN     7
+#define TSDB_ALTER_TABLE_ADD_COLUMN 5
+#define TSDB_ALTER_TABLE_DROP_COLUMN 6
+#define TSDB_ALTER_TABLE_CHANGE_COLUMN 7
 #define TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN 8
 
-#define TSDB_FILL_NONE             0
-#define TSDB_FILL_NULL             1
-#define TSDB_FILL_SET_VALUE        2
-#define TSDB_FILL_LINEAR           3
-#define TSDB_FILL_PREV             4
-#define TSDB_FILL_NEXT             5
+#define TSDB_FILL_NONE 0
+#define TSDB_FILL_NULL 1
+#define TSDB_FILL_SET_VALUE 2
+#define TSDB_FILL_LINEAR 3
+#define TSDB_FILL_PREV 4
+#define TSDB_FILL_NEXT 5
 
-#define TSDB_ALTER_USER_PASSWD     0x1
+#define TSDB_ALTER_USER_PASSWD 0x1
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
 
-#define TSDB_KILL_MSG_LEN          30
+#define TSDB_KILL_MSG_LEN 30
 
-#define TSDB_VN_READ_ACCCESS       ((char)0x1)
-#define TSDB_VN_WRITE_ACCCESS      ((char)0x2)
+#define TSDB_VN_READ_ACCCESS ((char)0x1)
+#define TSDB_VN_WRITE_ACCCESS ((char)0x2)
 #define TSDB_VN_ALL_ACCCESS (TSDB_VN_READ_ACCCESS | TSDB_VN_WRITE_ACCCESS)
 
-#define TSDB_COL_NORMAL             0x0u    // the normal column of the table
-#define TSDB_COL_TAG                0x1u    // the tag column type
-#define TSDB_COL_UDC                0x2u    // the user specified normal string column, it is a dummy column
-#define TSDB_COL_TMP                0x4u    // internal column generated by the previous operators
-#define TSDB_COL_NULL               0x8u    // the column filter NULL or not
+#define TSDB_COL_NORMAL 0x0u  // the normal column of the table
+#define TSDB_COL_TAG 0x1u     // the tag column type
+#define TSDB_COL_UDC 0x2u     // the user specified normal string column, it is a dummy column
+#define TSDB_COL_TMP 0x4u     // internal column generated by the previous operators
+#define TSDB_COL_NULL 0x8u    // the column filter NULL or not
 
-#define TSDB_COL_IS_TAG(f)          (((f&(~(TSDB_COL_NULL)))&TSDB_COL_TAG) != 0)
-#define TSDB_COL_IS_NORMAL_COL(f)   ((f&(~(TSDB_COL_NULL))) == TSDB_COL_NORMAL)
-#define TSDB_COL_IS_UD_COL(f)       ((f&(~(TSDB_COL_NULL))) == TSDB_COL_UDC)
-#define TSDB_COL_REQ_NULL(f)        (((f)&TSDB_COL_NULL) != 0)
-
-extern char *taosMsg[];
+#define TSDB_COL_IS_TAG(f) (((f & (~(TSDB_COL_NULL))) & TSDB_COL_TAG) != 0)
+#define TSDB_COL_IS_NORMAL_COL(f) ((f & (~(TSDB_COL_NULL))) == TSDB_COL_NORMAL)
+#define TSDB_COL_IS_UD_COL(f) ((f & (~(TSDB_COL_NULL))) == TSDB_COL_UDC)
+#define TSDB_COL_REQ_NULL(f) (((f)&TSDB_COL_NULL) != 0)
 
 typedef struct SBuildTableMetaInput {
   int32_t vgId;
-  char   *tableFullName;
+  char*   tableFullName;
 } SBuildTableMetaInput;
 
 typedef struct SBuildUseDBInput {
   char    db[TSDB_TABLE_FNAME_LEN];
   int32_t vgVersion;
 } SBuildUseDBInput;
-
 
 #pragma pack(push, 1)
 
@@ -312,7 +218,7 @@ typedef struct {
   char     data[];
 } SMDCreateTableMsg;
 
-//typedef struct {
+// typedef struct {
 //  int32_t len;  // one create table message
 //  char    tableName[TSDB_TABLE_FNAME_LEN];
 //  int16_t numOfColumns;
@@ -442,7 +348,7 @@ typedef struct {
   int8_t  type;
   char    user[TSDB_USER_LEN];
   char    pass[TSDB_PASSWORD_LEN];
-  int8_t  superUser;      // denote if it is a super user or not
+  int8_t  superUser;  // denote if it is a super user or not
   int32_t reserve[8];
 } SCreateUserMsg, SAlterUserMsg;
 
@@ -493,7 +399,7 @@ typedef struct SColumnFilterList {
   int16_t numOfFilters;
   union {
     int64_t            placeholder;
-    SColumnFilterInfo *filterInfo;
+    SColumnFilterInfo* filterInfo;
   };
 } SColumnFilterList;
 /*
@@ -578,8 +484,8 @@ typedef struct {
   int32_t     sqlstrLen;      // sql query string
   int32_t     prevResultLen;  // previous result length
   int32_t     numOfOperator;
-  int32_t     tableScanOperator;// table scan operator. -1 means no scan operator
-  int32_t     udfNum;           // number of udf function
+  int32_t     tableScanOperator;  // table scan operator. -1 means no scan operator
+  int32_t     udfNum;             // number of udf function
   int32_t     udfContentOffset;
   int32_t     udfContentLen;
   SColumnInfo tableCols[];
@@ -882,7 +788,7 @@ typedef struct SMultiTableMeta {
 typedef struct {
   int32_t dataLen;
   char    name[TSDB_TABLE_FNAME_LEN];
-  char   *data;
+  char*   data;
 } STagData;
 
 typedef struct {
@@ -917,7 +823,7 @@ typedef struct SShowRsp {
 } SShowRsp;
 
 typedef struct {
-  char    ep[TSDB_EP_LEN];  // end point, hostname:port
+  char ep[TSDB_EP_LEN];  // end point, hostname:port
 } SCreateDnodeMsg;
 
 typedef struct {
@@ -1019,35 +925,27 @@ typedef struct {
 
 // mq related
 typedef struct {
-
 } SMqConnectReq;
 
 typedef struct {
-
 } SMqConnectRsp;
 
 typedef struct {
-
 } SMqDisconnectReq;
 
 typedef struct {
-
 } SMqDisconnectRsp;
 
 typedef struct {
-
 } SMqAckReq;
 
 typedef struct {
-
 } SMqAckRsp;
 
 typedef struct {
-
 } SMqResetReq;
 
 typedef struct {
-
 } SMqResetRsp;
 // mq related end
 
@@ -1104,17 +1002,17 @@ typedef struct {
 } SUpdateTagValRsp;
 
 typedef struct SSubQueryMsg {
-  uint64_t  schedulerId;
-  uint64_t  queryId;
-  uint64_t  taskId;
-  uint32_t  contentLen;
-  char      msg[];
+  uint64_t schedulerId;
+  uint64_t queryId;
+  uint64_t taskId;
+  uint32_t contentLen;
+  char     msg[];
 } SSubQueryMsg;
 
 typedef struct SResReadyMsg {
-  uint64_t  schedulerId;
-  uint64_t  queryId;
-  uint64_t  taskId;
+  uint64_t schedulerId;
+  uint64_t queryId;
+  uint64_t taskId;
 } SResReadyMsg;
 
 typedef struct SResReadyRsp {
@@ -1122,19 +1020,19 @@ typedef struct SResReadyRsp {
 } SResReadyRsp;
 
 typedef struct SResFetchMsg {
-  uint64_t  schedulerId;
-  uint64_t  queryId;
-  uint64_t  taskId;
+  uint64_t schedulerId;
+  uint64_t queryId;
+  uint64_t taskId;
 } SResFetchMsg;
 
 typedef struct SSchTasksStatusMsg {
-  uint64_t  schedulerId;
+  uint64_t schedulerId;
 } SSchTasksStatusMsg;
 
 typedef struct STaskStatus {
-  uint64_t  queryId;
-  uint64_t  taskId;
-  int8_t    status;
+  uint64_t queryId;
+  uint64_t taskId;
+  int8_t   status;
 } STaskStatus;
 
 typedef struct SSchedulerStatusRsp {
@@ -1142,11 +1040,10 @@ typedef struct SSchedulerStatusRsp {
   STaskStatus status[];
 } SSchedulerStatusRsp;
 
-
 typedef struct STaskCancelMsg {
-  uint64_t  schedulerId;
-  uint64_t  queryId;
-  uint64_t  taskId;
+  uint64_t schedulerId;
+  uint64_t queryId;
+  uint64_t taskId;
 } STaskCancelMsg;
 
 typedef struct STaskCancelRsp {
@@ -1154,15 +1051,176 @@ typedef struct STaskCancelRsp {
 } STaskCancelRsp;
 
 typedef struct STaskDropMsg {
-  uint64_t  schedulerId;
-  uint64_t  queryId;
-  uint64_t  taskId;
+  uint64_t schedulerId;
+  uint64_t queryId;
+  uint64_t taskId;
 } STaskDropMsg;
 
 typedef struct STaskDropRsp {
   int32_t code;
 } STaskDropRsp;
 
+typedef struct {
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  int8_t  igExists;
+  int32_t execLen;
+  void*   executor;
+  int32_t sqlLen;
+  char*   sql;
+} SCreateTopicMsg;
+
+typedef struct {
+  char   name[TSDB_TABLE_FNAME_LEN];
+  int8_t igNotExists;
+} SDropTopicMsg;
+
+typedef struct {
+  char    name[TSDB_TABLE_FNAME_LEN];
+  int8_t  alterType;
+  SSchema schema;
+} SAlterTopicMsg;
+
+typedef struct {
+  SMsgHead head;
+  char     name[TSDB_TABLE_FNAME_LEN];
+  uint64_t tuid;
+  int32_t  sverson;
+  int32_t  execLen;
+  char*    executor;
+  int32_t  sqlLen;
+  char*    sql;
+} SCreateTopicInternalMsg;
+
+typedef struct {
+  SMsgHead head;
+  char     name[TSDB_TABLE_FNAME_LEN];
+  uint64_t tuid;
+} SDropTopicInternalMsg;
+
+typedef struct SVCreateTbReq {
+  uint64_t ver;  // use a general definition
+  char*    name;
+  uint32_t ttl;
+  uint32_t keep;
+#define TD_SUPER_TABLE 0
+#define TD_CHILD_TABLE 1
+#define TD_NORMAL_TABLE 2
+  uint8_t type;
+  union {
+    struct {
+      tb_uid_t suid;
+      uint32_t nCols;
+      SSchema* pSchema;
+      uint32_t nTagCols;
+      SSchema* pTagSchema;
+    } stbCfg;
+    struct {
+      tb_uid_t suid;
+      SKVRow   pTag;
+    } ctbCfg;
+    struct {
+      uint32_t nCols;
+      SSchema* pSchema;
+    } ntbCfg;
+  };
+} SVCreateTbReq;
+
+static FORCE_INLINE int tSerializeSVCreateTbReq(void** buf, const SVCreateTbReq* pReq) {
+  int tlen = 0;
+
+  tlen += taosEncodeFixedU64(buf, pReq->ver);
+  tlen += taosEncodeString(buf, pReq->name);
+  tlen += taosEncodeFixedU32(buf, pReq->ttl);
+  tlen += taosEncodeFixedU32(buf, pReq->keep);
+  tlen += taosEncodeFixedU8(buf, pReq->type);
+
+  switch (pReq->type) {
+    case TD_SUPER_TABLE:
+      tlen += taosEncodeFixedU64(buf, pReq->stbCfg.suid);
+      tlen += taosEncodeFixedU32(buf, pReq->stbCfg.nCols);
+      for (uint32_t i = 0; i < pReq->stbCfg.nCols; i++) {
+        tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pSchema[i].type);
+        tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pSchema[i].colId);
+        tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pSchema[i].bytes);
+        tlen += taosEncodeString(buf, pReq->stbCfg.pSchema[i].name);
+      }
+      tlen += taosEncodeFixedU32(buf, pReq->stbCfg.nTagCols);
+      for (uint32_t i = 0; i < pReq->stbCfg.nTagCols; i++) {
+        tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pTagSchema[i].type);
+        tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pTagSchema[i].colId);
+        tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pTagSchema[i].bytes);
+        tlen += taosEncodeString(buf, pReq->stbCfg.pTagSchema[i].name);
+      }
+      break;
+    case TD_CHILD_TABLE:
+      tlen += taosEncodeFixedU64(buf, pReq->ctbCfg.suid);
+      tlen += tdEncodeKVRow(buf, pReq->ctbCfg.pTag);
+      break;
+    case TD_NORMAL_TABLE:
+      tlen += taosEncodeFixedU32(buf, pReq->ntbCfg.nCols);
+      for (uint32_t i = 0; i < pReq->ntbCfg.nCols; i++) {
+        tlen += taosEncodeFixedI8(buf, pReq->ntbCfg.pSchema[i].type);
+        tlen += taosEncodeFixedI32(buf, pReq->ntbCfg.pSchema[i].colId);
+        tlen += taosEncodeFixedI32(buf, pReq->ntbCfg.pSchema[i].bytes);
+        tlen += taosEncodeString(buf, pReq->ntbCfg.pSchema[i].name);
+      }
+      break;
+    default:
+      ASSERT(0);
+  }
+
+  return tlen;
+}
+
+static FORCE_INLINE void* tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq) {
+  buf = taosDecodeFixedU64(buf, &(pReq->ver));
+  buf = taosDecodeString(buf, &(pReq->name));
+  buf = taosDecodeFixedU32(buf, &(pReq->ttl));
+  buf = taosDecodeFixedU32(buf, &(pReq->keep));
+  buf = taosDecodeFixedU8(buf, &(pReq->type));
+
+  switch (pReq->type) {
+    case TD_SUPER_TABLE:
+      buf = taosDecodeFixedU64(buf, &(pReq->stbCfg.suid));
+      buf = taosDecodeFixedU32(buf, &(pReq->stbCfg.nCols));
+      pReq->stbCfg.pSchema = (SSchema*)malloc(pReq->stbCfg.nCols * sizeof(SSchema));
+      for (uint32_t i = 0; i < pReq->stbCfg.nCols; i++) {
+        buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pSchema[i].type));
+        buf = taosDecodeFixedI32(buf, &(pReq->stbCfg.pSchema[i].colId));
+        buf = taosDecodeFixedI32(buf, &(pReq->stbCfg.pSchema[i].bytes));
+        buf = taosDecodeStringTo(buf, pReq->stbCfg.pSchema[i].name);
+      }
+      buf = taosDecodeFixedU32(buf, &pReq->stbCfg.nTagCols);
+      pReq->stbCfg.pTagSchema = (SSchema*)malloc(pReq->stbCfg.nTagCols * sizeof(SSchema));
+      for (uint32_t i = 0; i < pReq->stbCfg.nTagCols; i++) {
+        buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pTagSchema[i].type));
+        buf = taosDecodeFixedI32(buf, &pReq->stbCfg.pTagSchema[i].colId);
+        buf = taosDecodeFixedI32(buf, &pReq->stbCfg.pTagSchema[i].bytes);
+        buf = taosDecodeStringTo(buf, pReq->stbCfg.pTagSchema[i].name);
+      }
+      break;
+    case TD_CHILD_TABLE:
+      buf = taosDecodeFixedU64(buf, &pReq->ctbCfg.suid);
+      buf = tdDecodeKVRow(buf, &pReq->ctbCfg.pTag);
+      break;
+    case TD_NORMAL_TABLE:
+      buf = taosDecodeFixedU32(buf, &pReq->ntbCfg.nCols);
+      pReq->ntbCfg.pSchema = (SSchema*)malloc(pReq->ntbCfg.nCols * sizeof(SSchema));
+      for (uint32_t i = 0; i < pReq->ntbCfg.nCols; i++) {
+        buf = taosDecodeFixedI8(buf, &pReq->ntbCfg.pSchema[i].type);
+        buf = taosDecodeFixedI32(buf, &pReq->ntbCfg.pSchema[i].colId);
+        buf = taosDecodeFixedI32(buf, &pReq->ntbCfg.pSchema[i].bytes);
+        buf = taosDecodeStringTo(buf, pReq->ntbCfg.pSchema[i].name);
+      }
+      break;
+    default:
+      ASSERT(0);
+  }
+
+  return buf;
+}
+typedef struct SVCreateTbRsp {
+} SVCreateTbRsp;
 
 #pragma pack(pop)
 

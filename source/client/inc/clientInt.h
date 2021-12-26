@@ -22,7 +22,7 @@ extern "C" {
 
 #include "taos.h"
 #include "common.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tdef.h"
 #include "tep.h"
 #include "thash.h"
@@ -121,6 +121,7 @@ typedef struct SRequestObj {
   STscObj         *pTscObj;
   SQueryExecMetric metric;
   char            *sqlstr;  // sql string
+  int32_t          sqlLen;
   SRequestSendRecvBody     body;
   int64_t          self;
   char            *msgBuf;
@@ -140,7 +141,7 @@ extern int32_t    tscReqRef;
 extern int32_t    tscConnRef;
 
 SRequestMsgBody buildRequestMsgImpl(SRequestObj *pRequest);
-extern int (*handleRequestRspFp[TSDB_MSG_TYPE_MAX])(SRequestObj *pRequest, const char* pMsg, int32_t msgLen);
+extern int (*handleRequestRspFp[TDMT_MAX])(SRequestObj *pRequest, const char* pMsg, int32_t msgLen);
 
 int   taos_init();
 

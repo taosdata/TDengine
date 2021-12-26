@@ -18,7 +18,7 @@
 static void processClientRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   TestClient* client = (TestClient*)parent;
   client->SetRpcRsp(pMsg);
-  uInfo("response:%s from dnode, code:0x%x", taosMsg[pMsg->msgType], pMsg->code);
+  uInfo("response:%s from dnode, code:0x%x", TMSG_INFO(pMsg->msgType), pMsg->code);
   tsem_post(client->GetSem());
 }
 

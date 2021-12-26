@@ -19,13 +19,13 @@
 #include "mallocator.h"
 #include "os.h"
 #include "trow.h"
+#include "tmsg.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // Types exported
-typedef uint64_t     tb_uid_t;
 typedef struct SMeta SMeta;
 
 #define META_SUPER_TABLE 0
@@ -37,39 +37,7 @@ typedef struct SMetaCfg {
   uint64_t lruSize;
 } SMetaCfg;
 
-typedef struct STbCfg {
-  /// name of the table
-  char *name;
-  /// time to live of the table
-  uint32_t ttl;
-  /// keep time of this table
-  uint32_t keep;
-  /// type of table
-  uint8_t type;
-  union {
-    /// super table configurations
-    struct {
-      /// super table UID
-      tb_uid_t suid;
-      /// row schema
-      STSchema *pSchema;
-      /// tag schema
-      STSchema *pTagSchema;
-    } stbCfg;
-
-    /// normal table configuration
-    struct {
-      /// row schema
-      STSchema *pSchema;
-    } ntbCfg;
-    /// child table configuration
-    struct {
-      /// super table UID
-      tb_uid_t suid;
-      SKVRow   pTag;
-    } ctbCfg;
-  };
-} STbCfg;
+typedef SVCreateTbReq STbCfg;
 
 // SMeta operations
 SMeta *metaOpen(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory *pMAF);

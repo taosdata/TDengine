@@ -27,6 +27,7 @@
 #include "mndStb.h"
 #include "mndSync.h"
 #include "mndTelem.h"
+#include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -132,6 +133,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-topic", mndInitTopic, mndCleanupTopic) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc) != 0) return -1;
   if (pMnode->clusterId <= 0) {
     if (mndAllocStep(pMnode, "mnode-sdb-deploy", mndDeploySdb, NULL) != 0) return -1;
@@ -200,7 +202,6 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->selfIndex = pOption->selfIndex;
   memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
   pMnode->pDnode = pOption->pDnode;
-  pMnode->putMsgToApplyMsgFp = pOption->putMsgToApplyMsgFp;
   pMnode->sendMsgToDnodeFp = pOption->sendMsgToDnodeFp;
   pMnode->sendMsgToMnodeFp = pOption->sendMsgToMnodeFp;
   pMnode->sendRedirectMsgFp = pOption->sendRedirectMsgFp;
@@ -215,8 +216,7 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->cfg.buildinfo = strdup(pOption->cfg.buildinfo);
 
   if (pMnode->sendMsgToDnodeFp == NULL || pMnode->sendMsgToMnodeFp == NULL || pMnode->sendRedirectMsgFp == NULL ||
-      pMnode->putMsgToApplyMsgFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0 ||
-      pMnode->cfg.statusInterval < 1) {
+      pMnode->dnodeId < 0 || pMnode->clusterId < 0 || pMnode->cfg.statusInterval < 1) {
     terrno = TSDB_CODE_MND_INVALID_OPTIONS;
     return -1;
   }
@@ -227,7 +227,7 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   }
 
   return 0;
-} 
+}
 
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   mDebug("start to open mnode in %s", path);
@@ -372,11 +372,11 @@ void mndSendRsp(SMnodeMsg *pMsg, int32_t code) {
 static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
   SMnode *pMnode = pMsg->pMnode;
   int32_t code = 0;
-  int32_t msgType = pMsg->rpcMsg.msgType;
+  tmsg_t  msgType = pMsg->rpcMsg.msgType;
   void   *ahandle = pMsg->rpcMsg.ahandle;
   bool    isReq = (msgType & 1U);
 
-  mTrace("msg:%p, app:%p type:%s will be processed", pMsg, ahandle, taosMsg[msgType]);
+  mTrace("msg:%p, app:%p type:%s will be processed", pMsg, ahandle, TMSG_INFO(msgType));
 
   if (isReq && !mndIsMaster(pMnode)) {
     code = TSDB_CODE_APP_NOT_READY;
@@ -390,10 +390,10 @@ static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
     goto PROCESS_RPC_END;
   }
 
-  MndMsgFp fp = pMnode->msgFp[msgType];
+  MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(msgType)];
   if (fp == NULL) {
     code = TSDB_CODE_MSG_NOT_PROCESSED;
-    mError("msg:%p, app:%p failed to process since not handle", pMsg, ahandle);
+    mError("msg:%p, app:%p failed to process since no handle", pMsg, ahandle);
     goto PROCESS_RPC_END;
   }
 
@@ -423,9 +423,10 @@ PROCESS_RPC_END:
   }
 }
 
-void mndSetMsgHandle(SMnode *pMnode, int32_t msgType, MndMsgFp fp) {
-  if (msgType >= 0 && msgType < TSDB_MSG_TYPE_MAX) {
-    pMnode->msgFp[msgType] = fp;
+void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp) {
+  tmsg_t type = TMSG_INDEX(msgType);
+  if (type >= 0 && type < TDMT_MAX) {
+    pMnode->msgFp[type] = fp;
   }
 }
 
@@ -434,8 +435,6 @@ void mndProcessReadMsg(SMnodeMsg *pMsg) { mndProcessRpcMsg(pMsg); }
 void mndProcessWriteMsg(SMnodeMsg *pMsg) { mndProcessRpcMsg(pMsg); }
 
 void mndProcessSyncMsg(SMnodeMsg *pMsg) { mndProcessRpcMsg(pMsg); }
-
-void mndProcessApplyMsg(SMnodeMsg *pMsg) {}
 
 uint64_t mndGenerateUid(char *name, int32_t len) {
   int64_t  us = taosGetTimestampUs();

@@ -37,6 +37,17 @@ typedef struct IndexCache {
   SSkipList* skiplist;
 } IndexCache;
 
+typedef struct CacheTerm {
+  // key
+  int32_t colId;
+  int32_t nColVal;
+  char*   colVal;
+  int32_t version;
+  // value
+  uint64_t           uid;
+  int8_t             colType;
+  SIndexOperOnColumn operaType;
+} CacheTerm;
 //
 IndexCache* indexCacheCreate();
 
@@ -47,6 +58,7 @@ int indexCachePut(void* cache, SIndexTerm* term, int16_t colId, int32_t version,
 // int indexCacheGet(void *cache, uint64_t *rst);
 int indexCacheSearch(void* cache, SIndexTermQuery* query, int16_t colId, int32_t version, SArray* result, STermValueType* s);
 
+void indexCacheDebug(IndexCache* cache);
 #ifdef __cplusplus
 }
 #endif

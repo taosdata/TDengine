@@ -60,7 +60,7 @@ protected:
       return code;
     }
     SQueryDag* dag = nullptr;
-    code = qCreateQueryDag(query, nullptr, &dag);
+    code = qCreateQueryDag(query, &dag);
     dag_.reset(dag);
     return code;
   }

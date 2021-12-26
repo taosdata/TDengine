@@ -13,13 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "queryInt.h"
 #include "query.h"
 
-int32_t (*queryBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen) = {0};
+int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen) = {0};
 
-int32_t (*queryProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize) = {0};
+int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char *msg, int32_t msgSize) = {0};
 
 int32_t queryBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int32_t *msgLen) {
   if (NULL == input || NULL == msg || NULL == msgLen) {
@@ -265,11 +265,11 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
 
 
 void initQueryModuleMsgHandle() {
-  queryBuildMsg[TSDB_MSG_TYPE_TABLE_META] = queryBuildTableMetaReqMsg;
-  queryBuildMsg[TSDB_MSG_TYPE_USE_DB] = queryBuildUseDbMsg;
+  queryBuildMsg[TDMT_VND_TABLE_META] = queryBuildTableMetaReqMsg;
+  queryBuildMsg[TDMT_MND_USE_DB] = queryBuildUseDbMsg;
 
-  queryProcessMsgRsp[TSDB_MSG_TYPE_TABLE_META] = queryProcessTableMetaRsp;
-  queryProcessMsgRsp[TSDB_MSG_TYPE_USE_DB] = queryProcessUseDBRsp;
+  queryProcessMsgRsp[TDMT_VND_TABLE_META] = queryProcessTableMetaRsp;
+  queryProcessMsgRsp[TDMT_MND_USE_DB] = queryProcessUseDBRsp;
 }
 
 

@@ -18,7 +18,7 @@
 #include "tsclient.h"
 #include "tsocket.h"
 #include "ttimer.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tcq.h"
 
 #include "../../../include/client/taos.h"

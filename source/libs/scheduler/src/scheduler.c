@@ -14,7 +14,7 @@
  */
 
 #include "schedulerInt.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "query.h"
 #include "catalog.h"
 
@@ -318,7 +318,7 @@ int32_t schAsyncSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
   void *msg = NULL;
   
   switch (msgType) {
-    case TSDB_MSG_TYPE_SUBMIT: {
+    case TDMT_VND_SUBMIT: {
       if (NULL == task->msg || task->msgLen <= 0) {
         qError("submit msg is NULL");
         SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
@@ -328,7 +328,7 @@ int32_t schAsyncSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
       msg = task->msg;
       break;
     }
-    case TSDB_MSG_TYPE_QUERY: {
+    case TDMT_VND_QUERY: {
       if (NULL == task->msg) {
         qError("query msg is NULL");
         SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
@@ -350,7 +350,7 @@ int32_t schAsyncSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
       memcpy(pMsg->msg, task->msg, task->msgLen);
       break;
     }    
-    case TSDB_MSG_TYPE_RES_READY: {
+    case TDMT_VND_RES_READY: {
       msgSize = sizeof(SResReadyMsg);
       msg = calloc(1, msgSize);
       if (NULL == msg) {
@@ -364,11 +364,10 @@ int32_t schAsyncSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
       pMsg->taskId = htobe64(task->taskId);      
       break;
     }
-    case TSDB_MSG_TYPE_FETCH: {
+    case TDMT_VND_FETCH: {
       if (NULL == task) {
         SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
       }
-      
       msgSize = sizeof(SResFetchMsg);
       msg = calloc(1, msgSize);
       if (NULL == msg) {
@@ -382,7 +381,7 @@ int32_t schAsyncSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
       pMsg->taskId = htobe64(task->taskId);      
       break;
     }
-    case TSDB_MSG_TYPE_DROP_TASK:{
+    case TDMT_VND_DROP_TASK:{
       msgSize = sizeof(STaskDropMsg);
       msg = calloc(1, msgSize);
       if (NULL == msg) {
@@ -425,7 +424,7 @@ int32_t schFetchFromRemote(SSchJob *job) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SCH_ERR_JRET(schAsyncSendMsg(job, job->fetchTask, TSDB_MSG_TYPE_FETCH));
+  SCH_ERR_JRET(schAsyncSendMsg(job, job->fetchTask, TDMT_VND_FETCH));
 
   return TSDB_CODE_SUCCESS;
   
@@ -582,7 +581,7 @@ int32_t schHandleRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *msg
   int32_t code = 0;
   
   switch (msgType) {
-    case TSDB_MSG_TYPE_SUBMIT: {
+    case TDMT_VND_SUBMIT: {
         SShellSubmitRspMsg *rsp = (SShellSubmitRspMsg *)msg;
         if (rsp->code != TSDB_CODE_SUCCESS) {
           SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rsp->code));
@@ -596,20 +595,20 @@ int32_t schHandleRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *msg
         }
         break;
       }
-    case TSDB_MSG_TYPE_QUERY: {
+    case TDMT_VND_QUERY: {
         SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
         
         if (rsp->code != TSDB_CODE_SUCCESS) {
           SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rsp->code));
         } else {
-          code = schAsyncSendMsg(job, task, TSDB_MSG_TYPE_RES_READY);
+          code = schAsyncSendMsg(job, task, TDMT_VND_RES_READY);
           if (code) {
             goto _task_error;
           }
         }
         break;
       }
-    case TSDB_MSG_TYPE_RES_READY: {
+    case TDMT_VND_RES_READY: {
         SResReadyRsp *rsp = (SResReadyRsp *)msg;
         
         if (rsp->code != TSDB_CODE_SUCCESS) {
@@ -622,7 +621,7 @@ int32_t schHandleRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *msg
         }
         break;
       }
-    case TSDB_MSG_TYPE_FETCH: {        
+    case TDMT_VND_FETCH: {
         SCH_ERR_JRET(rspCode);
         SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
 
@@ -663,7 +662,7 @@ int32_t schLaunchTask(SSchJob *job, SSchTask *task) {
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
-  int32_t msgType = (plan->type == QUERY_TYPE_MODIFY) ? TSDB_MSG_TYPE_SUBMIT : TSDB_MSG_TYPE_QUERY;
+  int32_t msgType = (plan->type == QUERY_TYPE_MODIFY) ? TDMT_VND_SUBMIT : TDMT_VND_QUERY;
   
   SCH_ERR_RET(schAsyncSendMsg(job, task, msgType));
 
@@ -691,7 +690,7 @@ void schDropJobAllTasks(SSchJob *job) {
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
   
-    schAsyncSendMsg(job, task, TSDB_MSG_TYPE_DROP_TASK);
+    schAsyncSendMsg(job, task, TDMT_VND_DROP_TASK);
     
     pIter = taosHashIterate(job->succTasks, pIter);
   }  
@@ -700,7 +699,7 @@ void schDropJobAllTasks(SSchJob *job) {
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
   
-    schAsyncSendMsg(job, task, TSDB_MSG_TYPE_DROP_TASK);
+    schAsyncSendMsg(job, task, TDMT_VND_DROP_TASK);
     
     pIter = taosHashIterate(job->succTasks, pIter);
   }  

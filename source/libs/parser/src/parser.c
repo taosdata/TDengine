@@ -31,7 +31,7 @@ bool isInsertSql(const char* pStr, size_t length) {
   } while (1);
 }
 
-bool qIsDclQuery(const SQueryNode* pQuery) {
+bool qIsDdlQuery(const SQueryNode* pQuery) {
   return TSDB_SQL_INSERT != pQuery->type && TSDB_SQL_SELECT != pQuery->type;
 }
 
@@ -226,4 +226,8 @@ void qParserClearupMetaRequestInfo(SCatalogReq* pMetaReq) {
 
   taosArrayDestroy(pMetaReq->pTableName);
   taosArrayDestroy(pMetaReq->pUdf);
+}
+
+void qDestoryQuery(SQueryNode* pQuery) {
+  // todo
 }

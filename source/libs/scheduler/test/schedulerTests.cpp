@@ -182,7 +182,7 @@ void *schtSendRsp(void *param) {
 
     SShellSubmitRspMsg rsp = {0};
     rsp.affectedRows = 10;
-    schHandleRspMsg(job, task, TSDB_MSG_TYPE_SUBMIT, (char *)&rsp, sizeof(rsp), 0);
+    schHandleRspMsg(job, task, TDMT_VND_SUBMIT, (char *)&rsp, sizeof(rsp), 0);
     
     pIter = taosHashIterate(job->execTasks, pIter);
   }    
@@ -227,7 +227,7 @@ TEST(queryTest, normalCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SQueryTableRsp rsp = {0};
-    code = schHandleRspMsg(job, task, TSDB_MSG_TYPE_QUERY, (char *)&rsp, sizeof(rsp), 0);
+    code = schHandleRspMsg(job, task, TDMT_VND_QUERY, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(job->execTasks, pIter);
@@ -238,7 +238,7 @@ TEST(queryTest, normalCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SResReadyRsp rsp = {0};
-    code = schHandleRspMsg(job, task, TSDB_MSG_TYPE_RES_READY, (char *)&rsp, sizeof(rsp), 0);
+    code = schHandleRspMsg(job, task, TDMT_VND_RES_READY, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(job->execTasks, pIter);
@@ -249,7 +249,7 @@ TEST(queryTest, normalCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SQueryTableRsp rsp = {0};
-    code = schHandleRspMsg(job, task, TSDB_MSG_TYPE_QUERY, (char *)&rsp, sizeof(rsp), 0);
+    code = schHandleRspMsg(job, task, TDMT_VND_QUERY, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(job->execTasks, pIter);
@@ -260,7 +260,7 @@ TEST(queryTest, normalCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SResReadyRsp rsp = {0};
-    code = schHandleRspMsg(job, task, TSDB_MSG_TYPE_RES_READY, (char *)&rsp, sizeof(rsp), 0);
+    code = schHandleRspMsg(job, task, TDMT_VND_RES_READY, (char *)&rsp, sizeof(rsp), 0);
     ASSERT_EQ(code, 0);
     
     pIter = taosHashIterate(job->execTasks, pIter);
@@ -269,7 +269,7 @@ TEST(queryTest, normalCase) {
   SRetrieveTableRsp rsp = {0};
   rsp.completed = 1;
   rsp.numOfRows = 10;
-  code = schHandleRspMsg(job, NULL, TSDB_MSG_TYPE_FETCH, (char *)&rsp, sizeof(rsp), 0);
+  code = schHandleRspMsg(job, NULL, TDMT_VND_FETCH, (char *)&rsp, sizeof(rsp), 0);
     
   ASSERT_EQ(code, 0);
 

@@ -13,8 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define TAOS_MESSAGE_C
+#include "tmsg.h"
 
-#include "taosmsg.h"
+#undef TD_MSG_NUMBER_
+#undef TD_MSG_DICT_
+#define TD_MSG_INFO_
+#undef TD_MSG_SEG_CODE_
+#include "tmsgdef.h"
 
-
+#undef TD_MSG_NUMBER_
+#undef TD_MSG_INFO_
+#define TD_MSG_DICT_
+#undef TD_MSG_SEG_CODE_
+#include "tmsgdef.h"

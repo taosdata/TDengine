@@ -30,7 +30,7 @@ TEST_F(DndTestAcct, 01_CreateAcct) {
 
   SCreateAcctMsg* pReq = (SCreateAcctMsg*)rpcMallocCont(contLen);
 
-  SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_ACCT, pReq, contLen);
+  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_ACCT, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
@@ -40,7 +40,7 @@ TEST_F(DndTestAcct, 02_AlterAcct) {
 
   SAlterAcctMsg* pReq = (SAlterAcctMsg*)rpcMallocCont(contLen);
 
-  SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_ALTER_ACCT, pReq, contLen);
+  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_ACCT, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
@@ -50,7 +50,7 @@ TEST_F(DndTestAcct, 03_DropAcct) {
 
   SDropAcctMsg* pReq = (SDropAcctMsg*)rpcMallocCont(contLen);
 
-  SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_DROP_ACCT, pReq, contLen);
+  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_ACCT, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
@@ -61,7 +61,7 @@ TEST_F(DndTestAcct, 04_ShowAcct) {
   SShowMsg* pReq = (SShowMsg*)rpcMallocCont(contLen);
   pReq->type = TSDB_MGMT_TABLE_ACCT;
 
-  SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_SHOW, pReq, contLen);
+  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_SHOW, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
 }

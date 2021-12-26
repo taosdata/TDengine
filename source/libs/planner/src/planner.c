@@ -24,7 +24,7 @@ void qDestroyQueryDag(struct SQueryDag* pDag) {
   // todo
 }
 
-int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SEpSet* pEpSet, struct SQueryDag** pDag) {
+int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag) {
   SQueryPlanNode* logicPlan;
   int32_t code = createQueryPlan(pNode, &logicPlan);
   if (TSDB_CODE_SUCCESS != code) {

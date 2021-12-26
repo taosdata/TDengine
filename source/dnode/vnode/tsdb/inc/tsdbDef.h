@@ -17,7 +17,7 @@
 #define _TD_TSDB_DEF_H_
 
 #include "mallocator.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tlist.h"
 #include "thash.h"
 #include "tskiplist.h"
