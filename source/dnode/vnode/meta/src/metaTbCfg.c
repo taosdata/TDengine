@@ -16,7 +16,7 @@
 #include "metaDef.h"
 #include "tcoding.h"
 
-int metaValidateTbOptions(SMeta *pMeta, const STbCfg *pTbOptions) {
+int metaValidateTbCfg(SMeta *pMeta, const STbCfg *pTbOptions) {
   // TODO
   return 0;
 }

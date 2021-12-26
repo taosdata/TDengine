@@ -125,11 +125,11 @@ void metaCloseDB(SMeta *pMeta) {
 }
 
 int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
-  tb_uid_t  uid;
-  char      buf[512];
-  void *    pBuf;
-  DBT       key, value;
-  STSchema *pSchema = NULL;
+  tb_uid_t uid;
+  char     buf[512];
+  void *   pBuf;
+  DBT      key, value;
+  SSchema *pSchema = NULL;
 
   if (pTbCfg->type == META_SUPER_TABLE) {
     uid = pTbCfg->stbCfg.suid;
@@ -156,9 +156,12 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
   }
 
   // save schema
+  uint32_t ncols;
   if (pTbCfg->type == META_SUPER_TABLE) {
+    ncols = pTbCfg->stbCfg.nCols;
     pSchema = pTbCfg->stbCfg.pSchema;
   } else if (pTbCfg->type == META_NORMAL_TABLE) {
+    ncols = pTbCfg->ntbCfg.nCols;
     pSchema = pTbCfg->ntbCfg.pSchema;
   }
 
@@ -166,12 +169,18 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     pBuf = buf;
     memset(&key, 0, sizeof(key));
     memset(&value, 0, sizeof(key));
-    SSchemaKey schemaKey = {uid, schemaVersion(pSchema)};
+    SSchemaKey schemaKey = {uid, 0 /*TODO*/};
 
     key.data = &schemaKey;
     key.size = sizeof(schemaKey);
 
-    tdEncodeSchema(&pBuf, pSchema);
+    taosEncodeFixedU32(&pBuf, ncols);
+    for (size_t i = 0; i < ncols; i++) {
+      taosEncodeFixedI8(&pBuf, pSchema[i].type);
+      taosEncodeFixedI32(&pBuf, pSchema[i].colId);
+      taosEncodeFixedI32(&pBuf, pSchema[i].bytes);
+      taosEncodeString(&pBuf, pSchema[i].name);
+    }
 
     value.data = buf;
     value.size = POINTER_DISTANCE(pBuf, buf);
@@ -367,7 +376,15 @@ static int metaEncodeTbInfo(void **buf, STbCfg *pTbCfg) {
   tsize += taosEncodeFixedU8(buf, pTbCfg->type);
 
   if (pTbCfg->type == META_SUPER_TABLE) {
-    tsize += tdEncodeSchema(buf, pTbCfg->stbCfg.pTagSchema);
+    tsize += taosEncodeVariantU32(buf, pTbCfg->stbCfg.nTagCols);
+    for (uint32_t i = 0; i < pTbCfg->stbCfg.nTagCols; i++) {
+      tsize += taosEncodeFixedI8(buf, pTbCfg->stbCfg.pSchema[i].type);
+      tsize += taosEncodeFixedI32(buf, pTbCfg->stbCfg.pSchema[i].colId);
+      tsize += taosEncodeFixedI32(buf, pTbCfg->stbCfg.pSchema[i].bytes);
+      tsize += taosEncodeString(buf, pTbCfg->stbCfg.pSchema[i].name);
+    }
+
+    // tsize += tdEncodeSchema(buf, pTbCfg->stbCfg.pTagSchema);
   } else if (pTbCfg->type == META_CHILD_TABLE) {
     tsize += taosEncodeFixedU64(buf, pTbCfg->ctbCfg.suid);
     tsize += tdEncodeKVRow(buf, pTbCfg->ctbCfg.pTag);
@@ -386,7 +403,14 @@ static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg) {
   buf = taosDecodeFixedU8(buf, &(pTbCfg->type));
 
   if (pTbCfg->type == META_SUPER_TABLE) {
-    buf = tdDecodeSchema(buf, &(pTbCfg->stbCfg.pTagSchema));
+    buf = taosDecodeVariantU32(buf, pTbCfg->stbCfg.nTagCols);
+    pTbCfg->stbCfg.pTagSchema = (SSchema *)malloc(sizeof(SSchema) * pTbCfg->stbCfg.nTagCols);
+    for (uint32_t i = 0; i < pTbCfg->stbCfg.nTagCols; i++) {
+      buf = taosDecodeFixedI8(buf, &pTbCfg->stbCfg.pSchema[i].type);
+      buf = taosDecodeFixedI32(buf, &pTbCfg->stbCfg.pSchema[i].colId);
+      buf = taosDecodeFixedI32(buf, &pTbCfg->stbCfg.pSchema[i].bytes);
+      buf = taosDecodeStringTo(buf, pTbCfg->stbCfg.pSchema[i].name);
+    }
   } else if (pTbCfg->type == META_CHILD_TABLE) {
     buf = taosDecodeFixedU64(buf, &(pTbCfg->ctbCfg.suid));
     buf = tdDecodeKVRow(buf, &(pTbCfg->ctbCfg.pTag));

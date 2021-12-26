@@ -200,10 +200,12 @@ static SDbObj *mndAcquireDbByStb(SMnode *pMnode, char *stbName) {
   return mndAcquireDb(pMnode, db);
 }
 
-static void *mndBuildCreateStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int *contLen) {
+static void *mndBuildCreateStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int *pContLen) {
+#if 1
   SVCreateTbReq req;
   void *        buf;
   int           bsize;
+  SMsgHead *    pMsgHead;
 
   req.ver = 0;
   req.name = pStb->name;
@@ -217,19 +219,24 @@ static void *mndBuildCreateStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb
   req.stbCfg.pTagSchema = pStb->pSchema + pStb->numOfColumns;
 
   bsize = tSerializeSVCreateTbReq(NULL, &req);
-  buf = malloc(bsize);
+  buf = malloc(sizeof(SMsgHead) + bsize);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  void *pBuf = buf;
+  pMsgHead = (SMsgHead *)buf;
+
+  pMsgHead->contLen = htonl(sizeof(SMsgHead) + bsize);
+  pMsgHead->vgId = htonl(pVgroup->vgId);
+
+  void *pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
   tSerializeSVCreateTbReq(&pBuf, &req);
 
-  *contLen = bsize;
+  *pContLen = sizeof(SMsgHead) + bsize;
   return buf;
 
-#if 0
+#else
   int32_t totalCols = pStb->numOfTags + pStb->numOfColumns;
   int32_t contLen = totalCols * sizeof(SSchema) + sizeof(SCreateStbInternalMsg);
 
@@ -255,7 +262,9 @@ static void *mndBuildCreateStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb
     pSchema->bytes = htonl(pSchema->bytes);
     pSchema->colId = htonl(pSchema->colId);
   }
-      return pCreate;
+
+  *pContLen = contLen;
+  return pCreate;
 #endif
 }
 
