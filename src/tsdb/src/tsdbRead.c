@@ -596,6 +596,11 @@ void tsdbResetQueryHandleForNewTable(TsdbQueryHandleT queryHandle, STsdbQueryCon
 static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
   STsdbRepo* pRepo = pQueryHandle->pTsdb;
 
+  if (!pQueryHandle->pTableCheckInfo) {
+    tsdbError("%p table check info is NULL", pQueryHandle);
+    return -1;
+  }
+
   size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   int32_t code = 0;
   for (size_t i = 0; i < numOfTables; ++i) {
@@ -627,7 +632,7 @@ TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
   if (pQueryHandle == NULL) {
     return NULL;
   }
-
+  pQueryHandle->pTableCheckInfo = NULL;
   lazyLoadCacheLast(pQueryHandle);
 
   int32_t code = checkForCachedLastRow(pQueryHandle, groupList);
@@ -2754,6 +2759,10 @@ static bool  loadBlockOfActiveTable(STsdbQueryHandle* pQueryHandle) {
 static bool loadCachedLastRow(STsdbQueryHandle* pQueryHandle) {
   // the last row is cached in buffer, return it directly.
   // here note that the pQueryHandle->window must be the TS_INITIALIZER
+  if (!pQueryHandle || !pQueryHandle->pTableCheckInfo) {
+    return false;
+  }
+
   int32_t numOfCols  = (int32_t)(QH_GET_NUM_OF_COLS(pQueryHandle));
   size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   assert(numOfTables > 0 && numOfCols > 0);
@@ -2793,6 +2802,10 @@ static bool loadCachedLastRow(STsdbQueryHandle* pQueryHandle) {
 static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
   // the last row is cached in buffer, return it directly.
   // here note that the pQueryHandle->window must be the TS_INITIALIZER
+  if (!pQueryHandle || !pQueryHandle->pTableCheckInfo) {
+    return false;
+  }
+
   int32_t tgNumOfCols = (int32_t)QH_GET_NUM_OF_COLS(pQueryHandle);
   size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   int32_t numOfRows = 0;
