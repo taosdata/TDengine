@@ -41,6 +41,7 @@ typedef struct IndexCache {
 
 } IndexCache;
 
+#define CACHE_VERSION(cache) atomic_load_32(&cache->version)
 typedef struct CacheTerm {
   // key
   int32_t nColVal;
@@ -57,6 +58,9 @@ IndexCache* indexCacheCreate(SIndex* idx, const char* colName, int8_t type);
 
 void indexCacheDestroy(void* cache);
 
+Iterate* indexCacheIteratorCreate(IndexCache* cache);
+void     indexCacheIteratorDestroy(Iterate* iiter);
+
 int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid);
 
 // int indexCacheGet(void *cache, uint64_t *rst);
@@ -66,6 +70,8 @@ void indexCacheRef(IndexCache* cache);
 void indexCacheUnRef(IndexCache* cache);
 
 void indexCacheDebug(IndexCache* cache);
+
+void indexCacheDestroySkiplist(SSkipList* slt);
 #ifdef __cplusplus
 }
 #endif

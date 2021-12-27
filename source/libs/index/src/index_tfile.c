@@ -23,6 +23,13 @@
 #include "taosdef.h"
 #include "tcompare.h"
 
+typedef struct TFileFstIter {
+  FstStreamBuilder* fb;
+  StreamWithState*  st;
+  AutomationCtx*    ctx;
+  TFileReader*      rdr;
+} TFileFstIter;
+
 #define TF_TABLE_TATOAL_SIZE(sz) (sizeof(sz) + sz * sizeof(uint64_t))
 
 static int  tfileStrCompare(const void* a, const void* b);
@@ -184,6 +191,23 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* resul
   return ret;
 }
 
+TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int32_t version, const char* colName, uint8_t colType) {
+  char    filename[128] = {0};
+  int32_t coldId = 1;
+  tfileGenFileName(filename, suid, coldId, version);
+
+  char fullname[256] = {0};
+  snprintf(fullname, sizeof(fullname), "%s/%s", path, filename);
+  WriterCtx* wcx = writerCtxCreate(TFile, fullname, true, 1024 * 1024);
+
+  TFileHeader tfh = {0};
+  tfh.suid = suid;
+  tfh.version = version;
+  memcpy(tfh.colName, colName, strlen(colName));
+  tfh.colType = colType;
+
+  return tfileWriterCreate(wcx, &tfh);
+}
 TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header) {
   // char pathBuf[128] = {0};
   // sprintf(pathBuf, "%s/% " PRIu64 "-%d-%d.tindex", path, suid, colId, version);
@@ -279,6 +303,11 @@ int tfileWriterPut(TFileWriter* tw, void* data) {
   tw->fb = NULL;
   return 0;
 }
+void tfileWriteClose(TFileWriter* tw) {
+  if (tw == NULL) { return; }
+  writerCtxDestroy(tw->ctx);
+  free(tw);
+}
 void tfileWriterDestroy(TFileWriter* tw) {
   if (tw == NULL) { return; }
 
@@ -314,6 +343,71 @@ int indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid) {
 
   return 0;
 }
+static bool tfileIteratorNext(Iterate* iiter) {
+  IterateValue* iv = &iiter->val;
+  iterateValueDestroy(iv, false);
+  // SArray* tblIds = iv->val;
+
+  char*    colVal = NULL;
+  uint64_t offset = 0;
+
+  TFileFstIter*          tIter = iiter->iter;
+  StreamWithStateResult* rt = streamWithStateNextWith(tIter->st, NULL);
+  if (rt == NULL) { return false; }
+
+  int32_t sz = 0;
+  char*   ch = (char*)fstSliceData(&rt->data, &sz);
+  colVal = calloc(1, sz + 1);
+  memcpy(colVal, ch, sz);
+
+  offset = (uint64_t)(rt->out.out);
+
+  swsResultDestroy(rt);
+  // set up iterate value
+  if (tfileReaderLoadTableIds(tIter->rdr, offset, iv->val) != 0) { return false; }
+
+  iv->colVal = colVal;
+
+  // std::string key(ch, sz);
+}
+
+static IterateValue* tifileIterateGetValue(Iterate* iter) {
+  return &iter->val;
+}
+
+static TFileFstIter* tfileFstIteratorCreate(TFileReader* reader) {
+  TFileFstIter* tIter = calloc(1, sizeof(Iterate));
+  if (tIter == NULL) { return NULL; }
+  tIter->ctx = automCtxCreate(NULL, AUTOMATION_ALWAYS);
+  tIter->fb = fstSearch(reader->fst, tIter->ctx);
+  tIter->st = streamBuilderIntoStream(tIter->fb);
+  tIter->rdr = reader;
+  return tIter;
+}
+
+Iterate* tfileIteratorCreate(TFileReader* reader) {
+  Iterate* iter = calloc(1, sizeof(Iterate));
+
+  iter->iter = tfileFstIteratorCreate(reader);
+  if (iter->iter == NULL) { return NULL; }
+
+  iter->next = tfileIteratorNext;
+  iter->getValue = tifileIterateGetValue;
+  return iter;
+}
+void tfileIteratorDestroy(Iterate* iter) {
+  if (iter == NULL) { return; }
+  IterateValue* iv = &iter->val;
+  iterateValueDestroy(iv, true);
+
+  TFileFstIter* tIter = iter->iter;
+  streamWithStateDestroy(tIter->st);
+  fstStreamBuilderDestroy(tIter->fb);
+  automCtxDestroy(tIter->ctx);
+
+  free(iter);
+}
+
 TFileReader* tfileGetReaderByCol(IndexTFile* tf, char* colName) {
   if (tf == NULL) { return NULL; }
   TFileCacheKey key = {.suid = 0, .colType = TSDB_DATA_TYPE_BINARY, .colName = colName, .nColName = strlen(colName)};
@@ -333,6 +427,23 @@ static int tfileValueCompare(const void* a, const void* b, const void* param) {
   TFileValue* bv = (TFileValue*)b;
 
   return fn(av->colVal, bv->colVal);
+}
+
+TFileValue* tfileValueCreate(char* val) {
+  TFileValue* tf = calloc(1, sizeof(TFileValue));
+  if (tf == NULL) { return NULL; }
+
+  tf->tableId = taosArrayInit(32, sizeof(uint64_t));
+  return tf;
+}
+int tfileValuePush(TFileValue* tf, uint64_t val) {
+  if (tf == NULL) { return -1; }
+  taosArrayPush(tf->tableId, &val);
+  return 0;
+}
+void tfileValueDestroy(TFileValue* tf) {
+  taosArrayDestroy(tf->tableId);
+  free(tf);
 }
 static void tfileSerialTableIdsToBuf(char* buf, SArray* ids) {
   int sz = taosArrayGetSize(ids);
