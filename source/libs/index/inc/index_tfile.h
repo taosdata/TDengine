@@ -113,6 +113,8 @@ int          tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArr
 void         tfileReaderRef(TFileReader* reader);
 void         tfileReaderUnRef(TFileReader* reader);
 
+TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int32_t version, const char* colName, uint8_t type);
+void         tfileWriteClose(TFileWriter* tw);
 TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header);
 void         tfileWriterDestroy(TFileWriter* tw);
 int          tfileWriterPut(TFileWriter* tw, void* data);
@@ -122,6 +124,14 @@ int          tfileWriterFinish(TFileWriter* tw);
 IndexTFile* indexTFileCreate(const char* path);
 int         indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid);
 int         indexTFileSearch(void* tfile, SIndexTermQuery* query, SArray* result);
+
+Iterate* tfileIteratorCreate(TFileReader* reader);
+void     tfileIteratorDestroy(Iterate* iterator);
+
+TFileValue* tfileValueCreate(char* val);
+
+int  tfileValuePush(TFileValue* tf, uint64_t val);
+void tfileValueDestroy(TFileValue* tf);
 
 #ifdef __cplusplus
 }

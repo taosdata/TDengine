@@ -75,9 +75,12 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   sIdx->tindex = indexTFileCreate(path);
   sIdx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   sIdx->cVersion = 1;
+  sIdx->path = calloc(1, strlen(path) + 1);
+  memcpy(sIdx->path, path, strlen(path));
   pthread_mutex_init(&sIdx->mtx, NULL);
 
   *index = sIdx;
+
   return 0;
 #endif
 
@@ -361,14 +364,96 @@ static int indexMergeFinalResults(SArray* interResults, EIndexOperatorType oType
   }
   return 0;
 }
+
 int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
   if (sIdx == NULL) { return -1; }
   indexWarn("suid %" PRIu64 " merge cache into tindex", sIdx->suid);
-  IndexCache* pCache = (IndexCache*)cache;
 
+  IndexCache*  pCache = (IndexCache*)cache;
   TFileReader* pReader = tfileGetReaderByCol(sIdx->tindex, pCache->colName);
+
+  // handle flush
+  Iterate* cacheIter = indexCacheIteratorCreate(pCache);
+  Iterate* tfileIter = tfileIteratorCreate(pReader);
+
+  SArray* result = taosArrayInit(1024, sizeof(void*));
+
+  bool cn = cacheIter->next(cacheIter);
+  bool tn = tfileIter->next(tfileIter);
+  while (cn == true && tn == true) {
+    IterateValue* cv = cacheIter->getValue(cacheIter);
+    IterateValue* tv = tfileIter->getValue(tfileIter);
+
+    // dump value
+    int comp = strcmp(cv->colVal, tv->colVal);
+    if (comp == 0) {
+      TFileValue* tfv = tfileValueCreate(cv->colVal);
+      taosArrayAddAll(tfv->tableId, cv->val);
+      taosArrayAddAll(tfv->tableId, tv->val);
+      taosArrayPush(result, &tfv);
+
+      cn = cacheIter->next(cacheIter);
+      tn = tfileIter->next(tfileIter);
+      continue;
+    } else if (comp < 0) {
+      TFileValue* tfv = tfileValueCreate(cv->colVal);
+      taosArrayAddAll(tfv->tableId, cv->val);
+      taosArrayPush(result, &tfv);
+
+      // copy to final Result;
+      cn = cacheIter->next(cacheIter);
+    } else {
+      TFileValue* tfv = tfileValueCreate(tv->colVal);
+      taosArrayPush(result, &tfv);
+      taosArrayAddAll(tfv->tableId, tv->val);
+      // copy to final result
+      tn = tfileIter->next(tfileIter);
+    }
+  }
+  while (cn == true) {
+    IterateValue* cv = cacheIter->getValue(cacheIter);
+    TFileValue*   tfv = tfileValueCreate(cv->colVal);
+    taosArrayAddAll(tfv->tableId, cv->val);
+    taosArrayPush(result, &tfv);
+    cn = cacheIter->next(cacheIter);
+  }
+  while (tn == true) {
+    IterateValue* tv = tfileIter->getValue(tfileIter);
+    TFileValue*   tfv = tfileValueCreate(tv->colVal);
+    taosArrayAddAll(tfv->tableId, tv->val);
+    taosArrayPush(result, &tfv);
+    tn = tfileIter->next(tfileIter);
+  }
+
+  int32_t version = CACHE_VERSION(pCache);
+  uint8_t colType = pCache->type;
+
+  TFileWriter* tw = tfileWriterOpen(sIdx->path, sIdx->suid, version, pCache->colName, colType);
+  if (tw == NULL) {
+    indexError("faile to open file to write");
+  } else {
+    int ret = tfileWriterPut(tw, result);
+    if (ret != 0) { indexError("faile to write into tindex "); }
+  }
+  // not free later, just put int table cache
+  SSkipList* timm = (SSkipList*)pCache->imm;
+  pCache->imm = NULL;  // or throw int bg thread
+  indexCacheDestroySkiplist(timm);
+
+  tfileWriteClose(tw);
+  indexCacheIteratorDestroy(cacheIter);
+  tfileIteratorDestroy(tfileIter);
 
   tfileReaderUnRef(pReader);
   indexCacheUnRef(pCache);
   return 0;
+}
+void iterateValueDestroy(IterateValue* value, bool destroy) {
+  if (destroy) {
+    taosArrayDestroy(value->val);
+  } else {
+    taosArrayClear(value->val);
+  }
+  free(value->colVal);
+  value->colVal = NULL;
 }
