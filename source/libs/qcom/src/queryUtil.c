@@ -1,5 +1,5 @@
 #include "os.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "query.h"
 #include "tglobal.h"
 #include "tsched.h"

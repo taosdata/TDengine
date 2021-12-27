@@ -2,7 +2,7 @@
 #define TDENGINE_TEP_H
 
 #include "os.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 
 typedef struct SCorEpSet {
   int32_t version;

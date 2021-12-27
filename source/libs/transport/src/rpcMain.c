@@ -23,7 +23,7 @@
 #include "tref.h"
 #include "taoserror.h"
 #include "tglobal.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "trpc.h"
 #include "thash.h"
 #include "rpcLog.h"
@@ -74,7 +74,7 @@ typedef struct {
   SEpSet   epSet;      // ip list provided by app
   void     *ahandle;    // handle provided by app
   struct SRpcConn *pConn; // pConn allocated
-  char      msgType;    // message type
+  tmsg_t    msgType;    // message type
   uint8_t  *pCont;      // content provided by app
   int32_t   contLen;    // content length
   int32_t   code;       // error code
@@ -108,8 +108,8 @@ typedef struct SRpcConn {
   uint16_t  tranId;         // outgoing transcation ID, for build message
   uint16_t  outTranId;      // outgoing transcation ID
   uint16_t  inTranId;       // transcation ID for incoming msg
-  uint8_t   outType;        // message type for outgoing request
-  uint8_t   inType;         // message type for incoming request  
+  tmsg_t    outType;        // message type for outgoing request
+  tmsg_t    inType;         // message type for incoming request  
   void     *chandle;  // handle passed by TCP/UDP connection layer
   void     *ahandle;  // handle provided by upper app layter
   int       retry;    // number of retry for sending request
@@ -409,11 +409,11 @@ void rpcSendRequest(void *shandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t 
 
   // connection type is application specific. 
   // for TDengine, all the query, show commands shall have TCP connection
-  char type = pMsg->msgType;
-  if (type == TSDB_MSG_TYPE_QUERY || type == TSDB_MSG_TYPE_SHOW_RETRIEVE
-    || type == TSDB_MSG_TYPE_FETCH || type == TSDB_MSG_TYPE_VGROUP_LIST
-    || type == TSDB_MSG_TYPE_TABLES_META || type == TSDB_MSG_TYPE_TABLE_META
-    || type == TSDB_MSG_TYPE_SHOW || type == TSDB_MSG_TYPE_STATUS || type == TSDB_MSG_TYPE_ALTER_TABLE)
+  tmsg_t type = pMsg->msgType;
+  if (type == TDMT_VND_QUERY || type == TDMT_MND_SHOW_RETRIEVE
+    || type == TDMT_VND_FETCH || type == TDMT_MND_VGROUP_LIST
+    || type == TDMT_VND_TABLES_META || type == TDMT_VND_TABLE_META
+    || type == TDMT_MND_SHOW || type == TDMT_MND_STATUS || type == TDMT_VND_ALTER_TABLE)
     pContext->connType = RPC_CONN_TCPC;
 
   pContext->rid = taosAddRef(tsRpcRefId, pContext);
@@ -837,16 +837,16 @@ static int rpcProcessReqHead(SRpcConn *pConn, SRpcHead *pHead) {
     if (pConn->inTranId == pHead->tranId) {
       if (pConn->inType == pHead->msgType) {
         if (pHead->code == 0) {
-          tDebug("%s, %s is retransmitted", pConn->info, taosMsg[pHead->msgType]);
+          tDebug("%s, %s is retransmitted", pConn->info, TMSG_INFO(pHead->msgType));
           rpcSendQuickRsp(pConn, TSDB_CODE_RPC_ACTION_IN_PROGRESS);
         } else {
           // do nothing, it is heart beat from client
         }
       } else if (pConn->inType == 0) {
-        tDebug("%s, %s is already processed, tranId:%d", pConn->info, taosMsg[pHead->msgType], pConn->inTranId);
+        tDebug("%s, %s is already processed, tranId:%d", pConn->info, TMSG_INFO(pHead->msgType), pConn->inTranId);
         rpcSendMsgToPeer(pConn, pConn->pRspMsg, pConn->rspMsgLen); // resend the response
       } else {
-        tDebug("%s, mismatched message %s and tranId", pConn->info, taosMsg[pHead->msgType]);
+        tDebug("%s, mismatched message %s and tranId", pConn->info, TMSG_INFO(pHead->msgType));
       }
 
       // do not reply any message
@@ -957,19 +957,19 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
   sid = htonl(pHead->destId);
   *ppContext = NULL;
 
-  if (pHead->msgType >= TSDB_MSG_TYPE_MAX || pHead->msgType <= 0) {
+  if (TMSG_INDEX(pHead->msgType) >= TDMT_MAX || TMSG_INDEX(pHead->msgType) <= 0) {
     tDebug("%s sid:%d, invalid message type:%d", pRpc->label, sid, pHead->msgType);
     terrno = TSDB_CODE_RPC_INVALID_MSG_TYPE; return NULL;
   }
 
   if (sid < 0 || sid >= pRpc->sessions) {
     tDebug("%s sid:%d, sid is out of range, max sid:%d, %s discarded", pRpc->label, sid,
-           pRpc->sessions, taosMsg[pHead->msgType]);
+           pRpc->sessions, TMSG_INFO(pHead->msgType));
     terrno = TSDB_CODE_RPC_INVALID_SESSION_ID; return NULL;
   }
 
   if (rpcIsReq(pHead->msgType) && htonl(pHead->msgVer) != tsVersion >> 8) {
-    tDebug("%s sid:%d, invalid client version:%x/%x %s", pRpc->label, sid, htonl(pHead->msgVer), tsVersion, taosMsg[pHead->msgType]);
+    tDebug("%s sid:%d, invalid client version:%x/%x %s", pRpc->label, sid, htonl(pHead->msgVer), tsVersion, TMSG_INFO(pHead->msgType));
     terrno = TSDB_CODE_RPC_INVALID_VERSION; return NULL;
   }
 
@@ -1094,9 +1094,9 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   SRpcReqContext *pContext;
   pConn = rpcProcessMsgHead(pRpc, pRecv, &pContext);
 
-  if (pHead->msgType >= 1 && pHead->msgType < TSDB_MSG_TYPE_MAX) {
+  if (TMSG_INDEX(pHead->msgType) >= 1 && TMSG_INDEX(pHead->msgType) < TDMT_MAX) {
     tDebug("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
-           pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType], pRecv->ip, pRecv->port, terrno, pRecv->msgLen,
+           pConn, (void *)pHead->ahandle, TMSG_INFO(pHead->msgType), pRecv->ip, pRecv->port, terrno, pRecv->msgLen,
            pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
   } else {
     tDebug("%s %p %p, %d received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
@@ -1112,11 +1112,11 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
         if (code == TSDB_CODE_RPC_INVALID_TIME_STAMP || code == TSDB_CODE_RPC_AUTH_FAILURE) {
           rpcCloseConn(pConn);
         }
-        if (pHead->msgType + 1 > 1 && pHead->msgType+1 < TSDB_MSG_TYPE_MAX) {
-          tDebug("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType+1], code);
+        if (TMSG_INDEX(pHead->msgType) + 1 > 1 && TMSG_INDEX(pHead->msgType) + 1 < TDMT_MAX) {
+          tDebug("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, TMSG_INFO(pHead->msgType+1), code);
         } else {
-          tError("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType], code);
-        }     
+          tError("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, TMSG_INFO(pHead->msgType), code);
+        }
       } 
     } else { // msg is passed to app only parsing is ok 
       rpcProcessIncomingMsg(pConn, pHead, pContext);
@@ -1262,7 +1262,7 @@ static void rpcSendErrorMsgToPeer(SRecvInfo *pRecv, int32_t code) {
 
   memset(msg, 0, sizeof(SRpcHead));
   pReplyHead->version = pRecvHead->version;
-  pReplyHead->msgType = (char)(pRecvHead->msgType + 1);
+  pReplyHead->msgType = (tmsg_t)(pRecvHead->msgType + 1);
   pReplyHead->spi = 0;
   pReplyHead->encrypt = pRecvHead->encrypt;
   pReplyHead->tranId = pRecvHead->tranId;
@@ -1292,7 +1292,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   SRpcHead  *pHead = rpcHeadFromCont(pContext->pCont);
   char      *msg = (char *)pHead;
   int        msgLen = rpcMsgLenFromCont(pContext->contLen);
-  char       msgType = pContext->msgType;
+  tmsg_t     msgType = pContext->msgType;
 
   pContext->numOfTry++;
   SRpcConn *pConn = rpcSetupConnToServer(pContext);
@@ -1343,12 +1343,12 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
 
   if ( rpcIsReq(pHead->msgType)) {
     tDebug("%s, %s is sent to %s:%hu, len:%d sig:0x%08x:0x%08x:%d",
-           pConn->info, taosMsg[pHead->msgType], pConn->peerFqdn, pConn->peerPort, 
+           pConn->info, TMSG_INFO(pHead->msgType), pConn->peerFqdn, pConn->peerPort, 
            msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   } else {
     if (pHead->code == 0) pConn->secured = 1; // for success response, set link as secured
     tDebug("%s, %s is sent to 0x%x:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d",
-           pConn->info, taosMsg[pHead->msgType], pConn->peerIp, pConn->peerPort, 
+           pConn->info, TMSG_INFO(pHead->msgType), pConn->peerIp, pConn->peerPort, 
            htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
 
@@ -1373,7 +1373,7 @@ static void rpcProcessConnError(void *param, void *id) {
   
   tDebug("%s %p, connection error happens", pRpc->label, pContext->ahandle);
 
-  if (pContext->numOfTry >= pContext->epSet.numOfEps || pContext->msgType == TSDB_MSG_TYPE_FETCH) {
+  if (pContext->numOfTry >= pContext->epSet.numOfEps || pContext->msgType == TDMT_VND_FETCH) {
     rpcMsg.msgType = pContext->msgType+1;
     rpcMsg.ahandle = pContext->ahandle;
     rpcMsg.code = pContext->code;
@@ -1396,17 +1396,17 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
   rpcLockConn(pConn);
 
   if (pConn->outType && pConn->user[0]) {
-    tDebug("%s, expected %s is not received", pConn->info, taosMsg[(int)pConn->outType + 1]);
+    tDebug("%s, expected %s is not received", pConn->info, TMSG_INFO((int)pConn->outType + 1));
     pConn->pTimer = NULL;
     pConn->retry++;
 
     if (pConn->retry < 4) {
-      tDebug("%s, re-send msg:%s to %s:%hu", pConn->info, taosMsg[pConn->outType], pConn->peerFqdn, pConn->peerPort);
+      tDebug("%s, re-send msg:%s to %s:%hu", pConn->info, TMSG_INFO(pConn->outType), pConn->peerFqdn, pConn->peerPort);
       rpcSendMsgToPeer(pConn, pConn->pReqMsg, pConn->reqMsgLen);      
       pConn->pTimer = taosTmrStart(rpcProcessRetryTimer, tsRpcTimer, pConn, pRpc->tmrCtrl);
     } else {
       // close the connection
-      tDebug("%s, failed to send msg:%s to %s:%hu", pConn->info, taosMsg[pConn->outType], pConn->peerFqdn, pConn->peerPort);
+      tDebug("%s, failed to send msg:%s to %s:%hu", pConn->info, TMSG_INFO(pConn->outType), pConn->peerFqdn, pConn->peerPort);
       if (pConn->pContext) {
         pConn->pContext->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
         pConn->pContext->pConn = NULL;

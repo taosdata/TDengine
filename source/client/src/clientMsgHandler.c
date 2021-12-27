@@ -20,7 +20,7 @@
 #include "clientLog.h"
 #include "trpc.h"
 
-int (*handleRequestRspFp[TSDB_MSG_TYPE_MAX])(void*, const SDataBuf* pMsg, int32_t code);
+int (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
 
 int genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
@@ -67,7 +67,7 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 }
 
 static int32_t buildRetrieveMnodeMsg(SRequestObj *pRequest, SMsgSendInfo* pMsgSendInfo) {
-  pMsgSendInfo->msgType         = TSDB_MSG_TYPE_SHOW_RETRIEVE;
+  pMsgSendInfo->msgType         = TDMT_MND_SHOW_RETRIEVE;
   pMsgSendInfo->msgInfo.len     = sizeof(SRetrieveTableMsg);
   pMsgSendInfo->requestObjRefId = pRequest->self;
   pMsgSendInfo->param           = pRequest;
@@ -86,7 +86,7 @@ static int32_t buildRetrieveMnodeMsg(SRequestObj *pRequest, SMsgSendInfo* pMsgSe
 SMsgSendInfo* buildSendMsgInfoImpl(SRequestObj *pRequest) {
   SMsgSendInfo* pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
 
-  if (pRequest->type == TSDB_MSG_TYPE_SHOW_RETRIEVE) {
+  if (pRequest->type == TDMT_MND_SHOW_RETRIEVE) {
     buildRetrieveMnodeMsg(pRequest, pMsgSendInfo);
   } else {
     assert(pRequest != NULL);
@@ -279,11 +279,11 @@ void initMsgHandleFp() {
   tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_DATABASE] = tscProcessShowCreateRsp;
 #endif
 
-  handleRequestRspFp[TSDB_MSG_TYPE_CONNECT]       = processConnectRsp;
-  handleRequestRspFp[TSDB_MSG_TYPE_SHOW]          = processShowRsp;
-  handleRequestRspFp[TSDB_MSG_TYPE_SHOW_RETRIEVE] = processRetrieveMnodeRsp;
-  handleRequestRspFp[TSDB_MSG_TYPE_CREATE_DB]     = processCreateDbRsp;
-  handleRequestRspFp[TSDB_MSG_TYPE_USE_DB]        = processUseDbRsp;
-  handleRequestRspFp[TSDB_MSG_TYPE_CREATE_TABLE]  = processCreateTableRsp;
-  handleRequestRspFp[TSDB_MSG_TYPE_DROP_DB]       = processDropDbRsp;
+  handleRequestRspFp[TDMT_MND_CONNECT]       = processConnectRsp;
+  handleRequestRspFp[TDMT_MND_SHOW]          = processShowRsp;
+  handleRequestRspFp[TDMT_MND_SHOW_RETRIEVE] = processRetrieveMnodeRsp;
+  handleRequestRspFp[TDMT_MND_CREATE_DB]     = processCreateDbRsp;
+  handleRequestRspFp[TDMT_MND_USE_DB]        = processUseDbRsp;
+  handleRequestRspFp[TDMT_MND_CREATE_TABLE]  = processCreateTableRsp;
+  handleRequestRspFp[TDMT_MND_DROP_DB]       = processDropDbRsp;
 }

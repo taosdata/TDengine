@@ -3,7 +3,9 @@ add_library(index ${INDEX_SRC})
 target_include_directories(
     index
     PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/index"
+    PUBLIC "${CMAKE_SOURCE_DIR}/include/os"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    
 )
 target_link_libraries(
     index 

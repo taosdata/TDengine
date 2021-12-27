@@ -22,10 +22,8 @@
 // ----------------- key structure in skiplist ---------------------
 
 /* A data row, the format is like below:
- * content: |<--totalLen-->|<-- fieldid-->|<--field type-->|<-- value len--->|
- *          |<-- value -->|<--uid -->|<--version--->|<-- itermType -->|
- *  len :   |<--int32_t -->|<-- int16_t-->|<--  int8_t --->|<--- int32_t --->|
- *          <--valuelen->|<--uint64_t->| *  <-- int32_t-->|<-- int8_t --->|
+ * content: |<--totalLen-->|<-- value len--->|<-- value -->|<--uid -->|<--version--->|<-- itermType -->|
+ *  len :   |<--int32_t -->|<--- int32_t --->|<--valuelen->|<--uint64_t->|<-- int32_t-->|<-- int8_t --->|
  */
 
 #ifdef __cplusplus
@@ -34,19 +32,40 @@ extern "C" {
 
 typedef struct IndexCache {
   T_REF_DECLARE()
-  SSkipList* skiplist;
+  SSkipList *mem, *imm;
+  SIndex*    index;
+  char*      colName;
+  int32_t    version;
+  int32_t    nTerm;
+  int8_t     type;
+
 } IndexCache;
 
+typedef struct CacheTerm {
+  // key
+  int32_t nColVal;
+  char*   colVal;
+  int32_t version;
+  // value
+  uint64_t           uid;
+  int8_t             colType;
+  SIndexOperOnColumn operaType;
+} CacheTerm;
 //
-IndexCache* indexCacheCreate();
+
+IndexCache* indexCacheCreate(SIndex* idx, const char* colName, int8_t type);
 
 void indexCacheDestroy(void* cache);
 
-int indexCachePut(void* cache, SIndexTerm* term, int16_t colId, int32_t version, uint64_t uid);
+int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid);
 
 // int indexCacheGet(void *cache, uint64_t *rst);
-int indexCacheSearch(void* cache, SIndexTermQuery* query, int16_t colId, int32_t version, SArray* result, STermValueType* s);
+int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermValueType* s);
 
+void indexCacheRef(IndexCache* cache);
+void indexCacheUnRef(IndexCache* cache);
+
+void indexCacheDebug(IndexCache* cache);
 #ifdef __cplusplus
 }
 #endif

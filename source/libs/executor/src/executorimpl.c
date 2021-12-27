@@ -14,7 +14,7 @@
  */
 #include <function.h>
 #include "os.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tglobal.h"
 #include "ttime.h"
 

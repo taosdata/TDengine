@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "taosmsg.h"
+#include "tmsg.h"
 
 #define QUERY_TYPE_MERGE       1
 #define QUERY_TYPE_PARTIAL     2
@@ -139,7 +139,7 @@ struct SQueryNode;
 /**
  * Create the physical plan for the query, according to the AST.
  */
-int32_t qCreateQueryDag(const struct SQueryNode* pQueryInfo, struct SEpSet* pQnode, struct SQueryDag** pDag);
+int32_t qCreateQueryDag(const struct SQueryNode* pQueryInfo, struct SQueryDag** pDag);
 
 // Set datasource of this subplan, multiple calls may be made to a subplan.
 // @subplan subplan to be schedule

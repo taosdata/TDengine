@@ -68,10 +68,10 @@ int32_t mndInitProfile(SMnode *pMnode) {
     return -1;
   }
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_HEARTBEAT, mndProcessHeartBeatMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CONNECT, mndProcessConnectMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_KILL_QUERY, mndProcessKillQueryMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_KILL_CONN, mndProcessKillConnectionMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_HEARTBEAT, mndProcessHeartBeatMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CONNECT, mndProcessConnectMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_KILL_QUERY, mndProcessKillQueryMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_KILL_CONN, mndProcessKillConnectionMsg);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndGetConnsMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndRetrieveConns);

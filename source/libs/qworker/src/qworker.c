@@ -1,4 +1,4 @@
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "query.h"
 #include "qworker.h"
 #include "qworkerInt.h"
@@ -943,6 +943,11 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
     qError("invalid query msg");
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
+
+  msg->schedulerId = htobe64(msg->schedulerId);
+  msg->queryId = htobe64(msg->queryId);
+  msg->taskId = htobe64(msg->taskId);
+  msg->contentLen = ntohl(msg->contentLen);
   
   bool queryDone = false;
   bool queryRsp = false;

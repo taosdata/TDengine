@@ -105,9 +105,13 @@ void         tfileCacheDestroy(TFileCache* tcache);
 TFileReader* tfileCacheGet(TFileCache* tcache, TFileCacheKey* key);
 void         tfileCachePut(TFileCache* tcache, TFileCacheKey* key, TFileReader* reader);
 
+TFileReader* tfileGetReaderByCol(IndexTFile* tf, char* colName);
+
 TFileReader* tfileReaderCreate(WriterCtx* ctx);
 void         tfileReaderDestroy(TFileReader* reader);
 int          tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* result);
+void         tfileReaderRef(TFileReader* reader);
+void         tfileReaderUnRef(TFileReader* reader);
 
 TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header);
 void         tfileWriterDestroy(TFileWriter* tw);

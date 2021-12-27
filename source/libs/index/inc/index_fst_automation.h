@@ -23,7 +23,7 @@ extern "C" {
 
 typedef struct AutomationCtx AutomationCtx;
 
-typedef enum AutomationType { AUTOMATION_PREFIX, AUTMMATION_MATCH } AutomationType;
+typedef enum AutomationType { AUTOMATION_ALWAYS, AUTOMATION_PREFIX, AUTMMATION_MATCH } AutomationType;
 
 typedef struct StartWith {
   AutomationCtx* autoSelf;

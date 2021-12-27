@@ -17,7 +17,7 @@
 #include "os.h"
 
 #include "qExecutor.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tcompare.h"
 #include "ttype.h"
 

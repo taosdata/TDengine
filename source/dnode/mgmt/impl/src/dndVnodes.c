@@ -773,22 +773,22 @@ static void dndProcessVnodeMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
   int32_t code = 0;
 
   switch (pMsg->msgType) {
-    case TSDB_MSG_TYPE_CREATE_VNODE_IN:
+    case TDMT_DND_CREATE_VNODE:
       code = dndProcessCreateVnodeReq(pDnode, pMsg);
       break;
-    case TSDB_MSG_TYPE_ALTER_VNODE_IN:
+    case TDMT_DND_ALTER_VNODE:
       code = dndProcessAlterVnodeReq(pDnode, pMsg);
       break;
-    case TSDB_MSG_TYPE_DROP_VNODE_IN:
+    case TDMT_DND_DROP_VNODE:
       code = dndProcessDropVnodeReq(pDnode, pMsg);
       break;
-    case TSDB_MSG_TYPE_AUTH_VNODE_IN:
+    case TDMT_DND_AUTH_VNODE:
       code = dndProcessAuthVnodeReq(pDnode, pMsg);
       break;
-    case TSDB_MSG_TYPE_SYNC_VNODE_IN:
+    case TDMT_DND_SYNC_VNODE:
       code = dndProcessSyncVnodeReq(pDnode, pMsg);
       break;
-    case TSDB_MSG_TYPE_COMPACT_VNODE_IN:
+    case TDMT_DND_COMPACT_VNODE:
       code = dndProcessCompactVnodeReq(pDnode, pMsg);
       break;
     default:
@@ -829,6 +829,7 @@ static void dndProcessVnodeWriteQueue(SVnodeObj *pVnode, taos_qall qall, int32_t
     SRpcMsg *pMsg = *(SRpcMsg **)taosArrayGet(pArray, i);
     int32_t  code = vnodeApplyWMsg(pVnode->pImpl, pMsg, &pRsp);
     if (pRsp != NULL) {
+      pRsp->ahandle = pMsg->ahandle;
       rpcSendResponse(pRsp);
       free(pRsp);
     } else {

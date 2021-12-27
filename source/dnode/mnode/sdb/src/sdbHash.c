@@ -199,6 +199,7 @@ void *sdbAcquire(SSdb *pSdb, ESdbType type, void *pKey) {
   SSdbRow *pRow = *ppRow;
   switch (pRow->status) {
     case SDB_STATUS_READY:
+    case SDB_STATUS_UPDATING:
       atomic_add_fetch_32(&pRow->refCount, 1);
       pRet = pRow->pObj;
       break;

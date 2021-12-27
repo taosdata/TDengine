@@ -44,7 +44,9 @@ typedef struct SParseContext {
  */
 int32_t qParseQuerySql(SParseContext* pContext, SQueryNode** pQuery);
 
-bool qIsDclQuery(const SQueryNode* pQuery);
+bool qIsDdlQuery(const SQueryNode* pQuery);
+
+void qDestoryQuery(SQueryNode* pQuery);
 
 /**
  * Convert a normal sql statement to only query tags information to enable that the subscribe client can be aware quickly of the true vgroup ids that

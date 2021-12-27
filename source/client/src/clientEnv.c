@@ -18,7 +18,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "query.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tcache.h"
 #include "tconfig.h"
 #include "tglobal.h"

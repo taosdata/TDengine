@@ -2,7 +2,7 @@
 #define TDENGINE_ASTTOMSG_H
 
 #include "parserInt.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 
 SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen);
 SCreateAcctMsg* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen);

@@ -14,7 +14,7 @@
  */
 
 #include "os.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tarray.h"
 #include "query.h"
 #include "tglobal.h"
