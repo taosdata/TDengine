@@ -2852,7 +2852,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         char val[8] = {0};
 
         int64_t tickPerSec = 0;
-        if (pParamElem[1].pNode->exprToken.type == TK_NOW) {
+        if (pParamElem[1].pNode->exprToken.type == TK_NOW || strstr(pParamElem[1].pNode->exprToken.z, "now")) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
         }
 
