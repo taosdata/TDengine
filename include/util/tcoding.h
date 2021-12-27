@@ -248,6 +248,8 @@ extern "C" {
     }                                                     \
     if (SIGN) {                                           \
       (VAL) = ZIGZAGD(int64_t, tmp);                      \
+    } else {                                              \
+      (VAL) = tmp;                                        \
     }                                                     \
     i;                                                    \
   })
