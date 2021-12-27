@@ -355,7 +355,6 @@ static int indexMergeFinalResults(SArray* interResults, EIndexOperatorType oType
 }
 static int indexFlushCacheTFile(SIndex* sIdx) {
   if (sIdx == NULL) { return -1; }
-
   indexWarn("suid %" PRIu64 " merge cache into tindex", sIdx->suid);
 
   return 0;

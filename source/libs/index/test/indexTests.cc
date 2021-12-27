@@ -481,6 +481,10 @@ class CacheObj {
     }
     return ret;
   }
+  void Debug() {
+    //
+    indexCacheDebug(cache);
+  }
   int Get(SIndexTermQuery* query, int16_t colId, int32_t version, SArray* result, STermValueType* s) {
     int ret = indexCacheSearch(cache, query, colId, version, result, s);
     if (ret != 0) {
@@ -515,6 +519,7 @@ class IndexCacheEnv : public ::testing::Test {
 TEST_F(IndexCacheEnv, cache_test) {
   int     version = 0;
   int16_t colId = 0;
+  int16_t othColId = 10;
 
   uint64_t    suid = 0;
   std::string colName("voltage");
@@ -545,6 +550,16 @@ TEST_F(IndexCacheEnv, cache_test) {
   }
 
   {
+    std::string colVal("v3");
+    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
+    coj->Put(term, othColId, version++, suid++);
+  }
+  {
+    std::string colVal("v4");
+    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
+    coj->Put(term, othColId, version++, suid++);
+  }
+  {
     std::string colVal("v4");
     for (size_t i = 0; i < 100; i++) {
       colVal[colVal.size() - 1] = 'a' + i;
@@ -553,6 +568,8 @@ TEST_F(IndexCacheEnv, cache_test) {
       coj->Put(term, colId, version++, suid++);
     }
   }
+  coj->Debug();
+  // begin query
   {
     std::string colVal("v3");
     SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
