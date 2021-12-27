@@ -125,7 +125,7 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
 
   // remove attached object such as trans
   SdbDeleteFp deleteFp = pSdb->deleteFps[pRow->type];
-  if (deleteFp != NULL) (*deleteFp)(pSdb, pRow);
+  if (deleteFp != NULL) (*deleteFp)(pSdb, pRow->pObj);
 
   SSdbRow **ppOldRow = taosHashGet(hash, pRow->pObj, keySize);
   if (ppOldRow == NULL || *ppOldRow == NULL) {
