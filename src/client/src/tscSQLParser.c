@@ -4910,14 +4910,14 @@ static int32_t validateNullExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
     if (IS_VAR_DATA_TYPE(pSchema[index].type) || pSchema[index].type == TSDB_DATA_TYPE_JSON) {
       return TSDB_CODE_SUCCESS;
     }
-    
+
     char *v = strndup(pRight->exprToken.z, pRight->exprToken.n);
     int32_t len = strRmquote(v, pRight->exprToken.n);
     if (len > 0) {
       uint32_t type = 0;
       tGetToken(v, &type);
 
-      if (type == TK_NULL) {        
+      if (type == TK_NULL) {
         free(v);
         return invalidOperationMsg(msgBuf, msg);
       }
