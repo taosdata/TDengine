@@ -418,6 +418,10 @@ else
     BUILD_HTTP=false
 fi
 
+if [[ "$verMode" == "cluster" ]]; then
+    BUILD_HTTP=internal
+fi
+
 if [[ "$pagMode" == "full" ]]; then
     BUILD_TOOLS=true
 else
