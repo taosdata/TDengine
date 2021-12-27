@@ -92,8 +92,8 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
     return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
   }
   
-  pRsp->vgVersion = htonl(pRsp->vgVersion);
-  pRsp->vgNum = htonl(pRsp->vgNum);
+  pRsp->vgVersion = ntohl(pRsp->vgVersion);
+  pRsp->vgNum = ntohl(pRsp->vgNum);
 
   if (pRsp->vgNum < 0) {
     qError("invalid db[%s] vgroup number[%d]", pRsp->db, pRsp->vgNum);
@@ -115,12 +115,12 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
   }
 
   for (int32_t i = 0; i < pRsp->vgNum; ++i) {
-    pRsp->vgroupInfo[i].vgId = htonl(pRsp->vgroupInfo[i].vgId);
-    pRsp->vgroupInfo[i].hashBegin = htonl(pRsp->vgroupInfo[i].hashBegin);
-    pRsp->vgroupInfo[i].hashEnd = htonl(pRsp->vgroupInfo[i].hashEnd);
+    pRsp->vgroupInfo[i].vgId = ntohl(pRsp->vgroupInfo[i].vgId);
+    pRsp->vgroupInfo[i].hashBegin = ntohl(pRsp->vgroupInfo[i].hashBegin);
+    pRsp->vgroupInfo[i].hashEnd = ntohl(pRsp->vgroupInfo[i].hashEnd);
 
     for (int32_t n = 0; n < pRsp->vgroupInfo[i].numOfEps; ++n) {
-      pRsp->vgroupInfo[i].epAddr[n].port = htons(pRsp->vgroupInfo[i].epAddr[n].port);
+      pRsp->vgroupInfo[i].epAddr[n].port = ntohs(pRsp->vgroupInfo[i].epAddr[n].port);
     }
 
     if (0 != taosHashPut(pOut->dbVgroup.vgInfo, &pRsp->vgroupInfo[i].vgId, sizeof(pRsp->vgroupInfo[i].vgId), &pRsp->vgroupInfo[i], sizeof(pRsp->vgroupInfo[i]))) {
@@ -142,13 +142,13 @@ _return:
 }
 
 static int32_t queryConvertTableMetaMsg(STableMetaMsg* pMetaMsg) {
-  pMetaMsg->numOfTags = htonl(pMetaMsg->numOfTags);
-  pMetaMsg->numOfColumns = htonl(pMetaMsg->numOfColumns);
-  pMetaMsg->sversion = htonl(pMetaMsg->sversion);
-  pMetaMsg->tversion = htonl(pMetaMsg->tversion);
+  pMetaMsg->numOfTags = ntohl(pMetaMsg->numOfTags);
+  pMetaMsg->numOfColumns = ntohl(pMetaMsg->numOfColumns);
+  pMetaMsg->sversion = ntohl(pMetaMsg->sversion);
+  pMetaMsg->tversion = ntohl(pMetaMsg->tversion);
   pMetaMsg->tuid = htobe64(pMetaMsg->tuid);
   pMetaMsg->suid = htobe64(pMetaMsg->suid);
-  pMetaMsg->vgId = htonl(pMetaMsg->vgId);
+  pMetaMsg->vgId = ntohl(pMetaMsg->vgId);
 
   if (pMetaMsg->numOfTags < 0 || pMetaMsg->numOfTags > TSDB_MAX_TAGS) {
     qError("invalid numOfTags[%d] in table meta rsp msg", pMetaMsg->numOfTags);
@@ -179,8 +179,8 @@ static int32_t queryConvertTableMetaMsg(STableMetaMsg* pMetaMsg) {
 
   int32_t numOfTotalCols = pMetaMsg->numOfColumns + pMetaMsg->numOfTags;
   for (int i = 0; i < numOfTotalCols; ++i) {
-    pSchema->bytes = htonl(pSchema->bytes);
-    pSchema->colId = htonl(pSchema->colId);
+    pSchema->bytes = ntohl(pSchema->bytes);
+    pSchema->colId = ntohl(pSchema->colId);
 
     pSchema++;
   }
@@ -202,7 +202,8 @@ int32_t queryCreateTableMetaFromMsg(STableMetaMsg* msg, bool isSuperTable, STabl
     qError("calloc size[%d] failed", metaSize);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  
+
+  pTableMeta->vgId = isSuperTable ? 0 : msg->vgId;
   pTableMeta->tableType = isSuperTable ? TSDB_SUPER_TABLE : msg->tableType;
   pTableMeta->uid = msg->suid;
   pTableMeta->suid = msg->suid;
@@ -213,11 +214,11 @@ int32_t queryCreateTableMetaFromMsg(STableMetaMsg* msg, bool isSuperTable, STabl
   pTableMeta->tableInfo.precision = msg->precision;
   pTableMeta->tableInfo.numOfColumns = msg->numOfColumns;
 
+  memcpy(pTableMeta->schema, msg->pSchema, sizeof(SSchema) * total);
+
   for(int32_t i = 0; i < msg->numOfColumns; ++i) {
     pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
   }
-
-  memcpy(pTableMeta->schema, msg->pSchema, sizeof(SSchema) * total);
 
   *pMeta = pTableMeta;
   

@@ -70,11 +70,12 @@ typedef struct {
 
 typedef struct SMnode {
   int32_t           dnodeId;
-  int32_t           clusterId;
+  int64_t           clusterId;
   int8_t            replica;
   int8_t            selfIndex;
   SReplica          replicas[TSDB_MAX_REPLICA];
   tmr_h             timer;
+  tmr_h             transTimer;
   char             *path;
   SMnodeCfg         cfg;
   int64_t           checkTime;

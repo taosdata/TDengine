@@ -524,7 +524,7 @@ static int32_t mndProcessAlterTopicMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mndProcessAlterTopicInRsp(SMnodeMsg *pMsg) {
-  mndTransHandleActionRsp(pMsg);
+  mndTransProcessRsp(pMsg);
   return 0;
 }
 
@@ -636,7 +636,7 @@ static int32_t mndProcessDropTopicMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mndProcessDropTopicInRsp(SMnodeMsg *pMsg) {
-  mndTransHandleActionRsp(pMsg);
+  mndTransProcessRsp(pMsg);
   return 0;
 }
 
@@ -706,7 +706,7 @@ static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mndProcessCreateTopicInRsp(SMnodeMsg *pMsg) {
-  mndTransHandleActionRsp(pMsg);
+  mndTransProcessRsp(pMsg);
   return 0;
 }
 

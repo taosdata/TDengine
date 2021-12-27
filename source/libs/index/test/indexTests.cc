@@ -471,10 +471,10 @@ class CacheObj {
  public:
   CacheObj() {
     // TODO
-    cache = indexCacheCreate();
+    cache = indexCacheCreate(NULL, "voltage", TSDB_DATA_TYPE_BINARY);
   }
   int Put(SIndexTerm* term, int16_t colId, int32_t version, uint64_t uid) {
-    int ret = indexCachePut(cache, term, colId, version, uid);
+    int ret = indexCachePut(cache, term, uid);
     if (ret != 0) {
       //
       std::cout << "failed to put into cache: " << ret << std::endl;
@@ -486,7 +486,7 @@ class CacheObj {
     indexCacheDebug(cache);
   }
   int Get(SIndexTermQuery* query, int16_t colId, int32_t version, SArray* result, STermValueType* s) {
-    int ret = indexCacheSearch(cache, query, colId, version, result, s);
+    int ret = indexCacheSearch(cache, query, result, s);
     if (ret != 0) {
       //
       std::cout << "failed to get from cache:" << ret << std::endl;
@@ -561,7 +561,7 @@ TEST_F(IndexCacheEnv, cache_test) {
   }
   {
     std::string colVal("v4");
-    for (size_t i = 0; i < 100; i++) {
+    for (size_t i = 0; i < 10; i++) {
       colVal[colVal.size() - 1] = 'a' + i;
       SIndexTerm* term =
           indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
@@ -578,7 +578,8 @@ TEST_F(IndexCacheEnv, cache_test) {
     STermValueType  valType;
 
     coj->Get(&query, colId, 10000, ret, &valType);
-    assert(taosArrayGetSize(ret) == 3);
+    // std::cout << "size : " << taosArrayGetSize(ret) << std::endl;
+    assert(taosArrayGetSize(ret) == 4);
   }
   {
     std::string colVal("v2");

@@ -133,7 +133,7 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     STableInfoMsg* pReq = (STableInfoMsg*)rpcMallocCont(contLen);
     strcpy(pReq->tableFname, "1.d1.stb");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_VND_TABLE_META, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_STB_META, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 

@@ -605,7 +605,7 @@ static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerFqdn, uint16_t peerPort, 
       void *shandle = (connType & RPC_CONN_TCP)? pRpc->tcphandle:pRpc->udphandle;
       pConn->chandle = (*taosOpenConn[connType])(shandle, pConn, pConn->peerIp, pConn->peerPort);
       if (pConn->chandle == NULL) {
-        tError("failed to connect to:0x%x:%d", pConn->peerIp, pConn->peerPort);
+        tError("failed to connect to:%s:%d", taosIpStr(pConn->peerIp), pConn->peerPort);
 
         terrno = TSDB_CODE_RPC_NETWORK_UNAVAIL;
         rpcCloseConn(pConn);

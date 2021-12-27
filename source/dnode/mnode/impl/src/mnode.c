@@ -50,6 +50,20 @@ void mndSendRedirectMsg(SMnode *pMnode, SRpcMsg *pMsg) {
   }
 }
 
+static void mndTransReExecute(void *param, void *tmrId) {
+  SMnode *pMnode = param;
+  if (mndIsMaster(pMnode)) {
+    STransMsg *pMsg = rpcMallocCont(sizeof(STransMsg));
+    SEpSet     epSet = {.inUse = 0, .numOfEps = 1};
+    epSet.port[0] = pMnode->replicas[pMnode->selfIndex].port;
+    memcpy(epSet.fqdn[0], pMnode->replicas[pMnode->selfIndex].fqdn, TSDB_FQDN_LEN);
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS, .pCont = pMsg, .contLen = sizeof(STransMsg)};
+    mndSendMsgToDnode(pMnode, &epSet, &rpcMsg);
+  }
+
+  taosTmrReset(mndTransReExecute, 3000, pMnode, pMnode->timer, &pMnode->transTimer);
+}
+
 static int32_t mndInitTimer(SMnode *pMnode) {
   if (pMnode->timer == NULL) {
     pMnode->timer = taosTmrInit(5000, 200, 3600000, "MND");
@@ -60,11 +74,18 @@ static int32_t mndInitTimer(SMnode *pMnode) {
     return -1;
   }
 
+  if (taosTmrReset(mndTransReExecute, 1000, pMnode, pMnode->timer, &pMnode->transTimer)) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
   return 0;
 }
 
 static void mndCleanupTimer(SMnode *pMnode) {
   if (pMnode->timer != NULL) {
+    taosTmrStop(pMnode->transTimer);
+    pMnode->transTimer = NULL;
     taosTmrCleanUp(pMnode->timer);
     pMnode->timer = NULL;
   }

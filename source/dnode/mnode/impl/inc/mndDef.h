@@ -62,10 +62,14 @@ typedef enum {
 
 typedef enum {
   TRN_STAGE_PREPARE = 0,
-  TRN_STAGE_EXECUTE = 1,
-  TRN_STAGE_ROLLBACK = 2,
-  TRN_STAGE_COMMIT = 3,
-  TRN_STAGE_OVER = 4,
+  TRN_STAGE_REDO_LOG = 1,
+  TRN_STAGE_REDO_ACTION = 2,
+  TRN_STAGE_UNDO_LOG = 3,
+  TRN_STAGE_UNDO_ACTION = 4,
+  TRN_STAGE_COMMIT_LOG = 5,
+  TRN_STAGE_COMMIT = 6,
+  TRN_STAGE_ROLLBACK = 7,
+  TRN_STAGE_FINISHED = 8
 } ETrnStage;
 
 typedef enum { TRN_POLICY_ROLLBACK = 0, TRN_POLICY_RETRY = 1 } ETrnPolicy;
@@ -95,7 +99,8 @@ typedef struct {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
-  int32_t    retryTimes;
+  int32_t    code;
+  int32_t    failedTimes;
   void      *rpcHandle;
   void      *rpcAHandle;
   SArray    *redoLogs;
@@ -106,7 +111,7 @@ typedef struct {
 } STrans;
 
 typedef struct {
-  int32_t id;
+  int64_t id;
   char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
   int64_t updateTime;
@@ -312,12 +317,6 @@ typedef struct SMnodeMsg {
   int32_t contLen;
   void   *pCont;
 } SMnodeMsg;
-
-typedef struct {
-  int32_t id;
-  int32_t code;
-  void   *rpcHandle;
-} STransMsg;
 
 #ifdef __cplusplus
 }

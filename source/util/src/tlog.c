@@ -19,7 +19,7 @@
 #include "tnote.h"
 #include "tutil.h"
 #include "ulog.h"
-#include "zlib.h"
+//#include "zlib.h"
 
 #define MAX_LOGLINE_SIZE (1000)
 #define MAX_LOGLINE_BUFFER_SIZE (MAX_LOGLINE_SIZE + 10)
@@ -724,7 +724,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   int32_t len = 0;
   char   *data = malloc(compressSize);
   FILE   *srcFp = NULL;
-  gzFile  dstFp = NULL;
+//  gzFile  dstFp = NULL;
 
   srcFp = fopen(srcFileName, "r");
   if (srcFp == NULL) {
@@ -738,25 +738,25 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
     goto cmp_end;
   }
 
-  dstFp = gzdopen(fd, "wb6f");
-  if (dstFp == NULL) {
-    ret = -3;
-    close(fd);
-    goto cmp_end;
-  }
-
-  while (!feof(srcFp)) {
-    len = (int32_t)fread(data, 1, compressSize, srcFp);
-    (void)gzwrite(dstFp, data, len);
-  }
+//  dstFp = gzdopen(fd, "wb6f");
+//  if (dstFp == NULL) {
+//    ret = -3;
+//    close(fd);
+//    goto cmp_end;
+//  }
+//
+//  while (!feof(srcFp)) {
+//    len = (int32_t)fread(data, 1, compressSize, srcFp);
+//    (void)gzwrite(dstFp, data, len);
+//  }
 
 cmp_end:
   if (srcFp) {
     fclose(srcFp);
   }
-  if (dstFp) {
-    gzclose(dstFp);
-  }
+//  if (dstFp) {
+//    gzclose(dstFp);
+//  }
   free(data);
 
   return ret;

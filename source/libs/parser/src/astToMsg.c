@@ -1,5 +1,5 @@
-#include <astGenerator.h>
 #include "parserInt.h"
+#include "astGenerator.h"
 #include "parserUtil.h"
 
 SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
@@ -86,7 +86,7 @@ SDropUserMsg* buildDropUserMsg(SSqlInfo* pInfo, int32_t *msgLen, int64_t id, cha
   return pMsg;
 }
 
-SShowMsg* buildShowMsg(SShowInfo* pShowInfo, int64_t id, char* msgBuf, int32_t msgLen) {
+SShowMsg* buildShowMsg(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, char* msgBuf, int32_t msgLen) {
   SShowMsg* pShowMsg = calloc(1, sizeof(SShowMsg));
 
   pShowMsg->type = pShowInfo->showType;
@@ -103,6 +103,12 @@ SShowMsg* buildShowMsg(SShowInfo* pShowInfo, int64_t id, char* msgBuf, int32_t m
 
     strncpy(pShowMsg->payload, pEpAddr->z, pEpAddr->n);
     pShowMsg->payloadLen = htons(pEpAddr->n);
+  }
+
+  if (pShowInfo->showType == TSDB_MGMT_TABLE_STB || pShowInfo->showType == TSDB_MGMT_TABLE_VGROUP) {
+    SName n = {0};
+    tNameSetDbName(&n, pCtx->acctId, pCtx->db, strlen(pCtx->db));
+    tNameGetFullDbName(&n, pShowMsg->db);
   }
 
   return pShowMsg;

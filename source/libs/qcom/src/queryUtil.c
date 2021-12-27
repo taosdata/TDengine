@@ -14,7 +14,7 @@ static struct SSchema _s = {
     .name = "tbname",
 };
 
-SSchema* tGetTbnameColumnSchema() {
+const SSchema* tGetTbnameColumnSchema() {
   return &_s;
 }
 
@@ -103,7 +103,7 @@ int32_t cleanupTaskQueue() {
 static void execHelper(struct SSchedMsg* pSchedMsg) {
   assert(pSchedMsg != NULL && pSchedMsg->ahandle != NULL);
 
-  __async_exec_fn_t* execFn = (__async_exec_fn_t*) pSchedMsg->ahandle;
+  __async_exec_fn_t execFn = (__async_exec_fn_t) pSchedMsg->ahandle;
   int32_t code = execFn(pSchedMsg->thandle);
   if (code != 0 && pSchedMsg->msg != NULL) {
     *(int32_t*) pSchedMsg->msg = code;
