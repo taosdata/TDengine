@@ -25,6 +25,162 @@ extern "C" {
 #define ZIGZAGE(T, v) ((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1)  // zigzag encode
 #define ZIGZAGD(T, v) ((v) >> 1) ^ -((T)((v)&1))                                 // zigzag decode
 
+/* ------------------------ FIXED-LENGTH ENCODING ------------------------ */
+#define tPut(T, b, v) \
+  ({                  \
+    *(T *)(b) = (v);  \
+    sizeof(T);        \
+  })
+
+#define tGet(T, b, v)  \
+  ({                   \
+    (v) = (*(T *)(b)); \
+    sizeof(T);         \
+  })
+
+// 16
+#define tPut16b(b, v)                        \
+  ({                                         \
+    ((uint8_t *)(b))[1] = (v)&0xff;          \
+    ((uint8_t *)(b))[0] = ((v) >> 8) & 0xff; \
+    2;                                       \
+  })
+
+#define tGet16b(b, v)           \
+  ({                            \
+    (v) = ((uint8_t *)(b))[0];  \
+    (v) = (v) << 8;             \
+    (v) |= ((uint8_t *)(b))[1]; \
+    2;                          \
+  })
+
+#define tPut16l(b, v)                        \
+  ({                                         \
+    ((uint8_t *)(b))[0] = (v)&0xff;          \
+    ((uint8_t *)(b))[1] = ((v) >> 8) & 0xff; \
+    2;                                       \
+  })
+
+#define tGet16l(b, v)           \
+  ({                            \
+    (v) = ((uint8_t *)(b))[1];  \
+    (v) <<= 8;                  \
+    (v) |= ((uint8_t *)(b))[0]; \
+    2;                          \
+  })
+
+// 32
+#define tPut32b(b, v)                         \
+  ({                                          \
+    ((uint8_t *)(b))[3] = (v)&0xff;           \
+    ((uint8_t *)(b))[2] = ((v) >> 8) & 0xff;  \
+    ((uint8_t *)(b))[1] = ((v) >> 16) & 0xff; \
+    ((uint8_t *)(b))[0] = ((v) >> 24) & 0xff; \
+    4;                                        \
+  })
+
+#define tGet32b(b, v)          \
+  ({                           \
+    (v) = ((uint8_t *)(b))[0]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[1]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[2]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[3]; \
+    4;                         \
+  })
+
+#define tPut32l(b, v)                         \
+  ({                                          \
+    ((uint8_t *)(b))[0] = (v)&0xff;           \
+    ((uint8_t *)(b))[1] = ((v) >> 8) & 0xff;  \
+    ((uint8_t *)(b))[2] = ((v) >> 16) & 0xff; \
+    ((uint8_t *)(b))[3] = ((v) >> 24) & 0xff; \
+    4;                                        \
+  })
+
+#define tGet32l(b, v)          \
+  ({                           \
+    (v) = ((uint8_t *)(b))[3]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[2]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[1]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[0]; \
+    4;                         \
+  })
+
+// 64
+#define tPut64b(b, v)                         \
+  ({                                          \
+    ((uint8_t *)(b))[7] = (v)&0xff;           \
+    ((uint8_t *)(b))[6] = ((v) >> 8) & 0xff;  \
+    ((uint8_t *)(b))[5] = ((v) >> 16) & 0xff; \
+    ((uint8_t *)(b))[4] = ((v) >> 24) & 0xff; \
+    ((uint8_t *)(b))[3] = ((v) >> 32) & 0xff; \
+    ((uint8_t *)(b))[2] = ((v) >> 40) & 0xff; \
+    ((uint8_t *)(b))[1] = ((v) >> 48) & 0xff; \
+    ((uint8_t *)(b))[0] = ((v) >> 56) & 0xff; \
+    8;                                        \
+  })
+
+#define tGet64b(b, v)          \
+  ({                           \
+    (v) = ((uint8_t *)(b))[0]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[1]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[2]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[3]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[4]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[5]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[6]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[7]; \
+    8;                         \
+  })
+
+#define tPut64l(b, v)                         \
+  ({                                          \
+    ((uint8_t *)(b))[0] = (v)&0xff;           \
+    ((uint8_t *)(b))[1] = ((v) >> 8) & 0xff;  \
+    ((uint8_t *)(b))[2] = ((v) >> 16) & 0xff; \
+    ((uint8_t *)(b))[3] = ((v) >> 24) & 0xff; \
+    ((uint8_t *)(b))[4] = ((v) >> 32) & 0xff; \
+    ((uint8_t *)(b))[5] = ((v) >> 40) & 0xff; \
+    ((uint8_t *)(b))[6] = ((v) >> 48) & 0xff; \
+    ((uint8_t *)(b))[7] = ((v) >> 56) & 0xff; \
+    8;                                        \
+  })
+
+#define tGet64l(b, v)          \
+  ({                           \
+    (v) = ((uint8_t *)(b))[7]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[6]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[5]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[4]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[3]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[2]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[1]; \
+    (v) <<= 8;                 \
+    (v) = ((uint8_t *)(b))[0]; \
+    8;                         \
+  })
+
+/* ------------------------ LEGACY CODES ------------------------ */
+#if 1
 // ---- Fixed U8
 static FORCE_INLINE int taosEncodeFixedU8(void **buf, uint8_t value) {
   if (buf != NULL) {
@@ -367,6 +523,8 @@ static FORCE_INLINE void *taosDecodeStringTo(void *buf, char *value) {
 
   return POINTER_SHIFT(buf, size);
 }
+
+#endif
 
 #ifdef __cplusplus
 }

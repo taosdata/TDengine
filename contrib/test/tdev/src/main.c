@@ -14,6 +14,10 @@
 
 #define tPutB(buf, val)                         \
   ({                                            \
+    ((uint8_t *)buf)[7] = ((val) >> 56) & 0xff; \
+    ((uint8_t *)buf)[6] = ((val) >> 48) & 0xff; \
+    ((uint8_t *)buf)[5] = ((val) >> 40) & 0xff; \
+    ((uint8_t *)buf)[4] = ((val) >> 32) & 0xff; \
     ((uint8_t *)buf)[3] = ((val) >> 24) & 0xff; \
     ((uint8_t *)buf)[2] = ((val) >> 16) & 0xff; \
     ((uint8_t *)buf)[1] = ((val) >> 8) & 0xff;  \
@@ -27,7 +31,17 @@
     POINTER_SHIFT(buf, sizeof(val)); \
   })
 
-typedef enum { A, B, C } T;
+#define tPutD(buf, val)                        \
+  ({                                           \
+    uint64_t tmp = val;                        \
+    for (size_t i = 0; i < sizeof(val); i++) { \
+      ((uint8_t *)buf)[i] = tmp & 0xff;        \
+      tmp >>= 8;                               \
+    }                                          \
+    POINTER_SHIFT(buf, sizeof(val));           \
+  })
+
+typedef enum { A, B, C, D } T;
 
 static void func(T t) {
   uint64_t val = 198;
@@ -59,6 +73,14 @@ static void func(T t) {
         }
       }
       break;
+    case D:
+      for (size_t i = 0; i < 10 * 1024l * 1024l * 1024l; i++) {
+        pBuf = tPutD(pBuf, val);
+        if (POINTER_DISTANCE(buf, pBuf) == 1024) {
+          pBuf = buf;
+        }
+      }
+      break;
 
     default:
       break;
@@ -83,5 +105,8 @@ int main(int argc, char const *argv[]) {
   func(C);
   uint64_t t4 = now();
   printf("C: %ld\n", t4 - t3);
+  func(D);
+  uint64_t t5 = now();
+  printf("D: %ld\n", t5 - t4);
   return 0;
 }

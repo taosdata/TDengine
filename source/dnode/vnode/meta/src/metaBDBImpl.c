@@ -403,10 +403,10 @@ static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg) {
   buf = taosDecodeFixedU8(buf, &(pTbCfg->type));
 
   if (pTbCfg->type == META_SUPER_TABLE) {
-    buf = taosDecodeVariantU32(buf, pTbCfg->stbCfg.nTagCols);
+    buf = taosDecodeVariantU32(buf, &(pTbCfg->stbCfg.nTagCols));
     pTbCfg->stbCfg.pTagSchema = (SSchema *)malloc(sizeof(SSchema) * pTbCfg->stbCfg.nTagCols);
     for (uint32_t i = 0; i < pTbCfg->stbCfg.nTagCols; i++) {
-      buf = taosDecodeFixedI8(buf, &pTbCfg->stbCfg.pSchema[i].type);
+      buf = taosDecodeFixedI8(buf, &(pTbCfg->stbCfg.pSchema[i].type));
       buf = taosDecodeFixedI32(buf, &pTbCfg->stbCfg.pSchema[i].colId);
       buf = taosDecodeFixedI32(buf, &pTbCfg->stbCfg.pSchema[i].bytes);
       buf = taosDecodeStringTo(buf, pTbCfg->stbCfg.pSchema[i].name);
