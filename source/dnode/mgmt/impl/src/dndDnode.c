@@ -661,6 +661,24 @@ static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
     case TDMT_MND_GRANT_RSP:
       dndProcessGrantRsp(pDnode, pMsg);
       break;
+    case TDMT_DND_CREATE_VNODE:
+      code = dndProcessCreateVnodeReq(pDnode, pMsg);
+      break;
+    case TDMT_DND_ALTER_VNODE:
+      code = dndProcessAlterVnodeReq(pDnode, pMsg);
+      break;
+    case TDMT_DND_DROP_VNODE:
+      code = dndProcessDropVnodeReq(pDnode, pMsg);
+      break;
+    case TDMT_DND_AUTH_VNODE:
+      code = dndProcessAuthVnodeReq(pDnode, pMsg);
+      break;
+    case TDMT_DND_SYNC_VNODE:
+      code = dndProcessSyncVnodeReq(pDnode, pMsg);
+      break;
+    case TDMT_DND_COMPACT_VNODE:
+      code = dndProcessCompactVnodeReq(pDnode, pMsg);
+      break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       code = -1;

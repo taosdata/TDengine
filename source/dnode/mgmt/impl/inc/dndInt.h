@@ -98,8 +98,6 @@ typedef struct {
   int32_t      openVnodes;
   int32_t      totalVnodes;
   SRWLatch     latch;
-  taos_queue   pMgmtQ;
-  SWorkerPool  mgmtPool;
   SWorkerPool  queryPool;
   SWorkerPool  fetchPool;
   SMWorkerPool syncPool;

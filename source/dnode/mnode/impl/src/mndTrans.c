@@ -844,7 +844,7 @@ static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
     mError("trans:%d, failed to write sdb since %s", pTrans->id, terrstr());
   }
 
-  mError("trans:%d, exec finished, code:0x%x, failedTimes:%d", pTrans->id, pTrans->code, pTrans->failedTimes);
+  mDebug("trans:%d, finished, code:0x%x, failedTimes:%d", pTrans->id, pTrans->code, pTrans->failedTimes);
   return continueExec;
 }
 
