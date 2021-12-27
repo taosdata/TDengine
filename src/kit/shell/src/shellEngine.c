@@ -450,7 +450,28 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
   */
 
 #ifdef WINDOWS
-  if (tt < 0) tt = 0;
+  if (tt < 0) {
+    SYSTEMTIME a={1970,1,5,1,0,0,0,0}; // SYSTEMTIME struct support 1601-01-01. set 1970 to compatible with Epoch time.
+    FILETIME b; // unit is 100ns
+    ULARGE_INTEGER c;
+    SystemTimeToFileTime(&a,&b);
+    c.LowPart = b.dwLowDateTime;  
+    c.HighPart = b.dwHighDateTime;  
+    c.QuadPart+=tt*10000000;
+    b.dwLowDateTime=c.LowPart;  
+    b.dwHighDateTime=c.HighPart;  
+    FileTimeToLocalFileTime(&b,&b);
+    FileTimeToSystemTime(&b,&a);
+    int pos = sprintf(buf,"%02d-%02d-%02d %02d:%02d:%02d", a.wYear, a.wMonth,a.wDay, a.wHour, a.wMinute, a.wSecond);   
+    if (precision == TSDB_TIME_PRECISION_NANO) {
+      sprintf(buf + pos, ".%09d", ms);
+    } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+      sprintf(buf + pos, ".%06d", ms);
+    } else {
+      sprintf(buf + pos, ".%03d", ms);
+    }
+    return buf;
+  }
 #endif
   if (tt <= 0 && ms < 0) {
     tt--;
