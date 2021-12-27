@@ -132,7 +132,7 @@ typedef struct SSubplan {
 typedef struct SQueryDag {
   uint64_t queryId;
   int32_t  numOfSubplans;
-  SArray  *pSubplans; // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0.
+  SArray  *pSubplans; // SArray*<SArray*<SSubplan*>>. The execution level of subplan, starting from 0.
 } SQueryDag;
 
 struct SQueryNode;
@@ -158,8 +158,6 @@ int32_t qSubPlanToString(const SSubplan* subplan, char** str, int32_t* len);
 int32_t qStringToSubplan(const char* str, SSubplan** subplan);
 
 void qDestroySubplan(SSubplan* pSubplan);
-
-char* qDagSerialize(const SQueryDag* pDag);
 
 /**
  * Destroy the physical plan.
