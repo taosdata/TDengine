@@ -14,9 +14,9 @@ python3 test.py -f tools/taosdemoTestWithJson.py
 #======================p2-start===============
 
 python3 test.py -f tools/taosdemoTestLimitOffset.py
-python3 test.py -f tools/taosdemoTestTblAlt.py
+# python3 test.py -f tools/taosdemoTestTblAlt.py
 python3 test.py -f tools/taosdemoTestSampleData.py
-python3 test.py -f tools/taosdemoTestInterlace.py
+# python3 test.py -f tools/taosdemoTestInterlace.py
 # python3 test.py -f tools/taosdemoTestQuery.py
 python3 ./test.py -f tools/taosdemoTestdatatype.py
 #======================p2-end===============
