@@ -13,15 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_QNODE_INT_H_
-#define _TD_QNODE_INT_H_
+#include "sndInt.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#ifdef __cplusplus
+SSnode *sndOpen(const SSnodeOpt *pOption) {
+  SSnode *pSnode = calloc(1, sizeof(SSnode));
+  return pSnode;
 }
-#endif
 
-#endif /*_TD_QNODE_INT_H_*/
+void sndClose(SSnode *pSnode) { free(pSnode); }
+
+int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad) { return 0; }
+
+int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+  *pRsp = NULL;
+  return 0;
+}

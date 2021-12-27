@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_QNODE_H_
-#define _TD_QNODE_H_
+#ifndef _TD_BNODE_H_
+#define _TD_BNODE_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,83 +22,65 @@ extern "C" {
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SDnode SDnode;
-typedef struct SQnode SQnode;
+typedef struct SBnode SBnode;
 typedef void (*SendMsgToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
 typedef void (*SendMsgToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef void (*SendRedirectMsgFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 
 typedef struct {
-  int64_t numOfStartTask;
-  int64_t numOfStopTask;
-  int64_t numOfRecvedFetch;
-  int64_t numOfSentHb;
-  int64_t numOfSentFetch;
-  int64_t numOfTaskInQueue;
-  int64_t numOfFetchInQueue;
   int64_t numOfErrors;
-} SQnodeLoad;
+} SBnodeLoad;
 
 typedef struct {
   int32_t sver;
-} SQnodeCfg;
+} SBnodeCfg;
 
 typedef struct {
   int32_t           dnodeId;
   int64_t           clusterId;
-  SQnodeCfg         cfg;
+  SBnodeCfg         cfg;
   SDnode           *pDnode;
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;
   SendRedirectMsgFp sendRedirectMsgFp;
-} SQnodeOpt;
+} SBnodeOpt;
 
-/* ------------------------ SQnode ------------------------ */
+/* ------------------------ SBnode ------------------------ */
 /**
- * @brief Start one Qnode in Dnode.
+ * @brief Start one Bnode in Dnode.
  *
- * @param pOption Option of the qnode.
- * @return SQnode* The qnode object.
+ * @param pOption Option of the bnode.
+ * @return SBnode* The bnode object.
  */
-SQnode *qndOpen(const SQnodeOpt *pOption);
+SBnode *bndOpen(const SBnodeOpt *pOption);
 
 /**
- * @brief Stop Qnode in Dnode.
+ * @brief Stop Bnode in Dnode.
  *
- * @param pQnode The qnode object to close.
+ * @param pBnode The bnode object to close.
  */
-void qndClose(SQnode *pQnode);
+void bndClose(SBnode *pBnode);
 
 /**
- * @brief Get the statistical information of Qnode
+ * @brief Get the statistical information of Bnode
  *
- * @param pQnode The qnode object.
- * @param pLoad Statistics of the qnode.
+ * @param pBnode The bnode object.
+ * @param pLoad Statistics of the bnode.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad);
+int32_t bndGetLoad(SBnode *pBnode, SBnodeLoad *pLoad);
 
 /**
  * @brief Process a query message.
  *
- * @param pQnode The qnode object.
- * @param pMsg The request message
- * @param pRsp The response message
+ * @param pBnode The bnode object.
+ * @param pMsgs The array of SRpcMsg
  * @return int32_t 0 for success, -1 for failure
  */
-int32_t qndProcessQueryReq(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
-
-/**
- * @brief Process a fetch message.
- *
- * @param pQnode The qnode object.
- * @param pMsg The request message
- * @param pRsp The response message
- * @return int32_t 0 for success, -1 for failure
- */
-int32_t qndProcessFetchReq(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int32_t bndProcessWMsgs(SBnode *pBnode, SArray *pMsgs);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_QNODE_H_*/
+#endif /*_TD_BNODE_H_*/

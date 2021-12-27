@@ -19,8 +19,6 @@
 #include "dndTransport.h"
 #include "dndVnodes.h"
 #include "sync.h"
-#include "tcache.h"
-#include "tcrc32c.h"
 #include "wal.h"
 
 EStat dndGetStat(SDnode *pDnode) { return pDnode->stat; }
@@ -93,6 +91,15 @@ static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOption) {
   snprintf(path, sizeof(path), "%s%sdnode", pOption->dataDir, TD_DIRSEP);
   pDnode->dir.dnode = tstrdup(path);
 
+  snprintf(path, sizeof(path), "%s%sqnode", pOption->dataDir, TD_DIRSEP);
+  pDnode->dir.dnode = tstrdup(path);
+
+  snprintf(path, sizeof(path), "%s%ssnode", pOption->dataDir, TD_DIRSEP);
+  pDnode->dir.dnode = tstrdup(path);
+
+  snprintf(path, sizeof(path), "%s%sbnode", pOption->dataDir, TD_DIRSEP);
+  pDnode->dir.dnode = tstrdup(path);
+
   if (pDnode->dir.mnode == NULL || pDnode->dir.vnodes == NULL || pDnode->dir.dnode == NULL) {
     dError("failed to malloc dir object");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -117,6 +124,24 @@ static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOption) {
     return -1;
   }
 
+  if (taosMkDir(pDnode->dir.qnode) != 0) {
+    dError("failed to create dir:%s since %s", pDnode->dir.qnode, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  if (taosMkDir(pDnode->dir.snode) != 0) {
+    dError("failed to create dir:%s since %s", pDnode->dir.snode, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  if (taosMkDir(pDnode->dir.bnode) != 0) {
+    dError("failed to create dir:%s since %s", pDnode->dir.bnode, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
   memcpy(&pDnode->opt, pOption, sizeof(SDnodeOpt));
   return 0;
 }
@@ -132,6 +157,18 @@ static void dndCleanupEnv(SDnode *pDnode) {
 
   if (pDnode->dir.dnode != NULL) {
     tfree(pDnode->dir.dnode);
+  }
+
+  if (pDnode->dir.qnode != NULL) {
+    tfree(pDnode->dir.qnode);
+  }
+
+  if (pDnode->dir.bnode != NULL) {
+    tfree(pDnode->dir.snode);
+  }
+
+  if (pDnode->dir.snode != NULL) {
+    tfree(pDnode->dir.bnode);
   }
 
   if (pDnode->lockFd >= 0) {
@@ -176,7 +213,7 @@ SDnode *dndInit(SDnodeOpt *pOption) {
     return NULL;
   }
 
-  if (vnodeInit(1) != 0) {
+  if (vnodeInit(pDnode->opt.numOfCommitThreads) != 0) {
     dError("failed to init vnode env");
     dndCleanup(pDnode);
     return NULL;
