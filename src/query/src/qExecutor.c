@@ -8523,7 +8523,8 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   }
 
   // calc skipOffset 
-  if(pQueryMsg->offset > 0 && TSDB_QUERY_HAS_TYPE(pQueryMsg->queryType, TSDB_QUERY_TYPE_PROJECTION_QUERY)) {
+  if(pQueryMsg->offset > 0 && TSDB_QUERY_HAS_TYPE(pQueryMsg->queryType, TSDB_QUERY_TYPE_PROJECTION_QUERY)
+                           && pQueryAttr->stableQuery == false) {
      pQueryAttr->skipOffset = true;
      for (int32_t i = 0; i < pQueryAttr->numOfCols; ++i) {
        if (pQueryAttr->tableCols[i].flist.numOfFilters > 0 
