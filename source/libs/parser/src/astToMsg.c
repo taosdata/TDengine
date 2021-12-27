@@ -1,5 +1,5 @@
-#include <astGenerator.h>
 #include "parserInt.h"
+#include "astGenerator.h"
 #include "parserUtil.h"
 
 SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {

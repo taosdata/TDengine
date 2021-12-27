@@ -230,12 +230,13 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
   CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
+
   if (qIsDdlQuery(pQuery)) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
-    goto _return;
+  } else {
+    CHECK_CODE_GOTO(qCreateQueryDag(pQuery, &pDag), _return);
+    CHECK_CODE_GOTO(scheduleQuery(pRequest, pDag, &pJob), _return);
   }
-  CHECK_CODE_GOTO(qCreateQueryDag(pQuery, &pDag), _return);
-  CHECK_CODE_GOTO(scheduleQuery(pRequest, pDag, &pJob), _return);
 
 _return:
   qDestoryQuery(pQuery);
