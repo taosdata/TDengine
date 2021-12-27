@@ -18,6 +18,21 @@
 #include "dndTransport.h"
 #include "dndVnodes.h"
 
+static int32_t dndInitMgmtWorker(SDnode *pDnode);
+static void    dndCleanupMgmtWorker(SDnode *pDnode);
+static int32_t dndAllocMgmtQueue(SDnode *pDnode);
+static void    dndFreeMgmtQueue(SDnode *pDnode);
+static void    dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg);
+
+static int32_t dndReadDnodes(SDnode *pDnode);
+static int32_t dndWriteDnodes(SDnode *pDnode);
+static void   *dnodeThreadRoutine(void *param);
+
+static void dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pMsg);
+static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg);
+static void dndProcessAuthRsp(SDnode *pDnode, SRpcMsg *pMsg);
+static void dndProcessGrantRsp(SDnode *pDnode, SRpcMsg *pMsg);
+
 int32_t dndGetDnodeId(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
@@ -164,7 +179,7 @@ static int32_t dndReadDnodes(SDnode *pDnode) {
 
   int32_t code = TSDB_CODE_DND_DNODE_READ_FILE_ERROR;
   int32_t len = 0;
-  int32_t maxLen = 256 *1024;
+  int32_t maxLen = 256 * 1024;
   char   *content = calloc(1, maxLen + 1);
   cJSON  *root = NULL;
   FILE   *fp = NULL;
@@ -302,7 +317,7 @@ static int32_t dndWriteDnodes(SDnode *pDnode) {
   }
 
   int32_t len = 0;
-  int32_t maxLen = 256 *1024;
+  int32_t maxLen = 256 * 1024;
   char   *content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
@@ -409,12 +424,8 @@ static void dndUpdateDnodeEps(SDnode *pDnode, SDnodeEps *pDnodeEps) {
   taosWUnLockLatch(&pMgmt->latch);
 }
 
-static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
+static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-
-  if (pEpSet && pEpSet->numOfEps > 0) {
-    dndUpdateMnodeEpSet(pDnode, pEpSet);
-  }
 
   if (pMsg->code != TSDB_CODE_SUCCESS) {
     pMgmt->statusSent = 0;
@@ -443,9 +454,9 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   pMgmt->statusSent = 0;
 }
 
-static void dndProcessAuthRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) { assert(1); }
+static void dndProcessAuthRsp(SDnode *pDnode, SRpcMsg *pMsg) { assert(1); }
 
-static void dndProcessGrantRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) { assert(1); }
+static void dndProcessGrantRsp(SDnode *pDnode, SRpcMsg *pMsg) { assert(1); }
 
 static void dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pMsg) {
   dError("config msg is received, but not supported yet");
@@ -456,7 +467,7 @@ static void dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pMsg) {
   rpcSendResponse(&rspMsg);
 }
 
-static void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg) {
+void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg) {
   dDebug("startup msg is received");
 
   SStartupMsg *pStartup = rpcMallocCont(sizeof(SStartupMsg));
@@ -490,6 +501,7 @@ int32_t dndInitDnode(SDnode *pDnode) {
   pMgmt->rebootTime = taosGetTimestampMs();
   pMgmt->dropped = 0;
   pMgmt->clusterId = 0;
+  taosInitRWLatch(&pMgmt->latch);
 
   char path[PATH_MAX];
   snprintf(path, PATH_MAX, "%s/dnode.json", pDnode->dir.dnode);
@@ -511,7 +523,15 @@ int32_t dndInitDnode(SDnode *pDnode) {
     return -1;
   }
 
-  taosInitRWLatch(&pMgmt->latch);
+  if (dndInitMgmtWorker(pDnode) != 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if (dndAllocMgmtQueue(pDnode) != 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
 
   pMgmt->threadId = taosCreateThread(dnodeThreadRoutine, pDnode);
   if (pMgmt->threadId == NULL) {
@@ -526,6 +546,9 @@ int32_t dndInitDnode(SDnode *pDnode) {
 
 void dndCleanupDnode(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+
+  dndCleanupMgmtWorker(pDnode);
+  dndFreeMgmtQueue(pDnode);
 
   if (pMgmt->threadId != NULL) {
     taosDestoryThread(pMgmt->threadId);
@@ -553,39 +576,105 @@ void dndCleanupDnode(SDnode *pDnode) {
   dInfo("dnode-dnode is cleaned up");
 }
 
-void dndProcessDnodeReq(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
+static int32_t dndInitMgmtWorker(SDnode *pDnode) {
+  SDnodeMgmt  *pMgmt = &pDnode->dmgmt;
+  SWorkerPool *pPool = &pMgmt->mgmtPool;
+  pPool->name = "dnode-mgmt";
+  pPool->min = 1;
+  pPool->max = 1;
+  if (tWorkerInit(pPool) != 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  dDebug("dnode mgmt worker is initialized");
+  return 0;
+}
+
+static void dndCleanupMgmtWorker(SDnode *pDnode) {
+  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+  tWorkerCleanup(&pMgmt->mgmtPool);
+  dDebug("dnode mgmt worker is closed");
+}
+
+static int32_t dndAllocMgmtQueue(SDnode *pDnode) {
+  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+  pMgmt->pMgmtQ = tWorkerAllocQueue(&pMgmt->mgmtPool, pDnode, (FProcessItem)dndProcessMgmtQueue);
+  if (pMgmt->pMgmtQ == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  return 0;
+}
+
+static void dndFreeMgmtQueue(SDnode *pDnode) {
+  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+  tWorkerFreeQueue(&pMgmt->mgmtPool, pMgmt->pMgmtQ);
+  pMgmt->pMgmtQ = NULL;
+}
+
+void dndProcessMgmtMsg(SDnode *pDnode, SRpcMsg *pRpcMsg, SEpSet *pEpSet) {
+  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
+
+  if (pEpSet && pEpSet->numOfEps > 0 && pRpcMsg->msgType == TDMT_MND_STATUS_RSP) {
+    dndUpdateMnodeEpSet(pDnode, pEpSet);
+  }
+
+  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg));
+  if (pMsg != NULL) *pMsg = *pRpcMsg;
+
+  if (pMsg == NULL || taosWriteQitem(pMgmt->pMgmtQ, pMsg) != 0) {
+    if (pRpcMsg->msgType & 1u) {
+      SRpcMsg rsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_OUT_OF_MEMORY};
+      rpcSendResponse(&rsp);
+    }
+    rpcFreeCont(pRpcMsg->pCont);
+    taosFreeQitem(pMsg);
+  }
+}
+
+static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
+  int32_t code = 0;
+
   switch (pMsg->msgType) {
+    case TDMT_DND_CREATE_MNODE:
+      code = dndProcessCreateMnodeReq(pDnode, pMsg);
+      break;
+    case TDMT_DND_ALTER_MNODE:
+      code = dndProcessAlterMnodeReq(pDnode, pMsg);
+      break;
+    case TDMT_DND_DROP_MNODE:
+      code = dndProcessDropMnodeReq(pDnode, pMsg);
+      break;
     case TDMT_DND_NETWORK_TEST:
       dndProcessStartupReq(pDnode, pMsg);
       break;
     case TDMT_DND_CONFIG_DNODE:
       dndProcessConfigDnodeReq(pDnode, pMsg);
       break;
-    default:
-      dError("RPC %p, dnode req:%s not processed", pMsg->handle, TMSG_INFO(pMsg->msgType));
-      SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_MSG_NOT_PROCESSED};
-      rpcSendResponse(&rspMsg);
-  }
-
-  rpcFreeCont(pMsg->pCont);
-  pMsg->pCont = NULL;
-}
-
-void dndProcessDnodeRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  switch (pMsg->msgType) {
     case TDMT_MND_STATUS_RSP:
-      dndProcessStatusRsp(pDnode, pMsg, pEpSet);
+      dndProcessStatusRsp(pDnode, pMsg);
       break;
     case TDMT_MND_AUTH_RSP:
-      dndProcessAuthRsp(pDnode, pMsg, pEpSet);
+      dndProcessAuthRsp(pDnode, pMsg);
       break;
     case TDMT_MND_GRANT_RSP:
-      dndProcessGrantRsp(pDnode, pMsg, pEpSet);
+      dndProcessGrantRsp(pDnode, pMsg);
       break;
     default:
-      dError("RPC %p, dnode rsp:%s not processed", pMsg->handle, TMSG_INFO(pMsg->msgType));
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      code = -1;
+      dError("RPC %p, dnode req:%s not processed", pMsg->handle, TMSG_INFO(pMsg->msgType));
+      break;
+  }
+
+  if (pMsg->msgType & 1u) {
+    if (code != 0) code = terrno;
+    SRpcMsg rsp = {.code = code, .handle = pMsg->handle, .ahandle = pMsg->ahandle};
+    rpcSendResponse(&rsp);
   }
 
   rpcFreeCont(pMsg->pCont);
   pMsg->pCont = NULL;
+  taosFreeQitem(pMsg);
 }

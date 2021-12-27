@@ -59,18 +59,20 @@ typedef struct {
 } SDnodeDir;
 
 typedef struct {
-  int32_t    dnodeId;
-  int32_t    dropped;
-  int64_t    clusterId;
-  int64_t    rebootTime;
-  int64_t    updateTime;
-  int8_t     statusSent;
-  SEpSet     mnodeEpSet;
-  char      *file;
-  SHashObj  *dnodeHash;
-  SDnodeEps *dnodeEps;
-  pthread_t *threadId;
-  SRWLatch   latch;
+  int32_t     dnodeId;
+  int32_t     dropped;
+  int64_t     clusterId;
+  int64_t     rebootTime;
+  int64_t     updateTime;
+  int8_t      statusSent;
+  SEpSet      mnodeEpSet;
+  char       *file;
+  SHashObj   *dnodeHash;
+  SDnodeEps  *dnodeEps;
+  pthread_t  *threadId;
+  SRWLatch    latch;
+  taos_queue  pMgmtQ;
+  SWorkerPool mgmtPool;
 } SDnodeMgmt;
 
 typedef struct {
@@ -86,8 +88,6 @@ typedef struct {
   taos_queue  pReadQ;
   taos_queue  pWriteQ;
   taos_queue  pSyncQ;
-  taos_queue  pMgmtQ;
-  SWorkerPool mgmtPool;
   SWorkerPool readPool;
   SWorkerPool writePool;
   SWorkerPool syncPool;
