@@ -30,3 +30,6 @@ cd ${WKC}/tests/examples/C#/taosdemo
 dotnet build -c Release
 tree | true
 ./bin/Release/net5.0/taosdemo -c /etc/taos -y
+
+cd ${WKC}/tests/system-test/3-connectors/c#/stmtfunction
+dotnet run
