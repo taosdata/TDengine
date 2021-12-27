@@ -31,6 +31,11 @@ int genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
 
 int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    pRequest->code = code;
+    terrno         = code;
+    return code;
+  }
 
   STscObj *pTscObj = pRequest->pTscObj;
 
