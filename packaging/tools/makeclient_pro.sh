@@ -58,7 +58,7 @@ install_files="${script_dir}/install_client_pro.sh"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/prodb.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/prodb.cfg ${install_dir}/cfg/prodb.cfg
 
 sed -i '/dataDir/ {s/taos/ProDB/g}'  ${install_dir}/cfg/prodb.cfg
 sed -i '/logDir/  {s/taos/ProDB/g}'  ${install_dir}/cfg/prodb.cfg

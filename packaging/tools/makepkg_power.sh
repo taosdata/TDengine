@@ -49,7 +49,7 @@ init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/power.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/power.cfg ${install_dir}/cfg/power.cfg
 
 #mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/bin
@@ -90,10 +90,6 @@ if [ "$verMode" == "cluster" ]; then
 
     sed -i "s/TDengine/PowerDB/g"   ${install_dir}/nginxd/admin/*.html
     sed -i "s/TDengine/PowerDB/g"   ${install_dir}/nginxd/admin/js/*.js
-
-    sed -i '/dataDir/ {s/taos/power/g}'  ${install_dir}/cfg/power.cfg
-    sed -i '/logDir/  {s/taos/power/g}'  ${install_dir}/cfg/power.cfg
-    sed -i "s/TDengine/PowerDB/g"        ${install_dir}/cfg/power.cfg
 
     if [ "$cpuType" == "aarch64" ]; then
         cp -f ${install_dir}/nginxd/sbin/arm/64bit/nginx ${install_dir}/nginxd/sbin/

@@ -123,11 +123,7 @@ static void *monThreadFunc(void *param) {
 
     if (tsMonitor.quiting) {
       tsMonitor.state = MON_STATE_NOT_INIT;
-#ifdef _TD_KH_
-      monInfo("monitor thread will quit, for khserver is quiting");
-#else
       monInfo("monitor thread will quit, for taosd is quiting");
-#endif
       break;
     } else {
       taosGetDisk();

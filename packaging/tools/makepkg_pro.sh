@@ -44,7 +44,7 @@ nginx_dir="${code_dir}/../../enterprise/src/plugins/web"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/prodb.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/prodb.cfg ${install_dir}/cfg/prodb.cfg
 mkdir -p ${install_dir}/bin
 
 # bin
@@ -74,7 +74,6 @@ if [ "$verMode" == "cluster" ]; then
     cp ${nginx_dir}/png/taos.png ${install_dir}/nginxd/admin/images/taos.png
     rm -rf ${install_dir}/nginxd/png
 
-    # replace the OEM name, add by yangzy@2021-09-22
     sed -i -e 's/www.taosdata.com/www.hanatech.com.cn/g' $(grep -r 'www.taosdata.com' ${install_dir}/nginxd | sed -r "s/(.*\.html):\s*(.*)/\1/g")
     sed -i -e 's/TAOS Data/Hanatech/g' $(grep -r 'TAOS Data' ${install_dir}/nginxd | sed -r "s/(.*\.html):\s*(.*)/\1/g")
     sed -i -e 's/taosd/prodbs/g' `grep -r 'taosd' ${install_dir}/nginxd | grep -E '*\.js\s*.*' | sed -r -e 's/(.*\.js):\s*(.*)/\1/g' | sort | uniq`

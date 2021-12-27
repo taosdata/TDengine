@@ -81,19 +81,7 @@ int64_t dbgSmallWN = 0;
 int64_t dbgBigWN = 0;
 int64_t dbgWSize = 0;
 
-#ifdef _TD_POWER_
-char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/power";
-#elif (_TD_TQ_ == true)
-char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/tq";
-#elif (_TD_PRO_ == true)
-char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/ProDB";
-#elif (_TD_KH_ == true)
-char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/kinghistorian";
-#elif (_TD_JH_ == true)
-char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/jh_taos";
-#else
 char    tsLogDir[PATH_MAX] = "/var/log/taos";
-#endif
 
 static SLogObj   tsLogObj = { .fileNum = 1 };
 static void *    taosAsyncOutputLog(void *param);

@@ -20,27 +20,8 @@
 #define SHELL_INPUT_MAX_COMMAND_SIZE 10000
 
 extern char configDir[];
-
-#ifdef _TD_POWER_
-char      WINCLIENT_VERSION[] = "Welcome to the PowerDB shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by PowerDB, Inc. All rights reserved.\n\n";
-#elif (_TD_TQ_ == true)
-char      WINCLIENT_VERSION[] = "Welcome to the TQ shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
-#elif (_TD_PRO_ == true)
-char      WINCLIENT_VERSION[] = "Welcome to the ProDB shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by Hanatech, Inc. All rights reserved.\n\n";
-#elif (_TD_KH_ == true)
-char      WINCLIENT_VERSION[] = "Welcome to the KingHistorian shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2021 by Wellintech, Inc. All rights reserved.\n\n";
-#elif (_TD_JH_ == true)
-char      WINCLIENT_VERSION[] = "Welcome to the jh_iot shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2021 by jinheng, Inc. All rights reserved.\n\n";
-#else
 char      WINCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
-#endif
-
 
 void printVersion() {
   printf("version: %s\n", version);
@@ -335,19 +316,7 @@ void *shellLoopQuery(void *arg) {
 }
 
 void get_history_path(char *history) {
-#ifdef _TD_POWER_
-  sprintf(history, "C:/PowerDB/%s", HISTORY_FILE); 
-#elif (_TD_TQ_ == true)
-  sprintf(history, "C:/TQueue/%s", HISTORY_FILE); 
-#elif (_TD_PRO_ == true)
-  sprintf(history, "C:/ProDB/%s", HISTORY_FILE); 
-#elif (_TD_KH_ == true)
-  sprintf(history, "C:/KingHistorian/%s", HISTORY_FILE); 
-#elif (_TD_JH_ == true)
-  sprintf(history, "C:/jh_iot/%s", HISTORY_FILE); 
-#else
   sprintf(history, "C:/TDengine/%s", HISTORY_FILE); 
-#endif
 }
 
 void exitShell() { exit(EXIT_SUCCESS); }

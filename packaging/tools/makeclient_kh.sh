@@ -58,7 +58,7 @@ install_files="${script_dir}/install_client_kh.sh"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/kinghistorian.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/kinghistorian.cfg ${install_dir}/cfg/kinghistorian.cfg
 
 sed -i '/dataDir/ {s/taos/kinghistorian/g}'  ${install_dir}/cfg/kinghistorian.cfg
 sed -i '/logDir/  {s/taos/kinghistorian/g}'  ${install_dir}/cfg/kinghistorian.cfg

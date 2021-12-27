@@ -136,14 +136,14 @@ function install_header() {
 }
 
 function install_config() {
-    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
+    if [ ! -f ${cfg_install_dir}/jh_taos.cfg ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${script_dir}/cfg/taos.cfg ] && ${csudo} cp ${script_dir}/cfg/taos.cfg ${cfg_install_dir}
+        [ -f ${script_dir}/cfg/jh_taos.cfg ] && ${csudo} cp ${script_dir}/cfg/jh_taos.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
     fi
 
-    ${csudo} cp -f ${script_dir}/cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
-    ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
+    ${csudo} cp -f ${script_dir}/cfg/jh_taos.cfg ${install_main_dir}/cfg/jh_taos.cfg.org
+    ${csudo} ln -s ${cfg_install_dir}/jh_taos.cfg ${install_main_dir}/cfg
 }
 
 

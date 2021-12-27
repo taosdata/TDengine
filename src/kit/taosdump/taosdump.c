@@ -231,12 +231,7 @@ SDbInfo **g_dbInfos = NULL;
 TableInfo *g_tablesList = NULL;
 
 const char *argp_program_version = version;
-#ifdef _TD_KH_
-const char *argp_program_bug_address = "<support@wellintech.com>";
-#else
 const char *argp_program_bug_address = "<support@taosdata.com>";
-#endif
-
 
 /* Program documentation. */
 static char doc[] = "";
@@ -359,17 +354,7 @@ struct arguments g_args = {
     // connection option
     NULL,
     "root",
-#ifdef _TD_POWER_
-    "powerdb",
-#elif (_TD_TQ_ == true)
-    "tqueue",
-#elif (_TD_PRO_ == true)
-    "prodb",
-#elif (_TD_KH_ == true)
-    "khroot",
-#else
     "taosdata",
-#endif
     0,
     0,
     // outpath and inpath

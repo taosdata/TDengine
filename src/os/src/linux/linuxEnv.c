@@ -18,49 +18,12 @@
 #include "tglobal.h"
 
 void osInit() {
-#ifdef _TD_POWER_
-  if (configDir[0] == 0) {
-    strcpy(configDir, "/etc/power");
-  }
-  strcpy(tsDataDir, "/var/lib/power");
-  strcpy(tsLogDir, "/var/log/power");
-  strcpy(tsScriptDir, "/etc/power");
-#elif (_TD_TQ_ == true)
-	if (configDir[0] == 0) {
-	  strcpy(configDir, "/etc/tq");
-	}
-	strcpy(tsDataDir, "/var/lib/tq");
-	strcpy(tsLogDir, "/var/log/tq");
-	strcpy(tsScriptDir, "/etc/tq");
-#elif (_TD_PRO_ == true)
-	if (configDir[0] == 0) {
-	  strcpy(configDir, "/etc/ProDB");
-	}
-	strcpy(tsDataDir, "/var/lib/ProDB");
-	strcpy(tsLogDir, "/var/log/ProDB");
-	strcpy(tsScriptDir, "/etc/ProDB");
-#elif (_TD_KH_ == true)
-	if (configDir[0] == 0) {
-	  strcpy(configDir, "/etc/kinghistorian");
-	}
-	strcpy(tsDataDir, "/var/lib/kinghistorian");
-	strcpy(tsLogDir, "/var/log/kinghistorian");
-	strcpy(tsScriptDir, "/etc/kinghistorian");
-#elif (_TD_JH_ == true)
-	if (configDir[0] == 0) {
-	  strcpy(configDir, "/etc/jh_taos");
-	}
-	strcpy(tsDataDir, "/var/lib/jh_taos");
-	strcpy(tsLogDir, "/var/log/jh_taos");
-	strcpy(tsScriptDir, "/etc/jh_taos");
-#else
   if (configDir[0] == 0) {
     strcpy(configDir, "/etc/taos");
   }
   strcpy(tsDataDir, "/var/lib/taos");
   strcpy(tsLogDir, "/var/log/taos");
   strcpy(tsScriptDir, "/etc/taos");
-#endif
 
   strcpy(tsVnodeDir, "");
   strcpy(tsDnodeDir, "");

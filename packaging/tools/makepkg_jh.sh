@@ -44,7 +44,7 @@ nginx_dir="${code_dir}/../../enterprise/src/plugins/web"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/jh_taos.cfg ${install_dir}/cfg/jh_taos.cfg
 mkdir -p ${install_dir}/bin
 
 # bin
@@ -92,13 +92,6 @@ if [ "$verMode" == "cluster" ]; then
     fi
     rm -rf ${install_dir}/nginxd/sbin/arm
 fi
-
-sed -i '/dataDir/ {s/taos/jh_taos/g}'  ${install_dir}/cfg/taos.cfg
-sed -i '/logDir/  {s/taos/jh_taos/g}'  ${install_dir}/cfg/taos.cfg
-sed -i "s/TDengine/jh_iot/g"     ${install_dir}/cfg/taos.cfg
-sed -i "s/support@taosdata.com/jhkj@njsteel.com.cn/g"      ${install_dir}/cfg/taos.cfg
-sed -i "s/taos client/client/g"      ${install_dir}/cfg/taos.cfg
-sed -i "s/taosd/server/g"      ${install_dir}/cfg/taos.cfg
 
 cd ${install_dir}
 tar -zcv -f jh_taos.tar.gz * --remove-files  || :
