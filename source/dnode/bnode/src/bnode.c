@@ -13,23 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "qndInt.h"
+#include "bndInt.h"
 
-SQnode *qndOpen(const SQnodeOpt *pOption) {
-  SQnode *pQnode = calloc(1, sizeof(SQnode));
-  return pQnode;
+SBnode *bndOpen(const SBnodeOpt *pOption) {
+  SBnode *pBnode = calloc(1, sizeof(SBnode));
+  return pBnode;
 }
 
-void qndClose(SQnode *pQnode) { free(pQnode); }
+void bndClose(SBnode *pBnode) { free(pBnode); }
 
-int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { return 0; }
+int32_t bndGetLoad(SBnode *pBnode, SBnodeLoad *pLoad) { return 0; }
 
-int32_t qndProcessQueryReq(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  *pRsp = NULL;
-  return 0;
-}
-
-int32_t qndProcessFetchReq(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  *pRsp = NULL;
-  return 0;
-}
+int32_t bndProcessWMsgs(SBnode *pBnode, SArray *pMsgs) { return 0; }

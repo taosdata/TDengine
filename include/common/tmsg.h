@@ -854,6 +854,18 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
+} SCreateQnodeInMsg, SDropQnodeInMsg;
+
+typedef struct {
+  int32_t dnodeId;
+} SCreateSnodeInMsg, SDropSnodeInMsg;
+
+typedef struct {
+  int32_t dnodeId;
+} SCreateBnodeInMsg, SDropBnodeInMsg;
+
+typedef struct {
+  int32_t dnodeId;
   int32_t vgId;
   int32_t tid;
 } SConfigTableMsg;

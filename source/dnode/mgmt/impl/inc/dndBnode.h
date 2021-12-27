@@ -13,23 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "qndInt.h"
+#ifndef _TD_DND_BNODE_H_
+#define _TD_DND_BNODE_H_
 
-SQnode *qndOpen(const SQnodeOpt *pOption) {
-  SQnode *pQnode = calloc(1, sizeof(SQnode));
-  return pQnode;
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include "dndInt.h"
+
+int32_t dndInitBnode(SDnode *pDnode);
+void    dndCleanupBnode(SDnode *pDnode);
+
+ioid    dndProcessBnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
+int32_t dndProcessCreateBnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t dndProcessDropBnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
+
+#ifdef __cplusplus
 }
+#endif
 
-void qndClose(SQnode *pQnode) { free(pQnode); }
-
-int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { return 0; }
-
-int32_t qndProcessQueryReq(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  *pRsp = NULL;
-  return 0;
-}
-
-int32_t qndProcessFetchReq(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  *pRsp = NULL;
-  return 0;
-}
+#endif /*_TD_DND_BNODE_H_*/

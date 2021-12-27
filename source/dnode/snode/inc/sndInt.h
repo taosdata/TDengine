@@ -13,23 +13,32 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "qndInt.h"
+#ifndef _TD_SNODE_INT_H_
+#define _TD_SNODE_INT_H_
 
-SQnode *qndOpen(const SQnodeOpt *pOption) {
-  SQnode *pQnode = calloc(1, sizeof(SQnode));
-  return pQnode;
+#include "os.h"
+
+#include "tlog.h"
+#include "tmsg.h"
+#include "trpc.h"
+
+#include "snode.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct SSnode {
+  int32_t           dnodeId;
+  int64_t           clusterId;
+  SSnodeCfg         cfg;
+  SendMsgToDnodeFp  sendMsgToDnodeFp;
+  SendMsgToMnodeFp  sendMsgToMnodeFp;
+  SendRedirectMsgFp sendRedirectMsgFp;
+} SSnode;
+
+#ifdef __cplusplus
 }
+#endif
 
-void qndClose(SQnode *pQnode) { free(pQnode); }
-
-int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { return 0; }
-
-int32_t qndProcessQueryReq(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  *pRsp = NULL;
-  return 0;
-}
-
-int32_t qndProcessFetchReq(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  *pRsp = NULL;
-  return 0;
-}
+#endif /*_TD_SNODE_INT_H_*/
