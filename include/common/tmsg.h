@@ -1002,7 +1002,7 @@ typedef struct {
 } SUpdateTagValRsp;
 
 typedef struct SSubQueryMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
   uint32_t contentLen;
@@ -1010,7 +1010,7 @@ typedef struct SSubQueryMsg {
 } SSubQueryMsg;
 
 typedef struct SResReadyMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
 } SResReadyMsg;
@@ -1020,13 +1020,13 @@ typedef struct SResReadyRsp {
 } SResReadyRsp;
 
 typedef struct SResFetchMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
 } SResFetchMsg;
 
 typedef struct SSchTasksStatusMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
 } SSchTasksStatusMsg;
 
 typedef struct STaskStatus {
@@ -1041,7 +1041,7 @@ typedef struct SSchedulerStatusRsp {
 } SSchedulerStatusRsp;
 
 typedef struct STaskCancelMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
 } STaskCancelMsg;
@@ -1051,7 +1051,7 @@ typedef struct STaskCancelRsp {
 } STaskCancelRsp;
 
 typedef struct STaskDropMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
 } STaskDropMsg;

@@ -343,7 +343,7 @@ int32_t schAsyncSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
 
       SSubQueryMsg *pMsg = msg;
       
-      pMsg->schedulerId = htobe64(schMgmt.schedulerId);
+      pMsg->sId = htobe64(schMgmt.sId);
       pMsg->queryId = htobe64(job->queryId);
       pMsg->taskId = htobe64(task->taskId);
       pMsg->contentLen = htonl(task->msgLen);
@@ -359,7 +359,7 @@ int32_t schAsyncSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
       }
 
       SResReadyMsg *pMsg = msg;
-      pMsg->schedulerId = htobe64(schMgmt.schedulerId);      
+      pMsg->sId = htobe64(schMgmt.sId);      
       pMsg->queryId = htobe64(job->queryId);
       pMsg->taskId = htobe64(task->taskId);      
       break;
@@ -376,7 +376,7 @@ int32_t schAsyncSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
       }
     
       SResFetchMsg *pMsg = msg;
-      pMsg->schedulerId = htobe64(schMgmt.schedulerId);      
+      pMsg->sId = htobe64(schMgmt.sId);      
       pMsg->queryId = htobe64(job->queryId);
       pMsg->taskId = htobe64(task->taskId);      
       break;
@@ -390,7 +390,7 @@ int32_t schAsyncSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
       }
     
       STaskDropMsg *pMsg = msg;
-      pMsg->schedulerId = htobe64(schMgmt.schedulerId);      
+      pMsg->sId = htobe64(schMgmt.sId);      
       pMsg->queryId = htobe64(job->queryId);
       pMsg->taskId = htobe64(task->taskId);      
       break;
@@ -717,7 +717,7 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
     SCH_ERR_LRET(TSDB_CODE_QRY_OUT_OF_MEMORY, "init %d schduler jobs failed", schMgmt.cfg.maxJobNum);
   }
 
-  schMgmt.schedulerId = 1; //TODO GENERATE A UUID
+  schMgmt.sId = 1; //TODO GENERATE A UUID
   
   return TSDB_CODE_SUCCESS;
 }

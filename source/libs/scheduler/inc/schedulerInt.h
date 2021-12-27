@@ -38,7 +38,7 @@ enum {
 
 typedef struct SSchedulerMgmt {
   uint64_t  taskId; 
-  uint64_t  schedulerId;
+  uint64_t  sId;
   SSchedulerCfg cfg;
   SHashObj *jobs;  // key: queryId, value: SQueryJob*
 } SSchedulerMgmt;
