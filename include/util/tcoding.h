@@ -218,9 +218,9 @@ extern "C" {
 #define tGetb(BUF, VAL, TYPE) tGet_##TYPE##_b(BUF, VAL, TYPE)
 
 /* ------------------------ VARIANT-LENGTH ENCODING ------------------------ */
-#define vPutU(BUF, VAL)                                        \
+#define vPut(BUF, VAL, SIGN)                                   \
   ({                                                           \
-    uint64_t tmp = (VAL);                                      \
+    uint64_t tmp = (SIGN) ? ZIGZAGE(int64_t, VAL) : (VAL);     \
     int      i = 0;                                            \
     while ((VAL) >= ENCODE_LIMIT) {                            \
       ((uint8_t *)(BUF))[i] = (uint8_t)((tmp) | ENCODE_LIMIT); \
@@ -231,15 +231,26 @@ extern "C" {
     i + 1;                                                     \
   })
 
-#define vGetU(BUF, VAL)
-
-#define vPutI(BUF, VAL, TYPE)          \
-  ({                                   \
-    uint64_t tmp = ZIGZAGE(TYPE, VAL); \
-    vPutU(BUF, tmp);                   \
+#define vGet(BUF, VAL, SIGN)                              \
+  ({                                                      \
+    uint64_t tmp;                                         \
+    uint64_t tval = 0;                                    \
+    int      i = 0;                                       \
+    while (true) {                                        \
+      tmp = (uint64_t)(((uint8_t *)(BUF))[i]);            \
+      if (tmp < ENCODE_LIMIT) {                           \
+        tval |= (tval << (7 * i));                        \
+        break;                                            \
+      } else {                                            \
+        tval |= ((tval & (ENCODE_LIMIT - 1)) << (7 * i)); \
+        i++;                                              \
+      }                                                   \
+    }                                                     \
+    if (SIGN) {                                           \
+      (VAL) = ZIGZAGD(int64_t, tmp);                      \
+    }                                                     \
+    i;                                                    \
   })
-
-#define vGetI(BUF, VAL, TYPE)
 
 /* ------------------------ OTHER TYPE ENCODING ------------------------ */
 
