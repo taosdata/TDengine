@@ -575,6 +575,49 @@ Close connection.
 conn.close()
 ```
 
+#### JSON Type Support
+
+Python connector `taospy` starts supporting JSON type as tags since `v2.2.0` (requires TDengine beta v2.3.5+, or stable v2.4.0+).
+
+Create stable and table with JSON tag.
+
+```python
+# encoding:UTF-8
+import taos
+
+conn = taos.connect()
+conn.execute("create database if not exists py_test_json_type")
+conn.execute("use py_test_json_type")
+
+conn.execute("create stable s1 (ts timestamp, v1 int) tags (info json)")
+conn.execute("create table s1_1 using s1 tags ('{\"k1\": \"v1\"}')")
+```
+
+Query JSON tag and table name from a stable.
+
+```python
+tags = conn.query("select info, tbname from s1").fetch_all_into_dict()
+tags
+```
+
+The `tags` value is:
+
+```python
+[{'info': '{"k1":"v1"}', 'tbname': 's1_1'}]
+```
+
+To get value from JSON tag by key:
+
+```python
+k1 = conn.query("select info->'k1' as k1 from s1").fetch_all_into_dict()
+"""
+>>> k1
+[{'k1': '"v1"'}]
+"""
+```
+
+Refer to [JSON type instructions](https://www.taosdata.com/en/documentation/taos-sql) for more usage of JSON type.
+
 #### Using nanosecond in Python connector
 
 So far Python still does not completely support nanosecond type. Please refer to the link 1 and 2. The implementation of the python connector is to return an integer number for nanosecond value rather than datatime type as what ms and us do. The developer needs to handle it themselves. We recommend using pandas to_datetime() function. If Python officially support nanosecond in the future, TAOS Data might be possible to change the interface accordingly, which mean the application need change too.
