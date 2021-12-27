@@ -1126,7 +1126,18 @@ typedef struct SVCreateTbReq {
 } SVCreateTbReq;
 
 static FORCE_INLINE int tSerializeSVCreateTbReq(void** buf, const SVCreateTbReq* pReq) {
-  int tlen = 0;
+  int      tlen = 0;
+  uint8_t* pBuf = (uint8_t*)(*buf);
+
+  if (TD_RT_ENDIAN() == TD_LITTLE_ENDIAN) {
+    pBuf += tPut(pBuf, pReq->ver, uint64_t);
+    pBuf += tPut(pBuf, pReq->ttl, uint32_t);
+    pBuf += tPut(pBuf, pReq->keep, uint32_t);
+  } else {
+    pBuf += tPutl(pBuf, pReq->ver, uint64_t);
+    pBuf += tPutl(pBuf, pReq->ttl, uint32_t);
+    pBuf += tPutl(pBuf, pReq->keep, uint32_t);
+  }
 
   tlen += taosEncodeFixedU64(buf, pReq->ver);
   tlen += taosEncodeString(buf, pReq->name);

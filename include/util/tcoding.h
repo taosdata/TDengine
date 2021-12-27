@@ -26,158 +26,222 @@ extern "C" {
 #define ZIGZAGD(T, v) ((v) >> 1) ^ -((T)((v)&1))                                 // zigzag decode
 
 /* ------------------------ FIXED-LENGTH ENCODING ------------------------ */
-#define tPut(T, b, v) \
-  ({                  \
-    *(T *)(b) = (v);  \
-    sizeof(T);        \
-  })
-
-#define tGet(T, b, v)  \
-  ({                   \
-    (v) = (*(T *)(b)); \
-    sizeof(T);         \
-  })
-
 // 16
-#define tPut16b(b, v)                        \
-  ({                                         \
-    ((uint8_t *)(b))[1] = (v)&0xff;          \
-    ((uint8_t *)(b))[0] = ((v) >> 8) & 0xff; \
-    2;                                       \
+#define tPut16b(BUF, VAL)                        \
+  ({                                             \
+    ((uint8_t *)(BUF))[1] = (VAL)&0xff;          \
+    ((uint8_t *)(BUF))[0] = ((VAL) >> 8) & 0xff; \
+    2;                                           \
   })
 
-#define tGet16b(b, v)           \
-  ({                            \
-    (v) = ((uint8_t *)(b))[0];  \
-    (v) = (v) << 8;             \
-    (v) |= ((uint8_t *)(b))[1]; \
-    2;                          \
+#define tGet16b(BUF, VAL)           \
+  ({                                \
+    (VAL) = ((uint8_t *)(BUF))[0];  \
+    (VAL) = (VAL) << 8;             \
+    (VAL) |= ((uint8_t *)(BUF))[1]; \
+    2;                              \
   })
 
-#define tPut16l(b, v)                        \
-  ({                                         \
-    ((uint8_t *)(b))[0] = (v)&0xff;          \
-    ((uint8_t *)(b))[1] = ((v) >> 8) & 0xff; \
-    2;                                       \
+#define tPut16l(BUF, VAL)                        \
+  ({                                             \
+    ((uint8_t *)(BUF))[0] = (VAL)&0xff;          \
+    ((uint8_t *)(BUF))[1] = ((VAL) >> 8) & 0xff; \
+    2;                                           \
   })
 
-#define tGet16l(b, v)           \
-  ({                            \
-    (v) = ((uint8_t *)(b))[1];  \
-    (v) <<= 8;                  \
-    (v) |= ((uint8_t *)(b))[0]; \
-    2;                          \
+#define tGet16l(BUF, VAL)           \
+  ({                                \
+    (VAL) = ((uint8_t *)(BUF))[1];  \
+    (VAL) <<= 8;                    \
+    (VAL) |= ((uint8_t *)(BUF))[0]; \
+    2;                              \
   })
 
 // 32
-#define tPut32b(b, v)                         \
-  ({                                          \
-    ((uint8_t *)(b))[3] = (v)&0xff;           \
-    ((uint8_t *)(b))[2] = ((v) >> 8) & 0xff;  \
-    ((uint8_t *)(b))[1] = ((v) >> 16) & 0xff; \
-    ((uint8_t *)(b))[0] = ((v) >> 24) & 0xff; \
-    4;                                        \
+#define tPut32b(BUF, VAL)                         \
+  ({                                              \
+    ((uint8_t *)(BUF))[3] = (VAL)&0xff;           \
+    ((uint8_t *)(BUF))[2] = ((VAL) >> 8) & 0xff;  \
+    ((uint8_t *)(BUF))[1] = ((VAL) >> 16) & 0xff; \
+    ((uint8_t *)(BUF))[0] = ((VAL) >> 24) & 0xff; \
+    4;                                            \
   })
 
-#define tGet32b(b, v)          \
-  ({                           \
-    (v) = ((uint8_t *)(b))[0]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[1]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[2]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[3]; \
-    4;                         \
+#define tGet32b(BUF, VAL)          \
+  ({                               \
+    (VAL) = ((uint8_t *)(BUF))[0]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[1]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[2]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[3]; \
+    4;                             \
   })
 
-#define tPut32l(b, v)                         \
-  ({                                          \
-    ((uint8_t *)(b))[0] = (v)&0xff;           \
-    ((uint8_t *)(b))[1] = ((v) >> 8) & 0xff;  \
-    ((uint8_t *)(b))[2] = ((v) >> 16) & 0xff; \
-    ((uint8_t *)(b))[3] = ((v) >> 24) & 0xff; \
-    4;                                        \
+#define tPut32l(BUF, VAL)                         \
+  ({                                              \
+    ((uint8_t *)(BUF))[0] = (VAL)&0xff;           \
+    ((uint8_t *)(BUF))[1] = ((VAL) >> 8) & 0xff;  \
+    ((uint8_t *)(BUF))[2] = ((VAL) >> 16) & 0xff; \
+    ((uint8_t *)(BUF))[3] = ((VAL) >> 24) & 0xff; \
+    4;                                            \
   })
 
-#define tGet32l(b, v)          \
-  ({                           \
-    (v) = ((uint8_t *)(b))[3]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[2]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[1]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[0]; \
-    4;                         \
+#define tGet32l(BUF, VAL)          \
+  ({                               \
+    (VAL) = ((uint8_t *)(BUF))[3]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[2]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[1]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[0]; \
+    4;                             \
   })
 
 // 64
-#define tPut64b(b, v)                         \
-  ({                                          \
-    ((uint8_t *)(b))[7] = (v)&0xff;           \
-    ((uint8_t *)(b))[6] = ((v) >> 8) & 0xff;  \
-    ((uint8_t *)(b))[5] = ((v) >> 16) & 0xff; \
-    ((uint8_t *)(b))[4] = ((v) >> 24) & 0xff; \
-    ((uint8_t *)(b))[3] = ((v) >> 32) & 0xff; \
-    ((uint8_t *)(b))[2] = ((v) >> 40) & 0xff; \
-    ((uint8_t *)(b))[1] = ((v) >> 48) & 0xff; \
-    ((uint8_t *)(b))[0] = ((v) >> 56) & 0xff; \
-    8;                                        \
+#define tPut64b(BUF, VAL)                         \
+  ({                                              \
+    ((uint8_t *)(BUF))[7] = (VAL)&0xff;           \
+    ((uint8_t *)(BUF))[6] = ((VAL) >> 8) & 0xff;  \
+    ((uint8_t *)(BUF))[5] = ((VAL) >> 16) & 0xff; \
+    ((uint8_t *)(BUF))[4] = ((VAL) >> 24) & 0xff; \
+    ((uint8_t *)(BUF))[3] = ((VAL) >> 32) & 0xff; \
+    ((uint8_t *)(BUF))[2] = ((VAL) >> 40) & 0xff; \
+    ((uint8_t *)(BUF))[1] = ((VAL) >> 48) & 0xff; \
+    ((uint8_t *)(BUF))[0] = ((VAL) >> 56) & 0xff; \
+    8;                                            \
   })
 
-#define tGet64b(b, v)          \
-  ({                           \
-    (v) = ((uint8_t *)(b))[0]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[1]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[2]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[3]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[4]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[5]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[6]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[7]; \
-    8;                         \
+#define tGet64b(BUF, VAL)          \
+  ({                               \
+    (VAL) = ((uint8_t *)(BUF))[0]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[1]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[2]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[3]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[4]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[5]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[6]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[7]; \
+    8;                             \
   })
 
-#define tPut64l(b, v)                         \
-  ({                                          \
-    ((uint8_t *)(b))[0] = (v)&0xff;           \
-    ((uint8_t *)(b))[1] = ((v) >> 8) & 0xff;  \
-    ((uint8_t *)(b))[2] = ((v) >> 16) & 0xff; \
-    ((uint8_t *)(b))[3] = ((v) >> 24) & 0xff; \
-    ((uint8_t *)(b))[4] = ((v) >> 32) & 0xff; \
-    ((uint8_t *)(b))[5] = ((v) >> 40) & 0xff; \
-    ((uint8_t *)(b))[6] = ((v) >> 48) & 0xff; \
-    ((uint8_t *)(b))[7] = ((v) >> 56) & 0xff; \
-    8;                                        \
+#define tPut64l(BUF, VAL)                         \
+  ({                                              \
+    ((uint8_t *)(BUF))[0] = (VAL)&0xff;           \
+    ((uint8_t *)(BUF))[1] = ((VAL) >> 8) & 0xff;  \
+    ((uint8_t *)(BUF))[2] = ((VAL) >> 16) & 0xff; \
+    ((uint8_t *)(BUF))[3] = ((VAL) >> 24) & 0xff; \
+    ((uint8_t *)(BUF))[4] = ((VAL) >> 32) & 0xff; \
+    ((uint8_t *)(BUF))[5] = ((VAL) >> 40) & 0xff; \
+    ((uint8_t *)(BUF))[6] = ((VAL) >> 48) & 0xff; \
+    ((uint8_t *)(BUF))[7] = ((VAL) >> 56) & 0xff; \
+    8;                                            \
   })
 
-#define tGet64l(b, v)          \
-  ({                           \
-    (v) = ((uint8_t *)(b))[7]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[6]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[5]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[4]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[3]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[2]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[1]; \
-    (v) <<= 8;                 \
-    (v) = ((uint8_t *)(b))[0]; \
-    8;                         \
+#define tGet64l(BUF, VAL)          \
+  ({                               \
+    (VAL) = ((uint8_t *)(BUF))[7]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[6]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[5]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[4]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[3]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[2]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[1]; \
+    (VAL) <<= 8;                   \
+    (VAL) = ((uint8_t *)(BUF))[0]; \
+    8;                             \
   })
+
+#define tPut(BUF, VAL, TYPE) \
+  ({                         \
+    *(TYPE *)(BUF) = (VAL);  \
+    sizeof(TYPE);            \
+  })
+
+#define tGet(BUF, VAL, TYPE)  \
+  ({                          \
+    (VAL) = (*(TYPE *)(BUF)); \
+    sizeof(TYPE);             \
+  })
+
+#define tPut_uint16_t_l(BUF, VAL, TYPE) tPut16l(BUF, VAL)
+#define tGet_uint16_t_l(BUF, VAL, TYPE) tGet16l(BUF, VAL)
+#define tPut_int16_t_l(BUF, VAL, TYPE) tPut16l(BUF, VAL)
+#define tGet_int16_t_l(BUF, VAL, TYPE) tGet16l(BUF, VAL)
+
+#define tPut_uint32_t_l(BUF, VAL, TYPE) tPut32l(BUF, VAL)
+#define tGet_uint32_t_l(BUF, VAL, TYPE) tGet32l(BUF, VAL)
+#define tPut_int32_t_l(BUF, VAL, TYPE) tPut32l(BUF, VAL)
+#define tGet_int32_t_l(BUF, VAL, TYPE) tGet32l(BUF, VAL)
+
+#define tPut_uint64_t_l(BUF, VAL, TYPE) tPut64l(BUF, VAL)
+#define tGet_uint64_t_l(BUF, VAL, TYPE) tGet64l(BUF, VAL)
+#define tPut_int64_t_l(BUF, VAL, TYPE) tPut64l(BUF, VAL)
+#define tGet_int64_t_l(BUF, VAL, TYPE) tGet64l(BUF, VAL)
+
+#define tPut_uint16_t_b(BUF, VAL, TYPE) tPut16b(BUF, VAL)
+#define tGet_uint16_t_b(BUF, VAL, TYPE) tGet16b(BUF, VAL)
+#define tPut_int16_t_b(BUF, VAL, TYPE) tPut16b(BUF, VAL)
+#define tGet_int16_t_b(BUF, VAL, TYPE) tGet16b(BUF, VAL)
+
+#define tPut_uint32_t_b(BUF, VAL, TYPE) tPut32b(BUF, VAL)
+#define tGet_uint32_t_b(BUF, VAL, TYPE) tGet32b(BUF, VAL)
+#define tPut_int32_t_b(BUF, VAL, TYPE) tPut32b(BUF, VAL)
+#define tGet_int32_t_b(BUF, VAL, TYPE) tGet32b(BUF, VAL)
+
+#define tPut_uint64_t_b(BUF, VAL, TYPE) tPut64b(BUF, VAL)
+#define tGet_uint64_t_b(BUF, VAL, TYPE) tGet64b(BUF, VAL)
+#define tPut_int64_t_b(BUF, VAL, TYPE) tPut64b(BUF, VAL)
+#define tGet_int64_t_b(BUF, VAL, TYPE) tGet64b(BUF, VAL)
+
+#define tPutl(BUF, VAL, TYPE) tPut_##TYPE##_l(BUF, VAL, TYPE)
+
+#define tGetl(BUF, VAL, TYPE) tGet_##TYPE##_l(BUF, VAL, TYPE)
+
+#define tPutb(BUF, VAL, TYPE) tPut_##TYPE##_b(BUF, VAL, TYPE)
+
+#define tGetb(BUF, VAL, TYPE) tGet_##TYPE##_b(BUF, VAL, TYPE)
+
+/* ------------------------ VARIANT-LENGTH ENCODING ------------------------ */
+#define vPutU(BUF, VAL)                                        \
+  ({                                                           \
+    uint64_t tmp = (VAL);                                      \
+    int      i = 0;                                            \
+    while ((VAL) >= ENCODE_LIMIT) {                            \
+      ((uint8_t *)(BUF))[i] = (uint8_t)((tmp) | ENCODE_LIMIT); \
+      (tmp) >>= 7;                                             \
+      i++;                                                     \
+    }                                                          \
+    ((uint8_t *)(BUF))[i] = (uint8_t)(tmp);                    \
+    i + 1;                                                     \
+  })
+
+#define vGetU(BUF, VAL)
+
+#define vPutI(BUF, VAL, TYPE)          \
+  ({                                   \
+    uint64_t tmp = ZIGZAGE(TYPE, VAL); \
+    vPutU(BUF, tmp);                   \
+  })
+
+#define vGetI(BUF, VAL, TYPE)
+
+/* ------------------------ OTHER TYPE ENCODING ------------------------ */
 
 /* ------------------------ LEGACY CODES ------------------------ */
 #if 1
