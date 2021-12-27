@@ -27,7 +27,7 @@ dotnet run --project TDengineTest/TDengineTest.csproj
 dotnet run --project schemaless/schemaless.csproj
 
 cd ${WKC}/tests/system-test/3-connectors/c#/stmtfunction
-dotnet run
+dotnet run || exit 1
 
 cd ${WKC}/tests/examples/C#/taosdemo
 dotnet build -c Release
