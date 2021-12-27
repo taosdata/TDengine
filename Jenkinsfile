@@ -367,6 +367,7 @@ pipeline {
               else{
                 sh'''
                   cd ${WKC}
+                  git reset --hard HEAD~10
                   git fetch
                   git checkout ${CHANGE_BRANCH}
                   git pull
