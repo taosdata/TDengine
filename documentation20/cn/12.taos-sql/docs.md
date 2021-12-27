@@ -1376,9 +1376,61 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
                 10.30000 |
     Query OK, 1 row(s) in set (0.001042s)
    ```
+
+- **INTERP  [2.3.1及之后的版本]** 
+    
+    ```mysql
+    SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ RANGE(timestamp1,timestamp2) ] [EVERY(interval)] [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
+    ```
+
+功能说明：返回表/超级表的指定时间截面指定列的记录值（插值）。
+
+返回结果数据类型：同字段类型。
+
+应用字段：数值型字段。
+
+适用于：**表、超级表、嵌套查询**。
+
+说明：
+1）INTERP用于在指定时间断面获取指定列的记录值，如果该时间断面不存在符合条件的行数据，那么会根据 FILL 参数的设定进行插值。
+
+2）INTERP的输入数据为指定列的数据，可以通过条件语句（where子句）来对原始列数据进行过滤，如果没有指定过滤条件则输入为全部数据。
+
+3）INTERP的输出时间范围根据RANGE(timestamp1,timestamp2)字段来指定，需满足timestamp1<=timestamp2。其中timestamp1（必选值）为输出时间范围的起始值，即如果timestamp1时刻符合插值条件则timestamp1为输出的第一条记录，timestamp2（必选值）为输出时间范围的结束值，即输出的最后一条记录的timestamp不能大于timestamp2。如果没有指定RANGE，那么满足过滤条件的输入数据中第一条记录的timestamp即为timestamp1，最后一条记录的timestamp即为timestamp2，同样也满足timestamp1 <= timestamp2。
+
+4）INTERP根据EVERY字段来确定输出时间范围内的结果条数，即从timestamp1开始每隔固定长度的时间（EVERY值）进行插值。如果没有指定EVERY，则默认窗口大小为无穷大，即从timestamp1开始只有一个窗口。
+
+5）INTERP根据FILL字段来决定在每个符合输出条件的时刻如何进行插值，如果没有FILL字段则默认不插值，即输出为原始记录值或不输出（原始记录不存在）。
+
+6）INTERP只能在一个时间序列内进行插值，因此当作用于超级表时必须跟group by tbname一起使用，当作用嵌套查询外层时内层子查询不能含GROUP BY信息。
+
+7）INTERP的插值结果不受ORDER BY timestamp的影响，ORDER BY timestamp只影响输出结果的排序。
+
+SQL示例：
+
+    1) 单点线性插值
+   ```mysql
+    taos> SELECT INTERP(*) FROM t1 RANGE('2017-7-14 18:40:00'，'2017-7-14 18:40:00') FILL(LINEAR);
+   ```
+    2) 在2017-07-14 18:00:00到2017-07-14 19:00:00间每隔5秒钟进行取值(不插值)
+   ```mysql
+    taos> SELECT INTERP(*) FROM t1 RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s);
+   ```
+    3) 在2017-07-14 18:00:00到2017-07-14 19:00:00间每隔5秒钟进行线性插值
+   ```mysql
+     taos> SELECT INTERP(*) FROM t1 RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
+   ```
+   4.在所有时间范围内每隔5秒钟进行向后插值
+   ```mysql
+     taos> SELECT INTERP(*) FROM t1 EVERY(5s) FILL(NEXT);
+   ```
+   5.根据2017-07-14 17:00:00到2017-07-14 20:00:00间的数据进行从2017-07-14 18:00:00到2017-07-14 19:00:00间每隔5秒钟进行线性插值
+   ```mysql
+     taos> SELECT INTERP(*) FROM t1 where ts >= '2017-07-14 17:00:00' and ts <= '2017-07-14 20:00:00' RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
+   ```
     
 
-- **INTERP** 
+- **INTERP  [2.3.1之前的版本]** 
     
     ```mysql
     SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
