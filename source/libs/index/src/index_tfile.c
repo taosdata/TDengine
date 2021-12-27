@@ -33,11 +33,9 @@ static int tfileWriteHeader(TFileWriter* writer);
 static int tfileWriteFstOffset(TFileWriter* tw, int32_t offset);
 static int tfileWriteData(TFileWriter* write, TFileValue* tval);
 
-static int  tfileReaderLoadHeader(TFileReader* reader);
-static int  tfileReaderLoadFst(TFileReader* reader);
-static int  tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result);
-static void tfileReaderRef(TFileReader* reader);
-static void tfileReaderUnRef(TFileReader* reader);
+static int tfileReaderLoadHeader(TFileReader* reader);
+static int tfileReaderLoadFst(TFileReader* reader);
+static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result);
 
 static int  tfileGetFileList(const char* path, SArray* result);
 static int  tfileRmExpireFile(SArray* result);
@@ -131,7 +129,6 @@ void tfileCachePut(TFileCache* tcache, TFileCacheKey* key, TFileReader* reader) 
   taosHashPut(tcache->tableCache, buf, strlen(buf), &reader, sizeof(void*));
   return;
 }
-
 TFileReader* tfileReaderCreate(WriterCtx* ctx) {
   TFileReader* reader = calloc(1, sizeof(TFileReader));
   if (reader == NULL) { return NULL; }
@@ -317,6 +314,11 @@ int indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid) {
 
   return 0;
 }
+TFileReader* tfileGetReaderByCol(IndexTFile* tf, char* colName) {
+  if (tf == NULL) { return NULL; }
+  TFileCacheKey key = {.suid = 0, .colType = TSDB_DATA_TYPE_BINARY, .colName = colName, .nColName = strlen(colName)};
+  return tfileCacheGet(tf->cache, &key);
+}
 
 static int tfileStrCompare(const void* a, const void* b) {
   int ret = strcmp((char*)a, (char*)b);
@@ -423,12 +425,12 @@ static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* 
   free(buf);
   return 0;
 }
-static void tfileReaderRef(TFileReader* reader) {
+void tfileReaderRef(TFileReader* reader) {
   int ref = T_REF_INC(reader);
   UNUSED(ref);
 }
 
-static void tfileReaderUnRef(TFileReader* reader) {
+void tfileReaderUnRef(TFileReader* reader) {
   int ref = T_REF_DEC(reader);
   if (ref == 0) { tfileReaderDestroy(reader); }
 }
@@ -479,9 +481,9 @@ static int tfileParseFileName(const char* filename, uint64_t* suid, int* colId, 
   return -1;
 }
 static void tfileSerialCacheKey(TFileCacheKey* key, char* buf) {
-  SERIALIZE_MEM_TO_BUF(buf, key, suid);
-  SERIALIZE_VAR_TO_BUF(buf, '_', char);
-  SERIALIZE_MEM_TO_BUF(buf, key, colType);
-  SERIALIZE_VAR_TO_BUF(buf, '_', char);
+  // SERIALIZE_MEM_TO_BUF(buf, key, suid);
+  // SERIALIZE_VAR_TO_BUF(buf, '_', char);
+  // SERIALIZE_MEM_TO_BUF(buf, key, colType);
+  // SERIALIZE_VAR_TO_BUF(buf, '_', char);
   SERIALIZE_STR_MEM_TO_BUF(buf, key, colName, key->nColName);
 }

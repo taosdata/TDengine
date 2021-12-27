@@ -209,7 +209,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
 }
 
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, void** pJob) {
-  return scheduleExecJob(pRequest->pTscObj->pTransporter, NULL/*todo appInfo.xxx*/, pDag, pJob);
+  return scheduleAsyncExecJob(pRequest->pTscObj->pTransporter, NULL/*todo appInfo.xxx*/, pDag, pJob);
 }
 
 TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
