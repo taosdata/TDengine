@@ -167,11 +167,11 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
   SMsgSendInfo* body = buildSendMsgInfoImpl(pRequest);
   SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
 
-  if (pDcl->msgType == TDMT_MND_CREATE_TABLE) {
+  if (pDcl->msgType == TDMT_VND_CREATE_TABLE) {
     struct SCatalog* pCatalog = NULL;
 
-    char buf[12] = {0};
-    sprintf(buf, "%d", pRequest->pTscObj->pAppInfo->clusterId);
+    char buf[18] = {0};
+    sprintf(buf, "%" PRId64, pRequest->pTscObj->pAppInfo->clusterId);
     int32_t code = catalogGetHandle(buf, &pCatalog);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -230,11 +230,13 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
   CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
+
   if (qIsDdlQuery(pQuery)) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
+  } else {
+    CHECK_CODE_GOTO(qCreateQueryDag(pQuery, &pDag), _return);
+    CHECK_CODE_GOTO(scheduleQuery(pRequest, pDag, &pJob), _return);
   }
-  CHECK_CODE_GOTO(qCreateQueryDag(pQuery, &pDag), _return);
-  CHECK_CODE_GOTO(scheduleQuery(pRequest, pDag, &pJob), _return);
 
 _return:
   qDestoryQuery(pQuery);

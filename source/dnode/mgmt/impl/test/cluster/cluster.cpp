@@ -28,14 +28,14 @@ Testbase DndTestCluster::test;
 TEST_F(DndTestCluster, 01_ShowCluster) {
   test.SendShowMetaMsg(TSDB_MGMT_TABLE_CLUSTER, "");
   CHECK_META( "show cluster", 3);
-  CHECK_SCHEMA(0, TSDB_DATA_TYPE_INT, 4, "id");
+  CHECK_SCHEMA(0, TSDB_DATA_TYPE_BIGINT, 8, "id");
   CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE, "name");
   CHECK_SCHEMA(2, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
 
   test.SendShowRetrieveMsg();
   EXPECT_EQ(test.GetShowRows(), 1);
 
-  IgnoreInt32();
+  IgnoreInt64();
   IgnoreBinary(TSDB_CLUSTER_ID_LEN);
   CheckTimestamp();
 }

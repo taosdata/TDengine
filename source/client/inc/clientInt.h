@@ -60,7 +60,7 @@ typedef struct SAppInstInfo {
   SCorEpSet         mgmtEp;
   SInstanceSummary  summary;
   SList            *pConnList;  // STscObj linked list
-  uint32_t          clusterId;
+  int64_t           clusterId;
   void             *pTransporter;
 } SAppInstInfo;
 

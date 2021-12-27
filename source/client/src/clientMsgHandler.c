@@ -34,6 +34,8 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     pRequest->code = code;
     terrno         = code;
+
+    sem_post(&pRequest->body.rspSem);
     return code;
   }
 
@@ -42,7 +44,7 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SConnectRsp *pConnect = (SConnectRsp *)pMsg->pData;
   pConnect->acctId    = htonl(pConnect->acctId);
   pConnect->connId    = htonl(pConnect->connId);
-  pConnect->clusterId = htonl(pConnect->clusterId);
+  pConnect->clusterId = htobe64(pConnect->clusterId);
 
   assert(pConnect->epSet.numOfEps > 0);
   for(int32_t i = 0; i < pConnect->epSet.numOfEps; ++i) {
@@ -64,8 +66,9 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   pTscObj->pAppInfo->clusterId = pConnect->clusterId;
   atomic_add_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
-//  pRequest->body.resInfo.pRspMsg = pMsg->pData;
-  tscDebug("0x%" PRIx64 " clusterId:%d, totalConn:%"PRId64, pRequest->requestId, pConnect->clusterId, pTscObj->pAppInfo->numOfConns);
+  //  pRequest->body.resInfo.pRspMsg = pMsg->pData;
+  tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, pConnect->clusterId,
+           pTscObj->pAppInfo->numOfConns);
 
   sem_post(&pRequest->body.rspSem);
   return 0;
@@ -289,6 +292,6 @@ void initMsgHandleFp() {
   handleRequestRspFp[TDMT_MND_SHOW_RETRIEVE] = processRetrieveMnodeRsp;
   handleRequestRspFp[TDMT_MND_CREATE_DB]     = processCreateDbRsp;
   handleRequestRspFp[TDMT_MND_USE_DB]        = processUseDbRsp;
-  handleRequestRspFp[TDMT_MND_CREATE_TABLE]  = processCreateTableRsp;
+  handleRequestRspFp[TDMT_MND_CREATE_STB]  = processCreateTableRsp;
   handleRequestRspFp[TDMT_MND_DROP_DB]       = processDropDbRsp;
 }

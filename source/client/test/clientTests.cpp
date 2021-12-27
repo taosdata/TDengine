@@ -160,6 +160,12 @@ TEST(testCase, create_db_Test) {
   int32_t numOfFields = taos_num_fields(pRes);
   ASSERT_EQ(numOfFields, 0);
 
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create database abc1");
+  if (taos_errno(pRes) != 0) {
+    printf("error in create db, reason:%s\n", taos_errstr(pRes));
+  }
   taos_close(pConn);
 }
 
