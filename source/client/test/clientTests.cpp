@@ -50,13 +50,13 @@ int main(int argc, char** argv) {
 TEST(testCase, driverInit_Test) { taos_init(); }
 
 TEST(testCase, connect_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
   taos_close(pConn);
 }
 
 TEST(testCase, create_user_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "create user abc pass 'abc'");
@@ -69,7 +69,7 @@ TEST(testCase, create_user_Test) {
 }
 
 TEST(testCase, create_account_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "create account aabc pass 'abc'");
@@ -82,7 +82,7 @@ TEST(testCase, create_account_Test) {
 }
 
 TEST(testCase, drop_account_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "drop account aabc");
@@ -95,7 +95,7 @@ TEST(testCase, drop_account_Test) {
 }
 
 TEST(testCase, show_user_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "show users");
@@ -114,7 +114,7 @@ TEST(testCase, show_user_Test) {
 }
 
 TEST(testCase, drop_user_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "drop user abc");
@@ -127,7 +127,7 @@ TEST(testCase, drop_user_Test) {
 }
 
 TEST(testCase, show_db_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
 //  assert(pConn != NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "show databases");
@@ -146,7 +146,7 @@ TEST(testCase, show_db_Test) {
 }
 
 TEST(testCase, create_db_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "create database abc1");
@@ -170,7 +170,7 @@ TEST(testCase, create_db_Test) {
 }
 
 TEST(testCase, create_dnode_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "create dnode abc1");
@@ -189,7 +189,7 @@ TEST(testCase, create_dnode_Test) {
 }
 
 TEST(testCase, drop_dnode_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "drop dnode 2");
@@ -208,7 +208,7 @@ TEST(testCase, drop_dnode_Test) {
 }
 
 TEST(testCase, use_db_test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
@@ -226,7 +226,7 @@ TEST(testCase, use_db_test) {
 }
 
 TEST(testCase, drop_db_test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
   showDB(pConn);
@@ -248,7 +248,7 @@ TEST(testCase, drop_db_test) {
 }
 
  TEST(testCase, create_stable_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "create database abc1");
@@ -279,7 +279,7 @@ TEST(testCase, drop_db_test) {
 }
 
 TEST(testCase, create_table_Test) {
-  //  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  //  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   //  assert(pConn != NULL);
   //
   //  TAOS_RES* pRes = taos_query(pConn, "use abc1");
@@ -294,7 +294,7 @@ TEST(testCase, create_table_Test) {
 TEST(testCase, create_ctable_Test) {}
 
 TEST(testCase, show_stable_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
@@ -325,7 +325,7 @@ TEST(testCase, show_stable_Test) {
 }
 
 TEST(testCase, show_vgroup_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
@@ -358,7 +358,7 @@ TEST(testCase, show_vgroup_Test) {
 }
 
 TEST(testCase, drop_stable_Test) {
-  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "create database abc1");
@@ -383,7 +383,7 @@ TEST(testCase, drop_stable_Test) {
 }
 
 //TEST(testCase, show_table_Test) {
-//  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+//  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
 //  assert(pConn != NULL);
 //
 //  TAOS_RES* pRes = taos_query(pConn, "use abc1");
