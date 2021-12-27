@@ -31,7 +31,7 @@ import subprocess
 class TDTestCase:
     def caseDescription(self):
         '''
-        case1<xyguo>:core:src/query/src/qExtbuffer.c:1193 
+        case1<xyguo>[TD-12204]:slect * from ** order by ts can cause core:src/query/src/qExtbuffer.c
         ''' 
         return
 
