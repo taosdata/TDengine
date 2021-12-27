@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "tmsg.h"
+#include "tarray.h"
 
 #define QUERY_TYPE_MERGE       1
 #define QUERY_TYPE_PARTIAL     2
@@ -158,12 +159,17 @@ int32_t qStringToSubplan(const char* str, SSubplan** subplan);
 
 void qDestroySubplan(SSubplan* pSubplan);
 
+char* qDagSerialize(const SQueryDag* pDag);
+
 /**
  * Destroy the physical plan.
  * @param pQueryPhyNode
  * @return
  */
 void qDestroyQueryDag(SQueryDag* pDag);
+
+char* qDagToString(const SQueryDag* pDag);
+SQueryDag* qStringToDag(const char* pStr);
 
 #ifdef __cplusplus
 }
