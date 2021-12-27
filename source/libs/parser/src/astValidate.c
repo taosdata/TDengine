@@ -4090,7 +4090,7 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, void** ou
     }
   }
 
-  *output = buildShowMsg(pShowInfo, pCtx->requestId, pMsgBuf->buf, pMsgBuf->len);
+  *output = buildShowMsg(pShowInfo, pCtx, pMsgBuf->buf, pMsgBuf->len);
   *outputLen = sizeof(SShowMsg)/* + htons(pShowMsg->payloadLen)*/;
   return TSDB_CODE_SUCCESS;
 }
@@ -4495,7 +4495,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
           return code;
         }
         pDcl->pMsg = (char*)buildCreateTableMsg(pCreateTable, &pDcl->msgLen, pCtx, pMsgBuf);
-        pDcl->msgType = (pCreateTable->type == TSQL_CREATE_TABLE)? TDMT_MND_CREATE_TABLE:TDMT_MND_CREATE_STB;
+        pDcl->msgType = (pCreateTable->type == TSQL_CREATE_TABLE)? TDMT_VND_CREATE_TABLE:TDMT_MND_CREATE_STB;
       } else if (pCreateTable->type == TSQL_CREATE_CTABLE) {
         //        if ((code = doCheckForCreateFromStable(pSql, pInfo)) != TSDB_CODE_SUCCESS) {
         //          return code;

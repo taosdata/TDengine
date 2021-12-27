@@ -28,9 +28,7 @@ typedef struct SDnode SDnode;
 typedef struct {
   int32_t  sver;
   int16_t  numOfCores;
-  int16_t  numOfSupportMnodes;
   int16_t  numOfSupportVnodes;
-  int16_t  numOfSupportQnodes;
   int8_t   enableTelem;
   int32_t  statusInterval;
   float    numOfThreadsPerCore;

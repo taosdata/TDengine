@@ -276,12 +276,11 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
 static void mndParseStatusMsg(SStatusMsg *pStatus) {
   pStatus->sver = htonl(pStatus->sver);
   pStatus->dnodeId = htonl(pStatus->dnodeId);
-  pStatus->clusterId = htonl(pStatus->clusterId);
+  pStatus->clusterId = htobe64(pStatus->clusterId);
   pStatus->rebootTime = htobe64(pStatus->rebootTime);
+  pStatus->updateTime = htobe64(pStatus->updateTime);
   pStatus->numOfCores = htons(pStatus->numOfCores);
-  pStatus->numOfSupportMnodes = htons(pStatus->numOfSupportMnodes);
   pStatus->numOfSupportVnodes = htons(pStatus->numOfSupportVnodes);
-  pStatus->numOfSupportQnodes = htons(pStatus->numOfSupportQnodes);
   pStatus->clusterCfg.statusInterval = htonl(pStatus->clusterCfg.statusInterval);
   pStatus->clusterCfg.checkTime = htobe64(pStatus->clusterCfg.checkTime);
 }
@@ -324,13 +323,14 @@ static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg) {
   }
 
   if (pStatus->dnodeId == 0) {
-    mDebug("dnode:%d %s, first access, set clusterId %d", pDnode->id, pDnode->ep, pMnode->clusterId);
+    mDebug("dnode:%d %s, first access, set clusterId %" PRId64, pDnode->id, pDnode->ep, pMnode->clusterId);
   } else {
     if (pStatus->clusterId != pMnode->clusterId) {
       if (pDnode != NULL && pDnode->status != DND_STATUS_READY) {
         pDnode->offlineReason = DND_REASON_CLUSTER_ID_NOT_MATCH;
       }
-      mError("dnode:%d, clusterId %d not match exist %d", pDnode->id, pStatus->clusterId, pMnode->clusterId);
+      mError("dnode:%d, clusterId %" PRId64 " not match exist %" PRId64, pDnode->id, pStatus->clusterId,
+             pMnode->clusterId);
       mndReleaseDnode(pMnode, pDnode);
       terrno != TSDB_CODE_MND_INVALID_CLUSTER_ID;
       return -1;
@@ -356,9 +356,7 @@ static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg) {
 
   pDnode->rebootTime = pStatus->rebootTime;
   pDnode->numOfCores = pStatus->numOfCores;
-  pDnode->numOfSupportMnodes = pStatus->numOfSupportMnodes;
   pDnode->numOfSupportVnodes = pStatus->numOfSupportVnodes;
-  pDnode->numOfSupportQnodes = pStatus->numOfSupportQnodes;
   pDnode->lastAccessTime = taosGetTimestampMs();
   pDnode->status = DND_STATUS_READY;
 
@@ -373,7 +371,7 @@ static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg) {
 
   pRsp->dnodeCfg.dnodeId = htonl(pDnode->id);
   pRsp->dnodeCfg.dropped = 0;
-  pRsp->dnodeCfg.clusterId = htonl(pMnode->clusterId);
+  pRsp->dnodeCfg.clusterId = htobe64(pMnode->clusterId);
   mndGetDnodeData(pMnode, &pRsp->dnodeEps, numOfEps);
 
   pMsg->contLen = contLen;
