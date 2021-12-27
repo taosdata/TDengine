@@ -59,7 +59,6 @@ typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
 typedef struct {
   char *dnode;
   char *mnode;
-  char *qnode;
   char *snode;
   char *bnode;
   char *vnodes;

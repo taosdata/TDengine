@@ -30,7 +30,18 @@ if $rows != 2 then
 endi
 
 print $data00 $data01 $data02
-print $data00 $data11 $data12
+print $data10 $data11 $data12
+
+sql drop table st2
+
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+print -->
+print $data00 $data01 $data02
+print $data10 $data11 $data12
 
 return
 

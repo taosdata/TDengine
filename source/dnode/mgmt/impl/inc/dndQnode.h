@@ -24,7 +24,7 @@ extern "C" {
 int32_t dndInitQnode(SDnode *pDnode);
 void    dndCleanupQnode(SDnode *pDnode);
 
-ioid    dndProcessQnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
+void    dndProcessQnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dndProcessQnodeFetchMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 int32_t dndProcessCreateQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 int32_t dndProcessDropQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);

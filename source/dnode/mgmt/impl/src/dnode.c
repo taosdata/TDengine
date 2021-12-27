@@ -84,21 +84,14 @@ static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOption) {
   char path[PATH_MAX + 100];
   snprintf(path, sizeof(path), "%s%smnode", pOption->dataDir, TD_DIRSEP);
   pDnode->dir.mnode = tstrdup(path);
-
   snprintf(path, sizeof(path), "%s%svnode", pOption->dataDir, TD_DIRSEP);
   pDnode->dir.vnodes = tstrdup(path);
-
   snprintf(path, sizeof(path), "%s%sdnode", pOption->dataDir, TD_DIRSEP);
   pDnode->dir.dnode = tstrdup(path);
-
-  snprintf(path, sizeof(path), "%s%sqnode", pOption->dataDir, TD_DIRSEP);
-  pDnode->dir.dnode = tstrdup(path);
-
   snprintf(path, sizeof(path), "%s%ssnode", pOption->dataDir, TD_DIRSEP);
-  pDnode->dir.dnode = tstrdup(path);
-
+  pDnode->dir.snode = tstrdup(path);
   snprintf(path, sizeof(path), "%s%sbnode", pOption->dataDir, TD_DIRSEP);
-  pDnode->dir.dnode = tstrdup(path);
+  pDnode->dir.bnode = tstrdup(path);
 
   if (pDnode->dir.mnode == NULL || pDnode->dir.vnodes == NULL || pDnode->dir.dnode == NULL) {
     dError("failed to malloc dir object");
@@ -124,12 +117,6 @@ static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOption) {
     return -1;
   }
 
-  if (taosMkDir(pDnode->dir.qnode) != 0) {
-    dError("failed to create dir:%s since %s", pDnode->dir.qnode, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
   if (taosMkDir(pDnode->dir.snode) != 0) {
     dError("failed to create dir:%s since %s", pDnode->dir.snode, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -147,29 +134,11 @@ static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOption) {
 }
 
 static void dndCleanupEnv(SDnode *pDnode) {
-  if (pDnode->dir.mnode != NULL) {
-    tfree(pDnode->dir.mnode);
-  }
-
-  if (pDnode->dir.vnodes != NULL) {
-    tfree(pDnode->dir.vnodes);
-  }
-
-  if (pDnode->dir.dnode != NULL) {
-    tfree(pDnode->dir.dnode);
-  }
-
-  if (pDnode->dir.qnode != NULL) {
-    tfree(pDnode->dir.qnode);
-  }
-
-  if (pDnode->dir.bnode != NULL) {
-    tfree(pDnode->dir.snode);
-  }
-
-  if (pDnode->dir.snode != NULL) {
-    tfree(pDnode->dir.bnode);
-  }
+  tfree(pDnode->dir.mnode);
+  tfree(pDnode->dir.vnodes);
+  tfree(pDnode->dir.dnode);
+  tfree(pDnode->dir.snode);
+  tfree(pDnode->dir.bnode);
 
   if (pDnode->lockFd >= 0) {
     taosUnLockFile(pDnode->lockFd);
