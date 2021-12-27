@@ -51,6 +51,7 @@ static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
 static void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
 static void    mndTransSendRpcRsp(STrans *pTrans);
 static int32_t mndProcessTransMsg(SMnodeMsg *pMsg);
+static int32_t mndProcessTransRsp(SMnodeMsg *pMsg);
 
 int32_t mndInitTrans(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_TRANS,
@@ -62,6 +63,7 @@ int32_t mndInitTrans(SMnode *pMnode) {
                      .deleteFp = (SdbDeleteFp)mndTransActionDelete};
 
   mndSetMsgHandle(pMnode, TDMT_MND_TRANS, mndProcessTransMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_TRANS_RSP, mndProcessTransRsp);
   return sdbSetTable(pMnode->pSdb, table);
 }
 
@@ -902,3 +904,5 @@ static int32_t mndProcessTransMsg(SMnodeMsg *pMsg) {
     sdbRelease(pMnode->pSdb, pTrans);
   }
 }
+
+static int32_t mndProcessTransRsp(SMnodeMsg *pMsg) { return 0; }

@@ -225,7 +225,7 @@ static int32_t mndProcessConnectMsg(SMnodeMsg *pMsg) {
     mndReleaseUser(pMnode, pUser);
   }
 
-  pRsp->clusterId = htonl(pMnode->clusterId);
+  pRsp->clusterId = htobe64(pMnode->clusterId);
   pRsp->connId = htonl(pConn->id);
   mndGetMnodeEpSet(pMnode, &pRsp->epSet);
   mndReleaseConn(pMnode, pConn);

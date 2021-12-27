@@ -59,7 +59,7 @@ int processConnectRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
   SConnectRsp *pConnect = (SConnectRsp *)pMsg;
   pConnect->acctId    = htonl(pConnect->acctId);
   pConnect->connId    = htonl(pConnect->connId);
-  pConnect->clusterId = htonl(pConnect->clusterId);
+  pConnect->clusterId = htobe64(pConnect->clusterId);
 
   assert(pConnect->epSet.numOfEps > 0);
   for(int32_t i = 0; i < pConnect->epSet.numOfEps; ++i) {
@@ -82,7 +82,8 @@ int processConnectRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
   atomic_add_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
   pRequest->body.resInfo.pRspMsg = pMsg;
-  tscDebug("0x%" PRIx64 " clusterId:%d, totalConn:%"PRId64, pRequest->requestId, pConnect->clusterId, pTscObj->pAppInfo->numOfConns);
+  tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, pConnect->clusterId,
+           pTscObj->pAppInfo->numOfConns);
   return 0;
 }
 

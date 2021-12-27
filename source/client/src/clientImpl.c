@@ -170,8 +170,8 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
   if (pDcl->msgType == TDMT_MND_CREATE_TABLE) {
     struct SCatalog* pCatalog = NULL;
 
-    char buf[12] = {0};
-    sprintf(buf, "%d", pRequest->pTscObj->pAppInfo->clusterId);
+    char buf[18] = {0};
+    sprintf(buf, "%" PRId64, pRequest->pTscObj->pAppInfo->clusterId);
     int32_t code = catalogGetHandle(buf, &pCatalog);
     if (code != TSDB_CODE_SUCCESS) {
       return code;

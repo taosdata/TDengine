@@ -307,7 +307,7 @@ static int32_t dndWriteDnodes(SDnode *pDnode) {
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", pMgmt->dnodeId);
-  len += snprintf(content + len, maxLen - len, "  \"clusterId\": %d,\n", pMgmt->clusterId);
+  len += snprintf(content + len, maxLen - len, "  \"clusterId\": \"%" PRId64 "\",\n", pMgmt->clusterId);
   len += snprintf(content + len, maxLen - len, "  \"dropped\": %d,\n", pMgmt->dropped);
   len += snprintf(content + len, maxLen - len, "  \"dnodes\": [{\n");
   for (int32_t i = 0; i < pMgmt->dnodeEps->num; ++i) {
@@ -348,7 +348,7 @@ void dndSendStatusMsg(SDnode *pDnode) {
   taosRLockLatch(&pMgmt->latch);
   pStatus->sver = htonl(pDnode->opt.sver);
   pStatus->dnodeId = htonl(pMgmt->dnodeId);
-  pStatus->clusterId = htonl(pMgmt->clusterId);
+  pStatus->clusterId = htobe64(pMgmt->clusterId);
   pStatus->rebootTime = htobe64(pMgmt->rebootTime);
   pStatus->updateTime = htobe64(pMgmt->updateTime);
   pStatus->numOfCores = htons(pDnode->opt.numOfCores);
@@ -378,7 +378,7 @@ void dndSendStatusMsg(SDnode *pDnode) {
 static void dndUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   if (pMgmt->dnodeId == 0 || pMgmt->dropped != pCfg->dropped) {
-    dInfo("set dnodeId:%d clusterId:%d dropped:%d", pCfg->dnodeId, pCfg->clusterId, pCfg->dropped);
+    dInfo("set dnodeId:%d clusterId:% " PRId64 " dropped:%d", pCfg->dnodeId, pCfg->clusterId, pCfg->dropped);
 
     taosWLockLatch(&pMgmt->latch);
     pMgmt->dnodeId = pCfg->dnodeId;
@@ -424,7 +424,7 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SStatusRsp *pRsp = pMsg->pCont;
   SDnodeCfg  *pCfg = &pRsp->dnodeCfg;
   pCfg->dnodeId = htonl(pCfg->dnodeId);
-  pCfg->clusterId = htonl(pCfg->clusterId);
+  pCfg->clusterId = htobe64(pCfg->clusterId);
   dndUpdateDnodeCfg(pDnode, pCfg);
 
   if (pCfg->dropped) {

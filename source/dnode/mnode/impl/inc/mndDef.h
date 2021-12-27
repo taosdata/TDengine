@@ -111,7 +111,7 @@ typedef struct {
 } STrans;
 
 typedef struct {
-  int32_t id;
+  int64_t id;
   char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
   int64_t updateTime;

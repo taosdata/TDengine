@@ -320,7 +320,7 @@ typedef struct SEpSet {
 
 typedef struct {
   int32_t  acctId;
-  uint32_t clusterId;
+  int64_t  clusterId;
   int32_t  connId;
   int8_t   superUser;
   int8_t   reserved[5];
@@ -644,7 +644,7 @@ typedef struct {
 typedef struct {
   int32_t     sver;
   int32_t     dnodeId;
-  int32_t     clusterId;
+  int64_t     clusterId;
   int64_t     rebootTime;
   int64_t     updateTime;
   int16_t     numOfCores;
@@ -660,7 +660,7 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
-  int32_t clusterId;
+  int64_t clusterId;
   int8_t  dropped;
   char    reserved[7];
 } SDnodeCfg;
