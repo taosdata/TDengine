@@ -17,7 +17,3 @@ nohup taosd -c /etc/taos/ > /dev/null 2>&1 &
 sleep 10
 cd ../../
 WKC=`pwd`
-
-git clone -b develop git@github.com:taosdata/driver-go.git
-cd driver-go 
-go test -v ./...
