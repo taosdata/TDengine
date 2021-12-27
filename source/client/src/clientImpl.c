@@ -152,6 +152,7 @@ int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
     .pMsg = pRequest->msgBuf,
     .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE
   };
+
   int32_t code = qParseQuerySql(&cxt, pQuery);
   tfree(cxt.ctx.db);
   return code;

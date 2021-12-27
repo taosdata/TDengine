@@ -710,7 +710,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
     }
 
     case TSDB_SQL_DROP_TABLE: {
-      pDcl->pMsg = (char*)buildDropTableMsg(pInfo, &pDcl->msgLen, pCtx, pMsgBuf);
+      pDcl->pMsg = (char*)buildDropStableMsg(pInfo, &pDcl->msgLen, pCtx, pMsgBuf);
       if (pDcl->pMsg == NULL) {
         code = terrno;
       }

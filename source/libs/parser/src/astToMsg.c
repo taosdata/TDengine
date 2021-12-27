@@ -356,7 +356,7 @@ SCreateStbMsg* buildCreateTableMsg(SCreateTableSql* pCreateTableSql, int32_t* le
   return pCreateTableMsg;
 }
 
-SDropTableMsg* buildDropTableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
+SDropStbMsg* buildDropStableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
   SToken* tableName = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
   SName name = {0};
@@ -366,12 +366,12 @@ SDropTableMsg* buildDropTableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* 
     return NULL;
   }
 
-  SDropTableMsg *pDropTableMsg = (SDropTableMsg*) calloc(1, sizeof(SDropTableMsg));
+  SDropStbMsg *pDropTableMsg = (SDropStbMsg*) calloc(1, sizeof(SDropStbMsg));
 
   code = tNameExtractFullName(&name, pDropTableMsg->name);
   assert(code == TSDB_CODE_SUCCESS && name.type == TSDB_TABLE_NAME_T);
 
-  pDropTableMsg->ignoreNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
+  pDropTableMsg->igNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
   *len = sizeof(SDropTableMsg);
   return pDropTableMsg;
 }
