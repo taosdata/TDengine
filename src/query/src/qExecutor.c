@@ -8970,7 +8970,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   if(pQueryMsg->offset > 0 && TSDB_QUERY_HAS_TYPE(pQueryMsg->queryType, TSDB_QUERY_TYPE_PROJECTION_QUERY)) {
     if(pQueryAttr->stableQuery) 
       pQueryAttr->skipOffset = false;
-    else 
+    else
       pQueryAttr->skipOffset = pQueryAttr->pFilters == NULL;
   }
 
