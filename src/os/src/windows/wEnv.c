@@ -22,48 +22,6 @@ extern void taosWinSocketInit();
 
 void osInit() {
   taosSetCoreDump();
-#ifdef _TD_POWER_
-  if (configDir[0] == 0) {
-    strcpy(configDir, "C:/PowerDB/cfg");
-  }
-
-  strcpy(tsVnodeDir, "C:/PowerDB/data");
-  strcpy(tsDataDir, "C:/PowerDB/data");
-  strcpy(tsLogDir, "C:/PowerDB/log");
-  strcpy(tsScriptDir, "C:/PowerDB/script");
-#elif (_TD_TQ_ == true)
-  if (configDir[0] == 0) {
-    strcpy(configDir, "C:/TQueue/cfg");
-  }
-  strcpy(tsVnodeDir, "C:/TQueue/data");
-  strcpy(tsDataDir, "C:/TQueue/data");
-  strcpy(tsLogDir, "C:/TQueue/log");
-  strcpy(tsScriptDir, "C:/TQueue/script");
-#elif (_TD_PRO_ == true)
-  if (configDir[0] == 0) {
-    strcpy(configDir, "C:/ProDB/cfg");
-  }
-  strcpy(tsVnodeDir, "C:/ProDB/data");
-  strcpy(tsDataDir, "C:/ProDB/data");
-  strcpy(tsLogDir, "C:/ProDB/log");
-  strcpy(tsScriptDir, "C:/ProDB/script");
-#elif (_TD_KH_ == true)
-  if (configDir[0] == 0) {
-    strcpy(configDir, "C:/KingHistorian/cfg");
-  }
-  strcpy(tsVnodeDir, "C:/KingHistorian/data");
-  strcpy(tsDataDir, "C:/KingHistorian/data");
-  strcpy(tsLogDir, "C:/KingHistorian/log");
-  strcpy(tsScriptDir, "C:/KingHistorian/script");
-#elif (_TD_JH_ == true)
-  if (configDir[0] == 0) {
-    strcpy(configDir, "C:/jh_iot/cfg");
-  }
-  strcpy(tsVnodeDir, "C:/jh_iot/data");
-  strcpy(tsDataDir, "C:/jh_iot/data");
-  strcpy(tsLogDir, "C:/jh_iot/log");
-  strcpy(tsScriptDir, "C:/jh_iot/script");
-#else
   if (configDir[0] == 0) {
     strcpy(configDir, "C:/TDengine/cfg");
   }
@@ -72,7 +30,6 @@ void osInit() {
   strcpy(tsDataDir, "C:/TDengine/data");
   strcpy(tsLogDir, "C:/TDengine/log");
   strcpy(tsScriptDir, "C:/TDengine/script");
-#endif
 
   strcpy(tsDnodeDir, "");
   strcpy(tsMnodeDir, "");  

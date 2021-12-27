@@ -65,7 +65,7 @@ install_files="${script_dir}/install_client_power.sh"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/power.cfg ${install_dir}/cfg/power.cfg
 
 if [ -f ${build_dir}/bin/jemalloc-config ]; then
     mkdir -p ${install_dir}/jemalloc/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3}
@@ -99,10 +99,6 @@ if [ -f ${build_dir}/bin/jemalloc-config ]; then
         cp ${build_dir}/share/man/man3/jemalloc.3 ${install_dir}/jemalloc/share/man/man3
     fi
 fi
-
-sed -i '/dataDir/ {s/taos/power/g}'  ${install_dir}/cfg/taos.cfg
-sed -i '/logDir/  {s/taos/power/g}'  ${install_dir}/cfg/taos.cfg
-sed -i "s/TDengine/PowerDB/g"        ${install_dir}/cfg/taos.cfg
 
 mkdir -p ${install_dir}/bin
 if [ "$osType" != "Darwin" ]; then

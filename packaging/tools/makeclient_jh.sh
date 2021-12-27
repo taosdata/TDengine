@@ -30,7 +30,6 @@ code_dir="${top_dir}/src"
 release_dir="${top_dir}/release"
 
 #package_name='linux'
-
 if [ "$verMode" == "cluster" ]; then
     install_dir="${release_dir}/jh_iot-enterprise-client-${version}"
 else
@@ -38,7 +37,6 @@ else
 fi
 
 # Directories and files.
-
 if [ "$osType" != "Darwin" ]; then
   lib_files="${build_dir}/lib/libtaos.so.${version}"
 else
@@ -58,27 +56,19 @@ install_files="${script_dir}/install_client_jh.sh"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
-
-sed -i '/dataDir/ {s/taos/jh_taos/g}'  ${install_dir}/cfg/taos.cfg
-sed -i '/logDir/  {s/taos/jh_taos/g}'  ${install_dir}/cfg/taos.cfg
-sed -i "s/TDengine/jh_iot/g"        ${install_dir}/cfg/taos.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/jh_taos.cfg ${install_dir}/cfg/jh_taos.cfg
 
 mkdir -p ${install_dir}/bin
 if [ "$osType" != "Darwin" ]; then
-  if [ "$pagMode" == "lite" ]; then
-    strip ${build_dir}/bin/taos
-    cp ${build_dir}/bin/taos          ${install_dir}/bin/jh_taos
-    cp ${script_dir}/remove_client_jh.sh  ${install_dir}/bin
-  else 
-    cp ${build_dir}/bin/taos          ${install_dir}/bin/jh_taos
-    cp ${script_dir}/remove_client_jh.sh  ${install_dir}/bin
+  if [ "$pagMode" != "lite" ]; then
     cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/jhdemo
     cp ${build_dir}/bin/taosdump      ${install_dir}/bin/jh_taosdump
     cp ${script_dir}/set_core.sh      ${install_dir}/bin
     cp ${script_dir}/get_client.sh    ${install_dir}/bin
-    #cp ${script_dir}/taosd-dump-cfg.gdb    ${install_dir}/bin
   fi
+  strip ${build_dir}/bin/taos
+  cp ${build_dir}/bin/taos          ${install_dir}/bin/jh_taos
+  cp ${script_dir}/remove_client_jh.sh  ${install_dir}/bin
 else
   cp ${bin_files} ${install_dir}/bin
 fi

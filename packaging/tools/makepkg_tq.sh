@@ -44,7 +44,7 @@ nginx_dir="${code_dir}/../../enterprise/src/plugins/web"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/tq.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/tq.cfg ${install_dir}/cfg/tq.cfg
 
 mkdir -p ${install_dir}/bin
 if [ "$pagMode" == "lite" ]; then

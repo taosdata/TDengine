@@ -627,17 +627,7 @@ SArguments g_args = {
     6030,           // port
     INTERFACE_BUT,  // iface
     "root",         // user
-#ifdef _TD_POWER_
-    "powerdb",      // password
-#elif (_TD_TQ_ == true)
-    "tqueue",       // password
-#elif (_TD_PRO_ == true)
-    "prodb",       // password
-#elif (_TD_KH_ == true)
-    "khroot",       // password
-#else
     "taosdata",     // password
-#endif
     "test",         // database
     1,              // replica
     "d",             // tb_prefix
@@ -841,17 +831,10 @@ static void printHelp() {
     /*    printf("%s%s%s%s\n", indent, "-D", indent,
           "Delete database if exists. 0: no, 1: yes, default is 1");
           */
-#ifdef _TD_KH_
-    printf("\nMandatory or optional arguments to long options are also mandatory or optional\n\
-for any corresponding short options.\n\
-\n\
-Report bugs to <support@wellintech.com>.\n");
-#else
     printf("\nMandatory or optional arguments to long options are also mandatory or optional\n\
 for any corresponding short options.\n\
 \n\
 Report bugs to <support@taosdata.com>.\n");
-#endif
 }
 
 static bool isStringNumber(char *input)

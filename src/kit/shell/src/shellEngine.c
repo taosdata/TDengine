@@ -30,44 +30,11 @@
 #include <regex.h>
 
 /**************** Global variables ****************/
-#ifdef _TD_POWER_
-char      CLIENT_VERSION[] = "Welcome to the PowerDB shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by PowerDB, Inc. All rights reserved.\n\n";
-char      PROMPT_HEADER[] = "power> ";
-char      CONTINUE_PROMPT[] = "    -> ";
-int       prompt_size = 7;
-#elif (_TD_TQ_ == true)
-char      CLIENT_VERSION[] = "Welcome to the TQ shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by TQ, Inc. All rights reserved.\n\n";
-char      PROMPT_HEADER[] = "tq> ";
-char      CONTINUE_PROMPT[] = " -> ";
-int       prompt_size = 4;
-#elif (_TD_PRO_ == true)
-char      CLIENT_VERSION[] = "Welcome to the ProDB shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by Hanatech, Inc. All rights reserved.\n\n";
-char      PROMPT_HEADER[] = "ProDB> ";
-char      CONTINUE_PROMPT[] = "    -> ";
-int       prompt_size = 7;
-#elif (_TD_KH_ == true)
-char      CLIENT_VERSION[] = "Welcome to the KingHistorian shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2021 by Wellintech, Inc. All rights reserved.\n\n";
-char      PROMPT_HEADER[] = "khclient> ";
-
-char      CONTINUE_PROMPT[] = "       -> ";
-int       prompt_size = 10;
-#elif (_TD_JH_ == true)
-char      CLIENT_VERSION[] = "Welcome to the jh_iot shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2021 by jinheng, Inc. All rights reserved.\n\n";
-char      PROMPT_HEADER[] = "jh_taos> ";
-char      CONTINUE_PROMPT[] = "      -> ";
-int       prompt_size = 9;
-#else
 char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "taos> ";
 char      CONTINUE_PROMPT[] = "   -> ";
 int       prompt_size = 6;
-#endif
 
 int64_t result = 0;
 SShellHistory   history;
@@ -120,11 +87,7 @@ TAOS *shellInit(SShellArguments *_args) {
   }
 
   if (con == NULL) {
-#ifdef _TD_KH_
-    printf("kh connect failed, reason: %s.\n\n", tstrerror(terrno));
-#else
     printf("taos connect failed, reason: %s.\n\n", tstrerror(terrno));
-#endif
     fflush(stdout);
     return con;
   }
