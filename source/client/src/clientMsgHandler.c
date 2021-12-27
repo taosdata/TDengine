@@ -18,45 +18,23 @@
 #include "tname.h"
 #include "clientInt.h"
 #include "clientLog.h"
-#include "tmsgtype.h"
 #include "trpc.h"
 
-int (*handleRequestRspFp[TDMT_MAX])(SRequestObj *pRequest, const char* pMsg, int32_t msgLen);
+int (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
 
-int32_t buildConnectMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
-  pMsgBody->msgType         = TDMT_MND_CONNECT;
-  pMsgBody->msgInfo.len     = sizeof(SConnectMsg);
-  pMsgBody->requestObjRefId = pRequest->self;
-
-  SConnectMsg *pConnect = calloc(1, sizeof(SConnectMsg));
-  if (pConnect == NULL) {
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  // TODO refactor full_name
-  char *db;  // ugly code to move the space
-
-  STscObj *pObj = pRequest->pTscObj;
-  pthread_mutex_lock(&pObj->mutex);
-  db = strstr(pObj->db, TS_PATH_DELIMITER);
-
-  db = (db == NULL) ? pObj->db : db + 1;
-  tstrncpy(pConnect->db, db, sizeof(pConnect->db));
-  pthread_mutex_unlock(&pObj->mutex);
-
-  pConnect->pid = htonl(appInfo.pid);
-  pConnect->startTime = htobe64(appInfo.startTime);
-  tstrncpy(pConnect->app, appInfo.appName, tListLen(pConnect->app));
-
-  pMsgBody->msgInfo.pMsg = pConnect;
+int genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  pRequest->code = code;
+  sem_post(&pRequest->body.rspSem);
   return 0;
 }
 
-int processConnectRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
+int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+
   STscObj *pTscObj = pRequest->pTscObj;
 
-  SConnectRsp *pConnect = (SConnectRsp *)pMsg;
+  SConnectRsp *pConnect = (SConnectRsp *)pMsg->pData;
   pConnect->acctId    = htonl(pConnect->acctId);
   pConnect->connId    = htonl(pConnect->connId);
   pConnect->clusterId = htobe64(pConnect->clusterId);
@@ -81,16 +59,20 @@ int processConnectRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
   pTscObj->pAppInfo->clusterId = pConnect->clusterId;
   atomic_add_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
-  pRequest->body.resInfo.pRspMsg = pMsg;
+  //  pRequest->body.resInfo.pRspMsg = pMsg->pData;
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, pConnect->clusterId,
            pTscObj->pAppInfo->numOfConns);
+
+  sem_post(&pRequest->body.rspSem);
   return 0;
 }
 
-static int32_t buildRetrieveMnodeMsg(SRequestObj *pRequest, SRequestMsgBody* pMsgBody) {
-  pMsgBody->msgType = TDMT_MND_SHOW_RETRIEVE;
-  pMsgBody->msgInfo.len = sizeof(SRetrieveTableMsg);
-  pMsgBody->requestObjRefId = pRequest->self;
+static int32_t buildRetrieveMnodeMsg(SRequestObj *pRequest, SMsgSendInfo* pMsgSendInfo) {
+  pMsgSendInfo->msgType         = TDMT_MND_SHOW_RETRIEVE;
+  pMsgSendInfo->msgInfo.len     = sizeof(SRetrieveTableMsg);
+  pMsgSendInfo->requestObjRefId = pRequest->self;
+  pMsgSendInfo->param           = pRequest;
+  pMsgSendInfo->fp              = handleRequestRspFp[pMsgSendInfo->msgType];
 
   SRetrieveTableMsg *pRetrieveMsg = calloc(1, sizeof(SRetrieveTableMsg));
   if (pRetrieveMsg == NULL) {
@@ -98,29 +80,38 @@ static int32_t buildRetrieveMnodeMsg(SRequestObj *pRequest, SRequestMsgBody* pMs
   }
 
   pRetrieveMsg->showId  = htonl(pRequest->body.execId);
-  pMsgBody->msgInfo.pMsg = pRetrieveMsg;
+  pMsgSendInfo->msgInfo.pData = pRetrieveMsg;
   return TSDB_CODE_SUCCESS;
 }
 
-SRequestMsgBody buildRequestMsgImpl(SRequestObj *pRequest) {
+SMsgSendInfo* buildSendMsgInfoImpl(SRequestObj *pRequest) {
+  SMsgSendInfo* pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
+
   if (pRequest->type == TDMT_MND_SHOW_RETRIEVE) {
-    SRequestMsgBody body = {0};
-    buildRetrieveMnodeMsg(pRequest, &body);
-    return body;
+    buildRetrieveMnodeMsg(pRequest, pMsgSendInfo);
   } else {
     assert(pRequest != NULL);
-    SRequestMsgBody body = {
-        .requestObjRefId = pRequest->self,
-        .msgInfo         = pRequest->body.requestMsg,
-        .msgType         = pRequest->type,
-        .requestId       = pRequest->requestId,
-    };
-    return body;
+    pMsgSendInfo->requestObjRefId = pRequest->self;
+    pMsgSendInfo->msgInfo = pRequest->body.requestMsg;
+    pMsgSendInfo->msgType = pRequest->type;
+    pMsgSendInfo->requestId = pRequest->requestId;
+    pMsgSendInfo->param = pRequest;
+
+    pMsgSendInfo->fp = (handleRequestRspFp[pRequest->type] == NULL)? genericRspCallback:handleRequestRspFp[pRequest->type];
   }
+
+  return pMsgSendInfo;
 }
 
-int32_t processShowRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
-  SShowRsp* pShow = (SShowRsp *)pMsg;
+int32_t processShowRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    pRequest->code = code;
+    tsem_post(&pRequest->body.rspSem);
+    return code;
+  }
+
+  SShowRsp* pShow = (SShowRsp *)pMsg->pData;
   pShow->showId   = htonl(pShow->showId);
 
   STableMetaMsg *pMetaMsg = &(pShow->tableMeta);
@@ -141,7 +132,7 @@ int32_t processShowRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) 
     pFields[i].bytes = pSchema[i].bytes;
   }
 
-  pRequest->body.resInfo.pRspMsg = pMsg;
+//  pRequest->body.resInfo.pRspMsg = pMsg->pData;
   SReqResultInfo* pResInfo = &pRequest->body.resInfo;
 
   pResInfo->fields    = pFields;
@@ -151,16 +142,18 @@ int32_t processShowRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) 
   pResInfo->length    = calloc(pResInfo->numOfCols, sizeof(int32_t));
 
   pRequest->body.execId = pShow->showId;
+  tsem_post(&pRequest->body.rspSem);
   return 0;
 }
 
-int32_t processRetrieveMnodeRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
-  assert(msgLen >= sizeof(SRetrieveTableRsp));
+int32_t processRetrieveMnodeRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+  assert(pMsg->len >= sizeof(SRetrieveTableRsp));
 
-  tfree(pRequest->body.resInfo.pRspMsg);
-  pRequest->body.resInfo.pRspMsg = pMsg;
+  SRequestObj* pRequest = param;
+//  tfree(pRequest->body.resInfo.pRspMsg);
+//  pRequest->body.resInfo.pRspMsg = pMsg->pData;
 
-  SRetrieveTableRsp *pRetrieve = (SRetrieveTableRsp *) pMsg;
+  SRetrieveTableRsp *pRetrieve = (SRetrieveTableRsp *) pMsg->pData;
   pRetrieve->numOfRows  = htonl(pRetrieve->numOfRows);
   pRetrieve->precision  = htons(pRetrieve->precision);
 
@@ -173,29 +166,42 @@ int32_t processRetrieveMnodeRsp(SRequestObj *pRequest, const char* pMsg, int32_t
 
   tscDebug("0x%"PRIx64" numOfRows:%d, complete:%d, qId:0x%"PRIx64, pRequest->self, pRetrieve->numOfRows,
            pRetrieve->completed, pRequest->body.execId);
+
+  tsem_post(&pRequest->body.rspSem);
   return 0;
 }
 
-int32_t processCreateDbRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
+int32_t processCreateDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   // todo rsp with the vnode id list
+  SRequestObj* pRequest = param;
+  tsem_post(&pRequest->body.rspSem);
 }
 
-int32_t processUseDbRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
-  SUseDbRsp* pUseDbRsp = (SUseDbRsp*) pMsg;
+int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+  SUseDbRsp* pUseDbRsp = (SUseDbRsp*) pMsg->pData;
   SName name = {0};
   tNameFromString(&name, pUseDbRsp->db, T_NAME_ACCT|T_NAME_DB);
 
   char db[TSDB_DB_NAME_LEN] = {0};
   tNameGetDbName(&name, db);
+
+  SRequestObj* pRequest = param;
   setConnectionDB(pRequest->pTscObj, db);
+
+  tsem_post(&pRequest->body.rspSem);
+  return 0;
 }
 
-int32_t processCreateTableRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
+int32_t processCreateTableRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   assert(pMsg != NULL);
+  SRequestObj* pRequest = param;
+  tsem_post(&pRequest->body.rspSem);
 }
 
-int32_t processDropDbRsp(SRequestObj *pRequest, const char* pMsg, int32_t msgLen) {
+int32_t processDropDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   // todo: Remove cache in catalog cache.
+  SRequestObj* pRequest = param;
+  tsem_post(&pRequest->body.rspSem);
 }
 
 void initMsgHandleFp() {
