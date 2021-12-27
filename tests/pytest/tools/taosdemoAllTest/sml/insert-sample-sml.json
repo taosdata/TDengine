@@ -42,7 +42,7 @@
             "data_source": "sample",
             "insert_mode": "sml", 
             "insert_rows": 10,
-            "childtable_limit": -1,
+
             "childtable_offset": 0,
             "multi_thread_write_one_tbl": "no",
             "interlace_rows": 0,
@@ -68,7 +68,7 @@
             "data_source": "rand",
             "insert_mode": "sml", 
             "insert_rows": 10,
-            "childtable_limit": -1,
+
             "childtable_offset":0,
             "multi_thread_write_one_tbl": "no",
             "interlace_rows": 0,

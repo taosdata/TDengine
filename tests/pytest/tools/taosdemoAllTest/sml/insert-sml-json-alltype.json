@@ -43,7 +43,7 @@
             "insert_mode": "sml", 
             "line_protocol": "json" ,
             "insert_rows":10,
-            "childtable_limit": -1,
+
             "childtable_offset":0,
             "interlace_rows": 0,
             "insert_interval":0,
@@ -69,7 +69,7 @@
             "insert_mode": "sml",
             "line_protocol": "json" , 
             "insert_rows":10,
-            "childtable_limit": -1,
+
             "childtable_offset":0,
             "interlace_rows": 32767,
             "insert_interval":0,
@@ -95,7 +95,7 @@
             "insert_mode": "sml",
             "line_protocol": "json" , 
             "insert_rows":10,
-            "childtable_limit": -1,
+
             "childtable_offset":0,
             "interlace_rows": 32767,
             "insert_interval":0,
@@ -121,7 +121,7 @@
             "insert_mode": "sml",
             "line_protocol": "json" , 
             "insert_rows":10,
-            "childtable_limit": -1,
+
             "childtable_offset":0,
             "interlace_rows": 32767,
             "insert_interval":0,
@@ -147,7 +147,7 @@
             "insert_mode": "sml",
             "line_protocol": "json" , 
             "insert_rows":10,
-            "childtable_limit": -1,
+
             "childtable_offset":0,
             "interlace_rows": 32767,
             "insert_interval":0,
@@ -173,7 +173,7 @@
             "insert_mode": "sml",
             "line_protocol": "json" , 
             "insert_rows":10,
-            "childtable_limit": -1,
+
             "childtable_offset":0,
             "interlace_rows": 32767,
             "insert_interval":0,
@@ -199,7 +199,7 @@
             "insert_mode": "sml",
             "line_protocol": "telnet" , 
             "insert_rows":10,
-            "childtable_limit": -1,
+
             "childtable_offset":0,
             "interlace_rows": 32767,
             "insert_interval":0,
@@ -225,7 +225,7 @@
             "insert_mode": "sml",
             "line_protocol": "json" , 
             "insert_rows":10,
-            "childtable_limit": -1,
+
             "childtable_offset":0,
             "interlace_rows": 32767,
             "insert_interval":0,
@@ -251,7 +251,7 @@
             "insert_mode": "sml",
             "line_protocol": "json" , 
             "insert_rows":10,
-            "childtable_limit": -1,
+
             "childtable_offset":0,
             "interlace_rows": 32767,
             "insert_interval":0,
@@ -277,7 +277,7 @@
             "insert_mode": "sml",
             "line_protocol": "json" , 
             "insert_rows":10,
-            "childtable_limit": -1,
+
             "childtable_offset":0,
             "interlace_rows": 32767,
             "insert_interval":0,
@@ -303,7 +303,7 @@
             "insert_mode": "sml",
             "line_protocol": "telnet" , 
             "insert_rows":10,
-            "childtable_limit": -1,
+
             "childtable_offset":0,
             "interlace_rows": 32767,
             "insert_interval":0,
@@ -329,7 +329,7 @@
             "insert_mode": "sml",
             "line_protocol": "telnet" , 
             "insert_rows":10,
-            "childtable_limit": -1,
+
             "childtable_offset":0,
             "interlace_rows": 32767,
             "insert_interval":0,
@@ -355,7 +355,7 @@
             "insert_mode": "sml",
             "line_protocol": "telnet" , 
             "insert_rows":10,
-            "childtable_limit": -1,
+
             "childtable_offset":0,
             "interlace_rows": 32767,
             "insert_interval":0,

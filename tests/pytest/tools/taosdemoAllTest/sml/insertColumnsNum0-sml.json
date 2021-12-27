@@ -42,8 +42,6 @@
             "data_source": "rand",
             "insert_mode": "sml", 
             "insert_rows": 1000,
-            "childtable_limit": 0,
-            "childtable_offset":0,
             "multi_thread_write_one_tbl": "no",
             "interlace_rows": 0,
             "insert_interval":0,

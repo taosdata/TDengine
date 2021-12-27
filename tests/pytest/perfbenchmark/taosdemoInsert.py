@@ -136,7 +136,7 @@ class Taosdemo:
             "data_source": "rand",
             "insert_mode": "taosc",
             "insert_rows": rows,
-            "childtable_limit": 0,
+            
             "childtable_offset": 0,
             "rows_per_tbl": 1,
             "max_sql_len": 65480,
