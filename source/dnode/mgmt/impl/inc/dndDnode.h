@@ -27,7 +27,7 @@ void    dndProcessDnodeReq(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dndProcessDnodeRsp(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 
 int32_t dndGetDnodeId(SDnode *pDnode);
-int32_t dndGetClusterId(SDnode *pDnode);
+int64_t dndGetClusterId(SDnode *pDnode);
 void    dndGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
 void    dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet);
 void    dndSendRedirectMsg(SDnode *pDnode, SRpcMsg *pMsg);

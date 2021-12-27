@@ -278,10 +278,9 @@ static void mndParseStatusMsg(SStatusMsg *pStatus) {
   pStatus->dnodeId = htonl(pStatus->dnodeId);
   pStatus->clusterId = htonl(pStatus->clusterId);
   pStatus->rebootTime = htobe64(pStatus->rebootTime);
+  pStatus->updateTime = htobe64(pStatus->updateTime);
   pStatus->numOfCores = htons(pStatus->numOfCores);
-  pStatus->numOfSupportMnodes = htons(pStatus->numOfSupportMnodes);
   pStatus->numOfSupportVnodes = htons(pStatus->numOfSupportVnodes);
-  pStatus->numOfSupportQnodes = htons(pStatus->numOfSupportQnodes);
   pStatus->clusterCfg.statusInterval = htonl(pStatus->clusterCfg.statusInterval);
   pStatus->clusterCfg.checkTime = htobe64(pStatus->clusterCfg.checkTime);
 }
@@ -356,9 +355,7 @@ static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg) {
 
   pDnode->rebootTime = pStatus->rebootTime;
   pDnode->numOfCores = pStatus->numOfCores;
-  pDnode->numOfSupportMnodes = pStatus->numOfSupportMnodes;
   pDnode->numOfSupportVnodes = pStatus->numOfSupportVnodes;
-  pDnode->numOfSupportQnodes = pStatus->numOfSupportQnodes;
   pDnode->lastAccessTime = taosGetTimestampMs();
   pDnode->status = DND_STATUS_READY;
 

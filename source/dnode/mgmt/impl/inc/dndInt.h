@@ -22,10 +22,11 @@ extern "C" {
 
 #include "cJSON.h"
 #include "os.h"
-#include "tmsg.h"
+#include "tep.h"
 #include "thash.h"
 #include "tlockfree.h"
 #include "tlog.h"
+#include "tmsg.h"
 #include "tqueue.h"
 #include "trpc.h"
 #include "tthread.h"
@@ -51,14 +52,18 @@ typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
 typedef struct {
   char *dnode;
   char *mnode;
+  char *qnode;
+  char *snode;
+  char *bnode;
   char *vnodes;
 } SDnodeDir;
 
 typedef struct {
   int32_t    dnodeId;
   int32_t    dropped;
-  int32_t    clusterId;
+  int64_t    clusterId;
   int64_t    rebootTime;
+  int64_t    updateTime;
   int8_t     statusSent;
   SEpSet     mnodeEpSet;
   char      *file;

@@ -56,7 +56,7 @@ typedef struct SMnodeCfg {
 
 typedef struct {
   int32_t           dnodeId;
-  int32_t           clusterId;
+  int64_t           clusterId;
   int8_t            replica;
   int8_t            selfIndex;
   SReplica          replicas[TSDB_MAX_REPLICA];
