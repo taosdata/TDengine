@@ -43,7 +43,7 @@ typedef struct SSchedulerMgmt {
   SHashObj *jobs;  // key: queryId, value: SQueryJob*
 } SSchedulerMgmt;
 
-typedef struct SQueryLevel {
+typedef struct SSchLevel {
   int32_t  level;
   int8_t   status;
   SRWLatch lock;
@@ -51,12 +51,12 @@ typedef struct SQueryLevel {
   int32_t  taskSucceed;
   int32_t  taskNum;
   SArray  *subTasks;  // Element is SQueryTask
-} SQueryLevel;
+} SSchLevel;
 
 
-typedef struct SQueryTask {
+typedef struct SSchTask {
   uint64_t             taskId;     // task id
-  SQueryLevel         *level;      // level
+  SSchLevel           *level;      // level
   SSubplan            *plan;       // subplan
   char                *msg;        // operator tree
   int32_t              msgLen;     // msg length
@@ -66,13 +66,20 @@ typedef struct SQueryTask {
   int32_t              childReady; // child task ready number
   SArray              *children;   // the datasource tasks,from which to fetch the result, element is SQueryTask*
   SArray              *parents;    // the data destination tasks, get data from current task, element is SQueryTask*
-} SQueryTask;
+} SSchTask;
 
-typedef struct SQueryJob {
+typedef struct SSchJobAttr {
+  bool needFetch;
+  bool syncSchedule;
+  bool queryJob;
+} SSchJobAttr;
+
+typedef struct SSchJob {
   uint64_t  queryId;
   int32_t   levelNum;
   int32_t   levelIdx;
   int8_t    status;
+  SSchJobAttr    attr;
   SQueryProfileSummary summary;
   SEpSet           dataSrcEps;
   SEpAddr          resEp;
@@ -81,15 +88,19 @@ typedef struct SQueryJob {
   tsem_t           rspSem;
   int32_t          userFetch;
   int32_t          remoteFetch;
-  void            *res;
 
+  SSchTask      *fetchTask;
+  int32_t          errCode;
+  void            *res;
+  int32_t          resNumOfRows;
+  
   SHashObj *execTasks; // executing tasks, key:taskid, value:SQueryTask*
   SHashObj *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
   SHashObj *failTasks; // failed tasks, key:taskid, value:SQueryTask*
     
   SArray   *levels;    // Element is SQueryLevel, starting from 0.
   SArray   *subPlans;  // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0.
-} SQueryJob;
+} SSchJob;
 
 #define SCH_HAS_QNODE_IN_CLUSTER(type) (false) //TODO CLUSTER TYPE
 #define SCH_TASK_READY_TO_LUNCH(task) ((task)->childReady >= taosArrayGetSize((task)->children))   // MAY NEED TO ENHANCE
@@ -108,7 +119,7 @@ typedef struct SQueryJob {
 #define SCH_UNLOCK(type, _lock) (SCH_READ == (type) ? taosRUnLockLatch(_lock) : taosWUnLockLatch(_lock))
 
 
-extern int32_t schLaunchTask(SQueryJob *job, SQueryTask *task);
+extern int32_t schLaunchTask(SSchJob *job, SSchTask *task);
 
 #ifdef __cplusplus
 }

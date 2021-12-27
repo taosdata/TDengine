@@ -10,3 +10,5 @@ target_link_libraries(
    qworker
    PRIVATE os util transport planner qcom
 )
+
+ADD_SUBDIRECTORY(test)
