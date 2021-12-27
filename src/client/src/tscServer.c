@@ -1592,7 +1592,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   msgLen = (int32_t)(pMsg - (char*)pCreateTableMsg);
   pCreateTableMsg->contLen = htonl(msgLen);
   pCmd->payloadLen = msgLen;
-  pCmd->msgType = TDMT_MND_CREATE_TABLE;
+  pCmd->msgType = TDMT_VND_CREATE_TABLE;
 
   assert(msgLen + minMsgSize() <= size);
   return TSDB_CODE_SUCCESS;

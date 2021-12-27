@@ -23,7 +23,7 @@ int vnodeBuildReq(void **buf, const SVnodeReq *pReq, tmsg_t type) {
 
   tsize += taosEncodeFixedU64(buf, pReq->ver);
   switch (type) {
-    case TDMT_MND_CREATE_TABLE:
+    case TDMT_VND_CREATE_STB:
       tsize += vnodeBuildCreateTableReq(buf, &(pReq->ctReq));
       break;
     case TDMT_VND_SUBMIT:
@@ -40,7 +40,7 @@ void *vnodeParseReq(void *buf, SVnodeReq *pReq, tmsg_t type) {
   buf = taosDecodeFixedU64(buf, &(pReq->ver));
 
   switch (type) {
-    case TDMT_MND_CREATE_TABLE:
+    case TDMT_VND_CREATE_STB:
       buf = vnodeParseCreateTableReq(buf, &(pReq->ctReq));
       break;
 

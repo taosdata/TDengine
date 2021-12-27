@@ -285,6 +285,6 @@ void initMsgHandleFp() {
   handleRequestRspFp[TDMT_MND_SHOW_RETRIEVE] = processRetrieveMnodeRsp;
   handleRequestRspFp[TDMT_MND_CREATE_DB]     = processCreateDbRsp;
   handleRequestRspFp[TDMT_MND_USE_DB]        = processUseDbRsp;
-  handleRequestRspFp[TDMT_MND_CREATE_TABLE]  = processCreateTableRsp;
+  handleRequestRspFp[TDMT_MND_CREATE_STB]  = processCreateTableRsp;
   handleRequestRspFp[TDMT_MND_DROP_DB]       = processDropDbRsp;
 }

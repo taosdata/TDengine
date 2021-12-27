@@ -42,7 +42,7 @@ TEST_F(DndTestProfile, 01_ConnectMsg) {
   SConnectRsp* pRsp = (SConnectRsp*)pMsg->pCont;
   ASSERT_NE(pRsp, nullptr);
   pRsp->acctId = htonl(pRsp->acctId);
-  pRsp->clusterId = htonl(pRsp->clusterId);
+  pRsp->clusterId = htobe64(pRsp->clusterId);
   pRsp->connId = htonl(pRsp->connId);
   pRsp->epSet.port[0] = htons(pRsp->epSet.port[0]);
 
@@ -174,7 +174,7 @@ TEST_F(DndTestProfile, 05_KillConnMsg) {
     SConnectRsp* pRsp = (SConnectRsp*)pMsg->pCont;
     ASSERT_NE(pRsp, nullptr);
     pRsp->acctId = htonl(pRsp->acctId);
-    pRsp->clusterId = htonl(pRsp->clusterId);
+    pRsp->clusterId = htobe64(pRsp->clusterId);
     pRsp->connId = htonl(pRsp->connId);
     pRsp->epSet.port[0] = htons(pRsp->epSet.port[0]);
 

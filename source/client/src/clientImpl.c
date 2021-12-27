@@ -167,7 +167,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
   SMsgSendInfo* body = buildSendMsgInfoImpl(pRequest);
   SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
 
-  if (pDcl->msgType == TDMT_MND_CREATE_TABLE) {
+  if (pDcl->msgType == TDMT_VND_CREATE_TABLE) {
     struct SCatalog* pCatalog = NULL;
 
     char buf[18] = {0};

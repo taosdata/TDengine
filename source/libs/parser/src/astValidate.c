@@ -4495,7 +4495,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
           return code;
         }
         pDcl->pMsg = (char*)buildCreateTableMsg(pCreateTable, &pDcl->msgLen, pCtx, pMsgBuf);
-        pDcl->msgType = (pCreateTable->type == TSQL_CREATE_TABLE)? TDMT_MND_CREATE_TABLE:TDMT_MND_CREATE_STB;
+        pDcl->msgType = (pCreateTable->type == TSQL_CREATE_TABLE)? TDMT_VND_CREATE_TABLE:TDMT_MND_CREATE_STB;
       } else if (pCreateTable->type == TSQL_CREATE_CTABLE) {
         //        if ((code = doCheckForCreateFromStable(pSql, pInfo)) != TSDB_CODE_SUCCESS) {
         //          return code;

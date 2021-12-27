@@ -84,14 +84,14 @@ static void vtBuildCreateStbReq(tb_uid_t suid, char *tbname, SRpcMsg **ppMsg) {
   SVnodeReq vCreateSTbReq;
   vnodeSetCreateStbReq(&vCreateSTbReq, tbname, UINT32_MAX, UINT32_MAX, suid, pSchema, pTagSchema);
 
-  zs = vnodeBuildReq(NULL, &vCreateSTbReq, TDMT_MND_CREATE_TABLE);
+  zs = vnodeBuildReq(NULL, &vCreateSTbReq, TDMT_VND_CREATE_STB);
   pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg) + zs);
-  pMsg->msgType = TDMT_MND_CREATE_TABLE;
+  pMsg->msgType = TDMT_VND_CREATE_STB;
   pMsg->contLen = zs;
   pMsg->pCont = POINTER_SHIFT(pMsg, sizeof(SRpcMsg));
 
   pBuf = pMsg->pCont;
-  vnodeBuildReq(&pBuf, &vCreateSTbReq, TDMT_MND_CREATE_TABLE);
+  vnodeBuildReq(&pBuf, &vCreateSTbReq, TDMT_VND_CREATE_STB);
   META_CLEAR_TB_CFG(&vCreateSTbReq);
 
   tdFreeSchema(pSchema);
@@ -108,14 +108,14 @@ static void vtBuildCreateCtbReq(tb_uid_t suid, char *tbname, SRpcMsg **ppMsg) {
   SVnodeReq vCreateCTbReq;
   vnodeSetCreateCtbReq(&vCreateCTbReq, tbname, UINT32_MAX, UINT32_MAX, suid, pTag);
 
-  tz = vnodeBuildReq(NULL, &vCreateCTbReq, TDMT_MND_CREATE_TABLE);
+  tz = vnodeBuildReq(NULL, &vCreateCTbReq, TDMT_VND_CREATE_TABLE);
   pMsg = (SRpcMsg *)malloc(sizeof(SRpcMsg) + tz);
-  pMsg->msgType = TDMT_MND_CREATE_TABLE;
+  pMsg->msgType = TDMT_VND_CREATE_TABLE;
   pMsg->contLen = tz;
   pMsg->pCont = POINTER_SHIFT(pMsg, sizeof(*pMsg));
   void *pBuf = pMsg->pCont;
 
-  vnodeBuildReq(&pBuf, &vCreateCTbReq, TDMT_MND_CREATE_TABLE);
+  vnodeBuildReq(&pBuf, &vCreateCTbReq, TDMT_VND_CREATE_TABLE);
   META_CLEAR_TB_CFG(&vCreateCTbReq);
   free(pTag);
 
