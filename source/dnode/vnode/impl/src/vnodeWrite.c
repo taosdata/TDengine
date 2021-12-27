@@ -78,7 +78,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       // TODO: maybe need to clear the requst struct
       break;
     case TDMT_VND_DROP_STB:
-    case TDMT_MND_DROP_TABLE:
+    case TDMT_VND_DROP_TABLE:
       if (metaDropTable(pVnode->pMeta, vReq.dtReq.uid) < 0) {
         // TODO: handle error
       }

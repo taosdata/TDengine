@@ -85,6 +85,18 @@ SIndexTerm* indexTermCreate(int64_t            suid,
                             int32_t            nColVal);
 void        indexTermDestroy(SIndexTerm* p);
 
+/*
+ * init index
+ *
+ */
+int32_t indexInit();
+/*
+ * destory index
+ *
+ */
+
+void indexCleanUp();
+
 #ifdef __cplusplus
 }
 #endif

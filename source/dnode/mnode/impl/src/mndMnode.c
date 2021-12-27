@@ -567,17 +567,17 @@ static int32_t mndProcessDropMnodeReq(SMnodeMsg *pMsg) {
 }
 
 static int32_t mndProcessCreateMnodeRsp(SMnodeMsg *pMsg) {
-  mndTransHandleActionRsp(pMsg);
+  mndTransProcessRsp(pMsg);
   return 0;
 }
 
 static int32_t mndProcessAlterMnodeRsp(SMnodeMsg *pMsg) {
-  mndTransHandleActionRsp(pMsg);
+  mndTransProcessRsp(pMsg);
   return 0;
 }
 
 static int32_t mndProcessDropMnodeRsp(SMnodeMsg *pMsg) {
-  mndTransHandleActionRsp(pMsg);
+  mndTransProcessRsp(pMsg);
   return 0;
 }
 

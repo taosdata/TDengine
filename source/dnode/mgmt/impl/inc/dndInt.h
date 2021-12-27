@@ -22,10 +22,11 @@ extern "C" {
 
 #include "cJSON.h"
 #include "os.h"
-#include "tmsg.h"
+#include "tep.h"
 #include "thash.h"
 #include "tlockfree.h"
 #include "tlog.h"
+#include "tmsg.h"
 #include "tqueue.h"
 #include "trpc.h"
 #include "tthread.h"
@@ -51,21 +52,27 @@ typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
 typedef struct {
   char *dnode;
   char *mnode;
+  char *qnode;
+  char *snode;
+  char *bnode;
   char *vnodes;
 } SDnodeDir;
 
 typedef struct {
-  int32_t    dnodeId;
-  int32_t    dropped;
-  int32_t    clusterId;
-  int64_t    rebootTime;
-  int8_t     statusSent;
-  SEpSet     mnodeEpSet;
-  char      *file;
-  SHashObj  *dnodeHash;
-  SDnodeEps *dnodeEps;
-  pthread_t *threadId;
-  SRWLatch   latch;
+  int32_t     dnodeId;
+  int32_t     dropped;
+  int64_t     clusterId;
+  int64_t     rebootTime;
+  int64_t     updateTime;
+  int8_t      statusSent;
+  SEpSet      mnodeEpSet;
+  char       *file;
+  SHashObj   *dnodeHash;
+  SDnodeEps  *dnodeEps;
+  pthread_t  *threadId;
+  SRWLatch    latch;
+  taos_queue  pMgmtQ;
+  SWorkerPool mgmtPool;
 } SDnodeMgmt;
 
 typedef struct {
@@ -81,8 +88,6 @@ typedef struct {
   taos_queue  pReadQ;
   taos_queue  pWriteQ;
   taos_queue  pSyncQ;
-  taos_queue  pMgmtQ;
-  SWorkerPool mgmtPool;
   SWorkerPool readPool;
   SWorkerPool writePool;
   SWorkerPool syncPool;
@@ -93,8 +98,6 @@ typedef struct {
   int32_t      openVnodes;
   int32_t      totalVnodes;
   SRWLatch     latch;
-  taos_queue   pMgmtQ;
-  SWorkerPool  mgmtPool;
   SWorkerPool  queryPool;
   SWorkerPool  fetchPool;
   SMWorkerPool syncPool;

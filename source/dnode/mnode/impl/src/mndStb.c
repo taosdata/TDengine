@@ -58,7 +58,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_STB_RSP, mndProcessCreateStbInRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_STB_RSP, mndProcessAlterStbInRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_STB_RSP, mndProcessDropStbInRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_TABLE_META, mndProcessStbMetaMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_STB_META, mndProcessStbMetaMsg);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_STB, mndGetStbMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STB, mndRetrieveStb);
@@ -552,7 +552,7 @@ static int32_t mndProcessCreateStbMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mndProcessCreateStbInRsp(SMnodeMsg *pMsg) {
-  mndTransHandleActionRsp(pMsg);
+  mndTransProcessRsp(pMsg);
   return 0;
 }
 
@@ -616,7 +616,7 @@ static int32_t mndProcessAlterStbMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mndProcessAlterStbInRsp(SMnodeMsg *pMsg) {
-  mndTransHandleActionRsp(pMsg);
+  mndTransProcessRsp(pMsg);
   return 0;
 }
 
@@ -728,7 +728,7 @@ static int32_t mndProcessDropStbMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mndProcessDropStbInRsp(SMnodeMsg *pMsg) {
-  mndTransHandleActionRsp(pMsg);
+  mndTransProcessRsp(pMsg);
   return 0;
 }
 
@@ -886,13 +886,18 @@ static void mndExtractTableName(char *tableId, char *name) {
 }
 
 static int32_t mndRetrieveStb(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode * pMnode = pMsg->pMnode;
-  SSdb *   pSdb = pMnode->pSdb;
+  SMnode  *pMnode = pMsg->pMnode;
+  SSdb    *pSdb = pMnode->pSdb;
   int32_t  numOfRows = 0;
   SStbObj *pStb = NULL;
   int32_t  cols = 0;
-  char *   pWrite;
+  char    *pWrite;
   char     prefix[64] = {0};
+
+  SDbObj *pDb = mndAcquireDb(pMnode, pShow->db);
+  if (pDb == NULL) {
+    return TSDB_CODE_MND_INVALID_DB;
+  }
 
   tstrncpy(prefix, pShow->db, 64);
   strcat(prefix, TS_PATH_DELIMITER);
@@ -902,7 +907,7 @@ static int32_t mndRetrieveStb(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int3
     pShow->pIter = sdbFetch(pSdb, SDB_STB, pShow->pIter, (void **)&pStb);
     if (pShow->pIter == NULL) break;
 
-    if (strncmp(pStb->name, prefix, prefixLen) != 0) {
+    if (pStb->dbUid != pDb->uid) {
       sdbRelease(pSdb, pStb);
       continue;
     }
@@ -931,6 +936,7 @@ static int32_t mndRetrieveStb(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int3
     sdbRelease(pSdb, pStb);
   }
 
+  mndReleaseDb(pMnode, pDb);
   pShow->numOfReads += numOfRows;
   mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   return numOfRows;
