@@ -710,13 +710,32 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
     }
 
     case TSDB_SQL_DROP_TABLE: {
-      pDcl->pMsg = (char*)buildDropTableMsg(pInfo, &pDcl->msgLen, pCtx, pMsgBuf);
+      pDcl->pMsg = (char*)buildDropStableMsg(pInfo, &pDcl->msgLen, pCtx, pMsgBuf);
       if (pDcl->pMsg == NULL) {
-        return terrno;
+        code = terrno;
       }
 
       pDcl->msgType = TDMT_MND_DROP_STB;
-      return TSDB_CODE_SUCCESS;
+      break;
+    }
+
+    case TSDB_SQL_CREATE_DNODE: {
+      pDcl->pMsg = (char*) buildCreateDnodeMsg(pInfo, &pDcl->msgLen, pMsgBuf);
+      if (pDcl->pMsg == NULL) {
+        code = terrno;
+      }
+
+      pDcl->msgType = TDMT_MND_CREATE_DNODE;
+      break;
+    }
+
+    case TSDB_SQL_DROP_DNODE: {
+      pDcl->pMsg = (char*) buildDropDnodeMsg(pInfo, &pDcl->msgLen, pMsgBuf);
+      if (pDcl->pMsg == NULL) {
+        code = terrno;
+      }
+
+      pDcl->msgType = TDMT_MND_DROP_DNODE;
       break;
     }
 

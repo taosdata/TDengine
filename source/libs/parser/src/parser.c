@@ -44,11 +44,12 @@ int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
   }
 
   if (!isDqlSqlStatement(&info)) {
-    SDclStmtInfo* pDcl = calloc(1, sizeof(SQueryStmtInfo));
+    SDclStmtInfo* pDcl = calloc(1, sizeof(SDclStmtInfo));
     if (NULL == pDcl) {
       terrno = TSDB_CODE_TSC_OUT_OF_MEMORY; // set correct error code.
       return terrno;
     }
+
     pDcl->nodeType = info.type;
     int32_t code = qParserValidateDclSqlNode(&info, &pCxt->ctx, pDcl, pCxt->pMsg, pCxt->msgLen);
     if (code == TSDB_CODE_SUCCESS) {

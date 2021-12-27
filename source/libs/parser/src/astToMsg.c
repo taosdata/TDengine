@@ -356,7 +356,7 @@ SCreateStbMsg* buildCreateTableMsg(SCreateTableSql* pCreateTableSql, int32_t* le
   return pCreateTableMsg;
 }
 
-SDropTableMsg* buildDropTableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
+SDropStbMsg* buildDropStableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
   SToken* tableName = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
   SName name = {0};
@@ -366,13 +366,53 @@ SDropTableMsg* buildDropTableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* 
     return NULL;
   }
 
-  SDropTableMsg *pDropTableMsg = (SDropTableMsg*) calloc(1, sizeof(SDropTableMsg));
+  SDropStbMsg *pDropTableMsg = (SDropStbMsg*) calloc(1, sizeof(SDropStbMsg));
 
   code = tNameExtractFullName(&name, pDropTableMsg->name);
   assert(code == TSDB_CODE_SUCCESS && name.type == TSDB_TABLE_NAME_T);
 
-  pDropTableMsg->ignoreNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
+  pDropTableMsg->igNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
   *len = sizeof(SDropTableMsg);
   return pDropTableMsg;
+}
+
+SCreateDnodeMsg *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
+  const char* msg1 = "invalid host name (name too long, maximum length 128)";
+  const char* msg2 = "dnode name can not be string";
+
+  if (taosArrayGetSize(pInfo->pMiscInfo->a) > 1) {
+    buildInvalidOperationMsg(pMsgBuf, msg1);
+    return NULL;
+  }
+
+  SToken* id = taosArrayGet(pInfo->pMiscInfo->a, 0);
+  if (id->type != TK_ID) {
+    buildInvalidOperationMsg(pMsgBuf, msg2);
+    return NULL;
+  }
+
+  SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *) calloc(1, sizeof(SCreateDnodeMsg));
+  strncpy(pCreate->ep, id->z, id->n);
+  *len = sizeof(SCreateDnodeMsg);
+
+  return pCreate;
+}
+
+SDropDnodeMsg *buildDropDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
+  SToken* pzName = taosArrayGet(pInfo->pMiscInfo->a, 0);
+
+
+  char* end = NULL;
+  SDropDnodeMsg * pDrop = (SDropDnodeMsg *)calloc(1, sizeof(SDropDnodeMsg));
+  pDrop->dnodeId = strtoll(pzName->z, &end, 10);
+  *len = sizeof(SDropDnodeMsg);
+
+  if (end - pzName->z != pzName->n) {
+    buildInvalidOperationMsg(pMsgBuf, "invalid dnode id");
+    tfree(pDrop);
+    return NULL;
+  }
+
+  return pDrop;
 }
 
