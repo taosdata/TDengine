@@ -2852,9 +2852,12 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         char val[8] = {0};
 
         int64_t tickPerSec = 0;
-        if (pParamElem[1].pNode->exprToken.type == TK_NOW || strstr(pParamElem[1].pNode->exprToken.z, "now")) {
+        char *exprToken = tcalloc(pParamElem[1].pNode->exprToken.n + 1, sizeof(char));
+        memcpy(exprToken, pParamElem[1].pNode->exprToken.z, pParamElem[1].pNode->exprToken.n);
+        if (pParamElem[1].pNode->exprToken.type == TK_NOW || strstr(exprToken, "now")) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
         }
+        tfree(exprToken);
 
         if ((TSDB_DATA_TYPE_NULL == pParamElem[1].pNode->value.nType) || tVariantDump(&pParamElem[1].pNode->value, (char*) &tickPerSec, TSDB_DATA_TYPE_BIGINT, true) < 0) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
