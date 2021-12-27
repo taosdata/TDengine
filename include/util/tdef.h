@@ -204,7 +204,7 @@ do { \
 
 #define TSDB_CLUSTER_ID_LEN       40
 #define TSDB_FQDN_LEN             128
-#define TSDB_EP_LEN               (TSDB_FQDN_LEN+6)
+#define TSDB_EP_LEN               (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_SHOW_SQL_LEN         512
