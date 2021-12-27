@@ -632,7 +632,6 @@ TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
   if (pQueryHandle == NULL) {
     return NULL;
   }
-  pQueryHandle->pTableCheckInfo = NULL;
   lazyLoadCacheLast(pQueryHandle);
 
   int32_t code = checkForCachedLastRow(pQueryHandle, groupList);
