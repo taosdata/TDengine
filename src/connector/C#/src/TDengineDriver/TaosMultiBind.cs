@@ -449,28 +449,27 @@ namespace TDengineDriver
             for (int i = 0; i < elementCount; i++)
             {
                 int itemLength = 0;
+                byte[] decodeByte = GetStringEncodeByte(arr[i]);
+                itemLength = decodeByte.Length;
                 // if element if not null and element length is less then typeSize
                 // fill the memory with default char.Since arr element memory need align.
-                if (!String.IsNullOrEmpty(arr[i]) && typeSize <= arr[i].Length)
+                if (!String.IsNullOrEmpty(arr[i]) && typeSize == itemLength)
                 {
-                    itemLength = arr[i].Length;
                     arrStrBuilder.Append(arr[i]);
                 }
-                else if (!String.IsNullOrEmpty(arr[i]) && typeSize > arr[i].Length)
+                else if (!String.IsNullOrEmpty(arr[i]) && typeSize > itemLength)
                 {
-                    itemLength = arr[i].Length;
                     arrStrBuilder.Append(arr[i]);
-                    arrStrBuilder.Append(AlignCharArr(typeSize - arr[i].Length));
+                    arrStrBuilder.Append(AlignCharArr(typeSize - itemLength));
                 }
                 else
                 {
                     // if is null value,fill the memory with default values.
-                    itemLength = 0;
                     arrStrBuilder.Append(AlignCharArr(typeSize));
                 }
 
                 //set TAOS_MULTI_BIND.length
-                Marshal.WriteInt32(lengthArr, intSize * i, itemLength);
+                Marshal.WriteInt32(lengthArr, intSize * i, typeSize);
                 //set TAOS_MULTI_BIND.is_null 
                 Marshal.WriteByte(nullArr, byteSize * i, Convert.ToByte(String.IsNullOrEmpty(arr[i]) ? 1 : 0));
             }
@@ -505,28 +504,27 @@ namespace TDengineDriver
             for (int i = 0; i < elementCount; i++)
             {
                 int itemLength = 0;
+                byte[] decodeByte = GetStringEncodeByte(arr[i]);
+                itemLength = decodeByte.Length;
                 // if element if not null and element length is less then typeSize
                 // fill the memory with default char.Since arr element memory need align.
-                if (!String.IsNullOrEmpty(arr[i]) && typeSize <= arr[i].Length)
+                if (!String.IsNullOrEmpty(arr[i]) && typeSize == itemLength)
                 {
-                    itemLength = arr[i].Length;
                     arrStrBuilder.Append(arr[i]);
                 }
-                else if (!String.IsNullOrEmpty(arr[i]) && typeSize > arr[i].Length)
+                else if (!String.IsNullOrEmpty(arr[i]) && typeSize > itemLength)
                 {
-                    itemLength = arr[i].Length;
                     arrStrBuilder.Append(arr[i]);
-                    arrStrBuilder.Append(AlignCharArr(typeSize - arr[i].Length));
+                    arrStrBuilder.Append(AlignCharArr(typeSize - itemLength));
                 }
                 else
                 {
                     // if is null value,fill the memory with default values.
-                    itemLength = 0;
                     arrStrBuilder.Append(AlignCharArr(typeSize));
                 }
 
                 //set TAOS_MULTI_BIND.length
-                Marshal.WriteInt32(lengthArr, intSize * i, itemLength);
+                Marshal.WriteInt32(lengthArr, intSize * i, typeSize);
                 //set TAOS_MULTI_BIND.is_null 
                 Marshal.WriteByte(nullArr, byteSize * i, Convert.ToByte(String.IsNullOrEmpty(arr[i]) ? 1 : 0));
             }
@@ -604,12 +602,27 @@ namespace TDengineDriver
             int max = 0;
             for (int i = 0; i < strArr.Length; i++)
             {
-                if (!String.IsNullOrEmpty(strArr[i]) && max < strArr[i].Length)
+                int tmpLength = GetStringEncodeByte(strArr[i]).Length;
+                if (!String.IsNullOrEmpty(strArr[i]) && max < tmpLength)
                 {
-                    max = strArr[i].Length;
+                    max = tmpLength;
                 }
             }
             return max;
+        }
+
+        private static Byte[] GetStringEncodeByte(string str)
+        {   
+            Byte[] strToBytes = null;
+            if(String.IsNullOrEmpty(str))
+            {
+                strToBytes = System.Text.Encoding.Default.GetBytes(String.Empty);
+            }
+            else
+            {
+                strToBytes = System.Text.Encoding.Default.GetBytes(str);
+            } 
+            return strToBytes;
         }
     }
 
