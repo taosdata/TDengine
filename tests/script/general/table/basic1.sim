@@ -23,6 +23,15 @@ endi
 
 print $data00 $data01 $data02
 
+sql create table st2 (ts timestamp, i float) tags (j bigint)
+sql show stables
+if $rows != 2 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+print $data00 $data11 $data12
+
 return
 
 print =============== create child table
