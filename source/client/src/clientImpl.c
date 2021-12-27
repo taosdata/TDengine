@@ -420,7 +420,15 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
   }
 
-  SDataBuf buf = {.pData = pMsg->pCont, .len = pMsg->contLen};
+  SDataBuf buf = {.len = pMsg->contLen};
+  buf.pData = calloc(1, pMsg->contLen);
+  if (buf.pData == NULL) {
+    terrno     = TSDB_CODE_OUT_OF_MEMORY;
+    pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    memcpy(buf.pData, pMsg->pCont, pMsg->contLen);
+  }
+
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
   rpcFreeCont(pMsg->pCont);
 }

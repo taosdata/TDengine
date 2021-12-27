@@ -169,6 +169,44 @@ TEST(testCase, create_db_Test) {
   taos_close(pConn);
 }
 
+TEST(testCase, create_dnode_Test) {
+  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  assert(pConn != NULL);
+
+  TAOS_RES* pRes = taos_query(pConn, "create dnode abc1");
+  if (taos_errno(pRes) != 0) {
+    printf("error in create dnode, reason:%s\n", taos_errstr(pRes));
+  }
+
+  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+  ASSERT_TRUE(pFields == NULL);
+
+  int32_t numOfFields = taos_num_fields(pRes);
+  ASSERT_EQ(numOfFields, 0);
+
+  taos_free_result(pRes);
+  taos_close(pConn);
+}
+
+TEST(testCase, drop_dnode_Test) {
+  TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
+  assert(pConn != NULL);
+
+  TAOS_RES* pRes = taos_query(pConn, "drop dnode 2");
+  if (taos_errno(pRes) != 0) {
+    printf("error in drop dnode, reason:%s\n", taos_errstr(pRes));
+  }
+
+  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+  ASSERT_TRUE(pFields == NULL);
+
+  int32_t numOfFields = taos_num_fields(pRes);
+  ASSERT_EQ(numOfFields, 0);
+
+  taos_free_result(pRes);
+  taos_close(pConn);
+}
+
 TEST(testCase, use_db_test) {
   TAOS* pConn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
@@ -273,7 +311,6 @@ TEST(testCase, show_stable_Test) {
   }
 
   TAOS_ROW pRow = NULL;
-
   TAOS_FIELD* pFields = taos_fetch_fields(pRes);
   int32_t numOfFields = taos_num_fields(pRes);
 
@@ -284,7 +321,6 @@ TEST(testCase, show_stable_Test) {
   }
 
   taos_free_result(pRes);
-
   taos_close(pConn);
 }
 
