@@ -21,7 +21,8 @@ namespace Test.UtilsTools.DataSource
         public static string[] binaryArr = new string[5] { "1234567890~!@#$%^&*()_+=-`[]{}:,./<>?", String.Empty, null, "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM", "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890~!@#$%^&*()_+=-`[]{}:,./<>?" };
         public static string[] ncharArr = new string[5] { "1234567890~!@#$%^&*()_+=-`[]{}:,./<>?", null, "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM", "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890~!@#$%^&*()_+=-`[]{}:,./<>?", string.Empty };
 
-
+        public static string[] binaryArrCn = new string[5] { "涛思数据", String.Empty, null, "taosdata涛思数据", "涛思数据TDengine" };
+        public static string[] NcharArrCn = new string[5] { "涛思数据", null, "taosdata涛思数据", "涛思数据TDengine", String.Empty };
         public static TAOS_BIND[] getTags()
         {
             TAOS_BIND[] binds = new TAOS_BIND[13];
@@ -40,6 +41,47 @@ namespace Test.UtilsTools.DataSource
             binds[12] = TaosBind.BindNchar("qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKZXCVBNM`1234567890-=+_)(*&^%$#@!~[];,./<>?:{}");
             return binds;
         }
+
+        public static TAOS_BIND[] getCNTags()
+        {
+            TAOS_BIND[] binds = new TAOS_BIND[13];
+            binds[0] = TaosBind.BindBool(true);
+            binds[1] = TaosBind.BindTinyInt(-2);
+            binds[2] = TaosBind.BindSmallInt(short.MaxValue - 1);
+            binds[3] = TaosBind.BindInt(int.MaxValue - 1);
+            binds[4] = TaosBind.BindBigInt(Int64.MaxValue - 1);
+            binds[5] = TaosBind.BindUTinyInt(byte.MaxValue - 1);
+            binds[6] = TaosBind.BindUSmallInt(UInt16.MaxValue - 1);
+            binds[7] = TaosBind.BindUInt(uint.MinValue + 1);
+            binds[8] = TaosBind.BindUBigInt(UInt64.MinValue + 1);
+            binds[9] = TaosBind.BindFloat(11.11F);
+            binds[10] = TaosBind.BindDouble(22.22D);
+            binds[11] = TaosBind.BindBinary("TDengine涛思数据");
+            binds[12] = TaosBind.BindNchar("涛思");
+            return binds;
+        }
+
+        public static TAOS_BIND[] getNtableCNRow()
+        {
+            TAOS_BIND[] binds = new TAOS_BIND[15];
+            binds[0] = TaosBind.BindTimestamp(1637064040000);
+            binds[1] = TaosBind.BindTinyInt(-2);
+            binds[2] = TaosBind.BindSmallInt(short.MaxValue);
+            binds[3] = TaosBind.BindInt(int.MaxValue);
+            binds[4] = TaosBind.BindBigInt(Int64.MaxValue);
+            binds[5] = TaosBind.BindUTinyInt(byte.MaxValue - 1);
+            binds[6] = TaosBind.BindUSmallInt(UInt16.MaxValue - 1);
+            binds[7] = TaosBind.BindUInt(uint.MinValue + 1);
+            binds[8] = TaosBind.BindUBigInt(UInt64.MinValue + 1);
+            binds[9] = TaosBind.BindFloat(11.11F);
+            binds[10] = TaosBind.BindDouble(22.22D);
+            binds[11] = TaosBind.BindBinary("TDengine数据");
+            binds[12] = TaosBind.BindNchar("taosdata涛思数据");
+            binds[13] = TaosBind.BindBool(true);
+            binds[14] = TaosBind.BindNil();
+            return binds;
+        }
+
         public static TAOS_BIND[] getNtableRow()
         {
             TAOS_BIND[] binds = new TAOS_BIND[15];
@@ -60,7 +102,6 @@ namespace Test.UtilsTools.DataSource
             binds[14] = TaosBind.BindNil();
             return binds;
         }
-
         public static TAOS_MULTI_BIND[] GetMultiBindArr()
         {
             TAOS_MULTI_BIND[] mBinds = new TAOS_MULTI_BIND[14];
@@ -80,6 +121,26 @@ namespace Test.UtilsTools.DataSource
             mBinds[13] = TaosMultiBind.MultiBindNchar(ncharArr);
             return mBinds;
         }
+        public static TAOS_MULTI_BIND[] GetMultiBindCNArr()
+        {
+            TAOS_MULTI_BIND[] mBinds = new TAOS_MULTI_BIND[14];
+            mBinds[0] = TaosMultiBind.MultiBindTimestamp(tsArr);
+            mBinds[1] = TaosMultiBind.MultiBindBool(boolArr);
+            mBinds[2] = TaosMultiBind.MultiBindTinyInt(tinyIntArr);
+            mBinds[3] = TaosMultiBind.MultiBindSmallInt(shortArr);
+            mBinds[4] = TaosMultiBind.MultiBindInt(intArr);
+            mBinds[5] = TaosMultiBind.MultiBindBigint(longArr);
+            mBinds[6] = TaosMultiBind.MultiBindFloat(floatArr);
+            mBinds[7] = TaosMultiBind.MultiBindDouble(doubleArr);
+            mBinds[8] = TaosMultiBind.MultiBindUTinyInt(uTinyIntArr);
+            mBinds[9] = TaosMultiBind.MultiBindUSmallInt(uShortArr);
+            mBinds[10] = TaosMultiBind.MultiBindUInt(uIntArr);
+            mBinds[11] = TaosMultiBind.MultiBindUBigInt(uLongArr);
+            mBinds[12] = TaosMultiBind.MultiBindBinary(binaryArrCn);
+            mBinds[13] = TaosMultiBind.MultiBindNchar(NcharArrCn);
+            return mBinds;
+        }
+
         public static TAOS_BIND[] GetQueryCondition()
         {
             TAOS_BIND[] queryCondition = new TAOS_BIND[2];
