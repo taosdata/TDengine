@@ -13,18 +13,37 @@
 
 import sys,os
 import time
+import taos
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util.dnodes import *
 from util.types import TDSmlProtocolType, TDSmlTimestampType
 
 class TDTestCase():
-
+    updatecfgDict = {"smlTagNullName","setname"}  # add extra client params
 
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
         self._conn = conn
+
+    def getBuildPath(self, tool="taosd"):
+        buildPath = ""
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        for root, dirs, files in os.walk(projPath):
+            if ((tool) in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    buildPath = root[:len(root)-len("/build/bin")]
+                    break
+        return buildPath
 
     def no_tag_single_line_insert(self,name):
         self.name = name 
@@ -129,6 +148,7 @@ class TDTestCase():
             tdLog.info(" ====================get expected tag name ===============")
         else:
             tdLog.exit("======================error occured for null tag==================")
+        
 
     def run(self):
         print("running {}".format(__file__))
@@ -140,20 +160,7 @@ class TDTestCase():
         self.part_tag_single_insert("_tag_null")
         self.part_tag_multi_insert("_tag_null")
 
-        tdLog.info("====================set null tag name as setname====================")
-
-        self.no_tag_single_line_insert("setname")
-        self.no_tag_mulit_line_insert("setname")
-        self.part_tag_single_insert("setname")
-        self.part_tag_multi_insert("setname")
-
-        tdLog.info("====================set null tag name as int====================")
-
-        self.no_tag_single_line_insert("int")
-        self.no_tag_mulit_line_insert("int")
-        self.part_tag_single_insert("int")
-        self.part_tag_multi_insert("int")
-        
+       
 
     def stop(self):
         tdSql.close()
