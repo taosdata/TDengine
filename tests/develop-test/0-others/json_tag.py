@@ -22,9 +22,9 @@ import json
 class TDTestCase:
     def caseDescription(self):
         '''
-        Json tag test case, include create table with json tag,
-        select json tag and query with json tag in where condition,
-        besides, include json tag in group by/order by/join/subquery.
+        Json tag test case, include create table with json tag, select json tag and query with json tag in where condition, besides, include json tag in group by/order by/join/subquery.
+        case1: [TD-12452] fix error if json tag is NULL
+        case2: [TD-12389] describe child table, tag length error if the tag is json tag
         '''
         return
 
@@ -514,6 +514,23 @@ class TDTestCase:
         tdSql.execute("insert into jsons1_16 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":-2.111}') values(1591062628000, 2, NULL, '你就会', 'dws')")
         tdSql.query("select jtag->'tag3' from jsons1_16")
         tdSql.checkData(0, 0, '-2.111000000')
+
+        # test TD-12452
+        tdSql.execute("ALTER TABLE jsons1_1 SET TAG jtag=NULL")
+        tdSql.query("select jtag from jsons1_1")
+        tdSql.checkData(0, 0, None)
+        tdSql.execute("CREATE TABLE if not exists jsons1_20 using jsons1 tags(NULL)")
+        tdSql.query("select jtag from jsons1_20")
+        tdSql.checkData(0, 0, None)
+        tdSql.execute("insert into jsons1_21 using jsons1 tags(NULL) values(1591061628000, 11, false, '你就会','')")
+        tdSql.query("select jtag from jsons1_21")
+        tdSql.checkData(0, 0, None)
+
+        #test TD-12389
+        tdSql.query("describe jsons1")
+        tdSql.checkData(5, 2, 4096)
+        tdSql.query("describe jsons1_1")
+        tdSql.checkData(5, 2, 4096)
 
     def stop(self):
         tdSql.close()
