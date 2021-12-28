@@ -3704,7 +3704,7 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
   //NOTE: not add ref count for super table
   res = taosArrayInit(8, sizeof(STableKeyInfo));
   STSchema* pTagSchema = tsdbGetTableTagSchema(pTable);
-
+  assert(pTagSchema != NULL);
   // no tags and tbname condition, all child tables of this stable are involved
   if (pTagCond == NULL || len == 0) {
     int32_t ret = getAllTableList(pTable, res);
@@ -3805,7 +3805,9 @@ int32_t tsdbGetOneTableGroup(STsdbRepo* tsdb, uint64_t uid, TSKEY startKey, STab
   taosArrayPush(pGroupInfo->pGroupList, &group);
 
   pGroupInfo->sVersion = tsdbGetTableSchema(pTable)->version;
-  pGroupInfo->tVersion = tsdbGetTableTagSchema(pTable)->version;
+  if (tsdbGetTableTagSchema(pTable) != NULL) {
+    pGroupInfo->tVersion = tsdbGetTableTagSchema(pTable)->version;
+  }
   return TSDB_CODE_SUCCESS;
 
   _error:
@@ -3852,6 +3854,7 @@ int32_t tsdbGetTableGroupFromIdList(STsdbRepo* tsdb, SArray* pTableIdList, STabl
       assert (sVersion == tsdbGetTableSchema(pTable)->version);
     }
 
+    assert(tsdbGetTableTagSchema(pTable) != NULL);
     if (tVersion == -1) {
       tVersion = tsdbGetTableTagSchema(pTable)->version;
     } else {

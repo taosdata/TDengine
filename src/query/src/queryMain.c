@@ -115,6 +115,8 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
   bool isSTableQuery = false;
   STableGroupInfo tableGroupInfo = {0};
+  tableGroupInfo.sVersion = -1;
+  tableGroupInfo.tVersion = -1;
   int64_t st = taosGetTimestampUs();
 
   if (TSDB_QUERY_HAS_TYPE(pQueryMsg->queryType, TSDB_QUERY_TYPE_TABLE_QUERY)) {
