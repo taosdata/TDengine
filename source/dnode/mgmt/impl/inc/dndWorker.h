@@ -21,8 +21,8 @@ extern "C" {
 #endif
 #include "dndInt.h"
 
-int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EDndWorkerType type, const char *name, int32_t minNum,
-                      int32_t maxNum, FProcessItem fp);
+int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EWorkerType type, const char *name, int32_t minNum,
+                      int32_t maxNum, void *queueFp);
 void    dndCleanupWorker(SDnodeWorker *pWorker);
 int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pCont, int32_t contLen);
 

@@ -15,7 +15,7 @@
 
 #include "sndInt.h"
 
-SSnode *sndOpen(const SSnodeOpt *pOption) {
+SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   SSnode *pSnode = calloc(1, sizeof(SSnode));
   return pSnode;
 }
@@ -28,3 +28,5 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   *pRsp = NULL;
   return 0;
 }
+
+void sndDestroy(const char *path) {}
