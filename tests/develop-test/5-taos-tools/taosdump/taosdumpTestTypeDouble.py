@@ -13,6 +13,7 @@
 
 import sys
 import os
+import math
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -69,7 +70,7 @@ class TDTestCase:
         tdSql.execute("create table t4 using st tags(NULL)")
         tdSql.execute("insert into t4 values(1640000000000, NULL)")
 
-        sys.exit(1)
+#        sys.exit(1)
 
         buildPath = self.getBuildPath()
         if (buildPath == ""):
@@ -106,25 +107,31 @@ class TDTestCase:
         tdSql.query("select * from st where dbtag = 1.0")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
-        if ((abs(tdSql.getData(0, 1) - 1.0)) <= allowed_error):
+        if not math.isclose(tdSql.getData(0, 1), 1.0):
+            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,1), 1.0))
             tdLog.exit("data is different")
-        if ((abs(tdSql.getData(0, 2) - 1.0)) <= allowed_error):
+        if not math.isclose(tdSql.getData(0, 2), 1.0):
+            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,2), 1.0))
             tdLog.exit("data is different")
 
         tdSql.query("select * from st where dbtag = 1.7E308")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
-        if ((abs(tdSql.getData(0, 1) - 1.7E308)) <= allowed_error):
+        if not math.isclose(tdSql.getData(0, 1), 1.7E308):
+            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,1), 1.7E308))
             tdLog.exit("data is different")
-        if ((abs(tdSql.getData(0, 2) - 1.7E308)) <= allowed_error):
+        if not math.isclose(tdSql.getData(0, 2), 1.7E308):
+            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,2), 1.7E308))
             tdLog.exit("data is different")
 
         tdSql.query("select * from st where dbtag = -1.7E308")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
-        if ((abs(tdSql.getData(0, 1) - (-1.7E308))) <= allowed_error):
+        if not math.isclose(tdSql.getData(0, 1), -1.7E308):
+            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,1), -1.7E308))
             tdLog.exit("data is different")
-        if ((abs(tdSql.getData(0, 2) - (-1.7E308))) <= allowed_error):
+        if not math.isclose(tdSql.getData(0, 2), -1.7E308):
+            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,2), -1.7E308))
             tdLog.exit("data is different")
 
         tdSql.query("select * from st where dbtag is null")

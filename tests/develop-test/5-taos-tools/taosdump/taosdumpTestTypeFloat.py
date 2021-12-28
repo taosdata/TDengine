@@ -13,6 +13,7 @@
 
 import sys
 import os
+import math
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -106,25 +107,30 @@ class TDTestCase:
         tdSql.query("select * from st where ftag = 1.0")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
-        if ((abs(tdSql.getData(0, 1) - 1.0)) > 1.0e-7):
+        if not math.isclose(tdSql.getData(0, 1), 1.0):
+            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,1), 1.0))
             tdLog.exit("data is different")
-        if ((abs(tdSql.getData(0, 2) - 1.0)) > 1.0e-7):
+        if not math.isclose(tdSql.getData(0, 2), 1.0):
             tdLog.exit("data is different")
 
         tdSql.query("select * from st where ftag = 3.4E38")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
-        if ((abs(tdSql.getData(0, 1) - 3.4E38)) > 1.0e-7):
+        if not math.isclose(tdSql.getData(0, 1), 3.4E38, rel_tol=1e-07, abs_tol=0.0):
+            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,1), 3.4E38))
             tdLog.exit("data is different")
-        if ((abs(tdSql.getData(0, 2) - 3.4E38)) > 1.0e-7):
+        if not math.isclose(tdSql.getData(0, 2), 3.4E38, rel_tol=1e-07, abs_tol=0.0):
+            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,2), 3.4E38))
             tdLog.exit("data is different")
 
         tdSql.query("select * from st where ftag = -3.4E38")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
-        if ((abs(tdSql.getData(0, 1) - (-3.4E38))) > 1.0e-7):
+        if not math.isclose(tdSql.getData(0, 1), (-3.4E38), rel_tol=1e-07, abs_tol=0.0):
+            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,1), -3.4E38))
             tdLog.exit("data is different")
-        if ((abs(tdSql.getData(0, 2) - (-3.4E38))) > 1.0e-7):
+        if not math.isclose(tdSql.getData(0, 2), (-3.4E38), rel_tol=1e-07, abs_tol=0.0):
+            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,2), -3.4E38))
             tdLog.exit("data is different")
 
         tdSql.query("select * from st where ftag is null")
