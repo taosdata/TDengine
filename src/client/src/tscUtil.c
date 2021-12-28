@@ -1713,6 +1713,21 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tscFreeMetaSqlObj(&pSql->svgroupRid);
 
   SSqlCmd* pCmd = &pSql->cmd;
+  bool clearCachedMeta = false;
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
+  if (pQueryInfo != NULL) {
+    STableMeta*     pTableMeta = NULL;
+    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+    if (pTableMetaInfo != NULL) {
+      pTableMeta = pTableMetaInfo->pTableMeta;
+    }
+    if (pTableMeta != NULL) {
+      if (pTableMeta->sversion < pSql->res.sVersion || pTableMeta->tversion < pSql->res.tVersion) {
+        clearCachedMeta = true;
+      }
+    }
+  }
+
   int32_t cmd = pCmd->command;
   if (cmd < TSDB_SQL_INSERT || cmd == TSDB_SQL_RETRIEVE_GLOBALMERGE || cmd == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
       cmd == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
@@ -1731,7 +1746,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   pSql->self = 0;
 
   tscFreeSqlResult(pSql);
-  tscResetSqlCmd(pCmd, false, pSql->self);
+  tscResetSqlCmd(pCmd, clearCachedMeta, pSql->self);
 
   tfree(pCmd->payload);
   pCmd->allocSize = 0;

@@ -307,6 +307,8 @@ typedef struct {
   int32_t        row;
   int16_t        numOfCols;
   int16_t        precision;
+  int32_t        sVersion;
+  int32_t        tVersion;
   bool           completed;
   int32_t        code;
   char *         data;
