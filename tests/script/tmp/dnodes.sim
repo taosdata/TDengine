@@ -1,0 +1,78 @@
+system sh/stop_dnodes.sh
+
+
+############## config parameter  #####################
+$node1 = 192.168.101.174 
+$node2 = 192.168.0.202
+$node2 = 192.168.0.203
+$node3 = 192.168.0.204
+
+$first = 1
+$num = 5
+$self = $node1
+
+###############  deploy firstEp  #####################
+
+$firstEp = $node1 . :7100
+$firstPort = 7100
+if $first == 1 then 
+  system sh/deploy.sh -n dnode1 -i 1
+  system sh/cfg.sh -n dnode1 -c firstEp -v $firstEp
+  system sh/cfg.sh -n dnode1 -c secondEp -v $firstEp
+  system sh/cfg.sh -n dnode1 -c fqdn -v $node1
+  system sh/cfg.sh -n dnode1 -c serverPort -v $firstPort
+
+  system sh/exec.sh -n dnode1 -s start
+  sql connect
+
+  $i = 0
+  while $i < $num
+    $port = $i * 100
+    $port = $port + 8000
+    $i = $i + 1
+    sql create dnode $node1 port $port
+  endw
+
+  $i = 0
+  while $i < $num
+    $port = $i * 100
+    $port = $port + 8000
+    $i = $i + 1
+    sql create dnode $node2 port $port
+  endw
+
+  $i = 0
+  while $i < $num
+    $port = $i * 100
+    $port = $port + 8000
+    $i = $i + 1
+    sql create dnode $node3 port $port
+  endw
+
+  $i = 0
+  while $i < $num
+    $port = $i * 100
+    $port = $port + 8000
+    $i = $i + 1
+    sql create dnode $node4 port $port
+  endw
+endi
+
+###############  deploy nodes    #####################
+
+$i = 0
+while $i < $num
+  $index = $i + 80
+  $port = $i * 100
+  $port = $port + 8000
+  $dnodename = dnode . $index
+  $i = $i + 1 
+
+  system sh/deploy.sh -n $dnodename -i 1
+  system sh/cfg.sh -n $dnodename -c firstEp -v $firstEp
+  system sh/cfg.sh -n $dnodename -c secondEp -v $firstEp
+  system sh/cfg.sh -n $dnodename -c fqdn -v $self
+  system sh/cfg.sh -n $dnodename -c serverPort -v $port
+
+  #system sh/exec.sh -n $dnodename -s start
+endw
