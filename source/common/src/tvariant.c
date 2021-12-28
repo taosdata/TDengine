@@ -16,7 +16,6 @@
 
 #include "taos.h"
 #include "taosdef.h"
-#include "thash.h"
 #include "ttime.h"
 #include "ttokendef.h"
 #include "ttypes.h"
