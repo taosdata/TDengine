@@ -237,9 +237,6 @@ TAOS_RES *tmq_create_topic(TAOS* taos, const char* name, const char* sql, int sq
   SQueryDag*   pDag = NULL;
   char *dagStr = NULL;
 
-  //parse sql to logical plan and physical plan
-  //send topic name and plans to mnode
-
   terrno = TSDB_CODE_SUCCESS;
 
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
