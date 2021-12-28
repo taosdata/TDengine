@@ -431,7 +431,7 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
 
 //  tscFieldInfoClear(&pSupporter->fieldsInfo);
   if (pSupporter->fieldsInfo.internalField != NULL) {
-    taosArrayDestroy(pSupporter->fieldsInfo.internalField);
+    taosArrayDestroy(&pSupporter->fieldsInfo.internalField);
   }
   if (pSupporter->pTSBuf != NULL) {
     tsBufDestroy(pSupporter->pTSBuf);
@@ -446,7 +446,7 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
   }
 
   if (pSupporter->pVgroupTables != NULL) {
-    //taosArrayDestroy(pSupporter->pVgroupTables);
+    //taosArrayDestroy(&pSupporter->pVgroupTables);
     tscFreeVgroupTableInfo(pSupporter->pVgroupTables); 
     pSupporter->pVgroupTables = NULL;
   }
@@ -804,7 +804,7 @@ void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArr
   
   if (taosArrayGetSize(result) <= 0) {
     pTableMetaInfo->pVgroupTables = NULL;
-    taosArrayDestroy(result);
+    taosArrayDestroy(&result);
   } else {
     pTableMetaInfo->pVgroupTables = result;
 
@@ -967,7 +967,7 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
 
     if (!checkForDuplicateTagVal(pColSchema, p, pParentSql)) {
       for (int32_t j = 0; j <= i; j++) {
-        taosArrayDestroy(ctxlist[j].res);
+        taosArrayDestroy(&ctxlist[j].res);
       }
       return TSDB_CODE_QRY_DUP_JOIN_KEY;
     }
@@ -1269,7 +1269,7 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     pParentSql->res.code = code;
     tscAsyncResultOnError(pParentSql);
 
-    taosArrayDestroy(resList);
+    taosArrayDestroy(&resList);
     goto _return;
   }
 
@@ -1309,11 +1309,11 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   for (int32_t i = 0; i < rsize; ++i) {
     SArray** s = taosArrayGet(resList, i);
     if (*s) {
-      taosArrayDestroy(*s);
+      taosArrayDestroy(s);
     }
   }
 
-  taosArrayDestroy(resList);
+  taosArrayDestroy(&resList);
 
 _return:
   taosReleaseRef(tscObjRef, handle);
@@ -1993,7 +1993,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
 
     pNewQueryInfo->limit.limit = -1;
     pNewQueryInfo->limit.offset = 0;
-    taosArrayDestroy(pNewQueryInfo->pUpstream);
+    taosArrayDestroy(&pNewQueryInfo->pUpstream);
 
     pNewQueryInfo->order.orderColId = INT32_MIN;
 
@@ -2255,8 +2255,8 @@ void doAppendData(SInterResult* pInterResult, TAOS_ROW row, int32_t numOfCols, S
 static void tscFreeFirstRoundSup(void **param) {
   if (*param) {
     SFirstRoundQuerySup* pSup = (SFirstRoundQuerySup*)*param;
-    taosArrayDestroyEx(pSup->pResult, freeInterResult);
-    taosArrayDestroy(pSup->pColsInfo);
+    taosArrayDestroyEx(&pSup->pResult, freeInterResult);
+    taosArrayDestroy(&pSup->pColsInfo);
     tfree(*param);
   }
 }
@@ -3903,7 +3903,7 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
   STsBufInfo bufInfo = {0};
   SQueryParam param = {.pOperator = pa};
   /*int32_t code = */initQInfo(&bufInfo, NULL, pSourceOperator, pQInfo, &param, NULL, 0, merger);
-  taosArrayDestroy(pa);
+  taosArrayDestroy(&pa);
 
   return pQInfo;
 

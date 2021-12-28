@@ -30,7 +30,10 @@ class TDTestCase:
         self._conn = conn 
         self.smlChildTableName_value = tdSql.getVariable("smlChildTableName")[0].upper()
 
-    def createDb(self, name="test", db_update_tag=0):
+    def createDb(self, name="test", db_update_tag=0, protocol=None):
+        if protocol == "telnet-tcp":
+            name = "opentsdb_telnet"
+            
         if db_update_tag == 0:
             tdSql.execute(f"drop database if exists {name}")
             tdSql.execute(f"create database if not exists {name} precision 'us'")
@@ -142,10 +145,13 @@ class TDTestCase:
                 type_num_list.append(14)
         return type_num_list
 
-    def inputHandle(self, input_sql, ts_type):
+    def inputHandle(self, input_sql, ts_type, protocol=None):
         input_sql_split_list = input_sql.split(" ")
+        if protocol == "telnet-tcp":
+            input_sql_split_list.pop(0)
         stb_name = input_sql_split_list[0]
         stb_tag_list = input_sql_split_list[3:]
+        stb_tag_list[-1] = stb_tag_list[-1].strip()
         stb_col_value = input_sql_split_list[2]
         ts_value = self.timeTrans(input_sql_split_list[1], ts_type)
 
@@ -209,7 +215,7 @@ class TDTestCase:
                         t8="L\"ncharTagValue\"", ts="1626006833641",
                         id_noexist_tag=None, id_change_tag=None, id_upper_tag=None, id_mixul_tag=None, id_double_tag=None,
                         t_add_tag=None, t_mul_tag=None, c_multi_tag=None, c_blank_tag=None, t_blank_tag=None, 
-                        chinese_tag=None, multi_field_tag=None, point_trans_tag=None):
+                        chinese_tag=None, multi_field_tag=None, point_trans_tag=None, protocol=None, tcp_keyword_tag=None):
         if stb_name == "":
             stb_name = tdCom.getLongName(len=6, mode="letters")
         if tb_name == "":
@@ -253,6 +259,10 @@ class TDTestCase:
             sql_seq = f'{stb_name} {ts} {value} {id}={tb_name} t0={t0} {value}'
         if point_trans_tag is not None:
             sql_seq = f'.point.trans.test {ts} {value} t0={t0}'
+        if tcp_keyword_tag is not None:
+            sql_seq = f'put {ts} {value} t0={t0}'
+        if protocol == "telnet-tcp":
+            sql_seq = 'put ' + sql_seq + '\n'
         return sql_seq, stb_name
     
     def genMulTagColStr(self, genType, count=1):
@@ -280,13 +290,15 @@ class TDTestCase:
         long_sql = stb_name + ' ' + ts + ' ' + col_str + ' ' + ' ' + tag_str
         return long_sql, stb_name
 
-    def getNoIdTbName(self, stb_name):
+    def getNoIdTbName(self, stb_name, protocol=None):
         query_sql = f"select tbname from {stb_name}"
-        tb_name = self.resHandle(query_sql, True)[0][0]
+        tb_name = self.resHandle(query_sql, True, protocol)[0][0]
         return tb_name
 
-    def resHandle(self, query_sql, query_tag):
+    def resHandle(self, query_sql, query_tag, protocol=None):
         tdSql.execute('reset query cache')
+        if protocol == "telnet-tcp":
+            time.sleep(0.5)
         row_info = tdSql.query(query_sql, query_tag)
         col_info = tdSql.getColNameList(query_sql, query_tag)
         res_row_list = []
@@ -299,14 +311,17 @@ class TDTestCase:
         res_type_list = col_info[1]
         return res_row_list, res_field_list_without_ts, res_type_list
 
-    def resCmp(self, input_sql, stb_name, query_sql="select * from", condition="", ts=None, ts_type=None, id=True, none_check_tag=None, precision=None):
-        expect_list = self.inputHandle(input_sql, ts_type)
-        if precision == None:
-            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, ts_type)
+    def resCmp(self, input_sql, stb_name, query_sql="select * from", condition="", ts=None, ts_type=None, id=True, none_check_tag=None, precision=None, protocol=None):
+        expect_list = self.inputHandle(input_sql, ts_type, protocol)
+        if protocol == "telnet-tcp":
+            tdCom.tcpClient(input_sql)
         else:
-            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, precision)
+            if precision == None:
+                self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, ts_type)
+            else:
+                self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, precision)
         query_sql = f"{query_sql} {stb_name} {condition}"
-        res_row_list, res_field_list_without_ts, res_type_list = self.resHandle(query_sql, True)
+        res_row_list, res_field_list_without_ts, res_type_list = self.resHandle(query_sql, True, protocol)
         if ts == 0:
             res_ts = self.dateToTs(res_row_list[0][0])
             current_time = time.time()
@@ -327,16 +342,16 @@ class TDTestCase:
         for i in range(len(res_type_list)):
             tdSql.checkEqual(res_type_list[i], expect_list[2][i])
 
-    def initCheckCase(self):
+    def initCheckCase(self, protocol=None):
         """
             normal tags and cols, one for every elm
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
-        input_sql, stb_name = self.genFullTypeSql()
-        self.resCmp(input_sql, stb_name)
+        input_sql, stb_name = self.genFullTypeSql(protocol=protocol)
+        self.resCmp(input_sql, stb_name, protocol=protocol)
 
-    def boolTypeCheckCase(self):
+    def boolTypeCheckCase(self, protocol=None):
         """
             check all normal type
         """
@@ -344,10 +359,10 @@ class TDTestCase:
         tdCom.cleanTb()
         full_type_list = ["f", "F", "false", "False", "t", "T", "true", "True"]
         for t_type in full_type_list:
-            input_sql, stb_name = self.genFullTypeSql(t0=t_type)
-            self.resCmp(input_sql, stb_name)
+            input_sql, stb_name = self.genFullTypeSql(t0=t_type, protocol=protocol)
+            self.resCmp(input_sql, stb_name, protocol=protocol)
         
-    def symbolsCheckCase(self):
+    def symbolsCheckCase(self, protocol=None):
         """
             check symbols = `~!@#$%^&*()_-+={[}]\|:;'\",<.>/? 
         """
@@ -359,10 +374,10 @@ class TDTestCase:
         tdCom.cleanTb()
         binary_symbols = '"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"'
         nchar_symbols = f'L{binary_symbols}'
-        input_sql1, stb_name1 = self.genFullTypeSql(value=binary_symbols, t7=binary_symbols, t8=nchar_symbols)
-        input_sql2, stb_name2 = self.genFullTypeSql(value=nchar_symbols, t7=binary_symbols, t8=nchar_symbols)
-        self.resCmp(input_sql1, stb_name1)
-        self.resCmp(input_sql2, stb_name2)
+        input_sql1, stb_name1 = self.genFullTypeSql(value=binary_symbols, t7=binary_symbols, t8=nchar_symbols, protocol=protocol)
+        input_sql2, stb_name2 = self.genFullTypeSql(value=nchar_symbols, t7=binary_symbols, t8=nchar_symbols, protocol=protocol)
+        self.resCmp(input_sql1, stb_name1, protocol=protocol)
+        self.resCmp(input_sql2, stb_name2, protocol=protocol)
 
     def tsCheckCase(self):
         """
@@ -406,38 +421,38 @@ class TDTestCase:
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
     
-    def idSeqCheckCase(self):
+    def idSeqCheckCase(self, protocol=None):
         """
             check id.index in tags
             eg: t0=**,id=**,t1=**
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
-        input_sql, stb_name = self.genFullTypeSql(id_change_tag=True)
-        self.resCmp(input_sql, stb_name)
+        input_sql, stb_name = self.genFullTypeSql(id_change_tag=True, protocol=protocol)
+        self.resCmp(input_sql, stb_name, protocol=protocol)
     
-    def idLetterCheckCase(self):
+    def idLetterCheckCase(self, protocol=None):
         """
             check id param
             eg: id and ID
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
-        input_sql, stb_name = self.genFullTypeSql(id_upper_tag=True)
-        self.resCmp(input_sql, stb_name)
-        input_sql, stb_name = self.genFullTypeSql(id_mixul_tag=True)
-        self.resCmp(input_sql, stb_name)
-        input_sql, stb_name = self.genFullTypeSql(id_change_tag=True, id_upper_tag=True)
-        self.resCmp(input_sql, stb_name)
+        input_sql, stb_name = self.genFullTypeSql(id_upper_tag=True, protocol=protocol)
+        self.resCmp(input_sql, stb_name, protocol=protocol)
+        input_sql, stb_name = self.genFullTypeSql(id_mixul_tag=True, protocol=protocol)
+        self.resCmp(input_sql, stb_name, protocol=protocol)
+        input_sql, stb_name = self.genFullTypeSql(id_change_tag=True, id_upper_tag=True, protocol=protocol)
+        self.resCmp(input_sql, stb_name, protocol=protocol)
 
-    def noIdCheckCase(self):
+    def noIdCheckCase(self, protocol=None):
         """
             id not exist
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
-        input_sql, stb_name = self.genFullTypeSql(id_noexist_tag=True)
-        self.resCmp(input_sql, stb_name)
+        input_sql, stb_name = self.genFullTypeSql(id_noexist_tag=True, protocol=protocol)
+        self.resCmp(input_sql, stb_name, protocol=protocol)
         query_sql = f"select tbname from {stb_name}"
         res_row_list = self.resHandle(query_sql, True)[0]
         if len(res_row_list[0][0]) > 0:
@@ -461,7 +476,7 @@ class TDTestCase:
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-    def stbTbNameCheckCase(self):
+    def stbTbNameCheckCase(self, protocol=None):
         """
             test illegal id name
             mix "`~!@#$¥%^&*()-+{}|[]、「」【】:;《》<>?"
@@ -470,18 +485,18 @@ class TDTestCase:
         tdCom.cleanTb()
         rstr = list("~!@#$¥%^&*()-+{}|[]、「」【】:;《》<>?")
         for i in rstr:
-            input_sql, stb_name = self.genFullTypeSql(tb_name=f"\"aaa{i}bbb\"")
-            self.resCmp(input_sql, f'`{stb_name}`')
+            input_sql, stb_name = self.genFullTypeSql(tb_name=f"\"aaa{i}bbb\"", protocol=protocol)
+            self.resCmp(input_sql, f'`{stb_name}`', protocol=protocol)
             tdSql.execute(f'drop table if exists `{stb_name}`')
 
-    def idStartWithNumCheckCase(self):
+    def idStartWithNumCheckCase(self, protocol=None):
         """
             id is start with num
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
-        input_sql, stb_name = self.genFullTypeSql(tb_name="1aaabbb")
-        self.resCmp(input_sql, stb_name)
+        input_sql, stb_name = self.genFullTypeSql(tb_name="1aaabbb", protocol=protocol)
+        self.resCmp(input_sql, stb_name, protocol=protocol)
 
     def nowTsCheckCase(self):
         """
@@ -1060,15 +1075,18 @@ class TDTestCase:
             stb_name = input_sql.split(' ')[0]
             self.resCmp(input_sql, stb_name)
 
-    def pointTransCheckCase(self):
+    def pointTransCheckCase(self, protocol=None):
         """
             metric value "." trans to "_"
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
-        input_sql = self.genFullTypeSql(point_trans_tag=True)[0]
-        stb_name = f'`{input_sql.split(" ")[0]}`'
-        self.resCmp(input_sql, stb_name)
+        input_sql = self.genFullTypeSql(point_trans_tag=True, protocol=protocol)[0]
+        if protocol == 'telnet-tcp':
+            stb_name = f'`{input_sql.split(" ")[1]}`'
+        else:
+            stb_name = f'`{input_sql.split(" ")[0]}`'
+        self.resCmp(input_sql, stb_name, protocol=protocol)
         tdSql.execute("drop table `.point.trans.test`")
 
     def defaultTypeCheckCase(self):
@@ -1105,6 +1123,17 @@ class TDTestCase:
             col_tag_res = tdSql.getColNameList(query_sql)
             tdSql.checkEqual(col_tag_res, ['ts', 'value', '"t$3"', 't!@#$%^&*()_+[];:<>?,9', 't#2', 't%4', 't&6', 't*7', 't^5', 'Tt!0', 'tT@1'])
             tdSql.execute('drop table `rFa$sta`')
+
+    def tcpKeywordsCheckCase(self, protocol="telnet-tcp"):
+        """
+            stb = "put"
+        """
+        tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
+        tdCom.cleanTb()
+        input_sql = self.genFullTypeSql(tcp_keyword_tag=True, protocol=protocol)[0]
+        stb_name = f'`{input_sql.split(" ")[1]}`'
+        self.resCmp(input_sql, stb_name, protocol=protocol)
+
     def genSqlList(self, count=5, stb_name="", tb_name=""):
         """
             stb --> supertable
@@ -1430,10 +1459,21 @@ class TDTestCase:
 
     def run(self):
         print("running {}".format(__file__))
-        self.createDb()
+        
         try:
-            # self.blankTagInsertCheckCase()
+            self.createDb()
             self.runAll()
+            # self.createDb(protocol="telnet-tcp")
+            # self.initCheckCase('telnet-tcp')
+            # self.boolTypeCheckCase('telnet-tcp')
+            # self.symbolsCheckCase('telnet-tcp')
+            # self.idSeqCheckCase('telnet-tcp')
+            # self.idLetterCheckCase('telnet-tcp')
+            # self.noIdCheckCase('telnet-tcp')
+            # self.stbTbNameCheckCase('telnet-tcp')
+            # self.idStartWithNumCheckCase('telnet-tcp')
+            # self.pointTransCheckCase('telnet-tcp')
+            # self.tcpKeywordsCheckCase()
         except Exception as err:
             print(''.join(traceback.format_exception(None, err, err.__traceback__)))
             raise err
