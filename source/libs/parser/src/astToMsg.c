@@ -388,7 +388,7 @@ SCreateDnodeMsg *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMs
   }
 
   SToken* id = taosArrayGet(pInfo->pMiscInfo->a, 0);
-  if (id->type != TK_ID) {
+  if (id->type != TK_ID && id->type != TK_IPTOKEN) {
     buildInvalidOperationMsg(pMsgBuf, msg2);
     return NULL;
   }
