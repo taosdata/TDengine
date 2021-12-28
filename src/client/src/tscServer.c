@@ -1866,6 +1866,7 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
   bool convertJson = true;
   if (pQueryInfo->isStddev == true) convertJson = false;
   convertQueryResult(pRes, pQueryInfo, pSql->self, true, convertJson);
+  pRes->code = pQueryInfo->pQInfo->code;
 
   code = pRes->code;
   if (pRes->code == TSDB_CODE_SUCCESS) {
