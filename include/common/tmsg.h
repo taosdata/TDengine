@@ -319,12 +319,12 @@ typedef struct SEpSet {
 } SEpSet;
 
 typedef struct {
-  int32_t  acctId;
-  int64_t  clusterId;
-  int32_t  connId;
-  int8_t   superUser;
-  int8_t   reserved[5];
-  SEpSet   epSet;
+  int32_t acctId;
+  int64_t clusterId;
+  int32_t connId;
+  int8_t  superUser;
+  int8_t  reserved[5];
+  SEpSet  epSet;
 } SConnectRsp;
 
 typedef struct {
@@ -1129,7 +1129,7 @@ typedef struct SVCreateTbReq {
 } SVCreateTbReq;
 
 static FORCE_INLINE int tSerializeSVCreateTbReq(void** buf, const SVCreateTbReq* pReq) {
-  int      tlen = 0;
+  int tlen = 0;
   // uint8_t* pBuf = (uint8_t*)(*buf);
 
   // if (TD_RT_ENDIAN() == TD_LITTLE_ENDIAN) {

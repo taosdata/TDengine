@@ -13,12 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeDef.h"
 #include "vnodeQuery.h"
+#include "vnodeDef.h"
 
-int vnodeQueryOpen(SVnode *pVnode) {
-  return qWorkerInit(NULL, &pVnode->pQuery);
-}
+int vnodeQueryOpen(SVnode *pVnode) { return qWorkerInit(NULL, &pVnode->pQuery); }
 
 int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   vInfo("query message is processed");
@@ -32,4 +30,8 @@ int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   return 0;
 }
 
-
+static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+  STableInfoMsg *pReq = (STableInfoMsg *)(pMsg->pCont);
+  // TODO
+  return 0;
+}
