@@ -39,6 +39,7 @@ typedef struct IndexCache {
   int32_t    nTerm;
   int8_t     type;
 
+  pthread_mutex_t mtx;
 } IndexCache;
 
 #define CACHE_VERSION(cache) atomic_load_32(&cache->version)
@@ -71,7 +72,7 @@ void indexCacheUnRef(IndexCache* cache);
 
 void indexCacheDebug(IndexCache* cache);
 
-void indexCacheDestroySkiplist(SSkipList* slt);
+void indexCacheDestroyImm(IndexCache* cache);
 #ifdef __cplusplus
 }
 #endif
