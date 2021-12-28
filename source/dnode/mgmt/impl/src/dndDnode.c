@@ -17,6 +17,7 @@
 #include "dndDnode.h"
 #include "dndTransport.h"
 #include "dndVnodes.h"
+#include "dndMnode.h"
 
 static int32_t dndInitMgmtWorker(SDnode *pDnode);
 static void    dndCleanupMgmtWorker(SDnode *pDnode);
@@ -28,10 +29,10 @@ static int32_t dndReadDnodes(SDnode *pDnode);
 static int32_t dndWriteDnodes(SDnode *pDnode);
 static void   *dnodeThreadRoutine(void *param);
 
-static void dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pMsg);
-static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg);
-static void dndProcessAuthRsp(SDnode *pDnode, SRpcMsg *pMsg);
-static void dndProcessGrantRsp(SDnode *pDnode, SRpcMsg *pMsg);
+static int32_t dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pMsg);
+static void    dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg);
+static void    dndProcessAuthRsp(SDnode *pDnode, SRpcMsg *pMsg);
+static void    dndProcessGrantRsp(SDnode *pDnode, SRpcMsg *pMsg);
 
 int32_t dndGetDnodeId(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
@@ -458,13 +459,11 @@ static void dndProcessAuthRsp(SDnode *pDnode, SRpcMsg *pMsg) { assert(1); }
 
 static void dndProcessGrantRsp(SDnode *pDnode, SRpcMsg *pMsg) { assert(1); }
 
-static void dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pMsg) {
+static int32_t dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pMsg) {
   dError("config msg is received, but not supported yet");
   SCfgDnodeMsg *pCfg = pMsg->pCont;
 
-  int32_t code = TSDB_CODE_OPS_NOT_SUPPORT;
-  SRpcMsg rspMsg = {.handle = pMsg->handle, .pCont = NULL, .contLen = 0, .code = code};
-  rpcSendResponse(&rspMsg);
+  return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
 void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pMsg) {
@@ -646,11 +645,8 @@ static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
     case TDMT_DND_DROP_MNODE:
       code = dndProcessDropMnodeReq(pDnode, pMsg);
       break;
-    case TDMT_DND_NETWORK_TEST:
-      dndProcessStartupReq(pDnode, pMsg);
-      break;
     case TDMT_DND_CONFIG_DNODE:
-      dndProcessConfigDnodeReq(pDnode, pMsg);
+      code = dndProcessConfigDnodeReq(pDnode, pMsg);
       break;
     case TDMT_MND_STATUS_RSP:
       dndProcessStatusRsp(pDnode, pMsg);

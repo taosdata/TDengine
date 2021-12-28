@@ -386,20 +386,16 @@ static int32_t mndCreateDnode(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDnodeMsg *
   dnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_DNODE);
   dnodeObj.createdTime = taosGetTimestampMs();
   dnodeObj.updateTime = dnodeObj.createdTime;
-  taosGetFqdnPortFromEp(pCreate->ep, dnodeObj.fqdn, &dnodeObj.port);
-
-  if (dnodeObj.fqdn[0] == 0 || dnodeObj.port <= 0) {
-    terrno = TSDB_CODE_MND_INVALID_DNODE_EP;
-    mError("dnode:%s, failed to create since %s", pCreate->ep, terrstr());
-    return terrno;
-  }
+  dnodeObj.port = pCreate->port;
+  memcpy(dnodeObj.fqdn, pCreate->fqdn, TSDB_FQDN_LEN);
+  snprintf(dnodeObj.ep, "%s:%u", dnodeObj.fqdn, dnodeObj.port);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
   if (pTrans == NULL) {
-    mError("dnode:%s, failed to create since %s", pCreate->ep, terrstr());
+    mError("dnode:%s, failed to create since %s", dnodeObj.ep, terrstr());
     return -1;
   }
-  mDebug("trans:%d, used to create dnode:%s", pTrans->id, pCreate->ep);
+  mDebug("trans:%d, used to create dnode:%s", pTrans->id, dnodeObj.ep);
 
   SSdbRaw *pRedoRaw = mndDnodeActionEncode(&dnodeObj);
   if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
@@ -423,17 +419,20 @@ static int32_t mndProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
   SMnode          *pMnode = pMsg->pMnode;
   SCreateDnodeMsg *pCreate = pMsg->rpcMsg.pCont;
 
-  mDebug("dnode:%s, start to create", pCreate->ep);
+  mDebug("dnode:%s:%d, start to create", pCreate->fqdn, pCreate->port);
 
-  if (pCreate->ep[0] == 0) {
+  pCreate->port = htonl(pCreate->port);
+  if (pCreate->fqdn[0] == 0 || pCreate->port <= 0 || pCreate->port > UINT16_MAX) {
     terrno = TSDB_CODE_MND_INVALID_DNODE_EP;
-    mError("dnode:%s, failed to create since %s", pCreate->ep, terrstr());
+    mError("dnode:%s:%d, failed to create since %s", pCreate->fqdn, pCreate->port, terrstr());
     return -1;
   }
 
-  SDnodeObj *pDnode = mndAcquireDnodeByEp(pMnode, pCreate->ep);
+  char ep[TSDB_EP_LEN];
+  snprintf(ep, TSDB_EP_LEN, "%s:%d", pCreate->fqdn, pCreate->port);
+  SDnodeObj *pDnode = mndAcquireDnodeByEp(pMnode, ep);
   if (pDnode != NULL) {
-    mError("dnode:%d, already exist", pDnode->id);
+    mError("dnode:%d, already exist, %s:%u", pDnode->id, pCreate->fqdn, pCreate->port);
     mndReleaseDnode(pMnode, pDnode);
     terrno = TSDB_CODE_MND_DNODE_ALREADY_EXIST;
     return -1;
@@ -442,7 +441,7 @@ static int32_t mndProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
   int32_t code = mndCreateDnode(pMnode, pMsg, pCreate);
 
   if (code != 0) {
-    mError("dnode:%s, failed to create since %s", pCreate->ep, terrstr());
+    mError("dnode:%s:%d, failed to create since %s", pCreate->fqdn, pCreate->port, terrstr());
     return -1;
   }
 

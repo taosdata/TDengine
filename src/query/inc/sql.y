@@ -438,6 +438,12 @@ column(A) ::= ids(X) typename(Y).          {
   tSetColumnInfo(&A, &X, &Y);
 }
 
+%type tagitemlist1 {SArray*}
+%destructor tagitemlist1 {taosArrayDestroy($$);}
+
+%type tagitem1 {SToken}
+
+
 %type tagitemlist {SArray*}
 %destructor tagitemlist {taosArrayDestroy($$);}
 

@@ -152,6 +152,7 @@ int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
     .pMsg = pRequest->msgBuf,
     .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE
   };
+
   int32_t code = qParseQuerySql(&cxt, pQuery);
   tfree(cxt.ctx.db);
   return code;
@@ -361,30 +362,6 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   tfree(pMsgBody);
 }
 
-int32_t asyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
-  char *pMsg = rpcMallocCont(pInfo->msgInfo.len);
-  if (NULL == pMsg) {
-    tscError("0x%"PRIx64" msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  memcpy(pMsg, pInfo->msgInfo.pData, pInfo->msgInfo.len);
-  SRpcMsg rpcMsg = {
-      .msgType = pInfo->msgType,
-      .pCont   = pMsg,
-      .contLen = pInfo->msgInfo.len,
-      .ahandle = (void*) pInfo,
-      .handle  = NULL,
-      .code    = 0
-  };
-
-  assert(pInfo->fp != NULL);
-
-  rpcSendRequest(pTransporter, epSet, &rpcMsg, pTransporterId);
-  return TSDB_CODE_SUCCESS;
-}
-
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo *pSendInfo = (SMsgSendInfo *) pMsg->ahandle;
   assert(pMsg->ahandle != NULL);
@@ -420,7 +397,15 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
   }
 
-  SDataBuf buf = {.pData = pMsg->pCont, .len = pMsg->contLen};
+  SDataBuf buf = {.len = pMsg->contLen};
+  buf.pData = calloc(1, pMsg->contLen);
+  if (buf.pData == NULL) {
+    terrno     = TSDB_CODE_OUT_OF_MEMORY;
+    pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    memcpy(buf.pData, pMsg->pCont, pMsg->contLen);
+  }
+
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
   rpcFreeCont(pMsg->pCont);
 }

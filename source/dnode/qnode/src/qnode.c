@@ -12,3 +12,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#include "qndInt.h"
+
+SQnode *qndOpen(const SQnodeOpt *pOption) {
+  SQnode *pQnode = calloc(1, sizeof(SQnode));
+  return pQnode;
+}
+
+void qndClose(SQnode *pQnode) { free(pQnode); }
+
+int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { return 0; }
+
+int32_t qndProcessQueryReq(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+  *pRsp = NULL;
+  return 0;
+}
+
+int32_t qndProcessFetchReq(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+  *pRsp = NULL;
+  return 0;
+}
