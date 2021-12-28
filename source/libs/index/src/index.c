@@ -227,14 +227,15 @@ SIndexOpts* indexOptsCreate() {
 #endif
   return NULL;
 }
-void indexOptsDestroy(SIndexOpts* opts){
+void indexOptsDestroy(SIndexOpts* opts) {
 #ifdef USE_LUCENE
 #endif
-} /*
-   * @param: oper
-   *
-   */
-
+  return;
+}
+/*
+ * @param: oper
+ *
+ */
 SIndexMultiTermQuery* indexMultiTermQueryCreate(EIndexOperatorType opera) {
   SIndexMultiTermQuery* p = (SIndexMultiTermQuery*)malloc(sizeof(SIndexMultiTermQuery));
   if (p == NULL) {
@@ -403,7 +404,6 @@ int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
       TFileValue* tfv = tfileValueCreate(cv->colVal);
       taosArrayAddAll(tfv->tableId, cv->val);
       taosArrayPush(result, &tfv);
-
       // copy to final Result;
       cn = cacheIter->next(cacheIter);
     } else {

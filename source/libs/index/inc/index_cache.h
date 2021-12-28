@@ -49,7 +49,6 @@ typedef struct IndexCache {
 #define CACHE_VERSION(cache) atomic_load_32(&cache->version)
 typedef struct CacheTerm {
   // key
-  int32_t nColVal;
   char*   colVal;
   int32_t version;
   // value
