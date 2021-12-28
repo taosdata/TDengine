@@ -200,7 +200,8 @@ ifnotexists(X) ::= .                { X.n = 0;}
 
 /////////////////////////////////THE CREATE STATEMENT///////////////////////////////////////
 //create option for dnode/db/user/account
-cmd ::= CREATE DNODE   ids(X) PORT ids(Y).     { setDCLSqlElems(pInfo, TSDB_SQL_CREATE_DNODE, 2, &X, &Y);}
+cmd ::= CREATE DNODE ids(X) PORT ids(Y).          { setDCLSqlElems(pInfo, TSDB_SQL_CREATE_DNODE, 2, &X, &Y);}
+cmd ::= CREATE DNODE IPTOKEN(X) PORT ids(Y).      { setDCLSqlElems(pInfo, TSDB_SQL_CREATE_DNODE, 2, &X, &Y);}
 cmd ::= CREATE ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).
                                 { setCreateAcctSql(pInfo, TSDB_SQL_CREATE_ACCT, &X, &Y, &Z);}
 cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
