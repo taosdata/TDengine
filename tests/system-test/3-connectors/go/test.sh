@@ -17,4 +17,3 @@ nohup taosd -c /etc/taos/ > /dev/null 2>&1 &
 sleep 10
 cd ../../
 WKC=`pwd`
-
