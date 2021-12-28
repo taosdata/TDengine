@@ -313,7 +313,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx *pCtx, SMsgBuf* p
       return code;
     }
 
-    code = tNameExtractFullName(&name, pCreateTableInfo->tagdata.name);
+    code = tNameGetTableName(&name, pCreateTableInfo->tagdata.name);
 
     SArray* pValList = pCreateTableInfo->pTagVals;
     if (code != TSDB_CODE_SUCCESS) {
