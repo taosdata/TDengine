@@ -80,7 +80,7 @@ SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
   SDB_SET_INT32(pRaw, dataPos, pVgroup->version)
   SDB_SET_INT32(pRaw, dataPos, pVgroup->hashBegin)
   SDB_SET_INT32(pRaw, dataPos, pVgroup->hashEnd)
-  SDB_SET_BINARY(pRaw, dataPos, pVgroup->dbName, TSDB_FULL_DB_NAME_LEN)
+  SDB_SET_BINARY(pRaw, dataPos, pVgroup->dbName, TSDB_DB_FNAME_LEN)
   SDB_SET_INT64(pRaw, dataPos, pVgroup->dbUid)
   SDB_SET_INT8(pRaw, dataPos, pVgroup->replica)
   for (int8_t i = 0; i < pVgroup->replica; ++i) {
@@ -115,7 +115,7 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->version)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->hashBegin)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->hashEnd)
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pVgroup->dbName, TSDB_FULL_DB_NAME_LEN)
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pVgroup->dbName, TSDB_DB_FNAME_LEN)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pVgroup->dbUid)
   SDB_GET_INT8(pRaw, pRow, dataPos, &pVgroup->replica)
   for (int8_t i = 0; i < pVgroup->replica; ++i) {
@@ -172,7 +172,7 @@ SCreateVnodeMsg *mndBuildCreateVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbOb
 
   pCreate->vgId = htonl(pVgroup->vgId);
   pCreate->dnodeId = htonl(pDnode->id);
-  memcpy(pCreate->db, pDb->name, TSDB_FULL_DB_NAME_LEN);
+  memcpy(pCreate->db, pDb->name, TSDB_DB_FNAME_LEN);
   pCreate->dbUid = htobe64(pDb->uid);
   pCreate->vgVersion = htonl(pVgroup->version);
   pCreate->cacheBlockSize = htonl(pDb->cfg.cacheBlockSize);
@@ -231,7 +231,7 @@ SDropVnodeMsg *mndBuildDropVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *p
 
   pDrop->dnodeId = htonl(pDnode->id);
   pDrop->vgId = htonl(pVgroup->vgId);
-  memcpy(pDrop->db, pDb->name, TSDB_FULL_DB_NAME_LEN);
+  memcpy(pDrop->db, pDb->name, TSDB_DB_FNAME_LEN);
   pDrop->dbUid = htobe64(pDb->uid);
 
   return pDrop;
@@ -294,7 +294,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
       pVgroup->hashEnd = hashMin + hashInterval * (v + 1) - 1;
     }
 
-    memcpy(pVgroup->dbName, pDb->name, TSDB_FULL_DB_NAME_LEN);
+    memcpy(pVgroup->dbName, pDb->name, TSDB_DB_FNAME_LEN);
     pVgroup->dbUid = pDb->uid;
     pVgroup->replica = pDb->cfg.replications;
 

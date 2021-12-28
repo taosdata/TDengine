@@ -194,7 +194,7 @@ static int32_t mndProcessConnectMsg(SMnodeMsg *pMsg) {
   taosIp2String(info.clientIp, ip);
 
   if (pReq->db[0]) {
-    snprintf(pMsg->db, TSDB_FULL_DB_NAME_LEN, "%d%s%s", pMsg->acctId, TS_PATH_DELIMITER, pReq->db);
+    snprintf(pMsg->db, TSDB_DB_FNAME_LEN, "%d%s%s", pMsg->acctId, TS_PATH_DELIMITER, pReq->db);
     SDbObj *pDb = mndAcquireDb(pMnode, pMsg->db);
     if (pDb == NULL) {
       terrno = TSDB_CODE_MND_INVALID_DB;

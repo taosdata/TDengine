@@ -323,6 +323,13 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx *pCtx, SMsgBuf* p
     size_t valSize = taosArrayGetSize(pValList);
     STableMeta* pSuperTableMeta = NULL;
 
+    struct SCatalog* pCatalog = NULL;
+
+    char dbName[TSDB_DB_FNAME_LEN] = {0};
+    tNameGetFullDbName(&name, dbName);
+
+    catalogGetTableMeta(pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbName, pCreateTableInfo->tagdata.name, &pSuperTableMeta);
+
     // too long tag values will return invalid sql, not be truncated automatically
     SSchema  *pTagSchema = getTableTagSchema(pSuperTableMeta);
     STableComInfo tinfo = getTableInfo(pSuperTableMeta);

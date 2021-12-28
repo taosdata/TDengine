@@ -47,6 +47,8 @@ typedef struct SParseBasicCtx {
   const char *db;
   int32_t     acctId;
   uint64_t    requestId;
+  void       *pTransporter;
+  SEpSet      mgmtEpSet;
 } SParseBasicCtx;
 
 typedef struct SFieldInfo {
