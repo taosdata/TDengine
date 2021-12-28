@@ -124,11 +124,9 @@ function runPyCaseOneByOnefq() {
     else
     echo $line
       if [[ $line =~ ^bash.* ]]; then
-        # $line > case.log 2>&1 || cat case.log && exit 8
-        # cat case.log
         $line > case.log 2>&1  
+        cat case.log
         if [ $? -ne 0 ];then
-          cat case.log
           exit 8
         fi
       fi
@@ -208,8 +206,8 @@ if [ "$1" == "full" ]; then
   runPyCaseOneByOne fulltest-connector.sh
 else
   echo "### run $1 $2 test ###"
-  if [ "$1" != "query" ] && [ "$1" != "other" ] && [ "$1" != "tools" ] && [ "$1" != "insert" ] && [ "$1" != "connector" ] ;then
-    echo " wrong option:$1 must one of [query,other,tools,insert,connector]"
+  if [ "$1" != "query" ] && [ "$1" != "taosAdapter" ] && [ "$1" != "other" ] && [ "$1" != "tools" ] && [ "$1" != "insert" ] && [ "$1" != "connector" ] ;then
+    echo " wrong option:$1 must one of [query,other,tools,insert,connector,taosAdapter]"
     exit 8
   fi
   cd $tests_dir/pytest
