@@ -152,7 +152,7 @@ if __name__ == "__main__":
             uModule = importlib.import_module(moduleName)
             try:
                 ucase = uModule.TDTestCase()
-                tdDnodes.deploy(1,ucase.updatecfgDict)
+                tdDnodes.deploy(1,ucase.updatecfgDict) 
             except :
                 tdDnodes.deploy(1,{})
         else:
