@@ -266,9 +266,11 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
 
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TDMT_VND_TABLE_META] = queryBuildTableMetaReqMsg;
+  queryBuildMsg[TDMT_MND_STB_META] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TDMT_MND_USE_DB] = queryBuildUseDbMsg;
 
   queryProcessMsgRsp[TDMT_VND_TABLE_META] = queryProcessTableMetaRsp;
+  queryProcessMsgRsp[TDMT_MND_STB_META] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TDMT_MND_USE_DB] = queryProcessUseDBRsp;
 }
 

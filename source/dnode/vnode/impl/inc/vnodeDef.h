@@ -73,7 +73,7 @@ struct SVnode {
   SVnodeSync* pSync;
   SVnodeFS*   pFs;
   tsem_t      canCommit;
-  void*       pQuery;
+  SQHandle*   pQuery;
 };
 
 int vnodeScheduleTask(SVnodeTask* task);

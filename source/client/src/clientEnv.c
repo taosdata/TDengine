@@ -227,7 +227,7 @@ void taos_init_imp(void) {
 
   rpcInit();
 
-  SCatalogCfg cfg = {.enableVgroupCache = true, .maxDBCacheNum = 100, .maxTblCacheNum = 100};
+  SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   catalogInit(&cfg);
 
   tscDebug("starting to initialize TAOS driver, local ep: %s", tsLocalEp);
