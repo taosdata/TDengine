@@ -212,6 +212,60 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, void** pJob) {
   return scheduleAsyncExecJob(pRequest->pTscObj->pTransporter, NULL/*todo appInfo.xxx*/, pDag, pJob);
 }
 
+TAOS_RES *tmq_create_topic(TAOS* taos, const char* name, const char* sql, int sqlLen) {
+  STscObj* pTscObj = (STscObj*)taos;
+  SRequestObj* pRequest = NULL;
+  SQueryNode*  pQuery = NULL;
+  SQueryDag*   pDag = NULL;
+  char *dagStr = NULL;
+
+  //parse sql to logical plan and physical plan
+  //send topic name and plans to mnode
+
+  terrno = TSDB_CODE_SUCCESS;
+
+  CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
+  //TODO: check sql valid
+
+  CHECK_CODE_GOTO(qCreateQueryDag(pQuery, &pDag), _return);
+
+  dagStr = qDagToString(pDag);
+  if(dagStr == NULL) {
+    //TODO
+  }
+
+  SCMCreateTopicReq req = {
+    .name = (char*)name,
+    .igExists = 0,
+    .phyPlan = dagStr,
+  };
+
+  void* buf = NULL;
+  int tlen = tSerializeSCMCreateTopicReq(&buf, &req);
+
+  pRequest->body.requestMsg = (SDataBuf){ .pData = buf, .len = tlen };
+
+  SMsgSendInfo* body = buildSendMsgInfoImpl(pRequest);
+  SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
+
+  int64_t transporterId = 0;
+  asyncSendMsgToServer(pTscObj->pTransporter, pEpSet, &transporterId, body);
+
+  tsem_wait(&pRequest->body.rspSem);
+
+  destroySendMsgInfo(body);
+
+_return:
+  qDestroyQuery(pQuery);
+  qDestroyQueryDag(pDag); 
+  destroySendMsgInfo(body);
+  if (pRequest != NULL && terrno != TSDB_CODE_SUCCESS) {
+    pRequest->code = terrno;
+  }
+  return pRequest;
+}
+
 TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   STscObj *pTscObj = (STscObj *)taos;
   if (sqlLen > (size_t) tsMaxSQLStringLen) {
@@ -239,7 +293,7 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   }
 
 _return:
-  qDestoryQuery(pQuery);
+  qDestroyQuery(pQuery);
   qDestroyQueryDag(pDag);
   if (NULL != pRequest && TSDB_CODE_SUCCESS != terrno) {
     pRequest->code = terrno;
