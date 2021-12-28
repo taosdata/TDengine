@@ -30,14 +30,18 @@
 extern "C" {
 #endif
 
+typedef struct MemTable {
+  T_REF_DECLARE()
+  SSkipList* mem;
+} MemTable;
 typedef struct IndexCache {
   T_REF_DECLARE()
-  SSkipList *mem, *imm;
-  SIndex*    index;
-  char*      colName;
-  int32_t    version;
-  int32_t    nTerm;
-  int8_t     type;
+  MemTable *mem, *imm;
+  SIndex*   index;
+  char*     colName;
+  int32_t   version;
+  int32_t   nTerm;
+  int8_t    type;
 
   pthread_mutex_t mtx;
 } IndexCache;
