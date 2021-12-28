@@ -17,6 +17,7 @@
 #define _TD_UTIL_ENCODE_H_
 
 #include "tcoding.h"
+#include "tmacro.h"
 
 #ifdef __cplusplus
 extern "C" {
