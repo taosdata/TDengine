@@ -54,23 +54,25 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 
 ## JDBC driver version and supported TDengine and JDK versions
 
-| taos-jdbcdriver | TDengine           | JDK   |
-| --------------- | ------------------ | ----- |
-| 2.0.33 - 2.0.34 | 2.0.3.0 and above  | 1.8.x |
-| 2.0.31 - 2.0.32 | 2.1.3.0 and above  | 1.8.x |
-| 2.0.22 - 2.0.30 | 2.0.18.0 - 2.1.2.x | 1.8.x |
-| 2.0.12 - 2.0.21 | 2.0.8.0 - 2.0.17.x | 1.8.x |
-| 2.0.4 - 2.0.11  | 2.0.0.0 - 2.0.7.x  | 1.8.x |
-| 1.0.3           | 1.6.1.x and above  | 1.8.x |
-| 1.0.2           | 1.6.1.x and above  | 1.8.x |
-| 1.0.1           | 1.6.1.x and above  | 1.8.x |
+| taos-jdbcdriver | TDengine           | JDK    |
+| --------------- |--------------------|--------|
+| 2.0.36          | 2.4.0 and above    | 1.8.x  |
+| 2.0.35          | 2.3.0 and above    | 1.8.x  |
+| 2.0.33 - 2.0.34 | 2.0.3.0 and above  | 1.8.x  |
+| 2.0.31 - 2.0.32 | 2.1.3.0 and above  | 1.8.x  |
+| 2.0.22 - 2.0.30 | 2.0.18.0 - 2.1.2.x | 1.8.x  |
+| 2.0.12 - 2.0.21 | 2.0.8.0 - 2.0.17.x | 1.8.x  |
+| 2.0.4 - 2.0.11  | 2.0.0.0 - 2.0.7.x  | 1.8.x  |
+| 1.0.3           | 1.6.1.x and above  | 1.8.x  |
+| 1.0.2           | 1.6.1.x and above  | 1.8.x  |
+| 1.0.1           | 1.6.1.x and above  | 1.8.x  |
 
 ## DataType in TDengine and Java connector
 
 The TDengine supports the following data types and Java data types:
 
 | TDengine DataType | JDBCType (driver version < 2.0.24) | JDBCType (driver version >= 2.0.24) |
-| ----------------- | ---------------------------------- | ----------------------------------- |
+|-------------------|------------------------------------| ----------------------------------- |
 | TIMESTAMP         | java.lang.Long                     | java.sql.Timestamp                  |
 | INT               | java.lang.Integer                  | java.lang.Integer                   |
 | BIGINT            | java.lang.Long                     | java.lang.Long                      |
@@ -81,7 +83,8 @@ The TDengine supports the following data types and Java data types:
 | BOOL              | java.lang.Boolean                  | java.lang.Boolean                   |
 | BINARY            | java.lang.String                   | byte array                          |
 | NCHAR             | java.lang.String                   | java.lang.String                    |
-
+| JSON              | -                                  | java.lang.String                    |
+**Note**: JSON type can only be used in tag.
 ## Install Java connector
 
 ### Runtime Requirements
@@ -575,8 +578,67 @@ public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException
 public void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 ```
+### Set client configuration in JDBC
+Starting with TDEngine-2.3.5.0, JDBC Driver supports setting TDengine client parameters on the first connection of a Java application. The Driver supports jdbcUrl and Properties to set client parameters in JDBC-JNI mode.
 
-### Data Subscription
+Note:
+* JDBC-RESTful does not support setting client parameters.
+* The client parameters set in the java application are process-level. To update the client parameters, the application needs to be restarted. This is because these client parameters are global that take effect the first time the application is set up.
+* The following sample code is based on taos-jdbcdriver-2.0.36.
+
+Sample Code:
+```java
+public class ClientParameterSetting {
+    private static final String host = "127.0.0.1";
+ 
+    public static void main(String[] args) throws SQLException {
+        setParameterInJdbcUrl();
+ 
+        setParameterInProperties();
+    }
+ 
+    private static void setParameterInJdbcUrl() throws SQLException {
+        String jdbcUrl = "jdbc:TAOS://" + host + ":6030/?debugFlag=135&asyncLog=0";
+ 
+        Connection connection = DriverManager.getConnection(jdbcUrl, "root", "taosdata");
+ 
+        printDatabase(connection);
+ 
+        connection.close();
+    }
+ 
+    private static void setParameterInProperties() throws SQLException {
+        String jdbcUrl = "jdbc:TAOS://" + host + ":6030/";
+        Properties properties = new Properties();
+        properties.setProperty("user", "root");
+        properties.setProperty("password", "taosdata");
+        properties.setProperty("debugFlag", "135");
+        properties.setProperty("asyncLog", "0");
+        properties.setProperty("maxSQLLength", "1048576");
+ 
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, properties)) {
+            printDatabase(conn);
+        }
+    }
+ 
+    private static void printDatabase(Connection connection) throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            ResultSet rs = stmt.executeQuery("show databases");
+ 
+            ResultSetMetaData meta = rs.getMetaData();
+            while (rs.next()) {
+                for (int i = 1; i <= meta.getColumnCount(); i++) {
+                    System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
+                }
+                System.out.println();
+            }
+        }
+    }
+}
+```
+
+
+## Data Subscription
 
 #### Subscribe
 
@@ -699,17 +761,16 @@ Query OK, 1 row(s) in set (0.000141s)
 you see sample code here: [JDBC example](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC)
 
 ## FAQ
-
+- Why does not addBatch and executeBatch provide a performance benefit for executing "batch writes/updates"?
+  **Cause**:In TDengine's JDBC implementation, SQL statements submitted through the addBatch method are executed in the order in which they are added. This method does not reduce the number of interactions with the server and does not improve performance.
+  **Answer**：1. Concatenate multiple values in an INSERT statement; 2. Use multi-threaded concurrent insertion; 3. Use the parameter-binding to write
+  
 - java.lang.UnsatisfiedLinkError: no taos in java.library.path
-
   **Cause**：The application program cannot find Library function *taos*
-
   **Answer**：Copy `C:\TDengine\driver\taos.dll` to `C:\Windows\System32\` on Windows and make a soft link through `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` on Linux.
 
 - java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
-
   **Cause**：Currently TDengine only support 64bit JDK
-
   **Answer**：re-install 64bit JDK.
 
 - For other questions, please refer to [Issues](https://github.com/taosdata/TDengine/issues)
