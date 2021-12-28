@@ -102,8 +102,29 @@ typedef struct SQWorkerMgmt {
 #define QW_ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { qError(__VA_ARGS__); terrno = _code; return _code; } } while (0)
 #define QW_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
-#define QW_LOCK(type, _lock) (QW_READ == (type) ? taosRLockLatch(_lock) : taosWLockLatch(_lock))
-#define QW_UNLOCK(type, _lock) (QW_READ == (type) ? taosRUnLockLatch(_lock) : taosWUnLockLatch(_lock))
+#define QW_LOCK(type, _lock) do {   \
+  if (QW_READ == (type)) {          \
+    if ((*(_lock)) < 0) assert(0);    \
+    taosRLockLatch(_lock);          \
+    qDebug("RLOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+  } else {                                                \
+    if ((*(_lock)) < 0) assert(0);                          \
+    taosWLockLatch(_lock);                                \
+    qDebug("WLOCK%p, %s:%d", (_lock), __FILE__, __LINE__);  \
+  }                                                       \
+} while (0)
+
+#define QW_UNLOCK(type, _lock) do {                       \
+  if (QW_READ == (type)) {                                \
+    if ((*(_lock)) <= 0) assert(0);                         \
+    taosRUnLockLatch(_lock);                              \
+    qDebug("RULOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+  } else {                                                \
+    if ((*(_lock)) <= 0) assert(0);                         \
+    taosWUnLockLatch(_lock);                              \
+    qDebug("WULOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+  }                                                       \
+} while (0)
 
 static int32_t qwAcquireScheduler(int32_t rwType, SQWorkerMgmt *mgmt, uint64_t sId, SQWSchStatus **sch, int32_t nOpt);
 

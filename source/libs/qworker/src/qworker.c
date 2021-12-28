@@ -601,6 +601,7 @@ int32_t qwBuildAndSendStatusRsp(SRpcMsg *pMsg, SSchedulerStatusRsp *sStatus) {
   }
 
   SRpcMsg rpcRsp = {
+    .msgType = pMsg->msgType + 1,
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
     .pCont   = pRsp,
@@ -703,10 +704,8 @@ _return:
 
   if (task) {
     QW_UNLOCK(QW_WRITE, &task->lock);
-  }
-
-  if (sch) {
     qwReleaseTask(QW_READ, sch);
+
   }
 
   qwReleaseScheduler(QW_READ, mgmt);
@@ -742,9 +741,6 @@ _return:
 
   if (task) {
     QW_UNLOCK(QW_WRITE, &task->lock);
-  }
-
-  if (sch) {
     qwReleaseTask(QW_READ, sch);
   }
 
@@ -849,10 +845,10 @@ int32_t qwHandleFetch(SQWorkerResCache *res, SQWorkerMgmt *mgmt, uint64_t sId, u
 _return:
   if (task) {
     QW_UNLOCK(QW_READ, &task->lock);
+    qwReleaseTask(QW_READ, sch);    
   }
   
   if (sch) {
-    qwReleaseTask(QW_READ, sch);
     qwReleaseScheduler(QW_READ, mgmt);
   }
 

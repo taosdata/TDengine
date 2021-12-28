@@ -21,36 +21,6 @@
 SSchedulerMgmt schMgmt = {0};
 
 
-int32_t schBuildAndSendRequest(void *pRpc, const SEpSet* pMgmtEps, __taos_async_fn_t fp) {
-/*
-  SRequestObj *pRequest = createRequest(pTscObj, fp, param, TSDB_SQL_CONNECT);
-  if (pRequest == NULL) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
-
-  SRequestMsgBody body = {0};
-  buildConnectMsg(pRequest, &body);
-
-  int64_t transporterId = 0;
-  asyncSendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &body, &transporterId);
-
-  tsem_wait(&pRequest->body.rspSem);
-  destroyConnectMsg(&body);
-
-  if (pRequest->code != TSDB_CODE_SUCCESS) {
-    const char *errorMsg = (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(terrno);
-    printf("failed to connect to server, reason: %s\n\n", errorMsg);
-
-    destroyRequest(pRequest);
-    taos_close(pTscObj);
-    pTscObj = NULL;
-  } else {
-    tscDebug("0x%"PRIx64" connection is opening, connId:%d, dnodeConn:%p", pTscObj->id, pTscObj->connId, pTscObj->pTransporter);
-    destroyRequest(pRequest);
-  }
-*/  
-}
-
 int32_t schBuildTaskRalation(SSchJob *job, SHashObj *planToTask) {
   for (int32_t i = 0; i < job->levelNum; ++i) {
     SSchLevel *level = taosArrayGet(job->levels, i);
@@ -312,100 +282,6 @@ int32_t schMoveTaskToFailList(SSchJob *job, SSchTask *task, bool *moved) {
   return TSDB_CODE_SUCCESS;
 }
 
-
-int32_t schAsyncSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
-  int32_t msgSize = 0;
-  void *msg = NULL;
-  
-  switch (msgType) {
-    case TDMT_VND_SUBMIT: {
-      if (NULL == task->msg || task->msgLen <= 0) {
-        qError("submit msg is NULL");
-        SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
-      }
-
-      msgSize = task->msgLen;
-      msg = task->msg;
-      break;
-    }
-    case TDMT_VND_QUERY: {
-      if (NULL == task->msg) {
-        qError("query msg is NULL");
-        SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
-      }
-
-      msgSize = sizeof(SSubQueryMsg) + task->msgLen;
-      msg = calloc(1, msgSize);
-      if (NULL == msg) {
-        qError("calloc %d failed", msgSize);
-        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-      }
-
-      SSubQueryMsg *pMsg = msg;
-      
-      pMsg->sId = htobe64(schMgmt.sId);
-      pMsg->queryId = htobe64(job->queryId);
-      pMsg->taskId = htobe64(task->taskId);
-      pMsg->contentLen = htonl(task->msgLen);
-      memcpy(pMsg->msg, task->msg, task->msgLen);
-      break;
-    }    
-    case TDMT_VND_RES_READY: {
-      msgSize = sizeof(SResReadyMsg);
-      msg = calloc(1, msgSize);
-      if (NULL == msg) {
-        qError("calloc %d failed", msgSize);
-        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-      }
-
-      SResReadyMsg *pMsg = msg;
-      pMsg->sId = htobe64(schMgmt.sId);      
-      pMsg->queryId = htobe64(job->queryId);
-      pMsg->taskId = htobe64(task->taskId);      
-      break;
-    }
-    case TDMT_VND_FETCH: {
-      if (NULL == task) {
-        SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
-      }
-      msgSize = sizeof(SResFetchMsg);
-      msg = calloc(1, msgSize);
-      if (NULL == msg) {
-        qError("calloc %d failed", msgSize);
-        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-      }
-    
-      SResFetchMsg *pMsg = msg;
-      pMsg->sId = htobe64(schMgmt.sId);      
-      pMsg->queryId = htobe64(job->queryId);
-      pMsg->taskId = htobe64(task->taskId);      
-      break;
-    }
-    case TDMT_VND_DROP_TASK:{
-      msgSize = sizeof(STaskDropMsg);
-      msg = calloc(1, msgSize);
-      if (NULL == msg) {
-        qError("calloc %d failed", msgSize);
-        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-      }
-    
-      STaskDropMsg *pMsg = msg;
-      pMsg->sId = htobe64(schMgmt.sId);      
-      pMsg->queryId = htobe64(job->queryId);
-      pMsg->taskId = htobe64(task->taskId);      
-      break;
-    }
-    default:
-      qError("unknown msg type:%d", msgType);
-      break;
-  }
-
-  //TODO SEND MSG
-  //taosAsyncExec(rpcSendRequest(void * shandle, const SEpSet * pEpSet, SRpcMsg * pMsg, int64_t * pRid), p, &code);
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t schTaskCheckAndSetRetry(SSchJob *job, SSchTask *task, int32_t errCode, bool *needRetry) {
   // TODO set retry or not based on task type/errCode/retry times/job status/available eps...
   // TODO if needRetry, set task retry info
@@ -424,7 +300,7 @@ int32_t schFetchFromRemote(SSchJob *job) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SCH_ERR_JRET(schAsyncSendMsg(job, job->fetchTask, TDMT_VND_FETCH));
+  SCH_ERR_JRET(schBuildAndSendMsg(job, job->fetchTask, TDMT_VND_FETCH));
 
   return TSDB_CODE_SUCCESS;
   
@@ -577,11 +453,11 @@ int32_t schProcessOnTaskFailure(SSchJob *job, SSchTask *task, int32_t errCode) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schHandleRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *msg, int32_t msgSize, int32_t rspCode) {
+int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *msg, int32_t msgSize, int32_t rspCode) {
   int32_t code = 0;
   
   switch (msgType) {
-    case TDMT_VND_SUBMIT: {
+    case TDMT_VND_SUBMIT_RSP: {
         SShellSubmitRspMsg *rsp = (SShellSubmitRspMsg *)msg;
         if (rsp->code != TSDB_CODE_SUCCESS) {
           SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rsp->code));
@@ -595,20 +471,20 @@ int32_t schHandleRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *msg
         }
         break;
       }
-    case TDMT_VND_QUERY: {
+    case TDMT_VND_QUERY_RSP: {
         SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
         
         if (rsp->code != TSDB_CODE_SUCCESS) {
           SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rsp->code));
         } else {
-          code = schAsyncSendMsg(job, task, TDMT_VND_RES_READY);
+          code = schBuildAndSendMsg(job, task, TDMT_VND_RES_READY);
           if (code) {
             goto _task_error;
           }
         }
         break;
       }
-    case TDMT_VND_RES_READY: {
+    case TDMT_VND_RES_READY_RSP: {
         SResReadyRsp *rsp = (SResReadyRsp *)msg;
         
         if (rsp->code != TSDB_CODE_SUCCESS) {
@@ -621,7 +497,7 @@ int32_t schHandleRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *msg
         }
         break;
       }
-    case TDMT_VND_FETCH: {
+    case TDMT_VND_FETCH_RSP: {
         SCH_ERR_JRET(rspCode);
         SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
 
@@ -630,6 +506,9 @@ int32_t schHandleRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *msg
         
         SCH_ERR_JRET(schProcessOnDataFetched(job));
         break;
+      }
+    case TDMT_VND_DROP_TASK: {
+
       }
     default:
       qError("unknown msg type:%d received", msgType);
@@ -648,6 +527,211 @@ _return:
 }
 
 
+int32_t schHandleCallback(void* param, const SDataBuf* pMsg, int32_t msgType, int32_t rspCode) {
+  int32_t code = 0;
+  SSchCallbackParam *pParam = (SSchCallbackParam *)param;
+  
+  SSchJob **job = taosHashGet(schMgmt.jobs, &pParam->queryId, sizeof(pParam->queryId));
+  if (NULL == job || NULL == (*job)) {
+    qError("taosHashGet queryId:%"PRIx64" not exist", pParam->queryId);
+    SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+  }
+
+  SSchTask **task = taosHashGet((*job)->execTasks, &pParam->taskId, sizeof(pParam->taskId));
+  if (NULL == task || NULL == (*task)) {
+    qError("taosHashGet taskId:%"PRIx64" not exist", pParam->taskId);
+    SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+  }
+  
+  schProcessRspMsg(*job, *task, msgType, pMsg->pData, pMsg->len, rspCode);
+
+_return:  
+  tfree(param);
+
+  SCH_RET(code);
+}
+
+int32_t schHandleSubmitCallback(void* param, const SDataBuf* pMsg, int32_t code) {
+  return schHandleCallback(param, pMsg, TDMT_VND_SUBMIT_RSP, code);
+}
+int32_t schHandleQueryCallback(void* param, const SDataBuf* pMsg, int32_t code) {
+  return schHandleCallback(param, pMsg, TDMT_VND_QUERY_RSP, code);
+}
+int32_t schHandleFetchCallback(void* param, const SDataBuf* pMsg, int32_t code) {
+  return schHandleCallback(param, pMsg, TDMT_VND_FETCH_RSP, code);
+}
+int32_t schHandleReadyCallback(void* param, const SDataBuf* pMsg, int32_t code) {
+  return schHandleCallback(param, pMsg, TDMT_VND_RES_READY_RSP, code);
+}
+int32_t schHandleDropCallback(void* param, const SDataBuf* pMsg, int32_t code) {  
+  SSchCallbackParam *pParam = (SSchCallbackParam *)param;
+  qDebug("drop task rsp received, queryId:%"PRIx64 ",taksId:%"PRIx64 ",code:%d", pParam->queryId, pParam->taskId, code);
+}
+
+int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
+  switch (msgType) {
+    case TDMT_VND_SUBMIT: 
+      *fp = schHandleSubmitCallback;
+      break;
+    case TDMT_VND_QUERY: 
+      *fp = schHandleQueryCallback;
+      break;
+    case TDMT_VND_RES_READY: 
+      *fp = schHandleReadyCallback;
+      break;
+    case TDMT_VND_FETCH: 
+      *fp = schHandleFetchCallback;
+      break;
+    case TDMT_VND_DROP_TASK:
+      *fp = schHandleDropCallback;
+      break;
+    default:
+      qError("unknown msg type:%d", msgType);
+      SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t schAsyncSendMsg(void *transport, SEpSet* epSet, uint64_t qId, uint64_t tId, int32_t msgType, void *msg, uint32_t msgSize) {
+  int32_t code = 0;
+  SMsgSendInfo* pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
+  if (NULL == pMsgSendInfo) {
+    qError("calloc %d failed", (int32_t)sizeof(SMsgSendInfo));
+    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  SSchCallbackParam *param = calloc(1, sizeof(SSchCallbackParam));
+  if (NULL == param) {
+    qError("calloc %d failed", (int32_t)sizeof(SSchCallbackParam));
+    SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  __async_send_cb_fn_t fp = NULL;
+  SCH_ERR_JRET(schGetCallbackFp(msgType, &fp));
+
+  param->queryId = qId;
+  param->taskId = tId;
+
+  pMsgSendInfo->param = param;
+  pMsgSendInfo->msgInfo.pData = msg;
+  pMsgSendInfo->msgInfo.len = msgSize;
+  pMsgSendInfo->msgType = msgType;
+
+  pMsgSendInfo->fp = fp;
+  
+  int64_t  transporterId = 0;
+  SCH_ERR_JRET(asyncSendMsgToServer(transport, epSet, &transporterId, pMsgSendInfo));
+  
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  tfree(param);
+  tfree(pMsgSendInfo);
+
+  SCH_RET(code);
+}
+
+
+int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
+  uint32_t msgSize = 0;
+  void *msg = NULL;
+  int32_t code = 0;
+  
+  switch (msgType) {
+    case TDMT_VND_SUBMIT: {
+      if (NULL == task->msg || task->msgLen <= 0) {
+        qError("submit msg is NULL");
+        SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      }
+
+      msgSize = task->msgLen;
+      msg = task->msg;
+      break;
+    }
+    case TDMT_VND_QUERY: {
+      if (NULL == task->msg) {
+        qError("query msg is NULL");
+        SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      }
+
+      msgSize = sizeof(SSubQueryMsg) + task->msgLen;
+      msg = calloc(1, msgSize);
+      if (NULL == msg) {
+        qError("calloc %d failed", msgSize);
+        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
+
+      SSubQueryMsg *pMsg = msg;
+      
+      pMsg->sId = htobe64(schMgmt.sId);
+      pMsg->queryId = htobe64(job->queryId);
+      pMsg->taskId = htobe64(task->taskId);
+      pMsg->contentLen = htonl(task->msgLen);
+      memcpy(pMsg->msg, task->msg, task->msgLen);
+      break;
+    }    
+    case TDMT_VND_RES_READY: {
+      msgSize = sizeof(SResReadyMsg);
+      msg = calloc(1, msgSize);
+      if (NULL == msg) {
+        qError("calloc %d failed", msgSize);
+        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
+
+      SResReadyMsg *pMsg = msg;
+      pMsg->sId = htobe64(schMgmt.sId);      
+      pMsg->queryId = htobe64(job->queryId);
+      pMsg->taskId = htobe64(task->taskId);      
+      break;
+    }
+    case TDMT_VND_FETCH: {
+      if (NULL == task) {
+        SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+      }
+      msgSize = sizeof(SResFetchMsg);
+      msg = calloc(1, msgSize);
+      if (NULL == msg) {
+        qError("calloc %d failed", msgSize);
+        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
+    
+      SResFetchMsg *pMsg = msg;
+      pMsg->sId = htobe64(schMgmt.sId);      
+      pMsg->queryId = htobe64(job->queryId);
+      pMsg->taskId = htobe64(task->taskId);      
+      break;
+    }
+    case TDMT_VND_DROP_TASK:{
+      msgSize = sizeof(STaskDropMsg);
+      msg = calloc(1, msgSize);
+      if (NULL == msg) {
+        qError("calloc %d failed", msgSize);
+        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
+    
+      STaskDropMsg *pMsg = msg;
+      pMsg->sId = htobe64(schMgmt.sId);      
+      pMsg->queryId = htobe64(job->queryId);
+      pMsg->taskId = htobe64(task->taskId);      
+      break;
+    }
+    default:
+      qError("unknown msg type:%d", msgType);
+      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+      break;
+  }
+
+  SCH_ERR_JRET(schAsyncSendMsg(job->transport, &task->plan->execEpSet, job->queryId, task->taskId, msgType, msg, msgSize));
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  tfree(msg);
+  SCH_RET(code);
+}
 
 
 int32_t schLaunchTask(SSchJob *job, SSchTask *task) {
@@ -664,7 +748,7 @@ int32_t schLaunchTask(SSchJob *job, SSchTask *task) {
 
   int32_t msgType = (plan->type == QUERY_TYPE_MODIFY) ? TDMT_VND_SUBMIT : TDMT_VND_QUERY;
   
-  SCH_ERR_RET(schAsyncSendMsg(job, task, msgType));
+  SCH_ERR_RET(schBuildAndSendMsg(job, task, msgType));
 
   SCH_ERR_RET(schPushTaskToExecList(job, task));
 
@@ -672,6 +756,8 @@ int32_t schLaunchTask(SSchJob *job, SSchTask *task) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+
 
 int32_t schLaunchJob(SSchJob *job) {
   SSchLevel *level = taosArrayGet(job->levels, job->levelIdx);
@@ -690,7 +776,7 @@ void schDropJobAllTasks(SSchJob *job) {
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
   
-    schAsyncSendMsg(job, task, TDMT_VND_DROP_TASK);
+    schBuildAndSendMsg(job, task, TDMT_VND_DROP_TASK);
     
     pIter = taosHashIterate(job->succTasks, pIter);
   }  
@@ -699,7 +785,7 @@ void schDropJobAllTasks(SSchJob *job) {
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
   
-    schAsyncSendMsg(job, task, TDMT_VND_DROP_TASK);
+    schBuildAndSendMsg(job, task, TDMT_VND_DROP_TASK);
     
     pIter = taosHashIterate(job->succTasks, pIter);
   }  

@@ -43,6 +43,11 @@ typedef struct SSchedulerMgmt {
   SHashObj *jobs;  // key: queryId, value: SQueryJob*
 } SSchedulerMgmt;
 
+typedef struct SSchCallbackParam {
+  uint64_t queryId;
+  uint64_t taskId;
+} SSchCallbackParam;
+
 typedef struct SSchLevel {
   int32_t  level;
   int8_t   status;
@@ -120,6 +125,7 @@ typedef struct SSchJob {
 
 
 extern int32_t schLaunchTask(SSchJob *job, SSchTask *task);
+extern int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType);
 
 #ifdef __cplusplus
 }
