@@ -661,8 +661,6 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
   int64_t clusterId;
-  int8_t  dropped;
-  char    reserved[7];
 } SDnodeCfg;
 
 typedef struct {

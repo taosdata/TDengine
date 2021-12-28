@@ -370,7 +370,6 @@ static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg) {
   }
 
   pRsp->dnodeCfg.dnodeId = htonl(pDnode->id);
-  pRsp->dnodeCfg.dropped = 0;
   pRsp->dnodeCfg.clusterId = htobe64(pMnode->clusterId);
   mndGetDnodeData(pMnode, &pRsp->dnodeEps, numOfEps);
 
