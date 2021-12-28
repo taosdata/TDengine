@@ -94,6 +94,16 @@ void indexCacheDebug(IndexCache* cache) {
   tSkipListDestroyIter(iter);
 }
 
+void indexCacheDestroySkiplist(SSkipList* slt) {
+  SSkipListIterator* iter = tSkipListCreateIter(slt);
+  while (tSkipListIterNext(iter)) {
+    SSkipListNode* node = tSkipListIterGet(iter);
+    CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
+    if (ct != NULL) {}
+  }
+  tSkipListDestroyIter(iter);
+}
+
 void indexCacheDestroy(void* cache) {
   IndexCache* pCache = cache;
   if (pCache == NULL) { return; }
@@ -107,6 +117,48 @@ static void doMergeWork(SSchedMsg* msg) {
   IndexCache* pCache = msg->ahandle;
   SIndex*     sidx = (SIndex*)pCache->index;
   indexFlushCacheTFile(sidx, pCache);
+}
+static bool indexCacheIteratorNext(Iterate* itera) {
+  SSkipListIterator* iter = itera->iter;
+  if (iter == NULL) { return false; }
+
+  IterateValue* iv = &itera->val;
+  iterateValueDestroy(iv, false);
+
+  bool next = tSkipListIterNext(iter);
+  if (next) {
+    SSkipListNode* node = tSkipListIterGet(iter);
+    CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
+
+    iv->type = ct->operaType;
+    iv->colVal = ct->colVal;
+
+    taosArrayPush(iv->val, &ct->uid);
+  }
+
+  return next;
+}
+
+static IterateValue* indexCacheIteratorGetValue(Iterate* iter) {
+  return &iter->val;
+}
+Iterate* indexCacheIteratorCreate(IndexCache* cache) {
+  Iterate* iiter = calloc(1, sizeof(Iterate));
+  if (iiter == NULL) { return NULL; }
+
+  iiter->val.val = taosArrayInit(1, sizeof(uint64_t));
+  iiter->iter = cache->imm != NULL ? tSkipListCreateIter(cache->imm) : NULL;
+  iiter->next = indexCacheIteratorNext;
+  iiter->getValue = indexCacheIteratorGetValue;
+
+  return iiter;
+}
+void indexCacheIteratorDestroy(Iterate* iter) {
+  if (iter == NULL) { return; }
+
+  tSkipListDestroyIter(iter->iter);
+  iterateValueDestroy(&iter->val, true);
+  free(iter);
 }
 
 int indexCacheSchedToMerge(IndexCache* pCache) {

@@ -3986,7 +3986,6 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       return buildInvalidOperationMsg(pMsgBuf, "not support sql expression");
   }
 
-
   SCatalogReq req = {0};
   SMetaData data = {0};
 
@@ -4022,7 +4021,6 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
     SSqlNode* p = taosArrayGetP(pInfo->sub.node, i);
     validateSqlNode(p, pQueryInfo, &buf);
   }
-
 
   return code;
 }

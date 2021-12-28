@@ -20,8 +20,11 @@
 extern "C" {
 #endif
 
-#include "cJSON.h"
 #include "os.h"
+
+#include "cJSON.h"
+#include "tcache.h"
+#include "tcrc32c.h"
 #include "tep.h"
 #include "thash.h"
 #include "tlockfree.h"
@@ -34,7 +37,11 @@ extern "C" {
 #include "tworker.h"
 
 #include "dnode.h"
+
+#include "bnode.h"
 #include "mnode.h"
+#include "qnode.h"
+#include "snode.h"
 #include "vnode.h"
 
 extern int32_t dDebugFlag;
@@ -52,7 +59,6 @@ typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
 typedef struct {
   char *dnode;
   char *mnode;
-  char *qnode;
   char *snode;
   char *bnode;
   char *vnodes;
@@ -94,6 +100,41 @@ typedef struct {
 } SMnodeMgmt;
 
 typedef struct {
+  int32_t     refCount;
+  int8_t      deployed;
+  int8_t      dropped;
+  char       *file;
+  SQnode     *pQnode;
+  SRWLatch    latch;
+  taos_queue  pQueryQ;
+  taos_queue  pFetchQ;
+  SWorkerPool queryPool;
+  SWorkerPool fetchPool;
+} SQnodeMgmt;
+
+typedef struct {
+  int32_t     refCount;
+  int8_t      deployed;
+  int8_t      dropped;
+  char       *file;
+  SSnode     *pSnode;
+  SRWLatch    latch;
+  taos_queue  pWriteQ;
+  SWorkerPool writePool;
+} SSnodeMgmt;
+
+typedef struct {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  char        *file;
+  SBnode      *pBnode;
+  SRWLatch     latch;
+  taos_queue   pWriteQ;
+  SMWorkerPool writePool;
+} SBnodeMgmt;
+
+typedef struct {
   SHashObj    *hash;
   int32_t      openVnodes;
   int32_t      totalVnodes;
@@ -117,6 +158,9 @@ typedef struct SDnode {
   FileFd      lockFd;
   SDnodeMgmt  dmgmt;
   SMnodeMgmt  mmgmt;
+  SQnodeMgmt  qmgmt;
+  SSnodeMgmt  smgmt;
+  SBnodeMgmt  bmgmt;
   SVnodesMgmt vmgmt;
   STransMgmt  tmgmt;
   SStartupMsg startup;
