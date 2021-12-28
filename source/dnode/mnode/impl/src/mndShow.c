@@ -62,7 +62,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowMsg *pMsg) {
     pShow->pMnode = pMnode;
     pShow->type = pMsg->type;
     pShow->payloadLen = pMsg->payloadLen;
-    memcpy(pShow->db, pMsg->db, TSDB_FULL_DB_NAME_LEN);
+    memcpy(pShow->db, pMsg->db, TSDB_DB_FNAME_LEN);
     memcpy(pShow->payload, pMsg->payload, pMsg->payloadLen);
   } else {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

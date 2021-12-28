@@ -145,15 +145,32 @@ int32_t buildRequest(STscObj *pTscObj, const char *sql, int sqlLen, SRequestObj*
 }
 
 int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
+  STscObj* pTscObj = pRequest->pTscObj;
+
   SParseContext cxt = {
-    .ctx = {.requestId = pRequest->requestId, .acctId = pRequest->pTscObj->acctId, .db = getConnectionDB(pRequest->pTscObj)},
-    .pSql = pRequest->sqlstr,
+    .ctx = {.requestId = pRequest->requestId, .acctId = pTscObj->acctId, .db = getConnectionDB(pTscObj), .pTransporter = pTscObj->pTransporter},
+    .pSql   = pRequest->sqlstr,
     .sqlLen = pRequest->sqlLen,
-    .pMsg = pRequest->msgBuf,
+    .pMsg   = pRequest->msgBuf,
     .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE
   };
 
-  int32_t code = qParseQuerySql(&cxt, pQuery);
+  cxt.ctx.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+  // todo OPT performance
+  char buf[12] = {0};
+  sprintf(buf, "%"PRId64, pTscObj->pAppInfo->clusterId);
+
+  struct SCatalog* pCatalog = NULL;
+  int32_t code = catalogGetHandle(buf, &pCatalog);
+  if (code != TSDB_CODE_SUCCESS) {
+    tfree(cxt.ctx.db);
+    return code;
+  }
+
+  cxt.ctx.pCatalog = pCatalog;
+  code = qParseQuerySql(&cxt, pQuery);
+
   tfree(cxt.ctx.db);
   return code;
 }
@@ -165,52 +182,103 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
 
   STscObj* pTscObj = pRequest->pTscObj;
 
-  SMsgSendInfo* body = buildSendMsgInfoImpl(pRequest);
+
+  SMsgSendInfo* pSendMsg = buildSendMsgInfoImpl(pRequest);
   SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
 
   if (pDcl->msgType == TDMT_VND_CREATE_TABLE) {
-    struct SCatalog* pCatalog = NULL;
-
-    char buf[18] = {0};
-    sprintf(buf, "%" PRId64, pRequest->pTscObj->pAppInfo->clusterId);
-    int32_t code = catalogGetHandle(buf, &pCatalog);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-
-    SCreateTableMsg* pMsg = body->msgInfo.pData;
-
-    SName t = {0};
-    tNameFromString(&t, pMsg->name, T_NAME_ACCT|T_NAME_DB|T_NAME_TABLE);
-
-    char db[TSDB_DB_NAME_LEN + TS_PATH_DELIMITER_LEN + TSDB_ACCT_ID_LEN] = {0};
-    tNameGetFullDbName(&t, db);
-
-    SVgroupInfo info = {0};
-    catalogGetTableHashVgroup(pCatalog, pRequest->pTscObj->pTransporter, pEpSet, db, tNameGetTableName(&t), &info);
-
+//    struct SCatalog* pCatalog = NULL;
+//
+//    char buf[18] = {0};
+//    sprintf(buf, "%" PRId64, pRequest->pTscObj->pAppInfo->clusterId);
+//    int32_t code = catalogGetHandle(buf, &pCatalog);
+//    if (code != TSDB_CODE_SUCCESS) {
+//      return code;
+//    }
+//
+//    SCreateTableMsg* pMsg = pSendMsg->msgInfo.pData;
+//
+//    SName t = {0};
+//    tNameFromString(&t, pMsg->name, T_NAME_ACCT|T_NAME_DB|T_NAME_TABLE);
+//
+//    char db[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_ACCT_ID_LEN] = {0};
+//    tNameGetFullDbName(&t, db);
+//
+//    SVgroupInfo info = {0};
+//    catalogGetTableHashVgroup(pCatalog, pRequest->pTscObj->pTransporter, pEpSet, db, tNameGetTableName(&t), &info);
+//
     int64_t transporterId = 0;
-    SEpSet ep = {0};
-    ep.inUse = info.inUse;
-    ep.numOfEps = info.numOfEps;
-    for(int32_t i = 0; i < ep.numOfEps; ++i) {
-      ep.port[i] = info.epAddr[i].port;
-      tstrncpy(ep.fqdn[i], info.epAddr[i].fqdn, tListLen(ep.fqdn[i]));
-    }
-
-    asyncSendMsgToServer(pTscObj->pTransporter, &ep, &transporterId, body);
+//    SEpSet ep   = {0};
+//    ep.inUse    = info.inUse;
+//    ep.numOfEps = info.numOfEps;
+//    for(int32_t i = 0; i < ep.numOfEps; ++i) {
+//      ep.port[i] = info.epAddr[i].port;
+//      tstrncpy(ep.fqdn[i], info.epAddr[i].fqdn, tListLen(ep.fqdn[i]));
+//    }
+    asyncSendMsgToServer(pTscObj->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
   } else {
     int64_t transporterId = 0;
-    asyncSendMsgToServer(pTscObj->pTransporter, pEpSet, &transporterId, body);
+    asyncSendMsgToServer(pTscObj->pTransporter, pEpSet, &transporterId, pSendMsg);
   }
 
   tsem_wait(&pRequest->body.rspSem);
-  destroySendMsgInfo(body);
+  destroySendMsgInfo(pSendMsg);
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, void** pJob) {
   return scheduleAsyncExecJob(pRequest->pTscObj->pTransporter, NULL/*todo appInfo.xxx*/, pDag, pJob);
+}
+
+TAOS_RES *tmq_create_topic(TAOS* taos, const char* name, const char* sql, int sqlLen) {
+  STscObj* pTscObj = (STscObj*)taos;
+  SRequestObj* pRequest = NULL;
+  SQueryNode*  pQuery = NULL;
+  SQueryDag*   pDag = NULL;
+  char *dagStr = NULL;
+
+  terrno = TSDB_CODE_SUCCESS;
+
+  CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
+  //TODO: check sql valid
+
+  CHECK_CODE_GOTO(qCreateQueryDag(pQuery, &pDag), _return);
+
+  dagStr = qDagToString(pDag);
+  if(dagStr == NULL) {
+    //TODO
+  }
+
+  SCMCreateTopicReq req = {
+    .name = (char*)name,
+    .igExists = 0,
+    .phyPlan = dagStr,
+  };
+
+  void* buf = NULL;
+  int tlen = tSerializeSCMCreateTopicReq(&buf, &req);
+
+  pRequest->body.requestMsg = (SDataBuf){ .pData = buf, .len = tlen };
+
+  SMsgSendInfo* body = buildSendMsgInfoImpl(pRequest);
+  SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
+
+  int64_t transporterId = 0;
+  asyncSendMsgToServer(pTscObj->pTransporter, pEpSet, &transporterId, body);
+
+  tsem_wait(&pRequest->body.rspSem);
+
+  destroySendMsgInfo(body);
+
+_return:
+  qDestroyQuery(pQuery);
+  qDestroyQueryDag(pDag); 
+  destroySendMsgInfo(body);
+  if (pRequest != NULL && terrno != TSDB_CODE_SUCCESS) {
+    pRequest->code = terrno;
+  }
+  return pRequest;
 }
 
 TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
@@ -240,7 +308,7 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   }
 
 _return:
-  qDestoryQuery(pQuery);
+  qDestroyQuery(pQuery);
   qDestroyQueryDag(pDag);
   if (NULL != pRequest && TSDB_CODE_SUCCESS != terrno) {
     pRequest->code = terrno;
@@ -332,7 +400,7 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj *pRequest) {
   pMsgSendInfo->msgInfo.len     = sizeof(SConnectMsg);
   pMsgSendInfo->requestObjRefId = pRequest->self;
   pMsgSendInfo->requestId       = pRequest->requestId;
-  pMsgSendInfo->fp              = handleRequestRspFp[pMsgSendInfo->msgType];
+  pMsgSendInfo->fp              = handleRequestRspFp[TMSG_INDEX(pMsgSendInfo->msgType)];
   pMsgSendInfo->param           = pRequest;
 
   SConnectMsg *pConnect = calloc(1, sizeof(SConnectMsg));

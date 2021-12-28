@@ -38,10 +38,15 @@ enum {
 
 typedef struct SSchedulerMgmt {
   uint64_t  taskId; 
-  uint64_t  schedulerId;
+  uint64_t  sId;
   SSchedulerCfg cfg;
   SHashObj *jobs;  // key: queryId, value: SQueryJob*
 } SSchedulerMgmt;
+
+typedef struct SSchCallbackParam {
+  uint64_t queryId;
+  uint64_t taskId;
+} SSchCallbackParam;
 
 typedef struct SSchLevel {
   int32_t  level;
@@ -120,6 +125,7 @@ typedef struct SSchJob {
 
 
 extern int32_t schLaunchTask(SSchJob *job, SSchTask *task);
+extern int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType);
 
 #ifdef __cplusplus
 }

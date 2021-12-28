@@ -49,10 +49,11 @@ typedef struct {
 /**
  * @brief Start one Snode in Dnode.
  *
+ * @param path Path of the snode.
  * @param pOption Option of the snode.
  * @return SSnode* The snode object.
  */
-SSnode *sndOpen(const SSnodeOpt *pOption);
+SSnode *sndOpen(const char *path, const SSnodeOpt *pOption);
 
 /**
  * @brief Stop Snode in Dnode.
@@ -78,7 +79,14 @@ int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad);
  * @param pRsp The response message
  * @return int32_t 0 for success, -1 for failure
  */
-int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int32_t sndProcessMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+
+/**
+ * @brief Drop a snode.
+ *
+ * @param path Path of the snode.
+ */
+void sndDestroy(const char *path);
 
 #ifdef __cplusplus
 }

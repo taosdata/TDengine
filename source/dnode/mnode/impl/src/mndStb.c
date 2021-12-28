@@ -76,7 +76,7 @@ static SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
 
   int32_t dataPos = 0;
   SDB_SET_BINARY(pRaw, dataPos, pStb->name, TSDB_TABLE_FNAME_LEN)
-  SDB_SET_BINARY(pRaw, dataPos, pStb->db, TSDB_FULL_DB_NAME_LEN)
+  SDB_SET_BINARY(pRaw, dataPos, pStb->db, TSDB_DB_FNAME_LEN)
   SDB_SET_INT64(pRaw, dataPos, pStb->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pStb->updateTime)
   SDB_SET_INT64(pRaw, dataPos, pStb->uid)
@@ -117,7 +117,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
 
   int32_t dataPos = 0;
   SDB_GET_BINARY(pRaw, pRow, dataPos, pStb->name, TSDB_TABLE_FNAME_LEN)
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pStb->db, TSDB_FULL_DB_NAME_LEN)
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pStb->db, TSDB_DB_FNAME_LEN)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pStb->createdTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pStb->updateTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pStb->uid)
@@ -291,7 +291,6 @@ static int32_t mndCheckCreateStbMsg(SCreateStbMsg *pCreate) {
   int32_t totalCols = pCreate->numOfColumns + pCreate->numOfTags;
   for (int32_t i = 0; i < totalCols; ++i) {
     SSchema *pSchema = &pCreate->pSchema[i];
-    pSchema->colId = htonl(pSchema->colId);
     pSchema->bytes = htonl(pSchema->bytes);
   }
 
@@ -314,10 +313,6 @@ static int32_t mndCheckCreateStbMsg(SCreateStbMsg *pCreate) {
   for (int32_t i = 0; i < totalCols; ++i) {
     SSchema *pSchema = &pCreate->pSchema[i];
     if (pSchema->type < 0) {
-      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
-      return -1;
-    }
-    if (pSchema->colId < 0 || pSchema->colId >= maxColId) {
       terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
     }
@@ -435,7 +430,7 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
 static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateStbMsg *pCreate, SDbObj *pDb) {
   SStbObj stbObj = {0};
   tstrncpy(stbObj.name, pCreate->name, TSDB_TABLE_FNAME_LEN);
-  tstrncpy(stbObj.db, pDb->name, TSDB_FULL_DB_NAME_LEN);
+  tstrncpy(stbObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   stbObj.createdTime = taosGetTimestampMs();
   stbObj.updateTime = stbObj.createdTime;
   stbObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
@@ -452,6 +447,10 @@ static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateStbMsg *pCre
     return -1;
   }
   memcpy(stbObj.pSchema, pCreate->pSchema, totalSize);
+
+  for (int32_t i = 0; i < totalCols; ++i) {
+    stbObj.pSchema[i].colId = i + 1;
+  }
 
   int32_t code = 0;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
@@ -767,7 +766,7 @@ static int32_t mndProcessStbMetaMsg(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  memcpy(pMeta->stbFname, pStb->name, TSDB_TABLE_FNAME_LEN);
+  memcpy(pMeta->tbFname, pStb->name, TSDB_TABLE_FNAME_LEN);
   pMeta->numOfTags = htonl(pStb->numOfTags);
   pMeta->numOfColumns = htonl(pStb->numOfColumns);
   pMeta->precision = pDb->cfg.precision;

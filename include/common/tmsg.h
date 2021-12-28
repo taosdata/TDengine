@@ -219,26 +219,6 @@ typedef struct {
   char     data[];
 } SMDCreateTableMsg;
 
-// typedef struct {
-//  int32_t len;  // one create table message
-//  char    tableName[TSDB_TABLE_FNAME_LEN];
-//  int16_t numOfColumns;
-//  int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
-//  int8_t  igExists;
-//  int8_t  rspMeta;
-//  int8_t  reserved[16];
-//  char    schema[];
-//} SCreateTableMsg;
-
-typedef struct {
-  char    tableName[TSDB_TABLE_FNAME_LEN];
-  int16_t numOfColumns;
-  int16_t numOfTags;
-  int8_t  igExists;
-  int8_t  rspMeta;
-  char    schema[];
-} SCreateCTableMsg;
-
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
@@ -372,7 +352,7 @@ typedef struct SColIndex {
   int16_t colId;     // column id
   int16_t colIndex;  // column index in colList if it is a normal column or index in tagColList if a tag
   int16_t flag;      // denote if it is a tag or a normal column
-  char    name[TSDB_COL_NAME_LEN + TSDB_DB_NAME_LEN + 1];
+  char    name[TSDB_DB_FNAME_LEN];
 } SColIndex;
 
 typedef struct SColumnFilterInfo {
@@ -519,7 +499,7 @@ typedef struct SRetrieveTableRsp {
 } SRetrieveTableRsp;
 
 typedef struct {
-  char    db[TSDB_FULL_DB_NAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int32_t numOfVgroups;
   int32_t cacheBlockSize;  // MB
   int32_t totalBlocks;
@@ -543,7 +523,7 @@ typedef struct {
 } SCreateDbMsg;
 
 typedef struct {
-  char    db[TSDB_FULL_DB_NAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int32_t totalBlocks;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -693,7 +673,7 @@ typedef struct {
 typedef struct {
   int32_t  vgId;
   int32_t  dnodeId;
-  char     db[TSDB_FULL_DB_NAME_LEN];
+  char     db[TSDB_DB_FNAME_LEN];
   uint64_t dbUid;
   int32_t  vgVersion;
   int32_t  cacheBlockSize;
@@ -720,7 +700,7 @@ typedef struct {
 typedef struct {
   int32_t  vgId;
   int32_t  dnodeId;
-  char     db[TSDB_FULL_DB_NAME_LEN];
+  char     db[TSDB_DB_FNAME_LEN];
   uint64_t dbUid;
 } SDropVnodeMsg, SSyncVnodeMsg, SCompactVnodeMsg;
 
@@ -796,7 +776,7 @@ typedef struct {
 } STagData;
 
 typedef struct {
-  char        db[TSDB_FULL_DB_NAME_LEN];
+  char        db[TSDB_DB_FNAME_LEN];
   int32_t     vgVersion;
   int32_t     vgNum;
   int8_t      hashMethod;
@@ -810,13 +790,13 @@ typedef struct {
  */
 typedef struct {
   int8_t  type;
-  char    db[TSDB_FULL_DB_NAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int16_t payloadLen;
   char    payload[];
 } SShowMsg;
 
 typedef struct {
-  char    db[TSDB_FULL_DB_NAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int32_t numOfVgroup;
   int32_t vgid[];
 } SCompactMsg;
@@ -827,7 +807,7 @@ typedef struct SShowRsp {
 } SShowRsp;
 
 typedef struct {
-  char    ep[TSDB_FQDN_LEN];  // end point, hostname:port
+  char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
   int32_t port;
 } SCreateDnodeMsg;
 
@@ -1019,7 +999,7 @@ typedef struct {
 } SUpdateTagValRsp;
 
 typedef struct SSubQueryMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
   uint32_t contentLen;
@@ -1027,7 +1007,7 @@ typedef struct SSubQueryMsg {
 } SSubQueryMsg;
 
 typedef struct SResReadyMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
 } SResReadyMsg;
@@ -1037,13 +1017,13 @@ typedef struct SResReadyRsp {
 } SResReadyRsp;
 
 typedef struct SResFetchMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
 } SResFetchMsg;
 
 typedef struct SSchTasksStatusMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
 } SSchTasksStatusMsg;
 
 typedef struct STaskStatus {
@@ -1058,7 +1038,7 @@ typedef struct SSchedulerStatusRsp {
 } SSchedulerStatusRsp;
 
 typedef struct STaskCancelMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
 } STaskCancelMsg;
@@ -1068,7 +1048,7 @@ typedef struct STaskCancelRsp {
 } STaskCancelRsp;
 
 typedef struct STaskDropMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
 } STaskDropMsg;
@@ -1076,6 +1056,27 @@ typedef struct STaskDropMsg {
 typedef struct STaskDropRsp {
   int32_t code;
 } STaskDropRsp;
+
+typedef struct {
+  int8_t  igExists;
+  char*   name;
+  char*   phyPlan;
+} SCMCreateTopicReq;
+
+static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateTopicReq* pReq) {
+  int tlen = 0;
+  tlen += taosEncodeString(buf, pReq->name);
+  tlen += taosEncodeFixedI8(buf, pReq->igExists);
+  tlen += taosEncodeString(buf, pReq->phyPlan);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDeserializeSCMCreateTopicReq(void* buf, SCMCreateTopicReq* pReq) {
+  buf = taosDecodeFixedI8(buf, &(pReq->igExists));
+  buf = taosDecodeString(buf, &(pReq->name));
+  buf = taosDecodeString(buf, &(pReq->phyPlan));
+  return buf;
+}
 
 typedef struct {
   char    name[TSDB_TOPIC_FNAME_LEN];

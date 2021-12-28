@@ -1918,7 +1918,7 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
     case TAOS_REQ_FROM_HTTP:
       pCtx = pSql->param;
       if (pCtx && pCtx->db[0] != '\0') {
-        char db[TSDB_FULL_DB_NAME_LEN] = {0};
+        char db[TSDB_DB_FNAME_LEN] = {0};
         int32_t len = sprintf(db, "%s%s%s", pTscObj->acctId, TS_PATH_DELIMITER, pCtx->db);
         assert(len <= sizeof(db));
 

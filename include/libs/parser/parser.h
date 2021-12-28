@@ -23,10 +23,7 @@ extern "C" {
 #include "parsenodes.h"
 
 typedef struct SParseContext {
-  SParseBasicCtx  ctx;
-  void            *pRpc;
-  struct SCatalog *pCatalog;
-  const SEpSet    *pEpSet;
+  SParseBasicCtx   ctx;
   int8_t           schemaAttached; // denote if submit block is built with table schema or not
   const char      *pSql;           // sql string
   size_t           sqlLen;         // length of the sql string
@@ -46,7 +43,7 @@ int32_t qParseQuerySql(SParseContext* pContext, SQueryNode** pQuery);
 
 bool qIsDdlQuery(const SQueryNode* pQuery);
 
-void qDestoryQuery(SQueryNode* pQuery);
+void qDestroyQuery(SQueryNode* pQuery);
 
 /**
  * Convert a normal sql statement to only query tags information to enable that the subscribe client can be aware quickly of the true vgroup ids that

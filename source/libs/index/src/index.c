@@ -436,9 +436,7 @@ int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
     if (ret != 0) { indexError("faile to write into tindex "); }
   }
   // not free later, just put int table cache
-  SSkipList* timm = (SSkipList*)pCache->imm;
-  pCache->imm = NULL;  // or throw int bg thread
-  indexCacheDestroySkiplist(timm);
+  indexCacheDestroyImm(pCache);
 
   tfileWriteClose(tw);
   indexCacheIteratorDestroy(cacheIter);

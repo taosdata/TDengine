@@ -31,17 +31,17 @@ typedef struct SKeyword {
 static SKeyword keywordTable[] = {
     {"ID",           TK_ID},
     {"BOOL",         TK_BOOL},
-    {"TINYINT",      TK_TINYINT},
-    {"SMALLINT",     TK_SMALLINT},
+//    {"TINYINT",      TK_TINYINT},
+//    {"SMALLINT",     TK_SMALLINT},
     {"INTEGER",      TK_INTEGER},
     {"INT",          TK_INTEGER},
-    {"BIGINT",       TK_BIGINT},
+//    {"BIGINT",       TK_BIGINT},
     {"FLOAT",        TK_FLOAT},
-    {"DOUBLE",       TK_DOUBLE},
+//    {"DOUBLE",       TK_DOUBLE},
     {"STRING",       TK_STRING},
     {"TIMESTAMP",    TK_TIMESTAMP},
-    {"BINARY",       TK_BINARY},
-    {"NCHAR",        TK_NCHAR},
+//    {"BINARY",       TK_BINARY},
+//    {"NCHAR",        TK_NCHAR},
     {"OR",           TK_OR},
     {"AND",          TK_AND},
     {"NOT",          TK_NOT},
@@ -672,7 +672,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
     }
   }
 
-  t0.z = str + (*i);
+  t0.z = (char*) str + (*i);
   *i += t0.n;
 
   return t0;

@@ -276,7 +276,7 @@ bool      tSqlExprIsLeaf(tSqlExpr *pExpr) {
   return (pExpr->pRight == NULL && pExpr->pLeft == NULL) &&
          (pExpr->tokenId == 0 ||
           (pExpr->tokenId == TK_ID) ||
-          (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_NCHAR) ||
+          (pExpr->tokenId == TK_BOOL || pExpr->tokenId == TK_STRING || pExpr->tokenId == TK_FLOAT) ||
           (pExpr->tokenId == TK_NULL) ||
           (pExpr->tokenId == TK_SET));
 }

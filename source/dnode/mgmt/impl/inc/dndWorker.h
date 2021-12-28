@@ -13,20 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "sndInt.h"
+#ifndef _TD_DND_WORKER_H_
+#define _TD_DND_WORKER_H_
 
-SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
-  SSnode *pSnode = calloc(1, sizeof(SSnode));
-  return pSnode;
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include "dndInt.h"
+
+int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EWorkerType type, const char *name, int32_t minNum,
+                      int32_t maxNum, void *queueFp);
+void    dndCleanupWorker(SDnodeWorker *pWorker);
+int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pCont, int32_t contLen);
+
+#ifdef __cplusplus
 }
+#endif
 
-void sndClose(SSnode *pSnode) { free(pSnode); }
-
-int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad) { return 0; }
-
-int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  *pRsp = NULL;
-  return 0;
-}
-
-void sndDestroy(const char *path) {}
+#endif /*_TD_DND_WORKER_H_*/

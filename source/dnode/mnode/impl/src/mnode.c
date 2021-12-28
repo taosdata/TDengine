@@ -390,7 +390,7 @@ void mndSendRsp(SMnodeMsg *pMsg, int32_t code) {
   rpcSendResponse(&rpcRsp);
 }
 
-static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
+void mndProcessMsg(SMnodeMsg *pMsg) {
   SMnode *pMnode = pMsg->pMnode;
   int32_t code = 0;
   tmsg_t  msgType = pMsg->rpcMsg.msgType;
@@ -450,12 +450,6 @@ void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp) {
     pMnode->msgFp[type] = fp;
   }
 }
-
-void mndProcessReadMsg(SMnodeMsg *pMsg) { mndProcessRpcMsg(pMsg); }
-
-void mndProcessWriteMsg(SMnodeMsg *pMsg) { mndProcessRpcMsg(pMsg); }
-
-void mndProcessSyncMsg(SMnodeMsg *pMsg) { mndProcessRpcMsg(pMsg); }
 
 uint64_t mndGenerateUid(char *name, int32_t len) {
   int64_t  us = taosGetTimestampUs();

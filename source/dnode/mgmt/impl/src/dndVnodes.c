@@ -22,7 +22,7 @@ typedef struct {
   int32_t  vgVersion;
   int8_t   dropped;
   uint64_t dbUid;
-  char     db[TSDB_FULL_DB_NAME_LEN];
+  char     db[TSDB_DB_FNAME_LEN];
   char     path[PATH_MAX + 20];
 } SWrapperCfg;
 
@@ -319,7 +319,7 @@ static int32_t dndGetVnodesFromFile(SDnode *pDnode, SWrapperCfg **ppCfgs, int32_
       dError("failed to read %s since db not found", file);
       goto PRASE_VNODE_OVER;
     }
-    tstrncpy(pCfg->db, db->valuestring, TSDB_FULL_DB_NAME_LEN);
+    tstrncpy(pCfg->db, db->valuestring, TSDB_DB_FNAME_LEN);
   }
 
   *ppCfgs = pCfgs;
@@ -569,7 +569,7 @@ static void dndGenerateVnodeCfg(SCreateVnodeMsg *pCreate, SVnodeCfg *pCfg) {
 }
 
 static void dndGenerateWrapperCfg(SDnode *pDnode, SCreateVnodeMsg *pCreate, SWrapperCfg *pCfg) {
-  memcpy(pCfg->db, pCreate->db, TSDB_FULL_DB_NAME_LEN);
+  memcpy(pCfg->db, pCreate->db, TSDB_DB_FNAME_LEN);
   pCfg->dbUid = pCreate->dbUid;
   pCfg->dropped = 0;
   snprintf(pCfg->path, sizeof(pCfg->path), "%s/vnode%d", pDnode->dir.vnodes, pCreate->vgId);

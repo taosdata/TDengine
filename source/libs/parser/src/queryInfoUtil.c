@@ -26,7 +26,7 @@ size_t getNumOfExprs(SQueryStmtInfo* pQueryInfo) {
 }
 
 SSchema* getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex) {
-  assert(pTableMeta != NULL && pTableMeta->schema != NULL && colIndex >= 0 && colIndex < getNumOfColumns(pTableMeta));
+  assert(pTableMeta != NULL && pTableMeta->schema != NULL && colIndex >= 0 && colIndex < (getNumOfColumns(pTableMeta) + getNumOfTags(pTableMeta)));
 
   SSchema* pSchema = (SSchema*) pTableMeta->schema;
   return &pSchema[colIndex];
