@@ -313,7 +313,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx *pCtx, SMsgBuf* p
       return code;
     }
 
-    code = tNameExtractFullName(&name, pCreateTableInfo->tagdata.name);
+    code = tNameGetTableName(&name, pCreateTableInfo->tagdata.name);
 
     SArray* pValList = pCreateTableInfo->pTagVals;
     if (code != TSDB_CODE_SUCCESS) {
@@ -322,6 +322,11 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx *pCtx, SMsgBuf* p
 
     size_t valSize = taosArrayGetSize(pValList);
     STableMeta* pSuperTableMeta = NULL;
+
+    char dbName[TSDB_DB_FNAME_LEN] = {0};
+    tNameGetFullDbName(&name, dbName);
+
+    catalogGetTableMeta(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbName, pCreateTableInfo->tagdata.name, &pSuperTableMeta);
 
     // too long tag values will return invalid sql, not be truncated automatically
     SSchema  *pTagSchema = getTableTagSchema(pSuperTableMeta);

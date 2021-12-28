@@ -44,9 +44,12 @@ typedef struct SField {
 } SField;
 
 typedef struct SParseBasicCtx {
-  const char *db;
-  int32_t     acctId;
-  uint64_t    requestId;
+  uint64_t         requestId;
+  int32_t          acctId;
+  const char      *db;
+  void            *pTransporter;
+  SEpSet           mgmtEpSet;
+  struct SCatalog *pCatalog;
 } SParseBasicCtx;
 
 typedef struct SFieldInfo {

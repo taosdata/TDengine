@@ -67,14 +67,14 @@ int32_t catalogUpdateDBVgroupCache(struct SCatalog* pCatalog, const char* dbName
 /**
  * Get a table's meta data. 
  * @param pCatalog (input, got with catalogGetHandle)
- * @param pRpc (input, rpc object)
+ * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
  * @param pDBName (input, full db name)
  * @param pTableName (input, table name, NOT including db name)
  * @param pTableMeta(output, table meta data, NEED to free it by calller)
  * @return error code
  */
-int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta);
+int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta);
 
 /**
  * Force renew a table's local cached meta data. 

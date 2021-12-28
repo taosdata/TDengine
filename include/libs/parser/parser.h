@@ -23,10 +23,7 @@ extern "C" {
 #include "parsenodes.h"
 
 typedef struct SParseContext {
-  SParseBasicCtx  ctx;
-  void            *pRpc;
-  struct SCatalog *pCatalog;
-  const SEpSet    *pEpSet;
+  SParseBasicCtx   ctx;
   int8_t           schemaAttached; // denote if submit block is built with table schema or not
   const char      *pSql;           // sql string
   size_t           sqlLen;         // length of the sql string
