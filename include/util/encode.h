@@ -180,7 +180,7 @@ static FORCE_INLINE int tEncodeU16v(SEncoder* pEncoder, uint16_t val) {
   while (val >= ENCODE_LIMIT) {
     if (pEncoder->data) {
       if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, 1)) return -1;
-      TD_CODER_CURRENT(pEncoder)[i] = (uint8_t)(val | ENCODE_LIMIT)
+      TD_CODER_CURRENT(pEncoder)[i] = (val | ENCODE_LIMIT) & 0xff;
     }
 
     val >>= 7;
@@ -200,14 +200,48 @@ static FORCE_INLINE int tEncodeU16v(SEncoder* pEncoder, uint16_t val) {
 static FORCE_INLINE int tEncodeI16v(SEncoder* pEncoder, int16_t val) { return tEncodeU16v(pEncoder, ZIGZAGE(val)); }
 
 static FORCE_INLINE int tEncodeU32v(SEncoder* pEncoder, uint32_t val) {
-  // TODO
+  int64_t i = 0;
+  while (val >= ENCODE_LIMIT) {
+    if (pEncoder->data) {
+      if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, 1)) return -1;
+      TD_CODER_CURRENT(pEncoder)[i] = (val | ENCODE_LIMIT) & 0xff;
+    }
+
+    val >>= 7;
+    i++;
+  }
+
+  if (pEncoder->data) {
+    if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, 1)) return -1;
+    TD_CODER_CURRENT(pEncoder)[i] = (uint8_t)val;
+  }
+
+  TD_CODER_MOVE_POS(pEncoder, i + 1);
+
   return 0;
 }
 
 static FORCE_INLINE int tEncodeI32v(SEncoder* pEncoder, int32_t val) { return tEncodeU32v(pEncoder, ZIGZAGE(val)); }
 
 static FORCE_INLINE int tEncodeU64v(SEncoder* pEncoder, uint64_t val) {
-  // TODO
+  int64_t i = 0;
+  while (val >= ENCODE_LIMIT) {
+    if (pEncoder->data) {
+      if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, 1)) return -1;
+      TD_CODER_CURRENT(pEncoder)[i] = (val | ENCODE_LIMIT) & 0xff;
+    }
+
+    val >>= 7;
+    i++;
+  }
+
+  if (pEncoder->data) {
+    if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, 1)) return -1;
+    TD_CODER_CURRENT(pEncoder)[i] = (uint8_t)val;
+  }
+
+  TD_CODER_MOVE_POS(pEncoder, i + 1);
+
   return 0;
 }
 
