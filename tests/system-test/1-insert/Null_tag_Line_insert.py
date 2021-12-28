@@ -28,6 +28,13 @@ class TDTestCase():
         tdSql.init(conn.cursor(), logSql)
         self._conn = conn
 
+    def caseDescription(self):
+
+        '''
+        case1 <wenzhouwww>: [TD-11436] : this is an test case for line proto no tag insert into TDengine .
+        '''
+        return
+
     def getBuildPath(self, tool="taosd"):
         buildPath = ""
         selfPath = os.path.dirname(os.path.realpath(__file__))
