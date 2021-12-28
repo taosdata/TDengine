@@ -27,14 +27,7 @@ typedef struct {
   uint8_t*    data;
   int64_t     size;
   int64_t     pos;
-} SEncoder;
-
-typedef struct {
-  td_endian_t    endian;
-  const uint8_t* data;
-  int64_t        size;
-  int16_t        pos;
-} SDecoder;
+} SEncoder, SDecoder;
 
 #define tPut(TYPE, BUF, VAL) ((TYPE*)(BUF))[0] = (VAL)
 #define tGet(TYPE, BUF, VAL) (VAL) = ((TYPE*)(BUF))[0]
@@ -175,6 +168,7 @@ static FORCE_INLINE int tEncodeI64(SEncoder* pEncoder, int64_t val) {
   return 0;
 }
 
+// 16v
 static FORCE_INLINE int tEncodeU16v(SEncoder* pEncoder, uint16_t val) {
   int64_t i = 0;
   while (val >= ENCODE_LIMIT) {
@@ -199,6 +193,7 @@ static FORCE_INLINE int tEncodeU16v(SEncoder* pEncoder, uint16_t val) {
 
 static FORCE_INLINE int tEncodeI16v(SEncoder* pEncoder, int16_t val) { return tEncodeU16v(pEncoder, ZIGZAGE(val)); }
 
+// 32v
 static FORCE_INLINE int tEncodeU32v(SEncoder* pEncoder, uint32_t val) {
   int64_t i = 0;
   while (val >= ENCODE_LIMIT) {
@@ -223,6 +218,7 @@ static FORCE_INLINE int tEncodeU32v(SEncoder* pEncoder, uint32_t val) {
 
 static FORCE_INLINE int tEncodeI32v(SEncoder* pEncoder, int32_t val) { return tEncodeU32v(pEncoder, ZIGZAGE(val)); }
 
+// 64v
 static FORCE_INLINE int tEncodeU64v(SEncoder* pEncoder, uint64_t val) {
   int64_t i = 0;
   while (val >= ENCODE_LIMIT) {
@@ -248,7 +244,7 @@ static FORCE_INLINE int tEncodeU64v(SEncoder* pEncoder, uint64_t val) {
 static FORCE_INLINE int tEncodeI64v(SEncoder* pEncoder, int64_t val) { return tEncodeU64v(pEncoder, ZIGZAGE(val)); }
 
 /* ------------------------ FOR DECODER ------------------------ */
-static FORCE_INLINE void tInitDecoder(SDecoder* pDecoder, td_endian_t endian, const uint8_t* data, int64_t size) {
+static FORCE_INLINE void tInitDecoder(SDecoder* pDecoder, td_endian_t endian, uint8_t* data, int64_t size) {
   ASSERT(!TD_IS_NULL(data));
   pDecoder->endian = endian;
   pDecoder->data = data;
@@ -343,6 +339,39 @@ static FORCER_INLINE int tDecodeI64(SDecoder* pDecoder, int64_t* val) {
   }
 
   TD_CODER_MOVE_POS(pDecoder, sizeof(*val));
+  return 0;
+}
+
+// 16v
+static FORCE_INLINE int tDecodeU16v(SDecoder* pDecoder, uint16_t* val) {
+  // TODO
+  return 0;
+}
+
+static FORCE_INLINE int tDecodeI16v(SDecoder* pDecoder, int16_t* val) {
+  // TODO
+  return 0;
+}
+
+// 32v
+static FORCE_INLINE int tDecodeU32v(SDecoder* pDecoder, uint32_t* val) {
+  // TODO
+  return 0;
+}
+
+static FORCE_INLINE int tDecodeI32v(SDecoder* pDecoder, int32_t* val) {
+  // TODO
+  return 0;
+}
+
+// 64v
+static FORCE_INLINE int tDecodeU64v(SDecoder* pDecoder, uint64_t* val) {
+  // TODO
+  return 0;
+}
+
+static FORCE_INLINE int tDecodeI64v(SDecoder* pDecoder, int64_t* val) {
+  // TODO
   return 0;
 }
 
