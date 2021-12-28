@@ -173,7 +173,7 @@ TEST(testCase, create_dnode_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
-  TAOS_RES* pRes = taos_query(pConn, "create dnode abc1");
+  TAOS_RES* pRes = taos_query(pConn, "create dnode abc1 port 7000");
   if (taos_errno(pRes) != 0) {
     printf("error in create dnode, reason:%s\n", taos_errstr(pRes));
   }
@@ -291,7 +291,24 @@ TEST(testCase, create_table_Test) {
   //  taos_close(pConn);
 }
 
-TEST(testCase, create_ctable_Test) {}
+TEST(testCase, create_ctable_Test) {
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  assert(pConn != NULL);
+
+  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to use db, reason:%s\n", taos_errstr(pRes));
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table tm0 using st1 tags(1)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create child table tm0, reason:%s\n", taos_errstr(pRes));
+  }
+
+  taos_free_result(pRes);
+  taos_close(pConn);
+}
 
 TEST(testCase, show_stable_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);

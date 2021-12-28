@@ -379,8 +379,10 @@ SDropStbMsg* buildDropStableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* p
 SCreateDnodeMsg *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
   const char* msg1 = "invalid host name (name too long, maximum length 128)";
   const char* msg2 = "dnode name can not be string";
+  const char* msg3 = "port should be an integer that is less than 65535";
+  const char* msg4 = "failed prepare create dnode message";
 
-  if (taosArrayGetSize(pInfo->pMiscInfo->a) > 1) {
+  if (taosArrayGetSize(pInfo->pMiscInfo->a) != 2) {
     buildInvalidOperationMsg(pMsgBuf, msg1);
     return NULL;
   }
@@ -391,10 +393,31 @@ SCreateDnodeMsg *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMs
     return NULL;
   }
 
-  SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *) calloc(1, sizeof(SCreateDnodeMsg));
-  strncpy(pCreate->ep, id->z, id->n);
-  *len = sizeof(SCreateDnodeMsg);
+  SToken* port = taosArrayGet(pInfo->pMiscInfo->a, 1);
+  if (port->type != TK_INTEGER) {
+    buildInvalidOperationMsg(pMsgBuf, msg3);
+    return NULL;
+  }
 
+  bool    isSign = false;
+  int64_t val = 0;
+
+  toInteger(port->z, port->n, 10, &val, &isSign);
+  if (val >= UINT16_MAX) {
+    buildInvalidOperationMsg(pMsgBuf, msg3);
+    return NULL;
+  }
+
+  SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *) calloc(1, sizeof(SCreateDnodeMsg));
+  if (pCreate == NULL) {
+    buildInvalidOperationMsg(pMsgBuf, msg4);
+    return NULL;
+  }
+
+  strncpy(pCreate->ep, id->z, id->n);
+  pCreate->port = val;
+
+  *len = sizeof(SCreateDnodeMsg);
   return pCreate;
 }
 
