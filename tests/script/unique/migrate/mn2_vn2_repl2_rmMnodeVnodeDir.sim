@@ -51,7 +51,7 @@ sleep 1000
 sql connect
 sleep 1000
 sql create dnode $hostname2
-sleep 1000
+sleep 2000
 
 print ============== step2: create database with replica 2, and create table, insert data
 $totalTableNum = 10
