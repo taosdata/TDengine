@@ -350,34 +350,91 @@ static FORCER_INLINE int tDecodeI64(SDecoder* pDecoder, int64_t* val) {
 
 // 16v
 static FORCE_INLINE int tDecodeU16v(SDecoder* pDecoder, uint16_t* val) {
-  // TODO
+  int64_t i = 0;
+  *val = 0;
+  for (;;) {
+    if (TD_CHECK_CODER_CAPACITY_FAILED(pDecoder, 1)) return -1;
+    uint16_t tval = TD_CODER_CURRENT(pDecoder)[i];
+    if (tval < ENCODE_LIMIT) {
+      (*val) |= (tval << (7 * i));
+      break;
+    } else {
+      (*val) |= (((tval) & (ENCODE_LIMIT - 1)) << (7 * i));
+      i++;
+    }
+  }
+
+  TD_CODER_MOVE_POS(pDecoder, i);
+
   return 0;
 }
 
 static FORCE_INLINE int tDecodeI16v(SDecoder* pDecoder, int16_t* val) {
-  // TODO
+  uint16_t tval;
+  if (tDecodeU16v(pDecoder, &tval) < 0) {
+    return -1;
+  }
+  *val = ZIGZAGD(int16_t, tval);
   return 0;
 }
 
 // 32v
 static FORCE_INLINE int tDecodeU32v(SDecoder* pDecoder, uint32_t* val) {
-  // TODO
+  int64_t i = 0;
+  *val = 0;
+  for (;;) {
+    if (TD_CHECK_CODER_CAPACITY_FAILED(pDecoder, 1)) return -1;
+    uint32_t tval = TD_CODER_CURRENT(pDecoder)[i];
+    if (tval < ENCODE_LIMIT) {
+      (*val) |= (tval << (7 * i));
+      break;
+    } else {
+      (*val) |= (((tval) & (ENCODE_LIMIT - 1)) << (7 * i));
+      i++;
+    }
+  }
+
+  TD_CODER_MOVE_POS(pDecoder, i);
+
   return 0;
 }
 
 static FORCE_INLINE int tDecodeI32v(SDecoder* pDecoder, int32_t* val) {
-  // TODO
+  uint32_t tval;
+  if (tDecodeU32v(pDecoder, &tval) < 0) {
+    return -1;
+  }
+  *val = ZIGZAGD(int32_t, tval);
   return 0;
 }
 
 // 64v
 static FORCE_INLINE int tDecodeU64v(SDecoder* pDecoder, uint64_t* val) {
-  // TODO
+  int64_t i = 0;
+  *val = 0;
+  for (;;) {
+    if (TD_CHECK_CODER_CAPACITY_FAILED(pDecoder, 1)) return -1;
+    uint64_t tval = TD_CODER_CURRENT(pDecoder)[i];
+    if (tval < ENCODE_LIMIT) {
+      (*val) |= (tval << (7 * i));
+      break;
+    } else {
+      (*val) |= (((tval) & (ENCODE_LIMIT - 1)) << (7 * i));
+      i++;
+    }
+  }
+
+  TD_CODER_MOVE_POS(pDecoder, i);
+
   return 0;
 }
 
 static FORCE_INLINE int tDecodeI64v(SDecoder* pDecoder, int64_t* val) {
-  // TODO
+  uint64_t tval;
+  if (tDecodeU64v(pDecoder, &tval) < 0) {
+    return -1;
+  }
+  *val = ZIGZAGD(int64_t, tval);
   return 0;
 }
 
