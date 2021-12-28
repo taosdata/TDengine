@@ -15,6 +15,8 @@
 
 #include "vnodeDef.h"
 
+#if 0
+
 static int   vnodeBuildCreateTableReq(void **buf, const SVCreateTableReq *pReq);
 static void *vnodeParseCreateTableReq(void *buf, SVCreateTableReq *pReq);
 
@@ -114,3 +116,4 @@ int vnodeBuildDropTableReq(void **buf, const SVDropTableReq *pReq) {
 void *vnodeParseDropTableReq(void *buf, SVDropTableReq *pReq) {
   // TODO
 }
+#endif
