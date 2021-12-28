@@ -108,7 +108,7 @@ static FORCE_INLINE int tEncodeU16(SEncoder* pEncoder, uint16_t val) {
   return 0;
 }
 
-static FORCE_INLINE void tEncodeI16(SEncoder* pEncoder, int16_t val) {
+static FORCE_INLINE int tEncodeI16(SEncoder* pEncoder, int16_t val) {
   if (pEncoder->data) {
     if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, sizeof(val))) return -1;
     if (TD_RT_ENDIAN() == pEncoder->endian) {
@@ -122,7 +122,7 @@ static FORCE_INLINE void tEncodeI16(SEncoder* pEncoder, int16_t val) {
 }
 
 // 32
-static FORCE_INLINE void tEncodeU32(SEncoder* pEncoder, uint32_t val) {
+static FORCE_INLINE int tEncodeU32(SEncoder* pEncoder, uint32_t val) {
   if (pEncoder->data) {
     if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, sizeof(val))) return -1;
     if (TD_RT_ENDIAN() == pEncoder->endian) {
@@ -135,7 +135,7 @@ static FORCE_INLINE void tEncodeU32(SEncoder* pEncoder, uint32_t val) {
   return 0;
 }
 
-static FORCE_INLINE void tEncodeI32(SEncoder* pEncoder, int32_t val) {
+static FORCE_INLINE int tEncodeI32(SEncoder* pEncoder, int32_t val) {
   if (pEncoder->data) {
     if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, sizeof(val))) return -1;
     if (TD_RT_ENDIAN() == pEncoder->endian) {
@@ -149,7 +149,7 @@ static FORCE_INLINE void tEncodeI32(SEncoder* pEncoder, int32_t val) {
 }
 
 // 64
-static FORCE_INLINE void tEncodeU64(SEncoder* pEncoder, uint64_t val) {
+static FORCE_INLINE int tEncodeU64(SEncoder* pEncoder, uint64_t val) {
   if (pEncoder->data) {
     if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, sizeof(val))) return -1;
     if (TD_RT_ENDIAN() == pEncoder->endian) {
@@ -162,7 +162,7 @@ static FORCE_INLINE void tEncodeU64(SEncoder* pEncoder, uint64_t val) {
   return 0;
 }
 
-static FORCE_INLINE void tEncodeI32(SEncoder* pEncoder, int32_t val) {
+static FORCE_INLINE int tEncodeI32(SEncoder* pEncoder, int32_t val) {
   if (pEncoder->data) {
     if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, sizeof(val))) return -1;
     if (TD_RT_ENDIAN() == pEncoder->endian) {
