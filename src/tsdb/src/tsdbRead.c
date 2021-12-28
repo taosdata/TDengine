@@ -595,6 +595,7 @@ static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
 
   if (!pQueryHandle->pTableCheckInfo) {
     tsdbError("%p table check info is NULL", pQueryHandle);
+    terrno = TSDB_CODE_QRY_APP_ERROR;
     return -1;
   }
 
@@ -630,7 +631,9 @@ TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
     return NULL;
   }
 
-  lazyLoadCacheLast(pQueryHandle);
+  if (lazyLoadCacheLast(pQueryHandle) != TSDB_CODE_SUCCESS) {
+    return NULL;
+  };
 
   int32_t code = checkForCachedLastRow(pQueryHandle, groupList);
   if (code != TSDB_CODE_SUCCESS) { // set the numOfTables to be 0
@@ -652,7 +655,9 @@ TsdbQueryHandleT tsdbQueryCacheLast(STsdbRepo *tsdb, STsdbQueryCond *pCond, STab
     return NULL;
   }
 
-  lazyLoadCacheLast(pQueryHandle);
+  if (lazyLoadCacheLast(pQueryHandle) != TSDB_CODE_SUCCESS) {
+    return NULL;
+  }
 
   int32_t code = checkForCachedLast(pQueryHandle);
   if (code != TSDB_CODE_SUCCESS) { // set the numOfTables to be 0
@@ -2767,10 +2772,6 @@ static bool  loadBlockOfActiveTable(STsdbQueryHandle* pQueryHandle) {
 static bool loadCachedLastRow(STsdbQueryHandle* pQueryHandle) {
   // the last row is cached in buffer, return it directly.
   // here note that the pQueryHandle->window must be the TS_INITIALIZER
-  if (!pQueryHandle || !pQueryHandle->pTableCheckInfo) {
-    return false;
-  }
-
   int32_t numOfCols  = (int32_t)(QH_GET_NUM_OF_COLS(pQueryHandle));
   size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   assert(numOfTables > 0 && numOfCols > 0);
@@ -2810,10 +2811,6 @@ static bool loadCachedLastRow(STsdbQueryHandle* pQueryHandle) {
 static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
   // the last row is cached in buffer, return it directly.
   // here note that the pQueryHandle->window must be the TS_INITIALIZER
-  if (!pQueryHandle || !pQueryHandle->pTableCheckInfo) {
-    return false;
-  }
-
   int32_t tgNumOfCols = (int32_t)QH_GET_NUM_OF_COLS(pQueryHandle);
   size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   int32_t numOfRows = 0;
