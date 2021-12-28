@@ -179,6 +179,11 @@ extern "C" {
     sizeof(TYPE);             \
   })
 
+#define tPut_uint8_t_l(BUF, VAL, TYPE) tPut(BUF, VAL, TYPE)
+#define tGet_uint8_t_l(BUF, VAL, TYPE) tGet16l(BUF, VAL, TYPE)
+#define tPut_int8_t_l(BUF, VAL, TYPE) tPut16l(BUF, VAL, TYPE)
+#define tGet_int8_t_l(BUF, VAL, TYPE) tGet16l(BUF, VAL, TYPE)
+
 #define tPut_uint16_t_l(BUF, VAL, TYPE) tPut16l(BUF, VAL)
 #define tGet_uint16_t_l(BUF, VAL, TYPE) tGet16l(BUF, VAL)
 #define tPut_int16_t_l(BUF, VAL, TYPE) tPut16l(BUF, VAL)
@@ -193,6 +198,11 @@ extern "C" {
 #define tGet_uint64_t_l(BUF, VAL, TYPE) tGet64l(BUF, VAL)
 #define tPut_int64_t_l(BUF, VAL, TYPE) tPut64l(BUF, VAL)
 #define tGet_int64_t_l(BUF, VAL, TYPE) tGet64l(BUF, VAL)
+
+#define tPut_uint8_t_b(BUF, VAL, TYPE) tPut(BUF, VAL, TYPE)
+#define tGet_uint8_t_b(BUF, VAL, TYPE) tGet16l(BUF, VAL, TYPE)
+#define tPut_int8_t_b(BUF, VAL, TYPE) tPut16l(BUF, VAL, TYPE)
+#define tGet_int8_t_b(BUF, VAL, TYPE) tGet16l(BUF, VAL, TYPE)
 
 #define tPut_uint16_t_b(BUF, VAL, TYPE) tPut16b(BUF, VAL)
 #define tGet_uint16_t_b(BUF, VAL, TYPE) tGet16b(BUF, VAL)
@@ -216,6 +226,41 @@ extern "C" {
 #define tPutb(BUF, VAL, TYPE) tPut_##TYPE##_b(BUF, VAL, TYPE)
 
 #define tGetb(BUF, VAL, TYPE) tGet_##TYPE##_b(BUF, VAL, TYPE)
+
+#define tPutVal(BUF, VAL, TYPE, ENDIAN)          \
+  ({                                             \
+    int len;                                     \
+    if (TD_RT_ENDIAN() == (ENDIAN)) {            \
+      len = tPut(BUF, VAL, TYPE);                \
+    } else {                                     \
+      if ((ENDIAN) == TD_LITTLE_ENDIAN) {        \
+        len = tPutl(BUF, VAL, TYPE);             \
+      } else if ((ENDIAN) == TD_LITTLE_ENDIAN) { \
+        len = tPutb(BUF, VAL, TYPE);             \
+      } else {                                   \
+        ASSERT(0);                               \
+      }                                          \
+    }                                            \
+    if (BUF) BUF = BUF + len;                    \
+    len;                                         \
+  })
+
+#define tGetVal(BUF, VAL, TYPE, ENDIAN)       \
+  ({                                          \
+    int len;                                  \
+    if (TD_RT_ENDIAN() == (ENDIAN)) {         \
+      len = tGet(BUF, VAL, TYPE);             \
+    } else {                                  \
+      if ((ENDIAN) == TD_LITTLE_ENDIAN) {     \
+        len = tGetl(BUF, VAL, TYPE);          \
+      } else if ((ENDIAN) == TD_BIG_ENDIAN) { \
+        len = tGetb(BUF, VAL, TYPE);          \
+      } else {                                \
+      }                                       \
+    }                                         \
+    BUF = BUF + len;                          \
+    len;                                      \
+  })
 
 /* ------------------------ VARIANT-LENGTH ENCODING ------------------------ */
 #define vPut(BUF, VAL, SIGN)                                   \
