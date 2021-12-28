@@ -826,7 +826,8 @@ typedef struct SShowRsp {
 } SShowRsp;
 
 typedef struct {
-  char ep[TSDB_EP_LEN];  // end point, hostname:port
+  char    ep[TSDB_FQDN_LEN];  // end point, hostname:port
+  int32_t port;
 } SCreateDnodeMsg;
 
 typedef struct {
