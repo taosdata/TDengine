@@ -119,13 +119,6 @@ $ curl -u root:taosdata -d 'show databases' 127.0.0.1:6041/rest/sql
 $ docker run -d --name tdengine-taosa -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine:2.4.0.0
 ```
 
-然后进入 Docker 容器手动启动 taosAdapter 并退出：
-```
-$ docker exec -it tdengine-taosa bash
-# taosadapter &
-# exit
-```
-
 使用 curl 命令验证 RESTful 接口可以正常工作：
 ```
 $ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0.1:6041/rest/sql
