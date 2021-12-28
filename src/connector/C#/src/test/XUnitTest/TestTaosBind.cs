@@ -652,8 +652,8 @@ namespace TDengineDriver.Test
         {
             int bufferType = 8;
             String buffer = "qwertyuiopasdghjklzxcvbnm<>?:\"{}+_)(*&^%$#@!~QWERTYUIOP[]\\ASDFGHJKL;'ZXCVBNM,./`1234567890-=";
-            int bufferLength = buffer.Length;
-            int length = buffer.Length;
+            int bufferLength = System.Text.Encoding.Default.GetBytes(buffer).Length;
+            int length = System.Text.Encoding.Default.GetBytes(buffer).Length;
 
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBinary("qwertyuiopasdghjklzxcvbnm<>?:\"{}+_)(*&^%$#@!~QWERTYUIOP[]\\ASDFGHJKL;'ZXCVBNM,./`1234567890-=");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
@@ -674,8 +674,8 @@ namespace TDengineDriver.Test
         {
             int bufferType = 8;
             String buffer = "一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./";
-            int bufferLength = buffer.Length;
-            int length = buffer.Length;
+            int bufferLength = System.Text.Encoding.Default.GetBytes(buffer).Length;
+            int length = System.Text.Encoding.Default.GetBytes(buffer).Length;
 
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBinary("一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
@@ -696,8 +696,8 @@ namespace TDengineDriver.Test
         {
             int bufferType = 8;
             String buffer = "一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM";
-            int bufferLength = buffer.Length;
-            int length = buffer.Length;
+            int bufferLength = System.Text.Encoding.Default.GetBytes(buffer).Length;
+            int length = System.Text.Encoding.Default.GetBytes(buffer).Length;
 
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBinary("一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
@@ -718,8 +718,8 @@ namespace TDengineDriver.Test
         {
             int bufferType = 10;
             String buffer = "qwertyuiopasdghjklzxcvbnm<>?:\"{}+_)(*&^%$#@!~QWERTYUIOP[]\\ASDFGHJKL;'ZXCVBNM,./`1234567890-=";
-            int bufferLength = buffer.Length;
-            int length = buffer.Length;
+            int bufferLength = System.Text.Encoding.Default.GetBytes(buffer).Length;
+            int length = System.Text.Encoding.Default.GetBytes(buffer).Length;
 
             TDengineDriver.TAOS_BIND bind = TaosBind.BindNchar("qwertyuiopasdghjklzxcvbnm<>?:\"{}+_)(*&^%$#@!~QWERTYUIOP[]\\ASDFGHJKL;'ZXCVBNM,./`1234567890-=");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
@@ -739,8 +739,8 @@ namespace TDengineDriver.Test
         {
             int bufferType = 10;
             String buffer = "一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./";
-            int bufferLength = buffer.Length;
-            int length = buffer.Length;
+            int bufferLength = System.Text.Encoding.Default.GetBytes(buffer).Length;
+            int length = System.Text.Encoding.Default.GetBytes(buffer).Length;
 
             TDengineDriver.TAOS_BIND bind = TaosBind.BindNchar("一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
@@ -760,8 +760,8 @@ namespace TDengineDriver.Test
         {
             int bufferType = 10;
             String buffer = "一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM";
-            int bufferLength = buffer.Length;
-            int length = buffer.Length;
+            int bufferLength = System.Text.Encoding.Default.GetBytes(buffer).Length;
+            int length = System.Text.Encoding.Default.GetBytes(buffer).Length;
 
             TDengineDriver.TAOS_BIND bind = TaosBind.BindNchar("一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
