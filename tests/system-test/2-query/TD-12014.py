@@ -48,7 +48,7 @@ class TDTestCase:
     def caseDescription(self):
 
         '''
-        case1 <author>:wenzhouwww [TD-12014] : 
+        case1 <wenzhouwww>:[TD-12014] : 
             this test case is an test case for taoshell crash ， it will coredump when query such as "select 1*now from st "
 
         ''' 
