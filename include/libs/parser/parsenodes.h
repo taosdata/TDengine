@@ -166,6 +166,7 @@ typedef struct SInsertStmtInfo {
 typedef struct SDclStmtInfo {
   int16_t     nodeType;
   int16_t     msgType;
+  SEpSet      epSet;
   char*       pMsg;
   int32_t     msgLen;
 } SDclStmtInfo;
