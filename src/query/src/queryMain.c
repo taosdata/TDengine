@@ -407,6 +407,8 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
 
   (*pRsp)->precision = htons(pQueryAttr->precision);
+  (*pRsp)->sVersion = htonl(pQueryAttr->tableGroupInfo.sVersion);
+  (*pRsp)->tVersion = htonl(pQueryAttr->tableGroupInfo.tVersion);
   (*pRsp)->compressed = (int8_t)((tsCompressColData != -1) && checkNeedToCompressQueryCol(pQInfo));
 
   if (GET_NUM_OF_RESULTS(&(pQInfo->runtimeEnv)) > 0 && pQInfo->code == TSDB_CODE_SUCCESS) {

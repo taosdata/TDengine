@@ -2755,6 +2755,8 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
 
   pRes->numOfRows  = htonl(pRetrieve->numOfRows);
   pRes->precision  = htons(pRetrieve->precision);
+  pRes->sVersion = htonl(pRetrieve->sVersion);
+  pRes->tVersion = htonl(pRetrieve->tVersion);
   pRes->offset     = htobe64(pRetrieve->offset);
   pRes->useconds   = htobe64(pRetrieve->useconds);
   pRes->completed  = (pRetrieve->completed == 1);
