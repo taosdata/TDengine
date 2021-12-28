@@ -229,6 +229,6 @@ void qParserClearupMetaRequestInfo(SCatalogReq* pMetaReq) {
   taosArrayDestroy(pMetaReq->pUdf);
 }
 
-void qDestoryQuery(SQueryNode* pQuery) {
+void qDestroyQuery(SQueryNode* pQuery) {
   // todo
 }
