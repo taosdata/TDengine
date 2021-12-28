@@ -33,8 +33,8 @@ Please download TDengine 2.3.0.0 or the above version from TAOS Data's [official
 ### Download TDengine plugin to Grafana plugin's directory
 
 ```bash
-1. wget -c https://github.com/taosdata/grafanaplugin/releases/download/v3.1.1/tdengine-datasource-3.1.1.zip
-2. sudo unzip tdengine-datasource-3.1.1.zip -d /var/lib/grafana/plugins/
+1. wget -c https://github.com/taosdata/grafanaplugin/releases/download/v3.1.3/tdengine-datasource-3.1.3.zip
+2. sudo unzip tdengine-datasource-3.1.3.zip -d /var/lib/grafana/plugins/
 3. sudo chown grafana:grafana -R /var/lib/grafana/plugins/tdengine
 4. echo -e "[plugins]\nallow_loading_unsigned_plugins = tdengine-datasource\n" | sudo tee -a /etc/grafana/grafana.ini
 5. sudo systemctl restart grafana-server.service

@@ -247,7 +247,7 @@ acct_optr(Y) ::= pps(C) tseries(D) storage(P) streams(F) qtime(Q) dbs(E) users(K
 }
 
 %type intitemlist {SArray*}
-%destructor intitemlist {taosArrayDestroy($$);}
+%destructor intitemlist {taosArrayDestroy(&$$);}
 
 %type intitem {tVariant}
 intitemlist(A) ::= intitemlist(X) COMMA intitem(Y). { A = tVariantListAppend(X, &Y, -1);    }
@@ -256,7 +256,7 @@ intitemlist(A) ::= intitem(X).                      { A = tVariantListAppend(NUL
 intitem(A) ::= INTEGER(X).      { toTSDBType(X.type); tVariantCreate(&A, &X); }
 
 %type keep {SArray*}
-%destructor keep {taosArrayDestroy($$);}
+%destructor keep {taosArrayDestroy(&$$);}
 keep(Y)    ::= KEEP intitemlist(X).           { Y = X; }
 
 cache(Y)   ::= CACHE INTEGER(X).              { Y = X; }
@@ -405,7 +405,7 @@ create_from_stable(A) ::= ifnotexists(U) ids(V) cpxName(Z) USING ids(X) cpxName(
 }
 
 %type tagNamelist{SArray*}
-%destructor tagNamelist {taosArrayDestroy($$);}
+%destructor tagNamelist {taosArrayDestroy(&$$);}
 tagNamelist(A) ::= tagNamelist(X) COMMA ids(Y).  {taosArrayPush(X, &Y); A = X;  }
 tagNamelist(A) ::= ids(X).                      {A = taosArrayInit(4, sizeof(SStrToken)); taosArrayPush(A, &X);}
 
@@ -421,7 +421,7 @@ create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) AS select(S). {
 
 %type column{TAOS_FIELD}
 %type columnlist{SArray*}
-%destructor columnlist {taosArrayDestroy($$);}
+%destructor columnlist {taosArrayDestroy(&$$);}
 columnlist(A) ::= columnlist(X) COMMA column(Y).  {taosArrayPush(X, &Y); A = X;  }
 columnlist(A) ::= column(X).                      {A = taosArrayInit(4, sizeof(TAOS_FIELD)); taosArrayPush(A, &X);}
 
@@ -432,7 +432,7 @@ column(A) ::= ids(X) typename(Y).          {
 }
 
 %type tagitemlist {SArray*}
-%destructor tagitemlist {taosArrayDestroy($$);}
+%destructor tagitemlist {taosArrayDestroy(&$$);}
 
 %type tagitem {tVariant}
 tagitemlist(A) ::= tagitemlist(X) COMMA tagitem(Y). { A = tVariantListAppend(X, &Y, -1);    }
@@ -614,7 +614,7 @@ windowstate_option(X) ::= .                                                { X.c
 windowstate_option(X) ::= STATE_WINDOW LP ids(V) RP.                       { X.col = V; }
 
 %type fill_opt {SArray*}
-%destructor fill_opt {taosArrayDestroy($$);}
+%destructor fill_opt {taosArrayDestroy(&$$);}
 fill_opt(N) ::= .                                           { N = 0;     }
 fill_opt(N) ::= FILL LP ID(Y) COMMA tagitemlist(X) RP.      {
     tVariant A = {0};
@@ -635,10 +635,10 @@ sliding_opt(K) ::= SLIDING LP tmvar(E) RP.      {K = E;     }
 sliding_opt(K) ::= .                            {K.n = 0; K.z = NULL; K.type = 0;   }
 
 %type orderby_opt {SArray*}
-%destructor orderby_opt {taosArrayDestroy($$);}
+%destructor orderby_opt {taosArrayDestroy(&$$);}
 
 %type sortlist {SArray*}
-%destructor sortlist {taosArrayDestroy($$);}
+%destructor sortlist {taosArrayDestroy(&$$);}
 
 orderby_opt(A) ::= .                          {A = 0;}
 orderby_opt(A) ::= ORDER BY sortlist(X).      {A = X;}
@@ -677,9 +677,9 @@ sortorder(A) ::= .              { A = TSDB_ORDER_ASC; }  // Ascending order by d
 
 //group by clause
 %type groupby_opt {SArray*}
-%destructor groupby_opt {taosArrayDestroy($$);}
+%destructor groupby_opt {taosArrayDestroy(&$$);}
 %type grouplist {SArray*}
-%destructor grouplist {taosArrayDestroy($$);}
+%destructor grouplist {taosArrayDestroy(&$$);}
 
 groupby_opt(A) ::= .                       { A = 0;}
 groupby_opt(A) ::= GROUP BY grouplist(X).  { A = X;}
