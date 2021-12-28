@@ -349,7 +349,7 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj *pRequest) {
   pMsgSendInfo->msgInfo.len     = sizeof(SConnectMsg);
   pMsgSendInfo->requestObjRefId = pRequest->self;
   pMsgSendInfo->requestId       = pRequest->requestId;
-  pMsgSendInfo->fp              = handleRequestRspFp[pMsgSendInfo->msgType];
+  pMsgSendInfo->fp              = handleRequestRspFp[TMSG_INDEX(pMsgSendInfo->msgType)];
   pMsgSendInfo->param           = pRequest;
 
   SConnectMsg *pConnect = calloc(1, sizeof(SConnectMsg));

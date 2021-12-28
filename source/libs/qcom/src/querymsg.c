@@ -16,6 +16,7 @@
 #include "tmsg.h"
 #include "queryInt.h"
 #include "query.h"
+#include "trpc.h"
 
 int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen) = {0};
 
@@ -31,7 +32,7 @@ int32_t queryBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int3
   int32_t estimateSize = sizeof(STableInfoMsg);
   if (NULL == *msg || msgSize < estimateSize) {
     tfree(*msg);
-    *msg = calloc(1, estimateSize);
+    *msg = rpcMallocCont(estimateSize);
     if (NULL == *msg) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
@@ -59,7 +60,7 @@ int32_t queryBuildUseDbMsg(void* input, char **msg, int32_t msgSize, int32_t *ms
   int32_t estimateSize = sizeof(SUseDbMsg);
   if (NULL == *msg || msgSize < estimateSize) {
     tfree(*msg);
-    *msg = calloc(1, estimateSize);
+    *msg = rpcMallocCont(estimateSize);
     if (NULL == *msg) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
@@ -265,13 +266,13 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
 
 
 void initQueryModuleMsgHandle() {
-  queryBuildMsg[TDMT_VND_TABLE_META] = queryBuildTableMetaReqMsg;
-  queryBuildMsg[TDMT_MND_STB_META] = queryBuildTableMetaReqMsg;
-  queryBuildMsg[TDMT_MND_USE_DB] = queryBuildUseDbMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_STB_META)] = queryBuildTableMetaReqMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_USE_DB)] = queryBuildUseDbMsg;
 
-  queryProcessMsgRsp[TDMT_VND_TABLE_META] = queryProcessTableMetaRsp;
-  queryProcessMsgRsp[TDMT_MND_STB_META] = queryProcessTableMetaRsp;
-  queryProcessMsgRsp[TDMT_MND_USE_DB] = queryProcessUseDBRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryProcessTableMetaRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_STB_META)] = queryProcessTableMetaRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_USE_DB)] = queryProcessUseDBRsp;
 }
 
 
