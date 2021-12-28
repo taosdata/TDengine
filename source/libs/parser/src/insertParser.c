@@ -173,9 +173,9 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
   char fullDbName[TSDB_DB_FNAME_LEN] = {0};
   char tableName[TSDB_TABLE_NAME_LEN] = {0};
   CHECK_CODE(buildName(pCxt, pTname, fullDbName, tableName));
-  CHECK_CODE(catalogGetTableMeta(pCxt->pComCxt->pCatalog, pCxt->pComCxt->ctx.pTransporter, &pCxt->pComCxt->ctx.mgmtEpSet, fullDbName, tableName, &pCxt->pTableMeta));
+  CHECK_CODE(catalogGetTableMeta(pCxt->pComCxt->ctx.pCatalog, pCxt->pComCxt->ctx.pTransporter, &pCxt->pComCxt->ctx.mgmtEpSet, fullDbName, tableName, &pCxt->pTableMeta));
   SVgroupInfo vg;
-  CHECK_CODE(catalogGetTableHashVgroup(pCxt->pComCxt->pCatalog, pCxt->pComCxt->ctx.pTransporter, &pCxt->pComCxt->ctx.mgmtEpSet, fullDbName, tableName, &vg));
+  CHECK_CODE(catalogGetTableHashVgroup(pCxt->pComCxt->ctx.pCatalog, pCxt->pComCxt->ctx.pTransporter, &pCxt->pComCxt->ctx.mgmtEpSet, fullDbName, tableName, &vg));
   CHECK_CODE(taosHashPut(pCxt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg)));
   return TSDB_CODE_SUCCESS;
 }
