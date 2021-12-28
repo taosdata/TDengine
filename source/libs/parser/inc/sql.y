@@ -445,6 +445,15 @@ tagitemlist1(A) ::= tagitem1(Y). { A = taosArrayInit(4, sizeof(SToken)); taosArr
 
 %type tagitem1 {SToken}
 tagitem1(A) ::= MINUS(X) INTEGER(Y). { A.n = X.n + Y.n; A.type = Y.type; }
+tagitem1(A) ::= MINUS(X) FLOAT(Y).   { A.n = X.n + Y.n; A.type = Y.type; }
+tagitem1(A) ::= PLUS(X) INTEGER(Y).  { A.n = X.n + Y.n; A.type = Y.type; }
+tagitem1(A) ::= PLUS(X)   FLOAT(Y).  { A.n = X.n + Y.n; A.type = Y.type; }
+tagitem1(A) ::= INTEGER(X).      { A = X; }
+tagitem1(A) ::= FLOAT(X).        { A = X; }
+tagitem1(A) ::= STRING(X).       { A = X; }
+tagitem1(A) ::= BOOL(X).         { A = X; }
+tagitem1(A) ::= NULL(X).         { A = X; }
+tagitem1(A) ::= NOW(X).          { A = X; }
 
 %type tagitemlist {SArray*}
 %destructor tagitemlist {taosArrayDestroy($$);}

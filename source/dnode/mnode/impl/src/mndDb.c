@@ -69,7 +69,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pDb->name, TSDB_FULL_DB_NAME_LEN)
+  SDB_SET_BINARY(pRaw, dataPos, pDb->name, TSDB_DB_FNAME_LEN)
   SDB_SET_BINARY(pRaw, dataPos, pDb->acct, TSDB_USER_LEN)
   SDB_SET_INT64(pRaw, dataPos, pDb->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pDb->updateTime)
@@ -116,7 +116,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   if (pDb == NULL) return NULL;
 
   int32_t dataPos = 0;
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pDb->name, TSDB_FULL_DB_NAME_LEN)
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pDb->name, TSDB_DB_FNAME_LEN)
   SDB_GET_BINARY(pRaw, pRow, dataPos, pDb->acct, TSDB_USER_LEN)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pDb->createdTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pDb->updateTime)
@@ -353,11 +353,11 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 
 static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreate, SUserObj *pUser) {
   SDbObj dbObj = {0};
-  memcpy(dbObj.name, pCreate->db, TSDB_FULL_DB_NAME_LEN);
+  memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
   memcpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
   dbObj.createdTime = taosGetTimestampMs();
   dbObj.updateTime = dbObj.createdTime;
-  dbObj.uid = mndGenerateUid(dbObj.name, TSDB_FULL_DB_NAME_LEN);
+  dbObj.uid = mndGenerateUid(dbObj.name, TSDB_DB_FNAME_LEN);
   dbObj.cfgVersion = 1;
   dbObj.vgVersion = 1;
   dbObj.hashMethod = 1;
@@ -891,7 +891,7 @@ static int32_t mndProcessUseDbMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  memcpy(pRsp->db, pDb->name, TSDB_FULL_DB_NAME_LEN);
+  memcpy(pRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
   pRsp->vgVersion = htonl(pDb->vgVersion);
   pRsp->vgNum = htonl(vindex);
   pRsp->hashMethod = pDb->hashMethod;

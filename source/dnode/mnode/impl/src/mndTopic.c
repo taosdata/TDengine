@@ -79,7 +79,7 @@ static SSdbRaw *mndTopicActionEncode(STopicObj *pTopic) {
 
   int32_t dataPos = 0;
   SDB_SET_BINARY(pRaw, dataPos, pTopic->name, TSDB_TABLE_FNAME_LEN);
-  SDB_SET_BINARY(pRaw, dataPos, pTopic->db, TSDB_FULL_DB_NAME_LEN);
+  SDB_SET_BINARY(pRaw, dataPos, pTopic->db, TSDB_DB_FNAME_LEN);
   SDB_SET_INT64(pRaw, dataPos, pTopic->createTime);
   SDB_SET_INT64(pRaw, dataPos, pTopic->updateTime);
   SDB_SET_INT64(pRaw, dataPos, pTopic->uid);
@@ -113,7 +113,7 @@ static SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
 
   int32_t dataPos = 0;
   SDB_GET_BINARY(pRaw, pRow, dataPos, pTopic->name, TSDB_TABLE_FNAME_LEN);
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pTopic->db, TSDB_FULL_DB_NAME_LEN);
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pTopic->db, TSDB_DB_FNAME_LEN);
   SDB_GET_INT64(pRaw, pRow, dataPos, &pTopic->createTime);
   SDB_GET_INT64(pRaw, pRow, dataPos, &pTopic->updateTime);
   SDB_GET_INT64(pRaw, pRow, dataPos, &pTopic->uid);
@@ -348,7 +348,7 @@ static int32_t mndSetCreateTopicUndoActions(SMnode *pMnode, STrans *pTrans, SDbO
 static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pMsg, SCreateTopicMsg *pCreate, SDbObj *pDb) {
   STopicObj topicObj = {0};
   tstrncpy(topicObj.name, pCreate->name, TSDB_TABLE_FNAME_LEN);
-  tstrncpy(topicObj.db, pDb->name, TSDB_FULL_DB_NAME_LEN);
+  tstrncpy(topicObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   topicObj.createTime = taosGetTimestampMs();
   topicObj.updateTime = topicObj.createTime;
   topicObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);

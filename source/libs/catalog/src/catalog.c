@@ -536,8 +536,8 @@ int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta) {
-  return ctgGetTableMetaImpl(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, false, pTableMeta);
+int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta) {
+  return ctgGetTableMetaImpl(pCatalog, pTransporter, pMgmtEps, pDBName, pTableName, false, pTableMeta);
 }
 
 int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName) {
@@ -640,7 +640,7 @@ int32_t catalogGetAllMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* p
   int32_t code = 0;
 
   if (pReq->pTableName) {
-    char dbName[TSDB_FULL_DB_NAME_LEN];
+    char dbName[TSDB_DB_FNAME_LEN];
     int32_t tbNum = (int32_t)taosArrayGetSize(pReq->pTableName);
     if (tbNum > 0) {
       pRsp->pTableMeta = taosArrayInit(tbNum, POINTER_BYTES);

@@ -39,3 +39,12 @@ void updateEpSet_s(SCorEpSet *pEpSet, SEpSet *pNewEpSet) {
   taosCorEndWrite(&pEpSet->version);
 }
 
+SEpSet getEpSet_s(SCorEpSet *pEpSet) {
+  SEpSet ep = {0};
+  taosCorBeginRead(&pEpSet->version);
+  ep = pEpSet->epSet;
+  taosCorEndRead(&pEpSet->version);
+
+  return ep;
+}
+
