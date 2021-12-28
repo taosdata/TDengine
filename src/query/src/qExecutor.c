@@ -3594,7 +3594,7 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
     for(int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
       SColumnInfoData *pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
 
-      char* p = realloc(pColInfo->pData, newSize * pColInfo->info.bytes);
+      char* p = realloc(pColInfo->pData, ((size_t)newSize) * pColInfo->info.bytes);
       if (p != NULL) {
         pColInfo->pData = p;
 
@@ -3602,8 +3602,9 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
         pBInfo->pCtx[i].pOutput = pColInfo->pData;
         (*bufCapacity) = newSize;
       } else {
-        size_t allocateSize = newSize * pColInfo->info.bytes;
-        qError("can not allocate %zu bytes for output", allocateSize);
+        size_t allocateSize = ((size_t)(newSize)) * pColInfo->info.bytes;
+        qError("can not allocate %zu bytes for output. Rows: %d, colBytes %d", 
+                        allocateSize, newSize, pColInfo->info.bytes);
         longjmp(runtimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
     }
@@ -3612,7 +3613,7 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
 
   for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
     SColumnInfoData *pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
-    pBInfo->pCtx[i].pOutput = pColInfo->pData + pColInfo->info.bytes * pDataBlock->info.rows;
+    pBInfo->pCtx[i].pOutput = pColInfo->pData + (size_t)pColInfo->info.bytes * pDataBlock->info.rows;
 
     // set the correct pointer after the memory buffer reallocated.
     int32_t functionId = pBInfo->pCtx[i].functionId;
