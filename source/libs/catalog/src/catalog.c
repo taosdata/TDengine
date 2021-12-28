@@ -394,7 +394,7 @@ int32_t catalogInit(SCatalogCfg *cfg) {
     ctgMgmt.cfg.maxTblCacheNum = CTG_DEFAULT_CACHE_TABLEMETA_NUMBER;
   }
 
-  if (CTG_CACHE_ENABLED(&ctgMgmt.cfg)) {
+  if (CTG_CACHE_ENABLED()) {
     ctgMgmt.pCluster = taosHashInit(CTG_DEFAULT_CACHE_CLUSTER_NUMBER, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
     if (NULL == ctgMgmt.pCluster) {
       CTG_ERR_LRET(TSDB_CODE_CTG_INTERNAL_ERROR, "init %d cluster cache failed", CTG_DEFAULT_CACHE_CLUSTER_NUMBER);
