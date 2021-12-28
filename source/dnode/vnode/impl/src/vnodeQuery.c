@@ -32,6 +32,22 @@ int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
 static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   STableInfoMsg *pReq = (STableInfoMsg *)(pMsg->pCont);
+  STableMetaMsg *pRspMsg;
+  int            ret;
+
+  if (metaGetTableInfo(pVnode->pMeta, pReq->tableFname, &pRspMsg) < 0) {
+    return -1;
+  }
+
+  *pRsp = malloc(sizeof(SRpcMsg));
+  if (TD_IS_NULL(*pRsp)) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    free(pMsg);
+    return -1;
+  }
+
   // TODO
+  (*pRsp)->pCont = pRspMsg;
+
   return 0;
 }

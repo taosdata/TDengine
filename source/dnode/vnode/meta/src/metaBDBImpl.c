@@ -429,3 +429,19 @@ static void metaClearTbCfg(STbCfg *pTbCfg) {
     tfree(pTbCfg->ctbCfg.pTag);
   }
 }
+
+/* ------------------------ FOR QUERY ------------------------ */
+int metaGetTableInfo(SMeta *pMeta, const char *tbname, STableMetaMsg **ppMsg) {
+  DBT      key = {0};
+  DBT      value = {0};
+  SMetaDB *pMetaDB = pMeta->pDB;
+
+  key.data = tbname;
+  key.size = strlen(tbname) + 1;
+
+  pMetaDB->pNameIdx->get(pMetaDB->pNameIdx, NULL, &key, &value, 0);
+
+  // TODO: construct the message body
+
+  return 0;
+}

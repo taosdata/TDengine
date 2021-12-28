@@ -18,8 +18,8 @@
 
 #include "mallocator.h"
 #include "os.h"
-#include "trow.h"
 #include "tmsg.h"
+#include "trow.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,6 +46,9 @@ void   metaRemove(const char *path);
 int    metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg);
 int    metaDropTable(SMeta *pMeta, tb_uid_t uid);
 int    metaCommit(SMeta *pMeta);
+
+// For Query
+int metaGetTableInfo(SMeta *pMeta, const char *tbname, STableMetaMsg **ppMsg);
 
 // Options
 void metaOptionsInit(SMetaCfg *pMetaCfg);
