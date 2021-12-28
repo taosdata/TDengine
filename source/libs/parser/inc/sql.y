@@ -200,7 +200,7 @@ ifnotexists(X) ::= .                { X.n = 0;}
 
 /////////////////////////////////THE CREATE STATEMENT///////////////////////////////////////
 //create option for dnode/db/user/account
-cmd ::= CREATE DNODE   ids(X).     { setDCLSqlElems(pInfo, TSDB_SQL_CREATE_DNODE, 1, &X);}
+cmd ::= CREATE DNODE   ids(X) PORT ids(Y).     { setDCLSqlElems(pInfo, TSDB_SQL_CREATE_DNODE, 2, &X, &Y);}
 cmd ::= CREATE ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).
                                 { setCreateAcctSql(pInfo, TSDB_SQL_CREATE_ACCT, &X, &Y, &Z);}
 cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
@@ -398,13 +398,13 @@ create_stable_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP T
 // create table by using super table
 // create table table_name using super_table_name tags(tag_values1, tag_values2)
 %type create_from_stable{SCreatedTableInfo}
-create_from_stable(A) ::= ifnotexists(U) ids(V) cpxName(Z) USING ids(X) cpxName(F) TAGS LP tagitemlist(Y) RP.  {
+create_from_stable(A) ::= ifnotexists(U) ids(V) cpxName(Z) USING ids(X) cpxName(F) TAGS LP tagitemlist1(Y) RP.  {
   X.n += F.n;
   V.n += Z.n;
   A = createNewChildTableInfo(&X, NULL, Y, &V, &U);
 }
 
-create_from_stable(A) ::= ifnotexists(U) ids(V) cpxName(Z) USING ids(X) cpxName(F) LP tagNamelist(P) RP TAGS LP tagitemlist(Y) RP.  {
+create_from_stable(A) ::= ifnotexists(U) ids(V) cpxName(Z) USING ids(X) cpxName(F) LP tagNamelist(P) RP TAGS LP tagitemlist1(Y) RP.  {
   X.n += F.n;
   V.n += Z.n;
   A = createNewChildTableInfo(&X, P, Y, &V, &U);
@@ -436,6 +436,24 @@ columnlist(A) ::= column(X).                      {A = taosArrayInit(4, sizeof(S
 column(A) ::= ids(X) typename(Y).          {
   tSetColumnInfo(&A, &X, &Y);
 }
+
+%type tagitemlist1 {SArray*}
+%destructor tagitemlist1 {taosArrayDestroy($$);}
+
+tagitemlist1(A) ::= tagitemlist1(X) COMMA tagitem1(Y). { taosArrayPush(X, &Y); A = X;}
+tagitemlist1(A) ::= tagitem1(Y). { A = taosArrayInit(4, sizeof(SToken)); taosArrayPush(A, &Y); }
+
+%type tagitem1 {SToken}
+tagitem1(A) ::= MINUS(X) INTEGER(Y). { A.n = X.n + Y.n; A.type = Y.type; }
+tagitem1(A) ::= MINUS(X) FLOAT(Y).   { A.n = X.n + Y.n; A.type = Y.type; }
+tagitem1(A) ::= PLUS(X) INTEGER(Y).  { A.n = X.n + Y.n; A.type = Y.type; }
+tagitem1(A) ::= PLUS(X)   FLOAT(Y).  { A.n = X.n + Y.n; A.type = Y.type; }
+tagitem1(A) ::= INTEGER(X).      { A = X; }
+tagitem1(A) ::= FLOAT(X).        { A = X; }
+tagitem1(A) ::= STRING(X).       { A = X; }
+tagitem1(A) ::= BOOL(X).         { A = X; }
+tagitem1(A) ::= NULL(X).         { A = X; }
+tagitem1(A) ::= NOW(X).          { A = X; }
 
 %type tagitemlist {SArray*}
 %destructor tagitemlist {taosArrayDestroy($$);}

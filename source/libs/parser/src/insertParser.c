@@ -162,7 +162,7 @@ static int32_t buildName(SInsertParseContext* pCxt, SToken* pStname, char* fullD
     strncpy(fullDbName + n, pStname->z, p - pStname->z);
     strncpy(tableName, p + 1, pStname->n - (p - pStname->z) - 1);
   } else {
-    snprintf(fullDbName, TSDB_FULL_DB_NAME_LEN, "%d.%s", pCxt->pComCxt->ctx.acctId, pCxt->pComCxt->ctx.db);
+    snprintf(fullDbName, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pComCxt->ctx.acctId, pCxt->pComCxt->ctx.db);
     strncpy(tableName, pStname->z, pStname->n);
   }
 
@@ -170,12 +170,12 @@ static int32_t buildName(SInsertParseContext* pCxt, SToken* pStname, char* fullD
 }
 
 static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
-  char fullDbName[TSDB_FULL_DB_NAME_LEN] = {0};
+  char fullDbName[TSDB_DB_FNAME_LEN] = {0};
   char tableName[TSDB_TABLE_NAME_LEN] = {0};
   CHECK_CODE(buildName(pCxt, pTname, fullDbName, tableName));
-  CHECK_CODE(catalogGetTableMeta(pCxt->pComCxt->pCatalog, pCxt->pComCxt->pRpc, pCxt->pComCxt->pEpSet, fullDbName, tableName, &pCxt->pTableMeta));
+  CHECK_CODE(catalogGetTableMeta(pCxt->pComCxt->ctx.pCatalog, pCxt->pComCxt->ctx.pTransporter, &pCxt->pComCxt->ctx.mgmtEpSet, fullDbName, tableName, &pCxt->pTableMeta));
   SVgroupInfo vg;
-  CHECK_CODE(catalogGetTableHashVgroup(pCxt->pComCxt->pCatalog, pCxt->pComCxt->pRpc, pCxt->pComCxt->pEpSet, fullDbName, tableName, &vg));
+  CHECK_CODE(catalogGetTableHashVgroup(pCxt->pComCxt->ctx.pCatalog, pCxt->pComCxt->ctx.pTransporter, &pCxt->pComCxt->ctx.mgmtEpSet, fullDbName, tableName, &vg));
   CHECK_CODE(taosHashPut(pCxt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg)));
   return TSDB_CODE_SUCCESS;
 }

@@ -796,6 +796,7 @@ void dndCleanupMnode(SDnode *pDnode) {
   if (pMgmt->pMnode) dndStopMnodeWorker(pDnode);
   tfree(pMgmt->file);
   mndClose(pMgmt->pMnode);
+  pMgmt->pMnode = NULL;
   dInfo("dnode-mnode is cleaned up");
 }
 

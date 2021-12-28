@@ -145,14 +145,32 @@ int32_t buildRequest(STscObj *pTscObj, const char *sql, int sqlLen, SRequestObj*
 }
 
 int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
+  STscObj* pTscObj = pRequest->pTscObj;
+
   SParseContext cxt = {
-    .ctx = {.requestId = pRequest->requestId, .acctId = pRequest->pTscObj->acctId, .db = getConnectionDB(pRequest->pTscObj)},
-    .pSql = pRequest->sqlstr,
+    .ctx = {.requestId = pRequest->requestId, .acctId = pTscObj->acctId, .db = getConnectionDB(pTscObj), .pTransporter = pTscObj->pTransporter},
+    .pSql   = pRequest->sqlstr,
     .sqlLen = pRequest->sqlLen,
-    .pMsg = pRequest->msgBuf,
+    .pMsg   = pRequest->msgBuf,
     .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE
   };
-  int32_t code = qParseQuerySql(&cxt, pQuery);
+
+  cxt.ctx.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+  // todo OPT performance
+  char buf[12] = {0};
+  sprintf(buf, "%"PRId64, pTscObj->pAppInfo->clusterId);
+
+  struct SCatalog* pCatalog = NULL;
+  int32_t code = catalogGetHandle(buf, &pCatalog);
+  if (code != TSDB_CODE_SUCCESS) {
+    tfree(cxt.ctx.db);
+    return code;
+  }
+
+  cxt.ctx.pCatalog = pCatalog;
+  code = qParseQuerySql(&cxt, pQuery);
+
   tfree(cxt.ctx.db);
   return code;
 }
@@ -164,7 +182,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
 
   STscObj* pTscObj = pRequest->pTscObj;
 
-  SMsgSendInfo* body = buildSendMsgInfoImpl(pRequest);
+  SMsgSendInfo* pSendMsg = buildSendMsgInfoImpl(pRequest);
   SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
 
   if (pDcl->msgType == TDMT_VND_CREATE_TABLE) {
@@ -177,34 +195,34 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
       return code;
     }
 
-    SCreateTableMsg* pMsg = body->msgInfo.pData;
+    SCreateTableMsg* pMsg = pSendMsg->msgInfo.pData;
 
     SName t = {0};
     tNameFromString(&t, pMsg->name, T_NAME_ACCT|T_NAME_DB|T_NAME_TABLE);
 
-    char db[TSDB_DB_NAME_LEN + TS_PATH_DELIMITER_LEN + TSDB_ACCT_ID_LEN] = {0};
+    char db[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_ACCT_ID_LEN] = {0};
     tNameGetFullDbName(&t, db);
 
     SVgroupInfo info = {0};
     catalogGetTableHashVgroup(pCatalog, pRequest->pTscObj->pTransporter, pEpSet, db, tNameGetTableName(&t), &info);
 
     int64_t transporterId = 0;
-    SEpSet ep = {0};
-    ep.inUse = info.inUse;
+    SEpSet ep   = {0};
+    ep.inUse    = info.inUse;
     ep.numOfEps = info.numOfEps;
     for(int32_t i = 0; i < ep.numOfEps; ++i) {
       ep.port[i] = info.epAddr[i].port;
       tstrncpy(ep.fqdn[i], info.epAddr[i].fqdn, tListLen(ep.fqdn[i]));
     }
 
-    asyncSendMsgToServer(pTscObj->pTransporter, &ep, &transporterId, body);
+    asyncSendMsgToServer(pTscObj->pTransporter, &ep, &transporterId, pSendMsg);
   } else {
     int64_t transporterId = 0;
-    asyncSendMsgToServer(pTscObj->pTransporter, pEpSet, &transporterId, body);
+    asyncSendMsgToServer(pTscObj->pTransporter, pEpSet, &transporterId, pSendMsg);
   }
 
   tsem_wait(&pRequest->body.rspSem);
-  destroySendMsgInfo(body);
+  destroySendMsgInfo(pSendMsg);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -415,30 +433,6 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   tfree(pMsgBody);
 }
 
-int32_t asyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
-  char *pMsg = rpcMallocCont(pInfo->msgInfo.len);
-  if (NULL == pMsg) {
-    tscError("0x%"PRIx64" msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  memcpy(pMsg, pInfo->msgInfo.pData, pInfo->msgInfo.len);
-  SRpcMsg rpcMsg = {
-      .msgType = pInfo->msgType,
-      .pCont   = pMsg,
-      .contLen = pInfo->msgInfo.len,
-      .ahandle = (void*) pInfo,
-      .handle  = NULL,
-      .code    = 0
-  };
-
-  assert(pInfo->fp != NULL);
-
-  rpcSendRequest(pTransporter, epSet, &rpcMsg, pTransporterId);
-  return TSDB_CODE_SUCCESS;
-}
-
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo *pSendInfo = (SMsgSendInfo *) pMsg->ahandle;
   assert(pMsg->ahandle != NULL);
@@ -474,7 +468,15 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
   }
 
-  SDataBuf buf = {.pData = pMsg->pCont, .len = pMsg->contLen};
+  SDataBuf buf = {.len = pMsg->contLen};
+  buf.pData = calloc(1, pMsg->contLen);
+  if (buf.pData == NULL) {
+    terrno     = TSDB_CODE_OUT_OF_MEMORY;
+    pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    memcpy(buf.pData, pMsg->pCont, pMsg->contLen);
+  }
+
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
   rpcFreeCont(pMsg->pCont);
 }

@@ -5,3 +5,10 @@ target_include_directories(
     PUBLIC "${CMAKE_SOURCE_DIR}/include/dnode/qnode"
     private "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+target_link_libraries(
+    qnode
+    PRIVATE transport
+    PRIVATE os
+    PRIVATE common
+    PRIVATE util
+)

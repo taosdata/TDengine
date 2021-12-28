@@ -99,10 +99,10 @@ SMsgSendInfo* buildSendMsgInfoImpl(SRequestObj *pRequest) {
   } else {
     assert(pRequest != NULL);
     pMsgSendInfo->requestObjRefId = pRequest->self;
-    pMsgSendInfo->msgInfo = pRequest->body.requestMsg;
-    pMsgSendInfo->msgType = pRequest->type;
+    pMsgSendInfo->msgInfo   = pRequest->body.requestMsg;
+    pMsgSendInfo->msgType   = pRequest->type;
     pMsgSendInfo->requestId = pRequest->requestId;
-    pMsgSendInfo->param = pRequest;
+    pMsgSendInfo->param     = pRequest;
 
     pMsgSendInfo->fp = (handleRequestRspFp[pRequest->type] == NULL)? genericRspCallback:handleRequestRspFp[pRequest->type];
   }
@@ -139,7 +139,7 @@ int32_t processShowRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     pFields[i].bytes = pSchema[i].bytes;
   }
 
-//  pRequest->body.resInfo.pRspMsg = pMsg->pData;
+  pRequest->body.resInfo.pRspMsg = pMsg->pData;
   SReqResultInfo* pResInfo = &pRequest->body.resInfo;
 
   pResInfo->fields    = pFields;
@@ -165,8 +165,11 @@ int32_t processRetrieveMnodeRsp(void* param, const SDataBuf* pMsg, int32_t code)
   pRetrieve->precision  = htons(pRetrieve->precision);
 
   SReqResultInfo* pResInfo = &pRequest->body.resInfo;
+
+  tfree(pResInfo->pRspMsg);
+  pResInfo->pRspMsg   = pMsg->pData;
   pResInfo->numOfRows = pRetrieve->numOfRows;
-  pResInfo->pData = pRetrieve->data;              // todo fix this in async model
+  pResInfo->pData     = pRetrieve->data;              // todo fix this in async model
 
   pResInfo->current = 0;
   setResultDataPtr(pResInfo, pResInfo->fields, pResInfo->numOfCols, pResInfo->numOfRows);
@@ -292,6 +295,6 @@ void initMsgHandleFp() {
   handleRequestRspFp[TDMT_MND_SHOW_RETRIEVE] = processRetrieveMnodeRsp;
   handleRequestRspFp[TDMT_MND_CREATE_DB]     = processCreateDbRsp;
   handleRequestRspFp[TDMT_MND_USE_DB]        = processUseDbRsp;
-  handleRequestRspFp[TDMT_MND_CREATE_STB]  = processCreateTableRsp;
+  handleRequestRspFp[TDMT_MND_CREATE_STB]    = processCreateTableRsp;
   handleRequestRspFp[TDMT_MND_DROP_DB]       = processDropDbRsp;
 }

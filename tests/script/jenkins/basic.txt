@@ -7,5 +7,10 @@
 # ---- db
 ./test.sh -f general/db/basic1.sim 
 
+# ---- table
+./test.sh -f general/table/basic1.sim 
+
+# ---- dnode
+./test.sh -f unique/dnode/basic1.sim
 
 #======================b1-end===============

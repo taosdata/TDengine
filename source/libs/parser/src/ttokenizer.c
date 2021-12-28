@@ -70,7 +70,7 @@ static SKeyword keywordTable[] = {
     {"STAR",         TK_STAR},
     {"SLASH",        TK_SLASH},
     {"REM ",         TK_REM},
-    {"||",       TK_CONCAT},
+    {"||",           TK_CONCAT},
     {"UMINUS",       TK_UMINUS},
     {"UPLUS",        TK_UPLUS},
     {"BITNOT",       TK_BITNOT},
@@ -227,6 +227,7 @@ static SKeyword keywordTable[] = {
     {"OUTPUTTYPE",   TK_OUTPUTTYPE},
     {"AGGREGATE",    TK_AGGREGATE},
     {"BUFSIZE",      TK_BUFSIZE},
+    {"PORT",               TK_PORT},
 };
 
 static const char isIdChar[] = {
@@ -671,7 +672,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
     }
   }
 
-  t0.z = str + (*i);
+  t0.z = (char*) str + (*i);
   *i += t0.n;
 
   return t0;

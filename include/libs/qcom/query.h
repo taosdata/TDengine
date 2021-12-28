@@ -81,7 +81,7 @@ typedef struct SDBVgroupInfo {
 } SDBVgroupInfo;
 
 typedef struct SUseDbOutput {
-  char db[TSDB_FULL_DB_NAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
   SDBVgroupInfo dbVgroup;
 } SUseDbOutput;
 
@@ -124,6 +124,15 @@ int32_t cleanupTaskQueue();
  */
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
 
+/**
+ * Asynchronously send message to server, after the response received, the callback will be incured.
+ *
+ * @param pTransporter
+ * @param epSet
+ * @param pTransporterId
+ * @param pInfo
+ * @return
+ */
 int32_t asyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo);
 
 const SSchema* tGetTbnameColumnSchema();

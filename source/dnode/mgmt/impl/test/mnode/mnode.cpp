@@ -102,7 +102,8 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
     int32_t contLen = sizeof(SCreateDnodeMsg);
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
-    strcpy(pReq->ep, "localhost:9062");
+    strcpy(pReq->fqdn, "localhost");
+    pReq->port = htonl(9062);
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);

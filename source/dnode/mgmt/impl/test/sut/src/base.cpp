@@ -31,6 +31,7 @@ void Testbase::InitLog(const char* path) {
   tsdbDebugFlag = 0;
   cqDebugFlag = 0;
   tscEmbeddedInUtil = 1;
+  tsAsyncLog = 0;
 
   taosRemoveDir(path);
   taosMkDir(path);
@@ -47,7 +48,7 @@ void Testbase::Init(const char* path, int16_t port) {
   char firstEp[TSDB_EP_LEN] = {0};
   snprintf(firstEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
 
-  InitLog("/tmp/tdlog");
+  InitLog("/tmp/td");
   server.Start(path, fqdn, port, firstEp);
   client.Init("root", "taosdata", fqdn, port);
   taosMsleep(1100);

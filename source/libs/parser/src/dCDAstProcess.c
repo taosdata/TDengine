@@ -1,8 +1,9 @@
-#include "tglobal.h"
-#include "parserInt.h"
+#include <ttime.h>
 #include "astToMsg.h"
+#include "parserInt.h"
 #include "parserUtil.h"
 #include "queryInfoUtil.h"
+#include "tglobal.h"
 
 /* is contained in pFieldList or not */
 static bool has(SArray* pFieldList, int32_t startIndex, const char* name) {
@@ -293,7 +294,6 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx *pCtx, SMsgBuf* p
   // super table name, create table by using dst
   int32_t numOfTables = (int32_t) taosArrayGetSize(pCreateTable->childTableInfo);
   for(int32_t j = 0; j < numOfTables; ++j) {
-#if 0
     SCreatedTableInfo* pCreateTableInfo = taosArrayGet(pCreateTable->childTableInfo, j);
 
     SToken* pSTableNameToken = &pCreateTableInfo->stbName;
@@ -313,7 +313,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx *pCtx, SMsgBuf* p
       return code;
     }
 
-    code = tNameExtractFullName(&name, pCreateTableInfo->tagdata.name);
+    code = tNameGetTableName(&name, pCreateTableInfo->tagdata.name);
 
     SArray* pValList = pCreateTableInfo->pTagVals;
     if (code != TSDB_CODE_SUCCESS) {
@@ -322,6 +322,11 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx *pCtx, SMsgBuf* p
 
     size_t valSize = taosArrayGetSize(pValList);
     STableMeta* pSuperTableMeta = NULL;
+
+    char dbName[TSDB_DB_FNAME_LEN] = {0};
+    tNameGetFullDbName(&name, dbName);
+
+    catalogGetTableMeta(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbName, pCreateTableInfo->tagdata.name, &pSuperTableMeta);
 
     // too long tag values will return invalid sql, not be truncated automatically
     SSchema  *pTagSchema = getTableTagSchema(pSuperTableMeta);
@@ -341,12 +346,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx *pCtx, SMsgBuf* p
       pNameList = pCreateTableInfo->pTagNames;
       nameSize = taosArrayGetSize(pNameList);
 
-      if (valSize != nameSize) {
-        tdDestroyKVRowBuilder(&kvRowBuilder);
-        return buildInvalidOperationMsg(pMsgBuf, msg2);
-      }
-
-      if (schemaSize < valSize) {
+      if (valSize != nameSize || schemaSize < valSize) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return buildInvalidOperationMsg(pMsgBuf, msg2);
       }
@@ -359,15 +359,15 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx *pCtx, SMsgBuf* p
         strncpy(tmpTokenBuf, sToken->z, sToken->n);
         sToken->z = tmpTokenBuf;
 
-        if (TK_STRING == sToken->type) {
-          tscDequoteAndTrimToken(sToken);
-        }
+//        if (TK_STRING == sToken->type) {
+//          tscDequoteAndTrimToken(sToken);
+//        }
 
-        if (TK_ID == sToken->type) {
-          tscRmEscapeAndTrimToken(sToken);
-        }
+//        if (TK_ID == sToken->type) {
+//          tscRmEscapeAndTrimToken(sToken);
+//        }
 
-        tVariantListItem* pItem = taosArrayGet(pValList, i);
+        SListItem* pItem = taosArrayGet(pValList, i);
 
         findColumnIndex = false;
 
@@ -384,16 +384,16 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx *pCtx, SMsgBuf* p
               }
             } else if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
               if (pItem->pVar.nType == TSDB_DATA_TYPE_BINARY) {
-                ret = convertTimestampStrToInt64(&(pItem->pVar), tinfo.precision);
-                if (ret != TSDB_CODE_SUCCESS) {
-                  return buildInvalidOperationMsg(pMsgBuf, msg4);
-                }
+//                code = convertTimestampStrToInt64(&(pItem->pVar), tinfo.precision);
+//                if (code != TSDB_CODE_SUCCESS) {
+//                  return buildInvalidOperationMsg(pMsgBuf, msg4);
+//                }
               } else if (pItem->pVar.nType == TSDB_DATA_TYPE_TIMESTAMP) {
-                pItem->pVar.i64 = convertTimePrecision(pItem->pVar.i64, TSDB_TIME_PRECISION_NANO, tinfo.precision);
+                pItem->pVar.i = convertTimePrecision(pItem->pVar.i, TSDB_TIME_PRECISION_NANO, tinfo.precision);
               }
             }
 
-            code = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
+            code = taosVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
 
             // check again after the convert since it may be converted from binary to nchar.
             if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
@@ -428,8 +428,8 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx *pCtx, SMsgBuf* p
       }
 
       for (int32_t i = 0; i < valSize; ++i) {
-        SSchema*          pSchema = &pTagSchema[i];
-        tVariantListItem* pItem = taosArrayGet(pValList, i);
+        SSchema   *pSchema = &pTagSchema[i];
+        SListItem *pItem = taosArrayGet(pValList, i);
 
         char tagVal[TSDB_MAX_TAGS_LEN];
         if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
@@ -439,16 +439,16 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx *pCtx, SMsgBuf* p
           }
         } else if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
           if (pItem->pVar.nType == TSDB_DATA_TYPE_BINARY) {
-            ret = convertTimestampStrToInt64(&(pItem->pVar), tinfo.precision);
-            if (ret != TSDB_CODE_SUCCESS) {
+//            code = convertTimestampStrToInt64(&(pItem->pVar), tinfo.precision);
+            if (code != TSDB_CODE_SUCCESS) {
               return buildInvalidOperationMsg(pMsgBuf, msg4);
             }
           } else if (pItem->pVar.nType == TSDB_DATA_TYPE_TIMESTAMP) {
-            pItem->pVar.i64 = convertTimePrecision(pItem->pVar.i64, TSDB_TIME_PRECISION_NANO, tinfo.precision);
+            pItem->pVar.i = convertTimePrecision(pItem->pVar.i, TSDB_TIME_PRECISION_NANO, tinfo.precision);
           }
         }
 
-        code = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
+        code = taosVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
 
         // check again after the convert since it may be converted from binary to nchar.
         if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
@@ -485,22 +485,21 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx *pCtx, SMsgBuf* p
 
     bool dbIncluded2 = false;
     // table name
-    if (tscValidateName(&(pCreateTableInfo->name), true, &dbIncluded2) != TSDB_CODE_SUCCESS) {
-      return buildInvalidOperationMsg(pMsgBuf, msg1);
-    }
+//    if (tscValidateName(&(pCreateTableInfo->name), true, &dbIncluded2) != TSDB_CODE_SUCCESS) {
+//      return buildInvalidOperationMsg(pMsgBuf, msg1);
+//    }
 
-    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
-    code = tscSetTableFullName(&pTableMetaInfo->name, &pCreateTableInfo->name, pSql, dbIncluded2);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+//    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
+//    code = tscSetTableFullName(&pTableMetaInfo->name, &pCreateTableInfo->name, pSql, dbIncluded2);
+//    if (code != TSDB_CODE_SUCCESS) {
+//      return code;
+//    }
 
-    pCreateTableInfo->fullname = calloc(1, tNameLen(&pTableMetaInfo->name) + 1);
-    code = tNameExtractFullName(&pTableMetaInfo->name, pCreateTableInfo->fullname);
-    if (code != TSDB_CODE_SUCCESS) {
-      return buildInvalidOperationMsg(pMsgBuf, msg1);
-    }
-#endif
+//    pCreateTableInfo->fullname = calloc(1, tNameLen(&pTableMetaInfo->name) + 1);
+//    code = tNameExtractFullName(&pTableMetaInfo->name, pCreateTableInfo->fullname);
+//    if (code != TSDB_CODE_SUCCESS) {
+//      return buildInvalidOperationMsg(pMsgBuf, msg1);
+//    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -710,13 +709,32 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
     }
 
     case TSDB_SQL_DROP_TABLE: {
-      pDcl->pMsg = (char*)buildDropTableMsg(pInfo, &pDcl->msgLen, pCtx, pMsgBuf);
+      pDcl->pMsg = (char*)buildDropStableMsg(pInfo, &pDcl->msgLen, pCtx, pMsgBuf);
       if (pDcl->pMsg == NULL) {
-        return terrno;
+        code = terrno;
       }
 
       pDcl->msgType = TDMT_MND_DROP_STB;
-      return TSDB_CODE_SUCCESS;
+      break;
+    }
+
+    case TSDB_SQL_CREATE_DNODE: {
+      pDcl->pMsg = (char*) buildCreateDnodeMsg(pInfo, &pDcl->msgLen, pMsgBuf);
+      if (pDcl->pMsg == NULL) {
+        code = terrno;
+      }
+
+      pDcl->msgType = TDMT_MND_CREATE_DNODE;
+      break;
+    }
+
+    case TSDB_SQL_DROP_DNODE: {
+      pDcl->pMsg = (char*) buildDropDnodeMsg(pInfo, &pDcl->msgLen, pMsgBuf);
+      if (pDcl->pMsg == NULL) {
+        code = terrno;
+      }
+
+      pDcl->msgType = TDMT_MND_DROP_DNODE;
       break;
     }
 

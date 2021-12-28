@@ -371,7 +371,7 @@ typedef struct SColIndex {
   int16_t colId;     // column id
   int16_t colIndex;  // column index in colList if it is a normal column or index in tagColList if a tag
   int16_t flag;      // denote if it is a tag or a normal column
-  char    name[TSDB_COL_NAME_LEN + TSDB_DB_NAME_LEN + 1];
+  char    name[TSDB_DB_FNAME_LEN];
 } SColIndex;
 
 typedef struct SColumnFilterInfo {
@@ -518,7 +518,7 @@ typedef struct SRetrieveTableRsp {
 } SRetrieveTableRsp;
 
 typedef struct {
-  char    db[TSDB_FULL_DB_NAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int32_t numOfVgroups;
   int32_t cacheBlockSize;  // MB
   int32_t totalBlocks;
@@ -542,7 +542,7 @@ typedef struct {
 } SCreateDbMsg;
 
 typedef struct {
-  char    db[TSDB_FULL_DB_NAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int32_t totalBlocks;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -692,7 +692,7 @@ typedef struct {
 typedef struct {
   int32_t  vgId;
   int32_t  dnodeId;
-  char     db[TSDB_FULL_DB_NAME_LEN];
+  char     db[TSDB_DB_FNAME_LEN];
   uint64_t dbUid;
   int32_t  vgVersion;
   int32_t  cacheBlockSize;
@@ -719,7 +719,7 @@ typedef struct {
 typedef struct {
   int32_t  vgId;
   int32_t  dnodeId;
-  char     db[TSDB_FULL_DB_NAME_LEN];
+  char     db[TSDB_DB_FNAME_LEN];
   uint64_t dbUid;
 } SDropVnodeMsg, SSyncVnodeMsg, SCompactVnodeMsg;
 
@@ -795,7 +795,7 @@ typedef struct {
 } STagData;
 
 typedef struct {
-  char        db[TSDB_FULL_DB_NAME_LEN];
+  char        db[TSDB_DB_FNAME_LEN];
   int32_t     vgVersion;
   int32_t     vgNum;
   int8_t      hashMethod;
@@ -809,13 +809,13 @@ typedef struct {
  */
 typedef struct {
   int8_t  type;
-  char    db[TSDB_FULL_DB_NAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int16_t payloadLen;
   char    payload[];
 } SShowMsg;
 
 typedef struct {
-  char    db[TSDB_FULL_DB_NAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int32_t numOfVgroup;
   int32_t vgid[];
 } SCompactMsg;
@@ -826,7 +826,8 @@ typedef struct SShowRsp {
 } SShowRsp;
 
 typedef struct {
-  char ep[TSDB_EP_LEN];  // end point, hostname:port
+  char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
+  int32_t port;
 } SCreateDnodeMsg;
 
 typedef struct {
@@ -851,6 +852,18 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
 } SDropMnodeInMsg;
+
+typedef struct {
+  int32_t dnodeId;
+} SCreateQnodeInMsg, SDropQnodeInMsg;
+
+typedef struct {
+  int32_t dnodeId;
+} SCreateSnodeInMsg, SDropSnodeInMsg;
+
+typedef struct {
+  int32_t dnodeId;
+} SCreateBnodeInMsg, SDropBnodeInMsg;
 
 typedef struct {
   int32_t dnodeId;
