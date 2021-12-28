@@ -49,22 +49,11 @@ int32_t ctgGetDBVgroupFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEp
   SEpSet *pVnodeEpSet = NULL;
   int32_t msgLen = 0;
 
-  CTG_ERR_RET(queryBuildMsg[TDMT_MND_USE_DB](input, &msg, 0, &msgLen));
-
-  char *pMsg = rpcMallocCont(msgLen);
-  if (NULL == pMsg) {
-    ctgError("rpc malloc %d failed", msgLen);
-    tfree(msg);
-    CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
-  }
-
-  memcpy(pMsg, msg, msgLen);
-
-  tfree(msg);
+  CTG_ERR_RET(queryBuildMsg[TMSG_INDEX(TDMT_MND_USE_DB)](input, &msg, 0, &msgLen));
   
   SRpcMsg rpcMsg = {
       .msgType = TDMT_MND_USE_DB,
-      .pCont   = pMsg,
+      .pCont   = msg,
       .contLen = msgLen,
   };
 
@@ -76,7 +65,7 @@ int32_t ctgGetDBVgroupFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEp
     CTG_ERR_RET(rpcRsp.code);
   }
 
-  CTG_ERR_RET(queryProcessMsgRsp[TDMT_MND_USE_DB](out, rpcRsp.pCont, rpcRsp.contLen));
+  CTG_ERR_RET(queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_USE_DB)](out, rpcRsp.pCont, rpcRsp.contLen));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -160,7 +149,7 @@ int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SE
   SEpSet *pVnodeEpSet = NULL;
   int32_t msgLen = 0;
 
-  CTG_ERR_RET(queryBuildMsg[TDMT_MND_STB_META](&bInput, &msg, 0, &msgLen));
+  CTG_ERR_RET(queryBuildMsg[TMSG_INDEX(TDMT_MND_STB_META)](&bInput, &msg, 0, &msgLen));
 
   SRpcMsg rpcMsg = {
       .msgType = TDMT_MND_STB_META,
@@ -177,7 +166,7 @@ int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SE
     CTG_ERR_RET(rpcRsp.code);
   }
 
-  CTG_ERR_RET(queryProcessMsgRsp[TDMT_MND_STB_META](output, rpcRsp.pCont, rpcRsp.contLen));
+  CTG_ERR_RET(queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_STB_META)](output, rpcRsp.pCont, rpcRsp.contLen));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -197,7 +186,7 @@ int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pRpc, const SE
   SEpSet *pVnodeEpSet = NULL;
   int32_t msgLen = 0;
 
-  CTG_ERR_RET(queryBuildMsg[TDMT_VND_TABLE_META](&bInput, &msg, 0, &msgLen));
+  CTG_ERR_RET(queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)](&bInput, &msg, 0, &msgLen));
 
   SRpcMsg rpcMsg = {
       .msgType = TDMT_VND_TABLE_META,
@@ -217,7 +206,7 @@ int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pRpc, const SE
     CTG_ERR_RET(rpcRsp.code);
   }
 
-  CTG_ERR_RET(queryProcessMsgRsp[TDMT_VND_TABLE_META](output, rpcRsp.pCont, rpcRsp.contLen));
+  CTG_ERR_RET(queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)](output, rpcRsp.pCont, rpcRsp.contLen));
 
   return TSDB_CODE_SUCCESS;
 }

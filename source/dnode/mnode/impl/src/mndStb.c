@@ -767,7 +767,7 @@ static int32_t mndProcessStbMetaMsg(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  memcpy(pMeta->stbFname, pStb->name, TSDB_TABLE_FNAME_LEN);
+  memcpy(pMeta->tbFname, pStb->name, TSDB_TABLE_FNAME_LEN);
   pMeta->numOfTags = htonl(pStb->numOfTags);
   pMeta->numOfColumns = htonl(pStb->numOfColumns);
   pMeta->precision = pDb->cfg.precision;
