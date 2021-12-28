@@ -51,31 +51,6 @@ int    metaCommit(SMeta *pMeta);
 void metaOptionsInit(SMetaCfg *pMetaCfg);
 void metaOptionsClear(SMetaCfg *pMetaCfg);
 
-// STbCfg
-#define META_INIT_STB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA, PTAGSCHEMA)                   \
-  {                                                                                     \
-    .name = (NAME), .ttl = (TTL), .keep = (KEEP), .type = META_SUPER_TABLE, .stbCfg = { \
-      .suid = (SUID),                                                                   \
-      .pSchema = (PSCHEMA),                                                             \
-      .pTagSchema = (PTAGSCHEMA)                                                        \
-    }                                                                                   \
-  }
-
-#define META_INIT_CTB_CFG(NAME, TTL, KEEP, SUID, PTAG)                                                                \
-  {                                                                                                                   \
-    .name = (NAME), .ttl = (TTL), .keep = (KEEP), .type = META_CHILD_TABLE, .ctbCfg = {.suid = (SUID), .pTag = PTAG } \
-  }
-
-#define META_INIT_NTB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA)                                                      \
-  {                                                                                                            \
-    .name = (NAME), .ttl = (TTL), .keep = (KEEP), .type = META_NORMAL_TABLE, .ntbCfg = {.pSchema = (PSCHEMA) } \
-  }
-
-#define META_CLEAR_TB_CFG(pTbCfg)
-
-int   metaEncodeTbCfg(void **pBuf, STbCfg *pTbCfg);
-void *metaDecodeTbCfg(void *pBuf, STbCfg *pTbCfg);
-
 #ifdef __cplusplus
 }
 #endif
