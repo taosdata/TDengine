@@ -14,97 +14,97 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndQnode.h"
+#include "dndSnode.h"
 #include "dndDnode.h"
 #include "dndTransport.h"
 #include "dndWorker.h"
 
-static void dndProcessQnodeQueue(SDnode *pDnode, SRpcMsg *pMsg);
+static void dndProcessSnodeQueue(SDnode *pDnode, SRpcMsg *pMsg);
 
-static SQnode *dndAcquireQnode(SDnode *pDnode) {
-  SQnodeMgmt *pMgmt = &pDnode->qmgmt;
-  SQnode     *pQnode = NULL;
+static SSnode *dndAcquireSnode(SDnode *pDnode) {
+  SSnodeMgmt *pMgmt = &pDnode->smgmt;
+  SSnode     *pSnode = NULL;
   int32_t     refCount = 0;
 
   taosRLockLatch(&pMgmt->latch);
   if (pMgmt->deployed && !pMgmt->dropped) {
     refCount = atomic_add_fetch_32(&pMgmt->refCount, 1);
-    pQnode = pMgmt->pQnode;
+    pSnode = pMgmt->pSnode;
   } else {
-    terrno = TSDB_CODE_DND_QNODE_NOT_DEPLOYED;
+    terrno = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
   }
   taosRUnLockLatch(&pMgmt->latch);
 
-  if (pQnode != NULL) {
-    dTrace("acquire qnode, refCount:%d", refCount);
+  if (pSnode != NULL) {
+    dTrace("acquire snode, refCount:%d", refCount);
   }
-  return pQnode;
+  return pSnode;
 }
 
-static void dndReleaseQnode(SDnode *pDnode, SQnode *pQnode) {
-  SQnodeMgmt *pMgmt = &pDnode->qmgmt;
+static void dndReleaseSnode(SDnode *pDnode, SSnode *pSnode) {
+  SSnodeMgmt *pMgmt = &pDnode->smgmt;
   int32_t     refCount = 0;
 
   taosRLockLatch(&pMgmt->latch);
-  if (pQnode != NULL) {
+  if (pSnode != NULL) {
     refCount = atomic_sub_fetch_32(&pMgmt->refCount, 1);
   }
   taosRUnLockLatch(&pMgmt->latch);
 
-  if (pQnode != NULL) {
-    dTrace("release qnode, refCount:%d", refCount);
+  if (pSnode != NULL) {
+    dTrace("release snode, refCount:%d", refCount);
   }
 }
 
-static int32_t dndReadQnodeFile(SDnode *pDnode) {
-  SQnodeMgmt *pMgmt = &pDnode->qmgmt;
-  int32_t     code = TSDB_CODE_DND_QNODE_READ_FILE_ERROR;
+static int32_t dndReadSnodeFile(SDnode *pDnode) {
+  SSnodeMgmt *pMgmt = &pDnode->smgmt;
+  int32_t     code = TSDB_CODE_DND_SNODE_READ_FILE_ERROR;
   int32_t     len = 0;
   int32_t     maxLen = 4096;
   char       *content = calloc(1, maxLen + 1);
   cJSON      *root = NULL;
 
   char file[PATH_MAX + 20];
-  snprintf(file, PATH_MAX + 20, "%s/qnode.json", pDnode->dir.dnode);
+  snprintf(file, PATH_MAX + 20, "%s/snode.json", pDnode->dir.dnode);
 
   FILE *fp = fopen(file, "r");
   if (fp == NULL) {
     dDebug("file %s not exist", file);
     code = 0;
-    goto PRASE_QNODE_OVER;
+    goto PRASE_SNODE_OVER;
   }
 
   len = (int32_t)fread(content, 1, maxLen, fp);
   if (len <= 0) {
     dError("failed to read %s since content is null", file);
-    goto PRASE_QNODE_OVER;
+    goto PRASE_SNODE_OVER;
   }
 
   content[len] = 0;
   root = cJSON_Parse(content);
   if (root == NULL) {
     dError("failed to read %s since invalid json format", file);
-    goto PRASE_QNODE_OVER;
+    goto PRASE_SNODE_OVER;
   }
 
   cJSON *deployed = cJSON_GetObjectItem(root, "deployed");
   if (!deployed || deployed->type != cJSON_Number) {
     dError("failed to read %s since deployed not found", file);
-    goto PRASE_QNODE_OVER;
+    goto PRASE_SNODE_OVER;
   }
   pMgmt->deployed = deployed->valueint;
 
   cJSON *dropped = cJSON_GetObjectItem(root, "dropped");
   if (!dropped || dropped->type != cJSON_Number) {
     dError("failed to read %s since dropped not found", file);
-    goto PRASE_QNODE_OVER;
+    goto PRASE_SNODE_OVER;
   }
   pMgmt->dropped = dropped->valueint;
 
   code = 0;
   dDebug("succcessed to read file %s, deployed:%d dropped:%d", file, pMgmt->deployed, pMgmt->dropped);
 
-PRASE_QNODE_OVER:
+PRASE_SNODE_OVER:
   if (content != NULL) free(content);
   if (root != NULL) cJSON_Delete(root);
   if (fp != NULL) fclose(fp);
@@ -113,15 +113,15 @@ PRASE_QNODE_OVER:
   return code;
 }
 
-static int32_t dndWriteQnodeFile(SDnode *pDnode) {
-  SQnodeMgmt *pMgmt = &pDnode->qmgmt;
+static int32_t dndWriteSnodeFile(SDnode *pDnode) {
+  SSnodeMgmt *pMgmt = &pDnode->smgmt;
 
   char file[PATH_MAX + 20];
-  snprintf(file, PATH_MAX + 20, "%s/qnode.json", pDnode->dir.dnode);
+  snprintf(file, PATH_MAX + 20, "%s/snode.json", pDnode->dir.dnode);
 
   FILE *fp = fopen(file, "w");
   if (fp == NULL) {
-    terrno = TSDB_CODE_DND_QNODE_WRITE_FILE_ERROR;
+    terrno = TSDB_CODE_DND_SNODE_WRITE_FILE_ERROR;
     dError("failed to write %s since %s", file, terrstr());
     return -1;
   }
@@ -141,7 +141,7 @@ static int32_t dndWriteQnodeFile(SDnode *pDnode) {
   free(content);
 
   if (taosRenameFile(file, file) != 0) {
-    terrno = TSDB_CODE_DND_QNODE_WRITE_FILE_ERROR;
+    terrno = TSDB_CODE_DND_SNODE_WRITE_FILE_ERROR;
     dError("failed to rename %s since %s", file, terrstr());
     return -1;
   }
@@ -150,25 +150,19 @@ static int32_t dndWriteQnodeFile(SDnode *pDnode) {
   return 0;
 }
 
-static int32_t dndStartQnodeWorker(SDnode *pDnode) {
-  SQnodeMgmt *pMgmt = &pDnode->qmgmt;
-  if (dndInitWorker(pDnode, &pMgmt->queryWorker, DND_WORKER_SINGLE, "qnode-query", 0, 1,
-                    (FProcessItem)dndProcessQnodeQueue) != 0) {
-    dError("failed to start qnode query worker since %s", terrstr());
-    return -1;
-  }
-
-  if (dndInitWorker(pDnode, &pMgmt->fetchWorker, DND_WORKER_SINGLE, "qnode-fetch", 0, 1,
-                    (FProcessItem)dndProcessQnodeQueue) != 0) {
-    dError("failed to start qnode fetch worker since %s", terrstr());
+static int32_t dndStartSnodeWorker(SDnode *pDnode) {
+  SSnodeMgmt *pMgmt = &pDnode->smgmt;
+  if (dndInitWorker(pDnode, &pMgmt->writeWorker, DND_WORKER_SINGLE, "snode-write", 0, 1,
+                    (FProcessItem)dndProcessSnodeQueue) != 0) {
+    dError("failed to start snode write worker since %s", terrstr());
     return -1;
   }
 
   return 0;
 }
 
-static void dndStopQnodeWorker(SDnode *pDnode) {
-  SQnodeMgmt *pMgmt = &pDnode->qmgmt;
+static void dndStopSnodeWorker(SDnode *pDnode) {
+  SSnodeMgmt *pMgmt = &pDnode->smgmt;
 
   taosWLockLatch(&pMgmt->latch);
   pMgmt->deployed = 0;
@@ -178,11 +172,10 @@ static void dndStopQnodeWorker(SDnode *pDnode) {
     taosMsleep(10);
   }
 
-  dndCleanupWorker(&pMgmt->queryWorker);
-  dndCleanupWorker(&pMgmt->fetchWorker);
+  dndCleanupWorker(&pMgmt->writeWorker);
 }
 
-static void dndBuildQnodeOption(SDnode *pDnode, SQnodeOpt *pOption) {
+static void dndBuildSnodeOption(SDnode *pDnode, SSnodeOpt *pOption) {
   pOption->pDnode = pDnode;
   pOption->sendMsgToDnodeFp = dndSendMsgToDnode;
   pOption->sendMsgToMnodeFp = dndSendMsgToMnode;
@@ -192,45 +185,45 @@ static void dndBuildQnodeOption(SDnode *pDnode, SQnodeOpt *pOption) {
   pOption->cfg.sver = pDnode->opt.sver;
 }
 
-static int32_t dndOpenQnode(SDnode *pDnode) {
-  SQnodeMgmt *pMgmt = &pDnode->qmgmt;
-  SQnodeOpt   option = {0};
-  dndBuildQnodeOption(pDnode, &option);
+static int32_t dndOpenSnode(SDnode *pDnode) {
+  SSnodeMgmt *pMgmt = &pDnode->smgmt;
+  SSnodeOpt   option = {0};
+  dndBuildSnodeOption(pDnode, &option);
 
-  SQnode *pQnode = qndOpen(&option);
-  if (pQnode == NULL) {
-    dError("failed to open qnode since %s", terrstr());
+  SSnode *pSnode = sndOpen(pDnode->dir.snode, &option);
+  if (pSnode == NULL) {
+    dError("failed to open snode since %s", terrstr());
     return -1;
   }
 
-  if (dndStartQnodeWorker(pDnode) != 0) {
-    dError("failed to start qnode worker since %s", terrstr());
-    qndClose(pQnode);
+  if (dndStartSnodeWorker(pDnode) != 0) {
+    dError("failed to start snode worker since %s", terrstr());
+    sndClose(pSnode);
     return -1;
   }
 
-  if (dndWriteQnodeFile(pDnode) != 0) {
-    dError("failed to write qnode file since %s", terrstr());
-    dndStopQnodeWorker(pDnode);
-    qndClose(pQnode);
+  if (dndWriteSnodeFile(pDnode) != 0) {
+    dError("failed to write snode file since %s", terrstr());
+    dndStopSnodeWorker(pDnode);
+    sndClose(pSnode);
     return -1;
   }
 
   taosWLockLatch(&pMgmt->latch);
-  pMgmt->pQnode = pQnode;
+  pMgmt->pSnode = pSnode;
   pMgmt->deployed = 1;
   taosWUnLockLatch(&pMgmt->latch);
 
-  dInfo("qnode open successfully");
+  dInfo("snode open successfully");
   return 0;
 }
 
-static int32_t dndDropQnode(SDnode *pDnode) {
-  SQnodeMgmt *pMgmt = &pDnode->qmgmt;
+static int32_t dndDropSnode(SDnode *pDnode) {
+  SSnodeMgmt *pMgmt = &pDnode->smgmt;
 
-  SQnode *pQnode = dndAcquireQnode(pDnode);
-  if (pQnode == NULL) {
-    dError("failed to drop qnode since %s", terrstr());
+  SSnode *pSnode = dndAcquireSnode(pDnode);
+  if (pSnode == NULL) {
+    dError("failed to drop snode since %s", terrstr());
     return -1;
   }
 
@@ -238,56 +231,57 @@ static int32_t dndDropQnode(SDnode *pDnode) {
   pMgmt->dropped = 1;
   taosRUnLockLatch(&pMgmt->latch);
 
-  if (dndWriteQnodeFile(pDnode) != 0) {
+  if (dndWriteSnodeFile(pDnode) != 0) {
     taosRLockLatch(&pMgmt->latch);
     pMgmt->dropped = 0;
     taosRUnLockLatch(&pMgmt->latch);
 
-    dndReleaseQnode(pDnode, pQnode);
-    dError("failed to drop qnode since %s", terrstr());
+    dndReleaseSnode(pDnode, pSnode);
+    dError("failed to drop snode since %s", terrstr());
     return -1;
   }
 
-  dndReleaseQnode(pDnode, pQnode);
-  dndStopQnodeWorker(pDnode);
-  qndClose(pQnode);
-  pMgmt->pQnode = NULL;
+  dndReleaseSnode(pDnode, pSnode);
+  dndStopSnodeWorker(pDnode);
+  sndClose(pSnode);
+  pMgmt->pSnode = NULL;
+  sndDestroy(pDnode->dir.snode);
 
   return 0;
 }
 
-int32_t dndProcessCreateQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SCreateQnodeInMsg *pMsg = pRpcMsg->pCont;
+int32_t dndProcessCreateSnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
+  SCreateSnodeInMsg *pMsg = pRpcMsg->pCont;
   pMsg->dnodeId = htonl(pMsg->dnodeId);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
-    terrno = TSDB_CODE_DND_QNODE_ID_INVALID;
+    terrno = TSDB_CODE_DND_SNODE_ID_INVALID;
     return -1;
   } else {
-    return dndOpenQnode(pDnode);
+    return dndOpenSnode(pDnode);
   }
 }
 
-int32_t dndProcessDropQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SDropQnodeInMsg *pMsg = pRpcMsg->pCont;
+int32_t dndProcessDropSnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
+  SDropSnodeInMsg *pMsg = pRpcMsg->pCont;
   pMsg->dnodeId = htonl(pMsg->dnodeId);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
-    terrno = TSDB_CODE_DND_QNODE_ID_INVALID;
+    terrno = TSDB_CODE_DND_SNODE_ID_INVALID;
     return -1;
   } else {
-    return dndDropQnode(pDnode);
+    return dndDropSnode(pDnode);
   }
 }
 
-static void dndProcessQnodeQueue(SDnode *pDnode, SRpcMsg *pMsg) {
-  SQnodeMgmt *pMgmt = &pDnode->qmgmt;
+static void dndProcessSnodeQueue(SDnode *pDnode, SRpcMsg *pMsg) {
+  SSnodeMgmt *pMgmt = &pDnode->smgmt;
   SRpcMsg    *pRsp = NULL;
-  int32_t     code = TSDB_CODE_DND_QNODE_NOT_DEPLOYED;
+  int32_t     code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
 
-  SQnode *pQnode = dndAcquireQnode(pDnode);
-  if (pQnode != NULL) {
-    code = qndProcessMsg(pQnode, pMsg, &pRsp);
+  SSnode *pSnode = dndAcquireSnode(pDnode);
+  if (pSnode != NULL) {
+    code = sndProcessMsg(pSnode, pMsg, &pRsp);
   }
 
   if (pRsp != NULL) {
@@ -304,14 +298,14 @@ static void dndProcessQnodeQueue(SDnode *pDnode, SRpcMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-static void dndWriteQnodeMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pMsg) {
-  int32_t code = TSDB_CODE_DND_QNODE_NOT_DEPLOYED;
+static void dndWriteSnodeMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pMsg) {
+  int32_t code = TSDB_CODE_DND_SNODE_NOT_DEPLOYED;
 
-  SQnode *pQnode = dndAcquireQnode(pDnode);
-  if (pQnode != NULL) {
+  SSnode *pSnode = dndAcquireSnode(pDnode);
+  if (pSnode != NULL) {
     code = dndWriteMsgToWorker(pWorker, pMsg, sizeof(SRpcMsg));
   }
-  dndReleaseQnode(pDnode, pQnode);
+  dndReleaseSnode(pDnode, pSnode);
 
   if (code != 0) {
     if (pMsg->msgType & 1u) {
@@ -322,33 +316,29 @@ static void dndWriteQnodeMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpc
   }
 }
 
-void dndProcessQnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  dndWriteQnodeMsgToWorker(pDnode, &pDnode->qmgmt.queryWorker, pMsg);
+void dndProcessSnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  dndWriteSnodeMsgToWorker(pDnode, &pDnode->smgmt.writeWorker, pMsg);
 }
 
-void dndProcessQnodeFetchMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  dndWriteQnodeMsgToWorker(pDnode, &pDnode->qmgmt.queryWorker, pMsg);
-}
-
-int32_t dndInitQnode(SDnode *pDnode) {
-  SQnodeMgmt *pMgmt = &pDnode->qmgmt;
+int32_t dndInitSnode(SDnode *pDnode) {
+  SSnodeMgmt *pMgmt = &pDnode->smgmt;
   taosInitRWLatch(&pMgmt->latch);
 
-  if (dndReadQnodeFile(pDnode) != 0) {
+  if (dndReadSnodeFile(pDnode) != 0) {
     return -1;
   }
 
   if (pMgmt->dropped) return 0;
   if (!pMgmt->deployed) return 0;
 
-  return dndOpenQnode(pDnode);
+  return dndOpenSnode(pDnode);
 }
 
-void dndCleanupQnode(SDnode *pDnode) {
-  SQnodeMgmt *pMgmt = &pDnode->qmgmt;
-  if (pMgmt->pQnode) {
-    dndStopQnodeWorker(pDnode);
-    qndClose(pMgmt->pQnode);
-    pMgmt->pQnode = NULL;
+void dndCleanupSnode(SDnode *pDnode) {
+  SSnodeMgmt *pMgmt = &pDnode->smgmt;
+  if (pMgmt->pSnode) {
+    dndStopSnodeWorker(pDnode);
+    sndClose(pMgmt->pSnode);
+    pMgmt->pSnode = NULL;
   }
 }

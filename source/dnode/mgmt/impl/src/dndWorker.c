@@ -16,9 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "dndWorker.h"
 
-int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EDndWorkerType type, const char *name, int32_t minNum,
-                      int32_t maxNum, FProcessItem fp) {
-  if (pDnode == NULL || pWorker == NULL || name == NULL || minNum < 0 || maxNum <= 0 || fp == NULL) {
+int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EWorkerType type, const char *name, int32_t minNum,
+                      int32_t maxNum, void *queueFp) {
+  if (pDnode == NULL || pWorker == NULL || name == NULL || minNum < 0 || maxNum <= 0 || queueFp == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
@@ -27,19 +27,32 @@ int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EDndWorkerType type
   pWorker->name = name;
   pWorker->minNum = minNum;
   pWorker->maxNum = maxNum;
-  pWorker->fp = fp;
+  pWorker->queueFp = queueFp;
   pWorker->pDnode = pDnode;
 
   if (pWorker->type == DND_WORKER_SINGLE) {
     SWorkerPool *pPool = &pWorker->pool;
+    pPool->name = name;
     pPool->min = minNum;
     pPool->max = maxNum;
     if (tWorkerInit(pPool) != 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-
-    pWorker->queue = tWorkerAllocQueue(&pPool, pDnode, fp);
+    pWorker->queue = tWorkerAllocQueue(pPool, pDnode, (FProcessItem)queueFp);
+    if (pWorker->queue == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+  } else if (pWorker->type == DND_WORKER_MULTI) {
+    SMWorkerPool *pPool = &pWorker->mpool;
+    pPool->name = name;
+    pPool->max = maxNum;
+    if (tMWorkerInit(pPool) != 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+    pWorker->queue = tMWorkerAllocQueue(pPool, pDnode, (FProcessItems)queueFp);
     if (pWorker->queue == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -52,12 +65,17 @@ int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EDndWorkerType type
 }
 
 void dndCleanupWorker(SDnodeWorker *pWorker) {
+  while (!taosQueueEmpty(pWorker->queue)) {
+    taosMsleep(10);
+  }
+
   if (pWorker->type == DND_WORKER_SINGLE) {
-    while (!taosQueueEmpty(pWorker->queue)) {
-      taosMsleep(10);
-    }
     tWorkerCleanup(&pWorker->pool);
     tWorkerFreeQueue(&pWorker->pool, pWorker->queue);
+  } else if (pWorker->type == DND_WORKER_MULTI) {
+    tWorkerCleanup(&pWorker->mpool);
+    tMWorkerFreeQueue(&pWorker->mpool, pWorker->queue);
+  } else {
   }
 }
 
