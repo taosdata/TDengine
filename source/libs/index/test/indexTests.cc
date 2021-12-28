@@ -592,3 +592,91 @@ TEST_F(IndexCacheEnv, cache_test) {
     assert(taosArrayGetSize(ret) == 1);
   }
 }
+class IndexObj {
+ public:
+  IndexObj() {
+    // opt
+    numOfWrite = 0;
+    numOfRead = 0;
+    indexInit();
+  }
+  int Init(const std::string& dir) {
+    taosRemoveDir(dir.c_str());
+    taosMkDir(dir.c_str());
+    int ret = indexOpen(&opts, dir.c_str(), &idx);
+    if (ret != 0) {
+      // opt
+      std::cout << "failed to open index: %s" << dir << std::endl;
+    }
+    return ret;
+  }
+  int Put(SIndexMultiTerm* fvs, uint64_t uid) {
+    numOfWrite += taosArrayGetSize(fvs);
+    return indexPut(idx, fvs, uid);
+  }
+  int Search(SIndexMultiTermQuery* multiQ, SArray* result) {
+    SArray* query = multiQ->query;
+    numOfRead = taosArrayGetSize(query);
+    return indexSearch(idx, multiQ, result);
+  }
+
+  void Debug() {
+    std::cout << "numOfWrite:" << numOfWrite << std::endl;
+    std::cout << "numOfRead:" << numOfRead << std::endl;
+  }
+
+  ~IndexObj() {
+    indexClose(idx);
+    indexCleanUp();
+  }
+
+ private:
+  SIndexOpts opts;
+  SIndex*    idx;
+  int        numOfWrite;
+  int        numOfRead;
+};
+
+class IndexEnv2 : public ::testing::Test {
+ protected:
+  virtual void SetUp() {
+    index = new IndexObj();
+    //
+  }
+  virtual void TearDown() {
+    // r
+    delete index;
+  }
+  IndexObj* index;
+};
+TEST_F(IndexEnv2, testIndexOpen) {
+  std::string path = "/tmp";
+  if (index->Init(path) != 0) {}
+  std::string colName("tag1"), colVal("Hello world");
+  SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), colVal.c_str(), colVal.size());
+  SIndexMultiTerm* terms = indexMultiTermCreate();
+  indexMultiTermAdd(terms, term);
+  for (size_t i = 0; i < 100; i++) {
+    int tableId = i;
+    int ret = index->Put(terms, tableId);
+    assert(ret == 0);
+  }
+  indexMultiTermDestroy(terms);
+}
+TEST_F(IndexEnv2, testIndex_CachePut) {
+  std::string path = "/tmp";
+  if (index->Init(path) != 0) {}
+}
+
+TEST_F(IndexEnv2, testIndexr_TFilePut) {
+  std::string path = "/tmp";
+  if (index->Init(path) != 0) {}
+}
+TEST_F(IndexEnv2, testIndex_CacheSearch) {
+  std::string path = "/tmp";
+  if (index->Init(path) != 0) {}
+}
+TEST_F(IndexEnv2, testIndex_TFileSearch) {
+  std::string path = "/tmp";
+  if (index->Init(path) != 0) {}
+}
