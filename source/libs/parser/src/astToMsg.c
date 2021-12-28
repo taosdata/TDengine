@@ -428,6 +428,7 @@ SDropDnodeMsg *buildDropDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf
   char* end = NULL;
   SDropDnodeMsg * pDrop = (SDropDnodeMsg *)calloc(1, sizeof(SDropDnodeMsg));
   pDrop->dnodeId = strtoll(pzName->z, &end, 10);
+  pDrop->dnodeId = htonl(pDrop->dnodeId);
   *len = sizeof(SDropDnodeMsg);
 
   if (end - pzName->z != pzName->n) {

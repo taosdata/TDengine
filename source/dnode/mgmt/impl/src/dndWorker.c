@@ -73,7 +73,7 @@ void dndCleanupWorker(SDnodeWorker *pWorker) {
     tWorkerCleanup(&pWorker->pool);
     tWorkerFreeQueue(&pWorker->pool, pWorker->queue);
   } else if (pWorker->type == DND_WORKER_MULTI) {
-    tWorkerCleanup(&pWorker->mpool);
+    tMWorkerCleanup(&pWorker->mpool);
     tMWorkerFreeQueue(&pWorker->mpool, pWorker->queue);
   } else {
   }
@@ -85,16 +85,23 @@ int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pCont, int32_t contLen)
     return -1;
   }
 
-  void *pMsg = taosAllocateQitem(contLen);
+  void *pMsg = NULL;
+  if (contLen != 0) {
+    pMsg = taosAllocateQitem(contLen);
+    if (pMsg != NULL) {
+      memcpy(pMsg, pCont, contLen);
+    }
+  } else {
+    pMsg = pCont;
+  }
+
   if (pMsg == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  memcpy(pMsg, pCont, contLen);
-
-  if (taosWriteQitem(pWorker, pMsg) != 0) {
-    taosFreeItem(pMsg);
+  if (taosWriteQitem(pWorker->queue, pMsg) != 0) {
+    taosFreeQitem(pMsg);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }

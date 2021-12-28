@@ -140,20 +140,22 @@ static int32_t dndWriteSnodeFile(SDnode *pDnode) {
   fclose(fp);
   free(content);
 
-  if (taosRenameFile(file, file) != 0) {
+  char realfile[PATH_MAX + 20];
+  snprintf(realfile, PATH_MAX + 20, "%s/snode.json", pDnode->dir.dnode);
+
+  if (taosRenameFile(file, realfile) != 0) {
     terrno = TSDB_CODE_DND_SNODE_WRITE_FILE_ERROR;
     dError("failed to rename %s since %s", file, terrstr());
     return -1;
   }
 
-  dInfo("successed to write %s, deployed:%d dropped:%d", file, pMgmt->deployed, pMgmt->dropped);
+  dInfo("successed to write %s, deployed:%d dropped:%d", realfile, pMgmt->deployed, pMgmt->dropped);
   return 0;
 }
 
 static int32_t dndStartSnodeWorker(SDnode *pDnode) {
   SSnodeMgmt *pMgmt = &pDnode->smgmt;
-  if (dndInitWorker(pDnode, &pMgmt->writeWorker, DND_WORKER_SINGLE, "snode-write", 0, 1,
-                    (FProcessItem)dndProcessSnodeQueue) != 0) {
+  if (dndInitWorker(pDnode, &pMgmt->writeWorker, DND_WORKER_SINGLE, "snode-write", 0, 1, dndProcessSnodeQueue) != 0) {
     dError("failed to start snode write worker since %s", terrstr());
     return -1;
   }
@@ -202,7 +204,9 @@ static int32_t dndOpenSnode(SDnode *pDnode) {
     return -1;
   }
 
+  pMgmt->deployed = 1;
   if (dndWriteSnodeFile(pDnode) != 0) {
+    pMgmt->deployed = 0;
     dError("failed to write snode file since %s", terrstr());
     dndStopSnodeWorker(pDnode);
     sndClose(pSnode);
@@ -211,7 +215,6 @@ static int32_t dndOpenSnode(SDnode *pDnode) {
 
   taosWLockLatch(&pMgmt->latch);
   pMgmt->pSnode = pSnode;
-  pMgmt->deployed = 1;
   taosWUnLockLatch(&pMgmt->latch);
 
   dInfo("snode open successfully");
@@ -243,6 +246,8 @@ static int32_t dndDropSnode(SDnode *pDnode) {
 
   dndReleaseSnode(pDnode, pSnode);
   dndStopSnodeWorker(pDnode);
+  pMgmt->deployed = 0;
+  dndWriteSnodeFile(pDnode);
   sndClose(pSnode);
   pMgmt->pSnode = NULL;
   sndDestroy(pDnode->dir.snode);
@@ -328,7 +333,12 @@ int32_t dndInitSnode(SDnode *pDnode) {
     return -1;
   }
 
-  if (pMgmt->dropped) return 0;
+  if (pMgmt->dropped) {
+    dInfo("snode has been deployed and needs to be deleted");
+    sndDestroy(pDnode->dir.snode);
+    return 0;
+  }
+
   if (!pMgmt->deployed) return 0;
 
   return dndOpenSnode(pDnode);

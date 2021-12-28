@@ -140,20 +140,22 @@ static int32_t dndWriteBnodeFile(SDnode *pDnode) {
   fclose(fp);
   free(content);
 
-  if (taosRenameFile(file, file) != 0) {
+  char realfile[PATH_MAX + 20];
+  snprintf(realfile, PATH_MAX + 20, "%s/bnode.json", pDnode->dir.dnode);
+
+  if (taosRenameFile(file, realfile) != 0) {
     terrno = TSDB_CODE_DND_BNODE_WRITE_FILE_ERROR;
     dError("failed to rename %s since %s", file, terrstr());
     return -1;
   }
 
-  dInfo("successed to write %s, deployed:%d dropped:%d", file, pMgmt->deployed, pMgmt->dropped);
+  dInfo("successed to write %s, deployed:%d dropped:%d", realfile, pMgmt->deployed, pMgmt->dropped);
   return 0;
 }
 
 static int32_t dndStartBnodeWorker(SDnode *pDnode) {
   SBnodeMgmt *pMgmt = &pDnode->bmgmt;
-  if (dndInitWorker(pDnode, &pMgmt->writeWorker, DND_WORKER_SINGLE, "bnode-write", 0, 1,
-                    (FProcessItem)dndProcessBnodeQueue) != 0) {
+  if (dndInitWorker(pDnode, &pMgmt->writeWorker, DND_WORKER_MULTI, "bnode-write", 0, 1, dndProcessBnodeQueue) != 0) {
     dError("failed to start bnode write worker since %s", terrstr());
     return -1;
   }
@@ -202,7 +204,9 @@ static int32_t dndOpenBnode(SDnode *pDnode) {
     return -1;
   }
 
+  pMgmt->deployed = 1;
   if (dndWriteBnodeFile(pDnode) != 0) {
+    pMgmt->deployed = 0;
     dError("failed to write bnode file since %s", terrstr());
     dndStopBnodeWorker(pDnode);
     bndClose(pBnode);
@@ -211,7 +215,6 @@ static int32_t dndOpenBnode(SDnode *pDnode) {
 
   taosWLockLatch(&pMgmt->latch);
   pMgmt->pBnode = pBnode;
-  pMgmt->deployed = 1;
   taosWUnLockLatch(&pMgmt->latch);
 
   dInfo("bnode open successfully");
@@ -243,6 +246,8 @@ static int32_t dndDropBnode(SDnode *pDnode) {
 
   dndReleaseBnode(pDnode, pBnode);
   dndStopBnodeWorker(pDnode);
+  pMgmt->deployed = 0;
+  dndWriteBnodeFile(pDnode);
   bndClose(pBnode);
   pMgmt->pBnode = NULL;
   bndDestroy(pDnode->dir.bnode);
@@ -353,7 +358,12 @@ int32_t dndInitBnode(SDnode *pDnode) {
     return -1;
   }
 
-  if (pMgmt->dropped) return 0;
+  if (pMgmt->dropped) {
+    dInfo("bnode has been deployed and needs to be deleted");
+    bndDestroy(pDnode->dir.bnode);
+    return 0;
+  }
+
   if (!pMgmt->deployed) return 0;
 
   return dndOpenBnode(pDnode);

@@ -65,8 +65,10 @@ typedef struct {
   void          *queueFp;
   SDnode        *pDnode;
   taos_queue     queue;
-  SWorkerPool    pool;
-  SMWorkerPool   mpool;
+  union {
+    SWorkerPool  pool;
+    SMWorkerPool mpool;
+  };
 } SDnodeWorker;
 
 typedef struct {
@@ -95,21 +97,17 @@ typedef struct {
 } SDnodeMgmt;
 
 typedef struct {
-  int32_t     refCount;
-  int8_t      deployed;
-  int8_t      dropped;
-  int8_t      replica;
-  int8_t      selfIndex;
-  SReplica    replicas[TSDB_MAX_REPLICA];
-  char       *file;
-  SMnode     *pMnode;
-  SRWLatch    latch;
-  taos_queue  pReadQ;
-  taos_queue  pWriteQ;
-  taos_queue  pSyncQ;
-  SWorkerPool readPool;
-  SWorkerPool writePool;
-  SWorkerPool syncPool;
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SMnode      *pMnode;
+  SRWLatch     latch;
+  SDnodeWorker readWorker;
+  SDnodeWorker writeWorker;
+  SDnodeWorker syncWorker;
+  int8_t       replica;
+  int8_t       selfIndex;
+  SReplica     replicas[TSDB_MAX_REPLICA];
 } SMnodeMgmt;
 
 typedef struct {

@@ -140,26 +140,27 @@ static int32_t dndWriteQnodeFile(SDnode *pDnode) {
   fclose(fp);
   free(content);
 
-  if (taosRenameFile(file, file) != 0) {
+  char realfile[PATH_MAX + 20];
+  snprintf(realfile, PATH_MAX + 20, "%s/qnode.json", pDnode->dir.dnode);
+
+  if (taosRenameFile(file, realfile) != 0) {
     terrno = TSDB_CODE_DND_QNODE_WRITE_FILE_ERROR;
     dError("failed to rename %s since %s", file, terrstr());
     return -1;
   }
 
-  dInfo("successed to write %s, deployed:%d dropped:%d", file, pMgmt->deployed, pMgmt->dropped);
+  dInfo("successed to write %s, deployed:%d dropped:%d", realfile, pMgmt->deployed, pMgmt->dropped);
   return 0;
 }
 
 static int32_t dndStartQnodeWorker(SDnode *pDnode) {
   SQnodeMgmt *pMgmt = &pDnode->qmgmt;
-  if (dndInitWorker(pDnode, &pMgmt->queryWorker, DND_WORKER_SINGLE, "qnode-query", 0, 1,
-                    (FProcessItem)dndProcessQnodeQueue) != 0) {
+  if (dndInitWorker(pDnode, &pMgmt->queryWorker, DND_WORKER_SINGLE, "qnode-query", 0, 1, dndProcessQnodeQueue) != 0) {
     dError("failed to start qnode query worker since %s", terrstr());
     return -1;
   }
 
-  if (dndInitWorker(pDnode, &pMgmt->fetchWorker, DND_WORKER_SINGLE, "qnode-fetch", 0, 1,
-                    (FProcessItem)dndProcessQnodeQueue) != 0) {
+  if (dndInitWorker(pDnode, &pMgmt->fetchWorker, DND_WORKER_SINGLE, "qnode-fetch", 0, 1, dndProcessQnodeQueue) != 0) {
     dError("failed to start qnode fetch worker since %s", terrstr());
     return -1;
   }
@@ -209,7 +210,9 @@ static int32_t dndOpenQnode(SDnode *pDnode) {
     return -1;
   }
 
+  pMgmt->deployed = 1;
   if (dndWriteQnodeFile(pDnode) != 0) {
+    pMgmt->deployed = 0;
     dError("failed to write qnode file since %s", terrstr());
     dndStopQnodeWorker(pDnode);
     qndClose(pQnode);
@@ -218,7 +221,6 @@ static int32_t dndOpenQnode(SDnode *pDnode) {
 
   taosWLockLatch(&pMgmt->latch);
   pMgmt->pQnode = pQnode;
-  pMgmt->deployed = 1;
   taosWUnLockLatch(&pMgmt->latch);
 
   dInfo("qnode open successfully");
@@ -250,6 +252,8 @@ static int32_t dndDropQnode(SDnode *pDnode) {
 
   dndReleaseQnode(pDnode, pQnode);
   dndStopQnodeWorker(pDnode);
+  pMgmt->deployed = 0;
+  dndWriteQnodeFile(pDnode);
   qndClose(pQnode);
   pMgmt->pQnode = NULL;
 
