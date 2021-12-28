@@ -191,7 +191,9 @@ static FORCE_INLINE int tEncodeU16v(SEncoder* pEncoder, uint16_t val) {
   return 0;
 }
 
-static FORCE_INLINE int tEncodeI16v(SEncoder* pEncoder, int16_t val) { return tEncodeU16v(pEncoder, ZIGZAGE(val)); }
+static FORCE_INLINE int tEncodeI16v(SEncoder* pEncoder, int16_t val) {
+  return tEncodeU16v(pEncoder, ZIGZAGE(int16_t, val));
+}
 
 // 32v
 static FORCE_INLINE int tEncodeU32v(SEncoder* pEncoder, uint32_t val) {
@@ -216,7 +218,9 @@ static FORCE_INLINE int tEncodeU32v(SEncoder* pEncoder, uint32_t val) {
   return 0;
 }
 
-static FORCE_INLINE int tEncodeI32v(SEncoder* pEncoder, int32_t val) { return tEncodeU32v(pEncoder, ZIGZAGE(val)); }
+static FORCE_INLINE int tEncodeI32v(SEncoder* pEncoder, int32_t val) {
+  return tEncodeU32v(pEncoder, ZIGZAGE(int32_t, val));
+}
 
 // 64v
 static FORCE_INLINE int tEncodeU64v(SEncoder* pEncoder, uint64_t val) {
@@ -241,7 +245,9 @@ static FORCE_INLINE int tEncodeU64v(SEncoder* pEncoder, uint64_t val) {
   return 0;
 }
 
-static FORCE_INLINE int tEncodeI64v(SEncoder* pEncoder, int64_t val) { return tEncodeU64v(pEncoder, ZIGZAGE(val)); }
+static FORCE_INLINE int tEncodeI64v(SEncoder* pEncoder, int64_t val) {
+  return tEncodeU64v(pEncoder, ZIGZAGE(int64_t, val));
+}
 
 /* ------------------------ FOR DECODER ------------------------ */
 static FORCE_INLINE void tInitDecoder(SDecoder* pDecoder, td_endian_t endian, uint8_t* data, int64_t size) {
