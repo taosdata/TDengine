@@ -24,7 +24,6 @@ extern "C" {
 
 typedef struct SParseContext {
   SParseBasicCtx   ctx;
-  struct SCatalog *pCatalog;
   int8_t           schemaAttached; // denote if submit block is built with table schema or not
   const char      *pSql;           // sql string
   size_t           sqlLen;         // length of the sql string

@@ -715,7 +715,7 @@ TEST(testCase, show_user_Test) {
   ASSERT_EQ(info1.valid, true);
 
   SDclStmtInfo output;
-  SParseBasicCtx ct= {.db= "abc", .acctId = 1, .requestId = 1};
+  SParseBasicCtx ct= {.requestId = 1, .acctId = 1, .db = "abc", .pTransporter = NULL};
   int32_t code = qParserValidateDclSqlNode(&info1, &ct, &output, msg, buf.len);
   ASSERT_EQ(code, 0);
 
@@ -736,7 +736,7 @@ TEST(testCase, create_user_Test) {
   ASSERT_EQ(isDclSqlStatement(&info1), true);
 
   SDclStmtInfo output;
-  SParseBasicCtx ct= {.db= "abc", .acctId = 1, .requestId = 1};
+  SParseBasicCtx ct= {.requestId = 1, .acctId = 1, .db = "abc"};
   int32_t code = qParserValidateDclSqlNode(&info1, &ct, &output, msg, buf.len);
   ASSERT_EQ(code, 0);
 

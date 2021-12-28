@@ -145,17 +145,32 @@ int32_t buildRequest(STscObj *pTscObj, const char *sql, int sqlLen, SRequestObj*
 }
 
 int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
+  STscObj* pTscObj = pRequest->pTscObj;
+
   SParseContext cxt = {
-    .ctx = {.requestId = pRequest->requestId, .acctId = pRequest->pTscObj->acctId, .db = getConnectionDB(pRequest->pTscObj), .pTransporter = pRequest->pTscObj->pTransporter},
+    .ctx = {.requestId = pRequest->requestId, .acctId = pTscObj->acctId, .db = getConnectionDB(pTscObj), .pTransporter = pTscObj->pTransporter},
     .pSql   = pRequest->sqlstr,
     .sqlLen = pRequest->sqlLen,
     .pMsg   = pRequest->msgBuf,
     .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE
   };
 
-  cxt.ctx.mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
+  cxt.ctx.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
-  int32_t code = qParseQuerySql(&cxt, pQuery);
+  // todo OPT performance
+  char buf[12] = {0};
+  sprintf(buf, "%"PRId64, pTscObj->pAppInfo->clusterId);
+
+  struct SCatalog* pCatalog = NULL;
+  int32_t code = catalogGetHandle(buf, &pCatalog);
+  if (code != TSDB_CODE_SUCCESS) {
+    tfree(cxt.ctx.db);
+    return code;
+  }
+
+  cxt.ctx.pCatalog = pCatalog;
+  code = qParseQuerySql(&cxt, pQuery);
+
   tfree(cxt.ctx.db);
   return code;
 }
