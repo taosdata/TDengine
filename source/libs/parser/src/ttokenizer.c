@@ -672,7 +672,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
     }
   }
 
-  t0.z = str + (*i);
+  t0.z = (char*) str + (*i);
   *i += t0.n;
 
   return t0;

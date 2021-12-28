@@ -139,7 +139,7 @@ int32_t processShowRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     pFields[i].bytes = pSchema[i].bytes;
   }
 
-//  pRequest->body.resInfo.pRspMsg = pMsg->pData;
+  pRequest->body.resInfo.pRspMsg = pMsg->pData;
   SReqResultInfo* pResInfo = &pRequest->body.resInfo;
 
   pResInfo->fields    = pFields;

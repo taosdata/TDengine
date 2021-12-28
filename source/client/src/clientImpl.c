@@ -146,12 +146,14 @@ int32_t buildRequest(STscObj *pTscObj, const char *sql, int sqlLen, SRequestObj*
 
 int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
   SParseContext cxt = {
-    .ctx = {.requestId = pRequest->requestId, .acctId = pRequest->pTscObj->acctId, .db = getConnectionDB(pRequest->pTscObj)},
-    .pSql = pRequest->sqlstr,
+    .ctx = {.requestId = pRequest->requestId, .acctId = pRequest->pTscObj->acctId, .db = getConnectionDB(pRequest->pTscObj), .pTransporter = pRequest->pTscObj->pTransporter},
+    .pSql   = pRequest->sqlstr,
     .sqlLen = pRequest->sqlLen,
-    .pMsg = pRequest->msgBuf,
+    .pMsg   = pRequest->msgBuf,
     .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE
   };
+
+  cxt.ctx.mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
 
   int32_t code = qParseQuerySql(&cxt, pQuery);
   tfree(cxt.ctx.db);
@@ -165,7 +167,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
 
   STscObj* pTscObj = pRequest->pTscObj;
 
-  SMsgSendInfo* body = buildSendMsgInfoImpl(pRequest);
+  SMsgSendInfo* pSendMsg = buildSendMsgInfoImpl(pRequest);
   SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
 
   if (pDcl->msgType == TDMT_VND_CREATE_TABLE) {
@@ -178,34 +180,34 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
       return code;
     }
 
-    SCreateTableMsg* pMsg = body->msgInfo.pData;
+    SCreateTableMsg* pMsg = pSendMsg->msgInfo.pData;
 
     SName t = {0};
     tNameFromString(&t, pMsg->name, T_NAME_ACCT|T_NAME_DB|T_NAME_TABLE);
 
-    char db[TSDB_DB_NAME_LEN + TS_PATH_DELIMITER_LEN + TSDB_ACCT_ID_LEN] = {0};
+    char db[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_ACCT_ID_LEN] = {0};
     tNameGetFullDbName(&t, db);
 
     SVgroupInfo info = {0};
     catalogGetTableHashVgroup(pCatalog, pRequest->pTscObj->pTransporter, pEpSet, db, tNameGetTableName(&t), &info);
 
     int64_t transporterId = 0;
-    SEpSet ep = {0};
-    ep.inUse = info.inUse;
+    SEpSet ep   = {0};
+    ep.inUse    = info.inUse;
     ep.numOfEps = info.numOfEps;
     for(int32_t i = 0; i < ep.numOfEps; ++i) {
       ep.port[i] = info.epAddr[i].port;
       tstrncpy(ep.fqdn[i], info.epAddr[i].fqdn, tListLen(ep.fqdn[i]));
     }
 
-    asyncSendMsgToServer(pTscObj->pTransporter, &ep, &transporterId, body);
+    asyncSendMsgToServer(pTscObj->pTransporter, &ep, &transporterId, pSendMsg);
   } else {
     int64_t transporterId = 0;
-    asyncSendMsgToServer(pTscObj->pTransporter, pEpSet, &transporterId, body);
+    asyncSendMsgToServer(pTscObj->pTransporter, pEpSet, &transporterId, pSendMsg);
   }
 
   tsem_wait(&pRequest->body.rspSem);
-  destroySendMsgInfo(body);
+  destroySendMsgInfo(pSendMsg);
   return TSDB_CODE_SUCCESS;
 }
 

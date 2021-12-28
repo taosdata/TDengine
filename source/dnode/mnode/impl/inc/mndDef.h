@@ -209,7 +209,7 @@ typedef struct {
 } SDbCfg;
 
 typedef struct {
-  char    name[TSDB_FULL_DB_NAME_LEN];
+  char    name[TSDB_DB_FNAME_LEN];
   char    acct[TSDB_USER_LEN];
   int64_t createdTime;
   int64_t updateTime;
@@ -232,7 +232,7 @@ typedef struct {
   int32_t   version;
   uint32_t  hashBegin;
   uint32_t  hashEnd;
-  char      dbName[TSDB_FULL_DB_NAME_LEN];
+  char      dbName[TSDB_DB_FNAME_LEN];
   int64_t   dbUid;
   int32_t   numOfTables;
   int32_t   numOfTimeSeries;
@@ -246,7 +246,7 @@ typedef struct {
 
 typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
-  char     db[TSDB_FULL_DB_NAME_LEN];
+  char     db[TSDB_DB_FNAME_LEN];
   int64_t  createdTime;
   int64_t  updateTime;
   uint64_t uid;
@@ -286,7 +286,7 @@ typedef struct {
   int32_t payloadLen;
   void   *pIter;
   SMnode *pMnode;
-  char    db[TSDB_FULL_DB_NAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int16_t offset[TSDB_MAX_COLUMNS];
   int32_t bytes[TSDB_MAX_COLUMNS];
   char    payload[];
@@ -294,7 +294,7 @@ typedef struct {
 
 typedef struct {
   char name[TSDB_TOPIC_FNAME_LEN];
-  char db[TSDB_FULL_DB_NAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
   int64_t createTime;
   int64_t updateTime;
   uint64_t uid;
@@ -309,7 +309,7 @@ typedef struct {
 
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];
-  char    db[TSDB_FULL_DB_NAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int32_t acctId;
   SMnode *pMnode;
   int64_t createdTime;
