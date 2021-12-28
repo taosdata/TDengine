@@ -46,7 +46,6 @@ typedef struct STableMetaCache {
 } STableMetaCache;
 
 typedef struct SCatalog {
-  SVgroupListCache vgroupCache;
   SDBVgroupCache   dbCache;
   STableMetaCache  tableCache;
 } SCatalog;

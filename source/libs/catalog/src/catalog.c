@@ -415,16 +415,16 @@ int32_t catalogGetHandle(const char* clusterId , struct SCatalog** catalogHandle
   }
 
   size_t clen = strlen(clusterId);
-  SCatalog *clusterCtg = (SCatalog *)taosHashGet(ctgMgmt.pCluster, clusterId, clen);
+  SCatalog **ctg = (SCatalog **)taosHashGet(ctgMgmt.pCluster, clusterId, clen);
 
-  if (clusterCtg) {
-    *catalogHandle = clusterCtg;
+  if (ctg && (*ctg)) {
+    *catalogHandle = *ctg;
     return TSDB_CODE_SUCCESS;
   }
 
-  clusterCtg = calloc(1, sizeof(*clusterCtg));
+  SCatalog *clusterCtg = calloc(1, sizeof(SCatalog));
   if (NULL == clusterCtg) {
-    ctgError("calloc %d failed", (int32_t)sizeof(*clusterCtg));
+    ctgError("calloc %d failed", (int32_t)sizeof(SCatalog));
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
