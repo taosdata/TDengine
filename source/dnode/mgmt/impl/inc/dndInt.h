@@ -20,8 +20,11 @@
 extern "C" {
 #endif
 
-#include "cJSON.h"
 #include "os.h"
+
+#include "cJSON.h"
+#include "tcache.h"
+#include "tcrc32c.h"
 #include "tep.h"
 #include "thash.h"
 #include "tlockfree.h"
@@ -34,7 +37,11 @@ extern "C" {
 #include "tworker.h"
 
 #include "dnode.h"
+
+#include "bnode.h"
 #include "mnode.h"
+#include "qnode.h"
+#include "snode.h"
 #include "vnode.h"
 
 extern int32_t dDebugFlag;
@@ -47,12 +54,26 @@ extern int32_t dDebugFlag;
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
 
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EStat;
+typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EWorkerType;
 typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
+
+typedef struct {
+  EWorkerType    type;
+  const char    *name;
+  int32_t        minNum;
+  int32_t        maxNum;
+  void          *queueFp;
+  SDnode        *pDnode;
+  taos_queue     queue;
+  union {
+    SWorkerPool  pool;
+    SMWorkerPool mpool;
+  };
+} SDnodeWorker;
 
 typedef struct {
   char *dnode;
   char *mnode;
-  char *qnode;
   char *snode;
   char *bnode;
   char *vnodes;
@@ -76,22 +97,46 @@ typedef struct {
 } SDnodeMgmt;
 
 typedef struct {
-  int32_t     refCount;
-  int8_t      deployed;
-  int8_t      dropped;
-  int8_t      replica;
-  int8_t      selfIndex;
-  SReplica    replicas[TSDB_MAX_REPLICA];
-  char       *file;
-  SMnode     *pMnode;
-  SRWLatch    latch;
-  taos_queue  pReadQ;
-  taos_queue  pWriteQ;
-  taos_queue  pSyncQ;
-  SWorkerPool readPool;
-  SWorkerPool writePool;
-  SWorkerPool syncPool;
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SMnode      *pMnode;
+  SRWLatch     latch;
+  SDnodeWorker readWorker;
+  SDnodeWorker writeWorker;
+  SDnodeWorker syncWorker;
+  int8_t       replica;
+  int8_t       selfIndex;
+  SReplica     replicas[TSDB_MAX_REPLICA];
 } SMnodeMgmt;
+
+typedef struct {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SQnode      *pQnode;
+  SRWLatch     latch;
+  SDnodeWorker queryWorker;
+  SDnodeWorker fetchWorker;
+} SQnodeMgmt;
+
+typedef struct {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SSnode      *pSnode;
+  SRWLatch     latch;
+  SDnodeWorker writeWorker;
+} SSnodeMgmt;
+
+typedef struct {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SBnode      *pBnode;
+  SRWLatch     latch;
+  SDnodeWorker writeWorker;
+} SBnodeMgmt;
 
 typedef struct {
   SHashObj    *hash;
@@ -117,6 +162,9 @@ typedef struct SDnode {
   FileFd      lockFd;
   SDnodeMgmt  dmgmt;
   SMnodeMgmt  mmgmt;
+  SQnodeMgmt  qmgmt;
+  SSnodeMgmt  smgmt;
+  SBnodeMgmt  bmgmt;
   SVnodesMgmt vmgmt;
   STransMgmt  tmgmt;
   SStartupMsg startup;

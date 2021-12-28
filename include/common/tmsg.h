@@ -826,7 +826,7 @@ typedef struct SShowRsp {
 } SShowRsp;
 
 typedef struct {
-  char    ep[TSDB_FQDN_LEN];  // end point, hostname:port
+  char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
   int32_t port;
 } SCreateDnodeMsg;
 
@@ -852,6 +852,18 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
 } SDropMnodeInMsg;
+
+typedef struct {
+  int32_t dnodeId;
+} SCreateQnodeInMsg, SDropQnodeInMsg;
+
+typedef struct {
+  int32_t dnodeId;
+} SCreateSnodeInMsg, SDropSnodeInMsg;
+
+typedef struct {
+  int32_t dnodeId;
+} SCreateBnodeInMsg, SDropBnodeInMsg;
 
 typedef struct {
   int32_t dnodeId;
@@ -1006,7 +1018,7 @@ typedef struct {
 } SUpdateTagValRsp;
 
 typedef struct SSubQueryMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
   uint32_t contentLen;
@@ -1014,7 +1026,7 @@ typedef struct SSubQueryMsg {
 } SSubQueryMsg;
 
 typedef struct SResReadyMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
 } SResReadyMsg;
@@ -1024,13 +1036,13 @@ typedef struct SResReadyRsp {
 } SResReadyRsp;
 
 typedef struct SResFetchMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
 } SResFetchMsg;
 
 typedef struct SSchTasksStatusMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
 } SSchTasksStatusMsg;
 
 typedef struct STaskStatus {
@@ -1045,7 +1057,7 @@ typedef struct SSchedulerStatusRsp {
 } SSchedulerStatusRsp;
 
 typedef struct STaskCancelMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
 } STaskCancelMsg;
@@ -1055,7 +1067,7 @@ typedef struct STaskCancelRsp {
 } STaskCancelRsp;
 
 typedef struct STaskDropMsg {
-  uint64_t schedulerId;
+  uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
 } STaskDropMsg;
@@ -1063,6 +1075,27 @@ typedef struct STaskDropMsg {
 typedef struct STaskDropRsp {
   int32_t code;
 } STaskDropRsp;
+
+typedef struct {
+  int8_t  igExists;
+  char*   name;
+  char*   phyPlan;
+} SCMCreateTopicReq;
+
+static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateTopicReq* pReq) {
+  int tlen = 0;
+  tlen += taosEncodeString(buf, pReq->name);
+  tlen += taosEncodeFixedI8(buf, pReq->igExists);
+  tlen += taosEncodeString(buf, pReq->phyPlan);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDeserializeSCMCreateTopicReq(void* buf, SCMCreateTopicReq* pReq) {
+  buf = taosDecodeFixedI8(buf, &(pReq->igExists));
+  buf = taosDecodeString(buf, &(pReq->name));
+  buf = taosDecodeString(buf, &(pReq->phyPlan));
+  return buf;
+}
 
 typedef struct {
   char    name[TSDB_TOPIC_FNAME_LEN];

@@ -91,7 +91,8 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
     int32_t contLen = sizeof(SCreateDnodeMsg);
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
-    strcpy(pReq->ep, "localhost:9042");
+    strcpy(pReq->fqdn, "localhost");
+    pReq->port = htonl(9042);
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
@@ -148,7 +149,8 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
     int32_t contLen = sizeof(SCreateDnodeMsg);
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
-    strcpy(pReq->ep, "localhost:9043");
+    strcpy(pReq->fqdn, "localhost");
+    pReq->port = htonl(9043);
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
@@ -159,7 +161,8 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
     int32_t contLen = sizeof(SCreateDnodeMsg);
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
-    strcpy(pReq->ep, "localhost:9044");
+    strcpy(pReq->fqdn, "localhost");
+    pReq->port = htonl(9044);
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
@@ -170,7 +173,8 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
     int32_t contLen = sizeof(SCreateDnodeMsg);
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
-    strcpy(pReq->ep, "localhost:9045");
+    strcpy(pReq->fqdn, "localhost");
+    pReq->port = htonl(9045);
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);

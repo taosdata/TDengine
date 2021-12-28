@@ -1,0 +1,14 @@
+aux_source_directory(src SNODE_SRC)
+add_library(snode ${SNODE_SRC})
+target_include_directories(
+    snode
+    PUBLIC "${CMAKE_SOURCE_DIR}/include/dnode/snode"
+    private "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+)
+target_link_libraries(
+    snode
+    PRIVATE transport
+    PRIVATE os
+    PRIVATE common
+    PRIVATE util
+)

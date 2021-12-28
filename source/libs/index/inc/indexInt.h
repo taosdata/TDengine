@@ -51,6 +51,8 @@ struct SIndex {
   int64_t suid;      // current super table id, -1 is normal table
   int32_t cVersion;  // current version allocated to cache
 
+  char* path;
+
   SIndexStat      stat;
   pthread_mutex_t mtx;
 };
@@ -87,12 +89,23 @@ typedef struct SIndexTermQuery {
   EIndexQueryType qType;
 } SIndexTermQuery;
 
-typedef struct Iterate {
-  void*   iter;
+typedef struct Iterate Iterate;
+
+typedef struct IterateValue {
   int8_t  type;
   char*   colVal;
   SArray* val;
+} IterateValue;
+
+typedef struct Iterate {
+  void*        iter;
+  IterateValue val;
+  bool (*next)(Iterate* iter);
+  IterateValue* (*getValue)(Iterate* iter);
 } Iterate;
+
+void iterateValueDestroy(IterateValue* iv, bool destroy);
+
 extern void* indexQhandle;
 
 int indexFlushCacheTFile(SIndex* sIdx, void*);

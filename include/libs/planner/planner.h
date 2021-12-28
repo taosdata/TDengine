@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "tmsg.h"
+#include "tarray.h"
 
 #define QUERY_TYPE_MERGE       1
 #define QUERY_TYPE_PARTIAL     2
@@ -131,7 +132,7 @@ typedef struct SSubplan {
 typedef struct SQueryDag {
   uint64_t queryId;
   int32_t  numOfSubplans;
-  SArray  *pSubplans; // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0.
+  SArray  *pSubplans; // SArray*<SArray*<SSubplan*>>. The execution level of subplan, starting from 0.
 } SQueryDag;
 
 struct SQueryNode;
@@ -164,6 +165,9 @@ void qDestroySubplan(SSubplan* pSubplan);
  * @return
  */
 void qDestroyQueryDag(SQueryDag* pDag);
+
+char* qDagToString(const SQueryDag* pDag);
+SQueryDag* qStringToDag(const char* pStr);
 
 #ifdef __cplusplus
 }
