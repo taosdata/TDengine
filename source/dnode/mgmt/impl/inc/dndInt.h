@@ -54,7 +54,19 @@ extern int32_t dDebugFlag;
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
 
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EStat;
+typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EDndWorkerType;
 typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
+
+typedef struct {
+  EDndWorkerType type;
+  const char    *name;
+  int32_t        minNum;
+  int32_t        maxNum;
+  FProcessItem   fp;
+  SDnode        *pDnode;
+  taos_queue     queue;
+  SWorkerPool    pool;
+} SDnodeWorker;
 
 typedef struct {
   char *dnode;
@@ -100,16 +112,13 @@ typedef struct {
 } SMnodeMgmt;
 
 typedef struct {
-  int32_t     refCount;
-  int8_t      deployed;
-  int8_t      dropped;
-  char       *file;
-  SQnode     *pQnode;
-  SRWLatch    latch;
-  taos_queue  pQueryQ;
-  taos_queue  pFetchQ;
-  SWorkerPool queryPool;
-  SWorkerPool fetchPool;
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SQnode      *pQnode;
+  SRWLatch     latch;
+  SDnodeWorker queryWorker;
+  SDnodeWorker fetchWorker;
 } SQnodeMgmt;
 
 typedef struct {

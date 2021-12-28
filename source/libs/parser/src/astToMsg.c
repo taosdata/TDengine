@@ -414,8 +414,8 @@ SCreateDnodeMsg *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMs
     return NULL;
   }
 
-  strncpy(pCreate->ep, id->z, id->n);
-  pCreate->port = val;
+  strncpy(pCreate->fqdn, id->z, id->n);
+  pCreate->port = htonl(val);
 
   *len = sizeof(SCreateDnodeMsg);
   return pCreate;

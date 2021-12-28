@@ -33,7 +33,9 @@ if $data02 != master then
 endi
 
 print =============== create dnodes
-sql create dnode $hostname2
+sql create dnode $hostname port 7200
+sleep 2000
+
 sql show dnodes;
 if $rows != 2 then 
   return -1
@@ -47,6 +49,22 @@ if $data10 != 2 then
   return -1
 endi
 
+if $data02 != 0 then 
+  return -1
+endi
+
+if $data12 != 0 then 
+  return -1
+endi
+
+if $data04 != ready then 
+  return -1
+endi
+
+if $data14 != ready then 
+  return -1
+endi
+
 sql show mnodes;
 if $rows != 1 then 
   return -1
@@ -56,7 +74,7 @@ if $data00 != 1 then
   return -1
 endi
 
-if $data01 != master then 
+if $data02 != master then 
   return -1
 endi
 
