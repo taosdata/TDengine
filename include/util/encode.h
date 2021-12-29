@@ -464,7 +464,7 @@ static FORCE_INLINE int tDecodeDouble(SDecoder* pDecoder, double* val) {
   return 0;
 }
 
-static FORCE_INLINE int tDecodeCStr(SDecoder* pEncoder, const char* val) {
+static FORCE_INLINE int tDecodeCStr(SDecoder* pEncoder, const char** val) {
   // TODO
   return 0;
 }
