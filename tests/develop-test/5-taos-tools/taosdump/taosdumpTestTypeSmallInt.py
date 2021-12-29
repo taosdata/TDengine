@@ -23,7 +23,7 @@ import subprocess
 class TDTestCase:
     def caseDescription(self):
         '''
-        case1<sdsang>: [TD-12362] taosdump supports JSON
+        case1<sdsang>: [TD-12526] taosdump supports small int
         '''
         return
 
