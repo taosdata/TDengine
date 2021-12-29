@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "encode.h"
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tcoding.h"
@@ -299,12 +300,12 @@ typedef struct SEpSet {
 } SEpSet;
 
 typedef struct {
-  int32_t  acctId;
-  int64_t  clusterId;
-  int32_t  connId;
-  int8_t   superUser;
-  int8_t   reserved[5];
-  SEpSet   epSet;
+  int32_t acctId;
+  int64_t clusterId;
+  int32_t connId;
+  int8_t  superUser;
+  int8_t  reserved[5];
+  SEpSet  epSet;
 } SConnectRsp;
 
 typedef struct {
@@ -641,8 +642,6 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
   int64_t clusterId;
-  int8_t  dropped;
-  char    reserved[7];
 } SDnodeCfg;
 
 typedef struct {
@@ -1057,9 +1056,9 @@ typedef struct STaskDropRsp {
 } STaskDropRsp;
 
 typedef struct {
-  int8_t  igExists;
-  char*   name;
-  char*   phyPlan;
+  int8_t igExists;
+  char*  name;
+  char*  phyPlan;
 } SCMCreateTopicReq;
 
 static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateTopicReq* pReq) {
@@ -1238,6 +1237,31 @@ static FORCE_INLINE void* tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pR
 }
 typedef struct SVCreateTbRsp {
 } SVCreateTbRsp;
+
+typedef struct SVShowTablesReq {
+  SMsgHead head;
+} SVShowTablesReq;
+
+typedef struct SVShowTablesRsp {
+  int64_t       id;
+  STableMetaMsg metaInfo;
+} SVShowTablesRsp;
+
+typedef struct SVShowTablesFetchReq {
+  SMsgHead head;
+  int64_t  id;
+} SVShowTablesFetchReq;
+
+typedef struct SVShowTablesFetchRsp {
+  int64_t useconds;
+  int8_t  completed;  // all results are returned to client
+  int8_t  precision;
+  int8_t  compressed;
+  int32_t compLen;
+
+  int32_t numOfRows;
+  char    data[];
+} SVShowTablesFetchRsp;
 
 #pragma pack(pop)
 

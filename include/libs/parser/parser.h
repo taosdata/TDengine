@@ -27,7 +27,7 @@ typedef struct SParseContext {
   int8_t           schemaAttached; // denote if submit block is built with table schema or not
   const char      *pSql;           // sql string
   size_t           sqlLen;         // length of the sql string
-  char            *pMsg;           // extended error message if exists to help avoid the problem in sql statement.
+  char            *pMsg;           // extended error message if exists to help identifying the problem in sql statement.
   int32_t          msgLen;         // max length of the msg
 } SParseContext;
 

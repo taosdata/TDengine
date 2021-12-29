@@ -124,12 +124,8 @@ typedef struct {
   int64_t    rebootTime;
   int64_t    lastAccessTime;
   int32_t    accessTimes;
-  int16_t    numOfMnodes;
   int16_t    numOfVnodes;
-  int16_t    numOfQnodes;
-  int16_t    numOfSupportMnodes;
   int16_t    numOfSupportVnodes;
-  int16_t    numOfSupportQnodes;
   int16_t    numOfCores;
   EDndStatus status;
   EDndReason offlineReason;

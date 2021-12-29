@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "catalogInt.h"
 #include "trpc.h"
 #include "query.h"
 #include "tname.h"
+#include "catalogInt.h"
 
 SCatalogMgmt ctgMgmt = {0};
 
@@ -75,15 +75,14 @@ int32_t ctgGetDBVgroupFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEp
 }
 
 
-int32_t ctgGetTableMetaFromCache(struct SCatalog* pCatalog, const char *dbName, const char* pTableName, STableMeta** pTableMeta, int32_t *exist) {
+int32_t ctgGetTableMetaFromCache(struct SCatalog* pCatalog, const SName* pTableName, STableMeta** pTableMeta, int32_t *exist) {
   if (NULL == pCatalog->tableCache.cache) {
     *exist = 0;
     return TSDB_CODE_SUCCESS;
   }
 
   char tbFullName[TSDB_TABLE_FNAME_LEN];
-
-  snprintf(tbFullName, sizeof(tbFullName), "%s.%s", dbName, pTableName);
+  tNameExtractFullName(pTableName, tbFullName);
 
   *pTableMeta = NULL;
 
@@ -144,14 +143,13 @@ void ctgGenEpSet(SEpSet *epSet, SVgroupInfo *vgroupInfo) {
   }
 }
 
-int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char *pDBName, const char* pTableName, STableMetaOutput* output) {
-  if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pDBName || NULL == pTableName || NULL == output) {
+int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, STableMetaOutput* output) {
+  if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pTableName || NULL == output) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
   char tbFullName[TSDB_TABLE_FNAME_LEN];
-
-  snprintf(tbFullName, sizeof(tbFullName), "%s.%s", pDBName, pTableName);
+  tNameExtractFullName(pTableName, tbFullName);
 
   SBuildTableMetaInput bInput = {.vgId = 0, .tableFullName = tbFullName};
   char *msg = NULL;
@@ -270,15 +268,18 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgGetVgInfoFromHashValue(SDBVgroupInfo *dbInfo, const char *pDBName, const char *pTableName, SVgroupInfo *pVgroup) {
+int32_t ctgGetVgInfoFromHashValue(SDBVgroupInfo *dbInfo, const SName *pTableName, SVgroupInfo *pVgroup) {
   int32_t code = 0;
   
   CTG_LOCK(CTG_READ, &dbInfo->lock);
   
   int32_t vgNum = taosHashGetSize(dbInfo->vgInfo);
+  char db[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(pTableName, db);
+
   if (vgNum <= 0) {
-    ctgError("db[%s] vgroup cache invalid, vgroup number:%d", pDBName, vgNum);
-    CTG_ERR_JRET(TSDB_CODE_TSC_DB_NOT_SELECTED);
+    ctgError("db[%s] vgroup cache invalid, vgroup number:%d", db, vgNum);
+    CTG_ERR_RET(TSDB_CODE_TSC_DB_NOT_SELECTED);
   }
 
   tableNameHashFp fp = NULL;
@@ -287,8 +288,7 @@ int32_t ctgGetVgInfoFromHashValue(SDBVgroupInfo *dbInfo, const char *pDBName, co
   CTG_ERR_JRET(ctgGetHashFunction(dbInfo->hashMethod, &fp));
 
   char tbFullName[TSDB_TABLE_FNAME_LEN];
-
-  snprintf(tbFullName, sizeof(tbFullName), "%s.%s", pDBName, pTableName);
+  tNameExtractFullName(pTableName, tbFullName);
 
   uint32_t hashValue = (*fp)(tbFullName, (uint32_t)strlen(tbFullName));
 
@@ -317,24 +317,24 @@ _return:
   CTG_RET(TSDB_CODE_SUCCESS);
 }
 
-int32_t ctgGetTableMetaImpl(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, bool forceUpdate, STableMeta** pTableMeta) {
-  if (NULL == pCatalog || NULL == pDBName || NULL == pRpc || NULL == pMgmtEps || NULL == pTableName || NULL == pTableMeta) {
+int32_t ctgGetTableMetaImpl(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, bool forceUpdate, STableMeta** pTableMeta) {
+  if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pTableName || NULL == pTableMeta) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
   
   int32_t exist = 0;
 
   if (!forceUpdate) {  
-    CTG_ERR_RET(ctgGetTableMetaFromCache(pCatalog, pDBName, pTableName, pTableMeta, &exist));
+    CTG_ERR_RET(ctgGetTableMetaFromCache(pCatalog, pTableName, pTableMeta, &exist));
 
     if (exist) {
       return TSDB_CODE_SUCCESS;
     }
   }
 
-  CTG_ERR_RET(catalogRenewTableMeta(pCatalog, pRpc, pMgmtEps, pDBName, pTableName));
+  CTG_ERR_RET(catalogRenewTableMeta(pCatalog, pRpc, pMgmtEps, pTableName));
 
-  CTG_ERR_RET(ctgGetTableMetaFromCache(pCatalog, pDBName, pTableName, pTableMeta, &exist));
+  CTG_ERR_RET(ctgGetTableMetaFromCache(pCatalog, pTableName, pTableMeta, &exist));
 
   if (0 == exist) {
     ctgError("get table meta from cache failed, but fetch succeed");
@@ -433,7 +433,7 @@ int32_t ctgGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgm
   strncpy(input.db, dbName, sizeof(input.db));
   input.db[sizeof(input.db) - 1] = 0;
   input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
-  
+
   CTG_ERR_RET(ctgGetDBVgroupFromMnode(pCatalog, pRpc, pMgmtEps, &input, &DbOut));
 
   CTG_ERR_RET(catalogUpdateDBVgroup(pCatalog, dbName, &DbOut.dbVgroup));
@@ -452,7 +452,7 @@ int32_t catalogInit(SCatalogCfg *cfg) {
 
   if (cfg) {
     memcpy(&ctgMgmt.cfg, cfg, sizeof(*cfg));
-    
+
     if (ctgMgmt.cfg.maxDBCacheNum == 0) {
       ctgMgmt.cfg.maxDBCacheNum = CTG_DEFAULT_CACHE_DB_NUMBER;
     }
@@ -632,25 +632,25 @@ int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDB
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta) {
-  return ctgGetTableMetaImpl(pCatalog, pTransporter, pMgmtEps, pDBName, pTableName, false, pTableMeta);
+int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta) {
+  return ctgGetTableMetaImpl(pCatalog, pTransporter, pMgmtEps, pTableName, false, pTableMeta);
 }
 
-int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName) {
-  if (NULL == pCatalog || NULL == pDBName || NULL == pRpc || NULL == pMgmtEps || NULL == pTableName) {
+int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName) {
+  if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pTableName) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
   SVgroupInfo vgroupInfo = {0};
   int32_t code = 0;
-  
-  CTG_ERR_RET(catalogGetTableHashVgroup(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, &vgroupInfo));
+
+  CTG_ERR_RET(catalogGetTableHashVgroup(pCatalog, pRpc, pMgmtEps, pTableName, &vgroupInfo));
 
   STableMetaOutput output = {0};
   
   //CTG_ERR_RET(ctgGetTableMetaFromVnode(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, &vgroupInfo, &output));
 
-  CTG_ERR_RET(ctgGetTableMetaFromMnode(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, &output));
+  CTG_ERR_RET(ctgGetTableMetaFromMnode(pCatalog, pRpc, pMgmtEps, pTableName, &output));
 
   CTG_ERR_JRET(ctgUpdateTableMetaCache(pCatalog, &output));
 
@@ -661,12 +661,12 @@ _return:
   CTG_RET(code);
 }
 
-int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta) {
-  return ctgGetTableMetaImpl(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, true, pTableMeta);
+int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta) {
+  return ctgGetTableMetaImpl(pCatalog, pRpc, pMgmtEps, pTableName, true, pTableMeta);
 }
 
-int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, SArray** pVgroupList) {
-  if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pDBName || NULL == pTableName || NULL == pVgroupList) {
+int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, SArray** pVgroupList) {
+  if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pTableName || NULL == pVgroupList) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
   
@@ -678,9 +678,11 @@ int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pRpc, const S
 
   *pVgroupList = NULL;
   
-  CTG_ERR_JRET(catalogGetTableMeta(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, &tbMeta));
+  CTG_ERR_JRET(catalogGetTableMeta(pCatalog, pRpc, pMgmtEps, pTableName, &tbMeta));
 
-  CTG_ERR_JRET(ctgGetDBVgroup(pCatalog, pRpc, pMgmtEps, pDBName, false, &dbVgroup));
+  char db[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(pTableName, db);
+  CTG_ERR_JRET(ctgGetDBVgroup(pCatalog, pRpc, pMgmtEps, db, false, &dbVgroup));
 
   if (tbMeta->tableType == TSDB_SUPER_TABLE) {
     CTG_ERR_JRET(ctgGetVgInfoFromDB(pCatalog, pRpc, pMgmtEps, dbVgroup, pVgroupList));
@@ -723,14 +725,16 @@ _return:
 }
 
 
-int32_t catalogGetTableHashVgroup(struct SCatalog *pCatalog, void *pTransporter, const SEpSet *pMgmtEps, const char *pDBName, const char *pTableName, SVgroupInfo *pVgroup) {
+int32_t catalogGetTableHashVgroup(struct SCatalog *pCatalog, void *pTransporter, const SEpSet *pMgmtEps, const SName *pTableName, SVgroupInfo *pVgroup) {
   SDBVgroupInfo* dbInfo = NULL;
   int32_t code = 0;
-  int32_t vgId = 0;
 
-  CTG_ERR_RET(ctgGetDBVgroup(pCatalog, pTransporter, pMgmtEps, pDBName, false, &dbInfo));
+  char db[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(pTableName, db);
 
-  CTG_ERR_JRET(ctgGetVgInfoFromHashValue(dbInfo, pDBName, pTableName, pVgroup));
+  CTG_ERR_RET(ctgGetDBVgroup(pCatalog, pTransporter, pMgmtEps, db, false, &dbInfo));
+
+  CTG_ERR_JRET(ctgGetVgInfoFromHashValue(dbInfo, pTableName, pVgroup));
 
 _return:
 
@@ -751,13 +755,12 @@ int32_t catalogGetAllMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* p
   int32_t code = 0;
 
   if (pReq->pTableName) {
-    char dbName[TSDB_DB_FNAME_LEN];
     int32_t tbNum = (int32_t)taosArrayGetSize(pReq->pTableName);
     if (tbNum <= 0) {
       ctgError("empty table name list");
       CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
     }
-    
+
     pRsp->pTableMeta = taosArrayInit(tbNum, POINTER_BYTES);
     if (NULL == pRsp->pTableMeta) {
       ctgError("taosArrayInit num[%d] failed", tbNum);
@@ -768,9 +771,7 @@ int32_t catalogGetAllMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* p
       SName *name = taosArrayGet(pReq->pTableName, i);
       STableMeta *pTableMeta = NULL;
       
-      snprintf(dbName, sizeof(dbName), "%d.%s", name->acctId, name->dbname);
-
-      CTG_ERR_JRET(catalogGetTableMeta(pCatalog, pRpc, pMgmtEps, dbName, name->tname, &pTableMeta));
+      CTG_ERR_JRET(catalogGetTableMeta(pCatalog, pRpc, pMgmtEps, name, &pTableMeta));
 
       if (NULL == taosArrayPush(pRsp->pTableMeta, &pTableMeta)) {
         ctgError("taosArrayPush failed, idx:%d", i);

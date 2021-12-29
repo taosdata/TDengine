@@ -19,6 +19,7 @@
 #include "mndDef.h"
 #include "sdb.h"
 #include "tcache.h"
+#include "tep.h"
 #include "tqueue.h"
 #include "ttime.h"
 
