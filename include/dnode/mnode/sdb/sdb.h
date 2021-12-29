@@ -161,12 +161,14 @@ typedef enum {
   SDB_USER = 5,
   SDB_AUTH = 6,
   SDB_ACCT = 7,
-  SDB_TOPIC = 8,
-  SDB_VGROUP = 9,
-  SDB_STB = 10,
-  SDB_DB = 11,
-  SDB_FUNC = 12,
-  SDB_MAX = 13
+  SDB_CONSUMER = 8,
+  SDB_CGROUP = 9,
+  SDB_TOPIC = 10,
+  SDB_VGROUP = 11,
+  SDB_STB = 12,
+  SDB_DB = 13,
+  SDB_FUNC = 14,
+  SDB_MAX = 15
 } ESdbType;
 
 typedef struct SSdb SSdb;

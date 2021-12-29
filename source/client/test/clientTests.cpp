@@ -49,6 +49,7 @@ int main(int argc, char** argv) {
 
 TEST(testCase, driverInit_Test) { taos_init(); }
 
+#if 0
 TEST(testCase, connect_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
@@ -398,6 +399,7 @@ TEST(testCase, drop_stable_Test) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
+#endif
 
 TEST(testCase, create_topic_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);

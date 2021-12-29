@@ -305,7 +305,33 @@ typedef struct {
   void*    executor;
   int32_t  sqlLen;
   char*    sql;
+  char*    logicalPlan;
+  char*    physicalPlan;
 } STopicObj;
+
+typedef struct {
+  char name[TSDB_TOPIC_FNAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
+  int64_t createTime;
+  int64_t updateTime;
+  uint64_t uid;
+  //uint64_t dbUid;
+  int32_t version;
+  SRWLatch lock;
+
+} SConsumerObj;
+
+typedef struct {
+  char name[TSDB_TOPIC_FNAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
+  int64_t createTime;
+  int64_t updateTime;
+  uint64_t uid;
+  //uint64_t dbUid;
+  int32_t version;
+  SRWLatch lock;
+
+} SCGroupObj;
 
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];

@@ -240,6 +240,9 @@ TAOS_RES *tmq_create_topic(TAOS* taos, const char* name, const char* sql, int sq
   terrno = TSDB_CODE_SUCCESS;
 
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
+
+//temporary disabled until planner ready
+#if 0
   CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
   //TODO: check sql valid
 
@@ -249,15 +252,24 @@ TAOS_RES *tmq_create_topic(TAOS* taos, const char* name, const char* sql, int sq
   if(dagStr == NULL) {
     //TODO
   }
+#endif
 
   SCMCreateTopicReq req = {
     .name = (char*)name,
     .igExists = 0,
-    .phyPlan = dagStr,
+    /*.physicalPlan = dagStr,*/
+    .physicalPlan = (char*)sql,
+    .logicalPlan = "",
   };
 
-  void* buf = NULL;
-  int tlen = tSerializeSCMCreateTopicReq(&buf, &req);
+  int tlen = tSerializeSCMCreateTopicReq(NULL, &req);
+  void* buf = malloc(tlen);
+  if(buf == NULL) {
+    goto _return;
+  }
+  void* abuf = buf;
+  tSerializeSCMCreateTopicReq(&abuf, &req);
+  /*printf("formatted: %s\n", dagStr);*/
 
   pRequest->body.requestMsg = (SDataBuf){ .pData = buf, .len = tlen };
 
@@ -268,8 +280,6 @@ TAOS_RES *tmq_create_topic(TAOS* taos, const char* name, const char* sql, int sq
   asyncSendMsgToServer(pTscObj->pTransporter, pEpSet, &transporterId, body);
 
   tsem_wait(&pRequest->body.rspSem);
-
-  destroySendMsgInfo(body);
 
 _return:
   qDestroyQuery(pQuery);
