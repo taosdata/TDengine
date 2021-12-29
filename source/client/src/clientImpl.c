@@ -181,43 +181,13 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
   pRequest->body.requestMsg = (SDataBuf){.pData = pDcl->pMsg, .len = pDcl->msgLen};
 
   STscObj* pTscObj = pRequest->pTscObj;
-
-
   SMsgSendInfo* pSendMsg = buildSendMsgInfoImpl(pRequest);
-  SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
 
+  int64_t transporterId = 0;
   if (pDcl->msgType == TDMT_VND_CREATE_TABLE) {
-//    struct SCatalog* pCatalog = NULL;
-//
-//    char buf[18] = {0};
-//    sprintf(buf, "%" PRId64, pRequest->pTscObj->pAppInfo->clusterId);
-//    int32_t code = catalogGetHandle(buf, &pCatalog);
-//    if (code != TSDB_CODE_SUCCESS) {
-//      return code;
-//    }
-//
-//    SCreateTableMsg* pMsg = pSendMsg->msgInfo.pData;
-//
-//    SName t = {0};
-//    tNameFromString(&t, pMsg->name, T_NAME_ACCT|T_NAME_DB|T_NAME_TABLE);
-//
-//    char db[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_ACCT_ID_LEN] = {0};
-//    tNameGetFullDbName(&t, db);
-//
-//    SVgroupInfo info = {0};
-//    catalogGetTableHashVgroup(pCatalog, pRequest->pTscObj->pTransporter, pEpSet, db, tNameGetTableName(&t), &info);
-//
-    int64_t transporterId = 0;
-//    SEpSet ep   = {0};
-//    ep.inUse    = info.inUse;
-//    ep.numOfEps = info.numOfEps;
-//    for(int32_t i = 0; i < ep.numOfEps; ++i) {
-//      ep.port[i] = info.epAddr[i].port;
-//      tstrncpy(ep.fqdn[i], info.epAddr[i].fqdn, tListLen(ep.fqdn[i]));
-//    }
     asyncSendMsgToServer(pTscObj->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
   } else {
-    int64_t transporterId = 0;
+    SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
     asyncSendMsgToServer(pTscObj->pTransporter, pEpSet, &transporterId, pSendMsg);
   }
 

@@ -433,7 +433,6 @@ TEST(testCase, create_topic_Test) {
   taos_close(pConn); 
 }
 
-
 //TEST(testCase, show_table_Test) {
 //  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
 //  assert(pConn != NULL);
