@@ -725,23 +725,40 @@ TEST_F(IndexEnv2, testIndexOpen) {
     assert(taosArrayGetSize(result) == targetSize);
   }
 }
-TEST_F(IndexEnv2, testIndex_CachePut) {
+
+TEST_F(IndexEnv2, testIndex_TrigeFlush) {
+  std::string path = "/tmp";
+  if (index->Init(path) != 0) {
+  }
+}
+TEST_F(IndexEnv2, testIndex_TrigeFlush) {
+  std::string path = "/tmp";
+  if (index->Init(path) != 0) {
+  }
+}
+TEST_(IndexEnv2, testIndex_serarch_cache_and_tfile) {
+  std::string path = "/tmp";
+  if (index->Init(path) != 0) {
+  }
+}
+TEST_(IndexEnv2, testIndex_multi_thread_write) {
+  std::string path = "/tmp";
+  if (index->Init(path) != 0) {
+  }
+}
+TEST_(IndexEnv2, testIndex_multi_thread_read) {
   std::string path = "/tmp";
   if (index->Init(path) != 0) {
   }
 }
 
-TEST_F(IndexEnv2, testIndexr_TFilePut) {
+TEST_(IndexEnv2, testIndex_restart) {
   std::string path = "/tmp";
   if (index->Init(path) != 0) {
   }
 }
-TEST_F(IndexEnv2, testIndex_CacheSearch) {
-  std::string path = "/tmp";
-  if (index->Init(path) != 0) {
-  }
-}
-TEST_F(IndexEnv2, testIndex_TFileSearch) {
+
+TEST_F(IndexEnv2, testIndex_performance) {
   std::string path = "/tmp";
   if (index->Init(path) != 0) {
   }
