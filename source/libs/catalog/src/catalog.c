@@ -532,41 +532,6 @@ int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDB
   return TSDB_CODE_SUCCESS;
 }
 
-
-
-
-int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* dbName, int32_t forceUpdate, SDBVgroupInfo* dbInfo) {
-  if (NULL == pCatalog || NULL == dbName || NULL == pRpc || NULL == pMgmtEps) {
-    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
-  }
-
-  int32_t exist = 0;
-
-  if (0 == forceUpdate) {
-    CTG_ERR_RET(ctgGetDBVgroupFromCache(pCatalog, dbName, dbInfo, &exist));
-
-    if (exist) {
-      return TSDB_CODE_SUCCESS;
-    }
-  }
-
-  SUseDbOutput DbOut = {0};
-  SBuildUseDBInput input = {0};
-
-  strncpy(input.db, dbName, sizeof(input.db));
-  input.db[sizeof(input.db) - 1] = 0;
-  input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
-  
-  CTG_ERR_RET(ctgGetDBVgroupFromMnode(pCatalog, pRpc, pMgmtEps, &input, &DbOut));
-//  CTG_ERR_RET(catalogUpdateDBVgroupCache(pCatalog, dbName, &DbOut.dbVgroup));
-
-  if (dbInfo) {
-    *dbInfo = DbOut.dbVgroup;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta) {
   return ctgGetTableMetaImpl(pCatalog, pTransporter, pMgmtEps, pTableName, false, pTableMeta);
 }
@@ -614,7 +579,7 @@ int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pRpc, const S
 
   char db[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(pTableName, db);
-  CTG_ERR_JRET(catalogGetDBVgroup(pCatalog, pRpc, pMgmtEps, db, false, &dbVgroup));
+  CTG_ERR_JRET(ctgGetDBVgroup(pCatalog, pRpc, pMgmtEps, db, false, &dbVgroup));
 
   if (tbMeta->tableType == TSDB_SUPER_TABLE) {
     CTG_ERR_JRET(ctgGetVgInfoFromDB(pCatalog, pRpc, pMgmtEps, &dbVgroup, pVgroupList));
@@ -654,7 +619,7 @@ int32_t catalogGetTableHashVgroup(struct SCatalog *pCatalog, void *pTransporter,
   char db[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(pTableName, db);
 
-  CTG_ERR_RET(catalogGetDBVgroup(pCatalog, pTransporter, pMgmtEps, db, false, &dbInfo));
+  CTG_ERR_RET(ctgGetDBVgroup(pCatalog, pTransporter, pMgmtEps, db, false, &dbInfo));
 
   if (dbInfo.vgVersion < 0 || NULL == dbInfo.vgInfo) {
     ctgError("db[%s] vgroup cache invalid, vgroup version:%d, vgInfo:%p", db, dbInfo.vgVersion, dbInfo.vgInfo);

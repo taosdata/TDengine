@@ -433,15 +433,15 @@ TEST(testCase, drop_stable_Test) {
 //  taos_close(pConn);
 //}
 
-//TEST(testCase, show_table_Test) {
-//  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-//  assert(pConn != NULL);
-//
-//  TAOS_RES* pRes = taos_query(pConn, "use abc1");
-//  taos_free_result(pRes);
-//
-//  pRes = taos_query(pConn, "show tables");
-//  taos_free_result(pRes);
-//
-//  taos_close(pConn);
-//}
+TEST(testCase, show_table_Test) {
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  assert(pConn != NULL);
+
+  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "show tables");
+  taos_free_result(pRes);
+
+  taos_close(pConn);
+}
