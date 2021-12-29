@@ -250,6 +250,21 @@ static FORCE_INLINE int tEncodeI64v(SEncoder* pEncoder, int64_t val) {
   return tEncodeU64v(pEncoder, ZIGZAGE(int64_t, val));
 }
 
+static FORCE_INLINE int tEncodeFloat(SEncoder* pEncoder, float val) {
+  // TODO
+  return 0;
+}
+
+static FORCE_INLINE int tEncodeDouble(SEncoder* pEncoder, double val) {
+  // TODO
+  return 0;
+}
+
+static FORCE_INLINE int tEncodeCStr(SEncoder* pEncoder, const char* val) {
+  // TODO
+  return 0;
+}
+
 /* ------------------------ FOR DECODER ------------------------ */
 static FORCE_INLINE void tInitDecoder(SDecoder* pDecoder, td_endian_t endian, uint8_t* data, int64_t size) {
   ASSERT(!TD_IS_NULL(data));
@@ -436,6 +451,21 @@ static FORCE_INLINE int tDecodeI64v(SDecoder* pDecoder, int64_t* val) {
     return -1;
   }
   *val = ZIGZAGD(int64_t, tval);
+  return 0;
+}
+
+static FORCE_INLINE int tDecodeFloat(SDecoder* pDecoder, float* val) {
+  // TODO
+  return 0;
+}
+
+static FORCE_INLINE int tDecodeDouble(SDecoder* pDecoder, double* val) {
+  // TODO
+  return 0;
+}
+
+static FORCE_INLINE int tDecodeCStr(SDecoder* pEncoder, const char* val) {
+  // TODO
   return 0;
 }
 
