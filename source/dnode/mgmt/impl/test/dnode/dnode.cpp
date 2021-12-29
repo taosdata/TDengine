@@ -68,7 +68,7 @@ TEST_F(DndTestDnode, 01_ShowDnode) {
   CheckInt16(1);
   CheckBinary("localhost:9041", TSDB_EP_LEN);
   CheckInt16(0);
-  CheckInt16(1);
+  CheckInt16(16);
   CheckBinary("ready", 10);
   CheckTimestamp();
   CheckBinary("", 24);
@@ -112,8 +112,8 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckBinary("localhost:9042", TSDB_EP_LEN);
   CheckInt16(0);
   CheckInt16(0);
-  CheckInt16(1);
-  CheckInt16(1);
+  CheckInt16(16);
+  CheckInt16(16);
   CheckBinary("ready", 10);
   CheckBinary("ready", 10);
   CheckTimestamp();
@@ -140,7 +140,7 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckInt16(1);
   CheckBinary("localhost:9041", TSDB_EP_LEN);
   CheckInt16(0);
-  CheckInt16(1);
+  CheckInt16(16);
   CheckBinary("ready", 10);
   CheckTimestamp();
   CheckBinary("", 24);
@@ -199,10 +199,10 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckInt16(0);
   CheckInt16(0);
   CheckInt16(0);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckInt16(1);
+  CheckInt16(16);
+  CheckInt16(16);
+  CheckInt16(16);
+  CheckInt16(16);
   CheckBinary("ready", 10);
   CheckBinary("ready", 10);
   CheckBinary("ready", 10);
@@ -242,10 +242,10 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckInt16(0);
   CheckInt16(0);
   CheckInt16(0);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckInt16(1);
+  CheckInt16(16);
+  CheckInt16(16);
+  CheckInt16(16);
+  CheckInt16(16);
   CheckBinary("ready", 10);
   CheckBinary("ready", 10);
   CheckBinary("ready", 10);
