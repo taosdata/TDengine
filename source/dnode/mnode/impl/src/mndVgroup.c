@@ -120,6 +120,9 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   for (int8_t i = 0; i < pVgroup->replica; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
     SDB_GET_INT32(pRaw, pRow, dataPos, &pVgid->dnodeId)
+    if (pVgroup->replica == 1) {
+      pVgid->role = TAOS_SYNC_STATE_LEADER;
+    }
   }
   SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_VGROUP_RESERVE_SIZE)
 
