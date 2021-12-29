@@ -348,6 +348,7 @@ static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pMsg) {
 }
 
 static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+
 static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pMsg) { return 0; }
 
 static int32_t mndGetVgroupMaxReplica(SMnode *pMnode, char *dbName, int8_t *pReplica, int32_t *pNumOfVgroups) {
@@ -478,7 +479,7 @@ static void mndCancelGetNextVgroup(SMnode *pMnode, void *pIter) {
   sdbCancelFetch(pSdb, pIter);
 }
 
-static int32_t mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId) {
+int32_t mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId) {
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfVnodes = 0;
   void   *pIter = NULL;
