@@ -80,16 +80,12 @@ void sdbCleanup(SSdb *pSdb) {
     SHashObj *hash = pSdb->hashObjs[i];
     if (hash == NULL) continue;
 
-    SdbDeleteFp deleteFp = pSdb->deleteFps[i];
-    SSdbRow   **ppRow = taosHashIterate(hash, NULL);
+    SSdbRow **ppRow = taosHashIterate(hash, NULL);
     while (ppRow != NULL) {
       SSdbRow *pRow = *ppRow;
       if (pRow == NULL) continue;
 
-      if (deleteFp != NULL) {
-        (*deleteFp)(pSdb, pRow->pObj);
-      }
-      sdbFreeRow(pRow);
+      sdbFreeRow(pSdb, pRow);
       ppRow = taosHashIterate(hash, ppRow);
     }
   }

@@ -139,7 +139,7 @@ void dmnWaitSignal() {
 void dmnInitOption(SDnodeOpt *pOption) {
   pOption->sver = 30000000; //3.0.0.0
   pOption->numOfCores = tsNumOfCores;
-  pOption->numOfSupportVnodes = 1;
+  pOption->numOfSupportVnodes = 16;
   pOption->numOfCommitThreads = 1;
   pOption->statusInterval = tsStatusInterval;
   pOption->numOfThreadsPerCore = tsNumOfThreadsPerCore;

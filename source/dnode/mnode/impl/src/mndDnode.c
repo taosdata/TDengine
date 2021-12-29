@@ -18,8 +18,7 @@
 #include "mndMnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
-#include "tep.h"
-#include "ttime.h"
+#include "mndVgroup.h"
 
 #define TSDB_DNODE_VER_NUMBER 1
 #define TSDB_DNODE_RESERVE_SIZE 64
@@ -370,7 +369,6 @@ static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg) {
   }
 
   pRsp->dnodeCfg.dnodeId = htonl(pDnode->id);
-  pRsp->dnodeCfg.dropped = 0;
   pRsp->dnodeCfg.clusterId = htobe64(pMnode->clusterId);
   mndGetDnodeData(pMnode, &pRsp->dnodeEps, numOfEps);
 
@@ -700,7 +698,7 @@ static int32_t mndRetrieveDnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, i
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDnode->numOfVnodes;
+    *(int16_t *)pWrite = mndGetVnodesNum(pMnode, pDnode->id);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

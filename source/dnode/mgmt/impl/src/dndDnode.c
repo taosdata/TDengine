@@ -393,13 +393,11 @@ void dndSendStatusMsg(SDnode *pDnode) {
 
 static void dndUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-  if (pMgmt->dnodeId == 0 || pMgmt->dropped != pCfg->dropped) {
-    dInfo("set dnodeId:%d clusterId:% " PRId64 " dropped:%d", pCfg->dnodeId, pCfg->clusterId, pCfg->dropped);
-
+  if (pMgmt->dnodeId == 0) {
+    dInfo("set dnodeId:%d clusterId:% " PRId64, pCfg->dnodeId, pCfg->clusterId);
     taosWLockLatch(&pMgmt->latch);
     pMgmt->dnodeId = pCfg->dnodeId;
     pMgmt->clusterId = pCfg->clusterId;
-    pMgmt->dropped = pCfg->dropped;
     dndWriteDnodes(pDnode);
     taosWUnLockLatch(&pMgmt->latch);
   }
@@ -430,6 +428,11 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg) {
 
   if (pMsg->code != TSDB_CODE_SUCCESS) {
     pMgmt->statusSent = 0;
+    if (pMsg->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->dropped && pMgmt->dnodeId > 0) {
+      dInfo("dnode:%d, set to dropped since not exist in mnode", pMgmt->dnodeId);
+      pMgmt->dropped = 1;
+      dndWriteDnodes(pDnode);
+    }
     return;
   }
 
@@ -438,11 +441,6 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   pCfg->dnodeId = htonl(pCfg->dnodeId);
   pCfg->clusterId = htobe64(pCfg->clusterId);
   dndUpdateDnodeCfg(pDnode, pCfg);
-
-  if (pCfg->dropped) {
-    pMgmt->statusSent = 0;
-    return;
-  }
 
   SDnodeEps *pDnodeEps = &pRsp->dnodeEps;
   pDnodeEps->num = htonl(pDnodeEps->num);
@@ -487,7 +485,7 @@ static void *dnodeThreadRoutine(void *param) {
     pthread_testcancel();
     taosMsleep(ms);
 
-    if (dndGetStat(pDnode) == DND_STAT_RUNNING && !pMgmt->statusSent) {
+    if (dndGetStat(pDnode) == DND_STAT_RUNNING && !pMgmt->statusSent && !pMgmt->dropped) {
       dndSendStatusMsg(pDnode);
     }
   }
@@ -519,6 +517,11 @@ int32_t dndInitDnode(SDnode *pDnode) {
 
   if (dndReadDnodes(pDnode) != 0) {
     dError("failed to read file:%s since %s", pMgmt->file, terrstr());
+    return -1;
+  }
+
+  if (pMgmt->dropped) {
+    dError("dnode will not start for its already dropped");
     return -1;
   }
 

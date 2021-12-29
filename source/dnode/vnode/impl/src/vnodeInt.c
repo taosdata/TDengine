@@ -28,8 +28,3 @@ int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   vInfo("sync message is processed");
   return 0;
 }
-
-int vnodeProcessConsumeReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vInfo("consume message is processed");
-  return 0;
-}

@@ -188,14 +188,21 @@ int32_t processCreateDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
-  SUseDbRsp* pUseDbRsp = (SUseDbRsp*) pMsg->pData;
-  SName name = {0};
-  tNameFromString(&name, pUseDbRsp->db, T_NAME_ACCT|T_NAME_DB);
+  SRequestObj* pRequest = param;
+
+  if (code != TSDB_CODE_SUCCESS) {
+    pRequest->code = code;
+    tsem_post(&pRequest->body.rspSem);
+    return code;
+  }
+
+  SUseDbRsp* pUseDbRsp = (SUseDbRsp*)pMsg->pData;
+  SName      name = {0};
+  tNameFromString(&name, pUseDbRsp->db, T_NAME_ACCT | T_NAME_DB);
 
   char db[TSDB_DB_NAME_LEN] = {0};
   tNameGetDbName(&name, db);
 
-  SRequestObj* pRequest = param;
   setConnectionDB(pRequest->pTscObj, db);
 
   tsem_post(&pRequest->body.rspSem);
