@@ -374,25 +374,8 @@ void taosReadGlobalLogCfg() {
     }
     strcpy(configDir, full_path.we_wordv[0]);
   } else {
-    #ifdef _TD_POWER_
-    printf("configDir:%s not there, use default value: /etc/power", configDir);
-    strcpy(configDir, "/etc/power");
-	#elif (_TD_TQ_ == true)
-    printf("configDir:%s not there, use default value: /etc/tq", configDir);
-    strcpy(configDir, "/etc/tq");
-	#elif (_TD_PRO_ == true)
-    printf("configDir:%s not there, use default value: /etc/ProDB", configDir);
-    strcpy(configDir, "/etc/ProDB");
-	#elif (_TD_KH_ == true)
-    printf("configDir:%s not there, use default value: /etc/kinghistorian", configDir);
-    strcpy(configDir, "/etc/kinghistorian");
-	#elif (_TD_JH_ == true)
-    printf("configDir:%s not there, use default value: /etc/jh_taos", configDir);
-    strcpy(configDir, "/etc/jh_taos");
-    #else
     printf("configDir:%s not there, use default value: /etc/taos", configDir);
     strcpy(configDir, "/etc/taos");
-    #endif
   }
   wordfree(&full_path);
 
