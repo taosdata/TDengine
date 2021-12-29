@@ -86,7 +86,9 @@ class TDTestCase:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%staosdump --databases db -o %s -T 1" % (binPath, self.tmpdir))
+        os.system(
+            "%staosdump --databases db -o %s -T 1" %
+            (binPath, self.tmpdir))
 
 #        sys.exit(1)
         tdSql.execute("drop database db")
@@ -108,7 +110,8 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         if not math.isclose(tdSql.getData(0, 1), 1.0):
-            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,1), 1.0))
+            tdLog.debug("getData(0, 1): %f, to compare %f" %
+                        (tdSql.getData(0, 1), 1.0))
             tdLog.exit("data is different")
         if not math.isclose(tdSql.getData(0, 2), 1.0):
             tdLog.exit("data is different")
@@ -116,21 +119,29 @@ class TDTestCase:
         tdSql.query("select * from st where ftag = 3.4E38")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
-        if not math.isclose(tdSql.getData(0, 1), 3.4E38, rel_tol=1e-07, abs_tol=0.0):
-            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,1), 3.4E38))
+        if not math.isclose(tdSql.getData(0, 1), 3.4E38,
+                            rel_tol=1e-07, abs_tol=0.0):
+            tdLog.debug("getData(0, 1): %f, to compare %f" %
+                        (tdSql.getData(0, 1), 3.4E38))
             tdLog.exit("data is different")
-        if not math.isclose(tdSql.getData(0, 2), 3.4E38, rel_tol=1e-07, abs_tol=0.0):
-            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,2), 3.4E38))
+        if not math.isclose(tdSql.getData(0, 2), 3.4E38,
+                            rel_tol=1e-07, abs_tol=0.0):
+            tdLog.debug("getData(0, 1): %f, to compare %f" %
+                        (tdSql.getData(0, 2), 3.4E38))
             tdLog.exit("data is different")
 
         tdSql.query("select * from st where ftag = -3.4E38")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
-        if not math.isclose(tdSql.getData(0, 1), (-3.4E38), rel_tol=1e-07, abs_tol=0.0):
-            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,1), -3.4E38))
+        if not math.isclose(tdSql.getData(0, 1), (-3.4E38),
+                            rel_tol=1e-07, abs_tol=0.0):
+            tdLog.debug("getData(0, 1): %f, to compare %f" %
+                        (tdSql.getData(0, 1), -3.4E38))
             tdLog.exit("data is different")
-        if not math.isclose(tdSql.getData(0, 2), (-3.4E38), rel_tol=1e-07, abs_tol=0.0):
-            tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0,2), -3.4E38))
+        if not math.isclose(tdSql.getData(0, 2), (-3.4E38),
+                            rel_tol=1e-07, abs_tol=0.0):
+            tdLog.debug("getData(0, 1): %f, to compare %f" %
+                        (tdSql.getData(0, 2), -3.4E38))
             tdLog.exit("data is different")
 
         tdSql.query("select * from st where ftag is null")
@@ -138,7 +149,6 @@ class TDTestCase:
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
-
 
     def stop(self):
         tdSql.close()
