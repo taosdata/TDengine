@@ -1,8 +1,9 @@
-#include "tmsg.h"
-#include "query.h"
 #include "qworker.h"
-#include "qworkerInt.h"
+#include "tname.h"
 #include "planner.h"
+#include "query.h"
+#include "qworkerInt.h"
+#include "tmsg.h"
 
 int32_t qwValidateStatus(int8_t oriStatus, int8_t newStatus) {
   int32_t code = 0;
@@ -634,7 +635,6 @@ int32_t qwBuildAndSendFetchRsp(SRpcMsg *pMsg, void *data) {
   return TSDB_CODE_SUCCESS;
 }
 
-
 int32_t qwBuildAndSendCancelRsp(SRpcMsg *pMsg, int32_t code) {
   STaskCancelRsp *pRsp = (STaskCancelRsp *)rpcMallocCont(sizeof(STaskCancelRsp));
   pRsp->code = code;
@@ -665,11 +665,68 @@ int32_t qwBuildAndSendDropRsp(SRpcMsg *pMsg, int32_t code) {
   };
 
   rpcSendResponse(&rpcRsp);
-
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qwBuildAndSendShowRsp(SRpcMsg *pMsg, int32_t code) {
+  int32_t numOfCols = 6;
+  SVShowTablesRsp *pRsp = (SVShowTablesRsp *)rpcMallocCont(sizeof(SVShowTablesRsp) + sizeof(SSchema) * numOfCols);
 
+  int32_t  cols = 0;
+  SSchema *pSchema = pRsp->metaInfo.pSchema;
+
+  const SSchema *s = tGetTbnameColumnSchema();
+  *pSchema = createSchema(s->type, htonl(s->bytes), htonl(cols++), "name");
+  pSchema++;
+
+  int32_t type = TSDB_DATA_TYPE_TIMESTAMP;
+  *pSchema = createSchema(type, htonl(tDataTypes[type].bytes), htonl(cols++), "created");
+  pSchema++;
+
+  type = TSDB_DATA_TYPE_SMALLINT;
+  *pSchema = createSchema(type, htonl(tDataTypes[type].bytes), htonl(cols++), "columns");
+  pSchema++;
+
+  *pSchema = createSchema(s->type, htonl(s->bytes), htonl(cols++), "stable");
+  pSchema++;
+
+  type = TSDB_DATA_TYPE_BIGINT;
+  *pSchema = createSchema(type, htonl(tDataTypes[type].bytes), htonl(cols++), "uid");
+  pSchema++;
+
+  type = TSDB_DATA_TYPE_INT;
+  *pSchema = createSchema(type, htonl(tDataTypes[type].bytes), htonl(cols++), "vgId");
+
+  pRsp->metaInfo.numOfColumns = htonl(cols);
+
+  SRpcMsg rpcMsg = {
+      .handle  = pMsg->handle,
+      .ahandle = pMsg->ahandle,
+      .pCont   = pRsp,
+      .contLen = sizeof(*pRsp),
+      .code    = code,
+  };
+
+  rpcSendResponse(&rpcMsg);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qwBuildAndSendShowFetchRsp(SRpcMsg *pMsg, SVShowTablesFetchReq* pFetchReq) {
+  SVShowTablesFetchRsp *pRsp = (SVShowTablesFetchRsp *)rpcMallocCont(sizeof(SVShowTablesFetchRsp));
+  int32_t handle = htonl(pFetchReq->id);
+
+  pRsp->numOfRows = 0;
+  SRpcMsg rpcMsg = {
+      .handle  = pMsg->handle,
+      .ahandle = pMsg->ahandle,
+      .pCont   = pRsp,
+      .contLen = sizeof(*pRsp),
+      .code    = 0,
+  };
+
+  rpcSendResponse(&rpcMsg);
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t qwCheckAndSendReadyRsp(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t queryId, uint64_t taskId, SRpcMsg *pMsg, int32_t rspCode) {
   SQWSchStatus *sch = NULL;
@@ -801,7 +858,6 @@ int32_t qwCheckTaskCancelDrop( SQWorkerMgmt *mgmt, uint64_t sId, uint64_t queryI
   return TSDB_CODE_SUCCESS;
 }
 
-
 int32_t qwHandleFetch(SQWorkerResCache *res, SQWorkerMgmt *mgmt, uint64_t sId, uint64_t queryId, uint64_t taskId, SRpcMsg *pMsg) {
   SQWSchStatus *sch = NULL;
   SQWTaskStatus *task = NULL;
@@ -910,7 +966,6 @@ int32_t qwQueryPostProcess(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint6
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t qWorkerInit(SQWorkerCfg *cfg, void **qWorkerMgmt) {
   SQWorkerMgmt *mgmt = calloc(1, sizeof(SQWorkerMgmt));
@@ -1157,6 +1212,25 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qWorkerProcessShowMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  int32_t code = 0;
+  SVShowTablesReq *pReq = pMsg->pCont;
+  QW_ERR_RET(qwBuildAndSendShowRsp(pMsg, code));
+}
+
+int32_t qWorkerProcessShowFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
+  QW_ERR_RET(qwBuildAndSendShowFetchRsp(pMsg, pFetchReq));
+}
+
 int32_t qWorkerContinueQuery(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   int32_t code = 0;
   int8_t status = 0;
@@ -1181,7 +1255,6 @@ int32_t qWorkerContinueQuery(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
 
   QW_RET(code);
 }
-
 
 void qWorkerDestroy(void **qWorkerMgmt) {
   if (NULL == qWorkerMgmt || NULL == *qWorkerMgmt) {

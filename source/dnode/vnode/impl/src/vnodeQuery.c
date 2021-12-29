@@ -36,12 +36,14 @@ int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       return qWorkerProcessCancelMsg(pVnode, pVnode->pQuery, pMsg);
     case TDMT_VND_DROP_TASK:
       return qWorkerProcessDropMsg(pVnode, pVnode->pQuery, pMsg);
+    case TDMT_VND_SHOW_TABLES:
+      return qWorkerProcessShowMsg(pVnode, pVnode->pQuery, pMsg);
+    case TDMT_VND_SHOW_TABLES_FETCH:
+      return qWorkerProcessShowFetchMsg(pVnode, pVnode->pQuery, pMsg);
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
-      break;
   }
-  return 0;
 }
 
 static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {

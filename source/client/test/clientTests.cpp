@@ -226,25 +226,25 @@ TEST(testCase, use_db_test) {
 }
 
 TEST(testCase, drop_db_test) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
-
-  showDB(pConn);
-
-  TAOS_RES* pRes = taos_query(pConn, "drop database abc1");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to drop db, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-
-  showDB(pConn);
-
-  pRes = taos_query(pConn, "create database abc1");
-  if (taos_errno(pRes) != 0) {
-    printf("create to drop db, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-  taos_close(pConn);
+//  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+//  assert(pConn != NULL);
+//
+//  showDB(pConn);
+//
+//  TAOS_RES* pRes = taos_query(pConn, "drop database abc1");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to drop db, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
+//
+//  showDB(pConn);
+//
+//  pRes = taos_query(pConn, "create database abc1");
+//  if (taos_errno(pRes) != 0) {
+//    printf("create to drop db, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
+//  taos_close(pConn);
 }
 
  TEST(testCase, create_stable_Test) {
@@ -301,12 +301,12 @@ TEST(testCase, create_ctable_Test) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table tm0 using st1 tags(1)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create child table tm0, reason:%s\n", taos_errstr(pRes));
-  }
-
-  taos_free_result(pRes);
+//  pRes = taos_query(pConn, "create table tm0 using st1 tags(1)");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to create child table tm0, reason:%s\n", taos_errstr(pRes));
+//  }
+//
+//  taos_free_result(pRes);
   taos_close(pConn);
 }
 
@@ -441,7 +441,23 @@ TEST(testCase, show_table_Test) {
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "show tables");
-  taos_free_result(pRes);
+  if (taos_errno(pRes) != 0) {
+    printf("failed to show vgroups, reason:%s\n", taos_errstr(pRes));
+    taos_free_result(pRes);
+    ASSERT_TRUE(false);
+  }
 
+  TAOS_ROW pRow = NULL;
+
+  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+  int32_t numOfFields = taos_num_fields(pRes);
+
+  char str[512] = {0};
+  while((pRow = taos_fetch_row(pRes)) != NULL) {
+    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+    printf("%s\n", str);
+  }
+
+  taos_free_result(pRes);
   taos_close(pConn);
 }

@@ -480,7 +480,13 @@ void* doFetchRow(SRequestObj* pRequest) {
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
   if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
-    pRequest->type = TDMT_MND_SHOW_RETRIEVE;
+    if (pRequest->type == TDMT_MND_SHOW) {
+      pRequest->type = TDMT_MND_SHOW_RETRIEVE;
+    } else if (pRequest->type == TDMT_VND_SHOW_TABLES) {
+      pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
+    } else {
+      // do nothing
+    }
 
     SMsgSendInfo* body = buildSendMsgInfoImpl(pRequest);
 
