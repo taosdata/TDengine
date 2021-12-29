@@ -294,18 +294,18 @@ TRANS_DECODE_OVER:
     return NULL;
   }
 
-  mTrace("trans:%d, decode from raw:%p", pTrans->id, pRaw);
+  mTrace("trans:%d, decode from raw:%p, data:%p", pTrans->id, pRaw, pTrans);
   return pRow;
 }
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
   pTrans->stage = TRN_STAGE_PREPARE;
-  mTrace("trans:%d, perform insert action", pTrans->id);
+  mTrace("trans:%d, perform insert action, data:%p", pTrans->id, pTrans);
   return 0;
 }
 
 static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans) {
-  mTrace("trans:%d, perform delete action", pTrans->id);
+  mTrace("trans:%d, perform delete action, data:%p", pTrans->id, pTrans);
 
   mndTransDropLogs(pTrans->redoLogs);
   mndTransDropLogs(pTrans->undoLogs);
@@ -317,7 +317,7 @@ static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans) {
 }
 
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOldTrans, STrans *pNewTrans) {
-  mTrace("trans:%d, perform update action", pOldTrans->id);
+  mTrace("trans:%d, perform update action, data:%p", pOldTrans->id, pOldTrans);
   pOldTrans->stage = pNewTrans->stage;
   return 0;
 }
@@ -362,14 +362,14 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, SRpcMsg *pMsg) {
     return NULL;
   }
 
-  mDebug("trans:%d, is created", pTrans->id);
+  mDebug("trans:%d, is created, data:%p", pTrans->id, pTrans);
   return pTrans;
 }
 
 static void mndTransDropLogs(SArray *pArray) {
   for (int32_t i = 0; i < pArray->size; ++i) {
     SSdbRaw *pRaw = taosArrayGetP(pArray, i);
-    tfree(pRaw);
+    sdbFreeRaw(pRaw);
   }
 
   taosArrayDestroy(pArray);
@@ -391,7 +391,7 @@ void mndTransDrop(STrans *pTrans) {
   mndTransDropActions(pTrans->redoActions);
   mndTransDropActions(pTrans->undoActions);
 
-  // mDebug("trans:%d, is dropped, data:%p", pTrans->id, pTrans);
+  mDebug("trans:%d, is dropped, data:%p", pTrans->id, pTrans);
   tfree(pTrans);
 }
 
