@@ -18,3 +18,6 @@ sleep 10
 cd ../../
 WKC=`pwd`
 
+git clone git@github.com:taosdata/driver-go.git --branch develop --single-branch --depth 1 
+cd driver-go 
+go test -v ./...
