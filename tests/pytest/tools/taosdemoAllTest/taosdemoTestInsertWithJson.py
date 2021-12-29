@@ -357,6 +357,7 @@ class TDTestCase:
         tdSql.query('show tables like \'YYY%\'')    #child_table_exists = yes, auto_create_table varies = yes
         tdSql.checkRows(20)
 
+
         # # insert: test chinese encoding
         # # TD-11399、TD-10819
         # os.system("%staosBenchmark -f tools/taosdemoAllTest/insert-chinese.json -y " % binPath)
