@@ -12,9 +12,7 @@
 #include "tskiplist.h"
 #include "tutil.h"
 
-void* callback(void* s) {
-  return s;
-}
+void* callback(void* s) { return s; }
 
 static std::string fileName = "/tmp/tindex.tindex";
 class FstWriter {
@@ -34,7 +32,7 @@ class FstWriter {
     fstBuilderFinish(_b);
     fstBuilderDestroy(_b);
 
-    writerCtxDestroy(_wc);
+    writerCtxDestroy(_wc, false);
   }
 
  private:
@@ -102,7 +100,7 @@ class FstReadMemory {
     fstCountingWriterDestroy(_w);
     fstDestroy(_fst);
     fstSliceDestroy(&_s);
-    writerCtxDestroy(_wc);
+    writerCtxDestroy(_wc, false);
   }
 
  private:
