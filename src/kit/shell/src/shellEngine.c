@@ -81,9 +81,9 @@ extern TAOS *taos_connect_auth(const char *ip, const char *user, const char *aut
 TAOS *shellInit(SShellArguments *_args) {
   printf("\n");
   if (!_args->is_use_passwd) {
-#ifdef TD_WINDOWS
+#ifdef WINDOWS
     strcpy(tsOsName, "Windows");
-#elif defined(TD_DARWIN)
+#elif defined(DARWIN)
     strcpy(tsOsName, "Darwin");
 #endif
     printf(CLIENT_VERSION, tsOsName, taos_get_client_info());
@@ -411,7 +411,14 @@ int regex_match(const char *s, const char *reg, int cflags) {
   } else if (reti == REG_NOMATCH) {
     regfree(&regex);
     return 0;
-  } else {
+  }
+#ifdef DARWIN
+  else if (reti == REG_ILLSEQ){
+    regfree(&regex);
+    return 0;
+  }
+#endif
+  else {
     regerror(reti, &regex, msgbuf, sizeof(msgbuf));
     fprintf(stderr, "Regex match failed: %s\n", msgbuf);
     regfree(&regex);

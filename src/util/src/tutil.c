@@ -181,6 +181,9 @@ char *strnchr(char *haystack, char needle, int32_t len, bool skipquote) {
   return NULL;
 }
 
+/*
+ * find dst in src, ignoreInEsc means if ignore characters in quote character，like ' ', " ", ` `
+ */
 char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
   if (!ignoreInEsc) {
     return strstr(src, dst);
