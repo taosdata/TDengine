@@ -23,7 +23,7 @@ import subprocess
 class TDTestCase:
     def caseDescription(self):
         '''
-        case1<sdsang>: [TD-12362] taosdump supports JSON
+        case1<sdsang>: [TD-12526] taosdump supports big int
         '''
         return
 
@@ -56,10 +56,22 @@ class TDTestCase:
 
         tdSql.execute("use db")
         tdSql.execute(
-            "create table st(ts timestamp, c1 int) tags(jtag JSON)")
+            "create table st(ts timestamp, c1 BIGINT) tags(bntag BIGINT)")
+        tdSql.execute("create table t1 using st tags(1)")
+        tdSql.execute("insert into t1 values(1640000000000, 1)")
+
+        tdSql.execute("create table t2 using st tags(9223372036854775807)")
         tdSql.execute(
-            "create table t1 using st tags('{\"location\": \"beijing\"}')")
-        tdSql.execute("insert into t1 values(1500000000000, 1)")
+            "insert into t2 values(1640000000000, 9223372036854775807)")
+
+        tdSql.execute("create table t3 using st tags(-9223372036854775807)")
+        tdSql.execute(
+            "insert into t3 values(1640000000000, -9223372036854775807)")
+
+        tdSql.execute("create table t4 using st tags(NULL)")
+        tdSql.execute("insert into t4 values(1640000000000, NULL)")
+
+#        sys.exit(1)
 
         buildPath = self.getBuildPath()
         if (buildPath == ""):
@@ -75,11 +87,14 @@ class TDTestCase:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%staosdump --databases db -o %s" % (binPath, self.tmpdir))
+        os.system(
+            "%staosdump --databases db -o %s -T 1" %
+            (binPath, self.tmpdir))
 
+#        sys.exit(1)
         tdSql.execute("drop database db")
 
-        os.system("%staosdump -i %s" % (binPath, self.tmpdir))
+        os.system("%staosdump -i %s -T 1" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
         tdSql.checkRows(1)
@@ -90,17 +105,31 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'st')
 
         tdSql.query("show tables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 't1')
+        tdSql.checkRows(4)
 
-        tdSql.query("select jtag->'location' from st")
+        tdSql.query("select * from st where bntag = 1")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "\"beijing\"")
-
-        tdSql.query("select * from st where jtag contains 'location'")
-        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1640000000000)
         tdSql.checkData(0, 1, 1)
-        tdSql.checkData(0, 2, '{\"location\":\"beijing\"}')
+        tdSql.checkData(0, 2, 1)
+
+        tdSql.query("select * from st where bntag = 9223372036854775807")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1640000000000)
+        tdSql.checkData(0, 1, 9223372036854775807)
+        tdSql.checkData(0, 2, 9223372036854775807)
+
+        tdSql.query("select * from st where bntag = -9223372036854775807")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1640000000000)
+        tdSql.checkData(0, 1, -9223372036854775807)
+        tdSql.checkData(0, 2, -9223372036854775807)
+
+        tdSql.query("select * from st where bntag is null")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
 
     def stop(self):
         tdSql.close()
