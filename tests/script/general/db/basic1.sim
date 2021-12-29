@@ -61,11 +61,13 @@ endi
 print =============== show vgroups
 sql show databases
 
-if $rows == 1 then 
+if $rows != 1 then 
   return -1
 endi
 
-sql use d1
+sql_error use d1
+
+sql use d4
 sql show vgroups
 
 if $rows != 2 then
