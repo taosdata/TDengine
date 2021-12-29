@@ -1432,7 +1432,7 @@ static void doWindowBorderInterpolation(SOperatorInfo* pOperatorInfo, SSDataBloc
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQueryAttr->order.order);
 
   if (pBlock->pDataBlock == NULL){
-    qError("pBlock->pDataBlock == NULL");
+    qError("window border interpolation: pBlock->pDataBlock == NULL");
     return;
   }
   SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
