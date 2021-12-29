@@ -54,10 +54,10 @@ def pre_test(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.0'){
+      else if(env.CHANGE_TARGET == '2.4'){
         sh '''
         cd ${WKC}
-        git checkout 2.0
+        git checkout 2.4
         '''
       }
       else{
@@ -86,10 +86,10 @@ def pre_test(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.0'){
+      else if(env.CHANGE_TARGET == '2.4'){
         sh '''
         cd ${WK}
-        git checkout 2.0
+        git checkout 2.4
         '''
       }
       else{
@@ -129,10 +129,10 @@ def pre_test_noinstall(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.0'){
+      else if(env.CHANGE_TARGET == '2.4'){
         sh '''
         cd ${WKC}
-        git checkout 2.0
+        git checkout 2.4
         '''
       }
       else{
@@ -161,10 +161,10 @@ def pre_test_noinstall(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.0'){
+      else if(env.CHANGE_TARGET == '2.4'){
         sh '''
         cd ${WK}
-        git checkout 2.0
+        git checkout 2.4
         '''
       }
       else{
@@ -201,10 +201,10 @@ def pre_test_mac(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.0'){
+      else if(env.CHANGE_TARGET == '2.4'){
         sh '''
         cd ${WKC}
-        git checkout 2.0
+        git checkout 2.4
         '''
       }
       else{
@@ -233,10 +233,10 @@ def pre_test_mac(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.0'){
+      else if(env.CHANGE_TARGET == '2.4'){
         sh '''
         cd ${WK}
-        git checkout 2.0
+        git checkout 2.4
         '''
       }
       else{
@@ -279,10 +279,10 @@ def pre_test_win(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.0'){
+      else if(env.CHANGE_TARGET == '2.4'){
         bat '''
         cd C:\\workspace\\TDinternal\\community
-        git checkout 2.0
+        git checkout 2.4
         '''
       }
       else{
@@ -310,10 +310,10 @@ def pre_test_win(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.0'){
+      else if(env.CHANGE_TARGET == '2.4'){
         bat '''
         cd C:\\workspace\\TDinternal
-        git checkout 2.0
+        git checkout 2.4
         '''
       }
       else{
