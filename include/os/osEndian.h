@@ -20,8 +20,11 @@
 extern "C" {
 #endif
 
+typedef enum { TD_LITTLE_ENDIAN = 0, TD_BIG_ENDIAN } td_endian_t;
+
 static const int32_t endian_test_var = 1;
 #define IS_LITTLE_ENDIAN() (*(uint8_t *)(&endian_test_var) != 0)
+#define TD_RT_ENDIAN() (IS_LITTLE_ENDIAN() ? TD_LITTLE_ENDIAN : TD_BIG_ENDIAN)
 
 #ifdef __cplusplus
 }

@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "encode.h"
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tcoding.h"
@@ -299,12 +300,12 @@ typedef struct SEpSet {
 } SEpSet;
 
 typedef struct {
-  int32_t  acctId;
-  int64_t  clusterId;
-  int32_t  connId;
-  int8_t   superUser;
-  int8_t   reserved[5];
-  SEpSet   epSet;
+  int32_t acctId;
+  int64_t clusterId;
+  int32_t connId;
+  int8_t  superUser;
+  int8_t  reserved[5];
+  SEpSet  epSet;
 } SConnectRsp;
 
 typedef struct {
@@ -1055,9 +1056,9 @@ typedef struct STaskDropRsp {
 } STaskDropRsp;
 
 typedef struct {
-  int8_t  igExists;
-  char*   name;
-  char*   phyPlan;
+  int8_t igExists;
+  char*  name;
+  char*  phyPlan;
 } SCMCreateTopicReq;
 
 static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateTopicReq* pReq) {
