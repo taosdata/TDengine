@@ -429,7 +429,6 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx *pCtx, SMsgBuf* p
         SSchema   *pSchema = &pTagSchema[i];
         SToken* pItem = taosArrayGet(pValList, i);
 
-        char tagVal[TSDB_MAX_TAGS_LEN];
         if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
           if (pItem->n > pSchema->bytes) {
             tdDestroyKVRowBuilder(&kvRowBuilder);
@@ -446,26 +445,16 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx *pCtx, SMsgBuf* p
 //          }
         }
 
-        char* endPtr = NULL;
-        int64_t v = strtoll(pItem->z, &endPtr, 10);
-        *(int32_t*) tagVal = v;
-//        code = taosVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
+        char tmpTokenBuf[TSDB_MAX_TAGS_LEN] = {0};
+        SKvParam param = {.builder = &kvRowBuilder, .schema = pSchema};
 
-        // check again after the convert since it may be converted from binary to nchar.
-        if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
-          int16_t len = varDataTLen(tagVal);
-          if (len > pSchema->bytes) {
-            tdDestroyKVRowBuilder(&kvRowBuilder);
-            return buildInvalidOperationMsg(pMsgBuf, msg3);
-          }
-        }
+        char* endPtr = NULL;
+        code = parseValueToken(&endPtr, pItem, pSchema, tinfo.precision, tmpTokenBuf, KvRowAppend, &param, pMsgBuf);
 
         if (code != TSDB_CODE_SUCCESS) {
           tdDestroyKVRowBuilder(&kvRowBuilder);
           return buildInvalidOperationMsg(pMsgBuf, msg4);
         }
-
-        tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal);
       }
     }
 
