@@ -157,6 +157,12 @@ static int32_t doCheckDbOptions(SCreateDbMsg* pCreate, SMsgBuf* pMsgBuf) {
     return buildInvalidOperationMsg(pMsgBuf, msg);
   }
 
+  val = htonl(pCreate->numOfVgroups);
+  if (val < TSDB_MIN_VNODES_PER_DB || val > TSDB_MAX_VNODES_PER_DB) {
+    snprintf(msg, tListLen(msg), "invalid number of vgroups for DB:%d valid range: [%d, %d]", val,
+        TSDB_MIN_VNODES_PER_DB, TSDB_MAX_VNODES_PER_DB);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -316,16 +322,12 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
       return code;
     }
 
-    const char* pStableName = tNameGetTableName(&name);
-    SArray*     pValList = pCreateTableInfo->pTagVals;
+    SArray* pValList = pCreateTableInfo->pTagVals;
 
     size_t      numOfInputTag = taosArrayGetSize(pValList);
     STableMeta* pSuperTableMeta = NULL;
 
-    char dbName[TSDB_DB_FNAME_LEN] = {0};
-    tNameGetFullDbName(&name, dbName);
-
-    catalogGetTableMeta(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbName, pStableName, &pSuperTableMeta);
+    catalogGetTableMeta(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, &name, &pSuperTableMeta);
     assert(pSuperTableMeta != NULL);
 
     // too long tag values will return invalid sql, not be truncated automatically
@@ -488,7 +490,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     *len = serLen;
 
     SVgroupInfo info = {0};
-    catalogGetTableHashVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbName, req.name, &info);
+    catalogGetTableHashVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, &tableName, &info);
 
     pEpSet->inUse = info.inUse;
     pEpSet->numOfEps = info.numOfEps;
@@ -496,6 +498,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
       pEpSet->port[i] = info.epAddr[i].port;
       tstrncpy(pEpSet->fqdn[i], info.epAddr[i].fqdn, tListLen(pEpSet->fqdn[i]));
     }
+
     ((SMsgHead*)(*pOutput))->vgId = htonl(info.vgId);
     ((SMsgHead*)(*pOutput))->contLen = htonl(serLen);
   }
