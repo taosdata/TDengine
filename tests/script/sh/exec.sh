@@ -17,7 +17,7 @@ OS_TYPE=`$UNAME_BIN`
 NODE_NAME=
 EXEC_OPTON=
 CLEAR_OPTION="false"
-while getopts "n:s:u:x:ct" arg
+while getopts "n:s:u:x:cv" arg
 do
   case $arg in
     n)
@@ -29,7 +29,7 @@ do
     c)
       CLEAR_OPTION="clear"
       ;;
-    t)
+    v)
       SHELL_OPTION="true"
       ;;
     u)

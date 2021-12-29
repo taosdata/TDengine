@@ -59,9 +59,29 @@ if $data03 != 0 then
 endi
 
 print =============== show vgroups
-sql use d4
+sql show databases
 
-if $rows == 0 then 
+if $rows != 1 then 
+  return -1
+endi
+
+sql_error use d1
+
+sql use d4
+sql show vgroups
+
+if $rows != 2 then
+  return -1
+endi
+
+print =============== show dnodes
+sql show dnodes
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data02 != 2 then
   return -1
 endi
 

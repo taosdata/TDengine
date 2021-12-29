@@ -25,7 +25,7 @@ extern "C" {
 #define SDB_GET_INT64(pData, pRow, dataPos, val)   \
   {                                                \
     if (sdbGetRawInt64(pRaw, dataPos, val) != 0) { \
-      sdbFreeRow(pRow);                            \
+      tfree(pRow);                                 \
       return NULL;                                 \
     }                                              \
     dataPos += sizeof(int64_t);                    \
@@ -34,7 +34,7 @@ extern "C" {
 #define SDB_GET_INT32(pData, pRow, dataPos, val)   \
   {                                                \
     if (sdbGetRawInt32(pRaw, dataPos, val) != 0) { \
-      sdbFreeRow(pRow);                            \
+      tfree(pRow);                                 \
       return NULL;                                 \
     }                                              \
     dataPos += sizeof(int32_t);                    \
@@ -43,7 +43,7 @@ extern "C" {
 #define SDB_GET_INT16(pData, pRow, dataPos, val)   \
   {                                                \
     if (sdbGetRawInt16(pRaw, dataPos, val) != 0) { \
-      sdbFreeRow(pRow);                            \
+      tfree(pRow);                                 \
       return NULL;                                 \
     }                                              \
     dataPos += sizeof(int16_t);                    \
@@ -52,7 +52,7 @@ extern "C" {
 #define SDB_GET_INT8(pData, pRow, dataPos, val)   \
   {                                               \
     if (sdbGetRawInt8(pRaw, dataPos, val) != 0) { \
-      sdbFreeRow(pRow);                           \
+      tfree(pRow);                                \
       return NULL;                                \
     }                                             \
     dataPos += sizeof(int8_t);                    \
@@ -61,7 +61,7 @@ extern "C" {
 #define SDB_GET_BINARY(pRaw, pRow, dataPos, val, valLen)    \
   {                                                         \
     if (sdbGetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
-      sdbFreeRow(pRow);                                     \
+      tfree(pRow);                                          \
       return NULL;                                          \
     }                                                       \
     dataPos += valLen;                                      \
@@ -71,7 +71,7 @@ extern "C" {
   {                                                         \
     char val[valLen] = {0};                                 \
     if (sdbGetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
-      sdbFreeRow(pRow);                                     \
+      tfree(pRow);                                          \
       return NULL;                                          \
     }                                                       \
     dataPos += valLen;                                      \
@@ -161,12 +161,14 @@ typedef enum {
   SDB_USER = 5,
   SDB_AUTH = 6,
   SDB_ACCT = 7,
-  SDB_TOPIC = 8,
-  SDB_VGROUP = 9,
-  SDB_STB = 10,
-  SDB_DB = 11,
-  SDB_FUNC = 12,
-  SDB_MAX = 13
+  SDB_CONSUMER = 8,
+  SDB_CGROUP = 9,
+  SDB_TOPIC = 10,
+  SDB_VGROUP = 11,
+  SDB_STB = 12,
+  SDB_DB = 13,
+  SDB_FUNC = 14,
+  SDB_MAX = 15
 } ESdbType;
 
 typedef struct SSdb SSdb;
@@ -325,7 +327,7 @@ int32_t  sdbGetRawSoftVer(SSdbRaw *pRaw, int8_t *sver);
 int32_t  sdbGetRawTotalSize(SSdbRaw *pRaw);
 
 SSdbRow *sdbAllocRow(int32_t objSize);
-void     sdbFreeRow(SSdbRow *pRow);
+void     sdbFreeRow(SSdb *pSdb, SSdbRow *pRow);
 void    *sdbGetRowObj(SSdbRow *pRow);
 
 #ifdef __cplusplus
