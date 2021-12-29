@@ -275,23 +275,23 @@ static FORCE_INLINE void tInitDecoder(SDecoder* pDecoder, td_endian_t endian, ui
 }
 
 // 8
-static FORCER_INLINE int tDecodeU8(SDecoder* pDecoder, uint8_t* val) {
-  if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, sizeof(*val))) return -1;
+static FORCE_INLINE int tDecodeU8(SDecoder* pDecoder, uint8_t* val) {
+  if (TD_CHECK_CODER_CAPACITY_FAILED(pDecoder, sizeof(*val))) return -1;
   tGet(uint8_t, TD_CODER_CURRENT(pDecoder), *val);
   TD_CODER_MOVE_POS(pDecoder, sizeof(*val));
   return 0;
 }
 
-static FORCER_INLINE int tDecodeI8(SDecoder* pDecoder, int8_t* val) {
-  if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, sizeof(*val))) return -1;
+static FORCE_INLINE int tDecodeI8(SDecoder* pDecoder, int8_t* val) {
+  if (TD_CHECK_CODER_CAPACITY_FAILED(pDecoder, sizeof(*val))) return -1;
   tGet(int8_t, TD_CODER_CURRENT(pDecoder), *val);
   TD_CODER_MOVE_POS(pDecoder, sizeof(*val));
   return 0;
 }
 
 // 16
-static FORCER_INLINE int tDecodeU16(SDecoder* pDecoder, uint16_t* val) {
-  if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, sizeof(*val))) return -1;
+static FORCE_INLINE int tDecodeU16(SDecoder* pDecoder, uint16_t* val) {
+  if (TD_CHECK_CODER_CAPACITY_FAILED(pDecoder, sizeof(*val))) return -1;
   if (TD_RT_ENDIAN() == pDecoder->endian) {
     tGet(uint16_t, TD_CODER_CURRENT(pDecoder), *val);
   } else {
@@ -302,8 +302,8 @@ static FORCER_INLINE int tDecodeU16(SDecoder* pDecoder, uint16_t* val) {
   return 0;
 }
 
-static FORCER_INLINE int tDecodeI16(SDecoder* pDecoder, int16_t* val) {
-  if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, sizeof(*val))) return -1;
+static FORCE_INLINE int tDecodeI16(SDecoder* pDecoder, int16_t* val) {
+  if (TD_CHECK_CODER_CAPACITY_FAILED(pDecoder, sizeof(*val))) return -1;
   if (TD_RT_ENDIAN() == pDecoder->endian) {
     tGet(int16_t, TD_CODER_CURRENT(pDecoder), *val);
   } else {
@@ -315,8 +315,8 @@ static FORCER_INLINE int tDecodeI16(SDecoder* pDecoder, int16_t* val) {
 }
 
 // 32
-static FORCER_INLINE int tDecodeU32(SDecoder* pDecoder, uint32_t* val) {
-  if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, sizeof(*val))) return -1;
+static FORCE_INLINE int tDecodeU32(SDecoder* pDecoder, uint32_t* val) {
+  if (TD_CHECK_CODER_CAPACITY_FAILED(pDecoder, sizeof(*val))) return -1;
   if (TD_RT_ENDIAN() == pDecoder->endian) {
     tGet(uint32_t, TD_CODER_CURRENT(pDecoder), *val);
   } else {
@@ -327,8 +327,8 @@ static FORCER_INLINE int tDecodeU32(SDecoder* pDecoder, uint32_t* val) {
   return 0;
 }
 
-static FORCER_INLINE int tDecodeI32(SDecoder* pDecoder, int32_t* val) {
-  if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, sizeof(*val))) return -1;
+static FORCE_INLINE int tDecodeI32(SDecoder* pDecoder, int32_t* val) {
+  if (TD_CHECK_CODER_CAPACITY_FAILED(pDecoder, sizeof(*val))) return -1;
   if (TD_RT_ENDIAN() == pDecoder->endian) {
     tGet(int32_t, TD_CODER_CURRENT(pDecoder), *val);
   } else {
@@ -340,8 +340,8 @@ static FORCER_INLINE int tDecodeI32(SDecoder* pDecoder, int32_t* val) {
 }
 
 // 64
-static FORCER_INLINE int tDecodeU64(SDecoder* pDecoder, uint64_t* val) {
-  if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, sizeof(*val))) return -1;
+static FORCE_INLINE int tDecodeU64(SDecoder* pDecoder, uint64_t* val) {
+  if (TD_CHECK_CODER_CAPACITY_FAILED(pDecoder, sizeof(*val))) return -1;
   if (TD_RT_ENDIAN() == pDecoder->endian) {
     tGet(uint64_t, TD_CODER_CURRENT(pDecoder), *val);
   } else {
@@ -352,8 +352,8 @@ static FORCER_INLINE int tDecodeU64(SDecoder* pDecoder, uint64_t* val) {
   return 0;
 }
 
-static FORCER_INLINE int tDecodeI64(SDecoder* pDecoder, int64_t* val) {
-  if (TD_CHECK_CODER_CAPACITY_FAILED(pEncoder, sizeof(*val))) return -1;
+static FORCE_INLINE int tDecodeI64(SDecoder* pDecoder, int64_t* val) {
+  if (TD_CHECK_CODER_CAPACITY_FAILED(pDecoder, sizeof(*val))) return -1;
   if (TD_RT_ENDIAN() == pDecoder->endian) {
     tGet(int64_t, TD_CODER_CURRENT(pDecoder), *val);
   } else {
