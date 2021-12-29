@@ -23,7 +23,7 @@ import subprocess
 class TDTestCase:
     def caseDescription(self):
         '''
-        case1<sdsang>: [TD-12362] taosdump supports JSON
+        case1<sdsang>: [TD-12526] taosdump supports bool
         '''
         return
 
@@ -119,7 +119,6 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
-
 
     def stop(self):
         tdSql.close()

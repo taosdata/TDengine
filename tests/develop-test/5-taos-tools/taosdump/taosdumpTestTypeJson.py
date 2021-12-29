@@ -57,7 +57,8 @@ class TDTestCase:
         tdSql.execute("use db")
         tdSql.execute(
             "create table st(ts timestamp, c1 int) tags(jtag JSON)")
-        tdSql.execute("create table t1 using st tags('{\"location\": \"beijing\"}')")
+        tdSql.execute(
+            "create table t1 using st tags('{\"location\": \"beijing\"}')")
         tdSql.execute("insert into t1 values(1500000000000, 1)")
 
         buildPath = self.getBuildPath()
@@ -100,7 +101,6 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(0, 2, '{\"location\":\"beijing\"}')
-
 
     def stop(self):
         tdSql.close()
