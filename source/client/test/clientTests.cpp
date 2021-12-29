@@ -177,14 +177,14 @@ TEST(testCase, create_dnode_Test) {
   if (taos_errno(pRes) != 0) {
     printf("error in create dnode, reason:%s\n", taos_errstr(pRes));
   }
-
-  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-  ASSERT_TRUE(pFields == NULL);
-
-  int32_t numOfFields = taos_num_fields(pRes);
-  ASSERT_EQ(numOfFields, 0);
-
   taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create dnode 1.1.1.1 port 9000");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create dnode, reason:%s\n", taos_errstr(pRes));
+  }
+  taos_free_result(pRes);
+
   taos_close(pConn);
 }
 

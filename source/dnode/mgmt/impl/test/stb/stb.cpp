@@ -68,7 +68,6 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
     {
       SSchema* pSchema = &pReq->pSchema[0];
-      pSchema->colId = htonl(0);
       pSchema->bytes = htonl(8);
       pSchema->type = TSDB_DATA_TYPE_TIMESTAMP;
       strcpy(pSchema->name, "ts");
@@ -76,7 +75,6 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
     {
       SSchema* pSchema = &pReq->pSchema[1];
-      pSchema->colId = htonl(1);
       pSchema->bytes = htonl(4);
       pSchema->type = TSDB_DATA_TYPE_INT;
       strcpy(pSchema->name, "col1");
@@ -84,7 +82,6 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
     {
       SSchema* pSchema = &pReq->pSchema[2];
-      pSchema->colId = htonl(2);
       pSchema->bytes = htonl(2);
       pSchema->type = TSDB_DATA_TYPE_TINYINT;
       strcpy(pSchema->name, "tag1");
@@ -92,7 +89,6 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
     {
       SSchema* pSchema = &pReq->pSchema[3];
-      pSchema->colId = htonl(3);
       pSchema->bytes = htonl(8);
       pSchema->type = TSDB_DATA_TYPE_BIGINT;
       strcpy(pSchema->name, "tag2");
@@ -100,7 +96,6 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
     {
       SSchema* pSchema = &pReq->pSchema[4];
-      pSchema->colId = htonl(4);
       pSchema->bytes = htonl(16);
       pSchema->type = TSDB_DATA_TYPE_BINARY;
       strcpy(pSchema->name, "tag3");
@@ -167,9 +162,41 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     {
       SSchema* pSchema = &pRsp->pSchema[0];
       EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TIMESTAMP);
-      EXPECT_EQ(pSchema->colId, 0);
+      EXPECT_EQ(pSchema->colId, 1);
       EXPECT_EQ(pSchema->bytes, 8);
       EXPECT_STREQ(pSchema->name, "ts");
+    }
+
+    {
+      SSchema* pSchema = &pRsp->pSchema[1];
+      EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
+      EXPECT_EQ(pSchema->colId, 2);
+      EXPECT_EQ(pSchema->bytes, 4);
+      EXPECT_STREQ(pSchema->name, "col1");
+    }
+
+    {
+      SSchema* pSchema = &pRsp->pSchema[2];
+      EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TINYINT);
+      EXPECT_EQ(pSchema->colId, 3);
+      EXPECT_EQ(pSchema->bytes, 2);
+      EXPECT_STREQ(pSchema->name, "tag1");
+    }
+
+    {
+      SSchema* pSchema = &pRsp->pSchema[3];
+      EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BIGINT);
+      EXPECT_EQ(pSchema->colId, 4);
+      EXPECT_EQ(pSchema->bytes, 8);
+      EXPECT_STREQ(pSchema->name, "tag2");
+    }
+
+    {
+      SSchema* pSchema = &pRsp->pSchema[4];
+      EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
+      EXPECT_EQ(pSchema->colId, 5);
+      EXPECT_EQ(pSchema->bytes, 16);
+      EXPECT_STREQ(pSchema->name, "tag3");
     }
   }
 

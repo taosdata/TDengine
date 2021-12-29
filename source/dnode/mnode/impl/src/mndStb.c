@@ -291,7 +291,6 @@ static int32_t mndCheckCreateStbMsg(SCreateStbMsg *pCreate) {
   int32_t totalCols = pCreate->numOfColumns + pCreate->numOfTags;
   for (int32_t i = 0; i < totalCols; ++i) {
     SSchema *pSchema = &pCreate->pSchema[i];
-    pSchema->colId = htonl(pSchema->colId);
     pSchema->bytes = htonl(pSchema->bytes);
   }
 
@@ -314,10 +313,6 @@ static int32_t mndCheckCreateStbMsg(SCreateStbMsg *pCreate) {
   for (int32_t i = 0; i < totalCols; ++i) {
     SSchema *pSchema = &pCreate->pSchema[i];
     if (pSchema->type < 0) {
-      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
-      return -1;
-    }
-    if (pSchema->colId < 0 || pSchema->colId >= maxColId) {
       terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
     }
@@ -452,6 +447,10 @@ static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateStbMsg *pCre
     return -1;
   }
   memcpy(stbObj.pSchema, pCreate->pSchema, totalSize);
+
+  for (int32_t i = 0; i < totalCols; ++i) {
+    stbObj.pSchema[i].colId = i + 1;
+  }
 
   int32_t code = 0;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
