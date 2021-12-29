@@ -15,9 +15,12 @@
 
 #define _DEFAULT_SOURCE
 #include "dndDnode.h"
+#include "dndBnode.h"
+#include "dndMnode.h"
+#include "dndQnode.h"
+#include "dndSnode.h"
 #include "dndTransport.h"
 #include "dndVnodes.h"
-#include "dndMnode.h"
 
 static int32_t dndInitMgmtWorker(SDnode *pDnode);
 static void    dndCleanupMgmtWorker(SDnode *pDnode);
@@ -647,6 +650,24 @@ static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
       break;
     case TDMT_DND_DROP_MNODE:
       code = dndProcessDropMnodeReq(pDnode, pMsg);
+      break;
+    case TDMT_DND_CREATE_QNODE:
+      code = dndProcessCreateQnodeReq(pDnode, pMsg);
+      break;
+    case TDMT_DND_DROP_QNODE:
+      code = dndProcessDropQnodeReq(pDnode, pMsg);
+      break;
+    case TDMT_DND_CREATE_SNODE:
+      code = dndProcessCreateSnodeReq(pDnode, pMsg);
+      break;
+    case TDMT_DND_DROP_SNODE:
+      code = dndProcessDropSnodeReq(pDnode, pMsg);
+      break;
+    case TDMT_DND_CREATE_BNODE:
+      code = dndProcessCreateBnodeReq(pDnode, pMsg);
+      break;
+    case TDMT_DND_DROP_BNODE:
+      code = dndProcessDropBnodeReq(pDnode, pMsg);
       break;
     case TDMT_DND_CONFIG_DNODE:
       code = dndProcessConfigDnodeReq(pDnode, pMsg);

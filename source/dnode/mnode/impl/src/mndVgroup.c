@@ -273,7 +273,7 @@ static SArray *mndBuildDnodesArray(SMnode *pMnode) {
 static int32_t mndCompareDnodeVnodes(SDnodeObj *pDnode1, SDnodeObj *pDnode2) {
   float d1Score = (float)pDnode1->numOfVnodes / pDnode1->numOfSupportVnodes;
   float d2Score = (float)pDnode2->numOfVnodes / pDnode2->numOfSupportVnodes;
-  return d1Score > d2Score ? 0 : 1;
+  return d1Score > d2Score ? 1 : 0;
 }
 
 static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray) {

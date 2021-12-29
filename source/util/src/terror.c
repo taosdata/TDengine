@@ -182,10 +182,15 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DNODE_CFG,        "Invalid dnode cfg")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DNODE_EP,         "Invalid dnode end point")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DNODE_ID,         "Invalid dnode id")
 
-// mnode-mnode
+// mnode-node
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MNODE_ALREADY_EXIST,      "Mnode already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MNODE_NOT_EXIST,          "Mnode not there")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_MNODES,          "Too many mnodes")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_QNODE_ALREADY_EXIST,      "Qnode already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_QNODE_NOT_EXIST,          "Qnode not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_ALREADY_EXIST,      "Snode already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_NOT_EXIST,          "Snode not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_BNODE_ALREADY_EXIST,      "Bnode already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_BNODE_NOT_EXIST,          "Bnode not there")
 
 // mnode-acct
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_ALREADY_EXIST,       "Account already exists")
