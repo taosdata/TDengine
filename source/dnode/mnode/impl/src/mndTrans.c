@@ -442,7 +442,7 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   }
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mTrace("trans:%d, sync to other nodes", pTrans->id);
+  mDebug("trans:%d, sync to other nodes", pTrans->id);
   int32_t code = mndSyncPropose(pMnode, pRaw);
   if (code != 0) {
     mError("trans:%d, failed to sync since %s", pTrans->id, terrstr());
@@ -450,7 +450,7 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
     return -1;
   }
 
-  mTrace("trans:%d, sync finished", pTrans->id);
+  mDebug("trans:%d, sync finished", pTrans->id);
 
   code = sdbWrite(pMnode->pSdb, pRaw);
   if (code != 0) {
