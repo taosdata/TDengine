@@ -55,12 +55,23 @@ void tmsgInitMsgDecoder(SMsgDecoder *pMD, td_endian_t endian, uint8_t *data, int
 }
 
 void tmsgClearMsgDecoder(SMsgDecoder *pMD) {
-  struct SMDFreeListNode *pNode;
-  for (;;) {
-    pNode = TD_SLIST_HEAD(&(pMD->freeList));
-    if (TD_IS_NULL(pNode)) break;
-    TD_SLIST_POP(&(pMD->freeList));
-    free(pNode);
+  {
+    struct SMDFreeListNode *pNode;
+    for (;;) {
+      pNode = TD_SLIST_HEAD(&(pMD->freeList));
+      if (TD_IS_NULL(pNode)) break;
+      TD_SLIST_POP(&(pMD->freeList));
+      free(pNode);
+    }
+  }
+  {
+    struct SMDListNode *pNode;
+    for (;;) {
+      pNode = TD_SLIST_HEAD(&(pMD->dStack));
+      if (TD_IS_NULL(pNode)) break;
+      TD_SLIST_POP(&(pMD->dStack));
+      free(pNode);
+    }
   }
 }
 
