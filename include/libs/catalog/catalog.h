@@ -61,6 +61,18 @@ int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle)
 
 int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName, int32_t* version);
 
+/**
+ * Get a DB's all vgroup info.
+ * @param pCatalog (input, got with catalogGetHandle)
+ * @param pRpc (input, rpc object)
+ * @param pMgmtEps (input, mnode EPs)
+ * @param pDBName (input, full db name)
+ * @param forceUpdate (input, force update db vgroup info from mnode) 
+ * @param pVgroupList (output, vgroup info list, element is SVgroupInfo, NEED to simply free the array by caller)
+ * @return error code
+ */
+int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, int32_t forceUpdate, SArray** pVgroupList);
+
 int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
 
 /**
