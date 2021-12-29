@@ -324,8 +324,8 @@ DROP_BNODE_OVER:
 }
 
 static int32_t mndProcessDropBnodeReq(SMnodeMsg *pMsg) {
-  SMnode           *pMnode = pMsg->pMnode;
-  SMCreateBnodeMsg *pDrop = pMsg->rpcMsg.pCont;
+  SMnode         *pMnode = pMsg->pMnode;
+  SMDropBnodeMsg *pDrop = pMsg->rpcMsg.pCont;
   pDrop->dnodeId = htonl(pDrop->dnodeId);
 
   mDebug("snode:%d, start to drop", pDrop->dnodeId);

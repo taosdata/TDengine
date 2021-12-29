@@ -324,8 +324,8 @@ DROP_QNODE_OVER:
 }
 
 static int32_t mndProcessDropQnodeReq(SMnodeMsg *pMsg) {
-  SMnode           *pMnode = pMsg->pMnode;
-  SMCreateQnodeMsg *pDrop = pMsg->rpcMsg.pCont;
+  SMnode         *pMnode = pMsg->pMnode;
+  SMDropQnodeMsg *pDrop = pMsg->rpcMsg.pCont;
   pDrop->dnodeId = htonl(pDrop->dnodeId);
 
   mDebug("qnode:%d, start to drop", pDrop->dnodeId);

@@ -262,6 +262,12 @@ char *mndShowStr(int32_t showType) {
       return "show dnodes";
     case TSDB_MGMT_TABLE_MNODE:
       return "show mnodes";
+    case TSDB_MGMT_TABLE_QNODE:
+      return "show qnodes";
+    case TSDB_MGMT_TABLE_SNODE:
+      return "show snodes";
+    case TSDB_MGMT_TABLE_BNODE:
+      return "show bnodes";
     case TSDB_MGMT_TABLE_VGROUP:
       return "show vgroups";
     case TSDB_MGMT_TABLE_STB:
