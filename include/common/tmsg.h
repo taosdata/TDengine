@@ -1238,6 +1238,31 @@ static FORCE_INLINE void* tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pR
 typedef struct SVCreateTbRsp {
 } SVCreateTbRsp;
 
+typedef struct SVShowTablesReq {
+  SMsgHead head;
+} SVShowTablesReq;
+
+typedef struct SVShowTablesRsp {
+  int64_t       id;
+  STableMetaMsg metaInfo;
+} SVShowTablesRsp;
+
+typedef struct SVShowTablesFetchReq {
+  SMsgHead head;
+  int64_t  id;
+} SVShowTablesFetchReq;
+
+typedef struct SVShowTablesFetchRsp {
+  int64_t useconds;
+  int8_t  completed;  // all results are returned to client
+  int8_t  precision;
+  int8_t  compressed;
+  int32_t compLen;
+
+  int32_t numOfRows;
+  char    data[];
+} SVShowTablesFetchRsp;
+
 #pragma pack(pop)
 
 #ifdef __cplusplus
