@@ -45,7 +45,6 @@ typedef struct SMetaData {
 } SMetaData;
 
 typedef struct SCatalogCfg {
-  bool     enableVgroupCache;
   uint32_t maxTblCacheNum;
   uint32_t maxDBCacheNum;
 } SCatalogCfg;
@@ -61,8 +60,8 @@ int32_t catalogInit(SCatalogCfg *cfg);
 int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle);
 
 int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName, int32_t* version);
-int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* dbName, int32_t forceUpdate, SDBVgroupInfo* dbInfo);
-int32_t catalogUpdateDBVgroupCache(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
+
+int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
 
 /**
  * Get a table's meta data. 
