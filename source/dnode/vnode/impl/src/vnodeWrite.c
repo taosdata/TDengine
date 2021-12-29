@@ -68,6 +68,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   switch (pMsg->msgType) {
     case TDMT_VND_CREATE_STB:
+    case TDMT_VND_CREATE_TABLE:
       tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbReq);
       if (metaCreateTable(pVnode->pMeta, &(vCreateTbReq)) < 0) {
         // TODO: handle error
