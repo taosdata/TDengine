@@ -219,6 +219,26 @@ typedef struct {
   char     data[];
 } SMDCreateTableMsg;
 
+// typedef struct {
+//  int32_t len;  // one create table message
+//  char    tableName[TSDB_TABLE_FNAME_LEN];
+//  int16_t numOfColumns;
+//  int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
+//  int8_t  igExists;
+//  int8_t  rspMeta;
+//  int8_t  reserved[16];
+//  char    schema[];
+//} SCreateTableMsg;
+
+typedef struct {
+  char    tableName[TSDB_TABLE_FNAME_LEN];
+  int16_t numOfColumns;
+  int16_t numOfTags;
+  int8_t  igExists;
+  int8_t  rspMeta;
+  char    schema[];
+} SCreateCTableMsg;
+
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
@@ -298,6 +318,18 @@ typedef struct SEpSet {
   uint16_t port[TSDB_MAX_REPLICA];
   char     fqdn[TSDB_MAX_REPLICA][TSDB_FQDN_LEN];
 } SEpSet;
+
+static FORCE_INLINE int taosEncodeSEpSet(void** buf, const SEpSet* pEp) {
+  if(buf == NULL) return sizeof(SEpSet);
+  memcpy(buf, pEp, sizeof(SEpSet));
+  //TODO: endian conversion
+  return sizeof(SEpSet);
+}
+
+static FORCE_INLINE void* taosDecodeSEpSet(void* buf, SEpSet* pEpSet) {
+  memcpy(pEpSet, buf, sizeof(SEpSet));
+  return buf;
+}
 
 typedef struct {
   int32_t acctId;
@@ -1056,25 +1088,93 @@ typedef struct STaskDropRsp {
 } STaskDropRsp;
 
 typedef struct {
-  int8_t igExists;
-  char*  name;
-  char*  phyPlan;
+  int8_t  igExists;
+  char*   name;
+  char*   physicalPlan;
+  char*   logicalPlan;
 } SCMCreateTopicReq;
 
 static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateTopicReq* pReq) {
   int tlen = 0;
   tlen += taosEncodeString(buf, pReq->name);
   tlen += taosEncodeFixedI8(buf, pReq->igExists);
-  tlen += taosEncodeString(buf, pReq->phyPlan);
+  tlen += taosEncodeString(buf, pReq->physicalPlan);
+  tlen += taosEncodeString(buf, pReq->logicalPlan);
   return tlen;
 }
 
 static FORCE_INLINE void* tDeserializeSCMCreateTopicReq(void* buf, SCMCreateTopicReq* pReq) {
   buf = taosDecodeFixedI8(buf, &(pReq->igExists));
   buf = taosDecodeString(buf, &(pReq->name));
-  buf = taosDecodeString(buf, &(pReq->phyPlan));
+  buf = taosDecodeString(buf, &(pReq->physicalPlan));
+  buf = taosDecodeString(buf, &(pReq->logicalPlan));
   return buf;
 }
+
+typedef struct {
+  int64_t topicId;
+} SCMCreateTopicRsp;
+
+static FORCE_INLINE int tSerializeSCMCreateTopicRsp(void** buf, const SCMCreateTopicRsp* pRsp) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pRsp->topicId);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDeserializeSCMCreateTopicRsp(void* buf, SCMCreateTopicRsp* pRsp) {
+  buf = taosDecodeFixedI64(buf, &pRsp->topicId);
+  return buf;
+}
+
+typedef struct {
+  char* topicName;
+  char* consumerGroup;
+  int64_t consumerId;
+} SCMSubscribeReq;
+
+static FORCE_INLINE int tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
+  int tlen = 0;
+  tlen += taosEncodeString(buf, pReq->topicName);
+  tlen += taosEncodeString(buf, pReq->consumerGroup);
+  tlen += taosEncodeFixedI64(buf, pReq->consumerId);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq* pReq) {
+  buf = taosDecodeString(buf, &pReq->topicName);
+  buf = taosDecodeString(buf, &pReq->consumerGroup);
+  buf = taosDecodeFixedI64(buf, &pReq->consumerId);
+  return buf;
+}
+
+typedef struct {
+  int32_t vgId;
+  SEpSet pEpSet;
+} SCMSubscribeRsp;
+
+static FORCE_INLINE int tSerializeSCMSubscribeRsp(void** buf, const SCMSubscribeRsp* pRsp) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI32(buf, pRsp->vgId);
+  tlen += taosEncodeSEpSet(buf, &pRsp->pEpSet);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDeserializeSCMSubscribeRsp(void* buf, SCMSubscribeRsp* pRsp) {
+  buf = taosDecodeFixedI32(buf, &pRsp->vgId);
+  buf = taosDecodeSEpSet(buf, &pRsp->pEpSet);
+  return buf;
+}
+
+typedef struct {
+  int64_t topicId;
+  int64_t consumerId;
+  int64_t consumerGroupId;
+  int64_t offset;
+} SMVSubscribeReq;
+
+typedef struct {
+  int64_t newOffset;
+} SMVSubscribeRsp;
 
 typedef struct {
   char    name[TSDB_TOPIC_FNAME_LEN];

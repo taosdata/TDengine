@@ -145,6 +145,16 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen);
 void *taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void* destBuf);
 
 /**
+ * Clone the result to interval allocated buffer
+ * @param pHashObj
+ * @param key
+ * @param keyLen
+ * @param destBuf
+ * @return
+ */
+void* taosHashGetCloneExt(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void** d, size_t *sz);
+
+/**
  * remove item with the specified key
  * @param pHashObj
  * @param key
@@ -199,6 +209,26 @@ void  taosHashCancelIterate(SHashObj *pHashObj, void *p);
  * @return
  */
 int32_t taosHashGetKey(void *data, void** key, size_t* keyLen);
+
+/**
+ * return the payload data with the specified key(reference number added)
+ *
+ * @param pHashObj
+ * @param key
+ * @param keyLen
+ * @return
+ */
+void* taosHashAcquire(SHashObj *pHashObj, const void *key, size_t keyLen);
+
+/**
+ * release the prevous acquired obj
+ *
+ * @param pHashObj
+ * @param data
+ * @return
+ */
+void taosHashRelease(SHashObj *pHashObj, void *p);
+
 
 #ifdef __cplusplus
 }
