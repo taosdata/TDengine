@@ -1058,9 +1058,9 @@ typedef struct STaskDropRsp {
 } STaskDropRsp;
 
 typedef struct {
-  int8_t  igExists;
-  char*   name;
-  char*   phyPlan;
+  int8_t igExists;
+  char*  name;
+  char*  phyPlan;
 } SCMCreateTopicReq;
 
 static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateTopicReq* pReq) {
