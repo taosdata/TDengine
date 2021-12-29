@@ -317,12 +317,12 @@ do { \
 #define TSDB_MAX_FIELD_LEN              16384
 #define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
 #define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
-#define PRIMARYKEY_TIMESTAMP_COL_ID     0
+#define PRIMARYKEY_TIMESTAMP_COL_ID     1
 
 #define TSDB_MAX_RPC_THREADS            5
 
-#define TSDB_QUERY_TYPE_NON_TYPE               0x00u     // none type
-#define TSDB_QUERY_TYPE_FREE_RESOURCE          0x01u     // free qhandle at vnode
+#define TSDB_QUERY_TYPE_NON_TYPE        0x00u     // none type
+#define TSDB_QUERY_TYPE_FREE_RESOURCE   0x01u     // free qhandle at vnode
 
 
 #define TSDB_META_COMPACT_RATIO         0       // disable tsdb meta compact by default

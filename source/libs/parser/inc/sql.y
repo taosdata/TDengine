@@ -6,7 +6,7 @@
 %default_type {SToken}
 %extra_argument {SSqlInfo* pInfo}
 
-%fallback ID BOOL TINYINT SMALLINT INTEGER BIGINT FLOAT DOUBLE STRING TIMESTAMP BINARY NCHAR.
+%fallback ID BOOL INTEGER FLOAT STRING TIMESTAMP.
 
 %left OR.
 %left AND.

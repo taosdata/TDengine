@@ -218,26 +218,6 @@ typedef struct {
   char     data[];
 } SMDCreateTableMsg;
 
-// typedef struct {
-//  int32_t len;  // one create table message
-//  char    tableName[TSDB_TABLE_FNAME_LEN];
-//  int16_t numOfColumns;
-//  int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
-//  int8_t  igExists;
-//  int8_t  rspMeta;
-//  int8_t  reserved[16];
-//  char    schema[];
-//} SCreateTableMsg;
-
-typedef struct {
-  char    tableName[TSDB_TABLE_FNAME_LEN];
-  int16_t numOfColumns;
-  int16_t numOfTags;
-  int8_t  igExists;
-  int8_t  rspMeta;
-  char    schema[];
-} SCreateCTableMsg;
-
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;

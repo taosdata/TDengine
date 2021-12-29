@@ -370,6 +370,41 @@ int32_t ctgUpdateTableMetaCache(struct SCatalog *pCatalog, STableMetaOutput *out
   return TSDB_CODE_SUCCESS;
 }
 
+
+int32_t ctgGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* dbName, int32_t forceUpdate, SDBVgroupInfo* dbInfo) {
+  if (NULL == pCatalog || NULL == dbName || NULL == pRpc || NULL == pMgmtEps) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t exist = 0;
+
+  if (0 == forceUpdate) {
+    CTG_ERR_RET(ctgGetDBVgroupFromCache(pCatalog, dbName, dbInfo, &exist));
+
+    if (exist) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  SUseDbOutput DbOut = {0};
+  SBuildUseDBInput input = {0};
+
+  strncpy(input.db, dbName, sizeof(input.db));
+  input.db[sizeof(input.db) - 1] = 0;
+  input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
+  
+  CTG_ERR_RET(ctgGetDBVgroupFromMnode(pCatalog, pRpc, pMgmtEps, &input, &DbOut));
+
+  CTG_ERR_RET(catalogUpdateDBVgroup(pCatalog, dbName, &DbOut.dbVgroup));
+
+  if (dbInfo) {
+    *dbInfo = DbOut.dbVgroup;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t catalogInit(SCatalogCfg *cfg) {
   if (ctgMgmt.pCluster) {
     ctgError("catalog already init");
@@ -378,16 +413,22 @@ int32_t catalogInit(SCatalogCfg *cfg) {
 
   if (cfg) {
     memcpy(&ctgMgmt.cfg, cfg, sizeof(*cfg));
+    
+    if (ctgMgmt.cfg.maxDBCacheNum == 0) {
+      ctgMgmt.cfg.maxDBCacheNum = CTG_DEFAULT_CACHE_DB_NUMBER;
+    }
+
+    if (ctgMgmt.cfg.maxTblCacheNum == 0) {
+      ctgMgmt.cfg.maxTblCacheNum = CTG_DEFAULT_CACHE_TABLEMETA_NUMBER;
+    }
   } else {
     ctgMgmt.cfg.maxDBCacheNum = CTG_DEFAULT_CACHE_DB_NUMBER;
     ctgMgmt.cfg.maxTblCacheNum = CTG_DEFAULT_CACHE_TABLEMETA_NUMBER;
   }
 
-  if (CTG_CACHE_ENABLED()) {
-    ctgMgmt.pCluster = taosHashInit(CTG_DEFAULT_CACHE_CLUSTER_NUMBER, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    if (NULL == ctgMgmt.pCluster) {
-      CTG_ERR_LRET(TSDB_CODE_CTG_INTERNAL_ERROR, "init %d cluster cache failed", CTG_DEFAULT_CACHE_CLUSTER_NUMBER);
-    }
+  ctgMgmt.pCluster = taosHashInit(CTG_DEFAULT_CACHE_CLUSTER_NUMBER, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (NULL == ctgMgmt.pCluster) {
+    CTG_ERR_LRET(TSDB_CODE_CTG_INTERNAL_ERROR, "init %d cluster cache failed", CTG_DEFAULT_CACHE_CLUSTER_NUMBER);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -449,13 +490,19 @@ int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName,
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t catalogUpdateDBVgroupCache(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo) {
+int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo) {
   if (NULL == pCatalog || NULL == dbName || NULL == dbInfo) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
   if (dbInfo->vgVersion < 0) {
     if (pCatalog->dbCache.cache) {
+      SDBVgroupInfo *oldInfo = taosHashGet(pCatalog->dbCache.cache, dbName, strlen(dbName));
+      if (oldInfo && oldInfo->vgInfo) {
+        taosHashCleanup(oldInfo->vgInfo);
+        oldInfo->vgInfo = NULL;
+      }
+    
       taosHashRemove(pCatalog->dbCache.cache, dbName, strlen(dbName));
     }
     
@@ -485,42 +532,6 @@ int32_t catalogUpdateDBVgroupCache(struct SCatalog* pCatalog, const char* dbName
   return TSDB_CODE_SUCCESS;
 }
 
-
-
-
-int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* dbName, int32_t forceUpdate, SDBVgroupInfo* dbInfo) {
-  if (NULL == pCatalog || NULL == dbName || NULL == pRpc || NULL == pMgmtEps) {
-    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
-  }
-
-  int32_t exist = 0;
-
-  if (0 == forceUpdate) {
-    CTG_ERR_RET(ctgGetDBVgroupFromCache(pCatalog, dbName, dbInfo, &exist));
-
-    if (exist) {
-      return TSDB_CODE_SUCCESS;
-    }
-  }
-
-  SUseDbOutput DbOut = {0};
-  SBuildUseDBInput input = {0};
-
-  strncpy(input.db, dbName, sizeof(input.db));
-  input.db[sizeof(input.db) - 1] = 0;
-  input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
-  
-  CTG_ERR_RET(ctgGetDBVgroupFromMnode(pCatalog, pRpc, pMgmtEps, &input, &DbOut));
-
-  CTG_ERR_RET(catalogUpdateDBVgroupCache(pCatalog, dbName, &DbOut.dbVgroup));
-
-  if (dbInfo) {
-    *dbInfo = DbOut.dbVgroup;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta) {
   return ctgGetTableMetaImpl(pCatalog, pTransporter, pMgmtEps, pDBName, pTableName, false, pTableMeta);
 }
@@ -531,6 +542,7 @@ int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSe
   }
 
   SVgroupInfo vgroupInfo = {0};
+  int32_t code = 0;
   
   CTG_ERR_RET(catalogGetTableHashVgroup(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, &vgroupInfo));
 
@@ -540,11 +552,13 @@ int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSe
 
   CTG_ERR_RET(ctgGetTableMetaFromMnode(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, &output));
 
-  CTG_ERR_RET(ctgUpdateTableMetaCache(pCatalog, &output));
+  CTG_ERR_JRET(ctgUpdateTableMetaCache(pCatalog, &output));
+
+_return:
 
   tfree(output.tbMeta);
   
-  return TSDB_CODE_SUCCESS;
+  CTG_RET(code);
 }
 
 int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta) {
@@ -563,7 +577,7 @@ int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pRpc, const S
   
   CTG_ERR_JRET(catalogGetTableMeta(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, &tbMeta));
 
-  CTG_ERR_JRET(catalogGetDBVgroup(pCatalog, pRpc, pMgmtEps, pDBName, false, &dbVgroup));
+  CTG_ERR_JRET(ctgGetDBVgroup(pCatalog, pRpc, pMgmtEps, pDBName, false, &dbVgroup));
 
   if (tbMeta->tableType == TSDB_SUPER_TABLE) {
     CTG_ERR_JRET(ctgGetVgInfoFromDB(pCatalog, pRpc, pMgmtEps, &dbVgroup, pVgroupList));
@@ -594,6 +608,7 @@ _return:
   tfree(tbMeta);
 
   taosArrayDestroy(*pVgroupList);
+  *pVgroupList = NULL;
   
   CTG_RET(code);
 }
@@ -604,7 +619,7 @@ int32_t catalogGetTableHashVgroup(struct SCatalog *pCatalog, void *pTransporter,
   int32_t code = 0;
   int32_t vgId = 0;
 
-  CTG_ERR_RET(catalogGetDBVgroup(pCatalog, pTransporter, pMgmtEps, pDBName, false, &dbInfo));
+  CTG_ERR_RET(ctgGetDBVgroup(pCatalog, pTransporter, pMgmtEps, pDBName, false, &dbInfo));
 
   if (dbInfo.vgVersion < 0 || NULL == dbInfo.vgInfo) {
     ctgError("db[%s] vgroup cache invalid, vgroup version:%d, vgInfo:%p", pDBName, dbInfo.vgVersion, dbInfo.vgInfo);
@@ -627,12 +642,15 @@ int32_t catalogGetAllMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* p
   if (pReq->pTableName) {
     char dbName[TSDB_DB_FNAME_LEN];
     int32_t tbNum = (int32_t)taosArrayGetSize(pReq->pTableName);
-    if (tbNum > 0) {
-      pRsp->pTableMeta = taosArrayInit(tbNum, POINTER_BYTES);
-      if (NULL == pRsp->pTableMeta) {
-        ctgError("taosArrayInit num[%d] failed", tbNum);
-        CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
-      }
+    if (tbNum <= 0) {
+      ctgError("empty table name list");
+      CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+    }
+    
+    pRsp->pTableMeta = taosArrayInit(tbNum, POINTER_BYTES);
+    if (NULL == pRsp->pTableMeta) {
+      ctgError("taosArrayInit num[%d] failed", tbNum);
+      CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
     }
     
     for (int32_t i = 0; i < tbNum; ++i) {
@@ -663,6 +681,7 @@ _return:
     }
     
     taosArrayDestroy(pRsp->pTableMeta);
+    pRsp->pTableMeta = NULL;
   }
   
   CTG_RET(code);
