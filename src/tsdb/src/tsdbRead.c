@@ -598,8 +598,7 @@ static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
 
   if (!pQueryHandle->pTableCheckInfo) {
     tsdbError("%p table check info is NULL", pQueryHandle);
-    terrno = TSDB_CODE_QRY_APP_ERROR;
-    return -1;
+    return TSDB_CODE_QRY_APP_ERROR;
   }
 
   size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
@@ -634,11 +633,13 @@ TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
     return NULL;
   }
 
-  if (lazyLoadCacheLast(pQueryHandle) != TSDB_CODE_SUCCESS) {
+  int32_t code = lazyLoadCacheLast(pQueryHandle);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
     return NULL;
-  };
+  }
 
-  int32_t code = checkForCachedLastRow(pQueryHandle, groupList);
+  code = checkForCachedLastRow(pQueryHandle, groupList);
   if (code != TSDB_CODE_SUCCESS) { // set the numOfTables to be 0
     terrno = code;
     return NULL;
@@ -658,11 +659,13 @@ TsdbQueryHandleT tsdbQueryCacheLast(STsdbRepo *tsdb, STsdbQueryCond *pCond, STab
     return NULL;
   }
 
-  if (lazyLoadCacheLast(pQueryHandle) != TSDB_CODE_SUCCESS) {
+  int32_t code = lazyLoadCacheLast(pQueryHandle);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
     return NULL;
-  };
+  }
 
-  int32_t code = checkForCachedLast(pQueryHandle);
+  code = checkForCachedLast(pQueryHandle);
   if (code != TSDB_CODE_SUCCESS) { // set the numOfTables to be 0
     terrno = code;
     return NULL;
