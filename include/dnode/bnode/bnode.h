@@ -49,10 +49,11 @@ typedef struct {
 /**
  * @brief Start one Bnode in Dnode.
  *
+ * @param path Path of the bnode.
  * @param pOption Option of the bnode.
  * @return SBnode* The bnode object.
  */
-SBnode *bndOpen(const SBnodeOpt *pOption);
+SBnode *bndOpen(const char *path, const SBnodeOpt *pOption);
 
 /**
  * @brief Stop Bnode in Dnode.
@@ -78,6 +79,13 @@ int32_t bndGetLoad(SBnode *pBnode, SBnodeLoad *pLoad);
  * @return int32_t 0 for success, -1 for failure
  */
 int32_t bndProcessWMsgs(SBnode *pBnode, SArray *pMsgs);
+
+/**
+ * @brief Drop a bnode.
+ *
+ * @param path Path of the bnode.
+ */
+void bndDestroy(const char *path);
 
 #ifdef __cplusplus
 }

@@ -94,9 +94,14 @@ public:
     return 0;
   }
 
-  int32_t catalogGetTableMeta(const char* pDbFullName, const char* pTableName, STableMeta** pTableMeta) const {
+  int32_t catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const {
     std::unique_ptr<STableMeta> table;
-    int32_t code = copyTableSchemaMeta(toDbname(pDbFullName), pTableName, &table);
+
+    char db[TSDB_DB_FNAME_LEN] = {0};
+    tNameGetFullDbName(pTableName, db);
+
+    const char* tname = tNameGetTableName(pTableName);
+    int32_t code = copyTableSchemaMeta(db, tname, &table);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -104,7 +109,7 @@ public:
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t catalogGetTableHashVgroup(const char* pDbFullName, const char* pTableName, SVgroupInfo* vgInfo) const {
+  int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const {
     // todo
     return 0;
   }
@@ -283,10 +288,10 @@ std::shared_ptr<MockTableMeta> MockCatalogService::getTableMeta(const std::strin
   return impl_->getTableMeta(db, tbname);
 }
 
-int32_t MockCatalogService::catalogGetTableMeta(const char* pDBName, const char* pTableName, STableMeta** pTableMeta) const {
-  return impl_->catalogGetTableMeta(pDBName, pTableName, pTableMeta);
+int32_t MockCatalogService::catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const {
+  return impl_->catalogGetTableMeta(pTableName, pTableMeta);
 }
 
-int32_t MockCatalogService::catalogGetTableHashVgroup(const char* pDBName, const char* pTableName, SVgroupInfo* vgInfo) const {
-  return impl_->catalogGetTableHashVgroup(pDBName, pTableName, vgInfo);
+int32_t MockCatalogService::catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const {
+  return impl_->catalogGetTableHashVgroup(pTableName, vgInfo);
 }

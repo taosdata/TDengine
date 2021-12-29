@@ -79,7 +79,7 @@ static int32_t buildRetrieveMnodeMsg(SRequestObj *pRequest, SMsgSendInfo* pMsgSe
   pMsgSendInfo->msgInfo.len     = sizeof(SRetrieveTableMsg);
   pMsgSendInfo->requestObjRefId = pRequest->self;
   pMsgSendInfo->param           = pRequest;
-  pMsgSendInfo->fp              = handleRequestRspFp[pMsgSendInfo->msgType];
+  pMsgSendInfo->fp              = handleRequestRspFp[TMSG_INDEX(pMsgSendInfo->msgType)];
 
   SRetrieveTableMsg *pRetrieveMsg = calloc(1, sizeof(SRetrieveTableMsg));
   if (pRetrieveMsg == NULL) {
@@ -104,7 +104,7 @@ SMsgSendInfo* buildSendMsgInfoImpl(SRequestObj *pRequest) {
     pMsgSendInfo->requestId = pRequest->requestId;
     pMsgSendInfo->param     = pRequest;
 
-    pMsgSendInfo->fp = (handleRequestRspFp[pRequest->type] == NULL)? genericRspCallback:handleRequestRspFp[pRequest->type];
+    pMsgSendInfo->fp = (handleRequestRspFp[TMSG_INDEX(pRequest->type)] == NULL)? genericRspCallback:handleRequestRspFp[TMSG_INDEX(pRequest->type)];
   }
 
   return pMsgSendInfo;
@@ -188,14 +188,21 @@ int32_t processCreateDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
-  SUseDbRsp* pUseDbRsp = (SUseDbRsp*) pMsg->pData;
-  SName name = {0};
-  tNameFromString(&name, pUseDbRsp->db, T_NAME_ACCT|T_NAME_DB);
+  SRequestObj* pRequest = param;
+
+  if (code != TSDB_CODE_SUCCESS) {
+    pRequest->code = code;
+    tsem_post(&pRequest->body.rspSem);
+    return code;
+  }
+
+  SUseDbRsp* pUseDbRsp = (SUseDbRsp*)pMsg->pData;
+  SName      name = {0};
+  tNameFromString(&name, pUseDbRsp->db, T_NAME_ACCT | T_NAME_DB);
 
   char db[TSDB_DB_NAME_LEN] = {0};
   tNameGetDbName(&name, db);
 
-  SRequestObj* pRequest = param;
   setConnectionDB(pRequest->pTscObj, db);
 
   tsem_post(&pRequest->body.rspSem);
@@ -290,11 +297,11 @@ void initMsgHandleFp() {
   tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_DATABASE] = tscProcessShowCreateRsp;
 #endif
 
-  handleRequestRspFp[TDMT_MND_CONNECT]       = processConnectRsp;
-  handleRequestRspFp[TDMT_MND_SHOW]          = processShowRsp;
-  handleRequestRspFp[TDMT_MND_SHOW_RETRIEVE] = processRetrieveMnodeRsp;
-  handleRequestRspFp[TDMT_MND_CREATE_DB]     = processCreateDbRsp;
-  handleRequestRspFp[TDMT_MND_USE_DB]        = processUseDbRsp;
-  handleRequestRspFp[TDMT_MND_CREATE_STB]    = processCreateTableRsp;
-  handleRequestRspFp[TDMT_MND_DROP_DB]       = processDropDbRsp;
+  handleRequestRspFp[TMSG_INDEX(TDMT_MND_CONNECT)]       = processConnectRsp;
+  handleRequestRspFp[TMSG_INDEX(TDMT_MND_SHOW)]          = processShowRsp;
+  handleRequestRspFp[TMSG_INDEX(TDMT_MND_SHOW_RETRIEVE)] = processRetrieveMnodeRsp;
+  handleRequestRspFp[TMSG_INDEX(TDMT_MND_CREATE_DB)]     = processCreateDbRsp;
+  handleRequestRspFp[TMSG_INDEX(TDMT_MND_USE_DB)]        = processUseDbRsp;
+  handleRequestRspFp[TMSG_INDEX(TDMT_MND_CREATE_STB)]    = processCreateTableRsp;
+  handleRequestRspFp[TMSG_INDEX(TDMT_MND_DROP_DB)]       = processDropDbRsp;
 }

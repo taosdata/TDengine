@@ -24,7 +24,6 @@ extern "C" {
 #include "catalog.h"
 
 typedef struct SSchedulerCfg {
-  int32_t clusterType;
   int32_t maxJobNum;
 } SSchedulerCfg;
 

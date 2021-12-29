@@ -13,12 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeDef.h"
 #include "vnodeQuery.h"
+#include "vnodeDef.h"
 
-int vnodeQueryOpen(SVnode *pVnode) {
-  return qWorkerInit(NULL, &pVnode->pQuery);
-}
+int vnodeQueryOpen(SVnode *pVnode) { return qWorkerInit(NULL, &pVnode->pQuery); }
 
 int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   vInfo("query message is processed");
@@ -46,4 +44,24 @@ int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   return 0;
 }
 
+static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+  STableInfoMsg *pReq = (STableInfoMsg *)(pMsg->pCont);
+  STableMetaMsg *pRspMsg;
+  int            ret;
 
+  if (metaGetTableInfo(pVnode->pMeta, pReq->tableFname, &pRspMsg) < 0) {
+    return -1;
+  }
+
+  *pRsp = malloc(sizeof(SRpcMsg));
+  if (TD_IS_NULL(*pRsp)) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    free(pMsg);
+    return -1;
+  }
+
+  // TODO
+  (*pRsp)->pCont = pRspMsg;
+
+  return 0;
+}

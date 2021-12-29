@@ -791,9 +791,29 @@ void schDropJobAllTasks(SSchJob *job) {
   }  
 }
 
+uint64_t schGenSchId(void) {
+  uint64_t sId = 0;
+
+  // TODO
+
+  qDebug("Gen sId:0x%"PRIx64, sId);
+
+  return sId;
+}
+
+
 int32_t schedulerInit(SSchedulerCfg *cfg) {
+  if (schMgmt.jobs) {
+    qError("scheduler already init");
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
   if (cfg) {
     schMgmt.cfg = *cfg;
+    
+    if (schMgmt.cfg.maxJobNum <= 0) {
+      schMgmt.cfg.maxJobNum = SCHEDULE_DEFAULT_JOB_NUMBER;
+    }
   } else {
     schMgmt.cfg.maxJobNum = SCHEDULE_DEFAULT_JOB_NUMBER;
   }
@@ -803,18 +823,14 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
     SCH_ERR_LRET(TSDB_CODE_QRY_OUT_OF_MEMORY, "init %d schduler jobs failed", schMgmt.cfg.maxJobNum);
   }
 
-  schMgmt.sId = 1; //TODO GENERATE A UUID
+  schMgmt.sId = schGenSchId();
   
   return TSDB_CODE_SUCCESS;
 }
 
 
 int32_t scheduleExecJobImpl(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob, bool syncSchedule) {
-  if (NULL == transport || NULL == transport ||NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
-    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
-  }
-
-  if (taosArrayGetSize(qnodeList) <= 0) {
+  if (qnodeList && taosArrayGetSize(qnodeList) <= 0) {
     qInfo("qnodeList is empty");
   }
 
@@ -882,6 +898,10 @@ _return:
 }
 
 int32_t scheduleExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob, uint64_t *numOfRows) {
+  if (NULL == transport || /* NULL == qnodeList || */ NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == numOfRows) {
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
   *numOfRows = 0;
   
   SCH_ERR_RET(scheduleExecJobImpl(transport, qnodeList, pDag, pJob, true));
@@ -894,6 +914,10 @@ int32_t scheduleExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, voi
 }
 
 int32_t scheduleAsyncExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob) {
+  if (NULL == transport || NULL == qnodeList ||NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
   return scheduleExecJobImpl(transport, qnodeList, pDag, pJob, false);
 }
 

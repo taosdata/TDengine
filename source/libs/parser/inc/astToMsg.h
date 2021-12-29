@@ -4,7 +4,6 @@
 #include "parserInt.h"
 #include "tmsg.h"
 
-int32_t createSName(SName* pName, SToken* pTableName, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf);
 
 SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen);
 SCreateAcctMsg* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen);

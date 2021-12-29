@@ -54,18 +54,21 @@ extern int32_t dDebugFlag;
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
 
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EStat;
-typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EDndWorkerType;
+typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EWorkerType;
 typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
 
 typedef struct {
-  EDndWorkerType type;
+  EWorkerType    type;
   const char    *name;
   int32_t        minNum;
   int32_t        maxNum;
-  FProcessItem   fp;
+  void          *queueFp;
   SDnode        *pDnode;
   taos_queue     queue;
-  SWorkerPool    pool;
+  union {
+    SWorkerPool  pool;
+    SMWorkerPool mpool;
+  };
 } SDnodeWorker;
 
 typedef struct {
@@ -94,21 +97,17 @@ typedef struct {
 } SDnodeMgmt;
 
 typedef struct {
-  int32_t     refCount;
-  int8_t      deployed;
-  int8_t      dropped;
-  int8_t      replica;
-  int8_t      selfIndex;
-  SReplica    replicas[TSDB_MAX_REPLICA];
-  char       *file;
-  SMnode     *pMnode;
-  SRWLatch    latch;
-  taos_queue  pReadQ;
-  taos_queue  pWriteQ;
-  taos_queue  pSyncQ;
-  SWorkerPool readPool;
-  SWorkerPool writePool;
-  SWorkerPool syncPool;
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SMnode      *pMnode;
+  SRWLatch     latch;
+  SDnodeWorker readWorker;
+  SDnodeWorker writeWorker;
+  SDnodeWorker syncWorker;
+  int8_t       replica;
+  int8_t       selfIndex;
+  SReplica     replicas[TSDB_MAX_REPLICA];
 } SMnodeMgmt;
 
 typedef struct {
@@ -122,25 +121,21 @@ typedef struct {
 } SQnodeMgmt;
 
 typedef struct {
-  int32_t     refCount;
-  int8_t      deployed;
-  int8_t      dropped;
-  char       *file;
-  SSnode     *pSnode;
-  SRWLatch    latch;
-  taos_queue  pWriteQ;
-  SWorkerPool writePool;
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SSnode      *pSnode;
+  SRWLatch     latch;
+  SDnodeWorker writeWorker;
 } SSnodeMgmt;
 
 typedef struct {
   int32_t      refCount;
   int8_t       deployed;
   int8_t       dropped;
-  char        *file;
   SBnode      *pBnode;
   SRWLatch     latch;
-  taos_queue   pWriteQ;
-  SMWorkerPool writePool;
+  SDnodeWorker writeWorker;
 } SBnodeMgmt;
 
 typedef struct {

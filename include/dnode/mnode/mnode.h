@@ -147,28 +147,12 @@ void mndCleanupMsg(SMnodeMsg *pMsg);
 void mndSendRsp(SMnodeMsg *pMsg, int32_t code);
 
 /**
- * @brief Process the read request.
+ * @brief Process the read, write, sync request.
  *
  * @param pMsg The request msg.
  * @return int32_t 0 for success, -1 for failure.
  */
-void mndProcessReadMsg(SMnodeMsg *pMsg);
-
-/**
- * @brief Process the write request.
- *
- * @param pMsg The request msg.
- * @return int32_t 0 for success, -1 for failure.
- */
-void mndProcessWriteMsg(SMnodeMsg *pMsg);
-
-/**
- * @brief Process the sync request.
- *
- * @param pMsg The request msg.
- * @return int32_t 0 for success, -1 for failure.
- */
-void mndProcessSyncMsg(SMnodeMsg *pMsg);
+void mndProcessMsg(SMnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

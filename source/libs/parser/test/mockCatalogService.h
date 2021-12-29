@@ -57,8 +57,8 @@ public:
   void showTables() const;
   std::shared_ptr<MockTableMeta> getTableMeta(const std::string& db, const std::string& tbname) const;
 
-  int32_t catalogGetTableMeta(const char* pDBName, const char* pTableName, STableMeta** pTableMeta) const;
-  int32_t catalogGetTableHashVgroup(const char* pDBName, const char* pTableName, SVgroupInfo* vgInfo) const;
+  int32_t catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const;
+  int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const;
 
 private:
   std::unique_ptr<MockCatalogServiceImpl> impl_;
