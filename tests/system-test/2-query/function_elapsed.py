@@ -30,6 +30,8 @@ class TDTestCase:
     def caseDescription(self):
 
         '''
+        case1 <wenzhouwww>: [TD-11804]  test case for elapsed function : 
+        
         this test case is for aggregate function elapsed , elapsed function can only used for the timestamp primary key column (ts) , 
         it has two input parameters,  the first parameter is necessary, basic SQL as follow:
         
