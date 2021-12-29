@@ -329,7 +329,7 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
 
 static int32_t mndCreateMnode(SMnode *pMnode, SMnodeMsg *pMsg, SDnodeObj *pDnode, SCreateMnodeMsg *pCreate) {
   SMnodeObj mnodeObj = {0};
-  mnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_MNODE);
+  mnodeObj.id = pDnode->id;
   mnodeObj.createdTime = taosGetTimestampMs();
   mnodeObj.updateTime = mnodeObj.createdTime;
 
@@ -562,7 +562,7 @@ static int32_t mndProcessDropMnodeReq(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  sdbRelease(pMnode->pSdb, pMnode);
+  sdbRelease(pMnode->pSdb, pObj);
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 

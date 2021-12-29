@@ -16,14 +16,16 @@
 #define _DEFAULT_SOURCE
 #include "mndAcct.h"
 #include "mndAuth.h"
-#include "mndBalance.h"
+#include "mndBnode.h"
 #include "mndCluster.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndFunc.h"
 #include "mndMnode.h"
 #include "mndProfile.h"
+#include "mndQnode.h"
 #include "mndShow.h"
+#include "mndSnode.h"
 #include "mndStb.h"
 #include "mndSync.h"
 #include "mndTelem.h"
@@ -147,6 +149,9 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-trans", mndInitTrans, mndCleanupTrans) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-cluster", mndInitCluster, mndCleanupCluster) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-mnode", mndInitMnode, mndCleanupMnode) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-qnode", mndInitQnode, mndCleanupQnode) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-qnode", mndInitSnode, mndCleanupSnode) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-qnode", mndInitBnode, mndCleanupBnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-auth", mndInitAuth, mndCleanupAuth) != 0) return -1;
@@ -162,7 +167,6 @@ static int32_t mndInitSteps(SMnode *pMnode) {
     if (mndAllocStep(pMnode, "mnode-sdb-read", mndReadSdb, NULL) != 0) return -1;
   }
   if (mndAllocStep(pMnode, "mnode-timer", mndInitTimer, NULL) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-balance", mndInitBalance, mndCleanupBalance) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-show", mndInitShow, mndCleanupShow) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync) != 0) return -1;
