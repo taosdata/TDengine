@@ -388,7 +388,11 @@ TEST(tableMeta, normalTable) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestTablename, &vgInfo);
+  SName n = {.type = T_NAME_TABLE, .acctId = 1};
+  strcpy(n.dbname, "db1");
+  strcpy(n.tname, ctgTestTablename);
+
+  code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
   ASSERT_EQ(vgInfo.numOfEps, 3);
@@ -396,7 +400,7 @@ TEST(tableMeta, normalTable) {
   ctgTestSetPrepareTableMeta();
 
   STableMeta *tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestTablename, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 8);
   ASSERT_EQ(tableMeta->tableType, TSDB_NORMAL_TABLE);
@@ -408,7 +412,7 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestTablename, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 8);
   ASSERT_EQ(tableMeta->tableType, TSDB_NORMAL_TABLE);
@@ -433,14 +437,15 @@ TEST(tableMeta, childTableCase) {
 
   //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
   
-  int32_t code = catalogInit(NULL);
+  int32_t code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  code = catalogGetHandle(ctgTestClusterId, &pCtg);
-  ASSERT_EQ(code, 0);
+  SName n = {.type = T_NAME_TABLE, .acctId = 1};
+  strcpy(n.dbname, "db1");
+  strcpy(n.tname, ctgTestCTablename);
 
   STableMeta *tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestCTablename, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 9);
   ASSERT_EQ(tableMeta->tableType, TSDB_CHILD_TABLE);
@@ -452,7 +457,7 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestCTablename, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 9);
   ASSERT_EQ(tableMeta->tableType, TSDB_CHILD_TABLE);
@@ -464,7 +469,9 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestSTablename, &tableMeta);
+
+  strcpy(n.tname, ctgTestSTablename);
+  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 0);
   ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
@@ -488,15 +495,15 @@ TEST(tableMeta, superTableCase) {
   initQueryModuleMsgHandle();
 
   //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
-  
-  int32_t code = catalogInit(NULL);
+  int32_t code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  code = catalogGetHandle(ctgTestClusterId, &pCtg);
-  ASSERT_EQ(code, 0);
+  SName n = {.type = T_NAME_TABLE, .acctId = 1};
+  strcpy(n.dbname, "db1");
+  strcpy(n.tname, ctgTestSTablename);
 
   STableMeta *tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestSTablename, &tableMeta);
+  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 0);
   ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
@@ -510,7 +517,10 @@ TEST(tableMeta, superTableCase) {
   ctgTestSetPrepareCTableMeta();
 
   tableMeta = NULL;
-  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestCTablename, &tableMeta);
+
+  strcpy(n.dbname, "db1");
+  strcpy(n.tname, ctgTestCTablename);
+  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 9);
   ASSERT_EQ(tableMeta->tableType, TSDB_CHILD_TABLE);
@@ -522,7 +532,7 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   tableMeta = NULL;
-  code = catalogRenewAndGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestCTablename, &tableMeta);
+  code = catalogRenewAndGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 9);
   ASSERT_EQ(tableMeta->tableType, TSDB_CHILD_TABLE);
@@ -550,14 +560,14 @@ TEST(tableDistVgroup, normalTable) {
 
   //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
   
-  int32_t code = catalogInit(NULL);
+  int32_t code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  code = catalogGetHandle(ctgTestClusterId, &pCtg);
-  ASSERT_EQ(code, 0);
+  SName n = {.type = T_NAME_TABLE, .acctId = 1};
+  strcpy(n.dbname, "db1");
+  strcpy(n.tname, ctgTestTablename);
 
-
-  code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestTablename, &vgList);
+  code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
@@ -585,7 +595,11 @@ TEST(tableDistVgroup, childTableCase) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestCTablename, &vgList);
+  SName n = {.type = T_NAME_TABLE, .acctId = 1};
+  strcpy(n.dbname, "db1");
+  strcpy(n.tname, ctgTestCTablename);
+
+  code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
@@ -607,14 +621,14 @@ TEST(tableDistVgroup, superTableCase) {
   initQueryModuleMsgHandle();
 
   //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
-  
-  int32_t code = catalogInit(NULL);
+  int32_t code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  code = catalogGetHandle(ctgTestClusterId, &pCtg);
-  ASSERT_EQ(code, 0);
+  SName n = {.type = T_NAME_TABLE, .acctId = 1};
+  strcpy(n.dbname, "db1");
+  strcpy(n.tname, ctgTestSTablename);
 
-  code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, ctgTestSTablename, &vgList);
+  code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 10);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);

@@ -23,6 +23,7 @@ extern "C" {
 #include "tarray.h"
 #include "thash.h"
 #include "tlog.h"
+#include "tmsg.h"
 
 enum {
   JOB_TASK_STATUS_NULL = 0,
@@ -72,7 +73,6 @@ typedef struct STableMeta {
   STableComInfo  tableInfo;
   SSchema        schema[];
 } STableMeta;
-
 
 typedef struct SDBVgroupInfo {
   int32_t   vgVersion;  

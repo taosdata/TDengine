@@ -21,13 +21,14 @@ extern "C" {
 #endif
 
 #include "os.h"
-#include "thash.h"
-#include "tarray.h"
 #include "taosdef.h"
-#include "transport.h"
-#include "common.h"
-#include "tmsg.h"
 #include "query.h"
+#include "tname.h"
+#include "common.h"
+#include "tarray.h"
+#include "thash.h"
+#include "tmsg.h"
+#include "transport.h"
 
 struct SCatalog;
 
@@ -68,35 +69,32 @@ int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDB
  * @param pCatalog (input, got with catalogGetHandle)
  * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
- * @param pDBName (input, full db name)
  * @param pTableName (input, table name, NOT including db name)
  * @param pTableMeta(output, table meta data, NEED to free it by calller)
  * @return error code
  */
-int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta);
+int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta);
 
 /**
  * Force renew a table's local cached meta data. 
  * @param pCatalog (input, got with catalogGetHandle)
  * @param pRpc (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
- * @param pDBName (input, full db name)
  * @param pTableName (input, table name, NOT including db name)
  * @return error code
  */
-int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName);
+int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName);
 
 /**
  * Force renew a table's local cached meta data and get the new one. 
  * @param pCatalog (input, got with catalogGetHandle)
  * @param pRpc (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
- * @param pDBName (input, full db name)
  * @param pTableName (input, table name, NOT including db name)
  * @param pTableMeta(output, table meta data, NEED to free it by calller) 
  * @return error code
  */
-int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta);
+int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta);
 
 
 /**
@@ -104,24 +102,22 @@ int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const
  * @param pCatalog (input, got with catalogGetHandle)
  * @param pRpc (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
- * @param pDBName (input, full db name)
  * @param pTableName (input, table name, NOT including db name)
  * @param pVgroupList (output, vgroup info list, element is SVgroupInfo, NEED to simply free the array by caller)
  * @return error code
  */
-int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, SArray** pVgroupList);
+int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, SArray** pVgroupList);
 
 /**
  * Get a table's vgroup from its name's hash value.
  * @param pCatalog (input, got with catalogGetHandle)
  * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
- * @param pDBName (input, full db name)
  * @param pTableName (input, table name, NOT including db name)
  * @param vgInfo (output, vgroup info)
  * @return error code
  */
-int32_t catalogGetTableHashVgroup(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, SVgroupInfo* vgInfo);
+int32_t catalogGetTableHashVgroup(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pName, SVgroupInfo* vgInfo);
 
 
 /**
