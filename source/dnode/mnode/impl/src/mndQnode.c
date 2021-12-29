@@ -158,7 +158,7 @@ static int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  pMsg->dnodeId = htonl(pMsg->dnodeId);
+  pMsg->dnodeId = htonl(pDnode->id);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -270,7 +270,7 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  pMsg->dnodeId = htonl(pMsg->dnodeId);
+  pMsg->dnodeId = htonl(pDnode->id);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
