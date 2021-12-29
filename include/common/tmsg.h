@@ -1106,7 +1106,8 @@ static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateT
 static FORCE_INLINE void* tDeserializeSCMCreateTopicReq(void* buf, SCMCreateTopicReq* pReq) {
   buf = taosDecodeFixedI8(buf, &(pReq->igExists));
   buf = taosDecodeString(buf, &(pReq->name));
-  buf = taosDecodeString(buf, &(pReq->phyPlan));
+  buf = taosDecodeString(buf, &(pReq->physicalPlan));
+  buf = taosDecodeString(buf, &(pReq->logicalPlan));
   return buf;
 }
 
