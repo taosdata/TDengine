@@ -52,7 +52,7 @@ static int writeCtxDoReadFrom(WriterCtx* ctx, uint8_t* buf, int len, int32_t off
 }
 static int writeCtxDoFlush(WriterCtx* ctx) {
   if (ctx->type == TFile) {
-    // tfFsync(ctx->fd);
+    tfFsync(ctx->file.fd);
     // tfFlush(ctx->file.fd);
   } else {
     // do nothing
@@ -101,7 +101,10 @@ void writerCtxDestroy(WriterCtx* ctx, bool remove) {
     free(ctx->mem.buf);
   } else {
     tfClose(ctx->file.fd);
-    if (remove) unlink(ctx->file.buf);
+    if (remove) {
+      indexError("rm file %s", ctx->file.buf);
+      unlink(ctx->file.buf);
+    }
   }
   free(ctx);
 }
