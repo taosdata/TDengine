@@ -187,68 +187,6 @@ void vnodeOptionsInit(SVnodeCfg *pOptions);
  */
 void vnodeOptionsClear(SVnodeCfg *pOptions);
 
-/* ------------------------ REQUESTS ------------------------ */
-typedef STbCfg SVCreateTableReq;
-typedef struct {
-  tb_uid_t uid;
-} SVDropTableReq;
-
-typedef struct {
-  // TODO
-} SVSubmitReq;
-
-typedef struct {
-  uint64_t ver;
-  union {
-    SVCreateTableReq ctReq;
-    SVDropTableReq   dtReq;
-  };
-} SVnodeReq;
-
-typedef struct {
-  int  err;
-  char info[];
-} SVnodeRsp;
-
-static FORCE_INLINE void vnodeSetCreateStbReq(SVnodeReq *pReq, char *name, uint32_t ttl, uint32_t keep, tb_uid_t suid,
-                                              STSchema *pSchema, STSchema *pTagSchema) {
-  pReq->ver = 0;
-
-  pReq->ctReq.name = name;
-  pReq->ctReq.ttl = ttl;
-  pReq->ctReq.keep = keep;
-  pReq->ctReq.type = META_SUPER_TABLE;
-  pReq->ctReq.stbCfg.suid = suid;
-  pReq->ctReq.stbCfg.pSchema = pSchema;
-  pReq->ctReq.stbCfg.pTagSchema = pTagSchema;
-}
-
-static FORCE_INLINE void vnodeSetCreateCtbReq(SVnodeReq *pReq, char *name, uint32_t ttl, uint32_t keep, tb_uid_t suid,
-                                              SKVRow pTag) {
-  pReq->ver = 0;
-
-  pReq->ctReq.name = name;
-  pReq->ctReq.ttl = ttl;
-  pReq->ctReq.keep = keep;
-  pReq->ctReq.type = META_CHILD_TABLE;
-  pReq->ctReq.ctbCfg.suid = suid;
-  pReq->ctReq.ctbCfg.pTag = pTag;
-}
-
-static FORCE_INLINE void vnodeSetCreateNtbReq(SVnodeReq *pReq, char *name, uint32_t ttl, uint32_t keep,
-                                              STSchema *pSchema) {
-  pReq->ver = 0;
-
-  pReq->ctReq.name = name;
-  pReq->ctReq.ttl = ttl;
-  pReq->ctReq.keep = keep;
-  pReq->ctReq.type = META_NORMAL_TABLE;
-  pReq->ctReq.ntbCfg.pSchema = pSchema;
-}
-
-int   vnodeBuildReq(void **buf, const SVnodeReq *pReq, tmsg_t type);
-void *vnodeParseReq(void *buf, SVnodeReq *pReq, tmsg_t type);
-
 /* ------------------------ FOR COMPILE ------------------------ */
 
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);

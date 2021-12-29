@@ -28,7 +28,6 @@ int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   SRpcMsg *  pMsg;
-  SVnodeReq *pVnodeReq;
 
   for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
     pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
@@ -51,7 +50,6 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 }
 
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  SVnodeReq     vReq;
   SVCreateTbReq vCreateTbReq;
   void *        ptr = vnodeMalloc(pVnode, pMsg->contLen);
   if (ptr == NULL) {
@@ -70,6 +68,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   switch (pMsg->msgType) {
     case TDMT_VND_CREATE_STB:
+    case TDMT_VND_CREATE_TABLE:
       tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbReq);
       if (metaCreateTable(pVnode->pMeta, &(vCreateTbReq)) < 0) {
         // TODO: handle error
@@ -79,9 +78,9 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       break;
     case TDMT_VND_DROP_STB:
     case TDMT_VND_DROP_TABLE:
-      if (metaDropTable(pVnode->pMeta, vReq.dtReq.uid) < 0) {
-        // TODO: handle error
-      }
+      // if (metaDropTable(pVnode->pMeta, vReq.dtReq.uid) < 0) {
+      //   // TODO: handle error
+      // }
       break;
     case TDMT_VND_SUBMIT:
       if (tsdbInsertData(pVnode->pTsdb, (SSubmitMsg *)ptr) < 0) {
