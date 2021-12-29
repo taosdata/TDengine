@@ -73,6 +73,7 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
     } else {
       ctx->file.fd = tfOpenReadWrite(path);
     }
+    memcpy(ctx->file.buf, path, strlen(path));
     if (ctx->file.fd < 0) {
       indexError("open file error %d", errno);
       goto END;
@@ -95,11 +96,12 @@ END:
   free(ctx);
   return NULL;
 }
-void writerCtxDestroy(WriterCtx* ctx) {
+void writerCtxDestroy(WriterCtx* ctx, bool remove) {
   if (ctx->type == TMemory) {
     free(ctx->mem.buf);
   } else {
     tfClose(ctx->file.fd);
+    if (remove) unlink(ctx->file.buf);
   }
   free(ctx);
 }
@@ -138,10 +140,8 @@ int fstCountingWriterRead(FstCountingWriter* write, uint8_t* buf, uint32_t len) 
   return nRead;
 }
 
-uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter* write) {
-  return 0;
-}
-int fstCountingWriterFlush(FstCountingWriter* write) {
+uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter* write) { return 0; }
+int      fstCountingWriterFlush(FstCountingWriter* write) {
   WriterCtx* ctx = write->wrt;
   ctx->flush(ctx);
   // write->wtr->flush
