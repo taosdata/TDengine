@@ -1340,6 +1340,18 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
           break;
         }
       }
+
+      // set input data order to param[1]
+      if(pex->base.functionId == TSDB_FUNC_FIRST || pex->base.functionId  ==  TSDB_FUNC_FIRST_DST ||
+         pex->base.functionId == TSDB_FUNC_LAST  || pex->base.functionId  ==  TSDB_FUNC_LAST) {
+        // set input order
+        SQueryInfo* pInputQI = pSqlObjList[0]->cmd.pQueryInfo;
+        if(pInputQI) {
+          pex->base.numOfParams = 2;
+          pex->base.param[1].nType = TSDB_DATA_TYPE_INT;
+          pex->base.param[1].i64 = pInputQI->order.order;
+        }
+      }
     }
 
     tscDebug("0x%"PRIx64" create QInfo 0x%"PRIx64" to execute the main query while all nest queries are ready", pSql->self, pSql->self);

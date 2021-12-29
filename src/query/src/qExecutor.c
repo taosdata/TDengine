@@ -1910,7 +1910,7 @@ static int32_t getGroupbyColumnIndex(SGroupbyExpr *pGroupbyExpr, SSDataBlock* pD
 
 static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
+  //SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   // in case of timestamp column, always generated results.
   int32_t functionId = pCtx->functionId;
@@ -1922,14 +1922,14 @@ static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
     return false;
   }
 
-  if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_FIRST) {
-    return QUERY_IS_ASC_QUERY(pQueryAttr);
-  }
+  //if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_FIRST) {
+    //return QUERY_IS_ASC_QUERY(pQueryAttr);
+  //}
 
   // denote the order type
-  if ((functionId == TSDB_FUNC_LAST_DST || functionId == TSDB_FUNC_LAST)) {
-    return pCtx->param[0].i64 == pQueryAttr->order.order;
-  }
+  //if ((functionId == TSDB_FUNC_LAST_DST || functionId == TSDB_FUNC_LAST)) {
+  //  return pCtx->param[0].i64 == pQueryAttr->order.order;
+  //}
 
   // in the reverse table scan, only the following functions need to be executed
   if (IS_REVERSE_SCAN(pRuntimeEnv) ||
