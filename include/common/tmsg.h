@@ -57,8 +57,14 @@ extern int   tMsgDict[];
 typedef uint16_t tmsg_t;
 
 /* ------------------------ ENCODE/DECODE FUNCTIONS AND MACROS ------------------------ */
+struct SMEListNode {
+  TD_SLIST_NODE(SMEListNode);
+  SEncoder coder;
+};
+
 typedef struct SMsgEncoder {
   SEncoder coder;
+  TD_SLIST(SMEListNode) eStack;  // encode stack
 } SMsgEncoder;
 
 struct SMDFreeListNode {
@@ -66,8 +72,14 @@ struct SMDFreeListNode {
   char payload[];
 };
 
+struct SMDListNode {
+  TD_SLIST_NODE(SMDListNode);
+  SDecoder coder;
+};
+
 typedef struct SMsgDecoder {
   SDecoder coder;
+  TD_SLIST(SMDListNode) dStack;
   TD_SLIST(SMDFreeListNode) freeList;
 } SMsgDecoder;
 
