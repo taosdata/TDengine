@@ -38,6 +38,11 @@ struct SMetaDB {
   DB_ENV *pEvn;
 };
 
+typedef struct {
+  int32_t  nCols;
+  SSchema *pSchema;
+} SSchemaWrapper;
+
 typedef int (*bdbIdxCbPtr)(DB *, const DBT *, const DBT *, DBT *);
 
 static SMetaDB *metaNewDB();
@@ -55,6 +60,7 @@ static int      metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *
 static int      metaEncodeTbInfo(void **buf, STbCfg *pTbCfg);
 static void *   metaDecodeTbInfo(void *buf, STbCfg *pTbCfg);
 static void     metaClearTbCfg(STbCfg *pTbCfg);
+static SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver);
 
 #define BDB_PERR(info, code) fprintf(stderr, info " reason: %s", db_strerror(code))
 
@@ -432,6 +438,7 @@ static void metaClearTbCfg(STbCfg *pTbCfg) {
 
 /* ------------------------ FOR QUERY ------------------------ */
 int metaGetTableInfo(SMeta *pMeta, char *tbname, STableMetaMsg **ppMsg) {
+#if 0
   DBT            key = {0};
   DBT            value = {0};
   SMetaDB *      pMetaDB = pMeta->pDB;
@@ -490,7 +497,7 @@ int metaGetTableInfo(SMeta *pMeta, char *tbname, STableMetaMsg **ppMsg) {
       pMsg->tuid = tbCfg.stbCfg.suid;
       memcpy(pMsg->pSchema, tbCfg.stbCfg.pSchema, sizeof(SSchema) * tbCfg.stbCfg.nCols);
       memcpy(POINTER_SHIFT(pMsg->pSchema, sizeof(SSchema) * tbCfg.stbCfg.nCols), tbCfg.stbCfg.pTagSchema,
-              sizeof(SSchema) * tbCfg.stbCfg.nTagCols);
+             sizeof(SSchema) * tbCfg.stbCfg.nTagCols);
       break;
     case META_CHILD_TABLE:
       ASSERT(0);
@@ -505,5 +512,48 @@ int metaGetTableInfo(SMeta *pMeta, char *tbname, STableMetaMsg **ppMsg) {
 
   *ppMsg = pMsg;
 
+#endif
   return 0;
+}
+
+static SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
+  uint32_t        nCols;
+  SSchemaWrapper *pSW = NULL;
+  SMetaDB *       pDB = pMeta->pDB;
+  int             ret;
+  void *          pBuf;
+  SSchema *       pSchema;
+  SSchemaKey      schemaKey = {uid, sver};
+  DBT             key = {0};
+  DBT             value = {0};
+
+  // Set key/value properties
+  key.data = &schemaKey;
+  key.size = sizeof(schemaKey);
+
+  // Query
+  ret = pDB->pSchemaDB->get(pDB->pSchemaDB, NULL, &key, &value, 0);
+  if (ret != 0) {
+    return NULL;
+  }
+
+  // Decode the schema
+  pBuf = value.data;
+  taosDecodeFixedI32(&pBuf, &nCols);
+  pSW = (SSchemaWrapper *)malloc(sizeof(*pSW) + sizeof(SSchema) * nCols);
+  if (pSW == NULL) {
+    return NULL;
+  }
+
+  pSW->pSchema = POINTER_SHIFT(pSW, sizeof(*pSW));
+
+  for (int i = 0; i < nCols; i++) {
+    pSchema = pSW->pSchema + i;
+    taosDecodeFixedI8(&pBuf, &(pSchema->type));
+    taosDecodeFixedI32(&pBuf, &(pSchema->colId));
+    taosDecodeFixedI32(&pBuf, &(pSchema->bytes));
+    taosDecodeStringTo(&pBuf, pSchema->name);
+  }
+
+  return pSW;
 }
