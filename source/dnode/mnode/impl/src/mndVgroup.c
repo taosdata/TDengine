@@ -265,7 +265,7 @@ static SArray *mndBuildDnodesArray(SMnode *pMnode) {
       taosArrayPush(pArray, pDnode);
     }
 
-    mDebug("dnode:%d, numOfVnodes:%d numOfSupportVnodes:%d isMnode:%d ready:%d", pDnode->id, numOfVnodes,
+    mDebug("dnode:%d, vnodes:%d supportVnodes:%d isMnode:%d ready:%d", pDnode->id, numOfVnodes,
            pDnode->numOfSupportVnodes, isMnode, isReady);
     sdbRelease(pSdb, pDnode);
   }

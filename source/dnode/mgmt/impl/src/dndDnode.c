@@ -370,8 +370,8 @@ void dndSendStatusMsg(SDnode *pDnode) {
   pStatus->clusterId = htobe64(pMgmt->clusterId);
   pStatus->rebootTime = htobe64(pMgmt->rebootTime);
   pStatus->updateTime = htobe64(pMgmt->updateTime);
-  pStatus->numOfCores = htons(pDnode->opt.numOfCores);
-  pStatus->numOfSupportVnodes = htons(pDnode->opt.numOfSupportVnodes);
+  pStatus->numOfCores = htonl(pDnode->opt.numOfCores);
+  pStatus->numOfSupportVnodes = htonl(pDnode->opt.numOfSupportVnodes);
   tstrncpy(pStatus->dnodeEp, pDnode->opt.localEp, TSDB_EP_LEN);
 
   pStatus->clusterCfg.statusInterval = htonl(pDnode->opt.statusInterval);
