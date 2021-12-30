@@ -189,7 +189,7 @@ void validateTFile(char* arg) {
 
   std::thread threads[NUM_OF_THREAD];
   // std::vector<std::thread> threads;
-  TFileReader* reader = tfileReaderOpen(arg, 0, 8417, "tag1");
+  TFileReader* reader = tfileReaderOpen(arg, 0, 295868, "tag1");
 
   for (int i = 0; i < NUM_OF_THREAD; i++) {
     threads[i] = std::thread(fst_get, reader->fst);

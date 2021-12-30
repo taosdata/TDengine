@@ -149,7 +149,6 @@ TFileReader* tfileReaderCreate(WriterCtx* ctx) {
 
   // T_REF_INC(reader);
   reader->ctx = ctx;
-
   if (0 != tfileReaderLoadHeader(reader)) {
     tfileReaderDestroy(reader);
     indexError("failed to load index header, suid: %" PRIu64 ", colName: %s", reader->header.suid,
@@ -542,8 +541,14 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
   char buf[TFILE_HEADER_SIZE] = {0};
 
   int64_t nread = reader->ctx->readFrom(reader->ctx, buf, sizeof(buf), 0);
-  assert(nread == sizeof(buf));
+  if (nread == -1) {
+    //
+    indexError("actual Read: %d, to read: %d, errno: %d, filefd: %d, filename: %s", (int)(nread), (int)sizeof(buf),
+               errno, reader->ctx->file.fd, reader->ctx->file.buf);
+  }
+  // assert(nread == sizeof(buf));
   memcpy(&reader->header, buf, sizeof(buf));
+
   return 0;
 }
 static int tfileReaderLoadFst(TFileReader* reader) {
@@ -576,7 +581,7 @@ static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* 
   char*   buf = calloc(1, total);
   if (buf == NULL) { return -1; }
 
-  nread = ctx->read(ctx, buf, total);
+  nread = ctx->readFrom(ctx, buf, total, offset + sizeof(nid));
   assert(total == nread);
 
   for (int32_t i = 0; i < nid; i++) { taosArrayPush(result, (uint64_t*)buf + i); }

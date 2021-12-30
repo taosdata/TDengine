@@ -459,7 +459,7 @@ void iterateValueDestroy(IterateValue* value, bool destroy) {
   } else {
     if (value->val != NULL) { taosArrayClear(value->val); }
   }
-  free(value->colVal);
+  // free(value->colVal);
   value->colVal = NULL;
 }
 static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {

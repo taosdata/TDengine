@@ -1033,15 +1033,17 @@ FstStreamWithStateBuilder* fstSearchWithState(Fst* fst, AutomationCtx* ctx) {
 }
 
 FstNode* fstGetRoot(Fst* fst) {
-  // pthread_mutex_lock(&fst->mtx);
-  if (fst->root != NULL) {
-    // pthread_mutex_unlock(&fst->mtx);
-    return fst->root;
-  }
   CompiledAddr rAddr = fstGetRootAddr(fst);
-  fst->root = fstGetNode(fst, rAddr);
-  // pthread_mutex_unlock(&fst->mtx);
-  return fst->root;
+  return fstGetNode(fst, rAddr);
+  // pthread_mutex_lock(&fst->mtx);
+  // if (fst->root != NULL) {
+  //  // pthread_mutex_unlock(&fst->mtx);
+  //  return fst->root;
+  //}
+  // CompiledAddr rAddr = fstGetRootAddr(fst);
+  // fst->root = fstGetNode(fst, rAddr);
+  //// pthread_mutex_unlock(&fst->mtx);
+  // return fst->root;
 }
 
 FstNode* fstGetNode(Fst* fst, CompiledAddr addr) {
