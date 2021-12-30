@@ -48,7 +48,7 @@ int    metaDropTable(SMeta *pMeta, tb_uid_t uid);
 int    metaCommit(SMeta *pMeta);
 
 // For Query
-int metaGetTableInfo(SMeta *pMeta, char *tbname, STableMetaMsg **ppMsg);
+STbCfg *metaGetTableInfo(SMeta *pMeta, char *tbname);
 
 // Options
 void metaOptionsInit(SMetaCfg *pMetaCfg);

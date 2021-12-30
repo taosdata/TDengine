@@ -45,6 +45,7 @@ int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 }
 
 static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+#if 0
   STableInfoMsg *pReq = (STableInfoMsg *)(pMsg->pCont);
   STableMetaMsg *pRspMsg;
   int            ret;
@@ -63,5 +64,6 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   // TODO
   (*pRsp)->pCont = pRspMsg;
 
+#endif
   return 0;
 }

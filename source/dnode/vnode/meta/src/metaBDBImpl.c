@@ -60,7 +60,9 @@ static int      metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *
 static int      metaEncodeTbInfo(void **buf, STbCfg *pTbCfg);
 static void *   metaDecodeTbInfo(void *buf, STbCfg *pTbCfg);
 static void     metaClearTbCfg(STbCfg *pTbCfg);
-static SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver);
+static SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline);
+static STbCfg *        metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid);
+static STbCfg *        metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid);
 
 #define BDB_PERR(info, code) fprintf(stderr, info " reason: %s", db_strerror(code))
 
@@ -437,86 +439,89 @@ static void metaClearTbCfg(STbCfg *pTbCfg) {
 }
 
 /* ------------------------ FOR QUERY ------------------------ */
-int metaGetTableInfo(SMeta *pMeta, char *tbname, STableMetaMsg **ppMsg) {
-#if 0
-  DBT            key = {0};
-  DBT            value = {0};
-  SMetaDB *      pMetaDB = pMeta->pDB;
-  int            ret;
-  STbCfg         tbCfg;
-  SSchemaKey     schemaKey;
-  DBT            key1 = {0};
-  DBT            value1 = {0};
-  uint32_t       ncols;
-  void *         pBuf;
-  int            tlen;
-  STableMetaMsg *pMsg;
-  SSchema *      pSchema;
+STbCfg *metaGetTableInfo(SMeta *pMeta, char *tbname) {
+  STbCfg *        pTbCfg = NULL;
+  STbCfg *        pStbCfg = NULL;
+  tb_uid_t        uid;
+  int32_t         sver = 0;
+  SSchemaWrapper *pSW;
 
-  key.data = tbname;
-  key.size = strlen(tbname) + 1;
-
-  ret = pMetaDB->pNameIdx->get(pMetaDB->pNameIdx, NULL, &key, &value, 0);
-  if (ret != 0) {
-    // TODO
-    return -1;
+  pTbCfg = metaGetTbInfoByName(pMeta, tbname, &uid);
+  if (pTbCfg == NULL) {
+    return NULL;
   }
 
-  metaDecodeTbInfo(value.data, &tbCfg);
-
-  switch (tbCfg.type) {
-    case META_SUPER_TABLE:
-      schemaKey.uid = tbCfg.stbCfg.suid;
-      schemaKey.sver = 0;
-
-      key1.data = &schemaKey;
-      key1.size = sizeof(schemaKey);
-
-      ret = pMetaDB->pSchemaDB->get(pMetaDB->pSchemaDB, &key1, &value1, NULL, 0);
-      if (ret != 0) {
-        // TODO
-        return -1;
-      }
-      pBuf = value1.data;
-      pBuf = taosDecodeFixedU32(pBuf, &ncols);
-
-      tlen = sizeof(STableMetaMsg) + (tbCfg.stbCfg.nTagCols + ncols) * sizeof(SSchema);
-      pMsg = calloc(1, tlen);
-      if (pMsg == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return -1;
-      }
-
-      strcpy(pMsg->tbFname, tbCfg.name);
-      pMsg->numOfTags = tbCfg.stbCfg.nTagCols;
-      pMsg->numOfColumns = ncols;
-      pMsg->tableType = tbCfg.type;
-      pMsg->sversion = 0;
-      pMsg->tversion = 0;
-      pMsg->suid = tbCfg.stbCfg.suid;
-      pMsg->tuid = tbCfg.stbCfg.suid;
-      memcpy(pMsg->pSchema, tbCfg.stbCfg.pSchema, sizeof(SSchema) * tbCfg.stbCfg.nCols);
-      memcpy(POINTER_SHIFT(pMsg->pSchema, sizeof(SSchema) * tbCfg.stbCfg.nCols), tbCfg.stbCfg.pTagSchema,
-             sizeof(SSchema) * tbCfg.stbCfg.nTagCols);
-      break;
-    case META_CHILD_TABLE:
-      ASSERT(0);
-      break;
-    case META_NORMAL_TABLE:
-      ASSERT(0);
-      break;
-    default:
-      ASSERT(0);
-      break;
+  if (pTbCfg->type == META_CHILD_TABLE) {
+    uid = pTbCfg->ctbCfg.suid;
   }
 
-  *ppMsg = pMsg;
+  pSW = metaGetTableSchema(pMeta, uid, 0, false);
+  if (pSW == NULL) {
+    return NULL;
+  }
 
-#endif
-  return 0;
+  return pTbCfg;
 }
 
-static SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
+static STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {
+  STbCfg * pTbCfg = NULL;
+  SMetaDB *pDB = pMeta->pDB;
+  DBT      key = {0};
+  DBT      value = {0};
+  int      ret;
+
+  // Set key/value
+  key.data = &uid;
+  key.size = sizeof(uid);
+
+  // Query
+  ret = pDB->pTbDB->get(pDB->pTbDB, NULL, &key, &value, 0);
+  if (ret != 0) {
+    return NULL;
+  }
+
+  // Decode
+  pTbCfg = (STbCfg *)malloc(sizeof(*pTbCfg));
+  if (pTbCfg == NULL) {
+    return NULL;
+  }
+
+  metaDecodeTbInfo(value.data, pTbCfg);
+
+  return pTbCfg;
+}
+
+static STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
+  STbCfg * pTbCfg = NULL;
+  SMetaDB *pDB = pMeta->pDB;
+  DBT      key = {0};
+  DBT      pkey = {0};
+  DBT      pvalue = {0};
+  int      ret;
+
+  // Set key/value
+  key.data = tbname;
+  key.size = strlen(tbname);
+
+  // Query
+  ret = pDB->pNameIdx->pget(pDB->pNameIdx, NULL, &key, &pkey, &pvalue, 0);
+  if (ret != 0) {
+    return NULL;
+  }
+
+  // Decode
+  *uid = *(tb_uid_t *)(pkey.data);
+  pTbCfg = (STbCfg *)malloc(sizeof(*pTbCfg));
+  if (pTbCfg == NULL) {
+    return NULL;
+  }
+
+  metaDecodeTbInfo(pvalue.data, pTbCfg);
+
+  return pTbCfg;
+}
+
+static SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
   uint32_t        nCols;
   SSchemaWrapper *pSW = NULL;
   SMetaDB *       pDB = pMeta->pDB;
@@ -540,12 +545,24 @@ static SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sv
   // Decode the schema
   pBuf = value.data;
   taosDecodeFixedI32(&pBuf, &nCols);
-  pSW = (SSchemaWrapper *)malloc(sizeof(*pSW) + sizeof(SSchema) * nCols);
-  if (pSW == NULL) {
-    return NULL;
-  }
+  if (isinline) {
+    pSW = (SSchemaWrapper *)malloc(sizeof(*pSW) + sizeof(SSchema) * nCols);
+    if (pSW == NULL) {
+      return NULL;
+    }
+    pSW->pSchema = POINTER_SHIFT(pSW, sizeof(*pSW));
+  } else {
+    pSW = (SSchemaWrapper *)malloc(sizeof(*pSW));
+    if (pSW == NULL) {
+      return NULL;
+    }
 
-  pSW->pSchema = POINTER_SHIFT(pSW, sizeof(*pSW));
+    pSW->pSchema = (SSchema *)malloc(sizeof(SSchema) * nCols);
+    if (pSW->pSchema == NULL) {
+      free(pSW);
+      return NULL;
+    }
+  }
 
   for (int i = 0; i < nCols; i++) {
     pSchema = pSW->pSchema + i;
