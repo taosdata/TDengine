@@ -260,13 +260,14 @@ static SArray *mndBuildDnodesArray(SMnode *pMnode) {
       pDnode->numOfVnodes++;
     }
 
-    bool isReady = mndIsDnodeInReadyStatus(pMnode, pDnode);
-    if (isReady) {
+    int64_t curMs = taosGetTimestampMs();
+    bool    online = mndIsDnodeOnline(pMnode, pDnode, curMs);
+    if (online) {
       taosArrayPush(pArray, pDnode);
     }
 
-    mDebug("dnode:%d, vnodes:%d supportVnodes:%d isMnode:%d ready:%d", pDnode->id, numOfVnodes,
-           pDnode->numOfSupportVnodes, isMnode, isReady);
+    mDebug("dnode:%d, vnodes:%d supportVnodes:%d isMnode:%d online:%d", pDnode->id, numOfVnodes,
+           pDnode->numOfSupportVnodes, isMnode, online);
     sdbRelease(pSdb, pDnode);
   }
 

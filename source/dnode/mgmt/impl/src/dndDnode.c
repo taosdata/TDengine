@@ -397,7 +397,7 @@ void dndSendStatusMsg(SDnode *pDnode) {
 static void dndUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   if (pMgmt->dnodeId == 0) {
-    dInfo("set dnodeId:%d clusterId:% " PRId64, pCfg->dnodeId, pCfg->clusterId);
+    dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
     taosWLockLatch(&pMgmt->latch);
     pMgmt->dnodeId = pCfg->dnodeId;
     pMgmt->clusterId = pCfg->clusterId;
@@ -440,19 +440,21 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   }
 
   SStatusRsp *pRsp = pMsg->pCont;
-  SDnodeCfg  *pCfg = &pRsp->dnodeCfg;
-  pCfg->dnodeId = htonl(pCfg->dnodeId);
-  pCfg->clusterId = htobe64(pCfg->clusterId);
-  dndUpdateDnodeCfg(pDnode, pCfg);
+  if (pMsg->pCont != NULL && pMsg->contLen != 0) {
+    SDnodeCfg *pCfg = &pRsp->dnodeCfg;
+    pCfg->dnodeId = htonl(pCfg->dnodeId);
+    pCfg->clusterId = htobe64(pCfg->clusterId);
+    dndUpdateDnodeCfg(pDnode, pCfg);
 
-  SDnodeEps *pDnodeEps = &pRsp->dnodeEps;
-  pDnodeEps->num = htonl(pDnodeEps->num);
-  for (int32_t i = 0; i < pDnodeEps->num; ++i) {
-    pDnodeEps->eps[i].id = htonl(pDnodeEps->eps[i].id);
-    pDnodeEps->eps[i].port = htons(pDnodeEps->eps[i].port);
+    SDnodeEps *pDnodeEps = &pRsp->dnodeEps;
+    pDnodeEps->num = htonl(pDnodeEps->num);
+    for (int32_t i = 0; i < pDnodeEps->num; ++i) {
+      pDnodeEps->eps[i].id = htonl(pDnodeEps->eps[i].id);
+      pDnodeEps->eps[i].port = htons(pDnodeEps->eps[i].port);
+    }
+
+    dndUpdateDnodeEps(pDnode, pDnodeEps);
   }
-
-  dndUpdateDnodeEps(pDnode, pDnodeEps);
   pMgmt->statusSent = 0;
 }
 
