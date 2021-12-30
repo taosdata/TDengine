@@ -22,7 +22,7 @@ uint32_t taosSafeRand(void) {
   int fd;
   int seed;
 
-  fd = open("/dev/urandom", 0);
+  fd = open("/dev/urandom", 0 | O_BINARY);
   if (fd < 0) {
     seed = (int)time(0);
   } else {
