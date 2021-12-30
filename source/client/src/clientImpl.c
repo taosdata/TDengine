@@ -156,19 +156,12 @@ int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
   };
 
   cxt.ctx.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
-
-  // todo OPT performance
-  char buf[12] = {0};
-  sprintf(buf, "%"PRId64, pTscObj->pAppInfo->clusterId);
-
-  struct SCatalog* pCatalog = NULL;
-  int32_t code = catalogGetHandle(buf, &pCatalog);
+  int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.ctx.pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
     tfree(cxt.ctx.db);
     return code;
   }
 
-  cxt.ctx.pCatalog = pCatalog;
   code = qParseQuerySql(&cxt, pQuery);
 
   tfree(cxt.ctx.db);
@@ -181,10 +174,17 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
   pRequest->body.requestMsg = (SDataBuf){.pData = pDcl->pMsg, .len = pDcl->msgLen};
 
   STscObj* pTscObj = pRequest->pTscObj;
-  SMsgSendInfo* pSendMsg = buildSendMsgInfoImpl(pRequest);
+  SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
   int64_t transporterId = 0;
-  if (pDcl->msgType == TDMT_VND_CREATE_TABLE) {
+  if (pDcl->msgType == TDMT_VND_CREATE_TABLE || pDcl->msgType == TDMT_VND_SHOW_TABLES) {
+    if (pDcl->msgType == TDMT_VND_SHOW_TABLES) {
+      SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
+      if (pShowReqInfo->pArray == NULL) {
+        pShowReqInfo->currentIndex = 0;
+        pShowReqInfo->pArray = pDcl->pExtension;
+      }
+    }
     asyncSendMsgToServer(pTscObj->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
   } else {
     SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
@@ -251,7 +251,7 @@ TAOS_RES *tmq_create_topic(TAOS* taos, const char* name, const char* sql, int sq
 
   pRequest->body.requestMsg = (SDataBuf){ .pData = buf, .len = tlen };
 
-  SMsgSendInfo* body = buildSendMsgInfoImpl(pRequest);
+  SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
   SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
 
   int64_t transporterId = 0;
@@ -506,7 +506,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       // do nothing
     }
 
-    SMsgSendInfo* body = buildSendMsgInfoImpl(pRequest);
+    SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
 
     int64_t  transporterId = 0;
     STscObj *pTscObj = pRequest->pTscObj;

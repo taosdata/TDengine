@@ -54,11 +54,11 @@ int32_t catalogInit(SCatalogCfg *cfg);
 
 /**
  * Get a cluster's catalog handle for all later operations. 
- * @param clusterId (input, end with \0)
+ * @param clusterId
  * @param catalogHandle (output, NO need to free it)
  * @return error code
  */
-int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle);
+int32_t catalogGetHandle(uint64_t clusterId, struct SCatalog** catalogHandle);
 
 int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName, int32_t* version);
 

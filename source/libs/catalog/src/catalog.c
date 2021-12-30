@@ -465,7 +465,7 @@ int32_t catalogInit(SCatalogCfg *cfg) {
     ctgMgmt.cfg.maxTblCacheNum = CTG_DEFAULT_CACHE_TABLEMETA_NUMBER;
   }
 
-  ctgMgmt.pCluster = taosHashInit(CTG_DEFAULT_CACHE_CLUSTER_NUMBER, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  ctgMgmt.pCluster = taosHashInit(CTG_DEFAULT_CACHE_CLUSTER_NUMBER, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (NULL == ctgMgmt.pCluster) {
     CTG_ERR_LRET(TSDB_CODE_CTG_INTERNAL_ERROR, "init %d cluster cache failed", CTG_DEFAULT_CACHE_CLUSTER_NUMBER);
   }
@@ -473,8 +473,8 @@ int32_t catalogInit(SCatalogCfg *cfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t catalogGetHandle(const char* clusterId , struct SCatalog** catalogHandle) {
-  if (NULL == clusterId || NULL == catalogHandle) {
+int32_t catalogGetHandle(uint64_t clusterId, struct SCatalog** catalogHandle) {
+  if (NULL == catalogHandle) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
@@ -483,8 +483,7 @@ int32_t catalogGetHandle(const char* clusterId , struct SCatalog** catalogHandle
     CTG_ERR_RET(TSDB_CODE_CTG_NOT_READY);
   }
 
-  size_t clen = strlen(clusterId);
-  SCatalog **ctg = (SCatalog **)taosHashGet(ctgMgmt.pCluster, clusterId, clen);
+  SCatalog **ctg = (SCatalog **)taosHashGet(ctgMgmt.pCluster, (char*)&clusterId, sizeof(clusterId));
 
   if (ctg && (*ctg)) {
     *catalogHandle = *ctg;
@@ -497,8 +496,8 @@ int32_t catalogGetHandle(const char* clusterId , struct SCatalog** catalogHandle
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
-  if (taosHashPut(ctgMgmt.pCluster, clusterId, clen, &clusterCtg, POINTER_BYTES)) {
-    ctgError("put cluster %s cache to hash failed", clusterId);
+  if (taosHashPut(ctgMgmt.pCluster, &clusterId, sizeof(clusterId), &clusterCtg, POINTER_BYTES)) {
+    ctgError("put cluster %"PRIx64" cache to hash failed", clusterId);
     tfree(clusterCtg);
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }

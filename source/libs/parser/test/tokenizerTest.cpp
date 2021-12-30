@@ -714,7 +714,7 @@ TEST(testCase, extractMeta_test) {
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
 
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 

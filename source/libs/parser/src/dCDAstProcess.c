@@ -18,7 +18,7 @@ static bool has(SArray* pFieldList, int32_t startIndex, const char* name) {
 }
 
 static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx* pCtx, void** output, int32_t* outputLen,
-                           SEpSet* pEpSet, SMsgBuf* pMsgBuf) {
+                           SEpSet* pEpSet, void** pExtension, SMsgBuf* pMsgBuf) {
   const char* msg1 = "invalid name";
   const char* msg2 = "wildcard string should be less than %d characters";
   const char* msg3 = "database name too long";
@@ -33,12 +33,30 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx* pCtx, void** ou
   int16_t showType = pShowInfo->showType;
   if (showType == TSDB_MGMT_TABLE_TABLE) {
     SVShowTablesReq* pShowReq = calloc(1, sizeof(SVShowTablesReq));
-    *pEpSet = pCtx->mgmtEpSet;
 
-    //    catalogGetDBVgroupVersion()
-    pShowReq->head.vgId = htonl(13);
+    SArray* array = NULL;
+    SName name = {0};
+    tNameSetDbName(&name, pCtx->acctId, pCtx->db, strlen(pCtx->db));
+
+    char dbFname[TSDB_DB_FNAME_LEN] = {0};
+    tNameGetFullDbName(&name, dbFname);
+
+    catalogGetDBVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbFname, 0, &array);
+
+    SVgroupInfo* info = taosArrayGet(array, 0);
+    pShowReq->head.vgId = htonl(info->vgId);
+    pEpSet->numOfEps = info->numOfEps;
+    pEpSet->inUse = info->inUse;
+
+    for(int32_t i = 0; i < pEpSet->numOfEps; ++i) {
+      strncpy(pEpSet->fqdn[i], info->epAddr[i].fqdn, tListLen(pEpSet->fqdn[i]));
+      pEpSet->port[i] = info->epAddr[i].port;
+    }
+
     *outputLen = sizeof(SVShowTablesReq);
     *output = pShowReq;
+
+    *pExtension = array;
   } else {
     if (showType == TSDB_MGMT_TABLE_STB || showType == TSDB_MGMT_TABLE_VGROUP) {
       SToken* pDbPrefixToken = &pShowInfo->prefix;
@@ -621,7 +639,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
 
     case TSDB_SQL_SHOW: {
       SShowInfo* pShowInfo = &pInfo->pMiscInfo->showOpt;
-      code = setShowInfo(pShowInfo, pCtx, (void**)&pDcl->pMsg, &pDcl->msgLen, &pDcl->epSet, pMsgBuf);
+      code = setShowInfo(pShowInfo, pCtx, (void**)&pDcl->pMsg, &pDcl->msgLen, &pDcl->epSet, &pDcl->pExtension, pMsgBuf);
       pDcl->msgType = (pShowInfo->showType == TSDB_MGMT_TABLE_TABLE)? TDMT_VND_SHOW_TABLES:TDMT_MND_SHOW;
       break;
     }

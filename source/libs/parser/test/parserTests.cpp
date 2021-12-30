@@ -99,7 +99,7 @@ void sqlCheck(const char* sql, bool valid) {
   }
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -159,7 +159,7 @@ TEST(testCase, validateAST_test) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 3);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -205,7 +205,7 @@ TEST(testCase, function_Test) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -251,7 +251,7 @@ TEST(testCase, function_Test2) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -296,7 +296,7 @@ TEST(testCase, function_Test3) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 6);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -342,7 +342,7 @@ TEST(testCase, function_Test4) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -393,7 +393,7 @@ TEST(testCase, function_Test5) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -507,7 +507,7 @@ TEST(testCase, function_Test6) {
   ASSERT_STREQ(p2->pExpr->_function.pChild[0]->pSchema->name, "t.1abc.b*a");
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -569,7 +569,7 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, numOfCols);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -625,7 +625,7 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 2);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -648,7 +648,7 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(ret, 0);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -678,7 +678,7 @@ TEST(testCase, function_Test6) {
   ASSERT_NE(ret, 0);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 //===============================================================================================================
   info1 = doGenerateAST("select top(a*b, ABC) from `t.1abc` interval(10s, 1s)");
@@ -700,7 +700,7 @@ TEST(testCase, function_Test6) {
   ASSERT_NE(ret, 0);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
