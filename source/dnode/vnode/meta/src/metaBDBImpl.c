@@ -378,10 +378,10 @@ static int metaEncodeTbInfo(void **buf, STbCfg *pTbCfg) {
   if (pTbCfg->type == META_SUPER_TABLE) {
     tsize += taosEncodeVariantU32(buf, pTbCfg->stbCfg.nTagCols);
     for (uint32_t i = 0; i < pTbCfg->stbCfg.nTagCols; i++) {
-      tsize += taosEncodeFixedI8(buf, pTbCfg->stbCfg.pSchema[i].type);
-      tsize += taosEncodeFixedI32(buf, pTbCfg->stbCfg.pSchema[i].colId);
-      tsize += taosEncodeFixedI32(buf, pTbCfg->stbCfg.pSchema[i].bytes);
-      tsize += taosEncodeString(buf, pTbCfg->stbCfg.pSchema[i].name);
+      tsize += taosEncodeFixedI8(buf, pTbCfg->stbCfg.pTagSchema[i].type);
+      tsize += taosEncodeFixedI32(buf, pTbCfg->stbCfg.pTagSchema[i].colId);
+      tsize += taosEncodeFixedI32(buf, pTbCfg->stbCfg.pTagSchema[i].bytes);
+      tsize += taosEncodeString(buf, pTbCfg->stbCfg.pTagSchema[i].name);
     }
 
     // tsize += tdEncodeSchema(buf, pTbCfg->stbCfg.pTagSchema);
@@ -406,10 +406,10 @@ static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg) {
     buf = taosDecodeVariantU32(buf, &(pTbCfg->stbCfg.nTagCols));
     pTbCfg->stbCfg.pTagSchema = (SSchema *)malloc(sizeof(SSchema) * pTbCfg->stbCfg.nTagCols);
     for (uint32_t i = 0; i < pTbCfg->stbCfg.nTagCols; i++) {
-      buf = taosDecodeFixedI8(buf, &(pTbCfg->stbCfg.pSchema[i].type));
-      buf = taosDecodeFixedI32(buf, &pTbCfg->stbCfg.pSchema[i].colId);
-      buf = taosDecodeFixedI32(buf, &pTbCfg->stbCfg.pSchema[i].bytes);
-      buf = taosDecodeStringTo(buf, pTbCfg->stbCfg.pSchema[i].name);
+      buf = taosDecodeFixedI8(buf, &(pTbCfg->stbCfg.pTagSchema[i].type));
+      buf = taosDecodeFixedI32(buf, &pTbCfg->stbCfg.pTagSchema[i].colId);
+      buf = taosDecodeFixedI32(buf, &pTbCfg->stbCfg.pTagSchema[i].bytes);
+      buf = taosDecodeStringTo(buf, pTbCfg->stbCfg.pTagSchema[i].name);
     }
   } else if (pTbCfg->type == META_CHILD_TABLE) {
     buf = taosDecodeFixedU64(buf, &(pTbCfg->ctbCfg.suid));
@@ -574,9 +574,11 @@ char *metaTbCursorNext(SMTbCursor *pTbCur) {
   DBT    key = {0};
   DBT    value = {0};
   STbCfg tbCfg;
+  void * pBuf;
 
   if (pTbCur->pCur->get(pTbCur->pCur, &key, &value, DB_NEXT) == 0) {
-    metaDecodeTbInfo(&(value.data), &tbCfg);
+    pBuf = value.data;
+    metaDecodeTbInfo(pBuf, &tbCfg);
     return tbCfg.name;
   } else {
     return NULL;
