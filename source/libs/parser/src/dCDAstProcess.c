@@ -18,7 +18,7 @@ static bool has(SArray* pFieldList, int32_t startIndex, const char* name) {
 }
 
 static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx* pCtx, void** output, int32_t* outputLen,
-                           SMsgBuf* pMsgBuf) {
+                           SEpSet* pEpSet, SMsgBuf* pMsgBuf) {
   const char* msg1 = "invalid name";
   const char* msg2 = "wildcard string should be less than %d characters";
   const char* msg3 = "database name too long";
@@ -31,57 +31,69 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx* pCtx, void** ou
    * wildcard in like clause in pInfo->pMiscInfo->a[1]
    */
   int16_t showType = pShowInfo->showType;
-  if (showType == TSDB_MGMT_TABLE_STB || showType == TSDB_MGMT_TABLE_VGROUP) {
-    SToken* pDbPrefixToken = &pShowInfo->prefix;
-    if (pDbPrefixToken->type != 0) {
-      if (pDbPrefixToken->n >= TSDB_DB_NAME_LEN) {  // db name is too long
-        return buildInvalidOperationMsg(pMsgBuf, msg3);
+  if (showType == TSDB_MGMT_TABLE_TABLE) {
+    SVShowTablesReq* pShowReq = calloc(1, sizeof(SVShowTablesReq));
+    *pEpSet = pCtx->mgmtEpSet;
+
+    //    catalogGetDBVgroupVersion()
+    pShowReq->head.vgId = htonl(13);
+    *outputLen = sizeof(SVShowTablesReq);
+    *output = pShowReq;
+  } else {
+    if (showType == TSDB_MGMT_TABLE_STB || showType == TSDB_MGMT_TABLE_VGROUP) {
+      SToken* pDbPrefixToken = &pShowInfo->prefix;
+      if (pDbPrefixToken->type != 0) {
+        if (pDbPrefixToken->n >= TSDB_DB_NAME_LEN) {  // db name is too long
+          return buildInvalidOperationMsg(pMsgBuf, msg3);
+        }
+
+        if (pDbPrefixToken->n <= 0) {
+          return buildInvalidOperationMsg(pMsgBuf, msg5);
+        }
+
+        if (parserValidateIdToken(pDbPrefixToken) != TSDB_CODE_SUCCESS) {
+          return buildInvalidOperationMsg(pMsgBuf, msg1);
+        }
+
+        //      int32_t ret = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pRequest->pTsc), pDbPrefixToken);
+        //      if (ret != TSDB_CODE_SUCCESS) {
+        //        return buildInvalidOperationMsg(pMsgBuf, msg1);
+        //      }
       }
 
-      if (pDbPrefixToken->n <= 0) {
-        return buildInvalidOperationMsg(pMsgBuf, msg5);
+      // show table/stable like 'xxxx', set the like pattern for show tables
+      SToken* pPattern = &pShowInfo->pattern;
+      if (pPattern->type != 0) {
+        if (pPattern->type == TK_ID && pPattern->z[0] == TS_ESCAPE_CHAR) {
+          return buildInvalidOperationMsg(pMsgBuf, msg4);
+        }
+
+        pPattern->n = strdequote(pPattern->z);
+        if (pPattern->n <= 0) {
+          return buildInvalidOperationMsg(pMsgBuf, msg6);
+        }
+
+        if (pPattern->n > tsMaxWildCardsLen) {
+          char tmp[64] = {0};
+          sprintf(tmp, msg2, tsMaxWildCardsLen);
+          return buildInvalidOperationMsg(pMsgBuf, tmp);
+        }
+      }
+    } else if (showType == TSDB_MGMT_TABLE_VNODES) {
+      if (pShowInfo->prefix.type == 0) {
+        return buildInvalidOperationMsg(pMsgBuf, "No specified dnode ep");
       }
 
-      if (parserValidateIdToken(pDbPrefixToken) != TSDB_CODE_SUCCESS) {
-        return buildInvalidOperationMsg(pMsgBuf, msg1);
+      if (pShowInfo->prefix.type == TK_STRING) {
+        pShowInfo->prefix.n = strdequote(pShowInfo->prefix.z);
       }
-
-      //      int32_t ret = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pRequest->pTsc), pDbPrefixToken);
-      //      if (ret != TSDB_CODE_SUCCESS) {
-      //        return buildInvalidOperationMsg(pMsgBuf, msg1);
-      //      }
     }
 
-    // show table/stable like 'xxxx', set the like pattern for show tables
-    SToken* pPattern = &pShowInfo->pattern;
-    if (pPattern->type != 0) {
-      if (pPattern->type == TK_ID && pPattern->z[0] == TS_ESCAPE_CHAR) {
-        return buildInvalidOperationMsg(pMsgBuf, msg4);
-      }
-
-      pPattern->n = strdequote(pPattern->z);
-      if (pPattern->n <= 0) {
-        return buildInvalidOperationMsg(pMsgBuf, msg6);
-      }
-
-      if (pPattern->n > tsMaxWildCardsLen) {
-        char tmp[64] = {0};
-        sprintf(tmp, msg2, tsMaxWildCardsLen);
-        return buildInvalidOperationMsg(pMsgBuf, tmp);
-      }
-    }
-  } else if (showType == TSDB_MGMT_TABLE_VNODES) {
-    if (pShowInfo->prefix.type == 0) {
-      return buildInvalidOperationMsg(pMsgBuf, "No specified dnode ep");
-    }
-
-    if (pShowInfo->prefix.type == TK_STRING) {
-      pShowInfo->prefix.n = strdequote(pShowInfo->prefix.z);
-    }
+    *pEpSet = pCtx->mgmtEpSet;
+    *output = buildShowMsg(pShowInfo, pCtx, pMsgBuf->buf, pMsgBuf->len);
+    *outputLen = sizeof(SShowMsg) /* + htons(pShowMsg->payloadLen)*/;
   }
 
-  *output = buildShowMsg(pShowInfo, pCtx, pMsgBuf->buf, pMsgBuf->len);
-  *outputLen = sizeof(SShowMsg) /* + htons(pShowMsg->payloadLen)*/;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -608,8 +620,9 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
     }
 
     case TSDB_SQL_SHOW: {
-      code = setShowInfo(&pInfo->pMiscInfo->showOpt, pCtx, (void**)&pDcl->pMsg, &pDcl->msgLen, pMsgBuf);
-      pDcl->msgType = TDMT_MND_SHOW;
+      SShowInfo* pShowInfo = &pInfo->pMiscInfo->showOpt;
+      code = setShowInfo(pShowInfo, pCtx, (void**)&pDcl->pMsg, &pDcl->msgLen, &pDcl->epSet, pMsgBuf);
+      pDcl->msgType = (pShowInfo->showType == TSDB_MGMT_TABLE_TABLE)? TDMT_VND_SHOW_TABLES:TDMT_MND_SHOW;
       break;
     }
 

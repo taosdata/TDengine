@@ -162,10 +162,10 @@ static SDbObj *mndAcquireDbByTopic(SMnode *pMnode, char *topicName) {
   return mndAcquireDb(pMnode, db);
 }
 
-static SDropTopicInternalMsg *mndBuildDropTopicMsg(SMnode *pMnode, SVgObj *pVgroup, STopicObj *pTopic) {
-  int32_t contLen = sizeof(SDropTopicInternalMsg);
+static SDDropTopicMsg *mndBuildDropTopicMsg(SMnode *pMnode, SVgObj *pVgroup, STopicObj *pTopic) {
+  int32_t contLen = sizeof(SDDropTopicMsg);
 
-  SDropTopicInternalMsg *pDrop = calloc(1, contLen);
+  SDDropTopicMsg *pDrop = calloc(1, contLen);
   if (pDrop == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;

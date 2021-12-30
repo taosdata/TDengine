@@ -308,19 +308,7 @@ typedef struct {
   SMsgHead head;
   char     name[TSDB_TABLE_FNAME_LEN];
   uint64_t suid;
-  int32_t  sverson;
-  uint32_t ttl;
-  uint32_t keep;
-  int32_t  numOfTags;
-  int32_t  numOfColumns;
-  SSchema  pSchema[];
-} SCreateStbInternalMsg;
-
-typedef struct {
-  SMsgHead head;
-  char     name[TSDB_TABLE_FNAME_LEN];
-  uint64_t suid;
-} SDropStbInternalMsg;
+} SVDropStbReq;
 
 typedef struct {
   SMsgHead head;
@@ -706,8 +694,8 @@ typedef struct {
   int64_t     clusterId;
   int64_t     rebootTime;
   int64_t     updateTime;
-  int16_t     numOfCores;
-  int16_t     numOfSupportVnodes;
+  int32_t     numOfCores;
+  int32_t     numOfSupportVnodes;
   char        dnodeEp[TSDB_EP_LEN];
   SClusterCfg clusterCfg;
   SVnodeLoads vnodeLoads;
@@ -898,17 +886,13 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
-} SCreateMnodeMsg, SDropMnodeMsg;
+} SMCreateMnodeMsg, SMDropMnodeMsg, SDDropMnodeMsg;
 
 typedef struct {
   int32_t  dnodeId;
   int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
-} SCreateMnodeInMsg, SAlterMnodeInMsg;
-
-typedef struct {
-  int32_t dnodeId;
-} SDropMnodeInMsg;
+} SDCreateMnodeMsg, SDAlterMnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
@@ -1251,13 +1235,13 @@ typedef struct {
   char*    executor;
   int32_t  sqlLen;
   char*    sql;
-} SCreateTopicInternalMsg;
+} SDCreateTopicMsg;
 
 typedef struct {
   SMsgHead head;
   char     name[TSDB_TABLE_FNAME_LEN];
   uint64_t tuid;
-} SDropTopicInternalMsg;
+} SDDropTopicMsg;
 
 typedef struct SVCreateTbReq {
   uint64_t ver;  // use a general definition
@@ -1300,13 +1284,13 @@ typedef struct SVShowTablesReq {
 } SVShowTablesReq;
 
 typedef struct SVShowTablesRsp {
-  int64_t       id;
+  int32_t       id;
   STableMetaMsg metaInfo;
 } SVShowTablesRsp;
 
 typedef struct SVShowTablesFetchReq {
   SMsgHead head;
-  int64_t  id;
+  int32_t  id;
 } SVShowTablesFetchReq;
 
 typedef struct SVShowTablesFetchRsp {

@@ -75,13 +75,6 @@ typedef enum {
 typedef enum { TRN_POLICY_ROLLBACK = 0, TRN_POLICY_RETRY = 1 } ETrnPolicy;
 
 typedef enum {
-  DND_STATUS_OFFLINE = 0,
-  DND_STATUS_READY = 1,
-  DND_STATUS_CREATING = 2,
-  DND_STATUS_DROPPING = 3
-} EDndStatus;
-
-typedef enum {
   DND_REASON_ONLINE = 0,
   DND_REASON_STATUS_MSG_TIMEOUT,
   DND_REASON_STATUS_NOT_RECEIVED,
@@ -125,9 +118,8 @@ typedef struct {
   int64_t    lastAccessTime;
   int32_t    accessTimes;
   int16_t    numOfVnodes;
-  int16_t    numOfSupportVnodes;
-  int16_t    numOfCores;
-  EDndStatus status;
+  int32_t    numOfSupportVnodes;
+  int32_t    numOfCores;
   EDndReason offlineReason;
   uint16_t   port;
   char       fqdn[TSDB_FQDN_LEN];

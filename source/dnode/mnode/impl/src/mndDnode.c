@@ -40,8 +40,6 @@ static const char *offlineReason[] = {
     "unknown",
 };
 
-static const char *dnodeStatus[] = {"offline", "ready", "creating", "dropping"};
-
 static int32_t  mndCreateDefaultDnode(SMnode *pMnode);
 static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode);
 static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw);
@@ -208,10 +206,12 @@ int32_t mndGetDnodeSize(SMnode *pMnode) {
   return sdbGetSize(pSdb, SDB_DNODE);
 }
 
-bool mndIsDnodeInReadyStatus(SMnode *pMnode, SDnodeObj *pDnode) {
-  int64_t ms = taosGetTimestampMs();
-  int64_t interval = ABS(pDnode->lastAccessTime - ms);
+bool mndIsDnodeOnline(SMnode *pMnode, SDnodeObj *pDnode, int64_t curMs) {
+  int64_t interval = ABS(pDnode->lastAccessTime - curMs);
   if (interval > 3500 * pMnode->cfg.statusInterval) {
+    if (pDnode->rebootTime > 0) {
+      pDnode->offlineReason = DND_REASON_STATUS_MSG_TIMEOUT;
+    }
     return false;
   }
   return true;
@@ -278,8 +278,8 @@ static void mndParseStatusMsg(SStatusMsg *pStatus) {
   pStatus->clusterId = htobe64(pStatus->clusterId);
   pStatus->rebootTime = htobe64(pStatus->rebootTime);
   pStatus->updateTime = htobe64(pStatus->updateTime);
-  pStatus->numOfCores = htons(pStatus->numOfCores);
-  pStatus->numOfSupportVnodes = htons(pStatus->numOfSupportVnodes);
+  pStatus->numOfCores = htonl(pStatus->numOfCores);
+  pStatus->numOfSupportVnodes = htonl(pStatus->numOfSupportVnodes);
   pStatus->clusterCfg.statusInterval = htonl(pStatus->clusterCfg.statusInterval);
   pStatus->clusterCfg.checkTime = htobe64(pStatus->clusterCfg.checkTime);
 }
@@ -287,96 +287,99 @@ static void mndParseStatusMsg(SStatusMsg *pStatus) {
 static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg) {
   SMnode     *pMnode = pMsg->pMnode;
   SStatusMsg *pStatus = pMsg->rpcMsg.pCont;
+  SDnodeObj  *pDnode = NULL;
+  int32_t     code = -1;
+
   mndParseStatusMsg(pStatus);
 
-  SDnodeObj *pDnode = NULL;
   if (pStatus->dnodeId == 0) {
     pDnode = mndAcquireDnodeByEp(pMnode, pStatus->dnodeEp);
     if (pDnode == NULL) {
       mDebug("dnode:%s, not created yet", pStatus->dnodeEp);
       terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
-      return -1;
+      goto PROCESS_STATUS_MSG_OVER;
     }
   } else {
     pDnode = mndAcquireDnode(pMnode, pStatus->dnodeId);
     if (pDnode == NULL) {
       pDnode = mndAcquireDnodeByEp(pMnode, pStatus->dnodeEp);
-      if (pDnode != NULL && pDnode->status != DND_STATUS_READY) {
+      if (pDnode != NULL) {
         pDnode->offlineReason = DND_REASON_DNODE_ID_NOT_MATCH;
       }
       mError("dnode:%d, %s not exist", pStatus->dnodeId, pStatus->dnodeEp);
-      mndReleaseDnode(pMnode, pDnode);
       terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
-      return -1;
+      goto PROCESS_STATUS_MSG_OVER;
     }
   }
 
-  if (pStatus->sver != pMnode->cfg.sver) {
-    if (pDnode != NULL && pDnode->status != DND_STATUS_READY) {
-      pDnode->offlineReason = DND_REASON_VERSION_NOT_MATCH;
-    }
-    mndReleaseDnode(pMnode, pDnode);
-    mError("dnode:%d, status msg version:%d not match cluster:%d", pStatus->dnodeId, pStatus->sver, pMnode->cfg.sver);
-    terrno = TSDB_CODE_MND_INVALID_MSG_VERSION;
-    return -1;
-  }
+  int64_t curMs = taosGetTimestampMs();
+  bool    online = mndIsDnodeOnline(pMnode, pDnode, curMs);
+  bool    needCheckCfg = !(online && pDnode->rebootTime == pStatus->rebootTime);
 
-  if (pStatus->dnodeId == 0) {
-    mDebug("dnode:%d %s, first access, set clusterId %" PRId64, pDnode->id, pDnode->ep, pMnode->clusterId);
-  } else {
-    if (pStatus->clusterId != pMnode->clusterId) {
-      if (pDnode != NULL && pDnode->status != DND_STATUS_READY) {
-        pDnode->offlineReason = DND_REASON_CLUSTER_ID_NOT_MATCH;
+  if (needCheckCfg) {
+    if (pStatus->sver != pMnode->cfg.sver) {
+      if (pDnode != NULL) {
+        pDnode->offlineReason = DND_REASON_VERSION_NOT_MATCH;
       }
-      mError("dnode:%d, clusterId %" PRId64 " not match exist %" PRId64, pDnode->id, pStatus->clusterId,
-             pMnode->clusterId);
-      mndReleaseDnode(pMnode, pDnode);
-      terrno != TSDB_CODE_MND_INVALID_CLUSTER_ID;
-      return -1;
-    } else {
-      pDnode->accessTimes++;
-      mTrace("dnode:%d, status received, access times %d", pDnode->id, pDnode->accessTimes);
+      mError("dnode:%d, status msg version:%d not match cluster:%d", pStatus->dnodeId, pStatus->sver, pMnode->cfg.sver);
+      terrno = TSDB_CODE_MND_INVALID_MSG_VERSION;
+      goto PROCESS_STATUS_MSG_OVER;
     }
-  }
 
-  if (pDnode->status == DND_STATUS_OFFLINE) {
+    if (pStatus->dnodeId == 0) {
+      mDebug("dnode:%d %s, first access, set clusterId %" PRId64, pDnode->id, pDnode->ep, pMnode->clusterId);
+    } else {
+      if (pStatus->clusterId != pMnode->clusterId) {
+        if (pDnode != NULL) {
+          pDnode->offlineReason = DND_REASON_CLUSTER_ID_NOT_MATCH;
+        }
+        mError("dnode:%d, clusterId %" PRId64 " not match exist %" PRId64, pDnode->id, pStatus->clusterId,
+               pMnode->clusterId);
+        terrno = TSDB_CODE_MND_INVALID_CLUSTER_ID;
+        goto PROCESS_STATUS_MSG_OVER;
+      } else {
+        pDnode->accessTimes++;
+        mTrace("dnode:%d, status received, access times %d", pDnode->id, pDnode->accessTimes);
+      }
+    }
+
     // Verify whether the cluster parameters are consistent when status change from offline to ready
     int32_t ret = mndCheckClusterCfgPara(pMnode, &pStatus->clusterCfg);
     if (0 != ret) {
       pDnode->offlineReason = ret;
       mError("dnode:%d, cluster cfg inconsistent since:%s", pDnode->id, offlineReason[ret]);
-      mndReleaseDnode(pMnode, pDnode);
       terrno = TSDB_CODE_MND_INVALID_CLUSTER_CFG;
-      return -1;
+      goto PROCESS_STATUS_MSG_OVER;
     }
 
     mInfo("dnode:%d, from offline to online", pDnode->id);
+
+    pDnode->rebootTime = pStatus->rebootTime;
+    pDnode->numOfCores = pStatus->numOfCores;
+    pDnode->numOfSupportVnodes = pStatus->numOfSupportVnodes;
+
+    int32_t     numOfEps = mndGetDnodeSize(pMnode);
+    int32_t     contLen = sizeof(SStatusRsp) + numOfEps * sizeof(SDnodeEp);
+    SStatusRsp *pRsp = rpcMallocCont(contLen);
+    if (pRsp == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto PROCESS_STATUS_MSG_OVER;
+    }
+
+    pRsp->dnodeCfg.dnodeId = htonl(pDnode->id);
+    pRsp->dnodeCfg.clusterId = htobe64(pMnode->clusterId);
+    mndGetDnodeData(pMnode, &pRsp->dnodeEps, numOfEps);
+
+    pMsg->contLen = contLen;
+    pMsg->pCont = pRsp;
   }
 
-  pDnode->rebootTime = pStatus->rebootTime;
-  pDnode->numOfCores = pStatus->numOfCores;
-  pDnode->numOfSupportVnodes = pStatus->numOfSupportVnodes;
-  pDnode->lastAccessTime = taosGetTimestampMs();
-  pDnode->status = DND_STATUS_READY;
+  pDnode->lastAccessTime = curMs;
+  code = 0;
 
-  int32_t     numOfEps = mndGetDnodeSize(pMnode);
-  int32_t     contLen = sizeof(SStatusRsp) + numOfEps * sizeof(SDnodeEp);
-  SStatusRsp *pRsp = rpcMallocCont(contLen);
-  if (pRsp == NULL) {
-    mndReleaseDnode(pMnode, pDnode);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  pRsp->dnodeCfg.dnodeId = htonl(pDnode->id);
-  pRsp->dnodeCfg.clusterId = htobe64(pMnode->clusterId);
-  mndGetDnodeData(pMnode, &pRsp->dnodeEps, numOfEps);
-
-  pMsg->contLen = contLen;
-  pMsg->pCont = pRsp;
+PROCESS_STATUS_MSG_OVER:
   mndReleaseDnode(pMnode, pDnode);
-
-  return 0;
+  return code;
 }
 
 static int32_t mndCreateDnode(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDnodeMsg *pCreate) {
@@ -638,7 +641,7 @@ static int32_t mndGetDnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
 
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "max_vnodes");
+  strcpy(pSchema[cols].name, "support_vnodes");
   pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
@@ -682,10 +685,12 @@ static int32_t mndRetrieveDnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, i
   int32_t    cols = 0;
   SDnodeObj *pDnode = NULL;
   char      *pWrite;
+  int64_t    curMs = taosGetTimestampMs();
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_DNODE, pShow->pIter, (void **)&pDnode);
     if (pShow->pIter == NULL) break;
+    bool online = mndIsDnodeOnline(pMnode, pDnode, curMs);
 
     cols = 0;
 
@@ -706,8 +711,7 @@ static int32_t mndRetrieveDnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, i
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    const char *status = dnodeStatus[pDnode->status];
-    STR_TO_VARSTR(pWrite, status);
+    STR_TO_VARSTR(pWrite, online ? "ready" : "offline");
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -715,11 +719,7 @@ static int32_t mndRetrieveDnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, i
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (pDnode->status == DND_STATUS_READY) {
-      STR_TO_VARSTR(pWrite, "");
-    } else {
-      STR_TO_VARSTR(pWrite, offlineReason[pDnode->offlineReason]);
-    }
+    STR_TO_VARSTR(pWrite, online ? "" : offlineReason[pDnode->offlineReason]);
     cols++;
 
     numOfRows++;

@@ -90,7 +90,6 @@ SShowMsg* buildShowMsg(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, char* msgBuf,
   SShowMsg* pShowMsg = calloc(1, sizeof(SShowMsg));
 
   pShowMsg->type = pShowInfo->showType;
-
   if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {
     SToken* pPattern = &pShowInfo->pattern;
     if (pPattern->type > 0) {  // only show tables support wildcard query

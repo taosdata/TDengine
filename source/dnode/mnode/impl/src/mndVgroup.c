@@ -120,6 +120,9 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   for (int8_t i = 0; i < pVgroup->replica; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
     SDB_GET_INT32(pRaw, pRow, dataPos, &pVgid->dnodeId)
+    if (pVgroup->replica == 1) {
+      pVgid->role = TAOS_SYNC_STATE_LEADER;
+    }
   }
   SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_VGROUP_RESERVE_SIZE)
 
@@ -257,13 +260,14 @@ static SArray *mndBuildDnodesArray(SMnode *pMnode) {
       pDnode->numOfVnodes++;
     }
 
-    bool isReady = mndIsDnodeInReadyStatus(pMnode, pDnode);
-    if (isReady) {
+    int64_t curMs = taosGetTimestampMs();
+    bool    online = mndIsDnodeOnline(pMnode, pDnode, curMs);
+    if (online) {
       taosArrayPush(pArray, pDnode);
     }
 
-    mDebug("dnode:%d, numOfVnodes:%d numOfSupportVnodes:%d isMnode:%d ready:%d", pDnode->id, numOfVnodes,
-           pDnode->numOfSupportVnodes, isMnode, isReady);
+    mDebug("dnode:%d, vnodes:%d supportVnodes:%d isMnode:%d online:%d", pDnode->id, numOfVnodes,
+           pDnode->numOfSupportVnodes, isMnode, online);
     sdbRelease(pSdb, pDnode);
   }
 
@@ -329,6 +333,8 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
   uint32_t hashMin = 0;
   uint32_t hashMax = UINT32_MAX;
   uint32_t hashInterval = (hashMax - hashMin) / pDb->cfg.numOfVgroups;
+
+  if (maxVgId < 2) maxVgId = 2;
 
   for (uint32_t v = 0; v < pDb->cfg.numOfVgroups; v++) {
     SVgObj *pVgroup = &pVgroups[v];
