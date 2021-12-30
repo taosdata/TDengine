@@ -18,23 +18,26 @@
 #include "tname.h"
 #include "clientInt.h"
 #include "clientLog.h"
-#include "trpc.h"
 
 int (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
 
+static void setErrno(SRequestObj* pRequest, int32_t code) {
+  pRequest->code = code;
+  terrno = code;
+}
+
 int genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
-  pRequest->code = code;
+  setErrno(pRequest, code);
+
   sem_post(&pRequest->body.rspSem);
-  return 0;
+  return code;
 }
 
 int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
-    pRequest->code = code;
-    terrno         = code;
-
+    setErrno(pRequest, code);
     sem_post(&pRequest->body.rspSem);
     return code;
   }
@@ -115,7 +118,7 @@ SMsgSendInfo* buildSendMsgInfoImpl(SRequestObj *pRequest) {
 int32_t processShowRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
-    pRequest->code = code;
+    setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
     return code;
   }
@@ -157,18 +160,17 @@ int32_t processShowRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t processRetrieveMnodeRsp(void* param, const SDataBuf* pMsg, int32_t code) {
-  assert(pMsg->len >= sizeof(SRetrieveTableRsp));
-
-  SRequestObj* pRequest = param;
-  SReqResultInfo* pResInfo = &pRequest->body.resInfo;
-
+  SRequestObj    *pRequest = param;
+  SReqResultInfo *pResInfo = &pRequest->body.resInfo;
   tfree(pResInfo->pRspMsg);
+
   if (code != TSDB_CODE_SUCCESS) {
-    pRequest->code = code;
-    terrno = code;
+    setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
     return code;
   }
+
+  assert(pMsg->len >= sizeof(SRetrieveTableRsp));
 
   SRetrieveTableRsp *pRetrieve = (SRetrieveTableRsp *) pMsg->pData;
   pRetrieve->numOfRows  = htonl(pRetrieve->numOfRows);
@@ -195,8 +197,7 @@ int32_t processRetrieveVndRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   tfree(pRequest->body.resInfo.pRspMsg);
 
   if (code != TSDB_CODE_SUCCESS) {
-    pRequest->code = code;
-    terrno = code;
+    setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
     return code;
   }
@@ -209,7 +210,6 @@ int32_t processRetrieveVndRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
   SReqResultInfo* pResInfo = &pRequest->body.resInfo;
 
-  tfree(pResInfo->pRspMsg);
   pResInfo->pRspMsg   = pMsg->pData;
   pResInfo->numOfRows = pFetchRsp->numOfRows;
   pResInfo->pData     = pFetchRsp->data;
@@ -234,34 +234,48 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
 
   if (code != TSDB_CODE_SUCCESS) {
-    pRequest->code = code;
+    setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
     return code;
   }
 
-  SUseDbRsp* pUseDbRsp = (SUseDbRsp*)pMsg->pData;
-  SName      name = {0};
-  tNameFromString(&name, pUseDbRsp->db, T_NAME_ACCT | T_NAME_DB);
+  SUseDbRsp* pUseDbRsp = (SUseDbRsp*) pMsg->pData;
+  SName name = {0};
+  tNameFromString(&name, pUseDbRsp->db, T_NAME_ACCT|T_NAME_DB);
 
   char db[TSDB_DB_NAME_LEN] = {0};
   tNameGetDbName(&name, db);
 
   setConnectionDB(pRequest->pTscObj, db);
-
   tsem_post(&pRequest->body.rspSem);
   return 0;
 }
 
 int32_t processCreateTableRsp(void* param, const SDataBuf* pMsg, int32_t code) {
-  assert(pMsg != NULL);
+  assert(pMsg != NULL && param != NULL);
   SRequestObj* pRequest = param;
+
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+    tsem_post(&pRequest->body.rspSem);
+    return code;
+  }
+
   tsem_post(&pRequest->body.rspSem);
+  return code;
 }
 
 int32_t processDropDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   // todo: Remove cache in catalog cache.
   SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+    tsem_post(&pRequest->body.rspSem);
+    return code;
+  }
+
   tsem_post(&pRequest->body.rspSem);
+  return code;
 }
 
 void initMsgHandleFp() {
