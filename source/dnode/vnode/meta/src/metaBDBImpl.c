@@ -542,3 +542,43 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
 
   return pSW;
 }
+
+struct SMTbCursor {
+  DBC *pCur;
+};
+
+SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
+  SMTbCursor *pTbCur = NULL;
+  SMetaDB *   pDB = pMeta->pDB;
+
+  pTbCur = (SMTbCursor *)calloc(1, sizeof(*pTbCur));
+  if (pTbCur == NULL) {
+    return NULL;
+  }
+
+  pDB->pTbDB->cursor(pDB->pTbDB, NULL, &(pTbCur->pCur), 0);
+
+  return pTbCur;
+}
+
+void metaCloseTbCursor(SMTbCursor *pTbCur) {
+  if (pTbCur) {
+    if (pTbCur->pCur) {
+      pTbCur->pCur->close(pTbCur->pCur);
+    }
+    free(pTbCur);
+  }
+}
+
+char *metaTbCursorNext(SMTbCursor *pTbCur) {
+  DBT    key = {0};
+  DBT    value = {0};
+  STbCfg tbCfg;
+
+  if (pTbCur->pCur->get(pTbCur->pCur, &key, &value, DB_NEXT) == 0) {
+    metaDecodeTbInfo(&(value.data), &tbCfg);
+    return tbCfg.name;
+  } else {
+    return NULL;
+  }
+}
