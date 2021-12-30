@@ -242,7 +242,7 @@ static int32_t mndProcessCreateUserMsg(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  SUserObj *pUser = sdbAcquire(pMnode->pSdb, SDB_USER, pCreate->user);
+  SUserObj *pUser = mndAcquireUser(pMnode, pCreate->user);
   if (pUser != NULL) {
     mndReleaseUser(pMnode, pUser);
     terrno = TSDB_CODE_MND_USER_ALREADY_EXIST;
@@ -250,7 +250,7 @@ static int32_t mndProcessCreateUserMsg(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  SUserObj *pOperUser = sdbAcquire(pMnode->pSdb, SDB_USER, pMsg->user);
+  SUserObj *pOperUser = mndAcquireUser(pMnode, pMsg->user);
   if (pOperUser == NULL) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
     mError("user:%s, failed to create since %s", pCreate->user, terrstr());
@@ -312,14 +312,14 @@ static int32_t mndProcessAlterUserMsg(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  SUserObj *pUser = sdbAcquire(pMnode->pSdb, SDB_USER, pAlter->user);
+  SUserObj *pUser = mndAcquireUser(pMnode, pAlter->user);
   if (pUser == NULL) {
     terrno = TSDB_CODE_MND_USER_NOT_EXIST;
     mError("user:%s, failed to alter since %s", pAlter->user, terrstr());
     return -1;
   }
 
-  SUserObj *pOperUser = sdbAcquire(pMnode->pSdb, SDB_USER, pMsg->user);
+  SUserObj *pOperUser = mndAcquireUser(pMnode, pMsg->user);
   if (pOperUser == NULL) {
     mndReleaseUser(pMnode, pUser);
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
@@ -383,14 +383,14 @@ static int32_t mndProcessDropUserMsg(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  SUserObj *pUser = sdbAcquire(pMnode->pSdb, SDB_USER, pDrop->user);
+  SUserObj *pUser = mndAcquireUser(pMnode, pDrop->user);
   if (pUser == NULL) {
     terrno = TSDB_CODE_MND_USER_NOT_EXIST;
     mError("user:%s, failed to drop since %s", pDrop->user, terrstr());
     return -1;
   }
 
-  SUserObj *pOperUser = sdbAcquire(pMnode->pSdb, SDB_USER, pMsg->user);
+  SUserObj *pOperUser = mndAcquireUser(pMnode, pMsg->user);
   if (pOperUser == NULL) {
     mndReleaseUser(pMnode, pUser);
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
