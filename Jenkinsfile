@@ -403,7 +403,7 @@ pipeline {
           agent{label " slave1 || slave6 || slave11 || slave16 "}
           steps {
             pre_test()
-            timeout(time: 55, unit: 'MINUTES'){
+            timeout(time: 100, unit: 'MINUTES'){
               script{
                 scope.each {
                   sh """
@@ -420,7 +420,7 @@ pipeline {
           agent{label " slave2 || slave7 || slave12 || slave17 "}
           steps {
             pre_test()
-            timeout(time: 55, unit: 'MINUTES'){
+            timeout(time: 100, unit: 'MINUTES'){
                  script{
                   scope.each {
                     sh """
@@ -453,7 +453,7 @@ pipeline {
         stage('python_4') {
           agent{label " slave4 || slave9 || slave14 || slave19 "}
           steps {
-            timeout(time: 55, unit: 'MINUTES'){
+            timeout(time: 100, unit: 'MINUTES'){
               pre_test()
               script{
               scope.each {
@@ -471,7 +471,7 @@ pipeline {
         stage('python_5') {
           agent{label " slave5 || slave10 || slave15 || slave20 "}
           steps {
-            timeout(time: 55, unit: 'MINUTES'){
+            timeout(time: 100, unit: 'MINUTES'){
               pre_test()
               script{
               scope.each {
