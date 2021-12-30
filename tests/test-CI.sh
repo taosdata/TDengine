@@ -206,6 +206,7 @@ if [ "$1" == "full" ]; then
   runPyCaseOneByOne fulltest-connector.sh
 else
   echo "### run $1 $2 test ###"
+
   if [ "$1" != "query" ] && [ "$1" != "taosAdapter" ] && [ "$1" != "other" ] && [ "$1" != "tools" ] && [ "$1" != "insert" ] && [ "$1" != "connector" ] ;then
     echo " wrong option:$1 must one of [query,other,tools,insert,connector,taosAdapter]"
     exit 8

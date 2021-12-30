@@ -70,7 +70,7 @@ typedef struct {
 #define TFILE_NAME(pf) ((pf)->aname)
 #define TFILE_REL_NAME(pf) ((pf)->rname)
 
-#define tfsopen(pf, flags) open(TFILE_NAME(pf), flags)
+#define tfsopen(pf, flags) open(TFILE_NAME(pf), flags | O_BINARY)
 #define tfsclose(fd) close(fd)
 #define tfsremove(pf) remove(TFILE_NAME(pf))
 #define tfscopy(sf, df) taosCopy(TFILE_NAME(sf), TFILE_NAME(df))
