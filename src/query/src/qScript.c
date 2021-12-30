@@ -91,8 +91,12 @@ void taosValueToLuaType(lua_State *lua, int32_t type, char *val) {
 } 
 int taosLoadScriptInit(void* pInit) {
   ScriptCtx *pCtx = pInit;   
-  char funcName[MAX_FUNC_NAME] = {0};
-  sprintf(funcName, "%s_init", pCtx->funcName);
+  char funcName[MAX_FUNC_NAME+1] = {0}; // one-more-space-for-null-terminator
+  int n = snprintf(funcName, sizeof(funcName), "%s_init", pCtx->funcName);
+  if (n<0 || (size_t)n>=sizeof(funcName)) {
+    // FIXME: what internal error-code to set?
+    return -1;
+  }
 
   lua_State* lua = pCtx->pEnv->lua_state;   
   lua_getglobal(lua, funcName);
@@ -105,8 +109,12 @@ int taosLoadScriptInit(void* pInit) {
 void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, int16_t iBytes, int32_t numOfRows, 
     int64_t *ptsList, int64_t key, char* pOutput, char *ptsOutput, int32_t *numOfOutput, int16_t oType, int16_t oBytes) { 
   ScriptCtx* pCtx = pInit;
-  char funcName[MAX_FUNC_NAME] = {0};
-  sprintf(funcName, "%s_add", pCtx->funcName);
+  char funcName[MAX_FUNC_NAME+1] = {0}; // one-more-space-for-null-terminator
+  int n = snprintf(funcName, sizeof(funcName), "%s_add", pCtx->funcName);
+  if (n<0 || (size_t)n>=sizeof(funcName)) {
+    // FIXME: since prototype of this function does NOT return anything
+    assert(0); // TODO: assert has no effect in case when compiling with NDEBUG set
+  }
 
   lua_State* lua  = pCtx->pEnv->lua_state;   
   lua_getglobal(lua, funcName);
@@ -142,8 +150,12 @@ void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, int16_t iByt
 
 void taosLoadScriptMerge(void *pInit, char* data, int32_t numOfRows, char* pOutput, int32_t* numOfOutput) {
   ScriptCtx *pCtx = pInit;
-  char funcName[MAX_FUNC_NAME] = {0};
-  sprintf(funcName, "%s_merge", pCtx->funcName);
+  char funcName[MAX_FUNC_NAME+1] = {0}; // one-more-space-for-null-terminator
+  int n = snprintf(funcName, sizeof(funcName), "%s_merge", pCtx->funcName);
+  if (n<0 || (size_t)n>=sizeof(funcName)) {
+    // FIXME: since prototype of this function does NOT return anything
+    assert(0); // TODO: assert has no effect in case when compiling with NDEBUG set
+  }
 
   lua_State* lua  = pCtx->pEnv->lua_state;   
   lua_getglobal(lua, funcName);
@@ -166,8 +178,12 @@ void taosLoadScriptMerge(void *pInit, char* data, int32_t numOfRows, char* pOutp
 //do not support agg now
 void taosLoadScriptFinalize(void *pInit,int64_t key, char *pOutput, int32_t* numOfOutput) {
   ScriptCtx *pCtx = pInit;
-  char funcName[MAX_FUNC_NAME] = {0};
-  sprintf(funcName, "%s_finalize", pCtx->funcName);
+  char funcName[MAX_FUNC_NAME+1] = {0}; // one-more-space-for-null-terminator
+  int n = snprintf(funcName, sizeof(funcName), "%s_finalize", pCtx->funcName);
+  if (n<0 || (size_t)n>=sizeof(funcName)) {
+    // FIXME: since prototype of this function does NOT return anything
+    assert(0); // TODO: assert has no effect in case when compiling with NDEBUG set
+  }
   
   lua_State* lua  = pCtx->pEnv->lua_state;   
   lua_getglobal(lua, funcName);
@@ -401,19 +417,23 @@ void addScriptEnvToPool(ScriptEnv *pEnv) {
 
 bool hasBaseFuncDefinedInScript(lua_State *lua, const char *funcPrefix, int32_t len) {
   bool ret = true;
-  char funcName[MAX_FUNC_NAME]; 
-  memcpy(funcName, funcPrefix, len); 
+  char funcName[MAX_FUNC_NAME+1] = {0}; // one-more-space-for-null-terminator
 
   const char *base[] = {"_init", "_add"};
   for (int i = 0; (i < sizeof(base)/sizeof(base[0])) && (ret == true); i++) {
-    memcpy(funcName + len, base[i], strlen(base[i])); 
-    memset(funcName + len + strlen(base[i]), 0, MAX_FUNC_NAME - len - strlen(base[i]));
+    int n = snprintf(funcName, sizeof(funcName), "%.*s%s", len, funcPrefix, base[i]);
+    if (n<0 || (size_t)n>=sizeof(funcName)) {
+      // FIXME: what internal error-code to set?
+      return false;
+    }
     lua_getglobal(lua, funcName);   
     ret = lua_isfunction(lua, -1); // exsit function or not 
     lua_pop(lua, 1);
+    if (!ret)      // if it's not lua-function
+      break;
   }
   return ret;
-} 
+}
 
 bool isValidScript(char *script, int32_t len) {
   ScriptEnv *pEnv = getScriptEnvFromPool();  //  
@@ -432,7 +452,7 @@ bool isValidScript(char *script, int32_t len) {
   }
   lua_getglobal(lua, USER_FUNC_NAME);
   const char *name = lua_tostring(lua, -1);
-  if (name == NULL || strlen(name) >= USER_FUNC_NAME_LIMIT) {
+  if (name == NULL || strlen(name) > USER_FUNC_NAME_LIMIT) {
     lua_pop(lua, 1);
     addScriptEnvToPool(pEnv); 
     qError("error at %s name: %s, len = %d", script, name, (int)(strlen(name)));
