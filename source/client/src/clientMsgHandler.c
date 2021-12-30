@@ -18,7 +18,6 @@
 #include "tname.h"
 #include "clientInt.h"
 #include "clientLog.h"
-#include "trpc.h"
 
 int (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
 
