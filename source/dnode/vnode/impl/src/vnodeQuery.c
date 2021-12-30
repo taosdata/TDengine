@@ -57,13 +57,13 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   pTbCfg = metaGetTbInfoByName(pVnode->pMeta, pReq->tableFname, &uid);
   if (pTbCfg == NULL) {
-    return NULL;
+    return -1;
   }
 
   if (pTbCfg->type == META_CHILD_TABLE) {
     pStbCfg = metaGetTbInfoByUid(pVnode->pMeta, pTbCfg->ctbCfg.suid);
     if (pStbCfg == NULL) {
-      return NULL;
+      return -1;
     }
 
     pSW = metaGetTableSchema(pVnode->pMeta, pTbCfg->ctbCfg.suid, 0, true);
