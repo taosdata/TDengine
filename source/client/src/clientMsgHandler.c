@@ -160,8 +160,9 @@ int32_t processRetrieveMnodeRsp(void* param, const SDataBuf* pMsg, int32_t code)
   assert(pMsg->len >= sizeof(SRetrieveTableRsp));
 
   SRequestObj* pRequest = param;
-  tfree(pRequest->body.resInfo.pRspMsg);
+  SReqResultInfo* pResInfo = &pRequest->body.resInfo;
 
+  tfree(pResInfo->pRspMsg);
   if (code != TSDB_CODE_SUCCESS) {
     pRequest->code = code;
     terrno = code;
@@ -169,13 +170,9 @@ int32_t processRetrieveMnodeRsp(void* param, const SDataBuf* pMsg, int32_t code)
     return code;
   }
 
-  pRequest->body.resInfo.pRspMsg = pMsg->pData;
-
   SRetrieveTableRsp *pRetrieve = (SRetrieveTableRsp *) pMsg->pData;
   pRetrieve->numOfRows  = htonl(pRetrieve->numOfRows);
   pRetrieve->precision  = htons(pRetrieve->precision);
-
-  SReqResultInfo* pResInfo = &pRequest->body.resInfo;
 
   pResInfo->pRspMsg   = pMsg->pData;
   pResInfo->numOfRows = pRetrieve->numOfRows;
