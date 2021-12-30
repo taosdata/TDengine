@@ -181,9 +181,9 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
       break;
     } else if (cache->imm != NULL) {
       // TODO: wake up by condition variable
-      // pthread_mutex_unlock(&cache->mtx);
+      pthread_mutex_unlock(&cache->mtx);
       taosMsleep(50);
-      // pthread_mutex_lock(&cache->mtx);
+      pthread_mutex_lock(&cache->mtx);
     } else {
       indexCacheRef(cache);
       cache->imm = cache->mem;
