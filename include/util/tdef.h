@@ -149,7 +149,7 @@ do { \
 #define IS_RELATION_OPTR(op) (((op) >= TSDB_RELATION_LESS) && ((op) < TSDB_RELATION_IN))
 #define IS_ARITHMETIC_OPTR(op) (((op) >= TSDB_BINARY_OP_ADD) && ((op) <= TSDB_BINARY_OP_REMAINDER))
 
-#define TS_PATH_DELIMITER_LEN     1
+#define TSDB_NAME_DELIMITER_LEN   1
 
 #define TSDB_UNI_LEN              24
 #define TSDB_USER_LEN             TSDB_UNI_LEN
@@ -163,18 +163,20 @@ do { \
 
 #define TSDB_NODE_NAME_LEN        64
 #define TSDB_TABLE_NAME_LEN       193     // it is a null-terminated string
+#define TSDB_TOPIC_NAME_LEN       193     // it is a null-terminated string
 #define TSDB_DB_NAME_LEN          65
-#define TSDB_FULL_DB_NAME_LEN     (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN)
+#define TSDB_DB_FNAME_LEN        (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 
-#define TSDB_FUNC_NAME_LEN         65
-#define TSDB_FUNC_COMMENT_LEN      4096
-#define TSDB_FUNC_CODE_LEN         (65535 - 512)
-#define TSDB_FUNC_BUF_SIZE         512
-#define TSDB_FUNC_TYPE_SCALAR      1
-#define TSDB_FUNC_TYPE_AGGREGATE   2
+#define TSDB_FUNC_NAME_LEN        65
+#define TSDB_FUNC_COMMENT_LEN     4096
+#define TSDB_FUNC_CODE_LEN        (65535 - 512)
+#define TSDB_FUNC_BUF_SIZE        512
+#define TSDB_FUNC_TYPE_SCALAR     1
+#define TSDB_FUNC_TYPE_AGGREGATE  2
 
 #define TSDB_TYPE_STR_MAX_LEN     32
-#define TSDB_TABLE_FNAME_LEN      (TSDB_FULL_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
+#define TSDB_TABLE_FNAME_LEN      (TSDB_DB_FNAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_TOPIC_FNAME_LEN      TSDB_TABLE_FNAME_LEN
 #define TSDB_COL_NAME_LEN         65
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
@@ -202,7 +204,7 @@ do { \
 
 #define TSDB_CLUSTER_ID_LEN       40
 #define TSDB_FQDN_LEN             128
-#define TSDB_EP_LEN               (TSDB_FQDN_LEN+6)
+#define TSDB_EP_LEN               (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_SHOW_SQL_LEN         512
@@ -315,12 +317,12 @@ do { \
 #define TSDB_MAX_FIELD_LEN              16384
 #define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
 #define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
-#define PRIMARYKEY_TIMESTAMP_COL_ID     0
+#define PRIMARYKEY_TIMESTAMP_COL_ID     1
 
 #define TSDB_MAX_RPC_THREADS            5
 
-#define TSDB_QUERY_TYPE_NON_TYPE               0x00u     // none type
-#define TSDB_QUERY_TYPE_FREE_RESOURCE          0x01u     // free qhandle at vnode
+#define TSDB_QUERY_TYPE_NON_TYPE        0x00u     // none type
+#define TSDB_QUERY_TYPE_FREE_RESOURCE   0x01u     // free qhandle at vnode
 
 
 #define TSDB_META_COMPACT_RATIO         0       // disable tsdb meta compact by default

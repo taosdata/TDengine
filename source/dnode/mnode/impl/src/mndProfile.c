@@ -68,10 +68,10 @@ int32_t mndInitProfile(SMnode *pMnode) {
     return -1;
   }
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_HEARTBEAT, mndProcessHeartBeatMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CONNECT, mndProcessConnectMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_KILL_QUERY, mndProcessKillQueryMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_KILL_CONN, mndProcessKillConnectionMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_HEARTBEAT, mndProcessHeartBeatMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CONNECT, mndProcessConnectMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_KILL_QUERY, mndProcessKillQueryMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_KILL_CONN, mndProcessKillConnectionMsg);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndGetConnsMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndRetrieveConns);
@@ -118,17 +118,17 @@ static SConnObj *mndCreateConn(SMnode *pMnode, SRpcConnInfo *pInfo, int32_t pid,
   SConnObj *pConn = taosCachePut(pMgmt->cache, &connId, sizeof(int32_t), &connObj, sizeof(connObj), keepTime * 1000);
   if (pConn == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("conn:%d, data:%p failed to put into cache since %s, user:%s", connId, pConn, pInfo->user, terrstr());
+    mError("conn:%d, failed to put into cache since %s, user:%s", connId, pInfo->user, terrstr());
     return NULL;
   } else {
-    mTrace("conn:%d, data:%p created, user:%s", pConn->id, pConn, pInfo->user);
+    mTrace("conn:%d, is created, data:%p user:%s", pConn->id, pConn, pInfo->user);
     return pConn;
   }
 }
 
 static void mndFreeConn(SConnObj *pConn) {
   tfree(pConn->pQueries);
-  mTrace("conn:%d, data:%p destroyed", pConn->id, pConn);
+  mTrace("conn:%d, is destroyed, data:%p", pConn->id, pConn);
 }
 
 static SConnObj *mndAcquireConn(SMnode *pMnode, int32_t connId) {
@@ -143,13 +143,13 @@ static SConnObj *mndAcquireConn(SMnode *pMnode, int32_t connId) {
   int32_t keepTime = pMnode->cfg.shellActivityTimer * 3;
   pConn->lastAccessTimeMs = keepTime * 1000 + (uint64_t)taosGetTimestampMs();
 
-  mTrace("conn:%d, data:%p acquired from cache", pConn->id, pConn);
+  mTrace("conn:%d, acquired from cache, data:%p", pConn->id, pConn);
   return pConn;
 }
 
 static void mndReleaseConn(SMnode *pMnode, SConnObj *pConn) {
   if (pConn == NULL) return;
-  mTrace("conn:%d, data:%p released from cache", pConn->id, pConn);
+  mTrace("conn:%d, released from cache, data:%p", pConn->id, pConn);
 
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
   taosCacheRelease(pMgmt->cache, (void **)&pConn, false);
@@ -194,7 +194,7 @@ static int32_t mndProcessConnectMsg(SMnodeMsg *pMsg) {
   taosIp2String(info.clientIp, ip);
 
   if (pReq->db[0]) {
-    snprintf(pMsg->db, TSDB_FULL_DB_NAME_LEN, "%d%s%s", pMsg->acctId, TS_PATH_DELIMITER, pReq->db);
+    snprintf(pMsg->db, TSDB_DB_FNAME_LEN, "%d%s%s", pMsg->acctId, TS_PATH_DELIMITER, pReq->db);
     SDbObj *pDb = mndAcquireDb(pMnode, pMsg->db);
     if (pDb == NULL) {
       terrno = TSDB_CODE_MND_INVALID_DB;
@@ -225,7 +225,7 @@ static int32_t mndProcessConnectMsg(SMnodeMsg *pMsg) {
     mndReleaseUser(pMnode, pUser);
   }
 
-  pRsp->clusterId = htonl(pMnode->clusterId);
+  pRsp->clusterId = htobe64(pMnode->clusterId);
   pRsp->connId = htonl(pConn->id);
   mndGetMnodeEpSet(pMnode, &pRsp->epSet);
   mndReleaseConn(pMnode, pConn);

@@ -42,25 +42,41 @@ enum {
   QW_WRITE,
 };
 
-typedef struct SQWorkerTaskStatus {  
+enum {
+  QW_EXIST_ACQUIRE = 1,
+  QW_EXIST_RET_ERR,
+};
+
+enum {
+  QW_NOT_EXIST_RET_ERR = 1,
+  QW_NOT_EXIST_ADD,
+};
+
+enum {
+  QW_ADD_RET_ERR = 1,
+  QW_ADD_ACQUIRE,
+};
+
+
+typedef struct SQWTaskStatus {  
   SRWLatch lock;
   int32_t  code;
   int8_t   status;
   int8_t   ready; 
   bool     cancel;
   bool     drop;
-} SQWorkerTaskStatus;
+} SQWTaskStatus;
 
 typedef struct SQWorkerResCache {
   SRWLatch lock;
   void *data;
 } SQWorkerResCache;
 
-typedef struct SQWorkerSchStatus {
+typedef struct SQWSchStatus {
   int32_t   lastAccessTs; // timestamp in second
   SRWLatch  tasksLock;
   SHashObj *tasksHash;   // key:queryId+taskId, value: SQWorkerTaskStatus
-} SQWorkerSchStatus;
+} SQWSchStatus;
 
 // Qnode/Vnode level task management
 typedef struct SQWorkerMgmt {
@@ -71,7 +87,7 @@ typedef struct SQWorkerMgmt {
   SHashObj *resHash;       //key: queryId+taskId, value: SQWorkerResCache
 } SQWorkerMgmt;
 
-#define QW_GOT_RES_DATA(data) (false)
+#define QW_GOT_RES_DATA(data) (true)
 #define QW_LOW_RES_DATA(data) (false)
 
 #define QW_TASK_NOT_EXIST(code) (TSDB_CODE_QRY_SCH_NOT_EXIST == (code) || TSDB_CODE_QRY_TASK_NOT_EXIST == (code))
@@ -86,8 +102,31 @@ typedef struct SQWorkerMgmt {
 #define QW_ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { qError(__VA_ARGS__); terrno = _code; return _code; } } while (0)
 #define QW_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
-#define QW_LOCK(type, _lock) (QW_READ == (type) ? taosRLockLatch(_lock) : taosWLockLatch(_lock))
-#define QW_UNLOCK(type, _lock) (QW_READ == (type) ? taosRUnLockLatch(_lock) : taosWUnLockLatch(_lock))
+#define QW_LOCK(type, _lock) do {   \
+  if (QW_READ == (type)) {          \
+    if ((*(_lock)) < 0) assert(0);    \
+    taosRLockLatch(_lock);          \
+    qDebug("QW RLOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+  } else {                                                \
+    if ((*(_lock)) < 0) assert(0);                          \
+    taosWLockLatch(_lock);                                \
+    qDebug("QW WLOCK%p, %s:%d", (_lock), __FILE__, __LINE__);  \
+  }                                                       \
+} while (0)
+
+#define QW_UNLOCK(type, _lock) do {                       \
+  if (QW_READ == (type)) {                                \
+    if ((*(_lock)) <= 0) assert(0);                         \
+    taosRUnLockLatch(_lock);                              \
+    qDebug("QW RULOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+  } else {                                                \
+    if ((*(_lock)) <= 0) assert(0);                         \
+    taosWUnLockLatch(_lock);                              \
+    qDebug("QW WULOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+  }                                                       \
+} while (0)
+
+static int32_t qwAcquireScheduler(int32_t rwType, SQWorkerMgmt *mgmt, uint64_t sId, SQWSchStatus **sch, int32_t nOpt);
 
 
 #ifdef __cplusplus

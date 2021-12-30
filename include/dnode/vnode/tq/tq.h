@@ -20,7 +20,7 @@
 #include "mallocator.h"
 #include "os.h"
 #include "taoserror.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tlist.h"
 #include "trpc.h"
 #include "ttimer.h"
@@ -251,6 +251,8 @@ typedef struct STqMetaStore {
   STqMetaList* bucket[TQ_BUCKET_SIZE];
   // a table head
   STqMetaList* unpersistHead;
+  // topics that are not connectted
+  STqMetaList*   unconnectTopic;
 
   // TODO:temporaral use, to be replaced by unified tfile
   int fileFd;

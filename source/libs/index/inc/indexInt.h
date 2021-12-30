@@ -49,8 +49,9 @@ struct SIndex {
   SHashObj* colObj;  // < field name, field id>
 
   int64_t suid;      // current super table id, -1 is normal table
-  int     colId;     // field id allocated to cache
   int32_t cVersion;  // current version allocated to cache
+
+  char* path;
 
   SIndexStat      stat;
   pthread_mutex_t mtx;
@@ -88,41 +89,50 @@ typedef struct SIndexTermQuery {
   EIndexQueryType qType;
 } SIndexTermQuery;
 
-#define indexFatal(...)                               \
-  do {                                                \
-    if (sDebugFlag & DEBUG_FATAL) {                   \
-      taosPrintLog("index FATAL ", 255, __VA_ARGS__); \
-    }                                                 \
+typedef struct Iterate Iterate;
+
+typedef struct IterateValue {
+  int8_t  type;
+  char*   colVal;
+  SArray* val;
+} IterateValue;
+
+typedef struct Iterate {
+  void*        iter;
+  IterateValue val;
+  bool (*next)(Iterate* iter);
+  IterateValue* (*getValue)(Iterate* iter);
+} Iterate;
+
+void iterateValueDestroy(IterateValue* iv, bool destroy);
+
+extern void* indexQhandle;
+
+int indexFlushCacheTFile(SIndex* sIdx, void*);
+
+#define indexFatal(...)                                                               \
+  do {                                                                                \
+    if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("index FATAL ", 255, __VA_ARGS__); } \
   } while (0)
-#define indexError(...)                               \
-  do {                                                \
-    if (sDebugFlag & DEBUG_ERROR) {                   \
-      taosPrintLog("index ERROR ", 255, __VA_ARGS__); \
-    }                                                 \
+#define indexError(...)                                                               \
+  do {                                                                                \
+    if (sDebugFlag & DEBUG_ERROR) { taosPrintLog("index ERROR ", 255, __VA_ARGS__); } \
   } while (0)
-#define indexWarn(...)                               \
-  do {                                               \
-    if (sDebugFlag & DEBUG_WARN) {                   \
-      taosPrintLog("index WARN ", 255, __VA_ARGS__); \
-    }                                                \
+#define indexWarn(...)                                                              \
+  do {                                                                              \
+    if (sDebugFlag & DEBUG_WARN) { taosPrintLog("index WARN ", 255, __VA_ARGS__); } \
   } while (0)
-#define indexInfo(...)                          \
-  do {                                          \
-    if (sDebugFlag & DEBUG_INFO) {              \
-      taosPrintLog("index ", 255, __VA_ARGS__); \
-    }                                           \
+#define indexInfo(...)                                                         \
+  do {                                                                         \
+    if (sDebugFlag & DEBUG_INFO) { taosPrintLog("index ", 255, __VA_ARGS__); } \
   } while (0)
-#define indexDebug(...)                                \
-  do {                                                 \
-    if (sDebugFlag & DEBUG_DEBUG) {                    \
-      taosPrintLog("index ", sDebugFlag, __VA_ARGS__); \
-    }                                                  \
+#define indexDebug(...)                                                                \
+  do {                                                                                 \
+    if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("index ", sDebugFlag, __VA_ARGS__); } \
   } while (0)
-#define indexTrace(...)                                \
-  do {                                                 \
-    if (sDebugFlag & DEBUG_TRACE) {                    \
-      taosPrintLog("index ", sDebugFlag, __VA_ARGS__); \
-    }                                                  \
+#define indexTrace(...)                                                                \
+  do {                                                                                 \
+    if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("index ", sDebugFlag, __VA_ARGS__); } \
   } while (0)
 
 #ifdef __cplusplus

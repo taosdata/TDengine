@@ -32,7 +32,7 @@ TEST_F(DndTestShow, 01_ShowMsg_InvalidMsgMax) {
   pReq->type = TSDB_MGMT_TABLE_MAX;
   strcpy(pReq->db, "");
 
-  SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_SHOW, pReq, contLen);
+  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_SHOW, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
 }
@@ -44,7 +44,7 @@ TEST_F(DndTestShow, 02_ShowMsg_InvalidMsgStart) {
   pReq->type = TSDB_MGMT_TABLE_START;
   strcpy(pReq->db, "");
 
-  SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_SHOW, pReq, contLen);
+  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_SHOW, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
 }
@@ -57,7 +57,7 @@ TEST_F(DndTestShow, 02_ShowMsg_Conn) {
   strcpy(pReq->app, "dnode_test_show");
   strcpy(pReq->db, "");
 
-  SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CONNECT, pReq, contLen);
+  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CONNECT, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, 0);
 

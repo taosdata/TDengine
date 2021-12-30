@@ -51,7 +51,7 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     pReq->cacheLastRow = 0;
     pReq->ignoreExist = 1;
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DB, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -68,7 +68,6 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
     {
       SSchema* pSchema = &pReq->pSchema[0];
-      pSchema->colId = htonl(0);
       pSchema->bytes = htonl(8);
       pSchema->type = TSDB_DATA_TYPE_TIMESTAMP;
       strcpy(pSchema->name, "ts");
@@ -76,7 +75,6 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
     {
       SSchema* pSchema = &pReq->pSchema[1];
-      pSchema->colId = htonl(1);
       pSchema->bytes = htonl(4);
       pSchema->type = TSDB_DATA_TYPE_INT;
       strcpy(pSchema->name, "col1");
@@ -84,7 +82,6 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
     {
       SSchema* pSchema = &pReq->pSchema[2];
-      pSchema->colId = htonl(2);
       pSchema->bytes = htonl(2);
       pSchema->type = TSDB_DATA_TYPE_TINYINT;
       strcpy(pSchema->name, "tag1");
@@ -92,7 +89,6 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
     {
       SSchema* pSchema = &pReq->pSchema[3];
-      pSchema->colId = htonl(3);
       pSchema->bytes = htonl(8);
       pSchema->type = TSDB_DATA_TYPE_BIGINT;
       strcpy(pSchema->name, "tag2");
@@ -100,13 +96,12 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
     {
       SSchema* pSchema = &pReq->pSchema[4];
-      pSchema->colId = htonl(4);
       pSchema->bytes = htonl(16);
       pSchema->type = TSDB_DATA_TYPE_BINARY;
       strcpy(pSchema->name, "tag3");
     }
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_STB, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -133,7 +128,7 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     STableInfoMsg* pReq = (STableInfoMsg*)rpcMallocCont(contLen);
     strcpy(pReq->tableFname, "1.d1.stb");
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_TABLE_META, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_STB_META, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
@@ -151,8 +146,8 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
       pSchema->bytes = htonl(pSchema->bytes);
     }
 
-    EXPECT_STREQ(pRsp->tbFname, "");
-    EXPECT_STREQ(pRsp->stbFname, "1.d1.stb");
+    EXPECT_STREQ(pRsp->tbFname, "1.d1.stb");
+    EXPECT_STREQ(pRsp->stbFname, "");
     EXPECT_EQ(pRsp->numOfColumns, 2);
     EXPECT_EQ(pRsp->numOfTags, 3);
     EXPECT_EQ(pRsp->precision, TSDB_TIME_PRECISION_MILLI);
@@ -167,9 +162,41 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     {
       SSchema* pSchema = &pRsp->pSchema[0];
       EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TIMESTAMP);
-      EXPECT_EQ(pSchema->colId, 0);
+      EXPECT_EQ(pSchema->colId, 1);
       EXPECT_EQ(pSchema->bytes, 8);
       EXPECT_STREQ(pSchema->name, "ts");
+    }
+
+    {
+      SSchema* pSchema = &pRsp->pSchema[1];
+      EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
+      EXPECT_EQ(pSchema->colId, 2);
+      EXPECT_EQ(pSchema->bytes, 4);
+      EXPECT_STREQ(pSchema->name, "col1");
+    }
+
+    {
+      SSchema* pSchema = &pRsp->pSchema[2];
+      EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TINYINT);
+      EXPECT_EQ(pSchema->colId, 3);
+      EXPECT_EQ(pSchema->bytes, 2);
+      EXPECT_STREQ(pSchema->name, "tag1");
+    }
+
+    {
+      SSchema* pSchema = &pRsp->pSchema[3];
+      EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BIGINT);
+      EXPECT_EQ(pSchema->colId, 4);
+      EXPECT_EQ(pSchema->bytes, 8);
+      EXPECT_STREQ(pSchema->name, "tag2");
+    }
+
+    {
+      SSchema* pSchema = &pRsp->pSchema[4];
+      EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
+      EXPECT_EQ(pSchema->colId, 5);
+      EXPECT_EQ(pSchema->bytes, 16);
+      EXPECT_STREQ(pSchema->name, "tag3");
     }
   }
 
@@ -192,7 +219,7 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     SDropStbMsg* pReq = (SDropStbMsg*)rpcMallocCont(contLen);
     strcpy(pReq->name, "1.d1.stb");
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_DROP_STB, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_STB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }

@@ -2,7 +2,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "query.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tglobal.h"
 #include "tref.h"
 #include "trpc.h"
@@ -35,14 +35,14 @@ void taos_cleanup(void) {
     return;
   }
 
-  int32_t id = tscReqRef;
-  tscReqRef = -1;
+  int32_t id = clientReqRefPool;
+  clientReqRefPool = -1;
   taosCloseRef(id);
 
   cleanupTaskQueue();
 
-  id = tscConnRef;
-  tscConnRef = -1;
+  id = clientConnRefPool;
+  clientConnRefPool = -1;
   taosCloseRef(id);
 
   rpcCleanup();
@@ -72,7 +72,7 @@ void taos_close(TAOS* taos) {
   STscObj *pTscObj = (STscObj *)taos;
   tscDebug("0x%"PRIx64" try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
 
-  taosRemoveRef(tscConnRef, pTscObj->id);
+  taosRemoveRef(clientConnRefPool, pTscObj->id);
 }
 
 int taos_errno(TAOS_RES *tres) {
@@ -130,7 +130,7 @@ TAOS_RES *taos_query(TAOS *taos, const char *sql) {
     return NULL;
   }
 
-  return taos_query_l(taos, sql, strlen(sql));
+  return taos_query_l(taos, sql, (int32_t) strlen(sql));
 }
 
 TAOS_ROW taos_fetch_row(TAOS_RES *pRes) {
@@ -140,7 +140,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *pRes) {
 
   SRequestObj *pRequest = (SRequestObj *) pRes;
   if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
-      pRequest->type == TSDB_SQL_INSERT) {
+      pRequest->type == TSDB_SQL_INSERT || pRequest->code != TSDB_CODE_SUCCESS) {
     return NULL;
   }
 

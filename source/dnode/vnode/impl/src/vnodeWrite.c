@@ -17,7 +17,7 @@
 
 int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
-    case TSDB_MSG_TYPE_MQ_SET_CUR:
+    case TDMT_VND_MQ_SET_CUR:
       if (tqSetCursor(pVnode->pTq, pMsg->pCont) < 0) {
         // TODO: handle error
       }
@@ -28,13 +28,12 @@ int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   SRpcMsg *  pMsg;
-  SVnodeReq *pVnodeReq;
 
   for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
     pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
 
     // ser request version
-    void *  pBuf = pMsg->pCont;
+    void *  pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
     int64_t ver = pVnode->state.processed++;
     taosEncodeFixedU64(&pBuf, ver);
 
@@ -51,8 +50,8 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 }
 
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  SVnodeReq vReq;
-  void *    ptr = vnodeMalloc(pVnode, pMsg->contLen);
+  SVCreateTbReq vCreateTbReq;
+  void *        ptr = vnodeMalloc(pVnode, pMsg->contLen);
   if (ptr == NULL) {
     // TODO: handle error
   }
@@ -62,34 +61,34 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   // todo: change the interface here
   uint64_t ver;
-  taosDecodeFixedU64(pMsg->pCont, &ver);
+  taosDecodeFixedU64(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &ver);
   if (tqPushMsg(pVnode->pTq, ptr, ver) < 0) {
     // TODO: handle error
   }
 
-  vnodeParseReq(pMsg->pCont, &vReq, pMsg->msgType);
-
   switch (pMsg->msgType) {
-    case TSDB_MSG_TYPE_CREATE_STB_IN:
-    case TSDB_MSG_TYPE_CREATE_TABLE:
-      if (metaCreateTable(pVnode->pMeta, &(vReq.ctReq)) < 0) {
+    case TDMT_VND_CREATE_STB:
+    case TDMT_VND_CREATE_TABLE:
+      tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbReq);
+      if (metaCreateTable(pVnode->pMeta, &(vCreateTbReq)) < 0) {
         // TODO: handle error
       }
 
       // TODO: maybe need to clear the requst struct
       break;
-    case TSDB_MSG_TYPE_DROP_STB_IN:
-    case TSDB_MSG_TYPE_DROP_TABLE:
-      if (metaDropTable(pVnode->pMeta, vReq.dtReq.uid) < 0) {
-        // TODO: handle error
-      }
+    case TDMT_VND_DROP_STB:
+    case TDMT_VND_DROP_TABLE:
+      // if (metaDropTable(pVnode->pMeta, vReq.dtReq.uid) < 0) {
+      //   // TODO: handle error
+      // }
       break;
-    case TSDB_MSG_TYPE_SUBMIT:
+    case TDMT_VND_SUBMIT:
       if (tsdbInsertData(pVnode->pTsdb, (SSubmitMsg *)ptr) < 0) {
         // TODO: handle error
       }
       break;
     default:
+      ASSERT(0);
       break;
   }
 

@@ -16,7 +16,7 @@
 #include "metaDef.h"
 #include "tcoding.h"
 
-int metaValidateTbOptions(SMeta *pMeta, const STbCfg *pTbOptions) {
+int metaValidateTbCfg(SMeta *pMeta, const STbCfg *pTbOptions) {
   // TODO
   return 0;
 }
@@ -46,58 +46,4 @@ size_t metaEncodeTbObjFromTbOptions(const STbCfg *pTbOptions, void *pBuf, size_t
   }
 
   return tlen;
-}
-
-int metaEncodeTbCfg(void **pBuf, STbCfg *pTbCfg) {
-  int tsize = 0;
-
-  tsize += taosEncodeString(pBuf, pTbCfg->name);
-  tsize += taosEncodeFixedU32(pBuf, pTbCfg->ttl);
-  tsize += taosEncodeFixedU32(pBuf, pTbCfg->keep);
-  tsize += taosEncodeFixedU8(pBuf, pTbCfg->type);
-
-  switch (pTbCfg->type) {
-    case META_SUPER_TABLE:
-      tsize += taosEncodeFixedU64(pBuf, pTbCfg->stbCfg.suid);
-      tsize += tdEncodeSchema(pBuf, pTbCfg->stbCfg.pSchema);
-      tsize += tdEncodeSchema(pBuf, pTbCfg->stbCfg.pTagSchema);
-      break;
-    case META_CHILD_TABLE:
-      tsize += taosEncodeFixedU64(pBuf, pTbCfg->ctbCfg.suid);
-      tsize += tdEncodeKVRow(pBuf, pTbCfg->ctbCfg.pTag);
-      break;
-    case META_NORMAL_TABLE:
-      tsize += tdEncodeSchema(pBuf, pTbCfg->ntbCfg.pSchema);
-      break;
-    default:
-      break;
-  }
-
-  return tsize;
-}
-
-void *metaDecodeTbCfg(void *pBuf, STbCfg *pTbCfg) {
-  pBuf = taosDecodeString(pBuf, &(pTbCfg->name));
-  pBuf = taosDecodeFixedU32(pBuf, &(pTbCfg->ttl));
-  pBuf = taosDecodeFixedU32(pBuf, &(pTbCfg->keep));
-  pBuf = taosDecodeFixedU8(pBuf, &(pTbCfg->type));
-
-  switch (pTbCfg->type) {
-    case META_SUPER_TABLE:
-      pBuf = taosDecodeFixedU64(pBuf, &(pTbCfg->stbCfg.suid));
-      pBuf = tdDecodeSchema(pBuf, &(pTbCfg->stbCfg.pSchema));
-      pBuf = tdDecodeSchema(pBuf, &(pTbCfg->stbCfg.pTagSchema));
-      break;
-    case META_CHILD_TABLE:
-      pBuf = taosDecodeFixedU64(pBuf, &(pTbCfg->ctbCfg.suid));
-      pBuf = tdDecodeKVRow(pBuf, &(pTbCfg->ctbCfg.pTag));
-      break;
-    case META_NORMAL_TABLE:
-      pBuf = tdDecodeSchema(pBuf, &(pTbCfg->ntbCfg.pSchema));
-      break;
-    default:
-      break;
-  }
-
-  return pBuf;
 }

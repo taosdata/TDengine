@@ -20,7 +20,7 @@
 
 #include "cJSON.h"
 #include "sync.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "thash.h"
 #include "tlog.h"
 #include "trpc.h"
@@ -62,20 +62,17 @@ typedef enum {
 
 typedef enum {
   TRN_STAGE_PREPARE = 0,
-  TRN_STAGE_EXECUTE = 1,
-  TRN_STAGE_ROLLBACK = 2,
-  TRN_STAGE_COMMIT = 3,
-  TRN_STAGE_OVER = 4,
+  TRN_STAGE_REDO_LOG = 1,
+  TRN_STAGE_REDO_ACTION = 2,
+  TRN_STAGE_UNDO_LOG = 3,
+  TRN_STAGE_UNDO_ACTION = 4,
+  TRN_STAGE_COMMIT_LOG = 5,
+  TRN_STAGE_COMMIT = 6,
+  TRN_STAGE_ROLLBACK = 7,
+  TRN_STAGE_FINISHED = 8
 } ETrnStage;
 
 typedef enum { TRN_POLICY_ROLLBACK = 0, TRN_POLICY_RETRY = 1 } ETrnPolicy;
-
-typedef enum {
-  DND_STATUS_OFFLINE = 0,
-  DND_STATUS_READY = 1,
-  DND_STATUS_CREATING = 2,
-  DND_STATUS_DROPPING = 3
-} EDndStatus;
 
 typedef enum {
   DND_REASON_ONLINE = 0,
@@ -95,7 +92,10 @@ typedef struct {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
+  int32_t    code;
+  int32_t    failedTimes;
   void      *rpcHandle;
+  void      *rpcAHandle;
   SArray    *redoLogs;
   SArray    *undoLogs;
   SArray    *commitLogs;
@@ -104,7 +104,7 @@ typedef struct {
 } STrans;
 
 typedef struct {
-  int32_t id;
+  int64_t id;
   char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
   int64_t updateTime;
@@ -117,14 +117,9 @@ typedef struct {
   int64_t    rebootTime;
   int64_t    lastAccessTime;
   int32_t    accessTimes;
-  int16_t    numOfMnodes;
   int16_t    numOfVnodes;
-  int16_t    numOfQnodes;
-  int16_t    numOfSupportMnodes;
-  int16_t    numOfSupportVnodes;
-  int16_t    numOfSupportQnodes;
-  int16_t    numOfCores;
-  EDndStatus status;
+  int32_t    numOfSupportVnodes;
+  int32_t    numOfCores;
   EDndReason offlineReason;
   uint16_t   port;
   char       fqdn[TSDB_FQDN_LEN];
@@ -140,6 +135,27 @@ typedef struct {
   int64_t    roleTime;
   SDnodeObj *pDnode;
 } SMnodeObj;
+
+typedef struct {
+  int32_t    id;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj *pDnode;
+} SQnodeObj;
+
+typedef struct {
+  int32_t    id;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj *pDnode;
+} SSnodeObj;
+
+typedef struct {
+  int32_t    id;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj *pDnode;
+} SBnodeObj;
 
 typedef struct {
   int32_t maxUsers;
@@ -202,7 +218,7 @@ typedef struct {
 } SDbCfg;
 
 typedef struct {
-  char    name[TSDB_FULL_DB_NAME_LEN];
+  char    name[TSDB_DB_FNAME_LEN];
   char    acct[TSDB_USER_LEN];
   int64_t createdTime;
   int64_t updateTime;
@@ -225,7 +241,7 @@ typedef struct {
   int32_t   version;
   uint32_t  hashBegin;
   uint32_t  hashEnd;
-  char      dbName[TSDB_FULL_DB_NAME_LEN];
+  char      dbName[TSDB_DB_FNAME_LEN];
   int64_t   dbUid;
   int32_t   numOfTables;
   int32_t   numOfTimeSeries;
@@ -239,7 +255,7 @@ typedef struct {
 
 typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
-  char     db[TSDB_FULL_DB_NAME_LEN];
+  char     db[TSDB_DB_FNAME_LEN];
   int64_t  createdTime;
   int64_t  updateTime;
   uint64_t uid;
@@ -279,33 +295,63 @@ typedef struct {
   int32_t payloadLen;
   void   *pIter;
   SMnode *pMnode;
-  char    db[TSDB_FULL_DB_NAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int16_t offset[TSDB_MAX_COLUMNS];
   int32_t bytes[TSDB_MAX_COLUMNS];
   char    payload[];
 } SShowObj;
 
+typedef struct {
+  char name[TSDB_TOPIC_FNAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
+  int64_t createTime;
+  int64_t updateTime;
+  uint64_t uid;
+  uint64_t dbUid;
+  int32_t version;
+  SRWLatch lock;
+  int32_t  execLen;
+  void*    executor;
+  int32_t  sqlLen;
+  char*    sql;
+  char*    logicalPlan;
+  char*    physicalPlan;
+} STopicObj;
+
+typedef struct {
+  char name[TSDB_TOPIC_FNAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
+  int64_t createTime;
+  int64_t updateTime;
+  uint64_t uid;
+  //uint64_t dbUid;
+  int32_t version;
+  SRWLatch lock;
+
+} SConsumerObj;
+
+typedef struct {
+  char name[TSDB_TOPIC_FNAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
+  int64_t createTime;
+  int64_t updateTime;
+  uint64_t uid;
+  //uint64_t dbUid;
+  int32_t version;
+  SRWLatch lock;
+
+} SCGroupObj;
+
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];
-  char    db[TSDB_FULL_DB_NAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int32_t acctId;
   SMnode *pMnode;
-  int16_t received;
-  int16_t successed;
-  int16_t expected;
-  int16_t retry;
-  int32_t code;
   int64_t createdTime;
   SRpcMsg rpcMsg;
   int32_t contLen;
   void   *pCont;
 } SMnodeMsg;
-
-typedef struct {
-  int32_t id;
-  int32_t code;
-  void   *rpcHandle;
-} STransMsg;
 
 #ifdef __cplusplus
 }

@@ -15,18 +15,20 @@
 
 #include "vnodeDef.h"
 
+#if 0
+
 static int   vnodeBuildCreateTableReq(void **buf, const SVCreateTableReq *pReq);
 static void *vnodeParseCreateTableReq(void *buf, SVCreateTableReq *pReq);
 
-int vnodeBuildReq(void **buf, const SVnodeReq *pReq, uint8_t type) {
+int vnodeBuildReq(void **buf, const SVnodeReq *pReq, tmsg_t type) {
   int tsize = 0;
 
   tsize += taosEncodeFixedU64(buf, pReq->ver);
   switch (type) {
-    case TSDB_MSG_TYPE_CREATE_TABLE:
+    case TDMT_VND_CREATE_STB:
       tsize += vnodeBuildCreateTableReq(buf, &(pReq->ctReq));
       break;
-    case TSDB_MSG_TYPE_SUBMIT:
+    case TDMT_VND_SUBMIT:
       /* code */
       break;
     default:
@@ -36,11 +38,11 @@ int vnodeBuildReq(void **buf, const SVnodeReq *pReq, uint8_t type) {
   return tsize;
 }
 
-void *vnodeParseReq(void *buf, SVnodeReq *pReq, uint8_t type) {
+void *vnodeParseReq(void *buf, SVnodeReq *pReq, tmsg_t type) {
   buf = taosDecodeFixedU64(buf, &(pReq->ver));
 
   switch (type) {
-    case TSDB_MSG_TYPE_CREATE_TABLE:
+    case TDMT_VND_CREATE_STB:
       buf = vnodeParseCreateTableReq(buf, &(pReq->ctReq));
       break;
 
@@ -114,3 +116,4 @@ int vnodeBuildDropTableReq(void **buf, const SVDropTableReq *pReq) {
 void *vnodeParseDropTableReq(void *buf, SVDropTableReq *pReq) {
   // TODO
 }
+#endif

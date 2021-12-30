@@ -47,9 +47,9 @@ int32_t mndInitUser(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndUserActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndUserActionDelete};
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_USER, mndProcessCreateUserMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_USER, mndProcessAlterUserMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_USER, mndProcessDropUserMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_USER, mndProcessCreateUserMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_USER, mndProcessAlterUserMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_USER, mndProcessDropUserMsg);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_USER, mndGetUserMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_USER, mndRetrieveUsers);
@@ -197,7 +197,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass,
   userObj.updateTime = userObj.createdTime;
   userObj.superUser = 0;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
   if (pTrans == NULL) {
     mError("user:%s, failed to create since %s", user, terrstr());
     return -1;
@@ -267,7 +267,7 @@ static int32_t mndProcessCreateUserMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mndUpdateUser(SMnode *pMnode, SUserObj *pOldUser, SUserObj *pNewUser, SMnodeMsg *pMsg) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
   if (pTrans == NULL) {
     mError("user:%s, failed to update since %s", pOldUser->user, terrstr());
     return -1;
@@ -342,7 +342,7 @@ static int32_t mndProcessAlterUserMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t mndDropUser(SMnode *pMnode, SMnodeMsg *pMsg, SUserObj *pUser) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
   if (pTrans == NULL) {
     mError("user:%s, failed to drop since %s", pUser->user, terrstr());
     return -1;

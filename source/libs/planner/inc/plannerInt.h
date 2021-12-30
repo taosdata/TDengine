@@ -24,7 +24,7 @@ extern "C" {
 #include "tarray.h"
 #include "planner.h"
 #include "parser.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 
 #define QNODE_TAGSCAN       1
 #define QNODE_TABLESCAN     2

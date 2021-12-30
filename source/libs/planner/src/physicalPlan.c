@@ -207,6 +207,7 @@ static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
   }
   taosArrayPush(currentLevel, &subplan);
   pCxt->pCurrentSubplan = subplan;
+  ++(pCxt->pDag->numOfSubplans);
   return subplan;
 }
 
@@ -293,11 +294,14 @@ static void splitInsertSubplan(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
   SArray* vgs = (SArray*)pPlanNode->pExtInfo;
   size_t numOfVg = taosArrayGetSize(vgs);
   for (int32_t i = 0; i < numOfVg; ++i) {
+    STORE_CURRENT_SUBPLAN(pCxt);
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_MODIFY);
     SVgDataBlocks* blocks = (SVgDataBlocks*)taosArrayGetP(vgs, i);
     vgroupInfoToEpSet(&blocks->vg, &subplan->execEpSet);
     subplan->pNode = NULL;
     subplan->pDataSink = createDataInserter(pCxt, blocks);
+    subplan->type = QUERY_TYPE_MODIFY;
+    RECOVERY_CURRENT_SUBPLAN(pCxt);
   }
 }
 

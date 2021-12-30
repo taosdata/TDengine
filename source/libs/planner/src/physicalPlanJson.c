@@ -857,3 +857,84 @@ int32_t stringToSubplan(const char* str, SSubplan** subplan) {
   *subplan = subplanFromJson(json);
   return (NULL == *subplan ? TSDB_CODE_FAILED : TSDB_CODE_SUCCESS);
 }
+
+cJSON* qDagToJson(const SQueryDag* pDag) {
+  cJSON* pRoot = cJSON_CreateObject();
+  if(pRoot == NULL) {
+    return NULL;
+  }
+  cJSON_AddNumberToObject(pRoot, "numOfSubplans", pDag->numOfSubplans);
+  cJSON_AddNumberToObject(pRoot, "queryId", pDag->queryId);
+  cJSON *pLevels = cJSON_CreateArray();
+  if(pLevels == NULL) {
+    cJSON_Delete(pRoot);
+    return NULL;
+  }
+  cJSON_AddItemToObject(pRoot, "pSubplans", pLevels);
+  size_t level = taosArrayGetSize(pDag->pSubplans);
+  for(size_t i = 0; i < level; i++) {
+    const SArray* pSubplans = (const SArray*)taosArrayGetP(pDag->pSubplans, i);
+    size_t num = taosArrayGetSize(pSubplans);
+    cJSON* plansOneLevel = cJSON_CreateArray();
+    if(plansOneLevel == NULL) {
+      cJSON_Delete(pRoot);
+      return NULL;
+    }
+    cJSON_AddItemToArray(pLevels, plansOneLevel);
+    for(size_t j = 0; j < num; j++) {
+      cJSON* pSubplan = subplanToJson((const SSubplan*)taosArrayGetP(pSubplans, j));
+      if(pSubplan == NULL) {
+        cJSON_Delete(pRoot);
+        return NULL;
+      }
+      cJSON_AddItemToArray(plansOneLevel, pSubplan);
+    }
+  }
+  return pRoot;
+}
+
+char* qDagToString(const SQueryDag* pDag) {
+  cJSON* pRoot = qDagToJson(pDag);
+  return cJSON_Print(pRoot);
+}
+
+SQueryDag* qJsonToDag(const cJSON* pRoot) {
+  SQueryDag* pDag = malloc(sizeof(SQueryDag));
+  if(pDag == NULL) {
+    return NULL;
+  }
+  pDag->numOfSubplans = cJSON_GetNumberValue(cJSON_GetObjectItem(pRoot, "numOfSubplans"));
+  pDag->queryId = cJSON_GetNumberValue(cJSON_GetObjectItem(pRoot, "queryId"));
+  pDag->pSubplans = taosArrayInit(0, sizeof(SArray));
+  if (pDag->pSubplans == NULL) {
+    free(pDag);
+    return NULL;
+  }
+  cJSON* pLevels = cJSON_GetObjectItem(pRoot, "pSubplans");
+  int level = cJSON_GetArraySize(pLevels);
+  for(int i = 0; i < level; i++) {
+    SArray* plansOneLevel = taosArrayInit(0, sizeof(void*));
+    if(plansOneLevel == NULL) {
+      for(int j = 0; j < i; j++) {
+        taosArrayDestroy(taosArrayGetP(pDag->pSubplans, j));
+      }
+      taosArrayDestroy(pDag->pSubplans);
+      free(pDag);
+      return NULL;
+    }
+    cJSON* pItem = cJSON_GetArrayItem(pLevels, i);
+    int sz = cJSON_GetArraySize(pItem);
+    for(int j = 0; j < sz; j++) {
+      cJSON* pSubplanJson = cJSON_GetArrayItem(pItem, j);
+      SSubplan* pSubplan = subplanFromJson(pSubplanJson);
+      taosArrayPush(plansOneLevel, &pSubplan);
+    }
+    taosArrayPush(pDag->pSubplans, plansOneLevel);
+  }
+  return pDag;
+}
+
+SQueryDag* qStringToDag(const char* pStr) {
+  cJSON* pRoot = cJSON_Parse(pStr);
+  return qJsonToDag(pRoot);
+}

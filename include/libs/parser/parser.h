@@ -23,14 +23,11 @@ extern "C" {
 #include "parsenodes.h"
 
 typedef struct SParseContext {
-  SParseBasicCtx  ctx;
-  void            *pRpc;
-  struct SCatalog *pCatalog;
-  const SEpSet    *pEpSet;
+  SParseBasicCtx   ctx;
   int8_t           schemaAttached; // denote if submit block is built with table schema or not
   const char      *pSql;           // sql string
   size_t           sqlLen;         // length of the sql string
-  char            *pMsg;           // extended error message if exists to help avoid the problem in sql statement.
+  char            *pMsg;           // extended error message if exists to help identifying the problem in sql statement.
   int32_t          msgLen;         // max length of the msg
 } SParseContext;
 
@@ -44,7 +41,9 @@ typedef struct SParseContext {
  */
 int32_t qParseQuerySql(SParseContext* pContext, SQueryNode** pQuery);
 
-bool qIsDclQuery(const SQueryNode* pQuery);
+bool qIsDdlQuery(const SQueryNode* pQuery);
+
+void qDestroyQuery(SQueryNode* pQuery);
 
 /**
  * Convert a normal sql statement to only query tags information to enable that the subscribe client can be aware quickly of the true vgroup ids that
@@ -75,7 +74,6 @@ int32_t getExprFunctionLevel(const SQueryStmtInfo* pQueryInfo);
 
 STableMetaInfo* getMetaInfo(const SQueryStmtInfo* pQueryInfo, int32_t tableIndex);
 SSchema *getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex);
-SSchema createSchema(uint8_t type, int16_t bytes, int16_t colId, const char* name);
 
 int32_t getNewResColId();
 void addIntoSourceParam(SSourceParam* pSourceParam, tExprNode* pNode, SColumn* pColumn);

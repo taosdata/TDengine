@@ -15,9 +15,10 @@ target_link_libraries(
     PUBLIC wal
     PUBLIC sync
     PUBLIC cjson
+    PUBLIC qworker
 )
 
 # test
 if(${BUILD_TEST})
-   add_subdirectory(test)
+#    add_subdirectory(test)
 endif(${BUILD_TEST})

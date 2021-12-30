@@ -13,12 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catalog.h>
+#include "os.h"
+#include "catalog.h"
 #include "clientInt.h"
 #include "clientLog.h"
-#include "os.h"
 #include "query.h"
-#include "taosmsg.h"
+#include "scheduler.h"
+#include "tmsg.h"
 #include "tcache.h"
 #include "tconfig.h"
 #include "tglobal.h"
@@ -32,26 +33,26 @@
 #define TSC_VAR_RELEASED    0
 
 SAppInfo   appInfo;
-int32_t    tscReqRef  = -1;
-int32_t    tscConnRef = -1;
+int32_t    clientReqRefPool  = -1;
+int32_t    clientConnRefPool = -1;
 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t tscInitRes = 0;
 
 static void registerRequest(SRequestObj* pRequest) {
-  STscObj *pTscObj = (STscObj *)taosAcquireRef(tscConnRef, pRequest->pTscObj->id);
+  STscObj *pTscObj = (STscObj *)taosAcquireRef(clientConnRefPool, pRequest->pTscObj->id);
   assert(pTscObj != NULL);
 
   // connection has been released already, abort creating request.
-  pRequest->self = taosAddRef(tscReqRef, pRequest);
+  pRequest->self = taosAddRef(clientReqRefPool, pRequest);
 
   int32_t num = atomic_add_fetch_32(&pTscObj->numOfReqs, 1);
 
   if (pTscObj->pAppInfo) {
-    SInstanceActivity *pActivity = &pTscObj->pAppInfo->summary;
+    SInstanceSummary *pSummary = &pTscObj->pAppInfo->summary;
 
-    int32_t total = atomic_add_fetch_32(&pActivity->totalRequests, 1);
-    int32_t currentInst = atomic_add_fetch_32(&pActivity->currentRequests, 1);
+    int32_t total = atomic_add_fetch_32(&pSummary->totalRequests, 1);
+    int32_t currentInst = atomic_add_fetch_32(&pSummary->currentRequests, 1);
     tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64 ", current:%d, app current:%d, total:%d", pRequest->self,
              pRequest->pTscObj->id, num, currentInst, total);
   }
@@ -61,13 +62,13 @@ static void deregisterRequest(SRequestObj* pRequest) {
   assert(pRequest != NULL);
 
   STscObj* pTscObj = pRequest->pTscObj;
-  SInstanceActivity* pActivity = &pTscObj->pAppInfo->summary;
+  SInstanceSummary* pActivity = &pTscObj->pAppInfo->summary;
 
   int32_t currentInst = atomic_sub_fetch_32(&pActivity->currentRequests, 1);
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
 
   tscDebug("0x%"PRIx64" free Request from connObj: 0x%"PRIx64", current:%d, app current:%d", pRequest->self, pTscObj->id, num, currentInst);
-  taosReleaseRef(tscConnRef, pTscObj->id);
+  taosReleaseRef(clientConnRefPool, pTscObj->id);
 }
 
 static void tscInitLogFile() {
@@ -150,7 +151,7 @@ void* createTscObj(const char* user, const char* auth, const char *db, SAppInstI
   }
 
   pthread_mutex_init(&pObj->mutex, NULL);
-  pObj->id = taosAddRef(tscConnRef, pObj);
+  pObj->id = taosAddRef(clientConnRefPool, pObj);
 
   tscDebug("connObj created, 0x%"PRIx64, pObj->id);
   return pObj;
@@ -167,13 +168,11 @@ void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t ty
 
   // TODO generated request uuid
   pRequest->requestId  = 0;
-
   pRequest->metric.start = taosGetTimestampMs();
 
   pRequest->type       = type;
   pRequest->pTscObj    = pObj;
-  pRequest->body.fp    = fp;
-//  pRequest->body.requestMsg. = param;
+  pRequest->body.fp    = fp;    // not used it yet
   pRequest->msgBuf     = calloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   tsem_init(&pRequest->body.rspSem, 0, 0);
 
@@ -202,7 +201,7 @@ void destroyRequest(SRequestObj* pRequest) {
     return;
   }
 
-  taosReleaseRef(tscReqRef, pRequest->self);
+  taosReleaseRef(clientReqRefPool, pRequest->self);
 }
 
 void taos_init_imp(void) {
@@ -229,17 +228,19 @@ void taos_init_imp(void) {
 
   rpcInit();
 
-  SCatalogCfg cfg = {.enableVgroupCache = true, .maxDBCacheNum = 100, .maxTblCacheNum = 100};
+  SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   catalogInit(&cfg);
 
+  SSchedulerCfg scfg = {.maxJobNum = 100};
+  schedulerInit(&scfg);
   tscDebug("starting to initialize TAOS driver, local ep: %s", tsLocalEp);
 
   taosSetCoreDump(true);
 
   initTaskQueue();
 
-  tscConnRef = taosOpenRef(200, destroyTscObj);
-  tscReqRef  = taosOpenRef(40960, doDestroyRequest);
+  clientConnRefPool = taosOpenRef(200, destroyTscObj);
+  clientReqRefPool  = taosOpenRef(40960, doDestroyRequest);
 
   taosGetAppName(appInfo.appName, NULL);
   appInfo.pid       = taosGetPId();

@@ -24,13 +24,13 @@ void Testbase::InitLog(const char* path) {
   tmrDebugFlag = 0;
   uDebugFlag = 143;
   rpcDebugFlag = 0;
-  odbcDebugFlag = 0;
   qDebugFlag = 0;
   wDebugFlag = 0;
   sDebugFlag = 0;
   tsdbDebugFlag = 0;
   cqDebugFlag = 0;
   tscEmbeddedInUtil = 1;
+  tsAsyncLog = 0;
 
   taosRemoveDir(path);
   taosMkDir(path);
@@ -47,7 +47,7 @@ void Testbase::Init(const char* path, int16_t port) {
   char firstEp[TSDB_EP_LEN] = {0};
   snprintf(firstEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
 
-  InitLog("/tmp/tdlog");
+  InitLog("/tmp/td");
   server.Start(path, fqdn, port, firstEp);
   client.Init("root", "taosdata", fqdn, port);
   taosMsleep(1100);
@@ -60,7 +60,7 @@ void Testbase::Cleanup() {
 
 void Testbase::Restart() { server.Restart(); }
 
-SRpcMsg* Testbase::SendMsg(int8_t msgType, void* pCont, int32_t contLen) {
+SRpcMsg* Testbase::SendMsg(tmsg_t msgType, void* pCont, int32_t contLen) {
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pCont;
   rpcMsg.contLen = contLen;
@@ -75,7 +75,7 @@ void Testbase::SendShowMetaMsg(int8_t showType, const char* db) {
   pShow->type = showType;
   strcpy(pShow->db, db);
 
-  SRpcMsg*  pMsg = SendMsg(TSDB_MSG_TYPE_SHOW, pShow, contLen);
+  SRpcMsg*  pMsg = SendMsg(TDMT_MND_SHOW, pShow, contLen);
   SShowRsp* pShowRsp = (SShowRsp*)pMsg->pCont;
 
   ASSERT(pShowRsp != nullptr);
@@ -124,7 +124,7 @@ void Testbase::SendShowRetrieveMsg() {
   pRetrieve->showId = htonl(showId);
   pRetrieve->free = 0;
 
-  SRpcMsg* pMsg = SendMsg(TSDB_MSG_TYPE_SHOW_RETRIEVE, pRetrieve, contLen);
+  SRpcMsg* pMsg = SendMsg(TDMT_MND_SHOW_RETRIEVE, pRetrieve, contLen);
   pRetrieveRsp = (SRetrieveTableRsp*)pMsg->pCont;
   pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
   pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);

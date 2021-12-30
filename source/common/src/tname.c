@@ -2,7 +2,7 @@
 #include "tutil.h"
 
 #include "tname.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 
 #define VALID_NAME_TYPE(x)  ((x) == TSDB_DB_NAME_T || (x) == TSDB_TABLE_NAME_T)
 
@@ -110,7 +110,7 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
     return -1;
   }
 
-  int32_t len = snprintf(dst, TSDB_FULL_DB_NAME_LEN, "%d.%s", name->acctId, name->dbname);
+  int32_t len = snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
 
   size_t tnameLen = strlen(name->tname);
   if (tnameLen > 0) {
@@ -134,10 +134,10 @@ int32_t tNameLen(const SName* name) {
 
   if (name->type == TSDB_DB_NAME_T) {
     assert(len2 == 0);
-    return len + len1 + TS_PATH_DELIMITER_LEN;
+    return len + len1 + TSDB_NAME_DELIMITER_LEN;
   } else {
     assert(len2 > 0);
-    return len + len1 + len2 + TS_PATH_DELIMITER_LEN * 2;
+    return len + len1 + len2 + TSDB_NAME_DELIMITER_LEN * 2;
   }
 }
 
@@ -171,8 +171,7 @@ int32_t tNameGetDbName(const SName* name, char* dst) {
 
 int32_t tNameGetFullDbName(const SName* name, char* dst) {
   assert(name != NULL && dst != NULL);
-  snprintf(dst, TSDB_ACCT_ID_LEN + TS_PATH_DELIMITER_LEN + TSDB_DB_NAME_LEN,    // there is a over write risk
-      "%d.%s", name->acctId, name->dbname);
+  snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
   return 0;
 }
 
@@ -259,4 +258,14 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
   }
 
   return 0;
+}
+
+SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name) {
+  SSchema s = {0};
+  s.type  = type;
+  s.bytes = bytes;
+  s.colId = colId;
+
+  tstrncpy(s.name, name, tListLen(s.name));
+  return s;
 }

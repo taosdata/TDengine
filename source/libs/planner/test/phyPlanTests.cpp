@@ -60,7 +60,7 @@ protected:
       return code;
     }
     SQueryDag* dag = nullptr;
-    code = qCreateQueryDag(query, nullptr, &dag);
+    code = qCreateQueryDag(query, &dag);
     dag_.reset(dag);
     return code;
   }
@@ -83,7 +83,7 @@ protected:
     }
   }
 
-  SQueryDag* reslut() {
+  SQueryDag* result() {
     return dag_.get();
   }
 
@@ -149,8 +149,15 @@ TEST_F(PhyPlanTest, tableScanTest) {
   pushScan("test", "t1", QNODE_TABLESCAN);
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   explain();
-  SQueryDag* dag = reslut();
+  SQueryDag* dag = result();
   // todo check
+}
+
+TEST_F(PhyPlanTest, serializeTest) {
+  pushScan("test", "t1", QNODE_TABLESCAN);
+  ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
+  SQueryDag* dag = result();
+  cout << qDagToString(dag) << endl;
 }
 
 // select * from supertable
@@ -158,7 +165,7 @@ TEST_F(PhyPlanTest, superTableScanTest) {
   pushScan("test", "st1", QNODE_TABLESCAN);
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   explain();
-  SQueryDag* dag = reslut();
+  SQueryDag* dag = result();
   // todo check
 }
 
@@ -166,6 +173,6 @@ TEST_F(PhyPlanTest, superTableScanTest) {
 TEST_F(PhyPlanTest, insertTest) {
   ASSERT_EQ(run("test", "insert into t1 values (now, 1, \"beijing\")"), TSDB_CODE_SUCCESS);
   explain();
-  SQueryDag* dag = reslut();
+  SQueryDag* dag = result();
   // todo check
 }

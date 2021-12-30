@@ -1,5 +1,5 @@
-#include <astGenerator.h>
 #include "parserInt.h"
+#include "astGenerator.h"
 #include "parserUtil.h"
 
 SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
@@ -86,11 +86,10 @@ SDropUserMsg* buildDropUserMsg(SSqlInfo* pInfo, int32_t *msgLen, int64_t id, cha
   return pMsg;
 }
 
-SShowMsg* buildShowMsg(SShowInfo* pShowInfo, int64_t id, char* msgBuf, int32_t msgLen) {
+SShowMsg* buildShowMsg(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, char* msgBuf, int32_t msgLen) {
   SShowMsg* pShowMsg = calloc(1, sizeof(SShowMsg));
 
   pShowMsg->type = pShowInfo->showType;
-
   if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {
     SToken* pPattern = &pShowInfo->pattern;
     if (pPattern->type > 0) {  // only show tables support wildcard query
@@ -103,6 +102,12 @@ SShowMsg* buildShowMsg(SShowInfo* pShowInfo, int64_t id, char* msgBuf, int32_t m
 
     strncpy(pShowMsg->payload, pEpAddr->z, pEpAddr->n);
     pShowMsg->payloadLen = htons(pEpAddr->n);
+  }
+
+  if (pShowInfo->showType == TSDB_MGMT_TABLE_STB || pShowInfo->showType == TSDB_MGMT_TABLE_VGROUP) {
+    SName n = {0};
+    tNameSetDbName(&n, pCtx->acctId, pCtx->db, strlen(pCtx->db));
+    tNameGetFullDbName(&n, pShowMsg->db);
   }
 
   return pShowMsg;
@@ -176,19 +181,20 @@ static int32_t setTimePrecision(SCreateDbMsg* pMsg, const SCreateDbInfo* pCreate
 
 static void doSetDbOptions(SCreateDbMsg* pMsg, const SCreateDbInfo* pCreateDb) {
   pMsg->cacheBlockSize = htonl(pCreateDb->cacheBlockSize);
-  pMsg->totalBlocks  = htonl(pCreateDb->numOfBlocks);
-  pMsg->daysPerFile  = htonl(pCreateDb->daysPerFile);
-  pMsg->commitTime   = htonl((int32_t)pCreateDb->commitTime);
-  pMsg->minRows = htonl(pCreateDb->minRowsPerBlock);
-  pMsg->maxRows = htonl(pCreateDb->maxRowsPerBlock);
-  pMsg->fsyncPeriod  = htonl(pCreateDb->fsyncPeriod);
-  pMsg->compression  = pCreateDb->compressionLevel;
-  pMsg->walLevel     = (char)pCreateDb->walLevel;
-  pMsg->replications = pCreateDb->replica;
-  pMsg->quorum       = pCreateDb->quorum;
-  pMsg->ignoreExist  = pCreateDb->ignoreExists;
-  pMsg->update       = pCreateDb->update;
-  pMsg->cacheLastRow = pCreateDb->cachelast;
+  pMsg->totalBlocks    = htonl(pCreateDb->numOfBlocks);
+  pMsg->daysPerFile    = htonl(pCreateDb->daysPerFile);
+  pMsg->commitTime     = htonl((int32_t)pCreateDb->commitTime);
+  pMsg->minRows        = htonl(pCreateDb->minRowsPerBlock);
+  pMsg->maxRows        = htonl(pCreateDb->maxRowsPerBlock);
+  pMsg->fsyncPeriod    = htonl(pCreateDb->fsyncPeriod);
+  pMsg->compression    = (int8_t) pCreateDb->compressionLevel;
+  pMsg->walLevel       = (char)pCreateDb->walLevel;
+  pMsg->replications   = pCreateDb->replica;
+  pMsg->quorum         = pCreateDb->quorum;
+  pMsg->ignoreExist    = pCreateDb->ignoreExists;
+  pMsg->update         = pCreateDb->update;
+  pMsg->cacheLastRow   = pCreateDb->cachelast;
+  pMsg->numOfVgroups   = htonl(pCreateDb->numOfVgroups);
 }
 
 int32_t setDbOptions(SCreateDbMsg* pCreateDbMsg, const SCreateDbInfo* pCreateDbSql, SMsgBuf* pMsgBuf) {
@@ -202,8 +208,6 @@ int32_t setDbOptions(SCreateDbMsg* pCreateDbMsg, const SCreateDbInfo* pCreateDbS
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  // todo configurable
-  pCreateDbMsg->numOfVgroups = htonl(2);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -225,45 +229,6 @@ SCreateDbMsg* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, SParseBasicCtx *pCt
 
   tNameGetFullDbName(&name, pCreateMsg->db);
   return pCreateMsg;
-}
-
-int32_t createSName(SName* pName, SToken* pTableName, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
-  const char* msg1 = "name too long";
-  const char* msg2 = "acctId too long";
-
-  int32_t  code = TSDB_CODE_SUCCESS;
-  char* p  = strnchr(pTableName->z, TS_PATH_DELIMITER[0], pTableName->n, false);
-
-  if (p != NULL) { // db has been specified in sql string so we ignore current db path
-    code = tNameSetAcctId(pName, pParseCtx->acctId);
-    if (code != 0) {
-      return buildInvalidOperationMsg(pMsgBuf, msg2);
-    }
-
-    char name[TSDB_TABLE_FNAME_LEN] = {0};
-    strncpy(name, pTableName->z, pTableName->n);
-
-    code = tNameFromString(pName, name, T_NAME_DB|T_NAME_TABLE);
-    if (code != 0) {
-      return buildInvalidOperationMsg(pMsgBuf, msg1);
-    }
-  } else {  // get current DB name first, and then set it into path
-    if (pTableName->n >= TSDB_TABLE_NAME_LEN) {
-      return buildInvalidOperationMsg(pMsgBuf, msg1);
-    }
-
-    tNameSetDbName(pName, pParseCtx->acctId, pParseCtx->db, strlen(pParseCtx->db));
-
-    char name[TSDB_TABLE_FNAME_LEN] = {0};
-    strncpy(name, pTableName->z, pTableName->n);
-
-    code = tNameFromString(pName, name, T_NAME_TABLE);
-    if (code != 0) {
-      code = buildInvalidOperationMsg(pMsgBuf, msg1);
-    }
-  }
-
-  return code;
 }
 
 SCreateStbMsg* buildCreateTableMsg(SCreateTableSql* pCreateTableSql, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
@@ -350,7 +315,7 @@ SCreateStbMsg* buildCreateTableMsg(SCreateTableSql* pCreateTableSql, int32_t* le
   return pCreateTableMsg;
 }
 
-SDropTableMsg* buildDropTableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
+SDropStbMsg* buildDropStableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
   SToken* tableName = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
   SName name = {0};
@@ -360,13 +325,77 @@ SDropTableMsg* buildDropTableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* 
     return NULL;
   }
 
-  SDropTableMsg *pDropTableMsg = (SDropTableMsg*) calloc(1, sizeof(SDropTableMsg));
+  SDropStbMsg *pDropTableMsg = (SDropStbMsg*) calloc(1, sizeof(SDropStbMsg));
 
   code = tNameExtractFullName(&name, pDropTableMsg->name);
   assert(code == TSDB_CODE_SUCCESS && name.type == TSDB_TABLE_NAME_T);
 
-  pDropTableMsg->ignoreNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
+  pDropTableMsg->igNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
   *len = sizeof(SDropTableMsg);
   return pDropTableMsg;
+}
+
+SCreateDnodeMsg *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
+  const char* msg1 = "invalid host name (name too long, maximum length 128)";
+  const char* msg2 = "dnode name can not be string";
+  const char* msg3 = "port should be an integer that is less than 65535";
+  const char* msg4 = "failed prepare create dnode message";
+
+  if (taosArrayGetSize(pInfo->pMiscInfo->a) != 2) {
+    buildInvalidOperationMsg(pMsgBuf, msg1);
+    return NULL;
+  }
+
+  SToken* id = taosArrayGet(pInfo->pMiscInfo->a, 0);
+  if (id->type != TK_ID && id->type != TK_IPTOKEN) {
+    buildInvalidOperationMsg(pMsgBuf, msg2);
+    return NULL;
+  }
+
+  SToken* port = taosArrayGet(pInfo->pMiscInfo->a, 1);
+  if (port->type != TK_INTEGER) {
+    buildInvalidOperationMsg(pMsgBuf, msg3);
+    return NULL;
+  }
+
+  bool    isSign = false;
+  int64_t val = 0;
+
+  toInteger(port->z, port->n, 10, &val, &isSign);
+  if (val >= UINT16_MAX) {
+    buildInvalidOperationMsg(pMsgBuf, msg3);
+    return NULL;
+  }
+
+  SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *) calloc(1, sizeof(SCreateDnodeMsg));
+  if (pCreate == NULL) {
+    buildInvalidOperationMsg(pMsgBuf, msg4);
+    return NULL;
+  }
+
+  strncpy(pCreate->fqdn, id->z, id->n);
+  pCreate->port = htonl(val);
+
+  *len = sizeof(SCreateDnodeMsg);
+  return pCreate;
+}
+
+SDropDnodeMsg *buildDropDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
+  SToken* pzName = taosArrayGet(pInfo->pMiscInfo->a, 0);
+
+
+  char* end = NULL;
+  SDropDnodeMsg * pDrop = (SDropDnodeMsg *)calloc(1, sizeof(SDropDnodeMsg));
+  pDrop->dnodeId = strtoll(pzName->z, &end, 10);
+  pDrop->dnodeId = htonl(pDrop->dnodeId);
+  *len = sizeof(SDropDnodeMsg);
+
+  if (end - pzName->z != pzName->n) {
+    buildInvalidOperationMsg(pMsgBuf, "invalid dnode id");
+    tfree(pDrop);
+    return NULL;
+  }
+
+  return pDrop;
 }
 

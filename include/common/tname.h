@@ -16,18 +16,23 @@
 #ifndef TDENGINE_TNAME_H
 #define TDENGINE_TNAME_H
 
+#include "tdef.h"
+#include "tmsg.h"
+
 #define TSDB_DB_NAME_T     1
 #define TSDB_TABLE_NAME_T  2
 
 #define T_NAME_ACCT        0x1u
 #define T_NAME_DB          0x2u
 #define T_NAME_TABLE       0x4u
+#define T_NAME_TOPIC       0x8u
 
 typedef struct SName {
   uint8_t type;  //db_name_t, table_name_t
   int32_t acctId;
   char    dbname[TSDB_DB_NAME_LEN];
   char    tname[TSDB_TABLE_NAME_LEN];
+  char    topicName[TSDB_TOPIC_NAME_LEN];
 } SName;
 
 int32_t tNameExtractFullName(const SName* name, char* dst);
@@ -53,5 +58,7 @@ int32_t tNameSetDbName(SName* dst, int32_t acctId, const char* dbName, size_t na
 int32_t tNameFromString(SName* dst, const char* str, uint32_t type);
 
 int32_t tNameSetAcctId(SName* dst, int32_t acctId);
+
+SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name);
 
 #endif  // TDENGINE_TNAME_H

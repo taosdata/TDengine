@@ -23,6 +23,7 @@ extern "C" {
 #include "tarray.h"
 #include "thash.h"
 #include "tlog.h"
+#include "tmsg.h"
 
 enum {
   JOB_TASK_STATUS_NULL = 0,
@@ -73,27 +74,42 @@ typedef struct STableMeta {
   SSchema        schema[];
 } STableMeta;
 
-
 typedef struct SDBVgroupInfo {
+  int32_t   lock;
   int32_t   vgVersion;  
   int8_t    hashMethod;
   SHashObj *vgInfo;  //key:vgId, value:SVgroupInfo
 } SDBVgroupInfo;
 
 typedef struct SUseDbOutput {
-  char db[TSDB_FULL_DB_NAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
   SDBVgroupInfo dbVgroup;
 } SUseDbOutput;
 
 typedef struct STableMetaOutput {
   int32_t     metaNum;
   char        ctbFname[TSDB_TABLE_FNAME_LEN];
-  char        tbFname[TSDB_TABLE_FNAME_LEN];  
+  char        tbFname[TSDB_TABLE_FNAME_LEN];
   SCTableMeta ctbMeta;
   STableMeta *tbMeta;
 } STableMetaOutput;
 
-typedef int32_t __async_exec_fn_t(void* param);
+typedef struct SDataBuf {
+  void     *pData;
+  uint32_t  len;
+} SDataBuf;
+
+typedef int32_t (*__async_send_cb_fn_t)(void* param, const SDataBuf* pMsg, int32_t code);
+typedef int32_t (*__async_exec_fn_t)(void* param);
+
+typedef struct SMsgSendInfo {
+  __async_send_cb_fn_t fp;        //async callback function
+  void     *param;
+  uint64_t  requestId;
+  uint64_t  requestObjRefId;
+  int32_t   msgType;
+  SDataBuf  msgInfo;
+} SMsgSendInfo;
 
 bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
 
@@ -109,11 +125,22 @@ int32_t cleanupTaskQueue();
  */
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
 
-SSchema* tGetTbnameColumnSchema();
+/**
+ * Asynchronously send message to server, after the response received, the callback will be incured.
+ *
+ * @param pTransporter
+ * @param epSet
+ * @param pTransporterId
+ * @param pInfo
+ * @return
+ */
+int32_t asyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo);
+
+const SSchema* tGetTbnameColumnSchema();
 void initQueryModuleMsgHandle();
 
-extern int32_t (*queryBuildMsg[TSDB_MSG_TYPE_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
-extern int32_t (*queryProcessMsgRsp[TSDB_MSG_TYPE_MAX])(void* output, char *msg, int32_t msgSize);
+extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
+extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char *msg, int32_t msgSize);
 
 #define qFatal(...)  do { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", qDebugFlag, __VA_ARGS__); }} while(0)
 #define qError(...)  do { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", qDebugFlag, __VA_ARGS__); }} while(0)

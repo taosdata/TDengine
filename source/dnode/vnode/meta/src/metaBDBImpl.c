@@ -125,11 +125,11 @@ void metaCloseDB(SMeta *pMeta) {
 }
 
 int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
-  tb_uid_t  uid;
-  char      buf[512];
-  void *    pBuf;
-  DBT       key, value;
-  STSchema *pSchema = NULL;
+  tb_uid_t uid;
+  char     buf[512];
+  void *   pBuf;
+  DBT      key, value;
+  SSchema *pSchema = NULL;
 
   if (pTbCfg->type == META_SUPER_TABLE) {
     uid = pTbCfg->stbCfg.suid;
@@ -156,9 +156,12 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
   }
 
   // save schema
+  uint32_t ncols;
   if (pTbCfg->type == META_SUPER_TABLE) {
+    ncols = pTbCfg->stbCfg.nCols;
     pSchema = pTbCfg->stbCfg.pSchema;
   } else if (pTbCfg->type == META_NORMAL_TABLE) {
+    ncols = pTbCfg->ntbCfg.nCols;
     pSchema = pTbCfg->ntbCfg.pSchema;
   }
 
@@ -166,12 +169,18 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     pBuf = buf;
     memset(&key, 0, sizeof(key));
     memset(&value, 0, sizeof(key));
-    SSchemaKey schemaKey = {uid, schemaVersion(pSchema)};
+    SSchemaKey schemaKey = {uid, 0 /*TODO*/};
 
     key.data = &schemaKey;
     key.size = sizeof(schemaKey);
 
-    tdEncodeSchema(&pBuf, pSchema);
+    taosEncodeFixedU32(&pBuf, ncols);
+    for (size_t i = 0; i < ncols; i++) {
+      taosEncodeFixedI8(&pBuf, pSchema[i].type);
+      taosEncodeFixedI32(&pBuf, pSchema[i].colId);
+      taosEncodeFixedI32(&pBuf, pSchema[i].bytes);
+      taosEncodeString(&pBuf, pSchema[i].name);
+    }
 
     value.data = buf;
     value.size = POINTER_DISTANCE(pBuf, buf);
@@ -342,7 +351,7 @@ static int metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey
     pDbt[0].size = sizeof(pTbCfg->ctbCfg.suid);
 
     // Second key is the first tag
-    void *pTagVal = tdGetKVRowValOfCol(pTbCfg->ctbCfg.pTag, 0);
+    void *pTagVal = tdGetKVRowValOfCol(pTbCfg->ctbCfg.pTag, (kvRowColIdx(pTbCfg->ctbCfg.pTag))[0].colId);
     pDbt[1].data = varDataVal(pTagVal);
     pDbt[1].size = varDataLen(pTagVal);
 
@@ -367,7 +376,15 @@ static int metaEncodeTbInfo(void **buf, STbCfg *pTbCfg) {
   tsize += taosEncodeFixedU8(buf, pTbCfg->type);
 
   if (pTbCfg->type == META_SUPER_TABLE) {
-    tsize += tdEncodeSchema(buf, pTbCfg->stbCfg.pTagSchema);
+    tsize += taosEncodeVariantU32(buf, pTbCfg->stbCfg.nTagCols);
+    for (uint32_t i = 0; i < pTbCfg->stbCfg.nTagCols; i++) {
+      tsize += taosEncodeFixedI8(buf, pTbCfg->stbCfg.pSchema[i].type);
+      tsize += taosEncodeFixedI32(buf, pTbCfg->stbCfg.pSchema[i].colId);
+      tsize += taosEncodeFixedI32(buf, pTbCfg->stbCfg.pSchema[i].bytes);
+      tsize += taosEncodeString(buf, pTbCfg->stbCfg.pSchema[i].name);
+    }
+
+    // tsize += tdEncodeSchema(buf, pTbCfg->stbCfg.pTagSchema);
   } else if (pTbCfg->type == META_CHILD_TABLE) {
     tsize += taosEncodeFixedU64(buf, pTbCfg->ctbCfg.suid);
     tsize += tdEncodeKVRow(buf, pTbCfg->ctbCfg.pTag);
@@ -386,7 +403,14 @@ static void *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg) {
   buf = taosDecodeFixedU8(buf, &(pTbCfg->type));
 
   if (pTbCfg->type == META_SUPER_TABLE) {
-    buf = tdDecodeSchema(buf, &(pTbCfg->stbCfg.pTagSchema));
+    buf = taosDecodeVariantU32(buf, &(pTbCfg->stbCfg.nTagCols));
+    pTbCfg->stbCfg.pTagSchema = (SSchema *)malloc(sizeof(SSchema) * pTbCfg->stbCfg.nTagCols);
+    for (uint32_t i = 0; i < pTbCfg->stbCfg.nTagCols; i++) {
+      buf = taosDecodeFixedI8(buf, &(pTbCfg->stbCfg.pSchema[i].type));
+      buf = taosDecodeFixedI32(buf, &pTbCfg->stbCfg.pSchema[i].colId);
+      buf = taosDecodeFixedI32(buf, &pTbCfg->stbCfg.pSchema[i].bytes);
+      buf = taosDecodeStringTo(buf, pTbCfg->stbCfg.pSchema[i].name);
+    }
   } else if (pTbCfg->type == META_CHILD_TABLE) {
     buf = taosDecodeFixedU64(buf, &(pTbCfg->ctbCfg.suid));
     buf = tdDecodeKVRow(buf, &(pTbCfg->ctbCfg.pTag));
@@ -404,4 +428,82 @@ static void metaClearTbCfg(STbCfg *pTbCfg) {
   } else if (pTbCfg->type == META_CHILD_TABLE) {
     tfree(pTbCfg->ctbCfg.pTag);
   }
+}
+
+/* ------------------------ FOR QUERY ------------------------ */
+int metaGetTableInfo(SMeta *pMeta, char *tbname, STableMetaMsg **ppMsg) {
+  DBT            key = {0};
+  DBT            value = {0};
+  SMetaDB *      pMetaDB = pMeta->pDB;
+  int            ret;
+  STbCfg         tbCfg;
+  SSchemaKey     schemaKey;
+  DBT            key1 = {0};
+  DBT            value1 = {0};
+  uint32_t       ncols;
+  void *         pBuf;
+  int            tlen;
+  STableMetaMsg *pMsg;
+  SSchema *      pSchema;
+
+  key.data = tbname;
+  key.size = strlen(tbname) + 1;
+
+  ret = pMetaDB->pNameIdx->get(pMetaDB->pNameIdx, NULL, &key, &value, 0);
+  if (ret != 0) {
+    // TODO
+    return -1;
+  }
+
+  metaDecodeTbInfo(value.data, &tbCfg);
+
+  switch (tbCfg.type) {
+    case META_SUPER_TABLE:
+      schemaKey.uid = tbCfg.stbCfg.suid;
+      schemaKey.sver = 0;
+
+      key1.data = &schemaKey;
+      key1.size = sizeof(schemaKey);
+
+      ret = pMetaDB->pSchemaDB->get(pMetaDB->pSchemaDB, &key1, &value1, NULL, 0);
+      if (ret != 0) {
+        // TODO
+        return -1;
+      }
+      pBuf = value1.data;
+      pBuf = taosDecodeFixedU32(pBuf, &ncols);
+
+      tlen = sizeof(STableMetaMsg) + (tbCfg.stbCfg.nTagCols + ncols) * sizeof(SSchema);
+      pMsg = calloc(1, tlen);
+      if (pMsg == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+
+      strcpy(pMsg->tbFname, tbCfg.name);
+      pMsg->numOfTags = tbCfg.stbCfg.nTagCols;
+      pMsg->numOfColumns = ncols;
+      pMsg->tableType = tbCfg.type;
+      pMsg->sversion = 0;
+      pMsg->tversion = 0;
+      pMsg->suid = tbCfg.stbCfg.suid;
+      pMsg->tuid = tbCfg.stbCfg.suid;
+      memcpy(pMsg->pSchema, tbCfg.stbCfg.pSchema, sizeof(SSchema) * tbCfg.stbCfg.nCols);
+      memcpy(POINTER_SHIFT(pMsg->pSchema, sizeof(SSchema) * tbCfg.stbCfg.nCols), tbCfg.stbCfg.pTagSchema,
+              sizeof(SSchema) * tbCfg.stbCfg.nTagCols);
+      break;
+    case META_CHILD_TABLE:
+      ASSERT(0);
+      break;
+    case META_NORMAL_TABLE:
+      ASSERT(0);
+      break;
+    default:
+      ASSERT(0);
+      break;
+  }
+
+  *ppMsg = pMsg;
+
+  return 0;
 }

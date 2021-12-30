@@ -57,7 +57,7 @@ TEST_F(DndTestDnode, 01_ShowDnode) {
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_SMALLINT, 2, "id");
   CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN + VARSTR_HEADER_SIZE, "endpoint");
   CHECK_SCHEMA(2, TSDB_DATA_TYPE_SMALLINT, 2, "vnodes");
-  CHECK_SCHEMA(3, TSDB_DATA_TYPE_SMALLINT, 2, "max_vnodes");
+  CHECK_SCHEMA(3, TSDB_DATA_TYPE_SMALLINT, 2, "support_vnodes");
   CHECK_SCHEMA(4, TSDB_DATA_TYPE_BINARY, 10 + VARSTR_HEADER_SIZE, "status");
   CHECK_SCHEMA(5, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
   CHECK_SCHEMA(6, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "offline_reason");
@@ -68,7 +68,7 @@ TEST_F(DndTestDnode, 01_ShowDnode) {
   CheckInt16(1);
   CheckBinary("localhost:9041", TSDB_EP_LEN);
   CheckInt16(0);
-  CheckInt16(1);
+  CheckInt16(16);
   CheckBinary("ready", 10);
   CheckTimestamp();
   CheckBinary("", 24);
@@ -81,7 +81,7 @@ TEST_F(DndTestDnode, 02_ConfigDnode) {
   pReq->dnodeId = htonl(1);
   strcpy(pReq->config, "ddebugflag 131");
 
-  SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CONFIG_DNODE, pReq, contLen);
+  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CONFIG_DNODE, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, 0);
 }
@@ -91,9 +91,10 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
     int32_t contLen = sizeof(SCreateDnodeMsg);
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
-    strcpy(pReq->ep, "localhost:9042");
+    strcpy(pReq->fqdn, "localhost");
+    pReq->port = htonl(9042);
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -111,8 +112,8 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckBinary("localhost:9042", TSDB_EP_LEN);
   CheckInt16(0);
   CheckInt16(0);
-  CheckInt16(1);
-  CheckInt16(1);
+  CheckInt16(16);
+  CheckInt16(16);
   CheckBinary("ready", 10);
   CheckBinary("ready", 10);
   CheckTimestamp();
@@ -126,7 +127,7 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
     SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_DROP_DNODE, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -139,7 +140,7 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckInt16(1);
   CheckBinary("localhost:9041", TSDB_EP_LEN);
   CheckInt16(0);
-  CheckInt16(1);
+  CheckInt16(16);
   CheckBinary("ready", 10);
   CheckTimestamp();
   CheckBinary("", 24);
@@ -148,9 +149,10 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
     int32_t contLen = sizeof(SCreateDnodeMsg);
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
-    strcpy(pReq->ep, "localhost:9043");
+    strcpy(pReq->fqdn, "localhost");
+    pReq->port = htonl(9043);
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -159,9 +161,10 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
     int32_t contLen = sizeof(SCreateDnodeMsg);
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
-    strcpy(pReq->ep, "localhost:9044");
+    strcpy(pReq->fqdn, "localhost");
+    pReq->port = htonl(9044);
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -170,9 +173,10 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
     int32_t contLen = sizeof(SCreateDnodeMsg);
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
-    strcpy(pReq->ep, "localhost:9045");
+    strcpy(pReq->fqdn, "localhost");
+    pReq->port = htonl(9045);
 
-    SRpcMsg* pMsg = test.SendMsg(TSDB_MSG_TYPE_CREATE_DNODE, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
   }
@@ -195,10 +199,10 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckInt16(0);
   CheckInt16(0);
   CheckInt16(0);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckInt16(1);
+  CheckInt16(16);
+  CheckInt16(16);
+  CheckInt16(16);
+  CheckInt16(16);
   CheckBinary("ready", 10);
   CheckBinary("ready", 10);
   CheckBinary("ready", 10);
@@ -238,10 +242,10 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckInt16(0);
   CheckInt16(0);
   CheckInt16(0);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckInt16(1);
-  CheckInt16(1);
+  CheckInt16(16);
+  CheckInt16(16);
+  CheckInt16(16);
+  CheckInt16(16);
   CheckBinary("ready", 10);
   CheckBinary("ready", 10);
   CheckBinary("ready", 10);

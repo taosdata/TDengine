@@ -20,7 +20,7 @@
 #include "../../../include/client/taos.h"
 #include "os.h"
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tglobal.h"
 #include "tsclient.h"
 #include "tsdb.h"

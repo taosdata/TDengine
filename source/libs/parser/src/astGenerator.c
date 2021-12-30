@@ -13,11 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "astGenerator.h"
-#include <parserInt.h>
 #include "os.h"
 #include "taos.h"
+#include "tmsg.h"
+#include "parserInt.h"
 #include "tmsgtype.h"
+#include "astGenerator.h"
 
 SArray *tListItemAppend(SArray *pList, SVariant *pVar, uint8_t sortOrder) {
   if (pList == NULL) {
@@ -276,7 +277,7 @@ bool      tSqlExprIsLeaf(tSqlExpr *pExpr) {
   return (pExpr->pRight == NULL && pExpr->pLeft == NULL) &&
          (pExpr->tokenId == 0 ||
           (pExpr->tokenId == TK_ID) ||
-          (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_NCHAR) ||
+          (pExpr->tokenId == TK_BOOL || pExpr->tokenId == TK_STRING || pExpr->tokenId == TK_FLOAT) ||
           (pExpr->tokenId == TK_NULL) ||
           (pExpr->tokenId == TK_SET));
 }
@@ -947,25 +948,21 @@ void setCompactVnodeSql(SSqlInfo *pInfo, int32_t type, SArray *pParam) {
 }
 
 void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo) {
-  pDBInfo->compressionLevel = -1;
-
-  pDBInfo->walLevel    = -1;
-  pDBInfo->fsyncPeriod = -1;
-  pDBInfo->commitTime  = -1;
-  pDBInfo->maxTablesPerVnode = -1;
-
+  pDBInfo->compressionLevel= -1;
+  pDBInfo->walLevel        = -1;
+  pDBInfo->fsyncPeriod     = -1;
+  pDBInfo->commitTime      = -1;
+  pDBInfo->numOfVgroups    = 2;
   pDBInfo->cacheBlockSize  = -1;
   pDBInfo->numOfBlocks     = -1;
   pDBInfo->maxRowsPerBlock = -1;
   pDBInfo->minRowsPerBlock = -1;
   pDBInfo->daysPerFile     = -1;
-
-  pDBInfo->replica = -1;
-  pDBInfo->quorum  = -1;
-  pDBInfo->keep    = NULL;
-
-  pDBInfo->update  = -1;
-  pDBInfo->cachelast = -1;
+  pDBInfo->replica         = -1;
+  pDBInfo->quorum          = -1;
+  pDBInfo->keep            = NULL;
+  pDBInfo->update          = -1;
+  pDBInfo->cachelast       = -1;
 
   memset(&pDBInfo->precision, 0, sizeof(SToken));
 }

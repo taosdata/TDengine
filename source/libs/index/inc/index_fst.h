@@ -319,6 +319,8 @@ bool streamWithStateSeekMin(StreamWithState* sws, FstBoundWithData* min);
 StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallback callback);
 
 FstStreamBuilder* fstStreamBuilderCreate(Fst* fst, AutomationCtx* aut);
+
+void fstStreamBuilderDestroy(FstStreamBuilder* b);
 // set up bound range
 // refator, simple code by marco
 

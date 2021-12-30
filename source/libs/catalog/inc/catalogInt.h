@@ -31,6 +31,11 @@ extern "C" {
 
 #define CTG_DEFAULT_INVALID_VERSION (-1)
 
+enum {
+  CTG_READ = 1,
+  CTG_WRITE,
+};
+
 typedef struct SVgroupListCache {
   int32_t vgroupVersion;
   SHashObj *cache;        // key:vgId, value:SVgroupInfo
@@ -41,12 +46,12 @@ typedef struct SDBVgroupCache {
 } SDBVgroupCache;
 
 typedef struct STableMetaCache {
+  SRWLatch  stableLock;
   SHashObj *cache;           //key:fulltablename, value:STableMeta
   SHashObj *stableCache;     //key:suid, value:STableMeta*
 } STableMetaCache;
 
 typedef struct SCatalog {
-  SVgroupListCache vgroupCache;
   SDBVgroupCache   dbCache;
   STableMetaCache  tableCache;
 } SCatalog;
@@ -67,11 +72,35 @@ typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 #define ctgTrace(...)  do { if (ctgDebugFlag & DEBUG_TRACE) { taosPrintLog("CTG ", ctgDebugFlag, __VA_ARGS__); }} while(0)
 #define ctgDebugL(...) do { if (ctgDebugFlag & DEBUG_DEBUG) { taosPrintLongString("CTG ", ctgDebugFlag, __VA_ARGS__); }} while(0)
 
-
 #define CTG_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define CTG_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define CTG_ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { ctgError(__VA_ARGS__); terrno = _code; return _code; } } while (0)
 #define CTG_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
+
+#define CTG_LOCK(type, _lock) do {   \
+  if (CTG_READ == (type)) {          \
+    if ((*(_lock)) < 0) assert(0);  \
+    taosRLockLatch(_lock);           \
+    ctgDebug("CTG RLOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+  } else {                                                \
+    if ((*(_lock)) < 0) assert(0);                          \
+    taosWLockLatch(_lock);                                \
+    ctgDebug("CTG WLOCK%p, %s:%d", (_lock), __FILE__, __LINE__);  \
+  }                                                       \
+} while (0)
+
+#define CTG_UNLOCK(type, _lock) do {                       \
+  if (CTG_READ == (type)) {                                \
+    if ((*(_lock)) <= 0) assert(0);                         \
+    taosRUnLockLatch(_lock);                              \
+    ctgDebug("CTG RULOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+  } else {                                                \
+    if ((*(_lock)) <= 0) assert(0);                         \
+    taosWUnLockLatch(_lock);                              \
+    ctgDebug("CTG WULOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+  }                                                       \
+} while (0)
+
 
 #ifdef __cplusplus
 }

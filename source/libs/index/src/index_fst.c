@@ -1083,7 +1083,7 @@ bool fstBoundWithDataExceededBy(FstBoundWithData* bound, FstSlice* slice) {
   } else if (bound->type == Excluded) {
     return comp >= 0 ? true : false;
   } else {
-    return true;
+    return false;
   }
 }
 bool fstBoundWithDataIsEmpty(FstBoundWithData* bound) {
@@ -1224,7 +1224,7 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
     void* start = automFuncs[aut->type].start(aut);
     if (automFuncs[aut->type].isMatch(aut, start)) {
       FstSlice s = fstSliceCreate(NULL, 0);
-      return swsResultCreate(&s, output, callback(start));
+      return swsResultCreate(&s, output, callback == NULL ? NULL : callback(start));
     }
   }
   SArray* nodes = taosArrayInit(8, sizeof(FstNode*));
@@ -1237,10 +1237,12 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
     }
     FstTransition trn;
     fstNodeGetTransitionAt(p->node, p->trans, &trn);
-    Output   out = p->out.out + trn.out;
-    void*    nextState = automFuncs[aut->type].accept(aut, p->autState, trn.inp);
-    void*    tState = callback(nextState);
-    bool     isMatch = automFuncs[aut->type].isMatch(aut, nextState);
+
+    Output out = p->out.out + trn.out;
+    void*  nextState = automFuncs[aut->type].accept(aut, p->autState, trn.inp);
+    void*  tState = (callback == NULL) ? NULL : callback(nextState);
+    bool   isMatch = automFuncs[aut->type].isMatch(aut, nextState);
+
     FstNode* nextNode = fstGetNode(sws->fst, trn.addr);
     taosArrayPush(nodes, &nextNode);
     taosArrayPush(sws->inp, &(trn.inp));

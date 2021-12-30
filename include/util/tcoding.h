@@ -25,6 +25,8 @@ extern "C" {
 #define ZIGZAGE(T, v) ((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1)  // zigzag encode
 #define ZIGZAGD(T, v) ((v) >> 1) ^ -((T)((v)&1))                                 // zigzag decode
 
+/* ------------------------ LEGACY CODES ------------------------ */
+#if 1
 // ---- Fixed U8
 static FORCE_INLINE int taosEncodeFixedU8(void **buf, uint8_t value) {
   if (buf != NULL) {
@@ -356,6 +358,19 @@ static FORCE_INLINE void *taosDecodeString(void *buf, char **value) {
 
   return POINTER_SHIFT(buf, size);
 }
+
+static FORCE_INLINE void *taosDecodeStringTo(void *buf, char *value) {
+  uint64_t size = 0;
+
+  buf = taosDecodeVariantU64(buf, &size);
+  memcpy(value, buf, (size_t)size);
+
+  value[size] = '\0';
+
+  return POINTER_SHIFT(buf, size);
+}
+
+#endif
 
 #ifdef __cplusplus
 }

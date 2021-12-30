@@ -362,7 +362,7 @@ void* taosHashGetCloneExt(SHashObj *pHashObj, const void *key, size_t keyLen, vo
   return data;
 }
 
-void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void* d) {
+void* taosHashGetCloneImpl(SHashObj *pHashObj, const void *key, size_t keyLen, void* d, bool acquire) {
   if (taosHashTableEmpty(pHashObj) || keyLen == 0 || key == NULL) {
     return NULL;
   }
@@ -404,6 +404,10 @@ void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void*
       memcpy(d, GET_HASH_NODE_DATA(pNode), pNode->dataLen);
     }
 
+    if (acquire) {
+      pNode->count++;
+    }
+
     data = GET_HASH_NODE_DATA(pNode);
   }
 
@@ -414,6 +418,15 @@ void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void*
   __rd_unlock(&pHashObj->lock, pHashObj->type);
   return data;
 }
+
+void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void* d) {
+  return taosHashGetCloneImpl(pHashObj, key, keyLen, d, false);
+}
+
+void* taosHashAcquire(SHashObj *pHashObj, const void *key, size_t keyLen) {
+  return taosHashGetCloneImpl(pHashObj, key, keyLen, NULL, true);
+}
+
 
 int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen/*, void *data, size_t dsize*/) {
   if (pHashObj == NULL || taosHashTableEmpty(pHashObj)) {
@@ -919,3 +932,9 @@ void taosHashCancelIterate(SHashObj *pHashObj, void *p) {
 
   __rd_unlock(&pHashObj->lock, pHashObj->type);
 }
+
+void taosHashRelease(SHashObj *pHashObj, void *p) {
+  taosHashCancelIterate(pHashObj, p);
+}
+
+

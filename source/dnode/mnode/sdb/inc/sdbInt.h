@@ -18,7 +18,7 @@
 
 #include "os.h"
 #include "sdb.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "thash.h"
 #include "tlockfree.h"
 #include "tlog.h"
@@ -72,6 +72,7 @@ typedef struct SSdb {
 } SSdb;
 
 int32_t sdbWriteFile(SSdb *pSdb);
+void    sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
 
 #ifdef __cplusplus
 }

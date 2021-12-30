@@ -156,7 +156,7 @@ typedef struct SCreateDbInfo {
   SToken             dbname;
   int32_t            replica;
   int32_t            cacheBlockSize;
-  int32_t            maxTablesPerVnode;
+  int32_t            numOfVgroups;
   int32_t            numOfBlocks;
   int32_t            daysPerFile;
   int32_t            minRowsPerBlock;

@@ -45,12 +45,12 @@ int32_t __catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandl
   return 0;
 }
 
-int32_t __catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta) {
-  return mockCatalogService->catalogGetTableMeta(pDBName, pTableName, pTableMeta);
+int32_t __catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta) {
+  return mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta);
 }
 
-int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, SVgroupInfo* vgInfo) {
-  return mockCatalogService->catalogGetTableHashVgroup(pDBName, pTableName, vgInfo);
+int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, SVgroupInfo* vgInfo) {
+  return mockCatalogService->catalogGetTableHashVgroup(pTableName, vgInfo);
 }
 
 void initMetaDataEnv() {

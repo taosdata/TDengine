@@ -17,7 +17,7 @@
 
 int metaCreateTable(SMeta *pMeta, STbCfg *pTbCfg) {
   // Validate the tbOptions
-  if (metaValidateTbOptions(pMeta, pTbCfg) < 0) {
+  if (metaValidateTbCfg(pMeta, pTbCfg) < 0) {
     // TODO: handle error
     return -1;
   }

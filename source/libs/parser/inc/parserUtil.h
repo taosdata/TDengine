@@ -62,13 +62,26 @@ void cleanupTagCond(STagCond* pTagCond);
 void cleanupColumnCond(SArray** pCond);
 
 uint32_t convertRelationalOperator(SToken *pToken);
-int32_t    getExprFunctionId(SExprInfo *pExprInfo);
+int32_t  getExprFunctionId(SExprInfo *pExprInfo);
 
 STableMeta* tableMetaDup(const STableMeta* pTableMeta);
 
 bool isDclSqlStatement(SSqlInfo* pSqlInfo);
 bool isDdlSqlStatement(SSqlInfo* pSqlInfo);
 bool isDqlSqlStatement(SSqlInfo* pSqlInfo);
+
+typedef struct SKvParam {
+  SKVRowBuilder *builder;
+  SSchema       *schema;
+  char           buf[TSDB_MAX_TAGS_LEN];
+} SKvParam;
+
+int32_t KvRowAppend(const void *value, int32_t len, void *param);
+
+typedef int32_t (*_row_append_fn_t)(const void *value, int32_t len, void *param);
+int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, char* tmpTokenBuf, _row_append_fn_t func, void* param, SMsgBuf* pMsgBuf);
+
+int32_t createSName(SName* pName, SToken* pTableName, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf);
 
 #ifdef __cplusplus
 }
