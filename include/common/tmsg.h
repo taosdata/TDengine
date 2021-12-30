@@ -1330,13 +1330,13 @@ typedef struct SVShowTablesReq {
 } SVShowTablesReq;
 
 typedef struct SVShowTablesRsp {
-  int64_t       id;
+  int32_t       id;
   STableMetaMsg metaInfo;
 } SVShowTablesRsp;
 
 typedef struct SVShowTablesFetchReq {
   SMsgHead head;
-  int64_t  id;
+  int32_t  id;
 } SVShowTablesFetchReq;
 
 typedef struct SVShowTablesFetchRsp {

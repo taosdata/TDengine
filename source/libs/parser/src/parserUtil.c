@@ -563,16 +563,6 @@ TAOS_FIELD createField(const SSchema* pSchema) {
   return f;
 }
 
-SSchema createSchema(uint8_t type, int16_t bytes, int16_t colId, const char* name) {
-  SSchema s = {0};
-  s.type = type;
-  s.bytes = bytes;
-  s.colId = colId;
-
-  tstrncpy(s.name, name, tListLen(s.name));
-  return s;
-}
-
 void setColumn(SColumn* pColumn, uint64_t uid, const char* tableName, int8_t flag, const SSchema* pSchema) {
   pColumn->uid  = uid;
   pColumn->flag = flag;
