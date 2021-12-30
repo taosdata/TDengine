@@ -177,7 +177,6 @@ int32_t processRetrieveMnodeRsp(void* param, const SDataBuf* pMsg, int32_t code)
 
   SReqResultInfo* pResInfo = &pRequest->body.resInfo;
 
-  tfree(pResInfo->pRspMsg);
   pResInfo->pRspMsg   = pMsg->pData;
   pResInfo->numOfRows = pRetrieve->numOfRows;
   pResInfo->pData     = pRetrieve->data;
