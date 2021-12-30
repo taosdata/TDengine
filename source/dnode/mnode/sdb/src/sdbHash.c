@@ -336,6 +336,30 @@ void sdbCancelFetch(SSdb *pSdb, void *pIter) {
   taosRUnLockLatch(pLock);
 }
 
+void sdbTraverse(SSdb *pSdb, ESdbType type, sdbTraverseFp fp, void *p1, void *p2, void *p3) {
+  SHashObj *hash = sdbGetHash(pSdb, type);
+  if (hash == NULL) return;
+
+  SRWLatch *pLock = &pSdb->locks[type];
+  taosRLockLatch(pLock);
+
+  SSdbRow **ppRow = taosHashIterate(hash, NULL);
+  while (ppRow != NULL) {
+    SSdbRow *pRow = *ppRow;
+    if (pRow->status == SDB_STATUS_READY) {
+      bool isContinue = (*fp)(pSdb->pMnode, pRow->pObj, p1, p2, p3);
+      if (!isContinue) {
+        taosHashCancelIterate(hash, ppRow);
+        break;
+      }
+    }
+
+    ppRow = taosHashIterate(hash, ppRow);
+  }
+
+  taosRUnLockLatch(pLock);
+}
+
 int32_t sdbGetSize(SSdb *pSdb, ESdbType type) {
   SHashObj *hash = sdbGetHash(pSdb, type);
   if (hash == NULL) return 0;
