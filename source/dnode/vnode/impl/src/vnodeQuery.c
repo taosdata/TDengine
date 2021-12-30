@@ -47,23 +47,70 @@ int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 }
 
 static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  STableInfoMsg *pReq = (STableInfoMsg *)(pMsg->pCont);
-  STableMetaMsg *pRspMsg;
-  int            ret;
+  STableInfoMsg * pReq = (STableInfoMsg *)(pMsg->pCont);
+  STbCfg *        pTbCfg = NULL;
+  STbCfg *        pStbCfg = NULL;
+  tb_uid_t        uid;
+  int32_t         nCols;
+  int32_t         nTagCols;
+  SSchemaWrapper *pSW;
+  STableMetaMsg * pTbMetaMsg;
+  SSchema *       pTagSchema;
 
-  if (metaGetTableInfo(pVnode->pMeta, pReq->tableFname, &pRspMsg) < 0) {
+  pTbCfg = metaGetTbInfoByName(pVnode->pMeta, pReq->tableFname, &uid);
+  if (pTbCfg == NULL) {
     return -1;
   }
 
-  *pRsp = malloc(sizeof(SRpcMsg));
-  if (TD_IS_NULL(*pRsp)) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    free(pMsg);
+  if (pTbCfg->type == META_CHILD_TABLE) {
+    pStbCfg = metaGetTbInfoByUid(pVnode->pMeta, pTbCfg->ctbCfg.suid);
+    if (pStbCfg == NULL) {
+      return -1;
+    }
+
+    pSW = metaGetTableSchema(pVnode->pMeta, pTbCfg->ctbCfg.suid, 0, true);
+  } else {
+    pSW = metaGetTableSchema(pVnode->pMeta, uid, 0, true);
+  }
+
+  nCols = pSW->nCols;
+  if (pTbCfg->type == META_SUPER_TABLE) {
+    nTagCols = pTbCfg->stbCfg.nTagCols;
+    pTagSchema = pTbCfg->stbCfg.pTagSchema;
+  } else if (pTbCfg->type == META_SUPER_TABLE) {
+    nTagCols = pStbCfg->stbCfg.nTagCols;
+    pTagSchema = pStbCfg->stbCfg.pTagSchema;
+  } else {
+    nTagCols = 0;
+    pTagSchema = NULL;
+  }
+
+  pTbMetaMsg = (STableMetaMsg *)calloc(1, sizeof(STableMetaMsg) + sizeof(SSchema) * (nCols + nTagCols));
+  if (pTbMetaMsg == NULL) {
     return -1;
   }
 
-  // TODO
-  (*pRsp)->pCont = pRspMsg;
+  strcpy(pTbMetaMsg->tbFname, pTbCfg->name);
+  if (pTbCfg->type == META_CHILD_TABLE) {
+    strcpy(pTbMetaMsg->stbFname, pStbCfg->name);
+    pTbMetaMsg->suid = htobe64(pTbCfg->ctbCfg.suid);
+  }
+  pTbMetaMsg->numOfTags = htonl(nTagCols);
+  pTbMetaMsg->numOfColumns = htonl(nCols);
+  pTbMetaMsg->tableType = pTbCfg->type;
+  pTbMetaMsg->tuid = htobe64(uid);
+  pTbMetaMsg->vgId = htonl(pVnode->vgId);
+
+  memcpy(pTbMetaMsg->pSchema, pSW->pSchema, sizeof(SSchema) * pSW->nCols);
+  if (nTagCols) {
+    memcpy(POINTER_SHIFT(pTbMetaMsg->pSchema, sizeof(SSchema) * pSW->nCols), pTagSchema, sizeof(SSchema) * nTagCols);
+  }
+
+  for (int i = 0; i < nCols + nTagCols; i++) {
+    SSchema *pSch = pTbMetaMsg->pSchema + i;
+    pSch->colId = htonl(pSch->colId);
+    pSch->bytes = htonl(pSch->bytes);
+  }
 
   return 0;
 }
