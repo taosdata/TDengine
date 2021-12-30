@@ -79,17 +79,17 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
 
   for (int32_t i = 0; i < redoLogNum; ++i) {
     SSdbRaw *pTmp = taosArrayGetP(pTrans->redoLogs, i);
-    rawDataLen += sdbGetRawTotalSize(pTmp);
+    rawDataLen += (sdbGetRawTotalSize(pTmp) + 4);
   }
 
   for (int32_t i = 0; i < undoLogNum; ++i) {
     SSdbRaw *pTmp = taosArrayGetP(pTrans->undoLogs, i);
-    rawDataLen += sdbGetRawTotalSize(pTmp);
+    rawDataLen += (sdbGetRawTotalSize(pTmp) + 4);
   }
 
   for (int32_t i = 0; i < commitLogNum; ++i) {
     SSdbRaw *pTmp = taosArrayGetP(pTrans->commitLogs, i);
-    rawDataLen += sdbGetRawTotalSize(pTmp);
+    rawDataLen += (sdbGetRawTotalSize(pTmp) + 4);
   }
 
   for (int32_t i = 0; i < redoActionNum; ++i) {
