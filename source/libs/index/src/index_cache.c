@@ -20,7 +20,7 @@
 
 #define MAX_INDEX_KEY_LEN 256  // test only, change later
 
-#define MEM_TERM_LIMIT 200
+#define MEM_TERM_LIMIT 10000 * 10
 // ref index_cache.h:22
 //#define CACHE_KEY_LEN(p) \
 //  (sizeof(int32_t) + sizeof(uint16_t) + sizeof(p->colType) + sizeof(p->nColVal) + p->nColVal + sizeof(uint64_t) +
@@ -110,7 +110,10 @@ void indexCacheDestroySkiplist(SSkipList* slt) {
   while (tSkipListIterNext(iter)) {
     SSkipListNode* node = tSkipListIterGet(iter);
     CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
-    if (ct != NULL) {}
+    if (ct != NULL) {
+      free(ct->colVal);
+      free(ct);
+    }
   }
   tSkipListDestroyIter(iter);
   tSkipListDestroy(slt);
@@ -178,9 +181,9 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
       break;
     } else if (cache->imm != NULL) {
       // TODO: wake up by condition variable
-      pthread_mutex_unlock(&cache->mtx);
+      // pthread_mutex_unlock(&cache->mtx);
       taosMsleep(50);
-      pthread_mutex_lock(&cache->mtx);
+      // pthread_mutex_lock(&cache->mtx);
     } else {
       indexCacheRef(cache);
       cache->imm = cache->mem;
@@ -271,7 +274,7 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermV
   SIndexTerm*     term = query->term;
   EIndexQueryType qtype = query->qType;
   CacheTerm       ct = {.colVal = term->colVal, .version = atomic_load_32(&pCache->version)};
-  indexCacheDebug(pCache);
+  // indexCacheDebug(pCache);
 
   int ret = indexQueryMem(mem, &ct, qtype, result, s);
   if (ret == 0 && *s != kTypeDeletion) {

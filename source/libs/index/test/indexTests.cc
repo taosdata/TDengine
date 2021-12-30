@@ -332,6 +332,8 @@ class TFileObj {
   TFileObj(const std::string& path = "/tmp/tindex", const std::string& colName = "voltage")
       : path_(path), colName_(colName) {
     colId_ = 10;
+    reader_ = NULL;
+    writer_ = NULL;
     // Do Nothing
     //
   }
@@ -527,6 +529,7 @@ TEST_F(IndexCacheEnv, cache_test) {
     SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
     coj->Put(term, colId, version++, suid++);
+    // indexTermDestry(term);
   }
   {
     std::string colVal("v3");
@@ -687,7 +690,7 @@ class IndexEnv2 : public ::testing::Test {
   IndexObj* index;
 };
 TEST_F(IndexEnv2, testIndexOpen) {
-  std::string path = "/tmp";
+  std::string path = "/tmp/test";
   if (index->Init(path) != 0) {
     std::cout << "failed to init index" << std::endl;
     exit(1);
@@ -723,10 +726,24 @@ TEST_F(IndexEnv2, testIndexOpen) {
     }
     indexMultiTermDestroy(terms);
   }
-
   {
+    size_t      size = 200;
     std::string colName("tag1"), colVal("Hello");
 
+    SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                       colVal.c_str(), colVal.size());
+    SIndexMultiTerm* terms = indexMultiTermCreate();
+    indexMultiTermAdd(terms, term);
+    for (size_t i = size * 3; i < size * 4; i++) {
+      int tableId = i;
+      int ret = index->Put(terms, tableId);
+      assert(ret == 0);
+    }
+    indexMultiTermDestroy(terms);
+  }
+
+  {
+    std::string           colName("tag1"), colVal("Hello");
     SIndexMultiTermQuery* mq = indexMultiTermQueryCreate(MUST);
     SIndexTerm*           term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
@@ -735,16 +752,16 @@ TEST_F(IndexEnv2, testIndexOpen) {
     SArray* result = (SArray*)taosArrayInit(1, sizeof(uint64_t));
     index->Search(mq, result);
     std::cout << "target size: " << taosArrayGetSize(result) << std::endl;
-    // assert(taosArrayGetSize(result) == targetSize);
+    assert(taosArrayGetSize(result) == 400);
   }
 }
 
 TEST_F(IndexEnv2, testIndex_TrigeFlush) {
-  std::string path = "/tmp";
+  std::string path = "/tmp/test";
   if (index->Init(path) != 0) {}
   int numOfTable = 100 * 10000;
-  index->WriteMillonData("tag1", "Hello world", numOfTable);
-  int target = index->SearchOne("tag1", "Hello world");
+  index->WriteMillonData("tag1", "Hello", numOfTable);
+  int target = index->SearchOne("tag1", "Hello");
   assert(numOfTable == target);
 }
 TEST_F(IndexEnv2, testIndex_serarch_cache_and_tfile) {
@@ -769,4 +786,7 @@ TEST_F(IndexEnv2, testIndex_performance) {
   std::string path = "/tmp";
   if (index->Init(path) != 0) {}
 }
-TEST_F(IndexEnv2, testIndexMultiTag) {}
+TEST_F(IndexEnv2, testIndexMultiTag) {
+  std::string path = "/tmp";
+  if (index->Init(path) != 0) {}
+}
