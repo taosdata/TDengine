@@ -260,7 +260,8 @@ static SArray *mndBuildDnodesArray(SMnode *pMnode) {
       pDnode->numOfVnodes++;
     }
 
-    bool online = mndIsDnodeOnline(pMnode, pDnode);
+    int64_t curMs = taosGetTimestampMs();
+    bool    online = mndIsDnodeOnline(pMnode, pDnode, curMs);
     if (online) {
       taosArrayPush(pArray, pDnode);
     }
