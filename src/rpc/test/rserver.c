@@ -172,7 +172,7 @@ int main(int argc, char *argv[]) {
   tInfo("RPC server is running, ctrl-c to exit");
 
   if (commit) {
-    dataFd = open(dataName, O_APPEND | O_CREAT | O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);  
+    dataFd = open(dataName, O_APPEND | O_CREAT | O_WRONLY | O_BINARY, S_IRWXU | S_IRWXG | S_IRWXO);  
     if (dataFd<0) 
       tInfo("failed to open data file, reason:%s", strerror(errno));
   }
