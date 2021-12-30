@@ -5,7 +5,7 @@ $node3 = 192.168.0.203
 $node4 = 192.168.0.204
 
 $self = $node1
-$num = 5
+$num = 25
 
 #deploy = 0, start = 1, stop = 2
 $option = 0
