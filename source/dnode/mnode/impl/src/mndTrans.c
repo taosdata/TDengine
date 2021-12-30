@@ -168,7 +168,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
 
   if (sver != MND_TRANS_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    mError("failed to get check soft ver from raw:%p since %s", pRaw, terrstr());
+    mError("failed to decode trans since %s", terrstr());
     return NULL;
   }
 

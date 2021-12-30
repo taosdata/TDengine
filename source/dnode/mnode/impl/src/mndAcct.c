@@ -97,8 +97,8 @@ static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw) {
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
   if (sver != TSDB_ACCT_VER_NUMBER) {
-    mError("failed to decode acct since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
+    mError("failed to decode acct since %s", terrstr());
     return NULL;
   }
 

@@ -86,8 +86,8 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
   if (sver != SDB_FUNC_VER) {
-    mError("failed to decode func since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
+    mError("failed to decode func since %s", terrstr());
     return NULL;
   }
 

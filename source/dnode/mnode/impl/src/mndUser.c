@@ -115,8 +115,8 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
   if (sver != TSDB_USER_VER_NUMBER) {
-    mError("failed to decode user since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
+    mError("failed to decode user since %s", terrstr());
     return NULL;
   }
 

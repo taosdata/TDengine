@@ -98,8 +98,8 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
   if (sver != TSDB_VGROUP_VER_NUMBER) {
-    mError("failed to decode vgroup since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
+    mError("failed to decode vgroup since %s", terrstr());
     return NULL;
   }
 
