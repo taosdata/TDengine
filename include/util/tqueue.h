@@ -22,59 +22,57 @@ extern "C" {
 
 /*
 
-This set of API for queue is designed specially for vnode/mnode. The main purpose is to 
-consume all the items instead of one item from a queue by one single read. Also, it can 
-combine multiple queues into a queue set, a consumer thread can consume a queue set via 
+This set of API for queue is designed specially for vnode/mnode. The main purpose is to
+consume all the items instead of one item from a queue by one single read. Also, it can
+combine multiple queues into a queue set, a consumer thread can consume a queue set via
 a single API instead of looping every queue by itself.
 
 Notes:
-1: taosOpenQueue/taosCloseQueue, taosOpenQset/taosCloseQset is NOT multi-thread safe 
+1: taosOpenQueue/taosCloseQueue, taosOpenQset/taosCloseQset is NOT multi-thread safe
 2: after taosCloseQueue/taosCloseQset is called, read/write operation APIs are not safe.
 3: read/write operation APIs are multi-thread safe
 
 To remove the limitation and make this set of queue APIs multi-thread safe, REF(tref.c)
-shall be used to set up the protection. 
+shall be used to set up the protection.
 
 */
 
-typedef void *taos_queue;
-typedef void *taos_qset;
-typedef void *taos_qall;
+typedef struct STaosQueue STaosQueue;
+typedef struct STaosQset  STaosQset;
+typedef struct STaosQall  STaosQall;
 typedef void (*FProcessItem)(void *ahandle, void *pItem);
-typedef void (*FProcessItems)(void *ahandle, taos_qall qall, int numOfItems);
+typedef void (*FProcessItems)(void *ahandle, STaosQall *qall, int32_t numOfItems);
 
-taos_queue taosOpenQueue();
-void       taosCloseQueue(taos_queue);
-void       taosSetQueueFp(taos_queue, FProcessItem, FProcessItems);
-void      *taosAllocateQitem(int size);
-void       taosFreeQitem(void *pItem);
-int        taosWriteQitem(taos_queue, void *pItem);
-int        taosReadQitem(taos_queue, void **pItem);
-bool       taosQueueEmpty(taos_queue);
+STaosQueue *taosOpenQueue();
+void        taosCloseQueue(STaosQueue *queue);
+void        taosSetQueueFp(STaosQueue *queue, FProcessItem itemFp, FProcessItems itemsFp);
+void       *taosAllocateQitem(int32_t size);
+void        taosFreeQitem(void *pItem);
+int32_t     taosWriteQitem(STaosQueue *queue, void *pItem);
+int32_t     taosReadQitem(STaosQueue *queue, void **ppItem);
+bool        taosQueueEmpty(STaosQueue *queue);
 
-taos_qall  taosAllocateQall();
-void       taosFreeQall(taos_qall);
-int        taosReadAllQitems(taos_queue, taos_qall);
-int        taosGetQitem(taos_qall, void **pItem);
-void       taosResetQitems(taos_qall);
+STaosQall *taosAllocateQall();
+void       taosFreeQall(STaosQall *qall);
+int32_t    taosReadAllQitems(STaosQueue *queue, STaosQall *qall);
+int32_t    taosGetQitem(STaosQall *qall, void **ppItem);
+void       taosResetQitems(STaosQall *qall);
 
-taos_qset  taosOpenQset();
-void       taosCloseQset();
-void       taosQsetThreadResume(taos_qset param);
-int        taosAddIntoQset(taos_qset, taos_queue, void *ahandle);
-void       taosRemoveFromQset(taos_qset, taos_queue);
-int        taosGetQueueNumber(taos_qset);
+STaosQset *taosOpenQset();
+void       taosCloseQset(STaosQset *qset);
+void       taosQsetThreadResume(STaosQset *qset);
+int32_t    taosAddIntoQset(STaosQset *qset, STaosQueue *queue, void *ahandle);
+void       taosRemoveFromQset(STaosQset *qset, STaosQueue *queue);
+int32_t    taosGetQueueNumber(STaosQset *qset);
 
-int        taosReadQitemFromQset(taos_qset, void **pItem, void **ahandle, FProcessItem *);
-int        taosReadAllQitemsFromQset(taos_qset, taos_qall, void **ahandle, FProcessItems *);
+int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, void **ahandle, FProcessItem *itemFp);
+int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, void **ahandle, FProcessItems *itemsFp);
 
-int        taosGetQueueItemsNumber(taos_queue param);
-int        taosGetQsetItemsNumber(taos_qset param);
+int32_t taosGetQueueItemsNumber(STaosQueue *queue);
+int32_t taosGetQsetItemsNumber(STaosQset *qset);
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /*_TD_UTIL_QUEUE_H*/
-
-
