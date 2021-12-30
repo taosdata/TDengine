@@ -196,7 +196,15 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQuery, SQueryDag** pDag) {
+  pRequest->type = pQuery->type;
+  return qCreateQueryDag(pQuery, pDag);
+}
+
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, void** pJob) {
+  if (TSDB_SQL_INSERT == pRequest->type) {
+    return scheduleExecJob(pRequest->pTscObj->pTransporter, NULL/*todo appInfo.xxx*/, pDag, pJob, &pRequest->affectedRows);
+  }
   return scheduleAsyncExecJob(pRequest->pTscObj->pTransporter, NULL/*todo appInfo.xxx*/, pDag, pJob);
 }
 
@@ -283,7 +291,7 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   if (qIsDdlQuery(pQuery)) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
   } else {
-    CHECK_CODE_GOTO(qCreateQueryDag(pQuery, &pDag), _return);
+    CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pDag), _return);
     CHECK_CODE_GOTO(scheduleQuery(pRequest, pDag, &pJob), _return);
   }
 

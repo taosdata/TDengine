@@ -26,8 +26,8 @@ extern "C" {
 typedef struct {
   td_endian_t endian;
   uint8_t*    data;
-  int64_t     size;
-  int64_t     pos;
+  int32_t     size;
+  int32_t     pos;
 } SEncoder, SDecoder;
 
 #define tPut(TYPE, BUF, VAL) ((TYPE*)(BUF))[0] = (VAL)
@@ -62,7 +62,7 @@ typedef struct {
 #define TD_CHECK_CODER_CAPACITY_FAILED(CODER, EXPSIZE) (((CODER)->size - (CODER)->pos) < (EXPSIZE))
 
 /* ------------------------ FOR ENCODER ------------------------ */
-static FORCE_INLINE void tInitEncoder(SEncoder* pEncoder, td_endian_t endian, uint8_t* data, int64_t size) {
+static FORCE_INLINE void tInitEncoder(SEncoder* pEncoder, td_endian_t endian, uint8_t* data, int32_t size) {
   pEncoder->endian = endian;
   pEncoder->data = data;
   pEncoder->size = (data) ? size : 0;
@@ -266,7 +266,7 @@ static FORCE_INLINE int tEncodeCStr(SEncoder* pEncoder, const char* val) {
 }
 
 /* ------------------------ FOR DECODER ------------------------ */
-static FORCE_INLINE void tInitDecoder(SDecoder* pDecoder, td_endian_t endian, uint8_t* data, int64_t size) {
+static FORCE_INLINE void tInitDecoder(SDecoder* pDecoder, td_endian_t endian, uint8_t* data, int32_t size) {
   ASSERT(!TD_IS_NULL(data));
   pDecoder->endian = endian;
   pDecoder->data = data;

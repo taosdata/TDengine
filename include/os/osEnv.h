@@ -21,7 +21,6 @@ extern "C" {
 #endif
 
 extern char tsOsName[];
-extern char tsDnodeDir[];
 extern char tsDataDir[];
 extern char tsLogDir[];
 extern char tsScriptDir[];

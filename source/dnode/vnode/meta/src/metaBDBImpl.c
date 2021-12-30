@@ -444,6 +444,7 @@ int metaGetTableInfo(SMeta *pMeta, char *tbname, STableMetaMsg **ppMsg) {
   void *         pBuf;
   int            tlen;
   STableMetaMsg *pMsg;
+  SSchema *      pSchema;
 
   key.data = tbname;
   key.size = strlen(tbname) + 1;
@@ -487,10 +488,9 @@ int metaGetTableInfo(SMeta *pMeta, char *tbname, STableMetaMsg **ppMsg) {
       pMsg->tversion = 0;
       pMsg->suid = tbCfg.stbCfg.suid;
       pMsg->tuid = tbCfg.stbCfg.suid;
-      for (size_t i = 0; i < tbCfg.stbCfg.nTagCols; i++) {
-
-      }
-
+      memcpy(pMsg->pSchema, tbCfg.stbCfg.pSchema, sizeof(SSchema) * tbCfg.stbCfg.nCols);
+      memcpy(POINTER_SHIFT(pMsg->pSchema, sizeof(SSchema) * tbCfg.stbCfg.nCols), tbCfg.stbCfg.pTagSchema,
+              sizeof(SSchema) * tbCfg.stbCfg.nTagCols);
       break;
     case META_CHILD_TABLE:
       ASSERT(0);
