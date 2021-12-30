@@ -41,6 +41,12 @@ if(${BUILD_WITH_CRAFT})
     SET(BUILD_WITH_UV ON CACHE BOOL "craft need libuv" FORCE)
 endif(${BUILD_WITH_CRAFT})
 
+# traft
+if(${BUILD_WITH_TRAFT})
+    cat("${CMAKE_SUPPORT_DIR}/traft_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    SET(BUILD_WITH_UV ON CACHE BOOL "traft need libuv" FORCE)
+endif(${BUILD_WITH_TRAFT})
+
 #libuv
 if(${BUILD_WITH_UV})
     cat("${CMAKE_SUPPORT_DIR}/libuv_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -172,6 +178,18 @@ if(${BUILD_WITH_CRAFT})
     #     INTERFACE pthread
     # )
 endif(${BUILD_WITH_CRAFT})
+
+# TRAFT
+if(${BUILD_WITH_TRAFT})
+    add_library(traft STATIC IMPORTED GLOBAL)
+    set_target_properties(traft PROPERTIES
+        IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/traft/.libs/libraft.a"
+        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/traft/include"
+    )
+    # target_link_libraries(craft
+    #     INTERFACE pthread
+    # )
+endif(${BUILD_WITH_TRAFT})
 
 # LIBUV
 if(${BUILD_WITH_UV})

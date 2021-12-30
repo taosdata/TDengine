@@ -85,29 +85,45 @@ int32_t raftServerInit(SRaftServer *pRaftServer, const SRaftServerConfig *pConf,
 	pRaftServer->fsm = pFsm;
 
 	ret = uv_loop_init(&pRaftServer->loop);
-	if (!ret) {
+	if (ret != 0) {
 		fprintf(stderr, "%s \n", raft_errmsg(&pRaftServer->raft));
+		assert(0);
 	}
 
 	ret = raft_uv_tcp_init(&pRaftServer->transport, &pRaftServer->loop);
-	if (!ret) {
+	if (ret != 0) {
 		fprintf(stderr, "%s \n", raft_errmsg(&pRaftServer->raft));
+		assert(0);
 	}
 
 	ret = raft_uv_init(&pRaftServer->io, &pRaftServer->loop, pRaftServer->dir, &pRaftServer->transport);
-	if (!ret) {
+	if (ret != 0) {
 		fprintf(stderr, "%s \n", raft_errmsg(&pRaftServer->raft));
+		assert(0);
 	}
 
 	ret = raft_init(&pRaftServer->raft, &pRaftServer->io, pRaftServer->fsm, pRaftServer->raftId, pRaftServer->address);
-	if (!ret) {
+	if (ret != 0) {
 		fprintf(stderr, "%s \n", raft_errmsg(&pRaftServer->raft));
+		assert(0);
 	}
 
     struct raft_configuration conf;
     raft_configuration_init(&conf);
-    raft_configuration_add(&conf, pRaftServer->raftId, pRaftServer->address, RAFT_VOTER);
+
+	if (pConf->voter == 0) {
+    	raft_configuration_add(&conf, pRaftServer->raftId, pRaftServer->address, RAFT_SPARE);
+
+	} else {
+    	raft_configuration_add(&conf, pRaftServer->raftId, pRaftServer->address, RAFT_VOTER);
+
+	}
+
+	
+
 	printf("add myself: %llu - %s \n", pRaftServer->raftId, pRaftServer->address);
+
+
 	for (int i = 0; i < pConf->peersCount; ++i) {
 		const Addr *pAddr = &pConf->peers[i];
 		raft_id rid = raftId(pAddr->host, pAddr->port);
