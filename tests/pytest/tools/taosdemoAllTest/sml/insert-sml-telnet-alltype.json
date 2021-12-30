@@ -237,8 +237,8 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [ {"type": "BOOL"}],
-            "tags": [{"type": "BOOL", "count":1}]
+            "columns": [ {"type": "int"}],
+            "tags": [{"type": "int", "count":1}]
         },
         {
             "name": "stb8",

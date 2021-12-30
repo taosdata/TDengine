@@ -237,8 +237,8 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [ {"type": "BOOL"}],
-            "tags": [{"type": "BOOL", "count":1}]
+            "columns": [ {"type": "INT"}],
+            "tags": [{"type": "INT", "count":3}]
         },
         {
             "name": "stb8",
@@ -342,7 +342,7 @@
             "sample_file": "./sample.csv",
             "tags_file": "",
             "columns": [{"type": "UTINYINT"}],
-            "tags": [{"type": "UTINYINT", "count":1}]
+            "tags": [{"type": "UTINYINT", "count":3}]
         },
         {
             "name": "stb12",
