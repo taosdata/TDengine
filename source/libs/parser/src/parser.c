@@ -58,13 +58,11 @@ int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
   } else {
     SQueryStmtInfo* pQueryInfo = calloc(1, sizeof(SQueryStmtInfo));
     if (pQueryInfo == NULL) {
-      terrno = TSDB_CODE_TSC_OUT_OF_MEMORY; // set correct error code.
+      terrno = TSDB_CODE_QRY_OUT_OF_MEMORY; // set correct error code.
       return terrno;
     }
 
-    struct SCatalog* pCatalog = NULL;
-    int32_t code = catalogGetHandle(NULL, &pCatalog);
-    code = qParserValidateSqlNode(pCatalog, &info, pQueryInfo, pCxt->ctx.requestId, pCxt->pMsg, pCxt->msgLen);
+    int32_t code = qParserValidateSqlNode(pCxt->ctx.pCatalog, &info, pQueryInfo, pCxt->ctx.requestId, pCxt->pMsg, pCxt->msgLen);
     if (code == TSDB_CODE_SUCCESS) {
       *pQuery = (SQueryNode*)pQueryInfo;
     }
@@ -220,7 +218,7 @@ int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SCatalogReq* p
   return code;
 }
 
-void qParserClearupMetaRequestInfo(SCatalogReq* pMetaReq) {
+void qParserCleanupMetaRequestInfo(SCatalogReq* pMetaReq) {
   if (pMetaReq == NULL) {
     return;
   }

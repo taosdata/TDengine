@@ -77,7 +77,7 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   return 0;
 }
 
-SMsgSendInfo* buildSendMsgInfoImpl(SRequestObj *pRequest) {
+SMsgSendInfo* buildMsgInfoImpl(SRequestObj *pRequest) {
   SMsgSendInfo* pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
 
   pMsgSendInfo->requestObjRefId = pRequest->self;
@@ -92,7 +92,7 @@ SMsgSendInfo* buildSendMsgInfoImpl(SRequestObj *pRequest) {
         return NULL;
       }
 
-      pRetrieveMsg->showId = htonl(pRequest->body.execId);
+      pRetrieveMsg->showId = htobe64(pRequest->body.showInfo.execId);
       pMsgSendInfo->msgInfo.pData = pRetrieveMsg;
       pMsgSendInfo->msgInfo.len = sizeof(SRetrieveTableMsg);
     } else {
@@ -101,8 +101,9 @@ SMsgSendInfo* buildSendMsgInfoImpl(SRequestObj *pRequest) {
         return NULL;
       }
 
-      pFetchMsg->id = htonl(pRequest->body.execId);
-      pFetchMsg->head.vgId = htonl(13);
+      pFetchMsg->id = htobe64(pRequest->body.showInfo.execId);
+      pFetchMsg->head.vgId = htonl(pRequest->body.showInfo.vgId);
+
       pMsgSendInfo->msgInfo.pData = pFetchMsg;
       pMsgSendInfo->msgInfo.len = sizeof(SVShowTablesFetchReq);
     }
@@ -124,7 +125,7 @@ int32_t processShowRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   }
 
   SShowRsp* pShow = (SShowRsp *)pMsg->pData;
-  pShow->showId   = htonl(pShow->showId);
+  pShow->showId   = htobe64(pShow->showId);
 
   STableMetaMsg *pMetaMsg = &(pShow->tableMeta);
   pMetaMsg->numOfColumns = htonl(pMetaMsg->numOfColumns);
@@ -154,7 +155,17 @@ int32_t processShowRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   pResInfo->pCol      = calloc(pResInfo->numOfCols, POINTER_BYTES);
   pResInfo->length    = calloc(pResInfo->numOfCols, sizeof(int32_t));
 
-  pRequest->body.execId = pShow->showId;
+  pRequest->body.showInfo.execId = pShow->showId;
+
+  // todo
+  if (pRequest->type == TDMT_VND_SHOW_TABLES) {
+    SShowReqInfo* pShowInfo = &pRequest->body.showInfo;
+
+    int32_t index = pShowInfo->currentIndex;
+    SVgroupInfo* pInfo = taosArrayGet(pShowInfo->pArray, index);
+    pShowInfo->vgId = pInfo->vgId;
+  }
+
   tsem_post(&pRequest->body.rspSem);
   return 0;
 }
@@ -184,17 +195,17 @@ int32_t processRetrieveMnodeRsp(void* param, const SDataBuf* pMsg, int32_t code)
   setResultDataPtr(pResInfo, pResInfo->fields, pResInfo->numOfCols, pResInfo->numOfRows);
 
   tscDebug("0x%"PRIx64" numOfRows:%d, complete:%d, qId:0x%"PRIx64, pRequest->self, pRetrieve->numOfRows,
-           pRetrieve->completed, pRequest->body.execId);
+           pRetrieve->completed, pRequest->body.showInfo.execId);
 
   tsem_post(&pRequest->body.rspSem);
   return 0;
 }
 
 int32_t processRetrieveVndRsp(void* param, const SDataBuf* pMsg, int32_t code) {
-  assert(pMsg->len >= sizeof(SRetrieveTableRsp));
-
   SRequestObj* pRequest = param;
-  tfree(pRequest->body.resInfo.pRspMsg);
+
+  SReqResultInfo* pResInfo = &pRequest->body.resInfo;
+  tfree(pResInfo->pRspMsg);
 
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
@@ -202,13 +213,13 @@ int32_t processRetrieveVndRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     return code;
   }
 
-  pRequest->body.resInfo.pRspMsg = pMsg->pData;
+  assert(pMsg->len >= sizeof(SRetrieveTableRsp));
+
+  pResInfo->pRspMsg    = pMsg->pData;
 
   SVShowTablesFetchRsp *pFetchRsp = (SVShowTablesFetchRsp *) pMsg->pData;
   pFetchRsp->numOfRows  = htonl(pFetchRsp->numOfRows);
   pFetchRsp->precision  = htons(pFetchRsp->precision);
-
-  SReqResultInfo* pResInfo = &pRequest->body.resInfo;
 
   pResInfo->pRspMsg   = pMsg->pData;
   pResInfo->numOfRows = pFetchRsp->numOfRows;
@@ -218,7 +229,7 @@ int32_t processRetrieveVndRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   setResultDataPtr(pResInfo, pResInfo->fields, pResInfo->numOfCols, pResInfo->numOfRows);
 
   tscDebug("0x%"PRIx64" numOfRows:%d, complete:%d, qId:0x%"PRIx64, pRequest->self, pFetchRsp->numOfRows,
-           pFetchRsp->completed, pRequest->body.execId);
+           pFetchRsp->completed, pRequest->body.showInfo.execId);
 
   tsem_post(&pRequest->body.rspSem);
   return 0;

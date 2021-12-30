@@ -503,7 +503,7 @@ typedef struct {
 typedef struct {
   SMsgHead header;
   union {
-    int32_t showId;
+    int64_t showId;
     int64_t qhandle;
     int64_t qId;
   };  // query handle
@@ -823,7 +823,7 @@ typedef struct {
 } SCompactMsg;
 
 typedef struct SShowRsp {
-  int32_t       showId;
+  int64_t       showId;
   STableMetaMsg tableMeta;
 } SShowRsp;
 
@@ -1330,7 +1330,7 @@ typedef struct SVShowTablesReq {
 } SVShowTablesReq;
 
 typedef struct SVShowTablesRsp {
-  int32_t       id;
+  int64_t       id;
   STableMetaMsg metaInfo;
 } SVShowTablesRsp;
 

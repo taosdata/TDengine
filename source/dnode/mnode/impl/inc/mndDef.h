@@ -293,7 +293,7 @@ typedef struct {
 } SFuncObj;
 
 typedef struct {
-  int32_t id;
+  int64_t id;
   int8_t  type;
   int8_t  replica;
   int16_t numOfColumns;

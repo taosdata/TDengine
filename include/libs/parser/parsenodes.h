@@ -169,6 +169,7 @@ typedef struct SDclStmtInfo {
   SEpSet      epSet;
   char*       pMsg;
   int32_t     msgLen;
+  void*       pExtension;  // todo remove it soon
 } SDclStmtInfo;
 
 #ifdef __cplusplus

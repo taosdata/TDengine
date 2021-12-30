@@ -101,10 +101,17 @@ typedef struct SReqResultInfo {
   uint32_t     current;
 } SReqResultInfo;
 
+typedef struct SShowReqInfo {
+  int64_t         execId;        // showId/queryId
+  int32_t         vgId;
+  SArray         *pArray;        // SArray<SVgroupInfo>
+  int32_t         currentIndex;  // current accessed vgroup index.
+} SShowReqInfo;
+
 typedef struct SRequestSendRecvBody {
   tsem_t          rspSem;        // not used now
   void*           fp;
-  int64_t         execId;        // showId/queryId
+  SShowReqInfo    showInfo;      // todo this attribute will be removed after the query framework being completed.
   SDataBuf        requestMsg;
   SReqResultInfo  resInfo;
 } SRequestSendRecvBody;
@@ -131,7 +138,7 @@ extern int32_t  clientConnRefPool;
 
 extern int (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
 int genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code);
-SMsgSendInfo* buildSendMsgInfoImpl(SRequestObj*);
+SMsgSendInfo* buildMsgInfoImpl(SRequestObj*);
 
 int   taos_init();
 
