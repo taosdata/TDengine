@@ -96,24 +96,24 @@ TEST(testCase, connect_Test) {
 //  taos_close(pConn);
 //}
 
-TEST(testCase, show_user_Test) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
-
-  TAOS_RES* pRes = taos_query(pConn, "show users");
-  TAOS_ROW pRow = NULL;
-
-  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-  int32_t numOfFields = taos_num_fields(pRes);
-
-  char str[512] = {0};
-  while((pRow = taos_fetch_row(pRes)) != NULL) {
-    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    printf("%s\n", str);
-  }
-
-  taos_close(pConn);
-}
+//TEST(testCase, show_user_Test) {
+//  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+//  assert(pConn != NULL);
+//
+//  TAOS_RES* pRes = taos_query(pConn, "show users");
+//  TAOS_ROW pRow = NULL;
+//
+//  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+//  int32_t numOfFields = taos_num_fields(pRes);
+//
+//  char str[512] = {0};
+//  while((pRow = taos_fetch_row(pRes)) != NULL) {
+//    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+//    printf("%s\n", str);
+//  }
+//
+//  taos_close(pConn);
+//}
 
 //TEST(testCase, drop_user_Test) {
 //  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -128,24 +128,24 @@ TEST(testCase, show_user_Test) {
 //  taos_close(pConn);
 //}
 
-TEST(testCase, show_db_Test) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-//  assert(pConn != NULL);
-
-  TAOS_RES* pRes = taos_query(pConn, "show databases");
-  TAOS_ROW pRow = NULL;
-
-  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-  int32_t numOfFields = taos_num_fields(pRes);
-
-  char str[512] = {0};
-  while((pRow = taos_fetch_row(pRes)) != NULL) {
-    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    printf("%s\n", str);
-  }
-
-  taos_close(pConn);
-}
+//TEST(testCase, show_db_Test) {
+//  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+////  assert(pConn != NULL);
+//
+//  TAOS_RES* pRes = taos_query(pConn, "show databases");
+//  TAOS_ROW pRow = NULL;
+//
+//  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+//  int32_t numOfFields = taos_num_fields(pRes);
+//
+//  char str[512] = {0};
+//  while((pRow = taos_fetch_row(pRes)) != NULL) {
+//    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+//    printf("%s\n", str);
+//  }
+//
+//  taos_close(pConn);
+//}
 
 //TEST(testCase, create_db_Test) {
 //  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);

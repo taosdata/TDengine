@@ -16,6 +16,8 @@
 #include "vnodeQuery.h"
 #include "vnodeDef.h"
 
+static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg);
+
 int vnodeQueryOpen(SVnode *pVnode) { return qWorkerInit(NULL, &pVnode->pQuery); }
 
 int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
@@ -39,7 +41,8 @@ int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     case TDMT_VND_SHOW_TABLES:
       return qWorkerProcessShowMsg(pVnode, pVnode->pQuery, pMsg);
     case TDMT_VND_SHOW_TABLES_FETCH:
-      return qWorkerProcessShowFetchMsg(pVnode, pVnode->pQuery, pMsg);
+      return vnodeGetTableList(pVnode, pMsg);
+//      return qWorkerProcessShowFetchMsg(pVnode->pMeta, pVnode->pQuery, pMsg);
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
@@ -112,5 +115,55 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     pSch->bytes = htonl(pSch->bytes);
   }
 
+  return 0;
+}
+
+/**
+ * @param pVnode
+ * @param pMsg
+ * @param pRsp
+ */
+static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
+  SMTbCursor* pCur = metaOpenTbCursor(pVnode->pMeta);
+  SArray* pArray = taosArrayInit(10, POINTER_BYTES);
+
+  char* name = NULL;
+  int32_t totalLen = 0;
+  while ((name = metaTbCursorNext(pCur)) != NULL) {
+    taosArrayPush(pArray, &name);
+    totalLen += strlen(name);
+  }
+
+  metaCloseTbCursor(pCur);
+
+  int32_t rowLen = (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 4 + (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 4;
+  int32_t numOfTables = (int32_t) taosArrayGetSize(pArray);
+
+  int32_t payloadLen = rowLen * numOfTables;
+//  SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
+
+  SVShowTablesFetchRsp *pFetchRsp = (SVShowTablesFetchRsp *)rpcMallocCont(sizeof(SVShowTablesFetchRsp) + payloadLen);
+  memset(pFetchRsp, 0, sizeof(struct SVShowTablesFetchRsp) + payloadLen);
+
+  char* p = pFetchRsp->data;
+  for(int32_t i = 0; i < numOfTables; ++i) {
+    char* n = taosArrayGetP(pArray, i);
+    STR_TO_VARSTR(p, n);
+
+    p += rowLen;
+  }
+
+  pFetchRsp->numOfRows = htonl(numOfTables);
+  pFetchRsp->precision = 0;
+
+  SRpcMsg rpcMsg = {
+      .handle  = pMsg->handle,
+      .ahandle = pMsg->ahandle,
+      .pCont   = pFetchRsp,
+      .contLen = sizeof(SVShowTablesFetchRsp) + payloadLen,
+      .code    = 0,
+  };
+
+  rpcSendResponse(&rpcMsg);
   return 0;
 }
