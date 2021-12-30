@@ -265,7 +265,7 @@ static SArray *mndBuildDnodesArray(SMnode *pMnode) {
       taosArrayPush(pArray, pDnode);
     }
 
-    mDebug("dnode:%d, numOfVnodes:%d numOfSupportVnodes:%d isMnode:%d ready:%d", pDnode->id, numOfVnodes,
+    mDebug("dnode:%d, vnodes:%d supportVnodes:%d isMnode:%d ready:%d", pDnode->id, numOfVnodes,
            pDnode->numOfSupportVnodes, isMnode, isReady);
     sdbRelease(pSdb, pDnode);
   }
@@ -332,6 +332,8 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
   uint32_t hashMin = 0;
   uint32_t hashMax = UINT32_MAX;
   uint32_t hashInterval = (hashMax - hashMin) / pDb->cfg.numOfVgroups;
+
+  if (maxVgId < 2) maxVgId = 2;
 
   for (uint32_t v = 0; v < pDb->cfg.numOfVgroups; v++) {
     SVgObj *pVgroup = &pVgroups[v];

@@ -125,8 +125,8 @@ typedef struct {
   int64_t    lastAccessTime;
   int32_t    accessTimes;
   int16_t    numOfVnodes;
-  int16_t    numOfSupportVnodes;
-  int16_t    numOfCores;
+  int32_t    numOfSupportVnodes;
+  int32_t    numOfCores;
   EDndStatus status;
   EDndReason offlineReason;
   uint16_t   port;

@@ -694,8 +694,8 @@ typedef struct {
   int64_t     clusterId;
   int64_t     rebootTime;
   int64_t     updateTime;
-  int16_t     numOfCores;
-  int16_t     numOfSupportVnodes;
+  int32_t     numOfCores;
+  int32_t     numOfSupportVnodes;
   char        dnodeEp[TSDB_EP_LEN];
   SClusterCfg clusterCfg;
   SVnodeLoads vnodeLoads;

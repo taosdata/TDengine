@@ -278,8 +278,8 @@ static void mndParseStatusMsg(SStatusMsg *pStatus) {
   pStatus->clusterId = htobe64(pStatus->clusterId);
   pStatus->rebootTime = htobe64(pStatus->rebootTime);
   pStatus->updateTime = htobe64(pStatus->updateTime);
-  pStatus->numOfCores = htons(pStatus->numOfCores);
-  pStatus->numOfSupportVnodes = htons(pStatus->numOfSupportVnodes);
+  pStatus->numOfCores = htonl(pStatus->numOfCores);
+  pStatus->numOfSupportVnodes = htonl(pStatus->numOfSupportVnodes);
   pStatus->clusterCfg.statusInterval = htonl(pStatus->clusterCfg.statusInterval);
   pStatus->clusterCfg.checkTime = htobe64(pStatus->clusterCfg.checkTime);
 }
@@ -638,7 +638,7 @@ static int32_t mndGetDnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
 
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "max_vnodes");
+  strcpy(pSchema[cols].name, "support_vnodes");
   pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 

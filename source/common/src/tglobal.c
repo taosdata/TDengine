@@ -15,17 +15,18 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+
 #include "taosdef.h"
 #include "taoserror.h"
-#include "ulog.h"
-#include "tlog.h"
-#include "tconfig.h"
-#include "tglobal.h"
 #include "tcompare.h"
-#include "tutil.h"
-#include "ttimezone.h"
-#include "tlocale.h"
+#include "tconfig.h"
 #include "tep.h"
+#include "tglobal.h"
+#include "tlocale.h"
+#include "tlog.h"
+#include "ttimezone.h"
+#include "tutil.h"
+#include "ulog.h"
 
 // cluster
 char     tsFirst[TSDB_EP_LEN] = {0};
@@ -36,22 +37,24 @@ uint16_t tsServerPort = 6030;
 int32_t  tsStatusInterval = 1;  // second
 int8_t   tsEnableTelemetryReporting = 0;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
+int32_t  tsNumOfSupportVnodes = 16;
 
 // common
-int32_t tsRpcTimer       = 300;
-int32_t tsRpcMaxTime     = 600;  // seconds;
-int32_t tsRpcForceTcp    = 1;  //disable this, means query, show command use udp protocol as default
-int32_t tsMaxShellConns  = 50000;
+int32_t tsRpcTimer = 300;
+int32_t tsRpcMaxTime = 600;  // seconds;
+int32_t tsRpcForceTcp = 1;   // disable this, means query, show command use udp protocol as default
+int32_t tsMaxShellConns = 50000;
 int32_t tsMaxConnections = 5000;
-int32_t tsShellActivityTimer  = 3;  // second
+int32_t tsShellActivityTimer = 3;  // second
 float   tsNumOfThreadsPerCore = 1.0f;
 int32_t tsNumOfCommitThreads = 4;
 float   tsRatioOfQueryCores = 1.0f;
-int8_t  tsDaylight       = 0;
+int8_t  tsDaylight = 0;
 int8_t  tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
-int64_t tsMaxVnodeQueuedBytes = 1024*1024*1024; //1GB
-
+int8_t  tsEnableSlaveQuery = 1;
+int8_t  tsEnableAdjustMaster = 1;
+int8_t  tsPrintAuth = 0;
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
  * metricmeta rsp, and multi-meter query rsp message body. The client compress the submit message to server.
@@ -79,7 +82,7 @@ int32_t tsMaxSQLStringLen = TSDB_MAX_ALLOWED_SQL_LEN;
 int32_t tsMaxWildCardsLen = TSDB_PATTERN_STRING_DEFAULT_LEN;
 int32_t tsMaxRegexStringLen = TSDB_REGEX_STRING_DEFAULT_LEN;
 
-int8_t  tsTscEnableRecordSql = 0;
+int8_t tsTscEnableRecordSql = 0;
 
 // the maximum number of results for projection query on super table that are returned from
 // one virtual node, to order according to timestamp
@@ -89,7 +92,7 @@ int32_t tsMaxNumOfOrderedResults = 100000;
 int32_t tsMinSlidingTime = 10;
 
 // the maxinum number of distict query result
-int32_t tsMaxNumOfDistinctResults  = 1000 * 10000;
+int32_t tsMaxNumOfDistinctResults = 1000 * 10000;
 
 // 1 us for interval time range, changed accordingly
 int32_t tsMinIntervalTime = 1;
@@ -101,7 +104,7 @@ int32_t tsMaxStreamComputDelay = 20000;
 int32_t tsStreamCompStartDelay = 10000;
 
 // the stream computing delay time after executing failed, change accordingly
-int32_t tsRetryStreamCompDelay = 10*1000;
+int32_t tsRetryStreamCompDelay = 10 * 1000;
 
 // The delayed computing ration. 10% of the whole computing time window by default.
 float tsStreamComputDelayRatio = 0.1f;
@@ -120,30 +123,16 @@ int64_t tsQueryBufferSizeBytes = -1;
 int32_t tsRetrieveBlockingModel = 0;
 
 // last_row(*), first(*), last_row(ts, col1, col2) query, the result fields will be the original column name
-int8_t  tsKeepOriginalColumnName = 0;
+int8_t tsKeepOriginalColumnName = 0;
 
-// tsdb config 
+// long query death-lock
+int8_t tsDeadLockKillQuery = 0;
+
+// tsdb config
 // For backward compatibility
 bool tsdbForceKeepFile = false;
 
-// balance
-int8_t  tsEnableFlowCtrl = 1;
-int8_t  tsEnableSlaveQuery = 1;
-int8_t  tsEnableAdjustMaster = 1;
-
-
-// monitor
-char    tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
-char    tsInternalPass[] = "secretkey";
-
-// internal
-int8_t tsCompactMnodeWal = 0;
-int8_t tsPrintAuth = 0;
-char   tsVnodeDir[PATH_MAX] = {0};
-char   tsDnodeDir[PATH_MAX] = {0};
-char   tsMnodeDir[PATH_MAX] = {0};
-
-int32_t  tsDiskCfgNum = 0;
+int32_t tsDiskCfgNum = 0;
 
 #ifndef _STORAGE
 SDiskCfg tsDiskCfg[1];
@@ -160,31 +149,28 @@ SDiskCfg tsDiskCfg[TSDB_MAX_DISKS];
 int64_t tsTickPerDay[] = {86400000L, 86400000000L, 86400000000000L};
 
 // system info
-float   tsTotalTmpDirGB = 0;
-float   tsTotalDataDirGB = 0;
-float   tsAvailTmpDirectorySpace = 0;
-float   tsAvailDataDirGB = 0;
-float   tsUsedDataDirGB = 0;
-float   tsReservedTmpDirectorySpace = 1.0f;
-float   tsMinimalDataDirGB = 2.0f;
-int32_t tsTotalMemoryMB = 0;
+float    tsTotalTmpDirGB = 0;
+float    tsTotalDataDirGB = 0;
+float    tsAvailTmpDirectorySpace = 0;
+float    tsAvailDataDirGB = 0;
+float    tsUsedDataDirGB = 0;
+float    tsReservedTmpDirectorySpace = 1.0f;
+float    tsMinimalDataDirGB = 2.0f;
+int32_t  tsTotalMemoryMB = 0;
 uint32_t tsVersion = 0;
 
-#ifdef TD_TSZ
 //
 // lossy compress 6
 //
-char lossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty can close lossy compress.
-// below option can take effect when tsLossyColumns not empty 
-double   fPrecision   = 1E-8;   // float column precision
-double   dPrecision   = 1E-16;  // double column precision
-uint32_t maxRange     = 500;    // max range
-uint32_t curRange     = 100;    // range
-char     Compressor[32] = "ZSTD_COMPRESSOR"; // ZSTD_COMPRESSOR or GZIP_COMPRESSOR 
-#endif
+char tsLossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty
+                               // can close lossy compress.
+// below option can take effect when tsLossyColumns not empty
+double   tsFPrecision = 1E-8;                   // float column precision
+double   tsDPrecision = 1E-16;                  // double column precision
+uint32_t tsMaxRange = 500;                      // max range
+uint32_t tsCurRange = 100;                      // range
+char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
-// long query death-lock
-int8_t tsDeadLockKillQuery = 0;
 
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
@@ -195,13 +181,12 @@ char *qtypeStr[] = {"rpc", "fwd", "wal", "cq", "query"};
 static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
 void taosSetAllDebugFlag() {
-  if (debugFlag != 0) { 
+  if (debugFlag != 0) {
     mDebugFlag = debugFlag;
     dDebugFlag = debugFlag;
     vDebugFlag = debugFlag;
     jniDebugFlag = debugFlag;
-    odbcDebugFlag = debugFlag;
-    qDebugFlag = debugFlag;    
+    qDebugFlag = debugFlag;
     rpcDebugFlag = debugFlag;
     uDebugFlag = debugFlag;
     sDebugFlag = debugFlag;
@@ -213,12 +198,12 @@ void taosSetAllDebugFlag() {
 }
 
 int32_t taosCfgDynamicOptions(char *msg) {
-  char *option, *value;
-  int32_t   olen, vlen;
-  int32_t   vint = 0;
+  char   *option, *value;
+  int32_t olen, vlen;
+  int32_t vint = 0;
 
   paGetToken(msg, &option, &olen);
-  if (olen == 0) return -1;;
+  if (olen == 0) return -1;
 
   paGetToken(option + olen + 1, &value, &vlen);
   if (vlen == 0)
@@ -231,9 +216,9 @@ int32_t taosCfgDynamicOptions(char *msg) {
 
   for (int32_t i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
-    //if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_LOG)) continue;
+    // if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_LOG)) continue;
     if (cfg->valType != TAOS_CFG_VTYPE_INT32 && cfg->valType != TAOS_CFG_VTYPE_INT8) continue;
-    
+
     int32_t cfgLen = (int32_t)strlen(cfg->option);
     if (cfgLen != olen) continue;
     if (strncasecmp(option, cfg->option, olen) != 0) continue;
@@ -262,7 +247,7 @@ int32_t taosCfgDynamicOptions(char *msg) {
       return 0;
     }
     if (strncasecmp(cfg->option, "debugFlag", olen) == 0) {
-       taosSetAllDebugFlag(); 
+      taosSetAllDebugFlag();
     }
     return 0;
   }
@@ -323,7 +308,7 @@ static void doInitGlobalConfig(void) {
   srand(taosSafeRand());
 
   SGlobalCfg cfg = {0};
-  
+
   // ip address
   cfg.option = "firstEp";
   cfg.ptr = tsFirst;
@@ -362,6 +347,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 1;
   cfg.maxValue = 65056;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosAddConfigOption(cfg);
+
+  cfg.option = "supportVnodes";
+  cfg.ptr = &tsNumOfSupportVnodes;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 65536;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
@@ -442,8 +437,8 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsMaxNumOfDistinctResults;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 10*10000;
-  cfg.maxValue = 10000*10000;
+  cfg.minValue = 10 * 10000;
+  cfg.maxValue = 10000 * 10000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
@@ -751,17 +746,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_GB;
   taosAddConfigOption(cfg);
 
-    // module configs
-  cfg.option = "flowctrl";
-  cfg.ptr = &tsEnableFlowCtrl;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
   cfg.option = "slaveQuery";
   cfg.ptr = &tsEnableSlaveQuery;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -885,16 +869,6 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "jniDebugFlag";
   cfg.ptr = &jniDebugFlag;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 255;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "odbcDebugFlag";
-  cfg.ptr = &odbcDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
@@ -1034,7 +1008,7 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
 
-   // enable kill long query
+  // enable kill long query
   cfg.option = "deadLockKillQuery";
   cfg.ptr = &tsDeadLockKillQuery;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -1066,7 +1040,6 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
 
-  
   taosAddConfigOption(cfg);
 
   cfg.option = "dPrecision";
@@ -1100,23 +1073,20 @@ static void doInitGlobalConfig(void) {
   taosAddConfigOption(cfg);
   assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM);
 #else
-  //assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM - 5);
+  // assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM - 5);
 #endif
-
 }
 
-void taosInitGlobalCfg() {
-  pthread_once(&tsInitGlobalCfgOnce, doInitGlobalConfig);
-}
+void taosInitGlobalCfg() { pthread_once(&tsInitGlobalCfgOnce, doInitGlobalConfig); }
 
 int32_t taosCheckAndPrintCfg() {
-  char fqdn[TSDB_FQDN_LEN];
+  char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
 
   if (debugFlag & DEBUG_TRACE || debugFlag & DEBUG_DEBUG || debugFlag & DEBUG_DUMP) {
     taosSetAllDebugFlag();
   }
-  
+
   if (tsLocalFqdn[0] == 0) {
     taosGetFqdn(tsLocalFqdn);
   }
@@ -1143,7 +1113,7 @@ int32_t taosCheckAndPrintCfg() {
   if (taosDirExist(tsTempDir) != 0) {
     return -1;
   }
-  
+
   taosGetSystemInfo();
 
   tsSetLocale();
