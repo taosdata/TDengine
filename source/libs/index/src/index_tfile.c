@@ -81,7 +81,7 @@ TFileCache* tfileCacheCreate(const char* path) {
       continue;
     }
 
-    WriterCtx* wc = writerCtxCreate(TFile, file, true, 1024 * 64);
+    WriterCtx* wc = writerCtxCreate(TFile, file, true, 1024 * 1024 * 64);
     if (wc == NULL) {
       indexError("failed to open index:%s", file);
       goto End;
@@ -211,7 +211,7 @@ TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int32_t version, const c
 
   char fullname[256] = {0};
   snprintf(fullname, sizeof(fullname), "%s/%s", path, filename);
-  WriterCtx* wcx = writerCtxCreate(TFile, fullname, false, 1024 * 1024);
+  WriterCtx* wcx = writerCtxCreate(TFile, fullname, false, 1024 * 1024 * 64);
   if (wcx == NULL) { return NULL; }
 
   TFileHeader tfh = {0};
@@ -229,7 +229,7 @@ TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const c
 
   char fullname[256] = {0};
   snprintf(fullname, sizeof(fullname), "%s/%s", path, filename);
-  WriterCtx* wc = writerCtxCreate(TFile, fullname, true, 1024 * 1024);
+  WriterCtx* wc = writerCtxCreate(TFile, fullname, true, 1024 * 1024 * 1024);
   if (wc == NULL) { return NULL; }
 
   TFileReader* reader = tfileReaderCreateImpl(wc);
