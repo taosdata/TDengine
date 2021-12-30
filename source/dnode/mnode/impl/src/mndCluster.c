@@ -124,12 +124,11 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   if (code != 0) {
     strcpy(clusterObj.name, "tdengine2.0");
     mError("failed to get name from system, set to default val %s", clusterObj.name);
-  } else {
-    mDebug("cluster:%" PRId64 ", name is %s", clusterObj.id, clusterObj.name);
   }
-  clusterObj.id = MurmurHash3_32(clusterObj.name, TSDB_CLUSTER_ID_LEN);
+
+  clusterObj.id = mndGenerateUid(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   clusterObj.id = (clusterObj.id >= 0 ? clusterObj.id : -clusterObj.id);
-  pMnode->clusterId = clusterObj.id;
+  mDebug("cluster:%" PRId64 ", name is %s", clusterObj.id, clusterObj.name);
 
   SSdbRaw *pRaw = mndClusterActionEncode(&clusterObj);
   if (pRaw == NULL) return -1;
