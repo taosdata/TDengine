@@ -26,7 +26,7 @@ SDnodeOpt TestServer::BuildOption(const char* path, const char* fqdn, uint16_t p
   SDnodeOpt option = {0};
   option.sver = 1;
   option.numOfCores = 1;
-  option.numOfSupportVnodes = 1;
+  option.numOfSupportVnodes = 16;
   option.numOfCommitThreads = 1;
   option.statusInterval = 1;
   option.numOfThreadsPerCore = 1;

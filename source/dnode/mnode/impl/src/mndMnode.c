@@ -251,7 +251,7 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
   void   *pIter = NULL;
   int32_t numOfReplicas = 0;
 
-  SCreateMnodeInMsg createMsg = {0};
+  SDCreateMnodeMsg createMsg = {0};
   while (1) {
     SMnodeObj *pMObj = NULL;
     pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pMObj);
@@ -281,18 +281,18 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
 
     STransAction action = {0};
 
-    SAlterMnodeInMsg *pMsg = malloc(sizeof(SAlterMnodeInMsg));
+    SDAlterMnodeMsg *pMsg = malloc(sizeof(SDAlterMnodeMsg));
     if (pMsg == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pMObj);
       return -1;
     }
-    memcpy(pMsg, &createMsg, sizeof(SAlterMnodeInMsg));
+    memcpy(pMsg, &createMsg, sizeof(SDAlterMnodeMsg));
 
     pMsg->dnodeId = htonl(pMObj->id);
     action.epSet = mndGetDnodeEpset(pMObj->pDnode);
     action.pCont = pMsg;
-    action.contLen = sizeof(SAlterMnodeInMsg);
+    action.contLen = sizeof(SDAlterMnodeMsg);
     action.msgType = TDMT_DND_ALTER_MNODE;
 
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -309,14 +309,14 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
     STransAction action = {0};
     action.epSet = mndGetDnodeEpset(pDnode);
 
-    SCreateMnodeInMsg *pMsg = malloc(sizeof(SCreateMnodeInMsg));
+    SDCreateMnodeMsg *pMsg = malloc(sizeof(SDCreateMnodeMsg));
     if (pMsg == NULL) return -1;
-    memcpy(pMsg, &createMsg, sizeof(SAlterMnodeInMsg));
+    memcpy(pMsg, &createMsg, sizeof(SDAlterMnodeMsg));
     pMsg->dnodeId = htonl(pObj->id);
 
     action.epSet = mndGetDnodeEpset(pDnode);
     action.pCont = pMsg;
-    action.contLen = sizeof(SCreateMnodeInMsg);
+    action.contLen = sizeof(SDCreateMnodeMsg);
     action.msgType = TDMT_DND_CREATE_MNODE;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pMsg);
@@ -327,9 +327,9 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
   return 0;
 }
 
-static int32_t mndCreateMnode(SMnode *pMnode, SMnodeMsg *pMsg, SDnodeObj *pDnode, SCreateMnodeMsg *pCreate) {
+static int32_t mndCreateMnode(SMnode *pMnode, SMnodeMsg *pMsg, SDnodeObj *pDnode, SMCreateMnodeMsg *pCreate) {
   SMnodeObj mnodeObj = {0};
-  mnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_MNODE);
+  mnodeObj.id = pDnode->id;
   mnodeObj.createdTime = taosGetTimestampMs();
   mnodeObj.updateTime = mnodeObj.createdTime;
 
@@ -370,7 +370,7 @@ CREATE_MNODE_OVER:
 
 static int32_t mndProcessCreateMnodeReq(SMnodeMsg *pMsg) {
   SMnode          *pMnode = pMsg->pMnode;
-  SCreateMnodeMsg *pCreate = pMsg->rpcMsg.pCont;
+  SMCreateMnodeMsg *pCreate = pMsg->rpcMsg.pCont;
 
   pCreate->dnodeId = htonl(pCreate->dnodeId);
 
@@ -423,7 +423,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   void   *pIter = NULL;
   int32_t numOfReplicas = 0;
 
-  SAlterMnodeInMsg alterMsg = {0};
+  SDAlterMnodeMsg alterMsg = {0};
   while (1) {
     SMnodeObj *pMObj = NULL;
     pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pMObj);
@@ -449,18 +449,18 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
     if (pMObj->id != pObj->id) {
       STransAction action = {0};
 
-      SAlterMnodeInMsg *pMsg = malloc(sizeof(SAlterMnodeInMsg));
+      SDAlterMnodeMsg *pMsg = malloc(sizeof(SDAlterMnodeMsg));
       if (pMsg == NULL) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pMObj);
         return -1;
       }
-      memcpy(pMsg, &alterMsg, sizeof(SAlterMnodeInMsg));
+      memcpy(pMsg, &alterMsg, sizeof(SDAlterMnodeMsg));
 
       pMsg->dnodeId = htonl(pMObj->id);
       action.epSet = mndGetDnodeEpset(pMObj->pDnode);
       action.pCont = pMsg;
-      action.contLen = sizeof(SAlterMnodeInMsg);
+      action.contLen = sizeof(SDAlterMnodeMsg);
       action.msgType = TDMT_DND_ALTER_MNODE;
 
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -478,7 +478,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
     STransAction action = {0};
     action.epSet = mndGetDnodeEpset(pDnode);
 
-    SDropMnodeInMsg *pMsg = malloc(sizeof(SDropMnodeInMsg));
+    SDDropMnodeMsg *pMsg = malloc(sizeof(SDDropMnodeMsg));
     if (pMsg == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -487,7 +487,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
 
     action.epSet = mndGetDnodeEpset(pDnode);
     action.pCont = pMsg;
-    action.contLen = sizeof(SDropMnodeInMsg);
+    action.contLen = sizeof(SDDropMnodeMsg);
     action.msgType = TDMT_DND_DROP_MNODE;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pMsg);
@@ -537,7 +537,7 @@ DROP_MNODE_OVER:
 
 static int32_t mndProcessDropMnodeReq(SMnodeMsg *pMsg) {
   SMnode        *pMnode = pMsg->pMnode;
-  SDropMnodeMsg *pDrop = pMsg->rpcMsg.pCont;
+  SMDropMnodeMsg *pDrop = pMsg->rpcMsg.pCont;
   pDrop->dnodeId = htonl(pDrop->dnodeId);
 
   mDebug("mnode:%d, start to drop", pDrop->dnodeId);
@@ -562,7 +562,7 @@ static int32_t mndProcessDropMnodeReq(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  sdbRelease(pMnode->pSdb, pMnode);
+  sdbRelease(pMnode->pSdb, pObj);
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 

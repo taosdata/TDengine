@@ -35,4 +35,13 @@ void *sdbGetRowObj(SSdbRow *pRow) {
   return pRow->pObj;
 }
 
-void sdbFreeRow(SSdbRow *pRow) { tfree(pRow); }
+void sdbFreeRow(SSdb *pSdb, SSdbRow *pRow) {
+  // remove attached object such as trans
+  SdbDeleteFp deleteFp = pSdb->deleteFps[pRow->type];
+  if (deleteFp != NULL) {
+    (*deleteFp)(pSdb, pRow->pObj);
+  }
+
+  sdbPrintOper(pSdb, pRow, "freeRow");
+  tfree(pRow);
+}

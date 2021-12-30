@@ -124,12 +124,8 @@ typedef struct {
   int64_t    rebootTime;
   int64_t    lastAccessTime;
   int32_t    accessTimes;
-  int16_t    numOfMnodes;
   int16_t    numOfVnodes;
-  int16_t    numOfQnodes;
-  int16_t    numOfSupportMnodes;
   int16_t    numOfSupportVnodes;
-  int16_t    numOfSupportQnodes;
   int16_t    numOfCores;
   EDndStatus status;
   EDndReason offlineReason;
@@ -147,6 +143,27 @@ typedef struct {
   int64_t    roleTime;
   SDnodeObj *pDnode;
 } SMnodeObj;
+
+typedef struct {
+  int32_t    id;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj *pDnode;
+} SQnodeObj;
+
+typedef struct {
+  int32_t    id;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj *pDnode;
+} SSnodeObj;
+
+typedef struct {
+  int32_t    id;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj *pDnode;
+} SBnodeObj;
 
 typedef struct {
   int32_t maxUsers;
@@ -305,7 +322,33 @@ typedef struct {
   void*    executor;
   int32_t  sqlLen;
   char*    sql;
+  char*    logicalPlan;
+  char*    physicalPlan;
 } STopicObj;
+
+typedef struct {
+  char name[TSDB_TOPIC_FNAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
+  int64_t createTime;
+  int64_t updateTime;
+  uint64_t uid;
+  //uint64_t dbUid;
+  int32_t version;
+  SRWLatch lock;
+
+} SConsumerObj;
+
+typedef struct {
+  char name[TSDB_TOPIC_FNAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
+  int64_t createTime;
+  int64_t updateTime;
+  uint64_t uid;
+  //uint64_t dbUid;
+  int32_t version;
+  SRWLatch lock;
+
+} SCGroupObj;
 
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];

@@ -151,7 +151,7 @@ int32_t sdbWriteFile(SSdb *pSdb) {
         if (taosWriteFile(fd, pRaw, writeLen) != writeLen) {
           code = TAOS_SYSTEM_ERROR(terrno);
           taosHashCancelIterate(hash, ppRow);
-          free(pRaw);
+          sdbFreeRaw(pRaw);
           break;
         }
 
@@ -159,7 +159,7 @@ int32_t sdbWriteFile(SSdb *pSdb) {
         if (taosWriteFile(fd, &cksum, sizeof(int32_t)) != sizeof(int32_t)) {
           code = TAOS_SYSTEM_ERROR(terrno);
           taosHashCancelIterate(hash, ppRow);
-          free(pRaw);
+          sdbFreeRaw(pRaw);
           break;
         }
       } else {
@@ -168,7 +168,7 @@ int32_t sdbWriteFile(SSdb *pSdb) {
         break;
       }
 
-      free(pRaw);
+      sdbFreeRaw(pRaw);
       ppRow = taosHashIterate(hash, ppRow);
     }
     taosWUnLockLatch(pLock);

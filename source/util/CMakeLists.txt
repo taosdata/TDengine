@@ -13,3 +13,5 @@ target_link_libraries(
     PUBLIC lz4_static
     PUBLIC api
 )
+
+ADD_SUBDIRECTORY(test)

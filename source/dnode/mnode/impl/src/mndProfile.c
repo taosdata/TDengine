@@ -118,17 +118,17 @@ static SConnObj *mndCreateConn(SMnode *pMnode, SRpcConnInfo *pInfo, int32_t pid,
   SConnObj *pConn = taosCachePut(pMgmt->cache, &connId, sizeof(int32_t), &connObj, sizeof(connObj), keepTime * 1000);
   if (pConn == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("conn:%d, data:%p failed to put into cache since %s, user:%s", connId, pConn, pInfo->user, terrstr());
+    mError("conn:%d, failed to put into cache since %s, user:%s", connId, pInfo->user, terrstr());
     return NULL;
   } else {
-    mTrace("conn:%d, data:%p created, user:%s", pConn->id, pConn, pInfo->user);
+    mTrace("conn:%d, is created, data:%p user:%s", pConn->id, pConn, pInfo->user);
     return pConn;
   }
 }
 
 static void mndFreeConn(SConnObj *pConn) {
   tfree(pConn->pQueries);
-  mTrace("conn:%d, data:%p destroyed", pConn->id, pConn);
+  mTrace("conn:%d, is destroyed, data:%p", pConn->id, pConn);
 }
 
 static SConnObj *mndAcquireConn(SMnode *pMnode, int32_t connId) {
@@ -143,13 +143,13 @@ static SConnObj *mndAcquireConn(SMnode *pMnode, int32_t connId) {
   int32_t keepTime = pMnode->cfg.shellActivityTimer * 3;
   pConn->lastAccessTimeMs = keepTime * 1000 + (uint64_t)taosGetTimestampMs();
 
-  mTrace("conn:%d, data:%p acquired from cache", pConn->id, pConn);
+  mTrace("conn:%d, acquired from cache, data:%p", pConn->id, pConn);
   return pConn;
 }
 
 static void mndReleaseConn(SMnode *pMnode, SConnObj *pConn) {
   if (pConn == NULL) return;
-  mTrace("conn:%d, data:%p released from cache", pConn->id, pConn);
+  mTrace("conn:%d, released from cache, data:%p", pConn->id, pConn);
 
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
   taosCacheRelease(pMgmt->cache, (void **)&pConn, false);

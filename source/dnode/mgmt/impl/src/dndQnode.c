@@ -261,7 +261,7 @@ static int32_t dndDropQnode(SDnode *pDnode) {
 }
 
 int32_t dndProcessCreateQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SCreateQnodeInMsg *pMsg = pRpcMsg->pCont;
+  SDCreateQnodeMsg *pMsg = pRpcMsg->pCont;
   pMsg->dnodeId = htonl(pMsg->dnodeId);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
@@ -273,7 +273,7 @@ int32_t dndProcessCreateQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
 }
 
 int32_t dndProcessDropQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SDropQnodeInMsg *pMsg = pRpcMsg->pCont;
+  SDDropQnodeMsg *pMsg = pRpcMsg->pCont;
   pMsg->dnodeId = htonl(pMsg->dnodeId);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {

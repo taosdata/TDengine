@@ -24,7 +24,7 @@ void sndClose(SSnode *pSnode) { free(pSnode); }
 
 int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad) { return 0; }
 
-int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+int32_t sndProcessMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   *pRsp = NULL;
   return 0;
 }

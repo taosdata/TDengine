@@ -13,18 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "vnodeInt.h"
+#ifndef _TD_MND_BNODE_H_
+#define _TD_MND_BNODE_H_
 
-int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg) { return 0; }
+#include "mndInt.h"
 
-int32_t vnodeCompact(SVnode *pVnode) { return 0; }
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-int32_t vnodeSync(SVnode *pVnode) { return 0; }
+int32_t mndInitBnode(SMnode *pMnode);
+void    mndCleanupBnode(SMnode *pMnode);
 
-int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) { return 0; }
-
-int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vInfo("sync message is processed");
-  return 0;
+#ifdef __cplusplus
 }
+#endif
+
+#endif /*_TD_MND_BNODE_H_*/

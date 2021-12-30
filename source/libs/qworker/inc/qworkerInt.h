@@ -106,11 +106,11 @@ typedef struct SQWorkerMgmt {
   if (QW_READ == (type)) {          \
     if ((*(_lock)) < 0) assert(0);    \
     taosRLockLatch(_lock);          \
-    qDebug("RLOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+    qDebug("QW RLOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
   } else {                                                \
     if ((*(_lock)) < 0) assert(0);                          \
     taosWLockLatch(_lock);                                \
-    qDebug("WLOCK%p, %s:%d", (_lock), __FILE__, __LINE__);  \
+    qDebug("QW WLOCK%p, %s:%d", (_lock), __FILE__, __LINE__);  \
   }                                                       \
 } while (0)
 
@@ -118,11 +118,11 @@ typedef struct SQWorkerMgmt {
   if (QW_READ == (type)) {                                \
     if ((*(_lock)) <= 0) assert(0);                         \
     taosRUnLockLatch(_lock);                              \
-    qDebug("RULOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+    qDebug("QW RULOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
   } else {                                                \
     if ((*(_lock)) <= 0) assert(0);                         \
     taosWUnLockLatch(_lock);                              \
-    qDebug("WULOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+    qDebug("QW WULOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
   }                                                       \
 } while (0)
 
