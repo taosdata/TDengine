@@ -183,7 +183,7 @@ bool likeOperator(SColumnFilterElem *pFilter, const char *minval, const char *ma
     return patternMatch((char *)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval), &info) == TSDB_PATTERN_MATCH;
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
     SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
-    return WCSPatternMatch((wchar_t*)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE, &info) == TSDB_PATTERN_MATCH;
+    return WCSPatternMatch((uint32_t *) pFilter->filterInfo.pz, (uint32_t *) varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE, &info) == TSDB_PATTERN_MATCH;
   } else {
     return false;
   }

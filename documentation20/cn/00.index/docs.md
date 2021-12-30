@@ -83,9 +83,10 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [Windows客户端](https://www.taosdata.com/blog/2019/07/26/514.html)：自行编译windows客户端，Windows环境的各种连接器都需要它
 * [Rust Connector](/connector/rust): Rust语言下通过libtaos客户端或RESTful接口，连接TDengine服务器。
 
-## [TDengine 组件与工具](/tools/adapter)
+## [TDengine 组件与工具](/cn/documentation/)
 
-* [taosAdapter用户手册](/tools/adapter)
+* [taosAdapter 用户手册](/tools/adapter)
+* [TDinsight 用户手册](/tools/insight)
 
 ## [与其他工具的连接](/connections)
 
