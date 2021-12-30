@@ -196,6 +196,8 @@ static SDnodeObj *mndAcquireDnodeByEp(SMnode *pMnode, char *pEpStr) {
       sdbCancelFetch(pSdb, pIter);
       return pDnode;
     }
+
+    sdbRelease(pSdb, pDnode);
   }
 
   return NULL;
@@ -419,10 +421,9 @@ static int32_t mndCreateDnode(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDnodeMsg *
 static int32_t mndProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
   SMnode          *pMnode = pMsg->pMnode;
   SCreateDnodeMsg *pCreate = pMsg->rpcMsg.pCont;
-
+  pCreate->port = htonl(pCreate->port);
   mDebug("dnode:%s:%d, start to create", pCreate->fqdn, pCreate->port);
 
-  pCreate->port = htonl(pCreate->port);
   if (pCreate->fqdn[0] == 0 || pCreate->port <= 0 || pCreate->port > UINT16_MAX) {
     terrno = TSDB_CODE_MND_INVALID_DNODE_EP;
     mError("dnode:%s:%d, failed to create since %s", pCreate->fqdn, pCreate->port, terrstr());

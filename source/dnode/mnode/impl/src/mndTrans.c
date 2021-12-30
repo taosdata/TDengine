@@ -79,17 +79,17 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
 
   for (int32_t i = 0; i < redoLogNum; ++i) {
     SSdbRaw *pTmp = taosArrayGetP(pTrans->redoLogs, i);
-    rawDataLen += sdbGetRawTotalSize(pTmp);
+    rawDataLen += (sdbGetRawTotalSize(pTmp) + 4);
   }
 
   for (int32_t i = 0; i < undoLogNum; ++i) {
     SSdbRaw *pTmp = taosArrayGetP(pTrans->undoLogs, i);
-    rawDataLen += sdbGetRawTotalSize(pTmp);
+    rawDataLen += (sdbGetRawTotalSize(pTmp) + 4);
   }
 
   for (int32_t i = 0; i < commitLogNum; ++i) {
     SSdbRaw *pTmp = taosArrayGetP(pTrans->commitLogs, i);
-    rawDataLen += sdbGetRawTotalSize(pTmp);
+    rawDataLen += (sdbGetRawTotalSize(pTmp) + 4);
   }
 
   for (int32_t i = 0; i < redoActionNum; ++i) {
@@ -437,7 +437,7 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction) {
 static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   SSdbRaw *pRaw = mndTransActionEncode(pTrans);
   if (pRaw == NULL) {
-    mError("trans:%d, failed to decode trans since %s", pTrans->id, terrstr());
+    mError("trans:%d, failed to encode while sync trans since %s", pTrans->id, terrstr());
     return -1;
   }
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
@@ -835,7 +835,7 @@ static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
 
   SSdbRaw *pRaw = mndTransActionEncode(pTrans);
   if (pRaw == NULL) {
-    mError("trans:%d, failed to decode trans since %s", pTrans->id, terrstr());
+    mError("trans:%d, failed to encode while finish trans since %s", pTrans->id, terrstr());
   }
   sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
 

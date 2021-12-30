@@ -219,6 +219,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
     }
 
     pEpSet->numOfEps++;
+    sdbRelease(pSdb, pObj);
   }
 }
 
