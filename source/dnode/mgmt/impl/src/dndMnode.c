@@ -299,7 +299,7 @@ static void dndBuildMnodeOpenOption(SDnode *pDnode, SMnodeOpt *pOption) {
   memcpy(&pOption->replicas, pMgmt->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
 }
 
-static int32_t dndBuildMnodeOptionFromMsg(SDnode *pDnode, SMnodeOpt *pOption, SCreateMnodeInMsg *pMsg) {
+static int32_t dndBuildMnodeOptionFromMsg(SDnode *pDnode, SMnodeOpt *pOption, SDCreateMnodeMsg *pMsg) {
   dndInitMnodeOption(pDnode, pOption);
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
@@ -417,8 +417,8 @@ static int32_t dndDropMnode(SDnode *pDnode) {
   return 0;
 }
 
-static SCreateMnodeInMsg *dndParseCreateMnodeMsg(SRpcMsg *pRpcMsg) {
-  SCreateMnodeInMsg *pMsg = pRpcMsg->pCont;
+static SDCreateMnodeMsg *dndParseCreateMnodeMsg(SRpcMsg *pRpcMsg) {
+  SDCreateMnodeMsg *pMsg = pRpcMsg->pCont;
   pMsg->dnodeId = htonl(pMsg->dnodeId);
   for (int32_t i = 0; i < pMsg->replica; ++i) {
     pMsg->replicas[i].id = htonl(pMsg->replicas[i].id);
@@ -429,7 +429,7 @@ static SCreateMnodeInMsg *dndParseCreateMnodeMsg(SRpcMsg *pRpcMsg) {
 }
 
 int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SCreateMnodeInMsg *pMsg = dndParseCreateMnodeMsg(pRpcMsg);
+  SDCreateMnodeMsg *pMsg = dndParseCreateMnodeMsg(pRpcMsg);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_ID_INVALID;
@@ -445,7 +445,7 @@ int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
 }
 
 int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SAlterMnodeInMsg *pMsg = dndParseCreateMnodeMsg(pRpcMsg);
+  SDAlterMnodeMsg *pMsg = dndParseCreateMnodeMsg(pRpcMsg);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_ID_INVALID;
@@ -465,7 +465,7 @@ int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
 }
 
 int32_t dndProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SDropMnodeInMsg *pMsg = pRpcMsg->pCont;
+  SDDropMnodeMsg *pMsg = pRpcMsg->pCont;
   pMsg->dnodeId = htonl(pMsg->dnodeId);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {

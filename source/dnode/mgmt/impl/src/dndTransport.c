@@ -383,6 +383,7 @@ void dndCleanupTrans(SDnode *pDnode) {
 
 void dndSendMsgToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pMsg) {
   STransMgmt *pMgmt = &pDnode->tmgmt;
+  if (pMgmt->clientRpc == NULL) return;
   rpcSendRequest(pMgmt->clientRpc, pEpSet, pMsg, NULL);
 }
 
