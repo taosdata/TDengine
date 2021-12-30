@@ -1534,10 +1534,10 @@ int stmtGenInsertStatement(SSqlObj* pSql, STscStmt* pStmt, const char* name, TAO
 }
 
 int32_t stmtValidateValuesFields(SSqlCmd *pCmd, char * sql) {
-  int32_t loopCont = 1, index0 = 0, values = 0;
+  int32_t index0 = 0, values = 0;
   SStrToken sToken;
   
-  while (loopCont) {
+  while (1) {
     sToken = tStrGetToken(sql, &index0, false);
     if (sToken.n <= 0) {
       return TSDB_CODE_SUCCESS;
