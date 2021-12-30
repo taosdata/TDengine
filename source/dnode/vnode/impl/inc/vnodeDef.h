@@ -31,10 +31,10 @@
 #include "vnodeCommit.h"
 #include "vnodeFS.h"
 #include "vnodeMemAllocator.h"
+#include "vnodeQuery.h"
 #include "vnodeRequest.h"
 #include "vnodeStateMgr.h"
 #include "vnodeSync.h"
-#include "vnodeQuery.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,6 +62,7 @@ typedef struct SVnodeMgr {
 extern SVnodeMgr vnodeMgr;
 
 struct SVnode {
+  int32_t     vgId;
   char*       path;
   SVnodeCfg   config;
   SVState     state;

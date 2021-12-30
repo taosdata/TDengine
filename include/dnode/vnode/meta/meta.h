@@ -37,6 +37,11 @@ typedef struct SMetaCfg {
   uint64_t lruSize;
 } SMetaCfg;
 
+typedef struct {
+  int32_t  nCols;
+  SSchema *pSchema;
+} SSchemaWrapper;
+
 typedef SVCreateTbReq STbCfg;
 
 // SMeta operations
@@ -48,7 +53,9 @@ int    metaDropTable(SMeta *pMeta, tb_uid_t uid);
 int    metaCommit(SMeta *pMeta);
 
 // For Query
-STbCfg *metaGetTableInfo(SMeta *pMeta, char *tbname);
+STbCfg *        metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid);
+STbCfg *        metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid);
+SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 
 // Options
 void metaOptionsInit(SMetaCfg *pMetaCfg);

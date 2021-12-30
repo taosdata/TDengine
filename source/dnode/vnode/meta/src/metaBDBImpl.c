@@ -38,11 +38,6 @@ struct SMetaDB {
   DB_ENV *pEvn;
 };
 
-typedef struct {
-  int32_t  nCols;
-  SSchema *pSchema;
-} SSchemaWrapper;
-
 typedef int (*bdbIdxCbPtr)(DB *, const DBT *, const DBT *, DBT *);
 
 static SMetaDB *metaNewDB();
@@ -60,9 +55,6 @@ static int      metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *
 static int      metaEncodeTbInfo(void **buf, STbCfg *pTbCfg);
 static void *   metaDecodeTbInfo(void *buf, STbCfg *pTbCfg);
 static void     metaClearTbCfg(STbCfg *pTbCfg);
-static SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline);
-static STbCfg *        metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid);
-static STbCfg *        metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid);
 
 #define BDB_PERR(info, code) fprintf(stderr, info " reason: %s", db_strerror(code))
 
@@ -439,31 +431,7 @@ static void metaClearTbCfg(STbCfg *pTbCfg) {
 }
 
 /* ------------------------ FOR QUERY ------------------------ */
-STbCfg *metaGetTableInfo(SMeta *pMeta, char *tbname) {
-  STbCfg *        pTbCfg = NULL;
-  STbCfg *        pStbCfg = NULL;
-  tb_uid_t        uid;
-  int32_t         sver = 0;
-  SSchemaWrapper *pSW;
-
-  pTbCfg = metaGetTbInfoByName(pMeta, tbname, &uid);
-  if (pTbCfg == NULL) {
-    return NULL;
-  }
-
-  if (pTbCfg->type == META_CHILD_TABLE) {
-    uid = pTbCfg->ctbCfg.suid;
-  }
-
-  pSW = metaGetTableSchema(pMeta, uid, 0, false);
-  if (pSW == NULL) {
-    return NULL;
-  }
-
-  return pTbCfg;
-}
-
-static STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {
+STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {
   STbCfg * pTbCfg = NULL;
   SMetaDB *pDB = pMeta->pDB;
   DBT      key = {0};
@@ -491,7 +459,7 @@ static STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {
   return pTbCfg;
 }
 
-static STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
+STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
   STbCfg * pTbCfg = NULL;
   SMetaDB *pDB = pMeta->pDB;
   DBT      key = {0};
@@ -521,7 +489,7 @@ static STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
   return pTbCfg;
 }
 
-static SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
+SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
   uint32_t        nCols;
   SSchemaWrapper *pSW = NULL;
   SMetaDB *       pDB = pMeta->pDB;
