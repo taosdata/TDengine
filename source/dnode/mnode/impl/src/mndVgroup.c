@@ -238,39 +238,48 @@ SDropVnodeMsg *mndBuildDropVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *p
   return pDrop;
 }
 
+static bool mndResetDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  SDnodeObj *pDnode = pObj;
+  pDnode->numOfVnodes = 0;
+  return true;
+}
+
+static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  SDnodeObj *pDnode = pObj;
+  SArray    *pArray = p1;
+
+  pDnode->numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
+
+  int64_t curMs = taosGetTimestampMs();
+  bool    online = mndIsDnodeOnline(pMnode, pDnode, curMs);
+  if (online && pDnode->numOfSupportVnodes > 0) {
+    taosArrayPush(pArray, pDnode);
+  }
+
+  bool isMnode = mndIsMnode(pMnode, pDnode->id);
+
+  mDebug("dnode:%d, vnodes:%d supportVnodes:%d isMnode:%d online:%d", pDnode->id, pDnode->numOfVnodes,
+         pDnode->numOfSupportVnodes, isMnode, online);
+
+  if (isMnode) {
+    pDnode->numOfVnodes++;
+  }
+
+  return true;
+}
+
 static SArray *mndBuildDnodesArray(SMnode *pMnode) {
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfDnodes = mndGetDnodeSize(pMnode);
+
   SArray *pArray = taosArrayInit(numOfDnodes, sizeof(SDnodeObj));
   if (pArray == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  void *pIter = NULL;
-  while (1) {
-    SDnodeObj *pDnode = NULL;
-    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
-    if (pIter == NULL) break;
-
-    int32_t numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
-
-    bool isMnode = mndIsMnode(pMnode, pDnode->id);
-    if (isMnode) {
-      pDnode->numOfVnodes++;
-    }
-
-    int64_t curMs = taosGetTimestampMs();
-    bool    online = mndIsDnodeOnline(pMnode, pDnode, curMs);
-    if (online) {
-      taosArrayPush(pArray, pDnode);
-    }
-
-    mDebug("dnode:%d, vnodes:%d supportVnodes:%d isMnode:%d online:%d", pDnode->id, numOfVnodes,
-           pDnode->numOfSupportVnodes, isMnode, online);
-    sdbRelease(pSdb, pDnode);
-  }
-
+  sdbTraverse(pSdb, SDB_DNODE, mndResetDnodesArrayFp, NULL, NULL, NULL);
+  sdbTraverse(pSdb, SDB_DNODE, mndBuildDnodesArrayFp, pArray, NULL, NULL);
   return pArray;
 }
 
@@ -302,7 +311,7 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup, SArray *pAr
       pVgid->role = TAOS_SYNC_STATE_FOLLOWER;
     }
 
-    mDebug("db:%s, vgId:%d, vindex:%d dnodeId:%d is alloced", pVgroup->dbName, pVgroup->vgId, v, pVgid->dnodeId);
+    mDebug("db:%s, vgId:%d, vn:%d dnode:%d is alloced", pVgroup->dbName, pVgroup->vgId, v, pVgid->dnodeId);
     pDnode->numOfVnodes++;
   }
 
@@ -412,6 +421,20 @@ static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pMsg) { return 0; }
 
 static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pMsg) { return 0; }
 
+static bool mndGetVgroupMaxReplicaFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  SVgObj  *pVgroup = pObj;
+  int64_t  uid = *(int64_t *)p1;
+  int8_t  *pReplica = p2;
+  int32_t *pNumOfVgroups = p3;
+
+  if (pVgroup->dbUid == uid) {
+    *pReplica = MAX(*pReplica, pVgroup->replica);
+    (*pNumOfVgroups)++;
+  }
+
+  return true;
+}
+
 static int32_t mndGetVgroupMaxReplica(SMnode *pMnode, char *dbName, int8_t *pReplica, int32_t *pNumOfVgroups) {
   SSdb   *pSdb = pMnode->pSdb;
   SDbObj *pDb = mndAcquireDb(pMnode, dbName);
@@ -420,25 +443,10 @@ static int32_t mndGetVgroupMaxReplica(SMnode *pMnode, char *dbName, int8_t *pRep
     return -1;
   }
 
-  int8_t  replica = 1;
-  int32_t numOfVgroups = 0;
-
-  void *pIter = NULL;
-  while (1) {
-    SVgObj *pVgroup = NULL;
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
-
-    if (pVgroup->dbUid == pDb->uid) {
-      replica = MAX(replica, pVgroup->replica);
-      numOfVgroups++;
-    }
-
-    sdbRelease(pSdb, pVgroup);
-  }
-
-  *pReplica = replica;
-  *pNumOfVgroups = numOfVgroups;
+  *pReplica = 1;
+  *pNumOfVgroups = 0;
+  sdbTraverse(pSdb, SDB_VGROUP, mndGetVgroupMaxReplicaFp, &pDb->uid, pReplica, pNumOfVgroups);
+  mndReleaseDb(pMnode, pDb);
   return 0;
 }
 
@@ -540,25 +548,23 @@ static void mndCancelGetNextVgroup(SMnode *pMnode, void *pIter) {
   sdbCancelFetch(pSdb, pIter);
 }
 
-int32_t mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId) {
-  SSdb   *pSdb = pMnode->pSdb;
-  int32_t numOfVnodes = 0;
-  void   *pIter = NULL;
+static bool mndGetVnodesNumFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  SVgObj  *pVgroup = pObj;
+  int32_t  dnodeId = *(int32_t *)p1;
+  int32_t *pNumOfVnodes = (int32_t *)p2;
 
-  while (1) {
-    SVgObj *pVgroup = NULL;
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
-
-    for (int32_t v = 0; v < pVgroup->replica; ++v) {
-      if (pVgroup->vnodeGid[v].dnodeId == dnodeId) {
-        numOfVnodes++;
-      }
+  for (int32_t v = 0; v < pVgroup->replica; ++v) {
+    if (pVgroup->vnodeGid[v].dnodeId == dnodeId) {
+      (*pNumOfVnodes)++;
     }
-
-    sdbRelease(pSdb, pVgroup);
   }
 
+  return true;
+}
+
+int32_t mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId) {
+  int32_t numOfVnodes = 0;
+  sdbTraverse(pMnode->pSdb, SDB_VGROUP, mndGetVnodesNumFp, &dnodeId, &numOfVnodes, NULL);
   return numOfVnodes;
 }
 

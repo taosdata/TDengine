@@ -19,7 +19,7 @@
 #include "dndTransport.h"
 #include "dndWorker.h"
 
-static void dndProcessBnodeQueue(SDnode *pDnode, taos_qall qall, int32_t numOfMsgs);
+static void dndProcessBnodeQueue(SDnode *pDnode, STaosQall *qall, int32_t numOfMsgs);
 
 static SBnode *dndAcquireBnode(SDnode *pDnode) {
   SBnodeMgmt *pMgmt = &pDnode->bmgmt;
@@ -286,7 +286,7 @@ static void dndSendBnodeErrorRsp(SRpcMsg *pMsg, int32_t code) {
   taosFreeQitem(pMsg);
 }
 
-static void dndSendBnodeErrorRsps(taos_qall qall, int32_t numOfMsgs, int32_t code) {
+static void dndSendBnodeErrorRsps(STaosQall *qall, int32_t numOfMsgs, int32_t code) {
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     SRpcMsg *pMsg = NULL;
     taosGetQitem(qall, (void **)&pMsg);
@@ -294,7 +294,7 @@ static void dndSendBnodeErrorRsps(taos_qall qall, int32_t numOfMsgs, int32_t cod
   }
 }
 
-static void dndProcessBnodeQueue(SDnode *pDnode, taos_qall qall, int32_t numOfMsgs) {
+static void dndProcessBnodeQueue(SDnode *pDnode, STaosQall *qall, int32_t numOfMsgs) {
   SBnode *pBnode = dndAcquireBnode(pDnode);
   if (pBnode == NULL) {
     dndSendBnodeErrorRsps(qall, numOfMsgs, TSDB_CODE_OUT_OF_MEMORY);

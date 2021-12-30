@@ -35,7 +35,7 @@ typedef struct SWorkerPool {
   int32_t         max;  // max number of workers
   int32_t         min;  // min number of workers
   int32_t         num;  // current number of workers
-  taos_qset       qset;
+  STaosQset      *qset;
   const char     *name;
   SWorker        *workers;
   pthread_mutex_t mutex;
@@ -44,8 +44,8 @@ typedef struct SWorkerPool {
 typedef struct SMWorker {
   int32_t       id;      // worker id
   pthread_t     thread;  // thread
-  taos_qall     qall;
-  taos_qset     qset;  // queue set
+  STaosQall    *qall;
+  STaosQset    *qset;  // queue set
   SMWorkerPool *pool;
 } SMWorker;
 
@@ -57,15 +57,15 @@ typedef struct SMWorkerPool {
   pthread_mutex_t mutex;
 } SMWorkerPool;
 
-int32_t    tWorkerInit(SWorkerPool *pool);
-void       tWorkerCleanup(SWorkerPool *pool);
-taos_queue tWorkerAllocQueue(SWorkerPool *pool, void *ahandle, FProcessItem fp);
-void       tWorkerFreeQueue(SWorkerPool *pool, taos_queue queue);
+int32_t     tWorkerInit(SWorkerPool *pool);
+void        tWorkerCleanup(SWorkerPool *pool);
+STaosQueue *tWorkerAllocQueue(SWorkerPool *pool, void *ahandle, FProcessItem fp);
+void        tWorkerFreeQueue(SWorkerPool *pool, STaosQueue *queue);
 
-int32_t    tMWorkerInit(SMWorkerPool *pool);
-void       tMWorkerCleanup(SMWorkerPool *pool);
-taos_queue tMWorkerAllocQueue(SMWorkerPool *pool, void *ahandle, FProcessItems fp);
-void       tMWorkerFreeQueue(SMWorkerPool *pool, taos_queue queue);
+int32_t     tMWorkerInit(SMWorkerPool *pool);
+void        tMWorkerCleanup(SMWorkerPool *pool);
+STaosQueue *tMWorkerAllocQueue(SMWorkerPool *pool, void *ahandle, FProcessItems fp);
+void        tMWorkerFreeQueue(SMWorkerPool *pool, STaosQueue *queue);
 
 #ifdef __cplusplus
 }
