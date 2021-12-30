@@ -114,6 +114,9 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_TABLE,
   TSDB_MGMT_TABLE_DNODE,
   TSDB_MGMT_TABLE_MNODE,
+  TSDB_MGMT_TABLE_QNODE,
+  TSDB_MGMT_TABLE_SNODE,
+  TSDB_MGMT_TABLE_BNODE,
   TSDB_MGMT_TABLE_VGROUP,
   TSDB_MGMT_TABLE_STB,
   TSDB_MGMT_TABLE_MODULE,
@@ -909,15 +912,15 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
-} SCreateQnodeInMsg, SDropQnodeInMsg;
+} SMCreateQnodeMsg, SMDropQnodeMsg, SDCreateQnodeMsg, SDDropQnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
-} SCreateSnodeInMsg, SDropSnodeInMsg;
+} SMCreateSnodeMsg, SMDropSnodeMsg, SDCreateSnodeMsg, SDDropSnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
-} SCreateBnodeInMsg, SDropBnodeInMsg;
+} SMCreateBnodeMsg, SMDropBnodeMsg, SDCreateBnodeMsg, SDDropBnodeMsg;
 
 typedef struct {
   int32_t dnodeId;

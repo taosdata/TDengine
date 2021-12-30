@@ -145,6 +145,27 @@ typedef struct {
 } SMnodeObj;
 
 typedef struct {
+  int32_t    id;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj *pDnode;
+} SQnodeObj;
+
+typedef struct {
+  int32_t    id;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj *pDnode;
+} SSnodeObj;
+
+typedef struct {
+  int32_t    id;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj *pDnode;
+} SBnodeObj;
+
+typedef struct {
   int32_t maxUsers;
   int32_t maxDbs;
   int32_t maxTimeSeries;

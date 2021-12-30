@@ -13,9 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "os.h"
+#ifndef _TD_MND_QNODE_H_
+#define _TD_MND_QNODE_H_
+
 #include "mndInt.h"
 
-int32_t mndInitBalance(SMnode *pMnode) { return 0; }
-void    mndCleanupBalance(SMnode *pMnode) {}
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int32_t mndInitQnode(SMnode *pMnode);
+void    mndCleanupQnode(SMnode *pMnode);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_MND_QNODE_H_*/

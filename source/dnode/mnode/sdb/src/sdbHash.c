@@ -24,6 +24,12 @@ static const char *sdbTableName(ESdbType type) {
       return "cluster";
     case SDB_MNODE:
       return "mnode";
+    case SDB_QNODE:
+      return "qnode";
+    case SDB_SNODE:
+      return "snode";
+    case SDB_BNODE:
+      return "bnode";
     case SDB_DNODE:
       return "dnode";
     case SDB_USER:
@@ -55,7 +61,8 @@ void sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper) {
   } else if (keyType == SDB_KEY_INT32) {
     mTrace("%s:%d, refCount:%d oper:%s", sdbTableName(pRow->type), *(int32_t *)pRow->pObj, pRow->refCount, oper);
   } else if (keyType == SDB_KEY_INT64) {
-    mTrace("%s:%" PRId64 ", refCount:%d oper:%s", sdbTableName(pRow->type), *(int64_t *)pRow->pObj, pRow->refCount, oper);
+    mTrace("%s:%" PRId64 ", refCount:%d oper:%s", sdbTableName(pRow->type), *(int64_t *)pRow->pObj, pRow->refCount,
+           oper);
   } else {
   }
 }
