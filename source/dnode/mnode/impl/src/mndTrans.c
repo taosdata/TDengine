@@ -437,7 +437,7 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction) {
 static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   SSdbRaw *pRaw = mndTransActionEncode(pTrans);
   if (pRaw == NULL) {
-    mError("trans:%d, failed to decode trans since %s", pTrans->id, terrstr());
+    mError("trans:%d, failed to encode while sync trans since %s", pTrans->id, terrstr());
     return -1;
   }
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
@@ -835,7 +835,7 @@ static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
 
   SSdbRaw *pRaw = mndTransActionEncode(pTrans);
   if (pRaw == NULL) {
-    mError("trans:%d, failed to decode trans since %s", pTrans->id, terrstr());
+    mError("trans:%d, failed to encode while finish trans since %s", pTrans->id, terrstr());
   }
   sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
 
