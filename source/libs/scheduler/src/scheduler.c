@@ -166,7 +166,7 @@ int32_t schValidateAndBuildJob(SQueryDag *dag, SSchJob *job) {
     }
     
     for (int32_t n = 0; n < levelPlanNum; ++n) {
-      SSubplan *plan = taosArrayGet(levelPlans, n);
+      SSubplan *plan = taosArrayGetP(levelPlans, n);
       SSchTask task = {0};
 
       if (plan->type == QUERY_TYPE_MODIFY) {

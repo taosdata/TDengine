@@ -156,19 +156,12 @@ int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
   };
 
   cxt.ctx.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
-
-  // todo OPT performance
-  char buf[12] = {0};
-  sprintf(buf, "%"PRId64, pTscObj->pAppInfo->clusterId);
-
-  struct SCatalog* pCatalog = NULL;
-  int32_t code = catalogGetHandle(buf, &pCatalog);
+  int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.ctx.pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
     tfree(cxt.ctx.db);
     return code;
   }
 
-  cxt.ctx.pCatalog = pCatalog;
   code = qParseQuerySql(&cxt, pQuery);
 
   tfree(cxt.ctx.db);
@@ -181,10 +174,17 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
   pRequest->body.requestMsg = (SDataBuf){.pData = pDcl->pMsg, .len = pDcl->msgLen};
 
   STscObj* pTscObj = pRequest->pTscObj;
-  SMsgSendInfo* pSendMsg = buildSendMsgInfoImpl(pRequest);
+  SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
   int64_t transporterId = 0;
-  if (pDcl->msgType == TDMT_VND_CREATE_TABLE) {
+  if (pDcl->msgType == TDMT_VND_CREATE_TABLE || pDcl->msgType == TDMT_VND_SHOW_TABLES) {
+    if (pDcl->msgType == TDMT_VND_SHOW_TABLES) {
+      SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
+      if (pShowReqInfo->pArray == NULL) {
+        pShowReqInfo->currentIndex = 0;
+        pShowReqInfo->pArray = pDcl->pExtension;
+      }
+    }
     asyncSendMsgToServer(pTscObj->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
   } else {
     SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
@@ -196,7 +196,15 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQuery, SQueryDag** pDag) {
+  pRequest->type = pQuery->type;
+  return qCreateQueryDag(pQuery, pDag);
+}
+
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, void** pJob) {
+  if (TSDB_SQL_INSERT == pRequest->type) {
+    return scheduleExecJob(pRequest->pTscObj->pTransporter, NULL/*todo appInfo.xxx*/, pDag, pJob, &pRequest->affectedRows);
+  }
   return scheduleAsyncExecJob(pRequest->pTscObj->pTransporter, NULL/*todo appInfo.xxx*/, pDag, pJob);
 }
 
@@ -243,7 +251,7 @@ TAOS_RES *tmq_create_topic(TAOS* taos, const char* name, const char* sql, int sq
 
   pRequest->body.requestMsg = (SDataBuf){ .pData = buf, .len = tlen };
 
-  SMsgSendInfo* body = buildSendMsgInfoImpl(pRequest);
+  SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
   SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
 
   int64_t transporterId = 0;
@@ -283,7 +291,7 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   if (qIsDdlQuery(pQuery)) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
   } else {
-    CHECK_CODE_GOTO(qCreateQueryDag(pQuery, &pDag), _return);
+    CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pDag), _return);
     CHECK_CODE_GOTO(scheduleQuery(pRequest, pDag, &pJob), _return);
   }
 
@@ -490,9 +498,38 @@ void* doFetchRow(SRequestObj* pRequest) {
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
   if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
-    pRequest->type = TDMT_MND_SHOW_RETRIEVE;
+    if (pRequest->type == TDMT_MND_SHOW) {
+      pRequest->type = TDMT_MND_SHOW_RETRIEVE;
+    } else if (pRequest->type == TDMT_VND_SHOW_TABLES) {
+      pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
+    } else if (pRequest->type == TDMT_VND_SHOW_TABLES_FETCH) {
+      pRequest->type = TDMT_VND_SHOW_TABLES;
+      SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
+      pShowReqInfo->currentIndex += 1;
+      if (pShowReqInfo->currentIndex >= taosArrayGetSize(pShowReqInfo->pArray)) {
+        return NULL;
+      }
 
-    SMsgSendInfo* body = buildSendMsgInfoImpl(pRequest);
+      SVgroupInfo* pVgroupInfo = taosArrayGet(pShowReqInfo->pArray, pShowReqInfo->currentIndex);
+      SVShowTablesReq* pShowReq = calloc(1, sizeof(SVShowTablesReq));
+      pShowReq->head.vgId = htonl(pVgroupInfo->vgId);
+
+      pRequest->body.requestMsg.len = sizeof(SVShowTablesReq);
+      pRequest->body.requestMsg.pData = pShowReq;
+
+      SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
+
+      int64_t  transporterId = 0;
+      STscObj *pTscObj = pRequest->pTscObj;
+      asyncSendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
+
+      tsem_wait(&pRequest->body.rspSem);
+      destroySendMsgInfo(body);
+
+      pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
+    }
+
+    SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
 
     int64_t  transporterId = 0;
     STscObj *pTscObj = pRequest->pTscObj;

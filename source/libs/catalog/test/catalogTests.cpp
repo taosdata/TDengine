@@ -47,7 +47,7 @@ int32_t ctgTestTagNum = 1;
 int32_t ctgTestSVersion = 1;
 int32_t ctgTestTVersion = 1;
 
-char *ctgTestClusterId = "cluster1";
+uint64_t ctgTestClusterId = 0x1;
 char *ctgTestDbname = "1.db1";
 char *ctgTestTablename = "table1";
 char *ctgTestCTablename = "ctable1";

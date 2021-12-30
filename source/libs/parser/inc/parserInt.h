@@ -102,7 +102,7 @@ int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SCatalogReq* p
  * Destroy the meta data request structure.
  * @param pMetaInfo
  */
-void qParserClearupMetaRequestInfo(SCatalogReq* pMetaInfo);
+void qParserCleanupMetaRequestInfo(SCatalogReq* pMetaInfo);
 
 #ifdef __cplusplus
 }

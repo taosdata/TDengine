@@ -74,7 +74,6 @@ int32_t getExprFunctionLevel(const SQueryStmtInfo* pQueryInfo);
 
 STableMetaInfo* getMetaInfo(const SQueryStmtInfo* pQueryInfo, int32_t tableIndex);
 SSchema *getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex);
-SSchema createSchema(uint8_t type, int16_t bytes, int16_t colId, const char* name);
 
 int32_t getNewResColId();
 void addIntoSourceParam(SSourceParam* pSourceParam, tExprNode* pNode, SColumn* pColumn);
