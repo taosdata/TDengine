@@ -502,8 +502,31 @@ void* doFetchRow(SRequestObj* pRequest) {
       pRequest->type = TDMT_MND_SHOW_RETRIEVE;
     } else if (pRequest->type == TDMT_VND_SHOW_TABLES) {
       pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
-    } else {
-      // do nothing
+    } else if (pRequest->type == TDMT_VND_SHOW_TABLES_FETCH) {
+      pRequest->type = TDMT_VND_SHOW_TABLES;
+      SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
+      pShowReqInfo->currentIndex += 1;
+      if (pShowReqInfo->currentIndex >= taosArrayGetSize(pShowReqInfo->pArray)) {
+        return NULL;
+      }
+
+      SVgroupInfo* pVgroupInfo = taosArrayGet(pShowReqInfo->pArray, pShowReqInfo->currentIndex);
+      SVShowTablesReq* pShowReq = calloc(1, sizeof(SVShowTablesReq));
+      pShowReq->head.vgId = htonl(pVgroupInfo->vgId);
+
+      pRequest->body.requestMsg.len = sizeof(SVShowTablesReq);
+      pRequest->body.requestMsg.pData = pShowReq;
+
+      SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
+
+      int64_t  transporterId = 0;
+      STscObj *pTscObj = pRequest->pTscObj;
+      asyncSendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
+
+      tsem_wait(&pRequest->body.rspSem);
+      destroySendMsgInfo(body);
+
+      pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
     }
 
     SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
