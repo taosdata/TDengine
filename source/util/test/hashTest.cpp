@@ -154,9 +154,9 @@ void acquireRleaseTest() {
   int32_t code = 0;
   int32_t num = 0;
   TESTSTRUCT data = {0};
-  char *str1 = "abcdefg";
-  char *str2 = "aaaaaaa";
-  char *str3 = "123456789";
+  const char *str1 = "abcdefg";
+  const char *str2 = "aaaaaaa";
+  const char *str3 = "123456789";
 
   data.p = (char *)malloc(10);
   strcpy(data.p, str1);
