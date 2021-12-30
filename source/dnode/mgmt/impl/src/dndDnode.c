@@ -440,7 +440,7 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   }
 
   SStatusRsp *pRsp = pMsg->pCont;
-  if (pMsg->pCont != NULL) {
+  if (pMsg->pCont != NULL && pMsg->contLen != 0) {
     SDnodeCfg *pCfg = &pRsp->dnodeCfg;
     pCfg->dnodeId = htonl(pCfg->dnodeId);
     pCfg->clusterId = htobe64(pCfg->clusterId);
