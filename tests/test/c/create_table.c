@@ -30,7 +30,7 @@
 char    dbName[32] = "db";
 char    stbName[64] = "st";
 int32_t numOfThreads = 2;
-int32_t numOfTables = 100;
+int32_t numOfTables = 10000;
 int32_t createTable = 1;
 int32_t insertData = 0;
 int32_t batchNum = 1;
@@ -123,6 +123,15 @@ void createDbAndStb() {
   }
   taos_free_result(pSql);
 
+  sprintf(qstr, "create table %s (ts timestamp, i int) tags (j int)", stbName);
+  pSql = taos_query(con, qstr);
+  code = taos_errno(pSql);
+  if (code != 0) {
+    pError("failed to use db, code:%d reason:%s", taos_errno(con), taos_errstr(con));
+    exit(0);
+  }
+  taos_free_result(pSql);
+
   taos_close(con);
 }
 
@@ -144,11 +153,11 @@ void *threadFunc(void *param) {
   if (createTable) {
     int64_t startMs = taosGetTimestampMs();
     for (int32_t t = pInfo->tableBeginIndex; t < pInfo->tableEndIndex; ++t) {
-      sprintf(qstr, "create table %s%d (ts timestamp, i int)", stbName, t);
+      sprintf(qstr, "create table t%d using %s tags(%d)", t, stbName, t);
       TAOS_RES *pSql = taos_query(con, qstr);
       code = taos_errno(pSql);
       if (code != 0) {
-        pError("failed to create table %s%d, reason:%s", stbName, t, tstrerror(code));
+        pError("failed to create table t%d, reason:%s", t, tstrerror(code));
       }
       taos_free_result(pSql);
     }
