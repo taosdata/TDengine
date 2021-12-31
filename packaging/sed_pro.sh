@@ -26,6 +26,7 @@ function replace_community_pro(){
   sed -i "s/taosinfo/proinfo/g"   ${top_dir}/src/util/src/tnote.c
   # src/dnode/CMakeLists.txt
   sed -i "s/taos\.cfg/prodb\.cfg/g"   ${top_dir}/src/dnode/CMakeLists.txt
+  echo "SET_TARGET_PROPERTIES(taosd PROPERTIES OUTPUT_NAME taosd)" >> ${top_dir}/src/dnode/CMakeLists.txt
   # src/os/src/linux/linuxEnv.c
   sed -i "s/etc\/taos/etc\/ProDB/g" ${top_dir}/src/os/src/linux/linuxEnv.c
   sed -i "s/lib\/taos/lib\/ProDB/g" ${top_dir}/src/os/src/linux/linuxEnv.c
