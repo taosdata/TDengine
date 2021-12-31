@@ -48,7 +48,7 @@ class TDTestCase:
     def caseDescription(self):
 
         '''
-        case1 <author>:wenzhouwww [TD-12165] : 
+        case1 <wenzhouwww>: [TD-12165]  
             this test case is an test case for unexpectd use way for alias _c0 ,it should be regarded as keywords ;
             
         ''' 
