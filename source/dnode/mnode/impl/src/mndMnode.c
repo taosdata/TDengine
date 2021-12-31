@@ -117,50 +117,75 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("mnode:%d, will be created while deploy sdb", mnodeObj.id);
+  mDebug("mnode:%d, will be created while deploy sdb, raw:%p", mnodeObj.id, pRaw);
   return sdbWrite(pMnode->pSdb, pRaw);
 }
 
 static SSdbRaw *mndMnodeActionEncode(SMnodeObj *pObj) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   SSdbRaw *pRaw = sdbAllocRaw(SDB_MNODE, TSDB_MNODE_VER_NUMBER, sizeof(SMnodeObj) + TSDB_MNODE_RESERVE_SIZE);
-  if (pRaw == NULL) return NULL;
+  if (pRaw == NULL) goto MNODE_ENCODE_OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_INT32(pRaw, dataPos, pObj->id);
-  SDB_SET_INT64(pRaw, dataPos, pObj->createdTime)
-  SDB_SET_INT64(pRaw, dataPos, pObj->updateTime)
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_MNODE_RESERVE_SIZE)
+  SDB_SET_INT32(pRaw, dataPos, pObj->id, MNODE_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pObj->createdTime, MNODE_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pObj->updateTime, MNODE_ENCODE_OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_MNODE_RESERVE_SIZE, MNODE_ENCODE_OVER)
 
+  terrno = 0;
+
+MNODE_ENCODE_OVER:
+  if (terrno != 0) {
+    mError("mnode:%d, failed to encode to raw:%p since %s", pObj->id, pRaw, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
+
+  mTrace("mnode:%d, encode to raw:%p, row:%p", pObj->id, pRaw, pObj);
   return pRaw;
 }
 
 static SSdbRow *mndMnodeActionDecode(SSdbRaw *pRaw) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
   if (sver != TSDB_MNODE_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    mError("failed to decode mnode since %s", terrstr());
+    goto MNODE_DECODE_OVER;
+  }
+
+  SSdbRow *pRow = sdbAllocRow(sizeof(SMnodeObj));
+  if (pRow == NULL) goto MNODE_DECODE_OVER;
+
+  SMnodeObj *pObj = sdbGetRowObj(pRow);
+  if (pObj == NULL) goto MNODE_DECODE_OVER;
+
+  int32_t dataPos = 0;
+  SDB_GET_INT32(pRaw, dataPos, &pObj->id, MNODE_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pObj->createdTime, MNODE_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pObj->updateTime, MNODE_DECODE_OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, TSDB_MNODE_RESERVE_SIZE, MNODE_DECODE_OVER)
+
+  terrno = 0;
+
+MNODE_DECODE_OVER:
+  if (terrno != 0) {
+    mError("mnode:%d, failed to decode from raw:%p since %s", pObj->id, pRaw, terrstr());
+    tfree(pRow);
     return NULL;
   }
 
-  SSdbRow   *pRow = sdbAllocRow(sizeof(SMnodeObj));
-  SMnodeObj *pObj = sdbGetRowObj(pRow);
-  if (pObj == NULL) return NULL;
-
-  int32_t dataPos = 0;
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pObj->id)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pObj->createdTime)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pObj->updateTime)
-  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_MNODE_RESERVE_SIZE)
-
+  mTrace("mnode:%d, decode from raw:%p, row:%p", pObj->id, pRaw, pObj);
   return pRow;
 }
 
 static void mnodeResetMnode(SMnodeObj *pObj) { pObj->role = TAOS_SYNC_STATE_FOLLOWER; }
 
 static int32_t mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pObj) {
-  mTrace("mnode:%d, perform insert action", pObj->id);
+  mTrace("mnode:%d, perform insert action, row:%p", pObj->id, pObj);
   pObj->pDnode = sdbAcquire(pSdb, SDB_DNODE, &pObj->id);
   if (pObj->pDnode == NULL) {
     terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
@@ -173,7 +198,7 @@ static int32_t mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pObj) {
 }
 
 static int32_t mndMnodeActionDelete(SSdb *pSdb, SMnodeObj *pObj) {
-  mTrace("mnode:%d, perform delete action", pObj->id);
+  mTrace("mnode:%d, perform delete action, row:%p", pObj->id, pObj);
   if (pObj->pDnode != NULL) {
     sdbRelease(pSdb, pObj->pDnode);
     pObj->pDnode = NULL;
@@ -183,7 +208,7 @@ static int32_t mndMnodeActionDelete(SSdb *pSdb, SMnodeObj *pObj) {
 }
 
 static int32_t mndMnodeActionUpdate(SSdb *pSdb, SMnodeObj *pOldMnode, SMnodeObj *pNewMnode) {
-  mTrace("mnode:%d, perform update action", pOldMnode->id);
+  mTrace("mnode:%d, perform update action, old_row:%p new_row:%p", pOldMnode->id, pOldMnode, pNewMnode);
   pOldMnode->updateTime = pNewMnode->updateTime;
   return 0;
 }
@@ -370,7 +395,7 @@ CREATE_MNODE_OVER:
 }
 
 static int32_t mndProcessCreateMnodeReq(SMnodeMsg *pMsg) {
-  SMnode          *pMnode = pMsg->pMnode;
+  SMnode           *pMnode = pMsg->pMnode;
   SMCreateMnodeMsg *pCreate = pMsg->rpcMsg.pCont;
 
   pCreate->dnodeId = htonl(pCreate->dnodeId);
@@ -537,7 +562,7 @@ DROP_MNODE_OVER:
 }
 
 static int32_t mndProcessDropMnodeReq(SMnodeMsg *pMsg) {
-  SMnode        *pMnode = pMsg->pMnode;
+  SMnode         *pMnode = pMsg->pMnode;
   SMDropMnodeMsg *pDrop = pMsg->rpcMsg.pCont;
   pDrop->dnodeId = htonl(pDrop->dnodeId);
 

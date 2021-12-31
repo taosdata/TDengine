@@ -94,45 +94,68 @@ static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
 }
 
 static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, TSDB_USER_VER_NUMBER, sizeof(SUserObj) + TSDB_USER_RESERVE_SIZE);
-  if (pRaw == NULL) return NULL;
+  if (pRaw == NULL) goto USER_ENCODE_OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN)
-  SDB_SET_BINARY(pRaw, dataPos, pUser->pass, TSDB_PASSWORD_LEN)
-  SDB_SET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN)
-  SDB_SET_INT64(pRaw, dataPos, pUser->createdTime)
-  SDB_SET_INT64(pRaw, dataPos, pUser->updateTime)
-  SDB_SET_INT8(pRaw, dataPos, pUser->superUser)
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_USER_RESERVE_SIZE)
-  SDB_SET_DATALEN(pRaw, dataPos);
+  SDB_SET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN, USER_ENCODE_OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pUser->pass, TSDB_PASSWORD_LEN, USER_ENCODE_OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN, USER_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pUser->createdTime, USER_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pUser->updateTime, USER_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pUser->superUser, USER_ENCODE_OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_USER_RESERVE_SIZE, USER_ENCODE_OVER)
+  SDB_SET_DATALEN(pRaw, dataPos, USER_ENCODE_OVER)
+
+  terrno = 0;
+
+USER_ENCODE_OVER:
+  if (terrno != 0) {
+    mError("user:%s, failed to encode to raw:%p since %s", pUser->user, pRaw, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
 
   mTrace("user:%s, encode to raw:%p, row:%p", pUser->user, pRaw, pUser);
   return pRaw;
 }
 
 static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto USER_DECODE_OVER;
 
   if (sver != TSDB_USER_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    mError("failed to decode user since %s", terrstr());
-    return NULL;
+    goto USER_DECODE_OVER;
   }
 
-  SSdbRow  *pRow = sdbAllocRow(sizeof(SUserObj));
+  SSdbRow *pRow = sdbAllocRow(sizeof(SUserObj));
+  if (pRow == NULL) goto USER_DECODE_OVER;
+
   SUserObj *pUser = sdbGetRowObj(pRow);
-  if (pUser == NULL) return NULL;
+  if (pUser == NULL) goto USER_DECODE_OVER;
 
   int32_t dataPos = 0;
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->user, TSDB_USER_LEN)
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->pass, TSDB_PASSWORD_LEN)
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->acct, TSDB_USER_LEN)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pUser->createdTime)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pUser->updateTime)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pUser->superUser)
-  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_USER_RESERVE_SIZE)
+  SDB_GET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN, USER_DECODE_OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pUser->pass, TSDB_PASSWORD_LEN, USER_DECODE_OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN, USER_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pUser->createdTime, USER_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pUser->updateTime, USER_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pUser->superUser, USER_DECODE_OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, TSDB_USER_RESERVE_SIZE, USER_DECODE_OVER)
+
+  terrno = 0;
+
+USER_DECODE_OVER:
+  if (terrno != 0) {
+    mError("user:%s, failed to decode from raw:%p since %s", pUser->user, pRaw, terrstr());
+    tfree(pRow);
+    return NULL;
+  }
 
   mTrace("user:%s, decode from raw:%p, row:%p", pUser->user, pRaw, pUser);
   return pRow;
