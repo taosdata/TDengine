@@ -50,13 +50,6 @@ typedef struct SQueryProfileSummary {
   uint64_t resultSize;   // generated result size in Kb.
 } SQueryProfileSummary;
 
-typedef struct SQueryNodeAddr{
-  int32_t    nodeId; //vgId or qnodeId
-  int8_t     inUse;
-  int8_t     numOfEps;
-  SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
-} SQueryNodeAddr;
-
 typedef struct SQueryResult {
   int32_t  code;
   uint64_t numOfRows;
