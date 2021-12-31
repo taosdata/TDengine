@@ -161,7 +161,7 @@ int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SE
   char tbFullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pTableName, tbFullName);
 
-  SBuildTableMetaInput bInput = {.vgId = 0, .tableFullName = tbFullName};
+  SBuildTableMetaInput bInput = {.vgId = 0, .dbName = NULL, .tableFullName = tbFullName};
   char *msg = NULL;
   SEpSet *pVnodeEpSet = NULL;
   int32_t msgLen = 0;
@@ -194,10 +194,10 @@ int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pRpc, const SE
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  char tbFullName[TSDB_TABLE_FNAME_LEN];
-  tNameExtractFullName(pTableName, tbFullName);
+  char dbFullName[TSDB_DB_FNAME_LEN];
+  tNameGetFullDbName(pTableName, dbFullName);
 
-  SBuildTableMetaInput bInput = {.vgId = vgroupInfo->vgId, .tableFullName = tbFullName};
+  SBuildTableMetaInput bInput = {.vgId = vgroupInfo->vgId, .dbName = dbFullName, .tableFullName = pTableName->tname};
   char *msg = NULL;
   SEpSet *pVnodeEpSet = NULL;
   int32_t msgLen = 0;
@@ -355,19 +355,19 @@ int32_t ctgUpdateTableMetaCache(struct SCatalog *pCatalog, STableMetaOutput *out
   
   if (output->metaNum != 1 && output->metaNum != 2) {
     ctgError("invalid table meta number[%d] got from meta rsp", output->metaNum);
-    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   if (NULL == output->tbMeta) {
     ctgError("no valid table meta got from meta rsp");
-    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   if (NULL == pCatalog->tableCache.cache) {
     pCatalog->tableCache.cache = taosHashInit(ctgMgmt.cfg.maxTblCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
     if (NULL == pCatalog->tableCache.cache) {
       ctgError("init hash[%d] for tablemeta cache failed", ctgMgmt.cfg.maxTblCacheNum);
-      CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
+      CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
     }
   }
 
@@ -375,19 +375,19 @@ int32_t ctgUpdateTableMetaCache(struct SCatalog *pCatalog, STableMetaOutput *out
     pCatalog->tableCache.stableCache = taosHashInit(ctgMgmt.cfg.maxTblCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_ENTRY_LOCK);
     if (NULL == pCatalog->tableCache.stableCache) {
       ctgError("init hash[%d] for stablemeta cache failed", ctgMgmt.cfg.maxTblCacheNum);
-      CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
+      CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
     }
   }
 
   if (output->metaNum == 2) {
     if (taosHashPut(pCatalog->tableCache.cache, output->ctbFname, strlen(output->ctbFname), &output->ctbMeta, sizeof(output->ctbMeta)) != 0) {
       ctgError("push ctable[%s] to table cache failed", output->ctbFname);
-      CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
+      CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
     }
 
     if (TSDB_SUPER_TABLE != output->tbMeta->tableType) {
       ctgError("table type[%d] error, expected:%d", output->tbMeta->tableType, TSDB_SUPER_TABLE);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }    
   }
 
@@ -398,26 +398,23 @@ int32_t ctgUpdateTableMetaCache(struct SCatalog *pCatalog, STableMetaOutput *out
     if (taosHashPut(pCatalog->tableCache.cache, output->tbFname, strlen(output->tbFname), output->tbMeta, tbSize) != 0) {
       CTG_UNLOCK(CTG_WRITE, &pCatalog->tableCache.stableLock);
       ctgError("push table[%s] to table cache failed", output->tbFname);
-      CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
+      CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
     }
 
     STableMeta *tbMeta = taosHashGet(pCatalog->tableCache.cache, output->tbFname, strlen(output->tbFname));
     if (taosHashPut(pCatalog->tableCache.stableCache, &output->tbMeta->suid, sizeof(output->tbMeta->suid), &tbMeta, POINTER_BYTES) != 0) {
       CTG_UNLOCK(CTG_WRITE, &pCatalog->tableCache.stableLock);
       ctgError("push suid[%"PRIu64"] to stable cache failed", output->tbMeta->suid);
-      CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
+      CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
     }
     CTG_UNLOCK(CTG_WRITE, &pCatalog->tableCache.stableLock);
   } else {
     if (taosHashPut(pCatalog->tableCache.cache, output->tbFname, strlen(output->tbFname), output->tbMeta, tbSize) != 0) {
       ctgError("push table[%s] to table cache failed", output->tbFname);
-      CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
+      CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
     }
   }
 
-_return:
-  tfree(output->tbMeta);
-  
   CTG_RET(code);
 }
 

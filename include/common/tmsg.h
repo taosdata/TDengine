@@ -174,6 +174,7 @@ typedef enum _mgmt_table {
 
 typedef struct SBuildTableMetaInput {
   int32_t vgId;
+  char*   dbName;
   char*   tableFullName;
 } SBuildTableMetaInput;
 
@@ -776,6 +777,7 @@ typedef struct {
 
 typedef struct {
   SMsgHead header;
+  char     dbFname[TSDB_DB_FNAME_LEN];
   char     tableFname[TSDB_TABLE_FNAME_LEN];
 } STableInfoMsg;
 
