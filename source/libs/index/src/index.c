@@ -94,7 +94,6 @@ void indexClose(SIndex* sIdx) {
 #endif
 
 #ifdef USE_INVERTED_INDEX
-  indexCacheDestroy(sIdx->cache);
   void* iter = taosHashIterate(sIdx->colObj, NULL);
   while (iter) {
     IndexCache** pCache = iter;
@@ -104,6 +103,7 @@ void indexClose(SIndex* sIdx) {
   taosHashCleanup(sIdx->colObj);
   pthread_mutex_destroy(&sIdx->mtx);
 #endif
+  free(sIdx->path);
   free(sIdx);
   return;
 }

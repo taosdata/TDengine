@@ -7,8 +7,10 @@ extern "C" {
 
 #include <stdint.h>
 
+#define MAX_INSTANCE_NUM 100
+
 #define MAX_PEERS 10
-#define COMMAND_LEN 512
+#define COMMAND_LEN 1024
 #define TOKEN_LEN 128
 #define DIR_LEN 256
 #define HOST_LEN 64
@@ -20,7 +22,6 @@ typedef struct {
 } Addr;
 
 typedef struct {
-	int voter;
     Addr me;
     Addr peers[MAX_PEERS];
     int peersCount;
