@@ -701,7 +701,6 @@ static int32_t firstFuncRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t c
   if (pCtx->order == TSDB_ORDER_DESC) {
     return BLK_DATA_NO_NEEDED;
   }
-    
   // no result for first query, data block is required
   if (GET_RES_INFO(pCtx) == NULL || GET_RES_INFO(pCtx)->numOfRes <= 0) {
     return BLK_DATA_ALL_NEEDED;
@@ -710,7 +709,7 @@ static int32_t firstFuncRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t c
   }
 }
 
-static int32_t lastFuncRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {  
+static int32_t lastFuncRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   if (pCtx->order != pCtx->param[0].i64) {
     return BLK_DATA_NO_NEEDED;
   }
@@ -1523,7 +1522,7 @@ static bool first_last_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* 
 }
 
 // todo opt for null block
-static void first_function(SQLFunctionCtx *pCtx) {  
+static void first_function(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo* pResInfo = GET_RES_INFO(pCtx);
   int32_t notNullElems = 0;
   int32_t step = 1;
@@ -1583,7 +1582,6 @@ static void first_function(SQLFunctionCtx *pCtx) {
       break;
     }
   }
-
   SET_VAL(pCtx, notNullElems, 1);
 }
 
