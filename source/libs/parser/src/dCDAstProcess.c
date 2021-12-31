@@ -363,7 +363,6 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     // too long tag values will return invalid sql, not be truncated automatically
     SSchema*      pTagSchema = getTableTagSchema(pSuperTableMeta);
     STableComInfo tinfo = getTableInfo(pSuperTableMeta);
-    STagData*     pTag = &pCreateTableInfo->tagdata;
 
     SKVRowBuilder kvRowBuilder = {0};
     if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
@@ -462,22 +461,6 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
       for (int32_t i = 0; i < numOfInputTag; ++i) {
         SSchema* pSchema = &pTagSchema[i];
         SToken*  pItem = taosArrayGet(pValList, i);
-
-        if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
-          if (pItem->n > pSchema->bytes) {
-            tdDestroyKVRowBuilder(&kvRowBuilder);
-            return buildInvalidOperationMsg(pMsgBuf, msg3);
-          }
-        } else if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
-          //          if (pItem->pVar.nType == TSDB_DATA_TYPE_BINARY) {
-          ////            code = convertTimestampStrToInt64(&(pItem->pVar), tinfo.precision);
-          //            if (code != TSDB_CODE_SUCCESS) {
-          //              return buildInvalidOperationMsg(pMsgBuf, msg4);
-          //            }
-          //          } else if (pItem->pVar.nType == TSDB_DATA_TYPE_TIMESTAMP) {
-          //            pItem->pVar.i = convertTimePrecision(pItem->pVar.i, TSDB_TIME_PRECISION_NANO, tinfo.precision);
-          //          }
-        }
 
         char     tmpTokenBuf[TSDB_MAX_TAGS_LEN] = {0};
         SKvParam param = {.builder = &kvRowBuilder, .schema = pSchema};

@@ -136,7 +136,7 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
 
   metaCloseTbCursor(pCur);
 
-  int32_t rowLen = (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 4 + (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 4;
+  int32_t rowLen = (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 2 + (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 4;
   int32_t numOfTables = (int32_t) taosArrayGetSize(pArray);
 
   int32_t payloadLen = rowLen * numOfTables;
@@ -150,7 +150,7 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
     char* n = taosArrayGetP(pArray, i);
     STR_TO_VARSTR(p, n);
 
-    p += rowLen;
+    p += (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE);
   }
 
   pFetchRsp->numOfRows = htonl(numOfTables);
