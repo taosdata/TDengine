@@ -486,94 +486,11 @@ pipeline {
             }
           }
         }
-        stage('arm64centos7') {
-          agent{label " arm64centos7 "}
-          steps {
-              pre_test_noinstall()
-            }
-        }
-        stage('arm64centos8') {
-          agent{label " arm64centos8 "}
-          steps {
-              pre_test_noinstall()
-            }
-        }
-        stage('arm32bionic') {
-          agent{label " arm32bionic "}
-          steps {
-              pre_test_noinstall()
-            }
-        }
-        stage('arm64bionic') {
-          agent{label " arm64bionic "}
-          steps {
-              pre_test_noinstall()
-            }
-        }
-        stage('arm64focal') {
-          agent{label " arm64focal "}
-          steps {
-              pre_test_noinstall()
-            }
-        }
-        stage('centos7') {
-          agent{label " centos7 "}
-          steps {
-              pre_test_noinstall()
-            }
-        }
-        stage('ubuntu:trusty') {
-          agent{label " trusty "}
-          steps {
-              pre_test_noinstall()
-            }
-        }
-        stage('ubuntu:xenial') {
-          agent{label " xenial "}
-          steps {
-              pre_test_noinstall()
-            }
-        }
-        stage('ubuntu:bionic') {
-          agent{label " bionic "}
-          steps {
-              pre_test_noinstall()
-            }
-        }
         stage('Mac_build') {
           agent{label " catalina "}
           steps {
               pre_test_mac()
             }
-        }
-
-        stage('build'){
-          agent{label " wintest "}
-          steps {
-            pre_test()
-            script{
-                while(win_stop == 0){
-                  sleep(1)
-                  }
-              }
-            }
-        }
-        stage('test'){
-          agent{label "win"}
-          steps{
-            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                pre_test_win()
-                timeout(time: 20, unit: 'MINUTES'){
-                bat'''
-                cd C:\\workspace\\TDinternal\\community\\tests\\pytest
-                .\\test-all.bat wintest
-                '''
-                }
-            }
-            script{
-              win_stop=1
-            }
-          }
         }
     }
   }
