@@ -7,4 +7,3 @@ python3 ./test.py -f 2-query/TD-11561.py
 
 python3 ./test.py -f 2-query/TD-12204.py
 
-
