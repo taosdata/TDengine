@@ -17,7 +17,7 @@ python3 test.py -f tools/taosdemoTestLimitOffset.py
 python3 test.py -f tools/taosdemoTestTblAlt.py
 python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdemoTestInterlace.py
-# python3 test.py -f tools/taosdemoTestQuery.py
+python3 test.py -f tools/taosdemoTestQuery.py
 python3 ./test.py -f tools/taosdemoTestdatatype.py
 #======================p2-end===============
 #======================p3-start===============
@@ -38,7 +38,6 @@ python3 test.py -f tools/taosdemoAllTest/TD-4985/query-limit-offset.py
 python3 test.py -f tools/taosdemoAllTest/TD-5213/insert4096columns_not_use_taosdemo.py
 python3 test.py -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py
 
-#python3 test.py -f tools/taosdemoAllTest/TD-10539/create_taosdemo.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonSml.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertShell.py

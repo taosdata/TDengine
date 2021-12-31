@@ -190,7 +190,7 @@ python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestInsertTime_ste
 python3 test.py -f tools/taosdumpTestNanoSupport.py
 
 #
-python3 ./test.py -f tsdb/tsdbComp.py
+# python3 ./test.py -f tsdb/tsdbComp.py
 
 # update
 python3 ./test.py -f update/allow_update.py

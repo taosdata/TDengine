@@ -57,8 +57,19 @@ class TDTestCase:
         tdSql.execute("use db")
         tdSql.execute(
             "create table st(ts timestamp, c1 int) tags(jtag JSON)")
-        tdSql.execute("create table t1 using st tags('{\"location\": \"beijing\"}')")
+        tdSql.execute(
+            "create table t1 using st tags('{\"location\": \"beijing\"}')")
         tdSql.execute("insert into t1 values(1500000000000, 1)")
+
+        tdSql.execute(
+            "create table t2 using st tags(NULL)")
+        tdSql.execute("insert into t2 values(1500000000000, NULL)")
+
+        tdSql.execute(
+            "create table t3 using st tags('')")
+        tdSql.execute("insert into t3 values(1500000000000, 0)")
+
+#        sys.exit(1)
 
         buildPath = self.getBuildPath()
         if (buildPath == ""):
@@ -89,11 +100,11 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'st')
 
         tdSql.query("show tables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 't1')
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 't3')
 
         tdSql.query("select jtag->'location' from st")
-        tdSql.checkRows(1)
+        tdSql.checkRows(3)
         tdSql.checkData(0, 0, "\"beijing\"")
 
         tdSql.query("select * from st where jtag contains 'location'")
@@ -101,6 +112,11 @@ class TDTestCase:
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(0, 2, '{\"location\":\"beijing\"}')
 
+        tdSql.query("select jtag from st")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "{\"location\":\"beijing\"}")
+        tdSql.checkData(1, 0, None)
+        tdSql.checkData(2, 0, None)
 
     def stop(self):
         tdSql.close()
