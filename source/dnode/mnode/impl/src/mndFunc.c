@@ -89,7 +89,7 @@ FUNC_ENCODE_OVER:
     return NULL;
   }
 
-  mTrace("func:%d, encode to raw:%p, row:%p", pFunc->name, pRaw, pFunc);
+  mTrace("func:%s, encode to raw:%p, row:%p", pFunc->name, pRaw, pFunc);
   return pRaw;
 }
 

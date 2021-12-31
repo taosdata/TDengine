@@ -18,7 +18,7 @@
 #include "mndShow.h"
 
 #define TSDB_ACCT_VER_NUMBER 1
-#define TSDB_ACCT_RESERVE_SIZE 64
+#define TSDB_ACCT_RESERVE_SIZE 128
 
 static int32_t  mndCreateDefaultAcct(SMnode *pMnode);
 static SSdbRaw *mndAcctActionEncode(SAcctObj *pAcct);
@@ -55,10 +55,16 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
   acctObj.createdTime = taosGetTimestampMs();
   acctObj.updateTime = acctObj.createdTime;
   acctObj.acctId = 1;
-  acctObj.cfg = (SAcctCfg){.maxUsers = 1024,
-                           .maxDbs = 1024,
+  acctObj.cfg = (SAcctCfg){.maxUsers = INT32_MAX,
+                           .maxDbs = INT32_MAX,
+                           .maxStbs = INT32_MAX,
+                           .maxTbs = INT32_MAX,
                            .maxTimeSeries = INT32_MAX,
-                           .maxStreams = 8092,
+                           .maxStreams = INT32_MAX,
+                           .maxFuncs = INT32_MAX,
+                           .maxConsumers = INT32_MAX,
+                           .maxConns = INT32_MAX,
+                           .maxTopics = INT32_MAX,
                            .maxStorage = INT64_MAX,
                            .accessState = TSDB_VN_ALL_ACCCESS};
 
@@ -84,8 +90,14 @@ static SSdbRaw *mndAcctActionEncode(SAcctObj *pAcct) {
   SDB_SET_INT32(pRaw, dataPos, pAcct->status, ACCT_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxUsers, ACCT_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxDbs, ACCT_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxStbs, ACCT_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTbs, ACCT_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTimeSeries, ACCT_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxStreams, ACCT_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxFuncs, ACCT_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxConsumers, ACCT_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxConns, ACCT_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxTopics, ACCT_ENCODE_OVER)
   SDB_SET_INT64(pRaw, dataPos, pAcct->cfg.maxStorage, ACCT_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.accessState, ACCT_ENCODE_OVER)
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_ACCT_RESERVE_SIZE, ACCT_ENCODE_OVER)
@@ -129,8 +141,14 @@ static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pAcct->status, ACCT_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxUsers, ACCT_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxDbs, ACCT_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxStbs, ACCT_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTbs, ACCT_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTimeSeries, ACCT_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxStreams, ACCT_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxFuncs, ACCT_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxConsumers, ACCT_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxConns, ACCT_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.maxTopics, ACCT_DECODE_OVER)
   SDB_GET_INT64(pRaw, dataPos, &pAcct->cfg.maxStorage, ACCT_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pAcct->cfg.accessState, ACCT_DECODE_OVER)
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_ACCT_RESERVE_SIZE, ACCT_DECODE_OVER)
@@ -163,7 +181,7 @@ static int32_t mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOldAcct, SAcctObj *pNe
 
   pOldAcct->updateTime = pNewAcct->updateTime;
   pOldAcct->status = pNewAcct->status;
-  memcpy(&pOldAcct->cfg, &pNewAcct->cfg, sizeof(SAcctInfo));
+  memcpy(&pOldAcct->cfg, &pNewAcct->cfg, sizeof(SAcctCfg));
   return 0;
 }
 
