@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "query.h"
 #include "tmsg.h"
 #include "tarray.h"
 
@@ -122,7 +123,7 @@ typedef struct SSubplan {
   SSubplanId id;          // unique id of the subplan
   int32_t    type;         // QUERY_TYPE_MERGE|QUERY_TYPE_PARTIAL|QUERY_TYPE_SCAN|QUERY_TYPE_MODIFY
   int32_t    level;        // the execution level of current subplan, starting from 0.
-  SEpSet     execEpSet;    // for the scan/modify subplan, the optional execution node
+  SQueryNodeAddr     execNode;    // for the scan/modify subplan, the optional execution node
   SArray    *pChildern;    // the datasource subplan,from which to fetch the result
   SArray    *pParents;     // the data destination subplan, get data from current subplan
   SPhyNode  *pNode;        // physical plan of current subplan
