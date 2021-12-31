@@ -35,7 +35,7 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx* pCtx, void** ou
     SVShowTablesReq* pShowReq = calloc(1, sizeof(SVShowTablesReq));
 
     SArray* array = NULL;
-    SName name = {0};
+    SName   name = {0};
     tNameSetDbName(&name, pCtx->acctId, pCtx->db, strlen(pCtx->db));
 
     char dbFname[TSDB_DB_FNAME_LEN] = {0};
@@ -48,7 +48,7 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx* pCtx, void** ou
     pEpSet->numOfEps = info->numOfEps;
     pEpSet->inUse = info->inUse;
 
-    for(int32_t i = 0; i < pEpSet->numOfEps; ++i) {
+    for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
       strncpy(pEpSet->fqdn[i], info->epAddr[i].fqdn, tListLen(pEpSet->fqdn[i]));
       pEpSet->port[i] = info->epAddr[i].port;
     }
@@ -190,7 +190,7 @@ static int32_t doCheckDbOptions(SCreateDbMsg* pCreate, SMsgBuf* pMsgBuf) {
   val = htonl(pCreate->numOfVgroups);
   if (val < TSDB_MIN_VNODES_PER_DB || val > TSDB_MAX_VNODES_PER_DB) {
     snprintf(msg, tListLen(msg), "invalid number of vgroups for DB:%d valid range: [%d, %d]", val,
-        TSDB_MIN_VNODES_PER_DB, TSDB_MAX_VNODES_PER_DB);
+             TSDB_MIN_VNODES_PER_DB, TSDB_MAX_VNODES_PER_DB);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -468,7 +468,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
 
         SKvParam param = {.builder = &kvRowBuilder, .schema = pSchema};
 
-        SToken*  pItem = taosArrayGet(pValList, i);
+        SToken* pItem = taosArrayGet(pValList, i);
         code = parseValueToken(&endPtr, pItem, pSchema, tinfo.precision, tmpTokenBuf, KvRowAppend, &param, pMsgBuf);
 
         if (code != TSDB_CODE_SUCCESS) {
@@ -481,7 +481,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
     tdDestroyKVRowBuilder(&kvRowBuilder);
     if (row == NULL) {
-        return TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return TSDB_CODE_QRY_OUT_OF_MEMORY;
     }
 
     tdSortKVRowByColIdx(row);
@@ -501,15 +501,15 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     req.ctbCfg.suid = pSuperTableMeta->suid;
     req.ctbCfg.pTag = row;
 
-//    pEpSet->inUse = info.inUse;
-//    pEpSet->numOfEps = info.numOfEps;
-//    for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
-//      pEpSet->port[i] = info.epAddr[i].port;
-//      tstrncpy(pEpSet->fqdn[i], info.epAddr[i].fqdn, tListLen(pEpSet->fqdn[i]));
-//    }
-//    ((SMsgHead*)(*pOutput))->vgId = htonl(info.vgId);
-//    ((SMsgHead*)(*pOutput))->contLen = htonl(serLen);
-    SVgroupTablesBatch *pTableBatch = taosHashGet(pVgroupHashmap, &info.vgId, sizeof(info.vgId));
+    //    pEpSet->inUse = info.inUse;
+    //    pEpSet->numOfEps = info.numOfEps;
+    //    for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
+    //      pEpSet->port[i] = info.epAddr[i].port;
+    //      tstrncpy(pEpSet->fqdn[i], info.epAddr[i].fqdn, tListLen(pEpSet->fqdn[i]));
+    //    }
+    //    ((SMsgHead*)(*pOutput))->vgId = htonl(info.vgId);
+    //    ((SMsgHead*)(*pOutput))->contLen = htonl(serLen);
+    SVgroupTablesBatch* pTableBatch = taosHashGet(pVgroupHashmap, &info.vgId, sizeof(info.vgId));
     if (pTableBatch == NULL) {
       SVgroupTablesBatch tBatch = {0};
       tBatch.info = info;
@@ -518,14 +518,35 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
       taosArrayPush(tBatch.req.pArray, &req);
 
       taosHashPut(pVgroupHashmap, &info.vgId, sizeof(info.vgId), &tBatch, sizeof(tBatch));
-    } else { // add to the correct vgroup
+    } else {  // add to the correct vgroup
       assert(info.vgId == pTableBatch->info.vgId);
       taosArrayPush(pTableBatch->req.pArray, &req);
     }
   }
 
   // TODO: serialize and
-  void *pBuf = NULL;
+  SArray*              pBufArray = taosArrayInit(taosHashGetSize(pVgroupHashmap), sizeof(void*));
+  SVgroupTablesBatch** ppTbBatch = NULL;
+  do {
+    ppTbBatch = taosHashIterate(pVgroupHashmap, ppTbBatch);
+    if (ppTbBatch == NULL) break;
+    SVgroupTablesBatch* pTbBatch = *ppTbBatch;
+
+    int   tlen = sizeof(SMsgHead) + tSVCreateTbBatchReqSerialize(NULL, &(pTbBatch->req));
+    void* buf = malloc(tlen);
+    if (buf == NULL) {
+      // TODO: handle error
+    }
+
+    ((SMsgHead*)buf)->vgId = htonl(pTbBatch->info.vgId);
+    ((SMsgHead*)buf)->contLen = htonl(tlen);
+
+    void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+    tSVCreateTbBatchReqSerialize(&pBuf, &(pTbBatch->req));
+
+    taosArrayPush(pBufArray, &buf);
+
+  } while (true);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -634,7 +655,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
     case TSDB_SQL_SHOW: {
       SShowInfo* pShowInfo = &pInfo->pMiscInfo->showOpt;
       code = setShowInfo(pShowInfo, pCtx, (void**)&pDcl->pMsg, &pDcl->msgLen, &pDcl->epSet, &pDcl->pExtension, pMsgBuf);
-      pDcl->msgType = (pShowInfo->showType == TSDB_MGMT_TABLE_TABLE)? TDMT_VND_SHOW_TABLES:TDMT_MND_SHOW;
+      pDcl->msgType = (pShowInfo->showType == TSDB_MGMT_TABLE_TABLE) ? TDMT_VND_SHOW_TABLES : TDMT_MND_SHOW;
       break;
     }
 
