@@ -23,6 +23,7 @@ extern "C" {
 #include "encode.h"
 #include "taosdef.h"
 #include "taoserror.h"
+#include "tarray.h"
 #include "tcoding.h"
 #include "tdataformat.h"
 #include "tlist.h"
