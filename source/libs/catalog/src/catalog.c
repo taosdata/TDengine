@@ -34,7 +34,6 @@ int32_t ctgGetDBVgroupFromCache(struct SCatalog* pCatalog, const char *dbName, S
 
     if (NULL == info) {
       *inCache = false;
-      assert(0);
       ctgWarn("no db cache, dbName:%s", dbName);
       return TSDB_CODE_SUCCESS;
     }
@@ -190,14 +189,13 @@ int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SE
 }
 
 
-int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char *pDBName, const char* pTableName, SVgroupInfo *vgroupInfo, STableMetaOutput* output) {
-  if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pDBName || NULL == pTableName || NULL == vgroupInfo || NULL == output) {
+int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, SVgroupInfo *vgroupInfo, STableMetaOutput* output) {
+  if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pTableName || NULL == vgroupInfo || NULL == output) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
   char tbFullName[TSDB_TABLE_FNAME_LEN];
-
-  snprintf(tbFullName, sizeof(tbFullName), "%s.%s", pDBName, pTableName);
+  tNameExtractFullName(pTableName, tbFullName);
 
   SBuildTableMetaInput bInput = {.vgId = vgroupInfo->vgId, .tableFullName = tbFullName};
   char *msg = NULL;
@@ -428,8 +426,6 @@ int32_t ctgGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgm
   bool inCache = false;
   if (0 == forceUpdate) {
     CTG_ERR_RET(ctgGetDBVgroupFromCache(pCatalog, dbName, dbInfo, &inCache));
-
-    assert(inCache);
 
     if (inCache) {
       return TSDB_CODE_SUCCESS;
@@ -694,9 +690,9 @@ int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSe
 
   STableMetaOutput output = {0};
   
-  //CTG_ERR_RET(ctgGetTableMetaFromVnode(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, &vgroupInfo, &output));
+  CTG_ERR_RET(ctgGetTableMetaFromVnode(pCatalog, pRpc, pMgmtEps, pTableName, &vgroupInfo, &output));
 
-  CTG_ERR_RET(ctgGetTableMetaFromMnode(pCatalog, pRpc, pMgmtEps, pTableName, &output));
+  //CTG_ERR_RET(ctgGetTableMetaFromMnode(pCatalog, pRpc, pMgmtEps, pTableName, &output));
 
   CTG_ERR_JRET(ctgUpdateTableMetaCache(pCatalog, &output));
 
