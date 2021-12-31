@@ -48,7 +48,7 @@ class TDTestCase:
     def caseDescription(self):
 
         '''
-        case1 <author>:wenzhouwww [TD-12164] : 
+        case1 <wenzhouwww>: [TD-12164] 
             this test case is an test case for key timestamp colum , such as elapsed function ,it will occur unexpected results ;
             Root Cause: elapse parameter column is checked that both the index and id is 0 
             
