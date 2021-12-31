@@ -38,6 +38,7 @@ int64_t tfOpenCreateWriteAppend(const char *pathname);
 int64_t tfClose(int64_t tfd);
 int64_t tfWrite(int64_t tfd, void *buf, int64_t count);
 int64_t tfRead(int64_t tfd, void *buf, int64_t count);
+int64_t tfPread(int64_t tfd, void *buf, int64_t count, int64_t offset);
 int32_t tfFsync(int64_t tfd);
 bool    tfValid(int64_t tfd);
 int64_t tfLseek(int64_t tfd, int64_t offset, int32_t whence);
@@ -47,4 +48,4 @@ int32_t tfFtruncate(int64_t tfd, int64_t length);
 }
 #endif
 
-#endif  /*_TD_UTIL_FILE_H*/
+#endif /*_TD_UTIL_FILE_H*/

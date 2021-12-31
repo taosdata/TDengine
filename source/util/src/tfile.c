@@ -16,21 +16,19 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-#include "ulog.h"
-#include "tutil.h"
 #include "tref.h"
+#include "tutil.h"
+#include "ulog.h"
 
 static int32_t tsFileRsetId = -1;
 
 static int8_t tfInited = 0;
 
-static void tfCloseFile(void *p) {
-  taosCloseFile((int32_t)(uintptr_t)p);
-}
+static void tfCloseFile(void *p) { taosCloseFile((int32_t)(uintptr_t)p); }
 
 int32_t tfInit() {
   int8_t old = atomic_val_compare_exchange_8(&tfInited, 0, 1);
-  if(old == 1) return 0;
+  if (old == 1) return 0;
   tsFileRsetId = taosOpenRef(2000, tfCloseFile);
   if (tsFileRsetId > 0) {
     return 0;
@@ -79,9 +77,7 @@ int64_t tfOpenCreateWriteAppend(const char *pathname, int32_t flags, mode_t mode
   return tfOpenImp(fd);
 }
 
-int64_t tfClose(int64_t tfd) {
-  return taosRemoveRef(tsFileRsetId, tfd);
-}
+int64_t tfClose(int64_t tfd) { return taosRemoveRef(tsFileRsetId, tfd); }
 
 int64_t tfWrite(int64_t tfd, void *buf, int64_t count) {
   void *p = taosAcquireRef(tsFileRsetId, tfd);
@@ -103,6 +99,19 @@ int64_t tfRead(int64_t tfd, void *buf, int64_t count) {
   int32_t fd = (int32_t)(uintptr_t)p;
 
   int64_t ret = taosReadFile(fd, buf, count);
+  if (ret < 0) terrno = TAOS_SYSTEM_ERROR(errno);
+
+  taosReleaseRef(tsFileRsetId, tfd);
+  return ret;
+}
+
+int64_t tfPread(int64_t tfd, void *buf, int64_t count, int32_t offset) {
+  void *p = taosAcquireRef(tsFileRsetId, tfd);
+  if (p == NULL) return -1;
+
+  int32_t fd = (int32_t)(uintptr_t)p;
+
+  int64_t ret = pread(fd, buf, count, offset);
   if (ret < 0) terrno = TAOS_SYSTEM_ERROR(errno);
 
   taosReleaseRef(tsFileRsetId, tfd);
