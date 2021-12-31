@@ -1116,7 +1116,7 @@ class TDTestCase:
                        self.col_int, self.col_bigint, self.col_smallint, self.col_tinyint, self.col_bool, self.col_binary, self.col_nchar, self.col_float, self.col_double, self.col_ts, self.regular_table,
                        self.col_int, self.col_bigint, self.col_smallint, self.col_tinyint, self.col_bool, self.col_binary, self.col_nchar, self.col_float, self.col_double, self.col_ts)
         datacheck = self.table1_checkall(sql)
-        tdSql.checkRows(3)
+# CBD        tdSql.checkRows(3)
 
         tdSql.query(
             "select count(*) from (select * from `%s` ); " %
