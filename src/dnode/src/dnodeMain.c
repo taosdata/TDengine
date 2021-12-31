@@ -240,7 +240,7 @@ static void dnodeCheckDataDirOpenned(char *dir) {
   char filepath[256] = {0};
   sprintf(filepath, "%s/.running", dir);
 
-  int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+  int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd < 0) {
     dError("failed to open lock file:%s, reason: %s, quit", filepath, strerror(errno));
     exit(0);

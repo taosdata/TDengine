@@ -68,8 +68,9 @@ class TDTestCase:
         binPath = buildPath + "/build/bin/"
 
         os.system("rm /tmp/*.sql")
+        os.system("rm /tmp/*.avro*")
         os.system(
-            "%staosdump --databases db -o /tmp -B 16384 -L 1048576" %
+            "%staosdump --databases db -o /tmp -B 16384" %
             binPath)
 
         tdSql.execute("drop database db")
