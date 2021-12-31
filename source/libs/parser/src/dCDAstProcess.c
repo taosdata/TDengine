@@ -321,6 +321,11 @@ int32_t doCheckForCreateTable(SSqlInfo* pInfo, SMsgBuf* pMsgBuf) {
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct SVgroupTablesBatch {
+  SVCreateTbBatchReq req;
+  SVgroupInfo        info;
+} SVgroupTablesBatch;
+
 int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* pMsgBuf, char** pOutput, int32_t* len,
                                SEpSet* pEpSet) {
   const char* msg1 = "invalid table name";
@@ -330,17 +335,14 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
 
   SCreateTableSql* pCreateTable = pInfo->pCreateTableInfo;
 
+  SHashObj* pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+
   // super table name, create table by using dst
-  int32_t numOfTables = (int32_t)taosArrayGetSize(pCreateTable->childTableInfo);
+  size_t numOfTables = taosArrayGetSize(pCreateTable->childTableInfo);
   for (int32_t j = 0; j < numOfTables; ++j) {
     SCreatedTableInfo* pCreateTableInfo = taosArrayGet(pCreateTable->childTableInfo, j);
 
     SToken* pSTableNameToken = &pCreateTableInfo->stbName;
-
-    char   buf[TSDB_TABLE_FNAME_LEN];
-    SToken sTblToken;
-    sTblToken.z = buf;
-
     int32_t code = parserValidateNameToken(pSTableNameToken);
     if (code != TSDB_CODE_SUCCESS) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
@@ -460,12 +462,13 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
 
       for (int32_t i = 0; i < numOfInputTag; ++i) {
         SSchema* pSchema = &pTagSchema[i];
-        SToken*  pItem = taosArrayGet(pValList, i);
-
-        char     tmpTokenBuf[TSDB_MAX_TAGS_LEN] = {0};
-        SKvParam param = {.builder = &kvRowBuilder, .schema = pSchema};
 
         char* endPtr = NULL;
+        char  tmpTokenBuf[TSDB_MAX_TAGS_LEN] = {0};
+
+        SKvParam param = {.builder = &kvRowBuilder, .schema = pSchema};
+
+        SToken*  pItem = taosArrayGet(pValList, i);
         code = parseValueToken(&endPtr, pItem, pSchema, tinfo.precision, tmpTokenBuf, KvRowAppend, &param, pMsgBuf);
 
         if (code != TSDB_CODE_SUCCESS) {
@@ -478,7 +481,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
     tdDestroyKVRowBuilder(&kvRowBuilder);
     if (row == NULL) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+        return TSDB_CODE_QRY_OUT_OF_MEMORY;
     }
 
     tdSortKVRowByColIdx(row);
@@ -489,31 +492,36 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
       return code;
     }
 
+    SVgroupInfo info = {0};
+    catalogGetTableHashVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, &tableName, &info);
+
     struct SVCreateTbReq req = {0};
     req.type = TD_CHILD_TABLE;
     req.name = strdup(tNameGetTableName(&tableName));
     req.ctbCfg.suid = pSuperTableMeta->suid;
     req.ctbCfg.pTag = row;
 
-    int32_t serLen = sizeof(SMsgHead) + tSerializeSVCreateTbReq(NULL, &req);
-    char*   buf1 = calloc(1, serLen);
-    *pOutput = buf1;
-    buf1 += sizeof(SMsgHead);
-    tSerializeSVCreateTbReq((void*)&buf1, &req);
-    *len = serLen;
+//    pEpSet->inUse = info.inUse;
+//    pEpSet->numOfEps = info.numOfEps;
+//    for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
+//      pEpSet->port[i] = info.epAddr[i].port;
+//      tstrncpy(pEpSet->fqdn[i], info.epAddr[i].fqdn, tListLen(pEpSet->fqdn[i]));
+//    }
+//    ((SMsgHead*)(*pOutput))->vgId = htonl(info.vgId);
+//    ((SMsgHead*)(*pOutput))->contLen = htonl(serLen);
+    SVgroupTablesBatch *pTableBatch = taosHashGet(pVgroupHashmap, &info.vgId, sizeof(info.vgId));
+    if (pTableBatch == NULL) {
+      SVgroupTablesBatch tBatch = {0};
+      tBatch.info = info;
 
-    SVgroupInfo info = {0};
-    catalogGetTableHashVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, &tableName, &info);
+      tBatch.req.pArray = taosArrayInit(4, sizeof(struct SVCreateTbReq));
+      taosArrayPush(tBatch.req.pArray, &req);
 
-    pEpSet->inUse = info.inUse;
-    pEpSet->numOfEps = info.numOfEps;
-    for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
-      pEpSet->port[i] = info.epAddr[i].port;
-      tstrncpy(pEpSet->fqdn[i], info.epAddr[i].fqdn, tListLen(pEpSet->fqdn[i]));
+      taosHashPut(pVgroupHashmap, &info.vgId, sizeof(info.vgId), &tBatch, sizeof(tBatch));
+    } else { // add to the correct vgroup
+      assert(info.vgId == pTableBatch->info.vgId);
+      taosArrayPush(pTableBatch->req.pArray, &req);
     }
-
-    ((SMsgHead*)(*pOutput))->vgId = htonl(info.vgId);
-    ((SMsgHead*)(*pOutput))->contLen = htonl(serLen);
   }
 
   return TSDB_CODE_SUCCESS;
