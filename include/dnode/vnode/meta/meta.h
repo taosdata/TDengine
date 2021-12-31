@@ -25,12 +25,12 @@
 extern "C" {
 #endif
 
+#define META_SUPER_TABLE TD_SUPER_TABLE
+#define META_CHILD_TABLE TD_CHILD_TABLE
+#define META_NORMAL_TABLE TD_NORMAL_TABLE
+
 // Types exported
 typedef struct SMeta SMeta;
-
-#define META_SUPER_TABLE 0
-#define META_CHILD_TABLE 1
-#define META_NORMAL_TABLE 2
 
 typedef struct SMetaCfg {
   /// LRU cache size

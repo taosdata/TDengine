@@ -524,6 +524,9 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     }
   }
 
+  // TODO: serialize and
+  void *pBuf = NULL;
+
   return TSDB_CODE_SUCCESS;
 }
 

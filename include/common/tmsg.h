@@ -1255,9 +1255,9 @@ typedef struct SVCreateTbReq {
   char*    name;
   uint32_t ttl;
   uint32_t keep;
-#define TD_SUPER_TABLE 0
-#define TD_CHILD_TABLE 1
-#define TD_NORMAL_TABLE 2
+#define TD_SUPER_TABLE TSDB_SUPER_TABLE
+#define TD_CHILD_TABLE TSDB_CHILD_TABLE
+#define TD_NORMAL_TABLE TSDB_NORMAL_TABLE
   uint8_t type;
   union {
     struct {
