@@ -53,13 +53,6 @@ static int  tfileParseFileName(const char* filename, uint64_t* suid, int* colId,
 static void tfileGenFileName(char* filename, uint64_t suid, int colId, int version);
 static void tfileSerialCacheKey(TFileCacheKey* key, char* buf);
 
-static TFileReader* tfileReaderCreateImpl(WriterCtx* ctx) {
-  TFileReader* reader = tfileReaderCreate(ctx);
-  tfileReaderRef(reader);
-  // tfileSerialCacheKey(&key, buf);
-  return reader;
-}
-
 TFileCache* tfileCacheCreate(const char* path) {
   TFileCache* tcache = calloc(1, sizeof(TFileCache));
   if (tcache == NULL) { return NULL; }
@@ -88,13 +81,16 @@ TFileCache* tfileCacheCreate(const char* path) {
     }
 
     char          buf[128] = {0};
-    TFileReader*  reader = tfileReaderCreateImpl(wc);
+    TFileReader*  reader = tfileReaderCreate(wc);
     TFileHeader*  header = &reader->header;
     TFileCacheKey key = {.suid = header->suid,
                          .colName = header->colName,
                          .nColName = strlen(header->colName),
                          .colType = header->colType};
     tfileSerialCacheKey(&key, buf);
+
+    tfileReaderRef(reader);
+    // indexTable
     taosHashPut(tcache->tableCache, buf, strlen(buf), &reader, sizeof(void*));
   }
   taosArrayDestroyEx(files, tfileDestroyFileName);
@@ -139,6 +135,7 @@ void tfileCachePut(TFileCache* tcache, TFileCacheKey* key, TFileReader* reader) 
   if (p != NULL) {
     TFileReader* oldReader = *p;
     taosHashRemove(tcache->tableCache, buf, strlen(buf));
+    oldReader->remove = true;
     tfileReaderUnRef(oldReader);
   }
 
@@ -152,7 +149,6 @@ TFileReader* tfileReaderCreate(WriterCtx* ctx) {
 
   // T_REF_INC(reader);
   reader->ctx = ctx;
-
   if (0 != tfileReaderLoadHeader(reader)) {
     tfileReaderDestroy(reader);
     indexError("failed to load index header, suid: %" PRIu64 ", colName: %s", reader->header.suid,
@@ -172,7 +168,7 @@ void tfileReaderDestroy(TFileReader* reader) {
   if (reader == NULL) { return; }
   // T_REF_INC(reader);
   fstDestroy(reader->fst);
-  writerCtxDestroy(reader->ctx, true);
+  writerCtxDestroy(reader->ctx, reader->remove);
   free(reader);
 }
 
@@ -232,7 +228,7 @@ TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const c
   WriterCtx* wc = writerCtxCreate(TFile, fullname, true, 1024 * 1024 * 1024);
   if (wc == NULL) { return NULL; }
 
-  TFileReader* reader = tfileReaderCreateImpl(wc);
+  TFileReader* reader = tfileReaderCreate(wc);
   return reader;
 
   // tfileSerialCacheKey(&key, buf);
@@ -330,13 +326,16 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     return -1;
   }
   // write fst
+  indexError("--------Begin----------------");
   for (size_t i = 0; i < sz; i++) {
     // TODO, fst batch write later
     TFileValue* v = taosArrayGetP((SArray*)data, i);
     if (tfileWriteData(tw, v) == 0) {
       //
     }
+    indexError("data: %s, offset: %d len: %d", v->colVal, v->offset, (int)taosArrayGetSize(v->tableId));
   }
+  indexError("--------End----------------");
   fstBuilderFinish(tw->fb);
   fstBuilderDestroy(tw->fb);
   tw->fb = NULL;
@@ -360,7 +359,10 @@ IndexTFile* indexTFileCreate(const char* path) {
   tfile->cache = tfileCacheCreate(path);
   return tfile;
 }
-void IndexTFileDestroy(IndexTFile* tfile) { free(tfile); }
+void IndexTFileDestroy(IndexTFile* tfile) {
+  tfileCacheDestroy(tfile->cache);
+  free(tfile);
+}
 
 int indexTFileSearch(void* tfile, SIndexTermQuery* query, SArray* result) {
   int ret = -1;
@@ -539,8 +541,14 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
   char buf[TFILE_HEADER_SIZE] = {0};
 
   int64_t nread = reader->ctx->readFrom(reader->ctx, buf, sizeof(buf), 0);
-  assert(nread == sizeof(buf));
+  if (nread == -1) {
+    //
+    indexError("actual Read: %d, to read: %d, errno: %d, filefd: %d, filename: %s", (int)(nread), (int)sizeof(buf),
+               errno, reader->ctx->file.fd, reader->ctx->file.buf);
+  }
+  // assert(nread == sizeof(buf));
   memcpy(&reader->header, buf, sizeof(buf));
+
   return 0;
 }
 static int tfileReaderLoadFst(TFileReader* reader) {
@@ -573,7 +581,7 @@ static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* 
   char*   buf = calloc(1, total);
   if (buf == NULL) { return -1; }
 
-  nread = ctx->read(ctx, buf, total);
+  nread = ctx->readFrom(ctx, buf, total, offset + sizeof(nid));
   assert(total == nread);
 
   for (int32_t i = 0; i < nid; i++) { taosArrayPush(result, (uint64_t*)buf + i); }
