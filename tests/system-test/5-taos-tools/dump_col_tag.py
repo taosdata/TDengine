@@ -1278,8 +1278,8 @@ class TDTestCase:
         tdSql.query("describe `%s` ; " % self.regular_table)
         tdSql.checkRows(11)
 
-        os.system("rm db*")
-        os.system("rm dump_result.txt*")
+        os.system("rm %sdb*" % self.tmpdir)
+        os.system("rm %sdump_result.txt*" % self.tmpdir)
 
     def stop(self):
         tdSql.close()
