@@ -81,7 +81,7 @@ int metaOpenDB(SMeta *pMeta) {
     return -1;
   }
 
-  if (metaOpenBDBDb(&(pDB->pSchemaDB), pDB->pEvn, "meta.db", false) < 0) {
+  if (metaOpenBDBDb(&(pDB->pSchemaDB), pDB->pEvn, "schema.db", false) < 0) {
     metaCloseDB(pMeta);
     return -1;
   }
@@ -557,6 +557,12 @@ SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
   }
 
   pDB->pTbDB->cursor(pDB->pTbDB, NULL, &(pTbCur->pCur), 0);
+
+#if 0
+    DB_BTREE_STAT *sp;
+    pDB->pTbDB->stat(pDB->pTbDB, NULL, &sp, 0);
+    printf("**************** %ld\n", sp->bt_nkeys);
+#endif
 
   return pTbCur;
 }

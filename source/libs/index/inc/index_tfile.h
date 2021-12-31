@@ -77,6 +77,7 @@ typedef struct TFileReader {
   Fst*        fst;
   WriterCtx*  ctx;
   TFileHeader header;
+  bool        remove;
 } TFileReader;
 
 typedef struct IndexTFile {

@@ -1,0 +1,18 @@
+
+make raftServer
+
+all:
+	gcc raftMain.c raftServer.c -I ../../traft/include/ ../../traft/.libs/libraft.a -o raftMain -luv -llz4 -lpthread -g
+clean:
+	rm -f raftMain
+	sh clear.sh
+
+
+make traft:
+
+sudo apt-get install libuv1-dev liblz4-dev
+autoreconf -i
+./configure --enable-example
+make
+
+
