@@ -38,7 +38,7 @@ typedef struct SMetaCfg {
 } SMetaCfg;
 
 typedef struct {
-  int32_t  nCols;
+  uint32_t nCols;
   SSchema *pSchema;
 } SSchemaWrapper;
 
