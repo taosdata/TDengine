@@ -692,7 +692,6 @@ void freeCreateTableInfo(void* p) {
   taosArrayDestroy(pInfo->pTagNames);
   taosArrayDestroyEx(pInfo->pTagVals, freeItem);
   tfree(pInfo->fullname);
-  tfree(pInfo->tagdata.data);
 }
 
 SSqlInfo* setSqlInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SToken *pTableName, int32_t type) {

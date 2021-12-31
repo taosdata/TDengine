@@ -462,3 +462,31 @@ TEST(testCase, show_table_Test) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
+
+//TEST(testCase, create_multiple_tables) {
+//  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+//  assert(pConn != NULL);
+//
+//  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+//  taos_free_result(pRes);
+//
+//  pRes = taos_query(pConn, "create table t_2 using st1 tags(1) t_3 using st2 tags(2)");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to show vgroups, reason:%s\n", taos_errstr(pRes));
+//    taos_free_result(pRes);
+//    ASSERT_TRUE(false);
+//  }
+//
+//  TAOS_ROW pRow = NULL;
+//  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+//  int32_t numOfFields = taos_num_fields(pRes);
+//
+//  char str[512] = {0};
+//  while((pRow = taos_fetch_row(pRes)) != NULL) {
+//    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+//    printf("%s\n", str);
+//  }
+//
+//  taos_free_result(pRes);
+//  taos_close(pConn);
+//}
