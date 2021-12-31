@@ -17,6 +17,7 @@
 #include "vnodeDef.h"
 
 static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg);
+static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
 int vnodeQueryOpen(SVnode *pVnode) { return qWorkerInit(NULL, &pVnode->pQuery); }
 
@@ -43,6 +44,8 @@ int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     case TDMT_VND_SHOW_TABLES_FETCH:
       return vnodeGetTableList(pVnode, pMsg);
 //      return qWorkerProcessShowFetchMsg(pVnode->pMeta, pVnode->pQuery, pMsg);
+    case TDMT_VND_TABLE_META:
+      return vnodeGetTableMeta(pVnode, pMsg, pRsp);
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
@@ -88,7 +91,8 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     pTagSchema = NULL;
   }
 
-  pTbMetaMsg = (STableMetaMsg *)calloc(1, sizeof(STableMetaMsg) + sizeof(SSchema) * (nCols + nTagCols));
+  int msgLen = sizeof(STableMetaMsg) + sizeof(SSchema) * (nCols + nTagCols);
+  pTbMetaMsg = (STableMetaMsg *)rpcMallocCont(msgLen);
   if (pTbMetaMsg == NULL) {
     return -1;
   }
@@ -114,6 +118,16 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     pSch->colId = htonl(pSch->colId);
     pSch->bytes = htonl(pSch->bytes);
   }
+
+  SRpcMsg rpcMsg = {
+      .handle  = pMsg->handle,
+      .ahandle = pMsg->ahandle,
+      .pCont   = pTbMetaMsg,
+      .contLen = msgLen,
+      .code    = 0,
+  };
+
+  rpcSendResponse(&rpcMsg);
 
   return 0;
 }

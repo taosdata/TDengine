@@ -77,27 +77,37 @@ typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 #define CTG_ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { ctgError(__VA_ARGS__); terrno = _code; return _code; } } while (0)
 #define CTG_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
+#define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
+
 #define CTG_LOCK(type, _lock) do {   \
   if (CTG_READ == (type)) {          \
-    if ((*(_lock)) < 0) assert(0);  \
+    assert(atomic_load_32((_lock)) >= 0);  \
+    ctgDebug("CTG RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     taosRLockLatch(_lock);           \
-    ctgDebug("CTG RLOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+    ctgDebug("CTG RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    assert(atomic_load_32((_lock)) > 0);  \
   } else {                                                \
-    if ((*(_lock)) < 0) assert(0);                          \
+    assert(atomic_load_32((_lock)) >= 0);  \
+    ctgDebug("CTG WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);  \
     taosWLockLatch(_lock);                                \
-    ctgDebug("CTG WLOCK%p, %s:%d", (_lock), __FILE__, __LINE__);  \
+    ctgDebug("CTG WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);  \
+    assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);  \
   }                                                       \
 } while (0)
 
 #define CTG_UNLOCK(type, _lock) do {                       \
   if (CTG_READ == (type)) {                                \
-    if ((*(_lock)) <= 0) assert(0);                         \
+    assert(atomic_load_32((_lock)) > 0);  \
+    ctgDebug("CTG RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     taosRUnLockLatch(_lock);                              \
-    ctgDebug("CTG RULOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+    ctgDebug("CTG RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    assert(atomic_load_32((_lock)) >= 0);  \
   } else {                                                \
-    if ((*(_lock)) <= 0) assert(0);                         \
+    assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);  \
+    ctgDebug("CTG WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     taosWUnLockLatch(_lock);                              \
-    ctgDebug("CTG WULOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+    ctgDebug("CTG WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    assert(atomic_load_32((_lock)) >= 0);  \
   }                                                       \
 } while (0)
 
