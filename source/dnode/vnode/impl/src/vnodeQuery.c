@@ -17,7 +17,7 @@
 #include "vnodeDef.h"
 
 static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg);
-static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
 int vnodeQueryOpen(SVnode *pVnode) { return qWorkerInit(NULL, &pVnode->pQuery); }
 
@@ -43,7 +43,7 @@ int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       return qWorkerProcessShowMsg(pVnode, pVnode->pQuery, pMsg);
     case TDMT_VND_SHOW_TABLES_FETCH:
       return vnodeGetTableList(pVnode, pMsg);
-//      return qWorkerProcessShowFetchMsg(pVnode->pMeta, pVnode->pQuery, pMsg);
+      //      return qWorkerProcessShowFetchMsg(pVnode->pMeta, pVnode->pQuery, pMsg);
     case TDMT_VND_TABLE_META:
       return vnodeGetTableMeta(pVnode, pMsg, pRsp);
     default:
@@ -62,16 +62,17 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   SSchemaWrapper *pSW;
   STableMetaMsg * pTbMetaMsg;
   SSchema *       pTagSchema;
+  SRpcMsg         rpcMsg;
 
   pTbCfg = metaGetTbInfoByName(pVnode->pMeta, pReq->tableFname, &uid);
   if (pTbCfg == NULL) {
-    return -1;
+    goto _exit;
   }
 
   if (pTbCfg->type == META_CHILD_TABLE) {
     pStbCfg = metaGetTbInfoByUid(pVnode->pMeta, pTbCfg->ctbCfg.suid);
     if (pStbCfg == NULL) {
-      return -1;
+      goto _exit;
     }
 
     pSW = metaGetTableSchema(pVnode->pMeta, pTbCfg->ctbCfg.suid, 0, true);
@@ -94,7 +95,7 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   int msgLen = sizeof(STableMetaMsg) + sizeof(SSchema) * (nCols + nTagCols);
   pTbMetaMsg = (STableMetaMsg *)rpcMallocCont(msgLen);
   if (pTbMetaMsg == NULL) {
-    return -1;
+    goto _exit;
   }
 
   strcpy(pTbMetaMsg->tbFname, pTbCfg->name);
@@ -119,13 +120,13 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     pSch->bytes = htonl(pSch->bytes);
   }
 
-  SRpcMsg rpcMsg = {
-      .handle  = pMsg->handle,
-      .ahandle = pMsg->ahandle,
-      .pCont   = pTbMetaMsg,
-      .contLen = msgLen,
-      .code    = 0,
-  };
+_exit:
+
+      rpcMsg.handle = pMsg->handle;
+      rpcMsg.ahandle = pMsg->ahandle;
+      rpcMsg.pCont = pTbMetaMsg;
+      rpcMsg.contLen = msgLen;
+      rpcMsg.code = 0;
 
   rpcSendResponse(&rpcMsg);
 
@@ -138,10 +139,10 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
  * @param pRsp
  */
 static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
-  SMTbCursor* pCur = metaOpenTbCursor(pVnode->pMeta);
-  SArray* pArray = taosArrayInit(10, POINTER_BYTES);
+  SMTbCursor *pCur = metaOpenTbCursor(pVnode->pMeta);
+  SArray *    pArray = taosArrayInit(10, POINTER_BYTES);
 
-  char* name = NULL;
+  char *  name = NULL;
   int32_t totalLen = 0;
   while ((name = metaTbCursorNext(pCur)) != NULL) {
     taosArrayPush(pArray, &name);
@@ -150,18 +151,19 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
 
   metaCloseTbCursor(pCur);
 
-  int32_t rowLen = (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 2 + (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 4;
-  int32_t numOfTables = (int32_t) taosArrayGetSize(pArray);
+  int32_t rowLen =
+      (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 2 + (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 4;
+  int32_t numOfTables = (int32_t)taosArrayGetSize(pArray);
 
   int32_t payloadLen = rowLen * numOfTables;
-//  SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
+  //  SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
 
   SVShowTablesFetchRsp *pFetchRsp = (SVShowTablesFetchRsp *)rpcMallocCont(sizeof(SVShowTablesFetchRsp) + payloadLen);
   memset(pFetchRsp, 0, sizeof(struct SVShowTablesFetchRsp) + payloadLen);
 
-  char* p = pFetchRsp->data;
-  for(int32_t i = 0; i < numOfTables; ++i) {
-    char* n = taosArrayGetP(pArray, i);
+  char *p = pFetchRsp->data;
+  for (int32_t i = 0; i < numOfTables; ++i) {
+    char *n = taosArrayGetP(pArray, i);
     STR_TO_VARSTR(p, n);
 
     p += (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE);
@@ -171,11 +173,11 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
   pFetchRsp->precision = 0;
 
   SRpcMsg rpcMsg = {
-      .handle  = pMsg->handle,
+      .handle = pMsg->handle,
       .ahandle = pMsg->ahandle,
-      .pCont   = pFetchRsp,
+      .pCont = pFetchRsp,
       .contLen = sizeof(SVShowTablesFetchRsp) + payloadLen,
-      .code    = 0,
+      .code = 0,
   };
 
   rpcSendResponse(&rpcMsg);
