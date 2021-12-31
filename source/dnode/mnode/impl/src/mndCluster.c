@@ -33,7 +33,7 @@ static void     mndCancelGetNextCluster(SMnode *pMnode, void *pIter);
 
 int32_t mndInitCluster(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_CLUSTER,
-                     .keyType = SDB_KEY_INT32,
+                     .keyType = SDB_KEY_INT64,
                      .deployFp = (SdbDeployFp)mndCreateDefaultCluster,
                      .encodeFp = (SdbEncodeFp)mndClusterActionEncode,
                      .decodeFp = (SdbDecodeFp)mndClusterActionDecode,
@@ -128,6 +128,7 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
 
   clusterObj.id = mndGenerateUid(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   clusterObj.id = (clusterObj.id >= 0 ? clusterObj.id : -clusterObj.id);
+  pMnode->clusterId = clusterObj.id;
   mDebug("cluster:%" PRId64 ", name is %s", clusterObj.id, clusterObj.name);
 
   SSdbRaw *pRaw = mndClusterActionEncode(&clusterObj);

@@ -72,7 +72,9 @@ typedef struct SSdb {
 } SSdb;
 
 int32_t sdbWriteFile(SSdb *pSdb);
-void    sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
+
+const char *sdbTableName(ESdbType type);
+void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
 
 #ifdef __cplusplus
 }

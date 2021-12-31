@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "sdbInt.h"
 
-static const char *sdbTableName(ESdbType type) {
+const char *sdbTableName(ESdbType type) {
   switch (type) {
     case SDB_TRANS:
       return "trans";
