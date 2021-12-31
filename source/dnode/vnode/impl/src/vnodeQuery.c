@@ -60,9 +60,11 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   int32_t         nCols;
   int32_t         nTagCols;
   SSchemaWrapper *pSW;
-  STableMetaMsg * pTbMetaMsg;
+  STableMetaMsg * pTbMetaMsg = NULL;
   SSchema *       pTagSchema;
   SRpcMsg         rpcMsg;
+  int             msgLen = 0;
+  int32_t         code = TSDB_CODE_VND_APP_ERROR;
 
   pTbCfg = metaGetTbInfoByName(pVnode->pMeta, pReq->tableFname, &uid);
   if (pTbCfg == NULL) {
@@ -92,12 +94,13 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     pTagSchema = NULL;
   }
 
-  int msgLen = sizeof(STableMetaMsg) + sizeof(SSchema) * (nCols + nTagCols);
+  msgLen = sizeof(STableMetaMsg) + sizeof(SSchema) * (nCols + nTagCols);
   pTbMetaMsg = (STableMetaMsg *)rpcMallocCont(msgLen);
   if (pTbMetaMsg == NULL) {
     goto _exit;
   }
 
+  memcpy(pTbMetaMsg->dbFname, pReq->dbFname, sizeof(pTbMetaMsg->dbFname));
   strcpy(pTbMetaMsg->tbFname, pTbCfg->name);
   if (pTbCfg->type == META_CHILD_TABLE) {
     strcpy(pTbMetaMsg->stbFname, pStbCfg->name);
@@ -120,13 +123,15 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     pSch->bytes = htonl(pSch->bytes);
   }
 
+  code = 0;
+
 _exit:
 
-      rpcMsg.handle = pMsg->handle;
-      rpcMsg.ahandle = pMsg->ahandle;
-      rpcMsg.pCont = pTbMetaMsg;
-      rpcMsg.contLen = msgLen;
-      rpcMsg.code = 0;
+  rpcMsg.handle = pMsg->handle;
+  rpcMsg.ahandle = pMsg->ahandle;
+  rpcMsg.pCont = pTbMetaMsg;
+  rpcMsg.contLen = msgLen;
+  rpcMsg.code = code;
 
   rpcSendResponse(&rpcMsg);
 
