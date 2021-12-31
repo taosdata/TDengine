@@ -714,10 +714,9 @@ TEST(testCase, show_user_Test) {
   SSqlInfo info1 = doGenerateAST(sql1);
   ASSERT_EQ(info1.valid, true);
 
-  SDclStmtInfo output;
   SParseBasicCtx ct= {.requestId = 1, .acctId = 1, .db = "abc", .pTransporter = NULL};
-  int32_t code = qParserValidateDclSqlNode(&info1, &ct, &output, msg, buf.len);
-  ASSERT_EQ(code, 0);
+  SDclStmtInfo* output = qParserValidateDclSqlNode(&info1, &ct, msg, buf.len);
+  ASSERT_NE(output, nullptr);
 
   // convert the show command to be the select query
   // select name, privilege, create_time, account from information_schema.users;
@@ -735,10 +734,9 @@ TEST(testCase, create_user_Test) {
   ASSERT_EQ(info1.valid, true);
   ASSERT_EQ(isDclSqlStatement(&info1), true);
 
-  SDclStmtInfo output;
   SParseBasicCtx ct= {.requestId = 1, .acctId = 1, .db = "abc"};
-  int32_t code = qParserValidateDclSqlNode(&info1, &ct, &output, msg, buf.len);
-  ASSERT_EQ(code, 0);
+  SDclStmtInfo* output = qParserValidateDclSqlNode(&info1, &ct, msg, buf.len);
+  ASSERT_NE(output, nullptr);
 
   destroySqlInfo(&info1);
 }

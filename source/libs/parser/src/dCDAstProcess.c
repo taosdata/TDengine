@@ -326,8 +326,7 @@ typedef struct SVgroupTablesBatch {
   SVgroupInfo        info;
 } SVgroupTablesBatch;
 
-int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* pMsgBuf, char** pOutput, int32_t* len,
-                               SEpSet* pEpSet) {
+int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* pMsgBuf, char** pOutput, int32_t* len) {
   const char* msg1 = "invalid table name";
   const char* msg2 = "tags number not matched";
   const char* msg3 = "tag value too long";
@@ -359,7 +358,11 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     size_t      numOfInputTag = taosArrayGetSize(pValList);
     STableMeta* pSuperTableMeta = NULL;
 
-    catalogGetTableMeta(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, &name, &pSuperTableMeta);
+    code = catalogGetTableMeta(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, &name, &pSuperTableMeta);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
     assert(pSuperTableMeta != NULL);
 
     // too long tag values will return invalid sql, not be truncated automatically
@@ -501,14 +504,6 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     req.ctbCfg.suid = pSuperTableMeta->suid;
     req.ctbCfg.pTag = row;
 
-    //    pEpSet->inUse = info.inUse;
-    //    pEpSet->numOfEps = info.numOfEps;
-    //    for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
-    //      pEpSet->port[i] = info.epAddr[i].port;
-    //      tstrncpy(pEpSet->fqdn[i], info.epAddr[i].fqdn, tListLen(pEpSet->fqdn[i]));
-    //    }
-    //    ((SMsgHead*)(*pOutput))->vgId = htonl(info.vgId);
-    //    ((SMsgHead*)(*pOutput))->contLen = htonl(serLen);
     SVgroupTablesBatch* pTableBatch = taosHashGet(pVgroupHashmap, &info.vgId, sizeof(info.vgId));
     if (pTableBatch == NULL) {
       SVgroupTablesBatch tBatch = {0};
@@ -525,12 +520,12 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
   }
 
   // TODO: serialize and
-  SArray*              pBufArray = taosArrayInit(taosHashGetSize(pVgroupHashmap), sizeof(void*));
-  SVgroupTablesBatch** ppTbBatch = NULL;
+  SArray* pBufArray = taosArrayInit(taosHashGetSize(pVgroupHashmap), sizeof(void*));
+
+  SVgroupTablesBatch* pTbBatch = NULL;
   do {
-    ppTbBatch = taosHashIterate(pVgroupHashmap, ppTbBatch);
-    if (ppTbBatch == NULL) break;
-    SVgroupTablesBatch* pTbBatch = *ppTbBatch;
+    pTbBatch = taosHashIterate(pVgroupHashmap, pTbBatch);
+    if (pTbBatch == NULL) break;
 
     int   tlen = sizeof(SMsgHead) + tSVCreateTbBatchReqSerialize(NULL, &(pTbBatch->req));
     void* buf = malloc(tlen);
@@ -544,16 +539,28 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
     tSVCreateTbBatchReqSerialize(&pBuf, &(pTbBatch->req));
 
-    taosArrayPush(pBufArray, &buf);
+    SVgDataBlocks* pVgData = calloc(1, sizeof(SVgDataBlocks));
+    pVgData->vg    = pTbBatch->info;
+    pVgData->pData = buf;
+    pVgData->size  = tlen;
+    pVgData->numOfTables = (int32_t) taosArrayGetSize(pTbBatch->req.pArray);
 
+    taosArrayPush(pBufArray, &pVgData);
   } while (true);
+
+  SInsertStmtInfo* pStmtInfo = calloc(1, sizeof(SInsertStmtInfo));
+  pStmtInfo->nodeType = TSDB_SQL_CREATE_TABLE;
+  pStmtInfo->pDataBlocks = pBufArray;
+  *pOutput = pStmtInfo;
+  *len = sizeof(SInsertStmtInfo);
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStmtInfo* pDcl, char* msgBuf,
-                                  int32_t msgBufLen) {
+SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, char* msgBuf, int32_t msgBufLen) {
   int32_t code = 0;
+
+  SDclStmtInfo* pDcl = calloc(1, sizeof(SDclStmtInfo));
 
   SMsgBuf  m = {.buf = msgBuf, .len = msgBufLen};
   SMsgBuf* pMsgBuf = &m;
@@ -571,21 +578,25 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
       SToken*    pPwd = &pUser->passwd;
 
       if (pName->n >= TSDB_USER_LEN) {
-        return buildInvalidOperationMsg(pMsgBuf, msg3);
+        code = buildInvalidOperationMsg(pMsgBuf, msg3);
+        goto _error;
       }
 
       if (parserValidateIdToken(pName) != TSDB_CODE_SUCCESS) {
-        return buildInvalidOperationMsg(pMsgBuf, msg2);
+        code = buildInvalidOperationMsg(pMsgBuf, msg2);
+        goto _error;
       }
 
       if (pInfo->type == TSDB_SQL_CREATE_USER) {
         if (parserValidatePassword(pPwd, pMsgBuf) != TSDB_CODE_SUCCESS) {
-          return TSDB_CODE_TSC_INVALID_OPERATION;
+          code = TSDB_CODE_TSC_INVALID_OPERATION;
+          goto _error;
         }
       } else {
         if (pUser->type == TSDB_ALTER_USER_PASSWD) {
           if (parserValidatePassword(pPwd, pMsgBuf) != TSDB_CODE_SUCCESS) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
+            code = TSDB_CODE_TSC_INVALID_OPERATION;
+            goto _error;
           }
         } else if (pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
           assert(pPwd->type == TSDB_DATA_TYPE_NULL);
@@ -596,10 +607,12 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
           } else if (strncasecmp(pPrivilege->z, "normal", 4) == 0 && pPrivilege->n == 4) {
             //            pCmd->count = 2;
           } else {
-            return buildInvalidOperationMsg(pMsgBuf, msg4);
+            code = buildInvalidOperationMsg(pMsgBuf, msg4);
+            goto _error;
           }
         } else {
-          return buildInvalidOperationMsg(pMsgBuf, msg1);
+          code = buildInvalidOperationMsg(pMsgBuf, msg1);
+          goto _error;
         }
       }
 
@@ -618,15 +631,18 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
       SToken* pPwd = &pInfo->pMiscInfo->user.passwd;
 
       if (parserValidatePassword(pPwd, pMsgBuf) != TSDB_CODE_SUCCESS) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
+        code = TSDB_CODE_TSC_INVALID_OPERATION;
+        goto _error;
       }
 
       if (pName->n >= TSDB_USER_LEN) {
-        return buildInvalidOperationMsg(pMsgBuf, msg3);
+        code = buildInvalidOperationMsg(pMsgBuf, msg3);
+        goto _error;
       }
 
       if (parserValidateNameToken(pName) != TSDB_CODE_SUCCESS) {
-        return buildInvalidOperationMsg(pMsgBuf, msg2);
+        code = buildInvalidOperationMsg(pMsgBuf, msg2);
+        goto _error;
       }
 
       SCreateAcctInfo* pAcctOpt = &pInfo->pMiscInfo->acctOpt;
@@ -636,7 +652,8 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
         } else if (strncmp(pAcctOpt->stat.z, "all", 3) == 0 && pAcctOpt->stat.n == 3) {
         } else if (strncmp(pAcctOpt->stat.z, "no", 2) == 0 && pAcctOpt->stat.n == 2) {
         } else {
-          return buildInvalidOperationMsg(pMsgBuf, msg1);
+          code = buildInvalidOperationMsg(pMsgBuf, msg1);
+          goto _error;
         }
       }
 
@@ -655,6 +672,10 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
     case TSDB_SQL_SHOW: {
       SShowInfo* pShowInfo = &pInfo->pMiscInfo->showOpt;
       code = setShowInfo(pShowInfo, pCtx, (void**)&pDcl->pMsg, &pDcl->msgLen, &pDcl->epSet, &pDcl->pExtension, pMsgBuf);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _error;
+      }
+      
       pDcl->msgType = (pShowInfo->showType == TSDB_MGMT_TABLE_TABLE) ? TDMT_VND_SHOW_TABLES : TDMT_MND_SHOW;
       break;
     }
@@ -664,13 +685,15 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
 
       SToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if (parserValidateNameToken(pToken) != TSDB_CODE_SUCCESS) {
-        return buildInvalidOperationMsg(pMsgBuf, msg);
+        code = buildInvalidOperationMsg(pMsgBuf, msg);
+        goto _error;
       }
 
       SName   n = {0};
       int32_t ret = tNameSetDbName(&n, pCtx->acctId, pToken->z, pToken->n);
       if (ret != TSDB_CODE_SUCCESS) {
-        return buildInvalidOperationMsg(pMsgBuf, msg);
+        code = buildInvalidOperationMsg(pMsgBuf, msg);
+        goto _error;
       }
 
       SUseDbMsg* pUseDbMsg = (SUseDbMsg*)calloc(1, sizeof(SUseDbMsg));
@@ -689,19 +712,22 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
 
       SCreateDbInfo* pCreateDB = &(pInfo->pMiscInfo->dbOpt);
       if (pCreateDB->dbname.n >= TSDB_DB_NAME_LEN) {
-        return buildInvalidOperationMsg(pMsgBuf, msg2);
+        code = buildInvalidOperationMsg(pMsgBuf, msg2);
+        goto _error;
       }
 
       char   buf[TSDB_DB_NAME_LEN] = {0};
       SToken token = taosTokenDup(&pCreateDB->dbname, buf, tListLen(buf));
 
       if (parserValidateNameToken(&token) != TSDB_CODE_SUCCESS) {
-        return buildInvalidOperationMsg(pMsgBuf, msg1);
+        code = buildInvalidOperationMsg(pMsgBuf, msg1);
+        goto _error;
       }
 
       SCreateDbMsg* pCreateMsg = buildCreateDbMsg(pCreateDB, pCtx, pMsgBuf);
       if (doCheckDbOptions(pCreateMsg, pMsgBuf) != TSDB_CODE_SUCCESS) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
+        code = TSDB_CODE_TSC_INVALID_OPERATION;
+        goto _error;
       }
 
       pDcl->pMsg = (char*)pCreateMsg;
@@ -719,7 +745,8 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
       SName name = {0};
       code = tNameSetDbName(&name, pCtx->acctId, dbName->z, dbName->n);
       if (code != TSDB_CODE_SUCCESS) {
-        return buildInvalidOperationMsg(pMsgBuf, msg1);
+        code = buildInvalidOperationMsg(pMsgBuf, msg1);
+        goto _error;
       }
 
       SDropDbMsg* pDropDbMsg = (SDropDbMsg*)calloc(1, sizeof(SDropDbMsg));
@@ -731,7 +758,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
       pDcl->msgType = TDMT_MND_DROP_DB;
       pDcl->msgLen = sizeof(SDropDbMsg);
       pDcl->pMsg = (char*)pDropDbMsg;
-      return TSDB_CODE_SUCCESS;
+      break;
     }
 
     case TSDB_SQL_CREATE_TABLE: {
@@ -739,14 +766,16 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
 
       if (pCreateTable->type == TSQL_CREATE_TABLE || pCreateTable->type == TSQL_CREATE_STABLE) {
         if ((code = doCheckForCreateTable(pInfo, pMsgBuf)) != TSDB_CODE_SUCCESS) {
-          return code;
+          terrno = code;
+          goto _error;
         }
+
         pDcl->pMsg = (char*)buildCreateTableMsg(pCreateTable, &pDcl->msgLen, pCtx, pMsgBuf);
         pDcl->msgType = (pCreateTable->type == TSQL_CREATE_TABLE) ? TDMT_VND_CREATE_TABLE : TDMT_MND_CREATE_STB;
       } else if (pCreateTable->type == TSQL_CREATE_CTABLE) {
-        if ((code = doCheckForCreateCTable(pInfo, pCtx, pMsgBuf, &pDcl->pMsg, &pDcl->msgLen, &pDcl->epSet)) !=
+        if ((code = doCheckForCreateCTable(pInfo, pCtx, pMsgBuf, &pDcl->pMsg, &pDcl->msgLen)) !=
             TSDB_CODE_SUCCESS) {
-          return code;
+          goto _error;
         }
 
         pDcl->msgType = TDMT_VND_CREATE_TABLE;
@@ -761,7 +790,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
     case TSDB_SQL_DROP_TABLE: {
       pDcl->pMsg = (char*)buildDropStableMsg(pInfo, &pDcl->msgLen, pCtx, pMsgBuf);
       if (pDcl->pMsg == NULL) {
-        code = terrno;
+        goto _error;
       }
 
       pDcl->msgType = TDMT_MND_DROP_STB;
@@ -771,7 +800,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
     case TSDB_SQL_CREATE_DNODE: {
       pDcl->pMsg = (char*)buildCreateDnodeMsg(pInfo, &pDcl->msgLen, pMsgBuf);
       if (pDcl->pMsg == NULL) {
-        code = terrno;
+        goto _error;
       }
 
       pDcl->msgType = TDMT_MND_CREATE_DNODE;
@@ -781,7 +810,7 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
     case TSDB_SQL_DROP_DNODE: {
       pDcl->pMsg = (char*)buildDropDnodeMsg(pInfo, &pDcl->msgLen, pMsgBuf);
       if (pDcl->pMsg == NULL) {
-        code = terrno;
+        goto _error;
       }
 
       pDcl->msgType = TDMT_MND_DROP_DNODE;
@@ -792,5 +821,29 @@ int32_t qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SDclStm
       break;
   }
 
-  return code;
+  return pDcl;
+
+  _error:
+    terrno = code;
+    tfree(pDcl);
+    return NULL;
+}
+
+SInsertStmtInfo* qParserValidateCreateTbSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, char* msgBuf, int32_t msgBufLen) {
+  SCreateTableSql* pCreateTable = pInfo->pCreateTableInfo;
+  assert(pCreateTable->type == TSQL_CREATE_CTABLE);
+
+  SMsgBuf  m = {.buf = msgBuf, .len = msgBufLen};
+  SMsgBuf* pMsgBuf = &m;
+
+  SInsertStmtInfo* pInsertStmt = NULL;
+
+  int32_t msgLen = 0;
+  int32_t code = doCheckForCreateCTable(pInfo, pCtx, pMsgBuf, (char**) &pInsertStmt, &msgLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    tfree(pInsertStmt);
+    return NULL;
+  }
+
+  return pInsertStmt;
 }
