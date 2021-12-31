@@ -775,8 +775,8 @@ typedef struct {
 } SAuthVnodeMsg;
 
 typedef struct {
-  int32_t vgId;
-  char    tableFname[TSDB_TABLE_FNAME_LEN];
+  SMsgHead header;
+  char     tableFname[TSDB_TABLE_FNAME_LEN];
 } STableInfoMsg;
 
 typedef struct {
@@ -1060,6 +1060,7 @@ typedef struct {
 } SUpdateTagValRsp;
 
 typedef struct SSubQueryMsg {
+  SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
@@ -1068,6 +1069,7 @@ typedef struct SSubQueryMsg {
 } SSubQueryMsg;
 
 typedef struct SResReadyMsg {
+  SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
@@ -1078,6 +1080,7 @@ typedef struct SResReadyRsp {
 } SResReadyRsp;
 
 typedef struct SResFetchMsg {
+  SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;

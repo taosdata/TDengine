@@ -23,21 +23,31 @@ SCatalogMgmt ctgMgmt = {0};
 int32_t ctgGetDBVgroupFromCache(struct SCatalog* pCatalog, const char *dbName, SDBVgroupInfo **dbInfo, bool *inCache) {
   if (NULL == pCatalog->dbCache.cache) {
     *inCache = false;
+    ctgWarn("no db cache");
     return TSDB_CODE_SUCCESS;
   }
 
-  SDBVgroupInfo *info = taosHashAcquire(pCatalog->dbCache.cache, dbName, strlen(dbName));
+  SDBVgroupInfo *info = NULL;
 
-  if (NULL == info) {
-    *inCache = false;
-    return TSDB_CODE_SUCCESS;
-  }
+  while (true) {
+    info = taosHashAcquire(pCatalog->dbCache.cache, dbName, strlen(dbName));
 
-  CTG_LOCK(CTG_READ, &info->lock);
-  if (NULL == info->vgInfo) {
-    CTG_UNLOCK(CTG_READ, &info->lock);
-    *inCache = false;
-    return TSDB_CODE_SUCCESS;
+    if (NULL == info) {
+      *inCache = false;
+      ctgWarn("no db cache, dbName:%s", dbName);
+      return TSDB_CODE_SUCCESS;
+    }
+
+    CTG_LOCK(CTG_READ, &info->lock);
+    if (NULL == info->vgInfo) {
+      CTG_UNLOCK(CTG_READ, &info->lock);
+      taosHashRelease(pCatalog->dbCache.cache, info);
+      ctgWarn("db cache vgInfo is NULL, dbName:%s", dbName);
+      
+      continue;
+    }
+
+    break;
   }
 
   *dbInfo = info;
@@ -179,14 +189,13 @@ int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SE
 }
 
 
-int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char *pDBName, const char* pTableName, SVgroupInfo *vgroupInfo, STableMetaOutput* output) {
-  if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pDBName || NULL == pTableName || NULL == vgroupInfo || NULL == output) {
+int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, SVgroupInfo *vgroupInfo, STableMetaOutput* output) {
+  if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pTableName || NULL == vgroupInfo || NULL == output) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
   char tbFullName[TSDB_TABLE_FNAME_LEN];
-
-  snprintf(tbFullName, sizeof(tbFullName), "%s.%s", pDBName, pTableName);
+  tNameExtractFullName(pTableName, tbFullName);
 
   SBuildTableMetaInput bInput = {.vgId = vgroupInfo->vgId, .tableFullName = tbFullName};
   char *msg = NULL;
@@ -271,8 +280,6 @@ _return:
 int32_t ctgGetVgInfoFromHashValue(SDBVgroupInfo *dbInfo, const SName *pTableName, SVgroupInfo *pVgroup) {
   int32_t code = 0;
   
-  CTG_LOCK(CTG_READ, &dbInfo->lock);
-  
   int32_t vgNum = taosHashGetSize(dbInfo->vgInfo);
   char db[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(pTableName, db);
@@ -311,8 +318,6 @@ int32_t ctgGetVgInfoFromHashValue(SDBVgroupInfo *dbInfo, const SName *pTableName
   *pVgroup = *vgInfo;
 
 _return:
-
-  CTG_UNLOCK(CTG_READ, &dbInfo->lock);
   
   CTG_RET(TSDB_CODE_SUCCESS);
 }
@@ -434,11 +439,47 @@ int32_t ctgGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgm
   input.db[sizeof(input.db) - 1] = 0;
   input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
 
-  CTG_ERR_RET(ctgGetDBVgroupFromMnode(pCatalog, pRpc, pMgmtEps, &input, &DbOut));
+  while (true) {
+    CTG_ERR_RET(ctgGetDBVgroupFromMnode(pCatalog, pRpc, pMgmtEps, &input, &DbOut));
 
-  CTG_ERR_RET(catalogUpdateDBVgroup(pCatalog, dbName, &DbOut.dbVgroup));
+    CTG_ERR_RET(catalogUpdateDBVgroup(pCatalog, dbName, &DbOut.dbVgroup));
 
-  CTG_ERR_RET(ctgGetDBVgroupFromCache(pCatalog, dbName, dbInfo, &inCache));
+    CTG_ERR_RET(ctgGetDBVgroupFromCache(pCatalog, dbName, dbInfo, &inCache));
+
+    if (!inCache) {
+      ctgWarn("get db vgroup from cache failed, db:%s", dbName);
+      continue;
+    }
+
+    break;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t ctgValidateAndRemoveDb(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo) {
+  SDBVgroupInfo *oldInfo = (SDBVgroupInfo *)taosHashAcquire(pCatalog->dbCache.cache, dbName, strlen(dbName));
+  if (oldInfo) {
+    CTG_LOCK(CTG_WRITE, &oldInfo->lock);
+    if (dbInfo->vgVersion <= oldInfo->vgVersion) {
+      ctgInfo("dbName:%s vg will not update, vgVersion:%d , current:%d", dbName, dbInfo->vgVersion, oldInfo->vgVersion);
+      CTG_UNLOCK(CTG_WRITE, &oldInfo->lock);
+      taosHashRelease(pCatalog->dbCache.cache, oldInfo);
+      
+      return TSDB_CODE_SUCCESS;
+    }
+    
+    if (oldInfo->vgInfo) {
+      ctgInfo("dbName:%s vg will be cleanup", dbName);
+      taosHashCleanup(oldInfo->vgInfo);
+      oldInfo->vgInfo = NULL;
+    }
+    
+    CTG_UNLOCK(CTG_WRITE, &oldInfo->lock);
+  
+    taosHashRelease(pCatalog->dbCache.cache, oldInfo);
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -580,55 +621,57 @@ _return:
 
 
 int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo) {
+  int32_t code = 0;
+  
   if (NULL == pCatalog || NULL == dbName || NULL == dbInfo) {
-    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  if (NULL == dbInfo->vgInfo || dbInfo->vgVersion < 0 || taosHashGetSize(dbInfo->vgInfo) <= 0) {
+    ctgError("invalid db vg, dbName:%s", dbName);
+    CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
   if (dbInfo->vgVersion < 0) {
-    if (pCatalog->dbCache.cache) {
-      SDBVgroupInfo *oldInfo = taosHashAcquire(pCatalog->dbCache.cache, dbName, strlen(dbName));
-      if (oldInfo) {
-        CTG_LOCK(CTG_WRITE, &oldInfo->lock);
-        if (oldInfo->vgInfo) {
-          taosHashCleanup(oldInfo->vgInfo);
-          oldInfo->vgInfo = NULL;
-        }
-        CTG_UNLOCK(CTG_WRITE, &oldInfo->lock);
+    ctgWarn("invalid db vgVersion:%d, dbName:%s", dbInfo->vgVersion, dbName);
 
-        taosHashRelease(pCatalog->dbCache.cache, oldInfo);
-      }
+    if (pCatalog->dbCache.cache) {
+      CTG_ERR_JRET(ctgValidateAndRemoveDb(pCatalog, dbName, dbInfo));
+      
+      CTG_ERR_JRET(taosHashRemove(pCatalog->dbCache.cache, dbName, strlen(dbName)));
     }
     
     ctgWarn("remove db [%s] from cache", dbName);
-    return TSDB_CODE_SUCCESS;
+    goto _return;
   }
 
   if (NULL == pCatalog->dbCache.cache) {
     pCatalog->dbCache.cache = taosHashInit(ctgMgmt.cfg.maxDBCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
     if (NULL == pCatalog->dbCache.cache) {
       ctgError("init hash[%d] for db cache failed", CTG_DEFAULT_CACHE_DB_NUMBER);
-      CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
+      CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
     }
   } else {
-    SDBVgroupInfo *oldInfo = taosHashAcquire(pCatalog->dbCache.cache, dbName, strlen(dbName));
-    if (oldInfo) {
-      CTG_LOCK(CTG_WRITE, &oldInfo->lock);
-      if (oldInfo->vgInfo) {
-        taosHashCleanup(oldInfo->vgInfo);
-        oldInfo->vgInfo = NULL;
-      }
-      CTG_UNLOCK(CTG_WRITE, &oldInfo->lock);
-    
-      taosHashRelease(pCatalog->dbCache.cache, oldInfo);
-    }
+    CTG_ERR_JRET(ctgValidateAndRemoveDb(pCatalog, dbName, dbInfo));
   }
 
   if (taosHashPut(pCatalog->dbCache.cache, dbName, strlen(dbName), dbInfo, sizeof(*dbInfo)) != 0) {
     ctgError("push to vgroup hash cache failed");
-    CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
+    CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
-  return TSDB_CODE_SUCCESS;
+  ctgDebug("dbName:%s vgroup updated, vgVersion:%d", dbName, dbInfo->vgVersion);
+
+  dbInfo->vgInfo = NULL;
+
+_return:
+
+  if (dbInfo && dbInfo->vgInfo) {
+    taosHashCleanup(dbInfo->vgInfo);
+    dbInfo->vgInfo = NULL;
+  }
+  
+  CTG_RET(code);
 }
 
 int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta) {
@@ -647,9 +690,9 @@ int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSe
 
   STableMetaOutput output = {0};
   
-  //CTG_ERR_RET(ctgGetTableMetaFromVnode(pCatalog, pRpc, pMgmtEps, pDBName, pTableName, &vgroupInfo, &output));
+  CTG_ERR_RET(ctgGetTableMetaFromVnode(pCatalog, pRpc, pMgmtEps, pTableName, &vgroupInfo, &output));
 
-  CTG_ERR_RET(ctgGetTableMetaFromMnode(pCatalog, pRpc, pMgmtEps, pTableName, &output));
+  //CTG_ERR_RET(ctgGetTableMetaFromMnode(pCatalog, pRpc, pMgmtEps, pTableName, &output));
 
   CTG_ERR_JRET(ctgUpdateTableMetaCache(pCatalog, &output));
 
