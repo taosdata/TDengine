@@ -433,7 +433,7 @@ int32_t readFromFile(char *name, uint32_t *len, void **buf) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  int fd = open(name, O_RDONLY);
+  int fd = open(name, O_RDONLY | O_BINARY);
   if (fd < 0) {
     tscError("open file %s failed, error:%s", name, strerror(errno));
     tfree(*buf);
@@ -4519,13 +4519,16 @@ static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
       if (TSDB_FUNC_IS_SCALAR(functionId)) {
         code = validateSQLExprItem(pCmd, pParamElem->pNode, pQueryInfo, pList, childrenTypes + i, uid, childrenHeight+i);
         if (code != TSDB_CODE_SUCCESS) {
-          free(childrenTypes);
+          tfree(childrenTypes);
+          tfree(childrenHeight);
           return code;
         }
       }
 
       if (!TSDB_FUNC_IS_SCALAR(functionId) &&
           (pParamElem->pNode->type == SQL_NODE_EXPR || pParamElem->pNode->type == SQL_NODE_SQLFUNCTION)) {
+        tfree(childrenTypes);
+        tfree(childrenHeight);
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
@@ -4547,6 +4550,8 @@ static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
         *height = maxChildrenHeight + 1;
 
         if (anyChildAgg && anyChildScalar) {
+          tfree(childrenTypes);
+          tfree(childrenHeight);
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
         }
         if (anyChildAgg) {
@@ -4558,7 +4563,8 @@ static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
         *type = SQLEXPR_TYPE_AGG;
       }
     }
-    free(childrenTypes);
+    tfree(childrenTypes);
+    tfree(childrenHeight);
   //end if param list is not null
   } else {
     if (TSDB_FUNC_IS_SCALAR(functionId)) {
@@ -6084,7 +6090,7 @@ int32_t getTimeRange(STimeWindow* win, tSqlExpr* pRight, int32_t optr, int16_t t
 
 // todo error !!!!
 int32_t tsRewriteFieldNameIfNecessary(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
-  const char rep[] = {'(', ')', '*', ',', '.', '/', '\\', '+', '-', '%', ' '};
+  const char rep[] = {'(', ')', '*', ',', '.', '/', '\\', '+', '-', '%', ' ', '`'};
 
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     char* fieldName = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i)->name;
@@ -6865,11 +6871,11 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
     SKVRowBuilder kvRowBuilder = {0};
     if (pTagsSchema->type == TSDB_DATA_TYPE_JSON) {
-      if (pItem->pVar.nType != TSDB_DATA_TYPE_BINARY) {
+      if (pItem->pVar.nType != TSDB_DATA_TYPE_BINARY && pItem->pVar.nType != TSDB_DATA_TYPE_NULL) {
         tscError("json type error, should be string");
         return invalidOperationMsg(pMsg, msg25);
       }
-      if (pItem->pVar.nType > TSDB_MAX_JSON_TAGS_LEN / TSDB_NCHAR_SIZE) {
+      if (pItem->pVar.nLen > TSDB_MAX_JSON_TAGS_LEN / TSDB_NCHAR_SIZE) {
         tscError("json tag too long");
         return invalidOperationMsg(pMsg, msg14);
       }
@@ -7259,6 +7265,7 @@ int32_t validateDNodeConfig(SMiscInfo* pOptions) {
   const int tokenMonitor = 3;
   const int tokenDebugFlag = 4;
   const int tokenDebugFlagEnd = 20;
+  const int tokenOfflineInterval = 21;
   const SDNodeDynConfOption cfgOptions[] = {
       {"resetLog", 8},    {"resetQueryCache", 15},  {"balance", 7},     {"monitor", 7},
       {"debugFlag", 9},   {"monDebugFlag", 12},     {"vDebugFlag", 10}, {"mDebugFlag", 10},
@@ -7266,6 +7273,7 @@ int32_t validateDNodeConfig(SMiscInfo* pOptions) {
       {"uDebugFlag", 10}, {"tsdbDebugFlag", 13},    {"sDebugflag", 10}, {"rpcDebugFlag", 12},
       {"dDebugFlag", 10}, {"mqttDebugFlag", 13},    {"wDebugFlag", 10}, {"tmrDebugFlag", 12},
       {"cqDebugFlag", 11},
+      {"offlineInterval", 15},
   };
 
   SStrToken* pOptionToken = taosArrayGet(pOptions->a, 1);
@@ -7294,6 +7302,14 @@ int32_t validateDNodeConfig(SMiscInfo* pOptions) {
     SStrToken* pValToken = taosArrayGet(pOptions->a, 2);
     int32_t    val = strtol(pValToken->z, NULL, 10);
     if (val != 0 && val != 1) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;  // options value is invalid
+    }
+    return TSDB_CODE_SUCCESS;
+  } else if ((strncasecmp(cfgOptions[tokenOfflineInterval].name, pOptionToken->z, pOptionToken->n) == 0) &&
+             (cfgOptions[tokenOfflineInterval].len == pOptionToken->n)) {
+    SStrToken* pValToken = taosArrayGet(pOptions->a, 2);
+    int32_t    val = strtol(pValToken->z, NULL, 10);
+    if (val < 1 || val > 600) {
       return TSDB_CODE_TSC_INVALID_OPERATION;  // options value is invalid
     }
     return TSDB_CODE_SUCCESS;
@@ -8708,7 +8724,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
       tVariantListItem* pItem = taosArrayGet(pValList, 0);
-      if(pItem->pVar.nType != TSDB_DATA_TYPE_BINARY){
+      if(pItem->pVar.nType != TSDB_DATA_TYPE_BINARY && pItem->pVar.nType != TSDB_DATA_TYPE_NULL){
         tscError("json type error, should be string");
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
@@ -8718,6 +8734,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
+
       ret = parseJsontoTagData(pItem->pVar.pz, &kvRowBuilder, tscGetErrorMsgPayload(pCmd), pTagSchema[0].colId);
       if (ret != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);

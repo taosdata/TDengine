@@ -3,7 +3,7 @@
 # Generate the deb package for ubuntu, or rpm package for centos, or tar.gz package for other linux os
 
 set -e
-set -x
+#set -x
 
 # release.sh  -v [cluster | edge]
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...]
@@ -418,6 +418,10 @@ else
     BUILD_HTTP=false
 fi
 
+if [[ "$verMode" == "cluster" ]]; then
+    BUILD_HTTP=internal
+fi
+
 if [[ "$pagMode" == "full" ]]; then
     BUILD_TOOLS=true
 else
@@ -494,11 +498,13 @@ else
   exit 1
 fi
 
+CORES=`grep -c ^processor /proc/cpuinfo`
+
 if [[ "$allocator" == "jemalloc" ]]; then
     # jemalloc need compile first, so disable parallel build
-    make -j 8 && ${csudo}make install
+    make -j ${CORES} && ${csudo}make install
 else
-    make -j 8 && ${csudo}make install
+    make -j ${CORES} && ${csudo}make install
 fi
 
 cd ${curr_dir}

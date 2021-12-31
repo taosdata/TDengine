@@ -596,6 +596,12 @@ void tsdbResetQueryHandleForNewTable(TsdbQueryHandleT queryHandle, STsdbQueryCon
 static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
   STsdbRepo* pRepo = pQueryHandle->pTsdb;
 
+  if (!pQueryHandle->pTableCheckInfo) {
+    tsdbError("%p table check info is NULL", pQueryHandle);
+    terrno = TSDB_CODE_QRY_APP_ERROR;
+    return -1;
+  }
+
   size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   int32_t code = 0;
   for (size_t i = 0; i < numOfTables; ++i) {
@@ -628,7 +634,9 @@ TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
     return NULL;
   }
 
-  lazyLoadCacheLast(pQueryHandle);
+  if (lazyLoadCacheLast(pQueryHandle) != TSDB_CODE_SUCCESS) {
+    return NULL;
+  }
 
   int32_t code = checkForCachedLastRow(pQueryHandle, groupList);
   if (code != TSDB_CODE_SUCCESS) { // set the numOfTables to be 0
@@ -650,7 +658,9 @@ TsdbQueryHandleT tsdbQueryCacheLast(STsdbRepo *tsdb, STsdbQueryCond *pCond, STab
     return NULL;
   }
 
-  lazyLoadCacheLast(pQueryHandle);
+  if (lazyLoadCacheLast(pQueryHandle) != TSDB_CODE_SUCCESS) {
+    return NULL;
+  }
 
   int32_t code = checkForCachedLast(pQueryHandle);
   if (code != TSDB_CODE_SUCCESS) { // set the numOfTables to be 0
@@ -4243,20 +4253,28 @@ char* parseTagDatatoJson(void *p){
         }
         cJSON_AddItemToObject(json, tagJsonKey, value);
       }else if(type == TSDB_DATA_TYPE_NCHAR) {
-        char *tagJsonValue = calloc(varDataLen(realData), 1);
-        int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), tagJsonValue);
-        if (length < 0) {
-          tsdbError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
-                   (char*)val);
+        cJSON* value = NULL;
+        if (varDataLen(realData) > 0){
+          char *tagJsonValue = calloc(varDataLen(realData), 1);
+          int32_t length = taosUcs4ToMbs(varDataVal(realData), varDataLen(realData), tagJsonValue);
+          if (length < 0) {
+            tsdbError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+                      (char*)val);
+            free(tagJsonValue);
+            goto end;
+          }
+          value = cJSON_CreateString(tagJsonValue);
           free(tagJsonValue);
-          goto end;
+          if (value == NULL)
+          {
+            goto end;
+          }
+        }else if(varDataLen(realData) == 0){
+          value = cJSON_CreateString("");
+        }else{
+          assert(0);
         }
-        cJSON* value = cJSON_CreateString(tagJsonValue);
-        free(tagJsonValue);
-        if (value == NULL)
-        {
-          goto end;
-        }
+
         cJSON_AddItemToObject(json, tagJsonKey, value);
       }else if(type == TSDB_DATA_TYPE_DOUBLE){
         double jsonVd = *(double*)(realData);
