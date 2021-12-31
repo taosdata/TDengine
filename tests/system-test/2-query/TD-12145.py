@@ -49,7 +49,7 @@ class TDTestCase:
     def caseDescription(self):
 
         '''
-        case1 <author>:wenzhouwww [TD-12145] : 
+        case1 <wenzhouwww>: [TD-12145] 
             this test case is an test case for support  nest query to  select key timestamp col  in outer query .
         ''' 
         return 
