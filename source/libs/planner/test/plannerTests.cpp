@@ -100,6 +100,6 @@ TEST(testCase, planner_test) {
 //  ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 2);
 //
 //  destroyQueryInfo(pQueryInfo);
-//  qParserClearupMetaRequestInfo(&req);
+//  qParserCleanupMetaRequestInfo(&req);
 //  destroySqlInfo(&info1);
 }

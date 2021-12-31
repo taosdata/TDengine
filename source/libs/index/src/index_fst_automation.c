@@ -65,24 +65,12 @@ StartWithStateValue* startWithStateValueDump(StartWithStateValue* sv) {
 }
 
 // iterate fst
-static void* alwaysMatchStart(AutomationCtx* ctx) {
-  return NULL;
-}
-static bool alwaysMatchIsMatch(AutomationCtx* ctx, void* state) {
-  return true;
-}
-static bool alwaysMatchCanMatch(AutomationCtx* ctx, void* state) {
-  return true;
-}
-static bool alwaysMatchWillAlwaysMatch(AutomationCtx* ctx, void* state) {
-  return true;
-}
-static void* alwaysMatchAccpet(AutomationCtx* ctx, void* state, uint8_t byte) {
-  return NULL;
-}
-static void* alwaysMatchAccpetEof(AutomationCtx* ctx, void* state) {
-  return NULL;
-}
+static void* alwaysMatchStart(AutomationCtx* ctx) { return NULL; }
+static bool  alwaysMatchIsMatch(AutomationCtx* ctx, void* state) { return true; }
+static bool  alwaysMatchCanMatch(AutomationCtx* ctx, void* state) { return true; }
+static bool  alwaysMatchWillAlwaysMatch(AutomationCtx* ctx, void* state) { return true; }
+static void* alwaysMatchAccpet(AutomationCtx* ctx, void* state, uint8_t byte) { return NULL; }
+static void* alwaysMatchAccpetEof(AutomationCtx* ctx, void* state) { return NULL; }
 // prefix query, impl later
 
 static void* prefixStart(AutomationCtx* ctx) {
@@ -97,9 +85,7 @@ static bool prefixCanMatch(AutomationCtx* ctx, void* sv) {
   StartWithStateValue* ssv = (StartWithStateValue*)sv;
   return ssv->val >= 0;
 }
-static bool prefixWillAlwaysMatch(AutomationCtx* ctx, void* state) {
-  return true;
-}
+static bool  prefixWillAlwaysMatch(AutomationCtx* ctx, void* state) { return true; }
 static void* prefixAccept(AutomationCtx* ctx, void* state, uint8_t byte) {
   StartWithStateValue* ssv = (StartWithStateValue*)state;
   if (ssv == NULL || ctx == NULL) { return NULL; }
@@ -107,7 +93,8 @@ static void* prefixAccept(AutomationCtx* ctx, void* state, uint8_t byte) {
   char* data = ctx->data;
   if (ssv->kind == Done) { return startWithStateValueCreate(Done, FST_INT, &ssv->val); }
   if ((strlen(data) > ssv->val) && data[ssv->val] == byte) {
-    int                  val = ssv->val + 1;
+    int val = ssv->val + 1;
+
     StartWithStateValue* nsv = startWithStateValueCreate(Running, FST_INT, &val);
     if (prefixIsMatch(ctx, nsv)) {
       nsv->kind = Done;
@@ -118,35 +105,22 @@ static void* prefixAccept(AutomationCtx* ctx, void* state, uint8_t byte) {
   }
   return NULL;
 }
-static void* prefixAcceptEof(AutomationCtx* ctx, void* state) {
-  return NULL;
-}
+static void* prefixAcceptEof(AutomationCtx* ctx, void* state) { return NULL; }
 
 // pattern query, impl later
 
-static void* patternStart(AutomationCtx* ctx) {
-  return NULL;
-}
-static bool patternIsMatch(AutomationCtx* ctx, void* data) {
-  return true;
-}
-static bool patternCanMatch(AutomationCtx* ctx, void* data) {
-  return true;
-}
-static bool patternWillAlwaysMatch(AutomationCtx* ctx, void* state) {
-  return true;
-}
+static void* patternStart(AutomationCtx* ctx) { return NULL; }
+static bool  patternIsMatch(AutomationCtx* ctx, void* data) { return true; }
+static bool  patternCanMatch(AutomationCtx* ctx, void* data) { return true; }
+static bool  patternWillAlwaysMatch(AutomationCtx* ctx, void* state) { return true; }
 
-static void* patternAccept(AutomationCtx* ctx, void* state, uint8_t byte) {
-  return NULL;
-}
+static void* patternAccept(AutomationCtx* ctx, void* state, uint8_t byte) { return NULL; }
 
-static void* patternAcceptEof(AutomationCtx* ctx, void* state) {
-  return NULL;
-}
+static void* patternAcceptEof(AutomationCtx* ctx, void* state) { return NULL; }
 
 AutomationFunc automFuncs[] = {
-    {alwaysMatchStart, alwaysMatchIsMatch, alwaysMatchCanMatch, alwaysMatchWillAlwaysMatch, alwaysMatchAccpet, alwaysMatchAccpetEof},
+    {alwaysMatchStart, alwaysMatchIsMatch, alwaysMatchCanMatch, alwaysMatchWillAlwaysMatch, alwaysMatchAccpet,
+     alwaysMatchAccpetEof},
     {prefixStart, prefixIsMatch, prefixCanMatch, prefixWillAlwaysMatch, prefixAccept, prefixAcceptEof},
     {patternStart, patternIsMatch, patternCanMatch, patternWillAlwaysMatch, patternAccept, patternAcceptEof}
     // add more search type
@@ -170,11 +144,14 @@ AutomationCtx* automCtxCreate(void* data, AutomationType atype) {
     // add more search type
   }
 
-  char*  src = (char*)data;
-  size_t len = strlen(src);
-  char*  dst = (char*)malloc(len * sizeof(char) + 1);
-  memcpy(dst, src, len);
-  dst[len] = 0;
+  char* dst = NULL;
+  if (data != NULL) {
+    char*  src = (char*)data;
+    size_t len = strlen(src);
+    dst = (char*)malloc(len * sizeof(char) + 1);
+    memcpy(dst, src, len);
+    dst[len] = 0;
+  }
 
   ctx->data = dst;
   ctx->type = atype;

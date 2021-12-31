@@ -201,14 +201,16 @@ static SDbObj *mndAcquireDbByStb(SMnode *pMnode, char *stbName) {
 }
 
 static void *mndBuildCreateStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int *pContLen) {
-#if 1
   SVCreateTbReq req;
   void *        buf;
   int           bsize;
   SMsgHead *    pMsgHead;
 
   req.ver = 0;
-  req.name = pStb->name;
+  SName name = {0};
+  tNameFromString(&name, pStb->name, T_NAME_ACCT|T_NAME_DB|T_NAME_TABLE);
+
+  req.name = (char*) tNameGetTableName(&name);
   req.ttl = 0;
   req.keep = 0;
   req.type = TD_SUPER_TABLE;
@@ -235,43 +237,12 @@ static void *mndBuildCreateStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb
 
   *pContLen = sizeof(SMsgHead) + bsize;
   return buf;
-
-#else
-  int32_t totalCols = pStb->numOfTags + pStb->numOfColumns;
-  int32_t contLen = totalCols * sizeof(SSchema) + sizeof(SCreateStbInternalMsg);
-
-  SCreateStbInternalMsg *pCreate = calloc(1, contLen);
-  if (pCreate == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  pCreate->head.contLen = htonl(contLen);
-  pCreate->head.vgId = htonl(pVgroup->vgId);
-  memcpy(pCreate->name, pStb->name, TSDB_TABLE_FNAME_LEN);
-  pCreate->suid = htobe64(pStb->uid);
-  pCreate->sverson = htonl(pStb->version);
-  pCreate->ttl = 0;
-  pCreate->keep = 0;
-  pCreate->numOfTags = htonl(pStb->numOfTags);
-  pCreate->numOfColumns = htonl(pStb->numOfColumns);
-
-  memcpy(pCreate->pSchema, pStb->pSchema, totalCols * sizeof(SSchema));
-  for (int32_t t = 0; t < totalCols; ++t) {
-    SSchema *pSchema = &pCreate->pSchema[t];
-    pSchema->bytes = htonl(pSchema->bytes);
-    pSchema->colId = htonl(pSchema->colId);
-  }
-
-  *pContLen = contLen;
-  return pCreate;
-#endif
 }
 
-static SDropStbInternalMsg *mndBuildDropStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb) {
-  int32_t contLen = sizeof(SDropStbInternalMsg);
+static SVDropStbReq *mndBuildDropStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb) {
+  int32_t contLen = sizeof(SVDropStbReq);
 
-  SDropStbInternalMsg *pDrop = calloc(1, contLen);
+  SVDropStbReq *pDrop = calloc(1, contLen);
   if (pDrop == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -402,7 +373,7 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     if (pIter == NULL) break;
     if (pVgroup->dbUid != pDb->uid) continue;
 
-    SDropStbInternalMsg *pMsg = mndBuildDropStbMsg(pMnode, pVgroup, pStb);
+    SVDropStbReq *pMsg = mndBuildDropStbMsg(pMnode, pVgroup, pStb);
     if (pMsg == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
@@ -413,7 +384,7 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     STransAction action = {0};
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     action.pCont = pMsg;
-    action.contLen = sizeof(SDropStbInternalMsg);
+    action.contLen = sizeof(SVDropStbReq);
     action.msgType = TDMT_VND_DROP_STB;
     if (mndTransAppendUndoAction(pTrans, &action) != 0) {
       free(pMsg);

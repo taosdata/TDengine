@@ -24,6 +24,12 @@ static const char *sdbTableName(ESdbType type) {
       return "cluster";
     case SDB_MNODE:
       return "mnode";
+    case SDB_QNODE:
+      return "qnode";
+    case SDB_SNODE:
+      return "snode";
+    case SDB_BNODE:
+      return "bnode";
     case SDB_DNODE:
       return "dnode";
     case SDB_USER:
@@ -55,7 +61,8 @@ void sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper) {
   } else if (keyType == SDB_KEY_INT32) {
     mTrace("%s:%d, refCount:%d oper:%s", sdbTableName(pRow->type), *(int32_t *)pRow->pObj, pRow->refCount, oper);
   } else if (keyType == SDB_KEY_INT64) {
-    mTrace("%s:%" PRId64 ", refCount:%d oper:%s", sdbTableName(pRow->type), *(int64_t *)pRow->pObj, pRow->refCount, oper);
+    mTrace("%s:%" PRId64 ", refCount:%d oper:%s", sdbTableName(pRow->type), *(int64_t *)pRow->pObj, pRow->refCount,
+           oper);
   } else {
   }
 }
@@ -326,6 +333,30 @@ void sdbCancelFetch(SSdb *pSdb, void *pIter) {
   SRWLatch *pLock = &pSdb->locks[pRow->type];
   taosRLockLatch(pLock);
   taosHashCancelIterate(hash, pIter);
+  taosRUnLockLatch(pLock);
+}
+
+void sdbTraverse(SSdb *pSdb, ESdbType type, sdbTraverseFp fp, void *p1, void *p2, void *p3) {
+  SHashObj *hash = sdbGetHash(pSdb, type);
+  if (hash == NULL) return;
+
+  SRWLatch *pLock = &pSdb->locks[type];
+  taosRLockLatch(pLock);
+
+  SSdbRow **ppRow = taosHashIterate(hash, NULL);
+  while (ppRow != NULL) {
+    SSdbRow *pRow = *ppRow;
+    if (pRow->status == SDB_STATUS_READY) {
+      bool isContinue = (*fp)(pSdb->pMnode, pRow->pObj, p1, p2, p3);
+      if (!isContinue) {
+        taosHashCancelIterate(hash, ppRow);
+        break;
+      }
+    }
+
+    ppRow = taosHashIterate(hash, ppRow);
+  }
+
   taosRUnLockLatch(pLock);
 }
 

@@ -1,6 +1,7 @@
 
 #include <iostream>
 #include <string>
+#include <thread>
 #include <vector>
 #include "index.h"
 #include "indexInt.h"
@@ -12,9 +13,7 @@
 #include "tskiplist.h"
 #include "tutil.h"
 
-void* callback(void* s) {
-  return s;
-}
+void* callback(void* s) { return s; }
 
 static std::string fileName = "/tmp/tindex.tindex";
 class FstWriter {
@@ -34,7 +33,7 @@ class FstWriter {
     fstBuilderFinish(_b);
     fstBuilderDestroy(_b);
 
-    writerCtxDestroy(_wc);
+    writerCtxDestroy(_wc, false);
   }
 
  private:
@@ -44,7 +43,8 @@ class FstWriter {
 
 class FstReadMemory {
  public:
-  FstReadMemory(size_t size) {
+  FstReadMemory(size_t size, const std::string& fileName = fileName) {
+    tfInit();
     _wc = writerCtxCreate(TFile, fileName.c_str(), true, 64 * 1024);
     _w = fstCountingWriterCreate(_wc);
     _size = size;
@@ -102,7 +102,8 @@ class FstReadMemory {
     fstCountingWriterDestroy(_w);
     fstDestroy(_fst);
     fstSliceDestroy(&_s);
-    writerCtxDestroy(_wc);
+    writerCtxDestroy(_wc, false);
+    tfCleanup();
   }
 
  private:
@@ -167,8 +168,44 @@ void checkFstCheckIterator() {
   delete m;
   tfCleanup();
 }
-int main() {
-  checkFstCheckIterator();
+
+void fst_get(Fst* fst) {
+  for (int i = 0; i < 10000; i++) {
+    std::string term = "Hello";
+    FstSlice    key = fstSliceCreate((uint8_t*)term.c_str(), term.size());
+    uint64_t    offset = 0;
+    bool        ret = fstGet(fst, &key, &offset);
+    if (ret == false) {
+      std::cout << "not found" << std::endl;
+    } else {
+      std::cout << "found value:" << offset << std::endl;
+    }
+  }
+}
+
+#define NUM_OF_THREAD 10
+void validateTFile(char* arg) {
+  tfInit();
+
+  std::thread threads[NUM_OF_THREAD];
+  // std::vector<std::thread> threads;
+  TFileReader* reader = tfileReaderOpen(arg, 0, 295868, "tag1");
+
+  for (int i = 0; i < NUM_OF_THREAD; i++) {
+    threads[i] = std::thread(fst_get, reader->fst);
+    // threads.push_back(fst_get, reader->fst);
+    // std::thread t(fst_get, reader->fst);
+  }
+  for (int i = 0; i < NUM_OF_THREAD; i++) {
+    // wait join
+    threads[i].join();
+  }
+  tfCleanup();
+}
+int main(int argc, char* argv[]) {
+  if (argc > 1) { validateTFile(argv[1]); }
+  // checkFstCheckIterator();
   // checkFstPrefixSearch();
+
   return 1;
 }

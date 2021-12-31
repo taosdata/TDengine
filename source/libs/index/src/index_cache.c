@@ -20,7 +20,7 @@
 
 #define MAX_INDEX_KEY_LEN 256  // test only, change later
 
-#define MEM_TERM_LIMIT 1000000
+#define MEM_TERM_LIMIT 10000 * 10
 // ref index_cache.h:22
 //#define CACHE_KEY_LEN(p) \
 //  (sizeof(int32_t) + sizeof(uint16_t) + sizeof(p->colType) + sizeof(p->nColVal) + p->nColVal + sizeof(uint64_t) +
@@ -66,19 +66,43 @@ void indexCacheDebug(IndexCache* cache) {
   indexMemRef(tbl);
   pthread_mutex_unlock(&cache->mtx);
 
-  SSkipList*         slt = tbl->mem;
-  SSkipListIterator* iter = tSkipListCreateIter(slt);
-  while (tSkipListIterNext(iter)) {
-    SSkipListNode* node = tSkipListIterGet(iter);
-    CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
-    if (ct != NULL) {
-      // TODO, add more debug info
-      indexInfo("{colVal: %s, version: %d} \t", ct->colVal, ct->version);
+  {
+    SSkipList*         slt = tbl->mem;
+    SSkipListIterator* iter = tSkipListCreateIter(slt);
+    while (tSkipListIterNext(iter)) {
+      SSkipListNode* node = tSkipListIterGet(iter);
+      CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
+      if (ct != NULL) {
+        // TODO, add more debug info
+        indexInfo("{colVal: %s, version: %d} \t", ct->colVal, ct->version);
+      }
     }
-  }
-  tSkipListDestroyIter(iter);
+    tSkipListDestroyIter(iter);
 
-  indexMemUnRef(tbl);
+    indexMemUnRef(tbl);
+  }
+
+  {
+    pthread_mutex_lock(&cache->mtx);
+    tbl = cache->imm;
+    indexMemRef(tbl);
+    pthread_mutex_unlock(&cache->mtx);
+    if (tbl != NULL) {
+      SSkipList*         slt = tbl->mem;
+      SSkipListIterator* iter = tSkipListCreateIter(slt);
+      while (tSkipListIterNext(iter)) {
+        SSkipListNode* node = tSkipListIterGet(iter);
+        CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
+        if (ct != NULL) {
+          // TODO, add more debug info
+          indexInfo("{colVal: %s, version: %d} \t", ct->colVal, ct->version);
+        }
+      }
+      tSkipListDestroyIter(iter);
+    }
+
+    indexMemUnRef(tbl);
+  }
 }
 
 void indexCacheDestroySkiplist(SSkipList* slt) {
@@ -87,24 +111,28 @@ void indexCacheDestroySkiplist(SSkipList* slt) {
     SSkipListNode* node = tSkipListIterGet(iter);
     CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
     if (ct != NULL) {
+      free(ct->colVal);
+      free(ct);
     }
   }
   tSkipListDestroyIter(iter);
   tSkipListDestroy(slt);
 }
 void indexCacheDestroyImm(IndexCache* cache) {
+  if (cache == NULL) { return; }
+
   MemTable* tbl = NULL;
   pthread_mutex_lock(&cache->mtx);
   tbl = cache->imm;
   cache->imm = NULL;  // or throw int bg thread
   pthread_mutex_unlock(&cache->mtx);
+
+  indexMemUnRef(tbl);
   indexMemUnRef(tbl);
 }
 void indexCacheDestroy(void* cache) {
   IndexCache* pCache = cache;
-  if (pCache == NULL) {
-    return;
-  }
+  if (pCache == NULL) { return; }
   indexMemUnRef(pCache->mem);
   indexMemUnRef(pCache->imm);
   free(pCache->colName);
@@ -114,9 +142,11 @@ void indexCacheDestroy(void* cache) {
 
 Iterate* indexCacheIteratorCreate(IndexCache* cache) {
   Iterate* iiter = calloc(1, sizeof(Iterate));
-  if (iiter == NULL) {
-    return NULL;
-  }
+  if (iiter == NULL) { return NULL; }
+
+  pthread_mutex_lock(&cache->mtx);
+
+  indexMemRef(cache->imm);
 
   MemTable* tbl = cache->imm;
   iiter->val.val = taosArrayInit(1, sizeof(uint64_t));
@@ -124,12 +154,12 @@ Iterate* indexCacheIteratorCreate(IndexCache* cache) {
   iiter->next = indexCacheIteratorNext;
   iiter->getValue = indexCacheIteratorGetValue;
 
+  pthread_mutex_unlock(&cache->mtx);
+
   return iiter;
 }
 void indexCacheIteratorDestroy(Iterate* iter) {
-  if (iter == NULL) {
-    return;
-  }
+  if (iter == NULL) { return; }
   tSkipListDestroyIter(iter->iter);
   iterateValueDestroy(&iter->val, true);
   free(iter);
@@ -155,6 +185,7 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
       taosMsleep(50);
       pthread_mutex_lock(&cache->mtx);
     } else {
+      indexCacheRef(cache);
       cache->imm = cache->mem;
       cache->mem = indexInternalCacheCreate(cache->type);
       cache->nTerm = 1;
@@ -166,17 +197,13 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
 }
 
 int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
-  if (cache == NULL) {
-    return -1;
-  }
+  if (cache == NULL) { return -1; }
 
   IndexCache* pCache = cache;
   indexCacheRef(pCache);
   // encode data
   CacheTerm* ct = calloc(1, sizeof(CacheTerm));
-  if (cache == NULL) {
-    return -1;
-  }
+  if (cache == NULL) { return -1; }
   // set up key
   ct->colType = term->colType;
   ct->colVal = (char*)calloc(1, sizeof(char) * (term->nColVal + 1));
@@ -205,32 +232,11 @@ int indexCacheDel(void* cache, const char* fieldValue, int32_t fvlen, uint64_t u
   IndexCache* pCache = cache;
   return 0;
 }
-int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermValueType* s) {
-  if (cache == NULL) {
-    return -1;
-  }
-  IndexCache*     pCache = cache;
-  SIndexTerm*     term = query->term;
-  EIndexQueryType qtype = query->qType;
 
-  MemTable *mem = NULL, *imm = NULL;
-  pthread_mutex_lock(&pCache->mtx);
-  mem = pCache->mem;
-  imm = pCache->imm;
-  indexMemRef(mem);
-  indexMemRef(imm);
-  pthread_mutex_unlock(&pCache->mtx);
-
-  CacheTerm* ct = calloc(1, sizeof(CacheTerm));
-  if (ct == NULL) {
-    return -1;
-  }
-  ct->colVal = calloc(1, sizeof(char) * (term->nColVal + 1));
-  memcpy(ct->colVal, term->colVal, term->nColVal);
-  ct->version = atomic_load_32(&pCache->version);
-
+static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SArray* result, STermValueType* s) {
+  if (mem == NULL) { return 0; }
   char* key = getIndexKey(ct);
-  // TODO handle multi situation later, and refactor
+
   SSkipListIterator* iter = tSkipListCreateIterFromVal(mem->mem, key, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
   while (tSkipListIterNext(iter)) {
     SSkipListNode* node = tSkipListIterGet(iter);
@@ -251,51 +257,56 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermV
     }
   }
   tSkipListDestroyIter(iter);
-  cacheTermDestroy(ct);
-  // int32_t keyLen = CACHE_KEY_LEN(term);
-  // char*   buf = calloc(1, keyLen);
-  if (qtype == QUERY_TERM) {
-    //
-  } else if (qtype == QUERY_PREFIX) {
-    //
-  } else if (qtype == QUERY_SUFFIX) {
-    //
-  } else if (qtype == QUERY_REGEX) {
-    //
+  return 0;
+}
+int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermValueType* s) {
+  if (cache == NULL) { return -1; }
+  IndexCache* pCache = cache;
+
+  MemTable *mem = NULL, *imm = NULL;
+  pthread_mutex_lock(&pCache->mtx);
+  mem = pCache->mem;
+  imm = pCache->imm;
+  indexMemRef(mem);
+  indexMemRef(imm);
+  pthread_mutex_unlock(&pCache->mtx);
+
+  SIndexTerm*     term = query->term;
+  EIndexQueryType qtype = query->qType;
+  CacheTerm       ct = {.colVal = term->colVal, .version = atomic_load_32(&pCache->version)};
+  // indexCacheDebug(pCache);
+
+  int ret = indexQueryMem(mem, &ct, qtype, result, s);
+  if (ret == 0 && *s != kTypeDeletion) {
+    // continue search in imm
+    ret = indexQueryMem(imm, &ct, qtype, result, s);
   }
+  // cacheTermDestroy(ct);
+
   indexMemUnRef(mem);
   indexMemUnRef(imm);
-  return 0;
+
+  return ret;
 }
 
 void indexCacheRef(IndexCache* cache) {
-  if (cache == NULL) {
-    return;
-  }
+  if (cache == NULL) { return; }
   int ref = T_REF_INC(cache);
   UNUSED(ref);
 }
 void indexCacheUnRef(IndexCache* cache) {
-  if (cache == NULL) {
-    return;
-  }
+  if (cache == NULL) { return; }
   int ref = T_REF_DEC(cache);
-  if (ref == 0) {
-    indexCacheDestroy(cache);
-  }
+  if (ref == 0) { indexCacheDestroy(cache); }
 }
 
 void indexMemRef(MemTable* tbl) {
-  if (tbl == NULL) {
-    return;
-  }
+  if (tbl == NULL) { return; }
   int ref = T_REF_INC(tbl);
   UNUSED(ref);
 }
 void indexMemUnRef(MemTable* tbl) {
-  if (tbl == NULL) {
-    return;
-  }
+  if (tbl == NULL) { return; }
   int ref = T_REF_DEC(tbl);
   if (ref == 0) {
     SSkipList* slt = tbl->mem;
@@ -305,9 +316,7 @@ void indexMemUnRef(MemTable* tbl) {
 }
 
 static void cacheTermDestroy(CacheTerm* ct) {
-  if (ct == NULL) {
-    return;
-  }
+  if (ct == NULL) { return; }
   free(ct->colVal);
   free(ct);
 }
@@ -322,9 +331,7 @@ static int32_t compareKey(const void* l, const void* r) {
 
   // compare colVal
   int32_t cmp = strcmp(lt->colVal, rt->colVal);
-  if (cmp == 0) {
-    return rt->version - lt->version;
-  }
+  if (cmp == 0) { return rt->version - lt->version; }
   return cmp;
 }
 
@@ -344,9 +351,7 @@ static void doMergeWork(SSchedMsg* msg) {
 }
 static bool indexCacheIteratorNext(Iterate* itera) {
   SSkipListIterator* iter = itera->iter;
-  if (iter == NULL) {
-    return false;
-  }
+  if (iter == NULL) { return false; }
   IterateValue* iv = &itera->val;
   iterateValueDestroy(iv, false);
 
@@ -356,7 +361,8 @@ static bool indexCacheIteratorNext(Iterate* itera) {
     CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
 
     iv->type = ct->operaType;
-    iv->colVal = ct->colVal;
+    iv->colVal = calloc(1, strlen(ct->colVal) + 1);
+    memcpy(iv->colVal, ct->colVal, strlen(ct->colVal));
 
     taosArrayPush(iv->val, &ct->uid);
   }

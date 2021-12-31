@@ -19,7 +19,7 @@
 #include "dndTransport.h"
 #include "dndWorker.h"
 
-static void dndProcessBnodeQueue(SDnode *pDnode, taos_qall qall, int32_t numOfMsgs);
+static void dndProcessBnodeQueue(SDnode *pDnode, STaosQall *qall, int32_t numOfMsgs);
 
 static SBnode *dndAcquireBnode(SDnode *pDnode) {
   SBnodeMgmt *pMgmt = &pDnode->bmgmt;
@@ -256,7 +256,7 @@ static int32_t dndDropBnode(SDnode *pDnode) {
 }
 
 int32_t dndProcessCreateBnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SCreateBnodeInMsg *pMsg = pRpcMsg->pCont;
+  SDCreateBnodeMsg *pMsg = pRpcMsg->pCont;
   pMsg->dnodeId = htonl(pMsg->dnodeId);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
@@ -268,7 +268,7 @@ int32_t dndProcessCreateBnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
 }
 
 int32_t dndProcessDropBnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SDropBnodeInMsg *pMsg = pRpcMsg->pCont;
+  SDDropBnodeMsg *pMsg = pRpcMsg->pCont;
   pMsg->dnodeId = htonl(pMsg->dnodeId);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
@@ -286,7 +286,7 @@ static void dndSendBnodeErrorRsp(SRpcMsg *pMsg, int32_t code) {
   taosFreeQitem(pMsg);
 }
 
-static void dndSendBnodeErrorRsps(taos_qall qall, int32_t numOfMsgs, int32_t code) {
+static void dndSendBnodeErrorRsps(STaosQall *qall, int32_t numOfMsgs, int32_t code) {
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     SRpcMsg *pMsg = NULL;
     taosGetQitem(qall, (void **)&pMsg);
@@ -294,7 +294,7 @@ static void dndSendBnodeErrorRsps(taos_qall qall, int32_t numOfMsgs, int32_t cod
   }
 }
 
-static void dndProcessBnodeQueue(SDnode *pDnode, taos_qall qall, int32_t numOfMsgs) {
+static void dndProcessBnodeQueue(SDnode *pDnode, STaosQall *qall, int32_t numOfMsgs) {
   SBnode *pBnode = dndAcquireBnode(pDnode);
   if (pBnode == NULL) {
     dndSendBnodeErrorRsps(qall, numOfMsgs, TSDB_CODE_OUT_OF_MEMORY);

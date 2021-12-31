@@ -18,6 +18,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "query.h"
+#include "scheduler.h"
 #include "tmsg.h"
 #include "tcache.h"
 #include "tconfig.h"
@@ -230,6 +231,8 @@ void taos_init_imp(void) {
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   catalogInit(&cfg);
 
+  SSchedulerCfg scfg = {.maxJobNum = 100};
+  schedulerInit(&scfg);
   tscDebug("starting to initialize TAOS driver, local ep: %s", tsLocalEp);
 
   taosSetCoreDump(true);

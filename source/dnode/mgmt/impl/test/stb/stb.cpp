@@ -146,8 +146,8 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
       pSchema->bytes = htonl(pSchema->bytes);
     }
 
-    EXPECT_STREQ(pRsp->tbFname, "");
-    EXPECT_STREQ(pRsp->stbFname, "1.d1.stb");
+    EXPECT_STREQ(pRsp->tbFname, "1.d1.stb");
+    EXPECT_STREQ(pRsp->stbFname, "");
     EXPECT_EQ(pRsp->numOfColumns, 2);
     EXPECT_EQ(pRsp->numOfTags, 3);
     EXPECT_EQ(pRsp->precision, TSDB_TIME_PRECISION_MILLI);

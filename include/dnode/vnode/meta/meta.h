@@ -37,6 +37,13 @@ typedef struct SMetaCfg {
   uint64_t lruSize;
 } SMetaCfg;
 
+typedef struct {
+  int32_t  nCols;
+  SSchema *pSchema;
+} SSchemaWrapper;
+
+typedef struct SMTbCursor SMTbCursor;
+
 typedef SVCreateTbReq STbCfg;
 
 // SMeta operations
@@ -48,7 +55,13 @@ int    metaDropTable(SMeta *pMeta, tb_uid_t uid);
 int    metaCommit(SMeta *pMeta);
 
 // For Query
-int metaGetTableInfo(SMeta *pMeta, char *tbname, STableMetaMsg **ppMsg);
+STbCfg *        metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid);
+STbCfg *        metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid);
+SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline);
+
+SMTbCursor *   metaOpenTbCursor(SMeta *pMeta);
+void           metaCloseTbCursor(SMTbCursor *pTbCur);
+char *metaTbCursorNext(SMTbCursor *pTbCur);
 
 // Options
 void metaOptionsInit(SMetaCfg *pMetaCfg);

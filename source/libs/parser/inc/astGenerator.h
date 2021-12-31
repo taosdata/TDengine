@@ -125,7 +125,6 @@ typedef struct SCreatedTableInfo {
   SArray            *pTagNames;   // create by using super table, tag name
   SArray            *pTagVals;    // create by using super table, tag value
   char              *fullname;    // table full name
-  STagData           tagdata;     // true tag data, super table full name is in STagData
   int8_t             igExist;     // ignore if exists
 } SCreatedTableInfo;
 

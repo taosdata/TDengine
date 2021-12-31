@@ -27,20 +27,20 @@ typedef struct {
 } SWrapperCfg;
 
 typedef struct {
-  int32_t    vgId;
-  int32_t    refCount;
-  int32_t    vgVersion;
-  int8_t     dropped;
-  int8_t     accessState;
-  uint64_t   dbUid;
-  char      *db;
-  char      *path;
-  SVnode    *pImpl;
-  taos_queue pWriteQ;
-  taos_queue pSyncQ;
-  taos_queue pApplyQ;
-  taos_queue pQueryQ;
-  taos_queue pFetchQ;
+  int32_t     vgId;
+  int32_t     refCount;
+  int32_t     vgVersion;
+  int8_t      dropped;
+  int8_t      accessState;
+  uint64_t    dbUid;
+  char       *db;
+  char       *path;
+  SVnode     *pImpl;
+  STaosQueue *pWriteQ;
+  STaosQueue *pSyncQ;
+  STaosQueue *pApplyQ;
+  STaosQueue *pQueryQ;
+  STaosQueue* pFetchQ;
 } SVnodeObj;
 
 typedef struct {
@@ -72,9 +72,9 @@ static void    dndFreeVnodeSyncQueue(SDnode *pDnode, SVnodeObj *pVnode);
 
 static void    dndProcessVnodeQueryQueue(SVnodeObj *pVnode, SRpcMsg *pMsg);
 static void    dndProcessVnodeFetchQueue(SVnodeObj *pVnode, SRpcMsg *pMsg);
-static void    dndProcessVnodeWriteQueue(SVnodeObj *pVnode, taos_qall qall, int32_t numOfMsgs);
-static void    dndProcessVnodeApplyQueue(SVnodeObj *pVnode, taos_qall qall, int32_t numOfMsgs);
-static void    dndProcessVnodeSyncQueue(SVnodeObj *pVnode, taos_qall qall, int32_t numOfMsgs);
+static void    dndProcessVnodeWriteQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numOfMsgs);
+static void    dndProcessVnodeApplyQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numOfMsgs);
+static void    dndProcessVnodeSyncQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numOfMsgs);
 void           dndProcessVnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 void           dndProcessVnodeFetchMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 void           dndProcessVnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
@@ -768,7 +768,7 @@ static void dndProcessVnodeFetchQueue(SVnodeObj *pVnode, SRpcMsg *pMsg) {
   vnodeProcessFetchReq(pVnode->pImpl, pMsg, &pRsp);
 }
 
-static void dndProcessVnodeWriteQueue(SVnodeObj *pVnode, taos_qall qall, int32_t numOfMsgs) {
+static void dndProcessVnodeWriteQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numOfMsgs) {
   SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SRpcMsg *));
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
@@ -804,7 +804,7 @@ static void dndProcessVnodeWriteQueue(SVnodeObj *pVnode, taos_qall qall, int32_t
   taosArrayDestroy(pArray);
 }
 
-static void dndProcessVnodeApplyQueue(SVnodeObj *pVnode, taos_qall qall, int32_t numOfMsgs) {
+static void dndProcessVnodeApplyQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numOfMsgs) {
   SRpcMsg *pMsg = NULL;
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
@@ -815,7 +815,7 @@ static void dndProcessVnodeApplyQueue(SVnodeObj *pVnode, taos_qall qall, int32_t
   }
 }
 
-static void dndProcessVnodeSyncQueue(SVnodeObj *pVnode, taos_qall qall, int32_t numOfMsgs) {
+static void dndProcessVnodeSyncQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numOfMsgs) {
   SRpcMsg *pMsg = NULL;
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
@@ -826,7 +826,7 @@ static void dndProcessVnodeSyncQueue(SVnodeObj *pVnode, taos_qall qall, int32_t 
   }
 }
 
-static int32_t dndWriteRpcMsgToVnodeQueue(taos_queue pQueue, SRpcMsg *pRpcMsg) {
+static int32_t dndWriteRpcMsgToVnodeQueue(STaosQueue *pQueue, SRpcMsg *pRpcMsg) {
   int32_t code = 0;
 
   if (pQueue == NULL) {

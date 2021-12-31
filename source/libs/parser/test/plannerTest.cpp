@@ -102,7 +102,7 @@ void generateLogicplan(const char* sql) {
   printf("%s\n", str);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 }
@@ -163,7 +163,7 @@ TEST(testCase, planner_test) {
   printf("%s\n", str);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 

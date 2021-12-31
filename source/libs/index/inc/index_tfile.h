@@ -77,6 +77,7 @@ typedef struct TFileReader {
   Fst*        fst;
   WriterCtx*  ctx;
   TFileHeader header;
+  bool        remove;
 } TFileReader;
 
 typedef struct IndexTFile {
@@ -107,6 +108,7 @@ void         tfileCachePut(TFileCache* tcache, TFileCacheKey* key, TFileReader* 
 
 TFileReader* tfileGetReaderByCol(IndexTFile* tf, char* colName);
 
+TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const char* colName);
 TFileReader* tfileReaderCreate(WriterCtx* ctx);
 void         tfileReaderDestroy(TFileReader* reader);
 int          tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* result);
@@ -114,10 +116,10 @@ void         tfileReaderRef(TFileReader* reader);
 void         tfileReaderUnRef(TFileReader* reader);
 
 TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int32_t version, const char* colName, uint8_t type);
-void         tfileWriteClose(TFileWriter* tw);
+void         tfileWriterClose(TFileWriter* tw);
 TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header);
 void         tfileWriterDestroy(TFileWriter* tw);
-int          tfileWriterPut(TFileWriter* tw, void* data);
+int          tfileWriterPut(TFileWriter* tw, void* data, bool order);
 int          tfileWriterFinish(TFileWriter* tw);
 
 //

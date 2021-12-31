@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_BALANCE_H_
-#define _TD_MND_BALANCE_H_
+#ifndef _TD_MND_CONSUMER_H_
+#define _TD_MND_CONSUMER_H_
 
 #include "mndInt.h"
 
@@ -22,11 +22,17 @@
 extern "C" {
 #endif
 
-int32_t mndInitBalance(SMnode *pMnode);
-void    mndCleanupBalance(SMnode *pMnode);
+int32_t mndInitConsumer(SMnode *pMnode);
+void    mndCleanupConsumer(SMnode *pMnode);
+
+SConsumerObj *mndAcquireConsumer(SMnode *pMnode, int32_t consumerId);
+void          mndReleaseConsumer(SMnode *pMnode, SConsumerObj *pConsumer);
+
+SCGroupObj *mndAcquireCGroup(SMnode *pMnode, char *consumerGroup);
+void        mndReleaseCGroup(SMnode *pMnode, SCGroupObj *pCGroup);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_BALANCE_H_*/
+#endif /*_TD_MND_CONSUMER_H_*/

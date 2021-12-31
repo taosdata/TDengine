@@ -97,8 +97,8 @@ public:
   int32_t catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const {
     std::unique_ptr<STableMeta> table;
 
-    char db[TSDB_DB_FNAME_LEN] = {0};
-    tNameGetFullDbName(pTableName, db);
+    char db[TSDB_DB_NAME_LEN] = {0};
+    tNameGetDbName(pTableName, db);
 
     const char* tname = tNameGetTableName(pTableName);
     int32_t code = copyTableSchemaMeta(db, tname, &table);
@@ -111,6 +111,7 @@ public:
 
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const {
     // todo
+    vgInfo->vgId = 1;
     return 0;
   }
 

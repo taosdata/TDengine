@@ -25,7 +25,9 @@ extern "C" {
 #include "taoserror.h"
 #include "tcoding.h"
 #include "tdataformat.h"
+#include "tlist.h"
 
+/* ------------------------ MESSAGE DEFINITIONS ------------------------ */
 #define TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
 #undef TD_MSG_INFO_
@@ -54,6 +56,47 @@ extern int   tMsgDict[];
 
 typedef uint16_t tmsg_t;
 
+/* ------------------------ ENCODE/DECODE FUNCTIONS AND MACROS ------------------------ */
+struct SMEListNode {
+  TD_SLIST_NODE(SMEListNode);
+  SEncoder coder;
+};
+
+typedef struct SMsgEncoder {
+  SEncoder coder;
+  TD_SLIST(SMEListNode) eStack;  // encode stack
+} SMsgEncoder;
+
+struct SMDFreeListNode {
+  TD_SLIST_NODE(SMDFreeListNode);
+  char payload[];
+};
+
+struct SMDListNode {
+  TD_SLIST_NODE(SMDListNode);
+  SDecoder coder;
+};
+
+typedef struct SMsgDecoder {
+  SDecoder coder;
+  TD_SLIST(SMDListNode) dStack;
+  TD_SLIST(SMDFreeListNode) freeList;
+} SMsgDecoder;
+
+#define TMSG_MALLOC(SIZE, DECODER)                                         \
+  ({                                                                       \
+    void* ptr = malloc((SIZE) + sizeof(struct SMDFreeListNode));           \
+    if (ptr) {                                                             \
+      TD_SLIST_PUSH(&((DECODER)->freeList), (struct SMDFreeListNode*)ptr); \
+      ptr = POINTER_SHIFT(ptr, sizeof(struct SMDFreeListNode*));           \
+    }                                                                      \
+    ptr;                                                                   \
+  })
+
+void tmsgInitMsgDecoder(SMsgDecoder* pMD, td_endian_t endian, uint8_t* data, int64_t size);
+void tmsgClearMsgDecoder(SMsgDecoder* pMD);
+
+/* ------------------------ OTHER DEFINITIONS ------------------------ */
 // IE type
 #define TSDB_IE_TYPE_SEC 1
 #define TSDB_IE_TYPE_META 2
@@ -71,6 +114,9 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_TABLE,
   TSDB_MGMT_TABLE_DNODE,
   TSDB_MGMT_TABLE_MNODE,
+  TSDB_MGMT_TABLE_QNODE,
+  TSDB_MGMT_TABLE_SNODE,
+  TSDB_MGMT_TABLE_BNODE,
   TSDB_MGMT_TABLE_VGROUP,
   TSDB_MGMT_TABLE_STB,
   TSDB_MGMT_TABLE_MODULE,
@@ -219,6 +265,26 @@ typedef struct {
   char     data[];
 } SMDCreateTableMsg;
 
+// typedef struct {
+//  int32_t len;  // one create table message
+//  char    tableName[TSDB_TABLE_FNAME_LEN];
+//  int16_t numOfColumns;
+//  int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
+//  int8_t  igExists;
+//  int8_t  rspMeta;
+//  int8_t  reserved[16];
+//  char    schema[];
+//} SCreateTableMsg;
+
+typedef struct {
+  char    tableName[TSDB_TABLE_FNAME_LEN];
+  int16_t numOfColumns;
+  int16_t numOfTags;
+  int8_t  igExists;
+  int8_t  rspMeta;
+  char    schema[];
+} SCreateCTableMsg;
+
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
@@ -242,19 +308,7 @@ typedef struct {
   SMsgHead head;
   char     name[TSDB_TABLE_FNAME_LEN];
   uint64_t suid;
-  int32_t  sverson;
-  uint32_t ttl;
-  uint32_t keep;
-  int32_t  numOfTags;
-  int32_t  numOfColumns;
-  SSchema  pSchema[];
-} SCreateStbInternalMsg;
-
-typedef struct {
-  SMsgHead head;
-  char     name[TSDB_TABLE_FNAME_LEN];
-  uint64_t suid;
-} SDropStbInternalMsg;
+} SVDropStbReq;
 
 typedef struct {
   SMsgHead head;
@@ -298,6 +352,18 @@ typedef struct SEpSet {
   uint16_t port[TSDB_MAX_REPLICA];
   char     fqdn[TSDB_MAX_REPLICA][TSDB_FQDN_LEN];
 } SEpSet;
+
+static FORCE_INLINE int taosEncodeSEpSet(void** buf, const SEpSet* pEp) {
+  if(buf == NULL) return sizeof(SEpSet);
+  memcpy(buf, pEp, sizeof(SEpSet));
+  //TODO: endian conversion
+  return sizeof(SEpSet);
+}
+
+static FORCE_INLINE void* taosDecodeSEpSet(void* buf, SEpSet* pEpSet) {
+  memcpy(pEpSet, buf, sizeof(SEpSet));
+  return buf;
+}
 
 typedef struct {
   int32_t acctId;
@@ -480,7 +546,7 @@ typedef struct {
 typedef struct {
   SMsgHead header;
   union {
-    int32_t showId;
+    int64_t showId;
     int64_t qhandle;
     int64_t qId;
   };  // query handle
@@ -628,8 +694,8 @@ typedef struct {
   int64_t     clusterId;
   int64_t     rebootTime;
   int64_t     updateTime;
-  int16_t     numOfCores;
-  int16_t     numOfSupportVnodes;
+  int32_t     numOfCores;
+  int32_t     numOfSupportVnodes;
   char        dnodeEp[TSDB_EP_LEN];
   SClusterCfg clusterCfg;
   SVnodeLoads vnodeLoads;
@@ -800,7 +866,7 @@ typedef struct {
 } SCompactMsg;
 
 typedef struct SShowRsp {
-  int32_t       showId;
+  int64_t       showId;
   STableMetaMsg tableMeta;
 } SShowRsp;
 
@@ -820,29 +886,25 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
-} SCreateMnodeMsg, SDropMnodeMsg;
+} SMCreateMnodeMsg, SMDropMnodeMsg, SDDropMnodeMsg;
 
 typedef struct {
   int32_t  dnodeId;
   int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
-} SCreateMnodeInMsg, SAlterMnodeInMsg;
+} SDCreateMnodeMsg, SDAlterMnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
-} SDropMnodeInMsg;
+} SMCreateQnodeMsg, SMDropQnodeMsg, SDCreateQnodeMsg, SDDropQnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
-} SCreateQnodeInMsg, SDropQnodeInMsg;
+} SMCreateSnodeMsg, SMDropSnodeMsg, SDCreateSnodeMsg, SDDropSnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
-} SCreateSnodeInMsg, SDropSnodeInMsg;
-
-typedef struct {
-  int32_t dnodeId;
-} SCreateBnodeInMsg, SDropBnodeInMsg;
+} SMCreateBnodeMsg, SMDropBnodeMsg, SDCreateBnodeMsg, SDDropBnodeMsg;
 
 typedef struct {
   int32_t dnodeId;
@@ -1056,25 +1118,93 @@ typedef struct STaskDropRsp {
 } STaskDropRsp;
 
 typedef struct {
-  int8_t igExists;
-  char*  name;
-  char*  phyPlan;
+  int8_t  igExists;
+  char*   name;
+  char*   physicalPlan;
+  char*   logicalPlan;
 } SCMCreateTopicReq;
 
 static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateTopicReq* pReq) {
   int tlen = 0;
   tlen += taosEncodeString(buf, pReq->name);
   tlen += taosEncodeFixedI8(buf, pReq->igExists);
-  tlen += taosEncodeString(buf, pReq->phyPlan);
+  tlen += taosEncodeString(buf, pReq->physicalPlan);
+  tlen += taosEncodeString(buf, pReq->logicalPlan);
   return tlen;
 }
 
 static FORCE_INLINE void* tDeserializeSCMCreateTopicReq(void* buf, SCMCreateTopicReq* pReq) {
   buf = taosDecodeFixedI8(buf, &(pReq->igExists));
   buf = taosDecodeString(buf, &(pReq->name));
-  buf = taosDecodeString(buf, &(pReq->phyPlan));
+  buf = taosDecodeString(buf, &(pReq->physicalPlan));
+  buf = taosDecodeString(buf, &(pReq->logicalPlan));
   return buf;
 }
+
+typedef struct {
+  int64_t topicId;
+} SCMCreateTopicRsp;
+
+static FORCE_INLINE int tSerializeSCMCreateTopicRsp(void** buf, const SCMCreateTopicRsp* pRsp) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pRsp->topicId);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDeserializeSCMCreateTopicRsp(void* buf, SCMCreateTopicRsp* pRsp) {
+  buf = taosDecodeFixedI64(buf, &pRsp->topicId);
+  return buf;
+}
+
+typedef struct {
+  char* topicName;
+  char* consumerGroup;
+  int64_t consumerId;
+} SCMSubscribeReq;
+
+static FORCE_INLINE int tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
+  int tlen = 0;
+  tlen += taosEncodeString(buf, pReq->topicName);
+  tlen += taosEncodeString(buf, pReq->consumerGroup);
+  tlen += taosEncodeFixedI64(buf, pReq->consumerId);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq* pReq) {
+  buf = taosDecodeString(buf, &pReq->topicName);
+  buf = taosDecodeString(buf, &pReq->consumerGroup);
+  buf = taosDecodeFixedI64(buf, &pReq->consumerId);
+  return buf;
+}
+
+typedef struct {
+  int32_t vgId;
+  SEpSet pEpSet;
+} SCMSubscribeRsp;
+
+static FORCE_INLINE int tSerializeSCMSubscribeRsp(void** buf, const SCMSubscribeRsp* pRsp) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI32(buf, pRsp->vgId);
+  tlen += taosEncodeSEpSet(buf, &pRsp->pEpSet);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDeserializeSCMSubscribeRsp(void* buf, SCMSubscribeRsp* pRsp) {
+  buf = taosDecodeFixedI32(buf, &pRsp->vgId);
+  buf = taosDecodeSEpSet(buf, &pRsp->pEpSet);
+  return buf;
+}
+
+typedef struct {
+  int64_t topicId;
+  int64_t consumerId;
+  int64_t consumerGroupId;
+  int64_t offset;
+} SMVSubscribeReq;
+
+typedef struct {
+  int64_t newOffset;
+} SMVSubscribeRsp;
 
 typedef struct {
   char    name[TSDB_TOPIC_FNAME_LEN];
@@ -1105,13 +1235,13 @@ typedef struct {
   char*    executor;
   int32_t  sqlLen;
   char*    sql;
-} SCreateTopicInternalMsg;
+} SDCreateTopicMsg;
 
 typedef struct {
   SMsgHead head;
   char     name[TSDB_TABLE_FNAME_LEN];
   uint64_t tuid;
-} SDropTopicInternalMsg;
+} SDDropTopicMsg;
 
 typedef struct SVCreateTbReq {
   uint64_t ver;  // use a general definition
@@ -1141,100 +1271,11 @@ typedef struct SVCreateTbReq {
   };
 } SVCreateTbReq;
 
-static FORCE_INLINE int tSerializeSVCreateTbReq(void** buf, const SVCreateTbReq* pReq) {
-  int tlen = 0;
+int   tmsgSVCreateTbReqEncode(SMsgEncoder* pCoder, SVCreateTbReq* pReq);
+int   tmsgSVCreateTbReqDecode(SMsgDecoder* pCoder, SVCreateTbReq* pReq);
+int   tSerializeSVCreateTbReq(void** buf, const SVCreateTbReq* pReq);
+void* tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
 
-  tlen += taosEncodeFixedU64(buf, pReq->ver);
-  tlen += taosEncodeString(buf, pReq->name);
-  tlen += taosEncodeFixedU32(buf, pReq->ttl);
-  tlen += taosEncodeFixedU32(buf, pReq->keep);
-  tlen += taosEncodeFixedU8(buf, pReq->type);
-
-  switch (pReq->type) {
-    case TD_SUPER_TABLE:
-      tlen += taosEncodeFixedU64(buf, pReq->stbCfg.suid);
-      tlen += taosEncodeFixedU32(buf, pReq->stbCfg.nCols);
-      for (uint32_t i = 0; i < pReq->stbCfg.nCols; i++) {
-        tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pSchema[i].type);
-        tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pSchema[i].colId);
-        tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pSchema[i].bytes);
-        tlen += taosEncodeString(buf, pReq->stbCfg.pSchema[i].name);
-      }
-      tlen += taosEncodeFixedU32(buf, pReq->stbCfg.nTagCols);
-      for (uint32_t i = 0; i < pReq->stbCfg.nTagCols; i++) {
-        tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pTagSchema[i].type);
-        tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pTagSchema[i].colId);
-        tlen += taosEncodeFixedI32(buf, pReq->stbCfg.pTagSchema[i].bytes);
-        tlen += taosEncodeString(buf, pReq->stbCfg.pTagSchema[i].name);
-      }
-      break;
-    case TD_CHILD_TABLE:
-      tlen += taosEncodeFixedU64(buf, pReq->ctbCfg.suid);
-      tlen += tdEncodeKVRow(buf, pReq->ctbCfg.pTag);
-      break;
-    case TD_NORMAL_TABLE:
-      tlen += taosEncodeFixedU32(buf, pReq->ntbCfg.nCols);
-      for (uint32_t i = 0; i < pReq->ntbCfg.nCols; i++) {
-        tlen += taosEncodeFixedI8(buf, pReq->ntbCfg.pSchema[i].type);
-        tlen += taosEncodeFixedI32(buf, pReq->ntbCfg.pSchema[i].colId);
-        tlen += taosEncodeFixedI32(buf, pReq->ntbCfg.pSchema[i].bytes);
-        tlen += taosEncodeString(buf, pReq->ntbCfg.pSchema[i].name);
-      }
-      break;
-    default:
-      ASSERT(0);
-  }
-
-  return tlen;
-}
-
-static FORCE_INLINE void* tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq) {
-  buf = taosDecodeFixedU64(buf, &(pReq->ver));
-  buf = taosDecodeString(buf, &(pReq->name));
-  buf = taosDecodeFixedU32(buf, &(pReq->ttl));
-  buf = taosDecodeFixedU32(buf, &(pReq->keep));
-  buf = taosDecodeFixedU8(buf, &(pReq->type));
-
-  switch (pReq->type) {
-    case TD_SUPER_TABLE:
-      buf = taosDecodeFixedU64(buf, &(pReq->stbCfg.suid));
-      buf = taosDecodeFixedU32(buf, &(pReq->stbCfg.nCols));
-      pReq->stbCfg.pSchema = (SSchema*)malloc(pReq->stbCfg.nCols * sizeof(SSchema));
-      for (uint32_t i = 0; i < pReq->stbCfg.nCols; i++) {
-        buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pSchema[i].type));
-        buf = taosDecodeFixedI32(buf, &(pReq->stbCfg.pSchema[i].colId));
-        buf = taosDecodeFixedI32(buf, &(pReq->stbCfg.pSchema[i].bytes));
-        buf = taosDecodeStringTo(buf, pReq->stbCfg.pSchema[i].name);
-      }
-      buf = taosDecodeFixedU32(buf, &pReq->stbCfg.nTagCols);
-      pReq->stbCfg.pTagSchema = (SSchema*)malloc(pReq->stbCfg.nTagCols * sizeof(SSchema));
-      for (uint32_t i = 0; i < pReq->stbCfg.nTagCols; i++) {
-        buf = taosDecodeFixedI8(buf, &(pReq->stbCfg.pTagSchema[i].type));
-        buf = taosDecodeFixedI32(buf, &pReq->stbCfg.pTagSchema[i].colId);
-        buf = taosDecodeFixedI32(buf, &pReq->stbCfg.pTagSchema[i].bytes);
-        buf = taosDecodeStringTo(buf, pReq->stbCfg.pTagSchema[i].name);
-      }
-      break;
-    case TD_CHILD_TABLE:
-      buf = taosDecodeFixedU64(buf, &pReq->ctbCfg.suid);
-      buf = tdDecodeKVRow(buf, &pReq->ctbCfg.pTag);
-      break;
-    case TD_NORMAL_TABLE:
-      buf = taosDecodeFixedU32(buf, &pReq->ntbCfg.nCols);
-      pReq->ntbCfg.pSchema = (SSchema*)malloc(pReq->ntbCfg.nCols * sizeof(SSchema));
-      for (uint32_t i = 0; i < pReq->ntbCfg.nCols; i++) {
-        buf = taosDecodeFixedI8(buf, &pReq->ntbCfg.pSchema[i].type);
-        buf = taosDecodeFixedI32(buf, &pReq->ntbCfg.pSchema[i].colId);
-        buf = taosDecodeFixedI32(buf, &pReq->ntbCfg.pSchema[i].bytes);
-        buf = taosDecodeStringTo(buf, pReq->ntbCfg.pSchema[i].name);
-      }
-      break;
-    default:
-      ASSERT(0);
-  }
-
-  return buf;
-}
 typedef struct SVCreateTbRsp {
 } SVCreateTbRsp;
 
@@ -1249,7 +1290,7 @@ typedef struct SVShowTablesRsp {
 
 typedef struct SVShowTablesFetchReq {
   SMsgHead head;
-  int64_t  id;
+  int32_t  id;
 } SVShowTablesFetchReq;
 
 typedef struct SVShowTablesFetchRsp {

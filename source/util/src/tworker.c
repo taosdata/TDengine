@@ -85,9 +85,9 @@ static void *tWorkerThreadFp(SWorker *worker) {
   return NULL;
 }
 
-taos_queue tWorkerAllocQueue(SWorkerPool *pool, void *ahandle, FProcessItem fp) {
+STaosQueue *tWorkerAllocQueue(SWorkerPool *pool, void *ahandle, FProcessItem fp) {
   pthread_mutex_lock(&pool->mutex);
-  taos_queue queue = taosOpenQueue();
+  STaosQueue *queue = taosOpenQueue();
   if (queue == NULL) {
     pthread_mutex_unlock(&pool->mutex);
     return NULL;
@@ -121,7 +121,7 @@ taos_queue tWorkerAllocQueue(SWorkerPool *pool, void *ahandle, FProcessItem fp) 
   return queue;
 }
 
-void tWorkerFreeQueue(SWorkerPool *pool, void *queue) {
+void tWorkerFreeQueue(SWorkerPool *pool, STaosQueue *queue) {
   taosCloseQueue(queue);
   uDebug("worker:%s, queue:%p is freed", pool->name, queue);
 }
@@ -195,11 +195,11 @@ static void *tWriteWorkerThreadFp(SMWorker *worker) {
   return NULL;
 }
 
-taos_queue tMWorkerAllocQueue(SMWorkerPool *pool, void *ahandle, FProcessItems fp) {
+STaosQueue *tMWorkerAllocQueue(SMWorkerPool *pool, void *ahandle, FProcessItems fp) {
   pthread_mutex_lock(&pool->mutex);
   SMWorker *worker = pool->workers + pool->nextId;
 
-  taos_queue *queue = taosOpenQueue();
+  STaosQueue *queue = taosOpenQueue();
   if (queue == NULL) {
     pthread_mutex_unlock(&pool->mutex);
     return NULL;
@@ -250,7 +250,7 @@ taos_queue tMWorkerAllocQueue(SMWorkerPool *pool, void *ahandle, FProcessItems f
   return queue;
 }
 
-void tMWorkerFreeQueue(SMWorkerPool *pool, taos_queue queue) {
+void tMWorkerFreeQueue(SMWorkerPool *pool, STaosQueue *queue) {
   taosCloseQueue(queue);
   uDebug("worker:%s, queue:%p is freed", pool->name, queue);
 }
