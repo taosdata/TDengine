@@ -1,6 +1,7 @@
 #!/bin/bash
 #
 # Generate tar.gz package for all os system
+source ./sed_replace.sh
 
 set -e
 #set -x
@@ -27,16 +28,40 @@ release_dir="${top_dir}/release"
 
 if [ $dbName == "power" ]; then
   productName="PowerDB"
+  serverName="powerd"
+  clientName="power"
+  cfgDirName="power.cfg"
+  tarName="power.tar.gz"
 elif [ $dbName == "tq" ]; then
   productName="TQ"
+  serverName="tqd"
+  clientName="tq"
+  cfgDirName="tq.cfg"
+  tarName="tq.tar.gz"
 elif [ $dbName == "pro" ]; then
   productName="ProDB"
+  serverName="prodbs"
+  clientName="prodbc"
+  cfgDirName="prodb.cfg"
+  tarName="prodb.tar.gz"
 elif [ $dbName == "kh" ]; then
   productName="KingHistorian"
+  serverName="khserver"
+  clientName="khclient"
+  cfgDirName="kinghistorian.cfg"
+  tarName="kinghistorian.tar.gz"
 elif [ $dbName == "jh" ]; then
   productName="jh_iot"
+  serverName="jh_taosd"
+  clientName="jh_taos"
+  cfgDirName="jh_taos.cfg"
+  tarName="jh_taos.tar.gz"
 else
   productName="TDengine"
+  serverName="taosd"
+  clientName="taos"
+  cfgDirName="taos.cfg"
+  tarName="taos.tar.gz"
 fi
 
 #package_name='linux'
@@ -60,14 +85,14 @@ fi
 
 # Directories and files
 if [ "$pagMode" == "lite" ]; then
-  strip ${build_dir}/bin/taosd
+  strip ${build_dir}/bin/${serverName}
   strip ${build_dir}/bin/taos
   # lite version doesn't include taosadapter,  which will lead to no restful interface
-  bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${script_dir}/remove.sh ${script_dir}/startPre.sh"
+  bin_files="${build_dir}/bin/${serverName} ${build_dir}/bin/${clientName} ${script_dir}/remove.sh ${script_dir}/startPre.sh"
   taostools_bin_files=""
 else
-  bin_files="${build_dir}/bin/taosd \
-      ${build_dir}/bin/taos \
+  bin_files="${build_dir}/bin/${serverName} \
+      ${build_dir}/bin/${clientName} \
       ${build_dir}/bin/taosadapter \
       ${build_dir}/bin/tarbitrator\
       ${script_dir}/remove.sh \
@@ -91,22 +116,15 @@ fi
 install_files="${script_dir}/install.sh"
 nginx_dir="${code_dir}/../../enterprise/src/plugins/web"
 
-# Init file
-#init_dir=${script_dir}/deb
-#if [ $package_type = "centos" ]; then
-#    init_dir=${script_dir}/rpm
-#fi
-#init_files=${init_dir}/taosd
-# temp use rpm's taosd. TODO: later modify according to os type
-init_file_deb=${script_dir}/../deb/taosd
-init_file_rpm=${script_dir}/../rpm/taosd
+init_file_deb=${script_dir}/../deb/${serverName}
+init_file_rpm=${script_dir}/../rpm/${serverName}
 init_file_tarbitrator_deb=${script_dir}/../deb/tarbitratord
 init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${cfgDirName} ${install_dir}/cfg/${cfgDirName}
 
 if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
   cp ${compile_dir}/test/cfg/taosadapter.toml ${install_dir}/cfg || :
@@ -116,8 +134,8 @@ if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
   cp ${compile_dir}/test/cfg/taosadapter.service ${install_dir}/cfg || :
 fi
 
-if [ -f "${cfg_dir}/taosd.service" ]; then
-  cp ${cfg_dir}/taosd.service ${install_dir}/cfg || :
+if [ -f "${cfg_dir}/${serverName}.service" ]; then
+  cp ${cfg_dir}/${serverName}.service ${install_dir}/cfg || :
 fi
 
 if [ -f "${cfg_dir}/tarbitratord.service" ]; then
@@ -129,8 +147,8 @@ if [ -f "${cfg_dir}/nginxd.service" ]; then
 fi
 
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
-mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/taosd.deb
-mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/taosd.rpm
+mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/${serverName}.deb
+mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${serverName}.rpm
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
 
@@ -209,10 +227,10 @@ if [ "$verMode" == "cluster" ]; then
 fi
 
 cd ${install_dir}
-tar -zcv -f taos.tar.gz * --remove-files || :
+tar -zcv -f ${tarName} * --remove-files || :
 exitcode=$?
 if [ "$exitcode" != "0" ]; then
-  echo "tar taos.tar.gz error !!!"
+  echo "tar ${tarName} error !!!"
   exit $exitcode
 fi
 

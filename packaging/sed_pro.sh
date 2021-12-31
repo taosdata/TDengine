@@ -1,6 +1,6 @@
 #!/bin/bash
 
-function replace_community_pro(){
+function replace_community_pro() {
   # cmake/install.inc
   sed -i "s/C:\/TDengine/C:\/ProDB/g" ${top_dir}/cmake/install.inc
   sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/cmake/install.inc
@@ -12,21 +12,21 @@ function replace_community_pro(){
   # src/inc/taosdef.h
   sed -i "s/\"taosdata\"/\"prodb\"/g" ${top_dir}/src/inc/taosdef.h
   # src/util/src/tconfig.c
-  sed -i "s/taos\.cfg/prodb\.cfg/g"   ${top_dir}/src/util/src/tconfig.c
-  sed -i "s/etc\/taos/etc\/ProDB/g"   ${top_dir}/src/util/src/tconfig.c
+  sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/src/util/src/tconfig.c
+  sed -i "s/etc\/taos/etc\/ProDB/g" ${top_dir}/src/util/src/tconfig.c
   # src/util/src/tlog.c
-  sed -i "s/log\/taos/log\/ProDB/g"   ${top_dir}/src/util/src/tlog.c
+  sed -i "s/log\/taos/log\/ProDB/g" ${top_dir}/src/util/src/tlog.c
   # src/dnode/src/dnodeSystem.c
   sed -i "s/TDengine/ProDB/g" ${top_dir}/src/dnode/src/dnodeSystem.c
-  sed -i "s/TDengine/ProDB/g"   ${top_dir}/src/dnode/src/dnodeMain.c
-  sed -i "s/taosdlog/prodlog/g"   ${top_dir}/src/dnode/src/dnodeMain.c
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/src/dnode/src/dnodeMain.c
+  sed -i "s/taosdlog/prodlog/g" ${top_dir}/src/dnode/src/dnodeMain.c
   # src/client/src/tscSystem.c
-  sed -i "s/taoslog/prolog/g"   ${top_dir}/src/client/src/tscSystem.c
+  sed -i "s/taoslog/prolog/g" ${top_dir}/src/client/src/tscSystem.c
   # src/util/src/tnote.c
-  sed -i "s/taosinfo/proinfo/g"   ${top_dir}/src/util/src/tnote.c
+  sed -i "s/taosinfo/proinfo/g" ${top_dir}/src/util/src/tnote.c
   # src/dnode/CMakeLists.txt
-  sed -i "s/taos\.cfg/prodb\.cfg/g"   ${top_dir}/src/dnode/CMakeLists.txt
-  echo "SET_TARGET_PROPERTIES(taosd PROPERTIES OUTPUT_NAME prodbs)" >> ${top_dir}/src/dnode/CMakeLists.txt
+  sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/src/dnode/CMakeLists.txt
+  echo "SET_TARGET_PROPERTIES(taosd PROPERTIES OUTPUT_NAME prodbs)" >>${top_dir}/src/dnode/CMakeLists.txt
   # src/os/src/linux/linuxEnv.c
   sed -i "s/etc\/taos/etc\/ProDB/g" ${top_dir}/src/os/src/linux/linuxEnv.c
   sed -i "s/lib\/taos/lib\/ProDB/g" ${top_dir}/src/os/src/linux/linuxEnv.c
@@ -53,14 +53,27 @@ function replace_community_pro(){
   sed -i "s/taosd is quiting/prodbs is quiting/g" ${top_dir}/src/plugins/monitor/src/monMain.c
 }
 
-function replace_enterprise_pro(){
+function replace_enterprise_pro() {
   # enterprise/src/kit/perfMonitor/perfMonitor.c
   sed -i "s/\"taosdata\"/\"prodb\"/g" ${top_dir}/../enterprise/src/kit/perfMonitor/perfMonitor.c
   sed -i "s/TDengine/ProDB/g" ${top_dir}/../enterprise/src/kit/perfMonitor/perfMonitor.c
   # enterprise/src/plugins/admin/src/httpAdminHandle.c
-  sed -i "s/taos\.cfg/prodb\.cfg/g"  ${top_dir}/../enterprise/src/plugins/admin/src/httpAdminHandle.c
+  sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/../enterprise/src/plugins/admin/src/httpAdminHandle.c
   # enterprise/src/plugins/grant/src/grantMain.c
-  sed -i "s/taos\.cfg/prodb\.cfg/g"  ${top_dir}/../enterprise/src/plugins/grant/src/grantMain.c
+  sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/../enterprise/src/plugins/grant/src/grantMain.c
   # enterprise/src/plugins/module/src/moduleMain.c
-  sed -i "s/taos\.cfg/prodb\.cfg/g"  ${top_dir}/../enterprise/src/plugins/module/src/moduleMain.c
+  sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/../enterprise/src/plugins/module/src/moduleMain.c
+
+  # enterprise/src/plugins/web
+  sed -i -e 's/www.taosdata.com/www.hanatech.com.cn/g' $(grep -r 'www.taosdata.com' ${top_dir}/../enterprise/src/plugins/web | sed -r "s/(.*\.html):\s*(.*)/\1/g")
+  sed -i -e 's/TAOS Data/Hanatech/g' $(grep -r 'TAOS Data' ${top_dir}/../enterprise/src/plugins/web | sed -r "s/(.*\.html):\s*(.*)/\1/g")
+  sed -i -e 's/taosd/prodbs/g' $(grep -r 'taosd' ${top_dir}/../enterprise/src/plugins/web | grep -E '*\.js\s*.*' | sed -r -e 's/(.*\.js):\s*(.*)/\1/g' | sort | uniq)
+  # enterprise/src/plugins/web/admin/monitor.html
+  sed -i -e 's/<th style="font-weight: normal">taosd<\/th>/<th style="font-weight: normal">prodbs<\/th>/g' ${top_dir}/../enterprise/src/plugins/web/admin/monitor.html
+  sed -i -e "s/data:\['taosd', 'system'\],/data:\['prodbs', 'system'\],/g" ${top_dir}/../enterprise/src/plugins/web/admin/monitor.html
+  sed -i -e "s/name: 'taosd',/name: 'prodbs',/g" ${top_dir}/../enterprise/src/plugins/web/admin/monitor.html
+  # enterprise/src/plugins/web/admin/*.html
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/../enterprise/src/plugins/web/admin/*.html
+  # enterprise/src/plugins/web/admin/js/*.js
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/../enterprise/src/plugins/web/admin/js/*.js
 }
