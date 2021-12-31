@@ -75,7 +75,7 @@ typedef struct STableMeta {
 } STableMeta;
 
 typedef struct SDBVgroupInfo {
-  int32_t   lock;
+  SRWLatch  lock;
   int32_t   vgVersion;  
   int8_t    hashMethod;
   SHashObj *vgInfo;  //key:vgId, value:SVgroupInfo
