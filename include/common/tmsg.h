@@ -354,9 +354,9 @@ typedef struct SEpSet {
 } SEpSet;
 
 static FORCE_INLINE int taosEncodeSEpSet(void** buf, const SEpSet* pEp) {
-  if(buf == NULL) return sizeof(SEpSet);
+  if (buf == NULL) return sizeof(SEpSet);
   memcpy(buf, pEp, sizeof(SEpSet));
-  //TODO: endian conversion
+  // TODO: endian conversion
   return sizeof(SEpSet);
 }
 
@@ -370,7 +370,7 @@ typedef struct {
   int64_t clusterId;
   int32_t connId;
   int8_t  superUser;
-  int8_t  reserved[5];
+  int8_t  align[3];
   SEpSet  epSet;
 } SConnectRsp;
 
@@ -383,20 +383,17 @@ typedef struct {
   int32_t maxStreams;
   int32_t accessState;  // Configured only by command
   int64_t maxStorage;   // In unit of GB
-  int32_t reserve[8];
 } SCreateAcctMsg, SAlterAcctMsg;
 
 typedef struct {
-  char    user[TSDB_USER_LEN];
-  int32_t reserve[8];
+  char user[TSDB_USER_LEN];
 } SDropUserMsg, SDropAcctMsg;
 
 typedef struct {
-  int8_t  type;
-  char    user[TSDB_USER_LEN];
-  char    pass[TSDB_PASSWORD_LEN];
-  int8_t  superUser;  // denote if it is a super user or not
-  int32_t reserve[8];
+  int8_t type;
+  char   user[TSDB_USER_LEN];
+  char   pass[TSDB_PASSWORD_LEN];
+  int8_t superUser;  // denote if it is a super user or not
 } SCreateUserMsg, SAlterUserMsg;
 
 typedef struct {
@@ -585,7 +582,6 @@ typedef struct {
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  ignoreExist;
-  int32_t reserve[8];
 } SCreateDbMsg;
 
 typedef struct {
@@ -598,29 +594,24 @@ typedef struct {
   int8_t  walLevel;
   int8_t  quorum;
   int8_t  cacheLastRow;
-  int32_t reserve[8];
 } SAlterDbMsg;
 
 typedef struct {
-  char    db[TSDB_TABLE_FNAME_LEN];
-  int8_t  ignoreNotExists;
-  int32_t reserve[8];
+  char   db[TSDB_TABLE_FNAME_LEN];
+  int8_t ignoreNotExists;
 } SDropDbMsg;
 
 typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];
   int32_t vgVersion;
-  int32_t reserve[8];
 } SUseDbMsg;
 
 typedef struct {
-  char    db[TSDB_TABLE_FNAME_LEN];
-  int32_t reserve[8];
+  char db[TSDB_TABLE_FNAME_LEN];
 } SSyncDbMsg;
 
 typedef struct {
-  char    db[TSDB_TABLE_FNAME_LEN];
-  int32_t reserve[8];
+  char db[TSDB_TABLE_FNAME_LEN];
 } SCompactDbMsg;
 
 typedef struct {
@@ -676,7 +667,7 @@ typedef struct {
 typedef struct {
   int32_t vgId;
   int8_t  role;
-  int8_t  reserved[3];
+  int8_t  align[3];
   int64_t totalStorage;
   int64_t compStorage;
   int64_t pointsWritten;
@@ -713,7 +704,7 @@ typedef struct {
 typedef struct {
   int32_t  id;
   int8_t   isMnode;
-  int8_t   reserved;
+  int8_t   align;
   uint16_t port;
   char     fqdn[TSDB_FQDN_LEN];
 } SDnodeEp;
@@ -947,7 +938,7 @@ typedef struct {
   int32_t totalDnodes;
   int32_t onlineDnodes;
   int8_t  killConnection;
-  int8_t  reserved[3];
+  int8_t  align[3];
   SEpSet  epSet;
 } SHeartBeatRsp;
 
@@ -975,7 +966,7 @@ typedef struct {
 
 typedef struct {
   int8_t finished;
-  int8_t reserved1[7];
+  int8_t align[7];
   char   name[TSDB_STEP_NAME_LEN];
   char   desc[TSDB_STEP_DESC_LEN];
 } SStartupMsg;
@@ -1118,10 +1109,10 @@ typedef struct STaskDropRsp {
 } STaskDropRsp;
 
 typedef struct {
-  int8_t  igExists;
-  char*   name;
-  char*   physicalPlan;
-  char*   logicalPlan;
+  int8_t igExists;
+  char*  name;
+  char*  physicalPlan;
+  char*  logicalPlan;
 } SCMCreateTopicReq;
 
 static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateTopicReq* pReq) {
@@ -1157,8 +1148,8 @@ static FORCE_INLINE void* tDeserializeSCMCreateTopicRsp(void* buf, SCMCreateTopi
 }
 
 typedef struct {
-  char* topicName;
-  char* consumerGroup;
+  char*   topicName;
+  char*   consumerGroup;
   int64_t consumerId;
 } SCMSubscribeReq;
 
@@ -1179,7 +1170,7 @@ static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq
 
 typedef struct {
   int32_t vgId;
-  SEpSet pEpSet;
+  SEpSet  pEpSet;
 } SCMSubscribeRsp;
 
 static FORCE_INLINE int tSerializeSCMSubscribeRsp(void** buf, const SCMSubscribeRsp* pRsp) {
