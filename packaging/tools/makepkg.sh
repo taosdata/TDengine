@@ -105,9 +105,11 @@ fi
 if [ -f "${cfg_dir}/taosd.service" ]; then
     cp ${cfg_dir}/taosd.service          ${install_dir}/cfg || :
 fi
+
 if [ -f "${cfg_dir}/tarbitratord.service" ]; then
     cp ${cfg_dir}/tarbitratord.service          ${install_dir}/cfg || :
 fi
+
 if [ -f "${cfg_dir}/nginxd.service" ]; then
     cp ${cfg_dir}/nginxd.service          ${install_dir}/cfg || :
 fi

@@ -14,16 +14,16 @@ function replace_community_pro(){
   sed -i "s/taos\.cfg/prodb\.cfg/g"   ${top_dir}/src/util/src/tconfig.c
   sed -i "s/etc\/taos/etc\/ProDB/g"   ${top_dir}/src/util/src/tconfig.c
   # src/kit/taosdemo/taosdemo.c
-  sed -i "s/taosdemo --help/prodemo --help/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
-  sed -i "s/taosdemo --usage/prodemo --usage/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
-  sed -i "s/Usage: taosdemo/Usage: prodemo/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
-  sed -i "s/taosdemo is simulating/prodemo is simulating/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
-  sed -i "s/taosdemo version/prodemo version/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
-  sed -i "s/\"taosdata\"/\"prodb\"/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
-  sed -i "s/support@taosdata\.com/support@hanatech\.com\.cn/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
-  sed -i "s/taosc, rest, and stmt/prodbc, rest, and stmt/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
-  sed -i "s/taosdemo uses/prodemo uses/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
-  sed -i "s/use 'taosc'/use 'prodbc'/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+ # sed -i "s/taosdemo --help/prodemo --help/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+ # sed -i "s/taosdemo --usage/prodemo --usage/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+ # sed -i "s/Usage: taosdemo/Usage: prodemo/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+ # sed -i "s/taosdemo is simulating/prodemo is simulating/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+ # sed -i "s/taosdemo version/prodemo version/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+ # sed -i "s/\"taosdata\"/\"prodb\"/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+ # sed -i "s/support@taosdata\.com/support@hanatech\.com\.cn/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+ # sed -i "s/taosc, rest, and stmt/prodbc, rest, and stmt/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+ # sed -i "s/taosdemo uses/prodemo uses/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
+ # sed -i "s/use 'taosc'/use 'prodbc'/g" ${top_dir}/src/kit/taosdemo/taosdemo.c
   # src/util/src/tlog.c
   sed -i "s/log\/taos/log\/ProDB/g"   ${top_dir}/src/util/src/tlog.c
   # src/dnode/src/dnodeSystem.c
@@ -37,11 +37,11 @@ function replace_community_pro(){
   # src/dnode/CMakeLists.txt
   sed -i "s/taos\.cfg/prodb\.cfg/g"   ${top_dir}/src/dnode/CMakeLists.txt
   # src/kit/taosdump/taosdump.c
-  sed -i "s/support@taosdata\.com/support@hanatech\.com\.cn/g" ${top_dir}/src/kit/taosdump/taosdump.c
-  sed -i "s/Default is taosdata/Default is prodb/g" ${top_dir}/src/kit/taosdump/taosdump.c
-  sed -i "s/\"taosdata\"/\"prodb\"/g" ${top_dir}/src/kit/taosdump/taosdump.c
-  sed -i "s/TDengine/ProDB/g" ${top_dir}/src/kit/taosdump/taosdump.c
-  sed -i "s/taos\/taos\.cfg/ProDB\/prodb\.cfg/g" ${top_dir}/src/kit/taosdump/taosdump.c
+ # sed -i "s/support@taosdata\.com/support@hanatech\.com\.cn/g" ${top_dir}/src/kit/taosdump/taosdump.c
+ # sed -i "s/Default is taosdata/Default is prodb/g" ${top_dir}/src/kit/taosdump/taosdump.c
+ # sed -i "s/\"taosdata\"/\"prodb\"/g" ${top_dir}/src/kit/taosdump/taosdump.c
+ # sed -i "s/TDengine/ProDB/g" ${top_dir}/src/kit/taosdump/taosdump.c
+ # sed -i "s/taos\/taos\.cfg/ProDB\/prodb\.cfg/g" ${top_dir}/src/kit/taosdump/taosdump.c
   # src/os/src/linux/linuxEnv.c
   sed -i "s/etc\/taos/etc\/ProDB/g" ${top_dir}/src/os/src/linux/linuxEnv.c
   sed -i "s/lib\/taos/lib\/ProDB/g" ${top_dir}/src/os/src/linux/linuxEnv.c
