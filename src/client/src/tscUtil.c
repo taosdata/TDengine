@@ -1347,9 +1347,9 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
         // set input order
         SQueryInfo* pInputQI = pSqlObjList[0]->cmd.pQueryInfo;
         if(pInputQI) {
-          pex->base.numOfParams = 2;
-          pex->base.param[1].nType = TSDB_DATA_TYPE_INT;
-          pex->base.param[1].i64 = pInputQI->order.order;
+          pex->base.numOfParams = 3;
+          pex->base.param[2].nType = TSDB_DATA_TYPE_INT;
+          pex->base.param[2].i64 = pInputQI->order.order;
         }
       }
     }
