@@ -46,38 +46,38 @@ class TDTestCase:
 
         ====================================================================================================================================
 
-        case1: select * from table|stable[group by tbname]|regular_table
+        case: select * from table|stable[group by tbname]|regular_table
 
-        case2:select elapsed(ts) from table|stable where clause interval (units) [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc];
+        case:select elapsed(ts) from table|stable where clause interval (units) [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc];
         
-        case3:select elapsed(ts) , elapsed(ts,unit_time1)*regular_num1 , elapsed(ts,unit_time1)+regular_num2 from table|stable where clause interval (units) [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc];
+        case:select elapsed(ts) , elapsed(ts,unit_time1)*regular_num1 , elapsed(ts,unit_time1)+regular_num2 from table|stable where clause interval (units) [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc];
         
         //mixup with all functions only once query (it's different with nest query)
-        case4:select elapsed(ts), count(*), avg(col), twa(col), irate(col), sum(col), stddev(col), leastsquares(col, 1, 1),min(col), max(col), first(col), last(col), percentile(col, 20), apercentile(col, 30), last_row(col), spread(col)from table|stable where clause interval (units)  [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc];
+        case:select elapsed(ts), count(*), avg(col), twa(col), irate(col), sum(col), stddev(col), leastsquares(col, 1, 1),min(col), max(col), first(col), last(col), percentile(col, 20), apercentile(col, 30), last_row(col), spread(col)from table|stable where clause interval (units)  [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc];
        
         //mixup with ordinary col 
-        case5:select ts ,elapsed(ts)*10 ,col+5 from table|stable where clause interval (units) [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc];
+        case:select ts ,elapsed(ts)*10 ,col+5 from table|stable where clause interval (units) [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc];
         
         //nest query
-        case6:select elapsed(ts) from (select elapsed(ts), count(*), avg(col), twa(col), irate(col), sum(col), stddev(col), leastsquares(col, 1, 1),min(col), max(col), first(col), last(col), percentile(col, 20), apercentile(col, 30), last_row(col), spread(col)from table|stable where clause interval (units)  [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc]) where clause interval (units)  [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc];
+        case:select elapsed(ts) from (select elapsed(ts), count(*), avg(col), twa(col), irate(col), sum(col), stddev(col), leastsquares(col, 1, 1),min(col), max(col), first(col), last(col), percentile(col, 20), apercentile(col, 30), last_row(col), spread(col)from table|stable where clause interval (units)  [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc]) where clause interval (units)  [fill(LINEAR,NEXT,PREV,VALUE,NULL)] [group by tbname] order [by ts desc asc|desc];
         
         //clause about filter condition
-        case7:select  elapsed(ts) from table|stable[group by tbname] where [ts|col|tag >|<|=|>=|<=|=|<>|!= value] | [between ... and ...] |[in] |[is null|not null] interval (unit_time) ;
-        case8:select  elapsed(ts) from table|stable[group by tbname] where clause1 and clause 2 and clause3  interval (unit_time)  ;
+        case:select  elapsed(ts) from table|stable[group by tbname] where [ts|col|tag >|<|=|>=|<=|=|<>|!= value] | [between ... and ...] |[in] |[is null|not null] interval (unit_time) ;
+        case:select  elapsed(ts) from table|stable[group by tbname] where clause1 and clause 2 and clause3  interval (unit_time)  ;
 
         //JOIN query
-        case9:select elapsed(ts) from TABLE1 as tb1 , TABLE2 as tb2 where join_condition [TABLE1 and TABLE2 can be stable|table|sub_table|empty_table]
+        case:select elapsed(ts) from TABLE1 as tb1 , TABLE2 as tb2 where join_condition [TABLE1 and TABLE2 can be stable|table|sub_table|empty_table]
 
         //UNION ALL query
-        case10:select elapsed(ts) from TABLE1 union all select elapsed(ts) from TABLE2 [TABLE1 and TABLE2 can be stable|table|sub_table|empty_table]
+       case:select elapsed(ts) from TABLE1 union all select elapsed(ts) from TABLE2 [TABLE1 and TABLE2 can be stable|table|sub_table|empty_table]
 
         // Window aggregation
 
-        case11:select elapsed(ts) from t1 where  clause session(ts, time_units) ;
-        case12:select elapsed(ts) from t1 where  clause state_window(regular_nums); 
+        case:select elapsed(ts) from t1 where  clause session(ts, time_units) ;
+        case:select elapsed(ts) from t1 where  clause state_window(regular_nums); 
 
         // Continuous query
-        case13:create table select elapsed(ts)  ,avg(col) from (select elapsed(ts) ts_inter ,avg(col) col from stable|table interval (unit_time) [fill(LINEAR,NEXT,PREV,VALUE,NULL)][group by tbname])  interval (unit_time) [fill(LINEAR,NEXT,PREV,VALUE,NULL) sliding(unit_time_windows);
+        case:create table select elapsed(ts)  ,avg(col) from (select elapsed(ts) ts_inter ,avg(col) col from stable|table interval (unit_time) [fill(LINEAR,NEXT,PREV,VALUE,NULL)][group by tbname])  interval (unit_time) [fill(LINEAR,NEXT,PREV,VALUE,NULL) sliding(unit_time_windows);
 
         ========================================================================================================================================
 
