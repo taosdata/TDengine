@@ -375,6 +375,9 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
     fflush(stdout);
     return;
   }
+  if (flags == NULL || format == NULL) {
+    return;
+  }
 
   va_list        argpointer;
   char           buffer[MAX_LOGLINE_BUFFER_SIZE] = { 0 };
