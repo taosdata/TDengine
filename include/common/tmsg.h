@@ -23,6 +23,7 @@ extern "C" {
 #include "encode.h"
 #include "taosdef.h"
 #include "taoserror.h"
+#include "tarray.h"
 #include "tcoding.h"
 #include "tdataformat.h"
 #include "tlist.h"
@@ -1270,6 +1271,11 @@ typedef struct SVCreateTbReq {
     } ntbCfg;
   };
 } SVCreateTbReq;
+
+typedef struct {
+  uint64_t ver;  // use a general definition
+  SArray*  pArray;
+} SVCreateTbBatchReq;
 
 int   tmsgSVCreateTbReqEncode(SMsgEncoder* pCoder, SVCreateTbReq* pReq);
 int   tmsgSVCreateTbReqDecode(SMsgDecoder* pCoder, SVCreateTbReq* pReq);
