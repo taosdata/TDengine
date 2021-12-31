@@ -787,14 +787,15 @@ TEST_F(IndexEnv2, testIndexOpen) {
 }
 
 TEST_F(IndexEnv2, testIndex_TrigeFlush) {
-  std::string path = "/tmp/test";
+  std::string path = "/tmp/test1";
   if (index->Init(path) != 0) {
     // r
     std::cout << "failed to init" << std::endl;
   }
   int numOfTable = 100 * 10000;
-  index->WriteMillonData("tag1", "Hello", numOfTable);
-  int target = index->SearchOne("tag1", "Hello");
+  index->WriteMillonData("tag1", "Hello Wolrd", numOfTable);
+  int target = index->SearchOne("tag1", "Hello Wolrd");
+  std::cout << "Get Index: " << target << std::endl;
   assert(numOfTable == target);
 }
 
@@ -820,14 +821,6 @@ TEST_F(IndexEnv2, testIndex_serarch_cache_and_tfile) {
     // TOD
     threads[i].join();
   }
-}
-TEST_F(IndexEnv2, testIndex_multi_thread_write) {
-  std::string path = "/tmp";
-  if (index->Init(path) != 0) {}
-}
-TEST_F(IndexEnv2, testIndex_multi_thread_read) {
-  std::string path = "/tmp";
-  if (index->Init(path) != 0) {}
 }
 
 TEST_F(IndexEnv2, testIndex_restart) {

@@ -385,8 +385,10 @@ int indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid) {
 }
 static bool tfileIteratorNext(Iterate* iiter) {
   IterateValue* iv = &iiter->val;
+  if (iv->colVal != NULL && iv->val != NULL) {
+    // indexError("value in fst: colVal: %s, size: %d", iv->colVal, (int)taosArrayGetSize(iv->val));
+  }
   iterateValueDestroy(iv, false);
-  // SArray* tblIds = iv->val;
 
   char*    colVal = NULL;
   uint64_t offset = 0;
@@ -406,7 +408,7 @@ static bool tfileIteratorNext(Iterate* iiter) {
   if (tfileReaderLoadTableIds(tIter->rdr, offset, iv->val) != 0) { return false; }
 
   iv->colVal = colVal;
-
+  return true;
   // std::string key(ch, sz);
 }
 

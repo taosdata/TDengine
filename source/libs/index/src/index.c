@@ -360,6 +360,7 @@ static void indexMergeSameKey(SArray* result, TFileValue* tv) {
   if (sz > 0) {
     // TODO(yihao): remove duplicate tableid
     TFileValue* lv = taosArrayGetP(result, sz - 1);
+    // indexError("merge colVal: %s", lv->colVal);
     if (strcmp(lv->colVal, tv->colVal) == 0) {
       taosArrayAddAll(lv->tableId, tv->tableId);
       tfileValueDestroy(tv);
@@ -368,6 +369,7 @@ static void indexMergeSameKey(SArray* result, TFileValue* tv) {
     }
   } else {
     taosArrayPush(result, &tv);
+    // indexError("merge colVal: %s", tv->colVal);
   }
 }
 static void indexDestroyTempResult(SArray* result) {

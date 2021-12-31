@@ -20,7 +20,7 @@
 
 #define MAX_INDEX_KEY_LEN 256  // test only, change later
 
-#define MEM_TERM_LIMIT 10000 * 10
+#define MEM_TERM_LIMIT 10 * 10000
 // ref index_cache.h:22
 //#define CACHE_KEY_LEN(p) \
 //  (sizeof(int32_t) + sizeof(uint16_t) + sizeof(p->colType) + sizeof(p->nColVal) + p->nColVal + sizeof(uint64_t) +
@@ -353,6 +353,9 @@ static bool indexCacheIteratorNext(Iterate* itera) {
   SSkipListIterator* iter = itera->iter;
   if (iter == NULL) { return false; }
   IterateValue* iv = &itera->val;
+  if (iv->colVal != NULL && iv->val != NULL) {
+    // indexError("value in cache: colVal: %s, size: %d", iv->colVal, (int)taosArrayGetSize(iv->val));
+  }
   iterateValueDestroy(iv, false);
 
   bool next = tSkipListIterNext(iter);
