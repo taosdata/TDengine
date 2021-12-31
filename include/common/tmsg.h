@@ -1271,6 +1271,11 @@ typedef struct SVCreateTbReq {
   };
 } SVCreateTbReq;
 
+typedef struct {
+  uint64_t ver;  // use a general definition
+  SArray*  pArray;
+} SVCreateTbBatchReq;
+
 int   tmsgSVCreateTbReqEncode(SMsgEncoder* pCoder, SVCreateTbReq* pReq);
 int   tmsgSVCreateTbReqDecode(SMsgDecoder* pCoder, SVCreateTbReq* pReq);
 int   tSerializeSVCreateTbReq(void** buf, const SVCreateTbReq* pReq);
