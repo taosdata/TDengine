@@ -355,9 +355,9 @@ typedef struct SEpSet {
 } SEpSet;
 
 static FORCE_INLINE int taosEncodeSEpSet(void** buf, const SEpSet* pEp) {
-  if(buf == NULL) return sizeof(SEpSet);
+  if (buf == NULL) return sizeof(SEpSet);
   memcpy(buf, pEp, sizeof(SEpSet));
-  //TODO: endian conversion
+  // TODO: endian conversion
   return sizeof(SEpSet);
 }
 
@@ -1119,10 +1119,10 @@ typedef struct STaskDropRsp {
 } STaskDropRsp;
 
 typedef struct {
-  int8_t  igExists;
-  char*   name;
-  char*   physicalPlan;
-  char*   logicalPlan;
+  int8_t igExists;
+  char*  name;
+  char*  physicalPlan;
+  char*  logicalPlan;
 } SCMCreateTopicReq;
 
 static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateTopicReq* pReq) {
@@ -1158,8 +1158,8 @@ static FORCE_INLINE void* tDeserializeSCMCreateTopicRsp(void* buf, SCMCreateTopi
 }
 
 typedef struct {
-  char* topicName;
-  char* consumerGroup;
+  char*   topicName;
+  char*   consumerGroup;
   int64_t consumerId;
 } SCMSubscribeReq;
 
@@ -1180,7 +1180,7 @@ static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq
 
 typedef struct {
   int32_t vgId;
-  SEpSet pEpSet;
+  SEpSet  pEpSet;
 } SCMSubscribeRsp;
 
 static FORCE_INLINE int tSerializeSCMSubscribeRsp(void** buf, const SCMSubscribeRsp* pRsp) {
