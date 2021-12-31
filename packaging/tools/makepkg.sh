@@ -1,7 +1,6 @@
 #!/bin/bash
 #
 # Generate tar.gz package for all os system
-source ./sed_replace.sh
 
 set -e
 #set -x
