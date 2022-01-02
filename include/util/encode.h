@@ -125,6 +125,7 @@ static int  tDecodeDouble(SCoder* pDecoder, double* val);
 static int  tDecodeBinary(SCoder* pDecoder, const void** val, uint64_t* len);
 static int  tDecodeCStrAndLen(SCoder* pDecoder, const char** val, uint64_t* len);
 static int  tDecodeCStr(SCoder* pDecoder, const char** val);
+static int  tDecodeCStrTo(SCoder* pDecoder, char* val);
 
 /* ------------------------ IMPL ------------------------ */
 #define TD_ENCODE_MACRO(CODER, VAL, TYPE, BITS)                        \
@@ -383,6 +384,15 @@ static FORCE_INLINE int tDecodeCStrAndLen(SCoder* pDecoder, const char** val, ui
 static FORCE_INLINE int tDecodeCStr(SCoder* pDecoder, const char** val) {
   uint64_t len;
   return tDecodeCStrAndLen(pDecoder, val, &len);
+}
+
+static int tDecodeCStrTo(SCoder* pDecoder, char* val) {
+  const char* pStr;
+  uint64_t    len;
+  if (tDecodeCStrAndLen(pDecoder, &pStr, &len) < 0) return -1;
+
+  memcpy(val, pStr, len+1);
+  return 0;
 }
 
 #ifdef __cplusplus
