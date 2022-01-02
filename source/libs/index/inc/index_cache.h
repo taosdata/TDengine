@@ -42,6 +42,7 @@ typedef struct IndexCache {
   int32_t   version;
   int32_t   nTerm;
   int8_t    type;
+  uint64_t  suid;
 
   pthread_mutex_t mtx;
 } IndexCache;
@@ -58,7 +59,7 @@ typedef struct CacheTerm {
 } CacheTerm;
 //
 
-IndexCache* indexCacheCreate(SIndex* idx, const char* colName, int8_t type);
+IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8_t type);
 
 void indexCacheDestroy(void* cache);
 

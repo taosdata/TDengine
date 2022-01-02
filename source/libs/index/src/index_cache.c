@@ -20,7 +20,7 @@
 
 #define MAX_INDEX_KEY_LEN 256  // test only, change later
 
-#define MEM_TERM_LIMIT 10000 * 10
+#define MEM_TERM_LIMIT 10 * 10000
 // ref index_cache.h:22
 //#define CACHE_KEY_LEN(p) \
 //  (sizeof(int32_t) + sizeof(uint16_t) + sizeof(p->colType) + sizeof(p->nColVal) + p->nColVal + sizeof(uint64_t) +
@@ -40,7 +40,7 @@ static bool indexCacheIteratorNext(Iterate* itera);
 
 static IterateValue* indexCacheIteratorGetValue(Iterate* iter);
 
-IndexCache* indexCacheCreate(SIndex* idx, const char* colName, int8_t type) {
+IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8_t type) {
   IndexCache* cache = calloc(1, sizeof(IndexCache));
   if (cache == NULL) {
     indexError("failed to create index cache");
@@ -53,7 +53,7 @@ IndexCache* indexCacheCreate(SIndex* idx, const char* colName, int8_t type) {
   cache->type = type;
   cache->index = idx;
   cache->version = 0;
-
+  cache->suid = suid;
   pthread_mutex_init(&cache->mtx, NULL);
   indexCacheRef(cache);
   return cache;
@@ -150,6 +150,7 @@ Iterate* indexCacheIteratorCreate(IndexCache* cache) {
 
   MemTable* tbl = cache->imm;
   iiter->val.val = taosArrayInit(1, sizeof(uint64_t));
+  iiter->val.colVal = NULL;
   iiter->iter = tbl != NULL ? tSkipListCreateIter(tbl->mem) : NULL;
   iiter->next = indexCacheIteratorNext;
   iiter->getValue = indexCacheIteratorGetValue;
@@ -353,6 +354,9 @@ static bool indexCacheIteratorNext(Iterate* itera) {
   SSkipListIterator* iter = itera->iter;
   if (iter == NULL) { return false; }
   IterateValue* iv = &itera->val;
+  if (iv->colVal != NULL && iv->val != NULL) {
+    // indexError("value in cache: colVal: %s, size: %d", iv->colVal, (int)taosArrayGetSize(iv->val));
+  }
   iterateValueDestroy(iv, false);
 
   bool next = tSkipListIterNext(iter);

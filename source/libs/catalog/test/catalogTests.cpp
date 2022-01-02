@@ -557,6 +557,8 @@ void *ctgTestGetCtableMetaThread(void *param) {
       assert(0);
     }
 
+    tfree(tbMeta);
+
     if (ctgTestEnableSleep) {
       usleep(rand()%5);
     }
@@ -591,6 +593,8 @@ void *ctgTestSetCtableMetaThread(void *param) {
       printf("Set:%d\n", n);
     }
   }
+
+  tfree(output.tbMeta);
 
   return NULL;
 
@@ -944,7 +948,6 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   catalogDestroy();
 }
 
-#endif
 
 TEST(multiThread, getSetDbVgroupCase) {
   struct SCatalog* pCtg = NULL;
@@ -996,6 +999,9 @@ TEST(multiThread, getSetDbVgroupCase) {
   catalogDestroy();
 }
 
+#endif
+
+
 TEST(multiThread, ctableMeta) {
   struct SCatalog* pCtg = NULL;
   void *mockPointer = (void *)0x1;
@@ -1024,8 +1030,9 @@ TEST(multiThread, ctableMeta) {
   pthread_attr_init(&thattr);
 
   pthread_t thread1, thread2;
-  pthread_create(&(thread1), &thattr, ctgTestGetCtableMetaThread, pCtg);
   pthread_create(&(thread1), &thattr, ctgTestSetCtableMetaThread, pCtg);
+  sleep(1);
+  pthread_create(&(thread1), &thattr, ctgTestGetCtableMetaThread, pCtg);
 
   while (true) {
     if (ctgTestDeadLoop) {

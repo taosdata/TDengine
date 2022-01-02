@@ -457,7 +457,10 @@ TEST_F(IndexTFileEnv, test_tfile_write) {
   // taosArrayPush(data, &v4);
 
   fObj->Put(data);
-  for (size_t i = 0; i < taosArrayGetSize(data); i++) { destroyTFileValue(taosArrayGetP(data, i)); }
+  for (size_t i = 0; i < taosArrayGetSize(data); i++) {
+    // data
+    destroyTFileValue(taosArrayGetP(data, i));
+  }
   taosArrayDestroy(data);
 
   std::string     colName("voltage");
@@ -470,6 +473,7 @@ TEST_F(IndexTFileEnv, test_tfile_write) {
   fObj->Get(&query, result);
   assert(taosArrayGetSize(result) == 200);
   indexTermDestroy(term);
+  taosArrayDestroy(result);
 
   // tfileWriterDestroy(twrite);
 }
@@ -477,7 +481,7 @@ class CacheObj {
  public:
   CacheObj() {
     // TODO
-    cache = indexCacheCreate(NULL, "voltage", TSDB_DATA_TYPE_BINARY);
+    cache = indexCacheCreate(NULL, 0, "voltage", TSDB_DATA_TYPE_BINARY);
   }
   int Put(SIndexTerm* term, int16_t colId, int32_t version, uint64_t uid) {
     int ret = indexCachePut(cache, term, uid);
@@ -534,6 +538,7 @@ TEST_F(IndexCacheEnv, cache_test) {
     SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
     coj->Put(term, colId, version++, suid++);
+    indexTermDestroy(term);
     // indexTermDestry(term);
   }
   {
@@ -541,24 +546,28 @@ TEST_F(IndexCacheEnv, cache_test) {
     SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
     coj->Put(term, colId, version++, suid++);
+    indexTermDestroy(term);
   }
   {
     std::string colVal("v2");
     SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
     coj->Put(term, colId, version++, suid++);
+    indexTermDestroy(term);
   }
   {
     std::string colVal("v3");
     SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
     coj->Put(term, colId, version++, suid++);
+    indexTermDestroy(term);
   }
   {
     std::string colVal("v3");
     SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
     coj->Put(term, colId, version++, suid++);
+    indexTermDestroy(term);
   }
   coj->Debug();
   std::cout << "--------first----------" << std::endl;
@@ -567,12 +576,14 @@ TEST_F(IndexCacheEnv, cache_test) {
     SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
     coj->Put(term, othColId, version++, suid++);
+    indexTermDestroy(term);
   }
   {
     std::string colVal("v4");
     SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
     coj->Put(term, othColId, version++, suid++);
+    indexTermDestroy(term);
   }
   coj->Debug();
   std::cout << "--------second----------" << std::endl;
@@ -583,6 +594,7 @@ TEST_F(IndexCacheEnv, cache_test) {
       SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                          colVal.c_str(), colVal.size());
       coj->Put(term, colId, version++, suid++);
+      indexTermDestroy(term);
     }
   }
   coj->Debug();
@@ -598,6 +610,9 @@ TEST_F(IndexCacheEnv, cache_test) {
     coj->Get(&query, colId, 10000, ret, &valType);
     std::cout << "size : " << taosArrayGetSize(ret) << std::endl;
     assert(taosArrayGetSize(ret) == 4);
+    taosArrayDestroy(ret);
+
+    indexTermDestroy(term);
   }
   {
     std::string     colVal("v2");
@@ -609,6 +624,9 @@ TEST_F(IndexCacheEnv, cache_test) {
 
     coj->Get(&query, colId, 10000, ret, &valType);
     assert(taosArrayGetSize(ret) == 1);
+    taosArrayDestroy(ret);
+
+    indexTermDestroy(term);
   }
 }
 class IndexObj {
@@ -678,13 +696,16 @@ class IndexObj {
 
     SArray* result = (SArray*)taosArrayInit(1, sizeof(uint64_t));
     if (Search(mq, result) == 0) { std::cout << "search one successfully" << std::endl; }
-    return taosArrayGetSize(result);
+    int sz = taosArrayGetSize(result);
+    indexMultiTermQueryDestroy(mq);
+    taosArrayDestroy(result);
+    return sz;
     // assert(taosArrayGetSize(result) == targetSize);
   }
   void PutOne(const std::string& colName, const std::string& colVal) {
+    SIndexMultiTerm* terms = indexMultiTermCreate();
     SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
-    SIndexMultiTerm* terms = indexMultiTermCreate();
     indexMultiTermAdd(terms, term);
     Put(terms, 10);
     indexMultiTermDestroy(terms);
@@ -783,18 +804,21 @@ TEST_F(IndexEnv2, testIndexOpen) {
     index->Search(mq, result);
     std::cout << "target size: " << taosArrayGetSize(result) << std::endl;
     assert(taosArrayGetSize(result) == 400);
+    taosArrayDestroy(result);
+    indexMultiTermQueryDestroy(mq);
   }
 }
 
 TEST_F(IndexEnv2, testIndex_TrigeFlush) {
-  std::string path = "/tmp/test";
+  std::string path = "/tmp/test1";
   if (index->Init(path) != 0) {
     // r
     std::cout << "failed to init" << std::endl;
   }
   int numOfTable = 100 * 10000;
-  index->WriteMillonData("tag1", "Hello", numOfTable);
-  int target = index->SearchOne("tag1", "Hello");
+  index->WriteMillonData("tag1", "Hello Wolrd", numOfTable);
+  int target = index->SearchOne("tag1", "Hello Wolrd");
+  std::cout << "Get Index: " << target << std::endl;
   assert(numOfTable == target);
 }
 
@@ -820,14 +844,6 @@ TEST_F(IndexEnv2, testIndex_serarch_cache_and_tfile) {
     // TOD
     threads[i].join();
   }
-}
-TEST_F(IndexEnv2, testIndex_multi_thread_write) {
-  std::string path = "/tmp";
-  if (index->Init(path) != 0) {}
-}
-TEST_F(IndexEnv2, testIndex_multi_thread_read) {
-  std::string path = "/tmp";
-  if (index->Init(path) != 0) {}
 }
 
 TEST_F(IndexEnv2, testIndex_restart) {

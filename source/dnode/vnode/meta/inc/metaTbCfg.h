@@ -22,10 +22,6 @@
 extern "C" {
 #endif
 
-#define META_SUPER_TABLE TD_SUPER_TABLE
-#define META_CHILD_TABLE TD_CHILD_TABLE
-#define META_NORMAL_TABLE TD_NORMAL_TABLE
-
 int    metaValidateTbCfg(SMeta *pMeta, const STbCfg *);
 size_t metaEncodeTbObjFromTbOptions(const STbCfg *, void *pBuf, size_t bsize);
 

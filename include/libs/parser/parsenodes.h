@@ -27,7 +27,7 @@ extern "C" {
 #include "tname.h"
 #include "tvariant.h"
 
-/*
+/**
  * The first field of a node of any type is guaranteed to be the int16_t.
  * Hence the type of any node can be gotten by casting it to SQueryNode. 
  */
@@ -157,7 +157,7 @@ typedef struct SVgDataBlocks {
 typedef struct SInsertStmtInfo {
   int16_t     nodeType;
   SArray*     pDataBlocks;         // data block for each vgroup, SArray<SVgDataBlocks*>.
-  int8_t      schemaAttache;        // denote if submit block is built with table schema or not
+  int8_t      schemaAttache;       // denote if submit block is built with table schema or not
   uint8_t     payloadType;         // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
   uint32_t    insertType;          // insert data from [file|sql statement| bound statement]
   const char* sql;                 // current sql statement position

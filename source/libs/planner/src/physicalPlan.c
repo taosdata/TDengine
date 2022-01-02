@@ -34,7 +34,7 @@ static const char* gOpName[] = {
 #undef INCLUDE_AS_NAME
 };
 
-static void* vailidPointer(void* p) {
+static void* validPointer(void* p) {
   if (NULL == p) {
     THROW(TSDB_CODE_TSC_OUT_OF_MEMORY);
   }
@@ -76,7 +76,7 @@ int32_t dsinkNameToDsinkType(const char* name) {
 }
 
 static SDataSink* initDataSink(int32_t type, int32_t size) {
-  SDataSink* sink = (SDataSink*)vailidPointer(calloc(1, size));
+  SDataSink* sink = (SDataSink*)validPointer(calloc(1, size));
   sink->info.type = type;
   sink->info.name = dsinkTypeToDsinkName(type);
   return sink;
@@ -121,7 +121,7 @@ static bool cloneExprArray(SArray** dst, SArray* src) {
 }
 
 static SPhyNode* initPhyNode(SQueryPlanNode* pPlanNode, int32_t type, int32_t size) {
-  SPhyNode* node = (SPhyNode*)vailidPointer(calloc(1, size));
+  SPhyNode* node = (SPhyNode*)validPointer(calloc(1, size));
   node->info.type = type;
   node->info.name = opTypeToOpName(type);
   if (!cloneExprArray(&node->pTargets, pPlanNode->pExpr) || !toDataBlockSchema(pPlanNode, &(node->targetSchema))) {
@@ -184,7 +184,7 @@ static SPhyNode* createMultiTableScanNode(SQueryPlanNode* pPlanNode, SQueryTable
 }
 
 static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
-  SSubplan* subplan = vailidPointer(calloc(1, sizeof(SSubplan)));
+  SSubplan* subplan = validPointer(calloc(1, sizeof(SSubplan)));
   subplan->id = pCxt->nextId;
   ++(pCxt->nextId.subplanId);
   subplan->type = type;
@@ -192,15 +192,15 @@ static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
   if (NULL != pCxt->pCurrentSubplan) {
     subplan->level = pCxt->pCurrentSubplan->level + 1;
     if (NULL == pCxt->pCurrentSubplan->pChildern) {
-      pCxt->pCurrentSubplan->pChildern = vailidPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
+      pCxt->pCurrentSubplan->pChildern = validPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
     }
     taosArrayPush(pCxt->pCurrentSubplan->pChildern, &subplan);
-    subplan->pParents = vailidPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
+    subplan->pParents = validPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
     taosArrayPush(subplan->pParents, &pCxt->pCurrentSubplan);
   }
   SArray* currentLevel;
   if (subplan->level >= taosArrayGetSize(pCxt->pDag->pSubplans)) {
-    currentLevel = vailidPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
+    currentLevel = validPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
     taosArrayPush(pCxt->pDag->pSubplans, &currentLevel);
   } else {
     currentLevel = taosArrayGetP(pCxt->pDag->pSubplans, subplan->level);
@@ -272,7 +272,7 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
     case QNODE_TABLESCAN:
       node = createTableScanNode(pCxt, pPlanNode);
       break;
-    case QNODE_INSERT:
+    case QNODE_MODIFY:
       // Insert is not an operator in a physical plan.
       break;
     default:
@@ -306,7 +306,7 @@ static void splitInsertSubplan(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
 }
 
 static void createSubplanByLevel(SPlanContext* pCxt, SQueryPlanNode* pRoot) {
-  if (QNODE_INSERT == pRoot->info.type) {
+  if (QNODE_MODIFY == pRoot->info.type) {
     splitInsertSubplan(pCxt, pRoot);
   } else {
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_MERGE);
@@ -321,12 +321,12 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
   TRY(TSDB_MAX_TAG_CONDITIONS) {
     SPlanContext context = {
       .pCatalog = pCatalog,
-      .pDag = vailidPointer(calloc(1, sizeof(SQueryDag))),
+      .pDag = validPointer(calloc(1, sizeof(SQueryDag))),
       .pCurrentSubplan = NULL,
       .nextId = {0} // todo queryid
     };
     *pDag = context.pDag;
-    context.pDag->pSubplans = vailidPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
+    context.pDag->pSubplans = validPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
     createSubplanByLevel(&context, pQueryNode);
   } CATCH(code) {
     CLEANUP_EXECUTE();
