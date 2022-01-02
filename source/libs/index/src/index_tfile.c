@@ -360,7 +360,7 @@ IndexTFile* indexTFileCreate(const char* path) {
   tfile->cache = tfileCacheCreate(path);
   return tfile;
 }
-void IndexTFileDestroy(IndexTFile* tfile) {
+void indexTFileDestroy(IndexTFile* tfile) {
   tfileCacheDestroy(tfile->cache);
   free(tfile);
 }
@@ -415,7 +415,7 @@ static bool tfileIteratorNext(Iterate* iiter) {
 static IterateValue* tifileIterateGetValue(Iterate* iter) { return &iter->val; }
 
 static TFileFstIter* tfileFstIteratorCreate(TFileReader* reader) {
-  TFileFstIter* tIter = calloc(1, sizeof(Iterate));
+  TFileFstIter* tIter = calloc(1, sizeof(TFileFstIter));
   if (tIter == NULL) { return NULL; }
 
   tIter->ctx = automCtxCreate(NULL, AUTOMATION_ALWAYS);
@@ -437,6 +437,7 @@ Iterate* tfileIteratorCreate(TFileReader* reader) {
   iter->next = tfileIteratorNext;
   iter->getValue = tifileIterateGetValue;
   iter->val.val = taosArrayInit(1, sizeof(uint64_t));
+  iter->val.colVal = NULL;
   return iter;
 }
 void tfileIteratorDestroy(Iterate* iter) {
@@ -449,6 +450,7 @@ void tfileIteratorDestroy(Iterate* iter) {
   streamWithStateDestroy(tIter->st);
   fstStreamBuilderDestroy(tIter->fb);
   automCtxDestroy(tIter->ctx);
+  free(tIter);
 
   free(iter);
 }
@@ -482,7 +484,7 @@ static int tfileValueCompare(const void* a, const void* b, const void* param) {
 TFileValue* tfileValueCreate(char* val) {
   TFileValue* tf = calloc(1, sizeof(TFileValue));
   if (tf == NULL) { return NULL; }
-  tf->colVal = val;
+  tf->colVal = tstrdup(val);
   tf->tableId = taosArrayInit(32, sizeof(uint64_t));
   return tf;
 }
@@ -493,6 +495,7 @@ int tfileValuePush(TFileValue* tf, uint64_t val) {
 }
 void tfileValueDestroy(TFileValue* tf) {
   taosArrayDestroy(tf->tableId);
+  free(tf->colVal);
   free(tf);
 }
 static void tfileSerialTableIdsToBuf(char* buf, SArray* ids) {

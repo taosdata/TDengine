@@ -117,6 +117,7 @@ int          tfileWriterFinish(TFileWriter* tw);
 
 //
 IndexTFile* indexTFileCreate(const char* path);
+void        indexTFileDestroy(IndexTFile* tfile);
 int         indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid);
 int         indexTFileSearch(void* tfile, SIndexTermQuery* query, SArray* result);
 

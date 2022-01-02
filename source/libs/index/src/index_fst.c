@@ -1062,6 +1062,7 @@ Output fstEmptyFinalOutput(Fst* fst, bool* null) {
   } else {
     *null = true;
   }
+  fstNodeDestroy(node);
   return res;
 }
 
@@ -1286,6 +1287,7 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
       StreamWithStateResult* result = swsResultCreate(&slice, fOutput, tState);
       free(buf);
       fstSliceDestroy(&slice);
+      taosArrayDestroy(nodes);
       return result;
     }
     free(buf);

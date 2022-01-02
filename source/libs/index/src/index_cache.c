@@ -150,6 +150,7 @@ Iterate* indexCacheIteratorCreate(IndexCache* cache) {
 
   MemTable* tbl = cache->imm;
   iiter->val.val = taosArrayInit(1, sizeof(uint64_t));
+  iiter->val.colVal = NULL;
   iiter->iter = tbl != NULL ? tSkipListCreateIter(tbl->mem) : NULL;
   iiter->next = indexCacheIteratorNext;
   iiter->getValue = indexCacheIteratorGetValue;
