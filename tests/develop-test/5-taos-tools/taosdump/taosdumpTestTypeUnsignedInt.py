@@ -81,13 +81,13 @@ class TDTestCase:
             os.makedirs(self.tmpdir)
 
         os.system(
-            "%staosdump --databases db -o %s -T 1" %
+            "%staosdump --databases db -o %s -T 1 -g" %
             (binPath, self.tmpdir))
 
 #        sys.exit(1)
         tdSql.execute("drop database db")
 
-        os.system("%staosdump -i %s -T 1" % (binPath, self.tmpdir))
+        os.system("%staosdump -i %s -T 1 -g" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
         tdSql.checkRows(1)
@@ -104,7 +104,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         tdSql.checkData(0, 1, 0)
-        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 2, 0)
 
         tdSql.query("select * from st where untag = 4294967294")
         tdSql.checkRows(1)
