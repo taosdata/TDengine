@@ -244,9 +244,18 @@ static FORCE_INLINE int tEncodeDouble(SCoder* pEncoder, double val) {
   return tEncodeU64(pEncoder, v.ui);
 }
 
-static FORCE_INLINE int tEncodeCStr(SCoder* pEncoder, const char* val) {
-  // TODO
+static FORCE_INLINE int tEncodeCstrWithLen(SCoder* pEncoder, const char* val, size_t len) {
+  if (tEncodeI32v(pEncoder, len) < 0) return -1;
+  if (pEncoder->data) {
+    if (TD_CODER_CHECK_CAPACITY_FAILED(pEncoder, len + 1)) return -1;
+    memcpy(TD_CODER_CURRENT(pEncoder), val, len + 1);
+  }
+  TD_CODER_MOVE_POS(pEncoder, len + 1);
   return 0;
+}
+
+static FORCE_INLINE int tEncodeCStr(SCoder* pEncoder, const char* val) {
+  return tEncodeCstrWithLen(pEncoder, val, strlen(val));
 }
 
 /* ------------------------ FOR DECODER ------------------------ */
