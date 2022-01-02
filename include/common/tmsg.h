@@ -58,6 +58,7 @@ extern int   tMsgDict[];
 typedef uint16_t tmsg_t;
 
 /* ------------------------ ENCODE/DECODE FUNCTIONS AND MACROS ------------------------ */
+#if 0
 struct SMEListNode {
   TD_SLIST_NODE(SMEListNode);
   SEncoder coder;
@@ -96,6 +97,7 @@ typedef struct SMsgDecoder {
 
 void tmsgInitMsgDecoder(SMsgDecoder* pMD, td_endian_t endian, uint8_t* data, int64_t size);
 void tmsgClearMsgDecoder(SMsgDecoder* pMD);
+#endif
 
 /* ------------------------ OTHER DEFINITIONS ------------------------ */
 // IE type
@@ -1283,8 +1285,8 @@ typedef struct {
   SArray*  pArray;
 } SVCreateTbBatchReq;
 
-int   tmsgSVCreateTbReqEncode(SMsgEncoder* pCoder, SVCreateTbReq* pReq);
-int   tmsgSVCreateTbReqDecode(SMsgDecoder* pCoder, SVCreateTbReq* pReq);
+// int   tmsgSVCreateTbReqEncode(SMsgEncoder* pCoder, SVCreateTbReq* pReq);
+// int   tmsgSVCreateTbReqDecode(SMsgDecoder* pCoder, SVCreateTbReq* pReq);
 int   tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
 void* tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
 int   tSVCreateTbBatchReqSerialize(void** buf, SVCreateTbBatchReq* pReq);

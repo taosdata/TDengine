@@ -27,12 +27,15 @@
 #undef TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
 
+#if 0
 static int  tmsgStartEncode(SMsgEncoder *pME);
 static void tmsgEndEncode(SMsgEncoder *pME);
 static int  tmsgStartDecode(SMsgDecoder *pMD);
 static void tmsgEndDecode(SMsgDecoder *pMD);
+#endif
 
 /* ------------------------ ENCODE/DECODE FUNCTIONS ------------------------ */
+#if 0
 void tmsgInitMsgEncoder(SMsgEncoder *pME, td_endian_t endian, uint8_t *data, int64_t size) {
   tInitEncoder(&(pME->coder), endian, data, size);
   TD_SLIST_INIT(&(pME->eStack));
@@ -74,8 +77,10 @@ void tmsgClearMsgDecoder(SMsgDecoder *pMD) {
     }
   }
 }
+#endif
 
 /* ------------------------ MESSAGE ENCODE/DECODE ------------------------ */
+#if 0
 int tmsgSVCreateTbReqEncode(SMsgEncoder *pCoder, SVCreateTbReq *pReq) {
   tmsgStartEncode(pCoder);
   // TODO
@@ -97,6 +102,7 @@ int tmsgSVCreateTbReqDecode(SMsgDecoder *pCoder, SVCreateTbReq *pReq) {
   tmsgEndDecode(pCoder);
   return 0;
 }
+#endif
 
 int tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
   int tlen = 0;
@@ -221,6 +227,7 @@ void *tSVCreateTbBatchReqDeserialize(void *buf, SVCreateTbBatchReq *pReq) {
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */
+#if 0
 static int tmsgStartEncode(SMsgEncoder *pME) {
   struct SMEListNode *pNode = (struct SMEListNode *)malloc(sizeof(*pNode));
   if (TD_IS_NULL(pNode)) return -1;
@@ -279,3 +286,4 @@ static void tmsgEndDecode(SMsgDecoder *pMD) {
 
   free(pNode);
 }
+#endif

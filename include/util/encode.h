@@ -74,52 +74,52 @@ typedef struct {
 #define TD_CODER_POS(CODER) ((CODER)->pos)
 #define TD_CODER_CURRENT(CODER) ((CODER)->data + (CODER)->pos)
 #define TD_CODER_MOVE_POS(CODER, MOVE) ((CODER)->pos += (MOVE))
-#define TD_CHECK_CODER_CAPACITY_FAILED(CODER, EXPSIZE) (((CODER)->size - (CODER)->pos) < (EXPSIZE))
+#define TD_CODER_CHECK_CAPACITY_FAILED(CODER, EXPSIZE) (((CODER)->size - (CODER)->pos) < (EXPSIZE))
 
 void tCoderInit(SCoder* pCoder, td_endian_t endian, uint8_t* data, int32_t size, td_coder_t type);
 void tCoderClear(SCoder* pCoder);
 
 /* ------------------------ ENCODE ------------------------ */
-int  tStartEncode(SCoder* pEncoder);
-void tEndEncode(SCoder* pEncoder);
-int  tEncodeU8(SCoder* pEncoder, uint8_t val);
-int  tEncodeI8(SCoder* pEncoder, int8_t val);
-int  tEncodeU16(SCoder* pEncoder, uint16_t val);
-int  tEncodeI16(SCoder* pEncoder, int16_t val);
-int  tEncodeU32(SCoder* pEncoder, uint32_t val);
-int  tEncodeI32(SCoder* pEncoder, int32_t val);
-int  tEncodeU64(SCoder* pEncoder, uint64_t val);
-int  tEncodeI64(SCoder* pEncoder, int64_t val);
-int  tEncodeU16v(SCoder* pEncoder, uint16_t val);
-int  tEncodeI16v(SCoder* pEncoder, int16_t val);
-int  tEncodeU32v(SCoder* pEncoder, uint32_t val);
-int  tEncodeI32v(SCoder* pEncoder, int32_t val);
-int  tEncodeU64v(SCoder* pEncoder, uint64_t val);
-int  tEncodeI64v(SCoder* pEncoder, int64_t val);
-int  tEncodeFloat(SCoder* pEncoder, float val);
-int  tEncodeDouble(SCoder* pEncoder, double val);
-int  tEncodeCStr(SCoder* pEncoder, const char* val);
+static int  tStartEncode(SCoder* pEncoder);
+static void tEndEncode(SCoder* pEncoder);
+static int  tEncodeU8(SCoder* pEncoder, uint8_t val);
+static int  tEncodeI8(SCoder* pEncoder, int8_t val);
+static int  tEncodeU16(SCoder* pEncoder, uint16_t val);
+static int  tEncodeI16(SCoder* pEncoder, int16_t val);
+static int  tEncodeU32(SCoder* pEncoder, uint32_t val);
+static int  tEncodeI32(SCoder* pEncoder, int32_t val);
+static int  tEncodeU64(SCoder* pEncoder, uint64_t val);
+static int  tEncodeI64(SCoder* pEncoder, int64_t val);
+static int  tEncodeU16v(SCoder* pEncoder, uint16_t val);
+static int  tEncodeI16v(SCoder* pEncoder, int16_t val);
+static int  tEncodeU32v(SCoder* pEncoder, uint32_t val);
+static int  tEncodeI32v(SCoder* pEncoder, int32_t val);
+static int  tEncodeU64v(SCoder* pEncoder, uint64_t val);
+static int  tEncodeI64v(SCoder* pEncoder, int64_t val);
+static int  tEncodeFloat(SCoder* pEncoder, float val);
+static int  tEncodeDouble(SCoder* pEncoder, double val);
+static int  tEncodeCStr(SCoder* pEncoder, const char* val);
 
 /* ------------------------ DECODE ------------------------ */
-int  tStartDecode(SCoder* pDecoder);
-void tEndDecode(SCoder* pDecoder);
-int  tDecodeU8(SCoder* pDecoder, uint8_t* val);
-int  tDecodeI8(SCoder* pDecoder, int8_t* val);
-int  tDecodeU16(SCoder* pDecoder, uint16_t* val);
-int  tDecodeI16(SCoder* pDecoder, int16_t* val);
-int  tDecodeU32(SCoder* pDecoder, uint32_t* val);
-int  tDecodeI32(SCoder* pDecoder, int32_t* val);
-int  tDecodeU64(SCoder* pDecoder, uint64_t* val);
-int  tDecodeI64(SCoder* pDecoder, int64_t* val);
-int  tDecodeU16v(SCoder* pDecoder, uint16_t* val);
-int  tDecodeI16v(SCoder* pDecoder, int16_t* val);
-int  tDecodeU32v(SCoder* pDecoder, uint32_t* val);
-int  tDecodeI32v(SCoder* pDecoder, int32_t* val);
-int  tDecodeU64v(SCoder* pDecoder, uint64_t* val);
-int  tDecodeI64v(SCoder* pDecoder, int64_t* val);
-int  tDecodeFloat(SCoder* pDecoder, float* val);
-int  tDecodeDouble(SCoder* pDecoder, double* val);
-int  tDecodeCStr(SCoder* pEncoder, const char** val);
+static int  tStartDecode(SCoder* pDecoder);
+static void tEndDecode(SCoder* pDecoder);
+static int  tDecodeU8(SCoder* pDecoder, uint8_t* val);
+static int  tDecodeI8(SCoder* pDecoder, int8_t* val);
+static int  tDecodeU16(SCoder* pDecoder, uint16_t* val);
+static int  tDecodeI16(SCoder* pDecoder, int16_t* val);
+static int  tDecodeU32(SCoder* pDecoder, uint32_t* val);
+static int  tDecodeI32(SCoder* pDecoder, int32_t* val);
+static int  tDecodeU64(SCoder* pDecoder, uint64_t* val);
+static int  tDecodeI64(SCoder* pDecoder, int64_t* val);
+static int  tDecodeU16v(SCoder* pDecoder, uint16_t* val);
+static int  tDecodeI16v(SCoder* pDecoder, int16_t* val);
+static int  tDecodeU32v(SCoder* pDecoder, uint32_t* val);
+static int  tDecodeI32v(SCoder* pDecoder, int32_t* val);
+static int  tDecodeU64v(SCoder* pDecoder, uint64_t* val);
+static int  tDecodeI64v(SCoder* pDecoder, int64_t* val);
+static int  tDecodeFloat(SCoder* pDecoder, float* val);
+static int  tDecodeDouble(SCoder* pDecoder, double* val);
+static int  tDecodeCStr(SCoder* pEncoder, const char** val);
 
 /* ------------------------ IMPL ------------------------ */
 #define TD_ENCODE_MACRO(CODER, VAL, TYPE, BITS)                        \
