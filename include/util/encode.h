@@ -99,6 +99,7 @@ static int  tEncodeU64v(SCoder* pEncoder, uint64_t val);
 static int  tEncodeI64v(SCoder* pEncoder, int64_t val);
 static int  tEncodeFloat(SCoder* pEncoder, float val);
 static int  tEncodeDouble(SCoder* pEncoder, double val);
+static int  tEncodeBinary(SCoder* pEncoder, const void* val, uint64_t len);
 static int  tEncodeCstrWithLen(SCoder* pEncoder, const char* val, uint64_t len);
 static int  tEncodeCStr(SCoder* pEncoder, const char* val);
 
@@ -121,8 +122,9 @@ static int  tDecodeU64v(SCoder* pDecoder, uint64_t* val);
 static int  tDecodeI64v(SCoder* pDecoder, int64_t* val);
 static int  tDecodeFloat(SCoder* pDecoder, float* val);
 static int  tDecodeDouble(SCoder* pDecoder, double* val);
+static int  tDecodeBinary(SCoder* pDecoder, const void** val, uint64_t* len);
 static int  tDecodeCStrAndLen(SCoder* pDecoder, const char** val, uint64_t* len);
-static int  tDecodeCStr(SCoder* pEncoder, const char** val);
+static int  tDecodeCStr(SCoder* pDecoder, const char** val);
 
 /* ------------------------ IMPL ------------------------ */
 #define TD_ENCODE_MACRO(CODER, VAL, TYPE, BITS)                        \
@@ -247,6 +249,17 @@ static FORCE_INLINE int tEncodeDouble(SCoder* pEncoder, double val) {
   return tEncodeU64(pEncoder, v.ui);
 }
 
+static FORCE_INLINE int tEncodeBinary(SCoder* pEncoder, const void* val, uint64_t len) {
+  if (tEncodeU64v(pEncoder, len) < 0) return -1;
+  if (pEncoder->data) {
+    if (TD_CODER_CHECK_CAPACITY_FAILED(pEncoder, len)) return -1;
+    memcpy(TD_CODER_CURRENT(pEncoder), len);
+  }
+
+  TD_CODER_MOVE_POS(pEncoder, len);
+  return 0;
+}
+
 static FORCE_INLINE int tEncodeCstrWithLen(SCoder* pEncoder, const char* val, uint64_t len) {
   if (tEncodeU64v(pEncoder, len) < 0) return -1;
   if (pEncoder->data) {
@@ -354,6 +367,16 @@ static FORCE_INLINE int tDecodeDouble(SCoder* pDecoder, double* val) {
   }
 
   *val = v.d;
+  return 0;
+}
+
+static FORCE_INLINE int tDecodeBinary(SCoder* pDecoder, const void** val, uint64_t* len) {
+  if (tDecodeU64v(pDecoder, &len) < 0) return -1;
+
+  if (TD_CODER_CHECK_CAPACITY_FAILED(pDecoder, *len)) return -1;
+  *val = (void*)TD_CODER_CURRENT(pDecoder);
+
+  TD_CODER_MOVE_POS(pDecoder, *len);
   return 0;
 }
 
