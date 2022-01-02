@@ -281,6 +281,7 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
     default:
       assert(false);
   }
+
   if (pPlanNode->pChildren != NULL && taosArrayGetSize(pPlanNode->pChildren) > 0) {
     node->pChildren = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
     size_t size = taosArrayGetSize(pPlanNode->pChildren);
@@ -290,6 +291,7 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
       taosArrayPush(node->pChildren, &child);
     }
   }
+
   return node;
 }
 
@@ -316,9 +318,11 @@ static void createSubplanByLevel(SPlanContext* pCxt, SQueryPlanNode* pRoot) {
   if (QNODE_MODIFY == pRoot->info.type) {
     splitModificationOpSubPlan(pCxt, pRoot);
   } else {
-    SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_MERGE);
+    SSubplan* subplan  = initSubplan(pCxt, QUERY_TYPE_MERGE);
     ++(pCxt->nextId.templateId);
-    subplan->pNode = createPhyNode(pCxt, pRoot);
+
+    subplan->msgType   = TDMT_VND_QUERY;
+    subplan->pNode     = createPhyNode(pCxt, pRoot);
     subplan->pDataSink = createDataDispatcher(pCxt, pRoot);
   }
   // todo deal subquery
