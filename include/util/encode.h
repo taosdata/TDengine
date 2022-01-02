@@ -361,7 +361,7 @@ static FORCE_INLINE int tDecodeCStrAndLen(SCoder* pDecoder, const char** val, ui
   if (tDecodeU64v(pDecoder, len) < 0) return -1;
 
   if (TD_CODER_CHECK_CAPACITY_FAILED(pDecoder, *len + 1)) return -1;
-  *val = (char *)TD_CODER_CURRENT(pDecoder);
+  *val = (char*)TD_CODER_CURRENT(pDecoder);
 
   TD_CODER_MOVE_POS(pDecoder, *len + 1);
   return 0;
