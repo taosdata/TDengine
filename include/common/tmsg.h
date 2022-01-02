@@ -57,48 +57,6 @@ extern int   tMsgDict[];
 
 typedef uint16_t tmsg_t;
 
-/* ------------------------ ENCODE/DECODE FUNCTIONS AND MACROS ------------------------ */
-#if 0
-struct SMEListNode {
-  TD_SLIST_NODE(SMEListNode);
-  SEncoder coder;
-};
-
-typedef struct SMsgEncoder {
-  SEncoder coder;
-  TD_SLIST(SMEListNode) eStack;  // encode stack
-} SMsgEncoder;
-
-struct SMDFreeListNode {
-  TD_SLIST_NODE(SMDFreeListNode);
-  char payload[];
-};
-
-struct SMDListNode {
-  TD_SLIST_NODE(SMDListNode);
-  SDecoder coder;
-};
-
-typedef struct SMsgDecoder {
-  SDecoder coder;
-  TD_SLIST(SMDListNode) dStack;
-  TD_SLIST(SMDFreeListNode) freeList;
-} SMsgDecoder;
-
-#define TMSG_MALLOC(SIZE, DECODER)                                         \
-  ({                                                                       \
-    void* ptr = malloc((SIZE) + sizeof(struct SMDFreeListNode));           \
-    if (ptr) {                                                             \
-      TD_SLIST_PUSH(&((DECODER)->freeList), (struct SMDFreeListNode*)ptr); \
-      ptr = POINTER_SHIFT(ptr, sizeof(struct SMDFreeListNode*));           \
-    }                                                                      \
-    ptr;                                                                   \
-  })
-
-void tmsgInitMsgDecoder(SMsgDecoder* pMD, td_endian_t endian, uint8_t* data, int64_t size);
-void tmsgClearMsgDecoder(SMsgDecoder* pMD);
-#endif
-
 /* ------------------------ OTHER DEFINITIONS ------------------------ */
 // IE type
 #define TSDB_IE_TYPE_SEC 1
