@@ -49,13 +49,6 @@ typedef struct TFileValue {
   int32_t offset;
 } TFileValue;
 
-typedef struct TFileCacheKey {
-  uint64_t suid;
-  uint8_t  colType;
-  char*    colName;
-  int32_t  nColName;
-} TFileCacheKey;
-
 // table cache
 // refactor to LRU cache later
 typedef struct TFileCache {
@@ -103,10 +96,10 @@ typedef struct TFileReaderOpt {
 // tfile cache, manage tindex reader
 TFileCache*  tfileCacheCreate(const char* path);
 void         tfileCacheDestroy(TFileCache* tcache);
-TFileReader* tfileCacheGet(TFileCache* tcache, TFileCacheKey* key);
-void         tfileCachePut(TFileCache* tcache, TFileCacheKey* key, TFileReader* reader);
+TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key);
+void         tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader);
 
-TFileReader* tfileGetReaderByCol(IndexTFile* tf, char* colName);
+TFileReader* tfileGetReaderByCol(IndexTFile* tf, uint64_t suid, char* colName);
 
 TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const char* colName);
 TFileReader* tfileReaderCreate(WriterCtx* ctx);

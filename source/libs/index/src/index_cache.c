@@ -40,7 +40,7 @@ static bool indexCacheIteratorNext(Iterate* itera);
 
 static IterateValue* indexCacheIteratorGetValue(Iterate* iter);
 
-IndexCache* indexCacheCreate(SIndex* idx, const char* colName, int8_t type) {
+IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8_t type) {
   IndexCache* cache = calloc(1, sizeof(IndexCache));
   if (cache == NULL) {
     indexError("failed to create index cache");
@@ -53,7 +53,7 @@ IndexCache* indexCacheCreate(SIndex* idx, const char* colName, int8_t type) {
   cache->type = type;
   cache->index = idx;
   cache->version = 0;
-
+  cache->suid = suid;
   pthread_mutex_init(&cache->mtx, NULL);
   indexCacheRef(cache);
   return cache;

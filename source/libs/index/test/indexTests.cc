@@ -477,7 +477,7 @@ class CacheObj {
  public:
   CacheObj() {
     // TODO
-    cache = indexCacheCreate(NULL, "voltage", TSDB_DATA_TYPE_BINARY);
+    cache = indexCacheCreate(NULL, 0, "voltage", TSDB_DATA_TYPE_BINARY);
   }
   int Put(SIndexTerm* term, int16_t colId, int32_t version, uint64_t uid) {
     int ret = indexCachePut(cache, term, uid);
