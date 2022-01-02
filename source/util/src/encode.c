@@ -14,28 +14,15 @@
  */
 
 #include "encode.h"
-#include "freelist.h"
 
-#define CODER_NODE_FIELDS \
-  uint8_t* data;          \
-  int32_t  size;          \
-  int32_t  pos;
+void tCoderInit(SCoder* pCoder, td_endian_t endian, uint8_t* data, int32_t size, td_coder_t type) {
+  if (type == TD_ENCODER) {
+    if (data == NULL) size = 0;
+  } else {
+    ASSERT(data && size > 0);
+  }
 
-struct SCoderNode {
-  TD_SLIST_NODE(SCoderNode);
-  CODER_NODE_FIELDS
-};
-
-typedef struct {
-  td_endian_t endian;
-  SFreeList   fl;
-  CODER_NODE_FIELDS
-  TD_SLIST(SCoderNode) stack;
-} SCoder;
-
-bool tDecodeIsEnd(SCoder* pCoder) { return (pCoder->size == pCoder->pos); }
-
-void tCoderInit(SCoder* pCoder, td_endian_t endian, uint8_t* data, int32_t size) {
+  pCoder->type = type;
   pCoder->endian = endian;
   pCoder->data = data;
   pCoder->size = size;
@@ -54,6 +41,8 @@ void tCoderClear(SCoder* pCoder) {
     free(pNode);
   }
 }
+
+bool tDecodeIsEnd(SCoder* pCoder) { return (pCoder->size == pCoder->pos); }
 
 int tStartEncode(SCoder* pCoder) {
   struct SCoderNode* pNode;
