@@ -524,11 +524,11 @@ int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
 
   assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
 
-  wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
-  wchar_t *str = calloc(size + 1, sizeof(wchar_t));
+  char *pattern = calloc(varDataLen(pRight) + TSDB_NCHAR_SIZE, 1);
+  char *str = calloc(varDataLen(pLeft) + TSDB_NCHAR_SIZE, 1);
 
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
-  memcpy(str, varDataVal(pLeft), size * sizeof(wchar_t));
+  memcpy(str, varDataVal(pLeft), varDataLen(pLeft));
 
   int32_t ret = WCSPatternMatch((uint32_t *)pattern, (uint32_t *)str, size, &pInfo);
 

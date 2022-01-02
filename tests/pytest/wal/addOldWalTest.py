@@ -27,7 +27,7 @@ class TDTestCase:
     
     def createOldDir(self):
         oldDir = tdDnodes.getDnodesRootDir() + "dnode1/data/vnode/vnode2/wal/old"
-        os.system("sudo mkdir -p %s" % oldDir)
+        os.makedirs(oldDir, exist_ok=True) # like "mkdir -p"
     
     def createOldDirAndAddWal(self):
         oldDir = tdDnodes.getDnodesRootDir() + "dnode1/data/vnode/vnode2/wal/old"        

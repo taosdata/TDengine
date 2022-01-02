@@ -53,7 +53,7 @@ class TDCases:
         # TODO: load all Linux cases here
         runNum = 0
         for tmp in self.linuxCases:
-            if tmp.name.find(fileName) != -1:
+            if tmp.name.find(os.path.normcase(fileName)) != -1:
                 case = testModule.TDTestCase()
                 case.init(conn)
                 case.run()
@@ -68,7 +68,7 @@ class TDCases:
 
         runNum = 0
         for tmp in self.linuxCases:
-            if tmp.name.find(fileName) != -1:
+            if tmp.name.find(os.path.normcase(fileName)) != -1:
                 case = testModule.TDTestCase()
                 case.init(conn, self._logSql)
                 try:
@@ -84,7 +84,7 @@ class TDCases:
         # TODO: load all Windows cases here
         runNum = 0
         for tmp in self.windowsCases:
-            if tmp.name.find(fileName) != -1:
+            if tmp.name.find(os.path.normcase(fileName)) != -1:
                 case = testModule.TDTestCase()
                 case.init(conn)
                 case.run()
@@ -118,7 +118,7 @@ class TDCases:
 
         runNum = 0
         for tmp in self.clusterCases:
-            if tmp.name.find(fileName) != -1:
+            if tmp.name.find(os.path.normcase(fileName)) != -1:
                 tdLog.notice("run cases like %s" % (fileName))
                 case = testModule.TDTestCase()
                 case.init()
@@ -134,7 +134,7 @@ class TDCases:
 
         runNum = 0
         for tmp in self.clusterCases:
-            if tmp.name.find(fileName) != -1:
+            if tmp.name.find(os.path.normcase(fileName)) != -1:
                 tdLog.notice("run cases like %s" % (fileName))
                 case = testModule.TDTestCase()
                 case.init()
