@@ -236,7 +236,7 @@ static FORCE_INLINE int tEncodeFloat(SCoder* pEncoder, float val) {
 }
 
 static FORCE_INLINE int tEncodeDouble(SCoder* pEncoder, double val) {
- union {
+  union {
     uint64_t ui;
     double   d;
   } v = {.d = val};
