@@ -227,13 +227,21 @@ static FORCE_INLINE int tEncodeI64v(SCoder* pEncoder, int64_t val) {
 }
 
 static FORCE_INLINE int tEncodeFloat(SCoder* pEncoder, float val) {
-  // TODO
-  return 0;
+  union {
+    uint32_t ui;
+    float    f;
+  } v = {.f = val};
+
+  return tEncodeU32(pEncoder, v.ui);
 }
 
 static FORCE_INLINE int tEncodeDouble(SCoder* pEncoder, double val) {
-  // TODO
-  return 0;
+ union {
+    uint64_t ui;
+    double   d;
+  } v = {.d = val};
+
+  return tEncodeU64(pEncoder, v.ui);
 }
 
 static FORCE_INLINE int tEncodeCStr(SCoder* pEncoder, const char* val) {
@@ -310,12 +318,30 @@ static FORCE_INLINE int tDecodeI64v(SCoder* pDecoder, int64_t* val) {
 }
 
 static FORCE_INLINE int tDecodeFloat(SCoder* pDecoder, float* val) {
-  // TODO
+  union {
+    uint32_t ui;
+    float    f;
+  } v;
+
+  if (tDecodeU32(pDecoder, &(v.ui)) < 0) {
+    return -1;
+  }
+
+  *val = v.f;
   return 0;
 }
 
 static FORCE_INLINE int tDecodeDouble(SCoder* pDecoder, double* val) {
-  // TODO
+  union {
+    uint64_t ui;
+    double   d;
+  } v;
+
+  if (tDecodeU64(pEncoder, &(v.ui)) < 0) {
+    return -1;
+  }
+
+  *val = v.d;
   return 0;
 }
 
