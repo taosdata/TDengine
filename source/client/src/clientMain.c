@@ -140,7 +140,9 @@ TAOS_ROW taos_fetch_row(TAOS_RES *pRes) {
 
   SRequestObj *pRequest = (SRequestObj *) pRes;
   if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
-      pRequest->type == TSDB_SQL_INSERT || pRequest->code != TSDB_CODE_SUCCESS) {
+      pRequest->type == TSDB_SQL_INSERT ||
+      pRequest->code != TSDB_CODE_SUCCESS ||
+      taos_num_fields(pRes) == 0) {
     return NULL;
   }
 
