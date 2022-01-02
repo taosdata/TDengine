@@ -15,6 +15,11 @@
 
 #include "encode.h"
 
+#if __STDC_VERSION__ >= 201112L
+static_assert(sizeof(float) == sizeof(uint32_t), "sizeof(float) must equal to sizeof(uint32_t)");
+static_assert(sizeof(double) == sizeof(uint64_t), "sizeof(double) must equal to sizeof(uint64_t)");
+#endif
+
 void tCoderInit(SCoder* pCoder, td_endian_t endian, uint8_t* data, int32_t size, td_coder_t type) {
   if (type == TD_ENCODER) {
     if (data == NULL) size = 0;
