@@ -56,8 +56,12 @@ void tCoderClear(SCoder* pCoder) {
 }
 
 int tStartEncode(SCoder* pCoder) {
+  struct SCoderNode* pNode;
+
   if (pCoder->data) {
-    struct SCoderNode* pNode = malloc(sizeof(*pNode));
+    if (pCoder->size - pCoder->pos < sizeof(int32_t)) return -1;
+
+    pNode = malloc(sizeof(*pNode));
     if (pNode == NULL) return -1;
 
     pNode->data = pCoder->data;
@@ -97,10 +101,10 @@ int tStartDecode(SCoder* pCoder) {
   int32_t            size;
   struct SCoderNode* pNode;
 
+  // TODO: if (tDecodeI32(pCoder, &size) < 0) return -1;
+
   pNode = malloc(sizeof(*pNode));
   if (pNode == NULL) return -1;
-
-  // TODO: tDecodeI32(pCoder, &size);
 
   pNode->data = pCoder->data;
   pNode->pos = pCoder->pos;

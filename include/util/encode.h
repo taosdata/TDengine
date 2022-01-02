@@ -23,13 +23,6 @@
 extern "C" {
 #endif
 
-typedef struct {
-  td_endian_t endian;
-  uint8_t*    data;
-  int32_t     size;
-  int32_t     pos;
-} SEncoder, SDecoder;
-
 #define tPut(TYPE, BUF, VAL) ((TYPE*)(BUF))[0] = (VAL)
 #define tGet(TYPE, BUF, VAL) (VAL) = ((TYPE*)(BUF))[0]
 
@@ -56,6 +49,13 @@ typedef struct {
 #define tRGet16 tRPut16
 #define tRGet32 tRPut32
 #define tRGet64 tRPut64
+
+typedef struct {
+  td_endian_t endian;
+  uint8_t*    data;
+  int32_t     size;
+  int32_t     pos;
+} SEncoder, SDecoder;
 
 #define TD_CODER_CURRENT(CODER) ((CODER)->data + (CODER)->pos)
 #define TD_CODER_MOVE_POS(CODER, MOVE) ((CODER)->pos += (MOVE))
