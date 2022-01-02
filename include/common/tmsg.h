@@ -1243,8 +1243,6 @@ typedef struct {
   SArray*  pArray;
 } SVCreateTbBatchReq;
 
-// int   tmsgSVCreateTbReqEncode(SMsgEncoder* pCoder, SVCreateTbReq* pReq);
-// int   tmsgSVCreateTbReqDecode(SMsgDecoder* pCoder, SVCreateTbReq* pReq);
 int   tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
 void* tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
 int   tSVCreateTbBatchReqSerialize(void** buf, SVCreateTbBatchReq* pReq);
