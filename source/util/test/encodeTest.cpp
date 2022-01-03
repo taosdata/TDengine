@@ -199,3 +199,202 @@ TEST(td_encode_test, encode_decode_cstr) {
   delete buf;
   delete cstr;
 }
+
+typedef struct {
+  int32_t A_a;
+  int64_t A_b;
+  char *  A_c;
+} SStructA_v1;
+
+static int tSStructA_v1_encode(SCoder *pCoder, const SStructA_v1 *pSAV1) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeI32(pCoder, pSAV1->A_a) < 0) return -1;
+  if (tEncodeI64(pCoder, pSAV1->A_b) < 0) return -1;
+  if (tEncodeCStr(pCoder, pSAV1->A_c) < 0) return -1;
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+static int tSStructA_v1_decode(SCoder *pCoder, SStructA_v1 *pSAV1) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeI32(pCoder, &pSAV1->A_a) < 0) return -1;
+  if (tDecodeI64(pCoder, &pSAV1->A_b) < 0) return -1;
+  const char *tstr;
+  uint64_t    len;
+  if (tDecodeCStrAndLen(pCoder, &tstr, &len) < 0) return -1;
+  pSAV1->A_c = (char *)TCODER_MALLOC(len + 1, pCoder);
+  memcpy(pSAV1->A_c, tstr, len + 1);
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+typedef struct {
+  int32_t A_a;
+  int64_t A_b;
+  char *  A_c;
+  // -------------------BELOW FEILDS ARE ADDED IN A NEW VERSION--------------
+  int16_t A_d;
+  int16_t A_e;
+} SStructA_v2;
+
+static int tSStructA_v2_encode(SCoder *pCoder, const SStructA_v2 *pSAV2) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeI32(pCoder, pSAV2->A_a) < 0) return -1;
+  if (tEncodeI64(pCoder, pSAV2->A_b) < 0) return -1;
+  if (tEncodeCStr(pCoder, pSAV2->A_c) < 0) return -1;
+
+  // ------------------------NEW FIELDS ENCODE-------------------------------
+  if (tEncodeI16(pCoder, pSAV2->A_d) < 0) return -1;
+  if (tEncodeI16(pCoder, pSAV2->A_e) < 0) return -1;
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+static int tSStructA_v2_decode(SCoder *pCoder, SStructA_v2 *pSAV2) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeI32(pCoder, &pSAV2->A_a) < 0) return -1;
+  if (tDecodeI64(pCoder, &pSAV2->A_b) < 0) return -1;
+  const char *tstr;
+  uint64_t    len;
+  if (tDecodeCStrAndLen(pCoder, &tstr, &len) < 0) return -1;
+  pSAV2->A_c = (char *)TCODER_MALLOC(len + 1, pCoder);
+  memcpy(pSAV2->A_c, tstr, len + 1);
+
+  // ------------------------NEW FIELDS DECODE-------------------------------
+  if (!tDecodeIsEnd(pCoder)) {
+    if (tDecodeI16(pCoder, &pSAV2->A_d) < 0) return -1;
+    if (tDecodeI16(pCoder, &pSAV2->A_e) < 0) return -1;
+  } else {
+    pSAV2->A_d = 0;
+    pSAV2->A_e = 0;
+  }
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+typedef struct {
+  SStructA_v1 *pA;
+  int32_t      v_a;
+  int8_t       v_b;
+} SFinalReq_v1;
+
+static int tSFinalReq_v1_encode(SCoder *pCoder, const SFinalReq_v1 *ps1) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tSStructA_v1_encode(pCoder, ps1->pA) < 0) return -1;
+  if (tEncodeI32(pCoder, ps1->v_a) < 0) return -1;
+  if (tEncodeI8(pCoder, ps1->v_b) < 0) return -1;
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+static int tSFinalReq_v1_decode(SCoder *pCoder, SFinalReq_v1 *ps1) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  ps1->pA = (SStructA_v1 *)TCODER_MALLOC(sizeof(*(ps1->pA)), pCoder);
+  if (tSStructA_v1_decode(pCoder, ps1->pA) < 0) return -1;
+  if (tDecodeI32(pCoder, &ps1->v_a) < 0) return -1;
+  if (tDecodeI8(pCoder, &ps1->v_b) < 0) return -1;
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+typedef struct {
+  SStructA_v2 *pA;
+  int32_t      v_a;
+  int8_t       v_b;
+  // ----------------------- Feilds added -----------------------
+  int16_t v_c;
+} SFinalReq_v2;
+
+static int tSFinalReq_v2_encode(SCoder *pCoder, const SFinalReq_v2 *ps2) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tSStructA_v2_encode(pCoder, ps2->pA) < 0) return -1;
+  if (tEncodeI32(pCoder, ps2->v_a) < 0) return -1;
+  if (tEncodeI8(pCoder, ps2->v_b) < 0) return -1;
+
+  // ----------------------- Feilds added encode -----------------------
+  if (tEncodeI16(pCoder, ps2->v_c) < 0) return -1;
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+static int tSFinalReq_v2_decode(SCoder *pCoder, SFinalReq_v2 *ps2) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  ps2->pA = (SStructA_v2 *)TCODER_MALLOC(sizeof(*(ps2->pA)), pCoder);
+  if (tSStructA_v2_decode(pCoder, ps2->pA) < 0) return -1;
+  if (tDecodeI32(pCoder, &ps2->v_a) < 0) return -1;
+  if (tDecodeI8(pCoder, &ps2->v_b) < 0) return -1;
+
+  // ----------------------- Feilds added decode -----------------------
+  if (tDecodeIsEnd(pCoder)) {
+    ps2->v_c = 0;
+  } else {
+    if (tDecodeI16(pCoder, &ps2->v_c) < 0) return -1;
+  }
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+TEST(td_encode_test, compound_struct_encode_test) {
+  SCoder       encoder, decoder;
+  uint8_t *    buf1;
+  int32_t      buf1size;
+  uint8_t *    buf2;
+  int32_t      buf2size;
+  SStructA_v1  sa1 = {.A_a = 10, .A_b = 65478, .A_c = "Hello"};
+  SStructA_v2  sa2 = {.A_a = 10, .A_b = 65478, .A_c = "Hello", .A_d = 67, .A_e = 13};
+  SFinalReq_v1 req1 = {.pA = &sa1, .v_a = 15, .v_b = 35};
+  SFinalReq_v2 req2 = {.pA = &sa2, .v_a = 15, .v_b = 32, .v_c = 37};
+  SFinalReq_v1 dreq1;
+  SFinalReq_v2 dreq21, dreq22;
+
+  // Get size
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, nullptr, 0, TD_ENCODER);
+  GTEST_ASSERT_EQ(tSFinalReq_v1_encode(&encoder, &req1), 0);
+  buf1size = encoder.pos;
+  buf1 = new uint8_t[encoder.pos];
+  tCoderClear(&encoder);
+
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, nullptr, 0, TD_ENCODER);
+  GTEST_ASSERT_EQ(tSFinalReq_v2_encode(&encoder, &req2), 0);
+  buf2size = encoder.pos;
+  buf2 = new uint8_t[encoder.pos];
+  tCoderClear(&encoder);
+
+  // Encode
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf1, buf1size, TD_ENCODER);
+  GTEST_ASSERT_EQ(tSFinalReq_v1_encode(&encoder, &req1), 0);
+  tCoderClear(&encoder);
+
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf2, buf2size, TD_ENCODER);
+  GTEST_ASSERT_EQ(tSFinalReq_v2_encode(&encoder, &req2), 0);
+  tCoderClear(&encoder);
+
+  // Decode
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf1, buf1size, TD_DECODER);
+  GTEST_ASSERT_EQ(tSFinalReq_v1_decode(&decoder, &dreq1), 0);
+  tCoderClear(&decoder);
+
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf1, buf1size, TD_DECODER);
+  GTEST_ASSERT_EQ(tSFinalReq_v2_decode(&decoder, &dreq21), 0);
+  tCoderClear(&decoder);
+
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf2, buf2size, TD_DECODER);
+  GTEST_ASSERT_EQ(tSFinalReq_v2_decode(&decoder, &dreq22), 0);
+  tCoderClear(&decoder);
+}

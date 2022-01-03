@@ -81,31 +81,32 @@ void tCoderInit(SCoder* pCoder, td_endian_t endian, uint8_t* data, int32_t size,
 void tCoderClear(SCoder* pCoder);
 
 /* ------------------------ ENCODE ------------------------ */
-static int  tStartEncode(SCoder* pEncoder);
-static void tEndEncode(SCoder* pEncoder);
-static int  tEncodeU8(SCoder* pEncoder, uint8_t val);
-static int  tEncodeI8(SCoder* pEncoder, int8_t val);
-static int  tEncodeU16(SCoder* pEncoder, uint16_t val);
-static int  tEncodeI16(SCoder* pEncoder, int16_t val);
-static int  tEncodeU32(SCoder* pEncoder, uint32_t val);
-static int  tEncodeI32(SCoder* pEncoder, int32_t val);
-static int  tEncodeU64(SCoder* pEncoder, uint64_t val);
-static int  tEncodeI64(SCoder* pEncoder, int64_t val);
-static int  tEncodeU16v(SCoder* pEncoder, uint16_t val);
-static int  tEncodeI16v(SCoder* pEncoder, int16_t val);
-static int  tEncodeU32v(SCoder* pEncoder, uint32_t val);
-static int  tEncodeI32v(SCoder* pEncoder, int32_t val);
-static int  tEncodeU64v(SCoder* pEncoder, uint64_t val);
-static int  tEncodeI64v(SCoder* pEncoder, int64_t val);
-static int  tEncodeFloat(SCoder* pEncoder, float val);
-static int  tEncodeDouble(SCoder* pEncoder, double val);
-static int  tEncodeBinary(SCoder* pEncoder, const void* val, uint64_t len);
-static int  tEncodeCStrWithLen(SCoder* pEncoder, const char* val, uint64_t len);
-static int  tEncodeCStr(SCoder* pEncoder, const char* val);
+int        tStartEncode(SCoder* pEncoder);
+void       tEndEncode(SCoder* pEncoder);
+static int tEncodeU8(SCoder* pEncoder, uint8_t val);
+static int tEncodeI8(SCoder* pEncoder, int8_t val);
+static int tEncodeU16(SCoder* pEncoder, uint16_t val);
+static int tEncodeI16(SCoder* pEncoder, int16_t val);
+static int tEncodeU32(SCoder* pEncoder, uint32_t val);
+static int tEncodeI32(SCoder* pEncoder, int32_t val);
+static int tEncodeU64(SCoder* pEncoder, uint64_t val);
+static int tEncodeI64(SCoder* pEncoder, int64_t val);
+static int tEncodeU16v(SCoder* pEncoder, uint16_t val);
+static int tEncodeI16v(SCoder* pEncoder, int16_t val);
+static int tEncodeU32v(SCoder* pEncoder, uint32_t val);
+static int tEncodeI32v(SCoder* pEncoder, int32_t val);
+static int tEncodeU64v(SCoder* pEncoder, uint64_t val);
+static int tEncodeI64v(SCoder* pEncoder, int64_t val);
+static int tEncodeFloat(SCoder* pEncoder, float val);
+static int tEncodeDouble(SCoder* pEncoder, double val);
+static int tEncodeBinary(SCoder* pEncoder, const void* val, uint64_t len);
+static int tEncodeCStrWithLen(SCoder* pEncoder, const char* val, uint64_t len);
+static int tEncodeCStr(SCoder* pEncoder, const char* val);
 
 /* ------------------------ DECODE ------------------------ */
-static int  tStartDecode(SCoder* pDecoder);
-static void tEndDecode(SCoder* pDecoder);
+int         tStartDecode(SCoder* pDecoder);
+void        tEndDecode(SCoder* pDecoder);
+static bool tDecodeIsEnd(SCoder* pCoder);
 static int  tDecodeU8(SCoder* pDecoder, uint8_t* val);
 static int  tDecodeI8(SCoder* pDecoder, int8_t* val);
 static int  tDecodeU16(SCoder* pDecoder, uint16_t* val);
@@ -394,6 +395,8 @@ static int tDecodeCStrTo(SCoder* pDecoder, char* val) {
   memcpy(val, pStr, len + 1);
   return 0;
 }
+
+static FORCE_INLINE bool tDecodeIsEnd(SCoder* pCoder) { return (pCoder->size == pCoder->pos); }
 
 #ifdef __cplusplus
 }
