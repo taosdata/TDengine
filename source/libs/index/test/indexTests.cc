@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -638,7 +639,7 @@ class IndexObj {
     indexInit();
   }
   int Init(const std::string& dir) {
-    taosRemoveDir(dir.c_str());
+    // taosRemoveDir(dir.c_str());
     taosMkDir(dir.c_str());
     int ret = indexOpen(&opts, dir.c_str(), &idx);
     if (ret != 0) {
@@ -663,10 +664,11 @@ class IndexObj {
   int WriteMultiMillonData(const std::string& colName, const std::string& colVal = "Hello world",
                            size_t numOfTable = 100 * 10000) {
     std::string tColVal = colVal;
+    size_t      colValSize = tColVal.size();
     for (int i = 0; i < numOfTable; i++) {
-      tColVal[tColVal.size() - 1] = 'a' + i % 26;
+      tColVal[i % colValSize] = 'a' + i % 26;
       SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                         colVal.c_str(), colVal.size());
+                                         tColVal.c_str(), tColVal.size());
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
       for (size_t i = 0; i < 10; i++) {
@@ -695,7 +697,13 @@ class IndexObj {
     indexMultiTermQueryAdd(mq, term, QUERY_TERM);
 
     SArray* result = (SArray*)taosArrayInit(1, sizeof(uint64_t));
-    if (Search(mq, result) == 0) { std::cout << "search one successfully" << std::endl; }
+
+    int64_t s = taosGetTimestampUs();
+    if (Search(mq, result) == 0) {
+      int64_t e = taosGetTimestampUs();
+      std::cout << "search one successfully and time cost:" << e - s << std::endl;
+    } else {
+    }
     int sz = taosArrayGetSize(result);
     indexMultiTermQueryDestroy(mq);
     taosArrayDestroy(result);
@@ -810,12 +818,12 @@ TEST_F(IndexEnv2, testIndexOpen) {
 }
 
 TEST_F(IndexEnv2, testIndex_TrigeFlush) {
-  std::string path = "/tmp/test1";
+  std::string path = "/tmp/testxxx";
   if (index->Init(path) != 0) {
     // r
     std::cout << "failed to init" << std::endl;
   }
-  int numOfTable = 100 * 10000;
+  int numOfTable = 2 * 10000;
   index->WriteMillonData("tag1", "Hello Wolrd", numOfTable);
   int target = index->SearchOne("tag1", "Hello Wolrd");
   std::cout << "Get Index: " << target << std::endl;
@@ -826,6 +834,10 @@ static void write_and_search(IndexObj* idx) {
   std::string colName("tag1"), colVal("Hello");
 
   int target = idx->SearchOne("tag1", "Hello");
+  std::cout << "search: " << target << std::endl;
+  target = idx->SearchOne("tag2", "Test");
+  std::cout << "search: " << target << std::endl;
+
   idx->PutOne(colName, colVal);
 }
 TEST_F(IndexEnv2, testIndex_serarch_cache_and_tfile) {
@@ -833,7 +845,10 @@ TEST_F(IndexEnv2, testIndex_serarch_cache_and_tfile) {
   if (index->Init(path) != 0) {
     // opt
   }
-  index->WriteMultiMillonData("tag1", "Hello", 200000);
+  index->PutOne("tag1", "Hello");
+  index->PutOne("tag2", "Test");
+  index->WriteMultiMillonData("tag1", "Hello", 5 * 10000);
+  index->WriteMultiMillonData("tag2", "Test", 5 * 10000);
   std::thread threads[NUM_OF_THREAD];
 
   for (int i = 0; i < NUM_OF_THREAD; i++) {
@@ -847,15 +862,15 @@ TEST_F(IndexEnv2, testIndex_serarch_cache_and_tfile) {
 }
 
 TEST_F(IndexEnv2, testIndex_restart) {
-  std::string path = "/tmp";
+  std::string path = "/tmp/test1";
   if (index->Init(path) != 0) {}
 }
 
 TEST_F(IndexEnv2, testIndex_performance) {
-  std::string path = "/tmp";
+  std::string path = "/tmp/test2";
   if (index->Init(path) != 0) {}
 }
 TEST_F(IndexEnv2, testIndexMultiTag) {
-  std::string path = "/tmp";
+  std::string path = "/tmp/test3";
   if (index->Init(path) != 0) {}
 }
