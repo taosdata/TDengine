@@ -141,7 +141,7 @@ static int  tDecodeCStrTo(SCoder* pDecoder, char* val);
   return 0;
 
 #define TD_ENCODE_VARIANT_MACRO(CODER, VAL)                       \
-  while ((VAL) > ENCODE_LIMIT) {                                  \
+  while ((VAL) >= ENCODE_LIMIT) {                                  \
     if ((CODER)->data) {                                          \
       if (TD_CODER_CHECK_CAPACITY_FAILED(CODER, 1)) return -1;    \
       TD_CODER_CURRENT(CODER)[0] = ((VAL) | ENCODE_LIMIT) & 0xff; \
@@ -391,7 +391,7 @@ static int tDecodeCStrTo(SCoder* pDecoder, char* val) {
   uint64_t    len;
   if (tDecodeCStrAndLen(pDecoder, &pStr, &len) < 0) return -1;
 
-  memcpy(val, pStr, len+1);
+  memcpy(val, pStr, len + 1);
   return 0;
 }
 
