@@ -115,6 +115,8 @@ static void simple_encode_decode_func(bool var_len) {
           GTEST_ASSERT_EQ(coder.pos, sizeof(T));
         }
 
+        int32_t epos = coder.pos;
+
         tCoderClear(&coder);
         // Decode
         tCoderInit(&coder, d_endian, buf, BUF_SIZE, TD_DECODER);
@@ -125,6 +127,8 @@ static void simple_encode_decode_func(bool var_len) {
           GTEST_ASSERT_EQ(decode(&coder, &dval), 0);
           GTEST_ASSERT_EQ(coder.pos, sizeof(T));
         }
+
+        GTEST_ASSERT_EQ(coder.pos, epos);
 
         if (typeid(T) == typeid(int8_t) || typeid(T) == typeid(uint8_t) || e_endian == d_endian) {
           GTEST_ASSERT_EQ(i, dval);
