@@ -578,7 +578,7 @@ static int32_t getSuperTableMetaFromLocalCache(TAOS* taos, char* tableName, STab
   tGetToken(tableNameBuf, &tableToken.type);
   bool dbIncluded = false;
   // Check if the table name available or not
-  if (tscValidateName(&tableToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
+  if (tscValidateName(&tableToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
     sprintf(pSql->cmd.payload, "table name is invalid");
     taosReleaseRef(tscObjRef, pSql->self);

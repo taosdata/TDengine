@@ -239,67 +239,23 @@ int32_t shellRunCommand(TAOS* con, char* command) {
     }
   }
 
-  bool esc = false;
-  char quote = 0, *cmd = command, *p = command;
-  for (char c = *command++; c != 0; c = *command++) {
-    if (esc) {
-      switch (c) {
-        case 'n':
-          c = '\n';
-          break;
-        case 'r':
-          c = '\r';
-          break;
-        case 't':
-          c = '\t';
-          break;
-        case 'G':
-          *p++ = '\\';
-          break;
-        case '\'':
-        case '"':
-        case '`':
-          if (quote) {
-            *p++ = '\\';
-          }
-          break;
-      }
-      *p++ = c;
-      esc = false;
-      continue;
+  char *sptr = NULL;
+  while (1) {                                     // command;command;command;  quit
+    if ((sptr = strstr(command, ";")) == NULL) {  // there is no command to be run
+      break;
     }
-
-    if (c == '\\') {
-      if (quote != 0 && (*command == '_' || *command == '%' || *command == '\\')) {
-        //DO nothing 
-      } else {
-        esc = true;
-        continue;
-      }
+    char *nextStart = sptr + 1;
+    char  c = *nextStart;
+    *nextStart = '\0';
+    if (shellRunSingleCommand(con, command) < 0) {
+      return -1;
     }
-
-    if (quote == c) {
-      quote = 0;
-    } else if (quote == 0 && (c == '\'' || c == '"' || c == '`')) {
-      quote = c;
-    }
-
-    *p++ = c;
-    if (c == ';' && quote == 0) {
-      c = *p;
-      *p = 0;
-      if (shellRunSingleCommand(con, cmd) < 0) {
-        return -1;
-      }
-      *p = c;
-      p = cmd;
-    }
+    *nextStart = c;
+    command = nextStart;
   }
 
-  *p = 0;
-  return shellRunSingleCommand(con, cmd);
+  return shellRunSingleCommand(con, command);
 }
-
 
 void freeResultWithRid(int64_t rid) {
   SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);
@@ -317,8 +273,8 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   char *    fname = NULL;
   bool      printMode = false;
 
-  if ((sptr = tstrstr(command, ">>", true)) != NULL) {
-    cptr = tstrstr(command, ";", true);
+  if ((sptr = strstr(command, ">>")) != NULL) {
+    cptr = strstr(command, ";");
     if (cptr != NULL) {
       *cptr = '\0';
     }
@@ -331,12 +287,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     fname = full_path.we_wordv[0];
   }
 
-  if ((sptr = tstrstr(command, "\\G", true)) != NULL) {
-    cptr = tstrstr(command, ";", true);
-    if (cptr != NULL) {
-      *cptr = '\0';
-    }
-
+  if ((sptr = strstr(command, "\\G")) != NULL) {
     *sptr = '\0';
     printMode = true;  // When output to a file, the switch does not work.
   }

@@ -25,11 +25,10 @@ extern "C" {
 #include "tcrc32c.h"
 #include "taosdef.h"
 
-int32_t strdequote(char *src);
+size_t  strDealWithEscape(char *z, size_t len);
 int32_t strRmquote(char *z, int32_t len);
 int32_t strRmquoteEscape(char *z, int32_t len);
 size_t  strtrim(char *src);
-char *  tstrstr(char *src, char *dst, bool ignoreInEsc);
 char *  strnchr(char *haystack, char needle, int32_t len, bool skipquote);
 char ** strsplit(char *src, const char *delim, int32_t *num);
 char *  strtolower(char *dst, const char *src);

@@ -427,8 +427,7 @@ int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t *len, char *tmpTokenBuf,
-                  SInsertStatementParam *pInsertParam) {
+int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t *len, SInsertStatementParam *pInsertParam) {
   int32_t   index = 0;
   SStrToken sToken = {0};
 
@@ -479,34 +478,8 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
       return tscSQLSyntaxErrMsg(pInsertParam->msg, "invalid data or symbol", sToken.z);
     }
 
-    // Remove quotation marks
-    if (TK_STRING == sToken.type) {
-      // delete escape character: \\, \', \"
-      char delim = sToken.z[0];
-
-      int32_t cnt = 0;
-      int32_t j = 0;
-      if (sToken.n >= TSDB_MAX_BYTES_PER_ROW) {
+    if (TK_STRING == sToken.type && sToken.n >= TSDB_MAX_BYTES_PER_ROW) {
         return tscSQLSyntaxErrMsg(pInsertParam->msg, "too long string", sToken.z);
-      }
-
-      for (uint32_t k = 1; k < sToken.n - 1; ++k) {
-        if (sToken.z[k] == '\\' || (sToken.z[k] == delim && sToken.z[k + 1] == delim)) {
-          tmpTokenBuf[j] = sToken.z[k + 1];
-
-          cnt++;
-          j++;
-          k++;
-          continue;
-        }
-
-        tmpTokenBuf[j] = sToken.z[k];
-        j++;
-      }
-
-      tmpTokenBuf[j] = 0;
-      sToken.z = tmpTokenBuf;
-      sToken.n -= 2 + cnt;
     }
 
     bool    isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
@@ -578,8 +551,7 @@ int32_t boundIdxCompar(const void *lhs, const void *rhs) {
   }
 }
 
-int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SInsertStatementParam *pInsertParam,
-    int32_t* numOfRows, char *tmpTokenBuf) {
+int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SInsertStatementParam *pInsertParam, int32_t* numOfRows) {
   int32_t index = 0;
   int32_t code = 0;
 
@@ -618,7 +590,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
     }
 
     int32_t len = 0;
-    code = tsParseOneRow(str, pDataBlock, precision, &len, tmpTokenBuf, pInsertParam);
+    code = tsParseOneRow(str, pDataBlock, precision, &len, pInsertParam);
     if (code != TSDB_CODE_SUCCESS) {  // error message has been set in tsParseOneRow, return directly
       return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
@@ -850,11 +822,8 @@ static int32_t doParseInsertStatement(SInsertStatementParam *pInsertParam, char 
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  code = TSDB_CODE_TSC_INVALID_OPERATION;
-  char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0};  // used for deleting Escape character: \\, \', \"
-
   int32_t numOfRows = 0;
-  code = tsParseValues(str, dataBuf, maxNumOfRows, pInsertParam, &numOfRows, tmpTokenBuf);
+  code = tsParseValues(str, dataBuf, maxNumOfRows, pInsertParam, &numOfRows);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -878,18 +847,6 @@ static int32_t doParseInsertStatement(SInsertStatementParam *pInsertParam, char 
   *totalNum += numOfRows;
   return TSDB_CODE_SUCCESS;
 }
-
-
-int validateTableName(char *tblName, int len, SStrToken* psTblToken, bool *dbIncluded) {
-  tstrncpy(psTblToken->z, tblName, TSDB_TABLE_FNAME_LEN);
-
-  psTblToken->n    = len;
-  psTblToken->type = TK_ID;
-  tGetToken(psTblToken->z, &psTblToken->type);
-
-  return tscValidateName(psTblToken, true, dbIncluded);
-}
-
 
 static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundColumn) {
   int32_t   index = 0;
@@ -916,11 +873,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
   sToken = tStrGetToken(sql, &index, false);
   sql += index;
 
-  int32_t numOfColList = 0;
-
   // Bind table columns list in string, skip it and continue
   if (sToken.type == TK_LP) {
     *boundColumn = &sToken.z[0];
+    int32_t numOfColList = 0;
 
     while (1) {
       index = 0;
@@ -937,18 +893,13 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       sql += index;
       ++numOfColList;
     }
+    if (numOfColList == 0 && (*boundColumn) != NULL) {
+      return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+    }
 
     sToken = tStrGetToken(sql, &index, false);
     sql += index;
-  }
-
-  if (numOfColList == 0 && (*boundColumn) != NULL) {
-    return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
-  }
-  
-  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
-  
-  if (sToken.type == TK_USING) {  // create table if not exists according to the super table
+  }else if (sToken.type == TK_USING) {  // create table if not exists according to the super table
     index = 0;
     sToken = tStrGetToken(sql, &index, false);
     sql += index;
@@ -963,17 +914,14 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     }
     
     bool dbIncluded1 = false;
-    char      buf[TSDB_TABLE_FNAME_LEN];
-    SStrToken sTblToken;
-    sTblToken.z = buf;
-
-    code = validateTableName(sToken.z, sToken.n, &sTblToken, &dbIncluded1);
+    code = tscValidateName(&sToken, &dbIncluded1);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
+    STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
     STableMetaInfo *pSTableMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
-    code = tscSetTableFullName(&pSTableMetaInfo->name, &sTblToken, pSql, dbIncluded1);
+    code = tscSetTableFullName(&pSTableMetaInfo->name, &sToken, pSql, dbIncluded1);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -987,7 +935,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     }
 
     if (!UTIL_TABLE_IS_SUPER_TABLE(pSTableMetaInfo)) {
-      return tscInvalidOperationMsg(pInsertParam->msg, "create table only from super table is allowed", sTblToken.z);
+      return tscInvalidOperationMsg(pInsertParam->msg, "create table only from super table is allowed", sToken.z);
     }
 
     SSchema *pTagSchema = tscGetTableTagSchema(pSTableMetaInfo->pTableMeta);
@@ -1057,12 +1005,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
         break;
       }
 
-      // Remove quotation marks
-      if (TK_STRING == sToken.type) {
-        sToken.z++;
-        sToken.n -= 2;
-      }
-
       char tagVal[TSDB_MAX_TAGS_LEN] = {0};
       code = tsParseOneColumn(pSchema, &sToken, tagVal, pInsertParam->msg, &sql, false, tinfo.precision);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1080,6 +1022,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
           tscDestroyBoundColumnInfo(&spd);
           return tscSQLSyntaxErrMsg(pInsertParam->msg, "json tag too long", NULL);
         }
+        sToken.n = strDealWithEscape(sToken.z, sToken.n);
         char* json = strndup(sToken.z, sToken.n);
         code = parseJsontoTagData(json, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
         if (code != TSDB_CODE_SUCCESS) {
@@ -1161,15 +1104,12 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
     sql = sToken.z;
     bool dbIncluded2 = false;
-
-    sTblToken.z = buf;
-
-    code = validateTableName(tableToken.z, tableToken.n, &sTblToken, &dbIncluded2);
+    code = tscValidateName(&tableToken, &dbIncluded2);
     if (code != TSDB_CODE_SUCCESS) {
       return tscInvalidOperationMsg(pInsertParam->msg, "invalid table name", *sqlstr);
     }
 
-    int32_t ret = tscSetTableFullName(&pTableMetaInfo->name, &sTblToken, pSql, dbIncluded2);
+    int32_t ret = tscSetTableFullName(&pTableMetaInfo->name, &tableToken, pSql, dbIncluded2);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -1188,6 +1128,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       return tscSQLSyntaxErrMsg(pInsertParam->msg, "", sql);
     }
 
+    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
     sql = sToken.z;
     code = tscGetTableMetaEx(pSql, pTableMetaInfo, false, false);
     if (pInsertParam->sql == NULL) {
@@ -1241,18 +1182,6 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
     index = 0;
     sToken = tStrGetToken(str, &index, false);
     str += index;
-
-    char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0}; // used for deleting Escape character backstick(`)
-    strncpy(tmpTokenBuf, sToken.z, sToken.n);
-    sToken.z = tmpTokenBuf;
-
-    if (TK_STRING == sToken.type) {
-      tscDequoteAndTrimToken(&sToken);
-    }
-
-    if (TK_ID == sToken.type) {
-      tscRmEscapeAndTrimToken(&sToken);
-    }
 
     if (sToken.type == TK_RP) {
       if (end != NULL) {  // set the end position
@@ -1371,7 +1300,6 @@ _clean:
 static int32_t getFileFullPath(SStrToken* pToken, char* output) {
   char path[PATH_MAX] = {0};
   strncpy(path, pToken->z, pToken->n);
-  strdequote(path);
 
   wordexp_t full_path;
   if (wordexp(path, &full_path, 0) != 0) {
@@ -1452,17 +1380,14 @@ int tsParseInsertSql(SSqlObj *pSql) {
     }
 
     pInsertParam->sql = sToken.z;
-    char      buf[TSDB_TABLE_FNAME_LEN];
-    SStrToken sTblToken;
-    sTblToken.z = buf;
     bool dbIncluded = false;
     // Check if the table name available or not
-    if (validateTableName(sToken.z, sToken.n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
+    if (tscValidateName(&sToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
       code = tscInvalidOperationMsg(pInsertParam->msg, "table name invalid", sToken.z);
       goto _clean;
     }
 
-    if ((code = tscSetTableFullName(&pTableMetaInfo->name, &sTblToken, pSql, dbIncluded)) != TSDB_CODE_SUCCESS) {
+    if ((code = tscSetTableFullName(&pTableMetaInfo->name, &sToken, pSql, dbIncluded)) != TSDB_CODE_SUCCESS) {
       goto _clean;
     }
 
@@ -1503,7 +1428,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
 
       index = 0;
       sToken = tStrGetToken(str, &index, false);
-      if (sToken.type != TK_STRING && sToken.type != TK_ID) {
+      if (sToken.type != TK_ID) {
         code = tscSQLSyntaxErrMsg(pInsertParam->msg, "file path is required following keyword FILE", sToken.z);
         goto _clean;
       }
@@ -1711,7 +1636,6 @@ typedef struct SImportFileSupport {
 static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRows) {
   assert(param != NULL && tres != NULL);
 
-  char *  tokenBuf = NULL;
   size_t  n = 0;
   ssize_t readLen = 0;
   char *  line = NULL;
@@ -1773,11 +1697,6 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
 
   int32_t extendedRowSize = getExtendedRowSize(pTableDataBlock);
   tscAllocateMemIfNeed(pTableDataBlock, extendedRowSize, &maxRows);
-  tokenBuf = calloc(1, TSDB_MAX_BYTES_PER_ROW);
-  if (tokenBuf == NULL) {
-    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    goto _error;
-  }
 
   // insert from .csv means full and ordered columns, thus use SDataRow all the time
   ASSERT(SMEM_ROW_DATA == pTableDataBlock->rowBuilder.memRowType);
@@ -1796,7 +1715,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
     strtolower(line, line);
 
     int32_t len = 0;
-    code = tsParseOneRow(&lineptr, pTableDataBlock, tinfo.precision, &len, tokenBuf, pInsertParam);
+    code = tsParseOneRow(&lineptr, pTableDataBlock, tinfo.precision, &len, pInsertParam);
     if (code != TSDB_CODE_SUCCESS || pTableDataBlock->numOfParams > 0) {
       pSql->res.code = code;
       break;
@@ -1809,7 +1728,6 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
     }
   }
 
-  tfree(tokenBuf);
   tfree(line);
 
   pParentSql->res.code = code;
@@ -1840,7 +1758,6 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
 
 _error:
   pParentSql->res.code = code;
-  tfree(tokenBuf);
   tfree(line);
   taos_free_result(pSql);
   tfree(pSupporter);

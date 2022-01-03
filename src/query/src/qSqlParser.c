@@ -43,6 +43,15 @@ SSqlInfo qSqlParse(const char *pStr) {
     t0.n = tGetToken((char *)&pStr[i], &t0.type);
     t0.z = (char *)(pStr + i);
     i += t0.n;
+    // deal with 'xxx', "xxx", `xxx`
+    if (t0.type == TK_STRING){
+      t0.z += 1;
+      t0.n -= 2;
+      t0.n = strDealWithEscape(t0.z, t0.n);
+    }else if(t0.type == TK_ID && pStr[i] == '`'){
+      t0.z += 1;
+      t0.n -= 2;
+    }
 
     switch (t0.type) {
       case TK_SPACE:
@@ -95,8 +104,6 @@ SArray *tSqlExprListAppend(SArray *pList, tSqlExpr *pNode, SStrToken *pDistinct,
       item.aliasName = malloc(pToken->n + 1);
       strncpy(item.aliasName, pToken->z, pToken->n);
       item.aliasName[pToken->n] = 0;
-
-      strdequote(item.aliasName);
     }
 
     taosArrayPush(pList, &item);

@@ -50,14 +50,9 @@ SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const 
   } else {
     size_t tlen = MIN(sizeof(s.name), exprStr->n + 1);
     tstrncpy(s.name, exprStr->z, tlen);
-    strdequote(s.name);
   }
 
   return s;
-}
-
-bool tscValidateTableNameLength(size_t len) {
-  return len < TSDB_TABLE_NAME_LEN;
 }
 
 // TODO refactor

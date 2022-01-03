@@ -2891,35 +2891,6 @@ void tscColumnListDestroy(SArray* pColumnList) {
   taosArrayDestroy(&pColumnList);
 }
 
-/*
- * 1. normal name, not a keyword or number
- * 2. name with quote
- * 3. string with only one delimiter '.'.
- *
- * only_one_part
- * 'only_one_part'
- * first_part.second_part
- * first_part.'second_part'
- * 'first_part'.second_part
- * 'first_part'.'second_part'
- * 'first_part.second_part'
- *
- */
-static int32_t validateQuoteToken(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded) {
-  tscDequoteAndTrimToken(pToken);
-
-  int32_t k = tGetToken(pToken->z, &pToken->type);
-
-  if (pToken->type == TK_STRING) {
-    return tscValidateName(pToken, escapeEnabled, dbIncluded);
-  }
-
-  if (k != pToken->n || pToken->type != TK_ID) {
-    return TSDB_CODE_TSC_INVALID_OPERATION;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 void tscDequoteAndTrimToken(SStrToken* pToken) {
   uint32_t first = 0, last = pToken->n;
 
@@ -3008,126 +2979,20 @@ void tscRmEscapeAndTrimToken(SStrToken* pToken) {
 
 
 
-int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded) {
-  if (pToken == NULL || pToken->z == NULL
-     || (pToken->type != TK_STRING && pToken->type != TK_ID)) {
+int32_t tscValidateName(SStrToken* pToken, bool *dbIncluded) {
+  if (pToken == NULL || pToken->z == NULL || pToken->type != TK_ID) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  if ((!escapeEnabled) && pToken->type == TK_ID) {
-    if (pToken->z[0] == TS_ESCAPE_CHAR) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-  }
-
-  char* sep = NULL;
-
-  if (escapeEnabled) {
-    sep = tableNameGetPosition(pToken, TS_PATH_DELIMITER[0]);
-  } else {
-    sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
-  }
-
+  char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
   if (sep == NULL) {  // single part
     if (dbIncluded) *dbIncluded = false;
-
-    if (pToken->type == TK_STRING) {
-
-      tscDequoteAndTrimToken(pToken);
-      // tscStrToLower(pToken->z, pToken->n);
-      strntolower(pToken->z, pToken->z, pToken->n);
-      //pToken->n = (uint32_t)strtrim(pToken->z);
-
-      int len = tGetToken(pToken->z, &pToken->type);
-
-      // single token, validate it
-      if (len == pToken->n) {
-        return validateQuoteToken(pToken, escapeEnabled, NULL);
-      } else {
-        sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
-        if (sep == NULL) {
-          return TSDB_CODE_TSC_INVALID_OPERATION;
-        }
-        *dbIncluded = true;
-
-        return tscValidateName(pToken, escapeEnabled, NULL);
-      }
-    } else if (pToken->type == TK_ID) {
-      tscRmEscapeAndTrimToken(pToken);
-
-      if (pToken->n == 0) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-
-      return TSDB_CODE_SUCCESS;
-    } else {
-      if (isNumber(pToken)) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
+    if (pToken->n == 0) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
+    return TSDB_CODE_SUCCESS;
   } else {  // two part
-    int32_t oldLen = pToken->n;
-    char*   pStr = pToken->z;
-    bool firstPartQuote = false;
-
     if (dbIncluded) *dbIncluded = true;
-
-    if (pToken->type == TK_SPACE) {
-      pToken->n = (uint32_t)strtrim(pToken->z);
-    }
-
-    pToken->n = tGetToken(pToken->z, &pToken->type);
-    if (pToken->z[pToken->n] != TS_PATH_DELIMITER[0]) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-
-    if (pToken->type != TK_STRING && pToken->type != TK_ID) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-
-    if (pToken->type == TK_STRING) {
-      if (validateQuoteToken(pToken, escapeEnabled, NULL) != TSDB_CODE_SUCCESS) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      } else {
-        // tscStrToLower(pToken->z,pToken->n);
-        strntolower(pToken->z, pToken->z, pToken->n);
-        firstPartQuote = true;
-      }
-    }
-
-    int32_t firstPartLen = pToken->n;
-
-    pToken->z = sep + 1;
-    pToken->n = (uint32_t)(oldLen - (sep - pStr) - 1);
-    int32_t len = tGetToken(pToken->z, &pToken->type);
-    if (len != pToken->n || (pToken->type != TK_STRING && pToken->type != TK_ID)) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-
-    if (pToken->type == TK_STRING) {
-      if (validateQuoteToken(pToken, escapeEnabled, NULL) != TSDB_CODE_SUCCESS) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      } else {
-        // tscStrToLower(pToken->z,pToken->n);
-        strntolower(pToken->z, pToken->z, pToken->n);
-      }
-    }
-
-    if (escapeEnabled && pToken->type == TK_ID) {
-      tscRmEscapeAndTrimToken(pToken);
-    }
-
-    // re-build the whole name string
-    if (!firstPartQuote) {
-      // first part do not have quote do nothing
-    } else {
-      pStr[firstPartLen] = TS_PATH_DELIMITER[0];
-      memmove(&pStr[firstPartLen + 1], pToken->z, pToken->n);
-      uint32_t offset = (uint32_t)(pToken->z - (pStr + firstPartLen + 1));
-      memset(pToken->z + pToken->n - offset, ' ', offset);
-    }
-    pToken->n += (firstPartLen + sizeof(TS_PATH_DELIMITER[0]));
-    pToken->z = pStr;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -5279,7 +5144,7 @@ static int32_t doAddTableName(char* nextStr, char** str, SArray* pNameArray, SSq
   bool dbIncluded = false;
 
   // Check if the table name available or not
-  if (tscValidateName(&sToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
+  if (tscValidateName(&sToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
     sprintf(pCmd->payload, "table name is invalid");
     return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }

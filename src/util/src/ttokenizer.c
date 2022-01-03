@@ -428,12 +428,8 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
         }
         
         if (z[i] == delim) {
-          if (z[i + 1] == delim) {
-            i++;
-          } else {
-            strEnd = true;
-            break;
-          }
+          strEnd = true;
+          break;
         }
       }
       
@@ -448,6 +444,10 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
     }
     case '`': {
       for (i = 1; z[i]; i++) {
+        if (z[i] == '`' && z[i+1] == '`') {
+          i++;
+          continue;
+        }
         if (z[i] == '`') {
           i++;
           *tokenId = TK_ID;
@@ -668,10 +668,19 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
 
   // support parse the 'db.tbl' format, notes: There should be no space on either side of the dot!
   if ('.' == str[*i + t0.n]) {
-    len = tGetToken(&str[*i + t0.n + 1], &type);
+    char *tmp = str + *i + t0.n + 1;
+    len = tGetToken(tmp, &type);
 
-    // only id and string are valid
-    if ((TK_STRING != t0.type) && (TK_ID != t0.type)) {
+    if(type == TK_ID && *tmp == '`'){
+      // set origin ` ` to space for next parse ok
+      tmp[len] = ' ';
+      tmp[0] = ' ';
+      memmove(tmp, tmp + 1, len - 2);
+      len -= 2;
+    }
+
+    // only id is valid
+    if (TK_ID != t0.type) {
       t0.type = TK_ILLEGAL;
       t0.n = 0;
 
@@ -680,7 +689,13 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
 
     t0.n += len + 1;
 
-  } else {
+  } else if(t0.type == TK_STRING){  // remove "" ''
+    char *tmp = str + *i + t0.n;
+    tmp[t0.n] = ' ';
+    tmp[0] = ' ';
+    memmove(tmp, tmp + 1, t0.n - 2);
+    t0.n -= 2;
+  }else {
     // support parse the -/+number format
     if ((isPrevOptr) && (t0.type == TK_MINUS || t0.type == TK_PLUS)) {
       len = tGetToken(&str[*i + t0.n], &type);

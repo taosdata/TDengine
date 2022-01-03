@@ -182,7 +182,6 @@ cmd ::= COMPACT VNODES IN LP exprlist(Y) RP.    { setCompactVnodeSql(pInfo, TSDB
 // And "ids" is an identifer-or-string.
 %type ids {SStrToken}
 ids(A) ::= ID(X).        {A = X; }
-ids(A) ::= STRING(X).    {A = X; }
 
 %type ifexists {SStrToken}
 ifexists(X) ::= IF EXISTS.          { X.n = 1;}

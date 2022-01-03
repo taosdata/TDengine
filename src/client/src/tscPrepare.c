@@ -1736,7 +1736,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   bool dbIncluded = false;
   
   // Check if the table name available or not
-  if (tscValidateName(&tname, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
+  if (tscValidateName(&tname, &dbIncluded) != TSDB_CODE_SUCCESS) {
     tscError("0x%" PRIx64 " tbname[%s] is invalid", pSql->self, tname.z);
     free(tname.z);
     STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "name is invalid"));

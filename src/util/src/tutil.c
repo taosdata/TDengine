@@ -26,35 +26,44 @@ bool isInteger(double x){
   return (x == truncated);
 }
 
-int32_t strdequote(char *z) {
-  if (z == NULL) {
-    return 0;
-  }
-
-  int32_t quote = z[0];
-  if (quote != '\'' && quote != '"') {
-    return (int32_t)strlen(z);
-  }
-
-  int32_t i = 1, j = 0;
-
-  while (z[i] != 0) {
-    if (z[i] == quote) {
-      if (z[i + 1] == quote) {
-        z[j++] = (char)quote;
-        i++;
-      } else {
-        z[j++] = 0;
-        return (j - 1);
-      }
-    } else {
-      z[j++] = z[i];
+size_t strDealWithEscape(char *z, size_t len){
+    if (z == NULL) {
+      return 0;
     }
 
-    i++;
-  }
+    char *current = z;
+    for (size_t i = 0; i < len; i++) {
+      if (z[i] == '\\') {   // deal with escape character
+        if(z[i+1] == 'n'){
+          *current = '\n';
+        }else if(z[i+1] == 'r'){
+          *current = '\r';
+        }else if(z[i+1] == 't'){
+          *current = '\t';
+        }else if(z[i+1] == '\\'){
+          *current = '\\';
+        }else if(z[i+1] == '\''){
+          *current = '\'';
+        }else if(z[i+1] == '"'){
+          *current = '"';
+        }else if(z[i+1] == '%'){
+          *current++ = z[i];
+          *current = z[i+1];
+        }else if(z[i+1] == '_'){
+          *current++ = z[i];
+          *current = z[i+1];
+        }else{
+          *current = z[i+1];
+        }
 
-  return j + 1;  // only one quote, do nothing
+        i++;
+        current++;
+        continue;
+      }
+
+      *current++ = z[i];
+    }
+    return current - z;
 }
 
 // delete escape character: \\, \', \"
@@ -180,48 +189,6 @@ char *strnchr(char *haystack, char needle, int32_t len, bool skipquote) {
 
   return NULL;
 }
-
-/*
- * find dst in src, ignoreInEsc means if ignore characters in quote character，like ' ', " ", ` `
- */
-char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
-  if (!ignoreInEsc) {
-    return strstr(src, dst);
-  }
-
-  int32_t len = (int32_t)strlen(src);
-  bool inEsc = false;
-  char escChar = 0;
-  char *str = src, *res = NULL;
-  
-  for (int32_t i = 0; i < len; ++i) {
-    if (src[i] == TS_ESCAPE_CHAR || src[i] == '\'' || src[i] == '\"') {
-      if (!inEsc) {
-        escChar = src[i];
-        src[i] = 0;
-        res = strstr(str, dst);
-        src[i] = escChar;
-        if (res) {
-          return res;
-        }
-        str = NULL;
-      } else {
-        if (src[i] != escChar) {
-          continue;
-        }
-
-        str = src + i + 1;
-      }
-      
-      inEsc = !inEsc;
-      continue;
-    }
-  }
-
-  return str ? strstr(str, dst) : NULL;
-}
-
-
 
 char* strtolower(char *dst, const char *src) {
   int esc = 0;

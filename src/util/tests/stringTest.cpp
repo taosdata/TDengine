@@ -45,17 +45,17 @@ TEST(testCase, str_rmquote_test) {
 }
 
 TEST(testCase, string_dequote_test) {
-  char    t1[] = "'abc'";
-  int32_t len = strdequote(t1);
+//  char    t1[] = "'abc'";
+//  int32_t len = strdequote(t1);
+//
+//  EXPECT_EQ(3, len);
+//  EXPECT_STRCASEEQ(t1, "abc");
+//
+//  char t2[] = "\"abc\"";
+//  len = strdequote(t2);
 
-  EXPECT_EQ(3, len);
-  EXPECT_STRCASEEQ(t1, "abc");
-
-  char t2[] = "\"abc\"";
-  len = strdequote(t2);
-
-  EXPECT_EQ(3, len);
-  EXPECT_STRCASEEQ(t1, "abc");
+//  EXPECT_EQ(3, len);
+//  EXPECT_STRCASEEQ(t1, "abc");
 
   char t21[] = " abc ";
   int32_t lx = strtrim(t21);

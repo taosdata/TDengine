@@ -137,7 +137,6 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
     char tmp[TSDB_DB_NAME_LEN] = {0};
     tstrncpy(tmp, db, sizeof(tmp));
 
-    strdequote(tmp);
     strtolower(pObj->db, tmp);
   }
 

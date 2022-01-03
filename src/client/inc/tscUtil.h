@@ -260,7 +260,7 @@ void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo, uint64_t objId, b
 
 void tscDequoteAndTrimToken(SStrToken* pToken);
 void tscRmEscapeAndTrimToken(SStrToken* pToken);
-int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded);
+int32_t tscValidateName(SStrToken* pToken, bool *dbIncluded);
 
 void tscIncStreamExecutionCount(void* pStream);
 
