@@ -823,7 +823,7 @@ TEST_F(IndexEnv2, testIndex_TrigeFlush) {
     // r
     std::cout << "failed to init" << std::endl;
   }
-  int numOfTable = 2 * 10000;
+  int numOfTable = 100 * 10000;
   index->WriteMillonData("tag1", "Hello Wolrd", numOfTable);
   int target = index->SearchOne("tag1", "Hello Wolrd");
   std::cout << "Get Index: " << target << std::endl;
@@ -847,8 +847,8 @@ TEST_F(IndexEnv2, testIndex_serarch_cache_and_tfile) {
   }
   index->PutOne("tag1", "Hello");
   index->PutOne("tag2", "Test");
-  index->WriteMultiMillonData("tag1", "Hello", 5 * 10000);
-  index->WriteMultiMillonData("tag2", "Test", 5 * 10000);
+  index->WriteMultiMillonData("tag1", "Hello", 50 * 10000);
+  index->WriteMultiMillonData("tag2", "Test", 50 * 10000);
   std::thread threads[NUM_OF_THREAD];
 
   for (int i = 0; i < NUM_OF_THREAD; i++) {

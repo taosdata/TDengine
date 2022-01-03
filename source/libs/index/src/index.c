@@ -73,6 +73,7 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
 #ifdef USE_INVERTED_INDEX
   // sIdx->cache = (void*)indexCacheCreate(sIdx);
   sIdx->tindex = indexTFileCreate(path);
+  if (sIdx->tindex == NULL) { goto END; }
   sIdx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   sIdx->cVersion = 1;
   sIdx->path = calloc(1, strlen(path) + 1);
@@ -83,6 +84,8 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
 
   return 0;
 #endif
+END:
+  if (sIdx != NULL) { indexClose(sIdx); }
 
   *index = NULL;
   return -1;

@@ -66,12 +66,14 @@ TFileCache* tfileCacheCreate(const char* path) {
   int32_t  colId, version;
   for (size_t i = 0; i < taosArrayGetSize(files); i++) {
     char* file = taosArrayGetP(files, i);
-    char  colName[256] = {0};
+
+    // refactor later, use colname and version info
+    char colName[256] = {0};
     if (0 != tfileParseFileName(file, &suid, colName, (int*)&version)) {
       indexInfo("try parse invalid file:  %s, skip it", file);
       continue;
     }
-    // use version info later
+
     char fullName[256] = {0};
     sprintf(fullName, "%s/%s", path, file);
 
@@ -204,7 +206,7 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* resul
 TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int32_t version, const char* colName, uint8_t colType) {
   char fullname[256] = {0};
   tfileGenFileFullName(fullname, path, suid, colName, version);
-  indexInfo("open write file name %s", fullname);
+  // indexInfo("open write file name %s", fullname);
   WriterCtx* wcx = writerCtxCreate(TFile, fullname, false, 1024 * 1024 * 64);
   if (wcx == NULL) { return NULL; }
 
@@ -221,7 +223,7 @@ TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const c
   tfileGenFileFullName(fullname, path, suid, colName, version);
 
   WriterCtx* wc = writerCtxCreate(TFile, fullname, true, 1024 * 1024 * 1024);
-  indexInfo("open read file name:%s, size: %d", wc->file.buf, wc->file.size);
+  // indexInfo("open read file name:%s, size: %d", wc->file.buf, wc->file.size);
   if (wc == NULL) { return NULL; }
 
   TFileReader* reader = tfileReaderCreate(wc);
@@ -356,6 +358,7 @@ IndexTFile* indexTFileCreate(const char* path) {
   return tfile;
 }
 void indexTFileDestroy(IndexTFile* tfile) {
+  if (tfile == NULL) { return; }
   tfileCacheDestroy(tfile->cache);
   free(tfile);
 }
