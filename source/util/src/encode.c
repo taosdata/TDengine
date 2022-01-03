@@ -86,7 +86,11 @@ void tEndEncode(SCoder* pCoder) {
     pCoder->size = pNode->size;
     pCoder->pos = pNode->pos;
 
-    tEncodeI32(pCoder, len);
+    if (TD_RT_ENDIAN() == pCoder->endian) {
+      tPut(int32_t, pCoder->data + pCoder->pos, len);
+    } else {
+      tRPut32(pCoder->data + pCoder->pos, len);
+    }
 
     TD_CODER_MOVE_POS(pCoder, len);
 
