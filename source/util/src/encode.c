@@ -50,6 +50,7 @@ void tCoderClear(SCoder* pCoder) {
 int tStartEncode(SCoder* pCoder) {
   struct SCoderNode* pNode;
 
+  ASSERT(pCoder->type == TD_ENCODER);
   if (pCoder->data) {
     if (pCoder->size - pCoder->pos < sizeof(int32_t)) return -1;
 
@@ -75,6 +76,7 @@ void tEndEncode(SCoder* pCoder) {
   struct SCoderNode* pNode;
   int32_t            len;
 
+  ASSERT(pCoder->type == TD_ENCODER);
   if (pCoder->data) {
     pNode = TD_SLIST_HEAD(&(pCoder->stack));
     ASSERT(pNode);
@@ -92,7 +94,7 @@ void tEndEncode(SCoder* pCoder) {
       tRPut32(pCoder->data + pCoder->pos, len);
     }
 
-    TD_CODER_MOVE_POS(pCoder, len);
+    TD_CODER_MOVE_POS(pCoder, len + sizeof(int32_t));
 
     free(pNode);
   }
@@ -102,6 +104,7 @@ int tStartDecode(SCoder* pCoder) {
   int32_t            len;
   struct SCoderNode* pNode;
 
+  ASSERT(pCoder->type == TD_DECODER);
   if (tDecodeI32(pCoder, &len) < 0) return -1;
 
   pNode = malloc(sizeof(*pNode));
@@ -121,9 +124,10 @@ int tStartDecode(SCoder* pCoder) {
 }
 
 void tEndDecode(SCoder* pCoder) {
-  ASSERT(tDecodeIsEnd(pCoder));
-
   struct SCoderNode* pNode;
+
+  ASSERT(pCoder->type == TD_DECODER);
+  ASSERT(tDecodeIsEnd(pCoder));
 
   pNode = TD_SLIST_HEAD(&(pCoder->stack));
   ASSERT(pNode);

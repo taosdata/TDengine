@@ -305,7 +305,7 @@ static int tSFinalReq_v1_decode(SCoder *pCoder, SFinalReq_v1 *ps1) {
   if (tDecodeI32(pCoder, &ps1->v_a) < 0) return -1;
   if (tDecodeI8(pCoder, &ps1->v_b) < 0) return -1;
 
-  tEndEncode(pCoder);
+  tEndDecode(pCoder);
   return 0;
 }
 
@@ -346,7 +346,7 @@ static int tSFinalReq_v2_decode(SCoder *pCoder, SFinalReq_v2 *ps2) {
     if (tDecodeI16(pCoder, &ps2->v_c) < 0) return -1;
   }
 
-  tEndEncode(pCoder);
+  tEndDecode(pCoder);
   return 0;
 }
 
