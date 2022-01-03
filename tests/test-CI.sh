@@ -54,7 +54,7 @@ function dohavecore(){
 function runSimCaseOneByOnefq {
   end=`sed -n '$=' jenkins/basic.txt` 
   for ((i=1;i<=$end;i++)) ; do
-    if [[ $(($i%$2)) -eq $4 ]];then
+    if [[ $(($i%$1)) -eq $3 ]];then
       line=`sed -n "$i"p jenkins/basic.txt`
       if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
         case=`echo $line | grep sim$ |awk '{print $NF}'`
