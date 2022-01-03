@@ -167,3 +167,35 @@ TEST(td_encode_test, encode_decode_variant_len_integer) {
   simple_encode_decode_func<int64_t>(true);
   simple_encode_decode_func<uint64_t>(true);
 }
+
+TEST(td_encode_test, encode_decode_cstr) {
+  uint8_t *   buf = new uint8_t[1024 * 1024];
+  char *      cstr = new char[1024 * 1024];
+  const char *dcstr;
+  SCoder      encoder;
+  SCoder      decoder;
+
+  for (size_t i = 0; i < 1024 * 2 - 1; i++) {
+    memset(cstr, 'a', i);
+    cstr[i] = '\0';
+    for (td_endian_t endian : endian_arr) {
+      // Encode
+      tCoderInit(&encoder, endian, buf, 1024 * 1024, TD_ENCODER);
+
+      GTEST_ASSERT_EQ(tEncodeCStr(&encoder, cstr), 0);
+
+      tCoderClear(&encoder);
+
+      // Decode
+      tCoderInit(&decoder, endian, buf, 1024 * 1024, TD_DECODER);
+
+      GTEST_ASSERT_EQ(tDecodeCStr(&decoder, &dcstr), 0);
+      GTEST_ASSERT_EQ(memcmp(dcstr, cstr, i + 1), 0);
+
+      tCoderClear(&decoder);
+    }
+  }
+
+  delete buf;
+  delete cstr;
+}
