@@ -148,10 +148,7 @@ static void simple_encode_decode_func(bool var_len) {
   }
 }
 
-TEST(td_encode_test, simple_encode_and_decode_test) {
-  uint8_t buf[10];
-  SCoder  encoder, decoder;
-
+TEST(td_encode_test, encode_decode_fixed_len_integer) {
   simple_encode_decode_func<int8_t>(false);
   simple_encode_decode_func<uint8_t>(false);
   simple_encode_decode_func<int16_t>(false);
@@ -160,7 +157,9 @@ TEST(td_encode_test, simple_encode_and_decode_test) {
   simple_encode_decode_func<uint32_t>(false);
   simple_encode_decode_func<int64_t>(false);
   simple_encode_decode_func<uint64_t>(false);
+}
 
+TEST(td_encode_test, encode_decode_variant_len_integer) {
   simple_encode_decode_func<int16_t>(true);
   simple_encode_decode_func<uint16_t>(true);
   simple_encode_decode_func<int32_t>(true);
