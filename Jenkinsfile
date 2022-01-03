@@ -55,10 +55,10 @@ def pre_test(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.4'){
+      else if(env.CHANGE_TARGET == '2.0'){
         sh '''
         cd ${WKC}
-        git checkout 2.4
+        git checkout 2.0
         '''
       }
       else{
@@ -87,10 +87,10 @@ def pre_test(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.4'){
+      else if(env.CHANGE_TARGET == '2.0'){
         sh '''
         cd ${WK}
-        git checkout 2.4
+        git checkout 2.0
         '''
       }
       else{
@@ -130,10 +130,10 @@ def pre_test_noinstall(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.4'){
+      else if(env.CHANGE_TARGET == '2.0'){
         sh '''
         cd ${WKC}
-        git checkout 2.4
+        git checkout 2.0
         '''
       }
       else{
@@ -162,10 +162,10 @@ def pre_test_noinstall(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.4'){
+      else if(env.CHANGE_TARGET == '2.0'){
         sh '''
         cd ${WK}
-        git checkout 2.4
+        git checkout 2.0
         '''
       }
       else{
@@ -202,10 +202,10 @@ def pre_test_mac(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.4'){
+      else if(env.CHANGE_TARGET == '2.0'){
         sh '''
         cd ${WKC}
-        git checkout 2.4
+        git checkout 2.0
         '''
       }
       else{
@@ -234,10 +234,10 @@ def pre_test_mac(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.4'){
+      else if(env.CHANGE_TARGET == '2.0'){
         sh '''
         cd ${WK}
-        git checkout 2.4
+        git checkout 2.0
         '''
       }
       else{
@@ -280,10 +280,10 @@ def pre_test_win(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.4'){
+      else if(env.CHANGE_TARGET == '2.0'){
         bat '''
         cd C:\\workspace\\TDinternal\\community
-        git checkout 2.4
+        git checkout 2.0
         '''
       }
       else{
@@ -311,10 +311,10 @@ def pre_test_win(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.4'){
+      else if(env.CHANGE_TARGET == '2.0'){
         bat '''
         cd C:\\workspace\\TDinternal
-        git checkout 2.4
+        git checkout 2.0
         '''
       }
       else{
@@ -494,32 +494,24 @@ pipeline {
           steps {
             pre_test()
             timeout(time: 100, unit: 'MINUTES'){
-              script{
-                scope.each {
                   sh """
                     date
                     cd ${WKC}/tests
                     ./test-CI.sh sim 4 ${sim_mod[0]}
                     date"""
-                  }
-                }
-            }            
-          }
+              }
+          }            
         }
         stage('sim_2') {
           agent{label " slave7 || slave17 "}
           steps {
             pre_test()
             timeout(time: 100, unit: 'MINUTES'){
-                 script{
-                  scope.each {
-                    sh """
-                      date
-                      cd ${WKC}/tests
-                      ./test-CI.sh sim 4 ${sim_mod[1]} 
-                      date"""
-                    }
-                }
+              sh """
+                date
+                cd ${WKC}/tests
+                ./test-CI.sh sim 4 ${sim_mod[1]} 
+                date"""
             }
           }
         }
@@ -528,15 +520,11 @@ pipeline {
           steps {
             timeout(time: 105, unit: 'MINUTES'){
               pre_test()
-              script{
-              scope.each {
-                sh """
-                  date
-                  cd ${WKC}/tests
-                  ./test-CI.sh sim 4 ${sim_mod[2]}
-                  date"""
-                }
-              }
+              sh """
+                date
+                cd ${WKC}/tests
+                ./test-CI.sh sim 4 ${sim_mod[2]}
+                date"""
             }
           }
         }
@@ -545,18 +533,14 @@ pipeline {
           steps {
             timeout(time: 100, unit: 'MINUTES'){
               pre_test()
-              script{
-              scope.each {
-                sh """
-                  date
-                  cd ${WKC}/tests
-                  ./test-CI.sh sim 4 ${sim_mod[3]}
-                  date"""
-                }
+              sh """
+                date
+                cd ${WKC}/tests
+                ./test-CI.sh sim 4 ${sim_mod[3]}
+                date"""
               }
-          
             }
-          }
+          
         }
         stage('other') {
           agent{label " slave10 || slave20 "}
