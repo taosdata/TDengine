@@ -59,6 +59,7 @@ typedef struct SSdb {
   char       *tmpDir;
   int64_t     lastCommitVer;
   int64_t     curVer;
+  int64_t     tableVer[SDB_MAX];
   int32_t     maxId[SDB_MAX];
   EKeyType    keyTypes[SDB_MAX];
   SHashObj   *hashObjs[SDB_MAX];

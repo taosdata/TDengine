@@ -17,11 +17,13 @@
 #define _TD_MND_INT_H_
 
 #include "mndDef.h"
+
 #include "sdb.h"
 #include "tcache.h"
 #include "tep.h"
 #include "tqueue.h"
 #include "ttime.h"
+#include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,6 +67,7 @@ typedef struct {
 typedef struct {
   int32_t    errCode;
   sem_t      syncSem;
+  SWal      *pWal;
   SSyncNode *pSyncNode;
   ESyncState state;
 } SSyncMgmt;

@@ -260,7 +260,7 @@ void sdbTraverse(SSdb *pSdb, ESdbType type, sdbTraverseFp fp, void *p1, void *p2
  *
  * @param pSdb The sdb object.
  * @param pIter The type of the table.
- * @record int32_t The number of rows in the table
+ * @return int32_t The number of rows in the table
  */
 int32_t sdbGetSize(SSdb *pSdb, ESdbType type);
 
@@ -269,9 +269,18 @@ int32_t sdbGetSize(SSdb *pSdb, ESdbType type);
  *
  * @param pSdb The sdb object.
  * @param pIter The type of the table.
- * @record int32_t The max id of the table
+ * @return int32_t The max id of the table
  */
 int32_t sdbGetMaxId(SSdb *pSdb, ESdbType type);
+
+/**
+ * @brief Update the version of sdb
+ *
+ * @param pSdb The sdb object.
+ * @param val The update value of the version.
+ * @return int32_t The current version of sdb
+ */
+int64_t sdbUpdateVer(SSdb *pSdb, int32_t val);
 
 SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen);
 void     sdbFreeRaw(SSdbRaw *pRaw);
