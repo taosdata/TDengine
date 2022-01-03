@@ -51,6 +51,8 @@ SSdb *sdbInit(SSdbOpt *pOption) {
     taosInitRWLatch(&pSdb->locks[i]);
   }
 
+  pSdb->curVer = -1;
+  pSdb->lastCommitVer = -1;
   pSdb->pMnode = pOption->pMnode;
   mDebug("sdb init successfully");
   return pSdb;
@@ -162,5 +164,5 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
 
 int64_t sdbUpdateVer(SSdb *pSdb, int32_t val) {
   pSdb->curVer += val;
-  return val;
+  return pSdb->curVer;
 }
