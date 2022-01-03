@@ -72,8 +72,6 @@ typedef struct SSdb {
   SdbDecodeFp decodeFps[SDB_MAX];
 } SSdb;
 
-int32_t sdbWriteFile(SSdb *pSdb);
-
 const char *sdbTableName(ESdbType type);
 void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
 

@@ -189,6 +189,14 @@ int32_t sdbDeploy(SSdb *pSdb);
 int32_t sdbReadFile(SSdb *pSdb);
 
 /**
+ * @brief Write sdb file.
+ *
+ * @param pSdb The sdb object.
+ * @return int32_t 0 for success, -1 for failure.
+ */
+int32_t sdbWriteFile(SSdb *pSdb);
+
+/**
  * @brief Parse and write raw data to sdb, then free the pRaw object
  *
  * @param pSdb The sdb object.
