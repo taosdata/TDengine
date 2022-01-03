@@ -108,7 +108,16 @@ void iterateValueDestroy(IterateValue* iv, bool destroy);
 
 extern void* indexQhandle;
 
+typedef struct TFileCacheKey {
+  uint64_t suid;
+  uint8_t  colType;
+  char*    colName;
+  int32_t  nColName;
+} ICacheKey;
+
 int indexFlushCacheTFile(SIndex* sIdx, void*);
+
+int32_t indexSerialCacheKey(ICacheKey* key, char* buf);
 
 #define indexFatal(...)                                                               \
   do {                                                                                \

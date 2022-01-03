@@ -51,7 +51,6 @@ static void tfileDestroyFileName(void* elem);
 static int  tfileCompare(const void* a, const void* b);
 static int  tfileParseFileName(const char* filename, uint64_t* suid, int* colId, int* version);
 static void tfileGenFileName(char* filename, uint64_t suid, int colId, int version);
-static void tfileSerialCacheKey(TFileCacheKey* key, char* buf);
 
 TFileCache* tfileCacheCreate(const char* path) {
   TFileCache* tcache = calloc(1, sizeof(TFileCache));
@@ -80,18 +79,18 @@ TFileCache* tfileCacheCreate(const char* path) {
       goto End;
     }
 
-    char          buf[128] = {0};
-    TFileReader*  reader = tfileReaderCreate(wc);
-    TFileHeader*  header = &reader->header;
-    TFileCacheKey key = {.suid = header->suid,
-                         .colName = header->colName,
-                         .nColName = strlen(header->colName),
-                         .colType = header->colType};
-    tfileSerialCacheKey(&key, buf);
+    char         buf[128] = {0};
+    TFileReader* reader = tfileReaderCreate(wc);
+    TFileHeader* header = &reader->header;
+    ICacheKey    key = {.suid = header->suid,
+                     .colName = header->colName,
+                     .nColName = strlen(header->colName),
+                     .colType = header->colType};
 
+    int32_t sz = indexSerialCacheKey(&key, buf);
+    assert(sz < sizeof(buf));
+    taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
     tfileReaderRef(reader);
-    // indexTable
-    taosHashPut(tcache->tableCache, buf, strlen(buf), &reader, sizeof(void*));
   }
   taosArrayDestroyEx(files, tfileDestroyFileName);
   return tcache;
@@ -117,30 +116,30 @@ void tfileCacheDestroy(TFileCache* tcache) {
   free(tcache);
 }
 
-TFileReader* tfileCacheGet(TFileCache* tcache, TFileCacheKey* key) {
-  char buf[128] = {0};
-  tfileSerialCacheKey(key, buf);
-
-  TFileReader** reader = taosHashGet(tcache->tableCache, buf, strlen(buf));
+TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key) {
+  char    buf[128] = {0};
+  int32_t sz = indexSerialCacheKey(key, buf);
+  assert(sz < sizeof(buf));
+  TFileReader** reader = taosHashGet(tcache->tableCache, buf, sz);
   if (reader == NULL) { return NULL; }
   tfileReaderRef(*reader);
 
   return *reader;
 }
-void tfileCachePut(TFileCache* tcache, TFileCacheKey* key, TFileReader* reader) {
-  char buf[128] = {0};
-  tfileSerialCacheKey(key, buf);
+void tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader) {
+  char    buf[128] = {0};
+  int32_t sz = indexSerialCacheKey(key, buf);
   // remove last version index reader
-  TFileReader** p = taosHashGet(tcache->tableCache, buf, strlen(buf));
+  TFileReader** p = taosHashGet(tcache->tableCache, buf, sz);
   if (p != NULL) {
     TFileReader* oldReader = *p;
-    taosHashRemove(tcache->tableCache, buf, strlen(buf));
+    taosHashRemove(tcache->tableCache, buf, sz);
     oldReader->remove = true;
     tfileReaderUnRef(oldReader);
   }
 
+  taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
   tfileReaderRef(reader);
-  taosHashPut(tcache->tableCache, buf, strlen(buf), &reader, sizeof(void*));
   return;
 }
 TFileReader* tfileReaderCreate(WriterCtx* ctx) {
@@ -230,8 +229,6 @@ TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const c
 
   TFileReader* reader = tfileReaderCreate(wc);
   return reader;
-
-  // tfileSerialCacheKey(&key, buf);
 }
 TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header) {
   // char pathBuf[128] = {0};
@@ -325,15 +322,19 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     tfileWriterClose(tw);
     return -1;
   }
-  // write fst
+
+  // write data
   indexError("--------Begin----------------");
   for (size_t i = 0; i < sz; i++) {
     // TODO, fst batch write later
     TFileValue* v = taosArrayGetP((SArray*)data, i);
-    if (tfileWriteData(tw, v) == 0) {
-      //
+    if (tfileWriteData(tw, v) != 0) {
+      indexError("failed to write data: %s, offset: %d len: %d", v->colVal, v->offset,
+                 (int)taosArrayGetSize(v->tableId));
+    } else {
+      indexInfo("success to write data: %s, offset: %d len: %d", v->colVal, v->offset,
+                (int)taosArrayGetSize(v->tableId));
     }
-    indexError("data: %s, offset: %d len: %d", v->colVal, v->offset, (int)taosArrayGetSize(v->tableId));
   }
   indexError("--------End----------------");
   fstBuilderFinish(tw->fb);
@@ -359,7 +360,7 @@ IndexTFile* indexTFileCreate(const char* path) {
   tfile->cache = tfileCacheCreate(path);
   return tfile;
 }
-void IndexTFileDestroy(IndexTFile* tfile) {
+void indexTFileDestroy(IndexTFile* tfile) {
   tfileCacheDestroy(tfile->cache);
   free(tfile);
 }
@@ -369,9 +370,8 @@ int indexTFileSearch(void* tfile, SIndexTermQuery* query, SArray* result) {
   if (tfile == NULL) { return ret; }
   IndexTFile* pTfile = (IndexTFile*)tfile;
 
-  SIndexTerm*   term = query->term;
-  TFileCacheKey key = {
-      .suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName = term->nColName};
+  SIndexTerm* term = query->term;
+  ICacheKey key = {.suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName = term->nColName};
   TFileReader* reader = tfileCacheGet(pTfile->cache, &key);
   if (reader == NULL) { return 0; }
 
@@ -385,8 +385,10 @@ int indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid) {
 }
 static bool tfileIteratorNext(Iterate* iiter) {
   IterateValue* iv = &iiter->val;
+  if (iv->colVal != NULL && iv->val != NULL) {
+    // indexError("value in fst: colVal: %s, size: %d", iv->colVal, (int)taosArrayGetSize(iv->val));
+  }
   iterateValueDestroy(iv, false);
-  // SArray* tblIds = iv->val;
 
   char*    colVal = NULL;
   uint64_t offset = 0;
@@ -406,14 +408,14 @@ static bool tfileIteratorNext(Iterate* iiter) {
   if (tfileReaderLoadTableIds(tIter->rdr, offset, iv->val) != 0) { return false; }
 
   iv->colVal = colVal;
-
+  return true;
   // std::string key(ch, sz);
 }
 
 static IterateValue* tifileIterateGetValue(Iterate* iter) { return &iter->val; }
 
 static TFileFstIter* tfileFstIteratorCreate(TFileReader* reader) {
-  TFileFstIter* tIter = calloc(1, sizeof(Iterate));
+  TFileFstIter* tIter = calloc(1, sizeof(TFileFstIter));
   if (tIter == NULL) { return NULL; }
 
   tIter->ctx = automCtxCreate(NULL, AUTOMATION_ALWAYS);
@@ -435,6 +437,7 @@ Iterate* tfileIteratorCreate(TFileReader* reader) {
   iter->next = tfileIteratorNext;
   iter->getValue = tifileIterateGetValue;
   iter->val.val = taosArrayInit(1, sizeof(uint64_t));
+  iter->val.colVal = NULL;
   return iter;
 }
 void tfileIteratorDestroy(Iterate* iter) {
@@ -447,13 +450,14 @@ void tfileIteratorDestroy(Iterate* iter) {
   streamWithStateDestroy(tIter->st);
   fstStreamBuilderDestroy(tIter->fb);
   automCtxDestroy(tIter->ctx);
+  free(tIter);
 
   free(iter);
 }
 
-TFileReader* tfileGetReaderByCol(IndexTFile* tf, char* colName) {
+TFileReader* tfileGetReaderByCol(IndexTFile* tf, uint64_t suid, char* colName) {
   if (tf == NULL) { return NULL; }
-  TFileCacheKey key = {.suid = 0, .colType = TSDB_DATA_TYPE_BINARY, .colName = colName, .nColName = strlen(colName)};
+  ICacheKey key = {.suid = suid, .colType = TSDB_DATA_TYPE_BINARY, .colName = colName, .nColName = strlen(colName)};
   return tfileCacheGet(tf->cache, &key);
 }
 
@@ -480,7 +484,7 @@ static int tfileValueCompare(const void* a, const void* b, const void* param) {
 TFileValue* tfileValueCreate(char* val) {
   TFileValue* tf = calloc(1, sizeof(TFileValue));
   if (tf == NULL) { return NULL; }
-  tf->colVal = val;
+  tf->colVal = tstrdup(val);
   tf->tableId = taosArrayInit(32, sizeof(uint64_t));
   return tf;
 }
@@ -491,6 +495,7 @@ int tfileValuePush(TFileValue* tf, uint64_t val) {
 }
 void tfileValueDestroy(TFileValue* tf) {
   taosArrayDestroy(tf->tableId);
+  free(tf->colVal);
   free(tf);
 }
 static void tfileSerialTableIdsToBuf(char* buf, SArray* ids) {
@@ -647,11 +652,4 @@ static int tfileParseFileName(const char* filename, uint64_t* suid, int* colId, 
     return 0;
   }
   return -1;
-}
-static void tfileSerialCacheKey(TFileCacheKey* key, char* buf) {
-  // SERIALIZE_MEM_TO_BUF(buf, key, suid);
-  // SERIALIZE_VAR_TO_BUF(buf, '_', char);
-  // SERIALIZE_MEM_TO_BUF(buf, key, colType);
-  // SERIALIZE_VAR_TO_BUF(buf, '_', char);
-  SERIALIZE_STR_MEM_TO_BUF(buf, key, colName, key->nColName);
 }
