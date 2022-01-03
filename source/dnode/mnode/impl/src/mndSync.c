@@ -37,7 +37,6 @@ static int32_t mndInitWal(SMnode *pMnode) {
 
 static void mndCloseWal(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-
   if (pMgmt->pWal != NULL) {
     walClose(pMgmt->pWal);
     pMgmt->pWal = NULL;
@@ -59,7 +58,7 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
 
   for (int64_t ver = start; ver >= 0 && ver <= end; ++ver) {
     if (walReadWithHandle(pHandle, ver) < 0) {
-      mError("failed to read with wal handle since %s, ver:%" PRId64, terrstr(), ver);
+      mError("failed to read by wal handle since %s, ver:%" PRId64, terrstr(), ver);
       goto WAL_RESTORE_OVER;
     }
 
@@ -67,12 +66,12 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
     int64_t   sdbVer = sdbUpdateVer(pSdb, 0);
     if (sdbVer + 1 != ver) {
       terrno = TSDB_CODE_SDB_INVALID_WAl_VER;
-      mError("failed to write wal to sdb, sdbVer:%" PRId64 " inconsistent with ver:%" PRId64, sdbVer, ver);
+      mError("failed to read wal from sdb, sdbVer:%" PRId64 " inconsistent with ver:%" PRId64, sdbVer, ver);
       goto WAL_RESTORE_OVER;
     }
 
     if (sdbWriteNotFree(pSdb, (void *)pHead->head.body) < 0) {
-      mError("failed to write wal to sdb since %s, ver:%" PRId64, terrstr(), ver);
+      mError("failed to read wal from sdb since %s, ver:%" PRId64, terrstr(), ver);
       goto WAL_RESTORE_OVER;
     }
 
@@ -85,11 +84,9 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
       goto WAL_RESTORE_OVER;
     }
 
-    if (sdbVer != lastSdbVer) {
-      mInfo("sdb restore wal from %" PRId64 " to %" PRId64, lastSdbVer, sdbVer);
-      if (sdbWriteFile(pSdb) != 0) {
-        goto WAL_RESTORE_OVER;
-      }
+    mInfo("sdb restore wal from %" PRId64 " to %" PRId64, lastSdbVer, sdbVer);
+    if (sdbWriteFile(pSdb) != 0) {
+      goto WAL_RESTORE_OVER;
     }
 
     if (walEndSnapshot(pWal) < 0) {
@@ -101,7 +98,7 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
 
 WAL_RESTORE_OVER:
   walCloseReadHandle(pHandle);
-  return 0;
+  return code;
 }
 
 int32_t mndInitSync(SMnode *pMnode) {
