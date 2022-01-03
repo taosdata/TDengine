@@ -319,7 +319,7 @@ void fstStateSetCommInput(FstState* s, uint8_t inp) {
   assert(s->state == OneTransNext || s->state == OneTrans);
 
   uint8_t val;
-  COMMON_INDEX(inp, 0x111111, val);
+  COMMON_INDEX(inp, 0b111111, val);
   s->val = (s->val & fstStateDict[s->state].val) | val;
 }
 
@@ -369,7 +369,7 @@ uint8_t fstStateInput(FstState* s, FstNode* node) {
   bool      null = false;
   uint8_t   inp = fstStateCommInput(s, &null);
   uint8_t*  data = fstSliceData(slice, NULL);
-  return null == false ? inp : data[-1];
+  return null == false ? inp : data[node->start - 1];
 }
 uint8_t fstStateInputForAnyTrans(FstState* s, FstNode* node, uint64_t i) {
   assert(s->state == AnyTrans);
@@ -1062,6 +1062,7 @@ Output fstEmptyFinalOutput(Fst* fst, bool* null) {
   } else {
     *null = true;
   }
+  fstNodeDestroy(node);
   return res;
 }
 
@@ -1286,6 +1287,7 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
       StreamWithStateResult* result = swsResultCreate(&slice, fOutput, tState);
       free(buf);
       fstSliceDestroy(&slice);
+      taosArrayDestroy(nodes);
       return result;
     }
     free(buf);

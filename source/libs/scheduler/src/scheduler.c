@@ -664,7 +664,7 @@ int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
       }
 
       SSubQueryMsg *pMsg = msg;
-      
+
       pMsg->sId = htobe64(schMgmt.sId);
       pMsg->queryId = htobe64(job->queryId);
       pMsg->taskId = htobe64(task->taskId);
