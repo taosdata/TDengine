@@ -785,7 +785,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
         
         pTable->restoreColumnNum += 1;
 
-        tsdbDebug("tsdbRestoreLastColumns restore vgId:%d,table:%s cache column %d, %" PRId64, REPO_ID(pRepo), pTable->name->data, pLastCol->colId, pLastCol->ts);
+        tsdbTrace("tsdbRestoreLastColumns restore vgId:%d,table:%s cache column %d, %" PRId64, REPO_ID(pRepo), pTable->name->data, pLastCol->colId, pLastCol->ts);
         break;
       }
     }
@@ -921,38 +921,19 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
   return 0;
 }
 
-int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable) {
+int32_t tsdbLoadLastCache(STsdbRepo *pRepo, SArray *pArray) {
   SFSIter    fsiter;
   SReadH     readh;
   SDFileSet *pSet;
-  int cacheLastRowTableNum = 0;
-  int cacheLastColTableNum = 0;
+  // int        cacheLastRowTableNum = 0;
+  // int        cacheLastColTableNum = 0;
+  uint32_t   arrSize = (uint32_t)taosArrayGetSize(pArray);
 
   bool cacheLastRow = CACHE_LAST_ROW(&(pRepo->config));
   bool cacheLastCol = CACHE_LAST_NULL_COLUMN(&(pRepo->config));
 
-  tsdbDebug("tsdbLoadLastCache for %s, cacheLastRow:%d, cacheLastCol:%d", pTable->name->data, cacheLastRow, cacheLastCol);
-
-  pTable->cacheLastConfigVersion = pRepo->cacheLastConfigVersion;
-
-  if (!cacheLastRow && pTable->lastRow != NULL) {
-    taosTZfree(pTable->lastRow);
-    pTable->lastRow = NULL;
-  }
-  if (!cacheLastCol && pTable->lastCols != NULL) {
-    tsdbFreeLastColumns(pTable);
-  }
-
-  if (!cacheLastRow && !cacheLastCol) {
-    return 0;
-  }
-
-  cacheLastRowTableNum = (cacheLastRow && pTable->lastRow  == NULL) ? 1 : 0;
-  cacheLastColTableNum = (cacheLastCol && pTable->lastCols == NULL) ? 1 : 0;
-
-  if (cacheLastRowTableNum == 0 && cacheLastColTableNum == 0) {
-    return 0;
-  }
+  tsdbDebug("tsdbLoadLastCache for %" PRIu32 " tables, cacheLastRow:%d, cacheLastCol:%d", arrSize, cacheLastRow,
+            cacheLastCol);
 
   if (tsdbInitReadH(&readh, pRepo) < 0) {
     return -1;
@@ -961,7 +942,8 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable) {
   tsdbRLockFS(REPO_FS(pRepo));
   tsdbFSIterInit(&fsiter, REPO_FS(pRepo), TSDB_FS_ITER_BACKWARD);
 
-  while ((cacheLastRowTableNum > 0 || cacheLastColTableNum > 0) && (pSet = tsdbFSIterNext(&fsiter)) != NULL) {
+  while ((pSet = tsdbFSIterNext(&fsiter)) != NULL) {
+    bool isFinishIter = true;
     if (tsdbSetAndOpenReadFSet(&readh, pSet) < 0) {
       tsdbUnLockFS(REPO_FS(pRepo));
       tsdbDestroyReadH(&readh);
@@ -974,35 +956,68 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable) {
       return -1;
     }
 
-    // tsdbDebug("tsdbRestoreInfo restore vgId:%d,table:%s", REPO_ID(pRepo), pTable->name->data);
+    for (size_t t = 0; t < arrSize; ++t) {
+      STable *pTable = (STable *)taosArrayGet(pArray, t);
 
-    if (tsdbSetReadTable(&readh, pTable) < 0) {
-      tsdbUnLockFS(REPO_FS(pRepo));
-      tsdbDestroyReadH(&readh);
-      return -1;
-    }
+      tsdbTrace("tsdbLoadLastCache for vgId:%d, table:%s", REPO_ID(pRepo), pTable->name->data);
 
-    SBlockIdx *pIdx = readh.pBlkIdx;
+      pTable->cacheLastConfigVersion = pRepo->cacheLastConfigVersion;
 
-    if (pIdx && (cacheLastRowTableNum > 0) && (pTable->lastRow == NULL)) {
-      if (tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx) != 0) {
+      if (!cacheLastRow && pTable->lastRow != NULL) {
+        taosTZfree(pTable->lastRow);
+        pTable->lastRow = NULL;
+      }
+
+      if (!cacheLastCol && pTable->lastCols != NULL) {
+        tsdbFreeLastColumns(pTable);
+      }
+
+      if (!cacheLastRow && !cacheLastCol) {
+        continue;
+      }
+
+      bool cacheLastRowTable = (cacheLastRow && pTable->lastRow == NULL) ? true : false;
+      bool cacheLastColTable = (cacheLastCol && pTable->lastCols == NULL) ? true : false;
+
+      if (!cacheLastRowTable && !cacheLastColTable) {
+        continue;
+      }
+
+      if (tsdbSetReadTable(&readh, pTable) < 0) {
         tsdbUnLockFS(REPO_FS(pRepo));
         tsdbDestroyReadH(&readh);
         return -1;
       }
-      cacheLastRowTableNum -= 1;
-    }
 
-    // restore NULL columns
-    if (pIdx && (cacheLastColTableNum > 0) && !pTable->hasRestoreLastColumn) {
-      if (tsdbRestoreLastColumns(pRepo, pTable, &readh) != 0) {
-        tsdbUnLockFS(REPO_FS(pRepo));
-        tsdbDestroyReadH(&readh);
-        return -1;
+      SBlockIdx *pIdx = readh.pBlkIdx;
+
+      if (pIdx && cacheLastRowTable && (pTable->lastRow == NULL)) {
+        if (tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx) != 0) {
+          tsdbUnLockFS(REPO_FS(pRepo));
+          tsdbDestroyReadH(&readh);
+          return -1;
+        }
       }
-      if (pTable->hasRestoreLastColumn) {
-        cacheLastColTableNum -= 1;
+
+      if (cacheLastRowTable && (pTable->lastRow == NULL)) {
+        isFinishIter = false;
       }
+
+      // restore NULL columns
+      if (pIdx && cacheLastColTable && !pTable->hasRestoreLastColumn) {
+        if (tsdbRestoreLastColumns(pRepo, pTable, &readh) != 0) {
+          tsdbUnLockFS(REPO_FS(pRepo));
+          tsdbDestroyReadH(&readh);
+          return -1;
+        }
+      }
+
+      if (cacheLastColTable && !pTable->hasRestoreLastColumn) {
+        isFinishIter = false;
+      }
+    }
+    if (isFinishIter) {
+      break;
     }
   }
 
