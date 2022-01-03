@@ -388,13 +388,34 @@ TEST(td_encode_test, compound_struct_encode_test) {
   // Decode
   tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf1, buf1size, TD_DECODER);
   GTEST_ASSERT_EQ(tSFinalReq_v1_decode(&decoder, &dreq1), 0);
+  GTEST_ASSERT_EQ(dreq1.pA->A_a, req1.pA->A_a);
+  GTEST_ASSERT_EQ(dreq1.pA->A_b, req1.pA->A_b);
+  GTEST_ASSERT_EQ(strcmp(dreq1.pA->A_c, req1.pA->A_c), 0);
+  GTEST_ASSERT_EQ(dreq1.v_a, req1.v_a);
+  GTEST_ASSERT_EQ(dreq1.v_b, req1.v_b);
   tCoderClear(&decoder);
 
   tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf1, buf1size, TD_DECODER);
   GTEST_ASSERT_EQ(tSFinalReq_v2_decode(&decoder, &dreq21), 0);
+  GTEST_ASSERT_EQ(dreq21.pA->A_a, req1.pA->A_a);
+  GTEST_ASSERT_EQ(dreq21.pA->A_b, req1.pA->A_b);
+  GTEST_ASSERT_EQ(strcmp(dreq21.pA->A_c, req1.pA->A_c), 0);
+  GTEST_ASSERT_EQ(dreq21.pA->A_d, 0);
+  GTEST_ASSERT_EQ(dreq21.pA->A_e, 0);
+  GTEST_ASSERT_EQ(dreq21.v_a, req1.v_a);
+  GTEST_ASSERT_EQ(dreq21.v_b, req1.v_b);
+  GTEST_ASSERT_EQ(dreq21.v_c, 0);
   tCoderClear(&decoder);
 
   tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf2, buf2size, TD_DECODER);
   GTEST_ASSERT_EQ(tSFinalReq_v2_decode(&decoder, &dreq22), 0);
+  GTEST_ASSERT_EQ(dreq22.pA->A_a, req2.pA->A_a);
+  GTEST_ASSERT_EQ(dreq22.pA->A_b, req2.pA->A_b);
+  GTEST_ASSERT_EQ(strcmp(dreq22.pA->A_c, req2.pA->A_c), 0);
+  GTEST_ASSERT_EQ(dreq22.pA->A_d, req2.pA->A_d);
+  GTEST_ASSERT_EQ(dreq22.pA->A_e, req2.pA->A_e);
+  GTEST_ASSERT_EQ(dreq22.v_a, req2.v_a);
+  GTEST_ASSERT_EQ(dreq22.v_b, req2.v_b);
+  GTEST_ASSERT_EQ(dreq22.v_c, req2.v_c);
   tCoderClear(&decoder);
 }
