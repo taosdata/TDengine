@@ -174,6 +174,7 @@ typedef enum _mgmt_table {
 
 typedef struct SBuildTableMetaInput {
   int32_t vgId;
+  char*   dbName;
   char*   tableFullName;
 } SBuildTableMetaInput;
 
@@ -355,9 +356,9 @@ typedef struct SEpSet {
 } SEpSet;
 
 static FORCE_INLINE int taosEncodeSEpSet(void** buf, const SEpSet* pEp) {
-  if(buf == NULL) return sizeof(SEpSet);
+  if (buf == NULL) return sizeof(SEpSet);
   memcpy(buf, pEp, sizeof(SEpSet));
-  //TODO: endian conversion
+  // TODO: endian conversion
   return sizeof(SEpSet);
 }
 
@@ -776,6 +777,7 @@ typedef struct {
 
 typedef struct {
   SMsgHead header;
+  char     dbFname[TSDB_DB_FNAME_LEN];
   char     tableFname[TSDB_TABLE_FNAME_LEN];
 } STableInfoMsg;
 
@@ -810,6 +812,7 @@ typedef struct {
 typedef struct {
   char     tbFname[TSDB_TABLE_FNAME_LEN];  // table full name
   char     stbFname[TSDB_TABLE_FNAME_LEN];
+  char     dbFname[TSDB_DB_FNAME_LEN];
   int32_t  numOfTags;
   int32_t  numOfColumns;
   int8_t   precision;
@@ -1122,10 +1125,10 @@ typedef struct STaskDropRsp {
 } STaskDropRsp;
 
 typedef struct {
-  int8_t  igExists;
-  char*   name;
-  char*   physicalPlan;
-  char*   logicalPlan;
+  int8_t igExists;
+  char*  name;
+  char*  physicalPlan;
+  char*  logicalPlan;
 } SCMCreateTopicReq;
 
 static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateTopicReq* pReq) {
@@ -1161,8 +1164,8 @@ static FORCE_INLINE void* tDeserializeSCMCreateTopicRsp(void* buf, SCMCreateTopi
 }
 
 typedef struct {
-  char* topicName;
-  char* consumerGroup;
+  char*   topicName;
+  char*   consumerGroup;
   int64_t consumerId;
 } SCMSubscribeReq;
 
@@ -1183,7 +1186,7 @@ static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq
 
 typedef struct {
   int32_t vgId;
-  SEpSet pEpSet;
+  SEpSet  pEpSet;
 } SCMSubscribeRsp;
 
 static FORCE_INLINE int tSerializeSCMSubscribeRsp(void** buf, const SCMSubscribeRsp* pRsp) {
@@ -1252,9 +1255,9 @@ typedef struct SVCreateTbReq {
   char*    name;
   uint32_t ttl;
   uint32_t keep;
-#define TD_SUPER_TABLE 0
-#define TD_CHILD_TABLE 1
-#define TD_NORMAL_TABLE 2
+#define TD_SUPER_TABLE TSDB_SUPER_TABLE
+#define TD_CHILD_TABLE TSDB_CHILD_TABLE
+#define TD_NORMAL_TABLE TSDB_NORMAL_TABLE
   uint8_t type;
   union {
     struct {
@@ -1282,8 +1285,10 @@ typedef struct {
 
 int   tmsgSVCreateTbReqEncode(SMsgEncoder* pCoder, SVCreateTbReq* pReq);
 int   tmsgSVCreateTbReqDecode(SMsgDecoder* pCoder, SVCreateTbReq* pReq);
-int   tSerializeSVCreateTbReq(void** buf, const SVCreateTbReq* pReq);
+int   tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
 void* tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
+int   tSVCreateTbBatchReqSerialize(void** buf, SVCreateTbBatchReq* pReq);
+void* tSVCreateTbBatchReqDeserialize(void* buf, SVCreateTbBatchReq* pReq);
 
 typedef struct SVCreateTbRsp {
 } SVCreateTbRsp;

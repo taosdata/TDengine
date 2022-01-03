@@ -27,7 +27,7 @@ int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
 }
 
 int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
-  SRpcMsg *  pMsg;
+  SRpcMsg *pMsg;
 
   for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
     pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
@@ -50,8 +50,9 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 }
 
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  SVCreateTbReq vCreateTbReq;
-  void *        ptr = vnodeMalloc(pVnode, pMsg->contLen);
+  SVCreateTbReq      vCreateTbReq;
+  SVCreateTbBatchReq vCreateTbBatchReq;
+  void *             ptr = vnodeMalloc(pVnode, pMsg->contLen);
   if (ptr == NULL) {
     // TODO: handle error
   }
@@ -68,7 +69,6 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   switch (pMsg->msgType) {
     case TDMT_VND_CREATE_STB:
-    case TDMT_VND_CREATE_TABLE:
       tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbReq);
       if (metaCreateTable(pVnode->pMeta, &(vCreateTbReq)) < 0) {
         // TODO: handle error
@@ -76,6 +76,15 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
       // TODO: maybe need to clear the requst struct
       break;
+    case TDMT_VND_CREATE_TABLE:
+      tSVCreateTbBatchReqDeserialize(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbBatchReq);
+      for (int i = 0; i < taosArrayGetSize(vCreateTbBatchReq.pArray); i++) {
+        SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
+        if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
+          // TODO: handle error
+        }
+      }
+      
     case TDMT_VND_DROP_STB:
     case TDMT_VND_DROP_TABLE:
       // if (metaDropTable(pVnode->pMeta, vReq.dtReq.uid) < 0) {

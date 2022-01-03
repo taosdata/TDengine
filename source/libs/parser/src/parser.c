@@ -32,7 +32,7 @@ bool isInsertSql(const char* pStr, size_t length) {
 }
 
 bool qIsDdlQuery(const SQueryNode* pQuery) {
-  return TSDB_SQL_INSERT != pQuery->type && TSDB_SQL_SELECT != pQuery->type;
+  return TSDB_SQL_INSERT != pQuery->type && TSDB_SQL_SELECT != pQuery->type && TSDB_SQL_CREATE_TABLE != pQuery->type;
 }
 
 int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
@@ -44,16 +44,29 @@ int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
   }
 
   if (!isDqlSqlStatement(&info)) {
-    SDclStmtInfo* pDcl = calloc(1, sizeof(SDclStmtInfo));
-    if (NULL == pDcl) {
-      terrno = TSDB_CODE_TSC_OUT_OF_MEMORY; // set correct error code.
-      return terrno;
+    bool toVnode = false;
+    if (info.type == TSDB_SQL_CREATE_TABLE) {
+      SCreateTableSql* pCreateSql = info.pCreateTableInfo;
+      if (pCreateSql->type == TSQL_CREATE_CTABLE || pCreateSql->type == TSQL_CREATE_TABLE) {
+        toVnode = true;
+      }
     }
 
-    pDcl->nodeType = info.type;
-    int32_t code = qParserValidateDclSqlNode(&info, &pCxt->ctx, pDcl, pCxt->pMsg, pCxt->msgLen);
-    if (code == TSDB_CODE_SUCCESS) {
+    if (toVnode) {
+      SInsertStmtInfo *pInsertInfo = qParserValidateCreateTbSqlNode(&info, &pCxt->ctx, pCxt->pMsg, pCxt->msgLen);
+      if (pInsertInfo == NULL) {
+        return terrno;
+      }
+
+      *pQuery = (SQueryNode*) pInsertInfo;
+    } else {
+      SDclStmtInfo* pDcl = qParserValidateDclSqlNode(&info, &pCxt->ctx, pCxt->pMsg, pCxt->msgLen);
+      if (pDcl == NULL) {
+        return terrno;
+      }
+
       *pQuery = (SQueryNode*)pDcl;
+      pDcl->nodeType = info.type;
     }
   } else {
     SQueryStmtInfo* pQueryInfo = calloc(1, sizeof(SQueryStmtInfo));
