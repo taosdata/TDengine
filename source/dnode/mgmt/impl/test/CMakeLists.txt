@@ -1,6 +1,5 @@
 enable_testing()
 
-add_subdirectory(acct)
 # add_subdirectory(auth)
 # add_subdirectory(balance)
 add_subdirectory(cluster)
@@ -17,7 +16,6 @@ add_subdirectory(stb)
 # add_subdirectory(sync)
 # add_subdirectory(telem)
 # add_subdirectory(trans)
-add_subdirectory(user)
 add_subdirectory(vgroup)
 
 add_subdirectory(sut)

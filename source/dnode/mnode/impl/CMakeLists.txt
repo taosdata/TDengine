@@ -13,3 +13,7 @@ target_link_libraries(
     PRIVATE cjson
     PRIVATE sync
 )
+
+if(${BUILD_TEST})
+    add_subdirectory(test)
+endif(${BUILD_TEST})
