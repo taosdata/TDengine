@@ -494,32 +494,24 @@ pipeline {
           steps {
             pre_test()
             timeout(time: 100, unit: 'MINUTES'){
-              script{
-                scope.each {
                   sh """
                     date
                     cd ${WKC}/tests
                     ./test-CI.sh sim 4 ${sim_mod[0]}
                     date"""
-                  }
-                }
-            }            
-          }
+              }
+          }            
         }
         stage('sim_2') {
           agent{label " slave7 || slave17 "}
           steps {
             pre_test()
             timeout(time: 100, unit: 'MINUTES'){
-                 script{
-                  scope.each {
-                    sh """
-                      date
-                      cd ${WKC}/tests
-                      ./test-CI.sh sim 4 ${sim_mod[1]} 
-                      date"""
-                    }
-                }
+              sh """
+                date
+                cd ${WKC}/tests
+                ./test-CI.sh sim 4 ${sim_mod[1]} 
+                date"""
             }
           }
         }
@@ -528,15 +520,11 @@ pipeline {
           steps {
             timeout(time: 105, unit: 'MINUTES'){
               pre_test()
-              script{
-              scope.each {
-                sh """
-                  date
-                  cd ${WKC}/tests
-                  ./test-CI.sh sim 4 ${sim_mod[2]}
-                  date"""
-                }
-              }
+              sh """
+                date
+                cd ${WKC}/tests
+                ./test-CI.sh sim 4 ${sim_mod[2]}
+                date"""
             }
           }
         }
@@ -545,18 +533,14 @@ pipeline {
           steps {
             timeout(time: 100, unit: 'MINUTES'){
               pre_test()
-              script{
-              scope.each {
-                sh """
-                  date
-                  cd ${WKC}/tests
-                  ./test-CI.sh sim 4 ${sim_mod[3]}
-                  date"""
-                }
+              sh """
+                date
+                cd ${WKC}/tests
+                ./test-CI.sh sim 4 ${sim_mod[3]}
+                date"""
               }
-          
             }
-          }
+          
         }
         stage('other') {
           agent{label " slave10 || slave20 "}
