@@ -99,6 +99,23 @@ function replace_community_pro() {
   sed -i "s/ taosd / prodbs /g" ${top_dir}/packaging/tools/remove.sh
   # packaging/tools/run_taosd.sh
   sed -i "s/taosd/prodbs/g" ${top_dir}/packaging/tools/run_taosd.sh
+  # packaging/tools/make_install.sh
+  sed -i "s/clientName=\"taos\"/clientName=\"prodbc\"/g" ${top_dir}/packaging/tools/make_install.sh
+  sed -i "s/serverName=\"taosd\"/serverName=\"prodbs\"/g" ${top_dir}/packaging/tools/make_install.sh
+  sed -i "s/logDir=\"\/var\/log\/taos\"/logDir=\"\/var\/log\/ProDB\"/g" ${top_dir}/packaging/tools/make_install.sh
+  sed -i "s/dataDir=\"\/var\/lib\/taos\"/dataDir=\"\/var\/lib\/ProDB\"/g" ${top_dir}/packaging/tools/make_install.sh
+  sed -i "s/configDir=\"\/etc\/taos\"/configDir=\"\/etc\/ProDB\"/g" ${top_dir}/packaging/tools/make_install.sh
+  sed -i "s/configFile=\"taos\.cfg\"/configFile=\"taos\.cfg\"/g" ${top_dir}/packaging/tools/make_install.sh
+  sed -i "s/installDir=\"\/usr\/local\/taos\"/installDir=\"\/usr\/local\/ProDB\"/g" ${top_dir}/packaging/tools/make_install.sh
+  sed -i "s/productName=\"TDengine\"/productName=\"ProDB\"/g" ${top_dir}/packaging/tools/make_install.sh
+  sed -i "s/emailName=\"taosdata\.com\"/emailName=\"hanatech\.com\.cn\"/g" ${top_dir}/packaging/tools/make_install.sh
+  sed -i "s/uninstallScript=\"rmtaos\"/uninstallScript=\"rmpro\"/g" ${top_dir}/packaging/tools/make_install.sh
+  # packaging/tools/startPre.sh
+  sed -i "s/taosd=\/etc\/systemd\/system\/taosd\.service/taosd=\/etc\/systemd\/system\/prodbs.service/g" ${top_dir}/packaging/tools/startPre.sh
+  sed -i "s/startSeqFile=\/var\/log\/taos\/\.startSeq/startSeqFile=\/var\/log\/ProDB\/\.startSeq/g" ${top_dir}/packaging/tools/startPre.sh
+  sed -i "s/recordFile=\/var\/log\/taos\/\.startRecord/recordFile=\/var\/log\/ProDB\/\.startRecord/g" ${top_dir}/packaging/tools/startPre.sh
+
+
 }
 
 function replace_enterprise_pro() {
