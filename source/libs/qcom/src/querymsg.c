@@ -43,15 +43,12 @@ int32_t queryBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int3
   bMsg->header.vgId = htonl(bInput->vgId);
 
   if (bInput->dbName) {
-    strncpy(bMsg->dbFname, bInput->dbName, sizeof(bMsg->dbFname));
-    bMsg->dbFname[sizeof(bMsg->dbFname) - 1] = 0;
+    tstrncpy(bMsg->dbFname, bInput->dbName, tListLen(bMsg->dbFname));
   }
 
-  strncpy(bMsg->tableFname, bInput->tableFullName, sizeof(bMsg->tableFname));
-  bMsg->tableFname[sizeof(bMsg->tableFname) - 1] = 0;
+  tstrncpy(bMsg->tableFname, bInput->tableFullName, tListLen(bMsg->tableFname));
 
   *msgLen = (int32_t)sizeof(*bMsg);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -211,7 +208,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaMsg* msg, bool isSuperTable, STabl
 
   pTableMeta->vgId = isSuperTable ? 0 : msg->vgId;
   pTableMeta->tableType = isSuperTable ? TSDB_SUPER_TABLE : msg->tableType;
-  pTableMeta->uid = msg->suid;
+  pTableMeta->uid  = msg->tuid;
   pTableMeta->suid = msg->suid;
   pTableMeta->sversion = msg->sversion;
   pTableMeta->tversion = msg->tversion;
@@ -272,7 +269,7 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
       memcpy(pOut->tbFname, pMetaMsg->tbFname, sizeof(pOut->tbFname));
     }
     
-    code = queryCreateTableMetaFromMsg(pMetaMsg, false, &pOut->tbMeta);
+    code = queryCreateTableMetaFromMsg(pMetaMsg, (pMetaMsg->tableType == TSDB_SUPER_TABLE), &pOut->tbMeta);
   }
   
   return code;

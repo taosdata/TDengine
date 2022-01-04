@@ -17,11 +17,12 @@
 #define _TD_SDB_INT_H_
 
 #include "os.h"
+
 #include "sdb.h"
-#include "tmsg.h"
 #include "thash.h"
 #include "tlockfree.h"
 #include "tlog.h"
+#include "tmsg.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,7 +60,8 @@ typedef struct SSdb {
   char       *tmpDir;
   int64_t     lastCommitVer;
   int64_t     curVer;
-  int32_t     maxId[SDB_MAX];
+  int64_t     tableVer[SDB_MAX];
+  int64_t     maxId[SDB_MAX];
   EKeyType    keyTypes[SDB_MAX];
   SHashObj   *hashObjs[SDB_MAX];
   SRWLatch    locks[SDB_MAX];
@@ -70,8 +72,6 @@ typedef struct SSdb {
   SdbEncodeFp encodeFps[SDB_MAX];
   SdbDecodeFp decodeFps[SDB_MAX];
 } SSdb;
-
-int32_t sdbWriteFile(SSdb *pSdb);
 
 const char *sdbTableName(ESdbType type);
 void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);

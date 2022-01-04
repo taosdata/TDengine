@@ -152,7 +152,7 @@ static int32_t mndProcessShowMsg(SMnodeMsg *pMnodeMsg) {
   }
 
   int32_t code = (*metaFp)(pMnodeMsg, pShow, &pRsp->tableMeta);
-  mDebug("show:0x%" PRIx64 ", get meta finished, numOfRows:%d cols:%d type:%s result:%s", pShow->id, pShow->numOfRows,
+  mDebug("show:0x%" PRIx64 ", get meta finished, numOfRows:%d cols:%d type:%s, result:%s", pShow->id, pShow->numOfRows,
          pShow->numOfColumns, mndShowStr(type), tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {

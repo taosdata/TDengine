@@ -53,7 +53,7 @@ int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
     }
 
     if (toVnode) {
-      SInsertStmtInfo *pInsertInfo = qParserValidateCreateTbSqlNode(&info, &pCxt->ctx, pCxt->pMsg, pCxt->msgLen);
+      SVnodeModifOpStmtInfo *pInsertInfo = qParserValidateCreateTbSqlNode(&info, &pCxt->ctx, pCxt->pMsg, pCxt->msgLen);
       if (pInsertInfo == NULL) {
         return terrno;
       }
@@ -87,7 +87,7 @@ int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
 
 int32_t qParseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
   if (isInsertSql(pCxt->pSql, pCxt->sqlLen)) {
-    return parseInsertSql(pCxt, (SInsertStmtInfo**)pQuery);
+    return parseInsertSql(pCxt, (SVnodeModifOpStmtInfo**)pQuery);
   } else {
     return parseQuerySql(pCxt, pQuery);
   }

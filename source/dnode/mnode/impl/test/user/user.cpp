@@ -1,7 +1,7 @@
 /**
  * @file user.cpp
  * @author slguan (slguan@taosdata.com)
- * @brief DNODE module user-msg tests
+ * @brief MNODE module user-msg tests
  * @version 0.1
  * @date 2021-12-15
  *
@@ -13,7 +13,7 @@
 
 class DndTestUser : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_user", 9140); }
+  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_user", 9140); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;

@@ -102,25 +102,24 @@ typedef enum {
 } ESdbStatus;
 
 typedef enum {
-  SDB_START = 0,
-  SDB_TRANS = 1,
-  SDB_CLUSTER = 2,
-  SDB_MNODE = 3,
-  SDB_QNODE = 4,
-  SDB_SNODE = 5,
-  SDB_BNODE = 6,
-  SDB_DNODE = 7,
-  SDB_USER = 8,
-  SDB_AUTH = 9,
-  SDB_ACCT = 10,
-  SDB_CONSUMER = 11,
-  SDB_CGROUP = 12,
-  SDB_TOPIC = 13,
-  SDB_VGROUP = 14,
-  SDB_STB = 15,
-  SDB_DB = 16,
-  SDB_FUNC = 17,
-  SDB_MAX = 18
+  SDB_TRANS = 0,
+  SDB_CLUSTER = 1,
+  SDB_MNODE = 2,
+  SDB_QNODE = 3,
+  SDB_SNODE = 4,
+  SDB_BNODE = 5,
+  SDB_DNODE = 6,
+  SDB_USER = 7,
+  SDB_AUTH = 8,
+  SDB_ACCT = 9,
+  SDB_CONSUMER = 10,
+  SDB_CGROUP = 11,
+  SDB_TOPIC = 12,
+  SDB_VGROUP = 13,
+  SDB_STB = 14,
+  SDB_DB = 15,
+  SDB_FUNC = 16,
+  SDB_MAX = 17
 } ESdbType;
 
 typedef struct SSdb SSdb;
@@ -187,6 +186,14 @@ int32_t sdbDeploy(SSdb *pSdb);
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t sdbReadFile(SSdb *pSdb);
+
+/**
+ * @brief Write sdb file.
+ *
+ * @param pSdb The sdb object.
+ * @return int32_t 0 for success, -1 for failure.
+ */
+int32_t sdbWriteFile(SSdb *pSdb);
 
 /**
  * @brief Parse and write raw data to sdb, then free the pRaw object
@@ -260,7 +267,7 @@ void sdbTraverse(SSdb *pSdb, ESdbType type, sdbTraverseFp fp, void *p1, void *p2
  *
  * @param pSdb The sdb object.
  * @param pIter The type of the table.
- * @record int32_t The number of rows in the table
+ * @return int32_t The number of rows in the table
  */
 int32_t sdbGetSize(SSdb *pSdb, ESdbType type);
 
@@ -269,9 +276,18 @@ int32_t sdbGetSize(SSdb *pSdb, ESdbType type);
  *
  * @param pSdb The sdb object.
  * @param pIter The type of the table.
- * @record int32_t The max id of the table
+ * @return int32_t The max id of the table
  */
 int32_t sdbGetMaxId(SSdb *pSdb, ESdbType type);
+
+/**
+ * @brief Update the version of sdb
+ *
+ * @param pSdb The sdb object.
+ * @param val The update value of the version.
+ * @return int32_t The current version of sdb
+ */
+int64_t sdbUpdateVer(SSdb *pSdb, int32_t val);
 
 SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen);
 void     sdbFreeRaw(SSdbRaw *pRaw);

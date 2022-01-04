@@ -185,7 +185,7 @@ static void mndCleanupSteps(SMnode *pMnode, int32_t pos) {
 
   for (int32_t s = pos; s >= 0; s--) {
     SMnodeStep *pStep = taosArrayGet(pMnode->pSteps, s);
-    mDebug("step:%s will cleanup", pStep->name);
+    mDebug("%s will cleanup", pStep->name);
     if (pStep->cleanupFp != NULL) {
       (*pStep->cleanupFp)(pMnode);
     }
@@ -204,12 +204,12 @@ static int32_t mndExecSteps(SMnode *pMnode) {
 
     if ((*pStep->initFp)(pMnode) != 0) {
       int32_t code = terrno;
-      mError("step:%s exec failed since %s, start to cleanup", pStep->name, terrstr());
+      mError("%s exec failed since %s, start to cleanup", pStep->name, terrstr());
       mndCleanupSteps(pMnode, pos);
       terrno = code;
       return -1;
     } else {
-      mDebug("step:%s is initialized", pStep->name);
+      mDebug("%s is initialized", pStep->name);
     }
   }
 
@@ -357,7 +357,7 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   SMnodeMsg *pMsg = taosAllocateQitem(sizeof(SMnodeMsg));
   if (pMsg == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("RPC:%p, app:%p failed to create msg since %s", pRpcMsg->handle, pRpcMsg->ahandle, terrstr());
+    mError("failed to create msg since %s, app:%p RPC:%p", terrstr(), pRpcMsg->ahandle, pRpcMsg->handle);
     return NULL;
   }
 
@@ -365,7 +365,7 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   if ((pRpcMsg->msgType & 1U) && rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
     taosFreeQitem(pMsg);
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    mError("RPC:%p, app:%p failed to create msg since %s", pRpcMsg->handle, pRpcMsg->ahandle, terrstr());
+    mError("failed to create msg since %s, app:%p RPC:%p", terrstr(), pRpcMsg->ahandle, pRpcMsg->handle);
     return NULL;
   }
   memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
@@ -374,12 +374,12 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   pMsg->rpcMsg = *pRpcMsg;
   pMsg->createdTime = taosGetTimestampSec();
 
-  mTrace("msg:%p, app:%p is created, RPC:%p", pMsg, pRpcMsg->ahandle, pRpcMsg->handle);
+  mTrace("msg:%p, is created, app:%p RPC:%p user:%s", pMsg, pRpcMsg->ahandle, pRpcMsg->handle, pMsg->user);
   return pMsg;
 }
 
 void mndCleanupMsg(SMnodeMsg *pMsg) {
-  mTrace("msg:%p, app:%p is destroyed, RPC:%p", pMsg, pMsg->rpcMsg.ahandle, pMsg->rpcMsg.handle);
+  mTrace("msg:%p, is destroyed, app:%p RPC:%p", pMsg, pMsg->rpcMsg.ahandle, pMsg->rpcMsg.handle);
   rpcFreeCont(pMsg->rpcMsg.pCont);
   pMsg->rpcMsg.pCont = NULL;
   taosFreeQitem(pMsg);
@@ -397,37 +397,37 @@ void mndProcessMsg(SMnodeMsg *pMsg) {
   void   *ahandle = pMsg->rpcMsg.ahandle;
   bool    isReq = (msgType & 1U);
 
-  mTrace("msg:%p, app:%p type:%s will be processed", pMsg, ahandle, TMSG_INFO(msgType));
+  mTrace("msg:%p, type:%s will be processed, app:%p", pMsg, TMSG_INFO(msgType), ahandle);
 
   if (isReq && !mndIsMaster(pMnode)) {
     code = TSDB_CODE_APP_NOT_READY;
-    mDebug("msg:%p, app:%p failed to process since %s", pMsg, ahandle, terrstr());
+    mDebug("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
     goto PROCESS_RPC_END;
   }
 
   if (isReq && pMsg->rpcMsg.pCont == NULL) {
     code = TSDB_CODE_MND_INVALID_MSG_LEN;
-    mError("msg:%p, app:%p failed to process since %s", pMsg, ahandle, terrstr());
+    mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
     goto PROCESS_RPC_END;
   }
 
   MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(msgType)];
   if (fp == NULL) {
     code = TSDB_CODE_MSG_NOT_PROCESSED;
-    mError("msg:%p, app:%p failed to process since no handle", pMsg, ahandle);
+    mError("msg:%p, failed to process since no msg handle, app:%p", pMsg, ahandle);
     goto PROCESS_RPC_END;
   }
 
   code = (*fp)(pMsg);
   if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-    mTrace("msg:%p, app:%p in progressing", pMsg, ahandle);
+    mTrace("msg:%p, in progress, app:%p", pMsg, ahandle);
     return;
   } else if (code != 0) {
     code = terrno;
-    mError("msg:%p, app:%p failed to process since %s", pMsg, ahandle, terrstr());
+    mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
     goto PROCESS_RPC_END;
   } else {
-    mTrace("msg:%p, app:%p is processed", pMsg, ahandle);
+    mTrace("msg:%p, is processed, app:%p", pMsg, ahandle);
   }
 
 PROCESS_RPC_END:
