@@ -85,11 +85,16 @@ function replace_community_pro() {
   sed -i "s/taos_history/prodb_history/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/\${bin_dir}\/taosd /\${bin_dir}\/prodbs /g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/\${bin_dir}\/taos /\${bin_dir}\/prodbc /g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/systemctl enable taosd/systemctl enable prodbs/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/kill_process taosd/kill_process prodbs/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/: taosd/: prodbs/g" ${top_dir}/packaging/tools/install.sh
   # packaging/tools/remove.sh
   sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/\"taosd\"/\"prodbs\"/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/\${bin_link_dir}\/taos /\${bin_link_dir}\/prodbc /g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/\${bin_link_dir}\/taosd /\${bin_link_dir}\/prodbs /g" ${top_dir}/packaging/tools/remove.sh
+  sed -i "s/\${service_config_dir}\/taosd/\${service_config_dir}\/prodbs/g" ${top_dir}/packaging/tools/remove.sh
+  sed -i "s/rmtaos/rmpro/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/TDengine/ProDB/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/ taosd / prodbs /g" ${top_dir}/packaging/tools/remove.sh
 

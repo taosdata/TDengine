@@ -201,7 +201,6 @@ function clean_service() {
   elif ((${service_mod} == 1)); then
     clean_service_on_sysvinit
   else
-    # must manual stop taosd
     kill_taosadapter
     kill_taosd
     kill_tarbitrator
