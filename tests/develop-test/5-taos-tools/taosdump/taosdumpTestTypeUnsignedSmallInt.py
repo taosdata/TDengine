@@ -23,7 +23,7 @@ import subprocess
 class TDTestCase:
     def caseDescription(self):
         '''
-        case1<sdsang>: [TD-12526] taosdump supports unsigned tiny int
+        case1<sdsang>: [TD-12526] taosdump supports unsigned small int
         '''
         return
 
@@ -56,11 +56,11 @@ class TDTestCase:
 
         tdSql.execute("use db")
         tdSql.execute(
-            "create table st(ts timestamp, c1 TINYINT UNSIGNED) tags(utntag TINYINT UNSIGNED)")
+            "create table st(ts timestamp, c1 SMALLINT UNSIGNED) tags(usntag SMALLINT UNSIGNED)")
         tdSql.execute("create table t1 using st tags(0)")
         tdSql.execute("insert into t1 values(1640000000000, 0)")
-        tdSql.execute("create table t2 using st tags(254)")
-        tdSql.execute("insert into t2 values(1640000000000, 254)")
+        tdSql.execute("create table t2 using st tags(65534)")
+        tdSql.execute("insert into t2 values(1640000000000, 65534)")
         tdSql.execute("create table t3 using st tags(NULL)")
         tdSql.execute("insert into t3 values(1640000000000, NULL)")
 
@@ -100,19 +100,19 @@ class TDTestCase:
         tdSql.query("show tables")
         tdSql.checkRows(3)
 
-        tdSql.query("select * from st where utntag = 0")
+        tdSql.query("select * from st where usntag = 0")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         tdSql.checkData(0, 1, 0)
         tdSql.checkData(0, 2, 0)
 
-        tdSql.query("select * from st where utntag = 254")
+        tdSql.query("select * from st where usntag = 65534")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 254)
-        tdSql.checkData(0, 2, 254)
+        tdSql.checkData(0, 1, 65534)
+        tdSql.checkData(0, 2, 65534)
 
-        tdSql.query("select * from st where utntag is null")
+        tdSql.query("select * from st where usntag is null")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, None)
