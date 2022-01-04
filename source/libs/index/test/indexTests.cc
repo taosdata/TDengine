@@ -755,6 +755,14 @@ class IndexObj {
     Put(terms, 10);
     indexMultiTermDestroy(terms);
   }
+  void PutOneTarge(const std::string& colName, const std::string& colVal, uint64_t val) {
+    SIndexMultiTerm* terms = indexMultiTermCreate();
+    SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                       colVal.c_str(), colVal.size());
+    indexMultiTermAdd(terms, term);
+    Put(terms, val);
+    indexMultiTermDestroy(terms);
+  }
   void Debug() {
     std::cout << "numOfWrite:" << numOfWrite << std::endl;
     std::cout << "numOfRead:" << numOfRead << std::endl;
@@ -922,7 +930,10 @@ TEST_F(IndexEnv2, testIndex_restart) {
 TEST_F(IndexEnv2, testIndex_read_performance) {
   std::string path = "/tmp/cache_and_tfile";
   if (index->Init(path) != 0) {}
+  index->PutOneTarge("tag1", "Hello", 12);
+  index->PutOneTarge("tag1", "Hello", 15);
   index->ReadMultiMillonData("tag1", "Hello");
+  std::cout << "reader sz: " << index->SearchOne("tag1", "Hello") << std::endl;
 }
 TEST_F(IndexEnv2, testIndexMultiTag) {
   std::string path = "/tmp/test3";
