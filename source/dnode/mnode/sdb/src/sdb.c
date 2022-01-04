@@ -49,6 +49,9 @@ SSdb *sdbInit(SSdbOpt *pOption) {
 
   for (ESdbType i = 0; i < SDB_MAX; ++i) {
     taosInitRWLatch(&pSdb->locks[i]);
+    pSdb->maxId[i] = 0;
+    pSdb->tableVer[i] = -1;
+    pSdb->keyTypes[i] = SDB_KEY_INT32;
   }
 
   pSdb->curVer = -1;
@@ -61,10 +64,10 @@ SSdb *sdbInit(SSdbOpt *pOption) {
 void sdbCleanup(SSdb *pSdb) {
   mDebug("start to cleanup sdb");
 
-  // if (pSdb->curVer != pSdb->lastCommitVer) {
-  mDebug("write sdb file for curVer:% " PRId64 " and lastVer:%" PRId64, pSdb->curVer, pSdb->lastCommitVer);
-  sdbWriteFile(pSdb);
-  // }
+  if (pSdb->curVer != pSdb->lastCommitVer) {
+    mDebug("write sdb file for curVer:% " PRId64 " and lastCommitVer:%" PRId64, pSdb->curVer, pSdb->lastCommitVer);
+    sdbWriteFile(pSdb);
+  }
 
   if (pSdb->currDir != NULL) {
     tfree(pSdb->currDir);

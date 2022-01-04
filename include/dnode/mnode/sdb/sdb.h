@@ -102,25 +102,24 @@ typedef enum {
 } ESdbStatus;
 
 typedef enum {
-  SDB_START = 0,
-  SDB_TRANS = 1,
-  SDB_CLUSTER = 2,
-  SDB_MNODE = 3,
-  SDB_QNODE = 4,
-  SDB_SNODE = 5,
-  SDB_BNODE = 6,
-  SDB_DNODE = 7,
-  SDB_USER = 8,
-  SDB_AUTH = 9,
-  SDB_ACCT = 10,
-  SDB_CONSUMER = 11,
-  SDB_CGROUP = 12,
-  SDB_TOPIC = 13,
-  SDB_VGROUP = 14,
-  SDB_STB = 15,
-  SDB_DB = 16,
-  SDB_FUNC = 17,
-  SDB_MAX = 18
+  SDB_TRANS = 0,
+  SDB_CLUSTER = 1,
+  SDB_MNODE = 2,
+  SDB_QNODE = 3,
+  SDB_SNODE = 4,
+  SDB_BNODE = 5,
+  SDB_DNODE = 6,
+  SDB_USER = 7,
+  SDB_AUTH = 8,
+  SDB_ACCT = 9,
+  SDB_CONSUMER = 10,
+  SDB_CGROUP = 11,
+  SDB_TOPIC = 12,
+  SDB_VGROUP = 13,
+  SDB_STB = 14,
+  SDB_DB = 15,
+  SDB_FUNC = 16,
+  SDB_MAX = 17
 } ESdbType;
 
 typedef struct SSdb SSdb;
