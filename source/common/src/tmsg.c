@@ -27,78 +27,7 @@
 #undef TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
 
-static int  tmsgStartEncode(SMsgEncoder *pME);
-static void tmsgEndEncode(SMsgEncoder *pME);
-static int  tmsgStartDecode(SMsgDecoder *pMD);
-static void tmsgEndDecode(SMsgDecoder *pMD);
-
-/* ------------------------ ENCODE/DECODE FUNCTIONS ------------------------ */
-void tmsgInitMsgEncoder(SMsgEncoder *pME, td_endian_t endian, uint8_t *data, int64_t size) {
-  tInitEncoder(&(pME->coder), endian, data, size);
-  TD_SLIST_INIT(&(pME->eStack));
-}
-
-void tmsgClearMsgEncoder(SMsgEncoder *pME) {
-  struct SMEListNode *pNode;
-  for (;;) {
-    pNode = TD_SLIST_HEAD(&(pME->eStack));
-    if (TD_IS_NULL(pNode)) break;
-    TD_SLIST_POP(&(pME->eStack));
-    free(pNode);
-  }
-}
-
-void tmsgInitMsgDecoder(SMsgDecoder *pMD, td_endian_t endian, uint8_t *data, int64_t size) {
-  tInitDecoder(&pMD->coder, endian, data, size);
-  TD_SLIST_INIT(&(pMD->dStack));
-  TD_SLIST_INIT(&(pMD->freeList));
-}
-
-void tmsgClearMsgDecoder(SMsgDecoder *pMD) {
-  {
-    struct SMDFreeListNode *pNode;
-    for (;;) {
-      pNode = TD_SLIST_HEAD(&(pMD->freeList));
-      if (TD_IS_NULL(pNode)) break;
-      TD_SLIST_POP(&(pMD->freeList));
-      free(pNode);
-    }
-  }
-  {
-    struct SMDListNode *pNode;
-    for (;;) {
-      pNode = TD_SLIST_HEAD(&(pMD->dStack));
-      if (TD_IS_NULL(pNode)) break;
-      TD_SLIST_POP(&(pMD->dStack));
-      free(pNode);
-    }
-  }
-}
-
-/* ------------------------ MESSAGE ENCODE/DECODE ------------------------ */
-int tmsgSVCreateTbReqEncode(SMsgEncoder *pCoder, SVCreateTbReq *pReq) {
-  tmsgStartEncode(pCoder);
-  // TODO
-
-  tmsgEndEncode(pCoder);
-  return 0;
-}
-
-int tmsgSVCreateTbReqDecode(SMsgDecoder *pCoder, SVCreateTbReq *pReq) {
-  tmsgStartDecode(pCoder);
-
-  // TODO: decode
-
-  // Decode is not end
-  if (pCoder->coder.pos != pCoder->coder.size) {
-    // Continue decode
-  }
-
-  tmsgEndDecode(pCoder);
-  return 0;
-}
-
-int tSerializeSVCreateTbReq(void **buf, const SVCreateTbReq *pReq) {
+int tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
   int tlen = 0;
 
   tlen += taosEncodeFixedU64(buf, pReq->ver);
@@ -193,62 +122,29 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
   return buf;
 }
 
-/* ------------------------ STATIC METHODS ------------------------ */
-static int tmsgStartEncode(SMsgEncoder *pME) {
-  struct SMEListNode *pNode = (struct SMEListNode *)malloc(sizeof(*pNode));
-  if (TD_IS_NULL(pNode)) return -1;
+int tSVCreateTbBatchReqSerialize(void **buf, SVCreateTbBatchReq *pReq) {
+  int tlen = 0;
 
-  pNode->coder = pME->coder;
-  TD_SLIST_PUSH(&(pME->eStack), pNode);
-  TD_CODER_MOVE_POS(&(pME->coder), sizeof(int32_t));
+  tlen += taosEncodeFixedU64(buf, pReq->ver);
+  tlen += taosEncodeFixedU32(buf, taosArrayGetSize(pReq->pArray));
+  for (size_t i = 0; i < taosArrayGetSize(pReq->pArray); i++) {
+    SVCreateTbReq *pCreateTbReq = taosArrayGet(pReq->pArray, i);
+    tlen += tSerializeSVCreateTbReq(buf, pCreateTbReq);
+  }
 
-  return 0;
+  return tlen;
 }
 
-static void tmsgEndEncode(SMsgEncoder *pME) {
-  int32_t             size;
-  struct SMEListNode *pNode;
+void *tSVCreateTbBatchReqDeserialize(void *buf, SVCreateTbBatchReq *pReq) {
+  uint32_t nsize = 0;
 
-  pNode = TD_SLIST_HEAD(&(pME->eStack));
-  ASSERT(pNode);
-  TD_SLIST_POP(&(pME->eStack));
+  buf = taosDecodeFixedU64(buf, &pReq->ver);
+  buf = taosDecodeFixedU32(buf, &nsize);
+  for (size_t i = 0; i < nsize; i++) {
+    SVCreateTbReq req;
+    buf = tDeserializeSVCreateTbReq(buf, &req);
+    taosArrayPush(pReq->pArray, &req);
+  }
 
-  size = pME->coder.pos - pNode->coder.pos;
-  tEncodeI32(&(pNode->coder), size);
-
-  free(pNode);
-}
-
-static int tmsgStartDecode(SMsgDecoder *pMD) {
-  struct SMDListNode *pNode;
-  int32_t             size;
-
-  pNode = (struct SMDListNode *)malloc(sizeof(*pNode));
-  if (pNode == NULL) return -1;
-
-  tDecodeI32(&(pMD->coder), &size);
-
-  pNode->coder = pMD->coder;
-  TD_SLIST_PUSH(&(pMD->dStack), pNode);
-
-  pMD->coder.pos = 0;
-  pMD->coder.size = size - sizeof(int32_t);
-  pMD->coder.data = TD_CODER_CURRENT(&(pNode->coder));
-
-  return 0;
-}
-
-static void tmsgEndDecode(SMsgDecoder *pMD) {
-  ASSERT(pMD->coder.pos == pMD->coder.size);
-  struct SMDListNode *pNode;
-
-  pNode = TD_SLIST_HEAD(&(pMD->dStack));
-  ASSERT(pNode);
-  TD_SLIST_POP(&(pMD->dStack));
-
-  pNode->coder.pos += pMD->coder.size;
-
-  pMD->coder = pNode->coder;
-
-  free(pNode);
+  return buf;
 }

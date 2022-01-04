@@ -59,7 +59,8 @@ void schtBuildQueryDag(SQueryDag *dag) {
   scanPlan.execNode.inUse = 0;
   scanPlan.execNode.epAddr[0].port = 6030;
   strcpy(scanPlan.execNode.epAddr[0].fqdn, "ep0");
-  scanPlan.pChildern = NULL;
+  scanPlan.pChildren = NULL;
+  scanPlan.level = 1;
   scanPlan.pParents = taosArrayInit(1, POINTER_BYTES);
   scanPlan.pNode = (SPhyNode*)calloc(1, sizeof(SPhyNode));
 
@@ -69,14 +70,14 @@ void schtBuildQueryDag(SQueryDag *dag) {
   mergePlan.type = QUERY_TYPE_MERGE;
   mergePlan.level = 0;
   mergePlan.execNode.numOfEps = 0;
-  mergePlan.pChildern = taosArrayInit(1, POINTER_BYTES);
+  mergePlan.pChildren = taosArrayInit(1, POINTER_BYTES);
   mergePlan.pParents = NULL;
   mergePlan.pNode = (SPhyNode*)calloc(1, sizeof(SPhyNode));
 
   SSubplan *mergePointer = (SSubplan *)taosArrayPush(merge, &mergePlan);
   SSubplan *scanPointer = (SSubplan *)taosArrayPush(scan, &scanPlan);
 
-  taosArrayPush(mergePointer->pChildern, &scanPointer);
+  taosArrayPush(mergePointer->pChildren, &scanPointer);
   taosArrayPush(scanPointer->pParents, &mergePointer);
 
   taosArrayPush(dag->pSubplans, &merge);  
@@ -103,7 +104,7 @@ void schtBuildInsertDag(SQueryDag *dag) {
   insertPlan[0].execNode.inUse = 0;
   insertPlan[0].execNode.epAddr[0].port = 6030;
   strcpy(insertPlan[0].execNode.epAddr[0].fqdn, "ep0");
-  insertPlan[0].pChildern = NULL;
+  insertPlan[0].pChildren = NULL;
   insertPlan[0].pParents = NULL;
   insertPlan[0].pNode = NULL;
   insertPlan[0].pDataSink = (SDataSink*)calloc(1, sizeof(SDataSink));
@@ -118,7 +119,7 @@ void schtBuildInsertDag(SQueryDag *dag) {
   insertPlan[1].execNode.inUse = 1;
   insertPlan[1].execNode.epAddr[0].port = 6030;
   strcpy(insertPlan[1].execNode.epAddr[0].fqdn, "ep1");
-  insertPlan[1].pChildern = NULL;
+  insertPlan[1].pChildren = NULL;
   insertPlan[1].pParents = NULL;
   insertPlan[1].pNode = NULL;
   insertPlan[1].pDataSink = (SDataSink*)calloc(1, sizeof(SDataSink));

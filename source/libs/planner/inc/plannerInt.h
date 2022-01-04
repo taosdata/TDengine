@@ -40,7 +40,7 @@ extern "C" {
 #define QNODE_SESSIONWINDOW 12
 #define QNODE_STATEWINDOW   13
 #define QNODE_FILL          14
-#define QNODE_INSERT        15
+#define QNODE_MODIFY        15
 
 typedef struct SQueryDistPlanNodeInfo {
   bool      stableQuery;   // super table query or not
@@ -69,6 +69,11 @@ typedef struct SQueryPlanNode {
   SArray             *pChildren;   // upstream nodes
   struct SQueryPlanNode  *pParent;
 } SQueryPlanNode;
+
+typedef struct SDataPayloadInfo {
+  int32_t msgType;
+  SArray *payload;
+} SDataPayloadInfo;
 
 /**
  * Optimize the query execution plan, currently not implement yet.
