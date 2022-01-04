@@ -425,7 +425,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
   // 1. set the parsed value from sql string
   for (int i = 0; i < spd->numOfBound; ++i) {
     NEXT_TOKEN(pCxt->pSql, sToken);
-    SSchema *pSchema = &schema[spd->boundedColumns[i]]; 
+    SSchema *pSchema = &schema[spd->boundedColumns[i] - 1]; 
     param.schema = pSchema;
     param.compareStat = pBuilder->compareStat;
     getMemRowAppendInfo(schema, pBuilder->memRowType, spd, i, &param.toffset);
