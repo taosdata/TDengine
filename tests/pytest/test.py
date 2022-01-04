@@ -122,7 +122,7 @@ if __name__ == "__main__":
     else:
         host = masterIp
 
-    tdLog.info("Procedures for tdengine deployed in %s" % (host))
+    tdLog.info("Procedures for tdengine deployed in %s" % (host)) 
     if windows:
         tdCases.logSql(logSql)
         tdLog.info("Procedures for testing self-deployment")
