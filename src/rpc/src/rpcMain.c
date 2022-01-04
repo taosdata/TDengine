@@ -1669,3 +1669,9 @@ static void rpcDecRef(SRpcInfo *pRpc)
   }
 }
 
+int32_t rpcUnusedSession(void * rpcInfo, bool bLock) {
+  SRpcInfo *info = (SRpcInfo *)rpcInfo;
+  if(info == NULL)
+     return 0;
+  return taosIdPoolNumOfFree(info->idPool, bLock);
+}

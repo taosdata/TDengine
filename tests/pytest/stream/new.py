@@ -27,13 +27,14 @@ class TDTestCase:
     def run(self):
         rowNum = 200
         tdSql.prepare()
-
+        ts_now = 1633017600000
         tdLog.info("=============== step1")
         tdSql.execute("create table mt(ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)")
         for i in range(5):
             tdSql.execute("create table tb%d using mt tags(%d)" % (i, i))
             for j in range(rowNum):
-                tdSql.execute("insert into tb%d values(now + %ds, %d, %d)" % (i, j, j, j))
+                tdSql.execute("insert into tb%d values(%d, %d, %d)" % (i, ts_now, j, j))
+                ts_now += 1000
         time.sleep(0.1)
 
         tdLog.info("=============== step2")
@@ -45,14 +46,15 @@ class TDTestCase:
         tdSql.waitedQuery("select * from st", 1, 180)
         delay = int(time.time() - start) + 80
         v = tdSql.getData(0, 3)
-        if v >= 51:
-            tdLog.exit("value is %d, which is larger than 51" % v)
+        if v != 10:
+            tdLog.exit("value is %d, expect is 10." % v)
 
         tdLog.info("=============== step4")
         for i in range(5, 10):
             tdSql.execute("create table tb%d using mt tags(%d)" % (i, i))
             for j in range(rowNum):
-                tdSql.execute("insert into tb%d values(now + %ds, %d, %d)" % (i, j, j, j))
+                tdSql.execute("insert into tb%d values(%d, %d, %d)" % (i, ts_now, j, j))
+                ts_now += 1000                
 
         tdLog.info("=============== step5")
         maxValue = 0
@@ -62,11 +64,11 @@ class TDTestCase:
             v = tdSql.getData(0, 3)
             if v > maxValue:
                 maxValue = v
-            if v > 51:
+            if v >= 10:
                 break
 
-        if maxValue <= 51:
-            tdLog.exit("value is %d, which is smaller than 51" % maxValue)
+        if maxValue < 10:
+            tdLog.exit("value is %d, expect is 10" % maxValue)
 
     def stop(self):
         tdSql.close()

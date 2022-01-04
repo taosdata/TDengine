@@ -28,6 +28,7 @@
 #include "tutil.h"
 #include "ttimer.h"
 #include "tscProfile.h"
+#include "tidpool.h"
 
 static bool validImpl(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -304,6 +305,25 @@ void taos_close(TAOS *taos) {
 
   tscDebug("%p all sqlObj are freed, free tscObj", pObj);
   taosRemoveRef(tscRefId, pObj->rid);
+}
+
+// get taos connection unused session number
+int32_t taos_unused_session(TAOS* taos) {
+  // param valid check
+  STscObj *pObj = (STscObj *)taos;
+  if (pObj == NULL || pObj->signature != pObj) {
+    tscError("pObj:%p is NULL or freed", pObj);
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return 0;
+  }
+  if(pObj->pRpcObj == NULL ) {
+    tscError("pObj:%p pRpcObj is NULL.", pObj);
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return 0;
+  }
+
+  // get number
+  return rpcUnusedSession(pObj->pRpcObj->pDnodeConn, false);
 }
 
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code) {
@@ -772,11 +792,15 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
 }
 
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
+  return taos_print_row_ex(str, row, fields, num_fields, ' ', false);
+}
+
+int taos_print_row_ex(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields, char split, bool addQuota) {
   int len = 0;
 
   for (int i = 0; i < num_fields; ++i) {
     if (i > 0) {
-      str[len++] = ' ';
+      str[len++] = split;
     }
 
     if (row[i] == NULL) {
@@ -837,9 +861,23 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
         } else {
           assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
         }
+        
+        // add pre quotaion if require
+        if(addQuota) {
+          *(str + len) = '\'';
+          len += 1;
+        }
 
+        // copy content
         memcpy(str + len, row[i], charLen);
         len += charLen;
+
+        // add end quotaion if require
+        if(addQuota) {
+          *(str + len)= '\'';
+          len += 1;
+        }
+
       } break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:
@@ -853,6 +891,89 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
     }
   }
 
+  return len;
+}
+
+// print field value to str
+int taos_print_field(char *str, void* value, TAOS_FIELD *field) {
+  // check valid
+  if (str == NULL || value == NULL || field == NULL) {
+    return 0;
+  }
+
+  // get value
+  int len = 0;
+  switch (field->type) {
+    //
+    // fixed length
+    //
+    case TSDB_DATA_TYPE_TINYINT:
+      len = sprintf(str, "%d", *((int8_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_UTINYINT:
+      len = sprintf(str, "%u", *((uint8_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_SMALLINT:
+      len = sprintf(str, "%d", *((int16_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_USMALLINT:
+      len = sprintf(str, "%u", *((uint16_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_INT:
+      len = sprintf(str, "%d", *((int32_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_UINT:
+      len = sprintf(str, "%u", *((uint32_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_BIGINT:
+      len = sprintf(str, "%" PRId64, *((int64_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_UBIGINT:
+      len = sprintf(str, "%" PRIu64, *((uint64_t *)value));
+      break;
+
+    case TSDB_DATA_TYPE_FLOAT: {
+      float fv = 0;
+      fv = GET_FLOAT_VAL(value);
+      len = sprintf(str, "%f", fv);
+    } break;
+
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double dv = 0;
+      dv = GET_DOUBLE_VAL(value);
+      len = sprintf(str, "%lf", dv);
+    } break;
+
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      len = sprintf(str, "%" PRId64, *((int64_t *)value));
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+      len = sprintf(str, "%d", *((int8_t *)value));
+
+    // 
+    //  variant length
+    //
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR: {
+      len = varDataLen((char*)value - VARSTR_HEADER_SIZE);
+      if (field->type == TSDB_DATA_TYPE_BINARY) {
+        assert(len <= field->bytes && len >= 0);
+      } else {
+        assert(len <= field->bytes * TSDB_NCHAR_SIZE && len >= 0);
+      }
+      memcpy(str, value, len);
+    } break;
+  
+    default:
+      break;
+  }
   return len;
 }
 
