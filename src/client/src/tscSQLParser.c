@@ -4873,8 +4873,7 @@ static int32_t validateNullExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
     }
     
     char *v = strndup(pRight->exprToken.z, pRight->exprToken.n);
-    int32_t len = strRmquote(v, pRight->exprToken.n);
-    if (len > 0) {
+    if (pRight->exprToken.n > 0) {
       uint32_t type = 0;
       tGetToken(v, &type);
 
@@ -7342,25 +7341,6 @@ int32_t validateColumnName(char* name) {
 
   if (token.type != TK_ID) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
-  }
-
-  if (token.type == TK_STRING) {
-    strntolower(token.z, token.z, token.n);
-    token.n = (uint32_t)strtrim(token.z);
-
-    int32_t k = tGetToken(token.z, &token.type);
-    if (k != token.n) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-
-    return validateColumnName(token.z);
-  } else if (token.type == TK_ID) {
-    strRmquoteEscape(name, token.n);
-    return TSDB_CODE_SUCCESS;
-  } else {
-    if (isNumber(&token)) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
   }
 
   return TSDB_CODE_SUCCESS;

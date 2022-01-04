@@ -293,7 +293,7 @@ SArray *commonItemAppend(SArray *pList, tVariant *pVar, tSqlExpr *jsonExp, bool 
 
 SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder);
 SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t index);
-SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder, bool needRmquoteEscape);
+SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder);
 
 SRelationInfo *setTableNameList(SRelationInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias);
 void          *destroyRelationInfo(SRelationInfo* pFromInfo);

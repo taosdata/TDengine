@@ -66,50 +66,6 @@ size_t strDealWithEscape(char *z, size_t len){
     return current - z;
 }
 
-// delete escape character: \\, \', \"
-int32_t strRmquote(char *z, int32_t len){
-  char delim = 0;
-  int32_t cnt = 0;
-  int32_t j = 0;
-  for (size_t k = 0; k < len; ++k) {
-    if (!delim && (z[k] == '\'' || z[k] == '"')){   // find the start ' or "
-      delim = z[k];
-    }
-
-    if ((z[k] == '\\' && z[k + 1] == '_') || (z[k] == '\\' && z[k + 1] == '%')) {
-      //match '_' '%' self
-    }else if(z[k] == '\\'){
-      z[j] = z[k + 1];
-      cnt++;
-      j++;
-      k++;
-      continue;
-    }else if(z[k] == delim){
-      continue;
-    }
-    z[j] = z[k];
-    j++;
-  }
-  z[j] = 0;
-  return j;
-}
-
-int32_t strRmquoteEscape(char *z, int32_t len) {
-  if (len <= 0) return len;
-
-  if (z[0] == '\'' || z[0] == '\"') {
-    return strRmquote(z, len);
-  } else if (len > 1 && z[0] == TS_ESCAPE_CHAR && z[len - 1] == TS_ESCAPE_CHAR) {
-    memmove(z, z + 1, len - 2);
-    z[len - 2] = '\0';
-    return len - 2;
-  }
-
-  return len;
-}
-
-
-
 size_t strtrim(char *z) {
   int32_t i = 0;
   int32_t j = 0;

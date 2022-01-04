@@ -442,16 +442,16 @@ tagitem(A) ::= FLOAT(X).        { toTSDBType(X.type); tVariantCreate(&A, &X); }
 tagitem(A) ::= STRING(X).       { toTSDBType(X.type); tVariantCreate(&A, &X); }
 tagitem(A) ::= BOOL(X).         { toTSDBType(X.type); tVariantCreate(&A, &X); }
 tagitem(A) ::= NULL(X).         { X.type = 0; tVariantCreate(&A, &X); }
-tagitem(A) ::= NOW(X).          { X.type = TSDB_DATA_TYPE_TIMESTAMP; tVariantCreateExt(&A, &X, TK_NOW, true);}
+tagitem(A) ::= NOW(X).          { X.type = TSDB_DATA_TYPE_TIMESTAMP; tVariantCreateExt(&A, &X, TK_NOW);}
 
 tagitem(A) ::= NOW PLUS VARIABLE(X).{
     X.type = TSDB_DATA_TYPE_TIMESTAMP;
-    tVariantCreateExt(&A, &X, TK_PLUS, true);
+    tVariantCreateExt(&A, &X, TK_PLUS);
 }
 
 tagitem(A) ::= NOW MINUS VARIABLE(X).{
     X.type = TSDB_DATA_TYPE_TIMESTAMP;
-    tVariantCreateExt(&A, &X, TK_MINUS, true);
+    tVariantCreateExt(&A, &X, TK_MINUS);
 }
 
 tagitem(A) ::= MINUS(X) INTEGER(Y).{
@@ -626,7 +626,7 @@ fill_opt(N) ::= FILL LP ID(Y) COMMA tagitemlist(X) RP.      {
 
 fill_opt(N) ::= FILL LP ID(Y) RP.               {
     toTSDBType(Y.type);
-    N = tVariantListAppendToken(NULL, &Y, -1, true);
+    N = tVariantListAppendToken(NULL, &Y, -1);
 }
 
 %type sliding_opt {SStrToken}
@@ -836,7 +836,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
     X.n += F.n;
 
     toTSDBType(A.type);
-    SArray* K = tVariantListAppendToken(NULL, &A, -1, false);
+    SArray* K = tVariantListAppendToken(NULL, &A, -1);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -858,7 +858,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
     X.n += Z.n;
 
     toTSDBType(Y.type);
-    SArray* A = tVariantListAppendToken(NULL, &Y, -1, true);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -868,10 +868,10 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
     X.n += F.n;
 
     toTSDBType(Y.type);
-    SArray* A = tVariantListAppendToken(NULL, &Y, -1, true);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1);
 
     toTSDBType(Z.type);
-    A = tVariantListAppendToken(A, &Z, -1, true);
+    A = tVariantListAppendToken(A, &Z, -1);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -881,7 +881,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
     X.n += F.n;
 
     toTSDBType(Y.type);
-    SArray* A = tVariantListAppendToken(NULL, &Y, -1, true);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1);
     A = tVariantListAppend(A, &Z, -1);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL, -1);
@@ -905,7 +905,7 @@ cmd ::= ALTER STABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
     X.n += F.n;
 
     toTSDBType(A.type);
-    SArray* K = tVariantListAppendToken(NULL, &A, -1, true);
+    SArray* K = tVariantListAppendToken(NULL, &A, -1);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -927,7 +927,7 @@ cmd ::= ALTER STABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
     X.n += Z.n;
 
     toTSDBType(Y.type);
-    SArray* A = tVariantListAppendToken(NULL, &Y, -1, true);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -937,10 +937,10 @@ cmd ::= ALTER STABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
     X.n += F.n;
 
     toTSDBType(Y.type);
-    SArray* A = tVariantListAppendToken(NULL, &Y, -1, true);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1);
 
     toTSDBType(Z.type);
-    A = tVariantListAppendToken(A, &Z, -1, true);
+    A = tVariantListAppendToken(A, &Z, -1);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -950,7 +950,7 @@ cmd ::= ALTER STABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
     X.n += F.n;
 
     toTSDBType(Y.type);
-    SArray* A = tVariantListAppendToken(NULL, &Y, -1, true);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1);
     A = tVariantListAppend(A, &Z, -1);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL, TSDB_SUPER_TABLE);

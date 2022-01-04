@@ -599,14 +599,14 @@ void tSqlExprDestroy(tSqlExpr *pExpr) {
   doDestroySqlExprNode(pExpr);
 }
 
-SArray *tVariantListAppendToken(SArray *pList, SStrToken *pToken, uint8_t order, bool needRmquoteEscape) {
+SArray *tVariantListAppendToken(SArray *pList, SStrToken *pToken, uint8_t order) {
   if (pList == NULL) {
     pList = taosArrayInit(4, sizeof(tVariantListItem));
   }
 
   if (pToken) {
     tVariantListItem item;
-    tVariantCreateExt(&item.pVar, pToken, TK_ID, needRmquoteEscape);
+    tVariantCreateExt(&item.pVar, pToken, TK_ID);
     item.sortOrder = order;
 
     taosArrayPush(pList, &item);
