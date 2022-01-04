@@ -9,10 +9,10 @@
  *
  */
 
-#include "base.h"
+#include "sut.h"
 #include "os.h"
 
-class DndTestTrans : public ::testing::Test {
+class MndTestTrans : public ::testing::Test {
  protected:
   static void SetUpTestSuite() { test.Init("/tmp/mnode_test_trans", 9013); }
   static void TearDownTestSuite() { test.Cleanup(); }
@@ -48,9 +48,9 @@ class DndTestTrans : public ::testing::Test {
   void TearDown() override {}
 };
 
-Testbase DndTestTrans::test;
+Testbase MndTestTrans::test;
 
-TEST_F(DndTestTrans, 01_CreateUser_Crash) {
+TEST_F(MndTestTrans, 01_Create_User_Crash) {
   {
     int32_t contLen = sizeof(SCreateUserReq);
 

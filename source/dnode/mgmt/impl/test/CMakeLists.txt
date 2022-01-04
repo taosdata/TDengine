@@ -1,5 +1,7 @@
 enable_testing()
 
+add_subdirectory(qnode)
+
 # add_subdirectory(auth)
 # add_subdirectory(balance)
 add_subdirectory(cluster)

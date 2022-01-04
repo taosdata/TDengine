@@ -9,7 +9,7 @@
  *
  */
 
-#include "base.h"
+#include "sut.h"
 
 class DndTestProfile : public ::testing::Test {
  protected:

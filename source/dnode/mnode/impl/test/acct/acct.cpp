@@ -9,9 +9,9 @@
  *
  */
 
-#include "base.h"
+#include "sut.h"
 
-class DndTestAcct : public ::testing::Test {
+class MndTestAcct : public ::testing::Test {
  protected:
   static void SetUpTestSuite() { test.Init("/tmp/mnode_test_acct", 9012); }
   static void TearDownTestSuite() { test.Cleanup(); }
@@ -23,9 +23,9 @@ class DndTestAcct : public ::testing::Test {
   void TearDown() override {}
 };
 
-Testbase DndTestAcct::test;
+Testbase MndTestAcct::test;
 
-TEST_F(DndTestAcct, 01_CreateAcct) {
+TEST_F(MndTestAcct, 01_Create_Acct) {
   int32_t contLen = sizeof(SCreateAcctReq);
 
   SCreateAcctReq* pReq = (SCreateAcctReq*)rpcMallocCont(contLen);
@@ -35,7 +35,7 @@ TEST_F(DndTestAcct, 01_CreateAcct) {
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
 
-TEST_F(DndTestAcct, 02_AlterAcct) {
+TEST_F(MndTestAcct, 02_Alter_Acct) {
   int32_t contLen = sizeof(SCreateAcctReq);
 
   SAlterAcctReq* pReq = (SAlterAcctReq*)rpcMallocCont(contLen);
@@ -45,7 +45,7 @@ TEST_F(DndTestAcct, 02_AlterAcct) {
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
 
-TEST_F(DndTestAcct, 03_DropAcct) {
+TEST_F(MndTestAcct, 03_Drop_Acct) {
   int32_t contLen = sizeof(SDropAcctReq);
 
   SDropAcctReq* pReq = (SDropAcctReq*)rpcMallocCont(contLen);
@@ -55,7 +55,7 @@ TEST_F(DndTestAcct, 03_DropAcct) {
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
 
-TEST_F(DndTestAcct, 04_ShowAcct) {
+TEST_F(MndTestAcct, 04_Show_Acct) {
   int32_t contLen = sizeof(SShowMsg);
 
   SShowMsg* pReq = (SShowMsg*)rpcMallocCont(contLen);

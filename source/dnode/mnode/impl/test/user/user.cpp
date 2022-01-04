@@ -9,9 +9,9 @@
  *
  */
 
-#include "base.h"
+#include "sut.h"
 
-class DndTestUser : public ::testing::Test {
+class MndTestUser : public ::testing::Test {
  protected:
   static void SetUpTestSuite() { test.Init("/tmp/mnode_test_user", 9011); }
   static void TearDownTestSuite() { test.Cleanup(); }
@@ -23,9 +23,9 @@ class DndTestUser : public ::testing::Test {
   void TearDown() override {}
 };
 
-Testbase DndTestUser::test;
+Testbase MndTestUser::test;
 
-TEST_F(DndTestUser, 01_ShowUser) {
+TEST_F(MndTestUser, 01_Show_User) {
   test.SendShowMetaMsg(TSDB_MGMT_TABLE_USER, "");
   CHECK_META("show users", 4);
 
@@ -43,7 +43,7 @@ TEST_F(DndTestUser, 01_ShowUser) {
   CheckBinary("root", TSDB_USER_LEN);
 }
 
-TEST_F(DndTestUser, 02_Create_User) {
+TEST_F(MndTestUser, 02_Create_User) {
   {
     int32_t contLen = sizeof(SCreateUserReq);
 
@@ -99,7 +99,7 @@ TEST_F(DndTestUser, 02_Create_User) {
   EXPECT_EQ(test.GetShowRows(), 2);
 }
 
-TEST_F(DndTestUser, 03_Alter_User) {
+TEST_F(MndTestUser, 03_Alter_User) {
   {
     int32_t contLen = sizeof(SAlterUserReq);
 
@@ -149,7 +149,7 @@ TEST_F(DndTestUser, 03_Alter_User) {
   }
 }
 
-TEST_F(DndTestUser, 04_Drop_User) {
+TEST_F(MndTestUser, 04_Drop_User) {
   {
     int32_t contLen = sizeof(SDropUserReq);
 
@@ -190,7 +190,7 @@ TEST_F(DndTestUser, 04_Drop_User) {
   EXPECT_EQ(test.GetShowRows(), 1);
 }
 
-TEST_F(DndTestUser, 05_Create_Drop_Alter_User) {
+TEST_F(MndTestUser, 05_Create_Drop_Alter_User) {
   {
     int32_t contLen = sizeof(SCreateUserReq);
 

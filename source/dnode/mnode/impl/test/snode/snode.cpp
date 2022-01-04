@@ -9,9 +9,9 @@
  *
  */
 
-#include "base.h"
+#include "sut.h"
 
-class DndTestSnode : public ::testing::Test {
+class MndTestSnode : public ::testing::Test {
  public:
   void SetUp() override {}
   void TearDown() override {}
@@ -35,10 +35,10 @@ class DndTestSnode : public ::testing::Test {
   static TestServer server2;
 };
 
-Testbase   DndTestSnode::test;
-TestServer DndTestSnode::server2;
+Testbase   MndTestSnode::test;
+TestServer MndTestSnode::server2;
 
-TEST_F(DndTestSnode, 01_ShowSnode) {
+TEST_F(MndTestSnode, 01_Show_Snode) {
   test.SendShowMetaMsg(TSDB_MGMT_TABLE_SNODE, "");
   CHECK_META("show snodes", 3);
 
@@ -50,7 +50,7 @@ TEST_F(DndTestSnode, 01_ShowSnode) {
   EXPECT_EQ(test.GetShowRows(), 0);
 }
 
-TEST_F(DndTestSnode, 02_Create_Snode_Invalid_Id) {
+TEST_F(MndTestSnode, 02_Create_Snode_Invalid_Id) {
   {
     int32_t contLen = sizeof(SMCreateSnodeMsg);
 
@@ -77,7 +77,7 @@ TEST_F(DndTestSnode, 02_Create_Snode_Invalid_Id) {
   }
 }
 
-TEST_F(DndTestSnode, 03_Create_Snode_Invalid_Id) {
+TEST_F(MndTestSnode, 03_Create_Snode_Invalid_Id) {
   {
     int32_t contLen = sizeof(SMCreateSnodeMsg);
 
@@ -90,7 +90,7 @@ TEST_F(DndTestSnode, 03_Create_Snode_Invalid_Id) {
   }
 }
 
-TEST_F(DndTestSnode, 04_Create_Snode) {
+TEST_F(MndTestSnode, 04_Create_Snode) {
   {
     // create dnode
     int32_t contLen = sizeof(SCreateDnodeMsg);
