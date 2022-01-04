@@ -397,7 +397,7 @@ static void indexDestroyTempResult(SArray* result) {
 }
 int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
   if (sIdx == NULL) { return -1; }
-  indexWarn("suid %" PRIu64 " merge cache into tindex", sIdx->suid);
+  indexInfo("suid %" PRIu64 " merge cache into tindex", sIdx->suid);
 
   IndexCache*  pCache = (IndexCache*)cache;
   TFileReader* pReader = tfileGetReaderByCol(sIdx->tindex, pCache->suid, pCache->colName);

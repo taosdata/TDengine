@@ -701,7 +701,8 @@ class IndexObj {
     int64_t s = taosGetTimestampUs();
     if (Search(mq, result) == 0) {
       int64_t e = taosGetTimestampUs();
-      std::cout << "search one successfully and time cost:" << e - s << std::endl;
+      std::cout << "search one successfully and time cost:" << e - s << "\tquery col:" << colName
+                << "\t val: " << colVal << "\t size:" << taosArrayGetSize(result) << std::endl;
     } else {
     }
     int sz = taosArrayGetSize(result);
@@ -834,11 +835,8 @@ static void write_and_search(IndexObj* idx) {
   std::string colName("tag1"), colVal("Hello");
 
   int target = idx->SearchOne("tag1", "Hello");
-  std::cout << "search: " << target << std::endl;
   target = idx->SearchOne("tag2", "Test");
-  std::cout << "search: " << target << std::endl;
-
-  idx->PutOne(colName, colVal);
+  // idx->PutOne(colName, colVal);
 }
 TEST_F(IndexEnv2, testIndex_serarch_cache_and_tfile) {
   std::string path = "/tmp/cache_and_tfile";
@@ -847,8 +845,8 @@ TEST_F(IndexEnv2, testIndex_serarch_cache_and_tfile) {
   }
   index->PutOne("tag1", "Hello");
   index->PutOne("tag2", "Test");
-  index->WriteMultiMillonData("tag1", "Hello", 50 * 10000);
-  index->WriteMultiMillonData("tag2", "Test", 10 * 10000);
+  index->WriteMultiMillonData("tag1", "Hello", 100 * 10000);
+  index->WriteMultiMillonData("tag2", "Test", 100 * 10000);
   std::thread threads[NUM_OF_THREAD];
 
   for (int i = 0; i < NUM_OF_THREAD; i++) {

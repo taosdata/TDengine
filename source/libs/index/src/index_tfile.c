@@ -264,7 +264,8 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
   // ugly code, refactor later
   for (size_t i = 0; i < sz; i++) {
     TFileValue* v = taosArrayGetP((SArray*)data, i);
-    // taosArrayRemoveDuplicate(v->tablId, tfileUidCompare, NULL);
+    taosArraySort(v->tableId, tfileUidCompare);
+    taosArrayRemoveDuplicate(v->tableId, tfileUidCompare, NULL);
     int32_t tbsz = taosArrayGetSize(v->tableId);
     fstOffset += TF_TABLE_TATOAL_SIZE(tbsz);
   }
@@ -545,8 +546,8 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
     indexError("actual Read: %d, to read: %d, errno: %d, filefd: %d, filename: %s", (int)(nread), (int)sizeof(buf),
                errno, reader->ctx->file.fd, reader->ctx->file.buf);
   } else {
-    indexError("actual Read: %d, to read: %d, errno: %d, filefd: %d, filename: %s", (int)(nread), (int)sizeof(buf),
-               errno, reader->ctx->file.fd, reader->ctx->file.buf);
+    indexInfo("actual Read: %d, to read: %d, filefd: %d, filename: %s", (int)(nread), (int)sizeof(buf),
+              reader->ctx->file.fd, reader->ctx->file.buf);
   }
   // assert(nread == sizeof(buf));
   memcpy(&reader->header, buf, sizeof(buf));
@@ -562,8 +563,8 @@ static int tfileReaderLoadFst(TFileReader* reader) {
 
   WriterCtx* ctx = reader->ctx;
   int32_t    nread = ctx->readFrom(ctx, buf, FST_MAX_SIZE, reader->header.fstOffset);
-  indexError("nread = %d, and fst offset=%d, filename: %s, size: %d ", nread, reader->header.fstOffset, ctx->file.buf,
-             ctx->file.size);
+  indexInfo("nread = %d, and fst offset=%d, filename: %s, size: %d ", nread, reader->header.fstOffset, ctx->file.buf,
+            ctx->file.size);
   // we assuse fst size less than FST_MAX_SIZE
   assert(nread > 0 && nread < FST_MAX_SIZE);
 
