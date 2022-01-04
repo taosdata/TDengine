@@ -72,9 +72,17 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
     if (readOnly == false) {
       // ctx->file.fd = open(path, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
       ctx->file.fd = tfOpenCreateWriteAppend(path);
+
+      struct stat fstat;
+      stat(path, &fstat);
+      ctx->file.size = fstat.st_size;
     } else {
       // ctx->file.fd = open(path, O_RDONLY, S_IRWXU | S_IRWXG | S_IRWXO);
       ctx->file.fd = tfOpenRead(path);
+
+      struct stat fstat;
+      stat(path, &fstat);
+      ctx->file.size = fstat.st_size;
     }
     memcpy(ctx->file.buf, path, strlen(path));
     if (ctx->file.fd < 0) {
@@ -104,6 +112,7 @@ void writerCtxDestroy(WriterCtx* ctx, bool remove) {
     free(ctx->mem.buf);
   } else {
     tfClose(ctx->file.fd);
+    ctx->flush(ctx);
     if (remove) { unlink(ctx->file.buf); }
   }
   free(ctx);

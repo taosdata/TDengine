@@ -692,7 +692,6 @@ void freeCreateTableInfo(void* p) {
   taosArrayDestroy(pInfo->pTagNames);
   taosArrayDestroyEx(pInfo->pTagVals, freeItem);
   tfree(pInfo->fullname);
-  tfree(pInfo->tagdata.data);
 }
 
 SSqlInfo* setSqlInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SToken *pTableName, int32_t type) {
@@ -786,7 +785,7 @@ void destroySqlInfo(SSqlInfo *pInfo) {
   taosArrayDestroy(pInfo->funcs);
   if (pInfo->type == TSDB_SQL_SELECT) {
     destroyAllSqlNode(&pInfo->sub);
-  } else if (pInfo->type == TSDB_SQL_CREATE_TABLE) {
+  } else if (pInfo->type == TSDB_SQL_CREATE_STABLE) {
     pInfo->pCreateTableInfo = destroyCreateTableSql(pInfo->pCreateTableInfo);
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
     taosArrayDestroyEx(pInfo->pAlterInfo->varList, freeItem);

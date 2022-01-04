@@ -571,7 +571,9 @@ void setColumn(SColumn* pColumn, uint64_t uid, const char* tableName, int8_t fla
   pColumn->info.type  = pSchema->type;
 
   if (tableName != NULL) {
-    snprintf(pColumn->name, tListLen(pColumn->name), "%s.%s", tableName, pSchema->name);
+    char n[TSDB_COL_NAME_LEN + 1 + TSDB_TABLE_NAME_LEN] = {0};
+    snprintf(n, tListLen(n), "%s.%s", tableName, pSchema->name);
+    tstrncpy(pColumn->name, n, tListLen(pColumn->name));
   } else {
     tstrncpy(pColumn->name, pSchema->name, tListLen(pColumn->name));
   }
@@ -586,7 +588,10 @@ SColumn createColumn(uint64_t uid, const char* tableName, int8_t flag, const SSc
   c.info.type = pSchema->type;
 
   if (tableName != NULL) {
-    snprintf(c.name, tListLen(c.name), "%s.%s", tableName, pSchema->name);
+    char n[TSDB_COL_NAME_LEN + 1 + TSDB_TABLE_NAME_LEN] = {0};
+    snprintf(n, tListLen(n), "%s.%s", tableName, pSchema->name);
+
+    tstrncpy(c.name, n, tListLen(c.name));
   } else {
     tstrncpy(c.name, pSchema->name, tListLen(c.name));
   }

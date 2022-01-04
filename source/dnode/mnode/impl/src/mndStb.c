@@ -232,7 +232,10 @@ static void *mndBuildCreateStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb
   SMsgHead     *pMsgHead;
 
   req.ver = 0;
-  req.name = pStb->name;
+  SName name = {0};
+  tNameFromString(&name, pStb->name, T_NAME_ACCT|T_NAME_DB|T_NAME_TABLE);
+
+  req.name = (char*) tNameGetTableName(&name);
   req.ttl = 0;
   req.keep = 0;
   req.type = TD_SUPER_TABLE;

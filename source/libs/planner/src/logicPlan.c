@@ -37,15 +37,29 @@ int32_t optimizeQueryPlan(struct SQueryPlanNode* pQueryNode) {
   return 0;
 }
 
-int32_t createInsertPlan(const SInsertStmtInfo* pInsert, SQueryPlanNode** pQueryPlan) {
+static int32_t createModificationOpPlan(const SQueryNode* pNode, SQueryPlanNode** pQueryPlan) {
+  SInsertStmtInfo* pInsert = (SInsertStmtInfo*)pNode;
+
   *pQueryPlan = calloc(1, sizeof(SQueryPlanNode));
   SArray* blocks = taosArrayInit(taosArrayGetSize(pInsert->pDataBlocks), POINTER_BYTES);
-  if (NULL == *pQueryPlan || NULL == blocks) {
+
+  SDataPayloadInfo* pPayload = calloc(1, sizeof(SDataPayloadInfo));
+  if (NULL == *pQueryPlan || NULL == blocks || NULL == pPayload) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  (*pQueryPlan)->info.type = QNODE_INSERT;
+
+  (*pQueryPlan)->info.type = QNODE_MODIFY;
   taosArrayAddAll(blocks, pInsert->pDataBlocks);
-  (*pQueryPlan)->pExtInfo = blocks;
+
+  if (pNode->type == TSDB_SQL_INSERT) {
+    pPayload->msgType = TDMT_VND_SUBMIT;
+  } else if (pNode->type == TSDB_SQL_CREATE_TABLE) {
+    pPayload->msgType = TDMT_VND_CREATE_TABLE;
+  }
+
+  pPayload->payload = blocks;
+  (*pQueryPlan)->pExtInfo = pPayload;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -62,13 +76,14 @@ int32_t createQueryPlan(const SQueryNode* pNode, SQueryPlanNode** pQueryPlan) {
     case TSDB_SQL_SELECT: {
       return createSelectPlan((const SQueryStmtInfo*)pNode, pQueryPlan);
     }
+
     case TSDB_SQL_INSERT:
-      return createInsertPlan((const SInsertStmtInfo*)pNode, pQueryPlan);
+    case TSDB_SQL_CREATE_TABLE:
+      return createModificationOpPlan(pNode, pQueryPlan);
+
     default:
       return TSDB_CODE_FAILED;
   }
-
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t queryPlanToSql(struct SQueryPlanNode* pQueryNode, char** sql) {

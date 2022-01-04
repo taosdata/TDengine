@@ -1130,8 +1130,4 @@ SysNameInfo taosGetSysNameInfo() {
   return info;
 }
 
-int64_t taosGetPid() {
-  getpid();
-}
-
 #endif

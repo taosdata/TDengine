@@ -188,7 +188,7 @@ cmd ::= COMPACT VNODES IN LP exprlist(Y) RP.    { setCompactVnodeSql(pInfo, TSDB
 // And "ids" is an identifer-or-string.
 %type ids {SToken}
 ids(A) ::= ID(X).        {A = X; }
-ids(A) ::= STRING(X).    {A = X; }
+//ids(A) ::= STRING(X).    {A = X; }
 
 %type ifexists {SToken}
 ifexists(X) ::= IF EXISTS.          { X.n = 1;}
@@ -392,7 +392,7 @@ create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP. {
 %type create_stable_args{SCreateTableSql*}
 create_stable_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP TAGS LP columnlist(Y) RP. {
   A = tSetCreateTableInfo(X, Y, NULL, TSQL_CREATE_STABLE);
-  setSqlInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
+  setSqlInfo(pInfo, A, NULL, TSDB_SQL_CREATE_STABLE);
 
   V.n += Z.n;
   setCreatedTableName(pInfo, &V, &U);

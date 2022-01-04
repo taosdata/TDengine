@@ -12,4 +12,6 @@ target_link_libraries(
         PRIVATE os util planner qcom common catalog transport
 )
 
-ADD_SUBDIRECTORY(test)
+if(${BUILD_TEST})
+    ADD_SUBDIRECTORY(test)
+endif(${BUILD_TEST})

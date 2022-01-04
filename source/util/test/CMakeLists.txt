@@ -33,4 +33,16 @@ ENDIF()
 
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/util/inc)
 
+# freelistTest
+add_executable(freelistTest "")
+target_sources(freelistTest
+    PRIVATE
+    "freelistTest.cpp"
+)
+target_link_libraries(freelistTest os util gtest gtest_main)
+
+# encodeTest
+add_executable(encodeTest "encodeTest.cpp")
+target_link_libraries(encodeTest os util gtest gtest_main)
+
 
