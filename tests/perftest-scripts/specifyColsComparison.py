@@ -195,7 +195,3 @@ class specifyColsCompared:
 if __name__ == '__main__':
     runPerf = specifyColsCompared()
     runPerf.runTest()
-    
-
-
-    
