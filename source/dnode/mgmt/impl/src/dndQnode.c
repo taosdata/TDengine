@@ -27,7 +27,7 @@ static SQnode *dndAcquireQnode(SDnode *pDnode) {
   int32_t     refCount = 0;
 
   taosRLockLatch(&pMgmt->latch);
-  if (pMgmt->deployed && !pMgmt->dropped) {
+  if (pMgmt->deployed && !pMgmt->dropped && pMgmt->pQnode != NULL) {
     refCount = atomic_add_fetch_32(&pMgmt->refCount, 1);
     pQnode = pMgmt->pQnode;
   } else {
@@ -175,7 +175,7 @@ static void dndStopQnodeWorker(SDnode *pDnode) {
   pMgmt->deployed = 0;
   taosWUnLockLatch(&pMgmt->latch);
 
-  while (pMgmt->refCount > 1) {
+  while (pMgmt->refCount > 0) {
     taosMsleep(10);
   }
 
@@ -195,10 +195,19 @@ static void dndBuildQnodeOption(SDnode *pDnode, SQnodeOpt *pOption) {
 
 static int32_t dndOpenQnode(SDnode *pDnode) {
   SQnodeMgmt *pMgmt = &pDnode->qmgmt;
-  SQnodeOpt   option = {0};
+
+  SQnode *pQnode = dndAcquireQnode(pDnode);
+  if (pQnode != NULL) {
+    dndReleaseQnode(pDnode, pQnode);
+    terrno = TSDB_CODE_DND_QNODE_ALREADY_DEPLOYED;
+    dError("failed to create qnode since %s", terrstr());
+    return -1;
+  }
+
+  SQnodeOpt option = {0};
   dndBuildQnodeOption(pDnode, &option);
 
-  SQnode *pQnode = qndOpen(&option);
+  pQnode = qndOpen(&option);
   if (pQnode == NULL) {
     dError("failed to open qnode since %s", terrstr());
     return -1;
@@ -266,6 +275,7 @@ int32_t dndProcessCreateQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_QNODE_ID_INVALID;
+    dError("failed to create qnode since %s", terrstr());
     return -1;
   } else {
     return dndOpenQnode(pDnode);
@@ -278,6 +288,7 @@ int32_t dndProcessDropQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_QNODE_ID_INVALID;
+    dError("failed to drop qnode since %s", terrstr());
     return -1;
   } else {
     return dndDropQnode(pDnode);
@@ -293,6 +304,7 @@ static void dndProcessQnodeQueue(SDnode *pDnode, SRpcMsg *pMsg) {
   if (pQnode != NULL) {
     code = qndProcessMsg(pQnode, pMsg, &pRsp);
   }
+  dndReleaseQnode(pDnode, pQnode);
 
   if (pRsp != NULL) {
     pRsp->ahandle = pMsg->ahandle;

@@ -27,7 +27,7 @@ static SBnode *dndAcquireBnode(SDnode *pDnode) {
   int32_t     refCount = 0;
 
   taosRLockLatch(&pMgmt->latch);
-  if (pMgmt->deployed && !pMgmt->dropped) {
+  if (pMgmt->deployed && !pMgmt->dropped && pMgmt->pBnode != NULL) {
     refCount = atomic_add_fetch_32(&pMgmt->refCount, 1);
     pBnode = pMgmt->pBnode;
   } else {
@@ -170,7 +170,7 @@ static void dndStopBnodeWorker(SDnode *pDnode) {
   pMgmt->deployed = 0;
   taosWUnLockLatch(&pMgmt->latch);
 
-  while (pMgmt->refCount > 1) {
+  while (pMgmt->refCount > 0) {
     taosMsleep(10);
   }
 
@@ -189,10 +189,18 @@ static void dndBuildBnodeOption(SDnode *pDnode, SBnodeOpt *pOption) {
 
 static int32_t dndOpenBnode(SDnode *pDnode) {
   SBnodeMgmt *pMgmt = &pDnode->bmgmt;
-  SBnodeOpt   option = {0};
+  SBnode     *pBnode = dndAcquireBnode(pDnode);
+  if (pBnode != NULL) {
+    dndReleaseBnode(pDnode, pBnode);
+    terrno = TSDB_CODE_DND_BNODE_ALREADY_DEPLOYED;
+    dError("failed to create bnode since %s", terrstr());
+    return -1;
+  }
+
+  SBnodeOpt option = {0};
   dndBuildBnodeOption(pDnode, &option);
 
-  SBnode *pBnode = bndOpen(pDnode->dir.bnode, &option);
+  pBnode = bndOpen(pDnode->dir.bnode, &option);
   if (pBnode == NULL) {
     dError("failed to open bnode since %s", terrstr());
     return -1;
@@ -261,6 +269,7 @@ int32_t dndProcessCreateBnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_BNODE_ID_INVALID;
+    dError("failed to create bnode since %s", terrstr());
     return -1;
   } else {
     return dndOpenBnode(pDnode);
@@ -273,6 +282,7 @@ int32_t dndProcessDropBnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_BNODE_ID_INVALID;
+    dError("failed to drop bnode since %s", terrstr());
     return -1;
   } else {
     return dndDropBnode(pDnode);

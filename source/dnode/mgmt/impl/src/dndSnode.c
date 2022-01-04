@@ -27,7 +27,7 @@ static SSnode *dndAcquireSnode(SDnode *pDnode) {
   int32_t     refCount = 0;
 
   taosRLockLatch(&pMgmt->latch);
-  if (pMgmt->deployed && !pMgmt->dropped) {
+  if (pMgmt->deployed && !pMgmt->dropped && pMgmt->pSnode != NULL) {
     refCount = atomic_add_fetch_32(&pMgmt->refCount, 1);
     pSnode = pMgmt->pSnode;
   } else {
@@ -170,9 +170,9 @@ static void dndStopSnodeWorker(SDnode *pDnode) {
   pMgmt->deployed = 0;
   taosWUnLockLatch(&pMgmt->latch);
 
-  while (pMgmt->refCount > 1) {
+  while (pMgmt->refCount > 0) {
     taosMsleep(10);
-  }
+  } 
 
   dndCleanupWorker(&pMgmt->writeWorker);
 }
@@ -189,10 +189,18 @@ static void dndBuildSnodeOption(SDnode *pDnode, SSnodeOpt *pOption) {
 
 static int32_t dndOpenSnode(SDnode *pDnode) {
   SSnodeMgmt *pMgmt = &pDnode->smgmt;
-  SSnodeOpt   option = {0};
+  SSnode     *pSnode = dndAcquireSnode(pDnode);
+  if (pSnode != NULL) {
+    dndReleaseSnode(pDnode, pSnode);
+    terrno = TSDB_CODE_DND_SNODE_ALREADY_DEPLOYED;
+    dError("failed to create snode since %s", terrstr());
+    return -1;
+  }
+
+  SSnodeOpt option = {0};
   dndBuildSnodeOption(pDnode, &option);
 
-  SSnode *pSnode = sndOpen(pDnode->dir.snode, &option);
+  pSnode = sndOpen(pDnode->dir.snode, &option);
   if (pSnode == NULL) {
     dError("failed to open snode since %s", terrstr());
     return -1;
@@ -261,6 +269,7 @@ int32_t dndProcessCreateSnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_SNODE_ID_INVALID;
+    dError("failed to create snode since %s", terrstr());
     return -1;
   } else {
     return dndOpenSnode(pDnode);
@@ -273,6 +282,7 @@ int32_t dndProcessDropSnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_SNODE_ID_INVALID;
+    dError("failed to drop snode since %s", terrstr());
     return -1;
   } else {
     return dndDropSnode(pDnode);
@@ -288,6 +298,7 @@ static void dndProcessSnodeQueue(SDnode *pDnode, SRpcMsg *pMsg) {
   if (pSnode != NULL) {
     code = sndProcessMsg(pSnode, pMsg, &pRsp);
   }
+  dndReleaseSnode(pDnode, pSnode);
 
   if (pRsp != NULL) {
     pRsp->ahandle = pMsg->ahandle;

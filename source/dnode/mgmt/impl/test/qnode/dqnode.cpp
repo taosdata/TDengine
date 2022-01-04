@@ -25,43 +25,50 @@ class DndTestQnode : public ::testing::Test {
 
 Testbase DndTestQnode::test;
 
-TEST_F(DndTestQnode, 04_Drop_User) {
+TEST_F(DndTestQnode, 01_Create_Qnode_Invalid) {
   {
-    int32_t contLen = sizeof(SDropUserReq);
+    int32_t contLen = sizeof(SDCreateQnodeReq);
 
-    SDropUserReq* pReq = (SDropUserReq*)rpcMallocCont(contLen);
-    strcpy(pReq->user, "");
+    SDCreateQnodeReq* pReq = (SDCreateQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_USER, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_DND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_USER_FORMAT);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_DND_QNODE_ID_INVALID);
   }
 
-  // {
-  //   int32_t contLen = sizeof(SDropUserReq);
+  {
+    int32_t contLen = sizeof(SDCreateQnodeReq);
 
-  //   SDropUserReq* pReq = (SDropUserReq*)rpcMallocCont(contLen);
-  //   strcpy(pReq->user, "u4");
+    SDCreateQnodeReq* pReq = (SDCreateQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(1);
 
-  //   SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_USER, pReq, contLen);
-  //   ASSERT_NE(pMsg, nullptr);
-  //   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_USER_NOT_EXIST);
-  // }
+    SRpcMsg* pMsg = test.SendMsg(TDMT_DND_CREATE_QNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
 
-  // {
-  //   int32_t contLen = sizeof(SDropUserReq);
+  {
+    int32_t contLen = sizeof(SDCreateQnodeReq);
 
-  //   SDropUserReq* pReq = (SDropUserReq*)rpcMallocCont(contLen);
-  //   strcpy(pReq->user, "u1");
+    SDCreateQnodeReq* pReq = (SDCreateQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(1);
 
-  //   SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_USER, pReq, contLen);
-  //   ASSERT_NE(pMsg, nullptr);
-  //   ASSERT_EQ(pMsg->code, 0);
-  // }
+    SRpcMsg* pMsg = test.SendMsg(TDMT_DND_CREATE_QNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_DND_QNODE_ALREADY_DEPLOYED);
+  }
 
-  // test.SendShowMetaMsg(TSDB_MGMT_TABLE_USER, "");
-  // CHECK_META("show users", 4);
+  test.Restart();
 
-  // test.SendShowRetrieveMsg();
-  // EXPECT_EQ(test.GetShowRows(), 1);
+  {
+    int32_t contLen = sizeof(SDCreateQnodeReq);
+
+    SDCreateQnodeReq* pReq = (SDCreateQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(1);
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_DND_CREATE_QNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_DND_QNODE_ALREADY_DEPLOYED);
+  }
 }
