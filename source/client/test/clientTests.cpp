@@ -465,12 +465,12 @@ TEST(testCase, connect_Test) {
 
 TEST(testCase, create_multiple_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
+  ASSERT_NE(pConn, nullptr);
 
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table t_2 using st1 tags(1)");
+  pRes = taos_query(pConn, "create table t_2 using st1 tags(1) t_3 using st1 tags(2)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create multiple tables, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
@@ -490,3 +490,32 @@ TEST(testCase, create_multiple_tables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
+
+//TEST(testCase, projection_query_tables) {
+//  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+//  ASSERT_EQ(pConn, nullptr);
+//
+//  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+//  taos_free_result(pRes);
+//
+//  pRes = taos_query(pConn, "select * from t_2");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to create multiple tables, reason:%s\n", taos_errstr(pRes));
+//    taos_free_result(pRes);
+//    ASSERT_TRUE(false);
+//  }
+//
+//  TAOS_ROW pRow = NULL;
+//  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+//  int32_t numOfFields = taos_num_fields(pRes);
+//
+//  char str[512] = {0};
+//  while((pRow = taos_fetch_row(pRes)) != NULL) {
+//    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+//    printf("%s\n", str);
+//  }
+//
+//  taos_free_result(pRes);
+//  taos_close(pConn);
+//}
+
