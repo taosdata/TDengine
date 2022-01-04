@@ -5229,7 +5229,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       }
     }
 
-    if (pRight != NULL && (pRight->tokenId == TK_ID || pRight->tokenId == TK_ARROW)) {  // join on tag columns for stable query
+    if (joinQuery && pRight != NULL && (pRight->tokenId == TK_ID || pRight->tokenId == TK_ARROW)) {  // join on tag columns for stable query
       if (!validateJoinExprNode(pCmd, pQueryInfo, *pExpr, &index)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
