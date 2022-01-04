@@ -7,6 +7,11 @@ namespace TDengineDriver.Test
 {
     public class TestTaosBind
     {
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindBoolTrue</Name>
+        /// <describe>Unit test for binding boolean true value using TAOS_BIND struct through stmt</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindBoolTrue()
         {
@@ -18,7 +23,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBool(true);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             bool bindBuffer = Convert.ToBoolean(Marshal.ReadByte(bind.buffer));
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -30,6 +35,11 @@ namespace TDengineDriver.Test
 
         }
 
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindBoolFalse</Name>
+        /// <describe>Unit test for binding boolean false value using TAOS_BIND struct through stmt</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindBoolFalse()
         {
@@ -41,7 +51,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBool(false);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             bool bindBuffer = Convert.ToBoolean(Marshal.ReadByte(bind.buffer));
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -53,6 +63,11 @@ namespace TDengineDriver.Test
 
         }
 
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindTinyIntZero</Name>
+        /// <describe>Unit test for binding tinny int zero value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindTinyIntZero()
         {
@@ -65,7 +80,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindTinyInt(0);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             sbyte bindBuffer = Convert.ToSByte(Marshal.ReadByte(bind.buffer));
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -75,7 +90,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.buffer);
             Marshal.FreeHGlobal(bind.length);
         }
-
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindTinyIntPositive</Name>
+        /// <describe>Unit test for binding tinny int positive value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindTinyIntPositive()
         {
@@ -88,7 +107,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindTinyInt(sbyte.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             sbyte bindBuffer = Convert.ToSByte(Marshal.ReadByte(bind.buffer));
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -99,6 +118,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindTinyIntNegative</Name>
+        /// <describe>Unit test for binding tinny int negative value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result> 
         [Fact]
         public void TestBindTinyIntNegative()
         {
@@ -111,7 +135,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindTinyInt(sbyte.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             short bindBuffer = Marshal.ReadInt16(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -122,6 +146,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindSmallIntNegative</Name>
+        /// <describe>Unit test for binding small int negative value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result> 
         [Fact]
         public void TestBindSmallIntNegative()
         {
@@ -134,7 +163,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindSmallInt(short.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             short bindBuffer = Marshal.ReadInt16(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -145,6 +174,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindSmallIntZero</Name>
+        /// <describe>Unit test for binding small int zero value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result> 
         [Fact]
         public void TestBindSmallIntZero()
         {
@@ -157,7 +191,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindSmallInt(0);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             short bindBuffer = Marshal.ReadInt16(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -168,6 +202,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindSmallIntPositive</Name>
+        /// <describe>Unit test for binding small int positive value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result> 
         [Fact]
         public void TestBindSmallIntPositive()
         {
@@ -180,7 +219,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindSmallInt(short.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             short bindBuffer = Marshal.ReadInt16(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -191,6 +230,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindIntNegative</Name>
+        /// <describe>Unit test for binding small int positive value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result> 
         [Fact]
         public void TestBindIntNegative()
         {
@@ -203,7 +247,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindInt(int.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             int bindBuffer = Marshal.ReadInt32(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -214,6 +258,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindIntZero</Name>
+        /// <describe>Unit test for binding int zero value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result> 
         [Fact]
         public void TestBindIntZero()
         {
@@ -226,7 +275,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindInt(0);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             int bindBuffer = Marshal.ReadInt32(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -237,6 +286,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindIntPositive</Name>
+        /// <describe>Unit test for binding int positive value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result> 
         [Fact]
         public void TestBindIntPositive()
         {
@@ -249,7 +303,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindInt(int.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             int bindBuffer = Marshal.ReadInt32(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -260,6 +314,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindBigIntNegative</Name>
+        /// <describe>Unit test for binding int negative value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result> 
         [Fact]
         public void TestBindBigIntNegative()
         {
@@ -272,7 +331,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBigInt(long.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             long bindBuffer = Marshal.ReadInt64(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -282,6 +341,12 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.buffer);
             Marshal.FreeHGlobal(bind.length);
         }
+
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindBigIntZero</Name>
+        /// <describe>Unit test for binding big int zero value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result> 
         [Fact]
         public void TestBindBigIntZero()
         {
@@ -294,7 +359,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBigInt(0);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             long bindBuffer = Marshal.ReadInt64(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -305,6 +370,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindBigIntPositive</Name>
+        /// <describe>Unit test for binding big int positive value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result> 
         [Fact]
         public void TestBindBigIntPositive()
         {
@@ -317,7 +387,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBigInt(long.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             long bindBuffer = Marshal.ReadInt64(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -328,6 +398,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindBigIntPositive</Name>
+        /// <describe>Unit test for binding big int positive value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result> 
         [Fact]
         public void TestBindUTinyZero()
         {
@@ -341,7 +416,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUTinyInt(0);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             byte bindBuffer = Marshal.ReadByte(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -352,6 +427,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindUTinyPositive</Name>
+        /// <describe>Unit test for binding unsigned tinny int positive value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result> 
         [Fact]
         public void TestBindUTinyPositive()
         {
@@ -365,7 +445,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUTinyInt(byte.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             byte bindBuffer = Marshal.ReadByte(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -376,6 +456,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindUSmallIntZero</Name>
+        /// <describe>Unit test for binding unsigned small int zero value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result> 
         [Fact]
         public void TestBindUSmallIntZero()
         {
@@ -388,7 +473,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUSmallInt(ushort.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             ushort bindBuffer = (ushort)Marshal.ReadInt16(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -398,6 +483,12 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.buffer);
             Marshal.FreeHGlobal(bind.length);
         }
+
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindUSmallIntPositive</Name>
+        /// <describe>Unit test for binding unsigned small int positive value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindUSmallIntPositive()
         {
@@ -410,7 +501,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUSmallInt(ushort.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             ushort bindBuffer = (ushort)Marshal.ReadInt16(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -421,6 +512,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>
+        /// <Name>TestTaosBind.TestBindUIntZero</Name>
+        /// <describe>Unit test for binding unsigned int zero value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindUIntZero()
         {
@@ -432,7 +528,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUInt(uint.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             uint bindBuffer = (uint)Marshal.ReadInt32(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -443,6 +539,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindUIntPositive</Name>
+        /// <describe>Unit test for binding unsigned int positive value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindUIntPositive()
         {
@@ -454,7 +555,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUInt(uint.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             uint bindBuffer = (uint)Marshal.ReadInt32(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -465,6 +566,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindUBigIntZero</Name>
+        /// <describe>Unit test for binding unsigned big int zero value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindUBigIntZero()
         {
@@ -476,7 +582,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUBigInt(ulong.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             ulong bindBuffer = (ulong)Marshal.ReadInt64(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -487,6 +593,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindUBigIntPositive</Name>
+        /// <describe>Unit test for binding unsigned big int positive value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindUBigIntPositive()
         {
@@ -498,7 +609,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUBigInt(ulong.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             ulong bindBuffer = (ulong)Marshal.ReadInt64(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -509,6 +620,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindFloatNegative</Name>
+        /// <describe>Unit test for binding float negative value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindFloatNegative()
         {
@@ -521,7 +637,7 @@ namespace TDengineDriver.Test
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             float[] bindBufferArr = new float[1];
             Marshal.Copy(bind.buffer, bindBufferArr, 0, bindBufferArr.Length);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBufferArr[0], buffer);
@@ -532,6 +648,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindFloatNegative</Name>
+        /// <describe>Unit test for binding float zero value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindFloatZero()
         {
@@ -544,7 +665,7 @@ namespace TDengineDriver.Test
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             float[] bindBufferArr = new float[1];
             Marshal.Copy(bind.buffer, bindBufferArr, 0, bindBufferArr.Length);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBufferArr[0], buffer);
@@ -555,6 +676,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindFloatPositive</Name>
+        /// <describe>Unit test for binding float positive value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindFloatPositive()
         {
@@ -567,7 +693,7 @@ namespace TDengineDriver.Test
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             float[] bindBufferArr = new float[1];
             Marshal.Copy(bind.buffer, bindBufferArr, 0, bindBufferArr.Length);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBufferArr[0], buffer);
@@ -578,6 +704,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindDoubleZero</Name>
+        /// <describe>Unit test for binding double zero value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindDoubleZero()
         {
@@ -590,7 +721,7 @@ namespace TDengineDriver.Test
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             double[] bindBufferArr = new double[1];
             Marshal.Copy(bind.buffer, bindBufferArr, 0, bindBufferArr.Length);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBufferArr[0], buffer);
@@ -601,6 +732,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindDoublePositive</Name>
+        /// <describe>Unit test for binding double positive value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindDoublePositive()
         {
@@ -613,7 +749,7 @@ namespace TDengineDriver.Test
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             double[] bindBufferArr = new double[1];
             Marshal.Copy(bind.buffer, bindBufferArr, 0, bindBufferArr.Length);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBufferArr[0], buffer);
@@ -624,6 +760,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindDoubleNegative</Name>
+        /// <describe>Unit test for binding double negative value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindDoubleNegative()
         {
@@ -636,7 +777,7 @@ namespace TDengineDriver.Test
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             double[] bindBufferArr = new double[1];
             Marshal.Copy(bind.buffer, bindBufferArr, 0, bindBufferArr.Length);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBufferArr[0], buffer);
@@ -647,6 +788,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindBinaryEn</Name>
+        /// <describe>Unit test for binding binary character without CN character using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindBinaryEn()
         {
@@ -658,7 +804,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBinary("qwertyuiopasdghjklzxcvbnm<>?:\"{}+_)(*&^%$#@!~QWERTYUIOP[]\\ASDFGHJKL;'ZXCVBNM,./`1234567890-=");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             string bindBuffer = Marshal.PtrToStringAnsi(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -669,6 +815,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindBinaryCn</Name>
+        /// <describe>Unit test for binding binary character with CN character using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindBinaryCn()
         {
@@ -680,7 +831,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBinary("一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             string bindBuffer = Marshal.PtrToStringAnsi(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -691,6 +842,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindBinaryCnAndEn</Name>
+        /// <describe>Unit test for binding binary characters with CN and  other characters using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindBinaryCnAndEn()
         {
@@ -702,7 +858,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBinary("一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             string bindBuffer = Marshal.PtrToStringAnsi(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -713,6 +869,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindNcharEn</Name>
+        /// <describe>Unit test for binding nchar characters without cn using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindNcharEn()
         {
@@ -724,7 +885,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindNchar("qwertyuiopasdghjklzxcvbnm<>?:\"{}+_)(*&^%$#@!~QWERTYUIOP[]\\ASDFGHJKL;'ZXCVBNM,./`1234567890-=");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             string bindBuffer = Marshal.PtrToStringAnsi(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -734,6 +895,12 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.buffer);
             Marshal.FreeHGlobal(bind.length);
         }
+
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindNcharCn</Name>
+        /// <describe>Unit test for binding nchar characters with cn using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindNcharCn()
         {
@@ -745,7 +912,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindNchar("一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             string bindBuffer = Marshal.PtrToStringAnsi(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -755,6 +922,12 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.buffer);
             Marshal.FreeHGlobal(bind.length);
         }
+
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindNcharCnAndEn</Name>
+        /// <describe>Unit test for binding nchar  with cn characters and other characters using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindNcharCnAndEn()
         {
@@ -766,7 +939,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindNchar("一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             string bindBuffer = Marshal.PtrToStringAnsi(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -777,6 +950,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindNil</Name>
+        /// <describe>Unit test for binding null value using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindNil()
         {
@@ -786,7 +964,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindNil();
 
             int bindIsNull = Marshal.ReadInt32(bind.is_null);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindIsNull, isNull);
@@ -795,6 +973,11 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.length);
         }
 
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindTimestampNegative</Name>
+        /// <describe>Unit test for binding negative timestamp using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindTimestampNegative()
         {
@@ -806,7 +989,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindTimestamp(long.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             long bindBuffer = Marshal.ReadInt64(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -816,6 +999,12 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.buffer);
             Marshal.FreeHGlobal(bind.length);
         }
+
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindTimestampZero</Name>
+        /// <describe>Unit test for binding zero timestamp using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindTimestampZero()
         {
@@ -827,7 +1016,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindTimestamp(0);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             long bindBuffer = Marshal.ReadInt64(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -837,6 +1026,13 @@ namespace TDengineDriver.Test
             Marshal.FreeHGlobal(bind.buffer);
             Marshal.FreeHGlobal(bind.length);
         }
+
+
+        /// <author>xiaolei</author>    
+        /// <Name>TestTaosBind.TestBindTimestampPositive</Name>
+        /// <describe>Unit test for binding positive timestamp using TAOS_BIND struct through stmt.</describe>
+        /// <filename>TestTaosBind.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestBindTimestampPositive()
         {
@@ -848,7 +1044,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindTimestamp(long.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             long bindBuffer = Marshal.ReadInt64(bind.buffer);
-            Console.WriteLine("bind.buffer_type:{0},bufferType:{1}", bind.buffer_type, bufferType);
+            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
