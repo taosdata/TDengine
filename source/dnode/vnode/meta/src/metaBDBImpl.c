@@ -382,8 +382,8 @@ static int metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey
 
     // Second key is the first tag
     void *pTagVal = tdGetKVRowValOfCol(pTbCfg->ctbCfg.pTag, (kvRowColIdx(pTbCfg->ctbCfg.pTag))[0].colId);
-    pDbt[1].data = varDataVal(pTagVal);
-    pDbt[1].size = varDataLen(pTagVal);
+    pDbt[1].data = pTagVal;
+    pDbt[1].size = sizeof(int32_t);
 
     // Set index key
     memset(pSKey, 0, sizeof(*pSKey));
