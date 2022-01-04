@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
+p *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -45,12 +45,13 @@ static int tfileReaderLoadHeader(TFileReader* reader);
 static int tfileReaderLoadFst(TFileReader* reader);
 static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result);
 
-static int  tfileGetFileList(const char* path, SArray* result);
-static int  tfileRmExpireFile(SArray* result);
-static void tfileDestroyFileName(void* elem);
-static int  tfileCompare(const void* a, const void* b);
-static int  tfileParseFileName(const char* filename, uint64_t* suid, int* colId, int* version);
-static void tfileGenFileName(char* filename, uint64_t suid, int colId, int version);
+static SArray* tfileGetFileList(const char* path);
+static int     tfileRmExpireFile(SArray* result);
+static void    tfileDestroyFileName(void* elem);
+static int     tfileCompare(const void* a, const void* b);
+static int     tfileParseFileName(const char* filename, uint64_t* suid, char* col, int* version);
+static void    tfileGenFileName(char* filename, uint64_t suid, const char* col, int version);
+static void    tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col, int32_t version);
 
 TFileCache* tfileCacheCreate(const char* path) {
   TFileCache* tcache = calloc(1, sizeof(TFileCache));
@@ -59,21 +60,24 @@ TFileCache* tfileCacheCreate(const char* path) {
   tcache->tableCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   tcache->capacity = 64;
 
-  SArray* files = taosArrayInit(4, sizeof(void*));
-  tfileGetFileList(path, files);
-  taosArraySort(files, tfileCompare);
-  tfileRmExpireFile(files);
+  SArray* files = tfileGetFileList(path);
 
   uint64_t suid;
   int32_t  colId, version;
   for (size_t i = 0; i < taosArrayGetSize(files); i++) {
     char* file = taosArrayGetP(files, i);
-    if (0 != tfileParseFileName(file, &suid, (int*)&colId, (int*)&version)) {
+
+    // refactor later, use colname and version info
+    char colName[256] = {0};
+    if (0 != tfileParseFileName(file, &suid, colName, (int*)&version)) {
       indexInfo("try parse invalid file:  %s, skip it", file);
       continue;
     }
 
-    WriterCtx* wc = writerCtxCreate(TFile, file, true, 1024 * 1024 * 64);
+    char fullName[256] = {0};
+    sprintf(fullName, "%s/%s", path, file);
+
+    WriterCtx* wc = writerCtxCreate(TFile, fullName, true, 1024 * 1024 * 64);
     if (wc == NULL) {
       indexError("failed to open index:%s", file);
       goto End;
@@ -200,12 +204,9 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* resul
 }
 
 TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int32_t version, const char* colName, uint8_t colType) {
-  char    filename[128] = {0};
-  int32_t coldId = 1;
-  tfileGenFileName(filename, suid, coldId, version);
-
   char fullname[256] = {0};
-  snprintf(fullname, sizeof(fullname), "%s/%s", path, filename);
+  tfileGenFileFullName(fullname, path, suid, colName, version);
+  // indexInfo("open write file name %s", fullname);
   WriterCtx* wcx = writerCtxCreate(TFile, fullname, false, 1024 * 1024 * 64);
   if (wcx == NULL) { return NULL; }
 
@@ -218,13 +219,11 @@ TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int32_t version, const c
   return tfileWriterCreate(wcx, &tfh);
 }
 TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const char* colName) {
-  char    filename[128] = {0};
-  int32_t coldId = 1;
-  tfileGenFileName(filename, suid, coldId, version);
-
   char fullname[256] = {0};
-  snprintf(fullname, sizeof(fullname), "%s/%s", path, filename);
+  tfileGenFileFullName(fullname, path, suid, colName, version);
+
   WriterCtx* wc = writerCtxCreate(TFile, fullname, true, 1024 * 1024 * 1024);
+  // indexInfo("open read file name:%s, size: %d", wc->file.buf, wc->file.size);
   if (wc == NULL) { return NULL; }
 
   TFileReader* reader = tfileReaderCreate(wc);
@@ -324,7 +323,6 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
   }
 
   // write data
-  indexError("--------Begin----------------");
   for (size_t i = 0; i < sz; i++) {
     // TODO, fst batch write later
     TFileValue* v = taosArrayGetP((SArray*)data, i);
@@ -332,11 +330,10 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
       indexError("failed to write data: %s, offset: %d len: %d", v->colVal, v->offset,
                  (int)taosArrayGetSize(v->tableId));
     } else {
-      indexInfo("success to write data: %s, offset: %d len: %d", v->colVal, v->offset,
-                (int)taosArrayGetSize(v->tableId));
+      // indexInfo("success to write data: %s, offset: %d len: %d", v->colVal, v->offset,
+      //          (int)taosArrayGetSize(v->tableId));
     }
   }
-  indexError("--------End----------------");
   fstBuilderFinish(tw->fb);
   fstBuilderDestroy(tw->fb);
   tw->fb = NULL;
@@ -361,6 +358,7 @@ IndexTFile* indexTFileCreate(const char* path) {
   return tfile;
 }
 void indexTFileDestroy(IndexTFile* tfile) {
+  if (tfile == NULL) { return; }
   tfileCacheDestroy(tfile->cache);
   free(tfile);
 }
@@ -550,6 +548,9 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
     //
     indexError("actual Read: %d, to read: %d, errno: %d, filefd: %d, filename: %s", (int)(nread), (int)sizeof(buf),
                errno, reader->ctx->file.fd, reader->ctx->file.buf);
+  } else {
+    indexError("actual Read: %d, to read: %d, errno: %d, filefd: %d, filename: %s", (int)(nread), (int)sizeof(buf),
+               errno, reader->ctx->file.fd, reader->ctx->file.buf);
   }
   // assert(nread == sizeof(buf));
   memcpy(&reader->header, buf, sizeof(buf));
@@ -558,13 +559,14 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
 }
 static int tfileReaderLoadFst(TFileReader* reader) {
   // current load fst into memory, refactor it later
-  static int FST_MAX_SIZE = 64 * 1024;
+  static int FST_MAX_SIZE = 64 * 1024 * 1024;
 
   char* buf = calloc(1, sizeof(char) * FST_MAX_SIZE);
   if (buf == NULL) { return -1; }
 
   WriterCtx* ctx = reader->ctx;
   int32_t    nread = ctx->readFrom(ctx, buf, FST_MAX_SIZE, reader->header.fstOffset);
+  indexError("nread = %d, and fst offset=%d, filename: %s ", nread, reader->header.fstOffset, ctx->file.buf);
   // we assuse fst size less than FST_MAX_SIZE
   assert(nread > 0 && nread < FST_MAX_SIZE);
 
@@ -608,19 +610,26 @@ void tfileReaderUnRef(TFileReader* reader) {
   }
 }
 
-static int tfileGetFileList(const char* path, SArray* result) {
+static SArray* tfileGetFileList(const char* path) {
+  SArray* files = taosArrayInit(4, sizeof(void*));
+
   DIR* dir = opendir(path);
-  if (NULL == dir) { return -1; }
+  if (NULL == dir) { return NULL; }
 
   struct dirent* entry;
   while ((entry = readdir(dir)) != NULL) {
+    if (entry->d_type && DT_DIR) { continue; }
     size_t len = strlen(entry->d_name);
     char*  buf = calloc(1, len + 1);
     memcpy(buf, entry->d_name, len);
-    taosArrayPush(result, &buf);
+    taosArrayPush(files, &buf);
   }
   closedir(dir);
-  return 0;
+
+  taosArraySort(files, tfileCompare);
+  tfileRmExpireFile(files);
+
+  return files;
 }
 static int tfileRmExpireFile(SArray* result) {
   // TODO(yihao): remove expire tindex after restart
@@ -641,15 +650,21 @@ static int tfileCompare(const void* a, const void* b) {
   if (ret == 0) { return ret; }
   return ret < 0 ? -1 : 1;
 }
-// tfile name suid-colId-version.tindex
-static void tfileGenFileName(char* filename, uint64_t suid, int colId, int version) {
-  sprintf(filename, "%" PRIu64 "-%d-%d.tindex", suid, colId, version);
-  return;
-}
-static int tfileParseFileName(const char* filename, uint64_t* suid, int* colId, int* version) {
-  if (3 == sscanf(filename, "%" PRIu64 "-%d-%d.tindex", suid, colId, version)) {
+
+static int tfileParseFileName(const char* filename, uint64_t* suid, char* col, int* version) {
+  if (3 == sscanf(filename, "%" PRIu64 "-%[^-]-%d.tindex", suid, col, version)) {
     // read suid & colid & version  success
     return 0;
   }
   return -1;
+}
+// tfile name suid-colId-version.tindex
+static void tfileGenFileName(char* filename, uint64_t suid, const char* col, int version) {
+  sprintf(filename, "%" PRIu64 "-%s-%d.tindex", suid, col, version);
+  return;
+}
+static void tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col, int32_t version) {
+  char filename[128] = {0};
+  tfileGenFileName(filename, suid, col, version);
+  sprintf(fullname, "%s/%s", path, filename);
 }
