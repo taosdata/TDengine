@@ -81,7 +81,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, FileFd fd) {
   }
 
   char reserve[SDB_RESERVE_SIZE] = {0};
-  ret = taosWriteFile(fd, reserve, sizeof(reserve));
+  ret = taosReadFile(fd, reserve, sizeof(reserve));
   if (ret < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -122,7 +122,7 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, FileFd fd) {
     }
   }
 
-  char reserve[512] = {0};
+  char reserve[SDB_RESERVE_SIZE] = {0};
   if (taosWriteFile(fd, reserve, sizeof(reserve)) != sizeof(reserve)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -210,7 +210,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
 
   code = 0;
   pSdb->lastCommitVer = pSdb->curVer;
-  mError("read file:%s successfully, ver:%" PRId64, file, pSdb->lastCommitVer);
+  mDebug("read file:%s successfully, ver:%" PRId64, file, pSdb->lastCommitVer);
 
 PARSE_SDB_DATA_ERROR:
   taosCloseFile(fd);

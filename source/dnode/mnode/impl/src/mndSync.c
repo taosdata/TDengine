@@ -54,7 +54,7 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
 
   int64_t start = walGetFirstVer(pWal);
   int64_t end = walGetLastVer(pWal);
-  start = MAX(lastSdbVer, start);
+  start = MAX(lastSdbVer + 1, start);
 
   for (int64_t ver = start; ver >= 0 && ver <= end; ++ver) {
     if (walReadWithHandle(pHandle, ver) < 0) {
@@ -79,19 +79,19 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
   }
 
   int64_t sdbVer = sdbUpdateVer(pSdb, 0);
-  if (sdbVer != lastSdbVer) {
-    if (walBeginSnapshot(pWal, sdbVer) < 0) {
-      goto WAL_RESTORE_OVER;
-    }
+  if (walBeginSnapshot(pWal, sdbVer) < 0) {
+    goto WAL_RESTORE_OVER;
+  }
 
+  if (sdbVer != lastSdbVer) {
     mInfo("sdb restore wal from %" PRId64 " to %" PRId64, lastSdbVer, sdbVer);
     if (sdbWriteFile(pSdb) != 0) {
       goto WAL_RESTORE_OVER;
     }
+  }
 
-    if (walEndSnapshot(pWal) < 0) {
-      goto WAL_RESTORE_OVER;
-    }
+  if (walEndSnapshot(pWal) < 0) {
+    goto WAL_RESTORE_OVER;
   }
 
   code = 0;
