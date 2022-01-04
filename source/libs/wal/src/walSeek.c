@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-#include "tref.h"
 #include "tfile.h"
+#include "tref.h"
 #include "walInt.h"
 
 static int walSeekFilePos(SWal* pWal, int64_t ver) {
@@ -25,79 +25,77 @@ static int walSeekFilePos(SWal* pWal, int64_t ver) {
 
   int64_t idxTfd = pWal->writeIdxTfd;
   int64_t logTfd = pWal->writeLogTfd;
-  
-  //seek position
-  int64_t offset = (ver - walGetCurFileFirstVer(pWal)) * WAL_IDX_ENTRY_SIZE;
-  code = tfLseek(idxTfd, offset, SEEK_SET);
-  if(code != 0) {
-    return -1;
-  }
-  int64_t readBuf[2];
-  code = tfRead(idxTfd, readBuf, sizeof(readBuf));
-  if(code != 0) {
-    return -1;
-  }
-  //TODO:deserialize
-  ASSERT(readBuf[0] == ver);
-  code = tfLseek(logTfd, readBuf[1], SEEK_CUR);
+
+  // seek position
+  int64_t idxOff = walGetVerIdxOffset(pWal, ver);
+  code = tfLseek(idxTfd, idxOff, SEEK_SET);
   if (code != 0) {
+    return -1;
+  }
+  SWalIdxEntry entry;
+  // TODO:deserialize
+  code = tfRead(idxTfd, &entry, sizeof(SWalIdxEntry));
+  if (code != 0) {
+    return -1;
+  }
+  ASSERT(entry.ver == ver);
+  code = tfLseek(logTfd, entry.offset, SEEK_CUR);
+  if (code < 0) {
     return -1;
   }
   return code;
 }
 
-int walChangeFileToLast(SWal *pWal) {
-  int64_t idxTfd, logTfd;
-  WalFileInfo* pRet = taosArrayGetLast(pWal->fileInfoSet);
+int walChangeFileToLast(SWal* pWal) {
+  int64_t       idxTfd, logTfd;
+  SWalFileInfo* pRet = taosArrayGetLast(pWal->fileInfoSet);
   ASSERT(pRet != NULL);
   int64_t fileFirstVer = pRet->firstVer;
 
   char fnameStr[WAL_FILE_LEN];
   walBuildIdxName(pWal, fileFirstVer, fnameStr);
   idxTfd = tfOpenReadWrite(fnameStr);
-  if(idxTfd < 0) {
+  if (idxTfd < 0) {
     return -1;
   }
   walBuildLogName(pWal, fileFirstVer, fnameStr);
   logTfd = tfOpenReadWrite(fnameStr);
-  if(logTfd < 0) {
+  if (logTfd < 0) {
     return -1;
   }
-  //switch file
+  // switch file
   pWal->writeIdxTfd = idxTfd;
   pWal->writeLogTfd = logTfd;
-  //change status
-  pWal->curStatus = WAL_CUR_FILE_WRITABLE;
   return 0;
 }
 
-int walChangeFile(SWal *pWal, int64_t ver) {
-  int code = 0;
+int walChangeFile(SWal* pWal, int64_t ver) {
+  int     code = 0;
   int64_t idxTfd, logTfd;
-  char fnameStr[WAL_FILE_LEN];
+  char    fnameStr[WAL_FILE_LEN];
   code = tfClose(pWal->writeLogTfd);
-  if(code != 0) {
-   //TODO 
+  if (code != 0) {
+    // TODO
+    return -1;
   }
   code = tfClose(pWal->writeIdxTfd);
-  if(code != 0) {
-   //TODO 
+  if (code != 0) {
+    // TODO
+    return -1;
   }
-  WalFileInfo tmpInfo;
+  SWalFileInfo tmpInfo;
   tmpInfo.firstVer = ver;
-  //bsearch in fileSet
-  WalFileInfo* pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
+  // bsearch in fileSet
+  SWalFileInfo* pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
   ASSERT(pRet != NULL);
   int64_t fileFirstVer = pRet->firstVer;
-  //closed
-  if(taosArrayGetLast(pWal->fileInfoSet) != pRet) {
-    pWal->curStatus &= ~WAL_CUR_FILE_WRITABLE;
+  // closed
+  if (taosArrayGetLast(pWal->fileInfoSet) != pRet) {
     walBuildIdxName(pWal, fileFirstVer, fnameStr);
     idxTfd = tfOpenRead(fnameStr);
     walBuildLogName(pWal, fileFirstVer, fnameStr);
     logTfd = tfOpenRead(fnameStr);
   } else {
-    pWal->curStatus |= WAL_CUR_FILE_WRITABLE;
     walBuildIdxName(pWal, fileFirstVer, fnameStr);
     idxTfd = tfOpenReadWrite(fnameStr);
     walBuildLogName(pWal, fileFirstVer, fnameStr);
@@ -106,35 +104,29 @@ int walChangeFile(SWal *pWal, int64_t ver) {
 
   pWal->writeLogTfd = logTfd;
   pWal->writeIdxTfd = idxTfd;
-  return code;
+  return fileFirstVer;
 }
 
-int walGetVerOffset(SWal* pWal, int64_t ver) {
+int walSeekVer(SWal* pWal, int64_t ver) {
   int code;
-  return 0;
-}
-
-int walSeekVer(SWal *pWal, int64_t ver) {
-  int code;
-  if(ver == pWal->lastVersion) {
+  if (ver == pWal->vers.lastVer) {
     return 0;
   }
-  if(ver > pWal->lastVersion || ver < pWal->firstVersion) {
+  if (ver > pWal->vers.lastVer || ver < pWal->vers.firstVer) {
     return -1;
   }
-  if(ver < pWal->snapshotVersion) {
-    //TODO: set flag to prevent roll back
+  if (ver < pWal->vers.snapshotVer) {
   }
-  if(ver < walGetCurFileFirstVer(pWal) || (ver > walGetCurFileLastVer(pWal))) {
+  if (ver < walGetCurFileFirstVer(pWal) || (ver > walGetCurFileLastVer(pWal))) {
     code = walChangeFile(pWal, ver);
-    if(code != 0) {
+    if (code != 0) {
       return -1;
     }
   }
   code = walSeekFilePos(pWal, ver);
-  if(code != 0) {
+  if (code != 0) {
     return -1;
   }
-   
+
   return 0;
 }

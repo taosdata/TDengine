@@ -14,7 +14,7 @@
  */
 
 #include "os.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tnote.h"

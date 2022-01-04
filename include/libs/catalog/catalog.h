@@ -26,81 +26,125 @@ extern "C" {
 #include "taosdef.h"
 #include "transport.h"
 #include "common.h"
-#include "taosmsg.h"
+#include "tmsg.h"
+#include "query.h"
 
 struct SCatalog;
 
-typedef struct SMetaReq {
-  char    clusterId[TSDB_CLUSTER_ID_LEN];
-  SArray *pTableName;     // table full name
+typedef struct SCatalogReq {
+  SArray *pTableName;     // element is SNAME
   SArray *pUdf;           // udf name
-  bool    qNodeEpset;     // valid qnode
-} SMetaReq;
+  bool    qNodeRequired;  // valid qnode
+} SCatalogReq;
 
 typedef struct SMetaData {
-  SArray    *pTableMeta;  // tableMeta
-  SArray    *pVgroupInfo; // vgroupInfo list
+  SArray    *pTableMeta;  // STableMeta array
+  SArray    *pVgroupInfo; // SVgroupInfo list
   SArray    *pUdfList;    // udf info list
   SEpSet    *pEpSet;      // qnode epset list
 } SMetaData;
 
-typedef struct STableComInfo {
-  uint8_t numOfTags;      // the number of tags in schema
-  uint8_t precision;      // the number of precision
-  int16_t numOfColumns;   // the number of columns
-  int32_t rowSize;        // row size of the schema
-} STableComInfo;
+typedef struct SCatalogCfg {
+  bool     enableVgroupCache;
+  uint32_t maxTblCacheNum;
+  uint32_t maxDBCacheNum;
+} SCatalogCfg;
 
-/*
- * ASSERT(sizeof(SCTableMeta) == 24)
- * ASSERT(tableType == TSDB_CHILD_TABLE)
- * The cached child table meta info. For each child table, 24 bytes are required to keep the essential table info.
- */
-typedef struct SCTableMeta {
-  int32_t  vgId:24;
-  int8_t   tableType;
-  uint64_t uid;
-  uint64_t suid;
-} SCTableMeta;
-
-/*
- * Note that the first 24 bytes of STableMeta are identical to SCTableMeta, it is safe to cast a STableMeta to be a SCTableMeta.
- */
-typedef struct STableMeta {
-  int32_t        vgId:24;
-  int8_t         tableType;
-  uint64_t       uid;
-  uint64_t       suid;
-  // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta info
-  int16_t        sversion;
-  int16_t        tversion;
-  STableComInfo  tableInfo;
-  SSchema        schema[];
-} STableMeta;
+int32_t catalogInit(SCatalogCfg *cfg);
 
 /**
- * Catalog service object, which is utilized to hold tableMeta (meta/vgroupInfo/udfInfo) at the client-side.
- * There is ONLY one SCatalog object for one process space, and this function returns a singleton.
- * @param pMgmtEps
- * @return
+ * Get a cluster's catalog handle for all later operations. 
+ * @param clusterId (input, end with \0)
+ * @param catalogHandle (output, NO need to free it)
+ * @return error code
  */
-struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps);
+int32_t catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle);
+
+int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName, int32_t* version);
+int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* dbName, int32_t forceUpdate, SDBVgroupInfo* dbInfo);
+int32_t catalogUpdateDBVgroupCache(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
 
 /**
- * Get the required meta data from mnode.
- * Note that this is a synchronized API and is also thread-safety.
- * @param pCatalog
- * @param pMetaReq
- * @param pMetaData
- * @return
+ * Get a table's meta data. 
+ * @param pCatalog (input, got with catalogGetHandle)
+ * @param pTransporter (input, rpc object)
+ * @param pMgmtEps (input, mnode EPs)
+ * @param pDBName (input, full db name)
+ * @param pTableName (input, table name, NOT including db name)
+ * @param pTableMeta(output, table meta data, NEED to free it by calller)
+ * @return error code
  */
-int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData);
+int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta);
 
 /**
- * Destroy catalog service handle
- * @param pCatalog
+ * Force renew a table's local cached meta data. 
+ * @param pCatalog (input, got with catalogGetHandle)
+ * @param pRpc (input, rpc object)
+ * @param pMgmtEps (input, mnode EPs)
+ * @param pDBName (input, full db name)
+ * @param pTableName (input, table name, NOT including db name)
+ * @return error code
  */
-void destroyCatalog(struct SCatalog* pCatalog);
+int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName);
+
+/**
+ * Force renew a table's local cached meta data and get the new one. 
+ * @param pCatalog (input, got with catalogGetHandle)
+ * @param pRpc (input, rpc object)
+ * @param pMgmtEps (input, mnode EPs)
+ * @param pDBName (input, full db name)
+ * @param pTableName (input, table name, NOT including db name)
+ * @param pTableMeta(output, table meta data, NEED to free it by calller) 
+ * @return error code
+ */
+int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta);
+
+
+/**
+ * Get a table's actual vgroup, for stable it's all possible vgroup list.
+ * @param pCatalog (input, got with catalogGetHandle)
+ * @param pRpc (input, rpc object)
+ * @param pMgmtEps (input, mnode EPs)
+ * @param pDBName (input, full db name)
+ * @param pTableName (input, table name, NOT including db name)
+ * @param pVgroupList (output, vgroup info list, element is SVgroupInfo, NEED to simply free the array by caller)
+ * @return error code
+ */
+int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, SArray** pVgroupList);
+
+/**
+ * Get a table's vgroup from its name's hash value.
+ * @param pCatalog (input, got with catalogGetHandle)
+ * @param pTransporter (input, rpc object)
+ * @param pMgmtEps (input, mnode EPs)
+ * @param pDBName (input, full db name)
+ * @param pTableName (input, table name, NOT including db name)
+ * @param vgInfo (output, vgroup info)
+ * @return error code
+ */
+int32_t catalogGetTableHashVgroup(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, SVgroupInfo* vgInfo);
+
+
+/**
+ * Get all meta data required in pReq.
+ * @param pCatalog (input, got with catalogGetHandle)
+ * @param pRpc (input, rpc object)
+ * @param pMgmtEps (input, mnode EPs)
+ * @param pReq (input, reqest info)
+ * @param pRsp (output, response data)
+ * @return error code 
+ */
+int32_t catalogGetAllMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SMetaData* pRsp);
+
+
+int32_t catalogGetQnodeList(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, SArray* pQnodeList);
+
+
+
+/**
+ * Destroy catalog and relase all resources
+ */
+void catalogDestroy(void);
 
 #ifdef __cplusplus
 }

@@ -14,14 +14,13 @@
  */
 #include <function.h>
 #include "os.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tglobal.h"
 #include "ttime.h"
 
 #include "exception.h"
 #include "executorimpl.h"
 #include "thash.h"
-//#include "queryLog.h"
 #include "function.h"
 #include "tcompare.h"
 #include "tcompression.h"
@@ -4831,8 +4830,8 @@ static SSDataBlock* doBlockInfoScan(void* param, bool* newgroup) {
   STableBlockDist tableBlockDist = {0};
   tableBlockDist.numOfTables     = (int32_t)pOperator->pRuntimeEnv->tableqinfoGroupInfo.numOfTables;
 
-  int32_t numRowSteps = tsMaxRowsInFileBlock / TSDB_BLOCK_DIST_STEP_ROWS;
-  if (tsMaxRowsInFileBlock % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
+  int32_t numRowSteps = TSDB_DEFAULT_MAX_ROW_FBLOCK / TSDB_BLOCK_DIST_STEP_ROWS;
+  if (TSDB_DEFAULT_MAX_ROW_FBLOCK % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
     ++numRowSteps;
   }
   tableBlockDist.dataBlockInfos  = taosArrayInit(numRowSteps, sizeof(SFileBlockInfo));
@@ -7685,7 +7684,7 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
       type = s.type;
       bytes = s.bytes;
     } else if (pExprs[i].base.pColumns->info.colId == TSDB_TBNAME_COLUMN_INDEX && functionId == FUNCTION_TAGPRJ) {  // parse the normal column
-      SSchema* s = tGetTbnameColumnSchema();
+      const SSchema* s = tGetTbnameColumnSchema();
       type = s->type;
       bytes = s->bytes;
     } else if (pExprs[i].base.pColumns->info.colId <= TSDB_UD_COLUMN_INDEX && pExprs[i].base.pColumns->info.colId > TSDB_RES_COL_ID) {
@@ -7716,7 +7715,7 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
         type = pCol->type;
         bytes = pCol->bytes;
       } else {
-        SSchema* s = tGetTbnameColumnSchema();
+        const SSchema* s = tGetTbnameColumnSchema();
 
         type  = s->type;
         bytes = s->bytes;

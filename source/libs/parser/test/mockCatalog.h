@@ -18,10 +18,8 @@
 
 #include "mockCatalogService.h"
 
-void generateMetaData(MockCatalogService* mcs);
-
-// mock
-struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps);
-int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData);
+void initMetaDataEnv();
+void generateMetaData();
+void destroyMetaDataEnv();
 
 #endif  // MOCK_CATALOG_H

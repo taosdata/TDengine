@@ -42,7 +42,7 @@ bool taosComparePthread(pthread_t first, pthread_t second) { return first.p == s
 
 int32_t taosGetPId() { return GetCurrentProcessId(); }
 
-int32_t taosGetCurrentAPPName(char* name, int32_t* len) {
+int32_t taosGetAppName(char* name, int32_t* len) {
   char filepath[1024] = {0};
 
   GetModuleFileName(NULL, filepath, MAX_PATH);
@@ -358,7 +358,7 @@ bool taosComparePthread(pthread_t first, pthread_t second) { return pthread_equa
 
 int32_t taosGetPId() { return (int32_t)getpid(); }
 
-int32_t taosGetCurrentAPPName(char *name, int32_t *len) {
+int32_t taosGetAppName(char *name, int32_t *len) {
   char buf[PATH_MAX + 1];
   buf[0] = '\0';
   proc_name(getpid(), buf, sizeof(buf) - 1);
@@ -392,7 +392,7 @@ void    taosResetPthread(pthread_t* thread) { *thread = 0; }
 bool    taosComparePthread(pthread_t first, pthread_t second) { return first == second; }
 int32_t taosGetPId() { return getpid(); }
 
-int32_t taosGetCurrentAPPName(char* name, int32_t* len) {
+int32_t taosGetAppName(char* name, int32_t* len) {
   const char* self = "/proc/self/exe";
   char        path[PATH_MAX] = {0};
 

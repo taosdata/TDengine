@@ -12,9 +12,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "parserUtil.h"
 
-#include "taosmsg.h"
+
+#include "tmsg.h"
 #include "parser.h"
 #include "taoserror.h"
 #include "tutil.h"
@@ -22,6 +22,8 @@
 #include "thash.h"
 #include "tbuffer.h"
 #include "parserInt.h"
+#include "parserUtil.h"
+#include "tmsgtype.h"
 #include "queryInfoUtil.h"
 #include "function.h"
 
@@ -97,12 +99,54 @@ int32_t parserValidateIdToken(SToken* pToken) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t parserValidatePassword(SToken* pToken, SMsgBuf* pMsgBuf) {
+  const char* msg1 = "password can not be empty";
+  const char* msg2 = "name or password too long";
+  const char* msg3 = "password needs single quote marks enclosed";
+
+  if (pToken->type != TK_STRING) {
+    return buildInvalidOperationMsg(pMsgBuf, msg3);
+  }
+
+  strdequote(pToken->z);
+
+  pToken->n = (uint32_t)strtrim(pToken->z);  // trim space before and after passwords
+  if (pToken->n <= 0) {
+    return buildInvalidOperationMsg(pMsgBuf, msg1);
+  }
+
+  if (pToken->n >= TSDB_USET_PASSWORD_LEN) {
+    return buildInvalidOperationMsg(pMsgBuf, msg2);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t parserValidateNameToken(SToken* pToken) {
+  if (pToken == NULL || pToken->z == NULL || pToken->type != TK_ID) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  // it is a token quoted with escape char '`'
+  if (pToken->z[0] == TS_ESCAPE_CHAR && pToken->z[pToken->n - 1] == TS_ESCAPE_CHAR) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
+  if (sep != NULL) {  // It is a complex type, not allow
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  strntolower(pToken->z, pToken->z, pToken->n);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t buildInvalidOperationMsg(SMsgBuf* pBuf, const char* msg) {
   strncpy(pBuf->buf, msg, pBuf->len);
   return TSDB_CODE_TSC_INVALID_OPERATION;
 }
 
-int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo,  const char* sourceStr) {
+int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char* sourceStr) {
   const char* msgFormat1 = "syntax error near \'%s\'";
   const char* msgFormat2 = "syntax error near \'%s\' (%s)";
   const char* msgFormat3 = "%s";
@@ -582,21 +626,6 @@ void addIntoSourceParam(SSourceParam* pSourceParam, tExprNode* pNode, SColumn* p
 
 int32_t getNumOfFields(SFieldInfo* pFieldInfo) {
   return pFieldInfo->numOfOutput;
-}
-
-int32_t getFirstInvisibleFieldPos(SQueryStmtInfo* pQueryInfo) {
-  if (pQueryInfo->fieldsInfo.numOfOutput <= 0 || pQueryInfo->fieldsInfo.internalField == NULL) {
-    return 0;
-  }
-
-  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-    SInternalField* pField = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);
-    if (!pField->visible) {
-      return i;
-    }
-  }
-
-  return pQueryInfo->fieldsInfo.numOfOutput;
 }
 
 SInternalField* appendFieldInfo(SFieldInfo* pFieldInfo, TAOS_FIELD* pField) {
@@ -1138,7 +1167,7 @@ void cleanupTagCond(STagCond* pTagCond) {
  * @param tableIndex  denote the table index for join query, where more than one table exists
  * @return
  */
-STableMetaInfo* getMetaInfo(SQueryStmtInfo* pQueryInfo, int32_t tableIndex) {
+STableMetaInfo* getMetaInfo(const SQueryStmtInfo* pQueryInfo, int32_t tableIndex) {
   assert(pQueryInfo != NULL);
   if (pQueryInfo->pTableMetaInfo == NULL) {
     assert(pQueryInfo->numOfTables == 0);
@@ -1448,23 +1477,6 @@ void* vgroupInfoClear(SVgroupsInfo *vgroupList) {
   return NULL;
 }
 
-char* serializeTagData(STagData* pTagData, char* pMsg) {
-  int32_t n = (int32_t) strlen(pTagData->name);
-  *(int32_t*) pMsg = htonl(n);
-  pMsg += sizeof(n);
-
-  memcpy(pMsg, pTagData->name, n);
-  pMsg += n;
-
-  *(int32_t*)pMsg = htonl(pTagData->dataLen);
-  pMsg += sizeof(int32_t);
-
-  memcpy(pMsg, pTagData->data, pTagData->dataLen);
-  pMsg += pTagData->dataLen;
-
-  return pMsg;
-}
-
 int32_t copyTagData(STagData* dst, const STagData* src) {
   dst->dataLen = src->dataLen;
   tstrncpy(dst->name, src->name, tListLen(dst->name));
@@ -1481,29 +1493,6 @@ int32_t copyTagData(STagData* dst, const STagData* src) {
   return 0;
 }
 
-STableMeta* createSuperTableMeta(STableMetaMsg* pChild) {
-  assert(pChild != NULL);
-  int32_t total = pChild->numOfColumns + pChild->numOfTags;
-
-  STableMeta* pTableMeta = calloc(1, sizeof(STableMeta) + sizeof(SSchema) * total);
-  pTableMeta->tableType = TSDB_SUPER_TABLE;
-  pTableMeta->tableInfo.numOfTags = pChild->numOfTags;
-  pTableMeta->tableInfo.numOfColumns = pChild->numOfColumns;
-  pTableMeta->tableInfo.precision = pChild->precision;
-
-  pTableMeta->uid = pChild->suid;
-  pTableMeta->tversion = pChild->tversion;
-  pTableMeta->sversion = pChild->sversion;
-
-  memcpy(pTableMeta->schema, pChild->pSchema, sizeof(SSchema) * total);
-
-  int32_t num = pTableMeta->tableInfo.numOfColumns;
-  for(int32_t i = 0; i < num; ++i) {
-    pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
-  }
-
-  return pTableMeta;
-}
 
 uint32_t getTableMetaSize(const STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
@@ -1621,6 +1610,21 @@ uint32_t convertRelationalOperator(SToken *pToken) {
       return TSDB_RELATION_IN;
     default: { return 0; }
   }
+}
+
+bool isDclSqlStatement(SSqlInfo* pSqlInfo) {
+  int32_t type = pSqlInfo->type;
+  return (type == TSDB_SQL_CREATE_USER || type == TSDB_SQL_CREATE_ACCT || type == TSDB_SQL_DROP_USER ||
+          type == TSDB_SQL_DROP_ACCT || type == TSDB_SQL_SHOW);
+}
+
+bool isDdlSqlStatement(SSqlInfo* pSqlInfo) {
+  int32_t type = pSqlInfo->type;
+  return (type == TSDB_SQL_CREATE_TABLE || type == TSDB_SQL_CREATE_DB || type == TSDB_SQL_DROP_DB);
+}
+
+bool isDqlSqlStatement(SSqlInfo* pSqlInfo) {
+  return pSqlInfo->type == TSDB_SQL_SELECT;
 }
 
 #if 0
@@ -1821,7 +1825,7 @@ int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t lengt
   SSqlCmd *pCmd = &pSql->cmd;
 
   pCmd->command = TSDB_SQL_MULTI_META;
-  pCmd->msgType = TSDB_MSG_TYPE_TABLES_META;
+  pCmd->msgType = TDMT_VND_TABLES_META;
 
   int   code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   char *str = (char *)pNameList;
@@ -1914,7 +1918,7 @@ char* cloneCurrentDBName(SSqlObj* pSql) {
     case TAOS_REQ_FROM_HTTP:
       pCtx = pSql->param;
       if (pCtx && pCtx->db[0] != '\0') {
-        char db[TSDB_FULL_DB_NAME_LEN] = {0};
+        char db[TSDB_DB_FNAME_LEN] = {0};
         int32_t len = sprintf(db, "%s%s%s", pTscObj->acctId, TS_PATH_DELIMITER, pCtx->db);
         assert(len <= sizeof(db));
 

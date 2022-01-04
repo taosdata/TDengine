@@ -18,7 +18,7 @@
 
 #include "os.h"
 #include "sdb.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "thash.h"
 #include "tlockfree.h"
 #include "tlog.h"
@@ -59,6 +59,7 @@ typedef struct SSdb {
   char       *tmpDir;
   int64_t     lastCommitVer;
   int64_t     curVer;
+  int32_t     maxId[SDB_MAX];
   EKeyType    keyTypes[SDB_MAX];
   SHashObj   *hashObjs[SDB_MAX];
   SRWLatch    locks[SDB_MAX];

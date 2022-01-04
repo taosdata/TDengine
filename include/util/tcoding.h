@@ -357,6 +357,17 @@ static FORCE_INLINE void *taosDecodeString(void *buf, char **value) {
   return POINTER_SHIFT(buf, size);
 }
 
+static FORCE_INLINE void *taosDecodeStringTo(void *buf, char *value) {
+  uint64_t size = 0;
+
+  buf = taosDecodeVariantU64(buf, &size);
+  memcpy(value, buf, (size_t)size);
+
+  value[size] = '\0';
+
+  return POINTER_SHIFT(buf, size);
+}
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,0 +1,18 @@
+
+MESSAGE(STATUS "build catalog unit test")
+
+# GoogleTest requires at least C++11
+SET(CMAKE_CXX_STANDARD 11)
+AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
+
+ADD_EXECUTABLE(catalogTest ${SOURCE_LIST})
+TARGET_LINK_LIBRARIES(
+        catalogTest
+        PUBLIC os util common catalog transport gtest qcom taos
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        catalogTest
+        PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/catalog/"
+        PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/catalog/inc"
+)

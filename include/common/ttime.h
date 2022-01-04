@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 
 #define TIME_IS_VAR_DURATION(_t) ((_t) == 'n' || (_t) == 'y' || (_t) == 'N' || (_t) == 'Y')
 

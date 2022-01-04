@@ -23,12 +23,24 @@ extern "C" {
 #include "common.h"
 #include "tarray.h"
 #include "planner.h"
-#include "taosmsg.h"
+#include "parser.h"
+#include "tmsg.h"
 
-typedef struct SQueryNodeBasicInfo {
-  int32_t   type;          // operator type
-  char     *name;          // operator name
-} SQueryNodeBasicInfo;
+#define QNODE_TAGSCAN       1
+#define QNODE_TABLESCAN     2
+#define QNODE_PROJECT       3
+#define QNODE_AGGREGATE     4
+#define QNODE_GROUPBY       5
+#define QNODE_LIMIT         6
+#define QNODE_JOIN          7
+#define QNODE_DISTINCT      8
+#define QNODE_SORT          9
+#define QNODE_UNION         10
+#define QNODE_TIMEWINDOW    11
+#define QNODE_SESSIONWINDOW 12
+#define QNODE_STATEWINDOW   13
+#define QNODE_FILL          14
+#define QNODE_INSERT        15
 
 typedef struct SQueryDistPlanNodeInfo {
   bool      stableQuery;   // super table query or not
@@ -39,8 +51,9 @@ typedef struct SQueryDistPlanNodeInfo {
 } SQueryDistPlanNodeInfo;
 
 typedef struct SQueryTableInfo {
-  char       *tableName;
-  uint64_t    uid;
+  char           *tableName; // to be deleted
+  uint64_t        uid;       // to be deleted
+  STableMetaInfo* pMeta;
   STimeWindow window;
 } SQueryTableInfo;
 
@@ -51,56 +64,65 @@ typedef struct SQueryPlanNode {
   SArray             *pExpr;        // the query functions or sql aggregations
   int32_t             numOfExpr;  // number of result columns, which is also the number of pExprs
   void               *pExtInfo;     // additional information
-  // previous operator to generated result for current node to process
+  // children operator to generated result for current node to process
   // in case of join, multiple prev nodes exist.
-  SArray             *pPrevNodes;   // upstream nodes
-  struct SQueryPlanNode  *nextNode;
+  SArray             *pChildren;   // upstream nodes
+  struct SQueryPlanNode  *pParent;
 } SQueryPlanNode;
 
-typedef struct SQueryDistPlanNode {
-  SQueryNodeBasicInfo info;
-  SSchema            *pSchema;      // the schema of the input SSDatablock
-  int32_t             numOfCols;    // number of input columns
-  SArray             *pExpr;        // the query functions or sql aggregations
-  int32_t             numOfExpr;    // number of result columns, which is also the number of pExprs
-  void               *pExtInfo;     // additional information
+/**
+ * Optimize the query execution plan, currently not implement yet.
+ * @param pQueryNode
+ * @return
+ */
+int32_t optimizeQueryPlan(struct SQueryPlanNode* pQueryNode);
 
-  // previous operator to generated result for current node to process
-  // in case of join, multiple prev nodes exist.
-  SArray             *pPrevNodes;   // upstream nodes, or exchange operator to load data from multiple sources.
-} SQueryDistPlanNode;
+/**
+ * Create the query plan according to the bound AST, which is in the form of pQueryInfo
+ * @param pQueryInfo
+ * @param pQueryNode
+ * @return
+ */
+int32_t createQueryPlan(const SQueryNode* pNode, struct SQueryPlanNode** pQueryPlan);
 
-typedef struct SQueryCostSummary {
-  int64_t startTs;      // Object created and added into the message queue
-  int64_t endTs;        // the timestamp when the task is completed
-  int64_t cputime;      // total cpu cost, not execute elapsed time
+/**
+ * Convert the query plan to string, in order to display it in the shell.
+ * @param pQueryNode
+ * @return
+ */
+int32_t queryPlanToString(struct SQueryPlanNode* pQueryNode, char** str);
 
-  int64_t loadRemoteDataDuration;       // remote io time
-  int64_t loadNativeDataDuration;       // native disk io time
+/**
+ * Restore the SQL statement according to the logic query plan.
+ * @param pQueryNode
+ * @param sql
+ * @return
+ */
+int32_t queryPlanToSql(struct SQueryPlanNode* pQueryNode, char** sql);
 
-  uint64_t loadNativeData; // blocks + SMA + header files
-  uint64_t loadRemoteData; // remote data acquired by exchange operator.
+int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag);
+int32_t setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SEpAddr* ep);
+int32_t subPlanToString(const SSubplan *pPhyNode, char** str, int32_t* len);
+int32_t stringToSubplan(const char* str, SSubplan** subplan);
 
-  uint64_t waitDuration; // the time to waiting to be scheduled in queue does matter, so we need to record it
-  int64_t  addQTs;       // the time to be added into the message queue, used to calculate the waiting duration in queue.
+/**
+ * Destroy the query plan object.
+ * @return
+ */
+void destroyQueryPlan(struct SQueryPlanNode* pQueryNode);
 
-  uint64_t totalRows;
-  uint64_t loadRows;
-  uint32_t totalBlocks;
-  uint32_t loadBlocks;
-  uint32_t loadBlockAgg;
-  uint32_t skipBlocks;
-  uint64_t resultSize;   // generated result size in Kb.
-} SQueryCostSummary;
+/**
+ * Destroy the physical plan.
+ * @param pQueryPhyNode
+ * @return
+ */
+void* destroyQueryPhyPlan(struct SPhyNode* pQueryPhyNode);
 
-typedef struct SQueryTask {
-  uint64_t            queryId; // query id
-  uint64_t            taskId;  // task id
-  SQueryDistPlanNode *pNode;   // operator tree
-  uint64_t            status;  // task status
-  SQueryCostSummary   summary; // task execution summary
-  void               *pOutputHandle; // result buffer handle, to temporarily keep the output result for next stage
-} SQueryTask;
+const char* opTypeToOpName(int32_t type);
+int32_t opNameToOpType(const char* name);
+
+const char* dsinkTypeToDsinkName(int32_t type);
+int32_t dsinkNameToDsinkType(const char* name);
 
 #ifdef __cplusplus
 }

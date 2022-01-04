@@ -17,14 +17,16 @@
 #define _TD_MND_DEF_H_
 
 #include "os.h"
-#include "taosmsg.h"
+
+#include "cJSON.h"
+#include "sync.h"
+#include "tmsg.h"
+#include "thash.h"
 #include "tlog.h"
 #include "trpc.h"
 #include "ttimer.h"
-#include "thash.h"
-#include "cJSON.h"
+
 #include "mnode.h"
-#include "sync.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,16 +41,6 @@ extern int32_t mDebugFlag;
 #define mInfo(...)  { if (mDebugFlag & DEBUG_INFO)  { taosPrintLog("MND ", 255, __VA_ARGS__); }}
 #define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", mDebugFlag, __VA_ARGS__); }}
-
-typedef struct SClusterObj SClusterObj;
-typedef struct SDnodeObj   SDnodeObj;
-typedef struct SMnodeObj   SMnodeObj;
-typedef struct SAcctObj    SAcctObj;
-typedef struct SUserObj    SUserObj;
-typedef struct SDbObj      SDbObj;
-typedef struct SVgObj      SVgObj;
-typedef struct SFuncObj    SFuncObj;
-typedef struct SOperObj    SOperObj;
 
 typedef enum {
   MND_AUTH_ACCT_START = 0,
@@ -69,14 +61,18 @@ typedef enum {
 } EAuthOp;
 
 typedef enum {
-  TRN_STAGE_PREPARE = 1,
-  TRN_STAGE_EXECUTE = 2,
-  TRN_STAGE_COMMIT = 3,
-  TRN_STAGE_ROLLBACK = 4,
-  TRN_STAGE_RETRY = 5
+  TRN_STAGE_PREPARE = 0,
+  TRN_STAGE_REDO_LOG = 1,
+  TRN_STAGE_REDO_ACTION = 2,
+  TRN_STAGE_UNDO_LOG = 3,
+  TRN_STAGE_UNDO_ACTION = 4,
+  TRN_STAGE_COMMIT_LOG = 5,
+  TRN_STAGE_COMMIT = 6,
+  TRN_STAGE_ROLLBACK = 7,
+  TRN_STAGE_FINISHED = 8
 } ETrnStage;
 
-typedef enum { TRN_POLICY_ROLLBACK = 1, TRN_POLICY_RETRY = 2 } ETrnPolicy;
+typedef enum { TRN_POLICY_ROLLBACK = 0, TRN_POLICY_RETRY = 1 } ETrnPolicy;
 
 typedef enum {
   DND_STATUS_OFFLINE = 0,
@@ -99,12 +95,14 @@ typedef enum {
   DND_REASON_OTHERS
 } EDndReason;
 
-typedef struct STrans {
+typedef struct {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
-  SMnode    *pMnode;
+  int32_t    code;
+  int32_t    failedTimes;
   void      *rpcHandle;
+  void      *rpcAHandle;
   SArray    *redoLogs;
   SArray    *undoLogs;
   SArray    *commitLogs;
@@ -112,14 +110,14 @@ typedef struct STrans {
   SArray    *undoActions;
 } STrans;
 
-typedef struct SClusterObj {
-  int32_t id;
+typedef struct {
+  int64_t id;
   char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
   int64_t updateTime;
 } SClusterObj;
 
-typedef struct SDnodeObj {
+typedef struct {
   int32_t    id;
   int64_t    createdTime;
   int64_t    updateTime;
@@ -140,7 +138,7 @@ typedef struct SDnodeObj {
   char       ep[TSDB_EP_LEN];
 } SDnodeObj;
 
-typedef struct SMnodeObj {
+typedef struct {
   int32_t    id;
   int64_t    createdTime;
   int64_t    updateTime;
@@ -168,7 +166,7 @@ typedef struct {
   int64_t compStorage;   // Compressed storage on disk
 } SAcctInfo;
 
-typedef struct SAcctObj {
+typedef struct {
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
   int64_t   updateTime;
@@ -178,28 +176,27 @@ typedef struct SAcctObj {
   SAcctInfo info;
 } SAcctObj;
 
-typedef struct SUserObj {
+typedef struct {
   char      user[TSDB_USER_LEN];
-  char      pass[TSDB_KEY_LEN];
+  char      pass[TSDB_PASSWORD_LEN];
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
   int64_t   updateTime;
-  int8_t    superAuth;
-  int8_t    readAuth;
-  int8_t    writeAuth;
+  int8_t    superUser;
   int32_t   acctId;
   SHashObj *prohibitDbHash;
 } SUserObj;
 
 typedef struct {
+  int32_t numOfVgroups;
   int32_t cacheBlockSize;
   int32_t totalBlocks;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
-  int32_t minRowsPerFileBlock;
-  int32_t maxRowsPerFileBlock;
+  int32_t minRows;
+  int32_t maxRows;
   int32_t commitTime;
   int32_t fsyncPeriod;
   int8_t  walLevel;
@@ -211,12 +208,15 @@ typedef struct {
   int8_t  cacheLastRow;
 } SDbCfg;
 
-typedef struct SDbObj {
-  char    name[TSDB_FULL_DB_NAME_LEN];
+typedef struct {
+  char    name[TSDB_DB_FNAME_LEN];
   char    acct[TSDB_USER_LEN];
   int64_t createdTime;
   int64_t updateTime;
   int64_t uid;
+  int32_t cfgVersion;
+  int32_t vgVersion;
+  int8_t  hashMethod;  // default is 1
   SDbCfg  cfg;
 } SDbObj;
 
@@ -225,12 +225,15 @@ typedef struct {
   ESyncState role;
 } SVnodeGid;
 
-typedef struct SVgObj {
+typedef struct {
   int32_t   vgId;
   int64_t   createdTime;
   int64_t   updateTime;
   int32_t   version;
-  char      dbName[TSDB_FULL_DB_NAME_LEN];
+  uint32_t  hashBegin;
+  uint32_t  hashEnd;
+  char      dbName[TSDB_DB_FNAME_LEN];
+  int64_t   dbUid;
   int32_t   numOfTables;
   int32_t   numOfTimeSeries;
   int64_t   totalStorage;
@@ -243,10 +246,11 @@ typedef struct SVgObj {
 
 typedef struct {
   char     name[TSDB_TABLE_FNAME_LEN];
-  char     db[TSDB_FULL_DB_NAME_LEN];
+  char     db[TSDB_DB_FNAME_LEN];
   int64_t  createdTime;
   int64_t  updateTime;
   uint64_t uid;
+  uint64_t dbUid;
   int32_t  version;
   int32_t  numOfColumns;
   int32_t  numOfTags;
@@ -254,7 +258,7 @@ typedef struct {
   SSchema *pSchema;
 } SStbObj;
 
-typedef struct SFuncObj {
+typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
   int64_t createdTime;
   int8_t  funcType;
@@ -282,32 +286,37 @@ typedef struct {
   int32_t payloadLen;
   void   *pIter;
   SMnode *pMnode;
-  char    db[TSDB_FULL_DB_NAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int16_t offset[TSDB_MAX_COLUMNS];
   int32_t bytes[TSDB_MAX_COLUMNS];
   char    payload[];
 } SShowObj;
 
+typedef struct {
+  char name[TSDB_TOPIC_FNAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
+  int64_t createTime;
+  int64_t updateTime;
+  uint64_t uid;
+  uint64_t dbUid;
+  int32_t version;
+  SRWLatch lock;
+  int32_t  execLen;
+  void*    executor;
+  int32_t  sqlLen;
+  char*    sql;
+} STopicObj;
+
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];
-  char    db[TSDB_FULL_DB_NAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int32_t acctId;
   SMnode *pMnode;
-  int16_t received;
-  int16_t successed;
-  int16_t expected;
-  int16_t retry;
-  int32_t code;
   int64_t createdTime;
   SRpcMsg rpcMsg;
   int32_t contLen;
   void   *pCont;
 } SMnodeMsg;
-
-typedef struct {
-  int32_t id;
-  void   *rpcHandle;
-} STransMsg;
 
 #ifdef __cplusplus
 }

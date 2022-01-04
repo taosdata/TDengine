@@ -26,7 +26,7 @@ typedef int32_t (*FCqWrite)(int32_t vgId, void *pHead, int32_t qtype, void *pMsg
 typedef struct {
   int32_t  vgId;
   char     user[TSDB_USER_LEN];
-  char     pass[TSDB_KEY_LEN];
+  char     pass[TSDB_PASSWORD_LEN];
   char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN]; // size must same with SVnodeObj.db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN]
   FCqWrite cqWrite;
 } SCqCfg;
@@ -37,7 +37,7 @@ typedef struct {
   int32_t  master;
   int32_t  num;      // number of continuous streams
   char     user[TSDB_USER_LEN];
-  char     pass[TSDB_KEY_LEN];
+  char     pass[TSDB_PASSWORD_LEN];
   char     db[TSDB_DB_NAME_LEN];
   FCqWrite cqWrite;
   struct SCqObj *pHead;

@@ -16,35 +16,75 @@
 #define _TD_WAL_H_
 
 #include "os.h"
+#include "tarray.h"
 #include "tdef.h"
 #include "tlog.h"
-#include "tarray.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 extern int32_t wDebugFlag;
 
-#define wFatal(...) { if (wDebugFlag & DEBUG_FATAL) { taosPrintLog("WAL FATAL ", 255, __VA_ARGS__); }}
-#define wError(...) { if (wDebugFlag & DEBUG_ERROR) { taosPrintLog("WAL ERROR ", 255, __VA_ARGS__); }}
-#define wWarn(...)  { if (wDebugFlag & DEBUG_WARN)  { taosPrintLog("WAL WARN ", 255, __VA_ARGS__); }}
-#define wInfo(...)  { if (wDebugFlag & DEBUG_INFO)  { taosPrintLog("WAL ", 255, __VA_ARGS__); }}
-#define wDebug(...) { if (wDebugFlag & DEBUG_DEBUG) { taosPrintLog("WAL ", wDebugFlag, __VA_ARGS__); }}
-#define wTrace(...) { if (wDebugFlag & DEBUG_TRACE) { taosPrintLog("WAL ", wDebugFlag, __VA_ARGS__); }}
+#define wFatal(...)                                 \
+  {                                                 \
+    if (wDebugFlag & DEBUG_FATAL) {                 \
+      taosPrintLog("WAL FATAL ", 255, __VA_ARGS__); \
+    }                                               \
+  }
+#define wError(...)                                 \
+  {                                                 \
+    if (wDebugFlag & DEBUG_ERROR) {                 \
+      taosPrintLog("WAL ERROR ", 255, __VA_ARGS__); \
+    }                                               \
+  }
+#define wWarn(...)                                 \
+  {                                                \
+    if (wDebugFlag & DEBUG_WARN) {                 \
+      taosPrintLog("WAL WARN ", 255, __VA_ARGS__); \
+    }                                              \
+  }
+#define wInfo(...)                            \
+  {                                           \
+    if (wDebugFlag & DEBUG_INFO) {            \
+      taosPrintLog("WAL ", 255, __VA_ARGS__); \
+    }                                         \
+  }
+#define wDebug(...)                                  \
+  {                                                  \
+    if (wDebugFlag & DEBUG_DEBUG) {                  \
+      taosPrintLog("WAL ", wDebugFlag, __VA_ARGS__); \
+    }                                                \
+  }
+#define wTrace(...)                                  \
+  {                                                  \
+    if (wDebugFlag & DEBUG_TRACE) {                  \
+      taosPrintLog("WAL ", wDebugFlag, __VA_ARGS__); \
+    }                                                \
+  }
 
-typedef enum {
-  TAOS_WAL_NOLOG = 0,
-  TAOS_WAL_WRITE = 1,
-  TAOS_WAL_FSYNC = 2
-} EWalType;
+#define WAL_HEAD_VER 0
+#define WAL_NOSUFFIX_LEN 20
+#define WAL_SUFFIX_AT (WAL_NOSUFFIX_LEN + 1)
+#define WAL_LOG_SUFFIX "log"
+#define WAL_INDEX_SUFFIX "idx"
+#define WAL_REFRESH_MS 1000
+#define WAL_MAX_SIZE (TSDB_MAX_WAL_SIZE + sizeof(SWalHead))
+#define WAL_PATH_LEN (TSDB_FILENAME_LEN + 12)
+#define WAL_FILE_LEN (WAL_PATH_LEN + 32)
+
+#define WAL_CUR_FAILED 1
+
+#pragma pack(push, 1)
+typedef enum { TAOS_WAL_NOLOG = 0, TAOS_WAL_WRITE = 1, TAOS_WAL_FSYNC = 2 } EWalType;
 
 typedef struct SWalReadHead {
-  int8_t   sver;
-  uint8_t  msgType;
-  int8_t   reserved[2];
-  int32_t  len;
-  int64_t  version;
-  char     cont[];
+  int8_t  headVer;
+  uint8_t msgType;
+  int8_t  reserved[2];
+  int32_t len;
+  int64_t ingestTs;  // not implemented
+  int64_t version;
+  char    body[];
 } SWalReadHead;
 
 typedef struct {
@@ -52,83 +92,60 @@ typedef struct {
   int32_t  fsyncPeriod;      // millisecond
   int32_t  retentionPeriod;  // secs
   int32_t  rollPeriod;       // secs
+  int64_t  retentionSize;
   int64_t  segSize;
-  EWalType walLevel;         // wal level
+  EWalType level;  // wal level
 } SWalCfg;
 
 typedef struct {
-  //union {
-    //uint32_t info;
-    //struct {
-      //uint32_t sver:3;
-      //uint32_t msgtype: 5;
-      //uint32_t reserved : 24;
-    //};
-  //};
-  uint32_t cksumHead;
-  uint32_t cksumBody;
+  uint32_t     cksumHead;
+  uint32_t     cksumBody;
   SWalReadHead head;
 } SWalHead;
 
-#define WAL_PREFIX       "wal"
-#define WAL_PREFIX_LEN   3
-#define WAL_NOSUFFIX_LEN 20
-#define WAL_SUFFIX_AT    (WAL_NOSUFFIX_LEN+1)
-#define WAL_LOG_SUFFIX   "log"
-#define WAL_INDEX_SUFFIX "idx"
-#define WAL_REFRESH_MS   1000
-#define WAL_MAX_SIZE     (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + 16)
-#define WAL_SIGNATURE    ((uint32_t)(0xFAFBFDFEUL))
-#define WAL_PATH_LEN     (TSDB_FILENAME_LEN + 12)
-#define WAL_FILE_LEN     (WAL_PATH_LEN + 32)
-//#define WAL_FILE_NUM     1 // 3
-#define WAL_FILESET_MAX  128
-
-#define WAL_IDX_ENTRY_SIZE    (sizeof(int64_t)*2)
-#define WAL_CUR_POS_WRITABLE  1
-#define WAL_CUR_FILE_WRITABLE 2
-#define WAL_CUR_FAILED        4
+typedef struct SWalVer {
+  int64_t firstVer;
+  int64_t verInSnapshotting;
+  int64_t snapshotVer;
+  int64_t commitVer;
+  int64_t lastVer;
+} SWalVer;
 
 typedef struct SWal {
   // cfg
-  int32_t  vgId;
-  int32_t  fsyncPeriod;  // millisecond
-  int32_t  rollPeriod;  // second
-  int64_t  segSize;
-  int64_t  retentionSize;
-  int32_t  retentionPeriod;
-  EWalType level;
-  //total size
-  int64_t  totSize;
-  //fsync seq
-  int32_t  fsyncSeq;
-  //reference
-  int64_t refId;
-  //write tfd
+  SWalCfg cfg;
+  int32_t fsyncSeq;
+  // meta
+  SWalVer vers;
   int64_t writeLogTfd;
   int64_t writeIdxTfd;
-  //wal lifecycle
-  int64_t firstVersion;
-  int64_t snapshotVersion;
-  int64_t commitVersion;
-  int64_t lastVersion;
-  //snapshotting version
-  int64_t snapshottingVer;
-  //roll status
-  int64_t lastRollSeq;
-  //file set
   int32_t writeCur;
-  SArray* fileInfoSet;
-  //ctl
-  int32_t curStatus;
+  SArray *fileInfoSet;
+  // status
+  int64_t totSize;
+  int64_t lastRollSeq;
+  // ctl
+  int64_t         refId;
   pthread_mutex_t mutex;
-  //path
+  // path
   char path[WAL_PATH_LEN];
-  //reusable write head
-  SWalHead head;
+  // reusable write head
+  SWalHead writeHead;
 } SWal;  // WAL HANDLE
 
-typedef int32_t (*FWalWrite)(void *ahandle, void *pHead);
+typedef struct SWalReadHandle {
+  SWal     *pWal;
+  int64_t   readLogTfd;
+  int64_t   readIdxTfd;
+  int64_t   curFileFirstVer;
+  int64_t   curVersion;
+  int64_t   capacity;
+  int64_t   status;  // if cursor valid
+  SWalHead *pHead;
+} SWalReadHandle;
+#pragma pack(pop)
+
+// typedef int32_t (*FWalWrite)(void *ahandle, void *pHead);
 
 // module initialization
 int32_t walInit();
@@ -148,13 +165,20 @@ int32_t walCommit(SWal *, int64_t ver);
 // truncate after
 int32_t walRollback(SWal *, int64_t ver);
 // notify that previous logs can be pruned safely
-int32_t walBeginTakeSnapshot(SWal *, int64_t ver);
-int32_t walEndTakeSnapshot(SWal *);
-//int32_t  walDataCorrupted(SWal*);
+int32_t walBeginSnapshot(SWal *, int64_t ver);
+int32_t walEndSnapshot(SWal *);
+// int32_t  walDataCorrupted(SWal*);
 
 // read
+SWalReadHandle *walOpenReadHandle(SWal *);
+void            walCloseReadHandle(SWalReadHandle *);
+int32_t         walReadWithHandle(SWalReadHandle *pRead, int64_t ver);
+
+// deprecated
+#if 0
 int32_t walRead(SWal *, SWalHead **, int64_t ver);
 int32_t walReadWithFp(SWal *, FWalWrite writeFp, int64_t verStart, int32_t readNum);
+#endif
 
 // lifecycle check
 int64_t walGetFirstVer(SWal *);

@@ -16,73 +16,71 @@
 #ifndef _TD_WAL_INT_H_
 #define _TD_WAL_INT_H_
 
-#include "wal.h"
 #include "compare.h"
 #include "tchecksum.h"
+#include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-//meta section begin
+// meta section begin
 typedef struct WalFileInfo {
   int64_t firstVer;
   int64_t lastVer;
   int64_t createTs;
   int64_t closeTs;
   int64_t fileSize;
-} WalFileInfo;
+} SWalFileInfo;
 
 typedef struct WalIdxEntry {
   int64_t ver;
   int64_t offset;
-} WalIdxEntry;
+} SWalIdxEntry;
 
 static inline int32_t compareWalFileInfo(const void* pLeft, const void* pRight) {
-  WalFileInfo* pInfoLeft = (WalFileInfo*)pLeft;
-  WalFileInfo* pInfoRight = (WalFileInfo*)pRight;
+  SWalFileInfo* pInfoLeft = (SWalFileInfo*)pLeft;
+  SWalFileInfo* pInfoRight = (SWalFileInfo*)pRight;
   return compareInt64Val(&pInfoLeft->firstVer, &pInfoRight->firstVer);
 }
 
 static inline int64_t walGetLastFileSize(SWal* pWal) {
-  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
+  SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
   return pInfo->fileSize;
 }
 
 static inline int64_t walGetLastFileFirstVer(SWal* pWal) {
-  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
+  SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet);
   return pInfo->firstVer;
 }
 
 static inline int64_t walGetCurFileFirstVer(SWal* pWal) {
-  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
+  SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
   return pInfo->firstVer;
 }
 
 static inline int64_t walGetCurFileLastVer(SWal* pWal) {
-  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
+  SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
   return pInfo->firstVer;
 }
 
 static inline int64_t walGetCurFileOffset(SWal* pWal) {
-  WalFileInfo* pInfo = (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
+  SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
   return pInfo->fileSize;
 }
 
-static inline bool walCurFileClosed(SWal* pWal) {
-  return taosArrayGetSize(pWal->fileInfoSet) != pWal->writeCur;
+static inline bool walCurFileClosed(SWal* pWal) { return taosArrayGetSize(pWal->fileInfoSet) != pWal->writeCur; }
+
+static inline SWalFileInfo* walGetCurFileInfo(SWal* pWal) {
+  return (SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
 }
 
-static inline WalFileInfo* walGetCurFileInfo(SWal* pWal) {
-  return (WalFileInfo*)taosArrayGet(pWal->fileInfoSet, pWal->writeCur);
+static inline int walBuildLogName(SWal* pWal, int64_t fileFirstVer, char* buf) {
+  return sprintf(buf, "%s/%020" PRId64 "." WAL_LOG_SUFFIX, pWal->path, fileFirstVer);
 }
 
-static inline int walBuildLogName(SWal*pWal, int64_t fileFirstVer, char* buf) {
-  return sprintf(buf, "%s/%" PRId64 "." WAL_LOG_SUFFIX, pWal->path, fileFirstVer);
-}
-
-static inline int walBuildIdxName(SWal*pWal, int64_t fileFirstVer, char* buf) {
-  return sprintf(buf, "%s/%" PRId64 "." WAL_INDEX_SUFFIX, pWal->path, fileFirstVer);
+static inline int walBuildIdxName(SWal* pWal, int64_t fileFirstVer, char* buf) {
+  return sprintf(buf, "%s/%020" PRId64 "." WAL_INDEX_SUFFIX, pWal->path, fileFirstVer);
 }
 
 static inline int walValidHeadCksum(SWalHead* pHead) {
@@ -90,14 +88,14 @@ static inline int walValidHeadCksum(SWalHead* pHead) {
 }
 
 static inline int walValidBodyCksum(SWalHead* pHead) {
-  return taosCheckChecksum((uint8_t*)pHead->head.cont, pHead->head.len, pHead->cksumBody);
+  return taosCheckChecksum((uint8_t*)pHead->head.body, pHead->head.len, pHead->cksumBody);
 }
 
-static inline int walValidCksum(SWalHead *pHead, void* body, int64_t bodyLen) {
+static inline int walValidCksum(SWalHead* pHead, void* body, int64_t bodyLen) {
   return walValidHeadCksum(pHead) && walValidBodyCksum(pHead);
 }
 
-static inline uint32_t walCalcHeadCksum(SWalHead *pHead) {
+static inline uint32_t walCalcHeadCksum(SWalHead* pHead) {
   return taosCalcChecksum(0, (uint8_t*)&pHead->head, sizeof(SWalReadHead));
 }
 
@@ -105,21 +103,37 @@ static inline uint32_t walCalcBodyCksum(const void* body, uint32_t len) {
   return taosCalcChecksum(0, (uint8_t*)body, len);
 }
 
-int walReadMeta(SWal* pWal);
-int walWriteMeta(SWal* pWal);
+static inline int64_t walGetVerIdxOffset(SWal* pWal, int64_t ver) {
+  return (ver - walGetCurFileFirstVer(pWal)) * sizeof(SWalIdxEntry);
+}
+
+static inline void walResetVer(SWalVer* pVer) {
+  pVer->firstVer = -1;
+  pVer->verInSnapshotting = -1;
+  pVer->snapshotVer = -1;
+  pVer->commitVer = -1;
+  pVer->lastVer = -1;
+}
+
+int walLoadMeta(SWal* pWal);
+int walSaveMeta(SWal* pWal);
 int walRollFileInfo(SWal* pWal);
 
-char* walMetaSerialize(SWal* pWal);
-int walMetaDeserialize(SWal* pWal, const char* bytes);
-//meta section end
+int walCheckAndRepairMeta(SWal* pWal);
 
-//seek section
-int walChangeFile(SWal *pWal, int64_t ver);
-//seek section end
+int walCheckAndRepairIdx(SWal* pWal);
+
+char* walMetaSerialize(SWal* pWal);
+int   walMetaDeserialize(SWal* pWal, const char* bytes);
+// meta section end
+
+// seek section
+int walChangeFile(SWal* pWal, int64_t ver);
+// seek section end
 
 int64_t walGetSeq();
-int walSeekVer(SWal *pWal, int64_t ver);
-int walRoll(SWal *pWal);
+int     walSeekVer(SWal* pWal, int64_t ver);
+int     walRoll(SWal* pWal);
 
 #ifdef __cplusplus
 }

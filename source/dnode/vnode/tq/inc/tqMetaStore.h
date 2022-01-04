@@ -17,36 +17,31 @@
 #define _TQ_META_STORE_H_
 
 #include "os.h"
-#include "tq.h"
+#include "tqInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+STqMetaStore* tqStoreOpen(const char* path, FTqSerialize pSerializer, FTqDeserialize pDeserializer, FTqDelete pDeleter,
+                          int32_t tqConfigFlag);
+int32_t       tqStoreClose(STqMetaStore*);
+// int32_t       tqStoreDelete(TqMetaStore*);
+// int32_t       tqStoreCommitAll(TqMetaStore*);
+int32_t tqStorePersist(STqMetaStore*);
+// clean deleted idx and data from persistent file
+int32_t tqStoreCompact(STqMetaStore*);
 
-TqMetaStore*  tqStoreOpen(const char* path,
-    TqSerializeFun   pSerializer,
-    TqDeserializeFun pDeserializer,
-    TqDeleteFun      pDeleter,
-    int32_t          tqConfigFlag
-  );
-int32_t       tqStoreClose(TqMetaStore*);
-//int32_t       tqStoreDelete(TqMetaStore*);
-//int32_t       tqStoreCommitAll(TqMetaStore*);
-int32_t       tqStorePersist(TqMetaStore*);
-//clean deleted idx and data from persistent file
-int32_t       tqStoreCompact(TqMetaStore*);
-
-void*   tqHandleGet(TqMetaStore*, int64_t key);
-//make it unpersist
-void*   tqHandleTouchGet(TqMetaStore*, int64_t key);
-int32_t tqHandleMovePut(TqMetaStore*, int64_t key, void* value);
-int32_t tqHandleCopyPut(TqMetaStore*, int64_t key, void* value, size_t vsize);
-//delete committed kv pair
-//notice that a delete action still needs to be committed
-int32_t tqHandleDel(TqMetaStore*, int64_t key);
-int32_t tqHandleCommit(TqMetaStore*, int64_t key);
-int32_t tqHandleAbort(TqMetaStore*, int64_t key);
+void* tqHandleGet(STqMetaStore*, int64_t key);
+// make it unpersist
+void*   tqHandleTouchGet(STqMetaStore*, int64_t key);
+int32_t tqHandleMovePut(STqMetaStore*, int64_t key, void* value);
+int32_t tqHandleCopyPut(STqMetaStore*, int64_t key, void* value, size_t vsize);
+// delete committed kv pair
+// notice that a delete action still needs to be committed
+int32_t tqHandleDel(STqMetaStore*, int64_t key);
+int32_t tqHandleCommit(STqMetaStore*, int64_t key);
+int32_t tqHandleAbort(STqMetaStore*, int64_t key);
 
 #ifdef __cplusplus
 }

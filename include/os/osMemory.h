@@ -23,8 +23,8 @@ extern "C" {
 #define tfree(x)       \
   do {                 \
     if (x) {           \
-      free((void *)x); \
-      x = 0;           \
+      free((void *)(x)); \
+      (x) = 0;           \
     }                  \
   } while (0)
 

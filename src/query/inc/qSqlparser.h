@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "../../../include/client/taos.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tstrbuild.h"
 #include "ttoken.h"
 #include "tvariant.h"

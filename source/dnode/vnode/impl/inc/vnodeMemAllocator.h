@@ -16,15 +16,35 @@
 #ifndef _TD_VNODE_MEM_ALLOCATOR_H_
 #define _TD_VNODE_MEM_ALLOCATOR_H_
 
-#include "mallocator.h"
-#include "vnode.h"
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-SMemAllocator *vnodeCreateMemAllocator(SVnode *pVnode);
-void           vnodeDestroyMemAllocator(SMemAllocator *pma);
+typedef struct SVArenaNode {
+  TD_SLIST_NODE(SVArenaNode);
+  uint64_t size;  // current node size
+  void *   ptr;
+  char     data[];
+} SVArenaNode;
+
+typedef struct SVMemAllocator {
+  T_REF_DECLARE()
+  TD_DLIST_NODE(SVMemAllocator);
+  uint64_t     capacity;
+  uint64_t     ssize;
+  uint64_t     lsize;
+  SVArenaNode *pNode;
+  TD_SLIST(SVArenaNode) nlist;
+} SVMemAllocator;
+
+SVMemAllocator *vmaCreate(uint64_t capacity, uint64_t ssize, uint64_t lsize);
+void            vmaDestroy(SVMemAllocator *pVMA);
+void            vmaReset(SVMemAllocator *pVMA);
+void *          vmaMalloc(SVMemAllocator *pVMA, uint64_t size);
+void            vmaFree(SVMemAllocator *pVMA, void *ptr);
+bool            vmaIsFull(SVMemAllocator *pVMA);
 
 #ifdef __cplusplus
 }

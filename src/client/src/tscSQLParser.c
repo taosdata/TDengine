@@ -28,7 +28,7 @@
 #include "qTableMeta.h"
 #include "qUtil.h"
 #include "regex.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tcompare.h"
 #include "texpr.h"
 #include "tfilter.h"

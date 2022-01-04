@@ -16,7 +16,7 @@
 //#define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tglobal.h"
 #include "tlog.h"
 #include "tcq.h"

@@ -14,7 +14,7 @@
  */
 
 #include "os.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tscLog.h"
 #include "tscUtil.h"
 #include "tsched.h"

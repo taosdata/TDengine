@@ -1,29 +1,11 @@
-add_executable(dndTestCluster "")
-
-target_sources(dndTestCluster
-    PRIVATE
-    "cluster.cpp"
-    "../sut/deploy.cpp"
-)
-
+aux_source_directory(. CLUSTER_SRC)
+add_executable(dnode_test_cluster ${CLUSTER_SRC})
 target_link_libraries(
-    dndTestCluster
-    PUBLIC dnode
-    PUBLIC util
-    PUBLIC os
-    PUBLIC gtest_main
+    dnode_test_cluster
+    PUBLIC sut
 )
-
-target_include_directories(dndTestCluster
-    PUBLIC
-    "${CMAKE_SOURCE_DIR}/include/server/dnode/mgmt"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../sut"
-)
-
-enable_testing()
 
 add_test(
-    NAME dndTestCluster
-    COMMAND dndTestCluster
+    NAME dnode_test_cluster
+    COMMAND dnode_test_cluster
 )

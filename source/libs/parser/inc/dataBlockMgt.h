@@ -75,19 +75,10 @@ typedef struct {
   SMemRowInfo *rowInfo;
 } SMemRowBuilder;
 
-typedef struct SParamInfo {
-  int32_t  idx;
-  uint8_t  type;
-  uint8_t  timePrec;
-  int16_t  bytes;
-  uint32_t offset;
-} SParamInfo;
-
 typedef struct STableDataBlocks {
-  SName       tableName;
   int8_t      tsSource;     // where does the UNIX timestamp come from, server or client
   bool        ordered;      // if current rows are ordered or not
-  int64_t     vgId;         // virtual group id
+  int32_t     vgId;         // virtual group id
   int64_t     prevTS;       // previous timestamp, recorded to decide if the records array is ts ascending
   int32_t     numOfTables;  // number of tables in current submit block
   int32_t     rowSize;      // row size for current table
@@ -100,11 +91,6 @@ typedef struct STableDataBlocks {
   STagData    tagData; 
   
   SParsedDataColInfo boundColumnInfo;
-
-  // for parameter ('?') binding
-  uint32_t       numOfAllocedParams;
-  uint32_t       numOfParams;
-  SParamInfo *   params;
   SMemRowBuilder rowBuilder;
 } STableDataBlocks;
 
@@ -184,10 +170,11 @@ int32_t schemaIdxCompar(const void *lhs, const void *rhs);
 int32_t boundIdxCompar(const void *lhs, const void *rhs);
 void setBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, int32_t numOfCols);
 void destroyBoundColumnInfo(SParsedDataColInfo* pColList);
+void destroyBlockArrayList(SArray* pDataBlockList);
 int32_t initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, uint32_t nBoundCols, int32_t allNullLen);
 int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows);
 int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
-    SName* name, const STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList);
-int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t payloadType, bool freeBlockMap);
+    const STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList);
+int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t payloadType, SArray** pVgDataBlocks);
 
 #endif  // TDENGINE_DATABLOCKMGT_H

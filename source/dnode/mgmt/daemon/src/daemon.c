@@ -31,7 +31,7 @@ static struct {
 } global = {0};
 
 void dmnSigintHandle(int signum, void *info, void *ctx) {
-  uError("singal:%d is received", signum);
+  uInfo("singal:%d is received", signum);
   global.stop = true;
 }
 
@@ -92,6 +92,7 @@ void dmnPrintVersion() {
 }
 
 int dmnReadConfig(const char *path) {
+  tstrncpy(configDir, global.configDir, PATH_MAX);
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
 
@@ -112,12 +113,12 @@ int dmnReadConfig(const char *path) {
     return -1;
   }
 
-  if (taosReadGlobalCfg() != 0) {
+  if (taosReadCfgFromFile() != 0) {
     uError("failed to read global config");
     return -1;
   }
 
-  if (taosCheckGlobalCfg() != 0) {
+  if (taosCheckAndPrintCfg() != 0) {
     uError("failed to check global config");
     return -1;
   }
@@ -138,9 +139,8 @@ void dmnWaitSignal() {
 void dmnInitOption(SDnodeOpt *pOption) {
   pOption->sver = 30000000; //3.0.0.0
   pOption->numOfCores = tsNumOfCores;
-  pOption->numOfSupportMnodes = 1;
   pOption->numOfSupportVnodes = 1;
-  pOption->numOfSupportQnodes = 1;
+  pOption->numOfCommitThreads = 1;
   pOption->statusInterval = tsStatusInterval;
   pOption->numOfThreadsPerCore = tsNumOfThreadsPerCore;
   pOption->ratioOfQueryCores = tsRatioOfQueryCores;

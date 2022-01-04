@@ -20,19 +20,6 @@ static void    vnodeFree(SVnode *pVnode);
 static int     vnodeOpenImpl(SVnode *pVnode);
 static void    vnodeCloseImpl(SVnode *pVnode);
 
-int vnodeInit() {
-  // TODO
-  if (walInit() < 0) {
-    return -1;
-  }
-
-  return 0;
-}
-
-void vnodeClear() {
-  walCleanUp();
-}
-
 SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
   SVnode *pVnode = NULL;
 
@@ -87,11 +74,14 @@ static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg) {
   pVnode->path = strdup(path);
   vnodeOptionsCopy(&(pVnode->config), pVnodeCfg);
 
+  tsem_init(&(pVnode->canCommit), 0, 1);
+
   return pVnode;
 }
 
 static void vnodeFree(SVnode *pVnode) {
   if (pVnode) {
+    tsem_destroy(&(pVnode->canCommit));
     tfree(pVnode->path);
     free(pVnode);
   }
@@ -107,7 +97,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open meta
   sprintf(dir, "%s/meta", pVnode->path);
-  pVnode->pMeta = metaOpen(dir, &(pVnode->config.metaCfg));
+  pVnode->pMeta = metaOpen(dir, &(pVnode->config.metaCfg), vBufPoolGetMAF(pVnode));
   if (pVnode->pMeta == NULL) {
     // TODO: handle error
     return -1;
@@ -115,7 +105,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open tsdb
   sprintf(dir, "%s/tsdb", pVnode->path);
-  pVnode->pTsdb = tsdbOpen(dir, &(pVnode->config.tsdbCfg));
+  pVnode->pTsdb = tsdbOpen(dir, &(pVnode->config.tsdbCfg), vBufPoolGetMAF(pVnode));
   if (pVnode->pTsdb == NULL) {
     // TODO: handle error
     return -1;
@@ -123,7 +113,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // TODO: Open TQ
   sprintf(dir, "%s/tq", pVnode->path);
-  pVnode->pTq = tqOpen(dir, &(pVnode->config.tqCfg), NULL, NULL);
+  pVnode->pTq = tqOpen(dir, &(pVnode->config.tqCfg), NULL, vBufPoolGetMAF(pVnode));
   if (pVnode->pTq == NULL) {
     // TODO: handle error
     return -1;
@@ -137,6 +127,11 @@ static int vnodeOpenImpl(SVnode *pVnode) {
     return -1;
   }
 
+  // Open Query
+  if (vnodeQueryOpen(pVnode)) {
+    return -1;
+  }
+
   // TODO
   return 0;
 }
@@ -144,7 +139,9 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 static void vnodeCloseImpl(SVnode *pVnode) {
   if (pVnode) {
     vnodeCloseBufPool(pVnode);
-    tsdbClose(pVnode->pTsdb);
     metaClose(pVnode->pMeta);
+    tsdbClose(pVnode->pTsdb);
+    tqClose(pVnode->pTq);
+    walClose(pVnode->pWal);
   }
 }

@@ -14,23 +14,54 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "mndInt.h"
-#include "mndTrans.h"
+#include "mndSync.h"
 
-int32_t mndInitSync(SMnode *pMnode) { return 0; }
-void    mndCleanupSync(SMnode *pMnode) {}
+int32_t mndInitSync(SMnode *pMnode) {
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  tsem_init(&pMgmt->syncSem, 0, 0);
 
-int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, STransMsg *pMsg) {
-  int32_t code = 0;
-
-  int32_t  len = sdbGetRawTotalSize(pRaw);
-  SSdbRaw *pReceived = calloc(1, len);
-  memcpy(pReceived, pRaw, len);
-  mDebug("trans:%d, data:%p recv from sync, code:0x%x pMsg:%p", pMsg->id, pReceived, code & 0xFFFF, pMsg);
-
-  mndTransApply(pMnode, pReceived, pMsg, code);
+  pMgmt->state = TAOS_SYNC_STATE_LEADER;
+  pMgmt->pSyncNode = NULL;
   return 0;
 }
 
-bool mndIsMaster(SMnode *pMnode) { return true; }
+void mndCleanupSync(SMnode *pMnode) {
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  tsem_destroy(&pMgmt->syncSem);
+}
+
+static int32_t mndSyncApplyCb(struct SSyncFSM *fsm, SyncIndex index, const SSyncBuffer *buf, void *pData) {
+  SMnode    *pMnode = pData;
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+
+  pMgmt->errCode = 0;
+  tsem_post(&pMgmt->syncSem);
+
+  return 0;
+}
+
+int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
+#if 1
+  return 0;
+#else
+  if (pMnode->replica == 1) return 0;
+
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  pMgmt->errCode = 0;
+
+  SSyncBuffer buf = {.data = pRaw, .len = sdbGetRawTotalSize(pRaw)};
+
+  bool    isWeak = false;
+  int32_t code = syncPropose(pMgmt->pSyncNode, &buf, pMnode, isWeak);
+
+  if (code != 0) return code;
+
+  tsem_wait(&pMgmt->syncSem);
+  return pMgmt->errCode;
+#endif
+}
+
+bool mndIsMaster(SMnode *pMnode) {
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  return pMgmt->state == TAOS_SYNC_STATE_LEADER;
+}

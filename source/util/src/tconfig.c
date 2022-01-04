@@ -282,7 +282,7 @@ static void taosReadConfigOption(const char *option, char *value, char *value2, 
   }
 }
 
-void taosInitConfigOption(SGlobalCfg cfg) {
+void taosAddConfigOption(SGlobalCfg cfg) {
   tsGlobalConfig[tsGlobalConfigNum++] = cfg;
 }
 
@@ -335,7 +335,7 @@ void taosReadGlobalLogCfg() {
   fclose(fp);
 }
 
-int32_t taosReadGlobalCfg() {
+int32_t taosReadCfgFromFile() {
   char * line, *option, *value, *value2, *value3;
   int    olen, vlen, vlen2, vlen3;
   char   fileName[PATH_MAX] = {0};
@@ -396,7 +396,7 @@ int32_t taosReadGlobalCfg() {
   return 0;
 }
 
-void taosPrintGlobalCfg() {
+void taosPrintCfg() {
   uInfo("   taos config & system info:");
   uInfo("==================================");
 
@@ -443,7 +443,6 @@ void taosPrintGlobalCfg() {
   }
 
   taosPrintOsInfo();
-  // taosPrintDataDirCfg();
   uInfo("==================================");
 }
 

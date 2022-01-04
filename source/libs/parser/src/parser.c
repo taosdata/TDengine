@@ -20,7 +20,7 @@
 #include "function.h"
 #include "insertParser.h"
 
-bool qIsInsertSql(const char* pStr, size_t length) {
+bool isInsertSql(const char* pStr, size_t length) {
   int32_t index = 0;
 
   do {
@@ -31,24 +31,55 @@ bool qIsInsertSql(const char* pStr, size_t length) {
   } while (1);
 }
 
-int32_t qParseQuerySql(const char* pStr, size_t length, struct SQueryStmtInfo** pQueryInfo, int64_t id, char* msg, int32_t msgLen) {
-  *pQueryInfo = calloc(1, sizeof(SQueryStmtInfo));
-  if (*pQueryInfo == NULL) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY; // set correct error code.
-  }
-
-  SSqlInfo info = doGenerateAST(pStr);
-  if (!info.valid) {
-    strncpy(msg, info.msg, msgLen);
-    return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
-  }
-
-  struct SCatalog* pCatalog = getCatalogHandle(NULL);
-  return qParserValidateSqlNode(pCatalog, &info, *pQueryInfo, id, msg, msgLen);
+bool qIsDdlQuery(const SQueryNode* pQuery) {
+  return TSDB_SQL_INSERT != pQuery->type && TSDB_SQL_SELECT != pQuery->type;
 }
 
-int32_t qParseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo) {
-  return parseInsertSql(pContext, pInfo);
+int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
+  SSqlInfo info = doGenerateAST(pCxt->pSql);
+  if (!info.valid) {
+    strncpy(pCxt->pMsg, info.msg, pCxt->msgLen);
+    terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+    return terrno;
+  }
+
+  if (!isDqlSqlStatement(&info)) {
+    SDclStmtInfo* pDcl = calloc(1, sizeof(SDclStmtInfo));
+    if (NULL == pDcl) {
+      terrno = TSDB_CODE_TSC_OUT_OF_MEMORY; // set correct error code.
+      return terrno;
+    }
+
+    pDcl->nodeType = info.type;
+    int32_t code = qParserValidateDclSqlNode(&info, &pCxt->ctx, pDcl, pCxt->pMsg, pCxt->msgLen);
+    if (code == TSDB_CODE_SUCCESS) {
+      *pQuery = (SQueryNode*)pDcl;
+    }
+  } else {
+    SQueryStmtInfo* pQueryInfo = calloc(1, sizeof(SQueryStmtInfo));
+    if (pQueryInfo == NULL) {
+      terrno = TSDB_CODE_TSC_OUT_OF_MEMORY; // set correct error code.
+      return terrno;
+    }
+
+    struct SCatalog* pCatalog = NULL;
+    int32_t code = catalogGetHandle(NULL, &pCatalog);
+    code = qParserValidateSqlNode(pCatalog, &info, pQueryInfo, pCxt->ctx.requestId, pCxt->pMsg, pCxt->msgLen);
+    if (code == TSDB_CODE_SUCCESS) {
+      *pQuery = (SQueryNode*)pQueryInfo;
+    }
+  }
+
+  destroySqlInfo(&info);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qParseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
+  if (isInsertSql(pCxt->pSql, pCxt->sqlLen)) {
+    return parseInsertSql(pCxt, (SInsertStmtInfo**)pQuery);
+  } else {
+    return parseQuerySql(pCxt, pQuery);
+  }
 }
 
 int32_t qParserConvertSql(const char* pStr, size_t length, char** pConvertSql) {
@@ -61,7 +92,7 @@ static int32_t tnameComparFn(const void* p1, const void* p2) {
   SName* pn1 = (SName*)p1;
   SName* pn2 = (SName*)p2;
 
-  int32_t ret = strncmp(pn1->acctId, pn2->acctId, tListLen(pn1->acctId));
+  int32_t ret = pn1->acctId - pn2->acctId;
   if (ret != 0) {
     return ret > 0? 1:-1;
   } else {
@@ -132,7 +163,7 @@ static void freePtrElem(void* p) {
   tfree(*(char**)p);
 }
 
-int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMetaInfo, char* msg, int32_t msgBufLen) {
+int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SCatalogReq* pMetaInfo, char* msg, int32_t msgBufLen) {
   int32_t code  = TSDB_CODE_SUCCESS;
   SMsgBuf msgBuf = {.buf = msg, .len = msgBufLen};
 
@@ -189,11 +220,15 @@ int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SMetaReq* pMet
   return code;
 }
 
-void qParserClearupMetaRequestInfo(SMetaReq* pMetaReq) {
+void qParserClearupMetaRequestInfo(SCatalogReq* pMetaReq) {
   if (pMetaReq == NULL) {
     return;
   }
 
   taosArrayDestroy(pMetaReq->pTableName);
   taosArrayDestroy(pMetaReq->pUdf);
+}
+
+void qDestroyQuery(SQueryNode* pQuery) {
+  // todo
 }

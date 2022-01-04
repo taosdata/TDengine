@@ -16,7 +16,7 @@
 #ifndef TDENGINE_TNAME_H
 #define TDENGINE_TNAME_H
 
-#include "taosmsg.h"
+#include "tdef.h"
 
 #define TSDB_DB_NAME_T     1
 #define TSDB_TABLE_NAME_T  2
@@ -24,12 +24,14 @@
 #define T_NAME_ACCT        0x1u
 #define T_NAME_DB          0x2u
 #define T_NAME_TABLE       0x4u
+#define T_NAME_TOPIC       0x8u
 
 typedef struct SName {
   uint8_t type;  //db_name_t, table_name_t
-  char    acctId[TSDB_ACCT_ID_LEN];
+  int32_t acctId;
   char    dbname[TSDB_DB_NAME_LEN];
   char    tname[TSDB_TABLE_NAME_LEN];
+  char    topicName[TSDB_TOPIC_NAME_LEN];
 } SName;
 
 int32_t tNameExtractFullName(const SName* name, char* dst);
@@ -38,7 +40,7 @@ int32_t tNameLen(const SName* name);
 
 SName* tNameDup(const SName* name);
 
-bool tIsValidName(const SName* name);
+bool tNameIsValid(const SName* name);
 
 const char* tNameGetTableName(const SName* name);
 
@@ -50,14 +52,10 @@ bool tNameIsEmpty(const SName* name);
 
 void tNameAssign(SName* dst, const SName* src);
 
+int32_t tNameSetDbName(SName* dst, int32_t acctId, const char* dbName, size_t nameLen);
+
 int32_t tNameFromString(SName* dst, const char* str, uint32_t type);
 
-int32_t tNameSetAcctId(SName* dst, const char* acct);
-
-SSchema* tGetTbnameColumnSchema();
-
-#if 0
-int32_t tNameSetDbName(SName* dst, const char* acct, SToken* dbToken);
-#endif
+int32_t tNameSetAcctId(SName* dst, int32_t acctId);
 
 #endif  // TDENGINE_TNAME_H

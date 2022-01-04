@@ -17,21 +17,31 @@
 #define _TD_TQ_INT_H_
 
 #include "tq.h"
-
+#include "tlog.h"
+#include "trpc.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-//create persistent storage for meta info such as consuming offset
-//return value > 0: cgId
-//return value <= 0: error code
-//int tqCreateTCGroup(STQ*, const char* topic, int cgId, tqBufferHandle** handle);
-//create ring buffer in memory and load consuming offset
-//int tqOpenTCGroup(STQ*, const char* topic, int cgId);
-//destroy ring buffer and persist consuming offset
-//int tqCloseTCGroup(STQ*, const char* topic, int cgId);
-//delete persistent storage for meta info
-//int tqDropTCGroup(STQ*, const char* topic, int cgId);
+extern int32_t tqDebugFlag;
+
+#define tqFatal(...) { if (tqDebugFlag & DEBUG_FATAL) { taosPrintLog("TQ  FATAL ", 255, __VA_ARGS__); }}
+#define tqError(...) { if (tqDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", 255, __VA_ARGS__); }}
+#define tqWarn(...)  { if (tqDebugFlag & DEBUG_WARN)  { taosPrintLog("TQ  WARN ", 255, __VA_ARGS__); }}
+#define tqInfo(...)  { if (tqDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  ", 255, __VA_ARGS__); }}
+#define tqDebug(...) { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  ", tqDebugFlag, __VA_ARGS__); }}
+#define tqTrace(...) { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  ", tqDebugFlag, __VA_ARGS__); }}
+
+// create persistent storage for meta info such as consuming offset
+// return value > 0: cgId
+// return value <= 0: error code
+// int tqCreateTCGroup(STQ*, const char* topic, int cgId, tqBufferHandle** handle);
+// create ring buffer in memory and load consuming offset
+// int tqOpenTCGroup(STQ*, const char* topic, int cgId);
+// destroy ring buffer and persist consuming offset
+// int tqCloseTCGroup(STQ*, const char* topic, int cgId);
+// delete persistent storage for meta info
+// int tqDropTCGroup(STQ*, const char* topic, int cgId);
 
 #ifdef __cplusplus
 }

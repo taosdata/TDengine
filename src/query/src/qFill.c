@@ -17,7 +17,7 @@
 
 #include "qAggMain.h"
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "ttype.h"
 
 #include "qFill.h"

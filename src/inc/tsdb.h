@@ -20,7 +20,7 @@
 #include <stdint.h>
 
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tarray.h"
 #include "tdataformat.h"
 #include "tname.h"

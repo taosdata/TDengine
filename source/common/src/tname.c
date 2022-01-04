@@ -2,27 +2,9 @@
 #include "tutil.h"
 
 #include "tname.h"
-#include "taosmsg.h"
-
-#define VALIDNUMOFCOLS(x)  ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
-#define VALIDNUMOFTAGS(x)  ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
+#include "tmsg.h"
 
 #define VALID_NAME_TYPE(x)  ((x) == TSDB_DB_NAME_T || (x) == TSDB_TABLE_NAME_T)
-
-char* extractDBName(const char* tableId, char* name) {
-  size_t offset1 = strcspn(tableId, &TS_PATH_DELIMITER[0]);
-  size_t len = strcspn(&tableId[offset1 + 1], &TS_PATH_DELIMITER[0]);
-  
-  return strncpy(name, &tableId[offset1 + 1], len);
-}
-
-// todo remove it
-size_t tableIdPrefix(const char* name, char* prefix, int32_t len) {
-  tstrncpy(prefix, name, len);
-  strcat(prefix, TS_PATH_DELIMITER);
-
-  return strlen(prefix);
-}
 
 bool tscValidateTableNameLength(size_t len) {
   return len < TSDB_TABLE_NAME_LEN;
@@ -120,88 +102,15 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 
 #endif
 
-static struct SSchema _s = {
-    .colId = TSDB_TBNAME_COLUMN_INDEX,
-    .type  = TSDB_DATA_TYPE_BINARY,
-    .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE,
-    .name = "tbname",
-};
-
-SSchema* tGetTbnameColumnSchema() {
-  return &_s;
-}
-
-static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen) {
-  int32_t rowLen = 0;
-
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    // 1. valid types
-    if (!isValidDataType(pSchema[i].type)) {
-      return false;
-    }
-
-    // 2. valid length for each type
-    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY) {
-      if (pSchema[i].bytes > TSDB_MAX_BINARY_LEN) {
-        return false;
-      }
-    } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
-      if (pSchema[i].bytes > TSDB_MAX_NCHAR_LEN) {
-        return false;
-      }
-    } else {
-      if (pSchema[i].bytes != tDataTypes[pSchema[i].type].bytes) {
-        return false;
-      }
-    }
-
-    // 3. valid column names
-    for (int32_t j = i + 1; j < numOfCols; ++j) {
-      if (strncasecmp(pSchema[i].name, pSchema[j].name, sizeof(pSchema[i].name) - 1) == 0) {
-        return false;
-      }
-    }
-
-    rowLen += pSchema[i].bytes;
-  }
-
-  return rowLen <= maxLen;
-}
-
-bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags) {
-  if (!VALIDNUMOFCOLS(numOfCols)) {
-    return false;
-  }
-
-  if (!VALIDNUMOFTAGS(numOfTags)) {
-    return false;
-  }
-
-  /* first column must be the timestamp, which is a primary key */
-  if (pSchema[0].type != TSDB_DATA_TYPE_TIMESTAMP) {
-    return false;
-  }
-
-  if (!doValidateSchema(pSchema, numOfCols, TSDB_MAX_BYTES_PER_ROW)) {
-    return false;
-  }
-
-  if (!doValidateSchema(&pSchema[numOfCols], numOfTags, TSDB_MAX_TAGS_LEN)) {
-    return false;
-  }
-
-  return true;
-}
-
 int32_t tNameExtractFullName(const SName* name, char* dst) {
   assert(name != NULL && dst != NULL);
 
   // invalid full name format, abort
-  if (!tIsValidName(name)) {
+  if (!tNameIsValid(name)) {
     return -1;
   }
 
-  int32_t len = snprintf(dst, TSDB_FULL_DB_NAME_LEN, "%s.%s", name->acctId, name->dbname);
+  int32_t len = snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
 
   size_t tnameLen = strlen(name->tname);
   if (tnameLen > 0) {
@@ -217,27 +126,25 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
 
 int32_t tNameLen(const SName* name) {
   assert(name != NULL);
-  int32_t len  = (int32_t) strlen(name->acctId);
+
+  char tmp[12] = {0};
+  int32_t len = sprintf(tmp, "%d", name->acctId);
   int32_t len1 = (int32_t) strlen(name->dbname);
   int32_t len2 = (int32_t) strlen(name->tname);
 
   if (name->type == TSDB_DB_NAME_T) {
     assert(len2 == 0);
-    return len + len1 + TS_PATH_DELIMITER_LEN;
+    return len + len1 + TSDB_NAME_DELIMITER_LEN;
   } else {
     assert(len2 > 0);
-    return len + len1 + len2 + TS_PATH_DELIMITER_LEN * 2;
+    return len + len1 + len2 + TSDB_NAME_DELIMITER_LEN * 2;
   }
 }
 
-bool tIsValidName(const SName* name) {
+bool tNameIsValid(const SName* name) {
   assert(name != NULL);
 
   if (!VALID_NAME_TYPE(name->type)) {
-    return false;
-  }
-
-  if (strlen(name->acctId) <= 0) {
     return false;
   }
 
@@ -264,14 +171,13 @@ int32_t tNameGetDbName(const SName* name, char* dst) {
 
 int32_t tNameGetFullDbName(const SName* name, char* dst) {
   assert(name != NULL && dst != NULL);
-  snprintf(dst, TSDB_ACCT_ID_LEN + TS_PATH_DELIMITER_LEN + TSDB_DB_NAME_LEN,    // there is a over write risk
-      "%s.%s", name->acctId, name->dbname);
+  snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
   return 0;
 }
 
 bool tNameIsEmpty(const SName* name) {
   assert(name != NULL);
-  return name->type == 0 || strlen(name->acctId) <= 0;
+  return name->type == 0 || name->acctId == 0;
 }
 
 const char* tNameGetTableName(const SName* name) {
@@ -283,32 +189,23 @@ void tNameAssign(SName* dst, const SName* src) {
   memcpy(dst, src, sizeof(SName));
 }
 
-//int32_t tNameSetDbName(SName* dst, const char* acct, SStrToken* dbToken) {
-//  assert(dst != NULL && dbToken != NULL && acct != NULL);
-//
-//  // too long account id or too long db name
-//  if (strlen(acct) >= tListLen(dst->acctId) || dbToken->n >= tListLen(dst->dbname)) {
-//    return -1;
-//  }
-//
-//  dst->type = TSDB_DB_NAME_T;
-//  tstrncpy(dst->acctId, acct, tListLen(dst->acctId));
-//  tstrncpy(dst->dbname, dbToken->z, dbToken->n + 1);
-//  return 0;
-//}
-
-int32_t tNameSetAcctId(SName* dst, const char* acct) {
-  assert(dst != NULL && acct != NULL);
+int32_t tNameSetDbName(SName* dst, int32_t acct, const char* dbName, size_t nameLen) {
+  assert(dst != NULL && dbName != NULL && nameLen > 0);
 
   // too long account id or too long db name
-  if (strlen(acct) >= tListLen(dst->acctId)) {
+  if (nameLen >= tListLen(dst->dbname)) {
     return -1;
   }
 
-  tstrncpy(dst->acctId, acct, tListLen(dst->acctId));
+  dst->type = TSDB_DB_NAME_T;
+  dst->acctId = acct;
+  tstrncpy(dst->dbname, dbName, nameLen + 1);
+  return 0;
+}
 
-  assert(strlen(dst->acctId) > 0);
-  
+int32_t tNameSetAcctId(SName* dst, int32_t acctId) {
+  assert(dst != NULL && acct != NULL);
+  dst->acctId = acctId;
   return 0;
 }
 
@@ -322,17 +219,7 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
       return -1;
     }
 
-    int32_t len = (int32_t)(p - str);
-
-    // too long account id or too long db name
-    if ((len >= tListLen(dst->acctId)) || (len <= 0)) {
-      return -1;
-    }
-
-    memcpy (dst->acctId, str, len);
-    dst->acctId[len] = 0;
-
-    assert(strlen(dst->acctId) > 0);
+    dst->acctId = strtoll(str, NULL, 10);
   }
 
   if ((type & T_NAME_DB) == T_NAME_DB) {
@@ -360,9 +247,8 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
     dst->type = TSDB_TABLE_NAME_T;
     char* start = (char*) ((p == NULL)? str: (p+1));
 
-    int32_t len = (int32_t) strlen(start);
-
     // too long account id or too long db name
+    int32_t len = (int32_t) strlen(start);
     if ((len >= tListLen(dst->tname)) || (len <= 0)) {
       return -1;
     }

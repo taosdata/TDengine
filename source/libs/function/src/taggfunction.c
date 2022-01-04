@@ -16,7 +16,7 @@
 #include "tscalarfunction.h"
 #include "os.h"
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tglobal.h"
 #include "thash.h"
 #include "ttypes.h"

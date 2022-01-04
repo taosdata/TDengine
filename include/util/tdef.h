@@ -25,7 +25,9 @@ extern "C" {
 #define TSDB__packed
 
 #define TSKEY int64_t
-#define TSKEY_INITIAL_VAL    INT64_MIN
+#define TSKEY_MIN INT64_MIN
+#define TSKEY_MAX (INT64_MAX - 1)
+#define TSKEY_INITIAL_VAL TSKEY_MIN
 
 // Bytes for each type.
 extern const int32_t TYPE_BYTES[15];
@@ -147,7 +149,7 @@ do { \
 #define IS_RELATION_OPTR(op) (((op) >= TSDB_RELATION_LESS) && ((op) < TSDB_RELATION_IN))
 #define IS_ARITHMETIC_OPTR(op) (((op) >= TSDB_BINARY_OP_ADD) && ((op) <= TSDB_BINARY_OP_REMAINDER))
 
-#define TS_PATH_DELIMITER_LEN     1
+#define TSDB_NAME_DELIMITER_LEN   1
 
 #define TSDB_UNI_LEN              24
 #define TSDB_USER_LEN             TSDB_UNI_LEN
@@ -161,18 +163,20 @@ do { \
 
 #define TSDB_NODE_NAME_LEN        64
 #define TSDB_TABLE_NAME_LEN       193     // it is a null-terminated string
-#define TSDB_DB_NAME_LEN          33
-#define TSDB_FULL_DB_NAME_LEN     (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN)
+#define TSDB_TOPIC_NAME_LEN       193     // it is a null-terminated string
+#define TSDB_DB_NAME_LEN          65
+#define TSDB_DB_FNAME_LEN        (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 
-#define TSDB_FUNC_NAME_LEN         65
-#define TSDB_FUNC_COMMENT_LEN      4096
-#define TSDB_FUNC_CODE_LEN         (65535 - 512)
-#define TSDB_FUNC_BUF_SIZE         512
-#define TSDB_FUNC_TYPE_SCALAR      1
-#define TSDB_FUNC_TYPE_AGGREGATE   2
+#define TSDB_FUNC_NAME_LEN        65
+#define TSDB_FUNC_COMMENT_LEN     4096
+#define TSDB_FUNC_CODE_LEN        (65535 - 512)
+#define TSDB_FUNC_BUF_SIZE        512
+#define TSDB_FUNC_TYPE_SCALAR     1
+#define TSDB_FUNC_TYPE_AGGREGATE  2
 
 #define TSDB_TYPE_STR_MAX_LEN     32
-#define TSDB_TABLE_FNAME_LEN      (TSDB_FULL_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
+#define TSDB_TABLE_FNAME_LEN      (TSDB_DB_FNAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_TOPIC_FNAME_LEN      TSDB_TABLE_FNAME_LEN
 #define TSDB_COL_NAME_LEN         65
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
@@ -193,13 +197,14 @@ do { \
 #define TSDB_MAX_TAG_CONDITIONS   1024
 
 #define TSDB_AUTH_LEN             16
-#define TSDB_KEY_LEN              16
+#define TSDB_PASSWORD_LEN         32
+#define TSDB_USET_PASSWORD_LEN    129
 #define TSDB_VERSION_LEN          12
 #define TSDB_LABEL_LEN            8 
 
 #define TSDB_CLUSTER_ID_LEN       40
 #define TSDB_FQDN_LEN             128
-#define TSDB_EP_LEN               (TSDB_FQDN_LEN+6)
+#define TSDB_EP_LEN               (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_SHOW_SQL_LEN         512
@@ -209,6 +214,7 @@ do { \
 #define TSDB_STEP_NAME_LEN        32
 #define TSDB_STEP_DESC_LEN        128
 
+#define TSDB_ERROR_MSG_LEN        1024
 #define TSDB_DNODE_CONFIG_LEN     128
 
 #define TSDB_MQTT_HOSTNAME_LEN    64
@@ -227,10 +233,11 @@ do { \
 #define TSDB_DEFAULT_PAYLOAD_SIZE 5120   // default payload size, greater than PATH_MAX value
 #define TSDB_EXTRA_PAYLOAD_SIZE   128    // extra bytes for auth
 #define TSDB_CQ_SQL_SIZE          1024
-#define TSDB_MIN_VNODES           64
+#define TSDB_MIN_VNODES           16
 #define TSDB_MAX_VNODES           512
-#define TSDB_MIN_VNODES_PER_DB    2
-#define TSDB_MAX_VNODES_PER_DB    64
+#define TSDB_MIN_VNODES_PER_DB    1
+#define TSDB_MAX_VNODES_PER_DB    4096
+#define TSDB_DEFAULT_VN_PER_DB    2 
 
 #define TSDB_DNODE_ROLE_ANY       0
 #define TSDB_DNODE_ROLE_MGMT      1
@@ -243,7 +250,7 @@ do { \
 #define TSDB_RES_COL_ID                 (-5000)
 
 #define TSDB_MULTI_TABLEMETA_MAX_NUM    100000  // maximum batch size allowed to load table meta
-
+     
 #define TSDB_MIN_CACHE_BLOCK_SIZE       1
 #define TSDB_MAX_CACHE_BLOCK_SIZE       128     // 128MB for each vnode
 #define TSDB_DEFAULT_CACHE_BLOCK_SIZE   16

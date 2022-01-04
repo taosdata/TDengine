@@ -22,7 +22,7 @@
 
 #include "../../../include/client/taos.h"
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tcq.h"
 #include "tdataformat.h"
 #include "tglobal.h"
@@ -520,7 +520,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   pMsg->length = pMsg->header.contLen;
   pMsg->numOfBlocks = htonl(1);
 
-  pHead->msgType = TSDB_MSG_TYPE_SUBMIT;
+  pHead->msgType = TDMT_VND_SUBMIT;
   pHead->version = 0;
 
   // write into vnode write queue

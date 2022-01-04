@@ -291,7 +291,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
     // enable resize
     __rd_unlock(&pHashObj->lock, pHashObj->type);
 
-    return pHashObj->enableUpdate ? 0 : -1;
+    return pHashObj->enableUpdate ? 0 : -2;
   }
 }
 
@@ -776,9 +776,16 @@ size_t taosHashGetMemSize(const SHashObj *pHashObj) {
   return (pHashObj->capacity * (sizeof(SHashEntry) + POINTER_BYTES)) + sizeof(SHashNode) * taosHashGetSize(pHashObj) + sizeof(SHashObj);
 }
 
-FORCE_INLINE void *taosHashGetDataKey(SHashObj *pHashObj, void *data) {
+FORCE_INLINE int32_t taosHashGetKey(void *data, void** key, size_t* keyLen) {
+  if (NULL == data || NULL == key) {
+    return -1;
+  }
+  
   SHashNode * node = GET_HASH_PNODE(data);
-  return GET_HASH_NODE_KEY(node);
+  *key = GET_HASH_NODE_KEY(node);
+  *keyLen = node->keyLen;
+
+  return 0;
 }
 
 FORCE_INLINE uint32_t taosHashGetDataKeyLen(SHashObj *pHashObj, void *data) {

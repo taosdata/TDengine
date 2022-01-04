@@ -11,6 +11,8 @@ target_link_libraries(
     PUBLIC wal
     PUBLIC os
     PUBLIC util
+    PUBLIC common
+    PUBLIC transport
 )
 
 if(${BUILD_TEST})

@@ -5,7 +5,7 @@ sql connect
 
 print =============== show users
 sql show users
-if $rows != 3 then 
+if $rows != 1 then 
   return -1
 endi
 
@@ -21,24 +21,24 @@ sql_error drop account root
 print =============== create user1
 sql create user user1 PASS 'user1'
 sql show users
-if $rows != 4 then 
+if $rows != 2 then 
   return -1
 endi
 
 print $data00 $data01 $data02
-print $data10 $data11 $data22
+print $data10 $data11 $data12
 print $data20 $data11 $data22
 print $data30 $data31 $data32
 
 print =============== create user2
 sql create user user2 PASS 'user2'
 sql show users
-if $rows != 5 then 
+if $rows != 3 then 
   return -1
 endi
 
 print $data00 $data01 $data02
-print $data10 $data11 $data22
+print $data10 $data11 $data12
 print $data20 $data11 $data22
 print $data30 $data31 $data32
 print $data40 $data41 $data42
@@ -46,7 +46,7 @@ print $data40 $data41 $data42
 print =============== drop user1
 sql drop user user1
 sql show users
-if $rows != 4 then 
+if $rows != 2 then 
   return -1
 endi
 
@@ -62,7 +62,7 @@ system sh/exec.sh -n dnode1 -s start
 
 print =============== show users
 sql show users
-if $rows != 4 then 
+if $rows != 2 then 
   return -1
 endi
 

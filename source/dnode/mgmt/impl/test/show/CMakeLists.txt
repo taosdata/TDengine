@@ -1,29 +1,11 @@
-add_executable(dndTestShow "")
-
-target_sources(dndTestShow
-    PRIVATE
-    "show.cpp"
-    "../sut/deploy.cpp"
-)
-
+aux_source_directory(. SHOW_SRC)
+add_executable(dnode_test_show ${SHOW_SRC})
 target_link_libraries(
-    dndTestShow
-    PUBLIC dnode
-    PUBLIC util
-    PUBLIC os
-    PUBLIC gtest_main
+    dnode_test_show
+    PUBLIC sut
 )
-
-target_include_directories(dndTestShow
-    PUBLIC
-    "${CMAKE_SOURCE_DIR}/include/server/dnode/mgmt"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../sut"
-)
-
-enable_testing()
 
 add_test(
-    NAME dndTestShow
-    COMMAND dndTestShow
+    NAME dnode_test_show
+    COMMAND dnode_test_show
 )

@@ -17,36 +17,81 @@
 
 #include <iostream>
 
-void generateMetaData(MockCatalogService* mcs) {
-  {
-    ITableBuilder& builder = mcs->createTableBuilder("test", "t1", TSDB_NORMAL_TABLE, MockCatalogService::numOfDataTypes)
-        .setPrecision(TSDB_TIME_PRECISION_MILLI).setVgid(1).addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP);
-    for (int32_t i = 0; i < MockCatalogService::numOfDataTypes; ++i) {
-      if (TSDB_DATA_TYPE_NULL == tDataTypes[i].type) {
-        continue;
-      }
-      builder = builder.addColumn("c" + std::to_string(i + 1), tDataTypes[i].type);
-    }
-    builder.done();
-  }
-  {
-    ITableBuilder& builder = mcs->createTableBuilder("test", "st1", TSDB_SUPER_TABLE, MockCatalogService::numOfDataTypes, 2)
-        .setPrecision(TSDB_TIME_PRECISION_MILLI).setVgid(2).addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP);
-    for (int32_t i = 0; i < MockCatalogService::numOfDataTypes; ++i) {
-      if (TSDB_DATA_TYPE_NULL == tDataTypes[i].type) {
-        continue;
-      }
-      builder = builder.addColumn("c" + std::to_string(i + 1), tDataTypes[i].type);
-    }
-    builder.done();
-  }
-  mcs->showTables();
+#include "stub.h"
+#include "addr_any.h"
+
+namespace {
+
+void generateTestT1(MockCatalogService* mcs) {
+  ITableBuilder& builder = mcs->createTableBuilder("test", "t1", TSDB_NORMAL_TABLE, 3)
+      .setPrecision(TSDB_TIME_PRECISION_MILLI).setVgid(1).addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("c1", TSDB_DATA_TYPE_INT).addColumn("c2", TSDB_DATA_TYPE_BINARY, 20);
+  builder.done();
 }
 
-struct SCatalog* getCatalogHandle(const SEpSet* pMgmtEps) {
-  return mockCatalogService->getCatalogHandle(pMgmtEps);
+void generateTestST1(MockCatalogService* mcs) {
+  ITableBuilder& builder = mcs->createTableBuilder("test", "st1", TSDB_SUPER_TABLE, 3, 2)
+      .setPrecision(TSDB_TIME_PRECISION_MILLI).addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+      .addTag("tag1", TSDB_DATA_TYPE_INT).addTag("tag2", TSDB_DATA_TYPE_BINARY, 20)
+      .addColumn("c1", TSDB_DATA_TYPE_INT).addColumn("c2", TSDB_DATA_TYPE_BINARY, 20);
+  builder.done();
+  mcs->createSubTable("test", "st1", "st1s1", 1);
+  mcs->createSubTable("test", "st1", "st1s2", 2);
 }
 
-int32_t catalogGetMetaData(struct SCatalog* pCatalog, const SMetaReq* pMetaReq, SMetaData* pMetaData) {
-  return mockCatalogService->catalogGetMetaData(pCatalog, pMetaReq, pMetaData);
+}
+
+int32_t __catalogGetHandle(const char *clusterId, struct SCatalog** catalogHandle) {
+  return 0;
+}
+
+int32_t __catalogGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, STableMeta** pTableMeta) {
+  return mockCatalogService->catalogGetTableMeta(pDBName, pTableName, pTableMeta);
+}
+
+int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, const char* pTableName, SVgroupInfo* vgInfo) {
+  return mockCatalogService->catalogGetTableHashVgroup(pDBName, pTableName, vgInfo);
+}
+
+void initMetaDataEnv() {
+  mockCatalogService.reset(new MockCatalogService());
+
+  static Stub stub;
+  stub.set(catalogGetHandle, __catalogGetHandle);
+  stub.set(catalogGetTableMeta, __catalogGetTableMeta);
+  stub.set(catalogGetTableHashVgroup, __catalogGetTableHashVgroup);
+  {
+    AddrAny any("libcatalog.so");
+    std::map<std::string,void*> result;
+    any.get_global_func_addr_dynsym("^catalogGetHandle$", result);
+    for (const auto& f : result) {
+      stub.set(f.second, __catalogGetHandle);
+    }
+  }
+  {
+    AddrAny any("libcatalog.so");
+    std::map<std::string,void*> result;
+    any.get_global_func_addr_dynsym("^catalogGetTableMeta$", result);
+    for (const auto& f : result) {
+      stub.set(f.second, __catalogGetTableMeta);
+    }
+  }
+  {
+    AddrAny any("libcatalog.so");
+    std::map<std::string,void*> result;
+    any.get_global_func_addr_dynsym("^catalogGetTableHashVgroup$", result);
+    for (const auto& f : result) {
+      stub.set(f.second, __catalogGetTableHashVgroup);
+    }
+  }
+}
+
+void generateMetaData() {
+  generateTestT1(mockCatalogService.get());
+  generateTestST1(mockCatalogService.get());
+  mockCatalogService->showTables();
+}
+
+void destroyMetaDataEnv() {
+  mockCatalogService.reset();
 }

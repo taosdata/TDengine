@@ -22,9 +22,6 @@ do
     f)
       FILE_NAME=$OPTARG
       ;;
-    a)
-      ASYNC=1
-      ;;
     v)
       VALGRIND=1
       ;;
@@ -60,31 +57,21 @@ else
 fi
 
 if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
+  BIN_DIR=`find . -name "taosd"|grep source|head -n1|cut -d '/' ${cut_opt}2,3`
 else
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2`
+  BIN_DIR=`find . -name "taosd"|grep source|head -n1|cut -d '/' ${cut_opt}2`
 fi
 
-BUILD_DIR=$TOP_DIR/$BIN_DIR/build
+BUILD_DIR=$TOP_DIR/$BIN_DIR
 
 SIM_DIR=$TOP_DIR/sim
 
-if [ $ASYNC -eq 0 ]; then
-  PROGRAM=$BUILD_DIR/bin/tsim
-else
-  PROGRAM="$BUILD_DIR/bin/tsim -a"
-fi
-
+PROGRAM=$BUILD_DIR/tests/tsim/tsim
 
 PRG_DIR=$SIM_DIR/tsim
 CFG_DIR=$PRG_DIR/cfg
 LOG_DIR=$PRG_DIR/log
 DATA_DIR=$PRG_DIR/data
-
-
-ARBITRATOR_PRG_DIR=$SIM_DIR/arbitrator
-ARBITRATOR_LOG_DIR=$ARBITRATOR_PRG_DIR/log
-
 
 chmod -R 777 $PRG_DIR
 echo "------------------------------------------------------------------------"
@@ -96,12 +83,10 @@ echo "CFG_DIR  : $CFG_DIR"
 
 rm -rf $LOG_DIR
 rm -rf $CFG_DIR
-rm -rf $ARBITRATOR_LOG_DIR
 
 mkdir -p $PRG_DIR
 mkdir -p $LOG_DIR
 mkdir -p $CFG_DIR
-mkdir -p $ARBITRATOR_LOG_DIR
 
 TAOS_CFG=$PRG_DIR/cfg/taos.cfg
 touch -f $TAOS_CFG
@@ -115,7 +100,7 @@ echo "secondEp           ${HOSTNAME}:7200"        >> $TAOS_CFG
 echo "serverPort         7100"                    >> $TAOS_CFG
 echo "dataDir            $DATA_DIR"               >> $TAOS_CFG
 echo "logDir             $LOG_DIR"                >> $TAOS_CFG
-echo "scriptDir          ${CODE_DIR}/../script"   >> $TAOS_CFG
+echo "scriptDir          ${CODE_DIR}"             >> $TAOS_CFG
 echo "numOfLogLines      100000000"               >> $TAOS_CFG
 echo "rpcDebugFlag       143"                     >> $TAOS_CFG
 echo "tmrDebugFlag       131"                     >> $TAOS_CFG
@@ -141,7 +126,6 @@ if [ -n "$FILE_NAME" ]; then
   else
     echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME
     $PROGRAM -c $CFG_DIR -f $FILE_NAME
-#    valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${CODE_DIR}/../script/valgrind.log $PROGRAM -c $CFG_DIR -f $FILE_NAME
   fi
 else
   echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f basicSuite.sim

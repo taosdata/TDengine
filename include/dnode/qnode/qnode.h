@@ -20,93 +20,72 @@
 extern "C" {
 #endif
 
+/* ------------------------ TYPES EXPOSED ------------------------ */
+typedef struct SDnode SDnode;
+typedef struct SQnode SQnode;
+typedef void (*SendMsgToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
+typedef void (*SendMsgToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
+typedef void (*SendRedirectMsgFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 
 typedef struct {
-  uint64_t numOfStartTask;
-  uint64_t numOfStopTask;
-  uint64_t numOfRecvedFetch;
-  uint64_t numOfSentHb;
-  uint64_t numOfSentFetch;
-  uint64_t numOfTaskInQueue;
-  uint64_t numOfFetchInQueue;
-  uint64_t numOfErrors;
-} SQnodeStat;
+  int64_t numOfStartTask;
+  int64_t numOfStopTask;
+  int64_t numOfRecvedFetch;
+  int64_t numOfSentHb;
+  int64_t numOfSentFetch;
+  int64_t numOfTaskInQueue;
+  int64_t numOfFetchInQueue;
+  int64_t numOfErrors;
+} SQnodeLoad;
 
-/* start Task msg */
 typedef struct {
-  uint32_t  schedulerIp;
-  uint16_t  schedulerPort;
-  int64_t   taskId;
-  int64_t   queryId;
-  uint32_t  srcIp;
-  uint16_t  srcPort;
-} SQnodeStartTaskMsg;
+  int32_t sver;
+} SQnodeCfg;
 
-/* stop Task msg */
 typedef struct {
-  int64_t   taskId;
-} SQnodeStopTaskMsg;
+  int32_t           dnodeId;
+  int64_t           clusterId;
+  SQnodeCfg         cfg;
+  SDnode           *pDnode;
+  SendMsgToDnodeFp  sendMsgToDnodeFp;
+  SendMsgToMnodeFp  sendMsgToMnodeFp;
+  SendRedirectMsgFp sendRedirectMsgFp;
+} SQnodeOpt;
 
-/* start/stop Task msg response */
-typedef struct {
-  int64_t   taskId;
-  int32_t code;
-} SQnodeTaskRespMsg;
-
-/* Task status msg */
-typedef struct {
-  int64_t   taskId;
-  int32_t   status;
-  int64_t   queryId;
-} SQnodeTaskStatusMsg;
-
-/* Qnode/Scheduler heartbeat msg */
-typedef struct {
-  int32_t status;
-  int32_t load;
-  
-} SQnodeHeartbeatMsg;
-
-/* Qnode sent/received msg */
-typedef struct {
-  int8_t   msgType;
-  int32_t  msgLen;
-  char     msg[];
-} SQnodeMsg;
-
-
+/* ------------------------ SQnode ------------------------ */
 /**
- * Start one Qnode in Dnode.
- * @return Error Code.
- */
-int32_t qnodeStart();
-
-/**
- * Stop Qnode in Dnode.
+ * @brief Start one Qnode in Dnode.
  *
- * @param qnodeId Qnode ID to stop, -1 for all Qnodes.
+ * @param pOption Option of the qnode.
+ * @return SQnode* The qnode object.
  */
-void qnodeStop(int64_t qnodeId);
+SQnode *qndOpen(const SQnodeOpt *pOption);
 
- 
 /**
- * Get the statistical information of Qnode
+ * @brief Stop Qnode in Dnode.
  *
- * @param qnodeId Qnode ID to get statistics, -1 for all 
- * @param stat Statistical information.
- * @return Error Code.
+ * @param pQnode The qnode object to close.
  */
-int32_t qnodeGetStatistics(int64_t qnodeId, SQnodeStat *stat);
+void qndClose(SQnode *pQnode);
 
 /**
- * Interface for processing Qnode messages.
- * 
- * @param pMsg Message to be processed.
- * @return Error code
+ * @brief Get the statistical information of Qnode
+ *
+ * @param pQnode The qnode object.
+ * @param pLoad Statistics of the qnode.
+ * @return int32_t 0 for success, -1 for failure.
  */
-void qnodeProcessReq(SRpcMsg *pMsg);
+int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad);
 
-
+/**
+ * @brief Process a query or fetch message.
+ *
+ * @param pQnode The qnode object.
+ * @param pMsg The request message
+ * @param pRsp The response message
+ * @return int32_t 0 for success, -1 for failure
+ */
+int32_t qndProcessMsg(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
 #ifdef __cplusplus
 }

@@ -5,6 +5,9 @@ target_link_libraries(
     PUBLIC cjson
     PUBLIC mnode
     PUBLIC vnode
+    PUBLIC qnode
+    PUBLIC snode
+    PUBLIC bnode
     PUBLIC wal
     PUBLIC sync
     PUBLIC taos

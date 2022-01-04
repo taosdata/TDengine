@@ -15,7 +15,7 @@ if $data00 != 1 then
   return -1
 endi
 
-if $data01 != 192.168.0.1 then 
+if $data02 != 0 then 
   return -1
 endi
 
@@ -28,12 +28,14 @@ if $data00 != 1 then
   return -1
 endi
 
-if $data01 != 192.168.0.1 then 
+if $data02 != master then 
   return -1
 endi
 
 print =============== create dnodes
-sql create dnode $hostname2
+sql create dnode $hostname port 7200
+sleep 2000
+
 sql show dnodes;
 if $rows != 2 then 
   return -1
@@ -43,15 +45,23 @@ if $data00 != 1 then
   return -1
 endi
 
-if $data01 != 192.168.0.1 then 
-  return -1
-endi
-
 if $data10 != 2 then 
   return -1
 endi
 
-if $data11 != 192.168.0.2 then 
+if $data02 != 0 then 
+  return -1
+endi
+
+if $data12 != 0 then 
+  return -1
+endi
+
+if $data04 != ready then 
+  return -1
+endi
+
+if $data14 != ready then 
   return -1
 endi
 
@@ -64,27 +74,36 @@ if $data00 != 1 then
   return -1
 endi
 
-if $data01 != 192.168.0.1 then 
+if $data02 != master then 
   return -1
 endi
 
 print =============== create table
 sql create database d1;
 sql create database d2;
-sql create database d3;
-sql create database d4;
-sql create database d5;
 
-sql create table d1.t1 (ts timestamp, i int);
-sql create table d2.t1 (ts timestamp, i int);
-sql create table d3.t1 (ts timestamp, i int);
-sql create table d4.t1 (ts timestamp, i int);
+sql show databases
+if $rows != 2 then 
+  return -1
+endi
 
+sql use d1
+sql show vgroups;
+
+if $rows != 2 then 
+  return -1
+endi
+
+print =============== drop dnode
+sql drop dnode 2;
 sql show dnodes;
-if $data05 != 2 then 
+if $rows != 1 then 
   return -1
 endi
 
-if $data15 != 2 then 
+if $data00 != 1 then 
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT

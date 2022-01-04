@@ -18,22 +18,48 @@
 
 #include "mallocator.h"
 #include "sync.h"
-#include "tlockfree.h"
-#include "wal.h"
 #include "tcoding.h"
+#include "tlist.h"
+#include "tlockfree.h"
+#include "tmacro.h"
+#include "wal.h"
 
 #include "vnode.h"
+
 #include "vnodeBufferPool.h"
 #include "vnodeCfg.h"
 #include "vnodeCommit.h"
 #include "vnodeFS.h"
+#include "vnodeMemAllocator.h"
 #include "vnodeRequest.h"
 #include "vnodeStateMgr.h"
 #include "vnodeSync.h"
+#include "vnodeQuery.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct SVnodeTask {
+  TD_DLIST_NODE(SVnodeTask);
+  void* arg;
+  int (*execute)(void*);
+} SVnodeTask;
+
+typedef struct SVnodeMgr {
+  td_mode_flag_t vnodeInitFlag;
+  td_mode_flag_t vnodeClearFlag;
+  // For commit
+  bool            stop;
+  uint16_t        nthreads;
+  pthread_t*      threads;
+  pthread_mutex_t mutex;
+  pthread_cond_t  hasTask;
+  TD_DLIST(SVnodeTask) queue;
+  // For vnode Mgmt
+} SVnodeMgr;
+
+extern SVnodeMgr vnodeMgr;
 
 struct SVnode {
   char*       path;
@@ -46,7 +72,11 @@ struct SVnode {
   SWal*       pWal;
   SVnodeSync* pSync;
   SVnodeFS*   pFs;
+  tsem_t      canCommit;
+  SQHandle*   pQuery;
 };
+
+int vnodeScheduleTask(SVnodeTask* task);
 
 #ifdef __cplusplus
 }

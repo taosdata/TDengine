@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#include "os.h"
+  
 #define TSDB_LOCALE_LEN   64
 #define TSDB_TIMEZONE_LEN 96
 
@@ -57,11 +59,11 @@ char *  taosGetCmdlineByPID(int pid);
 void    taosSetCoreDump(bool enable);
 
 typedef struct {
-  const char *sysname;
-  const char *nodename;
-  const char *release;
-  const char *version;
-  const char *machine;
+  char sysname[_UTSNAME_MACHINE_LENGTH];
+  char nodename[_UTSNAME_MACHINE_LENGTH];
+  char release[_UTSNAME_MACHINE_LENGTH];
+  char version[_UTSNAME_MACHINE_LENGTH];
+  char machine[_UTSNAME_MACHINE_LENGTH];
 } SysNameInfo;
 
 SysNameInfo taosGetSysNameInfo();

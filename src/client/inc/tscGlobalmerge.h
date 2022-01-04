@@ -22,7 +22,7 @@ extern "C" {
 
 #include "qExtbuffer.h"
 #include "qFill.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tlosertree.h"
 #include "qExecutor.h"
 

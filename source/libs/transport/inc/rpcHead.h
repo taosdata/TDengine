@@ -52,7 +52,7 @@ typedef struct {
   char     user[TSDB_UNI_LEN]; // user ID 
   uint16_t port;      // for UDP only, port may be changed
   char     empty[1];  // reserved
-  uint8_t  msgType;   // message type  
+  uint16_t msgType;   // message type  
   int32_t  msgLen;    // message length including the header iteslf
   uint32_t msgVer;
   int32_t  code;      // code in response message

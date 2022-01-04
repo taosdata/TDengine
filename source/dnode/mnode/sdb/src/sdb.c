@@ -16,6 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "sdbInt.h"
 
+static int32_t sdbCreateDir(SSdb *pSdb);
+
 SSdb *sdbInit(SSdbOpt *pOption) {
   mDebug("start to init sdb in %s", pOption->path);
 
@@ -40,6 +42,11 @@ SSdb *sdbInit(SSdbOpt *pOption) {
     return NULL;
   }
 
+  if (sdbCreateDir(pSdb) != 0) {
+    sdbCleanup(pSdb);
+    return NULL;
+  }
+
   for (ESdbType i = 0; i < SDB_MAX; ++i) {
     taosInitRWLatch(&pSdb->locks[i]);
   }
@@ -52,10 +59,10 @@ SSdb *sdbInit(SSdbOpt *pOption) {
 void sdbCleanup(SSdb *pSdb) {
   mDebug("start to cleanup sdb");
 
-  if (pSdb->curVer != pSdb->lastCommitVer) {
-    mDebug("write sdb file for curVer:% " PRId64 " and lastVer:%" PRId64, pSdb->curVer, pSdb->lastCommitVer);
-    sdbWriteFile(pSdb);
-  }
+  // if (pSdb->curVer != pSdb->lastCommitVer) {
+  mDebug("write sdb file for curVer:% " PRId64 " and lastVer:%" PRId64, pSdb->curVer, pSdb->lastCommitVer);
+  sdbWriteFile(pSdb);
+  // }
 
   if (pSdb->currDir != NULL) {
     tfree(pSdb->currDir);
@@ -127,9 +134,32 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
     return -1;
   }
 
+  pSdb->maxId[sdbType] = 0;
   pSdb->hashObjs[sdbType] = hash;
   taosInitRWLatch(&pSdb->locks[sdbType]);
   mDebug("sdb table:%d is initialized", sdbType);
+
+  return 0;
+}
+
+static int32_t sdbCreateDir(SSdb *pSdb) {
+  if (taosMkDir(pSdb->currDir) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", pSdb->currDir, terrstr());
+    return -1;
+  }
+
+  if (taosMkDir(pSdb->syncDir) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", pSdb->syncDir, terrstr());
+    return -1;
+  }
+
+  if (taosMkDir(pSdb->tmpDir) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to create dir:%s since %s", pSdb->tmpDir, terrstr());
+    return -1;
+  }
 
   return 0;
 }

@@ -1,9 +1,14 @@
-PROJECT(TDengine)
-
-INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/client/inc)
-INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/cJson/inc)
-INCLUDE_DIRECTORIES(inc)
-
-AUX_SOURCE_DIRECTORY(src SRC)
-ADD_EXECUTABLE(tsim ${SRC})
-TARGET_LINK_LIBRARIES(tsim taos_static trpc tutil pthread cJson)
+aux_source_directory(src TSIM_SRC)
+add_executable(tsim ${TSIM_SRC})
+target_link_libraries(
+    tsim
+    PUBLIC taos
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+    PUBLIC cjson
+)
+target_include_directories(
+    tsim
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+)

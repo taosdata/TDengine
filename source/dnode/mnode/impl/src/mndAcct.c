@@ -17,14 +17,15 @@
 #include "mndAcct.h"
 #include "mndShow.h"
 
-#define SDB_ACCT_VER 1
+#define TSDB_ACCT_VER_NUMBER 1
+#define TSDB_ACCT_RESERVE_SIZE 64
 
-static int32_t  mnodeCreateDefaultAcct(SMnode *pMnode);
-static SSdbRaw *mnodeAcctActionEncode(SAcctObj *pAcct);
-static SSdbRow *mnodeAcctActionDecode(SSdbRaw *pRaw);
-static int32_t  mnodeAcctActionInsert(SSdb *pSdb, SAcctObj *pAcct);
-static int32_t  mnodeAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct);
-static int32_t  mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pOldAcct, SAcctObj *pNewAcct);
+static int32_t  mndCreateDefaultAcct(SMnode *pMnode);
+static SSdbRaw *mndAcctActionEncode(SAcctObj *pAcct);
+static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw);
+static int32_t  mndAcctActionInsert(SSdb *pSdb, SAcctObj *pAcct);
+static int32_t  mndAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct);
+static int32_t  mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOldAcct, SAcctObj *pNewAcct);
 static int32_t  mndProcessCreateAcctMsg(SMnodeMsg *pMnodeMsg);
 static int32_t  mndProcessAlterAcctMsg(SMnodeMsg *pMnodeMsg);
 static int32_t  mndProcessDropAcctMsg(SMnodeMsg *pMnodeMsg);
@@ -32,23 +33,23 @@ static int32_t  mndProcessDropAcctMsg(SMnodeMsg *pMnodeMsg);
 int32_t mndInitAcct(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_ACCT,
                      .keyType = SDB_KEY_BINARY,
-                     .deployFp = mnodeCreateDefaultAcct,
-                     .encodeFp = (SdbEncodeFp)mnodeAcctActionEncode,
-                     .decodeFp = (SdbDecodeFp)mnodeAcctActionDecode,
-                     .insertFp = (SdbInsertFp)mnodeAcctActionInsert,
-                     .updateFp = (SdbUpdateFp)mnodeAcctActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mnodeAcctActionDelete};
+                     .deployFp = mndCreateDefaultAcct,
+                     .encodeFp = (SdbEncodeFp)mndAcctActionEncode,
+                     .decodeFp = (SdbDecodeFp)mndAcctActionDecode,
+                     .insertFp = (SdbInsertFp)mndAcctActionInsert,
+                     .updateFp = (SdbUpdateFp)mndAcctActionUpdate,
+                     .deleteFp = (SdbDeleteFp)mndAcctActionDelete};
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_ACCT, mndProcessCreateAcctMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_ACCT, mndProcessAlterAcctMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_ACCT, mndProcessDropAcctMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ACCT, mndProcessCreateAcctMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_ACCT, mndProcessAlterAcctMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_ACCT, mndProcessDropAcctMsg);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
 
 void mndCleanupAcct(SMnode *pMnode) {}
 
-static int32_t mnodeCreateDefaultAcct(SMnode *pMnode) {
+static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
   SAcctObj acctObj = {0};
   tstrncpy(acctObj.acct, TSDB_DEFAULT_USER, TSDB_USER_LEN);
   acctObj.createdTime = taosGetTimestampMs();
@@ -61,7 +62,7 @@ static int32_t mnodeCreateDefaultAcct(SMnode *pMnode) {
                            .maxStorage = INT64_MAX,
                            .accessState = TSDB_VN_ALL_ACCCESS};
 
-  SSdbRaw *pRaw = mnodeAcctActionEncode(&acctObj);
+  SSdbRaw *pRaw = mndAcctActionEncode(&acctObj);
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
@@ -69,8 +70,8 @@ static int32_t mnodeCreateDefaultAcct(SMnode *pMnode) {
   return sdbWrite(pMnode->pSdb, pRaw);
 }
 
-static SSdbRaw *mnodeAcctActionEncode(SAcctObj *pAcct) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_ACCT, SDB_ACCT_VER, sizeof(SAcctObj));
+static SSdbRaw *mndAcctActionEncode(SAcctObj *pAcct) {
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_ACCT, TSDB_ACCT_VER_NUMBER, sizeof(SAcctObj) + TSDB_ACCT_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
@@ -85,16 +86,17 @@ static SSdbRaw *mnodeAcctActionEncode(SAcctObj *pAcct) {
   SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.maxStreams)
   SDB_SET_INT64(pRaw, dataPos, pAcct->cfg.maxStorage)
   SDB_SET_INT32(pRaw, dataPos, pAcct->cfg.accessState)
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_ACCT_RESERVE_SIZE)
   SDB_SET_DATALEN(pRaw, dataPos);
 
   return pRaw;
 }
 
-static SSdbRow *mnodeAcctActionDecode(SSdbRaw *pRaw) {
+static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
-  if (sver != SDB_ACCT_VER) {
+  if (sver != TSDB_ACCT_VER_NUMBER) {
     mError("failed to decode acct since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     return NULL;
@@ -116,30 +118,27 @@ static SSdbRow *mnodeAcctActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, pRow, dataPos, &pAcct->cfg.maxStreams)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pAcct->cfg.maxStorage)
   SDB_GET_INT32(pRaw, pRow, dataPos, &pAcct->cfg.accessState)
+  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_ACCT_RESERVE_SIZE)
 
   return pRow;
 }
 
-static int32_t mnodeAcctActionInsert(SSdb *pSdb, SAcctObj *pAcct) {
+static int32_t mndAcctActionInsert(SSdb *pSdb, SAcctObj *pAcct) {
   mTrace("acct:%s, perform insert action", pAcct->acct);
-  memset(&pAcct->info, 0, sizeof(SAcctInfo));
   return 0;
 }
 
-static int32_t mnodeAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct) {
+static int32_t mndAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct) {
   mTrace("acct:%s, perform delete action", pAcct->acct);
   return 0;
 }
 
-static int32_t mnodeAcctActionUpdate(SSdb *pSdb, SAcctObj *pOldAcct, SAcctObj *pNewAcct) {
+static int32_t mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOldAcct, SAcctObj *pNewAcct) {
   mTrace("acct:%s, perform update action", pOldAcct->acct);
 
-  memcpy(pOldAcct->acct, pNewAcct->acct, TSDB_USER_LEN);
-  pOldAcct->createdTime = pNewAcct->createdTime;
   pOldAcct->updateTime = pNewAcct->updateTime;
-  pOldAcct->acctId = pNewAcct->acctId;
   pOldAcct->status = pNewAcct->status;
-  pOldAcct->cfg = pNewAcct->cfg;
+  memcpy(&pOldAcct->cfg, &pNewAcct->cfg, sizeof(SAcctInfo));
   return 0;
 }
 

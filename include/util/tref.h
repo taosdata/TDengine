@@ -17,6 +17,8 @@
 #ifndef _TD_UTIL_REF_H
 #define _TD_UTIL_REF_H
 
+#include "os.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -27,7 +27,6 @@ typedef struct SMnodeMsg SMnodeMsg;
 typedef void (*SendMsgToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
 typedef void (*SendMsgToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef void (*SendRedirectMsgFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
-typedef int32_t (*PutMsgToMnodeQFp)(SDnode *pDnode, SMnodeMsg *pMsg);
 
 typedef struct SMnodeLoad {
   int64_t numOfDnode;
@@ -57,13 +56,12 @@ typedef struct SMnodeCfg {
 
 typedef struct {
   int32_t           dnodeId;
-  int32_t           clusterId;
+  int64_t           clusterId;
   int8_t            replica;
   int8_t            selfIndex;
   SReplica          replicas[TSDB_MAX_REPLICA];
   SMnodeCfg         cfg;
   SDnode           *pDnode;
-  PutMsgToMnodeQFp  putMsgToApplyMsgFp;
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;
   SendRedirectMsgFp sendRedirectMsgFp;
@@ -149,36 +147,12 @@ void mndCleanupMsg(SMnodeMsg *pMsg);
 void mndSendRsp(SMnodeMsg *pMsg, int32_t code);
 
 /**
- * @brief Process the read request.
+ * @brief Process the read, write, sync request.
  *
  * @param pMsg The request msg.
  * @return int32_t 0 for success, -1 for failure.
  */
-void mndProcessReadMsg(SMnodeMsg *pMsg);
-
-/**
- * @brief Process the write request.
- *
- * @param pMsg The request msg.
- * @return int32_t 0 for success, -1 for failure.
- */
-void mndProcessWriteMsg(SMnodeMsg *pMsg);
-
-/**
- * @brief Process the sync request.
- *
- * @param pMsg The request msg.
- * @return int32_t 0 for success, -1 for failure.
- */
-void mndProcessSyncMsg(SMnodeMsg *pMsg);
-
-/**
- * @brief Process the apply request.
- *
- * @param pMsg The request msg.
- * @return int32_t 0 for success, -1 for failure.
- */
-void mndProcessApplyMsg(SMnodeMsg *pMsg);
+void mndProcessMsg(SMnodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

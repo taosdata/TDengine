@@ -19,7 +19,7 @@
 #include "qExecutor.h"
 #include "queryLog.h"
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tcompare.h"
 #include "tulog.h"
 

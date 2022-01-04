@@ -32,6 +32,7 @@
 #include "ttokendef.h"
 #include "tutil.h"
 #include "tvariant.h"
+#include "parserInt.h"
 }
 
 %syntax_error {
@@ -302,8 +303,8 @@ db_optr(Y) ::= db_optr(Z) cachelast(X).      { Y = Z; Y.cachelast = strtol(X.z, 
 
 %type topic_optr {SCreateDbInfo}
 
-topic_optr(Y) ::= db_optr(Z).                       { Y = Z; Y.dbType = TSDB_DB_TYPE_TOPIC; }
-topic_optr(Y) ::= topic_optr(Z) partitions(X).      { Y = Z; Y.partitions = strtol(X.z, NULL, 10); }
+//topic_optr(Y) ::= db_optr(Z).                       { Y = Z; Y.dbType = TSDB_DB_TYPE_TOPIC; }
+//topic_optr(Y) ::= topic_optr(Z) partitions(X).      { Y = Z; Y.partitions = strtol(X.z, NULL, 10); }
 
 %type alter_db_optr {SCreateDbInfo}
 alter_db_optr(Y) ::= . { setDefaultCreateDbOption(&Y); Y.dbType = TSDB_DB_TYPE_DEFAULT;}
@@ -325,7 +326,7 @@ alter_db_optr(Y) ::= alter_db_optr(Z) cachelast(X).   { Y = Z; Y.cachelast = str
 alter_topic_optr(Y) ::= alter_db_optr(Z).                       { Y = Z; Y.dbType = TSDB_DB_TYPE_TOPIC; }
 alter_topic_optr(Y) ::= alter_topic_optr(Z) partitions(X).      { Y = Z; Y.partitions = strtol(X.z, NULL, 10); }
 
-%type typename {TAOS_FIELD}
+%type typename {SField}
 typename(A) ::= ids(X). { 
   X.type = 0;
   tSetColumnType (&A, &X);
@@ -425,17 +426,23 @@ create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) AS select(S). {
   setCreatedTableName(pInfo, &V, &U);
 }
 
-%type column{TAOS_FIELD}
+%type column{SField}
 %type columnlist{SArray*}
 %destructor columnlist {taosArrayDestroy($$);}
 columnlist(A) ::= columnlist(X) COMMA column(Y).  {taosArrayPush(X, &Y); A = X;  }
-columnlist(A) ::= column(X).                      {A = taosArrayInit(4, sizeof(TAOS_FIELD)); taosArrayPush(A, &X);}
+columnlist(A) ::= column(X).                      {A = taosArrayInit(4, sizeof(SField)); taosArrayPush(A, &X);}
 
 // The information used for a column is the name and type of column:
 // tinyint smallint int bigint float double bool timestamp binary(x) nchar(x)
 column(A) ::= ids(X) typename(Y).          {
   tSetColumnInfo(&A, &X, &Y);
 }
+
+%type tagitemlist1 {SArray*}
+%destructor tagitemlist1 {taosArrayDestroy($$);}
+
+%type tagitem1 {SToken}
+
 
 %type tagitemlist {SArray*}
 %destructor tagitemlist {taosArrayDestroy($$);}

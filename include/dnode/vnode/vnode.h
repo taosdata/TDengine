@@ -36,6 +36,8 @@ typedef struct SVnodeCfg {
   struct {
     /** write buffer size */
     uint64_t wsize;
+    uint64_t ssize;
+    uint64_t lsize;
     /** use heap allocator or arena allocator */
     bool isHeapAllocator;
   };
@@ -66,9 +68,11 @@ typedef struct SVnodeCfg {
 /**
  * @brief Initialize the vnode module
  *
+ * @param nthreads number of commit threads. 0 for no threads and
+ *        a schedule queue should be given (TODO)
  * @return int 0 for success and -1 for failure
  */
-int vnodeInit();
+int vnodeInit(uint16_t nthreads);
 
 /**
  * @brief clear a vnode
@@ -119,6 +123,16 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs);
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
 /**
+ * @brief Process a consume message.
+ *
+ * @param pVnode The vnode object.
+ * @param pMsg The request message
+ * @param pRsp The response message
+ * @return int 0 for success, -1 for failure
+ */
+int vnodeProcessCMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+
+/**
  * @brief Process the sync request
  *
  * @param pVnode
@@ -127,6 +141,36 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
  * @return int
  */
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+
+/**
+ * @brief Process a query message.
+ *
+ * @param pVnode The vnode object.
+ * @param pMsg The request message
+ * @param pRsp The response message
+ * @return int 0 for success, -1 for failure
+ */
+int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+
+/**
+ * @brief Process a fetch message.
+ *
+ * @param pVnode The vnode object.
+ * @param pMsg The request message
+ * @param pRsp The response message
+ * @return int 0 for success, -1 for failure
+ */
+int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+
+/**
+ * @brief Process a consume message.
+ *
+ * @param pVnode The vnode object.
+ * @param pMsg The request message
+ * @param pRsp The response message
+ * @return int 0 for success, -1 for failure
+ */
+int vnodeProcessConsumeReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
 /* ------------------------ SVnodeCfg ------------------------ */
 /**
@@ -166,72 +210,51 @@ typedef struct {
   char info[];
 } SVnodeRsp;
 
-#define VNODE_INIT_CREATE_STB_REQ(NAME, TTL, KEEP, SUID, PSCHEMA, PTAGSCHEMA) \
-  { .ver = 0, .ctReq = META_INIT_STB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA, PTAGSCHEMA) }
+static FORCE_INLINE void vnodeSetCreateStbReq(SVnodeReq *pReq, char *name, uint32_t ttl, uint32_t keep, tb_uid_t suid,
+                                              STSchema *pSchema, STSchema *pTagSchema) {
+  pReq->ver = 0;
 
-#define VNODE_INIT_CREATE_CTB_REQ(NAME, TTL, KEEP, SUID, PTAG) \
-  { .ver = 0, .ctReq = META_INIT_CTB_CFG(NAME, TTL, KEEP, SUID, PTAG) }
+  pReq->ctReq.name = name;
+  pReq->ctReq.ttl = ttl;
+  pReq->ctReq.keep = keep;
+  pReq->ctReq.type = META_SUPER_TABLE;
+  pReq->ctReq.stbCfg.suid = suid;
+  pReq->ctReq.stbCfg.pSchema = pSchema;
+  pReq->ctReq.stbCfg.pTagSchema = pTagSchema;
+}
 
-#define VNODE_INIT_CREATE_NTB_REQ(NAME, TTL, KEEP, SUID, PSCHEMA) \
-  { .ver = 0, .ctReq = META_INIT_NTB_CFG(NAME, TTL, KEEP, SUID, PSCHEMA) }
+static FORCE_INLINE void vnodeSetCreateCtbReq(SVnodeReq *pReq, char *name, uint32_t ttl, uint32_t keep, tb_uid_t suid,
+                                              SKVRow pTag) {
+  pReq->ver = 0;
 
-int   vnodeBuildReq(void **buf, const SVnodeReq *pReq, uint8_t type);
-void *vnodeParseReq(void *buf, SVnodeReq *pReq, uint8_t type);
+  pReq->ctReq.name = name;
+  pReq->ctReq.ttl = ttl;
+  pReq->ctReq.keep = keep;
+  pReq->ctReq.type = META_CHILD_TABLE;
+  pReq->ctReq.ctbCfg.suid = suid;
+  pReq->ctReq.ctbCfg.pTag = pTag;
+}
+
+static FORCE_INLINE void vnodeSetCreateNtbReq(SVnodeReq *pReq, char *name, uint32_t ttl, uint32_t keep,
+                                              STSchema *pSchema) {
+  pReq->ver = 0;
+
+  pReq->ctReq.name = name;
+  pReq->ctReq.ttl = ttl;
+  pReq->ctReq.keep = keep;
+  pReq->ctReq.type = META_NORMAL_TABLE;
+  pReq->ctReq.ntbCfg.pSchema = pSchema;
+}
+
+int   vnodeBuildReq(void **buf, const SVnodeReq *pReq, tmsg_t type);
+void *vnodeParseReq(void *buf, SVnodeReq *pReq, tmsg_t type);
 
 /* ------------------------ FOR COMPILE ------------------------ */
-
-#if 1
-
-#include "taosmsg.h"
-#include "trpc.h"
-
-// typedef struct {
-//   char     db[TSDB_FULL_DB_NAME_LEN];
-//   int32_t  cacheBlockSize;  // MB
-//   int32_t  totalBlocks;
-//   int32_t  daysPerFile;
-//   int32_t  daysToKeep0;
-//   int32_t  daysToKeep1;
-//   int32_t  daysToKeep2;
-//   int32_t  minRowsPerFileBlock;
-//   int32_t  maxRowsPerFileBlock;
-//   int8_t   precision;  // time resolution
-//   int8_t   compression;
-//   int8_t   cacheLastRow;
-//   int8_t   update;
-//   int8_t   quorum;
-//   int8_t   replica;
-//   int8_t   selfIndex;
-//   int8_t   walLevel;
-//   int32_t  fsyncPeriod;  // millisecond
-//   SReplica replicas[TSDB_MAX_REPLICA];
-// } SVnodeCfg;
-
-typedef enum {
-  VN_MSG_TYPE_WRITE = 1,
-  VN_MSG_TYPE_APPLY,
-  VN_MSG_TYPE_SYNC,
-  VN_MSG_TYPE_QUERY,
-  VN_MSG_TYPE_FETCH
-} EVnMsgType;
-
-typedef struct {
-  int32_t curNum;
-  int32_t allocNum;
-  SRpcMsg rpcMsg[];
-} SVnodeMsg;
 
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
 int32_t vnodeCompact(SVnode *pVnode);
 int32_t vnodeSync(SVnode *pVnode);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
-
-SVnodeMsg *vnodeInitMsg(int32_t msgNum);
-int32_t    vnodeAppendMsg(SVnodeMsg *pMsg, SRpcMsg *pRpcMsg);
-void       vnodeCleanupMsg(SVnodeMsg *pMsg);
-void       vnodeProcessMsg(SVnode *pVnode, SVnodeMsg *pMsg, EVnMsgType msgType);
-
-#endif
 
 #ifdef __cplusplus
 }

@@ -228,7 +228,7 @@ static int syncInitRpcServer(SSyncManager* syncManager, const SSyncCluster* pSyn
 }
 
 static int syncInitRpcClient(SSyncManager* syncManager) {
-  char secret[TSDB_KEY_LEN] = "secret";
+  char secret[TSDB_PASSWORD_LEN] = "secret";
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.label        = "sync-client";

@@ -20,7 +20,7 @@ extern "C" {
 #endif
 
 #include "os.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 
 #include "tarray.h"
 #include "tutil.h"

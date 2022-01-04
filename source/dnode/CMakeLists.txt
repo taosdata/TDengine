@@ -1,4 +1,6 @@
 add_subdirectory(mnode)
 add_subdirectory(vnode)
 add_subdirectory(qnode)
+add_subdirectory(snode)
+add_subdirectory(bnode)
 add_subdirectory(mgmt)

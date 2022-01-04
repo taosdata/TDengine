@@ -27,6 +27,7 @@
 #include "mndStb.h"
 #include "mndSync.h"
 #include "mndTelem.h"
+#include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -49,6 +50,20 @@ void mndSendRedirectMsg(SMnode *pMnode, SRpcMsg *pMsg) {
   }
 }
 
+static void mndTransReExecute(void *param, void *tmrId) {
+  SMnode *pMnode = param;
+  if (mndIsMaster(pMnode)) {
+    STransMsg *pMsg = rpcMallocCont(sizeof(STransMsg));
+    SEpSet     epSet = {.inUse = 0, .numOfEps = 1};
+    epSet.port[0] = pMnode->replicas[pMnode->selfIndex].port;
+    memcpy(epSet.fqdn[0], pMnode->replicas[pMnode->selfIndex].fqdn, TSDB_FQDN_LEN);
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS, .pCont = pMsg, .contLen = sizeof(STransMsg)};
+    mndSendMsgToDnode(pMnode, &epSet, &rpcMsg);
+  }
+
+  taosTmrReset(mndTransReExecute, 3000, pMnode, pMnode->timer, &pMnode->transTimer);
+}
+
 static int32_t mndInitTimer(SMnode *pMnode) {
   if (pMnode->timer == NULL) {
     pMnode->timer = taosTmrInit(5000, 200, 3600000, "MND");
@@ -59,17 +74,24 @@ static int32_t mndInitTimer(SMnode *pMnode) {
     return -1;
   }
 
+  if (taosTmrReset(mndTransReExecute, 1000, pMnode, pMnode->timer, &pMnode->transTimer)) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
   return 0;
 }
 
 static void mndCleanupTimer(SMnode *pMnode) {
   if (pMnode->timer != NULL) {
+    taosTmrStop(pMnode->transTimer);
+    pMnode->transTimer = NULL;
     taosTmrCleanUp(pMnode->timer);
     pMnode->timer = NULL;
   }
 }
 
-static int32_t mnodeCreateDir(SMnode *pMnode, const char *path) {
+static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
   pMnode->path = strdup(path);
   if (pMnode->path == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -132,6 +154,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-topic", mndInitTopic, mndCleanupTopic) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc) != 0) return -1;
   if (pMnode->clusterId <= 0) {
     if (mndAllocStep(pMnode, "mnode-sdb-deploy", mndDeploySdb, NULL) != 0) return -1;
@@ -178,8 +201,10 @@ static int32_t mndExecSteps(SMnode *pMnode) {
     // (*pMnode->reportProgress)(pStep->name, "start initialize");
 
     if ((*pStep->initFp)(pMnode) != 0) {
+      int32_t code = terrno;
       mError("step:%s exec failed since %s, start to cleanup", pStep->name, terrstr());
       mndCleanupSteps(pMnode, pos);
+      terrno = code;
       return -1;
     } else {
       mDebug("step:%s is initialized", pStep->name);
@@ -198,7 +223,6 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->selfIndex = pOption->selfIndex;
   memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
   pMnode->pDnode = pOption->pDnode;
-  pMnode->putMsgToApplyMsgFp = pOption->putMsgToApplyMsgFp;
   pMnode->sendMsgToDnodeFp = pOption->sendMsgToDnodeFp;
   pMnode->sendMsgToMnodeFp = pOption->sendMsgToMnodeFp;
   pMnode->sendRedirectMsgFp = pOption->sendRedirectMsgFp;
@@ -213,8 +237,7 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->cfg.buildinfo = strdup(pOption->cfg.buildinfo);
 
   if (pMnode->sendMsgToDnodeFp == NULL || pMnode->sendMsgToMnodeFp == NULL || pMnode->sendRedirectMsgFp == NULL ||
-      pMnode->putMsgToApplyMsgFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0 ||
-      pMnode->cfg.statusInterval < 1) {
+      pMnode->dnodeId < 0 || pMnode->clusterId < 0 || pMnode->cfg.statusInterval < 1) {
     terrno = TSDB_CODE_MND_INVALID_OPTIONS;
     return -1;
   }
@@ -237,6 +260,9 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
+  char timestr[24] = "1970-01-01 00:00:00.00";
+  (void)taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+
   pMnode->pSteps = taosArrayInit(24, sizeof(SMnodeStep));
   if (pMnode->pSteps == NULL) {
     free(pMnode);
@@ -245,7 +271,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  int32_t code = mnodeCreateDir(pMnode, path);
+  int32_t code = mndCreateDir(pMnode, path);
   if (code != 0) {
     code = terrno;
     mError("failed to open mnode since %s", terrstr());
@@ -336,8 +362,8 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   }
 
   SRpcConnInfo connInfo = {0};
-  if (rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
-    mndCleanupMsg(pMsg);
+  if ((pRpcMsg->msgType & 1U) && rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
+    taosFreeQitem(pMsg);
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
     mError("RPC:%p, app:%p failed to create msg since %s", pRpcMsg->handle, pRpcMsg->ahandle, terrstr());
     return NULL;
@@ -354,6 +380,8 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
 
 void mndCleanupMsg(SMnodeMsg *pMsg) {
   mTrace("msg:%p, app:%p is destroyed, RPC:%p", pMsg, pMsg->rpcMsg.ahandle, pMsg->rpcMsg.handle);
+  rpcFreeCont(pMsg->rpcMsg.pCont);
+  pMsg->rpcMsg.pCont = NULL;
   taosFreeQitem(pMsg);
 }
 
@@ -362,14 +390,14 @@ void mndSendRsp(SMnodeMsg *pMsg, int32_t code) {
   rpcSendResponse(&rpcRsp);
 }
 
-static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
+void mndProcessMsg(SMnodeMsg *pMsg) {
   SMnode *pMnode = pMsg->pMnode;
   int32_t code = 0;
-  int32_t msgType = pMsg->rpcMsg.msgType;
+  tmsg_t  msgType = pMsg->rpcMsg.msgType;
   void   *ahandle = pMsg->rpcMsg.ahandle;
-  bool    isReq = (msgType % 2 == 1);
+  bool    isReq = (msgType & 1U);
 
-  mTrace("msg:%p, app:%p type:%s will be processed", pMsg, ahandle, taosMsg[msgType]);
+  mTrace("msg:%p, app:%p type:%s will be processed", pMsg, ahandle, TMSG_INFO(msgType));
 
   if (isReq && !mndIsMaster(pMnode)) {
     code = TSDB_CODE_APP_NOT_READY;
@@ -383,10 +411,10 @@ static void mndProcessRpcMsg(SMnodeMsg *pMsg) {
     goto PROCESS_RPC_END;
   }
 
-  MndMsgFp fp = pMnode->msgFp[msgType];
+  MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(msgType)];
   if (fp == NULL) {
     code = TSDB_CODE_MSG_NOT_PROCESSED;
-    mError("msg:%p, app:%p failed to process since not handle", pMsg, ahandle);
+    mError("msg:%p, app:%p failed to process since no handle", pMsg, ahandle);
     goto PROCESS_RPC_END;
   }
 
@@ -416,19 +444,12 @@ PROCESS_RPC_END:
   }
 }
 
-void mndSetMsgHandle(SMnode *pMnode, int32_t msgType, MndMsgFp fp) {
-  if (msgType >= 0 && msgType < TSDB_MSG_TYPE_MAX) {
-    pMnode->msgFp[msgType] = fp;
+void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp) {
+  tmsg_t type = TMSG_INDEX(msgType);
+  if (type >= 0 && type < TDMT_MAX) {
+    pMnode->msgFp[type] = fp;
   }
 }
-
-void mndProcessReadMsg(SMnodeMsg *pMsg) { mndProcessRpcMsg(pMsg); }
-
-void mndProcessWriteMsg(SMnodeMsg *pMsg) { mndProcessRpcMsg(pMsg); }
-
-void mndProcessSyncMsg(SMnodeMsg *pMsg) { mndProcessRpcMsg(pMsg); }
-
-void mndProcessApplyMsg(SMnodeMsg *pMsg) {}
 
 uint64_t mndGenerateUid(char *name, int32_t len) {
   int64_t  us = taosGetTimestampUs();

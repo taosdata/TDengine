@@ -20,31 +20,68 @@
 extern "C" {
 #endif
 
-struct SQueryJob;
+#include "planner.h"
+#include "catalog.h"
+
+typedef struct SSchedulerCfg {
+  int32_t clusterType;
+  int32_t maxJobNum;
+} SSchedulerCfg;
+
+typedef struct SQueryProfileSummary {
+  int64_t startTs;      // Object created and added into the message queue
+  int64_t endTs;        // the timestamp when the task is completed
+  int64_t cputime;      // total cpu cost, not execute elapsed time
+
+  int64_t loadRemoteDataDuration;       // remote io time
+  int64_t loadNativeDataDuration;       // native disk io time
+
+  uint64_t loadNativeData; // blocks + SMA + header files
+  uint64_t loadRemoteData; // remote data acquired by exchange operator.
+
+  uint64_t waitDuration; // the time to waiting to be scheduled in queue does matter, so we need to record it
+  int64_t  addQTs;       // the time to be added into the message queue, used to calculate the waiting duration in queue.
+
+  uint64_t totalRows;
+  uint64_t loadRows;
+  uint32_t totalBlocks;
+  uint32_t loadBlocks;
+  uint32_t loadBlockAgg;
+  uint32_t skipBlocks;
+  uint64_t resultSize;   // generated result size in Kb.
+} SQueryProfileSummary;
+
+int32_t schedulerInit(SSchedulerCfg *cfg);
 
 /**
  * Process the query job, generated according to the query physical plan.
  * This is a synchronized API, and is also thread-safety.
- * @param pJob
+ * @param qnodeList  Qnode address list, element is SEpAddr
  * @return
  */
-int32_t qProcessQueryJob(struct SQueryJob* pJob);
+int32_t scheduleExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob, uint64_t *numOfRows);
 
 /**
- * The SSqlObj should not be here????
- * @param pSql
- * @param pVgroupId
- * @param pRetVgroupId
+ * Process the query job, generated according to the query physical plan.
+ * This is a asynchronized API, and is also thread-safety.
+ * @param qnodeList  Qnode address list, element is SEpAddr
  * @return
  */
-//SArray* qGetInvolvedVgroupIdList(struct SSqlObj* pSql, SArray* pVgroupId, SArray* pRetVgroupId);
+int32_t scheduleAsyncExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob);
+
+int32_t scheduleFetchRows(void *pJob, void **data);
+
 
 /**
  * Cancel query job
  * @param pJob
  * @return
  */
-int32_t qKillQueryJob(struct SQueryJob* pJob);
+int32_t scheduleCancelJob(void *pJob);
+
+void scheduleFreeJob(void *pJob);
+
+void schedulerDestroy(void);
 
 #ifdef __cplusplus
 }

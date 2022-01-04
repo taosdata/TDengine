@@ -34,7 +34,7 @@ extern "C" {
 struct SMeta {
   char*                 path;
   SMetaCfg              options;
-  SMetaDB*       pDB;
+  SMetaDB*              pDB;
   SMetaIdx*             pIdx;
   SMetaCache*           pCache;
   STbUidGenerator       uidGnrt;

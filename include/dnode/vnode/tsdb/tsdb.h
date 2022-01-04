@@ -16,33 +16,33 @@
 #ifndef _TD_TSDB_H_
 #define _TD_TSDB_H_
 
+#include "mallocator.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // TYPES EXPOSED
-typedef struct STsdb             STsdb;
-typedef struct STsdbCfg          STsdbCfg;
-typedef struct STsdbMemAllocator STsdbMemAllocator;
+typedef struct STsdb STsdb;
 
-// STsdb
-STsdb *tsdbOpen(const char *path, const STsdbCfg *);
-void   tsdbClose(STsdb *);
-void   tsdbRemove(const char *path);
-int    tsdbInsertData(STsdb *pTsdb, void *pData, int len);
-
-// STsdbCfg
-int  tsdbOptionsInit(STsdbCfg *);
-void tsdbOptionsClear(STsdbCfg *);
-
-/* ------------------------ STRUCT DEFINITIONS ------------------------ */
-struct STsdbCfg {
+typedef struct STsdbCfg {
   uint64_t lruCacheSize;
   uint32_t keep0;
   uint32_t keep1;
   uint32_t keep2;
-  /* TODO */
-};
+} STsdbCfg;
+
+// STsdb
+STsdb *tsdbOpen(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF);
+void   tsdbClose(STsdb *);
+void   tsdbRemove(const char *path);
+int    tsdbInsertData(STsdb *pTsdb, SSubmitMsg *pMsg);
+int    tsdbPrepareCommit(STsdb *pTsdb);
+int    tsdbCommit(STsdb *pTsdb);
+
+// STsdbCfg
+int  tsdbOptionsInit(STsdbCfg *);
+void tsdbOptionsClear(STsdbCfg *);
 
 #ifdef __cplusplus
 }

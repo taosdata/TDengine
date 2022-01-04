@@ -16,6 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
 
+#define SHOW_STEP_SIZE 100
+
 static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowMsg *pMsg);
 static void      mndFreeShowObj(SShowObj *pShow);
 static SShowObj *mndAcquireShowObj(SMnode *pMnode, int32_t showId);
@@ -34,8 +36,8 @@ int32_t mndInitShow(SMnode *pMnode) {
     return -1;
   }
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_SHOW, mndProcessShowMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_SHOW_RETRIEVE, mndProcessRetrieveMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_SHOW, mndProcessShowMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_SHOW_RETRIEVE, mndProcessRetrieveMsg);
   return 0;
 }
 
@@ -60,7 +62,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowMsg *pMsg) {
     pShow->pMnode = pMnode;
     pShow->type = pMsg->type;
     pShow->payloadLen = pMsg->payloadLen;
-    memcpy(pShow->db, pMsg->db, TSDB_FULL_DB_NAME_LEN);
+    memcpy(pShow->db, pMsg->db, TSDB_DB_FNAME_LEN);
     memcpy(pShow->payload, pMsg->payload, pMsg->payloadLen);
   } else {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -136,7 +138,7 @@ static int32_t mndProcessShowMsg(SMnodeMsg *pMnodeMsg) {
   ShowMetaFp metaFp = pMgmt->metaFps[type];
   if (metaFp == NULL) {
     terrno = TSDB_CODE_MND_INVALID_MSG_TYPE;
-    mError("failed to process show-meta msg:%s since no message handle", mndShowStr(type));
+    mError("failed to process show-meta msg:%s since %s", mndShowStr(type), terrstr());
     return -1;
   }
 
@@ -211,7 +213,7 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
   }
 
   /* return no more than 100 tables in one round trip */
-  if (rowsToRead > 100) rowsToRead = 100;
+  if (rowsToRead > SHOW_STEP_SIZE) rowsToRead = SHOW_STEP_SIZE;
 
   /*
    * the actual number of table may be larger than the value of pShow->numOfRows, if a query is
@@ -220,7 +222,7 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
   if (rowsToRead < 0) rowsToRead = 0;
   size = pShow->rowSize * rowsToRead;
 
-  size += 100;
+  size += SHOW_STEP_SIZE;
   SRetrieveTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
     mndReleaseShowObj(pShow, false);
@@ -289,11 +291,13 @@ char *mndShowStr(int32_t showType) {
     case TSDB_MGMT_TABLE_VNODES:
       return "show vnodes";
     case TSDB_MGMT_TABLE_CLUSTER:
-      return "show clusters";
+      return "show cluster";
     case TSDB_MGMT_TABLE_STREAMTABLES:
       return "show streamtables";
     case TSDB_MGMT_TABLE_TP:
       return "show topics";
+    case TSDB_MGMT_TABLE_FUNCTION:
+      return "show functions";
     default:
       return "undefined";
   }
@@ -306,7 +310,7 @@ static bool mndCheckRetrieveFinished(SShowObj *pShow) {
   return false;
 }
 
-void mnodeVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {
+void mndVacuumResult(char *data, int32_t numOfCols, int32_t rows, int32_t capacity, SShowObj *pShow) {
   if (rows < capacity) {
     for (int32_t i = 0; i < numOfCols; ++i) {
       memmove(data + pShow->offset[i] * rows, data + pShow->offset[i] * capacity, pShow->bytes[i] * rows);

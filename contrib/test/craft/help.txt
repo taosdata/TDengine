@@ -1,0 +1,15 @@
+
+
+make craft:
+
+sudo apt-get install libuv1-dev liblz4-dev
+autoreconf -i
+./configure --enable-example
+make
+
+
+start:
+
+./simulate_vnode 10000 10001 10002
+./simulate_vnode 10001 10000 10002
+./simulate_vnode 10002 10000 10001

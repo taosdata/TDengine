@@ -14,7 +14,7 @@
  */
 #include "os.h"
 #include "qFill.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tglobal.h"
 
 #include "exception.h"
@@ -5142,22 +5142,22 @@ SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv*
   assert(repeatTime > 0);
 
   STableScanInfo* pInfo = calloc(1, sizeof(STableScanInfo));
-  pInfo->pQueryHandle = pTsdbQueryHandle;
-  pInfo->times        = repeatTime;
-  pInfo->reverseTimes = 0;
-  pInfo->order        = pRuntimeEnv->pQueryAttr->order.order;
-  pInfo->current      = 0;
+  pInfo->pQueryHandle   = pTsdbQueryHandle;
+  pInfo->times          = repeatTime;
+  pInfo->reverseTimes   = 0;
+  pInfo->order          = pRuntimeEnv->pQueryAttr->order.order;
+  pInfo->current        = 0;
 //  pInfo->prevGroupId  = -1;
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name         = "TableScanOperator";
-  pOperator->operatorType = OP_TableScan;
-  pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
-  pOperator->info         = pInfo;
-  pOperator->numOfOutput  = pRuntimeEnv->pQueryAttr->numOfCols;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->exec         = doTableScan;
+  pOperator->name          = "TableScanOperator";
+  pOperator->operatorType  = OP_TableScan;
+  pOperator->blockingOptr  = false;
+  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->info          = pInfo;
+  pOperator->numOfOutput   = pRuntimeEnv->pQueryAttr->numOfCols;
+  pOperator->pRuntimeEnv   = pRuntimeEnv;
+  pOperator->exec          = doTableScan;
 
   return pOperator;
 }
@@ -5174,14 +5174,14 @@ SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeE
   pRuntimeEnv->enableGroupData = true;
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name         = "TableSeqScanOperator";
-  pOperator->operatorType = OP_TableSeqScan;
-  pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
-  pOperator->info         = pInfo;
-  pOperator->numOfOutput  = pRuntimeEnv->pQueryAttr->numOfCols;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->exec         = doTableScanImpl;
+  pOperator->name          = "TableSeqScanOperator";
+  pOperator->operatorType  = OP_TableSeqScan;
+  pOperator->blockingOptr  = false;
+  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->info          = pInfo;
+  pOperator->numOfOutput   = pRuntimeEnv->pQueryAttr->numOfCols;
+  pOperator->pRuntimeEnv   = pRuntimeEnv;
+  pOperator->exec          = doTableScanImpl;
 
   return pOperator;
 }
@@ -5199,14 +5199,14 @@ SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbQueryHandle, SQueryRu
   taosArrayPush(pInfo->block.pDataBlock, &infoData);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name         = "TableBlockInfoScanOperator";
-  pOperator->operatorType = OP_TableBlockInfoScan;
-  pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
-  pOperator->info         = pInfo;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->numOfOutput  = pRuntimeEnv->pQueryAttr->numOfCols;
-  pOperator->exec         = doBlockInfoScan;
+  pOperator->name          = "TableBlockInfoScanOperator";
+  pOperator->operatorType  = OP_TableBlockInfoScan;
+  pOperator->blockingOptr  = false;
+  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->info          = pInfo;
+  pOperator->pRuntimeEnv   = pRuntimeEnv;
+  pOperator->numOfOutput   = pRuntimeEnv->pQueryAttr->numOfCols;
+  pOperator->exec          = doBlockInfoScan;
 
   return pOperator;
 }
@@ -5271,11 +5271,11 @@ SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntime
   assert(repeatTime > 0);
 
   STableScanInfo* pInfo = calloc(1, sizeof(STableScanInfo));
-  pInfo->pQueryHandle = pTsdbQueryHandle;
-  pInfo->times        = repeatTime;
-  pInfo->reverseTimes = reverseTime;
-  pInfo->current      = 0;
-  pInfo->order        = pRuntimeEnv->pQueryAttr->order.order;
+  pInfo->pQueryHandle   = pTsdbQueryHandle;
+  pInfo->times          = repeatTime;
+  pInfo->reverseTimes   = reverseTime;
+  pInfo->current        = 0;
+  pInfo->order          = pRuntimeEnv->pQueryAttr->order.order;
 
   SOperatorInfo* pOptr = calloc(1, sizeof(SOperatorInfo));
   pOptr->name          = "DataBlocksOptimizedScanOperator";
@@ -5429,14 +5429,14 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
   setDefaultOutputBuf(pRuntimeEnv, &pInfo->binfo, pInfo->seed, MERGE_STAGE);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name         = "GlobalAggregate";
-  pOperator->operatorType = OP_GlobalAggregate;
-  pOperator->blockingOptr = true;
-  pOperator->status       = OP_IN_EXECUTING;
-  pOperator->info         = pInfo;
-  pOperator->pExpr        = pExpr;
-  pOperator->numOfOutput  = numOfOutput;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
+  pOperator->name          = "GlobalAggregate";
+  pOperator->operatorType  = OP_GlobalAggregate;
+  pOperator->blockingOptr  = true;
+  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->info          = pInfo;
+  pOperator->pExpr         = pExpr;
+  pOperator->numOfOutput   = numOfOutput;
+  pOperator->pRuntimeEnv   = pRuntimeEnv;
 
   pOperator->exec         = doGlobalAggregate;
   pOperator->cleanup      = destroyGlobalAggOperatorInfo;
@@ -5473,16 +5473,16 @@ SOperatorInfo *createMultiwaySortOperatorInfo(SQueryRuntimeEnv *pRuntimeEnv, SEx
   }
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name         = "MultiwaySortOperator";
-  pOperator->operatorType = OP_MultiwayMergeSort;
-  pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
-  pOperator->info         = pInfo;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->numOfOutput  = numOfOutput;
-  pOperator->pExpr        = pExpr;
-  pOperator->exec         = doMultiwayMergeSort;
-  pOperator->cleanup      = destroyGlobalAggOperatorInfo;
+  pOperator->name          = "MultiwaySortOperator";
+  pOperator->operatorType  = OP_MultiwayMergeSort;
+  pOperator->blockingOptr  = false;
+  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->info          = pInfo;
+  pOperator->pRuntimeEnv   = pRuntimeEnv;
+  pOperator->numOfOutput   = numOfOutput;
+  pOperator->pExpr         = pExpr;
+  pOperator->exec          = doMultiwayMergeSort;
+  pOperator->cleanup       = destroyGlobalAggOperatorInfo;
   return pOperator;
 }
 
@@ -6543,14 +6543,14 @@ SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
   setDefaultOutputBuf(pRuntimeEnv, &pInfo->binfo, pInfo->seed, MASTER_SCAN);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name         = "TableAggregate";
-  pOperator->operatorType = OP_Aggregate;
-  pOperator->blockingOptr = true;
-  pOperator->status       = OP_IN_EXECUTING;
-  pOperator->info         = pInfo;
-  pOperator->pExpr        = pExpr;
-  pOperator->numOfOutput  = numOfOutput;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
+  pOperator->name          = "TableAggregate";
+  pOperator->operatorType  = OP_Aggregate;
+  pOperator->blockingOptr  = true;
+  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->info          = pInfo;
+  pOperator->pExpr         = pExpr;
+  pOperator->numOfOutput   = numOfOutput;
+  pOperator->pRuntimeEnv   = pRuntimeEnv;
 
   pOperator->exec         = doAggregate;
   pOperator->cleanup      = destroyAggOperatorInfo;
@@ -6638,14 +6638,14 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SO
   initResultRowInfo(&pInfo->binfo.resultRowInfo, (int32_t)tableGroup, TSDB_DATA_TYPE_INT);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name         = "MultiTableAggregate";
-  pOperator->operatorType = OP_MultiTableAggregate;
-  pOperator->blockingOptr = true;
-  pOperator->status       = OP_IN_EXECUTING;
-  pOperator->info         = pInfo;
-  pOperator->pExpr        = pExpr;
-  pOperator->numOfOutput  = numOfOutput;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
+  pOperator->name          = "MultiTableAggregate";
+  pOperator->operatorType  = OP_MultiTableAggregate;
+  pOperator->blockingOptr  = true;
+  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->info          = pInfo;
+  pOperator->pExpr         = pExpr;
+  pOperator->numOfOutput   = numOfOutput;
+  pOperator->pRuntimeEnv   = pRuntimeEnv;
 
   pOperator->exec         = doSTableAggregate;
   pOperator->cleanup      = destroyAggOperatorInfo;
@@ -6668,14 +6668,14 @@ SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
   setDefaultOutputBuf(pRuntimeEnv, pBInfo, pInfo->seed, MASTER_SCAN);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name         = "ProjectOperator";
-  pOperator->operatorType = OP_Project;
-  pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
-  pOperator->info         = pInfo;
-  pOperator->pExpr        = pExpr;
-  pOperator->numOfOutput  = numOfOutput;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
+  pOperator->name          = "ProjectOperator";
+  pOperator->operatorType  = OP_Project;
+  pOperator->blockingOptr  = false;
+  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->info          = pInfo;
+  pOperator->pExpr         = pExpr;
+  pOperator->numOfOutput   = numOfOutput;
+  pOperator->pRuntimeEnv   = pRuntimeEnv;
 
   pOperator->exec         = doProjectOperation;
   pOperator->cleanup      = destroyProjectOperatorInfo;
@@ -6920,16 +6920,16 @@ SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name         = "GroupbyAggOperator";
-  pOperator->blockingOptr = true;
-  pOperator->status       = OP_IN_EXECUTING;
-  pOperator->operatorType = OP_Groupby;
-  pOperator->pExpr        = pExpr;
-  pOperator->numOfOutput  = numOfOutput;
-  pOperator->info         = pInfo;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->exec         = hashGroupbyAggregate;
-  pOperator->cleanup      = destroyGroupbyOperatorInfo;
+  pOperator->name          = "GroupbyAggOperator";
+  pOperator->blockingOptr  = true;
+  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->operatorType  = OP_Groupby;
+  pOperator->pExpr         = pExpr;
+  pOperator->numOfOutput   = numOfOutput;
+  pOperator->info          = pInfo;
+  pOperator->pRuntimeEnv   = pRuntimeEnv;
+  pOperator->exec          = hashGroupbyAggregate;
+  pOperator->cleanup       = destroyGroupbyOperatorInfo;
 
   appendUpstream(pOperator, upstream);
   return pOperator;
@@ -7163,16 +7163,16 @@ SOperatorInfo* createTagScanOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInf
   pInfo->curPos = 0;
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name         = "SeqTableTagScan";
-  pOperator->operatorType = OP_TagScan;
-  pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
-  pOperator->info         = pInfo;
-  pOperator->exec         = doTagScan;
-  pOperator->pExpr        = pExpr;
-  pOperator->numOfOutput  = numOfOutput;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->cleanup      = destroyTagScanOperatorInfo;
+  pOperator->name          = "SeqTableTagScan";
+  pOperator->operatorType  = OP_TagScan;
+  pOperator->blockingOptr  = false;
+  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->info          = pInfo;
+  pOperator->exec          = doTagScan;
+  pOperator->pExpr         = pExpr;
+  pOperator->numOfOutput   = numOfOutput;
+  pOperator->pRuntimeEnv   = pRuntimeEnv;
+  pOperator->cleanup       = destroyTagScanOperatorInfo;
 
   return pOperator;
 }
@@ -7302,17 +7302,17 @@ SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperat
   
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name         = "DistinctOperator";
-  pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
-  pOperator->operatorType = OP_Distinct;
-  pOperator->pExpr        = pExpr;
-  pOperator->numOfOutput  = numOfOutput;
-  pOperator->info         = pInfo;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->exec         = hashDistinct;
-  pOperator->pExpr        = pExpr; 
-  pOperator->cleanup      = destroyDistinctOperatorInfo;
+  pOperator->name          = "DistinctOperator";
+  pOperator->blockingOptr  = false;
+  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->operatorType  = OP_Distinct;
+  pOperator->pExpr         = pExpr;
+  pOperator->numOfOutput   = numOfOutput;
+  pOperator->info          = pInfo;
+  pOperator->pRuntimeEnv   = pRuntimeEnv;
+  pOperator->exec          = hashDistinct;
+  pOperator->pExpr         = pExpr;
+  pOperator->cleanup       = destroyDistinctOperatorInfo;
 
   appendUpstream(pOperator, upstream);
   return pOperator;
@@ -7587,20 +7587,20 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
   for (int32_t i = 0; i < pQueryMsg->numOfOutput; ++i) {
     param->pExpr[i] = pExprMsg;
 
-    pExprMsg->colInfo.colIndex = htons(pExprMsg->colInfo.colIndex);
-    pExprMsg->colInfo.colId = htons(pExprMsg->colInfo.colId);
-    pExprMsg->colInfo.flag  = htons(pExprMsg->colInfo.flag);
-    pExprMsg->colBytes      = htons(pExprMsg->colBytes);
-    pExprMsg->colType       = htons(pExprMsg->colType);
+    pExprMsg->colInfo.colIndex   = htons(pExprMsg->colInfo.colIndex);
+    pExprMsg->colInfo.colId      = htons(pExprMsg->colInfo.colId);
+    pExprMsg->colInfo.flag       = htons(pExprMsg->colInfo.flag);
+    pExprMsg->colBytes           = htons(pExprMsg->colBytes);
+    pExprMsg->colType            = htons(pExprMsg->colType);
 
-    pExprMsg->resType       = htons(pExprMsg->resType);
-    pExprMsg->resBytes      = htons(pExprMsg->resBytes);
-    pExprMsg->interBytes    = htonl(pExprMsg->interBytes);
+    pExprMsg->resType            = htons(pExprMsg->resType);
+    pExprMsg->resBytes           = htons(pExprMsg->resBytes);
+    pExprMsg->interBytes         = htonl(pExprMsg->interBytes);
 
-    pExprMsg->functionId    = htons(pExprMsg->functionId);
-    pExprMsg->numOfParams   = htons(pExprMsg->numOfParams);
-    pExprMsg->resColId      = htons(pExprMsg->resColId);
-    pExprMsg->flist.numOfFilters  = htons(pExprMsg->flist.numOfFilters);
+    pExprMsg->functionId         = htons(pExprMsg->functionId);
+    pExprMsg->numOfParams        = htons(pExprMsg->numOfParams);
+    pExprMsg->resColId           = htons(pExprMsg->resColId);
+    pExprMsg->flist.numOfFilters = htons(pExprMsg->flist.numOfFilters);
     pMsg += sizeof(SSqlExpr);
 
     for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
@@ -7639,15 +7639,15 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
       param->pSecExpr[i] = pExprMsg;
 
       pExprMsg->colInfo.colIndex = htons(pExprMsg->colInfo.colIndex);
-      pExprMsg->colInfo.colId = htons(pExprMsg->colInfo.colId);
-      pExprMsg->colInfo.flag  = htons(pExprMsg->colInfo.flag);
-      pExprMsg->resType       = htons(pExprMsg->resType);
-      pExprMsg->resBytes      = htons(pExprMsg->resBytes);
-      pExprMsg->colBytes      = htons(pExprMsg->colBytes);
-      pExprMsg->colType       = htons(pExprMsg->colType);
+      pExprMsg->colInfo.colId    = htons(pExprMsg->colInfo.colId);
+      pExprMsg->colInfo.flag     = htons(pExprMsg->colInfo.flag);
+      pExprMsg->resType          = htons(pExprMsg->resType);
+      pExprMsg->resBytes         = htons(pExprMsg->resBytes);
+      pExprMsg->colBytes         = htons(pExprMsg->colBytes);
+      pExprMsg->colType          = htons(pExprMsg->colType);
 
-      pExprMsg->functionId = htons(pExprMsg->functionId);
-      pExprMsg->numOfParams = htons(pExprMsg->numOfParams);
+      pExprMsg->functionId       = htons(pExprMsg->functionId);
+      pExprMsg->numOfParams      = htons(pExprMsg->numOfParams);
 
       pMsg += sizeof(SSqlExpr);
 
@@ -8422,40 +8422,40 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   SQueryAttr* pQueryAttr = &pQInfo->query;
   pQInfo->runtimeEnv.pQueryAttr = pQueryAttr;
 
-  pQueryAttr->tableGroupInfo  = *pTableGroupInfo;
-  pQueryAttr->numOfCols       = numOfCols;
-  pQueryAttr->numOfOutput     = numOfOutput;
-  pQueryAttr->limit.limit     = pQueryMsg->limit;
-  pQueryAttr->limit.offset    = pQueryMsg->offset;
-  pQueryAttr->order.order     = pQueryMsg->order;
-  pQueryAttr->order.orderColId = pQueryMsg->orderColId;
-  pQueryAttr->pExpr1          = pExprs;
-  pQueryAttr->pExpr2          = pSecExprs;
-  pQueryAttr->numOfExpr2      = pQueryMsg->secondStageOutput;
-  pQueryAttr->pGroupbyExpr    = pGroupbyExpr;
+  pQueryAttr->tableGroupInfo      = *pTableGroupInfo;
+  pQueryAttr->numOfCols           = numOfCols;
+  pQueryAttr->numOfOutput         = numOfOutput;
+  pQueryAttr->limit.limit         = pQueryMsg->limit;
+  pQueryAttr->limit.offset        = pQueryMsg->offset;
+  pQueryAttr->order.order         = pQueryMsg->order;
+  pQueryAttr->order.orderColId    = pQueryMsg->orderColId;
+  pQueryAttr->pExpr1              = pExprs;
+  pQueryAttr->pExpr2              = pSecExprs;
+  pQueryAttr->numOfExpr2          = pQueryMsg->secondStageOutput;
+  pQueryAttr->pGroupbyExpr        = pGroupbyExpr;
   memcpy(&pQueryAttr->interval, &pQueryMsg->interval, sizeof(pQueryAttr->interval));
-  pQueryAttr->fillType        = pQueryMsg->fillType;
-  pQueryAttr->numOfTags       = pQueryMsg->numOfTags;
-  pQueryAttr->tagColList      = pTagCols;
+  pQueryAttr->fillType            = pQueryMsg->fillType;
+  pQueryAttr->numOfTags           = pQueryMsg->numOfTags;
+  pQueryAttr->tagColList          = pTagCols;
   pQueryAttr->prjInfo.vgroupLimit = pQueryMsg->vgroupLimit;
-  pQueryAttr->prjInfo.ts      = (pQueryMsg->order == TSDB_ORDER_ASC)? INT64_MIN:INT64_MAX;
-  pQueryAttr->sw              = pQueryMsg->sw;
-  pQueryAttr->vgId            = vgId;
+  pQueryAttr->prjInfo.ts          = (pQueryMsg->order == TSDB_ORDER_ASC)? INT64_MIN:INT64_MAX;
+  pQueryAttr->sw                  = pQueryMsg->sw;
+  pQueryAttr->vgId                = vgId;
 
-  pQueryAttr->stableQuery     = pQueryMsg->stableQuery;
-  pQueryAttr->topBotQuery     = pQueryMsg->topBotQuery;
-  pQueryAttr->groupbyColumn   = pQueryMsg->groupbyColumn;
-  pQueryAttr->hasTagResults   = pQueryMsg->hasTagResults;
+  pQueryAttr->stableQuery       = pQueryMsg->stableQuery;
+  pQueryAttr->topBotQuery       = pQueryMsg->topBotQuery;
+  pQueryAttr->groupbyColumn     = pQueryMsg->groupbyColumn;
+  pQueryAttr->hasTagResults     = pQueryMsg->hasTagResults;
   pQueryAttr->timeWindowInterpo = pQueryMsg->timeWindowInterpo;
-  pQueryAttr->queryBlockDist  = pQueryMsg->queryBlockDist;
-  pQueryAttr->stabledev       = pQueryMsg->stabledev;
-  pQueryAttr->tsCompQuery     = pQueryMsg->tsCompQuery;
-  pQueryAttr->simpleAgg       = pQueryMsg->simpleAgg;
-  pQueryAttr->pointInterpQuery = pQueryMsg->pointInterpQuery;
-  pQueryAttr->needReverseScan  = pQueryMsg->needReverseScan;
-  pQueryAttr->stateWindow      = pQueryMsg->stateWindow;
-  pQueryAttr->vgId            = vgId;
-  pQueryAttr->pFilters        = pFilters;
+  pQueryAttr->queryBlockDist    = pQueryMsg->queryBlockDist;
+  pQueryAttr->stabledev         = pQueryMsg->stabledev;
+  pQueryAttr->tsCompQuery       = pQueryMsg->tsCompQuery;
+  pQueryAttr->simpleAgg         = pQueryMsg->simpleAgg;
+  pQueryAttr->pointInterpQuery  = pQueryMsg->pointInterpQuery;
+  pQueryAttr->needReverseScan   = pQueryMsg->needReverseScan;
+  pQueryAttr->stateWindow       = pQueryMsg->stateWindow;
+  pQueryAttr->vgId              = vgId;
+  pQueryAttr->pFilters          = pFilters;
   
   pQueryAttr->tableCols = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
   if (pQueryAttr->tableCols == NULL) {

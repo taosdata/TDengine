@@ -33,6 +33,8 @@ typedef void (*_hash_free_fn_t)(void *);
 
 #define HASH_INDEX(v, c) ((v) & ((c)-1))
 
+#define HASH_NODE_EXIST(code) (code == -2)
+
 /**
  * murmur hash algorithm
  * @key  usually string
@@ -193,11 +195,10 @@ void  taosHashCancelIterate(SHashObj *pHashObj, void *p);
 
 /**
  * Get the corresponding key information for a given data in hash table
- * @param pHashObj
  * @param data
  * @return
  */
-int32_t taosHashGetKey(SHashObj *pHashObj, void *data, void** key, size_t* keyLen);
+int32_t taosHashGetKey(void *data, void** key, size_t* keyLen);
 
 #ifdef __cplusplus
 }

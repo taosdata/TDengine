@@ -36,7 +36,6 @@ void       addExprInfo(SArray* pExprList, int32_t index, SExprInfo* pExprInfo, i
 void       updateExprInfo(SExprInfo* pExprInfo, int16_t functionId, int32_t colId, int16_t srcColumnIndex, int16_t resType, int16_t resSize);
 
 SExprInfo* getExprInfo(SQueryStmtInfo* pQueryInfo, int32_t index);
-int32_t    copyAllExprInfo(SArray* dst, const SArray* src, bool deepcopy);
 
 void       addExprInfoParam(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes);
 

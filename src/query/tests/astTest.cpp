@@ -4,7 +4,7 @@
 #include <iostream>
 
 #include "texpr.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tsdb.h"
 #include "tskiplist.h"
 

@@ -61,32 +61,41 @@ typedef struct {
   char             email[TSDB_FQDN_LEN];
 } STelemMgmt;
 
+typedef struct {
+  int32_t    errCode;
+  sem_t      syncSem;
+  SSyncNode *pSyncNode;
+  ESyncState state;
+} SSyncMgmt;
+
 typedef struct SMnode {
   int32_t           dnodeId;
-  int32_t           clusterId;
+  int64_t           clusterId;
   int8_t            replica;
   int8_t            selfIndex;
   SReplica          replicas[TSDB_MAX_REPLICA];
   tmr_h             timer;
+  tmr_h             transTimer;
   char             *path;
   SMnodeCfg         cfg;
+  int64_t           checkTime;
   SSdb             *pSdb;
   SDnode           *pDnode;
   SArray           *pSteps;
   SShowMgmt         showMgmt;
   SProfileMgmt      profileMgmt;
   STelemMgmt        telemMgmt;
-  MndMsgFp          msgFp[TSDB_MSG_TYPE_MAX];
+  SSyncMgmt         syncMgmt;
+  MndMsgFp          msgFp[TDMT_MAX];
   SendMsgToDnodeFp  sendMsgToDnodeFp;
   SendMsgToMnodeFp  sendMsgToMnodeFp;
   SendRedirectMsgFp sendRedirectMsgFp;
-  PutMsgToMnodeQFp  putMsgToApplyMsgFp;
 } SMnode;
 
 void mndSendMsgToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);
 void mndSendMsgToMnode(SMnode *pMnode, SRpcMsg *pMsg);
 void mndSendRedirectMsg(SMnode *pMnode, SRpcMsg *pMsg);
-void mndSetMsgHandle(SMnode *pMnode, int32_t msgType, MndMsgFp fp);
+void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 
 uint64_t mndGenerateUid(char *name, int32_t len) ;
 

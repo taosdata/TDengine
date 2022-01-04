@@ -1,6 +1,6 @@
 
 #include "os.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "qTableMeta.h"
 #include "ttokendef.h"
 #include "taosdef.h"

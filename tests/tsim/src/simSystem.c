@@ -14,15 +14,15 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "../../../include/client/taos.h"
 #include "os.h"
 #include "sim.h"
+#include "taos.h"
 #include "taoserror.h"
 #include "tglobal.h"
-#include "tsocket.h"
 #include "ttimer.h"
 #include "tutil.h"
-#undef TAOS_MEM_CHECK
+#include "tglobal.h"
+#include "tconfig.h"
 
 SScript *simScriptList[MAX_MAIN_SCRIPT_NUM];
 SCommand simCmdList[SIM_CMD_END];
@@ -42,49 +42,16 @@ char *simParseArbitratorName(char *varName) {
 
 char *simParseHostName(char *varName) {
   static char hostName[140];
-
-  int32_t index = atoi(varName + 8);
-  int32_t port = 7100;
-  switch (index) {
-    case 1:
-      port = 7100;
-      break;
-    case 2:
-      port = 7200;
-      break;
-    case 3:
-      port = 7300;
-      break;
-    case 4:
-      port = 7400;
-      break;
-    case 5:
-      port = 7500;
-      break;
-    case 6:
-      port = 7600;
-      break;
-    case 7:
-      port = 7700;
-      break;
-    case 8:
-      port = 7800;
-      break;
-    case 9:
-      port = 7900;
-      break;
-  }
-
-  sprintf(hostName, "'%s:%d'", simHostName, port);
-  // simInfo("hostName:%s", hostName);
+  sprintf(hostName, "%s", simHostName);
   return hostName;
 }
 
 bool simSystemInit() {
-  if (taos_init()) {
-    return false;
-  }
   taosGetFqdn(simHostName);
+
+  taosInitGlobalCfg();
+  taosReadCfgFromFile();
+
   simInitsimCmdList();
   memset(simScriptList, 0, sizeof(SScript *) * MAX_MAIN_SCRIPT_NUM);
   return true;
@@ -171,7 +138,7 @@ void *simExecuteScript(void *inputScript) {
       }
     } else {
       SCmdLine *line = &script->lines[script->linePos];
-      char *    option = script->optionBuffer + line->optionOffset;
+      char     *option = script->optionBuffer + line->optionOffset;
       simDebug("script:%s, line:%d with option \"%s\"", script->fileName, line->lineNum, option);
 
       SCommand *cmd = &simCmdList[line->cmdno];

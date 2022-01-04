@@ -1,112 +1,67 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/**
+ * @file acct.cpp
+ * @author slguan (slguan@taosdata.com)
+ * @brief DNODE module acct-msg tests
+ * @version 0.1
+ * @date 2021-12-15
  *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * @copyright Copyright (c) 2021
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "deploy.h"
+#include "base.h"
 
 class DndTestAcct : public ::testing::Test {
  protected:
+  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_acct", 9012); }
+  static void TearDownTestSuite() { test.Cleanup(); }
+
+  static Testbase test;
+
+ public:
   void SetUp() override {}
   void TearDown() override {}
-
-  static void SetUpTestSuite() {
-    const char* user = "root";
-    const char* pass = "taosdata";
-    const char* path = "/tmp/dndTestAcct";
-    const char* fqdn = "localhost";
-    uint16_t    port = 9520;
-
-    pServer = createServer(path, fqdn, port);
-    ASSERT(pServer);
-    pClient = createClient(user, pass, fqdn, port);
-  }
-
-  static void TearDownTestSuite() {
-    dropServer(pServer);
-    dropClient(pClient);
-  }
-
-  static SServer* pServer;
-  static SClient* pClient;
-  static int32_t  connId;
 };
 
-SServer* DndTestAcct::pServer;
-SClient* DndTestAcct::pClient;
-int32_t  DndTestAcct::connId;
+Testbase DndTestAcct::test;
 
-TEST_F(DndTestAcct, CreateAcct) {
-  ASSERT_NE(pClient, nullptr);
+TEST_F(DndTestAcct, 01_CreateAcct) {
+  int32_t contLen = sizeof(SCreateAcctMsg);
 
-  SCreateAcctMsg* pReq = (SCreateAcctMsg*)rpcMallocCont(sizeof(SCreateAcctMsg));
+  SCreateAcctMsg* pReq = (SCreateAcctMsg*)rpcMallocCont(contLen);
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SCreateAcctMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_CREATE_ACCT;
-
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
+  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_ACCT, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
 
-TEST_F(DndTestAcct, AlterAcct) {
-  ASSERT_NE(pClient, nullptr);
+TEST_F(DndTestAcct, 02_AlterAcct) {
+  int32_t contLen = sizeof(SCreateAcctMsg);
 
-  SAlterAcctMsg* pReq = (SAlterAcctMsg*)rpcMallocCont(sizeof(SAlterAcctMsg));
+  SAlterAcctMsg* pReq = (SAlterAcctMsg*)rpcMallocCont(contLen);
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SAlterAcctMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_ALTER_ACCT;
-
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
+  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_ACCT, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
 
-TEST_F(DndTestAcct, DropAcct) {
-  ASSERT_NE(pClient, nullptr);
+TEST_F(DndTestAcct, 03_DropAcct) {
+  int32_t contLen = sizeof(SDropAcctMsg);
 
-  SDropAcctMsg* pReq = (SDropAcctMsg*)rpcMallocCont(sizeof(SDropAcctMsg));
+  SDropAcctMsg* pReq = (SDropAcctMsg*)rpcMallocCont(contLen);
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SDropAcctMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_DROP_ACCT;
-
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
+  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_ACCT, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
 
-TEST_F(DndTestAcct, ShowAcct) {
-  ASSERT_NE(pClient, nullptr);
+TEST_F(DndTestAcct, 04_ShowAcct) {
+  int32_t contLen = sizeof(SShowMsg);
 
-  SShowMsg* pReq = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
+  SShowMsg* pReq = (SShowMsg*)rpcMallocCont(contLen);
   pReq->type = TSDB_MGMT_TABLE_ACCT;
 
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SShowMsg);
-  rpcMsg.msgType = TSDB_MSG_TYPE_SHOW;
-
-  sendMsg(pClient, &rpcMsg);
-  SRpcMsg* pMsg = pClient->pRsp;
+  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_SHOW, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
 }

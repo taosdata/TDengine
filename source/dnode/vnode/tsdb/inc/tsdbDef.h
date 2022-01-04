@@ -17,6 +17,10 @@
 #define _TD_TSDB_DEF_H_
 
 #include "mallocator.h"
+#include "tmsg.h"
+#include "tlist.h"
+#include "thash.h"
+#include "tskiplist.h"
 
 #include "tsdb.h"
 #include "tsdbMemTable.h"
@@ -29,6 +33,8 @@ extern "C" {
 struct STsdb {
   char *                path;
   STsdbCfg              options;
+  STsdbMemTable *       mem;
+  STsdbMemTable *       imem;
   SMemAllocatorFactory *pmaf;
 };
 

@@ -49,15 +49,6 @@ int32_t taosInitNotes() {
     taosInitNote(tsNumOfLogLines, 1, &tsTscNote, name);
   }
 
-  if (tsHttpEnableRecordSql) {
-    snprintf(name, TSDB_FILENAME_LEN * 2, "%s/httpsql", tsLogDir);
-    taosInitNote(tsNumOfLogLines, 1, &tsHttpNote, name);
-  }
-
-  if (tscEmbedded == 1) {
-    snprintf(name, TSDB_FILENAME_LEN * 2, "%s/taosinfo", tsLogDir);
-    taosInitNote(tsNumOfLogLines, 1, &tsInfoNote, name);
-  }
 #endif
   return 0;
 }

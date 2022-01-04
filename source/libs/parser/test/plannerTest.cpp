@@ -30,6 +30,7 @@
 #include "tdef.h"
 #include "tvariant.h"
 #include "planner.h"
+#include "../../planner/inc/plannerInt.h"
 
 namespace {
 void setSchema(SSchema* p, int32_t type, int32_t bytes, const char* name, int32_t colId) {
@@ -39,7 +40,7 @@ void setSchema(SSchema* p, int32_t type, int32_t bytes, const char* name, int32_
   strcpy(p->name, name);
 }
 
-void setTableMetaInfo(SQueryStmtInfo* pQueryInfo, SMetaReq *req) {
+void setTableMetaInfo(SQueryStmtInfo* pQueryInfo, SCatalogReq *req) {
   pQueryInfo->numOfTables = 1;
 
   pQueryInfo->pTableMetaInfo = (STableMetaInfo**)calloc(1, POINTER_BYTES);
@@ -79,7 +80,7 @@ void generateLogicplan(const char* sql) {
   int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
-  SMetaReq req = {0};
+  SCatalogReq req = {0};
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
@@ -92,10 +93,10 @@ void generateLogicplan(const char* sql) {
   ASSERT_EQ(ret, 0);
 
   struct SQueryPlanNode* n = nullptr;
-  code = qCreateQueryPlan(pQueryInfo, &n);
+  code = createQueryPlan((const SQueryNode*)pQueryInfo, &n);
 
   char* str = NULL;
-  qQueryPlanToString(n, &str);
+  queryPlanToString(n, &str);
 
   printf("--------SQL:%s\n", sql);
   printf("%s\n", str);
@@ -119,7 +120,7 @@ TEST(testCase, planner_test) {
   int32_t code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
-  SMetaReq req = {0};
+  SCatalogReq req = {0};
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
@@ -155,10 +156,10 @@ TEST(testCase, planner_test) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 2);
 
   struct SQueryPlanNode* n = nullptr;
-  code = qCreateQueryPlan(pQueryInfo, &n);
+  code = createQueryPlan((const SQueryNode*)pQueryInfo, &n);
 
   char* str = NULL;
-  qQueryPlanToString(n, &str);
+  queryPlanToString(n, &str);
   printf("%s\n", str);
 
   destroyQueryInfo(pQueryInfo);

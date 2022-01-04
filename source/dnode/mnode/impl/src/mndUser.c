@@ -20,7 +20,8 @@
 #include "mndTrans.h"
 #include "tkey.h"
 
-#define SDB_USER_VER 1
+#define TSDB_USER_VER_NUMBER 1
+#define TSDB_USER_RESERVE_SIZE 64
 
 static int32_t  mndCreateDefaultUsers(SMnode *pMnode);
 static SSdbRaw *mndUserActionEncode(SUserObj *pUser);
@@ -46,9 +47,9 @@ int32_t mndInitUser(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndUserActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndUserActionDelete};
 
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_CREATE_USER, mndProcessCreateUserMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_ALTER_USER, mndProcessAlterUserMsg);
-  mndSetMsgHandle(pMnode, TSDB_MSG_TYPE_DROP_USER, mndProcessDropUserMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_USER, mndProcessCreateUserMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_USER, mndProcessAlterUserMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_USER, mndProcessDropUserMsg);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_USER, mndGetUserMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_USER, mndRetrieveUsers);
@@ -65,11 +66,9 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   taosEncryptPass((uint8_t *)pass, strlen(pass), userObj.pass);
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
-  userObj.readAuth = 1;
-  userObj.writeAuth = 1;
 
   if (strcmp(user, TSDB_DEFAULT_USER) == 0) {
-    userObj.superAuth = 1;
+    userObj.superUser = 1;
   }
 
   SSdbRaw *pRaw = mndUserActionEncode(&userObj);
@@ -85,26 +84,27 @@ static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
     return -1;
   }
 
+#if 0
   if (mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, "_" TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS) != 0) {
     return -1;
   }
+#endif
 
   return 0;
 }
 
 static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, SDB_USER_VER, sizeof(SUserObj));
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_USER, TSDB_USER_VER_NUMBER, sizeof(SUserObj) + TSDB_USER_RESERVE_SIZE);
   if (pRaw == NULL) return NULL;
 
   int32_t dataPos = 0;
   SDB_SET_BINARY(pRaw, dataPos, pUser->user, TSDB_USER_LEN)
-  SDB_SET_BINARY(pRaw, dataPos, pUser->pass, TSDB_KEY_LEN)
+  SDB_SET_BINARY(pRaw, dataPos, pUser->pass, TSDB_PASSWORD_LEN)
   SDB_SET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN)
   SDB_SET_INT64(pRaw, dataPos, pUser->createdTime)
   SDB_SET_INT64(pRaw, dataPos, pUser->updateTime)
-  SDB_SET_INT8(pRaw, dataPos, pUser->superAuth)
-  SDB_SET_INT8(pRaw, dataPos, pUser->readAuth)
-  SDB_SET_INT8(pRaw, dataPos, pUser->writeAuth)
+  SDB_SET_INT8(pRaw, dataPos, pUser->superUser)
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_USER_RESERVE_SIZE)
   SDB_SET_DATALEN(pRaw, dataPos);
 
   return pRaw;
@@ -114,7 +114,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
 
-  if (sver != SDB_USER_VER) {
+  if (sver != TSDB_USER_VER_NUMBER) {
     mError("failed to decode user since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     return NULL;
@@ -126,13 +126,12 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
   int32_t dataPos = 0;
   SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->user, TSDB_USER_LEN)
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->pass, TSDB_KEY_LEN)
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->pass, TSDB_PASSWORD_LEN)
   SDB_GET_BINARY(pRaw, pRow, dataPos, pUser->acct, TSDB_USER_LEN)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pUser->createdTime)
   SDB_GET_INT64(pRaw, pRow, dataPos, &pUser->updateTime)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pUser->superAuth)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pUser->readAuth)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pUser->writeAuth)
+  SDB_GET_INT8(pRaw, pRow, dataPos, &pUser->superUser)
+  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_USER_RESERVE_SIZE)
 
   return pRow;
 }
@@ -170,20 +169,18 @@ static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
 
 static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOldUser, SUserObj *pNewUser) {
   mTrace("user:%s, perform update action", pOldUser->user);
-  memcpy(pOldUser->user, pNewUser->user, TSDB_USER_LEN);
-  memcpy(pOldUser->pass, pNewUser->pass, TSDB_KEY_LEN);
-  memcpy(pOldUser->acct, pNewUser->acct, TSDB_USER_LEN);
-  pOldUser->createdTime = pNewUser->createdTime;
+  memcpy(pOldUser->pass, pNewUser->pass, TSDB_PASSWORD_LEN);
   pOldUser->updateTime = pNewUser->updateTime;
-  pOldUser->superAuth = pNewUser->superAuth;
-  pOldUser->readAuth = pNewUser->readAuth;
-  pOldUser->writeAuth = pNewUser->writeAuth;
   return 0;
 }
 
 SUserObj *mndAcquireUser(SMnode *pMnode, char *userName) {
-  SSdb *pSdb = pMnode->pSdb;
-  return sdbAcquire(pSdb, SDB_USER, userName);
+  SSdb     *pSdb = pMnode->pSdb;
+  SUserObj *pUser = sdbAcquire(pSdb, SDB_USER, userName);
+  if (pUser == NULL) {
+    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+  }
+  return pUser;
 }
 
 void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
@@ -198,11 +195,9 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass,
   taosEncryptPass((uint8_t *)pass, strlen(pass), userObj.pass);
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
-  userObj.superAuth = 0;
-  userObj.readAuth = 1;
-  userObj.writeAuth = 1;
+  userObj.superUser = 0;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
   if (pTrans == NULL) {
     mError("user:%s, failed to create since %s", user, terrstr());
     return -1;
@@ -215,101 +210,9 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass,
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING);
-
-  SSdbRaw *pUndoRaw = mndUserActionEncode(&userObj);
-  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) {
-    mError("trans:%d, failed to append undo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED);
-
-  SSdbRaw *pCommitRaw = mndUserActionEncode(&userObj);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-
-  if (mndTransPrepare(pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-
-  mndTransDrop(pTrans);
-  return 0;
-}
-
-static int32_t mndUpdateUser(SMnode *pMnode, SUserObj *pOldUser, SUserObj *pNewUser, SMnodeMsg *pMsg) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
-  if (pTrans == NULL) {
-    mError("user:%s, failed to update since %s", pOldUser->user, terrstr());
-    return -1;
-  }
-  mDebug("trans:%d, used to update user:%s", pTrans->id, pOldUser->user);
-
-  SSdbRaw *pRedoRaw = mndUserActionEncode(pNewUser);
-  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
-    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
   sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
 
-  SSdbRaw *pUndoRaw = mndUserActionEncode(pOldUser);
-  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) {
-    mError("trans:%d, failed to append undo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY);
-
-  if (mndTransPrepare(pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-
-  mndTransDrop(pTrans);
-  return 0;
-}
-
-static int32_t mndDropUser(SMnode *pMnode, SMnodeMsg *pMsg, SUserObj *pUser) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, pMsg->rpcMsg.handle);
-  if (pTrans == NULL) {
-    mError("user:%s, failed to drop since %s", pUser->user, terrstr());
-    return -1;
-  }
-  mDebug("trans:%d, used to drop user:%s", pTrans->id, pUser->user);
-
-  SSdbRaw *pRedoRaw = mndUserActionEncode(pUser);
-  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
-    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING);
-
-  SSdbRaw *pUndoRaw = mndUserActionEncode(pUser);
-  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) {
-    mError("trans:%d, failed to append undo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY);
-
-  SSdbRaw *pCommitRaw = mndUserActionEncode(pUser);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
-
-  if (mndTransPrepare(pTrans) != 0) {
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
@@ -363,6 +266,32 @@ static int32_t mndProcessCreateUserMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
+static int32_t mndUpdateUser(SMnode *pMnode, SUserObj *pOldUser, SUserObj *pNewUser, SMnodeMsg *pMsg) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
+  if (pTrans == NULL) {
+    mError("user:%s, failed to update since %s", pOldUser->user, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to update user:%s", pTrans->id, pOldUser->user);
+
+  SSdbRaw *pRedoRaw = mndUserActionEncode(pNewUser);
+  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
+    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
+}
+
 static int32_t mndProcessAlterUserMsg(SMnodeMsg *pMsg) {
   SMnode        *pMnode = pMsg->pMnode;
   SAlterUserMsg *pAlter = pMsg->rpcMsg.pCont;
@@ -399,6 +328,7 @@ static int32_t mndProcessAlterUserMsg(SMnodeMsg *pMsg) {
   memcpy(&newUser, pUser, sizeof(SUserObj));
   memset(pUser->pass, 0, sizeof(pUser->pass));
   taosEncryptPass((uint8_t *)pAlter->pass, strlen(pAlter->pass), pUser->pass);
+  newUser.updateTime = taosGetTimestampMs();
 
   int32_t code = mndUpdateUser(pMnode, pUser, &newUser, pMsg);
   sdbRelease(pMnode->pSdb, pOperUser);
@@ -409,6 +339,32 @@ static int32_t mndProcessAlterUserMsg(SMnodeMsg *pMsg) {
   }
 
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+}
+
+static int32_t mndDropUser(SMnode *pMnode, SMnodeMsg *pMsg, SUserObj *pUser) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
+  if (pTrans == NULL) {
+    mError("user:%s, failed to drop since %s", pUser->user, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to drop user:%s", pTrans->id, pUser->user);
+
+  SSdbRaw *pRedoRaw = mndUserActionEncode(pUser);
+  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
+    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPED);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
 }
 
 static int32_t mndProcessDropUserMsg(SMnodeMsg *pMsg) {
@@ -458,28 +414,28 @@ static int32_t mndGetUserMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *p
   pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "privilege");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "create_time");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "account");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
-  pMeta->numOfColumns = htons(cols);
+  pMeta->numOfColumns = htonl(cols);
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
@@ -513,14 +469,11 @@ static int32_t mndRetrieveUsers(SMnodeMsg *pMsg, SShowObj *pShow, char *data, in
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    if (pUser->superAuth) {
+    if (pUser->superUser) {
       const char *src = "super";
       STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
-    } else if (pUser->writeAuth) {
-      const char *src = "writable";
-      STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
     } else {
-      const char *src = "readable";
+      const char *src = "normal";
       STR_WITH_SIZE_TO_VARSTR(pWrite, src, strlen(src));
     }
     cols++;
@@ -537,7 +490,7 @@ static int32_t mndRetrieveUsers(SMnodeMsg *pMsg, SShowObj *pShow, char *data, in
     sdbRelease(pSdb, pUser);
   }
 
-  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }

@@ -714,7 +714,7 @@ static void taosGetSystemLocale() {  // get and set default locale
     //printf("locale not configured, set to system default:%s", tsLocale);
   }
 
-  /* if user does not specify the charset, extract it from locale */
+  // if user does not specify the charset, extract it from locale
   char *str = strrchr(tsLocale, sep);
   if (str != NULL) {
     str++;
@@ -1118,13 +1118,13 @@ char *taosGetCmdlineByPID(int pid) {
 SysNameInfo taosGetSysNameInfo() {
   SysNameInfo info = {0};
 
-  struct utsname buf;
-  if (!uname(&buf)) {
-    info.sysname = buf.sysname;
-    info.sysname == buf.nodename;
-    info.sysname = buf.release;
-    info.sysname = buf.version;
-    info.sysname = buf.machine;
+  struct utsname uts;
+  if (!uname(&uts)) {
+    tstrncpy(info.sysname, uts.sysname, sizeof(info.sysname));
+    tstrncpy(info.nodename, uts.nodename, sizeof(info.nodename));
+    tstrncpy(info.release, uts.release, sizeof(info.release));
+    tstrncpy(info.version, uts.version, sizeof(info.version));
+    tstrncpy(info.machine, uts.machine, sizeof(info.machine));
   }
 
   return info;

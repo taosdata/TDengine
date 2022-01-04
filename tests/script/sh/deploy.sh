@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set +e
+#set -x
+
 echo "Executing deploy.sh"
 
 if [ $# != 4 ]; then
@@ -50,12 +53,12 @@ else
 fi
 
 if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
+  BIN_DIR=`find . -name "taosd"|grep source|head -n1|cut -d '/' ${cut_opt}2,3`
 else
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2`
+  BIN_DIR=`find . -name "taosd"|grep source|head -n1|cut -d '/' ${cut_opt}2`
 fi
 
-BUILD_DIR=$TAOS_DIR/$BIN_DIR/build
+BUILD_DIR=$TAOS_DIR/$BIN_DIR
 
 SIM_DIR=$TAOS_DIR/sim
 
@@ -115,49 +118,30 @@ fi
 echo " "                                         >> $TAOS_CFG   
 echo "firstEp                ${HOSTNAME}:7100"   >> $TAOS_CFG
 echo "secondEp               ${HOSTNAME}:7200"   >> $TAOS_CFG
+echo "fqdn                   ${HOSTNAME}"        >> $TAOS_CFG
 echo "serverPort             ${NODE}"            >> $TAOS_CFG
 echo "dataDir                $DATA_DIR"          >> $TAOS_CFG
 echo "logDir                 $LOG_DIR"           >> $TAOS_CFG
 echo "debugFlag              0"                  >> $TAOS_CFG
 echo "mDebugFlag             143"                >> $TAOS_CFG
-echo "sdbDebugFlag           143"                >> $TAOS_CFG
 echo "dDebugFlag             143"                >> $TAOS_CFG
 echo "vDebugFlag             143"                >> $TAOS_CFG
 echo "tsdbDebugFlag          143"                >> $TAOS_CFG
 echo "cDebugFlag             143"                >> $TAOS_CFG
 echo "jnidebugFlag           143"                >> $TAOS_CFG
-echo "odbcdebugFlag          143"                >> $TAOS_CFG
-echo "httpDebugFlag          143"                >> $TAOS_CFG
-echo "monDebugFlag           143"                >> $TAOS_CFG
-echo "mqttDebugFlag          143"                >> $TAOS_CFG
 echo "qdebugFlag             143"                >> $TAOS_CFG
 echo "rpcDebugFlag           143"                >> $TAOS_CFG
 echo "tmrDebugFlag           131"                >> $TAOS_CFG
 echo "udebugFlag             143"                >> $TAOS_CFG
 echo "sdebugFlag             143"                >> $TAOS_CFG
 echo "wdebugFlag             143"                >> $TAOS_CFG
-echo "cqdebugFlag            143"                >> $TAOS_CFG
-echo "monitor                0"                  >> $TAOS_CFG
-echo "monitorInterval        1"                  >> $TAOS_CFG
-echo "http                   0"                  >> $TAOS_CFG
 echo "slaveQuery             0"                  >> $TAOS_CFG
 echo "numOfThreadsPerCore    2.0"                >> $TAOS_CFG
 echo "defaultPass            taosdata"           >> $TAOS_CFG
 echo "numOfLogLines          20000000"           >> $TAOS_CFG
-echo "mnodeEqualVnodeNum     0"                  >> $TAOS_CFG
-echo "balanceInterval        1"                  >> $TAOS_CFG
-echo "clog                   2"                  >> $TAOS_CFG
-#echo "cache                 1"                  >> $TAOS_CFG
-echo "days                   10"                  >> $TAOS_CFG
 echo "statusInterval         1"                  >> $TAOS_CFG
-echo "maxVgroupsPerDb        4"                  >> $TAOS_CFG
-echo "minTablesPerVnode      4"                  >> $TAOS_CFG
-echo "maxTablesPerVnode      1000"               >> $TAOS_CFG
-echo "tableIncStepPerVnode   10000"              >> $TAOS_CFG
 echo "asyncLog               0"                  >> $TAOS_CFG
-echo "numOfMnodes            1"                  >> $TAOS_CFG
 echo "locale                 en_US.UTF-8"        >> $TAOS_CFG
 echo "fsync                  0"                  >> $TAOS_CFG
 echo "telemetryReporting     0"                  >> $TAOS_CFG
 echo " "                                         >> $TAOS_CFG  
-

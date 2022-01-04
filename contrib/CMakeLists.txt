@@ -12,6 +12,7 @@ configure_file("${CMAKE_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE}
 # googletest
 if(${BUILD_TEST})
     cat("${CMAKE_SUPPORT_DIR}/gtest_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    cat("${CMAKE_SUPPORT_DIR}/stub_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_TEST})
 
 # lz4
@@ -34,10 +35,21 @@ if(${BUILD_WITH_ROCKSDB})
     add_definitions(-DUSE_ROCKSDB)
 endif(${BUILD_WITH_ROCKSDB})
 
+# canonical-raft
+if(${BUILD_WITH_CRAFT})
+    cat("${CMAKE_SUPPORT_DIR}/craft_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    SET(BUILD_WITH_UV ON CACHE BOOL "craft need libuv" FORCE)
+endif(${BUILD_WITH_CRAFT})
+
+#libuv
+if(${BUILD_WITH_UV})
+    cat("${CMAKE_SUPPORT_DIR}/libuv_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(${BUILD_WITH_UV})
+
 # bdb
 if(${BUILD_WITH_BDB})
     cat("${CMAKE_SUPPORT_DIR}/bdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif(${BUILD_WITH_DBD})
+endif(${BUILD_WITH_BDB})
 
 # sqlite
 if(${BUILD_WITH_SQLITE})
@@ -68,6 +80,11 @@ execute_process(COMMAND "${CMAKE_COMMAND}" --build .
 # googletest
 if(${BUILD_TEST})
     add_subdirectory(googletest)
+    target_include_directories(
+        gtest
+        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src>
+        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src_linux>
+    )
 endif(${BUILD_TEST})
 
 # cJson
@@ -143,6 +160,23 @@ endif(${BUILD_WITH_LUCENE})
 if(${BUILD_WITH_NURAFT})
     add_subdirectory(nuraft)
 endif(${BUILD_WITH_NURAFT})
+
+# CRAFT
+if(${BUILD_WITH_CRAFT})
+    add_library(craft STATIC IMPORTED GLOBAL)
+    set_target_properties(craft PROPERTIES
+        IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/craft/.libs/libraft.a"
+        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/craft/include"
+    )
+    # target_link_libraries(craft
+    #     INTERFACE pthread
+    # )
+endif(${BUILD_WITH_CRAFT})
+
+# LIBUV
+if(${BUILD_WITH_UV})
+    add_subdirectory(libuv)
+endif(${BUILD_WITH_UV})
 
 # BDB
 if(${BUILD_WITH_BDB})

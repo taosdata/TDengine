@@ -22,48 +22,43 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 
-#define TAOS_CONN_SERVER   0
-#define TAOS_CONN_CLIENT   1
+#define TAOS_CONN_SERVER 0
+#define TAOS_CONN_CLIENT 1
 
 extern int tsRpcHeadSize;
 
-typedef struct SRpcCorEpSet {
-  int32_t version; 
-  SEpSet epSet; 
-} SRpcCorEpSet;
-
 typedef struct SRpcConnInfo {
-  uint32_t  clientIp;
-  uint16_t  clientPort;
-  uint32_t  serverIp;
-  char      user[TSDB_USER_LEN];
+  uint32_t clientIp;
+  uint16_t clientPort;
+  uint32_t serverIp;
+  char     user[TSDB_USER_LEN];
 } SRpcConnInfo;
 
 typedef struct SRpcMsg {
-  uint8_t msgType;
-  void   *pCont;
+  tmsg_t  msgType;
+  void *  pCont;
   int     contLen;
   int32_t code;
-  void   *handle;   // rpc handle returned to app
-  void   *ahandle;  // app handle set by client
+  void *  handle;   // rpc handle returned to app
+  void *  ahandle;  // app handle set by client
 } SRpcMsg;
 
 typedef struct SRpcInit {
- uint16_t localPort; // local port
-  char  *label;        // for debug purpose
-  int    numOfThreads; // number of threads to handle connections
-  int    sessions;     // number of sessions allowed
-  int8_t connType;     // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
-  int    idleTime;     // milliseconds, 0 means idle timer is disabled
+  uint16_t localPort;     // local port
+  char *   label;         // for debug purpose
+  int      numOfThreads;  // number of threads to handle connections
+  int      sessions;      // number of sessions allowed
+  int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
+  int      idleTime;      // milliseconds, 0 means idle timer is disabled
 
   // the following is for client app ecurity only
-  char *user;         // user name
-  char  spi;          // security parameter index
-  char  encrypt;      // encrypt algorithm
-  char *secret;       // key for authentication
-  char *ckey;         // ciphering key
+  char *user;     // user name
+  char  spi;      // security parameter index
+  char  encrypt;  // encrypt algorithm
+  char *secret;   // key for authentication
+  char *ckey;     // ciphering key
 
   // call back to process incoming msg, code shall be ignored by server app
   void (*cfp)(void *parent, SRpcMsg *, SEpSet *);
@@ -75,19 +70,19 @@ typedef struct SRpcInit {
 } SRpcInit;
 
 int32_t rpcInit();
-void  rpcCleanup();
-void *rpcOpen(const SRpcInit *pRpc);
-void  rpcClose(void *);
-void *rpcMallocCont(int contLen);
-void  rpcFreeCont(void *pCont);
-void *rpcReallocCont(void *ptr, int contLen);
-void  rpcSendRequest(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
-void  rpcSendResponse(const SRpcMsg *pMsg);
-void  rpcSendRedirectRsp(void *pConn, const SEpSet *pEpSet); 
-int   rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
-void  rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
-int   rpcReportProgress(void *pConn, char *pCont, int contLen);
-void  rpcCancelRequest(int64_t rid);
+void    rpcCleanup();
+void *  rpcOpen(const SRpcInit *pRpc);
+void    rpcClose(void *);
+void *  rpcMallocCont(int contLen);
+void    rpcFreeCont(void *pCont);
+void *  rpcReallocCont(void *ptr, int contLen);
+void    rpcSendRequest(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
+void    rpcSendResponse(const SRpcMsg *pMsg);
+void    rpcSendRedirectRsp(void *pConn, const SEpSet *pEpSet);
+int     rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
+void    rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
+int     rpcReportProgress(void *pConn, char *pCont, int contLen);
+void    rpcCancelRequest(int64_t rid);
 
 #ifdef __cplusplus
 }

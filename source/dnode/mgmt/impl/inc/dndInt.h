@@ -20,12 +20,16 @@
 extern "C" {
 #endif
 
-#include "cJSON.h"
 #include "os.h"
-#include "taosmsg.h"
+
+#include "cJSON.h"
+#include "tcache.h"
+#include "tcrc32c.h"
+#include "tep.h"
 #include "thash.h"
 #include "tlockfree.h"
 #include "tlog.h"
+#include "tmsg.h"
 #include "tqueue.h"
 #include "trpc.h"
 #include "tthread.h"
@@ -33,7 +37,11 @@ extern "C" {
 #include "tworker.h"
 
 #include "dnode.h"
+
+#include "bnode.h"
 #include "mnode.h"
+#include "qnode.h"
+#include "snode.h"
 #include "vnode.h"
 
 extern int32_t dDebugFlag;
@@ -46,56 +54,95 @@ extern int32_t dDebugFlag;
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
 
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EStat;
+typedef enum { DND_WORKER_SINGLE, DND_WORKER_MULTI } EWorkerType;
 typedef void (*DndMsgFp)(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEps);
+
+typedef struct {
+  EWorkerType    type;
+  const char    *name;
+  int32_t        minNum;
+  int32_t        maxNum;
+  void          *queueFp;
+  SDnode        *pDnode;
+  taos_queue     queue;
+  union {
+    SWorkerPool  pool;
+    SMWorkerPool mpool;
+  };
+} SDnodeWorker;
 
 typedef struct {
   char *dnode;
   char *mnode;
+  char *snode;
+  char *bnode;
   char *vnodes;
 } SDnodeDir;
 
 typedef struct {
-  int32_t    dnodeId;
-  int32_t    dropped;
-  int32_t    clusterId;
-  int64_t    rebootTime;
-  int8_t     statusSent;
-  SEpSet     mnodeEpSet;
-  char      *file;
-  SHashObj  *dnodeHash;
-  SDnodeEps *dnodeEps;
-  pthread_t *threadId;
-  SRWLatch   latch;
+  int32_t     dnodeId;
+  int32_t     dropped;
+  int64_t     clusterId;
+  int64_t     rebootTime;
+  int64_t     updateTime;
+  int8_t      statusSent;
+  SEpSet      mnodeEpSet;
+  char       *file;
+  SHashObj   *dnodeHash;
+  SDnodeEps  *dnodeEps;
+  pthread_t  *threadId;
+  SRWLatch    latch;
+  taos_queue  pMgmtQ;
+  SWorkerPool mgmtPool;
 } SDnodeMgmt;
 
 typedef struct {
-  int32_t     refCount;
-  int8_t      deployed;
-  int8_t      dropped;
-  int8_t      replica;
-  int8_t      selfIndex;
-  SReplica    replicas[TSDB_MAX_REPLICA];
-  char       *file;
-  SMnode     *pMnode;
-  SRWLatch    latch;
-  taos_queue  pReadQ;
-  taos_queue  pWriteQ;
-  taos_queue  pApplyQ;
-  taos_queue  pSyncQ;
-  taos_queue  pMgmtQ;
-  SWorkerPool mgmtPool;
-  SWorkerPool readPool;
-  SWorkerPool writePool;
-  SWorkerPool syncPool;
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SMnode      *pMnode;
+  SRWLatch     latch;
+  SDnodeWorker readWorker;
+  SDnodeWorker writeWorker;
+  SDnodeWorker syncWorker;
+  int8_t       replica;
+  int8_t       selfIndex;
+  SReplica     replicas[TSDB_MAX_REPLICA];
 } SMnodeMgmt;
+
+typedef struct {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SQnode      *pQnode;
+  SRWLatch     latch;
+  SDnodeWorker queryWorker;
+  SDnodeWorker fetchWorker;
+} SQnodeMgmt;
+
+typedef struct {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SSnode      *pSnode;
+  SRWLatch     latch;
+  SDnodeWorker writeWorker;
+} SSnodeMgmt;
+
+typedef struct {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SBnode      *pBnode;
+  SRWLatch     latch;
+  SDnodeWorker writeWorker;
+} SBnodeMgmt;
 
 typedef struct {
   SHashObj    *hash;
   int32_t      openVnodes;
   int32_t      totalVnodes;
   SRWLatch     latch;
-  taos_queue   pMgmtQ;
-  SWorkerPool  mgmtPool;
   SWorkerPool  queryPool;
   SWorkerPool  fetchPool;
   SMWorkerPool syncPool;
@@ -105,15 +152,19 @@ typedef struct {
 typedef struct {
   void    *serverRpc;
   void    *clientRpc;
-  DndMsgFp msgFp[TSDB_MSG_TYPE_MAX];
+  DndMsgFp msgFp[TDMT_MAX];
 } STransMgmt;
 
 typedef struct SDnode {
   EStat       stat;
   SDnodeOpt   opt;
   SDnodeDir   dir;
+  FileFd      lockFd;
   SDnodeMgmt  dmgmt;
   SMnodeMgmt  mmgmt;
+  SQnodeMgmt  qmgmt;
+  SSnodeMgmt  smgmt;
+  SBnodeMgmt  bmgmt;
   SVnodesMgmt vmgmt;
   STransMgmt  tmgmt;
   SStartupMsg startup;

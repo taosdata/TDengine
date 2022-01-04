@@ -25,6 +25,9 @@ extern "C" {
 int32_t mndInitStb(SMnode *pMnode);
 void    mndCleanupStb(SMnode *pMnode);
 
+SStbObj *mndAcquireStb(SMnode *pMnode, char *stbName);
+void mndReleaseStb(SMnode *pMnode, SStbObj *pStb);
+
 #ifdef __cplusplus
 }
 #endif
