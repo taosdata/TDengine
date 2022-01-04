@@ -1050,6 +1050,7 @@ typedef struct SResFetchMsg {
 } SResFetchMsg;
 
 typedef struct SSchTasksStatusMsg {
+  SMsgHead header;
   uint64_t sId;
 } SSchTasksStatusMsg;
 
@@ -1065,6 +1066,7 @@ typedef struct SSchedulerStatusRsp {
 } SSchedulerStatusRsp;
 
 typedef struct STaskCancelMsg {
+  SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
@@ -1075,6 +1077,7 @@ typedef struct STaskCancelRsp {
 } STaskCancelRsp;
 
 typedef struct STaskDropMsg {
+  SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;

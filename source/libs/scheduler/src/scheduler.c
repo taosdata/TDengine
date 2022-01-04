@@ -216,28 +216,49 @@ _return:
   SCH_RET(code);
 }
 
-int32_t schSetTaskExecEpSet(SSchJob *job, SEpSet *epSet) {  
-  if (epSet->numOfEps >= SCH_MAX_CONDIDATE_EP_NUM) {
+int32_t schSetTaskCondidateAddrs(SSchJob *job, SSchTask *task) {
+  if (task->condidateAddrs) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t nodeNum = taosArrayGetSize(job->nodeList);
-  
-  for (int32_t i = 0; i < nodeNum && epSet->numOfEps < tListLen(epSet->port); ++i) {
-    SEpAddr *addr = taosArrayGet(job->nodeList, i);
-    
-    strncpy(epSet->fqdn[epSet->numOfEps], addr->fqdn, sizeof(addr->fqdn));
-    epSet->port[epSet->numOfEps] = addr->port;
-    
-    ++epSet->numOfEps;
+  task->condidateIdx = 0;
+  task->condidateAddrs = taosArrayInit(SCH_MAX_CONDIDATE_EP_NUM, sizeof(SQueryNodeAddr));
+  if (NULL == task->condidateAddrs) {
+    qError("taosArrayInit failed");
+    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  for (int32_t i = 0; i < job->dataSrcEps.numOfEps && epSet->numOfEps < tListLen(epSet->port); ++i) {
+  if (task->plan->execNode.numOfEps > 0) {
+    if (NULL == taosArrayPush(task->condidateAddrs, &task->plan->execNode)) {
+      qError("taosArrayPush failed");
+      SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t addNum = 0;
+  int32_t nodeNum = taosArrayGetSize(job->nodeList);
+  
+  for (int32_t i = 0; i < nodeNum && addNum < SCH_MAX_CONDIDATE_EP_NUM; ++i) {
+    SQueryNodeAddr *naddr = taosArrayGet(job->nodeList, i);
+    
+    if (NULL == taosArrayPush(task->condidateAddrs, &task->plan->execNode)) {
+      qError("taosArrayPush failed");
+      SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    }
+    
+    ++addNum;
+  }
+
+/*
+  for (int32_t i = 0; i < job->dataSrcEps.numOfEps && addNum < SCH_MAX_CONDIDATE_EP_NUM; ++i) {
     strncpy(epSet->fqdn[epSet->numOfEps], job->dataSrcEps.fqdn[i], sizeof(job->dataSrcEps.fqdn[i]));
     epSet->port[epSet->numOfEps] = job->dataSrcEps.port[i];
     
     ++epSet->numOfEps;
   }
+*/
 
   return TSDB_CODE_SUCCESS;
 }
@@ -384,8 +405,8 @@ int32_t schProcessOnTaskSuccess(SSchJob *job, SSchTask *task) {
         return TSDB_CODE_SUCCESS;
       }
     } else {
-      strncpy(job->resEp.fqdn, task->execAddr.fqdn, sizeof(job->resEp.fqdn));
-      job->resEp.port = task->execAddr.port;
+      strncpy(job->resEp.fqdn, task->execAddr.epAddr[task->execAddr.inUse].fqdn, sizeof(job->resEp.fqdn));
+      job->resEp.port = task->execAddr.epAddr[task->execAddr.inUse].port;
     }
 
     job->fetchTask = task;
@@ -395,12 +416,14 @@ int32_t schProcessOnTaskSuccess(SSchJob *job, SSchTask *task) {
     return TSDB_CODE_SUCCESS;
   }
 
+/*
   if (SCH_IS_DATA_SRC_TASK(task) && job->dataSrcEps.numOfEps < SCH_MAX_CONDIDATE_EP_NUM) {
     strncpy(job->dataSrcEps.fqdn[job->dataSrcEps.numOfEps], task->execAddr.fqdn, sizeof(task->execAddr.fqdn));
     job->dataSrcEps.port[job->dataSrcEps.numOfEps] = task->execAddr.port;
 
     ++job->dataSrcEps.numOfEps;
   }
+*/
 
   for (int32_t i = 0; i < parentNum; ++i) {
     SSchTask *par = *(SSchTask **)taosArrayGet(task->parents, i);
@@ -656,6 +679,16 @@ _return:
   SCH_RET(code);
 }
 
+void schConvertAddrToEpSet(SQueryNodeAddr *addr, SEpSet *epSet) {
+  epSet->inUse = addr->inUse;
+  epSet->numOfEps = addr->numOfEps;
+  
+  for (int8_t i = 0; i < epSet->numOfEps; ++i) {
+    strncpy(epSet->fqdn[i], addr->epAddr[i].fqdn, sizeof(addr->epAddr[i].fqdn));
+    epSet->port[i] = addr->epAddr[i].port;
+  }
+}
+
 
 int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
   uint32_t msgSize = 0;
@@ -689,6 +722,7 @@ int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
 
       SSubQueryMsg *pMsg = msg;
 
+      pMsg->header.vgId = htonl(task->plan->execNode.nodeId);
       pMsg->sId = htobe64(schMgmt.sId);
       pMsg->queryId = htobe64(job->queryId);
       pMsg->taskId = htobe64(task->taskId);
@@ -705,6 +739,8 @@ int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
       }
 
       SResReadyMsg *pMsg = msg;
+      
+      pMsg->header.vgId = htonl(task->plan->execNode.nodeId);      
       pMsg->sId = htobe64(schMgmt.sId);      
       pMsg->queryId = htobe64(job->queryId);
       pMsg->taskId = htobe64(task->taskId);      
@@ -722,6 +758,8 @@ int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
       }
     
       SResFetchMsg *pMsg = msg;
+      
+      pMsg->header.vgId = htonl(task->plan->execNode.nodeId);            
       pMsg->sId = htobe64(schMgmt.sId);      
       pMsg->queryId = htobe64(job->queryId);
       pMsg->taskId = htobe64(task->taskId);      
@@ -736,6 +774,8 @@ int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
       }
     
       STaskDropMsg *pMsg = msg;
+      
+      pMsg->header.vgId = htonl(task->plan->execNode.nodeId);            
       pMsg->sId = htobe64(schMgmt.sId);      
       pMsg->queryId = htobe64(job->queryId);
       pMsg->taskId = htobe64(task->taskId);      
@@ -747,7 +787,12 @@ int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
       break;
   }
 
-  SCH_ERR_JRET(schAsyncSendMsg(job->transport, &task->plan->execEpSet, job->queryId, task->taskId, msgType, msg, msgSize));
+  SEpSet epSet;
+  SQueryNodeAddr *addr = taosArrayGet(task->condidateAddrs, task->condidateIdx);
+  
+  schConvertAddrToEpSet(addr, &epSet);
+
+  SCH_ERR_JRET(schAsyncSendMsg(job->transport, &epSet, job->queryId, task->taskId, msgType, msg, msgSize));
 
   return TSDB_CODE_SUCCESS;
 
@@ -761,12 +806,10 @@ _return:
 int32_t schLaunchTask(SSchJob *job, SSchTask *task) {
   SSubplan *plan = task->plan;
   SCH_ERR_RET(qSubPlanToString(plan, &task->msg, &task->msgLen));
-  if (plan->execEpSet.numOfEps <= 0) {
-    SCH_ERR_RET(schSetTaskExecEpSet(job, &plan->execEpSet));
-  }
+  SCH_ERR_RET(schSetTaskCondidateAddrs(job, task));
 
-  if (plan->execEpSet.numOfEps <= 0) {
-    SCH_TASK_ERR_LOG("invalid execEpSet num:%d", plan->execEpSet.numOfEps);
+  if (NULL == task->condidateAddrs || taosArrayGetSize(task->condidateAddrs) <= 0) {
+    SCH_TASK_ERR_LOG("no valid condidate node for task:%"PRIx64, task->taskId);
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
