@@ -548,11 +548,12 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     taosArrayPush(pBufArray, &pVgData);
   } while (true);
 
-  SInsertStmtInfo* pStmtInfo = calloc(1, sizeof(SInsertStmtInfo));
-  pStmtInfo->nodeType = TSDB_SQL_CREATE_TABLE;
+  SVnodeModifOpStmtInfo* pStmtInfo = calloc(1, sizeof(SVnodeModifOpStmtInfo));
+  pStmtInfo->nodeType    = TSDB_SQL_CREATE_TABLE;
   pStmtInfo->pDataBlocks = pBufArray;
-  *pOutput = pStmtInfo;
-  *len = sizeof(SInsertStmtInfo);
+  
+  *pOutput = (char*) pStmtInfo;
+  *len     = sizeof(SVnodeModifOpStmtInfo);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -823,14 +824,14 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, c
     return NULL;
 }
 
-SInsertStmtInfo* qParserValidateCreateTbSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, char* msgBuf, int32_t msgBufLen) {
+SVnodeModifOpStmtInfo* qParserValidateCreateTbSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, char* msgBuf, int32_t msgBufLen) {
   SCreateTableSql* pCreateTable = pInfo->pCreateTableInfo;
   assert(pCreateTable->type == TSQL_CREATE_CTABLE);
 
   SMsgBuf  m = {.buf = msgBuf, .len = msgBufLen};
   SMsgBuf* pMsgBuf = &m;
 
-  SInsertStmtInfo* pInsertStmt = NULL;
+  SVnodeModifOpStmtInfo* pInsertStmt = NULL;
 
   int32_t msgLen = 0;
   int32_t code = doCheckForCreateCTable(pInfo, pCtx, pMsgBuf, (char**) &pInsertStmt, &msgLen);

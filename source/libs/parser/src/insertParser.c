@@ -61,7 +61,7 @@ typedef struct SInsertParseContext {
   SArray* pTableDataBlocks;     // global
   SArray* pVgDataBlocks;        // global
   int32_t totalNum;
-  SInsertStmtInfo* pOutput;
+  SVnodeModifOpStmtInfo* pOutput;
 } SInsertParseContext;
 
 static int32_t skipInsertInto(SInsertParseContext* pCxt) {
@@ -611,7 +611,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 //       [(field1_name, ...)]
 //       VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
 //   [...];
-int32_t parseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo) {
+int32_t parseInsertSql(SParseContext* pContext, SVnodeModifOpStmtInfo** pInfo) {
   SInsertParseContext context = {
     .pComCxt = pContext,
     .pSql = (char*) pContext->pSql,
@@ -620,7 +620,7 @@ int32_t parseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo) {
     .pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false),
     .pTableBlockHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false),
     .totalNum = 0,
-    .pOutput = calloc(1, sizeof(SInsertStmtInfo))
+    .pOutput = calloc(1, sizeof(SVnodeModifOpStmtInfo))
   };
 
   if (NULL == context.pVgroupsHashObj || NULL == context.pTableBlockHashObj || NULL == context.pOutput) {

@@ -38,7 +38,7 @@ int32_t optimizeQueryPlan(struct SQueryPlanNode* pQueryNode) {
 }
 
 static int32_t createModificationOpPlan(const SQueryNode* pNode, SQueryPlanNode** pQueryPlan) {
-  SInsertStmtInfo* pInsert = (SInsertStmtInfo*)pNode;
+  SVnodeModifOpStmtInfo* pInsert = (SVnodeModifOpStmtInfo*)pNode;
 
   *pQueryPlan = calloc(1, sizeof(SQueryPlanNode));
   SArray* blocks = taosArrayInit(taosArrayGetSize(pInsert->pDataBlocks), POINTER_BYTES);
