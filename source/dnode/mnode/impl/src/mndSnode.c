@@ -73,43 +73,68 @@ static void mndReleaseSnode(SMnode *pMnode, SSnodeObj *pObj) {
 }
 
 static SSdbRaw *mndSnodeActionEncode(SSnodeObj *pObj) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   SSdbRaw *pRaw = sdbAllocRaw(SDB_SNODE, TSDB_SNODE_VER_NUMBER, sizeof(SSnodeObj) + TSDB_SNODE_RESERVE_SIZE);
-  if (pRaw == NULL) return NULL;
+  if (pRaw == NULL) goto SNODE_ENCODE_OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_INT32(pRaw, dataPos, pObj->id);
-  SDB_SET_INT64(pRaw, dataPos, pObj->createdTime)
-  SDB_SET_INT64(pRaw, dataPos, pObj->updateTime)
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_SNODE_RESERVE_SIZE)
+  SDB_SET_INT32(pRaw, dataPos, pObj->id, SNODE_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pObj->createdTime, SNODE_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pObj->updateTime, SNODE_ENCODE_OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_SNODE_RESERVE_SIZE, SNODE_ENCODE_OVER)
 
+  terrno = 0;
+
+SNODE_ENCODE_OVER:
+  if (terrno != 0) {
+    mError("snode:%d, failed to encode to raw:%p since %s", pObj->id, pRaw, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
+
+  mTrace("snode:%d, encode to raw:%p, row:%p", pObj->id, pRaw, pObj);
   return pRaw;
 }
 
 static SSdbRow *mndSnodeActionDecode(SSdbRaw *pRaw) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto SNODE_DECODE_OVER;
 
   if (sver != TSDB_SNODE_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    mError("failed to decode snode since %s", terrstr());
+    goto SNODE_DECODE_OVER;
+  }
+
+  SSdbRow *pRow = sdbAllocRow(sizeof(SSnodeObj));
+  if (pRow == NULL) goto SNODE_DECODE_OVER;
+
+  SSnodeObj *pObj = sdbGetRowObj(pRow);
+  if (pObj == NULL) goto SNODE_DECODE_OVER;
+
+  int32_t dataPos = 0;
+  SDB_GET_INT32(pRaw, dataPos, &pObj->id, SNODE_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pObj->createdTime, SNODE_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pObj->updateTime, SNODE_DECODE_OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, TSDB_SNODE_RESERVE_SIZE, SNODE_DECODE_OVER)
+
+  terrno = 0;
+
+SNODE_DECODE_OVER:
+  if (terrno != 0) {
+    mError("snode:%d, failed to decode from raw:%p since %s", pObj->id, pRaw, terrstr());
+    tfree(pRow);
     return NULL;
   }
 
-  SSdbRow   *pRow = sdbAllocRow(sizeof(SSnodeObj));
-  SSnodeObj *pObj = sdbGetRowObj(pRow);
-  if (pObj == NULL) return NULL;
-
-  int32_t dataPos = 0;
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pObj->id)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pObj->createdTime)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pObj->updateTime)
-  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_SNODE_RESERVE_SIZE)
-
+  mTrace("snode:%d, decode from raw:%p, row:%p", pObj->id, pRaw, pObj);
   return pRow;
 }
 
 static int32_t mndSnodeActionInsert(SSdb *pSdb, SSnodeObj *pObj) {
-  mTrace("snode:%d, perform insert action", pObj->id);
+  mTrace("snode:%d, perform insert action, row:%p", pObj->id, pObj);
   pObj->pDnode = sdbAcquire(pSdb, SDB_DNODE, &pObj->id);
   if (pObj->pDnode == NULL) {
     terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
@@ -121,7 +146,7 @@ static int32_t mndSnodeActionInsert(SSdb *pSdb, SSnodeObj *pObj) {
 }
 
 static int32_t mndSnodeActionDelete(SSdb *pSdb, SSnodeObj *pObj) {
-  mTrace("snode:%d, perform delete action", pObj->id);
+  mTrace("snode:%d, perform delete action, row:%p", pObj->id, pObj);
   if (pObj->pDnode != NULL) {
     sdbRelease(pSdb, pObj->pDnode);
     pObj->pDnode = NULL;
@@ -131,7 +156,7 @@ static int32_t mndSnodeActionDelete(SSdb *pSdb, SSnodeObj *pObj) {
 }
 
 static int32_t mndSnodeActionUpdate(SSdb *pSdb, SSnodeObj *pOldSnode, SSnodeObj *pNewSnode) {
-  mTrace("snode:%d, perform update action", pOldSnode->id);
+  mTrace("snode:%d, perform update action, old_row:%p new_row:%p", pOldSnode->id, pOldSnode, pNewSnode);
   pOldSnode->updateTime = pNewSnode->updateTime;
   return 0;
 }
@@ -339,7 +364,7 @@ static int32_t mndProcessDropSnodeReq(SMnodeMsg *pMsg) {
   SSnodeObj *pObj = mndAcquireSnode(pMnode, pDrop->dnodeId);
   if (pObj == NULL) {
     mError("snode:%d, not exist", pDrop->dnodeId);
-    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+    terrno = TSDB_CODE_MND_SNODE_NOT_EXIST;
     return -1;
   }
 

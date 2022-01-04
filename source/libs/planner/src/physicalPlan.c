@@ -214,22 +214,22 @@ static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
   return subplan;
 }
 
-static void vgroupInfoToEpSet(const SVgroupInfo* vg, SEpSet* epSet) {
-  epSet->inUse = 0; // todo
-  epSet->numOfEps = vg->numOfEps;
+static void vgroupInfoToEpSet(const SVgroupInfo* vg, SQueryNodeAddr* execNode) {
+  execNode->nodeId = vg->vgId;
+  execNode->inUse = 0; // todo
+  execNode->numOfEps = vg->numOfEps;
   for (int8_t i = 0; i < vg->numOfEps; ++i) {
-    epSet->port[i] = vg->epAddr[i].port;
-    strcpy(epSet->fqdn[i], vg->epAddr[i].fqdn);
+    execNode->epAddr[i] = vg->epAddr[i];
   }
   return;
 }
 
-static void vgroupMsgToEpSet(const SVgroupMsg* vg, SEpSet* epSet) {
-  epSet->inUse = 0; // todo
-  epSet->numOfEps = vg->numOfEps;
+static void vgroupMsgToEpSet(const SVgroupMsg* vg, SQueryNodeAddr* execNode) {
+  execNode->nodeId = vg->vgId;
+  execNode->inUse = 0; // todo
+  execNode->numOfEps = vg->numOfEps;
   for (int8_t i = 0; i < vg->numOfEps; ++i) {
-    epSet->port[i] = vg->epAddr[i].port;
-    strcpy(epSet->fqdn[i], vg->epAddr[i].fqdn);
+    execNode->epAddr[i] = vg->epAddr[i];
   }
   return;
 }
@@ -239,7 +239,7 @@ static uint64_t splitSubplanByTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNod
   for (int32_t i = 0; i < pTable->pMeta->vgroupList->numOfVgroups; ++i) {
     STORE_CURRENT_SUBPLAN(pCxt);
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_SCAN);
-    vgroupMsgToEpSet(&(pTable->pMeta->vgroupList->vgroups[i]), &subplan->execEpSet);
+    vgroupMsgToEpSet(&(pTable->pMeta->vgroupList->vgroups[i]), &subplan->execNode);
     subplan->pNode = createMultiTableScanNode(pPlanNode, pTable);
     subplan->pDataSink = createDataDispatcher(pCxt, pPlanNode);
     RECOVERY_CURRENT_SUBPLAN(pCxt);
@@ -304,11 +304,12 @@ static void splitModificationOpSubPlan(SPlanContext* pCxt, SQueryPlanNode* pPlan
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_MODIFY);
     SVgDataBlocks* blocks = (SVgDataBlocks*)taosArrayGetP(pPayload->payload, i);
 
-    vgroupInfoToEpSet(&blocks->vg, &subplan->execEpSet);
+    vgroupInfoToEpSet(&blocks->vg, &subplan->execNode);
     subplan->pDataSink = createDataInserter(pCxt, blocks);
     subplan->pNode   = NULL;
     subplan->type    = QUERY_TYPE_MODIFY;
     subplan->msgType = pPayload->msgType;
+    subplan->id.queryId = pCxt->pDag->queryId;
 
     RECOVERY_CURRENT_SUBPLAN(pCxt);
   }
@@ -328,7 +329,7 @@ static void createSubplanByLevel(SPlanContext* pCxt, SQueryPlanNode* pRoot) {
   // todo deal subquery
 }
 
-int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag) {
+int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag, uint64_t requestId) {
   TRY(TSDB_MAX_TAG_CONDITIONS) {
     SPlanContext context = {
       .pCatalog = pCatalog,
@@ -338,6 +339,8 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
     };
 
     *pDag = context.pDag;
+    context.pDag->queryId = requestId;
+
     context.pDag->pSubplans = validPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
     createSubplanByLevel(&context, pQueryNode);
   } CATCH(code) {
@@ -348,6 +351,6 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SEpAddr* ep) {
+int32_t setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep) {
   //todo
 }

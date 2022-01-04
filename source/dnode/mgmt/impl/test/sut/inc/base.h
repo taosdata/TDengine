@@ -71,7 +71,7 @@ class Testbase {
   const char* GetShowBinary(int32_t len);
 
  private:
-  int32_t            showId;
+  int64_t            showId;
   STableMetaMsg*     pMeta;
   SRetrieveTableRsp* pRetrieveRsp;
   char*              pData;

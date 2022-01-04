@@ -68,8 +68,6 @@ typedef struct {
 
 SysNameInfo taosGetSysNameInfo();
 
-int64_t taosGetPid();
-
 #ifdef __cplusplus
 }
 #endif

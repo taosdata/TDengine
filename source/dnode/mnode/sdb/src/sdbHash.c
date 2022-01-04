@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "sdbInt.h"
 
-static const char *sdbTableName(ESdbType type) {
+const char *sdbTableName(ESdbType type) {
   switch (type) {
     case SDB_TRANS:
       return "trans";
@@ -57,12 +57,14 @@ void sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper) {
   EKeyType keyType = pSdb->keyTypes[pRow->type];
 
   if (keyType == SDB_KEY_BINARY) {
-    mTrace("%s:%s, refCount:%d oper:%s", sdbTableName(pRow->type), (char *)pRow->pObj, pRow->refCount, oper);
+    mTrace("%s:%s, refCount:%d oper:%s row:%p", sdbTableName(pRow->type), (char *)pRow->pObj, pRow->refCount, oper,
+           pRow->pObj);
   } else if (keyType == SDB_KEY_INT32) {
-    mTrace("%s:%d, refCount:%d oper:%s", sdbTableName(pRow->type), *(int32_t *)pRow->pObj, pRow->refCount, oper);
+    mTrace("%s:%d, refCount:%d oper:%s row:%p", sdbTableName(pRow->type), *(int32_t *)pRow->pObj, pRow->refCount, oper,
+           pRow->pObj);
   } else if (keyType == SDB_KEY_INT64) {
-    mTrace("%s:%" PRId64 ", refCount:%d oper:%s", sdbTableName(pRow->type), *(int64_t *)pRow->pObj, pRow->refCount,
-           oper);
+    mTrace("%s:%" PRId64 ", refCount:%d oper:%s row:%p", sdbTableName(pRow->type), *(int64_t *)pRow->pObj,
+           pRow->refCount, oper, pRow->pObj);
   } else {
   }
 }
