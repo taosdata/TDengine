@@ -51,7 +51,52 @@ function dohavecore(){
     fi
   fi
 }
+function runSimCaseOneByOnefq {
+  end=`sed -n '$=' jenkins/basic.txt` 
+  for ((i=1;i<=$end;i++)) ; do
+    if [[ $(($i%$1)) -eq $3 ]];then
+      line=`sed -n "$i"p jenkins/basic.txt`
+      if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
+        case=`echo $line | grep sim$ |awk '{print $NF}'`
 
+        start_time=`date +%s`    
+        date +%F\ %T | tee -a out.log
+        if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
+          echo -n $case
+          ./test.sh -f $case > case.log 2>&1 && \
+          ( grep -q 'script.*'$case'.*failed.*, err.*lineNum' ../../../sim/tsim/log/taoslog0.0 && echo -e "${RED} failed${NC}" | tee -a out.log  ||  echo -e "${GREEN} success${NC}" | tee -a out.log )|| \
+          ( grep -q 'script.*success.*m$' ../../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
+          ( echo -e "${RED} failed${NC}" | tee -a out.log && echo '=====================log=====================' && cat case.log )
+        else
+          echo -n $case
+          ./test.sh -f $case > ../../sim/case.log 2>&1 && \
+          ( grep -q 'script.*'$case'.*failed.*, err.*lineNum' ../../sim/tsim/log/taoslog0.0 && echo -e "${RED} failed${NC}" | tee -a out.log  ||  echo -e "${GREEN} success${NC}" | tee -a out.log )|| \
+          ( grep -q 'script.*success.*m$' ../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
+          ( echo -e "${RED} failed${NC}" | tee -a out.log && echo '=====================log=====================' &&  cat case.log )
+        fi
+        
+        out_log=`tail -1 out.log  `
+        if [[ $out_log =~ 'failed' ]];then
+          rm case.log
+          if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
+            cp -r ../../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S"`
+          else 
+            cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
+          fi
+          dohavecore $2 1
+          if [[ $2 == 1 ]];then
+            exit 8
+          fi
+        fi
+        end_time=`date +%s`
+        echo execution time of $case was `expr $end_time - $start_time`s. | tee -a out.log
+        dohavecore $2 1
+      fi
+    fi
+  done 
+  rm -rf ../../../sim/case.log
+  rm -rf ../../sim/case.log
+}
 
 function runPyCaseOneByOne {
   while read -r line; do
@@ -124,11 +169,9 @@ function runPyCaseOneByOnefq() {
     else
     echo $line
       if [[ $line =~ ^bash.* ]]; then
-        # $line > case.log 2>&1 || cat case.log && exit 8
-        # cat case.log
         $line > case.log 2>&1  
+        cat case.log
         if [ $? -ne 0 ];then
-          cat case.log
           exit 8
         fi
       fi
@@ -175,7 +218,6 @@ if [ "${OS}" == "Linux" ]; then
 fi
 
 
-echo "### run Python test case ###"
 
 cd $tests_dir
 
@@ -206,8 +248,13 @@ if [ "$1" == "full" ]; then
   runPyCaseOneByOne fulltest-other.sh
   runPyCaseOneByOne fulltest-insert.sh
   runPyCaseOneByOne fulltest-connector.sh
+elif [ "$1" == "sim" ]; then
+  echo "### run sim $2 test ###"
+  cd $tests_dir/script
+  runSimCaseOneByOnefq  $2 1 $3
 else
   echo "### run $1 $2 test ###"
+
   if [ "$1" != "query" ] && [ "$1" != "taosAdapter" ] && [ "$1" != "other" ] && [ "$1" != "tools" ] && [ "$1" != "insert" ] && [ "$1" != "connector" ] ;then
     echo " wrong option:$1 must one of [query,other,tools,insert,connector,taosAdapter]"
     exit 8
