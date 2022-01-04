@@ -309,6 +309,7 @@ static void splitModificationOpSubPlan(SPlanContext* pCxt, SQueryPlanNode* pPlan
     subplan->pNode   = NULL;
     subplan->type    = QUERY_TYPE_MODIFY;
     subplan->msgType = pPayload->msgType;
+    subplan->id.queryId = pCxt->pDag->queryId;
 
     RECOVERY_CURRENT_SUBPLAN(pCxt);
   }
@@ -328,7 +329,7 @@ static void createSubplanByLevel(SPlanContext* pCxt, SQueryPlanNode* pRoot) {
   // todo deal subquery
 }
 
-int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag) {
+int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag, uint64_t requestId) {
   TRY(TSDB_MAX_TAG_CONDITIONS) {
     SPlanContext context = {
       .pCatalog = pCatalog,
@@ -338,6 +339,8 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
     };
 
     *pDag = context.pDag;
+    context.pDag->queryId = requestId;
+
     context.pDag->pSubplans = validPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
     createSubplanByLevel(&context, pQueryNode);
   } CATCH(code) {

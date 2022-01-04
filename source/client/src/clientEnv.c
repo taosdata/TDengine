@@ -87,6 +87,7 @@ static void tscInitLogFile() {
   }
 }
 
+// todo close the transporter properly
 void closeTransporter(STscObj* pTscObj)  {
   if (pTscObj == NULL || pTscObj->pTransporter == NULL) {
     return;
@@ -166,8 +167,7 @@ void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t ty
     return NULL;
   }
 
-  // TODO generated request uuid
-  pRequest->requestId  = 0;
+  pRequest->requestId  = generateRequestId();
   pRequest->metric.start = taosGetTimestampMs();
 
   pRequest->type       = type;
@@ -408,6 +408,36 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
   }
 
   return 0;
+}
+
+/**
+ * The request id is an unsigned integer format of 64bit.
+ *+------------+-----+-----------+---------------+
+ *| uid|localIp| PId | timestamp | serial number |
+ *+------------+-----+-----------+---------------+
+ *| 16bit      |12bit|20bit      |16bit          |
+ *+------------+-----+-----------+---------------+
+ * @return
+ */
+static int32_t requestSerialId = 0;
+uint64_t generateRequestId() {
+  uint64_t hashId = 0;
+
+  char uid[64] = {0};
+  int32_t code = taosGetSystemUid(uid, tListLen(uid));
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("Failed to get the system uid to generated request id, reason:%s. use ip address instead", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+
+  } else {
+    hashId = MurmurHash3_32(uid, strlen(uid));
+  }
+
+  int64_t ts      = taosGetTimestampUs();
+  uint64_t pid    = taosGetPId();
+  int32_t val     = atomic_add_fetch_32(&requestSerialId, 1);
+
+  uint64_t id = ((hashId & 0xFFFF) << 48) | ((pid & 0x0FFF) << 36) | ((ts & 0xFFFFF) << 16) | (val & 0xFFFF);
+  return id;
 }
 
 #if 0
