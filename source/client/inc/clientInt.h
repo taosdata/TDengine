@@ -146,6 +146,8 @@ int   taos_init();
 void* createTscObj(const char* user, const char* auth, const char *db, SAppInstInfo* pAppInfo);
 void  destroyTscObj(void*pObj);
 
+uint64_t generateRequestId();
+
 void *createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t type);
 void  destroyRequest(SRequestObj* pRequest);
 

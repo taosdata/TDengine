@@ -198,13 +198,14 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
 
 int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQuery, SQueryDag** pDag) {
   pRequest->type = pQuery->type;
-  return qCreateQueryDag(pQuery, pDag);
+  return qCreateQueryDag(pQuery, pDag, pRequest->requestId);
 }
 
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, void** pJob) {
   if (TSDB_SQL_INSERT == pRequest->type || TSDB_SQL_CREATE_TABLE == pRequest->type) {
     return scheduleExecJob(pRequest->pTscObj->pTransporter, NULL/*todo appInfo.xxx*/, pDag, pJob, &pRequest->affectedRows);
   }
+
   return scheduleAsyncExecJob(pRequest->pTscObj->pTransporter, NULL/*todo appInfo.xxx*/, pDag, pJob);
 }
 
