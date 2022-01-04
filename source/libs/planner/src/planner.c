@@ -31,22 +31,25 @@ int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag)
     destroyQueryPlan(logicPlan);
     return code;
   }
+
   code = optimizeQueryPlan(logicPlan);
   if (TSDB_CODE_SUCCESS != code) {
     destroyQueryPlan(logicPlan);
     return code;
   }
+
   code = createDag(logicPlan, NULL, pDag);
   if (TSDB_CODE_SUCCESS != code) {
     destroyQueryPlan(logicPlan);
     qDestroyQueryDag(*pDag);
     return code;
   }
+
   destroyQueryPlan(logicPlan);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SEpAddr* ep) {
+int32_t qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep) {
   return setSubplanExecutionNode(subplan, templateId, ep);
 }
 
