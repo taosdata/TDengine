@@ -241,5 +241,5 @@ void qParserCleanupMetaRequestInfo(SCatalogReq* pMetaReq) {
 }
 
 void qDestroyQuery(SQueryNode* pQuery) {
-  // todo
+  tfree(pQuery);
 }

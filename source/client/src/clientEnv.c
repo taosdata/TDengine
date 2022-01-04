@@ -180,6 +180,14 @@ void* createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t ty
   return pRequest;
 }
 
+static void doFreeReqResultInfo(SReqResultInfo* pResInfo) {
+  tfree(pResInfo->pRspMsg);
+  tfree(pResInfo->length);
+  tfree(pResInfo->row);
+  tfree(pResInfo->pCol);
+  tfree(pResInfo->fields);
+}
+
 static void doDestroyRequest(void* p) {
   assert(p != NULL);
   SRequestObj* pRequest = (SRequestObj*)p;
@@ -190,7 +198,7 @@ static void doDestroyRequest(void* p) {
   tfree(pRequest->sqlstr);
   tfree(pRequest->pInfo);
 
-  tfree(pRequest->body.resInfo.pRspMsg);
+  doFreeReqResultInfo(&pRequest->body.resInfo);
 
   deregisterRequest(pRequest);
   tfree(pRequest);

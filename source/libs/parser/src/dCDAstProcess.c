@@ -378,6 +378,11 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
       return code;
     }
 
+    SKVRowBuilder kvRowBuilder = {0};
+    if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+
     SArray* pValList = pCreateTableInfo->pTagVals;
     size_t  numOfInputTag = taosArrayGetSize(pValList);
 
@@ -393,26 +398,22 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     SSchema*      pTagSchema = getTableTagSchema(pSuperTableMeta);
     STableComInfo tinfo = getTableInfo(pSuperTableMeta);
 
-    SKVRowBuilder kvRowBuilder = {0};
-    if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-
     SArray* pNameList = NULL;
-    size_t  nameSize = 0;
+    size_t  numOfBoundTags = 0;
     int32_t schemaSize = getNumOfTags(pSuperTableMeta);
 
     if (pCreateTableInfo->pTagNames) {
       pNameList = pCreateTableInfo->pTagNames;
-      nameSize = taosArrayGetSize(pNameList);
+      numOfBoundTags = taosArrayGetSize(pNameList);
 
-      if (numOfInputTag != nameSize || schemaSize < numOfInputTag) {
+      if (numOfInputTag != numOfBoundTags || schemaSize < numOfInputTag) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
+        tfree(pSuperTableMeta);
         return buildInvalidOperationMsg(pMsgBuf, msg2);
       }
 
       bool findColumnIndex = false;
-      for (int32_t i = 0; i < nameSize; ++i) {
+      for (int32_t i = 0; i < numOfBoundTags; ++i) {
         SToken* sToken = taosArrayGet(pNameList, i);
 
         char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0};  // create tmp buf to avoid alter orginal sqlstr
@@ -440,6 +441,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
             if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
               if (pItem->pVar.nLen > pSchema->bytes) {
                 tdDestroyKVRowBuilder(&kvRowBuilder);
+                tfree(pSuperTableMeta);
                 return buildInvalidOperationMsg(pMsgBuf, msg3);
               }
             } else if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
@@ -460,12 +462,14 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
               int16_t len = varDataTLen(tagVal);
               if (len > pSchema->bytes) {
                 tdDestroyKVRowBuilder(&kvRowBuilder);
+                tfree(pSuperTableMeta);
                 return buildInvalidOperationMsg(pMsgBuf, msg3);
               }
             }
 
             if (code != TSDB_CODE_SUCCESS) {
               tdDestroyKVRowBuilder(&kvRowBuilder);
+              tfree(pSuperTableMeta);
               return buildInvalidOperationMsg(pMsgBuf, msg4);
             }
 
@@ -484,11 +488,14 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     } else {
       if (schemaSize != numOfInputTag) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
+        tfree(pSuperTableMeta);
         return buildInvalidOperationMsg(pMsgBuf, msg2);
       }
 
       code = doParseSerializeTagValue(pTagSchema, numOfInputTag, &kvRowBuilder, pValList, tinfo.precision, pMsgBuf);
       if (code != TSDB_CODE_SUCCESS) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
+        tfree(pSuperTableMeta);
         return code;
       }
     }
@@ -496,6 +503,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
     tdDestroyKVRowBuilder(&kvRowBuilder);
     if (row == NULL) {
+      tfree(pSuperTableMeta);
       return TSDB_CODE_QRY_OUT_OF_MEMORY;
     }
 
@@ -504,6 +512,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     SName tableName = {0};
     code = createSName(&tableName, &pCreateTableInfo->name, pCtx, pMsgBuf);
     if (code != TSDB_CODE_SUCCESS) {
+      tfree(pSuperTableMeta);
       return code;
     }
 
@@ -529,6 +538,8 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
       assert(info.vgId == pTableBatch->info.vgId);
       taosArrayPush(pTableBatch->req.pArray, &req);
     }
+
+    tfree(pSuperTableMeta);
   }
 
   // TODO: serialize and
@@ -567,6 +578,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
   *pOutput = (char*) pStmtInfo;
   *len     = sizeof(SVnodeModifOpStmtInfo);
 
+  taosHashCleanup(pVgroupHashmap);
   return TSDB_CODE_SUCCESS;
 }
 
