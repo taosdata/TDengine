@@ -127,15 +127,14 @@ void tEndDecode(SCoder* pCoder) {
   struct SCoderNode* pNode;
 
   ASSERT(pCoder->type == TD_DECODER);
-  ASSERT(tDecodeIsEnd(pCoder));
 
   pNode = TD_SLIST_HEAD(&(pCoder->stack));
   ASSERT(pNode);
   TD_SLIST_POP(&(pCoder->stack));
 
   pCoder->data = pNode->data;
+  pCoder->pos = pCoder->size + pNode->pos;
   pCoder->size = pNode->size;
-  pCoder->pos = pCoder->pos + pNode->pos;
 
   free(pNode);
 }
