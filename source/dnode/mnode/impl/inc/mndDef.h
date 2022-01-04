@@ -22,6 +22,7 @@
 #include "sync.h"
 #include "tmsg.h"
 #include "thash.h"
+#include "tlist.h"
 #include "tlog.h"
 #include "trpc.h"
 #include "ttimer.h"
@@ -288,14 +289,81 @@ typedef struct {
   char    payload[];
 } SShowObj;
 
+typedef struct SConsumerObj {
+  uint64_t uid;
+  int64_t  createTime;
+  int64_t  updateTime;
+  //uint64_t dbUid;
+  int32_t  version;
+  SRWLatch lock;
+  SList*   topics;
+} SConsumerObj;
+
+typedef struct SMqSubConsumerObj {
+  int64_t consumerUid;  // if -1, unassigned
+  SList*   vgId;        //SList<int32_t>
+} SMqSubConsumerObj;
+
+typedef struct SMqSubCGroupObj {
+  char   name[TSDB_CONSUMER_GROUP_LEN];
+  SList* consumers;     //SList<SMqConsumerObj>
+} SMqSubCGroupObj;
+
+typedef struct SMqSubTopicObj {
+  char     name[TSDB_TOPIC_FNAME_LEN];
+  char     db[TSDB_DB_FNAME_LEN];
+  int64_t  createTime;
+  int64_t  updateTime;
+  int64_t  uid;
+  int64_t  dbUid;
+  int32_t  version;
+  SRWLatch lock;
+  int32_t  sqlLen;
+  char*    sql;
+  char*    logicalPlan;
+  char*    physicalPlan;
+  SList*   cgroups;     //SList<SMqSubCGroupObj>
+} SMqSubTopicObj;
+
+typedef struct SMqConsumerSubObj {
+  int64_t topicUid;
+  SList*  vgIds;        //SList<int64_t>
+} SMqConsumerSubObj;
+
+typedef struct SMqConsumerHbObj {
+  int64_t consumerId;
+  SList*  consumerSubs; //SList<SMqConsumerSubObj>
+} SMqConsumerHbObj;
+
+typedef struct SMqVGroupSubObj {
+  int64_t topicUid;
+  SList*  consumerIds;  //SList<int64_t>
+} SMqVGroupSubObj;
+
+typedef struct SMqVGroupHbObj {
+  int64_t vgId;
+  SList*  vgSubs;       //SList<SMqVGroupSubObj>
+} SMqVGroupHbObj;
+
+typedef struct SCGroupObj {
+  char     name[TSDB_TOPIC_FNAME_LEN];
+  int64_t  createTime;
+  int64_t  updateTime;
+  uint64_t uid;
+  //uint64_t dbUid;
+  int32_t  version;
+  SRWLatch lock;
+  SList*   consumerIds;
+} SCGroupObj;
+
 typedef struct {
-  char name[TSDB_TOPIC_FNAME_LEN];
-  char db[TSDB_DB_FNAME_LEN];
-  int64_t createTime;
-  int64_t updateTime;
+  char     name[TSDB_TOPIC_FNAME_LEN];
+  char     db[TSDB_DB_FNAME_LEN];
+  int64_t  createTime;
+  int64_t  updateTime;
   uint64_t uid;
   uint64_t dbUid;
-  int32_t version;
+  int32_t  version;
   SRWLatch lock;
   int32_t  execLen;
   void*    executor;
@@ -303,31 +371,8 @@ typedef struct {
   char*    sql;
   char*    logicalPlan;
   char*    physicalPlan;
+  SList*   consumerIds; 
 } STopicObj;
-
-typedef struct {
-  char name[TSDB_TOPIC_FNAME_LEN];
-  char db[TSDB_DB_FNAME_LEN];
-  int64_t createTime;
-  int64_t updateTime;
-  uint64_t uid;
-  //uint64_t dbUid;
-  int32_t version;
-  SRWLatch lock;
-
-} SConsumerObj;
-
-typedef struct {
-  char name[TSDB_TOPIC_FNAME_LEN];
-  char db[TSDB_DB_FNAME_LEN];
-  int64_t createTime;
-  int64_t updateTime;
-  uint64_t uid;
-  //uint64_t dbUid;
-  int32_t version;
-  SRWLatch lock;
-
-} SCGroupObj;
 
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];
