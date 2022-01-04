@@ -2,7 +2,7 @@
  * @file trans.cpp
  * @author slguan (slguan@taosdata.com)
  * @brief MNODE module trans tests
- * @version 0.1
+ * @version 1.0
  * @date 2022-01-04
  *
  * @copyright Copyright (c) 2022

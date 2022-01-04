@@ -1,28 +1,28 @@
 /**
- * @file dnode.cpp
+ * @file qnode.cpp
  * @author slguan (slguan@taosdata.com)
- * @brief DNODE module dnode-msg tests
- * @version 0.1
- * @date 2021-12-15
+ * @brief MNODE module qnode tests
+ * @version 1.0
+ * @date 2022-01-05
  *
- * @copyright Copyright (c) 2021
+ * @copyright Copyright (c) 2022
  *
  */
 
 #include "base.h"
 
-class DndTestSnode : public ::testing::Test {
+class DndTestQnode : public ::testing::Test {
  public:
   void SetUp() override {}
   void TearDown() override {}
 
  public:
   static void SetUpTestSuite() {
-    test.Init("/tmp/dnode_test_snode1", 9066);
+    test.Init("/tmp/mnode_test_qnode1", 9014);
     const char* fqdn = "localhost";
-    const char* firstEp = "localhost:9066";
+    const char* firstEp = "localhost:9014";
 
-    server2.Start("/tmp/dnode_test_snode2", fqdn, 9067, firstEp);
+    server2.Start("/tmp/mnode_test_qnode2", fqdn, 9015, firstEp);
     taosMsleep(300);
   }
 
@@ -35,12 +35,12 @@ class DndTestSnode : public ::testing::Test {
   static TestServer server2;
 };
 
-Testbase   DndTestSnode::test;
-TestServer DndTestSnode::server2;
+Testbase   DndTestQnode::test;
+TestServer DndTestQnode::server2;
 
-TEST_F(DndTestSnode, 01_ShowSnode) {
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_SNODE, "");
-  CHECK_META("show snodes", 3);
+TEST_F(DndTestQnode, 01_ShowQnode) {
+  test.SendShowMetaMsg(TSDB_MGMT_TABLE_QNODE, "");
+  CHECK_META("show qnodes", 3);
 
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_SMALLINT, 2, "id");
   CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN + VARSTR_HEADER_SIZE, "endpoint");
@@ -50,19 +50,19 @@ TEST_F(DndTestSnode, 01_ShowSnode) {
   EXPECT_EQ(test.GetShowRows(), 0);
 }
 
-TEST_F(DndTestSnode, 02_Create_Snode_Invalid_Id) {
+TEST_F(DndTestQnode, 02_Create_Qnode_Invalid_Id) {
   {
-    int32_t contLen = sizeof(SMCreateSnodeMsg);
+    int32_t contLen = sizeof(SMCreateQnodeMsg);
 
-    SMCreateSnodeMsg* pReq = (SMCreateSnodeMsg*)rpcMallocCont(contLen);
+    SMCreateQnodeMsg* pReq = (SMCreateQnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(1);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_SNODE, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
-    test.SendShowMetaMsg(TSDB_MGMT_TABLE_SNODE, "");
-    CHECK_META("show snodes", 3);
+    test.SendShowMetaMsg(TSDB_MGMT_TABLE_QNODE, "");
+    CHECK_META("show qnodes", 3);
 
     CHECK_SCHEMA(0, TSDB_DATA_TYPE_SMALLINT, 2, "id");
     CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN + VARSTR_HEADER_SIZE, "endpoint");
@@ -72,32 +72,32 @@ TEST_F(DndTestSnode, 02_Create_Snode_Invalid_Id) {
     EXPECT_EQ(test.GetShowRows(), 1);
 
     CheckInt16(1);
-    CheckBinary("localhost:9066", TSDB_EP_LEN);
+    CheckBinary("localhost:9014", TSDB_EP_LEN);
     CheckTimestamp();
   }
 }
 
-TEST_F(DndTestSnode, 03_Create_Snode_Invalid_Id) {
+TEST_F(DndTestQnode, 03_Create_Qnode_Invalid_Id) {
   {
-    int32_t contLen = sizeof(SMCreateSnodeMsg);
+    int32_t contLen = sizeof(SMCreateQnodeMsg);
 
-    SMCreateSnodeMsg* pReq = (SMCreateSnodeMsg*)rpcMallocCont(contLen);
+    SMCreateQnodeMsg* pReq = (SMCreateQnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_SNODE, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, TSDB_CODE_MND_DNODE_NOT_EXIST);
   }
 }
 
-TEST_F(DndTestSnode, 04_Create_Snode) {
+TEST_F(DndTestQnode, 04_Create_Qnode) {
   {
     // create dnode
     int32_t contLen = sizeof(SCreateDnodeMsg);
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
     strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(9067);
+    pReq->port = htonl(9015);
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
@@ -110,45 +110,45 @@ TEST_F(DndTestSnode, 04_Create_Snode) {
   }
 
   {
-    // create snode
-    int32_t contLen = sizeof(SMCreateSnodeMsg);
+    // create qnode
+    int32_t contLen = sizeof(SMCreateQnodeMsg);
 
-    SMCreateSnodeMsg* pReq = (SMCreateSnodeMsg*)rpcMallocCont(contLen);
+    SMCreateQnodeMsg* pReq = (SMCreateQnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_SNODE, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
-    test.SendShowMetaMsg(TSDB_MGMT_TABLE_SNODE, "");
+    test.SendShowMetaMsg(TSDB_MGMT_TABLE_QNODE, "");
     test.SendShowRetrieveMsg();
     EXPECT_EQ(test.GetShowRows(), 2);
 
     CheckInt16(1);
     CheckInt16(2);
-    CheckBinary("localhost:9066", TSDB_EP_LEN);
-    CheckBinary("localhost:9067", TSDB_EP_LEN);
+    CheckBinary("localhost:9014", TSDB_EP_LEN);
+    CheckBinary("localhost:9015", TSDB_EP_LEN);
     CheckTimestamp();
     CheckTimestamp();
   }
 
   {
-    // drop snode
-    int32_t contLen = sizeof(SMDropSnodeMsg);
+    // drop qnode
+    int32_t contLen = sizeof(SMDropQnodeMsg);
 
-    SMDropSnodeMsg* pReq = (SMDropSnodeMsg*)rpcMallocCont(contLen);
+    SMDropQnodeMsg* pReq = (SMDropQnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_SNODE, pReq, contLen);
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_QNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
-    test.SendShowMetaMsg(TSDB_MGMT_TABLE_SNODE, "");
+    test.SendShowMetaMsg(TSDB_MGMT_TABLE_QNODE, "");
     test.SendShowRetrieveMsg();
     EXPECT_EQ(test.GetShowRows(), 1);
 
     CheckInt16(1);
-    CheckBinary("localhost:9066", TSDB_EP_LEN);
+    CheckBinary("localhost:9014", TSDB_EP_LEN);
     CheckTimestamp();
   }
 }

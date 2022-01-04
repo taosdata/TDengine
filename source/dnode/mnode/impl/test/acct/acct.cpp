@@ -3,7 +3,7 @@
  * @author slguan (slguan@taosdata.com)
  * @brief MNODE module acct tests
  * @version 1.0
- * @date 2021-12-15
+ * @date 2022-01-04
  *
  * @copyright Copyright (c) 2022
  *

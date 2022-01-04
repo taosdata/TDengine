@@ -1,11 +1,11 @@
 /**
- * @file dnode.cpp
+ * @file bnode.cpp
  * @author slguan (slguan@taosdata.com)
- * @brief DNODE module dnode-msg tests
- * @version 0.1
- * @date 2021-12-15
+ * @brief MNODE module bnode tests
+ * @version 1.0
+ * @date 2022-01-05
  *
- * @copyright Copyright (c) 2021
+ * @copyright Copyright (c) 2022
  *
  */
 
@@ -18,11 +18,11 @@ class DndTestBnode : public ::testing::Test {
 
  public:
   static void SetUpTestSuite() {
-    test.Init("/tmp/dnode_test_bnode1", 9068);
+    test.Init("/tmp/mnode_test_bnode1", 9018);
     const char* fqdn = "localhost";
-    const char* firstEp = "localhost:9068";
+    const char* firstEp = "localhost:9018";
 
-    server2.Start("/tmp/dnode_test_bnode2", fqdn, 9069, firstEp);
+    server2.Start("/tmp/mnode_test_bnode2", fqdn, 9019, firstEp);
     taosMsleep(300);
   }
 
@@ -72,7 +72,7 @@ TEST_F(DndTestBnode, 02_Create_Bnode_Invalid_Id) {
     EXPECT_EQ(test.GetShowRows(), 1);
 
     CheckInt16(1);
-    CheckBinary("localhost:9068", TSDB_EP_LEN);
+    CheckBinary("localhost:9018", TSDB_EP_LEN);
     CheckTimestamp();
   }
 }
@@ -97,7 +97,7 @@ TEST_F(DndTestBnode, 04_Create_Bnode) {
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
     strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(9069);
+    pReq->port = htonl(9019);
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
@@ -126,8 +126,8 @@ TEST_F(DndTestBnode, 04_Create_Bnode) {
 
     CheckInt16(1);
     CheckInt16(2);
-    CheckBinary("localhost:9068", TSDB_EP_LEN);
-    CheckBinary("localhost:9069", TSDB_EP_LEN);
+    CheckBinary("localhost:9018", TSDB_EP_LEN);
+    CheckBinary("localhost:9019", TSDB_EP_LEN);
     CheckTimestamp();
     CheckTimestamp();
   }
@@ -148,7 +148,7 @@ TEST_F(DndTestBnode, 04_Create_Bnode) {
     EXPECT_EQ(test.GetShowRows(), 1);
 
     CheckInt16(1);
-    CheckBinary("localhost:9068", TSDB_EP_LEN);
+    CheckBinary("localhost:9018", TSDB_EP_LEN);
     CheckTimestamp();
   }
 }
