@@ -18,7 +18,7 @@
 #include "tutil.h"
 
 static int writeCtxDoWrite(WriterCtx* ctx, uint8_t* buf, int len) {
-  if (ctx->offset + len > ctx->limit) { return -1; }
+  // if (ctx->offset + len > ctx->limit) { return -1; }
 
   if (ctx->type == TFile) {
     assert(len == tfWrite(ctx->file.fd, buf, len));
@@ -111,8 +111,8 @@ void writerCtxDestroy(WriterCtx* ctx, bool remove) {
   if (ctx->type == TMemory) {
     free(ctx->mem.buf);
   } else {
+    // ctx->flush(ctx);
     tfClose(ctx->file.fd);
-    ctx->flush(ctx);
     if (remove) { unlink(ctx->file.buf); }
   }
   free(ctx);

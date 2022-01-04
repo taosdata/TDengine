@@ -74,16 +74,15 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   // sIdx->cache = (void*)indexCacheCreate(sIdx);
   sIdx->tindex = indexTFileCreate(path);
   if (sIdx->tindex == NULL) { goto END; }
+
   sIdx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   sIdx->cVersion = 1;
-  sIdx->path = calloc(1, strlen(path) + 1);
-  memcpy(sIdx->path, path, strlen(path));
+  sIdx->path = tstrdup(path);
   pthread_mutex_init(&sIdx->mtx, NULL);
-
   *index = sIdx;
-
   return 0;
 #endif
+
 END:
   if (sIdx != NULL) { indexClose(sIdx); }
 
@@ -310,18 +309,14 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
 
   // Get col info
   IndexCache* cache = NULL;
-  pthread_mutex_lock(&sIdx->mtx);
 
   char      buf[128] = {0};
   ICacheKey key = {.suid = term->suid, .colName = term->colName, .nColName = strlen(term->colName)};
   int32_t   sz = indexSerialCacheKey(&key, buf);
 
+  pthread_mutex_lock(&sIdx->mtx);
   IndexCache** pCache = taosHashGet(sIdx->colObj, buf, sz);
-  if (pCache == NULL) {
-    pthread_mutex_unlock(&sIdx->mtx);
-    return -1;
-  }
-  cache = *pCache;
+  cache = (pCache == NULL) ? NULL : *pCache;
   pthread_mutex_unlock(&sIdx->mtx);
 
   *result = taosArrayInit(4, sizeof(uint64_t));
@@ -329,7 +324,7 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
   STermValueType s = kTypeValue;
   if (0 == indexCacheSearch(cache, query, *result, &s)) {
     if (s == kTypeDeletion) {
-      indexInfo("col: %s already drop by other opera", term->colName);
+      indexInfo("col: %s already drop by", term->colName);
       // coloum already drop by other oper, no need to query tindex
       return 0;
     } else {
@@ -402,7 +397,7 @@ static void indexDestroyTempResult(SArray* result) {
 }
 int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
   if (sIdx == NULL) { return -1; }
-  indexWarn("suid %" PRIu64 " merge cache into tindex", sIdx->suid);
+  indexInfo("suid %" PRIu64 " merge cache into tindex", sIdx->suid);
 
   IndexCache*  pCache = (IndexCache*)cache;
   TFileReader* pReader = tfileGetReaderByCol(sIdx->tindex, pCache->suid, pCache->colName);
@@ -504,17 +499,15 @@ static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   tfileWriterClose(tw);
 
   TFileReader* reader = tfileReaderOpen(sIdx->path, cache->suid, version, cache->colName);
+  if (reader == NULL) { goto END; }
 
-  char         buf[128] = {0};
   TFileHeader* header = &reader->header;
   ICacheKey    key = {
       .suid = cache->suid, .colName = header->colName, .nColName = strlen(header->colName), .colType = header->colType};
 
   pthread_mutex_lock(&sIdx->mtx);
-
   IndexTFile* ifile = (IndexTFile*)sIdx->tindex;
   tfileCachePut(ifile->cache, &key, reader);
-
   pthread_mutex_unlock(&sIdx->mtx);
   return ret;
 END:
