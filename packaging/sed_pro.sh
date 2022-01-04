@@ -67,6 +67,7 @@ function replace_community_pro() {
   sed -i "s/taosdata\.com/hanatech\.com\.cn/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/\${bin_link_dir}\/taos /\${bin_link_dir}\/prodbc /g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/\${bin_link_dir}\/taosd /\${bin_link_dir}\/prodbs /g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\${bin_link_dir}\/rmtaos /\${bin_link_dir}\/rmpro /g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/bin\/taos /bin\/prodbc /g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/bin\/taosd /bin\/prodbs /g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/packaging/tools/install.sh
