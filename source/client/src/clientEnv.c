@@ -419,17 +419,20 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
  *+------------+-----+-----------+---------------+
  * @return
  */
-static int32_t requestSerialId = 0;
 uint64_t generateRequestId() {
-  uint64_t hashId = 0;
+  static uint64_t hashId = 0;
+  static int32_t requestSerialId = 0;
 
-  char uid[64] = {0};
-  int32_t code = taosGetSystemUid(uid, tListLen(uid));
-  if (code != TSDB_CODE_SUCCESS) {
-    tscError("Failed to get the system uid to generated request id, reason:%s. use ip address instead", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+  if (hashId == 0) {
+    char    uid[64] = {0};
+    int32_t code = taosGetSystemUUID(uid, tListLen(uid));
+    if (code != TSDB_CODE_SUCCESS) {
+      tscError("Failed to get the system uid to generated request id, reason:%s. use ip address instead",
+               tstrerror(TAOS_SYSTEM_ERROR(errno)));
 
-  } else {
-    hashId = MurmurHash3_32(uid, strlen(uid));
+    } else {
+      hashId = MurmurHash3_32(uid, strlen(uid));
+    }
   }
 
   int64_t ts      = taosGetTimestampUs();
