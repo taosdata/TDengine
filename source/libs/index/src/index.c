@@ -17,6 +17,7 @@
 #include "indexInt.h"
 #include "index_cache.h"
 #include "index_tfile.h"
+#include "index_util.h"
 #include "tdef.h"
 #include "tsched.h"
 
@@ -25,7 +26,7 @@
 #endif
 
 #define INDEX_NUM_OF_THREADS 4
-#define INDEX_QUEUE_SIZE 4
+#define INDEX_QUEUE_SIZE 200
 
 void* indexQhandle = NULL;
 
@@ -52,18 +53,17 @@ typedef struct SIdxColInfo {
 
 static pthread_once_t isInit = PTHREAD_ONCE_INIT;
 // static void           indexInit();
-
 static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* term, SArray** result);
 
 static void indexInterResultsDestroy(SArray* results);
 static int  indexMergeFinalResults(SArray* interResults, EIndexOperatorType oType, SArray* finalResult);
 
+static int indexGenTFile(SIndex* index, IndexCache* cache, SArray* batch);
+
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   // pthread_once(&isInit, indexInit);
   SIndex* sIdx = calloc(1, sizeof(SIndex));
-  if (sIdx == NULL) {
-    return -1;
-  }
+  if (sIdx == NULL) { return -1; }
 
 #ifdef USE_LUCENE
   index_t* index = index_open(path);
@@ -73,6 +73,7 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
 #ifdef USE_INVERTED_INDEX
   // sIdx->cache = (void*)indexCacheCreate(sIdx);
   sIdx->tindex = indexTFileCreate(path);
+  if (sIdx->tindex == NULL) { goto END; }
   sIdx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   sIdx->cVersion = 1;
   sIdx->path = calloc(1, strlen(path) + 1);
@@ -83,6 +84,8 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
 
   return 0;
 #endif
+END:
+  if (sIdx != NULL) { indexClose(sIdx); }
 
   *index = NULL;
   return -1;
@@ -95,18 +98,17 @@ void indexClose(SIndex* sIdx) {
 #endif
 
 #ifdef USE_INVERTED_INDEX
-  indexCacheDestroy(sIdx->cache);
   void* iter = taosHashIterate(sIdx->colObj, NULL);
   while (iter) {
     IndexCache** pCache = iter;
-    if (*pCache) {
-      indexCacheUnRef(*pCache);
-    }
+    if (*pCache) { indexCacheUnRef(*pCache); }
     iter = taosHashIterate(sIdx->colObj, iter);
   }
   taosHashCleanup(sIdx->colObj);
   pthread_mutex_destroy(&sIdx->mtx);
+  indexTFileDestroy(sIdx->tindex);
 #endif
+  free(sIdx->path);
   free(sIdx);
   return;
 }
@@ -133,23 +135,31 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
   // TODO(yihao): reduce the lock range
   pthread_mutex_lock(&index->mtx);
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
-    SIndexTerm*  p = taosArrayGetP(fVals, i);
-    IndexCache** cache = taosHashGet(index->colObj, p->colName, p->nColName);
+    SIndexTerm* p = taosArrayGetP(fVals, i);
+
+    char      buf[128] = {0};
+    ICacheKey key = {.suid = p->suid, .colName = p->colName, .nColName = strlen(p->colName)};
+    int32_t   sz = indexSerialCacheKey(&key, buf);
+
+    IndexCache** cache = taosHashGet(index->colObj, buf, sz);
     if (cache == NULL) {
-      IndexCache* pCache = indexCacheCreate(index, p->colName, p->colType);
-      taosHashPut(index->colObj, p->colName, p->nColName, &pCache, sizeof(void*));
+      IndexCache* pCache = indexCacheCreate(index, p->suid, p->colName, p->colType);
+      taosHashPut(index->colObj, buf, sz, &pCache, sizeof(void*));
     }
   }
   pthread_mutex_unlock(&index->mtx);
 
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
-    SIndexTerm*  p = taosArrayGetP(fVals, i);
-    IndexCache** cache = taosHashGet(index->colObj, p->colName, p->nColName);
+    SIndexTerm* p = taosArrayGetP(fVals, i);
+
+    char      buf[128] = {0};
+    ICacheKey key = {.suid = p->suid, .colName = p->colName, .nColName = strlen(p->colName)};
+    int32_t   sz = indexSerialCacheKey(&key, buf);
+
+    IndexCache** cache = taosHashGet(index->colObj, buf, sz);
     assert(*cache != NULL);
     int ret = indexCachePut(*cache, p, uid);
-    if (ret != 0) {
-      return ret;
-    }
+    if (ret != 0) { return ret; }
   }
 
 #endif
@@ -179,9 +189,7 @@ int indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* result
   int  tsz = 0;
   index_multi_search(index->index, (const char**)fields, (const char**)keys, types, nQuery, opera, &tResult, &tsz);
 
-  for (int i = 0; i < tsz; i++) {
-    taosArrayPush(result, &tResult[i]);
-  }
+  for (int i = 0; i < tsz; i++) { taosArrayPush(result, &tResult[i]); }
 
   for (int i = 0; i < nQuery; i++) {
     free(fields[i]);
@@ -207,7 +215,7 @@ int indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* result
   indexInterResultsDestroy(interResults);
 
 #endif
-  return 1;
+  return 0;
 }
 
 int indexDelete(SIndex* index, SIndexMultiTermQuery* query) {
@@ -238,9 +246,7 @@ void indexOptsDestroy(SIndexOpts* opts) {
  */
 SIndexMultiTermQuery* indexMultiTermQueryCreate(EIndexOperatorType opera) {
   SIndexMultiTermQuery* p = (SIndexMultiTermQuery*)malloc(sizeof(SIndexMultiTermQuery));
-  if (p == NULL) {
-    return NULL;
-  }
+  if (p == NULL) { return NULL; }
   p->opera = opera;
   p->query = taosArrayInit(4, sizeof(SIndexTermQuery));
   return p;
@@ -262,9 +268,7 @@ int indexMultiTermQueryAdd(SIndexMultiTermQuery* pQuery, SIndexTerm* term, EInde
 SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colType, const char* colName,
                             int32_t nColName, const char* colVal, int32_t nColVal) {
   SIndexTerm* t = (SIndexTerm*)calloc(1, (sizeof(SIndexTerm)));
-  if (t == NULL) {
-    return NULL;
-  }
+  if (t == NULL) { return NULL; }
 
   t->suid = suid;
   t->operType = oper;
@@ -307,7 +311,12 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
   // Get col info
   IndexCache* cache = NULL;
   pthread_mutex_lock(&sIdx->mtx);
-  IndexCache** pCache = taosHashGet(sIdx->colObj, colName, nColName);
+
+  char      buf[128] = {0};
+  ICacheKey key = {.suid = term->suid, .colName = term->colName, .nColName = strlen(term->colName)};
+  int32_t   sz = indexSerialCacheKey(&key, buf);
+
+  IndexCache** pCache = taosHashGet(sIdx->colObj, buf, sz);
   if (pCache == NULL) {
     pthread_mutex_unlock(&sIdx->mtx);
     return -1;
@@ -317,7 +326,7 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
 
   *result = taosArrayInit(4, sizeof(uint64_t));
   // TODO: iterator mem and tidex
-  STermValueType s;
+  STermValueType s = kTypeValue;
   if (0 == indexCacheSearch(cache, query, *result, &s)) {
     if (s == kTypeDeletion) {
       indexInfo("col: %s already drop by other opera", term->colName);
@@ -336,9 +345,7 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
   return 0;
 }
 static void indexInterResultsDestroy(SArray* results) {
-  if (results == NULL) {
-    return;
-  }
+  if (results == NULL) { return; }
 
   size_t sz = taosArrayGetSize(results);
   for (size_t i = 0; i < sz; i++) {
@@ -368,23 +375,47 @@ static int indexMergeFinalResults(SArray* interResults, EIndexOperatorType oType
   return 0;
 }
 
-int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
-  if (sIdx == NULL) {
-    return -1;
+static void indexMergeSameKey(SArray* result, TFileValue* tv) {
+  int32_t sz = result ? taosArrayGetSize(result) : 0;
+  if (sz > 0) {
+    // TODO(yihao): remove duplicate tableid
+    TFileValue* lv = taosArrayGetP(result, sz - 1);
+    // indexError("merge colVal: %s", lv->colVal);
+    if (strcmp(lv->colVal, tv->colVal) == 0) {
+      taosArrayAddAll(lv->tableId, tv->tableId);
+      tfileValueDestroy(tv);
+    } else {
+      taosArrayPush(result, &tv);
+    }
+  } else {
+    taosArrayPush(result, &tv);
+    // indexError("merge colVal: %s", tv->colVal);
   }
+}
+static void indexDestroyTempResult(SArray* result) {
+  int32_t sz = result ? taosArrayGetSize(result) : 0;
+  for (size_t i = 0; i < sz; i++) {
+    TFileValue* tv = taosArrayGetP(result, i);
+    tfileValueDestroy(tv);
+  }
+  taosArrayDestroy(result);
+}
+int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
+  if (sIdx == NULL) { return -1; }
   indexWarn("suid %" PRIu64 " merge cache into tindex", sIdx->suid);
 
   IndexCache*  pCache = (IndexCache*)cache;
-  TFileReader* pReader = tfileGetReaderByCol(sIdx->tindex, pCache->colName);
-
+  TFileReader* pReader = tfileGetReaderByCol(sIdx->tindex, pCache->suid, pCache->colName);
+  if (pReader == NULL) { indexWarn("empty pReader found"); }
   // handle flush
   Iterate* cacheIter = indexCacheIteratorCreate(pCache);
   Iterate* tfileIter = tfileIteratorCreate(pReader);
+  if (tfileIter == NULL) { indexWarn("empty tfile reader iterator"); }
 
   SArray* result = taosArrayInit(1024, sizeof(void*));
 
-  bool cn = cacheIter->next(cacheIter);
-  bool tn = tfileIter->next(tfileIter);
+  bool cn = cacheIter ? cacheIter->next(cacheIter) : false;
+  bool tn = tfileIter ? tfileIter->next(tfileIter) : false;
   while (cn == true && tn == true) {
     IterateValue* cv = cacheIter->getValue(cacheIter);
     IterateValue* tv = tfileIter->getValue(tfileIter);
@@ -395,7 +426,7 @@ int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
       TFileValue* tfv = tfileValueCreate(cv->colVal);
       taosArrayAddAll(tfv->tableId, cv->val);
       taosArrayAddAll(tfv->tableId, tv->val);
-      taosArrayPush(result, &tfv);
+      indexMergeSameKey(result, tfv);
 
       cn = cacheIter->next(cacheIter);
       tn = tfileIter->next(tfileIter);
@@ -403,13 +434,15 @@ int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
     } else if (comp < 0) {
       TFileValue* tfv = tfileValueCreate(cv->colVal);
       taosArrayAddAll(tfv->tableId, cv->val);
-      taosArrayPush(result, &tfv);
+
+      indexMergeSameKey(result, tfv);
       // copy to final Result;
       cn = cacheIter->next(cacheIter);
     } else {
       TFileValue* tfv = tfileValueCreate(tv->colVal);
-      taosArrayPush(result, &tfv);
       taosArrayAddAll(tfv->tableId, tv->val);
+
+      indexMergeSameKey(result, tfv);
       // copy to final result
       tn = tfileIter->next(tfileIter);
     }
@@ -418,33 +451,24 @@ int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
     IterateValue* cv = cacheIter->getValue(cacheIter);
     TFileValue*   tfv = tfileValueCreate(cv->colVal);
     taosArrayAddAll(tfv->tableId, cv->val);
-    taosArrayPush(result, &tfv);
+    indexMergeSameKey(result, tfv);
     cn = cacheIter->next(cacheIter);
   }
   while (tn == true) {
     IterateValue* tv = tfileIter->getValue(tfileIter);
     TFileValue*   tfv = tfileValueCreate(tv->colVal);
+    if (tv->val == NULL) {
+      // HO
+      printf("NO....");
+    }
     taosArrayAddAll(tfv->tableId, tv->val);
-    taosArrayPush(result, &tfv);
+    indexMergeSameKey(result, tfv);
     tn = tfileIter->next(tfileIter);
   }
-
-  int32_t version = CACHE_VERSION(pCache);
-  uint8_t colType = pCache->type;
-
-  TFileWriter* tw = tfileWriterOpen(sIdx->path, sIdx->suid, version, pCache->colName, colType);
-  if (tw == NULL) {
-    indexError("faile to open file to write");
-  } else {
-    int ret = tfileWriterPut(tw, result);
-    if (ret != 0) {
-      indexError("faile to write into tindex ");
-    }
-  }
-  // not free later, just put int table cache
+  int ret = indexGenTFile(sIdx, pCache, result);
+  indexDestroyTempResult(result);
   indexCacheDestroyImm(pCache);
 
-  tfileWriteClose(tw);
   indexCacheIteratorDestroy(cacheIter);
   tfileIteratorDestroy(tfileIter);
 
@@ -455,9 +479,54 @@ int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
 void iterateValueDestroy(IterateValue* value, bool destroy) {
   if (destroy) {
     taosArrayDestroy(value->val);
+    value->val = NULL;
   } else {
-    taosArrayClear(value->val);
+    if (value->val != NULL) { taosArrayClear(value->val); }
   }
   free(value->colVal);
   value->colVal = NULL;
+}
+static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
+  int32_t version = CACHE_VERSION(cache);
+  uint8_t colType = cache->type;
+
+  TFileWriter* tw = tfileWriterOpen(sIdx->path, cache->suid, version, cache->colName, colType);
+  if (tw == NULL) {
+    indexError("failed to open file to write");
+    return -1;
+  }
+
+  int ret = tfileWriterPut(tw, batch, true);
+  if (ret != 0) {
+    indexError("failed to write into tindex ");
+    goto END;
+  }
+  tfileWriterClose(tw);
+
+  TFileReader* reader = tfileReaderOpen(sIdx->path, cache->suid, version, cache->colName);
+
+  char         buf[128] = {0};
+  TFileHeader* header = &reader->header;
+  ICacheKey    key = {
+      .suid = cache->suid, .colName = header->colName, .nColName = strlen(header->colName), .colType = header->colType};
+
+  pthread_mutex_lock(&sIdx->mtx);
+
+  IndexTFile* ifile = (IndexTFile*)sIdx->tindex;
+  tfileCachePut(ifile->cache, &key, reader);
+
+  pthread_mutex_unlock(&sIdx->mtx);
+  return ret;
+END:
+  tfileWriterClose(tw);
+}
+
+int32_t indexSerialCacheKey(ICacheKey* key, char* buf) {
+  char* p = buf;
+  SERIALIZE_MEM_TO_BUF(buf, key, suid);
+  SERIALIZE_VAR_TO_BUF(buf, '_', char);
+  // SERIALIZE_MEM_TO_BUF(buf, key, colType);
+  // SERIALIZE_VAR_TO_BUF(buf, '_', char);
+  SERIALIZE_STR_MEM_TO_BUF(buf, key, colName, key->nColName);
+  return buf - p;
 }

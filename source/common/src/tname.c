@@ -259,3 +259,13 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
 
   return 0;
 }
+
+SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name) {
+  SSchema s = {0};
+  s.type  = type;
+  s.bytes = bytes;
+  s.colId = colId;
+
+  tstrncpy(s.name, name, tListLen(s.name));
+  return s;
+}

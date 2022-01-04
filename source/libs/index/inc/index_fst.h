@@ -142,7 +142,8 @@ uint64_t fstStateInputLen(FstState* state);
 // end_addr
 uint64_t fstStateEndAddrForOneTransNext(FstState* state, FstSlice* data);
 uint64_t fstStateEndAddrForOneTrans(FstState* state, FstSlice* data, PackSizes sizes);
-uint64_t fstStateEndAddrForAnyTrans(FstState* state, uint64_t version, FstSlice* date, PackSizes sizes, uint64_t nTrans);
+uint64_t fstStateEndAddrForAnyTrans(FstState* state, uint64_t version, FstSlice* date, PackSizes sizes,
+                                    uint64_t nTrans);
 // input
 uint8_t fstStateInput(FstState* state, FstNode* node);
 uint8_t fstStateInputForAnyTrans(FstState* state, FstNode* node, uint64_t i);
@@ -255,9 +256,10 @@ typedef struct FstMeta {
 } FstMeta;
 
 typedef struct Fst {
-  FstMeta*  meta;
-  FstSlice* data;  //
-  FstNode*  root;  //
+  FstMeta*        meta;
+  FstSlice*       data;  //
+  FstNode*        root;  //
+  pthread_mutex_t mtx;
 } Fst;
 
 // refactor simple function
@@ -310,7 +312,8 @@ StreamWithStateResult* swsResultCreate(FstSlice* data, FstOutput fOut, void* sta
 void                   swsResultDestroy(StreamWithStateResult* result);
 
 typedef void* (*StreamCallback)(void*);
-StreamWithState* streamWithStateCreate(Fst* fst, AutomationCtx* automation, FstBoundWithData* min, FstBoundWithData* max);
+StreamWithState* streamWithStateCreate(Fst* fst, AutomationCtx* automation, FstBoundWithData* min,
+                                       FstBoundWithData* max);
 
 void streamWithStateDestroy(StreamWithState* sws);
 

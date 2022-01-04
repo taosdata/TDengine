@@ -89,12 +89,12 @@ typedef struct SSchJob {
   SEpSet           dataSrcEps;
   SEpAddr          resEp;
   void            *transport;
-  SArray          *qnodeList;
+  SArray          *nodeList;   // qnode/vnode list, element is SQueryNodeAddr
   tsem_t           rspSem;
   int32_t          userFetch;
   int32_t          remoteFetch;
 
-  SSchTask      *fetchTask;
+  SSchTask        *fetchTask;
   int32_t          errCode;
   void            *res;
   int32_t          resNumOfRows;

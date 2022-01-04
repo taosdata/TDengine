@@ -37,6 +37,8 @@ typedef struct WriterCtx {
     struct {
       int  fd;
       bool readOnly;
+      char buf[256];
+      int  size;
     } file;
     struct {
       int32_t capa;
@@ -53,7 +55,7 @@ static int writeCtxDoReadFrom(WriterCtx* ctx, uint8_t* buf, int len, int32_t off
 static int writeCtxDoFlush(WriterCtx* ctx);
 
 WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int32_t capacity);
-void       writerCtxDestroy(WriterCtx* w);
+void       writerCtxDestroy(WriterCtx* w, bool remove);
 
 typedef uint32_t CheckSummer;
 

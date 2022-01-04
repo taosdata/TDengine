@@ -99,7 +99,7 @@ void sqlCheck(const char* sql, bool valid) {
   }
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -159,7 +159,7 @@ TEST(testCase, validateAST_test) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 3);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -205,7 +205,7 @@ TEST(testCase, function_Test) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -251,7 +251,7 @@ TEST(testCase, function_Test2) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -296,7 +296,7 @@ TEST(testCase, function_Test3) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 6);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -342,7 +342,7 @@ TEST(testCase, function_Test4) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -393,7 +393,7 @@ TEST(testCase, function_Test5) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 1);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -507,7 +507,7 @@ TEST(testCase, function_Test6) {
   ASSERT_STREQ(p2->pExpr->_function.pChild[0]->pSchema->name, "t.1abc.b*a");
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -569,7 +569,7 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, numOfCols);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -625,7 +625,7 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(pQueryInfo->fieldsInfo.numOfOutput, 2);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -648,7 +648,7 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(ret, 0);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -678,7 +678,7 @@ TEST(testCase, function_Test6) {
   ASSERT_NE(ret, 0);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 //===============================================================================================================
   info1 = doGenerateAST("select top(a*b, ABC) from `t.1abc` interval(10s, 1s)");
@@ -700,7 +700,7 @@ TEST(testCase, function_Test6) {
   ASSERT_NE(ret, 0);
 
   destroyQueryInfo(pQueryInfo);
-  qParserClearupMetaRequestInfo(&req);
+  qParserCleanupMetaRequestInfo(&req);
   destroySqlInfo(&info1);
 }
 
@@ -714,10 +714,9 @@ TEST(testCase, show_user_Test) {
   SSqlInfo info1 = doGenerateAST(sql1);
   ASSERT_EQ(info1.valid, true);
 
-  SDclStmtInfo output;
   SParseBasicCtx ct= {.requestId = 1, .acctId = 1, .db = "abc", .pTransporter = NULL};
-  int32_t code = qParserValidateDclSqlNode(&info1, &ct, &output, msg, buf.len);
-  ASSERT_EQ(code, 0);
+  SDclStmtInfo* output = qParserValidateDclSqlNode(&info1, &ct, msg, buf.len);
+  ASSERT_NE(output, nullptr);
 
   // convert the show command to be the select query
   // select name, privilege, create_time, account from information_schema.users;
@@ -735,10 +734,9 @@ TEST(testCase, create_user_Test) {
   ASSERT_EQ(info1.valid, true);
   ASSERT_EQ(isDclSqlStatement(&info1), true);
 
-  SDclStmtInfo output;
   SParseBasicCtx ct= {.requestId = 1, .acctId = 1, .db = "abc"};
-  int32_t code = qParserValidateDclSqlNode(&info1, &ct, &output, msg, buf.len);
-  ASSERT_EQ(code, 0);
+  SDclStmtInfo* output = qParserValidateDclSqlNode(&info1, &ct, msg, buf.len);
+  ASSERT_NE(output, nullptr);
 
   destroySqlInfo(&info1);
 }

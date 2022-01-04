@@ -26,14 +26,12 @@ SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, in
 }
 
 SCreateAcctMsg* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
-  SCreateAcctMsg* pMsg = (SCreateAcctMsg*)calloc(1, sizeof(SCreateAcctMsg));
-  if (pMsg == NULL) {
-    //    tscError("0x%" PRIx64 " failed to malloc for query msg", id);
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+  SCreateAcctMsg *pCreateMsg = (SCreateAcctMsg *) calloc(1, sizeof(SCreateAcctMsg));
+  if (pCreateMsg == NULL) {
+    qError("0x%" PRIx64 " failed to malloc for query msg", id);
+    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return NULL;
   }
-
-  SCreateAcctMsg *pCreateMsg = (SCreateAcctMsg *) calloc(1, sizeof(SCreateAcctMsg));
 
   SToken *pName = &pInfo->pMiscInfo->user.user;
   SToken *pPwd = &pInfo->pMiscInfo->user.passwd;
@@ -67,17 +65,18 @@ SCreateAcctMsg* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, in
   }
 
   *outputLen = sizeof(SCreateAcctMsg);
-  return pMsg;
+  return pCreateMsg;
 }
+
 SDropUserMsg* buildDropUserMsg(SSqlInfo* pInfo, int32_t *msgLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
   SToken* pName = taosArrayGet(pInfo->pMiscInfo->a, 0);
   if (pName->n >= TSDB_USER_LEN) {
     return NULL;
   }
 
-
   SDropUserMsg* pMsg = calloc(1, sizeof(SDropUserMsg));
   if (pMsg == NULL) {
+    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -90,7 +89,6 @@ SShowMsg* buildShowMsg(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, char* msgBuf,
   SShowMsg* pShowMsg = calloc(1, sizeof(SShowMsg));
 
   pShowMsg->type = pShowInfo->showType;
-
   if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {
     SToken* pPattern = &pShowInfo->pattern;
     if (pPattern->type > 0) {  // only show tables support wildcard query
@@ -339,7 +337,7 @@ SDropStbMsg* buildDropStableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* p
 SCreateDnodeMsg *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
   const char* msg1 = "invalid host name (name too long, maximum length 128)";
   const char* msg2 = "dnode name can not be string";
-  const char* msg3 = "port should be an integer that is less than 65535";
+  const char* msg3 = "port should be an integer that is less than 65535 and greater than 0";
   const char* msg4 = "failed prepare create dnode message";
 
   if (taosArrayGetSize(pInfo->pMiscInfo->a) != 2) {
@@ -363,7 +361,7 @@ SCreateDnodeMsg *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMs
   int64_t val = 0;
 
   toInteger(port->z, port->n, 10, &val, &isSign);
-  if (val >= UINT16_MAX) {
+  if (val >= UINT16_MAX || val <= 0) {
     buildInvalidOperationMsg(pMsgBuf, msg3);
     return NULL;
   }
@@ -384,7 +382,6 @@ SCreateDnodeMsg *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMs
 SDropDnodeMsg *buildDropDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
   SToken* pzName = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
-
   char* end = NULL;
   SDropDnodeMsg * pDrop = (SDropDnodeMsg *)calloc(1, sizeof(SDropDnodeMsg));
   pDrop->dnodeId = strtoll(pzName->z, &end, 10);
@@ -399,4 +396,3 @@ SDropDnodeMsg *buildDropDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf
 
   return pDrop;
 }
-

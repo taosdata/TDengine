@@ -76,13 +76,6 @@ typedef enum {
 typedef enum { TRN_POLICY_ROLLBACK = 0, TRN_POLICY_RETRY = 1 } ETrnPolicy;
 
 typedef enum {
-  DND_STATUS_OFFLINE = 0,
-  DND_STATUS_READY = 1,
-  DND_STATUS_CREATING = 2,
-  DND_STATUS_DROPPING = 3
-} EDndStatus;
-
-typedef enum {
   DND_REASON_ONLINE = 0,
   DND_REASON_STATUS_MSG_TIMEOUT,
   DND_REASON_STATUS_NOT_RECEIVED,
@@ -125,10 +118,9 @@ typedef struct {
   int64_t    rebootTime;
   int64_t    lastAccessTime;
   int32_t    accessTimes;
-  int16_t    numOfVnodes;
-  int16_t    numOfSupportVnodes;
-  int16_t    numOfCores;
-  EDndStatus status;
+  int32_t    numOfVnodes;
+  int32_t    numOfSupportVnodes;
+  int32_t    numOfCores;
   EDndReason offlineReason;
   uint16_t   port;
   char       fqdn[TSDB_FQDN_LEN];
@@ -144,6 +136,27 @@ typedef struct {
   int64_t    roleTime;
   SDnodeObj *pDnode;
 } SMnodeObj;
+
+typedef struct {
+  int32_t    id;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj *pDnode;
+} SQnodeObj;
+
+typedef struct {
+  int32_t    id;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj *pDnode;
+} SSnodeObj;
+
+typedef struct {
+  int32_t    id;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj *pDnode;
+} SBnodeObj;
 
 typedef struct {
   int32_t maxUsers;
@@ -273,7 +286,7 @@ typedef struct {
 } SFuncObj;
 
 typedef struct {
-  int32_t id;
+  int64_t id;
   int8_t  type;
   int8_t  replica;
   int16_t numOfColumns;

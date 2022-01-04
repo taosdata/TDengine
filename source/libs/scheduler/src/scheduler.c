@@ -166,7 +166,7 @@ int32_t schValidateAndBuildJob(SQueryDag *dag, SSchJob *job) {
     }
     
     for (int32_t n = 0; n < levelPlanNum; ++n) {
-      SSubplan *plan = taosArrayGet(levelPlans, n);
+      SSubplan *plan = taosArrayGetP(levelPlans, n);
       SSchTask task = {0};
 
       if (plan->type == QUERY_TYPE_MODIFY) {
@@ -220,10 +220,10 @@ int32_t schSetTaskExecEpSet(SSchJob *job, SEpSet *epSet) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t qnodeNum = taosArrayGetSize(job->qnodeList);
+  int32_t nodeNum = taosArrayGetSize(job->nodeList);
   
-  for (int32_t i = 0; i < qnodeNum && epSet->numOfEps < tListLen(epSet->port); ++i) {
-    SEpAddr *addr = taosArrayGet(job->qnodeList, i);
+  for (int32_t i = 0; i < nodeNum && epSet->numOfEps < tListLen(epSet->port); ++i) {
+    SEpAddr *addr = taosArrayGet(job->nodeList, i);
     
     strncpy(epSet->fqdn[epSet->numOfEps], addr->fqdn, sizeof(addr->fqdn));
     epSet->port[epSet->numOfEps] = addr->port;
@@ -664,7 +664,7 @@ int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
       }
 
       SSubQueryMsg *pMsg = msg;
-      
+
       pMsg->sId = htobe64(schMgmt.sId);
       pMsg->queryId = htobe64(job->queryId);
       pMsg->taskId = htobe64(task->taskId);
@@ -829,8 +829,8 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
 }
 
 
-int32_t scheduleExecJobImpl(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob, bool syncSchedule) {
-  if (qnodeList && taosArrayGetSize(qnodeList) <= 0) {
+int32_t scheduleExecJobImpl(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob, bool syncSchedule) {
+  if (nodeList && taosArrayGetSize(nodeList) <= 0) {
     qInfo("qnodeList is empty");
   }
 
@@ -842,7 +842,7 @@ int32_t scheduleExecJobImpl(void *transport, SArray *qnodeList, SQueryDag* pDag,
 
   job->attr.syncSchedule = syncSchedule;
   job->transport = transport;
-  job->qnodeList = qnodeList;
+  job->nodeList = nodeList;
 
   SCH_ERR_JRET(schValidateAndBuildJob(pDag, job));
 
@@ -897,28 +897,27 @@ _return:
   SCH_RET(code);
 }
 
-int32_t scheduleExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob, uint64_t *numOfRows) {
-  if (NULL == transport || /* NULL == qnodeList || */ NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == numOfRows) {
+int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob, SQueryResult *pRes) {
+  if (NULL == transport || /* NULL == nodeList || */ NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == pRes) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  *numOfRows = 0;
-  
-  SCH_ERR_RET(scheduleExecJobImpl(transport, qnodeList, pDag, pJob, true));
+  SCH_ERR_RET(scheduleExecJobImpl(transport, nodeList, pDag, pJob, true));
 
   SSchJob *job = *(SSchJob **)pJob;
   
-  *numOfRows = job->resNumOfRows;
-
+  pRes->code = job->errCode;
+  pRes->numOfRows = job->resNumOfRows;
+  
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t scheduleAsyncExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob) {
-  if (NULL == transport || NULL == qnodeList ||NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
+int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob) {
+  if (NULL == transport || NULL == nodeList ||NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  return scheduleExecJobImpl(transport, qnodeList, pDag, pJob, false);
+  return scheduleExecJobImpl(transport, nodeList, pDag, pJob, false);
 }
 
 

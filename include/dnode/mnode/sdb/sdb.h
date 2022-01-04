@@ -157,18 +157,21 @@ typedef enum {
   SDB_TRANS = 1,
   SDB_CLUSTER = 2,
   SDB_MNODE = 3,
-  SDB_DNODE = 4,
-  SDB_USER = 5,
-  SDB_AUTH = 6,
-  SDB_ACCT = 7,
-  SDB_CONSUMER = 8,
-  SDB_CGROUP = 9,
-  SDB_TOPIC = 10,
-  SDB_VGROUP = 11,
-  SDB_STB = 12,
-  SDB_DB = 13,
-  SDB_FUNC = 14,
-  SDB_MAX = 15
+  SDB_QNODE = 4,
+  SDB_SNODE = 5,
+  SDB_BNODE = 6,
+  SDB_DNODE = 7,
+  SDB_USER = 8,
+  SDB_AUTH = 9,
+  SDB_ACCT = 10,
+  SDB_CONSUMER = 11,
+  SDB_CGROUP = 12,
+  SDB_TOPIC = 13,
+  SDB_VGROUP = 14,
+  SDB_STB = 15,
+  SDB_DB = 16,
+  SDB_FUNC = 17,
+  SDB_MAX = 18
 } ESdbType;
 
 typedef struct SSdb SSdb;
@@ -178,6 +181,7 @@ typedef int32_t (*SdbDeleteFp)(SSdb *pSdb, void *pObj);
 typedef int32_t (*SdbDeployFp)(SMnode *pMnode);
 typedef SSdbRow *(*SdbDecodeFp)(SSdbRaw *pRaw);
 typedef SSdbRaw *(*SdbEncodeFp)(void *pObj);
+typedef bool (*sdbTraverseFp)(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3);
 
 typedef struct {
   ESdbType    sdbType;
@@ -276,7 +280,7 @@ void sdbRelease(SSdb *pSdb, void *pObj);
  *
  * @param pSdb The sdb object.
  * @param type The type of the table.
- * @param type The initial iterator of the table.
+ * @param pIter The initial iterator of the table.
  * @param pObj The object of the row just fetched.
  * @return void* The next iterator of the table.
  */
@@ -286,10 +290,21 @@ void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj);
  * @brief Cancel a traversal
  *
  * @param pSdb The sdb object.
- * @param pIter The iterator of the table.
  * @param type The initial iterator of table.
  */
 void sdbCancelFetch(SSdb *pSdb, void *pIter);
+
+/**
+ * @brief Traverse a sdb
+ *
+ * @param pSdb The sdb object.
+ * @param type The initial iterator of table.
+ * @param fp The function pointer.
+ * @param p1 The callback param.
+ * @param p2 The callback param.
+ * @param p3 The callback param.
+ */
+void sdbTraverse(SSdb *pSdb, ESdbType type, sdbTraverseFp fp, void *p1, void *p2, void *p3);
 
 /**
  * @brief Get the number of rows in the table

@@ -64,7 +64,7 @@ typedef struct {
   int32_t        maxNum;
   void          *queueFp;
   SDnode        *pDnode;
-  taos_queue     queue;
+  STaosQueue    *queue;
   union {
     SWorkerPool  pool;
     SMWorkerPool mpool;
@@ -92,7 +92,7 @@ typedef struct {
   SDnodeEps  *dnodeEps;
   pthread_t  *threadId;
   SRWLatch    latch;
-  taos_queue  pMgmtQ;
+  STaosQueue *pMgmtQ;
   SWorkerPool mgmtPool;
 } SDnodeMgmt;
 

@@ -1,6 +1,7 @@
 
 #include <iostream>
 #include <string>
+#include <thread>
 #include <vector>
 #include "index.h"
 #include "indexInt.h"
@@ -12,9 +13,7 @@
 #include "tskiplist.h"
 #include "tutil.h"
 
-void* callback(void* s) {
-  return s;
-}
+void* callback(void* s) { return s; }
 
 static std::string fileName = "/tmp/tindex.tindex";
 class FstWriter {
@@ -25,8 +24,13 @@ class FstWriter {
     _b = fstBuilderCreate(_wc, 0);
   }
   bool Put(const std::string& key, uint64_t val) {
+    // char buf[128] = {0};
+    // int  len = 0;
+    // taosMbsToUcs4(key.c_str(), key.size(), buf, 128, &len);
+    // FstSlice skey = fstSliceCreate((uint8_t*)buf, len);
     FstSlice skey = fstSliceCreate((uint8_t*)key.c_str(), key.size());
     bool     ok = fstBuilderInsert(_b, skey, val);
+
     fstSliceDestroy(&skey);
     return ok;
   }
@@ -34,7 +38,7 @@ class FstWriter {
     fstBuilderFinish(_b);
     fstBuilderDestroy(_b);
 
-    writerCtxDestroy(_wc);
+    writerCtxDestroy(_wc, false);
   }
 
  private:
@@ -44,7 +48,8 @@ class FstWriter {
 
 class FstReadMemory {
  public:
-  FstReadMemory(size_t size) {
+  FstReadMemory(size_t size, const std::string& fileName = fileName) {
+    tfInit();
     _wc = writerCtxCreate(TFile, fileName.c_str(), true, 64 * 1024);
     _w = fstCountingWriterCreate(_wc);
     _size = size;
@@ -61,6 +66,11 @@ class FstReadMemory {
     return _fst != NULL;
   }
   bool Get(const std::string& key, uint64_t* val) {
+    // char buf[128] = {0};
+    // int  len = 0;
+    // taosMbsToUcs4(key.c_str(), key.size(), buf, 128, &len);
+    // FstSlice skey = fstSliceCreate((uint8_t*)buf, len);
+
     FstSlice skey = fstSliceCreate((uint8_t*)key.c_str(), key.size());
     bool     ok = fstGet(_fst, &skey, val);
     fstSliceDestroy(&skey);
@@ -102,7 +112,8 @@ class FstReadMemory {
     fstCountingWriterDestroy(_w);
     fstDestroy(_fst);
     fstSliceDestroy(&_s);
-    writerCtxDestroy(_wc);
+    writerCtxDestroy(_wc, false);
+    tfCleanup();
   }
 
  private:
@@ -134,15 +145,109 @@ int Performance_fstWriteRecords(FstWriter* b) {
   }
   return L * M * N;
 }
+void Performance_fstReadRecords(FstReadMemory* m) {
+  std::string str("aa");
+  for (int i = 0; i < M; i++) {
+    str[0] = 'a' + i;
+    str.resize(2);
+    for (int j = 0; j < N; j++) {
+      str[1] = 'a' + j;
+      str.resize(2);
+      for (int k = 0; k < L; k++) {
+        str.push_back('a');
+        uint64_t val, cost;
+        if (m->GetWithTimeCostUs(str, &val, &cost)) {
+          printf("succes to get kv(%s, %" PRId64 "), cost: %" PRId64 "\n", str.c_str(), val, cost);
+        } else {
+          printf("failed to get key: %s\n", str.c_str());
+        }
+      }
+    }
+  }
+}
+
+void checkMillonWriteAndReadOfFst() {
+  tfInit();
+  FstWriter* fw = new FstWriter;
+  Performance_fstWriteRecords(fw);
+  delete fw;
+  FstReadMemory* fr = new FstReadMemory(1024 * 64 * 1024);
+
+  if (fr->init()) { printf("success to init fst read"); }
+
+  Performance_fstReadRecords(fr);
+  tfCleanup();
+  delete fr;
+}
+void checkFstLongTerm() {
+  tfInit();
+  FstWriter* fw = new FstWriter;
+  // Performance_fstWriteRecords(fw);
+
+  fw->Put("A B", 1);
+  fw->Put("C", 2);
+  fw->Put("a", 3);
+  delete fw;
+
+  FstReadMemory* m = new FstReadMemory(1024 * 64);
+  if (m->init() == false) {
+    std::cout << "init readMemory failed" << std::endl;
+    delete m;
+    return;
+  }
+  {
+    uint64_t val = 0;
+    if (m->Get("A B", &val)) {
+      std::cout << "success to Get: " << val << std::endl;
+    } else {
+      std::cout << "failed to Get:" << val << std::endl;
+    }
+  }
+  {
+    uint64_t val = 0;
+    if (m->Get("C", &val)) {
+      std::cout << "success to Get: " << val << std::endl;
+    } else {
+      std::cout << "failed to Get:" << val << std::endl;
+    }
+  }
+  {
+    uint64_t val = 0;
+    if (m->Get("a", &val)) {
+      std::cout << "success to Get: " << val << std::endl;
+    } else {
+      std::cout << "failed to Get:" << val << std::endl;
+    }
+  }
+
+  // prefix search
+  // std::vector<uint64_t> result;
+
+  // AutomationCtx* ctx = automCtxCreate((void*)"ab", AUTOMATION_ALWAYS);
+  // m->Search(ctx, result);
+  // std::cout << "size: " << result.size() << std::endl;
+  // assert(result.size() == count);
+  // for (int i = 0; i < result.size(); i++) {
+  // assert(result[i] == i);  // check result
+  //}
+  tfCleanup();
+  // free(ctx);
+  // delete m;
+}
 void checkFstCheckIterator() {
   tfInit();
   FstWriter* fw = new FstWriter;
   int64_t    s = taosGetTimestampUs();
   int        count = 2;
-  Performance_fstWriteRecords(fw);
+  // Performance_fstWriteRecords(fw);
   int64_t e = taosGetTimestampUs();
 
   std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
+
+  fw->Put("Hello world", 1);
+  fw->Put("hello world", 2);
+  fw->Put("hello worle", 3);
+  fw->Put("hello worlf", 4);
   delete fw;
 
   FstReadMemory* m = new FstReadMemory(1024 * 64);
@@ -167,8 +272,47 @@ void checkFstCheckIterator() {
   delete m;
   tfCleanup();
 }
-int main() {
-  checkFstCheckIterator();
+
+void fst_get(Fst* fst) {
+  for (int i = 0; i < 10000; i++) {
+    std::string term = "Hello World";
+    FstSlice    key = fstSliceCreate((uint8_t*)term.c_str(), term.size());
+    uint64_t    offset = 0;
+    bool        ret = fstGet(fst, &key, &offset);
+    if (ret == false) {
+      std::cout << "not found" << std::endl;
+    } else {
+      std::cout << "found value:" << offset << std::endl;
+    }
+  }
+}
+
+#define NUM_OF_THREAD 10
+void validateTFile(char* arg) {
+  tfInit();
+
+  std::thread threads[NUM_OF_THREAD];
+  // std::vector<std::thread> threads;
+  TFileReader* reader = tfileReaderOpen(arg, 0, 999992, "tag1");
+
+  for (int i = 0; i < NUM_OF_THREAD; i++) {
+    threads[i] = std::thread(fst_get, reader->fst);
+    // threads.push_back(fst_get, reader->fst);
+    // std::thread t(fst_get, reader->fst);
+  }
+  for (int i = 0; i < NUM_OF_THREAD; i++) {
+    // wait join
+    threads[i].join();
+  }
+  tfCleanup();
+}
+int main(int argc, char* argv[]) {
+  // tool to check all kind of fst test 
+  // if (argc > 1) { validateTFile(argv[1]); }
+  // checkFstCheckIterator();
+  // checkFstLongTerm();
   // checkFstPrefixSearch();
+
+  checkMillonWriteAndReadOfFst();
   return 1;
 }

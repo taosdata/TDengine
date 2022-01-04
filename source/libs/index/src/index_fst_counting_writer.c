@@ -42,8 +42,8 @@ static int writeCtxDoRead(WriterCtx* ctx, uint8_t* buf, int len) {
 static int writeCtxDoReadFrom(WriterCtx* ctx, uint8_t* buf, int len, int32_t offset) {
   int nRead = 0;
   if (ctx->type == TFile) {
-    tfLseek(ctx->file.fd, offset, 0);
-    nRead = tfRead(ctx->file.fd, buf, len);
+    // tfLseek(ctx->file.fd, offset, 0);
+    nRead = tfPread(ctx->file.fd, buf, len, offset);
   } else {
     // refactor later
     assert(0);
@@ -52,7 +52,8 @@ static int writeCtxDoReadFrom(WriterCtx* ctx, uint8_t* buf, int len, int32_t off
 }
 static int writeCtxDoFlush(WriterCtx* ctx) {
   if (ctx->type == TFile) {
-    // tfFsync(ctx->fd);
+    // taosFsyncFile(ctx->file.fd);
+    tfFsync(ctx->file.fd);
     // tfFlush(ctx->file.fd);
   } else {
     // do nothing
@@ -69,12 +70,23 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
     // ugly code, refactor later
     ctx->file.readOnly = readOnly;
     if (readOnly == false) {
+      // ctx->file.fd = open(path, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
       ctx->file.fd = tfOpenCreateWriteAppend(path);
+
+      struct stat fstat;
+      stat(path, &fstat);
+      ctx->file.size = fstat.st_size;
     } else {
-      ctx->file.fd = tfOpenReadWrite(path);
+      // ctx->file.fd = open(path, O_RDONLY, S_IRWXU | S_IRWXG | S_IRWXO);
+      ctx->file.fd = tfOpenRead(path);
+
+      struct stat fstat;
+      stat(path, &fstat);
+      ctx->file.size = fstat.st_size;
     }
+    memcpy(ctx->file.buf, path, strlen(path));
     if (ctx->file.fd < 0) {
-      indexError("open file error %d", errno);
+      indexError("failed to open file, error %d", errno);
       goto END;
     }
   } else if (ctx->type == TMemory) {
@@ -95,11 +107,13 @@ END:
   free(ctx);
   return NULL;
 }
-void writerCtxDestroy(WriterCtx* ctx) {
+void writerCtxDestroy(WriterCtx* ctx, bool remove) {
   if (ctx->type == TMemory) {
     free(ctx->mem.buf);
   } else {
     tfClose(ctx->file.fd);
+    ctx->flush(ctx);
+    if (remove) { unlink(ctx->file.buf); }
   }
   free(ctx);
 }
@@ -138,9 +152,8 @@ int fstCountingWriterRead(FstCountingWriter* write, uint8_t* buf, uint32_t len) 
   return nRead;
 }
 
-uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter* write) {
-  return 0;
-}
+uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter* write) { return 0; }
+
 int fstCountingWriterFlush(FstCountingWriter* write) {
   WriterCtx* ctx = write->wrt;
   ctx->flush(ctx);

@@ -132,7 +132,7 @@ static FORCE_INLINE SHashNode *doUpdateHashNode(SHashObj *pHashObj, SHashEntry* 
   } else {
     pNewNode->next = pNode;    
     pe->num++;
-    atomic_add_fetch_64(&pHashObj->size, 1);
+    atomic_add_fetch_32(&pHashObj->size, 1);
   }
   
   return pNewNode;
@@ -209,7 +209,7 @@ int32_t taosHashGetSize(const SHashObj *pHashObj) {
   if (!pHashObj) {
     return 0;
   }
-  return (int32_t)atomic_load_64(&pHashObj->size);
+  return (int32_t)atomic_load_32(&pHashObj->size);
 }
 
 static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj) {
@@ -273,7 +273,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
 
     // enable resize
     __rd_unlock(&pHashObj->lock, pHashObj->type);
-    atomic_add_fetch_64(&pHashObj->size, 1);
+    atomic_add_fetch_32(&pHashObj->size, 1);
 
     return 0;
   } else {
@@ -362,7 +362,7 @@ void* taosHashGetCloneExt(SHashObj *pHashObj, const void *key, size_t keyLen, vo
   return data;
 }
 
-void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void* d) {
+void* taosHashGetCloneImpl(SHashObj *pHashObj, const void *key, size_t keyLen, void* d, bool acquire) {
   if (taosHashTableEmpty(pHashObj) || keyLen == 0 || key == NULL) {
     return NULL;
   }
@@ -404,6 +404,10 @@ void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void*
       memcpy(d, GET_HASH_NODE_DATA(pNode), pNode->dataLen);
     }
 
+    if (acquire) {
+      atomic_add_fetch_16(&pNode->count, 1);
+    }
+
     data = GET_HASH_NODE_DATA(pNode);
   }
 
@@ -414,6 +418,15 @@ void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void*
   __rd_unlock(&pHashObj->lock, pHashObj->type);
   return data;
 }
+
+void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void* d) {
+  return taosHashGetCloneImpl(pHashObj, key, keyLen, d, false);
+}
+
+void* taosHashAcquire(SHashObj *pHashObj, const void *key, size_t keyLen) {
+  return taosHashGetCloneImpl(pHashObj, key, keyLen, NULL, true);
+}
+
 
 int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen/*, void *data, size_t dsize*/) {
   if (pHashObj == NULL || taosHashTableEmpty(pHashObj)) {
@@ -469,7 +482,7 @@ int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen/*, voi
 //      if (data) memcpy(data, GET_HASH_NODE_DATA(pNode), dsize);
 
       pe->num--;
-      atomic_sub_fetch_64(&pHashObj->size, 1);
+      atomic_sub_fetch_32(&pHashObj->size, 1);
       FREE_HASH_NODE(pHashObj, pNode);
     }
   }
@@ -507,7 +520,7 @@ int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), voi
     while((pNode = pEntry->next) != NULL) {
       if (fp && (!fp(param, GET_HASH_NODE_DATA(pNode)))) {
         pEntry->num -= 1;
-        atomic_sub_fetch_64(&pHashObj->size, 1);
+        atomic_sub_fetch_32(&pHashObj->size, 1);
 
         pEntry->next = pNode->next;
 
@@ -533,7 +546,7 @@ int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), voi
         if (fp && (!fp(param, GET_HASH_NODE_DATA(pNext)))) {
           pNode->next = pNext->next;
           pEntry->num -= 1;
-          atomic_sub_fetch_64(&pHashObj->size, 1);
+          atomic_sub_fetch_32(&pHashObj->size, 1);
 
           if (pEntry->num == 0) {
             assert(pEntry->next == NULL);
@@ -587,7 +600,7 @@ void taosHashClear(SHashObj *pHashObj) {
     pEntry->next = NULL;
   }
 
-  pHashObj->size = 0;
+  atomic_store_32(&pHashObj->size, 0);
   __wr_unlock(&pHashObj->lock, pHashObj->type);
 }
 
@@ -834,7 +847,7 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
       }
    
       pe->num--;
-      atomic_sub_fetch_64(&pHashObj->size, 1);
+      atomic_sub_fetch_32(&pHashObj->size, 1);
       FREE_HASH_NODE(pHashObj, pOld);
     } 
   } else {
@@ -919,3 +932,9 @@ void taosHashCancelIterate(SHashObj *pHashObj, void *p) {
 
   __rd_unlock(&pHashObj->lock, pHashObj->type);
 }
+
+void taosHashRelease(SHashObj *pHashObj, void *p) {
+  taosHashCancelIterate(pHashObj, p);
+}
+
+

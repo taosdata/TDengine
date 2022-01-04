@@ -563,16 +563,6 @@ TAOS_FIELD createField(const SSchema* pSchema) {
   return f;
 }
 
-SSchema createSchema(uint8_t type, int16_t bytes, int16_t colId, const char* name) {
-  SSchema s = {0};
-  s.type = type;
-  s.bytes = bytes;
-  s.colId = colId;
-
-  tstrncpy(s.name, name, tListLen(s.name));
-  return s;
-}
-
 void setColumn(SColumn* pColumn, uint64_t uid, const char* tableName, int8_t flag, const SSchema* pSchema) {
   pColumn->uid  = uid;
   pColumn->flag = flag;
@@ -581,7 +571,9 @@ void setColumn(SColumn* pColumn, uint64_t uid, const char* tableName, int8_t fla
   pColumn->info.type  = pSchema->type;
 
   if (tableName != NULL) {
-    snprintf(pColumn->name, tListLen(pColumn->name), "%s.%s", tableName, pSchema->name);
+    char n[TSDB_COL_NAME_LEN + 1 + TSDB_TABLE_NAME_LEN] = {0};
+    snprintf(n, tListLen(n), "%s.%s", tableName, pSchema->name);
+    tstrncpy(pColumn->name, n, tListLen(pColumn->name));
   } else {
     tstrncpy(pColumn->name, pSchema->name, tListLen(pColumn->name));
   }
@@ -596,7 +588,10 @@ SColumn createColumn(uint64_t uid, const char* tableName, int8_t flag, const SSc
   c.info.type = pSchema->type;
 
   if (tableName != NULL) {
-    snprintf(c.name, tListLen(c.name), "%s.%s", tableName, pSchema->name);
+    char n[TSDB_COL_NAME_LEN + 1 + TSDB_TABLE_NAME_LEN] = {0};
+    snprintf(n, tListLen(n), "%s.%s", tableName, pSchema->name);
+
+    tstrncpy(c.name, n, tListLen(c.name));
   } else {
     tstrncpy(c.name, pSchema->name, tListLen(c.name));
   }
@@ -1649,9 +1644,9 @@ static bool isNullStr(SToken *pToken) {
 }
 
 static FORCE_INLINE int32_t checkAndTrimValue(SToken* pToken, uint32_t type, char* tmpTokenBuf, SMsgBuf* pMsgBuf) {
-  if ((type != TK_NOW && type != TK_INTEGER && type != TK_STRING && type != TK_FLOAT && type != TK_BOOL &&
-       type != TK_NULL && type != TK_HEX && type != TK_OCT && type != TK_BIN) ||
-      (pToken->n == 0) || (type == TK_RP)) {
+  if ((pToken->type != TK_NOW && pToken->type != TK_INTEGER && pToken->type != TK_STRING && pToken->type != TK_FLOAT && pToken->type != TK_BOOL &&
+       pToken->type != TK_NULL && pToken->type != TK_HEX && pToken->type != TK_OCT && pToken->type != TK_BIN) ||
+      (pToken->n == 0) || (pToken->type == TK_RP)) {
     return buildSyntaxErrMsg(pMsgBuf, "invalid data or symbol", pToken->z);
   }
 
@@ -1795,7 +1790,7 @@ int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int16_t ti
     }
 
     case TSDB_DATA_TYPE_TINYINT: {
-      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, pToken->type, &iv, &isSigned)) {
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid tinyint data", pToken->z);
       } else if (!IS_VALID_TINYINT(iv)) {
         return buildSyntaxErrMsg(pMsgBuf, "tinyint data overflow", pToken->z);
@@ -1806,7 +1801,7 @@ int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int16_t ti
     }
 
     case TSDB_DATA_TYPE_UTINYINT:{
-      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, pToken->type, &iv, &isSigned)) {
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned tinyint data", pToken->z);
       } else if (!IS_VALID_UTINYINT(iv)) {
         return buildSyntaxErrMsg(pMsgBuf, "unsigned tinyint data overflow", pToken->z);
@@ -1816,7 +1811,7 @@ int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int16_t ti
     }
 
     case TSDB_DATA_TYPE_SMALLINT: {
-      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, pToken->type, &iv, &isSigned)) {
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid smallint data", pToken->z);
       } else if (!IS_VALID_SMALLINT(iv)) {
         return buildSyntaxErrMsg(pMsgBuf, "smallint data overflow", pToken->z);
@@ -1826,7 +1821,7 @@ int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int16_t ti
     }
 
     case TSDB_DATA_TYPE_USMALLINT: {
-      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, pToken->type, &iv, &isSigned)) {
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned smallint data", pToken->z);
       } else if (!IS_VALID_USMALLINT(iv)) {
         return buildSyntaxErrMsg(pMsgBuf, "unsigned smallint data overflow", pToken->z);
@@ -1836,7 +1831,7 @@ int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int16_t ti
     }
 
     case TSDB_DATA_TYPE_INT: {
-      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, pToken->type, &iv, &isSigned)) {
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid int data", pToken->z);
       } else if (!IS_VALID_INT(iv)) {
         return buildSyntaxErrMsg(pMsgBuf, "int data overflow", pToken->z);
@@ -1846,7 +1841,7 @@ int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int16_t ti
     }
 
     case TSDB_DATA_TYPE_UINT: {
-      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, pToken->type, &iv, &isSigned)) {
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned int data", pToken->z);
       } else if (!IS_VALID_UINT(iv)) {
         return buildSyntaxErrMsg(pMsgBuf, "unsigned int data overflow", pToken->z);
@@ -1856,7 +1851,7 @@ int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int16_t ti
     }
 
     case TSDB_DATA_TYPE_BIGINT: {
-      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, pToken->type, &iv, &isSigned)) {
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid bigint data", pToken->z);
       } else if (!IS_VALID_BIGINT(iv)) {
         return buildSyntaxErrMsg(pMsgBuf, "bigint data overflow", pToken->z);
@@ -1865,7 +1860,7 @@ int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int16_t ti
     }
 
     case TSDB_DATA_TYPE_UBIGINT: {
-      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, pToken->type, &iv, &isSigned)) {
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned bigint data", pToken->z);
       } else if (!IS_VALID_UBIGINT((uint64_t)iv)) {
         return buildSyntaxErrMsg(pMsgBuf, "unsigned bigint data overflow", pToken->z);

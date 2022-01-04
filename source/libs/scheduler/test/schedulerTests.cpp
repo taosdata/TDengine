@@ -321,10 +321,11 @@ TEST(insertTest, normalCase) {
 
   pthread_t thread1;
   pthread_create(&(thread1), &thattr, schtSendRsp, &pInsertJob);
-  
-  code = scheduleExecJob(mockPointer, qnodeList, &dag, &pInsertJob, &numOfRows);
+
+  SQueryResult res = {0};
+  code = scheduleExecJob(mockPointer, qnodeList, &dag, &pInsertJob, &res);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(numOfRows, 20);
+  ASSERT_EQ(res.numOfRows, 20);
 
   scheduleFreeJob(pInsertJob);
 }

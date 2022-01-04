@@ -11,4 +11,6 @@ target_link_libraries(
     PRIVATE os util catalog cjson parser transport function qcom
 )
 
-ADD_SUBDIRECTORY(test)
+if(${BUILD_TEST})
+    ADD_SUBDIRECTORY(test)
+endif(${BUILD_TEST})

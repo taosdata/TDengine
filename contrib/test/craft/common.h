@@ -20,6 +20,7 @@ typedef struct {
 } Addr;
 
 typedef struct {
+	int voter;
     Addr me;
     Addr peers[MAX_PEERS];
     int peersCount;

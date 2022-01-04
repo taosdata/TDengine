@@ -4,10 +4,15 @@
 #include <taosdef.h>
 #include <iostream>
 
-#include "hash.h"
+#include "thash.h"
 #include "taos.h"
 
 namespace {
+
+typedef struct TESTSTRUCT {
+    char *p;
+}TESTSTRUCT;
+
 // the simple test code for basic operations
 void simpleTest() {
   SHashObj* hashTable = (SHashObj*) taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
@@ -141,6 +146,52 @@ void invalidOperationTest() {
 
 }
 
+void acquireRleaseTest() {
+  SHashObj* hashTable = (SHashObj*) taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  ASSERT_EQ(taosHashGetSize(hashTable), 0);
+
+  int32_t key = 2;
+  int32_t code = 0;
+  int32_t num = 0;
+  TESTSTRUCT data = {0};
+  const char *str1 = "abcdefg";
+  const char *str2 = "aaaaaaa";
+  const char *str3 = "123456789";
+
+  data.p = (char *)malloc(10);
+  strcpy(data.p, str1);
+
+  code = taosHashPut(hashTable, &key, sizeof(key), &data, sizeof(data));
+  ASSERT_EQ(code, 0);
+
+  TESTSTRUCT* pdata = (TESTSTRUCT*)taosHashAcquire(hashTable, &key, sizeof(key));
+  ASSERT_TRUE(pdata != nullptr);
+  ASSERT_TRUE(strcmp(pdata->p, str1) == 0);
+  
+  code = taosHashRemove(hashTable, &key, sizeof(key));
+  ASSERT_EQ(code, 0);
+  ASSERT_TRUE(strcmp(pdata->p, str1) == 0);
+
+  num = taosHashGetSize(hashTable);
+  ASSERT_EQ(num, 1);
+  
+  strcpy(pdata->p, str3);
+
+  data.p = (char *)malloc(10);
+  strcpy(data.p, str2);
+  code = taosHashPut(hashTable, &key, sizeof(key), &data, sizeof(data));
+  ASSERT_EQ(code, 0);
+  num = taosHashGetSize(hashTable);
+  ASSERT_EQ(num, 2);
+
+  printf("%s,expect:%s", pdata->p, str3);
+  ASSERT_TRUE(strcmp(pdata->p, str3) == 0);
+  
+  taosHashRelease(hashTable, pdata);
+  num = taosHashGetSize(hashTable);
+  ASSERT_EQ(num, 1);
+}
+
 }
 
 int main(int argc, char** argv) {
@@ -153,4 +204,5 @@ TEST(testCase, hashTest) {
   stringKeyTest();
   noLockPerformanceTest();
   multithreadsTest();
+  acquireRleaseTest();
 }

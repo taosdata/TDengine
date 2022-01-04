@@ -24,12 +24,8 @@ void qndClose(SQnode *pQnode) { free(pQnode); }
 
 int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { return 0; }
 
-int32_t qndProcessQueryReq(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+int32_t qndProcessMsg(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   *pRsp = NULL;
   return 0;
 }
 
-int32_t qndProcessFetchReq(SQnode *pQnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  *pRsp = NULL;
-  return 0;
-}
