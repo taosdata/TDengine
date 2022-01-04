@@ -52,9 +52,9 @@ TEST_F(MndTestQnode, 01_Show_Qnode) {
 
 TEST_F(MndTestQnode, 02_Create_Qnode_Invalid_Id) {
   {
-    int32_t contLen = sizeof(SMCreateQnodeMsg);
+    int32_t contLen = sizeof(SMCreateQnodeReq);
 
-    SMCreateQnodeMsg* pReq = (SMCreateQnodeMsg*)rpcMallocCont(contLen);
+    SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(1);
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_QNODE, pReq, contLen);
@@ -79,9 +79,9 @@ TEST_F(MndTestQnode, 02_Create_Qnode_Invalid_Id) {
 
 TEST_F(MndTestQnode, 03_Create_Qnode_Invalid_Id) {
   {
-    int32_t contLen = sizeof(SMCreateQnodeMsg);
+    int32_t contLen = sizeof(SMCreateQnodeReq);
 
-    SMCreateQnodeMsg* pReq = (SMCreateQnodeMsg*)rpcMallocCont(contLen);
+    SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_QNODE, pReq, contLen);
@@ -111,9 +111,9 @@ TEST_F(MndTestQnode, 04_Create_Qnode) {
 
   {
     // create qnode
-    int32_t contLen = sizeof(SMCreateQnodeMsg);
+    int32_t contLen = sizeof(SMCreateQnodeReq);
 
-    SMCreateQnodeMsg* pReq = (SMCreateQnodeMsg*)rpcMallocCont(contLen);
+    SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_QNODE, pReq, contLen);
@@ -134,9 +134,9 @@ TEST_F(MndTestQnode, 04_Create_Qnode) {
 
   {
     // drop qnode
-    int32_t contLen = sizeof(SMDropQnodeMsg);
+    int32_t contLen = sizeof(SMDropQnodeReq);
 
-    SMDropQnodeMsg* pReq = (SMDropQnodeMsg*)rpcMallocCont(contLen);
+    SMDropQnodeReq* pReq = (SMDropQnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_QNODE, pReq, contLen);

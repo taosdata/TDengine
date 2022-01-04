@@ -52,9 +52,9 @@ TEST_F(MndTestSnode, 01_Show_Snode) {
 
 TEST_F(MndTestSnode, 02_Create_Snode_Invalid_Id) {
   {
-    int32_t contLen = sizeof(SMCreateSnodeMsg);
+    int32_t contLen = sizeof(SMCreateSnodeReq);
 
-    SMCreateSnodeMsg* pReq = (SMCreateSnodeMsg*)rpcMallocCont(contLen);
+    SMCreateSnodeReq* pReq = (SMCreateSnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(1);
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_SNODE, pReq, contLen);
@@ -79,9 +79,9 @@ TEST_F(MndTestSnode, 02_Create_Snode_Invalid_Id) {
 
 TEST_F(MndTestSnode, 03_Create_Snode_Invalid_Id) {
   {
-    int32_t contLen = sizeof(SMCreateSnodeMsg);
+    int32_t contLen = sizeof(SMCreateSnodeReq);
 
-    SMCreateSnodeMsg* pReq = (SMCreateSnodeMsg*)rpcMallocCont(contLen);
+    SMCreateSnodeReq* pReq = (SMCreateSnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_SNODE, pReq, contLen);
@@ -111,9 +111,9 @@ TEST_F(MndTestSnode, 04_Create_Snode) {
 
   {
     // create snode
-    int32_t contLen = sizeof(SMCreateSnodeMsg);
+    int32_t contLen = sizeof(SMCreateSnodeReq);
 
-    SMCreateSnodeMsg* pReq = (SMCreateSnodeMsg*)rpcMallocCont(contLen);
+    SMCreateSnodeReq* pReq = (SMCreateSnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_SNODE, pReq, contLen);
@@ -134,9 +134,9 @@ TEST_F(MndTestSnode, 04_Create_Snode) {
 
   {
     // drop snode
-    int32_t contLen = sizeof(SMDropSnodeMsg);
+    int32_t contLen = sizeof(SMDropSnodeReq);
 
-    SMDropSnodeMsg* pReq = (SMDropSnodeMsg*)rpcMallocCont(contLen);
+    SMDropSnodeReq* pReq = (SMDropSnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_SNODE, pReq, contLen);

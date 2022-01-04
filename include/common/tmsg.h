@@ -851,15 +851,15 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateQnodeMsg, SMDropQnodeMsg, SDCreateQnodeMsg, SDDropQnodeMsg;
+} SMCreateQnodeReq, SMDropQnodeReq, SDCreateQnodeReq, SDDropQnodeReq;
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateSnodeMsg, SMDropSnodeMsg, SDCreateSnodeMsg, SDDropSnodeMsg;
+} SMCreateSnodeReq, SMDropSnodeReq, SDCreateSnodeReq, SDDropSnodeReq;
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateBnodeMsg, SMDropBnodeMsg, SDCreateBnodeMsg, SDDropBnodeMsg;
+} SMCreateBnodeReq, SMDropBnodeReq, SDCreateBnodeReq, SDDropBnodeReq;
 
 typedef struct {
   int32_t dnodeId;

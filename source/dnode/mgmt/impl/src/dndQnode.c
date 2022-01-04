@@ -60,7 +60,7 @@ static int32_t dndReadQnodeFile(SDnode *pDnode) {
   SQnodeMgmt *pMgmt = &pDnode->qmgmt;
   int32_t     code = TSDB_CODE_DND_QNODE_READ_FILE_ERROR;
   int32_t     len = 0;
-  int32_t     maxLen = 4096;
+  int32_t     maxLen = 1024;
   char       *content = calloc(1, maxLen + 1);
   cJSON      *root = NULL;
 
@@ -127,7 +127,7 @@ static int32_t dndWriteQnodeFile(SDnode *pDnode) {
   }
 
   int32_t len = 0;
-  int32_t maxLen = 4096;
+  int32_t maxLen = 1024;
   char   *content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
@@ -261,7 +261,7 @@ static int32_t dndDropQnode(SDnode *pDnode) {
 }
 
 int32_t dndProcessCreateQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SDCreateQnodeMsg *pMsg = pRpcMsg->pCont;
+  SDCreateQnodeReq *pMsg = pRpcMsg->pCont;
   pMsg->dnodeId = htonl(pMsg->dnodeId);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
@@ -273,7 +273,7 @@ int32_t dndProcessCreateQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
 }
 
 int32_t dndProcessDropQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SDDropQnodeMsg *pMsg = pRpcMsg->pCont;
+  SDDropQnodeReq *pMsg = pRpcMsg->pCont;
   pMsg->dnodeId = htonl(pMsg->dnodeId);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {

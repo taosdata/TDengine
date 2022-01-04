@@ -178,7 +178,7 @@ static int32_t mndSetCreateBnodeCommitLogs(STrans *pTrans, SBnodeObj *pObj) {
 }
 
 static int32_t mndSetCreateBnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SBnodeObj *pObj) {
-  SDCreateBnodeMsg *pMsg = malloc(sizeof(SDCreateBnodeMsg));
+  SDCreateBnodeReq *pMsg = malloc(sizeof(SDCreateBnodeReq));
   if (pMsg == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -188,7 +188,7 @@ static int32_t mndSetCreateBnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
   action.pCont = pMsg;
-  action.contLen = sizeof(SDCreateBnodeMsg);
+  action.contLen = sizeof(SDCreateBnodeReq);
   action.msgType = TDMT_DND_CREATE_BNODE;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -199,7 +199,7 @@ static int32_t mndSetCreateBnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   return 0;
 }
 
-static int32_t mndCreateBnode(SMnode *pMnode, SMnodeMsg *pMsg, SDnodeObj *pDnode, SMCreateBnodeMsg *pCreate) {
+static int32_t mndCreateBnode(SMnode *pMnode, SMnodeMsg *pMsg, SDnodeObj *pDnode, SMCreateBnodeReq *pCreate) {
   SBnodeObj bnodeObj = {0};
   bnodeObj.id = pDnode->id;
   bnodeObj.createdTime = taosGetTimestampMs();
@@ -242,7 +242,7 @@ CREATE_BNODE_OVER:
 
 static int32_t mndProcessCreateBnodeReq(SMnodeMsg *pMsg) {
   SMnode           *pMnode = pMsg->pMnode;
-  SMCreateBnodeMsg *pCreate = pMsg->rpcMsg.pCont;
+  SMCreateBnodeReq *pCreate = pMsg->rpcMsg.pCont;
 
   pCreate->dnodeId = htonl(pCreate->dnodeId);
 
@@ -290,7 +290,7 @@ static int32_t mndSetDropBnodeCommitLogs(STrans *pTrans, SBnodeObj *pObj) {
 }
 
 static int32_t mndSetDropBnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SBnodeObj *pObj) {
-  SDDropBnodeMsg *pMsg = malloc(sizeof(SDDropBnodeMsg));
+  SDDropBnodeReq *pMsg = malloc(sizeof(SDDropBnodeReq));
   if (pMsg == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -300,7 +300,7 @@ static int32_t mndSetDropBnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SBn
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
   action.pCont = pMsg;
-  action.contLen = sizeof(SDDropBnodeMsg);
+  action.contLen = sizeof(SDDropBnodeReq);
   action.msgType = TDMT_DND_DROP_BNODE;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -350,7 +350,7 @@ DROP_BNODE_OVER:
 
 static int32_t mndProcessDropBnodeReq(SMnodeMsg *pMsg) {
   SMnode         *pMnode = pMsg->pMnode;
-  SMDropBnodeMsg *pDrop = pMsg->rpcMsg.pCont;
+  SMDropBnodeReq *pDrop = pMsg->rpcMsg.pCont;
   pDrop->dnodeId = htonl(pDrop->dnodeId);
 
   mDebug("bnode:%d, start to drop", pDrop->dnodeId);
