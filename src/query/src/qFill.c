@@ -101,7 +101,6 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
       setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, qry_index);
     }
   } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
-    // TODO : linear interpolation supports NULL value
     if (prev != NULL && !outOfBound) {
       for (int32_t i = 1; i < pFillInfo->numOfCols; ++i) {
         SFillColInfo* pCol = &pFillInfo->pFillCol[i];
@@ -120,6 +119,10 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
 
         point1 = (SPoint){.key = *(TSKEY*)(prev), .val = prev + pCol->col.offset};
         point2 = (SPoint){.key = ts, .val = srcData[i] + pFillInfo->index * bytes};
+        if (isNull(point1.val, type) || isNull(point2.val, type)) {
+          setNull(val1, pCol->col.type, bytes);
+          continue;
+        }
         point  = (SPoint){.key = pFillInfo->currentKey, .val = val1};
         taosGetLinearInterpolationVal(&point, type, &point1, &point2, type);
       }
