@@ -848,7 +848,7 @@ TEST_F(IndexEnv2, testIndex_serarch_cache_and_tfile) {
   index->PutOne("tag1", "Hello");
   index->PutOne("tag2", "Test");
   index->WriteMultiMillonData("tag1", "Hello", 50 * 10000);
-  index->WriteMultiMillonData("tag2", "Test", 50 * 10000);
+  index->WriteMultiMillonData("tag2", "Test", 10 * 10000);
   std::thread threads[NUM_OF_THREAD];
 
   for (int i = 0; i < NUM_OF_THREAD; i++) {

@@ -261,7 +261,7 @@ static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SA
   return 0;
 }
 int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermValueType* s) {
-  if (cache == NULL) { return -1; }
+  if (cache == NULL) { return 0; }
   IndexCache* pCache = cache;
 
   MemTable *mem = NULL, *imm = NULL;
