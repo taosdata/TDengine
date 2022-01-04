@@ -160,8 +160,8 @@ static void dndProcessResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   DndMsgFp fp = pMgmt->msgFp[TMSG_INDEX(msgType)];
   if (fp != NULL) {
+    dTrace("RPC %p, rsp:%s will be processed, code:0x%x", pMsg->handle, TMSG_INFO(msgType), pMsg->code & 0XFFFF);
     (*fp)(pDnode, pMsg, pEpSet);
-    dTrace("RPC %p, rsp:%s is processed, code:0x%x", pMsg->handle, TMSG_INFO(msgType), pMsg->code & 0XFFFF);
   } else {
     dError("RPC %p, rsp:%s not processed", pMsg->handle, TMSG_INFO(msgType));
     rpcFreeCont(pMsg->pCont);

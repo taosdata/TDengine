@@ -14,47 +14,49 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "../../../include/client/taos.h"
-#include "hash.h"
 #include "os.h"
+
+#include "taos.h"
+#include "taosdef.h"
 #include "taoserror.h"
-#include "tglobal.h"
-#include "tulog.h"
+#include "thash.h"
 #include "tutil.h"
+#include "ulog.h"
 
 #define MAX_RANDOM_POINTS 20000
 #define GREEN "\033[1;32m"
 #define NC "\033[0m"
 
 char    dbName[32] = "db";
-char    stableName[64] = "st";
-int32_t numOfThreads = 30;
-int32_t numOfTables = 100000;
-int32_t replica = 1;
-int32_t numOfColumns = 2;
-TAOS *  con = NULL;
+char    stbName[64] = "st";
+int32_t numOfThreads = 2;
+int32_t numOfTables = 10000;
+int32_t createTable = 1;
+int32_t insertData = 0;
+int32_t batchNum = 1;
+int32_t numOfVgroups = 2;
 
 typedef struct {
   int32_t   tableBeginIndex;
   int32_t   tableEndIndex;
   int32_t   threadIndex;
   char      dbName[32];
-  char      stableName[64];
+  char      stbName[64];
   float     createTableSpeed;
+  float     insertDataSpeed;
   pthread_t thread;
 } SThreadInfo;
 
-void  shellParseArgument(int argc, char *argv[]);
+void  parseArgument(int argc, char *argv[]);
 void *threadFunc(void *param);
-void  createDbAndSTable();
+void  createDbAndStb();
 
 int main(int argc, char *argv[]) {
-  shellParseArgument(argc, argv);
-  taos_init();
-  createDbAndSTable();
+  parseArgument(argc, argv);
+  createDbAndStb();
 
-  pPrint("%d threads are spawned to create table", numOfThreads);
-  
+  pPrint("%d threads are spawned to create %d tables", numOfThreads, numOfThreads);
+
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
@@ -67,7 +69,7 @@ int main(int argc, char *argv[]) {
     pInfo[i].tableEndIndex = (i + 1) * numOfTablesPerThread;
     pInfo[i].threadIndex = i;
     strcpy(pInfo[i].dbName, dbName);
-    strcpy(pInfo[i].stableName, stableName);
+    strcpy(pInfo[i].stbName, stbName);
     pthread_create(&(pInfo[i].thread), &thattr, threadFunc, (void *)(pInfo + i));
   }
 
@@ -81,26 +83,31 @@ int main(int argc, char *argv[]) {
     createTableSpeed += pInfo[i].createTableSpeed;
   }
 
-  pPrint("%s total speed:%.1f tables/second, threads:%d %s", GREEN, createTableSpeed, numOfThreads, NC);
+  float insertDataSpeed = 0;
+  for (int i = 0; i < numOfThreads; ++i) {
+    insertDataSpeed += pInfo[i].insertDataSpeed;
+  }
+
+  pPrint("%s total %.1f tables/second, threads:%d %s", GREEN, createTableSpeed, numOfThreads, NC);
+  pPrint("%s total %.1f rows/second, threads:%d %s", GREEN, insertDataSpeed, numOfThreads, NC);
 
   pthread_attr_destroy(&thattr);
   free(pInfo);
-  taos_close(con);
 }
 
-void createDbAndSTable() {
+void createDbAndStb() {
   pPrint("start to create db and stable");
   char qstr[64000];
-  
-  con = taos_connect(NULL, "root", "taosdata", NULL, 0);
+
+  TAOS *con = taos_connect(NULL, "root", "taosdata", NULL, 0);
   if (con == NULL) {
     pError("failed to connect to DB, reason:%s", taos_errstr(con));
     exit(1);
   }
 
-  sprintf(qstr, "create database if not exists %s replica %d", dbName, replica);
+  sprintf(qstr, "create database if not exists %s vgroups %d", dbName, numOfVgroups);
   TAOS_RES *pSql = taos_query(con, qstr);
-  int32_t code = taos_errno(pSql);
+  int32_t   code = taos_errno(pSql);
   if (code != 0) {
     pError("failed to create database:%s, sql:%s, code:%d reason:%s", dbName, qstr, taos_errno(con), taos_errstr(con));
     exit(0);
@@ -116,55 +123,72 @@ void createDbAndSTable() {
   }
   taos_free_result(pSql);
 
-  int len = sprintf(qstr, "create table if not exists %s(ts timestamp", stableName);
-  for (int32_t f = 0; f < numOfColumns - 1; ++f) {
-    len += sprintf(qstr + len, ", f%d double", f);
-  }
-  sprintf(qstr + len, ") tags(t int)");
-
+  sprintf(qstr, "create table %s (ts timestamp, i int) tags (j int)", stbName);
   pSql = taos_query(con, qstr);
   code = taos_errno(pSql);
   if (code != 0) {
-    pError("failed to create stable, code:%d reason:%s", taos_errno(con), taos_errstr(con));
+    pError("failed to use db, code:%d reason:%s", taos_errno(con), taos_errstr(con));
     exit(0);
   }
   taos_free_result(pSql);
+
+  taos_close(con);
 }
 
 void *threadFunc(void *param) {
   SThreadInfo *pInfo = (SThreadInfo *)param;
-  char qstr[65000];
-  int  code;
+  char         qstr[65000];
+  int          code;
+
+  TAOS *con = taos_connect(NULL, "root", "taosdata", NULL, 0);
+  if (con == NULL) {
+    pError("index:%d, failed to connect to DB, reason:%s", pInfo->threadIndex, taos_errstr(con));
+    exit(1);
+  }
 
   sprintf(qstr, "use %s", pInfo->dbName);
   TAOS_RES *pSql = taos_query(con, qstr);
   taos_free_result(pSql);
 
-  int64_t startMs = taosGetTimestampMs();
-
-  for (int32_t t = pInfo->tableBeginIndex; t < pInfo->tableEndIndex; ++t) {
-    sprintf(qstr, "create table if not exists %s%d using %s tags(%d)", stableName, t, stableName, t);
-    TAOS_RES *pSql = taos_query(con, qstr);
-    code = taos_errno(pSql);
-    if (code != 0) {
-      pError("failed to create table %s%d, reason:%s", stableName, t, tstrerror(code));
+  if (createTable) {
+    int64_t startMs = taosGetTimestampMs();
+    for (int32_t t = pInfo->tableBeginIndex; t < pInfo->tableEndIndex; ++t) {
+      sprintf(qstr, "create table t%d using %s tags(%d)", t, stbName, t);
+      TAOS_RES *pSql = taos_query(con, qstr);
+      code = taos_errno(pSql);
+      if (code != 0) {
+        pError("failed to create table t%d, reason:%s", t, tstrerror(code));
+      }
+      taos_free_result(pSql);
     }
-    taos_free_result(pSql);
+    int64_t endMs = taosGetTimestampMs();
+    int32_t totalTables = pInfo->tableEndIndex - pInfo->tableBeginIndex;
+    float   seconds = (endMs - startMs) / 1000.0;
+    float   speed = totalTables / seconds;
+    pInfo->createTableSpeed = speed;
+    pPrint("thread:%d, time:%.2f sec, speed:%.1f tables/second, ", pInfo->threadIndex, seconds, speed);
   }
 
-  float createTableSpeed = 0;
-  for (int i = 0; i < numOfThreads; ++i) {
-    createTableSpeed += pInfo[i].createTableSpeed;
+  if (insertData) {
+    int64_t startMs = taosGetTimestampMs();
+    for (int32_t t = pInfo->tableBeginIndex; t < pInfo->tableEndIndex; ++t) {
+      sprintf(qstr, "insert into %s%d values(now, 1)", stbName, t);
+      TAOS_RES *pSql = taos_query(con, qstr);
+      code = taos_errno(pSql);
+      if (code != 0) {
+        pError("failed to create table %s%d, reason:%s", stbName, t, tstrerror(code));
+      }
+      taos_free_result(pSql);
+    }
+    int64_t endMs = taosGetTimestampMs();
+    int32_t totalTables = pInfo->tableEndIndex - pInfo->tableBeginIndex;
+    float   seconds = (endMs - startMs) / 1000.0;
+    float   speed = totalTables / seconds;
+    pInfo->insertDataSpeed = speed;
+    pPrint("thread:%d, time:%.2f sec, speed:%.1f rows/second, ", pInfo->threadIndex, seconds, speed);
   }
 
-  int64_t endMs = taosGetTimestampMs();
-  int32_t totalTables = pInfo->tableEndIndex - pInfo->tableBeginIndex;
-  float   seconds = (endMs - startMs) / 1000.0;
-  float   speed = totalTables / seconds;
-  pInfo->createTableSpeed = speed;
-
-  pPrint("thread:%d, time:%.2f sec, speed:%.1f tables/second, ", pInfo->threadIndex, seconds, speed);
-
+  taos_close(con);
   return 0;
 }
 
@@ -177,20 +201,24 @@ void printHelp() {
   printf("%s%s\n", indent, "-d");
   printf("%s%s%s%s\n", indent, indent, "The name of the database to be created, default is ", dbName);
   printf("%s%s\n", indent, "-s");
-  printf("%s%s%s%s\n", indent, indent, "The name of the super table to be created, default is ", stableName);
+  printf("%s%s%s%s\n", indent, indent, "The name of the super table to be created, default is ", stbName);
   printf("%s%s\n", indent, "-t");
   printf("%s%s%s%d\n", indent, indent, "numOfThreads, default is ", numOfThreads);
   printf("%s%s\n", indent, "-n");
   printf("%s%s%s%d\n", indent, indent, "numOfTables, default is ", numOfTables);
-  printf("%s%s\n", indent, "-r");
-  printf("%s%s%s%d\n", indent, indent, "replica, default is ", replica);
-  printf("%s%s\n", indent, "-columns");
-  printf("%s%s%s%d\n", indent, indent, "numOfColumns, default is ", numOfColumns);
-  
+  printf("%s%s\n", indent, "-v");
+  printf("%s%s%s%d\n", indent, indent, "numOfVgroups, default is ", numOfVgroups);
+  printf("%s%s\n", indent, "-a");
+  printf("%s%s%s%d\n", indent, indent, "createTable, default is ", createTable);
+  printf("%s%s\n", indent, "-i");
+  printf("%s%s%s%d\n", indent, indent, "insertData, default is ", insertData);
+  printf("%s%s\n", indent, "-b");
+  printf("%s%s%s%d\n", indent, indent, "batchNum, default is ", batchNum);
+
   exit(EXIT_SUCCESS);
 }
 
-void shellParseArgument(int argc, char *argv[]) {
+void parseArgument(int argc, char *argv[]) {
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
       printHelp();
@@ -200,26 +228,32 @@ void shellParseArgument(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "-c") == 0) {
       strcpy(configDir, argv[++i]);
     } else if (strcmp(argv[i], "-s") == 0) {
-      strcpy(stableName, argv[++i]);
+      strcpy(stbName, argv[++i]);
     } else if (strcmp(argv[i], "-t") == 0) {
       numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-n") == 0) {
       numOfTables = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-r") == 0) {
-      replica = atoi(argv[++i]);
-    } else if (strcmp(argv[i], "-columns") == 0) {
-      numOfColumns = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-n") == 0) {
+      numOfVgroups = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-a") == 0) {
+      createTable = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-i") == 0) {
+      insertData = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-b") == 0) {
+      batchNum = atoi(argv[++i]);
     } else {
     }
   }
 
   pPrint("%s dbName:%s %s", GREEN, dbName, NC);
-  pPrint("%s stableName:%s %s", GREEN, stableName, NC);
+  pPrint("%s stbName:%s %s", GREEN, stbName, NC);
   pPrint("%s configDir:%s %s", GREEN, configDir, NC);
   pPrint("%s numOfTables:%d %s", GREEN, numOfTables, NC);
   pPrint("%s numOfThreads:%d %s", GREEN, numOfThreads, NC);
-  pPrint("%s numOfColumns:%d %s", GREEN, numOfColumns, NC);
-  pPrint("%s replica:%d %s", GREEN, replica, NC);
-  
+  pPrint("%s numOfVgroups:%d %s", GREEN, numOfVgroups, NC);
+  pPrint("%s createTable:%d %s", GREEN, createTable, NC);
+  pPrint("%s insertData:%d %s", GREEN, insertData, NC);
+  pPrint("%s batchNum:%d %s", GREEN, batchNum, NC);
+
   pPrint("%s start create table performace test %s", GREEN, NC);
 }

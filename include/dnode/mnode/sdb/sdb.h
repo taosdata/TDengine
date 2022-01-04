@@ -22,121 +22,70 @@
 extern "C" {
 #endif
 
-#define SDB_GET_INT64(pData, pRow, dataPos, val)   \
-  {                                                \
-    if (sdbGetRawInt64(pRaw, dataPos, val) != 0) { \
-      tfree(pRow);                                 \
-      return NULL;                                 \
-    }                                              \
-    dataPos += sizeof(int64_t);                    \
+#define SDB_GET_VAL(pData, dataPos, val, pos, func, type) \
+  {                                                       \
+    if (func(pRaw, dataPos, val) != 0) {                  \
+      goto pos;                                           \
+    }                                                     \
+    dataPos += sizeof(type);                              \
   }
 
-#define SDB_GET_INT32(pData, pRow, dataPos, val)   \
-  {                                                \
-    if (sdbGetRawInt32(pRaw, dataPos, val) != 0) { \
-      tfree(pRow);                                 \
-      return NULL;                                 \
-    }                                              \
-    dataPos += sizeof(int32_t);                    \
-  }
-
-#define SDB_GET_INT16(pData, pRow, dataPos, val)   \
-  {                                                \
-    if (sdbGetRawInt16(pRaw, dataPos, val) != 0) { \
-      tfree(pRow);                                 \
-      return NULL;                                 \
-    }                                              \
-    dataPos += sizeof(int16_t);                    \
-  }
-
-#define SDB_GET_INT8(pData, pRow, dataPos, val)   \
-  {                                               \
-    if (sdbGetRawInt8(pRaw, dataPos, val) != 0) { \
-      tfree(pRow);                                \
-      return NULL;                                \
-    }                                             \
-    dataPos += sizeof(int8_t);                    \
-  }
-
-#define SDB_GET_BINARY(pRaw, pRow, dataPos, val, valLen)    \
+#define SDB_GET_BINARY(pRaw, dataPos, val, valLen, pos)     \
   {                                                         \
     if (sdbGetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
-      tfree(pRow);                                          \
-      return NULL;                                          \
+      goto pos;                                             \
     }                                                       \
     dataPos += valLen;                                      \
   }
 
-#define SDB_GET_RESERVE(pRaw, pRow, dataPos, valLen)        \
-  {                                                         \
-    char val[valLen] = {0};                                 \
-    if (sdbGetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
-      tfree(pRow);                                          \
-      return NULL;                                          \
-    }                                                       \
-    dataPos += valLen;                                      \
+#define SDB_GET_INT64(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt64, int64_t)
+
+#define SDB_GET_INT32(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt32, int32_t)
+
+#define SDB_GET_INT16(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt16, int16_t)
+
+#define SDB_GET_INT8(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt8, int8_t)
+
+#define SDB_GET_RESERVE(pRaw, dataPos, valLen, pos) \
+  {                                                 \
+    char val[valLen] = {0};                         \
+    SDB_GET_BINARY(pRaw, dataPos, val, valLen, pos) \
   }
 
-#define SDB_SET_INT64(pRaw, dataPos, val)          \
-  {                                                \
-    if (sdbSetRawInt64(pRaw, dataPos, val) != 0) { \
-      sdbFreeRaw(pRaw);                            \
-      return NULL;                                 \
-    }                                              \
-    dataPos += sizeof(int64_t);                    \
+#define SDB_SET_VAL(pRaw, dataPos, val, pos, func, type) \
+  {                                                      \
+    if (func(pRaw, dataPos, val) != 0) {                 \
+      goto pos;                                          \
+    }                                                    \
+    dataPos += sizeof(type);                             \
   }
 
-#define SDB_SET_INT32(pRaw, dataPos, val)          \
-  {                                                \
-    if (sdbSetRawInt32(pRaw, dataPos, val) != 0) { \
-      sdbFreeRaw(pRaw);                            \
-      return NULL;                                 \
-    }                                              \
-    dataPos += sizeof(int32_t);                    \
-  }
+#define SDB_SET_INT64(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt64, int64_t)
 
-#define SDB_SET_INT16(pRaw, dataPos, val)          \
-  {                                                \
-    if (sdbSetRawInt16(pRaw, dataPos, val) != 0) { \
-      sdbFreeRaw(pRaw);                            \
-      return NULL;                                 \
-    }                                              \
-    dataPos += sizeof(int16_t);                    \
-  }
+#define SDB_SET_INT32(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt32, int32_t)
 
-#define SDB_SET_INT8(pRaw, dataPos, val)          \
-  {                                               \
-    if (sdbSetRawInt8(pRaw, dataPos, val) != 0) { \
-      sdbFreeRaw(pRaw);                           \
-      return NULL;                                \
-    }                                             \
-    dataPos += sizeof(int8_t);                    \
-  }
+#define SDB_SET_INT16(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt16, int16_t)
 
-#define SDB_SET_BINARY(pRaw, dataPos, val, valLen)          \
+#define SDB_SET_INT8(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt8, int8_t)
+
+#define SDB_SET_BINARY(pRaw, dataPos, val, valLen, pos)     \
   {                                                         \
     if (sdbSetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
-      sdbFreeRaw(pRaw);                                     \
-      return NULL;                                          \
+      goto pos;                                             \
     }                                                       \
     dataPos += valLen;                                      \
   }
 
-#define SDB_SET_RESERVE(pRaw, dataPos, valLen)              \
-  {                                                         \
-    char val[valLen] = {0};                                 \
-    if (sdbSetRawBinary(pRaw, dataPos, val, valLen) != 0) { \
-      sdbFreeRaw(pRaw);                                     \
-      return NULL;                                          \
-    }                                                       \
-    dataPos += valLen;                                      \
+#define SDB_SET_RESERVE(pRaw, dataPos, valLen, pos) \
+  {                                                 \
+    char val[valLen] = {0};                         \
+    SDB_SET_BINARY(pRaw, dataPos, val, valLen, pos) \
   }
 
-#define SDB_SET_DATALEN(pRaw, dataLen)          \
+#define SDB_SET_DATALEN(pRaw, dataLen, pos)     \
   {                                             \
     if (sdbSetRawDataLen(pRaw, dataLen) != 0) { \
-      sdbFreeRaw(pRaw);                         \
-      return NULL;                              \
+      goto pos;                                 \
     }                                           \
   }
 

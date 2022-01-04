@@ -202,8 +202,6 @@ static int32_t mndExecSteps(SMnode *pMnode) {
     SMnodeStep *pStep = taosArrayGet(pMnode->pSteps, pos);
     if (pStep->initFp == NULL) continue;
 
-    // (*pMnode->reportProgress)(pStep->name, "start initialize");
-
     if ((*pStep->initFp)(pMnode) != 0) {
       int32_t code = terrno;
       mError("step:%s exec failed since %s, start to cleanup", pStep->name, terrstr());
@@ -213,8 +211,6 @@ static int32_t mndExecSteps(SMnode *pMnode) {
     } else {
       mDebug("step:%s is initialized", pStep->name);
     }
-
-    // (*pMnode->reportProgress)(pStep->name, "initialize completed");
   }
 
   return 0;

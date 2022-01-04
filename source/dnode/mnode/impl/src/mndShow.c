@@ -68,11 +68,11 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowMsg *pMsg) {
   SShowObj *pShow = taosCachePut(pMgmt->cache, &showId, sizeof(int64_t), &showObj, size, keepTime);
   if (pShow == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("show:0x%"PRIx64", failed to put into cache since %s", showId, terrstr());
+    mError("show:0x%" PRIx64 ", failed to put into cache since %s", showId, terrstr());
     return NULL;
   }
 
-  mTrace("show:0x%"PRIx64", is created, data:%p", showId, pShow);
+  mTrace("show:0x%" PRIx64 ", is created, data:%p", showId, pShow);
   return pShow;
 }
 
@@ -87,7 +87,7 @@ static void mndFreeShowObj(SShowObj *pShow) {
     }
   }
 
-  mTrace("show:0x%d, is destroyed, data:%p", pShow->id, pShow);
+  mTrace("show:0x%" PRIx64 ", is destroyed, data:%p", pShow->id, pShow);
 }
 
 static SShowObj *mndAcquireShowObj(SMnode *pMnode, int64_t showId) {
@@ -95,17 +95,17 @@ static SShowObj *mndAcquireShowObj(SMnode *pMnode, int64_t showId) {
 
   SShowObj *pShow = taosCacheAcquireByKey(pMgmt->cache, &showId, sizeof(showId));
   if (pShow == NULL) {
-    mError("show:0x%"PRIx64", already destroyed", showId);
+    mError("show:0x%" PRIx64 ", already destroyed", showId);
     return NULL;
   }
 
-  mTrace("show:0x%"PRIx64", acquired from cache, data:%p", pShow->id, pShow);
+  mTrace("show:0x%" PRIx64 ", acquired from cache, data:%p", pShow->id, pShow);
   return pShow;
 }
 
 static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
   if (pShow == NULL) return;
-  mTrace("show:0x%"PRIx64", released from cache, data:%p force:%d", pShow->id, pShow, forceRemove);
+  mTrace("show:0x%" PRIx64 ", released from cache, data:%p force:%d", pShow->id, pShow, forceRemove);
 
   // A bug in tcache.c
   forceRemove = 0;
@@ -146,18 +146,19 @@ static int32_t mndProcessShowMsg(SMnodeMsg *pMnodeMsg) {
   if (pRsp == NULL) {
     mndReleaseShowObj(pShow, true);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("show:0x%"PRIx64", failed to process show-meta msg:%s since malloc rsp error", pShow->id, mndShowStr(type));
+    mError("show:0x%" PRIx64 ", failed to process show-meta msg:%s since malloc rsp error", pShow->id,
+           mndShowStr(type));
     return -1;
   }
 
   int32_t code = (*metaFp)(pMnodeMsg, pShow, &pRsp->tableMeta);
-  mDebug("show:0x%"PRIx64", get meta finished, numOfRows:%d cols:%d type:%s result:%s", pShow->id, pShow->numOfRows,
+  mDebug("show:0x%" PRIx64 ", get meta finished, numOfRows:%d cols:%d type:%s result:%s", pShow->id, pShow->numOfRows,
          pShow->numOfColumns, mndShowStr(type), tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {
     pMnodeMsg->contLen = sizeof(SShowRsp) + sizeof(SSchema) * pShow->numOfColumns;
-    pMnodeMsg->pCont   = pRsp;
-    pRsp->showId       = htobe64(pShow->id);
+    pMnodeMsg->pCont = pRsp;
+    pRsp->showId = htobe64(pShow->id);
     mndReleaseShowObj(pShow, false);
     return TSDB_CODE_SUCCESS;
   } else {
@@ -175,7 +176,7 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
   int32_t    rowsRead = 0;
 
   SRetrieveTableMsg *pRetrieve = pMnodeMsg->rpcMsg.pCont;
-  int64_t showId = htobe64(pRetrieve->showId);
+  int64_t            showId = htobe64(pRetrieve->showId);
 
   SShowObj *pShow = mndAcquireShowObj(pMnode, showId);
   if (pShow == NULL) {
@@ -188,15 +189,16 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
   if (retrieveFp == NULL) {
     mndReleaseShowObj(pShow, false);
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-    mError("show:0x%"PRIx64", failed to retrieve data since %s", pShow->id, terrstr());
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, terrstr());
     return -1;
   }
 
-  mDebug("show:0x%"PRIx64", start retrieve data, numOfReads:%d numOfRows:%d type:%s", pShow->id, pShow->numOfReads,
+  mDebug("show:0x%" PRIx64 ", start retrieve data, numOfReads:%d numOfRows:%d type:%s", pShow->id, pShow->numOfReads,
          pShow->numOfRows, mndShowStr(pShow->type));
 
   if (mndCheckRetrieveFinished(pShow)) {
-    mDebug("show:0x%"PRIx64", read finished, numOfReads:%d numOfRows:%d", pShow->id, pShow->numOfReads, pShow->numOfRows);
+    mDebug("show:0x%" PRIx64 ", read finished, numOfReads:%d numOfRows:%d", pShow->id, pShow->numOfReads,
+           pShow->numOfRows);
     pShow->numOfReads = pShow->numOfRows;
   }
 
@@ -219,7 +221,7 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
   if (pRsp == NULL) {
     mndReleaseShowObj(pShow, false);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("show:0x%"PRIx64", failed to retrieve data since %s", pShow->id, terrstr());
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, terrstr());
     return -1;
   }
 
@@ -228,7 +230,7 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
     rowsRead = (*retrieveFp)(pMnodeMsg, pShow, pRsp->data, rowsToRead);
   }
 
-  mDebug("show:0x%"PRIx64", stop retrieve data, rowsRead:%d rowsToRead:%d", pShow->id, rowsRead, rowsToRead);
+  mDebug("show:0x%" PRIx64 ", stop retrieve data, rowsRead:%d rowsToRead:%d", pShow->id, rowsRead, rowsToRead);
 
   pRsp->numOfRows = htonl(rowsRead);
   pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision
@@ -238,10 +240,10 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
 
   if (rowsRead == 0 || rowsToRead == 0 || (rowsRead == rowsToRead && pShow->numOfRows == pShow->numOfReads)) {
     pRsp->completed = 1;
-    mDebug("show:0x%"PRIx64", retrieve completed", pShow->id);
+    mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
     mndReleaseShowObj(pShow, true);
   } else {
-    mDebug("show:0x%"PRIx64", retrieve not completed yet", pShow->id);
+    mDebug("show:0x%" PRIx64 ", retrieve not completed yet", pShow->id);
     mndReleaseShowObj(pShow, false);
   }
 

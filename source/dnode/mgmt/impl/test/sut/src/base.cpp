@@ -79,7 +79,7 @@ void Testbase::SendShowMetaMsg(int8_t showType, const char* db) {
   SShowRsp* pShowRsp = (SShowRsp*)pMsg->pCont;
 
   ASSERT(pShowRsp != nullptr);
-  pShowRsp->showId = htonl(pShowRsp->showId);
+  pShowRsp->showId = htobe64(pShowRsp->showId);
   pMeta = &pShowRsp->tableMeta;
   pMeta->numOfTags = htonl(pMeta->numOfTags);
   pMeta->numOfColumns = htonl(pMeta->numOfColumns);
@@ -121,7 +121,7 @@ void Testbase::SendShowRetrieveMsg() {
   int32_t contLen = sizeof(SRetrieveTableMsg);
 
   SRetrieveTableMsg* pRetrieve = (SRetrieveTableMsg*)rpcMallocCont(contLen);
-  pRetrieve->showId = htonl(showId);
+  pRetrieve->showId = htobe64(showId);
   pRetrieve->free = 0;
 
   SRpcMsg* pMsg = SendMsg(TDMT_MND_SHOW_RETRIEVE, pRetrieve, contLen);
