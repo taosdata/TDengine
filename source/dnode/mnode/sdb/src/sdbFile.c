@@ -146,6 +146,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
 
   char file[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
+  mDebug("start to read file:%s", file);
 
   FileFd fd = taosOpenFileRead(file);
   if (fd <= 0) {

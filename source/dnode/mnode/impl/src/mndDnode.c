@@ -354,7 +354,7 @@ static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg) {
     }
 
     if (pStatus->dnodeId == 0) {
-      mDebug("dnode:%d %s, first access, set clusterId %" PRId64, pDnode->id, pDnode->ep, pMnode->clusterId);
+      mDebug("dnode:%d, %s first access, set clusterId %" PRId64, pDnode->id, pDnode->ep, pMnode->clusterId);
     } else {
       if (pStatus->clusterId != pMnode->clusterId) {
         if (pDnode != NULL) {

@@ -65,7 +65,7 @@ void sdbCleanup(SSdb *pSdb) {
   mDebug("start to cleanup sdb");
 
   if (pSdb->curVer != pSdb->lastCommitVer) {
-    mDebug("write sdb file for curVer:% " PRId64 " and lastCommitVer:%" PRId64, pSdb->curVer, pSdb->lastCommitVer);
+    mDebug("write sdb file for current ver:%" PRId64 " != last commit ver:%" PRId64, pSdb->curVer, pSdb->lastCommitVer);
     sdbWriteFile(pSdb);
   }
 
@@ -138,7 +138,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
   pSdb->maxId[sdbType] = 0;
   pSdb->hashObjs[sdbType] = hash;
   taosInitRWLatch(&pSdb->locks[sdbType]);
-  mDebug("sdb table:%d is initialized", sdbType);
+  mDebug("sdb table:%s is initialized", sdbTableName(sdbType));
 
   return 0;
 }

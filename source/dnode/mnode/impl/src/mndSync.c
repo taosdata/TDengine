@@ -52,11 +52,12 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
   SWalReadHandle *pHandle = walOpenReadHandle(pWal);
   if (pHandle == NULL) return -1;
 
-  int64_t start = walGetFirstVer(pWal);
-  int64_t end = walGetLastVer(pWal);
-  start = MAX(lastSdbVer + 1, start);
+  int64_t first = walGetFirstVer(pWal);
+  int64_t last = walGetLastVer(pWal);
+  mDebug("restore sdb wal start, sdb ver:%" PRId64 ", wal first:%" PRId64 " last:%" PRId64, lastSdbVer, first, last);
 
-  for (int64_t ver = start; ver >= 0 && ver <= end; ++ver) {
+  first = MAX(lastSdbVer + 1, first);
+  for (int64_t ver = first; ver >= 0 && ver <= last; ++ver) {
     if (walReadWithHandle(pHandle, ver) < 0) {
       mError("failed to read by wal handle since %s, ver:%" PRId64, terrstr(), ver);
       goto WAL_RESTORE_OVER;
@@ -76,15 +77,18 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
     }
 
     sdbUpdateVer(pSdb, 1);
+    mDebug("wal:%" PRId64 ", is restored", ver);
   }
 
   int64_t sdbVer = sdbUpdateVer(pSdb, 0);
+  mDebug("restore sdb wal finished, sdb ver:%" PRId64, sdbVer);
+
   if (walBeginSnapshot(pWal, sdbVer) < 0) {
     goto WAL_RESTORE_OVER;
   }
 
   if (sdbVer != lastSdbVer) {
-    mInfo("sdb restore wal from %" PRId64 " to %" PRId64, lastSdbVer, sdbVer);
+    mInfo("sdb restored from %" PRId64 " to %" PRId64 ", write file", lastSdbVer, sdbVer);
     if (sdbWriteFile(pSdb) != 0) {
       goto WAL_RESTORE_OVER;
     }
@@ -147,7 +151,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
     return -1;
   }
 
-  mTrace("raw:%p has been write to wal, ver:%" PRId64, pRaw, ver);
+  mTrace("raw:%p, write to wal, ver:%" PRId64, pRaw, ver);
   walCommit(pWal, ver);
   walFsync(pWal, true);
 

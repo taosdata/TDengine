@@ -57,18 +57,35 @@ const char *sdbTableName(ESdbType type) {
   }
 }
 
+static const char *sdbStatusStr(ESdbStatus status) {
+  switch (status) {
+    case SDB_STATUS_CREATING:
+      return "creating";
+    case SDB_STATUS_UPDATING:
+      return "updating";
+    case SDB_STATUS_DROPPING:
+      return "dropping";
+    case SDB_STATUS_READY:
+      return "ready";
+    case SDB_STATUS_DROPPED:
+      return "dropped";
+    default:
+      return "undefine";
+  }
+}
+
 void sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper) {
   EKeyType keyType = pSdb->keyTypes[pRow->type];
 
   if (keyType == SDB_KEY_BINARY) {
-    mTrace("%s:%s, refCount:%d oper:%s row:%p", sdbTableName(pRow->type), (char *)pRow->pObj, pRow->refCount, oper,
-           pRow->pObj);
+    mTrace("%s:%s, refCount:%d oper:%s row:%p status:%s", sdbTableName(pRow->type), (char *)pRow->pObj, pRow->refCount,
+           oper, pRow->pObj, sdbStatusStr(pRow->status));
   } else if (keyType == SDB_KEY_INT32) {
-    mTrace("%s:%d, refCount:%d oper:%s row:%p", sdbTableName(pRow->type), *(int32_t *)pRow->pObj, pRow->refCount, oper,
-           pRow->pObj);
+    mTrace("%s:%d, refCount:%d oper:%s row:%p status:%s", sdbTableName(pRow->type), *(int32_t *)pRow->pObj,
+           pRow->refCount, oper, pRow->pObj, sdbStatusStr(pRow->status));
   } else if (keyType == SDB_KEY_INT64) {
-    mTrace("%s:%" PRId64 ", refCount:%d oper:%s row:%p", sdbTableName(pRow->type), *(int64_t *)pRow->pObj,
-           pRow->refCount, oper, pRow->pObj);
+    mTrace("%s:%" PRId64 ", refCount:%d oper:%s row:%p status:%s", sdbTableName(pRow->type), *(int64_t *)pRow->pObj,
+           pRow->refCount, oper, pRow->pObj, sdbStatusStr(pRow->status));
   } else {
   }
 }
@@ -165,6 +182,7 @@ static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
 
   SSdbRow *pOldRow = *ppOldRow;
   pOldRow->status = pRaw->status;
+  sdbPrintOper(pSdb, pOldRow, "updateRow");
   taosRUnLockLatch(pLock);
 
   int32_t     code = 0;
@@ -193,6 +211,8 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   SSdbRow *pOldRow = *ppOldRow;
 
   pOldRow->status = pRaw->status;
+  sdbPrintOper(pSdb, pOldRow, "deleteRow");
+
   taosHashRemove(hash, pOldRow->pObj, keySize);
   taosWUnLockLatch(pLock);
 
