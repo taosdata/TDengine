@@ -106,7 +106,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 0)
         tdSql.checkData(0, 2, 0)
 
-        tdSql.query("select * from st where untag = 4294967294")
+        tdSql.query("select * from st where untag = 254")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         tdSql.checkData(0, 1, 254)
