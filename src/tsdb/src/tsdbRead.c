@@ -4568,4 +4568,11 @@ end:
   return string;
 }
 
-
+// obtain queryHandle attribute
+int64_t tsdbSkipOffset(TsdbQueryHandleT queryHandle) {
+  STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*)queryHandle;
+  if (pQueryHandle) {
+    return pQueryHandle->srows;
+  }
+  return 0;
+}
