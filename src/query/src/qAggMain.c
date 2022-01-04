@@ -701,7 +701,6 @@ static int32_t firstFuncRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t c
   if (pCtx->order == TSDB_ORDER_DESC) {
     return BLK_DATA_NO_NEEDED;
   }
-  
   // no result for first query, data block is required
   if (GET_RES_INFO(pCtx) == NULL || GET_RES_INFO(pCtx)->numOfRes <= 0) {
     return BLK_DATA_ALL_NEEDED;
@@ -1524,33 +1523,65 @@ static bool first_last_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* 
 
 // todo opt for null block
 static void first_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->order == TSDB_ORDER_DESC) {
-    return;
-  }
-  
+  SResultRowCellInfo* pResInfo = GET_RES_INFO(pCtx);
   int32_t notNullElems = 0;
-  
-  // handle the null value
-  for (int32_t i = 0; i < pCtx->size; ++i) {
-    char *data = GET_INPUT_DATA(pCtx, i);
-    if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
-      continue;
-    }
-    
-    memcpy(pCtx->pOutput, data, pCtx->inputBytes);
-    if (pCtx->ptsList != NULL) {
-      TSKEY k = GET_TS_DATA(pCtx, i);
-      DO_UPDATE_TAG_COLUMNS(pCtx, k);
-    }
+  int32_t step = 1;
+  int32_t i = 0;
+  bool inputAsc = true;
 
-    SResultRowCellInfo *pInfo = GET_RES_INFO(pCtx);
-    pInfo->hasResult = DATA_SET_FLAG;
-    pInfo->complete = true;
-    
-    notNullElems++;
-    break;
+  // input data come from sub query, input data order equal to sub query order
+  if(pCtx->numOfParams == 3) {
+    if(pCtx->param[2].nType == TSDB_DATA_TYPE_INT && pCtx->param[2].i64 == TSDB_ORDER_DESC) {
+      step = -1;
+      i = pCtx->size - 1;
+      inputAsc = false;
+    }
+  } else if (pCtx->order == TSDB_ORDER_DESC) {
+    return ;
   }
-  
+
+  if(pCtx->order == TSDB_ORDER_ASC && inputAsc) {
+    for (int32_t m = 0; m < pCtx->size; ++m, i+=step) {
+      char *data = GET_INPUT_DATA(pCtx, i);
+      if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
+        continue;
+      }
+      
+      memcpy(pCtx->pOutput, data, pCtx->inputBytes);
+      if (pCtx->ptsList != NULL) {
+        TSKEY k = GET_TS_DATA(pCtx, i);
+        DO_UPDATE_TAG_COLUMNS(pCtx, k);
+      }
+
+      SResultRowCellInfo *pInfo = GET_RES_INFO(pCtx);
+      pInfo->hasResult = DATA_SET_FLAG;
+      pInfo->complete = true;
+      
+      notNullElems++;
+      break;
+    }
+  } else {  // desc order
+    for (int32_t m = 0; m < pCtx->size; ++m, i+=step) {
+      char *data = GET_INPUT_DATA(pCtx, i);
+      if (pCtx->hasNull && isNull(data, pCtx->inputType) && (!pCtx->requireNull)) {
+        continue;
+      }
+
+      TSKEY ts = pCtx->ptsList ? GET_TS_DATA(pCtx, i) : 0;
+
+      char* buf = GET_ROWCELL_INTERBUF(pResInfo);
+      if (pResInfo->hasResult != DATA_SET_FLAG || (*(TSKEY*)buf) > ts) {
+        pResInfo->hasResult = DATA_SET_FLAG;
+        memcpy(pCtx->pOutput, data, pCtx->inputBytes);
+
+        *(TSKEY*)buf = ts;
+        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
+      }
+
+      notNullElems++;
+      break;
+    }
+  }
   SET_VAL(pCtx, notNullElems, 1);
 }
 
@@ -1634,16 +1665,23 @@ static void first_dist_func_merge(SQLFunctionCtx *pCtx) {
  *    least one data in this block that is not null.(TODO opt for this case)
  */
 static void last_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->order != pCtx->param[0].i64) {
+  SResultRowCellInfo* pResInfo = GET_RES_INFO(pCtx);
+  int32_t notNullElems = 0;
+  int32_t step = -1;
+  int32_t i = pCtx->size - 1;
+
+  // input data come from sub query, input data order equal to sub query order
+  if(pCtx->numOfParams == 3) {
+    if(pCtx->param[2].nType == TSDB_DATA_TYPE_INT && pCtx->param[2].i64 == TSDB_ORDER_DESC) {
+      step = 1;
+      i = 0;
+    }
+  } else if (pCtx->order != pCtx->param[0].i64) {
     return;
   }
 
-  SResultRowCellInfo* pResInfo = GET_RES_INFO(pCtx);
-
-  int32_t notNullElems = 0;
   if (pCtx->order == TSDB_ORDER_DESC) {
-
-    for (int32_t i = pCtx->size - 1; i >= 0; --i) {
+    for (int32_t m = pCtx->size - 1; m >= 0; --m, i += step) {
       char *data = GET_INPUT_DATA(pCtx, i);
       if (pCtx->hasNull && isNull(data, pCtx->inputType) && (!pCtx->requireNull)) {
         continue;
@@ -1660,7 +1698,7 @@ static void last_function(SQLFunctionCtx *pCtx) {
       break;
     }
   } else {  // ascending order
-    for (int32_t i = pCtx->size - 1; i >= 0; --i) {
+    for (int32_t m = pCtx->size - 1; m >= 0; --m, i += step) {
       char *data = GET_INPUT_DATA(pCtx, i);
       if (pCtx->hasNull && isNull(data, pCtx->inputType) && (!pCtx->requireNull)) {
         continue;
