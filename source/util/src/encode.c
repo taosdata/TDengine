@@ -88,13 +88,9 @@ void tEndEncode(SCoder* pCoder) {
     pCoder->size = pNode->size;
     pCoder->pos = pNode->pos;
 
-    if (TD_RT_ENDIAN() == pCoder->endian) {
-      tPut(int32_t, pCoder->data + pCoder->pos, len);
-    } else {
-      tRPut32(pCoder->data + pCoder->pos, len);
-    }
+    tEncodeI32(pCoder, len);
 
-    TD_CODER_MOVE_POS(pCoder, len + sizeof(int32_t));
+    TD_CODER_MOVE_POS(pCoder, len);
 
     free(pNode);
   }
@@ -127,15 +123,14 @@ void tEndDecode(SCoder* pCoder) {
   struct SCoderNode* pNode;
 
   ASSERT(pCoder->type == TD_DECODER);
-  ASSERT(tDecodeIsEnd(pCoder));
 
   pNode = TD_SLIST_HEAD(&(pCoder->stack));
   ASSERT(pNode);
   TD_SLIST_POP(&(pCoder->stack));
 
   pCoder->data = pNode->data;
+  pCoder->pos = pCoder->size + pNode->pos;
   pCoder->size = pNode->size;
-  pCoder->pos = pCoder->pos + pNode->pos;
 
   free(pNode);
 }

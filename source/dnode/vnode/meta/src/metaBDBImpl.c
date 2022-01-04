@@ -577,11 +577,16 @@ char *metaTbCursorNext(SMTbCursor *pTbCur) {
   STbCfg tbCfg;
   void * pBuf;
 
-  if (pTbCur->pCur->get(pTbCur->pCur, &key, &value, DB_NEXT) == 0) {
-    pBuf = value.data;
-    metaDecodeTbInfo(pBuf, &tbCfg);
-    return tbCfg.name;
-  } else {
-    return NULL;
+  for (;;) {
+    if (pTbCur->pCur->get(pTbCur->pCur, &key, &value, DB_NEXT) == 0) {
+      pBuf = value.data;
+      metaDecodeTbInfo(pBuf, &tbCfg);
+      if (tbCfg.type == META_SUPER_TABLE) {
+        continue;
+      }
+      return tbCfg.name;
+    } else {
+      return NULL;
+    }
   }
 }
