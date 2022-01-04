@@ -70,6 +70,11 @@ typedef struct SQueryPlanNode {
   struct SQueryPlanNode  *pParent;
 } SQueryPlanNode;
 
+typedef struct SDataPayloadInfo {
+  int32_t msgType;
+  SArray *payload;
+} SDataPayloadInfo;
+
 /**
  * Optimize the query execution plan, currently not implement yet.
  * @param pQueryNode

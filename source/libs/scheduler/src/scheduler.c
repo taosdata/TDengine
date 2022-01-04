@@ -28,7 +28,7 @@ int32_t schBuildTaskRalation(SSchJob *job, SHashObj *planToTask) {
     for (int32_t m = 0; m < level->taskNum; ++m) {
       SSchTask *task = taosArrayGet(level->subTasks, m);
       SSubplan *plan = task->plan;
-      int32_t childNum = plan->pChildern ? (int32_t)taosArrayGetSize(plan->pChildern) : 0;
+      int32_t childNum = plan->pChildren ? (int32_t)taosArrayGetSize(plan->pChildren) : 0;
       int32_t parentNum = plan->pParents ? (int32_t)taosArrayGetSize(plan->pParents) : 0;
 
       if (childNum > 0) {
@@ -40,7 +40,7 @@ int32_t schBuildTaskRalation(SSchJob *job, SHashObj *planToTask) {
       }
 
       for (int32_t n = 0; n < childNum; ++n) {
-        SSubplan **child = taosArrayGet(plan->pChildern, n);
+        SSubplan **child = taosArrayGet(plan->pChildren, n);
         SSchTask **childTask = taosHashGet(planToTask, child, POINTER_BYTES);
         if (NULL == childTask || NULL == *childTask) {
           qError("subplan relationship error, level:%d, taskIdx:%d, childIdx:%d", i, m, n);
@@ -122,6 +122,7 @@ int32_t schValidateAndBuildJob(SQueryDag *dag, SSchJob *job) {
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
+  //??
   job->attr.needFetch = true;
   
   job->levelNum = levelNum;
@@ -547,22 +548,29 @@ int32_t schHandleCallback(void* param, const SDataBuf* pMsg, int32_t msgType, in
 
 _return:  
   tfree(param);
-
   SCH_RET(code);
 }
 
 int32_t schHandleSubmitCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   return schHandleCallback(param, pMsg, TDMT_VND_SUBMIT_RSP, code);
 }
+
+int32_t schHandleCreateTableCallback(void* param, const SDataBuf* pMsg, int32_t code) {
+  return schHandleCallback(param, pMsg, TDMT_VND_CREATE_TABLE_RSP, code);
+}
+
 int32_t schHandleQueryCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   return schHandleCallback(param, pMsg, TDMT_VND_QUERY_RSP, code);
 }
+
 int32_t schHandleFetchCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   return schHandleCallback(param, pMsg, TDMT_VND_FETCH_RSP, code);
 }
+
 int32_t schHandleReadyCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   return schHandleCallback(param, pMsg, TDMT_VND_RES_READY_RSP, code);
 }
+
 int32_t schHandleDropCallback(void* param, const SDataBuf* pMsg, int32_t code) {  
   SSchCallbackParam *pParam = (SSchCallbackParam *)param;
   qDebug("drop task rsp received, queryId:%"PRIx64 ",taksId:%"PRIx64 ",code:%d", pParam->queryId, pParam->taskId, code);
@@ -570,6 +578,9 @@ int32_t schHandleDropCallback(void* param, const SDataBuf* pMsg, int32_t code) {
 
 int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
   switch (msgType) {
+    case TDMT_VND_CREATE_TABLE:
+      *fp = schHandleCreateTableCallback;
+      break;
     case TDMT_VND_SUBMIT: 
       *fp = schHandleSubmitCallback;
       break;
@@ -640,6 +651,7 @@ int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
   int32_t code = 0;
   
   switch (msgType) {
+    case TDMT_VND_CREATE_TABLE:
     case TDMT_VND_SUBMIT: {
       if (NULL == task->msg || task->msgLen <= 0) {
         qError("submit msg is NULL");
@@ -746,18 +758,14 @@ int32_t schLaunchTask(SSchJob *job, SSchTask *task) {
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
-  int32_t msgType = (plan->type == QUERY_TYPE_MODIFY) ? TDMT_VND_SUBMIT : TDMT_VND_QUERY;
+//  int32_t msgType = (plan->type == QUERY_TYPE_MODIFY)? TDMT_VND_SUBMIT : TDMT_VND_QUERY;
   
-  SCH_ERR_RET(schBuildAndSendMsg(job, task, msgType));
-
+  SCH_ERR_RET(schBuildAndSendMsg(job, task, plan->msgType));
   SCH_ERR_RET(schPushTaskToExecList(job, task));
 
   task->status = JOB_TASK_STATUS_EXECUTING;
-
   return TSDB_CODE_SUCCESS;
 }
-
-
 
 int32_t schLaunchJob(SSchJob *job) {
   SSchLevel *level = taosArrayGet(job->levels, job->levelIdx);

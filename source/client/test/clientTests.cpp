@@ -279,7 +279,7 @@ TEST(testCase, connect_Test) {
 //  taos_free_result(pRes);
 //  taos_close(pConn);
 //}
-//
+
 //TEST(testCase, create_table_Test) {
 //  //  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
 //  //  assert(pConn != NULL);
@@ -470,9 +470,9 @@ TEST(testCase, create_multiple_tables) {
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table t_2 using st1 tags(1) t_3 using st1 tags(2)");
+  pRes = taos_query(pConn, "create table t_2 using st1 tags(1)");
   if (taos_errno(pRes) != 0) {
-    printf("failed to show vgroups, reason:%s\n", taos_errstr(pRes));
+    printf("failed to create multiple tables, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
     ASSERT_TRUE(false);
   }

@@ -761,8 +761,9 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, c
       break;
     }
 
-    case TSDB_SQL_CREATE_TABLE: {
+    case TSDB_SQL_CREATE_STABLE: {
       SCreateTableSql* pCreateTable = pInfo->pCreateTableInfo;
+      assert(pCreateTable->type != TSQL_CREATE_CTABLE);
 
       if (pCreateTable->type == TSQL_CREATE_TABLE || pCreateTable->type == TSQL_CREATE_STABLE) {
         if ((code = doCheckForCreateTable(pInfo, pMsgBuf)) != TSDB_CODE_SUCCESS) {
@@ -772,13 +773,6 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, c
 
         pDcl->pMsg = (char*)buildCreateTableMsg(pCreateTable, &pDcl->msgLen, pCtx, pMsgBuf);
         pDcl->msgType = (pCreateTable->type == TSQL_CREATE_TABLE) ? TDMT_VND_CREATE_TABLE : TDMT_MND_CREATE_STB;
-      } else if (pCreateTable->type == TSQL_CREATE_CTABLE) {
-        if ((code = doCheckForCreateCTable(pInfo, pCtx, pMsgBuf, &pDcl->pMsg, &pDcl->msgLen)) !=
-            TSDB_CODE_SUCCESS) {
-          goto _error;
-        }
-
-        pDcl->msgType = TDMT_VND_CREATE_TABLE;
       } else if (pCreateTable->type == TSQL_CREATE_STREAM) {
         //        if ((code = doCheckForStream(pSql, pInfo)) != TSDB_CODE_SUCCESS) {
         //          return code;
