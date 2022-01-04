@@ -1392,7 +1392,7 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* pSl
   const char* msg1 = "sliding value no larger than the interval value";
   const char* msg2 = "sliding value can not less than 1% of interval value";
   const char* msg3 = "does not support sliding when interval is natural month/year";
-  const char* msg4 = "sliding not support for interp query";  
+  const char* msg4 = "sliding not support for interp query";
 
   const static int32_t INTERVAL_SLIDING_FACTOR = 100;
 
@@ -1410,7 +1410,7 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* pSl
   if (interpQuery) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
   }
-  
+
   if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
@@ -5229,7 +5229,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       }
     }
 
-    if (pRight != NULL && (pRight->tokenId == TK_ID || pRight->tokenId == TK_ARROW)) {  // join on tag columns for stable query
+    if (joinQuery && pRight != NULL && (pRight->tokenId == TK_ID || pRight->tokenId == TK_ARROW)) {  // join on tag columns for stable query
       if (!validateJoinExprNode(pCmd, pQueryInfo, *pExpr, &index)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
