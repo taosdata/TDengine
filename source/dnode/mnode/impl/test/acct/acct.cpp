@@ -1,7 +1,7 @@
 /**
  * @file acct.cpp
  * @author slguan (slguan@taosdata.com)
- * @brief DNODE module acct-msg tests
+ * @brief MNODE module acct-msg tests
  * @version 0.1
  * @date 2021-12-15
  *
@@ -13,7 +13,7 @@
 
 class DndTestAcct : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_acct", 9012); }
+  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_acct", 9012); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;

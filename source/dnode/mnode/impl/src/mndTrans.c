@@ -169,7 +169,7 @@ TRANS_ENCODE_OVER:
     return NULL;
   }
 
-  mTrace("trans:%d, encode to raw:%p, len:%d", pTrans->id, pRaw, dataPos);
+  mTrace("trans:%d, encode to raw:%p, row:%p len:%d", pTrans->id, pRaw, pTrans, dataPos);
   return pRaw;
 }
 
@@ -226,6 +226,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &dataLen, TRANS_DECODE_OVER)
     pData = malloc(dataLen);
     if (pData == NULL) goto TRANS_DECODE_OVER;
+    mTrace("raw:%p, is created", pData);
     SDB_GET_BINARY(pRaw, dataPos, pData, dataLen, TRANS_DECODE_OVER);
     if (taosArrayPush(pTrans->redoLogs, &pData) == NULL) goto TRANS_DECODE_OVER;
     pData = NULL;
@@ -235,6 +236,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &dataLen, TRANS_DECODE_OVER)
     pData = malloc(dataLen);
     if (pData == NULL) goto TRANS_DECODE_OVER;
+    mTrace("raw:%p, is created", pData);
     SDB_GET_BINARY(pRaw, dataPos, pData, dataLen, TRANS_DECODE_OVER);
     if (taosArrayPush(pTrans->undoLogs, &pData) == NULL) goto TRANS_DECODE_OVER;
     pData = NULL;
@@ -243,6 +245,8 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   for (int32_t i = 0; i < commitLogNum; ++i) {
     SDB_GET_INT32(pRaw, dataPos, &dataLen, TRANS_DECODE_OVER)
     pData = malloc(dataLen);
+    if (pData == NULL) goto TRANS_DECODE_OVER;
+    mTrace("raw:%p, is created", pData);
     SDB_GET_BINARY(pRaw, dataPos, pData, dataLen, TRANS_DECODE_OVER);
     if (taosArrayPush(pTrans->commitLogs, &pData) == NULL) goto TRANS_DECODE_OVER;
     pData = NULL;
@@ -284,13 +288,13 @@ TRANS_DECODE_OVER:
     return NULL;
   }
 
-  mTrace("trans:%d, decode from raw:%p, data:%p", pTrans->id, pRaw, pTrans);
+  mTrace("trans:%d, decode from raw:%p, row:%p", pTrans->id, pRaw, pTrans);
   return pRow;
 }
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
   pTrans->stage = TRN_STAGE_PREPARE;
-  mTrace("trans:%d, perform insert action, data:%p", pTrans->id, pTrans);
+  mTrace("trans:%d, perform insert action, row:%p", pTrans->id, pTrans);
   return 0;
 }
 
@@ -303,13 +307,13 @@ static void mndTransDropData(STrans *pTrans) {
 }
 
 static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans) {
-  mTrace("trans:%d, perform delete action, data:%p", pTrans->id, pTrans);
+  mTrace("trans:%d, perform delete action, row:%p", pTrans->id, pTrans);
   mndTransDropData(pTrans);
   return 0;
 }
 
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOldTrans, STrans *pNewTrans) {
-  mTrace("trans:%d, perform update action, data:%p", pOldTrans->id, pOldTrans);
+  mTrace("trans:%d, perform update action, old_row:%p new_row:%p", pOldTrans->id, pOldTrans, pNewTrans);
   pOldTrans->stage = pNewTrans->stage;
   return 0;
 }
