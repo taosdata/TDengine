@@ -14,4 +14,7 @@ target_link_libraries(
     PUBLIC api
 )
 
-ADD_SUBDIRECTORY(test)
+if(${BUILD_TEST})
+    ADD_SUBDIRECTORY(test)
+endif(${BUILD_TEST})
+

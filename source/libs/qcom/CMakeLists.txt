@@ -7,8 +7,10 @@ target_include_directories(
 )
 
 target_link_libraries(
-   qcom
-   PRIVATE os util transport
+    qcom
+    PRIVATE os util transport
 )
 
-ADD_SUBDIRECTORY(test)
+if(${BUILD_TEST})
+    ADD_SUBDIRECTORY(test)
+endif(${BUILD_TEST})
