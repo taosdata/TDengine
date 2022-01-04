@@ -456,15 +456,27 @@ int32_t schProcessOnTaskFailure(SSchJob *job, SSchTask *task, int32_t errCode) {
 
 int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *msg, int32_t msgSize, int32_t rspCode) {
   int32_t code = 0;
-  
+
+
   switch (msgType) {
+    case TDMT_VND_CREATE_TABLE_RSP: {
+      if (rspCode != TSDB_CODE_SUCCESS) {
+        SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rspCode));
+      } else {
+//        job->resNumOfRows += rsp->affectedRows;
+        code = schProcessOnTaskSuccess(job, task);
+        if (code) {
+          goto _task_error;
+        }
+      }
+    }
     case TDMT_VND_SUBMIT_RSP: {
-        SShellSubmitRspMsg *rsp = (SShellSubmitRspMsg *)msg;
-        if (rsp->code != TSDB_CODE_SUCCESS) {
-          SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rsp->code));
+        if (rspCode != TSDB_CODE_SUCCESS) {
+          SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rspCode));
         } else {
+          SShellSubmitRspMsg *rsp = (SShellSubmitRspMsg *)msg;
           job->resNumOfRows += rsp->affectedRows;
-          
+
           code = schProcessOnTaskSuccess(job, task);
           if (code) {
             goto _task_error;

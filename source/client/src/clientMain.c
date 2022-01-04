@@ -29,7 +29,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 
 // this function may be called by user or system, or by both simultaneously.
 void taos_cleanup(void) {
-  tscDebug("start to cleanup client environment");
+  tscInfo("start to cleanup client environment");
 
   if (atomic_val_compare_exchange_32(&sentinel, TSC_VAR_NOT_RELEASE, TSC_VAR_RELEASED) != TSC_VAR_NOT_RELEASE) {
     return;
@@ -47,6 +47,8 @@ void taos_cleanup(void) {
 
   rpcCleanup();
   taosCloseLog();
+
+  tscInfo("all local resources released");
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
