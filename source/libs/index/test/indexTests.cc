@@ -28,7 +28,7 @@
 #include "tutil.h"
 using namespace std;
 
-#define NUM_OF_THREAD 10
+#define NUM_OF_THREAD 5
 
 class DebugInfo {
  public:
