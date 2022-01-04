@@ -54,10 +54,11 @@ void schtBuildQueryDag(SQueryDag *dag) {
   scanPlan.id.templateId = 0x0000000000000002;
   scanPlan.id.subplanId = 0x0000000000000003;
   scanPlan.type = QUERY_TYPE_SCAN;
-  scanPlan.level = 1;
-  scanPlan.execEpSet.numOfEps = 1;
-  scanPlan.execEpSet.port[0] = 6030;
-  strcpy(scanPlan.execEpSet.fqdn[0], "ep0");
+  scanPlan.execNode.numOfEps = 1;
+  scanPlan.execNode.nodeId = 1;
+  scanPlan.execNode.inUse = 0;
+  scanPlan.execNode.epAddr[0].port = 6030;
+  strcpy(scanPlan.execNode.epAddr[0].fqdn, "ep0");
   scanPlan.pChildern = NULL;
   scanPlan.pParents = taosArrayInit(1, POINTER_BYTES);
   scanPlan.pNode = (SPhyNode*)calloc(1, sizeof(SPhyNode));
@@ -67,7 +68,7 @@ void schtBuildQueryDag(SQueryDag *dag) {
   mergePlan.id.subplanId = 0x5555555555;
   mergePlan.type = QUERY_TYPE_MERGE;
   mergePlan.level = 0;
-  mergePlan.execEpSet.numOfEps = 0;
+  mergePlan.execNode.numOfEps = 0;
   mergePlan.pChildern = taosArrayInit(1, POINTER_BYTES);
   mergePlan.pParents = NULL;
   mergePlan.pNode = (SPhyNode*)calloc(1, sizeof(SPhyNode));
@@ -97,9 +98,11 @@ void schtBuildInsertDag(SQueryDag *dag) {
   insertPlan[0].id.subplanId = 0x0000000000000004;
   insertPlan[0].type = QUERY_TYPE_MODIFY;
   insertPlan[0].level = 0;
-  insertPlan[0].execEpSet.numOfEps = 1;
-  insertPlan[0].execEpSet.port[0] = 6030;
-  strcpy(insertPlan[0].execEpSet.fqdn[0], "ep0");
+  insertPlan[0].execNode.numOfEps = 1;
+  insertPlan[0].execNode.nodeId = 1;
+  insertPlan[0].execNode.inUse = 0;
+  insertPlan[0].execNode.epAddr[0].port = 6030;
+  strcpy(insertPlan[0].execNode.epAddr[0].fqdn, "ep0");
   insertPlan[0].pChildern = NULL;
   insertPlan[0].pParents = NULL;
   insertPlan[0].pNode = NULL;
@@ -110,9 +113,11 @@ void schtBuildInsertDag(SQueryDag *dag) {
   insertPlan[1].id.subplanId = 0x0000000000000005;
   insertPlan[1].type = QUERY_TYPE_MODIFY;
   insertPlan[1].level = 0;
-  insertPlan[1].execEpSet.numOfEps = 1;
-  insertPlan[1].execEpSet.port[0] = 6030;
-  strcpy(insertPlan[1].execEpSet.fqdn[0], "ep1");
+  insertPlan[1].execNode.numOfEps = 1;
+  insertPlan[1].execNode.nodeId = 1;
+  insertPlan[1].execNode.inUse = 1;
+  insertPlan[1].execNode.epAddr[0].port = 6030;
+  strcpy(insertPlan[1].execNode.epAddr[0].fqdn, "ep1");
   insertPlan[1].pChildern = NULL;
   insertPlan[1].pParents = NULL;
   insertPlan[1].pNode = NULL;
@@ -132,7 +137,7 @@ int32_t schtPlanToString(const SSubplan *subplan, char** str, int32_t* len) {
   return 0;
 }
 
-int32_t schtExecNode(SSubplan* subplan, uint64_t templateId, SEpAddr* ep) {
+int32_t schtExecNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep) {
   return 0;
 }
 

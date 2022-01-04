@@ -404,8 +404,8 @@ int32_t schProcessOnTaskSuccess(SSchJob *job, SSchTask *task) {
         return TSDB_CODE_SUCCESS;
       }
     } else {
-      strncpy(job->resEp.fqdn, task->execAddr.fqdn, sizeof(job->resEp.fqdn));
-      job->resEp.port = task->execAddr.port;
+      strncpy(job->resEp.fqdn, task->execAddr.epAddr[task->execAddr.inUse].fqdn, sizeof(job->resEp.fqdn));
+      job->resEp.port = task->execAddr.epAddr[task->execAddr.inUse].port;
     }
 
     job->fetchTask = task;

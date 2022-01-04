@@ -46,7 +46,7 @@ int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag)
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SEpAddr* ep) {
+int32_t qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep) {
   return setSubplanExecutionNode(subplan, templateId, ep);
 }
 
