@@ -97,7 +97,8 @@ function replace_community_pro() {
   sed -i "s/rmtaos/rmpro/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/TDengine/ProDB/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/ taosd / prodbs /g" ${top_dir}/packaging/tools/remove.sh
-
+  # packaging/tools/run_taosd.sh
+  sed -i "s/taosd/prodbs/g" ${top_dir}/packaging/tools/run_taosd.sh
 }
 
 function replace_enterprise_pro() {
