@@ -1482,7 +1482,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
 
       // set input data order to param[1]
       if(pex->base.functionId == TSDB_FUNC_FIRST || pex->base.functionId  ==  TSDB_FUNC_FIRST_DST ||
-         pex->base.functionId == TSDB_FUNC_LAST  || pex->base.functionId  ==  TSDB_FUNC_LAST) {
+         pex->base.functionId == TSDB_FUNC_LAST  || pex->base.functionId  ==  TSDB_FUNC_LAST_DST) {
         // set input order
         SQueryInfo* pInputQI = pSqlObjList[0]->cmd.pQueryInfo;
         if(pInputQI) {
