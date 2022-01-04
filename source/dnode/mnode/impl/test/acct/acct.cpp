@@ -1,11 +1,11 @@
 /**
  * @file acct.cpp
  * @author slguan (slguan@taosdata.com)
- * @brief MNODE module acct-msg tests
- * @version 0.1
+ * @brief MNODE module acct tests
+ * @version 1.0
  * @date 2021-12-15
  *
- * @copyright Copyright (c) 2021
+ * @copyright Copyright (c) 2022
  *
  */
 
