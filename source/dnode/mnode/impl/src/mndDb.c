@@ -65,100 +65,125 @@ int32_t mndInitDb(SMnode *pMnode) {
 void mndCleanupDb(SMnode *pMnode) {}
 
 static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   SSdbRaw *pRaw = sdbAllocRaw(SDB_DB, TSDB_DB_VER_NUMBER, sizeof(SDbObj) + TSDB_DB_RESERVE_SIZE);
-  if (pRaw == NULL) return NULL;
+  if (pRaw == NULL) goto DB_ENCODE_OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pDb->name, TSDB_DB_FNAME_LEN)
-  SDB_SET_BINARY(pRaw, dataPos, pDb->acct, TSDB_USER_LEN)
-  SDB_SET_INT64(pRaw, dataPos, pDb->createdTime)
-  SDB_SET_INT64(pRaw, dataPos, pDb->updateTime)
-  SDB_SET_INT64(pRaw, dataPos, pDb->uid)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfgVersion)
-  SDB_SET_INT32(pRaw, dataPos, pDb->vgVersion)
-  SDB_SET_INT8(pRaw, dataPos, pDb->hashMethod)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfVgroups)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.cacheBlockSize)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.totalBlocks)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysPerFile)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep0)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep1)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep2)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.minRows)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.maxRows)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.commitTime)
-  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.fsyncPeriod)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.walLevel)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.precision)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.compression)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.replications)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.quorum)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.update)
-  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.cacheLastRow)
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_DB_RESERVE_SIZE)
-  SDB_SET_DATALEN(pRaw, dataPos);
+  SDB_SET_BINARY(pRaw, dataPos, pDb->name, TSDB_DB_FNAME_LEN, DB_ENCODE_OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pDb->acct, TSDB_USER_LEN, DB_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pDb->createdTime, DB_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pDb->updateTime, DB_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pDb->uid, DB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfgVersion, DB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->vgVersion, DB_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDb->hashMethod, DB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfVgroups, DB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.cacheBlockSize, DB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.totalBlocks, DB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysPerFile, DB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep0, DB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep1, DB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.daysToKeep2, DB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.minRows, DB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.maxRows, DB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.commitTime, DB_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.fsyncPeriod, DB_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.walLevel, DB_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.precision, DB_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.compression, DB_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.replications, DB_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.quorum, DB_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.update, DB_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.cacheLastRow, DB_ENCODE_OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_DB_RESERVE_SIZE, DB_ENCODE_OVER)
+  SDB_SET_DATALEN(pRaw, dataPos, DB_ENCODE_OVER)
 
+  terrno = 0;
+
+DB_ENCODE_OVER:
+  if (terrno != 0) {
+    mError("db:%s, failed to encode to raw:%p since %s", pDb->name, pRaw, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
+
+  mTrace("db:%s, encode to raw:%p, row:%p", pDb->name, pRaw, pDb);
   return pRaw;
 }
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto DB_DECODE_OVER;
 
   if (sver != TSDB_DB_VER_NUMBER) {
-    mError("failed to decode db since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    return NULL;
+    goto DB_DECODE_OVER;
   }
 
   SSdbRow *pRow = sdbAllocRow(sizeof(SDbObj));
-  SDbObj  *pDb = sdbGetRowObj(pRow);
-  if (pDb == NULL) return NULL;
+  if (pRow == NULL) goto DB_DECODE_OVER;
+
+  SDbObj *pDb = sdbGetRowObj(pRow);
+  if (pDb == NULL) goto DB_DECODE_OVER;
 
   int32_t dataPos = 0;
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pDb->name, TSDB_DB_FNAME_LEN)
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pDb->acct, TSDB_USER_LEN)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pDb->createdTime)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pDb->updateTime)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pDb->uid)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfgVersion)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->vgVersion)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->hashMethod)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.numOfVgroups)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.cacheBlockSize)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.totalBlocks)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.daysPerFile)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.daysToKeep0)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.daysToKeep1)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.daysToKeep2)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.minRows)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.maxRows)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.commitTime)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pDb->cfg.fsyncPeriod)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.walLevel)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.precision)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.compression)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.replications)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.quorum)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.update)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pDb->cfg.cacheLastRow)
-  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_DB_RESERVE_SIZE)
+  SDB_GET_BINARY(pRaw, dataPos, pDb->name, TSDB_DB_FNAME_LEN, DB_DECODE_OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pDb->acct, TSDB_USER_LEN, DB_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pDb->createdTime, DB_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pDb->updateTime, DB_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pDb->uid, DB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfgVersion, DB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->vgVersion, DB_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->hashMethod, DB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.numOfVgroups, DB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.cacheBlockSize, DB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.totalBlocks, DB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysPerFile, DB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep0, DB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep1, DB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.daysToKeep2, DB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.minRows, DB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.maxRows, DB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.commitTime, DB_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.fsyncPeriod, DB_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.walLevel, DB_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.precision, DB_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.compression, DB_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.replications, DB_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.quorum, DB_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.update, DB_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.cacheLastRow, DB_DECODE_OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, TSDB_DB_RESERVE_SIZE, DB_DECODE_OVER)
 
+  terrno = 0;
+
+DB_DECODE_OVER:
+  if (terrno != 0) {
+    mError("db:%s, failed to decode from raw:%p since %s", pDb->name, pRaw, terrstr());
+    tfree(pRow);
+    return NULL;
+  }
+
+  mTrace("db:%s, decode from raw:%p, row:%p", pDb->name, pRaw, pDb);
   return pRow;
 }
 
 static int32_t mndDbActionInsert(SSdb *pSdb, SDbObj *pDb) {
-  mTrace("db:%s, perform insert action", pDb->name);
+  mTrace("db:%s, perform insert action, row:%p", pDb->name, pDb);
   return 0;
 }
 
 static int32_t mndDbActionDelete(SSdb *pSdb, SDbObj *pDb) {
-  mTrace("db:%s, perform delete action", pDb->name);
+  mTrace("db:%s, perform delete action, row:%p", pDb->name, pDb);
   return 0;
 }
 
 static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOldDb, SDbObj *pNewDb) {
-  mTrace("db:%s, perform update action", pOldDb->name);
+  mTrace("db:%s, perform update action, old_row:%p new_row:%p", pOldDb->name, pOldDb, pNewDb);
   pOldDb->updateTime = pNewDb->updateTime;
   pOldDb->cfgVersion = pNewDb->cfgVersion;
   pOldDb->vgVersion = pNewDb->vgVersion;

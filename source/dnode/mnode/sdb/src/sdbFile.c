@@ -121,6 +121,8 @@ int32_t sdbWriteFile(SSdb *pSdb) {
   char curfile[PATH_MAX] = {0};
   snprintf(curfile, sizeof(curfile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
+  mDebug("start to write file:%s", curfile);
+
   FileFd fd = taosOpenFileCreateWrite(tmpfile);
   if (fd <= 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -131,6 +133,8 @@ int32_t sdbWriteFile(SSdb *pSdb) {
   for (ESdbType i = SDB_MAX - 1; i > SDB_START; --i) {
     SdbEncodeFp encodeFp = pSdb->encodeFps[i];
     if (encodeFp == NULL) continue;
+
+    mTrace("sdb write %s, total %d rows", sdbTableName(i), sdbGetSize(pSdb, i));
 
     SHashObj *hash = pSdb->hashObjs[i];
     SRWLatch *pLock = &pSdb->locks[i];
@@ -143,6 +147,8 @@ int32_t sdbWriteFile(SSdb *pSdb) {
         ppRow = taosHashIterate(hash, ppRow);
         continue;
       }
+
+      sdbPrintOper(pSdb, pRow, "writeFile");
 
       SSdbRaw *pRaw = (*encodeFp)(pRow->pObj);
       if (pRaw != NULL) {
