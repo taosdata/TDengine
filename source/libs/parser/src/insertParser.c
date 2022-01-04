@@ -106,6 +106,7 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
   SVgroupInfo vg;
   CHECK_CODE(catalogGetTableHashVgroup(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name, &vg));
   CHECK_CODE(taosHashPut(pCxt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg)));
+  pCxt->pTableMeta->vgId = vg.vgId; // todo remove
   return TSDB_CODE_SUCCESS;
 }
 
@@ -425,7 +426,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
   // 1. set the parsed value from sql string
   for (int i = 0; i < spd->numOfBound; ++i) {
     NEXT_TOKEN(pCxt->pSql, sToken);
-    SSchema *pSchema = &schema[spd->boundedColumns[i]]; 
+    SSchema *pSchema = &schema[spd->boundedColumns[i] - 1];
     param.schema = pSchema;
     param.compareStat = pBuilder->compareStat;
     getMemRowAppendInfo(schema, pBuilder->memRowType, spd, i, &param.toffset);
