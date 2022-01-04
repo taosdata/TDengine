@@ -3,7 +3,7 @@
 # Generate the deb package for ubuntu, or rpm package for centos, or tar.gz package for other linux os
 
 set -e
-set -x
+#set -x
 
 # release.sh  -v [cluster | edge]
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...]
@@ -416,6 +416,10 @@ if [[ "$httpdBuild" == "true" ]]; then
     BUILD_HTTP=true
 else
     BUILD_HTTP=false
+fi
+
+if [[ "$verMode" == "cluster" ]]; then
+    BUILD_HTTP=internal
 fi
 
 if [[ "$pagMode" == "full" ]]; then

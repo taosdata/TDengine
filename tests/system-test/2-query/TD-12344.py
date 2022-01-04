@@ -10,7 +10,6 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-
 from posixpath import split
 import sys
 import os 
@@ -95,11 +94,23 @@ class TDTestCase:
 
         cfg_path = self.getcfgPath()
         print(cfg_path)
-        tdSql.execute('select elapsed(ts,10s) from testdb.st   where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" session(ts,1d) group by tbname;')  # session not support super table
-        taos_cmd1= "taos  -c %s -s 'select elapsed(ts,10s) from testdb.st   where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" session(ts,1d) group by tbname;' " % (cfg_path)
-        _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8") 
+        tdSql.execute('select elapsed(ts,10s) from testdb.st   where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" session(ts,1d) group by tbname;')  
+        
+        datas = tdSql.getResult('select elapsed(ts,10s) from testdb.st   where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" session(ts,1d) group by tbname;') 
+        table_names = ["sub_%s"%str(i) for i in  range(10)]
+        # print(table_names)
+
+        for index , table_name in enumerate(table_names):
+            tdSql.query("select elapsed(ts,10s) from testdb.%s   where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" session(ts,1d) ;"%table_name)
+            # print(datas)
+            tdSql.checkData(0,1,datas[index][1])
 
 
+        for i in range(10):
+            taos_cmd1= "taos  -c %s -s 'select elapsed(ts,10s) from testdb.st   where ts>=\"2015-01-01 00:00:00.000\"  and ts < \"2015-01-01 00:10:00.000\" session(ts,1d) group by tbname;' " % (cfg_path)
+            # print(taos_cmd1)
+            _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8") 
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

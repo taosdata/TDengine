@@ -83,6 +83,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | BINARY            | java.lang.String              | byte array         |
 | NCHAR             | java.lang.String              | java.lang.String   |
 | JSON              | -                             | java.lang.String   |
+
 注意：JSON类型仅在tag中支持。
 
 ## 安装Java Connector
