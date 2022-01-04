@@ -1,8 +1,8 @@
 /**
  * @file user.cpp
  * @author slguan (slguan@taosdata.com)
- * @brief MNODE module user-msg tests
- * @version 0.1
+ * @brief MNODE module user tests
+ * @version 1.0
  * @date 2021-12-15
  *
  * @copyright Copyright (c) 2021
@@ -13,7 +13,7 @@
 
 class DndTestUser : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_user", 9140); }
+  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_user", 9011); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -190,7 +190,7 @@ TEST_F(DndTestUser, 04_Drop_User) {
   EXPECT_EQ(test.GetShowRows(), 1);
 }
 
-TEST_F(DndTestUser, 02_Create_Drop_Alter_User) {
+TEST_F(DndTestUser, 05_Create_Drop_Alter_User) {
   {
     int32_t contLen = sizeof(SCreateUserMsg);
 
