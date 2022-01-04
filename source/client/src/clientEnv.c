@@ -53,8 +53,8 @@ static void registerRequest(SRequestObj* pRequest) {
 
     int32_t total = atomic_add_fetch_32(&pSummary->totalRequests, 1);
     int32_t currentInst = atomic_add_fetch_32(&pSummary->currentRequests, 1);
-    tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64 ", current:%d, app current:%d, total:%d", pRequest->self,
-             pRequest->pTscObj->id, num, currentInst, total);
+    tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64 ", current:%d, app current:%d, total:%d, reqId:0x%"PRIx64, pRequest->self,
+             pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
   }
 }
 

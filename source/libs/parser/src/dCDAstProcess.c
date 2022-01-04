@@ -501,7 +501,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     struct SVCreateTbReq req = {0};
     req.type = TD_CHILD_TABLE;
     req.name = strdup(tNameGetTableName(&tableName));
-    req.ctbCfg.suid = pSuperTableMeta->suid;
+    req.ctbCfg.suid = pSuperTableMeta->uid;
     req.ctbCfg.pTag = row;
 
     SVgroupTablesBatch* pTableBatch = taosHashGet(pVgroupHashmap, &info.vgId, sizeof(info.vgId));

@@ -371,7 +371,7 @@ STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, con
     taos_close(pTscObj);
     pTscObj = NULL;
   } else {
-    tscDebug("0x%"PRIx64" connection is opening, connId:%d, dnodeConn:%p", pTscObj->id, pTscObj->connId, pTscObj->pTransporter);
+    tscDebug("0x%"PRIx64" connection is opening, connId:%d, dnodeConn:%p, reqId:0x%"PRIx64, pTscObj->id, pTscObj->connId, pTscObj->pTransporter, pRequest->requestId);
     destroyRequest(pRequest);
   }
 
@@ -441,14 +441,13 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
    * There is not response callback function for submit response.
    * The actual inserted number of points is the first number.
      */
+    int32_t elapsed = pRequest->metric.rsp - pRequest->metric.start;
     if (pMsg->code == TSDB_CODE_SUCCESS) {
-      tscDebug("0x%" PRIx64 " message:%s, code:%s rspLen:%d, elapsed:%" PRId64 " ms", pRequest->requestId,
-          TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), pMsg->contLen,
-               pRequest->metric.rsp - pRequest->metric.start);
+      tscDebug("0x%" PRIx64 " message:%s, code:%s rspLen:%d, elapsed:%d ms, reqId:0x%"PRIx64, pRequest->requestId,
+          TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), pMsg->contLen, elapsed, pRequest->requestId);
     } else {
-      tscError("0x%" PRIx64 " SQL cmd:%s, code:%s rspLen:%d, elapsed time:%" PRId64 " ms", pRequest->requestId,
-          TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), pMsg->contLen,
-               pRequest->metric.rsp - pRequest->metric.start);
+      tscError("reqId:0x%" PRIx64 " SQL cmd:%s, code:%s rspLen:%d, elapsed time:%d ms, reqId:0x"PRIx64, pRequest->requestId,
+          TMSG_INFO(pMsg->msgType), tstrerror(pMsg->code), pMsg->contLen, elapsed, pRequest->requestId);
     }
 
     taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
