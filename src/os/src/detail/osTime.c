@@ -97,7 +97,7 @@ int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 
 int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
   /* parse datatime string in with tz */
-  if (strnchr(timestr, 'T', len, false) != NULL) {
+  if (strnchr(timestr, 'T', len) != NULL) {
     return parseTimeWithTz(timestr, time, timePrec, 'T');
   } else if (checkTzPresent(timestr, len)) {
     return parseTimeWithTz(timestr, time, timePrec, 0);

@@ -320,7 +320,7 @@ static int32_t invalidOperationMsg(char* dstBuffer, const char* errMsg) {
 
 static int convertTimestampStrToInt64(tVariant *pVar, int32_t precision) {
   int64_t     time = 0;
-  char*           seg = strnchr(pVar->pz, '-', pVar->nLen, false);
+  char*           seg = strnchr(pVar->pz, '-', pVar->nLen);
   if (seg != NULL) {
     if (taosParseTime(pVar->pz, &time, pVar->nLen, precision, tsDaylight) != TSDB_CODE_SUCCESS) {
       return -1;
@@ -5999,7 +5999,7 @@ int32_t getTimeRange(STimeWindow* win, tSqlExpr* pRight, int32_t optr, int16_t t
   int64_t val = 0;
   bool    parsed = false;
   if (pRight->value.nType == TSDB_DATA_TYPE_BINARY) {
-    char* seg = strnchr(pRight->value.pz, '-', pRight->value.nLen, false);
+    char* seg = strnchr(pRight->value.pz, '-', pRight->value.nLen);
     if (seg != NULL) {
       if (taosParseTime(pRight->value.pz, &val, pRight->value.nLen, timePrecision, tsDaylight) == TSDB_CODE_SUCCESS) {
         parsed = true;

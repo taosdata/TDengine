@@ -239,22 +239,29 @@ int32_t shellRunCommand(TAOS* con, char* command) {
     }
   }
 
-  char *sptr = NULL;
-  while (1) {                                     // command;command;command;  quit
-    if ((sptr = strstr(command, ";")) == NULL) {  // there is no command to be run
-      break;
+  char quote = 0, *cmd = command;
+  for (char c = *command++; c != 0; c = *command++) {
+    if (c == '\\' && (*command == '\'' || *command == '"' || *command == '`')) {
+      command ++;
+      continue;
     }
-    char *nextStart = sptr + 1;
-    char  c = *nextStart;
-    *nextStart = '\0';
-    if (shellRunSingleCommand(con, command) < 0) {
-      return -1;
+
+    if (quote == c) {
+      quote = 0;
+    } else if (quote == 0 && (c == '\'' || c == '"' || c == '`')) {
+      quote = c;
+    } else if (c == ';' && quote == 0) {
+      c = *command;
+      *command = 0;
+      if (shellRunSingleCommand(con, cmd) < 0) {
+        return -1;
+      }
+      *command = c;
+      cmd = command;
     }
-    *nextStart = c;
-    command = nextStart;
   }
 
-  return shellRunSingleCommand(con, command);
+  return shellRunSingleCommand(con, cmd);
 }
 
 void freeResultWithRid(int64_t rid) {

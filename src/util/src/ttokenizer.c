@@ -432,12 +432,16 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
           break;
         }
       }
-      
+
       if (z[i]) i++;
 
       if (strEnd) {
         *tokenId = TK_STRING;
-        return i;
+        size_t len = strDealWithEscape(z + 1, i - 2);
+        memmove(z + 1 + len, z + i, strlen(z + i) + 1);
+        memmove(z, z + 1, strlen(z + 1) + 1);
+
+        return len;
       }
 
       break;
@@ -445,13 +449,15 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
     case '`': {
       for (i = 1; z[i]; i++) {
         if (z[i] == '`' && z[i+1] == '`') {
-          i++;
+          memmove(z + i, z + i + 1, strlen(z + i + 1) + 1);
           continue;
         }
         if (z[i] == '`') {
           i++;
+          memmove(z + i - 1, z + i, strlen(z + i) + 1);
+          memmove(z, z + 1, strlen(z + 1) + 1);
           *tokenId = TK_ID;
-          return i;
+          return i - 2;
         }
       }
 
@@ -486,7 +492,7 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
     case '0': {
       char next = z[1];
 
-      if (next == 'b') { // bin number
+      if (next == 'b' || next == 'B') { // bin number
         *tokenId = TK_BIN;
         for (i = 2; (z[i] == '0' || z[i] == '1'); ++i) {
         }
@@ -496,7 +502,7 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
         }
 
         return i;
-      } else if (next == 'x') {  //hex number
+      } else if (next == 'x' || next == 'X') {  //hex number
         *tokenId = TK_HEX;
         for (i = 2; isdigit(z[i]) || (z[i] >= 'a' && z[i] <= 'f') || (z[i] >= 'A' && z[i] <= 'F'); ++i) {
         }
@@ -668,16 +674,7 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
 
   // support parse the 'db.tbl' format, notes: There should be no space on either side of the dot!
   if ('.' == str[*i + t0.n]) {
-    char *tmp = str + *i + t0.n + 1;
-    len = tGetToken(tmp, &type);
-
-    if(type == TK_ID && *tmp == '`'){
-      // set origin ` ` to space for next parse ok
-      tmp[len] = ' ';
-      tmp[0] = ' ';
-      memmove(tmp, tmp + 1, len - 2);
-      len -= 2;
-    }
+    len = tGetToken(&str[*i + t0.n + 1], &type);
 
     // only id is valid
     if (TK_ID != t0.type) {
@@ -688,14 +685,7 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
     }
 
     t0.n += len + 1;
-
-  } else if(t0.type == TK_STRING){  // remove "" ''
-    char *tmp = str + *i + t0.n;
-    tmp[t0.n] = ' ';
-    tmp[0] = ' ';
-    memmove(tmp, tmp + 1, t0.n - 2);
-    t0.n -= 2;
-  }else {
+  } else {
     // support parse the -/+number format
     if ((isPrevOptr) && (t0.type == TK_MINUS || t0.type == TK_PLUS)) {
       len = tGetToken(&str[*i + t0.n], &type);

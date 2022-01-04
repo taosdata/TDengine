@@ -10,8 +10,9 @@
 #include "tutil.h"
 
 int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+  return taos_query(conn, "create database if not exists log replica 1 days 10 keep 30 cache 1 blocks 3 precision 'us'");
+  //  testing::InitGoogleTest(&argc, argv);
+//  return RUN_ALL_TESTS();
 }
 
 extern void deltaToUtcInitOnce();

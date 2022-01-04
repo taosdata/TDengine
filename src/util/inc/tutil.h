@@ -27,7 +27,7 @@ extern "C" {
 
 size_t  strDealWithEscape(char *z, size_t len);
 size_t  strtrim(char *src);
-char *  strnchr(char *haystack, char needle, int32_t len, bool skipquote);
+char *  strnchr(char *haystack, char needle, int32_t len);
 char ** strsplit(char *src, const char *delim, int32_t *num);
 char *  strtolower(char *dst, const char *src);
 char *  strntolower(char *dst, const char *src, int32_t n);

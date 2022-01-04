@@ -167,34 +167,34 @@ TEST(testCase, string_strnchr_test) {
   memset(t, 1, tListLen(t));
 
   char a1[] = "AB.C";
-  EXPECT_TRUE(strnchr(a1, '.', strlen(a1), true) != NULL);
+  EXPECT_TRUE(strnchr(a1, '.', strlen(a1)) != NULL);
 
   char a2[] = "abc.";
-  EXPECT_TRUE(strnchr(a2, '.', strlen(a2), true) != NULL);
+  EXPECT_TRUE(strnchr(a2, '.', strlen(a2)) != NULL);
 
   char a8[] = "abc.";
-  EXPECT_TRUE(strnchr(a8, '.', 1, true) == NULL);
+  EXPECT_TRUE(strnchr(a8, '.', 1) == NULL);
 
   char a3[] = ".abc";
-  EXPECT_TRUE(strnchr(a3, '.', strlen(a3), true) != NULL);
+  EXPECT_TRUE(strnchr(a3, '.', strlen(a3)) != NULL);
 
   char a4[] = "'.abc'";
-  EXPECT_TRUE(strnchr(a4, '.', strlen(a4), true) == NULL);
+  EXPECT_TRUE(strnchr(a4, '.', strlen(a4)) == NULL);
 
   char a5[] = "'.abc.'abc";
-  EXPECT_TRUE(strnchr(a5, '.', strlen(a5), true) == NULL);
+  EXPECT_TRUE(strnchr(a5, '.', strlen(a5)) == NULL);
 
   char a6[] = "0123456789.";
-  EXPECT_TRUE(strnchr(a6, '.', strlen(a6), true) != NULL);
+  EXPECT_TRUE(strnchr(a6, '.', strlen(a6)) != NULL);
 
   char a7[] = "0123456789.";
-  EXPECT_TRUE(strnchr(a7, '.', 3, true) == NULL);
+  EXPECT_TRUE(strnchr(a7, '.', 3) == NULL);
 
   char a9[] = "0123456789.";
-  EXPECT_TRUE(strnchr(a9, '.', 0, true) == NULL);
+  EXPECT_TRUE(strnchr(a9, '.', 0) == NULL);
 
   char a10[] = "0123456789'.'";
-  EXPECT_TRUE(strnchr(a10, '.', strlen(a10), true) == NULL);
+  EXPECT_TRUE(strnchr(a10, '.', strlen(a10)) == NULL);
 }
 
 // TEST(testCase, cache_resize_test) {

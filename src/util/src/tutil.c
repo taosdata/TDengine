@@ -126,18 +126,8 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
   return split;
 }
 
-char *strnchr(char *haystack, char needle, int32_t len, bool skipquote) {
+char *strnchr(char *haystack, char needle, int32_t len) {
   for (int32_t i = 0; i < len; ++i) {
-
-    // skip the needle in quote, jump to the end of quoted string
-    if (skipquote && (haystack[i] == '\'' || haystack[i] == '"')) {
-      char quote = haystack[i++];
-      while(i < len && haystack[i++] != quote);
-      if (i >= len) {
-        return NULL;
-      }
-    }
-
     if (haystack[i] == needle) {
       return &haystack[i];
     }

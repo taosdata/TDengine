@@ -1712,6 +1712,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   pSql->signature = NULL;
   pSql->fp = NULL;
   tfree(pSql->sqlstr);
+  tfree(pSql->sqlstrOri);
   tfree(pSql->pBuf);
 
   tfree(pSql->pSubs);
@@ -2980,11 +2981,11 @@ void tscRmEscapeAndTrimToken(SStrToken* pToken) {
 
 
 int32_t tscValidateName(SStrToken* pToken, bool *dbIncluded) {
-  if (pToken == NULL || pToken->z == NULL || pToken->type != TK_ID) {
+  if (pToken == NULL || pToken->z == NULL || (pToken->type != TK_STRING && pToken->type != TK_ID)) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
+  char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n);
   if (sep == NULL) {  // single part
     if (dbIncluded) *dbIncluded = false;
     if (pToken->n == 0) {

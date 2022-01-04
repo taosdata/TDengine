@@ -371,7 +371,8 @@ typedef struct SSqlObj {
   uint32_t         queryId;
   void *           pStream;
   void *           pSubscription;
-  char *           sqlstr;
+  char *           sqlstr;      // the sql string that has been processed
+  char *           sqlstrOri;   // the original sql
   void *           pBuf;  // table meta buffer
   char             parseRetry;
   char             retry;

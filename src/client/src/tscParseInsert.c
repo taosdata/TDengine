@@ -1022,7 +1022,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
           tscDestroyBoundColumnInfo(&spd);
           return tscSQLSyntaxErrMsg(pInsertParam->msg, "json tag too long", NULL);
         }
-        sToken.n = strDealWithEscape(sToken.z, sToken.n);
         char* json = strndup(sToken.z, sToken.n);
         code = parseJsontoTagData(json, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
         if (code != TSDB_CODE_SUCCESS) {
@@ -1560,6 +1559,8 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   if (TSDB_CODE_SUCCESS != ret) {
     return ret;
   }
+
+  strcpy(pSql->sqlstr, pSql->sqlstrOri);
 
   if (tscIsInsertData(pSql->sqlstr)) {
     if (initial && ((ret = tsInsertInitialCheck(pSql)) != TSDB_CODE_SUCCESS)) {
