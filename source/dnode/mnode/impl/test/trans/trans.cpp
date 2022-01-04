@@ -1,5 +1,5 @@
 /**
- * @file user.cpp
+ * @file trans.cpp
  * @author slguan (slguan@taosdata.com)
  * @brief MNODE module trans tests
  * @version 1.0
@@ -75,12 +75,12 @@ TEST_F(DndTestTrans, 01_CreateUser_Crash) {
   test.SendShowRetrieveMsg();
   EXPECT_EQ(test.GetShowRows(), 2);
 
-  // CheckBinary("root", TSDB_USER_LEN);
-  // CheckBinary("u2", TSDB_USER_LEN);
-  // CheckBinary("super", 10);
-  // CheckBinary("normal", 10);
-  // CheckTimestamp();
-  // CheckTimestamp();
-  // CheckBinary("root", TSDB_USER_LEN);
-  // CheckBinary("root", TSDB_USER_LEN);
+  CheckBinary("root", TSDB_USER_LEN);
+  CheckBinary("u2", TSDB_USER_LEN);
+  CheckBinary("super", 10);
+  CheckBinary("normal", 10);
+  CheckTimestamp();
+  CheckTimestamp();
+  CheckBinary("root", TSDB_USER_LEN);
+  CheckBinary("root", TSDB_USER_LEN);
 }
