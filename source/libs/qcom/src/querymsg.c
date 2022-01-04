@@ -247,8 +247,8 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
     pOut->metaNum = 2;
 
     if (pMetaMsg->dbFname[0]) {
-      snprintf(pOut->ctbFname, "%s.%s", pMetaMsg->dbFname, pMetaMsg->tbFname);
-      snprintf(pOut->tbFname, "%s.%s", pMetaMsg->dbFname, pMetaMsg->stbFname);
+      snprintf(pOut->ctbFname, sizeof(pOut->ctbFname), "%s.%s", pMetaMsg->dbFname, pMetaMsg->tbFname);
+      snprintf(pOut->tbFname, sizeof(pOut->tbFname), "%s.%s", pMetaMsg->dbFname, pMetaMsg->stbFname);
     } else {
       memcpy(pOut->ctbFname, pMetaMsg->tbFname, sizeof(pOut->ctbFname));
       memcpy(pOut->tbFname, pMetaMsg->stbFname, sizeof(pOut->tbFname));
