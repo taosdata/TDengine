@@ -50,23 +50,37 @@ typedef struct SQueryProfileSummary {
   uint64_t resultSize;   // generated result size in Kb.
 } SQueryProfileSummary;
 
+typedef struct SQueryNodeAddr{
+  int32_t    nodeId; //vgId or qnodeId
+  int8_t     inUse;
+  int8_t     numOfEps;
+  SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
+} SQueryNodeAddr;
+
+typedef struct SQueryResult {
+  int32_t  code;
+  uint64_t numOfRows;
+  int32_t  msgSize;
+  char    *msg;
+} SQueryResult;
+
 int32_t schedulerInit(SSchedulerCfg *cfg);
 
 /**
  * Process the query job, generated according to the query physical plan.
  * This is a synchronized API, and is also thread-safety.
- * @param qnodeList  Qnode address list, element is SEpAddr
+ * @param nodeList  Qnode/Vnode address list, element is SQueryNodeAddr
  * @return
  */
-int32_t scheduleExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob, uint64_t *numOfRows);
+int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob, SQueryResult *pRes);
 
 /**
  * Process the query job, generated according to the query physical plan.
  * This is a asynchronized API, and is also thread-safety.
- * @param qnodeList  Qnode address list, element is SEpAddr
+ * @param nodeList  Qnode/Vnode address list, element is SQueryNodeAddr
  * @return
  */
-int32_t scheduleAsyncExecJob(void *transport, SArray *qnodeList, SQueryDag* pDag, void** pJob);
+int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob);
 
 int32_t scheduleFetchRows(void *pJob, void **data);
 

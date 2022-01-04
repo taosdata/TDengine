@@ -23,6 +23,7 @@ extern "C" {
 #include "encode.h"
 #include "taosdef.h"
 #include "taoserror.h"
+#include "tarray.h"
 #include "tcoding.h"
 #include "tdataformat.h"
 #include "tlist.h"
@@ -55,46 +56,6 @@ extern int   tMsgDict[];
 #define TMSG_INDEX(TYPE) (tMsgDict[TMSG_SEG_CODE(TYPE)] + TMSG_SEG_SEQ(TYPE))
 
 typedef uint16_t tmsg_t;
-
-/* ------------------------ ENCODE/DECODE FUNCTIONS AND MACROS ------------------------ */
-struct SMEListNode {
-  TD_SLIST_NODE(SMEListNode);
-  SEncoder coder;
-};
-
-typedef struct SMsgEncoder {
-  SEncoder coder;
-  TD_SLIST(SMEListNode) eStack;  // encode stack
-} SMsgEncoder;
-
-struct SMDFreeListNode {
-  TD_SLIST_NODE(SMDFreeListNode);
-  char payload[];
-};
-
-struct SMDListNode {
-  TD_SLIST_NODE(SMDListNode);
-  SDecoder coder;
-};
-
-typedef struct SMsgDecoder {
-  SDecoder coder;
-  TD_SLIST(SMDListNode) dStack;
-  TD_SLIST(SMDFreeListNode) freeList;
-} SMsgDecoder;
-
-#define TMSG_MALLOC(SIZE, DECODER)                                         \
-  ({                                                                       \
-    void* ptr = malloc((SIZE) + sizeof(struct SMDFreeListNode));           \
-    if (ptr) {                                                             \
-      TD_SLIST_PUSH(&((DECODER)->freeList), (struct SMDFreeListNode*)ptr); \
-      ptr = POINTER_SHIFT(ptr, sizeof(struct SMDFreeListNode*));           \
-    }                                                                      \
-    ptr;                                                                   \
-  })
-
-void tmsgInitMsgDecoder(SMsgDecoder* pMD, td_endian_t endian, uint8_t* data, int64_t size);
-void tmsgClearMsgDecoder(SMsgDecoder* pMD);
 
 /* ------------------------ OTHER DEFINITIONS ------------------------ */
 // IE type
@@ -173,6 +134,7 @@ typedef enum _mgmt_table {
 
 typedef struct SBuildTableMetaInput {
   int32_t vgId;
+  char*   dbName;
   char*   tableFullName;
 } SBuildTableMetaInput;
 
@@ -765,8 +727,9 @@ typedef struct {
 } SAuthVnodeMsg;
 
 typedef struct {
-  int32_t vgId;
-  char    tableFname[TSDB_TABLE_FNAME_LEN];
+  SMsgHead header;
+  char     dbFname[TSDB_DB_FNAME_LEN];
+  char     tableFname[TSDB_TABLE_FNAME_LEN];
 } STableInfoMsg;
 
 typedef struct {
@@ -800,6 +763,7 @@ typedef struct {
 typedef struct {
   char     tbFname[TSDB_TABLE_FNAME_LEN];  // table full name
   char     stbFname[TSDB_TABLE_FNAME_LEN];
+  char     dbFname[TSDB_DB_FNAME_LEN];
   int32_t  numOfTags;
   int32_t  numOfColumns;
   int8_t   precision;
@@ -1050,6 +1014,7 @@ typedef struct {
 } SUpdateTagValRsp;
 
 typedef struct SSubQueryMsg {
+  SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
@@ -1058,6 +1023,7 @@ typedef struct SSubQueryMsg {
 } SSubQueryMsg;
 
 typedef struct SResReadyMsg {
+  SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
@@ -1068,6 +1034,7 @@ typedef struct SResReadyRsp {
 } SResReadyRsp;
 
 typedef struct SResFetchMsg {
+  SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
@@ -1239,9 +1206,9 @@ typedef struct SVCreateTbReq {
   char*    name;
   uint32_t ttl;
   uint32_t keep;
-#define TD_SUPER_TABLE 0
-#define TD_CHILD_TABLE 1
-#define TD_NORMAL_TABLE 2
+#define TD_SUPER_TABLE TSDB_SUPER_TABLE
+#define TD_CHILD_TABLE TSDB_CHILD_TABLE
+#define TD_NORMAL_TABLE TSDB_NORMAL_TABLE
   uint8_t type;
   union {
     struct {
@@ -1262,10 +1229,15 @@ typedef struct SVCreateTbReq {
   };
 } SVCreateTbReq;
 
-int   tmsgSVCreateTbReqEncode(SMsgEncoder* pCoder, SVCreateTbReq* pReq);
-int   tmsgSVCreateTbReqDecode(SMsgDecoder* pCoder, SVCreateTbReq* pReq);
-int   tSerializeSVCreateTbReq(void** buf, const SVCreateTbReq* pReq);
+typedef struct {
+  uint64_t ver;  // use a general definition
+  SArray*  pArray;
+} SVCreateTbBatchReq;
+
+int   tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
 void* tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
+int   tSVCreateTbBatchReqSerialize(void** buf, SVCreateTbBatchReq* pReq);
+void* tSVCreateTbBatchReqDeserialize(void* buf, SVCreateTbBatchReq* pReq);
 
 typedef struct SVCreateTbRsp {
 } SVCreateTbRsp;

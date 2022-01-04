@@ -38,6 +38,7 @@ typedef struct WriterCtx {
       int  fd;
       bool readOnly;
       char buf[256];
+      int  size;
     } file;
     struct {
       int32_t capa;

@@ -40,7 +40,12 @@ int32_t queryBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int3
 
   STableInfoMsg *bMsg = (STableInfoMsg *)*msg;
 
-  bMsg->vgId = bInput->vgId;
+  bMsg->header.vgId = htonl(bInput->vgId);
+
+  if (bInput->dbName) {
+    strncpy(bMsg->dbFname, bInput->dbName, sizeof(bMsg->dbFname));
+    bMsg->dbFname[sizeof(bMsg->dbFname) - 1] = 0;
+  }
 
   strncpy(bMsg->tableFname, bInput->tableFullName, sizeof(bMsg->tableFname));
   bMsg->tableFname[sizeof(bMsg->tableFname) - 1] = 0;
@@ -243,9 +248,14 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
 
   if (pMetaMsg->tableType == TSDB_CHILD_TABLE) {
     pOut->metaNum = 2;
-    
-    memcpy(pOut->ctbFname, pMetaMsg->tbFname, sizeof(pOut->ctbFname));
-    memcpy(pOut->tbFname, pMetaMsg->stbFname, sizeof(pOut->tbFname));
+
+    if (pMetaMsg->dbFname[0]) {
+      snprintf(pOut->ctbFname, "%s.%s", pMetaMsg->dbFname, pMetaMsg->tbFname);
+      snprintf(pOut->tbFname, "%s.%s", pMetaMsg->dbFname, pMetaMsg->stbFname);
+    } else {
+      memcpy(pOut->ctbFname, pMetaMsg->tbFname, sizeof(pOut->ctbFname));
+      memcpy(pOut->tbFname, pMetaMsg->stbFname, sizeof(pOut->tbFname));
+    }
     
     pOut->ctbMeta.vgId = pMetaMsg->vgId;
     pOut->ctbMeta.tableType = pMetaMsg->tableType;
@@ -256,7 +266,11 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
   } else {
     pOut->metaNum = 1;
     
-    memcpy(pOut->tbFname, pMetaMsg->tbFname, sizeof(pOut->tbFname));
+    if (pMetaMsg->dbFname[0]) {
+      snprintf(pOut->tbFname, sizeof(pOut->tbFname), "%s.%s", pMetaMsg->dbFname, pMetaMsg->tbFname);
+    } else {
+      memcpy(pOut->tbFname, pMetaMsg->tbFname, sizeof(pOut->tbFname));
+    }
     
     code = queryCreateTableMetaFromMsg(pMetaMsg, false, &pOut->tbMeta);
   }
