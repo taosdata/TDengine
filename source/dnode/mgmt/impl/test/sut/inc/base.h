@@ -37,6 +37,8 @@ class Testbase {
   void     Init(const char* path, int16_t port);
   void     Cleanup();
   void     Restart();
+  void     ServerStop();
+  void     ServerStart();
   SRpcMsg* SendMsg(tmsg_t msgType, void* pCont, int32_t contLen);
 
  private:

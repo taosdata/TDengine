@@ -231,7 +231,7 @@ int32_t sdbWriteFile(SSdb *pSdb) {
 
   mDebug("start to write file:%s", curfile);
 
-  FileFd fd = taosOpenFileCreateWrite(tmpfile);
+  FileFd fd = taosOpenFileCreateWriteTrunc(tmpfile);
   if (fd <= 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to open file:%s for write since %s", tmpfile, terrstr());
