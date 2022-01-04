@@ -19,7 +19,9 @@
 		"ms-vscode.cmake-tools",
 		"austin.code-gnu-global",
 		"visualstudioexptteam.vscodeintel",
-		"eamodio.gitlens"
+		"eamodio.gitlens",
+		"matepek.vscode-catch2-test-adapter",
+		"spmeesseman.vscode-taskexplorer"
 	],
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
