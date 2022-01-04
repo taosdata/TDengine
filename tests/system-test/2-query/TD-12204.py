@@ -369,7 +369,7 @@ class TDTestCase:
         
         print(conn1)
 
-        for i in range(20):
+        for i in range(5):
             try:
                 taos_cmd1 = "taos -f 2-query/TD-12204.py.sql"
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
