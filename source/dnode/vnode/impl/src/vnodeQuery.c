@@ -86,7 +86,7 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   if (pTbCfg->type == META_SUPER_TABLE) {
     nTagCols = pTbCfg->stbCfg.nTagCols;
     pTagSchema = pTbCfg->stbCfg.pTagSchema;
-  } else if (pTbCfg->type == META_SUPER_TABLE) {
+  } else if (pTbCfg->type == META_CHILD_TABLE) {
     nTagCols = pStbCfg->stbCfg.nTagCols;
     pTagSchema = pStbCfg->stbCfg.pTagSchema;
   } else {
