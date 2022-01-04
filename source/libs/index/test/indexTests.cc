@@ -937,6 +937,17 @@ TEST_F(IndexEnv2, testIndex_read_performance) {
   assert(3 == index->SearchOne("tag1", "Hello"));
 }
 TEST_F(IndexEnv2, testIndexMultiTag) {
-  std::string path = "/tmp/test3";
+  std::string path = "/tmp/multi_tag";
   if (index->Init(path) != 0) {}
+  index->WriteMultiMillonData("tag1", "Hello", 100 * 10000);
+  index->WriteMultiMillonData("tag2", "Test", 100 * 10000);
+  index->WriteMultiMillonData("tag3", "Test", 100 * 10000);
+  index->WriteMultiMillonData("tag4", "Test", 100 * 10000);
+}
+TEST_F(IndexEnv2, testLongComVal) {
+  std::string path = "/tmp/long_colVal";
+  if (index->Init(path) != 0) {}
+  // gen colVal by randstr
+  std::string randstr = "xxxxxxxxxxxxxxxxx";
+  index->WriteMultiMillonData("tag1", randstr, 100 * 10000);
 }
