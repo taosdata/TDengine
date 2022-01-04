@@ -146,8 +146,8 @@ if [ -f "${cfg_dir}/nginxd.service" ]; then
 fi
 
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
-mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/taos.deb
-mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/taos.rpm
+mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/${clientName}.deb
+mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${clientName}.rpm
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
 

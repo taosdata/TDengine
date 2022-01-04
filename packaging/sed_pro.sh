@@ -51,6 +51,47 @@ function replace_community_pro() {
   sed -i "s/taos connections/prodbc connections/g" ${top_dir}/src/rpc/src/rpcMain.c
   # src/plugins/monitor/src/monMain.c
   sed -i "s/taosd is quiting/prodbs is quiting/g" ${top_dir}/src/plugins/monitor/src/monMain.c
+  # packaging/rpm/taosd
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/packaging/rpm/taosd
+  sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/rpm/taosd
+  sed -i "s/taosd/prodbs/g" ${top_dir}/packaging/rpm/taosd
+  # packaging/deb/taosd
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/packaging/deb/taosd
+  sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/deb/taosd
+  sed -i "s/taosd/prodbs/g" ${top_dir}/packaging/deb/taosd
+  # packaging/tools/install.sh
+  sed -i "s/\/var\/lib\/taos/\/var\/lib\/ProDB/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\/var\/log\/taos/\/var\/log\/ProDB/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\/usr\/local\/taos/\/usr\/local/ProDB/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\/etc\/taos/\/etc\/ProDB/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/taosdata\.com/hanatech\.com\.cn/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\${bin_link_dir}\/taos /\${bin_link_dir}/prodbc /g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\${bin_link_dir}\/taosd /\${bin_link_dir}/prodbs /g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/bin\/taos /bin\/prodbc /g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/bin\/taosd /bin\/prodbs /g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/ taosd / prodbs /g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\${service_config_dir}\/taosd/\${service_config_dir}\/prodbs/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/init\.d\/taosd/init\.d\/prodbs/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/--quiet taosd/--quiet prodbs/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/cfg\/taosd\.service/cfg\/prodbs\.service/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/taos\.tar\.gz/prodb\.tar\.gz/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/systemctl start taosd/systemctl start prodbs/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\.\/taosd/\.\/prodbs/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/taos -h/prodbc -h/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/taosd --force-keep-file/prodbs --force-keep-file/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/taos_history/prodb_history/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\${bin_dir}\/taosd /\${bin_dir}/prodbs /g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\${bin_dir}\/taos /\${bin_dir}/prodbc /g" ${top_dir}/packaging/tools/install.sh
+  # packaging/tools/remove.sh
+  sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/tools/remove.sh
+  sed -i "s/\"taosd\"/\"prodbs\"/g" ${top_dir}/packaging/tools/remove.sh
+  sed -i "s/\${bin_link_dir}\/taos /\${bin_link_dir}\/prodbc /g" ${top_dir}/packaging/tools/remove.sh
+  sed -i "s/\${bin_link_dir}\/taosd /\${bin_link_dir}\/prodbs /g" ${top_dir}/packaging/tools/remove.sh
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/packaging/tools/remove.sh
+  sed -i "s/ taosd / prodbs /g" ${top_dir}/packaging/tools/remove.sh
+
 }
 
 function replace_enterprise_pro() {
