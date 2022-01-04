@@ -1094,13 +1094,16 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
   SRpcReqContext *pContext;
   pConn = rpcProcessMsgHead(pRpc, pRecv, &pContext);
 
+  char ipstr[24] = {0};
+  taosIpPort2String(pRecv->ip, pRecv->port, ipstr);
+
   if (TMSG_INDEX(pHead->msgType) >= 1 && TMSG_INDEX(pHead->msgType) < TDMT_MAX) {
-    tDebug("%s %p %p, %s received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
-           pConn, (void *)pHead->ahandle, TMSG_INFO(pHead->msgType), pRecv->ip, pRecv->port, terrno, pRecv->msgLen,
+    tDebug("%s %p %p, %s received from %s, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
+           pConn, (void *)pHead->ahandle, TMSG_INFO(pHead->msgType), ipstr, terrno, pRecv->msgLen,
            pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
   } else {
-    tDebug("%s %p %p, %d received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
-           pConn, (void *)pHead->ahandle, pHead->msgType, pRecv->ip, pRecv->port, terrno, pRecv->msgLen,
+    tDebug("%s %p %p, %d received from %s, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
+           pConn, (void *)pHead->ahandle, pHead->msgType, ipstr, terrno, pRecv->msgLen,
            pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
   }
 

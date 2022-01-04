@@ -22,7 +22,7 @@ extern "C" {
 
 #include "parser.h"
 
-int32_t parseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo);
+int32_t parseInsertSql(SParseContext* pContext, SVnodeModifOpStmtInfo** pInfo);
 
 #ifdef __cplusplus
 }

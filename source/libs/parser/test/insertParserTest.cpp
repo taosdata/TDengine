@@ -60,7 +60,7 @@ protected:
     return code_;
   }
 
-  SInsertStmtInfo* reslut() {
+  SVnodeModifOpStmtInfo* reslut() {
     return res_;
   }
 
@@ -128,7 +128,7 @@ private:
   char sqlBuf_[max_sql_len];
   SParseContext cxt_;
   int32_t code_;
-  SInsertStmtInfo* res_;
+  SVnodeModifOpStmtInfo* res_;
 };
 
 // INSERT INTO tb_name VALUES (field1_value, ...)

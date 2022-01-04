@@ -90,12 +90,12 @@ int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void * pTransporter, cons
 /**
  * Force renew a table's local cached meta data. 
  * @param pCatalog (input, got with catalogGetHandle)
- * @param pRpc (input, rpc object)
+ * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
  * @param pTableName (input, table name, NOT including db name)
  * @return error code
  */
-int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName);
+int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName);
 
 /**
  * Force renew a table's local cached meta data and get the new one. 
