@@ -31,7 +31,7 @@ class HttpPerfCompard:
                         'select avg(c3), max(c4), min(c5) from test.stb where ts > "2021-01-01 00:00:00" and ts < "2021-01-31 00:00:00" interval (1d);'
                         'select last(*) from test.stb;'
                     ]
-
+#        self.sql_list = ['select * from test.stb limit 100000;']
 
     def initLog(self):
         self.exec_local_cmd(f'echo "" > {self.log_file}')
@@ -99,7 +99,7 @@ class HttpPerfCompard:
                     "timestamp_step": 3000,
                     "start_timestamp": "2021-01-01 00:00:00.000",
                     "tags_file": "",
-                    "partical_col_num": 1,
+                    "partical_col_num": 0,
                     "columns": [{"type": "INT", "count": self.column_count}],
                     "tags": [{"type": "BINARY", "len": 16, "count": self.tag_count}]
                 }]
@@ -125,11 +125,10 @@ class HttpPerfCompard:
             res = self.exec_local_cmd('grep -Eo \'\<Spent.+s\>\' tmp.log |grep -v \'total queries\' |awk \'{sum+=$2}END{print "Average=",sum/NR,"s"}\'')
             logger.info(query_sql)
             logger.info(res)
-            # time.sleep(self.sleep_time)
+            time.sleep(self.sleep_time)
 
 if __name__ == '__main__':   
     runPerf = HttpPerfCompard()
-    # runPerf.genQueryJsonFile('select * from test')
     runPerf.runTest()
 
     
