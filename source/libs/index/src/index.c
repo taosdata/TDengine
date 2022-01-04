@@ -73,6 +73,7 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
 #ifdef USE_INVERTED_INDEX
   // sIdx->cache = (void*)indexCacheCreate(sIdx);
   sIdx->tindex = indexTFileCreate(path);
+  if (sIdx->tindex == NULL) { goto END; }
   sIdx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   sIdx->cVersion = 1;
   sIdx->path = calloc(1, strlen(path) + 1);
@@ -83,6 +84,8 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
 
   return 0;
 #endif
+END:
+  if (sIdx != NULL) { indexClose(sIdx); }
 
   *index = NULL;
   return -1;
@@ -135,7 +138,7 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
     SIndexTerm* p = taosArrayGetP(fVals, i);
 
     char      buf[128] = {0};
-    ICacheKey key = {.suid = p->suid, .colName = p->colName};
+    ICacheKey key = {.suid = p->suid, .colName = p->colName, .nColName = strlen(p->colName)};
     int32_t   sz = indexSerialCacheKey(&key, buf);
 
     IndexCache** cache = taosHashGet(index->colObj, buf, sz);
@@ -150,7 +153,7 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
     SIndexTerm* p = taosArrayGetP(fVals, i);
 
     char      buf[128] = {0};
-    ICacheKey key = {.suid = p->suid, .colName = p->colName};
+    ICacheKey key = {.suid = p->suid, .colName = p->colName, .nColName = strlen(p->colName)};
     int32_t   sz = indexSerialCacheKey(&key, buf);
 
     IndexCache** cache = taosHashGet(index->colObj, buf, sz);
@@ -212,7 +215,7 @@ int indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* result
   indexInterResultsDestroy(interResults);
 
 #endif
-  return 1;
+  return 0;
 }
 
 int indexDelete(SIndex* index, SIndexMultiTermQuery* query) {
@@ -310,7 +313,7 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
   pthread_mutex_lock(&sIdx->mtx);
 
   char      buf[128] = {0};
-  ICacheKey key = {.suid = term->suid, .colName = term->colName};
+  ICacheKey key = {.suid = term->suid, .colName = term->colName, .nColName = strlen(term->colName)};
   int32_t   sz = indexSerialCacheKey(&key, buf);
 
   IndexCache** pCache = taosHashGet(sIdx->colObj, buf, sz);
