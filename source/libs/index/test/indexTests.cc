@@ -934,6 +934,7 @@ TEST_F(IndexEnv2, testIndex_read_performance) {
   index->PutOneTarge("tag1", "Hello", 15);
   index->ReadMultiMillonData("tag1", "Hello");
   std::cout << "reader sz: " << index->SearchOne("tag1", "Hello") << std::endl;
+  assert(3 == index->SearchOne("tag1", "Hello"));
 }
 TEST_F(IndexEnv2, testIndexMultiTag) {
   std::string path = "/tmp/test3";
