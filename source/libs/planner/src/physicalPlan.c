@@ -191,13 +191,15 @@ static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
   subplan->level = 0;
   if (NULL != pCxt->pCurrentSubplan) {
     subplan->level = pCxt->pCurrentSubplan->level + 1;
-    if (NULL == pCxt->pCurrentSubplan->pChildern) {
-      pCxt->pCurrentSubplan->pChildern = validPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
+    if (NULL == pCxt->pCurrentSubplan->pChildren) {
+      pCxt->pCurrentSubplan->pChildren = validPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
     }
-    taosArrayPush(pCxt->pCurrentSubplan->pChildern, &subplan);
+
+    taosArrayPush(pCxt->pCurrentSubplan->pChildren, &subplan);
     subplan->pParents = validPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
     taosArrayPush(subplan->pParents, &pCxt->pCurrentSubplan);
   }
+
   SArray* currentLevel;
   if (subplan->level >= taosArrayGetSize(pCxt->pDag->pSubplans)) {
     currentLevel = validPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
@@ -205,6 +207,7 @@ static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
   } else {
     currentLevel = taosArrayGetP(pCxt->pDag->pSubplans, subplan->level);
   }
+
   taosArrayPush(currentLevel, &subplan);
   pCxt->pCurrentSubplan = subplan;
   ++(pCxt->pDag->numOfSubplans);
@@ -278,6 +281,7 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
     default:
       assert(false);
   }
+
   if (pPlanNode->pChildren != NULL && taosArrayGetSize(pPlanNode->pChildren) > 0) {
     node->pChildren = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
     size_t size = taosArrayGetSize(pPlanNode->pChildren);
@@ -287,31 +291,38 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
       taosArrayPush(node->pChildren, &child);
     }
   }
+
   return node;
 }
 
-static void splitInsertSubplan(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
-  SArray* vgs = (SArray*)pPlanNode->pExtInfo;
-  size_t numOfVg = taosArrayGetSize(vgs);
-  for (int32_t i = 0; i < numOfVg; ++i) {
+static void splitModificationOpSubPlan(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
+  SDataPayloadInfo* pPayload = (SDataPayloadInfo*) pPlanNode->pExtInfo;
+
+  size_t numOfVgroups = taosArrayGetSize(pPayload->payload);
+  for (int32_t i = 0; i < numOfVgroups; ++i) {
     STORE_CURRENT_SUBPLAN(pCxt);
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_MODIFY);
-    SVgDataBlocks* blocks = (SVgDataBlocks*)taosArrayGetP(vgs, i);
+    SVgDataBlocks* blocks = (SVgDataBlocks*)taosArrayGetP(pPayload->payload, i);
+
     vgroupInfoToEpSet(&blocks->vg, &subplan->execEpSet);
-    subplan->pNode = NULL;
     subplan->pDataSink = createDataInserter(pCxt, blocks);
-    subplan->type = QUERY_TYPE_MODIFY;
+    subplan->pNode   = NULL;
+    subplan->type    = QUERY_TYPE_MODIFY;
+    subplan->msgType = pPayload->msgType;
+
     RECOVERY_CURRENT_SUBPLAN(pCxt);
   }
 }
 
 static void createSubplanByLevel(SPlanContext* pCxt, SQueryPlanNode* pRoot) {
   if (QNODE_MODIFY == pRoot->info.type) {
-    splitInsertSubplan(pCxt, pRoot);
+    splitModificationOpSubPlan(pCxt, pRoot);
   } else {
-    SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_MERGE);
+    SSubplan* subplan  = initSubplan(pCxt, QUERY_TYPE_MERGE);
     ++(pCxt->nextId.templateId);
-    subplan->pNode = createPhyNode(pCxt, pRoot);
+
+    subplan->msgType   = TDMT_VND_QUERY;
+    subplan->pNode     = createPhyNode(pCxt, pRoot);
     subplan->pDataSink = createDataDispatcher(pCxt, pRoot);
   }
   // todo deal subquery
@@ -325,6 +336,7 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
       .pCurrentSubplan = NULL,
       .nextId = {0} // todo queryid
     };
+
     *pDag = context.pDag;
     context.pDag->pSubplans = validPointer(taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES));
     createSubplanByLevel(&context, pQueryNode);
