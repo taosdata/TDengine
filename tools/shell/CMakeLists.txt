@@ -1,6 +1,4 @@
 aux_source_directory(src SHELL_SRC)
-list(REMOVE_ITEM SHELL_SRC src/shellWindows.c)
-list(REMOVE_ITEM SHELL_SRC src/shellDarwin.c)
 
 add_executable(shell ${SHELL_SRC})
 target_link_libraries(

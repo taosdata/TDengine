@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "query.h"
 #include "tmsg.h"
 #include "tarray.h"
 
@@ -123,7 +124,7 @@ typedef struct SSubplan {
   int32_t    type;         // QUERY_TYPE_MERGE|QUERY_TYPE_PARTIAL|QUERY_TYPE_SCAN|QUERY_TYPE_MODIFY
   int32_t    msgType;      // message type for subplan, used to denote the send message type to vnode.
   int32_t    level;        // the execution level of current subplan, starting from 0 in a top-down manner.
-  SEpSet     execEpSet;    // for the scan/modify subplan, the optional execution node
+  SQueryNodeAddr     execNode;    // for the scan/modify subplan, the optional execution node
   SArray    *pChildren;    // the datasource subplan,from which to fetch the result
   SArray    *pParents;     // the data destination subplan, get data from current subplan
   SPhyNode  *pNode;        // physical plan of current subplan
@@ -147,7 +148,7 @@ int32_t qCreateQueryDag(const struct SQueryNode* pQueryInfo, struct SQueryDag** 
 // @subplan subplan to be schedule
 // @templateId templateId of a group of datasource subplans of this @subplan
 // @ep one execution location of this group of datasource subplans 
-int32_t qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SEpAddr* ep);
+int32_t qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep);
 
 int32_t qExplainQuery(const struct SQueryNode* pQueryInfo, struct SEpSet* pQnode, char** str);
 

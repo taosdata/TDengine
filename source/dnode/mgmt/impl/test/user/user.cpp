@@ -43,6 +43,153 @@ TEST_F(DndTestUser, 01_ShowUser) {
   CheckBinary("root", TSDB_USER_LEN);
 }
 
+TEST_F(DndTestUser, 02_Create_User) {
+  {
+    int32_t contLen = sizeof(SCreateUserMsg);
+
+    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(contLen);
+    strcpy(pReq->user, "");
+    strcpy(pReq->pass, "p1");
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_USER, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_USER_FORMAT);
+  }
+
+  {
+    int32_t contLen = sizeof(SCreateUserMsg);
+
+    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(contLen);
+    strcpy(pReq->user, "u1");
+    strcpy(pReq->pass, "");
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_USER, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_PASS_FORMAT);
+  }
+
+  {
+    int32_t contLen = sizeof(SCreateUserMsg);
+
+    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(contLen);
+    strcpy(pReq->user, "root");
+    strcpy(pReq->pass, "1");
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_USER, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_USER_ALREADY_EXIST);
+  }
+
+  {
+    int32_t contLen = sizeof(SCreateUserMsg);
+
+    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(contLen);
+    strcpy(pReq->user, "u1");
+    strcpy(pReq->pass, "p1");
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_USER, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
+
+  test.SendShowMetaMsg(TSDB_MGMT_TABLE_USER, "");
+  CHECK_META("show users", 4);
+
+  test.SendShowRetrieveMsg();
+  EXPECT_EQ(test.GetShowRows(), 2);
+}
+
+TEST_F(DndTestUser, 03_Alter_User) {
+  {
+    int32_t contLen = sizeof(SAlterUserMsg);
+
+    SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(contLen);
+    strcpy(pReq->user, "");
+    strcpy(pReq->pass, "p1");
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_USER, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_USER_FORMAT);
+  }
+
+  {
+    int32_t contLen = sizeof(SAlterUserMsg);
+
+    SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(contLen);
+    strcpy(pReq->user, "u1");
+    strcpy(pReq->pass, "");
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_USER, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_PASS_FORMAT);
+  }
+
+  {
+    int32_t contLen = sizeof(SAlterUserMsg);
+
+    SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(contLen);
+    strcpy(pReq->user, "u4");
+    strcpy(pReq->pass, "1");
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_USER, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_USER_NOT_EXIST);
+  }
+
+  {
+    int32_t contLen = sizeof(SAlterUserMsg);
+
+    SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(contLen);
+    strcpy(pReq->user, "u1");
+    strcpy(pReq->pass, "1");
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_USER, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
+}
+
+TEST_F(DndTestUser, 04_Drop_User) {
+  {
+    int32_t contLen = sizeof(SDropUserMsg);
+
+    SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(contLen);
+    strcpy(pReq->user, "");
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_USER, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_USER_FORMAT);
+  }
+
+  {
+    int32_t contLen = sizeof(SDropUserMsg);
+
+    SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(contLen);
+    strcpy(pReq->user, "u4");
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_USER, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_USER_NOT_EXIST);
+  }
+
+  {
+    int32_t contLen = sizeof(SDropUserMsg);
+
+    SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(contLen);
+    strcpy(pReq->user, "u1");
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_USER, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
+
+  test.SendShowMetaMsg(TSDB_MGMT_TABLE_USER, "");
+  CHECK_META("show users", 4);
+
+  test.SendShowRetrieveMsg();
+  EXPECT_EQ(test.GetShowRows(), 1);
+}
+
 TEST_F(DndTestUser, 02_Create_Drop_Alter_User) {
   {
     int32_t contLen = sizeof(SCreateUserMsg);

@@ -115,8 +115,8 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
 
   test.SendShowRetrieveMsg();
   EXPECT_EQ(test.GetShowRows(), 2);
-  CheckInt32(1);
   CheckInt32(2);
+  CheckInt32(3);
   CheckInt32(0);
   CheckInt32(0);
   CheckInt16(1);

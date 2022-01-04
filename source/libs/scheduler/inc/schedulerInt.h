@@ -60,17 +60,19 @@ typedef struct SSchLevel {
 
 
 typedef struct SSchTask {
-  uint64_t             taskId;     // task id
-  SSchLevel           *level;      // level
-  SSubplan            *plan;       // subplan
-  char                *msg;        // operator tree
-  int32_t              msgLen;     // msg length
-  int8_t               status;     // task status
-  SEpAddr              execAddr;   // task actual executed node address
-  SQueryProfileSummary summary;    // task execution summary
-  int32_t              childReady; // child task ready number
-  SArray              *children;   // the datasource tasks,from which to fetch the result, element is SQueryTask*
-  SArray              *parents;    // the data destination tasks, get data from current task, element is SQueryTask*
+  uint64_t             taskId;         // task id
+  SSchLevel           *level;          // level
+  SSubplan            *plan;           // subplan
+  char                *msg;            // operator tree
+  int32_t              msgLen;         // msg length
+  int8_t               status;         // task status
+  SQueryNodeAddr       execAddr;       // task actual executed node address
+  int8_t               condidateIdx;   // current try condidation index
+  SArray              *condidateAddrs; // condidate node addresses, element is SQueryNodeAddr
+  SQueryProfileSummary summary;        // task execution summary
+  int32_t              childReady;     // child task ready number
+  SArray              *children;       // the datasource tasks,from which to fetch the result, element is SQueryTask*
+  SArray              *parents;        // the data destination tasks, get data from current task, element is SQueryTask*
 } SSchTask;
 
 typedef struct SSchJobAttr {

@@ -67,66 +67,87 @@ int32_t mndInitConsumer(SMnode *pMnode) {
 void mndCleanupConsumer(SMnode *pMnode) {}
 
 static SSdbRaw *mndConsumerActionEncode(SConsumerObj *pConsumer) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   int32_t  size = sizeof(SConsumerObj) + MND_CONSUMER_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_CONSUMER, MND_CONSUMER_VER_NUMBER, size);
-  if (pRaw == NULL) return NULL;
+  if (pRaw == NULL) goto CM_ENCODE_OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pConsumer->name, TSDB_TABLE_FNAME_LEN);
-  SDB_SET_BINARY(pRaw, dataPos, pConsumer->db, TSDB_DB_FNAME_LEN);
-  SDB_SET_INT64(pRaw, dataPos, pConsumer->createTime);
-  SDB_SET_INT64(pRaw, dataPos, pConsumer->updateTime);
-  SDB_SET_INT64(pRaw, dataPos, pConsumer->uid);
+  SDB_SET_BINARY(pRaw, dataPos, pConsumer->name, TSDB_TABLE_FNAME_LEN, CM_ENCODE_OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pConsumer->db, TSDB_DB_FNAME_LEN, CM_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pConsumer->createTime, CM_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pConsumer->updateTime, CM_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pConsumer->uid, CM_ENCODE_OVER)
   /*SDB_SET_INT64(pRaw, dataPos, pConsumer->dbUid);*/
-  SDB_SET_INT32(pRaw, dataPos, pConsumer->version);
+  SDB_SET_INT32(pRaw, dataPos, pConsumer->version, CM_ENCODE_OVER)
 
-  SDB_SET_RESERVE(pRaw, dataPos, MND_CONSUMER_RESERVE_SIZE);
-  SDB_SET_DATALEN(pRaw, dataPos);
+  SDB_SET_RESERVE(pRaw, dataPos, MND_CONSUMER_RESERVE_SIZE, CM_ENCODE_OVER)
+  SDB_SET_DATALEN(pRaw, dataPos, CM_ENCODE_OVER)
 
+CM_ENCODE_OVER:
+  if (terrno != 0) {
+    mError("consumer:%s, failed to encode to raw:%p since %s", pConsumer->name, pRaw, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
+
+  mTrace("consumer:%s, encode to raw:%p, row:%p", pConsumer->name, pRaw, pConsumer);
   return pRaw;
 }
 
 static SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto CONSUME_DECODE_OVER;
 
   if (sver != MND_CONSUMER_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    mError("failed to decode consumer since %s", terrstr());
+    goto CONSUME_DECODE_OVER;
+  }
+
+  int32_t  size = sizeof(SConsumerObj) + TSDB_MAX_COLUMNS * sizeof(SSchema);
+  SSdbRow *pRow = sdbAllocRow(size);
+  if (pRow == NULL) goto CONSUME_DECODE_OVER;
+
+  SConsumerObj *pConsumer = sdbGetRowObj(pRow);
+  if (pConsumer == NULL) goto CONSUME_DECODE_OVER;
+
+  int32_t dataPos = 0;
+  SDB_GET_BINARY(pRaw, dataPos, pConsumer->name, TSDB_TABLE_FNAME_LEN, CONSUME_DECODE_OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pConsumer->db, TSDB_DB_FNAME_LEN, CONSUME_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pConsumer->createTime, CONSUME_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pConsumer->updateTime, CONSUME_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pConsumer->uid, CONSUME_DECODE_OVER)
+  /*SDB_GET_INT64(pRaw, pRow, dataPos, &pConsumer->dbUid);*/
+  SDB_GET_INT32(pRaw, dataPos, &pConsumer->version, CONSUME_DECODE_OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, MND_CONSUMER_RESERVE_SIZE, CONSUME_DECODE_OVER)
+  terrno = 0;
+
+CONSUME_DECODE_OVER:
+  if (terrno != 0) {
+    mError("consumer:%s, failed to decode from raw:%p since %s", pConsumer->name, pRaw, terrstr());
+    tfree(pRow);
     return NULL;
   }
 
-  int32_t       size = sizeof(SConsumerObj) + TSDB_MAX_COLUMNS * sizeof(SSchema);
-  SSdbRow      *pRow = sdbAllocRow(size);
-  SConsumerObj *pConsumer = sdbGetRowObj(pRow);
-  if (pConsumer == NULL) return NULL;
-
-  int32_t dataPos = 0;
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pConsumer->name, TSDB_TABLE_FNAME_LEN);
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pConsumer->db, TSDB_DB_FNAME_LEN);
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pConsumer->createTime);
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pConsumer->updateTime);
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pConsumer->uid);
-  /*SDB_GET_INT64(pRaw, pRow, dataPos, &pConsumer->dbUid);*/
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pConsumer->version);
-
-  SDB_GET_RESERVE(pRaw, pRow, dataPos, MND_CONSUMER_RESERVE_SIZE);
-
+  mTrace("consumer:%s, decode from raw:%p, row:%p", pConsumer->name, pRaw, pConsumer);
   return pRow;
 }
 
 static int32_t mndConsumerActionInsert(SSdb *pSdb, SConsumerObj *pConsumer) {
-  mTrace("consumer:%s, perform insert action", pConsumer->name);
+  mTrace("consumer:%s, perform insert action, row:%p", pConsumer->name, pConsumer);
   return 0;
 }
 
 static int32_t mndConsumerActionDelete(SSdb *pSdb, SConsumerObj *pConsumer) {
-  mTrace("consumer:%s, perform delete action", pConsumer->name);
+  mTrace("consumer:%s, perform delete action, row:%p", pConsumer->name, pConsumer);
   return 0;
 }
 
 static int32_t mndConsumerActionUpdate(SSdb *pSdb, SConsumerObj *pOldConsumer, SConsumerObj *pNewConsumer) {
-  mTrace("consumer:%s, perform update action", pOldConsumer->name);
+  mTrace("consumer:%s, perform update action, old_row:%p new_row:%p", pOldConsumer->name, pOldConsumer, pNewConsumer);
   atomic_exchange_32(&pOldConsumer->updateTime, pNewConsumer->updateTime);
   atomic_exchange_32(&pOldConsumer->version, pNewConsumer->version);
 

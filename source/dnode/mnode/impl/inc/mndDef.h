@@ -160,8 +160,14 @@ typedef struct {
 typedef struct {
   int32_t maxUsers;
   int32_t maxDbs;
+  int32_t maxStbs;
+  int32_t maxTbs;
   int32_t maxTimeSeries;
   int32_t maxStreams;
+  int32_t maxFuncs;
+  int32_t maxConsumers;
+  int32_t maxConns;
+  int32_t maxTopics;
   int64_t maxStorage;   // In unit of GB
   int32_t accessState;  // Configured only by command
 } SAcctCfg;
