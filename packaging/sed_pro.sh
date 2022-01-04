@@ -62,11 +62,11 @@ function replace_community_pro() {
   # packaging/tools/install.sh
   sed -i "s/var\/lib\/taos/var\/lib\/ProDB/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/var\/log\/taos/var\/log\/ProDB/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/usr\/local\/taos/usr\/local/ProDB/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/etc\/taos/etc\/ProDB/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/taosdata\.com/hanatech\.com\.cn/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/\${bin_link_dir}\/taos /\${bin_link_dir}/prodbc /g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/\${bin_link_dir}\/taosd /\${bin_link_dir}/prodbs /g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\${bin_link_dir}\/taos /\${bin_link_dir}\/prodbc /g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\${bin_link_dir}\/taosd /\${bin_link_dir}\/prodbs /g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/bin\/taos /bin\/prodbc /g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/bin\/taosd /bin\/prodbs /g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/packaging/tools/install.sh
@@ -82,8 +82,8 @@ function replace_community_pro() {
   sed -i "s/taos -h/prodbc -h/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/taosd --force-keep-file/prodbs --force-keep-file/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/taos_history/prodb_history/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/\${bin_dir}\/taosd /\${bin_dir}/prodbs /g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/\${bin_dir}\/taos /\${bin_dir}/prodbc /g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\${bin_dir}\/taosd /\${bin_dir}\/prodbs /g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\${bin_dir}\/taos /\${bin_dir}\/prodbc /g" ${top_dir}/packaging/tools/install.sh
   # packaging/tools/remove.sh
   sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/\"taosd\"/\"prodbs\"/g" ${top_dir}/packaging/tools/remove.sh
