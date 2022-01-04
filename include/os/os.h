@@ -40,7 +40,7 @@ extern "C" {
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <time.h>
+#include <sys/utsname.h>
 #include <unistd.h>
 #include <wchar.h>
 #include <wctype.h>
