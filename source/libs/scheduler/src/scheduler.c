@@ -372,7 +372,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *job, SSchTask *task) {
   
   SCH_ERR_RET(schMoveTaskToSuccList(job, task, &moved));
   if (!moved) {
-    SCH_TASK_ERR_LOG("task may already moved, status:%d", task->status);
+    SCH_TASK_ERR_LOG(" task may already moved, status:%d", task->status);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -480,7 +480,6 @@ int32_t schProcessOnTaskFailure(SSchJob *job, SSchTask *task, int32_t errCode) {
 int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *msg, int32_t msgSize, int32_t rspCode) {
   int32_t code = 0;
 
-
   switch (msgType) {
     case TDMT_VND_CREATE_TABLE_RSP: {
       if (rspCode != TSDB_CODE_SUCCESS) {
@@ -492,6 +491,8 @@ int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *ms
           goto _task_error;
         }
       }
+
+      break;
     }
     case TDMT_VND_SUBMIT_RSP: {
         if (rspCode != TSDB_CODE_SUCCESS) {
