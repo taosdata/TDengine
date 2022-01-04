@@ -45,6 +45,7 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 void    mndTransProcessRsp(SMnodeMsg *pMsg);
+void    mndTransPullup(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

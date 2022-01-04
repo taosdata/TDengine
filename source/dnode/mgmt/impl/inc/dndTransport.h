@@ -23,8 +23,8 @@ extern "C" {
 
 int32_t dndInitTrans(SDnode *pDnode);
 void    dndCleanupTrans(SDnode *pDnode);
-void    dndSendMsgToMnode(SDnode *pDnode, SRpcMsg *pRpcMsg);
-void    dndSendMsgToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pRpcMsg);
+int32_t dndSendReqToMnode(SDnode *pDnode, SRpcMsg *pRpcMsg);
+int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pRpcMsg);
 
 #ifdef __cplusplus
 }
