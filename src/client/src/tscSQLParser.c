@@ -951,9 +951,16 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return code;
       }
 
-      // set the command/global limit parameters from the first subclause to the sqlcmd object
-      pCmd->active = pCmd->pQueryInfo;
-      pCmd->command = pCmd->pQueryInfo->command;
+      // set the command/global limit parameters from the first not empty subclause to the sqlcmd object
+      SQueryInfo* queryInfo = pCmd->pQueryInfo;
+      int16_t command = queryInfo->command;
+      while (command == TSDB_SQL_RETRIEVE_EMPTY_RESULT && queryInfo->sibling != NULL) {
+        queryInfo = queryInfo->sibling;
+        command = queryInfo->command;
+      }
+
+      pCmd->active = queryInfo;
+      pCmd->command = command;
 
       STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pCmd->active, 0);
       if (pTableMetaInfo1->pTableMeta != NULL) {
