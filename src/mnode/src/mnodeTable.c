@@ -2238,22 +2238,13 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
       int32_t vgId = 0;
 
       if (tsMetaSyncOption) {
-        char tbName[TSDB_TABLE_NAME_LEN] = "\0";
-        strncpy(tbName, pCreate->tableName, TSDB_TABLE_NAME_LEN);
-        char *pTbName = strtok(tbName, ".");
-        if (pTbName) {
-          pTbName = strtok(NULL, ".");
-          if (pTbName) {
-            pTbName = strtok(NULL, ".");
-            if (pTbName) {
-              if (0 == strncmp(META_SYNC_TABLE_NAME, pTbName, META_SYNC_TABLE_NAME_LEN)) {
-                vgId = atoi(pTbName + META_SYNC_TABLE_NAME_LEN);
-              }
-            }
+        char *pTbName = strchr(pCreate->tableName, '.');
+        if (pTbName && (pTbName = strchr(pTbName + 1, '.'))) {
+          if (0 == strncmp(META_SYNC_TABLE_NAME, ++pTbName, META_SYNC_TABLE_NAME_LEN)) {
+            vgId = atoi(pTbName + META_SYNC_TABLE_NAME_LEN);
           }
         }
       }
-
       code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &tid, vgId);
       if (code != TSDB_CODE_SUCCESS) {
         mError("msg:%p, app:%p table:%s, failed to get available vgroup, reason:%s", pMsg, pMsg->rpcMsg.ahandle,
