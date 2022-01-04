@@ -52,9 +52,9 @@ Testbase DndTestTrans::test;
 
 TEST_F(DndTestTrans, 01_CreateUser_Crash) {
   {
-    int32_t contLen = sizeof(SCreateUserMsg);
+    int32_t contLen = sizeof(SCreateUserReq);
 
-    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(contLen);
+    SCreateUserReq* pReq = (SCreateUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "p1");
 

@@ -45,9 +45,9 @@ TEST_F(DndTestUser, 01_ShowUser) {
 
 TEST_F(DndTestUser, 02_Create_User) {
   {
-    int32_t contLen = sizeof(SCreateUserMsg);
+    int32_t contLen = sizeof(SCreateUserReq);
 
-    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(contLen);
+    SCreateUserReq* pReq = (SCreateUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "");
     strcpy(pReq->pass, "p1");
 
@@ -57,9 +57,9 @@ TEST_F(DndTestUser, 02_Create_User) {
   }
 
   {
-    int32_t contLen = sizeof(SCreateUserMsg);
+    int32_t contLen = sizeof(SCreateUserReq);
 
-    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(contLen);
+    SCreateUserReq* pReq = (SCreateUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "");
 
@@ -69,9 +69,9 @@ TEST_F(DndTestUser, 02_Create_User) {
   }
 
   {
-    int32_t contLen = sizeof(SCreateUserMsg);
+    int32_t contLen = sizeof(SCreateUserReq);
 
-    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(contLen);
+    SCreateUserReq* pReq = (SCreateUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "root");
     strcpy(pReq->pass, "1");
 
@@ -81,9 +81,9 @@ TEST_F(DndTestUser, 02_Create_User) {
   }
 
   {
-    int32_t contLen = sizeof(SCreateUserMsg);
+    int32_t contLen = sizeof(SCreateUserReq);
 
-    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(contLen);
+    SCreateUserReq* pReq = (SCreateUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "p1");
 
@@ -101,9 +101,9 @@ TEST_F(DndTestUser, 02_Create_User) {
 
 TEST_F(DndTestUser, 03_Alter_User) {
   {
-    int32_t contLen = sizeof(SAlterUserMsg);
+    int32_t contLen = sizeof(SAlterUserReq);
 
-    SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(contLen);
+    SAlterUserReq* pReq = (SAlterUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "");
     strcpy(pReq->pass, "p1");
 
@@ -113,9 +113,9 @@ TEST_F(DndTestUser, 03_Alter_User) {
   }
 
   {
-    int32_t contLen = sizeof(SAlterUserMsg);
+    int32_t contLen = sizeof(SAlterUserReq);
 
-    SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(contLen);
+    SAlterUserReq* pReq = (SAlterUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "");
 
@@ -125,9 +125,9 @@ TEST_F(DndTestUser, 03_Alter_User) {
   }
 
   {
-    int32_t contLen = sizeof(SAlterUserMsg);
+    int32_t contLen = sizeof(SAlterUserReq);
 
-    SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(contLen);
+    SAlterUserReq* pReq = (SAlterUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u4");
     strcpy(pReq->pass, "1");
 
@@ -137,9 +137,9 @@ TEST_F(DndTestUser, 03_Alter_User) {
   }
 
   {
-    int32_t contLen = sizeof(SAlterUserMsg);
+    int32_t contLen = sizeof(SAlterUserReq);
 
-    SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(contLen);
+    SAlterUserReq* pReq = (SAlterUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "1");
 
@@ -151,9 +151,9 @@ TEST_F(DndTestUser, 03_Alter_User) {
 
 TEST_F(DndTestUser, 04_Drop_User) {
   {
-    int32_t contLen = sizeof(SDropUserMsg);
+    int32_t contLen = sizeof(SDropUserReq);
 
-    SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(contLen);
+    SDropUserReq* pReq = (SDropUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "");
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_USER, pReq, contLen);
@@ -162,9 +162,9 @@ TEST_F(DndTestUser, 04_Drop_User) {
   }
 
   {
-    int32_t contLen = sizeof(SDropUserMsg);
+    int32_t contLen = sizeof(SDropUserReq);
 
-    SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(contLen);
+    SDropUserReq* pReq = (SDropUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u4");
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_USER, pReq, contLen);
@@ -173,9 +173,9 @@ TEST_F(DndTestUser, 04_Drop_User) {
   }
 
   {
-    int32_t contLen = sizeof(SDropUserMsg);
+    int32_t contLen = sizeof(SDropUserReq);
 
-    SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(contLen);
+    SDropUserReq* pReq = (SDropUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u1");
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_USER, pReq, contLen);
@@ -192,9 +192,9 @@ TEST_F(DndTestUser, 04_Drop_User) {
 
 TEST_F(DndTestUser, 05_Create_Drop_Alter_User) {
   {
-    int32_t contLen = sizeof(SCreateUserMsg);
+    int32_t contLen = sizeof(SCreateUserReq);
 
-    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(contLen);
+    SCreateUserReq* pReq = (SCreateUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "p1");
 
@@ -204,9 +204,9 @@ TEST_F(DndTestUser, 05_Create_Drop_Alter_User) {
   }
 
   {
-    int32_t contLen = sizeof(SCreateUserMsg);
+    int32_t contLen = sizeof(SCreateUserReq);
 
-    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(contLen);
+    SCreateUserReq* pReq = (SCreateUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u2");
     strcpy(pReq->pass, "p2");
 
@@ -235,9 +235,9 @@ TEST_F(DndTestUser, 05_Create_Drop_Alter_User) {
   CheckBinary("root", TSDB_USER_LEN);
 
   {
-    int32_t contLen = sizeof(SAlterUserMsg);
+    int32_t contLen = sizeof(SAlterUserReq);
 
-    SAlterUserMsg* pReq = (SAlterUserMsg*)rpcMallocCont(contLen);
+    SAlterUserReq* pReq = (SAlterUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "p2");
 
@@ -266,9 +266,9 @@ TEST_F(DndTestUser, 05_Create_Drop_Alter_User) {
   CheckBinary("root", TSDB_USER_LEN);
 
   {
-    int32_t contLen = sizeof(SDropUserMsg);
+    int32_t contLen = sizeof(SDropUserReq);
 
-    SDropUserMsg* pReq = (SDropUserMsg*)rpcMallocCont(contLen);
+    SDropUserReq* pReq = (SDropUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u1");
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_USER, pReq, contLen);

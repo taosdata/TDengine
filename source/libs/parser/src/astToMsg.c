@@ -2,8 +2,8 @@
 #include "astGenerator.h"
 #include "parserUtil.h"
 
-SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
-  SCreateUserMsg* pMsg = (SCreateUserMsg*)calloc(1, sizeof(SCreateUserMsg));
+SCreateUserReq* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
+  SCreateUserReq* pMsg = (SCreateUserReq*)calloc(1, sizeof(SCreateUserReq));
   if (pMsg == NULL) {
     //    tscError("0x%" PRIx64 " failed to malloc for query msg", id);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -25,8 +25,8 @@ SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, in
   return pMsg;
 }
 
-SCreateAcctMsg* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
-  SCreateAcctMsg *pCreateMsg = (SCreateAcctMsg *) calloc(1, sizeof(SCreateAcctMsg));
+SCreateAcctReq* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
+  SCreateAcctReq *pCreateMsg = (SCreateAcctReq *) calloc(1, sizeof(SCreateAcctReq));
   if (pCreateMsg == NULL) {
     qError("0x%" PRIx64 " failed to malloc for query msg", id);
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
@@ -64,24 +64,24 @@ SCreateAcctMsg* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, in
     }
   }
 
-  *outputLen = sizeof(SCreateAcctMsg);
+  *outputLen = sizeof(SCreateAcctReq);
   return pCreateMsg;
 }
 
-SDropUserMsg* buildDropUserMsg(SSqlInfo* pInfo, int32_t *msgLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
+SDropUserReq* buildDropUserMsg(SSqlInfo* pInfo, int32_t *msgLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
   SToken* pName = taosArrayGet(pInfo->pMiscInfo->a, 0);
   if (pName->n >= TSDB_USER_LEN) {
     return NULL;
   }
 
-  SDropUserMsg* pMsg = calloc(1, sizeof(SDropUserMsg));
+  SDropUserReq* pMsg = calloc(1, sizeof(SDropUserReq));
   if (pMsg == NULL) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return NULL;
   }
 
   strncpy(pMsg->user, pName->z, pName->n);
-  *msgLen = sizeof(SDropUserMsg);
+  *msgLen = sizeof(SDropUserReq);
   return pMsg;
 }
 

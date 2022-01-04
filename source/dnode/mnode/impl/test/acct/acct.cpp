@@ -26,9 +26,9 @@ class DndTestAcct : public ::testing::Test {
 Testbase DndTestAcct::test;
 
 TEST_F(DndTestAcct, 01_CreateAcct) {
-  int32_t contLen = sizeof(SCreateAcctMsg);
+  int32_t contLen = sizeof(SCreateAcctReq);
 
-  SCreateAcctMsg* pReq = (SCreateAcctMsg*)rpcMallocCont(contLen);
+  SCreateAcctReq* pReq = (SCreateAcctReq*)rpcMallocCont(contLen);
 
   SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_ACCT, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
@@ -36,9 +36,9 @@ TEST_F(DndTestAcct, 01_CreateAcct) {
 }
 
 TEST_F(DndTestAcct, 02_AlterAcct) {
-  int32_t contLen = sizeof(SCreateAcctMsg);
+  int32_t contLen = sizeof(SCreateAcctReq);
 
-  SAlterAcctMsg* pReq = (SAlterAcctMsg*)rpcMallocCont(contLen);
+  SAlterAcctReq* pReq = (SAlterAcctReq*)rpcMallocCont(contLen);
 
   SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_ACCT, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
@@ -46,9 +46,9 @@ TEST_F(DndTestAcct, 02_AlterAcct) {
 }
 
 TEST_F(DndTestAcct, 03_DropAcct) {
-  int32_t contLen = sizeof(SDropAcctMsg);
+  int32_t contLen = sizeof(SDropAcctReq);
 
-  SDropAcctMsg* pReq = (SDropAcctMsg*)rpcMallocCont(contLen);
+  SDropAcctReq* pReq = (SDropAcctReq*)rpcMallocCont(contLen);
 
   SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_ACCT, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);

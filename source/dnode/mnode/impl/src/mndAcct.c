@@ -25,10 +25,10 @@ static SSdbRaw *mndAcctActionEncode(SAcctObj *pAcct);
 static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw);
 static int32_t  mndAcctActionInsert(SSdb *pSdb, SAcctObj *pAcct);
 static int32_t  mndAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct);
-static int32_t  mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOldAcct, SAcctObj *pNewAcct);
-static int32_t  mndProcessCreateAcctMsg(SMnodeMsg *pMnodeMsg);
-static int32_t  mndProcessAlterAcctMsg(SMnodeMsg *pMnodeMsg);
-static int32_t  mndProcessDropAcctMsg(SMnodeMsg *pMnodeMsg);
+static int32_t  mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOld, SAcctObj *pNew);
+static int32_t  mndProcessCreateAcctReq(SMnodeMsg *pMsg);
+static int32_t  mndProcessAlterAcctReq(SMnodeMsg *pMsg);
+static int32_t  mndProcessDropAcctReq(SMnodeMsg *pMsg);
 
 int32_t mndInitAcct(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_ACCT,
@@ -40,9 +40,9 @@ int32_t mndInitAcct(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndAcctActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndAcctActionDelete};
 
-  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ACCT, mndProcessCreateAcctMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_ACCT, mndProcessAlterAcctMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_ACCT, mndProcessDropAcctMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ACCT, mndProcessCreateAcctReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_ACCT, mndProcessAlterAcctReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_ACCT, mndProcessDropAcctReq);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -176,29 +176,29 @@ static int32_t mndAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct) {
   return 0;
 }
 
-static int32_t mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOldAcct, SAcctObj *pNewAcct) {
-  mTrace("acct:%s, perform update action, old_row:%p new_row:%p", pOldAcct->acct, pOldAcct, pNewAcct);
+static int32_t mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOld, SAcctObj *pNew) {
+  mTrace("acct:%s, perform update action, old_row:%p new_row:%p", pOld->acct, pOld, pNew);
 
-  pOldAcct->updateTime = pNewAcct->updateTime;
-  pOldAcct->status = pNewAcct->status;
-  memcpy(&pOldAcct->cfg, &pNewAcct->cfg, sizeof(SAcctCfg));
+  pOld->updateTime = pNew->updateTime;
+  pOld->status = pNew->status;
+  memcpy(&pOld->cfg, &pNew->cfg, sizeof(SAcctCfg));
   return 0;
 }
 
-static int32_t mndProcessCreateAcctMsg(SMnodeMsg *pMnodeMsg) {
+static int32_t mndProcessCreateAcctReq(SMnodeMsg *pMsg) {
   terrno = TSDB_CODE_MND_MSG_NOT_PROCESSED;
-  mError("failed to process create acct msg since %s", terrstr());
+  mError("failed to process create acct request since %s", terrstr());
   return -1;
 }
 
-static int32_t mndProcessAlterAcctMsg(SMnodeMsg *pMnodeMsg) {
+static int32_t mndProcessAlterAcctReq(SMnodeMsg *pMsg) {
   terrno = TSDB_CODE_MND_MSG_NOT_PROCESSED;
-  mError("failed to process create acct msg since %s", terrstr());
+  mError("failed to process create acct request since %s", terrstr());
   return -1;
 }
 
-static int32_t mndProcessDropAcctMsg(SMnodeMsg *pMnodeMsg) {
+static int32_t mndProcessDropAcctReq(SMnodeMsg *pMsg) {
   terrno = TSDB_CODE_MND_MSG_NOT_PROCESSED;
-  mError("failed to process create acct msg since %s", terrstr());
+  mError("failed to process create acct request since %s", terrstr());
   return -1;
 }
