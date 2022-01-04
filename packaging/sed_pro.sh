@@ -60,10 +60,10 @@ function replace_community_pro() {
   sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/deb/taosd
   sed -i "s/taosd/prodbs/g" ${top_dir}/packaging/deb/taosd
   # packaging/tools/install.sh
-  sed -i "s/\/var\/lib\/taos/\/var\/lib\/ProDB/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/\/var\/log\/taos/\/var\/log\/ProDB/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/\/usr\/local\/taos/\/usr\/local/ProDB/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/\/etc\/taos/\/etc\/ProDB/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/var\/lib\/taos/var\/lib\/ProDB/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/var\/log\/taos/var\/log\/ProDB/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/usr\/local\/taos/usr\/local/ProDB/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/etc\/taos/etc\/ProDB/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/taosdata\.com/hanatech\.com\.cn/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/\${bin_link_dir}\/taos /\${bin_link_dir}/prodbc /g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/\${bin_link_dir}\/taosd /\${bin_link_dir}/prodbs /g" ${top_dir}/packaging/tools/install.sh
@@ -106,11 +106,11 @@ function replace_enterprise_pro() {
   sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/../enterprise/src/plugins/module/src/moduleMain.c
 
   # enterprise/src/plugins/web
-  sed -i -e 's/www.taosdata.com/www.hanatech.com.cn/g' $(grep -r 'www.taosdata.com' ${top_dir}/../enterprise/src/plugins/web | sed -r "s/(.*\.html):\s*(.*)/\1/g")
-  sed -i -e 's/TAOS Data/Hanatech/g' $(grep -r 'TAOS Data' ${top_dir}/../enterprise/src/plugins/web | sed -r "s/(.*\.html):\s*(.*)/\1/g")
-  sed -i -e 's/taosd/prodbs/g' $(grep -r 'taosd' ${top_dir}/../enterprise/src/plugins/web | grep -E '*\.js\s*.*' | sed -r -e 's/(.*\.js):\s*(.*)/\1/g' | sort | uniq)
+  sed -i -e "s/www\.taosdata\.com/www\.hanatech\.com\.cn/g" $(grep -r "www.taosdata.com" ${top_dir}/../enterprise/src/plugins/web | sed -r "s/(.*\.html):\s*(.*)/\1/g")
+  sed -i -e "s/TAOS Data/Hanatech/g" $(grep -r "TAOS Data" ${top_dir}/../enterprise/src/plugins/web | sed -r "s/(.*\.html):\s*(.*)/\1/g")
+  sed -i -e "s/taosd/prodbs/g" $(grep -r "taosd" ${top_dir}/../enterprise/src/plugins/web | grep -E "*\.js\s*.*" | sed -r -e "s/(.*\.js):\s*(.*)/\1/g" | sort | uniq)
   # enterprise/src/plugins/web/admin/monitor.html
-  sed -i -e 's/<th style="font-weight: normal">taosd<\/th>/<th style="font-weight: normal">prodbs<\/th>/g' ${top_dir}/../enterprise/src/plugins/web/admin/monitor.html
+  sed -i -e "s/<th style=\"font-weight: normal\">taosd<\/th>/<th style=\"font-weight: normal\">prodbs<\/th>/g" ${top_dir}/../enterprise/src/plugins/web/admin/monitor.html
   sed -i -e "s/data:\['taosd', 'system'\],/data:\['prodbs', 'system'\],/g" ${top_dir}/../enterprise/src/plugins/web/admin/monitor.html
   sed -i -e "s/name: 'taosd',/name: 'prodbs',/g" ${top_dir}/../enterprise/src/plugins/web/admin/monitor.html
   # enterprise/src/plugins/web/admin/*.html
