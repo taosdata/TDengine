@@ -63,6 +63,28 @@ int tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
   return 0;
 }
 
+int tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
+  if (pBlock->dataLen <= 0) return -1;
+  pIter->totalLen = pBlock->dataLen;
+  pIter->len = 0;
+  pIter->row = (SMemRow)(pBlock->data + pBlock->schemaLen);
+  return 0;
+}
+
+SMemRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter) {
+  SMemRow row = pIter->row;  // firstly, get current row
+  if (row == NULL) return NULL;
+
+  pIter->len += memRowTLen(row);
+  if (pIter->len >= pIter->totalLen) {  // reach the end
+    pIter->row = NULL;
+  } else {
+    pIter->row = (char *)row + memRowTLen(row);  // secondly, move to next row
+  }
+
+  return row;
+}
+
 int tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
   int tlen = 0;
 
