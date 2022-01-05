@@ -18,7 +18,7 @@
 #include "tutil.h"
 
 static int writeCtxDoWrite(WriterCtx* ctx, uint8_t* buf, int len) {
-  if (ctx->offset + len > ctx->limit) { return -1; }
+  // if (ctx->offset + len > ctx->limit) { return -1; }
 
   if (ctx->type == TFile) {
     assert(len == tfWrite(ctx->file.fd, buf, len));
@@ -31,7 +31,12 @@ static int writeCtxDoWrite(WriterCtx* ctx, uint8_t* buf, int len) {
 static int writeCtxDoRead(WriterCtx* ctx, uint8_t* buf, int len) {
   int nRead = 0;
   if (ctx->type == TFile) {
+#ifdef USE_MMAP
+    nRead = len < ctx->file.size ? len : ctx->file.size;
+    memcpy(buf, ctx->file.ptr, nRead);
+#else
     nRead = tfRead(ctx->file.fd, buf, len);
+#endif
   } else {
     memcpy(buf, ctx->mem.buf + ctx->offset, len);
   }
@@ -43,7 +48,13 @@ static int writeCtxDoReadFrom(WriterCtx* ctx, uint8_t* buf, int len, int32_t off
   int nRead = 0;
   if (ctx->type == TFile) {
     // tfLseek(ctx->file.fd, offset, 0);
+#ifdef USE_MMAP
+    int32_t last = ctx->file.size - offset;
+    nRead = last >= len ? len : last;
+    memcpy(buf, ctx->file.ptr + offset, nRead);
+#else
     nRead = tfPread(ctx->file.fd, buf, len, offset);
+#endif
   } else {
     // refactor later
     assert(0);
@@ -83,6 +94,9 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
       struct stat fstat;
       stat(path, &fstat);
       ctx->file.size = fstat.st_size;
+#ifdef USE_MMAP
+      ctx->file.ptr = (char*)tfMmapReadOnly(ctx->file.fd, ctx->file.size);
+#endif
     }
     memcpy(ctx->file.buf, path, strlen(path));
     if (ctx->file.fd < 0) {
@@ -112,7 +126,11 @@ void writerCtxDestroy(WriterCtx* ctx, bool remove) {
     free(ctx->mem.buf);
   } else {
     tfClose(ctx->file.fd);
-    ctx->flush(ctx);
+    if (ctx->file.readOnly) {
+#ifdef USE_MMAP
+      munmap(ctx->file.ptr, ctx->file.size);
+#endif
+    }
     if (remove) { unlink(ctx->file.buf); }
   }
   free(ctx);

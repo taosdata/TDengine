@@ -33,7 +33,7 @@ protected:
   void pushScan(const string& db, const string& table, int32_t scanOp) {
     shared_ptr<MockTableMeta> meta = mockCatalogService->getTableMeta(db, table);
     EXPECT_TRUE(meta);
-    unique_ptr<SQueryPlanNode> scan((SQueryPlanNode*)calloc(1, sizeof(SQueryPlanNode)));
+    unique_ptr<SQueryPlanNode> scan((SQueryPlanNode*)myCalloc(1, sizeof(SQueryPlanNode)));
     scan->info.type = scanOp;
     scan->numOfCols = meta->schema->tableInfo.numOfColumns;
     scan->pSchema = (SSchema*)myCalloc(1, sizeof(SSchema) * scan->numOfCols);

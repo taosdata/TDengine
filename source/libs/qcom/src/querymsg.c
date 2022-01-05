@@ -43,15 +43,12 @@ int32_t queryBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int3
   bMsg->header.vgId = htonl(bInput->vgId);
 
   if (bInput->dbName) {
-    strncpy(bMsg->dbFname, bInput->dbName, sizeof(bMsg->dbFname));
-    bMsg->dbFname[sizeof(bMsg->dbFname) - 1] = 0;
+    tstrncpy(bMsg->dbFname, bInput->dbName, tListLen(bMsg->dbFname));
   }
 
-  strncpy(bMsg->tableFname, bInput->tableFullName, sizeof(bMsg->tableFname));
-  bMsg->tableFname[sizeof(bMsg->tableFname) - 1] = 0;
+  tstrncpy(bMsg->tableFname, bInput->tableFullName, tListLen(bMsg->tableFname));
 
   *msgLen = (int32_t)sizeof(*bMsg);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -211,7 +208,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaMsg* msg, bool isSuperTable, STabl
 
   pTableMeta->vgId = isSuperTable ? 0 : msg->vgId;
   pTableMeta->tableType = isSuperTable ? TSDB_SUPER_TABLE : msg->tableType;
-  pTableMeta->uid = msg->suid;
+  pTableMeta->uid  = msg->tuid;
   pTableMeta->suid = msg->suid;
   pTableMeta->sversion = msg->sversion;
   pTableMeta->tversion = msg->tversion;
@@ -250,8 +247,8 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
     pOut->metaNum = 2;
 
     if (pMetaMsg->dbFname[0]) {
-      snprintf(pOut->ctbFname, "%s.%s", pMetaMsg->dbFname, pMetaMsg->tbFname);
-      snprintf(pOut->tbFname, "%s.%s", pMetaMsg->dbFname, pMetaMsg->stbFname);
+      snprintf(pOut->ctbFname, sizeof(pOut->ctbFname), "%s.%s", pMetaMsg->dbFname, pMetaMsg->tbFname);
+      snprintf(pOut->tbFname, sizeof(pOut->tbFname), "%s.%s", pMetaMsg->dbFname, pMetaMsg->stbFname);
     } else {
       memcpy(pOut->ctbFname, pMetaMsg->tbFname, sizeof(pOut->ctbFname));
       memcpy(pOut->tbFname, pMetaMsg->stbFname, sizeof(pOut->tbFname));
@@ -272,7 +269,7 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
       memcpy(pOut->tbFname, pMetaMsg->tbFname, sizeof(pOut->tbFname));
     }
     
-    code = queryCreateTableMetaFromMsg(pMetaMsg, false, &pOut->tbMeta);
+    code = queryCreateTableMetaFromMsg(pMetaMsg, (pMetaMsg->tableType == TSDB_SUPER_TABLE), &pOut->tbMeta);
   }
   
   return code;

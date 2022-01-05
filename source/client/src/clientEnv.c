@@ -53,8 +53,8 @@ static void registerRequest(SRequestObj* pRequest) {
 
     int32_t total = atomic_add_fetch_32(&pSummary->totalRequests, 1);
     int32_t currentInst = atomic_add_fetch_32(&pSummary->currentRequests, 1);
-    tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64 ", current:%d, app current:%d, total:%d", pRequest->self,
-             pRequest->pTscObj->id, num, currentInst, total);
+    tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64 ", current:%d, app current:%d, total:%d, reqId:0x%"PRIx64, pRequest->self,
+             pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
   }
 }
 
@@ -419,17 +419,20 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
  *+------------+-----+-----------+---------------+
  * @return
  */
-static int32_t requestSerialId = 0;
 uint64_t generateRequestId() {
-  uint64_t hashId = 0;
+  static uint64_t hashId = 0;
+  static int32_t requestSerialId = 0;
 
-  char uid[64] = {0};
-  int32_t code = taosGetSystemUid(uid, tListLen(uid));
-  if (code != TSDB_CODE_SUCCESS) {
-    tscError("Failed to get the system uid to generated request id, reason:%s. use ip address instead", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+  if (hashId == 0) {
+    char    uid[64] = {0};
+    int32_t code = taosGetSystemUUID(uid, tListLen(uid));
+    if (code != TSDB_CODE_SUCCESS) {
+      tscError("Failed to get the system uid to generated request id, reason:%s. use ip address instead",
+               tstrerror(TAOS_SYSTEM_ERROR(errno)));
 
-  } else {
-    hashId = MurmurHash3_32(uid, strlen(uid));
+    } else {
+      hashId = MurmurHash3_32(uid, strlen(uid));
+    }
   }
 
   int64_t ts      = taosGetTimestampUs();
