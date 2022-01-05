@@ -14,7 +14,7 @@
         This C # connector supports: Linux 64/Windows x64/Windows x86.
         more information please visit: https://www.taosdata.com
     </Description>
-    <RepositoryUrl>https://github.com/taosdata/TDengine/tree/develop/src/connector/C%23</RepositoryUrl>
+    <RepositoryUrl>https://github.com/taosdata/TDengine/tree/develop/src/connector/C%2523/src/TDengineDriver</RepositoryUrl>
     <NoWarn>CS1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
