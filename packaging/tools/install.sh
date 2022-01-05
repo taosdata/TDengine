@@ -23,6 +23,7 @@ productName="TDengine"
 emailName="taosdata.com"
 uninstallScript="rmtaos"
 historyFile="taos_history"
+tarName="taos.tar.gz"
 
 data_dir="/var/lib/taos"
 log_dir="/var/log/taos"

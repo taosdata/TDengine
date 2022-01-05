@@ -67,6 +67,7 @@ function replace_community_pro() {
   sed -i "s/emailName=\"taosdata\.com\"/emailName=\"\hanatech\.com\.cn\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/uninstallScript=\"rmtaos\"/uninstallScript=\"rmpro\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/historyFile=\"taos_history\"/historyFile=\"prodb_history\"/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/tarName=\"taos\.tar\.gz\"/tarName=\"prodb\.tar\.gz\"/g" ${top_dir}/packaging/tools/install.sh
   # packaging/tools/remove.sh
   sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/\"taosd\"/\"prodbs\"/g" ${top_dir}/packaging/tools/remove.sh
