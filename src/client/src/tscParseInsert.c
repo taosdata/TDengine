@@ -873,10 +873,11 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
   sToken = tStrGetToken(sql, &index, false);
   sql += index;
 
+  int32_t numOfColList = 0;
+
   // Bind table columns list in string, skip it and continue
   if (sToken.type == TK_LP) {
     *boundColumn = &sToken.z[0];
-    int32_t numOfColList = 0;
 
     while (1) {
       index = 0;
@@ -885,7 +886,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       if (sToken.type == TK_ILLEGAL) {
         return tscSQLSyntaxErrMsg(pCmd->payload, "unrecognized token", sToken.z);
       }
-      
+
       if (sToken.type == TK_RP) {
         break;
       }
@@ -893,13 +894,18 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       sql += index;
       ++numOfColList;
     }
-    if (numOfColList == 0 && (*boundColumn) != NULL) {
-      return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
-    }
 
     sToken = tStrGetToken(sql, &index, false);
     sql += index;
-  }else if (sToken.type == TK_USING) {  // create table if not exists according to the super table
+  }
+
+  if (numOfColList == 0 && (*boundColumn) != NULL) {
+    return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+  }
+
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
+
+  if (sToken.type == TK_USING) {  // create table if not exists according to the super table
     index = 0;
     sToken = tStrGetToken(sql, &index, false);
     sql += index;
@@ -912,14 +918,13 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     if (pQueryInfo->numOfTables < 2) {
       tscAddEmptyMetaInfo(pQueryInfo);
     }
-    
+
     bool dbIncluded1 = false;
     code = tscValidateName(&sToken, &dbIncluded1);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
     STableMetaInfo *pSTableMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
     code = tscSetTableFullName(&pSTableMetaInfo->name, &sToken, pSql, dbIncluded1);
     if (code != TSDB_CODE_SUCCESS) {
@@ -940,7 +945,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
     SSchema *pTagSchema = tscGetTableTagSchema(pSTableMetaInfo->pTableMeta);
     STableComInfo tinfo = tscGetTableInfo(pSTableMetaInfo->pTableMeta);
-    
+
     SParsedDataColInfo spd = {0};
     tscSetBoundColumnInfo(&spd, pTagSchema, tscGetNumOfTags(pSTableMetaInfo->pTableMeta));
 
@@ -981,7 +986,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       tscDestroyBoundColumnInfo(&spd);
       return tscSQLSyntaxErrMsg(pInsertParam->msg, "( is expected", sToken.z);
     }
-    
+
     SKVRowBuilder kvRowBuilder = {0};
     if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
       tscDestroyBoundColumnInfo(&spd);
@@ -1121,13 +1126,12 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code) {
       return code;
     }
-    
+
   } else {
     if (sToken.z == NULL) {
       return tscSQLSyntaxErrMsg(pInsertParam->msg, "", sql);
     }
 
-    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
     sql = sToken.z;
     code = tscGetTableMetaEx(pSql, pTableMetaInfo, false, false);
     if (pInsertParam->sql == NULL) {
