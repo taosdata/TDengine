@@ -255,7 +255,7 @@ static int metaOpenBDBEnv(DB_ENV **ppEnv, const char *path) {
     return -1;
   }
 
-  ret = pEnv->open(pEnv, path, DB_CREATE | DB_INIT_MPOOL, 0);
+  ret = pEnv->open(pEnv, path, DB_CREATE | DB_INIT_CDB | DB_INIT_MPOOL, 0);
   if (ret != 0) {
     BDB_PERR("Failed to open META env", ret);
     return -1;
