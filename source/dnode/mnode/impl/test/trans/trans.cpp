@@ -10,7 +10,6 @@
  */
 
 #include "sut.h"
-#include "os.h"
 
 class MndTestTrans : public ::testing::Test {
  protected:
@@ -83,4 +82,45 @@ TEST_F(MndTestTrans, 01_Create_User_Crash) {
   CheckTimestamp();
   CheckBinary("root", TSDB_USER_LEN);
   CheckBinary("root", TSDB_USER_LEN);
+}
+
+TEST_F(MndTestTrans, 02_Create_Qnode_Crash) {
+  {
+    int32_t contLen = sizeof(SMCreateQnodeReq);
+
+    SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(1);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_QNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_QNODE, "");
+    CHECK_META("show qnodes", 3);
+    test.SendShowRetrieveReq();
+    EXPECT_EQ(test.GetShowRows(), 1);
+  }
+
+  KillThenRestartServer();
+  {
+    int32_t retry = 0;
+    int32_t retryMax = 10;
+
+    for (retry = 0; retry < retryMax; retry++) {
+      int32_t contLen = sizeof(SMCreateQnodeReq);
+
+      SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
+      pReq->dnodeId = htonl(2);
+
+      SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_QNODE, pReq, contLen);
+      ASSERT_NE(pRsp, nullptr);
+      if (pRsp->code == 0) break;
+      taosMsleep(1000);
+    }
+
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_QNODE, "");
+    CHECK_META("show qnodes", 3);
+    test.SendShowRetrieveReq();
+    EXPECT_EQ(test.GetShowRows(), 1);
+  }
 }

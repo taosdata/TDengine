@@ -73,7 +73,7 @@ TEST_F(DndTestQnode, 01_Create_Qnode) {
   }
 }
 
-TEST_F(DndTestQnode, 01_Drop_Qnode) {
+TEST_F(DndTestQnode, 02_Drop_Qnode) {
   {
     int32_t contLen = sizeof(SDDropQnodeReq);
 
