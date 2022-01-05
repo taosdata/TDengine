@@ -17,9 +17,9 @@
 
 int tsdbInsertData(STsdb *pTsdb, SSubmitMsg *pMsg) {
   // Check if mem is there. If not, create one.
-  pTsdb->mem = tsdbNewMemTable(pTsdb->pmaf);
+  pTsdb->mem = tsdbNewMemTable(pTsdb);
   if (pTsdb->mem == NULL) {
     return -1;
   }
-  return tsdbInsertDataToMemTable(pTsdb->mem, pMsg);
+  return tsdbMemTableInsert(pTsdb, pTsdb->mem, pMsg, NULL);
 }

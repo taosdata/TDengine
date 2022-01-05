@@ -15,22 +15,9 @@
 
 #include "tsdbDef.h"
 
-#if 1
-typedef struct STbData {
-  TD_SLIST_NODE(STbData);
-  SSubmitMsg *pMsg;
-} STbData;
-#else
-typedef struct STbData {
-  TD_SLIST_NODE(STbData);
-  uint64_t   uid;  // TODO: change here as tb_uid_t
-  TSKEY      keyMin;
-  TSKEY      keyMax;
-  uint64_t   nRows;
-  SSkipList *pData;  // Here need a container, may not use the SL
-  T_REF_DECLARE()
-} STbData;
-#endif
+struct STbData {
+  tb_uid_t uid;
+};
 
 struct STsdbMemTable {
   T_REF_DECLARE()
@@ -40,45 +27,169 @@ struct STsdbMemTable {
   uint64_t       nRow;
   SMemAllocator *pMA;
   // Container
+#if 1
+  SSkipList *pData;  // SSkiplist<STbData>
+  SHashObj * pHashIdx;
+#else
   TD_SLIST(STbData) list;
+#endif
 };
 
-STsdbMemTable *tsdbNewMemTable(SMemAllocatorFactory *pMAF) {
-  STsdbMemTable *pMemTable;
-  SMemAllocator *pMA;
+static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitMsg *pMsg);
 
-  pMA = (*pMAF->create)(pMAF);
-  ASSERT(pMA != NULL);
-
-  pMemTable = (STsdbMemTable *)TD_MA_MALLOC(pMA, sizeof(*pMemTable));
+STsdbMemTable *tsdbNewMemTable(STsdb *pTsdb) {
+  STsdbMemTable *pMemTable = (STsdbMemTable *)calloc(1, sizeof(*pMemTable));
   if (pMemTable == NULL) {
-    (*pMAF->destroy)(pMAF, pMA);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
   T_REF_INIT_VAL(pMemTable, 1);
   taosInitRWLatch(&(pMemTable->latch));
-  pMemTable->keyMin = TSKEY_MAX;
   pMemTable->keyMax = TSKEY_MIN;
+  pMemTable->keyMin = TSKEY_MAX;
   pMemTable->nRow = 0;
-  pMemTable->pMA = pMA;
-  TD_SLIST_INIT(&(pMemTable->list));
+  pMemTable->pMA = pTsdb->pmaf->create(pTsdb->pmaf);
+  if (pMemTable->pMA == NULL) {
+    free(pMemTable);
+    return NULL;
+  }
 
-  // TODO
+  // Initialize the container
+  pMemTable->pData =
+      tSkipListCreate(5, TSDB_DATA_TYPE_BIGINT, sizeof(tb_uid_t), NULL /*TODO*/, SL_DISCARD_DUP_KEY, NULL /* TODO */);
+  if (pMemTable->pData == NULL) {
+    pTsdb->pmaf->destroy(pTsdb->pmaf, pMemTable->pMA);
+    free(pMemTable);
+    return NULL;
+  }
+
+  pMemTable->pHashIdx = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (pMemTable->pHashIdx == NULL) {
+    pTsdb->pmaf->destroy(pTsdb->pmaf, pMemTable->pMA);
+    tSkipListDestroy(pMemTable->pData);
+    free(pMemTable);
+    return NULL;
+  }
+
   return pMemTable;
 }
 
-void tsdbFreeMemTable(SMemAllocatorFactory *pMAF, STsdbMemTable *pMemTable) {
-  SMemAllocator *pMA = pMemTable->pMA;
-
-  if (TD_MA_FREE_FUNC(pMA) != NULL) {
-    // TODO
-    ASSERT(0);
+void tsdbFreeMemTable(STsdb *pTsdb, STsdbMemTable *pMemTable) {
+  if (pMemTable) {
+    taosHashCleanup(pMemTable->pHashIdx);
+    tSkipListDestroy(pMemTable->pData);
+    if (pMemTable->pMA) {
+      pTsdb->pmaf->destroy(pTsdb->pmaf, pMemTable->pMA);
+    }
+    free(pMemTable);
   }
-
-  (*pMAF->destroy)(pMAF, pMA);
 }
 
+int tsdbMemTableInsert(STsdb *pTsdb, STsdbMemTable *pMemTable, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp) {
+  SSubmitBlk *   pBlock = NULL;
+  SSubmitMsgIter msgIter = {0};
+  int32_t        affectedrows = 0, numOfRows = 0;
+
+  if (tsdbScanAndConvertSubmitMsg(pTsdb, pMsg) < 0) {
+    if (terrno != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
+      tsdbError("vgId:%d failed to insert data since %s", REPO_ID(pTsdb), tstrerror(terrno));
+    }
+    return -1;
+  }
+
+  tsdbInitSubmitMsgIter(pMsg, &msgIter);
+  while (true) {
+    tsdbGetSubmitMsgNext(&msgIter, &pBlock);
+    if (pBlock == NULL) break;
+#if 0
+    if (tsdbInsertDataToTable(pTsdb, pBlock, &affectedrows) < 0) {
+      return -1;
+    }
+#endif
+    numOfRows += pBlock->numOfRows;
+  }
+
+  if (pRsp != NULL) {
+    pRsp->affectedRows = htonl(affectedrows);
+    pRsp->numOfRows = htonl(numOfRows);
+  }
+
+  return 0;
+}
+
+static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitMsg *pMsg) {
+  ASSERT(pMsg != NULL);
+  // STsdbMeta *    pMeta = pTsdb->tsdbMeta;
+  SSubmitMsgIter msgIter = {0};
+  SSubmitBlk *   pBlock = NULL;
+  SSubmitBlkIter blkIter = {0};
+  SMemRow        row = NULL;
+  TSKEY          now = taosGetTimestamp(pTsdb->config.precision);
+  TSKEY          minKey = now - tsTickPerDay[pTsdb->config.precision] * pTsdb->config.keep;
+  TSKEY          maxKey = now + tsTickPerDay[pTsdb->config.precision] * pTsdb->config.daysPerFile;
+
+  terrno = TSDB_CODE_SUCCESS;
+  pMsg->length = htonl(pMsg->length);
+  pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
+
+  if (tsdbInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
+  while (true) {
+    if (tsdbGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
+    if (pBlock == NULL) break;
+
+    pBlock->uid = htobe64(pBlock->uid);
+    pBlock->tid = htonl(pBlock->tid);
+    pBlock->sversion = htonl(pBlock->sversion);
+    pBlock->dataLen = htonl(pBlock->dataLen);
+    pBlock->schemaLen = htonl(pBlock->schemaLen);
+    pBlock->numOfRows = htons(pBlock->numOfRows);
+
+#if 0
+    if (pBlock->tid <= 0 || pBlock->tid >= pMeta->maxTables) {
+      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pTsdb), pBlock->uid,
+                pBlock->tid);
+      terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+      return -1;
+    }
+
+    STable *pTable = pMeta->tables[pBlock->tid];
+    if (pTable == NULL || TABLE_UID(pTable) != pBlock->uid) {
+      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pTsdb), pBlock->uid,
+                pBlock->tid);
+      terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+      return -1;
+    }
+
+    if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
+      tsdbError("vgId:%d invalid action trying to insert a super table %s", REPO_ID(pTsdb), TABLE_CHAR_NAME(pTable));
+      terrno = TSDB_CODE_TDB_INVALID_ACTION;
+      return -1;
+    }
+
+    // Check schema version and update schema if needed
+    if (tsdbCheckTableSchema(pTsdb, pBlock, pTable) < 0) {
+      if (terrno == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
+        continue;
+      } else {
+        return -1;
+      }
+    }
+
+    tsdbInitSubmitBlkIter(pBlock, &blkIter);
+    while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
+      if (tsdbCheckRowRange(pTsdb, pTable, row, minKey, maxKey, now) < 0) {
+        return -1;
+      }
+    }
+#endif
+  }
+
+  if (terrno != TSDB_CODE_SUCCESS) return -1;
+  return 0;
+}
+
+#if 0
 int tsdbInsertDataToMemTable(STsdbMemTable *pMemTable, SSubmitMsg *pMsg) {
   SMemAllocator *pMA = pMemTable->pMA;
   STbData *      pTbData = (STbData *)TD_MA_MALLOC(pMA, sizeof(*pTbData));
@@ -91,29 +202,11 @@ int tsdbInsertDataToMemTable(STsdbMemTable *pMemTable, SSubmitMsg *pMsg) {
   return 0;
 }
 
-/* ------------------------ STATIC METHODS ------------------------ */
-
-#if 0
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- */
-
 #include "tdataformat.h"
 #include "tfunctional.h"
+#include "tsdbRowMergeBuf.h"
 #include "tsdbint.h"
 #include "tskiplist.h"
-#include "tsdbRowMergeBuf.h"
 
 #define TSDB_DATA_SKIPLIST_LEVEL 5
 #define TSDB_MAX_INSERT_BATCH 512
@@ -149,37 +242,6 @@ static int          tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, 
 static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SMemRow row, TSKEY minKey, TSKEY maxKey,
                                           TSKEY now);
 
-int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp) {
-  STsdbRepo *    pRepo = repo;
-  SSubmitMsgIter msgIter = {0};
-  SSubmitBlk *   pBlock = NULL;
-  int32_t        affectedrows = 0, numOfRows = 0;
-
-  if (tsdbScanAndConvertSubmitMsg(pRepo, pMsg) < 0) {
-    if (terrno != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-      tsdbError("vgId:%d failed to insert data since %s", REPO_ID(pRepo), tstrerror(terrno));
-    }
-    return -1;
-  }
-
-  tsdbInitSubmitMsgIter(pMsg, &msgIter);
-  while (true) {
-    tsdbGetSubmitMsgNext(&msgIter, &pBlock);
-    if (pBlock == NULL) break;
-    if (tsdbInsertDataToTable(pRepo, pBlock, &affectedrows) < 0) {
-      return -1;
-    }
-    numOfRows += pBlock->numOfRows;
-  }
-
-  if (pRsp != NULL) {
-    pRsp->affectedRows = htonl(affectedrows);
-    pRsp->numOfRows = htonl(numOfRows);
-  }
-
-  if (tsdbCheckCommit(pRepo) < 0) return -1;
-  return 0;
-}
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 int tsdbRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
@@ -564,59 +626,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
 }
 
 // ---------------- LOCAL FUNCTIONS ----------------
-static SMemTable* tsdbNewMemTable(STsdbRepo *pRepo) {
-  STsdbMeta *pMeta = pRepo->tsdbMeta;
 
-  SMemTable *pMemTable = (SMemTable *)calloc(1, sizeof(*pMemTable));
-  if (pMemTable == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  pMemTable->keyFirst = INT64_MAX;
-  pMemTable->keyLast = 0;
-  pMemTable->numOfRows = 0;
-
-  pMemTable->maxTables = pMeta->maxTables;
-  pMemTable->tData = (STableData **)calloc(pMemTable->maxTables, sizeof(STableData *));
-  if (pMemTable->tData == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  pMemTable->actList = tdListNew(0);
-  if (pMemTable->actList == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  pMemTable->bufBlockList = tdListNew(sizeof(STsdbBufBlock*));
-  if (pMemTable->bufBlockList == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  T_REF_INC(pMemTable);
-
-  return pMemTable;
-
-_err:
-  tsdbFreeMemTable(pMemTable);
-  return NULL;
-}
-
-static void tsdbFreeMemTable(SMemTable* pMemTable) {
-  if (pMemTable) {
-    ASSERT((pMemTable->bufBlockList == NULL) ? true : (listNEles(pMemTable->bufBlockList) == 0));
-    ASSERT((pMemTable->actList == NULL) ? true : (listNEles(pMemTable->actList) == 0));
-
-    tdListFree(pMemTable->extraBuffList);
-    tdListFree(pMemTable->bufBlockList);
-    tdListFree(pMemTable->actList);
-    tfree(pMemTable->tData);
-    free(pMemTable);
-  }
-}
 
 static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable) {
   STableData *pTableData = (STableData *)calloc(1, sizeof(*pTableData));
@@ -737,74 +747,6 @@ static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SMem
   return 0;
 }
 
-static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
-  ASSERT(pMsg != NULL);
-  STsdbMeta *    pMeta = pRepo->tsdbMeta;
-  SSubmitMsgIter msgIter = {0};
-  SSubmitBlk *   pBlock = NULL;
-  SSubmitBlkIter blkIter = {0};
-  SMemRow        row = NULL;
-  TSKEY          now = taosGetTimestamp(pRepo->config.precision);
-  TSKEY          minKey = now - tsTickPerDay[pRepo->config.precision] * pRepo->config.keep;
-  TSKEY          maxKey = now + tsTickPerDay[pRepo->config.precision] * pRepo->config.daysPerFile;
-  
-  terrno = TSDB_CODE_SUCCESS;
-  pMsg->length = htonl(pMsg->length);
-  pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
-
-  if (tsdbInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
-  while (true) {
-    if (tsdbGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
-    if (pBlock == NULL) break;
-
-    pBlock->uid = htobe64(pBlock->uid);
-    pBlock->tid = htonl(pBlock->tid);
-    pBlock->sversion = htonl(pBlock->sversion);
-    pBlock->dataLen = htonl(pBlock->dataLen);
-    pBlock->schemaLen = htonl(pBlock->schemaLen);
-    pBlock->numOfRows = htons(pBlock->numOfRows);
-
-    if (pBlock->tid <= 0 || pBlock->tid >= pMeta->maxTables) {
-      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
-                pBlock->tid);
-      terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
-      return -1;
-    }
-
-    STable *pTable = pMeta->tables[pBlock->tid];
-    if (pTable == NULL || TABLE_UID(pTable) != pBlock->uid) {
-      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
-                pBlock->tid);
-      terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
-      return -1;
-    }
-
-    if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
-      tsdbError("vgId:%d invalid action trying to insert a super table %s", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable));
-      terrno = TSDB_CODE_TDB_INVALID_ACTION;
-      return -1;
-    }
-
-    // Check schema version and update schema if needed
-    if (tsdbCheckTableSchema(pRepo, pBlock, pTable) < 0) {
-      if (terrno == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-        continue;
-      } else {
-        return -1;
-      }
-    }
-
-    tsdbInitSubmitBlkIter(pBlock, &blkIter);
-    while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
-      if (tsdbCheckRowRange(pRepo, pTable, row, minKey, maxKey, now) < 0) {
-        return -1;
-      }
-    }
-  }
-
-  if (terrno != TSDB_CODE_SUCCESS) return -1;
-  return 0;
-}
 
 //row1 has higher priority
 static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRepo,

@@ -182,6 +182,21 @@ typedef struct SSubmitMsg {
 } SSubmitMsg;
 
 typedef struct {
+  int32_t totalLen;
+  int32_t len;
+  SMemRow row;
+} SSubmitBlkIter;
+
+typedef struct {
+  int32_t totalLen;
+  int32_t len;
+  void*   pMsg;
+} SSubmitMsgIter;
+
+int tsdbInitSubmitMsgIter(SSubmitMsg* pMsg, SSubmitMsgIter* pIter);
+int tsdbGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
+
+typedef struct {
   int32_t index;  // index of failed block in submit blocks
   int32_t vnode;  // vnode index of failed block
   int32_t sid;    // table index of failed block

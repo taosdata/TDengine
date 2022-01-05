@@ -72,7 +72,7 @@ static STsdb *tsdbNew(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorF
   }
 
   pTsdb->path = strdup(path);
-  tsdbOptionsCopy(&(pTsdb->options), pTsdbCfg);
+  tsdbOptionsCopy(&(pTsdb->config), pTsdbCfg);
   pTsdb->pmaf = pMAF;
 
   return pTsdb;

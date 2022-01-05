@@ -17,12 +17,15 @@
 #define _TD_TSDB_DEF_H_
 
 #include "mallocator.h"
-#include "tmsg.h"
-#include "tlist.h"
+#include "tglobal.h"
 #include "thash.h"
+#include "tlist.h"
+#include "tmsg.h"
 #include "tskiplist.h"
+#include "ttime.h"
 
 #include "tsdb.h"
+#include "tsdbLog.h"
 #include "tsdbMemTable.h"
 #include "tsdbOptions.h"
 
@@ -31,12 +34,15 @@ extern "C" {
 #endif
 
 struct STsdb {
+  int32_t               vgId;
   char *                path;
-  STsdbCfg              options;
+  STsdbCfg              config;
   STsdbMemTable *       mem;
   STsdbMemTable *       imem;
   SMemAllocatorFactory *pmaf;
 };
+
+#define REPO_ID(r) (r)->vgId
 
 #ifdef __cplusplus
 }

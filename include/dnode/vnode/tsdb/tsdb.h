@@ -26,10 +26,12 @@ extern "C" {
 typedef struct STsdb STsdb;
 
 typedef struct STsdbCfg {
+  int8_t   precision;
   uint64_t lruCacheSize;
-  uint32_t keep0;
+  uint32_t keep;
   uint32_t keep1;
   uint32_t keep2;
+  int32_t  daysPerFile;
 } STsdbCfg;
 
 // STsdb
