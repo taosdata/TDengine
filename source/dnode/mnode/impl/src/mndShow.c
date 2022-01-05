@@ -22,8 +22,8 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowMsg *pMsg);
 static void      mndFreeShowObj(SShowObj *pShow);
 static SShowObj *mndAcquireShowObj(SMnode *pMnode, int64_t showId);
 static void      mndReleaseShowObj(SShowObj *pShow, bool forceRemove);
-static int32_t   mndProcessShowMsg(SMnodeMsg *pMnodeMsg);
-static int32_t   mndProcessRetrieveMsg(SMnodeMsg *pMsg);
+static int32_t   mndProcessShowReq(SMnodeMsg *pMsg);
+static int32_t   mndProcessRetrieveReq(SMnodeMsg *pMsg);
 static bool      mndCheckRetrieveFinished(SShowObj *pShow);
 
 int32_t mndInitShow(SMnode *pMnode) {
@@ -36,8 +36,8 @@ int32_t mndInitShow(SMnode *pMnode) {
     return -1;
   }
 
-  mndSetMsgHandle(pMnode, TDMT_MND_SHOW, mndProcessShowMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_SHOW_RETRIEVE, mndProcessRetrieveMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_SHOW, mndProcessShowReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_SHOW_RETRIEVE, mndProcessRetrieveReq);
   return 0;
 }
 
@@ -115,7 +115,7 @@ static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
   taosCacheRelease(pMgmt->cache, (void **)(&pShow), forceRemove);
 }
 
-static int32_t mndProcessShowMsg(SMnodeMsg *pMnodeMsg) {
+static int32_t mndProcessShowReq(SMnodeMsg *pMnodeMsg) {
   SMnode    *pMnode = pMnodeMsg->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   SShowMsg  *pMsg = pMnodeMsg->rpcMsg.pCont;
@@ -168,14 +168,14 @@ static int32_t mndProcessShowMsg(SMnodeMsg *pMnodeMsg) {
   }
 }
 
-static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
-  SMnode    *pMnode = pMnodeMsg->pMnode;
+static int32_t mndProcessRetrieveReq(SMnodeMsg *pMsg) {
+  SMnode    *pMnode = pMsg->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   int32_t    rowsToRead = 0;
   int32_t    size = 0;
   int32_t    rowsRead = 0;
 
-  SRetrieveTableMsg *pRetrieve = pMnodeMsg->rpcMsg.pCont;
+  SRetrieveTableMsg *pRetrieve = pMsg->rpcMsg.pCont;
   int64_t            showId = htobe64(pRetrieve->showId);
 
   SShowObj *pShow = mndAcquireShowObj(pMnode, showId);
@@ -227,7 +227,7 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
 
   // if free flag is set, client wants to clean the resources
   if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
-    rowsRead = (*retrieveFp)(pMnodeMsg, pShow, pRsp->data, rowsToRead);
+    rowsRead = (*retrieveFp)(pMsg, pShow, pRsp->data, rowsToRead);
   }
 
   mDebug("show:0x%" PRIx64 ", stop retrieve data, rowsRead:%d rowsToRead:%d", pShow->id, rowsRead, rowsToRead);
@@ -235,8 +235,8 @@ static int32_t mndProcessRetrieveMsg(SMnodeMsg *pMnodeMsg) {
   pRsp->numOfRows = htonl(rowsRead);
   pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision
 
-  pMnodeMsg->pCont = pRsp;
-  pMnodeMsg->contLen = size;
+  pMsg->pCont = pRsp;
+  pMsg->contLen = size;
 
   if (rowsRead == 0 || rowsToRead == 0 || (rowsRead == rowsToRead && pShow->numOfRows == pShow->numOfReads)) {
     pRsp->completed = 1;

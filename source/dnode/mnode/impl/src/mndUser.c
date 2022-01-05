@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "mndUser.h"
 #include "mndShow.h"
-#include "mndSync.h"
 #include "mndTrans.h"
 #include "tkey.h"
 
