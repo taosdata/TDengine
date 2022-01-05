@@ -176,6 +176,7 @@ typedef struct SSubmitBlk {
 // Submit message for this TSDB
 typedef struct SSubmitMsg {
   SMsgHead header;
+  int64_t  version;
   int32_t  length;
   int32_t  numOfBlocks;
   char     blocks[];
