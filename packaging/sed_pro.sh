@@ -60,34 +60,13 @@ function replace_community_pro() {
   sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/deb/taosd
   sed -i "s/taosd/prodbs/g" ${top_dir}/packaging/deb/taosd
   # packaging/tools/install.sh
-  sed -i "s/var\/lib\/taos/var\/lib\/ProDB/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/var\/log\/taos/var\/log\/ProDB/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/etc\/taos/etc\/ProDB/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/taosdata\.com/hanatech\.com\.cn/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/\${bin_link_dir}\/taos /\${bin_link_dir}\/prodbc /g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/\${bin_link_dir}\/taosd /\${bin_link_dir}\/prodbs /g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/\${bin_link_dir}\/rmtaos /\${bin_link_dir}\/rmpro /g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/bin\/taos /bin\/prodbc /g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/bin\/taosd /bin\/prodbs /g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/TDengine/ProDB/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/ taosd / prodbs /g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/\${service_config_dir}\/taosd/\${service_config_dir}\/prodbs/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/init\.d\/taosd/init\.d\/prodbs/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/--quiet taosd/--quiet prodbs/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/cfg\/taosd\.service/cfg\/prodbs\.service/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/taos\.tar\.gz/prodb\.tar\.gz/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/systemctl start taosd/systemctl start prodbs/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/\.\/taosd/\.\/prodbs/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/taos -h/prodbc -h/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/taosd --force-keep-file/prodbs --force-keep-file/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/taos_history/prodb_history/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/\${bin_dir}\/taosd /\${bin_dir}\/prodbs /g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/\${bin_dir}\/taos /\${bin_dir}\/prodbc /g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/systemctl enable taosd/systemctl enable prodbs/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/kill_process taosd/kill_process prodbs/g" ${top_dir}/packaging/tools/install.sh
-  sed -i "s/: taosd/: prodbs/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/clientName=\"taos\"/clientName=\"prodbc\"/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/serverName=\"taosd\"/serverName=\"prodbs\"/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/configFile=\"taos\.cfg\"/configFile=\"prodb\.cfg\"/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/productName=\"TDengine\"/productName=\"ProDB\"/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/emailName=\"taosdata\.com\"/emailName=\"\hanatech\.com\.cn\"/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/uninstallScript=\"rmtaos\"/uninstallScript=\"rmpro\"/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/historyFile=\"taos_history\"/historyFile=\"prodb_history\"/g" ${top_dir}/packaging/tools/install.sh
   # packaging/tools/remove.sh
   sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/\"taosd\"/\"prodbs\"/g" ${top_dir}/packaging/tools/remove.sh
@@ -114,7 +93,6 @@ function replace_community_pro() {
   sed -i "s/taosd=\/etc\/systemd\/system\/taosd\.service/taosd=\/etc\/systemd\/system\/prodbs.service/g" ${top_dir}/packaging/tools/startPre.sh
   sed -i "s/startSeqFile=\/var\/log\/taos\/\.startSeq/startSeqFile=\/var\/log\/ProDB\/\.startSeq/g" ${top_dir}/packaging/tools/startPre.sh
   sed -i "s/recordFile=\/var\/log\/taos\/\.startRecord/recordFile=\/var\/log\/ProDB\/\.startRecord/g" ${top_dir}/packaging/tools/startPre.sh
-
 
 }
 

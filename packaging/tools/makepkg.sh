@@ -29,37 +29,37 @@ if [ $dbName == "power" ]; then
   productName="PowerDB"
   serverName="powerd"
   clientName="power"
-  cfgDirName="power.cfg"
+  configDir="power.cfg"
   tarName="power.tar.gz"
 elif [ $dbName == "tq" ]; then
   productName="TQ"
   serverName="tqd"
   clientName="tq"
-  cfgDirName="tq.cfg"
+  configDir="tq.cfg"
   tarName="tq.tar.gz"
 elif [ $dbName == "pro" ]; then
   productName="ProDB"
   serverName="prodbs"
   clientName="prodbc"
-  cfgDirName="prodb.cfg"
+  configDir="prodb.cfg"
   tarName="prodb.tar.gz"
 elif [ $dbName == "kh" ]; then
   productName="KingHistorian"
   serverName="khserver"
   clientName="khclient"
-  cfgDirName="kinghistorian.cfg"
+  configDir="kinghistorian.cfg"
   tarName="kinghistorian.tar.gz"
 elif [ $dbName == "jh" ]; then
   productName="jh_iot"
   serverName="jh_taosd"
   clientName="jh_taos"
-  cfgDirName="jh_taos.cfg"
+  configDir="jh_taos.cfg"
   tarName="jh_taos.tar.gz"
 else
   productName="TDengine"
   serverName="taosd"
   clientName="taos"
-  cfgDirName="taos.cfg"
+  configDir="taos.cfg"
   tarName="taos.tar.gz"
 fi
 
@@ -123,7 +123,7 @@ init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${cfgDirName} ${install_dir}/cfg/${cfgDirName}
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configDir} ${install_dir}/cfg/${configDir}
 
 if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
   cp ${compile_dir}/test/cfg/taosadapter.toml ${install_dir}/cfg || :
