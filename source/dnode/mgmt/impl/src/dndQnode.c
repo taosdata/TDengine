@@ -306,14 +306,16 @@ static void dndProcessQnodeQueue(SDnode *pDnode, SRpcMsg *pMsg) {
   }
   dndReleaseQnode(pDnode, pQnode);
 
-  if (pRsp != NULL) {
-    pRsp->ahandle = pMsg->ahandle;
-    rpcSendResponse(pRsp);
-    free(pRsp);
-  } else {
-    if (code != 0) code = terrno;
-    SRpcMsg rpcRsp = {.handle = pMsg->handle, .ahandle = pMsg->ahandle, .code = code};
-    rpcSendResponse(&rpcRsp);
+  if (pMsg->msgType & 1u) {
+    if (pRsp != NULL) {
+      pRsp->ahandle = pMsg->ahandle;
+      rpcSendResponse(pRsp);
+      free(pRsp);
+    } else {
+      if (code != 0) code = terrno;
+      SRpcMsg rpcRsp = {.handle = pMsg->handle, .ahandle = pMsg->ahandle, .code = code};
+      rpcSendResponse(&rpcRsp);
+    }
   }
 
   rpcFreeCont(pMsg->pCont);
