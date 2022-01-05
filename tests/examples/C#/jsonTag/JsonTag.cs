@@ -1,9 +1,25 @@
 using System;
-using Test.UtilsTools;
+using Utils;
 
 namespace Cases
 {
-    public class JsonTagTest
+
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            IntPtr conn = IntPtr.Zero;
+            Console.WriteLine("===================JsonTagTest====================");
+            conn = conn = UtilsTools.TDConnection("127.0.0.1", "root", "taosdata", "", 0);
+            UtilsTools.ExecuteUpdate(conn, "create database if not exists csharp_sample keep 3650");
+            UtilsTools.ExecuteUpdate(conn, "use csharp");
+            JsonTagSample jsonTagSample = new JsonTagSample();
+            jsonTagSample.Test(conn);
+        }
+
+    }
+    
+    public class JsonTagSample
     {
         public void Test(IntPtr conn)
         {

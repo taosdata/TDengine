@@ -6,6 +6,11 @@ namespace TDengineDriver.Test
 {
     public class TestTDengineMeta
     {
+        /// <author>xiaolei</author>
+        /// <Name>TestTDengineMeta.TestTypeNameBool</Name>
+        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's bool meta info</describe>
+        /// <filename>TestTDengineMeta.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestTypeNameBool()
         {
@@ -17,7 +22,11 @@ namespace TDengineDriver.Test
             Assert.Equal(metaTypeName, typeName);
 
         }
-
+        /// <author>xiaolei</author>
+        /// <Name>TestTDengineMeta.TestTypeNameTINYINT</Name>
+        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's TinnyInt's meta info</describe>
+        /// <filename>TestTDengineMeta.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestTypeNameTINYINT()
         {
@@ -29,6 +38,11 @@ namespace TDengineDriver.Test
             Assert.Equal(metaTypeName, typeName);
 
         }
+        /// <author>xiaolei</author>
+        /// <Name>TestTDengineMeta.TestTypeNameSMALLINT</Name>
+        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's SMALLINT's meta info</describe>
+        /// <filename>TestTDengineMeta.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestTypeNameSMALLINT()
         {
@@ -40,6 +54,11 @@ namespace TDengineDriver.Test
             Assert.Equal(metaTypeName, typeName);
 
         }
+        /// <author>xiaolei</author>
+        /// <Name>TestTDengineMeta.TestTypeNameINT</Name>
+        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's INT's meta info</describe>
+        /// <filename>TestTDengineMeta.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestTypeNameINT()
         {
@@ -51,6 +70,11 @@ namespace TDengineDriver.Test
             Assert.Equal(metaTypeName, typeName);
 
         }
+        /// <author>xiaolei</author>
+        /// <Name>TestTDengineMeta.TestTypeNameBIGINT</Name>
+        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's BIGINT's meta info</describe>
+        /// <filename>TestTDengineMeta.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestTypeNameBIGINT()
         {
@@ -62,6 +86,11 @@ namespace TDengineDriver.Test
             Assert.Equal(metaTypeName, typeName);
 
         }
+        /// <author>xiaolei</author>
+        /// <Name>TestTDengineMeta.TestTypeNameUTINYINT</Name>
+        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's TINYINT UNSIGNED's meta info</describe>
+        /// <filename>TestTDengineMeta.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestTypeNameUTINYINT()
         {
@@ -73,6 +102,11 @@ namespace TDengineDriver.Test
             Assert.Equal(metaTypeName, typeName);
 
         }
+        /// <author>xiaolei</author>
+        /// <Name>TestTDengineMeta.TestTypeNameUSMALLINT</Name>
+        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's SMALLINT UNSIGNED's meta info</describe>
+        /// <filename>TestTDengineMeta.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestTypeNameUSMALLINT()
         {
@@ -84,6 +118,11 @@ namespace TDengineDriver.Test
             Assert.Equal(metaTypeName, typeName);
 
         }
+        /// <author>xiaolei</author>
+        /// <Name>TestTDengineMeta.TestTypeNameUINT</Name>
+        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's INT UNSIGNED's meta info</describe>
+        /// <filename>TestTDengineMeta.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestTypeNameUINT()
         {
@@ -95,6 +134,11 @@ namespace TDengineDriver.Test
             Assert.Equal(metaTypeName, typeName);
 
         }
+        /// <author>xiaolei</author>
+        /// <Name>TestTDengineMeta.TestTypeNameUBIGINT</Name>
+        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's BIGINT UNSIGNED's meta info</describe>
+        /// <filename>TestTDengineMeta.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestTypeNameUBIGINT()
         {
@@ -106,7 +150,11 @@ namespace TDengineDriver.Test
             Assert.Equal(metaTypeName, typeName);
 
         }
-
+        /// <author>xiaolei</author>
+        /// <Name>TestTDengineMeta.TestTypeNameFLOAT</Name>
+        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's FLOAT's meta info</describe>
+        /// <filename>TestTDengineMeta.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestTypeNameFLOAT()
         {
@@ -118,6 +166,11 @@ namespace TDengineDriver.Test
             Assert.Equal(metaTypeName, typeName);
 
         }
+        /// <author>xiaolei</author>
+        /// <Name>TestTDengineMeta.TestTypeNameDOUBLE</Name>
+        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's DOUBLE's meta info</describe>
+        /// <filename>TestTDengineMeta.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestTypeNameDOUBLE()
         {
@@ -129,10 +182,15 @@ namespace TDengineDriver.Test
             Assert.Equal(metaTypeName, typeName);
 
         }
+        /// <author>xiaolei</author>
+        /// <Name>TestTDengineMeta.TestTypeNameSTRING</Name>
+        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's BINARY's meta info</describe>
+        /// <filename>TestTDengineMeta.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestTypeNameSTRING()
         {
-            string typeName = "STRING";
+            string typeName = "BINARY";
             TDengineDriver.TDengineMeta meta = new TDengineDriver.TDengineMeta();
             meta.type = 8;
             string metaTypeName = meta.TypeName();
@@ -140,6 +198,11 @@ namespace TDengineDriver.Test
             Assert.Equal(metaTypeName, typeName);
 
         }
+        /// <author>xiaolei</author>
+        /// <Name>TestTDengineMeta.TestTypeNameTIMESTAMP</Name>
+        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's TIMESTAMP's meta info</describe>
+        /// <filename>TestTDengineMeta.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestTypeNameTIMESTAMP()
         {
@@ -151,6 +214,11 @@ namespace TDengineDriver.Test
             Assert.Equal(metaTypeName, typeName);
 
         }
+        /// <author>xiaolei</author>
+        /// <Name>TestTDengineMeta.TestTypeNameNCHAR</Name>
+        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's NCHAR's meta info</describe>
+        /// <filename>TestTDengineMeta.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestTypeNameNCHAR()
         {
@@ -162,6 +230,11 @@ namespace TDengineDriver.Test
             Assert.Equal(metaTypeName, typeName);
 
         }
+        /// <author>xiaolei</author>
+        /// <Name>TestTDengineMeta.TestTypeNameUndefined</Name>
+        /// <describe>Unit test for oject TDengineDriver.TDengineMeta's undefine's meta info</describe>
+        /// <filename>TestTDengineMeta.cs</filename>
+        /// <result>pass or failed </result>
         [Fact]
         public void TestTypeNameUndefined()
         {
