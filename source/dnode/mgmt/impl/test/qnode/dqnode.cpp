@@ -25,7 +25,7 @@ class DndTestQnode : public ::testing::Test {
 
 Testbase DndTestQnode::test;
 
-TEST_F(DndTestQnode, 01_Create_Qnode_Invalid) {
+TEST_F(DndTestQnode, 01_Create_Qnode) {
   {
     int32_t contLen = sizeof(SDCreateQnodeReq);
 
@@ -70,5 +70,64 @@ TEST_F(DndTestQnode, 01_Create_Qnode_Invalid) {
     SRpcMsg* pMsg = test.SendMsg(TDMT_DND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, TSDB_CODE_DND_QNODE_ALREADY_DEPLOYED);
+  }
+}
+
+TEST_F(DndTestQnode, 01_Drop_Qnode) {
+  {
+    int32_t contLen = sizeof(SDDropQnodeReq);
+
+    SDDropQnodeReq* pReq = (SDDropQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_DND_DROP_QNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_DND_QNODE_ID_INVALID);
+  }
+
+  {
+    int32_t contLen = sizeof(SDDropQnodeReq);
+
+    SDDropQnodeReq* pReq = (SDDropQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(1);
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_DND_DROP_QNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
+  }
+
+  {
+    int32_t contLen = sizeof(SDDropQnodeReq);
+
+    SDDropQnodeReq* pReq = (SDDropQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(1);
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_DND_DROP_QNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_DND_QNODE_NOT_DEPLOYED);
+  }
+
+  test.Restart();
+
+  {
+    int32_t contLen = sizeof(SDDropQnodeReq);
+
+    SDDropQnodeReq* pReq = (SDDropQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(1);
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_DND_DROP_QNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_DND_QNODE_NOT_DEPLOYED);
+  }
+
+  {
+    int32_t contLen = sizeof(SDCreateQnodeReq);
+
+    SDCreateQnodeReq* pReq = (SDCreateQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(1);
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_DND_CREATE_QNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, 0);
   }
 }
