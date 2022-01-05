@@ -3980,11 +3980,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       pSql->pSubs[i] = pNew;
 
       SSqlCmd* pCmd = &pNew->cmd;
-      if (pSub->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
-        pCmd->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
-      } else {
-        pCmd->command = TSDB_SQL_SELECT;
-      }
+      pCmd->command = TSDB_SQL_SELECT;
       if ((code = tscAddQueryInfo(pCmd)) != TSDB_CODE_SUCCESS) {
         goto _error;
       }
@@ -4002,6 +3998,11 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
 
       // create sub query to handle the sub query.
       SQueryInfo* pq = tscGetQueryInfo(&psub->cmd);
+      STableMetaInfo* pSubMeta = tscGetMetaInfo(pq, 0);
+      if (UTIL_TABLE_IS_SUPER_TABLE(pSubMeta) &&
+          pq->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+        psub->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+      }
       executeQuery(psub, pq);
     }
 
