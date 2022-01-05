@@ -2668,6 +2668,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg14 = "third parameter algorithm must be 'default' or 't-digest'";
   const char* msg15 = "parameter is out of range [1, 1000]";
   const char* msg16 = "elapsed duration should be greater than or equal to database precision";
+  const char* msg17 = "elapsed/twa should not be used in nested query if inner query has group by clause";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -2727,7 +2728,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       memset(pExpr->base.aliasName, 0, tListLen(pExpr->base.aliasName));
       getColumnName(pItem, pExpr->base.aliasName, pExpr->base.token,sizeof(pExpr->base.aliasName) - 1);
-      
+
       SColumnList list = createColumnList(1, index.tableIndex, index.columnIndex);
       if (finalResult) {
         int32_t numOfOutput = tscNumOfFields(pQueryInfo);
@@ -2792,6 +2793,17 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         }
       }
 
+      //for timeline related aggregation function like elapsed and twa, groupby in subquery is not allowed
+      //as calculation result is meaningless by mixing different childtables(timelines) results.
+      if ((functionId == TSDB_FUNC_ELAPSED || functionId == TSDB_FUNC_TWA) && pQueryInfo->pUpstream != NULL) {
+        size_t numOfUpstreams = taosArrayGetSize(pQueryInfo->pUpstream);
+        for (int32_t i = 0; i < numOfUpstreams; ++i) {
+          SQueryInfo* pSub = taosArrayGetP(pQueryInfo->pUpstream, i);
+          if (pSub->groupbyExpr.numOfGroupCols > 0) {
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg17);
+          }
+        }
+      }
 
       STableComInfo info = tscGetTableInfo(pTableMetaInfo->pTableMeta);
 
