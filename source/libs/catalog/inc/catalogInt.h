@@ -64,6 +64,14 @@ typedef struct SCatalogMgmt {
 
 typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 
+#define CTG_IS_STABLE(isSTable) (1 == (isSTable))
+#define CTG_IS_NOT_STABLE(isSTable) (0 == (isSTable))
+#define CTG_IS_UNKNOWN_STABLE(isSTable) ((isSTable) < 0)
+#define CTG_SET_STABLE(isSTable, tbType) do { (isSTable) = ((tbType) == TSDB_SUPER_TABLE) ? 1 : ((tbType) > TSDB_SUPER_TABLE ? 0 : -1); } while (0)
+#define CTG_TBTYPE_MATCH(isSTable, tbType) (CTG_IS_UNKNOWN_STABLE(isSTable) || (CTG_IS_STABLE(isSTable) && (tbType) == TSDB_SUPER_TABLE) || (CTG_IS_NOT_STABLE(isSTable) && (tbType) != TSDB_SUPER_TABLE))
+
+#define CTG_TABLE_NOT_EXIST(code) (code == TSDB_CODE_TDB_INVALID_TABLE_ID) 
+
 #define ctgFatal(...)  do { if (ctgDebugFlag & DEBUG_FATAL) { taosPrintLog("CTG FATAL ", ctgDebugFlag, __VA_ARGS__); }} while(0)
 #define ctgError(...)  do { if (ctgDebugFlag & DEBUG_ERROR) { taosPrintLog("CTG ERROR ", ctgDebugFlag, __VA_ARGS__); }} while(0)
 #define ctgWarn(...)   do { if (ctgDebugFlag & DEBUG_WARN)  { taosPrintLog("CTG WARN ", ctgDebugFlag, __VA_ARGS__); }}  while(0)
