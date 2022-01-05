@@ -401,7 +401,7 @@ int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
 
   IndexCache*  pCache = (IndexCache*)cache;
   TFileReader* pReader = tfileGetReaderByCol(sIdx->tindex, pCache->suid, pCache->colName);
-  if (pReader == NULL) { indexWarn("empty pReader found"); }
+  if (pReader == NULL) { indexWarn("empty tfile reader found"); }
   // handle flush
   Iterate* cacheIter = indexCacheIteratorCreate(pCache);
   Iterate* tfileIter = tfileIteratorCreate(pReader);
@@ -512,6 +512,7 @@ static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   return ret;
 END:
   tfileWriterClose(tw);
+  return -1;
 }
 
 int32_t indexSerialCacheKey(ICacheKey* key, char* buf) {
