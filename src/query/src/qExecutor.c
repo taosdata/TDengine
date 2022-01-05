@@ -4923,6 +4923,7 @@ static void doTableQueryInfoTimeWindowCheck(SQueryAttr* pQueryAttr, STableQueryI
   }
 }
 
+
 STsdbQueryCond createTsdbQueryCond(SQueryAttr* pQueryAttr, STimeWindow* win) {
   STsdbQueryCond cond = {
       .colList   = pQueryAttr->tableCols,
@@ -4931,6 +4932,12 @@ STsdbQueryCond createTsdbQueryCond(SQueryAttr* pQueryAttr, STimeWindow* win) {
       .type      = BLOCK_LOAD_OFFSET_SEQ_ORDER,
       .loadExternalRows = false,
   };
+
+  // set offset with
+  if(pQueryAttr->skipOffset) {
+     cond.offset = pQueryAttr->limit.offset;
+  }
+
 
   TIME_WINDOW_COPY(cond.twindow, *win);
   return cond;
@@ -5614,6 +5621,18 @@ static int32_t getTableScanOrder(STableScanInfo* pTableScanInfo) {
   return pTableScanInfo->order;
 }
 
+// check all SQLFunctionCtx is completed
+static bool allCtxCompleted(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx) {
+  // only one false, return false
+  for(int32_t i = 0; i < pOperator->numOfOutput; i++) {
+    if(pCtx[i].resultInfo == NULL)
+      return false;
+    if(!pCtx[i].resultInfo->complete)
+      return false;
+  }
+  return true;
+}
+
 // this is a blocking operator
 static SSDataBlock* doAggregate(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
@@ -5652,6 +5671,9 @@ static SSDataBlock* doAggregate(void* param, bool* newgroup) {
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
     doAggregateImpl(pOperator, pQueryAttr->window.skey, pInfo->pCtx, pBlock);
+    // if all pCtx is completed, then query should be over
+    if(allCtxCompleted(pOperator, pInfo->pCtx))
+      break;
   }
 
   doSetOperatorCompleted(pOperator);
@@ -5857,19 +5879,38 @@ static SSDataBlock* doLimit(void* param, bool* newgroup) {
       return NULL;
     }
 
+    bool move = false;
+    int32_t skip = 0;
+    int32_t remain = 0;
+    int64_t srows  = tsdbSkipOffset(pRuntimeEnv->pQueryHandle);
+    
     if (pRuntimeEnv->currentOffset == 0) {
       break;
+    }
+    else if(srows > 0) {
+      if(pRuntimeEnv->currentOffset - srows >= pBlock->info.rows) {
+        pRuntimeEnv->currentOffset -= pBlock->info.rows;
+      } else {
+        move   = true;
+        skip   = (int32_t)(pRuntimeEnv->currentOffset - srows);
+        remain = (int32_t)(pBlock->info.rows - skip);
+      }
     } else if (pRuntimeEnv->currentOffset >= pBlock->info.rows) {
       pRuntimeEnv->currentOffset -= pBlock->info.rows;
     } else {
-      int32_t remain = (int32_t)(pBlock->info.rows - pRuntimeEnv->currentOffset);
+      move   = true;
+      skip   = (int32_t)pRuntimeEnv->currentOffset;
+      remain = (int32_t)(pBlock->info.rows - pRuntimeEnv->currentOffset);
+    }
+    
+    // need move
+    if(move) {
       pBlock->info.rows = remain;
-
       for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
         SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
         int16_t bytes = pColInfoData->info.bytes;
-        memmove(pColInfoData->pData, pColInfoData->pData + bytes * pRuntimeEnv->currentOffset, remain * bytes);
+        memmove(pColInfoData->pData, pColInfoData->pData + skip * bytes, remain * bytes);
       }
 
       pRuntimeEnv->currentOffset = 0;
@@ -8494,6 +8535,19 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   int32_t ret = createFilterInfo(pQueryAttr, pQInfo->qId);
   if (ret != TSDB_CODE_SUCCESS) {
     goto _cleanup;
+  }
+
+  // calc skipOffset 
+  if(pQueryMsg->offset > 0 && TSDB_QUERY_HAS_TYPE(pQueryMsg->queryType, TSDB_QUERY_TYPE_PROJECTION_QUERY)
+                           && pQueryAttr->stableQuery == false) {
+     pQueryAttr->skipOffset = true;
+     for (int32_t i = 0; i < pQueryAttr->numOfCols; ++i) {
+       if (pQueryAttr->tableCols[i].flist.numOfFilters > 0 
+        && pQueryAttr->tableCols[i].colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+         pQueryAttr->skipOffset = false;  
+         break;    
+       }
+     }
   }
 
   if (pSecExprs != NULL) {
