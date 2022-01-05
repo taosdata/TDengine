@@ -1,6 +1,8 @@
 enable_testing()
 
 add_subdirectory(qnode)
+add_subdirectory(bnode)
+add_subdirectory(snode)
 
 # add_subdirectory(auth)
 # add_subdirectory(balance)
