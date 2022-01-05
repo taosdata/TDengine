@@ -496,10 +496,15 @@ static int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
 }
 
 static void mndTransSendRpcRsp(STrans *pTrans) {
-  if (pTrans->rpcHandle != NULL) {
-    mDebug("trans:%d, send rsp, ahandle:%p code:0x%x", pTrans->id, pTrans->rpcAHandle, pTrans->code & 0xFFFF);
-    SRpcMsg rspMsg = {.handle = pTrans->rpcHandle, .code = pTrans->code, .ahandle = pTrans->rpcAHandle};
-    rpcSendResponse(&rspMsg);
+  if (pTrans->stage == TRN_STAGE_FINISHED || pTrans->stage == TRN_STAGE_UNDO_LOG ||
+      pTrans->stage == TRN_STAGE_UNDO_ACTION || pTrans->stage == TRN_STAGE_ROLLBACK) {
+    if (pTrans->rpcHandle != NULL) {
+      mDebug("trans:%d, send rsp, code:0x%x stage:%d app:%p", pTrans->id, pTrans->code & 0xFFFF, pTrans->stage,
+             pTrans->rpcAHandle);
+      SRpcMsg rspMsg = {.handle = pTrans->rpcHandle, .code = pTrans->code, .ahandle = pTrans->rpcAHandle};
+      rpcSendResponse(&rspMsg);
+      pTrans->rpcHandle = NULL;
+    }
   }
 }
 
@@ -764,7 +769,6 @@ static bool mndTransPerformCommitLogStage(SMnode *pMnode, STrans *pTrans) {
     pTrans->failedTimes++;
     mError("trans:%d, stage keep on commitLog since %s", pTrans->id, terrstr());
     continueExec = false;
-    ;
   }
 
   return continueExec;
@@ -791,7 +795,7 @@ static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
   int32_t code = mndTransExecuteUndoActions(pMnode, pTrans);
 
   if (code == 0) {
-    pTrans->stage = TRN_STAGE_REDO_LOG;
+    pTrans->stage = TRN_STAGE_UNDO_LOG;
     mDebug("trans:%d, stage from undoAction to undoLog", pTrans->id);
     continueExec = true;
   } else if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
@@ -814,7 +818,6 @@ static bool mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans) {
     pTrans->stage = TRN_STAGE_FINISHED;
     mDebug("trans:%d, stage from rollback to finished", pTrans->id);
     continueExec = true;
-    ;
   } else {
     pTrans->failedTimes++;
     mError("trans:%d, stage keep on rollback since %s", pTrans->id, terrstr());
@@ -880,9 +883,7 @@ static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
     }
   }
 
-  if (pTrans->stage == TRN_STAGE_FINISHED) {
-    mndTransSendRpcRsp(pTrans);
-  }
+  mndTransSendRpcRsp(pTrans);
 }
 
 static int32_t mndProcessTransMsg(SMnodeMsg *pMsg) {
