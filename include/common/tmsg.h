@@ -506,7 +506,7 @@ typedef struct {
     int64_t qId;
   };  // query handle
   int8_t free;
-} SRetrieveTableMsg;
+} SRetrieveTableReq;
 
 typedef struct SRetrieveTableRsp {
   int64_t useconds;
@@ -808,7 +808,7 @@ typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int16_t payloadLen;
   char    payload[];
-} SShowMsg;
+} SShowReq;
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];

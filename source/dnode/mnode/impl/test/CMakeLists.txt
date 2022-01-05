@@ -6,4 +6,4 @@ add_subdirectory(trans)
 add_subdirectory(qnode)
 add_subdirectory(snode)
 add_subdirectory(bnode)
-
+add_subdirectory(show)

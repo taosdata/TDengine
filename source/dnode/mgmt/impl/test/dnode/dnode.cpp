@@ -51,7 +51,7 @@ TestServer DndTestDnode::server4;
 TestServer DndTestDnode::server5;
 
 TEST_F(DndTestDnode, 01_ShowDnode) {
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
   CHECK_META("show dnodes", 7);
 
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_SMALLINT, 2, "id");
@@ -62,7 +62,7 @@ TEST_F(DndTestDnode, 01_ShowDnode) {
   CHECK_SCHEMA(5, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
   CHECK_SCHEMA(6, TSDB_DATA_TYPE_BINARY, 24 + VARSTR_HEADER_SIZE, "offline_reason");
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
 
   CheckInt16(1);
@@ -81,9 +81,9 @@ TEST_F(DndTestDnode, 02_ConfigDnode) {
   pReq->dnodeId = htonl(1);
   strcpy(pReq->config, "ddebugflag 131");
 
-  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CONFIG_DNODE, pReq, contLen);
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
+  SRpcMsg* pRsp = test.SendReq(TDMT_MND_CONFIG_DNODE, pReq, contLen);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(pRsp->code, 0);
 }
 
 TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
@@ -94,16 +94,16 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
     strcpy(pReq->fqdn, "localhost");
     pReq->port = htonl(9042);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
   taosMsleep(1300);
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
   CHECK_META("show dnodes", 7);
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 2);
 
   CheckInt16(1);
@@ -127,14 +127,14 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
     SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_DNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
   CHECK_META("show dnodes", 7);
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
 
   CheckInt16(1);
@@ -152,9 +152,9 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
     strcpy(pReq->fqdn, "localhost");
     pReq->port = htonl(9043);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
   {
@@ -164,9 +164,9 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
     strcpy(pReq->fqdn, "localhost");
     pReq->port = htonl(9044);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
   {
@@ -176,15 +176,15 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
     strcpy(pReq->fqdn, "localhost");
     pReq->port = htonl(9045);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
   taosMsleep(1300);
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
   CHECK_META("show dnodes", 7);
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 4);
 
   CheckInt16(1);
@@ -225,9 +225,9 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   server5.Restart();
 
   taosMsleep(1300);
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
   CHECK_META("show dnodes", 7);
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 4);
 
   CheckInt16(1);

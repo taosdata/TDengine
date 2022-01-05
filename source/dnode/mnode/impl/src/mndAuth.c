@@ -14,7 +14,6 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
 #include "mndAuth.h"
 
 int32_t mndInitAuth(SMnode *pMnode) { return 0; }
