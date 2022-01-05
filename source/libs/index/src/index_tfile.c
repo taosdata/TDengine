@@ -61,9 +61,6 @@ TFileCache* tfileCacheCreate(const char* path) {
   tcache->capacity = 64;
 
   SArray* files = tfileGetFileList(path);
-
-  uint64_t suid;
-  int32_t  colId, version;
   for (size_t i = 0; i < taosArrayGetSize(files); i++) {
     char* file = taosArrayGetP(files, i);
 
@@ -76,10 +73,9 @@ TFileCache* tfileCacheCreate(const char* path) {
     TFileReader* reader = tfileReaderCreate(wc);
     if (reader == NULL) { goto End; }
     TFileHeader* header = &reader->header;
+    ICacheKey    key = {.suid = header->suid, .colName = header->colName, .nColName = strlen(header->colName)};
 
-    char      buf[128] = {0};
-    ICacheKey key = {.suid = header->suid, .colName = header->colName, .nColName = strlen(header->colName)};
-
+    char    buf[128] = {0};
     int32_t sz = indexSerialCacheKey(&key, buf);
     assert(sz < sizeof(buf));
     taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
@@ -212,24 +208,13 @@ TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const c
   tfileGenFileFullName(fullname, path, suid, colName, version);
 
   WriterCtx* wc = writerCtxCreate(TFile, fullname, true, 1024 * 1024 * 1024);
-  // indexInfo("open read file name:%s, size: %d", wc->file.buf, wc->file.size);
+  indexInfo("open read file name:%s, size: %d", wc->file.buf, wc->file.size);
   if (wc == NULL) { return NULL; }
 
   TFileReader* reader = tfileReaderCreate(wc);
   return reader;
 }
 TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header) {
-  // char pathBuf[128] = {0};
-  // sprintf(pathBuf, "%s/% " PRIu64 "-%d-%d.tindex", path, suid, colId, version);
-  // TFileHeader header = {.suid = suid, .version = version, .colName = {0}, colType = colType};
-  // memcpy(header.colName, );
-
-  // char buf[TFILE_HADER_PRE_SIZE];
-  // int  len = TFILE_HADER_PRE_SIZE;
-  // if (len != ctx->write(ctx, buf, len)) {
-  //  indexError("index: %" PRIu64 " failed to write header info", header->suid);
-  //  return NULL;
-  //}
   TFileWriter* tw = calloc(1, sizeof(TFileWriter));
   if (tw == NULL) {
     indexError("index: %" PRIu64 " failed to alloc TFilerWriter", header->suid);
@@ -278,34 +263,14 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     // check buf has enough space or not
     int32_t ttsz = TF_TABLE_TATOAL_SIZE(tbsz);
 
-    // if (offset + ttsz >= bufLimit) {
-    //  // batch write
-    //  indexInfo("offset: %d, ttsz: %d", offset, ttsz);
-    //  // std::cout << "offset: " << offset << std::endl;
-    //  // std::cout << "ttsz:" << ttsz < < < std::endl;
-    //  tw->ctx->write(tw->ctx, buf, offset);
-    //  offset = 0;
-    //  memset(buf, 0, bufLimit);
-    //  p = buf;
-    //}
-    // if (ttsz >= bufLimit) {
-    //}
     char* buf = calloc(1, ttsz * sizeof(char));
     char* p = buf;
     tfileSerialTableIdsToBuf(p, v->tableId);
     tw->ctx->write(tw->ctx, buf, ttsz);
-    // offset += ttsz;
-    // p = buf + offset;
-    // set up value offset
     v->offset = tw->offset;
     tw->offset += ttsz;
     free(buf);
   }
-  // if (offset != 0) {
-  // write reversed data in buf to tindex
-  // tw->ctx->write(tw->ctx, buf, offset);
-  //}
-  // tfree(buf);
 
   tw->fb = fstBuilderCreate(tw->ctx, 0);
   if (tw->fb == NULL) {
@@ -643,15 +608,9 @@ static void tfileDestroyFileName(void* elem) {
   free(p);
 }
 static int tfileCompare(const void* a, const void* b) {
-  const char* aName = *(char**)a;
-  const char* bName = *(char**)b;
-
-  size_t aLen = strlen(aName);
-  size_t bLen = strlen(bName);
-
-  int ret = strncmp(aName, bName, aLen > bLen ? aLen : bLen);
-  if (ret == 0) { return ret; }
-  return ret < 0 ? -1 : 1;
+  const char* as = *(char**)a;
+  const char* bs = *(char**)b;
+  return strcmp(as, bs);
 }
 
 static int tfileParseFileName(const char* filename, uint64_t* suid, char* col, int* version) {
