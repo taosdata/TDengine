@@ -52,7 +52,6 @@ static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
 static void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
 static void    mndTransSendRpcRsp(STrans *pTrans);
 static int32_t mndProcessTransMsg(SMnodeMsg *pMsg);
-static int32_t mndProcessTransRsp(SMnodeMsg *pMsg);
 
 int32_t mndInitTrans(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_TRANS,
@@ -64,7 +63,6 @@ int32_t mndInitTrans(SMnode *pMnode) {
                      .deleteFp = (SdbDeleteFp)mndTransActionDelete};
 
   mndSetMsgHandle(pMnode, TDMT_MND_TRANS, mndProcessTransMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_TRANS_RSP, mndProcessTransRsp);
   return sdbSetTable(pMnode->pSdb, table);
 }
 
@@ -615,12 +613,15 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
     }
     memcpy(rpcMsg.pCont, pAction->pCont, pAction->contLen);
 
-    pAction->msgSent = 1;
-    pAction->msgReceived = 0;
-    pAction->errCode = 0;
-
-    mDebug("trans:%d, action:%d is sent", pTrans->id, action);
-    mndSendMsgToDnode(pMnode, &pAction->epSet, &rpcMsg);
+    if (mndSendReqToDnode(pMnode, &pAction->epSet, &rpcMsg) == 0) {
+      mDebug("trans:%d, action:%d is sent", pTrans->id, action);
+      pAction->msgSent = 1;
+      pAction->msgReceived = 0;
+      pAction->errCode = 0;
+    } else {
+      mDebug("trans:%d, action:%d not sent since %s", pTrans->id, action, terrstr());
+      return -1;
+    }
   }
 
   return 0;
@@ -885,7 +886,11 @@ static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
 }
 
 static int32_t mndProcessTransMsg(SMnodeMsg *pMsg) {
-  SMnode *pMnode = pMsg->pMnode;
+  mndTransPullup(pMsg->pMnode);
+  return 0;
+}
+
+void mndTransPullup(SMnode *pMnode) {
   STrans *pTrans = NULL;
   void   *pIter = NULL;
 
@@ -897,5 +902,3 @@ static int32_t mndProcessTransMsg(SMnodeMsg *pMsg) {
     sdbRelease(pMnode->pSdb, pTrans);
   }
 }
-
-static int32_t mndProcessTransRsp(SMnodeMsg *pMsg) { return 0; }

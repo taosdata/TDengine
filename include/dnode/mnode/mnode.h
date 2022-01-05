@@ -24,9 +24,10 @@ extern "C" {
 typedef struct SDnode    SDnode;
 typedef struct SMnode    SMnode;
 typedef struct SMnodeMsg SMnodeMsg;
-typedef void (*SendMsgToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-typedef void (*SendMsgToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
-typedef void (*SendRedirectMsgFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
+typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
+typedef int32_t (*SendReqToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
+typedef int32_t (*PutReqToMWriteQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
+typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 
 typedef struct SMnodeLoad {
   int64_t numOfDnode;
@@ -62,9 +63,10 @@ typedef struct {
   SReplica          replicas[TSDB_MAX_REPLICA];
   SMnodeCfg         cfg;
   SDnode           *pDnode;
-  SendMsgToDnodeFp  sendMsgToDnodeFp;
-  SendMsgToMnodeFp  sendMsgToMnodeFp;
-  SendRedirectMsgFp sendRedirectMsgFp;
+  PutReqToMWriteQFp putReqToMWriteQFp;
+  SendReqToDnodeFp  sendReqToDnodeFp;
+  SendReqToMnodeFp  sendReqToMnodeFp;
+  SendRedirectRspFp sendRedirectRspFp;
 } SMnodeOpt;
 
 /* ------------------------ SMnode ------------------------ */

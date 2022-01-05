@@ -557,7 +557,7 @@ static int32_t mndProcessConfigDnodeMsg(SMnodeMsg *pMsg) {
                     .ahandle = pMsg->rpcMsg.ahandle};
 
   mInfo("dnode:%d, app:%p config:%s req send to dnode", pCfg->dnodeId, rpcMsg.ahandle, pCfg->config);
-  mndSendMsgToDnode(pMnode, &epSet, &rpcMsg);
+  mndSendReqToDnode(pMnode, &epSet, &rpcMsg);
 
   return 0;
 }

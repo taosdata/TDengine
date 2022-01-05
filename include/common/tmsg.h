@@ -345,18 +345,18 @@ typedef struct {
   int32_t maxStreams;
   int32_t accessState;  // Configured only by command
   int64_t maxStorage;   // In unit of GB
-} SCreateAcctMsg, SAlterAcctMsg;
+} SCreateAcctReq, SAlterAcctReq;
 
 typedef struct {
   char user[TSDB_USER_LEN];
-} SDropUserMsg, SDropAcctMsg;
+} SDropUserReq, SDropAcctReq;
 
 typedef struct {
   int8_t type;
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_PASSWORD_LEN];
   int8_t superUser;  // denote if it is a super user or not
-} SCreateUserMsg, SAlterUserMsg;
+} SCreateUserReq, SAlterUserReq;
 
 typedef struct {
   int32_t  contLen;
@@ -851,15 +851,15 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateQnodeMsg, SMDropQnodeMsg, SDCreateQnodeMsg, SDDropQnodeMsg;
+} SMCreateQnodeReq, SMDropQnodeReq, SDCreateQnodeReq, SDDropQnodeReq;
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateSnodeMsg, SMDropSnodeMsg, SDCreateSnodeMsg, SDDropSnodeMsg;
+} SMCreateSnodeReq, SMDropSnodeReq, SDCreateSnodeReq, SDDropSnodeReq;
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateBnodeMsg, SMDropBnodeMsg, SDCreateBnodeMsg, SDDropBnodeMsg;
+} SMCreateBnodeReq, SMDropBnodeReq, SDCreateBnodeReq, SDDropBnodeReq;
 
 typedef struct {
   int32_t dnodeId;

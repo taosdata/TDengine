@@ -19,6 +19,7 @@
 #include "dndTransport.h"
 #include "dndWorker.h"
 
+static void dndWriteMnodeMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpcMsg *pRpcMsg);
 static void dndProcessMnodeQueue(SDnode *pDnode, SMnodeMsg *pMsg);
 
 static SMnode *dndAcquireMnode(SDnode *pDnode) {
@@ -258,11 +259,16 @@ static bool dndNeedDeployMnode(SDnode *pDnode) {
   return true;
 }
 
+static int32_t dndPutMsgToMWriteQ(SDnode *pDnode, SRpcMsg *pRpcMsg) {
+  dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.writeWorker, pRpcMsg);
+}
+
 static void dndInitMnodeOption(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->pDnode = pDnode;
-  pOption->sendMsgToDnodeFp = dndSendMsgToDnode;
-  pOption->sendMsgToMnodeFp = dndSendMsgToMnode;
-  pOption->sendRedirectMsgFp = dndSendRedirectMsg;
+  pOption->sendReqToDnodeFp = dndSendReqToDnode;
+  pOption->sendReqToMnodeFp = dndSendReqToMnode;
+  pOption->sendRedirectRspFp = dndSendRedirectRsp;
+  pOption->putReqToMWriteQFp = dndPutMsgToMWriteQ;
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
   pOption->cfg.sver = pDnode->opt.sver;

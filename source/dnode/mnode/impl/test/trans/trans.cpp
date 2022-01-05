@@ -1,5 +1,5 @@
 /**
- * @file user.cpp
+ * @file trans.cpp
  * @author slguan (slguan@taosdata.com)
  * @brief MNODE module trans tests
  * @version 1.0
@@ -9,10 +9,10 @@
  *
  */
 
-#include "base.h"
+#include "sut.h"
 #include "os.h"
 
-class DndTestTrans : public ::testing::Test {
+class MndTestTrans : public ::testing::Test {
  protected:
   static void SetUpTestSuite() { test.Init("/tmp/mnode_test_trans", 9013); }
   static void TearDownTestSuite() { test.Cleanup(); }
@@ -48,13 +48,13 @@ class DndTestTrans : public ::testing::Test {
   void TearDown() override {}
 };
 
-Testbase DndTestTrans::test;
+Testbase MndTestTrans::test;
 
-TEST_F(DndTestTrans, 01_CreateUser_Crash) {
+TEST_F(MndTestTrans, 01_Create_User_Crash) {
   {
-    int32_t contLen = sizeof(SCreateUserMsg);
+    int32_t contLen = sizeof(SCreateUserReq);
 
-    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(contLen);
+    SCreateUserReq* pReq = (SCreateUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "p1");
 
@@ -75,12 +75,12 @@ TEST_F(DndTestTrans, 01_CreateUser_Crash) {
   test.SendShowRetrieveMsg();
   EXPECT_EQ(test.GetShowRows(), 2);
 
-  // CheckBinary("root", TSDB_USER_LEN);
-  // CheckBinary("u2", TSDB_USER_LEN);
-  // CheckBinary("super", 10);
-  // CheckBinary("normal", 10);
-  // CheckTimestamp();
-  // CheckTimestamp();
-  // CheckBinary("root", TSDB_USER_LEN);
-  // CheckBinary("root", TSDB_USER_LEN);
+  CheckBinary("u1", TSDB_USER_LEN);
+  CheckBinary("root", TSDB_USER_LEN);
+  CheckBinary("normal", 10);
+  CheckBinary("super", 10);
+  CheckTimestamp();
+  CheckTimestamp();
+  CheckBinary("root", TSDB_USER_LEN);
+  CheckBinary("root", TSDB_USER_LEN);
 }
