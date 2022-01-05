@@ -1,19 +1,19 @@
 /**
  * @file show.cpp
  * @author slguan (slguan@taosdata.com)
- * @brief DNODE module show-msg tests
- * @version 0.1
- * @date 2021-12-15
+ * @brief MNODE module show tests
+ * @version 1.0
+ * @date 2022-01-06
  *
- * @copyright Copyright (c) 2021
+ * @copyright Copyright (c) 2022
  *
  */
 
 #include "sut.h"
 
-class DndTestShow : public ::testing::Test {
+class MndTestShow : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_show", 9091); }
+  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_show", 9020); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -23,9 +23,9 @@ class DndTestShow : public ::testing::Test {
   void TearDown() override {}
 };
 
-Testbase DndTestShow::test;
+Testbase MndTestShow::test;
 
-TEST_F(DndTestShow, 01_ShowMsg_InvalidMsgMax) {
+TEST_F(MndTestShow, 01_ShowMsg_InvalidMsgMax) {
   int32_t contLen = sizeof(SShowMsg);
 
   SShowMsg* pReq = (SShowMsg*)rpcMallocCont(contLen);
@@ -37,7 +37,7 @@ TEST_F(DndTestShow, 01_ShowMsg_InvalidMsgMax) {
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
 }
 
-TEST_F(DndTestShow, 02_ShowMsg_InvalidMsgStart) {
+TEST_F(MndTestShow, 02_ShowMsg_InvalidMsgStart) {
   int32_t contLen = sizeof(SShowMsg);
 
   SShowMsg* pReq = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
@@ -49,12 +49,12 @@ TEST_F(DndTestShow, 02_ShowMsg_InvalidMsgStart) {
   ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
 }
 
-TEST_F(DndTestShow, 02_ShowMsg_Conn) {
+TEST_F(MndTestShow, 03_ShowMsg_Conn) {
   int32_t contLen = sizeof(SConnectMsg);
 
   SConnectMsg* pReq = (SConnectMsg*)rpcMallocCont(contLen);
   pReq->pid = htonl(1234);
-  strcpy(pReq->app, "dnode_test_show");
+  strcpy(pReq->app, "mnode_test_show");
   strcpy(pReq->db, "");
 
   SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CONNECT, pReq, contLen);
@@ -84,4 +84,19 @@ TEST_F(DndTestShow, 02_ShowMsg_Conn) {
   EXPECT_EQ(pRetrieveRsp->precision, TSDB_TIME_PRECISION_MILLI);
   EXPECT_EQ(pRetrieveRsp->compressed, 0);
   EXPECT_EQ(pRetrieveRsp->compLen, 0);
+}
+
+TEST_F(MndTestShow, 04_ShowMsg_Cluster) {
+  test.SendShowMetaMsg(TSDB_MGMT_TABLE_CLUSTER, "");
+  CHECK_META( "show cluster", 3);
+  CHECK_SCHEMA(0, TSDB_DATA_TYPE_BIGINT, 8, "id");
+  CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE, "name");
+  CHECK_SCHEMA(2, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
+
+  test.SendShowRetrieveMsg();
+  EXPECT_EQ(test.GetShowRows(), 1);
+
+  IgnoreInt64();
+  IgnoreBinary(TSDB_CLUSTER_ID_LEN);
+  CheckTimestamp();
 }
