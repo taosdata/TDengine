@@ -106,7 +106,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 0)
         tdSql.checkData(0, 2, 0)
 
-        tdSql.query("select * from st where ubntag = 4294967294")
+        tdSql.query("select * from st where ubntag = 18446744073709551614")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         tdSql.checkData(0, 1, 18446744073709551614)
