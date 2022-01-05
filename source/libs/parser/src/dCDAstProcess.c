@@ -109,7 +109,7 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx* pCtx, void** ou
 
     *pEpSet = pCtx->mgmtEpSet;
     *output = buildShowMsg(pShowInfo, pCtx, pMsgBuf->buf, pMsgBuf->len);
-    *outputLen = sizeof(SShowMsg) /* + htons(pShowMsg->payloadLen)*/;
+    *outputLen = sizeof(SShowReq) /* + htons(pShowMsg->payloadLen)*/;
   }
 
   return TSDB_CODE_SUCCESS;

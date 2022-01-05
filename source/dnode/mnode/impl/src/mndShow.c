@@ -18,12 +18,12 @@
 
 #define SHOW_STEP_SIZE 100
 
-static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowMsg *pMsg);
+static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowReq *pReq);
 static void      mndFreeShowObj(SShowObj *pShow);
 static SShowObj *mndAcquireShowObj(SMnode *pMnode, int64_t showId);
 static void      mndReleaseShowObj(SShowObj *pShow, bool forceRemove);
-static int32_t   mndProcessShowReq(SMnodeMsg *pMsg);
-static int32_t   mndProcessRetrieveReq(SMnodeMsg *pMsg);
+static int32_t   mndProcessShowReq(SMnodeMsg *pReq);
+static int32_t   mndProcessRetrieveReq(SMnodeMsg *pReq);
 static bool      mndCheckRetrieveFinished(SShowObj *pShow);
 
 int32_t mndInitShow(SMnode *pMnode) {
@@ -49,20 +49,20 @@ void mndCleanupShow(SMnode *pMnode) {
   }
 }
 
-static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowMsg *pMsg) {
+static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowReq *pReq) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
 
   int64_t showId = atomic_add_fetch_64(&pMgmt->showId, 1);
   if (showId == 0) atomic_add_fetch_64(&pMgmt->showId, 1);
 
-  int32_t  size = sizeof(SShowObj) + pMsg->payloadLen;
+  int32_t  size = sizeof(SShowObj) + pReq->payloadLen;
   SShowObj showObj = {0};
   showObj.id = showId;
   showObj.pMnode = pMnode;
-  showObj.type = pMsg->type;
-  showObj.payloadLen = pMsg->payloadLen;
-  memcpy(showObj.db, pMsg->db, TSDB_DB_FNAME_LEN);
-  memcpy(showObj.payload, pMsg->payload, pMsg->payloadLen);
+  showObj.type = pReq->type;
+  showObj.payloadLen = pReq->payloadLen;
+  memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
+  memcpy(showObj.payload, pReq->payload, pReq->payloadLen);
 
   int32_t   keepTime = pMnode->cfg.shellActivityTimer * 6 * 1000;
   SShowObj *pShow = taosCachePut(pMgmt->cache, &showId, sizeof(int64_t), &showObj, size, keepTime);
@@ -115,12 +115,12 @@ static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
   taosCacheRelease(pMgmt->cache, (void **)(&pShow), forceRemove);
 }
 
-static int32_t mndProcessShowReq(SMnodeMsg *pMnodeMsg) {
-  SMnode    *pMnode = pMnodeMsg->pMnode;
+static int32_t mndProcessShowReq(SMnodeMsg *pReq) {
+  SMnode    *pMnode = pReq->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
-  SShowMsg  *pMsg = pMnodeMsg->rpcMsg.pCont;
-  int8_t     type = pMsg->type;
-  int16_t    payloadLen = htonl(pMsg->payloadLen);
+  SShowReq  *pShowReq = pReq->rpcMsg.pCont;
+  int8_t     type = pShowReq->type;
+  int16_t    payloadLen = htonl(pShowReq->payloadLen);
 
   if (type <= TSDB_MGMT_TABLE_START || type >= TSDB_MGMT_TABLE_MAX) {
     terrno = TSDB_CODE_MND_INVALID_MSG_TYPE;
@@ -135,7 +135,7 @@ static int32_t mndProcessShowReq(SMnodeMsg *pMnodeMsg) {
     return -1;
   }
 
-  SShowObj *pShow = mndCreateShowObj(pMnode, pMsg);
+  SShowObj *pShow = mndCreateShowObj(pMnode, pShowReq);
   if (pShow == NULL) {
     mError("failed to process show-meta msg:%s since %s", mndShowStr(type), terrstr());
     return -1;
@@ -151,13 +151,13 @@ static int32_t mndProcessShowReq(SMnodeMsg *pMnodeMsg) {
     return -1;
   }
 
-  int32_t code = (*metaFp)(pMnodeMsg, pShow, &pRsp->tableMeta);
+  int32_t code = (*metaFp)(pReq, pShow, &pRsp->tableMeta);
   mDebug("show:0x%" PRIx64 ", get meta finished, numOfRows:%d cols:%d type:%s, result:%s", pShow->id, pShow->numOfRows,
          pShow->numOfColumns, mndShowStr(type), tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {
-    pMnodeMsg->contLen = sizeof(SShowRsp) + sizeof(SSchema) * pShow->numOfColumns;
-    pMnodeMsg->pCont = pRsp;
+    pReq->contLen = sizeof(SShowRsp) + sizeof(SSchema) * pShow->numOfColumns;
+    pReq->pCont = pRsp;
     pRsp->showId = htobe64(pShow->id);
     mndReleaseShowObj(pShow, false);
     return TSDB_CODE_SUCCESS;
@@ -168,14 +168,14 @@ static int32_t mndProcessShowReq(SMnodeMsg *pMnodeMsg) {
   }
 }
 
-static int32_t mndProcessRetrieveReq(SMnodeMsg *pMsg) {
-  SMnode    *pMnode = pMsg->pMnode;
+static int32_t mndProcessRetrieveReq(SMnodeMsg *pReq) {
+  SMnode    *pMnode = pReq->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   int32_t    rowsToRead = 0;
   int32_t    size = 0;
   int32_t    rowsRead = 0;
 
-  SRetrieveTableMsg *pRetrieve = pMsg->rpcMsg.pCont;
+  SRetrieveTableReq *pRetrieve = pReq->rpcMsg.pCont;
   int64_t            showId = htobe64(pRetrieve->showId);
 
   SShowObj *pShow = mndAcquireShowObj(pMnode, showId);
@@ -227,7 +227,7 @@ static int32_t mndProcessRetrieveReq(SMnodeMsg *pMsg) {
 
   // if free flag is set, client wants to clean the resources
   if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
-    rowsRead = (*retrieveFp)(pMsg, pShow, pRsp->data, rowsToRead);
+    rowsRead = (*retrieveFp)(pReq, pShow, pRsp->data, rowsToRead);
   }
 
   mDebug("show:0x%" PRIx64 ", stop retrieve data, rowsRead:%d rowsToRead:%d", pShow->id, rowsRead, rowsToRead);
@@ -235,8 +235,8 @@ static int32_t mndProcessRetrieveReq(SMnodeMsg *pMsg) {
   pRsp->numOfRows = htonl(rowsRead);
   pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision
 
-  pMsg->pCont = pRsp;
-  pMsg->contLen = size;
+  pReq->pCont = pRsp;
+  pReq->contLen = size;
 
   if (rowsRead == 0 || rowsToRead == 0 || (rowsRead == rowsToRead && pShow->numOfRows == pShow->numOfReads)) {
     pRsp->completed = 1;

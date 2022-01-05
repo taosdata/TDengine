@@ -85,8 +85,8 @@ SDropUserReq* buildDropUserMsg(SSqlInfo* pInfo, int32_t *msgLen, int64_t id, cha
   return pMsg;
 }
 
-SShowMsg* buildShowMsg(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, char* msgBuf, int32_t msgLen) {
-  SShowMsg* pShowMsg = calloc(1, sizeof(SShowMsg));
+SShowReq* buildShowMsg(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, char* msgBuf, int32_t msgLen) {
+  SShowReq* pShowMsg = calloc(1, sizeof(SShowReq));
 
   pShowMsg->type = pShowInfo->showType;
   if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {

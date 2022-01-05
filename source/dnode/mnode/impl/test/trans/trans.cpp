@@ -58,21 +58,21 @@ TEST_F(MndTestTrans, 01_Create_User_Crash) {
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "p1");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_USER, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
   CHECK_META("show users", 4);
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 2);
 
   KillThenRestartServer();
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_USER, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
   CHECK_META("show users", 4);
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 2);
 
   CheckBinary("u1", TSDB_USER_LEN);

@@ -35,7 +35,7 @@ TEST_F(DndTestProfile, 01_ConnectMsg) {
   strcpy(pReq->app, "dnode_test_profile");
   strcpy(pReq->db, "");
 
-  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CONNECT, pReq, contLen);
+  SRpcMsg* pMsg = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, 0);
 
@@ -67,14 +67,14 @@ TEST_F(DndTestProfile, 02_ConnectMsg_InvalidDB) {
   strcpy(pReq->app, "dnode_test_profile");
   strcpy(pReq->db, "invalid_db");
 
-  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CONNECT, pReq, contLen);
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_DB);
-  ASSERT_EQ(pMsg->contLen, 0);
+  SRpcMsg* pRsp = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_DB);
+  ASSERT_EQ(pRsp->contLen, 0);
 }
 
 TEST_F(DndTestProfile, 03_ConnectMsg_Show) {
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_CONNS, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_CONNS, "");
   CHECK_META("show connections", 7);
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_INT, 4, "connId");
   CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN + VARSTR_HEADER_SIZE, "user");
@@ -84,7 +84,7 @@ TEST_F(DndTestProfile, 03_ConnectMsg_Show) {
   CHECK_SCHEMA(5, TSDB_DATA_TYPE_TIMESTAMP, 8, "login_time");
   CHECK_SCHEMA(6, TSDB_DATA_TYPE_TIMESTAMP, 8, "last_access");
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
   CheckInt32(1);
   CheckBinary("root", TSDB_USER_LEN);
@@ -105,7 +105,7 @@ TEST_F(DndTestProfile, 04_HeartBeatMsg) {
   pReq->numOfStreams = htonl(0);
   strcpy(pReq->app, "dnode_test_profile");
 
-  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_HEARTBEAT, pReq, contLen);
+  SRpcMsg* pMsg = test.SendReq(TDMT_MND_HEARTBEAT, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, 0);
 
@@ -138,9 +138,9 @@ TEST_F(DndTestProfile, 05_KillConnMsg) {
     SKillConnMsg* pReq = (SKillConnMsg*)rpcMallocCont(contLen);
     pReq->connId = htonl(connId);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_KILL_CONN, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_CONN, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
   {
@@ -153,10 +153,10 @@ TEST_F(DndTestProfile, 05_KillConnMsg) {
     pReq->numOfStreams = htonl(0);
     strcpy(pReq->app, "dnode_test_profile");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_HEARTBEAT, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_CONNECTION);
-    ASSERT_EQ(pMsg->contLen, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_HEARTBEAT, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_CONNECTION);
+    ASSERT_EQ(pRsp->contLen, 0);
   }
 
   {
@@ -167,7 +167,7 @@ TEST_F(DndTestProfile, 05_KillConnMsg) {
     strcpy(pReq->app, "dnode_test_profile");
     strcpy(pReq->db, "");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CONNECT, pReq, contLen);
+    SRpcMsg* pMsg = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
@@ -198,9 +198,9 @@ TEST_F(DndTestProfile, 06_KillConnMsg_InvalidConn) {
   SKillConnMsg* pReq = (SKillConnMsg*)rpcMallocCont(contLen);
   pReq->connId = htonl(2345);
 
-  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_KILL_CONN, pReq, contLen);
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_CONN_ID);
+  SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_CONN, pReq, contLen);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_CONN_ID);
 }
 
 TEST_F(DndTestProfile, 07_KillQueryMsg) {
@@ -211,10 +211,10 @@ TEST_F(DndTestProfile, 07_KillQueryMsg) {
     pReq->connId = htonl(connId);
     pReq->queryId = htonl(1234);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_KILL_QUERY, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
-    ASSERT_EQ(pMsg->contLen, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_QUERY, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+    ASSERT_EQ(pRsp->contLen, 0);
   }
 
   {
@@ -227,7 +227,7 @@ TEST_F(DndTestProfile, 07_KillQueryMsg) {
     pReq->numOfStreams = htonl(0);
     strcpy(pReq->app, "dnode_test_profile");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_HEARTBEAT, pReq, contLen);
+    SRpcMsg* pMsg = test.SendReq(TDMT_MND_HEARTBEAT, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
@@ -261,13 +261,13 @@ TEST_F(DndTestProfile, 08_KillQueryMsg_InvalidConn) {
   pReq->connId = htonl(2345);
   pReq->queryId = htonl(1234);
 
-  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_KILL_QUERY, pReq, contLen);
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_CONN_ID);
+  SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_QUERY, pReq, contLen);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_CONN_ID);
 }
 
 TEST_F(DndTestProfile, 09_KillQueryMsg) {
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_QUERIES, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_QUERIES, "");
   CHECK_META("show queries", 14);
 
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_INT, 4, "queryId");
@@ -285,6 +285,6 @@ TEST_F(DndTestProfile, 09_KillQueryMsg) {
   CHECK_SCHEMA(12, TSDB_DATA_TYPE_BINARY, TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE, "sub_query_info");
   CHECK_SCHEMA(13, TSDB_DATA_TYPE_BINARY, TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE, "sql");
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 0);
 }

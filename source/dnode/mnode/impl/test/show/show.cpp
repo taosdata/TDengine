@@ -26,27 +26,27 @@ class MndTestShow : public ::testing::Test {
 Testbase MndTestShow::test;
 
 TEST_F(MndTestShow, 01_ShowMsg_InvalidMsgMax) {
-  int32_t contLen = sizeof(SShowMsg);
+  int32_t contLen = sizeof(SShowReq);
 
-  SShowMsg* pReq = (SShowMsg*)rpcMallocCont(contLen);
+  SShowReq* pReq = (SShowReq*)rpcMallocCont(contLen);
   pReq->type = TSDB_MGMT_TABLE_MAX;
   strcpy(pReq->db, "");
 
-  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_SHOW, pReq, contLen);
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
+  SRpcMsg* pRsp = test.SendReq(TDMT_MND_SHOW, pReq, contLen);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
 }
 
 TEST_F(MndTestShow, 02_ShowMsg_InvalidMsgStart) {
-  int32_t contLen = sizeof(SShowMsg);
+  int32_t contLen = sizeof(SShowReq);
 
-  SShowMsg* pReq = (SShowMsg*)rpcMallocCont(sizeof(SShowMsg));
+  SShowReq* pReq = (SShowReq*)rpcMallocCont(sizeof(SShowReq));
   pReq->type = TSDB_MGMT_TABLE_START;
   strcpy(pReq->db, "");
 
-  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_SHOW, pReq, contLen);
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
+  SRpcMsg* pRsp = test.SendReq(TDMT_MND_SHOW, pReq, contLen);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
 }
 
 TEST_F(MndTestShow, 03_ShowMsg_Conn) {
@@ -57,11 +57,11 @@ TEST_F(MndTestShow, 03_ShowMsg_Conn) {
   strcpy(pReq->app, "mnode_test_show");
   strcpy(pReq->db, "");
 
-  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CONNECT, pReq, contLen);
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, 0);
+  SRpcMsg* pRsp = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(pRsp->code, 0);
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_CONNS, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_CONNS, "");
 
   STableMetaMsg* pMeta = test.GetShowMeta();
   EXPECT_STREQ(pMeta->tbFname, "show connections");
@@ -75,7 +75,7 @@ TEST_F(MndTestShow, 03_ShowMsg_Conn) {
   EXPECT_EQ(pMeta->tuid, 0);
   EXPECT_EQ(pMeta->suid, 0);
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
 
   SRetrieveTableRsp* pRetrieveRsp = test.GetRetrieveRsp();
   EXPECT_EQ(pRetrieveRsp->numOfRows, 1);
@@ -87,13 +87,13 @@ TEST_F(MndTestShow, 03_ShowMsg_Conn) {
 }
 
 TEST_F(MndTestShow, 04_ShowMsg_Cluster) {
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_CLUSTER, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_CLUSTER, "");
   CHECK_META( "show cluster", 3);
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_BIGINT, 8, "id");
   CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE, "name");
   CHECK_SCHEMA(2, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
 
   IgnoreInt64();

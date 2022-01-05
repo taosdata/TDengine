@@ -26,7 +26,7 @@ class MndTestUser : public ::testing::Test {
 Testbase MndTestUser::test;
 
 TEST_F(MndTestUser, 01_Show_User) {
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_USER, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
   CHECK_META("show users", 4);
 
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN + VARSTR_HEADER_SIZE, "name");
@@ -34,7 +34,7 @@ TEST_F(MndTestUser, 01_Show_User) {
   CHECK_SCHEMA(2, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
   CHECK_SCHEMA(3, TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN + VARSTR_HEADER_SIZE, "account");
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
 
   CheckBinary("root", TSDB_USER_LEN);
@@ -51,9 +51,9 @@ TEST_F(MndTestUser, 02_Create_User) {
     strcpy(pReq->user, "");
     strcpy(pReq->pass, "p1");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_USER_FORMAT);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_USER_FORMAT);
   }
 
   {
@@ -63,9 +63,9 @@ TEST_F(MndTestUser, 02_Create_User) {
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_PASS_FORMAT);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_PASS_FORMAT);
   }
 
   {
@@ -75,9 +75,9 @@ TEST_F(MndTestUser, 02_Create_User) {
     strcpy(pReq->user, "root");
     strcpy(pReq->pass, "1");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_USER_ALREADY_EXIST);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_USER_ALREADY_EXIST);
   }
 
   {
@@ -87,15 +87,15 @@ TEST_F(MndTestUser, 02_Create_User) {
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "p1");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_USER, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
   CHECK_META("show users", 4);
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 2);
 }
 
@@ -107,9 +107,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(pReq->user, "");
     strcpy(pReq->pass, "p1");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_USER_FORMAT);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_USER_FORMAT);
   }
 
   {
@@ -119,9 +119,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_PASS_FORMAT);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_PASS_FORMAT);
   }
 
   {
@@ -131,9 +131,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(pReq->user, "u4");
     strcpy(pReq->pass, "1");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_USER_NOT_EXIST);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_USER_NOT_EXIST);
   }
 
   {
@@ -143,9 +143,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "1");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 }
 
@@ -156,9 +156,9 @@ TEST_F(MndTestUser, 04_Drop_User) {
     SDropUserReq* pReq = (SDropUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_USER_FORMAT);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_USER_FORMAT);
   }
 
   {
@@ -167,9 +167,9 @@ TEST_F(MndTestUser, 04_Drop_User) {
     SDropUserReq* pReq = (SDropUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u4");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_USER_NOT_EXIST);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_USER_NOT_EXIST);
   }
 
   {
@@ -178,15 +178,15 @@ TEST_F(MndTestUser, 04_Drop_User) {
     SDropUserReq* pReq = (SDropUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u1");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_USER, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
   CHECK_META("show users", 4);
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
 }
 
@@ -198,9 +198,9 @@ TEST_F(MndTestUser, 05_Create_Drop_Alter_User) {
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "p1");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
   {
@@ -210,15 +210,15 @@ TEST_F(MndTestUser, 05_Create_Drop_Alter_User) {
     strcpy(pReq->user, "u2");
     strcpy(pReq->pass, "p2");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_USER, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
   CHECK_META("show users", 4);
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 3);
 
   CheckBinary("u1", TSDB_USER_LEN);
@@ -241,15 +241,15 @@ TEST_F(MndTestUser, 05_Create_Drop_Alter_User) {
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "p2");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_USER, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
   CHECK_META("show users", 4);
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 3);
 
   CheckBinary("u1", TSDB_USER_LEN);
@@ -271,15 +271,15 @@ TEST_F(MndTestUser, 05_Create_Drop_Alter_User) {
     SDropUserReq* pReq = (SDropUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u1");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_USER, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
   CHECK_META("show users", 4);
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 2);
 
   CheckBinary("root", TSDB_USER_LEN);
@@ -294,10 +294,10 @@ TEST_F(MndTestUser, 05_Create_Drop_Alter_User) {
   // restart
   test.Restart();
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_USER, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
   CHECK_META("show users", 4);
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 2);
 
   CheckBinary("root", TSDB_USER_LEN);
