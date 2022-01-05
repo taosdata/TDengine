@@ -194,10 +194,10 @@ typedef struct {
   void*   pMsg;
 } SSubmitMsgIter;
 
-int     tsdbInitSubmitMsgIter(SSubmitMsg* pMsg, SSubmitMsgIter* pIter);
-int     tsdbGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
-int     tsdbInitSubmitBlkIter(SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
-SMemRow tsdbGetSubmitBlkNext(SSubmitBlkIter* pIter);
+int     tInitSubmitMsgIter(SSubmitMsg* pMsg, SSubmitMsgIter* pIter);
+int     tGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
+int     tInitSubmitBlkIter(SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
+SMemRow tGetSubmitBlkNext(SSubmitBlkIter* pIter);
 
 typedef struct {
   int32_t index;  // index of failed block in submit blocks
