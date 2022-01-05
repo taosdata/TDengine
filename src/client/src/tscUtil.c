@@ -4010,6 +4010,11 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
 
       // create sub query to handle the sub query.
       SQueryInfo* pq = tscGetQueryInfo(&psub->cmd);
+      STableMetaInfo* pSubMeta = tscGetMetaInfo(pq, 0);
+      if (UTIL_TABLE_IS_SUPER_TABLE(pSubMeta) &&
+          pq->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+        psub->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+      }
       executeQuery(psub, pq);
     }
 
