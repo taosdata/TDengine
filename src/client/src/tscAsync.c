@@ -50,14 +50,14 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
 
   pSql->sqlstr = calloc(1, sqlLen + 1);
   pSql->sqlstrOri = calloc(1, sqlLen + 1);
-  if (pSql->sqlstr == NULL) {
+  if (pSql->sqlstr == NULL ||pSql->sqlstrOri == NULL) {
     tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscAsyncResultOnError(pSql);
     return;
   }
 
-  strntolower(pSql->sqlstrOri, sqlstr, (int32_t)sqlLen);
+  strcpy(pSql->sqlstrOri, sqlstr);
 
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
   pCmd->resColumnId = TSDB_RES_COL_ID;
