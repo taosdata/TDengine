@@ -90,13 +90,12 @@ TEST_F(MndTestQnode, 02_Create_Qnode) {
 
     SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_DNODE_NOT_EXIST);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_QNODE_ALREADY_EXIST);
   }
 }
 
-TEST_F(MndTestQnode, 04_Create_Qnode) {
+TEST_F(MndTestQnode, 03_Drop_Qnode) {
   {
-    // create dnode
     int32_t contLen = sizeof(SCreateDnodeMsg);
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
@@ -114,7 +113,6 @@ TEST_F(MndTestQnode, 04_Create_Qnode) {
   }
 
   {
-    // create qnode
     int32_t contLen = sizeof(SMCreateQnodeReq);
 
     SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
@@ -137,7 +135,6 @@ TEST_F(MndTestQnode, 04_Create_Qnode) {
   }
 
   {
-    // drop qnode
     int32_t contLen = sizeof(SMDropQnodeReq);
 
     SMDropQnodeReq* pReq = (SMDropQnodeReq*)rpcMallocCont(contLen);
@@ -154,5 +151,144 @@ TEST_F(MndTestQnode, 04_Create_Qnode) {
     CheckInt16(1);
     CheckBinary("localhost:9014", TSDB_EP_LEN);
     CheckTimestamp();
+  }
+
+  {
+    int32_t contLen = sizeof(SMDropQnodeReq);
+
+    SMDropQnodeReq* pReq = (SMDropQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
+
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_QNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_QNODE_NOT_EXIST);
+  }
+}
+
+TEST_F(MndTestQnode, 03_Create_Qnode_Rollback) {
+  {
+    // send message first, then dnode2 crash, result is returned, and rollback is started
+    int32_t contLen = sizeof(SMCreateQnodeReq);
+
+    SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
+
+    server2.Stop();
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_QNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  }
+
+  {
+    // continue send message, qnode is creating
+    int32_t contLen = sizeof(SMCreateQnodeReq);
+
+    SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
+
+    server2.Stop();
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_QNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_SDB_OBJ_CREATING);
+  }
+
+  {
+    // continue send message, qnode is creating
+    int32_t contLen = sizeof(SMDropQnodeReq);
+
+    SMDropQnodeReq* pReq = (SMDropQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
+
+    server2.Stop();
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_QNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_SDB_OBJ_CREATING);
+  }
+
+  {
+    // server start, wait until the rollback finished
+    server2.DoStart();
+    taosMsleep(1000);
+
+    int32_t retry = 0;
+    int32_t retryMax = 10;
+
+    for (retry = 0; retry < retryMax; retry++) {
+      int32_t contLen = sizeof(SMCreateQnodeReq);
+
+      SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
+      pReq->dnodeId = htonl(2);
+
+      SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_QNODE, pReq, contLen);
+      ASSERT_NE(pMsg, nullptr);
+      if (pMsg->code == 0) break;
+      taosMsleep(1000);
+    }
+
+    ASSERT_NE(retry, retryMax);
+  }
+}
+
+TEST_F(MndTestQnode, 04_Drop_Qnode_Rollback) {
+  {
+    // send message first, then dnode2 crash, result is returned, and rollback is started
+    int32_t contLen = sizeof(SMDropQnodeReq);
+
+    SMDropQnodeReq* pReq = (SMDropQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
+
+    server2.Stop();
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_QNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  }
+
+  {
+    // continue send message, qnode is dropping
+    int32_t contLen = sizeof(SMCreateQnodeReq);
+
+    SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
+
+    server2.Stop();
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_QNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_SDB_OBJ_DROPPING);
+  }
+
+  {
+    // continue send message, qnode is dropping
+    int32_t contLen = sizeof(SMDropQnodeReq);
+
+    SMDropQnodeReq* pReq = (SMDropQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
+
+    server2.Stop();
+    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_QNODE, pReq, contLen);
+    ASSERT_NE(pMsg, nullptr);
+    ASSERT_EQ(pMsg->code, TSDB_CODE_SDB_OBJ_DROPPING);
+  }
+
+  {
+    // server start, wait until the rollback finished
+    server2.DoStart();
+    taosMsleep(1000);
+
+    int32_t retry = 0;
+    int32_t retryMax = 10;
+
+    for (retry = 0; retry < retryMax; retry++) {
+      int32_t contLen = sizeof(SMCreateQnodeReq);
+
+      SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
+      pReq->dnodeId = htonl(2);
+
+      SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_QNODE, pReq, contLen);
+      ASSERT_NE(pMsg, nullptr);
+      if (pMsg->code == 0) break;
+      taosMsleep(1000);
+    }
+
+    ASSERT_NE(retry, retryMax);
   }
 }

@@ -69,6 +69,8 @@ static const char *sdbStatusStr(ESdbStatus status) {
       return "ready";
     case SDB_STATUS_DROPPED:
       return "dropped";
+    case SDB_STATUS_INIT:
+      return "init";
     default:
       return "undefine";
   }
@@ -261,6 +263,8 @@ int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw) {
 }
 
 void *sdbAcquire(SSdb *pSdb, ESdbType type, void *pKey) {
+  terrno = 0;
+
   SHashObj *hash = sdbGetHash(pSdb, type);
   if (hash == NULL) return NULL;
 
