@@ -4223,11 +4223,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       pSql->pSubs[i] = pNew;
 
       SSqlCmd* pCmd = &pNew->cmd;
-      if (pSub->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
-        pCmd->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
-      } else {
-        pCmd->command = TSDB_SQL_SELECT;
-      }
+      pCmd->command = TSDB_SQL_SELECT;
       if ((code = tscAddQueryInfo(pCmd)) != TSDB_CODE_SUCCESS) {
         goto _error;
       }
