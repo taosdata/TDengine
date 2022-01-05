@@ -28,7 +28,7 @@ class TableBuilder : public ITableBuilder {
 public:
   virtual TableBuilder& addColumn(const std::string& name, int8_t type, int32_t bytes) {
     assert(colId_ <= schema()->tableInfo.numOfTags + schema()->tableInfo.numOfColumns);
-    SSchema* col = schema()->schema + colId_;
+    SSchema* col = schema()->schema + (colId_ - 1);
     col->type = type;
     col->colId = colId_++;
     col->bytes = bytes;
