@@ -2642,7 +2642,7 @@ static void yy_reduce(
   pCreateTable->childTableInfo = taosArrayInit(4, sizeof(SCreatedTableInfo));
 
   taosArrayPush(pCreateTable->childTableInfo, &yymsp[0].minor.yy150);
-  pCreateTable->type = TSQL_CREATE_CTABLE;
+  pCreateTable->type = TSDB_SQL_CREATE_TABLE;
   yylhsminor.yy326 = pCreateTable;
 }
   yymsp[0].minor.yy326 = yylhsminor.yy326;
@@ -2656,7 +2656,7 @@ static void yy_reduce(
         break;
       case 140: /* create_table_args ::= ifnotexists ids cpxName LP columnlist RP */
 {
-  yylhsminor.yy326 = tSetCreateTableInfo(yymsp[-1].minor.yy165, NULL, NULL, TSQL_CREATE_TABLE);
+  yylhsminor.yy326 = tSetCreateTableInfo(yymsp[-1].minor.yy165, NULL, NULL, TSDB_SQL_CREATE_TABLE);
   setSqlInfo(pInfo, yylhsminor.yy326, NULL, TSDB_SQL_CREATE_TABLE);
 
   yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
@@ -2666,7 +2666,7 @@ static void yy_reduce(
         break;
       case 141: /* create_stable_args ::= ifnotexists ids cpxName LP columnlist RP TAGS LP columnlist RP */
 {
-  yylhsminor.yy326 = tSetCreateTableInfo(yymsp[-5].minor.yy165, yymsp[-1].minor.yy165, NULL, TSQL_CREATE_STABLE);
+  yylhsminor.yy326 = tSetCreateTableInfo(yymsp[-5].minor.yy165, yymsp[-1].minor.yy165, NULL, TSDB_SQL_CREATE_STABLE);
   setSqlInfo(pInfo, yylhsminor.yy326, NULL, TSDB_SQL_CREATE_STABLE);
 
   yymsp[-8].minor.yy0.n += yymsp[-7].minor.yy0.n;
@@ -2700,11 +2700,11 @@ static void yy_reduce(
         break;
       case 146: /* create_table_args ::= ifnotexists ids cpxName AS select */
 {
-  yylhsminor.yy326 = tSetCreateTableInfo(NULL, NULL, yymsp[0].minor.yy278, TSQL_CREATE_STREAM);
-  setSqlInfo(pInfo, yylhsminor.yy326, NULL, TSDB_SQL_CREATE_TABLE);
-
-  yymsp[-3].minor.yy0.n += yymsp[-2].minor.yy0.n;
-  setCreatedTableName(pInfo, &yymsp[-3].minor.yy0, &yymsp[-4].minor.yy0);
+//  yylhsminor.yy326 = tSetCreateTableInfo(NULL, NULL, yymsp[0].minor.yy278, TSQL_CREATE_STREAM);
+//  setSqlInfo(pInfo, yylhsminor.yy326, NULL, TSDB_SQL_CREATE_TABLE);
+//
+//  yymsp[-3].minor.yy0.n += yymsp[-2].minor.yy0.n;
+//  setCreatedTableName(pInfo, &yymsp[-3].minor.yy0, &yymsp[-4].minor.yy0);
 }
   yymsp[-4].minor.yy326 = yylhsminor.yy326;
         break;

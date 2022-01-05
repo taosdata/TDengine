@@ -579,25 +579,21 @@ SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SSqlNode *pSe
   SCreateTableSql *pCreate = calloc(1, sizeof(SCreateTableSql));
 
   switch (type) {
-    case TSQL_CREATE_TABLE: {
+    case TSDB_SQL_CREATE_TABLE: {
       pCreate->colInfo.pColumns = pCols;
       assert(pTags == NULL);
       break;
     }
-    case TSQL_CREATE_STABLE: {
+    case TSDB_SQL_CREATE_STABLE: {
       pCreate->colInfo.pColumns = pCols;
       pCreate->colInfo.pTagColumns = pTags;
       assert(pTags != NULL && pCols != NULL);
       break;
     }
-    case TSQL_CREATE_STREAM: {
-      pCreate->pSelect = pSelect;
-      break;
-    }
-
-    case TSQL_CREATE_CTABLE: {
-      assert(0);
-    }
+//    case TSQL_CREATE_STREAM: {
+//      pCreate->pSelect = pSelect;
+//      break;
+//    }
 
     default:
       assert(false);

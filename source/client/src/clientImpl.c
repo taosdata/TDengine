@@ -540,7 +540,6 @@ void* doFetchRow(SRequestObj* pRequest) {
     asyncSendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
 
     tsem_wait(&pRequest->body.rspSem);
-    destroySendMsgInfo(body);
 
     pResultInfo->current = 0;
     if (pResultInfo->numOfRows <= pResultInfo->current) {

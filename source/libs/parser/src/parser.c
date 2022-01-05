@@ -44,21 +44,21 @@ int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
   }
 
   if (!isDqlSqlStatement(&info)) {
-    bool toVnode = false;
+//    bool toVnode = false;
     if (info.type == TSDB_SQL_CREATE_TABLE) {
-      SCreateTableSql* pCreateSql = info.pCreateTableInfo;
-      if (pCreateSql->type == TSQL_CREATE_CTABLE || pCreateSql->type == TSQL_CREATE_TABLE) {
-        toVnode = true;
-      }
-    }
+//      SCreateTableSql* pCreateSql = info.pCreateTableInfo;
+//      if (pCreateSql->type == TSQL_CREATE_CTABLE || pCreateSql->type == TSQL_CREATE_TABLE) {
+//        toVnode = true;
+//      }
+//    }
 
-    if (toVnode) {
-      SVnodeModifOpStmtInfo *pInsertInfo = qParserValidateCreateTbSqlNode(&info, &pCxt->ctx, pCxt->pMsg, pCxt->msgLen);
-      if (pInsertInfo == NULL) {
+//    if (toVnode) {
+      SVnodeModifOpStmtInfo * pModifStmtInfo = qParserValidateCreateTbSqlNode(&info, &pCxt->ctx, pCxt->pMsg, pCxt->msgLen);
+      if (pModifStmtInfo == NULL) {
         return terrno;
       }
 
-      *pQuery = (SQueryNode*) pInsertInfo;
+      *pQuery = (SQueryNode*)pModifStmtInfo;
     } else {
       SDclStmtInfo* pDcl = qParserValidateDclSqlNode(&info, &pCxt->ctx, pCxt->pMsg, pCxt->msgLen);
       if (pDcl == NULL) {

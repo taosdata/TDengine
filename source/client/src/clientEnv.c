@@ -423,7 +423,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
  *+------------+-----+-----------+---------------+
  *| uid|localIp| PId | timestamp | serial number |
  *+------------+-----+-----------+---------------+
- *| 16bit      |12bit|20bit      |16bit          |
+ *| 12bit      |12bit|24bit      |16bit          |
  *+------------+-----+-----------+---------------+
  * @return
  */
@@ -443,11 +443,11 @@ uint64_t generateRequestId() {
     }
   }
 
-  int64_t ts      = taosGetTimestampUs();
+  int64_t ts      = taosGetTimestampMs();
   uint64_t pid    = taosGetPId();
   int32_t val     = atomic_add_fetch_32(&requestSerialId, 1);
 
-  uint64_t id = ((hashId & 0xFFFF) << 48) | ((pid & 0x0FFF) << 36) | ((ts & 0xFFFFF) << 16) | (val & 0xFFFF);
+  uint64_t id = ((hashId & 0x0FFF) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
   return id;
 }
 
