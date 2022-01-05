@@ -545,8 +545,6 @@ typedef struct SRetrieveTableRsp {
   int32_t numOfRows;
   int8_t  completed;  // all results are returned to client
   int16_t precision;
-  int32_t sVersion; //TODO: will use tlv for sversion and tversion
-  int32_t tVersion;
   int64_t offset;     // updated offset value for multi-vnode projection query
   int64_t useconds;
   int8_t  compressed;
