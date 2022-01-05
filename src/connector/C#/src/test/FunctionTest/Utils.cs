@@ -8,15 +8,14 @@ namespace Test.UtilsTools
     public class UtilsTools
     {
 
-        static string configDir = "/etc/taos";//"C:/TDengine/cfg";
         static string ip = "127.0.0.1";
         static string user = "root";
         static string password = "taosdata";
-        static string db =  "";
+        static string db = "";
         static short port = 0;
         public static IntPtr TDConnection()
         {
-            TDengine.Options((int)TDengineInitOption.TDDB_OPTION_CONFIGDIR, configDir);
+            TDengine.Options((int)TDengineInitOption.TDDB_OPTION_CONFIGDIR, GetConfigPath());
             TDengine.Options((int)TDengineInitOption.TDDB_OPTION_SHELL_ACTIVITY_TIMER, "60");
             TDengine.Init();
             IntPtr conn = TDengine.Connect(ip, user, password, db, port);
@@ -24,6 +23,23 @@ namespace Test.UtilsTools
             UtilsTools.ExecuteUpdate(conn, "create database if not exists csharp keep 3650");
             UtilsTools.ExecuteUpdate(conn, "use csharp");
             return conn;
+        }
+        public static string GetConfigPath()
+        {
+              string configDir = "" ;
+        if(OperatingSystem.IsOSPlatform("Windows"))
+        {   
+            configDir = "C:/TDengine/cfg";
+        }
+        else if(OperatingSystem.IsOSPlatform("Linux"))
+        {
+            configDir = "/etc/taos";
+        }
+        else if(OperatingSystem.IsOSPlatform("macOS"))
+        {
+            configDir = "/etc/taos";
+        }
+        return configDir;
         }
 
         public static IntPtr ExecuteQuery(IntPtr conn, String sql)
@@ -79,19 +95,19 @@ namespace Test.UtilsTools
             {
                 ExitProgram();
             }
-            
+
             List<TDengineMeta> metas = GetResField(res);
             int fieldCount = metas.Count;
 
             IntPtr rowdata;
             // StringBuilder builder = new StringBuilder();
-            List<string> datas = QueryRes(res,metas);
+            List<string> datas = QueryRes(res, metas);
             Console.Write(" DisplayRes ---");
-            for(int i = 0 ;i<metas.Count;i++)
+            for (int i = 0; i < metas.Count; i++)
             {
-                for(int j = 0; j<datas.Count;j++)
+                for (int j = 0; j < datas.Count; j++)
                 {
-                    Console.Write(" {0} ---",datas[ i * j + i]);
+                    Console.Write(" {0} ---", datas[i * j + i]);
                 }
                 Console.WriteLine("");
             }
@@ -116,7 +132,7 @@ namespace Test.UtilsTools
             List<TDengineMeta> metas = GetResField(res);
             result.Add(colName);
 
-            dataRaw = QueryRes(res,metas);
+            dataRaw = QueryRes(res, metas);
             result.Add(dataRaw);
 
             if (TDengine.ErrorNo(res) != 0)
@@ -142,7 +158,7 @@ namespace Test.UtilsTools
         }
         public static void CloseConnection(IntPtr conn)
         {
-            ExecuteUpdate(conn,"drop database if  exists csharp");
+            ExecuteUpdate(conn, "drop database if  exists csharp");
             if (conn != IntPtr.Zero)
             {
                 if (TDengine.Close(conn) == 0)
@@ -180,24 +196,24 @@ namespace Test.UtilsTools
         public static List<String> GetResData(IntPtr res)
         {
             List<string> colName = new List<string>();
-            List<string> dataRaw = new List<string>();          
+            List<string> dataRaw = new List<string>();
             if (!IsValidResult(res))
             {
                 ExitProgram();
             }
             List<TDengineMeta> metas = GetResField(res);
-            dataRaw = QueryRes(res,metas);
+            dataRaw = QueryRes(res, metas);
             return dataRaw;
         }
 
-        public static TDengineMeta ConstructTDengineMeta(string name,string type) 
+        public static TDengineMeta ConstructTDengineMeta(string name, string type)
         {
 
             TDengineMeta _meta = new TDengineMeta();
             _meta.name = name;
             char[] separators = new char[] { '(', ')' };
-            string[] subs = type.Split(separators, StringSplitOptions.RemoveEmptyEntries); 
-            
+            string[] subs = type.Split(separators, StringSplitOptions.RemoveEmptyEntries);
+
             switch (subs[0].ToUpper())
             {
                 case "BOOL":
@@ -268,13 +284,13 @@ namespace Test.UtilsTools
             return _meta;
         }
 
-       private static List<string> QueryRes(IntPtr res,List<TDengineMeta> metas)
-       {
-           IntPtr rowdata;
-           long queryRows = 0;
-           List<string> dataRaw = new List<string>();
-           int fieldCount = metas.Count;
-           while ((rowdata = TDengine.FetchRows(res)) != IntPtr.Zero)
+        private static List<string> QueryRes(IntPtr res, List<TDengineMeta> metas)
+        {
+            IntPtr rowdata;
+            long queryRows = 0;
+            List<string> dataRaw = new List<string>();
+            int fieldCount = metas.Count;
+            while ((rowdata = TDengine.FetchRows(res)) != IntPtr.Zero)
             {
                 queryRows++;
                 IntPtr colLengthPtr = TDengine.FetchLengths(res);
@@ -351,7 +367,7 @@ namespace Test.UtilsTools
                             ulong v15 = (ulong)Marshal.ReadInt64(data);
                             dataRaw.Add(v15.ToString());
                             break;
-                        default: 
+                        default:
                             dataRaw.Add("unknown value");
                             break;
                     }
@@ -362,11 +378,11 @@ namespace Test.UtilsTools
             {
                 Console.Write("Query is not complete, Error {0:G}", TDengine.ErrorNo(res), TDengine.Error(res));
             }
-            TDengine.FreeResult(res); 
+            TDengine.FreeResult(res);
             Console.WriteLine("");
             return dataRaw;
-       }
-        
+        }
+
     }
 }
 

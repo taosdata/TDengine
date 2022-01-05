@@ -23,7 +23,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBool(true);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             bool bindBuffer = Convert.ToBoolean(Marshal.ReadByte(bind.buffer));
-            
+
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -51,7 +51,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBool(false);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             bool bindBuffer = Convert.ToBoolean(Marshal.ReadByte(bind.buffer));
-            
+
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -71,7 +71,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindTinyIntZero()
         {
-
             int bufferType = 2;
             sbyte buffer = 0;
             int bufferLength = sizeof(sbyte);
@@ -80,7 +79,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindTinyInt(0);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             sbyte bindBuffer = Convert.ToSByte(Marshal.ReadByte(bind.buffer));
-            
+
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -98,7 +97,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindTinyIntPositive()
         {
-
             int bufferType = 2;
             sbyte buffer = sbyte.MaxValue;
             int bufferLength = sizeof(sbyte);
@@ -107,7 +105,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindTinyInt(sbyte.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             sbyte bindBuffer = Convert.ToSByte(Marshal.ReadByte(bind.buffer));
-            
+
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -126,7 +124,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindTinyIntNegative()
         {
-
             int bufferType = 2;
             short buffer = sbyte.MinValue;
             int bufferLength = sizeof(sbyte);
@@ -135,7 +132,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindTinyInt(sbyte.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             short bindBuffer = Marshal.ReadInt16(bind.buffer);
-            
+
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -154,7 +151,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindSmallIntNegative()
         {
-
             int bufferType = 3;
             short buffer = short.MinValue;
             int bufferLength = sizeof(short);
@@ -163,7 +159,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindSmallInt(short.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             short bindBuffer = Marshal.ReadInt16(bind.buffer);
-            
+
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -182,7 +178,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindSmallIntZero()
         {
-
             int bufferType = 3;
             short buffer = 0;
             int bufferLength = sizeof(short);
@@ -191,7 +186,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindSmallInt(0);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             short bindBuffer = Marshal.ReadInt16(bind.buffer);
-            
+
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -210,7 +205,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindSmallIntPositive()
         {
-
             int bufferType = 3;
             short buffer = short.MaxValue;
             int bufferLength = sizeof(short);
@@ -219,7 +213,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindSmallInt(short.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             short bindBuffer = Marshal.ReadInt16(bind.buffer);
-            
+
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -238,7 +232,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindIntNegative()
         {
-
             int bufferType = 4;
             int buffer = int.MinValue;
             int bufferLength = sizeof(int);
@@ -247,7 +240,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindInt(int.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             int bindBuffer = Marshal.ReadInt32(bind.buffer);
-            
+
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -266,7 +259,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindIntZero()
         {
-
             int bufferType = 4;
             int buffer = 0;
             int bufferLength = sizeof(int);
@@ -275,7 +267,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindInt(0);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             int bindBuffer = Marshal.ReadInt32(bind.buffer);
-            
+
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -294,7 +286,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindIntPositive()
         {
-
             int bufferType = 4;
             int buffer = int.MaxValue;
             int bufferLength = sizeof(int);
@@ -303,7 +294,7 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindInt(int.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             int bindBuffer = Marshal.ReadInt32(bind.buffer);
-            
+
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -322,7 +313,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindBigIntNegative()
         {
-
             int bufferType = 5;
             long buffer = long.MinValue;
             int bufferLength = sizeof(long);
@@ -331,7 +321,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBigInt(long.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             long bindBuffer = Marshal.ReadInt64(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -350,7 +339,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindBigIntZero()
         {
-
             int bufferType = 5;
             long buffer = 0;
             int bufferLength = sizeof(long);
@@ -359,7 +347,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBigInt(0);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             long bindBuffer = Marshal.ReadInt64(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -378,7 +365,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindBigIntPositive()
         {
-
             int bufferType = 5;
             long buffer = long.MaxValue;
             int bufferLength = sizeof(long);
@@ -387,7 +373,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBigInt(long.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             long bindBuffer = Marshal.ReadInt64(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -406,8 +391,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindUTinyZero()
         {
-
-
             int bufferType = 11;
             byte buffer = 0;
             int bufferLength = sizeof(sbyte);
@@ -416,7 +399,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUTinyInt(0);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             byte bindBuffer = Marshal.ReadByte(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -435,8 +417,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindUTinyPositive()
         {
-
-
             int bufferType = 11;
             byte buffer = byte.MaxValue;
             int bufferLength = sizeof(sbyte);
@@ -445,7 +425,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUTinyInt(byte.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             byte bindBuffer = Marshal.ReadByte(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -464,7 +443,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindUSmallIntZero()
         {
-
             int bufferType = 12;
             ushort buffer = ushort.MinValue;
             int bufferLength = sizeof(ushort);
@@ -473,7 +451,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUSmallInt(ushort.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             ushort bindBuffer = (ushort)Marshal.ReadInt16(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -492,7 +469,6 @@ namespace TDengineDriver.Test
         [Fact]
         public void TestBindUSmallIntPositive()
         {
-
             int bufferType = 12;
             ushort buffer = ushort.MaxValue;
             int bufferLength = sizeof(ushort);
@@ -501,7 +477,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUSmallInt(ushort.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             ushort bindBuffer = (ushort)Marshal.ReadInt16(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -528,7 +503,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUInt(uint.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             uint bindBuffer = (uint)Marshal.ReadInt32(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -555,7 +529,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUInt(uint.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             uint bindBuffer = (uint)Marshal.ReadInt32(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -582,7 +555,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUBigInt(ulong.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             ulong bindBuffer = (ulong)Marshal.ReadInt64(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -609,7 +581,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindUBigInt(ulong.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             ulong bindBuffer = (ulong)Marshal.ReadInt64(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -637,7 +608,6 @@ namespace TDengineDriver.Test
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             float[] bindBufferArr = new float[1];
             Marshal.Copy(bind.buffer, bindBufferArr, 0, bindBufferArr.Length);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBufferArr[0], buffer);
@@ -665,7 +635,6 @@ namespace TDengineDriver.Test
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             float[] bindBufferArr = new float[1];
             Marshal.Copy(bind.buffer, bindBufferArr, 0, bindBufferArr.Length);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBufferArr[0], buffer);
@@ -693,7 +662,6 @@ namespace TDengineDriver.Test
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             float[] bindBufferArr = new float[1];
             Marshal.Copy(bind.buffer, bindBufferArr, 0, bindBufferArr.Length);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBufferArr[0], buffer);
@@ -721,7 +689,6 @@ namespace TDengineDriver.Test
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             double[] bindBufferArr = new double[1];
             Marshal.Copy(bind.buffer, bindBufferArr, 0, bindBufferArr.Length);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBufferArr[0], buffer);
@@ -749,7 +716,6 @@ namespace TDengineDriver.Test
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             double[] bindBufferArr = new double[1];
             Marshal.Copy(bind.buffer, bindBufferArr, 0, bindBufferArr.Length);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBufferArr[0], buffer);
@@ -777,7 +743,6 @@ namespace TDengineDriver.Test
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             double[] bindBufferArr = new double[1];
             Marshal.Copy(bind.buffer, bindBufferArr, 0, bindBufferArr.Length);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBufferArr[0], buffer);
@@ -804,7 +769,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBinary("qwertyuiopasdghjklzxcvbnm<>?:\"{}+_)(*&^%$#@!~QWERTYUIOP[]\\ASDFGHJKL;'ZXCVBNM,./`1234567890-=");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             string bindBuffer = Marshal.PtrToStringAnsi(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -831,7 +795,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBinary("一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             string bindBuffer = Marshal.PtrToStringAnsi(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -858,7 +821,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindBinary("一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             string bindBuffer = Marshal.PtrToStringAnsi(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -885,7 +847,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindNchar("qwertyuiopasdghjklzxcvbnm<>?:\"{}+_)(*&^%$#@!~QWERTYUIOP[]\\ASDFGHJKL;'ZXCVBNM,./`1234567890-=");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             string bindBuffer = Marshal.PtrToStringAnsi(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -912,7 +873,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindNchar("一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             string bindBuffer = Marshal.PtrToStringAnsi(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -939,7 +899,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindNchar("一二两三四五六七八九十廿毛另壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分零整1234567890`~!@#$%^&*()_+[]{};':<>?,./qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM");
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             string bindBuffer = Marshal.PtrToStringAnsi(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -964,7 +923,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindNil();
 
             int bindIsNull = Marshal.ReadInt32(bind.is_null);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindIsNull, isNull);
@@ -989,7 +947,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindTimestamp(long.MinValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             long bindBuffer = Marshal.ReadInt64(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -1016,7 +973,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindTimestamp(0);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             long bindBuffer = Marshal.ReadInt64(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);
@@ -1044,7 +1000,6 @@ namespace TDengineDriver.Test
             TDengineDriver.TAOS_BIND bind = TaosBind.BindTimestamp(long.MaxValue);
             int BindLengPtr = Marshal.ReadInt32(bind.length);
             long bindBuffer = Marshal.ReadInt64(bind.buffer);
-            
 
             Assert.Equal(bind.buffer_type, bufferType);
             Assert.Equal(bindBuffer, buffer);

@@ -7,17 +7,17 @@ namespace Test.UtilsTools.ResultSet
 {
     public class ResultSet
     {
-        private List<TDengineMeta> resultMeta ;
-        private List<String> resultData ;
+        private List<TDengineMeta> resultMeta;
+        private List<String> resultData;
         // private bool isValidResult = false;
-        public ResultSet (IntPtr res)
+        public ResultSet(IntPtr res)
         {
 
             resultMeta = UtilsTools.GetResField(res);
             resultData = UtilsTools.GetResData(res);
         }
 
-        public ResultSet (List<TDengineMeta> metas,List<String> datas )
+        public ResultSet(List<TDengineMeta> metas, List<String> datas)
         {
             resultMeta = metas;
             resultData = datas;
@@ -28,12 +28,12 @@ namespace Test.UtilsTools.ResultSet
             return resultData;
         }
 
-         public List<TDengineMeta> GetResultMeta()
+        public List<TDengineMeta> GetResultMeta()
         {
             return resultMeta;
         }
 
     }
 
-    
+
 }

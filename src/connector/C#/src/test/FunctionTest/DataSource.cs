@@ -23,7 +23,7 @@ namespace Test.UtilsTools.DataSource
 
         public static string[] binaryArrCn = new string[5] { "涛思数据", String.Empty, null, "taosdata涛思数据", "涛思数据TDengine" };
         public static string[] NcharArrCn = new string[5] { "涛思数据", null, "taosdata涛思数据", "涛思数据TDengine", String.Empty };
-        
+
         // Construct a TAOS_BIND array which contains normal character.
         // For stmt bind tags,this will be used as tag info
         public static TAOS_BIND[] GetTags()
@@ -64,15 +64,15 @@ namespace Test.UtilsTools.DataSource
             tagData.Add("qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKZXCVBNM`1234567890-=+_)(*&^%$#@!~[];,./<>?:{}");
             return tagData;
         }
-        //
+
         public static List<string> GetMultiBindStableRowData()
         {
             List<string> rowData = new List<String>();
             List<string> tagData = GetTagData();
-            for (int i = 0 ; i < tsArr.Length ; i++)
+            for (int i = 0; i < tsArr.Length; i++)
             {
                 rowData.Add(tsArr[i].ToString());
-                rowData.Add(boolArr[i].Equals(null) ? "NULL":boolArr[i].ToString());
+                rowData.Add(boolArr[i].Equals(null) ? "NULL" : boolArr[i].ToString());
                 rowData.Add(tinyIntArr[i].Equals(null) ? "NULL" : tinyIntArr[i].ToString());
                 rowData.Add(shortArr[i].Equals(null) ? "NULL" : shortArr[i].ToString());
                 rowData.Add(intArr[i].Equals(null) ? "NULL" : intArr[i].ToString());
@@ -89,8 +89,8 @@ namespace Test.UtilsTools.DataSource
                 // Console.WriteLine("binaryArrCn[{0}]:{1},ncharArr[{0}]:{2}",i,String.IsNullOrEmpty(binaryArrCn[i]) ? "NULL" : binaryArrCn[i],String.IsNullOrEmpty(ncharArr[i]) ? "NULL" : NcharArrCn[i]);
                 // Console.WriteLine("binaryArrCn[{0}]:{1},ncharArr[{0}]:{2}",i,String.IsNullOrEmpty(binaryArrCn[i]) ? 0 :binaryArrCn[i].Length, String.IsNullOrEmpty(ncharArr[i]) ? 0 : NcharArrCn[i].Length);
                 // Console.WriteLine("========");
-                
-            } 
+
+            }
             return rowData;
 
         }
@@ -156,7 +156,7 @@ namespace Test.UtilsTools.DataSource
             binds[14] = TaosBind.BindNil();
             return binds;
         }
-         //Get and list data that will be insert into table
+        //Get and list data that will be insert into table
         public static List<String> GetNtableCNRowData()
         {
             var data = new List<string>{
@@ -187,7 +187,7 @@ namespace Test.UtilsTools.DataSource
             columnData.AddRange(tagData);
             return columnData;
         }
-        
+
         // A line of data that's without CN character
         public static TAOS_BIND[] GetNtableRow()
         {
@@ -231,7 +231,7 @@ namespace Test.UtilsTools.DataSource
             };
             return data;
         }
-  
+
         // Five lines of data, that is construct as taos_mutli_bind array. 
         // There aren't any CN character
         public static TAOS_MULTI_BIND[] GetMultiBindArr()
@@ -257,10 +257,10 @@ namespace Test.UtilsTools.DataSource
         public static List<string> GetMultiBindResData()
         {
             var rowData = new List<string>();
-            for (int i = 0 ; i < tsArr.Length ; i++)
+            for (int i = 0; i < tsArr.Length; i++)
             {
                 rowData.Add(tsArr[i].ToString());
-                rowData.Add(boolArr[i].Equals(null) ? "NULL":boolArr[i].ToString());
+                rowData.Add(boolArr[i].Equals(null) ? "NULL" : boolArr[i].ToString());
                 rowData.Add(tinyIntArr[i].Equals(null) ? "NULL" : tinyIntArr[i].ToString());
                 rowData.Add(shortArr[i].Equals(null) ? "NULL" : shortArr[i].ToString());
                 rowData.Add(intArr[i].Equals(null) ? "NULL" : intArr[i].ToString());
@@ -276,7 +276,7 @@ namespace Test.UtilsTools.DataSource
                 // Console.WriteLine("binaryArrCn[{0}]:{1},NcharArrCn[{0}]:{2}",i,String.IsNullOrEmpty(binaryArrCn[i]) ? "NULL" : binaryArrCn[i],String.IsNullOrEmpty(NcharArrCn[i]) ? "NULL" : NcharArrCn[i]);
                 // Console.WriteLine("binaryArrCn[{0}]:{1},NcharArrCn[{0}]:{2}",i,String.IsNullOrEmpty(binaryArrCn[i]) ? 0 :binaryArrCn[i].Length, String.IsNullOrEmpty(NcharArrCn[i]) ? 0 : NcharArrCn[i].Length);
                 // Console.WriteLine("========");
-                
+
             }
             return rowData;
         }
@@ -305,10 +305,10 @@ namespace Test.UtilsTools.DataSource
         public static List<string> GetMultiBindCNRowData()
         {
             var rowData = new List<string>();
-            for (int i = 0 ; i < tsArr.Length ; i++)
+            for (int i = 0; i < tsArr.Length; i++)
             {
                 rowData.Add(tsArr[i].ToString());
-                rowData.Add(boolArr[i].Equals(null) ? "NULL":boolArr[i].ToString());
+                rowData.Add(boolArr[i].Equals(null) ? "NULL" : boolArr[i].ToString());
                 rowData.Add(tinyIntArr[i].Equals(null) ? "NULL" : tinyIntArr[i].ToString());
                 rowData.Add(shortArr[i].Equals(null) ? "NULL" : shortArr[i].ToString());
                 rowData.Add(intArr[i].Equals(null) ? "NULL" : intArr[i].ToString());
@@ -324,19 +324,19 @@ namespace Test.UtilsTools.DataSource
                 // Console.WriteLine("binaryArrCn[{0}]:{1},NcharArrCn[{0}]:{2}",i,String.IsNullOrEmpty(binaryArrCn[i]) ? "NULL" : binaryArrCn[i],String.IsNullOrEmpty(NcharArrCn[i]) ? "NULL" : NcharArrCn[i]);
                 // Console.WriteLine("binaryArrCn[{0}]:{1},NcharArrCn[{0}]:{2}",i,String.IsNullOrEmpty(binaryArrCn[i]) ? 0 :binaryArrCn[i].Length, String.IsNullOrEmpty(NcharArrCn[i]) ? 0 : NcharArrCn[i].Length);
                 // Console.WriteLine("========");
-                
+
             }
             return rowData;
         }
 
         public static List<String> GetMultiBindStableCNRowData()
         {
-            List<String> columnData =new List<string>();
+            List<String> columnData = new List<string>();
             List<String> tagData = GetTagCnData();
-            for (int i = 0 ; i < tsArr.Length ; i++)
+            for (int i = 0; i < tsArr.Length; i++)
             {
                 columnData.Add(tsArr[i].ToString());
-                columnData.Add(boolArr[i].Equals(null) ? "NULL":boolArr[i].ToString());
+                columnData.Add(boolArr[i].Equals(null) ? "NULL" : boolArr[i].ToString());
                 columnData.Add(tinyIntArr[i].Equals(null) ? "NULL" : tinyIntArr[i].ToString());
                 columnData.Add(shortArr[i].Equals(null) ? "NULL" : shortArr[i].ToString());
                 columnData.Add(intArr[i].Equals(null) ? "NULL" : intArr[i].ToString());
@@ -353,7 +353,7 @@ namespace Test.UtilsTools.DataSource
                 // Console.WriteLine("binaryArrCn[{0}]:{1},NcharArrCn[{0}]:{2}",i,String.IsNullOrEmpty(binaryArrCn[i]) ? "NULL" : binaryArrCn[i],String.IsNullOrEmpty(NcharArrCn[i]) ? "NULL" : NcharArrCn[i]);
                 // Console.WriteLine("binaryArrCn[{0}]:{1},NcharArrCn[{0}]:{2}",i,String.IsNullOrEmpty(binaryArrCn[i]) ? 0 :binaryArrCn[i].Length, String.IsNullOrEmpty(NcharArrCn[i]) ? 0 : NcharArrCn[i].Length);
                 // Console.WriteLine("========");
-                
+
             }
             return columnData;
         }
@@ -384,36 +384,36 @@ namespace Test.UtilsTools.DataSource
             //(ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS(location BINARY(30), groupId INT);
             string subDllStr = dllStr.Substring(bracetInd);
 
-            String[] stableSeparators = new String[] { "tags","TAGS" };
+            String[] stableSeparators = new String[] { "tags", "TAGS" };
             //(ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT)
             //(location BINARY(30), groupId INT)
-            String[] dllStrElements = subDllStr.Split(stableSeparators,StringSplitOptions.RemoveEmptyEntries);
+            String[] dllStrElements = subDllStr.Split(stableSeparators, StringSplitOptions.RemoveEmptyEntries);
             //(ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT)
-            dllStrElements[0] = dllStrElements[0].Substring(1,dllStrElements[0].Length-2);
-            String[] finalStr1 = dllStrElements[0].Split(',',StringSplitOptions.RemoveEmptyEntries);
+            dllStrElements[0] = dllStrElements[0].Substring(1, dllStrElements[0].Length - 2);
+            String[] finalStr1 = dllStrElements[0].Split(',', StringSplitOptions.RemoveEmptyEntries);
             foreach (string item in finalStr1)
-            {   
-                //ts TIMESTAMP
-                string[] itemArr = item.Split(' ',2,StringSplitOptions.RemoveEmptyEntries);
-                // Console.WriteLine("GetMetaFromDLL():{0},{1}",itemArr[0],itemArr[1]);
-                expectResMeta.Add(UtilsTools.ConstructTDengineMeta(itemArr[0],itemArr[1]));
-            }
-           if(dllStr.Contains("TAGS")||dllStr.Contains("tags"))
-           {
-            //location BINARY(30), groupId INT
-            dllStrElements[1] = dllStrElements[1].Substring(1,dllStrElements[1].Length-2);
-            //location BINARY(30)  groupId INT
-            String[] finalStr2 =   dllStrElements[1].Split(',',StringSplitOptions.RemoveEmptyEntries);
-            Console.WriteLine("========");
-            foreach (string item in finalStr2)
             {
-                //location BINARY(30)
-                string[] itemArr = item.Split(' ',2,StringSplitOptions.RemoveEmptyEntries); 
+                //ts TIMESTAMP
+                string[] itemArr = item.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
                 // Console.WriteLine("GetMetaFromDLL():{0},{1}",itemArr[0],itemArr[1]);
-                expectResMeta.Add(UtilsTools.ConstructTDengineMeta(itemArr[0],itemArr[1]));
+                expectResMeta.Add(UtilsTools.ConstructTDengineMeta(itemArr[0], itemArr[1]));
             }
+            if (dllStr.Contains("TAGS") || dllStr.Contains("tags"))
+            {
+                //location BINARY(30), groupId INT
+                dllStrElements[1] = dllStrElements[1].Substring(1, dllStrElements[1].Length - 2);
+                //location BINARY(30)  groupId INT
+                String[] finalStr2 = dllStrElements[1].Split(',', StringSplitOptions.RemoveEmptyEntries);
+                Console.WriteLine("========");
+                foreach (string item in finalStr2)
+                {
+                    //location BINARY(30)
+                    string[] itemArr = item.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+                    // Console.WriteLine("GetMetaFromDLL():{0},{1}",itemArr[0],itemArr[1]);
+                    expectResMeta.Add(UtilsTools.ConstructTDengineMeta(itemArr[0], itemArr[1]));
+                }
 
-           }
+            }
             return expectResMeta;
         }
 

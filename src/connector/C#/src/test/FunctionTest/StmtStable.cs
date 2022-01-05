@@ -15,7 +15,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "StableStmtCases.TestBindSingleLineCn()")] 
+        [Fact(DisplayName = "StableStmtCases.TestBindSingleLineCn()")]
         public void TestBindSingleLineCn()
         {
             string tableName = "stable_stmt_cases_test_bind_single_line_cn";
@@ -53,11 +53,11 @@ namespace Cases
             String insertSql = $"insert into ? using  {tableName} tags(?,?,?,?,?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
             String dropSql = $"drop table if exists {tableName} ;";
             List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createSql);
-            List<String> expectResData = DataSource.GetStableCNRowData();                  
+            List<String> expectResData = DataSource.GetStableCNRowData();
             TAOS_BIND[] tags = DataSource.GetCNTags();
             TAOS_BIND[] binds = DataSource.GetNtableCNRow();
-            
-            IntPtr conn = UtilsTools.TDConnection(); 
+
+            IntPtr conn = UtilsTools.TDConnection();
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createSql);
 
@@ -80,16 +80,16 @@ namespace Cases
             List<string> actualResData = actualResult.GetResultData();
 
             // Assert retrieve data
-           for(int i = 0; i<actualResData.Count;i++)
+            for (int i = 0; i < actualResData.Count; i++)
             {
-                Assert.Equal(expectResData[i],actualResData[i]);
+                Assert.Equal(expectResData[i], actualResData[i]);
             }
             // Assert metadata
-           for(int i = 0; i<actualResMeta.Count;i++)
+            for (int i = 0; i < actualResMeta.Count; i++)
             {
-                Assert.Equal(expectResMeta[i].name,actualResMeta[i].name);
-                Assert.Equal(expectResMeta[i].type,actualResMeta[i].type);
-                Assert.Equal(expectResMeta[i].size,actualResMeta[i].size);
+                Assert.Equal(expectResMeta[i].name, actualResMeta[i].name);
+                Assert.Equal(expectResMeta[i].type, actualResMeta[i].type);
+                Assert.Equal(expectResMeta[i].size, actualResMeta[i].size);
             }
 
         }
@@ -99,7 +99,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(DisplayName = "StableStmtCases.TestBindColumnCn()")]  
+        [Fact(DisplayName = "StableStmtCases.TestBindColumnCn()")]
         public void TestBindColumnCn()
         {
             string tableName = "stable_stmt_cases_test_bindcolumn_cn";
@@ -139,9 +139,9 @@ namespace Cases
             TAOS_BIND[] tags = DataSource.GetCNTags();
             TAOS_MULTI_BIND[] mbind = DataSource.GetMultiBindCNArr();
             List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createSql);
-            List<String> expectResData = DataSource.GetMultiBindStableCNRowData()  ;   
-            
-            IntPtr conn = UtilsTools.TDConnection(); 
+            List<String> expectResData = DataSource.GetMultiBindStableCNRowData();
+
+            IntPtr conn = UtilsTools.TDConnection();
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createSql);
 
@@ -179,16 +179,16 @@ namespace Cases
             List<string> actualResData = actualResult.GetResultData();
 
             // Assert retrieve data
-           for(int i = 0; i<actualResData.Count;i++)
+            for (int i = 0; i < actualResData.Count; i++)
             {
-                Assert.Equal(expectResData[i],actualResData[i]);
+                Assert.Equal(expectResData[i], actualResData[i]);
             }
             // Assert metadata
-           for(int i = 0; i<actualResMeta.Count;i++)
+            for (int i = 0; i < actualResMeta.Count; i++)
             {
-                Assert.Equal(expectResMeta[i].name,actualResMeta[i].name);
-                Assert.Equal(expectResMeta[i].type,actualResMeta[i].type);
-                Assert.Equal(expectResMeta[i].size,actualResMeta[i].size);
+                Assert.Equal(expectResMeta[i].name, actualResMeta[i].name);
+                Assert.Equal(expectResMeta[i].type, actualResMeta[i].type);
+                Assert.Equal(expectResMeta[i].size, actualResMeta[i].size);
             }
 
 
@@ -199,9 +199,9 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(DisplayName = "StableStmtCases.TestBindMultiLineCn()")]  
+        [Fact(DisplayName = "StableStmtCases.TestBindMultiLineCn()")]
         public void TestBindMultiLineCn()
-        {   
+        {
             string tableName = "stable_stmt_cases_test_bind_multi_line_cn";
             String createSql = $"create stable  if not exists {tableName} " +
                                 "(ts timestamp," +
@@ -239,9 +239,9 @@ namespace Cases
             TAOS_BIND[] tags = DataSource.GetCNTags();
             TAOS_MULTI_BIND[] mbind = DataSource.GetMultiBindCNArr();
             List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createSql);
-            List<String> expectResData = DataSource.GetMultiBindStableCNRowData();   
-            
-            IntPtr conn = UtilsTools.TDConnection(); 
+            List<String> expectResData = DataSource.GetMultiBindStableCNRowData();
+
+            IntPtr conn = UtilsTools.TDConnection();
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createSql);
 
@@ -264,16 +264,16 @@ namespace Cases
             List<string> actualResData = actualResult.GetResultData();
 
             // Assert retrieve data
-           for(int i = 0; i<actualResData.Count;i++)
+            for (int i = 0; i < actualResData.Count; i++)
             {
-                Assert.Equal(expectResData[i],actualResData[i]);
+                Assert.Equal(expectResData[i], actualResData[i]);
             }
             // Assert metadata
-           for(int i = 0; i<actualResMeta.Count;i++)
+            for (int i = 0; i < actualResMeta.Count; i++)
             {
-                Assert.Equal(expectResMeta[i].name,actualResMeta[i].name);
-                Assert.Equal(expectResMeta[i].type,actualResMeta[i].type);
-                Assert.Equal(expectResMeta[i].size,actualResMeta[i].size);
+                Assert.Equal(expectResMeta[i].name, actualResMeta[i].name);
+                Assert.Equal(expectResMeta[i].type, actualResMeta[i].type);
+                Assert.Equal(expectResMeta[i].size, actualResMeta[i].size);
             }
         }
 
@@ -282,7 +282,7 @@ namespace Cases
         /// <describe>Test stmt insert single line into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result>         
-        [Fact(DisplayName = "StableStmtCases.TestBindMultiLine()")] 
+        [Fact(DisplayName = "StableStmtCases.TestBindMultiLine()")]
         public void TestBindMultiLine()
         {
             string tableName = "stable_stmt_cases_test_bind_multi_line";
@@ -322,12 +322,12 @@ namespace Cases
             TAOS_BIND[] tags = DataSource.GetTags();
             TAOS_MULTI_BIND[] mbind = DataSource.GetMultiBindArr();
             List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createSql);
-            List<String> expectResData = DataSource.GetMultiBindStableRowData();   
-            
-            IntPtr conn = UtilsTools.TDConnection(); 
+            List<String> expectResData = DataSource.GetMultiBindStableRowData();
+
+            IntPtr conn = UtilsTools.TDConnection();
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createSql);
-            
+
             IntPtr stmt = StmtUtilTools.StmtInit(conn);
             StmtUtilTools.StmtPrepare(stmt, insertSql);
             StmtUtilTools.SetTableNameTags(stmt, tableName + "_t1", tags);
@@ -347,21 +347,21 @@ namespace Cases
             List<string> actualResData = actualResult.GetResultData();
 
             // Assert retrieve data
-           for(int i = 0; i<actualResData.Count;i++)
+            for (int i = 0; i < actualResData.Count; i++)
             {
                 // Assert.Equal(expectResData[i],actualResData[i]);
-                if(expectResData[i]!=actualResData[i])
+                if (expectResData[i] != actualResData[i])
                 {
-                    Console.WriteLine("{0}==>,expectResData:{1},actualResData:{2}",i,expectResData[i],actualResData[i]);
+                    Console.WriteLine("{0}==>,expectResData:{1},actualResData:{2}", i, expectResData[i], actualResData[i]);
                 }
-                 
+
             }
             // Assert metadata
-           for(int i = 0; i<actualResMeta.Count;i++)
+            for (int i = 0; i < actualResMeta.Count; i++)
             {
-                Assert.Equal(expectResMeta[i].name,actualResMeta[i].name);
-                Assert.Equal(expectResMeta[i].type,actualResMeta[i].type);
-                Assert.Equal(expectResMeta[i].size,actualResMeta[i].size);
+                Assert.Equal(expectResMeta[i].name, actualResMeta[i].name);
+                Assert.Equal(expectResMeta[i].type, actualResMeta[i].type);
+                Assert.Equal(expectResMeta[i].size, actualResMeta[i].size);
             }
         }
 
@@ -370,9 +370,9 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "StableStmtCases.TestBindColumn()")] 
+        [Fact(DisplayName = "StableStmtCases.TestBindColumn()")]
         public void TestBindColumn()
-        {   
+        {
             string tableName = "stable_stmt_cases_test_bindcolumn";
             string createSql = $"create stable  if not exists {tableName} " +
                                 "(ts timestamp," +
@@ -410,9 +410,9 @@ namespace Cases
             TAOS_BIND[] tags = DataSource.GetTags();
             TAOS_MULTI_BIND[] mbind = DataSource.GetMultiBindArr();
             List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createSql);
-            List<String> expectResData = DataSource.GetMultiBindStableRowData(); 
+            List<String> expectResData = DataSource.GetMultiBindStableRowData();
 
-            IntPtr conn = UtilsTools.TDConnection(); 
+            IntPtr conn = UtilsTools.TDConnection();
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createSql);
 
@@ -434,7 +434,7 @@ namespace Cases
             StmtUtilTools.BindSingleParamBatch(stmt, mbind[11], 11);
             StmtUtilTools.BindSingleParamBatch(stmt, mbind[12], 12);
             StmtUtilTools.BindSingleParamBatch(stmt, mbind[13], 13);
-            
+
             StmtUtilTools.AddBatch(stmt);
             StmtUtilTools.StmtExecute(stmt);
             StmtUtilTools.StmtClose(stmt);
@@ -450,16 +450,16 @@ namespace Cases
             List<string> actualResData = actualResult.GetResultData();
 
             // Assert retrieve data
-           for(int i = 0; i<actualResData.Count;i++)
+            for (int i = 0; i < actualResData.Count; i++)
             {
-                Assert.Equal(expectResData[i],actualResData[i]);
+                Assert.Equal(expectResData[i], actualResData[i]);
             }
             // Assert metadata
-           for(int i = 0; i<actualResMeta.Count;i++)
+            for (int i = 0; i < actualResMeta.Count; i++)
             {
-                Assert.Equal(expectResMeta[i].name,actualResMeta[i].name);
-                Assert.Equal(expectResMeta[i].type,actualResMeta[i].type);
-                Assert.Equal(expectResMeta[i].size,actualResMeta[i].size);
+                Assert.Equal(expectResMeta[i].name, actualResMeta[i].name);
+                Assert.Equal(expectResMeta[i].type, actualResMeta[i].type);
+                Assert.Equal(expectResMeta[i].size, actualResMeta[i].size);
             }
 
         }

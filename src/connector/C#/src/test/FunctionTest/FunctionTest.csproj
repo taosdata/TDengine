@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
     <IsPackable>false</IsPackable>
-    <NoWarn>CS1591</NoWarn>
+    <NoWarn>CS1591;CS0168</NoWarn>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>..\doc\FunctionTest.XML</DocumentationFile>
   </PropertyGroup>

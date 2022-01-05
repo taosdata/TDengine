@@ -3,7 +3,7 @@ using Xunit;
 using TDengineDriver;
 
 namespace TDengineDriver.Test
-{   
+{
     public class TestTDengineMeta
     {
         /// <author>xiaolei</author>
@@ -155,7 +155,7 @@ namespace TDengineDriver.Test
         /// <describe>Unit test for oject TDengineDriver.TDengineMeta's FLOAT's meta info</describe>
         /// <filename>TestTDengineMeta.cs</filename>
         /// <result>pass or failed </result>
-        [Fact]        
+        [Fact]
         public void TestTypeNameFLOAT()
         {
             string typeName = "FLOAT";

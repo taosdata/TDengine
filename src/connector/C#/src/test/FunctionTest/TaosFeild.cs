@@ -13,13 +13,13 @@ namespace Cases
         /// <describe>test taos_fetch_fields(), check the meta data</describe>
         /// <filename>TaosFeild.cs</filename>
         /// <result>pass or failed </result>  
-        [Fact(DisplayName = "FetchFieldCases.TestFetchFieldJsonTag()")] 
+        [Fact(DisplayName = "FetchFieldCases.TestFetchFieldJsonTag()")]
         public void TestFetchFieldJsonTag()
         {
             IntPtr conn = UtilsTools.TDConnection();
             IntPtr _res = IntPtr.Zero;
             string tableName = "fetchfeilds";
-            var expectResMeta = new List <TDengineMeta> {
+            var expectResMeta = new List<TDengineMeta> {
                 UtilsTools.ConstructTDengineMeta("ts", "timestamp"),
                 UtilsTools.ConstructTDengineMeta("b", "bool"),
                 UtilsTools.ConstructTDengineMeta("v1", "tinyint"),
@@ -36,9 +36,9 @@ namespace Cases
                 UtilsTools.ConstructTDengineMeta("blob", "nchar(200)"),
                 UtilsTools.ConstructTDengineMeta("jsontag", "json"),
             };
-            var expectResData = new List<String> {"1637064040000","true","1","2","3","4","5","6","7","8","9","10","XI","XII","{\"k1\": \"v1\"}" } ;
+            var expectResData = new List<String> { "1637064040000", "true", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "XI", "XII", "{\"k1\": \"v1\"}" };
             String dropTb = "drop table if exists " + tableName;
-            String createTb =  "create stable " + tableName
+            String createTb = "create stable " + tableName
                                 + " (ts timestamp" +
                                 ",b bool" +
                                 ",v1 tinyint" +
@@ -58,7 +58,7 @@ namespace Cases
                                 "(jsontag json);";
             String insertSql = "insert into " + tableName + "_t1 using " + tableName +
                                " tags('{\"k1\": \"v1\"}') " +
-                               "values(1637064040000,true,1,2,3,4,5,6,7,8,9,10,'XI','XII')";                               
+                               "values(1637064040000,true,1,2,3,4,5,6,7,8,9,10,'XI','XII')";
             String selectSql = "select * from " + tableName;
             String dropSql = "drop table " + tableName;
 
@@ -66,14 +66,14 @@ namespace Cases
             UtilsTools.ExecuteUpdate(conn, createTb);
             UtilsTools.ExecuteUpdate(conn, insertSql);
             _res = UtilsTools.ExecuteQuery(conn, selectSql);
-            
+
             ResultSet actualResult = new ResultSet(_res);
-            List <TDengineMeta>  actualMeta = actualResult.GetResultMeta();
-            for(int i = 0; i<actualMeta.Count; i++)
+            List<TDengineMeta> actualMeta = actualResult.GetResultMeta();
+            for (int i = 0; i < actualMeta.Count; i++)
             {
-                Assert.Equal(expectResMeta[i].name,actualMeta[i].name);
-                Assert.Equal(expectResMeta[i].type,actualMeta[i].type);
-                Assert.Equal(expectResMeta[i].size,actualMeta[i].size);
+                Assert.Equal(expectResMeta[i].name, actualMeta[i].name);
+                Assert.Equal(expectResMeta[i].type, actualMeta[i].type);
+                Assert.Equal(expectResMeta[i].size, actualMeta[i].size);
             }
         }
     }

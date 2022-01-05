@@ -40,9 +40,9 @@ namespace Cases
             string querySql = "select * from " + tableName;
             TAOS_BIND[] _valuesRow = DataSource.GetNtableCNRow();
             List<string> expectResData = DataSource.GetNtableCNRowData();
-            List<TDengineMeta> expectResMeta =  DataSource.GetMetaFromDLL(createTb);
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createTb);
 
-            IntPtr conn = UtilsTools.TDConnection(); 
+            IntPtr conn = UtilsTools.TDConnection();
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createTb);
 
@@ -62,16 +62,16 @@ namespace Cases
             List<string> actualResData = actualResult.GetResultData();
 
             // Assert retrieve data
-           for(int i = 0; i<actualResData.Count;i++)
+            for (int i = 0; i < actualResData.Count; i++)
             {
-                Assert.Equal(expectResData[i],actualResData[i]);
+                Assert.Equal(expectResData[i], actualResData[i]);
             }
             // Assert metadata
-           for(int i = 0; i<actualResMeta.Count;i++)
+            for (int i = 0; i < actualResMeta.Count; i++)
             {
-                Assert.Equal(expectResMeta[i].name,actualResMeta[i].name);
-                Assert.Equal(expectResMeta[i].type,actualResMeta[i].type);
-                Assert.Equal(expectResMeta[i].size,actualResMeta[i].size);
+                Assert.Equal(expectResMeta[i].name, actualResMeta[i].name);
+                Assert.Equal(expectResMeta[i].type, actualResMeta[i].type);
+                Assert.Equal(expectResMeta[i].size, actualResMeta[i].size);
             }
         }
 
@@ -80,7 +80,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into normal table by column after column </describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindColumnCn()")] 
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindColumnCn()")]
         public void TestBindColumnCn()
         {
             string tableName = "normal_tablestmt_cases_test_bind_column_cn";
@@ -105,9 +105,9 @@ namespace Cases
             String dropSql = $"drop table if exists {tableName} ";
             List<string> expectResData = DataSource.GetMultiBindCNRowData();
             TAOS_MULTI_BIND[] mbind = DataSource.GetMultiBindCNArr();
-            List<TDengineMeta> expectResMeta =  DataSource.GetMetaFromDLL(createTb);
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createTb);
 
-            IntPtr conn = UtilsTools.TDConnection(); 
+            IntPtr conn = UtilsTools.TDConnection();
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createTb);
 
@@ -143,17 +143,17 @@ namespace Cases
             List<TDengineMeta> actualResMeta = actualResult.GetResultMeta();
             List<string> actualResData = actualResult.GetResultData();
             // Assert retrieve data
-           for(int i = 0; i<actualResData.Count;i++)
+            for (int i = 0; i < actualResData.Count; i++)
             {
-                Assert.Equal(expectResData[i],actualResData[i]);
+                Assert.Equal(expectResData[i], actualResData[i]);
             }
             // Assert metadata
-           for(int i = 0; i<actualResMeta.Count;i++)
+            for (int i = 0; i < actualResMeta.Count; i++)
             {
-                Assert.Equal(expectResMeta[i].name,actualResMeta[i].name);
-                Assert.Equal(expectResMeta[i].type,actualResMeta[i].type);
-                Assert.Equal(expectResMeta[i].size,actualResMeta[i].size);
-                
+                Assert.Equal(expectResMeta[i].name, actualResMeta[i].name);
+                Assert.Equal(expectResMeta[i].type, actualResMeta[i].type);
+                Assert.Equal(expectResMeta[i].size, actualResMeta[i].size);
+
             }
         }
 
@@ -162,7 +162,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into normal table by column after column </describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindMultiLineCn()")] 
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindMultiLineCn()")]
         public void TestBindMultiLineCn()
         {
             string tableName = "normal_tablestmt_cases_test_bind_multi_lines_cn";
@@ -187,8 +187,8 @@ namespace Cases
             String insertSql = "insert into ?  values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
             String dropSql = $"drop table if exists {tableName} ";
             List<string> expectResData = DataSource.GetMultiBindCNRowData();
-            List<TDengineMeta> expectResMeta =  DataSource.GetMetaFromDLL(createTb);
-            
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createTb);
+
             IntPtr conn = UtilsTools.TDConnection(); ;
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createTb);
@@ -200,7 +200,7 @@ namespace Cases
             StmtUtilTools.AddBatch(stmt);
             StmtUtilTools.StmtExecute(stmt);
             StmtUtilTools.StmtClose(stmt);
-            
+
             DataSource.FreeTaosMBind(mbind);
 
             string querySql = "select * from " + tableName;
@@ -209,20 +209,20 @@ namespace Cases
 
             List<TDengineMeta> actualResMeta = actualResult.GetResultMeta();
             List<string> actualResData = actualResult.GetResultData();
-            Assert.Equal(expectResMeta.Count,actualResMeta.Count);
-            Assert.Equal(expectResData.Count,actualResData.Count);
+            Assert.Equal(expectResMeta.Count, actualResMeta.Count);
+            Assert.Equal(expectResData.Count, actualResData.Count);
 
             // Assert retrieve data
-           for(int i = 0; i<actualResData.Count;i++)
+            for (int i = 0; i < actualResData.Count; i++)
             {
-                Assert.Equal(expectResData[i],actualResData[i]);
+                Assert.Equal(expectResData[i], actualResData[i]);
             }
             // Assert metadata
-           for(int i = 0; i<actualResMeta.Count;i++)
+            for (int i = 0; i < actualResMeta.Count; i++)
             {
-                Assert.Equal(expectResMeta[i].name,actualResMeta[i].name);
-                Assert.Equal(expectResMeta[i].type,actualResMeta[i].type);
-                Assert.Equal(expectResMeta[i].size,actualResMeta[i].size);
+                Assert.Equal(expectResMeta[i].name, actualResMeta[i].name);
+                Assert.Equal(expectResMeta[i].type, actualResMeta[i].type);
+                Assert.Equal(expectResMeta[i].size, actualResMeta[i].size);
             }
         }
 
@@ -231,7 +231,7 @@ namespace Cases
         /// <describe>Test stmt insert sinle line data into normal table</describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindSingleLine")]  
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindSingleLine")]
         public void TestBindSingleLine()
         {
             string tableName = "normal_tablestmt_cases_test_bind_single_line";
@@ -257,9 +257,9 @@ namespace Cases
             string querySql = "select * from " + tableName;
             TAOS_BIND[] valuesRow = DataSource.GetNtableRow();
             List<string> expectResData = DataSource.GetNtableRowData();
-            List<TDengineMeta> expectResMeta =  DataSource.GetMetaFromDLL(createTb);
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createTb);
 
-            IntPtr conn = UtilsTools.TDConnection(); 
+            IntPtr conn = UtilsTools.TDConnection();
             UtilsTools.ExecuteQuery(conn, dropSql);
             UtilsTools.ExecuteQuery(conn, createTb);
 
@@ -277,20 +277,20 @@ namespace Cases
 
             List<TDengineMeta> actualResMeta = actualResult.GetResultMeta();
             List<string> actualResData = actualResult.GetResultData();
-            Assert.Equal(expectResMeta.Count,actualResMeta.Count);
-            Assert.Equal(expectResData.Count,actualResData.Count);
+            Assert.Equal(expectResMeta.Count, actualResMeta.Count);
+            Assert.Equal(expectResData.Count, actualResData.Count);
 
             // Assert retrieve data
-           for(int i = 0; i<actualResData.Count;i++)
+            for (int i = 0; i < actualResData.Count; i++)
             {
-                Assert.Equal(expectResData[i],actualResData[i]);
+                Assert.Equal(expectResData[i], actualResData[i]);
             }
             // Assert metadata
-           for(int i = 0; i<actualResMeta.Count;i++)
+            for (int i = 0; i < actualResMeta.Count; i++)
             {
-                Assert.Equal(expectResMeta[i].name,actualResMeta[i].name);
-                Assert.Equal(expectResMeta[i].type,actualResMeta[i].type);
-                Assert.Equal(expectResMeta[i].size,actualResMeta[i].size);
+                Assert.Equal(expectResMeta[i].name, actualResMeta[i].name);
+                Assert.Equal(expectResMeta[i].type, actualResMeta[i].type);
+                Assert.Equal(expectResMeta[i].size, actualResMeta[i].size);
             }
 
         }
@@ -300,7 +300,7 @@ namespace Cases
         /// <describe>Test stmt insert multiple rows of data into normal table</describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindMultiLine()")] 
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindMultiLine()")]
         public void TestBindMultiLine()
         {
             string tableName = "normal_table_stmt_cases_test_bind_multi_lines";
@@ -325,9 +325,9 @@ namespace Cases
             String dropSql = $"drop table if exists {tableName} ";
             List<string> expectResData = DataSource.GetMultiBindResData();
             TAOS_MULTI_BIND[] mbind = DataSource.GetMultiBindArr();
-            List<TDengineMeta> expectResMeta =  DataSource.GetMetaFromDLL(createTb);
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createTb);
 
-            IntPtr conn = UtilsTools.TDConnection(); 
+            IntPtr conn = UtilsTools.TDConnection();
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createTb);
 
@@ -347,20 +347,20 @@ namespace Cases
 
             List<TDengineMeta> actualResMeta = actualResult.GetResultMeta();
             List<string> actualResData = actualResult.GetResultData();
-            Assert.Equal(expectResMeta.Count,actualResMeta.Count);
-            Assert.Equal(expectResData.Count,actualResData.Count);
+            Assert.Equal(expectResMeta.Count, actualResMeta.Count);
+            Assert.Equal(expectResData.Count, actualResData.Count);
 
             // Assert retrieve data
-           for(int i = 0; i<actualResData.Count;i++)
+            for (int i = 0; i < actualResData.Count; i++)
             {
-                Assert.Equal(expectResData[i],actualResData[i]);
+                Assert.Equal(expectResData[i], actualResData[i]);
             }
             // Assert metadata
-           for(int i = 0; i<actualResMeta.Count;i++)
+            for (int i = 0; i < actualResMeta.Count; i++)
             {
-                Assert.Equal(expectResMeta[i].name,actualResMeta[i].name);
-                Assert.Equal(expectResMeta[i].type,actualResMeta[i].type);
-                Assert.Equal(expectResMeta[i].size,actualResMeta[i].size);
+                Assert.Equal(expectResMeta[i].name, actualResMeta[i].name);
+                Assert.Equal(expectResMeta[i].type, actualResMeta[i].type);
+                Assert.Equal(expectResMeta[i].size, actualResMeta[i].size);
             }
         }
 
@@ -369,7 +369,7 @@ namespace Cases
         /// <describe>Test stmt insert multiple rows of data into normal table by column after column </describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindColumn()")] 
+        [Fact(DisplayName = "NormalTableStmtCases.TestBindColumn()")]
         public void TestBindColumn()
         {
             string tableName = "normal_tablestmt_cases_test_bind_column_cn";
@@ -395,10 +395,10 @@ namespace Cases
             String dropSql = $"drop table if exists {tableName} ";
             List<string> expectResData = DataSource.GetMultiBindResData();
             TAOS_MULTI_BIND[] mbind = DataSource.GetMultiBindArr();
-            List<TDengineMeta> expectResMeta =  DataSource.GetMetaFromDLL(createTb);
+            List<TDengineMeta> expectResMeta = DataSource.GetMetaFromDLL(createTb);
 
 
-            IntPtr conn = UtilsTools.TDConnection(); 
+            IntPtr conn = UtilsTools.TDConnection();
             UtilsTools.ExecuteUpdate(conn, dropSql);
             UtilsTools.ExecuteUpdate(conn, createTb);
 
@@ -433,20 +433,20 @@ namespace Cases
 
             List<TDengineMeta> actualResMeta = actualResult.GetResultMeta();
             List<string> actualResData = actualResult.GetResultData();
-            Assert.Equal(expectResMeta.Count,actualResMeta.Count);
-            Assert.Equal(expectResData.Count,actualResData.Count);
+            Assert.Equal(expectResMeta.Count, actualResMeta.Count);
+            Assert.Equal(expectResData.Count, actualResData.Count);
 
             // Assert retrieve data
-           for(int i = 0; i<actualResData.Count;i++)
+            for (int i = 0; i < actualResData.Count; i++)
             {
-                Assert.Equal(expectResData[i],actualResData[i]);
+                Assert.Equal(expectResData[i], actualResData[i]);
             }
             // Assert metadata
-           for(int i = 0; i<actualResMeta.Count;i++)
+            for (int i = 0; i < actualResMeta.Count; i++)
             {
-                Assert.Equal(expectResMeta[i].name,actualResMeta[i].name);
-                Assert.Equal(expectResMeta[i].type,actualResMeta[i].type);
-                Assert.Equal(expectResMeta[i].size,actualResMeta[i].size);
+                Assert.Equal(expectResMeta[i].name, actualResMeta[i].name);
+                Assert.Equal(expectResMeta[i].type, actualResMeta[i].type);
+                Assert.Equal(expectResMeta[i].size, actualResMeta[i].size);
             }
 
         }

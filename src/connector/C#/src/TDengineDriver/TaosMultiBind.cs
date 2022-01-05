@@ -434,7 +434,7 @@ namespace TDengineDriver
         }
         public static TAOS_MULTI_BIND MultiBindBinary(string[] arr)
         {
-             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
+            TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
             int elementCount = arr.Length;
             //TypeSize represent the Max element length of the comming arr
             //The size of the buffer is typeSize * elementCount
@@ -462,10 +462,10 @@ namespace TDengineDriver
                 itemLength = decodeByte.Length;
                 if (!String.IsNullOrEmpty(arr[i]))
                 {
-                   for (int j = 0 ; j<itemLength ; j++)
+                    for (int j = 0; j < itemLength; j++)
                     {
                         //Read byte after byte
-                        Marshal.WriteByte(uNcharBuff, i * typeSize +j, decodeByte[j]);
+                        Marshal.WriteByte(uNcharBuff, i * typeSize + j, decodeByte[j]);
                     }
                 }
                 //Set TAOS_MULTI_BIND.length
@@ -513,10 +513,10 @@ namespace TDengineDriver
                 itemLength = decodeByte.Length;
                 if (!String.IsNullOrEmpty(arr[i]))
                 {
-                   for (int j = 0 ; j<itemLength ; j++)
-                    {   
+                    for (int j = 0; j < itemLength; j++)
+                    {
                         //Read byte after byte
-                        Marshal.WriteByte(uNcharBuff, i * typeSize +j, decodeByte[j]);
+                        Marshal.WriteByte(uNcharBuff, i * typeSize + j, decodeByte[j]);
                     }
                 }
                 //Set TAOS_MULTI_BIND.length
@@ -605,16 +605,16 @@ namespace TDengineDriver
         }
 
         private static Byte[] GetStringEncodeByte(string str)
-        {   
+        {
             Byte[] strToBytes = null;
-            if(String.IsNullOrEmpty(str))
+            if (String.IsNullOrEmpty(str))
             {
                 strToBytes = System.Text.Encoding.Default.GetBytes(String.Empty);
             }
             else
             {
                 strToBytes = System.Text.Encoding.Default.GetBytes(str);
-            } 
+            }
             return strToBytes;
         }
     }
