@@ -305,10 +305,10 @@ static void splitModificationOpSubPlan(SPlanContext* pCxt, SQueryPlanNode* pPlan
     SVgDataBlocks* blocks = (SVgDataBlocks*)taosArrayGetP(pPayload->payload, i);
 
     vgroupInfoToEpSet(&blocks->vg, &subplan->execNode);
-    subplan->pDataSink = createDataInserter(pCxt, blocks);
-    subplan->pNode   = NULL;
-    subplan->type    = QUERY_TYPE_MODIFY;
-    subplan->msgType = pPayload->msgType;
+    subplan->pDataSink  = createDataInserter(pCxt, blocks);
+    subplan->pNode      = NULL;
+    subplan->type       = QUERY_TYPE_MODIFY;
+    subplan->msgType    = pPayload->msgType;
     subplan->id.queryId = pCxt->pDag->queryId;
 
     RECOVERY_CURRENT_SUBPLAN(pCxt);
