@@ -13,6 +13,7 @@
 
 import sys
 import os
+import math
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -23,7 +24,7 @@ import subprocess
 class TDTestCase:
     def caseDescription(self):
         '''
-        case1<sdsang>: [TD-12655] taosdump supports unsigned big int
+        case1<sdsang>: [TD-12526] taosdump supports double
         '''
         return
 
@@ -57,13 +58,18 @@ class TDTestCase:
 
         tdSql.execute("use db")
         tdSql.execute(
-            "create table st(ts timestamp, c1 BIGINT UNSIGNED) tags(ubntag BIGINT UNSIGNED)")
-        tdSql.execute("create table t1 using st tags(0)")
-        tdSql.execute("insert into t1 values(1640000000000, 0)")
-        tdSql.execute("create table t2 using st tags(18446744073709551614)")
-        tdSql.execute("insert into t2 values(1640000000000, 18446744073709551614)")
-        tdSql.execute("create table t3 using st tags(NULL)")
-        tdSql.execute("insert into t3 values(1640000000000, NULL)")
+            "create table st(ts timestamp, c1 DOUBLE) tags(dbtag DOUBLE)")
+        tdSql.execute("create table t1 using st tags(1.0)")
+        tdSql.execute("insert into t1 values(1640000000000, 1.0)")
+
+        tdSql.execute("create table t2 using st tags(1.7E308)")
+        tdSql.execute("insert into t2 values(1640000000000, 1.7E308)")
+
+        tdSql.execute("create table t3 using st tags(-1.7E308)")
+        tdSql.execute("insert into t3 values(1640000000000, -1.7E308)")
+
+        tdSql.execute("create table t4 using st tags(NULL)")
+        tdSql.execute("insert into t4 values(1640000000000, NULL)")
 
 #        sys.exit(1)
 
@@ -82,13 +88,13 @@ class TDTestCase:
             os.makedirs(self.tmpdir)
 
         os.system(
-            "%staosdump --databases db -o %s -T 1 -g" %
+            "%staosdump --databases db -o %s -T 1" %
             (binPath, self.tmpdir))
 
 #        sys.exit(1)
         tdSql.execute("drop database db")
 
-        os.system("%staosdump -i %s -T 1 -g" % (binPath, self.tmpdir))
+        os.system("%staosdump -i %s -T 1" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
         tdSql.checkRows(1)
@@ -99,21 +105,45 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'st')
 
         tdSql.query("show tables")
-        tdSql.checkRows(3)
+        tdSql.checkRows(4)
 
-        tdSql.query("select * from st where ubntag = 0")
+        tdSql.query("select * from st where dbtag = 1.0")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 0)
-        tdSql.checkData(0, 2, 0)
+        if not math.isclose(tdSql.getData(0, 1), 1.0):
+            tdLog.debug("getData(0, 1): %f, to compare %f" %
+                        (tdSql.getData(0, 1), 1.0))
+            tdLog.exit("data is different")
+        if not math.isclose(tdSql.getData(0, 2), 1.0):
+            tdLog.debug("getData(0, 1): %f, to compare %f" %
+                        (tdSql.getData(0, 2), 1.0))
+            tdLog.exit("data is different")
 
-        tdSql.query("select * from st where ubntag = 18446744073709551614")
+        tdSql.query("select * from st where dbtag = 1.7E308")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 18446744073709551614)
-        tdSql.checkData(0, 2, 18446744073709551614)
+        if not math.isclose(tdSql.getData(0, 1), 1.7E308):
+            tdLog.debug("getData(0, 1): %f, to compare %f" %
+                        (tdSql.getData(0, 1), 1.7E308))
+            tdLog.exit("data is different")
+        if not math.isclose(tdSql.getData(0, 2), 1.7E308):
+            tdLog.debug("getData(0, 1): %f, to compare %f" %
+                        (tdSql.getData(0, 2), 1.7E308))
+            tdLog.exit("data is different")
 
-        tdSql.query("select * from st where ubntag is null")
+        tdSql.query("select * from st where dbtag = -1.7E308")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1640000000000)
+        if not math.isclose(tdSql.getData(0, 1), -1.7E308):
+            tdLog.debug("getData(0, 1): %f, to compare %f" %
+                        (tdSql.getData(0, 1), -1.7E308))
+            tdLog.exit("data is different")
+        if not math.isclose(tdSql.getData(0, 2), -1.7E308):
+            tdLog.debug("getData(0, 1): %f, to compare %f" %
+                        (tdSql.getData(0, 2), -1.7E308))
+            tdLog.exit("data is different")
+
+        tdSql.query("select * from st where dbtag is null")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, None)
