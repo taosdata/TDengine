@@ -5612,6 +5612,18 @@ static int32_t getTableScanOrder(STableScanInfo* pTableScanInfo) {
   return pTableScanInfo->order;
 }
 
+// check all SQLFunctionCtx is completed
+static bool allCtxCompleted(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx) {
+  // only one false, return false
+  for(int32_t i = 0; i < pOperator->numOfOutput; i++) {
+    if(pCtx[i].resultInfo == NULL)
+      return false;
+    if(!pCtx[i].resultInfo->complete)
+      return false;
+  }
+  return true;
+}
+
 // this is a blocking operator
 static SSDataBlock* doAggregate(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
@@ -5650,6 +5662,9 @@ static SSDataBlock* doAggregate(void* param, bool* newgroup) {
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
     doAggregateImpl(pOperator, pQueryAttr->window.skey, pInfo->pCtx, pBlock);
+    // if all pCtx is completed, then query should be over
+    if(allCtxCompleted(pOperator, pInfo->pCtx))
+      break;    
   }
 
   doSetOperatorCompleted(pOperator);
