@@ -318,7 +318,7 @@ static void tsdbFreeTbData(STbData *pTbData) {
   }
 }
 
-static char *tsdbGetTsTupleKey(const void *data) { return memRowKey((SMemRow)data); }
+static char *tsdbGetTsTupleKey(const void *data) { return memRowKeys((SMemRow)data); }
 
 static int tsdbTbDataComp(const void *arg1, const void *arg2) {
   STbData *pTbData1 = (STbData *)arg1;

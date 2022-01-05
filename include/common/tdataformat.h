@@ -454,6 +454,7 @@ typedef struct {
 #define kvRowValLen(r) (kvRowLen(r) - TD_KV_ROW_HEAD_SIZE - sizeof(SColIdx) * kvRowNCols(r))
 #define kvRowTKey(r) (*(TKEY *)(kvRowValues(r)))
 #define kvRowKey(r) tdGetKey(kvRowTKey(r))
+#define kvRowKeys(r) POINTER_SHIFT(r, *(uint16_t *)POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE + sizeof(int16_t)))
 #define kvRowDeleted(r) TKEY_IS_DELETED(kvRowTKey(r))
 
 SKVRow tdKVRowDup(SKVRow row);
@@ -654,6 +655,7 @@ static FORCE_INLINE char *memRowEnd(SMemRow row) {
 
 #define memRowTKey(r) (isDataRow(r) ? dataRowTKey(memRowDataBody(r)) : kvRowTKey(memRowKvBody(r)))
 #define memRowKey(r) (isDataRow(r) ? dataRowKey(memRowDataBody(r)) : kvRowKey(memRowKvBody(r)))
+#define memRowKeys(r) (isDataRow(r) ? dataRowTuple(memRowDataBody(r)) : kvRowKeys(memRowKvBody(r)))
 #define memRowSetTKey(r, k)                 \
   do {                                      \
     if (isDataRow(r)) {                     \
