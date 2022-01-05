@@ -40,7 +40,7 @@ typedef struct IndexCache {
   SIndex*   index;
   char*     colName;
   int32_t   version;
-  int32_t   nTerm;
+  int64_t   occupiedMem;
   int8_t    type;
   uint64_t  suid;
 
