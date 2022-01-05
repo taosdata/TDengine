@@ -980,7 +980,9 @@ typedef struct {
 } STLV;
 
 enum {
+  TLV_TYPE_END_MARK = -1,
   TLV_TYPE_DUMMY = 1,
+  TLV_TYPE_META_VERSION = 2,
 };
 
 #pragma pack(pop)

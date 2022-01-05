@@ -391,7 +391,8 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   size += sizeof(STableIdInfo) * taosHashGetSize(pRuntimeEnv->pTableRetrieveTsMap);
 
   *contLen = (int32_t)(size + sizeof(SRetrieveTableRsp));
-
+  *contLen += (sizeof(STLV) + sizeof(int32_t) + sizeof(int32_t)); //tlv meta version
+  *contLen += sizeof(STLV); // tlv end mark
   // current solution only avoid crash, but cannot return error code to client
   *pRsp = (SRetrieveTableRsp *)rpcMallocCont(*contLen);
   if (*pRsp == NULL) {
@@ -409,8 +410,6 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
 
   (*pRsp)->precision = htons(pQueryAttr->precision);
-  (*pRsp)->sVersion = htonl(pQueryAttr->tableGroupInfo.sVersion);
-  (*pRsp)->tVersion = htonl(pQueryAttr->tableGroupInfo.tVersion);
   (*pRsp)->compressed = (int8_t)((tsCompressColData != -1) && checkNeedToCompressQueryCol(pQInfo));
 
   if (GET_NUM_OF_RESULTS(&(pQInfo->runtimeEnv)) > 0 && pQInfo->code == TSDB_CODE_SUCCESS) {
@@ -446,6 +445,18 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     qDebug("QInfo:0x%"PRIx64" has more results to retrieve", pQInfo->qId);
   }
 
+  (*pRsp)->extend = 1;
+  STLV* tlv = (STLV*)((*pRsp)->data + compLen);
+  tlv->type = htons(TLV_TYPE_META_VERSION);
+  tlv->len = htonl(sizeof(int32_t) + sizeof(int32_t));
+  int32_t sVersion = htonl(pQueryAttr->tableGroupInfo.sVersion);
+  int32_t tVersion = htonl(pQueryAttr->tableGroupInfo.tVersion);
+  memcpy(tlv->value, &sVersion, sizeof(int32_t));
+  memcpy(tlv->value + sizeof(int32_t), &tVersion, sizeof(int32_t));
+
+  STLV* tlvEnd = (STLV*)((char*)tlv + sizeof(STLV) + ntohl(tlv->len));
+  tlvEnd->type = htons(TLV_TYPE_END_MARK);
+  tlvEnd->len = 0;
   // the memory should be freed if the code of pQInfo is not TSDB_CODE_SUCCESS
   if (pQInfo->code != TSDB_CODE_SUCCESS) {
     rpcFreeCont(*pRsp);

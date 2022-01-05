@@ -2756,8 +2756,6 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
 
   pRes->numOfRows  = htonl(pRetrieve->numOfRows);
   pRes->precision  = htons(pRetrieve->precision);
-  pRes->sVersion = htonl(pRetrieve->sVersion);
-  pRes->tVersion = htonl(pRetrieve->tVersion);
   pRes->offset     = htobe64(pRetrieve->offset);
   pRes->useconds   = htobe64(pRetrieve->useconds);
   pRes->completed  = (pRetrieve->completed == 1);
@@ -2808,6 +2806,18 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   tscDebug("0x%"PRIx64" numOfRows:%d, offset:%" PRId64 ", complete:%d, qId:0x%"PRIx64, pSql->self, pRes->numOfRows, pRes->offset,
       pRes->completed, pRes->qId);
 
+  if (pRetrieve->extend == 1) {
+    STLV* tlv = (STLV*)(pRetrieve->data + ntohl(pRetrieve->compLen));
+    while (tlv->type != TLV_TYPE_END_MARK) {
+      switch (tlv->type) {
+        case TLV_TYPE_META_VERSION:
+          pRes->sVersion = ntohl(*(int32_t*)tlv->value);
+          pRes->tVersion = ntohl(*(int32_t*)(tlv->value + sizeof(int32_t)));
+          break;
+      }
+      tlv = (STLV*) ((char*)tlv + sizeof(STLV) + ntohl(tlv->len));
+    }
+  }
   return 0;
 }
 
