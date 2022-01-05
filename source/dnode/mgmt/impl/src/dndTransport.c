@@ -105,8 +105,6 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_SHOW_RETRIEVE)] = dndProcessMnodeReadMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_STATUS)] = dndProcessMnodeReadMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_STATUS_RSP)] = dndProcessMgmtMsg;
-  pMgmt->msgFp[TMSG_INDEX(TDMT_MND_TRANS)] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TMSG_INDEX(TDMT_MND_TRANS_RSP)] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_GRANT)] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_GRANT_RSP)] = dndProcessMgmtMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_AUTH)] = dndProcessMnodeReadMsg;
@@ -216,7 +214,7 @@ static void dndProcessRequest(void *param, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   if (dndGetStat(pDnode) == DND_STAT_STOPPED) {
     dError("RPC %p, req:%s app:%p is ignored since dnode exiting", pMsg->handle, TMSG_INFO(msgType), pMsg->ahandle);
-    SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_DND_EXITING};
+    SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_DND_OFFLINE};
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
     return;
@@ -383,14 +381,19 @@ void dndCleanupTrans(SDnode *pDnode) {
   dInfo("dnode-transport is cleaned up");
 }
 
-void dndSendMsgToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pMsg) {
+int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pMsg) {
   STransMgmt *pMgmt = &pDnode->tmgmt;
-  if (pMgmt->clientRpc == NULL) return;
+  if (pMgmt->clientRpc == NULL) {
+    terrno = TSDB_CODE_DND_OFFLINE;
+    return -1;
+  }
+
   rpcSendRequest(pMgmt->clientRpc, pEpSet, pMsg, NULL);
+  return 0;
 }
 
-void dndSendMsgToMnode(SDnode *pDnode, SRpcMsg *pMsg) {
+int32_t dndSendReqToMnode(SDnode *pDnode, SRpcMsg *pMsg) {
   SEpSet epSet = {0};
   dndGetMnodeEpSet(pDnode, &epSet);
-  dndSendMsgToDnode(pDnode, &epSet, pMsg);
+  return dndSendReqToDnode(pDnode, &epSet, pMsg);
 }

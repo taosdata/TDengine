@@ -83,6 +83,8 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
   int64_t sdbVer = sdbUpdateVer(pSdb, 0);
   mDebug("restore sdb wal finished, sdb ver:%" PRId64, sdbVer);
 
+  mndTransPullup(pMnode);
+
   if (walBeginSnapshot(pWal, sdbVer) < 0) {
     goto WAL_RESTORE_OVER;
   }

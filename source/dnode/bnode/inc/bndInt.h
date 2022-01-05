@@ -33,9 +33,9 @@ typedef struct SBnode {
   int32_t           dnodeId;
   int64_t           clusterId;
   SBnodeCfg         cfg;
-  SendMsgToDnodeFp  sendMsgToDnodeFp;
-  SendMsgToMnodeFp  sendMsgToMnodeFp;
-  SendRedirectMsgFp sendRedirectMsgFp;
+  SendReqToDnodeFp  sendReqToDnodeFp;
+  SendReqToMnodeFp  sendReqToMnodeFp;
+  SendRedirectRspFp sendRedirectRspFp;
 } SBnode;
 
 #ifdef __cplusplus
