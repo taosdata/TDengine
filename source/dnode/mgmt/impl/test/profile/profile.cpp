@@ -17,15 +17,15 @@ class DndTestProfile : public ::testing::Test {
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
+  static int32_t  connId;
 
  public:
   void SetUp() override {}
   void TearDown() override {}
-
-  int32_t connId;
 };
 
 Testbase DndTestProfile::test;
+int32_t  DndTestProfile::connId;
 
 TEST_F(DndTestProfile, 01_ConnectMsg) {
   int32_t contLen = sizeof(SConnectMsg);
