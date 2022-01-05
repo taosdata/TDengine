@@ -399,6 +399,8 @@ int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
   if (sIdx == NULL) { return -1; }
   indexInfo("suid %" PRIu64 " merge cache into tindex", sIdx->suid);
 
+  int64_t st = taosGetTimestampUs();
+
   IndexCache*  pCache = (IndexCache*)cache;
   TFileReader* pReader = tfileGetReaderByCol(sIdx->tindex, pCache->suid, pCache->colName);
   if (pReader == NULL) { indexWarn("empty tfile reader found"); }
@@ -458,6 +460,7 @@ int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
   }
   int ret = indexGenTFile(sIdx, pCache, result);
   indexDestroyTempResult(result);
+
   indexCacheDestroyImm(pCache);
 
   indexCacheIteratorDestroy(cacheIter);
@@ -465,7 +468,14 @@ int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
 
   tfileReaderUnRef(pReader);
   indexCacheUnRef(pCache);
-  return 0;
+
+  int64_t cost = taosGetTimestampUs() - st;
+  if (ret != 0) {
+    indexError("failed to merge, time cost: %" PRId64 "ms", cost / 1000);
+  } else {
+    indexInfo("success to merge , time cost: %" PRId64 "ms", cost / 1000);
+  }
+  return ret;
 }
 void iterateValueDestroy(IterateValue* value, bool destroy) {
   if (destroy) {
@@ -506,7 +516,10 @@ static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   pthread_mutex_unlock(&sIdx->mtx);
   return ret;
 END:
-  tfileWriterClose(tw);
+  if (tw != NULL) {
+    writerCtxDestroy(tw->ctx, true);
+    free(tw);
+  }
   return -1;
 }
 

@@ -53,7 +53,10 @@ IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, in
   cache->version = 0;
   cache->suid = suid;
   cache->occupiedMem = 0;
+
   pthread_mutex_init(&cache->mtx, NULL);
+  pthread_cond_init(&cache->finished, NULL);
+
   indexCacheRef(cache);
   return cache;
 }
@@ -124,6 +127,7 @@ void indexCacheDestroyImm(IndexCache* cache) {
   pthread_mutex_lock(&cache->mtx);
   tbl = cache->imm;
   cache->imm = NULL;  // or throw int bg thread
+  pthread_cond_broadcast(&cache->finished);
   pthread_mutex_unlock(&cache->mtx);
 
   indexMemUnRef(tbl);
@@ -135,6 +139,9 @@ void indexCacheDestroy(void* cache) {
   indexMemUnRef(pCache->mem);
   indexMemUnRef(pCache->imm);
   free(pCache->colName);
+
+  pthread_mutex_destroy(&pCache->mtx);
+  pthread_cond_destroy(&pCache->finished);
 
   free(pCache);
 }
@@ -180,9 +187,10 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
       break;
     } else if (cache->imm != NULL) {
       // TODO: wake up by condition variable
-      pthread_mutex_unlock(&cache->mtx);
-      taosMsleep(50);
-      pthread_mutex_lock(&cache->mtx);
+      // pthread_mutex_unlock(&cache->mtx);
+      pthread_cond_wait(&cache->finished, &cache->mtx);
+      // taosMsleep(50);
+      // pthread_mutex_lock(&cache->mtx);
     } else {
       indexCacheRef(cache);
       cache->imm = cache->mem;

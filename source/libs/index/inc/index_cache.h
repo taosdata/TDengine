@@ -45,6 +45,7 @@ typedef struct IndexCache {
   uint64_t  suid;
 
   pthread_mutex_t mtx;
+  pthread_cond_t  finished;
 } IndexCache;
 
 #define CACHE_VERSION(cache) atomic_load_32(&cache->version)
