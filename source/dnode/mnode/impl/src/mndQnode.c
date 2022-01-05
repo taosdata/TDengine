@@ -26,7 +26,7 @@ static SSdbRaw *mndQnodeActionEncode(SQnodeObj *pObj);
 static SSdbRow *mndQnodeActionDecode(SSdbRaw *pRaw);
 static int32_t  mndQnodeActionInsert(SSdb *pSdb, SQnodeObj *pObj);
 static int32_t  mndQnodeActionDelete(SSdb *pSdb, SQnodeObj *pObj);
-static int32_t  mndQnodeActionUpdate(SSdb *pSdb, SQnodeObj *pOldQnode, SQnodeObj *pNewQnode);
+static int32_t  mndQnodeActionUpdate(SSdb *pSdb, SQnodeObj *pOld, SQnodeObj *pNew);
 static int32_t  mndProcessCreateQnodeReq(SMnodeMsg *pMsg);
 static int32_t  mndProcessDropQnodeReq(SMnodeMsg *pMsg);
 static int32_t  mndProcessCreateQnodeRsp(SMnodeMsg *pMsg);
@@ -155,9 +155,9 @@ static int32_t mndQnodeActionDelete(SSdb *pSdb, SQnodeObj *pObj) {
   return 0;
 }
 
-static int32_t mndQnodeActionUpdate(SSdb *pSdb, SQnodeObj *pOldQnode, SQnodeObj *pNewQnode) {
-  mTrace("qnode:%d, perform update action, old_row:%p new_row:%p", pOldQnode->id, pOldQnode, pNewQnode);
-  pOldQnode->updateTime = pNewQnode->updateTime;
+static int32_t mndQnodeActionUpdate(SSdb *pSdb, SQnodeObj *pOld, SQnodeObj *pNew) {
+  mTrace("qnode:%d, perform update action, old_row:%p new_row:%p", pOld->id, pOld, pNew);
+  pOld->updateTime = pNew->updateTime;
   return 0;
 }
 
@@ -251,6 +251,7 @@ static int32_t mndProcessCreateQnodeReq(SMnodeMsg *pMsg) {
   SQnodeObj *pObj = mndAcquireQnode(pMnode, pCreate->dnodeId);
   if (pObj != NULL) {
     mError("qnode:%d, qnode already exist", pObj->id);
+    terrno = TSDB_CODE_MND_QNODE_ALREADY_EXIST;
     mndReleaseQnode(pMnode, pObj);
     return -1;
   }
@@ -370,11 +371,12 @@ static int32_t mndProcessDropQnodeReq(SMnodeMsg *pMsg) {
 
   int32_t code = mndDropQnode(pMnode, pMsg, pObj);
   if (code != 0) {
+    sdbRelease(pMnode->pSdb, pObj);
     mError("qnode:%d, failed to drop since %s", pMnode->dnodeId, terrstr());
     return -1;
   }
 
-  sdbRelease(pMnode->pSdb, pMnode);
+  sdbRelease(pMnode->pSdb, pObj);
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 

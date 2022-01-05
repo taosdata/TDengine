@@ -26,7 +26,7 @@ static SSdbRaw *mndSnodeActionEncode(SSnodeObj *pObj);
 static SSdbRow *mndSnodeActionDecode(SSdbRaw *pRaw);
 static int32_t  mndSnodeActionInsert(SSdb *pSdb, SSnodeObj *pObj);
 static int32_t  mndSnodeActionDelete(SSdb *pSdb, SSnodeObj *pObj);
-static int32_t  mndSnodeActionUpdate(SSdb *pSdb, SSnodeObj *pOldSnode, SSnodeObj *pNewSnode);
+static int32_t  mndSnodeActionUpdate(SSdb *pSdb, SSnodeObj *pOld, SSnodeObj *pNew);
 static int32_t  mndProcessCreateSnodeReq(SMnodeMsg *pMsg);
 static int32_t  mndProcessDropSnodeReq(SMnodeMsg *pMsg);
 static int32_t  mndProcessCreateSnodeRsp(SMnodeMsg *pMsg);
@@ -155,9 +155,9 @@ static int32_t mndSnodeActionDelete(SSdb *pSdb, SSnodeObj *pObj) {
   return 0;
 }
 
-static int32_t mndSnodeActionUpdate(SSdb *pSdb, SSnodeObj *pOldSnode, SSnodeObj *pNewSnode) {
-  mTrace("snode:%d, perform update action, old_row:%p new_row:%p", pOldSnode->id, pOldSnode, pNewSnode);
-  pOldSnode->updateTime = pNewSnode->updateTime;
+static int32_t mndSnodeActionUpdate(SSdb *pSdb, SSnodeObj *pOld, SSnodeObj *pNew) {
+  mTrace("snode:%d, perform update action, old_row:%p new_row:%p", pOld->id, pOld, pNew);
+  pOld->updateTime = pNew->updateTime;
   return 0;
 }
 
@@ -251,6 +251,7 @@ static int32_t mndProcessCreateSnodeReq(SMnodeMsg *pMsg) {
   SSnodeObj *pObj = mndAcquireSnode(pMnode, pCreate->dnodeId);
   if (pObj != NULL) {
     mError("snode:%d, snode already exist", pObj->id);
+    terrno = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
     mndReleaseSnode(pMnode, pObj);
     return -1;
   }
@@ -370,11 +371,12 @@ static int32_t mndProcessDropSnodeReq(SMnodeMsg *pMsg) {
 
   int32_t code = mndDropSnode(pMnode, pMsg, pObj);
   if (code != 0) {
+    sdbRelease(pMnode->pSdb, pObj);
     mError("snode:%d, failed to drop since %s", pMnode->dnodeId, terrstr());
     return -1;
   }
 
-  sdbRelease(pMnode->pSdb, pMnode);
+  sdbRelease(pMnode->pSdb, pObj);
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
