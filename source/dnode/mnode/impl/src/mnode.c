@@ -366,14 +366,16 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
     return NULL;
   }
 
-  SRpcConnInfo connInfo = {0};
-  if ((pRpcMsg->msgType & 1U) && rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
-    taosFreeQitem(pMsg);
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    mError("failed to create msg since %s, app:%p RPC:%p", terrstr(), pRpcMsg->ahandle, pRpcMsg->handle);
-    return NULL;
+  if (pRpcMsg->msgType != TDMT_MND_TRANS) {
+    SRpcConnInfo connInfo = {0};
+    if ((pRpcMsg->msgType & 1U) && rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
+      taosFreeQitem(pMsg);
+      terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
+      mError("failed to create msg since %s, app:%p RPC:%p", terrstr(), pRpcMsg->ahandle, pRpcMsg->handle);
+      return NULL;
+    }
+    memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
   }
-  memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
 
   pMsg->pMnode = pMnode;
   pMsg->rpcMsg = *pRpcMsg;
