@@ -3345,15 +3345,6 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken
 
   int16_t columnIndex = COLUMN_INDEX_INITIAL_VAL;
 
-  char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0}; // create tmp buf to avoid alter orginal sqlstr
-  strncpy(tmpTokenBuf, pToken->z, pToken->n);
-  
-  pToken->z = tmpTokenBuf;
-
-  if (pToken->type == TK_ID) {
-    tscRmEscapeAndTrimToken(pToken);
-  }
-
   for (int16_t i = 0; i < numOfCols; ++i) {
     if (pToken->n != strlen(pSchema[i].name)) {
       continue;
@@ -8481,18 +8472,6 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
       for (int32_t i = 0; i < nameSize; ++i) {
         SStrToken* sToken = taosArrayGet(pNameList, i);
 
-        char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0}; // create tmp buf to avoid alter orginal sqlstr
-        strncpy(tmpTokenBuf, sToken->z, sToken->n);
-        sToken->z = tmpTokenBuf;
-
-        if (TK_STRING == sToken->type) {
-          tscDequoteAndTrimToken(sToken);
-        }
-
-        if (TK_ID == sToken->type) {
-          tscRmEscapeAndTrimToken(sToken);
-        }
-
         tVariantListItem* pItem = taosArrayGet(pValList, i);
 
         findColumnIndex = false;
@@ -9423,8 +9402,6 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
-    tscDequoteAndTrimToken(oriName);
-
     bool dbIncluded = false;
 
     if (tscValidateName(oriName, &dbIncluded) != TSDB_CODE_SUCCESS) {
@@ -9443,7 +9420,6 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
-      tscDequoteAndTrimToken(aliasName);
       if (tscValidateName(aliasName, NULL) != TSDB_CODE_SUCCESS || aliasName->n >= TSDB_TABLE_NAME_LEN) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
