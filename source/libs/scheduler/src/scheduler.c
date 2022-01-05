@@ -270,6 +270,8 @@ int32_t schPushTaskToExecList(SSchJob *job, SSchTask *task) {
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
+  SCH_TASK_DLOG("push to %s list", "execTasks");
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -283,6 +285,8 @@ int32_t schMoveTaskToSuccList(SSchJob *job, SSchTask *task, bool *moved) {
     qError("taosHashPut failed");
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
+
+  SCH_TASK_DLOG("push to %s list", "succTasks");
 
   *moved = true;
   
@@ -298,6 +302,8 @@ int32_t schMoveTaskToFailList(SSchJob *job, SSchTask *task, bool *moved) {
     qError("taosHashPut failed");
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
+
+  SCH_TASK_DLOG("push to %s list", "failTasks");
 
   *moved = true;
   
@@ -372,7 +378,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *job, SSchTask *task) {
   
   SCH_ERR_RET(schMoveTaskToSuccList(job, task, &moved));
   if (!moved) {
-    SCH_TASK_ERR_LOG(" task may already moved, status:%d", task->status);
+    SCH_TASK_ELOG("task may already moved, status:%d", task->status);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -447,11 +453,11 @@ int32_t schProcessOnTaskFailure(SSchJob *job, SSchTask *task, int32_t errCode) {
   SCH_ERR_RET(schTaskCheckAndSetRetry(job, task, errCode, &needRetry));
   
   if (!needRetry) {
-    SCH_TASK_ERR_LOG("task failed[%x], no more retry", errCode);
+    SCH_TASK_ELOG("task failed[%x], no more retry", errCode);
 
     SCH_ERR_RET(schMoveTaskToFailList(job, task, &moved));
     if (!moved) {
-      SCH_TASK_ERR_LOG("task may already moved, status:%d", task->status);
+      SCH_TASK_ELOG("task may already moved, status:%d", task->status);
     }    
     
     if (SCH_TASK_NEED_WAIT_ALL(task)) {
@@ -491,7 +497,6 @@ int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *ms
           goto _task_error;
         }
       }
-
       break;
     }
     case TDMT_VND_SUBMIT_RSP: {
@@ -568,19 +573,25 @@ int32_t schHandleCallback(void* param, const SDataBuf* pMsg, int32_t msgType, in
   int32_t code = 0;
   SSchCallbackParam *pParam = (SSchCallbackParam *)param;
   
-  SSchJob **job = taosHashGet(schMgmt.jobs, &pParam->queryId, sizeof(pParam->queryId));
-  if (NULL == job || NULL == (*job)) {
+  SSchJob **pjob = taosHashGet(schMgmt.jobs, &pParam->queryId, sizeof(pParam->queryId));
+  if (NULL == pjob || NULL == (*pjob)) {
     qError("taosHashGet queryId:%"PRIx64" not exist", pParam->queryId);
     SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
-  SSchTask **task = taosHashGet((*job)->execTasks, &pParam->taskId, sizeof(pParam->taskId));
-  if (NULL == task || NULL == (*task)) {
+  SSchJob *job = *pjob;
+
+  SSchTask **ptask = taosHashGet(job->execTasks, &pParam->taskId, sizeof(pParam->taskId));
+  if (NULL == ptask || NULL == (*ptask)) {
     qError("taosHashGet taskId:%"PRIx64" not exist", pParam->taskId);
     SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
+
+  SSchTask *task = *ptask;
+
+  SCH_TASK_DLOG("Got msg:%d, rspCode:%d", msgType, rspCode);
   
-  schProcessRspMsg(*job, *task, msgType, pMsg->pData, pMsg->len, rspCode);
+  schProcessRspMsg(job, task, msgType, pMsg->pData, pMsg->len, rspCode);
 
 _return:  
   tfree(param);
@@ -810,7 +821,7 @@ int32_t schLaunchTask(SSchJob *job, SSchTask *task) {
   SCH_ERR_RET(schSetTaskCondidateAddrs(job, task));
 
   if (NULL == task->condidateAddrs || taosArrayGetSize(task->condidateAddrs) <= 0) {
-    SCH_TASK_ERR_LOG("no valid condidate node for task:%"PRIx64, task->taskId);
+    SCH_TASK_ELOG("no valid condidate node for task:%"PRIx64, task->taskId);
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
