@@ -59,9 +59,8 @@ int32_t mndInitQnode(SMnode *pMnode) {
 void mndCleanupQnode(SMnode *pMnode) {}
 
 static SQnodeObj *mndAcquireQnode(SMnode *pMnode, int32_t qnodeId) {
-  SSdb      *pSdb = pMnode->pSdb;
-  SQnodeObj *pObj = sdbAcquire(pSdb, SDB_QNODE, &qnodeId);
-  if (pObj == NULL) {
+  SQnodeObj *pObj = sdbAcquire(pMnode->pSdb, SDB_QNODE, &qnodeId);
+  if (pObj == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     terrno = TSDB_CODE_MND_QNODE_NOT_EXIST;
   }
   return pObj;
@@ -169,6 +168,14 @@ static int32_t mndSetCreateQnodeRedoLogs(STrans *pTrans, SQnodeObj *pObj) {
   return 0;
 }
 
+static int32_t mndSetCreateQnodeUndoLogs(STrans *pTrans, SQnodeObj *pObj) {
+  SSdbRaw *pUndoRaw = mndQnodeActionEncode(pObj);
+  if (pUndoRaw == NULL) return -1;
+  if (mndTransAppendUndolog(pTrans, pUndoRaw) != 0) return -1;
+  if (sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED) != 0) return -1;
+  return 0;
+}
+
 static int32_t mndSetCreateQnodeCommitLogs(STrans *pTrans, SQnodeObj *pObj) {
   SSdbRaw *pCommitRaw = mndQnodeActionEncode(pObj);
   if (pCommitRaw == NULL) return -1;
@@ -190,6 +197,7 @@ static int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   action.pCont = pMsg;
   action.contLen = sizeof(SDCreateQnodeReq);
   action.msgType = TDMT_DND_CREATE_QNODE;
+  action.acceptableCode = TSDB_CODE_DND_QNODE_ALREADY_DEPLOYED;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     free(pMsg);
@@ -199,39 +207,47 @@ static int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   return 0;
 }
 
+static int32_t mndSetCreateQnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeObj *pObj) {
+  SDDropQnodeReq *pMsg = malloc(sizeof(SDDropQnodeReq));
+  if (pMsg == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  pMsg->dnodeId = htonl(pDnode->id);
+
+  STransAction action = {0};
+  action.epSet = mndGetDnodeEpset(pDnode);
+  action.pCont = pMsg;
+  action.contLen = sizeof(SDDropQnodeReq);
+  action.msgType = TDMT_DND_DROP_QNODE;
+  action.acceptableCode = TSDB_CODE_DND_QNODE_NOT_DEPLOYED;
+
+  if (mndTransAppendUndoAction(pTrans, &action) != 0) {
+    free(pMsg);
+    return -1;
+  }
+
+  return 0;
+}
+
 static int32_t mndCreateQnode(SMnode *pMnode, SMnodeMsg *pMsg, SDnodeObj *pDnode, SMCreateQnodeReq *pCreate) {
+  int32_t code = -1;
+
   SQnodeObj qnodeObj = {0};
   qnodeObj.id = pDnode->id;
   qnodeObj.createdTime = taosGetTimestampMs();
   qnodeObj.updateTime = qnodeObj.createdTime;
 
-  int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pMsg->rpcMsg);
-  if (pTrans == NULL) {
-    mError("qnode:%d, failed to create since %s", pCreate->dnodeId, terrstr());
-    goto CREATE_QNODE_OVER;
-  }
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
+  if (pTrans == NULL) goto CREATE_QNODE_OVER;
+
   mDebug("trans:%d, used to create qnode:%d", pTrans->id, pCreate->dnodeId);
-
-  if (mndSetCreateQnodeRedoLogs(pTrans, &qnodeObj) != 0) {
-    mError("trans:%d, failed to set redo log since %s", pTrans->id, terrstr());
-    goto CREATE_QNODE_OVER;
-  }
-
-  if (mndSetCreateQnodeCommitLogs(pTrans, &qnodeObj) != 0) {
-    mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
-    goto CREATE_QNODE_OVER;
-  }
-
-  if (mndSetCreateQnodeRedoActions(pTrans, pDnode, &qnodeObj) != 0) {
-    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
-    goto CREATE_QNODE_OVER;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    goto CREATE_QNODE_OVER;
-  }
+  if (mndSetCreateQnodeRedoLogs(pTrans, &qnodeObj) != 0) goto CREATE_QNODE_OVER;
+  if (mndSetCreateQnodeUndoLogs(pTrans, &qnodeObj) != 0) goto CREATE_QNODE_OVER;
+  if (mndSetCreateQnodeCommitLogs(pTrans, &qnodeObj) != 0) goto CREATE_QNODE_OVER;
+  if (mndSetCreateQnodeRedoActions(pTrans, pDnode, &qnodeObj) != 0) goto CREATE_QNODE_OVER;
+  if (mndSetCreateQnodeUndoActions(pTrans, pDnode, &qnodeObj) != 0) goto CREATE_QNODE_OVER;
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto CREATE_QNODE_OVER;
 
   code = 0;
 
@@ -253,6 +269,9 @@ static int32_t mndProcessCreateQnodeReq(SMnodeMsg *pMsg) {
     mError("qnode:%d, qnode already exist", pObj->id);
     terrno = TSDB_CODE_MND_QNODE_ALREADY_EXIST;
     mndReleaseQnode(pMnode, pObj);
+    return -1;
+  } else if (terrno != TSDB_CODE_MND_QNODE_NOT_EXIST) {
+    mError("qnode:%d, failed to create qnode since %s", pCreate->dnodeId, terrstr());
     return -1;
   }
 
@@ -303,6 +322,7 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
   action.pCont = pMsg;
   action.contLen = sizeof(SDDropQnodeReq);
   action.msgType = TDMT_DND_DROP_QNODE;
+  action.acceptableCode = TSDB_CODE_DND_QNODE_NOT_DEPLOYED;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     free(pMsg);
@@ -314,33 +334,15 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
 
 static int32_t mndDropQnode(SMnode *pMnode, SMnodeMsg *pMsg, SQnodeObj *pObj) {
   int32_t code = -1;
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pMsg->rpcMsg);
-  if (pTrans == NULL) {
-    mError("qnode:%d, failed to drop since %s", pObj->id, terrstr());
-    goto DROP_QNODE_OVER;
-  }
+  if (pTrans == NULL) goto DROP_QNODE_OVER;
 
   mDebug("trans:%d, used to drop qnode:%d", pTrans->id, pObj->id);
-
-  if (mndSetDropQnodeRedoLogs(pTrans, pObj) != 0) {
-    mError("trans:%d, failed to set redo log since %s", pTrans->id, terrstr());
-    goto DROP_QNODE_OVER;
-  }
-
-  if (mndSetDropQnodeCommitLogs(pTrans, pObj) != 0) {
-    mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
-    goto DROP_QNODE_OVER;
-  }
-
-  if (mndSetDropQnodeRedoActions(pTrans, pObj->pDnode, pObj) != 0) {
-    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
-    goto DROP_QNODE_OVER;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    goto DROP_QNODE_OVER;
-  }
+  if (mndSetDropQnodeRedoLogs(pTrans, pObj) != 0) goto DROP_QNODE_OVER;
+  if (mndSetDropQnodeCommitLogs(pTrans, pObj) != 0) goto DROP_QNODE_OVER;
+  if (mndSetDropQnodeRedoActions(pTrans, pObj->pDnode, pObj) != 0) goto DROP_QNODE_OVER;
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto DROP_QNODE_OVER;
 
   code = 0;
 
@@ -364,8 +366,7 @@ static int32_t mndProcessDropQnodeReq(SMnodeMsg *pMsg) {
 
   SQnodeObj *pObj = mndAcquireQnode(pMnode, pDrop->dnodeId);
   if (pObj == NULL) {
-    mError("qnode:%d, not exist", pDrop->dnodeId);
-    terrno = TSDB_CODE_MND_QNODE_NOT_EXIST;
+    mError("qnode:%d, failed to drop since %s", pDrop->dnodeId, terrstr());
     return -1;
   }
 

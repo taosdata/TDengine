@@ -143,6 +143,7 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
     STransAction *pAction = taosArrayGet(pTrans->redoActions, i);
     SDB_SET_BINARY(pRaw, dataPos, (void *)&pAction->epSet, sizeof(SEpSet), TRANS_ENCODE_OVER)
     SDB_SET_INT16(pRaw, dataPos, pAction->msgType, TRANS_ENCODE_OVER)
+    SDB_SET_INT32(pRaw, dataPos, pAction->acceptableCode, TRANS_ENCODE_OVER)
     SDB_SET_INT32(pRaw, dataPos, pAction->contLen, TRANS_ENCODE_OVER)
     SDB_SET_BINARY(pRaw, dataPos, pAction->pCont, pAction->contLen, TRANS_ENCODE_OVER)
   }
@@ -151,6 +152,7 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
     STransAction *pAction = taosArrayGet(pTrans->undoActions, i);
     SDB_SET_BINARY(pRaw, dataPos, (void *)&pAction->epSet, sizeof(SEpSet), TRANS_ENCODE_OVER)
     SDB_SET_INT16(pRaw, dataPos, pAction->msgType, TRANS_ENCODE_OVER)
+    SDB_SET_INT32(pRaw, dataPos, pAction->acceptableCode, TRANS_ENCODE_OVER)
     SDB_SET_INT32(pRaw, dataPos, pAction->contLen, TRANS_ENCODE_OVER)
     SDB_SET_BINARY(pRaw, dataPos, (void *)pAction->pCont, pAction->contLen, TRANS_ENCODE_OVER)
   }
@@ -253,6 +255,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   for (int32_t i = 0; i < redoActionNum; ++i) {
     SDB_GET_BINARY(pRaw, dataPos, (void *)&action.epSet, sizeof(SEpSet), TRANS_DECODE_OVER);
     SDB_GET_INT16(pRaw, dataPos, &action.msgType, TRANS_DECODE_OVER)
+    SDB_GET_INT32(pRaw, dataPos, &action.acceptableCode, TRANS_DECODE_OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.contLen, TRANS_DECODE_OVER)
     action.pCont = malloc(action.contLen);
     if (action.pCont == NULL) goto TRANS_DECODE_OVER;
@@ -264,6 +267,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   for (int32_t i = 0; i < undoActionNum; ++i) {
     SDB_GET_BINARY(pRaw, dataPos, (void *)&action.epSet, sizeof(SEpSet), TRANS_DECODE_OVER);
     SDB_GET_INT16(pRaw, dataPos, &action.msgType, TRANS_DECODE_OVER)
+    SDB_GET_INT32(pRaw, dataPos, &action.acceptableCode, TRANS_DECODE_OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.contLen, TRANS_DECODE_OVER)
     action.pCont = malloc(action.contLen);
     if (action.pCont == NULL) goto TRANS_DECODE_OVER;
@@ -496,15 +500,31 @@ static int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
 }
 
 static void mndTransSendRpcRsp(STrans *pTrans) {
-  if (pTrans->stage == TRN_STAGE_FINISHED || pTrans->stage == TRN_STAGE_UNDO_LOG ||
-      pTrans->stage == TRN_STAGE_UNDO_ACTION || pTrans->stage == TRN_STAGE_ROLLBACK) {
-    if (pTrans->rpcHandle != NULL) {
-      mDebug("trans:%d, send rsp, code:0x%x stage:%d app:%p", pTrans->id, pTrans->code & 0xFFFF, pTrans->stage,
-             pTrans->rpcAHandle);
-      SRpcMsg rspMsg = {.handle = pTrans->rpcHandle, .code = pTrans->code, .ahandle = pTrans->rpcAHandle};
-      rpcSendResponse(&rspMsg);
-      pTrans->rpcHandle = NULL;
+  bool sendRsp = false;
+
+  if (pTrans->stage == TRN_STAGE_FINISHED) {
+    sendRsp = true;
+  }
+
+  if (pTrans->policy == TRN_POLICY_ROLLBACK) {
+    if (pTrans->stage == TRN_STAGE_UNDO_LOG || pTrans->stage == TRN_STAGE_UNDO_ACTION ||
+        pTrans->stage == TRN_STAGE_ROLLBACK) {
+      sendRsp = true;
     }
+  }
+
+  if (pTrans->policy == TRN_POLICY_RETRY) {
+    if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 0) {
+      sendRsp = true;
+    }
+  }
+
+  if (sendRsp && pTrans->rpcHandle != NULL) {
+    mDebug("trans:%d, send rsp, code:0x%x stage:%d app:%p", pTrans->id, pTrans->code & 0xFFFF, pTrans->stage,
+           pTrans->rpcAHandle);
+    SRpcMsg rspMsg = {.handle = pTrans->rpcHandle, .code = pTrans->code, .ahandle = pTrans->rpcAHandle};
+    rpcSendResponse(&rspMsg);
+    pTrans->rpcHandle = NULL;
   }
 }
 
@@ -547,7 +567,8 @@ void mndTransProcessRsp(SMnodeMsg *pMsg) {
     pAction->errCode = pMsg->rpcMsg.code;
   }
 
-  mDebug("trans:%d, action:%d response is received, code:0x%x", transId, action, pMsg->rpcMsg.code);
+  mDebug("trans:%d, action:%d response is received, code:0x%x, accept:0x%x", transId, action, pMsg->rpcMsg.code,
+         pAction->acceptableCode);
   mndTransExecute(pMnode, pTrans);
 
 HANDLE_ACTION_RSP_OVER:
@@ -647,7 +668,7 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
     if (pAction == NULL) continue;
     if (pAction->msgSent && pAction->msgReceived) {
       numOfReceived++;
-      if (pAction->errCode != 0) {
+      if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
         errCode = pAction->errCode;
       }
     }
@@ -695,7 +716,7 @@ static bool mndTransPerformRedoLogStage(SMnode *pMnode, STrans *pTrans) {
   } else {
     pTrans->code = terrno;
     pTrans->stage = TRN_STAGE_UNDO_LOG;
-    mError("trans:%d, stage from redoLog to undoLog", pTrans->id);
+    mError("trans:%d, stage from redoLog to undoLog since %s", pTrans->id, terrstr());
   }
 
   return continueExec;
