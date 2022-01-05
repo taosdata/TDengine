@@ -354,7 +354,7 @@ static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg) {
     }
 
     if (pStatus->dnodeId == 0) {
-      mDebug("dnode:%d %s, first access, set clusterId %" PRId64, pDnode->id, pDnode->ep, pMnode->clusterId);
+      mDebug("dnode:%d, %s first access, set clusterId %" PRId64, pDnode->id, pDnode->ep, pMnode->clusterId);
     } else {
       if (pStatus->clusterId != pMnode->clusterId) {
         if (pDnode != NULL) {
@@ -557,7 +557,7 @@ static int32_t mndProcessConfigDnodeMsg(SMnodeMsg *pMsg) {
                     .ahandle = pMsg->rpcMsg.ahandle};
 
   mInfo("dnode:%d, app:%p config:%s req send to dnode", pCfg->dnodeId, rpcMsg.ahandle, pCfg->config);
-  mndSendMsgToDnode(pMnode, &epSet, &rpcMsg);
+  mndSendReqToDnode(pMnode, &epSet, &rpcMsg);
 
   return 0;
 }

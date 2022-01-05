@@ -8,7 +8,12 @@ target_include_directories(
 target_link_libraries(
     mnode
     PRIVATE sdb
+    PRIVATE wal
     PRIVATE transport
     PRIVATE cjson
     PRIVATE sync
 )
+
+if(${BUILD_TEST})
+    add_subdirectory(test)
+endif(${BUILD_TEST})

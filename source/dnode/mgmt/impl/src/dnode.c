@@ -14,8 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "dndBnode.h"
 #include "dndDnode.h"
 #include "dndMnode.h"
+#include "dndQnode.h"
+#include "dndSnode.h"
 #include "dndTransport.h"
 #include "dndVnodes.h"
 #include "sync.h"
@@ -200,6 +203,24 @@ SDnode *dndInit(SDnodeOpt *pOption) {
     return NULL;
   }
 
+  if (dndInitQnode(pDnode) != 0) {
+    dError("failed to init qnode");
+    dndCleanup(pDnode);
+    return NULL;
+  }
+
+  if (dndInitSnode(pDnode) != 0) {
+    dError("failed to init snode");
+    dndCleanup(pDnode);
+    return NULL;
+  }
+
+  if (dndInitBnode(pDnode) != 0) {
+    dError("failed to init bnode");
+    dndCleanup(pDnode);
+    return NULL;
+  }
+
   if (dndInitMnode(pDnode) != 0) {
     dError("failed to init mnode");
     dndCleanup(pDnode);
@@ -213,7 +234,7 @@ SDnode *dndInit(SDnodeOpt *pOption) {
   }
 
   dndSetStat(pDnode, DND_STAT_RUNNING);
-  dndSendStatusMsg(pDnode);
+  dndSendStatusReq(pDnode);
   dndReportStartup(pDnode, "TDengine", "initialized successfully");
   dInfo("TDengine is initialized successfully, pDnode:%p", pDnode);
 
@@ -232,6 +253,9 @@ void dndCleanup(SDnode *pDnode) {
   dndSetStat(pDnode, DND_STAT_STOPPED);
   dndCleanupTrans(pDnode);
   dndCleanupMnode(pDnode);
+  dndCleanupBnode(pDnode);
+  dndCleanupSnode(pDnode);
+  dndCleanupQnode(pDnode);
   dndCleanupVnodes(pDnode);
   dndCleanupDnode(pDnode);
   vnodeClear();

@@ -20,6 +20,8 @@
 #include "tchecksum.h"
 #include "wal.h"
 
+#include "taoserror.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

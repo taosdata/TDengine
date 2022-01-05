@@ -46,7 +46,6 @@ print =============== create child table
 sql create table c1 using st tags(1)
 sql create table c2 using st tags(2)
 
-return 
 sql show tables
 if $rows != 2 then 
   return -1
@@ -55,6 +54,8 @@ endi
 print $data00 $data01 $data02
 print $data10 $data11 $data22
 print $data20 $data11 $data22
+
+return 
 
 print =============== insert data
 sql insert into c1 values(now+1s, 1)

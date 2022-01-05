@@ -67,29 +67,18 @@ TFileCache* tfileCacheCreate(const char* path) {
   for (size_t i = 0; i < taosArrayGetSize(files); i++) {
     char* file = taosArrayGetP(files, i);
 
-    // refactor later, use colname and version info
-    char colName[256] = {0};
-    if (0 != tfileParseFileName(file, &suid, colName, (int*)&version)) {
-      indexInfo("try parse invalid file:  %s, skip it", file);
-      continue;
-    }
-
-    char fullName[256] = {0};
-    sprintf(fullName, "%s/%s", path, file);
-
-    WriterCtx* wc = writerCtxCreate(TFile, fullName, true, 1024 * 1024 * 64);
+    WriterCtx* wc = writerCtxCreate(TFile, file, true, 1024 * 1024 * 64);
     if (wc == NULL) {
       indexError("failed to open index:%s", file);
       goto End;
     }
 
-    char         buf[128] = {0};
     TFileReader* reader = tfileReaderCreate(wc);
+    if (reader == NULL) { goto End; }
     TFileHeader* header = &reader->header;
-    ICacheKey    key = {.suid = header->suid,
-                     .colName = header->colName,
-                     .nColName = strlen(header->colName),
-                     .colType = header->colType};
+
+    char      buf[128] = {0};
+    ICacheKey key = {.suid = header->suid, .colName = header->colName, .nColName = strlen(header->colName)};
 
     int32_t sz = indexSerialCacheKey(&key, buf);
     assert(sz < sizeof(buf));
@@ -256,7 +245,8 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
   // sort by coltype and write to tindex
   if (order == false) {
     __compar_fn_t fn;
-    int8_t        colType = tw->header.colType;
+
+    int8_t colType = tw->header.colType;
     if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_NCHAR) {
       fn = tfileStrCompare;
     } else {
@@ -274,7 +264,8 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
   // ugly code, refactor later
   for (size_t i = 0; i < sz; i++) {
     TFileValue* v = taosArrayGetP((SArray*)data, i);
-    // taosArrayRemoveDuplicate(v->tablId, tfileUidCompare, NULL);
+    taosArraySort(v->tableId, tfileUidCompare);
+    taosArrayRemoveDuplicate(v->tableId, tfileUidCompare, NULL);
     int32_t tbsz = taosArrayGetSize(v->tableId);
     fstOffset += TF_TABLE_TATOAL_SIZE(tbsz);
   }
@@ -351,10 +342,16 @@ void tfileWriterDestroy(TFileWriter* tw) {
 }
 
 IndexTFile* indexTFileCreate(const char* path) {
-  IndexTFile* tfile = calloc(1, sizeof(IndexTFile));
-  if (tfile == NULL) { return NULL; }
+  TFileCache* cache = tfileCacheCreate(path);
+  if (cache == NULL) { return NULL; }
 
-  tfile->cache = tfileCacheCreate(path);
+  IndexTFile* tfile = calloc(1, sizeof(IndexTFile));
+  if (tfile == NULL) {
+    tfileCacheDestroy(cache);
+    return NULL;
+  }
+
+  tfile->cache = cache;
   return tfile;
 }
 void indexTFileDestroy(IndexTFile* tfile) {
@@ -366,6 +363,7 @@ void indexTFileDestroy(IndexTFile* tfile) {
 int indexTFileSearch(void* tfile, SIndexTermQuery* query, SArray* result) {
   int ret = -1;
   if (tfile == NULL) { return ret; }
+
   IndexTFile* pTfile = (IndexTFile*)tfile;
 
   SIndexTerm* term = query->term;
@@ -545,12 +543,11 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
 
   int64_t nread = reader->ctx->readFrom(reader->ctx, buf, sizeof(buf), 0);
   if (nread == -1) {
-    //
     indexError("actual Read: %d, to read: %d, errno: %d, filefd: %d, filename: %s", (int)(nread), (int)sizeof(buf),
                errno, reader->ctx->file.fd, reader->ctx->file.buf);
   } else {
-    indexError("actual Read: %d, to read: %d, errno: %d, filefd: %d, filename: %s", (int)(nread), (int)sizeof(buf),
-               errno, reader->ctx->file.fd, reader->ctx->file.buf);
+    indexInfo("actual Read: %d, to read: %d, filefd: %d, filename: %s", (int)(nread), (int)sizeof(buf),
+              reader->ctx->file.fd, reader->ctx->file.buf);
   }
   // assert(nread == sizeof(buf));
   memcpy(&reader->header, buf, sizeof(buf));
@@ -566,7 +563,8 @@ static int tfileReaderLoadFst(TFileReader* reader) {
 
   WriterCtx* ctx = reader->ctx;
   int32_t    nread = ctx->readFrom(ctx, buf, FST_MAX_SIZE, reader->header.fstOffset);
-  indexError("nread = %d, and fst offset=%d, filename: %s ", nread, reader->header.fstOffset, ctx->file.buf);
+  indexInfo("nread = %d, and fst offset=%d, filename: %s, size: %d ", nread, reader->header.fstOffset, ctx->file.buf,
+            ctx->file.size);
   // we assuse fst size less than FST_MAX_SIZE
   assert(nread > 0 && nread < FST_MAX_SIZE);
 
@@ -613,15 +611,20 @@ void tfileReaderUnRef(TFileReader* reader) {
 static SArray* tfileGetFileList(const char* path) {
   SArray* files = taosArrayInit(4, sizeof(void*));
 
+  char     buf[128] = {0};
+  uint64_t suid;
+  uint32_t version;
+
   DIR* dir = opendir(path);
   if (NULL == dir) { return NULL; }
-
   struct dirent* entry;
   while ((entry = readdir(dir)) != NULL) {
-    if (entry->d_type && DT_DIR) { continue; }
-    size_t len = strlen(entry->d_name);
-    char*  buf = calloc(1, len + 1);
-    memcpy(buf, entry->d_name, len);
+    char* file = entry->d_name;
+    if (0 != tfileParseFileName(file, &suid, buf, &version)) { continue; }
+
+    size_t len = strlen(path) + 1 + strlen(file) + 1;
+    char*  buf = calloc(1, len);
+    sprintf(buf, "%s/%s", path, file);
     taosArrayPush(files, &buf);
   }
   closedir(dir);

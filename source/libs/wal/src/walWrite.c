@@ -148,7 +148,7 @@ int32_t walBeginSnapshot(SWal *pWal, int64_t ver) {
 
 int32_t walEndSnapshot(SWal *pWal) {
   int64_t ver = pWal->vers.verInSnapshotting;
-  if (ver == -1) return -1;
+  if (ver == -1) return 0;
 
   pWal->vers.snapshotVer = ver;
   int ts = taosGetTimestampSec();

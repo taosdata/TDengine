@@ -80,7 +80,7 @@ void dndGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
   taosRUnLockLatch(&pMgmt->latch);
 }
 
-void dndSendRedirectMsg(SDnode *pDnode, SRpcMsg *pMsg) {
+void dndSendRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   tmsg_t msgType = pMsg->msgType;
 
   SEpSet epSet = {0};
@@ -354,7 +354,7 @@ static int32_t dndWriteDnodes(SDnode *pDnode) {
   return 0;
 }
 
-void dndSendStatusMsg(SDnode *pDnode) {
+void dndSendStatusReq(SDnode *pDnode) {
   int32_t contLen = sizeof(SStatusMsg) + TSDB_MAX_VNODES * sizeof(SVnodeLoad);
 
   SStatusMsg *pStatus = rpcMallocCont(contLen);
@@ -391,7 +391,7 @@ void dndSendStatusMsg(SDnode *pDnode) {
   pMgmt->statusSent = 1;
 
   dTrace("pDnode:%p, send status msg to mnode", pDnode);
-  dndSendMsgToMnode(pDnode, &rpcMsg);
+  dndSendReqToMnode(pDnode, &rpcMsg);
 }
 
 static void dndUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
@@ -491,7 +491,7 @@ static void *dnodeThreadRoutine(void *param) {
     taosMsleep(ms);
 
     if (dndGetStat(pDnode) == DND_STAT_RUNNING && !pMgmt->statusSent && !pMgmt->dropped) {
-      dndSendStatusMsg(pDnode);
+      dndSendStatusReq(pDnode);
     }
   }
 }

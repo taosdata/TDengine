@@ -13,16 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "base.h"
+#include "sut.h"
 
 void Testbase::InitLog(const char* path) {
-  dDebugFlag = 207;
+  dDebugFlag = 0;
   vDebugFlag = 0;
-  mDebugFlag = 207;
+  mDebugFlag = 143;
   cDebugFlag = 0;
   jniDebugFlag = 0;
   tmrDebugFlag = 0;
-  uDebugFlag = 143;
+  uDebugFlag = 0;
   rpcDebugFlag = 0;
   qDebugFlag = 0;
   wDebugFlag = 0;
@@ -59,6 +59,10 @@ void Testbase::Cleanup() {
 }
 
 void Testbase::Restart() { server.Restart(); }
+
+void Testbase::ServerStop() { server.Stop(); }
+
+void Testbase::ServerStart() { server.DoStart(); }
 
 SRpcMsg* Testbase::SendMsg(tmsg_t msgType, void* pCont, int32_t contLen) {
   SRpcMsg rpcMsg = {0};
