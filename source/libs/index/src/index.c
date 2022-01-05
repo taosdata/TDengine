@@ -452,10 +452,6 @@ int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
   while (tn == true) {
     IterateValue* tv = tfileIter->getValue(tfileIter);
     TFileValue*   tfv = tfileValueCreate(tv->colVal);
-    if (tv->val == NULL) {
-      // HO
-      printf("NO....");
-    }
     taosArrayAddAll(tfv->tableId, tv->val);
     indexMergeSameKey(result, tfv);
     tn = tfileIter->next(tfileIter);
@@ -502,8 +498,7 @@ static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   if (reader == NULL) { goto END; }
 
   TFileHeader* header = &reader->header;
-  ICacheKey    key = {
-      .suid = cache->suid, .colName = header->colName, .nColName = strlen(header->colName), .colType = header->colType};
+  ICacheKey    key = {.suid = cache->suid, .colName = header->colName, .nColName = strlen(header->colName)};
 
   pthread_mutex_lock(&sIdx->mtx);
   IndexTFile* ifile = (IndexTFile*)sIdx->tindex;
