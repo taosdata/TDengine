@@ -456,8 +456,10 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
           i++;
           memmove(z + i - 1, z + i, strlen(z + i) + 1);
           memmove(z, z + 1, strlen(z + 1) + 1);
-          *tokenId = TK_ID;
+          *tokenId = TK_BACKQUOTE;
           return i - 2;
+        }else if(isprint(z[i]) == 0){
+          break;
         }
       }
 

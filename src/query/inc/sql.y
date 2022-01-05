@@ -6,8 +6,12 @@
 %default_type {SStrToken}
 %extra_argument {SSqlInfo* pInfo}
 
-%fallback ID BOOL TINYINT SMALLINT INTEGER BIGINT FLOAT DOUBLE STRING TIMESTAMP BINARY NCHAR JSON.
-
+%token ID BOOL TINYINT SMALLINT INTEGER BIGINT FLOAT DOUBLE STRING TIMESTAMP BINARY NCHAR JSON
+  ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
+  DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
+  LIKE MATCH NMATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
+  NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT TBNAME JOIN STABLE NULL INSERT INTO VALUES FILE.
+  
 %left OR.
 %left AND.
 %right NOT.
@@ -89,7 +93,7 @@ dbPrefix(A) ::= ids(X) DOT.        {A = X;  }
 
 %type tableName {SStrToken}
 tableNameBase(A) ::= ID(X).             {A = X;  }
-tableNameBase(A) ::= BACKQUOTE(X).      {A = X;  }
+tableNameBase(A) ::= BACKQUOTE(X).      {A = X;  A.type = TK_ID;}
 tableName(A) ::= tableNameBase(X).      {A = X;  }
 tableName(A) ::= ID(X) DOT tableNameBase(Y).   {X.n += (1 + Y.n); A = X;    }
 
@@ -316,14 +320,25 @@ alter_topic_optr(Y) ::= alter_db_optr(Z).                       { Y = Z; Y.dbTyp
 alter_topic_optr(Y) ::= alter_topic_optr(Z) partitions(X).      { Y = Z; Y.partitions = strtol(X.z, NULL, 10); }
 
 %type typename {TAOS_FIELD}
-typename(A) ::= ids(X). {
-  X.type = 0;
-  tSetColumnType (&A, &X);
-}
+typenameInteger(A) ::= TINYINT(X).   { A = X;}
+typenameInteger(A) ::= SMALLINT(X).  { A = X;}
+typenameInteger(A) ::= INTEGER(X).   { A = X;}
+typenameInteger(A) ::= BIGINT(X).    { A = X;}
+typename(A) ::= BOOL(X).                { X.type = 0; tSetColumnType (&A, &X);}
+typename(A) ::= typenameInteger(X).     { X.type = 0; tSetColumnType (&A, &X);}
+typename(A) ::= FLOAT(X).       { X.type = 0; tSetColumnType (&A, &X);}
+typename(A) ::= DOUBLE(X).      { X.type = 0; tSetColumnType (&A, &X);}
+typename(A) ::= TIMESTAMP(X).   { X.type = 0; tSetColumnType (&A, &X);}
+typename(A) ::= JSON(X).        { X.type = 0; tSetColumnType (&A, &X);}
+
+// define the unsigned number type
+typename(A) ::= typenameInteger(X) UNSIGNED(Z).         { X.type = 0; X.n = ((Z.z + Z.n) - X.z); tSetColumnType (&A, &X);}
 
 //define binary type, e.g., binary(10), nchar(10)
-typename(A) ::= ids(X) LP signed(Y) RP.    {
-  if (Y <= 0) {
+typenameVar(A) ::= BINARY(X). { A = X;}
+typenameVar(A) ::= NCHAR(X).  { A = X;}
+typename(A) ::= typenameVar(X) LP signed(Y) RP.    {
+if (Y <= 0) {
     X.type = 0;
     tSetColumnType(&A, &X);
   } else {
@@ -332,12 +347,6 @@ typename(A) ::= ids(X) LP signed(Y) RP.    {
   }
 }
 
-// define the unsigned number type
-typename(A) ::= ids(X) UNSIGNED(Z). {
-  X.type = 0;
-  X.n = ((Z.z + Z.n) - X.z);
-  tSetColumnType (&A, &X);
-}
 
 %type signed {int64_t}
 signed(A) ::= INTEGER(X).         { A = strtol(X.z, NULL, 10); }
@@ -421,6 +430,7 @@ columnBase(A) ::= ID(X).          {
 }
 columnBase(A) ::= BACKQUOTE(X).          {
   A = X;
+  A.type = TK_ID;
 }
 column(A) ::= columnBase(X) typename(Y).          {
   tSetColumnInfo(&A, &X, &Y);
@@ -934,8 +944,3 @@ cmd ::= ALTER STABLE tableName(X) MODIFY TAG columnlist(A).     {
 cmd ::= KILL CONNECTION INTEGER(Y).   {setKillSql(pInfo, TSDB_SQL_KILL_CONNECTION, &Y);}
 cmd ::= KILL STREAM INTEGER(X) COLON(Z) INTEGER(Y).       {X.n += (Z.n + Y.n); setKillSql(pInfo, TSDB_SQL_KILL_STREAM, &X);}
 cmd ::= KILL QUERY INTEGER(X) COLON(Z) INTEGER(Y).        {X.n += (Z.n + Y.n); setKillSql(pInfo, TSDB_SQL_KILL_QUERY, &X);}
-
-%fallback ID ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
-  DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
-  LIKE MATCH NMATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
-  NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT TBNAME JOIN STABLE NULL INSERT INTO VALUES FILE.

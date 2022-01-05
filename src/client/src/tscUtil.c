@@ -2981,7 +2981,7 @@ void tscRmEscapeAndTrimToken(SStrToken* pToken) {
 
 
 int32_t tscValidateName(SStrToken* pToken, bool *dbIncluded) {
-  if (pToken == NULL || pToken->z == NULL || (pToken->type != TK_STRING && pToken->type != TK_ID)) {
+  if (pToken == NULL || pToken->z == NULL || pToken->type != TK_ID) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
