@@ -574,18 +574,23 @@ static void shellPrintNChar(const char *str, int length, int width) {
     if (bytes <= 0) {
       break;
     }
-    pos += bytes;
-    if (pos > length) {
-      break;
-    }
-
+    int w = 0;
 #ifdef WINDOWS
-    int w = bytes;
+    w = bytes;
 #else
-    int w = wcwidth(wc);
+    if(*(str + pos) == '\t' || *(str + pos) == '\n' || *(str + pos) == '\r'){
+      w = bytes;
+    }else{
+      w = wcwidth(wc);
+    }
 #endif
     if (w <= 0) {
       continue;
+    }
+
+    pos += bytes;
+    if (pos > length) {
+      break;
     }
 
     if (width <= 0) {

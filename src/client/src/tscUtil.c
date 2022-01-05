@@ -2959,7 +2959,7 @@ void tscRmEscapeAndTrimToken(SStrToken* pToken) {
   // there are still at least two characters
   if (first < last - 1) {
     char c = pToken->z[first];
-    // dequote
+    // dequotequit
     if ((c == '`') && c == pToken->z[last - 1]) {
       first++;
       last--;
@@ -2981,7 +2981,7 @@ void tscRmEscapeAndTrimToken(SStrToken* pToken) {
 
 
 int32_t tscValidateName(SStrToken* pToken, bool *dbIncluded) {
-  if (pToken == NULL || pToken->z == NULL || pToken->type != TK_ID) {
+  if (pToken == NULL || pToken->z == NULL || (pToken->type != TK_ID && pToken->type != TK_BACKQUOTE)) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 

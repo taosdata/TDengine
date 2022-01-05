@@ -11,7 +11,7 @@
   DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
   LIKE MATCH NMATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
   NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT TBNAME JOIN STABLE NULL INSERT INTO VALUES FILE.
-  
+
 %left OR.
 %left AND.
 %right NOT.
@@ -84,7 +84,7 @@ cmd ::= SHOW SCORES.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_SCORES, 0, 0); 
 cmd ::= SHOW GRANTS.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_GRANTS, 0, 0);   }
 
 cmd ::= SHOW VNODES.                { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, 0, 0); }
-cmd ::= SHOW VNODES ids(X).     { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, &X, 0); }
+cmd ::= SHOW VNODES STRING(X).     { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, &X, 0); }
 
 
 %type dbPrefix {SStrToken}
@@ -405,8 +405,8 @@ create_from_stable(A) ::= ifnotexists(U) tableName(V) USING tableName(X) LP tagN
 
 %type tagNamelist{SArray*}
 %destructor tagNamelist {taosArrayDestroy(&$$);}
-tagNamelist(A) ::= tagNamelist(X) COMMA ids(Y).  {taosArrayPush(X, &Y); A = X;  }
-tagNamelist(A) ::= ids(X).                      {A = taosArrayInit(4, sizeof(SStrToken)); taosArrayPush(A, &X);}
+tagNamelist(A) ::= tagNamelist(X) COMMA columnBase(Y).  {taosArrayPush(X, &Y); A = X;  }
+tagNamelist(A) ::= columnBase(X).                      {A = taosArrayInit(4, sizeof(SStrToken)); taosArrayPush(A, &X);}
 
 // create stream
 // create table table_name as select count(*) from super_table_name interval(time)
@@ -529,6 +529,12 @@ selcollist(A) ::= sclp(P) distinct(Z) expr(X) as(Y).     {
 
 selcollist(A) ::= sclp(P) STAR. {
    tSqlExpr *pNode = tSqlExprCreateIdValue(pInfo, NULL, TK_ALL);
+   A = tSqlExprListAppend(P, pNode, 0, 0);
+}
+
+selcollist(A) ::= sclp(P) DATABASE(X) LP RP(E). {
+   tStrTokenAppend(pInfo->funcs, &X);
+   tSqlExpr *pNode = tSqlExprCreateFunction(NULL, &X, &E, X.type);
    A = tSqlExprListAppend(P, pNode, 0, 0);
 }
 
@@ -736,10 +742,11 @@ where_opt(A) ::= WHERE expr(X).       {A = X;}
 
 expr(A) ::= LP(X) expr(Y) RP(Z).       {A = Y; A->exprToken.z = X.z; A->exprToken.n = (Z.z - X.z + 1);}
 
-expr(A) ::= columnBase(X).                      { A = tSqlExprCreateIdValue(pInfo, &X, X.type);}
-expr(A) ::= tableNameBase(X) DOT columnBase(Y). { X.n += (1+Y.n); A = tSqlExprCreateIdValue(pInfo, &X, Y.type);}
+expr(A) ::= columnBase(X).                      { A = tSqlExprCreateIdValue(pInfo, &X, TK_ID);}
+expr(A) ::= tableNameBase(X) DOT columnBase(Y). { X.n += (1+Y.n); A = tSqlExprCreateIdValue(pInfo, &X, TK_ID);}
 expr(A) ::= tableNameBase(X) DOT STAR(Y).       { X.n += (1+Y.n); A = tSqlExprCreateIdValue(pInfo, &X, TK_ALL);}
 
+expr(A) ::= TBNAME(X).           { A = tSqlExprCreateIdValue(pInfo, &X, TK_ID);}
 expr(A) ::= INTEGER(X).          { A = tSqlExprCreateIdValue(pInfo, &X, TK_INTEGER);}
 expr(A) ::= MINUS(X) INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprCreateIdValue(pInfo, &X, TK_INTEGER);}
 expr(A) ::= PLUS(X)  INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprCreateIdValue(pInfo, &X, TK_INTEGER);}

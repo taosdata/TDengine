@@ -679,7 +679,7 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
     len = tGetToken(&str[*i + t0.n + 1], &type);
 
     // only id is valid
-    if (TK_ID != t0.type) {
+    if (TK_ID != t0.type || (type != TK_ID && type  != TK_BACKQUOTE) || len == 0) {
       t0.type = TK_ILLEGAL;
       t0.n = 0;
 
@@ -702,10 +702,6 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
   *i += t0.n;
 
   return t0;
-}
-
-bool taosIsKeyWordToken(const char* z, int32_t len) {
-  return (tKeywordCode((char*)z, len) != TK_ID);
 }
 
 void taosCleanupKeywordsTable() {
