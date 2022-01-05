@@ -1210,13 +1210,13 @@ int32_t tscBuildCreateDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
-  pCmd->payloadLen = sizeof(SCreateAcctMsg);
+  pCmd->payloadLen = sizeof(SCreateAcctReq);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SCreateAcctMsg *pAlterMsg = (SCreateAcctMsg *)pCmd->payload;
+  SCreateAcctReq *pAlterMsg = (SCreateAcctReq *)pCmd->payload;
 
   SStrToken *pName = &pInfo->pMiscInfo->user.user;
   SStrToken *pPwd = &pInfo->pMiscInfo->user.passwd;
@@ -1255,14 +1255,14 @@ int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
-  pCmd->payloadLen = sizeof(SCreateUserMsg);
+  pCmd->payloadLen = sizeof(SCreateUserReq);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SCreateUserMsg *pAlterMsg = (SCreateUserMsg *)pCmd->payload;
+  SCreateUserReq *pAlterMsg = (SCreateUserReq *)pCmd->payload;
 
   SUserInfo *pUser = &pInfo->pMiscInfo->user;
   strncpy(pAlterMsg->user, pUser->user.z, pUser->user.n);
@@ -1369,7 +1369,7 @@ int32_t tscBuildDropUserAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   char user[TSDB_USER_LEN] = {0};
   tstrncpy(user, pCmd->payload, TSDB_USER_LEN);
 
-  pCmd->payloadLen = sizeof(SDropUserMsg);
+  pCmd->payloadLen = sizeof(SDropUserReq);
   pCmd->msgType = (pInfo->type == TSDB_SQL_DROP_USER)? TDMT_MND_DROP_USER:TDMT_MND_DROP_ACCT;
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
@@ -1377,7 +1377,7 @@ int32_t tscBuildDropUserAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SDropUserMsg *pDropMsg = (SDropUserMsg *)pCmd->payload;
+  SDropUserReq *pDropMsg = (SDropUserReq *)pCmd->payload;
   tstrncpy(pDropMsg->user, user, tListLen(user));
 
   return TSDB_CODE_SUCCESS;

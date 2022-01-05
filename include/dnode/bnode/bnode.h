@@ -23,9 +23,9 @@ extern "C" {
 /* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SDnode SDnode;
 typedef struct SBnode SBnode;
-typedef void (*SendMsgToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-typedef void (*SendMsgToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
-typedef void (*SendRedirectMsgFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
+typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
+typedef int32_t (*SendReqToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
+typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 
 typedef struct {
   int64_t numOfErrors;
@@ -40,9 +40,9 @@ typedef struct {
   int64_t           clusterId;
   SBnodeCfg         cfg;
   SDnode           *pDnode;
-  SendMsgToDnodeFp  sendMsgToDnodeFp;
-  SendMsgToMnodeFp  sendMsgToMnodeFp;
-  SendRedirectMsgFp sendRedirectMsgFp;
+  SendReqToDnodeFp  sendReqToDnodeFp;
+  SendReqToMnodeFp  sendReqToMnodeFp;
+  SendRedirectRspFp sendRedirectRspFp;
 } SBnodeOpt;
 
 /* ------------------------ SBnode ------------------------ */

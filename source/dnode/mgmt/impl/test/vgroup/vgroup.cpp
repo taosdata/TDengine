@@ -9,7 +9,7 @@
  *
  */
 
-#include "base.h"
+#include "sut.h"
 
 class DndTestVgroup : public ::testing::Test {
  protected:

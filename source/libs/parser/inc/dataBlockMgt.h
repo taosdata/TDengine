@@ -126,7 +126,7 @@ static FORCE_INLINE void getMemRowAppendInfo(SSchema *pSchema, uint8_t memRowTyp
                                                 int32_t idx, int32_t *toffset) {
   int32_t schemaIdx = 0;
   if (IS_DATA_COL_ORDERED(spd)) {
-    schemaIdx = spd->boundedColumns[idx];
+    schemaIdx = spd->boundedColumns[idx] - 1;
     if (isDataRowT(memRowType)) {
       *toffset = (spd->cols + schemaIdx)->toffset;  // the offset of firstPart
     } else {

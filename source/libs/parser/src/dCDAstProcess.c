@@ -326,6 +326,31 @@ typedef struct SVgroupTablesBatch {
   SVgroupInfo        info;
 } SVgroupTablesBatch;
 
+static int32_t doParseSerializeTagValue(SSchema* pTagSchema, int32_t numOfInputTag, SKVRowBuilder* pKvRowBuilder,
+                                        SArray* pTagValList, int32_t tsPrecision, SMsgBuf* pMsgBuf) {
+  const char* msg1 = "illegal value or data overflow";
+  int32_t     code = TSDB_CODE_SUCCESS;
+
+  for (int32_t i = 0; i < numOfInputTag; ++i) {
+    SSchema* pSchema = &pTagSchema[i];
+
+    char* endPtr = NULL;
+    char  tmpTokenBuf[TSDB_MAX_TAGS_LEN] = {0};
+
+    SKvParam param = {.builder = pKvRowBuilder, .schema = pSchema};
+
+    SToken* pItem = taosArrayGet(pTagValList, i);
+    code = parseValueToken(&endPtr, pItem, pSchema, tsPrecision, tmpTokenBuf, KvRowAppend, &param, pMsgBuf);
+
+    if (code != TSDB_CODE_SUCCESS) {
+      tdDestroyKVRowBuilder(pKvRowBuilder);
+      return buildInvalidOperationMsg(pMsgBuf, msg1);
+    }
+  }
+
+  return code;
+}
+
 int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* pMsgBuf, char** pOutput, int32_t* len) {
   const char* msg1 = "invalid table name";
   const char* msg2 = "tags number not matched";
@@ -354,10 +379,9 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     }
 
     SArray* pValList = pCreateTableInfo->pTagVals;
+    size_t  numOfInputTag = taosArrayGetSize(pValList);
 
-    size_t      numOfInputTag = taosArrayGetSize(pValList);
     STableMeta* pSuperTableMeta = NULL;
-
     code = catalogGetTableMeta(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, &name, &pSuperTableMeta);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -463,21 +487,9 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
         return buildInvalidOperationMsg(pMsgBuf, msg2);
       }
 
-      for (int32_t i = 0; i < numOfInputTag; ++i) {
-        SSchema* pSchema = &pTagSchema[i];
-
-        char* endPtr = NULL;
-        char  tmpTokenBuf[TSDB_MAX_TAGS_LEN] = {0};
-
-        SKvParam param = {.builder = &kvRowBuilder, .schema = pSchema};
-
-        SToken* pItem = taosArrayGet(pValList, i);
-        code = parseValueToken(&endPtr, pItem, pSchema, tinfo.precision, tmpTokenBuf, KvRowAppend, &param, pMsgBuf);
-
-        if (code != TSDB_CODE_SUCCESS) {
-          tdDestroyKVRowBuilder(&kvRowBuilder);
-          return buildInvalidOperationMsg(pMsgBuf, msg4);
-        }
+      code = doParseSerializeTagValue(pTagSchema, numOfInputTag, &kvRowBuilder, pValList, tinfo.precision, pMsgBuf);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
     }
 
@@ -499,8 +511,8 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     catalogGetTableHashVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, &tableName, &info);
 
     struct SVCreateTbReq req = {0};
-    req.type = TD_CHILD_TABLE;
-    req.name = strdup(tNameGetTableName(&tableName));
+    req.type        = TD_CHILD_TABLE;
+    req.name        = strdup(tNameGetTableName(&tableName));
     req.ctbCfg.suid = pSuperTableMeta->uid;
     req.ctbCfg.pTag = row;
 

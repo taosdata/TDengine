@@ -486,7 +486,6 @@ int32_t schProcessOnTaskFailure(SSchJob *job, SSchTask *task, int32_t errCode) {
 int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *msg, int32_t msgSize, int32_t rspCode) {
   int32_t code = 0;
 
-
   switch (msgType) {
     case TDMT_VND_CREATE_TABLE_RSP: {
       if (rspCode != TSDB_CODE_SUCCESS) {
