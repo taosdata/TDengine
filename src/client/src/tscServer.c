@@ -2806,10 +2806,19 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   tscDebug("0x%"PRIx64" numOfRows:%d, offset:%" PRId64 ", complete:%d, qId:0x%"PRIx64, pSql->self, pRes->numOfRows, pRes->offset,
       pRes->completed, pRes->qId);
 
+  int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
+  int32_t rowBytes = 0;
+  for (int i = 0; i < numOfCols; ++i) {
+    SInternalField* internalField = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i);
+    rowBytes += internalField->field.bytes;
+  }
+  int32_t origSize  = rowBytes * pRes->numOfRows;
+  int32_t compSize  = htonl(pRetrieve->compLen) + numOfCols * sizeof(int32_t);
+  int32_t dataLen = (pRetrieve->compressed) ? compSize : origSize;
   if (pRetrieve->extend == 1) {
-    STLV* tlv = (STLV*)(pRetrieve->data + ntohl(pRetrieve->compLen));
+    STLV* tlv = (STLV*)(pRetrieve->data + dataLen);
     while (tlv->type != TLV_TYPE_END_MARK) {
-      switch (tlv->type) {
+      switch (ntohs(tlv->type)) {
         case TLV_TYPE_META_VERSION:
           pRes->sVersion = ntohl(*(int32_t*)tlv->value);
           pRes->tVersion = ntohl(*(int32_t*)(tlv->value + sizeof(int32_t)));
