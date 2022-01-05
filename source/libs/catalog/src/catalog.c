@@ -214,7 +214,6 @@ int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pRpc, const SE
   SEpSet  epSet;
   
   ctgGenEpSet(&epSet, vgroupInfo);
-
   rpcSendRecv(pRpc, &epSet, &rpcMsg, &rpcRsp);
   
   if (TSDB_CODE_SUCCESS != rpcRsp.code) {

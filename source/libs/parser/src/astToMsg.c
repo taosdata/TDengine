@@ -330,7 +330,7 @@ SDropStbMsg* buildDropStableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* p
   assert(code == TSDB_CODE_SUCCESS && name.type == TSDB_TABLE_NAME_T);
 
   pDropTableMsg->igNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
-  *len = sizeof(SDropTableMsg);
+  *len = sizeof(SDropStbMsg);
   return pDropTableMsg;
 }
 

@@ -192,13 +192,12 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
   }
 
   tsem_wait(&pRequest->body.rspSem);
-  destroySendMsgInfo(pSendMsg);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQuery, SQueryDag** pDag) {
-  pRequest->type = pQuery->type;
-  return qCreateQueryDag(pQuery, pDag, pRequest->requestId);
+int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQueryNode, SQueryDag** pDag) {
+  pRequest->type = pQueryNode->type;
+  return qCreateQueryDag(pQueryNode, pDag, pRequest->requestId);
 }
 
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, void** pJob) {
@@ -364,8 +363,6 @@ STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, con
   asyncSendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
 
   tsem_wait(&pRequest->body.rspSem);
-  destroySendMsgInfo(body);
-
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char *errorMsg = (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(terrno);
     printf("failed to connect to server, reason: %s\n\n", errorMsg);
@@ -456,17 +453,21 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
   }
 
-  SDataBuf buf = {.len = pMsg->contLen};
-  buf.pData = calloc(1, pMsg->contLen);
-  if (buf.pData == NULL) {
-    terrno     = TSDB_CODE_OUT_OF_MEMORY;
-    pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
-  } else {
-    memcpy(buf.pData, pMsg->pCont, pMsg->contLen);
+  SDataBuf buf = {.len = pMsg->contLen, .pData = NULL};
+
+  if (pMsg->contLen > 0) {
+    buf.pData = calloc(1, pMsg->contLen);
+    if (buf.pData == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      memcpy(buf.pData, pMsg->pCont, pMsg->contLen);
+    }
   }
 
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
   rpcFreeCont(pMsg->pCont);
+  destroySendMsgInfo(pSendInfo);
 }
 
 TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port) {

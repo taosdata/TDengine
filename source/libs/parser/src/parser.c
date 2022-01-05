@@ -240,6 +240,10 @@ void qParserCleanupMetaRequestInfo(SCatalogReq* pMetaReq) {
   taosArrayDestroy(pMetaReq->pUdf);
 }
 
-void qDestroyQuery(SQueryNode* pQuery) {
-  tfree(pQuery);
+void qDestroyQuery(SQueryNode* pQueryNode) {
+  if (nodeType(pQueryNode) == TSDB_SQL_INSERT || nodeType(pQueryNode) == TSDB_SQL_CREATE_TABLE) {
+    SVnodeModifOpStmtInfo* pModifInfo = (SVnodeModifOpStmtInfo*)pQueryNode;
+    taosArrayDestroy(pModifInfo->pDataBlocks);
+  }
+  tfree(pQueryNode);
 }
