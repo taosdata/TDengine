@@ -2856,7 +2856,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
 
   SSqlObj *pParentSql = trsupport->pParentSql;
   int32_t  subqueryIndex = trsupport->subqueryIndex;
-  
+
   assert(pSql != NULL);
 
   SSubqueryState* pState = &pParentSql->subState;
@@ -2881,7 +2881,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
   } else {
     if (trsupport->numOfRetry++ < MAX_NUM_OF_SUBQUERY_RETRY && pParentSql->res.code == TSDB_CODE_SUCCESS) {
       int32_t sent = 0;
-      
+
       tscReissueSubquery(trsupport, pSql, numOfRows, &sent);
       if (sent) {
         return;
@@ -2899,8 +2899,8 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
 
     tscFreeRetrieveSup(&pSql->param);
     return;
-  }  
-  
+  }
+
   // all subqueries are failed
   tscError("0x%"PRIx64" retrieve from %d vnode(s) completed,code:%s.FAILED.", pParentSql->self, pState->numOfSub,
       tstrerror(pParentSql->res.code));
@@ -2911,6 +2911,9 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
 
   // in case of second stage join subquery, invoke its callback function instead of regular QueueAsyncRes
   SQueryInfo *pQueryInfo = tscGetQueryInfo(&pParentSql->cmd);
+  if (!pQueryInfo) {
+    return;
+  }
 
   if (!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
 
@@ -2922,7 +2925,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
         (*pParentSql->freeParam)(&pParentSql->param);
       }
 
-      tscFreeSubobj(userSql);      
+      tscFreeSubobj(userSql);
       tfree(userSql->pSubs);
 
       userSql->res.code = TSDB_CODE_SUCCESS;
