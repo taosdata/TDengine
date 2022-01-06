@@ -105,6 +105,8 @@ int32_t ctgGetTableMetaFromCache(struct SCatalog* pCatalog, const SName* pTableN
   }
 
   *exist = 1;
+  
+  tbMeta = *pTableMeta;
 
   if (tbMeta->tableType != TSDB_CHILD_TABLE) {
     return TSDB_CODE_SUCCESS;
@@ -143,6 +145,29 @@ int32_t ctgGetTableMetaFromCache(struct SCatalog* pCatalog, const SName* pTableN
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgGetTableTypeFromCache(struct SCatalog* pCatalog, const SName* pTableName, int32_t *tbType) {
+  if (NULL == pCatalog->tableCache.cache) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char tbFullName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pTableName, tbFullName);
+
+  size_t sz = 0;
+  STableMeta *pTableMeta = NULL;
+  
+  taosHashGetCloneExt(pCatalog->tableCache.cache, tbFullName, strlen(tbFullName), NULL, (void **)&pTableMeta, &sz);
+
+  if (NULL == pTableMeta) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *tbType = pTableMeta->tableType;
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+
 void ctgGenEpSet(SEpSet *epSet, SVgroupInfo *vgroupInfo) {
   epSet->inUse = 0;
   epSet->numOfEps = vgroupInfo->numOfEps;
@@ -153,14 +178,7 @@ void ctgGenEpSet(SEpSet *epSet, SVgroupInfo *vgroupInfo) {
   }
 }
 
-int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, STableMetaOutput* output) {
-  if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pTableName || NULL == output) {
-    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
-  }
-
-  char tbFullName[TSDB_TABLE_FNAME_LEN];
-  tNameExtractFullName(pTableName, tbFullName);
-
+int32_t ctgGetTableMetaFromMnodeImpl(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, char* tbFullName, STableMetaOutput* output) {
   SBuildTableMetaInput bInput = {.vgId = 0, .dbName = NULL, .tableFullName = tbFullName};
   char *msg = NULL;
   SEpSet *pVnodeEpSet = NULL;
@@ -179,6 +197,12 @@ int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SE
   rpcSendRecv(pRpc, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
   
   if (TSDB_CODE_SUCCESS != rpcRsp.code) {
+    if (CTG_TABLE_NOT_EXIST(rpcRsp.code)) {
+      output->metaNum = 0;
+      ctgDebug("tbmeta:%s not exist in mnode", tbFullName);
+      return TSDB_CODE_SUCCESS;
+    }
+    
     ctgError("error rsp for table meta, code:%x", rpcRsp.code);
     CTG_ERR_RET(rpcRsp.code);
   }
@@ -186,6 +210,13 @@ int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SE
   CTG_ERR_RET(queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_STB_META)](output, rpcRsp.pCont, rpcRsp.contLen));
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, STableMetaOutput* output) {
+  char tbFullName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pTableName, tbFullName);
+
+  return ctgGetTableMetaFromMnodeImpl(pCatalog, pRpc, pMgmtEps, tbFullName, output);
 }
 
 
@@ -197,7 +228,7 @@ int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pRpc, const SE
   char dbFullName[TSDB_DB_FNAME_LEN];
   tNameGetFullDbName(pTableName, dbFullName);
 
-  SBuildTableMetaInput bInput = {.vgId = vgroupInfo->vgId, .dbName = dbFullName, .tableFullName = pTableName->tname};
+  SBuildTableMetaInput bInput = {.vgId = vgroupInfo->vgId, .dbName = dbFullName, .tableFullName = (char *)pTableName->tname};
   char *msg = NULL;
   SEpSet *pVnodeEpSet = NULL;
   int32_t msgLen = 0;
@@ -214,10 +245,15 @@ int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pRpc, const SE
   SEpSet  epSet;
   
   ctgGenEpSet(&epSet, vgroupInfo);
-
   rpcSendRecv(pRpc, &epSet, &rpcMsg, &rpcRsp);
   
   if (TSDB_CODE_SUCCESS != rpcRsp.code) {
+    if (CTG_TABLE_NOT_EXIST(rpcRsp.code)) {
+      output->metaNum = 0;
+      ctgDebug("tbmeta:%s not exist in vnode", pTableName->tname);
+      return TSDB_CODE_SUCCESS;
+    }
+  
     ctgError("error rsp for table meta, code:%x", rpcRsp.code);
     CTG_ERR_RET(rpcRsp.code);
   }
@@ -322,22 +358,28 @@ _return:
   CTG_RET(TSDB_CODE_SUCCESS);
 }
 
-int32_t ctgGetTableMetaImpl(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, bool forceUpdate, STableMeta** pTableMeta) {
+int32_t ctgGetTableMetaImpl(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, bool forceUpdate, STableMeta** pTableMeta, int32_t isSTable) {
   if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pTableName || NULL == pTableMeta) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
   
   int32_t exist = 0;
 
-  if (!forceUpdate) {  
+  if (!forceUpdate) {
     CTG_ERR_RET(ctgGetTableMetaFromCache(pCatalog, pTableName, pTableMeta, &exist));
 
-    if (exist) {
+    if (exist && CTG_TBTYPE_MATCH(isSTable, (*pTableMeta)->tableType)) {
       return TSDB_CODE_SUCCESS;
     }
+  } else if (CTG_IS_UNKNOWN_STABLE(isSTable)) {
+    int32_t tbType = 0;
+    
+    CTG_ERR_RET(ctgGetTableTypeFromCache(pCatalog, pTableName, &tbType));
+
+    CTG_SET_STABLE(isSTable, tbType);
   }
 
-  CTG_ERR_RET(catalogRenewTableMeta(pCatalog, pRpc, pMgmtEps, pTableName));
+  CTG_ERR_RET(ctgRenewTableMetaImpl(pCatalog, pRpc, pMgmtEps, pTableName, isSTable));
 
   CTG_ERR_RET(ctgGetTableMetaFromCache(pCatalog, pTableName, pTableMeta, &exist));
 
@@ -364,18 +406,26 @@ int32_t ctgUpdateTableMetaCache(struct SCatalog *pCatalog, STableMetaOutput *out
   }
 
   if (NULL == pCatalog->tableCache.cache) {
-    pCatalog->tableCache.cache = taosHashInit(ctgMgmt.cfg.maxTblCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    if (NULL == pCatalog->tableCache.cache) {
+    SHashObj *cache = taosHashInit(ctgMgmt.cfg.maxTblCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    if (NULL == cache) {
       ctgError("init hash[%d] for tablemeta cache failed", ctgMgmt.cfg.maxTblCacheNum);
       CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
+    }
+
+    if (NULL != atomic_val_compare_exchange_ptr(&pCatalog->tableCache.cache, NULL, cache)) {
+      taosHashCleanup(cache);
     }
   }
 
   if (NULL == pCatalog->tableCache.stableCache) {
-    pCatalog->tableCache.stableCache = taosHashInit(ctgMgmt.cfg.maxTblCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_ENTRY_LOCK);
-    if (NULL == pCatalog->tableCache.stableCache) {
+    SHashObj *cache = taosHashInit(ctgMgmt.cfg.maxTblCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_ENTRY_LOCK);
+    if (NULL == cache) {
       ctgError("init hash[%d] for stablemeta cache failed", ctgMgmt.cfg.maxTblCacheNum);
       CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
+    }
+
+    if (NULL != atomic_val_compare_exchange_ptr(&pCatalog->tableCache.stableCache, NULL, cache)) {
+      taosHashCleanup(cache);
     }
   }
 
@@ -479,6 +529,50 @@ int32_t ctgValidateAndRemoveDb(struct SCatalog* pCatalog, const char* dbName, SD
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgRenewTableMetaImpl(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, int32_t isSTable) {
+  if (NULL == pCatalog || NULL == pTransporter || NULL == pMgmtEps || NULL == pTableName) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SVgroupInfo vgroupInfo = {0};
+  int32_t code = 0;
+
+  CTG_ERR_RET(catalogGetTableHashVgroup(pCatalog, pTransporter, pMgmtEps, pTableName, &vgroupInfo));
+
+  STableMetaOutput voutput = {0};
+  STableMetaOutput moutput = {0};
+  STableMetaOutput *output = &voutput;
+
+  if (CTG_IS_STABLE(isSTable)) {
+    CTG_ERR_JRET(ctgGetTableMetaFromMnode(pCatalog, pTransporter, pMgmtEps, pTableName, &moutput));
+
+    if (0 == moutput.metaNum) {
+      CTG_ERR_JRET(ctgGetTableMetaFromVnode(pCatalog, pTransporter, pMgmtEps, pTableName, &vgroupInfo, &voutput));
+    } else {
+      output = &moutput;
+    }
+  } else {
+    CTG_ERR_JRET(ctgGetTableMetaFromVnode(pCatalog, pTransporter, pMgmtEps, pTableName, &vgroupInfo, &voutput));
+
+    if (voutput.metaNum > 0 && TSDB_SUPER_TABLE == voutput.tbMeta->tableType) {
+      CTG_ERR_JRET(ctgGetTableMetaFromMnodeImpl(pCatalog, pTransporter, pMgmtEps, voutput.tbFname, &moutput));
+
+      tfree(voutput.tbMeta);
+      voutput.tbMeta = moutput.tbMeta;
+      moutput.tbMeta = NULL;
+    }
+  }
+
+  CTG_ERR_JRET(ctgUpdateTableMetaCache(pCatalog, output));
+
+_return:
+
+  tfree(voutput.tbMeta);
+  tfree(moutput.tbMeta);
+  
+  CTG_RET(code);
 }
 
 
@@ -643,10 +737,14 @@ int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDB
   }
 
   if (NULL == pCatalog->dbCache.cache) {
-    pCatalog->dbCache.cache = taosHashInit(ctgMgmt.cfg.maxDBCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    if (NULL == pCatalog->dbCache.cache) {
+    SHashObj *cache = taosHashInit(ctgMgmt.cfg.maxDBCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    if (NULL == cache) {
       ctgError("init hash[%d] for db cache failed", CTG_DEFAULT_CACHE_DB_NUMBER);
       CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
+    }
+
+    if (NULL != atomic_val_compare_exchange_ptr(&pCatalog->dbCache.cache, NULL, cache)) {
+      taosHashCleanup(cache);
     }
   } else {
     CTG_ERR_JRET(ctgValidateAndRemoveDb(pCatalog, dbName, dbInfo));
@@ -672,34 +770,23 @@ _return:
 }
 
 int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta) {
-  return ctgGetTableMetaImpl(pCatalog, pTransporter, pMgmtEps, pTableName, false, pTableMeta);
+  return ctgGetTableMetaImpl(pCatalog, pTransporter, pMgmtEps, pTableName, false, pTableMeta, -1);
 }
 
-int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName) {
+int32_t catalogGetSTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta) {
+  return ctgGetTableMetaImpl(pCatalog, pTransporter, pMgmtEps, pTableName, false, pTableMeta, 1);
+}
+
+int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, int32_t isSTable) {
   if (NULL == pCatalog || NULL == pTransporter || NULL == pMgmtEps || NULL == pTableName) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  SVgroupInfo vgroupInfo = {0};
-  int32_t code = 0;
-
-  CTG_ERR_RET(catalogGetTableHashVgroup(pCatalog, pTransporter, pMgmtEps, pTableName, &vgroupInfo));
-
-  STableMetaOutput output = {0};
-  
-  CTG_ERR_RET(ctgGetTableMetaFromVnode(pCatalog, pTransporter, pMgmtEps, pTableName, &vgroupInfo, &output));
-
-  //CTG_ERR_RET(ctgGetTableMetaFromMnode(pCatalog, pRpc, pMgmtEps, pTableName, &output));
-
-  CTG_ERR_JRET(ctgUpdateTableMetaCache(pCatalog, &output));
-
-_return:
-  tfree(output.tbMeta);
-  CTG_RET(code);
+  return ctgRenewTableMetaImpl(pCatalog, pTransporter, pMgmtEps, pTableName, isSTable);
 }
 
-int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta) {
-  return ctgGetTableMetaImpl(pCatalog, pTransporter, pMgmtEps, pTableName, true, pTableMeta);
+int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta, int32_t isSTable) {
+  return ctgGetTableMetaImpl(pCatalog, pTransporter, pMgmtEps, pTableName, true, pTableMeta, isSTable);
 }
 
 int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, SArray** pVgroupList) {

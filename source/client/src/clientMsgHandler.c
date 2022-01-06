@@ -30,6 +30,7 @@ int genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   setErrno(pRequest, code);
 
+  free(pMsg->pData);
   sem_post(&pRequest->body.rspSem);
   return code;
 }
@@ -37,6 +38,7 @@ int genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
 int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
+    free(pMsg->pData);
     setErrno(pRequest, code);
     sem_post(&pRequest->body.rspSem);
     return code;
@@ -73,6 +75,7 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, pConnect->clusterId,
            pTscObj->pAppInfo->numOfConns);
 
+  free(pMsg->pData);
   sem_post(&pRequest->body.rspSem);
   return 0;
 }
@@ -238,6 +241,7 @@ int32_t processRetrieveVndRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 int32_t processCreateDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   // todo rsp with the vnode id list
   SRequestObj* pRequest = param;
+  free(pMsg->pData);
   tsem_post(&pRequest->body.rspSem);
 }
 
@@ -245,6 +249,7 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
 
   if (code != TSDB_CODE_SUCCESS) {
+    free(pMsg->pData);
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
     return code;
@@ -258,6 +263,7 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   tNameGetDbName(&name, db);
 
   setConnectionDB(pRequest->pTscObj, db);
+  free(pMsg->pData);
   tsem_post(&pRequest->body.rspSem);
   return 0;
 }
@@ -266,6 +272,7 @@ int32_t processCreateTableRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   assert(pMsg != NULL && param != NULL);
   SRequestObj* pRequest = param;
 
+  free(pMsg->pData);
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);

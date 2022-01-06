@@ -43,7 +43,7 @@ int32_t qParseQuerySql(SParseContext* pContext, SQueryNode** pQuery);
 
 bool qIsDdlQuery(const SQueryNode* pQuery);
 
-void qDestroyQuery(SQueryNode* pQuery);
+void qDestroyQuery(SQueryNode* pQueryNode);
 
 /**
  * Convert a normal sql statement to only query tags information to enable that the subscribe client can be aware quickly of the true vgroup ids that

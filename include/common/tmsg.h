@@ -312,14 +312,23 @@ typedef struct SEpSet {
 } SEpSet;
 
 static FORCE_INLINE int taosEncodeSEpSet(void** buf, const SEpSet* pEp) {
-  if (buf == NULL) return sizeof(SEpSet);
-  memcpy(buf, pEp, sizeof(SEpSet));
-  // TODO: endian conversion
-  return sizeof(SEpSet);
+  int tlen = 0;
+  tlen += taosEncodeFixedI8(buf, pEp->inUse);
+  tlen += taosEncodeFixedI8(buf, pEp->numOfEps);
+  for (int i = 0; i < TSDB_MAX_REPLICA; i++) {
+    tlen += taosEncodeFixedU16(buf, pEp->port[i]);
+    tlen += taosEncodeString(buf, pEp->fqdn[i]);
+  }
+  return tlen;
 }
 
-static FORCE_INLINE void* taosDecodeSEpSet(void* buf, SEpSet* pEpSet) {
-  memcpy(pEpSet, buf, sizeof(SEpSet));
+static FORCE_INLINE void* taosDecodeSEpSet(void* buf, SEpSet* pEp) {
+  buf = taosDecodeFixedI8(buf, &pEp->inUse);
+  buf = taosDecodeFixedI8(buf, &pEp->numOfEps);
+  for (int i = 0; i < TSDB_MAX_REPLICA; i++) {
+    buf = taosDecodeFixedU16(buf, &pEp->port[i]);
+    buf = taosDecodeStringTo(buf, pEp->fqdn[i]);
+  }
   return buf;
 }
 
@@ -1083,8 +1092,8 @@ typedef struct {
 
 static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateTopicReq* pReq) {
   int tlen = 0;
-  tlen += taosEncodeString(buf, pReq->name);
   tlen += taosEncodeFixedI8(buf, pReq->igExists);
+  tlen += taosEncodeString(buf, pReq->name);
   tlen += taosEncodeString(buf, pReq->physicalPlan);
   tlen += taosEncodeString(buf, pReq->logicalPlan);
   return tlen;
@@ -1114,41 +1123,62 @@ static FORCE_INLINE void* tDeserializeSCMCreateTopicRsp(void* buf, SCMCreateTopi
 }
 
 typedef struct {
-  char*   topicName;
-  char*   consumerGroup;
+  int32_t topicNum;
   int64_t consumerId;
+  char*   consumerGroup;
+  char*   topicName[];
 } SCMSubscribeReq;
 
 static FORCE_INLINE int tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
   int tlen = 0;
-  tlen += taosEncodeString(buf, pReq->topicName);
-  tlen += taosEncodeString(buf, pReq->consumerGroup);
+  tlen += taosEncodeFixedI32(buf, pReq->topicNum);
   tlen += taosEncodeFixedI64(buf, pReq->consumerId);
+  tlen += taosEncodeString(buf, pReq->consumerGroup);
+  for(int i = 0; i < pReq->topicNum; i++) {
+    tlen += taosEncodeString(buf, pReq->topicName[i]);
+  }
   return tlen;
 }
 
 static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq* pReq) {
-  buf = taosDecodeString(buf, &pReq->topicName);
-  buf = taosDecodeString(buf, &pReq->consumerGroup);
+  buf = taosDecodeFixedI32(buf, &pReq->topicNum);
   buf = taosDecodeFixedI64(buf, &pReq->consumerId);
+  buf = taosDecodeString(buf, &pReq->consumerGroup);
+  for(int i = 0; i < pReq->topicNum; i++) {
+    buf = taosDecodeString(buf, &pReq->topicName[i]);
+  }
   return buf;
 }
 
-typedef struct {
+typedef struct SMqSubTopic {
   int32_t vgId;
-  SEpSet  pEpSet;
+  int64_t topicId;
+  SEpSet  epSet;
+} SMqSubTopic;
+
+typedef struct {
+  int32_t topicNum;
+  SMqSubTopic topics[];
 } SCMSubscribeRsp;
 
 static FORCE_INLINE int tSerializeSCMSubscribeRsp(void** buf, const SCMSubscribeRsp* pRsp) {
   int tlen = 0;
-  tlen += taosEncodeFixedI32(buf, pRsp->vgId);
-  tlen += taosEncodeSEpSet(buf, &pRsp->pEpSet);
+  tlen += taosEncodeFixedI32(buf, pRsp->topicNum);
+  for(int i = 0; i < pRsp->topicNum; i++) {
+    tlen += taosEncodeFixedI32(buf, pRsp->topics[i].vgId);
+    tlen += taosEncodeFixedI64(buf, pRsp->topics[i].topicId);
+    tlen += taosEncodeSEpSet(buf, &pRsp->topics[i].epSet);
+  }
   return tlen;
 }
 
 static FORCE_INLINE void* tDeserializeSCMSubscribeRsp(void* buf, SCMSubscribeRsp* pRsp) {
-  buf = taosDecodeFixedI32(buf, &pRsp->vgId);
-  buf = taosDecodeSEpSet(buf, &pRsp->pEpSet);
+  buf = taosDecodeFixedI32(buf, &pRsp->topicNum);
+  for(int i = 0; i < pRsp->topicNum; i++) {
+    buf = taosDecodeFixedI32(buf, &pRsp->topics[i].vgId);
+    buf = taosDecodeFixedI64(buf, &pRsp->topics[i].topicId);
+    buf = taosDecodeSEpSet(buf, &pRsp->topics[i].epSet);
+  }
   return buf;
 }
 
@@ -1157,10 +1187,36 @@ typedef struct {
   int64_t consumerId;
   int64_t consumerGroupId;
   int64_t offset;
+  char*   sql;
+  char*   logicalPlan;
+  char*   physicalPlan;
 } SMVSubscribeReq;
 
+static FORCE_INLINE int tSerializeSMVSubscribeReq(void** buf, SMVSubscribeReq* pReq) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pReq->topicId);
+  tlen += taosEncodeFixedI64(buf, pReq->consumerId);
+  tlen += taosEncodeFixedI64(buf, pReq->consumerGroupId);
+  tlen += taosEncodeFixedI64(buf, pReq->offset);
+  tlen += taosEncodeString(buf, pReq->sql);
+  tlen += taosEncodeString(buf, pReq->logicalPlan);
+  tlen += taosEncodeString(buf, pReq->physicalPlan);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDeserializeSMVSubscribeReq(void* buf, SMVSubscribeReq* pReq) {
+  buf = taosDecodeFixedI64(buf, &pReq->topicId);
+  buf = taosDecodeFixedI64(buf, &pReq->consumerId);
+  buf = taosDecodeFixedI64(buf, &pReq->consumerGroupId);
+  buf = taosDecodeFixedI64(buf, &pReq->offset);
+  buf = taosDecodeString(buf, &pReq->sql);
+  buf = taosDecodeString(buf, &pReq->logicalPlan);
+  buf = taosDecodeString(buf, &pReq->physicalPlan);
+  return buf;
+}
+
 typedef struct {
-  int64_t newOffset;
+  int64_t status;
 } SMVSubscribeRsp;
 
 typedef struct {

@@ -40,11 +40,12 @@ typedef struct IndexCache {
   SIndex*   index;
   char*     colName;
   int32_t   version;
-  int32_t   nTerm;
+  int64_t   occupiedMem;
   int8_t    type;
   uint64_t  suid;
 
   pthread_mutex_t mtx;
+  pthread_cond_t  finished;
 } IndexCache;
 
 #define CACHE_VERSION(cache) atomic_load_32(&cache->version)
