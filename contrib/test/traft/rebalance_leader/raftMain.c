@@ -60,9 +60,9 @@ void raftTransferCb(struct raft_transfer *req) {
 	SRaftServer *pRaftServer = req->data;
 	raft_free(req);
 
-	printf("raftTransferCb: \n");
+	//printf("raftTransferCb: \n");
 	updateLeaderStates(pRaftServer);
-	printLeaderCount();
+	//printLeaderCount();
 
 	int myLeaderCount;
 	for (int i = 0; i < NODE_COUNT; ++i) {
@@ -71,12 +71,13 @@ void raftTransferCb(struct raft_transfer *req) {
 		}
 	}
 
-	printf("myLeaderCount:%d waterLevel:%d \n", myLeaderCount, pRaftServer->instanceCount / NODE_COUNT);
+	//printf("myLeaderCount:%d waterLevel:%d \n", myLeaderCount, pRaftServer->instanceCount / NODE_COUNT);
 	if (myLeaderCount > pRaftServer->instanceCount / NODE_COUNT) {
 		struct raft *r;
 		for (int j = 0; j < pRaftServer->instanceCount; ++j) {
 			if (pRaftServer->instance[j].raft.state == RAFT_LEADER) {
 				r = &pRaftServer->instance[j].raft;
+				break;
 			}
 		}
 
@@ -87,17 +88,25 @@ void raftTransferCb(struct raft_transfer *req) {
 		int minIndex = -1;
 		int minLeaderCount = myLeaderCount;
 		for (int j = 0; j < NODE_COUNT; ++j) {
-			if (strcmp(leaderStates[j].address, pRaftServer->address) == 0) continue;
+			if (strcmp(leaderStates[j].address, pRaftServer->address) == 0) {
+				continue;
+			}
+
 			if (leaderStates[j].leaderCount <= minLeaderCount) {
+				minLeaderCount = leaderStates[j].leaderCount;
 				minIndex = j;
 			}
 		}
+
 
 		char myHost[48];
 		uint16_t myPort;
 		uint16_t myVid;
 		decodeRaftId(r->id, myHost, sizeof(myHost), &myPort, &myVid);
-		
+	
+	
+		//printf("raftTransferCb transfer leader: vid[%u] choose: index:%d, leaderStates[%d].address:%s, leaderStates[%d].leaderCount:%d \n", minIndex, minIndex, leaderStates[minIndex].address, minIndex, leaderStates[minIndex].leaderCount);
+
 		char *destAddress = leaderStates[minIndex].address;
 
 		char tokens[MAX_PEERS][MAX_TOKEN_LEN];
@@ -105,6 +114,9 @@ void raftTransferCb(struct raft_transfer *req) {
 		char *destHost = tokens[0];
 		uint16_t destPort = atoi(tokens[1]);
 		destRaftId = encodeRaftId(destHost, destPort, myVid);
+
+		printf("\nraftTransferCb transfer leader: vgroupId:%u from:%s:%u --> to:%s:%u ", myVid, myHost, myPort, destHost, destPort);
+		fflush(stdout);
 
 		raft_transfer(r, transfer, destRaftId, raftTransferCb);			
 	}
@@ -252,7 +264,6 @@ const char* state2String(unsigned short state) {
 
 
 void printRaftState2(struct raft *r) {
-
 	char leaderAddress[128];
 	memset(leaderAddress, 0, sizeof(leaderAddress));
 
@@ -350,6 +361,7 @@ void console(SRaftServer *pRaftServer) {
 	while (1) {
 		char cmd_buf[COMMAND_LEN];
 		memset(cmd_buf, 0, sizeof(cmd_buf));
+		printf("(console)> ");
 		char *ret = fgets(cmd_buf, COMMAND_LEN, stdin);
 		if (!ret) {
 			exit(-1);
@@ -403,7 +415,10 @@ void console(SRaftServer *pRaftServer) {
 		} else if (strcmp(cmd, "dropnode") == 0) {
 			printf("not support \n");
 
-		} else if (strcmp(cmd, "rebalance") == 0) {
+		} else if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "exit") == 0) {
+			exit(0);
+
+		} else if (strcmp(cmd, "rebalance") == 0 && strcmp(param1, "leader") == 0) {
 
 			/*
 			updateLeaderStates(pRaftServer);
@@ -511,10 +526,14 @@ void console(SRaftServer *pRaftServer) {
 				printRaftState(&pRaftServer->instance[i].raft);
 			}
 
-		} else if (strcmp(cmd, "state2") == 0) {
+		} else if (strcmp(cmd, "leader") == 0 && strcmp(param1, "state") == 0) {
+			updateLeaderStates(pRaftServer);
+			printf("\n--------------------------------------------\n");
+			printLeaderCount();
 			for (int i = 0; i < pRaftServer->instanceCount; ++i) {
 				printRaftState2(&pRaftServer->instance[i].raft);
 			}
+			printf("--------------------------------------------\n");
 
 		} else if (strcmp(cmd, "snapshot") == 0) {
 			printf("not support \n");

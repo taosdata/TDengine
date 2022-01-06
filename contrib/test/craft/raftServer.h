@@ -48,10 +48,11 @@ int32_t raftServerInit(SRaftServer *pRaftServer, const SRaftServerConfig *pConf,
 int32_t raftServerStart(SRaftServer *pRaftServer);
 void raftServerClose(SRaftServer *pRaftServer);
 
-
 int initFsm(struct raft_fsm *fsm);
 
-
+const char* state2String(unsigned short state);
+void printRaftConfiguration(struct raft_configuration *c);
+void printRaftState(struct raft *r);
 
 
 #ifdef __cplusplus
