@@ -43,7 +43,7 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx* pCtx, void** ou
     char dbFname[TSDB_DB_FNAME_LEN] = {0};
     tNameGetFullDbName(&name, dbFname);
 
-    catalogGetDBVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbFname, 0, &array);
+    catalogGetDBVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbFname, false, &array);
 
     SVgroupInfo* info = taosArrayGet(array, 0);
     pShowReq->head.vgId = htonl(info->vgId);
