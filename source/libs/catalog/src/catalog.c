@@ -311,6 +311,14 @@ int32_t ctgGetVgInfoFromHashValue(SDBVgroupInfo *dbInfo, const SName *pTableName
 
   if (NULL == vgInfo) {
     ctgError("no hash range found for hashvalue[%u]", hashValue);
+
+    void *pIter1 = taosHashIterate(dbInfo->vgInfo, NULL);
+    while (pIter1) {
+      vgInfo = pIter1;
+      ctgError("valid range:[%d, %d], vgId:%d", vgInfo->hashBegin, vgInfo->hashEnd, vgInfo->vgId);
+      pIter1 = taosHashIterate(dbInfo->vgInfo, pIter1);
+    }
+
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
@@ -773,7 +781,6 @@ int32_t catalogGetTableHashVgroup(struct SCatalog *pCatalog, void *pTransporter,
   CTG_ERR_JRET(ctgGetVgInfoFromHashValue(dbInfo, pTableName, pVgroup));
 
 _return:
-
   if (dbInfo) {
     CTG_UNLOCK(CTG_READ, &dbInfo->lock);  
     taosHashRelease(pCatalog->dbCache.cache, dbInfo);
