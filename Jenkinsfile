@@ -109,6 +109,8 @@ pipeline {
           sh'''
           cd ${WKC}/tests
           ./test-all.sh b1fq
+          '''
+          sh'''
           cd ${WKC}/debug
           ctest
           '''
