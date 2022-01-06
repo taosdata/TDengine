@@ -27,9 +27,9 @@
 static void indexMemRef(MemTable* tbl);
 static void indexMemUnRef(MemTable* tbl);
 
-static void    cacheTermDestroy(CacheTerm* ct);
-static char*   getIndexKey(const void* pData);
-static int32_t compareKey(const void* l, const void* r);
+static void    indexCacheTermDestroy(CacheTerm* ct);
+static int32_t indexCacheTermCompare(const void* l, const void* r);
+static char*   indexCacheTermGet(const void* pData);
 
 static MemTable* indexInternalCacheCreate(int8_t type);
 
@@ -243,7 +243,7 @@ int indexCacheDel(void* cache, const char* fieldValue, int32_t fvlen, uint64_t u
 
 static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SArray* result, STermValueType* s) {
   if (mem == NULL) { return 0; }
-  char* key = getIndexKey(ct);
+  char* key = indexCacheTermGet(ct);
 
   SSkipListIterator* iter = tSkipListCreateIterFromVal(mem->mem, key, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
   while (tSkipListIterNext(iter)) {
@@ -321,17 +321,16 @@ void indexMemUnRef(MemTable* tbl) {
   }
 }
 
-static void cacheTermDestroy(CacheTerm* ct) {
+static void indexCacheTermDestroy(CacheTerm* ct) {
   if (ct == NULL) { return; }
   free(ct->colVal);
   free(ct);
 }
-static char* getIndexKey(const void* pData) {
+static char* indexCacheTermGet(const void* pData) {
   CacheTerm* p = (CacheTerm*)pData;
   return (char*)p;
 }
-
-static int32_t compareKey(const void* l, const void* r) {
+static int32_t indexCacheTermCompare(const void* l, const void* r) {
   CacheTerm* lt = (CacheTerm*)l;
   CacheTerm* rt = (CacheTerm*)r;
 
@@ -345,7 +344,8 @@ static MemTable* indexInternalCacheCreate(int8_t type) {
   MemTable* tbl = calloc(1, sizeof(MemTable));
   indexMemRef(tbl);
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    tbl->mem = tSkipListCreate(MAX_SKIP_LIST_LEVEL, type, MAX_INDEX_KEY_LEN, compareKey, SL_ALLOW_DUP_KEY, getIndexKey);
+    tbl->mem = tSkipListCreate(MAX_SKIP_LIST_LEVEL, type, MAX_INDEX_KEY_LEN, indexCacheTermCompare, SL_ALLOW_DUP_KEY,
+                               indexCacheTermGet);
   }
   return tbl;
 }
@@ -375,4 +375,7 @@ static bool indexCacheIteratorNext(Iterate* itera) {
   return next;
 }
 
-static IterateValue* indexCacheIteratorGetValue(Iterate* iter) { return &iter->val; }
+static IterateValue* indexCacheIteratorGetValue(Iterate* iter) {
+  // opt later
+  return &iter->val;
+}

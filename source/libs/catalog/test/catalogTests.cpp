@@ -48,7 +48,6 @@ bool ctgTestEnableSleep = false;
 bool ctgTestDeadLoop = false;
 int32_t ctgTestPrintNum = 200000;
 
-
 int32_t ctgTestCurrentVgVersion = 0;
 int32_t ctgTestVgVersion = 1;
 int32_t ctgTestVgNum = 10;
@@ -602,6 +601,7 @@ void *ctgTestSetCtableMetaThread(void *param) {
 
 }
 
+#if 0
 
 TEST(tableMeta, normalTable) {
   struct SCatalog* pCtg = NULL;
@@ -841,7 +841,7 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   tableMeta = NULL;
-  code = catalogRenewAndGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta, 0);
+  code = catalogRenewAndGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 9);
   ASSERT_EQ(tableMeta->tableType, TSDB_CHILD_TABLE);
