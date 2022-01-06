@@ -38,7 +38,7 @@ typedef struct SClientHbKey {
 } SClientHbKey;
 
 typedef struct SClientHbReq {
-  SClientHbKey hbKey;
+  SClientHbKey connKey;
   SHashObj*    info;  // hash<Slv.key, Sklv>
 } SClientHbReq;
 
@@ -51,8 +51,10 @@ typedef struct SClientHbHandleResult {
 } SClientHbHandleResult;
 
 typedef struct SClientHbRsp {
-  int32_t connId;
-  int32_t hbType;
+  SClientHbKey connKey;
+  int32_t status;
+  int32_t bodyLen;
+  void*   body;
 } SClientHbRsp;
 
 typedef struct SClientHbBatchRsp {
@@ -118,7 +120,7 @@ static FORCE_INLINE void* taosDecodeSClientHbKey(void* buf, SClientHbKey* pKey) 
 
 static FORCE_INLINE int tSerializeSClientHbReq(void** buf, const SClientHbReq* pReq) {
   int tlen = 0;
-  tlen += taosEncodeSClientHbKey(buf, &pReq->hbKey);
+  tlen += taosEncodeSClientHbKey(buf, &pReq->connKey);
 
   void* pIter = NULL;
   void* data;
@@ -137,7 +139,7 @@ static FORCE_INLINE int tSerializeSClientHbReq(void** buf, const SClientHbReq* p
 
 static FORCE_INLINE void* tDeserializeClientHbReq(void* buf, SClientHbReq* pReq) {
   ASSERT(pReq->info != NULL);
-  buf = taosDecodeSClientHbKey(buf, &pReq->hbKey);
+  buf = taosDecodeSClientHbKey(buf, &pReq->connKey);
 
   // TODO: error handling
   if (pReq->info == NULL) {
