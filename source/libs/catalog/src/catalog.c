@@ -315,7 +315,7 @@ int32_t ctgGetVgInfoFromHashValue(SDBVgroupInfo *dbInfo, const SName *pTableName
     void *pIter1 = taosHashIterate(dbInfo->vgInfo, NULL);
     while (pIter1) {
       vgInfo = pIter1;
-      ctgDebug("valid range:[%d, %d]", vgInfo->hashBegin, vgInfo->hashEnd);
+      ctgError("valid range:[%d, %d], vgId:%d", vgInfo->hashBegin, vgInfo->hashEnd, vgInfo->vgId);
       pIter1 = taosHashIterate(dbInfo->vgInfo, pIter1);
     }
 
