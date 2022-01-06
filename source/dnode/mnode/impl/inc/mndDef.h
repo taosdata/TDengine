@@ -302,6 +302,7 @@ typedef struct {
   char    payload[];
 } SShowObj;
 
+#if 0
 typedef struct SConsumerObj {
   uint64_t uid;
   int64_t  createTime;
@@ -309,17 +310,59 @@ typedef struct SConsumerObj {
   //uint64_t dbUid;
   int32_t  version;
   SRWLatch lock;
-  SList*   topics;
+  SArray*   topics;
 } SConsumerObj;
+
+typedef struct SMqTopicConsumer {
+  int64_t consumerId;
+  SList*  topicList;
+} SMqTopicConsumer;
+#endif
+
+typedef struct SMqCGroup {
+  char    name[TSDB_CONSUMER_GROUP_LEN];
+  int32_t status;       // 0 - uninitialized, 1 - wait rebalance, 2- normal
+  SList  *consumerIds;  // SList<int64_t>
+  SList  *idleVGroups;  // SList<int32_t>
+} SMqCGroup;
+
+typedef struct SMqTopicObj {
+  char      name[TSDB_TOPIC_FNAME_LEN];
+  char      db[TSDB_DB_FNAME_LEN];
+  int64_t   createTime;
+  int64_t   updateTime;
+  uint64_t  uid;
+  uint64_t  dbUid;
+  int32_t   version;
+  SRWLatch  lock;
+  int32_t   sqlLen;
+  char     *sql;
+  char     *logicalPlan;
+  char     *physicalPlan;
+  SHashObj *cgroups;  // SHashObj<SMqCGroup>
+} SMqTopicObj;
+
+// TODO: add cache and change name to id
+typedef struct SMqConsumerTopic {
+  char   name[TSDB_TOPIC_FNAME_LEN];
+  SList *vgroups;  // SList<int32_t>
+} SMqConsumerTopic;
+
+typedef struct SMqConsumerObj {
+  SRWLatch lock;
+  int64_t  consumerId;
+  char     cgroup[TSDB_CONSUMER_GROUP_LEN];
+  SArray  *topics;  // SArray<SMqConsumerTopic>
+} SMqConsumerObj;
 
 typedef struct SMqSubConsumerObj {
   int64_t consumerUid;  // if -1, unassigned
-  SList*   vgId;        //SList<int32_t>
+  SList  *vgId;         // SList<int32_t>
 } SMqSubConsumerObj;
 
 typedef struct SMqSubCGroupObj {
   char   name[TSDB_CONSUMER_GROUP_LEN];
-  SList* consumers;     //SList<SMqConsumerObj>
+  SList *consumers;  // SList<SMqConsumerObj>
 } SMqSubCGroupObj;
 
 typedef struct SMqSubTopicObj {
@@ -332,32 +375,33 @@ typedef struct SMqSubTopicObj {
   int32_t  version;
   SRWLatch lock;
   int32_t  sqlLen;
-  char*    sql;
-  char*    logicalPlan;
-  char*    physicalPlan;
-  SList*   cgroups;     //SList<SMqSubCGroupObj>
+  char    *sql;
+  char    *logicalPlan;
+  char    *physicalPlan;
+  SList   *cgroups;  // SList<SMqSubCGroupObj>
 } SMqSubTopicObj;
 
 typedef struct SMqConsumerSubObj {
   int64_t topicUid;
-  SList*  vgIds;        //SList<int64_t>
+  SList  *vgIds;  // SList<int64_t>
 } SMqConsumerSubObj;
 
 typedef struct SMqConsumerHbObj {
   int64_t consumerId;
-  SList*  consumerSubs; //SList<SMqConsumerSubObj>
+  SList  *consumerSubs;  // SList<SMqConsumerSubObj>
 } SMqConsumerHbObj;
 
 typedef struct SMqVGroupSubObj {
   int64_t topicUid;
-  SList*  consumerIds;  //SList<int64_t>
+  SList  *consumerIds;  // SList<int64_t>
 } SMqVGroupSubObj;
 
 typedef struct SMqVGroupHbObj {
   int64_t vgId;
-  SList*  vgSubs;       //SList<SMqVGroupSubObj>
+  SList  *vgSubs;  // SList<SMqVGroupSubObj>
 } SMqVGroupHbObj;
 
+#if 0
 typedef struct SCGroupObj {
   char     name[TSDB_TOPIC_FNAME_LEN];
   int64_t  createTime;
@@ -368,24 +412,7 @@ typedef struct SCGroupObj {
   SRWLatch lock;
   SList*   consumerIds;
 } SCGroupObj;
-
-typedef struct {
-  char     name[TSDB_TOPIC_FNAME_LEN];
-  char     db[TSDB_DB_FNAME_LEN];
-  int64_t  createTime;
-  int64_t  updateTime;
-  uint64_t uid;
-  uint64_t dbUid;
-  int32_t  version;
-  SRWLatch lock;
-  int32_t  execLen;
-  void*    executor;
-  int32_t  sqlLen;
-  char*    sql;
-  char*    logicalPlan;
-  char*    physicalPlan;
-  SList*   consumerIds; 
-} STopicObj;
+#endif
 
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];

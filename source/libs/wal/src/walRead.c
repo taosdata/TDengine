@@ -15,6 +15,7 @@
 
 #include "tfile.h"
 #include "walInt.h"
+#include "taoserror.h"
 
 SWalReadHandle *walOpenReadHandle(SWal *pWal) {
   SWalReadHandle *pRead = malloc(sizeof(SWalReadHandle));
@@ -30,6 +31,7 @@ SWalReadHandle *walOpenReadHandle(SWal *pWal) {
   pRead->status = 0;
   pRead->pHead = malloc(sizeof(SWalHead));
   if (pRead->pHead == NULL) {
+    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
     free(pRead);
     return NULL;
   }
@@ -55,16 +57,19 @@ static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, i
   int64_t offset = (ver - fileFirstVer) * sizeof(SWalIdxEntry);
   code = tfLseek(idxTfd, offset, SEEK_SET);
   if (code < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   SWalIdxEntry entry;
   if (tfRead(idxTfd, &entry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) {
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
   // TODO:deserialize
   ASSERT(entry.ver == ver);
   code = tfLseek(logTfd, entry.offset, SEEK_SET);
   if (code < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   return code;
@@ -79,6 +84,7 @@ static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
   walBuildLogName(pRead->pWal, fileFirstVer, fnameStr);
   int64_t logTfd = tfOpenRead(fnameStr);
   if (logTfd < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
@@ -100,6 +106,7 @@ static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
     return 0;
   }
   if (ver > pWal->vers.lastVer || ver < pWal->vers.firstVer) {
+    terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
   }
   if (ver < pWal->vers.snapshotVer) {
@@ -113,7 +120,6 @@ static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
   if (pRead->curFileFirstVer != pRet->firstVer) {
     code = walReadChangeFile(pRead, pRet->firstVer);
     if (code < 0) {
-      // TODO: set error flag
       return -1;
     }
   }
@@ -132,7 +138,7 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   // TODO: check wal life
   if (pRead->curVersion != ver) {
     code = walReadSeekVer(pRead, ver);
-    if (code != 0) {
+    if (code < 0) {
       return -1;
     }
   }
@@ -145,11 +151,13 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   }
   code = walValidHeadCksum(pRead->pHead);
   if (code != 0) {
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
   if (pRead->capacity < pRead->pHead->head.len) {
     void *ptr = realloc(pRead->pHead, sizeof(SWalHead) + pRead->pHead->head.len);
     if (ptr == NULL) {
+      terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
       return -1;
     }
     pRead->pHead = ptr;
@@ -163,6 +171,7 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
 
   code = walValidBodyCksum(pRead->pHead);
   if (code != 0) {
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
   pRead->curVersion++;

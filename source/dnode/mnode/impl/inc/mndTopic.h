@@ -25,8 +25,11 @@ extern "C" {
 int32_t mndInitTopic(SMnode *pMnode);
 void    mndCleanupTopic(SMnode *pMnode);
 
-STopicObj *mndAcquireTopic(SMnode *pMnode, char *topicName);
-void       mndReleaseTopic(SMnode *pMnode, STopicObj *pTopic);
+SMqTopicObj *mndAcquireTopic(SMnode *pMnode, char *topicName);
+void         mndReleaseTopic(SMnode *pMnode, SMqTopicObj *pTopic);
+
+SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic);
+SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw);
 
 #ifdef __cplusplus
 }
