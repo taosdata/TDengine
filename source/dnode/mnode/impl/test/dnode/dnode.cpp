@@ -86,7 +86,43 @@ TEST_F(MndTestDnode, 02_ConfigDnode) {
   ASSERT_EQ(pRsp->code, 0);
 }
 
-TEST_F(MndTestDnode, 03_Create_Drop_Restart_Dnode) {
+TEST_F(MndTestDnode, 03_Create_Dnode) {
+  {
+    int32_t contLen = sizeof(SCreateDnodeReq);
+
+    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
+    strcpy(pReq->fqdn, "");
+    pReq->port = htonl(9024);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_DNODE_EP);
+  }
+
+  {
+    int32_t contLen = sizeof(SCreateDnodeReq);
+
+    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
+    strcpy(pReq->fqdn, "localhost");
+    pReq->port = htonl(-1);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_DNODE_EP);
+  }
+
+  {
+    int32_t contLen = sizeof(SCreateDnodeReq);
+
+    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
+    strcpy(pReq->fqdn, "localhost");
+    pReq->port = htonl(123456);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_DNODE_EP);
+  }
+
   {
     int32_t contLen = sizeof(SCreateDnodeReq);
 
@@ -97,6 +133,18 @@ TEST_F(MndTestDnode, 03_Create_Drop_Restart_Dnode) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
+  }
+
+  {
+    int32_t contLen = sizeof(SCreateDnodeReq);
+
+    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
+    strcpy(pReq->fqdn, "localhost");
+    pReq->port = htonl(9024);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_DNODE_ALREADY_EXIST);
   }
 
   taosMsleep(1300);
@@ -120,6 +168,30 @@ TEST_F(MndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckTimestamp();
   CheckBinary("", 24);
   CheckBinary("", 24);
+}
+
+TEST_F(MndTestDnode, 04_Drop_Dnode) {
+  {
+    int32_t contLen = sizeof(SDropDnodeReq);
+
+    SDropDnodeReq* pReq = (SDropDnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(-3);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_DNODE_ID);
+  }
+
+  {
+    int32_t contLen = sizeof(SDropDnodeReq);
+
+    SDropDnodeReq* pReq = (SDropDnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(5);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_DNODE_NOT_EXIST);
+  }
 
   {
     int32_t contLen = sizeof(SDropDnodeReq);
@@ -130,6 +202,17 @@ TEST_F(MndTestDnode, 03_Create_Drop_Restart_Dnode) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
+  }
+
+  {
+    int32_t contLen = sizeof(SDropDnodeReq);
+
+    SDropDnodeReq* pReq = (SDropDnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_DNODE_NOT_EXIST);
   }
 
   test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
@@ -145,6 +228,12 @@ TEST_F(MndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckTimestamp();
   CheckBinary("", 24);
 
+  taosMsleep(2000);
+  server2.Stop();
+  server2.DoStart();
+}
+
+TEST_F(MndTestDnode, 05_Create_Drop_Restart_Dnode) {
   {
     int32_t contLen = sizeof(SCreateDnodeReq);
 
