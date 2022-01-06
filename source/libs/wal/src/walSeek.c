@@ -30,17 +30,20 @@ static int walSeekFilePos(SWal* pWal, int64_t ver) {
   int64_t idxOff = walGetVerIdxOffset(pWal, ver);
   code = tfLseek(idxTfd, idxOff, SEEK_SET);
   if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   SWalIdxEntry entry;
   // TODO:deserialize
   code = tfRead(idxTfd, &entry, sizeof(SWalIdxEntry));
   if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   ASSERT(entry.ver == ver);
   code = tfLseek(logTfd, entry.offset, SEEK_CUR);
   if (code < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   return code;
@@ -56,11 +59,13 @@ int walChangeFileToLast(SWal* pWal) {
   walBuildIdxName(pWal, fileFirstVer, fnameStr);
   idxTfd = tfOpenReadWrite(fnameStr);
   if (idxTfd < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   walBuildLogName(pWal, fileFirstVer, fnameStr);
   logTfd = tfOpenReadWrite(fnameStr);
   if (logTfd < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   // switch file
@@ -76,11 +81,12 @@ int walChangeFile(SWal* pWal, int64_t ver) {
   code = tfClose(pWal->writeLogTfd);
   if (code != 0) {
     // TODO
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   code = tfClose(pWal->writeIdxTfd);
   if (code != 0) {
-    // TODO
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   SWalFileInfo tmpInfo;
@@ -113,6 +119,7 @@ int walSeekVer(SWal* pWal, int64_t ver) {
     return 0;
   }
   if (ver > pWal->vers.lastVer || ver < pWal->vers.firstVer) {
+    terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
   }
   if (ver < pWal->vers.snapshotVer) {

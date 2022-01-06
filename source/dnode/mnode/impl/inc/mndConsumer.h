@@ -25,11 +25,8 @@ extern "C" {
 int32_t mndInitConsumer(SMnode *pMnode);
 void    mndCleanupConsumer(SMnode *pMnode);
 
-SConsumerObj *mndAcquireConsumer(SMnode *pMnode, int32_t consumerId);
-void          mndReleaseConsumer(SMnode *pMnode, SConsumerObj *pConsumer);
-
-SCGroupObj *mndAcquireCGroup(SMnode *pMnode, char *consumerGroup);
-void        mndReleaseCGroup(SMnode *pMnode, SCGroupObj *pCGroup);
+SMqConsumerObj *mndAcquireConsumer(SMnode *pMnode, int32_t consumerId);
+void            mndReleaseConsumer(SMnode *pMnode, SMqConsumerObj *pConsumer);
 
 #ifdef __cplusplus
 }
