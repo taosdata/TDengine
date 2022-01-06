@@ -26,6 +26,8 @@ class TDTestCase:
         '''
         tdCom.cleanTb()
         table_name = tdCom.getLongName(8, "letters_mixed")
+        while table_name.islower():
+            table_name = tdCom.getLongName(8, "letters_mixed")
         table_name_sub = f'{table_name}_sub'
         tb_name_lower = table_name_sub.lower()
         tb_name_upper = table_name_sub.upper()
