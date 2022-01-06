@@ -109,7 +109,7 @@ static SSchTask initTask(SSchJob* pJob, SSubplan* plan, SSchLevel *pLevel) {
 }
 
 static void cleanupTask(SSchTask* pTask) {
-  taosArrayDestroy(pTask->condidateAddrs);
+  taosArrayDestroy(pTask->candidateAddrs);
 }
 
 int32_t schValidateAndBuildJob(SQueryDag *dag, SSchJob *pJob) {
@@ -226,20 +226,20 @@ _return:
   SCH_RET(code);
 }
 
-int32_t schSetTaskCondidateAddrs(SSchJob *job, SSchTask *task) {
-  if (task->condidateAddrs) {
+int32_t schSetTaskCandidateAddrs(SSchJob *job, SSchTask *task) {
+  if (task->candidateAddrs) {
     return TSDB_CODE_SUCCESS;
   }
 
-  task->condidateIdx = 0;
-  task->condidateAddrs = taosArrayInit(SCH_MAX_CONDIDATE_EP_NUM, sizeof(SQueryNodeAddr));
-  if (NULL == task->condidateAddrs) {
+  task->candidateIdx = 0;
+  task->candidateAddrs = taosArrayInit(SCH_MAX_CONDIDATE_EP_NUM, sizeof(SQueryNodeAddr));
+  if (NULL == task->candidateAddrs) {
     qError("taosArrayInit failed");
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
   if (task->plan->execNode.numOfEps > 0) {
-    if (NULL == taosArrayPush(task->condidateAddrs, &task->plan->execNode)) {
+    if (NULL == taosArrayPush(task->candidateAddrs, &task->plan->execNode)) {
       qError("taosArrayPush failed");
       SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
@@ -253,7 +253,7 @@ int32_t schSetTaskCondidateAddrs(SSchJob *job, SSchTask *task) {
   for (int32_t i = 0; i < nodeNum && addNum < SCH_MAX_CONDIDATE_EP_NUM; ++i) {
     SQueryNodeAddr *naddr = taosArrayGet(job->nodeList, i);
     
-    if (NULL == taosArrayPush(task->condidateAddrs, &task->plan->execNode)) {
+    if (NULL == taosArrayPush(task->candidateAddrs, &task->plan->execNode)) {
       qError("taosArrayPush failed");
       SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
@@ -800,7 +800,7 @@ int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
   }
 
   SEpSet epSet;
-  SQueryNodeAddr *addr = taosArrayGet(task->condidateAddrs, task->condidateIdx);
+  SQueryNodeAddr *addr = taosArrayGet(task->candidateAddrs, task->candidateIdx);
   
   schConvertAddrToEpSet(addr, &epSet);
 
@@ -818,9 +818,9 @@ _return:
 int32_t schLaunchTask(SSchJob *job, SSchTask *task) {
   SSubplan *plan = task->plan;
   SCH_ERR_RET(qSubPlanToString(plan, &task->msg, &task->msgLen));
-  SCH_ERR_RET(schSetTaskCondidateAddrs(job, task));
+  SCH_ERR_RET(schSetTaskCandidateAddrs(job, task));
 
-  if (NULL == task->condidateAddrs || taosArrayGetSize(task->condidateAddrs) <= 0) {
+  if (NULL == task->candidateAddrs || taosArrayGetSize(task->candidateAddrs) <= 0) {
     SCH_TASK_ERR_LOG("no valid condidate node for task:%"PRIx64, task->taskId);
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }

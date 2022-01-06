@@ -403,7 +403,6 @@ int32_t ctgGetVgInfoFromHashValue(struct SCatalog *pCatalog, SDBVgroupInfo *dbIn
   *pVgroup = *vgInfo;
 
 _return:
-  
   CTG_RET(TSDB_CODE_SUCCESS);
 }
 
@@ -1172,7 +1171,6 @@ int32_t catalogGetTableHashVgroup(struct SCatalog *pCatalog, void *pTransporter,
   CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCatalog, dbInfo, pTableName, pVgroup));
 
 _return:
-
   if (dbInfo) {
     CTG_UNLOCK(CTG_READ, &dbInfo->lock);  
     taosHashRelease(pCatalog->dbCache.cache, dbInfo);
