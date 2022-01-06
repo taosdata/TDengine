@@ -46,7 +46,7 @@ class TDTestCase:
     def caseDescription(self):
 
         '''
-        case1 <author>:wenzhouwww [TD-12275] : 
+        case1 <wenzhouwww>: [TD-12275] : 
             this test case is an long query crash for elapsed function  .
         ''' 
         return 
