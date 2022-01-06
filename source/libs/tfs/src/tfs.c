@@ -15,11 +15,11 @@
 
 #include "os.h"
 
-#include "hash.h"
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tfs.h"
 #include "tfsint.h"
+#include "thash.h"
 
 #define TMPNAME_LEN (TSDB_FILENAME_LEN * 2 + 32)
 
@@ -270,7 +270,8 @@ int tfsMkdirRecurAt(const char *rname, int level, int id) {
       // Some platform may modify the contents of the string passed into dirname(). Others may return a pointer to
       // internal static storage space that will be overwritten by next call. For case like that, we should not use
       // the pointer directly in this recursion.
-      // See https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/dirname.3.html
+      // See
+      // https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/dirname.3.html
       char *dir = strdup(dirname(s));
 
       if (tfsMkdirRecurAt(dir, level, id) < 0) {
@@ -504,7 +505,6 @@ static int tfsFormatDir(char *idir, char *odir) {
 
   wordfree(&wep);
   return 0;
-
 }
 
 static int tfsCheck() {
@@ -599,12 +599,10 @@ void taosGetDisk() {
   SysDiskSize  diskSize;
   SFSMeta      fsMeta;
 
-  if (tscEmbedded) {
-    tfsUpdateInfo(&fsMeta, NULL, 0);
-    tsTotalDataDirGB = (float)(fsMeta.tsize / unit);
-    tsUsedDataDirGB = (float)(fsMeta.used / unit);
-    tsAvailDataDirGB = (float)(fsMeta.avail / unit);
-  }
+  tfsUpdateInfo(&fsMeta, NULL, 0);
+  tsTotalDataDirGB = (float)(fsMeta.tsize / unit);
+  tsUsedDataDirGB = (float)(fsMeta.used / unit);
+  tsAvailDataDirGB = (float)(fsMeta.avail / unit);
 
   if (taosGetDiskSize(tsLogDir, &diskSize) == 0) {
     tsTotalLogDirGB = (float)(diskSize.tsize / unit);
