@@ -281,18 +281,18 @@ TEST(testCase, use_db_test) {
   taos_close(pConn);
 }
 
-TEST(testCase, create_table_Test) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
-
-  TAOS_RES* pRes = taos_query(pConn, "use abc1");
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "create table tm0(ts timestamp, k int)");
-  taos_free_result(pRes);
-
-  taos_close(pConn);
-}
+//TEST(testCase, create_table_Test) {
+//  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+//  assert(pConn != NULL);
+//
+//  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+//  taos_free_result(pRes);
+//
+//  pRes = taos_query(pConn, "create table tm0(ts timestamp, k int)");
+//  taos_free_result(pRes);
+//
+//  taos_close(pConn);
+//}
 
 //TEST(testCase, create_ctable_Test) {
 //  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -505,15 +505,15 @@ TEST(testCase, create_multiple_tables) {
 
   taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 1000; ++i) {
-    char sql[512] = {0};
-    snprintf(sql, tListLen(sql), "create table t_x_%d using st1 tags(2)", i);
-    TAOS_RES* pres = taos_query(pConn, sql);
-    if (taos_errno(pres) != 0) {
-      printf("failed to create table %d\n, reason:%s", i, taos_errstr(pres));
-    }
-    taos_free_result(pres);
-  }
+//  for(int32_t i = 0; i < 1000; ++i) {
+//    char sql[512] = {0};
+//    snprintf(sql, tListLen(sql), "create table t_x_%d using st1 tags(2)", i);
+//    TAOS_RES* pres = taos_query(pConn, sql);
+//    if (taos_errno(pres) != 0) {
+//      printf("failed to create table %d\n, reason:%s", i, taos_errstr(pres));
+//    }
+//    taos_free_result(pres);
+//  }
 
   taos_close(pConn);
 }
