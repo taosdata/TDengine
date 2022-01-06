@@ -117,7 +117,7 @@ TEST_F(DndTestProfile, 04_HeartBeatMsg) {
   pRsp->totalDnodes = htonl(pRsp->totalDnodes);
   pRsp->onlineDnodes = htonl(pRsp->onlineDnodes);
   pRsp->epSet.port[0] = htons(pRsp->epSet.port[0]);
-
+  EXPECT_EQ(1,0);
   EXPECT_EQ(pRsp->connId, connId);
   EXPECT_EQ(pRsp->queryId, 0);
   EXPECT_EQ(pRsp->streamId, 0);
