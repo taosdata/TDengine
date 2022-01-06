@@ -441,7 +441,7 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
         memmove(z + 1 + len, z + i, strlen(z + i) + 1);
         memmove(z, z + 1, strlen(z + 1) + 1);
 
-        return len;
+        return (uint32_t)len;
       }
 
       break;
