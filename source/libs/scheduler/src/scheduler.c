@@ -352,11 +352,12 @@ _return:
 int32_t schProcessOnJobPartialSuccess(SSchJob *job) {
   job->status = JOB_TASK_STATUS_PARTIAL_SUCCEED;
 
+  bool needFetch = job->userFetch;
   if ((!job->attr.needFetch) && job->attr.syncSchedule) {
     tsem_post(&job->rspSem);
   }
   
-  if (job->userFetch) {
+  if (needFetch) {
     SCH_ERR_RET(schFetchFromRemote(job));
   }
 
@@ -426,7 +427,6 @@ int32_t schProcessOnTaskSuccess(SSchJob *job, SSchTask *task) {
     }
 
     job->fetchTask = task;
-    
     SCH_ERR_RET(schProcessOnJobPartialSuccess(job));
 
     return TSDB_CODE_SUCCESS;
@@ -501,7 +501,6 @@ int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *ms
       if (rspCode != TSDB_CODE_SUCCESS) {
         SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rspCode));
       } else {
-//        job->resNumOfRows += rsp->affectedRows;
         code = schProcessOnTaskSuccess(job, task);
         if (code) {
           goto _task_error;
@@ -603,7 +602,7 @@ int32_t schHandleCallback(void* param, const SDataBuf* pMsg, int32_t msgType, in
   
   schProcessRspMsg(job, task, msgType, pMsg->pData, pMsg->len, rspCode);
 
-_return:  
+_return:
   tfree(param);
   SCH_RET(code);
 }
@@ -835,8 +834,6 @@ int32_t schLaunchTask(SSchJob *job, SSchTask *task) {
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
-//  int32_t msgType = (plan->type == QUERY_TYPE_MODIFY)? TDMT_VND_SUBMIT : TDMT_VND_QUERY;
-  
   SCH_ERR_RET(schBuildAndSendMsg(job, task, plan->msgType));
   SCH_ERR_RET(schPushTaskToExecList(job, task));
 
@@ -860,17 +857,26 @@ void schDropJobAllTasks(SSchJob *job) {
   void *pIter = taosHashIterate(job->succTasks, NULL);
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
+
+    int32_t msgType = task->plan->msgType;
+    if (msgType == TDMT_VND_CREATE_TABLE || msgType == TDMT_VND_SUBMIT) {
+      break;
+    }
+
     schBuildAndSendMsg(job, task, TDMT_VND_DROP_TASK);
-    
     pIter = taosHashIterate(job->succTasks, pIter);
   }  
 
   pIter = taosHashIterate(job->failTasks, NULL);
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
-  
+
+    int32_t msgType = task->plan->msgType;
+    if (msgType == TDMT_VND_CREATE_TABLE || msgType == TDMT_VND_SUBMIT) {
+      break;
+    }
+
     schBuildAndSendMsg(job, task, TDMT_VND_DROP_TASK);
-    
     pIter = taosHashIterate(job->succTasks, pIter);
   }  
 }
