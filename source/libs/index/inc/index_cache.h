@@ -21,9 +21,8 @@
 #include "tskiplist.h"
 // ----------------- key structure in skiplist ---------------------
 
-/* A data row, the format is like below:
- * content: |<--totalLen-->|<-- value len--->|<-- value -->|<--uid -->|<--version--->|<-- itermType -->|
- *  len :   |<--int32_t -->|<--- int32_t --->|<--valuelen->|<--uint64_t->|<-- int32_t-->|<-- int8_t --->|
+/* A data row, the format is like below
+ * content: |<---colVal---->|<-- version--->|<-- uid--->|<-- colType --->|<--operaType--->|
  */
 
 #ifdef __cplusplus

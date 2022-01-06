@@ -18,8 +18,6 @@
 #include "tutil.h"
 
 static int writeCtxDoWrite(WriterCtx* ctx, uint8_t* buf, int len) {
-  // if (ctx->offset + len > ctx->limit) { return -1; }
-
   if (ctx->type == TFile) {
     assert(len == tfWrite(ctx->file.fd, buf, len));
   } else {
