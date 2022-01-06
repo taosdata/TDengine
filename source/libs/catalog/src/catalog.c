@@ -459,12 +459,14 @@ int32_t ctgMetaRentAdd(SMetaRentMgmt *mgmt, void *meta, int64_t id, int32_t size
   if (NULL == slot->meta) {
     slot->meta = taosArrayInit(CTG_DEFAULT_RENT_SLOT_SIZE, size);
     if (NULL == slot->meta) {
+      CTG_UNLOCK(CTG_WRITE, &slot->lock);
       qError("taosArrayInit %d failed, id:%"PRIx64", slot idx:%d, type:%d", CTG_DEFAULT_RENT_SLOT_SIZE, id, widx, mgmt->type);
       CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
     }
   }
 
   if (NULL == taosArrayPush(slot->meta, meta)) {
+    CTG_UNLOCK(CTG_WRITE, &slot->lock);
     qError("taosArrayPush meta to rent failed, id:%"PRIx64", slot idx:%d, type:%d", id, widx, mgmt->type);
     CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
   }
@@ -487,6 +489,7 @@ int32_t ctgMetaRentUpdate(SMetaRentMgmt *mgmt, void *meta, int64_t id, int32_t s
   
   CTG_LOCK(CTG_WRITE, &slot->lock);
   if (NULL == slot->meta) {
+    CTG_UNLOCK(CTG_WRITE, &slot->lock);
     qError("meta in slot is empty, id:%"PRIx64", slot idx:%d, type:%d", id, widx, mgmt->type);
     CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
   }
@@ -498,7 +501,8 @@ int32_t ctgMetaRentUpdate(SMetaRentMgmt *mgmt, void *meta, int64_t id, int32_t s
   }
 
   void *orig = taosArraySearch(slot->meta, &id, compare, TD_EQ);
-  if (NULL == orig) {
+  if (NULL == orig) {    
+    CTG_UNLOCK(CTG_WRITE, &slot->lock);
     qError("meta not found in slot, id:%"PRIx64", slot idx:%d, type:%d", id, widx, mgmt->type);
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
