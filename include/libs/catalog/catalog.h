@@ -104,14 +104,27 @@ int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDB
 int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta);
 
 /**
+ * Get a super table's meta data. 
+ * @param pCatalog (input, got with catalogGetHandle)
+ * @param pTransporter (input, rpc object)
+ * @param pMgmtEps (input, mnode EPs)
+ * @param pTableName (input, table name, NOT including db name)
+ * @param pTableMeta(output, table meta data, NEED to free it by calller)
+ * @return error code
+ */
+int32_t catalogGetSTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta);
+
+
+/**
  * Force renew a table's local cached meta data. 
  * @param pCatalog (input, got with catalogGetHandle)
  * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
  * @param pTableName (input, table name, NOT including db name)
+ * @param isSTable (input, is super table or not, 1:supposed to be stable, 0: supposed not to be stable, -1:not sure) 
  * @return error code
  */
-int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName);
+  int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, int32_t isSTable);
 
 /**
  * Force renew a table's local cached meta data and get the new one. 
@@ -120,9 +133,11 @@ int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void * pTransporter, co
  * @param pMgmtEps (input, mnode EPs)
  * @param pTableName (input, table name, NOT including db name)
  * @param pTableMeta(output, table meta data, NEED to free it by calller) 
+ * @param isSTable (input, is super table or not, 1:supposed to be stable, 0: supposed not to be stable, -1:not sure) 
  * @return error code
  */
-int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta);
+  int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta, int32_t isSTable);
+
 
 
 /**
