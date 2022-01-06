@@ -252,7 +252,7 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
 
 void taosSetCoreDump() { SetUnhandledExceptionFilter(&FlCrashDump); }
 
-int32_t taosGetSystemUid(char *uid, int32_t uidlen) {
+int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   GUID guid;
   CoCreateGuid(&guid);
 
@@ -452,7 +452,7 @@ int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   }
 }
 
-int32_t taosGetSystemUid(char *uid, int32_t uidlen) {
+int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   uuid_t uuid = {0};
   uuid_generate(uuid);
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
@@ -1070,7 +1070,7 @@ void taosSetCoreDump(bool enable) {
 #endif
 }
 
-int32_t taosGetSystemUid(char *uid, int32_t uidlen) {
+int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
   int fd;
   int len = 0;
 
@@ -1128,10 +1128,6 @@ SysNameInfo taosGetSysNameInfo() {
   }
 
   return info;
-}
-
-int64_t taosGetPid() {
-  getpid();
 }
 
 #endif

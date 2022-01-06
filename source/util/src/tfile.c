@@ -158,3 +158,13 @@ int32_t tfFtruncate(int64_t tfd, int64_t length) {
   taosReleaseRef(tsFileRsetId, tfd);
   return code;
 }
+
+void *tfMmapReadOnly(int64_t tfd, int64_t length) {
+  void *p = taosAcquireRef(tsFileRsetId, tfd);
+  if (p == NULL) return NULL;
+  int32_t fd = (int32_t)(uintptr_t)p;
+
+  void *ptr = mmap(NULL, length, PROT_READ, MAP_SHARED, fd, 0);
+  taosReleaseRef(tsFileRsetId, tfd);
+  return ptr;
+}

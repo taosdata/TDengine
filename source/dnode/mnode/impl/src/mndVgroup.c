@@ -70,77 +70,102 @@ int32_t mndInitVgroup(SMnode *pMnode) {
 void mndCleanupVgroup(SMnode *pMnode) {}
 
 SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   SSdbRaw *pRaw = sdbAllocRaw(SDB_VGROUP, TSDB_VGROUP_VER_NUMBER, sizeof(SVgObj) + TSDB_VGROUP_RESERVE_SIZE);
-  if (pRaw == NULL) return NULL;
+  if (pRaw == NULL) goto VG_ENCODE_OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_INT32(pRaw, dataPos, pVgroup->vgId)
-  SDB_SET_INT64(pRaw, dataPos, pVgroup->createdTime)
-  SDB_SET_INT64(pRaw, dataPos, pVgroup->updateTime)
-  SDB_SET_INT32(pRaw, dataPos, pVgroup->version)
-  SDB_SET_INT32(pRaw, dataPos, pVgroup->hashBegin)
-  SDB_SET_INT32(pRaw, dataPos, pVgroup->hashEnd)
-  SDB_SET_BINARY(pRaw, dataPos, pVgroup->dbName, TSDB_DB_FNAME_LEN)
-  SDB_SET_INT64(pRaw, dataPos, pVgroup->dbUid)
-  SDB_SET_INT8(pRaw, dataPos, pVgroup->replica)
+  SDB_SET_INT32(pRaw, dataPos, pVgroup->vgId, VG_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pVgroup->createdTime, VG_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pVgroup->updateTime, VG_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pVgroup->version, VG_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pVgroup->hashBegin, VG_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pVgroup->hashEnd, VG_ENCODE_OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pVgroup->dbName, TSDB_DB_FNAME_LEN, VG_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pVgroup->dbUid, VG_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pVgroup->replica, VG_ENCODE_OVER)
   for (int8_t i = 0; i < pVgroup->replica; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
-    SDB_SET_INT32(pRaw, dataPos, pVgid->dnodeId)
+    SDB_SET_INT32(pRaw, dataPos, pVgid->dnodeId, VG_ENCODE_OVER)
   }
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_VGROUP_RESERVE_SIZE)
-  SDB_SET_DATALEN(pRaw, dataPos);
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_VGROUP_RESERVE_SIZE, VG_ENCODE_OVER)
+  SDB_SET_DATALEN(pRaw, dataPos, VG_ENCODE_OVER)
 
+  terrno = 0;
+
+VG_ENCODE_OVER:
+  if (terrno != 0) {
+    mError("vgId:%d, failed to encode to raw:%p since %s", pVgroup->vgId, pRaw, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
+
+  mTrace("vgId:%d, encode to raw:%p, row:%p", pVgroup->vgId, pRaw, pVgroup);
   return pRaw;
 }
 
 SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto VG_DECODE_OVER;
 
   if (sver != TSDB_VGROUP_VER_NUMBER) {
-    mError("failed to decode vgroup since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    return NULL;
+    goto VG_DECODE_OVER;
   }
 
   SSdbRow *pRow = sdbAllocRow(sizeof(SVgObj));
-  SVgObj  *pVgroup = sdbGetRowObj(pRow);
-  if (pVgroup == NULL) return NULL;
+  if (pRow == NULL) goto VG_DECODE_OVER;
+
+  SVgObj *pVgroup = sdbGetRowObj(pRow);
+  if (pVgroup == NULL) goto VG_DECODE_OVER;
 
   int32_t dataPos = 0;
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->vgId)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pVgroup->createdTime)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pVgroup->updateTime)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->version)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->hashBegin)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pVgroup->hashEnd)
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pVgroup->dbName, TSDB_DB_FNAME_LEN)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pVgroup->dbUid)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pVgroup->replica)
+  SDB_GET_INT32(pRaw, dataPos, &pVgroup->vgId, VG_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pVgroup->createdTime, VG_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pVgroup->updateTime, VG_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pVgroup->version, VG_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pVgroup->hashBegin, VG_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pVgroup->hashEnd, VG_DECODE_OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pVgroup->dbName, TSDB_DB_FNAME_LEN, VG_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pVgroup->dbUid, VG_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pVgroup->replica, VG_DECODE_OVER)
   for (int8_t i = 0; i < pVgroup->replica; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
-    SDB_GET_INT32(pRaw, pRow, dataPos, &pVgid->dnodeId)
+    SDB_GET_INT32(pRaw, dataPos, &pVgid->dnodeId, VG_DECODE_OVER)
     if (pVgroup->replica == 1) {
       pVgid->role = TAOS_SYNC_STATE_LEADER;
     }
   }
-  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_VGROUP_RESERVE_SIZE)
+  SDB_GET_RESERVE(pRaw, dataPos, TSDB_VGROUP_RESERVE_SIZE, VG_DECODE_OVER)
 
+  terrno = 0;
+
+VG_DECODE_OVER:
+  if (terrno != 0) {
+    mError("vgId:%d, failed to decode from raw:%p since %s", pVgroup->vgId, pRaw, terrstr());
+    tfree(pRow);
+    return NULL;
+  }
+
+  mTrace("vgId:%d, decode from raw:%p, row:%p", pVgroup->vgId, pRaw, pVgroup);
   return pRow;
 }
 
 static int32_t mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup) {
-  mTrace("vgId:%d, perform insert action", pVgroup->vgId);
+  mTrace("vgId:%d, perform insert action, row:%p", pVgroup->vgId, pVgroup);
   return 0;
 }
 
 static int32_t mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup) {
-  mTrace("vgId:%d, perform delete action", pVgroup->vgId);
+  mTrace("vgId:%d, perform delete action, row:%p", pVgroup->vgId, pVgroup);
   return 0;
 }
 
 static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup) {
-  mTrace("vgId:%d, perform update action", pOldVgroup->vgId);
+  mTrace("vgId:%d, perform update action, old_row:%p new_row:%p", pOldVgroup->vgId, pOldVgroup, pNewVgroup);
   pOldVgroup->updateTime = pNewVgroup->updateTime;
   pOldVgroup->version = pNewVgroup->version;
   pOldVgroup->hashBegin = pNewVgroup->hashBegin;

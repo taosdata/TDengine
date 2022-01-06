@@ -49,8 +49,13 @@ SSdb *sdbInit(SSdbOpt *pOption) {
 
   for (ESdbType i = 0; i < SDB_MAX; ++i) {
     taosInitRWLatch(&pSdb->locks[i]);
+    pSdb->maxId[i] = 0;
+    pSdb->tableVer[i] = -1;
+    pSdb->keyTypes[i] = SDB_KEY_INT32;
   }
 
+  pSdb->curVer = -1;
+  pSdb->lastCommitVer = -1;
   pSdb->pMnode = pOption->pMnode;
   mDebug("sdb init successfully");
   return pSdb;
@@ -59,10 +64,11 @@ SSdb *sdbInit(SSdbOpt *pOption) {
 void sdbCleanup(SSdb *pSdb) {
   mDebug("start to cleanup sdb");
 
-  // if (pSdb->curVer != pSdb->lastCommitVer) {
-  mDebug("write sdb file for curVer:% " PRId64 " and lastVer:%" PRId64, pSdb->curVer, pSdb->lastCommitVer);
-  sdbWriteFile(pSdb);
-  // }
+  if (pSdb->curVer > pSdb->lastCommitVer) {
+    mDebug("write sdb file for current ver:%" PRId64 " larger than last commit ver:%" PRId64, pSdb->curVer,
+           pSdb->lastCommitVer);
+    sdbWriteFile(pSdb);
+  }
 
   if (pSdb->currDir != NULL) {
     tfree(pSdb->currDir);
@@ -133,7 +139,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
   pSdb->maxId[sdbType] = 0;
   pSdb->hashObjs[sdbType] = hash;
   taosInitRWLatch(&pSdb->locks[sdbType]);
-  mDebug("sdb table:%d is initialized", sdbType);
+  mDebug("sdb table:%s is initialized", sdbTableName(sdbType));
 
   return 0;
 }
@@ -158,4 +164,9 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
   }
 
   return 0;
+}
+
+int64_t sdbUpdateVer(SSdb *pSdb, int32_t val) {
+  pSdb->curVer += val;
+  return pSdb->curVer;
 }

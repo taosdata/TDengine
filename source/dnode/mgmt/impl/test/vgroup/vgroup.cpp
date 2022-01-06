@@ -9,7 +9,7 @@
  *
  */
 
-#include "base.h"
+#include "sut.h"
 
 class DndTestVgroup : public ::testing::Test {
  protected:
@@ -60,9 +60,9 @@ TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
         pReplica->port = htons(9150);
       }
 
-      SRpcMsg* pMsg = test.SendMsg(TDMT_DND_CREATE_VNODE, pReq, contLen);
-      ASSERT_NE(pMsg, nullptr);
-      ASSERT_EQ(pMsg->code, 0);
+      SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_VNODE, pReq, contLen);
+      ASSERT_NE(pRsp, nullptr);
+      ASSERT_EQ(pRsp->code, 0);
     }
   }
 
@@ -100,9 +100,9 @@ TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
         pReplica->port = htons(9150);
       }
 
-      SRpcMsg* pMsg = test.SendMsg(TDMT_DND_ALTER_VNODE, pReq, contLen);
-      ASSERT_NE(pMsg, nullptr);
-      ASSERT_EQ(pMsg->code, 0);
+      SRpcMsg* pRsp = test.SendReq(TDMT_DND_ALTER_VNODE, pReq, contLen);
+      ASSERT_NE(pRsp, nullptr);
+      ASSERT_EQ(pRsp->code, 0);
     }
   }
 
@@ -121,9 +121,9 @@ TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
       rpcMsg.contLen = sizeof(SDropVnodeMsg);
       rpcMsg.msgType = TDMT_DND_DROP_VNODE;
 
-      SRpcMsg* pMsg = test.SendMsg(TDMT_DND_DROP_VNODE, pReq, contLen);
-      ASSERT_NE(pMsg, nullptr);
-      ASSERT_EQ(pMsg->code, 0);
+      SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_VNODE, pReq, contLen);
+      ASSERT_NE(pRsp, nullptr);
+      ASSERT_EQ(pRsp->code, 0);
     }
   }
 }

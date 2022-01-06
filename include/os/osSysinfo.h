@@ -54,7 +54,7 @@ bool    taosGetSysMemory(float *memoryUsedMB);
 void    taosPrintOsInfo();
 int     taosSystem(const char *cmd);
 void    taosKillSystem();
-int32_t taosGetSystemUid(char *uid, int32_t uidlen);
+int32_t taosGetSystemUUID(char *uid, int32_t uidlen);
 char *  taosGetCmdlineByPID(int pid);
 void    taosSetCoreDump(bool enable);
 
@@ -67,8 +67,6 @@ typedef struct {
 } SysNameInfo;
 
 SysNameInfo taosGetSysNameInfo();
-
-int64_t taosGetPid();
 
 #ifdef __cplusplus
 }

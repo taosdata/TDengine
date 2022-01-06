@@ -255,7 +255,7 @@ static int metaOpenBDBEnv(DB_ENV **ppEnv, const char *path) {
     return -1;
   }
 
-  ret = pEnv->open(pEnv, path, DB_CREATE | DB_INIT_MPOOL, 0);
+  ret = pEnv->open(pEnv, path, DB_CREATE | DB_INIT_CDB | DB_INIT_MPOOL, 0);
   if (ret != 0) {
     BDB_PERR("Failed to open META env", ret);
     return -1;
@@ -382,8 +382,8 @@ static int metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey
 
     // Second key is the first tag
     void *pTagVal = tdGetKVRowValOfCol(pTbCfg->ctbCfg.pTag, (kvRowColIdx(pTbCfg->ctbCfg.pTag))[0].colId);
-    pDbt[1].data = varDataVal(pTagVal);
-    pDbt[1].size = varDataLen(pTagVal);
+    pDbt[1].data = pTagVal;
+    pDbt[1].size = sizeof(int32_t);
 
     // Set index key
     memset(pSKey, 0, sizeof(*pSKey));
@@ -577,11 +577,16 @@ char *metaTbCursorNext(SMTbCursor *pTbCur) {
   STbCfg tbCfg;
   void * pBuf;
 
-  if (pTbCur->pCur->get(pTbCur->pCur, &key, &value, DB_NEXT) == 0) {
-    pBuf = value.data;
-    metaDecodeTbInfo(pBuf, &tbCfg);
-    return tbCfg.name;
-  } else {
-    return NULL;
+  for (;;) {
+    if (pTbCur->pCur->get(pTbCur->pCur, &key, &value, DB_NEXT) == 0) {
+      pBuf = value.data;
+      metaDecodeTbInfo(pBuf, &tbCfg);
+      if (tbCfg.type == META_SUPER_TABLE) {
+        continue;
+      }
+      return tbCfg.name;
+    } else {
+      return NULL;
+    }
   }
 }

@@ -31,6 +31,7 @@ static int32_t mndTransAppendLog(SArray *pArray, SSdbRaw *pRaw);
 static int32_t mndTransAppendAction(SArray *pArray, STransAction *pAction);
 static void    mndTransDropLogs(SArray *pArray);
 static void    mndTransDropActions(SArray *pArray);
+static void    mndTransDropData(STrans *pTrans);
 static int32_t mndTransExecuteLogs(SMnode *pMnode, SArray *pArray);
 static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pArray);
 static int32_t mndTransExecuteRedoLogs(SMnode *pMnode, STrans *pTrans);
@@ -51,7 +52,6 @@ static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
 static void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
 static void    mndTransSendRpcRsp(STrans *pTrans);
 static int32_t mndProcessTransMsg(SMnodeMsg *pMsg);
-static int32_t mndProcessTransRsp(SMnodeMsg *pMsg);
 
 int32_t mndInitTrans(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_TRANS,
@@ -63,13 +63,14 @@ int32_t mndInitTrans(SMnode *pMnode) {
                      .deleteFp = (SdbDeleteFp)mndTransActionDelete};
 
   mndSetMsgHandle(pMnode, TDMT_MND_TRANS, mndProcessTransMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_TRANS_RSP, mndProcessTransRsp);
   return sdbSetTable(pMnode->pSdb, table);
 }
 
 void mndCleanupTrans(SMnode *pMnode) {}
 
 static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   int32_t rawDataLen = sizeof(STrans) + MND_TRANS_RESERVE_SIZE;
   int32_t redoLogNum = taosArrayGetSize(pTrans->redoLogs);
   int32_t undoLogNum = taosArrayGetSize(pTrans->undoLogs);
@@ -109,75 +110,97 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   }
 
   int32_t dataPos = 0;
-  SDB_SET_INT32(pRaw, dataPos, pTrans->id)
-  SDB_SET_INT8(pRaw, dataPos, pTrans->policy)
-  SDB_SET_INT32(pRaw, dataPos, redoLogNum)
-  SDB_SET_INT32(pRaw, dataPos, undoLogNum)
-  SDB_SET_INT32(pRaw, dataPos, commitLogNum)
-  SDB_SET_INT32(pRaw, dataPos, redoActionNum)
-  SDB_SET_INT32(pRaw, dataPos, undoActionNum)
+  SDB_SET_INT32(pRaw, dataPos, pTrans->id, TRANS_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pTrans->policy, TRANS_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, redoLogNum, TRANS_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, undoLogNum, TRANS_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, commitLogNum, TRANS_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, redoActionNum, TRANS_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, undoActionNum, TRANS_ENCODE_OVER)
 
   for (int32_t i = 0; i < redoLogNum; ++i) {
     SSdbRaw *pTmp = taosArrayGetP(pTrans->redoLogs, i);
     int32_t  len = sdbGetRawTotalSize(pTmp);
-    SDB_SET_INT32(pRaw, dataPos, len)
-    SDB_SET_BINARY(pRaw, dataPos, (void *)pTmp, len)
+    SDB_SET_INT32(pRaw, dataPos, len, TRANS_ENCODE_OVER)
+    SDB_SET_BINARY(pRaw, dataPos, (void *)pTmp, len, TRANS_ENCODE_OVER)
   }
 
   for (int32_t i = 0; i < undoLogNum; ++i) {
     SSdbRaw *pTmp = taosArrayGetP(pTrans->undoLogs, i);
     int32_t  len = sdbGetRawTotalSize(pTmp);
-    SDB_SET_INT32(pRaw, dataPos, len)
-    SDB_SET_BINARY(pRaw, dataPos, (void *)pTmp, len)
+    SDB_SET_INT32(pRaw, dataPos, len, TRANS_ENCODE_OVER)
+    SDB_SET_BINARY(pRaw, dataPos, (void *)pTmp, len, TRANS_ENCODE_OVER)
   }
 
   for (int32_t i = 0; i < commitLogNum; ++i) {
     SSdbRaw *pTmp = taosArrayGetP(pTrans->commitLogs, i);
     int32_t  len = sdbGetRawTotalSize(pTmp);
-    SDB_SET_INT32(pRaw, dataPos, len)
-    SDB_SET_BINARY(pRaw, dataPos, (void *)pTmp, len)
+    SDB_SET_INT32(pRaw, dataPos, len, TRANS_ENCODE_OVER)
+    SDB_SET_BINARY(pRaw, dataPos, (void *)pTmp, len, TRANS_ENCODE_OVER)
   }
 
   for (int32_t i = 0; i < redoActionNum; ++i) {
     STransAction *pAction = taosArrayGet(pTrans->redoActions, i);
-    SDB_SET_BINARY(pRaw, dataPos, (void *)&pAction->epSet, sizeof(SEpSet));
-    SDB_SET_INT16(pRaw, dataPos, pAction->msgType)
-    SDB_SET_INT32(pRaw, dataPos, pAction->contLen)
-    SDB_SET_BINARY(pRaw, dataPos, pAction->pCont, pAction->contLen);
+    SDB_SET_BINARY(pRaw, dataPos, (void *)&pAction->epSet, sizeof(SEpSet), TRANS_ENCODE_OVER)
+    SDB_SET_INT16(pRaw, dataPos, pAction->msgType, TRANS_ENCODE_OVER)
+    SDB_SET_INT32(pRaw, dataPos, pAction->acceptableCode, TRANS_ENCODE_OVER)
+    SDB_SET_INT32(pRaw, dataPos, pAction->contLen, TRANS_ENCODE_OVER)
+    SDB_SET_BINARY(pRaw, dataPos, pAction->pCont, pAction->contLen, TRANS_ENCODE_OVER)
   }
 
   for (int32_t i = 0; i < undoActionNum; ++i) {
     STransAction *pAction = taosArrayGet(pTrans->undoActions, i);
-    SDB_SET_BINARY(pRaw, dataPos, (void *)&pAction->epSet, sizeof(SEpSet));
-    SDB_SET_INT16(pRaw, dataPos, pAction->msgType)
-    SDB_SET_INT32(pRaw, dataPos, pAction->contLen)
-    SDB_SET_BINARY(pRaw, dataPos, (void *)pAction->pCont, pAction->contLen);
+    SDB_SET_BINARY(pRaw, dataPos, (void *)&pAction->epSet, sizeof(SEpSet), TRANS_ENCODE_OVER)
+    SDB_SET_INT16(pRaw, dataPos, pAction->msgType, TRANS_ENCODE_OVER)
+    SDB_SET_INT32(pRaw, dataPos, pAction->acceptableCode, TRANS_ENCODE_OVER)
+    SDB_SET_INT32(pRaw, dataPos, pAction->contLen, TRANS_ENCODE_OVER)
+    SDB_SET_BINARY(pRaw, dataPos, (void *)pAction->pCont, pAction->contLen, TRANS_ENCODE_OVER)
   }
 
-  SDB_SET_RESERVE(pRaw, dataPos, MND_TRANS_RESERVE_SIZE)
-  SDB_SET_DATALEN(pRaw, dataPos);
-  mTrace("trans:%d, encode to raw:%p, len:%d", pTrans->id, pRaw, dataPos);
+  SDB_SET_RESERVE(pRaw, dataPos, MND_TRANS_RESERVE_SIZE, TRANS_ENCODE_OVER)
+  SDB_SET_DATALEN(pRaw, dataPos, TRANS_ENCODE_OVER)
+
+  terrno = 0;
+
+TRANS_ENCODE_OVER:
+  if (terrno != 0) {
+    mError("trans:%d, failed to encode to raw:%p len:%d since %s", pTrans->id, pRaw, dataPos, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
+
+  mTrace("trans:%d, encode to raw:%p, row:%p len:%d", pTrans->id, pRaw, pTrans, dataPos);
   return pRaw;
 }
 
 static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
-  int32_t code = 0;
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+  SSdbRow     *pRow = NULL;
+  STrans      *pTrans = NULL;
+  char        *pData = NULL;
+  int32_t      dataLen = 0;
+  int8_t       sver = 0;
+  int32_t      redoLogNum = 0;
+  int32_t      undoLogNum = 0;
+  int32_t      commitLogNum = 0;
+  int32_t      redoActionNum = 0;
+  int32_t      undoActionNum = 0;
+  int32_t      dataPos = 0;
+  STransAction action = {0};
+
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto TRANS_DECODE_OVER;
 
   if (sver != MND_TRANS_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    mError("failed to get check soft ver from raw:%p since %s", pRaw, terrstr());
-    return NULL;
+    goto TRANS_DECODE_OVER;
   }
 
-  SSdbRow *pRow = sdbAllocRow(sizeof(STrans));
-  STrans  *pTrans = sdbGetRowObj(pRow);
-  if (pTrans == NULL) {
-    mError("failed to alloc trans from raw:%p since %s", pRaw, terrstr());
-    return NULL;
-  }
+  pRow = sdbAllocRow(sizeof(STrans));
+  if (pRow == NULL) goto TRANS_DECODE_OVER;
+
+  pTrans = sdbGetRowObj(pRow);
+  if (pTrans == NULL) goto TRANS_DECODE_OVER;
 
   pTrans->redoLogs = taosArrayInit(MND_TRANS_ARRAY_SIZE, sizeof(void *));
   pTrans->undoLogs = taosArrayInit(MND_TRANS_ARRAY_SIZE, sizeof(void *));
@@ -185,139 +208,114 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   pTrans->redoActions = taosArrayInit(MND_TRANS_ARRAY_SIZE, sizeof(STransAction));
   pTrans->undoActions = taosArrayInit(MND_TRANS_ARRAY_SIZE, sizeof(STransAction));
 
-  if (pTrans->redoLogs == NULL || pTrans->undoLogs == NULL || pTrans->commitLogs == NULL ||
-      pTrans->redoActions == NULL || pTrans->undoActions == NULL) {
-    mDebug("trans:%d, failed to create array while parsed from raw:%p", pTrans->id, pRaw);
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto TRANS_DECODE_OVER;
-  }
+  if (pTrans->redoLogs == NULL) goto TRANS_DECODE_OVER;
+  if (pTrans->undoLogs == NULL) goto TRANS_DECODE_OVER;
+  if (pTrans->commitLogs == NULL) goto TRANS_DECODE_OVER;
+  if (pTrans->redoActions == NULL) goto TRANS_DECODE_OVER;
+  if (pTrans->undoActions == NULL) goto TRANS_DECODE_OVER;
 
-  int32_t redoLogNum = 0;
-  int32_t undoLogNum = 0;
-  int32_t commitLogNum = 0;
-  int32_t redoActionNum = 0;
-  int32_t undoActionNum = 0;
-
-  int32_t dataPos = 0;
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pTrans->id)
-  SDB_GET_INT8(pRaw, pRow, dataPos, (int8_t *)&pTrans->policy)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &redoLogNum)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &undoLogNum)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &commitLogNum)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &redoActionNum)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &undoActionNum)
+  SDB_GET_INT32(pRaw, dataPos, &pTrans->id, TRANS_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, (int8_t *)&pTrans->policy, TRANS_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &redoLogNum, TRANS_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &undoLogNum, TRANS_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &commitLogNum, TRANS_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &redoActionNum, TRANS_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &undoActionNum, TRANS_DECODE_OVER)
 
   for (int32_t i = 0; i < redoLogNum; ++i) {
-    int32_t dataLen = 0;
-    SDB_GET_INT32(pRaw, pRow, dataPos, &dataLen)
-    char *pData = malloc(dataLen);
-    SDB_GET_BINARY(pRaw, pRow, dataPos, pData, dataLen);
-
-    void *ret = taosArrayPush(pTrans->redoLogs, &pData);
-    if (ret == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto TRANS_DECODE_OVER;
-    }
+    SDB_GET_INT32(pRaw, dataPos, &dataLen, TRANS_DECODE_OVER)
+    pData = malloc(dataLen);
+    if (pData == NULL) goto TRANS_DECODE_OVER;
+    mTrace("raw:%p, is created", pData);
+    SDB_GET_BINARY(pRaw, dataPos, pData, dataLen, TRANS_DECODE_OVER);
+    if (taosArrayPush(pTrans->redoLogs, &pData) == NULL) goto TRANS_DECODE_OVER;
+    pData = NULL;
   }
 
   for (int32_t i = 0; i < undoLogNum; ++i) {
-    int32_t dataLen = 0;
-    SDB_GET_INT32(pRaw, pRow, dataPos, &dataLen)
-    char *pData = malloc(dataLen);
-    SDB_GET_BINARY(pRaw, pRow, dataPos, pData, dataLen);
-
-    void *ret = taosArrayPush(pTrans->undoLogs, &pData);
-    if (ret == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto TRANS_DECODE_OVER;
-    }
+    SDB_GET_INT32(pRaw, dataPos, &dataLen, TRANS_DECODE_OVER)
+    pData = malloc(dataLen);
+    if (pData == NULL) goto TRANS_DECODE_OVER;
+    mTrace("raw:%p, is created", pData);
+    SDB_GET_BINARY(pRaw, dataPos, pData, dataLen, TRANS_DECODE_OVER);
+    if (taosArrayPush(pTrans->undoLogs, &pData) == NULL) goto TRANS_DECODE_OVER;
+    pData = NULL;
   }
 
   for (int32_t i = 0; i < commitLogNum; ++i) {
-    int32_t dataLen = 0;
-    SDB_GET_INT32(pRaw, pRow, dataPos, &dataLen)
-    char *pData = malloc(dataLen);
-    SDB_GET_BINARY(pRaw, pRow, dataPos, pData, dataLen);
-
-    void *ret = taosArrayPush(pTrans->commitLogs, &pData);
-    if (ret == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto TRANS_DECODE_OVER;
-    }
+    SDB_GET_INT32(pRaw, dataPos, &dataLen, TRANS_DECODE_OVER)
+    pData = malloc(dataLen);
+    if (pData == NULL) goto TRANS_DECODE_OVER;
+    mTrace("raw:%p, is created", pData);
+    SDB_GET_BINARY(pRaw, dataPos, pData, dataLen, TRANS_DECODE_OVER);
+    if (taosArrayPush(pTrans->commitLogs, &pData) == NULL) goto TRANS_DECODE_OVER;
+    pData = NULL;
   }
 
   for (int32_t i = 0; i < redoActionNum; ++i) {
-    STransAction action = {0};
-    SDB_GET_BINARY(pRaw, pRow, dataPos, (void *)&action.epSet, sizeof(SEpSet));
-    SDB_GET_INT16(pRaw, pRow, dataPos, &action.msgType)
-    SDB_GET_INT32(pRaw, pRow, dataPos, &action.contLen)
+    SDB_GET_BINARY(pRaw, dataPos, (void *)&action.epSet, sizeof(SEpSet), TRANS_DECODE_OVER);
+    SDB_GET_INT16(pRaw, dataPos, &action.msgType, TRANS_DECODE_OVER)
+    SDB_GET_INT32(pRaw, dataPos, &action.acceptableCode, TRANS_DECODE_OVER)
+    SDB_GET_INT32(pRaw, dataPos, &action.contLen, TRANS_DECODE_OVER)
     action.pCont = malloc(action.contLen);
-    if (action.pCont == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto TRANS_DECODE_OVER;
-    }
-    SDB_GET_BINARY(pRaw, pRow, dataPos, action.pCont, action.contLen);
-
-    void *ret = taosArrayPush(pTrans->redoActions, &action);
-    if (ret == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto TRANS_DECODE_OVER;
-    }
+    if (action.pCont == NULL) goto TRANS_DECODE_OVER;
+    SDB_GET_BINARY(pRaw, dataPos, action.pCont, action.contLen, TRANS_DECODE_OVER);
+    if (taosArrayPush(pTrans->redoActions, &action) == NULL) goto TRANS_DECODE_OVER;
+    action.pCont = NULL;
   }
 
   for (int32_t i = 0; i < undoActionNum; ++i) {
-    STransAction action = {0};
-    SDB_GET_BINARY(pRaw, pRow, dataPos, (void *)&action.epSet, sizeof(SEpSet));
-    SDB_GET_INT16(pRaw, pRow, dataPos, &action.msgType)
-    SDB_GET_INT32(pRaw, pRow, dataPos, &action.contLen)
+    SDB_GET_BINARY(pRaw, dataPos, (void *)&action.epSet, sizeof(SEpSet), TRANS_DECODE_OVER);
+    SDB_GET_INT16(pRaw, dataPos, &action.msgType, TRANS_DECODE_OVER)
+    SDB_GET_INT32(pRaw, dataPos, &action.acceptableCode, TRANS_DECODE_OVER)
+    SDB_GET_INT32(pRaw, dataPos, &action.contLen, TRANS_DECODE_OVER)
     action.pCont = malloc(action.contLen);
-    if (action.pCont == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto TRANS_DECODE_OVER;
-    }
-    SDB_GET_BINARY(pRaw, pRow, dataPos, action.pCont, action.contLen);
-
-    void *ret = taosArrayPush(pTrans->undoActions, &action);
-    if (ret == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto TRANS_DECODE_OVER;
-    }
+    if (action.pCont == NULL) goto TRANS_DECODE_OVER;
+    SDB_GET_BINARY(pRaw, dataPos, action.pCont, action.contLen, TRANS_DECODE_OVER);
+    if (taosArrayPush(pTrans->undoActions, &action) == NULL) goto TRANS_DECODE_OVER;
+    action.pCont = NULL;
   }
 
-  SDB_GET_RESERVE(pRaw, pRow, dataPos, MND_TRANS_RESERVE_SIZE)
+  SDB_GET_RESERVE(pRaw, dataPos, MND_TRANS_RESERVE_SIZE, TRANS_DECODE_OVER)
+
+  terrno = 0;
 
 TRANS_DECODE_OVER:
-  if (code != 0) {
-    mError("trans:%d, failed to parse from raw:%p since %s", pTrans->id, pRaw, tstrerror(errno));
-    mndTransDrop(pTrans);
-    terrno = code;
+  if (terrno != 0) {
+    mError("trans:%d, failed to parse from raw:%p since %s", pTrans->id, pRaw, terrstr());
+    mndTransDropData(pTrans);
+    tfree(pRow);
+    tfree(pData);
+    tfree(action.pCont);
     return NULL;
   }
 
-  mTrace("trans:%d, decode from raw:%p, data:%p", pTrans->id, pRaw, pTrans);
+  mTrace("trans:%d, decode from raw:%p, row:%p", pTrans->id, pRaw, pTrans);
   return pRow;
 }
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
   pTrans->stage = TRN_STAGE_PREPARE;
-  mTrace("trans:%d, perform insert action, data:%p", pTrans->id, pTrans);
+  mTrace("trans:%d, perform insert action, row:%p", pTrans->id, pTrans);
   return 0;
 }
 
-static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans) {
-  mTrace("trans:%d, perform delete action, data:%p", pTrans->id, pTrans);
-
+static void mndTransDropData(STrans *pTrans) {
   mndTransDropLogs(pTrans->redoLogs);
   mndTransDropLogs(pTrans->undoLogs);
   mndTransDropLogs(pTrans->commitLogs);
   mndTransDropActions(pTrans->redoActions);
   mndTransDropActions(pTrans->undoActions);
+}
 
+static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans) {
+  mTrace("trans:%d, perform delete action, row:%p", pTrans->id, pTrans);
+  mndTransDropData(pTrans);
   return 0;
 }
 
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOldTrans, STrans *pNewTrans) {
-  mTrace("trans:%d, perform update action, data:%p", pOldTrans->id, pOldTrans);
+  mTrace("trans:%d, perform update action, old_row:%p new_row:%p", pOldTrans->id, pOldTrans, pNewTrans);
   pOldTrans->stage = pNewTrans->stage;
   return 0;
 }
@@ -367,6 +365,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, SRpcMsg *pMsg) {
 }
 
 static void mndTransDropLogs(SArray *pArray) {
+  if (pArray == NULL) return;
   for (int32_t i = 0; i < pArray->size; ++i) {
     SSdbRaw *pRaw = taosArrayGetP(pArray, i);
     sdbFreeRaw(pRaw);
@@ -376,6 +375,7 @@ static void mndTransDropLogs(SArray *pArray) {
 }
 
 static void mndTransDropActions(SArray *pArray) {
+  if (pArray == NULL) return;
   for (int32_t i = 0; i < pArray->size; ++i) {
     STransAction *pAction = taosArrayGet(pArray, i);
     free(pAction->pCont);
@@ -385,12 +385,7 @@ static void mndTransDropActions(SArray *pArray) {
 }
 
 void mndTransDrop(STrans *pTrans) {
-  mndTransDropLogs(pTrans->redoLogs);
-  mndTransDropLogs(pTrans->undoLogs);
-  mndTransDropLogs(pTrans->commitLogs);
-  mndTransDropActions(pTrans->redoActions);
-  mndTransDropActions(pTrans->undoActions);
-
+  mndTransDropData(pTrans);
   mDebug("trans:%d, is dropped, data:%p", pTrans->id, pTrans);
   tfree(pTrans);
 }
@@ -505,10 +500,31 @@ static int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
 }
 
 static void mndTransSendRpcRsp(STrans *pTrans) {
-  if (pTrans->rpcHandle != NULL) {
-    mDebug("trans:%d, send rsp, ahandle:%p code:0x%x", pTrans->id, pTrans->rpcAHandle, pTrans->code & 0xFFFF);
+  bool sendRsp = false;
+
+  if (pTrans->stage == TRN_STAGE_FINISHED) {
+    sendRsp = true;
+  }
+
+  if (pTrans->policy == TRN_POLICY_ROLLBACK) {
+    if (pTrans->stage == TRN_STAGE_UNDO_LOG || pTrans->stage == TRN_STAGE_UNDO_ACTION ||
+        pTrans->stage == TRN_STAGE_ROLLBACK) {
+      sendRsp = true;
+    }
+  }
+
+  if (pTrans->policy == TRN_POLICY_RETRY) {
+    if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 0) {
+      sendRsp = true;
+    }
+  }
+
+  if (sendRsp && pTrans->rpcHandle != NULL) {
+    mDebug("trans:%d, send rsp, code:0x%x stage:%d app:%p", pTrans->id, pTrans->code & 0xFFFF, pTrans->stage,
+           pTrans->rpcAHandle);
     SRpcMsg rspMsg = {.handle = pTrans->rpcHandle, .code = pTrans->code, .ahandle = pTrans->rpcAHandle};
     rpcSendResponse(&rspMsg);
+    pTrans->rpcHandle = NULL;
   }
 }
 
@@ -551,7 +567,8 @@ void mndTransProcessRsp(SMnodeMsg *pMsg) {
     pAction->errCode = pMsg->rpcMsg.code;
   }
 
-  mDebug("trans:%d, action:%d response is received, code:0x%x", transId, action, pMsg->rpcMsg.code);
+  mDebug("trans:%d, action:%d response is received, code:0x%x, accept:0x%x", transId, action, pMsg->rpcMsg.code,
+         pAction->acceptableCode);
   mndTransExecute(pMnode, pTrans);
 
 HANDLE_ACTION_RSP_OVER:
@@ -622,12 +639,15 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
     }
     memcpy(rpcMsg.pCont, pAction->pCont, pAction->contLen);
 
-    pAction->msgSent = 1;
-    pAction->msgReceived = 0;
-    pAction->errCode = 0;
-
-    mDebug("trans:%d, action:%d is sent", pTrans->id, action);
-    mndSendMsgToDnode(pMnode, &pAction->epSet, &rpcMsg);
+    if (mndSendReqToDnode(pMnode, &pAction->epSet, &rpcMsg) == 0) {
+      mDebug("trans:%d, action:%d is sent", pTrans->id, action);
+      pAction->msgSent = 1;
+      pAction->msgReceived = 0;
+      pAction->errCode = 0;
+    } else {
+      mDebug("trans:%d, action:%d not sent since %s", pTrans->id, action, terrstr());
+      return -1;
+    }
   }
 
   return 0;
@@ -648,7 +668,7 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
     if (pAction == NULL) continue;
     if (pAction->msgSent && pAction->msgReceived) {
       numOfReceived++;
-      if (pAction->errCode != 0) {
+      if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
         errCode = pAction->errCode;
       }
     }
@@ -696,7 +716,7 @@ static bool mndTransPerformRedoLogStage(SMnode *pMnode, STrans *pTrans) {
   } else {
     pTrans->code = terrno;
     pTrans->stage = TRN_STAGE_UNDO_LOG;
-    mError("trans:%d, stage from redoLog to undoLog", pTrans->id);
+    mError("trans:%d, stage from redoLog to undoLog since %s", pTrans->id, terrstr());
   }
 
   return continueExec;
@@ -770,7 +790,6 @@ static bool mndTransPerformCommitLogStage(SMnode *pMnode, STrans *pTrans) {
     pTrans->failedTimes++;
     mError("trans:%d, stage keep on commitLog since %s", pTrans->id, terrstr());
     continueExec = false;
-    ;
   }
 
   return continueExec;
@@ -797,7 +816,7 @@ static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
   int32_t code = mndTransExecuteUndoActions(pMnode, pTrans);
 
   if (code == 0) {
-    pTrans->stage = TRN_STAGE_REDO_LOG;
+    pTrans->stage = TRN_STAGE_UNDO_LOG;
     mDebug("trans:%d, stage from undoAction to undoLog", pTrans->id);
     continueExec = true;
   } else if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
@@ -820,7 +839,6 @@ static bool mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans) {
     pTrans->stage = TRN_STAGE_FINISHED;
     mDebug("trans:%d, stage from rollback to finished", pTrans->id);
     continueExec = true;
-    ;
   } else {
     pTrans->failedTimes++;
     mError("trans:%d, stage keep on rollback since %s", pTrans->id, terrstr());
@@ -886,13 +904,15 @@ static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
     }
   }
 
-  if (pTrans->stage == TRN_STAGE_FINISHED) {
-    mndTransSendRpcRsp(pTrans);
-  }
+  mndTransSendRpcRsp(pTrans);
 }
 
 static int32_t mndProcessTransMsg(SMnodeMsg *pMsg) {
-  SMnode *pMnode = pMsg->pMnode;
+  mndTransPullup(pMsg->pMnode);
+  return 0;
+}
+
+void mndTransPullup(SMnode *pMnode) {
   STrans *pTrans = NULL;
   void   *pIter = NULL;
 
@@ -904,5 +924,3 @@ static int32_t mndProcessTransMsg(SMnodeMsg *pMsg) {
     sdbRelease(pMnode->pSdb, pTrans);
   }
 }
-
-static int32_t mndProcessTransRsp(SMnodeMsg *pMsg) { return 0; }

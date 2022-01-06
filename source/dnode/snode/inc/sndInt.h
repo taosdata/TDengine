@@ -32,9 +32,9 @@ typedef struct SSnode {
   int32_t           dnodeId;
   int64_t           clusterId;
   SSnodeCfg         cfg;
-  SendMsgToDnodeFp  sendMsgToDnodeFp;
-  SendMsgToMnodeFp  sendMsgToMnodeFp;
-  SendRedirectMsgFp sendRedirectMsgFp;
+  SendReqToDnodeFp  sendReqToDnodeFp;
+  SendReqToMnodeFp  sendReqToMnodeFp;
+  SendRedirectRspFp sendRedirectRspFp;
 } SSnode;
 
 #ifdef __cplusplus

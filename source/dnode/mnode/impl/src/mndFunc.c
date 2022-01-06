@@ -58,76 +58,101 @@ int32_t mndInitFunc(SMnode *pMnode) {
 void mndCleanupFunc(SMnode *pMnode) {}
 
 static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   int32_t  size = pFunc->commentSize + pFunc->codeSize + sizeof(SFuncObj);
   SSdbRaw *pRaw = sdbAllocRaw(SDB_FUNC, SDB_FUNC_VER, size);
-  if (pRaw == NULL) return NULL;
+  if (pRaw == NULL) goto FUNC_ENCODE_OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pFunc->name, TSDB_FUNC_NAME_LEN)
-  SDB_SET_INT64(pRaw, dataPos, pFunc->createdTime)
-  SDB_SET_INT8(pRaw, dataPos, pFunc->funcType)
-  SDB_SET_INT8(pRaw, dataPos, pFunc->scriptType)
-  SDB_SET_INT8(pRaw, dataPos, pFunc->align)
-  SDB_SET_INT8(pRaw, dataPos, pFunc->outputType)
-  SDB_SET_INT32(pRaw, dataPos, pFunc->outputLen)
-  SDB_SET_INT32(pRaw, dataPos, pFunc->bufSize)
-  SDB_SET_INT64(pRaw, dataPos, pFunc->sigature)
-  SDB_SET_INT32(pRaw, dataPos, pFunc->commentSize)
-  SDB_SET_INT32(pRaw, dataPos, pFunc->codeSize)
-  SDB_SET_BINARY(pRaw, dataPos, pFunc->pComment, pFunc->commentSize)
-  SDB_SET_BINARY(pRaw, dataPos, pFunc->pCode, pFunc->codeSize)
-  SDB_SET_DATALEN(pRaw, dataPos);
+  SDB_SET_BINARY(pRaw, dataPos, pFunc->name, TSDB_FUNC_NAME_LEN, FUNC_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pFunc->createdTime, FUNC_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pFunc->funcType, FUNC_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pFunc->scriptType, FUNC_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pFunc->align, FUNC_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pFunc->outputType, FUNC_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pFunc->outputLen, FUNC_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pFunc->bufSize, FUNC_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pFunc->sigature, FUNC_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pFunc->commentSize, FUNC_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pFunc->codeSize, FUNC_ENCODE_OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pFunc->pComment, pFunc->commentSize, FUNC_ENCODE_OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pFunc->pCode, pFunc->codeSize, FUNC_ENCODE_OVER)
+  SDB_SET_DATALEN(pRaw, dataPos, FUNC_ENCODE_OVER);
 
+  terrno = 0;
+
+FUNC_ENCODE_OVER:
+  if (terrno != 0) {
+    mError("func:%s, failed to encode to raw:%p since %s", pFunc->name, pRaw, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
+
+  mTrace("func:%s, encode to raw:%p, row:%p", pFunc->name, pRaw, pFunc);
   return pRaw;
 }
 
 static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto FUNC_DECODE_OVER;
 
   if (sver != SDB_FUNC_VER) {
-    mError("failed to decode func since %s", terrstr());
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    return NULL;
+    goto FUNC_DECODE_OVER;
   }
 
-  int32_t   size = sizeof(SFuncObj) + TSDB_FUNC_COMMENT_LEN + TSDB_FUNC_CODE_LEN;
-  SSdbRow  *pRow = sdbAllocRow(size);
+  int32_t  size = sizeof(SFuncObj) + TSDB_FUNC_COMMENT_LEN + TSDB_FUNC_CODE_LEN;
+  SSdbRow *pRow = sdbAllocRow(size);
+  if (pRow == NULL) goto FUNC_DECODE_OVER;
+
   SFuncObj *pFunc = sdbGetRowObj(pRow);
-  if (pFunc == NULL) return NULL;
+  if (pFunc == NULL) goto FUNC_DECODE_OVER;
   char *tmp = (char *)pFunc + sizeof(SFuncObj);
 
   int32_t dataPos = 0;
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pFunc->name, TSDB_FUNC_NAME_LEN)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pFunc->createdTime)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pFunc->funcType)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pFunc->scriptType)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pFunc->align)
-  SDB_GET_INT8(pRaw, pRow, dataPos, &pFunc->outputType)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pFunc->outputLen)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pFunc->bufSize)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pFunc->sigature)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pFunc->commentSize)
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pFunc->codeSize)
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pFunc->pData, pFunc->commentSize + pFunc->codeSize)
+  SDB_GET_BINARY(pRaw, dataPos, pFunc->name, TSDB_FUNC_NAME_LEN, FUNC_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pFunc->createdTime, FUNC_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pFunc->funcType, FUNC_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pFunc->scriptType, FUNC_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pFunc->align, FUNC_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pFunc->outputType, FUNC_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pFunc->outputLen, FUNC_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pFunc->bufSize, FUNC_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pFunc->sigature, FUNC_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pFunc->commentSize, FUNC_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pFunc->codeSize, FUNC_DECODE_OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pFunc->pData, pFunc->commentSize + pFunc->codeSize, FUNC_DECODE_OVER)
   pFunc->pComment = pFunc->pData;
   pFunc->pCode = (pFunc->pData + pFunc->commentSize);
 
+  terrno = 0;
+
+FUNC_DECODE_OVER:
+  if (terrno != 0) {
+    mError("func:%s, failed to decode from raw:%p since %s", pFunc->name, pRaw, terrstr());
+    tfree(pRow);
+    return NULL;
+  }
+
+  mTrace("func:%s, decode from raw:%p, row:%p", pFunc->name, pRaw, pFunc);
   return pRow;
 }
 
 static int32_t mndFuncActionInsert(SSdb *pSdb, SFuncObj *pFunc) {
-  mTrace("func:%s, perform insert action", pFunc->name);
+  mTrace("func:%s, perform insert action, row:%p", pFunc->name, pFunc);
   return 0;
 }
 
 static int32_t mndFuncActionDelete(SSdb *pSdb, SFuncObj *pFunc) {
-  mTrace("func:%s, perform delete action", pFunc->name);
+  mTrace("func:%s, perform delete action, row:%p", pFunc->name, pFunc);
   return 0;
 }
 
 static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOldFunc, SFuncObj *pNewFunc) {
-  mTrace("func:%s, perform update action", pOldFunc->name);
+  mTrace("func:%s, perform update action, old_row:%p new_row:%p", pOldFunc->name, pOldFunc, pNewFunc);
   return 0;
 }
 

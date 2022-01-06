@@ -70,6 +70,11 @@ typedef struct SQueryPlanNode {
   struct SQueryPlanNode  *pParent;
 } SQueryPlanNode;
 
+typedef struct SDataPayloadInfo {
+  int32_t msgType;
+  SArray *payload;
+} SDataPayloadInfo;
+
 /**
  * Optimize the query execution plan, currently not implement yet.
  * @param pQueryNode
@@ -100,8 +105,8 @@ int32_t queryPlanToString(struct SQueryPlanNode* pQueryNode, char** str);
  */
 int32_t queryPlanToSql(struct SQueryPlanNode* pQueryNode, char** sql);
 
-int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag);
-int32_t setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SEpAddr* ep);
+int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag, uint64_t requestId);
+int32_t setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep);
 int32_t subPlanToString(const SSubplan *pPhyNode, char** str, int32_t* len);
 int32_t stringToSubplan(const char* str, SSubplan** subplan);
 

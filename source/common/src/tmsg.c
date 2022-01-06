@@ -140,6 +140,7 @@ void *tSVCreateTbBatchReqDeserialize(void *buf, SVCreateTbBatchReq *pReq) {
 
   buf = taosDecodeFixedU64(buf, &pReq->ver);
   buf = taosDecodeFixedU32(buf, &nsize);
+  pReq->pArray = taosArrayInit(nsize, sizeof(SVCreateTbReq));
   for (size_t i = 0; i < nsize; i++) {
     SVCreateTbReq req;
     buf = tDeserializeSVCreateTbReq(buf, &req);

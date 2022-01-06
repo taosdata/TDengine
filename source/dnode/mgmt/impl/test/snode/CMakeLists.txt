@@ -1,5 +1,5 @@
-aux_source_directory(. STEST_SRC)
-add_executable(dnode_test_snode ${STEST_SRC})
+aux_source_directory(. SQTEST_SRC)
+add_executable(dnode_test_snode ${SQTEST_SRC})
 target_link_libraries(
     dnode_test_snode
     PUBLIC sut

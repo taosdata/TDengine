@@ -9,7 +9,7 @@
  *
  */
 
-#include "base.h"
+#include "sut.h"
 
 class DndTestMnode : public ::testing::Test {
  public:
@@ -51,7 +51,7 @@ TestServer DndTestMnode::server4;
 TestServer DndTestMnode::server5;
 
 TEST_F(DndTestMnode, 01_ShowDnode) {
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_MNODE, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_MNODE, "");
   CHECK_META("show mnodes", 5);
 
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_SMALLINT, 2, "id");
@@ -60,7 +60,7 @@ TEST_F(DndTestMnode, 01_ShowDnode) {
   CHECK_SCHEMA(3, TSDB_DATA_TYPE_TIMESTAMP, 8, "role_time");
   CHECK_SCHEMA(4, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
 
   CheckInt16(1);
@@ -77,9 +77,9 @@ TEST_F(DndTestMnode, 02_Create_Mnode_Invalid_Id) {
     SMCreateMnodeMsg* pReq = (SMCreateMnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(1);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_MNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MNODE_ALREADY_EXIST);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_MNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_MNODE_ALREADY_EXIST);
   }
 }
 
@@ -90,9 +90,9 @@ TEST_F(DndTestMnode, 03_Create_Mnode_Invalid_Id) {
     SMCreateMnodeMsg* pReq = (SMCreateMnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_MNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_DNODE_NOT_EXIST);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_MNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_DNODE_NOT_EXIST);
   }
 }
 
@@ -105,13 +105,13 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
     strcpy(pReq->fqdn, "localhost");
     pReq->port = htonl(9062);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
 
     taosMsleep(1300);
-    test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
-    test.SendShowRetrieveMsg();
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
+    test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 2);
   }
 
@@ -122,12 +122,12 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
     SMCreateMnodeMsg* pReq = (SMCreateMnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_MNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_MNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaMsg(TSDB_MGMT_TABLE_MNODE, "");
-    test.SendShowRetrieveMsg();
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_MNODE, "");
+    test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 2);
 
     CheckInt16(1);
@@ -149,12 +149,12 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
     SMDropMnodeMsg* pReq = (SMDropMnodeMsg*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_MNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_MNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaMsg(TSDB_MGMT_TABLE_MNODE, "");
-    test.SendShowRetrieveMsg();
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_MNODE, "");
+    test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 1);
 
     CheckInt16(1);
@@ -170,14 +170,14 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 //   SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(contLen);
 //   pReq->dnodeId = htonl(2);
 
-//   SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_DNODE, pReq, contLen);
-//   ASSERT_NE(pMsg, nullptr);
-//   ASSERT_EQ(pMsg->code, 0);
+//   SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DNODE, pReq, contLen);
+//   ASSERT_NE(pRsp, nullptr);
+//   ASSERT_EQ(pRsp->code, 0);
 // }
 
-// test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+// test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
 // CHECK_META("show dnodes", 7);
-// test.SendShowRetrieveMsg();
+// test.SendShowRetrieveReq();
 // EXPECT_EQ(test.GetShowRows(), 1);
 
 // CheckInt16(1);
@@ -194,9 +194,9 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 //   SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
 //   strcpy(pReq->ep, "localhost:9063");
 
-//   SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
-//   ASSERT_NE(pMsg, nullptr);
-//   ASSERT_EQ(pMsg->code, 0);
+//   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+//   ASSERT_NE(pRsp, nullptr);
+//   ASSERT_EQ(pRsp->code, 0);
 // }
 
 // {
@@ -205,9 +205,9 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 //   SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
 //   strcpy(pReq->ep, "localhost:9064");
 
-//   SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
-//   ASSERT_NE(pMsg, nullptr);
-//   ASSERT_EQ(pMsg->code, 0);
+//   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+//   ASSERT_NE(pRsp, nullptr);
+//   ASSERT_EQ(pRsp->code, 0);
 // }
 
 // {
@@ -216,15 +216,15 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 //   SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
 //   strcpy(pReq->ep, "localhost:9065");
 
-//   SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
-//   ASSERT_NE(pMsg, nullptr);
-//   ASSERT_EQ(pMsg->code, 0);
+//   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+//   ASSERT_NE(pRsp, nullptr);
+//   ASSERT_EQ(pRsp->code, 0);
 // }
 
 // taosMsleep(1300);
-// test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+// test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
 // CHECK_META("show dnodes", 7);
-// test.SendShowRetrieveMsg();
+// test.SendShowRetrieveReq();
 // EXPECT_EQ(test.GetShowRows(), 4);
 
 // CheckInt16(1);
@@ -265,9 +265,9 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 // server5.Restart();
 
 // taosMsleep(1300);
-// test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
+// test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
 // CHECK_META("show dnodes", 7);
-// test.SendShowRetrieveMsg();
+// test.SendShowRetrieveReq();
 // EXPECT_EQ(test.GetShowRows(), 4);
 
 // CheckInt16(1);

@@ -26,13 +26,13 @@ static SSdbRaw *mndQnodeActionEncode(SQnodeObj *pObj);
 static SSdbRow *mndQnodeActionDecode(SSdbRaw *pRaw);
 static int32_t  mndQnodeActionInsert(SSdb *pSdb, SQnodeObj *pObj);
 static int32_t  mndQnodeActionDelete(SSdb *pSdb, SQnodeObj *pObj);
-static int32_t  mndQnodeActionUpdate(SSdb *pSdb, SQnodeObj *pOldQnode, SQnodeObj *pNewQnode);
-static int32_t  mndProcessCreateQnodeReq(SMnodeMsg *pMsg);
-static int32_t  mndProcessDropQnodeReq(SMnodeMsg *pMsg);
-static int32_t  mndProcessCreateQnodeRsp(SMnodeMsg *pMsg);
-static int32_t  mndProcessDropQnodeRsp(SMnodeMsg *pMsg);
-static int32_t  mndGetQnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
-static int32_t  mndRetrieveQnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndQnodeActionUpdate(SSdb *pSdb, SQnodeObj *pOld, SQnodeObj *pNew);
+static int32_t  mndProcessCreateQnodeReq(SMnodeMsg *pReq);
+static int32_t  mndProcessDropQnodeReq(SMnodeMsg *pReq);
+static int32_t  mndProcessCreateQnodeRsp(SMnodeMsg *pRsp);
+static int32_t  mndProcessDropQnodeRsp(SMnodeMsg *pRsp);
+static int32_t  mndGetQnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta);
+static int32_t  mndRetrieveQnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextQnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitQnode(SMnode *pMnode) {
@@ -59,9 +59,8 @@ int32_t mndInitQnode(SMnode *pMnode) {
 void mndCleanupQnode(SMnode *pMnode) {}
 
 static SQnodeObj *mndAcquireQnode(SMnode *pMnode, int32_t qnodeId) {
-  SSdb      *pSdb = pMnode->pSdb;
-  SQnodeObj *pObj = sdbAcquire(pSdb, SDB_QNODE, &qnodeId);
-  if (pObj == NULL) {
+  SQnodeObj *pObj = sdbAcquire(pMnode->pSdb, SDB_QNODE, &qnodeId);
+  if (pObj == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     terrno = TSDB_CODE_MND_QNODE_NOT_EXIST;
   }
   return pObj;
@@ -73,43 +72,68 @@ static void mndReleaseQnode(SMnode *pMnode, SQnodeObj *pObj) {
 }
 
 static SSdbRaw *mndQnodeActionEncode(SQnodeObj *pObj) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   SSdbRaw *pRaw = sdbAllocRaw(SDB_QNODE, TSDB_QNODE_VER_NUMBER, sizeof(SQnodeObj) + TSDB_QNODE_RESERVE_SIZE);
-  if (pRaw == NULL) return NULL;
+  if (pRaw == NULL) goto QNODE_ENCODE_OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_INT32(pRaw, dataPos, pObj->id);
-  SDB_SET_INT64(pRaw, dataPos, pObj->createdTime)
-  SDB_SET_INT64(pRaw, dataPos, pObj->updateTime)
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_QNODE_RESERVE_SIZE)
+  SDB_SET_INT32(pRaw, dataPos, pObj->id, QNODE_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pObj->createdTime, QNODE_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pObj->updateTime, QNODE_ENCODE_OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_QNODE_RESERVE_SIZE, QNODE_ENCODE_OVER)
 
+  terrno = 0;
+
+QNODE_ENCODE_OVER:
+  if (terrno != 0) {
+    mError("qnode:%d, failed to encode to raw:%p since %s", pObj->id, pRaw, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
+
+  mTrace("qnode:%d, encode to raw:%p, row:%p", pObj->id, pRaw, pObj);
   return pRaw;
 }
 
 static SSdbRow *mndQnodeActionDecode(SSdbRaw *pRaw) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto QNODE_DECODE_OVER;
 
   if (sver != TSDB_QNODE_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    mError("failed to decode qnode since %s", terrstr());
+    goto QNODE_DECODE_OVER;
+  }
+
+  SSdbRow *pRow = sdbAllocRow(sizeof(SQnodeObj));
+  if (pRow == NULL) goto QNODE_DECODE_OVER;
+
+  SQnodeObj *pObj = sdbGetRowObj(pRow);
+  if (pObj == NULL) goto QNODE_DECODE_OVER;
+
+  int32_t dataPos = 0;
+  SDB_GET_INT32(pRaw, dataPos, &pObj->id, QNODE_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pObj->createdTime, QNODE_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pObj->updateTime, QNODE_DECODE_OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, TSDB_QNODE_RESERVE_SIZE, QNODE_DECODE_OVER)
+
+  terrno = 0;
+
+QNODE_DECODE_OVER:
+  if (terrno != 0) {
+    mError("qnode:%d, failed to decode from raw:%p since %s", pObj->id, pRaw, terrstr());
+    tfree(pRow);
     return NULL;
   }
 
-  SSdbRow   *pRow = sdbAllocRow(sizeof(SQnodeObj));
-  SQnodeObj *pObj = sdbGetRowObj(pRow);
-  if (pObj == NULL) return NULL;
-
-  int32_t dataPos = 0;
-  SDB_GET_INT32(pRaw, pRow, dataPos, &pObj->id)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pObj->createdTime)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pObj->updateTime)
-  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_QNODE_RESERVE_SIZE)
-
+  mTrace("qnode:%d, decode from raw:%p, row:%p", pObj->id, pRaw, pObj);
   return pRow;
 }
 
 static int32_t mndQnodeActionInsert(SSdb *pSdb, SQnodeObj *pObj) {
-  mTrace("qnode:%d, perform insert action", pObj->id);
+  mTrace("qnode:%d, perform insert action, row:%p", pObj->id, pObj);
   pObj->pDnode = sdbAcquire(pSdb, SDB_DNODE, &pObj->id);
   if (pObj->pDnode == NULL) {
     terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
@@ -121,7 +145,7 @@ static int32_t mndQnodeActionInsert(SSdb *pSdb, SQnodeObj *pObj) {
 }
 
 static int32_t mndQnodeActionDelete(SSdb *pSdb, SQnodeObj *pObj) {
-  mTrace("qnode:%d, perform delete action", pObj->id);
+  mTrace("qnode:%d, perform delete action, row:%p", pObj->id, pObj);
   if (pObj->pDnode != NULL) {
     sdbRelease(pSdb, pObj->pDnode);
     pObj->pDnode = NULL;
@@ -130,9 +154,9 @@ static int32_t mndQnodeActionDelete(SSdb *pSdb, SQnodeObj *pObj) {
   return 0;
 }
 
-static int32_t mndQnodeActionUpdate(SSdb *pSdb, SQnodeObj *pOldQnode, SQnodeObj *pNewQnode) {
-  mTrace("qnode:%d, perform update action", pOldQnode->id);
-  pOldQnode->updateTime = pNewQnode->updateTime;
+static int32_t mndQnodeActionUpdate(SSdb *pSdb, SQnodeObj *pOld, SQnodeObj *pNew) {
+  mTrace("qnode:%d, perform update action, old_row:%p new_row:%p", pOld->id, pOld, pNew);
+  pOld->updateTime = pNew->updateTime;
   return 0;
 }
 
@@ -141,6 +165,14 @@ static int32_t mndSetCreateQnodeRedoLogs(STrans *pTrans, SQnodeObj *pObj) {
   if (pRedoRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
   if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING) != 0) return -1;
+  return 0;
+}
+
+static int32_t mndSetCreateQnodeUndoLogs(STrans *pTrans, SQnodeObj *pObj) {
+  SSdbRaw *pUndoRaw = mndQnodeActionEncode(pObj);
+  if (pUndoRaw == NULL) return -1;
+  if (mndTransAppendUndolog(pTrans, pUndoRaw) != 0) return -1;
+  if (sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED) != 0) return -1;
   return 0;
 }
 
@@ -153,60 +185,69 @@ static int32_t mndSetCreateQnodeCommitLogs(STrans *pTrans, SQnodeObj *pObj) {
 }
 
 static int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeObj *pObj) {
-  SDCreateQnodeMsg *pMsg = malloc(sizeof(SDCreateQnodeMsg));
-  if (pMsg == NULL) {
+  SDCreateQnodeReq *pReq = malloc(sizeof(SDCreateQnodeReq));
+  if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  pMsg->dnodeId = htonl(pDnode->id);
+  pReq->dnodeId = htonl(pDnode->id);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
-  action.pCont = pMsg;
-  action.contLen = sizeof(SDCreateQnodeMsg);
+  action.pCont = pReq;
+  action.contLen = sizeof(SDCreateQnodeReq);
   action.msgType = TDMT_DND_CREATE_QNODE;
+  action.acceptableCode = TSDB_CODE_DND_QNODE_ALREADY_DEPLOYED;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-    free(pMsg);
+    free(pReq);
     return -1;
   }
 
   return 0;
 }
 
-static int32_t mndCreateQnode(SMnode *pMnode, SMnodeMsg *pMsg, SDnodeObj *pDnode, SMCreateQnodeMsg *pCreate) {
+static int32_t mndSetCreateQnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeObj *pObj) {
+  SDDropQnodeReq *pReq = malloc(sizeof(SDDropQnodeReq));
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  pReq->dnodeId = htonl(pDnode->id);
+
+  STransAction action = {0};
+  action.epSet = mndGetDnodeEpset(pDnode);
+  action.pCont = pReq;
+  action.contLen = sizeof(SDDropQnodeReq);
+  action.msgType = TDMT_DND_DROP_QNODE;
+  action.acceptableCode = TSDB_CODE_DND_QNODE_NOT_DEPLOYED;
+
+  if (mndTransAppendUndoAction(pTrans, &action) != 0) {
+    free(pReq);
+    return -1;
+  }
+
+  return 0;
+}
+
+static int32_t mndCreateQnode(SMnode *pMnode, SMnodeMsg *pReq, SDnodeObj *pDnode, SMCreateQnodeReq *pCreate) {
+  int32_t code = -1;
+
   SQnodeObj qnodeObj = {0};
   qnodeObj.id = pDnode->id;
   qnodeObj.createdTime = taosGetTimestampMs();
   qnodeObj.updateTime = qnodeObj.createdTime;
 
-  int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pMsg->rpcMsg);
-  if (pTrans == NULL) {
-    mError("qnode:%d, failed to create since %s", pCreate->dnodeId, terrstr());
-    goto CREATE_QNODE_OVER;
-  }
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
+  if (pTrans == NULL) goto CREATE_QNODE_OVER;
+
   mDebug("trans:%d, used to create qnode:%d", pTrans->id, pCreate->dnodeId);
-
-  if (mndSetCreateQnodeRedoLogs(pTrans, &qnodeObj) != 0) {
-    mError("trans:%d, failed to set redo log since %s", pTrans->id, terrstr());
-    goto CREATE_QNODE_OVER;
-  }
-
-  if (mndSetCreateQnodeCommitLogs(pTrans, &qnodeObj) != 0) {
-    mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
-    goto CREATE_QNODE_OVER;
-  }
-
-  if (mndSetCreateQnodeRedoActions(pTrans, pDnode, &qnodeObj) != 0) {
-    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
-    goto CREATE_QNODE_OVER;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    goto CREATE_QNODE_OVER;
-  }
+  if (mndSetCreateQnodeRedoLogs(pTrans, &qnodeObj) != 0) goto CREATE_QNODE_OVER;
+  if (mndSetCreateQnodeUndoLogs(pTrans, &qnodeObj) != 0) goto CREATE_QNODE_OVER;
+  if (mndSetCreateQnodeCommitLogs(pTrans, &qnodeObj) != 0) goto CREATE_QNODE_OVER;
+  if (mndSetCreateQnodeRedoActions(pTrans, pDnode, &qnodeObj) != 0) goto CREATE_QNODE_OVER;
+  if (mndSetCreateQnodeUndoActions(pTrans, pDnode, &qnodeObj) != 0) goto CREATE_QNODE_OVER;
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto CREATE_QNODE_OVER;
 
   code = 0;
 
@@ -215,9 +256,9 @@ CREATE_QNODE_OVER:
   return code;
 }
 
-static int32_t mndProcessCreateQnodeReq(SMnodeMsg *pMsg) {
-  SMnode           *pMnode = pMsg->pMnode;
-  SMCreateQnodeMsg *pCreate = pMsg->rpcMsg.pCont;
+static int32_t mndProcessCreateQnodeReq(SMnodeMsg *pReq) {
+  SMnode           *pMnode = pReq->pMnode;
+  SMCreateQnodeReq *pCreate = pReq->rpcMsg.pCont;
 
   pCreate->dnodeId = htonl(pCreate->dnodeId);
 
@@ -226,7 +267,11 @@ static int32_t mndProcessCreateQnodeReq(SMnodeMsg *pMsg) {
   SQnodeObj *pObj = mndAcquireQnode(pMnode, pCreate->dnodeId);
   if (pObj != NULL) {
     mError("qnode:%d, qnode already exist", pObj->id);
+    terrno = TSDB_CODE_MND_QNODE_ALREADY_EXIST;
     mndReleaseQnode(pMnode, pObj);
+    return -1;
+  } else if (terrno != TSDB_CODE_MND_QNODE_NOT_EXIST) {
+    mError("qnode:%d, failed to create qnode since %s", pCreate->dnodeId, terrstr());
     return -1;
   }
 
@@ -237,7 +282,7 @@ static int32_t mndProcessCreateQnodeReq(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  int32_t code = mndCreateQnode(pMnode, pMsg, pDnode, pCreate);
+  int32_t code = mndCreateQnode(pMnode, pReq, pDnode, pCreate);
   mndReleaseDnode(pMnode, pDnode);
 
   if (code != 0) {
@@ -265,56 +310,39 @@ static int32_t mndSetDropQnodeCommitLogs(STrans *pTrans, SQnodeObj *pObj) {
 }
 
 static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeObj *pObj) {
-  SDDropQnodeMsg *pMsg = malloc(sizeof(SDDropQnodeMsg));
-  if (pMsg == NULL) {
+  SDDropQnodeReq *pReq = malloc(sizeof(SDDropQnodeReq));
+  if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  pMsg->dnodeId = htonl(pDnode->id);
+  pReq->dnodeId = htonl(pDnode->id);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
-  action.pCont = pMsg;
-  action.contLen = sizeof(SDDropQnodeMsg);
+  action.pCont = pReq;
+  action.contLen = sizeof(SDDropQnodeReq);
   action.msgType = TDMT_DND_DROP_QNODE;
+  action.acceptableCode = TSDB_CODE_DND_QNODE_NOT_DEPLOYED;
 
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-    free(pMsg);
+    free(pReq);
     return -1;
   }
 
   return 0;
 }
 
-static int32_t mndDropQnode(SMnode *pMnode, SMnodeMsg *pMsg, SQnodeObj *pObj) {
+static int32_t mndDropQnode(SMnode *pMnode, SMnodeMsg *pReq, SQnodeObj *pObj) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pMsg->rpcMsg);
-  if (pTrans == NULL) {
-    mError("qnode:%d, failed to drop since %s", pObj->id, terrstr());
-    goto DROP_QNODE_OVER;
-  }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pReq->rpcMsg);
+  if (pTrans == NULL) goto DROP_QNODE_OVER;
 
   mDebug("trans:%d, used to drop qnode:%d", pTrans->id, pObj->id);
-
-  if (mndSetDropQnodeRedoLogs(pTrans, pObj) != 0) {
-    mError("trans:%d, failed to set redo log since %s", pTrans->id, terrstr());
-    goto DROP_QNODE_OVER;
-  }
-
-  if (mndSetDropQnodeCommitLogs(pTrans, pObj) != 0) {
-    mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
-    goto DROP_QNODE_OVER;
-  }
-
-  if (mndSetDropQnodeRedoActions(pTrans, pObj->pDnode, pObj) != 0) {
-    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
-    goto DROP_QNODE_OVER;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    goto DROP_QNODE_OVER;
-  }
+  if (mndSetDropQnodeRedoLogs(pTrans, pObj) != 0) goto DROP_QNODE_OVER;
+  if (mndSetDropQnodeCommitLogs(pTrans, pObj) != 0) goto DROP_QNODE_OVER;
+  if (mndSetDropQnodeRedoActions(pTrans, pObj->pDnode, pObj) != 0) goto DROP_QNODE_OVER;
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto DROP_QNODE_OVER;
 
   code = 0;
 
@@ -323,9 +351,9 @@ DROP_QNODE_OVER:
   return code;
 }
 
-static int32_t mndProcessDropQnodeReq(SMnodeMsg *pMsg) {
-  SMnode         *pMnode = pMsg->pMnode;
-  SMDropQnodeMsg *pDrop = pMsg->rpcMsg.pCont;
+static int32_t mndProcessDropQnodeReq(SMnodeMsg *pReq) {
+  SMnode         *pMnode = pReq->pMnode;
+  SMDropQnodeReq *pDrop = pReq->rpcMsg.pCont;
   pDrop->dnodeId = htonl(pDrop->dnodeId);
 
   mDebug("qnode:%d, start to drop", pDrop->dnodeId);
@@ -338,33 +366,33 @@ static int32_t mndProcessDropQnodeReq(SMnodeMsg *pMsg) {
 
   SQnodeObj *pObj = mndAcquireQnode(pMnode, pDrop->dnodeId);
   if (pObj == NULL) {
-    mError("qnode:%d, not exist", pDrop->dnodeId);
-    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+    mError("qnode:%d, failed to drop since %s", pDrop->dnodeId, terrstr());
     return -1;
   }
 
-  int32_t code = mndDropQnode(pMnode, pMsg, pObj);
+  int32_t code = mndDropQnode(pMnode, pReq, pObj);
   if (code != 0) {
+    sdbRelease(pMnode->pSdb, pObj);
     mError("qnode:%d, failed to drop since %s", pMnode->dnodeId, terrstr());
     return -1;
   }
 
-  sdbRelease(pMnode->pSdb, pMnode);
+  sdbRelease(pMnode->pSdb, pObj);
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessCreateQnodeRsp(SMnodeMsg *pMsg) {
-  mndTransProcessRsp(pMsg);
+static int32_t mndProcessCreateQnodeRsp(SMnodeMsg *pRsp) {
+  mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndProcessDropQnodeRsp(SMnodeMsg *pMsg) {
-  mndTransProcessRsp(pMsg);
+static int32_t mndProcessDropQnodeRsp(SMnodeMsg *pRsp) {
+  mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndGetQnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
-  SMnode *pMnode = pMsg->pMnode;
+static int32_t mndGetQnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta) {
+  SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
@@ -403,8 +431,8 @@ static int32_t mndGetQnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
   return 0;
 }
 
-static int32_t mndRetrieveQnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode    *pMnode = pMsg->pMnode;
+static int32_t mndRetrieveQnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode    *pMnode = pReq->pMnode;
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
   int32_t    cols = 0;

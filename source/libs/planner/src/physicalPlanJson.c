@@ -793,7 +793,7 @@ static cJSON* subplanToJson(const SSubplan* subplan) {
     return NULL;
   }
 
-  // The 'type', 'level', 'execEpSet', 'pChildern' and 'pParents' fields do not need to be serialized.
+  // The 'type', 'level', 'execEpSet', 'pChildren' and 'pParents' fields do not need to be serialized.
 
   bool res = addObject(jSubplan, jkSubplanId, subplanIdToJson, &subplan->id);
   if (res) {
@@ -835,7 +835,7 @@ int32_t subPlanToString(const SSubplan* subplan, char** str, int32_t* len) {
     SDataInserter* insert = (SDataInserter*)(subplan->pDataSink);
     *len = insert->size;
     *str = insert->pData;
-    insert->pData == NULL;
+    insert->pData = NULL;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -844,6 +844,7 @@ int32_t subPlanToString(const SSubplan* subplan, char** str, int32_t* len) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return TSDB_CODE_FAILED;
   }
+
   *str = cJSON_Print(json);
   *len = strlen(*str) + 1;
   return TSDB_CODE_SUCCESS;

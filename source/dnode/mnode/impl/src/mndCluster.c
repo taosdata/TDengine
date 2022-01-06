@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "mndCluster.h"
 #include "mndShow.h"
-#include "mndTrans.h"
 
 #define TSDB_CLUSTER_VER_NUMBE 1
 #define TSDB_CLUSTER_RESERVE_SIZE 64
@@ -33,7 +32,7 @@ static void     mndCancelGetNextCluster(SMnode *pMnode, void *pIter);
 
 int32_t mndInitCluster(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_CLUSTER,
-                     .keyType = SDB_KEY_INT32,
+                     .keyType = SDB_KEY_INT64,
                      .deployFp = (SdbDeployFp)mndCreateDefaultCluster,
                      .encodeFp = (SdbEncodeFp)mndClusterActionEncode,
                      .decodeFp = (SdbDecodeFp)mndClusterActionDecode,
@@ -63,55 +62,80 @@ int32_t mndGetClusterName(SMnode *pMnode, char *clusterName, int32_t len) {
 }
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   SSdbRaw *pRaw = sdbAllocRaw(SDB_CLUSTER, TSDB_CLUSTER_VER_NUMBE, sizeof(SClusterObj) + TSDB_CLUSTER_RESERVE_SIZE);
-  if (pRaw == NULL) return NULL;
+  if (pRaw == NULL) goto CLUSTER_ENCODE_OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_INT64(pRaw, dataPos, pCluster->id);
-  SDB_SET_INT64(pRaw, dataPos, pCluster->createdTime)
-  SDB_SET_INT64(pRaw, dataPos, pCluster->updateTime)
-  SDB_SET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN)
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_CLUSTER_RESERVE_SIZE)
+  SDB_SET_INT64(pRaw, dataPos, pCluster->id, CLUSTER_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pCluster->createdTime, CLUSTER_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pCluster->updateTime, CLUSTER_ENCODE_OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, CLUSTER_ENCODE_OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, TSDB_CLUSTER_RESERVE_SIZE, CLUSTER_ENCODE_OVER)
 
+  terrno = 0;
+
+CLUSTER_ENCODE_OVER:
+  if (terrno != 0) {
+    mError("cluster:%" PRId64 ", failed to encode to raw:%p since %s", pCluster->id, pRaw, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
+
+  mTrace("cluster:%" PRId64 ", encode to raw:%p, row:%p", pCluster->id, pRaw, pCluster);
   return pRaw;
 }
 
 static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto CLUSTER_DECODE_OVER;
 
   if (sver != TSDB_CLUSTER_VER_NUMBE) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    mError("failed to decode cluster since %s", terrstr());
+    goto CLUSTER_DECODE_OVER;
+  }
+
+  SSdbRow *pRow = sdbAllocRow(sizeof(SClusterObj));
+  if (pRow == NULL) goto CLUSTER_DECODE_OVER;
+
+  SClusterObj *pCluster = sdbGetRowObj(pRow);
+  if (pCluster == NULL) goto CLUSTER_DECODE_OVER;
+
+  int32_t dataPos = 0;
+  SDB_GET_INT64(pRaw, dataPos, &pCluster->id, CLUSTER_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pCluster->createdTime, CLUSTER_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pCluster->updateTime, CLUSTER_DECODE_OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, CLUSTER_DECODE_OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, TSDB_CLUSTER_RESERVE_SIZE, CLUSTER_DECODE_OVER)
+
+  terrno = 0;
+
+CLUSTER_DECODE_OVER:
+  if (terrno != 0) {
+    mError("cluster:%" PRId64 ", failed to decode from raw:%p since %s", pCluster->id, pRaw, terrstr());
+    tfree(pRow);
     return NULL;
   }
 
-  SSdbRow     *pRow = sdbAllocRow(sizeof(SClusterObj));
-  SClusterObj *pCluster = sdbGetRowObj(pRow);
-  if (pCluster == NULL) return NULL;
-
-  int32_t dataPos = 0;
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pCluster->id)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pCluster->createdTime)
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pCluster->updateTime)
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN)
-  SDB_GET_RESERVE(pRaw, pRow, dataPos, TSDB_CLUSTER_RESERVE_SIZE)
-
+  mTrace("cluster:%" PRId64 ", decode from raw:%p, row:%p", pCluster->id, pRaw, pCluster);
   return pRow;
 }
 
 static int32_t mndClusterActionInsert(SSdb *pSdb, SClusterObj *pCluster) {
-  mTrace("cluster:%" PRId64 ", perform insert action", pCluster->id);
+  mTrace("cluster:%" PRId64 ", perform insert action, row:%p", pCluster->id, pCluster);
   return 0;
 }
 
 static int32_t mndClusterActionDelete(SSdb *pSdb, SClusterObj *pCluster) {
-  mTrace("cluster:%" PRId64 ", perform delete action", pCluster->id);
+  mTrace("cluster:%" PRId64 ", perform delete action, row:%p", pCluster->id, pCluster);
   return 0;
 }
 
-static int32_t mndClusterActionUpdate(SSdb *pSdb, SClusterObj *pOldCluster, SClusterObj *pNewCluster) {
-  mTrace("cluster:%" PRId64 ", perform update action", pOldCluster->id);
+static int32_t mndClusterActionUpdate(SSdb *pSdb, SClusterObj *pOld, SClusterObj *pNew) {
+  mTrace("cluster:%" PRId64 ", perform update action, old_row:%p new_row:%p", pOld->id, pOld, pNew);
   return 0;
 }
 
@@ -120,22 +144,22 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   clusterObj.createdTime = taosGetTimestampMs();
   clusterObj.updateTime = clusterObj.createdTime;
 
-  int32_t code = taosGetSystemUid(clusterObj.name, TSDB_CLUSTER_ID_LEN);
+  int32_t code = taosGetSystemUUID(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   if (code != 0) {
     strcpy(clusterObj.name, "tdengine2.0");
     mError("failed to get name from system, set to default val %s", clusterObj.name);
-  } else {
-    mDebug("cluster:%" PRId64 ", name is %s", clusterObj.id, clusterObj.name);
   }
-  clusterObj.id = MurmurHash3_32(clusterObj.name, TSDB_CLUSTER_ID_LEN);
+
+  clusterObj.id = mndGenerateUid(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   clusterObj.id = (clusterObj.id >= 0 ? clusterObj.id : -clusterObj.id);
   pMnode->clusterId = clusterObj.id;
+  mDebug("cluster:%" PRId64 ", name is %s", clusterObj.id, clusterObj.name);
 
   SSdbRaw *pRaw = mndClusterActionEncode(&clusterObj);
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("cluster:%" PRId64 ", will be created while deploy sdb", clusterObj.id);
+  mDebug("cluster:%" PRId64 ", will be created while deploy sdb, raw:%p", clusterObj.id, pRaw);
   return sdbWrite(pMnode->pSdb, pRaw);
 }
 

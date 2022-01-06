@@ -20,11 +20,7 @@
 
 #define MAX_INDEX_KEY_LEN 256  // test only, change later
 
-#define MEM_TERM_LIMIT 5 * 10000
-// ref index_cache.h:22
-//#define CACHE_KEY_LEN(p) \
-//  (sizeof(int32_t) + sizeof(uint16_t) + sizeof(p->colType) + sizeof(p->nColVal) + p->nColVal + sizeof(uint64_t) +
-//  sizeof(p->operType))
+#define MEM_TERM_LIMIT 10 * 10000
 
 static void indexMemRef(MemTable* tbl);
 static void indexMemUnRef(MemTable* tbl);
@@ -261,7 +257,7 @@ static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SA
   return 0;
 }
 int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermValueType* s) {
-  if (cache == NULL) { return -1; }
+  if (cache == NULL) { return 0; }
   IndexCache* pCache = cache;
 
   MemTable *mem = NULL, *imm = NULL;
@@ -275,14 +271,12 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermV
   SIndexTerm*     term = query->term;
   EIndexQueryType qtype = query->qType;
   CacheTerm       ct = {.colVal = term->colVal, .version = atomic_load_32(&pCache->version)};
-  // indexCacheDebug(pCache);
 
   int ret = indexQueryMem(mem, &ct, qtype, result, s);
   if (ret == 0 && *s != kTypeDeletion) {
     // continue search in imm
     ret = indexQueryMem(imm, &ct, qtype, result, s);
   }
-  // cacheTermDestroy(ct);
 
   indexMemUnRef(mem);
   indexMemUnRef(imm);
@@ -354,9 +348,6 @@ static bool indexCacheIteratorNext(Iterate* itera) {
   SSkipListIterator* iter = itera->iter;
   if (iter == NULL) { return false; }
   IterateValue* iv = &itera->val;
-  if (iv->colVal != NULL && iv->val != NULL) {
-    // indexError("value in cache: colVal: %s, size: %d", iv->colVal, (int)taosArrayGetSize(iv->val));
-  }
   iterateValueDestroy(iv, false);
 
   bool next = tSkipListIterNext(iter);

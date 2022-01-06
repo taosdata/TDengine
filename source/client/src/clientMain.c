@@ -29,7 +29,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 
 // this function may be called by user or system, or by both simultaneously.
 void taos_cleanup(void) {
-  tscDebug("start to cleanup client environment");
+  tscInfo("start to cleanup client environment");
 
   if (atomic_val_compare_exchange_32(&sentinel, TSC_VAR_NOT_RELEASE, TSC_VAR_RELEASED) != TSC_VAR_NOT_RELEASE) {
     return;
@@ -47,6 +47,8 @@ void taos_cleanup(void) {
 
   rpcCleanup();
   taosCloseLog();
+
+  tscInfo("all local resources released");
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
@@ -140,7 +142,9 @@ TAOS_ROW taos_fetch_row(TAOS_RES *pRes) {
 
   SRequestObj *pRequest = (SRequestObj *) pRes;
   if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
-      pRequest->type == TSDB_SQL_INSERT || pRequest->code != TSDB_CODE_SUCCESS) {
+      pRequest->type == TSDB_SQL_INSERT ||
+      pRequest->code != TSDB_CODE_SUCCESS ||
+      taos_num_fields(pRes) == 0) {
     return NULL;
   }
 
@@ -258,6 +262,8 @@ const char *taos_data_type(int type) {
 
 const char *taos_get_client_info() { return version; }
 
-int taos_affected_rows(TAOS_RES *res) { return 1; }
+int taos_affected_rows(TAOS_RES *res) {
+  return ((SRequestObj*)res)->affectedRows;
+}
 
 int taos_result_precision(TAOS_RES *res) { return TSDB_TIME_PRECISION_MILLI; }

@@ -603,7 +603,7 @@ int tscBuildAndSendRequest(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
 }
 
 int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SRetrieveTableMsg *pRetrieveMsg = (SRetrieveTableMsg *) pSql->cmd.payload;
+  SRetrieveTableReq *pRetrieveMsg = (SRetrieveTableReq *) pSql->cmd.payload;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
 
@@ -638,10 +638,10 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
         pSql->res.qId);
   }
 
-  pSql->cmd.payloadLen = sizeof(SRetrieveTableMsg);
+  pSql->cmd.payloadLen = sizeof(SRetrieveTableReq);
   pSql->cmd.msgType = TDMT_VND_FETCH;
 
-  pRetrieveMsg->header.contLen = htonl(sizeof(SRetrieveTableMsg));
+  pRetrieveMsg->header.contLen = htonl(sizeof(SRetrieveTableReq));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1210,13 +1210,13 @@ int32_t tscBuildCreateDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
-  pCmd->payloadLen = sizeof(SCreateAcctMsg);
+  pCmd->payloadLen = sizeof(SCreateAcctReq);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SCreateAcctMsg *pAlterMsg = (SCreateAcctMsg *)pCmd->payload;
+  SCreateAcctReq *pAlterMsg = (SCreateAcctReq *)pCmd->payload;
 
   SStrToken *pName = &pInfo->pMiscInfo->user.user;
   SStrToken *pPwd = &pInfo->pMiscInfo->user.passwd;
@@ -1255,14 +1255,14 @@ int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
-  pCmd->payloadLen = sizeof(SCreateUserMsg);
+  pCmd->payloadLen = sizeof(SCreateUserReq);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SCreateUserMsg *pAlterMsg = (SCreateUserMsg *)pCmd->payload;
+  SCreateUserReq *pAlterMsg = (SCreateUserReq *)pCmd->payload;
 
   SUserInfo *pUser = &pInfo->pMiscInfo->user;
   strncpy(pAlterMsg->user, pUser->user.z, pUser->user.n);
@@ -1369,7 +1369,7 @@ int32_t tscBuildDropUserAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   char user[TSDB_USER_LEN] = {0};
   tstrncpy(user, pCmd->payload, TSDB_USER_LEN);
 
-  pCmd->payloadLen = sizeof(SDropUserMsg);
+  pCmd->payloadLen = sizeof(SDropUserReq);
   pCmd->msgType = (pInfo->type == TSDB_SQL_DROP_USER)? TDMT_MND_DROP_USER:TDMT_MND_DROP_ACCT;
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
@@ -1377,7 +1377,7 @@ int32_t tscBuildDropUserAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SDropUserMsg *pDropMsg = (SDropUserMsg *)pCmd->payload;
+  SDropUserReq *pDropMsg = (SDropUserReq *)pCmd->payload;
   tstrncpy(pDropMsg->user, user, tListLen(user));
 
   return TSDB_CODE_SUCCESS;
@@ -1420,7 +1420,7 @@ int32_t tscBuildSyncDbReplicaMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
 int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->msgType = TDMT_MND_SHOW;
-  pCmd->payloadLen = sizeof(SShowMsg) + 100;
+  pCmd->payloadLen = sizeof(SShowReq) + 100;
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
@@ -1428,13 +1428,13 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   SShowInfo *pShowInfo = &pInfo->pMiscInfo->showOpt;
-  SShowMsg  *pShowMsg = (SShowMsg *)pCmd->payload;
+  SShowReq  *pShowMsg = (SShowReq *)pCmd->payload;
 
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
   if (pShowInfo->showType == TSDB_MGMT_TABLE_FUNCTION) {
     pShowMsg->type = pShowInfo->showType;
     pShowMsg->payloadLen = 0;
-    pCmd->payloadLen = sizeof(SShowMsg);
+    pCmd->payloadLen = sizeof(SShowReq);
 
     return TSDB_CODE_SUCCESS;
   }
@@ -1463,7 +1463,7 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pShowMsg->payloadLen = htons(pEpAddr->n);
   }
 
-  pCmd->payloadLen = sizeof(SShowMsg) + htons(pShowMsg->payloadLen);
+  pCmd->payloadLen = sizeof(SShowReq) + htons(pShowMsg->payloadLen);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1742,7 +1742,7 @@ int tscBuildCompactMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 int tscBuildRetrieveFromMgmtMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->msgType = TDMT_MND_SHOW_RETRIEVE;
-  pCmd->payloadLen = sizeof(SRetrieveTableMsg);
+  pCmd->payloadLen = sizeof(SRetrieveTableReq);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
@@ -1750,7 +1750,7 @@ int tscBuildRetrieveFromMgmtMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
-  SRetrieveTableMsg *pRetrieveMsg = (SRetrieveTableMsg*)pCmd->payload;
+  SRetrieveTableReq *pRetrieveMsg = (SRetrieveTableReq*)pCmd->payload;
   pRetrieveMsg->qId  = htobe64(pSql->res.qId);
   pRetrieveMsg->free = htons(pQueryInfo->type);
 

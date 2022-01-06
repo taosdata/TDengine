@@ -21,10 +21,10 @@ class TestServer {
   bool Start(const char* path, const char* fqdn, uint16_t port, const char* firstEp);
   void Stop();
   void Restart();
+  bool DoStart();
 
  private:
   SDnodeOpt BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp);
-  bool      DoStart();
 
  private:
   SDnode*    pDnode;

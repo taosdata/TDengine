@@ -65,10 +65,10 @@ typedef enum {
   TRN_STAGE_PREPARE = 0,
   TRN_STAGE_REDO_LOG = 1,
   TRN_STAGE_REDO_ACTION = 2,
-  TRN_STAGE_UNDO_LOG = 3,
-  TRN_STAGE_UNDO_ACTION = 4,
-  TRN_STAGE_COMMIT_LOG = 5,
-  TRN_STAGE_COMMIT = 6,
+  TRN_STAGE_COMMIT_LOG = 3,
+  TRN_STAGE_COMMIT = 4,
+  TRN_STAGE_UNDO_ACTION = 5,
+  TRN_STAGE_UNDO_LOG = 6,
   TRN_STAGE_ROLLBACK = 7,
   TRN_STAGE_FINISHED = 8
 } ETrnStage;
@@ -161,8 +161,14 @@ typedef struct {
 typedef struct {
   int32_t maxUsers;
   int32_t maxDbs;
+  int32_t maxStbs;
+  int32_t maxTbs;
   int32_t maxTimeSeries;
   int32_t maxStreams;
+  int32_t maxFuncs;
+  int32_t maxConsumers;
+  int32_t maxConns;
+  int32_t maxTopics;
   int64_t maxStorage;   // In unit of GB
   int32_t accessState;  // Configured only by command
 } SAcctCfg;

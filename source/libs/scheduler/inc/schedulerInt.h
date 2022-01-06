@@ -60,17 +60,19 @@ typedef struct SSchLevel {
 
 
 typedef struct SSchTask {
-  uint64_t             taskId;     // task id
-  SSchLevel           *level;      // level
-  SSubplan            *plan;       // subplan
-  char                *msg;        // operator tree
-  int32_t              msgLen;     // msg length
-  int8_t               status;     // task status
-  SEpAddr              execAddr;   // task actual executed node address
-  SQueryProfileSummary summary;    // task execution summary
-  int32_t              childReady; // child task ready number
-  SArray              *children;   // the datasource tasks,from which to fetch the result, element is SQueryTask*
-  SArray              *parents;    // the data destination tasks, get data from current task, element is SQueryTask*
+  uint64_t             taskId;         // task id
+  SSchLevel           *level;          // level
+  SSubplan            *plan;           // subplan
+  char                *msg;            // operator tree
+  int32_t              msgLen;         // msg length
+  int8_t               status;         // task status
+  SQueryNodeAddr       execAddr;       // task actual executed node address
+  int8_t               condidateIdx;   // current try condidation index
+  SArray              *condidateAddrs; // condidate node addresses, element is SQueryNodeAddr
+  SQueryProfileSummary summary;        // task execution summary
+  int32_t              childReady;     // child task ready number
+  SArray              *children;       // the datasource tasks,from which to fetch the result, element is SQueryTask*
+  SArray              *parents;        // the data destination tasks, get data from current task, element is SQueryTask*
 } SSchTask;
 
 typedef struct SSchJobAttr {
@@ -112,8 +114,9 @@ typedef struct SSchJob {
 #define SCH_IS_DATA_SRC_TASK(task) ((task)->plan->type == QUERY_TYPE_SCAN)
 #define SCH_TASK_NEED_WAIT_ALL(task) ((task)->plan->type == QUERY_TYPE_MODIFY)
 
-#define SCH_JOB_ERR_LOG(param, ...) qError("QID:%"PRIx64 param, job->queryId, __VA_ARGS__)
-#define SCH_TASK_ERR_LOG(param, ...) qError("QID:%"PRIx64",TID:%"PRIx64 param, job->queryId, task->taskId, __VA_ARGS__)
+#define SCH_JOB_ELOG(param, ...) qError("QID:% "PRIx64 param, job->queryId, __VA_ARGS__)
+#define SCH_TASK_ELOG(param, ...) qError("QID:%"PRIx64",TID:% "PRIx64 param, job->queryId, task->taskId, __VA_ARGS__)
+#define SCH_TASK_DLOG(param, ...) qDebug("QID:%"PRIx64",TID:% "PRIx64 param, job->queryId, task->taskId, __VA_ARGS__)
 
 #define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define SCH_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)

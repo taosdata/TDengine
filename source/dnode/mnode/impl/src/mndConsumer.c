@@ -74,14 +74,14 @@ static void *mndBuildMqVGroupSetReq(SMnode *pMnode, char *topicName, int32_t vgI
 static SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
   int32_t  size = sizeof(SMqConsumerObj) + MND_CONSUMER_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_CONSUMER, MND_CONSUMER_VER_NUMBER, size);
-  if (pRaw == NULL) return NULL;
+  if (pRaw == NULL) goto CM_ENCODE_OVER;
 
   int32_t dataPos = 0;
   int32_t topicNum = taosArrayGetSize(pConsumer->topics);
   SDB_SET_INT64(pRaw, dataPos, pConsumer->consumerId);
   int32_t len = strlen(pConsumer->cgroup);
-  SDB_SET_INT32(pRaw, dataPos, len);
-  SDB_SET_BINARY(pRaw, dataPos, pConsumer->cgroup, len);
+  SDB_SET_INT32(pRaw, dataPos, len, CM_ENCODE_OVER);
+  SDB_SET_BINARY(pRaw, dataPos, pConsumer->cgroup, len, CM_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, topicNum);
   for (int i = 0; i < topicNum; i++) {
     int32_t           len;
@@ -105,30 +105,41 @@ static SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
   SDB_SET_RESERVE(pRaw, dataPos, MND_CONSUMER_RESERVE_SIZE);
   SDB_SET_DATALEN(pRaw, dataPos);
 
+CM_ENCODE_OVER:
+  if (terrno != 0) {
+    mError("consumer:%s, failed to encode to raw:%p since %s", pConsumer->name, pRaw, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
+
+  mTrace("consumer:%s, encode to raw:%p, row:%p", pConsumer->name, pRaw, pConsumer);
   return pRaw;
 }
 
 static SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto CONSUME_DECODE_OVER;
 
   if (sver != MND_CONSUMER_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    mError("failed to decode consumer since %s", terrstr());
-    return NULL;
+    goto CONSUME_DECODE_OVER;
   }
 
   int32_t         size = sizeof(SMqConsumerObj);
   SSdbRow        *pRow = sdbAllocRow(size);
+  if (pRow == NULL) goto CONSUMER_DECODE_OVER;
+
   SMqConsumerObj *pConsumer = sdbGetRowObj(pRow);
-  if (pConsumer == NULL) return NULL;
+  if (pConsumer == NULL) goto CONSUMER_DECODE_OVER;
 
   int32_t dataPos = 0;
-  SDB_GET_INT64(pRaw, pRow, dataPos, &pConsumer->consumerId);
+  SDB_GET_INT64(pRaw, pRow, dataPos, &pConsumer->consumerId, CONSUME_DECODE_OVER);
   int32_t len, topicNum;
-  SDB_GET_INT32(pRaw, pRow, dataPos, &len);
-  SDB_GET_BINARY(pRaw, pRow, dataPos, pConsumer->cgroup, len);
-  SDB_GET_INT32(pRaw, pRow, dataPos, &topicNum);
+  SDB_GET_INT32(pRaw, pRow, dataPos, &len, CONSUME_DECODE_OVER);
+  SDB_GET_BINARY(pRaw, pRow, dataPos, pConsumer->cgroup, len, CONSUME_DECODE_OVER);
+  SDB_GET_INT32(pRaw, pRow, dataPos, &topicNum, CONSUME_DECODE_OVER);
   for (int i = 0; i < topicNum; i++) {
     int32_t           topicLen;
     SMqConsumerTopic *pConsumerTopic = malloc(sizeof(SMqConsumerTopic));
@@ -138,11 +149,18 @@ static SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
       return NULL;
     }
     /*pConsumerTopic->vgroups = taosArrayInit(topicNum, sizeof(SMqConsumerTopic));*/
-    SDB_GET_INT32(pRaw, pRow, dataPos, &topicLen);
-    SDB_GET_BINARY(pRaw, pRow, dataPos, pConsumerTopic->name, topicLen);
+    SDB_GET_INT32(pRaw, pRow, dataPos, &topicLen, CONSUME_DECODE_OVER);
+    SDB_GET_BINARY(pRaw, pRow, dataPos, pConsumerTopic->name, topicLen, CONSUME_DECODE_OVER);
     int32_t vgSize;
-    SDB_GET_INT32(pRaw, pRow, dataPos, &vgSize);
+    SDB_GET_INT32(pRaw, pRow, dataPos, &vgSize, CONSUME_DECODE_OVER);
   }
+
+
+CONSUME_DECODE_OVER:
+  if (terrno != 0) {
+    mError("consumer:%s, failed to decode from raw:%p since %s", pConsumer->name, pRaw, terrstr());
+    tfree(pRow);
+    return NULL;
 
   SDB_GET_RESERVE(pRaw, pRow, dataPos, MND_CONSUMER_RESERVE_SIZE);
 

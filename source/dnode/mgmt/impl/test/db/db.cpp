@@ -9,7 +9,7 @@
  *
  */
 
-#include "base.h"
+#include "sut.h"
 
 class DndTestDb : public ::testing::Test {
  protected:
@@ -26,7 +26,7 @@ class DndTestDb : public ::testing::Test {
 Testbase DndTestDb::test;
 
 TEST_F(DndTestDb, 01_ShowDb) {
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DB, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
   CHECK_META("show databases", 18);
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN - 1 + VARSTR_HEADER_SIZE, "name");
   CHECK_SCHEMA(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
@@ -47,7 +47,7 @@ TEST_F(DndTestDb, 01_ShowDb) {
   CHECK_SCHEMA(16, TSDB_DATA_TYPE_BINARY, 3 + VARSTR_HEADER_SIZE, "precision");
   CHECK_SCHEMA(17, TSDB_DATA_TYPE_TINYINT, 1, "update");
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 0);
 }
 
@@ -77,15 +77,15 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
     pReq->cacheLastRow = 0;
     pReq->ignoreExist = 1;
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DB, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DB, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
   CHECK_META("show databases", 18);
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
   CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
@@ -106,17 +106,17 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
   CheckBinary("ms", 3);               // precision
   CheckInt8(0);                       // update
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_VGROUP, "1.d1");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_VGROUP, "1.d1");
   CHECK_META("show vgroups", 4);
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_INT, 4, "vgId");
   CHECK_SCHEMA(1, TSDB_DATA_TYPE_INT, 4, "tables");
   CHECK_SCHEMA(2, TSDB_DATA_TYPE_SMALLINT, 2, "v1_dnode");
   CHECK_SCHEMA(3, TSDB_DATA_TYPE_BINARY, 9 + VARSTR_HEADER_SIZE, "v1_status");
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 2);
-  CheckInt32(1);
   CheckInt32(2);
+  CheckInt32(3);
   CheckInt32(0);
   CheckInt32(0);
   CheckInt16(1);
@@ -138,13 +138,13 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
     pReq->quorum = 2;
     pReq->cacheLastRow = 1;
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_DB, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DB, "");
-  test.SendShowRetrieveMsg();
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
   CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
@@ -168,10 +168,10 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
   // restart
   test.Restart();
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DB, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
   CHECK_META("show databases", 18);
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
 
   CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
@@ -199,15 +199,15 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
     SDropDbMsg* pReq = (SDropDbMsg*)rpcMallocCont(contLen);
     strcpy(pReq->db, "1.d1");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_DB, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DB, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
   CHECK_META("show databases", 18);
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 0);
 }
 
@@ -237,15 +237,15 @@ TEST_F(DndTestDb, 03_Create_Use_Restart_Use_Db) {
     pReq->cacheLastRow = 0;
     pReq->ignoreExist = 1;
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DB, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_DB, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
   CHECK_META("show databases", 18);
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
   CheckBinary("d2", TSDB_DB_NAME_LEN - 1);
 
@@ -256,7 +256,7 @@ TEST_F(DndTestDb, 03_Create_Use_Restart_Use_Db) {
     strcpy(pReq->db, "1.d2");
     pReq->vgVersion = htonl(-1);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_USE_DB, pReq, contLen);
+    SRpcMsg* pMsg = test.SendReq(TDMT_MND_USE_DB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 

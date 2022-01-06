@@ -23,6 +23,7 @@ SSdbRow *sdbAllocRow(int32_t objSize) {
     return NULL;
   }
 
+  mTrace("row:%p, is created, len:%d", pRow->pObj, objSize);
   return pRow;
 }
 
@@ -43,5 +44,7 @@ void sdbFreeRow(SSdb *pSdb, SSdbRow *pRow) {
   }
 
   sdbPrintOper(pSdb, pRow, "freeRow");
+
+  mTrace("row:%p, is freed", pRow->pObj);
   tfree(pRow);
 }

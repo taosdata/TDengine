@@ -37,7 +37,9 @@ class Testbase {
   void     Init(const char* path, int16_t port);
   void     Cleanup();
   void     Restart();
-  SRpcMsg* SendMsg(tmsg_t msgType, void* pCont, int32_t contLen);
+  void     ServerStop();
+  void     ServerStart();
+  SRpcMsg* SendReq(tmsg_t msgType, void* pCont, int32_t contLen);
 
  private:
   void InitLog(const char* path);
@@ -48,8 +50,8 @@ class Testbase {
   int32_t    connId;
 
  public:
-  void SendShowMetaMsg(int8_t showType, const char* db);
-  void SendShowRetrieveMsg();
+  void SendShowMetaReq(int8_t showType, const char* db);
+  void SendShowRetrieveReq();
 
   STableMetaMsg*     GetShowMeta();
   SRetrieveTableRsp* GetRetrieveRsp();
@@ -71,7 +73,7 @@ class Testbase {
   const char* GetShowBinary(int32_t len);
 
  private:
-  int32_t            showId;
+  int64_t            showId;
   STableMetaMsg*     pMeta;
   SRetrieveTableRsp* pRetrieveRsp;
   char*              pData;

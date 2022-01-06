@@ -2,8 +2,8 @@
 #include "astGenerator.h"
 #include "parserUtil.h"
 
-SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
-  SCreateUserMsg* pMsg = (SCreateUserMsg*)calloc(1, sizeof(SCreateUserMsg));
+SCreateUserReq* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
+  SCreateUserReq* pMsg = (SCreateUserReq*)calloc(1, sizeof(SCreateUserReq));
   if (pMsg == NULL) {
     //    tscError("0x%" PRIx64 " failed to malloc for query msg", id);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -25,8 +25,8 @@ SCreateUserMsg* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, in
   return pMsg;
 }
 
-SCreateAcctMsg* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
-  SCreateAcctMsg *pCreateMsg = (SCreateAcctMsg *) calloc(1, sizeof(SCreateAcctMsg));
+SCreateAcctReq* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
+  SCreateAcctReq *pCreateMsg = (SCreateAcctReq *) calloc(1, sizeof(SCreateAcctReq));
   if (pCreateMsg == NULL) {
     qError("0x%" PRIx64 " failed to malloc for query msg", id);
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
@@ -64,29 +64,29 @@ SCreateAcctMsg* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, in
     }
   }
 
-  *outputLen = sizeof(SCreateAcctMsg);
+  *outputLen = sizeof(SCreateAcctReq);
   return pCreateMsg;
 }
 
-SDropUserMsg* buildDropUserMsg(SSqlInfo* pInfo, int32_t *msgLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
+SDropUserReq* buildDropUserMsg(SSqlInfo* pInfo, int32_t *msgLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
   SToken* pName = taosArrayGet(pInfo->pMiscInfo->a, 0);
   if (pName->n >= TSDB_USER_LEN) {
     return NULL;
   }
 
-  SDropUserMsg* pMsg = calloc(1, sizeof(SDropUserMsg));
+  SDropUserReq* pMsg = calloc(1, sizeof(SDropUserReq));
   if (pMsg == NULL) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return NULL;
   }
 
   strncpy(pMsg->user, pName->z, pName->n);
-  *msgLen = sizeof(SDropUserMsg);
+  *msgLen = sizeof(SDropUserReq);
   return pMsg;
 }
 
-SShowMsg* buildShowMsg(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, char* msgBuf, int32_t msgLen) {
-  SShowMsg* pShowMsg = calloc(1, sizeof(SShowMsg));
+SShowReq* buildShowMsg(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, char* msgBuf, int32_t msgLen) {
+  SShowReq* pShowMsg = calloc(1, sizeof(SShowReq));
 
   pShowMsg->type = pShowInfo->showType;
   if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {
@@ -230,7 +230,7 @@ SCreateDbMsg* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, SParseBasicCtx *pCt
   return pCreateMsg;
 }
 
-SCreateStbMsg* buildCreateTableMsg(SCreateTableSql* pCreateTableSql, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
+SCreateStbMsg* buildCreateStbMsg(SCreateTableSql* pCreateTableSql, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
   SSchema* pSchema;
 
   int32_t numOfTags = 0;
@@ -239,16 +239,16 @@ SCreateStbMsg* buildCreateTableMsg(SCreateTableSql* pCreateTableSql, int32_t* le
     numOfTags = (int32_t) taosArrayGetSize(pCreateTableSql->colInfo.pTagColumns);
   }
 
-  SCreateStbMsg* pCreateTableMsg = (SCreateStbMsg*)calloc(1, sizeof(SCreateStbMsg) + (numOfCols + numOfTags) * sizeof(SSchema));
+  SCreateStbMsg* pCreateStbMsg = (SCreateStbMsg*)calloc(1, sizeof(SCreateStbMsg) + (numOfCols + numOfTags) * sizeof(SSchema));
 
   char* pMsg = NULL;
+#if 0
   int32_t tableType = pCreateTableSql->type;
   if (tableType != TSQL_CREATE_TABLE && tableType != TSQL_CREATE_STABLE) {  // create by using super table, tags value
-#if 0
     SArray* list = pInfo->pCreateTableInfo->childTableInfo;
 
     int32_t numOfTables = (int32_t)taosArrayGetSize(list);
-    pCreateTableMsg->numOfTables = htonl(numOfTables);
+    pCreateStbMsg->numOfTables = htonl(numOfTables);
 
     pMsg = (char*)pCreateMsg;
     for (int32_t i = 0; i < numOfTables; ++i) {
@@ -268,25 +268,27 @@ SCreateStbMsg* buildCreateTableMsg(SCreateTableSql* pCreateTableSql, int32_t* le
       int32_t len = (int32_t)(pMsg - (char*)pCreate);
       pCreate->len = htonl(len);
     }
+
+  } else {
 #endif
-  } else { // create (super) table
+    // create (super) table
     SName n = {0};
     int32_t code = createSName(&n, &pCreateTableSql->name, pParseCtx, pMsgBuf);
     if (code != 0) {
       return NULL;
     }
 
-    code = tNameExtractFullName(&n, pCreateTableMsg->name);
+    code = tNameExtractFullName(&n, pCreateStbMsg->name);
     if (code != 0) {
       buildInvalidOperationMsg(pMsgBuf, "invalid table name or database not specified");
       return NULL;
     }
 
-    pCreateTableMsg->igExists     = pCreateTableSql->existCheck ? 1 : 0;
-    pCreateTableMsg->numOfColumns = htonl(numOfCols);
-    pCreateTableMsg->numOfTags    = htonl(numOfTags);
+    pCreateStbMsg->igExists     = pCreateTableSql->existCheck ? 1 : 0;
+    pCreateStbMsg->numOfColumns = htonl(numOfCols);
+    pCreateStbMsg->numOfTags    = htonl(numOfTags);
 
-    pSchema = (SSchema*) pCreateTableMsg->pSchema;
+    pSchema = (SSchema*)pCreateStbMsg->pSchema;
     for (int i = 0; i < numOfCols; ++i) {
       SField* pField = taosArrayGet(pCreateTableSql->colInfo.pColumns, i);
       pSchema->type  = pField->type;
@@ -306,12 +308,11 @@ SCreateStbMsg* buildCreateTableMsg(SCreateTableSql* pCreateTableSql, int32_t* le
     }
 
     pMsg = (char*)pSchema;
-  }
 
-  int32_t msgLen = (int32_t)(pMsg - (char*)pCreateTableMsg);
+  int32_t msgLen = (int32_t)(pMsg - (char*)pCreateStbMsg);
   *len = msgLen;
 
-  return pCreateTableMsg;
+  return pCreateStbMsg;
 }
 
 SDropStbMsg* buildDropStableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
@@ -330,7 +331,7 @@ SDropStbMsg* buildDropStableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* p
   assert(code == TSDB_CODE_SUCCESS && name.type == TSDB_TABLE_NAME_T);
 
   pDropTableMsg->igNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
-  *len = sizeof(SDropTableMsg);
+  *len = sizeof(SDropStbMsg);
   return pDropTableMsg;
 }
 

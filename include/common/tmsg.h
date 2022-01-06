@@ -156,10 +156,6 @@ typedef struct {
   uint16_t port;
 } SEpAddr;
 
-typedef struct {
-  int32_t numOfVnodes;
-} SMsgDesc;
-
 typedef struct SMsgHead {
   int32_t contLen;
   int32_t vgId;
@@ -341,7 +337,7 @@ typedef struct {
   int64_t clusterId;
   int32_t connId;
   int8_t  superUser;
-  int8_t  reserved[5];
+  int8_t  align[3];
   SEpSet  epSet;
 } SConnectRsp;
 
@@ -354,21 +350,18 @@ typedef struct {
   int32_t maxStreams;
   int32_t accessState;  // Configured only by command
   int64_t maxStorage;   // In unit of GB
-  int32_t reserve[8];
-} SCreateAcctMsg, SAlterAcctMsg;
+} SCreateAcctReq, SAlterAcctReq;
 
 typedef struct {
-  char    user[TSDB_USER_LEN];
-  int32_t reserve[8];
-} SDropUserMsg, SDropAcctMsg;
+  char user[TSDB_USER_LEN];
+} SDropUserReq, SDropAcctReq;
 
 typedef struct {
-  int8_t  type;
-  char    user[TSDB_USER_LEN];
-  char    pass[TSDB_PASSWORD_LEN];
-  int8_t  superUser;  // denote if it is a super user or not
-  int32_t reserve[8];
-} SCreateUserMsg, SAlterUserMsg;
+  int8_t type;
+  char   user[TSDB_USER_LEN];
+  char   pass[TSDB_PASSWORD_LEN];
+  int8_t superUser;  // denote if it is a super user or not
+} SCreateUserReq, SAlterUserReq;
 
 typedef struct {
   int32_t  contLen;
@@ -522,7 +515,7 @@ typedef struct {
     int64_t qId;
   };  // query handle
   int8_t free;
-} SRetrieveTableMsg;
+} SRetrieveTableReq;
 
 typedef struct SRetrieveTableRsp {
   int64_t useconds;
@@ -556,7 +549,6 @@ typedef struct {
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  ignoreExist;
-  int32_t reserve[8];
 } SCreateDbMsg;
 
 typedef struct {
@@ -569,29 +561,24 @@ typedef struct {
   int8_t  walLevel;
   int8_t  quorum;
   int8_t  cacheLastRow;
-  int32_t reserve[8];
 } SAlterDbMsg;
 
 typedef struct {
-  char    db[TSDB_TABLE_FNAME_LEN];
-  int8_t  ignoreNotExists;
-  int32_t reserve[8];
+  char   db[TSDB_TABLE_FNAME_LEN];
+  int8_t ignoreNotExists;
 } SDropDbMsg;
 
 typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];
   int32_t vgVersion;
-  int32_t reserve[8];
 } SUseDbMsg;
 
 typedef struct {
-  char    db[TSDB_TABLE_FNAME_LEN];
-  int32_t reserve[8];
+  char db[TSDB_TABLE_FNAME_LEN];
 } SSyncDbMsg;
 
 typedef struct {
-  char    db[TSDB_TABLE_FNAME_LEN];
-  int32_t reserve[8];
+  char db[TSDB_TABLE_FNAME_LEN];
 } SCompactDbMsg;
 
 typedef struct {
@@ -647,7 +634,7 @@ typedef struct {
 typedef struct {
   int32_t vgId;
   int8_t  role;
-  int8_t  reserved[3];
+  int8_t  align[3];
   int64_t totalStorage;
   int64_t compStorage;
   int64_t pointsWritten;
@@ -684,7 +671,7 @@ typedef struct {
 typedef struct {
   int32_t  id;
   int8_t   isMnode;
-  int8_t   reserved;
+  int8_t   align;
   uint16_t port;
   char     fqdn[TSDB_FQDN_LEN];
 } SDnodeEp;
@@ -830,7 +817,7 @@ typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int16_t payloadLen;
   char    payload[];
-} SShowMsg;
+} SShowReq;
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -869,15 +856,15 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateQnodeMsg, SMDropQnodeMsg, SDCreateQnodeMsg, SDDropQnodeMsg;
+} SMCreateQnodeReq, SMDropQnodeReq, SDCreateQnodeReq, SDDropQnodeReq;
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateSnodeMsg, SMDropSnodeMsg, SDCreateSnodeMsg, SDDropSnodeMsg;
+} SMCreateSnodeReq, SMDropSnodeReq, SDCreateSnodeReq, SDDropSnodeReq;
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateBnodeMsg, SMDropBnodeMsg, SDCreateBnodeMsg, SDDropBnodeMsg;
+} SMCreateBnodeReq, SMDropBnodeReq, SDCreateBnodeReq, SDDropBnodeReq;
 
 typedef struct {
   int32_t dnodeId;
@@ -920,7 +907,7 @@ typedef struct {
   int32_t totalDnodes;
   int32_t onlineDnodes;
   int8_t  killConnection;
-  int8_t  reserved[3];
+  int8_t  align[3];
   SEpSet  epSet;
 } SHeartBeatRsp;
 
@@ -948,7 +935,7 @@ typedef struct {
 
 typedef struct {
   int8_t finished;
-  int8_t reserved1[7];
+  int8_t align[7];
   char   name[TSDB_STEP_NAME_LEN];
   char   desc[TSDB_STEP_DESC_LEN];
 } SStartupMsg;
@@ -1059,6 +1046,7 @@ typedef struct SResFetchMsg {
 } SResFetchMsg;
 
 typedef struct SSchTasksStatusMsg {
+  SMsgHead header;
   uint64_t sId;
 } SSchTasksStatusMsg;
 
@@ -1074,6 +1062,7 @@ typedef struct SSchedulerStatusRsp {
 } SSchedulerStatusRsp;
 
 typedef struct STaskCancelMsg {
+  SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
@@ -1084,6 +1073,7 @@ typedef struct STaskCancelRsp {
 } STaskCancelRsp;
 
 typedef struct STaskDropMsg {
+  SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;

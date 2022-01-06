@@ -20,8 +20,10 @@
 SWalReadHandle *walOpenReadHandle(SWal *pWal) {
   SWalReadHandle *pRead = malloc(sizeof(SWalReadHandle));
   if (pRead == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+
   pRead->pWal = pWal;
   pRead->readIdxTfd = -1;
   pRead->readLogTfd = -1;

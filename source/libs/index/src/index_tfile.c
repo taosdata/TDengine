@@ -61,36 +61,21 @@ TFileCache* tfileCacheCreate(const char* path) {
   tcache->capacity = 64;
 
   SArray* files = tfileGetFileList(path);
-
-  uint64_t suid;
-  int32_t  colId, version;
   for (size_t i = 0; i < taosArrayGetSize(files); i++) {
     char* file = taosArrayGetP(files, i);
 
-    // refactor later, use colname and version info
-    char colName[256] = {0};
-    if (0 != tfileParseFileName(file, &suid, colName, (int*)&version)) {
-      indexInfo("try parse invalid file:  %s, skip it", file);
-      continue;
-    }
-
-    char fullName[256] = {0};
-    sprintf(fullName, "%s/%s", path, file);
-
-    WriterCtx* wc = writerCtxCreate(TFile, fullName, true, 1024 * 1024 * 64);
+    WriterCtx* wc = writerCtxCreate(TFile, file, true, 1024 * 1024 * 64);
     if (wc == NULL) {
       indexError("failed to open index:%s", file);
       goto End;
     }
 
-    char         buf[128] = {0};
     TFileReader* reader = tfileReaderCreate(wc);
+    if (reader == NULL) { goto End; }
     TFileHeader* header = &reader->header;
-    ICacheKey    key = {.suid = header->suid,
-                     .colName = header->colName,
-                     .nColName = strlen(header->colName),
-                     .colType = header->colType};
+    ICacheKey    key = {.suid = header->suid, .colName = header->colName, .nColName = strlen(header->colName)};
 
+    char    buf[128] = {0};
     int32_t sz = indexSerialCacheKey(&key, buf);
     assert(sz < sizeof(buf));
     taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
@@ -223,24 +208,13 @@ TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const c
   tfileGenFileFullName(fullname, path, suid, colName, version);
 
   WriterCtx* wc = writerCtxCreate(TFile, fullname, true, 1024 * 1024 * 1024);
-  // indexInfo("open read file name:%s, size: %d", wc->file.buf, wc->file.size);
+  indexInfo("open read file name:%s, size: %d", wc->file.buf, wc->file.size);
   if (wc == NULL) { return NULL; }
 
   TFileReader* reader = tfileReaderCreate(wc);
   return reader;
 }
 TFileWriter* tfileWriterCreate(WriterCtx* ctx, TFileHeader* header) {
-  // char pathBuf[128] = {0};
-  // sprintf(pathBuf, "%s/% " PRIu64 "-%d-%d.tindex", path, suid, colId, version);
-  // TFileHeader header = {.suid = suid, .version = version, .colName = {0}, colType = colType};
-  // memcpy(header.colName, );
-
-  // char buf[TFILE_HADER_PRE_SIZE];
-  // int  len = TFILE_HADER_PRE_SIZE;
-  // if (len != ctx->write(ctx, buf, len)) {
-  //  indexError("index: %" PRIu64 " failed to write header info", header->suid);
-  //  return NULL;
-  //}
   TFileWriter* tw = calloc(1, sizeof(TFileWriter));
   if (tw == NULL) {
     indexError("index: %" PRIu64 " failed to alloc TFilerWriter", header->suid);
@@ -256,7 +230,8 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
   // sort by coltype and write to tindex
   if (order == false) {
     __compar_fn_t fn;
-    int8_t        colType = tw->header.colType;
+
+    int8_t colType = tw->header.colType;
     if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_NCHAR) {
       fn = tfileStrCompare;
     } else {
@@ -274,7 +249,8 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
   // ugly code, refactor later
   for (size_t i = 0; i < sz; i++) {
     TFileValue* v = taosArrayGetP((SArray*)data, i);
-    // taosArrayRemoveDuplicate(v->tablId, tfileUidCompare, NULL);
+    taosArraySort(v->tableId, tfileUidCompare);
+    taosArrayRemoveDuplicate(v->tableId, tfileUidCompare, NULL);
     int32_t tbsz = taosArrayGetSize(v->tableId);
     fstOffset += TF_TABLE_TATOAL_SIZE(tbsz);
   }
@@ -287,34 +263,14 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     // check buf has enough space or not
     int32_t ttsz = TF_TABLE_TATOAL_SIZE(tbsz);
 
-    // if (offset + ttsz >= bufLimit) {
-    //  // batch write
-    //  indexInfo("offset: %d, ttsz: %d", offset, ttsz);
-    //  // std::cout << "offset: " << offset << std::endl;
-    //  // std::cout << "ttsz:" << ttsz < < < std::endl;
-    //  tw->ctx->write(tw->ctx, buf, offset);
-    //  offset = 0;
-    //  memset(buf, 0, bufLimit);
-    //  p = buf;
-    //}
-    // if (ttsz >= bufLimit) {
-    //}
     char* buf = calloc(1, ttsz * sizeof(char));
     char* p = buf;
     tfileSerialTableIdsToBuf(p, v->tableId);
     tw->ctx->write(tw->ctx, buf, ttsz);
-    // offset += ttsz;
-    // p = buf + offset;
-    // set up value offset
     v->offset = tw->offset;
     tw->offset += ttsz;
     free(buf);
   }
-  // if (offset != 0) {
-  // write reversed data in buf to tindex
-  // tw->ctx->write(tw->ctx, buf, offset);
-  //}
-  // tfree(buf);
 
   tw->fb = fstBuilderCreate(tw->ctx, 0);
   if (tw->fb == NULL) {
@@ -351,10 +307,16 @@ void tfileWriterDestroy(TFileWriter* tw) {
 }
 
 IndexTFile* indexTFileCreate(const char* path) {
-  IndexTFile* tfile = calloc(1, sizeof(IndexTFile));
-  if (tfile == NULL) { return NULL; }
+  TFileCache* cache = tfileCacheCreate(path);
+  if (cache == NULL) { return NULL; }
 
-  tfile->cache = tfileCacheCreate(path);
+  IndexTFile* tfile = calloc(1, sizeof(IndexTFile));
+  if (tfile == NULL) {
+    tfileCacheDestroy(cache);
+    return NULL;
+  }
+
+  tfile->cache = cache;
   return tfile;
 }
 void indexTFileDestroy(IndexTFile* tfile) {
@@ -366,6 +328,7 @@ void indexTFileDestroy(IndexTFile* tfile) {
 int indexTFileSearch(void* tfile, SIndexTermQuery* query, SArray* result) {
   int ret = -1;
   if (tfile == NULL) { return ret; }
+
   IndexTFile* pTfile = (IndexTFile*)tfile;
 
   SIndexTerm* term = query->term;
@@ -545,12 +508,11 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
 
   int64_t nread = reader->ctx->readFrom(reader->ctx, buf, sizeof(buf), 0);
   if (nread == -1) {
-    //
     indexError("actual Read: %d, to read: %d, errno: %d, filefd: %d, filename: %s", (int)(nread), (int)sizeof(buf),
                errno, reader->ctx->file.fd, reader->ctx->file.buf);
   } else {
-    indexError("actual Read: %d, to read: %d, errno: %d, filefd: %d, filename: %s", (int)(nread), (int)sizeof(buf),
-               errno, reader->ctx->file.fd, reader->ctx->file.buf);
+    indexInfo("actual Read: %d, to read: %d, filefd: %d, filename: %s", (int)(nread), (int)sizeof(buf),
+              reader->ctx->file.fd, reader->ctx->file.buf);
   }
   // assert(nread == sizeof(buf));
   memcpy(&reader->header, buf, sizeof(buf));
@@ -566,7 +528,8 @@ static int tfileReaderLoadFst(TFileReader* reader) {
 
   WriterCtx* ctx = reader->ctx;
   int32_t    nread = ctx->readFrom(ctx, buf, FST_MAX_SIZE, reader->header.fstOffset);
-  indexError("nread = %d, and fst offset=%d, filename: %s ", nread, reader->header.fstOffset, ctx->file.buf);
+  indexInfo("nread = %d, and fst offset=%d, filename: %s, size: %d ", nread, reader->header.fstOffset, ctx->file.buf,
+            ctx->file.size);
   // we assuse fst size less than FST_MAX_SIZE
   assert(nread > 0 && nread < FST_MAX_SIZE);
 
@@ -613,15 +576,20 @@ void tfileReaderUnRef(TFileReader* reader) {
 static SArray* tfileGetFileList(const char* path) {
   SArray* files = taosArrayInit(4, sizeof(void*));
 
+  char     buf[128] = {0};
+  uint64_t suid;
+  uint32_t version;
+
   DIR* dir = opendir(path);
   if (NULL == dir) { return NULL; }
-
   struct dirent* entry;
   while ((entry = readdir(dir)) != NULL) {
-    if (entry->d_type && DT_DIR) { continue; }
-    size_t len = strlen(entry->d_name);
-    char*  buf = calloc(1, len + 1);
-    memcpy(buf, entry->d_name, len);
+    char* file = entry->d_name;
+    if (0 != tfileParseFileName(file, &suid, buf, &version)) { continue; }
+
+    size_t len = strlen(path) + 1 + strlen(file) + 1;
+    char*  buf = calloc(1, len);
+    sprintf(buf, "%s/%s", path, file);
     taosArrayPush(files, &buf);
   }
   closedir(dir);
@@ -640,15 +608,9 @@ static void tfileDestroyFileName(void* elem) {
   free(p);
 }
 static int tfileCompare(const void* a, const void* b) {
-  const char* aName = *(char**)a;
-  const char* bName = *(char**)b;
-
-  size_t aLen = strlen(aName);
-  size_t bLen = strlen(bName);
-
-  int ret = strncmp(aName, bName, aLen > bLen ? aLen : bLen);
-  if (ret == 0) { return ret; }
-  return ret < 0 ? -1 : 1;
+  const char* as = *(char**)a;
+  const char* bs = *(char**)b;
+  return strcmp(as, bs);
 }
 
 static int tfileParseFileName(const char* filename, uint64_t* suid, char* col, int* version) {

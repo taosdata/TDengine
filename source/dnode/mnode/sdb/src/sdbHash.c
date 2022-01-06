@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "sdbInt.h"
 
-static const char *sdbTableName(ESdbType type) {
+const char *sdbTableName(ESdbType type) {
   switch (type) {
     case SDB_TRANS:
       return "trans";
@@ -38,6 +38,10 @@ static const char *sdbTableName(ESdbType type) {
       return "auth";
     case SDB_ACCT:
       return "acct";
+    case SDB_CONSUMER:
+      return "consumer";
+    case SDB_CGROUP:
+      return "cgroup";
     case SDB_TOPIC:
       return "topic";
     case SDB_VGROUP:
@@ -53,22 +57,43 @@ static const char *sdbTableName(ESdbType type) {
   }
 }
 
+static const char *sdbStatusStr(ESdbStatus status) {
+  switch (status) {
+    case SDB_STATUS_CREATING:
+      return "creating";
+    case SDB_STATUS_UPDATING:
+      return "updating";
+    case SDB_STATUS_DROPPING:
+      return "dropping";
+    case SDB_STATUS_READY:
+      return "ready";
+    case SDB_STATUS_DROPPED:
+      return "dropped";
+    case SDB_STATUS_INIT:
+      return "init";
+    default:
+      return "undefine";
+  }
+}
+
 void sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper) {
   EKeyType keyType = pSdb->keyTypes[pRow->type];
 
   if (keyType == SDB_KEY_BINARY) {
-    mTrace("%s:%s, refCount:%d oper:%s", sdbTableName(pRow->type), (char *)pRow->pObj, pRow->refCount, oper);
+    mTrace("%s:%s, refCount:%d oper:%s row:%p status:%s", sdbTableName(pRow->type), (char *)pRow->pObj, pRow->refCount,
+           oper, pRow->pObj, sdbStatusStr(pRow->status));
   } else if (keyType == SDB_KEY_INT32) {
-    mTrace("%s:%d, refCount:%d oper:%s", sdbTableName(pRow->type), *(int32_t *)pRow->pObj, pRow->refCount, oper);
+    mTrace("%s:%d, refCount:%d oper:%s row:%p status:%s", sdbTableName(pRow->type), *(int32_t *)pRow->pObj,
+           pRow->refCount, oper, pRow->pObj, sdbStatusStr(pRow->status));
   } else if (keyType == SDB_KEY_INT64) {
-    mTrace("%s:%" PRId64 ", refCount:%d oper:%s", sdbTableName(pRow->type), *(int64_t *)pRow->pObj, pRow->refCount,
-           oper);
+    mTrace("%s:%" PRId64 ", refCount:%d oper:%s row:%p status:%s", sdbTableName(pRow->type), *(int64_t *)pRow->pObj,
+           pRow->refCount, oper, pRow->pObj, sdbStatusStr(pRow->status));
   } else {
   }
 }
 
 static SHashObj *sdbGetHash(SSdb *pSdb, int32_t type) {
-  if (type >= SDB_MAX || type <= SDB_START) {
+  if (type >= SDB_MAX || type < 0) {
     terrno = TSDB_CODE_SDB_INVALID_TABLE_TYPE;
     return NULL;
   }
@@ -98,8 +123,6 @@ static int32_t sdbGetkeySize(SSdb *pSdb, ESdbType type, void *pKey) {
 }
 
 static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_t keySize) {
-  int32_t code = 0;
-
   SRWLatch *pLock = &pSdb->locks[pRow->type];
   taosWLockLatch(pLock);
 
@@ -124,10 +147,7 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
 
   taosWUnLockLatch(pLock);
 
-  if (pSdb->keyTypes[pRow->type] == SDB_KEY_INT32) {
-    pSdb->maxId[pRow->type] = MAX(pSdb->maxId[pRow->type], *((int32_t *)pRow->pObj));
-  }
-
+  int32_t     code = 0;
   SdbInsertFp insertFp = pSdb->insertFps[pRow->type];
   if (insertFp != NULL) {
     code = (*insertFp)(pSdb, pRow->pObj);
@@ -141,12 +161,18 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
     }
   }
 
+  if (pSdb->keyTypes[pRow->type] == SDB_KEY_INT32) {
+    pSdb->maxId[pRow->type] = MAX(pSdb->maxId[pRow->type], *((int32_t *)pRow->pObj));
+  }
+  if (pSdb->keyTypes[pRow->type] == SDB_KEY_INT64) {
+    pSdb->maxId[pRow->type] = MAX(pSdb->maxId[pRow->type], *((int32_t *)pRow->pObj));
+  }
+  pSdb->tableVer[pRow->type]++;
+
   return 0;
 }
 
 static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pNewRow, int32_t keySize) {
-  int32_t code = 0;
-
   SRWLatch *pLock = &pSdb->locks[pNewRow->type];
   taosRLockLatch(pLock);
 
@@ -155,23 +181,25 @@ static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
     taosRUnLockLatch(pLock);
     return sdbInsertRow(pSdb, hash, pRaw, pNewRow, keySize);
   }
-  SSdbRow *pOldRow = *ppOldRow;
 
+  SSdbRow *pOldRow = *ppOldRow;
   pOldRow->status = pRaw->status;
+  sdbPrintOper(pSdb, pOldRow, "updateRow");
   taosRUnLockLatch(pLock);
 
+  int32_t     code = 0;
   SdbUpdateFp updateFp = pSdb->updateFps[pNewRow->type];
   if (updateFp != NULL) {
     code = (*updateFp)(pSdb, pOldRow->pObj, pNewRow->pObj);
   }
 
   sdbFreeRow(pSdb, pNewRow);
+
+  pSdb->tableVer[pOldRow->type]++;
   return code;
 }
 
 static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *pRow, int32_t keySize) {
-  int32_t code = 0;
-
   SRWLatch *pLock = &pSdb->locks[pRow->type];
   taosWLockLatch(pLock);
 
@@ -185,12 +213,15 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   SSdbRow *pOldRow = *ppOldRow;
 
   pOldRow->status = pRaw->status;
+  sdbPrintOper(pSdb, pOldRow, "deleteRow");
+
   taosHashRemove(hash, pOldRow->pObj, keySize);
   taosWUnLockLatch(pLock);
 
-  // sdbRelease(pSdb, pOldRow->pObj);
+  pSdb->tableVer[pOldRow->type]++;
   sdbFreeRow(pSdb, pRow);
-  return code;
+  // sdbRelease(pSdb, pOldRow->pObj);
+  return 0;
 }
 
 int32_t sdbWriteNotFree(SSdb *pSdb, SSdbRaw *pRaw) {
@@ -232,6 +263,8 @@ int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw) {
 }
 
 void *sdbAcquire(SSdb *pSdb, ESdbType type, void *pKey) {
+  terrno = 0;
+
   SHashObj *hash = sdbGetHash(pSdb, type);
   if (hash == NULL) return NULL;
 
@@ -275,7 +308,7 @@ void sdbRelease(SSdb *pSdb, void *pObj) {
   if (pObj == NULL) return;
 
   SSdbRow *pRow = (SSdbRow *)((char *)pObj - sizeof(SSdbRow));
-  if (pRow->type >= SDB_MAX || pRow->type <= SDB_START) return;
+  if (pRow->type >= SDB_MAX ) return;
 
   SRWLatch *pLock = &pSdb->locks[pRow->type];
   taosRLockLatch(pLock);

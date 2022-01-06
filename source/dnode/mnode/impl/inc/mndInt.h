@@ -17,11 +17,13 @@
 #define _TD_MND_INT_H_
 
 #include "mndDef.h"
+
 #include "sdb.h"
 #include "tcache.h"
 #include "tep.h"
 #include "tqueue.h"
 #include "ttime.h"
+#include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,6 +67,7 @@ typedef struct {
 typedef struct {
   int32_t    errCode;
   sem_t      syncSem;
+  SWal      *pWal;
   SSyncNode *pSyncNode;
   ESyncState state;
 } SSyncMgmt;
@@ -88,15 +91,16 @@ typedef struct SMnode {
   STelemMgmt        telemMgmt;
   SSyncMgmt         syncMgmt;
   MndMsgFp          msgFp[TDMT_MAX];
-  SendMsgToDnodeFp  sendMsgToDnodeFp;
-  SendMsgToMnodeFp  sendMsgToMnodeFp;
-  SendRedirectMsgFp sendRedirectMsgFp;
+  SendReqToDnodeFp  sendReqToDnodeFp;
+  SendReqToMnodeFp  sendReqToMnodeFp;
+  SendRedirectRspFp sendRedirectRspFp;
+  PutReqToMWriteQFp putReqToMWriteQFp;
 } SMnode;
 
-void mndSendMsgToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);
-void mndSendMsgToMnode(SMnode *pMnode, SRpcMsg *pMsg);
-void mndSendRedirectMsg(SMnode *pMnode, SRpcMsg *pMsg);
-void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
+int32_t mndSendReqToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);
+int32_t mndSendReqToMnode(SMnode *pMnode, SRpcMsg *pMsg);
+void    mndSendRedirectRsp(SMnode *pMnode, SRpcMsg *pMsg);
+void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 
 uint64_t mndGenerateUid(char *name, int32_t len) ;
 

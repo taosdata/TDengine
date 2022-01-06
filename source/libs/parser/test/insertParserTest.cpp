@@ -60,7 +60,7 @@ protected:
     return code_;
   }
 
-  SInsertStmtInfo* reslut() {
+  SVnodeModifOpStmtInfo* reslut() {
     return res_;
   }
 
@@ -70,9 +70,7 @@ protected:
     for (size_t i = 0; i < num; ++i) {
       SVgDataBlocks* vg = (SVgDataBlocks*)taosArrayGetP(res_->pDataBlocks, i);
       cout << "vgId:" << vg->vg.vgId << ", numOfTables:" << vg->numOfTables << ", dataSize:" << vg->size << endl;
-      SMsgDesc* desc = (SMsgDesc*)(vg->pData);
-      cout << "numOfVnodes:" << ntohl(desc->numOfVnodes) << endl;
-      SSubmitMsg* submit = (SSubmitMsg*)(desc + 1);
+      SSubmitMsg* submit = (SSubmitMsg*)vg->pData;
       cout << "length:" << ntohl(submit->length) << ", numOfBlocks:" << ntohl(submit->numOfBlocks) << endl;
       int32_t numOfBlocks = ntohl(submit->numOfBlocks);
       SSubmitBlk* blk = (SSubmitBlk*)(submit + 1);
@@ -95,9 +93,7 @@ protected:
       SVgDataBlocks* vg = (SVgDataBlocks*)taosArrayGetP(res_->pDataBlocks, i);
       ASSERT_EQ(vg->numOfTables, numOfTables);
       ASSERT_GE(vg->size, 0);
-      SMsgDesc* desc = (SMsgDesc*)(vg->pData);
-      ASSERT_EQ(ntohl(desc->numOfVnodes), 1);
-      SSubmitMsg* submit = (SSubmitMsg*)(desc + 1);
+      SSubmitMsg* submit = (SSubmitMsg*)vg->pData;
       ASSERT_GE(ntohl(submit->length), 0);
       ASSERT_GE(ntohl(submit->numOfBlocks), 0);
       int32_t numOfBlocks = ntohl(submit->numOfBlocks);
@@ -128,7 +124,7 @@ private:
   char sqlBuf_[max_sql_len];
   SParseContext cxt_;
   int32_t code_;
-  SInsertStmtInfo* res_;
+  SVnodeModifOpStmtInfo* res_;
 };
 
 // INSERT INTO tb_name VALUES (field1_value, ...)

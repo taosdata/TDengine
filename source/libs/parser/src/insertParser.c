@@ -61,7 +61,7 @@ typedef struct SInsertParseContext {
   SArray* pTableDataBlocks;     // global
   SArray* pVgDataBlocks;        // global
   int32_t totalNum;
-  SInsertStmtInfo* pOutput;
+  SVnodeModifOpStmtInfo* pOutput;
 } SInsertParseContext;
 
 static int32_t skipInsertInto(SInsertParseContext* pCxt) {
@@ -106,6 +106,7 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
   SVgroupInfo vg;
   CHECK_CODE(catalogGetTableHashVgroup(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name, &vg));
   CHECK_CODE(taosHashPut(pCxt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg)));
+  pCxt->pTableMeta->vgId = vg.vgId; // todo remove
   return TSDB_CODE_SUCCESS;
 }
 
@@ -120,11 +121,9 @@ static int32_t findCol(SToken* pColname, int32_t start, int32_t end, SSchema* pS
 }
 
 static void buildMsgHeader(SVgDataBlocks* blocks) {
-    SMsgDesc* desc = (SMsgDesc*)blocks->pData;
-    desc->numOfVnodes = htonl(1);
-    SSubmitMsg* submit = (SSubmitMsg*)(desc + 1);
+    SSubmitMsg* submit = (SSubmitMsg*)blocks->pData;
     submit->header.vgId    = htonl(blocks->vg.vgId);
-    submit->header.contLen = htonl(blocks->size - sizeof(SMsgDesc));
+    submit->header.contLen = htonl(blocks->size);
     submit->length         = submit->header.contLen;
     submit->numOfBlocks    = htonl(blocks->numOfTables);
     SSubmitBlk* blk = (SSubmitBlk*)(submit + 1);
@@ -425,7 +424,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
   // 1. set the parsed value from sql string
   for (int i = 0; i < spd->numOfBound; ++i) {
     NEXT_TOKEN(pCxt->pSql, sToken);
-    SSchema *pSchema = &schema[spd->boundedColumns[i]]; 
+    SSchema *pSchema = &schema[spd->boundedColumns[i] - 1];
     param.schema = pSchema;
     param.compareStat = pBuilder->compareStat;
     getMemRowAppendInfo(schema, pBuilder->memRowType, spd, i, &param.toffset);
@@ -611,7 +610,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 //       [(field1_name, ...)]
 //       VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
 //   [...];
-int32_t parseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo) {
+int32_t parseInsertSql(SParseContext* pContext, SVnodeModifOpStmtInfo** pInfo) {
   SInsertParseContext context = {
     .pComCxt = pContext,
     .pSql = (char*) pContext->pSql,
@@ -620,7 +619,7 @@ int32_t parseInsertSql(SParseContext* pContext, SInsertStmtInfo** pInfo) {
     .pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false),
     .pTableBlockHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false),
     .totalNum = 0,
-    .pOutput = calloc(1, sizeof(SInsertStmtInfo))
+    .pOutput = calloc(1, sizeof(SVnodeModifOpStmtInfo))
   };
 
   if (NULL == context.pVgroupsHashObj || NULL == context.pTableBlockHashObj || NULL == context.pOutput) {
