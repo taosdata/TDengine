@@ -229,7 +229,8 @@ python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertShell.py
 
 #query
-python3 test.py -f query/distinctOneColTb.py
+python3 ./test.py -f query/queryBase.py
+python3 ./test.py -f query/distinctOneColTb.py
 python3 ./test.py -f query/filter.py
 python3 ./test.py -f query/filterCombo.py
 python3 ./test.py -f query/queryNormal.py
