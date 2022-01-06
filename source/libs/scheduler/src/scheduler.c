@@ -346,11 +346,12 @@ _return:
 int32_t schProcessOnJobPartialSuccess(SSchJob *job) {
   job->status = JOB_TASK_STATUS_PARTIAL_SUCCEED;
 
+  bool needFetch = job->userFetch;
   if ((!job->attr.needFetch) && job->attr.syncSchedule) {
     tsem_post(&job->rspSem);
   }
   
-  if (job->userFetch) {
+  if (needFetch) {
     SCH_ERR_RET(schFetchFromRemote(job));
   }
 
@@ -420,7 +421,6 @@ int32_t schProcessOnTaskSuccess(SSchJob *job, SSchTask *task) {
     }
 
     job->fetchTask = task;
-    
     SCH_ERR_RET(schProcessOnJobPartialSuccess(job));
 
     return TSDB_CODE_SUCCESS;
@@ -495,7 +495,6 @@ int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *ms
       if (rspCode != TSDB_CODE_SUCCESS) {
         SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rspCode));
       } else {
-//        job->resNumOfRows += rsp->affectedRows;
         code = schProcessOnTaskSuccess(job, task);
         if (code) {
           goto _task_error;
