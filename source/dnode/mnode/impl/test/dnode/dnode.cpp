@@ -1,31 +1,31 @@
 /**
  * @file dnode.cpp
  * @author slguan (slguan@taosdata.com)
- * @brief DNODE module dnode-msg tests
- * @version 0.1
- * @date 2021-12-15
+ * @brief MNODE module dnode tests
+ * @version 1.0
+ * @date 2022-01-06
  *
- * @copyright Copyright (c) 2021
+ * @copyright Copyright (c) 2022
  *
  */
 
 #include "sut.h"
 
-class DndTestDnode : public ::testing::Test {
+class MndTestDnode : public ::testing::Test {
  public:
   void SetUp() override {}
   void TearDown() override {}
 
  public:
   static void SetUpTestSuite() {
-    test.Init("/tmp/dnode_test_dnode1", 9041);
+    test.Init("/tmp/dnode_test_dnode1", 9023);
     const char* fqdn = "localhost";
-    const char* firstEp = "localhost:9041";
+    const char* firstEp = "localhost:9023";
 
-    server2.Start("/tmp/dnode_test_dnode2", fqdn, 9042, firstEp);
-    server3.Start("/tmp/dnode_test_dnode3", fqdn, 9043, firstEp);
-    server4.Start("/tmp/dnode_test_dnode4", fqdn, 9044, firstEp);
-    server5.Start("/tmp/dnode_test_dnode5", fqdn, 9045, firstEp);
+    server2.Start("/tmp/dnode_test_dnode2", fqdn, 9024, firstEp);
+    server3.Start("/tmp/dnode_test_dnode3", fqdn, 9025, firstEp);
+    server4.Start("/tmp/dnode_test_dnode4", fqdn, 9026, firstEp);
+    server5.Start("/tmp/dnode_test_dnode5", fqdn, 9027, firstEp);
     taosMsleep(300);
   }
 
@@ -44,13 +44,13 @@ class DndTestDnode : public ::testing::Test {
   static TestServer server5;
 };
 
-Testbase   DndTestDnode::test;
-TestServer DndTestDnode::server2;
-TestServer DndTestDnode::server3;
-TestServer DndTestDnode::server4;
-TestServer DndTestDnode::server5;
+Testbase   MndTestDnode::test;
+TestServer MndTestDnode::server2;
+TestServer MndTestDnode::server3;
+TestServer MndTestDnode::server4;
+TestServer MndTestDnode::server5;
 
-TEST_F(DndTestDnode, 01_ShowDnode) {
+TEST_F(MndTestDnode, 01_ShowDnode) {
   test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
   CHECK_META("show dnodes", 7);
 
@@ -66,7 +66,7 @@ TEST_F(DndTestDnode, 01_ShowDnode) {
   EXPECT_EQ(test.GetShowRows(), 1);
 
   CheckInt16(1);
-  CheckBinary("localhost:9041", TSDB_EP_LEN);
+  CheckBinary("localhost:9023", TSDB_EP_LEN);
   CheckInt16(0);
   CheckInt16(16);
   CheckBinary("ready", 10);
@@ -74,7 +74,7 @@ TEST_F(DndTestDnode, 01_ShowDnode) {
   CheckBinary("", 24);
 }
 
-TEST_F(DndTestDnode, 02_ConfigDnode) {
+TEST_F(MndTestDnode, 02_ConfigDnode) {
   int32_t contLen = sizeof(SCfgDnodeMsg);
 
   SCfgDnodeMsg* pReq = (SCfgDnodeMsg*)rpcMallocCont(contLen);
@@ -86,13 +86,13 @@ TEST_F(DndTestDnode, 02_ConfigDnode) {
   ASSERT_EQ(pRsp->code, 0);
 }
 
-TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
+TEST_F(MndTestDnode, 03_Create_Drop_Restart_Dnode) {
   {
     int32_t contLen = sizeof(SCreateDnodeMsg);
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
     strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(9042);
+    pReq->port = htonl(9024);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -108,8 +108,8 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
 
   CheckInt16(1);
   CheckInt16(2);
-  CheckBinary("localhost:9041", TSDB_EP_LEN);
-  CheckBinary("localhost:9042", TSDB_EP_LEN);
+  CheckBinary("localhost:9023", TSDB_EP_LEN);
+  CheckBinary("localhost:9024", TSDB_EP_LEN);
   CheckInt16(0);
   CheckInt16(0);
   CheckInt16(16);
@@ -138,7 +138,7 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   EXPECT_EQ(test.GetShowRows(), 1);
 
   CheckInt16(1);
-  CheckBinary("localhost:9041", TSDB_EP_LEN);
+  CheckBinary("localhost:9023", TSDB_EP_LEN);
   CheckInt16(0);
   CheckInt16(16);
   CheckBinary("ready", 10);
@@ -150,7 +150,7 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
     strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(9043);
+    pReq->port = htonl(9025);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -162,7 +162,7 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
     strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(9044);
+    pReq->port = htonl(9026);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -174,7 +174,7 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
 
     SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
     strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(9045);
+    pReq->port = htonl(9027);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -191,10 +191,10 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckInt16(3);
   CheckInt16(4);
   CheckInt16(5);
-  CheckBinary("localhost:9041", TSDB_EP_LEN);
-  CheckBinary("localhost:9043", TSDB_EP_LEN);
-  CheckBinary("localhost:9044", TSDB_EP_LEN);
-  CheckBinary("localhost:9045", TSDB_EP_LEN);
+  CheckBinary("localhost:9023", TSDB_EP_LEN);
+  CheckBinary("localhost:9025", TSDB_EP_LEN);
+  CheckBinary("localhost:9026", TSDB_EP_LEN);
+  CheckBinary("localhost:9027", TSDB_EP_LEN);
   CheckInt16(0);
   CheckInt16(0);
   CheckInt16(0);
@@ -234,10 +234,10 @@ TEST_F(DndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckInt16(3);
   CheckInt16(4);
   CheckInt16(5);
-  CheckBinary("localhost:9041", TSDB_EP_LEN);
-  CheckBinary("localhost:9043", TSDB_EP_LEN);
-  CheckBinary("localhost:9044", TSDB_EP_LEN);
-  CheckBinary("localhost:9045", TSDB_EP_LEN);
+  CheckBinary("localhost:9023", TSDB_EP_LEN);
+  CheckBinary("localhost:9025", TSDB_EP_LEN);
+  CheckBinary("localhost:9026", TSDB_EP_LEN);
+  CheckBinary("localhost:9027", TSDB_EP_LEN);
   CheckInt16(0);
   CheckInt16(0);
   CheckInt16(0);
