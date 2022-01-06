@@ -45,9 +45,7 @@ IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, in
     return NULL;
   };
   cache->mem = indexInternalCacheCreate(type);
-
-  cache->colName = calloc(1, strlen(colName) + 1);
-  memcpy(cache->colName, colName, strlen(colName));
+  cache->colName = tstrdup(colName);
   cache->type = type;
   cache->index = idx;
   cache->version = 0;
@@ -187,8 +185,8 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
       break;
     } else if (cache->imm != NULL) {
       // TODO: wake up by condition variable
-      // pthread_mutex_unlock(&cache->mtx);
       pthread_cond_wait(&cache->finished, &cache->mtx);
+      // pthread_mutex_unlock(&cache->mtx);
       // taosMsleep(50);
       // pthread_mutex_lock(&cache->mtx);
     } else {
@@ -353,7 +351,7 @@ static MemTable* indexInternalCacheCreate(int8_t type) {
 static void doMergeWork(SSchedMsg* msg) {
   IndexCache* pCache = msg->ahandle;
   SIndex*     sidx = (SIndex*)pCache->index;
-  indexFlushCacheTFile(sidx, pCache);
+  indexFlushCacheToTFile(sidx, pCache);
 }
 static bool indexCacheIteratorNext(Iterate* itera) {
   SSkipListIterator* iter = itera->iter;
