@@ -57,27 +57,26 @@ int32_t mndInitTopic(SMnode *pMnode) {
 
 void mndCleanupTopic(SMnode *pMnode) {}
 
-static SSdbRaw *mndTopicActionEncode(STopicObj *pTopic) {
-  int32_t  size = sizeof(STopicObj) + MND_TOPIC_RESERVE_SIZE;
+SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
+  int32_t  size = sizeof(SMqTopicObj) + MND_TOPIC_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_TOPIC, MND_TOPIC_VER_NUMBER, size);
-  if (pRaw == NULL) goto TOPIC_ENCODE_OVER;
+  if (pRaw == NULL) goto WTF;
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pTopic->name, TSDB_TABLE_FNAME_LEN);
-  SDB_SET_BINARY(pRaw, dataPos, pTopic->db, TSDB_DB_FNAME_LEN);
-  SDB_SET_INT64(pRaw, dataPos, pTopic->createTime);
-  SDB_SET_INT64(pRaw, dataPos, pTopic->updateTime);
-  SDB_SET_INT64(pRaw, dataPos, pTopic->uid);
-  SDB_SET_INT64(pRaw, dataPos, pTopic->dbUid);
-  SDB_SET_INT32(pRaw, dataPos, pTopic->version);
-  SDB_SET_INT32(pRaw, dataPos, pTopic->execLen);
-  SDB_SET_BINARY(pRaw, dataPos, pTopic->executor, pTopic->execLen);
-  SDB_SET_INT32(pRaw, dataPos, pTopic->sqlLen);
-  SDB_SET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen);
+  SDB_SET_BINARY(pRaw, dataPos, pTopic->name, TSDB_TABLE_FNAME_LEN, WTF);
+  SDB_SET_BINARY(pRaw, dataPos, pTopic->db, TSDB_DB_FNAME_LEN, WTF);
+  SDB_SET_INT64(pRaw, dataPos, pTopic->createTime, WTF);
+  SDB_SET_INT64(pRaw, dataPos, pTopic->updateTime, WTF);
+  SDB_SET_INT64(pRaw, dataPos, pTopic->uid, WTF);
+  SDB_SET_INT64(pRaw, dataPos, pTopic->dbUid, WTF);
+  SDB_SET_INT32(pRaw, dataPos, pTopic->version, WTF);
+  SDB_SET_INT32(pRaw, dataPos, pTopic->sqlLen, WTF);
+  SDB_SET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, WTF);
 
-  SDB_SET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE);
-  SDB_SET_DATALEN(pRaw, dataPos);
+  SDB_SET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, WTF);
+  SDB_SET_DATALEN(pRaw, dataPos, WTF);
 
+WTF:
   return pRaw;
 }
 
@@ -109,9 +108,9 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pTopic->version, TOPIC_DECODE_OVER);
   SDB_GET_INT32(pRaw, dataPos, &pTopic->sqlLen, TOPIC_DECODE_OVER);
   SDB_GET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, TOPIC_DECODE_OVER);
-  SDB_GET_INT32(pRaw, dataPos, &len);
+  SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
   SDB_GET_BINARY(pRaw, dataPos, pTopic->logicalPlan, len, TOPIC_DECODE_OVER);
-  SDB_GET_INT32(pRaw, dataPos, &len);
+  SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
   SDB_GET_BINARY(pRaw, dataPos, pTopic->physicalPlan, len, TOPIC_DECODE_OVER);
 
   SDB_GET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_DECODE_OVER)
@@ -374,13 +373,11 @@ static int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTo
   int32_t numOfTopics = 0;
   void   *pIter = NULL;
   while (1) {
-    STopicObj *pTopic = NULL;
+    SMqTopicObj *pTopic = NULL;
     pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
     if (pIter == NULL) break;
 
-    if (strcmp(pTopic->db, dbName) == 0) {
-      numOfTopics++;
-    }
+    numOfTopics++;
 
     sdbRelease(pSdb, pTopic);
   }

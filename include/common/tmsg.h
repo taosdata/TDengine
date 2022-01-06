@@ -1192,7 +1192,7 @@ typedef struct {
   char*   physicalPlan;
 } SMVSubscribeReq;
 
-static FORCE_INLINE int tSerializeSMVSubscribeReq(void* buf, SMVSubscribeReq* pReq) {
+static FORCE_INLINE int tSerializeSMVSubscribeReq(void** buf, SMVSubscribeReq* pReq) {
   int tlen = 0;
   tlen += taosEncodeFixedI64(buf, pReq->topicId);
   tlen += taosEncodeFixedI64(buf, pReq->consumerId);
