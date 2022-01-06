@@ -388,7 +388,7 @@ static int32_t dndWriteVnodesToFile(SDnode *pDnode) {
     free(pVnodes);
   }
 
-  dInfo("successed to write %s", file);
+  dDebug("successed to write %s", realfile);
   return taosRenameFile(file, realfile);
 }
 

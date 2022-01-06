@@ -302,7 +302,7 @@ typedef struct {
   char    app[TSDB_APP_NAME_LEN];
   char    db[TSDB_DB_NAME_LEN];
   int64_t startTime;
-} SConnectMsg;
+} SConnectReq;
 
 typedef struct SEpSet {
   int8_t   inUse;
@@ -650,6 +650,7 @@ typedef struct {
   int32_t     sver;
   int32_t     dnodeId;
   int64_t     clusterId;
+  int64_t     dver;
   int64_t     rebootTime;
   int64_t     updateTime;
   int32_t     numOfCores;
@@ -657,7 +658,7 @@ typedef struct {
   char        dnodeEp[TSDB_EP_LEN];
   SClusterCfg clusterCfg;
   SVnodeLoads vnodeLoads;
-} SStatusMsg;
+} SStatusReq;
 
 typedef struct {
   int32_t reserved;
@@ -682,6 +683,7 @@ typedef struct {
 } SDnodeEps;
 
 typedef struct {
+  int64_t   dver;
   SDnodeCfg dnodeCfg;
   SDnodeEps dnodeEps;
 } SStatusRsp;
@@ -833,16 +835,16 @@ typedef struct SShowRsp {
 typedef struct {
   char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
   int32_t port;
-} SCreateDnodeMsg;
+} SCreateDnodeReq;
 
 typedef struct {
   int32_t dnodeId;
-} SDropDnodeMsg;
+} SDropDnodeReq;
 
 typedef struct {
   int32_t dnodeId;
   char    config[TSDB_DNODE_CONFIG_LEN];
-} SCfgDnodeMsg;
+} SMCfgDnodeReq, SDCfgDnodeReq;
 
 typedef struct {
   int32_t dnodeId;
@@ -898,7 +900,7 @@ typedef struct {
   int32_t numOfStreams;
   char    app[TSDB_APP_NAME_LEN];
   char    pData[];
-} SHeartBeatMsg;
+} SHeartBeatReq;
 
 typedef struct {
   int32_t connId;
@@ -913,17 +915,12 @@ typedef struct {
 
 typedef struct {
   int32_t connId;
-  int32_t streamId;
-} SKillStreamMsg;
-
-typedef struct {
-  int32_t connId;
   int32_t queryId;
-} SKillQueryMsg;
+} SKillQueryReq;
 
 typedef struct {
   int32_t connId;
-} SKillConnMsg;
+} SKillConnReq;
 
 typedef struct {
   char user[TSDB_USER_LEN];

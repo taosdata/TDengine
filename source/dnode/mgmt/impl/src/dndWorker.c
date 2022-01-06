@@ -101,7 +101,9 @@ int32_t dndWriteMsgToWorker(SDnodeWorker *pWorker, void *pCont, int32_t contLen)
   }
 
   if (taosWriteQitem(pWorker->queue, pMsg) != 0) {
-    taosFreeQitem(pMsg);
+    if (contLen != 0) {
+      taosFreeQitem(pMsg);
+    }
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }

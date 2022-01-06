@@ -15,25 +15,20 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
 #include "taos.h"
-#include "taosdef.h"
 #include "taoserror.h"
-#include "thash.h"
-#include "tutil.h"
 #include "ulog.h"
 
-#define MAX_RANDOM_POINTS 20000
 #define GREEN "\033[1;32m"
 #define NC "\033[0m"
 
 char    dbName[32] = "db";
 char    stbName[64] = "st";
-int32_t numOfThreads = 2;
+int32_t numOfThreads = 1;
 int32_t numOfTables = 10000;
 int32_t createTable = 1;
 int32_t insertData = 0;
-int32_t batchNum = 1;
+int32_t batchNum = 10;
 int32_t numOfVgroups = 2;
 
 typedef struct {
@@ -47,11 +42,11 @@ typedef struct {
   pthread_t thread;
 } SThreadInfo;
 
-void  parseArgument(int argc, char *argv[]);
+void  parseArgument(int32_t argc, char *argv[]);
 void *threadFunc(void *param);
 void  createDbAndStb();
 
-int main(int argc, char *argv[]) {
+int32_t main(int32_t argc, char *argv[]) {
   parseArgument(argc, argv);
   createDbAndStb();
 
@@ -64,7 +59,7 @@ int main(int argc, char *argv[]) {
 
   int32_t numOfTablesPerThread = numOfTables / numOfThreads;
   numOfTables = numOfTablesPerThread * numOfThreads;
-  for (int i = 0; i < numOfThreads; ++i) {
+  for (int32_t i = 0; i < numOfThreads; ++i) {
     pInfo[i].tableBeginIndex = i * numOfTablesPerThread;
     pInfo[i].tableEndIndex = (i + 1) * numOfTablesPerThread;
     pInfo[i].threadIndex = i;
@@ -74,17 +69,17 @@ int main(int argc, char *argv[]) {
   }
 
   taosMsleep(300);
-  for (int i = 0; i < numOfThreads; i++) {
+  for (int32_t i = 0; i < numOfThreads; i++) {
     pthread_join(pInfo[i].thread, NULL);
   }
 
   float createTableSpeed = 0;
-  for (int i = 0; i < numOfThreads; ++i) {
+  for (int32_t i = 0; i < numOfThreads; ++i) {
     createTableSpeed += pInfo[i].createTableSpeed;
   }
 
   float insertDataSpeed = 0;
-  for (int i = 0; i < numOfThreads; ++i) {
+  for (int32_t i = 0; i < numOfThreads; ++i) {
     insertDataSpeed += pInfo[i].insertDataSpeed;
   }
 
@@ -137,8 +132,8 @@ void createDbAndStb() {
 
 void *threadFunc(void *param) {
   SThreadInfo *pInfo = (SThreadInfo *)param;
-  char         qstr[65000];
-  int          code;
+  char        *qstr = malloc(2000 * 1000);
+  int32_t      code = 0;
 
   TAOS *con = taos_connect(NULL, "root", "taosdata", NULL, 0);
   if (con == NULL) {
@@ -153,7 +148,13 @@ void *threadFunc(void *param) {
   if (createTable) {
     int64_t startMs = taosGetTimestampMs();
     for (int32_t t = pInfo->tableBeginIndex; t < pInfo->tableEndIndex; ++t) {
-      sprintf(qstr, "create table t%d using %s tags(%d)", t, stbName, t);
+      int32_t batch = (pInfo->tableEndIndex - t);
+      batch = MIN(batch, batchNum);
+
+      int32_t len = sprintf(qstr, "create table");
+      for (int32_t i = 0; i < batch; ++i) {
+        len += sprintf(qstr + len, " t%d using %s tags(%d)", t + i, stbName, t + i);
+      }
       TAOS_RES *pSql = taos_query(con, qstr);
       code = taos_errno(pSql);
       if (code != 0) {
@@ -189,6 +190,7 @@ void *threadFunc(void *param) {
   }
 
   taos_close(con);
+  free(qstr);
   return 0;
 }
 
@@ -218,8 +220,8 @@ void printHelp() {
   exit(EXIT_SUCCESS);
 }
 
-void parseArgument(int argc, char *argv[]) {
-  for (int i = 1; i < argc; i++) {
+void parseArgument(int32_t argc, char *argv[]) {
+  for (int32_t i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
       printHelp();
       exit(0);
