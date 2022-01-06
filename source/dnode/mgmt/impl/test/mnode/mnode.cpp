@@ -99,9 +99,9 @@ TEST_F(DndTestMnode, 03_Create_Mnode_Invalid_Id) {
 TEST_F(DndTestMnode, 04_Create_Mnode) {
   {
     // create dnode
-    int32_t contLen = sizeof(SCreateDnodeMsg);
+    int32_t contLen = sizeof(SCreateDnodeReq);
 
-    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
+    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
     strcpy(pReq->fqdn, "localhost");
     pReq->port = htonl(9062);
 
@@ -165,9 +165,9 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
   }
 }
 // {
-//   int32_t contLen = sizeof(SDropDnodeMsg);
+//   int32_t contLen = sizeof(SDropDnodeReq);
 
-//   SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(contLen);
+//   SDropDnodeReq* pReq = (SDropDnodeReq*)rpcMallocCont(contLen);
 //   pReq->dnodeId = htonl(2);
 
 //   SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DNODE, pReq, contLen);
@@ -189,9 +189,9 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 // CheckBinary("", 24);
 
 // {
-//   int32_t contLen = sizeof(SCreateDnodeMsg);
+//   int32_t contLen = sizeof(SCreateDnodeReq);
 
-//   SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
+//   SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
 //   strcpy(pReq->ep, "localhost:9063");
 
 //   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
@@ -200,9 +200,9 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 // }
 
 // {
-//   int32_t contLen = sizeof(SCreateDnodeMsg);
+//   int32_t contLen = sizeof(SCreateDnodeReq);
 
-//   SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
+//   SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
 //   strcpy(pReq->ep, "localhost:9064");
 
 //   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
@@ -211,9 +211,9 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 // }
 
 // {
-//   int32_t contLen = sizeof(SCreateDnodeMsg);
+//   int32_t contLen = sizeof(SCreateDnodeReq);
 
-//   SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
+//   SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
 //   strcpy(pReq->ep, "localhost:9065");
 
 //   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);

@@ -47,17 +47,17 @@ static int32_t  mndDnodeActionInsert(SSdb *pSdb, SDnodeObj *pDnode);
 static int32_t  mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode);
 static int32_t  mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOldDnode, SDnodeObj *pNewDnode);
 
-static int32_t mndProcessCreateDnodeMsg(SMnodeMsg *pMsg);
-static int32_t mndProcessDropDnodeMsg(SMnodeMsg *pMsg);
-static int32_t mndProcessConfigDnodeMsg(SMnodeMsg *pMsg);
-static int32_t mndProcessConfigDnodeRsp(SMnodeMsg *pMsg);
-static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg);
+static int32_t mndProcessCreateDnodeReq(SMnodeMsg *pReq);
+static int32_t mndProcessDropDnodeReq(SMnodeMsg *pReq);
+static int32_t mndProcessConfigDnodeReq(SMnodeMsg *pReq);
+static int32_t mndProcessConfigDnodeRsp(SMnodeMsg *pRsp);
+static int32_t mndProcessStatusReq(SMnodeMsg *pReq);
 
-static int32_t mndGetConfigMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
-static int32_t mndRetrieveConfigs(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta);
+static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
-static int32_t mndGetDnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
-static int32_t mndRetrieveDnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndGetDnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta);
+static int32_t mndRetrieveDnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitDnode(SMnode *pMnode) {
@@ -70,11 +70,11 @@ int32_t mndInitDnode(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndDnodeActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndDnodeActionDelete};
 
-  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_DNODE, mndProcessCreateDnodeMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_DNODE, mndProcessDropDnodeMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_DNODE, mndProcessCreateDnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_DNODE, mndProcessDropDnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusReq);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_VARIABLES, mndGetConfigMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VARIABLES, mndRetrieveConfigs);
@@ -299,7 +299,7 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
   return 0;
 }
 
-static void mndParseStatusMsg(SStatusMsg *pStatus) {
+static void mndParseStatusMsg(SStatusReq *pStatus) {
   pStatus->sver = htonl(pStatus->sver);
   pStatus->dnodeId = htonl(pStatus->dnodeId);
   pStatus->clusterId = htobe64(pStatus->clusterId);
@@ -311,9 +311,9 @@ static void mndParseStatusMsg(SStatusMsg *pStatus) {
   pStatus->clusterCfg.checkTime = htobe64(pStatus->clusterCfg.checkTime);
 }
 
-static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg) {
-  SMnode     *pMnode = pMsg->pMnode;
-  SStatusMsg *pStatus = pMsg->rpcMsg.pCont;
+static int32_t mndProcessStatusReq(SMnodeMsg *pReq) {
+  SMnode     *pMnode = pReq->pMnode;
+  SStatusReq *pStatus = pReq->rpcMsg.pCont;
   SDnodeObj  *pDnode = NULL;
   int32_t     code = -1;
 
@@ -397,8 +397,8 @@ static int32_t mndProcessStatusMsg(SMnodeMsg *pMsg) {
     pRsp->dnodeCfg.clusterId = htobe64(pMnode->clusterId);
     mndGetDnodeData(pMnode, &pRsp->dnodeEps, numOfEps);
 
-    pMsg->contLen = contLen;
-    pMsg->pCont = pRsp;
+    pReq->contLen = contLen;
+    pReq->pCont = pRsp;
   }
 
   pDnode->lastAccessTime = curMs;
@@ -409,7 +409,7 @@ PROCESS_STATUS_MSG_OVER:
   return code;
 }
 
-static int32_t mndCreateDnode(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDnodeMsg *pCreate) {
+static int32_t mndCreateDnode(SMnode *pMnode, SMnodeMsg *pReq, SCreateDnodeReq *pCreate) {
   SDnodeObj dnodeObj = {0};
   dnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_DNODE);
   dnodeObj.createdTime = taosGetTimestampMs();
@@ -418,7 +418,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDnodeMsg *
   memcpy(dnodeObj.fqdn, pCreate->fqdn, TSDB_FQDN_LEN);
   snprintf(dnodeObj.ep, TSDB_EP_LEN, "%s:%u", dnodeObj.fqdn, dnodeObj.port);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("dnode:%s, failed to create since %s", dnodeObj.ep, terrstr());
     return -1;
@@ -443,9 +443,9 @@ static int32_t mndCreateDnode(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDnodeMsg *
   return 0;
 }
 
-static int32_t mndProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
-  SMnode          *pMnode = pMsg->pMnode;
-  SCreateDnodeMsg *pCreate = pMsg->rpcMsg.pCont;
+static int32_t mndProcessCreateDnodeReq(SMnodeMsg *pReq) {
+  SMnode          *pMnode = pReq->pMnode;
+  SCreateDnodeReq *pCreate = pReq->rpcMsg.pCont;
   pCreate->port = htonl(pCreate->port);
   mDebug("dnode:%s:%d, start to create", pCreate->fqdn, pCreate->port);
 
@@ -465,7 +465,7 @@ static int32_t mndProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  int32_t code = mndCreateDnode(pMnode, pMsg, pCreate);
+  int32_t code = mndCreateDnode(pMnode, pReq, pCreate);
 
   if (code != 0) {
     mError("dnode:%s:%d, failed to create since %s", pCreate->fqdn, pCreate->port, terrstr());
@@ -475,8 +475,8 @@ static int32_t mndProcessCreateDnodeMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndDropDnode(SMnode *pMnode, SMnodeMsg *pMsg, SDnodeObj *pDnode) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
+static int32_t mndDropDnode(SMnode *pMnode, SMnodeMsg *pReq, SDnodeObj *pDnode) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("dnode:%d, failed to drop since %s", pDnode->id, terrstr());
     return -1;
@@ -501,9 +501,9 @@ static int32_t mndDropDnode(SMnode *pMnode, SMnodeMsg *pMsg, SDnodeObj *pDnode) 
   return 0;
 }
 
-static int32_t mndProcessDropDnodeMsg(SMnodeMsg *pMsg) {
-  SMnode        *pMnode = pMsg->pMnode;
-  SDropDnodeMsg *pDrop = pMsg->rpcMsg.pCont;
+static int32_t mndProcessDropDnodeReq(SMnodeMsg *pReq) {
+  SMnode        *pMnode = pReq->pMnode;
+  SDropDnodeReq *pDrop = pReq->rpcMsg.pCont;
   pDrop->dnodeId = htonl(pDrop->dnodeId);
 
   mDebug("dnode:%d, start to drop", pDrop->dnodeId);
@@ -521,7 +521,7 @@ static int32_t mndProcessDropDnodeMsg(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  int32_t code = mndDropDnode(pMnode, pMsg, pDnode);
+  int32_t code = mndDropDnode(pMnode, pReq, pDnode);
   if (code != 0) {
     mndReleaseDnode(pMnode, pDnode);
     mError("dnode:%d, failed to drop since %s", pDrop->dnodeId, terrstr());
@@ -532,9 +532,9 @@ static int32_t mndProcessDropDnodeMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessConfigDnodeMsg(SMnodeMsg *pMsg) {
-  SMnode       *pMnode = pMsg->pMnode;
-  SCfgDnodeMsg *pCfg = pMsg->rpcMsg.pCont;
+static int32_t mndProcessConfigDnodeReq(SMnodeMsg *pReq) {
+  SMnode        *pMnode = pReq->pMnode;
+  SMCfgDnodeReq *pCfg = pReq->rpcMsg.pCont;
   pCfg->dnodeId = htonl(pCfg->dnodeId);
 
   SDnodeObj *pDnode = mndAcquireDnode(pMnode, pCfg->dnodeId);
@@ -547,14 +547,14 @@ static int32_t mndProcessConfigDnodeMsg(SMnodeMsg *pMsg) {
   SEpSet epSet = mndGetDnodeEpset(pDnode);
   mndReleaseDnode(pMnode, pDnode);
 
-  SCfgDnodeMsg *pCfgDnode = rpcMallocCont(sizeof(SCfgDnodeMsg));
+  SDCfgDnodeReq *pCfgDnode = rpcMallocCont(sizeof(SDCfgDnodeReq));
   pCfgDnode->dnodeId = htonl(pCfg->dnodeId);
   memcpy(pCfgDnode->config, pCfg->config, TSDB_DNODE_CONFIG_LEN);
 
   SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE,
                     .pCont = pCfgDnode,
-                    .contLen = sizeof(SCfgDnodeMsg),
-                    .ahandle = pMsg->rpcMsg.ahandle};
+                    .contLen = sizeof(SDCfgDnodeReq),
+                    .ahandle = pReq->rpcMsg.ahandle};
 
   mInfo("dnode:%d, app:%p config:%s req send to dnode", pCfg->dnodeId, rpcMsg.ahandle, pCfg->config);
   mndSendReqToDnode(pMnode, &epSet, &rpcMsg);
@@ -562,11 +562,11 @@ static int32_t mndProcessConfigDnodeMsg(SMnodeMsg *pMsg) {
   return 0;
 }
 
-static int32_t mndProcessConfigDnodeRsp(SMnodeMsg *pMsg) {
-  mInfo("app:%p config rsp from dnode", pMsg->rpcMsg.ahandle);
+static int32_t mndProcessConfigDnodeRsp(SMnodeMsg *pRsp) {
+  mInfo("app:%p config rsp from dnode", pRsp->rpcMsg.ahandle);
 }
 
-static int32_t mndGetConfigMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
+static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta) {
   int32_t  cols = 0;
   SSchema *pSchema = pMeta->pSchema;
 
@@ -597,8 +597,8 @@ static int32_t mndGetConfigMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg 
   return 0;
 }
 
-static int32_t mndRetrieveConfigs(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode *pMnode = pMsg->pMnode;
+static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode *pMnode = pReq->pMnode;
   int32_t numOfRows = 0;
   char   *cfgOpts[TSDB_CONFIG_NUMBER] = {0};
   char    cfgVals[TSDB_CONFIG_NUMBER][TSDB_CONIIG_VALUE_LEN + 1] = {0};
@@ -640,8 +640,8 @@ static int32_t mndRetrieveConfigs(SMnodeMsg *pMsg, SShowObj *pShow, char *data, 
 
 static void mndCancelGetNextConfig(SMnode *pMnode, void *pIter) {}
 
-static int32_t mndGetDnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
-  SMnode *pMnode = pMsg->pMnode;
+static int32_t mndGetDnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta) {
+  SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
@@ -704,8 +704,8 @@ static int32_t mndGetDnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
   return 0;
 }
 
-static int32_t mndRetrieveDnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode    *pMnode = pMsg->pMnode;
+static int32_t mndRetrieveDnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode    *pMnode = pReq->pMnode;
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
   int32_t    cols = 0;

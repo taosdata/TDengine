@@ -1192,13 +1192,13 @@ int32_t tscBuildCreateFuncMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 int32_t tscBuildCreateDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
-  pCmd->payloadLen = sizeof(SCreateDnodeMsg);
+  pCmd->payloadLen = sizeof(SCreateDnodeReq);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *)pCmd->payload;
+  SCreateDnodeReq *pCreate = (SCreateDnodeReq *)pCmd->payload;
 
   SStrToken* t0 = taosArrayGet(pInfo->pMiscInfo->a, 0);
   strncpy(pCreate->ep, t0->z, t0->n);
@@ -1287,7 +1287,7 @@ int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 int32_t tscBuildCfgDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
-  pCmd->payloadLen = sizeof(SCfgDnodeMsg);
+  pCmd->payloadLen = sizeof(SMCfgDnodeReq);
   pCmd->msgType = TDMT_MND_CONFIG_DNODE;
   return TSDB_CODE_SUCCESS;
 }
@@ -1350,13 +1350,13 @@ int32_t tscBuildDropDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   char dnodeEp[TSDB_EP_LEN] = {0};
   tstrncpy(dnodeEp, pCmd->payload, TSDB_EP_LEN);
 
-  pCmd->payloadLen = sizeof(SDropDnodeMsg);
+  pCmd->payloadLen = sizeof(SDropDnodeReq);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
     tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SDropDnodeMsg * pDrop = (SDropDnodeMsg *)pCmd->payload;
+  SDropDnodeReq * pDrop = (SDropDnodeReq *)pCmd->payload;
   tstrncpy(pDrop->ep, dnodeEp, tListLen(pDrop->ep));
   pCmd->msgType = TDMT_MND_DROP_DNODE;
 

@@ -657,7 +657,7 @@ typedef struct {
   char        dnodeEp[TSDB_EP_LEN];
   SClusterCfg clusterCfg;
   SVnodeLoads vnodeLoads;
-} SStatusMsg;
+} SStatusReq;
 
 typedef struct {
   int32_t reserved;
@@ -833,16 +833,16 @@ typedef struct SShowRsp {
 typedef struct {
   char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
   int32_t port;
-} SCreateDnodeMsg;
+} SCreateDnodeReq;
 
 typedef struct {
   int32_t dnodeId;
-} SDropDnodeMsg;
+} SDropDnodeReq;
 
 typedef struct {
   int32_t dnodeId;
   char    config[TSDB_DNODE_CONFIG_LEN];
-} SCfgDnodeMsg;
+} SMCfgDnodeReq, SDCfgDnodeReq;
 
 typedef struct {
   int32_t dnodeId;

@@ -355,9 +355,9 @@ static int32_t dndWriteDnodes(SDnode *pDnode) {
 }
 
 void dndSendStatusReq(SDnode *pDnode) {
-  int32_t contLen = sizeof(SStatusMsg) + TSDB_MAX_VNODES * sizeof(SVnodeLoad);
+  int32_t contLen = sizeof(SStatusReq) + TSDB_MAX_VNODES * sizeof(SVnodeLoad);
 
-  SStatusMsg *pStatus = rpcMallocCont(contLen);
+  SStatusReq *pStatus = rpcMallocCont(contLen);
   if (pStatus == NULL) {
     dError("failed to malloc status message");
     return;
@@ -385,7 +385,7 @@ void dndSendStatusReq(SDnode *pDnode) {
   taosRUnLockLatch(&pMgmt->latch);
 
   dndGetVnodeLoads(pDnode, &pStatus->vnodeLoads);
-  contLen = sizeof(SStatusMsg) + pStatus->vnodeLoads.num * sizeof(SVnodeLoad);
+  contLen = sizeof(SStatusReq) + pStatus->vnodeLoads.num * sizeof(SVnodeLoad);
 
   SRpcMsg rpcMsg = {.pCont = pStatus, .contLen = contLen, .msgType = TDMT_MND_STATUS, .ahandle = (void *)9527};
   pMgmt->statusSent = 1;
@@ -464,7 +464,7 @@ static void dndProcessGrantRsp(SDnode *pDnode, SRpcMsg *pMsg) { assert(1); }
 
 static int32_t dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pMsg) {
   dError("config msg is received, but not supported yet");
-  SCfgDnodeMsg *pCfg = pMsg->pCont;
+  SDCfgDnodeReq *pCfg = pMsg->pCont;
 
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }

@@ -75,9 +75,9 @@ TEST_F(MndTestDnode, 01_ShowDnode) {
 }
 
 TEST_F(MndTestDnode, 02_ConfigDnode) {
-  int32_t contLen = sizeof(SCfgDnodeMsg);
+  int32_t contLen = sizeof(SMCfgDnodeReq);
 
-  SCfgDnodeMsg* pReq = (SCfgDnodeMsg*)rpcMallocCont(contLen);
+  SMCfgDnodeReq* pReq = (SMCfgDnodeReq*)rpcMallocCont(contLen);
   pReq->dnodeId = htonl(1);
   strcpy(pReq->config, "ddebugflag 131");
 
@@ -88,9 +88,9 @@ TEST_F(MndTestDnode, 02_ConfigDnode) {
 
 TEST_F(MndTestDnode, 03_Create_Drop_Restart_Dnode) {
   {
-    int32_t contLen = sizeof(SCreateDnodeMsg);
+    int32_t contLen = sizeof(SCreateDnodeReq);
 
-    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
+    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
     strcpy(pReq->fqdn, "localhost");
     pReq->port = htonl(9024);
 
@@ -122,9 +122,9 @@ TEST_F(MndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckBinary("", 24);
 
   {
-    int32_t contLen = sizeof(SDropDnodeMsg);
+    int32_t contLen = sizeof(SDropDnodeReq);
 
-    SDropDnodeMsg* pReq = (SDropDnodeMsg*)rpcMallocCont(contLen);
+    SDropDnodeReq* pReq = (SDropDnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DNODE, pReq, contLen);
@@ -146,9 +146,9 @@ TEST_F(MndTestDnode, 03_Create_Drop_Restart_Dnode) {
   CheckBinary("", 24);
 
   {
-    int32_t contLen = sizeof(SCreateDnodeMsg);
+    int32_t contLen = sizeof(SCreateDnodeReq);
 
-    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
+    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
     strcpy(pReq->fqdn, "localhost");
     pReq->port = htonl(9025);
 
@@ -158,9 +158,9 @@ TEST_F(MndTestDnode, 03_Create_Drop_Restart_Dnode) {
   }
 
   {
-    int32_t contLen = sizeof(SCreateDnodeMsg);
+    int32_t contLen = sizeof(SCreateDnodeReq);
 
-    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
+    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
     strcpy(pReq->fqdn, "localhost");
     pReq->port = htonl(9026);
 
@@ -170,9 +170,9 @@ TEST_F(MndTestDnode, 03_Create_Drop_Restart_Dnode) {
   }
 
   {
-    int32_t contLen = sizeof(SCreateDnodeMsg);
+    int32_t contLen = sizeof(SCreateDnodeReq);
 
-    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
+    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
     strcpy(pReq->fqdn, "localhost");
     pReq->port = htonl(9027);
 

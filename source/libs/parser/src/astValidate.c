@@ -3819,7 +3819,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
       char* pMsg = pCmd->payload;
 
-      SCfgDnodeMsg* pCfg = (SCfgDnodeMsg*)pMsg;
+      SMCfgDnodeReq* pCfg = (SMCfgDnodeReq*)pMsg;
 
       SToken* t0 = taosArrayGet(pMiscInfo->a, 0);
       SToken* t1 = taosArrayGet(pMiscInfo->a, 1);
