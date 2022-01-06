@@ -2782,6 +2782,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
     tscSetResRawPtr(pRes, pQueryInfo, pRes->dataConverted);
   }
 
+  int32_t subDataLen = 0;
   if (pSql->pSubscription != NULL) {
     int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
 
@@ -2800,6 +2801,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
       p += sizeof(TSKEY);
       tscUpdateSubscriptionProgress(pSql->pSubscription, uid, key);
     }
+    subDataLen =  sizeof(int32_t) + numOfTables * sizeof(STableIdInfo);
   }
 
   pRes->row = 0;
@@ -2807,13 +2809,11 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
       pRes->completed, pRes->qId);
 
   int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
-  int32_t rowBytes = 0;
-  for (int i = 0; i < numOfCols; ++i) {
-    SInternalField* internalField = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i);
-    rowBytes += internalField->field.bytes;
-  }
-  int32_t origSize  = rowBytes * pRes->numOfRows;
-  int32_t compSize  = htonl(pRetrieve->compLen) + numOfCols * sizeof(int32_t);
+  TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
+  int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
+  int32_t rowBytes = offset + pField->bytes;
+  int32_t origSize  = rowBytes * pRes->numOfRows + subDataLen;
+  int32_t compSize  = htonl(pRetrieve->compLen) + numOfCols * sizeof(int32_t) + subDataLen;
   int32_t dataLen = (pRetrieve->compressed) ? compSize : origSize;
   if (pRetrieve->extend == 1) {
     STLV* tlv = (STLV*)(pRetrieve->data + dataLen);
