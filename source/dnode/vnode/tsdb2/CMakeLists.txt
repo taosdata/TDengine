@@ -1,0 +1,18 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 3.0...3.20)
+PROJECT(TDengine)
+
+INCLUDE_DIRECTORIES(inc)
+INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/query/inc)
+INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/cJson/inc)
+AUX_SOURCE_DIRECTORY(src SRC)
+ADD_LIBRARY(tsdb ${SRC})
+TARGET_LINK_LIBRARIES(tsdb tfs common tutil cJson)
+
+IF (TD_TSDB_PLUGINS)
+  TARGET_LINK_LIBRARIES(tsdb tsdbPlugins)
+ENDIF ()
+
+IF (TD_LINUX)
+  # Someone has no gtest directory, so comment it
+  # ADD_SUBDIRECTORY(tests)
+ENDIF ()
