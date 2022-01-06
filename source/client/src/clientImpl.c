@@ -535,9 +535,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       int64_t  transporterId = 0;
       STscObj *pTscObj = pRequest->pTscObj;
       asyncSendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
-
       tsem_wait(&pRequest->body.rspSem);
-      destroySendMsgInfo(body);
 
       pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
     }
