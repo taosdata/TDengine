@@ -16,15 +16,6 @@
 #ifndef _TD_TSDB_INT_H_
 #define _TD_TSDB_INT_H_
 
-// // TODO: remove the include
-// #include <errno.h>
-// #include <fcntl.h>
-// #include <limits.h>
-// #include <inttypes.h>
-// #include <sys/stat.h>
-// #include <sys/types.h>
-// #include <semaphore.h>
-// #include <dirent.h>
 
 #include "os.h"
 #include "tlog.h"
@@ -34,13 +25,13 @@
 #include "tskiplist.h"
 #include "tdataformat.h"
 #include "tcoding.h"
-#include "tscompression.h"
+#include "tcompression.h"
 #include "tlockfree.h"
 #include "tlist.h"
-#include "hash.h"
+#include "thash.h"
 #include "tarray.h"
 #include "tfs.h"
-#include "tsocket.h"
+#include "tsdbMemory.h"
 
 #include "tsdb.h"
 

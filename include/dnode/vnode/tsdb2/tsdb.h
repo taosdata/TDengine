@@ -20,11 +20,11 @@
 #include <stdint.h>
 
 #include "taosdef.h"
-#include "taosmsg.h"
+#include "tmsg.h"
 #include "tarray.h"
 #include "tdataformat.h"
 #include "tname.h"
-#include "hash.h"
+#include "thash.h"
 #include "tlockfree.h"
 #include "tlist.h"
 
@@ -45,6 +45,16 @@ extern "C" {
 #define TSDB_STATE_OK 0x0
 #define TSDB_STATE_BAD_META 0x1
 #define TSDB_STATE_BAD_DATA 0x2
+
+typedef struct SDataStatis {
+  int16_t colId;
+  int64_t sum;
+  int64_t max;
+  int64_t min;
+  int16_t maxIndex;
+  int16_t minIndex;
+  int16_t numOfNull;
+} SDataStatis;
 
 // --------- TSDB APPLICATION HANDLE DEFINITION
 typedef struct {

@@ -16,7 +16,10 @@
 #ifndef _TD_TSDB_HEALTH_H_
 #define _TD_TSDB_HEALTH_H_
 
-bool tsdbUrgeQueryFree(STsdbRepo* pRepo);
+#include "os.h"
+#include "tsdb.h"
+
+bool    tsdbUrgeQueryFree(STsdbRepo* pRepo);
 int32_t tsdbInsertNewBlock(STsdbRepo* pRepo);
 
 bool tsdbIdleMemEnough();

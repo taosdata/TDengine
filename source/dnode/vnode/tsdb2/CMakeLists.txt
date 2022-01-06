@@ -3,7 +3,7 @@ add_library(tsdb STATIC ${TSDB_SRC})
 
 target_include_directories(
     tsdb
-    PUBLIC "${CMAKE_SOURCE_DIR}/include/dnode/vnode/tsdb"
+    PUBLIC "${CMAKE_SOURCE_DIR}/include/dnode/vnode/tsdb2"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(tsdb os util common tfs)

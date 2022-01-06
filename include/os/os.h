@@ -27,6 +27,7 @@ extern "C" {
 #include <fcntl.h>
 #include <float.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <locale.h>
 #include <math.h>
 #include <regex.h>
