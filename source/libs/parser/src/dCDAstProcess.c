@@ -339,7 +339,6 @@ static int32_t doParseSerializeTagValue(SSchema* pTagSchema, int32_t numOfInputT
     code = parseValueToken(&endPtr, pItem, pSchema, tsPrecision, tmpTokenBuf, KvRowAppend, &param, pMsgBuf);
 
     if (code != TSDB_CODE_SUCCESS) {
-      tdDestroyKVRowBuilder(pKvRowBuilder);
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
   }
@@ -393,6 +392,9 @@ static int32_t doCheckAndBuildCreateCTableReq(SCreateTableSql* pCreateTable, SPa
   const char* msg3 = "tag value too long";
   const char* msg4 = "illegal value or data overflow";
 
+  int32_t code = 0;
+  STableMeta* pSuperTableMeta = NULL;
+
   SHashObj* pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
 
   // super table name, create table by using dst
@@ -401,29 +403,30 @@ static int32_t doCheckAndBuildCreateCTableReq(SCreateTableSql* pCreateTable, SPa
     SCreatedTableInfo* pCreateTableInfo = taosArrayGet(pCreateTable->childTableInfo, j);
 
     SToken* pSTableNameToken = &pCreateTableInfo->stbName;
-    int32_t code = parserValidateNameToken(pSTableNameToken);
+    code = parserValidateNameToken(pSTableNameToken);
     if (code != TSDB_CODE_SUCCESS) {
-      return buildInvalidOperationMsg(pMsgBuf, msg1);
+      code = buildInvalidOperationMsg(pMsgBuf, msg1);
+      goto _error;
     }
 
     SName name = {0};
     code = createSName(&name, pSTableNameToken, pCtx, pMsgBuf);
     if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      goto _error;
     }
 
     SKVRowBuilder kvRowBuilder = {0};
     if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      goto _error;
     }
 
     SArray* pValList = pCreateTableInfo->pTagVals;
     size_t  numOfInputTag = taosArrayGetSize(pValList);
 
-    STableMeta* pSuperTableMeta = NULL;
     code = catalogGetTableMeta(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, &name, &pSuperTableMeta);
     if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      goto _error;
     }
 
     assert(pSuperTableMeta != NULL);
@@ -442,8 +445,8 @@ static int32_t doCheckAndBuildCreateCTableReq(SCreateTableSql* pCreateTable, SPa
 
       if (numOfInputTag != numOfBoundTags || schemaSize < numOfInputTag) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
-        tfree(pSuperTableMeta);
-        return buildInvalidOperationMsg(pMsgBuf, msg2);
+        code = buildInvalidOperationMsg(pMsgBuf, msg2);
+        goto _error;
       }
 
       bool findColumnIndex = false;
@@ -475,8 +478,8 @@ static int32_t doCheckAndBuildCreateCTableReq(SCreateTableSql* pCreateTable, SPa
             if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
               if (pItem->pVar.nLen > pSchema->bytes) {
                 tdDestroyKVRowBuilder(&kvRowBuilder);
-                tfree(pSuperTableMeta);
-                return buildInvalidOperationMsg(pMsgBuf, msg3);
+                code = buildInvalidOperationMsg(pMsgBuf, msg3);
+                goto _error;
               }
             } else if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
               if (pItem->pVar.nType == TSDB_DATA_TYPE_BINARY) {
@@ -492,19 +495,19 @@ static int32_t doCheckAndBuildCreateCTableReq(SCreateTableSql* pCreateTable, SPa
             code = taosVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
 
             // check again after the convert since it may be converted from binary to nchar.
-            if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
+            if (IS_VAR_DATA_TYPE(pSchema->type)) {
               int16_t len = varDataTLen(tagVal);
               if (len > pSchema->bytes) {
                 tdDestroyKVRowBuilder(&kvRowBuilder);
-                tfree(pSuperTableMeta);
-                return buildInvalidOperationMsg(pMsgBuf, msg3);
+                code = buildInvalidOperationMsg(pMsgBuf, msg3);
+                goto _error;
               }
             }
 
             if (code != TSDB_CODE_SUCCESS) {
               tdDestroyKVRowBuilder(&kvRowBuilder);
-              tfree(pSuperTableMeta);
-              return buildInvalidOperationMsg(pMsgBuf, msg4);
+              code = buildInvalidOperationMsg(pMsgBuf, msg4);
+              goto _error;
             }
 
             tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal);
@@ -522,23 +525,22 @@ static int32_t doCheckAndBuildCreateCTableReq(SCreateTableSql* pCreateTable, SPa
     } else {
       if (schemaSize != numOfInputTag) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
-        tfree(pSuperTableMeta);
-        return buildInvalidOperationMsg(pMsgBuf, msg2);
+        code = buildInvalidOperationMsg(pMsgBuf, msg2);
+        goto _error;
       }
 
       code = doParseSerializeTagValue(pTagSchema, numOfInputTag, &kvRowBuilder, pValList, tinfo.precision, pMsgBuf);
       if (code != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
-        tfree(pSuperTableMeta);
-        return code;
+        goto _error;
       }
     }
 
     SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
     tdDestroyKVRowBuilder(&kvRowBuilder);
     if (row == NULL) {
-      tfree(pSuperTableMeta);
-      return TSDB_CODE_QRY_OUT_OF_MEMORY;
+      code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      goto _error;
     }
 
     tdSortKVRowByColIdx(row);
@@ -546,22 +548,34 @@ static int32_t doCheckAndBuildCreateCTableReq(SCreateTableSql* pCreateTable, SPa
     SName tableName = {0};
     code = createSName(&tableName, &pCreateTableInfo->name, pCtx, pMsgBuf);
     if (code != TSDB_CODE_SUCCESS) {
-      tfree(pSuperTableMeta);
-      return code;
+      goto _error;
     }
 
     // Find a appropriate vgroup to accommodate this table , according to the table name
     SVgroupInfo info = {0};
-    catalogGetTableHashVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, &tableName, &info);
+    code = catalogGetTableHashVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, &tableName, &info);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
 
     addCreateTbReqIntoVgroup(pVgroupHashmap, &tableName, row, pSuperTableMeta->uid, &info);
     tfree(pSuperTableMeta);
   }
 
   *pBufArray = doSerializeVgroupCreateTableInfo(pVgroupHashmap);
+  if (*pBufArray == NULL) {
+    code = terrno;
+    goto _error;
+  }
 
   taosHashCleanup(pVgroupHashmap);
   return TSDB_CODE_SUCCESS;
+
+  _error:
+  taosHashCleanup(pVgroupHashmap);
+  tfree(pSuperTableMeta);
+  terrno = code;
+  return code;
 }
 
 static int32_t serializeVgroupTablesBatchImpl(SVgroupTablesBatch* pTbBatch, SArray* pBufArray) {
