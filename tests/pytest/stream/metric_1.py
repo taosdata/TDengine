@@ -39,6 +39,7 @@ class TDTestCase:
     def run(self):
         tbNum = 10
         rowNum = 20
+        ts_begin = 1633017600000
 
         tdSql.prepare()
 
@@ -49,8 +50,8 @@ class TDTestCase:
             tdSql.execute("create table tb%d using stb tags(%d)" % (i, i))
             for j in range(rowNum):
                 tdSql.execute(
-                    "insert into tb%d values (now - %dm, %d, %d)" %
-                    (i, 1440 - j, j, j))
+                    "insert into tb%d values (%d, %d, %d)" %
+                    (i, ts_begin + j, j, j))
         time.sleep(0.1)
 
         self.createFuncStream("count(*)", "c1", 200)

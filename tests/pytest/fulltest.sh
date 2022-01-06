@@ -218,6 +218,7 @@ python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 
 #query
+python3 ./test.py -f query/queryBase.py
 python3 ./test.py -f query/filter.py
 python3 ./test.py -f query/filterCombo.py
 python3 ./test.py -f query/queryNormal.py
@@ -272,7 +273,9 @@ python3 ./test.py -f query/queryCnameDisplay.py
 python3 ./test.py -f query/operator_cost.py
 python3 test.py -f query/nestedQuery/queryWithSpread.py
 python3 ./test.py -f query/bug6586.py
+python3 ./test.py -f query/ts_2016.py
 # python3 ./test.py -f query/bug5903.py
+python3 ./test.py -f query/queryLimit.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -282,7 +285,7 @@ python3 ./test.py -f stream/stream1.py
 python3 ./test.py -f stream/stream2.py
 #python3 ./test.py -f stream/parser.py
 python3 ./test.py -f stream/history.py
-python3 ./test.py -f stream/sys.py
+#python3 ./test.py -f stream/sys.py
 python3 ./test.py -f stream/table_1.py
 python3 ./test.py -f stream/table_n.py
 python3 ./test.py -f stream/showStreamExecTimeisNull.py

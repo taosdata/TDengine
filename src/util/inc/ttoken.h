@@ -64,6 +64,15 @@ uint32_t tGetToken(char *z, uint32_t *tokenType);
 SStrToken tStrGetToken(char *str, int32_t *i, bool isPrevOptr);
 
 /**
+ * strcpy implement source from SStrToken
+ *
+ * @param dst  copy to 
+ * @param srcToken copy from
+ * @return size of copy successful bytes, not include '\0'
+ */
+int32_t tStrNCpy(char *dst, SStrToken* srcToken);
+
+/**
  * check if it is a keyword or not
  * @param z
  * @param len
