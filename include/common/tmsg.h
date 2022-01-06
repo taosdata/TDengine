@@ -928,7 +928,7 @@ typedef struct {
   char encrypt;
   char secret[TSDB_PASSWORD_LEN];
   char ckey[TSDB_PASSWORD_LEN];
-} SAuthMsg, SAuthRsp;
+} SAuthReq, SAuthRsp;
 
 typedef struct {
   int8_t finished;
