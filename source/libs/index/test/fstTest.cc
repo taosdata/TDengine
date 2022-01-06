@@ -48,7 +48,7 @@ class FstWriter {
 
 class FstReadMemory {
  public:
-  FstReadMemory(size_t size, const std::string& fileName = fileName) {
+  FstReadMemory(size_t size, const std::string& fileName = "/tmp/tindex.tindex") {
     tfInit();
     _wc = writerCtxCreate(TFile, fileName.c_str(), true, 64 * 1024);
     _w = fstCountingWriterCreate(_wc);
@@ -307,7 +307,7 @@ void validateTFile(char* arg) {
   tfCleanup();
 }
 int main(int argc, char* argv[]) {
-  // tool to check all kind of fst test 
+  // tool to check all kind of fst test
   // if (argc > 1) { validateTFile(argv[1]); }
   // checkFstCheckIterator();
   // checkFstLongTerm();
