@@ -12,7 +12,7 @@ python3 ./test.py -f 2-query/TD-12014.py
 python3 ./test.py -f 2-query/TD-12145.py
 python3 ./test.py -f 2-query/TD-12164.py
 python3 ./test.py -f 2-query/TD-12165.py
-#python3 ./test.py -f 2-query/TD-12191.py
+python3 ./test.py -f 2-query/TD-12191.py
 python3 ./test.py -f 2-query/TD-12228.py
 python3 ./test.py -f 2-query/TD-12229.py
 python3 ./test.py -f 2-query/TD-12276.py
