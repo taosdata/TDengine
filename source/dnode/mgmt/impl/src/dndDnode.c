@@ -350,7 +350,7 @@ static int32_t dndWriteDnodes(SDnode *pDnode) {
   terrno = 0;
 
   pMgmt->updateTime = taosGetTimestampMs();
-  dInfo("successed to write %s", pMgmt->file);
+  dDebug("successed to write %s", pMgmt->file);
   return 0;
 }
 
