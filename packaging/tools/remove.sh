@@ -11,22 +11,25 @@ RED='\033[0;31m'
 GREEN='\033[1;32m'
 NC='\033[0m'
 
+installDir="/usr/local/taos"
+serverName="taosd"
+clientName="taos"
+uninstallScript="rmtaos"
+productName="TDengine"
+
 #install main path
-install_main_dir="/usr/local/taos"
-data_link_dir="/usr/local/taos/data"
-log_link_dir="/usr/local/taos/log"
-cfg_link_dir="/usr/local/taos/cfg"
+install_main_dir=${installDir}
+data_link_dir="${installDir}/data"
+log_link_dir="${installDir}/log"
+cfg_link_dir="${installDir}/cfg"
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
 lib64_link_dir="/usr/lib64"
 inc_link_dir="/usr/include"
 install_nginxd_dir="/usr/local/nginxd"
 
-# v1.5 jar dir
-#v15_java_app_dir="/usr/local/lib/taos"
-
 service_config_dir="/etc/systemd/system"
-taos_service_name="taosd"
+taos_service_name=${serverName}
 taosadapter_service_name="taosadapter"
 tarbitrator_service_name="tarbitratord"
 nginx_service_name="nginxd"
@@ -63,7 +66,7 @@ function kill_taosadapter() {
 }
 
 function kill_taosd() {
-  pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
+  pid=$(ps -ef | grep "${serverName}" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo}kill -9 $pid || :
   fi
@@ -77,12 +80,12 @@ function kill_tarbitrator() {
 }
 function clean_bin() {
   # Remove link
-  ${csudo}rm -f ${bin_link_dir}/taos || :
-  ${csudo}rm -f ${bin_link_dir}/taosd || :
+  ${csudo}rm -f ${bin_link_dir}/${clientName} || :
+  ${csudo}rm -f ${bin_link_dir}/${serverName} || :
   ${csudo}rm -f ${bin_link_dir}/taosadapter || :
   ${csudo}rm -f ${bin_link_dir}/taosdemo || :
   ${csudo}rm -f ${bin_link_dir}/taosdump || :
-  ${csudo}rm -f ${bin_link_dir}/rmtaos || :
+  ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/run_taosd.sh || :
@@ -115,7 +118,7 @@ function clean_log() {
 function clean_service_on_systemd() {
   taosd_service_config="${service_config_dir}/${taos_service_name}.service"
   if systemctl is-active --quiet ${taos_service_name}; then
-    echo "TDengine taosd is running, stopping it..."
+    echo "${productName} ${serverName} is running, stopping it..."
     ${csudo}systemctl stop ${taos_service_name} &>/dev/null || echo &>/dev/null
   fi
   ${csudo}systemctl disable ${taos_service_name} &>/dev/null || echo &>/dev/null
@@ -123,7 +126,7 @@ function clean_service_on_systemd() {
 
   taosadapter_service_config="${service_config_dir}/taosadapter.service"
   if systemctl is-active --quiet ${taosadapter_service_name}; then
-    echo "TDengine taosAdapter is running, stopping it..."
+    echo "${productName} taosAdapter is running, stopping it..."
     ${csudo}systemctl stop ${taosadapter_service_name} &>/dev/null || echo &>/dev/null
   fi
   ${csudo}systemctl disable ${taosadapter_service_name} &>/dev/null || echo &>/dev/null
@@ -131,7 +134,7 @@ function clean_service_on_systemd() {
 
   tarbitratord_service_config="${service_config_dir}/${tarbitrator_service_name}.service"
   if systemctl is-active --quiet ${tarbitrator_service_name}; then
-    echo "TDengine tarbitrator is running, stopping it..."
+    echo "${productName} tarbitrator is running, stopping it..."
     ${csudo}systemctl stop ${tarbitrator_service_name} &>/dev/null || echo &>/dev/null
   fi
   ${csudo}systemctl disable ${tarbitrator_service_name} &>/dev/null || echo &>/dev/null
@@ -141,7 +144,7 @@ function clean_service_on_systemd() {
     nginx_service_config="${service_config_dir}/${nginx_service_name}.service"
     if [ -d ${install_nginxd_dir} ]; then
       if systemctl is-active --quiet ${nginx_service_name}; then
-        echo "Nginx for TDengine is running, stopping it..."
+        echo "Nginx for ${productName} is running, stopping it..."
         ${csudo}systemctl stop ${nginx_service_name} &>/dev/null || echo &>/dev/null
       fi
       ${csudo}systemctl disable ${nginx_service_name} &>/dev/null || echo &>/dev/null
@@ -151,43 +154,40 @@ function clean_service_on_systemd() {
 }
 
 function clean_service_on_sysvinit() {
-  #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
-  #${csudo}sed -i "\|${restart_config_str}|d" /etc/inittab || :
-
-  if pidof taosd &>/dev/null; then
-    echo "TDengine taosd is running, stopping it..."
+  if pidof ${serverName} &>/dev/null; then
+    echo "${productName} ${serverName} is running, stopping it..."
     ${csudo}service taosd stop || :
   fi
 
   if pidof tarbitrator &>/dev/null; then
-    echo "TDengine tarbitrator is running, stopping it..."
+    echo "${productName} tarbitrator is running, stopping it..."
     ${csudo}service tarbitratord stop || :
   fi
 
   if ((${initd_mod} == 1)); then
-    if [ -e ${service_config_dir}/taosd ]; then
-      ${csudo}chkconfig --del taosd || :
+    if [ -e ${service_config_dir}/${serverName} ]; then
+      ${csudo}chkconfig --del ${serverName} || :
     fi
     if [ -e ${service_config_dir}/tarbitratord ]; then
       ${csudo}chkconfig --del tarbitratord || :
     fi
   elif ((${initd_mod} == 2)); then
-    if [ -e ${service_config_dir}/taosd ]; then
-      ${csudo}insserv -r taosd || :
+    if [ -e ${service_config_dir}/${serverName} ]; then
+      ${csudo}insserv -r ${serverName} || :
     fi
     if [ -e ${service_config_dir}/tarbitratord ]; then
       ${csudo}insserv -r tarbitratord || :
     fi
   elif ((${initd_mod} == 3)); then
-    if [ -e ${service_config_dir}/taosd ]; then
-      ${csudo}update-rc.d -f taosd remove || :
+    if [ -e ${service_config_dir}/${serverName} ]; then
+      ${csudo}update-rc.d -f ${serverName} remove || :
     fi
     if [ -e ${service_config_dir}/tarbitratord ]; then
       ${csudo}update-rc.d -f tarbitratord remove || :
     fi
   fi
 
-  ${csudo}rm -f ${service_config_dir}/taosd || :
+  ${csudo}rm -f ${service_config_dir}/${serverName} || :
   ${csudo}rm -f ${service_config_dir}/tarbitratord || :
 
   if $(which init &>/dev/null); then
@@ -241,5 +241,5 @@ elif echo $osinfo | grep -qwi "centos"; then
   ${csudo}rpm -e --noscripts tdengine >/dev/null 2>&1 || :
 fi
 
-echo -e "${GREEN}TDengine is removed successfully!${NC}"
+echo -e "${GREEN}${productName} is removed successfully!${NC}"
 echo

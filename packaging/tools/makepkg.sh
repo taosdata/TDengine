@@ -20,48 +20,16 @@ dbName=${10}
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
 
+productName="TDengine"
+serverName="taosd"
+clientName="taos"
+configFile="taos.cfg"
+tarName="taos.tar.gz"
+
 # create compressed install file.
 build_dir="${compile_dir}/build"
 code_dir="${top_dir}/src"
 release_dir="${top_dir}/release"
-
-if [ $dbName == "power" ]; then
-  productName="PowerDB"
-  serverName="powerd"
-  clientName="power"
-  configDir="power.cfg"
-  tarName="power.tar.gz"
-elif [ $dbName == "tq" ]; then
-  productName="TQ"
-  serverName="tqd"
-  clientName="tq"
-  configDir="tq.cfg"
-  tarName="tq.tar.gz"
-elif [ $dbName == "pro" ]; then
-  productName="ProDB"
-  serverName="prodbs"
-  clientName="prodbc"
-  configDir="prodb.cfg"
-  tarName="prodb.tar.gz"
-elif [ $dbName == "kh" ]; then
-  productName="KingHistorian"
-  serverName="khserver"
-  clientName="khclient"
-  configDir="kinghistorian.cfg"
-  tarName="kinghistorian.tar.gz"
-elif [ $dbName == "jh" ]; then
-  productName="jh_iot"
-  serverName="jh_taosd"
-  clientName="jh_taos"
-  configDir="jh_taos.cfg"
-  tarName="jh_taos.tar.gz"
-else
-  productName="TDengine"
-  serverName="taosd"
-  clientName="taos"
-  configDir="taos.cfg"
-  tarName="taos.tar.gz"
-fi
 
 #package_name='linux'
 if [ "$verMode" == "cluster" ]; then
@@ -85,7 +53,7 @@ fi
 # Directories and files
 if [ "$pagMode" == "lite" ]; then
   strip ${build_dir}/bin/${serverName}
-  strip ${build_dir}/bin/taos
+  strip ${build_dir}/bin/${clientName}
   # lite version doesn't include taosadapter,  which will lead to no restful interface
   bin_files="${build_dir}/bin/${serverName} ${build_dir}/bin/${clientName} ${script_dir}/remove.sh ${script_dir}/startPre.sh"
   taostools_bin_files=""
@@ -123,7 +91,7 @@ init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configDir} ${install_dir}/cfg/${configDir}
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 
 if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
   cp ${compile_dir}/test/cfg/taosadapter.toml ${install_dir}/cfg || :

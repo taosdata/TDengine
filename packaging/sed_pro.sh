@@ -51,14 +51,24 @@ function replace_community_pro() {
   sed -i "s/taos connections/prodbc connections/g" ${top_dir}/src/rpc/src/rpcMain.c
   # src/plugins/monitor/src/monMain.c
   sed -i "s/taosd is quiting/prodbs is quiting/g" ${top_dir}/src/plugins/monitor/src/monMain.c
-  # packaging/rpm/taosd
-  sed -i "s/TDengine/ProDB/g" ${top_dir}/packaging/rpm/taosd
-  sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/rpm/taosd
-  sed -i "s/taosd/prodbs/g" ${top_dir}/packaging/rpm/taosd
-  # packaging/deb/taosd
-  sed -i "s/TDengine/ProDB/g" ${top_dir}/packaging/deb/taosd
-  sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/deb/taosd
-  sed -i "s/taosd/prodbs/g" ${top_dir}/packaging/deb/taosd
+
+  # packaging/tools/makepkg.sh
+  sed -i "s/productName=\"TDengine\"/productName=\"ProDB\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/serverName=\"taosd\"/serverName=\"prodbs\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/clientName=\"taos\"/clientName=\"prodbc\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/configFile=\"taos\.cfg\"/configFile=\"prodb\.cfg\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/tarName=\"taos\.tar\.gz\"/tarName=\"prodb\.tar\.gz\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  # packaging/tools/remove.sh
+  sed -i "s/installDir=\"\/usr\/local\/taos\"/installDir=\"\/usr\/local\/ProDB\"/g" ${top_dir}/packaging/tools/remove.sh
+  sed -i "s/serverName=\"taosd\"/serverName=\"prodbs\"/g" ${top_dir}/packaging/tools/remove.sh
+  sed -i "s/clientName=\"taos\"/clientName=\"prodbc\"/g" ${top_dir}/packaging/tools/remove.sh
+  sed -i "s/uninstallScript=\"rmtaos\"/uninstallScript=\"rmpro\"/g" ${top_dir}/packaging/tools/remove.sh
+  sed -i "s/productName=\"TDengine\"/productName=\"ProDB\"/g" ${top_dir}/packaging/tools/remove.sh
+  # packaging/tools/startPre.sh
+  sed -i "s/serverName=\"taosd\"/serverName=\"prodbs\"/g" ${top_dir}/packaging/tools/startPre.sh
+  sed -i "s/logDir=\"\/var\/log\/taos\"/logDir=\"\/var\/log\/ProDB\"/g" ${top_dir}/packaging/tools/startPre.sh
+  # packaging/tools/run_taosd.sh
+  sed -i "s/taosd/prodbs/g" ${top_dir}/packaging/tools/run_taosd.sh
   # packaging/tools/install.sh
   sed -i "s/clientName=\"taos\"/clientName=\"prodbc\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/serverName=\"taosd\"/serverName=\"prodbs\"/g" ${top_dir}/packaging/tools/install.sh
@@ -68,17 +78,40 @@ function replace_community_pro() {
   sed -i "s/uninstallScript=\"rmtaos\"/uninstallScript=\"rmpro\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/historyFile=\"taos_history\"/historyFile=\"prodb_history\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/tarName=\"taos\.tar\.gz\"/tarName=\"prodb\.tar\.gz\"/g" ${top_dir}/packaging/tools/install.sh
-  # packaging/tools/remove.sh
-  sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/tools/remove.sh
-  sed -i "s/\"taosd\"/\"prodbs\"/g" ${top_dir}/packaging/tools/remove.sh
-  sed -i "s/\${bin_link_dir}\/taos /\${bin_link_dir}\/prodbc /g" ${top_dir}/packaging/tools/remove.sh
-  sed -i "s/\${bin_link_dir}\/taosd /\${bin_link_dir}\/prodbs /g" ${top_dir}/packaging/tools/remove.sh
-  sed -i "s/\${service_config_dir}\/taosd/\${service_config_dir}\/prodbs/g" ${top_dir}/packaging/tools/remove.sh
-  sed -i "s/rmtaos/rmpro/g" ${top_dir}/packaging/tools/remove.sh
-  sed -i "s/TDengine/ProDB/g" ${top_dir}/packaging/tools/remove.sh
-  sed -i "s/ taosd / prodbs /g" ${top_dir}/packaging/tools/remove.sh
-  # packaging/tools/run_taosd.sh
-  sed -i "s/taosd/prodbs/g" ${top_dir}/packaging/tools/run_taosd.sh
+  sed -i "s/dataDir=\"\/var\/lib\/taos\"/dataDir=\"\/var\/lib\/ProDB\"/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/logDir=\"\/var\/log\/taos\"/logDir=\"\/var\/log\/ProDB\"/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/configDir=\"\/etc\/taos\"/configDir=\"\/etc\/ProDB\"/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/installDir=\"\/usr\/local\/taos\"/installDir=\"\/usr\/local\/ProDB\"/g" ${top_dir}/packaging/tools/install.sh
+
+  # packaging/tools/makeclient.sh
+  sed -i "s/productName=\"TDengine\"/productName=\"ProDB\"/g" ${top_dir}/packaging/tools/makeclient.sh
+  sed -i "s/clientName=\"taos\"/clientName=\"prodbc\"/g" ${top_dir}/packaging/tools/makeclient.sh
+  sed -i "s/configFile=\"taos\.cfg\"/configFile=\"prodb\.cfg\"/g" ${top_dir}/packaging/tools/makeclient.sh
+  sed -i "s/tarName=\"taos\.tar\.gz\"/tarName=\"prodb\.tar\.gz\"/g" ${top_dir}/packaging/tools/makeclient.sh
+  # packaging/tools/remove_client.sh
+  sed -i "s/installDir=\"\/usr\/local\/taos\"/installDir=\"\/usr\/local\/ProDB\"/g" ${top_dir}/packaging/tools/remove_client.sh
+  sed -i "s/clientName=\"taos\"/clientName=\"prodbc\"/g" ${top_dir}/packaging/tools/remove_client.sh
+  sed -i "s/uninstallScript=\"rmtaos\"/uninstallScript=\"rmpro\"/g" ${top_dir}/packaging/tools/remove_client.sh
+  # packaging/tools/install_client.sh
+  sed -i "s/dataDir=\"\/var\/lib\/taos\"/dataDir=\"\/var\/lib\/ProDB\"/g" ${top_dir}/packaging/tools/install_client.sh
+  sed -i "s/logDir=\"\/var\/log\/taos\"/logDir=\"\/var\/log\/ProDB\"/g" ${top_dir}/packaging/tools/install_client.sh
+  sed -i "s/productName=\"TDengine\"/productName=\"ProDB\"/g" ${top_dir}/packaging/tools/install_client.sh
+  sed -i "s/installDir=\"\/usr\/local\/taos\"/installDir=\"\/usr\/local\/ProDB\"/g" ${top_dir}/packaging/tools/install_client.sh
+  sed -i "s/configDir=\"\/etc\/taos\"/configDir=\"\/etc\/ProDB\"/g" ${top_dir}/packaging/tools/install_client.sh
+  sed -i "s/serverName=\"taosd\"/serverName=\"prodbs\"/g" ${top_dir}/packaging/tools/install_client.sh
+  sed -i "s/clientName=\"taos\"/clientName=\"prodbc\"/g" ${top_dir}/packaging/tools/install_client.sh
+  sed -i "s/uninstallScript=\"rmtaos\"/uninstallScript=\"rmpro\"/g" ${top_dir}/packaging/tools/install_client.sh
+  sed -i "s/configFile=\"taos\.cfg\"/configFile=\"prodb\.cfg\"/g" ${top_dir}/packaging/tools/install_client.sh
+  sed -i "s/tarName=\"taos\.tar\.gz\"/tarName=\"prodb\.tar\.gz\"/g" ${top_dir}/packaging/tools/install_client.sh
+
+  # packaging/tools/makearbi.sh
+  sed -i "s/productName=\"TDengine\"/productName=\"ProDB\"/g" ${top_dir}/packaging/tools/makearbi.sh
+  # packaging/tools/remove_arbi.sh
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/packaging/tools/remove_arbi.sh
+  # packaging/tools/install_arbi.sh
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/packaging/tools/install_arbi.sh
+  sed -i "s/taosdata\.com/hanatech\.com\.cn/g" ${top_dir}/packaging/tools/install_arbi.sh
+
   # packaging/tools/make_install.sh
   sed -i "s/clientName=\"taos\"/clientName=\"prodbc\"/g" ${top_dir}/packaging/tools/make_install.sh
   sed -i "s/serverName=\"taosd\"/serverName=\"prodbs\"/g" ${top_dir}/packaging/tools/make_install.sh
@@ -90,10 +123,15 @@ function replace_community_pro() {
   sed -i "s/productName=\"TDengine\"/productName=\"ProDB\"/g" ${top_dir}/packaging/tools/make_install.sh
   sed -i "s/emailName=\"taosdata\.com\"/emailName=\"hanatech\.com\.cn\"/g" ${top_dir}/packaging/tools/make_install.sh
   sed -i "s/uninstallScript=\"rmtaos\"/uninstallScript=\"rmpro\"/g" ${top_dir}/packaging/tools/make_install.sh
-  # packaging/tools/startPre.sh
-  sed -i "s/taosd=\/etc\/systemd\/system\/taosd\.service/taosd=\/etc\/systemd\/system\/prodbs.service/g" ${top_dir}/packaging/tools/startPre.sh
-  sed -i "s/startSeqFile=\/var\/log\/taos\/\.startSeq/startSeqFile=\/var\/log\/ProDB\/\.startSeq/g" ${top_dir}/packaging/tools/startPre.sh
-  sed -i "s/recordFile=\/var\/log\/taos\/\.startRecord/recordFile=\/var\/log\/ProDB\/\.startRecord/g" ${top_dir}/packaging/tools/startPre.sh
+
+  # packaging/rpm/taosd
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/packaging/rpm/taosd
+  sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/rpm/taosd
+  sed -i "s/taosd/prodbs/g" ${top_dir}/packaging/rpm/taosd
+  # packaging/deb/taosd
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/packaging/deb/taosd
+  sed -i "s/usr\/local\/taos/usr\/local\/ProDB/g" ${top_dir}/packaging/deb/taosd
+  sed -i "s/taosd/prodbs/g" ${top_dir}/packaging/deb/taosd
 
 }
 

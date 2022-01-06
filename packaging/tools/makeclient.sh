@@ -14,10 +14,10 @@ verMode=$6
 verType=$7
 pagMode=$8
 
+productName="TDengine"
 clientName="taos"
 configFile="taos.cfg"
 tarName="taos.tar.gz"
-productName="TDengine"
 
 if [ "$osType" != "Darwin" ]; then
     script_dir="$(dirname $(readlink -f $0))"

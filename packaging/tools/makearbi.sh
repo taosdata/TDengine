@@ -18,6 +18,8 @@ pagMode=$8
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
 
+productName="TDengine"
+
 # create compressed install file.
 build_dir="${compile_dir}/build"
 code_dir="${top_dir}/src"
@@ -25,9 +27,9 @@ release_dir="${top_dir}/release"
 
 #package_name='linux'
 if [ "$verMode" == "cluster" ]; then
-    install_dir="${release_dir}/TDengine-enterprise-arbitrator-${version}"
+    install_dir="${release_dir}/${productName}-enterprise-arbitrator-${version}"
 else
-    install_dir="${release_dir}/TDengine-arbitrator-${version}"
+    install_dir="${release_dir}/${productName}-arbitrator-${version}"
 fi
 
 # Directories and files.
@@ -48,15 +50,6 @@ cd ${release_dir}
 #  install_dir has been distinguishes  cluster from  edege, so comments this code
 pkg_name=${install_dir}-${osType}-${cpuType}
 
-# if [ "$verMode" == "cluster" ]; then
-#   pkg_name=${install_dir}-${osType}-${cpuType}
-# elif [ "$verMode" == "edge" ]; then
-#   pkg_name=${install_dir}-${osType}-${cpuType}
-# else
-#   echo "unknow verMode, nor cluster or edge"
-#   exit 1
-# fi
-
 if [[ "$verType" == "beta" ]] || [[ "$verType" == "preRelease" ]]; then
   pkg_name=${install_dir}-${verType}-${osType}-${cpuType} 
 elif [ "$verType" == "stable" ]; then
@@ -65,7 +58,6 @@ else
   echo "unknow verType, nor stabel or beta"
   exit 1
 fi
-
 
 tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files || :
 exitcode=$?

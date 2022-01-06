@@ -24,10 +24,14 @@ emailName="taosdata.com"
 uninstallScript="rmtaos"
 historyFile="taos_history"
 tarName="taos.tar.gz"
+dataDir="/var/lib/taos"
+logDir="/var/log/taos"
+configDir="/etc/taos"
+installDir="/usr/local/taos"
 
-data_dir="/var/lib/taos"
-log_dir="/var/log/taos"
-cfg_install_dir="/etc/taos"
+data_dir=${dataDir}
+log_dir=${logDir}
+cfg_install_dir=${configDir}
 
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
@@ -35,9 +39,9 @@ lib64_link_dir="/usr/lib64"
 inc_link_dir="/usr/include"
 
 #install main path
-install_main_dir="/usr/local/taos"
+install_main_dir=${installDir}
 # old bin dir
-bin_dir="/usr/local/taos/bin"
+bin_dir="${installDir}/bin"
 
 service_config_dir="/etc/systemd/system"
 nginx_port=6060
@@ -736,8 +740,7 @@ function is_version_compatible() {
     min_compatible_version=$(${script_dir}/bin/${serverName} -V | head -1 | cut -d ' ' -f 5)
   fi
 
-  #exist_version=$(/usr/local/taos/bin/taosd -V | head -1 | cut -d ' ' -f 3)
-  exist_version=${install_main_dir}/bin/${serverName} "-V | head -1 | cut -d ' ' -f 3"
+  exist_version=$(${installDir}/bin/${serverName} -V | head -1 | cut -d ' ' -f 3)
   vercomp $exist_version "2.0.16.0"
   case $? in
   2)
