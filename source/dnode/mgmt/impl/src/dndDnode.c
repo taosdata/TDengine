@@ -21,12 +21,9 @@
 #include "dndSnode.h"
 #include "dndTransport.h"
 #include "dndVnodes.h"
+#include "dndWorker.h"
 
-static int32_t dndInitMgmtWorker(SDnode *pDnode);
-static void    dndCleanupMgmtWorker(SDnode *pDnode);
-static int32_t dndAllocMgmtQueue(SDnode *pDnode);
-static void    dndFreeMgmtQueue(SDnode *pDnode);
-static void    dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg);
+static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg);
 
 static int32_t dndReadDnodes(SDnode *pDnode);
 static int32_t dndWriteDnodes(SDnode *pDnode);
@@ -534,13 +531,8 @@ int32_t dndInitDnode(SDnode *pDnode) {
     return -1;
   }
 
-  if (dndInitMgmtWorker(pDnode) != 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  if (dndAllocMgmtQueue(pDnode) != 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  if (dndInitWorker(pDnode, &pMgmt->mgmtWorker, DND_WORKER_SINGLE, "dnode-mgmt", 1, 1, dndProcessMgmtQueue) != 0) {
+    dError("failed to start dnode mgmt worker since %s", terrstr());
     return -1;
   }
 
@@ -551,15 +543,14 @@ int32_t dndInitDnode(SDnode *pDnode) {
     return -1;
   }
 
-  dInfo("dnode-dnode is initialized");
+  dInfo("dnode-mgmt is initialized");
   return 0;
 }
 
 void dndCleanupDnode(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
 
-  dndCleanupMgmtWorker(pDnode);
-  dndFreeMgmtQueue(pDnode);
+  dndCleanupWorker(&pMgmt->mgmtWorker);
 
   if (pMgmt->threadId != NULL) {
     taosDestoryThread(pMgmt->threadId);
@@ -584,62 +575,22 @@ void dndCleanupDnode(SDnode *pDnode) {
   }
 
   taosWUnLockLatch(&pMgmt->latch);
-  dInfo("dnode-dnode is cleaned up");
+  dInfo("dnode-mgmt is cleaned up");
 }
 
-static int32_t dndInitMgmtWorker(SDnode *pDnode) {
-  SDnodeMgmt  *pMgmt = &pDnode->dmgmt;
-  SWorkerPool *pPool = &pMgmt->mgmtPool;
-  pPool->name = "dnode-mgmt";
-  pPool->min = 1;
-  pPool->max = 1;
-  if (tWorkerInit(pPool) != 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  dDebug("dnode mgmt worker is initialized");
-  return 0;
-}
-
-static void dndCleanupMgmtWorker(SDnode *pDnode) {
-  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-  tWorkerCleanup(&pMgmt->mgmtPool);
-  dDebug("dnode mgmt worker is closed");
-}
-
-static int32_t dndAllocMgmtQueue(SDnode *pDnode) {
-  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-  pMgmt->pMgmtQ = tWorkerAllocQueue(&pMgmt->mgmtPool, pDnode, (FProcessItem)dndProcessMgmtQueue);
-  if (pMgmt->pMgmtQ == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-  return 0;
-}
-
-static void dndFreeMgmtQueue(SDnode *pDnode) {
-  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-  tWorkerFreeQueue(&pMgmt->mgmtPool, pMgmt->pMgmtQ);
-  pMgmt->pMgmtQ = NULL;
-}
-
-void dndProcessMgmtMsg(SDnode *pDnode, SRpcMsg *pRpcMsg, SEpSet *pEpSet) {
+void dndProcessMgmtMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
 
-  if (pEpSet && pEpSet->numOfEps > 0 && pRpcMsg->msgType == TDMT_MND_STATUS_RSP) {
+  if (pEpSet && pEpSet->numOfEps > 0 && pMsg->msgType == TDMT_MND_STATUS_RSP) {
     dndUpdateMnodeEpSet(pDnode, pEpSet);
   }
 
-  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg));
-  if (pMsg != NULL) *pMsg = *pRpcMsg;
-
-  if (pMsg == NULL || taosWriteQitem(pMgmt->pMgmtQ, pMsg) != 0) {
-    if (pRpcMsg->msgType & 1u) {
-      SRpcMsg rsp = {.handle = pRpcMsg->handle, .code = TSDB_CODE_OUT_OF_MEMORY};
+  if (dndWriteMsgToWorker(&pMgmt->mgmtWorker, pMsg, sizeof(SRpcMsg)) != 0) {
+    if (pMsg->msgType & 1u) {
+      SRpcMsg rsp = {.handle = pMsg->handle, .code = TSDB_CODE_OUT_OF_MEMORY};
       rpcSendResponse(&rsp);
     }
-    rpcFreeCont(pRpcMsg->pCont);
+    rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
 }
