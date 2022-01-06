@@ -1,31 +1,31 @@
 /**
- * @file dnode.cpp
+ * @file mnode.cpp
  * @author slguan (slguan@taosdata.com)
- * @brief DNODE module dnode-msg tests
- * @version 0.1
- * @date 2021-12-15
+ * @brief MNODE module mnode tests
+ * @version 1.0
+ * @date 2022-01-07
  *
- * @copyright Copyright (c) 2021
+ * @copyright Copyright (c) 2022
  *
  */
 
 #include "sut.h"
 
-class DndTestMnode : public ::testing::Test {
+class MndTestMnode : public ::testing::Test {
  public:
   void SetUp() override {}
   void TearDown() override {}
 
  public:
   static void SetUpTestSuite() {
-    test.Init("/tmp/dnode_test_mnode1", 9061);
+    test.Init("/tmp/mnode_test_mnode1", 9031);
     const char* fqdn = "localhost";
-    const char* firstEp = "localhost:9061";
+    const char* firstEp = "localhost:9031";
 
-    server2.Start("/tmp/dnode_test_mnode2", fqdn, 9062, firstEp);
-    server3.Start("/tmp/dnode_test_mnode3", fqdn, 9063, firstEp);
-    server4.Start("/tmp/dnode_test_mnode4", fqdn, 9064, firstEp);
-    server5.Start("/tmp/dnode_test_mnode5", fqdn, 9065, firstEp);
+    server2.Start("/tmp/mnode_test_mnode2", fqdn, 9032, firstEp);
+    server3.Start("/tmp/mnode_test_mnode3", fqdn, 9033, firstEp);
+    server4.Start("/tmp/mnode_test_mnode4", fqdn, 9034, firstEp);
+    server5.Start("/tmp/mnode_test_mnode5", fqdn, 9035, firstEp);
     taosMsleep(300);
   }
 
@@ -44,13 +44,13 @@ class DndTestMnode : public ::testing::Test {
   static TestServer server5;
 };
 
-Testbase   DndTestMnode::test;
-TestServer DndTestMnode::server2;
-TestServer DndTestMnode::server3;
-TestServer DndTestMnode::server4;
-TestServer DndTestMnode::server5;
+Testbase   MndTestMnode::test;
+TestServer MndTestMnode::server2;
+TestServer MndTestMnode::server3;
+TestServer MndTestMnode::server4;
+TestServer MndTestMnode::server5;
 
-TEST_F(DndTestMnode, 01_ShowDnode) {
+TEST_F(MndTestMnode, 01_ShowDnode) {
   test.SendShowMetaReq(TSDB_MGMT_TABLE_MNODE, "");
   CHECK_META("show mnodes", 5);
 
@@ -64,13 +64,13 @@ TEST_F(DndTestMnode, 01_ShowDnode) {
   EXPECT_EQ(test.GetShowRows(), 1);
 
   CheckInt16(1);
-  CheckBinary("localhost:9061", TSDB_EP_LEN);
+  CheckBinary("localhost:9031", TSDB_EP_LEN);
   CheckBinary("master", 12);
   CheckInt64(0);
   CheckTimestamp();
 }
 
-TEST_F(DndTestMnode, 02_Create_Mnode_Invalid_Id) {
+TEST_F(MndTestMnode, 02_Create_Mnode_Invalid_Id) {
   {
     int32_t contLen = sizeof(SMCreateMnodeMsg);
 
@@ -83,7 +83,7 @@ TEST_F(DndTestMnode, 02_Create_Mnode_Invalid_Id) {
   }
 }
 
-TEST_F(DndTestMnode, 03_Create_Mnode_Invalid_Id) {
+TEST_F(MndTestMnode, 03_Create_Mnode_Invalid_Id) {
   {
     int32_t contLen = sizeof(SMCreateMnodeMsg);
 
@@ -96,14 +96,14 @@ TEST_F(DndTestMnode, 03_Create_Mnode_Invalid_Id) {
   }
 }
 
-TEST_F(DndTestMnode, 04_Create_Mnode) {
+TEST_F(MndTestMnode, 04_Create_Mnode) {
   {
     // create dnode
     int32_t contLen = sizeof(SCreateDnodeReq);
 
     SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
     strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(9062);
+    pReq->port = htonl(9032);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -132,8 +132,8 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 
     CheckInt16(1);
     CheckInt16(2);
-    CheckBinary("localhost:9061", TSDB_EP_LEN);
-    CheckBinary("localhost:9062", TSDB_EP_LEN);
+    CheckBinary("localhost:9031", TSDB_EP_LEN);
+    CheckBinary("localhost:9032", TSDB_EP_LEN);
     CheckBinary("master", 12);
     CheckBinary("slave", 12);
     CheckInt64(0);
@@ -158,7 +158,7 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
     EXPECT_EQ(test.GetShowRows(), 1);
 
     CheckInt16(1);
-    CheckBinary("localhost:9061", TSDB_EP_LEN);
+    CheckBinary("localhost:9031", TSDB_EP_LEN);
     CheckBinary("master", 12);
     CheckInt64(0);
     CheckTimestamp();
@@ -181,7 +181,7 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 // EXPECT_EQ(test.GetShowRows(), 1);
 
 // CheckInt16(1);
-// CheckBinary("localhost:9061", TSDB_EP_LEN);
+// CheckBinary("localhost:9031", TSDB_EP_LEN);
 // CheckInt16(0);
 // CheckInt16(1);
 // CheckBinary("ready", 10);
@@ -192,7 +192,7 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 //   int32_t contLen = sizeof(SCreateDnodeReq);
 
 //   SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-//   strcpy(pReq->ep, "localhost:9063");
+//   strcpy(pReq->ep, "localhost:9033");
 
 //   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
 //   ASSERT_NE(pRsp, nullptr);
@@ -203,7 +203,7 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 //   int32_t contLen = sizeof(SCreateDnodeReq);
 
 //   SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-//   strcpy(pReq->ep, "localhost:9064");
+//   strcpy(pReq->ep, "localhost:9034");
 
 //   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
 //   ASSERT_NE(pRsp, nullptr);
@@ -214,7 +214,7 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 //   int32_t contLen = sizeof(SCreateDnodeReq);
 
 //   SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-//   strcpy(pReq->ep, "localhost:9065");
+//   strcpy(pReq->ep, "localhost:9035");
 
 //   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
 //   ASSERT_NE(pRsp, nullptr);
@@ -231,10 +231,10 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 // CheckInt16(3);
 // CheckInt16(4);
 // CheckInt16(5);
-// CheckBinary("localhost:9061", TSDB_EP_LEN);
-// CheckBinary("localhost:9063", TSDB_EP_LEN);
-// CheckBinary("localhost:9064", TSDB_EP_LEN);
-// CheckBinary("localhost:9065", TSDB_EP_LEN);
+// CheckBinary("localhost:9031", TSDB_EP_LEN);
+// CheckBinary("localhost:9033", TSDB_EP_LEN);
+// CheckBinary("localhost:9034", TSDB_EP_LEN);
+// CheckBinary("localhost:9035", TSDB_EP_LEN);
 // CheckInt16(0);
 // CheckInt16(0);
 // CheckInt16(0);
@@ -274,10 +274,10 @@ TEST_F(DndTestMnode, 04_Create_Mnode) {
 // CheckInt16(3);
 // CheckInt16(4);
 // CheckInt16(5);
-// CheckBinary("localhost:9061", TSDB_EP_LEN);
-// CheckBinary("localhost:9063", TSDB_EP_LEN);
-// CheckBinary("localhost:9064", TSDB_EP_LEN);
-// CheckBinary("localhost:9065", TSDB_EP_LEN);
+// CheckBinary("localhost:9031", TSDB_EP_LEN);
+// CheckBinary("localhost:9033", TSDB_EP_LEN);
+// CheckBinary("localhost:9034", TSDB_EP_LEN);
+// CheckBinary("localhost:9035", TSDB_EP_LEN);
 // CheckInt16(0);
 // CheckInt16(0);
 // CheckInt16(0);
