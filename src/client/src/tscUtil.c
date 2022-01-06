@@ -1479,6 +1479,18 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
           break;
         }
       }
+
+      // set input data order to param[1]
+      if(pex->base.functionId == TSDB_FUNC_FIRST || pex->base.functionId  ==  TSDB_FUNC_FIRST_DST ||
+         pex->base.functionId == TSDB_FUNC_LAST  || pex->base.functionId  ==  TSDB_FUNC_LAST_DST) {
+        // set input order
+        SQueryInfo* pInputQI = pSqlObjList[0]->cmd.pQueryInfo;
+        if(pInputQI) {
+          pex->base.numOfParams = 3;
+          pex->base.param[2].nType = TSDB_DATA_TYPE_INT;
+          pex->base.param[2].i64 = pInputQI->order.order;
+        }
+      }
     }
 
     tscDebug("0x%"PRIx64" create QInfo 0x%"PRIx64" to execute the main query while all nest queries are ready", pSql->self, pSql->self);
@@ -4303,6 +4315,11 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
 
       // create sub query to handle the sub query.
       SQueryInfo* pq = tscGetQueryInfo(&psub->cmd);
+      STableMetaInfo* pSubMeta = tscGetMetaInfo(pq, 0);
+      if (UTIL_TABLE_IS_SUPER_TABLE(pSubMeta) &&
+          pq->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+        psub->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+      }
       executeQuery(psub, pq);
     }
 

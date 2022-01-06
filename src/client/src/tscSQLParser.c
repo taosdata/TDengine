@@ -1392,7 +1392,7 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* pSl
   const char* msg1 = "sliding value no larger than the interval value";
   const char* msg2 = "sliding value can not less than 1% of interval value";
   const char* msg3 = "does not support sliding when interval is natural month/year";
-  const char* msg4 = "sliding not support for interp query";  
+  const char* msg4 = "sliding not support for interp query";
 
   const static int32_t INTERVAL_SLIDING_FACTOR = 100;
 
@@ -1410,7 +1410,7 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* pSl
   if (interpQuery) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
   }
-  
+
   if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
@@ -2727,7 +2727,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       memset(pExpr->base.aliasName, 0, tListLen(pExpr->base.aliasName));
       getColumnName(pItem, pExpr->base.aliasName, pExpr->base.token,sizeof(pExpr->base.aliasName) - 1);
-      
+
       SColumnList list = createColumnList(1, index.tableIndex, index.columnIndex);
       if (finalResult) {
         int32_t numOfOutput = tscNumOfFields(pQueryInfo);
@@ -2852,6 +2852,13 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         char val[8] = {0};
 
         int64_t tickPerSec = 0;
+        char *exprToken = tcalloc(pParamElem[1].pNode->exprToken.n + 1, sizeof(char));
+        memcpy(exprToken, pParamElem[1].pNode->exprToken.z, pParamElem[1].pNode->exprToken.n);
+        if (pParamElem[1].pNode->exprToken.type == TK_NOW || strstr(exprToken, "now")) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+        }
+        tfree(exprToken);
+
         if ((TSDB_DATA_TYPE_NULL == pParamElem[1].pNode->value.nType) || tVariantDump(&pParamElem[1].pNode->value, (char*) &tickPerSec, TSDB_DATA_TYPE_BIGINT, true) < 0) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
@@ -2866,7 +2873,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg10);
         } else if (tickPerSec <= 0) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg16);
-        } 
+        }
 
         tscExprAddParams(&pExpr->base, (char*) &tickPerSec, TSDB_DATA_TYPE_BIGINT, LONG_BYTES);
         if (functionId == TSDB_FUNC_DERIVATIVE) {
@@ -4906,14 +4913,14 @@ static int32_t validateNullExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
     if (IS_VAR_DATA_TYPE(pSchema[index].type) || pSchema[index].type == TSDB_DATA_TYPE_JSON) {
       return TSDB_CODE_SUCCESS;
     }
-    
+
     char *v = strndup(pRight->exprToken.z, pRight->exprToken.n);
     int32_t len = strRmquote(v, pRight->exprToken.n);
     if (len > 0) {
       uint32_t type = 0;
       tGetToken(v, &type);
 
-      if (type == TK_NULL) {        
+      if (type == TK_NULL) {
         free(v);
         return invalidOperationMsg(msgBuf, msg);
       }
@@ -5229,7 +5236,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       }
     }
 
-    if (pRight != NULL && (pRight->tokenId == TK_ID || pRight->tokenId == TK_ARROW)) {  // join on tag columns for stable query
+    if (joinQuery && pRight != NULL && (pRight->tokenId == TK_ID || pRight->tokenId == TK_ARROW)) {  // join on tag columns for stable query
       if (!validateJoinExprNode(pCmd, pQueryInfo, *pExpr, &index)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
@@ -6090,7 +6097,7 @@ int32_t getTimeRange(STimeWindow* win, tSqlExpr* pRight, int32_t optr, int16_t t
 
 // todo error !!!!
 int32_t tsRewriteFieldNameIfNecessary(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
-  const char rep[] = {'(', ')', '*', ',', '.', '/', '\\', '+', '-', '%', ' '};
+  const char rep[] = {'(', ')', '*', ',', '.', '/', '\\', '+', '-', '%', ' ', '`'};
 
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     char* fieldName = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i)->name;
