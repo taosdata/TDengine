@@ -273,21 +273,20 @@ int32_t schSetTaskCandidateAddrs(SSchJob *job, SSchTask *task) {
   return TSDB_CODE_SUCCESS;
 }
 
-
 int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask) {
   if (0 != taosHashPut(pJob->execTasks, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES)) {
-    qError("failed to add new task, taskId:%"PRId64", reqId:0x"PRIx64", out of memory", pJob->queryId);
+    qError("failed to add new task, taskId:0x%"PRIx64", reqId:0x"PRIx64", out of memory", pJob->queryId);
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  qDebug("add one task, taskId:%"PRId64", numOfTasks:%d, reqId:0x%"PRIx64, pTask->taskId, taosHashGetSize(pJob->execTasks),
+  qDebug("add one task, taskId:0x%"PRIx64", numOfTasks:%d, reqId:0x%"PRIx64, pTask->taskId, taosHashGetSize(pJob->execTasks),
          pJob->queryId);
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t schMoveTaskToSuccList(SSchJob *job, SSchTask *task, bool *moved) {
   if (0 != taosHashRemove(job->execTasks, &task->taskId, sizeof(task->taskId))) {
-    qWarn("remove task[%"PRIx64"] from execTasks failed", task->taskId);
+    qError("remove task taskId:0x%"PRIx64" from execTasks failed, reqId:0x%"PRIx64, task->taskId, job->queryId);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -590,10 +589,7 @@ int32_t schHandleCallback(void* param, const SDataBuf* pMsg, int32_t msgType, in
 
   SSchTask **task = taosHashGet((*job)->execTasks, &pParam->taskId, sizeof(pParam->taskId));
   if (NULL == task || NULL == (*task)) {
-    void* f1 = taosHashGet((*job)->execTasks, &pParam->taskId, sizeof(pParam->taskId));
-
-    assert(0);
-    qError("taosHashGet taskId:%"PRIx64" not exist", pParam->taskId);
+    qError("failed to get task, taskId:%"PRIx64" not exist, reqId:0x%"PRIx64, pParam->taskId, (*job)->queryId);
     SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
   

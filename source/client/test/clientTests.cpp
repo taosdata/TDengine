@@ -152,7 +152,7 @@ TEST(testCase, create_db_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
-  TAOS_RES* pRes = taos_query(pConn, "create database abc1");
+  TAOS_RES* pRes = taos_query(pConn, "create database abc1 vgroups 2");
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
   }
@@ -254,7 +254,7 @@ TEST(testCase, use_db_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
-  TAOS_RES* pRes = taos_query(pConn, "create database abc1");
+  TAOS_RES* pRes = taos_query(pConn, "create database abc1 vgroups 2");
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
   }
@@ -505,15 +505,17 @@ TEST(testCase, create_multiple_tables) {
 
   taos_free_result(pRes);
 
-//  for(int32_t i = 0; i < 1000; ++i) {
-//    char sql[512] = {0};
-//    snprintf(sql, tListLen(sql), "create table t_x_%d using st1 tags(2)", i);
-//    TAOS_RES* pres = taos_query(pConn, sql);
-//    if (taos_errno(pres) != 0) {
-//      printf("failed to create table %d\n, reason:%s", i, taos_errstr(pres));
-//    }
-//    taos_free_result(pres);
-//  }
+  for(int32_t i = 0; i < 200000; ++i) {
+    char sql[512] = {0};
+    snprintf(sql, tListLen(sql), "create table t_x_%d using st1 tags(2)", i);
+    TAOS_RES* pres = taos_query(pConn, sql);
+    if (taos_errno(pres) != 0) {
+      printf("failed to create table %d\n, reason:%s", i, taos_errstr(pres));
+    }
+
+    printf("%d\n", i);
+    taos_free_result(pres);
+  }
 
   taos_close(pConn);
 }
