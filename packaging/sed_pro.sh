@@ -14,6 +14,7 @@ function replace_community_pro() {
   # src/util/src/tconfig.c
   sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/src/util/src/tconfig.c
   sed -i "s/etc\/taos/etc\/ProDB/g" ${top_dir}/src/util/src/tconfig.c
+  sed -i "s/taos config/prodb config/g"  ${top_dir}/src/util/src/tconfig.c
   # src/util/src/tlog.c
   sed -i "s/log\/taos/log\/ProDB/g" ${top_dir}/src/util/src/tlog.c
   # src/dnode/src/dnodeSystem.c
@@ -148,7 +149,7 @@ function replace_enterprise_pro() {
 
   # enterprise/src/plugins/web
   sed -i -e "s/www\.taosdata\.com/www\.hanatech\.com\.cn/g" $(grep -r "www.taosdata.com" ${top_dir}/../enterprise/src/plugins/web | sed -r "s/(.*\.html):\s*(.*)/\1/g")
-  sed -i -e "s/TAOS Data/Hanatech/g" $(grep -r "TAOS Data" ${top_dir}/../enterprise/src/plugins/web | sed -r "s/(.*\.html):\s*(.*)/\1/g")
+  sed -i -e "s/2017, TAOS Data/2021, Hanatech/g" $(grep -r "TAOS Data" ${top_dir}/../enterprise/src/plugins/web | sed -r "s/(.*\.html):\s*(.*)/\1/g")
   sed -i -e "s/taosd/prodbs/g" $(grep -r "taosd" ${top_dir}/../enterprise/src/plugins/web | grep -E "*\.js\s*.*" | sed -r -e "s/(.*\.js):\s*(.*)/\1/g" | sort | uniq)
   # enterprise/src/plugins/web/admin/monitor.html
   sed -i -e "s/<th style=\"font-weight: normal\">taosd<\/th>/<th style=\"font-weight: normal\">prodbs<\/th>/g" ${top_dir}/../enterprise/src/plugins/web/admin/monitor.html
