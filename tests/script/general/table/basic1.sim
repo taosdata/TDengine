@@ -44,10 +44,17 @@ print $data10 $data11 $data12
 
 print =============== create child table
 sql create table c1 using st tags(1)
-sql create table c2 using st tags(2)
+sql create table c2 using st tags(2) 
 
 sql show tables
 if $rows != 2 then 
+  return -1
+endi
+
+sql create table c3 using st tags(3) c4 using st tags(4) c5 using st tags(5) c6 using st tags(6) c7 using st tags(7)
+
+sql show tables
+if $rows != 7 then 
   return -1
 endi
 

@@ -13,7 +13,7 @@
 
 class MndTestShow : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_show", 9020); }
+  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_show", 9021); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -50,9 +50,9 @@ TEST_F(MndTestShow, 02_ShowMsg_InvalidMsgStart) {
 }
 
 TEST_F(MndTestShow, 03_ShowMsg_Conn) {
-  int32_t contLen = sizeof(SConnectMsg);
+  int32_t contLen = sizeof(SConnectReq);
 
-  SConnectMsg* pReq = (SConnectMsg*)rpcMallocCont(contLen);
+  SConnectReq* pReq = (SConnectReq*)rpcMallocCont(contLen);
   pReq->pid = htonl(1234);
   strcpy(pReq->app, "mnode_test_show");
   strcpy(pReq->db, "");

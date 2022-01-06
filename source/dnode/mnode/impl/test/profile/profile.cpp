@@ -1,19 +1,19 @@
 /**
  * @file profile.cpp
  * @author slguan (slguan@taosdata.com)
- * @brief DNODE module profile-msg tests
- * @version 0.1
- * @date 2021-12-15
+ * @brief MNODE module profile tests
+ * @version 1.0
+ * @date 2022-01-06
  *
- * @copyright Copyright (c) 2021
+ * @copyright Copyright (c) 2022
  *
  */
 
 #include "sut.h"
 
-class DndTestProfile : public ::testing::Test {
+class MndTestProfile : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_profile", 9080); }
+  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_profile", 9022); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -24,15 +24,15 @@ class DndTestProfile : public ::testing::Test {
   void TearDown() override {}
 };
 
-Testbase DndTestProfile::test;
-int32_t  DndTestProfile::connId;
+Testbase MndTestProfile::test;
+int32_t  MndTestProfile::connId;
 
-TEST_F(DndTestProfile, 01_ConnectMsg) {
-  int32_t contLen = sizeof(SConnectMsg);
+TEST_F(MndTestProfile, 01_ConnectMsg) {
+  int32_t contLen = sizeof(SConnectReq);
 
-  SConnectMsg* pReq = (SConnectMsg*)rpcMallocCont(contLen);
+  SConnectReq* pReq = (SConnectReq*)rpcMallocCont(contLen);
   pReq->pid = htonl(1234);
-  strcpy(pReq->app, "dnode_test_profile");
+  strcpy(pReq->app, "mnode_test_profile");
   strcpy(pReq->db, "");
 
   SRpcMsg* pMsg = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
@@ -53,18 +53,18 @@ TEST_F(DndTestProfile, 01_ConnectMsg) {
 
   EXPECT_EQ(pRsp->epSet.inUse, 0);
   EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-  EXPECT_EQ(pRsp->epSet.port[0], 9080);
+  EXPECT_EQ(pRsp->epSet.port[0], 9022);
   EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
 
   connId = pRsp->connId;
 }
 
-TEST_F(DndTestProfile, 02_ConnectMsg_InvalidDB) {
-  int32_t contLen = sizeof(SConnectMsg);
+TEST_F(MndTestProfile, 02_ConnectMsg_InvalidDB) {
+  int32_t contLen = sizeof(SConnectReq);
 
-  SConnectMsg* pReq = (SConnectMsg*)rpcMallocCont(contLen);
+  SConnectReq* pReq = (SConnectReq*)rpcMallocCont(contLen);
   pReq->pid = htonl(1234);
-  strcpy(pReq->app, "dnode_test_profile");
+  strcpy(pReq->app, "mnode_test_profile");
   strcpy(pReq->db, "invalid_db");
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
@@ -73,7 +73,7 @@ TEST_F(DndTestProfile, 02_ConnectMsg_InvalidDB) {
   ASSERT_EQ(pRsp->contLen, 0);
 }
 
-TEST_F(DndTestProfile, 03_ConnectMsg_Show) {
+TEST_F(MndTestProfile, 03_ConnectMsg_Show) {
   test.SendShowMetaReq(TSDB_MGMT_TABLE_CONNS, "");
   CHECK_META("show connections", 7);
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_INT, 4, "connId");
@@ -88,22 +88,22 @@ TEST_F(DndTestProfile, 03_ConnectMsg_Show) {
   EXPECT_EQ(test.GetShowRows(), 1);
   CheckInt32(1);
   CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("dnode_test_profile", TSDB_APP_NAME_LEN);
+  CheckBinary("mnode_test_profile", TSDB_APP_NAME_LEN);
   CheckInt32(1234);
   IgnoreBinary(TSDB_IPv4ADDR_LEN + 6);
   CheckTimestamp();
   CheckTimestamp();
 }
 
-TEST_F(DndTestProfile, 04_HeartBeatMsg) {
-  int32_t contLen = sizeof(SHeartBeatMsg);
+TEST_F(MndTestProfile, 04_HeartBeatMsg) {
+  int32_t contLen = sizeof(SHeartBeatReq);
 
-  SHeartBeatMsg* pReq = (SHeartBeatMsg*)rpcMallocCont(contLen);
+  SHeartBeatReq* pReq = (SHeartBeatReq*)rpcMallocCont(contLen);
   pReq->connId = htonl(connId);
   pReq->pid = htonl(1234);
   pReq->numOfQueries = htonl(0);
   pReq->numOfStreams = htonl(0);
-  strcpy(pReq->app, "dnode_test_profile");
+  strcpy(pReq->app, "mnode_test_profile");
 
   SRpcMsg* pMsg = test.SendReq(TDMT_MND_HEARTBEAT, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
@@ -127,15 +127,15 @@ TEST_F(DndTestProfile, 04_HeartBeatMsg) {
 
   EXPECT_EQ(pRsp->epSet.inUse, 0);
   EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-  EXPECT_EQ(pRsp->epSet.port[0], 9080);
+  EXPECT_EQ(pRsp->epSet.port[0], 9022);
   EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
 }
 
-TEST_F(DndTestProfile, 05_KillConnMsg) {
+TEST_F(MndTestProfile, 05_KillConnMsg) {
   {
-    int32_t contLen = sizeof(SKillConnMsg);
+    int32_t contLen = sizeof(SKillConnReq);
 
-    SKillConnMsg* pReq = (SKillConnMsg*)rpcMallocCont(contLen);
+    SKillConnReq* pReq = (SKillConnReq*)rpcMallocCont(contLen);
     pReq->connId = htonl(connId);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_CONN, pReq, contLen);
@@ -144,14 +144,14 @@ TEST_F(DndTestProfile, 05_KillConnMsg) {
   }
 
   {
-    int32_t contLen = sizeof(SHeartBeatMsg);
+    int32_t contLen = sizeof(SHeartBeatReq);
 
-    SHeartBeatMsg* pReq = (SHeartBeatMsg*)rpcMallocCont(contLen);
+    SHeartBeatReq* pReq = (SHeartBeatReq*)rpcMallocCont(contLen);
     pReq->connId = htonl(connId);
     pReq->pid = htonl(1234);
     pReq->numOfQueries = htonl(0);
     pReq->numOfStreams = htonl(0);
-    strcpy(pReq->app, "dnode_test_profile");
+    strcpy(pReq->app, "mnode_test_profile");
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_HEARTBEAT, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -160,11 +160,11 @@ TEST_F(DndTestProfile, 05_KillConnMsg) {
   }
 
   {
-    int32_t contLen = sizeof(SConnectMsg);
+    int32_t contLen = sizeof(SConnectReq);
 
-    SConnectMsg* pReq = (SConnectMsg*)rpcMallocCont(contLen);
+    SConnectReq* pReq = (SConnectReq*)rpcMallocCont(contLen);
     pReq->pid = htonl(1234);
-    strcpy(pReq->app, "dnode_test_profile");
+    strcpy(pReq->app, "mnode_test_profile");
     strcpy(pReq->db, "");
 
     SRpcMsg* pMsg = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
@@ -185,17 +185,17 @@ TEST_F(DndTestProfile, 05_KillConnMsg) {
 
     EXPECT_EQ(pRsp->epSet.inUse, 0);
     EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-    EXPECT_EQ(pRsp->epSet.port[0], 9080);
+    EXPECT_EQ(pRsp->epSet.port[0], 9022);
     EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
 
     connId = pRsp->connId;
   }
 }
 
-TEST_F(DndTestProfile, 06_KillConnMsg_InvalidConn) {
-  int32_t contLen = sizeof(SKillConnMsg);
+TEST_F(MndTestProfile, 06_KillConnMsg_InvalidConn) {
+  int32_t contLen = sizeof(SKillConnReq);
 
-  SKillConnMsg* pReq = (SKillConnMsg*)rpcMallocCont(contLen);
+  SKillConnReq* pReq = (SKillConnReq*)rpcMallocCont(contLen);
   pReq->connId = htonl(2345);
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_CONN, pReq, contLen);
@@ -203,11 +203,11 @@ TEST_F(DndTestProfile, 06_KillConnMsg_InvalidConn) {
   ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_CONN_ID);
 }
 
-TEST_F(DndTestProfile, 07_KillQueryMsg) {
+TEST_F(MndTestProfile, 07_KillQueryMsg) {
   {
-    int32_t contLen = sizeof(SKillQueryMsg);
+    int32_t contLen = sizeof(SKillQueryReq);
 
-    SKillQueryMsg* pReq = (SKillQueryMsg*)rpcMallocCont(contLen);
+    SKillQueryReq* pReq = (SKillQueryReq*)rpcMallocCont(contLen);
     pReq->connId = htonl(connId);
     pReq->queryId = htonl(1234);
 
@@ -218,14 +218,14 @@ TEST_F(DndTestProfile, 07_KillQueryMsg) {
   }
 
   {
-    int32_t contLen = sizeof(SHeartBeatMsg);
+    int32_t contLen = sizeof(SHeartBeatReq);
 
-    SHeartBeatMsg* pReq = (SHeartBeatMsg*)rpcMallocCont(contLen);
+    SHeartBeatReq* pReq = (SHeartBeatReq*)rpcMallocCont(contLen);
     pReq->connId = htonl(connId);
     pReq->pid = htonl(1234);
     pReq->numOfQueries = htonl(0);
     pReq->numOfStreams = htonl(0);
-    strcpy(pReq->app, "dnode_test_profile");
+    strcpy(pReq->app, "mnode_test_profile");
 
     SRpcMsg* pMsg = test.SendReq(TDMT_MND_HEARTBEAT, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
@@ -249,15 +249,15 @@ TEST_F(DndTestProfile, 07_KillQueryMsg) {
 
     EXPECT_EQ(pRsp->epSet.inUse, 0);
     EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-    EXPECT_EQ(pRsp->epSet.port[0], 9080);
+    EXPECT_EQ(pRsp->epSet.port[0], 9022);
     EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
   }
 }
 
-TEST_F(DndTestProfile, 08_KillQueryMsg_InvalidConn) {
-  int32_t contLen = sizeof(SKillQueryMsg);
+TEST_F(MndTestProfile, 08_KillQueryMsg_InvalidConn) {
+  int32_t contLen = sizeof(SKillQueryReq);
 
-  SKillQueryMsg* pReq = (SKillQueryMsg*)rpcMallocCont(contLen);
+  SKillQueryReq* pReq = (SKillQueryReq*)rpcMallocCont(contLen);
   pReq->connId = htonl(2345);
   pReq->queryId = htonl(1234);
 
@@ -266,7 +266,7 @@ TEST_F(DndTestProfile, 08_KillQueryMsg_InvalidConn) {
   ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_CONN_ID);
 }
 
-TEST_F(DndTestProfile, 09_KillQueryMsg) {
+TEST_F(MndTestProfile, 09_KillQueryMsg) {
   test.SendShowMetaReq(TSDB_MGMT_TABLE_QUERIES, "");
   CHECK_META("show queries", 14);
 

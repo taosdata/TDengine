@@ -302,7 +302,7 @@ typedef struct {
   char    app[TSDB_APP_NAME_LEN];
   char    db[TSDB_DB_NAME_LEN];
   int64_t startTime;
-} SConnectMsg;
+} SConnectReq;
 
 typedef struct SEpSet {
   int8_t   inUse;
@@ -898,7 +898,7 @@ typedef struct {
   int32_t numOfStreams;
   char    app[TSDB_APP_NAME_LEN];
   char    pData[];
-} SHeartBeatMsg;
+} SHeartBeatReq;
 
 typedef struct {
   int32_t connId;
@@ -913,17 +913,12 @@ typedef struct {
 
 typedef struct {
   int32_t connId;
-  int32_t streamId;
-} SKillStreamMsg;
-
-typedef struct {
-  int32_t connId;
   int32_t queryId;
-} SKillQueryMsg;
+} SKillQueryReq;
 
 typedef struct {
   int32_t connId;
-} SKillConnMsg;
+} SKillConnReq;
 
 typedef struct {
   char user[TSDB_USER_LEN];
