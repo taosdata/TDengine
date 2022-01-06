@@ -64,23 +64,23 @@ void Testbase::ServerStop() { server.Stop(); }
 
 void Testbase::ServerStart() { server.DoStart(); }
 
-SRpcMsg* Testbase::SendMsg(tmsg_t msgType, void* pCont, int32_t contLen) {
+SRpcMsg* Testbase::SendReq(tmsg_t msgType, void* pCont, int32_t contLen) {
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pCont;
   rpcMsg.contLen = contLen;
   rpcMsg.msgType = msgType;
 
-  return client.SendMsg(&rpcMsg);
+  return client.SendReq(&rpcMsg);
 }
 
-void Testbase::SendShowMetaMsg(int8_t showType, const char* db) {
-  int32_t   contLen = sizeof(SShowMsg);
-  SShowMsg* pShow = (SShowMsg*)rpcMallocCont(contLen);
+void Testbase::SendShowMetaReq(int8_t showType, const char* db) {
+  int32_t   contLen = sizeof(SShowReq);
+  SShowReq* pShow = (SShowReq*)rpcMallocCont(contLen);
   pShow->type = showType;
   strcpy(pShow->db, db);
 
-  SRpcMsg*  pMsg = SendMsg(TDMT_MND_SHOW, pShow, contLen);
-  SShowRsp* pShowRsp = (SShowRsp*)pMsg->pCont;
+  SRpcMsg*  pRsp = SendReq(TDMT_MND_SHOW, pShow, contLen);
+  SShowRsp* pShowRsp = (SShowRsp*)pRsp->pCont;
 
   ASSERT(pShowRsp != nullptr);
   pShowRsp->showId = htobe64(pShowRsp->showId);
@@ -121,15 +121,15 @@ int32_t Testbase::GetMetaNum() { return pMeta->numOfColumns; }
 
 const char* Testbase::GetMetaTbName() { return pMeta->tbFname; }
 
-void Testbase::SendShowRetrieveMsg() {
-  int32_t contLen = sizeof(SRetrieveTableMsg);
+void Testbase::SendShowRetrieveReq() {
+  int32_t contLen = sizeof(SRetrieveTableReq);
 
-  SRetrieveTableMsg* pRetrieve = (SRetrieveTableMsg*)rpcMallocCont(contLen);
+  SRetrieveTableReq* pRetrieve = (SRetrieveTableReq*)rpcMallocCont(contLen);
   pRetrieve->showId = htobe64(showId);
   pRetrieve->free = 0;
 
-  SRpcMsg* pMsg = SendMsg(TDMT_MND_SHOW_RETRIEVE, pRetrieve, contLen);
-  pRetrieveRsp = (SRetrieveTableRsp*)pMsg->pCont;
+  SRpcMsg* pRsp = SendReq(TDMT_MND_SHOW_RETRIEVE, pRetrieve, contLen);
+  pRetrieveRsp = (SRetrieveTableRsp*)pRsp->pCont;
   pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
   pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);
   pRetrieveRsp->compLen = htonl(pRetrieveRsp->compLen);

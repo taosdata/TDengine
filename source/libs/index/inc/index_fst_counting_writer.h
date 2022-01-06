@@ -22,6 +22,8 @@ extern "C" {
 
 #include "tfile.h"
 
+//#define USE_MMAP 1
+
 #define DefaultMem 1024 * 1024
 
 static char tmpFile[] = "./index";
@@ -39,6 +41,9 @@ typedef struct WriterCtx {
       bool readOnly;
       char buf[256];
       int  size;
+#ifdef USE_MMAP
+      char* ptr;
+#endif
     } file;
     struct {
       int32_t capa;

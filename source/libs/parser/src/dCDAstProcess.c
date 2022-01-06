@@ -1,10 +1,12 @@
+#include <astGenerator.h>
 #include <tmsg.h>
-#include <ttime.h>
 #include "astToMsg.h"
 #include "parserInt.h"
 #include "parserUtil.h"
 #include "queryInfoUtil.h"
 #include "tglobal.h"
+#include "tmsg.h"
+#include "ttime.h"
 
 /* is contained in pFieldList or not */
 static bool has(SArray* pFieldList, int32_t startIndex, const char* name) {
@@ -109,7 +111,7 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx* pCtx, void** ou
 
     *pEpSet = pCtx->mgmtEpSet;
     *output = buildShowMsg(pShowInfo, pCtx, pMsgBuf->buf, pMsgBuf->len);
-    *outputLen = sizeof(SShowMsg) /* + htons(pShowMsg->payloadLen)*/;
+    *outputLen = sizeof(SShowReq) /* + htons(pShowMsg->payloadLen)*/;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -248,16 +250,10 @@ static int32_t validateTableColumns(SArray* pFieldList, int32_t maxRowLength, in
 }
 
 static int32_t validateTableColumnInfo(SArray* pFieldList, SMsgBuf* pMsgBuf) {
-  assert(pFieldList != NULL);
+  assert(pFieldList != NULL && pMsgBuf != NULL);
 
   const char* msg1 = "first column must be timestamp";
-  const char* msg2 = "row length exceeds max length";
-  const char* msg3 = "duplicated column names";
-  const char* msg4 = "invalid data type";
-  const char* msg5 = "invalid binary/nchar column length";
-  const char* msg6 = "invalid column name";
-  const char* msg7 = "too many columns";
-  const char* msg8 = "illegal number of columns";
+  const char* msg2 = "illegal number of columns";
 
   // first column must be timestamp
   SField* pField = taosArrayGet(pFieldList, 0);
@@ -268,7 +264,7 @@ static int32_t validateTableColumnInfo(SArray* pFieldList, SMsgBuf* pMsgBuf) {
   // number of fields no less than 2
   size_t numOfCols = taosArrayGetSize(pFieldList);
   if (numOfCols <= 1) {
-    return buildInvalidOperationMsg(pMsgBuf, msg8);
+    return buildInvalidOperationMsg(pMsgBuf, msg2);
   }
 
   return validateTableColumns(pFieldList, TSDB_MAX_BYTES_PER_ROW, TSDB_MAX_COLUMNS, pMsgBuf);
@@ -297,10 +293,8 @@ static int32_t validateTagParams(SArray* pTagsList, SArray* pFieldList, SMsgBuf*
   return validateTableColumns(pFieldList, TSDB_MAX_TAGS_LEN, TSDB_MAX_TAGS, pMsgBuf);
 }
 
-int32_t doCheckForCreateTable(SSqlInfo* pInfo, SMsgBuf* pMsgBuf) {
+int32_t doCheckForCreateTable(SCreateTableSql* pCreateTable, SMsgBuf* pMsgBuf) {
   const char* msg1 = "invalid table name";
-
-  SCreateTableSql* pCreateTable = pInfo->pCreateTableInfo;
 
   SArray* pFieldList = pCreateTable->colInfo.pColumns;
   SArray* pTagList = pCreateTable->colInfo.pTagColumns;
@@ -325,6 +319,8 @@ typedef struct SVgroupTablesBatch {
   SVCreateTbBatchReq req;
   SVgroupInfo        info;
 } SVgroupTablesBatch;
+
+static SArray* doSerializeVgroupCreateTableInfo(SHashObj* pVgroupHashmap);
 
 static int32_t doParseSerializeTagValue(SSchema* pTagSchema, int32_t numOfInputTag, SKVRowBuilder* pKvRowBuilder,
                                         SArray* pTagValList, int32_t tsPrecision, SMsgBuf* pMsgBuf) {
@@ -351,13 +347,51 @@ static int32_t doParseSerializeTagValue(SSchema* pTagSchema, int32_t numOfInputT
   return code;
 }
 
-int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* pMsgBuf, char** pOutput, int32_t* len) {
+static void addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const SName* pTableName, SKVRow row, uint64_t suid, SVgroupInfo* pVgInfo) {
+  struct SVCreateTbReq req = {0};
+  req.type        = TD_CHILD_TABLE;
+  req.name        = strdup(tNameGetTableName(pTableName));
+  req.ctbCfg.suid = suid;
+  req.ctbCfg.pTag = row;
+
+  SVgroupTablesBatch* pTableBatch = taosHashGet(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId));
+  if (pTableBatch == NULL) {
+    SVgroupTablesBatch tBatch = {0};
+    tBatch.info = *pVgInfo;
+
+    tBatch.req.pArray = taosArrayInit(4, sizeof(struct SVCreateTbReq));
+    taosArrayPush(tBatch.req.pArray, &req);
+
+    taosHashPut(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId), &tBatch, sizeof(tBatch));
+  } else {  // add to the correct vgroup
+    assert(pVgInfo->vgId == pTableBatch->info.vgId);
+    taosArrayPush(pTableBatch->req.pArray, &req);
+  }
+}
+
+static void destroyCreateTbReqBatch(SVgroupTablesBatch* pTbBatch) {
+  size_t size = taosArrayGetSize(pTbBatch->req.pArray);
+  for(int32_t i = 0; i < size; ++i) {
+    SVCreateTbReq* pTableReq = taosArrayGet(pTbBatch->req.pArray, i);
+    tfree(pTableReq->name);
+
+    if (pTableReq->type == TSDB_NORMAL_TABLE) {
+      tfree(pTableReq->ntbCfg.pSchema);
+    } else if (pTableReq->type == TSDB_CHILD_TABLE) {
+      tfree(pTableReq->ctbCfg.pTag);
+    } else {
+      assert(0);
+    }
+  }
+
+  taosArrayDestroy(pTbBatch->req.pArray);
+}
+
+static int32_t doCheckAndBuildCreateCTableReq(SCreateTableSql* pCreateTable, SParseBasicCtx* pCtx, SMsgBuf* pMsgBuf, SArray** pBufArray) {
   const char* msg1 = "invalid table name";
   const char* msg2 = "tags number not matched";
   const char* msg3 = "tag value too long";
   const char* msg4 = "illegal value or data overflow";
-
-  SCreateTableSql* pCreateTable = pInfo->pCreateTableInfo;
 
   SHashObj* pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
 
@@ -378,6 +412,11 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
       return code;
     }
 
+    SKVRowBuilder kvRowBuilder = {0};
+    if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+
     SArray* pValList = pCreateTableInfo->pTagVals;
     size_t  numOfInputTag = taosArrayGetSize(pValList);
 
@@ -393,26 +432,22 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     SSchema*      pTagSchema = getTableTagSchema(pSuperTableMeta);
     STableComInfo tinfo = getTableInfo(pSuperTableMeta);
 
-    SKVRowBuilder kvRowBuilder = {0};
-    if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-
     SArray* pNameList = NULL;
-    size_t  nameSize = 0;
+    size_t  numOfBoundTags = 0;
     int32_t schemaSize = getNumOfTags(pSuperTableMeta);
 
     if (pCreateTableInfo->pTagNames) {
       pNameList = pCreateTableInfo->pTagNames;
-      nameSize = taosArrayGetSize(pNameList);
+      numOfBoundTags = taosArrayGetSize(pNameList);
 
-      if (numOfInputTag != nameSize || schemaSize < numOfInputTag) {
+      if (numOfInputTag != numOfBoundTags || schemaSize < numOfInputTag) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
+        tfree(pSuperTableMeta);
         return buildInvalidOperationMsg(pMsgBuf, msg2);
       }
 
       bool findColumnIndex = false;
-      for (int32_t i = 0; i < nameSize; ++i) {
+      for (int32_t i = 0; i < numOfBoundTags; ++i) {
         SToken* sToken = taosArrayGet(pNameList, i);
 
         char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0};  // create tmp buf to avoid alter orginal sqlstr
@@ -440,6 +475,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
             if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
               if (pItem->pVar.nLen > pSchema->bytes) {
                 tdDestroyKVRowBuilder(&kvRowBuilder);
+                tfree(pSuperTableMeta);
                 return buildInvalidOperationMsg(pMsgBuf, msg3);
               }
             } else if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
@@ -460,12 +496,14 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
               int16_t len = varDataTLen(tagVal);
               if (len > pSchema->bytes) {
                 tdDestroyKVRowBuilder(&kvRowBuilder);
+                tfree(pSuperTableMeta);
                 return buildInvalidOperationMsg(pMsgBuf, msg3);
               }
             }
 
             if (code != TSDB_CODE_SUCCESS) {
               tdDestroyKVRowBuilder(&kvRowBuilder);
+              tfree(pSuperTableMeta);
               return buildInvalidOperationMsg(pMsgBuf, msg4);
             }
 
@@ -484,11 +522,14 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     } else {
       if (schemaSize != numOfInputTag) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
+        tfree(pSuperTableMeta);
         return buildInvalidOperationMsg(pMsgBuf, msg2);
       }
 
       code = doParseSerializeTagValue(pTagSchema, numOfInputTag, &kvRowBuilder, pValList, tinfo.precision, pMsgBuf);
       if (code != TSDB_CODE_SUCCESS) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
+        tfree(pSuperTableMeta);
         return code;
       }
     }
@@ -496,6 +537,7 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
     tdDestroyKVRowBuilder(&kvRowBuilder);
     if (row == NULL) {
+      tfree(pSuperTableMeta);
       return TSDB_CODE_QRY_OUT_OF_MEMORY;
     }
 
@@ -504,70 +546,133 @@ int32_t doCheckForCreateCTable(SSqlInfo* pInfo, SParseBasicCtx* pCtx, SMsgBuf* p
     SName tableName = {0};
     code = createSName(&tableName, &pCreateTableInfo->name, pCtx, pMsgBuf);
     if (code != TSDB_CODE_SUCCESS) {
+      tfree(pSuperTableMeta);
+      return code;
+    }
+
+    // Find a appropriate vgroup to accommodate this table , according to the table name
+    SVgroupInfo info = {0};
+    catalogGetTableHashVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, &tableName, &info);
+
+    addCreateTbReqIntoVgroup(pVgroupHashmap, &tableName, row, pSuperTableMeta->uid, &info);
+    tfree(pSuperTableMeta);
+  }
+
+  *pBufArray = doSerializeVgroupCreateTableInfo(pVgroupHashmap);
+
+  taosHashCleanup(pVgroupHashmap);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t serializeVgroupTablesBatchImpl(SVgroupTablesBatch* pTbBatch, SArray* pBufArray) {
+  int   tlen = sizeof(SMsgHead) + tSVCreateTbBatchReqSerialize(NULL, &(pTbBatch->req));
+  void* buf = malloc(tlen);
+  if (buf == NULL) {
+    // TODO: handle error
+  }
+
+  ((SMsgHead*)buf)->vgId = htonl(pTbBatch->info.vgId);
+  ((SMsgHead*)buf)->contLen = htonl(tlen);
+
+  void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  tSVCreateTbBatchReqSerialize(&pBuf, &(pTbBatch->req));
+
+  SVgDataBlocks* pVgData = calloc(1, sizeof(SVgDataBlocks));
+  pVgData->vg    = pTbBatch->info;
+  pVgData->pData = buf;
+  pVgData->size  = tlen;
+  pVgData->numOfTables = (int32_t) taosArrayGetSize(pTbBatch->req.pArray);
+
+  taosArrayPush(pBufArray, &pVgData);
+}
+
+static int32_t doBuildSingleTableBatchReq(SName* pTableName, SArray* pColumns, SVgroupInfo* pVgroupInfo, SVgroupTablesBatch* pBatch) {
+  struct SVCreateTbReq req = {0};
+  req.type = TD_NORMAL_TABLE;
+  req.name = strdup(tNameGetTableName(pTableName));
+
+  req.ntbCfg.nCols = taosArrayGetSize(pColumns);
+  int32_t num = req.ntbCfg.nCols;
+
+  req.ntbCfg.pSchema = calloc(num, sizeof(SSchema));
+  for(int32_t i = 0; i < num; ++i) {
+    SSchema* pSchema = taosArrayGet(pColumns, i);
+    memcpy(&req.ntbCfg.pSchema[i], pSchema, sizeof(SSchema));
+  }
+
+  pBatch->info = *pVgroupInfo;
+  pBatch->req.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
+  if (pBatch->req.pArray == NULL) {
+    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  }
+
+  taosArrayPush(pBatch->req.pArray, &req);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t doCheckAndBuildCreateTableReq(SCreateTableSql* pCreateTable, SParseBasicCtx* pCtx, SMsgBuf* pMsgBuf, char** pOutput, int32_t* len) {
+  SArray* pBufArray = NULL;
+
+  // it is a sql statement to create a normal table
+  if (pCreateTable->childTableInfo == NULL) {
+    assert(taosArrayGetSize(pCreateTable->colInfo.pColumns) > 0 && pCreateTable->colInfo.pTagColumns == NULL);
+    int32_t code = doCheckForCreateTable(pCreateTable, pMsgBuf);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    SName tableName = {0};
+    code = createSName(&tableName, &pCreateTable->name, pCtx, pMsgBuf);
+    if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
     SVgroupInfo info = {0};
     catalogGetTableHashVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, &tableName, &info);
 
-    struct SVCreateTbReq req = {0};
-    req.type        = TD_CHILD_TABLE;
-    req.name        = strdup(tNameGetTableName(&tableName));
-    req.ctbCfg.suid = pSuperTableMeta->uid;
-    req.ctbCfg.pTag = row;
-
-    SVgroupTablesBatch* pTableBatch = taosHashGet(pVgroupHashmap, &info.vgId, sizeof(info.vgId));
-    if (pTableBatch == NULL) {
-      SVgroupTablesBatch tBatch = {0};
-      tBatch.info = info;
-
-      tBatch.req.pArray = taosArrayInit(4, sizeof(struct SVCreateTbReq));
-      taosArrayPush(tBatch.req.pArray, &req);
-
-      taosHashPut(pVgroupHashmap, &info.vgId, sizeof(info.vgId), &tBatch, sizeof(tBatch));
-    } else {  // add to the correct vgroup
-      assert(info.vgId == pTableBatch->info.vgId);
-      taosArrayPush(pTableBatch->req.pArray, &req);
+    SVgroupTablesBatch tbatch = {0};
+    code = doBuildSingleTableBatchReq(&tableName, pCreateTable->colInfo.pColumns, &info, &tbatch);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
+
+    pBufArray = taosArrayInit(1, POINTER_BYTES);
+    if (pBufArray == NULL) {
+      return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    }
+
+    serializeVgroupTablesBatchImpl(&tbatch, pBufArray);
+    destroyCreateTbReqBatch(&tbatch);
+
+  } else { // it is a child table, created according to a super table
+    doCheckAndBuildCreateCTableReq(pCreateTable, pCtx, pMsgBuf, &pBufArray);
   }
 
-  // TODO: serialize and
+  SVnodeModifOpStmtInfo* pStmtInfo = calloc(1, sizeof(SVnodeModifOpStmtInfo));
+  pStmtInfo->nodeType    = TSDB_SQL_CREATE_TABLE;
+  pStmtInfo->pDataBlocks = pBufArray;
+
+  *pOutput = (char*) pStmtInfo;
+  *len     = sizeof(SVnodeModifOpStmtInfo);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+SArray* doSerializeVgroupCreateTableInfo(SHashObj* pVgroupHashmap) {
   SArray* pBufArray = taosArrayInit(taosHashGetSize(pVgroupHashmap), sizeof(void*));
 
   SVgroupTablesBatch* pTbBatch = NULL;
   do {
     pTbBatch = taosHashIterate(pVgroupHashmap, pTbBatch);
-    if (pTbBatch == NULL) break;
-
-    int   tlen = sizeof(SMsgHead) + tSVCreateTbBatchReqSerialize(NULL, &(pTbBatch->req));
-    void* buf = malloc(tlen);
-    if (buf == NULL) {
-      // TODO: handle error
+    if (pTbBatch == NULL) {
+      break;
     }
 
-    ((SMsgHead*)buf)->vgId = htonl(pTbBatch->info.vgId);
-    ((SMsgHead*)buf)->contLen = htonl(tlen);
-
-    void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-    tSVCreateTbBatchReqSerialize(&pBuf, &(pTbBatch->req));
-
-    SVgDataBlocks* pVgData = calloc(1, sizeof(SVgDataBlocks));
-    pVgData->vg    = pTbBatch->info;
-    pVgData->pData = buf;
-    pVgData->size  = tlen;
-    pVgData->numOfTables = (int32_t) taosArrayGetSize(pTbBatch->req.pArray);
-
-    taosArrayPush(pBufArray, &pVgData);
+    /*int32_t code = */serializeVgroupTablesBatchImpl(pTbBatch, pBufArray);
+    destroyCreateTbReqBatch(pTbBatch);
   } while (true);
 
-  SVnodeModifOpStmtInfo* pStmtInfo = calloc(1, sizeof(SVnodeModifOpStmtInfo));
-  pStmtInfo->nodeType    = TSDB_SQL_CREATE_TABLE;
-  pStmtInfo->pDataBlocks = pBufArray;
-  
-  *pOutput = (char*) pStmtInfo;
-  *len     = sizeof(SVnodeModifOpStmtInfo);
-
-  return TSDB_CODE_SUCCESS;
+  return pBufArray;
 }
 
 SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, char* msgBuf, int32_t msgBufLen) {
@@ -776,21 +881,13 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, c
 
     case TSDB_SQL_CREATE_STABLE: {
       SCreateTableSql* pCreateTable = pInfo->pCreateTableInfo;
-      assert(pCreateTable->type != TSQL_CREATE_CTABLE);
-
-      if (pCreateTable->type == TSQL_CREATE_TABLE || pCreateTable->type == TSQL_CREATE_STABLE) {
-        if ((code = doCheckForCreateTable(pInfo, pMsgBuf)) != TSDB_CODE_SUCCESS) {
-          terrno = code;
-          goto _error;
-        }
-
-        pDcl->pMsg = (char*)buildCreateTableMsg(pCreateTable, &pDcl->msgLen, pCtx, pMsgBuf);
-        pDcl->msgType = (pCreateTable->type == TSQL_CREATE_TABLE) ? TDMT_VND_CREATE_TABLE : TDMT_MND_CREATE_STB;
-      } else if (pCreateTable->type == TSQL_CREATE_STREAM) {
-        //        if ((code = doCheckForStream(pSql, pInfo)) != TSDB_CODE_SUCCESS) {
-        //          return code;
+      if ((code = doCheckForCreateTable(pCreateTable, pMsgBuf)) != TSDB_CODE_SUCCESS) {
+        terrno = code;
+        goto _error;
       }
 
+      pDcl->pMsg = (char*)buildCreateStbMsg(pCreateTable, &pDcl->msgLen, pCtx, pMsgBuf);
+      pDcl->msgType = TDMT_MND_CREATE_STB;
       break;
     }
 
@@ -838,19 +935,19 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, c
 
 SVnodeModifOpStmtInfo* qParserValidateCreateTbSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, char* msgBuf, int32_t msgBufLen) {
   SCreateTableSql* pCreateTable = pInfo->pCreateTableInfo;
-  assert(pCreateTable->type == TSQL_CREATE_CTABLE);
+  assert(pCreateTable->type == TSDB_SQL_CREATE_TABLE);
 
   SMsgBuf  m = {.buf = msgBuf, .len = msgBufLen};
   SMsgBuf* pMsgBuf = &m;
 
-  SVnodeModifOpStmtInfo* pInsertStmt = NULL;
+  SVnodeModifOpStmtInfo* pModifSqlStmt = NULL;
 
   int32_t msgLen = 0;
-  int32_t code = doCheckForCreateCTable(pInfo, pCtx, pMsgBuf, (char**) &pInsertStmt, &msgLen);
+  int32_t code = doCheckAndBuildCreateTableReq(pCreateTable, pCtx, pMsgBuf, (char**) &pModifSqlStmt, &msgLen);
   if (code != TSDB_CODE_SUCCESS) {
-    tfree(pInsertStmt);
+    tfree(pModifSqlStmt);
     return NULL;
   }
 
-  return pInsertStmt;
+  return pModifSqlStmt;
 }

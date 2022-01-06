@@ -28,6 +28,7 @@ typedef struct {
   int8_t  msgSent;
   int8_t  msgReceived;
   int32_t errCode;
+  int32_t acceptableCode;
   int32_t contLen;
   void   *pCont;
 } STransAction;

@@ -43,7 +43,7 @@ int32_t tfFsync(int64_t tfd);
 bool    tfValid(int64_t tfd);
 int64_t tfLseek(int64_t tfd, int64_t offset, int32_t whence);
 int32_t tfFtruncate(int64_t tfd, int64_t length);
-
+void *  tfMmapReadOnly(int64_t tfd, int64_t length);
 #ifdef __cplusplus
 }
 #endif

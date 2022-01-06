@@ -1,16 +1,16 @@
 enable_testing()
 
 add_subdirectory(qnode)
+add_subdirectory(bnode)
+add_subdirectory(snode)
 
 # add_subdirectory(auth)
 # add_subdirectory(balance)
-add_subdirectory(cluster)
 add_subdirectory(db)
 add_subdirectory(dnode)
 # add_subdirectory(func)
 add_subdirectory(mnode)
 add_subdirectory(profile)
-add_subdirectory(show)
 add_subdirectory(stb)
 # add_subdirectory(sync)
 # add_subdirectory(telem)

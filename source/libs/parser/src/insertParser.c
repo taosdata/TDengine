@@ -121,11 +121,9 @@ static int32_t findCol(SToken* pColname, int32_t start, int32_t end, SSchema* pS
 }
 
 static void buildMsgHeader(SVgDataBlocks* blocks) {
-    SMsgDesc* desc = (SMsgDesc*)blocks->pData;
-    desc->numOfVnodes = htonl(1);
-    SSubmitMsg* submit = (SSubmitMsg*)(desc + 1);
+    SSubmitMsg* submit = (SSubmitMsg*)blocks->pData;
     submit->header.vgId    = htonl(blocks->vg.vgId);
-    submit->header.contLen = htonl(blocks->size - sizeof(SMsgDesc));
+    submit->header.contLen = htonl(blocks->size);
     submit->length         = submit->header.contLen;
     submit->numOfBlocks    = htonl(blocks->numOfTables);
     SSubmitBlk* blk = (SSubmitBlk*)(submit + 1);

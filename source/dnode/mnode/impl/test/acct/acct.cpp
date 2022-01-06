@@ -30,9 +30,9 @@ TEST_F(MndTestAcct, 01_Create_Acct) {
 
   SCreateAcctReq* pReq = (SCreateAcctReq*)rpcMallocCont(contLen);
 
-  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_ACCT, pReq, contLen);
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
+  SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_ACCT, pReq, contLen);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
 
 TEST_F(MndTestAcct, 02_Alter_Acct) {
@@ -40,9 +40,9 @@ TEST_F(MndTestAcct, 02_Alter_Acct) {
 
   SAlterAcctReq* pReq = (SAlterAcctReq*)rpcMallocCont(contLen);
 
-  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_ALTER_ACCT, pReq, contLen);
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
+  SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_ACCT, pReq, contLen);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
 
 TEST_F(MndTestAcct, 03_Drop_Acct) {
@@ -50,18 +50,18 @@ TEST_F(MndTestAcct, 03_Drop_Acct) {
 
   SDropAcctReq* pReq = (SDropAcctReq*)rpcMallocCont(contLen);
 
-  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_ACCT, pReq, contLen);
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
+  SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_ACCT, pReq, contLen);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
 }
 
 TEST_F(MndTestAcct, 04_Show_Acct) {
-  int32_t contLen = sizeof(SShowMsg);
+  int32_t contLen = sizeof(SShowReq);
 
-  SShowMsg* pReq = (SShowMsg*)rpcMallocCont(contLen);
+  SShowReq* pReq = (SShowReq*)rpcMallocCont(contLen);
   pReq->type = TSDB_MGMT_TABLE_ACCT;
 
-  SRpcMsg* pMsg = test.SendMsg(TDMT_MND_SHOW, pReq, contLen);
-  ASSERT_NE(pMsg, nullptr);
-  ASSERT_EQ(pMsg->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
+  SRpcMsg* pRsp = test.SendReq(TDMT_MND_SHOW, pReq, contLen);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
 }

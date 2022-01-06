@@ -392,6 +392,18 @@ SArray* createQueryPlanImpl(const SQueryStmtInfo* pQueryInfo) {
 }
 
 static void doDestroyQueryNode(SQueryPlanNode* pQueryNode) {
+  if (pQueryNode->info.type == QNODE_MODIFY) {
+    SDataPayloadInfo* pInfo = pQueryNode->pExtInfo;
+
+    size_t size = taosArrayGetSize(pInfo->payload);
+    for (int32_t i = 0; i < size; ++i) {
+      SVgDataBlocks* pBlock = taosArrayGetP(pInfo->payload, i);
+      tfree(pBlock);
+    }
+
+    taosArrayDestroy(pInfo->payload);
+  }
+
   tfree(pQueryNode->pExtInfo);
   tfree(pQueryNode->pSchema);
   tfree(pQueryNode->info.name);

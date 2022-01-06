@@ -15,10 +15,10 @@
 
 #include "sut.h"
 
-static void processClientRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
+static void processClientRsp(void* parent, SRpcMsg* pRsp, SEpSet* pEpSet) {
   TestClient* client = (TestClient*)parent;
-  client->SetRpcRsp(pMsg);
-  uInfo("response:%s from dnode, code:0x%x", TMSG_INFO(pMsg->msgType), pMsg->code);
+  client->SetRpcRsp(pRsp);
+  uInfo("response:%s from dnode, code:0x%x", TMSG_INFO(pRsp->msgType), pRsp->code);
   tsem_post(client->GetSem());
 }
 
@@ -59,14 +59,14 @@ void TestClient::Cleanup() {
   rpcClose(clientRpc);
 }
 
-SRpcMsg* TestClient::SendMsg(SRpcMsg* pMsg) {
+SRpcMsg* TestClient::SendReq(SRpcMsg* pReq) {
   SEpSet epSet = {0};
   epSet.inUse = 0;
   epSet.numOfEps = 1;
   epSet.port[0] = port;
   memcpy(epSet.fqdn[0], fqdn, TSDB_FQDN_LEN);
 
-  rpcSendRequest(clientRpc, &epSet, pMsg, NULL);
+  rpcSendRequest(clientRpc, &epSet, pReq, NULL);
   tsem_wait(&sem);
 
   return pRsp;
