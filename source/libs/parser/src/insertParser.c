@@ -624,7 +624,7 @@ int32_t parseInsertSql(SParseContext* pContext, SVnodeModifOpStmtInfo** pInfo) {
 
   if (NULL == context.pVgroupsHashObj || NULL == context.pTableBlockHashObj || NULL == context.pOutput) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   *pInfo = context.pOutput;
@@ -638,5 +638,5 @@ int32_t parseInsertSql(SParseContext* pContext, SVnodeModifOpStmtInfo** pInfo) {
   }
   destroyInsertParseContext(&context);
   terrno = code;
-  return (TSDB_CODE_SUCCESS == code ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED);
+  return code;
 }

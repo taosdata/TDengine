@@ -50,8 +50,10 @@ struct SQueryStmtInfo;
 typedef SSchema SSlotSchema;
 
 typedef struct SDataBlockSchema {
-  SSlotSchema        *pSchema;
-  int32_t             numOfCols;    // number of columns
+  SSlotSchema *pSchema;
+  int32_t      numOfCols;    // number of columns
+  int32_t      resultRowSize;
+  int16_t      precision;
 } SDataBlockSchema;
 
 typedef struct SQueryNodeBasicInfo {
@@ -61,6 +63,7 @@ typedef struct SQueryNodeBasicInfo {
 
 typedef struct SDataSink {
   SQueryNodeBasicInfo info;
+  SDataBlockSchema schema;
 } SDataSink;
 
 typedef struct SDataDispatcher {
