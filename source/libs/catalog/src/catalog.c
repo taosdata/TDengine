@@ -450,7 +450,7 @@ int32_t ctgMetaRentInit(SMetaRentMgmt *mgmt, uint32_t rentSec, int8_t type) {
 
 
 int32_t ctgMetaRentAdd(SMetaRentMgmt *mgmt, void *meta, int64_t id, int32_t size) {
-  int16_t widx = id % mgmt->slotNum;
+  int16_t widx = abs(id % mgmt->slotNum);
 
   SRentSlotInfo *slot = &mgmt->slots[widx];
   int32_t code = 0;
@@ -482,7 +482,7 @@ _return:
 }
 
 int32_t ctgMetaRentUpdate(SMetaRentMgmt *mgmt, void *meta, int64_t id, int32_t size, __compar_fn_t compare) {
-  int16_t widx = id % mgmt->slotNum;
+  int16_t widx = abs(id % mgmt->slotNum);
 
   SRentSlotInfo *slot = &mgmt->slots[widx];
   int32_t code = 0;
