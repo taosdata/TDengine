@@ -27,12 +27,12 @@ extern "C" {
 
 size_t  strDealWithEscape(char *z, size_t len);
 size_t  strtrim(char *src);
-char *  strnchr(char *haystack, char needle, int32_t len);
+char *  strnchr(const char *haystack, char needle, int32_t len);
 char ** strsplit(char *src, const char *delim, int32_t *num);
 char *  strtolower(char *dst, const char *src);
 char *  strntolower(char *dst, const char *src, int32_t n);
 char *  strntolower_s(char *dst, const char *src, int32_t n);
-int64_t strnatoi(char *num, int32_t len);
+int64_t strnatoi(const char *num, int32_t len);
 char *  strbetween(char *string, char *begin, char *end);
 char *  paGetToken(char *src, char **token, int32_t *tokenLen);
 

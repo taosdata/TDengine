@@ -81,21 +81,21 @@ void deltaToUtcInitOnce() {
   return;
 }
 
-static int64_t parseFraction(char* str, char** end, int32_t timePrec);
-static int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim);
-static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec);
-static int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec);
-static char* forwardToTimeStringEnd(char* str);
-static bool checkTzPresent(char *str, int32_t len);
+static int64_t parseFraction(const char* str, const char** end, int32_t timePrec);
+static int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, char delim);
+static int32_t parseLocaltime(const char* timestr, int64_t* time, int32_t timePrec);
+static int32_t parseLocaltimeWithDst(const char* timestr, int64_t* time, int32_t timePrec);
+static const char* forwardToTimeStringEnd(const char* str);
+static bool checkTzPresent(const char *str, int32_t len);
 
-static int32_t (*parseLocaltimeFp[]) (char* timestr, int64_t* time, int32_t timePrec) = {
+static int32_t (*parseLocaltimeFp[]) (const char* timestr, int64_t* time, int32_t timePrec) = {
   parseLocaltime,
   parseLocaltimeWithDst
 };
 
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 
-int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
+int32_t taosParseTime(const char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
   /* parse datatime string in with tz */
   if (strnchr(timestr, 'T', len) != NULL) {
     return parseTimeWithTz(timestr, time, timePrec, 'T');
@@ -106,11 +106,11 @@ int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePre
   }
 }
 
-bool checkTzPresent(char *str, int32_t len) {
-  char *seg = forwardToTimeStringEnd(str);
+bool checkTzPresent(const char *str, int32_t len) {
+  const char *seg = forwardToTimeStringEnd(str);
   int32_t seg_len = len - (int32_t)(seg - str);
 
-  char *c = &seg[seg_len - 1];
+  const char *c = &seg[seg_len - 1];
   for (int i = 0; i < seg_len; ++i) {
     if (*c == 'Z' || *c  == 'z' || *c == '+' || *c == '-') {
       return true;
@@ -125,7 +125,7 @@ FORCE_INLINE int32_t taos_parse_time(char* timestr, int64_t* time, int32_t len, 
     return taosParseTime(timestr, time, len, timePrec, day_light);
 }
 
-char* forwardToTimeStringEnd(char* str) {
+const char* forwardToTimeStringEnd(const char* str) {
   int32_t i = 0;
   int32_t numOfSep = 0;
 
@@ -142,7 +142,7 @@ char* forwardToTimeStringEnd(char* str) {
   return &str[i];
 }
 
-int64_t parseFraction(char* str, char** end, int32_t timePrec) {
+int64_t parseFraction(const char* str, const char** end, int32_t timePrec) {
   int32_t i = 0;
   int64_t fraction = 0;
 
@@ -189,7 +189,7 @@ int64_t parseFraction(char* str, char** end, int32_t timePrec) {
   return fraction;
 }
 
-int32_t parseTimezone(char* str, int64_t* tzOffset) {
+int32_t parseTimezone(const char* str, int64_t* tzOffset) {
   int64_t hour = 0;
 
   int32_t i = 0;
@@ -211,7 +211,7 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
   }
 
   //return error if there're illegal charaters after min(2 Digits)
-  char *minStr = &str[i];
+  const char *minStr = &str[i];
   if (minStr[1] != '\0' && minStr[2] != '\0') {
       return -1;
   }
@@ -243,7 +243,7 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
  * 2013-04-12T15:52:01+0800
  * 2013-04-12T15:52:01.123+0800
  */
-int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim) {
+int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, char delim) {
 
   int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
                              (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
@@ -251,7 +251,7 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char del
 
   struct tm tm = {0};
 
-  char* str;
+  const char* str;
   if (delim == 'T') {
     str = strptime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
   } else if (delim == 0) {
@@ -316,11 +316,11 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char del
   return 0;
 }
 
-int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
+int32_t parseLocaltime(const char* timestr, int64_t* time, int32_t timePrec) {
   *time = 0;
   struct tm tm = {0};
 
-  char* str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+  const char* str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
   if (str == NULL) {
     return -1;
   }
@@ -349,12 +349,12 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
   return 0;
 }
 
-int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec) {
+int32_t parseLocaltimeWithDst(const char* timestr, int64_t* time, int32_t timePrec) {
   *time = 0;
   struct tm tm = {0};
   tm.tm_isdst = -1;
 
-  char* str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+  const char* str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
   if (str == NULL) {
     return -1;
   }

@@ -260,7 +260,8 @@ typedef struct SInsertStatementParam {
   char         msg[512];                // error message
   uint32_t     insertType;              // insert data from [file|sql statement| bound statement]
   uint64_t     objectId;                // sql object id
-  char        *sql;                     // current sql statement position
+  char        *sql;
+  char        *sqlOri;                  // save the origin insert sql, because sql will be change after get meta callback
 } SInsertStatementParam;
 
 typedef enum {

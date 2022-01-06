@@ -435,6 +435,13 @@ columnBase(A) ::= BACKQUOTE(X).          {
 column(A) ::= columnBase(X) typename(Y).          {
   tSetColumnInfo(&A, &X, &Y);
 }
+columnExpand(A) ::= columnBase(X).          {
+  A = X;
+}
+columnExpand(A) ::= TBNAME(X).          {
+  A = X;
+  A.type = TK_ID;
+}
 
 %type tagitemlist {SArray*}
 %destructor tagitemlist {taosArrayDestroy(&$$);}
@@ -666,11 +673,11 @@ sortlist(A) ::= arrow(Y) sortorder(Z). {
 }
 
 %type item {tVariant}
-item(A) ::= columnBase(X).   {
+item(A) ::= columnExpand(X).   {
   toTSDBType(X.type);
   tVariantCreate(&A, &X);
 }
-item(A) ::= tableNameBase(X) DOT columnBase(Y).   {
+item(A) ::= tableNameBase(X) DOT columnExpand(Y).   {
   toTSDBType(X.type);
   X.n += (1+Y.n);
   tVariantCreate(&A, &X);
@@ -742,11 +749,10 @@ where_opt(A) ::= WHERE expr(X).       {A = X;}
 
 expr(A) ::= LP(X) expr(Y) RP(Z).       {A = Y; A->exprToken.z = X.z; A->exprToken.n = (Z.z - X.z + 1);}
 
-expr(A) ::= columnBase(X).                      { A = tSqlExprCreateIdValue(pInfo, &X, TK_ID);}
-expr(A) ::= tableNameBase(X) DOT columnBase(Y). { X.n += (1+Y.n); A = tSqlExprCreateIdValue(pInfo, &X, TK_ID);}
+expr(A) ::= columnExpand(X).                      { A = tSqlExprCreateIdValue(pInfo, &X, TK_ID);}
+expr(A) ::= tableNameBase(X) DOT columnExpand(Y). { X.n += (1+Y.n); A = tSqlExprCreateIdValue(pInfo, &X, TK_ID);}
 expr(A) ::= tableNameBase(X) DOT STAR(Y).       { X.n += (1+Y.n); A = tSqlExprCreateIdValue(pInfo, &X, TK_ALL);}
 
-expr(A) ::= TBNAME(X).           { A = tSqlExprCreateIdValue(pInfo, &X, TK_ID);}
 expr(A) ::= INTEGER(X).          { A = tSqlExprCreateIdValue(pInfo, &X, TK_INTEGER);}
 expr(A) ::= MINUS(X) INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprCreateIdValue(pInfo, &X, TK_INTEGER);}
 expr(A) ::= PLUS(X)  INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprCreateIdValue(pInfo, &X, TK_INTEGER);}

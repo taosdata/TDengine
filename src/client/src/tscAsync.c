@@ -57,9 +57,9 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
     return;
   }
 
-  strcpy(pSql->sqlstrOri, sqlstr);
+  strntolower(pSql->sqlstrOri, sqlstr, (int32_t)sqlLen);
 
-  tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
+  tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstrOri);
   pCmd->resColumnId = TSDB_RES_COL_ID;
 
   taosAcquireRef(tscObjRef, pSql->self);

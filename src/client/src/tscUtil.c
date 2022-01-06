@@ -1595,6 +1595,7 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta, uint64_t id) {
   tfree(pCmd->insertParam.tagData.data);
   pCmd->insertParam.tagData.dataLen = 0;
 
+  tfree(pCmd->insertParam.sqlOri);
   tscFreeQueryInfo(pCmd, clearCachedMeta, id);
   pCmd->pTableMetaMap = tscCleanupTableMetaMap(pCmd->pTableMetaMap);
   taosReleaseRef(tscObjRef, id);

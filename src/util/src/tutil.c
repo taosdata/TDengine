@@ -126,10 +126,10 @@ char **strsplit(char *z, const char *delim, int32_t *num) {
   return split;
 }
 
-char *strnchr(char *haystack, char needle, int32_t len) {
+char *strnchr(const char *haystack, char needle, int32_t len) {
   for (int32_t i = 0; i < len; ++i) {
     if (haystack[i] == needle) {
-      return &haystack[i];
+      return (void*)&haystack[i];
     }
   }
 
@@ -264,7 +264,7 @@ char *paGetToken(char *string, char **token, int32_t *tokenLen) {
   return string;
 }
 
-int64_t strnatoi(char *num, int32_t len) {
+int64_t strnatoi(const char *num, int32_t len) {
   int64_t ret = 0, i, dig, base = 1;
 
   if (len > (int32_t)strlen(num)) {

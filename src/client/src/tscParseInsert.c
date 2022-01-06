@@ -76,7 +76,12 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
     useconds = taosStr2int64(pToken->z);
   } else {
     // strptime("2001-11-12 18:31:01", "%Y-%m-%d %H:%M:%S", &tm);
-    if (taosParseTime(pToken->z, time, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
+    if(pToken->n >= TSDB_MAX_TIME_STR_LEN){
+      return tscInvalidOperationMsg(error, "invalid timestamp format", pToken->z);
+    }
+    char tmp[TSDB_MAX_TIME_STR_LEN] = {0};
+    strncpy(tmp, pToken->z, pToken->n);
+    if (taosParseTime(tmp, time, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
       return tscInvalidOperationMsg(error, "invalid timestamp format", pToken->z);
     }
 
@@ -1383,6 +1388,8 @@ int tsParseInsertSql(SSqlObj *pSql) {
     }
 
     pInsertParam->sql = sToken.z;
+    memset(pInsertParam->sqlOri, 0, strlen(pInsertParam->sqlOri));
+    strcpy(pInsertParam->sqlOri, pInsertParam->sql);
     bool dbIncluded = false;
     // Check if the table name available or not
     if (tscValidateName(&sToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
@@ -1549,6 +1556,8 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
   }
 
   pInsertParam->sql = sToken.z + sToken.n;
+  pInsertParam->sqlOri = calloc(1, strlen(sToken.z) + 1);
+  strcpy(pInsertParam->sqlOri, pInsertParam->sql);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1556,6 +1565,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   int32_t ret = TSDB_CODE_SUCCESS;
   SSqlCmd* pCmd = &pSql->cmd;
   if (!initial) {
+    strcpy(pCmd->insertParam.sql, pCmd->insertParam.sqlOri);
     tscDebug("0x%"PRIx64" resume to parse sql: %s", pSql->self, pCmd->insertParam.sql);
   }
 
@@ -1564,7 +1574,9 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     return ret;
   }
 
-  strcpy(pSql->sqlstr, pSql->sqlstrOri);
+  if (initial){ // if meta callback in insert logic, we should not change the sqlstr, because it is used in pCmd->insertParam.sql
+    strcpy(pSql->sqlstr, pSql->sqlstrOri);
+  }
 
   if (tscIsInsertData(pSql->sqlstr)) {
     if (initial && ((ret = tsInsertInitialCheck(pSql)) != TSDB_CODE_SUCCESS)) {
@@ -1580,6 +1592,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
       tscResetSqlCmd(pCmd, true, pSql->self);
       pSql->parseRetry++;
 
+      strcpy(pSql->sqlstr, pSql->sqlstrOri);
       if ((ret = tsInsertInitialCheck(pSql)) == TSDB_CODE_SUCCESS) {
         ret = tsParseInsertSql(pSql);
       }
