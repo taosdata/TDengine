@@ -31,13 +31,12 @@ extern "C" {
     memcpy(varDataVal(x), (str), __len);          \
   } while (0);
 
-#define STR_TO_NET_VARSTR(x, str)                   \
-    do {                                            \
-      VarDataLenT __len = (VarDataLenT)strlen(str); \
-      *(VarDataLenT *)(x) = htons(__len);           \
-      memcpy(varDataVal(x), (str), __len);          \
-    } while (0);
-
+#define STR_TO_NET_VARSTR(x, str)                 \
+  do {                                            \
+    VarDataLenT __len = (VarDataLenT)strlen(str); \
+    *(VarDataLenT *)(x) = htons(__len);           \
+    memcpy(varDataVal(x), (str), __len);          \
+  } while (0);
 
 #define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)                         \
   do {                                                                    \
@@ -71,11 +70,12 @@ typedef struct {
 
 // ----------------- TSDB SCHEMA DEFINITION
 typedef struct {
-  int      version;    // version
-  int      numOfCols;  // Number of columns appended
-  int      tlen;       // maximum length of a SDataRow without the header part (sizeof(VarDataOffsetT) + sizeof(VarDataLenT) + (bytes))
-  uint16_t flen;       // First part length in a SDataRow after the header part
-  uint16_t vlen;       // pure value part length, excluded the overhead (bytes only)
+  int version;    // version
+  int numOfCols;  // Number of columns appended
+  int tlen;  // maximum length of a SDataRow without the header part (sizeof(VarDataOffsetT) + sizeof(VarDataLenT) +
+             // (bytes))
+  uint16_t flen;  // First part length in a SDataRow after the header part
+  uint16_t vlen;  // pure value part length, excluded the overhead (bytes only)
   STColumn columns[];
 } STSchema;
 
@@ -202,7 +202,6 @@ void     tdFreeDataRow(SDataRow row);
 void     tdInitDataRow(SDataRow row, STSchema *pSchema);
 SDataRow tdDataRowDup(SDataRow row);
 
-
 // offset here not include dataRow header length
 static FORCE_INLINE int tdAppendDataColVal(SDataRow row, const void *value, bool isCopyVarData, int8_t type,
                                            int32_t offset) {
@@ -228,7 +227,6 @@ static FORCE_INLINE int tdAppendDataColVal(SDataRow row, const void *value, bool
   return 0;
 }
 
-
 // offset here not include dataRow header length
 static FORCE_INLINE int tdAppendColVal(SDataRow row, const void *value, int8_t type, int32_t offset) {
   return tdAppendDataColVal(row, value, true, type, offset);
@@ -249,27 +247,28 @@ static FORCE_INLINE void *tdGetPtrToCol(SDataRow row, STSchema *pSchema, int idx
 
 static FORCE_INLINE void *tdGetColOfRowBySchema(SDataRow row, STSchema *pSchema, int idx) {
   int16_t offset = TD_DATA_ROW_HEAD_SIZE + pSchema->columns[idx].offset;
-  int8_t type = pSchema->columns[idx].type;
+  int8_t  type = pSchema->columns[idx].type;
 
   return tdGetRowDataOfCol(row, type, offset);
 }
 
 static FORCE_INLINE bool tdIsColOfRowNullBySchema(SDataRow row, STSchema *pSchema, int idx) {
   int16_t offset = TD_DATA_ROW_HEAD_SIZE + pSchema->columns[idx].offset;
-  int8_t type = pSchema->columns[idx].type;
+  int8_t  type = pSchema->columns[idx].type;
 
   return isNull(tdGetRowDataOfCol(row, type, offset), type);
 }
 
 static FORCE_INLINE void tdSetColOfRowNullBySchema(SDataRow row, STSchema *pSchema, int idx) {
   int16_t offset = TD_DATA_ROW_HEAD_SIZE + pSchema->columns[idx].offset;
-  int8_t type = pSchema->columns[idx].type;
+  int8_t  type = pSchema->columns[idx].type;
   int16_t bytes = pSchema->columns[idx].bytes;
 
   setNull(tdGetRowDataOfCol(row, type, offset), type, bytes);
 }
 
-static FORCE_INLINE void tdCopyColOfRowBySchema(SDataRow dst, STSchema *pDstSchema, int dstIdx, SDataRow src, STSchema *pSrcSchema, int srcIdx) {
+static FORCE_INLINE void tdCopyColOfRowBySchema(SDataRow dst, STSchema *pDstSchema, int dstIdx, SDataRow src,
+                                                STSchema *pSrcSchema, int srcIdx) {
   int8_t type = pDstSchema->columns[dstIdx].type;
   assert(type == pSrcSchema->columns[srcIdx].type);
   void *pData = tdGetPtrToCol(dst, pDstSchema, dstIdx);
@@ -319,7 +318,6 @@ static FORCE_INLINE void tdCopyColOfRowBySchema(SDataRow dst, STSchema *pDstSche
   }
 }
 
-
 // ----------------- Data column structure
 typedef struct SDataCol {
   int8_t          type;       // column type
@@ -339,7 +337,7 @@ static FORCE_INLINE void dataColReset(SDataCol *pDataCol) { pDataCol->len = 0; }
 int tdAllocMemForCol(SDataCol *pCol, int maxPoints);
 
 void dataColInit(SDataCol *pDataCol, STColumn *pCol, int maxPoints);
-int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints);
+int  dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints);
 void dataColSetOffset(SDataCol *pCol, int nEle);
 
 bool isNEleNull(SDataCol *pCol, int nEle);
@@ -367,15 +365,15 @@ static FORCE_INLINE int32_t dataColGetNEleLen(SDataCol *pDataCol, int rows) {
 }
 
 typedef struct {
-  int      maxCols;    // max number of columns
-  int      maxPoints;  // max number of points
-  int      numOfRows;
-  int      numOfCols;  // Total number of cols
-  int      sversion;   // TODO: set sversion
+  int       maxCols;    // max number of columns
+  int       maxPoints;  // max number of points
+  int       numOfRows;
+  int       numOfCols;  // Total number of cols
+  int       sversion;   // TODO: set sversion
   SDataCol *cols;
 } SDataCols;
 
-#define keyCol(pCols) (&((pCols)->cols[0]))  // Key column
+#define keyCol(pCols) (&((pCols)->cols[0]))                                 // Key column
 #define dataColsTKeyAt(pCols, idx) ((TKEY *)(keyCol(pCols)->pData))[(idx)]  // the idx row of column-wised data
 #define dataColsKeyAt(pCols, idx) tdGetKey(dataColsTKeyAt(pCols, idx))
 static FORCE_INLINE TKEY dataColsTKeyFirst(SDataCols *pCols) {
@@ -548,7 +546,7 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder);
 static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, int8_t type, const void *value) {
   if (pBuilder->nCols >= pBuilder->tCols) {
     pBuilder->tCols *= 2;
-    SColIdx* pColIdx = (SColIdx *)realloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
+    SColIdx *pColIdx = (SColIdx *)realloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
     if (pColIdx == NULL) return -1;
     pBuilder->pColIdx = pColIdx;
   }
@@ -563,7 +561,7 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
     while (tlen > pBuilder->alloc - pBuilder->size) {
       pBuilder->alloc *= 2;
     }
-    void* buf = realloc(pBuilder->buf, pBuilder->alloc);
+    void *buf = realloc(pBuilder->buf, pBuilder->alloc);
     if (buf == NULL) return -1;
     pBuilder->buf = buf;
   }
@@ -752,10 +750,10 @@ static FORCE_INLINE void tdGetColAppendDeltaLen(const void *value, int8_t colTyp
 typedef struct {
   int16_t colId;
   uint8_t colType;
-  char*   colVal;
+  char *  colVal;
 } SColInfo;
 
-static FORCE_INLINE void setSColInfo(SColInfo* colInfo, int16_t colId, uint8_t colType, char* colVal) {
+static FORCE_INLINE void setSColInfo(SColInfo *colInfo, int16_t colId, uint8_t colType, char *colVal) {
   colInfo->colId = colId;
   colInfo->colType = colType;
   colInfo->colVal = colVal;
@@ -815,4 +813,4 @@ static FORCE_INLINE char *payloadNextCol(char *pCol) { return (char *)POINTER_SH
 }
 #endif
 
-#endif  /*_TD_COMMON_DATA_FORMAT_H_*/
+#endif /*_TD_COMMON_DATA_FORMAT_H_*/

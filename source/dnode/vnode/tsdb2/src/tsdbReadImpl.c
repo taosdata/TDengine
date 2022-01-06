@@ -505,7 +505,7 @@ int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock) {
     if (pBlock->aggrStat) {
       return tsdbLoadBlockStatisFromAggr(pReadh, pBlock);
     }
-    return TSDB_STATIS_NONE;
+    return 1;
   }
   return tsdbLoadBlockStatisFromDFile(pReadh, pBlock);
 }

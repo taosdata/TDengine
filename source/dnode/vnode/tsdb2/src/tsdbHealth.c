@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if 0
+
 #include "tsdbHealth.h"
 #include "os.h"
 #include "query.h"
@@ -96,3 +98,5 @@ bool tsdbNoProblem(STsdbRepo* pRepo) {
   if (listNEles(pRepo->pPool->bufBlockList) == 0) return false;
   return true;
 }
+
+#endif

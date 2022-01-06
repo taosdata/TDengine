@@ -223,9 +223,9 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
   }
 
   static bool tsdbShouldCompact(SCompactH *pComph) {
-    if (tsdbForceCompactFile) {
-      return true;
-    }
+    // if (tsdbForceCompactFile) {
+    //   return true;
+    // }
     STsdbRepo *     pRepo = TSDB_COMPACT_REPO(pComph);
     STsdbCfg *      pCfg = REPO_CFG(pRepo);
     SReadH *        pReadh = &(pComph->readh);

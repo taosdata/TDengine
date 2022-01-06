@@ -18,21 +18,10 @@
 #include "tsdbint.h"
 #include "tskiplist.h"
 #include "tsdbRowMergeBuf.h"
+#include "ttime.h"
 
 #define TSDB_DATA_SKIPLIST_LEVEL 5
 #define TSDB_MAX_INSERT_BATCH 512
-
-typedef struct {
-  int32_t  totalLen;
-  int32_t  len;
-  SMemRow  row;
-} SSubmitBlkIter;
-
-typedef struct {
-  int32_t totalLen;
-  int32_t len;
-  void *  pMsg;
-} SSubmitMsgIter;
 
 static SMemTable *  tsdbNewMemTable(STsdbRepo *pRepo);
 static void         tsdbFreeMemTable(SMemTable *pMemTable);
@@ -41,12 +30,8 @@ static void         tsdbFreeTableData(STableData *pTableData);
 static char *       tsdbGetTsTupleKey(const void *data);
 static int          tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables);
 static int          tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, SMemRow row);
-static int          tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
-static SMemRow      tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
 static int          tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg);
 static int          tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *affectedrows);
-static int          tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
-static int          tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock);
 static int          tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable);
 static int          tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow row);
 
@@ -256,7 +241,7 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
       return NULL;
     }
 
-    pNode->next = pNode->prev = NULL;
+    TD_DLIST_NODE_NEXT(pNode) = TD_DLIST_NODE_PREV(pNode) = NULL;
     tdListAppendNode(pRepo->mem->extraBuffList, pNode);
     ptr = (void *)(pNode->data);
     tsdbTrace("vgId:%d allocate %d bytes from SYSTEM buffer block", REPO_ID(pRepo), bytes);
@@ -598,32 +583,10 @@ static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema *
       }
     }
 
-    tdAppendMemRowToDataCol(row, *ppSchema, pCols, true, 0);
+    tdAppendMemRowToDataCol(row, *ppSchema, pCols, true);
   }
 
   return 0;
-}
-
-static int tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
-  if (pBlock->dataLen <= 0) return -1;
-  pIter->totalLen = pBlock->dataLen;
-  pIter->len = 0;
-  pIter->row = (SMemRow)(pBlock->data + pBlock->schemaLen);
-  return 0;
-}
-
-static SMemRow tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter) {
-  SMemRow row = pIter->row;  // firstly, get current row
-  if (row == NULL) return NULL;
-
-  pIter->len += memRowTLen(row);
-  if (pIter->len >= pIter->totalLen) {  // reach the end
-    pIter->row = NULL;
-  } else {
-    pIter->row = (char *)row + memRowTLen(row);  // secondly, move to next row
-  }
-
-  return row;
 }
 
 static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SMemRow row, TSKEY minKey, TSKEY maxKey,
@@ -841,7 +804,7 @@ static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *
   SMemRow lastRow = NULL;
   int64_t osize = SL_SIZE(pTableData->pData);
   tsdbSetupSkipListHookFns(pTableData->pData, pRepo, pTable, &points, &lastRow);
-  tSkipListPutBatchByIter(pTableData->pData, &blkIter, (iter_next_fn_t)tsdbGetSubmitBlkNext);
+  tSkipListPutBatchByIter(pTableData->pData, &blkIter, (iter_next_fn_t)tGetSubmitBlkNext);
   int64_t dsize = SL_SIZE(pTableData->pData) - osize;
   (*pAffectedRows) += points;
 
@@ -862,43 +825,6 @@ static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *
   STSchema *pSchema = tsdbGetTableSchemaByVersion(pTable, pBlock->sversion, -1);
   pRepo->stat.pointsWritten += points * schemaNCols(pSchema);
   pRepo->stat.totalStorage += points * schemaVLen(pSchema);
-
-  return 0;
-}
-
-
-static int tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter) {
-  if (pMsg == NULL) {
-    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
-    return -1;
-  }
-
-  pIter->totalLen = pMsg->length;
-  pIter->len = 0;
-  pIter->pMsg = pMsg;
-  if (pMsg->length <= TSDB_SUBMIT_MSG_HEAD_SIZE) {
-    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
-    return -1;
-  }
-
-  return 0;
-}
-
-static int tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
-  if (pIter->len == 0) {
-    pIter->len += TSDB_SUBMIT_MSG_HEAD_SIZE;
-  } else {
-    SSubmitBlk *pSubmitBlk = (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
-    pIter->len += (sizeof(SSubmitBlk) + pSubmitBlk->dataLen + pSubmitBlk->schemaLen);
-  }
-
-  if (pIter->len > pIter->totalLen) {
-    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
-    *pPBlock = NULL;
-    return -1;
-  }
-
-  *pPBlock = (pIter->len == pIter->totalLen) ? NULL : (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
 
   return 0;
 }

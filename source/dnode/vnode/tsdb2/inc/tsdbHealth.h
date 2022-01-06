@@ -13,16 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TSDB_HEALTH_H_
-#define _TD_TSDB_HEALTH_H_
+// #ifndef _TD_TSDB_HEALTH_H_
+// #define _TD_TSDB_HEALTH_H_
 
-#include "os.h"
-#include "tsdb.h"
+// #include "os.h"
+// #include "tsdb.h"
 
-bool    tsdbUrgeQueryFree(STsdbRepo* pRepo);
-int32_t tsdbInsertNewBlock(STsdbRepo* pRepo);
+// bool    tsdbUrgeQueryFree(STsdbRepo* pRepo);
+// int32_t tsdbInsertNewBlock(STsdbRepo* pRepo);
 
-bool tsdbIdleMemEnough();
-bool tsdbAllowNewBlock(STsdbRepo* pRepo);
+// bool tsdbIdleMemEnough();
+// bool tsdbAllowNewBlock(STsdbRepo* pRepo);
 
-#endif /* _TD_TSDB_BUFFER_H_ */
+// #endif /* _TD_TSDB_BUFFER_H_ */

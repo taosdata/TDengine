@@ -471,7 +471,7 @@ static int tsdbSaveFSStatus(SFSStatus *pStatus, int vid) {
   }
 
   // fsync, close and rename
-  if (taosFsync(fd) < 0) {
+  if (taosFsyncFile(fd) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     close(fd);
     remove(tfname);
@@ -480,7 +480,7 @@ static int tsdbSaveFSStatus(SFSStatus *pStatus, int vid) {
   }
 
   (void)close(fd);
-  (void)taosRename(tfname, cfname);
+  (void)taosRenameFile(tfname, cfname);
   taosTZfree(pBuf);
 
   return 0;
@@ -838,7 +838,7 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
       if (taosHashPut(pfs->metaCache, (void *)(&rInfo.uid), sizeof(rInfo.uid), &rInfo, sizeof(rInfo)) < 0) {
         tsdbError("vgId:%d failed to load meta cache from file %s since OOM", REPO_ID(pRepo),
                   TSDB_FILE_FULL_NAME(pMFile));
-        terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
         tsdbCloseMFile(pMFile);
         return -1;
       }
@@ -1256,7 +1256,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
             isOneFSetFinish = true;
           } else {
             // return error in case of removing uncomplete DFileSets
-            terrno = TSDB_CODE_TDB_INCOMPLETE_DFILESET;
+            // terrno = TSDB_CODE_TDB_INCOMPLETE_DFILESET;
             tsdbError("vgId:%d incomplete DFileSet, fid:%d, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
             taosArrayDestroy(&fArray);
             return -1;
@@ -1269,7 +1269,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
           isOneFSetFinish = true;
         } else {
           // return error in case of removing uncomplete DFileSets
-          terrno = TSDB_CODE_TDB_INCOMPLETE_DFILESET;
+          // terrno = TSDB_CODE_TDB_INCOMPLETE_DFILESET;
           tsdbError("vgId:%d incomplete DFileSet, fid:%d, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
           taosArrayDestroy(&fArray);
           return -1;

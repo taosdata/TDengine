@@ -30,7 +30,7 @@ typedef struct {
   SFSIter      fsIter;  // tsdb file iterator
   int          niters;  // memory iterators
   SCommitIter *iters;
-  bool         isRFileSet; // read and commit FSET
+  bool         isRFileSet;  // read and commit FSET
   SReadH       readh;
   SDFileSet    wSet;
   bool         isDFileSame;
@@ -265,12 +265,11 @@ int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
   return 0;
 }
 
-
 // =================== Commit Meta Data
-static int tsdbInitCommitMetaFile(STsdbRepo *pRepo, SMFile* pMf, bool open) {
-  STsdbFS *  pfs = REPO_FS(pRepo);
-  SMFile *   pOMFile = pfs->cstatus->pmf;
-  SDiskID    did;
+static int tsdbInitCommitMetaFile(STsdbRepo *pRepo, SMFile *pMf, bool open) {
+  STsdbFS *pfs = REPO_FS(pRepo);
+  SMFile * pOMFile = pfs->cstatus->pmf;
+  SDiskID  did;
 
   // Create/Open a meta file or open the existing file
   if (pOMFile == NULL) {
@@ -432,7 +431,7 @@ static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void
 
   tsdbUpdateMFileMagic(pMFile, POINTER_SHIFT(cont, contLen - sizeof(TSCKSUM)));
 
-  SHashObj* cache = compact ? pfs->metaCacheComp : pfs->metaCache;
+  SHashObj *cache = compact ? pfs->metaCacheComp : pfs->metaCache;
 
   pMFile->info.nRecords++;
 
@@ -480,7 +479,7 @@ static int tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid) {
 static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
   float delPercent = (float)(pMFile->info.nDels) / (float)(pMFile->info.nRecords);
   float tombPercent = (float)(pMFile->info.tombSize) / (float)(pMFile->info.size);
-  float compactRatio = (float)(tsTsdbMetaCompactRatio)/100;
+  float compactRatio = (float)(tsTsdbMetaCompactRatio) / 100;
 
   if (delPercent < compactRatio && tombPercent < compactRatio) {
     return 0;
@@ -491,10 +490,11 @@ static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
     return -1;
   }
 
-  tsdbInfo("begin compact tsdb meta file, ratio:%d, nDels:%" PRId64 ",nRecords:%" PRId64 ",tombSize:%" PRId64 ",size:%" PRId64,
-    tsTsdbMetaCompactRatio, pMFile->info.nDels,pMFile->info.nRecords,pMFile->info.tombSize,pMFile->info.size);
+  tsdbInfo("begin compact tsdb meta file, ratio:%d, nDels:%" PRId64 ",nRecords:%" PRId64 ",tombSize:%" PRId64
+           ",size:%" PRId64,
+           tsTsdbMetaCompactRatio, pMFile->info.nDels, pMFile->info.nRecords, pMFile->info.tombSize, pMFile->info.size);
 
-  SMFile mf;
+  SMFile  mf;
   SDiskID did;
 
   // first create tmp meta file
@@ -510,10 +510,10 @@ static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
   tsdbInfo("vgId:%d meta file %s is created to compact meta data", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&mf));
 
   // second iterator metaCache
-  int code = -1;
-  int64_t maxBufSize = 1024;
+  int        code = -1;
+  int64_t    maxBufSize = 1024;
   SKVRecord *pRecord;
-  void *pBuf = NULL;
+  void *     pBuf = NULL;
 
   pBuf = malloc((size_t)maxBufSize);
   if (pBuf == NULL) {
@@ -536,7 +536,7 @@ static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
     }
     if (pRecord->size > maxBufSize) {
       maxBufSize = pRecord->size;
-      void* tmp = realloc(pBuf, (size_t)maxBufSize);
+      void *tmp = realloc(pBuf, (size_t)maxBufSize);
       if (tmp == NULL) {
         goto _err;
       }
@@ -545,7 +545,7 @@ static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
     int nread = (int)tsdbReadMFile(pMFile, pBuf, pRecord->size);
     if (nread < 0) {
       tsdbError("vgId:%d failed to read file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
-        tstrerror(terrno));
+                tstrerror(terrno));
       goto _err;
     }
 
@@ -572,8 +572,9 @@ _err:
 
   if (code == 0) {
     // rename meta.tmp -> meta
-    tsdbInfo("vgId:%d meta file rename %s -> %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&mf), TSDB_FILE_FULL_NAME(pMFile));
-    taosRename(mf.f.aname,pMFile->f.aname);
+    tsdbInfo("vgId:%d meta file rename %s -> %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&mf),
+             TSDB_FILE_FULL_NAME(pMFile));
+    taosRename(mf.f.aname, pMFile->f.aname);
     tstrncpy(mf.f.aname, pMFile->f.aname, TSDB_FILENAME_LEN);
     tstrncpy(mf.f.rname, pMFile->f.rname, TSDB_FILENAME_LEN);
     // update current meta file info
@@ -595,8 +596,8 @@ _err:
   ASSERT(mf.info.nDels == 0);
   ASSERT(mf.info.tombSize == 0);
 
-  tsdbInfo("end compact tsdb meta file,code:%d,nRecords:%" PRId64 ",size:%" PRId64,
-    code,mf.info.nRecords,mf.info.size);
+  tsdbInfo("end compact tsdb meta file,code:%d,nRecords:%" PRId64 ",size:%" PRId64, code, mf.info.nRecords,
+           mf.info.size);
   return code;
 }
 
@@ -1058,11 +1059,11 @@ static int tsdbComparKeyBlock(const void *arg1, const void *arg2) {
 
 int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDFileAggr, SDataCols *pDataCols,
                        SBlock *pBlock, bool isLast, bool isSuper, void **ppBuf, void **ppCBuf, void **ppExBuf) {
-  STsdbCfg *  pCfg = REPO_CFG(pRepo);
-  SBlockData *pBlockData;
+  STsdbCfg *    pCfg = REPO_CFG(pRepo);
+  SBlockData *  pBlockData;
   SAggrBlkData *pAggrBlkData = NULL;
-  int64_t     offset = 0, offsetAggr = 0;
-  int         rowsToWrite = pDataCols->numOfRows;
+  int64_t       offset = 0, offsetAggr = 0;
+  int           rowsToWrite = pDataCols->numOfRows;
 
   ASSERT(rowsToWrite > 0 && rowsToWrite <= pCfg->maxRowsPerFileBlock);
   ASSERT((!isLast) || rowsToWrite < pCfg->minRowsPerFileBlock);
@@ -1141,8 +1142,7 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
     pBlockCol = pBlockData->cols + tcol;
     tptr = POINTER_SHIFT(pBlockData, lsize);
 
-    if (pCfg->compression == TWO_STAGE_COMP &&
-        tsdbMakeRoom(ppCBuf, tlen + COMP_OVERFLOW_BYTES) < 0) {
+    if (pCfg->compression == TWO_STAGE_COMP && tsdbMakeRoom(ppCBuf, tlen + COMP_OVERFLOW_BYTES) < 0) {
       return -1;
     }
 
@@ -1188,7 +1188,6 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile 
 
   uint32_t aggrStatus = nColsNotAllNull > 0 ? 1 : 0;
   if (aggrStatus > 0) {
-
     taosCalcChecksumAppend(0, (uint8_t *)pAggrBlkData, tsizeAggr);
     tsdbUpdateDFileMagic(pDFileAggr, POINTER_SHIFT(pAggrBlkData, tsizeAggr - sizeof(TSCKSUM)));
 
@@ -1409,7 +1408,8 @@ static int tsdbCommitAddBlock(SCommitH *pCommith, const SBlock *pSupBlock, const
   return 0;
 }
 
-static int tsdbMergeBlockData(SCommitH *pCommith, SCommitIter *pIter, SDataCols *pDataCols, TSKEY keyLimit, bool isLastOneBlock) {
+static int tsdbMergeBlockData(SCommitH *pCommith, SCommitIter *pIter, SDataCols *pDataCols, TSKEY keyLimit,
+                              bool isLastOneBlock) {
   STsdbRepo *pRepo = TSDB_COMMIT_REPO(pCommith);
   STsdbCfg * pCfg = REPO_CFG(pRepo);
   SBlock     block;
@@ -1445,7 +1445,7 @@ static int tsdbMergeBlockData(SCommitH *pCommith, SCommitIter *pIter, SDataCols 
 }
 
 static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter, SDataCols *pTarget,
-                                     TSKEY maxKey, int maxRows, int8_t update) {
+                                      TSKEY maxKey, int maxRows, int8_t update) {
   TSKEY     key1 = INT64_MAX;
   TSKEY     key2 = INT64_MAX;
   STSchema *pSchema = NULL;
@@ -1466,9 +1466,9 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
 
     if (key1 < key2) {
       for (int i = 0; i < pDataCols->numOfCols; i++) {
-        //TODO: dataColAppendVal may fail
+        // TODO: dataColAppendVal may fail
         dataColAppendVal(pTarget->cols + i, tdGetColDataOfRow(pDataCols->cols + i, *iter), pTarget->numOfRows,
-                         pTarget->maxPoints, 0);
+                         pTarget->maxPoints);
       }
 
       pTarget->numOfRows++;
@@ -1480,30 +1480,29 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         ASSERT(pSchema != NULL);
       }
 
-      tdAppendMemRowToDataCol(row, pSchema, pTarget, true, 0);
+      tdAppendMemRowToDataCol(row, pSchema, pTarget, true);
 
       tSkipListIterNext(pCommitIter->pIter);
     } else {
       if (update != TD_ROW_OVERWRITE_UPDATE) {
-        //copy disk data
+        // copy disk data
         for (int i = 0; i < pDataCols->numOfCols; i++) {
-          //TODO: dataColAppendVal may fail
+          // TODO: dataColAppendVal may fail
           dataColAppendVal(pTarget->cols + i, tdGetColDataOfRow(pDataCols->cols + i, *iter), pTarget->numOfRows,
-                           pTarget->maxPoints, 0);
+                           pTarget->maxPoints);
         }
 
-        if(update == TD_ROW_DISCARD_UPDATE) pTarget->numOfRows++;
+        if (update == TD_ROW_DISCARD_UPDATE) pTarget->numOfRows++;
       }
       if (update != TD_ROW_DISCARD_UPDATE) {
-        //copy mem data
+        // copy mem data
         if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
           pSchema =
               tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row), (int8_t)memRowType(row));
           ASSERT(pSchema != NULL);
         }
 
-        tdAppendMemRowToDataCol(row, pSchema, pTarget, update == TD_ROW_OVERWRITE_UPDATE,
-                                update != TD_ROW_PARTIAL_UPDATE ? 0 : -1);
+        tdAppendMemRowToDataCol(row, pSchema, pTarget, update == TD_ROW_OVERWRITE_UPDATE);
       }
       (*iter)++;
       tSkipListIterNext(pCommitIter->pIter);

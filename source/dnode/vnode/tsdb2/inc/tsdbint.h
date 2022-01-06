@@ -120,17 +120,17 @@ static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdbRepo* pRepo) {
   return pBufBlock;
 }
 
-static FORCE_INLINE int tsdbGetNextMaxTables(int tid) {
-  ASSERT(tid >= 1 && tid <= TSDB_MAX_TABLES);
-  int maxTables = TSDB_INIT_NTABLES;
-  while (true) {
-    maxTables = MIN(maxTables, TSDB_MAX_TABLES);
-    if (tid <= maxTables) break;
-    maxTables *= 2;
-  }
+// static FORCE_INLINE int tsdbGetNextMaxTables(int tid) {
+//   ASSERT(tid >= 1 && tid <= TSDB_MAX_TABLES);
+//   int maxTables = TSDB_INIT_NTABLES;
+//   while (true) {
+//     maxTables = MIN(maxTables, TSDB_MAX_TABLES);
+//     if (tid <= maxTables) break;
+//     maxTables *= 2;
+//   }
 
-  return maxTables + 1;
-}
+//   return maxTables + 1;
+// }
 
 #ifdef __cplusplus
 }
