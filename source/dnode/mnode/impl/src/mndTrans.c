@@ -112,6 +112,7 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   int32_t dataPos = 0;
   SDB_SET_INT32(pRaw, dataPos, pTrans->id, TRANS_ENCODE_OVER)
   SDB_SET_INT8(pRaw, dataPos, pTrans->policy, TRANS_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pTrans->stage, TRANS_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, redoLogNum, TRANS_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, undoLogNum, TRANS_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, commitLogNum, TRANS_ENCODE_OVER)
@@ -216,6 +217,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
 
   SDB_GET_INT32(pRaw, dataPos, &pTrans->id, TRANS_DECODE_OVER)
   SDB_GET_INT8(pRaw, dataPos, (int8_t *)&pTrans->policy, TRANS_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, (int8_t *)&pTrans->stage, TRANS_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &redoLogNum, TRANS_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &undoLogNum, TRANS_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &commitLogNum, TRANS_DECODE_OVER)
@@ -315,6 +317,8 @@ static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans) {
 }
 
 static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
+  if (pNew->stage == TRN_STAGE_COMMIT) pNew->stage = TRN_STAGE_COMMIT_LOG;
+
   mTrace("trans:%d, perform update action, old row:%p stage:%d, new row:%p stage:%d", pOld->id, pOld, pOld->stage, pNew,
          pNew->stage);
   pOld->stage = pNew->stage;
@@ -646,7 +650,7 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
       pAction->msgReceived = 0;
       pAction->errCode = 0;
     } else {
-      mDebug("trans:%d, action:%d not sent since %s", pTrans->id, action, terrstr());
+      mDebug("trans:%d, action:%d not send since %s", pTrans->id, action, terrstr());
       return -1;
     }
   }
