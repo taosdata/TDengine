@@ -125,6 +125,7 @@ void writerCtxDestroy(WriterCtx* ctx, bool remove) {
   if (ctx->type == TMemory) {
     free(ctx->mem.buf);
   } else {
+    ctx->flush(ctx);
     tfClose(ctx->file.fd);
     if (ctx->file.readOnly) {
 #ifdef USE_MMAP
