@@ -1,18 +1,9 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.0...3.20)
-PROJECT(TDengine)
+aux_source_directory(src TSDB_SRC)
+add_library(tsdb STATIC ${TSDB_SRC})
 
-INCLUDE_DIRECTORIES(inc)
-INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/query/inc)
-INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/cJson/inc)
-AUX_SOURCE_DIRECTORY(src SRC)
-ADD_LIBRARY(tsdb ${SRC})
-TARGET_LINK_LIBRARIES(tsdb tfs common tutil cJson)
-
-IF (TD_TSDB_PLUGINS)
-  TARGET_LINK_LIBRARIES(tsdb tsdbPlugins)
-ENDIF ()
-
-IF (TD_LINUX)
-  # Someone has no gtest directory, so comment it
-  # ADD_SUBDIRECTORY(tests)
-ENDIF ()
+target_include_directories(
+    tsdb
+    PUBLIC "${CMAKE_SOURCE_DIR}/include/dnode/vnode/tsdb"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+)
+target_link_libraries(tsdb os util common tfs)
