@@ -127,8 +127,8 @@ static SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
     goto CONSUME_DECODE_OVER;
   }
 
-  int32_t         size = sizeof(SMqConsumerObj);
-  SSdbRow        *pRow = sdbAllocRow(size);
+  int32_t  size = sizeof(SMqConsumerObj);
+  SSdbRow *pRow = sdbAllocRow(size);
   if (pRow == NULL) goto CONSUME_DECODE_OVER;
 
   SMqConsumerObj *pConsumer = sdbGetRowObj(pRow);
@@ -154,7 +154,6 @@ static SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
     int32_t vgSize;
     SDB_GET_INT32(pRaw, dataPos, &vgSize, CONSUME_DECODE_OVER);
   }
-
 
 CONSUME_DECODE_OVER:
   if (terrno != 0) {
@@ -209,6 +208,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
   tDeserializeSCMSubscribeReq(msgStr, pSubscribe);
   int64_t consumerId = pSubscribe->consumerId;
   char   *consumerGroup = pSubscribe->consumerGroup;
+  int32_t cgroupLen = strlen(consumerGroup);
 
   SArray *newSub = NULL;
   int     newTopicNum = pSubscribe->topicNum;
@@ -216,13 +216,14 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
     newSub = taosArrayInit(newTopicNum, sizeof(SMqConsumerTopic));
   }
   for (int i = 0; i < newTopicNum; i++) {
-    char             *topic = pSubscribe->topicName[i];
+    char             *newTopicName = taosArrayGetP(newSub, i);
     SMqConsumerTopic *pConsumerTopic = malloc(sizeof(SMqConsumerTopic));
     if (pConsumerTopic == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       // TODO: free
       return -1;
     }
+    strcpy(pConsumerTopic->name, newTopicName);
     pConsumerTopic->vgroups = tdListNew(sizeof(int64_t));
     taosArrayPush(newSub, pConsumerTopic);
     free(pConsumerTopic);
@@ -239,7 +240,8 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    strcpy(pConsumer->cgroup, pSubscribe->consumerGroup);
+    pConsumer->consumerId = consumerId;
+    strcpy(pConsumer->cgroup, consumerGroup);
 
   } else {
     oldSub = pConsumer->topics;
@@ -260,6 +262,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
       j++;
     } else if (j >= oldTopicNum) {
       pNewTopic = taosArrayGet(newSub, i);
+      i++;
     } else {
       pNewTopic = taosArrayGet(newSub, i);
       pOldTopic = taosArrayGet(oldSub, j);
@@ -292,7 +295,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
 
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, oldTopicName);
       ASSERT(pTopic != NULL);
-      SMqCGroup *pGroup = taosHashGet(pTopic->cgroups, pSubscribe->consumerGroup, strlen(pSubscribe->consumerGroup));
+      SMqCGroup *pGroup = taosHashGet(pTopic->cgroups, consumerGroup, cgroupLen);
       while ((pn = tdListNext(&iter)) != NULL) {
         int32_t vgId = *(int64_t *)pn->data;
         SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
@@ -302,8 +305,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
           continue;
         }
         // acquire and get epset
-        void *pMqVgSetReq =
-            mndBuildMqVGroupSetReq(pMnode, oldTopicName, vgId, pSubscribe->consumerId, pSubscribe->consumerGroup);
+        void *pMqVgSetReq = mndBuildMqVGroupSetReq(pMnode, oldTopicName, vgId, consumerId, consumerGroup);
         // TODO:serialize
         if (pMsg == NULL) {
           terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -321,7 +323,8 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
           return -1;
         }
       }
-      taosHashRemove(pTopic->cgroups, pSubscribe->consumerGroup, strlen(pSubscribe->consumerGroup));
+      taosHashRemove(pTopic->cgroups, consumerGroup, cgroupLen);
+      mndReleaseTopic(pMnode, pTopic);
 
     } else if (pNewTopic != NULL) {
       ASSERT(pOldTopic == NULL);
@@ -330,7 +333,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, newTopicName);
       ASSERT(pTopic != NULL);
 
-      SMqCGroup *pGroup = taosHashGet(pTopic->cgroups, pSubscribe->consumerGroup, strlen(pSubscribe->consumerGroup));
+      SMqCGroup *pGroup = taosHashGet(pTopic->cgroups, consumerGroup, cgroupLen);
       if (pGroup == NULL) {
         // add new group
         pGroup = malloc(sizeof(SMqCGroup));
@@ -346,18 +349,20 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
         }
         pGroup->status = 0;
         // add into cgroups
-        taosHashPut(pTopic->cgroups, pSubscribe->consumerGroup, strlen(pSubscribe->consumerGroup), pGroup,
-                    sizeof(SMqCGroup));
+        taosHashPut(pTopic->cgroups, consumerGroup, cgroupLen, pGroup, sizeof(SMqCGroup));
       }
 
       // put the consumer into list
       // rebalance will be triggered by timer
-      tdListAppend(pGroup->consumerIds, &pSubscribe->consumerId);
+      tdListAppend(pGroup->consumerIds, &consumerId);
 
       SSdbRaw *pTopicRaw = mndTopicActionEncode(pTopic);
       sdbSetRawStatus(pTopicRaw, SDB_STATUS_READY);
       // TODO: error handling
       mndTransAppendRedolog(pTrans, pTopicRaw);
+
+      mndReleaseTopic(pMnode, pTopic);
+
     } else {
       ASSERT(0);
     }
@@ -376,11 +381,13 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
+    mndReleaseConsumer(pMnode, pConsumer);
     return -1;
   }
 
   // TODO: free memory
   mndTransDrop(pTrans);
+  mndReleaseConsumer(pMnode, pConsumer);
   return 0;
 }
 

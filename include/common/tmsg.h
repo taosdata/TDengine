@@ -1126,7 +1126,7 @@ typedef struct {
   int32_t topicNum;
   int64_t consumerId;
   char*   consumerGroup;
-  char*   topicName[];
+  SArray* topicNames; // SArray<char*>
 } SCMSubscribeReq;
 
 static FORCE_INLINE int tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
@@ -1134,8 +1134,9 @@ static FORCE_INLINE int tSerializeSCMSubscribeReq(void** buf, const SCMSubscribe
   tlen += taosEncodeFixedI32(buf, pReq->topicNum);
   tlen += taosEncodeFixedI64(buf, pReq->consumerId);
   tlen += taosEncodeString(buf, pReq->consumerGroup);
+
   for(int i = 0; i < pReq->topicNum; i++) {
-    tlen += taosEncodeString(buf, pReq->topicName[i]);
+    tlen += taosEncodeString(buf, (char*)taosArrayGetP(pReq->topicNames, i));
   }
   return tlen;
 }
@@ -1144,8 +1145,11 @@ static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq
   buf = taosDecodeFixedI32(buf, &pReq->topicNum);
   buf = taosDecodeFixedI64(buf, &pReq->consumerId);
   buf = taosDecodeString(buf, &pReq->consumerGroup);
+  pReq->topicNames = taosArrayInit(pReq->topicNum, sizeof(void*));
   for(int i = 0; i < pReq->topicNum; i++) {
-    buf = taosDecodeString(buf, &pReq->topicName[i]);
+    char* name = NULL;
+    buf = taosDecodeString(buf, &name);
+    taosArrayPush(pReq->topicNames, &name);
   }
   return buf;
 }
