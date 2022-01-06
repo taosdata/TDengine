@@ -104,8 +104,8 @@ typedef struct SSchJob {
   SHashObj        *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
   SHashObj        *failTasks; // failed tasks, key:taskid, value:SQueryTask*
 
-  SArray          *levels;    // Element is SQueryLevel, starting from 0.
-  SArray          *subPlans;  // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0.
+  SArray          *levels;    // Element is SQueryLevel, starting from 0. SArray<SSchLevel>
+  SArray          *subPlans;  // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0. SArray<void*>
 
   SQueryProfileSummary summary;
 } SSchJob;

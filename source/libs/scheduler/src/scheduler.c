@@ -1070,8 +1070,8 @@ void scheduleFreeJob(void *pJob) {
 
     schDropJobAllTasks(job);
   }
-  
-  taosArrayDestroy(job->subPlans);
+
+  job->subPlans = NULL; // it is a reference to pDag->pSubplans
   int32_t numOfLevels = taosArrayGetSize(job->levels);
   for(int32_t i = 0; i < numOfLevels; ++i) {
     SSchLevel *pLevel = taosArrayGet(job->levels, i);
