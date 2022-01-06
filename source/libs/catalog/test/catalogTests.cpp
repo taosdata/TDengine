@@ -46,6 +46,8 @@ void ctgTestSetPrepareSTableMeta();
 bool ctgTestStop = false;
 bool ctgTestEnableSleep = false;
 bool ctgTestDeadLoop = false;
+int32_t ctgTestPrintNum = 200000;
+
 
 int32_t ctgTestCurrentVgVersion = 0;
 int32_t ctgTestVgVersion = 1;
@@ -101,7 +103,6 @@ void ctgTestInitLogFile() {
   const char    *defaultLogFileNamePrefix = "taoslog";
   const int32_t  maxLogFileNum = 10;
 
-  ctgDebugFlag = 159;
   tsAsyncLog = 0;
 
   char temp[128] = {0};
@@ -216,6 +217,7 @@ void ctgTestPrepareDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcM
   ctgTestCurrentVgVersion = ctgTestVgVersion;
   rspMsg->vgNum = htonl(ctgTestVgNum);
   rspMsg->hashMethod = 0;
+  rspMsg->uid = htobe64(3);
 
   SVgroupInfo *vg = NULL;
   uint32_t hashUnit = UINT32_MAX / ctgTestVgNum;
@@ -507,7 +509,7 @@ void *ctgTestGetDbVgroupThread(void *param) {
     if (ctgTestEnableSleep) {
       usleep(rand()%5);
     }
-    if (++n % 50000 == 0) {
+    if (++n % ctgTestPrintNum == 0) {
       printf("Get:%d\n", n);
     }
   }
@@ -531,7 +533,7 @@ void *ctgTestSetDbVgroupThread(void *param) {
     if (ctgTestEnableSleep) {    
       usleep(rand()%5);
     }
-    if (++n % 50000 == 0) {
+    if (++n % ctgTestPrintNum == 0) {
       printf("Set:%d\n", n);
     }
   }
@@ -563,7 +565,7 @@ void *ctgTestGetCtableMetaThread(void *param) {
       usleep(rand()%5);
     }
     
-    if (++n % 50000 == 0) {
+    if (++n % ctgTestPrintNum == 0) {
       printf("Get:%d\n", n);
     }
   }
@@ -589,7 +591,7 @@ void *ctgTestSetCtableMetaThread(void *param) {
     if (ctgTestEnableSleep) {    
       usleep(rand()%5);
     }
-    if (++n % 50000 == 0) {
+    if (++n % ctgTestPrintNum == 0) {
       printf("Set:%d\n", n);
     }
   }
@@ -627,6 +629,7 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(vgInfo.vgId, 8);
   ASSERT_EQ(vgInfo.numOfEps, 3);
 
+
   ctgTestSetPrepareTableMeta();
 
   STableMeta *tableMeta = NULL;
@@ -652,6 +655,41 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, 0);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
+
+  SDbVgVersion *dbs = NULL;
+  SSTableMetaVersion *stb = NULL;
+  uint32_t dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
+  int32_t i = 0;
+  while (i < 5) {
+    ++i;
+    code = catalogGetExpiredDBs(pCtg, &dbs, &dbNum);
+    ASSERT_EQ(code, 0);
+    code = catalogGetExpiredSTables(pCtg, &stb, &stbNum);
+    ASSERT_EQ(code, 0);
+    
+    if (dbNum) {
+      printf("got expired db,dbId:%"PRId64"\n", dbs->dbId);
+      free(dbs);
+      dbs = NULL;
+    } else {
+      printf("no expired db\n");
+    }
+
+    if (stbNum) {
+      printf("got expired stb,suid:%"PRId64"\n", stb->suid);
+      free(stb);
+      stb = NULL;
+    } else {
+      printf("no expired stb\n");
+    }
+
+    allDbNum += dbNum;
+    allStbNum += stbNum;
+    sleep(2);
+  }
+  
+  ASSERT_EQ(allDbNum, 1);
+  ASSERT_EQ(allStbNum, 0);
 
   catalogDestroy();
 }
@@ -713,6 +751,42 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
+
+  SDbVgVersion *dbs = NULL;
+  SSTableMetaVersion *stb = NULL;
+  uint32_t dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
+  int32_t i = 0;
+  while (i < 5) {
+    ++i;
+    code = catalogGetExpiredDBs(pCtg, &dbs, &dbNum);
+    ASSERT_EQ(code, 0);
+    code = catalogGetExpiredSTables(pCtg, &stb, &stbNum);
+    ASSERT_EQ(code, 0);
+    
+    if (dbNum) {
+      printf("got expired db,dbId:%"PRId64"\n", dbs->dbId);
+      free(dbs);
+      dbs = NULL;
+    } else {
+      printf("no expired db\n");
+    }
+
+    if (stbNum) {
+      printf("got expired stb,suid:%"PRId64"\n", stb->suid);
+      free(stb);
+      stb = NULL;
+    } else {
+      printf("no expired stb\n");
+    }
+
+    allDbNum += dbNum;
+    allStbNum += stbNum;
+    sleep(2);
+  }
+  
+  ASSERT_EQ(allDbNum, 1);
+  ASSERT_EQ(allStbNum, 1);
+
 
   catalogDestroy();
 }
@@ -778,6 +852,40 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
+  SDbVgVersion *dbs = NULL;
+  SSTableMetaVersion *stb = NULL;
+  uint32_t dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
+  int32_t i = 0;
+  while (i < 5) {
+    ++i;
+    code = catalogGetExpiredDBs(pCtg, &dbs, &dbNum);
+    ASSERT_EQ(code, 0);
+    code = catalogGetExpiredSTables(pCtg, &stb, &stbNum);
+    ASSERT_EQ(code, 0);
+    
+    if (dbNum) {
+      printf("got expired db,dbId:%"PRId64"\n", dbs->dbId);
+      free(dbs);
+      dbs = NULL;
+    } else {
+      printf("no expired db\n");
+    }
+
+    if (stbNum) {
+      printf("got expired stb,suid:%"PRId64"\n", stb->suid);
+      free(stb);
+      stb = NULL;
+    } else {
+      printf("no expired stb\n");
+    }
+
+    allDbNum += dbNum;
+    allStbNum += stbNum;
+    sleep(2);
+  }
+  
+  ASSERT_EQ(allDbNum, 1);
+  ASSERT_EQ(allStbNum, 1);
 
 
   catalogDestroy();
@@ -947,7 +1055,6 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   catalogDestroy();
 }
 
-
 TEST(multiThread, getSetDbVgroupCase) {
   struct SCatalog* pCtg = NULL;
   void *mockPointer = (void *)0x1;
@@ -955,6 +1062,7 @@ TEST(multiThread, getSetDbVgroupCase) {
   SVgroupInfo *pvgInfo = NULL;
   SDBVgroupInfo dbVgroup = {0};
   SArray *vgList = NULL;
+  ctgTestStop = false;
 
   ctgTestInitLogFile();
   
@@ -998,7 +1106,6 @@ TEST(multiThread, getSetDbVgroupCase) {
   catalogDestroy();
 }
 
-
 TEST(multiThread, ctableMeta) {
   struct SCatalog* pCtg = NULL;
   void *mockPointer = (void *)0x1;
@@ -1006,6 +1113,7 @@ TEST(multiThread, ctableMeta) {
   SVgroupInfo *pvgInfo = NULL;
   SDBVgroupInfo dbVgroup = {0};
   SArray *vgList = NULL;
+  ctgTestStop = false;
 
   ctgTestSetPrepareDbVgroupsAndChildMeta();
 

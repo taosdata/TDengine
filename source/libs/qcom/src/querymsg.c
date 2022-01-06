@@ -97,6 +97,7 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
   
   pRsp->vgVersion = ntohl(pRsp->vgVersion);
   pRsp->vgNum = ntohl(pRsp->vgNum);
+  pRsp->uid = be64toh(pRsp->uid);
 
   if (pRsp->vgNum < 0) {
     qError("invalid db[%s] vgroup number[%d]", pRsp->db, pRsp->vgNum);
@@ -111,6 +112,7 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
 
   pOut->dbVgroup.vgVersion = pRsp->vgVersion;
   pOut->dbVgroup.hashMethod = pRsp->hashMethod;
+  pOut->dbVgroup.dbId = pRsp->uid;
   pOut->dbVgroup.vgInfo = taosHashInit(pRsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (NULL == pOut->dbVgroup.vgInfo) {
     qError("hash init[%d] failed", pRsp->vgNum);
@@ -149,8 +151,8 @@ static int32_t queryConvertTableMetaMsg(STableMetaMsg* pMetaMsg) {
   pMetaMsg->numOfColumns = ntohl(pMetaMsg->numOfColumns);
   pMetaMsg->sversion = ntohl(pMetaMsg->sversion);
   pMetaMsg->tversion = ntohl(pMetaMsg->tversion);
-  pMetaMsg->tuid = htobe64(pMetaMsg->tuid);
-  pMetaMsg->suid = htobe64(pMetaMsg->suid);
+  pMetaMsg->tuid = be64toh(pMetaMsg->tuid);
+  pMetaMsg->suid = be64toh(pMetaMsg->suid);
   pMetaMsg->vgId = ntohl(pMetaMsg->vgId);
 
   if (pMetaMsg->numOfTags < 0 || pMetaMsg->numOfTags > TSDB_MAX_TAGS) {

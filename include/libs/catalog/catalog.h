@@ -48,7 +48,20 @@ typedef struct SMetaData {
 typedef struct SCatalogCfg {
   uint32_t maxTblCacheNum;
   uint32_t maxDBCacheNum;
+  uint32_t dbRentSec;
+  uint32_t stableRentSec;
 } SCatalogCfg;
+
+typedef struct SSTableMetaVersion {
+  uint64_t suid;
+  int16_t  sversion;
+  int16_t  tversion;  
+} SSTableMetaVersion;
+
+typedef struct SDbVgVersion {
+  int64_t dbId;
+  int32_t vgVersion;
+} SDbVgVersion;
 
 
 int32_t catalogInit(SCatalogCfg *cfg);
@@ -60,6 +73,8 @@ int32_t catalogInit(SCatalogCfg *cfg);
  * @return error code
  */
 int32_t catalogGetHandle(uint64_t clusterId, struct SCatalog** catalogHandle);
+
+void catalogFreeHandle(struct SCatalog* pCatalog);
 
 int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName, int32_t* version);
 
@@ -161,6 +176,9 @@ int32_t catalogGetAllMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* p
 
 int32_t catalogGetQnodeList(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, SArray* pQnodeList);
 
+int32_t catalogGetExpiredSTables(struct SCatalog* pCatalog, SSTableMetaVersion **stables, uint32_t *num);
+
+int32_t catalogGetExpiredDBs(struct SCatalog* pCatalog, SDbVgVersion **dbs, uint32_t *num);
 
 
 /**
