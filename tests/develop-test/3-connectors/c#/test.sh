@@ -19,12 +19,14 @@ cd ../../
 WKC=`pwd`
 cd ${WKC}/src/connector/C#
 dotnet test
-dotnet run --project src/test/Cases/Cases.csproj
+#dotnet run --project src/test/Cases/Cases.csproj
 
 cd ${WKC}/tests/examples/C#
 dotnet run --project C#checker/C#checker.csproj
 dotnet run --project TDengineTest/TDengineTest.csproj
 dotnet run --project schemaless/schemaless.csproj
+dotnet run --project jsonTag/jsonTag.csproj
+dotnet run --project stmt/stmt.csproj
 
 cd ${WKC}/tests/examples/C#/taosdemo
 dotnet build -c Release

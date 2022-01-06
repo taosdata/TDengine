@@ -87,7 +87,7 @@ namespace TDengineDriver
                 case TDengineDataType.TSDB_DATA_TYPE_DOUBLE:
                     return "DOUBLE";
                 case TDengineDataType.TSDB_DATA_TYPE_BINARY:
-                    return "STRING";
+                    return "BINARY";
                 case TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP:
                     return "TIMESTAMP";
                 case TDengineDataType.TSDB_DATA_TYPE_NCHAR:
