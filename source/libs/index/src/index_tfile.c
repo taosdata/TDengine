@@ -346,9 +346,6 @@ int indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid) {
 }
 static bool tfileIteratorNext(Iterate* iiter) {
   IterateValue* iv = &iiter->val;
-  if (iv->colVal != NULL && iv->val != NULL) {
-    // indexError("value in fst: colVal: %s, size: %d", iv->colVal, (int)taosArrayGetSize(iv->val));
-  }
   iterateValueDestroy(iv, false);
 
   char*    colVal = NULL;
