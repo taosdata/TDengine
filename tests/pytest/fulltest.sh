@@ -288,6 +288,7 @@ python3 test.py -f query/nestedQuery/queryWithSpread.py
 python3 ./test.py -f query/bug6586.py
 # python3 ./test.py -f query/bug5903.py
 python3 ./test.py -f query/queryLimit.py
+python3 ./test.py -f query/queryPriKey.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
