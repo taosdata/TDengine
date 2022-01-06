@@ -119,7 +119,7 @@ function replace_community_pro() {
   sed -i "s/logDir=\"\/var\/log\/taos\"/logDir=\"\/var\/log\/ProDB\"/g" ${top_dir}/packaging/tools/make_install.sh
   sed -i "s/dataDir=\"\/var\/lib\/taos\"/dataDir=\"\/var\/lib\/ProDB\"/g" ${top_dir}/packaging/tools/make_install.sh
   sed -i "s/configDir=\"\/etc\/taos\"/configDir=\"\/etc\/ProDB\"/g" ${top_dir}/packaging/tools/make_install.sh
-  sed -i "s/configFile=\"taos\.cfg\"/configFile=\"taos\.cfg\"/g" ${top_dir}/packaging/tools/make_install.sh
+  sed -i "s/configFile=\"taos\.cfg\"/configFile=\"prodb\.cfg\"/g" ${top_dir}/packaging/tools/make_install.sh
   sed -i "s/installDir=\"\/usr\/local\/taos\"/installDir=\"\/usr\/local\/ProDB\"/g" ${top_dir}/packaging/tools/make_install.sh
   sed -i "s/productName=\"TDengine\"/productName=\"ProDB\"/g" ${top_dir}/packaging/tools/make_install.sh
   sed -i "s/emailName=\"taosdata\.com\"/emailName=\"hanatech\.com\.cn\"/g" ${top_dir}/packaging/tools/make_install.sh
