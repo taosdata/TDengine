@@ -15,7 +15,7 @@
 
 #include "clientHb.h"
 
-static int32_t mqHbRspHandle(SClientHbReq* pReq) {
+static int32_t mqHbRspHandle(SClientHbRsp* pReq) {
   return 0;
 }
 
@@ -42,15 +42,12 @@ void hbMgrCleanUp() {
 
 }
 
-int registerConn(int32_t connId, FGetConnInfo func, FHbRspHandle rspHandle) {
+int hbRegisterConn(SClientHbKey connKey, FGetConnInfo func) {
+  
   return 0;
 }
 
-int registerHbRspHandle(int32_t connId, int32_t hbType, FHbRspHandle rspHandle) {
-  return 0;
-}
-
-int HbAddConnInfo(int32_t connId, void* key, void* value, int32_t keyLen, int32_t valueLen) {
+int hbAddConnInfo(SClientHbKey connKey, void* key, void* value, int32_t keyLen, int32_t valueLen) {
   //lock
 
   //find req by connection id
