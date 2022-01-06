@@ -51,9 +51,9 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     pReq->cacheLastRow = 0;
     pReq->ignoreExist = 1;
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DB, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
   {
@@ -101,12 +101,12 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
       strcpy(pSchema->name, "tag3");
     }
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_STB, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_STB, "1.d1");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, "1.d1");
   CHECK_META("show stables", 4);
 
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, "name");
@@ -114,7 +114,7 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   CHECK_SCHEMA(2, TSDB_DATA_TYPE_INT, 4, "columns");
   CHECK_SCHEMA(3, TSDB_DATA_TYPE_INT, 4, "tags");
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
   CheckBinary("stb", TSDB_TABLE_NAME_LEN);
   CheckTimestamp();
@@ -128,7 +128,7 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     STableInfoMsg* pReq = (STableInfoMsg*)rpcMallocCont(contLen);
     strcpy(pReq->tableFname, "1.d1.stb");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_STB_META, pReq, contLen);
+    SRpcMsg* pMsg = test.SendReq(TDMT_MND_STB_META, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
@@ -203,9 +203,9 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   // restart
   test.Restart();
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_STB, "1.d1");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, "1.d1");
   CHECK_META("show stables", 4);
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
 
   CheckBinary("stb", TSDB_TABLE_NAME_LEN);
@@ -219,13 +219,13 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     SDropStbMsg* pReq = (SDropStbMsg*)rpcMallocCont(contLen);
     strcpy(pReq->name, "1.d1.stb");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_STB, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_STB, "1.d1");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, "1.d1");
   CHECK_META("show stables", 4);
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 0);
 }

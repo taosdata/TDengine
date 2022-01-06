@@ -401,6 +401,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_WAL_APP_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x1000)  //"Unexpected generic error in wal")
 #define TSDB_CODE_WAL_FILE_CORRUPTED            TAOS_DEF_ERROR_CODE(0, 0x1001)  //"WAL file is corrupted")
 #define TSDB_CODE_WAL_SIZE_LIMIT                TAOS_DEF_ERROR_CODE(0, 0x1002)  //"WAL size exceeds limit")
+#define TSDB_CODE_WAL_INVALID_VER               TAOS_DEF_ERROR_CODE(0, 0x1003)  //"WAL invalid version")
+#define TSDB_CODE_WAL_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x1004)  //"WAL out of memory")
 
 // tfs
 #define TSDB_CODE_FS_OUT_OF_MEMORY              TAOS_DEF_ERROR_CODE(0, 0x2200)  //"tfs out of memory")

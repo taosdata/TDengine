@@ -28,7 +28,7 @@
 #include "tutil.h"
 using namespace std;
 
-#define NUM_OF_THREAD 5
+#define NUM_OF_THREAD 10
 
 class DebugInfo {
  public:
@@ -882,8 +882,8 @@ static void single_write_and_search(IndexObj* idx) {
 static void multi_write_and_search(IndexObj* idx) {
   int target = idx->SearchOne("tag1", "Hello");
   target = idx->SearchOne("tag2", "Test");
-  idx->WriteMultiMillonData("tag1", "Hello", 100 * 10000);
-  idx->WriteMultiMillonData("tag2", "Test", 100 * 10000);
+  idx->WriteMultiMillonData("tag1", "hello world test", 100 * 10000);
+  idx->WriteMultiMillonData("tag2", "world test nothing", 100 * 10000);
 }
 TEST_F(IndexEnv2, testIndex_serarch_cache_and_tfile) {
   std::string path = "/tmp/cache_and_tfile";

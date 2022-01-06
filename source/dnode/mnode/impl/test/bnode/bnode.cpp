@@ -39,14 +39,14 @@ Testbase   MndTestBnode::test;
 TestServer MndTestBnode::server2;
 
 TEST_F(MndTestBnode, 01_Show_Bnode) {
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_BNODE, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_BNODE, "");
   CHECK_META("show bnodes", 3);
 
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_SMALLINT, 2, "id");
   CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN + VARSTR_HEADER_SIZE, "endpoint");
   CHECK_SCHEMA(2, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
 
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 0);
 }
 
@@ -57,9 +57,9 @@ TEST_F(MndTestBnode, 02_Create_Bnode) {
     SMCreateBnodeReq* pReq = (SMCreateBnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_BNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_DNODE_NOT_EXIST);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_BNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_DNODE_NOT_EXIST);
   }
 
   {
@@ -68,13 +68,13 @@ TEST_F(MndTestBnode, 02_Create_Bnode) {
     SMCreateBnodeReq* pReq = (SMCreateBnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(1);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_BNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_BNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaMsg(TSDB_MGMT_TABLE_BNODE, "");
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_BNODE, "");
     CHECK_META("show bnodes", 3);
-    test.SendShowRetrieveMsg();
+    test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 1);
 
     CheckInt16(1);
@@ -88,9 +88,9 @@ TEST_F(MndTestBnode, 02_Create_Bnode) {
     SMCreateBnodeReq* pReq = (SMCreateBnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(1);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_BNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_BNODE_ALREADY_EXIST);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_BNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_BNODE_ALREADY_EXIST);
   }
 }
 
@@ -102,13 +102,13 @@ TEST_F(MndTestBnode, 03_Drop_Bnode) {
     strcpy(pReq->fqdn, "localhost");
     pReq->port = htonl(9019);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_DNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
 
     taosMsleep(1300);
-    test.SendShowMetaMsg(TSDB_MGMT_TABLE_DNODE, "");
-    test.SendShowRetrieveMsg();
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
+    test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 2);
   }
 
@@ -118,12 +118,12 @@ TEST_F(MndTestBnode, 03_Drop_Bnode) {
     SMCreateBnodeReq* pReq = (SMCreateBnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_BNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_BNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaMsg(TSDB_MGMT_TABLE_BNODE, "");
-    test.SendShowRetrieveMsg();
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_BNODE, "");
+    test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 2);
 
     CheckInt16(1);
@@ -140,12 +140,12 @@ TEST_F(MndTestBnode, 03_Drop_Bnode) {
     SMDropBnodeReq* pReq = (SMDropBnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_BNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_BNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaMsg(TSDB_MGMT_TABLE_BNODE, "");
-    test.SendShowRetrieveMsg();
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_BNODE, "");
+    test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 1);
 
     CheckInt16(1);
@@ -159,9 +159,9 @@ TEST_F(MndTestBnode, 03_Drop_Bnode) {
     SMDropBnodeReq* pReq = (SMDropBnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_BNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_MND_BNODE_NOT_EXIST);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_BNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_BNODE_NOT_EXIST);
   }
 }
 
@@ -174,9 +174,9 @@ TEST_F(MndTestBnode, 03_Create_Bnode_Rollback) {
     pReq->dnodeId = htonl(2);
 
     server2.Stop();
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_BNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_BNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
   }
 
   {
@@ -186,10 +186,9 @@ TEST_F(MndTestBnode, 03_Create_Bnode_Rollback) {
     SMCreateBnodeReq* pReq = (SMCreateBnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    server2.Stop();
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_BNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_SDB_OBJ_CREATING);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_BNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_SDB_OBJ_CREATING);
   }
 
   {
@@ -199,10 +198,9 @@ TEST_F(MndTestBnode, 03_Create_Bnode_Rollback) {
     SMDropBnodeReq* pReq = (SMDropBnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    server2.Stop();
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_BNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_SDB_OBJ_CREATING);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_BNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_SDB_OBJ_CREATING);
   }
 
   {
@@ -211,7 +209,7 @@ TEST_F(MndTestBnode, 03_Create_Bnode_Rollback) {
     taosMsleep(1000);
 
     int32_t retry = 0;
-    int32_t retryMax = 10;
+    int32_t retryMax = 20;
 
     for (retry = 0; retry < retryMax; retry++) {
       int32_t contLen = sizeof(SMCreateBnodeReq);
@@ -219,9 +217,9 @@ TEST_F(MndTestBnode, 03_Create_Bnode_Rollback) {
       SMCreateBnodeReq* pReq = (SMCreateBnodeReq*)rpcMallocCont(contLen);
       pReq->dnodeId = htonl(2);
 
-      SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_BNODE, pReq, contLen);
-      ASSERT_NE(pMsg, nullptr);
-      if (pMsg->code == 0) break;
+      SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_BNODE, pReq, contLen);
+      ASSERT_NE(pRsp, nullptr);
+      if (pRsp->code == 0) break;
       taosMsleep(1000);
     }
 
@@ -238,9 +236,9 @@ TEST_F(MndTestBnode, 04_Drop_Bnode_Rollback) {
     pReq->dnodeId = htonl(2);
 
     server2.Stop();
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_BNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_BNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
   }
 
   {
@@ -250,10 +248,9 @@ TEST_F(MndTestBnode, 04_Drop_Bnode_Rollback) {
     SMCreateBnodeReq* pReq = (SMCreateBnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    server2.Stop();
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_BNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_SDB_OBJ_DROPPING);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_BNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_SDB_OBJ_DROPPING);
   }
 
   {
@@ -263,10 +260,9 @@ TEST_F(MndTestBnode, 04_Drop_Bnode_Rollback) {
     SMDropBnodeReq* pReq = (SMDropBnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    server2.Stop();
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_DROP_BNODE, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, TSDB_CODE_SDB_OBJ_DROPPING);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_BNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_SDB_OBJ_DROPPING);
   }
 
   {
@@ -275,7 +271,7 @@ TEST_F(MndTestBnode, 04_Drop_Bnode_Rollback) {
     taosMsleep(1000);
 
     int32_t retry = 0;
-    int32_t retryMax = 10;
+    int32_t retryMax = 20;
 
     for (retry = 0; retry < retryMax; retry++) {
       int32_t contLen = sizeof(SMCreateBnodeReq);
@@ -283,9 +279,9 @@ TEST_F(MndTestBnode, 04_Drop_Bnode_Rollback) {
       SMCreateBnodeReq* pReq = (SMCreateBnodeReq*)rpcMallocCont(contLen);
       pReq->dnodeId = htonl(2);
 
-      SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_BNODE, pReq, contLen);
-      ASSERT_NE(pMsg, nullptr);
-      if (pMsg->code == 0) break;
+      SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_BNODE, pReq, contLen);
+      ASSERT_NE(pRsp, nullptr);
+      if (pRsp->code == 0) break;
       taosMsleep(1000);
     }
 

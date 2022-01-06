@@ -82,12 +82,11 @@ typedef struct SSchJobAttr {
 } SSchJobAttr;
 
 typedef struct SSchJob {
-  uint64_t  queryId;
-  int32_t   levelNum;
-  int32_t   levelIdx;
-  int8_t    status;
-  SSchJobAttr    attr;
-  SQueryProfileSummary summary;
+  uint64_t         queryId;
+  int32_t          levelNum;
+  int32_t          levelIdx;
+  int8_t           status;
+  SSchJobAttr      attr;
   SEpSet           dataSrcEps;
   SEpAddr          resEp;
   void            *transport;
@@ -95,18 +94,20 @@ typedef struct SSchJob {
   tsem_t           rspSem;
   int32_t          userFetch;
   int32_t          remoteFetch;
-
   SSchTask        *fetchTask;
+
   int32_t          errCode;
   void            *res;
   int32_t          resNumOfRows;
-  
-  SHashObj *execTasks; // executing tasks, key:taskid, value:SQueryTask*
-  SHashObj *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
-  SHashObj *failTasks; // failed tasks, key:taskid, value:SQueryTask*
-    
-  SArray   *levels;    // Element is SQueryLevel, starting from 0.
-  SArray   *subPlans;  // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0.
+
+  SHashObj        *execTasks; // executing tasks, key:taskid, value:SQueryTask*
+  SHashObj        *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
+  SHashObj        *failTasks; // failed tasks, key:taskid, value:SQueryTask*
+
+  SArray          *levels;    // Element is SQueryLevel, starting from 0. SArray<SSchLevel>
+  SArray          *subPlans;  // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0. SArray<void*>
+
+  SQueryProfileSummary summary;
 } SSchJob;
 
 #define SCH_HAS_QNODE_IN_CLUSTER(type) (false) //TODO CLUSTER TYPE
