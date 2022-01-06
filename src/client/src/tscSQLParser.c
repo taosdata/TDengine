@@ -1084,8 +1084,9 @@ static int32_t addPrimaryTsColumnForTimeWindowQuery(SQueryInfo* pQueryInfo, SSql
   uint64_t uid = tscExprGet(pQueryInfo, 0)->base.uid;
 
   int32_t  tableIndex = COLUMN_INDEX_INITIAL_VAL;
+  STableMetaInfo* pTableMetaInfo = NULL;
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
-    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
+    pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
     if (pTableMetaInfo->pTableMeta->id.uid == uid) {
       tableIndex = i;
       break;
@@ -1097,7 +1098,11 @@ static int32_t addPrimaryTsColumnForTimeWindowQuery(SQueryInfo* pQueryInfo, SSql
   }
 
   SSchema s = {.bytes = TSDB_KEYSIZE, .type = TSDB_DATA_TYPE_TIMESTAMP, .colId = PRIMARYKEY_TIMESTAMP_COL_INDEX};
-  tstrncpy(s.name, aAggs[TSDB_FUNC_TS].name, sizeof(s.name));
+  if (pTableMetaInfo) {
+    tstrncpy(s.name, pTableMetaInfo->pTableMeta->schema[PRIMARYKEY_TIMESTAMP_COL_INDEX].name, sizeof(s.name));
+  } else {
+    tstrncpy(s.name, aAggs[TSDB_FUNC_TS].name, sizeof(s.name));
+  }  
 
   SColumnIndex index = {tableIndex, PRIMARYKEY_TIMESTAMP_COL_INDEX};
   tscAddFuncInSelectClause(pQueryInfo, 0, TSDB_FUNC_TS, &index, &s, TSDB_COL_NORMAL, 0);
