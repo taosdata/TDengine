@@ -234,7 +234,7 @@ public class TSDBResultSetBlockData {
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
-                case TSDBConstants.TSDB_DATA_TYPE_JSON:
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
                 if ("TRUE".compareToIgnoreCase((String) obj) == 0) {
                     return Boolean.TRUE;
@@ -274,7 +274,7 @@ public class TSDBResultSetBlockData {
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
-                case TSDBConstants.TSDB_DATA_TYPE_JSON:
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
                 return Long.parseLong((String) obj);
             }
@@ -312,7 +312,7 @@ public class TSDBResultSetBlockData {
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
-                case TSDBConstants.TSDB_DATA_TYPE_JSON:
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
                 return Double.parseDouble((String) obj);
             }
