@@ -46,6 +46,7 @@ def pre_test(){
     killall -9 gdb || echo "no gdb running"
     killall -9 python3.8 || echo "no python program running"
     cd ${WKC}
+    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git reset --hard HEAD~10 >/dev/null
     '''
     script {
@@ -121,6 +122,7 @@ def pre_test_noinstall(){
     sh'hostname'
     sh'''
     cd ${WKC}
+    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git reset --hard HEAD~10 >/dev/null
     '''
     script {
@@ -193,6 +195,7 @@ def pre_test_mac(){
     sh'hostname'
     sh'''
     cd ${WKC}
+    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git reset --hard HEAD~10 >/dev/null
     '''
     script {
