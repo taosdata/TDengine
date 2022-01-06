@@ -505,15 +505,15 @@ TEST(testCase, create_multiple_tables) {
 
   taos_free_result(pRes);
 
-//  for(int32_t i = 0; i < 10000; ++i) {
-//    char sql[512] = {0};
-//    snprintf(sql, tListLen(sql), "create table t_x_%d using st1 tags(2)", i);
-//    TAOS_RES* pres = taos_query(pConn, sql);
-//    if (taos_errno(pres) != 0) {
-//      printf("failed to create table %d\n, reason:%s", i, taos_errstr(pres));
-//    }
-//    taos_free_result(pres);
-//  }
+  for(int32_t i = 0; i < 1000; ++i) {
+    char sql[512] = {0};
+    snprintf(sql, tListLen(sql), "create table t_x_%d using st1 tags(2)", i);
+    TAOS_RES* pres = taos_query(pConn, sql);
+    if (taos_errno(pres) != 0) {
+      printf("failed to create table %d\n, reason:%s", i, taos_errstr(pres));
+    }
+    taos_free_result(pres);
+  }
 
   taos_close(pConn);
 }
@@ -521,11 +521,11 @@ TEST(testCase, create_multiple_tables) {
 TEST(testCase, generated_request_id_test) {
   SHashObj *phash = taosHashInit(10000, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
 
-  for(int32_t i = 0; i < 50000000; ++i) {
+  for(int32_t i = 0; i < 50000; ++i) {
     uint64_t v = generateRequestId();
     void* result = taosHashGet(phash, &v, sizeof(v));
     if (result != nullptr) {
-      printf("0x%"PRIx64", index:%d\n", v, i);
+      printf("0x%lx, index:%d\n", v, i);
     }
     assert(result == nullptr);
     taosHashPut(phash, &v, sizeof(v), NULL, 0);
