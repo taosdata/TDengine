@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dndDnode.h"
+#include "dndMgmt.h"
 #include "dndBnode.h"
 #include "dndMnode.h"
 #include "dndQnode.h"
