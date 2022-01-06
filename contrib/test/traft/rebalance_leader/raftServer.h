@@ -15,11 +15,13 @@ extern "C" {
 
 
 // simulate a db store, just for test
-#define MAX_KV_LEN 100
-#define MAX_RECORD_COUNT 500
-char *keys;
-char *values;
-int writeIndex;
+#define MAX_KV_LEN 20
+#define MAX_RECORD_COUNT 16
+
+
+//char *keys;
+//char *values;
+//int writeIndex;
 
 void initStore();
 void destroyStore();

@@ -18,8 +18,7 @@
 #include "query.h"
 #include "catalog.h"
 
-SSchedulerMgmt schMgmt = {0};
-
+static SSchedulerMgmt schMgmt = {0};
 
 int32_t schBuildTaskRalation(SSchJob *job, SHashObj *planToTask) {
   for (int32_t i = 0; i < job->levelNum; ++i) {
@@ -93,11 +92,30 @@ int32_t schBuildTaskRalation(SSchJob *job, SHashObj *planToTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+static SSchTask initTask(SSchJob* pJob, SSubplan* plan, SSchLevel *pLevel) {
+  SSchTask task = {0};
+  if (plan->type == QUERY_TYPE_MODIFY) {
+    pJob->attr.needFetch = false;
+  } else {
+    pJob->attr.queryJob = true;
+  }
 
-int32_t schValidateAndBuildJob(SQueryDag *dag, SSchJob *job) {
+  task.plan   = plan;
+  task.level  = pLevel;
+  task.status = JOB_TASK_STATUS_NOT_START;
+  task.taskId = atomic_add_fetch_64(&schMgmt.taskId, 1);
+
+  return task;
+}
+
+static void cleanupTask(SSchTask* pTask) {
+  taosArrayDestroy(pTask->candidateAddrs);
+}
+
+int32_t schValidateAndBuildJob(SQueryDag *dag, SSchJob *pJob) {
   int32_t code = 0;
 
-  job->queryId = dag->queryId;
+  pJob->queryId = dag->queryId;
   
   if (dag->numOfSubplans <= 0) {
     qError("invalid subplan num:%d", dag->numOfSubplans);
@@ -115,20 +133,20 @@ int32_t schValidateAndBuildJob(SQueryDag *dag, SSchJob *job) {
     qError("taosHashInit %d failed", SCHEDULE_DEFAULT_TASK_NUMBER);
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
-  
-  job->levels = taosArrayInit(levelNum, sizeof(SSchLevel));
-  if (NULL == job->levels) {
+
+  pJob->levels = taosArrayInit(levelNum, sizeof(SSchLevel));
+  if (NULL == pJob->levels) {
     qError("taosArrayInit %d failed", levelNum);
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
   //??
-  job->attr.needFetch = true;
-  
-  job->levelNum = levelNum;
-  job->levelIdx = levelNum - 1;
+  pJob->attr.needFetch = true;
 
-  job->subPlans = dag->pSubplans;
+  pJob->levelNum = levelNum;
+  pJob->levelIdx = levelNum - 1;
+
+  pJob->subPlans = dag->pSubplans;
 
   SSchLevel level = {0};
   SArray *levelPlans = NULL;
@@ -138,12 +156,12 @@ int32_t schValidateAndBuildJob(SQueryDag *dag, SSchJob *job) {
   level.status = JOB_TASK_STATUS_NOT_START;
 
   for (int32_t i = 0; i < levelNum; ++i) {
-    if (NULL == taosArrayPush(job->levels, &level)) {
+    if (NULL == taosArrayPush(pJob->levels, &level)) {
       qError("taosArrayPush failed");
       SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
-    pLevel = taosArrayGet(job->levels, i);
+    pLevel = taosArrayGet(pJob->levels, i);
   
     pLevel->level = i;
     levelPlans = taosArrayGetP(dag->pSubplans, i);
@@ -168,20 +186,13 @@ int32_t schValidateAndBuildJob(SQueryDag *dag, SSchJob *job) {
     
     for (int32_t n = 0; n < levelPlanNum; ++n) {
       SSubplan *plan = taosArrayGetP(levelPlans, n);
-      SSchTask task = {0};
-
       if (plan->type == QUERY_TYPE_MODIFY) {
-        job->attr.needFetch = false;
+        pJob->attr.needFetch = false;
       } else {
-        job->attr.queryJob = true;
+        pJob->attr.queryJob = true;
       }
 
-      
-      task.taskId = atomic_add_fetch_64(&schMgmt.taskId, 1);
-      task.plan = plan;
-      task.level = pLevel;
-      task.status = JOB_TASK_STATUS_NOT_START;
-
+      SSchTask task = initTask(pJob, plan, pLevel);
       void *p = taosArrayPush(pLevel->subTasks, &task);
       if (NULL == p) {
         qError("taosArrayPush failed");
@@ -193,10 +204,9 @@ int32_t schValidateAndBuildJob(SQueryDag *dag, SSchJob *job) {
         SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
     }
-
   }
 
-  SCH_ERR_JRET(schBuildTaskRalation(job, planToTask));
+  SCH_ERR_JRET(schBuildTaskRalation(pJob, planToTask));
 
   if (planToTask) {
     taosHashCleanup(planToTask);
@@ -216,20 +226,20 @@ _return:
   SCH_RET(code);
 }
 
-int32_t schSetTaskCondidateAddrs(SSchJob *job, SSchTask *task) {
-  if (task->condidateAddrs) {
+int32_t schSetTaskCandidateAddrs(SSchJob *job, SSchTask *task) {
+  if (task->candidateAddrs) {
     return TSDB_CODE_SUCCESS;
   }
 
-  task->condidateIdx = 0;
-  task->condidateAddrs = taosArrayInit(SCH_MAX_CONDIDATE_EP_NUM, sizeof(SQueryNodeAddr));
-  if (NULL == task->condidateAddrs) {
+  task->candidateIdx = 0;
+  task->candidateAddrs = taosArrayInit(SCH_MAX_CONDIDATE_EP_NUM, sizeof(SQueryNodeAddr));
+  if (NULL == task->candidateAddrs) {
     qError("taosArrayInit failed");
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
   if (task->plan->execNode.numOfEps > 0) {
-    if (NULL == taosArrayPush(task->condidateAddrs, &task->plan->execNode)) {
+    if (NULL == taosArrayPush(task->candidateAddrs, &task->plan->execNode)) {
       qError("taosArrayPush failed");
       SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
@@ -243,7 +253,7 @@ int32_t schSetTaskCondidateAddrs(SSchJob *job, SSchTask *task) {
   for (int32_t i = 0; i < nodeNum && addNum < SCH_MAX_CONDIDATE_EP_NUM; ++i) {
     SQueryNodeAddr *naddr = taosArrayGet(job->nodeList, i);
     
-    if (NULL == taosArrayPush(task->condidateAddrs, &task->plan->execNode)) {
+    if (NULL == taosArrayPush(task->candidateAddrs, &task->plan->execNode)) {
       qError("taosArrayPush failed");
       SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
@@ -263,21 +273,20 @@ int32_t schSetTaskCondidateAddrs(SSchJob *job, SSchTask *task) {
   return TSDB_CODE_SUCCESS;
 }
 
-
-int32_t schPushTaskToExecList(SSchJob *job, SSchTask *task) {
-  if (0 != taosHashPut(job->execTasks, &task->taskId, sizeof(task->taskId), &task, POINTER_BYTES)) {
-    qError("taosHashPut failed");
+int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask) {
+  if (0 != taosHashPut(pJob->execTasks, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES)) {
+    qError("failed to add new task, taskId:0x%"PRIx64", reqId:0x"PRIx64", out of memory", pJob->queryId);
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  SCH_TASK_DLOG("push to %s list", "execTasks");
-
+  qDebug("add one task, taskId:0x%"PRIx64", numOfTasks:%d, reqId:0x%"PRIx64, pTask->taskId, taosHashGetSize(pJob->execTasks),
+         pJob->queryId);
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t schMoveTaskToSuccList(SSchJob *job, SSchTask *task, bool *moved) {
   if (0 != taosHashRemove(job->execTasks, &task->taskId, sizeof(task->taskId))) {
-    qWarn("remove task[%"PRIx64"] from execTasks failed", task->taskId);
+    qError("remove task taskId:0x%"PRIx64" from execTasks failed, reqId:0x%"PRIx64, task->taskId, job->queryId);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -285,8 +294,6 @@ int32_t schMoveTaskToSuccList(SSchJob *job, SSchTask *task, bool *moved) {
     qError("taosHashPut failed");
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
-
-  SCH_TASK_DLOG("push to %s list", "succTasks");
 
   *moved = true;
   
@@ -302,8 +309,6 @@ int32_t schMoveTaskToFailList(SSchJob *job, SSchTask *task, bool *moved) {
     qError("taosHashPut failed");
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
-
-  SCH_TASK_DLOG("push to %s list", "failTasks");
 
   *moved = true;
   
@@ -342,11 +347,12 @@ _return:
 int32_t schProcessOnJobPartialSuccess(SSchJob *job) {
   job->status = JOB_TASK_STATUS_PARTIAL_SUCCEED;
 
+  bool needFetch = job->userFetch;
   if ((!job->attr.needFetch) && job->attr.syncSchedule) {
     tsem_post(&job->rspSem);
   }
   
-  if (job->userFetch) {
+  if (needFetch) {
     SCH_ERR_RET(schFetchFromRemote(job));
   }
 
@@ -378,7 +384,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *job, SSchTask *task) {
   
   SCH_ERR_RET(schMoveTaskToSuccList(job, task, &moved));
   if (!moved) {
-    SCH_TASK_ELOG("task may already moved, status:%d", task->status);
+    SCH_TASK_ERR_LOG(" task may already moved, status:%d", task->status);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -416,7 +422,6 @@ int32_t schProcessOnTaskSuccess(SSchJob *job, SSchTask *task) {
     }
 
     job->fetchTask = task;
-    
     SCH_ERR_RET(schProcessOnJobPartialSuccess(job));
 
     return TSDB_CODE_SUCCESS;
@@ -453,11 +458,11 @@ int32_t schProcessOnTaskFailure(SSchJob *job, SSchTask *task, int32_t errCode) {
   SCH_ERR_RET(schTaskCheckAndSetRetry(job, task, errCode, &needRetry));
   
   if (!needRetry) {
-    SCH_TASK_ELOG("task failed[%x], no more retry", errCode);
+    SCH_TASK_ERR_LOG("task failed[%x], no more retry", errCode);
 
     SCH_ERR_RET(schMoveTaskToFailList(job, task, &moved));
     if (!moved) {
-      SCH_TASK_ELOG("task may already moved, status:%d", task->status);
+      SCH_TASK_ERR_LOG("task may already moved, status:%d", task->status);
     }    
     
     if (SCH_TASK_NEED_WAIT_ALL(task)) {
@@ -491,12 +496,12 @@ int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *ms
       if (rspCode != TSDB_CODE_SUCCESS) {
         SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rspCode));
       } else {
-//        job->resNumOfRows += rsp->affectedRows;
         code = schProcessOnTaskSuccess(job, task);
         if (code) {
           goto _task_error;
         }
       }
+
       break;
     }
     case TDMT_VND_SUBMIT_RSP: {
@@ -573,27 +578,24 @@ int32_t schHandleCallback(void* param, const SDataBuf* pMsg, int32_t msgType, in
   int32_t code = 0;
   SSchCallbackParam *pParam = (SSchCallbackParam *)param;
   
-  SSchJob **pjob = taosHashGet(schMgmt.jobs, &pParam->queryId, sizeof(pParam->queryId));
-  if (NULL == pjob || NULL == (*pjob)) {
+  SSchJob **job = taosHashGet(schMgmt.jobs, &pParam->queryId, sizeof(pParam->queryId));
+  if (NULL == job || NULL == (*job)) {
     qError("taosHashGet queryId:%"PRIx64" not exist", pParam->queryId);
     SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
-  SSchJob *job = *pjob;
+  int32_t s = taosHashGetSize((*job)->execTasks);
+  assert(s != 0);
 
-  SSchTask **ptask = taosHashGet(job->execTasks, &pParam->taskId, sizeof(pParam->taskId));
-  if (NULL == ptask || NULL == (*ptask)) {
-    qError("taosHashGet taskId:%"PRIx64" not exist", pParam->taskId);
+  SSchTask **task = taosHashGet((*job)->execTasks, &pParam->taskId, sizeof(pParam->taskId));
+  if (NULL == task || NULL == (*task)) {
+    qError("failed to get task, taskId:%"PRIx64" not exist, reqId:0x%"PRIx64, pParam->taskId, (*job)->queryId);
     SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
-
-  SSchTask *task = *ptask;
-
-  SCH_TASK_DLOG("Got msg:%d, rspCode:%d", msgType, rspCode);
   
-  schProcessRspMsg(job, task, msgType, pMsg->pData, pMsg->len, rspCode);
+  schProcessRspMsg(*job, *task, msgType, pMsg->pData, pMsg->len, rspCode);
 
-_return:  
+_return:
   tfree(param);
   SCH_RET(code);
 }
@@ -800,7 +802,7 @@ int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType) {
   }
 
   SEpSet epSet;
-  SQueryNodeAddr *addr = taosArrayGet(task->condidateAddrs, task->condidateIdx);
+  SQueryNodeAddr *addr = taosArrayGet(task->candidateAddrs, task->candidateIdx);
   
   schConvertAddrToEpSet(addr, &epSet);
 
@@ -818,17 +820,16 @@ _return:
 int32_t schLaunchTask(SSchJob *job, SSchTask *task) {
   SSubplan *plan = task->plan;
   SCH_ERR_RET(qSubPlanToString(plan, &task->msg, &task->msgLen));
-  SCH_ERR_RET(schSetTaskCondidateAddrs(job, task));
+  SCH_ERR_RET(schSetTaskCandidateAddrs(job, task));
 
-  if (NULL == task->condidateAddrs || taosArrayGetSize(task->condidateAddrs) <= 0) {
-    SCH_TASK_ELOG("no valid condidate node for task:%"PRIx64, task->taskId);
+  if (NULL == task->candidateAddrs || taosArrayGetSize(task->candidateAddrs) <= 0) {
+    SCH_TASK_ERR_LOG("no valid candidate node for task:%"PRIx64, task->taskId);
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
-//  int32_t msgType = (plan->type == QUERY_TYPE_MODIFY)? TDMT_VND_SUBMIT : TDMT_VND_QUERY;
-  
-  SCH_ERR_RET(schBuildAndSendMsg(job, task, plan->msgType));
+  // NOTE: race condition: the task should be put into the hash table before send msg to server
   SCH_ERR_RET(schPushTaskToExecList(job, task));
+  SCH_ERR_RET(schBuildAndSendMsg(job, task, plan->msgType));
 
   task->status = JOB_TASK_STATUS_EXECUTING;
   return TSDB_CODE_SUCCESS;
@@ -850,18 +851,26 @@ void schDropJobAllTasks(SSchJob *job) {
   void *pIter = taosHashIterate(job->succTasks, NULL);
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
-  
+
+    int32_t msgType = task->plan->msgType;
+    if (msgType == TDMT_VND_CREATE_TABLE || msgType == TDMT_VND_SUBMIT) {
+      break;
+    }
+
     schBuildAndSendMsg(job, task, TDMT_VND_DROP_TASK);
-    
     pIter = taosHashIterate(job->succTasks, pIter);
   }  
 
   pIter = taosHashIterate(job->failTasks, NULL);
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
-  
+
+    int32_t msgType = task->plan->msgType;
+    if (msgType == TDMT_VND_CREATE_TABLE || msgType == TDMT_VND_SUBMIT) {
+      break;
+    }
+
     schBuildAndSendMsg(job, task, TDMT_VND_DROP_TASK);
-    
     pIter = taosHashIterate(job->succTasks, pIter);
   }  
 }
@@ -944,16 +953,15 @@ int32_t scheduleExecJobImpl(void *transport, SArray *nodeList, SQueryDag* pDag, 
   code = taosHashPut(schMgmt.jobs, &job->queryId, sizeof(job->queryId), &job, POINTER_BYTES);
   if (0 != code) {
     if (HASH_NODE_EXIST(code)) {
-      qError("taosHashPut queryId:%"PRIx64" already exist", job->queryId);
+      qError("taosHashPut queryId:0x%"PRIx64" already exist", job->queryId);
       SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
     } else {
-      qError("taosHashPut queryId:%"PRIx64" failed", job->queryId);
+      qError("taosHashPut queryId:0x%"PRIx64" failed", job->queryId);
       SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
     }
   }
 
   job->status = JOB_TASK_STATUS_NOT_START;
-  
   SCH_ERR_JRET(schLaunchJob(job));
 
   *(SSchJob **)pJob = job;
@@ -965,7 +973,6 @@ int32_t scheduleExecJobImpl(void *transport, SArray *nodeList, SQueryDag* pDag, 
   return TSDB_CODE_SUCCESS;
 
 _return:
-
   *(SSchJob **)pJob = NULL;
   scheduleFreeJob(job);
   
@@ -973,7 +980,7 @@ _return:
 }
 
 int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob, SQueryResult *pRes) {
-  if (NULL == transport || /* NULL == nodeList || */ NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == pRes) {
+  if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == pRes) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
@@ -1074,8 +1081,26 @@ void scheduleFreeJob(void *pJob) {
 
     schDropJobAllTasks(job);
   }
-  
-  //TODO free job
+
+  job->subPlans = NULL; // it is a reference to pDag->pSubplans
+  int32_t numOfLevels = taosArrayGetSize(job->levels);
+  for(int32_t i = 0; i < numOfLevels; ++i) {
+    SSchLevel *pLevel = taosArrayGet(job->levels, i);
+
+    int32_t numOfTasks = taosArrayGetSize(pLevel->subTasks);
+    for(int32_t j = 0; j < numOfTasks; ++j) {
+      SSchTask* pTask = taosArrayGet(pLevel->subTasks, j);
+      cleanupTask(pTask);
+    }
+
+    taosArrayDestroy(pLevel->subTasks);
+  }
+
+  taosHashCleanup(job->execTasks);
+  taosHashCleanup(job->failTasks);
+  taosHashCleanup(job->succTasks);
+  taosArrayDestroy(job->levels);
+  tfree(job);
 }
 
 void schedulerDestroy(void) {

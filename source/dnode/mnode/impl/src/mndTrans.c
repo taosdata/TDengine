@@ -24,7 +24,7 @@
 static SSdbRaw *mndTransActionEncode(STrans *pTrans);
 static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw);
 static int32_t  mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
-static int32_t  mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOldTrans);
+static int32_t  mndTransActionUpdate(SSdb *pSdb, STrans *OldTrans, STrans *pOld);
 static int32_t  mndTransActionDelete(SSdb *pSdb, STrans *pTrans);
 
 static int32_t mndTransAppendLog(SArray *pArray, SSdbRaw *pRaw);
@@ -112,6 +112,7 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   int32_t dataPos = 0;
   SDB_SET_INT32(pRaw, dataPos, pTrans->id, TRANS_ENCODE_OVER)
   SDB_SET_INT8(pRaw, dataPos, pTrans->policy, TRANS_ENCODE_OVER)
+  SDB_SET_INT8(pRaw, dataPos, pTrans->stage, TRANS_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, redoLogNum, TRANS_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, undoLogNum, TRANS_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, commitLogNum, TRANS_ENCODE_OVER)
@@ -216,6 +217,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
 
   SDB_GET_INT32(pRaw, dataPos, &pTrans->id, TRANS_DECODE_OVER)
   SDB_GET_INT8(pRaw, dataPos, (int8_t *)&pTrans->policy, TRANS_DECODE_OVER)
+  SDB_GET_INT8(pRaw, dataPos, (int8_t *)&pTrans->stage, TRANS_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &redoLogNum, TRANS_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &undoLogNum, TRANS_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &commitLogNum, TRANS_DECODE_OVER)
@@ -314,9 +316,12 @@ static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans) {
   return 0;
 }
 
-static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOldTrans, STrans *pNewTrans) {
-  mTrace("trans:%d, perform update action, old_row:%p new_row:%p", pOldTrans->id, pOldTrans, pNewTrans);
-  pOldTrans->stage = pNewTrans->stage;
+static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
+  if (pNew->stage == TRN_STAGE_COMMIT) pNew->stage = TRN_STAGE_COMMIT_LOG;
+
+  mTrace("trans:%d, perform update action, old row:%p stage:%d, new row:%p stage:%d", pOld->id, pOld, pOld->stage, pNew,
+         pNew->stage);
+  pOld->stage = pNew->stage;
   return 0;
 }
 
@@ -464,16 +469,16 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   }
   mDebug("trans:%d, prepare finished", pTrans->id);
 
-  STrans *pNewTrans = mndAcquireTrans(pMnode, pTrans->id);
-  if (pNewTrans == NULL) {
+  STrans *pNew = mndAcquireTrans(pMnode, pTrans->id);
+  if (pNew == NULL) {
     mError("trans:%d, failed to read from sdb since %s", pTrans->id, terrstr());
     return -1;
   }
 
-  pNewTrans->rpcHandle = pTrans->rpcHandle;
-  pNewTrans->rpcAHandle = pTrans->rpcAHandle;
-  mndTransExecute(pMnode, pNewTrans);
-  mndReleaseTrans(pMnode, pNewTrans);
+  pNew->rpcHandle = pTrans->rpcHandle;
+  pNew->rpcAHandle = pTrans->rpcAHandle;
+  mndTransExecute(pMnode, pNew);
+  mndReleaseTrans(pMnode, pNew);
   return 0;
 }
 
@@ -645,7 +650,7 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
       pAction->msgReceived = 0;
       pAction->errCode = 0;
     } else {
-      mDebug("trans:%d, action:%d not sent since %s", pTrans->id, action, terrstr());
+      mDebug("trans:%d, action:%d not send since %s", pTrans->id, action, terrstr());
       return -1;
     }
   }

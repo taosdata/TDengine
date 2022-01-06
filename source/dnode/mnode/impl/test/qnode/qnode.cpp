@@ -186,7 +186,6 @@ TEST_F(MndTestQnode, 03_Create_Qnode_Rollback) {
     SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    server2.Stop();
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_SDB_OBJ_CREATING);
@@ -199,7 +198,6 @@ TEST_F(MndTestQnode, 03_Create_Qnode_Rollback) {
     SMDropQnodeReq* pReq = (SMDropQnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    server2.Stop();
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_SDB_OBJ_CREATING);
@@ -211,7 +209,7 @@ TEST_F(MndTestQnode, 03_Create_Qnode_Rollback) {
     taosMsleep(1000);
 
     int32_t retry = 0;
-    int32_t retryMax = 10;
+    int32_t retryMax = 20;
 
     for (retry = 0; retry < retryMax; retry++) {
       int32_t contLen = sizeof(SMCreateQnodeReq);
@@ -250,7 +248,6 @@ TEST_F(MndTestQnode, 04_Drop_Qnode_Rollback) {
     SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    server2.Stop();
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_SDB_OBJ_DROPPING);
@@ -263,7 +260,6 @@ TEST_F(MndTestQnode, 04_Drop_Qnode_Rollback) {
     SMDropQnodeReq* pReq = (SMDropQnodeReq*)rpcMallocCont(contLen);
     pReq->dnodeId = htonl(2);
 
-    server2.Stop();
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_SDB_OBJ_DROPPING);
@@ -275,7 +271,7 @@ TEST_F(MndTestQnode, 04_Drop_Qnode_Rollback) {
     taosMsleep(1000);
 
     int32_t retry = 0;
-    int32_t retryMax = 10;
+    int32_t retryMax = 20;
 
     for (retry = 0; retry < retryMax; retry++) {
       int32_t contLen = sizeof(SMCreateQnodeReq);

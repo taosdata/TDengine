@@ -3,32 +3,34 @@
 #include "common.h"
 #include "raftServer.h"
 
-char *keys;
-char *values;
+//char *keys = malloc(MAX_RECORD_COUNT * MAX_KV_LEN);;
+//char *values = malloc(MAX_RECORD_COUNT * MAX_KV_LEN);
+
+
+char keys[MAX_KV_LEN][MAX_RECORD_COUNT];
+char values[MAX_KV_LEN][MAX_RECORD_COUNT];
+int writeIndex = 0;
 
 void initStore() {
-	keys = malloc(MAX_RECORD_COUNT * MAX_KV_LEN);
-	values = malloc(MAX_RECORD_COUNT * MAX_KV_LEN);
-	writeIndex = 0;
 }
 
 void destroyStore() {
-	free(keys);
-	free(values);
+	//free(keys);
+	//free(values);
 }
 
 void putKV(const char *key, const char *value) {
 	if (writeIndex < MAX_RECORD_COUNT) {
-		strncpy(&keys[writeIndex], key, MAX_KV_LEN);
-		strncpy(&values[writeIndex], value, MAX_KV_LEN);
+		strncpy(keys[writeIndex], key, MAX_KV_LEN);
+		strncpy(values[writeIndex], value, MAX_KV_LEN);
 		writeIndex++;
 	}
 }
 
 char *getKV(const char *key) {
 	for (int i = 0; i < MAX_RECORD_COUNT; ++i) {
-		if (strcmp(&keys[i], key) == 0) {
-			return &values[i];
+		if (strcmp(keys[i], key) == 0) {
+			return values[i];
 		}
 	}
 	return NULL;

@@ -67,8 +67,8 @@ typedef struct SSchTask {
   int32_t              msgLen;         // msg length
   int8_t               status;         // task status
   SQueryNodeAddr       execAddr;       // task actual executed node address
-  int8_t               condidateIdx;   // current try condidation index
-  SArray              *condidateAddrs; // condidate node addresses, element is SQueryNodeAddr
+  int8_t               candidateIdx;   // current try condidation index
+  SArray              *candidateAddrs; // condidate node addresses, element is SQueryNodeAddr
   SQueryProfileSummary summary;        // task execution summary
   int32_t              childReady;     // child task ready number
   SArray              *children;       // the datasource tasks,from which to fetch the result, element is SQueryTask*
@@ -82,12 +82,11 @@ typedef struct SSchJobAttr {
 } SSchJobAttr;
 
 typedef struct SSchJob {
-  uint64_t  queryId;
-  int32_t   levelNum;
-  int32_t   levelIdx;
-  int8_t    status;
-  SSchJobAttr    attr;
-  SQueryProfileSummary summary;
+  uint64_t         queryId;
+  int32_t          levelNum;
+  int32_t          levelIdx;
+  int8_t           status;
+  SSchJobAttr      attr;
   SEpSet           dataSrcEps;
   SEpAddr          resEp;
   void            *transport;
@@ -95,18 +94,20 @@ typedef struct SSchJob {
   tsem_t           rspSem;
   int32_t          userFetch;
   int32_t          remoteFetch;
-
   SSchTask        *fetchTask;
+
   int32_t          errCode;
   void            *res;
   int32_t          resNumOfRows;
-  
-  SHashObj *execTasks; // executing tasks, key:taskid, value:SQueryTask*
-  SHashObj *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
-  SHashObj *failTasks; // failed tasks, key:taskid, value:SQueryTask*
-    
-  SArray   *levels;    // Element is SQueryLevel, starting from 0.
-  SArray   *subPlans;  // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0.
+
+  SHashObj        *execTasks; // executing tasks, key:taskid, value:SQueryTask*
+  SHashObj        *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
+  SHashObj        *failTasks; // failed tasks, key:taskid, value:SQueryTask*
+
+  SArray          *levels;    // Element is SQueryLevel, starting from 0. SArray<SSchLevel>
+  SArray          *subPlans;  // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0. SArray<void*>
+
+  SQueryProfileSummary summary;
 } SSchJob;
 
 #define SCH_HAS_QNODE_IN_CLUSTER(type) (false) //TODO CLUSTER TYPE
@@ -114,9 +115,8 @@ typedef struct SSchJob {
 #define SCH_IS_DATA_SRC_TASK(task) ((task)->plan->type == QUERY_TYPE_SCAN)
 #define SCH_TASK_NEED_WAIT_ALL(task) ((task)->plan->type == QUERY_TYPE_MODIFY)
 
-#define SCH_JOB_ELOG(param, ...) qError("QID:% "PRIx64 param, job->queryId, __VA_ARGS__)
-#define SCH_TASK_ELOG(param, ...) qError("QID:%"PRIx64",TID:% "PRIx64 param, job->queryId, task->taskId, __VA_ARGS__)
-#define SCH_TASK_DLOG(param, ...) qDebug("QID:%"PRIx64",TID:% "PRIx64 param, job->queryId, task->taskId, __VA_ARGS__)
+#define SCH_JOB_ERR_LOG(param, ...) qError("QID:%"PRIx64 param, job->queryId, __VA_ARGS__)
+#define SCH_TASK_ERR_LOG(param, ...) qError("QID:%"PRIx64",TID:%"PRIx64 param, job->queryId, task->taskId, __VA_ARGS__)
 
 #define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define SCH_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)

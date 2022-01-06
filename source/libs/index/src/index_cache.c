@@ -21,13 +21,15 @@
 #define MAX_INDEX_KEY_LEN 256  // test only, change later
 
 #define MEM_TERM_LIMIT 10 * 10000
+#define MEM_THRESHOLD 1024 * 1024 * 2
+#define MEM_ESTIMATE_RADIO 1.5
 
 static void indexMemRef(MemTable* tbl);
 static void indexMemUnRef(MemTable* tbl);
 
-static void    cacheTermDestroy(CacheTerm* ct);
-static char*   getIndexKey(const void* pData);
-static int32_t compareKey(const void* l, const void* r);
+static void    indexCacheTermDestroy(CacheTerm* ct);
+static int32_t indexCacheTermCompare(const void* l, const void* r);
+static char*   indexCacheTermGet(const void* pData);
 
 static MemTable* indexInternalCacheCreate(int8_t type);
 
@@ -43,14 +45,16 @@ IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, in
     return NULL;
   };
   cache->mem = indexInternalCacheCreate(type);
-
-  cache->colName = calloc(1, strlen(colName) + 1);
-  memcpy(cache->colName, colName, strlen(colName));
+  cache->colName = tstrdup(colName);
   cache->type = type;
   cache->index = idx;
   cache->version = 0;
   cache->suid = suid;
+  cache->occupiedMem = 0;
+
   pthread_mutex_init(&cache->mtx, NULL);
+  pthread_cond_init(&cache->finished, NULL);
+
   indexCacheRef(cache);
   return cache;
 }
@@ -121,6 +125,7 @@ void indexCacheDestroyImm(IndexCache* cache) {
   pthread_mutex_lock(&cache->mtx);
   tbl = cache->imm;
   cache->imm = NULL;  // or throw int bg thread
+  pthread_cond_broadcast(&cache->finished);
   pthread_mutex_unlock(&cache->mtx);
 
   indexMemUnRef(tbl);
@@ -132,6 +137,9 @@ void indexCacheDestroy(void* cache) {
   indexMemUnRef(pCache->mem);
   indexMemUnRef(pCache->imm);
   free(pCache->colName);
+
+  pthread_mutex_destroy(&pCache->mtx);
+  pthread_cond_destroy(&pCache->finished);
 
   free(pCache);
 }
@@ -173,19 +181,19 @@ int indexCacheSchedToMerge(IndexCache* pCache) {
 }
 static void indexCacheMakeRoomForWrite(IndexCache* cache) {
   while (true) {
-    if (cache->nTerm < MEM_TERM_LIMIT) {
-      cache->nTerm += 1;
+    if (cache->occupiedMem * MEM_ESTIMATE_RADIO < MEM_THRESHOLD) {
       break;
     } else if (cache->imm != NULL) {
       // TODO: wake up by condition variable
-      pthread_mutex_unlock(&cache->mtx);
-      taosMsleep(50);
-      pthread_mutex_lock(&cache->mtx);
+      pthread_cond_wait(&cache->finished, &cache->mtx);
+      // pthread_mutex_unlock(&cache->mtx);
+      // taosMsleep(50);
+      // pthread_mutex_lock(&cache->mtx);
     } else {
       indexCacheRef(cache);
       cache->imm = cache->mem;
       cache->mem = indexInternalCacheCreate(cache->type);
-      cache->nTerm = 1;
+      cache->occupiedMem = 0;
       // sched to merge
       // unref cache in bgwork
       indexCacheSchedToMerge(cache);
@@ -211,8 +219,9 @@ int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   ct->operaType = term->operType;
 
   // ugly code, refactor later
+  int64_t estimate = sizeof(ct) + strlen(ct->colVal);
   pthread_mutex_lock(&pCache->mtx);
-
+  pCache->occupiedMem += estimate;
   indexCacheMakeRoomForWrite(pCache);
   MemTable* tbl = pCache->mem;
   indexMemRef(tbl);
@@ -232,7 +241,7 @@ int indexCacheDel(void* cache, const char* fieldValue, int32_t fvlen, uint64_t u
 
 static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SArray* result, STermValueType* s) {
   if (mem == NULL) { return 0; }
-  char* key = getIndexKey(ct);
+  char* key = indexCacheTermGet(ct);
 
   SSkipListIterator* iter = tSkipListCreateIterFromVal(mem->mem, key, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
   while (tSkipListIterNext(iter)) {
@@ -310,17 +319,16 @@ void indexMemUnRef(MemTable* tbl) {
   }
 }
 
-static void cacheTermDestroy(CacheTerm* ct) {
+static void indexCacheTermDestroy(CacheTerm* ct) {
   if (ct == NULL) { return; }
   free(ct->colVal);
   free(ct);
 }
-static char* getIndexKey(const void* pData) {
+static char* indexCacheTermGet(const void* pData) {
   CacheTerm* p = (CacheTerm*)pData;
   return (char*)p;
 }
-
-static int32_t compareKey(const void* l, const void* r) {
+static int32_t indexCacheTermCompare(const void* l, const void* r) {
   CacheTerm* lt = (CacheTerm*)l;
   CacheTerm* rt = (CacheTerm*)r;
 
@@ -333,8 +341,9 @@ static int32_t compareKey(const void* l, const void* r) {
 static MemTable* indexInternalCacheCreate(int8_t type) {
   MemTable* tbl = calloc(1, sizeof(MemTable));
   indexMemRef(tbl);
-  if (type == TSDB_DATA_TYPE_BINARY) {
-    tbl->mem = tSkipListCreate(MAX_SKIP_LIST_LEVEL, type, MAX_INDEX_KEY_LEN, compareKey, SL_ALLOW_DUP_KEY, getIndexKey);
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+    tbl->mem = tSkipListCreate(MAX_SKIP_LIST_LEVEL, type, MAX_INDEX_KEY_LEN, indexCacheTermCompare, SL_ALLOW_DUP_KEY,
+                               indexCacheTermGet);
   }
   return tbl;
 }
@@ -342,7 +351,7 @@ static MemTable* indexInternalCacheCreate(int8_t type) {
 static void doMergeWork(SSchedMsg* msg) {
   IndexCache* pCache = msg->ahandle;
   SIndex*     sidx = (SIndex*)pCache->index;
-  indexFlushCacheTFile(sidx, pCache);
+  indexFlushCacheToTFile(sidx, pCache);
 }
 static bool indexCacheIteratorNext(Iterate* itera) {
   SSkipListIterator* iter = itera->iter;
@@ -364,4 +373,7 @@ static bool indexCacheIteratorNext(Iterate* itera) {
   return next;
 }
 
-static IterateValue* indexCacheIteratorGetValue(Iterate* iter) { return &iter->val; }
+static IterateValue* indexCacheIteratorGetValue(Iterate* iter) {
+  // opt later
+  return &iter->val;
+}
