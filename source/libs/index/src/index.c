@@ -384,7 +384,6 @@ static void indexMergeSameKey(SArray* result, TFileValue* tv) {
     }
   } else {
     taosArrayPush(result, &tv);
-    // indexError("merge colVal: %s", tv->colVal);
   }
 }
 static void indexDestroyTempResult(SArray* result) {
@@ -395,7 +394,7 @@ static void indexDestroyTempResult(SArray* result) {
   }
   taosArrayDestroy(result);
 }
-int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
+int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   if (sIdx == NULL) { return -1; }
   indexInfo("suid %" PRIu64 " merge cache into tindex", sIdx->suid);
 

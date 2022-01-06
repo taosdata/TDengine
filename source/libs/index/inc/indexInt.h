@@ -115,7 +115,7 @@ typedef struct TFileCacheKey {
   int32_t  nColName;
 } ICacheKey;
 
-int indexFlushCacheTFile(SIndex* sIdx, void*);
+int indexFlushCacheToTFile(SIndex* sIdx, void*);
 
 int32_t indexSerialCacheKey(ICacheKey* key, char* buf);
 
