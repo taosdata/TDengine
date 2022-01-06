@@ -799,6 +799,11 @@ FORCE_INLINE int32_t taosHashGetKey(void *data, void** key, size_t* keyLen) {
   return 0;
 }
 
+FORCE_INLINE int32_t taosHashGetDataLen(void *data) {
+  SHashNode * node = GET_HASH_PNODE(data);
+  return node->keyLen;
+}
+
 FORCE_INLINE uint32_t taosHashGetDataKeyLen(SHashObj *pHashObj, void *data) {
   SHashNode * node = GET_HASH_PNODE(data);
   return node->keyLen;

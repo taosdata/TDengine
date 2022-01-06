@@ -58,25 +58,36 @@ int32_t mndInitTopic(SMnode *pMnode) {
 void mndCleanupTopic(SMnode *pMnode) {}
 
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+
   int32_t  size = sizeof(SMqTopicObj) + MND_TOPIC_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_TOPIC, MND_TOPIC_VER_NUMBER, size);
-  if (pRaw == NULL) goto WTF;
+  if (pRaw == NULL) goto TOPIC_ENCODE_OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_BINARY(pRaw, dataPos, pTopic->name, TSDB_TABLE_FNAME_LEN, WTF);
-  SDB_SET_BINARY(pRaw, dataPos, pTopic->db, TSDB_DB_FNAME_LEN, WTF);
-  SDB_SET_INT64(pRaw, dataPos, pTopic->createTime, WTF);
-  SDB_SET_INT64(pRaw, dataPos, pTopic->updateTime, WTF);
-  SDB_SET_INT64(pRaw, dataPos, pTopic->uid, WTF);
-  SDB_SET_INT64(pRaw, dataPos, pTopic->dbUid, WTF);
-  SDB_SET_INT32(pRaw, dataPos, pTopic->version, WTF);
-  SDB_SET_INT32(pRaw, dataPos, pTopic->sqlLen, WTF);
-  SDB_SET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, WTF);
+  SDB_SET_BINARY(pRaw, dataPos, pTopic->name, TSDB_TABLE_FNAME_LEN, TOPIC_ENCODE_OVER);
+  SDB_SET_BINARY(pRaw, dataPos, pTopic->db, TSDB_DB_FNAME_LEN, TOPIC_ENCODE_OVER);
+  SDB_SET_INT64(pRaw, dataPos, pTopic->createTime, TOPIC_ENCODE_OVER);
+  SDB_SET_INT64(pRaw, dataPos, pTopic->updateTime, TOPIC_ENCODE_OVER);
+  SDB_SET_INT64(pRaw, dataPos, pTopic->uid, TOPIC_ENCODE_OVER);
+  SDB_SET_INT64(pRaw, dataPos, pTopic->dbUid, TOPIC_ENCODE_OVER);
+  SDB_SET_INT32(pRaw, dataPos, pTopic->version, TOPIC_ENCODE_OVER);
+  SDB_SET_INT32(pRaw, dataPos, pTopic->sqlLen, TOPIC_ENCODE_OVER);
+  SDB_SET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, TOPIC_ENCODE_OVER);
 
-  SDB_SET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, WTF);
-  SDB_SET_DATALEN(pRaw, dataPos, WTF);
+  SDB_SET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_ENCODE_OVER);
+  SDB_SET_DATALEN(pRaw, dataPos, TOPIC_ENCODE_OVER);
 
-WTF:
+  terrno = TSDB_CODE_SUCCESS;
+
+TOPIC_ENCODE_OVER:
+  if (terrno != TSDB_CODE_SUCCESS) {
+    mError("topic:%s, failed to encode to raw:%p since %s", pTopic->name, pRaw, terrstr());
+    sdbFreeRaw(pRaw);
+    return NULL;
+  }
+
+  mTrace("topic:%s, encode to raw:%p, row:%p", pTopic->name, pRaw, pTopic);
   return pRaw;
 }
 
@@ -90,8 +101,8 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     goto TOPIC_DECODE_OVER;
   }
 
-  int32_t      size = sizeof(SMqTopicObj);
-  SSdbRow     *pRow = sdbAllocRow(size);
+  int32_t  size = sizeof(SMqTopicObj);
+  SSdbRow *pRow = sdbAllocRow(size);
   if (pRow == NULL) goto TOPIC_DECODE_OVER;
 
   SMqTopicObj *pTopic = sdbGetRowObj(pRow);
@@ -115,10 +126,10 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
 
   SDB_GET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_DECODE_OVER)
 
-  terrno = 0;
+  terrno = TSDB_CODE_SUCCESS;
 
 TOPIC_DECODE_OVER:
-  if (terrno != 0) {
+  if (terrno != TSDB_CODE_SUCCESS) {
     mError("topic:%s, failed to decode from raw:%p since %s", pTopic->name, pRaw, terrstr());
     tfree(pRow);
     return NULL;
