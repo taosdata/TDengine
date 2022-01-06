@@ -650,6 +650,7 @@ typedef struct {
   int32_t     sver;
   int32_t     dnodeId;
   int64_t     clusterId;
+  int64_t     dver;
   int64_t     rebootTime;
   int64_t     updateTime;
   int32_t     numOfCores;
@@ -682,6 +683,7 @@ typedef struct {
 } SDnodeEps;
 
 typedef struct {
+  int64_t   dver;
   SDnodeCfg dnodeCfg;
   SDnodeEps dnodeEps;
 } SStatusRsp;

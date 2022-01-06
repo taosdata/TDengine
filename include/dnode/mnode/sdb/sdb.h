@@ -282,6 +282,15 @@ int32_t sdbGetSize(SSdb *pSdb, ESdbType type);
 int32_t sdbGetMaxId(SSdb *pSdb, ESdbType type);
 
 /**
+ * @brief Get the version of the table
+ *
+ * @param pSdb The sdb object.
+ * @param pIter The type of the table.
+ * @return int32_t The version of the table
+ */
+int64_t sdbGetTableVer(SSdb *pSdb, ESdbType type);
+
+/**
  * @brief Update the version of sdb
  *
  * @param pSdb The sdb object.

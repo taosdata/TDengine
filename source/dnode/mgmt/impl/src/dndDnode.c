@@ -366,6 +366,7 @@ void dndSendStatusReq(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
   pStatus->sver = htonl(pDnode->opt.sver);
+  pStatus->dver = htobe64(pMgmt->dver);
   pStatus->dnodeId = htonl(pMgmt->dnodeId);
   pStatus->clusterId = htobe64(pMgmt->clusterId);
   pStatus->rebootTime = htobe64(pMgmt->rebootTime);
@@ -441,6 +442,8 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pMsg) {
 
   SStatusRsp *pRsp = pMsg->pCont;
   if (pMsg->pCont != NULL && pMsg->contLen != 0) {
+    pMgmt->dver = htobe64(pRsp->dver);
+
     SDnodeCfg *pCfg = &pRsp->dnodeCfg;
     pCfg->dnodeId = htonl(pCfg->dnodeId);
     pCfg->clusterId = htobe64(pCfg->clusterId);

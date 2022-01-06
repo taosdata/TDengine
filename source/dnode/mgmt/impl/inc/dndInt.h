@@ -83,6 +83,7 @@ typedef struct {
   int32_t     dnodeId;
   int32_t     dropped;
   int64_t     clusterId;
+  int64_t     dver;
   int64_t     rebootTime;
   int64_t     updateTime;
   int8_t      statusSent;
