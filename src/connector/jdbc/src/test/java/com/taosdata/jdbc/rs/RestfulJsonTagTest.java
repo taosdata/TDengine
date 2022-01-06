@@ -12,7 +12,8 @@ import java.sql.*;
 /**
  * Most of the functionality is consistent with {@link com.taosdata.jdbc.JsonTagTest},
  * Except for batchInsert, which is not supported by restful API.
- * restful could not distinguish between empty and nonexistent of json value, the result is always null
+ * Restful could not distinguish between empty and nonexistent of json value, the result is always null.
+ * The order of json results may change due to serialization and deserialization
  */
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @RunWith(CatalogRunner.class)
