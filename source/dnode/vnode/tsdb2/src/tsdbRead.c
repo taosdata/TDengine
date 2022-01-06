@@ -23,8 +23,8 @@
 #include "taosdef.h"
 #include "tlosertree.h"
 #include "tsdbint.h"
-#include "texpr.h"
-#include "qFilter.h"
+// #include "texpr.h"
+// #include "qFilter.h"
 #include "cJSON.h"
 
 #define EXTRA_BYTES 2

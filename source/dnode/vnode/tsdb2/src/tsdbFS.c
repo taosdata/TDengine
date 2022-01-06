@@ -442,7 +442,7 @@ static int tsdbSaveFSStatus(SFSStatus *pStatus, int vid) {
 
   taosCalcChecksumAppend(0, (uint8_t *)hbuf, TSDB_FILE_HEAD_SIZE);
 
-  if (taosWrite(fd, hbuf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
+  if (taosWriteFile(fd, hbuf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     close(fd);
     remove(tfname);
@@ -461,7 +461,7 @@ static int tsdbSaveFSStatus(SFSStatus *pStatus, int vid) {
     tsdbEncodeFSStatus(&ptr, pStatus);
     taosCalcChecksumAppend(0, (uint8_t *)pBuf, fsheader.len);
 
-    if (taosWrite(fd, pBuf, fsheader.len) < fsheader.len) {
+    if (taosWriteFile(fd, pBuf, fsheader.len) < fsheader.len) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       close(fd);
       (void)remove(tfname);
@@ -677,7 +677,7 @@ static int tsdbOpenFSFromCurrent(STsdbRepo *pRepo) {
     goto _err;
   }
 
-  int nread = (int)taosRead(fd, buffer, TSDB_FILE_HEAD_SIZE);
+  int nread = (int)taosReadFile(fd, buffer, TSDB_FILE_HEAD_SIZE);
   if (nread < 0) {
     tsdbError("vgId:%d failed to read %d bytes from file %s since %s", REPO_ID(pRepo), TSDB_FILENAME_LEN, current,
               strerror(errno));
@@ -711,7 +711,7 @@ static int tsdbOpenFSFromCurrent(STsdbRepo *pRepo) {
       goto _err;
     }
 
-    nread = (int)taosRead(fd, buffer, fsheader.len);
+    nread = (int)taosReadFile(fd, buffer, fsheader.len);
     if (nread < 0) {
       tsdbError("vgId:%d failed to read file %s since %s", REPO_ID(pRepo), current, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1207,7 +1207,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
   }
 
   if ((fArraySize = taosArrayGetSize(fArray)) <= 0) {
-    taosArrayDestroy(&fArray);
+    taosArrayDestroy(fArray);
     tsdbInfo("vgId:%d size of DFileSet from %s is %" PRIu32, REPO_ID(pRepo), dataDir, (uint32_t)fArraySize);
     return 0;
   }
@@ -1258,7 +1258,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
             // return error in case of removing uncomplete DFileSets
             // terrno = TSDB_CODE_TDB_INCOMPLETE_DFILESET;
             tsdbError("vgId:%d incomplete DFileSet, fid:%d, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
-            taosArrayDestroy(&fArray);
+            taosArrayDestroy(fArray);
             return -1;
           }
         }
@@ -1271,7 +1271,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
           // return error in case of removing uncomplete DFileSets
           // terrno = TSDB_CODE_TDB_INCOMPLETE_DFILESET;
           tsdbError("vgId:%d incomplete DFileSet, fid:%d, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
-          taosArrayDestroy(&fArray);
+          taosArrayDestroy(fArray);
           return -1;
 #if 0
           // next FSet
@@ -1293,14 +1293,14 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
         if (tsdbOpenDFile(pDFile1, O_RDONLY) < 0) {
           tsdbError("vgId:%d failed to open DFile %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile1),
                     tstrerror(terrno));
-          taosArrayDestroy(&fArray);
+          taosArrayDestroy(fArray);
           return -1;
         }
 
         if (tsdbLoadDFileHeader(pDFile1, &(pDFile1->info)) < 0) {
           tsdbError("vgId:%d failed to load DFile %s header since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile1),
                     tstrerror(terrno));
-          taosArrayDestroy(&fArray);
+          taosArrayDestroy(fArray);
           return -1;
         }
 
@@ -1310,7 +1310,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
           // Get real file size
           if (fstat(pDFile1->fd, &tfstat) < 0) {
             terrno = TAOS_SYSTEM_ERROR(errno);
-            taosArrayDestroy(&fArray);
+            taosArrayDestroy(fArray);
             return -1;
           }
 
@@ -1346,7 +1346,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
   }
 
   // Resource release
-  taosArrayDestroy(&fArray);
+  taosArrayDestroy(fArray);
 
   return 0;
 }
