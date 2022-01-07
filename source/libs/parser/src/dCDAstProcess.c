@@ -43,7 +43,7 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx* pCtx, void** ou
     char dbFname[TSDB_DB_FNAME_LEN] = {0};
     tNameGetFullDbName(&name, dbFname);
 
-    catalogGetDBVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbFname, 0, &array);
+    catalogGetDBVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbFname, false, &array);
 
     SVgroupInfo* info = taosArrayGet(array, 0);
     pShowReq->head.vgId = htonl(info->vgId);
@@ -626,11 +626,12 @@ static int32_t doBuildSingleTableBatchReq(SName* pTableName, SArray* pColumns, S
 
 int32_t doCheckAndBuildCreateTableReq(SCreateTableSql* pCreateTable, SParseBasicCtx* pCtx, SMsgBuf* pMsgBuf, char** pOutput, int32_t* len) {
   SArray* pBufArray = NULL;
+  int32_t code = 0;
 
   // it is a sql statement to create a normal table
   if (pCreateTable->childTableInfo == NULL) {
     assert(taosArrayGetSize(pCreateTable->colInfo.pColumns) > 0 && pCreateTable->colInfo.pTagColumns == NULL);
-    int32_t code = doCheckForCreateTable(pCreateTable, pMsgBuf);
+    code = doCheckForCreateTable(pCreateTable, pMsgBuf);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -659,7 +660,10 @@ int32_t doCheckAndBuildCreateTableReq(SCreateTableSql* pCreateTable, SParseBasic
     destroyCreateTbReqBatch(&tbatch);
 
   } else { // it is a child table, created according to a super table
-    doCheckAndBuildCreateCTableReq(pCreateTable, pCtx, pMsgBuf, &pBufArray);
+    code = doCheckAndBuildCreateCTableReq(pCreateTable, pCtx, pMsgBuf, &pBufArray);
+    if (code != 0) {
+      return code;
+    }
   }
 
   SVnodeModifOpStmtInfo* pStmtInfo = calloc(1, sizeof(SVnodeModifOpStmtInfo));
