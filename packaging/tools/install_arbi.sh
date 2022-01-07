@@ -177,9 +177,6 @@ function install_jemalloc() {
 }
 
 function clean_service_on_sysvinit() {
-    #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
-    #${csudo}sed -i "\|${restart_config_str}|d" /etc/inittab || :
-
     if pidof tarbitrator &> /dev/null; then
         ${csudo}service tarbitratord stop || :
     fi
@@ -210,7 +207,6 @@ function install_service_on_sysvinit() {
     sleep 1
 
     # Install taosd service
-
     if ((${os_type}==1)); then
         ${csudo}cp -f ${script_dir}/init.d/tarbitratord.deb ${install_main_dir}/init.d/tarbitratord
         ${csudo}cp    ${script_dir}/init.d/tarbitratord.deb ${service_config_dir}/tarbitratord && ${csudo}chmod a+x ${service_config_dir}/tarbitratord
@@ -218,9 +214,6 @@ function install_service_on_sysvinit() {
         ${csudo}cp -f ${script_dir}/init.d/tarbitratord.rpm ${install_main_dir}/init.d/tarbitratord
         ${csudo}cp    ${script_dir}/init.d/tarbitratord.rpm ${service_config_dir}/tarbitratord && ${csudo}chmod a+x ${service_config_dir}/tarbitratord
     fi
-
-    #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
-    #${csudo}grep -q -F "$restart_config_str" /etc/inittab || ${csudo}bash -c "echo '${restart_config_str}' >> /etc/inittab"
 
     if ((${initd_mod}==1)); then
         ${csudo}chkconfig --add tarbitratord || :
@@ -243,8 +236,6 @@ function clean_service_on_systemd() {
 
   ${csudo}rm -f ${tarbitratord_service_config}
 }
-
-# taos:2345:respawn:/etc/init.d/tarbitratord start
 
 function install_service_on_systemd() {
     clean_service_on_systemd
@@ -280,7 +271,6 @@ function install_service() {
     elif ((${service_mod}==1)); then
         install_service_on_sysvinit
     else
-        # must manual stop taosd
         kill_tarbitrator
     fi
 }
@@ -307,7 +297,6 @@ function update_TDengine() {
     install_jemalloc
 
     echo
-    #echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
     if ((${service_mod}==0)); then
         echo -e "${GREEN_DARK}To start arbitrator     ${NC}: ${csudo}systemctl start tarbitratord${NC}"
     elif ((${service_mod}==1)); then
@@ -330,7 +319,6 @@ function install_TDengine() {
     install_jemalloc
 
     echo
-    #echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
     if ((${service_mod}==0)); then
         echo -e "${GREEN_DARK}To start arbitrator     ${NC}: ${csudo}systemctl start tarbitratord${NC}"
     elif ((${service_mod}==1)); then

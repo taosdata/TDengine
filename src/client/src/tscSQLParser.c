@@ -1084,8 +1084,9 @@ static int32_t addPrimaryTsColumnForTimeWindowQuery(SQueryInfo* pQueryInfo, SSql
   uint64_t uid = tscExprGet(pQueryInfo, 0)->base.uid;
 
   int32_t  tableIndex = COLUMN_INDEX_INITIAL_VAL;
+  STableMetaInfo* pTableMetaInfo = NULL;
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
-    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
+    pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
     if (pTableMetaInfo->pTableMeta->id.uid == uid) {
       tableIndex = i;
       break;
@@ -1097,7 +1098,11 @@ static int32_t addPrimaryTsColumnForTimeWindowQuery(SQueryInfo* pQueryInfo, SSql
   }
 
   SSchema s = {.bytes = TSDB_KEYSIZE, .type = TSDB_DATA_TYPE_TIMESTAMP, .colId = PRIMARYKEY_TIMESTAMP_COL_INDEX};
-  tstrncpy(s.name, aAggs[TSDB_FUNC_TS].name, sizeof(s.name));
+  if (pTableMetaInfo) {
+    tstrncpy(s.name, pTableMetaInfo->pTableMeta->schema[PRIMARYKEY_TIMESTAMP_COL_INDEX].name, sizeof(s.name));
+  } else {
+    tstrncpy(s.name, aAggs[TSDB_FUNC_TS].name, sizeof(s.name));
+  }
 
   SColumnIndex index = {tableIndex, PRIMARYKEY_TIMESTAMP_COL_INDEX};
   tscAddFuncInSelectClause(pQueryInfo, 0, TSDB_FUNC_TS, &index, &s, TSDB_COL_NORMAL, 0);
@@ -2668,6 +2673,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg14 = "third parameter algorithm must be 'default' or 't-digest'";
   const char* msg15 = "parameter is out of range [1, 1000]";
   const char* msg16 = "elapsed duration should be greater than or equal to database precision";
+  const char* msg17 = "elapsed/twa should not be used in nested query if inner query has group by clause";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -2792,6 +2798,17 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         }
       }
 
+      //for timeline related aggregation function like elapsed and twa, groupby in subquery is not allowed
+      //as calculation result is meaningless by mixing different childtables(timelines) results.
+      if ((functionId == TSDB_FUNC_ELAPSED || functionId == TSDB_FUNC_TWA) && pQueryInfo->pUpstream != NULL) {
+        size_t numOfUpstreams = taosArrayGetSize(pQueryInfo->pUpstream);
+        for (int32_t i = 0; i < numOfUpstreams; ++i) {
+          SQueryInfo* pSub = taosArrayGetP(pQueryInfo->pUpstream, i);
+          if (pSub->groupbyExpr.numOfGroupCols > 0) {
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg17);
+          }
+        }
+      }
 
       STableComInfo info = tscGetTableInfo(pTableMetaInfo->pTableMeta);
 
