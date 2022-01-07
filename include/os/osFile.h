@@ -54,7 +54,7 @@ int32_t taosFtruncateFile(FileFd fd, int64_t length);
 int32_t taosFsyncFile(FileFd fd);
 
 int64_t taosReadFile(FileFd fd, void *buf, int64_t count);
-int64_t taosWriteFile(FileFd fd, void *buf, int64_t count);
+int64_t taosWriteFile(FileFd fd, const void *buf, int64_t count);
 
 void taosCloseFile(FileFd fd);
 
