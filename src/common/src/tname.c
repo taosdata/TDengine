@@ -148,37 +148,6 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 #endif
 
 
-char *tableNameGetPosition(SStrToken* pToken, char target) {
-  bool inEscape = false;
-  bool inQuote = false;
-  char quotaStr = 0;
-  
-  for (uint32_t i = 0; i < pToken->n; ++i) {
-    if (*(pToken->z + i) == target && (!inEscape) && (!inQuote)) {
-      return pToken->z + i;
-    }
-  
-    if (*(pToken->z + i) == TS_ESCAPE_CHAR) {
-      if (!inQuote) {
-        inEscape = !inEscape;
-      }
-    }
-  
-    if (*(pToken->z + i) == '\'' || *(pToken->z + i) == '"') {
-      if (!inEscape) {
-        if (!inQuote) {
-          quotaStr = *(pToken->z + i);
-          inQuote = !inQuote;
-        } else if (quotaStr == *(pToken->z + i)) {
-          inQuote = !inQuote;
-        }          
-      }
-    }
-  }
-
-  return NULL;
-}
-
 char *tableNameToStr(char *dst, char *src, char quote) {
   *dst = 0;
 
@@ -201,35 +170,6 @@ char *tableNameToStr(char *dst, char *src, char quote) {
   }
 
   return dst;
-}
-
-
-/*
- * tablePrefix.columnName
- * extract table name and save it in pTable, with only column name in pToken
- */
-void extractTableNameFromToken(SStrToken* pToken, SStrToken* pTable) {
-  const char sep = TS_PATH_DELIMITER[0];
-
-  if (pToken == pTable || pToken == NULL || pTable == NULL) {
-    return;
-  }
-
-  char* r = tableNameGetPosition(pToken, sep);  
-
-  if (r != NULL) {  // record the table name token    
-    if (pToken->z[0] == TS_ESCAPE_CHAR && *(r - 1) == TS_ESCAPE_CHAR) {
-      pTable->n = (uint32_t)(r - pToken->z - 2);
-      pTable->z = pToken->z + 1;
-    } else {
-      pTable->n = (uint32_t)(r - pToken->z);
-      pTable->z = pToken->z;
-    }
-    
-    r += 1;
-    pToken->n -= (uint32_t)(r - pToken->z);
-    pToken->z = r;
-  }
 }
 
 static struct SSchema _s = {

@@ -852,7 +852,7 @@ static int32_t doParseInsertStatement(SInsertStatementParam *pInsertParam, char 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundColumn) {
+static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
   int32_t   index = 0;
   SStrToken sToken = {0};
   SStrToken tableToken = {0};
@@ -881,7 +881,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
   // Bind table columns list in string, skip it and continue
   if (sToken.type == TK_LP) {
-    *boundColumn = &sToken.z[0];
+    strcpy(pInsertParam->bindedColumns, sToken.z);
 
     while (1) {
       index = 0;
@@ -898,13 +898,12 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       sql += index;
       ++numOfColList;
     }
+    if (numOfColList == 0) {
+      return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+    }
 
     sToken = tStrGetToken(sql, &index, false);
     sql += index;
-  }
-
-  if (numOfColList == 0 && (*boundColumn) != NULL) {
-    return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
   }
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
@@ -1081,10 +1080,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     sql += index;
     int numOfColsAfterTags = 0;
     if (sToken.type == TK_LP) {
-      if (*boundColumn != NULL) {
+      if (strlen(pInsertParam->bindedColumns) != 0) {
         return tscSQLSyntaxErrMsg(pInsertParam->msg, "bind columns again", sToken.z);
       } else {
-        *boundColumn = &sToken.z[0];
+        strcpy(pInsertParam->bindedColumns, sToken.z);
       }
 
       while (1) {
@@ -1103,7 +1102,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
         ++numOfColsAfterTags;
       }
 
-      if (numOfColsAfterTags == 0 && (*boundColumn) != NULL) {
+      if (numOfColsAfterTags == 0) {
         return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       }
 
@@ -1387,6 +1386,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     }
 
     pInsertParam->sql = sToken.z;
+    memset(pInsertParam->bindedColumns, 0, strlen(pInsertParam->bindedColumns));
     memset(pInsertParam->sqlOri, 0, strlen(pInsertParam->sqlOri));
     strcpy(pInsertParam->sqlOri, pInsertParam->sql);
     bool dbIncluded = false;
@@ -1400,8 +1400,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
       goto _clean;
     }
 
-    char *bindedColumns = NULL;
-    if ((code = tscCheckIfCreateTable(&str, pSql, &bindedColumns)) != TSDB_CODE_SUCCESS) {
+    if ((code = tscCheckIfCreateTable(&str, pSql)) != TSDB_CODE_SUCCESS) {
       /*
        * After retrieving the table meta from server, the sql string will be parsed from the paused position.
        * And during the getTableMetaCallback function, the sql string will be parsed from the paused position.
@@ -1453,7 +1452,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
         goto _clean;
       }
     } else {
-      if (bindedColumns == NULL) {
+      if (strlen(pInsertParam->bindedColumns) == 0) {
         STableMeta *pTableMeta = pTableMetaInfo->pTableMeta;
         if (validateDataSource(pInsertParam, TSDB_QUERY_TYPE_INSERT, sToken.z) != TSDB_CODE_SUCCESS) {
           goto _clean;
@@ -1488,7 +1487,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
         }
 
         SSchema *pSchema = tscGetTableSchema(pTableMeta);
-        code = parseBoundColumns(pInsertParam, &dataBuf->boundColumnInfo, pSchema, bindedColumns, NULL);
+        code = parseBoundColumns(pInsertParam, &dataBuf->boundColumnInfo, pSchema, pInsertParam->bindedColumns, NULL);
         if (code != TSDB_CODE_SUCCESS) {
           goto _clean;
         }
@@ -1557,9 +1556,17 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
   pInsertParam->sql = sToken.z + sToken.n;
   pInsertParam->sqlOri = calloc(1, strlen(sToken.z) + 1);
   strcpy(pInsertParam->sqlOri, pInsertParam->sql);
+  pInsertParam->bindedColumns = calloc(1, strlen(sToken.z) + 1);
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ *  pSql->sqlstrOri and pCmd->insertParam.sqlOri and pCmd->insertParam.bindedColumns are used for store the original sql
+ *  We change the pSql->sqlstr when parsing sql, but it will parse again if retry or get meta back, so we need store the origin sql
+ *  The best way is to separate SQL parsing from the existence of table name and column name and the judgment of table structure.
+ *  In this way， we can parse sql only once.
+ *  But now, The current processing flow is not good.
+ */
 int tsParseSql(SSqlObj *pSql, bool initial) {
   int32_t ret = TSDB_CODE_SUCCESS;
   SSqlCmd* pCmd = &pSql->cmd;

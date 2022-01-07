@@ -184,15 +184,23 @@ tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optr
   
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_DATA_TYPE;
-  } else {
-    // Here it must be the column name (tk_id) if it is not a number or string.
-    assert(optrType == TK_ID || optrType == TK_ALL);
+  } else if(optrType == TK_ALL) {
     if (pToken != NULL) {
-      pSqlExpr->columnName = *pToken;
+      pSqlExpr->tableName = *pToken;
     }
 
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_TABLE_COLUMN;
+  } else if(optrType == TK_ID) {
+    if (pToken != NULL) {
+      pSqlExpr->tableName = *pToken;
+      pSqlExpr->columnName = *(pToken+1);
+    }
+
+    pSqlExpr->tokenId = optrType;
+    pSqlExpr->type    = SQL_NODE_TABLE_COLUMN;
+  } else{
+    terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
   }
 
   return pSqlExpr;
@@ -241,15 +249,6 @@ tSqlExpr *tSqlExprCreateTimestamp(SStrToken *pToken, int32_t optrType) {
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;
     pSqlExpr->type    = SQL_NODE_VALUE;
-  } else {
-    // Here it must be the column name (tk_id) if it is not a number or string.
-    assert(optrType == TK_ID || optrType == TK_ALL);
-    if (pToken != NULL) {
-      pSqlExpr->columnName = *pToken;
-    }
-
-    pSqlExpr->tokenId = optrType;
-    pSqlExpr->type    = SQL_NODE_TABLE_COLUMN;
   }
 
   return pSqlExpr;
@@ -606,19 +605,14 @@ SArray *tVariantListAppendToken(SArray *pList, SStrToken *pToken, uint8_t order)
   return pList;
 }
 
-SArray *commonItemAppend(SArray *pList, tVariant *pVar, tSqlExpr *jsonExp, bool isJsonExp, uint8_t sortOrder){
+SArray *commonItemAppend(SArray *pList, tSqlExpr *exp, uint8_t sortOrder){
   if (pList == NULL) {
     pList = taosArrayInit(4, sizeof(CommonItem));
   }
 
   CommonItem item;
   item.sortOrder = sortOrder;
-  item.isJsonExp = isJsonExp;
-  if(isJsonExp){
-    item.jsonExp = jsonExp;
-  }else{
-    item.pVar = *pVar;
-  }
+  item.exp = exp;
 
   taosArrayPush(pList, &item);
   return pList;
@@ -914,13 +908,13 @@ SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelat
     pSqlNode->sessionVal = *pSession;
   } else {
     TPARSER_SET_NONE_TOKEN(pSqlNode->sessionVal.gap);
-    TPARSER_SET_NONE_TOKEN(pSqlNode->sessionVal.col);
+    pSqlNode->sessionVal.col = NULL;
   }
 
   if (pWindowStateVal != NULL) {
     pSqlNode->windowstateVal = *pWindowStateVal;
   } else {
-    TPARSER_SET_NONE_TOKEN(pSqlNode->windowstateVal.col);
+    pSqlNode->windowstateVal.col = NULL;
   }
 
   return pSqlNode;
@@ -929,15 +923,6 @@ SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelat
 static void freeVariant(void *pItem) {
   tVariantListItem* p = (tVariantListItem*) pItem;
   tVariantDestroy(&p->pVar);
-}
-
-static void freeCommonItem(void *pItem) {
-  CommonItem* p = (CommonItem *) pItem;
-  if (p->isJsonExp){
-    tSqlExprDestroy(p->jsonExp);
-  }else{
-    tVariantDestroy(&p->pVar);
-  }
 }
 
 void freeCreateTableInfo(void* p) {
@@ -959,11 +944,9 @@ void destroySqlNode(SSqlNode *pSqlNode) {
   tSqlExprDestroy(pSqlNode->pWhere);
   pSqlNode->pWhere = NULL;
   
-  taosArrayDestroyEx(&pSqlNode->pSortOrder, freeCommonItem);
-  pSqlNode->pSortOrder = NULL;
+  taosArrayDestroy(&pSqlNode->pSortOrder);
 
-  taosArrayDestroyEx(&pSqlNode->pGroupby, freeCommonItem);
-  pSqlNode->pGroupby = NULL;
+  taosArrayDestroy(&pSqlNode->pGroupby);
 
   pSqlNode->from = destroyRelationInfo(pSqlNode->from);
 

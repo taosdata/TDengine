@@ -90,8 +90,6 @@ char* extractDBName(const char *tableId, char *name);
 
 size_t tableIdPrefix(const char* name, char* prefix, int32_t len);
 
-void extractTableNameFromToken(SStrToken *pToken, SStrToken* pTable);
-
 char *tableNameToStr(char *dst, char *src, char quote);
 
 SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const char* name);

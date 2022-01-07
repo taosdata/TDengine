@@ -262,6 +262,7 @@ typedef struct SInsertStatementParam {
   uint64_t     objectId;                // sql object id
   char        *sql;
   char        *sqlOri;                  // save the origin insert sql, because sql will be change after get meta callback
+  char        *bindedColumns;           // save the origin column sql
 } SInsertStatementParam;
 
 typedef enum {

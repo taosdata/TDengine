@@ -82,11 +82,7 @@ typedef struct tVariantListItem {
 } tVariantListItem;
 
 typedef struct CommonItem {
-  union {
-    tVariant           pVar;
-    struct tSqlExpr    *jsonExp;
-  };
-  bool               isJsonExp;
+  struct tSqlExpr    *exp;
   uint8_t            sortOrder;
 } CommonItem;
 
@@ -102,12 +98,12 @@ typedef struct SRangeVal {
 } SRangeVal;
 
 typedef struct SSessionWindowVal {
-  SStrToken          col;
+  struct tSqlExpr*          col;
   SStrToken          gap;
 } SSessionWindowVal;
 
 typedef struct SWindowStateVal {
-  SStrToken          col;
+  struct tSqlExpr*           col;
 } SWindowStateVal;
 
 struct SRelationInfo;
@@ -272,7 +268,8 @@ typedef struct tSqlExpr {
   } Expr;
 
   int32_t            functionId;  // function id, todo remove it
-  SStrToken          columnName;  // table column info
+  SStrToken          tableName;  // table info
+  SStrToken          columnName;  //  column info
   TAOS_FIELD         dataType;  // data type
   tVariant           value;       // the use input value
   SStrToken          exprToken;   // original sql expr string
@@ -289,7 +286,7 @@ typedef struct tSqlExprItem {
   bool               distinct;
 } tSqlExprItem;
 
-SArray *commonItemAppend(SArray *pList, tVariant *pVar, tSqlExpr *jsonExp, bool isJsonExp, uint8_t sortOrder);
+SArray *commonItemAppend(SArray *pList, tSqlExpr *exp, uint8_t sortOrder);
 
 SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder);
 SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t index);

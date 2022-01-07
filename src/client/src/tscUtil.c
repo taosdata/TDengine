@@ -1596,6 +1596,7 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta, uint64_t id) {
   pCmd->insertParam.tagData.dataLen = 0;
 
   tfree(pCmd->insertParam.sqlOri);
+  tfree(pCmd->insertParam.bindedColumns);
   tscFreeQueryInfo(pCmd, clearCachedMeta, id);
   pCmd->pTableMetaMap = tscCleanupTableMetaMap(pCmd->pTableMetaMap);
   taosReleaseRef(tscObjRef, id);
@@ -5369,17 +5370,10 @@ int8_t jsonType2DbType(double data, int jsonType){
   return TSDB_DATA_TYPE_NULL;
 }
 
-// get key from json->'key'
+// get key from json->key
 void getJsonKey(SStrToken *t0){
-  while(true){
-    t0->n = tGetToken(t0->z, &t0->type);
-    if (t0->type == TK_STRING){
-      t0->z++;
-      t0->n -= 2;
-      break;
-    }else if (t0->type == TK_ILLEGAL){
-      assert(0);
-    }
-    t0->z += t0->n;
-  }
+  char *arrow = strstr(t0->z, "->");
+  if (!arrow) return;
+  t0->z = arrow + 2;
+  t0->n = strlen(t0->z);
 }
