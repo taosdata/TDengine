@@ -17,6 +17,7 @@
 #define _TD_TSDB_DEF_H_
 
 #include "mallocator.h"
+#include "tcompression.h"
 #include "tglobal.h"
 #include "thash.h"
 #include "tlist.h"
@@ -25,9 +26,14 @@
 #include "ttime.h"
 
 #include "tsdb.h"
+#include "tsdbCommit.h"
+// #include "tsdbFS.h"
+#include "tsdbFile.h"
 #include "tsdbLog.h"
 #include "tsdbMemTable.h"
+#include "tsdbMemory.h"
 #include "tsdbOptions.h"
+#include "tsdbReadImpl.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,10 +45,14 @@ struct STsdb {
   STsdbCfg              config;
   STsdbMemTable *       mem;
   STsdbMemTable *       imem;
+  SRtn                  rtn;
   SMemAllocatorFactory *pmaf;
+  // STsdbFS               fs;
 };
 
-#define REPO_ID(r) (r)->vgId
+#define REPO_ID(r) 0
+#define REPO_CFG(r) (&(r)->config)
+// #define REPO_FS(r) (&(r)->fs)
 
 #ifdef __cplusplus
 }

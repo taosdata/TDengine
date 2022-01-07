@@ -16,7 +16,6 @@
 #ifndef _TD_TSDB_COMMIT_H_
 #define _TD_TSDB_COMMIT_H_
 
-#if 0
 typedef struct {
   int   minFid;
   int   midFid;
@@ -30,6 +29,7 @@ typedef struct {
   int64_t  size;
 } SKVRecord;
 
+#if 0
 #define TSDB_DEFAULT_BLOCK_ROWS(maxRows) ((maxRows)*4 / 5)
 
 void  tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn);
