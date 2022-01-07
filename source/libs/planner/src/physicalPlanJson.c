@@ -230,9 +230,11 @@ static bool columnInfoToJson(const void* obj, cJSON* jCol) {
   if (res) {
     res = cJSON_AddNumberToObject(jCol, jkColumnInfoBytes, col->bytes);
   }
-  if (res) {
-    res = addRawArray(jCol, jkColumnInfoFilterList, columnFilterInfoToJson, col->flist.filterInfo, sizeof(SColumnFilterInfo), col->flist.numOfFilters);
+
+  if (res) { // TODO: temporarily disable it
+//    res = addRawArray(jCol, jkColumnInfoFilterList, columnFilterInfoToJson, col->flist.filterInfo, sizeof(SColumnFilterInfo), col->flist.numOfFilters);
   }
+
   return res;
 }
 
@@ -794,7 +796,6 @@ static cJSON* subplanToJson(const SSubplan* subplan) {
   }
 
   // The 'type', 'level', 'execEpSet', 'pChildren' and 'pParents' fields do not need to be serialized.
-
   bool res = addObject(jSubplan, jkSubplanId, subplanIdToJson, &subplan->id);
   if (res) {
     res = addObject(jSubplan, jkSubplanNode, phyNodeToJson, subplan->pNode);
@@ -807,6 +808,7 @@ static cJSON* subplanToJson(const SSubplan* subplan) {
     cJSON_Delete(jSubplan);
     return NULL;
   }
+
   return jSubplan;
 }
 

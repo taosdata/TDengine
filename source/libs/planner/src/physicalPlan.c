@@ -187,7 +187,8 @@ static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
   SSubplan* subplan = validPointer(calloc(1, sizeof(SSubplan)));
   subplan->id = pCxt->nextId;
   ++(pCxt->nextId.subplanId);
-  subplan->type = type;
+
+  subplan->type  = type;
   subplan->level = 0;
   if (NULL != pCxt->pCurrentSubplan) {
     subplan->level = pCxt->pCurrentSubplan->level + 1;
@@ -275,6 +276,8 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
     case QNODE_TABLESCAN:
       node = createTableScanNode(pCxt, pPlanNode);
       break;
+    case QNODE_PROJECT:
+//      node = create
     case QNODE_MODIFY:
       // Insert is not an operator in a physical plan.
       break;
@@ -335,7 +338,7 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
       .pCatalog = pCatalog,
       .pDag = validPointer(calloc(1, sizeof(SQueryDag))),
       .pCurrentSubplan = NULL,
-      .nextId = {0} // todo queryid
+      .nextId = {.queryId = requestId},
     };
 
     *pDag = context.pDag;
