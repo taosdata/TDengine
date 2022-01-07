@@ -391,6 +391,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   size += sizeof(STableIdInfo) * taosHashGetSize(pRuntimeEnv->pTableRetrieveTsMap);
 
   *contLen = (int32_t)(size + sizeof(SRetrieveTableRsp));
+  int32_t contLenBeforeTLV = *contLen;
   *contLen += (sizeof(STLV) + sizeof(int32_t) + sizeof(int32_t)); //tlv meta version
   *contLen += sizeof(STLV); // tlv end mark
   // current solution only avoid crash, but cannot return error code to client
@@ -424,10 +425,9 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   int32_t numOfCols = pQueryAttr->pExpr2 ? pQueryAttr->numOfExpr2 : pQueryAttr->numOfOutput;
   int32_t origSize  = pQueryAttr->resultRowSize * s;
   int32_t compSize  = compLen + numOfCols * sizeof(int32_t);
-  int32_t dataLen = origSize;
   if ((*pRsp)->compressed && compLen != 0) {
-    dataLen = compSize;
     *contLen = *contLen - origSize + compSize;
+    contLenBeforeTLV = contLenBeforeTLV - origSize + compSize;
     *pRsp = (SRetrieveTableRsp *)rpcReallocCont(*pRsp, *contLen);
     qDebug("QInfo:0x%"PRIx64" compress col data, uncompressed size:%d, compressed size:%d, ratio:%.2f",
         pQInfo->qId, origSize, compSize, (float)origSize / (float)compSize);
@@ -448,7 +448,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
 
   (*pRsp)->extend = 1;
-  STLV* tlv = (STLV*)((*pRsp)->data + dataLen);
+  STLV* tlv = (STLV*)((char*)(*pRsp) + contLenBeforeTLV);
   tlv->type = htons(TLV_TYPE_META_VERSION);
   tlv->len = htonl(sizeof(int32_t) + sizeof(int32_t));
   int32_t sVersion = htonl(pQueryAttr->tableGroupInfo.sVersion);
