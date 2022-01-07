@@ -15,5 +15,5 @@ TARGET_INCLUDE_DIRECTORIES(
 
 TARGET_LINK_LIBRARIES(
         queryUtilTest
-        PUBLIC os util gtest qcom common
+        PUBLIC os util gtest qcom common transport
 )

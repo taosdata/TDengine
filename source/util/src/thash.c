@@ -794,7 +794,9 @@ FORCE_INLINE int32_t taosHashGetKey(void *data, void** key, size_t* keyLen) {
   
   SHashNode * node = GET_HASH_PNODE(data);
   *key = GET_HASH_NODE_KEY(node);
-  *keyLen = node->keyLen;
+  if (keyLen) {
+    *keyLen = node->keyLen;
+  }
 
   return 0;
 }

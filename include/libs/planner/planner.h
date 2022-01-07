@@ -23,6 +23,7 @@ extern "C" {
 #include "query.h"
 #include "tmsg.h"
 #include "tarray.h"
+#include "trpc.h"
 
 #define QUERY_TYPE_MERGE       1
 #define QUERY_TYPE_PARTIAL     2

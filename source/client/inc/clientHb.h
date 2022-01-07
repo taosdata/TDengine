@@ -28,10 +28,13 @@ typedef enum {
 } EHbType;
 
 typedef int32_t (*FHbRspHandle)(SClientHbRsp* pReq);
-typedef int32_t (*FGetConnInfo)(SClientHbKey connKey, void* param);
+
+//TODO: embed param into function
+//return type: SArray<Skv>
+typedef SArray* (*FGetConnInfo)(SClientHbKey connKey, void* param);
 
 // called by mgmt
-int  hbMgrInit();
+int  hbMgrInit(void* transporter, SEpSet epSet);
 void hbMgrCleanUp();
 int  hbHandleRsp(SClientHbBatchRsp* hbRsp);
 

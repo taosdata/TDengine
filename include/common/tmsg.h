@@ -133,12 +133,12 @@ typedef enum _mgmt_table {
 #define TSDB_COL_IS_UD_COL(f) ((f & (~(TSDB_COL_NULL))) == TSDB_COL_UDC)
 #define TSDB_COL_REQ_NULL(f) (((f)&TSDB_COL_NULL) != 0)
 
-typedef struct SKlv {
+typedef struct SKv {
   int32_t keyLen;
   int32_t valueLen;
   void*   key;
   void*   value;
-} SKlv;
+} SKv;
 
 typedef struct SClientHbKey {
   int32_t connId;
@@ -174,26 +174,36 @@ static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) {
 
 int   tSerializeSClientHbReq(void** buf, const SClientHbReq* pReq);
 void* tDeserializeClientHbReq(void* buf, SClientHbReq* pReq);
+
 static FORCE_INLINE void  tFreeClientHbReq(void *pReq) {
-  SClientHbReq* req = pReq;
+  SClientHbReq* req = (SClientHbReq*)pReq;
   taosHashCleanup(req->info);
   free(pReq);
 }
 
-static FORCE_INLINE int taosEncodeSKlv(void** buf, const SKlv* pKlv) {
+int   tSerializeSClientHbBatchReq(void** buf, const SClientHbBatchReq* pReq);
+void* tDeserializeClientHbBatchReq(void* buf, SClientHbBatchReq* pReq);
+
+static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq) {
+  SClientHbBatchReq *req = (SClientHbBatchReq*)pReq;
+  taosArrayDestroyEx(req->reqs, tFreeClientHbReq);
+  free(pReq);
+}
+
+static FORCE_INLINE int taosEncodeSKv(void** buf, const SKv* pKv) {
   int tlen = 0;
-  tlen += taosEncodeFixedI32(buf, pKlv->keyLen);
-  tlen += taosEncodeFixedI32(buf, pKlv->valueLen);
-  tlen += taosEncodeBinary(buf, pKlv->key, pKlv->keyLen);
-  tlen += taosEncodeBinary(buf, pKlv->value, pKlv->valueLen);
+  tlen += taosEncodeFixedI32(buf, pKv->keyLen);
+  tlen += taosEncodeFixedI32(buf, pKv->valueLen);
+  tlen += taosEncodeBinary(buf, pKv->key, pKv->keyLen);
+  tlen += taosEncodeBinary(buf, pKv->value, pKv->valueLen);
   return tlen;
 }
 
-static FORCE_INLINE void* taosDecodeSKlv(void* buf, SKlv* pKlv) {
-  buf = taosDecodeFixedI32(buf, &pKlv->keyLen);
-  buf = taosDecodeFixedI32(buf, &pKlv->valueLen);
-  buf = taosDecodeBinary(buf, &pKlv->key, pKlv->keyLen);
-  buf = taosDecodeBinary(buf, &pKlv->value, pKlv->valueLen);
+static FORCE_INLINE void* taosDecodeSKv(void* buf, SKv* pKv) {
+  buf = taosDecodeFixedI32(buf, &pKv->keyLen);
+  buf = taosDecodeFixedI32(buf, &pKv->valueLen);
+  buf = taosDecodeBinary(buf, &pKv->key, pKv->keyLen);
+  buf = taosDecodeBinary(buf, &pKv->value, pKv->valueLen);
   return buf;
 }
 

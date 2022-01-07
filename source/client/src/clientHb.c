@@ -14,6 +14,7 @@
  */
 
 #include "clientHb.h"
+#include "trpc.h"
 
 typedef struct SClientHbMgr {
   int8_t       inited;
@@ -23,8 +24,13 @@ typedef struct SClientHbMgr {
   int32_t      connKeyCnt;
   int64_t      reportBytes;  // not implemented
   int64_t      startTime;
-  // thread
+  // ctl
+  int8_t       threadStop;
   pthread_t    thread;
+  SRWLatch     lock;        // lock is used in serialization
+  // connection
+  void*        transporter;
+  SEpSet       epSet;
 
   SHashObj*    activeInfo;    // hash<SClientHbKey, SClientHbReq>
   SHashObj*    getInfoFuncs;  // hash<SClientHbKey, FGetConnInfo>
@@ -35,6 +41,14 @@ static SClientHbMgr clientHbMgr = {0};
 
 static int32_t hbCreateThread();
 static void    hbStopThread();
+
+static int32_t hbMqHbRspHandle(SClientHbRsp* pReq) {
+  return 0;
+}
+
+void hbMgrInitMqHbRspHandle() {
+  clientHbMgr.handle[HEARTBEAT_TYPE_MQ] = hbMqHbRspHandle;
+}
 
 static FORCE_INLINE void hbMgrInitHandle() {
   // init all handle
@@ -50,11 +64,22 @@ static SClientHbBatchReq* hbGatherAllInfo() {
   int32_t connKeyCnt = atomic_load_32(&clientHbMgr.connKeyCnt);
   pReq->reqs = taosArrayInit(connKeyCnt, sizeof(SClientHbReq));
 
-  void *pIter = taosHashIterate(clientHbMgr.activeInfo, pIter);
+  void *pIter = taosHashIterate(clientHbMgr.activeInfo, NULL);
   while (pIter != NULL) {
     taosArrayPush(pReq->reqs, pIter);
     SClientHbReq* pOneReq = pIter;
     taosHashClear(pOneReq->info);
+
+    pIter = taosHashIterate(clientHbMgr.activeInfo, pIter);
+  }
+
+  pIter = taosHashIterate(clientHbMgr.getInfoFuncs, NULL);
+  while (pIter != NULL) {
+    FGetConnInfo getConnInfoFp = (FGetConnInfo)pIter;
+    SClientHbKey connKey;
+    taosHashCopyKey(pIter, &connKey);
+    getConnInfoFp(connKey, NULL);
+
     pIter = taosHashIterate(clientHbMgr.activeInfo, pIter);
   }
 
@@ -64,8 +89,23 @@ static SClientHbBatchReq* hbGatherAllInfo() {
 static void* hbThreadFunc(void* param) {
   setThreadName("hb");
   while (1) {
+    int8_t threadStop = atomic_load_8(&clientHbMgr.threadStop);
+    if(threadStop) {
+      break;
+    }
+    
+    SClientHbBatchReq* pReq = hbGatherAllInfo();
+    void* reqStr = NULL;
+    tSerializeSClientHbBatchReq(&reqStr, pReq);
+    SMsgSendInfo info;
+
+    int64_t transporterId = 0;
+    asyncSendMsgToServer(clientHbMgr.transporter, &clientHbMgr.epSet, &transporterId, &info);
+    tFreeClientHbBatchReq(pReq);
+
     atomic_add_fetch_32(&clientHbMgr.reportCnt, 1);
     taosMsleep(HEARTBEAT_INTERVAL);
+
   }
 
   return NULL;
@@ -84,7 +124,11 @@ static int32_t hbCreateThread() {
   return 0;
 }
 
-int hbMgrInit() {
+static void hbStopThread() {
+  atomic_store_8(&clientHbMgr.threadStop, 1);
+}
+
+int hbMgrInit(void* transporter, SEpSet epSet) {
   // init once
   int8_t old = atomic_val_compare_exchange_8(&clientHbMgr.inited, 0, 1);
   if (old == 1) return 0;
@@ -101,7 +145,13 @@ int hbMgrInit() {
   // init getInfoFunc
   clientHbMgr.getInfoFuncs = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
 
+  //init connection info
+  clientHbMgr.transporter = transporter;
+  clientHbMgr.epSet = epSet;
+
   // init backgroud thread
+  hbCreateThread();
+
   return 0;
 }
 
