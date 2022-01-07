@@ -769,7 +769,8 @@ static int32_t mndProcessStbMetaMsg(SMnodeMsg *pMsg) {
   pMeta->tableType = TSDB_SUPER_TABLE;
   pMeta->update = pDb->cfg.update;
   pMeta->sversion = htonl(pStb->version);
-  pMeta->suid = htonl(pStb->uid);
+  pMeta->suid = htobe64(pStb->uid);
+  pMeta->tuid = htobe64(pStb->uid);
 
   for (int32_t i = 0; i < totalCols; ++i) {
     SSchema *pSchema = &pMeta->pSchema[i];

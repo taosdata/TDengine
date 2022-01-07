@@ -871,6 +871,7 @@ typedef struct {
 
 typedef struct {
   char        db[TSDB_DB_FNAME_LEN];
+  int64_t     uid;
   int32_t     vgVersion;
   int32_t     vgNum;
   int8_t      hashMethod;

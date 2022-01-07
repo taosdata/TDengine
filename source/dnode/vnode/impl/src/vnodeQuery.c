@@ -105,6 +105,9 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   if (pTbCfg->type == META_CHILD_TABLE) {
     strcpy(pTbMetaMsg->stbFname, pStbCfg->name);
     pTbMetaMsg->suid = htobe64(pTbCfg->ctbCfg.suid);
+  } else if (pTbCfg->type == META_SUPER_TABLE) {
+    strcpy(pTbMetaMsg->stbFname, pTbCfg->name);
+    pTbMetaMsg->suid = htobe64(uid);
   }
   pTbMetaMsg->numOfTags = htonl(nTagCols);
   pTbMetaMsg->numOfColumns = htonl(nCols);

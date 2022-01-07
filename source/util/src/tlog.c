@@ -95,7 +95,6 @@ int32_t tsdbDebugFlag = 131;
 int32_t tqDebugFlag = 131;
 int32_t cqDebugFlag = 131;
 int32_t fsDebugFlag = 135;
-int32_t ctgDebugFlag = 131;
 
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;

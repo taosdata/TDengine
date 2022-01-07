@@ -505,7 +505,7 @@ int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *ms
       break;
     }
     case TDMT_VND_SUBMIT_RSP: {
-        if (rspCode != TSDB_CODE_SUCCESS) {
+        if (rspCode != TSDB_CODE_SUCCESS || NULL == msg) {
           SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rspCode));
         } else {
           SShellSubmitRspMsg *rsp = (SShellSubmitRspMsg *)msg;
@@ -521,7 +521,7 @@ int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *ms
     case TDMT_VND_QUERY_RSP: {
         SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
         
-        if (rsp->code != TSDB_CODE_SUCCESS) {
+        if (rsp->code != TSDB_CODE_SUCCESS || NULL == msg) {
           SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rsp->code));
         } else {
           code = schBuildAndSendMsg(job, task, TDMT_VND_RES_READY);
@@ -534,7 +534,7 @@ int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *ms
     case TDMT_VND_RES_READY_RSP: {
         SResReadyRsp *rsp = (SResReadyRsp *)msg;
         
-        if (rsp->code != TSDB_CODE_SUCCESS) {
+        if (rsp->code != TSDB_CODE_SUCCESS || NULL == msg) {
           SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rsp->code));
         } else {
           code = schProcessOnTaskSuccess(job, task);
@@ -549,7 +549,9 @@ int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *ms
         SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
 
         job->res = rsp;
-        job->resNumOfRows = rsp->numOfRows;
+        if (rsp) {
+          job->resNumOfRows = rsp->numOfRows;
+        }
         
         SCH_ERR_JRET(schProcessOnDataFetched(job));
         break;
@@ -1100,6 +1102,7 @@ void scheduleFreeJob(void *pJob) {
   taosHashCleanup(job->failTasks);
   taosHashCleanup(job->succTasks);
   taosArrayDestroy(job->levels);
+  
   tfree(job);
 }
 
