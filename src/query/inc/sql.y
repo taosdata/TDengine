@@ -112,7 +112,7 @@ cmd ::= SHOW dbPrefix(X) TABLES.         {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &X, 0);
 }
 
-cmd ::= SHOW dbPrefix(X) TABLES LIKE ids(Y).         {
+cmd ::= SHOW dbPrefix(X) TABLES LIKE STRING(Y).         {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &X, &Y);
 }
 
@@ -120,7 +120,7 @@ cmd ::= SHOW dbPrefix(X) STABLES.      {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &X, 0);
 }
 
-cmd ::= SHOW dbPrefix(X) STABLES LIKE ids(Y).      {
+cmd ::= SHOW dbPrefix(X) STABLES LIKE STRING(Y).      {
     SStrToken token;
     tSetDbName(&token, &X);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &token, &Y);
@@ -180,7 +180,7 @@ cmd ::= COMPACT VNODES IN LP exprlist(Y) RP.    { setCompactVnodeSql(pInfo, TSDB
 
 // An IDENTIFIER can be a generic identifier, or one of several keywords.
 // Any non-standard keyword can also be an identifier.
-// And "ids" is an identifer-or-string.
+// And "ids" is an identifer.
 %type ids {SStrToken}
 ids(A) ::= ID(X).        {A = X; }
 
@@ -200,7 +200,7 @@ cmd ::= CREATE ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).
 cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
 cmd ::= CREATE TOPIC ifnotexists(Z) ids(X) topic_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
 cmd ::= CREATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) bufsize(B).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y, &Z, &B, 1);}
-cmd ::= CREATE AGGREGATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) bufsize(B).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y, &Z, &B, 2);}
+cmd ::= CREATE AGGREGATE FUNCTION ids(X) AS STRING(Y) OUTPUTTYPE typename(Z) bufsize(B).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y, &Z, &B, 2);}
 cmd ::= CREATE USER ids(X) PASS ids(Y).     { setCreateUserSql(pInfo, &X, &Y);}
 
 bufsize(Y) ::= .                                { Y.n = 0;   }
@@ -626,10 +626,19 @@ session_option(X) ::= SESSION LP tableName(V) COMMA tmvar(Y) RP.    {
 windowstate_option(X) ::= .                                                { X.col.n = 0; X.col.z = NULL;}
 windowstate_option(X) ::= STATE_WINDOW LP ids(V) RP.                       { X.col = V; }
 
+
+%type fill_value {SStrToken}
+fillValue(A) ::= NONE(X).        {A = X; A.type = TK_ID; }
+fillValue(A) ::= VALUE(X).       {A = X; A.type = TK_ID; }
+fillValue(A) ::= PREV(X).        {A = X; A.type = TK_ID; }
+fillValue(A) ::= NULL(X).        {A = X; A.type = TK_ID; }
+fillValue(A) ::= LINEAR(X).      {A = X; A.type = TK_ID; }
+fillValue(A) ::= NEXT(X).        {A = X; A.type = TK_ID; }
+
 %type fill_opt {SArray*}
 %destructor fill_opt {taosArrayDestroy(&$$);}
 fill_opt(N) ::= .                                           { N = 0;     }
-fill_opt(N) ::= FILL LP ID(Y) COMMA tagitemlist(X) RP.      {
+fill_opt(N) ::= FILL LP fillValue(Y) COMMA tagitemlist(X) RP.      {
     tVariant A = {0};
     toTSDBType(Y.type);
     tVariantCreate(&A, &Y);
@@ -638,7 +647,7 @@ fill_opt(N) ::= FILL LP ID(Y) COMMA tagitemlist(X) RP.      {
     N = X;
 }
 
-fill_opt(N) ::= FILL LP ID(Y) RP.               {
+fill_opt(N) ::= FILL LP fillValue(Y) RP.               {
     toTSDBType(Y.type);
     N = tVariantListAppendToken(NULL, &Y, -1);
 }

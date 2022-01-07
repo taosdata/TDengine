@@ -478,8 +478,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
 
     int16_t type = sToken.type;
     if ((type != TK_NOW && type != TK_INTEGER && type != TK_STRING && type != TK_FLOAT && type != TK_BOOL &&
-         type != TK_NULL && type != TK_HEX && type != TK_OCT && type != TK_BIN) ||
-        (sToken.n == 0) || (type == TK_RP)) {
+         type != TK_NULL && type != TK_HEX && type != TK_OCT && type != TK_BIN) || (type == TK_RP)) {
       return tscSQLSyntaxErrMsg(pInsertParam->msg, "invalid data or symbol", sToken.z);
     }
 
@@ -1011,7 +1010,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
         return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       }
 
-      if (sToken.n == 0 || sToken.type == TK_RP) {
+      if (sToken.type == TK_RP) {
         break;
       }
 
@@ -1438,7 +1437,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
 
       index = 0;
       sToken = tStrGetToken(str, &index, false);
-      if (sToken.type != TK_ID) {
+      if (sToken.type != TK_STRING && sToken.type != TK_ID) {
         code = tscSQLSyntaxErrMsg(pInsertParam->msg, "file path is required following keyword FILE", sToken.z);
         goto _clean;
       }
