@@ -43,7 +43,7 @@ typedef struct {
 #define TSDB_COMPACT_COMP_BUF(pComph) TSDB_READ_COMP_BUF(&((pComph)->readh))
 #define TSDB_COMPACT_EXBUF(pComph) TSDB_READ_EXBUF(&((pComph)->readh))
 
-static int  tsdbAsyncCompact(STsdb *pRepo);
+// static int  tsdbAsyncCompact(STsdb *pRepo);
 static void tsdbStartCompact(STsdb *pRepo);
 static void tsdbEndCompact(STsdb *pRepo, int eno);
 static int  tsdbCompactMeta(STsdb *pRepo);
@@ -62,7 +62,7 @@ static int  tsdbWriteBlockToRightFile(SCompactH *pComph, STable *pTable, SDataCo
                                       void **ppCBuf, void **ppExBuf);
 
 enum { TSDB_NO_COMPACT, TSDB_IN_COMPACT, TSDB_WAITING_COMPACT};
-int tsdbCompact(STsdb *pRepo) { return tsdbAsyncCompact(pRepo); }
+// int tsdbCompact(STsdb *pRepo) { return tsdbAsyncCompact(pRepo); }
 
 void *tsdbCompactImpl(STsdb *pRepo) {
   // Check if there are files in TSDB FS to compact
@@ -94,15 +94,15 @@ _err:
   return NULL;
 }
 
-static int tsdbAsyncCompact(STsdb *pRepo) {
-  if (pRepo->compactState != TSDB_NO_COMPACT) {
-    tsdbInfo("vgId:%d not compact tsdb again ", REPO_ID(pRepo));
-    return 0; 
-  } 
-  pRepo->compactState = TSDB_WAITING_COMPACT;   
-  tsem_wait(&(pRepo->readyToCommit));
-  return tsdbScheduleCommit(pRepo, COMPACT_REQ);
-}
+// static int tsdbAsyncCompact(STsdb *pRepo) {
+//   if (pRepo->compactState != TSDB_NO_COMPACT) {
+//     tsdbInfo("vgId:%d not compact tsdb again ", REPO_ID(pRepo));
+//     return 0; 
+//   } 
+//   pRepo->compactState = TSDB_WAITING_COMPACT;   
+//   tsem_wait(&(pRepo->readyToCommit));
+//   return tsdbScheduleCommit(pRepo, COMPACT_REQ);
+// }
 
 static void tsdbStartCompact(STsdb *pRepo) {
   assert(pRepo->compactState != TSDB_IN_COMPACT);
