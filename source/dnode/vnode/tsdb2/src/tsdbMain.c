@@ -89,13 +89,6 @@ STsdb *tsdbOpen(STsdbCfg *pCfg, STsdbAppH *pAppH) {
     return NULL;
   }
 
-  if (tsdbOpenBufPool(pRepo) < 0) {
-    tsdbError("vgId:%d failed to open TSDB repository while opening buffer pool since %s", config.tsdbId,
-              tstrerror(terrno));
-    tsdbClose(pRepo, false);
-    return NULL;
-  }
-
   if (tsdbOpenFS(pRepo) < 0) {
     tsdbError("vgId:%d failed to open TSDB repository while opening FS since %s", config.tsdbId, tstrerror(terrno));
     tsdbClose(pRepo, false);
@@ -145,7 +138,6 @@ int tsdbClose(STsdb *repo, int toCommit) {
   pRepo->imem = NULL;
 
   tsdbCloseFS(pRepo);
-  tsdbCloseBufPool(pRepo);
   tsdbCloseMeta(pRepo);
   tsdbFreeRepo(pRepo);
   tsdbDebug("vgId:%d repository is closed", vgId);
@@ -193,19 +185,19 @@ int tsdbUnlockRepo(STsdb *pRepo) {
 //   return 0;
 // }
 
-int tsdbCheckCommit(STsdb *pRepo) {
-  ASSERT(pRepo->mem != NULL);
-  STsdbCfg *pCfg = &(pRepo->config);
+// int tsdbCheckCommit(STsdb *pRepo) {
+//   ASSERT(pRepo->mem != NULL);
+//   STsdbCfg *pCfg = &(pRepo->config);
 
-  STsdbBufBlock *pBufBlock = tsdbGetCurrBufBlock(pRepo);
-  ASSERT(pBufBlock != NULL);
-  if ((pRepo->mem->extraBuffList != NULL) ||
-      ((listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 3) && (pBufBlock->remain < TSDB_BUFFER_RESERVE))) {
-    // trigger commit
-    if (tsdbAsyncCommit(pRepo) < 0) return -1;
-  }
-  return 0;
-}
+//   STsdbBufBlock *pBufBlock = tsdbGetCurrBufBlock(pRepo);
+//   ASSERT(pBufBlock != NULL);
+//   if ((pRepo->mem->extraBuffList != NULL) ||
+//       ((listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 3) && (pBufBlock->remain < TSDB_BUFFER_RESERVE))) {
+//     // trigger commit
+//     if (tsdbAsyncCommit(pRepo) < 0) return -1;
+//   }
+//   return 0;
+// }
 
 STsdbMeta *tsdbGetMeta(STsdb *pRepo) { return pRepo->tsdbMeta; }
 
@@ -612,13 +604,6 @@ static STsdb *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
     return NULL;
   }
 
-  pRepo->pPool = tsdbNewBufPool(pCfg);
-  if (pRepo->pPool == NULL) {
-    tsdbError("vgId:%d failed to create buffer pool since %s", REPO_ID(pRepo), tstrerror(terrno));
-    tsdbFreeRepo(pRepo);
-    return NULL;
-  }
-
   pRepo->fs = tsdbNewFS(pCfg);
   if (pRepo->fs == NULL) {
     tsdbError("vgId:%d failed to TSDB file system since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -632,7 +617,6 @@ static STsdb *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
 static void tsdbFreeRepo(STsdb *pRepo) {
   if (pRepo) {
     tsdbFreeFS(pRepo->fs);
-    tsdbFreeBufPool(pRepo->pPool);
     tsdbFreeMeta(pRepo->tsdbMeta);
     tsdbFreeMergeBuf(pRepo->mergeBuf);
     // tsdbFreeMemTable(pRepo->mem);

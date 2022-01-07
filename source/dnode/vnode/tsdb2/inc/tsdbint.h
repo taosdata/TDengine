@@ -43,8 +43,8 @@ extern "C" {
 #include "tsdbLog.h"
 // Meta
 #include "tsdbMeta.h"
-// Buffer
-#include "tsdbBuffer.h"
+// // Buffer
+// #include "tsdbBuffer.h"
 // MemTable
 #include "tsdbMemTable.h"
 // File
@@ -74,7 +74,7 @@ struct STsdb {
   STsdbAppH       appH;
   STsdbStat       stat;
   STsdbMeta*      tsdbMeta;
-  STsdbBufPool*   pPool;
+  // STsdbBufPool*   pPool;
   SMemTable*      mem;
   SMemTable*      imem;
   STsdbFS*        fs;
@@ -105,18 +105,18 @@ int32_t    tsdbLoadLastCache(STsdb *pRepo, STable* pTable);
 void       tsdbGetRootDir(int repoid, char dirName[]);
 void       tsdbGetDataDir(int repoid, char dirName[]);
 
-static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdb* pRepo) {
-  ASSERT(pRepo != NULL);
-  if (pRepo->mem == NULL) return NULL;
+// static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdb* pRepo) {
+//   ASSERT(pRepo != NULL);
+//   if (pRepo->mem == NULL) return NULL;
 
-  SListNode* pNode = listTail(pRepo->mem->bufBlockList);
-  if (pNode == NULL) return NULL;
+//   SListNode* pNode = listTail(pRepo->mem->bufBlockList);
+//   if (pNode == NULL) return NULL;
 
-  STsdbBufBlock* pBufBlock = NULL;
-  tdListNodeGetData(pRepo->mem->bufBlockList, pNode, (void*)(&pBufBlock));
+//   STsdbBufBlock* pBufBlock = NULL;
+//   tdListNodeGetData(pRepo->mem->bufBlockList, pNode, (void*)(&pBufBlock));
 
-  return pBufBlock;
-}
+//   return pBufBlock;
+// }
 
 // static FORCE_INLINE int tsdbGetNextMaxTables(int tid) {
 //   ASSERT(tid >= 1 && tid <= TSDB_MAX_TABLES);

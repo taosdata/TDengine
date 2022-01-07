@@ -13,39 +13,39 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TSDB_BUFFER_H_
-#define _TD_TSDB_BUFFER_H_
+// #ifndef _TD_TSDB_BUFFER_H_
+// #define _TD_TSDB_BUFFER_H_
 
-typedef struct {
-  int64_t blockId;
-  int     offset;
-  int     remain;
-  char    data[];
-} STsdbBufBlock;
+// typedef struct {
+//   int64_t blockId;
+//   int     offset;
+//   int     remain;
+//   char    data[];
+// } STsdbBufBlock;
 
-typedef struct {
-  pthread_cond_t poolNotEmpty;
-  int            bufBlockSize;
-  int            tBufBlocks;
-  int            nBufBlocks;
-  int            nRecycleBlocks;
-  int            nElasticBlocks;
-  int64_t        index;
-  SList*         bufBlockList;  
-} STsdbBufPool;
+// typedef struct {
+//   pthread_cond_t poolNotEmpty;
+//   int            bufBlockSize;
+//   int            tBufBlocks;
+//   int            nBufBlocks;
+//   int            nRecycleBlocks;
+//   int            nElasticBlocks;
+//   int64_t        index;
+//   SList*         bufBlockList;  
+// } STsdbBufPool;
 
-#define TSDB_BUFFER_RESERVE 1024  // Reseve 1K as commit threshold
+// #define TSDB_BUFFER_RESERVE 1024  // Reseve 1K as commit threshold
 
-STsdbBufPool* tsdbNewBufPool();
-void          tsdbFreeBufPool(STsdbBufPool* pBufPool);
-int           tsdbOpenBufPool(STsdb* pRepo);
-void          tsdbCloseBufPool(STsdb* pRepo);
-SListNode*    tsdbAllocBufBlockFromPool(STsdb* pRepo);
-int           tsdbExpandPool(STsdb* pRepo, int32_t oldTotalBlocks);
-void          tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode, bool bELastic);
+// STsdbBufPool* tsdbNewBufPool();
+// void          tsdbFreeBufPool(STsdbBufPool* pBufPool);
+// int           tsdbOpenBufPool(STsdb* pRepo);
+// void          tsdbCloseBufPool(STsdb* pRepo);
+// SListNode*    tsdbAllocBufBlockFromPool(STsdb* pRepo);
+// int           tsdbExpandPool(STsdb* pRepo, int32_t oldTotalBlocks);
+// void          tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode, bool bELastic);
 
-// health cite
-STsdbBufBlock *tsdbNewBufBlock(int bufBlockSize);
-void tsdbFreeBufBlock(STsdbBufBlock *pBufBlock);
+// // health cite
+// STsdbBufBlock *tsdbNewBufBlock(int bufBlockSize);
+// void tsdbFreeBufBlock(STsdbBufBlock *pBufBlock);
 
-#endif /* _TD_TSDB_BUFFER_H_ */
+// #endif /* _TD_TSDB_BUFFER_H_ */

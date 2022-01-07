@@ -575,7 +575,7 @@ _err:
     // rename meta.tmp -> meta
     tsdbInfo("vgId:%d meta file rename %s -> %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&mf),
              TSDB_FILE_FULL_NAME(pMFile));
-    taosRename(mf.f.aname, pMFile->f.aname);
+    taosRenameFile(mf.f.aname, pMFile->f.aname);
     tstrncpy(mf.f.aname, pMFile->f.aname, TSDB_FILENAME_LEN);
     tstrncpy(mf.f.rname, pMFile->f.rname, TSDB_FILENAME_LEN);
     // update current meta file info

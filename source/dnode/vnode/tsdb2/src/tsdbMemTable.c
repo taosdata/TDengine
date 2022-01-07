@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if 0
+
 #include "tdataformat.h"
 #include "tfunctional.h"
 #include "tsdbRowMergeBuf.h"
@@ -1000,3 +1002,5 @@ static int tsdbUpdateTableLatestInfo(STsdb *pRepo, STable *pTable, SMemRow row) 
 
   return 0;
 }
+
+#endif
