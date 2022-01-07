@@ -15,10 +15,14 @@
 
 #include "tsdbDef.h"
 
+#define TSDB_MAX_SUBBLOCKS 8
+
+static void tsdbStartCommit(STsdb *pRepo);
+static void tsdbEndCommit(STsdb *pTsdb, int eno);
+
 int tsdbPrepareCommit(STsdb *pTsdb) {
   if (pTsdb->mem == NULL) return 0;
 
-  // tsem_wait(&(pTsdb->canCommit));
   ASSERT(pTsdb->imem == NULL);
 
   pTsdb->imem = pTsdb->mem;
@@ -26,9 +30,11 @@ int tsdbPrepareCommit(STsdb *pTsdb) {
 }
 
 int tsdbCommit(STsdb *pTsdb) {
-  // TODO
-  pTsdb->imem = NULL;
-  // tsem_post(&(pTsdb->canCommit));
+  if (pTsdb->imem == NULL) return 0;
+
+  tsdbStartCommit(pTsdb);
+
+  tsdbEndCommit(pTsdb, TSDB_CODE_SUCCESS);
   return 0;
 }
 
@@ -47,6 +53,21 @@ void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
   pRtn->maxFid = (int)(TSDB_KEY_FID(maxKey, pCfg->daysPerFile, pCfg->precision));
   tsdbDebug("vgId:%d now:%" PRId64 " minKey:%" PRId64 " minFid:%d, midFid:%d, maxFid:%d", REPO_ID(pRepo), now, minKey,
             pRtn->minFid, pRtn->midFid, pRtn->maxFid);
+}
+
+static void tsdbStartCommit(STsdb *pRepo) {
+  STsdbMemTable *pMem = pRepo->imem;
+
+  tsdbInfo("vgId:%d start to commit", REPO_ID(pRepo));
+
+  tsdbStartFSTxn(pRepo, 0, 0);
+}
+
+static void tsdbEndCommit(STsdb *pTsdb, int eno) {
+  tsdbEndFSTxn(pTsdb);
+  tsdbFreeMemTable(pTsdb, pTsdb->imem);
+  pTsdb->imem = NULL;
+  tsdbInfo("vgId:%d commit over, %s", REPO_ID(pTsdb), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
 }
 
 #if 0
@@ -68,14 +89,6 @@ void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
 
 extern int32_t tsTsdbMetaCompactRatio;
 
-#define TSDB_MAX_SUBBLOCKS 8
-static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
-  if (key < 0) {
-    return (int)((key + 1) / tsTickPerDay[precision] / days - 1);
-  } else {
-    return (int)((key / tsTickPerDay[precision] / days));
-  }
-}
 
 typedef struct {
   SRtn         rtn;     // retention snapshot
@@ -707,38 +720,6 @@ static int tsdbCommitTSData(STsdbRepo *pRepo) {
 
   tsdbDestroyCommitH(&commith);
   return 0;
-}
-
-static void tsdbStartCommit(STsdbRepo *pRepo) {
-  SMemTable *pMem = pRepo->imem;
-
-  ASSERT(pMem->numOfRows > 0 || listNEles(pMem->actList) > 0);
-
-  tsdbInfo("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64 " meta rows: %d",
-           REPO_ID(pRepo), pMem->keyFirst, pMem->keyLast, pMem->numOfRows, listNEles(pMem->actList));
-
-  tsdbStartFSTxn(pRepo, pMem->pointsAdd, pMem->storageAdd);
-
-  pRepo->code = TSDB_CODE_SUCCESS;
-}
-
-static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
-  if (eno != TSDB_CODE_SUCCESS) {
-    tsdbEndFSTxnWithError(REPO_FS(pRepo));
-  } else {
-    tsdbEndFSTxn(pRepo);
-  }
-
-  tsdbInfo("vgId:%d commit over, %s", REPO_ID(pRepo), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
-
-  if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_OVER, eno);
-
-  SMemTable *pIMem = pRepo->imem;
-  (void)tsdbLockRepo(pRepo);
-  pRepo->imem = NULL;
-  (void)tsdbUnlockRepo(pRepo);
-  tsdbUnRefMemTable(pRepo, pIMem);
-  tsem_post(&(pRepo->readyToCommit));
 }
 
 #if 0
