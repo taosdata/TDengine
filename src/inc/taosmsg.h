@@ -543,6 +543,7 @@ typedef struct {
 typedef struct SRetrieveTableRsp {
   int8_t  extend;
   int32_t numOfRows;
+  int32_t resultRowSize;
   int8_t  completed;  // all results are returned to client
   int16_t precision;
   int64_t offset;     // updated offset value for multi-vnode projection query

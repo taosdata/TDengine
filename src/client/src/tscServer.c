@@ -2703,7 +2703,7 @@ static void decompressQueryColData(SSqlObj *pSql, SSqlRes *pRes, SQueryInfo* pQu
   compSizes = (int32_t *)(pData + compLen);
 
   TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
-  int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
+  int32_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
   char       *outputBuf = tcalloc(pRes->numOfRows, (pField->bytes + offset));
 
   char *p = outputBuf;
@@ -2782,10 +2782,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
     tscSetResRawPtr(pRes, pQueryInfo, pRes->dataConverted);
   }
 
-  int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
-  TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
-  int32_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
-  char* p = pRes->data + (pField->bytes + offset) * pRes->numOfRows;
+  char* p = pRes->data + (ntohl(pRetrieve->resultRowSize)) * pRes->numOfRows;
 
   int32_t numOfTables = htonl(*(int32_t*)p);
   p += sizeof(int32_t);
