@@ -124,20 +124,20 @@ static int32_t mndProcessShowReq(SMnodeMsg *pReq) {
 
   if (type <= TSDB_MGMT_TABLE_START || type >= TSDB_MGMT_TABLE_MAX) {
     terrno = TSDB_CODE_MND_INVALID_MSG_TYPE;
-    mError("failed to process show msg since %s", terrstr());
+    mError("failed to process show-meta req since %s", terrstr());
     return -1;
   }
 
   ShowMetaFp metaFp = pMgmt->metaFps[type];
   if (metaFp == NULL) {
     terrno = TSDB_CODE_MND_INVALID_MSG_TYPE;
-    mError("failed to process show-meta msg:%s since %s", mndShowStr(type), terrstr());
+    mError("failed to process show-meta req:%s since %s", mndShowStr(type), terrstr());
     return -1;
   }
 
   SShowObj *pShow = mndCreateShowObj(pMnode, pShowReq);
   if (pShow == NULL) {
-    mError("failed to process show-meta msg:%s since %s", mndShowStr(type), terrstr());
+    mError("failed to process show-meta req:%s since %s", mndShowStr(type), terrstr());
     return -1;
   }
 
@@ -146,7 +146,7 @@ static int32_t mndProcessShowReq(SMnodeMsg *pReq) {
   if (pRsp == NULL) {
     mndReleaseShowObj(pShow, true);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("show:0x%" PRIx64 ", failed to process show-meta msg:%s since malloc rsp error", pShow->id,
+    mError("show:0x%" PRIx64 ", failed to process show-meta req:%s since malloc rsp error", pShow->id,
            mndShowStr(type));
     return -1;
   }
@@ -181,7 +181,7 @@ static int32_t mndProcessRetrieveReq(SMnodeMsg *pReq) {
   SShowObj *pShow = mndAcquireShowObj(pMnode, showId);
   if (pShow == NULL) {
     terrno = TSDB_CODE_MND_INVALID_SHOWOBJ;
-    mError("failed to process show-retrieve msg:%p since %s", pShow, terrstr());
+    mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
     return -1;
   }
 

@@ -226,7 +226,7 @@ void tscKillStream(STscObj *pObj, uint32_t killId) {
 }
 
 int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
-  SHeartBeatMsg *pHeartbeat = pMsg;
+  SHeartBeatReq *pHeartbeat = pMsg;
 
   int allocedQueriesNum = pHeartbeat->numOfQueries;
   int allocedStreamsNum = pHeartbeat->numOfStreams;
@@ -327,7 +327,7 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
   }
 
   int32_t msgLen = pHeartbeat->numOfQueries * sizeof(SQueryDesc) + pHeartbeat->numOfStreams * sizeof(SStreamDesc) +
-                   sizeof(SHeartBeatMsg);
+                   sizeof(SHeartBeatReq);
   pHeartbeat->connId = htonl(pObj->connId);
   pHeartbeat->numOfQueries = htonl(pHeartbeat->numOfQueries);
   pHeartbeat->numOfStreams = htonl(pHeartbeat->numOfStreams);

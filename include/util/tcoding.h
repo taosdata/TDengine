@@ -370,6 +370,29 @@ static FORCE_INLINE void *taosDecodeStringTo(void *buf, char *value) {
   return POINTER_SHIFT(buf, size);
 }
 
+// ---- binary
+static FORCE_INLINE int taosEncodeBinary(void **buf, const void *value, int valueLen) {
+  int    tlen = 0;
+
+  if (buf != NULL) {
+    memcpy(*buf, value, valueLen);
+    *buf = POINTER_SHIFT(*buf, valueLen);
+  }
+  tlen += (int)valueLen;
+
+  return tlen;
+}
+
+static FORCE_INLINE void *taosDecodeBinary(void *buf, void **value, int valueLen) {
+  uint64_t size = 0;
+
+  *value = malloc((size_t)valueLen);
+  if (*value == NULL) return NULL;
+  memcpy(*value, buf, (size_t)size);
+
+  return POINTER_SHIFT(buf, size);
+}
+
 #endif
 
 #ifdef __cplusplus
