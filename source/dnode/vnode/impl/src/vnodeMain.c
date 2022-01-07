@@ -137,7 +137,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 }
 
 static void vnodeCloseImpl(SVnode *pVnode) {
-  vnodeSyncCommit(pVnode);
+  // vnodeSyncCommit(pVnode);
   if (pVnode) {
     vnodeCloseBufPool(pVnode);
     metaClose(pVnode->pMeta);
