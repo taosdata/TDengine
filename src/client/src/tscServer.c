@@ -2781,17 +2781,14 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
     tscSetResRawPtr(pRes, pQueryInfo, pRes->dataConverted);
   }
 
-  int32_t subDataLen = 0;
+  int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
+  TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
+  int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
+  char* p = pRes->data + (pField->bytes + offset) * pRes->numOfRows;
+
+  int32_t numOfTables = htonl(*(int32_t*)p);
+  p += sizeof(int32_t);
   if (pSql->pSubscription != NULL) {
-    int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
-
-    TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
-    int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
-
-    char* p = pRes->data + (pField->bytes + offset) * pRes->numOfRows;
-
-    int32_t numOfTables = htonl(*(int32_t*)p);
-    p += sizeof(int32_t);
     for (int i = 0; i < numOfTables; i++) {
       int64_t uid = htobe64(*(int64_t*)p);
       p += sizeof(int64_t);
@@ -2800,22 +2797,16 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
       p += sizeof(TSKEY);
       tscUpdateSubscriptionProgress(pSql->pSubscription, uid, key);
     }
-    subDataLen =  sizeof(int32_t) + numOfTables * sizeof(STableIdInfo);
+  } else {
+    p += numOfTables * sizeof(STableIdInfo);
   }
 
   pRes->row = 0;
   tscDebug("0x%"PRIx64" numOfRows:%d, offset:%" PRId64 ", complete:%d, qId:0x%"PRIx64, pSql->self, pRes->numOfRows, pRes->offset,
       pRes->completed, pRes->qId);
 
-  int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
-  TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
-  int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
-  int32_t rowBytes = offset + pField->bytes;
-  int32_t origSize  = rowBytes * pRes->numOfRows + subDataLen;
-  int32_t compSize  = htonl(pRetrieve->compLen) + numOfCols * sizeof(int32_t) + subDataLen;
-  int32_t dataLen = (pRetrieve->compressed) ? compSize : origSize;
   if (pRetrieve->extend == 1) {
-    STLV* tlv = (STLV*)(pRetrieve->data + dataLen);
+    STLV* tlv = (STLV*)(p);
     while (tlv->type != TLV_TYPE_END_MARK) {
       switch (ntohs(tlv->type)) {
         case TLV_TYPE_META_VERSION:
