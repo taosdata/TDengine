@@ -85,8 +85,8 @@ SDropUserReq* buildDropUserMsg(SSqlInfo* pInfo, int32_t *msgLen, int64_t id, cha
   return pMsg;
 }
 
-SShowMsg* buildShowMsg(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, char* msgBuf, int32_t msgLen) {
-  SShowMsg* pShowMsg = calloc(1, sizeof(SShowMsg));
+SShowReq* buildShowMsg(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, char* msgBuf, int32_t msgLen) {
+  SShowReq* pShowMsg = calloc(1, sizeof(SShowReq));
 
   pShowMsg->type = pShowInfo->showType;
   if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {
@@ -335,7 +335,7 @@ SDropStbMsg* buildDropStableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* p
   return pDropTableMsg;
 }
 
-SCreateDnodeMsg *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
+SCreateDnodeReq *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
   const char* msg1 = "invalid host name (name too long, maximum length 128)";
   const char* msg2 = "dnode name can not be string";
   const char* msg3 = "port should be an integer that is less than 65535 and greater than 0";
@@ -367,7 +367,7 @@ SCreateDnodeMsg *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMs
     return NULL;
   }
 
-  SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *) calloc(1, sizeof(SCreateDnodeMsg));
+  SCreateDnodeReq *pCreate = (SCreateDnodeReq *) calloc(1, sizeof(SCreateDnodeReq));
   if (pCreate == NULL) {
     buildInvalidOperationMsg(pMsgBuf, msg4);
     return NULL;
@@ -376,18 +376,18 @@ SCreateDnodeMsg *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMs
   strncpy(pCreate->fqdn, id->z, id->n);
   pCreate->port = htonl(val);
 
-  *len = sizeof(SCreateDnodeMsg);
+  *len = sizeof(SCreateDnodeReq);
   return pCreate;
 }
 
-SDropDnodeMsg *buildDropDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
+SDropDnodeReq *buildDropDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
   SToken* pzName = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
   char* end = NULL;
-  SDropDnodeMsg * pDrop = (SDropDnodeMsg *)calloc(1, sizeof(SDropDnodeMsg));
+  SDropDnodeReq * pDrop = (SDropDnodeReq *)calloc(1, sizeof(SDropDnodeReq));
   pDrop->dnodeId = strtoll(pzName->z, &end, 10);
   pDrop->dnodeId = htonl(pDrop->dnodeId);
-  *len = sizeof(SDropDnodeMsg);
+  *len = sizeof(SDropDnodeReq);
 
   if (end - pzName->z != pzName->n) {
     buildInvalidOperationMsg(pMsgBuf, "invalid dnode id");

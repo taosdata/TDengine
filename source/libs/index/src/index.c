@@ -384,7 +384,6 @@ static void indexMergeSameKey(SArray* result, TFileValue* tv) {
     }
   } else {
     taosArrayPush(result, &tv);
-    // indexError("merge colVal: %s", tv->colVal);
   }
 }
 static void indexDestroyTempResult(SArray* result) {
@@ -395,13 +394,15 @@ static void indexDestroyTempResult(SArray* result) {
   }
   taosArrayDestroy(result);
 }
-int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
+int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   if (sIdx == NULL) { return -1; }
   indexInfo("suid %" PRIu64 " merge cache into tindex", sIdx->suid);
 
+  int64_t st = taosGetTimestampUs();
+
   IndexCache*  pCache = (IndexCache*)cache;
   TFileReader* pReader = tfileGetReaderByCol(sIdx->tindex, pCache->suid, pCache->colName);
-  if (pReader == NULL) { indexWarn("empty pReader found"); }
+  if (pReader == NULL) { indexWarn("empty tfile reader found"); }
   // handle flush
   Iterate* cacheIter = indexCacheIteratorCreate(pCache);
   Iterate* tfileIter = tfileIteratorCreate(pReader);
@@ -452,16 +453,13 @@ int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
   while (tn == true) {
     IterateValue* tv = tfileIter->getValue(tfileIter);
     TFileValue*   tfv = tfileValueCreate(tv->colVal);
-    if (tv->val == NULL) {
-      // HO
-      printf("NO....");
-    }
     taosArrayAddAll(tfv->tableId, tv->val);
     indexMergeSameKey(result, tfv);
     tn = tfileIter->next(tfileIter);
   }
   int ret = indexGenTFile(sIdx, pCache, result);
   indexDestroyTempResult(result);
+
   indexCacheDestroyImm(pCache);
 
   indexCacheIteratorDestroy(cacheIter);
@@ -469,7 +467,14 @@ int indexFlushCacheTFile(SIndex* sIdx, void* cache) {
 
   tfileReaderUnRef(pReader);
   indexCacheUnRef(pCache);
-  return 0;
+
+  int64_t cost = taosGetTimestampUs() - st;
+  if (ret != 0) {
+    indexError("failed to merge, time cost: %" PRId64 "ms", cost / 1000);
+  } else {
+    indexInfo("success to merge , time cost: %" PRId64 "ms", cost / 1000);
+  }
+  return ret;
 }
 void iterateValueDestroy(IterateValue* value, bool destroy) {
   if (destroy) {
@@ -502,8 +507,7 @@ static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   if (reader == NULL) { goto END; }
 
   TFileHeader* header = &reader->header;
-  ICacheKey    key = {
-      .suid = cache->suid, .colName = header->colName, .nColName = strlen(header->colName), .colType = header->colType};
+  ICacheKey    key = {.suid = cache->suid, .colName = header->colName, .nColName = strlen(header->colName)};
 
   pthread_mutex_lock(&sIdx->mtx);
   IndexTFile* ifile = (IndexTFile*)sIdx->tindex;
@@ -511,7 +515,11 @@ static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   pthread_mutex_unlock(&sIdx->mtx);
   return ret;
 END:
-  tfileWriterClose(tw);
+  if (tw != NULL) {
+    writerCtxDestroy(tw->ctx, true);
+    free(tw);
+  }
+  return -1;
 }
 
 int32_t indexSerialCacheKey(ICacheKey* key, char* buf) {

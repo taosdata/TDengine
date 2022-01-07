@@ -94,6 +94,7 @@ typedef struct SSdbRaw SSdbRaw;
 typedef struct SSdbRow SSdbRow;
 typedef enum { SDB_KEY_BINARY = 1, SDB_KEY_INT32 = 2, SDB_KEY_INT64 = 3 } EKeyType;
 typedef enum {
+  SDB_STATUS_INIT = 0,
   SDB_STATUS_CREATING = 1,
   SDB_STATUS_UPDATING = 2,
   SDB_STATUS_DROPPING = 3,
@@ -279,6 +280,15 @@ int32_t sdbGetSize(SSdb *pSdb, ESdbType type);
  * @return int32_t The max id of the table
  */
 int32_t sdbGetMaxId(SSdb *pSdb, ESdbType type);
+
+/**
+ * @brief Get the version of the table
+ *
+ * @param pSdb The sdb object.
+ * @param pIter The type of the table.
+ * @return int32_t The version of the table
+ */
+int64_t sdbGetTableVer(SSdb *pSdb, ESdbType type);
 
 /**
  * @brief Update the version of sdb

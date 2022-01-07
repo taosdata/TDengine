@@ -54,7 +54,7 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
 
   int64_t first = walGetFirstVer(pWal);
   int64_t last = walGetLastVer(pWal);
-  mDebug("restore sdb wal start, sdb ver:%" PRId64 ", wal first:%" PRId64 " last:%" PRId64, lastSdbVer, first, last);
+  mDebug("start to restore sdb wal, sdb ver:%" PRId64 ", wal first:%" PRId64 " last:%" PRId64, lastSdbVer, first, last);
 
   first = MAX(lastSdbVer + 1, first);
   for (int64_t ver = first; ver >= 0 && ver <= last; ++ver) {
@@ -71,6 +71,7 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
       goto WAL_RESTORE_OVER;
     }
 
+    mTrace("wal:%" PRId64 ", will be restored, content:%p", ver, pHead->head.body);
     if (sdbWriteNotFree(pSdb, (void *)pHead->head.body) < 0) {
       mError("failed to read wal from sdb since %s, ver:%" PRId64, terrstr(), ver);
       goto WAL_RESTORE_OVER;

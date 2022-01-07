@@ -39,7 +39,7 @@ class Testbase {
   void     Restart();
   void     ServerStop();
   void     ServerStart();
-  SRpcMsg* SendMsg(tmsg_t msgType, void* pCont, int32_t contLen);
+  SRpcMsg* SendReq(tmsg_t msgType, void* pCont, int32_t contLen);
 
  private:
   void InitLog(const char* path);
@@ -50,8 +50,8 @@ class Testbase {
   int32_t    connId;
 
  public:
-  void SendShowMetaMsg(int8_t showType, const char* db);
-  void SendShowRetrieveMsg();
+  void SendShowMetaReq(int8_t showType, const char* db);
+  void SendShowRetrieveReq();
 
   STableMetaMsg*     GetShowMeta();
   SRetrieveTableRsp* GetRetrieveRsp();

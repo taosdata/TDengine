@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "mndCluster.h"
 #include "mndShow.h"
-#include "mndTrans.h"
 
 #define TSDB_CLUSTER_VER_NUMBE 1
 #define TSDB_CLUSTER_RESERVE_SIZE 64

@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "mndUser.h"
 #include "mndShow.h"
-#include "mndSync.h"
 #include "mndTrans.h"
 #include "tkey.h"
 
@@ -29,12 +28,12 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw);
 static int32_t  mndUserActionInsert(SSdb *pSdb, SUserObj *pUser);
 static int32_t  mndUserActionDelete(SSdb *pSdb, SUserObj *pUser);
 static int32_t  mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew);
-static int32_t  mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass, SMnodeMsg *pMsg);
-static int32_t  mndProcessCreateUserReq(SMnodeMsg *pMsg);
-static int32_t  mndProcessAlterUserReq(SMnodeMsg *pMsg);
-static int32_t  mndProcessDropUserReq(SMnodeMsg *pMsg);
-static int32_t  mndGetUserMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
-static int32_t  mndRetrieveUsers(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass, SMnodeMsg *pReq);
+static int32_t  mndProcessCreateUserReq(SMnodeMsg *pReq);
+static int32_t  mndProcessAlterUserReq(SMnodeMsg *pReq);
+static int32_t  mndProcessDropUserReq(SMnodeMsg *pReq);
+static int32_t  mndGetUserMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta);
+static int32_t  mndRetrieveUsers(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
 
 int32_t mndInitUser(SMnode *pMnode) {
@@ -213,7 +212,7 @@ void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
   sdbRelease(pSdb, pUser);
 }
 
-static int32_t mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass, SMnodeMsg *pMsg) {
+static int32_t mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass, SMnodeMsg *pReq) {
   SUserObj userObj = {0};
   tstrncpy(userObj.user, user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
@@ -222,7 +221,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass,
   userObj.updateTime = userObj.createdTime;
   userObj.superUser = 0;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("user:%s, failed to create since %s", user, terrstr());
     return -1;
@@ -247,9 +246,9 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass,
   return 0;
 }
 
-static int32_t mndProcessCreateUserReq(SMnodeMsg *pMsg) {
-  SMnode         *pMnode = pMsg->pMnode;
-  SCreateUserReq *pCreate = pMsg->rpcMsg.pCont;
+static int32_t mndProcessCreateUserReq(SMnodeMsg *pReq) {
+  SMnode         *pMnode = pReq->pMnode;
+  SCreateUserReq *pCreate = pReq->rpcMsg.pCont;
 
   mDebug("user:%s, start to create", pCreate->user);
 
@@ -273,14 +272,14 @@ static int32_t mndProcessCreateUserReq(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  SUserObj *pOperUser = mndAcquireUser(pMnode, pMsg->user);
+  SUserObj *pOperUser = mndAcquireUser(pMnode, pReq->user);
   if (pOperUser == NULL) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
     mError("user:%s, failed to create since %s", pCreate->user, terrstr());
     return -1;
   }
 
-  int32_t code = mndCreateUser(pMnode, pOperUser->acct, pCreate->user, pCreate->pass, pMsg);
+  int32_t code = mndCreateUser(pMnode, pOperUser->acct, pCreate->user, pCreate->pass, pReq);
   mndReleaseUser(pMnode, pOperUser);
 
   if (code != 0) {
@@ -291,8 +290,8 @@ static int32_t mndProcessCreateUserReq(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndUpdateUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SMnodeMsg *pMsg) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
+static int32_t mndUpdateUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SMnodeMsg *pReq) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("user:%s, failed to update since %s", pOld->user, terrstr());
     return -1;
@@ -317,9 +316,9 @@ static int32_t mndUpdateUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SMn
   return 0;
 }
 
-static int32_t mndProcessAlterUserReq(SMnodeMsg *pMsg) {
-  SMnode        *pMnode = pMsg->pMnode;
-  SAlterUserReq *pAlter = pMsg->rpcMsg.pCont;
+static int32_t mndProcessAlterUserReq(SMnodeMsg *pReq) {
+  SMnode        *pMnode = pReq->pMnode;
+  SAlterUserReq *pAlter = pReq->rpcMsg.pCont;
 
   mDebug("user:%s, start to alter", pAlter->user);
 
@@ -342,7 +341,7 @@ static int32_t mndProcessAlterUserReq(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  SUserObj *pOperUser = mndAcquireUser(pMnode, pMsg->user);
+  SUserObj *pOperUser = mndAcquireUser(pMnode, pReq->user);
   if (pOperUser == NULL) {
     mndReleaseUser(pMnode, pUser);
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
@@ -356,7 +355,7 @@ static int32_t mndProcessAlterUserReq(SMnodeMsg *pMsg) {
   taosEncryptPass((uint8_t *)pAlter->pass, strlen(pAlter->pass), pUser->pass);
   newUser.updateTime = taosGetTimestampMs();
 
-  int32_t code = mndUpdateUser(pMnode, pUser, &newUser, pMsg);
+  int32_t code = mndUpdateUser(pMnode, pUser, &newUser, pReq);
   mndReleaseUser(pMnode, pOperUser);
   mndReleaseUser(pMnode, pUser);
 
@@ -368,8 +367,8 @@ static int32_t mndProcessAlterUserReq(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndDropUser(SMnode *pMnode, SMnodeMsg *pMsg, SUserObj *pUser) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
+static int32_t mndDropUser(SMnode *pMnode, SMnodeMsg *pReq, SUserObj *pUser) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("user:%s, failed to drop since %s", pUser->user, terrstr());
     return -1;
@@ -394,9 +393,9 @@ static int32_t mndDropUser(SMnode *pMnode, SMnodeMsg *pMsg, SUserObj *pUser) {
   return 0;
 }
 
-static int32_t mndProcessDropUserReq(SMnodeMsg *pMsg) {
-  SMnode       *pMnode = pMsg->pMnode;
-  SDropUserReq *pDrop = pMsg->rpcMsg.pCont;
+static int32_t mndProcessDropUserReq(SMnodeMsg *pReq) {
+  SMnode       *pMnode = pReq->pMnode;
+  SDropUserReq *pDrop = pReq->rpcMsg.pCont;
 
   mDebug("user:%s, start to drop", pDrop->user);
 
@@ -413,7 +412,7 @@ static int32_t mndProcessDropUserReq(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  SUserObj *pOperUser = mndAcquireUser(pMnode, pMsg->user);
+  SUserObj *pOperUser = mndAcquireUser(pMnode, pReq->user);
   if (pOperUser == NULL) {
     mndReleaseUser(pMnode, pUser);
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
@@ -421,7 +420,7 @@ static int32_t mndProcessDropUserReq(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  int32_t code = mndDropUser(pMnode, pMsg, pUser);
+  int32_t code = mndDropUser(pMnode, pReq, pUser);
   mndReleaseUser(pMnode, pOperUser);
   mndReleaseUser(pMnode, pUser);
 
@@ -433,8 +432,8 @@ static int32_t mndProcessDropUserReq(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndGetUserMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
-  SMnode *pMnode = pMsg->pMnode;
+static int32_t mndGetUserMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta) {
+  SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
@@ -479,8 +478,8 @@ static int32_t mndGetUserMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *p
   return 0;
 }
 
-static int32_t mndRetrieveUsers(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode   *pMnode = pMsg->pMnode;
+static int32_t mndRetrieveUsers(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode   *pMnode = pReq->pMnode;
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
   SUserObj *pUser = NULL;

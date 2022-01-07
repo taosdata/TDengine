@@ -21,9 +21,8 @@
 #include "tskiplist.h"
 // ----------------- key structure in skiplist ---------------------
 
-/* A data row, the format is like below:
- * content: |<--totalLen-->|<-- value len--->|<-- value -->|<--uid -->|<--version--->|<-- itermType -->|
- *  len :   |<--int32_t -->|<--- int32_t --->|<--valuelen->|<--uint64_t->|<-- int32_t-->|<-- int8_t --->|
+/* A data row, the format is like below
+ * content: |<---colVal---->|<-- version--->|<-- uid--->|<-- colType --->|<--operaType--->|
  */
 
 #ifdef __cplusplus
@@ -40,11 +39,12 @@ typedef struct IndexCache {
   SIndex*   index;
   char*     colName;
   int32_t   version;
-  int32_t   nTerm;
+  int64_t   occupiedMem;
   int8_t    type;
   uint64_t  suid;
 
   pthread_mutex_t mtx;
+  pthread_cond_t  finished;
 } IndexCache;
 
 #define CACHE_VERSION(cache) atomic_load_32(&cache->version)
