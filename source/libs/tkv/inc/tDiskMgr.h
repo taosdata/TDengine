@@ -24,8 +24,8 @@ extern "C" {
 
 typedef struct SDiskMgr SDiskMgr;
 
-int     tdmReadPage(int32_t pgid, char *pData);
-int     tdmWritePage(int32_t pgid, const char *pData);
+int     tdmReadPage(SDiskMgr *pDiskMgr, int32_t pgid, void *pData);
+int     tdmWritePage(SDiskMgr *pDiskMgr, int32_t pgid, const void *pData);
 int32_t tdmAllocPage(SDiskMgr *pDiskMgr);
 
 #ifdef __cplusplus
