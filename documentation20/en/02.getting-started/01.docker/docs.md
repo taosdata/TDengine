@@ -8,14 +8,14 @@ The following article explains how to quickly build a single-node TDengine runti
 
 The Docker tools themselves can be downloaded from [Docker official site](https://docs.docker.com/get-docker/).
 
-After installation, you can check the Docker version in the command line terminal. If the version number is output properly, the Docker environment has been installed successfully.
+After installation, you can check the Docker version in the command-line terminal. If the version number is output properly, the Docker environment has been installed successfully.
 
 ```bash
 $ docker -v
 Docker version 20.10.3, build 48d30b5
 ```
 
-## Using Docker to run TDengine
+## How to use Docker to run TDengine
 
 ### running TDengine server inside Docker
 
@@ -215,7 +215,7 @@ column[0]:FLOAT column[1]:INT column[2]:FLOAT
          Press enter key to continue or Ctrl-C to stop
 ```
 
-After enter, this command will automatically create a super table meters under the database test, there are 10,000 tables under this super table, the table name is "d0" to "d9999", each table has 10,000 records, each record has four fields (ts, current, voltage, phase), the time stamp is from "2017-07-14 10:40:00 000" to "2017-07-14 10:40:09 999", each table has a tag location and groupId, groupId is set from 1 to 10 and location is set to "beijing" or "shanghai".
+After enter, this command will automatically create a super table `meters` under the database test, there are 10,000 tables under this super table, the table name is "d0" to "d9999", each table has 10,000 records, each record has four fields (ts, current, voltage, phase), the time stamp is from "2017-07-14 10:40:00 000" to "2017-07-14 10:40:09 999", each table has a tag location and groupId, groupId is set from 1 to 10 and location is set to "beijing" or "shanghai".
 
 It takes about a few minutes to execute this command and ends up inserting a total of 100 million records.
 
