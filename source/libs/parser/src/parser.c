@@ -31,8 +31,8 @@ bool isInsertSql(const char* pStr, size_t length) {
   } while (1);
 }
 
-bool qIsDdlQuery(const SQueryNode* pQuery) {
-  return TSDB_SQL_INSERT != pQuery->type && TSDB_SQL_SELECT != pQuery->type && TSDB_SQL_CREATE_TABLE != pQuery->type;
+bool qIsDdlQuery(const SQueryNode* pQueryNode) {
+  return TSDB_SQL_INSERT != pQueryNode->type && TSDB_SQL_SELECT != pQueryNode->type && TSDB_SQL_CREATE_TABLE != pQueryNode->type;
 }
 
 int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
