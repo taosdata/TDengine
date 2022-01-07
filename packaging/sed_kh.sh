@@ -27,7 +27,7 @@ function replace_community_kh() {
   sed -i "s/taosinfo/khinfo/g" ${top_dir}/src/util/src/tnote.c
   # src/dnode/CMakeLists.txt
   sed -i "s/taos\.cfg/kinghistorian\.cfg/g" ${top_dir}/src/dnode/CMakeLists.txt
-  echo "SET_TARGET_PROPERTIES(taosd PROPERTIES OUTPUT_NAME khclient)" >>${top_dir}/src/dnode/CMakeLists.txt
+  echo "SET_TARGET_PROPERTIES(taosd PROPERTIES OUTPUT_NAME khserver)" >>${top_dir}/src/dnode/CMakeLists.txt
   # src/os/src/linux/linuxEnv.c
   sed -i "s/etc\/taos/etc\/kinghistorian/g" ${top_dir}/src/os/src/linux/linuxEnv.c
   sed -i "s/lib\/taos/lib\/kinghistorian/g" ${top_dir}/src/os/src/linux/linuxEnv.c
