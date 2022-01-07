@@ -44,15 +44,7 @@ int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
   }
 
   if (!isDqlSqlStatement(&info)) {
-//    bool toVnode = false;
     if (info.type == TSDB_SQL_CREATE_TABLE) {
-//      SCreateTableSql* pCreateSql = info.pCreateTableInfo;
-//      if (pCreateSql->type == TSQL_CREATE_CTABLE || pCreateSql->type == TSQL_CREATE_TABLE) {
-//        toVnode = true;
-//      }
-//    }
-
-//    if (toVnode) {
       SVnodeModifOpStmtInfo * pModifStmtInfo = qParserValidateCreateTbSqlNode(&info, &pCxt->ctx, pCxt->pMsg, pCxt->msgLen);
       if (pModifStmtInfo == NULL) {
         return terrno;
