@@ -1,4 +1,4 @@
-package com.taosdata.jdbc;
+package com.taosdata.jdbc.rs;
 
 import com.taosdata.jdbc.annotation.CatalogRunner;
 import com.taosdata.jdbc.annotation.Description;
@@ -8,13 +8,17 @@ import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
 
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.Random;
 
+/**
+ * Most of the functionality is consistent with {@link com.taosdata.jdbc.JsonTagTest},
+ * Except for batchInsert, which is not supported by restful API.
+ * Restful could not distinguish between empty and nonexistent of json value, the result is always null.
+ * The order of json results may change due to serialization and deserialization
+ */
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @RunWith(CatalogRunner.class)
-@TestTarget(alias = "JsonTag", author = "huolibo", version = "2.0.36")
-public class JsonTagTest {
+@TestTarget(alias = "JsonTag", author = "huolibo", version = "2.0.37")
+public class RestfulJsonTagTest {
     private static final String dbName = "json_tag_test";
     private static Connection connection;
     private static Statement statement;
@@ -239,7 +243,7 @@ public class JsonTagTest {
         ResultSet resultSet = statement.executeQuery("select jtag from jsons1_8");
         resultSet.next();
         String result = resultSet.getString(1);
-        Assert.assertEquals("{\"tag1\":null,\"1tag$\":2,\" \":90}", result);
+        Assert.assertEquals("{\" \":90,\"tag1\":null,\"1tag$\":2}", result);
         close(resultSet);
     }
 
@@ -274,6 +278,16 @@ public class JsonTagTest {
     }
 
     @Test
+    @Description(value = "select a normal value", version = "2.0.37")
+    public void case04_selectNormal() throws SQLException {
+        ResultSet resultSet = statement.executeQuery("select datastr from jsons1_1");
+        resultSet.next();
+        String result = resultSet.getString(1);
+        Assert.assertEquals("等等", result);
+        close(resultSet);
+    }
+
+    @Test
     @Description("select a json tag, the value is empty")
     public void case04_select10() throws SQLException {
         ResultSet resultSet = statement.executeQuery("select jtag->'tag2' from jsons1_6");
@@ -303,15 +317,15 @@ public class JsonTagTest {
         close(resultSet);
     }
 
-    @Test
-    @Description("select a json tag, the value is null")
-    public void case04_select13() throws SQLException {
-        ResultSet resultSet = statement.executeQuery("select jtag->'tag1' from jsons1_4");
-        resultSet.next();
-        String string = resultSet.getString(1);
-        Assert.assertEquals("null", string);
-        close(resultSet);
-    }
+//    @Test
+//    @Description("select a json tag, the value is null")
+//    public void case04_select13() throws SQLException {
+//        ResultSet resultSet = statement.executeQuery("select jtag->'tag1' from jsons1_4");
+//        resultSet.next();
+//        String string = resultSet.getString(1);
+//        Assert.assertEquals("null", string);
+//        close(resultSet);
+//    }
 
     @Test
     @Description("select a json tag, the value is double")
@@ -1181,7 +1195,7 @@ public class JsonTagTest {
     }
 
     @Test
-    @Description("query metadata for json")
+    @Description(value = "query metadata for json", version = "2.0.37")
     public void case19_selectMetadata01() throws SQLException {
         ResultSet resultSet = statement.executeQuery("select jtag from jsons1");
         ResultSetMetaData metaData = resultSet.getMetaData();
@@ -1193,7 +1207,7 @@ public class JsonTagTest {
     }
 
     @Test
-    @Description("query metadata for json")
+    @Description(value = "query metadata for json", version = "2.0.37")
     public void case19_selectMetadata02() throws SQLException {
         ResultSet resultSet = statement.executeQuery("select *,jtag from jsons1");
         ResultSetMetaData metaData = resultSet.getMetaData();
@@ -1205,7 +1219,7 @@ public class JsonTagTest {
     }
 
     @Test
-    @Description("query metadata for one json result")
+    @Description(value = "query metadata for one json result", version = "2.0.37")
     public void case19_selectMetadata03() throws SQLException {
         ResultSet resultSet = statement.executeQuery("select jtag->'tag1' from jsons1_6");
         ResultSetMetaData metaData = resultSet.getMetaData();
@@ -1217,71 +1231,6 @@ public class JsonTagTest {
         String string = resultSet.getString(1);
         Assert.assertEquals("11", string);
         close(resultSet);
-    }
-
-    @Test
-    @Description("stmt batch insert with json tag")
-    public void case20_batchInsert() throws SQLException {
-        String jsonTag = "{\"tag1\":\"fff\",\"tag2\":5,\"tag3\":true}";
-        statement.execute("drop table if exists jsons5");
-        statement.execute("CREATE STABLE IF NOT EXISTS jsons5 (ts timestamp, dataInt int, dataStr nchar(20)) TAGS(jtag json)");
-
-        String sql = "INSERT INTO ? USING jsons5 TAGS (?) VALUES ( ?,?,? )";
-
-        try (PreparedStatement pst = connection.prepareStatement(sql)) {
-            TSDBPreparedStatement ps = pst.unwrap(TSDBPreparedStatement.class);
-            // 设定数据表名：
-            ps.setTableName("batch_test");
-            // 设定 TAGS 取值 setTagNString or setTagJson：
-//            ps.setTagNString(0, jsonTag);
-            ps.setTagJson(0, jsonTag);
-
-            // VALUES 部分以逐列的方式进行设置：
-            int numOfRows = 4;
-            ArrayList<Long> ts = new ArrayList<>();
-            for (int i = 0; i < numOfRows; i++) {
-                ts.add(System.currentTimeMillis() + i);
-            }
-            ps.setTimestamp(0, ts);
-
-            Random r = new Random();
-            int random = 10 + r.nextInt(5);
-            ArrayList<Integer> c1 = new ArrayList<>();
-            for (int i = 0; i < numOfRows; i++) {
-                if (i % random == 0) {
-                    c1.add(null);
-                } else {
-                    c1.add(r.nextInt());
-                }
-            }
-            ps.setInt(1, c1);
-
-            ArrayList<String> c2 = new ArrayList<>();
-            for (int i = 0; i < numOfRows; i++) {
-                c2.add("分支" + i % 4);
-            }
-            ps.setNString(2, c2, 10);
-
-            // AddBatch 之后，缓存并未清空。为避免混乱，并不推荐在 ExecuteBatch 之前再次绑定新一批的数据：
-            ps.columnDataAddBatch();
-            // 执行绑定数据后的语句：
-            ps.columnDataExecuteBatch();
-        }
-
-        ResultSet resultSet = statement.executeQuery("select jtag from batch_test");
-        ResultSetMetaData metaData = resultSet.getMetaData();
-        String columnName = metaData.getColumnName(1);
-        Assert.assertEquals("jtag", columnName);
-        Assert.assertEquals("JSON", metaData.getColumnTypeName(1));
-        resultSet.next();
-        String string = resultSet.getString(1);
-        Assert.assertEquals(jsonTag, string);
-        resultSet.close();
-        resultSet = statement.executeQuery("select jtag->'tag2' from batch_test");
-        resultSet.next();
-        long l = resultSet.getLong(1);
-        Assert.assertEquals(5, l);
-        resultSet.close();
     }
 
     private void close(ResultSet resultSet) {
@@ -1297,7 +1246,7 @@ public class JsonTagTest {
     @BeforeClass
     public static void beforeClass() {
         String host = "127.0.0.1";
-        final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
+        final String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
         try {
             connection = DriverManager.getConnection(url);
             statement = connection.createStatement();

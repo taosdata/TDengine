@@ -615,6 +615,18 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         }
     }
 
+    public void setTagJson(int index, String value) {
+        ensureTagCapacity(index);
+        this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_JSON));
+
+        String charset = TaosGlobalConfig.getCharset();
+        try {
+            this.tagValueLength += value.getBytes(charset).length;
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e.getMessage());
+        }
+    }
+
     public <T> void setValueImpl(int columnIndex, ArrayList<T> list, int type, int bytes) throws SQLException {
         if (this.colData.size() == 0) {
             this.colData.addAll(Collections.nCopies(this.parameters.length - 1 - this.tableTags.size(), null));
@@ -774,6 +786,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                     }
 
                     case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+                    case TSDBConstants.TSDB_DATA_TYPE_JSON:
                     case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
                         String charset = TaosGlobalConfig.getCharset();
                         String val = (String) tag.value;
