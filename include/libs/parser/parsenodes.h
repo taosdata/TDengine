@@ -135,9 +135,8 @@ typedef struct SQueryStmtInfo {
   SArray          *pUdfInfo;
 
   struct SQueryStmtInfo *sibling;     // sibling
-  struct SQueryStmtInfo *pDownstream;
   SMultiFunctionsDesc    info;
-  SArray            *pUpstream;   // SArray<struct SQueryStmtInfo>
+  SArray            *pDownstream;   // SArray<struct SQueryStmtInfo>
   int32_t            havingFieldNum;
   int32_t            exprListLevelIndex;
 } SQueryStmtInfo;
