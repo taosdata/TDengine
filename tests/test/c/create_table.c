@@ -25,10 +25,10 @@
 char    dbName[32] = "db";
 char    stbName[64] = "st";
 int32_t numOfThreads = 1;
-int32_t numOfTables = 10000;
+int32_t numOfTables = 200000;
 int32_t createTable = 1;
 int32_t insertData = 0;
-int32_t batchNum = 1;
+int32_t batchNum = 100;
 int32_t numOfVgroups = 2;
 
 typedef struct {
@@ -84,8 +84,9 @@ int32_t main(int32_t argc, char *argv[]) {
     insertDataSpeed += pInfo[i].insertDataSpeed;
   }
 
-  pPrint("%s total %.1f tables/second, threads:%d %s", GREEN, createTableSpeed, numOfThreads, NC);
-  pPrint("%s total %.1f rows/second, threads:%d %s", GREEN, insertDataSpeed, numOfThreads, NC);
+  pPrint("%s total %d tables, %.1f tables/second, threads:%d %s", GREEN, numOfTables, createTableSpeed, numOfThreads,
+         NC);
+  pPrint("%s total %d tables, %.1f rows/second, threads:%d %s", GREEN, numOfTables, insertDataSpeed, numOfThreads, NC);
 
   pthread_attr_destroy(&thattr);
   free(pInfo);
@@ -184,7 +185,7 @@ void *threadFunc(void *param) {
       }
       taos_free_result(pSql);
 
-      if (t % 1000 == 0) {
+      if (t % 100000 == 0) {
         printCreateProgress(pInfo, t);
       }
       t += (batch - 1);
