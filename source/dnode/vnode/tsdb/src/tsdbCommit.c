@@ -32,6 +32,23 @@ int tsdbCommit(STsdb *pTsdb) {
   return 0;
 }
 
+void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
+  STsdbCfg *pCfg = REPO_CFG(pRepo);
+  TSKEY     minKey, midKey, maxKey, now;
+
+  now = taosGetTimestamp(pCfg->precision);
+  minKey = now - pCfg->keep * tsTickPerDay[pCfg->precision];
+  midKey = now - pCfg->keep2 * tsTickPerDay[pCfg->precision];
+  maxKey = now - pCfg->keep1 * tsTickPerDay[pCfg->precision];
+
+  pRtn->minKey = minKey;
+  pRtn->minFid = (int)(TSDB_KEY_FID(minKey, pCfg->daysPerFile, pCfg->precision));
+  pRtn->midFid = (int)(TSDB_KEY_FID(midKey, pCfg->daysPerFile, pCfg->precision));
+  pRtn->maxFid = (int)(TSDB_KEY_FID(maxKey, pCfg->daysPerFile, pCfg->precision));
+  tsdbDebug("vgId:%d now:%" PRId64 " minKey:%" PRId64 " minFid:%d, midFid:%d, maxFid:%d", REPO_ID(pRepo), now, minKey,
+            pRtn->minFid, pRtn->midFid, pRtn->maxFid);
+}
+
 #if 0
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
@@ -418,23 +435,6 @@ void *tsdbDecodeKVRecord(void *buf, SKVRecord *pRecord) {
   buf = taosDecodeFixedI64(buf, &(pRecord->size));
 
   return buf;
-}
-
-void tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn) {
-  STsdbCfg *pCfg = REPO_CFG(pRepo);
-  TSKEY     minKey, midKey, maxKey, now;
-
-  now = taosGetTimestamp(pCfg->precision);
-  minKey = now - pCfg->keep * tsTickPerDay[pCfg->precision];
-  midKey = now - pCfg->keep2 * tsTickPerDay[pCfg->precision];
-  maxKey = now - pCfg->keep1 * tsTickPerDay[pCfg->precision];
-
-  pRtn->minKey = minKey;
-  pRtn->minFid = (int)(TSDB_KEY_FID(minKey, pCfg->daysPerFile, pCfg->precision));
-  pRtn->midFid = (int)(TSDB_KEY_FID(midKey, pCfg->daysPerFile, pCfg->precision));
-  pRtn->maxFid = (int)(TSDB_KEY_FID(maxKey, pCfg->daysPerFile, pCfg->precision));
-  tsdbDebug("vgId:%d now:%" PRId64 " minKey:%" PRId64 " minFid:%d, midFid:%d, maxFid:%d", REPO_ID(pRepo), now, minKey,
-            pRtn->minFid, pRtn->midFid, pRtn->maxFid);
 }
 
 static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen, bool compact) {

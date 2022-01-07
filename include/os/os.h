@@ -24,10 +24,13 @@ extern "C" {
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <float.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <locale.h>
 #include <math.h>
+#include <regex.h>
 #include <sched.h>
 #include <setjmp.h>
 #include <signal.h>
@@ -44,6 +47,8 @@ extern "C" {
 #include <unistd.h>
 #include <wchar.h>
 #include <wctype.h>
+#include <wordexp.h>
+#include <libgen.h>
 
 #include <sys/mman.h>
 
