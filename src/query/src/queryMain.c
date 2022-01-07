@@ -387,6 +387,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
 
   int32_t s = GET_NUM_OF_RESULTS(pRuntimeEnv);
   size_t size = pQueryAttr->resultRowSize * s;
+  int32_t contLenSubscriptions = (int32_t)(size + sizeof(SRetrieveTableRsp));
   size += sizeof(int32_t);
   size += sizeof(STableIdInfo) * taosHashGetSize(pRuntimeEnv->pTableRetrieveTsMap);
 
@@ -427,6 +428,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   int32_t compSize  = compLen + numOfCols * sizeof(int32_t);
   if ((*pRsp)->compressed && compLen != 0) {
     *contLen = *contLen - origSize + compSize;
+    contLenSubscriptions = contLenSubscriptions - origSize + compSize;
     contLenBeforeTLV = contLenBeforeTLV - origSize + compSize;
     *pRsp = (SRetrieveTableRsp *)rpcReallocCont(*pRsp, *contLen);
     qDebug("QInfo:0x%"PRIx64" compress col data, uncompressed size:%d, compressed size:%d, ratio:%.2f",
@@ -448,6 +450,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
 
   (*pRsp)->extend = 1;
+  *(int32_t*)((char*)(*pRsp) + contLenSubscriptions) = htonl(taosHashGetSize(pRuntimeEnv->pTableRetrieveTsMap));
   STLV* tlv = (STLV*)((char*)(*pRsp) + contLenBeforeTLV);
   tlv->type = htons(TLV_TYPE_META_VERSION);
   tlv->len = htonl(sizeof(int32_t) + sizeof(int32_t));
