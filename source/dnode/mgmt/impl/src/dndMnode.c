@@ -502,7 +502,7 @@ int32_t dndProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   }
 
   SMnode *pMnode = dndAcquireMnode(pDnode);
-  if (pMnode != NULL) {
+  if (pMnode == NULL) {
     terrno = TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
     dError("failed to drop mnode since %s", terrstr());
     return -1;
