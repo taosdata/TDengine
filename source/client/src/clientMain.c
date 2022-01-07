@@ -1,11 +1,12 @@
 #include "os.h"
+#include "tref.h"
+#include "trpc.h"
 #include "clientInt.h"
 #include "clientLog.h"
 #include "query.h"
 #include "tmsg.h"
 #include "tglobal.h"
-#include "tref.h"
-#include "trpc.h"
+#include "catalog.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
