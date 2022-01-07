@@ -87,7 +87,7 @@ typedef struct SUseDbOutput {
   SDBVgroupInfo dbVgroup;
 } SUseDbOutput;
 
-typedef enum {
+enum {
   META_TYPE_NON_TABLE = 1,
   META_TYPE_CTABLE,
   META_TYPE_TABLE,
