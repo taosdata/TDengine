@@ -86,15 +86,15 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
 
   mndTransPullup(pMnode);
 
-  if (walBeginSnapshot(pWal, sdbVer) < 0) {
-    goto WAL_RESTORE_OVER;
-  }
-
   if (sdbVer != lastSdbVer) {
     mInfo("sdb restored from %" PRId64 " to %" PRId64 ", write file", lastSdbVer, sdbVer);
     if (sdbWriteFile(pSdb) != 0) {
       goto WAL_RESTORE_OVER;
     }
+  }
+
+  if (walBeginSnapshot(pWal, sdbVer) < 0) {
+    goto WAL_RESTORE_OVER;
   }
 
   if (walEndSnapshot(pWal) < 0) {

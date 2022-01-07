@@ -197,6 +197,10 @@ static void dndCloseVnode(SDnode *pDnode, SVnodeObj *pVnode) {
   dndFreeVnodeWriteQueue(pDnode, pVnode);
   dndFreeVnodeApplyQueue(pDnode, pVnode);
   dndFreeVnodeSyncQueue(pDnode, pVnode);
+  
+  vnodeClose(pVnode->pImpl);
+  pVnode->pImpl = NULL;
+
   free(pVnode->path);
   free(pVnode->db);
   free(pVnode);
