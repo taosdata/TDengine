@@ -84,7 +84,6 @@ typedef struct SSchJobAttr {
 typedef struct SSchJob {
   uint64_t         queryId;
   SSchJobAttr      attr;
-
   int32_t          levelNum;
   void            *transport;
   SArray          *nodeList;   // qnode/vnode list, element is SQueryNodeAddr
