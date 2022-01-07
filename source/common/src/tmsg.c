@@ -83,6 +83,8 @@ SMemRow tGetSubmitBlkNext(SSubmitBlkIter *pIter) {
     }
     return row;
   }
+}
+
 int tSerializeSClientHbReq(void **buf, const SClientHbReq *pReq) {
   int tlen = 0;
   tlen += taosEncodeSClientHbKey(buf, &pReq->connKey);
