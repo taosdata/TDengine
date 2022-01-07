@@ -123,9 +123,9 @@ if [ -n "${taostools_bin_files}" ]; then
     mkdir -p ${taostools_install_dir}/bin \
         && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
         && chmod a+x ${taostools_install_dir}/bin/* || :
-    [ -f ${taostools_install_dir}/bin/taosBenchmark ] && \
-        ln -sf ${taostools_install_dir}/bin/taosBenchmark \
-        ${taostools_install_dir}/bin/taosdemo
+#    [ -f ${taostools_install_dir}/bin/taosBenchmark ] && \
+#        ln -sf ${taostools_install_dir}/bin/taosBenchmark \
+#        ${taostools_install_dir}/bin/taosdemo
 
     if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh ]; then
         cp ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh \
