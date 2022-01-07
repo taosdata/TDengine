@@ -128,7 +128,7 @@ void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
   char tbFullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(&cn, tbFullName);
 
-  output->metaNum = 2;
+  SET_META_TYPE_BOTH_TABLE(output->metaType);
 
   strcpy(output->ctbFname, tbFullName);
 

@@ -87,8 +87,15 @@ typedef struct SUseDbOutput {
   SDBVgroupInfo dbVgroup;
 } SUseDbOutput;
 
+typedef enum {
+  META_TYPE_NON_TABLE = 1,
+  META_TYPE_CTABLE,
+  META_TYPE_TABLE,
+  META_TYPE_BOTH_TABLE,
+};
+
 typedef struct STableMetaOutput {
-  int32_t     metaNum;
+  int32_t     metaType;
   char        ctbFname[TSDB_TABLE_FNAME_LEN];
   char        tbFname[TSDB_TABLE_FNAME_LEN];
   SCTableMeta ctbMeta;
@@ -149,6 +156,11 @@ void initQueryModuleMsgHandle();
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char *msg, int32_t msgSize);
+
+#define SET_META_TYPE_NONE(t) (t) = META_TYPE_NON_TABLE
+#define SET_META_TYPE_CTABLE(t) (t) = META_TYPE_CTABLE
+#define SET_META_TYPE_TABLE(t) (t) = META_TYPE_TABLE
+#define SET_META_TYPE_BOTH_TABLE(t) (t) = META_TYPE_BOTH_TABLE
 
 #define qFatal(...)  do { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", qDebugFlag, __VA_ARGS__); }} while(0)
 #define qError(...)  do { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", qDebugFlag, __VA_ARGS__); }} while(0)

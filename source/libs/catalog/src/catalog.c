@@ -96,6 +96,29 @@ int32_t ctgGetDBVgroupFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEp
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgIsTableMetaExistInCache(struct SCatalog* pCatalog, const char* tbFullName, int32_t *exist) {
+  if (NULL == pCatalog->tableCache.cache) {
+    *exist = 0;
+    ctgWarn("empty tablemeta cache, tbName:%s", tbFullName);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  size_t sz = 0;
+  STableMeta *tbMeta = taosHashGet(pCatalog->tableCache.cache, tbFullName, strlen(tbFullName));
+
+  if (NULL == tbMeta) {
+    *exist = 0;
+    ctgDebug("tablemeta not in cache, tbName:%s", tbFullName);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *exist = 1;
+  
+  ctgDebug("tablemeta is in cache, tbName:%s", tbFullName);
+  
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t ctgGetTableMetaFromCache(struct SCatalog* pCatalog, const SName* pTableName, STableMeta** pTableMeta, int32_t *exist) {
   if (NULL == pCatalog->tableCache.cache) {
@@ -201,7 +224,7 @@ void ctgGenEpSet(SEpSet *epSet, SVgroupInfo *vgroupInfo) {
   }
 }
 
-int32_t ctgGetTableMetaFromMnodeImpl(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, char* tbFullName, STableMetaOutput* output) {
+int32_t ctgGetTableMetaFromMnodeImpl(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, char* tbFullName, STableMetaOutput* output) {
   SBuildTableMetaInput bInput = {.vgId = 0, .dbName = NULL, .tableFullName = tbFullName};
   char *msg = NULL;
   SEpSet *pVnodeEpSet = NULL;
@@ -223,11 +246,11 @@ int32_t ctgGetTableMetaFromMnodeImpl(struct SCatalog* pCatalog, void *pRpc, cons
 
   SRpcMsg rpcRsp = {0};
 
-  rpcSendRecv(pRpc, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
+  rpcSendRecv(pTransporter, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
   
   if (TSDB_CODE_SUCCESS != rpcRsp.code) {
     if (CTG_TABLE_NOT_EXIST(rpcRsp.code)) {
-      output->metaNum = 0;
+      SET_META_TYPE_NONE(output->metaType);
       ctgDebug("stablemeta not exist in mnode, tbName:%s", tbFullName);
       return TSDB_CODE_SUCCESS;
     }
@@ -247,15 +270,15 @@ int32_t ctgGetTableMetaFromMnodeImpl(struct SCatalog* pCatalog, void *pRpc, cons
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, STableMetaOutput* output) {
+int32_t ctgGetTableMetaFromMnode(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMetaOutput* output) {
   char tbFullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pTableName, tbFullName);
 
-  return ctgGetTableMetaFromMnodeImpl(pCatalog, pRpc, pMgmtEps, tbFullName, output);
+  return ctgGetTableMetaFromMnodeImpl(pCatalog, pTransporter, pMgmtEps, tbFullName, output);
 }
 
-int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, SVgroupInfo *vgroupInfo, STableMetaOutput* output) {
-  if (NULL == pCatalog || NULL == pRpc || NULL == pMgmtEps || NULL == pTableName || NULL == vgroupInfo || NULL == output) {
+int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, SVgroupInfo *vgroupInfo, STableMetaOutput* output) {
+  if (NULL == pCatalog || NULL == pTransporter || NULL == pMgmtEps || NULL == pTableName || NULL == vgroupInfo || NULL == output) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
@@ -285,11 +308,11 @@ int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pRpc, const SE
   SEpSet  epSet;
   
   ctgGenEpSet(&epSet, vgroupInfo);
-  rpcSendRecv(pRpc, &epSet, &rpcMsg, &rpcRsp);
+  rpcSendRecv(pTransporter, &epSet, &rpcMsg, &rpcRsp);
   
   if (TSDB_CODE_SUCCESS != rpcRsp.code) {
     if (CTG_TABLE_NOT_EXIST(rpcRsp.code)) {
-      output->metaNum = 0;
+      SET_META_TYPE_NONE(output->metaType);
       ctgDebug("tablemeta not exist in vnode, tbName:%s", pTableName->tname);
       return TSDB_CODE_SUCCESS;
     }
@@ -589,11 +612,6 @@ int32_t ctgMetaRentGet(SMetaRentMgmt *mgmt, void **res, uint32_t *num, int32_t s
 
 int32_t ctgUpdateTableMetaCache(struct SCatalog *pCatalog, STableMetaOutput *output) {
   int32_t code = 0;
-  
-  if (output->metaNum != 1 && output->metaNum != 2) {
-    ctgError("invalid table meta number in meta rsp, num:%d", output->metaNum);
-    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
-  }
 
   if (NULL == output->tbMeta) {
     ctgError("no valid table meta got from meta rsp, tbName:%s", output->tbFname);
@@ -624,19 +642,23 @@ int32_t ctgUpdateTableMetaCache(struct SCatalog *pCatalog, STableMetaOutput *out
     }
   }
 
-  if (output->metaNum == 2) {
+  if (CTG_IS_META_CTABLE(output->metaType) || CTG_IS_META_BOTH(output->metaType)) {
     if (taosHashPut(pCatalog->tableCache.cache, output->ctbFname, strlen(output->ctbFname), &output->ctbMeta, sizeof(output->ctbMeta)) != 0) {
       ctgError("taosHashPut ctablemeta to cache failed, ctbName:%s", output->ctbFname);
       CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
     }
 
-    ctgDebug("update tablemeta to cache, tbName:%s", output->ctbFname);
-
-    if (TSDB_SUPER_TABLE != output->tbMeta->tableType) {
-      ctgError("table type error, expected:%d, actual:%d", TSDB_SUPER_TABLE, output->tbMeta->tableType);
-      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
-    }    
+    ctgDebug("update child tablemeta to cache, tbName:%s", output->ctbFname);
   }
+
+  if (CTG_IS_META_CTABLE(output->metaType)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  if (CTG_IS_META_BOTH(output->metaType) && TSDB_SUPER_TABLE != output->tbMeta->tableType) {
+    ctgError("table type error, expected:%d, actual:%d", TSDB_SUPER_TABLE, output->tbMeta->tableType);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }    
 
   int32_t tbSize = sizeof(*output->tbMeta) + sizeof(SSchema) * (output->tbMeta->tableInfo.numOfColumns + output->tbMeta->tableInfo.numOfTags);
 
@@ -757,28 +779,51 @@ int32_t ctgRenewTableMetaImpl(struct SCatalog* pCatalog, void *pTransporter, con
 
   if (CTG_IS_STABLE(isSTable)) {
     ctgDebug("will renew table meta, supposed to be stable, tbName:%s", pTableName->tname);
-    
+
+    // if get from mnode failed, will not try vnode
     CTG_ERR_JRET(ctgGetTableMetaFromMnode(pCatalog, pTransporter, pMgmtEps, pTableName, &moutput));
 
-    if (0 == moutput.metaNum) {
+    if (CTG_IS_META_NONE(moutput.metaType)) {
       CTG_ERR_JRET(ctgGetTableMetaFromVnode(pCatalog, pTransporter, pMgmtEps, pTableName, &vgroupInfo, &voutput));
     } else {
       output = &moutput;
     }
   } else {
     ctgDebug("will renew table meta, not supposed to be stable, tbName:%s, isStable:%d", pTableName->tname, isSTable);
-  
+
+    // if get from vnode failed or no table meta, will not try mnode
     CTG_ERR_JRET(ctgGetTableMetaFromVnode(pCatalog, pTransporter, pMgmtEps, pTableName, &vgroupInfo, &voutput));
 
-    if (voutput.metaNum > 0 && TSDB_SUPER_TABLE == voutput.tbMeta->tableType) {
-      ctgDebug("will continue to renew table meta since got stable, tbName:%s, metaNum:%d", pTableName->tname, voutput.metaNum);
+    if (CTG_IS_META_TABLE(voutput.metaType) && TSDB_SUPER_TABLE == voutput.tbMeta->tableType) {
+      ctgDebug("will continue to renew table meta since got stable, tbName:%s, metaType:%d", pTableName->tname, voutput.metaType);
       
       CTG_ERR_JRET(ctgGetTableMetaFromMnodeImpl(pCatalog, pTransporter, pMgmtEps, voutput.tbFname, &moutput));
 
       tfree(voutput.tbMeta);
       voutput.tbMeta = moutput.tbMeta;
       moutput.tbMeta = NULL;
+    } else if (CTG_IS_META_BOTH(voutput.metaType)) {
+      int32_t exist = 0;
+      CTG_ERR_JRET(ctgIsTableMetaExistInCache(pCatalog, voutput.tbFname, &exist));
+      if (0 == exist) {
+        CTG_ERR_JRET(ctgGetTableMetaFromMnodeImpl(pCatalog, pTransporter, pMgmtEps, voutput.tbFname, &moutput));
+
+        if (CTG_IS_META_NONE(moutput.metaType)) {
+          SET_META_TYPE_NONE(voutput.metaType);
+        }
+        
+        tfree(voutput.tbMeta);
+        voutput.tbMeta = moutput.tbMeta;
+        moutput.tbMeta = NULL;
+      } else {
+        SET_META_TYPE_CTABLE(voutput.metaType); 
+      }
     }
+  }
+
+  if (CTG_IS_META_NONE(output->metaType)) {
+    ctgError("no tablemeta got, tbNmae:%s", pTableName->tname);
+    CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
   }
 
   CTG_ERR_JRET(ctgUpdateTableMetaCache(pCatalog, output));

@@ -210,7 +210,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaMsg* msg, bool isSuperTable, STabl
 
   pTableMeta->vgId = isSuperTable ? 0 : msg->vgId;
   pTableMeta->tableType = isSuperTable ? TSDB_SUPER_TABLE : msg->tableType;
-  pTableMeta->uid  = msg->tuid;
+  pTableMeta->uid  = isSuperTable ? msg->suid : msg->tuid;
   pTableMeta->suid = msg->suid;
   pTableMeta->sversion = msg->sversion;
   pTableMeta->tversion = msg->tversion;
@@ -246,7 +246,7 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
   }
 
   if (pMetaMsg->tableType == TSDB_CHILD_TABLE) {
-    pOut->metaNum = 2;
+    SET_META_TYPE_BOTH_TABLE(pOut->metaType);
 
     if (pMetaMsg->dbFname[0]) {
       snprintf(pOut->ctbFname, sizeof(pOut->ctbFname), "%s.%s", pMetaMsg->dbFname, pMetaMsg->tbFname);
@@ -263,7 +263,7 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
 
     code = queryCreateTableMetaFromMsg(pMetaMsg, true, &pOut->tbMeta);
   } else {
-    pOut->metaNum = 1;
+    SET_META_TYPE_TABLE(pOut->metaType);
     
     if (pMetaMsg->dbFname[0]) {
       snprintf(pOut->tbFname, sizeof(pOut->tbFname), "%s.%s", pMetaMsg->dbFname, pMetaMsg->tbFname);

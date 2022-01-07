@@ -35,6 +35,8 @@ extern "C" {
 
 #define CTG_DEFAULT_INVALID_VERSION (-1)
 
+#define CTG_ERR_CODE_TABLE_NOT_EXIST TSDB_CODE_TDB_INVALID_TABLE_ID
+
 enum {
   CTG_READ = 1,
   CTG_WRITE,
@@ -88,13 +90,18 @@ typedef struct SCatalogMgmt {
 
 typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 
+#define CTG_IS_META_NONE(type) ((type) == META_TYPE_NON_TABLE)
+#define CTG_IS_META_CTABLE(type) ((type) == META_TYPE_CTABLE)
+#define CTG_IS_META_TABLE(type) ((type) == META_TYPE_TABLE)
+#define CTG_IS_META_BOTH(type) ((type) == META_TYPE_BOTH_TABLE)
+
 #define CTG_IS_STABLE(isSTable) (1 == (isSTable))
 #define CTG_IS_NOT_STABLE(isSTable) (0 == (isSTable))
 #define CTG_IS_UNKNOWN_STABLE(isSTable) ((isSTable) < 0)
 #define CTG_SET_STABLE(isSTable, tbType) do { (isSTable) = ((tbType) == TSDB_SUPER_TABLE) ? 1 : ((tbType) > TSDB_SUPER_TABLE ? 0 : -1); } while (0)
 #define CTG_TBTYPE_MATCH(isSTable, tbType) (CTG_IS_UNKNOWN_STABLE(isSTable) || (CTG_IS_STABLE(isSTable) && (tbType) == TSDB_SUPER_TABLE) || (CTG_IS_NOT_STABLE(isSTable) && (tbType) != TSDB_SUPER_TABLE))
 
-#define CTG_TABLE_NOT_EXIST(code) (code == TSDB_CODE_TDB_INVALID_TABLE_ID) 
+#define CTG_TABLE_NOT_EXIST(code) (code == CTG_ERR_CODE_TABLE_NOT_EXIST) 
 
 #define ctgFatal(param, ...)  qFatal("CTG:%p " param, pCatalog, __VA_ARGS__)
 #define ctgError(param, ...)  qError("CTG:%p " param, pCatalog, __VA_ARGS__)
