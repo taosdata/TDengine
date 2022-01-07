@@ -104,8 +104,8 @@ STsdbCfg *tsdbGetCfg(const STsdb *repo);
 // --------- TSDB REPOSITORY DEFINITION
 int32_t tsdbCreateRepo(int repoid);
 int32_t tsdbDropRepo(int repoid);
-STsdb * tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH);
-int     tsdbCloseRepo(STsdb *repo, int toCommit);
+STsdb * tsdbOpen(STsdbCfg *pCfg, STsdbAppH *pAppH);
+int     tsdbClose(STsdb *repo, int toCommit);
 int32_t tsdbConfigRepo(STsdb *repo, STsdbCfg *pCfg);
 int     tsdbGetState(STsdb *repo);
 int8_t  tsdbGetCompactState(STsdb *repo);

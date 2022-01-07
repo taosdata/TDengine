@@ -63,7 +63,7 @@ int32_t tsdbDropRepo(int repoid) {
   return tfsRmdir(tsdbDir);
 }
 
-STsdb *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
+STsdb *tsdbOpen(STsdbCfg *pCfg, STsdbAppH *pAppH) {
   STsdb *pRepo;
   STsdbCfg   config = *pCfg;
 
@@ -85,27 +85,27 @@ STsdb *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
   // Open meta
   if (tsdbOpenMeta(pRepo) < 0) {
     tsdbError("vgId:%d failed to open TSDB repository while opening Meta since %s", config.tsdbId, tstrerror(terrno));
-    tsdbCloseRepo(pRepo, false);
+    tsdbClose(pRepo, false);
     return NULL;
   }
 
   if (tsdbOpenBufPool(pRepo) < 0) {
     tsdbError("vgId:%d failed to open TSDB repository while opening buffer pool since %s", config.tsdbId,
               tstrerror(terrno));
-    tsdbCloseRepo(pRepo, false);
+    tsdbClose(pRepo, false);
     return NULL;
   }
 
   if (tsdbOpenFS(pRepo) < 0) {
     tsdbError("vgId:%d failed to open TSDB repository while opening FS since %s", config.tsdbId, tstrerror(terrno));
-    tsdbCloseRepo(pRepo, false);
+    tsdbClose(pRepo, false);
     return NULL;
   }
 
   // TODO: Restore information from data
   if ((!(pRepo->state & TSDB_STATE_BAD_DATA)) && tsdbRestoreInfo(pRepo) < 0) {
     tsdbError("vgId:%d failed to open TSDB repository while restore info since %s", config.tsdbId, tstrerror(terrno));
-    tsdbCloseRepo(pRepo, false);
+    tsdbClose(pRepo, false);
     return NULL;
   }
 
@@ -119,7 +119,7 @@ STsdb *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
 }
 
 // Note: all working thread and query thread must stopped when calling this function
-int tsdbCloseRepo(STsdb *repo, int toCommit) {
+int tsdbClose(STsdb *repo, int toCommit) {
   if (repo == NULL) return 0;
 
   STsdb *pRepo = repo;
