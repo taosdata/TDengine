@@ -40,6 +40,7 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        buildPath = ""
         for root, dirs, files in os.walk(projPath):
             if ("taosdump" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
@@ -85,11 +86,11 @@ class TDTestCase:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system("%staosdump --databases db -o %s" % (binPath, self.tmpdir))
+        os.system("%staosdump --databases db -o %s -g" % (binPath, self.tmpdir))
 
         tdSql.execute("drop database db")
 
-        os.system("%staosdump -i %s" % (binPath, self.tmpdir))
+        os.system("%staosdump -i %s -g" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
         tdSql.checkRows(1)
