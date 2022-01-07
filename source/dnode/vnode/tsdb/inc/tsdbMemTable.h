@@ -22,7 +22,26 @@
 extern "C" {
 #endif
 
-typedef struct STsdbMemTable STsdbMemTable;
+typedef struct STbData {
+  tb_uid_t   uid;
+  TSKEY      keyMin;
+  TSKEY      keyMax;
+  int64_t    nrows;
+  SSkipList *pData;
+} STbData;
+
+typedef struct STsdbMemTable {
+  T_REF_DECLARE()
+  SRWLatch       latch;
+  TSKEY          keyMin;
+  TSKEY          keyMax;
+  uint64_t       nRow;
+  SMemAllocator *pMA;
+  // Container
+  SSkipList *pSlIdx;  // SSkiplist<STbData>
+  SHashObj * pHashIdx;
+} STsdbMemTable;
+
 
 STsdbMemTable *tsdbNewMemTable(STsdb *pTsdb);
 void           tsdbFreeMemTable(STsdb *pTsdb, STsdbMemTable *pMemTable);

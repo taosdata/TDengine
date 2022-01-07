@@ -15,30 +15,6 @@
 
 #include "tsdbDef.h"
 
-typedef struct STbData {
-  tb_uid_t   uid;
-  TSKEY      keyMin;
-  TSKEY      keyMax;
-  int64_t    nrows;
-  SSkipList *pData;
-} STbData;
-
-struct STsdbMemTable {
-  T_REF_DECLARE()
-  SRWLatch       latch;
-  TSKEY          keyMin;
-  TSKEY          keyMax;
-  uint64_t       nRow;
-  SMemAllocator *pMA;
-  // Container
-#if 1
-  SSkipList *pSlIdx;  // SSkiplist<STbData>
-  SHashObj * pHashIdx;
-#else
-  TD_SLIST(STbData) list;
-#endif
-};
-
 static int      tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitMsg *pMsg);
 static int      tsdbMemTableInsertTbData(STsdb *pRepo, SSubmitBlk *pBlock, int32_t *pAffectedRows);
 static STbData *tsdbNewTbData(tb_uid_t uid);

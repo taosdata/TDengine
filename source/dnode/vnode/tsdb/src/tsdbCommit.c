@@ -17,6 +17,30 @@
 
 #define TSDB_MAX_SUBBLOCKS 8
 
+typedef struct {
+  STable *           pTable;
+  SSkipListIterator *pIter;
+} SCommitIter;
+
+typedef struct {
+  SRtn         rtn;     // retention snapshot
+  SFSIter      fsIter;  // tsdb file iterator
+  int          niters;  // memory iterators
+  SCommitIter *iters;
+  bool         isRFileSet;  // read and commit FSET
+  SReadH       readh;
+  SDFileSet    wSet;
+  bool         isDFileSame;
+  bool         isLFileSame;
+  TSKEY        minKey;
+  TSKEY        maxKey;
+  SArray *     aBlkIdx;  // SBlockIdx array
+  STable *     pTable;
+  SArray *     aSupBlk;  // Table super-block array
+  SArray *     aSubBlk;  // table sub-block array
+  SDataCols *  pDataCols;
+} SCommitH;
+
 static void tsdbStartCommit(STsdb *pRepo);
 static void tsdbEndCommit(STsdb *pTsdb, int eno);
 
@@ -88,26 +112,6 @@ static void tsdbEndCommit(STsdb *pTsdb, int eno) {
 #include "tsdbint.h"
 
 extern int32_t tsTsdbMetaCompactRatio;
-
-
-typedef struct {
-  SRtn         rtn;     // retention snapshot
-  SFSIter      fsIter;  // tsdb file iterator
-  int          niters;  // memory iterators
-  SCommitIter *iters;
-  bool         isRFileSet; // read and commit FSET
-  SReadH       readh;
-  SDFileSet    wSet;
-  bool         isDFileSame;
-  bool         isLFileSame;
-  TSKEY        minKey;
-  TSKEY        maxKey;
-  SArray *     aBlkIdx;  // SBlockIdx array
-  STable *     pTable;
-  SArray *     aSupBlk;  // Table super-block array
-  SArray *     aSubBlk;  // table sub-block array
-  SDataCols *  pDataCols;
-} SCommitH;
 
 #define TSDB_COMMIT_REPO(ch) TSDB_READ_REPO(&(ch->readh))
 #define TSDB_COMMIT_REPO_ID(ch) REPO_ID(TSDB_READ_REPO(&(ch->readh)))
