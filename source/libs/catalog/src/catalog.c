@@ -869,8 +869,63 @@ int32_t ctgGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMg
   return TSDB_CODE_SUCCESS;
 }
 
+void ctgFreeMetaRent(SMetaRentMgmt *mgmt) {
+  if (NULL == mgmt->slots) {
+    return;
+  }
+
+  for (int32_t i = 0; i < mgmt->slotNum; ++i) {
+    SRentSlotInfo *slot = &mgmt->slots[i];
+    if (slot->meta) {
+      taosArrayDestroy(slot->meta);
+      slot->meta = NULL;
+    }
+  }
+
+  tfree(mgmt->slots);
+}
+
+void ctgFreeDbCache(SDBVgroupCache *db) {
+  if (NULL == db->cache) {
+    return;
+  }
+
+  SDBVgroupInfo *dbInfo = NULL;
+  void *pIter = taosHashIterate(db->cache, NULL);
+  while (pIter) {
+    dbInfo = pIter;
+
+    if (dbInfo->vgInfo) {
+      taosHashCleanup(dbInfo->vgInfo);
+      dbInfo->vgInfo = NULL;
+    }
+    
+    pIter = taosHashIterate(db->cache, pIter);
+  }
+
+  taosHashCleanup(db->cache);
+  db->cache = NULL;
+}
+
+void ctgFreeTableMetaCache(STableMetaCache *table) {
+  if (table->stableCache) {
+    taosHashCleanup(table->stableCache);
+    table->stableCache = NULL;
+  }
+
+  if (table->cache) {
+    taosHashCleanup(table->cache);
+    table->cache = NULL;
+  }
+}
+
 void ctgFreeHandle(struct SCatalog* pCatalog) {
-  //TODO
+  ctgFreeMetaRent(&pCatalog->dbRent);
+  ctgFreeMetaRent(&pCatalog->stableRent);
+  ctgFreeDbCache(&pCatalog->dbCache);
+  ctgFreeTableMetaCache(&pCatalog->tableCache);
+  
+  free(pCatalog);
 }
 
 int32_t catalogInit(SCatalogCfg *cfg) {
@@ -943,6 +998,8 @@ int32_t catalogGetHandle(uint64_t clusterId, struct SCatalog** catalogHandle) {
       CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
     }
 
+    clusterCtg->clusterId = clusterId;
+
     CTG_ERR_JRET(ctgMetaRentInit(&clusterCtg->dbRent, ctgMgmt.cfg.dbRentSec, CTG_RENT_DB));
     CTG_ERR_JRET(ctgMetaRentInit(&clusterCtg->stableRent, ctgMgmt.cfg.stableRentSec, CTG_RENT_STABLE));
 
@@ -977,8 +1034,17 @@ void catalogFreeHandle(struct SCatalog* pCatalog) {
   if (NULL == pCatalog) {
     return;
   }
+
+  if (taosHashRemove(ctgMgmt.pCluster, &pCatalog->clusterId, sizeof(pCatalog->clusterId))) {
+    ctgWarn("taosHashRemove from cluster failed, may already be freed, clusterId:%"PRIx64, pCatalog->clusterId);
+    return;
+  }
+
+  uint64_t clusterId = pCatalog->clusterId;
   
   ctgFreeHandle(pCatalog);
+
+  ctgInfo("handle freed, culsterId:%"PRIx64, clusterId);
 }
 
 int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName, int32_t* version) {
@@ -1306,10 +1372,24 @@ int32_t catalogGetExpiredDBs(struct SCatalog* pCatalog, SDbVgVersion **dbs, uint
 
 
 void catalogDestroy(void) {
-  if (ctgMgmt.pCluster) {
-    taosHashCleanup(ctgMgmt.pCluster); //TBD
-    ctgMgmt.pCluster = NULL;
+  if (NULL == ctgMgmt.pCluster) {
+    return;
   }
+
+  SCatalog *pCatalog = NULL;
+  void *pIter = taosHashIterate(ctgMgmt.pCluster, NULL);
+  while (pIter) {
+    pCatalog = *(SCatalog **)pIter;
+
+    if (pCatalog) {
+      catalogFreeHandle(pCatalog);
+    }
+    
+    pIter = taosHashIterate(ctgMgmt.pCluster, pIter);
+  }
+  
+  taosHashCleanup(ctgMgmt.pCluster);
+  ctgMgmt.pCluster = NULL;
 
   qInfo("catalog destroyed");
 }

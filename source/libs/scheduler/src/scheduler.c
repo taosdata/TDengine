@@ -1102,6 +1102,7 @@ void scheduleFreeJob(void *pJob) {
   taosHashCleanup(job->failTasks);
   taosHashCleanup(job->succTasks);
   taosArrayDestroy(job->levels);
+  
   tfree(job);
 }
 

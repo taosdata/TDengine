@@ -65,7 +65,7 @@ typedef struct STableMetaCache {
 typedef struct SRentSlotInfo {
   SRWLatch lock;
   bool     needSort;
-  SArray  *meta;
+  SArray  *meta;  // element is SDbVgVersion or SSTableMetaVersion
 } SRentSlotInfo;
 
 typedef struct SMetaRentMgmt {
@@ -77,15 +77,35 @@ typedef struct SMetaRentMgmt {
 } SMetaRentMgmt;
 
 typedef struct SCatalog {
+  uint64_t         clusterId;
   SDBVgroupCache   dbCache;
   STableMetaCache  tableCache;
   SMetaRentMgmt    dbRent;
   SMetaRentMgmt    stableRent;
 } SCatalog;
 
+typedef struct SCtgApiStat {
+
+} SCtgApiStat;
+
+typedef struct SCtgResourceStat {
+
+} SCtgResourceStat;
+
+typedef struct SCtgCacheStat {
+
+} SCtgCacheStat;
+
+typedef struct SCatalogStat {
+  SCtgApiStat      api;
+  SCtgResourceStat resource;
+  SCtgCacheStat    cache;
+} SCatalogStat;
+
 typedef struct SCatalogMgmt {
-  SHashObj   *pCluster;     //key: clusterId, value: SCatalog*
-  SCatalogCfg cfg;
+  SHashObj             *pCluster;     //key: clusterId, value: SCatalog*
+  SCatalogStat          stat;
+  SCatalogCfg           cfg;
 } SCatalogMgmt;
 
 typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);

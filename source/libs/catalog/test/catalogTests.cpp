@@ -42,11 +42,13 @@ extern "C" int32_t ctgUpdateTableMetaCache(struct SCatalog *pCatalog, STableMeta
 void ctgTestSetPrepareTableMeta();
 void ctgTestSetPrepareCTableMeta();
 void ctgTestSetPrepareSTableMeta();
+void ctgTestSetPrepareMultiSTableMeta();
 
 bool ctgTestStop = false;
 bool ctgTestEnableSleep = false;
 bool ctgTestDeadLoop = false;
 int32_t ctgTestPrintNum = 200000;
+int32_t ctgTestMTRunSec = 30;
 
 int32_t ctgTestCurrentVgVersion = 0;
 int32_t ctgTestVgVersion = 1;
@@ -55,6 +57,8 @@ int32_t ctgTestColNum = 2;
 int32_t ctgTestTagNum = 1;
 int32_t ctgTestSVersion = 1;
 int32_t ctgTestTVersion = 1;
+int32_t ctgTestSuid = 2;
+int64_t ctgTestDbId = 33;
 
 uint64_t ctgTestClusterId = 0x1;
 char *ctgTestDbname = "1.db1";
@@ -183,6 +187,7 @@ void ctgTestBuildDBVgroup(SDBVgroupInfo *dbVgroup) {
   ctgTestCurrentVgVersion = dbVgroup->vgVersion;
   
   dbVgroup->hashMethod = 0;
+  dbVgroup->dbId = ctgTestDbId;
   dbVgroup->vgInfo = taosHashInit(ctgTestVgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
 
   vgNum = ctgTestGetVgNumFromVgVersion(dbVgroup->vgVersion);
@@ -216,7 +221,7 @@ void ctgTestPrepareDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcM
   ctgTestCurrentVgVersion = ctgTestVgVersion;
   rspMsg->vgNum = htonl(ctgTestVgNum);
   rspMsg->hashMethod = 0;
-  rspMsg->uid = htobe64(3);
+  rspMsg->uid = htobe64(ctgTestDbId);
 
   SVgroupInfo *vg = NULL;
   uint32_t hashUnit = UINT32_MAX / ctgTestVgNum;
@@ -339,8 +344,8 @@ void ctgTestPrepareSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpc
   rspMsg->update = 1;
   rspMsg->sversion = htonl(ctgTestSVersion);
   rspMsg->tversion = htonl(ctgTestTVersion);
-  rspMsg->suid = htobe64(0x0000000000000002);
-  rspMsg->tuid = htobe64(0x0000000000000003);
+  rspMsg->suid = htobe64(ctgTestSuid);
+  rspMsg->tuid = htobe64(ctgTestSuid);
   rspMsg->vgId = 0;
 
   SSchema *s = NULL;
@@ -366,6 +371,53 @@ void ctgTestPrepareSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpc
   return;
 }
 
+void ctgTestPrepareMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  STableMetaMsg *rspMsg = NULL; //todo
+  static int32_t idx = 1;
+
+  pRsp->code =0;
+  pRsp->contLen = sizeof(STableMetaMsg) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
+  pRsp->pCont = calloc(1, pRsp->contLen);
+  rspMsg = (STableMetaMsg *)pRsp->pCont;
+  sprintf(rspMsg->tbFname, "%s.%s_%d", ctgTestDbname, ctgTestSTablename, idx);
+  sprintf(rspMsg->stbFname, "%s.%s_%d", ctgTestDbname, ctgTestSTablename, idx);
+  rspMsg->numOfTags = htonl(ctgTestTagNum);
+  rspMsg->numOfColumns = htonl(ctgTestColNum);
+  rspMsg->precision = 1;
+  rspMsg->tableType = TSDB_SUPER_TABLE;
+  rspMsg->update = 1;
+  rspMsg->sversion = htonl(ctgTestSVersion);
+  rspMsg->tversion = htonl(ctgTestTVersion);
+  rspMsg->suid = htobe64(ctgTestSuid + idx);
+  rspMsg->tuid = htobe64(ctgTestSuid + idx);
+  rspMsg->vgId = 0;
+
+  SSchema *s = NULL;
+  s = &rspMsg->pSchema[0];
+  s->type = TSDB_DATA_TYPE_TIMESTAMP;
+  s->colId = htonl(1);
+  s->bytes = htonl(8);
+  strcpy(s->name, "ts");
+
+  s = &rspMsg->pSchema[1];
+  s->type = TSDB_DATA_TYPE_INT;
+  s->colId = htonl(2);
+  s->bytes = htonl(4);
+  strcpy(s->name, "col1s");
+
+  s = &rspMsg->pSchema[2];
+  s->type = TSDB_DATA_TYPE_BINARY;
+  s->colId = htonl(3);
+  s->bytes = htonl(12);
+  strcpy(s->name, "tag1s");
+
+  ++idx;
+  
+  return;
+}
+
+
+
 void ctgTestPrepareDbVgroupsAndNormalMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   ctgTestPrepareDbVgroups(shandle, pEpSet, pMsg, pRsp);
   
@@ -387,6 +439,14 @@ void ctgTestPrepareDbVgroupsAndSuperMeta(void *shandle, SEpSet *pEpSet, SRpcMsg 
   ctgTestPrepareDbVgroups(shandle, pEpSet, pMsg, pRsp);
   
   ctgTestSetPrepareSTableMeta();
+  
+  return;
+}
+
+void ctgTestPrepareDbVgroupsAndMultiSuperMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  ctgTestPrepareDbVgroups(shandle, pEpSet, pMsg, pRsp);
+  
+  ctgTestSetPrepareMultiSTableMeta();
   
   return;
 }
@@ -445,6 +505,20 @@ void ctgTestSetPrepareSTableMeta() {
   }
 }
 
+void ctgTestSetPrepareMultiSTableMeta() {
+  static Stub stub;
+  stub.set(rpcSendRecv, ctgTestPrepareMultiSTableMeta);
+  {
+    AddrAny any("libtransport.so");
+    std::map<std::string,void*> result;
+    any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+    for (const auto& f : result) {
+      stub.set(f.second, ctgTestPrepareMultiSTableMeta);
+    }
+  }
+}
+
+
 void ctgTestSetPrepareDbVgroupsAndNormalMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestPrepareDbVgroupsAndNormalMeta);
@@ -481,6 +555,19 @@ void ctgTestSetPrepareDbVgroupsAndSuperMeta() {
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
     for (const auto& f : result) {
       stub.set(f.second, ctgTestPrepareDbVgroupsAndSuperMeta);
+    }
+  }
+}
+
+void ctgTestSetPrepareDbVgroupsAndMultiSuperMeta() {
+  static Stub stub;
+  stub.set(rpcSendRecv, ctgTestPrepareDbVgroupsAndMultiSuperMeta);
+  {
+    AddrAny any("libtransport.so");
+    std::map<std::string,void*> result;
+    any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
+    for (const auto& f : result) {
+      stub.set(f.second, ctgTestPrepareDbVgroupsAndMultiSuperMeta);
     }
   }
 }
@@ -817,6 +904,8 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
   ASSERT_EQ(tableMeta->sversion, ctgTestSVersion);
   ASSERT_EQ(tableMeta->tversion, ctgTestTVersion);
+  ASSERT_EQ(tableMeta->uid, ctgTestSuid);
+  ASSERT_EQ(tableMeta->suid, ctgTestSuid);
   ASSERT_EQ(tableMeta->tableInfo.numOfColumns, ctgTestColNum);
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
@@ -1094,7 +1183,7 @@ TEST(multiThread, getSetDbVgroupCase) {
     if (ctgTestDeadLoop) {
       sleep(1);
     } else {
-      sleep(600);
+      sleep(ctgTestMTRunSec);
       break;
     }
   }
@@ -1142,7 +1231,7 @@ TEST(multiThread, ctableMeta) {
     if (ctgTestDeadLoop) {
       sleep(1);
     } else {
-      sleep(600);
+      sleep(ctgTestMTRunSec);
       break;
     }
   }
@@ -1152,6 +1241,78 @@ TEST(multiThread, ctableMeta) {
   
   catalogDestroy();
 }
+
+
+TEST(rentTest, allRent) {
+  struct SCatalog* pCtg = NULL;
+  void *mockPointer = (void *)0x1;
+  SVgroupInfo vgInfo = {0};
+  SVgroupInfo *pvgInfo = NULL;
+  SDBVgroupInfo dbVgroup = {0};
+  SArray *vgList = NULL;
+  ctgTestStop = false;
+  SDbVgVersion *dbs = NULL;
+  SSTableMetaVersion *stable = NULL;
+  uint32_t num = 0;
+
+  ctgTestSetPrepareDbVgroupsAndMultiSuperMeta();
+
+  initQueryModuleMsgHandle();
+
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+
+  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  strcpy(n.dbname, "db1");
+
+  for (int32_t i = 1; i <= 10; ++i) {
+    sprintf(n.tname, "%s_%d", ctgTestSTablename, i);
+
+    STableMeta *tableMeta = NULL;
+    code = catalogGetSTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+    ASSERT_EQ(code, 0);
+    ASSERT_EQ(tableMeta->vgId, 0);
+    ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
+    ASSERT_EQ(tableMeta->sversion, ctgTestSVersion);
+    ASSERT_EQ(tableMeta->tversion, ctgTestTVersion);
+    ASSERT_EQ(tableMeta->uid, ctgTestSuid + i);
+    ASSERT_EQ(tableMeta->suid, ctgTestSuid + i);
+    ASSERT_EQ(tableMeta->tableInfo.numOfColumns, ctgTestColNum);
+    ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
+    ASSERT_EQ(tableMeta->tableInfo.precision, 1);
+    ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
+    
+    code = catalogGetExpiredDBs(pCtg, &dbs, &num);
+    ASSERT_EQ(code, 0);
+    printf("%d - expired dbNum:%d\n", i, num);
+    if (dbs) {
+      printf("%d - expired dbId:%"PRId64", vgVersion:%d\n", i, dbs->dbId, dbs->vgVersion);
+      free(dbs);
+      dbs = NULL;
+    }
+    
+    code = catalogGetExpiredSTables(pCtg, &stable, &num);
+    ASSERT_EQ(code, 0);
+    printf("%d - expired stableNum:%d\n", i, num);
+    if (stable) {
+      for (int32_t n = 0; n < num; ++n) {
+        printf("suid:%"PRId64", sversion:%d, tversion:%d\n", stable[n].suid, stable[n].sversion, stable[n].tversion);
+      }
+      free(stable);
+      stable = NULL;
+    }
+    printf("*************************************************\n");
+    
+    sleep(2);
+  }
+  
+  catalogDestroy();
+}
+
 
 
 int main(int argc, char** argv) {

@@ -46,6 +46,7 @@ void taos_cleanup(void) {
   taosCloseRef(id);
 
   rpcCleanup();
+  catalogDestroy();
   taosCloseLog();
 
   tscInfo("all local resources released");
