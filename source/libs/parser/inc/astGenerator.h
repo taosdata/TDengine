@@ -123,7 +123,7 @@ typedef struct SCreatedTableInfo {
   SToken             name;        // table name token
   SToken             stbName;     // super table name token , for using clause
   SArray            *pTagNames;   // create by using super table, tag name
-  SArray            *pTagVals;    // create by using super table, tag value
+  SArray            *pTagVals;    // create by using super table, tag value. SArray<SToken>
   char              *fullname;    // table full name
   int8_t             igExist;     // ignore if exists
 } SCreatedTableInfo;

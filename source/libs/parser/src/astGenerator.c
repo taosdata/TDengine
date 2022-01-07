@@ -686,7 +686,7 @@ void destroySqlNode(SSqlNode *pSqlNode) {
 void freeCreateTableInfo(void* p) {
   SCreatedTableInfo* pInfo = (SCreatedTableInfo*) p;
   taosArrayDestroy(pInfo->pTagNames);
-  taosArrayDestroyEx(pInfo->pTagVals, freeItem);
+  taosArrayDestroy(pInfo->pTagVals);
   tfree(pInfo->fullname);
 }
 

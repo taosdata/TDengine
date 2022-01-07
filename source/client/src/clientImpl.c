@@ -181,7 +181,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
     if (pDcl->msgType == TDMT_VND_SHOW_TABLES) {
       SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
       if (pShowReqInfo->pArray == NULL) {
-        pShowReqInfo->currentIndex = 0;
+        pShowReqInfo->currentIndex = 0;  // set the first vnode/ then iterate the next vnode
         pShowReqInfo->pArray = pDcl->pExtension;
       }
     }
