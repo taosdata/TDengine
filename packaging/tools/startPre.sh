@@ -4,13 +4,16 @@
 # set -e
 # set -x
 
-taosd=/etc/systemd/system/taosd.service
+serverName="taosd"
+logDir="/var/log/taos"
+
+taosd=/etc/systemd/system/${serverName}.service
 line=`grep StartLimitBurst ${taosd}`
 num=${line##*=}
 #echo "burst num: ${num}"
 
-startSeqFile=/var/log/taos/.startSeq
-recordFile=/var/log/taos/.startRecord
+startSeqFile=${logDir}/.startSeq
+recordFile=${logDir}/.startRecord
 
 startSeq=0
 

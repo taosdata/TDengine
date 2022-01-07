@@ -14,6 +14,11 @@ verMode=$6
 verType=$7
 pagMode=$8
 
+productName="TDengine"
+clientName="taos"
+configFile="taos.cfg"
+tarName="taos.tar.gz"
+
 if [ "$osType" != "Darwin" ]; then
     script_dir="$(dirname $(readlink -f $0))"
     top_dir="$(readlink -f ${script_dir}/../..)"
@@ -32,29 +37,27 @@ release_dir="${top_dir}/release"
 #package_name='linux'
 
 if [ "$verMode" == "cluster" ]; then
-    install_dir="${release_dir}/TDengine-enterprise-client-${version}"
+    install_dir="${release_dir}/${productName}-enterprise-client-${version}"
 else
-    install_dir="${release_dir}/TDengine-client-${version}"
+    install_dir="${release_dir}/${productName}-client-${version}"
 fi
 
 # Directories and files.
 
 if [ "$osType" != "Darwin" ]; then
   if [ "$pagMode" == "lite" ]; then
-    #strip ${build_dir}/bin/taosd
-    strip ${build_dir}/bin/taos
-    bin_files="${build_dir}/bin/taos \
+    strip ${build_dir}/bin/${clientName}
+    bin_files="${build_dir}/bin/${clientName} \
         ${script_dir}/remove_client.sh"
   else
-    bin_files="${build_dir}/bin/taos \
+    bin_files="${build_dir}/bin/${clientName} \
         ${script_dir}/remove_client.sh \
         ${script_dir}/set_core.sh \
         ${script_dir}/get_client.sh"
-        #${script_dir}/get_client.sh ${script_dir}/taosd-dump-cfg.gdb"
   fi
   lib_files="${build_dir}/lib/libtaos.so.${version}"
 else
-  bin_files="${build_dir}/bin/taos ${script_dir}/remove_client.sh"
+  bin_files="${build_dir}/bin/${clientName} ${script_dir}/remove_client.sh"
   lib_files="${build_dir}/lib/libtaos.${version}.dylib"
 fi
 
@@ -70,7 +73,7 @@ install_files="${script_dir}/install_client.sh"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/*
 
 if [ -f ${build_dir}/bin/jemalloc-config ]; then
@@ -109,12 +112,12 @@ fi
 cd ${install_dir}
 
 if [ "$osType" != "Darwin" ]; then
-    tar -zcv -f taos.tar.gz * --remove-files || :
+    tar -zcv -f ${tarName} * --remove-files || :
 else
-    tar -zcv -f taos.tar.gz * || :
-    mv taos.tar.gz ..
+    tar -zcv -f ${tarName} * || :
+    mv ${tarName} ..
     rm -rf ./*
-    mv ../taos.tar.gz .
+    mv ../${tarName} .
 fi
 
 cd ${curr_dir}
@@ -165,21 +168,10 @@ fi
 # Copy release note
 # cp ${script_dir}/release_note ${install_dir}
 
-# exit 1
-
 cd ${release_dir}
 
 #  install_dir has been distinguishes  cluster from  edege, so comments this code
 pkg_name=${install_dir}-${osType}-${cpuType}
-
-# if [ "$verMode" == "cluster" ]; then
-#   pkg_name=${install_dir}-${osType}-${cpuType}
-# elif [ "$verMode" == "edge" ]; then
-#   pkg_name=${install_dir}-${osType}-${cpuType}
-# else
-#   echo "unknow verMode, nor cluster or edge"
-#   exit 1
-# fi
 
 if [[ "$verType" == "beta" ]] || [[ "$verType" == "preRelease" ]]; then
   pkg_name=${install_dir}-${verType}-${osType}-${cpuType}
