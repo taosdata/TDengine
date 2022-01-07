@@ -921,19 +921,54 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
   return 0;
 }
 
-int32_t tsdbLoadLastCache(STsdbRepo *pRepo, SArray *pArray) {
-  SFSIter    fsiter;
-  SReadH     readh;
-  SDFileSet *pSet;
-  // int        cacheLastRowTableNum = 0;
-  // int        cacheLastColTableNum = 0;
-  uint32_t   arrSize = (uint32_t)taosArrayGetSize(pArray);
-
-  bool cacheLastRow = CACHE_LAST_ROW(&(pRepo->config));
-  bool cacheLastCol = CACHE_LAST_NULL_COLUMN(&(pRepo->config));
+int32_t tsdbLoadLastCache(STsdbRepo *pRepo, SMemRef *pMemRef, SArray *pArray) {
+  uint32_t arrSize = (uint32_t)taosArrayGetSize(pArray);
+  bool     cacheLastRow = CACHE_LAST_ROW(&(pRepo->config));
+  bool     cacheLastCol = CACHE_LAST_NULL_COLUMN(&(pRepo->config));
 
   tsdbDebug("tsdbLoadLastCache for %" PRIu32 " tables, cacheLastRow:%d, cacheLastCol:%d", arrSize, cacheLastRow,
             cacheLastCol);
+
+  // cache data in mem/imem(tsdbTakeMemSnapshot already invoked in tsdbQueryTables)
+  // Traverse and cache for each table in pArray.
+
+  STableData *       pMem = NULL;
+  STableData *       pIMem = NULL;
+  SMemTable *        pMemT = pMemRef->snapshot.mem;
+  SMemTable *        pIMemT = pMemRef->snapshot.imem;
+  SSkipListIterator *iter = NULL;
+  SMemRow            row = NULL;
+  for (size_t t = 0; t < arrSize; ++t) {
+    STable *pTable = *(STable **)taosArrayGet(pArray, t);
+    ASSERT(pTable->type == TSDB_CHILD_TABLE || pTable->type == TSDB_NORMAL_TABLE);
+
+    if (pMemT && pTable->tableId.tid < pMemT->maxTables) {
+      pMem = pMemT->tData[pTable->tableId.tid];
+      if (pMem && pMem->uid == pTable->tableId.uid) {
+        iter = tSkipListCreateRIter(pMem->pData);
+        if (tSkipListIterNext(iter) && (row = tsdbNextIterRow(iter))) {
+          tsdbUpdateTableLatestInfo(pRepo, pTable, row);
+        }
+        tSkipListDestroyIter(iter);
+      }
+    }
+
+    if (pIMemT && pTable->tableId.tid < pIMemT->maxTables) {
+      pIMem = pIMemT->tData[pTable->tableId.tid];
+      if (pIMem && pIMem->uid == pTable->tableId.uid) {
+        iter = tSkipListCreateRIter(pMem->pData);
+        if (tSkipListIterNext(iter) && (row = tsdbNextIterRow(iter))) {
+          tsdbUpdateTableLatestInfo(pRepo, pTable, row);
+        }
+        tSkipListDestroyIter(iter);
+      }
+    }
+  }
+
+  // cache data in file
+  SFSIter    fsiter;
+  SReadH     readh;
+  SDFileSet *pSet;
 
   if (tsdbInitReadH(&readh, pRepo) < 0) {
     return -1;
@@ -957,7 +992,7 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, SArray *pArray) {
     }
 
     for (size_t t = 0; t < arrSize; ++t) {
-      STable *pTable = (STable *)taosArrayGet(pArray, t);
+      STable *pTable = *(STable **)taosArrayGet(pArray, t);
 
       tsdbTrace("tsdbLoadLastCache for vgId:%d, table:%s", REPO_ID(pRepo), pTable->name->data);
 

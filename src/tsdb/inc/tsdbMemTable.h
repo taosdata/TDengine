@@ -70,8 +70,9 @@ int   tsdbSyncCommitConfig(STsdbRepo* pRepo);
 int   tsdbLoadDataFromCache(STable* pTable, SSkipListIterator* pIter, TSKEY maxKey, int maxRowsToRead, SDataCols* pCols,
                             TKEY* filterKeys, int nFilterKeys, bool keepDup, SMergeInfo* pMergeInfo);
 void* tsdbCommitData(STsdbRepo* pRepo);
+int   tsdbUpdateTableLatestInfo(STsdbRepo* pRepo, STable* pTable, SMemRow row);
 
-static FORCE_INLINE SMemRow tsdbNextIterRow(SSkipListIterator* pIter) {
+static SMemRow tsdbNextIterRow(SSkipListIterator* pIter) {
   if (pIter == NULL) return NULL;
 
   SSkipListNode* node = tSkipListIterGet(pIter);

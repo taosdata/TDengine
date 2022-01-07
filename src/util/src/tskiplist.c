@@ -276,6 +276,12 @@ SSkipListIterator *tSkipListCreateIter(SSkipList *pSkipList) {
   return doCreateSkipListIterator(pSkipList, TSDB_ORDER_ASC);
 }
 
+SSkipListIterator *tSkipListCreateRIter(SSkipList *pSkipList) {
+  if (pSkipList == NULL) return NULL;
+
+  return doCreateSkipListIterator(pSkipList, TSDB_ORDER_DESC);
+}
+
 SSkipListIterator *tSkipListCreateIterFromVal(SSkipList *pSkipList, const char *val, int32_t type, int32_t order) {
   ASSERT(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
   ASSERT(pSkipList != NULL);

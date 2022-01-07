@@ -112,7 +112,7 @@ STsdbMeta* tsdbGetMeta(STsdbRepo* pRepo);
 int        tsdbCheckCommit(STsdbRepo* pRepo);
 int        tsdbRestoreInfo(STsdbRepo* pRepo);
 UNUSED_FUNC int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg);
-int32_t    tsdbLoadLastCache(STsdbRepo *pRepo, SArray* pArray);
+int32_t    tsdbLoadLastCache(STsdbRepo *pRepo, SMemRef *pMemRef, SArray* pArray);
 void       tsdbGetRootDir(int repoid, char dirName[]);
 void       tsdbGetDataDir(int repoid, char dirName[]);
 

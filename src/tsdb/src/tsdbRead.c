@@ -660,11 +660,12 @@ static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
         return -1;
       }
     }
-    taosArrayPush(pTableArray, pCheckInfo->pTableObj);
+    taosArrayPush(pTableArray, (void**)&pCheckInfo->pTableObj);
   }
 
   if (pTableArray) {
-    code = tsdbLoadLastCache(pRepo, pTableArray);
+    ASSERT(pQueryHandle->pMemRef != NULL);
+    code = tsdbLoadLastCache(pRepo, pQueryHandle->pMemRef, pTableArray);
     if (code != 0) {
       tsdbError("%p failed to load last cache since %s", pQueryHandle, tstrerror(terrno));
     }

@@ -148,6 +148,7 @@ void               tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, ite
 SArray *           tSkipListGet(SSkipList *pSkipList, SSkipListKey pKey);
 void               tSkipListPrint(SSkipList *pSkipList, int16_t nlevel);
 SSkipListIterator *tSkipListCreateIter(SSkipList *pSkipList);
+SSkipListIterator *tSkipListCreateRIter(SSkipList *pSkipList);
 SSkipListIterator *tSkipListCreateIterFromVal(SSkipList *pSkipList, const char *val, int32_t type, int32_t order);
 bool               tSkipListIterNext(SSkipListIterator *iter);
 SSkipListNode *    tSkipListIterGet(SSkipListIterator *iter);
