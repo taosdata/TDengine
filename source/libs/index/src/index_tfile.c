@@ -71,7 +71,10 @@ TFileCache* tfileCacheCreate(const char* path) {
     }
 
     TFileReader* reader = tfileReaderCreate(wc);
-    if (reader == NULL) { goto End; }
+    if (reader == NULL) {
+      indexInfo("skip invalid file: %s", file);
+      continue;
+    }
     TFileHeader* header = &reader->header;
     ICacheKey    key = {.suid = header->suid, .colName = header->colName, .nColName = strlen(header->colName)};
 
