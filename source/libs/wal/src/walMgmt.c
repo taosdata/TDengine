@@ -232,7 +232,8 @@ static int32_t walCreateThread() {
 
   if (pthread_create(&tsWal.thread, &thAttr, walThreadFunc, NULL) != 0) {
     wError("failed to create wal thread since %s", strerror(errno));
-    return TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
   }
 
   pthread_attr_destroy(&thAttr);

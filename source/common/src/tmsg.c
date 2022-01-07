@@ -31,17 +31,15 @@ int tSerializeSClientHbReq(void **buf, const SClientHbReq *pReq) {
   int tlen = 0;
   tlen += taosEncodeSClientHbKey(buf, &pReq->connKey);
 
-  void *pIter = NULL;
-  void *data;
   SKlv  klv;
-  data = taosHashIterate(pReq->info, pIter);
-  while (data != NULL) {
-    taosHashGetKey(data, &klv.key, (size_t *)&klv.keyLen);
-    klv.valueLen = taosHashGetDataLen(data);
-    klv.value = data;
+  void* pIter = taosHashIterate(pReq->info, pIter);
+  while (pIter != NULL) {
+    taosHashGetKey(pIter, &klv.key, (size_t *)&klv.keyLen);
+    klv.valueLen = taosHashGetDataLen(pIter);
+    klv.value = pIter;
     taosEncodeSKlv(buf, &klv);
 
-    data = taosHashIterate(pReq->info, pIter);
+    pIter = taosHashIterate(pReq->info, pIter);
   }
   return tlen;
 }

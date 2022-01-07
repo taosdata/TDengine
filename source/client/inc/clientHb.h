@@ -18,9 +18,11 @@
 #include "thash.h"
 #include "tmsg.h"
 
+#define HEARTBEAT_INTERVAL 1500 //ms
+
 typedef enum {
-  mq = 0,
-  // type can be added here
+  HEARTBEAT_TYPE_MQ = 0,
+  // types can be added here
   //
   HEARTBEAT_TYPE_MAX
 } EHbType;
@@ -28,26 +30,16 @@ typedef enum {
 typedef int32_t (*FHbRspHandle)(SClientHbRsp* pReq);
 typedef int32_t (*FGetConnInfo)(SClientHbKey connKey, void* param);
 
-typedef struct SClientHbMgr {
-  int8_t       inited;
-  int32_t      reportInterval;  // unit ms
-  int32_t      stats;
-  SRWLatch     lock;
-  SHashObj*    activeInfo;    // hash<SClientHbKey, SClientHbReq>
-  SHashObj*    getInfoFuncs;  // hash<SClientHbKey, FGetConnInfo>
-  FHbRspHandle handle[HEARTBEAT_TYPE_MAX];
-  // input queue
-} SClientHbMgr;
-
-static SClientHbMgr clientHbMgr = {0};
-
+// called by mgmt
 int  hbMgrInit();
 void hbMgrCleanUp();
-int hbHandleRsp(void* hbMsg);
+int  hbHandleRsp(SClientHbBatchRsp* hbRsp);
 
-
+//called by user
 int hbRegisterConn(SClientHbKey connKey, FGetConnInfo func);
-
+void hbDeregisterConn(SClientHbKey connKey);
 
 int hbAddConnInfo(SClientHbKey connKey, void* key, void* value, int32_t keyLen, int32_t valueLen);
 
+// mq
+void hbMgrInitMqHbRspHandle();

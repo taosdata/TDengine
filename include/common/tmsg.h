@@ -140,6 +140,46 @@ typedef struct SKlv {
   void*   value;
 } SKlv;
 
+typedef struct SClientHbKey {
+  int32_t connId;
+  int32_t hbType;
+} SClientHbKey;
+
+typedef struct SClientHbReq {
+  SClientHbKey connKey;
+  SHashObj*    info;  // hash<Slv.key, Sklv>
+} SClientHbReq;
+
+typedef struct SClientHbBatchReq {
+  int64_t reqId;
+  SArray* reqs;  // SArray<SClientHbReq>
+} SClientHbBatchReq;
+
+typedef struct SClientHbRsp {
+  SClientHbKey connKey;
+  int32_t      status;
+  int32_t      bodyLen;
+  void*        body;
+} SClientHbRsp;
+
+typedef struct SClientHbBatchRsp {
+  int64_t reqId;
+  int64_t rspId;
+  SArray* rsps;  // SArray<SClientHbRsp>
+} SClientHbBatchRsp;
+
+static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) {
+  return taosIntHash_64(key, keyLen);
+}
+
+int   tSerializeSClientHbReq(void** buf, const SClientHbReq* pReq);
+void* tDeserializeClientHbReq(void* buf, SClientHbReq* pReq);
+static FORCE_INLINE void  tFreeClientHbReq(void *pReq) {
+  SClientHbReq* req = pReq;
+  taosHashCleanup(req->info);
+  free(pReq);
+}
+
 static FORCE_INLINE int taosEncodeSKlv(void** buf, const SKlv* pKlv) {
   int tlen = 0;
   tlen += taosEncodeFixedI32(buf, pKlv->keyLen);
@@ -156,10 +196,6 @@ static FORCE_INLINE void* taosDecodeSKlv(void* buf, SKlv* pKlv) {
   buf = taosDecodeBinary(buf, &pKlv->value, pKlv->valueLen);
   return buf;
 }
-typedef struct SClientHbKey {
-  int32_t connId;
-  int32_t hbType;
-} SClientHbKey;
 
 static FORCE_INLINE int taosEncodeSClientHbKey(void** buf, const SClientHbKey* pKey) {
   int tlen = 0;
@@ -173,32 +209,6 @@ static FORCE_INLINE void* taosDecodeSClientHbKey(void* buf, SClientHbKey* pKey) 
   buf = taosDecodeFixedI32(buf, &pKey->hbType);
   return buf;
 }
-
-typedef struct SClientHbReq {
-  SClientHbKey connKey;
-  SHashObj*    info;  // hash<Slv.key, Sklv>
-} SClientHbReq;
-
-typedef struct SClientHbBatchReq {
-  int64_t reqId;
-  SArray* reqs;  // SArray<SClientHbReq>
-} SClientHbBatchReq;
-
-int   tSerializeSClientHbReq(void** buf, const SClientHbReq* pReq);
-void* tDeserializeClientHbReq(void* buf, SClientHbReq* pReq);
-
-typedef struct SClientHbRsp {
-  SClientHbKey connKey;
-  int32_t      status;
-  int32_t      bodyLen;
-  void*        body;
-} SClientHbRsp;
-
-typedef struct SClientHbBatchRsp {
-  int64_t reqId;
-  int64_t rspId;
-  SArray* rsps;  // SArray<SClientHbRsp>
-} SClientHbBatchRsp;
 
 typedef struct SBuildTableMetaInput {
   int32_t vgId;
