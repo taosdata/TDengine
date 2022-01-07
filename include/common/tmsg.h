@@ -916,13 +916,13 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateMnodeMsg, SMDropMnodeMsg, SDDropMnodeMsg;
+} SMCreateMnodeReq, SMDropMnodeReq, SDDropMnodeReq;
 
 typedef struct {
   int32_t  dnodeId;
   int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
-} SDCreateMnodeMsg, SDAlterMnodeMsg;
+} SDCreateMnodeReq, SDAlterMnodeReq;
 
 typedef struct {
   int32_t dnodeId;

@@ -268,7 +268,7 @@ int32_t dndProcessCreateSnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
   pMsg->dnodeId = htonl(pMsg->dnodeId);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
-    terrno = TSDB_CODE_DND_SNODE_ID_INVALID;
+    terrno = TSDB_CODE_DND_SNODE_INVALID_OPTION;
     dError("failed to create snode since %s", terrstr());
     return -1;
   } else {
@@ -281,7 +281,7 @@ int32_t dndProcessDropSnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
   pMsg->dnodeId = htonl(pMsg->dnodeId);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
-    terrno = TSDB_CODE_DND_SNODE_ID_INVALID;
+    terrno = TSDB_CODE_DND_SNODE_INVALID_OPTION;
     dError("failed to drop snode since %s", terrstr());
     return -1;
   } else {
