@@ -13,15 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TVK_ROCKSDB_H_
-#define _TD_TVK_ROCKSDB_H_
+#ifndef _TD_TDISK_MGR_H_
+#define _TD_TDISK_MGR_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#include "os.h"
+
+typedef struct SDiskMgr SDiskMgr;
+
+int     tdmReadPage(int32_t pgid, char *pData);
+int     tdmWritePage(int32_t pgid, const char *pData);
+int32_t tdmAllocPage(SDiskMgr *pDiskMgr);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TVK_ROCKSDB_H_*/
+#endif /*_TD_TDISK_MGR_H_*/
