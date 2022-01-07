@@ -88,7 +88,6 @@ int32_t schBuildTaskRalation(SSchJob *job, SHashObj *planToTask) {
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -248,19 +247,20 @@ int32_t schSetTaskCandidateAddrs(SSchJob *job, SSchTask *task) {
   }
 
   int32_t addNum = 0;
-  int32_t nodeNum = taosArrayGetSize(job->nodeList);
-  
-  for (int32_t i = 0; i < nodeNum && addNum < SCH_MAX_CONDIDATE_EP_NUM; ++i) {
-    SQueryNodeAddr *naddr = taosArrayGet(job->nodeList, i);
-    
-    if (NULL == taosArrayPush(task->candidateAddrs, &task->plan->execNode)) {
-      qError("taosArrayPush failed");
-      SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-    }
-    
-    ++addNum;
-  }
 
+  if (job->nodeList) {
+    int32_t nodeNum = (int32_t) taosArrayGetSize(job->nodeList);
+    for (int32_t i = 0; i < nodeNum && addNum < SCH_MAX_CONDIDATE_EP_NUM; ++i) {
+      SQueryNodeAddr *naddr = taosArrayGet(job->nodeList, i);
+
+      if (NULL == taosArrayPush(task->candidateAddrs, &task->plan->execNode)) {
+        qError("taosArrayPush failed");
+        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
+
+      ++addNum;
+    }
+  }
 /*
   for (int32_t i = 0; i < job->dataSrcEps.numOfEps && addNum < SCH_MAX_CONDIDATE_EP_NUM; ++i) {
     strncpy(epSet->fqdn[epSet->numOfEps], job->dataSrcEps.fqdn[i], sizeof(job->dataSrcEps.fqdn[i]));
@@ -279,8 +279,7 @@ int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask) {
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  qDebug("add one task, taskId:0x%"PRIx64", numOfTasks:%d, reqId:0x%"PRIx64, pTask->taskId, taosHashGetSize(pJob->execTasks),
-         pJob->queryId);
+  qDebug("add one task, taskId:0x%"PRIx64", numOfTasks:%d, reqId:0x%"PRIx64, pTask->taskId, taosHashGetSize(pJob->execTasks), pJob->queryId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -997,7 +996,7 @@ int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void
 }
 
 int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob) {
-  if (NULL == transport || NULL == nodeList ||NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
+  if (NULL == transport || /*NULL == nodeList || */NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 

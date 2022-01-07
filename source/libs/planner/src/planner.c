@@ -64,6 +64,13 @@ int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag,
     return code;
   }
 
+  //
+  if (logicPlan->info.type != QNODE_MODIFY) {
+//    char* str = NULL;
+//    queryPlanToString(logicPlan, &str);
+//    printf("%s\n", str);
+  }
+
   code = optimizeQueryPlan(logicPlan);
   if (TSDB_CODE_SUCCESS != code) {
     destroyQueryPlan(logicPlan);

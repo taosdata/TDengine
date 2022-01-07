@@ -629,7 +629,6 @@ int32_t parseInsertSql(SParseContext* pContext, SVnodeModifOpStmtInfo** pInfo) {
 
   *pInfo = context.pOutput;
   context.pOutput->nodeType = TSDB_SQL_INSERT;
-  context.pOutput->schemaAttache = pContext->schemaAttached;
   context.pOutput->payloadType = PAYLOAD_TYPE_KV;
 
   int32_t code = skipInsertInto(&context);

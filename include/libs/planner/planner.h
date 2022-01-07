@@ -142,9 +142,13 @@ typedef struct SQueryDag {
 
 struct SQueryNode;
 
-/**
- * Create the physical plan for the query, according to the AST.
- */
+ /**
+  * Create the physical plan for the query, according to the AST.
+  * @param pQueryInfo
+  * @param pDag
+  * @param requestId
+  * @return
+  */
 int32_t qCreateQueryDag(const struct SQueryNode* pQueryInfo, struct SQueryDag** pDag, uint64_t requestId);
 
 // Set datasource of this subplan, multiple calls may be made to a subplan.

@@ -22,7 +22,8 @@ int metaOpenUidGnrt(SMeta *pMeta) {
   return 0;
 }
 
-void metaCloseUidGnrt(SMeta *pMeta) { /* TODO */ }
+void metaCloseUidGnrt(SMeta *pMeta) { /* TODO */
+}
 
 tb_uid_t metaGenerateUid(SMeta *pMeta) {
   // Generate a new table UID
