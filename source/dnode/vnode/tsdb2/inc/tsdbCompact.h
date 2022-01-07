@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-void *tsdbCompactImpl(STsdbRepo *pRepo);
+void *tsdbCompactImpl(STsdb *pRepo);
 
 #ifdef __cplusplus
 }

@@ -58,7 +58,7 @@ void tsdbFreeBufPool(STsdbBufPool *pBufPool) {
   }
 }
 
-int tsdbOpenBufPool(STsdbRepo *pRepo) {
+int tsdbOpenBufPool(STsdb *pRepo) {
   STsdbCfg *    pCfg = &(pRepo->config);
   STsdbBufPool *pPool = pRepo->pPool;
 
@@ -93,7 +93,7 @@ _err:
   return -1;
 }
 
-void tsdbCloseBufPool(STsdbRepo *pRepo) {
+void tsdbCloseBufPool(STsdb *pRepo) {
   if (pRepo == NULL) return;
 
   STsdbBufPool * pBufPool = pRepo->pPool;
@@ -111,7 +111,7 @@ void tsdbCloseBufPool(STsdbRepo *pRepo) {
   tsdbDebug("vgId:%d, buffer pool is closed", REPO_ID(pRepo));
 }
 
-SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
+SListNode *tsdbAllocBufBlockFromPool(STsdb *pRepo) {
   ASSERT(pRepo != NULL && pRepo->pPool != NULL);
   ASSERT(IS_REPO_LOCKED(pRepo));
 
@@ -165,7 +165,7 @@ STsdbBufBlock *tsdbNewBufBlock(int bufBlockSize) {
 
 void tsdbFreeBufBlock(STsdbBufBlock *pBufBlock) { tfree(pBufBlock); }
 
-int tsdbExpandPool(STsdbRepo *pRepo, int32_t oldTotalBlocks) {
+int tsdbExpandPool(STsdb *pRepo, int32_t oldTotalBlocks) {
   if (oldTotalBlocks == pRepo->config.totalBlocks) {
     return TSDB_CODE_SUCCESS;
   }

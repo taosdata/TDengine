@@ -38,10 +38,10 @@ typedef struct {
 
 STsdbBufPool* tsdbNewBufPool();
 void          tsdbFreeBufPool(STsdbBufPool* pBufPool);
-int           tsdbOpenBufPool(STsdbRepo* pRepo);
-void          tsdbCloseBufPool(STsdbRepo* pRepo);
-SListNode*    tsdbAllocBufBlockFromPool(STsdbRepo* pRepo);
-int           tsdbExpandPool(STsdbRepo* pRepo, int32_t oldTotalBlocks);
+int           tsdbOpenBufPool(STsdb* pRepo);
+void          tsdbCloseBufPool(STsdb* pRepo);
+SListNode*    tsdbAllocBufBlockFromPool(STsdb* pRepo);
+int           tsdbExpandPool(STsdb* pRepo, int32_t oldTotalBlocks);
 void          tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode, bool bELastic);
 
 // health cite

@@ -25,12 +25,12 @@
 #define IS_VALID_COMPRESSION(compression) (((compression) >= NO_COMPRESSION) && ((compression) <= TWO_STAGE_COMP))
 
 static int32_t    tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
-static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH);
-static void       tsdbFreeRepo(STsdbRepo *pRepo);
-static void       tsdbStartStream(STsdbRepo *pRepo);
-static void       tsdbStopStream(STsdbRepo *pRepo);
-static int        tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh);
-static int        tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx);
+static STsdb *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH);
+static void       tsdbFreeRepo(STsdb *pRepo);
+static void       tsdbStartStream(STsdb *pRepo);
+static void       tsdbStopStream(STsdb *pRepo);
+static int        tsdbRestoreLastColumns(STsdb *pRepo, STable *pTable, SReadH* pReadh);
+static int        tsdbRestoreLastRow(STsdb *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx);
 
 // Function declaration
 int32_t tsdbCreateRepo(int repoid) {
@@ -63,8 +63,8 @@ int32_t tsdbDropRepo(int repoid) {
   return tfsRmdir(tsdbDir);
 }
 
-STsdbRepo *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
-  STsdbRepo *pRepo;
+STsdb *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
+  STsdb *pRepo;
   STsdbCfg   config = *pCfg;
 
   terrno = TSDB_CODE_SUCCESS;
@@ -119,10 +119,10 @@ STsdbRepo *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
 }
 
 // Note: all working thread and query thread must stopped when calling this function
-int tsdbCloseRepo(STsdbRepo *repo, int toCommit) {
+int tsdbCloseRepo(STsdb *repo, int toCommit) {
   if (repo == NULL) return 0;
 
-  STsdbRepo *pRepo = repo;
+  STsdb *pRepo = repo;
   int        vgId = REPO_ID(pRepo);
 
   terrno = TSDB_CODE_SUCCESS;
@@ -157,12 +157,12 @@ int tsdbCloseRepo(STsdbRepo *repo, int toCommit) {
   }
 }
 
-STsdbCfg *tsdbGetCfg(const STsdbRepo *repo) {
+STsdbCfg *tsdbGetCfg(const STsdb *repo) {
   ASSERT(repo != NULL);
-  return &((STsdbRepo *)repo)->config;
+  return &((STsdb *)repo)->config;
 }
 
-int tsdbLockRepo(STsdbRepo *pRepo) {
+int tsdbLockRepo(STsdb *pRepo) {
   int code = pthread_mutex_lock(&pRepo->mutex);
   if (code != 0) {
     tsdbError("vgId:%d failed to lock tsdb since %s", REPO_ID(pRepo), strerror(errno));
@@ -173,7 +173,7 @@ int tsdbLockRepo(STsdbRepo *pRepo) {
   return 0;
 }
 
-int tsdbUnlockRepo(STsdbRepo *pRepo) {
+int tsdbUnlockRepo(STsdb *pRepo) {
   ASSERT(IS_REPO_LOCKED(pRepo));
   pRepo->repoLocked = false;
   int code = pthread_mutex_unlock(&pRepo->mutex);
@@ -193,7 +193,7 @@ int tsdbUnlockRepo(STsdbRepo *pRepo) {
 //   return 0;
 // }
 
-int tsdbCheckCommit(STsdbRepo *pRepo) {
+int tsdbCheckCommit(STsdb *pRepo) {
   ASSERT(pRepo->mem != NULL);
   STsdbCfg *pCfg = &(pRepo->config);
 
@@ -207,23 +207,23 @@ int tsdbCheckCommit(STsdbRepo *pRepo) {
   return 0;
 }
 
-STsdbMeta *tsdbGetMeta(STsdbRepo *pRepo) { return pRepo->tsdbMeta; }
+STsdbMeta *tsdbGetMeta(STsdb *pRepo) { return pRepo->tsdbMeta; }
 
-STsdbRepoInfo *tsdbGetStatus(STsdbRepo *pRepo) { return NULL; }
+STsdbRepoInfo *tsdbGetStatus(STsdb *pRepo) { return NULL; }
 
-int tsdbGetState(STsdbRepo *repo) { return repo->state; }
+int tsdbGetState(STsdb *repo) { return repo->state; }
 
-int8_t tsdbGetCompactState(STsdbRepo *repo) { return (int8_t)(repo->compactState); }
+int8_t tsdbGetCompactState(STsdb *repo) { return (int8_t)(repo->compactState); }
 
 void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int64_t *compStorage) {
   ASSERT(repo != NULL);
-  STsdbRepo *pRepo = repo;
+  STsdb *pRepo = repo;
   *totalPoints = pRepo->stat.pointsWritten;
   *totalStorage = pRepo->stat.totalStorage;
   *compStorage = pRepo->stat.compStorage;
 }
 
-int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
+int32_t tsdbConfigRepo(STsdb *repo, STsdbCfg *pCfg) {
   // TODO: think about multithread cases
   if (tsdbCheckAndSetDefaultCfg(pCfg) < 0) return -1;
   
@@ -343,7 +343,7 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
 #endif
 }
 
-uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t eindex, int64_t *size) {
+uint32_t tsdbGetFileInfo(STsdb *repo, char *name, uint32_t *index, uint32_t eindex, int64_t *size) {
   // TODO
   return 0;
 #if 0
@@ -564,8 +564,8 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   return 0;
 }
 
-static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
-  STsdbRepo *pRepo = (STsdbRepo *)calloc(1, sizeof(*pRepo));
+static STsdb *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
+  STsdb *pRepo = (STsdb *)calloc(1, sizeof(*pRepo));
   if (pRepo == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
@@ -629,7 +629,7 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
   return pRepo;
 }
 
-static void tsdbFreeRepo(STsdbRepo *pRepo) {
+static void tsdbFreeRepo(STsdb *pRepo) {
   if (pRepo) {
     tsdbFreeFS(pRepo->fs);
     tsdbFreeBufPool(pRepo->pPool);
@@ -643,7 +643,7 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
   }
 }
 
-static void tsdbStartStream(STsdbRepo *pRepo) {
+static void tsdbStartStream(STsdb *pRepo) {
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 
   for (int i = 0; i < pMeta->maxTables; i++) {
@@ -655,7 +655,7 @@ static void tsdbStartStream(STsdbRepo *pRepo) {
   }
 }
 
-static void tsdbStopStream(STsdbRepo *pRepo) {
+static void tsdbStopStream(STsdb *pRepo) {
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 
   for (int i = 0; i < pMeta->maxTables; i++) {
@@ -666,7 +666,7 @@ static void tsdbStopStream(STsdbRepo *pRepo) {
   }
 }
 
-static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) {
+static int tsdbRestoreLastColumns(STsdb *pRepo, STable *pTable, SReadH* pReadh) {
   //tsdbInfo("tsdbRestoreLastColumns of table %s", pTable->name->data);
 
   STSchema *pSchema = tsdbGetTableLatestSchema(pTable);
@@ -811,7 +811,7 @@ out:
   return err;
 }
 
-static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx) {
+static int tsdbRestoreLastRow(STsdb *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx) {
   ASSERT(pTable->lastRow == NULL);
   if (tsdbLoadBlockInfo(pReadh, NULL, NULL) < 0) {
     return -1;
@@ -856,7 +856,7 @@ static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, 
   return 0;
 }
 
-int tsdbRestoreInfo(STsdbRepo *pRepo) {
+int tsdbRestoreInfo(STsdb *pRepo) {
   SFSIter    fsiter;
   SReadH     readh;
   SDFileSet *pSet;
@@ -930,7 +930,7 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
   return 0;
 }
 
-int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable) {
+int32_t tsdbLoadLastCache(STsdb *pRepo, STable *pTable) {
   SFSIter    fsiter;
   SReadH     readh;
   SDFileSet *pSet;
@@ -1021,7 +1021,7 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, STable *pTable) {
   return 0;
 }
 
-UNUSED_FUNC int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg) {
+UNUSED_FUNC int tsdbCacheLastData(STsdb *pRepo, STsdbCfg* oldCfg) {
   bool cacheLastRow = false, cacheLastCol = false;
   SFSIter    fsiter;
   SReadH     readh;

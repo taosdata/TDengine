@@ -59,18 +59,18 @@ typedef struct {
 #define TSDB_COMMIT_DEFAULT_ROWS(ch) TSDB_DEFAULT_BLOCK_ROWS(TSDB_COMMIT_REPO(ch)->config.maxRowsPerFileBlock)
 #define TSDB_COMMIT_TXN_VERSION(ch) FS_TXN_VERSION(REPO_FS(TSDB_COMMIT_REPO(ch)))
 
-static int  tsdbCommitMeta(STsdbRepo *pRepo);
+static int  tsdbCommitMeta(STsdb *pRepo);
 static int  tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen, bool compact);
 static int  tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid);
-static int  tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile);
-static int  tsdbCommitTSData(STsdbRepo *pRepo);
-static void tsdbStartCommit(STsdbRepo *pRepo);
-static void tsdbEndCommit(STsdbRepo *pRepo, int eno);
+static int  tsdbCompactMetaFile(STsdb *pRepo, STsdbFS *pfs, SMFile *pMFile);
+static int  tsdbCommitTSData(STsdb *pRepo);
+static void tsdbStartCommit(STsdb *pRepo);
+static void tsdbEndCommit(STsdb *pRepo, int eno);
 static int  tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
 static int  tsdbCreateCommitIters(SCommitH *pCommith);
 static void tsdbDestroyCommitIters(SCommitH *pCommith);
 static void tsdbSeekCommitIter(SCommitH *pCommith, TSKEY key);
-static int  tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo);
+static int  tsdbInitCommitH(SCommitH *pCommith, STsdb *pRepo);
 static void tsdbDestroyCommitH(SCommitH *pCommith);
 static int  tsdbGetFidLevel(int fid, SRtn *pRtn);
 static int  tsdbNextCommitFid(SCommitH *pCommith);
@@ -92,7 +92,7 @@ static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *p
 static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter, SDataCols *pTarget,
                                       TSKEY maxKey, int maxRows, int8_t update);
 
-void *tsdbCommitData(STsdbRepo *pRepo) {
+void *tsdbCommitData(STsdb *pRepo) {
   if (pRepo->imem == NULL) {
     return NULL;
   }
@@ -121,7 +121,7 @@ _err:
   return NULL;
 }
 
-int tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn) {
+int tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn) {
   SDiskID   did;
   SDFileSet nSet;
   STsdbFS * pfs = REPO_FS(pRepo);
@@ -266,7 +266,7 @@ int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
 }
 
 // =================== Commit Meta Data
-static int tsdbInitCommitMetaFile(STsdbRepo *pRepo, SMFile *pMf, bool open) {
+static int tsdbInitCommitMetaFile(STsdb *pRepo, SMFile *pMf, bool open) {
   STsdbFS *pfs = REPO_FS(pRepo);
   SMFile * pOMFile = pfs->cstatus->pmf;
   SDiskID  did;
@@ -295,7 +295,7 @@ static int tsdbInitCommitMetaFile(STsdbRepo *pRepo, SMFile *pMf, bool open) {
   return 0;
 }
 
-static int tsdbCommitMeta(STsdbRepo *pRepo) {
+static int tsdbCommitMeta(STsdb *pRepo) {
   STsdbFS *  pfs = REPO_FS(pRepo);
   SMemTable *pMem = pRepo->imem;
   SMFile *   pOMFile = pfs->cstatus->pmf;
@@ -387,7 +387,7 @@ void *tsdbDecodeKVRecord(void *buf, SKVRecord *pRecord) {
   return buf;
 }
 
-void tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn) {
+void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
   STsdbCfg *pCfg = REPO_CFG(pRepo);
   TSKEY     minKey, midKey, maxKey, now;
 
@@ -476,7 +476,7 @@ static int tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid) {
   return 0;
 }
 
-static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
+static int tsdbCompactMetaFile(STsdb *pRepo, STsdbFS *pfs, SMFile *pMFile) {
   float delPercent = (float)(pMFile->info.nDels) / (float)(pMFile->info.nRecords);
   float tombPercent = (float)(pMFile->info.tombSize) / (float)(pMFile->info.size);
   float compactRatio = (float)(tsTsdbMetaCompactRatio) / 100;
@@ -602,7 +602,7 @@ _err:
 }
 
 // =================== Commit Time-Series Data
-static int tsdbCommitTSData(STsdbRepo *pRepo) {
+static int tsdbCommitTSData(STsdb *pRepo) {
   SMemTable *pMem = pRepo->imem;
   SCommitH   commith;
   SDFileSet *pSet = NULL;
@@ -678,7 +678,7 @@ static int tsdbCommitTSData(STsdbRepo *pRepo) {
   return 0;
 }
 
-static void tsdbStartCommit(STsdbRepo *pRepo) {
+static void tsdbStartCommit(STsdb *pRepo) {
   SMemTable *pMem = pRepo->imem;
 
   ASSERT(pMem->numOfRows > 0 || listNEles(pMem->actList) > 0);
@@ -691,7 +691,7 @@ static void tsdbStartCommit(STsdbRepo *pRepo) {
   pRepo->code = TSDB_CODE_SUCCESS;
 }
 
-static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
+static void tsdbEndCommit(STsdb *pRepo, int eno) {
   if (eno != TSDB_CODE_SUCCESS) {
     tsdbEndFSTxnWithError(REPO_FS(pRepo));
   } else {
@@ -721,7 +721,7 @@ static bool tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TS
 #endif
 
 static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
-  STsdbRepo *pRepo = TSDB_COMMIT_REPO(pCommith);
+  STsdb *pRepo = TSDB_COMMIT_REPO(pCommith);
   STsdbCfg * pCfg = REPO_CFG(pRepo);
 
   ASSERT(pSet == NULL || pSet->fid == fid);
@@ -776,7 +776,7 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
 }
 
 static int tsdbCreateCommitIters(SCommitH *pCommith) {
-  STsdbRepo *pRepo = TSDB_COMMIT_REPO(pCommith);
+  STsdb *pRepo = TSDB_COMMIT_REPO(pCommith);
   SMemTable *pMem = pRepo->imem;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 
@@ -839,7 +839,7 @@ static void tsdbSeekCommitIter(SCommitH *pCommith, TSKEY key) {
   }
 }
 
-static int tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo) {
+static int tsdbInitCommitH(SCommitH *pCommith, STsdb *pRepo) {
   STsdbCfg *pCfg = REPO_CFG(pRepo);
 
   memset(pCommith, 0, sizeof(*pCommith));
@@ -902,7 +902,7 @@ static void tsdbDestroyCommitH(SCommitH *pCommith) {
 }
 
 static int tsdbNextCommitFid(SCommitH *pCommith) {
-  STsdbRepo *pRepo = TSDB_COMMIT_REPO(pCommith);
+  STsdb *pRepo = TSDB_COMMIT_REPO(pCommith);
   STsdbCfg * pCfg = REPO_CFG(pRepo);
   int        fid = TSDB_IVLD_FID;
 
@@ -1057,7 +1057,7 @@ static int tsdbComparKeyBlock(const void *arg1, const void *arg2) {
   }
 }
 
-int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDFileAggr, SDataCols *pDataCols,
+int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDFileAggr, SDataCols *pDataCols,
                        SBlock *pBlock, bool isLast, bool isSuper, void **ppBuf, void **ppCBuf, void **ppExBuf) {
   STsdbCfg *    pCfg = REPO_CFG(pRepo);
   SBlockData *  pBlockData;
@@ -1252,7 +1252,7 @@ static int tsdbWriteBlockInfo(SCommitH *pCommih) {
 }
 
 static int tsdbCommitMemData(SCommitH *pCommith, SCommitIter *pIter, TSKEY keyLimit, bool toData) {
-  STsdbRepo *pRepo = TSDB_COMMIT_REPO(pCommith);
+  STsdb *pRepo = TSDB_COMMIT_REPO(pCommith);
   STsdbCfg * pCfg = REPO_CFG(pRepo);
   SMergeInfo mInfo;
   int32_t    defaultRows = TSDB_COMMIT_DEFAULT_ROWS(pCommith);
@@ -1285,7 +1285,7 @@ static int tsdbCommitMemData(SCommitH *pCommith, SCommitIter *pIter, TSKEY keyLi
 }
 
 static int tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx) {
-  STsdbRepo *pRepo = TSDB_COMMIT_REPO(pCommith);
+  STsdb *pRepo = TSDB_COMMIT_REPO(pCommith);
   STsdbCfg * pCfg = REPO_CFG(pRepo);
   int        nBlocks = pCommith->readh.pBlkIdx->numOfBlocks;
   SBlock *   pBlock = pCommith->readh.pBlkInfo->blocks + bidx;
@@ -1410,7 +1410,7 @@ static int tsdbCommitAddBlock(SCommitH *pCommith, const SBlock *pSupBlock, const
 
 static int tsdbMergeBlockData(SCommitH *pCommith, SCommitIter *pIter, SDataCols *pDataCols, TSKEY keyLimit,
                               bool isLastOneBlock) {
-  STsdbRepo *pRepo = TSDB_COMMIT_REPO(pCommith);
+  STsdb *pRepo = TSDB_COMMIT_REPO(pCommith);
   STsdbCfg * pCfg = REPO_CFG(pRepo);
   SBlock     block;
   SDFile *   pDFile;
@@ -1527,7 +1527,7 @@ static void tsdbResetCommitTable(SCommitH *pCommith) {
 
 static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
   SDiskID    did;
-  STsdbRepo *pRepo = TSDB_COMMIT_REPO(pCommith);
+  STsdb *pRepo = TSDB_COMMIT_REPO(pCommith);
   SDFileSet *pWSet = TSDB_COMMIT_WRITE_FSET(pCommith);
 
   tfsAllocDisk(tsdbGetFidLevel(fid, &(pCommith->rtn)), &(did.level), &(did.id));
@@ -1732,7 +1732,7 @@ static void tsdbCloseCommitFile(SCommitH *pCommith, bool hasError) {
 }
 
 static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *pInfo) {
-  STsdbRepo *pRepo = TSDB_COMMIT_REPO(pCommith);
+  STsdb *pRepo = TSDB_COMMIT_REPO(pCommith);
   STsdbCfg * pCfg = REPO_CFG(pRepo);
   int        mergeRows = pBlock->numOfRows + pInfo->rowsInserted - pInfo->rowsDeleteSucceed;
 
@@ -1749,7 +1749,7 @@ static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *p
   return false;
 }
 
-int tsdbApplyRtn(STsdbRepo *pRepo) {
+int tsdbApplyRtn(STsdb *pRepo) {
   SRtn       rtn;
   SFSIter    fsiter;
   STsdbFS *  pfs = REPO_FS(pRepo);

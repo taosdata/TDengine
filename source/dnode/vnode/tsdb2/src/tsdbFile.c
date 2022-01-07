@@ -187,7 +187,7 @@ int tsdbLoadMFileHeader(SMFile *pMFile, SMFInfo *pInfo) {
   return 0;
 }
 
-int tsdbScanAndTryFixMFile(STsdbRepo *pRepo) {
+int tsdbScanAndTryFixMFile(STsdb *pRepo) {
   SMFile *    pMFile = pRepo->fs->cstatus->pmf;
   struct stat mfstat;
   SMFile      mf;
@@ -435,7 +435,7 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
   return 0;
 }
 
-static int tsdbScanAndTryFixDFile(STsdbRepo *pRepo, SDFile *pDFile) {
+static int tsdbScanAndTryFixDFile(STsdb *pRepo, SDFile *pDFile) {
   struct stat dfstat;
   SDFile      df;
 
@@ -545,7 +545,7 @@ static int tsdbRollBackDFile(SDFile *pDFile) {
     return -1;
   }
 
-  if (taosFtruncate(TSDB_FILE_FD(&df), pDFile->info.size) < 0) {
+  if (taosFtruncateFile(TSDB_FILE_FD(&df), pDFile->info.size) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     tsdbCloseDFile(&df);
     return -1;
@@ -672,7 +672,7 @@ int tsdbUpdateDFileSetHeader(SDFileSet *pSet) {
   return 0;
 }
 
-int tsdbScanAndTryFixDFileSet(STsdbRepo *pRepo, SDFileSet *pSet) {
+int tsdbScanAndTryFixDFileSet(STsdb *pRepo, SDFileSet *pSet) {
   ASSERT_TSDB_FSET_NFILES_VALID(pSet);
   for (TSDB_FILE_T ftype = 0; ftype < tsdbGetNFiles(pSet); ftype++) {
     if (tsdbScanAndTryFixDFile(pRepo, TSDB_DFILE_IN_SET(pSet, ftype)) < 0) {

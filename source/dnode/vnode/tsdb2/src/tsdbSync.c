@@ -20,7 +20,7 @@
 
 // Sync handle
 typedef struct {
-  STsdbRepo *pRepo;
+  STsdb *pRepo;
   SRtn       rtn;
   SOCKET     socketFd;
   void *     pBuf;
@@ -33,7 +33,7 @@ typedef struct {
 
 #define SYNC_BUFFER(sh) ((sh)->pBuf)
 
-static void    tsdbInitSyncH(SSyncH *pSyncH, STsdbRepo *pRepo, SOCKET socketFd);
+static void    tsdbInitSyncH(SSyncH *pSyncH, STsdb *pRepo, SOCKET socketFd);
 static void    tsdbDestroySyncH(SSyncH *pSyncH);
 static int32_t tsdbSyncSendMeta(SSyncH *pSynch);
 static int32_t tsdbSyncRecvMeta(SSyncH *pSynch);
@@ -47,10 +47,10 @@ static bool    tsdbIsTowFSetSame(SDFileSet *pSet1, SDFileSet *pSet2);
 static int32_t tsdbSyncSendDFileSet(SSyncH *pSynch, SDFileSet *pSet);
 static int32_t tsdbSendDFileSetInfo(SSyncH *pSynch, SDFileSet *pSet);
 static int32_t tsdbRecvDFileSetInfo(SSyncH *pSynch);
-static int     tsdbReload(STsdbRepo *pRepo, bool isMfChanged);
+static int     tsdbReload(STsdb *pRepo, bool isMfChanged);
 
 int32_t tsdbSyncSend(void *tsdb, SOCKET socketFd) {
-  STsdbRepo *pRepo = (STsdbRepo *)tsdb;
+  STsdb *pRepo = (STsdb *)tsdb;
   SSyncH     synch = {0};
 
   tsdbInitSyncH(&synch, pRepo, socketFd);
@@ -79,7 +79,7 @@ _err:
 }
 
 int32_t tsdbSyncRecv(void *tsdb, SOCKET socketFd) {
-  STsdbRepo *pRepo = (STsdbRepo *)tsdb;
+  STsdb *pRepo = (STsdb *)tsdb;
   SSyncH synch = {0};
 
   pRepo->state = TSDB_STATE_OK;
@@ -114,7 +114,7 @@ _err:
   return -1;
 }
 
-static void tsdbInitSyncH(SSyncH *pSyncH, STsdbRepo *pRepo, SOCKET socketFd) {
+static void tsdbInitSyncH(SSyncH *pSyncH, STsdb *pRepo, SOCKET socketFd) {
   pSyncH->pRepo = pRepo;
   pSyncH->socketFd = socketFd;
   tsdbGetRtnSnap(pRepo, &(pSyncH->rtn));
@@ -123,7 +123,7 @@ static void tsdbInitSyncH(SSyncH *pSyncH, STsdbRepo *pRepo, SOCKET socketFd) {
 static void tsdbDestroySyncH(SSyncH *pSyncH) { taosTZfree(pSyncH->pBuf); }
 
 static int32_t tsdbSyncSendMeta(SSyncH *pSynch) {
-  STsdbRepo *pRepo = pSynch->pRepo;
+  STsdb *pRepo = pSynch->pRepo;
   bool       toSendMeta = false;
   SMFile     mf;
 
@@ -174,7 +174,7 @@ static int32_t tsdbSyncSendMeta(SSyncH *pSynch) {
 }
 
 static int32_t tsdbSyncRecvMeta(SSyncH *pSynch) {
-  STsdbRepo *pRepo = pSynch->pRepo;
+  STsdb *pRepo = pSynch->pRepo;
   SMFile *   pLMFile = pRepo->fs->cstatus->pmf;
 
   // Recv meta info from remote
@@ -247,7 +247,7 @@ static int32_t tsdbSyncRecvMeta(SSyncH *pSynch) {
 }
 
 static int32_t tsdbSendMetaInfo(SSyncH *pSynch) {
-  STsdbRepo *pRepo = pSynch->pRepo;
+  STsdb *pRepo = pSynch->pRepo;
   uint32_t   tlen = 0;
   SMFile *   pMFile = pRepo->fs->cstatus->pmf;
 
@@ -282,7 +282,7 @@ static int32_t tsdbSendMetaInfo(SSyncH *pSynch) {
 }
 
 static int32_t tsdbRecvMetaInfo(SSyncH *pSynch) {
-  STsdbRepo *pRepo = pSynch->pRepo;
+  STsdb *pRepo = pSynch->pRepo;
   uint32_t   tlen = 0;
   char       buf[64] = {0};
 
@@ -328,7 +328,7 @@ static int32_t tsdbRecvMetaInfo(SSyncH *pSynch) {
 }
 
 static int32_t tsdbSendDecision(SSyncH *pSynch, bool toSend) {
-  STsdbRepo *pRepo = pSynch->pRepo;
+  STsdb *pRepo = pSynch->pRepo;
   uint8_t    decision = toSend;
 
   int32_t writeLen = sizeof(uint8_t);
@@ -343,7 +343,7 @@ static int32_t tsdbSendDecision(SSyncH *pSynch, bool toSend) {
 }
 
 static int32_t tsdbRecvDecision(SSyncH *pSynch, bool *toSend) {
-  STsdbRepo *pRepo = pSynch->pRepo;
+  STsdb *pRepo = pSynch->pRepo;
   uint8_t    decision = 0;
 
   int32_t readLen = sizeof(uint8_t);
@@ -359,7 +359,7 @@ static int32_t tsdbRecvDecision(SSyncH *pSynch, bool *toSend) {
 }
 
 static int32_t tsdbSyncSendDFileSetArray(SSyncH *pSynch) {
-  STsdbRepo *pRepo = pSynch->pRepo;
+  STsdb *pRepo = pSynch->pRepo;
   STsdbFS *  pfs = REPO_FS(pRepo);
   SFSIter    fsiter;
   SDFileSet *pSet;
@@ -385,7 +385,7 @@ static int32_t tsdbSyncSendDFileSetArray(SSyncH *pSynch) {
 }
 
 static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
-  STsdbRepo *pRepo = pSynch->pRepo;
+  STsdb *pRepo = pSynch->pRepo;
   STsdbFS *  pfs = REPO_FS(pRepo);
   SFSIter    fsiter;
   SDFileSet *pLSet;  // Local file set
@@ -566,7 +566,7 @@ static bool tsdbIsTowFSetSame(SDFileSet *pSet1, SDFileSet *pSet2) {
 }
 
 static int32_t tsdbSyncSendDFileSet(SSyncH *pSynch, SDFileSet *pSet) {
-  STsdbRepo *pRepo = pSynch->pRepo;
+  STsdb *pRepo = pSynch->pRepo;
   bool toSend = false;
 
   // skip expired fileset
@@ -628,7 +628,7 @@ static int32_t tsdbSyncSendDFileSet(SSyncH *pSynch, SDFileSet *pSet) {
 }
 
 static int32_t tsdbSendDFileSetInfo(SSyncH *pSynch, SDFileSet *pSet) {
-  STsdbRepo *pRepo = pSynch->pRepo;
+  STsdb *pRepo = pSynch->pRepo;
   uint32_t   tlen = 0;
 
   if (pSet) {
@@ -660,7 +660,7 @@ static int32_t tsdbSendDFileSetInfo(SSyncH *pSynch, SDFileSet *pSet) {
 }
 
 static int32_t tsdbRecvDFileSetInfo(SSyncH *pSynch) {
-  STsdbRepo *pRepo = pSynch->pRepo;
+  STsdb *pRepo = pSynch->pRepo;
   uint32_t   tlen;
   char       buf[64] = {0};
 
@@ -703,7 +703,7 @@ static int32_t tsdbRecvDFileSetInfo(SSyncH *pSynch) {
   return 0;
 }
 
-static int tsdbReload(STsdbRepo *pRepo, bool isMfChanged) {
+static int tsdbReload(STsdb *pRepo, bool isMfChanged) {
   // TODO: may need to stop and restart stream
   // if (isMfChanged) {
   tsdbCloseMeta(pRepo);

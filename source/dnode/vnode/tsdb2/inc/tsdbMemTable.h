@@ -60,16 +60,16 @@ typedef struct {
   char cont[];
 } SActCont;
 
-int   tsdbRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
-int   tsdbUnRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
-int   tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemSnapshot* pSnapshot, SArray* pATable);
-void  tsdbUnTakeMemSnapShot(STsdbRepo* pRepo, SMemSnapshot* pSnapshot);
-void* tsdbAllocBytes(STsdbRepo* pRepo, int bytes);
-int   tsdbAsyncCommit(STsdbRepo* pRepo);
-int   tsdbSyncCommitConfig(STsdbRepo* pRepo);
+int   tsdbRefMemTable(STsdb* pRepo, SMemTable* pMemTable);
+int   tsdbUnRefMemTable(STsdb* pRepo, SMemTable* pMemTable);
+int   tsdbTakeMemSnapshot(STsdb* pRepo, SMemSnapshot* pSnapshot, SArray* pATable);
+void  tsdbUnTakeMemSnapShot(STsdb* pRepo, SMemSnapshot* pSnapshot);
+void* tsdbAllocBytes(STsdb* pRepo, int bytes);
+int   tsdbAsyncCommit(STsdb* pRepo);
+int   tsdbSyncCommitConfig(STsdb* pRepo);
 int   tsdbLoadDataFromCache(STable* pTable, SSkipListIterator* pIter, TSKEY maxKey, int maxRowsToRead, SDataCols* pCols,
                             TKEY* filterKeys, int nFilterKeys, bool keepDup, SMergeInfo* pMergeInfo);
-void* tsdbCommitData(STsdbRepo* pRepo);
+void* tsdbCommitData(STsdb* pRepo);
 
 static FORCE_INLINE SMemRow tsdbNextIterRow(SSkipListIterator* pIter) {
   if (pIter == NULL) return NULL;

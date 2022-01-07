@@ -26,17 +26,17 @@ static void tsdbResetFSStatus(SFSStatus *pStatus);
 static int  tsdbSaveFSStatus(SFSStatus *pStatus, int vid);
 static void tsdbApplyFSTxnOnDisk(SFSStatus *pFrom, SFSStatus *pTo);
 static void tsdbGetTxnFname(int repoid, TSDB_TXN_FILE_T ftype, char fname[]);
-static int  tsdbOpenFSFromCurrent(STsdbRepo *pRepo);
-static int  tsdbScanAndTryFixFS(STsdbRepo *pRepo);
-static int  tsdbScanRootDir(STsdbRepo *pRepo);
-static int  tsdbScanDataDir(STsdbRepo *pRepo);
+static int  tsdbOpenFSFromCurrent(STsdb *pRepo);
+static int  tsdbScanAndTryFixFS(STsdb *pRepo);
+static int  tsdbScanRootDir(STsdb *pRepo);
+static int  tsdbScanDataDir(STsdb *pRepo);
 static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf);
-static int  tsdbRestoreCurrent(STsdbRepo *pRepo);
+static int  tsdbRestoreCurrent(STsdb *pRepo);
 static int  tsdbComparTFILE(const void *arg1, const void *arg2);
-static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo, int32_t *nExpired);
-static int  tsdbProcessExpiredFS(STsdbRepo *pRepo);
-static int  tsdbCreateMeta(STsdbRepo *pRepo);
-static int  tsdbFetchTFileSet(STsdbRepo *pRepo, SArray **fArray);
+static void tsdbScanAndTryFixDFilesHeader(STsdb *pRepo, int32_t *nExpired);
+static int  tsdbProcessExpiredFS(STsdb *pRepo);
+static int  tsdbCreateMeta(STsdb *pRepo);
+static int  tsdbFetchTFileSet(STsdb *pRepo, SArray **fArray);
 
 // For backward compatibility
 // ================== CURRENT file header info
@@ -159,7 +159,7 @@ static SFSStatus *tsdbNewFSStatus(int maxFSet) {
 
 static SFSStatus *tsdbFreeFSStatus(SFSStatus *pStatus) {
   if (pStatus) {
-    pStatus->df = taosArrayDestroy(&pStatus->df);
+    pStatus->df = taosArrayDestroy(pStatus->df);
     free(pStatus);
   }
 
@@ -253,7 +253,7 @@ void *tsdbFreeFS(STsdbFS *pfs) {
   return NULL;
 }
 
-static int tsdbProcessExpiredFS(STsdbRepo *pRepo) {
+static int tsdbProcessExpiredFS(STsdb *pRepo) {
   tsdbStartFSTxn(pRepo, 0, 0);
   if (tsdbCreateMeta(pRepo) < 0) {
     tsdbError("vgId:%d failed to create meta since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -272,7 +272,7 @@ static int tsdbProcessExpiredFS(STsdbRepo *pRepo) {
   return 0;
 }
 
-static int tsdbCreateMeta(STsdbRepo *pRepo) {
+static int tsdbCreateMeta(STsdb *pRepo) {
   STsdbFS *pfs = REPO_FS(pRepo);
   SMFile * pOMFile = pfs->cstatus->pmf;
   SMFile   mf;
@@ -309,7 +309,7 @@ static int tsdbCreateMeta(STsdbRepo *pRepo) {
   return 0;
 }
 
-int tsdbOpenFS(STsdbRepo *pRepo) {
+int tsdbOpenFS(STsdb *pRepo) {
   STsdbFS *pfs = REPO_FS(pRepo);
   char     current[TSDB_FILENAME_LEN] = "\0";
   int      nExpired = 0;
@@ -351,12 +351,12 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
   return 0;
 }
 
-void tsdbCloseFS(STsdbRepo *pRepo) {
+void tsdbCloseFS(STsdb *pRepo) {
   // Do nothing
 }
 
 // Start a new transaction to modify the file system
-void tsdbStartFSTxn(STsdbRepo *pRepo, int64_t pointsAdd, int64_t storageAdd) {
+void tsdbStartFSTxn(STsdb *pRepo, int64_t pointsAdd, int64_t storageAdd) {
   STsdbFS *pfs = REPO_FS(pRepo);
   ASSERT(pfs->intxn == false);
 
@@ -374,7 +374,7 @@ void tsdbStartFSTxn(STsdbRepo *pRepo, int64_t pointsAdd, int64_t storageAdd) {
 
 void tsdbUpdateFSTxnMeta(STsdbFS *pfs, STsdbFSMeta *pMeta) { pfs->nstatus->meta = *pMeta; }
 
-int tsdbEndFSTxn(STsdbRepo *pRepo) {
+int tsdbEndFSTxn(STsdb *pRepo) {
   STsdbFS *pfs = REPO_FS(pRepo);
   ASSERT(FS_IN_TXN(pfs));
   SFSStatus *pStatus;
@@ -655,7 +655,7 @@ static void tsdbGetTxnFname(int repoid, TSDB_TXN_FILE_T ftype, char fname[]) {
   snprintf(fname, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb/%s", TFS_PRIMARY_PATH(), repoid, tsdbTxnFname[ftype]);
 }
 
-static int tsdbOpenFSFromCurrent(STsdbRepo *pRepo) {
+static int tsdbOpenFSFromCurrent(STsdb *pRepo) {
   STsdbFS * pfs = REPO_FS(pRepo);
   int       fd = -1;
   void *    buffer = NULL;
@@ -752,7 +752,7 @@ _err:
 }
 
 // Scan and try to fix incorrect files
-static int tsdbScanAndTryFixFS(STsdbRepo *pRepo) {
+static int tsdbScanAndTryFixFS(STsdb *pRepo) {
   STsdbFS *  pfs = REPO_FS(pRepo);
   SFSStatus *pStatus = pfs->cstatus;
 
@@ -778,7 +778,7 @@ static int tsdbScanAndTryFixFS(STsdbRepo *pRepo) {
   return 0;
 }
 
-int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
+int tsdbLoadMetaCache(STsdb *pRepo, bool recoverMeta) {
   char      tbuf[128];
   STsdbFS * pfs = REPO_FS(pRepo);
   SMFile    mf;
@@ -914,7 +914,7 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
   return 0;
 }
 
-static int tsdbScanRootDir(STsdbRepo *pRepo) {
+static int tsdbScanRootDir(STsdb *pRepo) {
   char         rootDir[TSDB_FILENAME_LEN];
   char         bname[TSDB_FILENAME_LEN];
   STsdbFS *    pfs = REPO_FS(pRepo);
@@ -948,7 +948,7 @@ static int tsdbScanRootDir(STsdbRepo *pRepo) {
   return 0;
 }
 
-static int tsdbScanDataDir(STsdbRepo *pRepo) {
+static int tsdbScanDataDir(STsdb *pRepo) {
   char         dataDir[TSDB_FILENAME_LEN];
   char         bname[TSDB_FILENAME_LEN];
   STsdbFS *    pfs = REPO_FS(pRepo);
@@ -992,7 +992,7 @@ static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf) {
   return false;
 }
 
-static int tsdbRestoreMeta(STsdbRepo *pRepo) {
+static int tsdbRestoreMeta(STsdb *pRepo) {
   char         rootDir[TSDB_FILENAME_LEN];
   char         bname[TSDB_FILENAME_LEN];
   TDIR *       tdir = NULL;
@@ -1113,7 +1113,7 @@ static int tsdbRestoreMeta(STsdbRepo *pRepo) {
   return 0;
 }
 
-static int tsdbFetchTFileSet(STsdbRepo *pRepo, SArray **fArray) {
+static int tsdbFetchTFileSet(STsdb *pRepo, SArray **fArray) {
   char         dataDir[TSDB_FILENAME_LEN];
   char         bname[TSDB_FILENAME_LEN];
   TDIR *       tdir = NULL;
@@ -1139,7 +1139,7 @@ static int tsdbFetchTFileSet(STsdbRepo *pRepo, SArray **fArray) {
   if (tdir == NULL) {
     tsdbError("vgId:%d failed to fetch TFileSet while open directory %s since %s", REPO_ID(pRepo), dataDir,
               tstrerror(terrno));
-    taosArrayDestroy(fArray);
+    taosArrayDestroy(*fArray);
     regfree(&regex);
     return -1;
   }
@@ -1152,7 +1152,7 @@ static int tsdbFetchTFileSet(STsdbRepo *pRepo, SArray **fArray) {
       if (taosArrayPush(*fArray, (void *)pf) == NULL) {
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
         tfsClosedir(tdir);
-        taosArrayDestroy(fArray);
+        taosArrayDestroy(*fArray);
         regfree(&regex);
         return -1;
       }
@@ -1166,7 +1166,7 @@ static int tsdbFetchTFileSet(STsdbRepo *pRepo, SArray **fArray) {
       tsdbError("vgId:%d failed to fetch TFileSet Array while run regexec since %s", REPO_ID(pRepo), strerror(code));
       terrno = TAOS_SYSTEM_ERROR(code);
       tfsClosedir(tdir);
-      taosArrayDestroy(fArray);
+      taosArrayDestroy(*fArray);
       regfree(&regex);
       return -1;
     }
@@ -1191,7 +1191,7 @@ static bool tsdbIsDFileSetValid(int nFiles) {
   }
 }
 
-static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
+static int tsdbRestoreDFileSet(STsdb *pRepo) {
   const TFILE *pf = NULL;
   SArray *     fArray = NULL;
   STsdbFS *    pfs = REPO_FS(pRepo);
@@ -1351,7 +1351,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
   return 0;
 }
 
-static int tsdbRestoreCurrent(STsdbRepo *pRepo) {
+static int tsdbRestoreCurrent(STsdb *pRepo) {
   // Loop to recover mfile
   if (tsdbRestoreMeta(pRepo) < 0) {
     tsdbError("vgId:%d failed to restore current since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -1408,7 +1408,7 @@ static int tsdbComparTFILE(const void *arg1, const void *arg2) {
   }
 }
 
-static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo, int32_t *nExpired) {
+static void tsdbScanAndTryFixDFilesHeader(STsdb *pRepo, int32_t *nExpired) {
   STsdbFS *  pfs = REPO_FS(pRepo);
   SFSStatus *pStatus = pfs->cstatus;
   SDFInfo    info;

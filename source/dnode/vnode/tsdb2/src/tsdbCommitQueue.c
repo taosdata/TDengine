@@ -27,7 +27,7 @@ typedef struct {
 
 typedef struct {
   TSDB_REQ_T req;
-  STsdbRepo *pRepo;
+  STsdb *pRepo;
 } SReq;
 
 static void *tsdbLoopCommit(void *arg);
@@ -91,7 +91,7 @@ void tsdbDestroyCommitQueue() {
   pthread_mutex_destroy(&(pQueue->lock));
 }
 
-int tsdbScheduleCommit(STsdbRepo *pRepo, TSDB_REQ_T req) {
+int tsdbScheduleCommit(STsdb *pRepo, TSDB_REQ_T req) {
   SCommitQueue *pQueue = &tsCommitQueue;
 
   SListNode *pNode = (SListNode *)calloc(1, sizeof(SListNode) + sizeof(SReq));
@@ -114,7 +114,7 @@ int tsdbScheduleCommit(STsdbRepo *pRepo, TSDB_REQ_T req) {
   return 0;
 }
 
-static void tsdbApplyRepoConfig(STsdbRepo *pRepo) {
+static void tsdbApplyRepoConfig(STsdb *pRepo) {
   pthread_mutex_lock(&pRepo->save_mutex);
 
   pRepo->config_changed = false;
@@ -157,7 +157,7 @@ static void tsdbApplyRepoConfig(STsdbRepo *pRepo) {
 static void *tsdbLoopCommit(void *arg) {
   SCommitQueue *pQueue = &tsCommitQueue;
   SListNode *   pNode = NULL;
-  STsdbRepo *   pRepo = NULL;
+  STsdb *   pRepo = NULL;
   TSDB_REQ_T    req;
 
   setThreadName("tsdbCommit");

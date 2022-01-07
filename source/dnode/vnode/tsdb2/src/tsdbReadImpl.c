@@ -28,7 +28,7 @@ static int  tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBlo
 static int  tsdbLoadBlockStatisFromDFile(SReadH *pReadh, SBlock *pBlock);
 static int  tsdbLoadBlockStatisFromAggr(SReadH *pReadh, SBlock *pBlock);
 
-int tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo) {
+int tsdbInitReadH(SReadH *pReadh, STsdb *pRepo) {
   ASSERT(pReadh != NULL && pRepo != NULL);
 
   STsdbCfg *pCfg = REPO_CFG(pRepo);
@@ -74,7 +74,7 @@ void tsdbDestroyReadH(SReadH *pReadh) {
   pReadh->cidx = 0;
   pReadh->pBlkIdx = NULL;
   pReadh->pTable = NULL;
-  pReadh->aBlkIdx = taosArrayDestroy(&pReadh->aBlkIdx);
+  pReadh->aBlkIdx = taosArrayDestroy(pReadh->aBlkIdx);
   tsdbCloseDFileSet(TSDB_READ_FSET(pReadh));
   pReadh->pRepo = NULL;
 }
@@ -837,7 +837,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
 static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBlockCol *pBlockCol, SDataCol *pDataCol) {
   ASSERT(pDataCol->colId == pBlockCol->colId);
 
-  STsdbRepo *pRepo = TSDB_READ_REPO(pReadh);
+  STsdb *pRepo = TSDB_READ_REPO(pReadh);
   STsdbCfg * pCfg = REPO_CFG(pRepo);
   int        tsize = pDataCol->bytes * pBlock->numOfRows + COMP_OVERFLOW_BYTES;
 

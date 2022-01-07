@@ -43,14 +43,14 @@ typedef struct {
 #define TSDB_COMPACT_COMP_BUF(pComph) TSDB_READ_COMP_BUF(&((pComph)->readh))
 #define TSDB_COMPACT_EXBUF(pComph) TSDB_READ_EXBUF(&((pComph)->readh))
 
-static int  tsdbAsyncCompact(STsdbRepo *pRepo);
-static void tsdbStartCompact(STsdbRepo *pRepo);
-static void tsdbEndCompact(STsdbRepo *pRepo, int eno);
-static int  tsdbCompactMeta(STsdbRepo *pRepo);
-static int  tsdbCompactTSData(STsdbRepo *pRepo);
+static int  tsdbAsyncCompact(STsdb *pRepo);
+static void tsdbStartCompact(STsdb *pRepo);
+static void tsdbEndCompact(STsdb *pRepo, int eno);
+static int  tsdbCompactMeta(STsdb *pRepo);
+static int  tsdbCompactTSData(STsdb *pRepo);
 static int  tsdbCompactFSet(SCompactH *pComph, SDFileSet *pSet);
 static bool tsdbShouldCompact(SCompactH *pComph);
-static int  tsdbInitCompactH(SCompactH *pComph, STsdbRepo *pRepo);
+static int  tsdbInitCompactH(SCompactH *pComph, STsdb *pRepo);
 static void tsdbDestroyCompactH(SCompactH *pComph);
 static int  tsdbInitCompTbArray(SCompactH *pComph);
 static void tsdbDestroyCompTbArray(SCompactH *pComph);
@@ -62,9 +62,9 @@ static int  tsdbWriteBlockToRightFile(SCompactH *pComph, STable *pTable, SDataCo
                                       void **ppCBuf, void **ppExBuf);
 
 enum { TSDB_NO_COMPACT, TSDB_IN_COMPACT, TSDB_WAITING_COMPACT};
-int tsdbCompact(STsdbRepo *pRepo) { return tsdbAsyncCompact(pRepo); }
+int tsdbCompact(STsdb *pRepo) { return tsdbAsyncCompact(pRepo); }
 
-void *tsdbCompactImpl(STsdbRepo *pRepo) {
+void *tsdbCompactImpl(STsdb *pRepo) {
   // Check if there are files in TSDB FS to compact
   if (REPO_FS(pRepo)->cstatus->pmf == NULL) {
     pRepo->compactState = TSDB_NO_COMPACT;
@@ -94,7 +94,7 @@ _err:
   return NULL;
 }
 
-static int tsdbAsyncCompact(STsdbRepo *pRepo) {
+static int tsdbAsyncCompact(STsdb *pRepo) {
   if (pRepo->compactState != TSDB_NO_COMPACT) {
     tsdbInfo("vgId:%d not compact tsdb again ", REPO_ID(pRepo));
     return 0; 
@@ -104,7 +104,7 @@ static int tsdbAsyncCompact(STsdbRepo *pRepo) {
   return tsdbScheduleCommit(pRepo, COMPACT_REQ);
 }
 
-static void tsdbStartCompact(STsdbRepo *pRepo) {
+static void tsdbStartCompact(STsdb *pRepo) {
   assert(pRepo->compactState != TSDB_IN_COMPACT);
   tsdbInfo("vgId:%d start to compact!", REPO_ID(pRepo));
   tsdbStartFSTxn(pRepo, 0, 0);
@@ -112,7 +112,7 @@ static void tsdbStartCompact(STsdbRepo *pRepo) {
   pRepo->compactState = TSDB_IN_COMPACT;
 }
 
-static void tsdbEndCompact(STsdbRepo *pRepo, int eno) {
+static void tsdbEndCompact(STsdb *pRepo, int eno) {
   if (eno != TSDB_CODE_SUCCESS) {
     tsdbEndFSTxnWithError(REPO_FS(pRepo));
   } else {
@@ -123,13 +123,13 @@ static void tsdbEndCompact(STsdbRepo *pRepo, int eno) {
   tsem_post(&(pRepo->readyToCommit));
 }
 
-static int tsdbCompactMeta(STsdbRepo *pRepo) {
+static int tsdbCompactMeta(STsdb *pRepo) {
   STsdbFS *pfs = REPO_FS(pRepo);
   tsdbUpdateMFile(pfs, pfs->cstatus->pmf);
   return 0;
 }
 
-  static int tsdbCompactTSData(STsdbRepo *pRepo) {
+  static int tsdbCompactTSData(STsdb *pRepo) {
     SCompactH  compactH;
     SDFileSet *pSet = NULL;
 
@@ -172,7 +172,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
   }
 
   static int tsdbCompactFSet(SCompactH *pComph, SDFileSet *pSet) {
-    STsdbRepo *pRepo = TSDB_COMPACT_REPO(pComph);
+    STsdb *pRepo = TSDB_COMPACT_REPO(pComph);
     SDiskID    did;
 
     tsdbDebug("vgId:%d start to compact FSET %d on level %d id %d", REPO_ID(pRepo), pSet->fid, TSDB_FSET_LEVEL(pSet),
@@ -226,7 +226,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
     // if (tsdbForceCompactFile) {
     //   return true;
     // }
-    STsdbRepo *     pRepo = TSDB_COMPACT_REPO(pComph);
+    STsdb *     pRepo = TSDB_COMPACT_REPO(pComph);
     STsdbCfg *      pCfg = REPO_CFG(pRepo);
     SReadH *        pReadh = &(pComph->readh);
     STableCompactH *pTh;
@@ -271,7 +271,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
             (tsize * 1.0 / (pDataF->info.size + pLastF->info.size - 2 * TSDB_FILE_HEAD_SIZE) < 0.85));
   }
 
-  static int tsdbInitCompactH(SCompactH *pComph, STsdbRepo *pRepo) {
+  static int tsdbInitCompactH(SCompactH *pComph, STsdb *pRepo) {
     STsdbCfg *pCfg = REPO_CFG(pRepo);
 
     memset(pComph, 0, sizeof(*pComph));
@@ -324,7 +324,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
   }
 
   static int tsdbInitCompTbArray(SCompactH *pComph) {  // Init pComp->tbArray
-    STsdbRepo *pRepo = TSDB_COMPACT_REPO(pComph);
+    STsdb *pRepo = TSDB_COMPACT_REPO(pComph);
     STsdbMeta *pMeta = pRepo->tsdbMeta;
 
     if (tsdbRLockRepoMeta(pRepo) < 0) return -1;
@@ -421,7 +421,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
   static void tsdbCompactFSetEnd(SCompactH *pComph) { tsdbCloseAndUnsetFSet(&(pComph->readh)); }
 
   static int tsdbCompactFSetImpl(SCompactH *pComph) {
-    STsdbRepo *pRepo = TSDB_COMPACT_REPO(pComph);
+    STsdb *pRepo = TSDB_COMPACT_REPO(pComph);
     STsdbCfg * pCfg = REPO_CFG(pRepo);
     SReadH *   pReadh = &(pComph->readh);
     SBlockIdx  blkIdx;
@@ -508,7 +508,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
 
   static int tsdbWriteBlockToRightFile(SCompactH *pComph, STable *pTable, SDataCols *pDataCols, void **ppBuf,
                                        void **ppCBuf, void **ppExBuf) {
-    STsdbRepo *pRepo = TSDB_COMPACT_REPO(pComph);
+    STsdb *pRepo = TSDB_COMPACT_REPO(pComph);
     STsdbCfg * pCfg = REPO_CFG(pRepo);
     SDFile *   pDFile;
     bool       isLast;

@@ -19,14 +19,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "common.h"
 #include "taosdef.h"
-#include "tmsg.h"
 #include "tarray.h"
 #include "tdataformat.h"
-#include "tname.h"
 #include "thash.h"
-#include "tlockfree.h"
 #include "tlist.h"
+#include "tlockfree.h"
+#include "tmsg.h"
+#include "tname.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,7 +40,7 @@ extern "C" {
 
 #define TSDB_STATUS_COMMIT_START 1
 #define TSDB_STATUS_COMMIT_OVER 2
-#define TSDB_STATUS_COMMIT_NOBLOCK 3 //commit no block, need to be solved 
+#define TSDB_STATUS_COMMIT_NOBLOCK 3  // commit no block, need to be solved
 
 // TSDB STATE DEFINITION
 #define TSDB_STATE_OK 0x0
@@ -62,7 +63,8 @@ typedef struct {
   void *cqH;
   int (*notifyStatus)(void *, int status, int eno);
   int (*eventCallBack)(void *);
-  void *(*cqCreateFunc)(void *handle, uint64_t uid, int32_t sid, const char *dstTable, char *sqlStr, STSchema *pSchema, int start);
+  void *(*cqCreateFunc)(void *handle, uint64_t uid, int32_t sid, const char *dstTable, char *sqlStr, STSchema *pSchema,
+                        int start);
   void (*cqDropFunc)(void *handle);
 } STsdbAppH;
 
@@ -75,16 +77,17 @@ typedef struct {
   int32_t keep;         // day of data to keep
   int32_t keep1;
   int32_t keep2;
+  int32_t lruCacheSize;
   int32_t minRowsPerFileBlock;  // minimum rows per file block
   int32_t maxRowsPerFileBlock;  // maximum rows per file block
   int8_t  precision;
   int8_t  compression;
   int8_t  update;
-  int8_t  cacheLastRow;    // 0:no cache, 1: cache last row, 2: cache last NULL column 3: 1&2
+  int8_t  cacheLastRow;  // 0:no cache, 1: cache last row, 2: cache last NULL column 3: 1&2
 } STsdbCfg;
 
-#define CACHE_NO_LAST(c)          ((c)->cacheLastRow == 0)
-#define CACHE_LAST_ROW(c)         (((c)->cacheLastRow & 1) > 0)
+#define CACHE_NO_LAST(c) ((c)->cacheLastRow == 0)
+#define CACHE_LAST_ROW(c) (((c)->cacheLastRow & 1) > 0)
 #define CACHE_LAST_NULL_COLUMN(c) (((c)->cacheLastRow & 2) > 0)
 
 // --------- TSDB REPOSITORY USAGE STATISTICS
@@ -94,18 +97,18 @@ typedef struct {
   int64_t pointsWritten;  // total data points written
 } STsdbStat;
 
-typedef struct STsdbRepo STsdbRepo;
+typedef struct STsdb STsdb;
 
-STsdbCfg *tsdbGetCfg(const STsdbRepo *repo);
+STsdbCfg *tsdbGetCfg(const STsdb *repo);
 
 // --------- TSDB REPOSITORY DEFINITION
-int32_t    tsdbCreateRepo(int repoid);
-int32_t    tsdbDropRepo(int repoid);
-STsdbRepo *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH);
-int        tsdbCloseRepo(STsdbRepo *repo, int toCommit);
-int32_t    tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg);
-int        tsdbGetState(STsdbRepo *repo);
-int8_t     tsdbGetCompactState(STsdbRepo *repo);
+int32_t tsdbCreateRepo(int repoid);
+int32_t tsdbDropRepo(int repoid);
+STsdb * tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH);
+int     tsdbCloseRepo(STsdb *repo, int toCommit);
+int32_t tsdbConfigRepo(STsdb *repo, STsdbCfg *pCfg);
+int     tsdbGetState(STsdb *repo);
+int8_t  tsdbGetCompactState(STsdb *repo);
 // --------- TSDB TABLE DEFINITION
 typedef struct {
   uint64_t uid;  // the unique table ID
@@ -131,17 +134,17 @@ void tsdbClearTableCfg(STableCfg *config);
 void *tsdbGetTableTagVal(const void *pTable, int32_t colId, int16_t type);
 char *tsdbGetTableName(void *pTable);
 
-#define TSDB_TABLEID(_table) ((STableId*) (_table))
-#define TSDB_PREV_ROW  0x1
-#define TSDB_NEXT_ROW  0x2
+#define TSDB_TABLEID(_table) ((STableId *)(_table))
+#define TSDB_PREV_ROW 0x1
+#define TSDB_NEXT_ROW 0x2
 
 STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg);
 
-int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg);
-int tsdbDropTable(STsdbRepo *pRepo, STableId tableId);
-int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg);
+int tsdbCreateTable(STsdb *repo, STableCfg *pCfg);
+int tsdbDropTable(STsdb *pRepo, STableId tableId);
+int tsdbUpdateTableTagValue(STsdb *repo, SUpdateTableTagValMsg *pMsg);
 
-uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t eindex, int64_t *size);
+uint32_t tsdbGetFileInfo(STsdb *repo, char *name, uint32_t *index, uint32_t eindex, int64_t *size);
 
 // the TSDB repository info
 typedef struct STsdbRepoInfo {
@@ -151,7 +154,7 @@ typedef struct STsdbRepoInfo {
   int64_t  tsdbTotalDiskSize;  // the total disk size taken by this TSDB repository
   // TODO: Other informations to add
 } STsdbRepoInfo;
-STsdbRepoInfo *tsdbGetStatus(STsdbRepo *pRepo);
+STsdbRepoInfo *tsdbGetStatus(STsdb *pRepo);
 
 // the meter information report structure
 typedef struct {
@@ -169,21 +172,21 @@ typedef struct {
  *
  * @return the number of points inserted, -1 for failure and the error number is set
  */
-int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp);
+int32_t tsdbInsertData(STsdb *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp);
 
 // -- FOR QUERY TIME SERIES DATA
 
 typedef void *TsdbQueryHandleT;  // Use void to hide implementation details
 
-#define BLOCK_LOAD_OFFSET_SEQ_ORDER   1
-#define BLOCK_LOAD_TABLE_SEQ_ORDER    2
-#define BLOCK_LOAD_TABLE_RR_ORDER     3
+#define BLOCK_LOAD_OFFSET_SEQ_ORDER 1
+#define BLOCK_LOAD_TABLE_SEQ_ORDER 2
+#define BLOCK_LOAD_TABLE_RR_ORDER 3
 
 // query condition to build multi-table data block iterator
 typedef struct STsdbQueryCond {
   STimeWindow  twindow;
-  int32_t      order;             // desc|asc order to iterate the data block
-  int64_t      offset;            // skip offset put down to tsdb
+  int32_t      order;   // desc|asc order to iterate the data block
+  int64_t      offset;  // skip offset put down to tsdb
   int32_t      numOfCols;
   SColumnInfo *colList;
   bool         loadExternalRows;  // load external rows or not
@@ -207,24 +210,16 @@ typedef struct {
 } SMemTable;
 
 typedef struct {
-  SMemTable* mem;
-  SMemTable* imem;
+  SMemTable *mem;
+  SMemTable *imem;
   SMemTable  mtable;
-  SMemTable* omem;
+  SMemTable *omem;
 } SMemSnapshot;
 
 typedef struct SMemRef {
   int32_t      ref;
   SMemSnapshot snapshot;
 } SMemRef;
-
-typedef struct SDataBlockInfo {
-  STimeWindow window;
-  int32_t     rows;
-  int32_t     numOfCols;
-  int64_t     uid;
-  int32_t     tid;
-} SDataBlockInfo;
 
 typedef struct SFileBlockInfo {
   int32_t numBlocksOfStep;
@@ -237,23 +232,23 @@ typedef struct {
 
 typedef struct {
   uint32_t  numOfTables;
-  SArray   *pGroupList;
+  SArray *  pGroupList;
   SHashObj *map;  // speedup acquire the tableQueryInfo by table uid
 } STableGroupInfo;
 
 #define TSDB_BLOCK_DIST_STEP_ROWS 16
 typedef struct {
-  uint16_t  rowSize;
-  uint16_t  numOfFiles;
-  uint32_t  numOfTables;
-  uint64_t  totalSize;
-  uint64_t  totalRows;
-  int32_t   maxRows;
-  int32_t   minRows;
-  int32_t   firstSeekTimeUs;
-  uint32_t  numOfRowsInMemTable;
-  uint32_t  numOfSmallBlocks;
-  SArray   *dataBlockInfos;
+  uint16_t rowSize;
+  uint16_t numOfFiles;
+  uint32_t numOfTables;
+  uint64_t totalSize;
+  uint64_t totalRows;
+  int32_t  maxRows;
+  int32_t  minRows;
+  int32_t  firstSeekTimeUs;
+  uint32_t numOfRowsInMemTable;
+  uint32_t numOfSmallBlocks;
+  SArray * dataBlockInfos;
 } STableBlockDist;
 
 /**
@@ -266,7 +261,7 @@ typedef struct {
  * @param qinfo      query info handle from query processor
  * @return
  */
-TsdbQueryHandleT *tsdbQueryTables(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfoGroup, uint64_t qId,
+TsdbQueryHandleT *tsdbQueryTables(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfoGroup, uint64_t qId,
                                   SMemRef *pRef);
 
 /**
@@ -279,14 +274,13 @@ TsdbQueryHandleT *tsdbQueryTables(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
  * @param tableInfo  table list.
  * @return
  */
-TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfo, uint64_t qId,
+TsdbQueryHandleT tsdbQueryLastRow(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfo, uint64_t qId,
                                   SMemRef *pRef);
 
+TsdbQueryHandleT tsdbQueryCacheLast(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId,
+                                    SMemRef *pMemRef);
 
-TsdbQueryHandleT tsdbQueryCacheLast(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pMemRef);
-
-bool isTsdbCacheLastRow(TsdbQueryHandleT* pQueryHandle);
-
+bool isTsdbCacheLastRow(TsdbQueryHandleT *pQueryHandle);
 
 /**
  * get the queried table object list
@@ -303,21 +297,20 @@ SArray *tsdbGetQueriedTableList(TsdbQueryHandleT *pHandle);
  * @param qinfo
  * @return
  */
-TsdbQueryHandleT tsdbQueryRowsInExternalWindow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList,
+TsdbQueryHandleT tsdbQueryRowsInExternalWindow(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList,
                                                uint64_t qId, SMemRef *pRef);
 
-
 /**
- * get num of rows in mem table 
+ * get num of rows in mem table
  *
  * @param pHandle
  * @return row size
  */
 
-int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle);
+int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT *pHandle);
 
 /**
- * move to next block if exists 
+ * move to next block if exists
  *
  * @param pQueryHandle
  * @return
@@ -362,7 +355,7 @@ SArray *tsdbRetrieveDataBlock(TsdbQueryHandleT *pQueryHandle, SArray *pColumnIdL
  * @param stableid. super table sid
  * @param pTagCond. tag query condition
  */
-int32_t tsdbQuerySTableByTagCond(STsdbRepo *tsdb, uint64_t uid, TSKEY key, const char *pTagCond, size_t len,
+int32_t tsdbQuerySTableByTagCond(STsdb *tsdb, uint64_t uid, TSKEY key, const char *pTagCond, size_t len,
                                  STableGroupInfo *pGroupList, SColIndex *pColIndex, int32_t numOfCols);
 
 /**
@@ -379,7 +372,7 @@ void tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
  * @param pGroupInfo  the generated result
  * @return
  */
-int32_t tsdbGetOneTableGroup(STsdbRepo *tsdb, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
+int32_t tsdbGetOneTableGroup(STsdb *tsdb, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
 
 /**
  *
@@ -388,7 +381,7 @@ int32_t tsdbGetOneTableGroup(STsdbRepo *tsdb, uint64_t uid, TSKEY startKey, STab
  * @param pGroupInfo
  * @return
  */
-int32_t tsdbGetTableGroupFromIdList(STsdbRepo *tsdb, SArray *pTableIdList, STableGroupInfo *pGroupInfo);
+int32_t tsdbGetTableGroupFromIdList(STsdb *tsdb, SArray *pTableIdList, STableGroupInfo *pGroupInfo);
 
 /**
  * clean up the query handle
@@ -398,9 +391,9 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle);
 
 void tsdbResetQueryHandle(TsdbQueryHandleT queryHandle, STsdbQueryCond *pCond);
 
-void tsdbResetQueryHandleForNewTable(TsdbQueryHandleT queryHandle, STsdbQueryCond *pCond, STableGroupInfo* groupList);
+void tsdbResetQueryHandleForNewTable(TsdbQueryHandleT queryHandle, STsdbQueryCond *pCond, STableGroupInfo *groupList);
 
-int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist* pTableBlockInfo);
+int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT *queryHandle, STableBlockDist *pTableBlockInfo);
 
 // obtain queryHandle attribute
 int64_t tsdbSkipOffset(TsdbQueryHandleT queryHandle);
@@ -416,7 +409,7 @@ void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int
 
 int  tsdbInitCommitQueue();
 void tsdbDestroyCommitQueue();
-int  tsdbSyncCommit(STsdbRepo *repo);
+int  tsdbSyncCommit(STsdb *repo);
 void tsdbIncCommitRef(int vgId);
 void tsdbDecCommitRef(int vgId);
 void tsdbSwitchTable(TsdbQueryHandleT pQueryHandle);
@@ -426,19 +419,19 @@ int tsdbSyncSend(void *pRepo, SOCKET socketFd);
 int tsdbSyncRecv(void *pRepo, SOCKET socketFd);
 
 // For TSDB Compact
-int tsdbCompact(STsdbRepo *pRepo);
+int tsdbCompact(STsdb *pRepo);
 
 // For TSDB Health Monitor
 
 // no problem return true
-bool tsdbNoProblem(STsdbRepo* pRepo);
+bool tsdbNoProblem(STsdb *pRepo);
 // unit of walSize: MB
-int tsdbCheckWal(STsdbRepo *pRepo, uint32_t walSize);
+int tsdbCheckWal(STsdb *pRepo, uint32_t walSize);
 
 // for json tag
-void* getJsonTagValueElment(void* data, char* key, int32_t keyLen, char* out, int16_t bytes);
-void getJsonTagValueAll(void* data, void* dst, int16_t bytes);
-char* parseTagDatatoJson(void *p);
+void *getJsonTagValueElment(void *data, char *key, int32_t keyLen, char *out, int16_t bytes);
+void  getJsonTagValueAll(void *data, void *dst, int16_t bytes);
+char *parseTagDatatoJson(void *p);
 
 #ifdef __cplusplus
 }

@@ -12,6 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#if 0
 #include "tcompare.h"
 #include "tsdbint.h"
 #include "tutil.h"
@@ -1690,3 +1692,4 @@ static void tsdbFreeTableSchema(STable *pTable) {
     taosArrayDestroy(pTable->schema);
   }
 }
+#endif

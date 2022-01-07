@@ -94,10 +94,10 @@ typedef struct {
 
 STsdbFS *tsdbNewFS(STsdbCfg *pCfg);
 void *   tsdbFreeFS(STsdbFS *pfs);
-int      tsdbOpenFS(STsdbRepo *pRepo);
-void     tsdbCloseFS(STsdbRepo *pRepo);
-void     tsdbStartFSTxn(STsdbRepo *pRepo, int64_t pointsAdd, int64_t storageAdd);
-int      tsdbEndFSTxn(STsdbRepo *pRepo);
+int      tsdbOpenFS(STsdb *pRepo);
+void     tsdbCloseFS(STsdb *pRepo);
+void     tsdbStartFSTxn(STsdb *pRepo, int64_t pointsAdd, int64_t storageAdd);
+int      tsdbEndFSTxn(STsdb *pRepo);
 int      tsdbEndFSTxnWithError(STsdbFS *pfs);
 void     tsdbUpdateFSTxnMeta(STsdbFS *pfs, STsdbFSMeta *pMeta);
 void     tsdbUpdateMFile(STsdbFS *pfs, const SMFile *pMFile);
@@ -106,7 +106,7 @@ int      tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet);
 void       tsdbFSIterInit(SFSIter *pIter, STsdbFS *pfs, int direction);
 void       tsdbFSIterSeek(SFSIter *pIter, int fid);
 SDFileSet *tsdbFSIterNext(SFSIter *pIter);
-int        tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta);
+int        tsdbLoadMetaCache(STsdb *pRepo, bool recoverMeta);
 
 static FORCE_INLINE int tsdbRLockFS(STsdbFS* pFs) {
   int code = pthread_rwlock_rdlock(&(pFs->lock));

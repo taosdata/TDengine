@@ -16,12 +16,13 @@
 #ifndef _TD_TSDB_READ_IMPL_H_
 #define _TD_TSDB_READ_IMPL_H_
 
+#include "os.h"
 #include "tfs.h"
 #include "tsdb.h"
-#include "os.h"
 #include "tsdbFile.h"
-#include "tskiplist.h"
+#include "tsdbMemory.h"
 #include "tsdbMeta.h"
+#include "tskiplist.h"
 
 typedef struct SReadH SReadH;
 
@@ -92,7 +93,7 @@ typedef enum {
 
 #define SBlockVerLatest TSDB_SBLK_VER_1
 
-#define SBlock SBlockV1      // latest SBlock definition
+#define SBlock SBlockV1  // latest SBlock definition
 
 // lastest SBlockInfo definition
 typedef struct {
@@ -126,7 +127,7 @@ typedef struct {
   uint32_t offset : 24;
 } SBlockColV1;
 
-#define SBlockCol SBlockColV1      // latest SBlockCol definition
+#define SBlockCol SBlockColV1  // latest SBlockCol definition
 
 typedef struct {
   int16_t colId;
@@ -162,19 +163,19 @@ typedef struct {
 typedef void SAggrBlkData;  // SBlockCol cols[];
 
 struct SReadH {
-  STsdbRepo * pRepo;
-  SDFileSet   rSet;     // FSET to read
-  SArray *    aBlkIdx;  // SBlockIdx array
-  STable *    pTable;   // table to read
-  SBlockIdx * pBlkIdx;  // current reading table SBlockIdx
-  int         cidx;
-  SBlockInfo *  pBlkInfo;  // SBlockInfoV#
-  SBlockData *pBlkData;  // Block info
+  STsdb *   pRepo;
+  SDFileSet     rSet;     // FSET to read
+  SArray *      aBlkIdx;  // SBlockIdx array
+  STable *      pTable;   // table to read
+  SBlockIdx *   pBlkIdx;  // current reading table SBlockIdx
+  int           cidx;
+  SBlockInfo *  pBlkInfo;      // SBlockInfoV#
+  SBlockData *  pBlkData;      // Block info
   SAggrBlkData *pAggrBlkData;  // Aggregate Block info
-  SDataCols * pDCols[2];
-  void *      pBuf;   // buffer
-  void *      pCBuf;  // compression buffer
-  void *      pExBuf;  // extra buffer
+  SDataCols *   pDCols[2];
+  void *        pBuf;    // buffer
+  void *        pCBuf;   // compression buffer
+  void *        pExBuf;  // extra buffer
 };
 
 #define TSDB_READ_REPO(rh) ((rh)->pRepo)
@@ -216,7 +217,7 @@ static FORCE_INLINE size_t tsdbBlockAggrSize(int nCols, uint32_t blkVer) {
   }
 }
 
-int   tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo);
+int   tsdbInitReadH(SReadH *pReadh, STsdb *pRepo);
 void  tsdbDestroyReadH(SReadH *pReadh);
 int   tsdbSetAndOpenReadFSet(SReadH *pReadh, SDFileSet *pSet);
 void  tsdbCloseAndUnsetFSet(SReadH *pReadh);

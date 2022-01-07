@@ -62,7 +62,7 @@ extern "C" {
 
 #include "tsdbRowMergeBuf.h"
 // Main definitions
-struct STsdbRepo {
+struct STsdb {
   uint8_t state;
 
   STsdbCfg        config;
@@ -97,17 +97,17 @@ struct STsdbRepo {
 #define IS_REPO_LOCKED(r) (r)->repoLocked
 #define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
 
-int        tsdbLockRepo(STsdbRepo* pRepo);
-int        tsdbUnlockRepo(STsdbRepo* pRepo);
-STsdbMeta* tsdbGetMeta(STsdbRepo* pRepo);
-int        tsdbCheckCommit(STsdbRepo* pRepo);
-int        tsdbRestoreInfo(STsdbRepo* pRepo);
-UNUSED_FUNC int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg);
-int32_t    tsdbLoadLastCache(STsdbRepo *pRepo, STable* pTable);
+int        tsdbLockRepo(STsdb* pRepo);
+int        tsdbUnlockRepo(STsdb* pRepo);
+STsdbMeta* tsdbGetMeta(STsdb* pRepo);
+int        tsdbCheckCommit(STsdb* pRepo);
+int        tsdbRestoreInfo(STsdb* pRepo);
+UNUSED_FUNC int tsdbCacheLastData(STsdb *pRepo, STsdbCfg* oldCfg);
+int32_t    tsdbLoadLastCache(STsdb *pRepo, STable* pTable);
 void       tsdbGetRootDir(int repoid, char dirName[]);
 void       tsdbGetDataDir(int repoid, char dirName[]);
 
-static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdbRepo* pRepo) {
+static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdb* pRepo) {
   ASSERT(pRepo != NULL);
   if (pRepo->mem == NULL) return NULL;
 

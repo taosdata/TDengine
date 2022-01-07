@@ -335,7 +335,7 @@ int tfsRename(char *orname, char *nrname) {
       snprintf(oaname, TMPNAME_LEN, "%s/%s", DISK_DIR(pDisk), orname);
       snprintf(naname, TMPNAME_LEN, "%s/%s", DISK_DIR(pDisk), nrname);
 
-      taosRename(oaname, naname);
+      taosRenameFile(oaname, naname);
     }
   }
 

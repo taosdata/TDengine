@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if 0
+
 #include "os.h"
 #include "tdataformat.h"
 #include "tskiplist.h"
@@ -4575,3 +4577,4 @@ int64_t tsdbSkipOffset(TsdbQueryHandleT queryHandle) {
   }
   return 0;
 }
+#endif
