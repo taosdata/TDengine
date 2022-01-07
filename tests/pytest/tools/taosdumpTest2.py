@@ -27,6 +27,7 @@ class TDTestCase:
         self.ts = 1601481600000
         self.numberOfTables = 1
         self.numberOfRecords = 15000
+        self.tmpdir = "tmp"
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -67,16 +68,22 @@ class TDTestCase:
             tdLog.info("taosdump found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
 
-        os.system("rm /tmp/*.sql")
+        if not os.path.exists(self.tmpdir):
+            os.makedirs(self.tmpdir)
+        else:
+            print("directory exists")
+            os.system("rm -rf %s" % self.tmpdir)
+            os.makedirs(self.tmpdir)
+
         os.system(
-            "%staosdump --databases db -o /tmp -B 16384 -L 1048576" %
-            binPath)
+            "%staosdump --databases db -o %s -B 16384 " %
+            (binPath, self.tmpdir))
 
         tdSql.execute("drop database db")
         tdSql.query("show databases")
         tdSql.checkRows(0)
 
-        os.system("%staosdump -i /tmp" % binPath)
+        os.system("%staosdump -i %s" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
         tdSql.checkRows(1)

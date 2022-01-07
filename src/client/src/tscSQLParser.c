@@ -433,7 +433,7 @@ int32_t readFromFile(char *name, uint32_t *len, void **buf) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  int fd = open(name, O_RDONLY);
+  int fd = open(name, O_RDONLY | O_BINARY);
   if (fd < 0) {
     tscError("open file %s failed, error:%s", name, strerror(errno));
     tfree(*buf);
@@ -1084,8 +1084,9 @@ static int32_t addPrimaryTsColumnForTimeWindowQuery(SQueryInfo* pQueryInfo, SSql
   uint64_t uid = tscExprGet(pQueryInfo, 0)->base.uid;
 
   int32_t  tableIndex = COLUMN_INDEX_INITIAL_VAL;
+  STableMetaInfo* pTableMetaInfo = NULL;
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
-    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
+    pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
     if (pTableMetaInfo->pTableMeta->id.uid == uid) {
       tableIndex = i;
       break;
@@ -1097,7 +1098,11 @@ static int32_t addPrimaryTsColumnForTimeWindowQuery(SQueryInfo* pQueryInfo, SSql
   }
 
   SSchema s = {.bytes = TSDB_KEYSIZE, .type = TSDB_DATA_TYPE_TIMESTAMP, .colId = PRIMARYKEY_TIMESTAMP_COL_INDEX};
-  tstrncpy(s.name, aAggs[TSDB_FUNC_TS].name, sizeof(s.name));
+  if (pTableMetaInfo) {
+    tstrncpy(s.name, pTableMetaInfo->pTableMeta->schema[PRIMARYKEY_TIMESTAMP_COL_INDEX].name, sizeof(s.name));
+  } else {
+    tstrncpy(s.name, aAggs[TSDB_FUNC_TS].name, sizeof(s.name));
+  }
 
   SColumnIndex index = {tableIndex, PRIMARYKEY_TIMESTAMP_COL_INDEX};
   tscAddFuncInSelectClause(pQueryInfo, 0, TSDB_FUNC_TS, &index, &s, TSDB_COL_NORMAL, 0);
@@ -1392,7 +1397,7 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* pSl
   const char* msg1 = "sliding value no larger than the interval value";
   const char* msg2 = "sliding value can not less than 1% of interval value";
   const char* msg3 = "does not support sliding when interval is natural month/year";
-  const char* msg4 = "sliding not support for interp query";  
+  const char* msg4 = "sliding not support for interp query";
 
   const static int32_t INTERVAL_SLIDING_FACTOR = 100;
 
@@ -1410,7 +1415,7 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* pSl
   if (interpQuery) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
   }
-  
+
   if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
@@ -2668,6 +2673,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg14 = "third parameter algorithm must be 'default' or 't-digest'";
   const char* msg15 = "parameter is out of range [1, 1000]";
   const char* msg16 = "elapsed duration should be greater than or equal to database precision";
+  const char* msg17 = "elapsed/twa should not be used in nested query if inner query has group by clause";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -2727,7 +2733,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       memset(pExpr->base.aliasName, 0, tListLen(pExpr->base.aliasName));
       getColumnName(pItem, pExpr->base.aliasName, pExpr->base.token,sizeof(pExpr->base.aliasName) - 1);
-      
+
       SColumnList list = createColumnList(1, index.tableIndex, index.columnIndex);
       if (finalResult) {
         int32_t numOfOutput = tscNumOfFields(pQueryInfo);
@@ -2792,6 +2798,17 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         }
       }
 
+      //for timeline related aggregation function like elapsed and twa, groupby in subquery is not allowed
+      //as calculation result is meaningless by mixing different childtables(timelines) results.
+      if ((functionId == TSDB_FUNC_ELAPSED || functionId == TSDB_FUNC_TWA) && pQueryInfo->pUpstream != NULL) {
+        size_t numOfUpstreams = taosArrayGetSize(pQueryInfo->pUpstream);
+        for (int32_t i = 0; i < numOfUpstreams; ++i) {
+          SQueryInfo* pSub = taosArrayGetP(pQueryInfo->pUpstream, i);
+          if (pSub->groupbyExpr.numOfGroupCols > 0) {
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg17);
+          }
+        }
+      }
 
       STableComInfo info = tscGetTableInfo(pTableMetaInfo->pTableMeta);
 
@@ -2852,6 +2869,13 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         char val[8] = {0};
 
         int64_t tickPerSec = 0;
+        char *exprToken = tcalloc(pParamElem[1].pNode->exprToken.n + 1, sizeof(char));
+        memcpy(exprToken, pParamElem[1].pNode->exprToken.z, pParamElem[1].pNode->exprToken.n);
+        if (pParamElem[1].pNode->exprToken.type == TK_NOW || strstr(exprToken, "now")) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+        }
+        tfree(exprToken);
+
         if ((TSDB_DATA_TYPE_NULL == pParamElem[1].pNode->value.nType) || tVariantDump(&pParamElem[1].pNode->value, (char*) &tickPerSec, TSDB_DATA_TYPE_BIGINT, true) < 0) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
@@ -2866,7 +2890,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg10);
         } else if (tickPerSec <= 0) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg16);
-        } 
+        }
 
         tscExprAddParams(&pExpr->base, (char*) &tickPerSec, TSDB_DATA_TYPE_BIGINT, LONG_BYTES);
         if (functionId == TSDB_FUNC_DERIVATIVE) {
@@ -4906,14 +4930,14 @@ static int32_t validateNullExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
     if (IS_VAR_DATA_TYPE(pSchema[index].type) || pSchema[index].type == TSDB_DATA_TYPE_JSON) {
       return TSDB_CODE_SUCCESS;
     }
-    
+
     char *v = strndup(pRight->exprToken.z, pRight->exprToken.n);
     int32_t len = strRmquote(v, pRight->exprToken.n);
     if (len > 0) {
       uint32_t type = 0;
       tGetToken(v, &type);
 
-      if (type == TK_NULL) {        
+      if (type == TK_NULL) {
         free(v);
         return invalidOperationMsg(msgBuf, msg);
       }
@@ -5229,7 +5253,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       }
     }
 
-    if (pRight != NULL && (pRight->tokenId == TK_ID || pRight->tokenId == TK_ARROW)) {  // join on tag columns for stable query
+    if (joinQuery && pRight != NULL && (pRight->tokenId == TK_ID || pRight->tokenId == TK_ARROW)) {  // join on tag columns for stable query
       if (!validateJoinExprNode(pCmd, pQueryInfo, *pExpr, &index)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
@@ -6090,7 +6114,7 @@ int32_t getTimeRange(STimeWindow* win, tSqlExpr* pRight, int32_t optr, int16_t t
 
 // todo error !!!!
 int32_t tsRewriteFieldNameIfNecessary(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
-  const char rep[] = {'(', ')', '*', ',', '.', '/', '\\', '+', '-', '%', ' '};
+  const char rep[] = {'(', ')', '*', ',', '.', '/', '\\', '+', '-', '%', ' ', '`'};
 
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     char* fieldName = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i)->name;
@@ -7265,6 +7289,7 @@ int32_t validateDNodeConfig(SMiscInfo* pOptions) {
   const int tokenMonitor = 3;
   const int tokenDebugFlag = 4;
   const int tokenDebugFlagEnd = 20;
+  const int tokenOfflineInterval = 21;
   const SDNodeDynConfOption cfgOptions[] = {
       {"resetLog", 8},    {"resetQueryCache", 15},  {"balance", 7},     {"monitor", 7},
       {"debugFlag", 9},   {"monDebugFlag", 12},     {"vDebugFlag", 10}, {"mDebugFlag", 10},
@@ -7272,6 +7297,7 @@ int32_t validateDNodeConfig(SMiscInfo* pOptions) {
       {"uDebugFlag", 10}, {"tsdbDebugFlag", 13},    {"sDebugflag", 10}, {"rpcDebugFlag", 12},
       {"dDebugFlag", 10}, {"mqttDebugFlag", 13},    {"wDebugFlag", 10}, {"tmrDebugFlag", 12},
       {"cqDebugFlag", 11},
+      {"offlineInterval", 15},
   };
 
   SStrToken* pOptionToken = taosArrayGet(pOptions->a, 1);
@@ -7300,6 +7326,14 @@ int32_t validateDNodeConfig(SMiscInfo* pOptions) {
     SStrToken* pValToken = taosArrayGet(pOptions->a, 2);
     int32_t    val = strtol(pValToken->z, NULL, 10);
     if (val != 0 && val != 1) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;  // options value is invalid
+    }
+    return TSDB_CODE_SUCCESS;
+  } else if ((strncasecmp(cfgOptions[tokenOfflineInterval].name, pOptionToken->z, pOptionToken->n) == 0) &&
+             (cfgOptions[tokenOfflineInterval].len == pOptionToken->n)) {
+    SStrToken* pValToken = taosArrayGet(pOptions->a, 2);
+    int32_t    val = strtol(pValToken->z, NULL, 10);
+    if (val < 1 || val > 600) {
       return TSDB_CODE_TSC_INVALID_OPERATION;  // options value is invalid
     }
     return TSDB_CODE_SUCCESS;

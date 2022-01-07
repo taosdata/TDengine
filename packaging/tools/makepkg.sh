@@ -42,12 +42,12 @@ if [ -d ${top_dir}/src/kit/taos-tools/packaging/deb ]; then
   cd ${top_dir}/src/kit/taos-tools/packaging/deb
   [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-  taostools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
-  taostools_install_dir="${release_dir}/${productName}-tools-${taostools_ver}"
+taostools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
+taostools_install_dir="${release_dir}/${productName}Tools-${taostools_ver}"
 
   cd ${curr_dir}
 else
-  taostools_install_dir="${release_dir}/${productName}-tools-${version}"
+  taostools_install_dir="${release_dir}/${productName}Tools-${version}"
 fi
 
 # Directories and files
