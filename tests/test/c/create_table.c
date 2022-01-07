@@ -28,7 +28,7 @@ int32_t numOfThreads = 1;
 int32_t numOfTables = 10000;
 int32_t createTable = 1;
 int32_t insertData = 0;
-int32_t batchNum = 10;
+int32_t batchNum = 1;
 int32_t numOfVgroups = 2;
 
 typedef struct {
@@ -39,6 +39,7 @@ typedef struct {
   char      stbName[64];
   float     createTableSpeed;
   float     insertDataSpeed;
+  int64_t   startMs;
   pthread_t thread;
 } SThreadInfo;
 
@@ -130,6 +131,26 @@ void createDbAndStb() {
   taos_close(con);
 }
 
+void printCreateProgress(SThreadInfo *pInfo, int32_t t) {
+  int64_t endMs = taosGetTimestampMs();
+  int32_t totalTables = t - pInfo->tableBeginIndex;
+  float   seconds = (endMs - pInfo->startMs) / 1000.0;
+  float   speed = totalTables / seconds;
+  pInfo->createTableSpeed = speed;
+  pPrint("thread:%d, %d tables created, time:%.2f sec, speed:%.1f tables/second, ", pInfo->threadIndex, totalTables,
+         seconds, speed);
+}
+
+void printInsertProgress(SThreadInfo *pInfo, int32_t t) {
+  int64_t endMs = taosGetTimestampMs();
+  int32_t totalTables = t - pInfo->tableBeginIndex;
+  float   seconds = (endMs - pInfo->startMs) / 1000.0;
+  float   speed = totalTables / seconds;
+  pInfo->insertDataSpeed = speed;
+  pPrint("thread:%d, %d rows inserted, time:%.2f sec, speed:%.1f rows/second, ", pInfo->threadIndex, totalTables,
+         seconds, speed);
+}
+
 void *threadFunc(void *param) {
   SThreadInfo *pInfo = (SThreadInfo *)param;
   char        *qstr = malloc(2000 * 1000);
@@ -146,7 +167,7 @@ void *threadFunc(void *param) {
   taos_free_result(pSql);
 
   if (createTable) {
-    int64_t startMs = taosGetTimestampMs();
+    pInfo->startMs = taosGetTimestampMs();
     for (int32_t t = pInfo->tableBeginIndex; t < pInfo->tableEndIndex; ++t) {
       int32_t batch = (pInfo->tableEndIndex - t);
       batch = MIN(batch, batchNum);
@@ -155,38 +176,46 @@ void *threadFunc(void *param) {
       for (int32_t i = 0; i < batch; ++i) {
         len += sprintf(qstr + len, " t%d using %s tags(%d)", t + i, stbName, t + i);
       }
+
       TAOS_RES *pSql = taos_query(con, qstr);
       code = taos_errno(pSql);
       if (code != 0) {
         pError("failed to create table t%d, reason:%s", t, tstrerror(code));
       }
       taos_free_result(pSql);
+
+      if (t % 1000 == 0) {
+        printCreateProgress(pInfo, t);
+      }
+      t += (batch - 1);
     }
-    int64_t endMs = taosGetTimestampMs();
-    int32_t totalTables = pInfo->tableEndIndex - pInfo->tableBeginIndex;
-    float   seconds = (endMs - startMs) / 1000.0;
-    float   speed = totalTables / seconds;
-    pInfo->createTableSpeed = speed;
-    pPrint("thread:%d, time:%.2f sec, speed:%.1f tables/second, ", pInfo->threadIndex, seconds, speed);
+    printCreateProgress(pInfo, pInfo->tableEndIndex);
   }
 
   if (insertData) {
-    int64_t startMs = taosGetTimestampMs();
+    pInfo->startMs = taosGetTimestampMs();
     for (int32_t t = pInfo->tableBeginIndex; t < pInfo->tableEndIndex; ++t) {
-      sprintf(qstr, "insert into %s%d values(now, 1)", stbName, t);
+      int32_t batch = (pInfo->tableEndIndex - t);
+      batch = MIN(batch, batchNum);
+
+      int32_t len = sprintf(qstr, "insert into");
+      for (int32_t i = 0; i < batch; ++i) {
+        len += sprintf(qstr + len, " t%d values(now, %d)", t + i, t + i);
+      }
+
       TAOS_RES *pSql = taos_query(con, qstr);
       code = taos_errno(pSql);
       if (code != 0) {
-        pError("failed to create table %s%d, reason:%s", stbName, t, tstrerror(code));
+        pError("failed to insert table t%d, reason:%s", t, tstrerror(code));
       }
       taos_free_result(pSql);
+
+      if (t % 100000 == 0) {
+        printInsertProgress(pInfo, t);
+      }
+      t += (batch - 1);
     }
-    int64_t endMs = taosGetTimestampMs();
-    int32_t totalTables = pInfo->tableEndIndex - pInfo->tableBeginIndex;
-    float   seconds = (endMs - startMs) / 1000.0;
-    float   speed = totalTables / seconds;
-    pInfo->insertDataSpeed = speed;
-    pPrint("thread:%d, time:%.2f sec, speed:%.1f rows/second, ", pInfo->threadIndex, seconds, speed);
+    printInsertProgress(pInfo, pInfo->tableEndIndex);
   }
 
   taos_close(con);
