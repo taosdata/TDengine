@@ -83,6 +83,38 @@ SMemRow tGetSubmitBlkNext(SSubmitBlkIter *pIter) {
     }
     return row;
   }
+int tSerializeSClientHbReq(void **buf, const SClientHbReq *pReq) {
+  int tlen = 0;
+  tlen += taosEncodeSClientHbKey(buf, &pReq->connKey);
+
+  void *pIter = NULL;
+  void *data;
+  SKlv  klv;
+  data = taosHashIterate(pReq->info, pIter);
+  while (data != NULL) {
+    taosHashGetKey(data, &klv.key, (size_t *)&klv.keyLen);
+    klv.valueLen = taosHashGetDataLen(data);
+    klv.value = data;
+    taosEncodeSKlv(buf, &klv);
+
+    data = taosHashIterate(pReq->info, pIter);
+  }
+  return tlen;
+}
+
+void *tDeserializeClientHbReq(void *buf, SClientHbReq *pReq) {
+  ASSERT(pReq->info != NULL);
+  buf = taosDecodeSClientHbKey(buf, &pReq->connKey);
+
+  // TODO: error handling
+  if (pReq->info == NULL) {
+    pReq->info = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  }
+  SKlv klv;
+  buf = taosDecodeSKlv(buf, &klv);
+  taosHashPut(pReq->info, klv.key, klv.keyLen, klv.value, klv.valueLen);
+
+  return buf;
 }
 
 int tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {

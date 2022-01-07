@@ -26,6 +26,7 @@ extern "C" {
 #include "tarray.h"
 #include "tcoding.h"
 #include "tdataformat.h"
+#include "thash.h"
 #include "tlist.h"
 
 /* ------------------------ MESSAGE DEFINITIONS ------------------------ */
@@ -131,6 +132,73 @@ typedef enum _mgmt_table {
 #define TSDB_COL_IS_NORMAL_COL(f) ((f & (~(TSDB_COL_NULL))) == TSDB_COL_NORMAL)
 #define TSDB_COL_IS_UD_COL(f) ((f & (~(TSDB_COL_NULL))) == TSDB_COL_UDC)
 #define TSDB_COL_REQ_NULL(f) (((f)&TSDB_COL_NULL) != 0)
+
+typedef struct SKlv {
+  int32_t keyLen;
+  int32_t valueLen;
+  void*   key;
+  void*   value;
+} SKlv;
+
+static FORCE_INLINE int taosEncodeSKlv(void** buf, const SKlv* pKlv) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI32(buf, pKlv->keyLen);
+  tlen += taosEncodeFixedI32(buf, pKlv->valueLen);
+  tlen += taosEncodeBinary(buf, pKlv->key, pKlv->keyLen);
+  tlen += taosEncodeBinary(buf, pKlv->value, pKlv->valueLen);
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSKlv(void* buf, SKlv* pKlv) {
+  buf = taosDecodeFixedI32(buf, &pKlv->keyLen);
+  buf = taosDecodeFixedI32(buf, &pKlv->valueLen);
+  buf = taosDecodeBinary(buf, &pKlv->key, pKlv->keyLen);
+  buf = taosDecodeBinary(buf, &pKlv->value, pKlv->valueLen);
+  return buf;
+}
+typedef struct SClientHbKey {
+  int32_t connId;
+  int32_t hbType;
+} SClientHbKey;
+
+static FORCE_INLINE int taosEncodeSClientHbKey(void** buf, const SClientHbKey* pKey) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI32(buf, pKey->connId);
+  tlen += taosEncodeFixedI32(buf, pKey->hbType);
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSClientHbKey(void* buf, SClientHbKey* pKey) {
+  buf = taosDecodeFixedI32(buf, &pKey->connId);
+  buf = taosDecodeFixedI32(buf, &pKey->hbType);
+  return buf;
+}
+
+typedef struct SClientHbReq {
+  SClientHbKey connKey;
+  SHashObj*    info;  // hash<Slv.key, Sklv>
+} SClientHbReq;
+
+typedef struct SClientHbBatchReq {
+  int64_t reqId;
+  SArray* reqs;  // SArray<SClientHbReq>
+} SClientHbBatchReq;
+
+int   tSerializeSClientHbReq(void** buf, const SClientHbReq* pReq);
+void* tDeserializeClientHbReq(void* buf, SClientHbReq* pReq);
+
+typedef struct SClientHbRsp {
+  SClientHbKey connKey;
+  int32_t      status;
+  int32_t      bodyLen;
+  void*        body;
+} SClientHbRsp;
+
+typedef struct SClientHbBatchRsp {
+  int64_t reqId;
+  int64_t rspId;
+  SArray* rsps;  // SArray<SClientHbRsp>
+} SClientHbBatchRsp;
 
 typedef struct SBuildTableMetaInput {
   int32_t vgId;
@@ -1141,7 +1209,7 @@ typedef struct {
   int32_t topicNum;
   int64_t consumerId;
   char*   consumerGroup;
-  SArray* topicNames; // SArray<char*>
+  SArray* topicNames;  // SArray<char*>
 } SCMSubscribeReq;
 
 static FORCE_INLINE int tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
@@ -1150,7 +1218,7 @@ static FORCE_INLINE int tSerializeSCMSubscribeReq(void** buf, const SCMSubscribe
   tlen += taosEncodeFixedI64(buf, pReq->consumerId);
   tlen += taosEncodeString(buf, pReq->consumerGroup);
 
-  for(int i = 0; i < pReq->topicNum; i++) {
+  for (int i = 0; i < pReq->topicNum; i++) {
     tlen += taosEncodeString(buf, (char*)taosArrayGetP(pReq->topicNames, i));
   }
   return tlen;
@@ -1161,7 +1229,7 @@ static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq
   buf = taosDecodeFixedI64(buf, &pReq->consumerId);
   buf = taosDecodeString(buf, &pReq->consumerGroup);
   pReq->topicNames = taosArrayInit(pReq->topicNum, sizeof(void*));
-  for(int i = 0; i < pReq->topicNum; i++) {
+  for (int i = 0; i < pReq->topicNum; i++) {
     char* name = NULL;
     buf = taosDecodeString(buf, &name);
     taosArrayPush(pReq->topicNames, &name);
@@ -1176,14 +1244,14 @@ typedef struct SMqSubTopic {
 } SMqSubTopic;
 
 typedef struct {
-  int32_t topicNum;
+  int32_t     topicNum;
   SMqSubTopic topics[];
 } SCMSubscribeRsp;
 
 static FORCE_INLINE int tSerializeSCMSubscribeRsp(void** buf, const SCMSubscribeRsp* pRsp) {
   int tlen = 0;
   tlen += taosEncodeFixedI32(buf, pRsp->topicNum);
-  for(int i = 0; i < pRsp->topicNum; i++) {
+  for (int i = 0; i < pRsp->topicNum; i++) {
     tlen += taosEncodeFixedI32(buf, pRsp->topics[i].vgId);
     tlen += taosEncodeFixedI64(buf, pRsp->topics[i].topicId);
     tlen += taosEncodeSEpSet(buf, &pRsp->topics[i].epSet);
@@ -1193,7 +1261,7 @@ static FORCE_INLINE int tSerializeSCMSubscribeRsp(void** buf, const SCMSubscribe
 
 static FORCE_INLINE void* tDeserializeSCMSubscribeRsp(void* buf, SCMSubscribeRsp* pRsp) {
   buf = taosDecodeFixedI32(buf, &pRsp->topicNum);
-  for(int i = 0; i < pRsp->topicNum; i++) {
+  for (int i = 0; i < pRsp->topicNum; i++) {
     buf = taosDecodeFixedI32(buf, &pRsp->topics[i].vgId);
     buf = taosDecodeFixedI64(buf, &pRsp->topics[i].topicId);
     buf = taosDecodeSEpSet(buf, &pRsp->topics[i].epSet);

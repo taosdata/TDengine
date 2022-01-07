@@ -310,18 +310,8 @@ int32_t ctgGetVgInfoFromHashValue(SDBVgroupInfo *dbInfo, const SName *pTableName
     vgInfo = NULL;
   }
 
-  ctgInfo("numOfVgroup:%d", taosHashGetSize(dbInfo->vgInfo));
-
   if (NULL == vgInfo) {
     ctgError("no hash range found for hash value [%u], numOfVgId:%d", hashValue, taosHashGetSize(dbInfo->vgInfo));
-
-    void *pIter1 = taosHashIterate(dbInfo->vgInfo, NULL);
-    while (pIter1) {
-      vgInfo = pIter1;
-      ctgError("valid range:[%u, %u], vgId:%d", vgInfo->hashBegin, vgInfo->hashEnd, vgInfo->vgId);
-      pIter1 = taosHashIterate(dbInfo->vgInfo, pIter1);
-    }
-
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
