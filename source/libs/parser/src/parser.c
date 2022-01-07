@@ -67,7 +67,7 @@ int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
       return terrno;
     }
 
-    int32_t code = qParserValidateSqlNode(pCxt->ctx.pCatalog, &info, pQueryInfo, pCxt->ctx.requestId, pCxt->pMsg, pCxt->msgLen);
+    int32_t code = qParserValidateSqlNode(&pCxt->ctx, &info, pQueryInfo, pCxt->pMsg, pCxt->msgLen);
     if (code == TSDB_CODE_SUCCESS) {
       *pQuery = (SQueryNode*)pQueryInfo;
     }

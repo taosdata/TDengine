@@ -291,10 +291,10 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
 
   nPrintTsc("%s", sql)
 
-  SRequestObj* pRequest = NULL;
-  SQueryNode* pQuery = NULL;
-  SQueryDag* pDag = NULL;
-  void* pJob = NULL;
+  SRequestObj *pRequest = NULL;
+  SQueryNode  *pQuery   = NULL;
+  SQueryDag   *pDag     = NULL;
+  void        *pJob     = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
