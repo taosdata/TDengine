@@ -58,7 +58,7 @@ if __name__ == "__main__":
             restart = True
 
         if key in ['-f', '--file']:
-            fileName = value
+            fileName = os.path.normpath(value)
 
         if key in ['-p', '--path']:
             deployPath = value
@@ -122,15 +122,40 @@ if __name__ == "__main__":
     else:
         host = masterIp
 
-    tdLog.info("Procedures for tdengine deployed in %s" % (host))
+    tdLog.info("Procedures for tdengine deployed in %s" % (host)) 
     if windows:
         tdCases.logSql(logSql)
         tdLog.info("Procedures for testing self-deployment")
         td_clinet = TDSimClient("C:\\TDengine")
         td_clinet.deploy()
-        remote_conn = Connection("root@%s"%host)
-        with remote_conn.cd('/var/lib/jenkins/workspace/TDinternal/community/tests/pytest'):
-            remote_conn.run("python3 ./test.py")
+        if masterIp == "" or masterIp == "localhost":
+            tdDnodes.init(deployPath)
+            tdDnodes.setTestCluster(testCluster)
+            tdDnodes.setValgrind(valgrind)
+            tdDnodes.stopAll()
+            is_test_framework = 0
+            key_word = 'tdCases.addWindows'
+            try:
+                if key_word in open(fileName).read():
+                    is_test_framework = 1
+            except:
+                pass
+            if is_test_framework:
+                moduleName = fileName.replace(".py", "").replace(os.sep, ".")
+                uModule = importlib.import_module(moduleName)
+                try:
+                    ucase = uModule.TDTestCase()
+                    tdDnodes.deploy(1,ucase.updatecfgDict)
+                except :
+                    tdDnodes.deploy(1,{})
+            else:
+                pass
+                tdDnodes.deploy(1,{})
+            tdDnodes.startWin(1)
+        else:
+            remote_conn = Connection("root@%s"%host)
+            with remote_conn.cd('/var/lib/jenkins/workspace/TDinternal/community/tests/pytest'):
+                remote_conn.run("python3 ./test.py")
         conn = taos.connect(
             host="%s"%(host),
             config=td_clinet.cfgDir)
@@ -148,7 +173,7 @@ if __name__ == "__main__":
         except:
             pass
         if is_test_framework:
-            moduleName = fileName.replace(".py", "").replace("/", ".")
+            moduleName = fileName.replace(".py", "").replace(os.sep, ".")
             uModule = importlib.import_module(moduleName)
             try:
                 ucase = uModule.TDTestCase()
