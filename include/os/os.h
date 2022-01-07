@@ -48,6 +48,7 @@ extern "C" {
 #include <wchar.h>
 #include <wctype.h>
 #include <wordexp.h>
+#include <libgen.h>
 
 #include <sys/mman.h>
 
