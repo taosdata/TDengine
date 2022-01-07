@@ -10,7 +10,7 @@
   ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
   DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
   LIKE MATCH NMATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
-  NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT TBNAME JOIN STABLE NULL INSERT INTO VALUES FILE.
+  NOW IPTOKEN SEMI NONE IMPORT TBNAME JOIN STABLE NULL INSERT INTO VALUES FILE.
 
 %left OR.
 %left AND.
@@ -629,11 +629,11 @@ windowstate_option(X) ::= STATE_WINDOW LP ids(V) RP.                       { X.c
 
 %type fill_value {SStrToken}
 fillValue(A) ::= NONE(X).        {A = X; A.type = TK_ID; }
-// fillValue(A) ::= VALUE(X).    {A = X; A.type = TK_ID; }  //VALUE and NEXT not support for now
-fillValue(A) ::= PREV(X).        {A = X; A.type = TK_ID; }
+// fillValue(A) ::= VALUE(X).       {A = X; A.type = TK_ID; }  //PREV,LINEAR,VALUE and NEXT not support for now, because it will be key word if support.
+// fillValue(A) ::= PREV(X).        {A = X; A.type = TK_ID; }
 fillValue(A) ::= NULL(X).        {A = X; A.type = TK_ID; }
-fillValue(A) ::= LINEAR(X).      {A = X; A.type = TK_ID; }
-// fillValue(A) ::= NEXT(X).     {A = X; A.type = TK_ID; }
+// fillValue(A) ::= LINEAR(X).      {A = X; A.type = TK_ID; }
+// fillValue(A) ::= NEXT(X).        {A = X; A.type = TK_ID; }
 fillValue(A) ::= ID(X).          {A = X; }
 
 %type fill_opt {SArray*}

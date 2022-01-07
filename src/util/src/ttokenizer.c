@@ -209,8 +209,6 @@ static SKeyword keywordTable[] = {
     {"ALL",          TK_ALL},
     {"SEMI",         TK_SEMI},
     {"NONE",         TK_NONE},
-    {"PREV",         TK_PREV},
-    {"LINEAR",       TK_LINEAR},
     {"IMPORT",       TK_IMPORT},
     {"TBNAME",       TK_TBNAME},
     {"JOIN",         TK_JOIN},
