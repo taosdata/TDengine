@@ -162,7 +162,7 @@ cmd ::= DESC tableName(X). {
     setDCLSqlElems(pInfo, TSDB_SQL_DESCRIBE_TABLE, 1, &X);
 }
 /////////////////////////////////THE ALTER STATEMENT////////////////////////////////////////
-cmd ::= ALTER USER ids(X) PASS ids(Y).          { setAlterUserSql(pInfo, TSDB_ALTER_USER_PASSWD, &X, &Y, NULL);    }
+cmd ::= ALTER USER ids(X) PASS STRING(Y).          { setAlterUserSql(pInfo, TSDB_ALTER_USER_PASSWD, &X, &Y, NULL);    }
 cmd ::= ALTER USER ids(X) PRIVILEGE ids(Y).     { setAlterUserSql(pInfo, TSDB_ALTER_USER_PRIVILEGES, &X, NULL, &Y);}
 cmd ::= ALTER DNODE ids(X) ids(Y).              { setDCLSqlElems(pInfo, TSDB_SQL_CFG_DNODE, 2, &X, &Y);          }
 cmd ::= ALTER DNODE ids(X) ids(Y) ids(Z).       { setDCLSqlElems(pInfo, TSDB_SQL_CFG_DNODE, 3, &X, &Y, &Z);      }
@@ -172,7 +172,7 @@ cmd ::= ALTER DATABASE ids(X) alter_db_optr(Y). { SStrToken t = {0};  setCreateD
 cmd ::= ALTER TOPIC ids(X) alter_topic_optr(Y). { SStrToken t = {0};  setCreateDbInfo(pInfo, TSDB_SQL_ALTER_DB, &X, &Y, &t);}
 
 cmd ::= ALTER ACCOUNT ids(X) acct_optr(Z).      { setCreateAcctSql(pInfo, TSDB_SQL_ALTER_ACCT, &X, NULL, &Z);}
-cmd ::= ALTER ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).      { setCreateAcctSql(pInfo, TSDB_SQL_ALTER_ACCT, &X, &Y, &Z);}
+cmd ::= ALTER ACCOUNT ids(X) PASS STRING(Y) acct_optr(Z).      { setCreateAcctSql(pInfo, TSDB_SQL_ALTER_ACCT, &X, &Y, &Z);}
 
 ////////////////////////////// COMPACT STATEMENT //////////////////////////////////////////////
 
@@ -194,14 +194,14 @@ ifnotexists(X) ::= .                { X.n = 0;}
 
 /////////////////////////////////THE CREATE STATEMENT///////////////////////////////////////
 //create option for dnode/db/user/account
-cmd ::= CREATE DNODE   ids(X).     { setDCLSqlElems(pInfo, TSDB_SQL_CREATE_DNODE, 1, &X);}
-cmd ::= CREATE ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).
+cmd ::= CREATE DNODE   STRING(X).     { setDCLSqlElems(pInfo, TSDB_SQL_CREATE_DNODE, 1, &X);}
+cmd ::= CREATE ACCOUNT ids(X) PASS STRING(Y) acct_optr(Z).
                                 { setCreateAcctSql(pInfo, TSDB_SQL_CREATE_ACCT, &X, &Y, &Z);}
 cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
 cmd ::= CREATE TOPIC ifnotexists(Z) ids(X) topic_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
 cmd ::= CREATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) bufsize(B).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y, &Z, &B, 1);}
 cmd ::= CREATE AGGREGATE FUNCTION ids(X) AS STRING(Y) OUTPUTTYPE typename(Z) bufsize(B).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y, &Z, &B, 2);}
-cmd ::= CREATE USER ids(X) PASS ids(Y).     { setCreateUserSql(pInfo, &X, &Y);}
+cmd ::= CREATE USER ids(X) PASS STRING(Y).     { setCreateUserSql(pInfo, &X, &Y);}
 
 bufsize(Y) ::= .                                { Y.n = 0;   }
 bufsize(Y) ::= BUFSIZE INTEGER(X).              { Y = X;     }

@@ -349,11 +349,6 @@ static int setColumnFilterInfoForTimestamp(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
 static int32_t handlePassword(SSqlCmd* pCmd, SStrToken* pPwd) {
   const char* msg1 = "password can not be empty";
   const char* msg2 = "name or password too long";
-  const char* msg3 = "password needs single quote marks enclosed";
-
-  if (pPwd->type != TK_STRING) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
-  }
 
   pPwd->n = (uint32_t)strtrim(pPwd->z);  // trim space before and after passwords
 
