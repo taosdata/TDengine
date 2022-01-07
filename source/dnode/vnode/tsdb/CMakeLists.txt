@@ -12,7 +12,7 @@ else(0)
         "src/tsdbWrite.c"
         "src/tsdbReadImpl.c"
         "src/tsdbFile.c"
-        # "src/tsdbFS.c"
+        "src/tsdbFS.c"
     )
 endif(0)
 

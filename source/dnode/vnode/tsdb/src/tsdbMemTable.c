@@ -335,7 +335,7 @@ static int tsdbTbDataComp(const void *arg1, const void *arg2) {
 
 static char *tsdbTbDataGetUid(const void *arg) {
   STbData *pTbData = (STbData *)arg;
-  return &(pTbData->uid);
+  return (char *)(&(pTbData->uid));
 }
 
 /* ------------------------ REFACTORING ------------------------ */

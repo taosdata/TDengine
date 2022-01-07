@@ -29,10 +29,19 @@ typedef struct {
   int64_t  size;
 } SKVRecord;
 
+void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn);
+
+static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
+  if (key < 0) {
+    return (int)((key + 1) / tsTickPerDay[precision] / days - 1);
+  } else {
+    return (int)((key / tsTickPerDay[precision] / days));
+  }
+}
+
 #if 0
 #define TSDB_DEFAULT_BLOCK_ROWS(maxRows) ((maxRows)*4 / 5)
 
-void  tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn);
 int   tsdbEncodeKVRecord(void **buf, SKVRecord *pRecord);
 void *tsdbDecodeKVRecord(void *buf, SKVRecord *pRecord);
 void *tsdbCommitData(STsdbRepo *pRepo);

@@ -27,7 +27,7 @@
 
 #include "tsdb.h"
 #include "tsdbCommit.h"
-// #include "tsdbFS.h"
+#include "tsdbFS.h"
 #include "tsdbFile.h"
 #include "tsdbLog.h"
 #include "tsdbMemTable.h"
@@ -47,12 +47,12 @@ struct STsdb {
   STsdbMemTable *       imem;
   SRtn                  rtn;
   SMemAllocatorFactory *pmaf;
-  // STsdbFS               fs;
+  STsdbFS               fs;
 };
 
 #define REPO_ID(r) 0
 #define REPO_CFG(r) (&(r)->config)
-// #define REPO_FS(r) (&(r)->fs)
+#define REPO_FS(r) (&(r)->fs)
 
 #ifdef __cplusplus
 }
