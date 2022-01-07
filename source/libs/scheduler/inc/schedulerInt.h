@@ -37,10 +37,10 @@ enum {
 };
 
 typedef struct SSchedulerMgmt {
-  uint64_t  taskId; 
-  uint64_t  sId;
+  uint64_t      taskId; // sequential taksId
+  uint64_t      sId;    // schedulerId
   SSchedulerCfg cfg;
-  SHashObj *jobs;  // key: queryId, value: SQueryJob*
+  SHashObj     *jobs;   // key: queryId, value: SQueryJob*
 } SSchedulerMgmt;
 
 typedef struct SSchCallbackParam {
@@ -83,30 +83,29 @@ typedef struct SSchJobAttr {
 
 typedef struct SSchJob {
   uint64_t         queryId;
-  int32_t          levelNum;
-  int32_t          levelIdx;
-  int8_t           status;
   SSchJobAttr      attr;
-  SEpSet           dataSrcEps;
-  SEpAddr          resEp;
+
+  int32_t          levelNum;
   void            *transport;
   SArray          *nodeList;   // qnode/vnode list, element is SQueryNodeAddr
-  tsem_t           rspSem;
-  int32_t          userFetch;
-  int32_t          remoteFetch;
-  SSchTask        *fetchTask;
+  SArray          *levels;    // Element is SQueryLevel, starting from 0. SArray<SSchLevel>
+  SArray          *subPlans;  // subplan pointer copied from DAG, no need to free it in scheduler
 
-  int32_t          errCode;
-  void            *res;
-  int32_t          resNumOfRows;
-
+  int32_t          levelIdx;
+  SEpSet           dataSrcEps;
   SHashObj        *execTasks; // executing tasks, key:taskid, value:SQueryTask*
   SHashObj        *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
   SHashObj        *failTasks; // failed tasks, key:taskid, value:SQueryTask*
 
-  SArray          *levels;    // Element is SQueryLevel, starting from 0. SArray<SSchLevel>
-  SArray          *subPlans;  // Element is SArray*, and nested element is SSubplan. The execution level of subplan, starting from 0. SArray<void*>
-
+  int8_t           status;  
+  SEpAddr          resEp;
+  tsem_t           rspSem;
+  int32_t          userFetch;
+  int32_t          remoteFetch;
+  SSchTask        *fetchTask;
+  int32_t          errCode;
+  void            *res;
+  int32_t          resNumOfRows;
   SQueryProfileSummary summary;
 } SSchJob;
 
@@ -115,12 +114,17 @@ typedef struct SSchJob {
 #define SCH_IS_DATA_SRC_TASK(task) ((task)->plan->type == QUERY_TYPE_SCAN)
 #define SCH_TASK_NEED_WAIT_ALL(task) ((task)->plan->type == QUERY_TYPE_MODIFY)
 
-#define SCH_JOB_ERR_LOG(param, ...) qError("QID:%"PRIx64 param, job->queryId, __VA_ARGS__)
-#define SCH_TASK_ERR_LOG(param, ...) qError("QID:%"PRIx64",TID:%"PRIx64 param, job->queryId, task->taskId, __VA_ARGS__)
+#define SCH_SET_JOB_TYPE(pAttr, type) (pAttr)->queryJob = ((type) != QUERY_TYPE_MODIFY)
+#define SCH_JOB_NEED_FETCH(pAttr) ((pAttr)->queryJob)
+
+#define SCH_JOB_ELOG(param, ...) qError("QID:%"PRIx64" " param, pJob->queryId, __VA_ARGS__)
+#define SCH_JOB_DLOG(param, ...) qDebug("QID:%"PRIx64" " param, pJob->queryId, __VA_ARGS__)
+
+#define SCH_TASK_ELOG(param, ...) qError("QID:%"PRIx64",TID:%"PRIx64" " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
+#define SCH_TASK_DLOG(param, ...) qDebug("QID:%"PRIx64",TID:%"PRIx64" " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
 
 #define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define SCH_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
-#define SCH_ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { qError(__VA_ARGS__); terrno = _code; return _code; } } while (0)
 #define SCH_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
 #define SCH_LOCK(type, _lock) (SCH_READ == (type) ? taosRLockLatch(_lock) : taosWLockLatch(_lock))
