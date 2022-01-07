@@ -419,10 +419,8 @@ int32_t ctgGetVgInfoFromHashValue(struct SCatalog *pCatalog, SDBVgroupInfo *dbIn
     vgInfo = NULL;
   }
 
-  ctgInfo("numOfVgroup:%d", taosHashGetSize(dbInfo->vgInfo));
-
   if (NULL == vgInfo) {
-    ctgError("no hash range found for hashvalue[%u], db:%s", hashValue, db);
+    ctgError("no hash range found for hash value [%u], db:%s, numOfVgId:%d", hashValue, db, taosHashGetSize(dbInfo->vgInfo));
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
@@ -1078,12 +1076,11 @@ int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* 
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  SDBVgroupInfo* db = NULL;
+  SDBVgroupInfo* db   = NULL;
   SVgroupInfo *vgInfo = NULL;
 
   int32_t code = 0;
   SArray *vgList = NULL;
-  
   CTG_ERR_JRET(ctgGetDBVgroup(pCatalog, pRpc, pMgmtEps, dbName, forceUpdate, &db));
 
   vgList = taosArrayInit(taosHashGetSize(db->vgInfo), sizeof(SVgroupInfo));
@@ -1109,7 +1106,6 @@ int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* 
   vgList = NULL;
 
 _return:
-
   if (db) {
     CTG_UNLOCK(CTG_READ, &db->lock);
     taosHashRelease(pCatalog->dbCache.cache, db);

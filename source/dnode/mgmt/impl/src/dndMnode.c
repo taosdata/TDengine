@@ -305,18 +305,18 @@ static void dndBuildMnodeOpenOption(SDnode *pDnode, SMnodeOpt *pOption) {
   memcpy(&pOption->replicas, pMgmt->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
 }
 
-static int32_t dndBuildMnodeOptionFromMsg(SDnode *pDnode, SMnodeOpt *pOption, SDCreateMnodeMsg *pMsg) {
+static int32_t dndBuildMnodeOptionFromReq(SDnode *pDnode, SMnodeOpt *pOption, SDCreateMnodeMsg *pReq) {
   dndInitMnodeOption(pDnode, pOption);
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
 
-  pOption->replica = pMsg->replica;
+  pOption->replica = pReq->replica;
   pOption->selfIndex = -1;
-  for (int32_t i = 0; i < pMsg->replica; ++i) {
+  for (int32_t i = 0; i < pReq->replica; ++i) {
     SReplica *pReplica = &pOption->replicas[i];
-    pReplica->id = pMsg->replicas[i].id;
-    pReplica->port = pMsg->replicas[i].port;
-    memcpy(pReplica->fqdn, pMsg->replicas[i].fqdn, TSDB_FQDN_LEN);
+    pReplica->id = pReq->replicas[i].id;
+    pReplica->port = pReq->replicas[i].port;
+    memcpy(pReplica->fqdn, pReq->replicas[i].fqdn, TSDB_FQDN_LEN);
     if (pReplica->id == pOption->dnodeId) {
       pOption->selfIndex = i;
     }
@@ -423,26 +423,26 @@ static int32_t dndDropMnode(SDnode *pDnode) {
   return 0;
 }
 
-static SDCreateMnodeMsg *dndParseCreateMnodeMsg(SRpcMsg *pRpcMsg) {
-  SDCreateMnodeMsg *pMsg = pRpcMsg->pCont;
-  pMsg->dnodeId = htonl(pMsg->dnodeId);
-  for (int32_t i = 0; i < pMsg->replica; ++i) {
-    pMsg->replicas[i].id = htonl(pMsg->replicas[i].id);
-    pMsg->replicas[i].port = htons(pMsg->replicas[i].port);
+static SDCreateMnodeMsg *dndParseCreateMnodeReq(SRpcMsg *pReq) {
+  SDCreateMnodeMsg *pCreate = pReq->pCont;
+  pCreate->dnodeId = htonl(pCreate->dnodeId);
+  for (int32_t i = 0; i < pCreate->replica; ++i) {
+    pCreate->replicas[i].id = htonl(pCreate->replicas[i].id);
+    pCreate->replicas[i].port = htons(pCreate->replicas[i].port);
   }
 
-  return pMsg;
+  return pCreate;
 }
 
-int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SDCreateMnodeMsg *pMsg = dndParseCreateMnodeMsg(pRpcMsg);
+int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+  SDCreateMnodeMsg *pCreate = dndParseCreateMnodeReq(pReq);
 
-  if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
+  if (pCreate->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_ID_INVALID;
     return -1;
   } else {
     SMnodeOpt option = {0};
-    if (dndBuildMnodeOptionFromMsg(pDnode, &option, pMsg) != 0) {
+    if (dndBuildMnodeOptionFromReq(pDnode, &option, pCreate) != 0) {
       return -1;
     }
 
@@ -450,16 +450,16 @@ int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
   }
 }
 
-int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SDAlterMnodeMsg *pMsg = dndParseCreateMnodeMsg(pRpcMsg);
+int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+  SDAlterMnodeMsg *pAlter = dndParseCreateMnodeReq(pReq);
 
-  if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
+  if (pAlter->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_ID_INVALID;
     return -1;
   }
 
   SMnodeOpt option = {0};
-  if (dndBuildMnodeOptionFromMsg(pDnode, &option, pMsg) != 0) {
+  if (dndBuildMnodeOptionFromReq(pDnode, &option, pAlter) != 0) {
     return -1;
   }
 
@@ -470,11 +470,11 @@ int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
   return dndWriteMnodeFile(pDnode);
 }
 
-int32_t dndProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SDDropMnodeMsg *pMsg = pRpcMsg->pCont;
-  pMsg->dnodeId = htonl(pMsg->dnodeId);
+int32_t dndProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+  SDDropMnodeMsg *pDrop = pReq->pCont;
+  pDrop->dnodeId = htonl(pDrop->dnodeId);
 
-  if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
+  if (pDrop->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_ID_INVALID;
     return -1;
   } else {

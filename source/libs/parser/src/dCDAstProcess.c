@@ -332,7 +332,6 @@ static int32_t doParseSerializeTagValue(SSchema* pTagSchema, int32_t numOfInputT
 
     char* endPtr = NULL;
     char  tmpTokenBuf[TSDB_MAX_TAGS_LEN] = {0};
-
     SKvParam param = {.builder = pKvRowBuilder, .schema = pSchema};
 
     SToken* pItem = taosArrayGet(pTagValList, i);
