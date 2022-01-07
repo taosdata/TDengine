@@ -27,6 +27,64 @@
 #undef TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
 
+int tInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter) {
+  if (pMsg == NULL) {
+    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
+    return -1;
+  }
+
+  pIter->totalLen = pMsg->length;
+  pIter->len = 0;
+  pIter->pMsg = pMsg;
+  if (pMsg->length <= sizeof(SSubmitMsg)) {
+    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
+    return -1;
+  }
+
+  return 0;
+}
+
+int tGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
+  if (pIter->len == 0) {
+    pIter->len += sizeof(SSubmitMsg);
+  } else {
+    SSubmitBlk *pSubmitBlk = (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
+    pIter->len += (sizeof(SSubmitBlk) + pSubmitBlk->dataLen + pSubmitBlk->schemaLen);
+  }
+
+  if (pIter->len > pIter->totalLen) {
+    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
+    *pPBlock = NULL;
+    return -1;
+  }
+
+  *pPBlock = (pIter->len == pIter->totalLen) ? NULL : (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
+
+  return 0;
+}
+
+int tInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
+  if (pBlock->dataLen <= 0) return -1;
+  pIter->totalLen = pBlock->dataLen;
+  pIter->len = 0;
+  pIter->row = (SMemRow)(pBlock->data + pBlock->schemaLen);
+  return 0;
+}
+
+SMemRow tGetSubmitBlkNext(SSubmitBlkIter *pIter) {
+  SMemRow row = pIter->row;
+
+  if (pIter->len >= pIter->totalLen) {
+    return NULL;
+  } else {
+    pIter->len += memRowTLen(row);
+    if (pIter->len < pIter->totalLen) {
+      pIter->row = POINTER_SHIFT(row, memRowTLen(row));
+    }
+    return row;
+  }
+}
+
 int tSerializeSClientHbReq(void **buf, const SClientHbReq *pReq) {
   int tlen = 0;
   tlen += taosEncodeSClientHbKey(buf, &pReq->connKey);

@@ -13,22 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbint.h"
+#include "tsdbDef.h"
 
 static const char *TSDB_FNAME_SUFFIX[] = {
-    "head",     // TSDB_FILE_HEAD
-    "data",     // TSDB_FILE_DATA
-    "last",     // TSDB_FILE_LAST
-    "",         // TSDB_FILE_MAX
-    "meta",     // TSDB_FILE_META
+    "head",  // TSDB_FILE_HEAD
+    "data",  // TSDB_FILE_DATA
+    "last",  // TSDB_FILE_LAST
+    "",      // TSDB_FILE_MAX
+    "meta",  // TSDB_FILE_META
 };
 
-static void  tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname);
-static int   tsdbRollBackMFile(SMFile *pMFile);
+static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname);
+// static int   tsdbRollBackMFile(SMFile *pMFile);
 static int   tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo);
 static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo);
 static int   tsdbRollBackDFile(SDFile *pDFile);
 
+#if 0
 // ============== SMFile
 void tsdbInitMFile(SMFile *pMFile, SDiskID did, int vid, uint32_t ver) {
   char fname[TSDB_FILENAME_LEN];
@@ -185,7 +186,7 @@ int tsdbLoadMFileHeader(SMFile *pMFile, SMFInfo *pInfo) {
   return 0;
 }
 
-int tsdbScanAndTryFixMFile(STsdbRepo *pRepo) {
+int tsdbScanAndTryFixMFile(STsdb *pRepo) {
   SMFile *    pMFile = pRepo->fs->cstatus->pmf;
   struct stat mfstat;
   SMFile      mf;
@@ -290,6 +291,8 @@ static int tsdbRollBackMFile(SMFile *pMFile) {
   tsdbCloseMFile(&mf);
   return 0;
 }
+
+#endif
 
 // ============== Operations on SDFile
 void tsdbInitDFile(SDFile *pDFile, SDiskID did, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype) {
@@ -397,7 +400,7 @@ int tsdbUpdateDFileHeader(SDFile *pDFile) {
   }
 
   void *ptr = buf;
-  taosEncodeFixedU32(&ptr, TSDB_FS_VERSION);
+  taosEncodeFixedU32(&ptr, 0);
   tsdbEncodeDFInfo(&ptr, &(pDFile->info));
 
   taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
@@ -433,7 +436,7 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
   return 0;
 }
 
-static int tsdbScanAndTryFixDFile(STsdbRepo *pRepo, SDFile *pDFile) {
+static int tsdbScanAndTryFixDFile(STsdb *pRepo, SDFile *pDFile) {
   struct stat dfstat;
   SDFile      df;
 
@@ -442,7 +445,7 @@ static int tsdbScanAndTryFixDFile(STsdbRepo *pRepo, SDFile *pDFile) {
   if (access(TSDB_FILE_FULL_NAME(pDFile), F_OK) != 0) {
     tsdbError("vgId:%d data file %s not exit, report to upper layer to fix it", REPO_ID(pRepo),
               TSDB_FILE_FULL_NAME(pDFile));
-    pRepo->state |= TSDB_STATE_BAD_DATA;
+    // pRepo->state |= TSDB_STATE_BAD_DATA;
     TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_BAD);
     return 0;
   }
@@ -457,7 +460,7 @@ static int tsdbScanAndTryFixDFile(STsdbRepo *pRepo, SDFile *pDFile) {
       return -1;
     }
 
-    if (taosFtruncate(df.fd, df.info.size) < 0) {
+    if (taosFtruncateFile(df.fd, df.info.size) < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       tsdbCloseDFile(&df);
       return -1;
@@ -474,7 +477,7 @@ static int tsdbScanAndTryFixDFile(STsdbRepo *pRepo, SDFile *pDFile) {
   } else if (pDFile->info.size > dfstat.st_size) {
     tsdbError("vgId:%d data file %s has wrong size %" PRId64 " expected %" PRId64 ", report to upper layer to fix it",
               REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile), dfstat.st_size, pDFile->info.size);
-    pRepo->state |= TSDB_STATE_BAD_DATA;
+    // pRepo->state |= TSDB_STATE_BAD_DATA;
     TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_BAD);
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     return 0;
@@ -538,7 +541,7 @@ static int tsdbRollBackDFile(SDFile *pDFile) {
     return -1;
   }
 
-  if (taosFtruncate(TSDB_FILE_FD(&df), pDFile->info.size) < 0) {
+  if (taosFtruncateFile(TSDB_FILE_FD(&df), pDFile->info.size) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     tsdbCloseDFile(&df);
     return -1;
@@ -651,7 +654,7 @@ int tsdbUpdateDFileSetHeader(SDFileSet *pSet) {
   return 0;
 }
 
-int tsdbScanAndTryFixDFileSet(STsdbRepo *pRepo, SDFileSet *pSet) {
+int tsdbScanAndTryFixDFileSet(STsdb *pRepo, SDFileSet *pSet) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     if (tsdbScanAndTryFixDFile(pRepo, TSDB_DFILE_IN_SET(pSet, ftype)) < 0) {
       return -1;

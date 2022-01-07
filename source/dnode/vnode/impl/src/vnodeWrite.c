@@ -92,7 +92,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       // }
       break;
     case TDMT_VND_SUBMIT:
-      if (tsdbInsertData(pVnode->pTsdb, (SSubmitMsg *)ptr) < 0) {
+      if (tsdbInsertData(pVnode->pTsdb, (SSubmitMsg *)ptr, NULL) < 0) {
         // TODO: handle error
       }
       break;

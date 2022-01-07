@@ -215,7 +215,7 @@ static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj) {
   return taosHashGetSize(pHashObj) == 0;
 }
 
-int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size) {
+int32_t taosHashPutImpl(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size, bool *newAdded) {
   uint32_t   hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
   SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
   if (pNewNode == NULL) {
@@ -274,6 +274,10 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
     __rd_unlock((void*) &pHashObj->lock, pHashObj->type);
     atomic_add_fetch_32(&pHashObj->size, 1);
 
+    if (newAdded) {
+      *newAdded = true;
+    }
+    
     return 0;
   } else {
     // not support the update operation, return error
@@ -290,9 +294,22 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
     // enable resize
     __rd_unlock((void*) &pHashObj->lock, pHashObj->type);
 
+    if (newAdded) {
+      *newAdded = false;
+    }
+
     return pHashObj->enableUpdate ? 0 : -2;
   }
 }
+
+int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size) {
+  return taosHashPutImpl(pHashObj, key, keyLen, data, size, NULL);
+}
+
+int32_t taosHashPutExt(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size, bool *newAdded) {
+  return taosHashPutImpl(pHashObj, key, keyLen, data, size, newAdded);
+}
+
 
 void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
   return taosHashGetClone(pHashObj, key, keyLen, NULL);

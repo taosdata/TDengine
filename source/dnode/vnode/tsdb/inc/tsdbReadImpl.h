@@ -15,14 +15,14 @@
 
 #ifndef _TD_TSDB_READ_IMPL_H_
 #define _TD_TSDB_READ_IMPL_H_
-#if 0
 
+#include "os.h"
 #include "tfs.h"
 #include "tsdb.h"
-#include "os.h"
 #include "tsdbFile.h"
 #include "tskiplist.h"
-#include "tsdbMeta.h"
+#include "tsdbMemory.h"
+#include "common.h"
 
 typedef struct SReadH SReadH;
 
@@ -91,7 +91,7 @@ typedef struct {
 } SBlockData;
 
 struct SReadH {
-  STsdbRepo * pRepo;
+  STsdb *     pRepo;
   SDFileSet   rSet;     // FSET to read
   SArray *    aBlkIdx;  // SBlockIdx array
   STable *    pTable;   // table to read
@@ -116,7 +116,7 @@ struct SReadH {
 
 #define TSDB_BLOCK_STATIS_SIZE(ncols) (sizeof(SBlockData) + sizeof(SBlockCol) * (ncols) + sizeof(TSCKSUM))
 
-int   tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo);
+int   tsdbInitReadH(SReadH *pReadh, STsdb *pRepo);
 void  tsdbDestroyReadH(SReadH *pReadh);
 int   tsdbSetAndOpenReadFSet(SReadH *pReadh, SDFileSet *pSet);
 void  tsdbCloseAndUnsetFSet(SReadH *pReadh);
@@ -150,7 +150,5 @@ static FORCE_INLINE int tsdbMakeRoom(void **ppBuf, size_t size) {
 
   return 0;
 }
-
-#endif
 
 #endif /*_TD_TSDB_READ_IMPL_H_*/

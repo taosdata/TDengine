@@ -73,6 +73,12 @@ extern "C" {
   
 #endif
 
+#ifndef WINDOWS
+  #ifndef O_BINARY
+    #define O_BINARY 0
+  #endif
+#endif
+
 #define POINTER_SHIFT(p, b) ((void *)((char *)(p) + (b)))
 #define POINTER_DISTANCE(p1, p2) ((char *)(p1) - (char *)(p2)) 
 
