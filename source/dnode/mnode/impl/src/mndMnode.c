@@ -320,6 +320,7 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
     action.pCont = pReq;
     action.contLen = sizeof(SDAlterMnodeReq);
     action.msgType = TDMT_DND_ALTER_MNODE;
+    action.acceptableCode = TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED;
 
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pReq);
@@ -344,6 +345,7 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
     action.pCont = pReq;
     action.contLen = sizeof(SDCreateMnodeReq);
     action.msgType = TDMT_DND_CREATE_MNODE;
+    action.acceptableCode = TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pReq);
       return -1;
@@ -475,6 +477,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
       action.pCont = pReq;
       action.contLen = sizeof(SDAlterMnodeReq);
       action.msgType = TDMT_DND_ALTER_MNODE;
+      action.acceptableCode = TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED;
 
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         free(pReq);
@@ -502,6 +505,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
     action.pCont = pReq;
     action.contLen = sizeof(SDDropMnodeReq);
     action.msgType = TDMT_DND_DROP_MNODE;
+    action.acceptableCode = TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pReq);
       return -1;
@@ -547,12 +551,10 @@ static int32_t mndProcessDropMnodeReq(SMnodeMsg *pReq) {
   SMnodeObj *pObj = mndAcquireMnode(pMnode, pDrop->dnodeId);
   if (pObj == NULL) {
     mError("mnode:%d, not exist", pDrop->dnodeId);
-    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
     return -1;
   }
 
   int32_t code = mndDropMnode(pMnode, pReq, pObj);
-
   if (code != 0) {
     mError("mnode:%d, failed to drop since %s", pMnode->dnodeId, terrstr());
     return -1;
