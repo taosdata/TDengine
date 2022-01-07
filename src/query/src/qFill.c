@@ -120,7 +120,7 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
         bool exceedMax = false, exceedMin = false;
         point1 = (SPoint){.key = *(TSKEY*)(prev), .val = prev + pCol->col.offset};
         point2 = (SPoint){.key = ts, .val = srcData[i] + pFillInfo->index * bytes};
-        if (isNull(point2.val, type)) {
+        if (isNull(point1.val, type) || isNull(point2.val, type)) {
           setNull(val1, pCol->col.type, bytes);
           continue;
         }
