@@ -2384,7 +2384,7 @@ TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t index) {
   return &((SInternalField*)TARRAY_GET_ELEM(pFieldInfo->internalField, index))->field;
 }
 
-int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index) {
+int32_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index) {
   SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, index);
   assert(pInfo != NULL && pInfo->pExpr->pExpr == NULL);
 
