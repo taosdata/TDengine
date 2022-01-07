@@ -213,6 +213,14 @@ void  taosHashCancelIterate(SHashObj *pHashObj, void *p);
  */
 int32_t taosHashGetKey(void *data, void** key, size_t* keyLen);
 
+
+/**
+ * Get the corresponding data length for a given data in hash table
+ * @param data
+ * @return
+ */
+int32_t taosHashGetDataLen(void *data);
+
 /**
  * return the payload data with the specified key(reference number added)
  *

@@ -776,7 +776,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       char* pMsg = pCmd->payload;
 
-      SCfgDnodeMsg* pCfg = (SCfgDnodeMsg*)pMsg;
+      SMCfgDnodeReq* pCfg = (SMCfgDnodeReq*)pMsg;
 
       SStrToken* t0 = taosArrayGet(pMiscInfo->a, 0);
       SStrToken* t1 = taosArrayGet(pMiscInfo->a, 1);

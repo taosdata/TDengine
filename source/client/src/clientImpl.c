@@ -395,13 +395,13 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj *pRequest) {
   }
 
   pMsgSendInfo->msgType         = TDMT_MND_CONNECT;
-  pMsgSendInfo->msgInfo.len     = sizeof(SConnectMsg);
+  pMsgSendInfo->msgInfo.len     = sizeof(SConnectReq);
   pMsgSendInfo->requestObjRefId = pRequest->self;
   pMsgSendInfo->requestId       = pRequest->requestId;
   pMsgSendInfo->fp              = handleRequestRspFp[TMSG_INDEX(pMsgSendInfo->msgType)];
   pMsgSendInfo->param           = pRequest;
 
-  SConnectMsg *pConnect = calloc(1, sizeof(SConnectMsg));
+  SConnectReq *pConnect = calloc(1, sizeof(SConnectReq));
   if (pConnect == NULL) {
     tfree(pMsgSendInfo);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;

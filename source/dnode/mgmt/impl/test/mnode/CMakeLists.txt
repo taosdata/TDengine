@@ -1,5 +1,5 @@
-aux_source_directory(. MTEST_SRC)
-add_executable(dnode_test_mnode ${MTEST_SRC})
+aux_source_directory(. DMTEST_SRC)
+add_executable(dnode_test_mnode ${DMTEST_SRC})
 target_link_libraries(
     dnode_test_mnode
     PUBLIC sut

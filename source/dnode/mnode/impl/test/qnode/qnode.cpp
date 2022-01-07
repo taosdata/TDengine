@@ -96,9 +96,9 @@ TEST_F(MndTestQnode, 02_Create_Qnode) {
 
 TEST_F(MndTestQnode, 03_Drop_Qnode) {
   {
-    int32_t contLen = sizeof(SCreateDnodeMsg);
+    int32_t contLen = sizeof(SCreateDnodeReq);
 
-    SCreateDnodeMsg* pReq = (SCreateDnodeMsg*)rpcMallocCont(contLen);
+    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
     strcpy(pReq->fqdn, "localhost");
     pReq->port = htonl(9015);
 

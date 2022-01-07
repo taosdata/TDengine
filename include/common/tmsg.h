@@ -302,7 +302,7 @@ typedef struct {
   char    app[TSDB_APP_NAME_LEN];
   char    db[TSDB_DB_NAME_LEN];
   int64_t startTime;
-} SConnectMsg;
+} SConnectReq;
 
 typedef struct SEpSet {
   int8_t   inUse;
@@ -650,6 +650,7 @@ typedef struct {
   int32_t     sver;
   int32_t     dnodeId;
   int64_t     clusterId;
+  int64_t     dver;
   int64_t     rebootTime;
   int64_t     updateTime;
   int32_t     numOfCores;
@@ -657,7 +658,7 @@ typedef struct {
   char        dnodeEp[TSDB_EP_LEN];
   SClusterCfg clusterCfg;
   SVnodeLoads vnodeLoads;
-} SStatusMsg;
+} SStatusReq;
 
 typedef struct {
   int32_t reserved;
@@ -682,6 +683,7 @@ typedef struct {
 } SDnodeEps;
 
 typedef struct {
+  int64_t   dver;
   SDnodeCfg dnodeCfg;
   SDnodeEps dnodeEps;
 } SStatusRsp;
@@ -834,16 +836,16 @@ typedef struct SShowRsp {
 typedef struct {
   char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
   int32_t port;
-} SCreateDnodeMsg;
+} SCreateDnodeReq;
 
 typedef struct {
   int32_t dnodeId;
-} SDropDnodeMsg;
+} SDropDnodeReq;
 
 typedef struct {
   int32_t dnodeId;
   char    config[TSDB_DNODE_CONFIG_LEN];
-} SCfgDnodeMsg;
+} SMCfgDnodeReq, SDCfgDnodeReq;
 
 typedef struct {
   int32_t dnodeId;
@@ -899,7 +901,7 @@ typedef struct {
   int32_t numOfStreams;
   char    app[TSDB_APP_NAME_LEN];
   char    pData[];
-} SHeartBeatMsg;
+} SHeartBeatReq;
 
 typedef struct {
   int32_t connId;
@@ -914,17 +916,12 @@ typedef struct {
 
 typedef struct {
   int32_t connId;
-  int32_t streamId;
-} SKillStreamMsg;
-
-typedef struct {
-  int32_t connId;
   int32_t queryId;
-} SKillQueryMsg;
+} SKillQueryReq;
 
 typedef struct {
   int32_t connId;
-} SKillConnMsg;
+} SKillConnReq;
 
 typedef struct {
   char user[TSDB_USER_LEN];
@@ -1127,7 +1124,7 @@ typedef struct {
   int32_t topicNum;
   int64_t consumerId;
   char*   consumerGroup;
-  char*   topicName[];
+  SArray* topicNames; // SArray<char*>
 } SCMSubscribeReq;
 
 static FORCE_INLINE int tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
@@ -1135,8 +1132,9 @@ static FORCE_INLINE int tSerializeSCMSubscribeReq(void** buf, const SCMSubscribe
   tlen += taosEncodeFixedI32(buf, pReq->topicNum);
   tlen += taosEncodeFixedI64(buf, pReq->consumerId);
   tlen += taosEncodeString(buf, pReq->consumerGroup);
+
   for(int i = 0; i < pReq->topicNum; i++) {
-    tlen += taosEncodeString(buf, pReq->topicName[i]);
+    tlen += taosEncodeString(buf, (char*)taosArrayGetP(pReq->topicNames, i));
   }
   return tlen;
 }
@@ -1145,8 +1143,11 @@ static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq
   buf = taosDecodeFixedI32(buf, &pReq->topicNum);
   buf = taosDecodeFixedI64(buf, &pReq->consumerId);
   buf = taosDecodeString(buf, &pReq->consumerGroup);
+  pReq->topicNames = taosArrayInit(pReq->topicNum, sizeof(void*));
   for(int i = 0; i < pReq->topicNum; i++) {
-    buf = taosDecodeString(buf, &pReq->topicName[i]);
+    char* name = NULL;
+    buf = taosDecodeString(buf, &name);
+    taosArrayPush(pReq->topicNames, &name);
   }
   return buf;
 }

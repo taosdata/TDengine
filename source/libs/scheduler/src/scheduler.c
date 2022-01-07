@@ -273,19 +273,20 @@ int32_t schSetTaskCandidateAddrs(SSchJob *job, SSchTask *task) {
   return TSDB_CODE_SUCCESS;
 }
 
-
-int32_t schPushTaskToExecList(SSchJob *job, SSchTask *task) {
-  if (0 != taosHashPut(job->execTasks, &task->taskId, sizeof(task->taskId), &task, POINTER_BYTES)) {
-    qError("taosHashPut failed");
+int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask) {
+  if (0 != taosHashPut(pJob->execTasks, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES)) {
+    qError("failed to add new task, taskId:0x%"PRIx64", reqId:0x"PRIx64", out of memory", pJob->queryId);
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
+  qDebug("add one task, taskId:0x%"PRIx64", numOfTasks:%d, reqId:0x%"PRIx64, pTask->taskId, taosHashGetSize(pJob->execTasks),
+         pJob->queryId);
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t schMoveTaskToSuccList(SSchJob *job, SSchTask *task, bool *moved) {
   if (0 != taosHashRemove(job->execTasks, &task->taskId, sizeof(task->taskId))) {
-    qWarn("remove task[%"PRIx64"] from execTasks failed", task->taskId);
+    qError("remove task taskId:0x%"PRIx64" from execTasks failed, reqId:0x%"PRIx64, task->taskId, job->queryId);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -585,9 +586,12 @@ int32_t schHandleCallback(void* param, const SDataBuf* pMsg, int32_t msgType, in
     SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
+  int32_t s = taosHashGetSize((*job)->execTasks);
+  assert(s != 0);
+
   SSchTask **task = taosHashGet((*job)->execTasks, &pParam->taskId, sizeof(pParam->taskId));
   if (NULL == task || NULL == (*task)) {
-    qError("taosHashGet taskId:%"PRIx64" not exist", pParam->taskId);
+    qError("failed to get task, taskId:%"PRIx64" not exist, reqId:0x%"PRIx64, pParam->taskId, (*job)->queryId);
     SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
   
@@ -821,12 +825,13 @@ int32_t schLaunchTask(SSchJob *job, SSchTask *task) {
   SCH_ERR_RET(schSetTaskCandidateAddrs(job, task));
 
   if (NULL == task->candidateAddrs || taosArrayGetSize(task->candidateAddrs) <= 0) {
-    SCH_TASK_ERR_LOG("no valid condidate node for task:%"PRIx64, task->taskId);
+    SCH_TASK_ERR_LOG("no valid candidate node for task:%"PRIx64, task->taskId);
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
-  SCH_ERR_RET(schBuildAndSendMsg(job, task, plan->msgType));
+  // NOTE: race condition: the task should be put into the hash table before send msg to server
   SCH_ERR_RET(schPushTaskToExecList(job, task));
+  SCH_ERR_RET(schBuildAndSendMsg(job, task, plan->msgType));
 
   task->status = JOB_TASK_STATUS_EXECUTING;
   return TSDB_CODE_SUCCESS;
@@ -977,7 +982,7 @@ _return:
 }
 
 int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob, SQueryResult *pRes) {
-  if (NULL == transport || /* NULL == nodeList || */ NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == pRes) {
+  if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == pRes) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
