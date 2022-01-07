@@ -37,7 +37,7 @@ int tSerializeSClientHbReq(void **buf, const SClientHbReq *pReq) {
     taosHashGetKey(pIter, &kv.key, (size_t *)&kv.keyLen);
     kv.valueLen = taosHashGetDataLen(pIter);
     kv.value = pIter;
-    taosEncodeSKv(buf, &kv);
+    tlen += taosEncodeSKv(buf, &kv);
 
     pIter = taosHashIterate(pReq->info, pIter);
   }

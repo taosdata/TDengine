@@ -244,6 +244,7 @@ int walRoll(SWal *pWal) {
   pWal->writeIdxTfd = idxTfd;
   pWal->writeLogTfd = logTfd;
   pWal->writeCur = taosArrayGetSize(pWal->fileInfoSet) - 1;
+  ASSERT(pWal->writeCur >= 0);
 
   pWal->lastRollSeq = walGetSeq();
   return 0;

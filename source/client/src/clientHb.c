@@ -96,8 +96,9 @@ static void* hbThreadFunc(void* param) {
     
     SClientHbBatchReq* pReq = hbGatherAllInfo();
     void* reqStr = NULL;
-    tSerializeSClientHbBatchReq(&reqStr, pReq);
+    int tlen = tSerializeSClientHbBatchReq(&reqStr, pReq);
     SMsgSendInfo info;
+    /*info.fp = hbHandleRsp;*/
 
     int64_t transporterId = 0;
     asyncSendMsgToServer(clientHbMgr.transporter, &clientHbMgr.epSet, &transporterId, &info);
