@@ -137,9 +137,9 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     pRsp->numOfColumns = htonl(pRsp->numOfColumns);
     pRsp->sversion = htonl(pRsp->sversion);
     pRsp->tversion = htonl(pRsp->tversion);
-    pRsp->suid = htobe64(pRsp->suid);
-    pRsp->tuid = htobe64(pRsp->tuid);
-    pRsp->vgId = htobe64(pRsp->vgId);
+    pRsp->suid = be64toh(pRsp->suid);
+    pRsp->tuid = be64toh(pRsp->tuid);
+    pRsp->vgId = be64toh(pRsp->vgId);
     for (int32_t i = 0; i < pRsp->numOfTags + pRsp->numOfColumns; ++i) {
       SSchema* pSchema = &pRsp->pSchema[i];
       pSchema->colId = htonl(pSchema->colId);
@@ -156,7 +156,7 @@ TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     EXPECT_EQ(pRsp->sversion, 1);
     EXPECT_EQ(pRsp->tversion, 0);
     EXPECT_GT(pRsp->suid, 0);
-    EXPECT_EQ(pRsp->tuid, 0);
+    EXPECT_GT(pRsp->tuid, 0);
     EXPECT_EQ(pRsp->vgId, 0);
 
     {

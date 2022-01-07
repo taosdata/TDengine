@@ -48,7 +48,21 @@ typedef struct SMetaData {
 typedef struct SCatalogCfg {
   uint32_t maxTblCacheNum;
   uint32_t maxDBCacheNum;
+  uint32_t dbRentSec;
+  uint32_t stableRentSec;
 } SCatalogCfg;
+
+typedef struct SSTableMetaVersion {
+  uint64_t suid;
+  int16_t  sversion;
+  int16_t  tversion;  
+} SSTableMetaVersion;
+
+typedef struct SDbVgVersion {
+  int64_t dbId;
+  int32_t vgVersion;
+} SDbVgVersion;
+
 
 int32_t catalogInit(SCatalogCfg *cfg);
 
@@ -59,6 +73,14 @@ int32_t catalogInit(SCatalogCfg *cfg);
  * @return error code
  */
 int32_t catalogGetHandle(uint64_t clusterId, struct SCatalog** catalogHandle);
+
+/**
+ * Free a cluster's all catalog info, usually it's not necessary, until the application is closing. 
+ * no current or future usage should be guaranteed by application
+ * @param pCatalog (input, NO more usage)
+ * @return error code
+ */
+void catalogFreeHandle(struct SCatalog* pCatalog);
 
 int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName, int32_t* version);
 
@@ -88,14 +110,27 @@ int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDB
 int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta);
 
 /**
+ * Get a super table's meta data. 
+ * @param pCatalog (input, got with catalogGetHandle)
+ * @param pTransporter (input, rpc object)
+ * @param pMgmtEps (input, mnode EPs)
+ * @param pTableName (input, table name, NOT including db name)
+ * @param pTableMeta(output, table meta data, NEED to free it by calller)
+ * @return error code
+ */
+int32_t catalogGetSTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta);
+
+
+/**
  * Force renew a table's local cached meta data. 
  * @param pCatalog (input, got with catalogGetHandle)
  * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
  * @param pTableName (input, table name, NOT including db name)
+ * @param isSTable (input, is super table or not, 1:supposed to be stable, 0: supposed not to be stable, -1:not sure) 
  * @return error code
  */
-int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName);
+  int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, int32_t isSTable);
 
 /**
  * Force renew a table's local cached meta data and get the new one. 
@@ -104,9 +139,11 @@ int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void * pTransporter, co
  * @param pMgmtEps (input, mnode EPs)
  * @param pTableName (input, table name, NOT including db name)
  * @param pTableMeta(output, table meta data, NEED to free it by calller) 
+ * @param isSTable (input, is super table or not, 1:supposed to be stable, 0: supposed not to be stable, -1:not sure) 
  * @return error code
  */
-int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta);
+  int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta, int32_t isSTable);
+
 
 
 /**
@@ -146,6 +183,9 @@ int32_t catalogGetAllMeta(struct SCatalog* pCatalog, void *pTransporter, const S
 
 int32_t catalogGetQnodeList(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, SArray* pQnodeList);
 
+int32_t catalogGetExpiredSTables(struct SCatalog* pCatalog, SSTableMetaVersion **stables, uint32_t *num);
+
+int32_t catalogGetExpiredDBs(struct SCatalog* pCatalog, SDbVgVersion **dbs, uint32_t *num);
 
 
 /**

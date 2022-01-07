@@ -871,6 +871,7 @@ typedef struct {
 
 typedef struct {
   char        db[TSDB_DB_FNAME_LEN];
+  int64_t     uid;
   int32_t     vgVersion;
   int32_t     vgNum;
   int8_t      hashMethod;
@@ -996,7 +997,7 @@ typedef struct {
   char encrypt;
   char secret[TSDB_PASSWORD_LEN];
   char ckey[TSDB_PASSWORD_LEN];
-} SAuthMsg, SAuthRsp;
+} SAuthReq, SAuthRsp;
 
 typedef struct {
   int8_t finished;

@@ -97,6 +97,7 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
   
   pRsp->vgVersion = ntohl(pRsp->vgVersion);
   pRsp->vgNum = ntohl(pRsp->vgNum);
+  pRsp->uid = be64toh(pRsp->uid);
 
   if (pRsp->vgNum < 0) {
     qError("invalid db[%s] vgroup number[%d]", pRsp->db, pRsp->vgNum);
@@ -111,6 +112,7 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
 
   pOut->dbVgroup.vgVersion = pRsp->vgVersion;
   pOut->dbVgroup.hashMethod = pRsp->hashMethod;
+  pOut->dbVgroup.dbId = pRsp->uid;
   pOut->dbVgroup.vgInfo = taosHashInit(pRsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (NULL == pOut->dbVgroup.vgInfo) {
     qError("hash init[%d] failed", pRsp->vgNum);
@@ -149,8 +151,8 @@ static int32_t queryConvertTableMetaMsg(STableMetaMsg* pMetaMsg) {
   pMetaMsg->numOfColumns = ntohl(pMetaMsg->numOfColumns);
   pMetaMsg->sversion = ntohl(pMetaMsg->sversion);
   pMetaMsg->tversion = ntohl(pMetaMsg->tversion);
-  pMetaMsg->tuid = htobe64(pMetaMsg->tuid);
-  pMetaMsg->suid = htobe64(pMetaMsg->suid);
+  pMetaMsg->tuid = be64toh(pMetaMsg->tuid);
+  pMetaMsg->suid = be64toh(pMetaMsg->suid);
   pMetaMsg->vgId = ntohl(pMetaMsg->vgId);
 
   if (pMetaMsg->numOfTags < 0 || pMetaMsg->numOfTags > TSDB_MAX_TAGS) {
@@ -208,7 +210,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaMsg* msg, bool isSuperTable, STabl
 
   pTableMeta->vgId = isSuperTable ? 0 : msg->vgId;
   pTableMeta->tableType = isSuperTable ? TSDB_SUPER_TABLE : msg->tableType;
-  pTableMeta->uid  = msg->tuid;
+  pTableMeta->uid  = isSuperTable ? msg->suid : msg->tuid;
   pTableMeta->suid = msg->suid;
   pTableMeta->sversion = msg->sversion;
   pTableMeta->tversion = msg->tversion;
@@ -244,7 +246,7 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
   }
 
   if (pMetaMsg->tableType == TSDB_CHILD_TABLE) {
-    pOut->metaNum = 2;
+    SET_META_TYPE_BOTH_TABLE(pOut->metaType);
 
     if (pMetaMsg->dbFname[0]) {
       snprintf(pOut->ctbFname, sizeof(pOut->ctbFname), "%s.%s", pMetaMsg->dbFname, pMetaMsg->tbFname);
@@ -261,7 +263,7 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
 
     code = queryCreateTableMetaFromMsg(pMetaMsg, true, &pOut->tbMeta);
   } else {
-    pOut->metaNum = 1;
+    SET_META_TYPE_TABLE(pOut->metaType);
     
     if (pMetaMsg->dbFname[0]) {
       snprintf(pOut->tbFname, sizeof(pOut->tbFname), "%s.%s", pMetaMsg->dbFname, pMetaMsg->tbFname);
