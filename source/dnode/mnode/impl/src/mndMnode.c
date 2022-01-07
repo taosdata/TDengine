@@ -354,38 +354,22 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
 }
 
 static int32_t mndCreateMnode(SMnode *pMnode, SMnodeMsg *pReq, SDnodeObj *pDnode, SMCreateMnodeReq *pCreate) {
+  int32_t code = -1;
+
   SMnodeObj mnodeObj = {0};
   mnodeObj.id = pDnode->id;
   mnodeObj.createdTime = taosGetTimestampMs();
   mnodeObj.updateTime = mnodeObj.createdTime;
 
-  int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pReq->rpcMsg);
-  if (pTrans == NULL) {
-    mError("mnode:%d, failed to create since %s", pCreate->dnodeId, terrstr());
-    goto CREATE_MNODE_OVER;
-  }
+  if (pTrans == NULL) goto CREATE_MNODE_OVER;
+
   mDebug("trans:%d, used to create mnode:%d", pTrans->id, pCreate->dnodeId);
+  if (mndSetCreateMnodeRedoLogs(pMnode, pTrans, &mnodeObj) != 0) goto CREATE_MNODE_OVER;
+  if (mndSetCreateMnodeCommitLogs(pMnode, pTrans, &mnodeObj) != 0) goto CREATE_MNODE_OVER;
+  if (mndSetCreateMnodeRedoActions(pMnode, pTrans, pDnode, &mnodeObj) != 0) goto CREATE_MNODE_OVER;
 
-  if (mndSetCreateMnodeRedoLogs(pMnode, pTrans, &mnodeObj) != 0) {
-    mError("trans:%d, failed to set redo log since %s", pTrans->id, terrstr());
-    goto CREATE_MNODE_OVER;
-  }
-
-  if (mndSetCreateMnodeCommitLogs(pMnode, pTrans, &mnodeObj) != 0) {
-    mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
-    goto CREATE_MNODE_OVER;
-  }
-
-  if (mndSetCreateMnodeRedoActions(pMnode, pTrans, pDnode, &mnodeObj) != 0) {
-    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
-    goto CREATE_MNODE_OVER;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    goto CREATE_MNODE_OVER;
-  }
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto CREATE_MNODE_OVER;
 
   code = 0;
 
@@ -407,6 +391,9 @@ static int32_t mndProcessCreateMnodeReq(SMnodeMsg *pReq) {
     mndReleaseMnode(pMnode, pObj);
     mError("mnode:%d, mnode already exist", pObj->id);
     terrno = TSDB_CODE_MND_MNODE_ALREADY_EXIST;
+    return -1;
+  } else if (terrno != TSDB_CODE_MND_MNODE_NOT_EXIST) {
+    mError("qnode:%d, failed to create mnode since %s", pCreate->dnodeId, terrstr());
     return -1;
   }
 
@@ -526,33 +513,16 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
 
 static int32_t mndDropMnode(SMnode *pMnode, SMnodeMsg *pReq, SMnodeObj *pObj) {
   int32_t code = -1;
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pReq->rpcMsg);
-  if (pTrans == NULL) {
-    mError("mnode:%d, failed to drop since %s", pObj->id, terrstr());
-    goto DROP_MNODE_OVER;
-  }
+  if (pTrans == NULL) goto DROP_MNODE_OVER;
 
   mDebug("trans:%d, used to drop mnode:%d", pTrans->id, pObj->id);
 
-  if (mndSetDropMnodeRedoLogs(pMnode, pTrans, pObj) != 0) {
-    mError("trans:%d, failed to set redo log since %s", pTrans->id, terrstr());
-    goto DROP_MNODE_OVER;
-  }
-
-  if (mndSetDropMnodeCommitLogs(pMnode, pTrans, pObj) != 0) {
-    mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
-    goto DROP_MNODE_OVER;
-  }
-
-  if (mndSetDropMnodeRedoActions(pMnode, pTrans, pObj->pDnode, pObj) != 0) {
-    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
-    goto DROP_MNODE_OVER;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    goto DROP_MNODE_OVER;
-  }
+  if (mndSetDropMnodeRedoLogs(pMnode, pTrans, pObj) != 0) goto DROP_MNODE_OVER;
+  if (mndSetDropMnodeCommitLogs(pMnode, pTrans, pObj) != 0) goto DROP_MNODE_OVER;
+  if (mndSetDropMnodeRedoActions(pMnode, pTrans, pObj->pDnode, pObj) != 0) goto DROP_MNODE_OVER;
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto DROP_MNODE_OVER;
 
   code = 0;
 
