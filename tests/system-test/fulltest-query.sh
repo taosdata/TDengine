@@ -20,7 +20,7 @@ python3 ./test.py -f 2-query/TD-12344.py
 #python3 ./test.py -f 2-query/TD-12388.py
 #python3 ./test.py -f 2-query/TD-12593.py
 #python3 ./test.py -f 2-query/TD-12594.py
-#python3 ./test.py -f 2-query/TD-12614.py
+python3 ./test.py -f 2-query/TD-12614.py
 python3 ./test.py -f 2-query/function_elapsed.py
 
 
