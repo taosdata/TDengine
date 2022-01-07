@@ -438,12 +438,14 @@ int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 
   if (pCreate->replica <= 1 || pCreate->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
+    dError("failed to create mnode since %s", terrstr());
     return -1;
   }
 
   SMnodeOpt option = {0};
   if (dndBuildMnodeOptionFromReq(pDnode, &option, pCreate) != 0) {
     terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
+    dError("failed to create mnode since %s", terrstr());
     return -1;
   }
 
@@ -451,9 +453,11 @@ int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   if (pMnode != NULL) {
     dndReleaseMnode(pDnode, pMnode);
     terrno = TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED;
+    dError("failed to create mnode since %s", terrstr());
     return -1;
   }
 
+  dDebug("start to create mnode");
   return dndOpenMnode(pDnode, &option);
 }
 
@@ -462,21 +466,25 @@ int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 
   if (pAlter->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
+    dError("failed to alter mnode since %s", terrstr());
     return -1;
   }
 
   SMnodeOpt option = {0};
   if (dndBuildMnodeOptionFromReq(pDnode, &option, pAlter) != 0) {
     terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
+    dError("failed to alter mnode since %s", terrstr());
     return -1;
   }
 
   SMnode *pMnode = dndAcquireMnode(pDnode);
   if (pMnode == NULL) {
     terrno = TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
+    dError("failed to alter mnode since %s", terrstr());
     return -1;
   }
 
+  dDebug("start to alter mnode");
   int32_t code = dndAlterMnode(pDnode, &option);
   dndReleaseMnode(pDnode, pMnode);
 
@@ -489,15 +497,18 @@ int32_t dndProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 
   if (pDrop->dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
+    dError("failed to drop mnode since %s", terrstr());
     return -1;
   }
 
   SMnode *pMnode = dndAcquireMnode(pDnode);
   if (pMnode != NULL) {
     terrno = TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
+    dError("failed to drop mnode since %s", terrstr());
     return -1;
   }
 
+  dDebug("start to drop mnode");
   int32_t code = dndDropMnode(pDnode);
   dndReleaseMnode(pDnode, pMnode);
 

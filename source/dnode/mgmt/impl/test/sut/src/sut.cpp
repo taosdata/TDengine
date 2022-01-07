@@ -16,7 +16,7 @@
 #include "sut.h"
 
 void Testbase::InitLog(const char* path) {
-  dDebugFlag = 0;
+  dDebugFlag = 143;
   vDebugFlag = 0;
   mDebugFlag = 143;
   cDebugFlag = 0;
