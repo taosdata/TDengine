@@ -57,8 +57,6 @@ extern "C" {
 #include "tsdbCommit.h"
 // Compact
 #include "tsdbCompact.h"
-// Commit Queue
-#include "tsdbCommitQueue.h"
 
 #include "tsdbRowMergeBuf.h"
 // Main definitions
