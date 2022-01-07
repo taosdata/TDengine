@@ -97,7 +97,7 @@ typedef struct SSchJob {
   SHashObj        *failTasks; // failed tasks, key:taskid, value:SQueryTask*
 
   int8_t           status;  
-  SEpAddr          resEp;
+  SQueryNodeAddr   resNode;
   tsem_t           rspSem;
   int32_t          userFetch;
   int32_t          remoteFetch;
@@ -109,7 +109,7 @@ typedef struct SSchJob {
 } SSchJob;
 
 #define SCH_HAS_QNODE_IN_CLUSTER(type) (false) //TODO CLUSTER TYPE
-#define SCH_TASK_READY_TO_LUNCH(task) ((task)->childReady >= taosArrayGetSize((task)->children))   // MAY NEED TO ENHANCE
+#define SCH_TASK_READY_TO_LUNCH(task) (atomic_load_32(&(task)->childReady) >= taosArrayGetSize((task)->children))
 #define SCH_IS_DATA_SRC_TASK(task) ((task)->plan->type == QUERY_TYPE_SCAN)
 #define SCH_TASK_NEED_WAIT_ALL(task) ((task)->plan->type == QUERY_TYPE_MODIFY)
 
@@ -130,8 +130,8 @@ typedef struct SSchJob {
 #define SCH_UNLOCK(type, _lock) (SCH_READ == (type) ? taosRUnLockLatch(_lock) : taosWUnLockLatch(_lock))
 
 
-extern int32_t schLaunchTask(SSchJob *job, SSchTask *task);
-extern int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType);
+static int32_t schLaunchTask(SSchJob *job, SSchTask *task);
+static int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType);
 
 #ifdef __cplusplus
 }
