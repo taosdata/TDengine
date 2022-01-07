@@ -32,36 +32,36 @@ static void       tsdbStopStream(STsdb *pRepo);
 static int        tsdbRestoreLastColumns(STsdb *pRepo, STable *pTable, SReadH* pReadh);
 static int        tsdbRestoreLastRow(STsdb *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx);
 
-// Function declaration
-int32_t tsdbCreateRepo(int repoid) {
-  char tsdbDir[TSDB_FILENAME_LEN] = "\0";
-  char dataDir[TSDB_FILENAME_LEN] = "\0";
+// // Function declaration
+// int32_t tsdbCreateRepo(int repoid) {
+//   char tsdbDir[TSDB_FILENAME_LEN] = "\0";
+//   char dataDir[TSDB_FILENAME_LEN] = "\0";
 
-  tsdbGetRootDir(repoid, tsdbDir);
-  if (tfsMkdir(tsdbDir) < 0) {
-    goto _err;
-  }
+//   tsdbGetRootDir(repoid, tsdbDir);
+//   if (tfsMkdir(tsdbDir) < 0) {
+//     goto _err;
+//   }
 
-  tsdbGetDataDir(repoid, dataDir);
-  if (tfsMkdir(dataDir) < 0) {
-    goto _err;
-  }
+//   tsdbGetDataDir(repoid, dataDir);
+//   if (tfsMkdir(dataDir) < 0) {
+//     goto _err;
+//   }
 
-  // TODO: need to create current file with nothing in
+//   // TODO: need to create current file with nothing in
 
-  return 0;
+//   return 0;
 
-_err:
-  tsdbError("vgId:%d failed to create TSDB repository since %s", repoid, tstrerror(terrno));
-  return -1;
-}
+// _err:
+//   tsdbError("vgId:%d failed to create TSDB repository since %s", repoid, tstrerror(terrno));
+//   return -1;
+// }
 
-int32_t tsdbDropRepo(int repoid) {
-  char tsdbDir[TSDB_FILENAME_LEN] = "\0";
+// int32_t tsdbDropRepo(int repoid) {
+//   char tsdbDir[TSDB_FILENAME_LEN] = "\0";
 
-  tsdbGetRootDir(repoid, tsdbDir);
-  return tfsRmdir(tsdbDir);
-}
+//   tsdbGetRootDir(repoid, tsdbDir);
+//   return tfsRmdir(tsdbDir);
+// }
 
 STsdb *tsdbOpen(STsdbCfg *pCfg, STsdbAppH *pAppH) {
   STsdb *pRepo;

@@ -217,7 +217,7 @@ int tsdbScanAndTryFixMFile(STsdb *pRepo) {
       return -1;
     }
 
-    if (taosFtruncate(mf.fd, mf.info.size) < 0) {
+    if (taosFtruncateFile(mf.fd, mf.info.size) < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       tsdbCloseMFile(&mf);
       return -1;
@@ -276,7 +276,7 @@ static int tsdbRollBackMFile(SMFile *pMFile) {
     return -1;
   }
 
-  if (taosFtruncate(TSDB_FILE_FD(&mf), pMFile->info.size) < 0) {
+  if (taosFtruncateFile(TSDB_FILE_FD(&mf), pMFile->info.size) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     tsdbCloseMFile(&mf);
     return -1;
@@ -459,7 +459,7 @@ static int tsdbScanAndTryFixDFile(STsdb *pRepo, SDFile *pDFile) {
       return -1;
     }
 
-    if (taosFtruncate(df.fd, df.info.size) < 0) {
+    if (taosFtruncateFile(df.fd, df.info.size) < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       tsdbCloseDFile(&df);
       return -1;

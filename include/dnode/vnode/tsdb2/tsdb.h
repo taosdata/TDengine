@@ -102,8 +102,8 @@ typedef struct STsdb STsdb;
 STsdbCfg *tsdbGetCfg(const STsdb *repo);
 
 // --------- TSDB REPOSITORY DEFINITION
-int32_t tsdbCreateRepo(int repoid);
-int32_t tsdbDropRepo(int repoid);
+// int32_t tsdbCreateRepo(int repoid);
+// int32_t tsdbDropRepo(int repoid);
 STsdb * tsdbOpen(STsdbCfg *pCfg, STsdbAppH *pAppH);
 int     tsdbClose(STsdb *repo, int toCommit);
 int32_t tsdbConfigRepo(STsdb *repo, STsdbCfg *pCfg);
@@ -221,6 +221,7 @@ typedef struct SMemRef {
   SMemSnapshot snapshot;
 } SMemRef;
 
+#if 0
 typedef struct SFileBlockInfo {
   int32_t numBlocksOfStep;
 } SFileBlockInfo;
@@ -418,20 +419,21 @@ void tsdbSwitchTable(TsdbQueryHandleT pQueryHandle);
 int tsdbSyncSend(void *pRepo, SOCKET socketFd);
 int tsdbSyncRecv(void *pRepo, SOCKET socketFd);
 
-// For TSDB Compact
-int tsdbCompact(STsdb *pRepo);
+// // For TSDB Compact
+// int tsdbCompact(STsdb *pRepo);
 
 // For TSDB Health Monitor
 
-// no problem return true
-bool tsdbNoProblem(STsdb *pRepo);
-// unit of walSize: MB
-int tsdbCheckWal(STsdb *pRepo, uint32_t walSize);
+// // no problem return true
+// bool tsdbNoProblem(STsdb *pRepo);
+// // unit of walSize: MB
+// int tsdbCheckWal(STsdb *pRepo, uint32_t walSize);
 
-// for json tag
-void *getJsonTagValueElment(void *data, char *key, int32_t keyLen, char *out, int16_t bytes);
-void  getJsonTagValueAll(void *data, void *dst, int16_t bytes);
-char *parseTagDatatoJson(void *p);
+// // for json tag
+// void *getJsonTagValueElment(void *data, char *key, int32_t keyLen, char *out, int16_t bytes);
+// void  getJsonTagValueAll(void *data, void *dst, int16_t bytes);
+// char *parseTagDatatoJson(void *p);
+#endif
 
 #ifdef __cplusplus
 }
