@@ -1,12 +1,11 @@
-#include <astGenerator.h>
-#include <tmsg.h>
-#include "astToMsg.h"
+#include "tmsg.h"
+#include "tglobal.h"
 #include "parserInt.h"
+#include "ttime.h"
+#include "astToMsg.h"
+#include "astGenerator.h"
 #include "parserUtil.h"
 #include "queryInfoUtil.h"
-#include "tglobal.h"
-#include "tmsg.h"
-#include "ttime.h"
 
 /* is contained in pFieldList or not */
 static bool has(SArray* pFieldList, int32_t startIndex, const char* name) {
@@ -332,7 +331,6 @@ static int32_t doParseSerializeTagValue(SSchema* pTagSchema, int32_t numOfInputT
 
     char* endPtr = NULL;
     char  tmpTokenBuf[TSDB_MAX_TAGS_LEN] = {0};
-
     SKvParam param = {.builder = pKvRowBuilder, .schema = pSchema};
 
     SToken* pItem = taosArrayGet(pTagValList, i);

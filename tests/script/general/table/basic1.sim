@@ -62,13 +62,12 @@ print $data00 $data01 $data02
 print $data10 $data11 $data22
 print $data20 $data11 $data22
 
-return 
-
 print =============== insert data
 sql insert into c1 values(now+1s, 1)
 sql insert into c1 values(now+2s, 2)
 sql insert into c1 values(now+3s, 3)
 
+return 
 print =============== query data
 sql select * from c1
 if $rows != 3 then 

@@ -917,6 +917,7 @@ static int32_t mndProcessUseDbMsg(SMnodeMsg *pMsg) {
   }
 
   memcpy(pRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
+  pRsp->uid = htobe64(pDb->uid);
   pRsp->vgVersion = htonl(pDb->vgVersion);
   pRsp->vgNum = htonl(vindex);
   pRsp->hashMethod = pDb->hashMethod;

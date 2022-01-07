@@ -50,8 +50,10 @@ struct SQueryStmtInfo;
 typedef SSchema SSlotSchema;
 
 typedef struct SDataBlockSchema {
-  SSlotSchema        *pSchema;
-  int32_t             numOfCols;    // number of columns
+  SSlotSchema *pSchema;
+  int32_t      numOfCols;    // number of columns
+  int32_t      resultRowSize;
+  int16_t      precision;
 } SDataBlockSchema;
 
 typedef struct SQueryNodeBasicInfo {
@@ -61,6 +63,7 @@ typedef struct SQueryNodeBasicInfo {
 
 typedef struct SDataSink {
   SQueryNodeBasicInfo info;
+  SDataBlockSchema schema;
 } SDataSink;
 
 typedef struct SDataDispatcher {
@@ -139,9 +142,13 @@ typedef struct SQueryDag {
 
 struct SQueryNode;
 
-/**
- * Create the physical plan for the query, according to the AST.
- */
+ /**
+  * Create the physical plan for the query, according to the AST.
+  * @param pQueryInfo
+  * @param pDag
+  * @param requestId
+  * @return
+  */
 int32_t qCreateQueryDag(const struct SQueryNode* pQueryInfo, struct SQueryDag** pDag, uint64_t requestId);
 
 // Set datasource of this subplan, multiple calls may be made to a subplan.

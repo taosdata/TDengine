@@ -889,6 +889,7 @@ typedef struct {
 
 typedef struct {
   char        db[TSDB_DB_FNAME_LEN];
+  int64_t     uid;
   int32_t     vgVersion;
   int32_t     vgNum;
   int8_t      hashMethod;
@@ -934,13 +935,13 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateMnodeMsg, SMDropMnodeMsg, SDDropMnodeMsg;
+} SMCreateMnodeReq, SMDropMnodeReq, SDDropMnodeReq;
 
 typedef struct {
   int32_t  dnodeId;
   int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
-} SDCreateMnodeMsg, SDAlterMnodeMsg;
+} SDCreateMnodeReq, SDAlterMnodeReq;
 
 typedef struct {
   int32_t dnodeId;
@@ -1014,7 +1015,7 @@ typedef struct {
   char encrypt;
   char secret[TSDB_PASSWORD_LEN];
   char ckey[TSDB_PASSWORD_LEN];
-} SAuthMsg, SAuthRsp;
+} SAuthReq, SAuthRsp;
 
 typedef struct {
   int8_t finished;
