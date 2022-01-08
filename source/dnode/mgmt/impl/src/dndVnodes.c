@@ -527,8 +527,8 @@ static void dndCloseVnodes(SDnode *pDnode) {
   dInfo("total vnodes:%d are all closed", numOfVnodes);
 }
 
-static SCreateVnodeMsg *dndParseCreateVnodeReq(SRpcMsg *rpcMsg) {
-  SCreateVnodeMsg *pCreate = rpcMsg->pCont;
+static SCreateVnodeReq *dndParseCreateVnodeReq(SRpcMsg *rpcMsg) {
+  SCreateVnodeReq *pCreate = rpcMsg->pCont;
   pCreate->vgId = htonl(pCreate->vgId);
   pCreate->dnodeId = htonl(pCreate->dnodeId);
   pCreate->dbUid = htobe64(pCreate->dbUid);
@@ -552,7 +552,7 @@ static SCreateVnodeMsg *dndParseCreateVnodeReq(SRpcMsg *rpcMsg) {
   return pCreate;
 }
 
-static void dndGenerateVnodeCfg(SCreateVnodeMsg *pCreate, SVnodeCfg *pCfg) {
+static void dndGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->vgId = pCreate->vgId;
   pCfg->wsize = pCreate->cacheBlockSize;
   pCfg->ssize = pCreate->cacheBlockSize;
@@ -576,7 +576,7 @@ static void dndGenerateVnodeCfg(SCreateVnodeMsg *pCreate, SVnodeCfg *pCfg) {
   pCfg->walCfg.vgId = pCreate->vgId;
 }
 
-static void dndGenerateWrapperCfg(SDnode *pDnode, SCreateVnodeMsg *pCreate, SWrapperCfg *pCfg) {
+static void dndGenerateWrapperCfg(SDnode *pDnode, SCreateVnodeReq *pCreate, SWrapperCfg *pCfg) {
   memcpy(pCfg->db, pCreate->db, TSDB_DB_FNAME_LEN);
   pCfg->dbUid = pCreate->dbUid;
   pCfg->dropped = 0;
@@ -585,20 +585,20 @@ static void dndGenerateWrapperCfg(SDnode *pDnode, SCreateVnodeMsg *pCreate, SWra
   pCfg->vgVersion = pCreate->vgVersion;
 }
 
-static SDropVnodeMsg *vnodeParseDropVnodeReq(SRpcMsg *rpcMsg) {
-  SDropVnodeMsg *pDrop = rpcMsg->pCont;
+static SDropVnodeReq *vnodeParseDropVnodeReq(SRpcMsg *rpcMsg) {
+  SDropVnodeReq *pDrop = rpcMsg->pCont;
   pDrop->vgId = htonl(pDrop->vgId);
   return pDrop;
 }
 
-static SAuthVnodeMsg *vnodeParseAuthVnodeReq(SRpcMsg *rpcMsg) {
-  SAuthVnodeMsg *pAuth = rpcMsg->pCont;
+static SAuthVnodeReq *vnodeParseAuthVnodeReq(SRpcMsg *rpcMsg) {
+  SAuthVnodeReq *pAuth = rpcMsg->pCont;
   pAuth->vgId = htonl(pAuth->vgId);
   return pAuth;
 }
 
-int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
-  SCreateVnodeMsg *pCreate = dndParseCreateVnodeReq(rpcMsg);
+int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+  SCreateVnodeReq *pCreate = dndParseCreateVnodeReq(pReq);
   dDebug("vgId:%d, create vnode req is received", pCreate->vgId);
 
   SVnodeCfg vnodeCfg = {0};
@@ -611,16 +611,19 @@ int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
   if (pVnode != NULL) {
     dDebug("vgId:%d, already exist, return success", pCreate->vgId);
     dndReleaseVnode(pDnode, pVnode);
-    return 0;
+    terrno = TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED;
+    return -1;
   }
 
   SVnode *pImpl = vnodeOpen(wrapperCfg.path, &vnodeCfg);
   if (pImpl == NULL) {
+    dError("vgId:%d, failed to create vnode since %s", pCreate->vgId, terrstr());
     return -1;
   }
 
   int32_t code = dndOpenVnode(pDnode, &wrapperCfg, pImpl);
   if (code != 0) {
+    dError("vgId:%d, failed to open vnode since %s", pCreate->vgId, terrstr());
     vnodeClose(pImpl);
     vnodeDestroy(wrapperCfg.path);
     terrno = code;
@@ -638,8 +641,8 @@ int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
   return 0;
 }
 
-int32_t dndProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
-  SAlterVnodeMsg *pAlter = (SAlterVnodeMsg *)dndParseCreateVnodeReq(rpcMsg);
+int32_t dndProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+  SAlterVnodeReq *pAlter = (SAlterVnodeReq *)dndParseCreateVnodeReq(pReq);
   dDebug("vgId:%d, alter vnode req is received", pAlter->vgId);
 
   SVnodeCfg vnodeCfg = {0};
@@ -651,7 +654,7 @@ int32_t dndProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, pAlter->vgId);
   if (pVnode == NULL) {
     dDebug("vgId:%d, failed to alter vnode since %s", pAlter->vgId, terrstr());
-    return terrno;
+    return -1;
   }
 
   if (wrapperCfg.vgVersion == pVnode->vgVersion) {
@@ -663,7 +666,7 @@ int32_t dndProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
   if (vnodeAlter(pVnode->pImpl, &vnodeCfg) != 0) {
     dError("vgId:%d, failed to alter vnode since %s", pAlter->vgId, terrstr());
     dndReleaseVnode(pDnode, pVnode);
-    return terrno;
+    return -1;
   }
 
   int32_t oldVersion = pVnode->vgVersion;
@@ -677,8 +680,8 @@ int32_t dndProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
   return code;
 }
 
-int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
-  SDropVnodeMsg *pDrop = vnodeParseDropVnodeReq(rpcMsg);
+int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+  SDropVnodeReq *pDrop = vnodeParseDropVnodeReq(pReq);
 
   int32_t vgId = pDrop->vgId;
   dDebug("vgId:%d, drop vnode req is received", vgId);
@@ -686,13 +689,14 @@ int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, vgId);
   if (pVnode == NULL) {
     dDebug("vgId:%d, failed to drop since %s", vgId, terrstr());
-    return 0;
+    return -1;
   }
 
   pVnode->dropped = 1;
   if (dndWriteVnodesToFile(pDnode) != 0) {
     pVnode->dropped = 0;
-    return terrno;
+    dndReleaseVnode(pDnode, pVnode);
+    return -1;
   }
 
   dndReleaseVnode(pDnode, pVnode);
@@ -704,10 +708,9 @@ int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
   return 0;
 }
 
-int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
-  SAuthVnodeMsg *pAuth = (SAuthVnodeMsg *)vnodeParseAuthVnodeReq(rpcMsg);
+int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+  SAuthVnodeReq *pAuth = (SAuthVnodeReq *)vnodeParseAuthVnodeReq(pReq);
 
-  int32_t code = 0;
   int32_t vgId = pAuth->vgId;
   dDebug("vgId:%d, auth vnode req is received", vgId);
 
@@ -722,30 +725,30 @@ int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
   return 0;
 }
 
-int32_t dndProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
-  SAuthVnodeMsg *pAuth = (SAuthVnodeMsg *)vnodeParseAuthVnodeReq(rpcMsg);
+int32_t dndProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+  SSyncVnodeReq *pSync = (SSyncVnodeReq *)vnodeParseDropVnodeReq(pReq);
 
-  int32_t vgId = pAuth->vgId;
-  dDebug("vgId:%d, auth vnode req is received", vgId);
+  int32_t vgId = pSync->vgId;
+  dDebug("vgId:%d, sync vnode req is received", vgId);
 
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, vgId);
   if (pVnode == NULL) {
-    dDebug("vgId:%d, failed to auth since %s", vgId, terrstr());
-    return terrno;
+    dDebug("vgId:%d, failed to sync since %s", vgId, terrstr());
+    return -1;
   }
 
   if (vnodeSync(pVnode->pImpl) != 0) {
-    dError("vgId:%d, failed to auth vnode since %s", vgId, terrstr());
+    dError("vgId:%d, failed to sync vnode since %s", vgId, terrstr());
     dndReleaseVnode(pDnode, pVnode);
-    return terrno;
+    return -1;
   }
 
   dndReleaseVnode(pDnode, pVnode);
   return 0;
 }
 
-int32_t dndProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
-  SCompactVnodeMsg *pCompact = (SCompactVnodeMsg *)vnodeParseDropVnodeReq(rpcMsg);
+int32_t dndProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+  SCompactVnodeReq *pCompact = (SCompactVnodeReq *)vnodeParseDropVnodeReq(pReq);
 
   int32_t vgId = pCompact->vgId;
   dDebug("vgId:%d, compact vnode req is received", vgId);
@@ -753,13 +756,13 @@ int32_t dndProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, vgId);
   if (pVnode == NULL) {
     dDebug("vgId:%d, failed to compact since %s", vgId, terrstr());
-    return terrno;
+    return -1;
   }
 
   if (vnodeCompact(pVnode->pImpl) != 0) {
     dError("vgId:%d, failed to compact vnode since %s", vgId, terrstr());
     dndReleaseVnode(pDnode, pVnode);
-    return terrno;
+    return -1;
   }
 
   dndReleaseVnode(pDnode, pVnode);

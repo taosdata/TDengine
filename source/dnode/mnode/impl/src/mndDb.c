@@ -331,11 +331,11 @@ static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.epSet = mndGetDnodeEpset(pDnode);
       mndReleaseDnode(pMnode, pDnode);
 
-      SCreateVnodeMsg *pMsg = mndBuildCreateVnodeMsg(pMnode, pDnode, pDb, pVgroup);
+      SCreateVnodeReq *pMsg = mndBuildCreateVnodeMsg(pMnode, pDnode, pDb, pVgroup);
       if (pMsg == NULL) return -1;
 
       action.pCont = pMsg;
-      action.contLen = sizeof(SCreateVnodeMsg);
+      action.contLen = sizeof(SCreateVnodeReq);
       action.msgType = TDMT_DND_CREATE_VNODE;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         free(pMsg);
@@ -360,11 +360,11 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.epSet = mndGetDnodeEpset(pDnode);
       mndReleaseDnode(pMnode, pDnode);
 
-      SDropVnodeMsg *pMsg = mndBuildDropVnodeMsg(pMnode, pDnode, pDb, pVgroup);
+      SDropVnodeReq *pMsg = mndBuildDropVnodeMsg(pMnode, pDnode, pDb, pVgroup);
       if (pMsg == NULL) return -1;
 
       action.pCont = pMsg;
-      action.contLen = sizeof(SDropVnodeMsg);
+      action.contLen = sizeof(SDropVnodeReq);
       action.msgType = TDMT_DND_DROP_VNODE;
       if (mndTransAppendUndoAction(pTrans, &action) != 0) {
         free(pMsg);
@@ -593,11 +593,11 @@ static int32_t mndBuildUpdateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj
     action.epSet = mndGetDnodeEpset(pDnode);
     mndReleaseDnode(pMnode, pDnode);
 
-    SAlterVnodeMsg *pMsg = (SAlterVnodeMsg *)mndBuildCreateVnodeMsg(pMnode, pDnode, pDb, pVgroup);
+    SAlterVnodeReq *pMsg = (SAlterVnodeReq *)mndBuildCreateVnodeMsg(pMnode, pDnode, pDb, pVgroup);
     if (pMsg == NULL) return -1;
 
     action.pCont = pMsg;
-    action.contLen = sizeof(SAlterVnodeMsg);
+    action.contLen = sizeof(SAlterVnodeReq);
     action.msgType = TDMT_DND_ALTER_VNODE;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pMsg);
@@ -757,11 +757,11 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
     action.epSet = mndGetDnodeEpset(pDnode);
     mndReleaseDnode(pMnode, pDnode);
 
-    SDropVnodeMsg *pMsg = mndBuildDropVnodeMsg(pMnode, pDnode, pDb, pVgroup);
+    SDropVnodeReq *pMsg = mndBuildDropVnodeMsg(pMnode, pDnode, pDb, pVgroup);
     if (pMsg == NULL) return -1;
 
     action.pCont = pMsg;
-    action.contLen = sizeof(SCreateVnodeMsg);
+    action.contLen = sizeof(SCreateVnodeReq);
     action.msgType = TDMT_DND_DROP_VNODE;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pMsg);

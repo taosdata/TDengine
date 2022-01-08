@@ -28,9 +28,9 @@ Testbase DndTestVnode::test;
 TEST_F(DndTestVnode, 01_Create_Restart_Drop_Vnode) {
   {
     for (int i = 0; i < 3; ++i) {
-      int32_t contLen = sizeof(SCreateVnodeMsg);
+      int32_t contLen = sizeof(SCreateVnodeReq);
 
-      SCreateVnodeMsg* pReq = (SCreateVnodeMsg*)rpcMallocCont(contLen);
+      SCreateVnodeReq* pReq = (SCreateVnodeReq*)rpcMallocCont(contLen);
       pReq->vgId = htonl(2);
       pReq->dnodeId = htonl(1);
       strcpy(pReq->db, "1.d1");
@@ -68,9 +68,9 @@ TEST_F(DndTestVnode, 01_Create_Restart_Drop_Vnode) {
 
   {
     for (int i = 0; i < 3; ++i) {
-      int32_t contLen = sizeof(SAlterVnodeMsg);
+      int32_t contLen = sizeof(SAlterVnodeReq);
 
-      SAlterVnodeMsg* pReq = (SAlterVnodeMsg*)rpcMallocCont(contLen);
+      SAlterVnodeReq* pReq = (SAlterVnodeReq*)rpcMallocCont(contLen);
       pReq->vgId = htonl(2);
       pReq->dnodeId = htonl(1);
       strcpy(pReq->db, "1.d1");
@@ -108,9 +108,9 @@ TEST_F(DndTestVnode, 01_Create_Restart_Drop_Vnode) {
 
   {
     for (int i = 0; i < 3; ++i) {
-      int32_t contLen = sizeof(SDropVnodeMsg);
+      int32_t contLen = sizeof(SDropVnodeReq);
 
-      SDropVnodeMsg* pReq = (SDropVnodeMsg*)rpcMallocCont(contLen);
+      SDropVnodeReq* pReq = (SDropVnodeReq*)rpcMallocCont(contLen);
       pReq->vgId = htonl(2);
       pReq->dnodeId = htonl(1);
       strcpy(pReq->db, "1.d1");
@@ -118,7 +118,7 @@ TEST_F(DndTestVnode, 01_Create_Restart_Drop_Vnode) {
 
       SRpcMsg rpcMsg = {0};
       rpcMsg.pCont = pReq;
-      rpcMsg.contLen = sizeof(SDropVnodeMsg);
+      rpcMsg.contLen = sizeof(SDropVnodeReq);
       rpcMsg.msgType = TDMT_DND_DROP_VNODE;
 
       SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_VNODE, pReq, contLen);
