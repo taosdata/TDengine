@@ -242,17 +242,18 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   }
 
   int32_t addNum = 0;
+  int32_t nodeNum = 0;
   if (pJob->nodeList) {
-  int32_t nodeNum = taosArrayGetSize(pJob->nodeList);
-  
-  for (int32_t i = 0; i < nodeNum && addNum < SCH_MAX_CONDIDATE_EP_NUM; ++i) {
-    SQueryNodeAddr *naddr = taosArrayGet(pJob->nodeList, i);
+    nodeNum = taosArrayGetSize(pJob->nodeList);
     
-    if (NULL == taosArrayPush(pTask->candidateAddrs, &pTask->plan->execNode)) {
-      SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, addNum:%d, errno:%d", addNum, errno);
-      SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    for (int32_t i = 0; i < nodeNum && addNum < SCH_MAX_CONDIDATE_EP_NUM; ++i) {
+      SQueryNodeAddr *naddr = taosArrayGet(pJob->nodeList, i);
+      
+      if (NULL == taosArrayPush(pTask->candidateAddrs, &pTask->plan->execNode)) {
+        SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, addNum:%d, errno:%d", addNum, errno);
+        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
     }
-  }
   }
 
   if (addNum <= 0) {

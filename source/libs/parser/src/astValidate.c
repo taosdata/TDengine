@@ -3628,6 +3628,33 @@ int32_t evaluateSqlNode(SSqlNode* pNode, int32_t tsPrecision, SMsgBuf* pMsgBuf) 
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t setTableVgroupList(SParseBasicCtx *pCtx, SName* name, SVgroupsInfo **pVgList) {
+  SArray* vgroupList = NULL;
+  int32_t code = catalogGetTableDistVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, name, &vgroupList);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  
+  int32_t vgroupNum = taosArrayGetSize(vgroupList);
+
+  SVgroupsInfo *vgList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupMsg) * vgroupNum);
+  
+  vgList->numOfVgroups = vgroupNum;
+  
+  for (int32_t i = 0; i < vgroupNum; ++i) {
+    SVgroupInfo *vg = taosArrayGet(vgroupList, i);
+    vgList->vgroups[i].vgId = vg->vgId;
+    vgList->vgroups[i].numOfEps = vg->numOfEps;
+    memcpy(vgList->vgroups[i].epAddr, vg->epAddr, sizeof(vgList->vgroups[i].epAddr));
+  }
+
+  *pVgList = vgList;
+
+  taosArrayDestroy(vgroupList);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qParserValidateSqlNode(SParseBasicCtx *pCtx, SSqlInfo* pInfo, SQueryStmtInfo* pQueryInfo, char* msgBuf, int32_t msgBufLen) {
   assert(pCtx != NULL && pInfo != NULL);
   int32_t code = 0;
@@ -3916,7 +3943,7 @@ int32_t qParserValidateSqlNode(SParseBasicCtx *pCtx, SSqlInfo* pInfo, SQueryStmt
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-
+  
   data.pTableMeta = taosArrayInit(1, POINTER_BYTES);
   taosArrayPush(data.pTableMeta, &pmt);
 
@@ -3925,6 +3952,12 @@ int32_t qParserValidateSqlNode(SParseBasicCtx *pCtx, SSqlInfo* pInfo, SQueryStmt
   pQueryInfo->pTableMetaInfo[0]->pTableMeta = pmt;
   pQueryInfo->pTableMetaInfo[0]->name = *name;
   pQueryInfo->numOfTables = 1;
+
+  code = setTableVgroupList(pCtx, name, &pQueryInfo->pTableMetaInfo[0]->vgroupList);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(data.pTableMeta);
+    return code;
+  }
 
   // evaluate the sqlnode
   STableMeta* pTableMeta = (STableMeta*) taosArrayGetP(data.pTableMeta, 0);
