@@ -8,5 +8,5 @@ target_include_directories(
 
 target_link_libraries(
         executor
-        PRIVATE os util common function parser qcom
+        PRIVATE os util common function parser planner qcom
 )

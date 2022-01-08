@@ -244,10 +244,28 @@ typedef struct SSubmitBlk {
 // Submit message for this TSDB
 typedef struct SSubmitMsg {
   SMsgHead header;
+  int64_t  version;
   int32_t  length;
   int32_t  numOfBlocks;
   char     blocks[];
 } SSubmitMsg;
+
+typedef struct {
+  int32_t totalLen;
+  int32_t len;
+  SMemRow row;
+} SSubmitBlkIter;
+
+typedef struct {
+  int32_t totalLen;
+  int32_t len;
+  void*   pMsg;
+} SSubmitMsgIter;
+
+int     tInitSubmitMsgIter(SSubmitMsg* pMsg, SSubmitMsgIter* pIter);
+int     tGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
+int     tInitSubmitBlkIter(SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
+SMemRow tGetSubmitBlkNext(SSubmitBlkIter* pIter);
 
 typedef struct {
   int32_t index;  // index of failed block in submit blocks
@@ -917,13 +935,13 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateMnodeMsg, SMDropMnodeMsg, SDDropMnodeMsg;
+} SMCreateMnodeReq, SMDropMnodeReq, SDDropMnodeReq;
 
 typedef struct {
   int32_t  dnodeId;
   int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
-} SDCreateMnodeMsg, SDAlterMnodeMsg;
+} SDCreateMnodeReq, SDAlterMnodeReq;
 
 typedef struct {
   int32_t dnodeId;

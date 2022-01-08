@@ -160,9 +160,6 @@ static SPhyNode* createUserTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableI
   return (SPhyNode*)node;
 }
 
-static SPhyNode* createSingleTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable) {
-  return createUserTableScanNode(pPlanNode, pTable, OP_TableScan);
-}
 
 static bool isSystemTable(SQueryTableInfo* pTable) {
   // todo
@@ -259,12 +256,20 @@ static bool needMultiNodeScan(SQueryTableInfo* pTable) {
   return (TSDB_SUPER_TABLE == pTable->pMeta->pTableMeta->tableType);
 }
 
+static SPhyNode* createSingleTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable, SSubplan* subplan) {
+  vgroupMsgToEpSet(&(pTable->pMeta->vgroupList->vgroups[0]), &subplan->execNode);
+
+  return createUserTableScanNode(pPlanNode, pTable, OP_TableScan);
+}
+
+
 static SPhyNode* createTableScanNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
   SQueryTableInfo* pTable = (SQueryTableInfo*)pPlanNode->pExtInfo;
+    
   if (needMultiNodeScan(pTable)) {
     return createExchangeNode(pCxt, pPlanNode, splitSubplanByTable(pCxt, pPlanNode, pTable));
   }
-  return createSingleTableScanNode(pPlanNode, pTable);
+  return createSingleTableScanNode(pPlanNode, pTable, pCxt->pCurrentSubplan);
 }
 
 static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
@@ -322,12 +327,12 @@ static void createSubplanByLevel(SPlanContext* pCxt, SQueryPlanNode* pRoot) {
   if (QNODE_MODIFY == pRoot->info.type) {
     splitModificationOpSubPlan(pCxt, pRoot);
   } else {
-    SSubplan* subplan  = initSubplan(pCxt, QUERY_TYPE_MERGE);
+    SSubplan* subplan  = initSubplan(pCxt, QUERY_TYPE_SCAN);
     ++(pCxt->nextId.templateId);
 
     subplan->msgType   = TDMT_VND_QUERY;
     subplan->pNode     = createPhyNode(pCxt, pRoot);
-    subplan->pDataSink = createDataDispatcher(pCxt, pRoot);
+    subplan->pDataSink = createDataDispatcher(pCxt, pRoot);    
   }
   // todo deal subquery
 }
