@@ -70,13 +70,6 @@ static int  tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fi
 // static int  tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen, bool compact);
 // static int  tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid);
 // static int  tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile);
-// static int  tsdbCreateCommitIters(SCommitH *pCommith);
-// static void tsdbDestroyCommitIters(SCommitH *pCommith);
-// static void tsdbSeekCommitIter(SCommitH *pCommith, TSKEY key);
-// static int  tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo);
-// static void tsdbDestroyCommitH(SCommitH *pCommith);
-// static int  tsdbGetFidLevel(int fid, SRtn *pRtn);
-// static int  tsdbNextCommitFid(SCommitH *pCommith);
 static int  tsdbCommitToTable(SCommitH *pCommith, int tid);
 static int  tsdbSetCommitTable(SCommitH *pCommith, STable *pTable);
 static int  tsdbComparKeyBlock(const void *arg1, const void *arg2);
