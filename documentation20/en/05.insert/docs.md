@@ -2,7 +2,7 @@
 
 TDengine supports multiple ways to write data, including SQL, Prometheus, Telegraf, collectd, StatsD, EMQ MQTT Broker, HiveMQ Broker, CSV file, etc. Kafka, OPC and other interfaces will be provided in the future. Data can be inserted in one single record or in batches, data from one or multiple data collection points can be inserted at the same time. TDengine supports multi-thread insertion, out-of-order data insertion, and also historical data insertion.
 
-## <a class="anchor" id="sql"></a> Data Writing via SQL 
+## <a class="anchor" id="sql"></a> Data Writing via SQL
 
 Applications insert data by executing SQL insert statements through C/C++, Java, Go, C#, Python, Node.js Connectors, and users can manually enter SQL insert statements to insert data through TAOS Shell. For example, the following insert writes a record to table d1001:
 
@@ -119,16 +119,16 @@ The format of generated data by Prometheus is as follows:
 ```json
 {
   Timestamp: 1576466279341,
-  Value: 37.000000, 
+  Value: 37.000000,
   apiserver_request_latencies_bucket {
-  component="apiserver", 
-   instance="192.168.99.116:8443", 
-   job="kubernetes-apiservers", 
-   le="125000", 
+  component="apiserver",
+   instance="192.168.99.116:8443",
+   job="kubernetes-apiservers",
+   le="125000",
    resource="persistentvolumes", s
    cope="cluster",
-   verb="LIST", 
-   version=“v1" 
+   verb="LIST",
+   version=“v1"
   }
 }
 ```
@@ -167,13 +167,13 @@ Now you can query the metrics data of Telegraf from TDengine.
 
 Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
-## <a class="anchor" id="collectd"></a> collectd 直接写入(通过 taosAdapter)
+## <a class="anchor" id="collectd"></a> Data Writing via collectd and taosAdapter
 Please refer to [official document](https://collectd.org/download.shtml) for collectd installation.
 
 TDengine version 2.3.0.0+ includes a stand-alone application taosAdapter in charge of receive data insertion from collectd.
 
 Configuration:
-Please add following words in /etc/collectd/collectd.conf. Please fill the value 'host' and 'port' with what the TDengine and taosAdapter using. 
+Please add following words in /etc/collectd/collectd.conf. Please fill the value 'host' and 'port' with what the TDengine and taosAdapter using.
 ```
 LoadPlugin network
 <Plugin network>
@@ -186,12 +186,12 @@ sudo systemctl start collectd
 ```
 Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
-## <a class="anchor" id="statsd"></a> StatsD 直接写入(通过 taosAdapter)
+## <a class="anchor" id="statsd"></a> Data Writting via StatsD and taosAdapter
 Please refer to [official document](https://github.com/statsd/statsd) for StatsD installation.
 
 TDengine version 2.3.0.0+ includes a stand-alone application taosAdapter in charge of receive data insertion from StatsD.
 
-Please add following words in the config.js file. Please fill the value to 'host' and 'port' with what the TDengine and taosAdapter using. 
+Please add following words in the config.js file. Please fill the value to 'host' and 'port' with what the TDengine and taosAdapter using.
 ```
 add "./backends/repeater" to backends section.
 add { host:'<TDengine server/cluster host>', port: <port for StatsD>} to repeater section.
@@ -206,8 +206,30 @@ port: 8125
 }
 ```
 
+## <a class="anchor" id="cinga2"></a> Data Writting via icinga2 and taosAdapter
+
+Use icinga2 to collect check result metrics and performance data
+
+* Follow the doc to enable opentsdb-writer https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer
+* Enable taosAdapter configuration opentsdb_telnet.enable
+* Modify the configuration file /etc/icinga2/features-enabled/opentsdb.conf
+```
+object OpenTsdbWriter "opentsdb" {
+  host = "host to taosAdapter"
+  port = 6048
+}
+```
+
 Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
+## <a class="anchor" id="tcollector"></a> Data Writting via TCollector and taosAdapter
+
+TCollector is a client-side process that gathers data from local collectors and pushes the data to OpenTSDB. You run it on all your hosts, and it does the work of sending each host’s data to the TSD (OpenTSDB backend process).
+
+* Enable taosAdapter configuration opentsdb_telnet.enable
+* Modify the TCollector configuration file, modify the OpenTSDB host to the host where taosAdapter is deployed, and modify the port to 6049
+
+Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
 ## <a class="anchor" id="taosadapter2-telegraf"></a> Insert data via Bailongma 2.0 and Telegraf
 
