@@ -20,13 +20,12 @@ static void    vnodeFree(SVnode *pVnode);
 static int     vnodeOpenImpl(SVnode *pVnode);
 static void    vnodeCloseImpl(SVnode *pVnode);
 
-SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
+SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfgInput) {
   SVnode *pVnode = NULL;
 
   // Set default options
-  if (pVnodeCfg == NULL) {
-    pVnodeCfg = &defaultVnodeOptions;
-  }
+  SVnodeCfg *pVnodeCfg = &defaultVnodeOptions;
+  pVnodeCfg->vgId = pVnodeCfg->vgId;
 
   // Validate options
   if (vnodeValidateOptions(pVnodeCfg) < 0) {

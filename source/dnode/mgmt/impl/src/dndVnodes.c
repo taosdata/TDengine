@@ -412,7 +412,10 @@ static void *dnodeOpenVnodeFunc(void *param) {
              pMgmt->openVnodes, pMgmt->totalVnodes);
     dndReportStartup(pDnode, "open-vnodes", stepDesc);
 
-    SVnode *pImpl = vnodeOpen(pCfg->path, NULL);
+    SVnodeCfg vnodeCfg = {0};
+    vnodeCfg.vgId = pCfg->vgId;
+
+    SVnode *pImpl = vnodeOpen(pCfg->path, &vnodeCfg);
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d", pCfg->vgId, pThread->threadIndex);
       pThread->failed++;
@@ -550,6 +553,7 @@ static SCreateVnodeMsg *dndParseCreateVnodeReq(SRpcMsg *rpcMsg) {
 }
 
 static void dndGenerateVnodeCfg(SCreateVnodeMsg *pCreate, SVnodeCfg *pCfg) {
+  pCfg->vgId = pCreate->vgId;
   pCfg->wsize = pCreate->cacheBlockSize;
   pCfg->ssize = pCreate->cacheBlockSize;
   pCfg->wsize = pCreate->cacheBlockSize;
@@ -610,7 +614,7 @@ int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg) {
     return 0;
   }
 
-  SVnode *pImpl = vnodeOpen(wrapperCfg.path, NULL /*pCfg*/);
+  SVnode *pImpl = vnodeOpen(wrapperCfg.path, &vnodeCfg);
   if (pImpl == NULL) {
     return -1;
   }
