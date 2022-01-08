@@ -142,14 +142,15 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
   pSql->maxRetry = TSDB_MAX_REPLICA;
   pSql->fp = asyncCallback;
   pSql->fetchFp = asyncCallback;
+  pSql->sqlstrOri = strdup(sql);
   pSql->sqlstr = strdup(sql);
-  if (pSql->sqlstr == NULL) {
+  if (pSql->sqlstrOri == NULL || pSql->sqlstr == NULL) {
     line = __LINE__;
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto fail;
   }
 
-  strtolower(pSql->sqlstr, pSql->sqlstr);
+  strtolower(pSql->sqlstrOri, pSql->sqlstrOri);
   pRes->qId = 0;
   pRes->numOfRows = 1;
   pCmd->resColumnId = TSDB_RES_COL_ID;
@@ -453,7 +454,8 @@ SSqlObj* recreateSqlObj(SSub* pSub) {
   pSql->fp = asyncCallback;
   pSql->fetchFp = asyncCallback;
   pSql->sqlstr = strdup(pSub->pSql->sqlstr);
-  if (pSql->sqlstr == NULL) {
+  pSql->sqlstrOri = strdup(pSub->pSql->sqlstr);
+  if (pSql->sqlstr == NULL || pSql->sqlstrOri == NULL) {
     tscFreeSqlObj(pSql);
     return NULL;
   }

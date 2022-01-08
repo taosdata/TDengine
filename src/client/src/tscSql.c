@@ -912,14 +912,17 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
   char* sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
   if(sqlstr == NULL && pSql->sqlstr) free(pSql->sqlstr);
+  char* sqlstrOri = realloc(pSql->sqlstrOri, sqlLen + 1);
+  if(sqlstrOri == NULL && pSql->sqlstrOri) free(pSql->sqlstrOri);
   pSql->sqlstr = sqlstr;
-  if (pSql->sqlstr == NULL) {
+  pSql->sqlstrOri = sqlstrOri;
+  if (pSql->sqlstr == NULL || pSql->sqlstrOri == NULL) {
     tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     tfree(pSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  strtolower(pSql->sqlstr, sql);
+  strtolower(pSql->sqlstrOri, sql);
 
   if (NULL != pCmd->insertParam.pTableBlockHashList) {
     taosHashCleanup(pCmd->insertParam.pTableBlockHashList);

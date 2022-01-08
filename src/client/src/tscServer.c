@@ -680,7 +680,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql) {
   int32_t exprSize = (int32_t)(sizeof(SSqlExpr) * numOfExprs * 2);
 
   int32_t tsBufSize = (pQueryInfo->tsBuf != NULL) ? pQueryInfo->tsBuf->fileSize : 0;
-  int32_t sqlLen = (int32_t) strlen(pSql->sqlstr) + 1;
+  int32_t sqlLen = (int32_t) strlen(pSql->sqlstrOri) + 1;
 
   int32_t tableSerialize = 0;
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -910,7 +910,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   tstrncpy(pQueryMsg->version, version, tListLen(pQueryMsg->version));
 
   int32_t numOfTags = query.numOfTags;
-  int32_t sqlLen = (int32_t) strlen(pSql->sqlstr);
+  int32_t sqlLen = (int32_t) strlen(pSql->sqlstrOri);
 
   if (taosArrayGetSize(tableScanOperator) == 0) {
     pQueryMsg->tableScanOperator = htonl(-1);
@@ -1144,7 +1144,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->udfContentLen = 0;
   }
 
-  memcpy(pMsg, pSql->sqlstr, sqlLen);
+  memcpy(pMsg, pSql->sqlstrOri, sqlLen);
   pMsg += sqlLen;
 
 

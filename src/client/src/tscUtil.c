@@ -3593,6 +3593,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, __async_cb_func_t fp, void* param, in
   pNew->fetchFp = fp;
   pNew->param   = param;
   pNew->sqlstr  = NULL;
+  pNew->sqlstrOri  = NULL;
   pNew->maxRetry = TSDB_MAX_REPLICA;
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoS(pCmd);
@@ -3660,6 +3661,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNew->pTscObj   = pSql->pTscObj;
   pNew->signature = pNew;
   pNew->sqlstr    = strdup(pSql->sqlstr);
+  pNew->sqlstrOri = strdup(pSql->sqlstr);
   pNew->rootObj   = pSql->rootObj;
   tsem_init(&pNew->rspSem, 0, 0);
 
@@ -4043,6 +4045,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       pNew->pTscObj   = pSql->pTscObj;
       pNew->signature = pNew;
       pNew->sqlstr    = strdup(pSql->sqlstr);
+      pNew->sqlstrOri = strdup(pSql->sqlstr);
       pNew->fp        = tscSubqueryCompleteCallback;
       pNew->fetchFp   = tscSubqueryCompleteCallback;
       pNew->maxRetry  = pSql->maxRetry;

@@ -708,14 +708,15 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
   pSql->maxRetry = TSDB_MAX_REPLICA;
 
   pSql->sqlstr   = calloc(1, strlen(sqlstr) + 1);
-  if (pSql->sqlstr == NULL) {
+  pSql->sqlstrOri = calloc(1, strlen(sqlstr) + 1);
+  if (pSql->sqlstr == NULL || pSql->sqlstrOri == NULL) {
     tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     tscFreeSqlObj(pSql);
     free(pStream);
     return NULL;
   }
 
-  strtolower(pSql->sqlstr, sqlstr);
+  strtolower(pSql->sqlstrOri, sqlstr);
   pSql->fp      = tscCreateStream;
   pSql->fetchFp = tscCreateStream;
   pSql->cmd.resColumnId = TSDB_RES_COL_ID;
