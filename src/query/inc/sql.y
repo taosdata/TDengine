@@ -164,8 +164,8 @@ cmd ::= DESC tableName(X). {
 /////////////////////////////////THE ALTER STATEMENT////////////////////////////////////////
 cmd ::= ALTER USER ids(X) PASS STRING(Y).          { setAlterUserSql(pInfo, TSDB_ALTER_USER_PASSWD, &X, &Y, NULL);    }
 cmd ::= ALTER USER ids(X) PRIVILEGE ids(Y).     { setAlterUserSql(pInfo, TSDB_ALTER_USER_PRIVILEGES, &X, NULL, &Y);}
-cmd ::= ALTER DNODE ids(X) ids(Y).              { setDCLSqlElems(pInfo, TSDB_SQL_CFG_DNODE, 2, &X, &Y);          }
-cmd ::= ALTER DNODE ids(X) ids(Y) ids(Z).       { setDCLSqlElems(pInfo, TSDB_SQL_CFG_DNODE, 3, &X, &Y, &Z);      }
+cmd ::= ALTER DNODE STRING(X) ids(Y).              { setDCLSqlElems(pInfo, TSDB_SQL_CFG_DNODE, 2, &X, &Y);          }
+cmd ::= ALTER DNODE STRING(X) ids(Y) ids(Z).       { setDCLSqlElems(pInfo, TSDB_SQL_CFG_DNODE, 3, &X, &Y, &Z);      }
 cmd ::= ALTER LOCAL ids(X).                     { setDCLSqlElems(pInfo, TSDB_SQL_CFG_LOCAL, 1, &X);              }
 cmd ::= ALTER LOCAL ids(X) ids(Y).              { setDCLSqlElems(pInfo, TSDB_SQL_CFG_LOCAL, 2, &X, &Y);          }
 cmd ::= ALTER DATABASE ids(X) alter_db_optr(Y). { SStrToken t = {0};  setCreateDbInfo(pInfo, TSDB_SQL_ALTER_DB, &X, &Y, &t);}
