@@ -1287,7 +1287,7 @@ static int tsdbRestoreCurrent(STsdb *pRepo) {
     return -1;
   }
 
-  if (tsdbSaveFSStatus(pRepo->fs.cstatus, REPO_ID(pRepo)) < 0) {
+  if (tsdbSaveFSStatus(pRepo->fs->cstatus, REPO_ID(pRepo)) < 0) {
     tsdbError("vgId:%d failed to restore corrent since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
   }

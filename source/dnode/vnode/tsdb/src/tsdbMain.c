@@ -75,22 +75,27 @@ static STsdb *tsdbNew(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorF
   tsdbOptionsCopy(&(pTsdb->config), pTsdbCfg);
   pTsdb->pmaf = pMAF;
 
+  pTsdb->fs = tsdbNewFS(pTsdbCfg);
+
   return pTsdb;
 }
 
 static void tsdbFree(STsdb *pTsdb) {
   if (pTsdb) {
+    tsdbFreeFS(pTsdb->fs);
     tfree(pTsdb->path);
     free(pTsdb);
   }
 }
 
 static int tsdbOpenImpl(STsdb *pTsdb) {
+  tsdbOpenFS(pTsdb);
   // TODO
   return 0;
 }
 
 static void tsdbCloseImpl(STsdb *pTsdb) {
+  tsdbCloseFS(pTsdb);
   // TODO
 }
 #if 0
@@ -112,8 +117,8 @@ static void tsdbCloseImpl(STsdb *pTsdb) {
 // no test file errors here
 #include "taosdef.h"
 #include "tsdbint.h"
-#include "ttimer.h"
 #include "tthread.h"
+#include "ttimer.h"
 
 #define IS_VALID_PRECISION(precision) \
   (((precision) >= TSDB_TIME_PRECISION_MILLI) && ((precision) <= TSDB_TIME_PRECISION_NANO))
