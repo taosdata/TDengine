@@ -465,3 +465,16 @@ FORCE_INLINE double taos_align_get_double(const char* pBuf) {
   memcpy(&dv, pBuf, sizeof(dv)); // in ARM, return *((const double*)(pBuf)) may cause problem
   return dv; 
 }
+
+//
+// TSKEY util
+//
+
+// if time area(s1,e1) intersect with time area(s2,e2) then return true else return false
+bool timeIntersect(TSKEY s1, TSKEY e1, TSKEY s2, TSKEY e2) {
+  // s1,e1 and s2,e2 have 7 scenarios, 5 is intersection, 2 is no intersection, so we pick up 2.
+  if(e2 < s1 || s2 > e1)
+    return false;
+  else
+    return true;
+}

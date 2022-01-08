@@ -8,6 +8,7 @@ def skipbuild = 0
 def win_stop = 0
 def scope = []
 def mod = [0,1,2,3,4]
+def sim_mod = [0,1,2,3]
 
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
@@ -45,6 +46,7 @@ def pre_test(){
     killall -9 gdb || echo "no gdb running"
     killall -9 python3.8 || echo "no python program running"
     cd ${WKC}
+    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git reset --hard HEAD~10 >/dev/null
     '''
     script {
@@ -120,6 +122,7 @@ def pre_test_noinstall(){
     sh'hostname'
     sh'''
     cd ${WKC}
+    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git reset --hard HEAD~10 >/dev/null
     '''
     script {
@@ -192,6 +195,7 @@ def pre_test_mac(){
     sh'hostname'
     sh'''
     cd ${WKC}
+    [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
     git reset --hard HEAD~10 >/dev/null
     '''
     script {
@@ -377,12 +381,14 @@ pipeline {
                   println gitlog
                   if (!(gitlog =~ /\((.*?)\)/)){
                     autoCancelled = true
-                    error('Aborting the build.')
+                    error('Please fill in the scope information correctly.\neg. [TD-xxxx]<fix>(query,insert):xxxxxxxxxxxxxxxxxx ')
                   }
                   temp = (gitlog =~ /\((.*?)\)/)
                   temp = temp[0].remove(1)
                   scope = temp.split(",")
+                  scope = ['connector','query','insert','other','tools','taosAdapter']
                   Collections.shuffle mod
+                  Collections.shuffle sim_mod
                 }
 
               }
@@ -400,10 +406,10 @@ pipeline {
           }
       parallel {
         stage('python_1') {
-          agent{label " slave1 || slave6 || slave11 || slave16 "}
+          agent{label " slave1 || slave11 "}
           steps {
             pre_test()
-            timeout(time: 55, unit: 'MINUTES'){
+            timeout(time: 100, unit: 'MINUTES'){
               script{
                 scope.each {
                   sh """
@@ -417,10 +423,10 @@ pipeline {
           }
         }
         stage('python_2') {
-          agent{label " slave2 || slave7 || slave12 || slave17 "}
+          agent{label " slave2 || slave12 "}
           steps {
             pre_test()
-            timeout(time: 55, unit: 'MINUTES'){
+            timeout(time: 100, unit: 'MINUTES'){
                  script{
                   scope.each {
                     sh """
@@ -434,7 +440,7 @@ pipeline {
           }
         }
         stage('python_3') {
-          agent{label " slave3 || slave8 || slave13 ||slave18 "}
+          agent{label " slave3 || slave13 "}
           steps {
             timeout(time: 105, unit: 'MINUTES'){
               pre_test()
@@ -451,9 +457,9 @@ pipeline {
           }
         }
         stage('python_4') {
-          agent{label " slave4 || slave9 || slave14 || slave19 "}
+          agent{label " slave4 || slave14 "}
           steps {
-            timeout(time: 55, unit: 'MINUTES'){
+            timeout(time: 100, unit: 'MINUTES'){
               pre_test()
               script{
               scope.each {
@@ -469,9 +475,9 @@ pipeline {
           }
         }
         stage('python_5') {
-          agent{label " slave5 || slave10 || slave15 || slave20 "}
+          agent{label " slave5 || slave15 "}
           steps {
-            timeout(time: 55, unit: 'MINUTES'){
+            timeout(time: 100, unit: 'MINUTES'){
               pre_test()
               script{
               scope.each {
@@ -486,35 +492,98 @@ pipeline {
             }
           }
         }
-        stage('arm64centos7') {
-          agent{label " arm64centos7 "}
+        stage('sim_1') {
+          agent{label " slave6 || slave16 "}
           steps {
-              pre_test_noinstall()
-            }
+            pre_test()
+            timeout(time: 100, unit: 'MINUTES'){
+                  sh """
+                    date
+                    cd ${WKC}/tests
+                    ./test-CI.sh sim 4 ${sim_mod[0]}
+                    date"""
+              }
+          }            
         }
-        stage('arm64centos8') {
-          agent{label " arm64centos8 "}
+        stage('sim_2') {
+          agent{label " slave7 || slave17 "}
           steps {
-              pre_test_noinstall()
+            pre_test()
+            timeout(time: 100, unit: 'MINUTES'){
+              sh """
+                date
+                cd ${WKC}/tests
+                ./test-CI.sh sim 4 ${sim_mod[1]} 
+                date"""
             }
+          }
         }
-        stage('arm32bionic') {
-          agent{label " arm32bionic "}
+        stage('sim_3') {
+          agent{label " slave8 || slave18 "}
           steps {
-              pre_test_noinstall()
+            timeout(time: 105, unit: 'MINUTES'){
+              pre_test()
+              sh """
+                date
+                cd ${WKC}/tests
+                ./test-CI.sh sim 4 ${sim_mod[2]}
+                date"""
             }
+          }
         }
-        stage('arm64bionic') {
-          agent{label " arm64bionic "}
+        stage('sim_4') {
+          agent{label " slave9 || slave19 "}
           steps {
-              pre_test_noinstall()
+            timeout(time: 100, unit: 'MINUTES'){
+              pre_test()
+              sh """
+                date
+                cd ${WKC}/tests
+                ./test-CI.sh sim 4 ${sim_mod[3]}
+                date"""
+              }
             }
+          
         }
-        stage('arm64focal') {
-          agent{label " arm64focal "}
+        stage('other') {
+          agent{label " slave10 || slave20 "}
           steps {
-              pre_test_noinstall()
+            timeout(time: 100, unit: 'MINUTES'){
+              pre_test()
+              timeout(time: 60, unit: 'MINUTES'){
+                sh '''
+                cd ${WKC}/tests/pytest
+                ./crash_gen.sh -a -p -t 4 -s 2000
+                '''
+              }
+              timeout(time: 60, unit: 'MINUTES'){
+                sh '''
+                cd ${WKC}/tests/pytest
+                rm -rf /var/lib/taos/*
+                rm -rf /var/log/taos/*
+                ./handle_crash_gen_val_log.sh
+                '''
+                sh '''
+                cd ${WKC}/tests/pytest
+                rm -rf /var/lib/taos/*
+                rm -rf /var/log/taos/*
+                ./handle_taosd_val_log.sh
+                '''
+              }
+              catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/pytest
+                ./valgrind-test.sh 2>&1 > mem-error-out.log
+                ./handle_val_log.sh
+                '''
+              } 
+              sh '''
+                cd ${WKC}/tests
+                ./test-all.sh full unit
+                date
+              '''
             }
+          }
         }
         stage('centos7') {
           agent{label " centos7 "}
@@ -546,12 +615,41 @@ pipeline {
               pre_test_mac()
             }
         }
-
+        stage('arm64centos7') {
+          agent{label " arm64centos7 "}
+          steps {     
+              pre_test_noinstall()    
+            }
+        }
+        stage('arm64centos8') {
+          agent{label " arm64centos8 "}
+          steps {     
+              pre_test_noinstall()    
+            }
+        }
+        stage('arm32bionic') {
+          agent{label " arm32bionic "}
+          steps {     
+              pre_test_noinstall()    
+            }
+        }
+        stage('arm64bionic') {
+          agent{label " arm64bionic "}
+          steps {     
+              pre_test_noinstall()    
+            }
+        }
+        stage('arm64focal') {
+          agent{label " arm64focal "}
+          steps {     
+              pre_test_noinstall()    
+            }
+        }
         stage('build'){
           agent{label " wintest "}
           steps {
             pre_test()
-            script{
+            script{             
                 while(win_stop == 0){
                   sleep(1)
                   }
@@ -561,6 +659,7 @@ pipeline {
         stage('test'){
           agent{label "win"}
           steps{
+            
             catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                 pre_test_win()
                 timeout(time: 20, unit: 'MINUTES'){
@@ -569,7 +668,7 @@ pipeline {
                 .\\test-all.bat wintest
                 '''
                 }
-            }
+            }     
             script{
               win_stop=1
             }

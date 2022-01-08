@@ -55,6 +55,13 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *tar
   memcpy(target, context.digest, TSDB_KEY_LEN);
 }
 
+//
+// TSKEY util
+//
+
+// if time area(s1,e1) intersect with time area(s2,e2) then return true else return false
+bool timeIntersect(TSKEY s1, TSKEY e1, TSKEY s2, TSKEY e2);
+
 #ifdef __cplusplus
 }
 #endif
