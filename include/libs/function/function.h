@@ -89,7 +89,7 @@ enum {
 };
 
 enum {
-  MASTER_SCAN   = 0x0u,
+  MAIN_SCAN     = 0x0u,
   REVERSE_SCAN  = 0x1u,
   REPEAT_SCAN   = 0x2u,  //repeat scan belongs to the master scan
   MERGE_STAGE   = 0x20u,

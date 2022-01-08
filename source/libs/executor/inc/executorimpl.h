@@ -64,6 +64,33 @@ enum {
       QUERY_OVER = 0x4u,
 };
 
+enum OPERATOR_TYPE_E {
+  OP_TableScan         = 1,
+  OP_DataBlocksOptScan = 2,
+  OP_TableSeqScan      = 3,
+  OP_TagScan           = 4,
+  OP_TableBlockInfoScan= 5,
+  OP_Aggregate         = 6,
+  OP_Project           = 7,
+  OP_Groupby           = 8,
+  OP_Limit             = 9,
+  OP_SLimit            = 10,
+  OP_TimeWindow        = 11,
+  OP_SessionWindow     = 12,
+  OP_Fill              = 13,
+  OP_MultiTableAggregate     = 14,
+  OP_MultiTableTimeInterval  = 15,
+  OP_DummyInput        = 16,   //TODO remove it after fully refactor.
+  OP_MultiwayMergeSort = 17,   // multi-way data merge into one input stream.
+  OP_GlobalAggregate   = 18,   // global merge for the multi-way data sources.
+  OP_Filter            = 19,
+  OP_Distinct          = 20,
+  OP_Join              = 21,
+  OP_StateWindow       = 22,
+  OP_AllTimeWindow     = 23,
+  OP_AllMultiTableTimeInterval = 24,
+  OP_Order             = 25,
+};
 
 typedef struct SResultRowCell {
   uint64_t     groupId;
@@ -99,7 +126,7 @@ typedef struct STableQueryInfo {
   TSKEY       lastKey;
   int32_t     groupIndex;     // group id in table list
   SVariant    tag;
-  STimeWindow win;
+  STimeWindow win;            // todo remove it later
   STSCursor   cur;
   void*       pTable;         // for retrieve the page id list
   SResultRowInfo resInfo;
@@ -127,31 +154,34 @@ typedef struct {
   int64_t sumRunTimes;
 } SOperatorProfResult;
 
-typedef struct SQueryCostInfo {
-  uint64_t loadStatisTime;
-  uint64_t loadFileBlockTime;
-  uint64_t loadDataInCacheTime;
-  uint64_t loadStatisSize;
-  uint64_t loadFileBlockSize;
-  uint64_t loadDataInCacheSize;
-  
-  uint64_t loadDataTime;
-  uint64_t totalRows;
-  uint64_t totalCheckedRows;
-  uint32_t totalBlocks;
-  uint32_t loadBlocks;
-  uint32_t loadBlockStatis;
-  uint32_t discardBlocks;
-  uint64_t elapsedTime;
-  uint64_t firstStageMergeTime;
-  uint64_t winInfoSize;
-  uint64_t tableInfoSize;
-  uint64_t hashSize;
-  uint64_t numOfTimeWindows;
+typedef struct STaskCostInfo {
+  int64_t   start;
+  int64_t   end;
 
-  SArray*   queryProfEvents;  //SArray<SQueryProfEvent>
-  SHashObj* operatorProfResults; //map<operator_type, SQueryProfEvent>
-} SQueryCostInfo;
+  uint64_t  loadStatisTime;
+  uint64_t  loadFileBlockTime;
+  uint64_t  loadDataInCacheTime;
+  uint64_t  loadStatisSize;
+  uint64_t  loadFileBlockSize;
+  uint64_t  loadDataInCacheSize;
+
+  uint64_t  loadDataTime;
+  uint64_t  totalRows;
+  uint64_t  totalCheckedRows;
+  uint32_t  totalBlocks;
+  uint32_t  loadBlocks;
+  uint32_t  loadBlockStatis;
+  uint32_t  discardBlocks;
+  uint64_t  elapsedTime;
+  uint64_t  firstStageMergeTime;
+  uint64_t  winInfoSize;
+  uint64_t  tableInfoSize;
+  uint64_t  hashSize;
+  uint64_t  numOfTimeWindows;
+
+  SArray   *queryProfEvents;  //SArray<SQueryProfEvent>
+  SHashObj *operatorProfResults; //map<operator_type, SQueryProfEvent>
+} STaskCostInfo;
 
 typedef struct {
   int64_t vgroupLimit;
@@ -235,9 +265,33 @@ typedef void (*__optr_cleanup_fn_t)(void* param, int32_t num);
 
 struct SOperatorInfo;
 
+typedef struct STaskIdInfo {
+  uint64_t       queryId;    // this is also a request id
+  uint64_t       subplanId;
+  uint64_t       templateId;
+  uint64_t       taskId;     // this is a subplan id
+} STaskIdInfo;
+
+typedef struct STaskInfo {
+  STaskIdInfo     id;
+  char           *content;
+  uint32_t        status;
+  STimeWindow     window;
+  STaskCostInfo   cost;
+  int64_t         owner;       // if it is in execution
+
+  STableGroupInfo tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
+  pthread_mutex_t lock;        // used to synchronize the rsp/query threads
+//  tsem_t           ready;
+//  int32_t          dataReady;   // denote if query result is ready or not
+//  void*            rspContext;  // response context
+  char           *sql;         // query sql string
+  jmp_buf         env;
+} STaskInfo;
+
 typedef struct STaskRuntimeEnv {
   jmp_buf               env;
-  STaskAttr*           pQueryAttr;
+  STaskAttr*            pQueryAttr;
   uint32_t              status;           // query status
   void*                 qinfo;
   uint8_t               scanFlag;         // denotes reversed scan of data or not
@@ -287,9 +341,10 @@ typedef struct SOperatorInfo {
   void                 *info;          // extension attribution
   SExprInfo            *pExpr;
   STaskRuntimeEnv      *pRuntimeEnv;
+  STaskInfo            *pTaskInfo;
 
-  struct SOperatorInfo ** pDownstream;     // upstream pointer list
-  int32_t               numOfUpstream; // number of upstream. The value is always ONE expect for join operator
+  struct SOperatorInfo **pDownstream;  // downstram pointer list
+  int32_t               numOfDownstream; // number of downstream. The value is always ONE expect for join operator
   __operator_fn_t       exec;
   __optr_cleanup_fn_t   cleanup;
 } SOperatorInfo;
@@ -321,7 +376,7 @@ typedef struct SQInfo {
   void*            rspContext;  // response context
   int64_t          startExecTs; // start to exec timestamp
   char*            sql;         // query sql string
-  SQueryCostInfo   summary;
+  STaskCostInfo    summary;
 } SQInfo;
 
 typedef struct STaskParam {
@@ -365,9 +420,12 @@ typedef struct STableScanInfo {
   SSDataBlock     block;
   int32_t         numOfOutput;
   int64_t         elapsedTime;
-
   int32_t         tableIndex;
-  int32_t         prevGroupId;     // previous table group id
+
+  int32_t         prevGroupId;  // previous table group id
+
+  int32_t         scanFlag;     // table scan flag to denote if it is a repeat/reverse/main scan
+  STimeWindow     window;
 } STableScanInfo;
 
 typedef struct STagScanInfo {
@@ -512,7 +570,7 @@ typedef struct SOrderOperatorInfo {
 void appendUpstream(SOperatorInfo* p, SOperatorInfo* pUpstream);
 
 SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, STaskRuntimeEnv* pRuntimeEnv, int32_t repeatTime, int32_t reverseTime);
-SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, STaskRuntimeEnv* pRuntimeEnv, int32_t repeatTime);
+SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, int32_t order, int32_t numOfOutput, int32_t repeatTime);
 SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, STaskRuntimeEnv* pRuntimeEnv);
 
 SOperatorInfo* createAggregateOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);

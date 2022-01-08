@@ -149,7 +149,7 @@ static SPhyNode* createTagScanNode(SQueryPlanNode* pPlanNode) {
 
 static uint8_t getScanFlag(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable) {
   // todo
-  return MASTER_SCAN;
+  return MAIN_SCAN;
 }
 
 static SPhyNode* createUserTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable, int32_t op) {
