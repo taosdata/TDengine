@@ -19,11 +19,13 @@ add_library(meta STATIC ${META_SRC})
 target_include_directories(
     meta
     PUBLIC "${CMAKE_SOURCE_DIR}/include/dnode/vnode/meta"
+    PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/index"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
     meta
     PUBLIC common
+    PUBLIC index 
 )
 
 if(${META_DB_IMPL} STREQUAL "BDB")
