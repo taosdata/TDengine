@@ -54,6 +54,7 @@ typedef struct STsdbCfg {
   int32_t  keep1;
   int32_t  keep2;
   int8_t   update;
+  int8_t   compression;
 } STsdbCfg;
 
 // STsdb
