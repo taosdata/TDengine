@@ -285,7 +285,7 @@ bool qExecTask(qTaskInfo_t qinfo, uint64_t *qId) {
   STaskRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   if (pRuntimeEnv->tableqinfoGroupInfo.numOfTables == 0) {
     qDebug("QInfo:0x%"PRIx64" no table exists for query, abort", pQInfo->qId);
-    setTaskStatus(pRuntimeEnv, QUERY_COMPLETED);
+//    setTaskStatus(pRuntimeEnv, QUERY_COMPLETED);
     return doBuildResCheck(pQInfo);
   }
 
