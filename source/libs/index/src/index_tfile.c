@@ -148,8 +148,7 @@ TFileReader* tfileReaderCreate(WriterCtx* ctx) {
 
   if (0 != tfileReaderVerify(reader)) {
     tfileReaderDestroy(reader);
-    indexError("failed to load index header, suid: %" PRIu64 ", colName: %s", reader->header.suid,
-               reader->header.colName);
+    indexError("invalid tfile, suid: %" PRIu64 ", colName: %s", reader->header.suid, reader->header.colName);
     return NULL;
   }
   // T_REF_INC(reader);
