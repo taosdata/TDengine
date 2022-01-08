@@ -146,7 +146,7 @@ cmd ::= DROP DATABASE ifexists(Y) ids(X).    { setDropDbTableInfo(pInfo, TSDB_SQ
 cmd ::= DROP TOPIC ifexists(Y) ids(X).    { setDropDbTableInfo(pInfo, TSDB_SQL_DROP_DB, &X, &Y, TSDB_DB_TYPE_TOPIC, -1); }
 cmd ::= DROP FUNCTION ids(X).    { setDropFuncInfo(pInfo, TSDB_SQL_DROP_FUNCTION, &X); }
 
-cmd ::= DROP DNODE ids(X).       { setDCLSqlElems(pInfo, TSDB_SQL_DROP_DNODE, 1, &X);    }
+cmd ::= DROP DNODE STRING(X).       { setDCLSqlElems(pInfo, TSDB_SQL_DROP_DNODE, 1, &X);    }
 cmd ::= DROP USER ids(X).        { setDCLSqlElems(pInfo, TSDB_SQL_DROP_USER, 1, &X);     }
 cmd ::= DROP ACCOUNT ids(X).     { setDCLSqlElems(pInfo, TSDB_SQL_DROP_ACCT, 1, &X);  }
 
