@@ -134,8 +134,10 @@ SArray *tStrTokenAppend(SArray *pList, SStrToken *pToken) {
 tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optrType) {
   tSqlExpr *pSqlExpr = calloc(1, sizeof(tSqlExpr));
 
-  if (pToken != NULL) {
+  if (pToken != NULL && pToken->z != NULL) {
     pSqlExpr->exprToken = *pToken;
+  }else if (optrType == TK_ID && (pToken+1)->z != NULL){
+    pSqlExpr->exprToken = *(pToken + 1);
   }
 
   if (optrType == TK_NULL) {

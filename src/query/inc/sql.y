@@ -617,14 +617,14 @@ intervalKey(A)     ::= EVERY.                                        {A = TK_EVE
 
 %type session_option {SSessionWindowVal}
 session_option(X) ::= .                                                  {X.col = NULL; X.gap.n = 0;}
-session_option(X) ::= SESSION LP expritem(V) COMMA tmvar(Y) RP.    {
+session_option(X) ::= SESSION LP columnitem(V) COMMA tmvar(Y) RP.    {
    X.col = V;
    X.gap = Y;
 }
 
 %type windowstate_option {SWindowStateVal}
 windowstate_option(X) ::= .                                                { X.col = NULL; }
-windowstate_option(X) ::= STATE_WINDOW LP expritem(V) RP.                       { X.col = V; }
+windowstate_option(X) ::= STATE_WINDOW LP columnitem(V) RP.                       { X.col = V; }
 
 
 %type fill_value {SStrToken}
@@ -666,7 +666,7 @@ sliding_opt(K) ::= .                            {K.n = 0; K.z = NULL; K.type = 0
 orderby_opt(A) ::= .                          {A = 0;}
 orderby_opt(A) ::= ORDER BY sortlist(X).      {A = X;}
 
-sortlist(A) ::= sortlist(X) COMMA expritem(Y) sortorder(Z). {
+sortlist(A) ::= sortlist(X) COMMA columnitem(Y) sortorder(Z). {
   A = commonItemAppend(X, Y, Z);
 }
 
@@ -674,7 +674,7 @@ sortlist(A) ::= sortlist(X) COMMA arrow(Y) sortorder(Z). {
   A = commonItemAppend(X, Y, Z);
 }
 
-sortlist(A) ::= expritem(Y) sortorder(Z). {
+sortlist(A) ::= columnitem(Y) sortorder(Z). {
   A = commonItemAppend(NULL, Y, Z);
 }
 
@@ -696,7 +696,7 @@ sortorder(A) ::= .              { A = TSDB_ORDER_ASC; }  // Ascending order by d
 groupby_opt(A) ::= .                       { A = 0;}
 groupby_opt(A) ::= GROUP BY grouplist(X).  { A = X;}
 
-grouplist(A) ::= grouplist(X) COMMA expritem(Y).    {
+grouplist(A) ::= grouplist(X) COMMA columnitem(Y).    {
   A = commonItemAppend(X, Y, -1);
 }
 
@@ -704,7 +704,7 @@ grouplist(A) ::= grouplist(X) COMMA arrow(Y).    {
   A = commonItemAppend(X, Y, -1);
 }
 
-grouplist(A) ::= expritem(X).                       {
+grouplist(A) ::= columnitem(X).                       {
   A = commonItemAppend(NULL, X, -1);
 }
 
@@ -743,23 +743,23 @@ where_opt(A) ::= WHERE expr(X).       {A = X;}
 
 /////////////////////////// Expression Processing /////////////////////////////
 //
-%type expritem {tSqlExpr*}
-%destructor expritem {tSqlExprDestroy($$);}
-expritem(A) ::= columnExpand(X).                      { SStrToken tmp[2]; tmp[0].z = 0; tmp[0].n = 0; tmp[1]=X; A = tSqlExprCreateIdValue(pInfo, tmp, TK_ID);}
-expritem(A) ::= tableNameBase(X) DOT columnExpand(Y). { SStrToken tmp[2]; tmp[0] = X;   tmp[1]=Y; A = tSqlExprCreateIdValue(pInfo, tmp, TK_ID);}
+%type columnitem {tSqlExpr*}
+%destructor columnitem {tSqlExprDestroy($$);}
+columnitem(A) ::= columnExpand(X).                      { SStrToken tmp[2]; tmp[0].z = 0; tmp[0].n = 0; tmp[1]=X; A = tSqlExprCreateIdValue(pInfo, tmp, TK_ID);}
+columnitem(A) ::= tableNameBase(X) DOT columnExpand(Y). { SStrToken tmp[2]; tmp[0] = X;   tmp[1]=Y; A = tSqlExprCreateIdValue(pInfo, tmp, TK_ID);}
 
 // arrow expression
 %type arrow {tSqlExpr*}
 %destructor arrow {tSqlExprDestroy($$);}
-arrow(A) ::= expritem(X) ARROW STRING(Y).                         {tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Y, TK_STRING); A = tSqlExprCreate(X, M, TK_ARROW);  }
+arrow(A) ::= columnitem(X) ARROW STRING(Y).                         {tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Y, TK_STRING); A = tSqlExprCreate(X, M, TK_ARROW);  }
 
 %type expr {tSqlExpr*}
 %destructor expr {tSqlExprDestroy($$);}
 
 expr(A) ::= LP(X) expr(Y) RP(Z).       {A = Y; A->exprToken.z = X.z; A->exprToken.n = (Z.z - X.z + 1);}
 
-expr(A) ::= expritem(X).                      { A = X; }
-expr(A) ::= tableNameBase(X) DOT STAR(Y).     { X.n += (1+Y.n); A = tSqlExprCreateIdValue(pInfo, &X, TK_ALL);}
+expr(A) ::= columnitem(X).                      { A = X; }
+expr(A) ::= tableNameBase(X) DOT STAR(Y).     { SStrToken tmp[2]; tmp[0] = X;   tmp[1]=Y; A = tSqlExprCreateIdValue(pInfo, tmp, TK_ALL);}
 
 expr(A) ::= INTEGER(X).          { A = tSqlExprCreateIdValue(pInfo, &X, TK_INTEGER);}
 expr(A) ::= MINUS(X) INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprCreateIdValue(pInfo, &X, TK_INTEGER);}
@@ -809,26 +809,30 @@ expr(A) ::= expr(X) SLASH expr(Y).   {A = tSqlExprCreate(X, Y, TK_DIVIDE);}
 expr(A) ::= expr(X) REM   expr(Y).   {A = tSqlExprCreate(X, Y, TK_REM);   }
 
 // like expression
-expr(A) ::= expritem(X) LIKE expr(Y).    {A = tSqlExprCreate(X, Y, TK_LIKE);  }
+expr(A) ::= columnitem(X) LIKE expr(Y).    {A = tSqlExprCreate(X, Y, TK_LIKE);  }
 
 // match expression
-expr(A) ::= expritem(X) MATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_MATCH);  }
-expr(A) ::= expritem(X) NMATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_NMATCH);  }
+expr(A) ::= columnitem(X) MATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_MATCH);  }
+expr(A) ::= columnitem(X) NMATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_NMATCH);  }
 
 // contains expression
-expr(A) ::= expritem(X) CONTAINS STRING(Y).                         { tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Y, TK_STRING); A = tSqlExprCreate(X, M, TK_CONTAINS);  }
+expr(A) ::= columnitem(X) CONTAINS STRING(Y).                         { tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Y, TK_STRING); A = tSqlExprCreate(X, M, TK_CONTAINS);  }
 
 expr(A) ::= arrow(X). {A = X;}
 
 //in expression
-expr(A) ::= expritem(X) IN LP exprlist(Y) RP.   {A = tSqlExprCreate(X, (tSqlExpr*)Y, TK_IN); }
+expr(A) ::= expr(X) IN LP exprlist(Y) RP.   {A = tSqlExprCreate(X, (tSqlExpr*)Y, TK_IN); }
 
 %type exprlist {SArray*}
 %destructor exprlist {tSqlExprListDestroy($$);}
 
-exprlist(A) ::= exprlist(X) COMMA expr(Y). {A = tSqlExprListAppend(X,Y,0, 0);}
-exprlist(A) ::= expr(X).                    {A = tSqlExprListAppend(0,X,0, 0);}
+%type expritem {tSqlExpr*}
+%destructor expritem {tSqlExprDestroy($$);}
 
+exprlist(A) ::= exprlist(X) COMMA expritem(Y). {A = tSqlExprListAppend(X,Y,0, 0);}
+exprlist(A) ::= expritem(X).                    {A = tSqlExprListAppend(0,X,0, 0);}
+expritem(A) ::= expr(X).                       {A = X;}
+expritem(A) ::= .                              {A = 0;}
 ///////////////////////////////////reset query cache//////////////////////////////////////
 cmd ::= RESET QUERY CACHE.  { setDCLSqlElems(pInfo, TSDB_SQL_RESET_CACHE, 0);}
 

@@ -2364,7 +2364,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
   const char* msg3 = "tbname not allowed in outer query";
   const char* msg4 = "-> operate can only used in json type";
   const char* msg5 = "the right value of -> operation must be string";
-  const char* msg6 = "select name is too long than 64, please use alias name";
+  const char* msg6 = "json key name is too long than 64";
 
   int32_t startPos = (int32_t)tscNumOfExprs(pQueryInfo);
   int32_t tokenId = pItem->pNode->tokenId;
@@ -2479,7 +2479,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       if (tokenId == TK_ARROW && pSchema->type != TSDB_DATA_TYPE_JSON) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
       }
-      if (pSchema->type == TSDB_DATA_TYPE_JSON && tokenId == TK_ARROW && pItem->pNode->exprToken.n >= TSDB_COL_NAME_LEN){
+      if (pSchema->type == TSDB_DATA_TYPE_JSON && tokenId == TK_ARROW && pItem->pNode->pRight->exprToken.n >= TSDB_MAX_JSON_KEY_LEN){
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 
@@ -2649,11 +2649,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       if (pItem->pNode->Expr.paramList != NULL) {
         tSqlExprItem* pParamElem = taosArrayGet(pItem->pNode->Expr.paramList, 0);
-        SStrToken* pToken = &pParamElem->pNode->columnName;
         int16_t tokenId = pParamElem->pNode->tokenId;
-        if ((pToken->z == NULL || pToken->n == 0) && (TK_INTEGER != tokenId)) {
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
-        }
 
         // select count(table.*), select count(1), count(2)
         if (tokenId == TK_ALL || tokenId == TK_INTEGER) {

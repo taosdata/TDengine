@@ -159,7 +159,7 @@ class TDTestCase:
         tdSql.execute("create database Test ")
         tdSql.execute("use Test ")
         tdSql.execute("create table TB(ts timestamp, Col1 int) tags(Tag1 int)")
-        tdSql.execute("insert into Tb0queryRegex.py using tb tags(1) values(now, 1)")
+        tdSql.execute("insert into Tb0 using tb tags(1) values(now, 1)")
         tdSql.query("select * from tb")
         tdSql.checkRows(1)
         tdSql.query("select * from tb0")
