@@ -126,7 +126,6 @@ typedef struct SSchJob {
 #define SCH_LOCK(type, _lock) (SCH_READ == (type) ? taosRLockLatch(_lock) : taosWLockLatch(_lock))
 #define SCH_UNLOCK(type, _lock) (SCH_READ == (type) ? taosRUnLockLatch(_lock) : taosWUnLockLatch(_lock))
 
-
 extern int32_t schLaunchTask(SSchJob *job, SSchTask *task);
 extern int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType);
 

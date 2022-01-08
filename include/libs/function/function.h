@@ -183,7 +183,6 @@ typedef struct tExprNode {
 
     struct {// function node
       char              functionName[FUNCTIONS_NAME_MAX_LENGTH];
-//      int32_t           functionId;
       int32_t           num;
 
       // Note that the attribute of pChild is not the parameter of function, it is the columns that involved in the
