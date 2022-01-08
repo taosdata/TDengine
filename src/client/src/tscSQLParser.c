@@ -2414,9 +2414,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       exp = left;
       assert(left != NULL && left->type == SQL_NODE_TABLE_COLUMN);
       if (pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0){    // if select from subquery, pToken should be jtag->'location'. like (select jtag->'location' from (select jtag->'location' from jsons1);)
-        // pToken = &pItem->pNode->exprToken;
-      }else{
-        // exp = left;
+        exp->columnName = pItem->pNode->exprToken;
       }
 
       tSqlExpr* right = pItem->pNode->pRight;
@@ -4874,7 +4872,7 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
     }
 
     SSchema* pSchema = tscGetTableSchema(pTableMeta);
-    if ((pLeft->tokenId != TK_ARROW) && (!isTablenameToken(&pLeft->tableName)) && !IS_VAR_DATA_TYPE(pSchema[index].type)) {
+    if ((pLeft->tokenId != TK_ARROW) && (!isTablenameToken(&pLeft->columnName)) && !IS_VAR_DATA_TYPE(pSchema[index].type)) {
       return invalidOperationMsg(msgBuf, msg2);
     }
   }

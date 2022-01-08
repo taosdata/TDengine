@@ -809,14 +809,14 @@ expr(A) ::= expr(X) SLASH expr(Y).   {A = tSqlExprCreate(X, Y, TK_DIVIDE);}
 expr(A) ::= expr(X) REM   expr(Y).   {A = tSqlExprCreate(X, Y, TK_REM);   }
 
 // like expression
-expr(A) ::= columnitem(X) LIKE expr(Y).    {A = tSqlExprCreate(X, Y, TK_LIKE);  }
+expr(A) ::= expr(X) LIKE expr(Y).    {A = tSqlExprCreate(X, Y, TK_LIKE);  }
 
 // match expression
-expr(A) ::= columnitem(X) MATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_MATCH);  }
-expr(A) ::= columnitem(X) NMATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_NMATCH);  }
+expr(A) ::= expr(X) MATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_MATCH);  }
+expr(A) ::= expr(X) NMATCH expr(Y).    {A = tSqlExprCreate(X, Y, TK_NMATCH);  }
 
 // contains expression
-expr(A) ::= columnitem(X) CONTAINS STRING(Y).                         { tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Y, TK_STRING); A = tSqlExprCreate(X, M, TK_CONTAINS);  }
+expr(A) ::= expr(X) CONTAINS STRING(Y).                         { tSqlExpr* M = tSqlExprCreateIdValue(pInfo, &Y, TK_STRING); A = tSqlExprCreate(X, M, TK_CONTAINS);  }
 
 expr(A) ::= arrow(X). {A = X;}
 

@@ -30,13 +30,13 @@ if $data22 != @123'@ then
 endi
 
 sql create table tb (ts timestamp, c1 binary(20))
-sql insert into tb values ('2019-10-05 18:00:01.000', 'abc''001')
+sql_error insert into tb values ('2019-10-05 18:00:01.000', 'abc''001')
 sql insert into tb values ('2019-10-05 18:00:02.000', 'abc\'002')
 sql insert into tb values ('2019-10-05 18:00:03.000', 'abc\\003')
 sql insert into tb values ('2019-10-05 18:00:04.000', 'abc"004')
 sql insert into tb values ('2019-10-05 18:00:05.000', 'abc\005')
 
-sql insert into tb values ('2019-10-05 18:00:06.000', "udp""001")
+sql_error insert into tb values ('2019-10-05 18:00:06.000', "udp""001")
 sql insert into tb values ('2019-10-05 18:00:07.000', "udp\"002")
 sql insert into tb values ('2019-10-05 18:00:08.000', "udp\\003")
 sql insert into tb values ('2019-10-05 18:00:09.000', "udp'004")
