@@ -22,6 +22,16 @@
 extern "C" {
 #endif
 
+typedef struct {
+  int   rowsInserted;
+  int   rowsUpdated;
+  int   rowsDeleteSucceed;
+  int   rowsDeleteFailed;
+  int   nOperations;
+  TSKEY keyFirst;
+  TSKEY keyLast;
+} SMergeInfo;
+
 typedef struct STbData {
   tb_uid_t   uid;
   TSKEY      keyMin;
@@ -42,10 +52,20 @@ typedef struct STsdbMemTable {
   SHashObj * pHashIdx;
 } STsdbMemTable;
 
-
 STsdbMemTable *tsdbNewMemTable(STsdb *pTsdb);
 void           tsdbFreeMemTable(STsdb *pTsdb, STsdbMemTable *pMemTable);
 int            tsdbMemTableInsert(STsdb *pTsdb, STsdbMemTable *pMemTable, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp);
+int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
+                          TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
+
+static FORCE_INLINE SMemRow tsdbNextIterRow(SSkipListIterator *pIter) {
+  if (pIter == NULL) return NULL;
+
+  SSkipListNode *node = tSkipListIterGet(pIter);
+  if (node == NULL) return NULL;
+
+  return (SMemRow)SL_GET_NODE_DATA(node);
+}
 
 #ifdef __cplusplus
 }

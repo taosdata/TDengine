@@ -54,6 +54,10 @@ struct STsdb {
 #define REPO_CFG(r) (&(r)->config)
 #define REPO_FS(r) (&(r)->fs)
 
+static FORCE_INLINE STSchema *tsdbGetTableSchemaImpl(STable *pTable, bool lock, bool copy, int32_t version) {
+  return pTable->pSchema;
+}
+
 #ifdef __cplusplus
 }
 #endif

@@ -60,6 +60,7 @@ static void tsdbSeekCommitIter(SCommitH *pCommith, TSKEY key);
 static int  tsdbNextCommitFid(SCommitH *pCommith);
 static void tsdbDestroyCommitH(SCommitH *pCommith);
 static int  tsdbCreateCommitIters(SCommitH *pCommith);
+static void tsdbDestroyCommitIters(SCommitH *pCommith);
 static int  tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
 
 int tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn) {
@@ -127,7 +128,6 @@ int tsdbCommit(STsdb *pRepo) {
     return -1;
   }
 
-#if 0
   // Skip expired memory data and expired FSET
   tsdbSeekCommitIter(&commith, commith.rtn.minKey);
   while ((pSet = tsdbFSIterNext(&(commith.fsIter)))) {
@@ -138,6 +138,7 @@ int tsdbCommit(STsdb *pRepo) {
       break;
     }
   }
+#if 0
 
   // Loop to commit to each file
   fid = tsdbNextCommitFid(&(commith));
@@ -280,28 +281,28 @@ static void tsdbSeekCommitIter(SCommitH *pCommith, TSKEY key) {
   }
 }
 
-static int tsdbNextCommitFid(SCommitH *pCommith) {
-  STsdb *   pRepo = TSDB_COMMIT_REPO(pCommith);
-  STsdbCfg *pCfg = REPO_CFG(pRepo);
-  int       fid = TSDB_IVLD_FID;
+// static int tsdbNextCommitFid(SCommitH *pCommith) {
+//   STsdb *   pRepo = TSDB_COMMIT_REPO(pCommith);
+//   STsdbCfg *pCfg = REPO_CFG(pRepo);
+//   int       fid = TSDB_IVLD_FID;
 
-  for (int i = 0; i < pCommith->niters; i++) {
-    SCommitIter *pIter = pCommith->iters + i;
-    if (pIter->pTable == NULL || pIter->pIter == NULL) continue;
+//   for (int i = 0; i < pCommith->niters; i++) {
+//     SCommitIter *pIter = pCommith->iters + i;
+//     if (pIter->pTable == NULL || pIter->pIter == NULL) continue;
 
-    TSKEY nextKey = tsdbNextIterKey(pIter->pIter);
-    if (nextKey == TSDB_DATA_TIMESTAMP_NULL) {
-      continue;
-    } else {
-      int tfid = (int)(TSDB_KEY_FID(nextKey, pCfg->daysPerFile, pCfg->precision));
-      if (fid == TSDB_IVLD_FID || fid > tfid) {
-        fid = tfid;
-      }
-    }
-  }
+//     TSKEY nextKey = tsdbNextIterKey(pIter->pIter);
+//     if (nextKey == TSDB_DATA_TIMESTAMP_NULL) {
+//       continue;
+//     } else {
+//       int tfid = (int)(TSDB_KEY_FID(nextKey, pCfg->daysPerFile, pCfg->precision));
+//       if (fid == TSDB_IVLD_FID || fid > tfid) {
+//         fid = tfid;
+//       }
+//     }
+//   }
 
-  return fid;
-}
+//   return fid;
+// }
 
 static void tsdbDestroyCommitH(SCommitH *pCommith) {
   pCommith->pDataCols = tdFreeDataCols(pCommith->pDataCols);
@@ -313,117 +314,109 @@ static void tsdbDestroyCommitH(SCommitH *pCommith) {
   tsdbCloseDFileSet(TSDB_COMMIT_WRITE_FSET(pCommith));
 }
 
-static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
-  STsdb *   pRepo = TSDB_COMMIT_REPO(pCommith);
-  STsdbCfg *pCfg = REPO_CFG(pRepo);
+// static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
+//   STsdb *   pRepo = TSDB_COMMIT_REPO(pCommith);
+//   STsdbCfg *pCfg = REPO_CFG(pRepo);
 
-  ASSERT(pSet == NULL || pSet->fid == fid);
+//   ASSERT(pSet == NULL || pSet->fid == fid);
 
-  tsdbResetCommitFile(pCommith);
-  tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, fid, &(pCommith->minKey), &(pCommith->maxKey));
+//   tsdbResetCommitFile(pCommith);
+//   tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, fid, &(pCommith->minKey), &(pCommith->maxKey));
 
-  // Set and open files
-  if (tsdbSetAndOpenCommitFile(pCommith, pSet, fid) < 0) {
-    return -1;
-  }
+//   // Set and open files
+//   if (tsdbSetAndOpenCommitFile(pCommith, pSet, fid) < 0) {
+//     return -1;
+//   }
 
-  // Loop to commit each table data
-  for (int tid = 1; tid < pCommith->niters; tid++) {
-    SCommitIter *pIter = pCommith->iters + tid;
+//   // Loop to commit each table data
+//   for (int tid = 1; tid < pCommith->niters; tid++) {
+//     SCommitIter *pIter = pCommith->iters + tid;
 
-    if (pIter->pTable == NULL) continue;
+//     if (pIter->pTable == NULL) continue;
 
-    if (tsdbCommitToTable(pCommith, tid) < 0) {
-      tsdbCloseCommitFile(pCommith, true);
-      // revert the file change
-      tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
-      return -1;
-    }
-  }
+//     if (tsdbCommitToTable(pCommith, tid) < 0) {
+//       tsdbCloseCommitFile(pCommith, true);
+//       // revert the file change
+//       tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
+//       return -1;
+//     }
+//   }
 
-  if (tsdbWriteBlockIdx(TSDB_COMMIT_HEAD_FILE(pCommith), pCommith->aBlkIdx, (void **)(&(TSDB_COMMIT_BUF(pCommith)))) <
-      0) {
-    tsdbError("vgId:%d failed to write SBlockIdx part to FSET %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
-    tsdbCloseCommitFile(pCommith, true);
-    // revert the file change
-    tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
-    return -1;
-  }
+//   if (tsdbWriteBlockIdx(TSDB_COMMIT_HEAD_FILE(pCommith), pCommith->aBlkIdx, (void **)(&(TSDB_COMMIT_BUF(pCommith))))
+//   <
+//       0) {
+//     tsdbError("vgId:%d failed to write SBlockIdx part to FSET %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
+//     tsdbCloseCommitFile(pCommith, true);
+//     // revert the file change
+//     tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
+//     return -1;
+//   }
 
-  if (tsdbUpdateDFileSetHeader(&(pCommith->wSet)) < 0) {
-    tsdbError("vgId:%d failed to update FSET %d header since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
-    tsdbCloseCommitFile(pCommith, true);
-    // revert the file change
-    tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
-    return -1;
-  }
+//   if (tsdbUpdateDFileSetHeader(&(pCommith->wSet)) < 0) {
+//     tsdbError("vgId:%d failed to update FSET %d header since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
+//     tsdbCloseCommitFile(pCommith, true);
+//     // revert the file change
+//     tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
+//     return -1;
+//   }
 
-  // Close commit file
-  tsdbCloseCommitFile(pCommith, false);
+//   // Close commit file
+//   tsdbCloseCommitFile(pCommith, false);
 
-  if (tsdbUpdateDFileSet(REPO_FS(pRepo), &(pCommith->wSet)) < 0) {
-    return -1;
-  }
+//   if (tsdbUpdateDFileSet(REPO_FS(pRepo), &(pCommith->wSet)) < 0) {
+//     return -1;
+//   }
 
-  return 0;
-}
+//   return 0;
+// }
 
 static int tsdbCreateCommitIters(SCommitH *pCommith) {
-#if 0
-  STsdb *pRepo = TSDB_COMMIT_REPO(pCommith);
-  SMemTable *pMem = pRepo->imem;
-  // STsdbMeta *pMeta = pRepo->tsdbMeta;
+  STsdb *            pRepo = TSDB_COMMIT_REPO(pCommith);
+  STsdbMemTable *    pMem = pRepo->imem;
+  SSkipListIterator *pSlIter;
+  SCommitIter *      pCommitIter;
+  SSkipListNode *    pNode;
+  STbData *          pTbData;
 
-  pCommith->niters = pMem->maxTables;
-  pCommith->iters = (SCommitIter *)calloc(pMem->maxTables, sizeof(SCommitIter));
+  pCommith->niters = SL_SIZE(pMem->pSlIdx);
+  pCommith->iters = (SCommitIter *)calloc(pCommith->niters, sizeof(SCommitIter));
   if (pCommith->iters == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
 
-  if (tsdbRLockRepoMeta(pRepo) < 0) return -1;
+  // Loop to create iters for each skiplist
+  pSlIter = tSkipListCreateIter(pMem->pSlIdx);
+  if (pSlIter == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return -1;
+  }
+  for (int i = 0; i < pCommith->niters; i++) {
+    tSkipListIterNext(pSlIter);
+    pNode = tSkipListIterGet(pSlIter);
+    pTbData = (STbData *)pNode->pData;
 
-  // reference all tables
-  for (int i = 0; i < pMem->maxTables; i++) {
-    if (pMeta->tables[i] != NULL) {
-      tsdbRefTable(pMeta->tables[i]);
-      pCommith->iters[i].pTable = pMeta->tables[i];
-    }
+    pCommitIter = pCommith->iters + i;
+    pCommitIter->pIter = tSkipListCreateIter(pTbData->pData);
+    tSkipListIterNext(pCommitIter->pIter);
   }
 
-  if (tsdbUnlockRepoMeta(pRepo) < 0) return -1;
-
-  for (int i = 0; i < pMem->maxTables; i++) {
-    if ((pCommith->iters[i].pTable != NULL) && (pMem->tData[i] != NULL) &&
-        (TABLE_UID(pCommith->iters[i].pTable) == pMem->tData[i]->uid)) {
-      if ((pCommith->iters[i].pIter = tSkipListCreateIter(pMem->tData[i]->pData)) == NULL) {
-        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-        return -1;
-      }
-
-      tSkipListIterNext(pCommith->iters[i].pIter);
-    }
-  }
-
-#endif
   return 0;
 }
 
+static void tsdbDestroyCommitIters(SCommitH *pCommith) {
+  if (pCommith->iters == NULL) return;
+
+  for (int i = 1; i < pCommith->niters; i++) {
+    tSkipListDestroyIter(pCommith->iters[i].pIter);
+  }
+
+  free(pCommith->iters);
+  pCommith->iters = NULL;
+  pCommith->niters = 0;
+}
+
 #if 0
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- */
 #include "tsdbint.h"
 
 extern int32_t tsTsdbMetaCompactRatio;
@@ -894,21 +887,6 @@ static bool tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TS
 #endif
 
 
-
-static void tsdbDestroyCommitIters(SCommitH *pCommith) {
-  if (pCommith->iters == NULL) return;
-
-  for (int i = 1; i < pCommith->niters; i++) {
-    if (pCommith->iters[i].pTable != NULL) {
-      tsdbUnRefTable(pCommith->iters[i].pTable);
-      tSkipListDestroyIter(pCommith->iters[i].pIter);
-    }
-  }
-
-  free(pCommith->iters);
-  pCommith->iters = NULL;
-  pCommith->niters = 0;
-}
 
 
 
