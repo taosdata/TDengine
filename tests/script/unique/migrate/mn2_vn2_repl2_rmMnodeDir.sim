@@ -110,7 +110,7 @@ $loopCnt = $loopCnt + 1
 if $loopCnt == 10 then 
   return -1
 endi
-
+sleep 2000
 sql show dnodes
 if $rows != 3 then
   sleep 2000
@@ -236,7 +236,7 @@ $loopCnt = $loopCnt + 1
 if $loopCnt == 10 then 
   return -1
 endi
-
+sleep 2000
 sql show dnodes
 if $rows != 3 then
   sleep 2000
