@@ -67,6 +67,13 @@ static FORCE_INLINE SMemRow tsdbNextIterRow(SSkipListIterator *pIter) {
   return (SMemRow)SL_GET_NODE_DATA(node);
 }
 
+static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator *pIter) {
+  SMemRow row = tsdbNextIterRow(pIter);
+  if (row == NULL) return TSDB_DATA_TIMESTAMP_NULL;
+
+  return memRowKey(row);
+}
+
 #ifdef __cplusplus
 }
 #endif

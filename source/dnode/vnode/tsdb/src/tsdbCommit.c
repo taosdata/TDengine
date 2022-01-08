@@ -138,10 +138,10 @@ int tsdbCommit(STsdb *pRepo) {
       break;
     }
   }
-#if 0
 
   // Loop to commit to each file
   fid = tsdbNextCommitFid(&(commith));
+#if 0
   while (true) {
     // Loop over both on disk and memory
     if (pSet == NULL && fid == TSDB_IVLD_FID) break;
@@ -281,28 +281,28 @@ static void tsdbSeekCommitIter(SCommitH *pCommith, TSKEY key) {
   }
 }
 
-// static int tsdbNextCommitFid(SCommitH *pCommith) {
-//   STsdb *   pRepo = TSDB_COMMIT_REPO(pCommith);
-//   STsdbCfg *pCfg = REPO_CFG(pRepo);
-//   int       fid = TSDB_IVLD_FID;
+static int tsdbNextCommitFid(SCommitH *pCommith) {
+  STsdb *   pRepo = TSDB_COMMIT_REPO(pCommith);
+  STsdbCfg *pCfg = REPO_CFG(pRepo);
+  int       fid = TSDB_IVLD_FID;
 
-//   for (int i = 0; i < pCommith->niters; i++) {
-//     SCommitIter *pIter = pCommith->iters + i;
-//     if (pIter->pTable == NULL || pIter->pIter == NULL) continue;
+  for (int i = 0; i < pCommith->niters; i++) {
+    SCommitIter *pIter = pCommith->iters + i;
+    // if (pIter->pTable == NULL || pIter->pIter == NULL) continue;
 
-//     TSKEY nextKey = tsdbNextIterKey(pIter->pIter);
-//     if (nextKey == TSDB_DATA_TIMESTAMP_NULL) {
-//       continue;
-//     } else {
-//       int tfid = (int)(TSDB_KEY_FID(nextKey, pCfg->daysPerFile, pCfg->precision));
-//       if (fid == TSDB_IVLD_FID || fid > tfid) {
-//         fid = tfid;
-//       }
-//     }
-//   }
+    TSKEY nextKey = tsdbNextIterKey(pIter->pIter);
+    if (nextKey == TSDB_DATA_TIMESTAMP_NULL) {
+      continue;
+    } else {
+      int tfid = (int)(TSDB_KEY_FID(nextKey, pCfg->daysPerFile, pCfg->precision));
+      if (fid == TSDB_IVLD_FID || fid > tfid) {
+        fid = tfid;
+      }
+    }
+  }
 
-//   return fid;
-// }
+  return fid;
+}
 
 static void tsdbDestroyCommitH(SCommitH *pCommith) {
   pCommith->pDataCols = tdFreeDataCols(pCommith->pDataCols);
