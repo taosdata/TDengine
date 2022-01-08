@@ -23,6 +23,7 @@
 #include "tlockfree.h"
 #include "tmacro.h"
 #include "wal.h"
+#include "tfs.h"
 
 #include "vnode.h"
 

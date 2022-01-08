@@ -24,9 +24,9 @@ STsdb *tsdbOpen(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory
   STsdb *pTsdb = NULL;
 
   // Set default TSDB Options
-  if (pTsdbCfg == NULL) {
-    pTsdbCfg = &defautlTsdbOptions;
-  }
+  // if (pTsdbCfg == NULL) {
+  pTsdbCfg = &defautlTsdbOptions;
+  // }
 
   // Validate the options
   if (tsdbValidateOptions(pTsdbCfg) < 0) {
