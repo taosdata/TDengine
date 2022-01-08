@@ -197,6 +197,10 @@ static void dndCloseVnode(SDnode *pDnode, SVnodeObj *pVnode) {
   dndFreeVnodeWriteQueue(pDnode, pVnode);
   dndFreeVnodeApplyQueue(pDnode, pVnode);
   dndFreeVnodeSyncQueue(pDnode, pVnode);
+  
+  vnodeClose(pVnode->pImpl);
+  pVnode->pImpl = NULL;
+
   free(pVnode->path);
   free(pVnode->db);
   free(pVnode);
@@ -554,7 +558,7 @@ static void dndGenerateVnodeCfg(SCreateVnodeMsg *pCreate, SVnodeCfg *pCfg) {
   pCfg->ttl = 4;
   pCfg->keep = pCreate->daysToKeep0;
   pCfg->isWeak = true;
-  pCfg->tsdbCfg.keep0 = pCreate->daysToKeep0;
+  pCfg->tsdbCfg.keep = pCreate->daysToKeep0;
   pCfg->tsdbCfg.keep1 = pCreate->daysToKeep2;
   pCfg->tsdbCfg.keep2 = pCreate->daysToKeep0;
   pCfg->tsdbCfg.lruCacheSize = pCreate->cacheBlockSize;

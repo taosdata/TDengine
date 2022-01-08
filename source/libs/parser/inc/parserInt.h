@@ -44,14 +44,14 @@ void clearAllTableMetaInfo(SQueryStmtInfo* pQueryInfo, bool removeMeta, uint64_t
 
 /**
  * Validate the sql info, according to the corresponding metadata info from catalog.
- * @param pCatalog
- * @param pSqlInfo
- * @param pQueryInfo a bounded AST with essential meta data from local buffer or mgmt node
- * @param id
- * @param msg
+ * @param pCtx
+ * @param pInfo
+ * @param pQueryInfo
+ * @param msgBuf
+ * @param msgBufLen
  * @return
  */
-int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pSqlInfo, SQueryStmtInfo* pQueryInfo, int64_t id, char* msg, int32_t msgLen);
+int32_t qParserValidateSqlNode(SParseBasicCtx *pCtx, SSqlInfo* pInfo, SQueryStmtInfo* pQueryInfo, char* msgBuf, int32_t msgBufLen);
 
 /**
  * validate the ddl ast, and convert the ast to the corresponding message format
@@ -62,6 +62,14 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pSqlInfo, SQ
  */
 SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, char* msgBuf, int32_t msgBufLen);
 
+/**
+ *
+ * @param pInfo
+ * @param pCtx
+ * @param msgBuf
+ * @param msgBufLen
+ * @return
+ */
 SVnodeModifOpStmtInfo* qParserValidateCreateTbSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, char* msgBuf, int32_t msgBufLen);
 
 /**
@@ -90,7 +98,7 @@ int32_t checkForInvalidExpr(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf);
  * @param msgBufLen
  * @return
  */
-int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SCatalogReq* pMetaInfo, char* msg, int32_t msgBufLen);
+int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SCatalogReq* pMetaInfo, SParseBasicCtx *pCtx, char* msg, int32_t msgBufLen);
 
 /**
  * Destroy the meta data request structure.

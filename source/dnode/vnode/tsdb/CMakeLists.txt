@@ -10,6 +10,9 @@ else(0)
         "src/tsdbMemTable.c"
         "src/tsdbOptions.c"
         "src/tsdbWrite.c"
+        "src/tsdbReadImpl.c"
+        "src/tsdbFile.c"
+        "src/tsdbFS.c"
     )
 endif(0)
 
@@ -25,4 +28,5 @@ target_link_libraries(
     PUBLIC util
     PUBLIC common
     PUBLIC tkv
+    PUBLIC tfs
 )

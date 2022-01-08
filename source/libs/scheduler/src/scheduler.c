@@ -242,6 +242,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   }
 
   int32_t addNum = 0;
+  if (pJob->nodeList) {
   int32_t nodeNum = taosArrayGetSize(pJob->nodeList);
   
   for (int32_t i = 0; i < nodeNum && addNum < SCH_MAX_CONDIDATE_EP_NUM; ++i) {
@@ -251,8 +252,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
       SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, addNum:%d, errno:%d", addNum, errno);
       SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
-    
-    ++addNum;
+  }
   }
 
   if (addNum <= 0) {
@@ -285,7 +285,7 @@ int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask) {
   }
 
   SCH_TASK_DLOG("task added to exec list, numOfTasks:%d", taosHashGetSize(pJob->execTasks));
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1037,7 +1037,7 @@ int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void
 }
 
 int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob) {
-  if (NULL == transport || NULL == nodeList ||NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
+  if (NULL == transport || /*NULL == nodeList || */NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 

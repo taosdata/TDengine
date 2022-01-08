@@ -24,9 +24,9 @@ extern "C" {
 
 typedef struct STsdbMemTable STsdbMemTable;
 
-STsdbMemTable *tsdbNewMemTable(SMemAllocatorFactory *pMAF);
-void           tsdbFreeMemTable(SMemAllocatorFactory *pMAF, STsdbMemTable *pMemTable);
-int            tsdbInsertDataToMemTable(STsdbMemTable *pMemTable, SSubmitMsg *pMsg);
+STsdbMemTable *tsdbNewMemTable(STsdb *pTsdb);
+void           tsdbFreeMemTable(STsdb *pTsdb, STsdbMemTable *pMemTable);
+int            tsdbMemTableInsert(STsdb *pTsdb, STsdbMemTable *pMemTable, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp);
 
 #ifdef __cplusplus
 }

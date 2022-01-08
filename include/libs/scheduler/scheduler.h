@@ -75,6 +75,12 @@ int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void
  */
 int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob);
 
+/**
+ * Fetch query result from the remote query executor
+ * @param pJob
+ * @param data
+ * @return
+ */
 int32_t scheduleFetchRows(void *pJob, void **data);
 
 
@@ -85,6 +91,10 @@ int32_t scheduleFetchRows(void *pJob, void **data);
  */
 int32_t scheduleCancelJob(void *pJob);
 
+/**
+ * Free the query job
+ * @param pJob
+ */
 void scheduleFreeJob(void *pJob);
 
 void schedulerDestroy(void);
