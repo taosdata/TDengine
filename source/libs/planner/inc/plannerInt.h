@@ -53,8 +53,8 @@ typedef struct SQueryDistPlanNodeInfo {
 typedef struct SQueryTableInfo {
   char           *tableName; // to be deleted
   uint64_t        uid;       // to be deleted
-  STableMetaInfo* pMeta;
-  STimeWindow window;
+  STableMetaInfo *pMeta;
+  STimeWindow     window;
 } SQueryTableInfo;
 
 typedef struct SQueryPlanNode {

@@ -18,37 +18,25 @@ class MndTestMnode : public ::testing::Test {
 
  public:
   static void SetUpTestSuite() {
-    test.Init("/tmp/mnode_test_mnode1", 9031);
+    test.Init("/tmp/mnode_test_mnode1", 9028);
     const char* fqdn = "localhost";
-    const char* firstEp = "localhost:9031";
+    const char* firstEp = "localhost:9028";
 
-    server2.Start("/tmp/mnode_test_mnode2", fqdn, 9032, firstEp);
-    server3.Start("/tmp/mnode_test_mnode3", fqdn, 9033, firstEp);
-    server4.Start("/tmp/mnode_test_mnode4", fqdn, 9034, firstEp);
-    server5.Start("/tmp/mnode_test_mnode5", fqdn, 9035, firstEp);
+    server2.Start("/tmp/mnode_test_mnode2", fqdn, 9029, firstEp);
     taosMsleep(300);
   }
 
   static void TearDownTestSuite() {
     server2.Stop();
-    server3.Stop();
-    server4.Stop();
-    server5.Stop();
     test.Cleanup();
   }
 
   static Testbase   test;
   static TestServer server2;
-  static TestServer server3;
-  static TestServer server4;
-  static TestServer server5;
 };
 
 Testbase   MndTestMnode::test;
 TestServer MndTestMnode::server2;
-TestServer MndTestMnode::server3;
-TestServer MndTestMnode::server4;
-TestServer MndTestMnode::server5;
 
 TEST_F(MndTestMnode, 01_ShowDnode) {
   test.SendShowMetaReq(TSDB_MGMT_TABLE_MNODE, "");
@@ -64,7 +52,7 @@ TEST_F(MndTestMnode, 01_ShowDnode) {
   EXPECT_EQ(test.GetShowRows(), 1);
 
   CheckInt16(1);
-  CheckBinary("localhost:9031", TSDB_EP_LEN);
+  CheckBinary("localhost:9028", TSDB_EP_LEN);
   CheckBinary("master", 12);
   CheckInt64(0);
   CheckTimestamp();
@@ -103,7 +91,7 @@ TEST_F(MndTestMnode, 04_Create_Mnode) {
 
     SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
     strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(9032);
+    pReq->port = htonl(9029);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -132,8 +120,8 @@ TEST_F(MndTestMnode, 04_Create_Mnode) {
 
     CheckInt16(1);
     CheckInt16(2);
-    CheckBinary("localhost:9031", TSDB_EP_LEN);
-    CheckBinary("localhost:9032", TSDB_EP_LEN);
+    CheckBinary("localhost:9028", TSDB_EP_LEN);
+    CheckBinary("localhost:9029", TSDB_EP_LEN);
     CheckBinary("master", 12);
     CheckBinary("slave", 12);
     CheckInt64(0);
@@ -158,144 +146,145 @@ TEST_F(MndTestMnode, 04_Create_Mnode) {
     EXPECT_EQ(test.GetShowRows(), 1);
 
     CheckInt16(1);
-    CheckBinary("localhost:9031", TSDB_EP_LEN);
+    CheckBinary("localhost:9028", TSDB_EP_LEN);
     CheckBinary("master", 12);
     CheckInt64(0);
     CheckTimestamp();
   }
+
+  {
+    // drop mnode
+    int32_t contLen = sizeof(SMDropMnodeReq);
+
+    SMDropMnodeReq* pReq = (SMDropMnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_MNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_MNODE_NOT_EXIST);
+  }
 }
-// {
-//   int32_t contLen = sizeof(SDropDnodeReq);
 
-//   SDropDnodeReq* pReq = (SDropDnodeReq*)rpcMallocCont(contLen);
-//   pReq->dnodeId = htonl(2);
+TEST_F(MndTestMnode, 03_Create_Mnode_Rollback) {
+  {
+    // send message first, then dnode2 crash, result is returned, and rollback is started
+    int32_t contLen = sizeof(SMCreateMnodeReq);
 
-//   SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DNODE, pReq, contLen);
-//   ASSERT_NE(pRsp, nullptr);
-//   ASSERT_EQ(pRsp->code, 0);
-// }
+    SMCreateMnodeReq* pReq = (SMCreateMnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
 
-// test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
-// CHECK_META("show dnodes", 7);
-// test.SendShowRetrieveReq();
-// EXPECT_EQ(test.GetShowRows(), 1);
+    server2.Stop();
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_MNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  }
 
-// CheckInt16(1);
-// CheckBinary("localhost:9031", TSDB_EP_LEN);
-// CheckInt16(0);
-// CheckInt16(1);
-// CheckBinary("ready", 10);
-// CheckTimestamp();
-// CheckBinary("", 24);
+  {
+    // continue send message, mnode is creating
+    int32_t contLen = sizeof(SMCreateMnodeReq);
 
-// {
-//   int32_t contLen = sizeof(SCreateDnodeReq);
+    SMCreateMnodeReq* pReq = (SMCreateMnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
 
-//   SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-//   strcpy(pReq->ep, "localhost:9033");
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_MNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_SDB_OBJ_CREATING);
+  }
 
-//   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
-//   ASSERT_NE(pRsp, nullptr);
-//   ASSERT_EQ(pRsp->code, 0);
-// }
+  {
+    // continue send message, mnode is creating
+    int32_t contLen = sizeof(SMDropMnodeReq);
 
-// {
-//   int32_t contLen = sizeof(SCreateDnodeReq);
+    SMDropMnodeReq* pReq = (SMDropMnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
 
-//   SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-//   strcpy(pReq->ep, "localhost:9034");
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_MNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_SDB_OBJ_CREATING);
+  }
 
-//   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
-//   ASSERT_NE(pRsp, nullptr);
-//   ASSERT_EQ(pRsp->code, 0);
-// }
+  {
+    // server start, wait until the rollback finished
+    server2.DoStart();
+    taosMsleep(1000);
 
-// {
-//   int32_t contLen = sizeof(SCreateDnodeReq);
+    int32_t retry = 0;
+    int32_t retryMax = 20;
 
-//   SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-//   strcpy(pReq->ep, "localhost:9035");
+    for (retry = 0; retry < retryMax; retry++) {
+      int32_t contLen = sizeof(SMCreateMnodeReq);
 
-//   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
-//   ASSERT_NE(pRsp, nullptr);
-//   ASSERT_EQ(pRsp->code, 0);
-// }
+      SMCreateMnodeReq* pReq = (SMCreateMnodeReq*)rpcMallocCont(contLen);
+      pReq->dnodeId = htonl(2);
 
-// taosMsleep(1300);
-// test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
-// CHECK_META("show dnodes", 7);
-// test.SendShowRetrieveReq();
-// EXPECT_EQ(test.GetShowRows(), 4);
+      SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_MNODE, pReq, contLen);
+      ASSERT_NE(pRsp, nullptr);
+      if (pRsp->code == TSDB_CODE_MND_MNODE_ALREADY_EXIST) break;
+      taosMsleep(1000);
+    }
 
-// CheckInt16(1);
-// CheckInt16(3);
-// CheckInt16(4);
-// CheckInt16(5);
-// CheckBinary("localhost:9031", TSDB_EP_LEN);
-// CheckBinary("localhost:9033", TSDB_EP_LEN);
-// CheckBinary("localhost:9034", TSDB_EP_LEN);
-// CheckBinary("localhost:9035", TSDB_EP_LEN);
-// CheckInt16(0);
-// CheckInt16(0);
-// CheckInt16(0);
-// CheckInt16(0);
-// CheckInt16(1);
-// CheckInt16(1);
-// CheckInt16(1);
-// CheckInt16(1);
-// CheckBinary("ready", 10);
-// CheckBinary("ready", 10);
-// CheckBinary("ready", 10);
-// CheckBinary("ready", 10);
-// CheckTimestamp();
-// CheckTimestamp();
-// CheckTimestamp();
-// CheckTimestamp();
-// CheckBinary("", 24);
-// CheckBinary("", 24);
-// CheckBinary("", 24);
-// CheckBinary("", 24);
+    ASSERT_NE(retry, retryMax);
+  }
+}
 
-// // restart
-// uInfo("stop all server");
-// test.Restart();
-// server2.Restart();
-// server3.Restart();
-// server4.Restart();
-// server5.Restart();
+TEST_F(MndTestMnode, 04_Drop_Mnode_Rollback) {
+  {
+    // send message first, then dnode2 crash, result is returned, and rollback is started
+    int32_t contLen = sizeof(SMDropMnodeReq);
 
-// taosMsleep(1300);
-// test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
-// CHECK_META("show dnodes", 7);
-// test.SendShowRetrieveReq();
-// EXPECT_EQ(test.GetShowRows(), 4);
+    SMDropMnodeReq* pReq = (SMDropMnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
 
-// CheckInt16(1);
-// CheckInt16(3);
-// CheckInt16(4);
-// CheckInt16(5);
-// CheckBinary("localhost:9031", TSDB_EP_LEN);
-// CheckBinary("localhost:9033", TSDB_EP_LEN);
-// CheckBinary("localhost:9034", TSDB_EP_LEN);
-// CheckBinary("localhost:9035", TSDB_EP_LEN);
-// CheckInt16(0);
-// CheckInt16(0);
-// CheckInt16(0);
-// CheckInt16(0);
-// CheckInt16(1);
-// CheckInt16(1);
-// CheckInt16(1);
-// CheckInt16(1);
-// CheckBinary("ready", 10);
-// CheckBinary("ready", 10);
-// CheckBinary("ready", 10);
-// CheckBinary("ready", 10);
-// CheckTimestamp();
-// CheckTimestamp();
-// CheckTimestamp();
-// CheckTimestamp();
-// CheckBinary("", 24);
-// CheckBinary("", 24);
-// CheckBinary("", 24);
-// CheckBinary("", 24);
-// }
+    server2.Stop();
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_MNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  }
+
+  {
+    // continue send message, mnode is dropping
+    int32_t contLen = sizeof(SMCreateMnodeReq);
+
+    SMCreateMnodeReq* pReq = (SMCreateMnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_MNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_SDB_OBJ_DROPPING);
+  }
+
+  {
+    // continue send message, mnode is dropping
+    int32_t contLen = sizeof(SMDropMnodeReq);
+
+    SMDropMnodeReq* pReq = (SMDropMnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_MNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_SDB_OBJ_DROPPING);
+  }
+
+  {
+    // server start, wait until the rollback finished
+    server2.DoStart();
+    taosMsleep(1000);
+
+    int32_t retry = 0;
+    int32_t retryMax = 20;
+
+    for (retry = 0; retry < retryMax; retry++) {
+      int32_t contLen = sizeof(SMCreateMnodeReq);
+
+      SMCreateMnodeReq* pReq = (SMCreateMnodeReq*)rpcMallocCont(contLen);
+      pReq->dnodeId = htonl(2);
+
+      SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_MNODE, pReq, contLen);
+      ASSERT_NE(pRsp, nullptr);
+      if (pRsp->code == 0) break;
+      taosMsleep(1000);
+    }
+
+    ASSERT_NE(retry, retryMax);
+  }
+}
