@@ -927,6 +927,11 @@ static void freeVariant(void *pItem) {
   tVariantDestroy(&p->pVar);
 }
 
+static void freeCommonItem(void *pItem) {
+  CommonItem* p = (CommonItem *) pItem;
+  tSqlExprDestroy(p->exp);
+}
+
 void freeCreateTableInfo(void* p) {
   SCreatedTableInfo* pInfo = (SCreatedTableInfo*) p;  
   taosArrayDestroy(&pInfo->pTagNames);
@@ -946,9 +951,11 @@ void destroySqlNode(SSqlNode *pSqlNode) {
   tSqlExprDestroy(pSqlNode->pWhere);
   pSqlNode->pWhere = NULL;
   
-  taosArrayDestroy(&pSqlNode->pSortOrder);
+  taosArrayDestroyEx(&pSqlNode->pSortOrder, freeCommonItem);
+  pSqlNode->pSortOrder = NULL;
 
-  taosArrayDestroy(&pSqlNode->pGroupby);
+  taosArrayDestroyEx(&pSqlNode->pGroupby, freeCommonItem);
+  pSqlNode->pGroupby = NULL;
 
   pSqlNode->from = destroyRelationInfo(pSqlNode->from);
 
@@ -956,6 +963,15 @@ void destroySqlNode(SSqlNode *pSqlNode) {
   pSqlNode->fillType = NULL;
 
   tSqlExprDestroy(pSqlNode->pHaving);
+
+  if (pSqlNode->sessionVal.col != NULL) {
+    tSqlExprDestroy(pSqlNode->sessionVal.col);
+  }
+
+  if (pSqlNode->windowstateVal.col != NULL) {
+    tSqlExprDestroy(pSqlNode->windowstateVal.col);
+  }
+
   free(pSqlNode);
 }
 

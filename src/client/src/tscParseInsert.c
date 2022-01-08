@@ -1554,7 +1554,9 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
   }
 
   pInsertParam->sql = sToken.z + sToken.n;
-  pInsertParam->sqlOri = calloc(1, strlen(sToken.z) + 1);
+  if(!pInsertParam->sqlOri){
+    pInsertParam->sqlOri = calloc(1, strlen(sToken.z) + 1);
+  }
   strcpy(pInsertParam->sqlOri, pInsertParam->sql);
   pInsertParam->bindedColumns = calloc(1, strlen(sToken.z) + 1);
   return TSDB_CODE_SUCCESS;
@@ -1571,8 +1573,10 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   int32_t ret = TSDB_CODE_SUCCESS;
   SSqlCmd* pCmd = &pSql->cmd;
   if (!initial) {
-    strcpy(pCmd->insertParam.sql, pCmd->insertParam.sqlOri);
-    tscDebug("0x%"PRIx64" resume to parse sql: %s", pSql->self, pCmd->insertParam.sql);
+    if(pCmd->insertParam.sqlOri && pCmd->insertParam.sql){
+      strcpy(pCmd->insertParam.sql, pCmd->insertParam.sqlOri);
+      tscDebug("0x%"PRIx64" resume to parse sql: %s", pSql->self, pCmd->insertParam.sql);
+    }
   }
 
   ret = tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE);
