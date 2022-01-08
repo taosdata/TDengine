@@ -105,6 +105,35 @@ int32_t generateLine(char* line, int lineLen, char* lineTemplate, int protocol, 
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t setupSuperTables(TAOS* taos, char* lineTemplate, int protocol,
+                         int numSuperTables, int numChildTables, int numRowsPerChildTable,
+                         int maxBatchesPerThread, int64_t ts) {
+  printf("setup supertables...");
+  {
+    char** linesStb = calloc(numSuperTables, sizeof(char*));
+    for (int i = 0; i < numSuperTables; i++) {
+      char* lineStb = calloc(strlen(lineTemplate)+128, 1);
+      generateLine(lineStb, strlen(lineTemplate)+128, lineTemplate, protocol, i,
+                   numSuperTables * numChildTables,
+                   ts + numSuperTables * numChildTables * numRowsPerChildTable);
+      linesStb[i] = lineStb;
+    }
+    SThreadInsertArgs args = {0};
+    args.protocol = protocol;
+    args.batches = calloc(maxBatchesPerThread, sizeof(maxBatchesPerThread));
+    args.taos = taos;
+    args.batches[0].lines = linesStb;
+    args.batches[0].numLines = numSuperTables;
+    insertLines(&args);
+    free(args.batches);
+    for (int i = 0; i < numSuperTables; ++i) {
+      free(linesStb[i]);
+    }
+    free(linesStb);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int main(int argc, char* argv[]) {
   int numThreads = 8;
   int maxBatchesPerThread = 1024;	
@@ -117,9 +146,10 @@ int main(int argc, char* argv[]) {
   int maxLinesPerBatch = 16384;
 
   int protocol = TSDB_SML_TELNET_PROTOCOL;
+  int assembleSTables = 0;
 
   int opt;
-  while ((opt = getopt(argc, argv, "s:c:r:f:t:b:p:hv")) != -1) {
+  while ((opt = getopt(argc, argv, "s:c:r:f:t:b:p:w:hv")) != -1) {
     switch (opt) {
       case 's':
         numSuperTables = atoi(optarg);
@@ -142,6 +172,9 @@ int main(int argc, char* argv[]) {
       case 'v':
         verbose = true;
         break;
+      case 'a':
+        assembleSTables = atoi(optarg);
+        break;
       case 'p':
         if (optarg[0] == 't') {
           protocol = TSDB_SML_TELNET_PROTOCOL;
@@ -152,11 +185,11 @@ int main(int argc, char* argv[]) {
         }
         break;
       case 'h':
-        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -b maxlines_per_batch -p [t|l|j] -v\n",
+        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -b maxlines_per_batch -p [t|l|j] -a assemble-stables -v\n",
                 argv[0]);
         exit(0);
       default: /* '?' */
-        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -b maxlines_per_batch -p [t|l|j] -v\n",
+        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -b maxlines_per_batch -p [t|l|j] -a assemble-stables -v\n",
                 argv[0]);
         exit(-1);
     }
@@ -200,28 +233,9 @@ int main(int argc, char* argv[]) {
     getTelenetTemplate(lineTemplate, 65535);
   }
 
-  printf("setup supertables...");
-  {
-    char** linesStb = calloc(numSuperTables, sizeof(char*));
-    for (int i = 0; i < numSuperTables; i++) {
-      char* lineStb = calloc(strlen(lineTemplate)+128, 1);
-      generateLine(lineStb, strlen(lineTemplate)+128, lineTemplate, protocol, i,
-               numSuperTables * numChildTables,
-               ts + numSuperTables * numChildTables * numRowsPerChildTable);
-      linesStb[i] = lineStb;
-    }
-    SThreadInsertArgs args = {0};
-    args.protocol = protocol;
-    args.batches = calloc(maxBatchesPerThread, sizeof(maxBatchesPerThread));
-    args.taos = taos;
-    args.batches[0].lines = linesStb;
-    args.batches[0].numLines = numSuperTables;
-    insertLines(&args);
-    free(args.batches);
-    for (int i = 0; i < numSuperTables; ++i) {
-      free(linesStb[i]);
-    }
-    free(linesStb);
+  if (assembleSTables) {
+    setupSuperTables(taos, lineTemplate, protocol,
+                     numSuperTables, numChildTables, numRowsPerChildTable, maxBatchesPerThread, ts);
   }
 
   printf("generate lines...\n");

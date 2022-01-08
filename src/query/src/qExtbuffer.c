@@ -367,6 +367,14 @@ static int32_t tsCompareFunc(TSKEY k1, TSKEY k2, int32_t order) {
 }
 
 int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
+  if (type == TSDB_DATA_TYPE_JSON){
+    bool canReturn = true;
+    int32_t result = jsonCompareUnit(f1, f2, &canReturn);
+    if(canReturn) return result;
+    type = *f1;
+    f1 += CHAR_BYTES;
+    f2 += CHAR_BYTES;
+  }
   switch (type) {
     case TSDB_DATA_TYPE_INT:     DEFAULT_COMP(GET_INT32_VAL(f1), GET_INT32_VAL(f2));
     case TSDB_DATA_TYPE_DOUBLE:  DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
@@ -1032,7 +1040,10 @@ void tColModelDisplay(SColumnModel *pModel, void *pData, int32_t numOfRows, int3
           break;
         case TSDB_DATA_TYPE_NCHAR: {
           char buf[4096] = {0};
-          taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
+          int32_t len = taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
+          if (len < 0){
+            qError("castConvert1 taosUcs4ToMbs error");
+          }
           printf("%s\t", buf);
           break;
         }
@@ -1084,7 +1095,10 @@ void tColModelDisplayEx(SColumnModel *pModel, void *pData, int32_t numOfRows, in
           break;
         case TSDB_DATA_TYPE_NCHAR: {
           char buf[128] = {0};
-          taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
+          int32_t len = taosUcs4ToMbs(val, pModel->pFields[j].field.bytes, buf);
+          if (len < 0){
+            qError("castConvert1 taosUcs4ToMbs error");
+          }
           printf("%s\t", buf);
           break;
         }

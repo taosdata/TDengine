@@ -43,11 +43,14 @@ if [ "$osType" != "Darwin" ]; then
   if [ "$pagMode" == "lite" ]; then
     #strip ${build_dir}/bin/taosd
     strip ${build_dir}/bin/taos
-    bin_files="${build_dir}/bin/taos ${script_dir}/remove_client.sh"
+    bin_files="${build_dir}/bin/taos \
+        ${script_dir}/remove_client.sh"
   else
-    bin_files="${script_dir}/remove_client.sh \
+    bin_files="${build_dir}/bin/taos \
+        ${script_dir}/remove_client.sh \
         ${script_dir}/set_core.sh \
-        ${script_dir}/get_client.sh ${script_dir}/taosd-dump-cfg.gdb"
+        ${script_dir}/get_client.sh"
+        #${script_dir}/get_client.sh ${script_dir}/taosd-dump-cfg.gdb"
   fi
   lib_files="${build_dir}/lib/libtaos.so.${version}"
 else

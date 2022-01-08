@@ -66,7 +66,7 @@ typedef struct SDiskbasedResultBuf {
   SHashObj* groupSet;            // id hash table
   SHashObj* all;
   SList*    lruList;
-  void*     emptyDummyIdList;    // dummy id list
+  SArray *  emptyDummyIdList;    // dummy id list
   void*     assistBuf;           // assistant buffer for compress/decompress data
   SArray*   pFree;               // free area in file
   bool      comp;                // compressed before flushed to disk

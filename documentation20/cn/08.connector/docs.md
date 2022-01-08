@@ -55,7 +55,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 ​    *install_client.sh*：安装脚本，用于应用驱动程序
 ​    *taos.tar.gz*：应用驱动安装包
 ​    *driver*：TDengine应用驱动driver
-​    *connector*: 各种编程语言连接器（go/grafanaplugin/nodejs/python/JDBC）
+​    *connector*: 各种编程语言连接器（go/nodejs/python/JDBC）
 ​    *examples*: 各种编程语言的示例程序(c/C#/go/JDBC/MATLAB/python/R)
 
 运行install_client.sh进行安装。
@@ -207,6 +207,8 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
     - port：TDengine管理主节点的端口号
 
   返回值为空表示失败。应用程序需要保存返回的参数，以便后续API调用。
+
+  **提示:** 同一进程可以根据不同的host/port 连接多个taosd 集群
 
 - `char *taos_get_server_info(TAOS *taos)`
 
@@ -539,9 +541,8 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
 
 Python连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1963.html)
 
-**安装**：参见下面具体步骤
-
-**示例程序**：位于install_directory/examples/python
+* **安装**：参见下面具体步骤
+* **示例程序**：位于install_directory/examples/python
 
 ### 安装
 
@@ -555,47 +556,36 @@ Python连接器支持的系统有：Linux 64/Windows x64
 
 ### Python连接器安装
 
-**Linux**
+Python 连接器可以通过 `pip` 从 PyPI 下载安装。注意 TDengine Python 连接器的包名为 `taospy` 而不是 `taos`（这是一个与 TDengine 无关的另一个程序）。但为保持向后兼容性，仍然使用 `import taos` 导入。
 
-用户可以在源代码的src/connector/python（或者tar.gz的/connector/python）文件夹下找到connector安装包。用户可以通过pip命令安装： 
-
-​		`pip install src/connector/python/`
-
-或
-
-​		`pip3 install src/connector/python/`
-
-**Windows**
-
-在已安装Windows TDengine 客户端的情况下， 将文件"C:\TDengine\driver\taos.dll" 拷贝到 "C:\Windows\system32" 目录下, 然后进入Windows *cmd* 命令行界面
 ```bash
-cd C:\TDengine\connector\python
-python -m pip install .
-```
-
-**PyPI**
-
-从2.1.1版本开始，用户可以从[PyPI](https://pypi.org/project/taospy/)安装：
-
-```sh
 pip install taospy
 ```
 
-* 如果机器上没有pip命令，用户可将src/connector/python下的taos文件夹拷贝到应用程序的目录使用。
-对于windows 客户端，安装TDengine windows 客户端后，将C:\TDengine\driver\taos.dll拷贝到C:\windows\system32目录下即可。
+如果不使用系统默认的 `python` 和 `pip`，则需要指定 `pip` 的版本或路径：
+
+```bash
+pip2 install taospy
+pip3 install taospy
+```
+
+Python 命令行依赖 taos 动态库 `libtaos.so` 或 `taos.dll`, 对于 Windows 客户端，安装TDengine windows 客户端后，如果不能正常 `import taos`，可以将 `C:\TDengine\driver\taos.dll` 拷贝到 `C:\windows\system32` 目录后重新尝试。
+
+对于无法联网用户，可以将TDengine客户端中的 `connector/python` 路径（Linux 下其安装路径为 `/usr/local/taos/connector/python/`，Windows 下默认安装路径为 `C:\TDengine\connector\python`）添加到 `PYTHONPATH` 环境变量中使用。
 
 ### 示例程序
 
-示例程序源码位于install_directory/examples/Python，有：
-**read_example.py       Python示例源程序**
+示例程序源码位于 `<install_directory>/examples/python`，有：
 
-用户可以参考read_example.py这个程序来设计用户自己的写入、查询程序。
+* **read_example.py**       Python示例源程序
 
-在安装了对应的应用驱动后，通过import taos引入taos类。主要步骤如下：
+用户可以参考`read_example.py`这个程序来设计用户自己的写入、查询程序。
 
-- 通过taos.connect获取TDengineConnection对象，这个对象可以一个程序只申请一个，在多线程中共享。
+在安装了对应的应用驱动后，通过`import taos`引入taos类。主要步骤如下：
 
-- 通过TDengineConnection对象的 .cursor()方法获取一个新的游标对象，这个游标对象必须保证每个线程独享。
+- 通过taos.connect获取TaosConnection对象，这个对象可以一个程序只申请一个，在多线程中共享。
+
+- 通过TaosConnection对象的 `.cursor()` 方法获取一个新的游标对象，这个游标对象必须保证每个线程独享。
 
 - 通过游标对象的execute()方法，执行写入或查询的SQL语句。
 
@@ -632,127 +622,175 @@ for row in results:
     print(row)
 ```
 
-#### 代码示例
+##### 代码示例
 
-* 导入TDengine客户端模块
-
-```python
-import taos
-```
-* 获取连接并获取游标对象
-
-```python
-conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
-c1 = conn.cursor()
-```
-* *host* 是TDengine 服务端所有IP, *config* 为客户端配置文件所在目录
-
-* 写入数据
-
-```python
-import datetime
-
-# 创建数据库
-c1.execute('create database db')
-c1.execute('use db')
-# 建表
-c1.execute('create table tb (ts timestamp, temperature int, humidity float)')
-# 插入数据
-start_time = datetime.datetime(2019, 11, 1)
-affected_rows = c1.execute('insert into tb values (\'%s\', 0, 0.0)' %start_time)
-# 批量插入数据
-time_interval = datetime.timedelta(seconds=60)
-sqlcmd = ['insert into tb values']
-for irow in range(1,11):
-  start_time += time_interval
-  sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
-affected_rows = c1.execute(' '.join(sqlcmd))
-```
-
-* 查询数据
-
-```python
-c1.execute('select * from tb')
-# 拉取查询结果
-data = c1.fetchall()
-# 返回的结果是一个列表，每一行构成列表的一个元素
-numOfRows = c1.rowcount
-numOfCols = len(c1.description)
-for irow in range(numOfRows):
-  print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2]))
-
-# 直接使用cursor 循环拉取查询结果
-c1.execute('select * from tb')
-for data in c1:
-  print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2]))
-```
-
-* 从v2.1.0版本开始, 我们提供另外一种API：`connection.query`
+1. 导入TDengine客户端模块
 
     ```python
     import taos
-
-    conn = taos.connect()
-    conn.execute("create database if not exists pytest")
-
-    result = conn.query("show databases")
-    num_of_fields = result.field_count
-    for field in result.fields:
-        print(field)
-    for row in result:
-        print(row)
-    conn.execute("drop database pytest")
     ```
 
-    `query` 方法会返回一个 `TaosResult` 类对象，并提供了以下有用的属性或方法:
+2. 获取连接并获取游标对象
 
-    属性:
+    ```python
+    conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
+    c1 = conn.cursor()
+    ```
 
-    - `fields`: `TaosFields` 集合类，提供返回数据的列信息。
-    - `field_count`: 返回数据的列数.
-    - `affected_rows`: 插入数据的行数.
-    - `row_count`: 查询数据结果数.
-    - `precision`: 当前数据库的时间精度.
+    *host* 是TDengine 服务端所在IP, *config* 为客户端配置文件所在目录。
 
-    方法:
+3. 写入数据
 
-    - `fetch_all()`: 类似于 `cursor.fetchall()` 返回同样的集合数据
-    - `fetch_all_into_dict()`: v2.1.1 新添加的API，将上面的数据转换成字典类型返回
-    - `blocks_iter()` `rows_iter()`: 根据底层API提供的两种不同迭代器。
-    - `fetch_rows_a`: 异步API
-    - `errno`: 错误码
-    - `errstr`: 错误信息
-    - `close`: 关闭结果对象，一般不需要直接调用
+    ```python
+    import datetime
 
+    # 创建数据库
+    c1.execute('create database db')
+    c1.execute('use db')
+    # 建表
+    c1.execute('create table tb (ts timestamp, temperature int, humidity float)')
+    # 插入数据
+    start_time = datetime.datetime(2019, 11, 1)
+    affected_rows = c1.execute('insert into tb values (\'%s\', 0, 0.0)' %start_time)
+    # 批量插入数据
+    time_interval = datetime.timedelta(seconds=60)
+    sqlcmd = ['insert into tb values']
+    for irow in range(1,11):
+        start_time += time_interval
+        sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
+    affected_rows = c1.execute(' '.join(sqlcmd))
+    ```
 
-* 创建订阅
+4. 查询数据
+
+    ```python
+    c1.execute('select * from tb')
+    # 拉取查询结果
+    data = c1.fetchall()
+    # 返回的结果是一个列表，每一行构成列表的一个元素
+    numOfRows = c1.rowcount
+    numOfCols = len(c1.description)
+    for irow in range(numOfRows):
+        print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1], data[irow][2]))
+
+    # 直接使用cursor 循环拉取查询结果
+    c1.execute('select * from tb')
+    for data in c1:
+        print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1], data[2]))
+    ```
+
+#### Query API
+
+从v2.1.0版本开始, 我们提供另外一种方法：`connection.query` 来操作数据库。
 
 ```python
-# 创建一个主题为 'test' 消费周期为1000毫秒的订阅
-# 第一个参数为 True 表示重新开始订阅，如为 False 且之前创建过主题为 'test' 的订阅，则表示继续消费此订阅的数据，而不是重新开始消费所有数据
-sub = conn.subscribe(True, "test", "select * from tb;", 1000)
+import taos
+
+conn = taos.connect()
+conn.execute("create database if not exists pytest")
+
+result = conn.query("show databases")
+num_of_fields = result.field_count
+for field in result.fields:
+    print(field)
+for row in result:
+    print(row)
+conn.execute("drop database pytest")
 ```
 
-* 消费订阅的数据
+`query` 方法会返回一个 `TaosResult` 对象，并提供了以下属性或方法:
+
+属性:
+
+- `fields`: `TaosFields` 集合类，提供返回数据的列信息。
+- `field_count`: 返回数据的列数.
+- `affected_rows`: 插入数据的行数.
+- `row_count`: 查询数据结果数.
+- `precision`: 当前数据库的时间精度.
+
+方法:
+
+- `fetch_all()`: 类似于 `cursor.fetchall()` 返回同样的集合数据
+- `fetch_all_into_dict()`: v2.1.1 新添加的API，将上面的数据转换成字典类型返回
+- `blocks_iter()` `rows_iter()`: 根据底层API提供的两种不同迭代器。
+- `fetch_rows_a`: 异步API
+- `errno`: 错误码
+- `errstr`: 错误信息
+- `close`: 关闭结果对象，一般不需要直接调用
+
+#### 订阅 API
+
+1. 创建一个同步订阅队列：
+
+    ```python
+    # 创建一个主题为 'test' 消费周期为1000毫秒的订阅
+    #   第一个参数为 True 表示重新开始订阅，如为 False 且之前创建过主题为 'test' 的订阅，
+    #   则表示继续消费此订阅的数据，而不是重新开始消费所有数据
+    sub = conn.subscribe(True, "test", "select * from tb;", 1000)
+    ```
+
+2. 消费订阅的数据
+
+    ```python
+    data = sub.consume()
+    for d in data:
+        print(d)
+    ```
+
+3. 取消订阅
+
+    ```python
+    sub.close()
+    ```
+
+4. 关闭连接
+
+    ```python
+    conn.close()
+    ```
+
+#### JSON 类型
+
+从 `taospy` `v2.2.0` 开始，Python连接器开始支持 JSON 数据类型的标签（TDengine版本要求 Beta 版 2.3.5+， 稳定版 2.4.0+）。
+
+创建一个使用JSON类型标签的超级表及其子表：
 
 ```python
-data = sub.consume()
-for d in data:
-    print(d)
+# encoding:UTF-8
+import taos
+
+conn = taos.connect()
+conn.execute("create database if not exists py_test_json_type")
+conn.execute("use py_test_json_type")
+
+conn.execute("create stable s1 (ts timestamp, v1 int) tags (info json)")
+conn.execute("create table s1_1 using s1 tags ('{\"k1\": \"v1\"}')")
 ```
 
-* 取消订阅
+查询子表标签及表名：
 
 ```python
-sub.close()
+tags = conn.query("select info, tbname from s1").fetch_all_into_dict()
+tags
 ```
 
-* 关闭连接
+`tags` 内容为：
 
 ```python
-c1.close()
-conn.close()
+[{'info': '{"k1":"v1"}', 'tbname': 's1_1'}]
 ```
+
+获取 JSON 中某值：
+
+```python
+k1 = conn.query("select info->'k1' as k1 from s1").fetch_all_into_dict()
+"""
+>>> k1
+[{'k1': '"v1"'}]
+"""
+```
+
+更多JSON类型的操作方式请参考 [JSON 类型使用说明](https://www.taosdata.com/cn/documentation/taos-sql)。
 
 #### 关于纳秒 (nanosecond) 在 Python 连接器中的说明
 
@@ -765,30 +803,20 @@ conn.close()
 
 用户可通过python的帮助信息直接查看模块的使用信息，或者参考tests/examples/python中的示例程序。以下为部分常用类和方法：
 
-- _TDengineConnection_ 类
+- _TaosConnection_ 类
 
-  参考python中help(taos.TDengineConnection)。
+  参考python中help(taos.TaosConnection)。
   这个类对应客户端和TDengine建立的一个连接。在客户端多线程的场景下，推荐每个线程申请一个独立的连接实例，而不建议多线程共享一个连接。
 
-- _TDengineCursor_ 类
+- _TaosCursor_ 类
 
-  参考python中help(taos.TDengineCursor)。
+  参考python中help(taos.TaosCursor)。
   这个类对应客户端进行的写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能跨线程共享使用，否则会导致返回结果出现错误。
 
 - _connect_ 方法
 
-  用于生成taos.TDengineConnection的实例。
+  用于生成taos.TaosConnection的实例。
 
-### Python客户端使用示例代码
-
-在tests/examples/python中，我们提供了一个示例Python程序read_example.py，可以参考这个程序来设计用户自己的写入、查询程序。在安装了对应的客户端后，通过import taos引入taos类。主要步骤如下
-
-- 通过taos.connect获取TDengineConnection对象，这个对象可以一个程序只申请一个，在多线程中共享。
-- 通过TDengineConnection对象的 .cursor()方法获取一个新的游标对象，这个游标对象必须保证每个线程独享。
-- 通过游标对象的execute()方法，执行写入或查询的SQL语句。
-- 如果执行的是写入语句，execute返回的是成功写入的行数信息affected rows。
-- 如果执行的是查询语句，则execute执行成功后，需要通过fetchall方法去拉取结果集。
-具体方法可以参考示例代码。
 
 ## <a class="anchor" id="restful"></a>RESTful Connector
 

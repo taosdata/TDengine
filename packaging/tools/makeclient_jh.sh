@@ -77,7 +77,7 @@ if [ "$osType" != "Darwin" ]; then
     cp ${build_dir}/bin/taosdump      ${install_dir}/bin/jh_taosdump
     cp ${script_dir}/set_core.sh      ${install_dir}/bin
     cp ${script_dir}/get_client.sh    ${install_dir}/bin
-    cp ${script_dir}/taosd-dump-cfg.gdb    ${install_dir}/bin
+    #cp ${script_dir}/taosd-dump-cfg.gdb    ${install_dir}/bin
   fi
 else
   cp ${bin_files} ${install_dir}/bin

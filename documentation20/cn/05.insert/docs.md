@@ -251,6 +251,7 @@ select * from apiserver_request_latencies_bucket;
 ```
 
 ## <a class="anchor" id="telegraf"></a> Telegraf 直接写入(通过 taosAdapter)
+
 安装 Telegraf 请参考[官方文档](https://portal.influxdata.com/downloads/)。
 
 TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 Telegraf 的多种应用的数据写入。
@@ -276,6 +277,7 @@ sudo systemctl start telegraf
 taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
 ## <a class="anchor" id="collectd"></a> collectd 直接写入(通过 taosAdapter)
+
 安装 collectd，请参考[官方文档](https://collectd.org/download.shtml)。
 
 TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 collectd 的多种应用的数据写入。
@@ -294,6 +296,7 @@ sudo systemctl start collectd
 taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
 ## <a class="anchor" id="statsd"></a> StatsD 直接写入(通过 taosAdapter)
+
 安装 StatsD
 请参考[官方文档](https://github.com/statsd/statsd)。
 
@@ -316,10 +319,35 @@ port: 8125
 
 taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
+icinga2 可以收集监控和性能数据并写入 OpenTSDB，taosAdapter 可以支持接收 icinga2 的数据并写入到 TDengine 中。
+
+## <a class="anchor" id="icinga2"></a> icinga2 直接写入(通过 taosAdapter)
+
+* 参考链接 https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer 使能 opentsdb-writer 
+* 使能 taosAdapter 配置项 opentsdb_telnet.enable
+* 修改配置文件 /etc/icinga2/features-enabled/opentsdb.conf
+```
+object OpenTsdbWriter "opentsdb" {
+  host = "host to taosAdapter"
+  port = 6048
+}
+```
+
+taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
+
+## <a class="anchor" id="tcollector"></a> TCollector 直接写入(通过 taosAdapter)
+
+TCollector 是一个在客户侧收集本地收集器并发送数据到 OpenTSDB 的进程，taosAdaapter 可以支持接收 TCollector 的数据并写入到 TDengine 中。
+
+使能 taosAdapter 配置项 opentsdb_telnet.enable
+修改 TCollector 配置文件，修改 OpenTSDB 宿主机地址为 taosAdapter 被部署的地址，并修改端口号为 taosAdapter 使用的端口（默认6049）。
+
+taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
 ## <a class="anchor" id="taosadapter2-telegraf"></a> 使用 Bailongma 2.0 接入 Telegraf 数据写入
 
-*注意：TDengine 新版本（2.3.0.0+）提供新版本 Bailongma ，命名为 taosAdapter ，提供更简便的 Telegraf 数据写入以及其他更强大的功能，Bailongma v2 及之前版本将逐步不再维护。
+**注意：**
+TDengine 新版本（2.3.0.0+）提供新版本 Bailongma ，命名为 taosAdapter ，提供更简便的 Telegraf 数据写入以及其他更强大的功能，Bailongma v2 及之前版本将逐步不再维护。
 
 
 ## <a class="anchor" id="emq"></a>EMQ Broker 直接写入

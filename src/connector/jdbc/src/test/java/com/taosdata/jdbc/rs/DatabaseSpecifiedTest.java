@@ -33,7 +33,6 @@ public class DatabaseSpecifiedTest {
             String loc = rs.getString("loc");
             assertEquals("beijing", loc);
         }
-        connection.close();
     }
 
     @Before
@@ -59,8 +58,12 @@ public class DatabaseSpecifiedTest {
     @After
     public void after() {
         try {
-            if (connection != null)
+            if (connection != null) {
+                Statement statement = connection.createStatement();
+                statement.execute("drop database if exists " + dbname);
+                statement.close();
                 connection.close();
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }

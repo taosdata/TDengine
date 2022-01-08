@@ -448,9 +448,29 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
     tt = 0;
   }
   */
-
 #ifdef WINDOWS
-  if (tt < 0) tt = 0;
+  if (tt < 0) {
+    SYSTEMTIME a={1970,1,5,1,0,0,0,0}; // SYSTEMTIME struct support 1601-01-01. set 1970 to compatible with Epoch time.
+    FILETIME b; // unit is 100ns
+    ULARGE_INTEGER c;
+    SystemTimeToFileTime(&a,&b);
+    c.LowPart = b.dwLowDateTime;  
+    c.HighPart = b.dwHighDateTime;  
+    c.QuadPart+=tt*10000000;
+    b.dwLowDateTime=c.LowPart;  
+    b.dwHighDateTime=c.HighPart;  
+    FileTimeToLocalFileTime(&b,&b);
+    FileTimeToSystemTime(&b,&a);
+    int pos = sprintf(buf,"%02d-%02d-%02d %02d:%02d:%02d", a.wYear, a.wMonth,a.wDay, a.wHour, a.wMinute, a.wSecond);   
+    if (precision == TSDB_TIME_PRECISION_NANO) {
+      sprintf(buf + pos, ".%09d", ms);
+    } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+      sprintf(buf + pos, ".%06d", ms);
+    } else {
+      sprintf(buf + pos, ".%03d", ms);
+    }
+    return buf;
+  }
 #endif
   if (tt <= 0 && ms < 0) {
     tt--;
@@ -509,6 +529,7 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
       memcpy(buf, val, length);
       buf[length] = 0;
       fprintf(fp, "\'%s\'", buf);
@@ -645,7 +666,7 @@ static void shellPrintNChar(const char *str, int length, int width) {
 static void printField(const char* val, TAOS_FIELD* field, int width, int32_t length, int precision) {
   if (val == NULL) {
     int w = width;
-    if (field->type < TSDB_DATA_TYPE_TINYINT || field->type > TSDB_DATA_TYPE_DOUBLE) {
+    if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_NCHAR || field->type == TSDB_DATA_TYPE_TIMESTAMP) {
       w = 0;
     }
     w = printf("%*s", w, TSDB_DATA_NULL_STR);
@@ -692,6 +713,7 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
       shellPrintNChar(val, length, width);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
@@ -805,7 +827,8 @@ static int calcColWidth(TAOS_FIELD* field, int precision) {
         return MAX(field->bytes, width);
       }
 
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:{
       int16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
       if (bytes > tsMaxBinaryDisplayWidth) {
         return MAX(tsMaxBinaryDisplayWidth, width);

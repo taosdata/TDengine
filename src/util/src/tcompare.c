@@ -18,11 +18,12 @@
 #define _DEFAULT_SOURCE
 
 #include "tcompare.h"
-#include "tulog.h"
+#include "tvariant.h"
 #include "hash.h"
-#include "regex.h"
 #include "os.h"
+#include "regex.h"
 #include "ttype.h"
+#include "tulog.h"
 
 int32_t setCompareBytes1(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
@@ -218,6 +219,36 @@ int32_t compareLenPrefixedWStrDesc(const void* pLeft, const void* pRight) {
   return compareLenPrefixedWStr(pRight, pLeft);
 }
 
+int32_t compareJsonVal(const void *pLeft, const void *pRight) {
+  const tVariant* right = pRight;
+  if(right->nType != *(char*)pLeft && !(IS_NUMERIC_TYPE(right->nType) && IS_NUMERIC_TYPE(*(char*)pLeft)))
+    return TSDB_DATA_JSON_CAN_NOT_COMPARE;
+
+  uint8_t type = *(char*)pLeft;
+  char* realData = POINTER_SHIFT(pLeft, CHAR_BYTES);
+  if(type == TSDB_DATA_TYPE_BOOL) {
+    DEFAULT_COMP(GET_INT8_VAL(realData), right->i64);
+  }else if(type == TSDB_DATA_TYPE_BIGINT){
+    DEFAULT_COMP(GET_INT64_VAL(realData), (right->nType == TSDB_DATA_TYPE_BIGINT) ? right->i64 : right->dKey);
+  }else if(type == TSDB_DATA_TYPE_DOUBLE){
+    DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(realData), (right->nType == TSDB_DATA_TYPE_DOUBLE) ? right->dKey : right->i64);
+  }else if(type == TSDB_DATA_TYPE_NCHAR){
+    if (varDataLen(realData) != right->nLen) {
+      return varDataLen(realData) > right->nLen ? 1 : -1;
+    }
+    int32_t ret = memcmp(varDataVal(realData), right->pz, right->nLen);
+    if (ret == 0) {
+      return ret;
+    }
+    return (ret < 0) ? -1 : 1;
+  }else if(type == TSDB_DATA_TYPE_BINARY) { //json null
+    return 0;
+  }else{
+    assert(0);
+  }
+  return 0;
+}
+
 /*
  * Compare two strings
  *    TSDB_MATCH:            Match
@@ -290,29 +321,94 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
   return (str[j] == 0 || j >= size) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
-int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, const SPatternCompareInfo *pInfo) {
-  wchar_t c, c1;
-  wchar_t matchOne = L'_';  // "_"
-  wchar_t matchAll = L'%';  // "%"
+static uint32_t *
+taosWcschr (const uint32_t *wcs, const uint32_t wc)
+{
+  const uint32_t *wcs2 = wcs + 1;
+  if (*wcs == wc)
+    return (uint32_t *) wcs;
+  if (*wcs == L'\0')
+    return NULL;
+  do
+    {
+      wcs += 2;
+      if (*wcs2 == wc)
+        return (uint32_t *) wcs2;
+      if (*wcs2 == L'\0')
+        return NULL;
+       wcs2 += 2;
+      if (*wcs == wc)
+        return (uint32_t *) wcs;
+      if (*wcs == L'\0')
+        return NULL;
+      wcs += 2;
+      if (*wcs2 == wc)
+        return (uint32_t *) wcs2;
+      if (*wcs2 == L'\0')
+        return NULL;
+      wcs2 += 2;
+      if (*wcs == wc)
+        return (uint32_t *) wcs;
+      if (*wcs == L'\0')
+        return NULL;
+      wcs += 2;
+      if (*wcs2 == wc)
+        return (uint32_t *) wcs2;
+      if (*wcs2 == L'\0')
+        return NULL;
+      wcs2 += 2;
+      if (*wcs == wc)
+        return (uint32_t *) wcs;
+      if (*wcs == L'\0')
+        return NULL;
+      wcs += 2;
+      if (*wcs2 == wc)
+        return (uint32_t *) wcs2;
+      if (*wcs2 == L'\0')
+        return NULL;
+      wcs2 += 2;
+      if (*wcs == wc)
+        return (uint32_t *) wcs;
+    }
+  while (*wcs != L'\0');
+  return NULL;
+}
+
+static size_t
+taosWcscspn (const uint32_t *wcs, const uint32_t *reject)
+{
+  size_t count = 0;
+  while (*wcs != L'\0')
+    if (taosWcschr (reject, *wcs++) == NULL)
+      ++count;
+    else
+      return count;
+  return count;
+}
+
+int WCSPatternMatch(const uint32_t *patterStr, const uint32_t *str, size_t size, const SPatternCompareInfo *pInfo) {
+  uint32_t c, c1;
+  uint32_t matchOne = (uint32_t) L'_';  // "_"
+  uint32_t matchAll = (uint32_t) L'%';  // "%"
 
   int32_t i = 0;
   int32_t j = 0;
 
   while ((c = patterStr[i++]) != 0) {
     if (c == matchAll) { /* Match "%" */
-
       while ((c = patterStr[i++]) == matchAll || c == matchOne) {
         if (c == matchOne && (j >= size || str[j++] == 0)) {
           return TSDB_PATTERN_NOWILDCARDMATCH;
         }
       }
+
       if (c == 0) {
         return TSDB_PATTERN_MATCH;
       }
 
-      wchar_t accept[3] = {towupper(c), towlower(c), 0};
+      uint32_t accept[3] = {towupper(c), towlower(c), 0};
       while (1) {
-        size_t n = wcscspn(str, accept);
+        size_t n = taosWcscspn(str, accept);
 
         str += n;
         if (str[0] == 0 || (n >= size)) {
@@ -405,6 +501,12 @@ int32_t compareStrRegexComp(const void* pLeft, const void* pRight) {
   return result;
 }
 
+int32_t compareStrContainJson(const void* pLeft, const void* pRight) {
+  if(pLeft) return 0;
+  return 1;
+}
+
+
 int32_t taosArrayCompareString(const void* a, const void* b) {
   const char* x = *(const char**)a;
   const char* y = *(const char**)b;
@@ -422,13 +524,13 @@ int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
 
   assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
 
-  wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
-  wchar_t *str = calloc(size + 1, sizeof(wchar_t));
+  char *pattern = calloc(varDataLen(pRight) + TSDB_NCHAR_SIZE, 1);
+  char *str = calloc(varDataLen(pLeft) + TSDB_NCHAR_SIZE, 1);
 
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
-  memcpy(str, varDataVal(pLeft), size * sizeof(wchar_t));
+  memcpy(str, varDataVal(pLeft), varDataLen(pLeft));
 
-  int32_t ret = WCSPatternMatch(pattern, str, size, &pInfo);
+  int32_t ret = WCSPatternMatch((uint32_t *)pattern, (uint32_t *)str, size, &pInfo);
 
   free(pattern);
   free(str);
@@ -487,7 +589,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       break;
     }
 
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:{
       if (optr == TSDB_RELATION_MATCH) {
         comparFn = compareStrRegexCompMatch;
       } else if (optr == TSDB_RELATION_NMATCH) {
@@ -498,6 +600,20 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
         comparFn = compareFindItemInSet;
       } else {
         comparFn = compareLenPrefixedWStr;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_JSON:{
+      if (optr == TSDB_RELATION_MATCH) {
+        comparFn = compareStrRegexCompMatch;
+      } else if (optr == TSDB_RELATION_NMATCH) {
+        comparFn = compareStrRegexCompNMatch;
+      } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
+        comparFn = compareWStrPatternComp;
+      } else if (optr == TSDB_RELATION_CONTAINS) {
+        comparFn = compareStrContainJson;
+      } else {
+        comparFn = compareJsonVal;
       }
       break;
     }
@@ -565,7 +681,48 @@ __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
   return comparFn;
 }
 
+int32_t jsonCompareUnit(const char* f1, const char* f2, bool* canReturn){
+  *canReturn = true;
+  bool f1IsNull = (*f1 == TSDB_DATA_TYPE_JSON && isNull(f1 + CHAR_BYTES, TSDB_DATA_TYPE_JSON));
+  bool f2IsNull = (*f2 == TSDB_DATA_TYPE_JSON && isNull(f2 + CHAR_BYTES, TSDB_DATA_TYPE_JSON));
+  if(f1IsNull && f2IsNull){
+    return 0;
+  }else if(f1IsNull && !f2IsNull){
+    return -1;
+  }else if(!f1IsNull && f2IsNull){
+    return 1;
+  }else{
+    bool f1IsJsonNull = (*f1 == TSDB_DATA_TYPE_BINARY && *(uint32_t*)varDataVal(f1 + CHAR_BYTES) == TSDB_DATA_JSON_null);
+    bool f2IsJsonNull = (*f2 == TSDB_DATA_TYPE_BINARY && *(uint32_t*)varDataVal(f2 + CHAR_BYTES) == TSDB_DATA_JSON_null);
+    if(f1IsJsonNull && f2IsJsonNull){
+      return 0;
+    }else if(f1IsJsonNull && !f2IsJsonNull){
+      return -1;
+    }else if(!f1IsJsonNull && f2IsJsonNull) {
+      return 1;
+    }
+    if(*f1 != *f2 && !(IS_NUMERIC_TYPE(*f1) && IS_NUMERIC_TYPE(*f2))) {
+      return *f1 > *f2 ? 1 : -1;
+    }
+    if(*f1 == TSDB_DATA_TYPE_BIGINT && *f2 == TSDB_DATA_TYPE_DOUBLE){
+      DEFAULT_COMP(GET_INT64_VAL(f1 + CHAR_BYTES), GET_DOUBLE_VAL(f2 + CHAR_BYTES));
+    }else if(*f1 == TSDB_DATA_TYPE_DOUBLE && *f2 == TSDB_DATA_TYPE_BIGINT){
+      DEFAULT_COMP(GET_DOUBLE_VAL(f1 + CHAR_BYTES), GET_INT64_VAL(f2 + CHAR_BYTES));
+    }
+    *canReturn = false;
+    return 0;   // meaningless
+  }
+}
+
 int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
+  if (type == TSDB_DATA_TYPE_JSON){
+    bool canReturn = true;
+    int32_t result = jsonCompareUnit(f1, f2, &canReturn);
+    if(canReturn) return result;
+    type = *f1;
+    f1 += CHAR_BYTES;
+    f2 += CHAR_BYTES;
+  }
   switch (type) {
     case TSDB_DATA_TYPE_INT:        DEFAULT_COMP(GET_INT32_VAL(f1), GET_INT32_VAL(f2));
     case TSDB_DATA_TYPE_DOUBLE:     DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
@@ -578,7 +735,7 @@ int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
     case TSDB_DATA_TYPE_USMALLINT:  DEFAULT_COMP(GET_UINT16_VAL(f1), GET_UINT16_VAL(f2));
     case TSDB_DATA_TYPE_UINT:       DEFAULT_COMP(GET_UINT32_VAL(f1), GET_UINT32_VAL(f2));
     case TSDB_DATA_TYPE_UBIGINT:    DEFAULT_COMP(GET_UINT64_VAL(f1), GET_UINT64_VAL(f2));
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:{
       tstr* t1 = (tstr*) f1;
       tstr* t2 = (tstr*) f2;
 

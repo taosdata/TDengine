@@ -33,7 +33,7 @@ typedef struct MinMaxEntry {
   union {
     double  dMaxVal;
     int64_t i64MaxVal;
-    int64_t u64MaxVal;
+    uint64_t u64MaxVal;
   };
 } MinMaxEntry;
 

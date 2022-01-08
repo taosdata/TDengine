@@ -105,6 +105,7 @@ typedef bool (*rangeCompFunc) (const void *, const void *, const void *, const v
 typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
 typedef bool(*filter_exec_func)(void *, int32_t, int8_t**, SDataStatis *, int16_t);
 typedef int32_t (*filer_get_col_from_id)(void *, int32_t, void **);
+typedef int32_t (*filer_get_col_from_name)(void *, int32_t, char*, void **);
 
 typedef struct SFilterRangeCompare {
   int64_t s;
@@ -237,11 +238,12 @@ typedef struct SFilterInfo {
   uint32_t          blkGroupNum;
   uint32_t         *blkUnits;
   int8_t           *blkUnitRes;
-  
+  void             *pTable;
+
   SFilterPCtx       pctx;
 } SFilterInfo;
 
-#define FILTER_NO_MERGE_DATA_TYPE(t) ((t) == TSDB_DATA_TYPE_BINARY || (t) == TSDB_DATA_TYPE_NCHAR)
+#define FILTER_NO_MERGE_DATA_TYPE(t) ((t) == TSDB_DATA_TYPE_BINARY || (t) == TSDB_DATA_TYPE_NCHAR || (t) == TSDB_DATA_TYPE_JSON)
 #define FILTER_NO_MERGE_OPTR(o) ((o) == TSDB_RELATION_ISNULL || (o) == TSDB_RELATION_NOTNULL || (o) == FILTER_DUMMY_EMPTY_OPTR)
 
 #define MR_EMPTY_RES(ctx) (ctx->rs == NULL)
@@ -286,6 +288,7 @@ typedef struct SFilterInfo {
 #define FILTER_GET_COL_FIELD_DATA(fi, ri) ((char *)(fi)->data + ((SSchema *)((fi)->desc))->bytes * (ri))
 #define FILTER_GET_VAL_FIELD_TYPE(fi) (((tVariant *)((fi)->desc))->nType)
 #define FILTER_GET_VAL_FIELD_DATA(fi) ((char *)(fi)->data)
+#define FILTER_GET_JSON_VAL_FIELD_DATA(fi) ((char *)(fi)->desc)
 #define FILTER_GET_TYPE(fl) ((fl) & FLD_TYPE_MAX)
 
 #define FILTER_GROUP_UNIT(i, g, uid) ((i)->units + (g)->unitIdxs[uid])
@@ -298,6 +301,7 @@ typedef struct SFilterInfo {
 #define FILTER_UNIT_COL_SIZE(i, u) FILTER_GET_COL_FIELD_SIZE(FILTER_UNIT_LEFT_FIELD(i, u))
 #define FILTER_UNIT_COL_ID(i, u) FILTER_GET_COL_FIELD_ID(FILTER_UNIT_LEFT_FIELD(i, u))
 #define FILTER_UNIT_VAL_DATA(i, u) FILTER_GET_VAL_FIELD_DATA(FILTER_UNIT_RIGHT_FIELD(i, u))
+#define FILTER_UNIT_JSON_VAL_DATA(i, u) FILTER_GET_JSON_VAL_FIELD_DATA(FILTER_UNIT_RIGHT_FIELD(i, u))
 #define FILTER_UNIT_COL_IDX(u) ((u)->left.idx)
 #define FILTER_UNIT_OPTR(u) ((u)->compare.optr)
 #define FILTER_UNIT_COMP_FUNC(u) ((u)->compare.func)
@@ -324,6 +328,7 @@ typedef struct SFilterInfo {
 extern int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options);
 extern bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols);
 extern int32_t filterSetColFieldData(SFilterInfo *info, void *param, filer_get_col_from_id fp);
+extern int32_t filterSetJsonColFieldData(SFilterInfo *info, void *param, filer_get_col_from_name fp);
 extern int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow *win);
 extern int32_t filterConverNcharColumns(SFilterInfo* pFilterInfo, int32_t rows, bool *gotNchar);
 extern int32_t filterFreeNcharColumns(SFilterInfo* pFilterInfo);

@@ -374,7 +374,7 @@ The following is the content of a typical query JSON example file.
 }
 ```
 The following parameters are specific to the query in the JSON file.
-
+```
 "query_times": the number of queries per query type
 "query_mode": query data interface, "tosc": call TDengine's c interface; "resetful": use restfule interface. Options are available. Default is "taosc".
 "specified_table_query": { query for the specified table
@@ -389,7 +389,7 @@ The following parameters are specific to the query in the JSON file.
 "threads": the number of threads to execute sqls concurrently, optional, default is 1. Each thread is responsible for a part of sub-tables and executes all sqls.
 "sql": "select count(*) from xxxx". Query statement for all sub-tables in the super table, where the table name must be written as "xxxx" and the instance will be replaced with the sub-table name automatically.
 "result": the name of the file to which the query result is written. Optional, the default is null, which means the query results are not written to a file.
-
+```
 
 The following is a typical subscription JSON example file content.
 ```
@@ -432,13 +432,13 @@ The following is a typical subscription JSON example file content.
   }
 ```
 The following are the meanings of the parameters specific to the subscription function.
-
+```
 "interval": interval for executing subscriptions, in seconds. Optional, default is 0.
 "restart": subscription restart." yes": restart the subscription if it already exists, "no": continue the previous subscription. (Please note that the executing user needs to have read/write access to the dataDir directory)
 "keepProgress": keep the progress of the subscription information. yes means keep the subscription information, no means don't keep it. The value is yes and restart is no to continue the previous subscriptions.
 "resubAfterConsume": Used in conjunction with keepProgress to call unsubscribe after the subscription has been consumed the appropriate number of times and to subscribe again.
 "result": the name of the file to which the query result is written. Optional, default is null, means the query result will not be written to the file. Note: The file to save the result after each sql statement cannot be renamed, and the file name will be appended with the thread number when generating the result file.
-
+```
 Conclusion
 --
 TDengine is a big data platform designed and optimized for IoT, Telematics, Industrial Internet, DevOps, etc. TDengine shows a high performance that far exceeds similar products due to the innovative data storage and query engine design in the database kernel. And withSQL syntax support and connectors for multiple programming languages (currently Java, Python, Go, C#, NodeJS, Rust, etc. are supported), it is extremely easy to use and has zero learning cost. To facilitate the operation and maintenance needs, we also provide data migration and monitoring functions and other related ecological tools and software.

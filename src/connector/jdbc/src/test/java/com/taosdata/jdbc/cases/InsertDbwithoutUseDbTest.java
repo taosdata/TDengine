@@ -1,9 +1,6 @@
 package com.taosdata.jdbc.cases;
 
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.runners.MethodSorters;
 
 import java.sql.*;
@@ -16,36 +13,32 @@ public class InsertDbwithoutUseDbTest {
     private static final String host = "127.0.0.1";
     private static Properties properties;
     private static final Random random = new Random(System.currentTimeMillis());
+    private static final String dbname = "inWithoutDb";
 
     @Test
     public void case001() throws SQLException {
         // prepare schema
         String url = "jdbc:TAOS://127.0.0.1:6030/?user=root&password=taosdata";
         Connection conn = DriverManager.getConnection(url, properties);
-        try (Statement stmt = conn.createStatement()) {
-            stmt.execute("drop database if exists inWithoutDb");
-            stmt.execute("create database if not exists inWithoutDb");
-            stmt.execute("create table inWithoutDb.weather(ts timestamp, f1 int)");
-        }
+        Statement stmt = conn.createStatement();
+        stmt.execute("drop database if exists " + dbname);
+        stmt.execute("create database if not exists " + dbname);
+        stmt.execute("create table " + dbname + ".weather(ts timestamp, f1 int)");
+
         conn.close();
 
         // execute insert
-        url = "jdbc:TAOS://127.0.0.1:6030/inWithoutDb?user=root&password=taosdata";
+        url = "jdbc:TAOS://127.0.0.1:6030/" + dbname + "?user=root&password=taosdata";
         conn = DriverManager.getConnection(url, properties);
-        try (Statement stmt = conn.createStatement()) {
-            int affectedRow = stmt.executeUpdate("insert into weather(ts, f1) values(now," + random.nextInt(100) + ")");
-            Assert.assertEquals(1, affectedRow);
-            boolean flag = stmt.execute("insert into weather(ts, f1) values(now + 10s," + random.nextInt(100) + ")");
-            Assert.assertEquals(false, flag);
-            ResultSet rs = stmt.executeQuery("select count(*) from weather");
-            rs.next();
-            int count = rs.getInt("count(*)");
-            Assert.assertEquals(2, count);
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
+        stmt = conn.createStatement();
+        int affectedRow = stmt.executeUpdate("insert into weather(ts, f1) values(now," + random.nextInt(100) + ")");
+        Assert.assertEquals(1, affectedRow);
+        boolean flag = stmt.execute("insert into weather(ts, f1) values(now + 10s," + random.nextInt(100) + ")");
+        Assert.assertEquals(false, flag);
+        ResultSet rs = stmt.executeQuery("select count(*) from weather");
+        rs.next();
+        int count = rs.getInt("count(*)");
+        Assert.assertEquals(2, count);
         conn.close();
     }
 
@@ -54,28 +47,25 @@ public class InsertDbwithoutUseDbTest {
         // prepare the schema
         final String url = "jdbc:TAOS-RS://" + host + ":6041/inWithoutDb?user=root&password=taosdata";
         Connection conn = DriverManager.getConnection(url, properties);
-        try (Statement stmt = conn.createStatement()) {
-            stmt.execute("drop database if exists inWithoutDb");
-            stmt.execute("create database if not exists inWithoutDb");
-            stmt.execute("create table inWithoutDb.weather(ts timestamp, f1 int)");
-        }
-        conn.close();
+        Statement stmt = conn.createStatement();
+        stmt.execute("drop database if exists " + dbname);
+        stmt.execute("create database if not exists " + dbname);
+        stmt.execute("create table " + dbname + ".weather(ts timestamp, f1 int)");
+        stmt.close();
 
         // execute
-        conn = DriverManager.getConnection(url, properties);
-        try (Statement stmt = conn.createStatement()) {
-            int affectedRow = stmt.executeUpdate("insert into weather(ts, f1) values(now," + random.nextInt(100) + ")");
-            Assert.assertEquals(1, affectedRow);
-            boolean flag = stmt.execute("insert into weather(ts, f1) values(now + 10s," + random.nextInt(100) + ")");
-            Assert.assertEquals(false, flag);
-            ResultSet rs = stmt.executeQuery("select count(*) from weather");
-            rs.next();
-            int count = rs.getInt("count(*)");
-            Assert.assertEquals(2, count);
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        stmt = conn.createStatement();
+        int affectedRow = stmt.executeUpdate("insert into weather(ts, f1) values(now," + random.nextInt(100) + ")");
+        Assert.assertEquals(1, affectedRow);
+        boolean flag = stmt.execute("insert into weather(ts, f1) values(now + 10s," + random.nextInt(100) + ")");
+        Assert.assertEquals(false, flag);
+        ResultSet rs = stmt.executeQuery("select count(*) from weather");
+        rs.next();
+        int count = rs.getInt("count(*)");
+        Assert.assertEquals(2, count);
+        stmt.execute("drop database if exists " + dbname);
+        stmt.close();
+        conn.close();
     }
 
     @BeforeClass

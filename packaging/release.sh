@@ -3,7 +3,7 @@
 # Generate the deb package for ubuntu, or rpm package for centos, or tar.gz package for other linux os
 
 set -e
-set -x
+#set -x
 
 # release.sh  -v [cluster | edge]
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...]
@@ -113,7 +113,7 @@ fi
 
 csudo=""
 #if command -v sudo > /dev/null; then
-#  csudo="sudo"
+#  csudo="sudo "
 #fi
 
 function is_valid_version() {
@@ -183,11 +183,11 @@ cd ${curr_dir}
 # 2. cmake executable file
 compile_dir="${top_dir}/debug"
 if [ -d ${compile_dir} ]; then
-  ${csudo} rm -rf ${compile_dir}
+  ${csudo}rm -rf ${compile_dir}
 fi
 
 if [ "$osType" != "Darwin" ]; then
-  ${csudo} mkdir -p ${compile_dir}
+  ${csudo}mkdir -p ${compile_dir}
 else
   mkdir -p ${compile_dir}
 fi
@@ -418,6 +418,10 @@ else
     BUILD_HTTP=false
 fi
 
+if [[ "$verMode" == "cluster" ]]; then
+    BUILD_HTTP=internal
+fi
+
 if [[ "$pagMode" == "full" ]]; then
     BUILD_TOOLS=true
 else
@@ -494,11 +498,13 @@ else
   exit 1
 fi
 
+CORES=`grep -c ^processor /proc/cpuinfo`
+
 if [[ "$allocator" == "jemalloc" ]]; then
     # jemalloc need compile first, so disable parallel build
-    make -j 8 && ${csudo} make install
+    make -j ${CORES} && ${csudo}make install
 else
-    make -j 8 && ${csudo} make install
+    make -j ${CORES} && ${csudo}make install
 fi
 
 cd ${curr_dir}
@@ -512,11 +518,11 @@ if [ "$osType" != "Darwin" ]; then
       echo "====do deb package for the ubuntu system===="
       output_dir="${top_dir}/debs"
       if [ -d ${output_dir} ]; then
-        ${csudo} rm -rf ${output_dir}
+        ${csudo}rm -rf ${output_dir}
       fi
-      ${csudo} mkdir -p ${output_dir}
+      ${csudo}mkdir -p ${output_dir}
       cd ${script_dir}/deb
-      ${csudo} ./makedeb.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
+      ${csudo}./makedeb.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
 
       if [[ "$pagMode" == "full" ]]; then
           if [ -d ${top_dir}/src/kit/taos-tools/packaging/deb ]; then
@@ -524,7 +530,7 @@ if [ "$osType" != "Darwin" ]; then
               [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
               taos_tools_ver=$(git describe --tags|sed -e 's/ver-//g'|awk -F '-' '{print $1}')
-              ${csudo} ./make-taos-tools-deb.sh ${top_dir} \
+              ${csudo}./make-taos-tools-deb.sh ${top_dir} \
                   ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
           fi
       fi
@@ -537,11 +543,11 @@ if [ "$osType" != "Darwin" ]; then
       echo "====do rpm package for the centos system===="
       output_dir="${top_dir}/rpms"
       if [ -d ${output_dir} ]; then
-        ${csudo} rm -rf ${output_dir}
+        ${csudo}rm -rf ${output_dir}
       fi
-      ${csudo} mkdir -p ${output_dir}
+      ${csudo}mkdir -p ${output_dir}
       cd ${script_dir}/rpm
-      ${csudo} ./makerpm.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
+      ${csudo}./makerpm.sh ${compile_dir} ${output_dir} ${verNumber} ${cpuType} ${osType} ${verMode} ${verType}
 
       if [[ "$pagMode" == "full" ]]; then
           if [ -d ${top_dir}/src/kit/taos-tools/packaging/rpm ]; then
@@ -549,7 +555,7 @@ if [ "$osType" != "Darwin" ]; then
               [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
               taos_tools_ver=$(git describe --tags|sed -e 's/ver-//g'|awk -F '-' '{print $1}'|sed -e 's/-/_/g')
-              ${csudo} ./make-taos-tools-rpm.sh ${top_dir} \
+              ${csudo}./make-taos-tools-rpm.sh ${top_dir} \
                   ${compile_dir} ${output_dir} ${taos_tools_ver} ${cpuType} ${osType} ${verMode} ${verType}
           fi
       fi
@@ -562,29 +568,29 @@ if [ "$osType" != "Darwin" ]; then
   cd ${script_dir}/tools
 
   if [[ "$dbName" == "taos" ]]; then
-    ${csudo} ./makepkg.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp}
-    ${csudo} ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
-    ${csudo} ./makearbi.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    ${csudo}./makepkg.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp}
+    ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    ${csudo}./makearbi.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
   elif [[ "$dbName" == "tq" ]]; then
-    ${csudo} ./makepkg_tq.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
-    ${csudo} ./makeclient_tq.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
-    ${csudo} ./makearbi_tq.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    ${csudo}./makepkg_tq.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
+    ${csudo}./makeclient_tq.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo}./makearbi_tq.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
   elif [[ "$dbName" == "pro" ]]; then
-    ${csudo} ./makepkg_pro.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
-    ${csudo} ./makeclient_pro.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
-    ${csudo} ./makearbi_pro.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    ${csudo}./makepkg_pro.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
+    ${csudo}./makeclient_pro.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo}./makearbi_pro.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
   elif [[ "$dbName" == "kh" ]]; then
-    ${csudo} ./makepkg_kh.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
-    ${csudo} ./makeclient_kh.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
-    ${csudo} ./makearbi_kh.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    ${csudo}./makepkg_kh.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
+    ${csudo}./makeclient_kh.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo}./makearbi_kh.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
   elif [[ "$dbName" == "jh" ]]; then
-    ${csudo} ./makepkg_jh.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
-    ${csudo} ./makeclient_jh.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
-    ${csudo} ./makearbi_jh.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    ${csudo}./makepkg_jh.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
+    ${csudo}./makeclient_jh.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo}./makearbi_jh.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
   else
-    ${csudo} ./makepkg_power.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
-    ${csudo} ./makeclient_power.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
-    ${csudo} ./makearbi_power.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    ${csudo}./makepkg_power.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
+    ${csudo}./makeclient_power.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo}./makearbi_power.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
   fi
 else
   # only make client for Darwin

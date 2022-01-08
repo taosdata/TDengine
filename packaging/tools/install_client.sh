@@ -57,7 +57,7 @@ NC='\033[0m'
 
 csudo=""
 if command -v sudo > /dev/null; then
-    csudo="sudo"
+    csudo="sudo "
 fi
 
 update_flag=0
@@ -65,40 +65,40 @@ update_flag=0
 function kill_client() {
   pid=$(ps -ef | grep "taos" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
-    ${csudo} kill -9 $pid   || :
+    ${csudo}kill -9 $pid   || :
   fi
 }
 
 function install_main_path() {
     #create install main dir and all sub dir
-    ${csudo} rm -rf ${install_main_dir}    || :
-    ${csudo} mkdir -p ${install_main_dir}
-    ${csudo} mkdir -p ${install_main_dir}/cfg
-    ${csudo} mkdir -p ${install_main_dir}/bin
-    ${csudo} mkdir -p ${install_main_dir}/connector
-    ${csudo} mkdir -p ${install_main_dir}/driver
-    ${csudo} mkdir -p ${install_main_dir}/examples
-    ${csudo} mkdir -p ${install_main_dir}/include
+    ${csudo}rm -rf ${install_main_dir}    || :
+    ${csudo}mkdir -p ${install_main_dir}
+    ${csudo}mkdir -p ${install_main_dir}/cfg
+    ${csudo}mkdir -p ${install_main_dir}/bin
+    ${csudo}mkdir -p ${install_main_dir}/connector
+    ${csudo}mkdir -p ${install_main_dir}/driver
+    ${csudo}mkdir -p ${install_main_dir}/examples
+    ${csudo}mkdir -p ${install_main_dir}/include
 }
 
 function install_bin() {
   # Remove links
-  ${csudo} rm -f ${bin_link_dir}/taos         || :
+  ${csudo}rm -f ${bin_link_dir}/taos         || :
   if [ "$osType" != "Darwin" ]; then
-      ${csudo} rm -f ${bin_link_dir}/taosdemo || :
+      ${csudo}rm -f ${bin_link_dir}/taosdemo || :
   fi
-  ${csudo} rm -f ${bin_link_dir}/rmtaos       || :
-  ${csudo} rm -f ${bin_link_dir}/set_core     || :
+  ${csudo}rm -f ${bin_link_dir}/rmtaos       || :
+  ${csudo}rm -f ${bin_link_dir}/set_core     || :
 
-  ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
+  ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo}chmod 0555 ${install_main_dir}/bin/*
 
   #Make link
-  [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                 || :
+  [ -x ${install_main_dir}/bin/taos ] && ${csudo}ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                 || :
   if [ "$osType" != "Darwin" ]; then
-      [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
+      [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
   fi
-  [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmtaos || :
-  [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
+  [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmtaos || :
+  [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
 }
 
 function clean_lib() {
@@ -108,87 +108,87 @@ function clean_lib() {
 
 function install_lib() {
     # Remove links
-    ${csudo} rm -f ${lib_link_dir}/libtaos.*         || :
-    ${csudo} rm -f ${lib64_link_dir}/libtaos.*       || :
-    #${csudo} rm -rf ${v15_java_app_dir}              || :
+    ${csudo}rm -f ${lib_link_dir}/libtaos.*         || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaos.*       || :
+    #${csudo}rm -rf ${v15_java_app_dir}              || :
 
-    ${csudo} cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
+    ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
 
     if [ "$osType" != "Darwin" ]; then
-        ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
-        ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+        ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
+        ${csudo}ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
 
         if [ -d "${lib64_link_dir}" ]; then
-            ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
-            ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
+            ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
+            ${csudo}ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
         fi
     else
-        ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
-        ${csudo} ln -s ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
+        ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
+        ${csudo}ln -s ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
     fi
 
     if [ "$osType" != "Darwin" ]; then
-        ${csudo} ldconfig
+        ${csudo}ldconfig
     else
-        ${csudo} update_dyld_shared_cache
+        ${csudo}update_dyld_shared_cache
     fi
 }
 
 function install_header() {
-    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h    || :
-    ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
-    ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
-    ${csudo} ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
-    ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
+    ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h    || :
+    ${csudo}cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/*
+    ${csudo}ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+    ${csudo}ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
+    ${csudo}ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
 function install_jemalloc() {
     jemalloc_dir=${script_dir}/jemalloc
 
     if [ -d ${jemalloc_dir} ]; then
-        ${csudo} /usr/bin/install -c -d /usr/local/bin
+        ${csudo}/usr/bin/install -c -d /usr/local/bin
 
         if [ -f ${jemalloc_dir}/bin/jemalloc-config ]; then
-            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc-config /usr/local/bin
+            ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc-config /usr/local/bin
         fi
         if [ -f ${jemalloc_dir}/bin/jemalloc.sh ]; then
-            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc.sh /usr/local/bin
+            ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc.sh /usr/local/bin
         fi
         if [ -f ${jemalloc_dir}/bin/jeprof ]; then
-            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jeprof /usr/local/bin
+            ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jeprof /usr/local/bin
         fi
         if [ -f ${jemalloc_dir}/include/jemalloc/jemalloc.h ]; then
-            ${csudo} /usr/bin/install -c -d /usr/local/include/jemalloc
-            ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/include/jemalloc/jemalloc.h /usr/local/include/jemalloc
+            ${csudo}/usr/bin/install -c -d /usr/local/include/jemalloc
+            ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/include/jemalloc/jemalloc.h /usr/local/include/jemalloc
         fi
         if [ -f ${jemalloc_dir}/lib/libjemalloc.so.2 ]; then
-            ${csudo} /usr/bin/install -c -d /usr/local/lib
-            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.so.2 /usr/local/lib
-            ${csudo} ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
-            ${csudo} /usr/bin/install -c -d /usr/local/lib
+            ${csudo}/usr/bin/install -c -d /usr/local/lib
+            ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.so.2 /usr/local/lib
+            ${csudo}ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
+            ${csudo}/usr/bin/install -c -d /usr/local/lib
             if [ -f ${jemalloc_dir}/lib/libjemalloc.a ]; then
-                ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
+                ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
             fi
             if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
-                ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
+                ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
             fi
             if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
-                ${csudo} /usr/bin/install -c -d /usr/local/lib/pkgconfig
-                ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
+                ${csudo}/usr/bin/install -c -d /usr/local/lib/pkgconfig
+                ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
             fi
         fi
         if [ -f ${jemalloc_dir}/share/doc/jemalloc/jemalloc.html ]; then
-            ${csudo} /usr/bin/install -c -d /usr/local/share/doc/jemalloc
-            ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/share/doc/jemalloc/jemalloc.html /usr/local/share/doc/jemalloc
+            ${csudo}/usr/bin/install -c -d /usr/local/share/doc/jemalloc
+            ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/share/doc/jemalloc/jemalloc.html /usr/local/share/doc/jemalloc
         fi
         if [ -f ${jemalloc_dir}/share/man/man3/jemalloc.3 ]; then
-            ${csudo} /usr/bin/install -c -d /usr/local/share/man/man3
-            ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/share/man/man3/jemalloc.3 /usr/local/share/man/man3
+            ${csudo}/usr/bin/install -c -d /usr/local/share/man/man3
+            ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/share/man/man3/jemalloc.3 /usr/local/share/man/man3
         fi
 
         if [ -d /etc/ld.so.conf.d ]; then
-            echo "/usr/local/lib" | ${csudo} tee /etc/ld.so.conf.d/jemalloc.conf > /dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
-            ${csudo} ldconfig
+            echo "/usr/local/lib" | ${csudo}tee /etc/ld.so.conf.d/jemalloc.conf > /dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
+            ${csudo}ldconfig
         else
             echo "/etc/ld.so.conf.d not found!"
         fi
@@ -196,37 +196,37 @@ function install_jemalloc() {
 }
 
 function install_config() {
-    #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
+    #${csudo}rm -f ${install_main_dir}/cfg/taos.cfg     || :
 
     if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
-        ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${script_dir}/cfg/taos.cfg ] && ${csudo} cp ${script_dir}/cfg/taos.cfg ${cfg_install_dir}
-        ${csudo} chmod 644 ${cfg_install_dir}/*
+        ${csudo}mkdir -p ${cfg_install_dir}
+        [ -f ${script_dir}/cfg/taos.cfg ] && ${csudo}cp ${script_dir}/cfg/taos.cfg ${cfg_install_dir}
+        ${csudo}chmod 644 ${cfg_install_dir}/*
     fi
 
-    ${csudo} cp -f ${script_dir}/cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
-    ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
+    ${csudo}cp -f ${script_dir}/cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
+    ${csudo}ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
 }
 
 
 function install_log() {
-    ${csudo} rm -rf ${log_dir}  || :
+    ${csudo}rm -rf ${log_dir}  || :
 
     if [ "$osType" != "Darwin" ]; then
-        ${csudo} mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}
+        ${csudo}mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
     else
-        mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}
+        mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
     fi
-    ${csudo} ln -s ${log_dir} ${install_main_dir}/log
+    ${csudo}ln -s ${log_dir} ${install_main_dir}/log
 }
 
 function install_connector() {
-    ${csudo} cp -rf ${script_dir}/connector/ ${install_main_dir}/
+    ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
 }
 
 function install_examples() {
     if [ -d ${script_dir}/examples ]; then
-        ${csudo} cp -rf ${script_dir}/examples/* ${install_main_dir}/examples
+        ${csudo}cp -rf ${script_dir}/examples/* ${install_main_dir}/examples
     fi
 }
 

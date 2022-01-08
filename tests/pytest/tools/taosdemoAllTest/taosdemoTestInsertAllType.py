@@ -48,7 +48,7 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
 
-        # insert: create one  or mutiple tables per sql and insert multiple rows per sql
+        # taosc interface 
         os.system("%staosBenchmark -f tools/taosdemoAllTest/insert-allDataType.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
@@ -79,7 +79,52 @@ class TDTestCase:
         tdSql.checkData(0, 0, 200)
         tdSql.query("select count(*) from stb1")
         tdSql.checkData(0, 0, 200000)
-        
+
+         # insert-interface: sml
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-allDataType-sml.json -y " % binPath)
+        tdSql.execute("use db")
+        tdSql.query("select count (tbname) from stb0")
+        tdSql.checkData(0, 0, 10)
+        tdSql.query("select count (tbname) from stb1")
+        tdSql.checkData(0, 0, 20)
+        # tdSql.query("select last(ts) from db.stb00_0")
+        # tdSql.checkData(0, 0, "2020-10-01 00:00:00.019000")   
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 1000) 
+        # tdSql.query("select last(ts) from db.stb01_0")
+        # tdSql.checkData(0, 0, "2020-11-01 00:00:00.190000")   
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 4000) 
+
+
+         # insert-interface: sml-json
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-sml-json-alltype.json -y " % binPath)
+        tdSql.execute("use db")
+        tdSql.query("show stables")
+        for i in range(13):
+            for  j in range(13):
+                if tdSql.queryResult[i][0] == 'stb%d'%j:
+                    # print(i,"stb%d"%j)
+                    tdSql.checkData(i, 4, j+1)
+
+
+        # insert-interface: sml-telnet
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-sml-telnet-alltype.json -y " % binPath)
+        tdSql.execute("use db")
+        tdSql.query("show stables")
+        for i in range(13):
+            for  j in range(13):
+                if tdSql.queryResult[i][0] == 'stb%d'%j:
+                    # print(i,"stb%d"%j)
+                    tdSql.checkData(i, 4, j+1)
+        for i in range(13):
+            tdSql.query("select count(*) from stb%d"%i)
+            tdSql.checkData(0, 0, (i+1)*10) 
+
+        # insert-interface: sml-telnet
+        assert os.system("%staosdemo -f tools/taosdemoAllTest/sml/insert-sml-timestamp.json -y " % binPath) !=0
+
+
         # taosdemo command line
         os.system("%staosBenchmark  -t 1000 -n 100 -T 10 -b INT,TIMESTAMP,BIGINT,FLOAT,DOUBLE,SMALLINT,TINYINT,BOOL,NCHAR,UINT,UBIGINT,UTINYINT,USMALLINT,BINARY  -y " % binPath)
         tdSql.execute("use test")

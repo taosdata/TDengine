@@ -105,7 +105,7 @@ class TDTestCase:
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql 
         # test case for https://jira.taosdata.com:18080/browse/TD-5213
         os.system("%staosBenchmark -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.json -y " % binPath)
-        tdSql.execute("use json")
+        tdSql.execute("use json_test")
         tdSql.query("select count (tbname) from stb_old")
         tdSql.checkData(0, 0, 1)
 

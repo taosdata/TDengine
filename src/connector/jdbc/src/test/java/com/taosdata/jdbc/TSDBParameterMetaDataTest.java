@@ -17,6 +17,7 @@ public class TSDBParameterMetaDataTest {
     private static PreparedStatement pstmt_select;
     private static ParameterMetaData parameterMetaData_insert;
     private static ParameterMetaData parameterMetaData_select;
+    private static final String dbname = "test_pstmt";
 
     @Test
     public void getParameterCount() throws SQLException {
@@ -152,9 +153,9 @@ public class TSDBParameterMetaDataTest {
         try {
             conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
             try (Statement stmt = conn.createStatement()) {
-                stmt.execute("drop database if exists test_pstmt");
-                stmt.execute("create database if not exists test_pstmt");
-                stmt.execute("use test_pstmt");
+                stmt.execute("drop database if exists " + dbname);
+                stmt.execute("create database if not exists " + dbname);
+                stmt.execute("use " + dbname);
                 stmt.execute("create table weather(ts timestamp, f1 int, f2 bigint, f3 float, f4 double, f5 smallint, f6 tinyint, f7 bool, f8 binary(64), f9 nchar(64)) tags(loc nchar(64))");
                 stmt.execute("create table t1 using weather tags('beijing')");
             }
@@ -190,8 +191,12 @@ public class TSDBParameterMetaDataTest {
                 pstmt_insert.close();
             if (pstmt_select != null)
                 pstmt_select.close();
-            if (conn != null)
+            if (conn != null) {
+                Statement statement = conn.createStatement();
+                statement.execute("drop database if exists " + dbname);
+                statement.close();
                 conn.close();
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }

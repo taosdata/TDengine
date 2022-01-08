@@ -19,6 +19,7 @@
 #include "tutil.h"
 #include "tarithoperator.h"
 #include "tcompare.h"
+#include "texpr.h"
 
 //GET_TYPED_DATA(v, double, _right_type, (char *)&((right)[i]));                                
 

@@ -42,6 +42,7 @@ extern int8_t   tsArbOnline;
 extern int64_t  tsArbOnlineTimestamp;
 extern int32_t  tsDnodeId;
 extern int64_t  tsDnodeStartTime;
+extern int8_t   tsDnodeNopLoop;
 
 // common
 extern int      tsRpcTimer;
@@ -118,6 +119,7 @@ extern int32_t tsdbWalFlushSize;
 extern int8_t  tsEnableBalance;
 extern int8_t  tsAlternativeRole;
 extern int32_t tsBalanceInterval;
+extern int32_t tsOfflineInterval;
 extern int32_t tsOfflineThreshold;
 extern int32_t tsMnodeEqualVnodeNum;
 extern int8_t  tsEnableFlowCtrl;

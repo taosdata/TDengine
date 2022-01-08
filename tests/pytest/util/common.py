@@ -17,6 +17,7 @@ from util.sql import tdSql
 from util.dnodes import tdDnodes
 import requests
 import time
+import socket
 class TDCom:
     def init(self, conn, logSql):
         tdSql.init(conn.cursor(), logSql)
@@ -29,6 +30,21 @@ class TDCom:
         influx_url = "http://127.0.0.1:6041/influxdb/v1/write"
         telnet_url = "http://127.0.0.1:6041/opentsdb/v1/put/telnet"
         return header, sql_url, sqlt_url, sqlutc_url, influx_url, telnet_url
+
+    def genTcpParam(self):
+        MaxBytes = 1024*1024
+        host ='127.0.0.1'
+        port = 6046
+        return MaxBytes, host, port
+
+    def tcpClient(self, input):
+        MaxBytes = tdCom.genTcpParam()[0]
+        host = tdCom.genTcpParam()[1]
+        port = tdCom.genTcpParam()[2]
+        sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        sock.connect((host, port))
+        sock.send(input.encode())
+        sock.close()
 
     def restApiPost(self, sql):
         requests.post(self.preDefine()[1], sql.encode("utf-8"), headers = self.preDefine()[0])

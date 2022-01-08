@@ -88,6 +88,8 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
  */
 void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp);
 
+void taosHashSetFreeFp(SHashObj *pHashObj, _hash_free_fn_t fp);
+
 /**
  * return the size of hash table
  * @param pHashObj

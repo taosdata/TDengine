@@ -200,6 +200,8 @@ Create a database connection and initialize the connection context. The paramete
 * port: Port number
 
 A null return value indicates a failure. The application needs to save the returned parameters for subsequent API calls.
+Note: The same process can connect to multiple taosd processes based on ip/port
+
 
 - `char *taos_get_server_info(TAOS *taos)`
 
@@ -409,38 +411,22 @@ See [video tutorials](https://www.taosdata.com/blog/2020/11/11/1963.html) for th
 
 ### Python connector installation
 
-#### Linux
+From TDengine 2.4, users can install python connector for TDengine with `pip`. Note that the package name is **taospy** (not `taos` - a fully unrelated package). For backward compatibility, we still use `import taos` to import connector package.
 
-Users can find the connector package for python2 and python3 in the source code src/connector/python (or tar.gz/connector/python) folder. Users can install it through `pip` command:
-
-`pip install src/connector/python/`
-
-or
-
- `pip3 install src/connector/python/`
-
-You can install the `taospy` connector from [PyPI](https://pypi.org/project/taospy/):
-
-```sh
+```bash
 pip install taospy
 ```
 
-#### Windows
+Use your version-specific `pip` command as if you need.
 
-With Windows TDengine client installed, copy the file "C:\TDengine\driver\taos.dll" to the "C:\Windows\system32" directory and enter the Windows *cmd* command line interface:
-
-```cmd
-cd C:\TDengine\connector\python
-python -m pip install .
+```bash
+pip2 install taospy
+pip3 install taospy
 ```
 
-Or install from PyPI:
+The python connector requires `libtaos` library (`libtaos.so` in Linux, or `taos.dll` in Windows). For Windows client, if `import taos` failed, you could copy the dll `C:\TDengine\driver\taos.dll` to `C:\windows\system32` and try it again.
 
-```cmd
-pip install taospy
-```
-
-- If there is no `pip` command on the machine, the user can copy the taos folder under src/connector/python to the application directory for use. For Windows client, after installing the TDengine Windows client, copy C:\ TDengine\driver\taos.dll to the C:\ windows\ system32 directory.
+For users that has a limited network environment, just add the `connector/python` of installed directory(commonly `/usr/local/taos/connector/python/` in Linux,  `C:\TDengine\connector\python` in Windows) to `PYTHONPATH` environment variable.
 
 ### How to use
 
@@ -460,63 +446,66 @@ for row in results:
     print(row)
 ```
 
-#### Code sample
+##### Code sample
 
 - Import the TDengine client module
 
-```python
-import taos
-```
+    ```python
+    import taos
+    ```
 
 - Get the connection and cursor object
 
-```python
-conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
-c1 = conn.cursor()
-```
+    ```python
+    conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
+    c1 = conn.cursor()
+    ```
 
-- *host* covers all IPs of TDengine server-side, and *config* is the directory where the client configuration files is located
+    *host* covers all IPs of TDengine server-side, and *config* is the directory where the client configuration files is located
+
 - Write data
 
-```python
-import datetime
+    ```python
+    import datetime
 
-# Create a database
-c1.execute('create database db')
-c1.execute('use db')
-# Create a table
-c1.execute('create table tb (ts timestamp, temperature int, humidity float)')
-# Insert data
-start_time = datetime.datetime(2019, 11, 1)
-affected_rows = c1.execute('insert into tb values (\'%s\', 0, 0.0)' %start_time)
-# Insert data in batch
-time_interval = datetime.timedelta(seconds=60)
-sqlcmd = ['insert into tb values']
-for irow in range(1,11):
-  start_time += time_interval
-  sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
-affected_rows = c1.execute(' '.join(sqlcmd))
-```
+    # Create a database
+    c1.execute('create database db')
+    c1.execute('use db')
+    # Create a table
+    c1.execute('create table tb (ts timestamp, temperature int, humidity float)')
+    # Insert data
+    start_time = datetime.datetime(2019, 11, 1)
+    affected_rows = c1.execute('insert into tb values (\'%s\', 0, 0.0)' %start_time)
+    # Insert data in batch
+    time_interval = datetime.timedelta(seconds=60)
+    sqlcmd = ['insert into tb values']
+    for irow in range(1,11):
+    start_time += time_interval
+    sqlcmd.append('(\'%s\', %d, %f)' %(start_time, irow, irow*1.2))
+    affected_rows = c1.execute(' '.join(sqlcmd))
+    ```
 
 - Query data
 
-```python
-c1.execute('select * from tb')
-# pull query result
-data = c1.fetchall()
-# The result is a list, with each row as an element
-numOfRows = c1.rowcount
-numOfCols = len(c1.description)
-for irow in range(numOfRows):
-  print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2]))
+    ```python
+    c1.execute('select * from tb')
+    # pull query result
+    data = c1.fetchall()
+    # The result is a list, with each row as an element
+    numOfRows = c1.rowcount
+    numOfCols = len(c1.description)
+    for irow in range(numOfRows):
+    print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2]))
 
-# Use cursor loop directly to pull query result
-c1.execute('select * from tb')
-for data in c1:
-  print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2]))
-```
+    # Use cursor loop directly to pull query result
+    c1.execute('select * from tb')
+    for data in c1:
+    print("ts=%s, temperature=%d, humidity=%f" %(data[0], data[1],data[2]))
+    ```
 
-- Since v2.1.0, python connector provides a new API for query:
+#### Query API
+
+Since v2.1.0, python connector provides a new API for query:
 
 ```python
 import taos
@@ -554,15 +543,19 @@ Functions:
 - `errstr`: error string if failed.
 - `close`: close result, you do not need to call it directly, result will auto closed out of scope.
 
-- Create subscription
+#### Subscription API
+
+Create subscription
 
 ```python
 # Create a subscription with the topic ‘test’ and a consumption cycle of 1000 milliseconds
-# If the first parameter is True, it means restarting the subscription. If it is False and a subscription with the topic 'test 'has been created before, it means continuing to consume the data of this subscription instead of restarting to consume all the data
+# If the first parameter is True, it means restarting the subscription. 
+# If it is False and a subscription with the topic 'test 'has been created before,
+# it means continuing to consume the data of this subscription instead of restarting to consume all the data
 sub = conn.subscribe(True, "test", "select * from tb;", 1000)
 ```
 
-- Consume subscription data
+Consume subscription data.
 
 ```python
 data = sub.consume()
@@ -570,19 +563,60 @@ for d in data:
     print(d)
 ```
 
-- Unsubscription
+Unsubscribe.
 
 ```python
 sub.close()
 ```
 
-
-- Close connection
+Close connection.
 
 ```python
-c1.close()
 conn.close()
 ```
+
+#### JSON Type Support
+
+Python connector `taospy` starts supporting JSON type as tags since `v2.2.0` (requires TDengine beta v2.3.5+, or stable v2.4.0+).
+
+Create stable and table with JSON tag.
+
+```python
+# encoding:UTF-8
+import taos
+
+conn = taos.connect()
+conn.execute("create database if not exists py_test_json_type")
+conn.execute("use py_test_json_type")
+
+conn.execute("create stable s1 (ts timestamp, v1 int) tags (info json)")
+conn.execute("create table s1_1 using s1 tags ('{\"k1\": \"v1\"}')")
+```
+
+Query JSON tag and table name from a stable.
+
+```python
+tags = conn.query("select info, tbname from s1").fetch_all_into_dict()
+tags
+```
+
+The `tags` value is:
+
+```python
+[{'info': '{"k1":"v1"}', 'tbname': 's1_1'}]
+```
+
+To get value from JSON tag by key:
+
+```python
+k1 = conn.query("select info->'k1' as k1 from s1").fetch_all_into_dict()
+"""
+>>> k1
+[{'k1': '"v1"'}]
+"""
+```
+
+Refer to [JSON type instructions](https://www.taosdata.com/en/documentation/taos-sql) for more usage of JSON type.
 
 #### Using nanosecond in Python connector
 

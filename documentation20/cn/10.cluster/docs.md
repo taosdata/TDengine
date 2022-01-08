@@ -45,7 +45,7 @@ arbitrator            ha.taosdata.com:6042
 
 一定要修改的参数是firstEp和fqdn。在每个数据节点，firstEp需全部配置成一样，**但fqdn一定要配置成其所在数据节点的值**。其他参数可不做任何修改，除非你很清楚为什么要修改。
 
-**加入到集群中的数据节点dnode，涉及集群相关的下表11项参数必须完全相同，否则不能成功加入到集群中。**
+**加入到集群中的数据节点dnode，涉及集群相关的下表9项参数必须完全相同，否则不能成功加入到集群中。**
 
 | **#** | **配置参数名称**   | **含义**                                 |
 | ----- | ------------------ | ---------------------------------------- |
@@ -68,6 +68,8 @@ arbitrator            ha.taosdata.com:6042
 
 ```
 Welcome to the TDengine shell from Linux, Client Version:2.0.0.0
+
+
 Copyright (c) 2017 by TAOS Data, Inc. All rights reserved.
 
 taos> show dnodes;
