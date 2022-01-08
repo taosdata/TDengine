@@ -527,9 +527,12 @@ static int tfileReaderLoadFst(TFileReader* reader) {
   if (buf == NULL) { return -1; }
 
   WriterCtx* ctx = reader->ctx;
-  int32_t    nread = ctx->readFrom(ctx, buf, FST_MAX_SIZE, reader->header.fstOffset);
-  indexInfo("nread = %d, and fst offset=%d, filename: %s, size: %d ", nread, reader->header.fstOffset, ctx->file.buf,
-            ctx->file.size);
+
+  int64_t ts = taosGetTimestampUs();
+  int32_t nread = ctx->readFrom(ctx, buf, FST_MAX_SIZE, reader->header.fstOffset);
+  int64_t cost = taosGetTimestampUs() - ts;
+  indexInfo("nread = %d, and fst offset=%d, filename: %s, size: %d, time cost: %" PRId64 "us", nread,
+            reader->header.fstOffset, ctx->file.buf, ctx->file.size, cost);
   // we assuse fst size less than FST_MAX_SIZE
   assert(nread > 0 && nread < FST_MAX_SIZE);
 
