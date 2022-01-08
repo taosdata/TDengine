@@ -87,14 +87,14 @@ int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName,
 /**
  * Get a DB's all vgroup info.
  * @param pCatalog (input, got with catalogGetHandle)
- * @param pRpc (input, rpc object)
+ * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
  * @param pDBName (input, full db name)
  * @param forceUpdate (input, force update db vgroup info from mnode) 
  * @param pVgroupList (output, vgroup info list, element is SVgroupInfo, NEED to simply free the array by caller)
  * @return error code
  */
-int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const char* pDBName, bool forceUpdate, SArray** pVgroupList);
+int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const char* pDBName, bool forceUpdate, SArray** pVgroupList);
 
 int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
 
@@ -149,13 +149,13 @@ int32_t catalogGetSTableMeta(struct SCatalog* pCatalog, void * pTransporter, con
 /**
  * Get a table's actual vgroup, for stable it's all possible vgroup list.
  * @param pCatalog (input, got with catalogGetHandle)
- * @param pRpc (input, rpc object)
+ * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
  * @param pTableName (input, table name, NOT including db name)
  * @param pVgroupList (output, vgroup info list, element is SVgroupInfo, NEED to simply free the array by caller)
  * @return error code
  */
-int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, SArray** pVgroupList);
+int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, SArray** pVgroupList);
 
 /**
  * Get a table's vgroup from its name's hash value.
@@ -172,16 +172,16 @@ int32_t catalogGetTableHashVgroup(struct SCatalog* pCatalog, void * pTransporter
 /**
  * Get all meta data required in pReq.
  * @param pCatalog (input, got with catalogGetHandle)
- * @param pRpc (input, rpc object)
+ * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
  * @param pReq (input, reqest info)
  * @param pRsp (output, response data)
  * @return error code 
  */
-int32_t catalogGetAllMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SMetaData* pRsp);
+int32_t catalogGetAllMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SMetaData* pRsp);
 
 
-int32_t catalogGetQnodeList(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, SArray* pQnodeList);
+int32_t catalogGetQnodeList(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, SArray* pQnodeList);
 
 int32_t catalogGetExpiredSTables(struct SCatalog* pCatalog, SSTableMetaVersion **stables, uint32_t *num);
 
