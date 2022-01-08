@@ -298,7 +298,7 @@ endi
 
 
 
-sql create function n09 as '/tmp/normal' outputtype BINARY;
+sql create function n09 as '/tmp/normal' outputtype BINARY(32);
 sql show functions;
 if $rows != 1 then
   return -1
@@ -314,7 +314,7 @@ endi
 if $data02 != 0 then 
   return -1
 endi
-if $data03 != BINARY(0) then 
+if $data03 != BINARY(32) then 
   return -1
 endi
 if $data05 != 5 then 
@@ -394,7 +394,7 @@ endi
 
 
 
-sql create function n12 as '/tmp/normal' outputtype NCHAR;
+sql create function n12 as '/tmp/normal' outputtype NCHAR(32);
 sql show functions;
 if $rows != 1 then
   return -1
@@ -410,7 +410,7 @@ endi
 if $data02 != 0 then 
   return -1
 endi
-if $data03 != NCHAR(0) then 
+if $data03 != NCHAR(32) then 
   return -1
 endi
 if $data05 != 5 then 
