@@ -44,29 +44,29 @@ class TDTestCase:
         tdSql.query("select count(*) from test interval(1s) group by tbname")
         tdSql.checkData(0,1,1)
     
-    def escape_ascii(self):
-        tdSql.execute('drop database if exists db')
-        tdSql.execute('create database db')
-        tdSql.execute('use db')
-        tdSql.execute("create table car (ts timestamp, s int) tags(j int)")
-        for i in range(32,127):
-            if i == 96 : continue    #`
-            sql = 'create table `是否出现%s` using car tags(%d)' % (chr(i), i)
-            tdSql.execute(sql)
-        for i in range(32,65):
-            sql = 'select tbname from car where tbname like "是否出现\%s"' % chr(i)
-            tdSql.query(sql)
-            if i == 37 : continue  # " `
-            tdSql.checkRows(1)
-        for i in range(91,97):
-            sql = 'select tbname from car where tbname like "是否出现\%s"' % chr(i)
-            tdSql.query(sql)
-            if i == 96: continue  #  `
-            tdSql.checkRows(1)
-        for i in range(123,127):
-            sql = 'select tbname from car where tbname like "是否出现\%s"' % chr(i)
-            tdSql.query(sql)
-            tdSql.checkRows(1)
+    # def escape_ascii(self):
+    #     tdSql.execute('drop database if exists db')
+    #     tdSql.execute('create database db')
+    #     tdSql.execute('use db')
+    #     tdSql.execute("create table car (ts timestamp, s int) tags(j int)")
+    #     for i in range(32,127):
+    #         if i == 96 : continue    #`
+    #         sql = 'create table `是否出现%s` using car tags(%d)' % (chr(i), i)
+    #         tdSql.execute(sql)
+    #     for i in range(32,65):
+    #         sql = 'select tbname from car where tbname like "是否出现\%s"' % chr(i)
+    #         tdSql.query(sql)
+    #         if i == 37 : continue  # " `
+    #         tdSql.checkRows(1)
+    #     for i in range(91,97):
+    #         sql = 'select tbname from car where tbname like "是否出现\%s"' % chr(i)
+    #         tdSql.query(sql)
+    #         if i == 96: continue  #  `
+    #         tdSql.checkRows(1)
+    #     for i in range(123,127):
+    #         sql = 'select tbname from car where tbname like "是否出现\%s"' % chr(i)
+    #         tdSql.query(sql)
+    #         tdSql.checkRows(1)
 
     def run(self):
         tdSql.prepare()
@@ -194,9 +194,9 @@ class TDTestCase:
         tdSql.query("show create table t1")        
         tdSql.checkRows(1)
 
-        #TS-636
-        tdLog.info("case for TS-636")
-        self.escape_ascii()
+        # #TS-636
+        # tdLog.info("case for TS-636")
+        # self.escape_ascii()
 
     def stop(self):
         tdSql.close()

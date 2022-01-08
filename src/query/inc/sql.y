@@ -199,7 +199,7 @@ cmd ::= CREATE ACCOUNT ids(X) PASS STRING(Y) acct_optr(Z).
                                 { setCreateAcctSql(pInfo, TSDB_SQL_CREATE_ACCT, &X, &Y, &Z);}
 cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
 cmd ::= CREATE TOPIC ifnotexists(Z) ids(X) topic_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
-cmd ::= CREATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) bufsize(B).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y, &Z, &B, 1);}
+cmd ::= CREATE FUNCTION ids(X) AS STRING(Y) OUTPUTTYPE typename(Z) bufsize(B).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y, &Z, &B, 1);}
 cmd ::= CREATE AGGREGATE FUNCTION ids(X) AS STRING(Y) OUTPUTTYPE typename(Z) bufsize(B).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y, &Z, &B, 2);}
 cmd ::= CREATE USER ids(X) PASS STRING(Y).     { setCreateUserSql(pInfo, &X, &Y);}
 
