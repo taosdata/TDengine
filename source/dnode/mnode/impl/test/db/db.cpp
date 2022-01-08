@@ -1,19 +1,19 @@
 /**
  * @file db.cpp
  * @author slguan (slguan@taosdata.com)
- * @brief DNODE module db-msg tests
- * @version 0.1
- * @date 2021-12-15
+ * @brief MNODE module db tests
+ * @version 1.0
+ * @date 2022-01-11
  *
- * @copyright Copyright (c) 2021
+ * @copyright Copyright (c) 2022
  *
  */
 
 #include "sut.h"
 
-class DndTestDb : public ::testing::Test {
+class MndTestDb : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_db", 9040); }
+  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_db", 9030); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -23,9 +23,9 @@ class DndTestDb : public ::testing::Test {
   void TearDown() override {}
 };
 
-Testbase DndTestDb::test;
+Testbase MndTestDb::test;
 
-TEST_F(DndTestDb, 01_ShowDb) {
+TEST_F(MndTestDb, 01_ShowDb) {
   test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
   CHECK_META("show databases", 18);
   CHECK_SCHEMA(0, TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN - 1 + VARSTR_HEADER_SIZE, "name");
@@ -51,7 +51,7 @@ TEST_F(DndTestDb, 01_ShowDb) {
   EXPECT_EQ(test.GetShowRows(), 0);
 }
 
-TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
+TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   {
     int32_t contLen = sizeof(SCreateDbMsg);
 
@@ -211,7 +211,7 @@ TEST_F(DndTestDb, 02_Create_Alter_Drop_Db) {
   EXPECT_EQ(test.GetShowRows(), 0);
 }
 
-TEST_F(DndTestDb, 03_Create_Use_Restart_Use_Db) {
+TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
   {
     int32_t contLen = sizeof(SCreateDbMsg);
 
@@ -281,7 +281,7 @@ TEST_F(DndTestDb, 03_Create_Use_Restart_Use_Db) {
       EXPECT_EQ(pInfo->numOfEps, 1);
       SEpAddrMsg* pAddr = &pInfo->epAddr[0];
       pAddr->port = htons(pAddr->port);
-      EXPECT_EQ(pAddr->port, 9040);
+      EXPECT_EQ(pAddr->port, 9030);
       EXPECT_STREQ(pAddr->fqdn, "localhost");
     }
 
@@ -297,7 +297,7 @@ TEST_F(DndTestDb, 03_Create_Use_Restart_Use_Db) {
       EXPECT_EQ(pInfo->numOfEps, 1);
       SEpAddrMsg* pAddr = &pInfo->epAddr[0];
       pAddr->port = htons(pAddr->port);
-      EXPECT_EQ(pAddr->port, 9040);
+      EXPECT_EQ(pAddr->port, 9030);
       EXPECT_STREQ(pAddr->fqdn, "localhost");
     }
   }

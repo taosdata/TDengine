@@ -11,9 +11,9 @@
 
 #include "sut.h"
 
-class DndTestVgroup : public ::testing::Test {
+class DndTestVnode : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_vgroup", 9150); }
+  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_vnode", 9150); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -23,9 +23,9 @@ class DndTestVgroup : public ::testing::Test {
   void TearDown() override {}
 };
 
-Testbase DndTestVgroup::test;
+Testbase DndTestVnode::test;
 
-TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
+TEST_F(DndTestVnode, 01_Create_Restart_Drop_Vnode) {
   {
     for (int i = 0; i < 3; ++i) {
       int32_t contLen = sizeof(SCreateVnodeMsg);
