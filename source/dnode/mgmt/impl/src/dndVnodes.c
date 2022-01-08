@@ -475,7 +475,6 @@ static void dndCloseVnodes(SDnode *pDnode) {
   SVnodeObj **pVnodes = dndGetVnodesFromHash(pDnode, &numOfVnodes);
 
   for (int32_t i = 0; i < numOfVnodes; ++i) {
-    dndReleaseVnode(pDnode, pVnodes[i]);
     dndCloseVnode(pDnode, pVnodes[i]);
   }
 
@@ -660,7 +659,6 @@ int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
     return -1;
   }
 
-  dndReleaseVnode(pDnode, pVnode);
   dndCloseVnode(pDnode, pVnode);
   vnodeClose(pVnode->pImpl);
   vnodeDestroy(pVnode->path);
