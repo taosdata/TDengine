@@ -26,17 +26,26 @@ extern "C" {
 struct SDataSink;
 struct SDataSinkHandle;
 
-typedef int32_t (*FPutDataBlock)(struct SDataSinkHandle* pHandle, const SDataResult* pRes);
-typedef int32_t (*FGetDataBlock)(struct SDataSinkHandle* pHandle, char* pData, int32_t* pLen);
+typedef struct SDataSinkManager {
+  SDataSinkMgtCfg cfg;
+  pthread_mutex_t mutex;
+} SDataSinkManager;
+
+typedef int32_t (*FPutDataBlock)(struct SDataSinkHandle* pHandle, const SInputData* pInput, int32_t* pStatus);
+typedef void (*FEndPut)(struct SDataSinkHandle* pHandle);
+typedef int32_t (*FGetDataLength)(struct SDataSinkHandle* pHandle, int32_t* pStatus);
+typedef int32_t (*FGetDataBlock)(struct SDataSinkHandle* pHandle, SOutPutData* pOutput, int32_t* pStatus);
 typedef int32_t (*FDestroyDataSinker)(struct SDataSinkHandle* pHandle);
 
 typedef struct SDataSinkHandle {
   FPutDataBlock fPut;
-  FGetDataBlock fGet;
+  FEndPut fEndPut;
+  FGetDataLength fGetLen;
+  FGetDataBlock fGetData;
   FDestroyDataSinker fDestroy;
 } SDataSinkHandle;
 
-int32_t createDataDispatcher(const struct SDataSink* pDataSink, DataSinkHandle* pHandle);
+int32_t createDataDispatcher(SDataSinkManager* pManager, const struct SDataSink* pDataSink, DataSinkHandle* pHandle);
 
 #ifdef __cplusplus
 }

@@ -17,33 +17,38 @@
 #include "dataSinkInt.h"
 #include "planner.h"
 
+static SDataSinkManager gDataSinkManager = {0};
+
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg *cfg) {
-  // todo
+  gDataSinkManager.cfg = *cfg;
+  pthread_mutex_init(&gDataSinkManager.mutex, NULL);
 }
 
 int32_t dsCreateDataSinker(const struct SDataSink *pDataSink, DataSinkHandle* pHandle) {
   if (DSINK_Dispatch == pDataSink->info.type) {
-    return createDataDispatcher(pDataSink, pHandle);
+    return createDataDispatcher(&gDataSinkManager, pDataSink, pHandle);
   }
   return TSDB_CODE_FAILED;
 }
 
-int32_t dsPutDataBlock(DataSinkHandle handle, const SDataResult* pRes) {
+int32_t dsPutDataBlock(DataSinkHandle handle, const SInputData* pInput, int32_t* pStatus) {
   SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
-  return pHandleImpl->fPut(pHandleImpl, pRes);
+  return pHandleImpl->fPut(pHandleImpl, pInput, pStatus);
 }
 
-int32_t dsGetDataLength(DataSinkHandle handle) {
-  // todo
-}
-
-int32_t dsGetDataBlock(DataSinkHandle handle, char* pData, int32_t* pLen) {
+void dsEndPut(DataSinkHandle handle) {
   SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
-  return pHandleImpl->fGet(pHandleImpl, pData, pLen);
+  return pHandleImpl->fEndPut(pHandleImpl);
 }
 
-int32_t dsGetStatus(DataSinkHandle handle) {
-  // todo
+int32_t dsGetDataLength(DataSinkHandle handle, int32_t* pStatus) {
+  SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
+  return pHandleImpl->fGetLen(pHandleImpl, pStatus);
+}
+
+int32_t dsGetDataBlock(DataSinkHandle handle, SOutPutData* pOutput, int32_t* pStatus) {
+  SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
+  return pHandleImpl->fGetData(pHandleImpl, pOutput, pStatus);
 }
 
 void dsScheduleProcess(void* ahandle, void* pItem) {
