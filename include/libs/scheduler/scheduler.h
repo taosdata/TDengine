@@ -24,7 +24,7 @@ extern "C" {
 #include "catalog.h"
 
 typedef struct SSchedulerCfg {
-  int32_t maxJobNum;
+  uint32_t maxJobNum;
 } SSchedulerCfg;
 
 typedef struct SQueryProfileSummary {
