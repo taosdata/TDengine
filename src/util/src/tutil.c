@@ -78,6 +78,8 @@ int32_t strDealWithEscape(char *z, int32_t len){
 static int32_t strdequote(char *z, int32_t n){
   if(z == NULL || n < 2) return n;
   int32_t quote = z[0];
+  z[0] = 0;
+  z[n - 1] = 0;
   int32_t i = 1, j = 0;
   while (i < n) {
     if (i < n - 1 && z[i] == quote && z[i + 1] == quote) { // two consecutive quotation marks keep one
