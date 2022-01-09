@@ -2918,7 +2918,7 @@ void tscColumnListDestroy(SArray* pColumnList) {
  *
  */
 static int32_t validateQuoteToken(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded) {
-  if(pToken->z != TS_BACKQUOTE_CHAR) pToken->n = stringProcess(pToken->z, pToken->n);
+  if(pToken->z[0] != TS_BACKQUOTE_CHAR) pToken->n = stringProcess(pToken->z, pToken->n);
 
   int32_t k = tGetToken(pToken->z, &pToken->type);
 
