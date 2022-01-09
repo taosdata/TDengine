@@ -23,6 +23,7 @@ static SSchedulerMgmt schMgmt = {0};
 int32_t schValidateStatus(SSchJob *pJob, int8_t oriStatus, int8_t newStatus) {
   int32_t code = 0;
 
+/*
   if (oriStatus == newStatus) {
     SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
   }
@@ -77,6 +78,7 @@ int32_t schValidateStatus(SSchJob *pJob, int8_t oriStatus, int8_t newStatus) {
       qError("invalid task status:%d", oriStatus);
       return TSDB_CODE_QRY_APP_ERROR;
   }
+*/
 
   return TSDB_CODE_SUCCESS;
 
@@ -539,7 +541,7 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
   SCH_ERR_RET(schTaskCheckAndSetRetry(pJob, pTask, errCode, &needRetry));
   
   if (!needRetry) {
-    SCH_TASK_ELOG("task failed[%x], no more retry", errCode);
+    SCH_TASK_ELOG("task failed and no more retry, code:%x", errCode);
 
     if (SCH_GET_TASK_STATUS(pTask) == JOB_TASK_STATUS_EXECUTING) {
       SCH_ERR_RET(schMoveTaskToFailList(pJob, pTask, &moved));
