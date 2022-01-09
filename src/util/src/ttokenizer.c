@@ -438,7 +438,6 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
         size_t len = strDealWithEscape(z + 1, i - 2);
         memmove(z + 1 + len, z + i, strlen(z + i) + 1);
         memmove(z, z + 1, strlen(z + 1) + 1);
-
         return (uint32_t)len;
       }
 
@@ -446,6 +445,9 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
     }
     case '`': {
       for (i = 1; z[i]; i++) {
+        if(isprint(z[i]) == 0){
+          break;
+        }
         if (z[i] == '`' && z[i+1] == '`') {
           memmove(z + i, z + i + 1, strlen(z + i + 1) + 1);
           continue;
@@ -456,8 +458,6 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
           memmove(z, z + 1, strlen(z + 1) + 1);
           *tokenId = TK_BACKQUOTE;
           return i - 2;
-        }else if(isprint(z[i]) == 0){
-          break;
         }
       }
 

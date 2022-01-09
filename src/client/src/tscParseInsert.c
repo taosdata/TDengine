@@ -1558,7 +1558,10 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
     pInsertParam->sqlOri = calloc(1, strlen(sToken.z) + 1);
   }
   strcpy(pInsertParam->sqlOri, pInsertParam->sql);
-  pInsertParam->bindedColumns = calloc(1, strlen(sToken.z) + 1);
+  if(! pInsertParam->bindedColumns){
+    pInsertParam->bindedColumns = calloc(1, strlen(sToken.z) + 1);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 

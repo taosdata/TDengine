@@ -2923,9 +2923,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
           if (pParamElem->pNode->tokenId == TK_ALL) { // select table.*
-            SStrToken tmpToken = pParamElem->pNode->columnName;
-
-            if (getTableIndexByName(&tmpToken, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+            if (getTableIndexByName(&pParamElem->pNode->tableName, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
               return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
             }
 

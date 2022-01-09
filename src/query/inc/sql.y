@@ -319,6 +319,8 @@ alter_db_optr(Y) ::= alter_db_optr(Z) cachelast(X).   { Y = Z; Y.cachelast = str
 alter_topic_optr(Y) ::= alter_db_optr(Z).                       { Y = Z; Y.dbType = TSDB_DB_TYPE_TOPIC; }
 alter_topic_optr(Y) ::= alter_topic_optr(Z) partitions(X).      { Y = Z; Y.partitions = strtol(X.z, NULL, 10); }
 
+%type typenameInteger {SStrToken}
+%type typenameVar {SStrToken}
 %type typename {TAOS_FIELD}
 typenameInteger(A) ::= TINYINT(X).   { A = X;}
 typenameInteger(A) ::= SMALLINT(X).  { A = X;}

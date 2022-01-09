@@ -1648,9 +1648,16 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pCmd->insertParam.objectId = pSql->self;
 
   char* sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
-  if(sqlstr == NULL && pSql->sqlstr) free(pSql->sqlstr);  
+  if(sqlstr == NULL && pSql->sqlstr) tfree(pSql->sqlstr);
   pSql->sqlstr = sqlstr;
   if (pSql->sqlstr == NULL) {
+    tscError("%p failed to malloc sql string buffer", pSql);
+    STMT_RET(TSDB_CODE_TSC_OUT_OF_MEMORY);
+  }
+  char* sqlstrOri = realloc(pSql->sqlstrOri, sqlLen + 1);
+  if(sqlstrOri == NULL && pSql->sqlstrOri) tfree(pSql->sqlstrOri);
+  pSql->sqlstrOri = sqlstrOri;
+  if (pSql->sqlstrOri == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
     STMT_RET(TSDB_CODE_TSC_OUT_OF_MEMORY);
   }
@@ -1659,6 +1666,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pRes->numOfRows = 0;
 
   strcpy(pSql->sqlstr, sql);
+  strcpy(pSql->sqlstrOri, sql);
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
 
   if (tscIsInsertData(pSql->sqlstr)) {
@@ -1850,6 +1858,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
     pCmd->insertParam.pTableBlockHashList = hashList;
   }
 
+  strcpy(pSql->sqlstrOri, pSql->sqlstr);
   code = tsParseSql(pStmt->pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     // wait for the callback function to post the semaphore
