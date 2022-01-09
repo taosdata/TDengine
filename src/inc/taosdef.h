@@ -108,8 +108,8 @@ extern const int32_t TYPE_BYTES[16];
 #define TSDB_ERR   -1
 
 #define TS_PATH_DELIMITER "."
-#define TS_ESCAPE_CHAR '`'
-#define TS_ESCAPE_CHAR_SIZE 2
+#define TS_BACKQUOTE_CHAR '`'
+#define TS_BACKQUOTE_CHAR_SIZE 2
 
 #define TSDB_TIME_PRECISION_MILLI 0
 #define TSDB_TIME_PRECISION_MICRO 1

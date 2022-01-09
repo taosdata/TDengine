@@ -96,7 +96,7 @@ SArray *tSqlExprListAppend(SArray *pList, tSqlExpr *pNode, SStrToken *pDistinct,
       strncpy(item.aliasName, pToken->z, pToken->n);
       item.aliasName[pToken->n] = 0;
 
-      strdequote(item.aliasName);
+      stringProcess(item.aliasName, strlen(item.aliasName));
     }
 
     taosArrayPush(pList, &item);
