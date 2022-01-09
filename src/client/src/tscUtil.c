@@ -2918,7 +2918,7 @@ void tscColumnListDestroy(SArray* pColumnList) {
  *
  */
 static int32_t validateQuoteToken(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded) {
-  pToken->n = stringProcess(pToken->z, pToken->n);
+  if(pToken->z != TS_BACKQUOTE_CHAR) pToken->n = stringProcess(pToken->z, pToken->n);
 
   int32_t k = tGetToken(pToken->z, &pToken->type);
 
@@ -2957,7 +2957,7 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
 
     if (pToken->type == TK_STRING) {
 
-      pToken->n = stringProcess(pToken->z, pToken->n);
+      if(pToken->z[0] != TS_BACKQUOTE_CHAR) pToken->n = stringProcess(pToken->z, pToken->n);
       // tscStrToLower(pToken->z, pToken->n);
       strntolower(pToken->z, pToken->z, pToken->n);
       //pToken->n = (uint32_t)strtrim(pToken->z);
@@ -2977,7 +2977,7 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
         return tscValidateName(pToken, escapeEnabled, NULL);
       }
     } else if (pToken->type == TK_ID) {
-      pToken->n = stringProcess(pToken->z, pToken->n);
+      if(pToken->z[0] == TS_BACKQUOTE_CHAR) pToken->n = stringProcess(pToken->z, pToken->n);
 
       if (pToken->n == 0) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -3038,7 +3038,7 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
     }
 
     if (escapeEnabled && pToken->type == TK_ID) {
-      pToken->n = stringProcess(pToken->z, pToken->n);
+      if(pToken->z[0] == TS_BACKQUOTE_CHAR) pToken->n = stringProcess(pToken->z, pToken->n);
     }
 
     // re-build the whole name string

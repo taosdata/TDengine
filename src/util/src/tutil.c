@@ -141,7 +141,6 @@ size_t strtrim(char *z) {
   } else if (j != i) {
     z[i] = 0;
   }
-  
   return i;
 }
 
@@ -197,7 +196,7 @@ char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
   bool inEsc = false;
   char escChar = 0;
   char *str = src, *res = NULL;
-  
+
   for (int32_t i = 0; i < len; ++i) {
     if (src[i] == TS_BACKQUOTE_CHAR || src[i] == '\'' || src[i] == '\"') {
       if (!inEsc) {
@@ -216,7 +215,7 @@ char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
 
         str = src + i + 1;
       }
-      
+
       inEsc = !inEsc;
       continue;
     }
