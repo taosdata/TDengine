@@ -1350,7 +1350,7 @@ _clean:
 static int32_t getFileFullPath(SStrToken* pToken, char* output) {
   char path[PATH_MAX] = {0};
   strncpy(path, pToken->z, pToken->n);
-  stringProcess(path, strlen(path));
+  stringProcess(path, (int32_t)strlen(path));
 
   wordexp_t full_path;
   if (wordexp(path, &full_path, 0) != 0) {
