@@ -130,7 +130,7 @@ python3 ./test.py -f update/merge_commit_last.py
 python3 ./test.py -f update/update_options.py
 python3 ./test.py -f update/merge_commit_data-0.py
 python3 ./test.py -f wal/addOldWalTest.py
-python3 ./test.py -f wal/sdbComp.py
+# python3 ./test.py -f wal/sdbComp.py
 
 
 

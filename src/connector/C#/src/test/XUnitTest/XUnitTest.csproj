@@ -3,12 +3,11 @@
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
     <IsPackable>false</IsPackable>
-  </PropertyGroup>
-
-  <PropertyGroup>
+    <NoWarn>CS1591</NoWarn>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>..\doc\UnitTest.XML</DocumentationFile>
   </PropertyGroup>
+
 
   <ItemGroup>
     <PackageReference Include="coverlet.msbuild" Version="3.1.0">

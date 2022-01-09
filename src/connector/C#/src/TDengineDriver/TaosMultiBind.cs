@@ -436,49 +436,46 @@ namespace TDengineDriver
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
             int elementCount = arr.Length;
+            //TypeSize represent the Max element length of the comming arr
+            //The size of the buffer is typeSize * elementCount
+            //This buffer is used to store TAOS_MULTI_BIND.buffer
             int typeSize = MaxElementLength(arr);
+            //This intSize is used to calcuate buffer size of the struct TAOS_MULTI_BIND's 
+            //length. The buffer is intSize * elementCount,which is used to store TAOS_MULTI_BIND.length
             int intSize = sizeof(int);
+            //This byteSize is used to calculate the buffer size of the struct TAOS_MULTI_BIND.is_null
+            //This buffer size is byteSize * elementCount
             int byteSize = sizeof(byte);
-            StringBuilder arrStrBuilder = new StringBuilder(); ;
 
+            StringBuilder arrStrBuilder = new StringBuilder(); ;
             //TAOS_MULTI_BIND.length
             IntPtr lengthArr = Marshal.AllocHGlobal(intSize * elementCount);
             //TAOS_MULTI_BIND.is_null
             IntPtr nullArr = Marshal.AllocHGlobal(byteSize * elementCount);
+            //TAOS_MULTI_BIND.buffer
+            IntPtr uNcharBuff = Marshal.AllocHGlobal(typeSize * elementCount);
 
             for (int i = 0; i < elementCount; i++)
             {
                 int itemLength = 0;
                 byte[] decodeByte = GetStringEncodeByte(arr[i]);
                 itemLength = decodeByte.Length;
-                // if element if not null and element length is less then typeSize
-                // fill the memory with default char.Since arr element memory need align.
-                if (!String.IsNullOrEmpty(arr[i]) && typeSize == itemLength)
+                if (!String.IsNullOrEmpty(arr[i]))
                 {
-                    arrStrBuilder.Append(arr[i]);
+                    for (int j = 0; j < itemLength; j++)
+                    {
+                        //Read byte after byte
+                        Marshal.WriteByte(uNcharBuff, i * typeSize + j, decodeByte[j]);
+                    }
                 }
-                else if (!String.IsNullOrEmpty(arr[i]) && typeSize > itemLength)
-                {
-                    arrStrBuilder.Append(arr[i]);
-                    arrStrBuilder.Append(AlignCharArr(typeSize - itemLength));
-                }
-                else
-                {
-                    // if is null value,fill the memory with default values.
-                    arrStrBuilder.Append(AlignCharArr(typeSize));
-                }
-
-                //set TAOS_MULTI_BIND.length
-                Marshal.WriteInt32(lengthArr, intSize * i, typeSize);
-                //set TAOS_MULTI_BIND.is_null 
+                //Set TAOS_MULTI_BIND.length
+                Marshal.WriteInt32(lengthArr, intSize * i, itemLength);
+                //Set TAOS_MULTI_BIND.is_null 
                 Marshal.WriteByte(nullArr, byteSize * i, Convert.ToByte(String.IsNullOrEmpty(arr[i]) ? 1 : 0));
             }
-            //set TAOS_MULTI_BIND.buffer
-            IntPtr uBinaryBuff = (IntPtr)Marshal.StringToHGlobalAnsi(arrStrBuilder.ToString());
-
-            //config TAOS_MULTI_BIND
+            //Config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_BINARY;
-            multiBind.buffer = uBinaryBuff;
+            multiBind.buffer = uNcharBuff;
             multiBind.buffer_length = (ulong)typeSize;
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
@@ -491,47 +488,43 @@ namespace TDengineDriver
         {
             TAOS_MULTI_BIND multiBind = new TAOS_MULTI_BIND();
             int elementCount = arr.Length;
+            //TypeSize represent the Max element length of the comming arr
+            //The size of the buffer is typeSize * elementCount
+            //This buffer is used to store TAOS_MULTI_BIND.buffer
             int typeSize = MaxElementLength(arr);
+            //This intSize is used to calcuate buffer size of the struct TAOS_MULTI_BIND's 
+            //length. The buffer is intSize * elementCount,which is used to store TAOS_MULTI_BIND.length
             int intSize = sizeof(int);
+            //This byteSize is used to calculate the buffer size of the struct TAOS_MULTI_BIND.is_null
+            //This buffer size is byteSize * elementCount
             int byteSize = sizeof(byte);
-            StringBuilder arrStrBuilder = new StringBuilder(); ;
 
             //TAOS_MULTI_BIND.length
             IntPtr lengthArr = Marshal.AllocHGlobal(intSize * elementCount);
             //TAOS_MULTI_BIND.is_null
             IntPtr nullArr = Marshal.AllocHGlobal(byteSize * elementCount);
+            //TAOS_MULTI_BIND.buffer
+            IntPtr uNcharBuff = Marshal.AllocHGlobal(typeSize * elementCount);
 
             for (int i = 0; i < elementCount; i++)
             {
                 int itemLength = 0;
                 byte[] decodeByte = GetStringEncodeByte(arr[i]);
                 itemLength = decodeByte.Length;
-                // if element if not null and element length is less then typeSize
-                // fill the memory with default char.Since arr element memory need align.
-                if (!String.IsNullOrEmpty(arr[i]) && typeSize == itemLength)
+                if (!String.IsNullOrEmpty(arr[i]))
                 {
-                    arrStrBuilder.Append(arr[i]);
+                    for (int j = 0; j < itemLength; j++)
+                    {
+                        //Read byte after byte
+                        Marshal.WriteByte(uNcharBuff, i * typeSize + j, decodeByte[j]);
+                    }
                 }
-                else if (!String.IsNullOrEmpty(arr[i]) && typeSize > itemLength)
-                {
-                    arrStrBuilder.Append(arr[i]);
-                    arrStrBuilder.Append(AlignCharArr(typeSize - itemLength));
-                }
-                else
-                {
-                    // if is null value,fill the memory with default values.
-                    arrStrBuilder.Append(AlignCharArr(typeSize));
-                }
-
-                //set TAOS_MULTI_BIND.length
-                Marshal.WriteInt32(lengthArr, intSize * i, typeSize);
-                //set TAOS_MULTI_BIND.is_null 
+                //Set TAOS_MULTI_BIND.length
+                Marshal.WriteInt32(lengthArr, intSize * i, itemLength);
+                //Set TAOS_MULTI_BIND.is_null 
                 Marshal.WriteByte(nullArr, byteSize * i, Convert.ToByte(String.IsNullOrEmpty(arr[i]) ? 1 : 0));
             }
-            //set TAOS_MULTI_BIND.buffer
-            IntPtr uNcharBuff = (IntPtr)Marshal.StringToHGlobalAnsi(arrStrBuilder.ToString());
-
-            //config TAOS_MULTI_BIND
+            //Config TAOS_MULTI_BIND
             multiBind.buffer_type = (int)TDengineDataType.TSDB_DATA_TYPE_NCHAR;
             multiBind.buffer = uNcharBuff;
             multiBind.buffer_length = (ulong)typeSize;
@@ -612,16 +605,16 @@ namespace TDengineDriver
         }
 
         private static Byte[] GetStringEncodeByte(string str)
-        {   
+        {
             Byte[] strToBytes = null;
-            if(String.IsNullOrEmpty(str))
+            if (String.IsNullOrEmpty(str))
             {
                 strToBytes = System.Text.Encoding.Default.GetBytes(String.Empty);
             }
             else
             {
                 strToBytes = System.Text.Encoding.Default.GetBytes(str);
-            } 
+            }
             return strToBytes;
         }
     }
