@@ -59,6 +59,10 @@ static int  indexMergeFinalResults(SArray* interResults, EIndexOperatorType oTyp
 
 static int indexGenTFile(SIndex* index, IndexCache* cache, SArray* batch);
 
+// merge cache and tfile by opera type
+static void indexMergeCacheAndTFile(SArray* result, IterateValue* icache, IterateValue* iTfv);
+static void indexMergeSameKey(SArray* result, TFileValue* tv);
+
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   pthread_once(&isInit, indexInit);
   SIndex* sIdx = calloc(1, sizeof(SIndex));
@@ -385,6 +389,27 @@ static void indexMergeSameKey(SArray* result, TFileValue* tv) {
     taosArrayPush(result, &tv);
   }
 }
+static void indexMergeCacheAndTFile(SArray* result, IterateValue* cv, IterateValue* tv) {
+  // opt
+  char* colVal = (cv != NULL) ? cv->colVal : tv->colVal;
+  // design merge-algorithm later, too complicated to handle all kind of situation
+  TFileValue* tfv = tfileValueCreate(colVal);
+  if (cv != NULL) {
+    if (cv->type == ADD_VALUE) {
+      taosArrayAddAll(tfv->tableId, cv->val);
+    } else if (cv->type == DEL_VALUE) {
+    } else if (cv->type == UPDATE_VALUE) {
+    } else {
+      // do nothing
+    }
+  }
+  if (tv != NULL) {
+    // opt later
+    taosArrayAddAll(tfv->tableId, tv->val);
+  }
+
+  indexMergeSameKey(result, tfv);
+}
 static void indexDestroyTempResult(SArray* result) {
   int32_t sz = result ? taosArrayGetSize(result) : 0;
   for (size_t i = 0; i < sz; i++) {
@@ -411,50 +436,29 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
 
   bool cn = cacheIter ? cacheIter->next(cacheIter) : false;
   bool tn = tfileIter ? tfileIter->next(tfileIter) : false;
-  while (cn == true && tn == true) {
-    IterateValue* cv = cacheIter->getValue(cacheIter);
-    IterateValue* tv = tfileIter->getValue(tfileIter);
+  while (cn == true || tn == true) {
+    IterateValue* cv = (cn == true) ? cacheIter->getValue(cacheIter) : NULL;
+    IterateValue* tv = (tn == true) ? tfileIter->getValue(tfileIter) : NULL;
 
-    // dump value
-    int comp = strcmp(cv->colVal, tv->colVal);
+    int comp = 0;
+    if (cn == true && tn == true) {
+      comp = strcmp(cv->colVal, tv->colVal);
+    } else if (cn == true) {
+      comp = -1;
+    } else {
+      comp = 1;
+    }
     if (comp == 0) {
-      TFileValue* tfv = tfileValueCreate(cv->colVal);
-      taosArrayAddAll(tfv->tableId, cv->val);
-      taosArrayAddAll(tfv->tableId, tv->val);
-      indexMergeSameKey(result, tfv);
-
+      indexMergeCacheAndTFile(result, cv, tv);
       cn = cacheIter->next(cacheIter);
       tn = tfileIter->next(tfileIter);
-      continue;
     } else if (comp < 0) {
-      TFileValue* tfv = tfileValueCreate(cv->colVal);
-      taosArrayAddAll(tfv->tableId, cv->val);
-
-      indexMergeSameKey(result, tfv);
-      // copy to final Result;
+      indexMergeCacheAndTFile(result, cv, NULL);
       cn = cacheIter->next(cacheIter);
     } else {
-      TFileValue* tfv = tfileValueCreate(tv->colVal);
-      taosArrayAddAll(tfv->tableId, tv->val);
-
-      indexMergeSameKey(result, tfv);
-      // copy to final result
+      indexMergeCacheAndTFile(result, NULL, tv);
       tn = tfileIter->next(tfileIter);
     }
-  }
-  while (cn == true) {
-    IterateValue* cv = cacheIter->getValue(cacheIter);
-    TFileValue*   tfv = tfileValueCreate(cv->colVal);
-    taosArrayAddAll(tfv->tableId, cv->val);
-    indexMergeSameKey(result, tfv);
-    cn = cacheIter->next(cacheIter);
-  }
-  while (tn == true) {
-    IterateValue* tv = tfileIter->getValue(tfileIter);
-    TFileValue*   tfv = tfileValueCreate(tv->colVal);
-    taosArrayAddAll(tfv->tableId, tv->val);
-    indexMergeSameKey(result, tfv);
-    tn = tfileIter->next(tfileIter);
   }
   int ret = indexGenTFile(sIdx, pCache, result);
   indexDestroyTempResult(result);
@@ -503,7 +507,7 @@ static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   tfileWriterClose(tw);
 
   TFileReader* reader = tfileReaderOpen(sIdx->path, cache->suid, version, cache->colName);
-  if (reader == NULL) { goto END; }
+  if (reader == NULL) { return -1; }
 
   TFileHeader* header = &reader->header;
   ICacheKey    key = {.suid = cache->suid, .colName = header->colName, .nColName = strlen(header->colName)};
