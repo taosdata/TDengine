@@ -46,14 +46,14 @@ char *dndStatStr(EStat stat) {
 }
 
 void dndReportStartup(SDnode *pDnode, char *pName, char *pDesc) {
-  SStartupMsg *pStartup = &pDnode->startup;
+  SStartupReq *pStartup = &pDnode->startup;
   tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
   tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
   pStartup->finished = 0;
 }
 
-void dndGetStartup(SDnode *pDnode, SStartupMsg *pStartup) {
-  memcpy(pStartup, &pDnode->startup, sizeof(SStartupMsg));
+void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
+  memcpy(pStartup, &pDnode->startup, sizeof(SStartupReq));
   pStartup->finished = (dndGetStat(pDnode) == DND_STAT_RUNNING);
 }
 

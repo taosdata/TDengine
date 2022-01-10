@@ -85,4 +85,23 @@ if $data02 != 2 then
   return -1
 endi
 
+return
+system sh/exec.sh -n dnode1 -s stop -x SIGKILL
+system sh/exec.sh -n dnode1 -s start
+
+sql show databases
+
+if $rows != 1 then 
+  return -1
+endi
+
+sql_error use d1
+
+sql use d4
+sql show vgroups
+
+if $rows != 2 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

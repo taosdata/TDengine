@@ -27,9 +27,9 @@ Testbase MndTestStb::test;
 
 TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   {
-    int32_t contLen = sizeof(SCreateDbMsg);
+    int32_t contLen = sizeof(SCreateDbReq);
 
-    SCreateDbMsg* pReq = (SCreateDbMsg*)rpcMallocCont(contLen);
+    SCreateDbReq* pReq = (SCreateDbReq*)rpcMallocCont(contLen);
     strcpy(pReq->db, "1.d1");
     pReq->numOfVgroups = htonl(2);
     pReq->cacheBlockSize = htonl(16);
@@ -59,9 +59,9 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   {
     int32_t cols = 2;
     int32_t tags = 3;
-    int32_t contLen = (tags + cols) * sizeof(SSchema) + sizeof(SCreateStbMsg);
+    int32_t contLen = (tags + cols) * sizeof(SSchema) + sizeof(SMCreateStbReq);
 
-    SCreateStbMsg* pReq = (SCreateStbMsg*)rpcMallocCont(contLen);
+    SMCreateStbReq* pReq = (SMCreateStbReq*)rpcMallocCont(contLen);
     strcpy(pReq->name, "1.d1.stb");
     pReq->numOfTags = htonl(tags);
     pReq->numOfColumns = htonl(cols);
@@ -123,16 +123,16 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
   // ----- meta ------
   {
-    int32_t contLen = sizeof(STableInfoMsg);
+    int32_t contLen = sizeof(STableInfoReq);
 
-    STableInfoMsg* pReq = (STableInfoMsg*)rpcMallocCont(contLen);
+    STableInfoReq* pReq = (STableInfoReq*)rpcMallocCont(contLen);
     strcpy(pReq->tableFname, "1.d1.stb");
 
     SRpcMsg* pMsg = test.SendReq(TDMT_MND_STB_META, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
-    STableMetaMsg* pRsp = (STableMetaMsg*)pMsg->pCont;
+    STableMetaRsp* pRsp = (STableMetaRsp*)pMsg->pCont;
     pRsp->numOfTags = htonl(pRsp->numOfTags);
     pRsp->numOfColumns = htonl(pRsp->numOfColumns);
     pRsp->sversion = htonl(pRsp->sversion);
@@ -214,9 +214,9 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   CheckInt32(3);
 
   {
-    int32_t contLen = sizeof(SDropStbMsg);
+    int32_t contLen = sizeof(SMDropStbReq);
 
-    SDropStbMsg* pReq = (SDropStbMsg*)rpcMallocCont(contLen);
+    SMDropStbReq* pReq = (SMDropStbReq*)rpcMallocCont(contLen);
     strcpy(pReq->name, "1.d1.stb");
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_STB, pReq, contLen);

@@ -53,7 +53,7 @@ class Testbase {
   void SendShowMetaReq(int8_t showType, const char* db);
   void SendShowRetrieveReq();
 
-  STableMetaMsg*     GetShowMeta();
+  STableMetaRsp*     GetShowMeta();
   SRetrieveTableRsp* GetRetrieveRsp();
 
   int32_t     GetMetaNum();
@@ -74,7 +74,7 @@ class Testbase {
 
  private:
   int64_t            showId;
-  STableMetaMsg*     pMeta;
+  STableMetaRsp*     pMeta;
   SRetrieveTableRsp* pRetrieveRsp;
   char*              pData;
   int32_t            pos;
