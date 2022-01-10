@@ -557,7 +557,7 @@ static const char* jkEpAddrFqdn = "Fqdn";
 static const char* jkEpAddrPort = "Port";
 
 static bool epAddrToJson(const void* obj, cJSON* json) {
-  const SEpAddrMsg* ep = (const SEpAddrMsg*)obj;
+  const SEpAddr* ep = (const SEpAddr*)obj;
   bool res = cJSON_AddStringToObject(json, jkEpAddrFqdn, ep->fqdn);
   if (res) {
     res = cJSON_AddNumberToObject(json, jkEpAddrPort, ep->port);
@@ -566,7 +566,7 @@ static bool epAddrToJson(const void* obj, cJSON* json) {
 }
 
 static bool epAddrFromJson(const cJSON* json, void* obj) {
-  SEpAddrMsg* ep = (SEpAddrMsg*)obj;
+  SEpAddr* ep = (SEpAddr*)obj;
   copyString(json, jkEpAddrFqdn, ep->fqdn);
   ep->port = getNumber(json, jkEpAddrPort);
   return true;
@@ -583,7 +583,7 @@ static bool nodeAddrToJson(const void* obj, cJSON* json) {
     res = cJSON_AddNumberToObject(json, jkNodeAddrInUse, ep->inUse);
   }
   if (res) {
-    res = addRawArray(json, jkNodeAddrEpAddrs, epAddrToJson, ep->epAddr, ep->numOfEps, sizeof(SEpAddrMsg));
+    res = addRawArray(json, jkNodeAddrEpAddrs, epAddrToJson, ep->epAddr, ep->numOfEps, sizeof(SEpAddr));
   }
   return res;
 }
@@ -593,7 +593,7 @@ static bool nodeAddrFromJson(const cJSON* json, void* obj) {
   ep->nodeId = getNumber(json, jkNodeAddrId);
   ep->inUse = getNumber(json, jkNodeAddrInUse);
   int32_t numOfEps = 0;
-  bool res = fromRawArray(json, jkNodeAddrEpAddrs, nodeAddrFromJson, &ep->epAddr, sizeof(SEpAddrMsg), &numOfEps);
+  bool res = fromRawArray(json, jkNodeAddrEpAddrs, nodeAddrFromJson, &ep->epAddr, sizeof(SEpAddr), &numOfEps);
   ep->numOfEps = numOfEps;
   return res;
 }

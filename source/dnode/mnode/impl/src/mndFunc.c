@@ -31,7 +31,7 @@ static int32_t  mndDropFunc(SMnode *pMnode, SMnodeMsg *pMsg, SFuncObj *pFunc);
 static int32_t  mndProcessCreateFuncMsg(SMnodeMsg *pMsg);
 static int32_t  mndProcessDropFuncMsg(SMnodeMsg *pMsg);
 static int32_t  mndProcessRetrieveFuncMsg(SMnodeMsg *pMsg);
-static int32_t  mndGetFuncMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
+static int32_t  mndGetFuncMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t  mndRetrieveFuncs(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextFunc(SMnode *pMnode, void *pIter);
 
@@ -395,7 +395,7 @@ static int32_t mndProcessRetrieveFuncMsg(SMnodeMsg *pMsg) {
   return 0;
 }
 
-static int32_t mndGetFuncMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
+static int32_t mndGetFuncMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pMsg->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 

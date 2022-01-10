@@ -86,7 +86,7 @@ int32_t qCreateTask(void* tsdb, int32_t vgId, void* pQueryMsg, qTaskInfo_t* pTas
   }
 
   if (param.pTableIdList == NULL || taosArrayGetSize(param.pTableIdList) == 0) {
-    qError("qmsg:%p, SQueryTableMsg wrong format", pQueryMsg);
+    qError("qmsg:%p, SQueryTableReq wrong format", pQueryMsg);
     code = TSDB_CODE_QRY_INVALID_MSG;
     goto _over;
   }

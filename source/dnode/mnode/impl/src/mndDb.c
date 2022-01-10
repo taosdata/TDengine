@@ -35,7 +35,7 @@ static int32_t  mndProcessDropDbReq(SMnodeMsg *pReq);
 static int32_t  mndProcessUseDbReq(SMnodeMsg *pReq);
 static int32_t  mndProcessSyncDbReq(SMnodeMsg *pReq);
 static int32_t  mndProcessCompactDbReq(SMnodeMsg *pReq);
-static int32_t  mndGetDbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta);
+static int32_t  mndGetDbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t  mndRetrieveDbs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 
@@ -378,7 +378,7 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   return 0;
 }
 
-static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pReq, SCreateDbMsg *pCreate, SUserObj *pUser) {
+static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser) {
   SDbObj dbObj = {0};
   memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
   memcpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
@@ -449,7 +449,7 @@ CREATE_DB_OVER:
 
 static int32_t mndProcessCreateDbReq(SMnodeMsg *pReq) {
   SMnode       *pMnode = pReq->pMnode;
-  SCreateDbMsg *pCreate = pReq->rpcMsg.pCont;
+  SCreateDbReq *pCreate = pReq->rpcMsg.pCont;
 
   pCreate->numOfVgroups = htonl(pCreate->numOfVgroups);
   pCreate->cacheBlockSize = htonl(pCreate->cacheBlockSize);
@@ -858,7 +858,7 @@ static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
         pInfo->numOfEps = pVgroup->replica;
         for (int32_t gid = 0; gid < pVgroup->replica; ++gid) {
           SVnodeGid  *pVgid = &pVgroup->vnodeGid[gid];
-          SEpAddrMsg *pEpArrr = &pInfo->epAddr[gid];
+          SEpAddr *pEpArrr = &pInfo->epAddr[gid];
           SDnodeObj  *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
           if (pDnode != NULL) {
             memcpy(pEpArrr->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
@@ -915,7 +915,7 @@ static int32_t mndProcessCompactDbReq(SMnodeMsg *pReq) {
   return 0;
 }
 
-static int32_t mndGetDbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta) {
+static int32_t mndGetDbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 

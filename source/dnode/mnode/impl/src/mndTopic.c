@@ -35,7 +35,7 @@ static int32_t mndProcessCreateTopicMsg(SMnodeMsg *pMsg);
 static int32_t mndProcessDropTopicMsg(SMnodeMsg *pMsg);
 static int32_t mndProcessDropTopicInRsp(SMnodeMsg *pMsg);
 static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pMsg);
-static int32_t mndGetTopicMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
+static int32_t mndGetTopicMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t mndRetrieveTopic(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextTopic(SMnode *pMnode, void *pIter);
 
@@ -186,10 +186,10 @@ static SDbObj *mndAcquireDbByTopic(SMnode *pMnode, char *topicName) {
   return mndAcquireDb(pMnode, db);
 }
 
-static SDDropTopicMsg *mndBuildDropTopicMsg(SMnode *pMnode, SVgObj *pVgroup, SMqTopicObj *pTopic) {
-  int32_t contLen = sizeof(SDDropTopicMsg);
+static SDDropTopicReq *mndBuildDropTopicMsg(SMnode *pMnode, SVgObj *pVgroup, SMqTopicObj *pTopic) {
+  int32_t contLen = sizeof(SDDropTopicReq);
 
-  SDDropTopicMsg *pDrop = calloc(1, contLen);
+  SDDropTopicReq *pDrop = calloc(1, contLen);
   if (pDrop == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -274,7 +274,7 @@ static int32_t mndDropTopic(SMnode *pMnode, SMnodeMsg *pMsg, SMqTopicObj *pTopic
 
 static int32_t mndProcessDropTopicMsg(SMnodeMsg *pMsg) {
   SMnode        *pMnode = pMsg->pMnode;
-  SDropTopicMsg *pDrop = pMsg->rpcMsg.pCont;
+  SDropTopicReq *pDrop = pMsg->rpcMsg.pCont;
 
   mDebug("topic:%s, start to drop", pDrop->name);
 
@@ -309,7 +309,7 @@ static int32_t mndProcessDropTopicInRsp(SMnodeMsg *pMsg) {
 
 static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pMsg) {
   SMnode        *pMnode = pMsg->pMnode;
-  STableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
+  STableInfoReq *pInfo = pMsg->rpcMsg.pCont;
 
   mDebug("topic:%s, start to retrieve meta", pInfo->tableFname);
 
@@ -331,9 +331,9 @@ static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pMsg) {
 
   taosRLockLatch(&pTopic->lock);
   int32_t totalCols = pTopic->numOfColumns + pTopic->numOfTags;
-  int32_t contLen = sizeof(STableMetaMsg) + totalCols * sizeof(SSchema);
+  int32_t contLen = sizeof(STableMetaRsp) + totalCols * sizeof(SSchema);
 
-  STableMetaMsg *pMeta = rpcMallocCont(contLen);
+  STableMetaRsp *pMeta = rpcMallocCont(contLen);
   if (pMeta == NULL) {
     taosRUnLockLatch(&pTopic->lock);
     mndReleaseDb(pMnode, pDb);
@@ -397,7 +397,7 @@ static int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTo
   return 0;
 }
 
-static int32_t mndGetTopicMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
+static int32_t mndGetTopicMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pMsg->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 

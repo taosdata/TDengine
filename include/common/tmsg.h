@@ -133,36 +133,36 @@ typedef enum _mgmt_table {
 #define TSDB_COL_IS_UD_COL(f) ((f & (~(TSDB_COL_NULL))) == TSDB_COL_UDC)
 #define TSDB_COL_REQ_NULL(f) (((f)&TSDB_COL_NULL) != 0)
 
-typedef struct SKv {
+typedef struct {
   int32_t keyLen;
   int32_t valueLen;
   void*   key;
   void*   value;
 } SKv;
 
-typedef struct SClientHbKey {
+typedef struct {
   int32_t connId;
   int32_t hbType;
 } SClientHbKey;
 
-typedef struct SClientHbReq {
+typedef struct {
   SClientHbKey connKey;
   SHashObj*    info;  // hash<Slv.key, Sklv>
 } SClientHbReq;
 
-typedef struct SClientHbBatchReq {
+typedef struct {
   int64_t reqId;
   SArray* reqs;  // SArray<SClientHbReq>
 } SClientHbBatchReq;
 
-typedef struct SClientHbRsp {
+typedef struct {
   SClientHbKey connKey;
   int32_t      status;
   int32_t      bodyLen;
   void*        body;
 } SClientHbRsp;
 
-typedef struct SClientHbBatchRsp {
+typedef struct {
   int64_t reqId;
   int64_t rspId;
   SArray* rsps;  // SArray<SClientHbRsp>
@@ -220,13 +220,13 @@ static FORCE_INLINE void* taosDecodeSClientHbKey(void* buf, SClientHbKey* pKey) 
   return buf;
 }
 
-typedef struct SBuildTableMetaInput {
+typedef struct {
   int32_t vgId;
   char*   dbName;
   char*   tableFullName;
 } SBuildTableMetaInput;
 
-typedef struct SBuildUseDBInput {
+typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];
   int32_t vgVersion;
 } SBuildUseDBInput;
@@ -237,14 +237,9 @@ typedef struct SBuildUseDBInput {
 typedef struct {
   char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
-} SEpAddrMsg;
-
-typedef struct {
-  char     fqdn[TSDB_FQDN_LEN];
-  uint16_t port;
 } SEpAddr;
 
-typedef struct SMsgHead {
+typedef struct {
   int32_t contLen;
   int32_t vgId;
 } SMsgHead;
@@ -262,7 +257,7 @@ typedef struct SSubmitBlk {
 } SSubmitBlk;
 
 // Submit message for this TSDB
-typedef struct SSubmitMsg {
+typedef struct {
   SMsgHead header;
   int64_t  version;
   int32_t  length;
@@ -301,7 +296,7 @@ typedef struct {
   int32_t              failedRows;    // number of failed records (exclude duplicate records)
   int32_t              numOfFailedBlocks;
   SShellSubmitRspBlock failedBlocks[];
-} SShellSubmitRspMsg;
+} SShellSubmitRsp;
 
 typedef struct SSchema {
   int8_t  type;
@@ -311,97 +306,23 @@ typedef struct SSchema {
 } SSchema;
 
 typedef struct {
-  int32_t  contLen;
-  int32_t  vgId;
-  int8_t   tableType;
-  int16_t  numOfColumns;
-  int16_t  numOfTags;
-  int32_t  tid;
-  int32_t  sversion;
-  int32_t  tversion;
-  int32_t  tagDataLen;
-  int32_t  sqlDataLen;
-  uint64_t uid;
-  uint64_t superTableUid;
-  uint64_t createdTime;
-  char     tableFname[TSDB_TABLE_FNAME_LEN];
-  char     stbFname[TSDB_TABLE_FNAME_LEN];
-  char     data[];
-} SMDCreateTableMsg;
-
-// typedef struct {
-//  int32_t len;  // one create table message
-//  char    tableName[TSDB_TABLE_FNAME_LEN];
-//  int16_t numOfColumns;
-//  int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
-//  int8_t  igExists;
-//  int8_t  rspMeta;
-//  int8_t  reserved[16];
-//  char    schema[];
-//} SCreateTableMsg;
-
-typedef struct {
-  char    tableName[TSDB_TABLE_FNAME_LEN];
-  int16_t numOfColumns;
-  int16_t numOfTags;
-  int8_t  igExists;
-  int8_t  rspMeta;
-  char    schema[];
-} SCreateCTableMsg;
-
-typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
   int32_t numOfTags;
   int32_t numOfColumns;
   SSchema pSchema[];
-} SCreateStbMsg, SCreateTableMsg;
+} SMCreateStbReq;
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
   int8_t igNotExists;
-} SDropStbMsg;
+} SMDropStbReq;
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  alterType;
   SSchema schema;
-} SAlterStbMsg;
-
-typedef struct {
-  SMsgHead head;
-  char     name[TSDB_TABLE_FNAME_LEN];
-  uint64_t suid;
-} SVDropStbReq;
-
-typedef struct {
-  SMsgHead head;
-  char     name[TSDB_TABLE_FNAME_LEN];
-  int8_t   type;      /* operation type   */
-  int32_t  numOfCols; /* number of schema */
-  int32_t  numOfTags;
-  char     data[];
-} SAlterTableMsg;
-
-typedef struct {
-  SMsgHead head;
-  char     name[TSDB_TABLE_FNAME_LEN];
-  int8_t   ignoreNotExists;
-} SDropTableMsg;
-
-typedef struct {
-  SMsgHead head;
-  int64_t  uid;
-  int32_t  tid;
-  int16_t  tversion;
-  int16_t  colId;
-  int8_t   type;
-  int16_t  bytes;
-  int32_t  tagValLen;
-  int16_t  numOfTags;
-  int32_t  schemaLen;
-  char     data[];
-} SUpdateTableTagValMsg;
+} SMAlterStbReq;
 
 typedef struct {
   int32_t pid;
@@ -470,28 +391,13 @@ typedef struct {
 } SCreateUserReq, SAlterUserReq;
 
 typedef struct {
-  int32_t  contLen;
-  int32_t  vgId;
-  int32_t  tid;
-  uint64_t uid;
-  char     tableFname[TSDB_TABLE_FNAME_LEN];
-} SMDDropTableMsg;
-
-typedef struct {
-  int32_t  contLen;
-  int32_t  vgId;
-  uint64_t uid;
-  char     tableFname[TSDB_TABLE_FNAME_LEN];
-} SDropSTableMsg;
-
-typedef struct SColIndex {
   int16_t colId;     // column id
   int16_t colIndex;  // column index in colList if it is a normal column or index in tagColList if a tag
   int16_t flag;      // denote if it is a tag or a normal column
   char    name[TSDB_DB_FNAME_LEN];
 } SColIndex;
 
-typedef struct SColumnFilterInfo {
+typedef struct {
   int16_t lowerRelOptr;
   int16_t upperRelOptr;
   int16_t filterstr;  // denote if current column is char(binary/nchar)
@@ -512,7 +418,7 @@ typedef struct SColumnFilterInfo {
   };
 } SColumnFilterInfo;
 
-typedef struct SColumnFilterList {
+typedef struct {
   int16_t numOfFilters;
   union {
     int64_t            placeholder;
@@ -523,14 +429,14 @@ typedef struct SColumnFilterList {
  * for client side struct, we only need the column id, type, bytes are not necessary
  * But for data in vnode side, we need all the following information.
  */
-typedef struct SColumnInfo {
+typedef struct {
   int16_t           colId;
   int16_t           type;
   int16_t           bytes;
   SColumnFilterList flist;
 } SColumnInfo;
 
-typedef struct STableIdInfo {
+typedef struct {
   uint64_t uid;
   TSKEY    key;  // last accessed ts, for subscription
 } STableIdInfo;
@@ -547,7 +453,7 @@ typedef struct {
   int32_t tsOrder;        // ts comp block order
 } STsBufInfo;
 
-typedef struct SInterval {
+typedef struct {
   int32_t tz;  // query client timezone
   char    intervalUnit;
   char    slidingUnit;
@@ -606,7 +512,7 @@ typedef struct {
   int32_t     udfContentOffset;
   int32_t     udfContentLen;
   SColumnInfo tableCols[];
-} SQueryTableMsg;
+} SQueryTableReq;
 
 typedef struct {
   int32_t code;
@@ -623,7 +529,7 @@ typedef struct {
   int8_t free;
 } SRetrieveTableReq;
 
-typedef struct SRetrieveTableRsp {
+typedef struct {
   int64_t useconds;
   int8_t  completed;  // all results are returned to client
   int8_t  precision;
@@ -655,7 +561,7 @@ typedef struct {
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  ignoreExist;
-} SCreateDbMsg;
+} SCreateDbReq;
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -768,7 +674,7 @@ typedef struct {
 
 typedef struct {
   int32_t reserved;
-} STransMsg;
+} STransReq;
 
 typedef struct {
   int32_t dnodeId;
@@ -843,7 +749,7 @@ typedef struct {
   SMsgHead header;
   char     dbFname[TSDB_DB_FNAME_LEN];
   char     tableFname[TSDB_TABLE_FNAME_LEN];
-} STableInfoMsg;
+} STableInfoReq;
 
 typedef struct {
   int8_t  metaClone;  // create local clone of the cached table meta
@@ -851,7 +757,7 @@ typedef struct {
   int32_t numOfTables;
   int32_t numOfUdfs;
   char    tableNames[];
-} SMultiTableInfoMsg;
+} SMultiTableInfoReq;
 
 typedef struct SVgroupInfo {
   int32_t    vgId;
@@ -859,19 +765,19 @@ typedef struct SVgroupInfo {
   uint32_t   hashEnd;
   int8_t     inUse;
   int8_t     numOfEps;
-  SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
+  SEpAddr epAddr[TSDB_MAX_REPLICA];
 } SVgroupInfo;
 
 typedef struct {
   int32_t    vgId;
   int8_t     numOfEps;
-  SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
+  SEpAddr epAddr[TSDB_MAX_REPLICA];
 } SVgroupMsg;
 
 typedef struct {
   int32_t    numOfVgroups;
   SVgroupMsg vgroups[];
-} SVgroupsMsg, SVgroupsInfo;
+} SVgroupsInfo;
 
 typedef struct {
   char     tbFname[TSDB_TABLE_FNAME_LEN];  // table full name
@@ -888,9 +794,9 @@ typedef struct {
   uint64_t tuid;
   int32_t  vgId;
   SSchema  pSchema[];
-} STableMetaMsg;
+} STableMetaRsp;
 
-typedef struct SMultiTableMeta {
+typedef struct {
   int32_t numOfTables;
   int32_t numOfVgroup;
   int32_t numOfUdf;
@@ -934,9 +840,9 @@ typedef struct {
   int32_t vgid[];
 } SCompactReq;
 
-typedef struct SShowRsp {
+typedef struct {
   int64_t       showId;
-  STableMetaMsg tableMeta;
+  STableMetaRsp tableMeta;
 } SShowRsp;
 
 typedef struct {
@@ -974,17 +880,6 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
 } SMCreateBnodeReq, SMDropBnodeReq, SDCreateBnodeReq, SDDropBnodeReq;
-
-typedef struct {
-  int32_t dnodeId;
-  int32_t vgId;
-  int32_t tid;
-} SConfigTableMsg;
-
-typedef struct {
-  int32_t dnodeId;
-  int32_t vgId;
-} SConfigVnodeMsg;
 
 typedef struct {
   char    sql[TSDB_SHOW_SQL_LEN];
@@ -1083,46 +978,6 @@ typedef struct {
 } SSubmitReqReader;
 
 typedef struct {
-  /* data */
-} SCreateTableReq;
-
-typedef struct {
-  /* data */
-} SCreateTableRsp;
-
-typedef struct {
-  /* data */
-} SDropTableReq;
-
-typedef struct {
-  /* data */
-} SDropTableRsp;
-
-typedef struct {
-  /* data */
-} SAlterTableReq;
-
-typedef struct {
-  /* data */
-} SAlterTableRsp;
-
-typedef struct {
-  /* data */
-} SDropStableReq;
-
-typedef struct {
-  /* data */
-} SDropStableRsp;
-
-typedef struct {
-  /* data */
-} SUpdateTagValReq;
-
-typedef struct {
-  /* data */
-} SUpdateTagValRsp;
-
-typedef struct SSubQueryMsg {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
@@ -1131,59 +986,59 @@ typedef struct SSubQueryMsg {
   char     msg[];
 } SSubQueryMsg;
 
-typedef struct SResReadyMsg {
+typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
-} SResReadyMsg;
+} SResReadyReq;
 
-typedef struct SResReadyRsp {
+typedef struct {
   int32_t code;
 } SResReadyRsp;
 
-typedef struct SResFetchMsg {
+typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
-} SResFetchMsg;
+} SResFetchReq;
 
-typedef struct SSchTasksStatusMsg {
+typedef struct {
   SMsgHead header;
   uint64_t sId;
-} SSchTasksStatusMsg;
+} SSchTasksStatusReq;
 
-typedef struct STaskStatus {
+typedef struct {
   uint64_t queryId;
   uint64_t taskId;
   int8_t   status;
 } STaskStatus;
 
-typedef struct SSchedulerStatusRsp {
+typedef struct {
   uint32_t    num;
   STaskStatus status[];
 } SSchedulerStatusRsp;
 
-typedef struct STaskCancelMsg {
+typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
-} STaskCancelMsg;
+} STaskCancelReq;
 
-typedef struct STaskCancelRsp {
+typedef struct {
   int32_t code;
 } STaskCancelRsp;
 
-typedef struct STaskDropMsg {
+typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
-} STaskDropMsg;
+} STaskDropReq;
 
-typedef struct STaskDropRsp {
+typedef struct {
   int32_t code;
 } STaskDropRsp;
 
@@ -1334,18 +1189,18 @@ typedef struct {
   void*   executor;
   int32_t sqlLen;
   char*   sql;
-} SCreateTopicMsg;
+} SCreateTopicReq;
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
   int8_t igNotExists;
-} SDropTopicMsg;
+} SDropTopicReq;
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  alterType;
   SSchema schema;
-} SAlterTopicMsg;
+} SAlterTopicReq;
 
 typedef struct {
   SMsgHead head;
@@ -1356,13 +1211,13 @@ typedef struct {
   char*    executor;
   int32_t  sqlLen;
   char*    sql;
-} SDCreateTopicMsg;
+} SDCreateTopicReq;
 
 typedef struct {
   SMsgHead head;
   char     name[TSDB_TABLE_FNAME_LEN];
   uint64_t tuid;
-} SDDropTopicMsg;
+} SDDropTopicReq;
 
 typedef struct SVCreateTbReq {
   uint64_t ver;  // use a general definition
@@ -1402,24 +1257,63 @@ void* tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
 int   tSVCreateTbBatchReqSerialize(void** buf, SVCreateTbBatchReq* pReq);
 void* tSVCreateTbBatchReqDeserialize(void* buf, SVCreateTbBatchReq* pReq);
 
-typedef struct SVCreateTbRsp {
+typedef struct {
+  SMsgHead head;
 } SVCreateTbRsp;
 
-typedef struct SVShowTablesReq {
+typedef struct {
+  SMsgHead head;
+  char     name[TSDB_TABLE_FNAME_LEN];
+  int8_t   ignoreNotExists;
+} SVAlterTbReq;
+
+typedef struct {
+  SMsgHead head;
+} SVAlterTbRsp;
+
+typedef struct {
+  SMsgHead head;
+  char     name[TSDB_TABLE_FNAME_LEN];
+  int8_t   ignoreNotExists;
+} SVDropTbReq;
+
+typedef struct {
+  SMsgHead head;
+} SVDropTbRsp;
+
+typedef struct {
+  SMsgHead head;
+  int64_t  uid;
+  int32_t  tid;
+  int16_t  tversion;
+  int16_t  colId;
+  int8_t   type;
+  int16_t  bytes;
+  int32_t  tagValLen;
+  int16_t  numOfTags;
+  int32_t  schemaLen;
+  char     data[];
+} SUpdateTagValReq;
+
+typedef struct {
+  SMsgHead head;
+} SUpdateTagValRsp;
+
+typedef struct {
   SMsgHead head;
 } SVShowTablesReq;
 
-typedef struct SVShowTablesRsp {
+typedef struct {
   int64_t       id;
-  STableMetaMsg metaInfo;
+  STableMetaRsp metaInfo;
 } SVShowTablesRsp;
 
-typedef struct SVShowTablesFetchReq {
+typedef struct {
   SMsgHead head;
   int32_t  id;
 } SVShowTablesFetchReq;
 
-typedef struct SVShowTablesFetchRsp {
+typedef struct {
   int64_t useconds;
   int8_t  completed;  // all results are returned to client
   int8_t  precision;

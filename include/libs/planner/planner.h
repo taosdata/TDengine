@@ -114,7 +114,7 @@ typedef struct SProjectPhyNode {
 typedef struct SExchangePhyNode {
   SPhyNode    node;
   uint64_t    srcTemplateId; // template id of datasource suplans
-  SArray     *pSrcEndPoints;  // SEpAddrMsg, scheduler fill by calling qSetSuplanExecutionNode
+  SArray     *pSrcEndPoints;  // SEpAddr, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhyNode;
 
 typedef struct SSubplanId {

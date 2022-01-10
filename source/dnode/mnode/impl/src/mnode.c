@@ -61,8 +61,8 @@ void mndSendRedirectRsp(SMnode *pMnode, SRpcMsg *pMsg) {
 static void mndTransReExecute(void *param, void *tmrId) {
   SMnode *pMnode = param;
   if (mndIsMaster(pMnode)) {
-    STransMsg *pMsg = rpcMallocCont(sizeof(STransMsg));
-    SRpcMsg    rpcMsg = {.msgType = TDMT_MND_TRANS, .pCont = pMsg, .contLen = sizeof(STransMsg)};
+    STransReq *pMsg = rpcMallocCont(sizeof(STransReq));
+    SRpcMsg    rpcMsg = {.msgType = TDMT_MND_TRANS, .pCont = pMsg, .contLen = sizeof(STransReq)};
     pMnode->putReqToMWriteQFp(pMnode->pDnode, &rpcMsg);
   }
 
