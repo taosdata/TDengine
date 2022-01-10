@@ -165,7 +165,7 @@ static int32_t mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup) {
 }
 
 static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup) {
-  mTrace("vgId:%d, perform update action, old_row:%p new_row:%p", pOldVgroup->vgId, pOldVgroup, pNewVgroup);
+  mTrace("vgId:%d, perform update action, old row:%p new row:%p", pOldVgroup->vgId, pOldVgroup, pNewVgroup);
   pOldVgroup->updateTime = pNewVgroup->updateTime;
   pOldVgroup->version = pNewVgroup->version;
   pOldVgroup->hashBegin = pNewVgroup->hashBegin;
@@ -189,7 +189,7 @@ void mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup) {
   sdbRelease(pSdb, pVgroup);
 }
 
-SCreateVnodeReq *mndBuildCreateVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup) {
+SCreateVnodeReq *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup) {
   SCreateVnodeReq *pCreate = calloc(1, sizeof(SCreateVnodeReq));
   if (pCreate == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -248,7 +248,7 @@ SCreateVnodeReq *mndBuildCreateVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbOb
   return pCreate;
 }
 
-SDropVnodeReq *mndBuildDropVnodeMsg(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup) {
+SDropVnodeReq *mndBuildDropVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup) {
   SDropVnodeReq *pDrop = calloc(1, sizeof(SDropVnodeReq));
   if (pDrop == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

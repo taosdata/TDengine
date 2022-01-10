@@ -89,17 +89,17 @@ int tSerializeSClientHbReq(void **buf, const SClientHbReq *pReq) {
   int tlen = 0;
   tlen += taosEncodeSClientHbKey(buf, &pReq->connKey);
 
-  void *pIter = NULL;
-  void *data;
-  SKlv  klv;
-  data = taosHashIterate(pReq->info, pIter);
-  while (data != NULL) {
-    taosHashGetKey(data, &klv.key, (size_t *)&klv.keyLen);
-    klv.valueLen = taosHashGetDataLen(data);
-    klv.value = data;
-    taosEncodeSKlv(buf, &klv);
+  int kvNum = taosHashGetSize(pReq->info);
+  tlen += taosEncodeFixedI32(buf, kvNum);
+  SKv kv;
+  void* pIter = taosHashIterate(pReq->info, pIter);
+  while (pIter != NULL) {
+    taosHashGetKey(pIter, &kv.key, (size_t *)&kv.keyLen);
+    kv.valueLen = taosHashGetDataLen(pIter);
+    kv.value = pIter;
+    tlen += taosEncodeSKv(buf, &kv);
 
-    data = taosHashIterate(pReq->info, pIter);
+    pIter = taosHashIterate(pReq->info, pIter);
   }
   return tlen;
 }
@@ -109,13 +109,24 @@ void *tDeserializeClientHbReq(void *buf, SClientHbReq *pReq) {
   buf = taosDecodeSClientHbKey(buf, &pReq->connKey);
 
   // TODO: error handling
-  if (pReq->info == NULL) {
-    pReq->info = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  int kvNum;
+  taosDecodeFixedI32(buf, &kvNum);
+  pReq->info = taosHashInit(kvNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  for(int i = 0; i < kvNum; i++) {
+    SKv kv;
+    buf = taosDecodeSKv(buf, &kv);
+    taosHashPut(pReq->info, kv.key, kv.keyLen, kv.value, kv.valueLen);
   }
-  SKlv klv;
-  buf = taosDecodeSKlv(buf, &klv);
-  taosHashPut(pReq->info, klv.key, klv.keyLen, klv.value, klv.valueLen);
 
+  return buf;
+}
+
+int   tSerializeSClientHbBatchReq(void** buf, const SClientHbBatchReq* pReq) {
+  int tlen = 0;
+  return tlen;
+}
+
+void* tDeserializeClientHbBatchReq(void* buf, SClientHbBatchReq* pReq) {
   return buf;
 }
 
