@@ -134,8 +134,8 @@ int waitMoment(SQInfo* pQInfo){
 }
 #endif
 
-bool qExecTask(qTaskInfo_t qinfo) {
-  SExecTaskInfo * pTaskInfo = (SExecTaskInfo *)qinfo;
+bool qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes) {
+  SExecTaskInfo *pTaskInfo = (SExecTaskInfo *) tinfo;
   int64_t threadId = taosGetSelfPthreadId();
 
   int64_t curOwner = 0;
@@ -176,12 +176,10 @@ bool qExecTask(qTaskInfo_t qinfo) {
   publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_BEFORE_OPERATOR_EXEC);
 
   int64_t st = taosGetTimestampUs();
-  void* pOutput = pTaskInfo->pRoot->exec(pTaskInfo->pRoot, &newgroup);
+  *pRes = pTaskInfo->pRoot->exec(pTaskInfo->pRoot, &newgroup);
   // todo put the result into sink node.
 
-
   pTaskInfo->cost.elapsedTime += (taosGetTimestampUs() - st);
-
   publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
   if (isTaskKilled(pTaskInfo)) {

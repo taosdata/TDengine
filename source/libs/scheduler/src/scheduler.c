@@ -590,11 +590,11 @@ int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *ms
       break;
     }
     case TDMT_VND_SUBMIT_RSP: {
-      if (rspCode != TSDB_CODE_SUCCESS || NULL == msg) {
-        SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rspCode));
-      } else {
-        SShellSubmitRspMsg *rsp = (SShellSubmitRspMsg *)msg;
-        job->resNumOfRows += rsp->affectedRows;
+        if (rspCode != TSDB_CODE_SUCCESS || NULL == msg) {
+          SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rspCode));
+        } else {
+          SShellSubmitRsp *rsp = (SShellSubmitRsp *)msg;
+          job->resNumOfRows += rsp->affectedRows;
 
         code = schProcessOnTaskSuccess(job, task);
         if (code) {
@@ -829,14 +829,14 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
       break;
     }    
     case TDMT_VND_RES_READY: {
-      msgSize = sizeof(SResReadyMsg);
+      msgSize = sizeof(SResReadyReq);
       msg = calloc(1, msgSize);
       if (NULL == msg) {
         SCH_TASK_ELOG("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
 
-      SResReadyMsg *pMsg = msg;
+      SResReadyReq *pMsg = msg;
       
       pMsg->header.vgId = htonl(addr->nodeId);  
       
@@ -846,14 +846,14 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
       break;
     }
     case TDMT_VND_FETCH: {
-      msgSize = sizeof(SResFetchMsg);
+      msgSize = sizeof(SResFetchReq);
       msg = calloc(1, msgSize);
       if (NULL == msg) {
         SCH_TASK_ELOG("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
     
-      SResFetchMsg *pMsg = msg;
+      SResFetchReq *pMsg = msg;
       
       pMsg->header.vgId = htonl(addr->nodeId);  
       
@@ -863,14 +863,14 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
       break;
     }
     case TDMT_VND_DROP_TASK:{
-      msgSize = sizeof(STaskDropMsg);
+      msgSize = sizeof(STaskDropReq);
       msg = calloc(1, msgSize);
       if (NULL == msg) {
         SCH_TASK_ELOG("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
     
-      STaskDropMsg *pMsg = msg;
+      STaskDropReq *pMsg = msg;
       
       pMsg->header.vgId = htonl(addr->nodeId);   
       

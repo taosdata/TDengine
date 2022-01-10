@@ -167,6 +167,11 @@ static void dndCloseVnode(SDnode *pDnode, SVnodeObj *pVnode) {
 
   dDebug("vgId:%d, vnode is closed", pVnode->vgId);
 
+  if (pVnode->dropped) {
+    dDebug("vgId:%d, vnode is destroyed for dropped:%d", pVnode->vgId, pVnode->dropped);
+    vnodeDestroy(pVnode->path);
+  }
+
   free(pVnode->path);
   free(pVnode->db);
   free(pVnode);
@@ -466,6 +471,7 @@ static int32_t dndOpenVnodes(SDnode *pDnode) {
 }
 
 static void dndCloseVnodes(SDnode *pDnode) {
+  dInfo("start to close all vnodes");
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
 
   int32_t     numOfVnodes = 0;
@@ -658,8 +664,6 @@ int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   }
 
   dndCloseVnode(pDnode, pVnode);
-  vnodeClose(pVnode->pImpl);
-  vnodeDestroy(pVnode->path);
   dndWriteVnodesToFile(pDnode);
 
   return 0;

@@ -1,4 +1,5 @@
 #include "qworker.h"
+#include <common.h>
 #include "executor.h"
 #include "planner.h"
 #include "query.h"
@@ -1028,8 +1029,6 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
 
   qTaskInfo_t pTaskInfo = NULL;
   code = qCreateExecTask(node, 0, (struct SSubplan *)plan, &pTaskInfo);
-  //TODO call executer to init subquery
-  
   if (code) {
     QW_ERR_JRET(code);
   } else {
@@ -1040,22 +1039,20 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
 
   queryRsped = true;
  
-  //TODO call executer to execute subquery
-  code = qExecTask(pTaskInfo);
-  void *data = NULL;
+  SSDataBlock* pRes = NULL;
+  code = qExecTask(pTaskInfo, &pRes);
+
   queryDone = false;
   //TODO call executer to execute subquery
 
   if (code) {
     QW_ERR_JRET(code);
   } else {
-    QW_ERR_JRET(qwAddTaskResCache(qWorkerMgmt, msg->queryId, msg->taskId, data));
-
+    QW_ERR_JRET(qwAddTaskResCache(qWorkerMgmt, msg->queryId, msg->taskId, pRes));
     QW_ERR_JRET(qwUpdateTaskStatus(qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, JOB_TASK_STATUS_PARTIAL_SUCCEED));
   } 
 
 _return:
-
   if (queryRsped) {
     code = qwCheckAndSendReadyRsp(qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, pMsg, code);
   } else {
@@ -1081,7 +1078,7 @@ int32_t qWorkerProcessReadyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg){
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
-  SResReadyMsg *msg = pMsg->pCont;
+  SResReadyReq *msg = pMsg->pCont;
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
     qError("invalid task status msg");  
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -1102,7 +1099,7 @@ int32_t qWorkerProcessStatusMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   }
 
   int32_t code = 0;
-  SSchTasksStatusMsg *msg = pMsg->pCont;
+  SSchTasksStatusReq *msg = pMsg->pCont;
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
     qError("invalid task status msg");
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -1126,7 +1123,7 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
-  SResFetchMsg *msg = pMsg->pCont;
+  SResFetchReq *msg = pMsg->pCont;
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }  
@@ -1158,7 +1155,7 @@ int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   }
 
   int32_t code = 0;
-  STaskCancelMsg *msg = pMsg->pCont;
+  STaskCancelReq *msg = pMsg->pCont;
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
     qError("invalid task cancel msg");  
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -1183,7 +1180,7 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   }
 
   int32_t code = 0;
-  STaskDropMsg *msg = pMsg->pCont;
+  STaskDropReq *msg = pMsg->pCont;
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
     qError("invalid task drop msg");
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);

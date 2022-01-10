@@ -40,6 +40,7 @@ int vnodeAsyncCommit(SVnode *pVnode) {
 int vnodeSyncCommit(SVnode *pVnode) {
   vnodeAsyncCommit(pVnode);
   vnodeWaitCommit(pVnode);
+  tsem_post(&(pVnode->canCommit));
   return 0;
 }
 

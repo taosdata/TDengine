@@ -108,12 +108,12 @@ static void *vnodeParseCreateTableReq(void *buf, SVCreateTableReq *pReq) {
   return buf;
 }
 
-int vnodeBuildDropTableReq(void **buf, const SVDropTableReq *pReq) {
+int vnodeBuildDropTableReq(void **buf, const SVDropTbReq *pReq) {
   // TODO
   return 0;
 }
 
-void *vnodeParseDropTableReq(void *buf, SVDropTableReq *pReq) {
+void *vnodeParseDropTableReq(void *buf, SVDropTbReq *pReq) {
   // TODO
 }
 #endif

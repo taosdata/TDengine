@@ -2457,7 +2457,7 @@ static void doUpdateLastKey(STaskAttr* pQueryAttr) {
   }
 }
 
-static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool stableQuery) {
+static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableReq* pQueryMsg, bool stableQuery) {
   STaskAttr* pQueryAttr = pQInfo->runtimeEnv.pQueryAttr;
 
   // in case of point-interpolation query, use asc order scan
@@ -7061,7 +7061,7 @@ bool validateExprColumnInfo(SQueriedTableInfo *pTableInfo, SSqlExpr *pExpr, SCol
   return j != INT32_MIN;
 }
 
-static bool validateQueryMsg(SQueryTableMsg *pQueryMsg) {
+static bool validateQueryMsg(SQueryTableReq *pQueryMsg) {
   if (pQueryMsg->interval.interval < 0) {
     //qError("qmsg:%p illegal value of interval time %" PRId64, pQueryMsg, pQueryMsg->interval.interval);
     return false;
@@ -7127,7 +7127,7 @@ static bool validateQueryTableCols(SQueriedTableInfo* pTableInfo, SSqlExpr** pEx
   return true;
 }
 
-static char *createTableIdList(SQueryTableMsg *pQueryMsg, char *pMsg, SArray **pTableIdList) {
+static char *createTableIdList(SQueryTableReq *pQueryMsg, char *pMsg, SArray **pTableIdList) {
   assert(pQueryMsg->numOfTables > 0);
 
   *pTableIdList = taosArrayInit(pQueryMsg->numOfTables, sizeof(STableIdInfo));
@@ -7231,7 +7231,7 @@ int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* r
  * @param pExpr
  * @return
  */
-int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, STaskParam* param) {
+int32_t convertQueryMsg(SQueryTableReq *pQueryMsg, STaskParam* param) {
   int32_t code = TSDB_CODE_SUCCESS;
 
 //  if (taosCheckVersion(pQueryMsg->version, version, 3) != 0) {
@@ -7806,7 +7806,7 @@ int32_t createQueryFilter(char *data, uint16_t len, SFilterInfo** pFilters) {
 
 
 // todo refactor
-int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutput, SExprInfo** pExprInfo,
+int32_t createIndirectQueryFuncExprFromMsg(SQueryTableReq* pQueryMsg, int32_t numOfOutput, SExprInfo** pExprInfo,
                                            SSqlExpr** pExpr, SExprInfo* prevExpr, struct SUdfInfo *pUdfInfo) {
 //  *pExprInfo = NULL;
 //  int32_t code = TSDB_CODE_SUCCESS;
@@ -7864,7 +7864,7 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t nu
   return TSDB_CODE_SUCCESS;
 }
 
-SGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *pColIndex, int32_t *code) {
+SGroupbyExpr *createGroupbyExprFromMsg(SQueryTableReq *pQueryMsg, SColIndex *pColIndex, int32_t *code) {
   if (pQueryMsg->numOfGroupCols == 0) {
     return NULL;
   }
@@ -8032,7 +8032,7 @@ FORCE_INLINE bool checkQIdEqual(void *qHandle, uint64_t qId) {
   return ((SQInfo *)qHandle)->qId == qId;
 }
 
-SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, SExprInfo* pExprs,
+SQInfo* createQInfoImpl(SQueryTableReq* pQueryMsg, SGroupbyExpr* pGroupbyExpr, SExprInfo* pExprs,
                         SExprInfo* pSecExprs, STableGroupInfo* pTableGroupInfo, SColumnInfo* pTagCols, SFilterInfo* pFilters, int32_t vgId,
                         char* sql, uint64_t qId, struct SUdfInfo* pUdfInfo) {
   int16_t numOfCols = pQueryMsg->numOfCols;
