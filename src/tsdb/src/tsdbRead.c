@@ -607,34 +607,6 @@ void tsdbResetQueryHandleForNewTable(TsdbQueryHandleT queryHandle, STsdbQueryCon
   pQueryHandle->next = doFreeColumnInfoData(pQueryHandle->next);
 }
 
-// static int32_t lazyLoadCacheLastX(STsdbQueryHandle* pQueryHandle) {
-//   STsdbRepo* pRepo = pQueryHandle->pTsdb;
-
-//   if (!pQueryHandle->pTableCheckInfo) {
-//     tsdbError("%p table check info is NULL", pQueryHandle);
-//     terrno = TSDB_CODE_QRY_APP_ERROR;
-//     return -1;
-//   }
-
-//   size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
-//   int32_t code = 0;
-//   for (size_t i = 0; i < numOfTables; ++i) {
-//     STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
-//     STable*          pTable = pCheckInfo->pTableObj;
-//     if (pTable->cacheLastConfigVersion == pRepo->cacheLastConfigVersion) {
-//       continue;
-//     }
-//     code = tsdbLoadLastCache(pRepo, pTable);
-//     if (code != 0) {
-//       tsdbError("%p uid:%" PRId64 ", tid:%d, failed to load last cache since %s", pQueryHandle, pTable->tableId.uid,
-//                 pTable->tableId.tid, tstrerror(terrno));
-//       break;
-//     }
-//   }
-
-//   return code;
-// }
-
 static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
   STsdbRepo* pRepo = pQueryHandle->pTsdb;
 
