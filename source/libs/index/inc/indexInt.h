@@ -19,6 +19,7 @@
 #include "index.h"
 #include "index_fst.h"
 #include "taos.h"
+#include "tchecksum.h"
 #include "thash.h"
 #include "tlog.h"
 
