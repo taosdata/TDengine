@@ -16,27 +16,6 @@
 #include "clientHb.h"
 #include "trpc.h"
 
-typedef struct SClientHbMgr {
-  int8_t       inited;
-
-  // statistics
-  int32_t      reportCnt;
-  int32_t      connKeyCnt;
-  int64_t      reportBytes;  // not implemented
-  int64_t      startTime;
-  // ctl
-  int8_t       threadStop;
-  pthread_t    thread;
-  SRWLatch     lock;        // lock is used in serialization
-  // connection
-  void*        transporter;
-  SEpSet       epSet;
-
-  SHashObj*    activeInfo;    // hash<SClientHbKey, SClientHbReq>
-  SHashObj*    getInfoFuncs;  // hash<SClientHbKey, FGetConnInfo>
-  FHbRspHandle handle[HEARTBEAT_TYPE_MAX];
-} SClientHbMgr;
-
 static SClientHbMgr clientHbMgr = {0};
 
 static int32_t hbCreateThread();
@@ -55,32 +34,32 @@ static FORCE_INLINE void hbMgrInitHandle() {
   hbMgrInitMqHbRspHandle();
 }
 
-static SClientHbBatchReq* hbGatherAllInfo() {
+SClientHbBatchReq* hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
   SClientHbBatchReq* pReq = malloc(sizeof(SClientHbBatchReq));
-  if(pReq == NULL) {
+  if (pReq == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
   }
-  int32_t connKeyCnt = atomic_load_32(&clientHbMgr.connKeyCnt);
+  int32_t connKeyCnt = atomic_load_32(&pAppHbMgr->connKeyCnt);
   pReq->reqs = taosArrayInit(connKeyCnt, sizeof(SClientHbReq));
 
-  void *pIter = taosHashIterate(clientHbMgr.activeInfo, NULL);
+  void *pIter = taosHashIterate(pAppHbMgr->activeInfo, NULL);
   while (pIter != NULL) {
     taosArrayPush(pReq->reqs, pIter);
     SClientHbReq* pOneReq = pIter;
     taosHashClear(pOneReq->info);
 
-    pIter = taosHashIterate(clientHbMgr.activeInfo, pIter);
+    pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter);
   }
 
-  pIter = taosHashIterate(clientHbMgr.getInfoFuncs, NULL);
+  pIter = taosHashIterate(pAppHbMgr->getInfoFuncs, NULL);
   while (pIter != NULL) {
     FGetConnInfo getConnInfoFp = (FGetConnInfo)pIter;
     SClientHbKey connKey;
     taosHashCopyKey(pIter, &connKey);
     getConnInfoFp(connKey, NULL);
 
-    pIter = taosHashIterate(clientHbMgr.activeInfo, pIter);
+    pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter);
   }
 
   return pReq;
@@ -93,22 +72,24 @@ static void* hbThreadFunc(void* param) {
     if(threadStop) {
       break;
     }
-    
-    SClientHbBatchReq* pReq = hbGatherAllInfo();
-    void* reqStr = NULL;
-    int tlen = tSerializeSClientHbBatchReq(&reqStr, pReq);
-    SMsgSendInfo info;
-    /*info.fp = hbHandleRsp;*/
 
-    int64_t transporterId = 0;
-    asyncSendMsgToServer(clientHbMgr.transporter, &clientHbMgr.epSet, &transporterId, &info);
-    tFreeClientHbBatchReq(pReq);
+    int sz = taosArrayGetSize(clientHbMgr.appHbMgrs);
+    for(int i = 0; i < sz; i++) {
+      SAppHbMgr* pAppHbMgr = taosArrayGet(clientHbMgr.appHbMgrs, i);
+      SClientHbBatchReq* pReq = hbGatherAllInfo(pAppHbMgr);
+      void* reqStr = NULL;
+      int tlen = tSerializeSClientHbBatchReq(&reqStr, pReq);
+      SMsgSendInfo info;
+      /*info.fp = hbHandleRsp;*/
 
-    atomic_add_fetch_32(&clientHbMgr.reportCnt, 1);
-    taosMsleep(HEARTBEAT_INTERVAL);
+      int64_t transporterId = 0;
+      asyncSendMsgToServer(pAppHbMgr->transporter, &pAppHbMgr->epSet, &transporterId, &info);
+      tFreeClientHbBatchReq(pReq);
 
+      atomic_add_fetch_32(&pAppHbMgr->reportCnt, 1);
+      taosMsleep(HEARTBEAT_INTERVAL);
+    }
   }
-
   return NULL;
 }
 
@@ -129,26 +110,54 @@ static void hbStopThread() {
   atomic_store_8(&clientHbMgr.threadStop, 1);
 }
 
-int hbMgrInit(void* transporter, SEpSet epSet) {
+SAppHbMgr* appHbMgrInit(void* transporter, SEpSet epSet) {
+  SAppHbMgr* pAppHbMgr = malloc(sizeof(SAppHbMgr)); 
+  if (pAppHbMgr == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  // init stat
+  pAppHbMgr->startTime = taosGetTimestampMs();
+
+  // init connection info
+  pAppHbMgr->transporter = transporter;
+  pAppHbMgr->epSet = epSet;
+
+  // init hash info
+  pAppHbMgr->activeInfo = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+  pAppHbMgr->activeInfo->freeFp = tFreeClientHbReq;
+  // init getInfoFunc
+  pAppHbMgr->getInfoFuncs = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+
+  taosArrayPush(clientHbMgr.appHbMgrs, &pAppHbMgr);
+  return pAppHbMgr;
+}
+
+void appHbMgrCleanup(SAppHbMgr* pAppHbMgr) {
+  pthread_mutex_lock(&clientHbMgr.lock);
+
+  int sz = taosArrayGetSize(clientHbMgr.appHbMgrs);
+  for (int i = 0; i < sz; i++) {
+    SAppHbMgr* pTarget = taosArrayGet(clientHbMgr.appHbMgrs, i);
+    if (pAppHbMgr == pTarget) {
+      taosHashCleanup(pTarget->activeInfo);
+      taosHashCleanup(pTarget->getInfoFuncs);
+    }
+  }
+
+  pthread_mutex_unlock(&clientHbMgr.lock);
+}
+
+int hbMgrInit() {
   // init once
   int8_t old = atomic_val_compare_exchange_8(&clientHbMgr.inited, 0, 1);
   if (old == 1) return 0;
 
-  // init stat
-  clientHbMgr.startTime = taosGetTimestampMs();
+  clientHbMgr.appHbMgrs = taosArrayInit(0, sizeof(void*));
+  pthread_mutex_init(&clientHbMgr.lock, NULL);
 
   // init handle funcs
   hbMgrInitHandle();
-
-  // init hash info
-  clientHbMgr.activeInfo = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
-  clientHbMgr.activeInfo->freeFp = tFreeClientHbReq;
-  // init getInfoFunc
-  clientHbMgr.getInfoFuncs = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
-
-  //init connection info
-  clientHbMgr.transporter = transporter;
-  clientHbMgr.epSet = epSet;
 
   // init backgroud thread
   hbCreateThread();
@@ -157,11 +166,12 @@ int hbMgrInit(void* transporter, SEpSet epSet) {
 }
 
 void hbMgrCleanUp() {
+  // destroy all appHbMgr
   int8_t old = atomic_val_compare_exchange_8(&clientHbMgr.inited, 1, 0);
   if (old == 0) return;
 
-  taosHashCleanup(clientHbMgr.activeInfo);
-  taosHashCleanup(clientHbMgr.getInfoFuncs);
+  taosArrayDestroy(clientHbMgr.appHbMgrs);
+
 }
 
 int hbHandleRsp(SClientHbBatchRsp* hbRsp) {
@@ -181,34 +191,34 @@ int hbHandleRsp(SClientHbBatchRsp* hbRsp) {
   return 0;
 }
 
-int hbRegisterConn(SClientHbKey connKey, FGetConnInfo func) {
+int hbRegisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, FGetConnInfo func) {
   // init hash in activeinfo
-  void* data = taosHashGet(clientHbMgr.activeInfo, &connKey, sizeof(SClientHbKey));
+  void* data = taosHashGet(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
   if (data != NULL) {
     return 0;
   }
   SClientHbReq hbReq;
   hbReq.connKey = connKey;
   hbReq.info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
-  taosHashPut(clientHbMgr.activeInfo, &connKey, sizeof(SClientHbKey), &hbReq, sizeof(SClientHbReq));
+  taosHashPut(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey), &hbReq, sizeof(SClientHbReq));
   // init hash
   if (func != NULL) {
-    taosHashPut(clientHbMgr.getInfoFuncs, &connKey, sizeof(SClientHbKey), func, sizeof(FGetConnInfo));
+    taosHashPut(pAppHbMgr->getInfoFuncs, &connKey, sizeof(SClientHbKey), func, sizeof(FGetConnInfo));
   }
 
-  atomic_add_fetch_32(&clientHbMgr.connKeyCnt, 1);
+  atomic_add_fetch_32(&pAppHbMgr->connKeyCnt, 1);
   return 0;
 }
 
-void hbDeregisterConn(SClientHbKey connKey) {
-  taosHashRemove(clientHbMgr.activeInfo, &connKey, sizeof(SClientHbKey));
-  taosHashRemove(clientHbMgr.getInfoFuncs, &connKey, sizeof(SClientHbKey));
-  atomic_sub_fetch_32(&clientHbMgr.connKeyCnt, 1);
+void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey) {
+  taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+  taosHashRemove(pAppHbMgr->getInfoFuncs, &connKey, sizeof(SClientHbKey));
+  atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
 }
 
-int hbAddConnInfo(SClientHbKey connKey, void* key, void* value, int32_t keyLen, int32_t valueLen) {
+int hbAddConnInfo(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, void* key, void* value, int32_t keyLen, int32_t valueLen) {
   // find req by connection id
-  SClientHbReq* pReq = taosHashGet(clientHbMgr.activeInfo, &connKey, sizeof(SClientHbKey));
+  SClientHbReq* pReq = taosHashGet(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
   ASSERT(pReq != NULL);
 
   taosHashPut(pReq->info, key, keyLen, value, valueLen);

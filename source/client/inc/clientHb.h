@@ -18,7 +18,7 @@
 #include "thash.h"
 #include "tmsg.h"
 
-#define HEARTBEAT_INTERVAL 1500 //ms
+#define HEARTBEAT_INTERVAL 1500  // ms
 
 typedef enum {
   HEARTBEAT_TYPE_MQ = 0,
@@ -29,20 +29,50 @@ typedef enum {
 
 typedef int32_t (*FHbRspHandle)(SClientHbRsp* pReq);
 
-//TODO: embed param into function
-//return type: SArray<Skv>
+typedef struct SAppHbMgr {
+  // statistics
+  int32_t reportCnt;
+  int32_t connKeyCnt;
+  int64_t reportBytes;  // not implemented
+  int64_t startTime;
+  // ctl
+  SRWLatch lock;  // lock is used in serialization
+  // connection
+  void*  transporter;
+  SEpSet epSet;
+  // info
+  SHashObj* activeInfo;    // hash<SClientHbKey, SClientHbReq>
+  SHashObj* getInfoFuncs;  // hash<SClientHbKey, FGetConnInfo>
+} SAppHbMgr;
+
+typedef struct SClientHbMgr {
+  int8_t inited;
+  // ctl
+  int8_t          threadStop;
+  pthread_t       thread;
+  pthread_mutex_t lock;       // used when app init and cleanup
+  SArray*         appHbMgrs;  // SArray<SAppHbMgr*> one for each cluster
+  FHbRspHandle    handle[HEARTBEAT_TYPE_MAX];
+} SClientHbMgr;
+
+// TODO: embed param into function
+// return type: SArray<Skv>
 typedef SArray* (*FGetConnInfo)(SClientHbKey connKey, void* param);
 
-// called by mgmt
-int  hbMgrInit(void* transporter, SEpSet epSet);
+// global, called by mgmt
+int  hbMgrInit();
 void hbMgrCleanUp();
 int  hbHandleRsp(SClientHbBatchRsp* hbRsp);
 
-//called by user
-int hbRegisterConn(SClientHbKey connKey, FGetConnInfo func);
-void hbDeregisterConn(SClientHbKey connKey);
+// cluster level
+SAppHbMgr* appHbMgrInit(void* transporter, SEpSet epSet);
+void appHbMgrCleanup(SAppHbMgr* pAppHbMgr);
 
-int hbAddConnInfo(SClientHbKey connKey, void* key, void* value, int32_t keyLen, int32_t valueLen);
+// conn level
+int  hbRegisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, FGetConnInfo func);
+void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey);
+
+int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* value, int32_t keyLen, int32_t valueLen);
 
 // mq
 void hbMgrInitMqHbRspHandle();

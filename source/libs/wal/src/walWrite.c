@@ -254,6 +254,7 @@ static int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   SWalIdxEntry entry = {.ver = ver, .offset = offset};
   int          size = tfWrite(pWal->writeIdxTfd, &entry, sizeof(SWalIdxEntry));
   if (size != sizeof(SWalIdxEntry)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     // TODO truncate
     return -1;
   }
@@ -287,7 +288,13 @@ int64_t walWrite(SWal *pWal, int64_t index, uint8_t msgType, const void *body, i
   }
   /*if (!tfValid(pWal->writeLogTfd)) return -1;*/
 
+  ASSERT(pWal->writeCur >= 0);
+
   pthread_mutex_lock(&pWal->mutex);
+  if (pWal->writeIdxTfd == -1 || pWal->writeLogTfd == -1) {
+    walChangeFileToLast(pWal);
+  }
+
   pWal->writeHead.head.version = index;
 
   int64_t offset = walGetCurFileOffset(pWal);
@@ -309,6 +316,7 @@ int64_t walWrite(SWal *pWal, int64_t index, uint8_t msgType, const void *body, i
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
   }
+
   code = walWriteIndex(pWal, index, offset);
   if (code != 0) {
     // TODO
