@@ -17,6 +17,7 @@
 #include <iostream>
 #include "tmsg.h"
 #include "query.h"
+#include "trpc.h"
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 
 #pragma GCC diagnostic ignored "-Wunused-function"
