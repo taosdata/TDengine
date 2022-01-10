@@ -1,7 +1,7 @@
 /**
  * @file db.cpp
  * @author slguan (slguan@taosdata.com)
- * @brief DNODE module vgroup-msg tests
+ * @brief DNODE module vnode tests
  * @version 0.1
  * @date 2021-12-20
  *
@@ -62,7 +62,12 @@ TEST_F(DndTestVnode, 01_Create_Restart_Drop_Vnode) {
 
       SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_VNODE, pReq, contLen);
       ASSERT_NE(pRsp, nullptr);
-      ASSERT_EQ(pRsp->code, 0);
+      if (i == 0) {
+        ASSERT_EQ(pRsp->code, 0);
+        test.Restart();
+      } else {
+        ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED);
+      }
     }
   }
 
@@ -123,7 +128,12 @@ TEST_F(DndTestVnode, 01_Create_Restart_Drop_Vnode) {
 
       SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_VNODE, pReq, contLen);
       ASSERT_NE(pRsp, nullptr);
-      ASSERT_EQ(pRsp->code, 0);
+      if (i == 0) {
+        ASSERT_EQ(pRsp->code, 0);
+        test.Restart();
+      } else {
+        ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_NOT_DEPLOYED);
+      }
     }
   }
 }
