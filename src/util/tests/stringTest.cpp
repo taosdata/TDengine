@@ -81,12 +81,6 @@ TEST(testCase, string_dequote_test) {
   EXPECT_EQ(3, len);
   EXPECT_STRCASEEQ(t1, "ab`c");
 
-  char t2[] = "\"abc\"";
-  len = stringProcess(t2, strlen(t2));
-
-  EXPECT_EQ(3, len);
-  EXPECT_STRCASEEQ(t1, "abc");
-
   char t21[] = " abc ";
   int32_t lx = strtrim(t21);
 
