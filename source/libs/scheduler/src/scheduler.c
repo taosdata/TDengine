@@ -522,7 +522,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
     atomic_add_fetch_32(&par->childReady, 1);
 
-    SCH_ERR_RET(qSetSubplanExecutionNode(par->plan, pTask->plan->id.templateId, &pTask->execAddr));
+    qSetSubplanExecutionNode(par->plan, pTask->plan->id.templateId, &pTask->execAddr);
     
     if (SCH_TASK_READY_TO_LUNCH(par)) {
       SCH_ERR_RET(schLaunchTask(pJob, par));
