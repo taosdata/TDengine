@@ -511,6 +511,19 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   }
 
   bool shouldFree = tscShouldBeFreed(pSql);
+  if (rpcMsg->code == TSDB_CODE_TSC_INVALID_SCHEMA_VERSION) {
+    pSql->res.code = rpcMsg->code;
+    tscWarn("0x%" PRIx64 " it shall renew table meta, code:%s, retry:%d", pSql->self, tstrerror(rpcMsg->code), pSql->retry);
+
+    ++pSql->retry;
+    if (pSql->retry > pSql->maxRetry) {
+      tscError("0x%" PRIx64 " max retry %d reached, give up", pSql->self, pSql->maxRetry);
+    } else {
+      pSql->retryReason = rpcMsg->code;
+      rpcMsg->code = tscRenewTableMeta(pSql);
+    }
+  }
+
   if (rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     if (rpcMsg->code != TSDB_CODE_SUCCESS) {
       pRes->code = rpcMsg->code;
@@ -2820,6 +2833,12 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
       tlv = (STLV*) ((char*)tlv + sizeof(STLV) + ntohl(tlv->len));
     }
   }
+
+  STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
+  if (pTableMeta->sversion < pSql->res.sVersion || pTableMeta->tversion < pSql->res.tVersion) {
+    return TSDB_CODE_TSC_INVALID_SCHEMA_VERSION;
+  }
+
   return 0;
 }
 
