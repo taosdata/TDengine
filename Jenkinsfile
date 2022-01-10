@@ -105,15 +105,17 @@ pipeline {
               abort_previous()
               abortPreviousBuilds()
             }
-          pre_test()
-          sh'''
-          cd ${WKC}/tests
-          ./test-all.sh b1fq
-          '''
-          sh'''
-          cd ${WKC}/debug
-          ctest
-          '''
+            timeout(time: 45, unit: 'MINUTES'){
+              pre_test()
+              sh'''
+              cd ${WKC}/tests
+              ./test-all.sh b1fq
+              '''
+              sh'''
+              cd ${WKC}/debug
+              ctest
+              '''
+            }
           }
       }
   }
