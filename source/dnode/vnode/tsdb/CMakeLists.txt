@@ -13,6 +13,7 @@ else(0)
         "src/tsdbReadImpl.c"
         "src/tsdbFile.c"
         "src/tsdbFS.c"
+        "src/tsdbRead.c"
     )
 endif(0)
 

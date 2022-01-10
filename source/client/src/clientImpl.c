@@ -197,7 +197,25 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
 
 int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQueryNode, SQueryDag** pDag) {
   pRequest->type = pQueryNode->type;
-  return qCreateQueryDag(pQueryNode, pDag, pRequest->requestId);
+
+  SSchema *pSchema = NULL;
+  SReqResultInfo* pResInfo = &pRequest->body.resInfo;
+
+  int32_t code = qCreateQueryDag(pQueryNode, pDag, &pSchema, &pResInfo->numOfCols, pRequest->requestId);
+  if (code != 0) {
+    return code;
+  }
+
+  if (pQueryNode->type == TSDB_SQL_SELECT) {
+    pResInfo->fields = calloc(1, sizeof(TAOS_FIELD));
+    for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
+      pResInfo->fields[i].bytes = pSchema[i].bytes;
+      pResInfo->fields[i].type = pSchema[i].type;
+      tstrncpy(pResInfo->fields[i].name, pSchema[i].name, tListLen(pResInfo->fields[i].name));
+    }
+  }
+
+  return code;
 }
 
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, void** pJob) {

@@ -1,9 +1,10 @@
 #include "qworker.h"
-#include "tname.h"
+#include "executor.h"
 #include "planner.h"
 #include "query.h"
 #include "qworkerInt.h"
 #include "tmsg.h"
+#include "tname.h"
 
 int32_t qwValidateStatus(int8_t oriStatus, int8_t newStatus) {
   int32_t code = 0;
@@ -1011,7 +1012,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   bool queryDone = false;
   bool queryRsped = false;
   bool needStop = false;
-  SSubplan *plan = NULL;
+  struct SSubplan *plan = NULL;
 
   QW_ERR_JRET(qwCheckTaskCancelDrop(qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, &needStop));
   if (needStop) {
@@ -1025,8 +1026,8 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
     QW_ERR_JRET(code);
   }
 
-  //TODO call executer to init subquery
-  code = 0; // return error directly
+  qTaskInfo_t pTaskInfo = NULL;
+  code = qCreateExecTask(node, 0, (struct SSubplan *)plan, &pTaskInfo);
   //TODO call executer to init subquery
   
   if (code) {
@@ -1040,7 +1041,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   queryRsped = true;
  
   //TODO call executer to execute subquery
-  code = 0; 
+  code = qExecTask(pTaskInfo);
   void *data = NULL;
   queryDone = false;
   //TODO call executer to execute subquery

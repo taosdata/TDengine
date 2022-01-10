@@ -33,7 +33,7 @@ struct SDataSink;
 struct SSDataBlock;
 
 typedef struct SDataSinkMgtCfg {
-  uint32_t maxDataBlockNum;
+  uint32_t maxDataBlockNum;           // todo: this should be numOfRows?
   uint32_t maxDataBlockNumPerQuery;
 } SDataSinkMgtCfg;
 

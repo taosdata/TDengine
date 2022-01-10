@@ -181,7 +181,6 @@ void schFreeTask(SSchTask* pTask) {
 
 int32_t schValidateAndBuildJob(SQueryDag *pDag, SSchJob *pJob) {
   int32_t code = 0;
-
   pJob->queryId = pDag->queryId;
   
   if (pDag->numOfSubplans <= 0) {
@@ -256,7 +255,7 @@ int32_t schValidateAndBuildJob(SQueryDag *pDag, SSchJob *pJob) {
 
       SSchTask  task = {0};
       SSchTask *pTask = &task;
-      
+
       schInitTask(pJob, &task, plan, pLevel);
       
       void *p = taosArrayPush(pLevel->subTasks, &task);
@@ -279,7 +278,6 @@ int32_t schValidateAndBuildJob(SQueryDag *pDag, SSchJob *pJob) {
   SCH_ERR_JRET(schBuildTaskRalation(pJob, planToTask));
 
 _return:
-
   if (planToTask) {
     taosHashCleanup(planToTask);
   }
@@ -592,60 +590,59 @@ int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *ms
       break;
     }
     case TDMT_VND_SUBMIT_RSP: {
-        if (rspCode != TSDB_CODE_SUCCESS || NULL == msg) {
-          SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rspCode));
-        } else {
-          SShellSubmitRspMsg *rsp = (SShellSubmitRspMsg *)msg;
-          job->resNumOfRows += rsp->affectedRows;
+      if (rspCode != TSDB_CODE_SUCCESS || NULL == msg) {
+        SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rspCode));
+      } else {
+        SShellSubmitRspMsg *rsp = (SShellSubmitRspMsg *)msg;
+        job->resNumOfRows += rsp->affectedRows;
 
-          code = schProcessOnTaskSuccess(job, task);
-          if (code) {
-            goto _task_error;
-          }               
+        code = schProcessOnTaskSuccess(job, task);
+        if (code) {
+          goto _task_error;
         }
-        break;
       }
+      break;
+    }
     case TDMT_VND_QUERY_RSP: {
-        SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
-        
-        if (rsp->code != TSDB_CODE_SUCCESS || NULL == msg) {
-          SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rsp->code));
-        } else {
-          code = schBuildAndSendMsg(job, task, TDMT_VND_RES_READY);
-          if (code) {
-            goto _task_error;
-          }
+      SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
+
+      if (rsp->code != TSDB_CODE_SUCCESS || NULL == msg) {
+        SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rsp->code));
+      } else {
+        code = schBuildAndSendMsg(job, task, TDMT_VND_RES_READY);
+        if (code) {
+          goto _task_error;
         }
-        break;
       }
+      break;
+    }
     case TDMT_VND_RES_READY_RSP: {
-        SResReadyRsp *rsp = (SResReadyRsp *)msg;
-        
-        if (rsp->code != TSDB_CODE_SUCCESS || NULL == msg) {
-          SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rsp->code));
-        } else {
-          code = schProcessOnTaskSuccess(job, task);
-          if (code) {
-            goto _task_error;
-          }        
+      SResReadyRsp *rsp = (SResReadyRsp *)msg;
+
+      if (rsp->code != TSDB_CODE_SUCCESS || NULL == msg) {
+        SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rsp->code));
+      } else {
+        code = schProcessOnTaskSuccess(job, task);
+        if (code) {
+          goto _task_error;
         }
-        break;
       }
+      break;
+    }
     case TDMT_VND_FETCH_RSP: {
-        SCH_ERR_JRET(rspCode);
-        SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
+      SCH_ERR_JRET(rspCode);
+      SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
 
-        job->res = rsp;
-        if (rsp) {
-          job->resNumOfRows = rsp->numOfRows;
-        }
-        
-        SCH_ERR_JRET(schProcessOnDataFetched(job));
-        break;
+      job->res = rsp;
+      if (rsp) {
+        job->resNumOfRows = rsp->numOfRows;
       }
+
+      SCH_ERR_JRET(schProcessOnDataFetched(job));
+      break;
+    }
     case TDMT_VND_DROP_TASK: {
-
-      }
+    }
     default:
       qError("unknown msg type:%d received", msgType);
       return TSDB_CODE_QRY_INVALID_INPUT;
@@ -1111,7 +1108,7 @@ int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void
 }
 
 int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob) {
-  if (NULL == transport || /*NULL == nodeList || */NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
+  if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 

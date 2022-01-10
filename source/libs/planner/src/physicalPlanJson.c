@@ -154,9 +154,13 @@ static bool fromRawArrayWithAlloc(const cJSON* json, const char* name, FFromJson
   return fromItem(jArray, func, *array, itemSize, *size);
 }
 
-static bool fromRawArray(const cJSON* json, const char* name, FFromJson func, void* array, int32_t itemSize, int32_t* size) {
+static bool fromRawArray(const cJSON* json, const char* name, FFromJson func, void** array, int32_t itemSize, int32_t* size) {
   const cJSON* jArray = getArray(json, name, size);
-  return fromItem(jArray, func, array, itemSize, *size);
+  if (*array == NULL) {
+    *array = calloc(*size, itemSize);
+  }
+
+  return fromItem(jArray, func, *array, itemSize, *size);
 }
 
 static char* getString(const cJSON* json, const char* name) {
@@ -728,7 +732,7 @@ static bool phyNodeFromJson(const cJSON* json, void* obj) {
     res = fromArray(json, jkPnodeConditions, exprInfoFromJson, &node->pConditions, sizeof(SExprInfo));
   }
   if (res) {
-    res = fromRawArray(json, jkPnodeSchema, schemaFromJson, node->targetSchema.pSchema, sizeof(SSlotSchema), &node->targetSchema.numOfCols);
+    res = fromRawArray(json, jkPnodeSchema, schemaFromJson, (void**)&node->targetSchema.pSchema, sizeof(SSlotSchema), &node->targetSchema.numOfCols);
   }
   if (res) {
     res = fromArray(json, jkPnodeChildren, phyNodeFromJson, &node->pChildren, sizeof(SSlotSchema));
@@ -889,6 +893,8 @@ int32_t subPlanToString(const SSubplan* subplan, char** str, int32_t* len) {
   }
 
   *str = cJSON_Print(json);
+
+  printf("%s\n", *str);
   *len = strlen(*str) + 1;
   return TSDB_CODE_SUCCESS;
 }
