@@ -89,7 +89,7 @@ enum {
 };
 
 enum {
-  MASTER_SCAN   = 0x0u,
+  MAIN_SCAN     = 0x0u,
   REVERSE_SCAN  = 0x1u,
   REPEAT_SCAN   = 0x2u,  //repeat scan belongs to the master scan
   MERGE_STAGE   = 0x20u,
@@ -183,7 +183,6 @@ typedef struct tExprNode {
 
     struct {// function node
       char              functionName[FUNCTIONS_NAME_MAX_LENGTH];
-//      int32_t           functionId;
       int32_t           num;
 
       // Note that the attribute of pChild is not the parameter of function, it is the columns that involved in the

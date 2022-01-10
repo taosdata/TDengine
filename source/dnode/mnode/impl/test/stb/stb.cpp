@@ -1,19 +1,19 @@
 /**
  * @file stb.cpp
  * @author slguan (slguan@taosdata.com)
- * @brief DNODE module db-msg tests
- * @version 0.1
- * @date 2021-12-17
+ * @brief MNODE module stb tests
+ * @version 1.0
+ * @date 2022-01-12
  *
- * @copyright Copyright (c) 2021
+ * @copyright Copyright (c) 2022
  *
  */
 
 #include "sut.h"
 
-class DndTestStb : public ::testing::Test {
+class MndTestStb : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_stb", 9101); }
+  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_stb", 9034); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -23,9 +23,9 @@ class DndTestStb : public ::testing::Test {
   void TearDown() override {}
 };
 
-Testbase DndTestStb::test;
+Testbase MndTestStb::test;
 
-TEST_F(DndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
+TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   {
     int32_t contLen = sizeof(SCreateDbMsg);
 

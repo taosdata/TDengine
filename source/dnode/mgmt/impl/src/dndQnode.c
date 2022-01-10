@@ -42,18 +42,13 @@ static SQnode *dndAcquireQnode(SDnode *pDnode) {
 }
 
 static void dndReleaseQnode(SDnode *pDnode, SQnode *pQnode) {
+  if (pQnode == NULL) return;
+
   SQnodeMgmt *pMgmt = &pDnode->qmgmt;
-  int32_t     refCount = 0;
-
   taosRLockLatch(&pMgmt->latch);
-  if (pQnode != NULL) {
-    refCount = atomic_sub_fetch_32(&pMgmt->refCount, 1);
-  }
+  int32_t refCount = atomic_sub_fetch_32(&pMgmt->refCount, 1);
   taosRUnLockLatch(&pMgmt->latch);
-
-  if (pQnode != NULL) {
-    dTrace("release qnode, refCount:%d", refCount);
-  }
+  dTrace("release qnode, refCount:%d", refCount);
 }
 
 static int32_t dndReadQnodeFile(SDnode *pDnode) {

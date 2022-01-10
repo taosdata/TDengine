@@ -1,7 +1,7 @@
 /**
  * @file db.cpp
  * @author slguan (slguan@taosdata.com)
- * @brief DNODE module vgroup-msg tests
+ * @brief DNODE module vnode tests
  * @version 0.1
  * @date 2021-12-20
  *
@@ -11,9 +11,9 @@
 
 #include "sut.h"
 
-class DndTestVgroup : public ::testing::Test {
+class DndTestVnode : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_vgroup", 9150); }
+  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_vnode", 9115); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -23,14 +23,14 @@ class DndTestVgroup : public ::testing::Test {
   void TearDown() override {}
 };
 
-Testbase DndTestVgroup::test;
+Testbase DndTestVnode::test;
 
-TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
+TEST_F(DndTestVnode, 01_Create_Restart_Drop_Vnode) {
   {
     for (int i = 0; i < 3; ++i) {
-      int32_t contLen = sizeof(SCreateVnodeMsg);
+      int32_t contLen = sizeof(SCreateVnodeReq);
 
-      SCreateVnodeMsg* pReq = (SCreateVnodeMsg*)rpcMallocCont(contLen);
+      SCreateVnodeReq* pReq = (SCreateVnodeReq*)rpcMallocCont(contLen);
       pReq->vgId = htonl(2);
       pReq->dnodeId = htonl(1);
       strcpy(pReq->db, "1.d1");
@@ -57,20 +57,25 @@ TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
       for (int r = 0; r < pReq->replica; ++r) {
         SReplica* pReplica = &pReq->replicas[r];
         pReplica->id = htonl(1);
-        pReplica->port = htons(9150);
+        pReplica->port = htons(9527);
       }
 
       SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_VNODE, pReq, contLen);
       ASSERT_NE(pRsp, nullptr);
-      ASSERT_EQ(pRsp->code, 0);
+      if (i == 0) {
+        ASSERT_EQ(pRsp->code, 0);
+        test.Restart();
+      } else {
+        ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED);
+      }
     }
   }
 
   {
     for (int i = 0; i < 3; ++i) {
-      int32_t contLen = sizeof(SAlterVnodeMsg);
+      int32_t contLen = sizeof(SAlterVnodeReq);
 
-      SAlterVnodeMsg* pReq = (SAlterVnodeMsg*)rpcMallocCont(contLen);
+      SAlterVnodeReq* pReq = (SAlterVnodeReq*)rpcMallocCont(contLen);
       pReq->vgId = htonl(2);
       pReq->dnodeId = htonl(1);
       strcpy(pReq->db, "1.d1");
@@ -97,7 +102,7 @@ TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
       for (int r = 0; r < pReq->replica; ++r) {
         SReplica* pReplica = &pReq->replicas[r];
         pReplica->id = htonl(1);
-        pReplica->port = htons(9150);
+        pReplica->port = htons(9527);
       }
 
       SRpcMsg* pRsp = test.SendReq(TDMT_DND_ALTER_VNODE, pReq, contLen);
@@ -108,9 +113,9 @@ TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
 
   {
     for (int i = 0; i < 3; ++i) {
-      int32_t contLen = sizeof(SDropVnodeMsg);
+      int32_t contLen = sizeof(SDropVnodeReq);
 
-      SDropVnodeMsg* pReq = (SDropVnodeMsg*)rpcMallocCont(contLen);
+      SDropVnodeReq* pReq = (SDropVnodeReq*)rpcMallocCont(contLen);
       pReq->vgId = htonl(2);
       pReq->dnodeId = htonl(1);
       strcpy(pReq->db, "1.d1");
@@ -118,12 +123,17 @@ TEST_F(DndTestVgroup, 01_Create_Restart_Drop_Vnode) {
 
       SRpcMsg rpcMsg = {0};
       rpcMsg.pCont = pReq;
-      rpcMsg.contLen = sizeof(SDropVnodeMsg);
+      rpcMsg.contLen = sizeof(SDropVnodeReq);
       rpcMsg.msgType = TDMT_DND_DROP_VNODE;
 
       SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_VNODE, pReq, contLen);
       ASSERT_NE(pRsp, nullptr);
-      ASSERT_EQ(pRsp->code, 0);
+      if (i == 0) {
+        ASSERT_EQ(pRsp->code, 0);
+        test.Restart();
+      } else {
+        ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_NOT_DEPLOYED);
+      }
     }
   }
 }

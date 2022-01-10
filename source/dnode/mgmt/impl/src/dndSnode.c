@@ -42,18 +42,13 @@ static SSnode *dndAcquireSnode(SDnode *pDnode) {
 }
 
 static void dndReleaseSnode(SDnode *pDnode, SSnode *pSnode) {
+  if (pSnode == NULL) return;
+
   SSnodeMgmt *pMgmt = &pDnode->smgmt;
-  int32_t     refCount = 0;
-
   taosRLockLatch(&pMgmt->latch);
-  if (pSnode != NULL) {
-    refCount = atomic_sub_fetch_32(&pMgmt->refCount, 1);
-  }
+  int32_t refCount = atomic_sub_fetch_32(&pMgmt->refCount, 1);
   taosRUnLockLatch(&pMgmt->latch);
-
-  if (pSnode != NULL) {
-    dTrace("release snode, refCount:%d", refCount);
-  }
+  dTrace("release snode, refCount:%d", refCount);
 }
 
 static int32_t dndReadSnodeFile(SDnode *pDnode) {

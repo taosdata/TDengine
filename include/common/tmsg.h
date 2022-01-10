@@ -133,46 +133,17 @@ typedef enum _mgmt_table {
 #define TSDB_COL_IS_UD_COL(f) ((f & (~(TSDB_COL_NULL))) == TSDB_COL_UDC)
 #define TSDB_COL_REQ_NULL(f) (((f)&TSDB_COL_NULL) != 0)
 
-typedef struct SKlv {
+typedef struct SKv {
   int32_t keyLen;
   int32_t valueLen;
   void*   key;
   void*   value;
-} SKlv;
+} SKv;
 
-static FORCE_INLINE int taosEncodeSKlv(void** buf, const SKlv* pKlv) {
-  int tlen = 0;
-  tlen += taosEncodeFixedI32(buf, pKlv->keyLen);
-  tlen += taosEncodeFixedI32(buf, pKlv->valueLen);
-  tlen += taosEncodeBinary(buf, pKlv->key, pKlv->keyLen);
-  tlen += taosEncodeBinary(buf, pKlv->value, pKlv->valueLen);
-  return tlen;
-}
-
-static FORCE_INLINE void* taosDecodeSKlv(void* buf, SKlv* pKlv) {
-  buf = taosDecodeFixedI32(buf, &pKlv->keyLen);
-  buf = taosDecodeFixedI32(buf, &pKlv->valueLen);
-  buf = taosDecodeBinary(buf, &pKlv->key, pKlv->keyLen);
-  buf = taosDecodeBinary(buf, &pKlv->value, pKlv->valueLen);
-  return buf;
-}
 typedef struct SClientHbKey {
   int32_t connId;
   int32_t hbType;
 } SClientHbKey;
-
-static FORCE_INLINE int taosEncodeSClientHbKey(void** buf, const SClientHbKey* pKey) {
-  int tlen = 0;
-  tlen += taosEncodeFixedI32(buf, pKey->connId);
-  tlen += taosEncodeFixedI32(buf, pKey->hbType);
-  return tlen;
-}
-
-static FORCE_INLINE void* taosDecodeSClientHbKey(void* buf, SClientHbKey* pKey) {
-  buf = taosDecodeFixedI32(buf, &pKey->connId);
-  buf = taosDecodeFixedI32(buf, &pKey->hbType);
-  return buf;
-}
 
 typedef struct SClientHbReq {
   SClientHbKey connKey;
@@ -183,9 +154,6 @@ typedef struct SClientHbBatchReq {
   int64_t reqId;
   SArray* reqs;  // SArray<SClientHbReq>
 } SClientHbBatchReq;
-
-int   tSerializeSClientHbReq(void** buf, const SClientHbReq* pReq);
-void* tDeserializeClientHbReq(void* buf, SClientHbReq* pReq);
 
 typedef struct SClientHbRsp {
   SClientHbKey connKey;
@@ -199,6 +167,58 @@ typedef struct SClientHbBatchRsp {
   int64_t rspId;
   SArray* rsps;  // SArray<SClientHbRsp>
 } SClientHbBatchRsp;
+
+static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) {
+  return taosIntHash_64(key, keyLen);
+}
+
+int   tSerializeSClientHbReq(void** buf, const SClientHbReq* pReq);
+void* tDeserializeClientHbReq(void* buf, SClientHbReq* pReq);
+
+static FORCE_INLINE void  tFreeClientHbReq(void *pReq) {
+  SClientHbReq* req = (SClientHbReq*)pReq;
+  taosHashCleanup(req->info);
+  free(pReq);
+}
+
+int   tSerializeSClientHbBatchReq(void** buf, const SClientHbBatchReq* pReq);
+void* tDeserializeClientHbBatchReq(void* buf, SClientHbBatchReq* pReq);
+
+static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq) {
+  SClientHbBatchReq *req = (SClientHbBatchReq*)pReq;
+  taosArrayDestroyEx(req->reqs, tFreeClientHbReq);
+  free(pReq);
+}
+
+static FORCE_INLINE int taosEncodeSKv(void** buf, const SKv* pKv) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI32(buf, pKv->keyLen);
+  tlen += taosEncodeFixedI32(buf, pKv->valueLen);
+  tlen += taosEncodeBinary(buf, pKv->key, pKv->keyLen);
+  tlen += taosEncodeBinary(buf, pKv->value, pKv->valueLen);
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSKv(void* buf, SKv* pKv) {
+  buf = taosDecodeFixedI32(buf, &pKv->keyLen);
+  buf = taosDecodeFixedI32(buf, &pKv->valueLen);
+  buf = taosDecodeBinary(buf, &pKv->key, pKv->keyLen);
+  buf = taosDecodeBinary(buf, &pKv->value, pKv->valueLen);
+  return buf;
+}
+
+static FORCE_INLINE int taosEncodeSClientHbKey(void** buf, const SClientHbKey* pKey) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI32(buf, pKey->connId);
+  tlen += taosEncodeFixedI32(buf, pKey->hbType);
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSClientHbKey(void* buf, SClientHbKey* pKey) {
+  buf = taosDecodeFixedI32(buf, &pKey->connId);
+  buf = taosDecodeFixedI32(buf, &pKey->hbType);
+  return buf;
+}
 
 typedef struct SBuildTableMetaInput {
   int32_t vgId;
@@ -805,19 +825,19 @@ typedef struct {
   int8_t   replica;
   int8_t   selfIndex;
   SReplica replicas[TSDB_MAX_REPLICA];
-} SCreateVnodeMsg, SAlterVnodeMsg;
+} SCreateVnodeReq, SAlterVnodeReq;
 
 typedef struct {
   int32_t  vgId;
   int32_t  dnodeId;
-  char     db[TSDB_DB_FNAME_LEN];
   uint64_t dbUid;
-} SDropVnodeMsg, SSyncVnodeMsg, SCompactVnodeMsg;
+  char     db[TSDB_DB_FNAME_LEN];
+} SDropVnodeReq, SSyncVnodeReq, SCompactVnodeReq;
 
 typedef struct {
   int32_t vgId;
   int8_t  accessState;
-} SAuthVnodeMsg;
+} SAuthVnodeReq;
 
 typedef struct {
   SMsgHead header;
