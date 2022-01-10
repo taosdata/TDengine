@@ -46,7 +46,7 @@ libfile="libtaos.so.%{_version}"
 # create install path, and cp file
 mkdir -p %{buildroot}%{homepath}/bin
 mkdir -p %{buildroot}%{homepath}/cfg
-mkdir -p %{buildroot}%{homepath}/connector
+#mkdir -p %{buildroot}%{homepath}/connector
 mkdir -p %{buildroot}%{homepath}/driver
 mkdir -p %{buildroot}%{homepath}/examples
 mkdir -p %{buildroot}%{homepath}/include
@@ -75,10 +75,10 @@ cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driv
 cp %{_compiledir}/../src/inc/taos.h                 %{buildroot}%{homepath}/include
 cp %{_compiledir}/../src/inc/taosdef.h              %{buildroot}%{homepath}/include
 cp %{_compiledir}/../src/inc/taoserror.h            %{buildroot}%{homepath}/include
-cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
-cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
-cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
-cp %{_compiledir}/build/lib/taos-jdbcdriver*.*      %{buildroot}%{homepath}/connector ||:
+#cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
+#cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
+#cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
+#cp %{_compiledir}/build/lib/taos-jdbcdriver*.*      %{buildroot}%{homepath}/connector ||:
 cp -r %{_compiledir}/../tests/examples/*            %{buildroot}%{homepath}/examples
 
 if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
