@@ -198,6 +198,29 @@ static bool schemaFromJson(const cJSON* json, void* obj) {
   return true;
 }
 
+static const char* jkDataBlockSchemaSlotSchema = "SlotSchema";
+static const char* jkDataBlockSchemaResultRowSize = "resultRowSize";
+static const char* jkDataBlockSchemaPrecision = "Precision";
+
+static bool dataBlockSchemaToJson(const void* obj, cJSON* json) {
+  const SDataBlockSchema* schema = (const SDataBlockSchema*)obj;
+  bool res = addRawArray(json, jkDataBlockSchemaSlotSchema, schemaToJson, schema->pSchema, sizeof(SSlotSchema), schema->numOfCols);
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkDataBlockSchemaResultRowSize, schema->resultRowSize);
+  }
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkDataBlockSchemaPrecision, schema->precision);
+  }
+  return res;
+}
+
+static bool dataBlockSchemaFromJson(const cJSON* json, void* obj) {
+  SDataBlockSchema* schema = (SDataBlockSchema*)obj;
+  schema->resultRowSize = getNumber(json, jkDataBlockSchemaResultRowSize);
+  schema->precision = getNumber(json, jkDataBlockSchemaPrecision);
+  return fromRawArray(json, jkDataBlockSchemaSlotSchema, schemaFromJson, schema->pSchema, sizeof(SSlotSchema), &schema->numOfCols);
+}
+
 static const char* jkColumnFilterInfoLowerRelOptr = "LowerRelOptr";
 static const char* jkColumnFilterInfoUpperRelOptr = "UpperRelOptr";
 static const char* jkColumnFilterInfoFilterstr = "Filterstr";
@@ -708,7 +731,7 @@ static bool phyNodeToJson(const void* obj, cJSON* jNode) {
     res = addArray(jNode, jkPnodeConditions, exprInfoToJson, phyNode->pConditions);
   }
   if (res) {
-    res = addRawArray(jNode, jkPnodeSchema, schemaToJson, phyNode->targetSchema.pSchema, sizeof(SSlotSchema), phyNode->targetSchema.numOfCols);
+    res = addObject(jNode, jkPnodeSchema, dataBlockSchemaToJson, &phyNode->targetSchema);
   }
   if (res) {
     res = addArray(jNode, jkPnodeChildren, phyNodeToJson, phyNode->pChildren);
@@ -728,7 +751,7 @@ static bool phyNodeFromJson(const cJSON* json, void* obj) {
     res = fromArray(json, jkPnodeConditions, exprInfoFromJson, &node->pConditions, sizeof(SExprInfo));
   }
   if (res) {
-    res = fromRawArray(json, jkPnodeSchema, schemaFromJson, node->targetSchema.pSchema, sizeof(SSlotSchema), &node->targetSchema.numOfCols);
+    res = fromObject(json, jkPnodeSchema, dataBlockSchemaFromJson, &node->targetSchema, true);
   }
   if (res) {
     res = fromArray(json, jkPnodeChildren, phyNodeFromJson, &node->pChildren, sizeof(SSlotSchema));
@@ -786,12 +809,16 @@ static bool specificDataSinkFromJson(const cJSON* json, void* obj) {
 }
 
 static const char* jkDataSinkName = "Name";
+static const char* jkDataSinkSchema = "Schema";
 
 static bool dataSinkToJson(const void* obj, cJSON* json) {
   const SDataSink* dsink = (const SDataSink*)obj;
   bool res = cJSON_AddStringToObject(json, jkDataSinkName, dsink->info.name);
   if (res) {
     res = addObject(json, dsink->info.name, specificDataSinkToJson, dsink);
+  }
+  if (res) {
+    res = addObject(json, jkDataSinkSchema, dataBlockSchemaToJson, &dsink->schema);
   }
   return res;
 }
@@ -800,7 +827,11 @@ static bool dataSinkFromJson(const cJSON* json, void* obj) {
   SDataSink* dsink = (SDataSink*)obj;
   dsink->info.name = getString(json, jkDataSinkName);
   dsink->info.type = dsinkNameToDsinkType(dsink->info.name);
-  return fromObject(json, dsink->info.name, specificDataSinkFromJson, dsink, true);
+  bool res = fromObject(json, jkDataSinkSchema, dataBlockSchemaFromJson, &dsink->schema, true);
+  if (res) {
+    res = fromObject(json, dsink->info.name, specificDataSinkFromJson, dsink, true);
+  }
+  return res;
 }
 
 static const char* jkIdQueryId = "QueryId";
