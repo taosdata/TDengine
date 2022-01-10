@@ -351,7 +351,7 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
   }
 
   // Loop to commit each table data
-  for (int tid = 1; tid < pCommith->niters; tid++) {
+  for (int tid = 0; tid < pCommith->niters; tid++) {
     SCommitIter *pIter = pCommith->iters + tid;
 
     if (pIter->pTable == NULL) continue;

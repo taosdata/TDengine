@@ -15,12 +15,12 @@
 
 #include "vnodeDef.h"
 
-static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg);
+static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg, int32_t vid);
 static void    vnodeFree(SVnode *pVnode);
 static int     vnodeOpenImpl(SVnode *pVnode);
 static void    vnodeCloseImpl(SVnode *pVnode);
 
-SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
+SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg, int32_t vid) {
   SVnode *pVnode = NULL;
 
   // Set default options
@@ -35,7 +35,7 @@ SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
   }
 
   // Create the handle
-  pVnode = vnodeNew(path, pVnodeCfg);
+  pVnode = vnodeNew(path, pVnodeCfg, vid);
   if (pVnode == NULL) {
     // TODO: handle error
     return NULL;
@@ -62,7 +62,7 @@ void vnodeClose(SVnode *pVnode) {
 void vnodeDestroy(const char *path) { taosRemoveDir(path); }
 
 /* ------------------------ STATIC METHODS ------------------------ */
-static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg) {
+static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg, int32_t vid) {
   SVnode *pVnode = NULL;
 
   pVnode = (SVnode *)calloc(1, sizeof(*pVnode));
@@ -71,6 +71,7 @@ static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg) {
     return NULL;
   }
 
+  pVnode->vgId = vid;
   pVnode->path = strdup(path);
   vnodeOptionsCopy(&(pVnode->config), pVnodeCfg);
 

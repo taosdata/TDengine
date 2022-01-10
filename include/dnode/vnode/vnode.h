@@ -87,7 +87,7 @@ void vnodeClear();
  * @param pVnodeCfg options of the vnode
  * @return SVnode* The vnode object
  */
-SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg);
+SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg, int32_t vid);
 
 /**
  * @brief Close a VNODE
