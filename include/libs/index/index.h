@@ -76,25 +76,20 @@ void        indexOptsDestroy(SIndexOpts* opts);
  * @param:
  */
 
-SIndexTerm* indexTermCreate(int64_t            suid,
-                            SIndexOperOnColumn operType,
-                            uint8_t            colType,
-                            const char*        colName,
-                            int32_t            nColName,
-                            const char*        colVal,
-                            int32_t            nColVal);
+SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn operType, uint8_t colType, const char* colName,
+                            int32_t nColName, const char* colVal, int32_t nColVal);
 void        indexTermDestroy(SIndexTerm* p);
 
 /*
- * init index
+ * init index env
  *
  */
-int32_t indexInit();
-/*
- * destory index
- *
- */
+void indexInit();
 
+/*
+ * destory index env
+ *
+ */
 void indexCleanUp();
 
 #ifdef __cplusplus

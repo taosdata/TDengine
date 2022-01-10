@@ -1226,6 +1226,16 @@ int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pRpc, const S
   tNameGetFullDbName(pTableName, db);
   CTG_ERR_JRET(ctgGetDBVgroup(pCatalog, pRpc, pMgmtEps, db, false, &dbVgroup));
 
+  // REMOEV THIS ....
+  if (0 == tbMeta->vgId) {
+    SVgroupInfo vgroup = {0};
+    
+    catalogGetTableHashVgroup(pCatalog, pRpc, pMgmtEps, pTableName, &vgroup);
+
+    tbMeta->vgId = vgroup.vgId;
+  }
+  // REMOVE THIS ....
+
   if (tbMeta->tableType == TSDB_SUPER_TABLE) {
     CTG_ERR_JRET(ctgGetVgInfoFromDB(pCatalog, pRpc, pMgmtEps, dbVgroup, pVgroupList));
   } else {

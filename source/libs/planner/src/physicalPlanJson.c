@@ -398,7 +398,7 @@ static bool exprNodeFromJson(const cJSON* json, void* obj) {
     case TEXPR_FUNCTION_NODE:
       return fromObject(json, jkExprNodeFunction, functionFromJson, exprInfo, false);
     case TEXPR_COL_NODE:
-      return fromObject(json, jkExprNodeColumn, schemaFromJson, exprInfo->pSchema, false);
+      return fromObjectWithAlloc(json, jkExprNodeColumn, schemaFromJson, (void**)&exprInfo->pSchema, sizeof(SSchema), false);
     case TEXPR_VALUE_NODE:
       return fromObject(json, jkExprNodeValue, variantFromJson, exprInfo->pVal, false);
     default:
