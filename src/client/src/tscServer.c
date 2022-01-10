@@ -2782,7 +2782,12 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
     tscSetResRawPtr(pRes, pQueryInfo, pRes->dataConverted);
   }
 
-  char* p = pRes->data + (ntohl(pRetrieve->resultRowSize)) * pRes->numOfRows;
+  char* p = NULL;
+  if (pRetrieve->compressed) {
+    p = pRetrieve->data + ntohl(pRetrieve->compLen) + pQueryInfo->fieldsInfo.numOfOutput * sizeof(int32_t);
+  } else {
+    p = pRetrieve->data + ntohl(pRetrieve->compLen);
+  }
 
   int32_t numOfTables = htonl(*(int32_t*)p);
   p += sizeof(int32_t);

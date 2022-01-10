@@ -402,7 +402,6 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
 
   (*pRsp)->numOfRows = htonl((int32_t)s);
-  (*pRsp)->resultRowSize = htonl(pQueryAttr->resultRowSize);
   if (pQInfo->code == TSDB_CODE_SUCCESS) {
     (*pRsp)->offset   = htobe64(pQInfo->runtimeEnv.currentOffset);
     (*pRsp)->useconds = htobe64(pQInfo->summary.elapsedTime);
@@ -434,7 +433,11 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     qDebug("QInfo:0x%"PRIx64" compress col data, uncompressed size:%d, compressed size:%d, ratio:%.2f",
         pQInfo->qId, origSize, compSize, (float)origSize / (float)compSize);
   }
-  (*pRsp)->compLen = htonl(compLen);
+  if ((*pRsp)->compressed) {
+    (*pRsp)->compLen = htonl(compLen);
+  } else {
+    (*pRsp)->compLen = htonl(origSize);
+  }
 
   pQInfo->rspContext = NULL;
   pQInfo->dataReady  = QUERY_RESULT_NOT_READY;
