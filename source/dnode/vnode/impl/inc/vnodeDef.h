@@ -49,7 +49,6 @@ typedef struct SVnodeTask {
 
 typedef struct SVnodeMgr {
   td_mode_flag_t vnodeInitFlag;
-  td_mode_flag_t vnodeClearFlag;
   // For commit
   bool            stop;
   uint16_t        nthreads;
