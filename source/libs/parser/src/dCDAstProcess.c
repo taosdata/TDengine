@@ -1,12 +1,11 @@
-#include <astGenerator.h>
-#include <tmsg.h>
-#include "astToMsg.h"
+#include "tmsg.h"
+#include "tglobal.h"
 #include "parserInt.h"
+#include "ttime.h"
+#include "astToMsg.h"
+#include "astGenerator.h"
 #include "parserUtil.h"
 #include "queryInfoUtil.h"
-#include "tglobal.h"
-#include "tmsg.h"
-#include "ttime.h"
 
 /* is contained in pFieldList or not */
 static bool has(SArray* pFieldList, int32_t startIndex, const char* name) {
@@ -43,7 +42,7 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx* pCtx, void** ou
     char dbFname[TSDB_DB_FNAME_LEN] = {0};
     tNameGetFullDbName(&name, dbFname);
 
-    catalogGetDBVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbFname, 0, &array);
+    catalogGetDBVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbFname, false, &array);
 
     SVgroupInfo* info = taosArrayGet(array, 0);
     pShowReq->head.vgId = htonl(info->vgId);
@@ -195,6 +194,18 @@ static int32_t doCheckDbOptions(SCreateDbMsg* pCreate, SMsgBuf* pMsgBuf) {
              TSDB_MIN_VNODES_PER_DB, TSDB_MAX_VNODES_PER_DB);
   }
 
+  val = htonl(pCreate->maxRows);
+  if (val < TSDB_MIN_MAX_ROW_FBLOCK || val > TSDB_MAX_MAX_ROW_FBLOCK) {
+    snprintf(msg, tListLen(msg), "invalid number of max rows in file block for DB:%d valid range: [%d, %d]", val,
+             TSDB_MIN_MAX_ROW_FBLOCK, TSDB_MAX_MAX_ROW_FBLOCK);
+  }
+
+  val = htonl(pCreate->minRows);
+  if (val < TSDB_MIN_MIN_ROW_FBLOCK || val > TSDB_MAX_MIN_ROW_FBLOCK) {
+    snprintf(msg, tListLen(msg), "invalid number of min rows in file block for DB:%d valid range: [%d, %d]", val,
+             TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -332,7 +343,6 @@ static int32_t doParseSerializeTagValue(SSchema* pTagSchema, int32_t numOfInputT
 
     char* endPtr = NULL;
     char  tmpTokenBuf[TSDB_MAX_TAGS_LEN] = {0};
-
     SKvParam param = {.builder = pKvRowBuilder, .schema = pSchema};
 
     SToken* pItem = taosArrayGet(pTagValList, i);

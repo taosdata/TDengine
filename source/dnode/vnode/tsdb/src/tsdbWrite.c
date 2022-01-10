@@ -15,11 +15,11 @@
 
 #include "tsdbDef.h"
 
-int tsdbInsertData(STsdb *pTsdb, SSubmitMsg *pMsg) {
+int tsdbInsertData(STsdb *pTsdb, SSubmitMsg *pMsg, SSubmitRsp *pRsp) {
   // Check if mem is there. If not, create one.
-  pTsdb->mem = tsdbNewMemTable(pTsdb->pmaf);
+  pTsdb->mem = tsdbNewMemTable(pTsdb);
   if (pTsdb->mem == NULL) {
     return -1;
   }
-  return tsdbInsertDataToMemTable(pTsdb->mem, pMsg);
+  return tsdbMemTableInsert(pTsdb, pTsdb->mem, pMsg, NULL);
 }

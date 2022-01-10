@@ -910,7 +910,7 @@ static void doInitGlobalConfig(void) {
   cfg.option = "tsdbDebugFlag";
   cfg.ptr = &tsdbDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG;
   cfg.minValue = 0;
   cfg.maxValue = 255;
   cfg.ptrLength = 0;

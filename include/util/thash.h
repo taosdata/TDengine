@@ -124,6 +124,9 @@ int32_t taosHashGetSize(const SHashObj *pHashObj);
  */
 int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size);
 
+int32_t taosHashPutExt(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size, bool *newAdded);
+
+
 /**
  * return the payload data with the specified key
  *

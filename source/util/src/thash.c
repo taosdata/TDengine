@@ -19,8 +19,9 @@
 #include "taos.h"
 #include "tdef.h"
 
-#define EXT_SIZE 1024 
-
+// the add ref count operation may trigger the warning if the reference count is greater than the MAX_WARNING_REF_COUNT
+#define MAX_WARNING_REF_COUNT 10000
+#define EXT_SIZE              1024
 #define HASH_NEED_RESIZE(_h) ((_h)->size >= (_h)->capacity * HASH_DEFAULT_LOAD_FACTOR)
 
 #define DO_FREE_HASH_NODE(_n) \
@@ -214,7 +215,7 @@ static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj) {
   return taosHashGetSize(pHashObj) == 0;
 }
 
-int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size) {
+int32_t taosHashPutImpl(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size, bool *newAdded) {
   uint32_t   hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
   SHashNode *pNewNode = doCreateHashNode(key, keyLen, data, size, hashVal);
   if (pNewNode == NULL) {
@@ -273,6 +274,10 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
     __rd_unlock((void*) &pHashObj->lock, pHashObj->type);
     atomic_add_fetch_32(&pHashObj->size, 1);
 
+    if (newAdded) {
+      *newAdded = true;
+    }
+    
     return 0;
   } else {
     // not support the update operation, return error
@@ -289,9 +294,22 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
     // enable resize
     __rd_unlock((void*) &pHashObj->lock, pHashObj->type);
 
+    if (newAdded) {
+      *newAdded = false;
+    }
+
     return pHashObj->enableUpdate ? 0 : -2;
   }
 }
+
+int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size) {
+  return taosHashPutImpl(pHashObj, key, keyLen, data, size, NULL);
+}
+
+int32_t taosHashPutExt(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size, bool *newAdded) {
+  return taosHashPutImpl(pHashObj, key, keyLen, data, size, newAdded);
+}
+
 
 void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
   return taosHashGetClone(pHashObj, key, keyLen, NULL);
@@ -909,8 +927,24 @@ void *taosHashIterate(SHashObj *pHashObj, void *p) {
 
   if (pNode) {
     SHashEntry *pe = pHashObj->hashList[slot];
-    pNode->count++;
-    data = GET_HASH_NODE_DATA(pNode);
+
+    uint16_t prevRef = atomic_load_16(&pNode->count);
+    uint16_t afterRef = atomic_add_fetch_16(&pNode->count, 1);
+
+    // the reference count value is overflow, which will cause the delete node operation immediately.
+    if (prevRef > afterRef) {
+      uError("hash entry ref count overflow, prev ref:%d, current ref:%d", prevRef, afterRef);
+      // restore the value
+      atomic_sub_fetch_16(&pNode->count, 1);
+      data = NULL;
+    } else {
+      data = GET_HASH_NODE_DATA(pNode);
+    }
+
+    if (afterRef >= MAX_WARNING_REF_COUNT) {
+      uWarn("hash entry ref count is abnormally high: %d", afterRef);
+    }
+
     if (pHashObj->type == HASH_ENTRY_LOCK) {
       taosWUnLockLatch(&pe->latch);
     } 
@@ -918,7 +952,6 @@ void *taosHashIterate(SHashObj *pHashObj, void *p) {
 
   __rd_unlock((void*) &pHashObj->lock, pHashObj->type);
   return data;
-
 }
 
 void taosHashCancelIterate(SHashObj *pHashObj, void *p) {

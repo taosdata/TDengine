@@ -112,6 +112,13 @@ bool taosQueueEmpty(STaosQueue *queue) {
   return empty;
 }
 
+int32_t taosQueueSize(STaosQueue *queue) {
+  pthread_mutex_lock(&queue->mutex);
+  int32_t numOfItems = queue->numOfItems;
+  pthread_mutex_unlock(&queue->mutex);
+  return numOfItems;
+}
+
 void *taosAllocateQitem(int32_t size) {
   STaosQnode *pNode = (STaosQnode *)calloc(sizeof(STaosQnode) + size, 1);
 

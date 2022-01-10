@@ -77,12 +77,15 @@ void sqlCheck(const char* sql, bool valid) {
   buf.len = 128;
   buf.buf = msg;
 
+  SParseBasicCtx ctx = {0};
+  ctx.db = "db1";
+  ctx.acctId = 1;
   SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.sub.node), 0);
   int32_t   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
 
@@ -119,7 +122,11 @@ TEST(testCase, validateAST_test) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+   SParseBasicCtx ctx = {0};
+  ctx.db = "db1";
+  ctx.acctId = 1;
+  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
+
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
 
@@ -177,7 +184,11 @@ TEST(testCase, function_Test) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+   SParseBasicCtx ctx = {0};
+  ctx.db = "db1";
+  ctx.acctId = 1;
+  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
+
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
 
@@ -223,7 +234,11 @@ TEST(testCase, function_Test2) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+   SParseBasicCtx ctx = {0};
+  ctx.db = "db1";
+  ctx.acctId = 1;
+  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
+
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
 
@@ -269,7 +284,11 @@ TEST(testCase, function_Test3) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+   SParseBasicCtx ctx = {0};
+  ctx.db = "db1";
+  ctx.acctId = 1;
+  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
+
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
 
@@ -314,7 +333,11 @@ TEST(testCase, function_Test4) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+   SParseBasicCtx ctx = {0};
+  ctx.db = "db1";
+  ctx.acctId = 1;
+  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
+
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
 
@@ -362,7 +385,11 @@ TEST(testCase, function_Test5) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+   SParseBasicCtx ctx = {0};
+  ctx.db = "db1";
+  ctx.acctId = 1;
+  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
+
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
 
@@ -447,7 +474,11 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+  SParseBasicCtx ctx = {0};
+  ctx.db = "db1";
+  ctx.acctId = 1;
+  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
+
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
 
@@ -525,7 +556,11 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+   SParseBasicCtx ctx = {0};
+  ctx.db = "db1";
+  ctx.acctId = 1;
+  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
+
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
 
@@ -587,7 +622,11 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+   SParseBasicCtx ctx = {0};
+  ctx.db = "db1";
+  ctx.acctId = 1;
+  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
+
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
 
@@ -636,7 +675,7 @@ TEST(testCase, function_Test6) {
   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
-  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
 
@@ -666,7 +705,10 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+   SParseBasicCtx ctx = {0};
+  ctx.db = "db1";
+  ctx.acctId = 1;
+  int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
 
@@ -688,7 +730,7 @@ TEST(testCase, function_Test6) {
   code = evaluateSqlNode(pNode, TSDB_TIME_PRECISION_NANO, &buf);
   ASSERT_EQ(code, 0);
 
-  ret = qParserExtractRequestedMetaInfo(&info1, &req, msg, 128);
+  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
 

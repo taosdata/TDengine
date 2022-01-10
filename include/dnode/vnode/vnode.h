@@ -32,6 +32,8 @@ extern "C" {
 /* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SVnode SVnode;
 typedef struct SVnodeCfg {
+  int32_t vgId;
+
   /** vnode buffer pool options */
   struct {
     /** write buffer size */

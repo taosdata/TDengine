@@ -59,6 +59,13 @@ static int writeCtxDoReadFrom(WriterCtx* ctx, uint8_t* buf, int len, int32_t off
   }
   return nRead;
 }
+static int writeCtxGetSize(WriterCtx* ctx) {
+  if (ctx->type == TFile && ctx->file.readOnly) {
+    // refactor later
+    return ctx->file.size;
+  }
+  return 0;
+}
 static int writeCtxDoFlush(WriterCtx* ctx) {
   if (ctx->type == TFile) {
     // taosFsyncFile(ctx->file.fd);
@@ -109,6 +116,7 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
   ctx->read = writeCtxDoRead;
   ctx->flush = writeCtxDoFlush;
   ctx->readFrom = writeCtxDoReadFrom;
+  ctx->size = writeCtxGetSize;
 
   ctx->offset = 0;
   ctx->limit = capacity;
@@ -159,6 +167,8 @@ int fstCountingWriterWrite(FstCountingWriter* write, uint8_t* buf, uint32_t len)
   int nWrite = ctx->write(ctx, buf, len);
   assert(nWrite == len);
   write->count += len;
+
+  write->summer = taosCalcChecksum(write->summer, buf, len);
   return len;
 }
 int fstCountingWriterRead(FstCountingWriter* write, uint8_t* buf, uint32_t len) {
@@ -169,7 +179,10 @@ int fstCountingWriterRead(FstCountingWriter* write, uint8_t* buf, uint32_t len) 
   return nRead;
 }
 
-uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter* write) { return 0; }
+uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter* write) {
+  // opt
+  return write->summer;
+}
 
 int fstCountingWriterFlush(FstCountingWriter* write) {
   WriterCtx* ctx = write->wrt;

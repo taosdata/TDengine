@@ -140,7 +140,7 @@ int32_t buildRequest(STscObj *pTscObj, const char *sql, int sqlLen, SRequestObj*
   (*pRequest)->sqlstr[sqlLen] = 0;
   (*pRequest)->sqlLen = sqlLen;
 
-  tscDebugL("0x%"PRIx64" SQL: %s, reqId:0x"PRIx64, (*pRequest)->self, (*pRequest)->sqlstr, (*pRequest)->requestId);
+  tscDebugL("0x%"PRIx64" SQL: %s, reqId:0x%"PRIx64, (*pRequest)->self, (*pRequest)->sqlstr, (*pRequest)->requestId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -181,7 +181,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
     if (pDcl->msgType == TDMT_VND_SHOW_TABLES) {
       SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
       if (pShowReqInfo->pArray == NULL) {
-        pShowReqInfo->currentIndex = 0;
+        pShowReqInfo->currentIndex = 0;  // set the first vnode/ then iterate the next vnode
         pShowReqInfo->pArray = pDcl->pExtension;
       }
     }
@@ -291,10 +291,10 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
 
   nPrintTsc("%s", sql)
 
-  SRequestObj* pRequest = NULL;
-  SQueryNode* pQuery = NULL;
-  SQueryDag* pDag = NULL;
-  void* pJob = NULL;
+  SRequestObj *pRequest = NULL;
+  SQueryNode  *pQuery   = NULL;
+  SQueryDag   *pDag     = NULL;
+  void        *pJob     = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
@@ -395,13 +395,13 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj *pRequest) {
   }
 
   pMsgSendInfo->msgType         = TDMT_MND_CONNECT;
-  pMsgSendInfo->msgInfo.len     = sizeof(SConnectMsg);
+  pMsgSendInfo->msgInfo.len     = sizeof(SConnectReq);
   pMsgSendInfo->requestObjRefId = pRequest->self;
   pMsgSendInfo->requestId       = pRequest->requestId;
   pMsgSendInfo->fp              = handleRequestRspFp[TMSG_INDEX(pMsgSendInfo->msgType)];
   pMsgSendInfo->param           = pRequest;
 
-  SConnectMsg *pConnect = calloc(1, sizeof(SConnectMsg));
+  SConnectReq *pConnect = calloc(1, sizeof(SConnectReq));
   if (pConnect == NULL) {
     tfree(pMsgSendInfo);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;

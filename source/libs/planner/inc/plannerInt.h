@@ -53,8 +53,8 @@ typedef struct SQueryDistPlanNodeInfo {
 typedef struct SQueryTableInfo {
   char           *tableName; // to be deleted
   uint64_t        uid;       // to be deleted
-  STableMetaInfo* pMeta;
-  STimeWindow window;
+  STableMetaInfo *pMeta;
+  STimeWindow     window;
 } SQueryTableInfo;
 
 typedef struct SQueryPlanNode {
@@ -106,7 +106,7 @@ int32_t queryPlanToString(struct SQueryPlanNode* pQueryNode, char** str);
 int32_t queryPlanToSql(struct SQueryPlanNode* pQueryNode, char** sql);
 
 int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag, uint64_t requestId);
-int32_t setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep);
+void setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep);
 int32_t subPlanToString(const SSubplan *pPhyNode, char** str, int32_t* len);
 int32_t stringToSubplan(const char* str, SSubplan** subplan);
 

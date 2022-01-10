@@ -62,6 +62,7 @@ typedef struct SAppInstInfo {
   SList            *pConnList;  // STscObj linked list
   int64_t           clusterId;
   void             *pTransporter;
+  SHeartBeatInfo hb;
 } SAppInstInfo;
 
 typedef struct SAppInfo {
@@ -70,7 +71,7 @@ typedef struct SAppInfo {
   char          *ep;
   int32_t        pid;
   int32_t        numOfThreads;
-  SHeartBeatInfo hb;
+
   SHashObj      *pInstMap;
 } SAppInfo;
 
