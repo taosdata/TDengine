@@ -167,7 +167,7 @@ function install_main_path() {
     ${csudo}mkdir -p ${install_main_dir}
     ${csudo}mkdir -p ${install_main_dir}/cfg
     ${csudo}mkdir -p ${install_main_dir}/bin
-    ${csudo}mkdir -p ${install_main_dir}/connector
+#    ${csudo}mkdir -p ${install_main_dir}/connector
     ${csudo}mkdir -p ${install_main_dir}/driver
     ${csudo}mkdir -p ${install_main_dir}/examples
     ${csudo}mkdir -p ${install_main_dir}/include
@@ -923,9 +923,9 @@ function update_TDengine() {
     install_log
     install_header
     install_lib
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
-    fi
+#    if [ "$pagMode" != "lite" ]; then
+#      install_connector
+#    fi
     install_examples
     if [ -z $1 ]; then
         install_bin
@@ -1008,9 +1008,9 @@ function install_TDengine() {
     #install_avro lib
     #install_avro lib64
 
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
-    fi
+#    if [ "$pagMode" != "lite" ]; then
+#      install_connector
+#    fi
     install_examples
 
     if [ -z $1 ]; then # install service and client
