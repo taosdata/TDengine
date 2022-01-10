@@ -13,18 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbRowMergeBuf.h"
-#include "tdataformat.h"
+#ifndef _TD_TDISK_MGR_H_
+#define _TD_TDISK_MGR_H_
 
-// row1 has higher priority
-SMemRow tsdbMergeTwoRows(SMergeBuf *pBuf, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2) {
-  if(row2 == NULL) return row1;
-  if(row1 == NULL) return row2;
-  ASSERT(pSchema1->version == memRowVersion(row1)); 
-  ASSERT(pSchema2->version == memRowVersion(row2));
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-  if(tsdbMergeBufMakeSureRoom(pBuf, pSchema1, pSchema2) < 0) {
-    return NULL;
-  }
-  return mergeTwoMemRows(*pBuf, row1, row2, pSchema1, pSchema2);
+#include "os.h"
+
+#include "tkvDef.h"
+
+typedef struct SDiskMgr SDiskMgr;
+
+int     tdmOpen(SDiskMgr **ppDiskMgr, const char *fname, uint16_t pgsize);
+int     tdmClose(SDiskMgr *pDiskMgr);
+int     tdmReadPage(SDiskMgr *pDiskMgr, pgid_t pgid, void *pData);
+int     tdmWritePage(SDiskMgr *pDiskMgr, pgid_t pgid, const void *pData);
+int32_t tdmAllocPage(SDiskMgr *pDiskMgr);
+
+#ifdef __cplusplus
 }
+#endif
+
+#endif /*_TD_TDISK_MGR_H_*/

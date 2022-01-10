@@ -497,7 +497,7 @@ static void *dnodeThreadRoutine(void *param) {
   }
 }
 
-int32_t dndInitDnode(SDnode *pDnode) {
+int32_t dndInitMgmt(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
 
   pMgmt->dnodeId = 0;
@@ -547,16 +547,18 @@ int32_t dndInitDnode(SDnode *pDnode) {
   return 0;
 }
 
-void dndCleanupDnode(SDnode *pDnode) {
+void dndStopMgmt(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-
   dndCleanupWorker(&pMgmt->mgmtWorker);
 
   if (pMgmt->threadId != NULL) {
     taosDestoryThread(pMgmt->threadId);
     pMgmt->threadId = NULL;
   }
+}
 
+void dndCleanupMgmt(SDnode *pDnode) {
+  SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosWLockLatch(&pMgmt->latch);
 
   if (pMgmt->dnodeEps != NULL) {
