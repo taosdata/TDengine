@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TVK_ROCKSDB_H_
-#define _TD_TVK_ROCKSDB_H_
+#ifndef _TD_TKV_MACRO_H_
+#define _TD_TKV_MACRO_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,4 +24,4 @@ extern "C" {
 }
 #endif
 
-#endif /*_TD_TVK_ROCKSDB_H_*/
+#endif /*_TD_TKV_MACRO_H_*/

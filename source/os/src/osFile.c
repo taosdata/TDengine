@@ -120,7 +120,7 @@ int64_t taosReadFile(FileFd fd, void *buf, int64_t count) {
   return count;
 }
 
-int64_t taosWriteFile(FileFd fd, void *buf, int64_t n) {
+int64_t taosWriteFile(FileFd fd, const void *buf, int64_t n) {
   int64_t nleft = n;
   int64_t nwritten = 0;
   char *  tbuf = (char *)buf;

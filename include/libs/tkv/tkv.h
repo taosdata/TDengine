@@ -16,6 +16,7 @@
 #ifndef _TD_TKV_H_
 #define _TD_TKV_H_
 
+#if 0
 #include "os.h"
 
 #ifdef __cplusplus
@@ -59,4 +60,5 @@ void           tkvWriteOptsDestroy(STkvWriteOpts *);
 }
 #endif
 
+#endif
 #endif /*_TD_TKV_H_*/

@@ -12,3 +12,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#ifndef _TD_TDISK_MGR_H_
+#define _TD_TDISK_MGR_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "os.h"
+
+typedef struct SDiskMgr SDiskMgr;
+
+int     tdmReadPage(SDiskMgr *pDiskMgr, int32_t pgid, void *pData);
+int     tdmWritePage(SDiskMgr *pDiskMgr, int32_t pgid, const void *pData);
+int32_t tdmAllocPage(SDiskMgr *pDiskMgr);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_TDISK_MGR_H_*/
