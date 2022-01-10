@@ -88,37 +88,37 @@ typedef struct SResultRowPool {
   SArray* pData;    // SArray<void*>
 } SResultRowPool;
 
-struct SQueryAttr;
-struct SQueryRuntimeEnv;
+struct STaskAttr;
+struct STaskRuntimeEnv;
 struct SUdfInfo;
 
-int32_t getOutputInterResultBufSize(struct SQueryAttr* pQueryAttr);
+int32_t getOutputInterResultBufSize(struct STaskAttr* pQueryAttr);
 
-size_t  getResultRowSize(struct SQueryRuntimeEnv* pRuntimeEnv);
+size_t  getResultRowSize(struct STaskRuntimeEnv* pRuntimeEnv);
 int32_t initResultRowInfo(SResultRowInfo* pResultRowInfo, int32_t size, int16_t type);
 void    cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
 
-void    resetResultRowInfo(struct SQueryRuntimeEnv* pRuntimeEnv, SResultRowInfo* pResultRowInfo);
+void    resetResultRowInfo(struct STaskRuntimeEnv* pRuntimeEnv, SResultRowInfo* pResultRowInfo);
 int32_t numOfClosedResultRows(SResultRowInfo* pResultRowInfo);
 void    closeAllResultRows(SResultRowInfo* pResultRowInfo);
 
 int32_t initResultRow(SResultRow *pResultRow);
 void    closeResultRow(SResultRowInfo* pResultRowInfo, int32_t slot);
 bool    isResultRowClosed(SResultRowInfo *pResultRowInfo, int32_t slot);
-void    clearResultRow(struct SQueryRuntimeEnv* pRuntimeEnv, SResultRow* pResultRow, int16_t type);
+void    clearResultRow(struct STaskRuntimeEnv* pRuntimeEnv, SResultRow* pResultRow, int16_t type);
 
 struct SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset);
 
 void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr);
 void* freeColumnInfo(SColumnInfo* pColumnInfo, int32_t numOfCols);
-int32_t getRowNumForMultioutput(struct SQueryAttr* pQueryAttr, bool topBottomQuery, bool stable);
+int32_t getRowNumForMultioutput(struct STaskAttr* pQueryAttr, bool topBottomQuery, bool stable);
 
 static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {
   assert(pResultRowInfo != NULL && slot >= 0 && slot < pResultRowInfo->size);
   return pResultRowInfo->pResult[slot];
 }
 
-static FORCE_INLINE char* getPosInResultPage(struct SQueryAttr* pQueryAttr, SFilePage* page, int32_t rowOffset,
+static FORCE_INLINE char* getPosInResultPage(struct STaskAttr* pQueryAttr, SFilePage* page, int32_t rowOffset,
                                              int32_t offset) {
   assert(rowOffset >= 0 && pQueryAttr != NULL);
 
@@ -155,7 +155,7 @@ bool    hasRemainData(SGroupResInfo* pGroupResInfo);
 bool    incNextGroup(SGroupResInfo* pGroupResInfo);
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 
-int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, struct SQueryRuntimeEnv *pRuntimeEnv, int32_t* offset);
+int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, struct STaskRuntimeEnv *pRuntimeEnv, int32_t* offset);
 
 int32_t initUdfInfo(struct SUdfInfo* pUdfInfo);
 

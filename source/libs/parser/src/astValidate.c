@@ -3952,7 +3952,8 @@ int32_t qParserValidateSqlNode(SParseBasicCtx *pCtx, SSqlInfo* pInfo, SQueryStmt
   pQueryInfo->pTableMetaInfo[0]->pTableMeta = pmt;
   pQueryInfo->pTableMetaInfo[0]->name = *name;
   pQueryInfo->numOfTables = 1;
-
+  pQueryInfo->pTableMetaInfo[0]->tagColList = taosArrayInit(4, POINTER_BYTES);
+  
   code = setTableVgroupList(pCtx, name, &pQueryInfo->pTableMetaInfo[0]->vgroupList);
   if (code != TSDB_CODE_SUCCESS) {
     taosArrayDestroy(data.pTableMeta);

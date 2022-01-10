@@ -34,7 +34,10 @@ void indexInit() {
   // refactor later
   indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, INDEX_NUM_OF_THREADS, "index");
 }
-void indexCleanUp() { taosCleanUpScheduler(indexQhandle); }
+void indexCleanUp() {
+  // refacto later
+  taosCleanUpScheduler(indexQhandle);
+}
 
 static int uidCompare(const void* a, const void* b) {
   // add more version compare
