@@ -25,12 +25,35 @@ struct SDiskMgr {
 #define PAGE_OFFSET(PGID, PGSIZE) ((PGID) * (PGSIZE))
 
 int tdmOpen(SDiskMgr **ppDiskMgr, const char *fname, uint16_t pgsize) {
-  // TODO
+  SDiskMgr *pDiskMgr;
+
+  pDiskMgr = malloc(sizeof(*pDiskMgr));
+  if (pDiskMgr == NULL) {
+    return -1;
+  }
+
+  pDiskMgr->fname = strdup(fname);
+  if (pDiskMgr->fname == NULL) {
+    free(pDiskMgr);
+    return -1;
+  }
+  pDiskMgr->pgsize = pgsize;
+  pDiskMgr->fd = open(fname, O_CREAT | O_RDWR, 0755);
+  if (pDiskMgr->fd < 0) {
+    free(pDiskMgr->fname);
+    free(pDiskMgr);
+    return -1;
+  }
+
+  *ppDiskMgr = pDiskMgr;
+
   return 0;
 }
 
 int tdmClose(SDiskMgr *pDiskMgr) {
-  // TODO
+  close(pDiskMgr->fd);
+  free(pDiskMgr->fname);
+  free(pDiskMgr);
   return 0;
 }
 
