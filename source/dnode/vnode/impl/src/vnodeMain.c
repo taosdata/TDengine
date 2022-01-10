@@ -24,9 +24,9 @@ SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
   SVnode *pVnode = NULL;
 
   // Set default options
-  if (pVnodeCfg == NULL) {
+  //if (pVnodeCfg == NULL) {
     pVnodeCfg = &defaultVnodeOptions;
-  }
+  //}
 
   // Validate options
   if (vnodeValidateOptions(pVnodeCfg) < 0) {
