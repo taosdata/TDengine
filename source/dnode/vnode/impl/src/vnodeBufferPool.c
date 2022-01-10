@@ -97,7 +97,9 @@ int vnodeBufPoolSwitch(SVnode *pVnode) {
 
   pVnode->pBufPool->inuse = NULL;
 
-  TD_DLIST_APPEND(&(pVnode->pBufPool->incycle), pvma);
+  if (pvma) {
+    TD_DLIST_APPEND(&(pVnode->pBufPool->incycle), pvma);
+  }
   return 0;
 }
 
