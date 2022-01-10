@@ -1164,10 +1164,13 @@ int tsdbUpdateTableCache(STsdbRepo *pRepo, STable *pTable, SMemRow row, bool *is
     } else {
       pTable->lastKey = rowKey;
     }
-  }
+  } 
 
-  if (!CACHE_LAST_NULL_COLUMN(pCfg) || (TSDB_CODE_SUCCESS != updateTableLatestColumn(pRepo, pTable, row, true, TSDB_ORDER_DESC))) {
-    *isContinue = false;
+  if (!CACHE_LAST_NULL_COLUMN(pCfg) ||
+      (TSDB_CODE_SUCCESS != updateTableLatestColumn(pRepo, pTable, row, true, TSDB_ORDER_DESC))) {
+    if (isContinue) {
+      *isContinue = false;
+    }
   }
 
   return 0;
