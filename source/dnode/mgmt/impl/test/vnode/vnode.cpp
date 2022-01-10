@@ -13,7 +13,7 @@
 
 class DndTestVnode : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_vnode", 9150); }
+  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_vnode", 9115); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -57,7 +57,7 @@ TEST_F(DndTestVnode, 01_Create_Restart_Drop_Vnode) {
       for (int r = 0; r < pReq->replica; ++r) {
         SReplica* pReplica = &pReq->replicas[r];
         pReplica->id = htonl(1);
-        pReplica->port = htons(9150);
+        pReplica->port = htons(9527);
       }
 
       SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_VNODE, pReq, contLen);
@@ -102,7 +102,7 @@ TEST_F(DndTestVnode, 01_Create_Restart_Drop_Vnode) {
       for (int r = 0; r < pReq->replica; ++r) {
         SReplica* pReplica = &pReq->replicas[r];
         pReplica->id = htonl(1);
-        pReplica->port = htons(9150);
+        pReplica->port = htons(9527);
       }
 
       SRpcMsg* pRsp = test.SendReq(TDMT_DND_ALTER_VNODE, pReq, contLen);

@@ -13,17 +13,28 @@
 
 class MndTestDb : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_db", 9030); }
-  static void TearDownTestSuite() { test.Cleanup(); }
+  static void SetUpTestSuite() {
+    test.Init("/tmp/mnode_test_db", 9030);
+    const char* fqdn = "localhost";
+    const char* firstEp = "localhost:9030";
 
-  static Testbase test;
+    server2.Start("/tmp/mnode_test_db2", fqdn, 9031, firstEp);
+  }
+  static void TearDownTestSuite() {
+    server2.Stop();
+    test.Cleanup();
+  }
+
+  static Testbase   test;
+  static TestServer server2;
 
  public:
   void SetUp() override {}
   void TearDown() override {}
 };
 
-Testbase MndTestDb::test;
+Testbase   MndTestDb::test;
+TestServer MndTestDb::server2;
 
 TEST_F(MndTestDb, 01_ShowDb) {
   test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
@@ -149,7 +160,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
   CheckInt16(2);                   // vgroups
-  CheckInt32(0);
+  CheckInt32(0);                   // tables
   CheckInt16(1);                   // replica
   CheckInt16(2);                   // quorum
   CheckInt16(10);                  // days
@@ -177,7 +188,7 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   CheckBinary("d1", TSDB_DB_NAME_LEN - 1);
   CheckTimestamp();
   CheckInt16(2);                   // vgroups
-  CheckInt32(0);
+  CheckInt32(0);                   // tables
   CheckInt16(1);                   // replica
   CheckInt16(2);                   // quorum
   CheckInt16(10);                  // days
@@ -300,5 +311,16 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
       EXPECT_EQ(pAddr->port, 9030);
       EXPECT_STREQ(pAddr->fqdn, "localhost");
     }
+  }
+
+  {
+    int32_t contLen = sizeof(SDropDbMsg);
+
+    SDropDbMsg* pReq = (SDropDbMsg*)rpcMallocCont(contLen);
+    strcpy(pReq->db, "1.d2");
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 }
