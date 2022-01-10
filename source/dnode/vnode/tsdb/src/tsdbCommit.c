@@ -420,6 +420,13 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
     pCommitIter = pCommith->iters + i;
     pCommitIter->pIter = tSkipListCreateIter(pTbData->pData);
     tSkipListIterNext(pCommitIter->pIter);
+
+#if 0
+    // TODO
+    pCommitIter->pTable = (STable *)malloc(sizeof(STable));
+    pCommitIter->pTable->uid = pTbData->uid;
+    pCommitIter->pTable->pSchema = metaGetTableSchema();
+#endif
   }
 
   return 0;

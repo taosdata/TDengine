@@ -29,4 +29,5 @@ target_link_libraries(
     PUBLIC common
     PUBLIC tkv
     PUBLIC tfs
+    PUBLIC meta
 )

@@ -17,6 +17,7 @@
 #define _TD_TSDB_DEF_H_
 
 #include "mallocator.h"
+#include "meta.h"
 #include "tcompression.h"
 #include "tglobal.h"
 #include "thash.h"
@@ -48,6 +49,7 @@ struct STsdb {
   SRtn                  rtn;
   SMemAllocatorFactory *pmaf;
   STsdbFS *             fs;
+  SMeta *               pMeta;
 };
 
 #define REPO_ID(r) ((r)->vgId)
