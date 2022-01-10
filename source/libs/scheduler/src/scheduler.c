@@ -463,6 +463,7 @@ int32_t schProcessOnDataFetched(SSchJob *job) {
 
 int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   bool moved = false;
+  int32_t code = 0;
   
   SCH_ERR_RET(schMoveTaskToSuccList(pJob, pTask, &moved));
   if (!moved) {
@@ -524,7 +525,11 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
     atomic_add_fetch_32(&par->childReady, 1);
 
-    SCH_ERR_RET(qSetSubplanExecutionNode(par->plan, pTask->plan->id.templateId, &pTask->execAddr));
+    code = qSetSubplanExecutionNode(par->plan, pTask->plan->id.templateId, &pTask->execAddr);
+    if (code) {
+      SCH_TASK_ELOG("qSetSubplanExecutionNode failed, code:%x, templateId:%"PRIx64, code, pTask->plan->id.templateId);
+      SCH_ERR_RET(code);
+    }
     
     if (SCH_TASK_READY_TO_LUNCH(par)) {
       SCH_ERR_RET(schLaunchTask(pJob, par));

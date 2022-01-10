@@ -362,4 +362,5 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
 
 int32_t setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep) {
   //todo
+  return TSDB_CODE_SUCCESS;
 }
