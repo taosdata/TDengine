@@ -112,6 +112,9 @@ public:
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const {
     // todo
     vgInfo->vgId = 1;
+    vgInfo->numOfEps = 1;
+    vgInfo->epAddr[0].port = 6030;
+    strcpy(vgInfo->epAddr[0].fqdn, "node1");
     return 0;
   }
 
