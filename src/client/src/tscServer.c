@@ -2705,6 +2705,13 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
 
   tscResetForNextRetrieve(pRes);
   tscDebug("0x%"PRIx64" query rsp received, qId:0x%"PRIx64, pSql->self, pRes->qId);
+
+  STableMetaInfo* tableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0);
+  if (tableMetaInfo->pTableMeta->sversion < pQueryAttr->sVersion ||
+      tableMetaInfo->pTableMeta->tversion < pQueryAttr->tVersion) {
+    return TSDB_CODE_TSC_INVALID_SCHEMA_VERSION;
+  }
+
   return 0;
 }
 
