@@ -225,7 +225,7 @@ class TDDnode:
         # self.cfg("logDir",self.logDir)
         # print(updatecfgDict)
         isFirstDir = 1
-        if updatecfgDict[0] and updatecfgDict[0][0]:
+        if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:
             print(updatecfgDict[0][0])
             for key,value in updatecfgDict[0][0].items():
                 if value == 'dataDir' :
