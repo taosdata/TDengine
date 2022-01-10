@@ -58,7 +58,7 @@ typedef struct STsdbCfg {
 } STsdbCfg;
 
 // STsdb
-STsdb *tsdbOpen(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF);
+STsdb *tsdbOpen(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF);
 void   tsdbClose(STsdb *);
 void   tsdbRemove(const char *path);
 int    tsdbInsertData(STsdb *pTsdb, SSubmitMsg *pMsg, SSubmitRsp *pRsp);

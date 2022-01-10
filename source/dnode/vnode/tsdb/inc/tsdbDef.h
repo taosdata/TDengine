@@ -50,7 +50,7 @@ struct STsdb {
   STsdbFS *             fs;
 };
 
-#define REPO_ID(r) 0
+#define REPO_ID(r) ((r)->vgId)
 #define REPO_CFG(r) (&(r)->config)
 #define REPO_FS(r) (r)->fs
 
