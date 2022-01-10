@@ -23,7 +23,7 @@ class TDTestCase:
         case1: [TD-12251] json type containing single quotes cannot be inserted
         case2: [TD-12334] '\' escape unknown
         case3: [TD-11071] escape table creation problem
-        case4: [TD-6232]  fix abnormal escaping results about '\'
+        case5: [TD-12815] like wildcards (% _)  are not supported nchar type
         '''
         return
 
@@ -105,7 +105,13 @@ class TDTestCase:
         tdSql.query(r"select * from tt where i='9'")
         tdSql.checkRows(1)
 
-
+        # [TD-12815] like wildcard(%, _) are not supported nchar
+        tdSql.execute(r"insert into tt values(1591070708000, 'h%d')")
+        tdSql.execute(r"insert into tt values(1591080708000, 'h_j')")
+        tdSql.query(r"select * from tt where i like 'h\%d'")
+        tdSql.checkRows(1)
+        tdSql.query(r"select * from tt where i like 'h\_j'")
+        tdSql.checkRows(1)
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
