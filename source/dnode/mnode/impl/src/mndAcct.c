@@ -177,7 +177,7 @@ static int32_t mndAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct) {
 }
 
 static int32_t mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOld, SAcctObj *pNew) {
-  mTrace("acct:%s, perform update action, old_row:%p new_row:%p", pOld->acct, pOld, pNew);
+  mTrace("acct:%s, perform update action, old row:%p new row:%p", pOld->acct, pOld, pNew);
 
   pOld->updateTime = pNew->updateTime;
   pOld->status = pNew->status;

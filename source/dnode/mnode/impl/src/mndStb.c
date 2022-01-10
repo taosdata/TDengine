@@ -178,7 +178,7 @@ static int32_t mndStbActionDelete(SSdb *pSdb, SStbObj *pStb) {
 }
 
 static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOldStb, SStbObj *pNewStb) {
-  mTrace("stb:%s, perform update action, old_row:%p new_row:%p", pOldStb->name, pOldStb, pNewStb);
+  mTrace("stb:%s, perform update action, old row:%p new row:%p", pOldStb->name, pOldStb, pNewStb);
   atomic_exchange_32(&pOldStb->updateTime, pNewStb->updateTime);
   atomic_exchange_32(&pOldStb->version, pNewStb->version);
 

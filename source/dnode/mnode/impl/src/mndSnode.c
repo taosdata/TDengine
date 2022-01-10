@@ -155,7 +155,7 @@ static int32_t mndSnodeActionDelete(SSdb *pSdb, SSnodeObj *pObj) {
 }
 
 static int32_t mndSnodeActionUpdate(SSdb *pSdb, SSnodeObj *pOld, SSnodeObj *pNew) {
-  mTrace("snode:%d, perform update action, old_row:%p new_row:%p", pOld->id, pOld, pNew);
+  mTrace("snode:%d, perform update action, old row:%p new row:%p", pOld->id, pOld, pNew);
   pOld->updateTime = pNew->updateTime;
   return 0;
 }

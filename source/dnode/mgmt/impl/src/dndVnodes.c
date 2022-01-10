@@ -165,6 +165,8 @@ static void dndCloseVnode(SDnode *pDnode, SVnodeObj *pVnode) {
   vnodeClose(pVnode->pImpl);
   pVnode->pImpl = NULL;
 
+  dDebug("vgId:%d, vnode is closed", pVnode->vgId);
+
   free(pVnode->path);
   free(pVnode->db);
   free(pVnode);
@@ -238,59 +240,57 @@ static int32_t dndGetVnodesFromFile(SDnode *pDnode, SWrapperCfg **ppCfgs, int32_
   }
 
   int32_t vnodesNum = cJSON_GetArraySize(vnodes);
-  if (vnodesNum <= 0) {
-    dError("failed to read %s since vnodes size:%d invalid", file, vnodesNum);
-    goto PRASE_VNODE_OVER;
+  if (vnodesNum > 0) {
+    pCfgs = calloc(vnodesNum, sizeof(SWrapperCfg));
+    if (pCfgs == NULL) {
+      dError("failed to read %s since out of memory", file);
+      goto PRASE_VNODE_OVER;
+    }
+
+    for (int32_t i = 0; i < vnodesNum; ++i) {
+      cJSON       *vnode = cJSON_GetArrayItem(vnodes, i);
+      SWrapperCfg *pCfg = &pCfgs[i];
+
+      cJSON *vgId = cJSON_GetObjectItem(vnode, "vgId");
+      if (!vgId || vgId->type != cJSON_Number) {
+        dError("failed to read %s since vgId not found", file);
+        goto PRASE_VNODE_OVER;
+      }
+      pCfg->vgId = vgId->valueint;
+      snprintf(pCfg->path, sizeof(pCfg->path), "%s/vnode%d", pDnode->dir.vnodes, pCfg->vgId);
+
+      cJSON *dropped = cJSON_GetObjectItem(vnode, "dropped");
+      if (!dropped || dropped->type != cJSON_Number) {
+        dError("failed to read %s since dropped not found", file);
+        goto PRASE_VNODE_OVER;
+      }
+      pCfg->dropped = dropped->valueint;
+
+      cJSON *vgVersion = cJSON_GetObjectItem(vnode, "vgVersion");
+      if (!vgVersion || vgVersion->type != cJSON_Number) {
+        dError("failed to read %s since vgVersion not found", file);
+        goto PRASE_VNODE_OVER;
+      }
+      pCfg->vgVersion = vgVersion->valueint;
+
+      cJSON *dbUid = cJSON_GetObjectItem(vnode, "dbUid");
+      if (!dbUid || dbUid->type != cJSON_String) {
+        dError("failed to read %s since dbUid not found", file);
+        goto PRASE_VNODE_OVER;
+      }
+      pCfg->dbUid = atoll(dbUid->valuestring);
+
+      cJSON *db = cJSON_GetObjectItem(vnode, "db");
+      if (!db || db->type != cJSON_String) {
+        dError("failed to read %s since db not found", file);
+        goto PRASE_VNODE_OVER;
+      }
+      tstrncpy(pCfg->db, db->valuestring, TSDB_DB_FNAME_LEN);
+    }
+
+    *ppCfgs = pCfgs;
   }
 
-  pCfgs = calloc(vnodesNum, sizeof(SWrapperCfg));
-  if (pCfgs == NULL) {
-    dError("failed to read %s since out of memory", file);
-    goto PRASE_VNODE_OVER;
-  }
-
-  for (int32_t i = 0; i < vnodesNum; ++i) {
-    cJSON       *vnode = cJSON_GetArrayItem(vnodes, i);
-    SWrapperCfg *pCfg = &pCfgs[i];
-
-    cJSON *vgId = cJSON_GetObjectItem(vnode, "vgId");
-    if (!vgId || vgId->type != cJSON_Number) {
-      dError("failed to read %s since vgId not found", file);
-      goto PRASE_VNODE_OVER;
-    }
-    pCfg->vgId = vgId->valueint;
-    snprintf(pCfg->path, sizeof(pCfg->path), "%s/vnode%d", pDnode->dir.vnodes, pCfg->vgId);
-
-    cJSON *dropped = cJSON_GetObjectItem(vnode, "dropped");
-    if (!dropped || dropped->type != cJSON_Number) {
-      dError("failed to read %s since dropped not found", file);
-      goto PRASE_VNODE_OVER;
-    }
-    pCfg->dropped = dropped->valueint;
-
-    cJSON *vgVersion = cJSON_GetObjectItem(vnode, "vgVersion");
-    if (!vgVersion || vgVersion->type != cJSON_Number) {
-      dError("failed to read %s since vgVersion not found", file);
-      goto PRASE_VNODE_OVER;
-    }
-    pCfg->vgVersion = vgVersion->valueint;
-
-    cJSON *dbUid = cJSON_GetObjectItem(vnode, "dbUid");
-    if (!dbUid || dbUid->type != cJSON_String) {
-      dError("failed to read %s since dbUid not found", file);
-      goto PRASE_VNODE_OVER;
-    }
-    pCfg->dbUid = atoll(dbUid->valuestring);
-
-    cJSON *db = cJSON_GetObjectItem(vnode, "db");
-    if (!db || db->type != cJSON_String) {
-      dError("failed to read %s since db not found", file);
-      goto PRASE_VNODE_OVER;
-    }
-    tstrncpy(pCfg->db, db->valuestring, TSDB_DB_FNAME_LEN);
-  }
-
-  *ppCfgs = pCfgs;
   *numOfVnodes = vnodesNum;
   code = 0;
   dInfo("succcessed to read file %s", file);
@@ -548,13 +548,13 @@ static void dndGenerateWrapperCfg(SDnode *pDnode, SCreateVnodeReq *pCreate, SWra
   pCfg->vgVersion = pCreate->vgVersion;
 }
 
-static SDropVnodeReq *vnodeParseDropVnodeReq(SRpcMsg *pReq) {
+static SDropVnodeReq *dndParseDropVnodeReq(SRpcMsg *pReq) {
   SDropVnodeReq *pDrop = pReq->pCont;
   pDrop->vgId = htonl(pDrop->vgId);
   return pDrop;
 }
 
-static SAuthVnodeReq *vnodeParseAuthVnodeReq(SRpcMsg *pReq) {
+static SAuthVnodeReq *dndParseAuthVnodeReq(SRpcMsg *pReq) {
   SAuthVnodeReq *pAuth = pReq->pCont;
   pAuth->vgId = htonl(pAuth->vgId);
   return pAuth;
@@ -572,10 +572,10 @@ int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, pCreate->vgId);
   if (pVnode != NULL) {
-    dDebug("vgId:%d, already exist, return success", pCreate->vgId);
+    dDebug("vgId:%d, already exist", pCreate->vgId);
     dndReleaseVnode(pDnode, pVnode);
     terrno = TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED;
-    return 0;
+    return -1;
   }
 
   SVnode *pImpl = vnodeOpen(wrapperCfg.path, &vnodeCfg);
@@ -641,7 +641,7 @@ int32_t dndProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 }
 
 int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SDropVnodeReq *pDrop = vnodeParseDropVnodeReq(pReq);
+  SDropVnodeReq *pDrop = dndParseDropVnodeReq(pReq);
 
   int32_t vgId = pDrop->vgId;
   dDebug("vgId:%d, drop vnode req is received", vgId);
@@ -649,7 +649,8 @@ int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, vgId);
   if (pVnode == NULL) {
     dDebug("vgId:%d, failed to drop since %s", vgId, terrstr());
-    return 0;
+    terrno = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
+    return -1;
   }
 
   pVnode->dropped = 1;
@@ -668,7 +669,7 @@ int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 }
 
 int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SAuthVnodeReq *pAuth = (SAuthVnodeReq *)vnodeParseAuthVnodeReq(pReq);
+  SAuthVnodeReq *pAuth = (SAuthVnodeReq *)dndParseAuthVnodeReq(pReq);
 
   int32_t vgId = pAuth->vgId;
   dDebug("vgId:%d, auth vnode req is received", vgId);
@@ -685,7 +686,7 @@ int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 }
 
 int32_t dndProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SSyncVnodeReq *pSync = (SSyncVnodeReq *)vnodeParseDropVnodeReq(pReq);
+  SSyncVnodeReq *pSync = (SSyncVnodeReq *)dndParseDropVnodeReq(pReq);
 
   int32_t vgId = pSync->vgId;
   dDebug("vgId:%d, sync vnode req is received", vgId);
@@ -707,7 +708,7 @@ int32_t dndProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 }
 
 int32_t dndProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SCompactVnodeReq *pCompact = (SCompactVnodeReq *)vnodeParseDropVnodeReq(pReq);
+  SCompactVnodeReq *pCompact = (SCompactVnodeReq *)dndParseDropVnodeReq(pReq);
 
   int32_t vgId = pCompact->vgId;
   dDebug("vgId:%d, compact vnode req is received", vgId);
