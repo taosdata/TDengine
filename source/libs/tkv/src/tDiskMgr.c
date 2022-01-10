@@ -24,13 +24,23 @@ struct SDiskMgr {
 
 #define PAGE_OFFSET(PGID, PGSIZE) ((PGID) * (PGSIZE))
 
-int tdmReadPage(SDiskMgr *pDiskMgr, int32_t pgid, void *pData) {
+int tdmOpen(SDiskMgr **ppDiskMgr, const char *fname, uint16_t pgsize) {
+  // TODO
+  return 0;
+}
+
+int tdmClose(SDiskMgr *pDiskMgr) {
+  // TODO
+  return 0;
+}
+
+int tdmReadPage(SDiskMgr *pDiskMgr, pgid_t pgid, void *pData) {
   taosLSeekFile(pDiskMgr->fd, PAGE_OFFSET(pgid, pDiskMgr->pgsize), SEEK_SET);
   taosReadFile(pDiskMgr->fd, pData, pDiskMgr->pgsize);
   return 0;
 }
 
-int tdmWritePage(SDiskMgr *pDiskMgr, int32_t pgid, const void *pData) {
+int tdmWritePage(SDiskMgr *pDiskMgr, pgid_t pgid, const void *pData) {
   taosLSeekFile(pDiskMgr->fd, PAGE_OFFSET(pgid, pDiskMgr->pgsize), SEEK_SET);
   taosWriteFile(pDiskMgr->fd, pData, pDiskMgr->pgsize);
   return 0;
