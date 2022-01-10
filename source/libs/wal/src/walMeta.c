@@ -184,6 +184,7 @@ int walMetaDeserialize(SWal* pWal, const char* bytes) {
   }
   taosArraySetSize(pArray, sz);
   pWal->fileInfoSet = pArray;
+  pWal->writeCur = sz - 1;
   cJSON_Delete(pRoot);
   return 0;
 }
