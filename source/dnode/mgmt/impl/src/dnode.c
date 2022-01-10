@@ -202,7 +202,7 @@ SDnode *dndInit(SDnodeOpt *pOption) {
     return NULL;
   }
 
-  if (dndInitDnode(pDnode) != 0) {
+  if (dndInitMgmt(pDnode) != 0) {
     dError("failed to init dnode");
     dndCleanup(pDnode);
     return NULL;
@@ -263,12 +263,13 @@ void dndCleanup(SDnode *pDnode) {
   dInfo("start to cleanup TDengine");
   dndSetStat(pDnode, DND_STAT_STOPPED);
   dndCleanupTrans(pDnode);
+  dndStopMgmt(pDnode);
   dndCleanupMnode(pDnode);
   dndCleanupBnode(pDnode);
   dndCleanupSnode(pDnode);
   dndCleanupQnode(pDnode);
   dndCleanupVnodes(pDnode);
-  dndCleanupDnode(pDnode);
+  dndCleanupMgmt(pDnode);
   vnodeClear();
   tfsDestroy();
   walCleanUp();
