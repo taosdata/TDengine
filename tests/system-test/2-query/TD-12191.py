@@ -92,15 +92,12 @@ class TDTestCase:
         taosd_pid = int(subprocess.getstatusoutput('ps aux|grep "taosd" |grep -v "grep"|awk \'{print $2}\'')[1])
         
         sleep(10)
-        cmd = "top -H -p %d -n 1"%taosd_pid
-        sys_output = subprocess.check_output(cmd, shell=True).decode("utf-8")
-        print(sys_output)
 
-        cmd_insert = "%staosBenchmark -y -n 10 -t 10 -S 10000 > /dev/null 2>&1 & " % (build_path)
+        cmd_insert = "%staosBenchmark -y -n 10 -t 10 -S 10000  " % (build_path)
         os.system(cmd_insert)
         sleep(5)
-        tdSql.query("select count(*) from meters")
-        tdSql.checkData(0,0,10)
+        tdSql.query("select count(*) from test.meters")
+        tdSql.checkData(0,0,100)
 
     def stop(self):
         tdSql.close()
