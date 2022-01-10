@@ -192,7 +192,7 @@ static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
 }
 
 static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
-  mTrace("user:%s, perform update action, old_row:%p new_row:%p", pOld->user, pOld, pNew);
+  mTrace("user:%s, perform update action, old row:%p new row:%p", pOld->user, pOld, pNew);
   memcpy(pOld->pass, pNew->pass, TSDB_PASSWORD_LEN);
   pOld->updateTime = pNew->updateTime;
   return 0;
