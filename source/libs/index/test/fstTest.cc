@@ -1,4 +1,5 @@
 
+#include <algorithm>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -12,7 +13,6 @@
 #include "index_tfile.h"
 #include "tskiplist.h"
 #include "tutil.h"
-
 void* callback(void* s) { return s; }
 
 static std::string fileName = "/tmp/tindex.tindex";
@@ -293,7 +293,7 @@ void validateTFile(char* arg) {
 
   std::thread threads[NUM_OF_THREAD];
   // std::vector<std::thread> threads;
-  TFileReader* reader = tfileReaderOpen(arg, 0, 999992, "tag1");
+  TFileReader* reader = tfileReaderOpen(arg, 0, 20000000, "tag1");
 
   for (int i = 0; i < NUM_OF_THREAD; i++) {
     threads[i] = std::thread(fst_get, reader->fst);
@@ -306,13 +306,41 @@ void validateTFile(char* arg) {
   }
   tfCleanup();
 }
+
+void iterTFileReader(char* path, char* ver) {
+  tfInit();
+
+  int          version = atoi(ver);
+  TFileReader* reader = tfileReaderOpen(path, 0, version, "tag1");
+  Iterate*     iter = tfileIteratorCreate(reader);
+  bool         tn = iter ? iter->next(iter) : false;
+  int          count = 0;
+  int          termCount = 0;
+  while (tn == true) {
+    count++;
+    IterateValue* cv = iter->getValue(iter);
+    termCount += (int)taosArrayGetSize(cv->val);
+    printf("col val: %s, size: %d\n", cv->colVal, (int)taosArrayGetSize(cv->val));
+    tn = iter->next(iter);
+  }
+  printf("total size: %d\n term count: %d\n", count, termCount);
+
+  tfileIteratorDestroy(iter);
+  tfCleanup();
+}
+
 int main(int argc, char* argv[]) {
   // tool to check all kind of fst test
   // if (argc > 1) { validateTFile(argv[1]); }
+  if (argc > 2) {
+    // opt
+    iterTFileReader(argv[1], argv[2]);
+  }
   // checkFstCheckIterator();
   // checkFstLongTerm();
   // checkFstPrefixSearch();
 
-  checkMillonWriteAndReadOfFst();
+  // checkMillonWriteAndReadOfFst();
+
   return 1;
 }

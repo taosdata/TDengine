@@ -805,19 +805,19 @@ typedef struct {
   int8_t   replica;
   int8_t   selfIndex;
   SReplica replicas[TSDB_MAX_REPLICA];
-} SCreateVnodeMsg, SAlterVnodeMsg;
+} SCreateVnodeReq, SAlterVnodeReq;
 
 typedef struct {
   int32_t  vgId;
   int32_t  dnodeId;
-  char     db[TSDB_DB_FNAME_LEN];
   uint64_t dbUid;
-} SDropVnodeMsg, SSyncVnodeMsg, SCompactVnodeMsg;
+  char     db[TSDB_DB_FNAME_LEN];
+} SDropVnodeReq, SSyncVnodeReq, SCompactVnodeReq;
 
 typedef struct {
   int32_t vgId;
   int8_t  accessState;
-} SAuthVnodeMsg;
+} SAuthVnodeReq;
 
 typedef struct {
   SMsgHead header;

@@ -30,7 +30,7 @@ typedef struct SCompSupporter {
   int32_t           order;
 } SCompSupporter;
 
-int32_t getRowNumForMultioutput(SQueryAttr* pQueryAttr, bool topBottomQuery, bool stable) {
+int32_t getRowNumForMultioutput(STaskAttr* pQueryAttr, bool topBottomQuery, bool stable) {
   if (pQueryAttr && (!stable)) {
     for (int16_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
 //      if (pQueryAttr->pExpr1[i].base. == FUNCTION_TOP || pQueryAttr->pExpr1[i].base.functionId == FUNCTION_BOTTOM) {
@@ -42,7 +42,7 @@ int32_t getRowNumForMultioutput(SQueryAttr* pQueryAttr, bool topBottomQuery, boo
   return 1;
 }
 
-int32_t getOutputInterResultBufSize(SQueryAttr* pQueryAttr) {
+int32_t getOutputInterResultBufSize(STaskAttr* pQueryAttr) {
   int32_t size = 0;
 
   for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
@@ -86,7 +86,7 @@ void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
   tfree(pResultRowInfo->pResult);
 }
 
-void resetResultRowInfo(SQueryRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRowInfo) {
+void resetResultRowInfo(STaskRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRowInfo) {
   if (pResultRowInfo == NULL || pResultRowInfo->capacity == 0) {
     return;
   }
@@ -136,7 +136,7 @@ void closeResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {
   getResultRow(pResultRowInfo, slot)->closed = true;
 }
 
-void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16_t type) {
+void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16_t type) {
   if (pResultRow == NULL) {
     return;
   }
@@ -174,8 +174,8 @@ struct SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index,
 return NULL;
 }
 
-size_t getResultRowSize(SQueryRuntimeEnv* pRuntimeEnv) {
-  SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
+size_t getResultRowSize(STaskRuntimeEnv* pRuntimeEnv) {
+  STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
   return 0;
 //  return (pQueryAttr->numOfOutput * sizeof(SResultRowEntryInfo)) + pQueryAttr->interBufSize + sizeof(SResultRow);
 }
@@ -393,8 +393,8 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
   return (int32_t) taosArrayGetSize(pGroupResInfo->pRows);
 }
 
-static int64_t getNumOfResultWindowRes(SQueryRuntimeEnv* pRuntimeEnv, SResultRow *pResultRow, int32_t* rowCellInfoOffset) {
-  SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
+static int64_t getNumOfResultWindowRes(STaskRuntimeEnv* pRuntimeEnv, SResultRow *pResultRow, int32_t* rowCellInfoOffset) {
+  STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   for (int32_t j = 0; j < pQueryAttr->numOfOutput; ++j) {
     int32_t functionId = 0;//pQueryAttr->pExpr1[j].base.functionId;
@@ -488,7 +488,7 @@ int32_t tsDescOrder(const void* p1, const void* p2) {
   }
 }
 
-void orderTheResultRows(SQueryRuntimeEnv* pRuntimeEnv) {
+void orderTheResultRows(STaskRuntimeEnv* pRuntimeEnv) {
   __compar_fn_t  fn = NULL;
   if (pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_ASC) {
     fn = tsAscOrder;
@@ -499,7 +499,7 @@ void orderTheResultRows(SQueryRuntimeEnv* pRuntimeEnv) {
   taosArraySort(pRuntimeEnv->pResultRowArrayList, fn);
 }
 
-static int32_t mergeIntoGroupResultImplRv(SQueryRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, uint64_t groupId, int32_t* rowCellInfoOffset) {
+static int32_t mergeIntoGroupResultImplRv(STaskRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, uint64_t groupId, int32_t* rowCellInfoOffset) {
   if (!pGroupResInfo->ordered) {
     orderTheResultRows(pRuntimeEnv);
     pGroupResInfo->ordered = true;
@@ -528,7 +528,7 @@ static int32_t mergeIntoGroupResultImplRv(SQueryRuntimeEnv *pRuntimeEnv, SGroupR
   return TSDB_CODE_SUCCESS;
 }
 
-static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, SArray *pTableList,
+static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, SArray *pTableList,
     int32_t* rowCellInfoOffset) {
   bool ascQuery = QUERY_IS_ASC_QUERY(pRuntimeEnv->pQueryAttr);
 
@@ -630,7 +630,7 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEn
   return code;
 }
 
-int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv* pRuntimeEnv, int32_t* offset) {
+int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, STaskRuntimeEnv* pRuntimeEnv, int32_t* offset) {
   int64_t st = taosGetTimestampUs();
 
   while (pGroupResInfo->currentGroup < pGroupResInfo->totalGroup) {

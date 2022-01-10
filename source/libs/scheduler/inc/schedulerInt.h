@@ -96,7 +96,7 @@ typedef struct SSchJob {
   SHashObj        *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
   SHashObj        *failTasks; // failed tasks, key:taskid, value:SQueryTask*
 
-  int8_t           status;  
+  int8_t           status;
   SQueryNodeAddr   resNode;
   tsem_t           rspSem;
   int32_t          userFetch;
@@ -113,10 +113,10 @@ typedef struct SSchJob {
 #define SCH_IS_DATA_SRC_TASK(task) ((task)->plan->type == QUERY_TYPE_SCAN)
 #define SCH_TASK_NEED_WAIT_ALL(task) ((task)->plan->type == QUERY_TYPE_MODIFY)
 
-#define SCH_SET_TASK_STATUS(task, st) atomic_store_8(&(task)->status, st) 
+#define SCH_SET_TASK_STATUS(task, st) atomic_store_8(&(task)->status, st)
 #define SCH_GET_TASK_STATUS(task) atomic_load_8(&(task)->status)
 
-#define SCH_SET_JOB_STATUS(job, st) atomic_store_8(&(job)->status, st) 
+#define SCH_SET_JOB_STATUS(job, st) atomic_store_8(&(job)->status, st)
 #define SCH_GET_JOB_STATUS(job) atomic_load_8(&(job)->status)
 
 #define SCH_SET_JOB_TYPE(pAttr, type) (pAttr)->queryJob = ((type) != QUERY_TYPE_MODIFY)

@@ -935,7 +935,10 @@ Fst* fstCreate(FstSlice* slice) {
   uint32_t checkSum = 0;
   len -= sizeof(checkSum);
   taosDecodeFixedU32(buf + len, &checkSum);
-
+  if (taosCheckChecksum(buf, len, checkSum)) {
+    // verify fst
+    return NULL;
+  }
   CompiledAddr rootAddr;
   len -= sizeof(rootAddr);
   taosDecodeFixedU64(buf + len, &rootAddr);
