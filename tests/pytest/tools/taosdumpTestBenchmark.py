@@ -74,7 +74,7 @@ class TDTestCase:
             os.system("rm -rf ./taosdumptest")
             os.makedirs("./taosdumptest")            
 
-        for i in range(1):
+        for i in range(2):
             if not os.path.exists("./taosdumptest/tmp%d"%i):
                 os.makedirs("./taosdumptest/tmp%d"%i)
             else:
@@ -122,7 +122,7 @@ class TDTestCase:
                             % (j, self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, self.ts))
                 intData.append(i + 1)            
                 floatData.append(i + 0.1)    
-        os.system("%staosBenchmark -f tools/taosdump-insert-dp1.json -y " % binPath)
+        # os.system("%staosBenchmark -f tools/taosdump-insert-dp1.json -y " % binPath)
 
 
         # create db1 , three stables:stb0,include ctables stb0_0 \ stb0_1,stb1 include ctables stb1_0 and stb1_1 
@@ -149,7 +149,7 @@ class TDTestCase:
         tdSql.execute("insert into gt1 values(1614218413800,8638,78.862020199)")
         tdSql.execute("insert into gt2 values(1614218413900,8639,78.863)")
         # self.insert_data("t", self.ts, 300*10000);
-        os.system("%staosBenchmark -f tools/taosdump-insert-dp2.json -y " % binPath)
+        # os.system("%staosBenchmark -f tools/taosdump-insert-dp2.json -y " % binPath)
 
 
 
@@ -157,10 +157,12 @@ class TDTestCase:
         # #  taosdump data
         # os.system("%staosdump  -o ./taosdumptest/tmp1 taosdump -h  -ptaosdata -P 6030 -u root  -o taosdumptest \
         #  -D dp1,dp3  -N -c  /home/chr/TDinternal/community/sim/dnode1/cfg/taos.cfg  -s -d  deflate" % binPath)
-        os.system("%staosdump  -o ./taosdumptest/tmp0 -D dp2  -T 8 -B 100000" % binPath)
+        os.system("%staosdump  -o ./taosdumptest/tmp0 -D dp2,dp1  -T 8 -B 100000" % binPath)
+        os.system("%staosdump  -o ./taosdumptest/tmp1 dp2 st0 st1_0 gt0  -T 8 -B 1000"  % binPath)
+
 
         #check taosdumptest/tmp0
-        # tdSql.execute("drop database  dp1")
+        tdSql.execute("drop database  dp1")
         tdSql.execute("drop database  dp2")
         os.system("%staosdump -i ./taosdumptest/tmp0 -T 8   " % binPath)
         tdSql.execute("reset query cache")
@@ -203,14 +205,30 @@ class TDTestCase:
         tdSql.checkData(0, 0, 4)  
         tdSql.query("select count(*) from st2")
         tdSql.checkData(0, 0, 1000024)  
-
-           
         tdSql.query("select ts from gt0")
         tdSql.checkData(0,0,'2021-02-25 10:00:12.700')
         tdSql.query("select c10 from gt1")
         tdSql.checkData(0, 0, 8638)
         tdSql.query("select c20 from gt2")
         tdSql.checkData(0, 0, 8639)
+
+        #check taosdumptest/tmp1
+        tdSql.execute("drop database  dp1")
+        tdSql.execute("drop database  dp2")
+        os.system("%staosdump  -i ./taosdumptest/tmp1 -T 8 " % binPath)  
+        tdSql.execute("reset query cache")
+        tdSql.execute("use dp2")
+        tdSql.query("show stables")
+        tdSql.checkRows(2)
+        tdSql.query("show tables")
+        tdSql.checkRows(4)
+        tdSql.query("select count(*) from st1_0")
+        tdSql.checkData(0,0,2)
+        tdSql.query("select ts from gt0")
+        tdSql.checkData(0,0,'2021-02-25 10:00:12.700')
+        tdSql.error("use dp1")
+        tdSql.error("select count(*) from st2_0")
+        tdSql.error("select count(*) from gt2")
 
 
         # #check taosdumptest/tmp2
