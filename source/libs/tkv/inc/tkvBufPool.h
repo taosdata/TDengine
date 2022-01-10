@@ -13,24 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TKV_DEF_H_
-#define _TD_TKV_DEF_H_
+#ifndef _TD_TKV_BUF_POOL_H_
+#define _TD_TKV_BUF_POOL_H_
 
-#include "os.h"
+#include "tkvPage.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// pgid_t
-typedef int32_t pgid_t;
-#define TKV_IVLD_PGID ((pgid_t)-1)
+typedef struct STkvBufPool STkvBufPool;
 
-// framd_id_t
-typedef int32_t frame_id_t;
+int       tbpOpen(STkvBufPool **ppTkvBufPool);
+int       tbpClose(STkvBufPool *pTkvBufPool);
+STkvPage *tbpNewPage(STkvBufPool *pTkvBufPool);
+int       tbpDelPage(STkvBufPool *pTkvBufPool);
+STkvPage *tbpFetchPage(STkvBufPool *pTkvBufPool, pgid_t pgid);
+int       tbpUnpinPage(STkvBufPool *pTkvBufPool, pgid_t pgid);
+void      tbpFlushPages(STkvBufPool *pTkvBufPool);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TKV_DEF_H_*/
+#endif /*_TD_TKV_BUF_POOL_H_*/

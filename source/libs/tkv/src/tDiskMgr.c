@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tDiskMgr.h"
+#include "tkvDiskMgr.h"
 
-struct SDiskMgr {
+struct STkvDiskMgr {
   char *   fname;
   uint16_t pgsize;
   FileFd   fd;
@@ -24,8 +24,8 @@ struct SDiskMgr {
 
 #define PAGE_OFFSET(PGID, PGSIZE) ((PGID) * (PGSIZE))
 
-int tdmOpen(SDiskMgr **ppDiskMgr, const char *fname, uint16_t pgsize) {
-  SDiskMgr *pDiskMgr;
+int tdmOpen(STkvDiskMgr **ppDiskMgr, const char *fname, uint16_t pgsize) {
+  STkvDiskMgr *pDiskMgr;
 
   pDiskMgr = malloc(sizeof(*pDiskMgr));
   if (pDiskMgr == NULL) {
@@ -50,25 +50,25 @@ int tdmOpen(SDiskMgr **ppDiskMgr, const char *fname, uint16_t pgsize) {
   return 0;
 }
 
-int tdmClose(SDiskMgr *pDiskMgr) {
+int tdmClose(STkvDiskMgr *pDiskMgr) {
   close(pDiskMgr->fd);
   free(pDiskMgr->fname);
   free(pDiskMgr);
   return 0;
 }
 
-int tdmReadPage(SDiskMgr *pDiskMgr, pgid_t pgid, void *pData) {
+int tdmReadPage(STkvDiskMgr *pDiskMgr, pgid_t pgid, void *pData) {
   taosLSeekFile(pDiskMgr->fd, PAGE_OFFSET(pgid, pDiskMgr->pgsize), SEEK_SET);
   taosReadFile(pDiskMgr->fd, pData, pDiskMgr->pgsize);
   return 0;
 }
 
-int tdmWritePage(SDiskMgr *pDiskMgr, pgid_t pgid, const void *pData) {
+int tdmWritePage(STkvDiskMgr *pDiskMgr, pgid_t pgid, const void *pData) {
   taosLSeekFile(pDiskMgr->fd, PAGE_OFFSET(pgid, pDiskMgr->pgsize), SEEK_SET);
   taosWriteFile(pDiskMgr->fd, pData, pDiskMgr->pgsize);
   return 0;
 }
 
-int tdmFlush(SDiskMgr *pDiskMgr) { return taosFsyncFile(pDiskMgr->fd); }
+int tdmFlush(STkvDiskMgr *pDiskMgr) { return taosFsyncFile(pDiskMgr->fd); }
 
-int32_t tdmAllocPage(SDiskMgr *pDiskMgr) { return pDiskMgr->npgid++; }
+int32_t tdmAllocPage(STkvDiskMgr *pDiskMgr) { return pDiskMgr->npgid++; }

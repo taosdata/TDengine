@@ -13,29 +13,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TKV_PAGE_H_
-#define _TD_TKV_PAGE_H_
-
-#include "os.h"
+#ifndef _TD_TDISK_MGR_H_
+#define _TD_TDISK_MGR_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct {
-  uint16_t dbver;
-  uint16_t pgsize;
-  uint32_t cksm;
-} SPgHdr;
+#include "os.h"
 
-typedef struct {
-  SPgHdr   chdr;
-  uint16_t used;     // number of used slots
-  uint16_t loffset;  // the offset of the starting location of the last slot used
-} SSlottedPgHdr;
+#include "tkvDef.h"
+
+typedef struct STkvDiskMgr STkvDiskMgr;
+
+int    tdmOpen(STkvDiskMgr **ppDiskMgr, const char *fname, uint16_t pgsize);
+int    tdmClose(STkvDiskMgr *pDiskMgr);
+int    tdmReadPage(STkvDiskMgr *pDiskMgr, pgid_t pgid, void *pData);
+int    tdmWritePage(STkvDiskMgr *pDiskMgr, pgid_t pgid, const void *pData);
+int    tdmFlush(STkvDiskMgr *pDiskMgr);
+pgid_t tdmAllocPage(STkvDiskMgr *pDiskMgr);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TKV_PAGE_H_*/
+#endif /*_TD_TDISK_MGR_H_*/

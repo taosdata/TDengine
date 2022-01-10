@@ -8,4 +8,5 @@ target_include_directories(
 target_link_libraries(
     tkv
     PUBLIC os
+    PUBLIC util
 )
