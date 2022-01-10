@@ -473,12 +473,12 @@ static int32_t dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   dDebug("startup req is received");
 
-  SStartupMsg *pStartup = rpcMallocCont(sizeof(SStartupMsg));
+  SStartupReq *pStartup = rpcMallocCont(sizeof(SStartupReq));
   dndGetStartup(pDnode, pStartup);
 
   dDebug("startup req is sent, step:%s desc:%s finished:%d", pStartup->name, pStartup->desc, pStartup->finished);
 
-  SRpcMsg rpcRsp = {.handle = pReq->handle, .pCont = pStartup, .contLen = sizeof(SStartupMsg)};
+  SRpcMsg rpcRsp = {.handle = pReq->handle, .pCont = pStartup, .contLen = sizeof(SStartupReq)};
   rpcSendResponse(&rpcRsp);
 }
 

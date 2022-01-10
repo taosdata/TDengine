@@ -667,25 +667,25 @@ typedef struct {
   int8_t  walLevel;
   int8_t  quorum;
   int8_t  cacheLastRow;
-} SAlterDbMsg;
+} SAlterDbReq;
 
 typedef struct {
   char   db[TSDB_TABLE_FNAME_LEN];
   int8_t ignoreNotExists;
-} SDropDbMsg;
+} SDropDbReq;
 
 typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];
   int32_t vgVersion;
-} SUseDbMsg;
+} SUseDbReq;
 
 typedef struct {
   char db[TSDB_TABLE_FNAME_LEN];
-} SSyncDbMsg;
+} SSyncDbReq;
 
 typedef struct {
   char db[TSDB_TABLE_FNAME_LEN];
-} SCompactDbMsg;
+} SCompactDbReq;
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
@@ -699,16 +699,16 @@ typedef struct {
   int32_t commentSize;
   int32_t codeSize;
   char    pCont[];
-} SCreateFuncMsg;
+} SCreateFuncReq;
 
 typedef struct {
   char name[TSDB_FUNC_NAME_LEN];
-} SDropFuncMsg;
+} SDropFuncReq;
 
 typedef struct {
   int32_t numOfFuncs;
   char    pFuncNames[];
-} SRetrieveFuncMsg;
+} SRetrieveFuncReq;
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
@@ -932,7 +932,7 @@ typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int32_t numOfVgroup;
   int32_t vgid[];
-} SCompactMsg;
+} SCompactReq;
 
 typedef struct SShowRsp {
   int64_t       showId;
@@ -1042,7 +1042,7 @@ typedef struct {
   int8_t align[7];
   char   name[TSDB_STEP_NAME_LEN];
   char   desc[TSDB_STEP_DESC_LEN];
-} SStartupMsg;
+} SStartupReq;
 
 // mq related
 typedef struct {

@@ -136,9 +136,9 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   CheckBinary("master", 9);
 
   {
-    int32_t contLen = sizeof(SAlterDbMsg);
+    int32_t contLen = sizeof(SAlterDbReq);
 
-    SAlterDbMsg* pReq = (SAlterDbMsg*)rpcMallocCont(contLen);
+    SAlterDbReq* pReq = (SAlterDbReq*)rpcMallocCont(contLen);
     strcpy(pReq->db, "1.d1");
     pReq->totalBlocks = htonl(12);
     pReq->daysToKeep0 = htonl(300);
@@ -205,9 +205,9 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   CheckInt8(0);                    // update
 
   {
-    int32_t contLen = sizeof(SDropDbMsg);
+    int32_t contLen = sizeof(SDropDbReq);
 
-    SDropDbMsg* pReq = (SDropDbMsg*)rpcMallocCont(contLen);
+    SDropDbReq* pReq = (SDropDbReq*)rpcMallocCont(contLen);
     strcpy(pReq->db, "1.d1");
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
@@ -261,9 +261,9 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
   CheckBinary("d2", TSDB_DB_NAME_LEN - 1);
 
   {
-    int32_t contLen = sizeof(SUseDbMsg);
+    int32_t contLen = sizeof(SUseDbReq);
 
-    SUseDbMsg* pReq = (SUseDbMsg*)rpcMallocCont(contLen);
+    SUseDbReq* pReq = (SUseDbReq*)rpcMallocCont(contLen);
     strcpy(pReq->db, "1.d2");
     pReq->vgVersion = htonl(-1);
 
@@ -314,9 +314,9 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
   }
 
   {
-    int32_t contLen = sizeof(SDropDbMsg);
+    int32_t contLen = sizeof(SDropDbReq);
 
-    SDropDbMsg* pReq = (SDropDbMsg*)rpcMallocCont(contLen);
+    SDropDbReq* pReq = (SDropDbReq*)rpcMallocCont(contLen);
     strcpy(pReq->db, "1.d2");
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);

@@ -59,7 +59,7 @@ int32_t queryBuildUseDbMsg(void* input, char **msg, int32_t msgSize, int32_t *ms
 
   SBuildUseDBInput* bInput = (SBuildUseDBInput *)input;
 
-  int32_t estimateSize = sizeof(SUseDbMsg);
+  int32_t estimateSize = sizeof(SUseDbReq);
   if (NULL == *msg || msgSize < estimateSize) {
     tfree(*msg);
     *msg = rpcMallocCont(estimateSize);
@@ -68,7 +68,7 @@ int32_t queryBuildUseDbMsg(void* input, char **msg, int32_t msgSize, int32_t *ms
     }
   }
 
-  SUseDbMsg *bMsg = (SUseDbMsg *)*msg;
+  SUseDbReq *bMsg = (SUseDbReq *)*msg;
 
   strncpy(bMsg->db, bInput->db, sizeof(bMsg->db));
   bMsg->db[sizeof(bMsg->db) - 1] = 0;

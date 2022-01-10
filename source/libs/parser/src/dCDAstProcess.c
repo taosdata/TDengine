@@ -842,11 +842,11 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, c
         goto _error;
       }
 
-      SUseDbMsg* pUseDbMsg = (SUseDbMsg*)calloc(1, sizeof(SUseDbMsg));
+      SUseDbReq* pUseDbMsg = (SUseDbReq*)calloc(1, sizeof(SUseDbReq));
       tNameExtractFullName(&n, pUseDbMsg->db);
 
       pDcl->pMsg = (char*)pUseDbMsg;
-      pDcl->msgLen = sizeof(SUseDbMsg);
+      pDcl->msgLen = sizeof(SUseDbReq);
       pDcl->msgType = TDMT_MND_USE_DB;
       break;
     }
@@ -895,14 +895,14 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, c
         goto _error;
       }
 
-      SDropDbMsg* pDropDbMsg = (SDropDbMsg*)calloc(1, sizeof(SDropDbMsg));
+      SDropDbReq* pDropDbMsg = (SDropDbReq*)calloc(1, sizeof(SDropDbReq));
 
       code = tNameExtractFullName(&name, pDropDbMsg->db);
       pDropDbMsg->ignoreNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
       assert(code == TSDB_CODE_SUCCESS && name.type == TSDB_DB_NAME_T);
 
       pDcl->msgType = TDMT_MND_DROP_DB;
-      pDcl->msgLen = sizeof(SDropDbMsg);
+      pDcl->msgLen = sizeof(SDropDbReq);
       pDcl->pMsg = (char*)pDropDbMsg;
       break;
     }

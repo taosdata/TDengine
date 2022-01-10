@@ -26,7 +26,7 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw);
 static int32_t  mndFuncActionInsert(SSdb *pSdb, SFuncObj *pFunc);
 static int32_t  mndFuncActionDelete(SSdb *pSdb, SFuncObj *pFunc);
 static int32_t  mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOldFunc, SFuncObj *pNewFunc);
-static int32_t  mndCreateFunc(SMnode *pMnode, SMnodeMsg *pMsg, SCreateFuncMsg *pCreate);
+static int32_t  mndCreateFunc(SMnode *pMnode, SMnodeMsg *pMsg, SCreateFuncReq *pCreate);
 static int32_t  mndDropFunc(SMnode *pMnode, SMnodeMsg *pMsg, SFuncObj *pFunc);
 static int32_t  mndProcessCreateFuncMsg(SMnodeMsg *pMsg);
 static int32_t  mndProcessDropFuncMsg(SMnodeMsg *pMsg);
@@ -156,7 +156,7 @@ static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOldFunc, SFuncObj *pNe
   return 0;
 }
 
-static int32_t mndCreateFunc(SMnode *pMnode, SMnodeMsg *pMsg, SCreateFuncMsg *pCreate) {
+static int32_t mndCreateFunc(SMnode *pMnode, SMnodeMsg *pMsg, SCreateFuncReq *pCreate) {
   SFuncObj *pFunc = calloc(1, sizeof(SFuncObj) + pCreate->commentSize + pCreate->codeSize);
   pFunc->createdTime = taosGetTimestampMs();
   pFunc->funcType = pCreate->funcType;
@@ -264,7 +264,7 @@ static int32_t mndDropFunc(SMnode *pMnode, SMnodeMsg *pMsg, SFuncObj *pFunc) {
 static int32_t mndProcessCreateFuncMsg(SMnodeMsg *pMsg) {
   SMnode *pMnode = pMsg->pMnode;
 
-  SCreateFuncMsg *pCreate = pMsg->rpcMsg.pCont;
+  SCreateFuncReq *pCreate = pMsg->rpcMsg.pCont;
   pCreate->outputLen = htonl(pCreate->outputLen);
   pCreate->bufSize = htonl(pCreate->bufSize);
   pCreate->sigature = htobe64(pCreate->sigature);
@@ -323,7 +323,7 @@ static int32_t mndProcessCreateFuncMsg(SMnodeMsg *pMsg) {
 
 static int32_t mndProcessDropFuncMsg(SMnodeMsg *pMsg) {
   SMnode       *pMnode = pMsg->pMnode;
-  SDropFuncMsg *pDrop = pMsg->rpcMsg.pCont;
+  SDropFuncReq *pDrop = pMsg->rpcMsg.pCont;
 
   mDebug("func:%s, start to drop", pDrop->name);
 
@@ -353,7 +353,7 @@ static int32_t mndProcessDropFuncMsg(SMnodeMsg *pMsg) {
 static int32_t mndProcessRetrieveFuncMsg(SMnodeMsg *pMsg) {
   SMnode *pMnode = pMsg->pMnode;
 
-  SRetrieveFuncMsg *pRetrieve = pMsg->rpcMsg.pCont;
+  SRetrieveFuncReq *pRetrieve = pMsg->rpcMsg.pCont;
   pRetrieve->numOfFuncs = htonl(pRetrieve->numOfFuncs);
 
   int32_t size = sizeof(SRetrieveFuncRsp) + (sizeof(SFuncInfo) + TSDB_FUNC_CODE_LEN) * pRetrieve->numOfFuncs + 16384;
