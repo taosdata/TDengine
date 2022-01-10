@@ -16,10 +16,10 @@
 #include "tDiskMgr.h"
 
 struct SDiskMgr {
-  const char *fname;
-  uint16_t    pgsize;
-  FileFd      fd;
-  int32_t     npgid;
+  char *   fname;
+  uint16_t pgsize;
+  FileFd   fd;
+  pgid_t   npgid;
 };
 
 #define PAGE_OFFSET(PGID, PGSIZE) ((PGID) * (PGSIZE))
@@ -68,5 +68,7 @@ int tdmWritePage(SDiskMgr *pDiskMgr, pgid_t pgid, const void *pData) {
   taosWriteFile(pDiskMgr->fd, pData, pDiskMgr->pgsize);
   return 0;
 }
+
+int tdmFlush(SDiskMgr *pDiskMgr) { return taosFsyncFile(pDiskMgr->fd); }
 
 int32_t tdmAllocPage(SDiskMgr *pDiskMgr) { return pDiskMgr->npgid++; }
