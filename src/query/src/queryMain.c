@@ -67,7 +67,8 @@ void freeParam(SQueryParam *param) {
   tfree(param->prevResult);
 }
 
-int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qinfo_t* pQInfo, uint64_t qId) {
+int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qinfo_t* pQInfo, uint64_t qId,
+                         int32_t* schemaVersion, int32_t* tagVersion) {
   assert(pQueryMsg != NULL && tsdb != NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -186,6 +187,8 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
   code = initQInfo(&pQueryMsg->tsBuf, tsdb, NULL, *pQInfo, &param, (char*)pQueryMsg, pQueryMsg->prevResultLen, NULL);
 
+  *schemaVersion = tableGroupInfo.sVersion;
+  *tagVersion = tableGroupInfo.tVersion;
   _over:
   if (param.pGroupbyExpr != NULL) {
     taosArrayDestroy(&(param.pGroupbyExpr->columnInfo));

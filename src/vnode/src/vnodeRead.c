@@ -239,11 +239,16 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
   if (contLen != 0) {
     qinfo_t pQInfo = NULL;
     uint64_t qId = genQueryId();
-    code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, &pQInfo, qId);
+    int32_t schemaVersion = -1;
+    int32_t tagVersion = -1;
+    code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, &pQInfo, qId, &schemaVersion, &tagVersion);
 
     SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp));
     pRsp->code = code;
     pRsp->qId  = 0;
+
+    pRsp->sVersion = schemaVersion;
+    pRsp->tVersion = tagVersion;
 
     pRet->len = sizeof(SQueryTableRsp);
     pRet->rsp = pRsp;
