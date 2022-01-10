@@ -237,6 +237,7 @@ static uint64_t splitSubplanByTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNod
   for (int32_t i = 0; i < pTable->pMeta->vgroupList->numOfVgroups; ++i) {
     STORE_CURRENT_SUBPLAN(pCxt);
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_SCAN);
+    subplan->msgType   = TDMT_VND_QUERY;
     vgroupMsgToEpSet(&(pTable->pMeta->vgroupList->vgroups[i]), &subplan->execNode);
     subplan->pNode = createMultiTableScanNode(pPlanNode, pTable);
     subplan->pDataSink = createDataDispatcher(pCxt, pPlanNode);
@@ -361,4 +362,5 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
 
 int32_t setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep) {
   //todo
+  return TSDB_CODE_SUCCESS;
 }
