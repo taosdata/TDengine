@@ -71,6 +71,7 @@ int   tsdbLoadDataFromCache(STable* pTable, SSkipListIterator* pIter, TSKEY maxK
                             TKEY* filterKeys, int nFilterKeys, bool keepDup, SMergeInfo* pMergeInfo);
 void* tsdbCommitData(STsdbRepo* pRepo);
 int   tsdbUpdateTableLatestInfo(STsdbRepo* pRepo, STable* pTable, SMemRow row);
+int   tsdbUpdateTableCache(STsdbRepo* pRepo, STable* pTable, SMemRow row, bool* isContinue);
 
 static SMemRow tsdbNextIterRow(SSkipListIterator* pIter) {
   if (pIter == NULL) return NULL;

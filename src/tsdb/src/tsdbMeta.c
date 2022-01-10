@@ -603,10 +603,10 @@ void tsdbFreeLastColumns(STable* pTable) {
     }
     tfree(pTable->lastCols[i].pData);
     pTable->lastCols[i].bytes = 0;
-    pTable->lastCols[i].pData = NULL;
+    // pTable->lastCols[i].pData = NULL; // already set NULL in tfree
   }
   tfree(pTable->lastCols);
-  pTable->lastCols = NULL;
+  // pTable->lastCols = NULL; // already set NULL in tfree
   pTable->maxColNum = 0;
   pTable->lastColSVersion = -1;
   pTable->restoreColumnNum = 0;
@@ -633,6 +633,7 @@ int tsdbInitColIdCacheWithSchema(STable* pTable, STSchema* pSchema) {
 
     pTable->lastCols = (SDataCol *)malloc(numOfColumn * sizeof(SDataCol));
     if (pTable->lastCols == NULL) {
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       TSDB_WUNLOCK_TABLE(pTable);
       return -1;
     }
@@ -668,6 +669,7 @@ int tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema) {
   int16_t numOfCols = pNewSchema->numOfCols;
   SDataCol *lastCols = (SDataCol*)malloc(numOfCols * sizeof(SDataCol));
   if (lastCols == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
 
