@@ -15,7 +15,7 @@
 
 #include "vnodeDef.h"
 
-SVnodeMgr vnodeMgr = {.vnodeInitFlag = TD_MOD_UNINITIALIZED, .vnodeClearFlag = TD_MOD_UNCLEARD, .stop = false};
+SVnodeMgr vnodeMgr = {.vnodeInitFlag = TD_MOD_UNINITIALIZED};
 
 static void* loop(void* arg);
 
@@ -23,6 +23,8 @@ int vnodeInit(uint16_t nthreads) {
   if (TD_CHECK_AND_SET_MODE_INIT(&(vnodeMgr.vnodeInitFlag)) == TD_MOD_INITIALIZED) {
     return 0;
   }
+
+  vnodeMgr.stop = false;
 
   // Start commit handers
   if (nthreads > 0) {
@@ -38,6 +40,7 @@ int vnodeInit(uint16_t nthreads) {
 
     for (uint16_t i = 0; i < nthreads; i++) {
       pthread_create(&(vnodeMgr.threads[i]), NULL, loop, NULL);
+      pthread_setname_np(vnodeMgr.threads[i], "VND Commit Thread");
     }
   } else {
     // TODO: if no commit thread is set, then another mechanism should be
@@ -53,7 +56,7 @@ int vnodeInit(uint16_t nthreads) {
 }
 
 void vnodeClear() {
-  if (TD_CHECK_AND_SET_MOD_CLEAR(&(vnodeMgr.vnodeClearFlag)) == TD_MOD_CLEARD) {
+  if (TD_CHECK_AND_SET_MOD_CLEAR(&(vnodeMgr.vnodeInitFlag)) == TD_MOD_UNINITIALIZED) {
     return;
   }
 

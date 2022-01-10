@@ -234,7 +234,7 @@ static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
 
 static void vgroupInfoToEpSet(const SVgroupInfo* vg, SQueryNodeAddr* execNode) {
   execNode->nodeId = vg->vgId;
-  execNode->inUse = 0; // todo
+  execNode->inUse = vg->inUse;
   execNode->numOfEps = vg->numOfEps;
   for (int8_t i = 0; i < vg->numOfEps; ++i) {
     execNode->epAddr[i] = vg->epAddr[i];

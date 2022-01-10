@@ -16,40 +16,15 @@
 #ifndef _TD_TKV_DEF_H_
 #define _TD_TKV_DEF_H_
 
-#ifdef USE_ROCKSDB
-#include <rocksdb/c.h>
-#endif
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-struct STkvDb {
-#ifdef USE_ROCKSDB
-  rocksdb_t *db;
-#endif
-};
 
-struct STkvOpts {
-#ifdef USE_ROCKSDB
-  rocksdb_options_t *opts;
-#endif
-};
-
-struct STkvCache {
-  // TODO
-};
-
-struct STkvReadOpts {
-#ifdef USE_ROCKSDB
-  rocksdb_readoptions_t *ropts;
-#endif
-};
-
-struct STkvWriteOpts {
-#ifdef USE_ROCKSDB
-  rocksdb_writeoptions_t *wopts;
-#endif
-};
+// pgid_t
+typedef int32_t pgid_t;
+#define TKV_IVLD_PGID ((pgid_t)-1)
 
 #ifdef __cplusplus
 }

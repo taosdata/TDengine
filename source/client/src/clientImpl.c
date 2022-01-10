@@ -305,6 +305,8 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   } else {
     CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pDag), _return);
     CHECK_CODE_GOTO(scheduleQuery(pRequest, pDag, &pJob), _return);
+    pRequest->code = terrno;
+    return pRequest;
   }
 
 _return:

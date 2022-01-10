@@ -70,7 +70,7 @@ typedef struct {
 #define TSDB_FS_ITER_FORWARD TSDB_ORDER_ASC
 #define TSDB_FS_ITER_BACKWARD TSDB_ORDER_DESC
 
-STsdbFS *tsdbNewFS(STsdbCfg *pCfg);
+STsdbFS *tsdbNewFS(const STsdbCfg *pCfg);
 void *   tsdbFreeFS(STsdbFS *pfs);
 int      tsdbOpenFS(STsdb *pRepo);
 void     tsdbCloseFS(STsdb *pRepo);
@@ -79,7 +79,7 @@ int      tsdbEndFSTxn(STsdb *pRepo);
 int      tsdbEndFSTxnWithError(STsdbFS *pfs);
 void     tsdbUpdateFSTxnMeta(STsdbFS *pfs, STsdbFSMeta *pMeta);
 // void     tsdbUpdateMFile(STsdbFS *pfs, const SMFile *pMFile);
-int      tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet);
+int tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet);
 
 void       tsdbFSIterInit(SFSIter *pIter, STsdbFS *pfs, int direction);
 void       tsdbFSIterSeek(SFSIter *pIter, int fid);

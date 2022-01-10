@@ -9,9 +9,3 @@ target_link_libraries(
     tkv
     PUBLIC os
 )
-if(${BUILD_WITH_ROCKSDB})
-    target_link_libraries(
-        tkv
-        PUBLIC rocksdb
-    )
-endif(${BUILD_WITH_ROCKSDB})

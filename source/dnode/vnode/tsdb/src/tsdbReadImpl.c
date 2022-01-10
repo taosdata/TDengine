@@ -25,7 +25,6 @@ static int  tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, void *content, int3
 static int  tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols, int16_t *colIds,
                                       int numOfColIds);
 static int  tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBlockCol *pBlockCol, SDataCol *pDataCol);
-static STSchema *tsdbGetTableSchemaImpl(STable *pTable, bool lock, bool copy, int32_t version) { return NULL; }
 
 int tsdbInitReadH(SReadH *pReadh, STsdb *pRepo) {
   ASSERT(pReadh != NULL && pRepo != NULL);
@@ -667,4 +666,3 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
 
   return 0;
 }
-

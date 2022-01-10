@@ -33,9 +33,9 @@ typedef struct {
   int8_t      dropped;
   int8_t      accessState;
   uint64_t    dbUid;
-  char       *db;
-  char       *path;
-  SVnode     *pImpl;
+  char *      db;
+  char *      path;
+  SVnode *    pImpl;
   STaosQueue *pWriteQ;
   STaosQueue *pSyncQ;
   STaosQueue *pApplyQ;
@@ -49,7 +49,7 @@ typedef struct {
   int32_t      failed;
   int32_t      threadIndex;
   pthread_t    thread;
-  SDnode      *pDnode;
+  SDnode *     pDnode;
   SWrapperCfg *pCfgs;
 } SVnodeThread;
 
@@ -67,7 +67,7 @@ void           dndProcessVnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pE
 void           dndProcessVnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 static int32_t dndPutMsgIntoVnodeApplyQueue(SDnode *pDnode, int32_t vgId, SRpcMsg *pMsg);
 
-static SVnodeObj  *dndAcquireVnode(SDnode *pDnode, int32_t vgId);
+static SVnodeObj * dndAcquireVnode(SDnode *pDnode, int32_t vgId);
 static void        dndReleaseVnode(SDnode *pDnode, SVnodeObj *pVnode);
 static int32_t     dndOpenVnode(SDnode *pDnode, SWrapperCfg *pCfg, SVnode *pImpl);
 static void        dndCloseVnode(SDnode *pDnode, SVnodeObj *pVnode);
@@ -80,7 +80,7 @@ static void    dndCloseVnodes(SDnode *pDnode);
 
 static SVnodeObj *dndAcquireVnode(SDnode *pDnode, int32_t vgId) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
-  SVnodeObj   *pVnode = NULL;
+  SVnodeObj *  pVnode = NULL;
   int32_t      refCount = 0;
 
   taosRLockLatch(&pMgmt->latch);
@@ -111,7 +111,7 @@ static void dndReleaseVnode(SDnode *pDnode, SVnodeObj *pVnode) {
 
 static int32_t dndOpenVnode(SDnode *pDnode, SWrapperCfg *pCfg, SVnode *pImpl) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
-  SVnodeObj   *pVnode = calloc(1, sizeof(SVnodeObj));
+  SVnodeObj *  pVnode = calloc(1, sizeof(SVnodeObj));
   if (pVnode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -167,6 +167,11 @@ static void dndCloseVnode(SDnode *pDnode, SVnodeObj *pVnode) {
 
   dDebug("vgId:%d, vnode is closed", pVnode->vgId);
 
+  if (pVnode->dropped) {
+    dDebug("vgId:%d, vnode is destroyed for dropped:%d", pVnode->vgId, pVnode->dropped);
+    vnodeDestroy(pVnode->path);
+  }
+
   free(pVnode->path);
   free(pVnode->db);
   free(pVnode);
@@ -183,7 +188,7 @@ static SVnodeObj **dndGetVnodesFromHash(SDnode *pDnode, int32_t *numOfVnodes) {
   void *pIter = taosHashIterate(pMgmt->hash, NULL);
   while (pIter) {
     SVnodeObj **ppVnode = pIter;
-    SVnodeObj  *pVnode = *ppVnode;
+    SVnodeObj * pVnode = *ppVnode;
     if (pVnode && num < size) {
       int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
       dTrace("vgId:%d, acquire vnode, refCount:%d", pVnode->vgId, refCount);
@@ -205,9 +210,9 @@ static int32_t dndGetVnodesFromFile(SDnode *pDnode, SWrapperCfg **ppCfgs, int32_
   int32_t      code = TSDB_CODE_DND_VNODE_READ_FILE_ERROR;
   int32_t      len = 0;
   int32_t      maxLen = 30000;
-  char        *content = calloc(1, maxLen + 1);
-  cJSON       *root = NULL;
-  FILE        *fp = NULL;
+  char *       content = calloc(1, maxLen + 1);
+  cJSON *      root = NULL;
+  FILE *       fp = NULL;
   char         file[PATH_MAX + 20] = {0};
   SWrapperCfg *pCfgs = NULL;
 
@@ -320,7 +325,7 @@ static int32_t dndWriteVnodesToFile(SDnode *pDnode) {
 
   int32_t len = 0;
   int32_t maxLen = 65536;
-  char   *content = calloc(1, maxLen + 1);
+  char *  content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"vnodes\": [\n");
@@ -362,8 +367,8 @@ static int32_t dndWriteVnodesToFile(SDnode *pDnode) {
 
 static void *dnodeOpenVnodeFunc(void *param) {
   SVnodeThread *pThread = param;
-  SDnode       *pDnode = pThread->pDnode;
-  SVnodesMgmt  *pMgmt = &pDnode->vmgmt;
+  SDnode *      pDnode = pThread->pDnode;
+  SVnodesMgmt * pMgmt = &pDnode->vmgmt;
 
   dDebug("thread:%d, start to open %d vnodes", pThread->threadIndex, pThread->vnodeNum);
   setThreadName("open-vnodes");
@@ -376,10 +381,7 @@ static void *dnodeOpenVnodeFunc(void *param) {
              pMgmt->openVnodes, pMgmt->totalVnodes);
     dndReportStartup(pDnode, "open-vnodes", stepDesc);
 
-    SVnodeCfg vnodeCfg = {0};
-    vnodeCfg.vgId = pCfg->vgId;
-
-    SVnode *pImpl = vnodeOpen(pCfg->path, &vnodeCfg);
+    SVnode *pImpl = vnodeOpen(pCfg->path, NULL, pCfg->vgId);
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d", pCfg->vgId, pThread->threadIndex);
       pThread->failed++;
@@ -469,6 +471,7 @@ static int32_t dndOpenVnodes(SDnode *pDnode) {
 }
 
 static void dndCloseVnodes(SDnode *pDnode) {
+  dInfo("start to close all vnodes");
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
 
   int32_t     numOfVnodes = 0;
@@ -578,7 +581,7 @@ int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
     return -1;
   }
 
-  SVnode *pImpl = vnodeOpen(wrapperCfg.path, &vnodeCfg);
+  SVnode *pImpl = vnodeOpen(wrapperCfg.path, NULL /*pCfg*/, pCreate->vgId);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to create vnode since %s", pCreate->vgId, terrstr());
     return -1;
@@ -661,8 +664,6 @@ int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   }
 
   dndCloseVnode(pDnode, pVnode);
-  vnodeClose(pVnode->pImpl);
-  vnodeDestroy(pVnode->path);
   dndWriteVnodesToFile(pDnode);
 
   return 0;
@@ -992,12 +993,12 @@ void dndGetVnodeLoads(SDnode *pDnode, SVnodeLoads *pLoads) {
   pLoads->num = taosHashGetSize(pMgmt->hash);
 
   int32_t v = 0;
-  void   *pIter = taosHashIterate(pMgmt->hash, NULL);
+  void *  pIter = taosHashIterate(pMgmt->hash, NULL);
   while (pIter) {
     SVnodeObj **ppVnode = pIter;
     if (ppVnode == NULL || *ppVnode == NULL) continue;
 
-    SVnodeObj  *pVnode = *ppVnode;
+    SVnodeObj * pVnode = *ppVnode;
     SVnodeLoad *pLoad = &pLoads->data[v++];
 
     vnodeGetLoad(pVnode->pImpl, pLoad);

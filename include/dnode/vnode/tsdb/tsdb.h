@@ -17,6 +17,7 @@
 #define _TD_TSDB_H_
 
 #include "mallocator.h"
+#include "meta.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,7 +34,7 @@ typedef struct SDataStatis {
 } SDataStatis;
 
 typedef struct STable {
-  int32_t   tid;
+  uint64_t  tid;
   uint64_t  uid;
   STSchema *pSchema;
 } STable;
@@ -54,10 +55,11 @@ typedef struct STsdbCfg {
   int32_t  keep1;
   int32_t  keep2;
   int8_t   update;
+  int8_t   compression;
 } STsdbCfg;
 
 // STsdb
-STsdb *tsdbOpen(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF);
+STsdb *tsdbOpen(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF, SMeta *pMeta);
 void   tsdbClose(STsdb *);
 void   tsdbRemove(const char *path);
 int    tsdbInsertData(STsdb *pTsdb, SSubmitMsg *pMsg, SSubmitRsp *pRsp);
