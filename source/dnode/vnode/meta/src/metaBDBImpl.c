@@ -596,8 +596,17 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
   STSchema *      pTSchema = NULL;
   SSchema *       pSchema;
   SSchemaWrapper *pSW;
+  STbCfg *        pTbCfg;
+  tb_uid_t        quid;
 
-  pSW = metaGetTableSchema(pMeta, uid, sver, true);
+  pTbCfg = metaGetTbInfoByUid(pMeta, uid);
+  if (pTbCfg->type == META_CHILD_TABLE) {
+    quid = pTbCfg->ctbCfg.suid;
+  } else {
+    quid = uid;
+  }
+
+  pSW = metaGetTableSchema(pMeta, quid, sver, true);
   if (pSW == NULL) {
     return NULL;
   }
