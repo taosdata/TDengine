@@ -931,7 +931,6 @@ function update_TDengine() {
         install_bin
         install_service
         install_taosadapter_service
-        install_config
         install_taosadapter_config
 
         openresty_work=false
@@ -1018,6 +1017,7 @@ function install_TDengine() {
         install_bin
         install_service
         install_taosadapter_service
+        install_taosadapter_config
 
         openresty_work=false
         if [ "$verMode" == "cluster" ]; then
