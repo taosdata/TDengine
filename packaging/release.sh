@@ -4,11 +4,13 @@
 set -e
 #set -x
 
-source ./sed_power.sh
-source ./sed_tq.sh
-source ./sed_pro.sh
-source ./sed_kh.sh
-source ./sed_jh.sh
+scriptDir=$(dirname $(readlink -f $0))
+
+source $scriptDir/sed_power.sh
+source $scriptDir/sed_tq.sh
+source $scriptDir/sed_pro.sh
+source $scriptDir/sed_kh.sh
+source $scriptDir/sed_jh.sh
 
 # release.sh  -v [cluster | edge]
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...]
