@@ -1340,14 +1340,14 @@ Is not null supports all types of columns. Non-null expression is < > "" and onl
 
   | Escape Sequence    | **Character Represented by Sequence**  |
     | :--------:     |   -------------------   |
-  | \\'             |  A single quote (') character    | 
-  | \\"             |  A double quote (") character      |
+  | `\'`             |  A single quote (') character    | 
+  | `\"`             |  A double quote (") character      |
   | \n             |  A newline (linefeed) character       |
   | \r             |  A carriage return character       |
   | \t             |  A tab character       |
-  | \\\             |  A backslash (\) character        |
-  | \\%             |  A % character; see note following the table    |
-  | \\_             |  A _ character; see note following the table    |
+  | `\\`             |  A backslash (\) character        |
+  | `\%`             |  A % character; see note following the table    |
+  | `\_`             |  A _ character; see note following the table    |
 
 - Escape character usage rules
   - The escape characters that in a identifier (database name, table name, column name)
@@ -1355,4 +1355,4 @@ Is not null supports all types of columns. Non-null expression is < > "" and onl
     2. Backquote`` identifier： Keep it as it is.
   - The escape characters that in a data
     3. The escape character defined above will be escaped (% and _ see the description below). If there is no matching escape character, the escape character will be ignored.
-    4. The \% and \_ sequences are used to search for literal instances of % and _ in pattern-matching contexts where they would otherwise be interpreted as wildcard characters.If you use \% or \_ outside of pattern-matching contexts, they evaluate to the strings \% and \_, not to % and _.
+    4. The `\%` and `\_` sequences are used to search for literal instances of % and _ in pattern-matching contexts where they would otherwise be interpreted as wildcard characters.If you use `\%` or `\_` outside of pattern-matching contexts, they evaluate to the strings `\%` and `\_`, not to % and _.
