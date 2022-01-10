@@ -104,7 +104,8 @@ int vnodeBufPoolSwitch(SVnode *pVnode) {
 int vnodeBufPoolRecycle(SVnode *pVnode) {
   SVBufPool *     pBufPool = pVnode->pBufPool;
   SVMemAllocator *pvma = TD_DLIST_HEAD(&(pBufPool->incycle));
-  ASSERT(pvma != NULL);
+  if (pvma == NULL) return 0;
+  // ASSERT(pvma != NULL);
 
   TD_DLIST_POP(&(pBufPool->incycle), pvma);
   vmaReset(pvma);
