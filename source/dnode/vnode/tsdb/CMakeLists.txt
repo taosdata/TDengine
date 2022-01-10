@@ -2,7 +2,7 @@ aux_source_directory(src TSDB_SRC)
 if(0)
     add_library(tsdb ${TSDB_SRC})
 else(0)
-    add_library(tsdb "")
+    add_library(tsdb STATIC "")
     target_sources(tsdb
         PRIVATE
         "src/tsdbCommit.c"

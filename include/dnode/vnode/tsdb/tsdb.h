@@ -34,7 +34,7 @@ typedef struct SDataStatis {
 } SDataStatis;
 
 typedef struct STable {
-  int32_t   tid;
+  uint64_t  tid;
   uint64_t  uid;
   STSchema *pSchema;
 } STable;

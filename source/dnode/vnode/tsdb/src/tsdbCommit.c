@@ -421,12 +421,10 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
     pCommitIter->pIter = tSkipListCreateIter(pTbData->pData);
     tSkipListIterNext(pCommitIter->pIter);
 
-#if 0
-    // TODO
     pCommitIter->pTable = (STable *)malloc(sizeof(STable));
     pCommitIter->pTable->uid = pTbData->uid;
-    pCommitIter->pTable->pSchema = metaGetTableSchema();
-#endif
+    pCommitIter->pTable->tid = pTbData->uid;
+    pCommitIter->pTable->pSchema = metaGetTbTSchema(pRepo->pMeta, pTbData->uid, 0);
   }
 
   return 0;
@@ -437,6 +435,8 @@ static void tsdbDestroyCommitIters(SCommitH *pCommith) {
 
   for (int i = 1; i < pCommith->niters; i++) {
     tSkipListDestroyIter(pCommith->iters[i].pIter);
+    tdFreeSchema(pCommith->iters[i].pTable->pSchema);
+    free(pCommith->iters[i].pTable);
   }
 
   free(pCommith->iters);
