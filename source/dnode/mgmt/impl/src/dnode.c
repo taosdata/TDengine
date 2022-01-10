@@ -23,6 +23,7 @@
 #include "dndVnodes.h"
 #include "sync.h"
 #include "wal.h"
+#include "tfs.h"
 
 EStat dndGetStat(SDnode *pDnode) { return pDnode->stat; }
 
@@ -185,6 +186,16 @@ SDnode *dndInit(SDnodeOpt *pOption) {
     return NULL;
   }
 
+  SDiskCfg dCfg;
+  strcpy(dCfg.dir, pDnode->opt.dataDir);
+  dCfg.level = 0;
+  dCfg.primary = 1;
+  if (tfsInit(&dCfg, 1) != 0) {
+    dError("failed to init tfs env");
+    dndCleanup(pDnode);
+    return NULL;
+  }
+
   if (vnodeInit(pDnode->opt.numOfCommitThreads) != 0) {
     dError("failed to init vnode env");
     dndCleanup(pDnode);
@@ -259,6 +270,7 @@ void dndCleanup(SDnode *pDnode) {
   dndCleanupVnodes(pDnode);
   dndCleanupDnode(pDnode);
   vnodeClear();
+  tfsDestroy();
   walCleanUp();
   rpcCleanup();
 

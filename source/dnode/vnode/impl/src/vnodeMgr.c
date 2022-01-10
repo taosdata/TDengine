@@ -24,13 +24,6 @@ int vnodeInit(uint16_t nthreads) {
     return 0;
   }
 
-  SDiskCfg dCfg;
-  strcpy(dCfg.dir, tsDataDir);
-  dCfg.level = 0;
-  dCfg.primary = 1;
-
-  tfsInit(&dCfg, 1);
-
   // Start commit handers
   if (nthreads > 0) {
     vnodeMgr.nthreads = nthreads;
@@ -79,7 +72,6 @@ void vnodeClear() {
   tfree(vnodeMgr.threads);
   pthread_cond_destroy(&(vnodeMgr.hasTask));
   pthread_mutex_destroy(&(vnodeMgr.mutex));
-  tfsDestroy();
 }
 
 int vnodeScheduleTask(SVnodeTask* pTask) {
