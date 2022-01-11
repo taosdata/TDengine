@@ -936,6 +936,7 @@ Fst* fstCreate(FstSlice* slice) {
   len -= sizeof(checkSum);
   taosDecodeFixedU32(buf + len, &checkSum);
   if (taosCheckChecksum(buf, len, checkSum)) {
+    indexError("index file is corrupted");
     // verify fst
     return NULL;
   }
