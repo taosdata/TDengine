@@ -24,9 +24,9 @@ extern "C" {
 #include "executorimpl.h"
 
 #define DS_CAPACITY_ENOUGH 1
-#define DS_CAPACITY_FULL   2
+#define DS_DATA_FULL       2
 #define DS_NEED_SCHEDULE   3
-#define DS_END             4
+#define DS_QUERY_END       4
 #define DS_IN_PROCESS      5
 
 struct SDataSink;
