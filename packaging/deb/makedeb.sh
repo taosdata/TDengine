@@ -40,7 +40,7 @@ mkdir -p ${pkg_dir}${install_home_path}/cfg
 mkdir -p ${pkg_dir}${install_home_path}/driver
 mkdir -p ${pkg_dir}${install_home_path}/examples
 mkdir -p ${pkg_dir}${install_home_path}/include
-mkdir -p ${pkg_dir}${install_home_path}/init.d
+#mkdir -p ${pkg_dir}${install_home_path}/init.d
 mkdir -p ${pkg_dir}${install_home_path}/script
 
 cp ${compile_dir}/../packaging/cfg/taos.cfg         ${pkg_dir}${install_home_path}/cfg
@@ -51,7 +51,7 @@ if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
     cp ${compile_dir}/test/cfg/taosadapter.service	${pkg_dir}${install_home_path}/cfg || :
 fi
 
-cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_path}/init.d
+#cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_path}/init.d
 cp ${compile_dir}/../packaging/tools/post.sh        ${pkg_dir}${install_home_path}/script
 cp ${compile_dir}/../packaging/tools/preun.sh       ${pkg_dir}${install_home_path}/script
 cp ${compile_dir}/../packaging/tools/startPre.sh    ${pkg_dir}${install_home_path}/bin
