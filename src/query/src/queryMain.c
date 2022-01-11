@@ -162,8 +162,8 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     assert(0);
   }
 
-  int16_t queryTagVersion = ntohs(pQueryMsg->tagVersion);
-  int16_t querySchemaVersion = ntohs(pQueryMsg->schemaVersion);
+  int16_t queryTagVersion = param.tagVersion;
+  int16_t querySchemaVersion = param.schemaVersion;
   if (queryTagVersion < tableGroupInfo.tVersion || querySchemaVersion < tableGroupInfo.sVersion) {
     code = TSDB_CODE_QRY_INVALID_SCHEMA_VERSION;
     goto _over;

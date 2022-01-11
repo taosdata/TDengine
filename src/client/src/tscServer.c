@@ -964,9 +964,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->numOfGroupCols = htons(pQueryInfo->groupbyExpr.numOfGroupCols);
   pQueryMsg->queryType      = htonl(pQueryInfo->type);
   pQueryMsg->prevResultLen  = htonl(pQueryInfo->bufLen);
-
-  pQueryMsg->schemaVersion  = htons(pTableMeta->sversion);
-  pQueryMsg->tagVersion     = htons(pTableMeta->tversion);
+  
   // set column list ids
   size_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
   char *pMsg = (char *)(pQueryMsg->tableCols) + numOfCols * sizeof(SColumnInfo);
@@ -1152,21 +1150,21 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg += sqlLen;
 
 
-/*
-  //MSG EXTEND DEMO
+
   pQueryMsg->extend = 1;
   
   STLV *tlv = (STLV *)pMsg;
-  tlv->type = htons(TLV_TYPE_DUMMY);
-  tlv->len  = htonl(sizeof(int16_t));
-  *(int16_t *)tlv->value = htons(12345);
+  tlv->type = htons(TLV_TYPE_META_VERSION);
+  tlv->len  = htonl(sizeof(int16_t) * 2);
+  *(int16_t*)tlv->value = htons(pTableMeta->sversion);
+  *(int16_t*)(tlv->value+sizeof(int16_t)) = htons(pTableMeta->tversion);
   pMsg += sizeof(*tlv) + ntohl(tlv->len);
 
   tlv = (STLV *)pMsg;
+  tlv->type = htons(TLV_TYPE_END_MARK);
   tlv->len = 0;
   pMsg += sizeof(*tlv);
 
-*/
 
   int32_t msgLen = (int32_t)(pMsg - pCmd->payload);
 
