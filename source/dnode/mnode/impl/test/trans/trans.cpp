@@ -1,5 +1,5 @@
 /**
- * @file user.cpp
+ * @file trans.cpp
  * @author slguan (slguan@taosdata.com)
  * @brief MNODE module trans tests
  * @version 1.0
@@ -9,13 +9,22 @@
  *
  */
 
-#include "base.h"
-#include "os.h"
+#include "sut.h"
 
-class DndTestTrans : public ::testing::Test {
+class MndTestTrans : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_trans", 9013); }
-  static void TearDownTestSuite() { test.Cleanup(); }
+  static void SetUpTestSuite() {
+    test.Init("/tmp/mnode_test_trans", 9013);
+    const char* fqdn = "localhost";
+    const char* firstEp = "localhost:9013";
+    server2.Start("/tmp/mnode_test_trans2", fqdn, 9020, firstEp);
+  }
+
+  static void TearDownTestSuite() {
+    server2.Stop();
+    test.Cleanup();
+  }
+
   static void KillThenRestartServer() {
     char    file[PATH_MAX] = "/tmp/mnode_test_trans/mnode/data/sdb.data";
     FileFd  fd = taosOpenFileRead(file);
@@ -41,46 +50,142 @@ class DndTestTrans : public ::testing::Test {
     test.ServerStart();
   }
 
-  static Testbase test;
+  static Testbase   test;
+  static TestServer server2;
 
  public:
   void SetUp() override {}
   void TearDown() override {}
 };
 
-Testbase DndTestTrans::test;
+Testbase   MndTestTrans::test;
+TestServer MndTestTrans::server2;
 
-TEST_F(DndTestTrans, 01_CreateUser_Crash) {
+TEST_F(MndTestTrans, 01_Create_User_Crash) {
   {
-    int32_t contLen = sizeof(SCreateUserMsg);
+    int32_t contLen = sizeof(SCreateUserReq);
 
-    SCreateUserMsg* pReq = (SCreateUserMsg*)rpcMallocCont(contLen);
+    SCreateUserReq* pReq = (SCreateUserReq*)rpcMallocCont(contLen);
     strcpy(pReq->user, "u1");
     strcpy(pReq->pass, "p1");
 
-    SRpcMsg* pMsg = test.SendMsg(TDMT_MND_CREATE_USER, pReq, contLen);
-    ASSERT_NE(pMsg, nullptr);
-    ASSERT_EQ(pMsg->code, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_USER, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
   CHECK_META("show users", 4);
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 2);
 
   KillThenRestartServer();
 
-  test.SendShowMetaMsg(TSDB_MGMT_TABLE_USER, "");
+  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
   CHECK_META("show users", 4);
-  test.SendShowRetrieveMsg();
+  test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 2);
 
-  // CheckBinary("root", TSDB_USER_LEN);
-  // CheckBinary("u2", TSDB_USER_LEN);
-  // CheckBinary("super", 10);
-  // CheckBinary("normal", 10);
-  // CheckTimestamp();
-  // CheckTimestamp();
-  // CheckBinary("root", TSDB_USER_LEN);
-  // CheckBinary("root", TSDB_USER_LEN);
+  CheckBinary("u1", TSDB_USER_LEN);
+  CheckBinary("root", TSDB_USER_LEN);
+  CheckBinary("normal", 10);
+  CheckBinary("super", 10);
+  CheckTimestamp();
+  CheckTimestamp();
+  CheckBinary("root", TSDB_USER_LEN);
+  CheckBinary("root", TSDB_USER_LEN);
+}
+
+TEST_F(MndTestTrans, 02_Create_Qnode1_Crash) {
+  {
+    int32_t contLen = sizeof(SMCreateQnodeReq);
+
+    SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(1);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_QNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_QNODE, "");
+    CHECK_META("show qnodes", 3);
+    test.SendShowRetrieveReq();
+    EXPECT_EQ(test.GetShowRows(), 1);
+  }
+
+  KillThenRestartServer();
+  {
+    int32_t contLen = sizeof(SMCreateQnodeReq);
+
+    SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(1);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_QNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_QNODE_ALREADY_EXIST);
+
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_QNODE, "");
+    CHECK_META("show qnodes", 3);
+    test.SendShowRetrieveReq();
+    EXPECT_EQ(test.GetShowRows(), 1);
+  }
+}
+
+TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
+  {
+    int32_t contLen = sizeof(SCreateDnodeReq);
+
+    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
+    strcpy(pReq->fqdn, "localhost");
+    pReq->port = htonl(9020);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+
+    taosMsleep(1300);
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
+    test.SendShowRetrieveReq();
+    EXPECT_EQ(test.GetShowRows(), 2);
+  }
+
+  {
+    int32_t contLen = sizeof(SMCreateQnodeReq);
+
+    SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
+    pReq->dnodeId = htonl(2);
+
+    server2.Stop();
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_QNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  }
+
+  KillThenRestartServer();
+
+  server2.DoStart();
+
+  {
+    int32_t retry = 0;
+    int32_t retryMax = 20;
+
+    for (retry = 0; retry < retryMax; retry++) {
+      int32_t contLen = sizeof(SMCreateQnodeReq);
+
+      SMCreateQnodeReq* pReq = (SMCreateQnodeReq*)rpcMallocCont(contLen);
+      pReq->dnodeId = htonl(2);
+
+      SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_QNODE, pReq, contLen);
+      ASSERT_NE(pRsp, nullptr);
+      if (pRsp->code == 0) break;
+      taosMsleep(1000);
+    }
+
+    ASSERT_NE(retry, retryMax);
+
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_QNODE, "");
+    CHECK_META("show qnodes", 3);
+    test.SendShowRetrieveReq();
+    EXPECT_EQ(test.GetShowRows(), 2);
+  }
 }

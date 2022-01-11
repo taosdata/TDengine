@@ -64,8 +64,9 @@ SSdb *sdbInit(SSdbOpt *pOption) {
 void sdbCleanup(SSdb *pSdb) {
   mDebug("start to cleanup sdb");
 
-  if (pSdb->curVer != pSdb->lastCommitVer) {
-    mDebug("write sdb file for current ver:%" PRId64 " != last commit ver:%" PRId64, pSdb->curVer, pSdb->lastCommitVer);
+  if (pSdb->curVer > pSdb->lastCommitVer) {
+    mDebug("write sdb file for current ver:%" PRId64 " larger than last commit ver:%" PRId64, pSdb->curVer,
+           pSdb->lastCommitVer);
     sdbWriteFile(pSdb);
   }
 

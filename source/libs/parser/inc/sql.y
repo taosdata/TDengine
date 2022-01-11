@@ -370,7 +370,7 @@ create_table_list(A) ::= create_from_stable(Z). {
   pCreateTable->childTableInfo = taosArrayInit(4, sizeof(SCreatedTableInfo));
 
   taosArrayPush(pCreateTable->childTableInfo, &Z);
-  pCreateTable->type = TSQL_CREATE_CTABLE;
+  pCreateTable->type = TSDB_SQL_CREATE_TABLE;
   A = pCreateTable;
 }
 
@@ -381,7 +381,7 @@ create_table_list(A) ::= create_table_list(X) create_from_stable(Z). {
 
 %type create_table_args{SCreateTableSql*}
 create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP. {
-  A = tSetCreateTableInfo(X, NULL, NULL, TSQL_CREATE_TABLE);
+  A = tSetCreateTableInfo(X, NULL, NULL, TSDB_SQL_CREATE_TABLE);
   setSqlInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
 
   V.n += Z.n;
@@ -391,7 +391,7 @@ create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP. {
 // create super table
 %type create_stable_args{SCreateTableSql*}
 create_stable_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP TAGS LP columnlist(Y) RP. {
-  A = tSetCreateTableInfo(X, Y, NULL, TSQL_CREATE_STABLE);
+  A = tSetCreateTableInfo(X, Y, NULL, TSDB_SQL_CREATE_STABLE);
   setSqlInfo(pInfo, A, NULL, TSDB_SQL_CREATE_STABLE);
 
   V.n += Z.n;
@@ -421,11 +421,11 @@ tagNamelist(A) ::= ids(X).                      {A = taosArrayInit(4, sizeof(STo
 // create stream
 // create table table_name as select count(*) from super_table_name interval(time)
 create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) AS select(S). {
-  A = tSetCreateTableInfo(NULL, NULL, S, TSQL_CREATE_STREAM);
-  setSqlInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
-
-  V.n += Z.n;
-  setCreatedTableName(pInfo, &V, &U);
+//  A = tSetCreateTableInfo(NULL, NULL, S, TSQL_CREATE_STREAM);
+//  setSqlInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
+//
+//  V.n += Z.n;
+//  setCreatedTableName(pInfo, &V, &U);
 }
 
 %type column{SField}

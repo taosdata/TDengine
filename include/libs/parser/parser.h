@@ -24,7 +24,6 @@ extern "C" {
 
 typedef struct SParseContext {
   SParseBasicCtx   ctx;
-  int8_t           schemaAttached; // denote if submit block is built with table schema or not
   const char      *pSql;           // sql string
   size_t           sqlLen;         // length of the sql string
   char            *pMsg;           // extended error message if exists to help identifying the problem in sql statement.
@@ -41,9 +40,18 @@ typedef struct SParseContext {
  */
 int32_t qParseQuerySql(SParseContext* pContext, SQueryNode** pQuery);
 
-bool qIsDdlQuery(const SQueryNode* pQuery);
+/**
+ * Return true if it is a ddl/dcl sql statement
+ * @param pQuery
+ * @return
+ */
+bool qIsDdlQuery(const SQueryNode* pQueryNode);
 
-void qDestroyQuery(SQueryNode* pQuery);
+/**
+ * Destroy logic query plan
+ * @param pQueryNode
+ */
+void qDestroyQuery(SQueryNode* pQueryNode);
 
 /**
  * Convert a normal sql statement to only query tags information to enable that the subscribe client can be aware quickly of the true vgroup ids that
@@ -62,8 +70,8 @@ void columnListDestroy(SArray* pColumnList);
 void dropAllExprInfo(SArray** pExprInfo, int32_t numOfLevel);
 
 typedef struct SSourceParam {
-  SArray            *pExprNodeList; //Array<struct tExprNode*>
-  SArray            *pColumnList;   //Array<struct SColumn>
+  SArray    *pExprNodeList; //Array<struct tExprNode*>
+  SArray    *pColumnList;   //Array<struct SColumn>
   int32_t    num;
 } SSourceParam;
 

@@ -30,6 +30,7 @@ int genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   setErrno(pRequest, code);
 
+  free(pMsg->pData);
   sem_post(&pRequest->body.rspSem);
   return code;
 }
@@ -37,6 +38,7 @@ int genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
 int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
+    free(pMsg->pData);
     setErrno(pRequest, code);
     sem_post(&pRequest->body.rspSem);
     return code;
@@ -73,6 +75,7 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, pConnect->clusterId,
            pTscObj->pAppInfo->numOfConns);
 
+  free(pMsg->pData);
   sem_post(&pRequest->body.rspSem);
   return 0;
 }
@@ -87,14 +90,14 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj *pRequest) {
 
   if (pRequest->type == TDMT_MND_SHOW_RETRIEVE || pRequest->type == TDMT_VND_SHOW_TABLES_FETCH) {
     if (pRequest->type == TDMT_MND_SHOW_RETRIEVE) {
-      SRetrieveTableMsg* pRetrieveMsg = calloc(1, sizeof(SRetrieveTableMsg));
+      SRetrieveTableReq* pRetrieveMsg = calloc(1, sizeof(SRetrieveTableReq));
       if (pRetrieveMsg == NULL) {
         return NULL;
       }
 
       pRetrieveMsg->showId = htobe64(pRequest->body.showInfo.execId);
       pMsgSendInfo->msgInfo.pData = pRetrieveMsg;
-      pMsgSendInfo->msgInfo.len = sizeof(SRetrieveTableMsg);
+      pMsgSendInfo->msgInfo.len = sizeof(SRetrieveTableReq);
     } else {
       SVShowTablesFetchReq* pFetchMsg = calloc(1, sizeof(SVShowTablesFetchReq));
       if (pFetchMsg == NULL) {
@@ -127,7 +130,7 @@ int32_t processShowRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SShowRsp* pShow = (SShowRsp *)pMsg->pData;
   pShow->showId   = htobe64(pShow->showId);
 
-  STableMetaMsg *pMetaMsg = &(pShow->tableMeta);
+  STableMetaRsp *pMetaMsg = &(pShow->tableMeta);
   pMetaMsg->numOfColumns = htonl(pMetaMsg->numOfColumns);
 
   SSchema* pSchema = pMetaMsg->pSchema;
@@ -238,6 +241,7 @@ int32_t processRetrieveVndRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 int32_t processCreateDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   // todo rsp with the vnode id list
   SRequestObj* pRequest = param;
+  free(pMsg->pData);
   tsem_post(&pRequest->body.rspSem);
 }
 
@@ -245,6 +249,7 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
 
   if (code != TSDB_CODE_SUCCESS) {
+    free(pMsg->pData);
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
     return code;
@@ -258,6 +263,7 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   tNameGetDbName(&name, db);
 
   setConnectionDB(pRequest->pTscObj, db);
+  free(pMsg->pData);
   tsem_post(&pRequest->body.rspSem);
   return 0;
 }
@@ -266,6 +272,7 @@ int32_t processCreateTableRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   assert(pMsg != NULL && param != NULL);
   SRequestObj* pRequest = param;
 
+  free(pMsg->pData);
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);

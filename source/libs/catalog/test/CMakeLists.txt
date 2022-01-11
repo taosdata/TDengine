@@ -16,3 +16,8 @@ TARGET_INCLUDE_DIRECTORIES(
         PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/catalog/"
         PRIVATE "${CMAKE_SOURCE_DIR}/source/libs/catalog/inc"
 )
+
+add_test(
+    NAME catalogTest
+    COMMAND catalogTest
+)

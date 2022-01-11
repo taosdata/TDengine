@@ -35,6 +35,7 @@ enum {
   JOB_TASK_STATUS_CANCELLING,
   JOB_TASK_STATUS_CANCELLED,
   JOB_TASK_STATUS_DROPPING,
+  JOB_TASK_STATUS_FREEING,
 };
 
 typedef struct STableComInfo {
@@ -76,6 +77,7 @@ typedef struct STableMeta {
 
 typedef struct SDBVgroupInfo {
   SRWLatch  lock;
+  int64_t   dbId;
   int32_t   vgVersion;  
   int8_t    hashMethod;
   SHashObj *vgInfo;  //key:vgId, value:SVgroupInfo
@@ -86,68 +88,32 @@ typedef struct SUseDbOutput {
   SDBVgroupInfo dbVgroup;
 } SUseDbOutput;
 
+enum {
+  META_TYPE_NON_TABLE = 1,
+  META_TYPE_CTABLE,
+  META_TYPE_TABLE,
+  META_TYPE_BOTH_TABLE
+};
+
+
 typedef struct STableMetaOutput {
-  int32_t     metaNum;
+  int32_t     metaType;
   char        ctbFname[TSDB_TABLE_FNAME_LEN];
   char        tbFname[TSDB_TABLE_FNAME_LEN];
   SCTableMeta ctbMeta;
   STableMeta *tbMeta;
 } STableMetaOutput;
 
-typedef struct SDataBuf {
-  void     *pData;
-  uint32_t  len;
-} SDataBuf;
-
-typedef int32_t (*__async_send_cb_fn_t)(void* param, const SDataBuf* pMsg, int32_t code);
-typedef int32_t (*__async_exec_fn_t)(void* param);
-
-typedef struct SMsgSendInfo {
-  __async_send_cb_fn_t fp;        //async callback function
-  void     *param;
-  uint64_t  requestId;
-  uint64_t  requestObjRefId;
-  int32_t   msgType;
-  SDataBuf  msgInfo;
-} SMsgSendInfo;
-
-typedef struct SQueryNodeAddr{
-  int32_t    nodeId; //vgId or qnodeId
-  int8_t     inUse;
-  int8_t     numOfEps;
-  SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
-} SQueryNodeAddr;
-
-bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
-
-int32_t initTaskQueue();
-int32_t cleanupTaskQueue();
-
-/**
- *
- * @param execFn      The asynchronously execution function
- * @param execParam   The parameters of the execFn
- * @param code        The response code during execution the execFn
- * @return
- */
-int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
-
-/**
- * Asynchronously send message to server, after the response received, the callback will be incured.
- *
- * @param pTransporter
- * @param epSet
- * @param pTransporterId
- * @param pInfo
- * @return
- */
-int32_t asyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo);
-
 const SSchema* tGetTbnameColumnSchema();
 void initQueryModuleMsgHandle();
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char *msg, int32_t msgSize);
+
+#define SET_META_TYPE_NONE(t) (t) = META_TYPE_NON_TABLE
+#define SET_META_TYPE_CTABLE(t) (t) = META_TYPE_CTABLE
+#define SET_META_TYPE_TABLE(t) (t) = META_TYPE_TABLE
+#define SET_META_TYPE_BOTH_TABLE(t) (t) = META_TYPE_BOTH_TABLE
 
 #define qFatal(...)  do { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", qDebugFlag, __VA_ARGS__); }} while(0)
 #define qError(...)  do { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", qDebugFlag, __VA_ARGS__); }} while(0)

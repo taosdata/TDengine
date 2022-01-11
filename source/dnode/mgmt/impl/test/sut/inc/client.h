@@ -21,7 +21,7 @@ class TestClient {
   bool Init(const char* user, const char* pass, const char* fqdn, uint16_t port);
   void Cleanup();
 
-  SRpcMsg* SendMsg(SRpcMsg* pMsg);
+  SRpcMsg* SendReq(SRpcMsg* pReq);
   void     SetRpcRsp(SRpcMsg* pRsp);
   tsem_t*  GetSem();
 

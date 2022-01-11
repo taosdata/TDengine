@@ -124,6 +124,9 @@ int32_t taosHashGetSize(const SHashObj *pHashObj);
  */
 int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size);
 
+int32_t taosHashPutExt(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size, bool *newAdded);
+
+
 /**
  * return the payload data with the specified key
  *
@@ -209,6 +212,32 @@ void  taosHashCancelIterate(SHashObj *pHashObj, void *p);
  * @return
  */
 int32_t taosHashGetKey(void *data, void** key, size_t* keyLen);
+
+
+/**
+ * Get the corresponding key information for a given data in hash table, using memcpy
+ * @param data
+ * @param dst
+ * @return
+ */
+static FORCE_INLINE int32_t taosHashCopyKey(void *data, void* dst) {
+  if (NULL == data || NULL == dst) {
+    return -1;
+  }
+  
+  SHashNode * node = GET_HASH_PNODE(data);
+  void* key = GET_HASH_NODE_KEY(node);
+  memcpy(dst, key, node->keyLen);
+
+  return 0;
+}
+
+/**
+ * Get the corresponding data length for a given data in hash table
+ * @param data
+ * @return
+ */
+int32_t taosHashGetDataLen(void *data);
 
 /**
  * return the payload data with the specified key(reference number added)

@@ -16,7 +16,6 @@
 #ifndef _TD_TSDB_COMMIT_H_
 #define _TD_TSDB_COMMIT_H_
 
-#if 0
 typedef struct {
   int   minFid;
   int   midFid;
@@ -30,18 +29,15 @@ typedef struct {
   int64_t  size;
 } SKVRecord;
 
-#define TSDB_DEFAULT_BLOCK_ROWS(maxRows) ((maxRows)*4 / 5)
+void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn);
 
-void  tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn);
-int   tsdbEncodeKVRecord(void **buf, SKVRecord *pRecord);
-void *tsdbDecodeKVRecord(void *buf, SKVRecord *pRecord);
-void *tsdbCommitData(STsdbRepo *pRepo);
-int   tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn);
-int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray *pSubA, void **ppBuf, SBlockIdx *pIdx);
-int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf);
-int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDataCols *pDataCols, SBlock *pBlock,
-                       bool isLast, bool isSuper, void **ppBuf, void **ppCBuf);
-int   tsdbApplyRtn(STsdbRepo *pRepo);
+static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
+  if (key < 0) {
+    return (int)((key + 1) / tsTickPerDay[precision] / days - 1);
+  } else {
+    return (int)((key / tsTickPerDay[precision] / days));
+  }
+}
 
 static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
   if (fid >= pRtn->maxFid) {
@@ -54,6 +50,20 @@ static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
     return -1;
   }
 }
+
+#if 0
+#define TSDB_DEFAULT_BLOCK_ROWS(maxRows) ((maxRows)*4 / 5)
+
+int   tsdbEncodeKVRecord(void **buf, SKVRecord *pRecord);
+void *tsdbDecodeKVRecord(void *buf, SKVRecord *pRecord);
+void *tsdbCommitData(STsdbRepo *pRepo);
+int   tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn);
+int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray *pSubA, void **ppBuf, SBlockIdx *pIdx);
+int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf);
+int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDataCols *pDataCols, SBlock *pBlock,
+                       bool isLast, bool isSuper, void **ppBuf, void **ppCBuf);
+int   tsdbApplyRtn(STsdbRepo *pRepo);
+
 #endif
 
 #endif /* _TD_TSDB_COMMIT_H_ */

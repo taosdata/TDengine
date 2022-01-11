@@ -28,15 +28,15 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb);
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionDelete(SSdb *pSdb, SDbObj *pDb);
-static int32_t  mndDbActionUpdate(SSdb *pSdb, SDbObj *pOldDb, SDbObj *pNewDb);
-static int32_t  mndProcessCreateDbMsg(SMnodeMsg *pMsg);
-static int32_t  mndProcessAlterDbMsg(SMnodeMsg *pMsg);
-static int32_t  mndProcessDropDbMsg(SMnodeMsg *pMsg);
-static int32_t  mndProcessUseDbMsg(SMnodeMsg *pMsg);
-static int32_t  mndProcessSyncDbMsg(SMnodeMsg *pMsg);
-static int32_t  mndProcessCompactDbMsg(SMnodeMsg *pMsg);
-static int32_t  mndGetDbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
-static int32_t  mndRetrieveDbs(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew);
+static int32_t  mndProcessCreateDbReq(SMnodeMsg *pReq);
+static int32_t  mndProcessAlterDbReq(SMnodeMsg *pReq);
+static int32_t  mndProcessDropDbReq(SMnodeMsg *pReq);
+static int32_t  mndProcessUseDbReq(SMnodeMsg *pReq);
+static int32_t  mndProcessSyncDbReq(SMnodeMsg *pReq);
+static int32_t  mndProcessCompactDbReq(SMnodeMsg *pReq);
+static int32_t  mndGetDbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t  mndRetrieveDbs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 
 int32_t mndInitDb(SMnode *pMnode) {
@@ -48,12 +48,12 @@ int32_t mndInitDb(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndDbActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndDbActionDelete};
 
-  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_DB, mndProcessCreateDbMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_DB, mndProcessAlterDbMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_DB, mndProcessDropDbMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_USE_DB, mndProcessUseDbMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_SYNC_DB, mndProcessSyncDbMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_DB, mndProcessCompactDbMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_DB, mndProcessCreateDbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_DB, mndProcessAlterDbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_DB, mndProcessDropDbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_USE_DB, mndProcessUseDbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_SYNC_DB, mndProcessSyncDbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_DB, mndProcessCompactDbReq);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_DB, mndGetDbMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_DB, mndRetrieveDbs);
@@ -182,19 +182,19 @@ static int32_t mndDbActionDelete(SSdb *pSdb, SDbObj *pDb) {
   return 0;
 }
 
-static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOldDb, SDbObj *pNewDb) {
-  mTrace("db:%s, perform update action, old_row:%p new_row:%p", pOldDb->name, pOldDb, pNewDb);
-  pOldDb->updateTime = pNewDb->updateTime;
-  pOldDb->cfgVersion = pNewDb->cfgVersion;
-  pOldDb->vgVersion = pNewDb->vgVersion;
-  memcpy(&pOldDb->cfg, &pNewDb->cfg, sizeof(SDbCfg));
+static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
+  mTrace("db:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
+  pOld->updateTime = pNew->updateTime;
+  pOld->cfgVersion = pNew->cfgVersion;
+  pOld->vgVersion = pNew->vgVersion;
+  memcpy(&pOld->cfg, &pNew->cfg, sizeof(SDbCfg));
   return 0;
 }
 
 SDbObj *mndAcquireDb(SMnode *pMnode, char *db) {
   SSdb   *pSdb = pMnode->pSdb;
   SDbObj *pDb = sdbAcquire(pSdb, SDB_DB, db);
-  if (pDb == NULL) {
+  if (pDb == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     terrno = TSDB_CODE_MND_DB_NOT_EXIST;
   }
   return pDb;
@@ -331,14 +331,15 @@ static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.epSet = mndGetDnodeEpset(pDnode);
       mndReleaseDnode(pMnode, pDnode);
 
-      SCreateVnodeMsg *pMsg = mndBuildCreateVnodeMsg(pMnode, pDnode, pDb, pVgroup);
-      if (pMsg == NULL) return -1;
+      SCreateVnodeReq *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup);
+      if (pReq == NULL) return -1;
 
-      action.pCont = pMsg;
-      action.contLen = sizeof(SCreateVnodeMsg);
+      action.pCont = pReq;
+      action.contLen = sizeof(SCreateVnodeReq);
       action.msgType = TDMT_DND_CREATE_VNODE;
+      action.acceptableCode = TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-        free(pMsg);
+        free(pReq);
         return -1;
       }
     }
@@ -360,14 +361,15 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.epSet = mndGetDnodeEpset(pDnode);
       mndReleaseDnode(pMnode, pDnode);
 
-      SDropVnodeMsg *pMsg = mndBuildDropVnodeMsg(pMnode, pDnode, pDb, pVgroup);
-      if (pMsg == NULL) return -1;
+      SDropVnodeReq *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup);
+      if (pReq == NULL) return -1;
 
-      action.pCont = pMsg;
-      action.contLen = sizeof(SDropVnodeMsg);
+      action.pCont = pReq;
+      action.contLen = sizeof(SDropVnodeReq);
       action.msgType = TDMT_DND_DROP_VNODE;
+       action.acceptableCode = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
       if (mndTransAppendUndoAction(pTrans, &action) != 0) {
-        free(pMsg);
+        free(pReq);
         return -1;
       }
     }
@@ -376,7 +378,7 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   return 0;
 }
 
-static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreate, SUserObj *pUser) {
+static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser) {
   SDbObj dbObj = {0};
   memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
   memcpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
@@ -425,43 +427,17 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateDbMsg *pCreat
   }
 
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
-  if (pTrans == NULL) {
-    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
-    goto CREATE_DB_OVER;
-  }
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
+  if (pTrans == NULL) goto CREATE_DB_OVER;
 
   mDebug("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
 
-  if (mndSetCreateDbRedoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) {
-    mError("trans:%d, failed to set redo log since %s", pTrans->id, terrstr());
-    goto CREATE_DB_OVER;
-  }
-
-  if (mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) {
-    mError("trans:%d, failed to set undo log since %s", pTrans->id, terrstr());
-    goto CREATE_DB_OVER;
-  }
-
-  if (mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) {
-    mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
-    goto CREATE_DB_OVER;
-  }
-
-  if (mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) {
-    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
-    goto CREATE_DB_OVER;
-  }
-
-  if (mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) {
-    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
-    goto CREATE_DB_OVER;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    goto CREATE_DB_OVER;
-  }
+  if (mndSetCreateDbRedoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto CREATE_DB_OVER;
+  if (mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto CREATE_DB_OVER;
+  if (mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto CREATE_DB_OVER;
+  if (mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto CREATE_DB_OVER;
+  if (mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups) != 0) goto CREATE_DB_OVER;
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto CREATE_DB_OVER;
 
   code = 0;
 
@@ -471,9 +447,9 @@ CREATE_DB_OVER:
   return code;
 }
 
-static int32_t mndProcessCreateDbMsg(SMnodeMsg *pMsg) {
-  SMnode       *pMnode = pMsg->pMnode;
-  SCreateDbMsg *pCreate = pMsg->rpcMsg.pCont;
+static int32_t mndProcessCreateDbReq(SMnodeMsg *pReq) {
+  SMnode       *pMnode = pReq->pMnode;
+  SCreateDbReq *pCreate = pReq->rpcMsg.pCont;
 
   pCreate->numOfVgroups = htonl(pCreate->numOfVgroups);
   pCreate->cacheBlockSize = htonl(pCreate->cacheBlockSize);
@@ -502,13 +478,13 @@ static int32_t mndProcessCreateDbMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  SUserObj *pOperUser = mndAcquireUser(pMnode, pMsg->user);
+  SUserObj *pOperUser = mndAcquireUser(pMnode, pReq->user);
   if (pOperUser == NULL) {
     mError("db:%s, failed to create since %s", pCreate->db, terrstr());
     return -1;
   }
 
-  int32_t code = mndCreateDb(pMnode, pMsg, pCreate, pOperUser);
+  int32_t code = mndCreateDb(pMnode, pReq, pCreate, pOperUser);
   mndReleaseUser(pMnode, pOperUser);
 
   if (code != 0) {
@@ -519,7 +495,7 @@ static int32_t mndProcessCreateDbMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndSetDbCfgFromAlterDbMsg(SDbObj *pDb, SAlterDbMsg *pAlter) {
+static int32_t mndSetDbCfgFromAlterDbMsg(SDbObj *pDb, SAlterDbReq *pAlter) {
   terrno = TSDB_CODE_MND_DB_OPTION_UNCHANGED;
 
   if (pAlter->totalBlocks >= 0 && pAlter->totalBlocks != pDb->cfg.totalBlocks) {
@@ -565,8 +541,8 @@ static int32_t mndSetDbCfgFromAlterDbMsg(SDbObj *pDb, SAlterDbMsg *pAlter) {
   return terrno;
 }
 
-static int32_t mndSetUpdateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) {
-  SSdbRaw *pRedoRaw = mndDbActionEncode(pOldDb);
+static int32_t mndSetUpdateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+  SSdbRaw *pRedoRaw = mndDbActionEncode(pOld);
   if (pRedoRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
   if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_UPDATING) != 0) return -1;
@@ -574,8 +550,8 @@ static int32_t mndSetUpdateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pO
   return 0;
 }
 
-static int32_t mndSetUpdateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) {
-  SSdbRaw *pCommitRaw = mndDbActionEncode(pNewDb);
+static int32_t mndSetUpdateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+  SSdbRaw *pCommitRaw = mndDbActionEncode(pNew);
   if (pCommitRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
   if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) return -1;
@@ -593,14 +569,14 @@ static int32_t mndBuildUpdateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj
     action.epSet = mndGetDnodeEpset(pDnode);
     mndReleaseDnode(pMnode, pDnode);
 
-    SAlterVnodeMsg *pMsg = (SAlterVnodeMsg *)mndBuildCreateVnodeMsg(pMnode, pDnode, pDb, pVgroup);
-    if (pMsg == NULL) return -1;
+    SAlterVnodeReq *pReq = (SAlterVnodeReq *)mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup);
+    if (pReq == NULL) return -1;
 
-    action.pCont = pMsg;
-    action.contLen = sizeof(SAlterVnodeMsg);
+    action.pCont = pReq;
+    action.contLen = sizeof(SAlterVnodeReq);
     action.msgType = TDMT_DND_ALTER_VNODE;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      free(pMsg);
+      free(pReq);
       return -1;
     }
   }
@@ -608,7 +584,7 @@ static int32_t mndBuildUpdateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj
   return 0;
 }
 
-static int32_t mndSetUpdateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) {
+static int32_t mndSetUpdateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
 
@@ -617,8 +593,8 @@ static int32_t mndSetUpdateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    if (pVgroup->dbUid == pNewDb->uid) {
-      if (mndBuildUpdateVgroupAction(pMnode, pTrans, pNewDb, pVgroup) != 0) {
+    if (pVgroup->dbUid == pNew->uid) {
+      if (mndBuildUpdateVgroupAction(pMnode, pTrans, pNew, pVgroup) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pVgroup);
         return -1;
@@ -631,27 +607,27 @@ static int32_t mndSetUpdateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   return 0;
 }
 
-static int32_t mndUpdateDb(SMnode *pMnode, SMnodeMsg *pMsg, SDbObj *pOldDb, SDbObj *pNewDb) {
+static int32_t mndUpdateDb(SMnode *pMnode, SMnodeMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pMsg->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pReq->rpcMsg);
   if (pTrans == NULL) {
-    mError("db:%s, failed to update since %s", pOldDb->name, terrstr());
+    mError("db:%s, failed to update since %s", pOld->name, terrstr());
     return terrno;
   }
 
-  mDebug("trans:%d, used to update db:%s", pTrans->id, pOldDb->name);
+  mDebug("trans:%d, used to update db:%s", pTrans->id, pOld->name);
 
-  if (mndSetUpdateDbRedoLogs(pMnode, pTrans, pOldDb, pNewDb) != 0) {
+  if (mndSetUpdateDbRedoLogs(pMnode, pTrans, pOld, pNew) != 0) {
     mError("trans:%d, failed to set redo log since %s", pTrans->id, terrstr());
     goto UPDATE_DB_OVER;
   }
 
-  if (mndSetUpdateDbCommitLogs(pMnode, pTrans, pOldDb, pNewDb) != 0) {
+  if (mndSetUpdateDbCommitLogs(pMnode, pTrans, pOld, pNew) != 0) {
     mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
     goto UPDATE_DB_OVER;
   }
 
-  if (mndSetUpdateDbRedoActions(pMnode, pTrans, pOldDb, pNewDb) != 0) {
+  if (mndSetUpdateDbRedoActions(pMnode, pTrans, pOld, pNew) != 0) {
     mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
     goto UPDATE_DB_OVER;
   }
@@ -668,9 +644,9 @@ UPDATE_DB_OVER:
   return code;
 }
 
-static int32_t mndProcessAlterDbMsg(SMnodeMsg *pMsg) {
-  SMnode      *pMnode = pMsg->pMnode;
-  SAlterDbMsg *pAlter = pMsg->rpcMsg.pCont;
+static int32_t mndProcessAlterDbReq(SMnodeMsg *pReq) {
+  SMnode      *pMnode = pReq->pMnode;
+  SAlterDbReq *pAlter = pReq->rpcMsg.pCont;
   pAlter->totalBlocks = htonl(pAlter->totalBlocks);
   pAlter->daysToKeep0 = htonl(pAlter->daysToKeep0);
   pAlter->daysToKeep1 = htonl(pAlter->daysToKeep1);
@@ -697,7 +673,7 @@ static int32_t mndProcessAlterDbMsg(SMnodeMsg *pMsg) {
 
   dbObj.cfgVersion++;
   dbObj.updateTime = taosGetTimestampMs();
-  code = mndUpdateDb(pMnode, pMsg, pDb, &dbObj);
+  code = mndUpdateDb(pMnode, pReq, pDb, &dbObj);
   mndReleaseDb(pMnode, pDb);
 
   if (code != 0) {
@@ -757,14 +733,15 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
     action.epSet = mndGetDnodeEpset(pDnode);
     mndReleaseDnode(pMnode, pDnode);
 
-    SDropVnodeMsg *pMsg = mndBuildDropVnodeMsg(pMnode, pDnode, pDb, pVgroup);
-    if (pMsg == NULL) return -1;
+    SDropVnodeReq *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup);
+    if (pReq == NULL) return -1;
 
-    action.pCont = pMsg;
-    action.contLen = sizeof(SCreateVnodeMsg);
+    action.pCont = pReq;
+    action.contLen = sizeof(SCreateVnodeReq);
     action.msgType = TDMT_DND_DROP_VNODE;
+    action.acceptableCode = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      free(pMsg);
+      free(pReq);
       return -1;
     }
   }
@@ -795,35 +772,17 @@ static int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
   return 0;
 }
 
-static int32_t mndDropDb(SMnode *pMnode, SMnodeMsg *pMsg, SDbObj *pDb) {
+static int32_t mndDropDb(SMnode *pMnode, SMnodeMsg *pReq, SDbObj *pDb) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pMsg->rpcMsg);
-  if (pTrans == NULL) {
-    mError("db:%s, failed to drop since %s", pDb->name, terrstr());
-    return -1;
-  }
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pReq->rpcMsg);
+  if (pTrans == NULL) goto DROP_DB_OVER;
 
   mDebug("trans:%d, used to drop db:%s", pTrans->id, pDb->name);
 
-  if (mndSetDropDbRedoLogs(pMnode, pTrans, pDb) != 0) {
-    mError("trans:%d, failed to set redo log since %s", pTrans->id, terrstr());
-    goto DROP_DB_OVER;
-  }
-
-  if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) {
-    mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
-    goto DROP_DB_OVER;
-  }
-
-  if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) {
-    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
-    goto DROP_DB_OVER;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    goto DROP_DB_OVER;
-  }
+  if (mndSetDropDbRedoLogs(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
+  if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
+  if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto DROP_DB_OVER;
 
   code = 0;
 
@@ -832,9 +791,9 @@ DROP_DB_OVER:
   return code;
 }
 
-static int32_t mndProcessDropDbMsg(SMnodeMsg *pMsg) {
-  SMnode     *pMnode = pMsg->pMnode;
-  SDropDbMsg *pDrop = pMsg->rpcMsg.pCont;
+static int32_t mndProcessDropDbReq(SMnodeMsg *pReq) {
+  SMnode     *pMnode = pReq->pMnode;
+  SDropDbReq *pDrop = pReq->rpcMsg.pCont;
 
   mDebug("db:%s, start to drop", pDrop->db);
 
@@ -850,7 +809,7 @@ static int32_t mndProcessDropDbMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  int32_t code = mndDropDb(pMnode, pMsg, pDb);
+  int32_t code = mndDropDb(pMnode, pReq, pDb);
   mndReleaseDb(pMnode, pDb);
 
   if (code != 0) {
@@ -861,22 +820,23 @@ static int32_t mndProcessDropDbMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessUseDbMsg(SMnodeMsg *pMsg) {
-  SMnode    *pMnode = pMsg->pMnode;
+static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
+  SMnode    *pMnode = pReq->pMnode;
   SSdb      *pSdb = pMnode->pSdb;
-  SUseDbMsg *pUse = pMsg->rpcMsg.pCont;
+  SUseDbReq *pUse = pReq->rpcMsg.pCont;
   pUse->vgVersion = htonl(pUse->vgVersion);
 
   SDbObj *pDb = mndAcquireDb(pMnode, pUse->db);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_EXIST;
-    mError("db:%s, failed to process use db msg since %s", pUse->db, terrstr());
+    mError("db:%s, failed to process use db req since %s", pUse->db, terrstr());
     return -1;
   }
 
   int32_t    contLen = sizeof(SUseDbRsp) + pDb->cfg.numOfVgroups * sizeof(SVgroupInfo);
   SUseDbRsp *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
+    mndReleaseDb(pMnode, pDb);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -898,7 +858,7 @@ static int32_t mndProcessUseDbMsg(SMnodeMsg *pMsg) {
         pInfo->numOfEps = pVgroup->replica;
         for (int32_t gid = 0; gid < pVgroup->replica; ++gid) {
           SVnodeGid  *pVgid = &pVgroup->vnodeGid[gid];
-          SEpAddrMsg *pEpArrr = &pInfo->epAddr[gid];
+          SEpAddr *pEpArrr = &pInfo->epAddr[gid];
           SDnodeObj  *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
           if (pDnode != NULL) {
             memcpy(pEpArrr->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
@@ -917,23 +877,24 @@ static int32_t mndProcessUseDbMsg(SMnodeMsg *pMsg) {
   }
 
   memcpy(pRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
+  pRsp->uid = htobe64(pDb->uid);
   pRsp->vgVersion = htonl(pDb->vgVersion);
   pRsp->vgNum = htonl(vindex);
   pRsp->hashMethod = pDb->hashMethod;
 
-  pMsg->pCont = pRsp;
-  pMsg->contLen = contLen;
+  pReq->pCont = pRsp;
+  pReq->contLen = contLen;
   mndReleaseDb(pMnode, pDb);
 
   return 0;
 }
 
-static int32_t mndProcessSyncDbMsg(SMnodeMsg *pMsg) {
-  SMnode     *pMnode = pMsg->pMnode;
-  SSyncDbMsg *pSync = pMsg->rpcMsg.pCont;
+static int32_t mndProcessSyncDbReq(SMnodeMsg *pReq) {
+  SMnode     *pMnode = pReq->pMnode;
+  SSyncDbReq *pSync = pReq->rpcMsg.pCont;
   SDbObj     *pDb = mndAcquireDb(pMnode, pSync->db);
   if (pDb == NULL) {
-    mError("db:%s, failed to process sync db msg since %s", pSync->db, terrstr());
+    mError("db:%s, failed to process sync db req since %s", pSync->db, terrstr());
     return -1;
   }
 
@@ -941,12 +902,12 @@ static int32_t mndProcessSyncDbMsg(SMnodeMsg *pMsg) {
   return 0;
 }
 
-static int32_t mndProcessCompactDbMsg(SMnodeMsg *pMsg) {
-  SMnode        *pMnode = pMsg->pMnode;
-  SCompactDbMsg *pCompact = pMsg->rpcMsg.pCont;
+static int32_t mndProcessCompactDbReq(SMnodeMsg *pReq) {
+  SMnode        *pMnode = pReq->pMnode;
+  SCompactDbReq *pCompact = pReq->rpcMsg.pCont;
   SDbObj        *pDb = mndAcquireDb(pMnode, pCompact->db);
   if (pDb == NULL) {
-    mError("db:%s, failed to process compact db msg since %s", pCompact->db, terrstr());
+    mError("db:%s, failed to process compact db req since %s", pCompact->db, terrstr());
     return -1;
   }
 
@@ -954,8 +915,8 @@ static int32_t mndProcessCompactDbMsg(SMnodeMsg *pMsg) {
   return 0;
 }
 
-static int32_t mndGetDbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
-  SMnode *pMnode = pMsg->pMnode;
+static int32_t mndGetDbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+  SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
@@ -1095,8 +1056,8 @@ char *mnGetDbStr(char *src) {
   return pos;
 }
 
-static int32_t mndRetrieveDbs(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode *pMnode = pMsg->pMnode;
+static int32_t mndRetrieveDbs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
   SDbObj *pDb = NULL;

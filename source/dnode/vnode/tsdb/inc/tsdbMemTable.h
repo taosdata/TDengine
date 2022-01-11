@@ -22,11 +22,57 @@
 extern "C" {
 #endif
 
-typedef struct STsdbMemTable STsdbMemTable;
+typedef struct {
+  int   rowsInserted;
+  int   rowsUpdated;
+  int   rowsDeleteSucceed;
+  int   rowsDeleteFailed;
+  int   nOperations;
+  TSKEY keyFirst;
+  TSKEY keyLast;
+} SMergeInfo;
 
-STsdbMemTable *tsdbNewMemTable(SMemAllocatorFactory *pMAF);
-void           tsdbFreeMemTable(SMemAllocatorFactory *pMAF, STsdbMemTable *pMemTable);
-int            tsdbInsertDataToMemTable(STsdbMemTable *pMemTable, SSubmitMsg *pMsg);
+typedef struct STbData {
+  tb_uid_t   uid;
+  TSKEY      keyMin;
+  TSKEY      keyMax;
+  int64_t    nrows;
+  SSkipList *pData;
+} STbData;
+
+typedef struct STsdbMemTable {
+  T_REF_DECLARE()
+  SRWLatch       latch;
+  TSKEY          keyMin;
+  TSKEY          keyMax;
+  uint64_t       nRow;
+  SMemAllocator *pMA;
+  // Container
+  SSkipList *pSlIdx;  // SSkiplist<STbData>
+  SHashObj * pHashIdx;
+} STsdbMemTable;
+
+STsdbMemTable *tsdbNewMemTable(STsdb *pTsdb);
+void           tsdbFreeMemTable(STsdb *pTsdb, STsdbMemTable *pMemTable);
+int            tsdbMemTableInsert(STsdb *pTsdb, STsdbMemTable *pMemTable, SSubmitMsg *pMsg, SShellSubmitRsp *pRsp);
+int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
+                          TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
+
+static FORCE_INLINE SMemRow tsdbNextIterRow(SSkipListIterator *pIter) {
+  if (pIter == NULL) return NULL;
+
+  SSkipListNode *node = tSkipListIterGet(pIter);
+  if (node == NULL) return NULL;
+
+  return (SMemRow)SL_GET_NODE_DATA(node);
+}
+
+static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator *pIter) {
+  SMemRow row = tsdbNextIterRow(pIter);
+  if (row == NULL) return TSDB_DATA_TIMESTAMP_NULL;
+
+  return memRowKey(row);
+}
 
 #ifdef __cplusplus
 }

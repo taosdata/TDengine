@@ -34,33 +34,36 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 
-void mndSendMsgToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *pMsg) {
-  if (pMnode != NULL && pMnode->sendMsgToDnodeFp != NULL) {
-    (*pMnode->sendMsgToDnodeFp)(pMnode->pDnode, pEpSet, pMsg);
+int32_t mndSendReqToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *pMsg) {
+  if (pMnode == NULL || pMnode->sendReqToDnodeFp == NULL) {
+    terrno = TSDB_CODE_MND_NOT_READY;
+    return -1;
   }
+
+  return (*pMnode->sendReqToDnodeFp)(pMnode->pDnode, pEpSet, pMsg);
 }
 
-void mndSendMsgToMnode(SMnode *pMnode, SRpcMsg *pMsg) {
-  if (pMnode != NULL && pMnode->sendMsgToMnodeFp != NULL) {
-    (*pMnode->sendMsgToMnodeFp)(pMnode->pDnode, pMsg);
+int32_t mndSendReqToMnode(SMnode *pMnode, SRpcMsg *pMsg) {
+  if (pMnode == NULL || pMnode->sendReqToDnodeFp == NULL) {
+    terrno = TSDB_CODE_MND_NOT_READY;
+    return -1;
   }
+
+  return (*pMnode->sendReqToMnodeFp)(pMnode->pDnode, pMsg);
 }
 
-void mndSendRedirectMsg(SMnode *pMnode, SRpcMsg *pMsg) {
-  if (pMnode != NULL && pMnode->sendRedirectMsgFp != NULL) {
-    (*pMnode->sendRedirectMsgFp)(pMnode->pDnode, pMsg);
+void mndSendRedirectRsp(SMnode *pMnode, SRpcMsg *pMsg) {
+  if (pMnode != NULL && pMnode->sendRedirectRspFp != NULL) {
+    (*pMnode->sendRedirectRspFp)(pMnode->pDnode, pMsg);
   }
 }
 
 static void mndTransReExecute(void *param, void *tmrId) {
   SMnode *pMnode = param;
   if (mndIsMaster(pMnode)) {
-    STransMsg *pMsg = rpcMallocCont(sizeof(STransMsg));
-    SEpSet     epSet = {.inUse = 0, .numOfEps = 1};
-    epSet.port[0] = pMnode->replicas[pMnode->selfIndex].port;
-    memcpy(epSet.fqdn[0], pMnode->replicas[pMnode->selfIndex].fqdn, TSDB_FQDN_LEN);
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS, .pCont = pMsg, .contLen = sizeof(STransMsg)};
-    mndSendMsgToDnode(pMnode, &epSet, &rpcMsg);
+    STransReq *pMsg = rpcMallocCont(sizeof(STransReq));
+    SRpcMsg    rpcMsg = {.msgType = TDMT_MND_TRANS, .pCont = pMsg, .contLen = sizeof(STransReq)};
+    pMnode->putReqToMWriteQFp(pMnode->pDnode, &rpcMsg);
   }
 
   taosTmrReset(mndTransReExecute, 3000, pMnode, pMnode->timer, &pMnode->transTimer);
@@ -76,7 +79,7 @@ static int32_t mndInitTimer(SMnode *pMnode) {
     return -1;
   }
 
-  if (taosTmrReset(mndTransReExecute, 1000, pMnode, pMnode->timer, &pMnode->transTimer)) {
+  if (taosTmrReset(mndTransReExecute, 6000, pMnode, pMnode->timer, &pMnode->transTimer)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -223,9 +226,10 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->selfIndex = pOption->selfIndex;
   memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
   pMnode->pDnode = pOption->pDnode;
-  pMnode->sendMsgToDnodeFp = pOption->sendMsgToDnodeFp;
-  pMnode->sendMsgToMnodeFp = pOption->sendMsgToMnodeFp;
-  pMnode->sendRedirectMsgFp = pOption->sendRedirectMsgFp;
+  pMnode->putReqToMWriteQFp = pOption->putReqToMWriteQFp;
+  pMnode->sendReqToDnodeFp = pOption->sendReqToDnodeFp;
+  pMnode->sendReqToMnodeFp = pOption->sendReqToMnodeFp;
+  pMnode->sendRedirectRspFp = pOption->sendRedirectRspFp;
   pMnode->cfg.sver = pOption->cfg.sver;
   pMnode->cfg.enableTelem = pOption->cfg.enableTelem;
   pMnode->cfg.statusInterval = pOption->cfg.statusInterval;
@@ -236,8 +240,9 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->cfg.gitinfo = strdup(pOption->cfg.gitinfo);
   pMnode->cfg.buildinfo = strdup(pOption->cfg.buildinfo);
 
-  if (pMnode->sendMsgToDnodeFp == NULL || pMnode->sendMsgToMnodeFp == NULL || pMnode->sendRedirectMsgFp == NULL ||
-      pMnode->dnodeId < 0 || pMnode->clusterId < 0 || pMnode->cfg.statusInterval < 1) {
+  if (pMnode->sendReqToDnodeFp == NULL || pMnode->sendReqToMnodeFp == NULL || pMnode->sendRedirectRspFp == NULL ||
+      pMnode->putReqToMWriteQFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0 ||
+      pMnode->cfg.statusInterval < 1) {
     terrno = TSDB_CODE_MND_INVALID_OPTIONS;
     return -1;
   }
@@ -361,14 +366,16 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
     return NULL;
   }
 
-  SRpcConnInfo connInfo = {0};
-  if ((pRpcMsg->msgType & 1U) && rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
-    taosFreeQitem(pMsg);
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    mError("failed to create msg since %s, app:%p RPC:%p", terrstr(), pRpcMsg->ahandle, pRpcMsg->handle);
-    return NULL;
+  if (pRpcMsg->msgType != TDMT_MND_TRANS) {
+    SRpcConnInfo connInfo = {0};
+    if ((pRpcMsg->msgType & 1U) && rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
+      taosFreeQitem(pMsg);
+      terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
+      mError("failed to create msg since %s, app:%p RPC:%p", terrstr(), pRpcMsg->ahandle, pRpcMsg->handle);
+      return NULL;
+    }
+    memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
   }
-  memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
 
   pMsg->pMnode = pMnode;
   pMsg->rpcMsg = *pRpcMsg;
@@ -433,7 +440,7 @@ void mndProcessMsg(SMnodeMsg *pMsg) {
 PROCESS_RPC_END:
   if (isReq) {
     if (code == TSDB_CODE_APP_NOT_READY) {
-      mndSendRedirectMsg(pMnode, &pMsg->rpcMsg);
+      mndSendRedirectRsp(pMnode, &pMsg->rpcMsg);
     } else if (code != 0) {
       SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .code = code};
       rpcSendResponse(&rpcRsp);

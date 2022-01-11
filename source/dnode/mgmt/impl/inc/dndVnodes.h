@@ -29,12 +29,12 @@ void    dndProcessVnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dndProcessVnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dndProcessVnodeFetchMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 
-int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg);
-int32_t dndProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg);
-int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg);
-int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg);
-int32_t dndProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg);
-int32_t dndProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *rpcMsg);
+int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
+int32_t dndProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
+int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
+int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
+int32_t dndProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
+int32_t dndProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 
 #ifdef __cplusplus
 }

@@ -184,6 +184,7 @@ int walMetaDeserialize(SWal* pWal, const char* bytes) {
   }
   taosArraySetSize(pArray, sz);
   pWal->fileInfoSet = pArray;
+  pWal->writeCur = sz - 1;
   cJSON_Delete(pRoot);
   return 0;
 }
@@ -261,15 +262,18 @@ int walLoadMeta(SWal* pWal) {
   memset(buf, 0, size + 5);
   int tfd = tfOpenRead(fnameStr);
   if (tfRead(tfd, buf, size) != size) {
+    tfClose(tfd);
     free(buf);
     return -1;
   }
   // load into fileInfoSet
   int code = walMetaDeserialize(pWal, buf);
   if (code != 0) {
+    tfClose(tfd);
     free(buf);
     return -1;
   }
+  tfClose(tfd);
   free(buf);
   return 0;
 }

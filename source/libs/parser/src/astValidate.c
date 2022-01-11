@@ -213,7 +213,7 @@ SQueryStmtInfo *createQueryInfo() {
 
   pQueryInfo->slimit.limit   = -1;
   pQueryInfo->slimit.offset  = 0;
-  pQueryInfo->pUpstream      = taosArrayInit(4, POINTER_BYTES);
+  pQueryInfo->pDownstream = taosArrayInit(4, POINTER_BYTES);
   pQueryInfo->window         = TSWINDOW_INITIALIZER;
 
   pQueryInfo->exprList       = calloc(10, POINTER_BYTES);
@@ -247,8 +247,8 @@ static void destroyQueryInfoImpl(SQueryStmtInfo* pQueryInfo) {
   tfree(pQueryInfo->fillVal);
   tfree(pQueryInfo->buf);
 
-  taosArrayDestroy(pQueryInfo->pUpstream);
-  pQueryInfo->pUpstream = NULL;
+  taosArrayDestroy(pQueryInfo->pDownstream);
+  pQueryInfo->pDownstream = NULL;
   pQueryInfo->bufLen = 0;
 }
 
@@ -256,9 +256,9 @@ void destroyQueryInfo(SQueryStmtInfo* pQueryInfo) {
   while (pQueryInfo != NULL) {
     SQueryStmtInfo* p = pQueryInfo->sibling;
 
-    size_t numOfUpstream = taosArrayGetSize(pQueryInfo->pUpstream);
+    size_t numOfUpstream = taosArrayGetSize(pQueryInfo->pDownstream);
     for (int32_t i = 0; i < numOfUpstream; ++i) {
-      SQueryStmtInfo* pUpQueryInfo = taosArrayGetP(pQueryInfo->pUpstream, i);
+      SQueryStmtInfo* pUpQueryInfo = taosArrayGetP(pQueryInfo->pDownstream, i);
       destroyQueryInfoImpl(pUpQueryInfo);
       clearAllTableMetaInfo(pUpQueryInfo, false, 0);
       tfree(pUpQueryInfo);
@@ -288,7 +288,6 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SQueryStmtI
   }
 
   pSub->pUdfInfo = pUdfInfo;
-  pSub->pDownstream = pQueryInfo;
   int32_t code = validateSqlNode(p, pSub, pMsgBuf);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -311,7 +310,7 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SQueryStmtI
     tstrncpy(pTableMetaInfo1->aliasName, subInfo->aliasName.z, subInfo->aliasName.n + 1);
   }
 
-  taosArrayPush(pQueryInfo->pUpstream, &pSub);
+  taosArrayPush(pQueryInfo->pDownstream, &pSub);
 
   // NOTE: order mix up in subquery not support yet.
   pQueryInfo->order = pSub->order;
@@ -600,7 +599,7 @@ int32_t checkForUnsupportedQuery(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
 
-    if (f == FUNCTION_BLKINFO && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
+    if (f == FUNCTION_BLKINFO && taosArrayGetSize(pQueryInfo->pDownstream) > 0) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
 
@@ -1584,7 +1583,6 @@ int32_t validateSqlNode(SSqlNode* pSqlNode, SQueryStmtInfo* pQueryInfo, SMsgBuf*
   }
 
   pushDownAggFuncExprInfo(pQueryInfo);
-//  addColumnNodeFromLowerLevel(pQueryInfo);
 
   for(int32_t i = 0; i < 1; ++i) {
     SArray* functionList = extractFunctionList(pQueryInfo->exprList[i]);
@@ -3630,12 +3628,39 @@ int32_t evaluateSqlNode(SSqlNode* pNode, int32_t tsPrecision, SMsgBuf* pMsgBuf) 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQueryStmtInfo* pQueryInfo, int64_t id, char* msgBuf, int32_t msgBufLen) {
-  assert(pCatalog != NULL && pInfo != NULL);
+int32_t setTableVgroupList(SParseBasicCtx *pCtx, SName* name, SVgroupsInfo **pVgList) {
+  SArray* vgroupList = NULL;
+  int32_t code = catalogGetTableDistVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, name, &vgroupList);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  
+  int32_t vgroupNum = taosArrayGetSize(vgroupList);
+
+  SVgroupsInfo *vgList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupMsg) * vgroupNum);
+  
+  vgList->numOfVgroups = vgroupNum;
+  
+  for (int32_t i = 0; i < vgroupNum; ++i) {
+    SVgroupInfo *vg = taosArrayGet(vgroupList, i);
+    vgList->vgroups[i].vgId = vg->vgId;
+    vgList->vgroups[i].numOfEps = vg->numOfEps;
+    memcpy(vgList->vgroups[i].epAddr, vg->epAddr, sizeof(vgList->vgroups[i].epAddr));
+  }
+
+  *pVgList = vgList;
+
+  taosArrayDestroy(vgroupList);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qParserValidateSqlNode(SParseBasicCtx *pCtx, SSqlInfo* pInfo, SQueryStmtInfo* pQueryInfo, char* msgBuf, int32_t msgBufLen) {
+  assert(pCtx != NULL && pInfo != NULL);
   int32_t code = 0;
 
-  SMsgBuf m = {.buf = msgBuf, .len = msgBufLen};
-  SMsgBuf *pMsgBuf = &m;
+  SMsgBuf  m = {.buf = msgBuf, .len = msgBufLen};
+  SMsgBuf* pMsgBuf = &m;
 
   switch (pInfo->type) {
 #if 0
@@ -3682,22 +3707,6 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       break;
     }
 
-    case TSDB_SQL_USE_DB: {
-      const char* msg = "invalid db name";
-      SToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
-
-      if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
-        return buildInvalidOperationMsg(pMsgBuf, msg);
-      }
-
-      int32_t ret = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), pToken);
-      if (ret != TSDB_CODE_SUCCESS) {
-        return buildInvalidOperationMsg(pMsgBuf, msg);
-      }
-
-      break;
-    }
-
     case TSDB_SQL_RESET_CACHE: {
       return TSDB_CODE_SUCCESS;
     }
@@ -3707,55 +3716,6 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       code = handleUserDefinedFunc(pSql, pInfo);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
-      }
-
-      break;
-    }
-
-    case TSDB_SQL_CREATE_DNODE: {
-      const char* msg = "invalid host name (ip address)";
-
-      if (taosArrayGetSize(pInfo->pMiscInfo->a) > 1) {
-        return buildInvalidOperationMsg(pMsgBuf, msg);
-      }
-
-      SToken* id = taosArrayGet(pInfo->pMiscInfo->a, 0);
-      if (id->type == TK_STRING) {
-        id->n = strdequote(id->z);
-      }
-      break;
-    }
-
-    case TSDB_SQL_CREATE_ACCT:
-    case TSDB_SQL_ALTER_ACCT: {
-      const char* msg1 = "invalid state option, available options[no, r, w, all]";
-      const char* msg2 = "invalid user/account name";
-      const char* msg3 = "name too long";
-
-      SToken* pName = &pInfo->pMiscInfo->user.user;
-      SToken* pPwd = &pInfo->pMiscInfo->user.passwd;
-
-      if (handlePassword(pCmd, pPwd) != TSDB_CODE_SUCCESS) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-
-      if (pName->n >= TSDB_USER_LEN) {
-        return buildInvalidOperationMsg(pMsgBuf, msg3);
-      }
-
-      if (tscValidateName(pName) != TSDB_CODE_SUCCESS) {
-        return buildInvalidOperationMsg(pMsgBuf, msg2);
-      }
-
-      SCreateAcctInfo* pAcctOpt = &pInfo->pMiscInfo->acctOpt;
-      if (pAcctOpt->stat.n > 0) {
-        if (pAcctOpt->stat.z[0] == 'r' && pAcctOpt->stat.n == 1) {
-        } else if (pAcctOpt->stat.z[0] == 'w' && pAcctOpt->stat.n == 1) {
-        } else if (strncmp(pAcctOpt->stat.z, "all", 3) == 0 && pAcctOpt->stat.n == 3) {
-        } else if (strncmp(pAcctOpt->stat.z, "no", 2) == 0 && pAcctOpt->stat.n == 2) {
-        } else {
-          return buildInvalidOperationMsg(pMsgBuf, msg1);
-        }
       }
 
       break;
@@ -3819,7 +3779,7 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
 
       char* pMsg = pCmd->payload;
 
-      SCfgDnodeMsg* pCfg = (SCfgDnodeMsg*)pMsg;
+      SMCfgDnodeReq* pCfg = (SMCfgDnodeReq*)pMsg;
 
       SToken* t0 = taosArrayGet(pMiscInfo->a, 0);
       SToken* t1 = taosArrayGet(pMiscInfo->a, 1);
@@ -3863,29 +3823,6 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
         strncpy(&pCmd->payload[t->n + 1], t1->z, t1->n);
       }
       return TSDB_CODE_SUCCESS;
-    }
-
-    case TSDB_SQL_CREATE_TABLE: {
-      SCreateTableSql* pCreateTable = pInfo->pCreateTableInfo;
-
-      if (pCreateTable->type == TSQL_CREATE_TABLE || pCreateTable->type == TSQL_CREATE_STABLE) {
-        if ((code = doCheckForCreateTable(pSql, 0, pInfo)) != TSDB_CODE_SUCCESS) {
-          return code;
-        }
-
-      } else if (pCreateTable->type == TSQL_CREATE_TABLE_FROM_STABLE) {
-        assert(pCmd->numOfCols == 0);
-        if ((code = doCheckForCreateFromStable(pSql, pInfo)) != TSDB_CODE_SUCCESS) {
-          return code;
-        }
-
-      } else if (pCreateTable->type == TSQL_CREATE_STREAM) {
-        if ((code = doCheckForStream(pSql, pInfo)) != TSDB_CODE_SUCCESS) {
-          return code;
-        }
-      }
-
-      break;
     }
 
     case TSDB_SQL_SELECT: {
@@ -3981,24 +3918,45 @@ int32_t qParserValidateSqlNode(struct SCatalog* pCatalog, SSqlInfo* pInfo, SQuer
       }
       break;
     }
-    #endif
     default:
       return buildInvalidOperationMsg(pMsgBuf, "not support sql expression");
   }
+#endif
+  }
 
-  SCatalogReq req = {0};
-  SMetaData data = {0};
+  SCatalogReq req  = {0};
+  SMetaData   data = {0};
 
   // TODO: check if the qnode info has been cached already
   req.qNodeRequired = true;
-  code = qParserExtractRequestedMetaInfo(pInfo, &req, msgBuf, msgBufLen);
+  code = qParserExtractRequestedMetaInfo(pInfo, &req, pCtx, msgBuf, msgBufLen);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
   // load the meta data from catalog
-  code = catalogGetAllMeta(pCatalog, NULL, NULL, &req, &data);
+//  code = catalogGetAllMeta(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, &req, &data);
+  STableMeta* pmt = NULL;
+
+  SName* name = taosArrayGet(req.pTableName, 0);
+  code = catalogGetTableMeta(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, name, &pmt);
   if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  
+  data.pTableMeta = taosArrayInit(1, POINTER_BYTES);
+  taosArrayPush(data.pTableMeta, &pmt);
+
+  pQueryInfo->pTableMetaInfo = calloc(1, POINTER_BYTES);
+  pQueryInfo->pTableMetaInfo[0] = calloc(1, sizeof(STableMetaInfo));
+  pQueryInfo->pTableMetaInfo[0]->pTableMeta = pmt;
+  pQueryInfo->pTableMetaInfo[0]->name = *name;
+  pQueryInfo->numOfTables = 1;
+  pQueryInfo->pTableMetaInfo[0]->tagColList = taosArrayInit(4, POINTER_BYTES);
+  
+  code = setTableVgroupList(pCtx, name, &pQueryInfo->pTableMetaInfo[0]->vgroupList);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(data.pTableMeta);
     return code;
   }
 

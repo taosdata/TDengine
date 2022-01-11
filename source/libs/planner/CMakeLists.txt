@@ -8,7 +8,8 @@ target_include_directories(
 
 target_link_libraries(
     planner
-    PRIVATE os util catalog cjson parser transport function qcom
+    PRIVATE os util catalog cjson parser function qcom
+    PUBLIC transport
 )
 
 if(${BUILD_TEST})

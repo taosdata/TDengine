@@ -17,26 +17,48 @@
 #define _TD_TSDB_DEF_H_
 
 #include "mallocator.h"
-#include "tmsg.h"
-#include "tlist.h"
+#include "meta.h"
+#include "tcompression.h"
+#include "tglobal.h"
 #include "thash.h"
+#include "tlist.h"
+#include "tmsg.h"
 #include "tskiplist.h"
+#include "ttime.h"
 
 #include "tsdb.h"
+#include "tsdbCommit.h"
+#include "tsdbFS.h"
+#include "tsdbFile.h"
+#include "tsdbLog.h"
 #include "tsdbMemTable.h"
+#include "tsdbMemory.h"
 #include "tsdbOptions.h"
+#include "tsdbReadImpl.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 struct STsdb {
+  int32_t               vgId;
   char *                path;
-  STsdbCfg              options;
+  STsdbCfg              config;
   STsdbMemTable *       mem;
   STsdbMemTable *       imem;
+  SRtn                  rtn;
   SMemAllocatorFactory *pmaf;
+  STsdbFS *             fs;
+  SMeta *               pMeta;
 };
+
+#define REPO_ID(r) ((r)->vgId)
+#define REPO_CFG(r) (&(r)->config)
+#define REPO_FS(r) (r)->fs
+
+static FORCE_INLINE STSchema *tsdbGetTableSchemaImpl(STable *pTable, bool lock, bool copy, int32_t version) {
+  return pTable->pSchema;
+}
 
 #ifdef __cplusplus
 }

@@ -17,26 +17,52 @@
 #define _TD_TSDB_H_
 
 #include "mallocator.h"
+#include "meta.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef struct SDataStatis {
+  int16_t colId;
+  int64_t sum;
+  int64_t max;
+  int64_t min;
+  int16_t maxIndex;
+  int16_t minIndex;
+  int16_t numOfNull;
+} SDataStatis;
+
+typedef struct STable {
+  uint64_t  tid;
+  uint64_t  uid;
+  STSchema *pSchema;
+} STable;
+
+#define TABLE_TID(t) (t)->tid
+#define TABLE_UID(t) (t)->uid
+
 // TYPES EXPOSED
 typedef struct STsdb STsdb;
 
 typedef struct STsdbCfg {
+  int8_t   precision;
   uint64_t lruCacheSize;
-  uint32_t keep0;
-  uint32_t keep1;
-  uint32_t keep2;
+  int32_t  daysPerFile;
+  int32_t  minRowsPerFileBlock;
+  int32_t  maxRowsPerFileBlock;
+  int32_t  keep;
+  int32_t  keep1;
+  int32_t  keep2;
+  int8_t   update;
+  int8_t   compression;
 } STsdbCfg;
 
 // STsdb
-STsdb *tsdbOpen(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF);
+STsdb *tsdbOpen(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF, SMeta *pMeta);
 void   tsdbClose(STsdb *);
 void   tsdbRemove(const char *path);
-int    tsdbInsertData(STsdb *pTsdb, SSubmitMsg *pMsg);
+int    tsdbInsertData(STsdb *pTsdb, SSubmitMsg *pMsg, SSubmitRsp *pRsp);
 int    tsdbPrepareCommit(STsdb *pTsdb);
 int    tsdbCommit(STsdb *pTsdb);
 

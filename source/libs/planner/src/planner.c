@@ -16,12 +16,44 @@
 #include "parser.h"
 #include "plannerInt.h"
 
+static void destroyDataSinkNode(SDataSink* pSinkNode) {
+  if (pSinkNode == NULL) {
+    return;
+  }
+  tfree(pSinkNode);
+}
+
 void qDestroySubplan(SSubplan* pSubplan) {
-  // todo
+  if (pSubplan == NULL) {
+    return;
+  }
+
+  taosArrayDestroy(pSubplan->pChildren);
+  taosArrayDestroy(pSubplan->pParents);
+  destroyDataSinkNode(pSubplan->pDataSink);
+  // todo destroy pNode
+  tfree(pSubplan);
 }
 
 void qDestroyQueryDag(struct SQueryDag* pDag) {
-  // todo
+  if (pDag == NULL) {
+    return;
+  }
+
+  size_t size = taosArrayGetSize(pDag->pSubplans);
+  for(size_t i = 0; i < size; ++i) {
+    SArray* pa = taosArrayGetP(pDag->pSubplans, i);
+
+    size_t t = taosArrayGetSize(pa);
+    for(int32_t j = 0; j < t; ++j) {
+      SSubplan* pSubplan = taosArrayGetP(pa, j);
+      qDestroySubplan(pSubplan);
+    }
+    taosArrayDestroy(pa);
+  }
+
+  taosArrayDestroy(pDag->pSubplans);
+  tfree(pDag);
 }
 
 int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag, uint64_t requestId) {
@@ -30,6 +62,13 @@ int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag,
   if (TSDB_CODE_SUCCESS != code) {
     destroyQueryPlan(logicPlan);
     return code;
+  }
+
+  //
+  if (logicPlan->info.type != QNODE_MODIFY) {
+//    char* str = NULL;
+//    queryPlanToString(logicPlan, &str);
+//    printf("%s\n", str);
   }
 
   code = optimizeQueryPlan(logicPlan);
@@ -49,8 +88,8 @@ int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag,
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep) {
-  return setSubplanExecutionNode(subplan, templateId, ep);
+void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep) {
+  setSubplanExecutionNode(subplan, templateId, ep);
 }
 
 int32_t qSubPlanToString(const SSubplan *subplan, char** str, int32_t* len) {

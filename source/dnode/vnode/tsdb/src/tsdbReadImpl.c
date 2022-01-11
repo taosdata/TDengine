@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbint.h"
+#include "tsdbDef.h"
 
 #define TSDB_KEY_COL_OFFSET 0
 
@@ -26,7 +26,7 @@ static int  tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols 
                                       int numOfColIds);
 static int  tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBlockCol *pBlockCol, SDataCol *pDataCol);
 
-int tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo) {
+int tsdbInitReadH(SReadH *pReadh, STsdb *pRepo) {
   ASSERT(pReadh != NULL && pRepo != NULL);
 
   STsdbCfg *pCfg = REPO_CFG(pRepo);
@@ -259,7 +259,9 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   for (int i = 1; i < pBlock->numOfSubBlocks; i++) {
     iBlock++;
     if (tsdbLoadBlockDataImpl(pReadh, iBlock, pReadh->pDCols[1]) < 0) return -1;
-    if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL, update != TD_ROW_PARTIAL_UPDATE) < 0) return -1;
+    if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
+                        update != TD_ROW_PARTIAL_UPDATE) < 0)
+      return -1;
   }
 
   ASSERT(pReadh->pDCols[0]->numOfRows == pBlock->numOfRows);
@@ -286,7 +288,9 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
   for (int i = 1; i < pBlock->numOfSubBlocks; i++) {
     iBlock++;
     if (tsdbLoadBlockDataColsImpl(pReadh, iBlock, pReadh->pDCols[1], colIds, numOfColsIds) < 0) return -1;
-    if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL, update != TD_ROW_PARTIAL_UPDATE) < 0) return -1;
+    if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
+                        update != TD_ROW_PARTIAL_UPDATE) < 0)
+      return -1;
   }
 
   ASSERT(pReadh->pDCols[0]->numOfRows == pBlock->numOfRows);
@@ -524,7 +528,7 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, void *content, int32
   if (comp) {
     // Need to decompress
     int tlen = (*(tDataTypes[pDataCol->type].decompFunc))(content, len - sizeof(TSCKSUM), numOfRows, pDataCol->pData,
-                                                             pDataCol->spaceSize, comp, buffer, bufferSize);
+                                                          pDataCol->spaceSize, comp, buffer, bufferSize);
     if (tlen <= 0) {
       tsdbError("Failed to decompress column, file corrupted, len:%d comp:%d numOfRows:%d maxPoints:%d bufferSize:%d",
                 len, comp, numOfRows, maxPoints, bufferSize);
@@ -624,9 +628,9 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
 static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBlockCol *pBlockCol, SDataCol *pDataCol) {
   ASSERT(pDataCol->colId == pBlockCol->colId);
 
-  STsdbRepo *pRepo = TSDB_READ_REPO(pReadh);
-  STsdbCfg * pCfg = REPO_CFG(pRepo);
-  int        tsize = pDataCol->bytes * pBlock->numOfRows + COMP_OVERFLOW_BYTES;
+  STsdb *   pRepo = TSDB_READ_REPO(pReadh);
+  STsdbCfg *pCfg = REPO_CFG(pRepo);
+  int       tsize = pDataCol->bytes * pBlock->numOfRows + COMP_OVERFLOW_BYTES;
 
   if (tsdbMakeRoom((void **)(&TSDB_READ_BUF(pReadh)), pBlockCol->len) < 0) return -1;
   if (tsdbMakeRoom((void **)(&TSDB_READ_COMP_BUF(pReadh)), tsize) < 0) return -1;

@@ -29,7 +29,7 @@ int32_t queryBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int3
 
   SBuildTableMetaInput* bInput = (SBuildTableMetaInput *)input;
 
-  int32_t estimateSize = sizeof(STableInfoMsg);
+  int32_t estimateSize = sizeof(STableInfoReq);
   if (NULL == *msg || msgSize < estimateSize) {
     tfree(*msg);
     *msg = rpcMallocCont(estimateSize);
@@ -38,7 +38,7 @@ int32_t queryBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int3
     }
   }
 
-  STableInfoMsg *bMsg = (STableInfoMsg *)*msg;
+  STableInfoReq *bMsg = (STableInfoReq *)*msg;
 
   bMsg->header.vgId = htonl(bInput->vgId);
 
@@ -59,7 +59,7 @@ int32_t queryBuildUseDbMsg(void* input, char **msg, int32_t msgSize, int32_t *ms
 
   SBuildUseDBInput* bInput = (SBuildUseDBInput *)input;
 
-  int32_t estimateSize = sizeof(SUseDbMsg);
+  int32_t estimateSize = sizeof(SUseDbReq);
   if (NULL == *msg || msgSize < estimateSize) {
     tfree(*msg);
     *msg = rpcMallocCont(estimateSize);
@@ -68,7 +68,7 @@ int32_t queryBuildUseDbMsg(void* input, char **msg, int32_t msgSize, int32_t *ms
     }
   }
 
-  SUseDbMsg *bMsg = (SUseDbMsg *)*msg;
+  SUseDbReq *bMsg = (SUseDbReq *)*msg;
 
   strncpy(bMsg->db, bInput->db, sizeof(bMsg->db));
   bMsg->db[sizeof(bMsg->db) - 1] = 0;
@@ -97,6 +97,7 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
   
   pRsp->vgVersion = ntohl(pRsp->vgVersion);
   pRsp->vgNum = ntohl(pRsp->vgNum);
+  pRsp->uid = be64toh(pRsp->uid);
 
   if (pRsp->vgNum < 0) {
     qError("invalid db[%s] vgroup number[%d]", pRsp->db, pRsp->vgNum);
@@ -111,6 +112,7 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
 
   pOut->dbVgroup.vgVersion = pRsp->vgVersion;
   pOut->dbVgroup.hashMethod = pRsp->hashMethod;
+  pOut->dbVgroup.dbId = pRsp->uid;
   pOut->dbVgroup.vgInfo = taosHashInit(pRsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (NULL == pOut->dbVgroup.vgInfo) {
     qError("hash init[%d] failed", pRsp->vgNum);
@@ -144,13 +146,13 @@ _return:
   return code;
 }
 
-static int32_t queryConvertTableMetaMsg(STableMetaMsg* pMetaMsg) {
+static int32_t queryConvertTableMetaMsg(STableMetaRsp* pMetaMsg) {
   pMetaMsg->numOfTags = ntohl(pMetaMsg->numOfTags);
   pMetaMsg->numOfColumns = ntohl(pMetaMsg->numOfColumns);
   pMetaMsg->sversion = ntohl(pMetaMsg->sversion);
   pMetaMsg->tversion = ntohl(pMetaMsg->tversion);
-  pMetaMsg->tuid = htobe64(pMetaMsg->tuid);
-  pMetaMsg->suid = htobe64(pMetaMsg->suid);
+  pMetaMsg->tuid = be64toh(pMetaMsg->tuid);
+  pMetaMsg->suid = be64toh(pMetaMsg->suid);
   pMetaMsg->vgId = ntohl(pMetaMsg->vgId);
 
   if (pMetaMsg->numOfTags < 0 || pMetaMsg->numOfTags > TSDB_MAX_TAGS) {
@@ -196,7 +198,7 @@ static int32_t queryConvertTableMetaMsg(STableMetaMsg* pMetaMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryCreateTableMetaFromMsg(STableMetaMsg* msg, bool isSuperTable, STableMeta **pMeta) {
+int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta **pMeta) {
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
   
@@ -208,7 +210,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaMsg* msg, bool isSuperTable, STabl
 
   pTableMeta->vgId = isSuperTable ? 0 : msg->vgId;
   pTableMeta->tableType = isSuperTable ? TSDB_SUPER_TABLE : msg->tableType;
-  pTableMeta->uid  = msg->tuid;
+  pTableMeta->uid  = isSuperTable ? msg->suid : msg->tuid;
   pTableMeta->suid = msg->suid;
   pTableMeta->sversion = msg->sversion;
   pTableMeta->tversion = msg->tversion;
@@ -230,7 +232,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaMsg* msg, bool isSuperTable, STabl
 
 
 int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
-  STableMetaMsg *pMetaMsg = (STableMetaMsg *)msg;
+  STableMetaRsp *pMetaMsg = (STableMetaRsp *)msg;
   int32_t code = queryConvertTableMetaMsg(pMetaMsg);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -244,7 +246,7 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
   }
 
   if (pMetaMsg->tableType == TSDB_CHILD_TABLE) {
-    pOut->metaNum = 2;
+    SET_META_TYPE_BOTH_TABLE(pOut->metaType);
 
     if (pMetaMsg->dbFname[0]) {
       snprintf(pOut->ctbFname, sizeof(pOut->ctbFname), "%s.%s", pMetaMsg->dbFname, pMetaMsg->tbFname);
@@ -261,7 +263,7 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
 
     code = queryCreateTableMetaFromMsg(pMetaMsg, true, &pOut->tbMeta);
   } else {
-    pOut->metaNum = 1;
+    SET_META_TYPE_TABLE(pOut->metaType);
     
     if (pMetaMsg->dbFname[0]) {
       snprintf(pOut->tbFname, sizeof(pOut->tbFname), "%s.%s", pMetaMsg->dbFname, pMetaMsg->tbFname);

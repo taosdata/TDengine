@@ -64,10 +64,11 @@ static int32_t createModificationOpPlan(const SQueryNode* pNode, SQueryPlanNode*
 }
 
 int32_t createSelectPlan(const SQueryStmtInfo* pSelect, SQueryPlanNode** pQueryPlan) {
-  SArray* upstream = createQueryPlanImpl(pSelect);
-  assert(taosArrayGetSize(upstream) == 1);
-  *pQueryPlan = taosArrayGetP(upstream, 0);
-  taosArrayDestroy(upstream);
+  SArray* pDownstream = createQueryPlanImpl(pSelect);
+  assert(taosArrayGetSize(pDownstream) == 1);
+
+  *pQueryPlan = taosArrayGetP(pDownstream, 0);
+  taosArrayDestroy(pDownstream);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -100,23 +101,21 @@ void destroyQueryPlan(SQueryPlanNode* pQueryNode) {
 
 //======================================================================================================================
 
-static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPlanNode** prev, int32_t numOfPrev,
+static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPlanNode** pChildrenNode, int32_t numOfChildren,
                                    SExprInfo** pExpr, int32_t numOfOutput, const void* pExtInfo) {
   SQueryPlanNode* pNode = calloc(1, sizeof(SQueryPlanNode));
 
   pNode->info.type = type;
   pNode->info.name = strdup(name);
-
   pNode->numOfExpr = numOfOutput;
-  pNode->pExpr = taosArrayInit(numOfOutput, POINTER_BYTES);
 
-  for(int32_t i = 0; i < numOfOutput; ++i) {
-    taosArrayPush(pNode->pExpr, &pExpr[i]);
-  }
+  pNode->pExpr = taosArrayInit(numOfOutput, POINTER_BYTES);
+  taosArrayAddBatch(pNode->pExpr, pExpr, numOfOutput);
+  assert(pNode->numOfExpr == numOfOutput);
 
   pNode->pChildren = taosArrayInit(4, POINTER_BYTES);
-  for(int32_t i = 0; i < numOfPrev; ++i) {
-    taosArrayPush(pNode->pChildren, &prev[i]);
+  for(int32_t i = 0; i < numOfChildren; ++i) {
+    taosArrayPush(pNode->pChildren, &pChildrenNode[i]);
   }
 
   switch(type) {
@@ -184,8 +183,7 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
   return pNode;
 }
 
-static SQueryPlanNode* doAddTableColumnNode(const SQueryStmtInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SQueryTableInfo* info,
-                                        SArray* pExprs, SArray* tableCols) {
+static SQueryPlanNode* doAddTableColumnNode(const SQueryStmtInfo* pQueryInfo, SQueryTableInfo* info, SArray* pExprs, SArray* tableCols) {
   if (pQueryInfo->info.onlyTagQuery) {
     int32_t num = (int32_t) taosArrayGetSize(pExprs);
     SQueryPlanNode* pNode = createQueryNode(QNODE_TAGSCAN, "TableTagScan", NULL, 0, pExprs->pData, num, info);
@@ -193,16 +191,12 @@ static SQueryPlanNode* doAddTableColumnNode(const SQueryStmtInfo* pQueryInfo, ST
     if (pQueryInfo->info.distinct) {
       pNode = createQueryNode(QNODE_DISTINCT, "Distinct", &pNode, 1, pExprs->pData, num, NULL);
     }
-
     return pNode;
   }
 
   SQueryPlanNode*  pNode = createQueryNode(QNODE_TABLESCAN, "TableScan", NULL, 0, NULL, 0, info);
 
-  if (pQueryInfo->info.projectionQuery) {
-    int32_t numOfOutput = (int32_t) taosArrayGetSize(pExprs);
-    pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pExprs->pData, numOfOutput, NULL);
-  } else {
+  if (!pQueryInfo->info.projectionQuery) {
     STableMetaInfo* pTableMetaInfo1 = getMetaInfo(pQueryInfo, 0);
 
     // table source column projection, generate the projection expr
@@ -262,7 +256,11 @@ static SQueryPlanNode* doCreateQueryPlanForSingleTableImpl(const SQueryStmtInfo*
         pNode = createQueryNode(QNODE_AGGREGATE, "Aggregate", &pNode, 1, p->pData, num, NULL);
       }
     } else {
-      pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, p->pData, num, NULL);
+      // here we can push down the projection to tablescan operator.
+      pNode->numOfExpr = num;
+      pNode->pExpr = taosArrayInit(num, POINTER_BYTES);
+      taosArrayAddAll(pNode->pExpr, p);
+//      pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, p->pData, num, NULL);
     }
   }
 
@@ -299,9 +297,11 @@ static SQueryPlanNode* doCreateQueryPlanForSingleTable(const SQueryStmtInfo* pQu
   tstrncpy(name, pTableMetaInfo->name.tname, TSDB_TABLE_FNAME_LEN);
 
   SQueryTableInfo info = {.tableName = strdup(name), .uid = pTableMetaInfo->pTableMeta->uid,};
+  info.window = pQueryInfo->window;
+  info.pMeta  = pTableMetaInfo;
 
   // handle the only tag query
-  SQueryPlanNode* pNode = doAddTableColumnNode(pQueryInfo, pTableMetaInfo, &info, pExprs, tableCols);
+  SQueryPlanNode* pNode = doAddTableColumnNode(pQueryInfo, &info, pExprs, tableCols);
   if (pQueryInfo->info.onlyTagQuery) {
     tfree(info.tableName);
     return pNode;
@@ -326,23 +326,23 @@ static bool isAllAggExpr(SArray* pList) {
 }
 
 SArray* createQueryPlanImpl(const SQueryStmtInfo* pQueryInfo) {
-  SArray* upstream = NULL;
+  SArray* pDownstream = NULL;
 
-  if (pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // subquery in the from clause
-    upstream = taosArrayInit(4, POINTER_BYTES);
+  if (pQueryInfo->pDownstream != NULL && taosArrayGetSize(pQueryInfo->pDownstream) > 0) {  // subquery in the from clause
+    pDownstream = taosArrayInit(4, POINTER_BYTES);
 
-    size_t size = taosArrayGetSize(pQueryInfo->pUpstream);
+    size_t size = taosArrayGetSize(pQueryInfo->pDownstream);
     for(int32_t i = 0; i < size; ++i) {
-      SQueryStmtInfo* pq = taosArrayGet(pQueryInfo->pUpstream, i);
+      SQueryStmtInfo* pq = taosArrayGet(pQueryInfo->pDownstream, i);
       SArray* p = createQueryPlanImpl(pq);
-      taosArrayAddBatch(upstream, p->pData, (int32_t) taosArrayGetSize(p));
+      taosArrayAddBatch(pDownstream, p->pData, (int32_t) taosArrayGetSize(p));
     }
   }
 
   if (pQueryInfo->numOfTables > 1) {  // it is a join query
     // 1. separate the select clause according to table
-    taosArrayDestroy(upstream);
-    upstream = taosArrayInit(5, POINTER_BYTES);
+    taosArrayDestroy(pDownstream);
+    pDownstream = taosArrayInit(5, POINTER_BYTES);
 
     for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
       STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[i];
@@ -365,33 +365,45 @@ SArray* createQueryPlanImpl(const SQueryStmtInfo* pQueryInfo) {
       columnListCopy(tableColumnList, pQueryInfo->colList, uid);
 
       // 4. add the projection query node
-      SQueryPlanNode* pNode = doAddTableColumnNode(pQueryInfo, pTableMetaInfo, &info, exprList, tableColumnList);
+      SQueryPlanNode* pNode = doAddTableColumnNode(pQueryInfo, &info, exprList, tableColumnList);
       columnListDestroy(tableColumnList);
 //      dropAllExprInfo(exprList);
-      taosArrayPush(upstream, &pNode);
+      taosArrayPush(pDownstream, &pNode);
     }
 
     // 3. add the join node here
     SQueryTableInfo info = {0};
     int32_t num = (int32_t) taosArrayGetSize(pQueryInfo->exprList[0]);
-    SQueryPlanNode* pNode = createQueryNode(QNODE_JOIN, "Join", upstream->pData, pQueryInfo->numOfTables,
+    SQueryPlanNode* pNode = createQueryNode(QNODE_JOIN, "Join", pDownstream->pData, pQueryInfo->numOfTables,
                                         pQueryInfo->exprList[0]->pData, num, NULL);
 
     // 4. add the aggregation or projection execution node
     pNode = doCreateQueryPlanForSingleTableImpl(pQueryInfo, pNode, &info);
-    upstream = taosArrayInit(5, POINTER_BYTES);
-    taosArrayPush(upstream, &pNode);
+    pDownstream = taosArrayInit(5, POINTER_BYTES);
+    taosArrayPush(pDownstream, &pNode);
   } else { // only one table, normal query process
     STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
     SQueryPlanNode* pNode = doCreateQueryPlanForSingleTable(pQueryInfo, pTableMetaInfo, pQueryInfo->exprList[0], pQueryInfo->colList);
-    upstream = taosArrayInit(5, POINTER_BYTES);
-    taosArrayPush(upstream, &pNode);
+    pDownstream = taosArrayInit(5, POINTER_BYTES);
+    taosArrayPush(pDownstream, &pNode);
   }
 
-  return upstream;
+  return pDownstream;
 }
 
 static void doDestroyQueryNode(SQueryPlanNode* pQueryNode) {
+  if (pQueryNode->info.type == QNODE_MODIFY) {
+    SDataPayloadInfo* pInfo = pQueryNode->pExtInfo;
+
+    size_t size = taosArrayGetSize(pInfo->payload);
+    for (int32_t i = 0; i < size; ++i) {
+      SVgDataBlocks* pBlock = taosArrayGetP(pInfo->payload, i);
+      tfree(pBlock);
+    }
+
+    taosArrayDestroy(pInfo->payload);
+  }
+
   tfree(pQueryNode->pExtInfo);
   tfree(pQueryNode->pSchema);
   tfree(pQueryNode->info.name);
@@ -422,22 +434,23 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
   switch(pQueryNode->info.type) {
     case QNODE_TABLESCAN: {
       SQueryTableInfo* pInfo = (SQueryTableInfo*)pQueryNode->pExtInfo;
-      len1 = sprintf(buf + len, "%s #%" PRIu64 ") time_range: %" PRId64 " - %" PRId64, pInfo->tableName, pInfo->uid,
-                     pInfo->window.skey, pInfo->window.ekey);
+      len1 = sprintf(buf + len, "%s #%" PRIu64, pInfo->tableName, pInfo->uid);
       assert(len1 > 0);
       len += len1;
 
-      for (int32_t i = 0; i < pQueryNode->numOfExpr; ++i) {
-        SColumn* pCol = taosArrayGetP(pQueryNode->pExpr, i);
-        len1 = sprintf(buf + len, " [%s #%d] ", pCol->name, pCol->info.colId);
+      len1 = sprintf(buf + len, " , cols:");
+      assert(len1 > 0);
+      len += len1;
 
-        assert(len1 > 0);
-        len += len1;
-      }
-
-      len1 = sprintf(buf + len, "\n");
+      len = printExprInfo(buf, pQueryNode, len);
+      len1 = sprintf(buf + len, ")");
       assert(len1 > 0);
 
+      // todo print filter info
+      len1 = sprintf(buf + len, ") filters:(nil)");
+      len += len1;
+
+      len1 = sprintf(buf + len, " time_range: %" PRId64 " - %" PRId64"\n", pInfo->window.skey, pInfo->window.ekey);
       len += len1;
       break;
     }

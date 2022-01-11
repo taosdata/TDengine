@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dndSnode.h"
-#include "dndDnode.h"
+#include "dndMgmt.h"
 #include "dndTransport.h"
 #include "dndWorker.h"
 
@@ -27,7 +27,7 @@ static SSnode *dndAcquireSnode(SDnode *pDnode) {
   int32_t     refCount = 0;
 
   taosRLockLatch(&pMgmt->latch);
-  if (pMgmt->deployed && !pMgmt->dropped) {
+  if (pMgmt->deployed && !pMgmt->dropped && pMgmt->pSnode != NULL) {
     refCount = atomic_add_fetch_32(&pMgmt->refCount, 1);
     pSnode = pMgmt->pSnode;
   } else {
@@ -42,25 +42,20 @@ static SSnode *dndAcquireSnode(SDnode *pDnode) {
 }
 
 static void dndReleaseSnode(SDnode *pDnode, SSnode *pSnode) {
+  if (pSnode == NULL) return;
+
   SSnodeMgmt *pMgmt = &pDnode->smgmt;
-  int32_t     refCount = 0;
-
   taosRLockLatch(&pMgmt->latch);
-  if (pSnode != NULL) {
-    refCount = atomic_sub_fetch_32(&pMgmt->refCount, 1);
-  }
+  int32_t refCount = atomic_sub_fetch_32(&pMgmt->refCount, 1);
   taosRUnLockLatch(&pMgmt->latch);
-
-  if (pSnode != NULL) {
-    dTrace("release snode, refCount:%d", refCount);
-  }
+  dTrace("release snode, refCount:%d", refCount);
 }
 
 static int32_t dndReadSnodeFile(SDnode *pDnode) {
   SSnodeMgmt *pMgmt = &pDnode->smgmt;
   int32_t     code = TSDB_CODE_DND_SNODE_READ_FILE_ERROR;
   int32_t     len = 0;
-  int32_t     maxLen = 4096;
+  int32_t     maxLen = 1024;
   char       *content = calloc(1, maxLen + 1);
   cJSON      *root = NULL;
 
@@ -127,7 +122,7 @@ static int32_t dndWriteSnodeFile(SDnode *pDnode) {
   }
 
   int32_t len = 0;
-  int32_t maxLen = 4096;
+  int32_t maxLen = 1024;
   char   *content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
@@ -170,18 +165,18 @@ static void dndStopSnodeWorker(SDnode *pDnode) {
   pMgmt->deployed = 0;
   taosWUnLockLatch(&pMgmt->latch);
 
-  while (pMgmt->refCount > 1) {
+  while (pMgmt->refCount > 0) {
     taosMsleep(10);
-  }
+  } 
 
   dndCleanupWorker(&pMgmt->writeWorker);
 }
 
 static void dndBuildSnodeOption(SDnode *pDnode, SSnodeOpt *pOption) {
   pOption->pDnode = pDnode;
-  pOption->sendMsgToDnodeFp = dndSendMsgToDnode;
-  pOption->sendMsgToMnodeFp = dndSendMsgToMnode;
-  pOption->sendRedirectMsgFp = dndSendRedirectMsg;
+  pOption->sendReqToDnodeFp = dndSendReqToDnode;
+  pOption->sendReqToMnodeFp = dndSendReqToMnode;
+  pOption->sendRedirectRspFp = dndSendRedirectRsp;
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
   pOption->cfg.sver = pDnode->opt.sver;
@@ -189,10 +184,18 @@ static void dndBuildSnodeOption(SDnode *pDnode, SSnodeOpt *pOption) {
 
 static int32_t dndOpenSnode(SDnode *pDnode) {
   SSnodeMgmt *pMgmt = &pDnode->smgmt;
-  SSnodeOpt   option = {0};
+  SSnode     *pSnode = dndAcquireSnode(pDnode);
+  if (pSnode != NULL) {
+    dndReleaseSnode(pDnode, pSnode);
+    terrno = TSDB_CODE_DND_SNODE_ALREADY_DEPLOYED;
+    dError("failed to create snode since %s", terrstr());
+    return -1;
+  }
+
+  SSnodeOpt option = {0};
   dndBuildSnodeOption(pDnode, &option);
 
-  SSnode *pSnode = sndOpen(pDnode->dir.snode, &option);
+  pSnode = sndOpen(pDnode->dir.snode, &option);
   if (pSnode == NULL) {
     dError("failed to open snode since %s", terrstr());
     return -1;
@@ -256,11 +259,12 @@ static int32_t dndDropSnode(SDnode *pDnode) {
 }
 
 int32_t dndProcessCreateSnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SDCreateSnodeMsg *pMsg = pRpcMsg->pCont;
+  SDCreateSnodeReq *pMsg = pRpcMsg->pCont;
   pMsg->dnodeId = htonl(pMsg->dnodeId);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
-    terrno = TSDB_CODE_DND_SNODE_ID_INVALID;
+    terrno = TSDB_CODE_DND_SNODE_INVALID_OPTION;
+    dError("failed to create snode since %s", terrstr());
     return -1;
   } else {
     return dndOpenSnode(pDnode);
@@ -268,11 +272,12 @@ int32_t dndProcessCreateSnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
 }
 
 int32_t dndProcessDropSnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SDDropSnodeMsg *pMsg = pRpcMsg->pCont;
+  SDDropSnodeReq *pMsg = pRpcMsg->pCont;
   pMsg->dnodeId = htonl(pMsg->dnodeId);
 
   if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
-    terrno = TSDB_CODE_DND_SNODE_ID_INVALID;
+    terrno = TSDB_CODE_DND_SNODE_INVALID_OPTION;
+    dError("failed to drop snode since %s", terrstr());
     return -1;
   } else {
     return dndDropSnode(pDnode);
@@ -288,15 +293,18 @@ static void dndProcessSnodeQueue(SDnode *pDnode, SRpcMsg *pMsg) {
   if (pSnode != NULL) {
     code = sndProcessMsg(pSnode, pMsg, &pRsp);
   }
+  dndReleaseSnode(pDnode, pSnode);
 
-  if (pRsp != NULL) {
-    pRsp->ahandle = pMsg->ahandle;
-    rpcSendResponse(pRsp);
-    free(pRsp);
-  } else {
-    if (code != 0) code = terrno;
-    SRpcMsg rpcRsp = {.handle = pMsg->handle, .ahandle = pMsg->ahandle, .code = code};
-    rpcSendResponse(&rpcRsp);
+  if (pMsg->msgType & 1u) {
+    if (pRsp != NULL) {
+      pRsp->ahandle = pMsg->ahandle;
+      rpcSendResponse(pRsp);
+      free(pRsp);
+    } else {
+      if (code != 0) code = terrno;
+      SRpcMsg rpcRsp = {.handle = pMsg->handle, .ahandle = pMsg->ahandle, .code = code};
+      rpcSendResponse(&rpcRsp);
+    }
   }
 
   rpcFreeCont(pMsg->pCont);

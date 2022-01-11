@@ -255,7 +255,7 @@ static int metaOpenBDBEnv(DB_ENV **ppEnv, const char *path) {
     return -1;
   }
 
-  ret = pEnv->open(pEnv, path, DB_CREATE | DB_INIT_MPOOL, 0);
+  ret = pEnv->open(pEnv, path, DB_CREATE | DB_INIT_CDB | DB_INIT_MPOOL, 0);
   if (ret != 0) {
     BDB_PERR("Failed to open META env", ret);
     return -1;
@@ -589,4 +589,36 @@ char *metaTbCursorNext(SMTbCursor *pTbCur) {
       return NULL;
     }
   }
+}
+
+STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
+  STSchemaBuilder sb;
+  STSchema *      pTSchema = NULL;
+  SSchema *       pSchema;
+  SSchemaWrapper *pSW;
+  STbCfg *        pTbCfg;
+  tb_uid_t        quid;
+
+  pTbCfg = metaGetTbInfoByUid(pMeta, uid);
+  if (pTbCfg->type == META_CHILD_TABLE) {
+    quid = pTbCfg->ctbCfg.suid;
+  } else {
+    quid = uid;
+  }
+
+  pSW = metaGetTableSchema(pMeta, quid, sver, true);
+  if (pSW == NULL) {
+    return NULL;
+  }
+
+  // Rebuild a schema
+  tdInitTSchemaBuilder(&sb, 0);
+  for (int32_t i = 0; i < pSW->nCols; i++) {
+    pSchema = pSW->pSchema + i;
+    tdAddColToSchema(&sb, pSchema->type, pSchema->colId, pSchema->bytes);
+  }
+  pTSchema = tdGetSchemaFromBuilder(&sb);
+  tdDestroyTSchemaBuilder(&sb);
+
+  return pTSchema;
 }

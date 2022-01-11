@@ -21,7 +21,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dndTransport.h"
-#include "dndDnode.h"
+#include "dndMgmt.h"
 #include "dndMnode.h"
 #include "dndVnodes.h"
 
@@ -105,8 +105,6 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_SHOW_RETRIEVE)] = dndProcessMnodeReadMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_STATUS)] = dndProcessMnodeReadMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_STATUS_RSP)] = dndProcessMgmtMsg;
-  pMgmt->msgFp[TMSG_INDEX(TDMT_MND_TRANS)] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TMSG_INDEX(TDMT_MND_TRANS_RSP)] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_GRANT)] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_GRANT_RSP)] = dndProcessMgmtMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_AUTH)] = dndProcessMnodeReadMsg;
@@ -145,26 +143,26 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
   pMgmt->msgFp[TMSG_INDEX(TDMT_VND_SHOW_TABLES_FETCH)] = dndProcessVnodeFetchMsg;
 }
 
-static void dndProcessResponse(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
+static void dndProcessResponse(void *parent, SRpcMsg *pRsp, SEpSet *pEpSet) {
   SDnode     *pDnode = parent;
   STransMgmt *pMgmt = &pDnode->tmgmt;
 
-  tmsg_t msgType = pMsg->msgType;
+  tmsg_t msgType = pRsp->msgType;
 
   if (dndGetStat(pDnode) == DND_STAT_STOPPED) {
-    if (pMsg == NULL || pMsg->pCont == NULL) return;
-    dTrace("RPC %p, rsp:%s is ignored since dnode is stopping", pMsg->handle, TMSG_INFO(msgType));
-    rpcFreeCont(pMsg->pCont);
+    if (pRsp == NULL || pRsp->pCont == NULL) return;
+    dTrace("RPC %p, rsp:%s is ignored since dnode is stopping", pRsp->handle, TMSG_INFO(msgType));
+    rpcFreeCont(pRsp->pCont);
     return;
   }
 
   DndMsgFp fp = pMgmt->msgFp[TMSG_INDEX(msgType)];
   if (fp != NULL) {
-    dTrace("RPC %p, rsp:%s will be processed, code:0x%x", pMsg->handle, TMSG_INFO(msgType), pMsg->code & 0XFFFF);
-    (*fp)(pDnode, pMsg, pEpSet);
+    dTrace("RPC %p, rsp:%s will be processed, code:0x%x", pRsp->handle, TMSG_INFO(msgType), pRsp->code & 0XFFFF);
+    (*fp)(pDnode, pRsp, pEpSet);
   } else {
-    dError("RPC %p, rsp:%s not processed", pMsg->handle, TMSG_INFO(msgType));
-    rpcFreeCont(pMsg->pCont);
+    dError("RPC %p, rsp:%s not processed", pRsp->handle, TMSG_INFO(msgType));
+    rpcFreeCont(pRsp->pCont);
   }
 }
 
@@ -203,48 +201,48 @@ static void dndCleanupClient(SDnode *pDnode) {
   }
 }
 
-static void dndProcessRequest(void *param, SRpcMsg *pMsg, SEpSet *pEpSet) {
+static void dndProcessRequest(void *param, SRpcMsg *pReq, SEpSet *pEpSet) {
   SDnode     *pDnode = param;
   STransMgmt *pMgmt = &pDnode->tmgmt;
 
-  tmsg_t msgType = pMsg->msgType;
+  tmsg_t msgType = pReq->msgType;
   if (msgType == TDMT_DND_NETWORK_TEST) {
-    dTrace("RPC %p, network test req, app:%p will be processed, code:0x%x", pMsg->handle, pMsg->ahandle, pMsg->code);
-    dndProcessStartupReq(pDnode, pMsg);
+    dTrace("RPC %p, network test req, app:%p will be processed, code:0x%x", pReq->handle, pReq->ahandle, pReq->code);
+    dndProcessStartupReq(pDnode, pReq);
     return;
   }
 
   if (dndGetStat(pDnode) == DND_STAT_STOPPED) {
-    dError("RPC %p, req:%s app:%p is ignored since dnode exiting", pMsg->handle, TMSG_INFO(msgType), pMsg->ahandle);
-    SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_DND_EXITING};
+    dError("RPC %p, req:%s app:%p is ignored since dnode exiting", pReq->handle, TMSG_INFO(msgType), pReq->ahandle);
+    SRpcMsg rspMsg = {.handle = pReq->handle, .code = TSDB_CODE_DND_OFFLINE};
     rpcSendResponse(&rspMsg);
-    rpcFreeCont(pMsg->pCont);
+    rpcFreeCont(pReq->pCont);
     return;
   } else if (dndGetStat(pDnode) != DND_STAT_RUNNING) {
-    dError("RPC %p, req:%s app:%p is ignored since dnode not running", pMsg->handle, TMSG_INFO(msgType), pMsg->ahandle);
-    SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_APP_NOT_READY};
+    dError("RPC %p, req:%s app:%p is ignored since dnode not running", pReq->handle, TMSG_INFO(msgType), pReq->ahandle);
+    SRpcMsg rspMsg = {.handle = pReq->handle, .code = TSDB_CODE_APP_NOT_READY};
     rpcSendResponse(&rspMsg);
-    rpcFreeCont(pMsg->pCont);
+    rpcFreeCont(pReq->pCont);
     return;
   }
 
-  if (pMsg->pCont == NULL) {
-    dTrace("RPC %p, req:%s app:%p not processed since content is null", pMsg->handle, TMSG_INFO(msgType),
-           pMsg->ahandle);
-    SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_DND_INVALID_MSG_LEN};
+  if (pReq->pCont == NULL) {
+    dTrace("RPC %p, req:%s app:%p not processed since content is null", pReq->handle, TMSG_INFO(msgType),
+           pReq->ahandle);
+    SRpcMsg rspMsg = {.handle = pReq->handle, .code = TSDB_CODE_DND_INVALID_MSG_LEN};
     rpcSendResponse(&rspMsg);
     return;
   }
 
   DndMsgFp fp = pMgmt->msgFp[TMSG_INDEX(msgType)];
   if (fp != NULL) {
-    dTrace("RPC %p, req:%s app:%p will be processed", pMsg->handle, TMSG_INFO(msgType), pMsg->ahandle);
-    (*fp)(pDnode, pMsg, pEpSet);
+    dTrace("RPC %p, req:%s app:%p will be processed", pReq->handle, TMSG_INFO(msgType), pReq->ahandle);
+    (*fp)(pDnode, pReq, pEpSet);
   } else {
-    dError("RPC %p, req:%s app:%p is not processed since no handle", pMsg->handle, TMSG_INFO(msgType), pMsg->ahandle);
-    SRpcMsg rspMsg = {.handle = pMsg->handle, .code = TSDB_CODE_MSG_NOT_PROCESSED};
+    dError("RPC %p, req:%s app:%p is not processed since no handle", pReq->handle, TMSG_INFO(msgType), pReq->ahandle);
+    SRpcMsg rspMsg = {.handle = pReq->handle, .code = TSDB_CODE_MSG_NOT_PROCESSED};
     rpcSendResponse(&rspMsg);
-    rpcFreeCont(pMsg->pCont);
+    rpcFreeCont(pReq->pCont);
   }
 }
 
@@ -256,7 +254,7 @@ static void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pRpcMsg, SRpcMsg *pRp
   rpcSendRecv(pMgmt->clientRpc, &epSet, pRpcMsg, pRpcRsp);
 }
 
-static int32_t dndAuthInternalMsg(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+static int32_t dndAuthInternalReq(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   if (strcmp(user, INTERNAL_USER) == 0) {
     // A simple temporary implementation
     char pass[TSDB_PASSWORD_LEN] = {0};
@@ -283,7 +281,7 @@ static int32_t dndAuthInternalMsg(SDnode *pDnode, char *user, char *spi, char *e
 static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   SDnode *pDnode = parent;
 
-  if (dndAuthInternalMsg(parent, user, spi, encrypt, secret, ckey) == 0) {
+  if (dndAuthInternalReq(parent, user, spi, encrypt, secret, ckey) == 0) {
     // dTrace("get internal auth success");
     return 0;
   }
@@ -300,10 +298,10 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
 
   // dDebug("user:%s, send auth msg to other mnodes", user);
 
-  SAuthMsg *pMsg = rpcMallocCont(sizeof(SAuthMsg));
-  tstrncpy(pMsg->user, user, TSDB_USER_LEN);
+  SAuthReq *pReq = rpcMallocCont(sizeof(SAuthReq));
+  tstrncpy(pReq->user, user, TSDB_USER_LEN);
 
-  SRpcMsg rpcMsg = {.pCont = pMsg, .contLen = sizeof(SAuthMsg), .msgType = TDMT_MND_AUTH};
+  SRpcMsg rpcMsg = {.pCont = pReq, .contLen = sizeof(SAuthReq), .msgType = TDMT_MND_AUTH};
   SRpcMsg rpcRsp = {0};
   dndSendMsgToMnodeRecv(pDnode, &rpcMsg, &rpcRsp);
 
@@ -383,14 +381,19 @@ void dndCleanupTrans(SDnode *pDnode) {
   dInfo("dnode-transport is cleaned up");
 }
 
-void dndSendMsgToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pMsg) {
+int32_t dndSendReqToDnode(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq) {
   STransMgmt *pMgmt = &pDnode->tmgmt;
-  if (pMgmt->clientRpc == NULL) return;
-  rpcSendRequest(pMgmt->clientRpc, pEpSet, pMsg, NULL);
+  if (pMgmt->clientRpc == NULL) {
+    terrno = TSDB_CODE_DND_OFFLINE;
+    return -1;
+  }
+
+  rpcSendRequest(pMgmt->clientRpc, pEpSet, pReq, NULL);
+  return 0;
 }
 
-void dndSendMsgToMnode(SDnode *pDnode, SRpcMsg *pMsg) {
+int32_t dndSendReqToMnode(SDnode *pDnode, SRpcMsg *pReq) {
   SEpSet epSet = {0};
   dndGetMnodeEpSet(pDnode, &epSet);
-  dndSendMsgToDnode(pDnode, &epSet, pMsg);
+  return dndSendReqToDnode(pDnode, &epSet, pReq);
 }

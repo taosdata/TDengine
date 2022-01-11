@@ -22,12 +22,12 @@ static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int vnodeQueryOpen(SVnode *pVnode) { return qWorkerInit(NULL, &pVnode->pQuery); }
 
 int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vInfo("query message is processed");
+  vTrace("query message is processed");
   return qWorkerProcessQueryMsg(pVnode, pVnode->pQuery, pMsg);
 }
 
 int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vInfo("fetch message is processed");
+  vTrace("fetch message is processed");
   switch (pMsg->msgType) {
     case TDMT_VND_FETCH:
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg);
@@ -53,14 +53,14 @@ int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 }
 
 static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  STableInfoMsg * pReq = (STableInfoMsg *)(pMsg->pCont);
+  STableInfoReq * pReq = (STableInfoReq *)(pMsg->pCont);
   STbCfg *        pTbCfg = NULL;
   STbCfg *        pStbCfg = NULL;
   tb_uid_t        uid;
   int32_t         nCols;
   int32_t         nTagCols;
   SSchemaWrapper *pSW;
-  STableMetaMsg * pTbMetaMsg = NULL;
+  STableMetaRsp * pTbMetaMsg = NULL;
   SSchema *       pTagSchema;
   SRpcMsg         rpcMsg;
   int             msgLen = 0;
@@ -94,8 +94,8 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     pTagSchema = NULL;
   }
 
-  msgLen = sizeof(STableMetaMsg) + sizeof(SSchema) * (nCols + nTagCols);
-  pTbMetaMsg = (STableMetaMsg *)rpcMallocCont(msgLen);
+  msgLen = sizeof(STableMetaRsp) + sizeof(SSchema) * (nCols + nTagCols);
+  pTbMetaMsg = (STableMetaRsp *)rpcMallocCont(msgLen);
   if (pTbMetaMsg == NULL) {
     goto _exit;
   }
@@ -105,6 +105,9 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   if (pTbCfg->type == META_CHILD_TABLE) {
     strcpy(pTbMetaMsg->stbFname, pStbCfg->name);
     pTbMetaMsg->suid = htobe64(pTbCfg->ctbCfg.suid);
+  } else if (pTbCfg->type == META_SUPER_TABLE) {
+    strcpy(pTbMetaMsg->stbFname, pTbCfg->name);
+    pTbMetaMsg->suid = htobe64(uid);
   }
   pTbMetaMsg->numOfTags = htonl(nTagCols);
   pTbMetaMsg->numOfColumns = htonl(nCols);
@@ -164,7 +167,7 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
   //  SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
 
   SVShowTablesFetchRsp *pFetchRsp = (SVShowTablesFetchRsp *)rpcMallocCont(sizeof(SVShowTablesFetchRsp) + payloadLen);
-  memset(pFetchRsp, 0, sizeof(struct SVShowTablesFetchRsp) + payloadLen);
+  memset(pFetchRsp, 0, sizeof(SVShowTablesFetchRsp) + payloadLen);
 
   char *p = pFetchRsp->data;
   for (int32_t i = 0; i < numOfTables; ++i) {

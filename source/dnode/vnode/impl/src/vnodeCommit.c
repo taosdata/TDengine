@@ -15,10 +15,14 @@
 
 #include "vnodeDef.h"
 
-static int vnodeStartCommit(SVnode *pVnode);
-static int vnodeEndCommit(SVnode *pVnode);
+static int  vnodeStartCommit(SVnode *pVnode);
+static int  vnodeEndCommit(SVnode *pVnode);
+static int  vnodeCommit(void *arg);
+static void vnodeWaitCommit(SVnode *pVnode);
 
 int vnodeAsyncCommit(SVnode *pVnode) {
+  vnodeWaitCommit(pVnode);
+
   vnodeBufPoolSwitch(pVnode);
   SVnodeTask *pTask = (SVnodeTask *)malloc(sizeof(*pTask));
 
@@ -33,7 +37,14 @@ int vnodeAsyncCommit(SVnode *pVnode) {
   return 0;
 }
 
-int vnodeCommit(void *arg) {
+int vnodeSyncCommit(SVnode *pVnode) {
+  vnodeAsyncCommit(pVnode);
+  vnodeWaitCommit(pVnode);
+  tsem_post(&(pVnode->canCommit));
+  return 0;
+}
+
+static int vnodeCommit(void *arg) {
   SVnode *pVnode = (SVnode *)arg;
 
   metaCommit(pVnode->pMeta);
@@ -42,7 +53,6 @@ int vnodeCommit(void *arg) {
 
   vnodeBufPoolRecycle(pVnode);
   tsem_post(&(pVnode->canCommit));
-  // TODO
   return 0;
 }
 
@@ -55,3 +65,5 @@ static int vnodeEndCommit(SVnode *pVnode) {
   // TODO
   return 0;
 }
+
+static FORCE_INLINE void vnodeWaitCommit(SVnode *pVnode) { tsem_wait(&pVnode->canCommit); }

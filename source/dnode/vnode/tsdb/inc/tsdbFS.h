@@ -16,7 +16,7 @@
 #ifndef _TD_TSDB_FS_H_
 #define _TD_TSDB_FS_H_
 
-#if 0
+#include "tsdbFile.h"
 
 #define TSDB_FS_VERSION 0
 
@@ -39,19 +39,17 @@ typedef struct {
 // ==================
 typedef struct {
   STsdbFSMeta meta;  // FS meta
-  SMFile*     pmf;   // meta file pointer
-  SMFile      mf;    // meta file
-  SArray*     df;    // data file array
+  SArray *    df;    // data file array
 } SFSStatus;
 
 typedef struct {
   pthread_rwlock_t lock;
 
-  SFSStatus* cstatus;         // current status
-  SHashObj*  metaCache;       // meta cache
-  SHashObj*  metaCacheComp;   // meta cache for compact
+  SFSStatus *cstatus;        // current status
+  SHashObj * metaCache;      // meta cache
+  SHashObj * metaCacheComp;  // meta cache for compact
   bool       intxn;
-  SFSStatus* nstatus;  // new status
+  SFSStatus *nstatus;  // new status
 } STsdbFS;
 
 #define FS_CURRENT_STATUS(pfs) ((pfs)->cstatus)
@@ -63,32 +61,32 @@ typedef struct {
 typedef struct {
   int        direction;
   uint64_t   version;  // current FS version
-  STsdbFS*   pfs;
+  STsdbFS *  pfs;
   int        index;  // used to position next fset when version the same
   int        fid;    // used to seek when version is changed
-  SDFileSet* pSet;
+  SDFileSet *pSet;
 } SFSIter;
 
 #define TSDB_FS_ITER_FORWARD TSDB_ORDER_ASC
 #define TSDB_FS_ITER_BACKWARD TSDB_ORDER_DESC
 
-STsdbFS *tsdbNewFS(STsdbCfg *pCfg);
+STsdbFS *tsdbNewFS(const STsdbCfg *pCfg);
 void *   tsdbFreeFS(STsdbFS *pfs);
-int      tsdbOpenFS(STsdbRepo *pRepo);
-void     tsdbCloseFS(STsdbRepo *pRepo);
-void     tsdbStartFSTxn(STsdbRepo *pRepo, int64_t pointsAdd, int64_t storageAdd);
-int      tsdbEndFSTxn(STsdbRepo *pRepo);
+int      tsdbOpenFS(STsdb *pRepo);
+void     tsdbCloseFS(STsdb *pRepo);
+void     tsdbStartFSTxn(STsdb *pRepo, int64_t pointsAdd, int64_t storageAdd);
+int      tsdbEndFSTxn(STsdb *pRepo);
 int      tsdbEndFSTxnWithError(STsdbFS *pfs);
 void     tsdbUpdateFSTxnMeta(STsdbFS *pfs, STsdbFSMeta *pMeta);
-void     tsdbUpdateMFile(STsdbFS *pfs, const SMFile *pMFile);
-int      tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet);
+// void     tsdbUpdateMFile(STsdbFS *pfs, const SMFile *pMFile);
+int tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet);
 
 void       tsdbFSIterInit(SFSIter *pIter, STsdbFS *pfs, int direction);
 void       tsdbFSIterSeek(SFSIter *pIter, int fid);
 SDFileSet *tsdbFSIterNext(SFSIter *pIter);
-int        tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta);
+int        tsdbLoadMetaCache(STsdb *pRepo, bool recoverMeta);
 
-static FORCE_INLINE int tsdbRLockFS(STsdbFS* pFs) {
+static FORCE_INLINE int tsdbRLockFS(STsdbFS *pFs) {
   int code = pthread_rwlock_rdlock(&(pFs->lock));
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -97,7 +95,7 @@ static FORCE_INLINE int tsdbRLockFS(STsdbFS* pFs) {
   return 0;
 }
 
-static FORCE_INLINE int tsdbWLockFS(STsdbFS* pFs) {
+static FORCE_INLINE int tsdbWLockFS(STsdbFS *pFs) {
   int code = pthread_rwlock_wrlock(&(pFs->lock));
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -106,7 +104,7 @@ static FORCE_INLINE int tsdbWLockFS(STsdbFS* pFs) {
   return 0;
 }
 
-static FORCE_INLINE int tsdbUnLockFS(STsdbFS* pFs) {
+static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
   int code = pthread_rwlock_unlock(&(pFs->lock));
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -114,7 +112,5 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS* pFs) {
   }
   return 0;
 }
-
-#endif
 
 #endif /* _TD_TSDB_FS_H_ */

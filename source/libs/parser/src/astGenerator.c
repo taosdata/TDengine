@@ -579,25 +579,21 @@ SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SSqlNode *pSe
   SCreateTableSql *pCreate = calloc(1, sizeof(SCreateTableSql));
 
   switch (type) {
-    case TSQL_CREATE_TABLE: {
+    case TSDB_SQL_CREATE_TABLE: {
       pCreate->colInfo.pColumns = pCols;
       assert(pTags == NULL);
       break;
     }
-    case TSQL_CREATE_STABLE: {
+    case TSDB_SQL_CREATE_STABLE: {
       pCreate->colInfo.pColumns = pCols;
       pCreate->colInfo.pTagColumns = pTags;
       assert(pTags != NULL && pCols != NULL);
       break;
     }
-    case TSQL_CREATE_STREAM: {
-      pCreate->pSelect = pSelect;
-      break;
-    }
-
-    case TSQL_CREATE_CTABLE: {
-      assert(0);
-    }
+//    case TSQL_CREATE_STREAM: {
+//      pCreate->pSelect = pSelect;
+//      break;
+//    }
 
     default:
       assert(false);
@@ -690,7 +686,7 @@ void destroySqlNode(SSqlNode *pSqlNode) {
 void freeCreateTableInfo(void* p) {
   SCreatedTableInfo* pInfo = (SCreatedTableInfo*) p;
   taosArrayDestroy(pInfo->pTagNames);
-  taosArrayDestroyEx(pInfo->pTagVals, freeItem);
+  taosArrayDestroy(pInfo->pTagVals);
   tfree(pInfo->fullname);
 }
 
@@ -785,7 +781,7 @@ void destroySqlInfo(SSqlInfo *pInfo) {
   taosArrayDestroy(pInfo->funcs);
   if (pInfo->type == TSDB_SQL_SELECT) {
     destroyAllSqlNode(&pInfo->sub);
-  } else if (pInfo->type == TSDB_SQL_CREATE_STABLE) {
+  } else if (pInfo->type == TSDB_SQL_CREATE_STABLE || pInfo->type == TSDB_SQL_CREATE_TABLE) {
     pInfo->pCreateTableInfo = destroyCreateTableSql(pInfo->pCreateTableInfo);
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
     taosArrayDestroyEx(pInfo->pAlterInfo->varList, freeItem);

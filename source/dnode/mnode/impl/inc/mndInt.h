@@ -32,7 +32,7 @@ extern "C" {
 typedef int32_t (*MndMsgFp)(SMnodeMsg *pMsg);
 typedef int32_t (*MndInitFp)(SMnode *pMnode);
 typedef void (*MndCleanupFp)(SMnode *pMnode);
-typedef int32_t (*ShowMetaFp)(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
+typedef int32_t (*ShowMetaFp)(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
 typedef int32_t (*ShowRetrieveFp)(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
 typedef void (*ShowFreeIterFp)(SMnode *pMnode, void *pIter);
 
@@ -91,15 +91,16 @@ typedef struct SMnode {
   STelemMgmt        telemMgmt;
   SSyncMgmt         syncMgmt;
   MndMsgFp          msgFp[TDMT_MAX];
-  SendMsgToDnodeFp  sendMsgToDnodeFp;
-  SendMsgToMnodeFp  sendMsgToMnodeFp;
-  SendRedirectMsgFp sendRedirectMsgFp;
+  SendReqToDnodeFp  sendReqToDnodeFp;
+  SendReqToMnodeFp  sendReqToMnodeFp;
+  SendRedirectRspFp sendRedirectRspFp;
+  PutReqToMWriteQFp putReqToMWriteQFp;
 } SMnode;
 
-void mndSendMsgToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);
-void mndSendMsgToMnode(SMnode *pMnode, SRpcMsg *pMsg);
-void mndSendRedirectMsg(SMnode *pMnode, SRpcMsg *pMsg);
-void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
+int32_t mndSendReqToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);
+int32_t mndSendReqToMnode(SMnode *pMnode, SRpcMsg *pMsg);
+void    mndSendRedirectRsp(SMnode *pMnode, SRpcMsg *pMsg);
+void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 
 uint64_t mndGenerateUid(char *name, int32_t len) ;
 

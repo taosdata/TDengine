@@ -121,11 +121,9 @@ static int32_t findCol(SToken* pColname, int32_t start, int32_t end, SSchema* pS
 }
 
 static void buildMsgHeader(SVgDataBlocks* blocks) {
-    SMsgDesc* desc = (SMsgDesc*)blocks->pData;
-    desc->numOfVnodes = htonl(1);
-    SSubmitMsg* submit = (SSubmitMsg*)(desc + 1);
+    SSubmitMsg* submit = (SSubmitMsg*)blocks->pData;
     submit->header.vgId    = htonl(blocks->vg.vgId);
-    submit->header.contLen = htonl(blocks->size - sizeof(SMsgDesc));
+    submit->header.contLen = htonl(blocks->size);
     submit->length         = submit->header.contLen;
     submit->numOfBlocks    = htonl(blocks->numOfTables);
     SSubmitBlk* blk = (SSubmitBlk*)(submit + 1);
@@ -626,12 +624,11 @@ int32_t parseInsertSql(SParseContext* pContext, SVnodeModifOpStmtInfo** pInfo) {
 
   if (NULL == context.pVgroupsHashObj || NULL == context.pTableBlockHashObj || NULL == context.pOutput) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   *pInfo = context.pOutput;
   context.pOutput->nodeType = TSDB_SQL_INSERT;
-  context.pOutput->schemaAttache = pContext->schemaAttached;
   context.pOutput->payloadType = PAYLOAD_TYPE_KV;
 
   int32_t code = skipInsertInto(&context);
@@ -640,5 +637,5 @@ int32_t parseInsertSql(SParseContext* pContext, SVnodeModifOpStmtInfo** pInfo) {
   }
   destroyInsertParseContext(&context);
   terrno = code;
-  return (TSDB_CODE_SUCCESS == code ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED);
+  return code;
 }

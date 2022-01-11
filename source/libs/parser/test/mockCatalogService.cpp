@@ -27,8 +27,8 @@ std::unique_ptr<MockCatalogService> mockCatalogService;
 class TableBuilder : public ITableBuilder {
 public:
   virtual TableBuilder& addColumn(const std::string& name, int8_t type, int32_t bytes) {
-    assert(colId_ < schema()->tableInfo.numOfTags + schema()->tableInfo.numOfColumns);
-    SSchema* col = schema()->schema + colId_;
+    assert(colId_ <= schema()->tableInfo.numOfTags + schema()->tableInfo.numOfColumns);
+    SSchema* col = schema()->schema + (colId_ - 1);
     col->type = type;
     col->colId = colId_++;
     col->bytes = bytes;
@@ -66,7 +66,7 @@ private:
     return std::unique_ptr<TableBuilder>(new TableBuilder(meta));
   }
 
-  TableBuilder(STableMeta* schemaMeta) : colId_(0), rowsize_(0), meta_(new MockTableMeta()) {
+  TableBuilder(STableMeta* schemaMeta) : colId_(1), rowsize_(0), meta_(new MockTableMeta()) {
     meta_->schema.reset(schemaMeta);
   }
 
@@ -112,6 +112,9 @@ public:
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const {
     // todo
     vgInfo->vgId = 1;
+    vgInfo->numOfEps = 1;
+    vgInfo->epAddr[0].port = 6030;
+    strcpy(vgInfo->epAddr[0].fqdn, "node1");
     return 0;
   }
 

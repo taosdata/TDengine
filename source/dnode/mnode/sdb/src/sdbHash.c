@@ -69,6 +69,8 @@ static const char *sdbStatusStr(ESdbStatus status) {
       return "ready";
     case SDB_STATUS_DROPPED:
       return "dropped";
+    case SDB_STATUS_INIT:
+      return "init";
     default:
       return "undefine";
   }
@@ -261,6 +263,8 @@ int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw) {
 }
 
 void *sdbAcquire(SSdb *pSdb, ESdbType type, void *pKey) {
+  terrno = 0;
+
   SHashObj *hash = sdbGetHash(pSdb, type);
   if (hash == NULL) return NULL;
 
@@ -424,4 +428,13 @@ int32_t sdbGetMaxId(SSdb *pSdb, ESdbType type) {
 
   maxId = MAX(maxId, pSdb->maxId[type]);
   return maxId + 1;
+}
+
+int64_t sdbGetTableVer(SSdb *pSdb, ESdbType type) {
+  if (type >= SDB_MAX || type < 0) {
+    terrno = TSDB_CODE_SDB_INVALID_TABLE_TYPE;
+    return -1;
+  }
+
+  return pSdb->tableVer[type];
 }

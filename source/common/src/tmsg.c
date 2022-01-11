@@ -27,6 +27,109 @@
 #undef TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
 
+int tInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter) {
+  if (pMsg == NULL) {
+    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
+    return -1;
+  }
+
+  pIter->totalLen = pMsg->length;
+  pIter->len = 0;
+  pIter->pMsg = pMsg;
+  if (pMsg->length <= sizeof(SSubmitMsg)) {
+    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
+    return -1;
+  }
+
+  return 0;
+}
+
+int tGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
+  if (pIter->len == 0) {
+    pIter->len += sizeof(SSubmitMsg);
+  } else {
+    SSubmitBlk *pSubmitBlk = (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
+    pIter->len += (sizeof(SSubmitBlk) + pSubmitBlk->dataLen + pSubmitBlk->schemaLen);
+  }
+
+  if (pIter->len > pIter->totalLen) {
+    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
+    *pPBlock = NULL;
+    return -1;
+  }
+
+  *pPBlock = (pIter->len == pIter->totalLen) ? NULL : (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
+
+  return 0;
+}
+
+int tInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
+  if (pBlock->dataLen <= 0) return -1;
+  pIter->totalLen = pBlock->dataLen;
+  pIter->len = 0;
+  pIter->row = (SMemRow)(pBlock->data + pBlock->schemaLen);
+  return 0;
+}
+
+SMemRow tGetSubmitBlkNext(SSubmitBlkIter *pIter) {
+  SMemRow row = pIter->row;
+
+  if (pIter->len >= pIter->totalLen) {
+    return NULL;
+  } else {
+    pIter->len += memRowTLen(row);
+    if (pIter->len < pIter->totalLen) {
+      pIter->row = POINTER_SHIFT(row, memRowTLen(row));
+    }
+    return row;
+  }
+}
+
+int tSerializeSClientHbReq(void **buf, const SClientHbReq *pReq) {
+  int tlen = 0;
+  tlen += taosEncodeSClientHbKey(buf, &pReq->connKey);
+
+  int kvNum = taosHashGetSize(pReq->info);
+  tlen += taosEncodeFixedI32(buf, kvNum);
+  SKv kv;
+  void* pIter = taosHashIterate(pReq->info, pIter);
+  while (pIter != NULL) {
+    taosHashGetKey(pIter, &kv.key, (size_t *)&kv.keyLen);
+    kv.valueLen = taosHashGetDataLen(pIter);
+    kv.value = pIter;
+    tlen += taosEncodeSKv(buf, &kv);
+
+    pIter = taosHashIterate(pReq->info, pIter);
+  }
+  return tlen;
+}
+
+void *tDeserializeClientHbReq(void *buf, SClientHbReq *pReq) {
+  ASSERT(pReq->info != NULL);
+  buf = taosDecodeSClientHbKey(buf, &pReq->connKey);
+
+  // TODO: error handling
+  int kvNum;
+  taosDecodeFixedI32(buf, &kvNum);
+  pReq->info = taosHashInit(kvNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  for(int i = 0; i < kvNum; i++) {
+    SKv kv;
+    buf = taosDecodeSKv(buf, &kv);
+    taosHashPut(pReq->info, kv.key, kv.keyLen, kv.value, kv.valueLen);
+  }
+
+  return buf;
+}
+
+int   tSerializeSClientHbBatchReq(void** buf, const SClientHbBatchReq* pReq) {
+  int tlen = 0;
+  return tlen;
+}
+
+void* tDeserializeClientHbBatchReq(void* buf, SClientHbBatchReq* pReq) {
+  return buf;
+}
+
 int tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
   int tlen = 0;
 

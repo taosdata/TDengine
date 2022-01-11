@@ -28,6 +28,7 @@ typedef struct {
   int8_t  msgSent;
   int8_t  msgReceived;
   int32_t errCode;
+  int32_t acceptableCode;
   int32_t contLen;
   void   *pCont;
 } STransAction;
@@ -45,6 +46,7 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 void    mndTransProcessRsp(SMnodeMsg *pMsg);
+void    mndTransPullup(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

@@ -15,18 +15,19 @@
 
 #include "tsdbDef.h"
 
-static STsdb *tsdbNew(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF);
+static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF,
+                      SMeta *pMeta);
 static void   tsdbFree(STsdb *pTsdb);
 static int    tsdbOpenImpl(STsdb *pTsdb);
 static void   tsdbCloseImpl(STsdb *pTsdb);
 
-STsdb *tsdbOpen(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF) {
+STsdb *tsdbOpen(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF, SMeta *pMeta) {
   STsdb *pTsdb = NULL;
 
   // Set default TSDB Options
-  if (pTsdbCfg == NULL) {
-    pTsdbCfg = &defautlTsdbOptions;
-  }
+  // if (pTsdbCfg == NULL) {
+  pTsdbCfg = &defautlTsdbOptions;
+  // }
 
   // Validate the options
   if (tsdbValidateOptions(pTsdbCfg) < 0) {
@@ -35,7 +36,7 @@ STsdb *tsdbOpen(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory
   }
 
   // Create the handle
-  pTsdb = tsdbNew(path, pTsdbCfg, pMAF);
+  pTsdb = tsdbNew(path, vgId, pTsdbCfg, pMAF, pMeta);
   if (pTsdb == NULL) {
     // TODO: handle error
     return NULL;
@@ -62,7 +63,8 @@ void tsdbClose(STsdb *pTsdb) {
 void tsdbRemove(const char *path) { taosRemoveDir(path); }
 
 /* ------------------------ STATIC METHODS ------------------------ */
-static STsdb *tsdbNew(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF) {
+static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF,
+                      SMeta *pMeta) {
   STsdb *pTsdb = NULL;
 
   pTsdb = (STsdb *)calloc(1, sizeof(STsdb));
@@ -72,25 +74,32 @@ static STsdb *tsdbNew(const char *path, const STsdbCfg *pTsdbCfg, SMemAllocatorF
   }
 
   pTsdb->path = strdup(path);
-  tsdbOptionsCopy(&(pTsdb->options), pTsdbCfg);
+  pTsdb->vgId = vgId;
+  tsdbOptionsCopy(&(pTsdb->config), pTsdbCfg);
   pTsdb->pmaf = pMAF;
+  pTsdb->pMeta = pMeta;
+
+  pTsdb->fs = tsdbNewFS(pTsdbCfg);
 
   return pTsdb;
 }
 
 static void tsdbFree(STsdb *pTsdb) {
   if (pTsdb) {
+    tsdbFreeFS(pTsdb->fs);
     tfree(pTsdb->path);
     free(pTsdb);
   }
 }
 
 static int tsdbOpenImpl(STsdb *pTsdb) {
+  tsdbOpenFS(pTsdb);
   // TODO
   return 0;
 }
 
 static void tsdbCloseImpl(STsdb *pTsdb) {
+  tsdbCloseFS(pTsdb);
   // TODO
 }
 #if 0
@@ -112,8 +121,8 @@ static void tsdbCloseImpl(STsdb *pTsdb) {
 // no test file errors here
 #include "taosdef.h"
 #include "tsdbint.h"
-#include "ttimer.h"
 #include "tthread.h"
+#include "ttimer.h"
 
 #define IS_VALID_PRECISION(precision) \
   (((precision) >= TSDB_TIME_PRECISION_MILLI) && ((precision) <= TSDB_TIME_PRECISION_NANO))

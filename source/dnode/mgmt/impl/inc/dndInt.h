@@ -80,20 +80,20 @@ typedef struct {
 } SDnodeDir;
 
 typedef struct {
-  int32_t     dnodeId;
-  int32_t     dropped;
-  int64_t     clusterId;
-  int64_t     rebootTime;
-  int64_t     updateTime;
-  int8_t      statusSent;
-  SEpSet      mnodeEpSet;
-  char       *file;
-  SHashObj   *dnodeHash;
-  SDnodeEps  *dnodeEps;
-  pthread_t  *threadId;
-  SRWLatch    latch;
-  STaosQueue *pMgmtQ;
-  SWorkerPool mgmtPool;
+  int32_t      dnodeId;
+  int32_t      dropped;
+  int64_t      clusterId;
+  int64_t      dver;
+  int64_t      rebootTime;
+  int64_t      updateTime;
+  int8_t       statusSent;
+  SEpSet       mnodeEpSet;
+  char        *file;
+  SHashObj    *dnodeHash;
+  SDnodeEps   *dnodeEps;
+  pthread_t   *threadId;
+  SRWLatch     latch;
+  SDnodeWorker mgmtWorker;
 } SDnodeMgmt;
 
 typedef struct {
@@ -167,7 +167,7 @@ typedef struct SDnode {
   SBnodeMgmt  bmgmt;
   SVnodesMgmt vmgmt;
   STransMgmt  tmgmt;
-  SStartupMsg startup;
+  SStartupReq startup;
 } SDnode;
 
 EStat dndGetStat(SDnode *pDnode);
@@ -175,7 +175,7 @@ void  dndSetStat(SDnode *pDnode, EStat stat);
 char *dndStatStr(EStat stat);
 
 void dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
-void dndGetStartup(SDnode *pDnode, SStartupMsg *pStartup);
+void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
 
 #ifdef __cplusplus
 }
