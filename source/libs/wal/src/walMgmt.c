@@ -122,7 +122,9 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     return NULL;
   }
 
-  if (walLoadMeta(pWal) < 0 && walCheckAndRepairMeta(pWal) < 0) {
+  walLoadMeta(pWal);
+
+  if (walCheckAndRepairMeta(pWal) < 0) {
     taosRemoveRef(tsWal.refSetId, pWal->refId);
     pthread_mutex_destroy(&pWal->mutex);
     taosArrayDestroy(pWal->fileInfoSet);
@@ -131,6 +133,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   }
 
   if (walCheckAndRepairIdx(pWal) < 0) {
+
   }
 
   wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->cfg.vgId, pWal, pWal->cfg.level,

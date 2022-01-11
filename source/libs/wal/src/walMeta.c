@@ -65,6 +65,7 @@ static inline int64_t walScanLogGetLastVer(SWal* pWal) {
   struct stat statbuf;
   stat(fnameStr, &statbuf);
   int readSize = MIN(WAL_MAX_SIZE + 2, statbuf.st_size);
+  pLastFileInfo->fileSize = statbuf.st_size;
 
   FileFd fd = taosOpenFileRead(fnameStr);
   if (fd < 0) {
@@ -91,7 +92,7 @@ static inline int64_t walScanLogGetLastVer(SWal* pWal) {
   
   char* haystack = buf;
   char* found = NULL;
-  char *candidate = NULL;
+  char *candidate;
   while((candidate = tmemmem(haystack, readSize - (haystack - buf), (char*)&magic, sizeof(uint64_t))) != NULL) {
     // read and validate
     SWalHead *logContent = (SWalHead*)candidate;
@@ -142,7 +143,6 @@ int walCheckAndRepairMeta(SWal* pWal) {
       SWalFileInfo fileInfo;
       memset(&fileInfo, -1, sizeof(SWalFileInfo));
       sscanf(name, "%" PRId64 ".log", &fileInfo.firstVer);
-      FileFd fd = taosOpenFileRead(ent->d_name);
       //get lastVer
       //get size
       taosArrayPush(pLogInfoArray, &fileInfo);
@@ -159,28 +159,25 @@ int walCheckAndRepairMeta(SWal* pWal) {
   }
   int newSz = taosArrayGetSize(pLogInfoArray);
   // case 1. meta file not exist / cannot be parsed
-  if (pWal->fileInfoSet == NULL && newSz != 0) {
-    // recover fileInfo set
-    pWal->fileInfoSet = pLogInfoArray;
-    if (newSz != 0) {
-    // recover meta version
-      pWal->vers.firstVer = ((SWalFileInfo*)taosArrayGet(pLogInfoArray, 0))->firstVer;
-      pWal->writeCur = newSz - 1;
-    }
-    // recover file size
-  } else if (oldSz < newSz) {
+  if (oldSz < newSz) {
     for (int i = oldSz; i < newSz; i++) {
       SWalFileInfo *pFileInfo = taosArrayGet(pLogInfoArray, i);
       taosArrayPush(pWal->fileInfoSet, pFileInfo);
     }
+
     pWal->writeCur = newSz - 1;
+    pWal->vers.firstVer = ((SWalFileInfo*)taosArrayGet(pLogInfoArray, 0))->firstVer;
+    pWal->vers.lastVer = walScanLogGetLastVer(pWal);
+    ((SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet))->lastVer = pWal->vers.lastVer;
+    ASSERT(pWal->vers.lastVer != -1);
+
+    int code = walSaveMeta(pWal);
+    if (code < 0) {
+      taosArrayDestroy(pLogInfoArray);
+      return -1;
+    }
   }
   
-  if (pWal->fileInfoSet && taosArrayGetSize(pWal->fileInfoSet) != 0) {
-    pWal->vers.lastVer = walScanLogGetLastVer(pWal);
-    ASSERT(pWal->vers.lastVer != -1);
-  }
-
   // case 2. versions in meta not match log 
   //         or some log not included in meta
   // (e.g. program killed)
@@ -204,14 +201,11 @@ int walCheckAndRepairMeta(SWal* pWal) {
   }
 #endif
 
-  int code = walSaveMeta(pWal);
-  if (code < 0) {
-    return -1;
-  }
 
   // get last version of this file
   //
   // rebuild meta
+  taosArrayDestroy(pLogInfoArray);
   return 0;
 }
 
@@ -419,6 +413,10 @@ int walLoadMeta(SWal* pWal) {
   }
   memset(buf, 0, size + 5);
   FileFd fd = taosOpenFileRead(fnameStr);
+  if (fd < 0) {
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    return -1;
+  }
   if (taosReadFile(fd, buf, size) != size) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     taosCloseFile(fd);
