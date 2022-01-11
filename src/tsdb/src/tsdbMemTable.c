@@ -967,9 +967,95 @@ static int tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pT
   return 0;
 }
 
+//row1 has higher priority
+static SMemRow tsdbMergeRows(SMemRow row1, SMemRow row2, STable *pTable) {
+  if (row1 == NULL && row2 == NULL) {
+    return NULL;
+  }
+  STSchema *pSchema1 = tsdbGetTableSchemaImpl(pTable, false, false, memRowVersion(row1), (int8_t)memRowType(row1));
+  STSchema *pSchema2 = tsdbGetTableSchemaImpl(pTable, false, false, memRowVersion(row2), (int8_t)memRowType(row2));
+  return tsdbMergeTwoRows(pTable->lastRow, row1, row2, pSchema1, pSchema2);
+}
+
+// TSDB_ORDER_ASC: fs->imem->mem, TSDB_ORDER_DESC: mem->imem->fs
+int updateTableLastRow(STsdbRepo *pRepo, STable *pTable, SMemRow row, bool checkTS, int32_t order) {
+  STsdbCfg *pCfg = &pRepo->config;
+  TSKEY     lastKey = tsdbGetTableLastKeyImpl(pTable);
+  TSKEY     rowKey = memRowKey(row);
+  int32_t   updateLastRow = TD_ROW_DISCARD_UPDATE;
+
+  if (lastKey < rowKey) {
+    if (CACHE_LAST_ROW(pCfg) || pTable->lastRow != NULL) {
+      updateLastRow = TD_ROW_OVERWRITE_UPDATE;
+    } else {
+      pTable->lastKey = rowKey;
+    }
+  } else if (lastKey == rowKey) {
+    if (CACHE_LAST_ROW(pCfg) || pTable->lastRow != NULL) {
+      if (pTable->lastRow != NULL) {
+        switch (pCfg->update) {
+          case TD_ROW_DISCARD_UPDATE:
+            if (TSDB_ORDER_DESC == order) {
+              updateLastRow = TD_ROW_OVERWRITE_UPDATE;
+            }
+            break;
+          case TD_ROW_OVERWRITE_UPDATE:
+            if (TSDB_ORDER_ASC == order) {
+              updateLastRow = TD_ROW_OVERWRITE_UPDATE;
+            }
+            break;
+          case TD_ROW_PARTIAL_UPDATE:
+            updateLastRow = TD_ROW_PARTIAL_UPDATE;
+            break;
+          default:
+            tsdbError("vgId:%d invalid update %" PRIi8 " to update uid %" PRIu64 " tid %d", REPO_ID(pRepo),
+                      pCfg->update, TABLE_UID(pTable), TABLE_TID(pTable));
+            break;
+        }
+      } else {
+        updateLastRow = TD_ROW_OVERWRITE_UPDATE;
+      }
+    }
+  } else {
+    return 0;
+  }
+
+  if (updateLastRow == TD_ROW_OVERWRITE_UPDATE) {
+    SMemRow nrow = pTable->lastRow;
+    if (taosTSizeof(nrow) < memRowTLen(row)) {
+      SMemRow orow = nrow;
+      nrow = taosTMalloc(memRowTLen(row));
+      if (nrow == NULL) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        return -1;
+      }
+
+      memRowCpy(nrow, row);
+      TSDB_WLOCK_TABLE(pTable);
+      pTable->lastKey = rowKey;
+      pTable->lastRow = nrow;
+      TSDB_WUNLOCK_TABLE(pTable);
+      taosTZfree(orow);
+    } else {
+      TSDB_WLOCK_TABLE(pTable);
+      pTable->lastKey = rowKey;
+      memRowCpy(nrow, row);
+      TSDB_WUNLOCK_TABLE(pTable);
+    }
+  } else if (updateLastRow == TD_ROW_PARTIAL_UPDATE) {
+    if (TSDB_ORDER_ASC == order) {
+      tsdbMergeRows(row, pTable->lastRow, pTable);
+    } else {
+      tsdbMergeRows(pTable->lastRow, row, pTable);
+    }
+  }
+
+  return 0;
+}
+
 // TSDB_ORDER_ASC:  fs > imem > mem
 // TSDB_ORDER_DESC: mem > imem > fs
-static int32_t updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow row, bool checkColTS, int32_t order) {
+static int32_t updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow row, bool checkTS, int32_t order) {
   tsdbDebug("vgId:%d updateTableLatestColumn, %s row version:%d", REPO_ID(pRepo), pTable->name->data,
             memRowVersion(row));
 
@@ -1001,7 +1087,7 @@ static int32_t updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow
                                    TD_DATA_ROW_HEAD_SIZE + pSchema->columns[j].offset, &kvIdx);
 
     if ((value == NULL) || isNull(value, pTCol->type)) {
-      if (checkColTS && !isContinue) {
+      if (checkTS && !isContinue) {
         TSDB_RLOCK_TABLE(pTable);
         if (!pTable->lastCols) {  // return if released
           TSDB_RUNLOCK_TABLE(pTable);
@@ -1059,7 +1145,7 @@ static int32_t updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow
     // unlock
     TSDB_WUNLOCK_TABLE(pTable);
   }
-  if (checkColTS && !isContinue) {
+  if (checkTS && !isContinue) {
     return -2;
   }
   return TSDB_CODE_SUCCESS;
@@ -1081,37 +1167,10 @@ int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow row) {
     TSDB_WUNLOCK_TABLE(pTable);
   }
 
-  TSKEY lastKey = tsdbGetTableLastKeyImpl(pTable);
-  TSKEY rowKey = memRowKey(row);
-  if (lastKey <= rowKey) {
-    if ((CACHE_LAST_ROW(pCfg) || pTable->lastRow != NULL) && (pCfg->update != TD_ROW_DISCARD_UPDATE)) {
-      SMemRow nrow = pTable->lastRow;
-      if (taosTSizeof(nrow) < memRowTLen(row)) {
-        SMemRow orow = nrow;
-        nrow = taosTMalloc(memRowTLen(row));
-        if (nrow == NULL) {
-          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-          return -1;
-        }
+  updateTableLastRow(pRepo, pTable, row, true, TSDB_ORDER_ASC);
 
-        memRowCpy(nrow, row);
-        TSDB_WLOCK_TABLE(pTable);
-        pTable->lastKey = rowKey;
-        pTable->lastRow = nrow;
-        TSDB_WUNLOCK_TABLE(pTable);
-        taosTZfree(orow);
-      } else {
-        TSDB_WLOCK_TABLE(pTable);
-        pTable->lastKey = rowKey;
-        memRowCpy(nrow, row);
-        TSDB_WUNLOCK_TABLE(pTable);
-      }
-    } else {
-      pTable->lastKey = rowKey;
-    }
-  } 
-  
-  if  (CACHE_LAST_NULL_COLUMN(pCfg))  {
+
+  if (CACHE_LAST_NULL_COLUMN(pCfg)) {
     updateTableLatestColumn(pRepo, pTable, row, true, TSDB_ORDER_ASC);
   }
 
@@ -1120,19 +1179,6 @@ int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow row) {
 
 int tsdbUpdateTableCache(STsdbRepo *pRepo, STable *pTable, SMemRow row, bool *isContinue) {
   STsdbCfg *pCfg = &pRepo->config;
-
-  // if cacheLastRow config has been reset, free the lastRow
-  if (!CACHE_LAST_ROW(pCfg) && pTable->lastRow != NULL) {
-    TSDB_WLOCK_TABLE(pTable);
-    pTable->lastRow = taosTZfree(pTable->lastRow);
-    TSDB_WUNLOCK_TABLE(pTable);
-  }
-
-  if (!CACHE_LAST_NULL_COLUMN(pCfg) && pTable->lastCols != NULL) {
-    TSDB_WLOCK_TABLE(pTable);
-    tsdbFreeLastColumns(pTable);
-    TSDB_WUNLOCK_TABLE(pTable);
-  }
 
   TSKEY lastKey = tsdbGetTableLastKeyImpl(pTable);
   TSKEY rowKey = memRowKey(row);

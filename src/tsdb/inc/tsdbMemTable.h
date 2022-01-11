@@ -72,6 +72,7 @@ int   tsdbLoadDataFromCache(STable* pTable, SSkipListIterator* pIter, TSKEY maxK
 void* tsdbCommitData(STsdbRepo* pRepo);
 int   tsdbUpdateTableLatestInfo(STsdbRepo* pRepo, STable* pTable, SMemRow row);
 int   tsdbUpdateTableCache(STsdbRepo* pRepo, STable* pTable, SMemRow row, bool* isContinue);
+int updateTableLastRow(STsdbRepo* pRepo, STable* pTable, SMemRow row, bool checkTS, int32_t order);
 
 static FORCE_INLINE SMemRow tsdbNextIterRow(SSkipListIterator* pIter) {
   if (pIter == NULL) return NULL;
