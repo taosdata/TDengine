@@ -61,14 +61,17 @@ typedef struct SSchLevel {
 
 typedef struct SSchTask {
   uint64_t             taskId;         // task id
+  SRWLatch             lock;           // task lock
   SSchLevel           *level;          // level
   SSubplan            *plan;           // subplan
   char                *msg;            // operator tree
   int32_t              msgLen;         // msg length
   int8_t               status;         // task status
-  SQueryNodeAddr       execAddr;       // task actual executed node address
+  int32_t              lastMsgType;    // last sent msg type
+  SQueryNodeAddr       succeedAddr;    // task executed success node address
   int8_t               candidateIdx;   // current try condidation index
   SArray              *candidateAddrs; // condidate node addresses, element is SQueryNodeAddr
+  SArray              *execAddrs;      // all tried node for current task, element is SQueryNodeAddr
   SQueryProfileSummary summary;        // task execution summary
   int32_t              childReady;     // child task ready number
   SArray              *children;       // the datasource tasks,from which to fetch the result, element is SQueryTask*
@@ -96,22 +99,24 @@ typedef struct SSchJob {
   SHashObj        *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
   SHashObj        *failTasks; // failed tasks, key:taskid, value:SQueryTask*
 
-  int8_t           status;
+  int32_t          ref;
+  int8_t           status;  
   SQueryNodeAddr   resNode;
   tsem_t           rspSem;
-  int32_t          userFetch;
+  int8_t           userFetch;
   int32_t          remoteFetch;
   SSchTask        *fetchTask;
   int32_t          errCode;
-  void            *res;
+  void            *res;         //TODO free it or not
   int32_t          resNumOfRows;
   SQueryProfileSummary summary;
 } SSchJob;
 
-#define SCH_HAS_QNODE_IN_CLUSTER(type) (false) //TODO CLUSTER TYPE
 #define SCH_TASK_READY_TO_LUNCH(task) (atomic_load_32(&(task)->childReady) >= taosArrayGetSize((task)->children))
+
 #define SCH_IS_DATA_SRC_TASK(task) ((task)->plan->type == QUERY_TYPE_SCAN)
 #define SCH_TASK_NEED_WAIT_ALL(task) ((task)->plan->type == QUERY_TYPE_MODIFY)
+#define SCH_TASK_NO_NEED_DROP(task) ((task)->plan->type == QUERY_TYPE_MODIFY)
 
 #define SCH_SET_TASK_STATUS(task, st) atomic_store_8(&(task)->status, st)
 #define SCH_GET_TASK_STATUS(task) atomic_load_8(&(task)->status)
@@ -125,8 +130,9 @@ typedef struct SSchJob {
 #define SCH_JOB_ELOG(param, ...) qError("QID:%"PRIx64" " param, pJob->queryId, __VA_ARGS__)
 #define SCH_JOB_DLOG(param, ...) qDebug("QID:%"PRIx64" " param, pJob->queryId, __VA_ARGS__)
 
-#define SCH_TASK_ELOG(param, ...) qError("QID:%"PRIx64",TID:%"PRIx64" " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
-#define SCH_TASK_DLOG(param, ...) qDebug("QID:%"PRIx64",TID:%"PRIx64" " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
+#define SCH_TASK_ELOG(param, ...) qError("QID:%"PRIx64",TID:%"PRId64" " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
+#define SCH_TASK_DLOG(param, ...) qDebug("QID:%"PRIx64",TID:%"PRId64" " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
+#define SCH_TASK_WLOG(param, ...) qWarn("QID:%"PRIx64",TID:%"PRId64" " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
 
 #define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define SCH_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
@@ -137,7 +143,7 @@ typedef struct SSchJob {
 
 
 static int32_t schLaunchTask(SSchJob *job, SSchTask *task);
-static int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, int32_t msgType);
+static int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, SQueryNodeAddr *addr, int32_t msgType);
 
 #ifdef __cplusplus
 }
