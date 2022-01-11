@@ -6,7 +6,7 @@
 
 # ---- db
 ./test.sh -f sim/db/basic1.sim
-./test.sh -f sim/db/error6.sim
+./test.sh -f sim/db/basic6.sim
 ./test.sh -f sim/db/error1.sim
 
 # ---- table
