@@ -258,8 +258,6 @@ void tscColumnListCopyAll(SArray* dst, const SArray* src);
 
 void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo, uint64_t objId, bool convertNchar, bool convertJson);
 
-void tscDequoteAndTrimToken(SStrToken* pToken);
-void tscRmEscapeAndTrimToken(SStrToken* pToken);
 int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded);
 
 void tscIncStreamExecutionCount(void* pStream);
