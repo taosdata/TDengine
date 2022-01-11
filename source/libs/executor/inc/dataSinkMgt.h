@@ -21,12 +21,13 @@ extern "C" {
 #endif
 
 #include "os.h"
+#include "executor.h"
 #include "executorimpl.h"
 
 #define DS_CAPACITY_ENOUGH 1
-#define DS_CAPACITY_FULL   2
+#define DS_DATA_FULL       2
 #define DS_NEED_SCHEDULE   3
-#define DS_END             4
+#define DS_QUERY_END       4
 #define DS_IN_PROCESS      5
 
 struct SDataSink;
@@ -38,8 +39,6 @@ typedef struct SDataSinkMgtCfg {
 } SDataSinkMgtCfg;
 
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg *cfg);
-
-typedef void* DataSinkHandle;
 
 typedef struct SInputData {
   const SSDataBlock* pData;
@@ -68,6 +67,10 @@ int32_t dsCreateDataSinker(const struct SDataSink *pDataSink, DataSinkHandle* pH
  */
 int32_t dsPutDataBlock(DataSinkHandle handle, const SInputData* pInput, int32_t* pStatus);
 
+/**
+ *
+ * @param handle
+ */
 void dsEndPut(DataSinkHandle handle);
 
 /**

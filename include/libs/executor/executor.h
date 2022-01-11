@@ -21,6 +21,9 @@ extern "C" {
 #endif
 
 typedef void* qTaskInfo_t;
+typedef void* DataSinkHandle;
+struct SSubplan;
+
 
  /**
   * Create the exec task object according to task json
@@ -34,13 +37,14 @@ typedef void* qTaskInfo_t;
 int32_t qCreateExecTask(void* tsdb, int32_t vgId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo);
 
 /**
- * the main task execution function, including query on both table and multiple tables,
+ * The main task execution function, including query on both table and multiple tables,
  * which are decided according to the tag or table name query conditions
  *
- * @param qinfo
+ * @param tinfo
+ * @param handle
  * @return
  */
-bool qExecTask(qTaskInfo_t qTask, SSDataBlock** pRes);
+int32_t qExecTask(qTaskInfo_t tinfo, DataSinkHandle* handle);
 
 /**
  * Retrieve the produced results information, if current query is not paused or completed,
@@ -62,7 +66,7 @@ int32_t qRetrieveQueryResultInfo(qTaskInfo_t qinfo, bool* buildRes, void* pRspCo
  * @param contLen payload length
  * @return
  */
-int32_t qDumpRetrieveResult(qTaskInfo_t qinfo, SRetrieveTableRsp** pRsp, int32_t* contLen, bool* continueExec);
+//int32_t qDumpRetrieveResult(qTaskInfo_t qinfo, SRetrieveTableRsp** pRsp, int32_t* contLen, bool* continueExec);
 
 /**
  * return the transporter context (RPC)

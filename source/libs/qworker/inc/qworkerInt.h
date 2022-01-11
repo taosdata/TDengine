@@ -67,11 +67,12 @@ typedef struct SQWTaskStatus {
   bool     drop;
 } SQWTaskStatus;
 
-typedef struct SQWorkerTaskHandleCache {
+typedef struct SQWorkerTaskHandlesCache {
   SRWLatch        lock;
+  bool            needRsp;
   qTaskInfo_t     taskHandle;
   DataSinkHandle  sinkHandle;
-} SQWorkerTaskHandleCache;
+} SQWorkerTaskHandlesCache;
 
 typedef struct SQWSchStatus {
   int32_t   lastAccessTs; // timestamp in second

@@ -124,7 +124,7 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
 
 static int32_t updateStatus(SDataDispatchHandle* pDispatcher) {
   pthread_mutex_lock(&pDispatcher->mutex);
-  int32_t status = taosQueueSize(pDispatcher->pDataBlocks) < pDispatcher->pManager->cfg.maxDataBlockNumPerQuery ? DS_CAPACITY_ENOUGH : DS_CAPACITY_FULL;
+  int32_t status = taosQueueSize(pDispatcher->pDataBlocks) < pDispatcher->pManager->cfg.maxDataBlockNumPerQuery ? DS_CAPACITY_ENOUGH : DS_DATA_FULL;
   pDispatcher->status = status;
   pthread_mutex_unlock(&pDispatcher->mutex);
   return status;
@@ -152,14 +152,14 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
 static void endPut(struct SDataSinkHandle* pHandle) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   pthread_mutex_lock(&pDispatcher->mutex);
-  pDispatcher->status = DS_END;
+  pDispatcher->status = DS_QUERY_END;
   pthread_mutex_unlock(&pDispatcher->mutex);
 }
 
 static int32_t getDataLength(SDataSinkHandle* pHandle, int32_t* pStatus) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   if (taosQueueEmpty(pDispatcher->pDataBlocks)) {
-    *pStatus = getStatus(pDispatcher) ? DS_END : DS_IN_PROCESS;
+    *pStatus = getStatus(pDispatcher) ? DS_QUERY_END : DS_IN_PROCESS;
     return 0;
   }
   SDataDispatchBuf* pBuf = NULL;

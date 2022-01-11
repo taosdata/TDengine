@@ -13,9 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <dataSinkMgt.h>
-#include "exception.h"
 #include "os.h"
+#include "tarray.h"
+#include "dataSinkMgt.h"
+#include "exception.h"
 #include "tcache.h"
 #include "tglobal.h"
 #include "tmsg.h"
@@ -69,8 +70,9 @@ void freeParam(STaskParam *param) {
 
 int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_t* pTaskInfo) {
   assert(tsdb != NULL && pSubplan != NULL);
+  SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
 
-  int32_t code = doCreateExecTaskInfo(pSubplan, (SExecTaskInfo**) pTaskInfo, tsdb);
+  int32_t code = doCreateExecTaskInfo(pSubplan, pTask, tsdb);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -81,8 +83,7 @@ int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_
     goto _error;
   }
 
-  DataSinkHandle pHandle = NULL;
-  code = dsCreateDataSinker(pSubplan->pDataSink, &pHandle);
+  code = dsCreateDataSinker(pSubplan->pDataSink, (*pTask)->dsHandle);
 
   _error:
   // if failed to add ref for all tables in this query, abort current query
@@ -134,64 +135,79 @@ int waitMoment(SQInfo* pQInfo){
 }
 #endif
 
-bool qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes) {
-  SExecTaskInfo *pTaskInfo = (SExecTaskInfo *) tinfo;
-  int64_t threadId = taosGetSelfPthreadId();
+int32_t qExecTask(qTaskInfo_t tinfo, DataSinkHandle* handle) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  int64_t        threadId = taosGetSelfPthreadId();
 
   int64_t curOwner = 0;
   if ((curOwner = atomic_val_compare_exchange_64(&pTaskInfo->owner, 0, threadId)) != 0) {
-    qError("QInfo:0x%"PRIx64"-%p qhandle is now executed by thread:%p", GET_TASKID(pTaskInfo), pTaskInfo, (void*) curOwner);
+    qError("QInfo:0x%" PRIx64 "-%p qhandle is now executed by thread:%p", GET_TASKID(pTaskInfo), pTaskInfo,
+           (void*)curOwner);
     pTaskInfo->code = TSDB_CODE_QRY_IN_EXEC;
-    return false;
+    return pTaskInfo->code;
   }
 
-  if(pTaskInfo->cost.start == 0) {
+  if (pTaskInfo->cost.start == 0) {
     pTaskInfo->cost.start = taosGetTimestampMs();
   }
 
   if (isTaskKilled(pTaskInfo)) {
-    qDebug("QInfo:0x%"PRIx64" it is already killed, abort", GET_TASKID(pTaskInfo));
-//    return doBuildResCheck(pTaskInfo);
+    qDebug("QInfo:0x%" PRIx64 " it is already killed, abort", GET_TASKID(pTaskInfo));
+    return pTaskInfo->code;
   }
 
-//  STaskRuntimeEnv* pRuntimeEnv = &pTaskInfo->runtimeEnv;
-//  if (pTaskInfo->tableqinfoGroupInfo.numOfTables == 0) {
-//    qDebug("QInfo:0x%"PRIx64" no table exists for query, abort", GET_TASKID(pTaskInfo));
-//    setTaskStatus(pTaskInfo, TASK_COMPLETED);
-//    return doBuildResCheck(pTaskInfo);
-//  }
+  //  STaskRuntimeEnv* pRuntimeEnv = &pTaskInfo->runtimeEnv;
+  //  if (pTaskInfo->tableqinfoGroupInfo.numOfTables == 0) {
+  //    qDebug("QInfo:0x%"PRIx64" no table exists for query, abort", GET_TASKID(pTaskInfo));
+  //    setTaskStatus(pTaskInfo, TASK_COMPLETED);
+  //    return doBuildResCheck(pTaskInfo);
+  //  }
 
   // error occurs, record the error code and return to client
   int32_t ret = setjmp(pTaskInfo->env);
   if (ret != TSDB_CODE_SUCCESS) {
     publishQueryAbortEvent(pTaskInfo, ret);
     pTaskInfo->code = ret;
-    qDebug("QInfo:0x%"PRIx64" query abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
-//    return doBuildResCheck(pTaskInfo);
+    qDebug("QInfo:0x%" PRIx64 " query abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
+    return pTaskInfo->code;
   }
 
-  qDebug("QInfo:0x%"PRIx64" query task is launched", GET_TASKID(pTaskInfo));
+  qDebug("QInfo:0x%" PRIx64 " query task is launched", GET_TASKID(pTaskInfo));
 
   bool newgroup = false;
   publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_BEFORE_OPERATOR_EXEC);
+  int64_t st = 0;
 
-  int64_t st = taosGetTimestampUs();
-  *pRes = pTaskInfo->pRoot->exec(pTaskInfo->pRoot, &newgroup);
-  // todo put the result into sink node.
+  handle = &pTaskInfo->dsHandle;
 
-  pTaskInfo->cost.elapsedTime += (taosGetTimestampUs() - st);
-  publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_AFTER_OPERATOR_EXEC);
+  while(1) {
+    st = taosGetTimestampUs();
+    SSDataBlock* pRes = pTaskInfo->pRoot->exec(pTaskInfo->pRoot, &newgroup);
 
-  if (isTaskKilled(pTaskInfo)) {
-    qDebug("QInfo:0x%"PRIx64" query is killed", GET_TASKID(pTaskInfo));
-//  } else if (GET_NUM_OF_RESULTS(pRuntimeEnv) == 0) {
-//    qDebug("QInfo:0x%"PRIx64" over, %u tables queried, total %"PRId64" rows returned", pTaskInfo->qId, pRuntimeEnv->tableqinfoGroupInfo.numOfTables,
-//           pRuntimeEnv->resultInfo.total);
-  } else {
-//    qDebug("QInfo:0x%"PRIx64" query paused, %d rows returned, total:%" PRId64 " rows", pTaskInfo->qId,
-//        GET_NUM_OF_RESULTS(pRuntimeEnv), pRuntimeEnv->resultInfo.total);
+    pTaskInfo->cost.elapsedTime += (taosGetTimestampUs() - st);
+    publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_AFTER_OPERATOR_EXEC);
+
+    if (pRes == NULL) { // no results generated yet, abort
+      return pTaskInfo->code;
+    }
+
+    int32_t    status = 0;
+    SInputData inputData = {.pData = pRes, .pTableRetrieveTsMap = NULL};
+    pTaskInfo->code = dsPutDataBlock(pTaskInfo->dsHandle, &inputData, &status);
+
+    if (isTaskKilled(pTaskInfo)) {
+      qDebug("QInfo:0x%" PRIx64 " task is killed", GET_TASKID(pTaskInfo));
+      //  } else if (GET_NUM_OF_RESULTS(pRuntimeEnv) == 0) {
+      //    qDebug("QInfo:0x%"PRIx64" over, %u tables queried, total %"PRId64" rows returned", pTaskInfo->qId, pRuntimeEnv->tableqinfoGroupInfo.numOfTables,
+      //           pRuntimeEnv->resultInfo.total);
+    }
+
+    if (status == DS_DATA_FULL) {
+          qDebug("QInfo:0x%"PRIx64" query paused, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d", GET_TASKID(pTaskInfo),
+              0, 0L, 0);
+      return pTaskInfo->code;
+    }
   }
-//  return doBuildResCheck(pTaskInfo);
 }
 
 int32_t qRetrieveQueryResultInfo(qTaskInfo_t qinfo, bool* buildRes, void* pRspContext) {

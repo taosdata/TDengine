@@ -91,16 +91,16 @@ int32_t qwUpdateTaskInfo(SQWTaskStatus *task, int8_t type, void *data) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwAddTaskAndSinkToCache(SQWorkerMgmt *mgmt, uint64_t qId, uint64_t tId, qTaskInfo_t taskHandle, DataSinkHandle sinkHandle) {
+int32_t qwAddTaskHandlesToCache(SQWorkerMgmt *mgmt, uint64_t qId, uint64_t tId, qTaskInfo_t taskHandle, DataSinkHandle sinkHandle) {
   char id[sizeof(qId) + sizeof(tId)] = {0};
   QW_SET_QTID(id, qId, tId);
 
-  SQWorkerResCache resCache = {0};
+  SQWorkerTaskHandlesCache resCache = {0};
   resCache.taskHandle = taskHandle;
   resCache.sinkHandle = sinkHandle;
 
   QW_LOCK(QW_WRITE, &mgmt->resLock);
-  if (0 != taosHashPut(mgmt->resHash, id, sizeof(id), &resCache, sizeof(SQWorkerResCache))) {
+  if (0 != taosHashPut(mgmt->resHash, id, sizeof(id), &resCache, sizeof(SQWorkerTaskHandlesCache))) {
     QW_UNLOCK(QW_WRITE, &mgmt->resLock);
     qError("taosHashPut queryId[%"PRIx64"] taskId[%"PRIx64"] to resHash failed", qId, tId);
     return TSDB_CODE_QRY_APP_ERROR;
@@ -249,13 +249,13 @@ static int32_t qwAddTask(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_
   QW_RET(code);
 }
 
-static FORCE_INLINE int32_t qwAcquireTaskResCache(int32_t rwType, SQWorkerMgmt *mgmt, uint64_t queryId, uint64_t taskId, SQWorkerResCache **res) {
+static FORCE_INLINE int32_t qwAcquireTaskHandles(int32_t rwType, SQWorkerMgmt *mgmt, uint64_t queryId, uint64_t taskId, SQWorkerTaskHandlesCache **handles) {
   char id[sizeof(queryId) + sizeof(taskId)] = {0};
   QW_SET_QTID(id, queryId, taskId);
   
   QW_LOCK(rwType, &mgmt->resLock);
-  *res = taosHashGet(mgmt->resHash, id, sizeof(id));
-  if (NULL == (*res)) {
+  *handles = taosHashGet(mgmt->resHash, id, sizeof(id));
+  if (NULL == (*handles)) {
     QW_UNLOCK(rwType, &mgmt->resLock);
     return TSDB_CODE_QRY_RES_CACHE_NOT_EXIST;
   }
@@ -605,19 +605,34 @@ int32_t qwBuildAndSendStatusRsp(SRpcMsg *pMsg, SSchedulerStatusRsp *sStatus) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendFetchRsp(SRpcMsg *pMsg, void *data) {
-  SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
+int32_t qwInitFetchRsp(int32_t length, SRetrieveTableRsp **rsp) {
+  int32_t msgSize = sizeof(SRetrieveTableRsp) + length;
+  
+  SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcMallocCont(msgSize);
+  if (NULL == pRsp) {
+    qError("rpcMallocCont %d failed", msgSize);
+    QW_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
   memset(pRsp, 0, sizeof(SRetrieveTableRsp));
 
-  //TODO fill msg
-  pRsp->completed = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t qwBuildAndSendFetchRsp(SRpcMsg *pMsg, SRetrieveTableRsp *pRsp, int32_t dataLength, int32_t code) {
+  if (NULL == pRsp) {
+    pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
+    memset(pRsp, 0, sizeof(SRetrieveTableRsp));
+    dataLength = 0;
+  }
 
   SRpcMsg rpcRsp = {
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
     .pCont   = pRsp,
-    .contLen = sizeof(*pRsp),
-    .code    = 0,
+    .contLen = sizeof(*pRsp) + dataLength,
+    .code    = code,
   };
 
   rpcSendResponse(&rpcRsp);
@@ -850,12 +865,16 @@ int32_t qwCheckTaskCancelDrop( SQWorkerMgmt *mgmt, uint64_t sId, uint64_t queryI
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwHandleFetch(SQWorkerResCache *res, SQWorkerMgmt *mgmt, uint64_t sId, uint64_t queryId, uint64_t taskId, SRpcMsg *pMsg) {
+int32_t qwHandleFetch(SQWorkerTaskHandlesCache *handles, SQWorkerMgmt *mgmt, uint64_t sId, uint64_t queryId, uint64_t taskId, SRpcMsg *pMsg) {
   SQWSchStatus *sch = NULL;
   SQWTaskStatus *task = NULL;
   int32_t code = 0;
   int32_t needRsp = true;
   void *data = NULL;
+  int32_t sinkStatus = 0;
+  int32_t dataLength = 0;
+  SRetrieveTableRsp *rsp = NULL;
+  bool queryEnd = false;
 
   QW_ERR_JRET(qwAcquireScheduler(QW_READ, mgmt, sId, &sch, QW_NOT_EXIST_RET_ERR));
   QW_ERR_JRET(qwAcquireTask(QW_READ, sch, queryId, taskId, &task));
@@ -871,26 +890,61 @@ int32_t qwHandleFetch(SQWorkerResCache *res, SQWorkerMgmt *mgmt, uint64_t sId, u
     qError("invalid status %d for fetch", task->status);
     QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
   }
+
+  code = dsGetDataLength(handles->sinkHandle, &dataLength, &queryEnd);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("dsGetDataLength failed, code:%x", code);
+    QW_ERR_JRET(code);
+  }
   
-  if (QW_GOT_RES_DATA(res->data)) {
-    data = res->data;
-    if (QW_LOW_RES_DATA(res->data)) {
-      if (task->status == JOB_TASK_STATUS_PARTIAL_SUCCEED) {
-        //TODO add query back to queue
-      }
-    }
-  } else {
-    if (task->status != JOB_TASK_STATUS_EXECUTING) {
-      qError("invalid status %d for fetch without res", task->status);
-      QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+  if (dataLength > 0) {
+    SOutPutData output = {0};
+    QW_ERR_JRET(qwInitFetchRsp(dataLength, &rsp));
+    
+    output.pData = rsp->data;
+    
+    code = dsGetDataBlock(handles->sinkHandle, &output);
+    if (code) {
+      qError("dsGetDataBlock failed, code:%x", code);
+      QW_ERR_JRET(code);
     }
     
-    //TODO SET FLAG FOR QUERY TO SEND RSP WHEN RES READY
+    if (DS_BUF_EMPTY == output.bufStatus && output.queryEnd) {
+      rsp->completed = 1;
+    }
 
-    needRsp = false;
+    if (output.needSchedule) {
+      //TODO
+    }
+
+    if ((!output.queryEnd) && DS_BUF_LOW == output.bufStatus) {
+      //TODO
+      //UPDATE STATUS TO EXECUTING
+    }
+  } else {
+    if (dataLength < 0) {
+      qError("invalid length from dsGetDataLength, length:%d", dataLength);
+      QW_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+    }
+    
+    if (queryEnd) {
+      QW_ERR_JRET(qwQueryPostProcess(mgmt, sId, queryId, taskId, JOB_TASK_STATUS_SUCCEED, code));
+    } else {
+      if (task->status != JOB_TASK_STATUS_EXECUTING) {
+        qError("invalid status %d for fetch without res", task->status);
+        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+      }
+
+      QW_LOCK(QW_WRITE, &handles->lock);
+      handles->needRsp = true;
+      QW_UNLOCK(QW_WRITE, &handles->lock);
+
+      needRsp = false;
+    }
   }
 
 _return:
+
   if (task) {
     QW_UNLOCK(QW_READ, &task->lock);
     qwReleaseTask(QW_READ, sch);    
@@ -901,7 +955,7 @@ _return:
   }
 
   if (needRsp) {
-    qwBuildAndSendFetchRsp(pMsg, res->data);
+    qwBuildAndSendFetchRsp(pMsg, rsp, dataLength, code);
   }
 
   QW_RET(code);
@@ -1011,7 +1065,6 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   msg->taskId = htobe64(msg->taskId);
   msg->contentLen = ntohl(msg->contentLen);
   
-  bool queryDone = false;
   bool queryRsped = false;
   bool needStop = false;
   struct SSubplan *plan = NULL;
@@ -1039,20 +1092,19 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   QW_ERR_JRET(qwBuildAndSendQueryRsp(pMsg, TSDB_CODE_SUCCESS));
 
   queryRsped = true;
- 
-  SSDataBlock* pRes = NULL;
-  code = qExecTask(pTaskInfo, &pRes);
 
-  queryDone = false;
+  DataSinkHandle sinkHandle = NULL;
+  code = qExecTask(pTaskInfo, &sinkHandle);
 
   if (code) {
     QW_ERR_JRET(code);
   } else {
-    QW_ERR_JRET(qwAddTaskAndSinkToCache(qWorkerMgmt, msg->queryId, msg->taskId, pTaskInfo, NULL));
+    QW_ERR_JRET(qwAddTaskHandlesToCache(qWorkerMgmt, msg->queryId, msg->taskId, pTaskInfo, sinkHandle));
     QW_ERR_JRET(qwUpdateTaskStatus(qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, JOB_TASK_STATUS_PARTIAL_SUCCEED));
   } 
 
 _return:
+
   if (queryRsped) {
     code = qwCheckAndSendReadyRsp(qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, pMsg, code);
   } else {
@@ -1062,8 +1114,6 @@ _return:
   int8_t status = 0;
   if (TSDB_CODE_SUCCESS != code) {
     status = JOB_TASK_STATUS_FAILED;
-  } else if (queryDone) {
-    status = JOB_TASK_STATUS_SUCCEED;
   } else {
     status = JOB_TASK_STATUS_PARTIAL_SUCCEED;
   }
@@ -1071,6 +1121,49 @@ _return:
   qwQueryPostProcess(qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, status, code);
   
   QW_RET(code);
+}
+
+int32_t qWorkerProcessQueryContinueMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+  int32_t code = 0;
+  int8_t status = 0;
+  bool queryDone = false;
+  uint64_t sId, qId, tId;
+
+  //TODO call executer to continue execute subquery
+  code = 0; 
+  void *data = NULL;
+  queryDone = false;
+  //TODO call executer to continue execute subquery
+  
+  if (TSDB_CODE_SUCCESS != code) {
+    status = JOB_TASK_STATUS_FAILED;
+  } else if (queryDone) {
+    status = JOB_TASK_STATUS_SUCCEED;
+  } else {
+    status = JOB_TASK_STATUS_PARTIAL_SUCCEED;
+  }
+
+  code = qwQueryPostProcess(qWorkerMgmt, sId, qId, tId, status, code);
+
+  QW_RET(code);
+}
+
+
+
+int32_t qWorkerProcessSinkDataMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg){
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  SSinkDataReq *msg = pMsg->pCont;
+  if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
+    qError("invalid sink data msg");
+    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }  
+
+  //TODO
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qWorkerProcessReadyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg){
@@ -1135,12 +1228,12 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   QW_ERR_RET(qwUpdateSchLastAccess(qWorkerMgmt, msg->sId));
 
   void *data = NULL;
-  SQWorkerResCache *res = NULL;
+  SQWorkerTaskHandlesCache *handles = NULL;
   int32_t code = 0;
   
-  QW_ERR_RET(qwAcquireTaskResCache(QW_READ, qWorkerMgmt, msg->queryId, msg->taskId, &res));
+  QW_ERR_RET(qwAcquireTaskHandles(QW_READ, qWorkerMgmt, msg->queryId, msg->taskId, &handles));
 
-  QW_ERR_JRET(qwHandleFetch(res, qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, pMsg));
+  QW_ERR_JRET(qwHandleFetch(handles, qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, pMsg));
 
 _return:
 
@@ -1216,31 +1309,6 @@ int32_t qWorkerProcessShowFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg)
 
   SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
   QW_ERR_RET(qwBuildAndSendShowFetchRsp(pMsg, pFetchReq));
-}
-
-int32_t qWorkerContinueQuery(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
-  int32_t code = 0;
-  int8_t status = 0;
-  bool queryDone = false;
-  uint64_t sId, qId, tId;
-
-  //TODO call executer to continue execute subquery
-  code = 0; 
-  void *data = NULL;
-  queryDone = false;
-  //TODO call executer to continue execute subquery
-  
-  if (TSDB_CODE_SUCCESS != code) {
-    status = JOB_TASK_STATUS_FAILED;
-  } else if (queryDone) {
-    status = JOB_TASK_STATUS_SUCCEED;
-  } else {
-    status = JOB_TASK_STATUS_PARTIAL_SUCCEED;
-  }
-
-  code = qwQueryPostProcess(qWorkerMgmt, sId, qId, tId, status, code);
-
-  QW_RET(code);
 }
 
 void qWorkerDestroy(void **qWorkerMgmt) {
