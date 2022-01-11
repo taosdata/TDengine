@@ -342,7 +342,7 @@ void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t compa
 
 int32_t taosArraySearchIdx(const SArray* pArray, const void* key, __compar_fn_t comparFn, int flags) {
   void* item = taosArraySearch(pArray, key, comparFn, flags);
-  return (int32_t)((char*)item - (char*)pArray->pData) / pArray->elemSize;
+  return item == NULL ? -1 : (int32_t)((char*)item - (char*)pArray->pData) / pArray->elemSize;
 }
 
 void taosArraySortString(SArray* pArray, __compar_fn_t comparFn) {

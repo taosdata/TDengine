@@ -20,7 +20,7 @@
 #include "tref.h"
 #include "walInt.h"
 
-static int walSeekFilePos(SWal* pWal, int64_t ver) {
+static int walSeekWritePos(SWal* pWal, int64_t ver) {
   int code = 0;
 
   int64_t idxTfd = pWal->writeIdxTfd;
@@ -41,7 +41,7 @@ static int walSeekFilePos(SWal* pWal, int64_t ver) {
     return -1;
   }
   ASSERT(entry.ver == ver);
-  code = tfLseek(logTfd, entry.offset, SEEK_CUR);
+  code = tfLseek(logTfd, entry.offset, SEEK_SET);
   if (code < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -49,7 +49,7 @@ static int walSeekFilePos(SWal* pWal, int64_t ver) {
   return code;
 }
 
-int walChangeFileToLast(SWal* pWal) {
+int walSetWrite(SWal* pWal) {
   int64_t       idxTfd, logTfd;
   SWalFileInfo* pRet = taosArrayGetLast(pWal->fileInfoSet);
   ASSERT(pRet != NULL);
@@ -57,13 +57,13 @@ int walChangeFileToLast(SWal* pWal) {
 
   char fnameStr[WAL_FILE_LEN];
   walBuildIdxName(pWal, fileFirstVer, fnameStr);
-  idxTfd = tfOpenReadWrite(fnameStr);
+  idxTfd = tfOpenCreateWriteAppend(fnameStr);
   if (idxTfd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   walBuildLogName(pWal, fileFirstVer, fnameStr);
-  logTfd = tfOpenReadWrite(fnameStr);
+  logTfd = tfOpenCreateWriteAppend(fnameStr);
   if (logTfd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -74,46 +74,57 @@ int walChangeFileToLast(SWal* pWal) {
   return 0;
 }
 
-int walChangeFile(SWal* pWal, int64_t ver) {
+int walChangeWrite(SWal* pWal, int64_t ver) {
   int     code = 0;
   int64_t idxTfd, logTfd;
   char    fnameStr[WAL_FILE_LEN];
-  code = tfClose(pWal->writeLogTfd);
-  if (code != 0) {
-    // TODO
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+  if (pWal->writeLogTfd != -1) {
+    code = tfClose(pWal->writeLogTfd);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
+    }
   }
-  code = tfClose(pWal->writeIdxTfd);
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
+  if (pWal->writeIdxTfd != -1) {
+    code = tfClose(pWal->writeIdxTfd);
+    if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
+    }
   }
+
   SWalFileInfo tmpInfo;
   tmpInfo.firstVer = ver;
   // bsearch in fileSet
-  SWalFileInfo* pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
-  ASSERT(pRet != NULL);
-  int64_t fileFirstVer = pRet->firstVer;
-  // closed
-  if (taosArrayGetLast(pWal->fileInfoSet) != pRet) {
-    walBuildIdxName(pWal, fileFirstVer, fnameStr);
-    idxTfd = tfOpenRead(fnameStr);
-    walBuildLogName(pWal, fileFirstVer, fnameStr);
-    logTfd = tfOpenRead(fnameStr);
-  } else {
-    walBuildIdxName(pWal, fileFirstVer, fnameStr);
-    idxTfd = tfOpenReadWrite(fnameStr);
-    walBuildLogName(pWal, fileFirstVer, fnameStr);
-    logTfd = tfOpenReadWrite(fnameStr);
+  int32_t idx = taosArraySearchIdx(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
+  ASSERT(idx != -1);
+  SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, idx);
+  /*ASSERT(pFileInfo != NULL);*/
+
+  int64_t fileFirstVer = pFileInfo->firstVer;
+  walBuildIdxName(pWal, fileFirstVer, fnameStr);
+  idxTfd = tfOpenCreateWriteAppend(fnameStr);
+  if (idxTfd < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    pWal->writeIdxTfd = -1;
+    return -1;
+  }
+  walBuildLogName(pWal, fileFirstVer, fnameStr);
+  logTfd = tfOpenCreateWriteAppend(fnameStr);
+  if (logTfd < 0) {
+    tfClose(idxTfd);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    pWal->writeLogTfd = -1;
+    return -1;
   }
 
   pWal->writeLogTfd = logTfd;
   pWal->writeIdxTfd = idxTfd;
+  pWal->writeCur = idx;
   return fileFirstVer;
 }
 
-int walSeekVer(SWal* pWal, int64_t ver) {
+int walSeekWriteVer(SWal* pWal, int64_t ver) {
   int code;
   if (ver == pWal->vers.lastVer) {
     return 0;
@@ -123,14 +134,15 @@ int walSeekVer(SWal* pWal, int64_t ver) {
     return -1;
   }
   if (ver < pWal->vers.snapshotVer) {
+    
   }
   if (ver < walGetCurFileFirstVer(pWal) || (ver > walGetCurFileLastVer(pWal))) {
-    code = walChangeFile(pWal, ver);
+    code = walChangeWrite(pWal, ver);
     if (code != 0) {
       return -1;
     }
   }
-  code = walSeekFilePos(pWal, ver);
+  code = walSeekWritePos(pWal, ver);
   if (code != 0) {
     return -1;
   }
