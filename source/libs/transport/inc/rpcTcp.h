@@ -15,22 +15,27 @@
 
 #ifndef _rpc_tcp_header_
 #define _rpc_tcp_header_
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#ifdef USE_UV
+#else
 void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle);
-void taosStopTcpServer(void *param);
-void taosCleanUpTcpServer(void *param);
+void  taosStopTcpServer(void *param);
+void  taosCleanUpTcpServer(void *param);
 
 void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *fp, void *shandle);
-void taosStopTcpClient(void *chandle);
-void taosCleanUpTcpClient(void *chandle);
+void  taosStopTcpClient(void *chandle);
+void  taosCleanUpTcpClient(void *chandle);
 void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uint16_t port);
 
 void taosCloseTcpConnection(void *chandle);
 int  taosSendTcpData(uint32_t ip, uint16_t port, void *data, int len, void *chandle);
+
+#endif
 
 #ifdef __cplusplus
 }
