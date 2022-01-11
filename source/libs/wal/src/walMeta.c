@@ -36,7 +36,7 @@ void* tmemmem(char* haystack, int hlen, char* needle, int nlen) {
   char* limit;
 
   if (nlen == 0 || hlen < nlen) {
-    return false;
+    return NULL;
   }
 
   limit = haystack + hlen - nlen + 1;
@@ -54,10 +54,12 @@ static inline int64_t walScanLogGetLastVer(SWal* pWal) {
   ASSERT(pWal->fileInfoSet != NULL);
   int sz = taosArrayGetSize(pWal->fileInfoSet);
   ASSERT(sz > 0);
+#if 0
   for (int i = 0; i < sz; i++) {
     SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, i);
-
   }
+#endif
+
   SWalFileInfo *pLastFileInfo = taosArrayGet(pWal->fileInfoSet, sz-1);
   char fnameStr[WAL_FILE_LEN];
   walBuildLogName(pWal, pLastFileInfo->firstVer, fnameStr);
@@ -143,8 +145,6 @@ int walCheckAndRepairMeta(SWal* pWal) {
       SWalFileInfo fileInfo;
       memset(&fileInfo, -1, sizeof(SWalFileInfo));
       sscanf(name, "%" PRId64 ".log", &fileInfo.firstVer);
-      //get lastVer
-      //get size
       taosArrayPush(pLogInfoArray, &fileInfo);
     }
   }
@@ -158,54 +158,43 @@ int walCheckAndRepairMeta(SWal* pWal) {
     oldSz = taosArrayGetSize(pWal->fileInfoSet);
   }
   int newSz = taosArrayGetSize(pLogInfoArray);
-  // case 1. meta file not exist / cannot be parsed
-  if (oldSz < newSz) {
+
+  if (oldSz > newSz) {
+    taosArrayPopFrontBatch(pWal->fileInfoSet, oldSz - newSz); 
+  } else if (oldSz < newSz) {
     for (int i = oldSz; i < newSz; i++) {
       SWalFileInfo *pFileInfo = taosArrayGet(pLogInfoArray, i);
       taosArrayPush(pWal->fileInfoSet, pFileInfo);
     }
-
-    pWal->writeCur = newSz - 1;
-    pWal->vers.firstVer = ((SWalFileInfo*)taosArrayGet(pLogInfoArray, 0))->firstVer;
-    pWal->vers.lastVer = walScanLogGetLastVer(pWal);
-    ((SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet))->lastVer = pWal->vers.lastVer;
-    ASSERT(pWal->vers.lastVer != -1);
-
-    int code = walSaveMeta(pWal);
-    if (code < 0) {
-      taosArrayDestroy(pLogInfoArray);
-      return -1;
-    }
   }
-  
-  // case 2. versions in meta not match log 
-  //         or some log not included in meta
-  // (e.g. program killed)
-  //
-  // case 3. other corrupt cases
-  //
-#if 0
-  int sz = taosArrayGetSize(pLogInfoArray);
-  for (int i = 0; i < sz; i++) {
-    SWalFileInfo* pFileInfo = taosArrayGet(pLogInfoArray, i);
-    if (i == 0 && pFileInfo->firstVer != walGetFirstVer(pWal)) {
-      //repair
-    }
+  taosArrayDestroy(pLogInfoArray);
 
-    if (i > 0) {
-      SWalFileInfo* pLastFileInfo = taosArrayGet(pLogInfoArray, i-1);
-      if (pLastFileInfo->lastVer != pFileInfo->firstVer) {
+  pWal->writeCur = newSz - 1;
+  if (newSz > 0) {
+    pWal->vers.firstVer = ((SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, 0))->firstVer;
 
+    SWalFileInfo *pLastFileInfo = taosArrayGet(pWal->fileInfoSet, newSz-1);
+    char fnameStr[WAL_FILE_LEN];
+    walBuildLogName(pWal, pLastFileInfo->firstVer, fnameStr);
+    struct stat statbuf;
+    stat(fnameStr, &statbuf);
+
+    if (oldSz != newSz || pLastFileInfo->fileSize != statbuf.st_size) {
+      pLastFileInfo->fileSize = statbuf.st_size;
+      pWal->vers.lastVer = walScanLogGetLastVer(pWal);
+      ((SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet))->lastVer = pWal->vers.lastVer;
+      ASSERT(pWal->vers.lastVer != -1);
+
+      int code = walSaveMeta(pWal);
+      if (code < 0) {
+        taosArrayDestroy(pLogInfoArray);
+        return -1;
       }
     }
   }
-#endif
 
-
-  // get last version of this file
-  //
-  // rebuild meta
-  taosArrayDestroy(pLogInfoArray);
+  //TODO: set fileSize and lastVer if necessary
+  
   return 0;
 }
 
