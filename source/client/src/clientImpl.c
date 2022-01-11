@@ -25,8 +25,9 @@
 static int32_t initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet);
 static SMsgSendInfo* buildConnectMsg(SRequestObj *pRequest);
 static void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
+static void setQueryResultByRsp(SReqResultInfo* pResultInfo, SRetrieveTableRsp* pRsp);
 
-static bool stringLengthCheck(const char* str, size_t maxsize) {
+  static bool stringLengthCheck(const char* str, size_t maxsize) {
   if (str == NULL) {
     return false;
   }
@@ -212,6 +213,7 @@ int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQueryNode, SQueryDag** pDag)
     SSubplan* pPlan = taosArrayGetP(pa, 0);
     SDataBlockSchema* pDataBlockSchema = &(pPlan->pDataSink->schema);
     setResSchemaInfo(pResInfo, pDataBlockSchema);
+
     pRequest->type = TDMT_VND_QUERY;
   }
 
@@ -547,7 +549,8 @@ void* doFetchRow(SRequestObj* pRequest) {
     if (pRequest->type == TDMT_VND_QUERY) {
       pRequest->type = TDMT_VND_FETCH;
       scheduleFetchRows(pRequest->body.pQueryJob, (void **)&pRequest->body.resInfo.pData);
-      
+      setQueryResultByRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pRequest->body.resInfo.pData);
+
       pResultInfo->current = 0;
       if (pResultInfo->numOfRows <= pResultInfo->current) {
         return NULL;
@@ -611,11 +614,22 @@ _return:
   return pResultInfo->row;
 }
 
+static void doPrepareResPtr(SReqResultInfo* pResInfo) {
+  if (pResInfo->row == NULL) {
+    pResInfo->row    = calloc(pResInfo->numOfCols, POINTER_BYTES);
+    pResInfo->pCol   = calloc(pResInfo->numOfCols, POINTER_BYTES);
+    pResInfo->length = calloc(pResInfo->numOfCols, sizeof(int32_t));
+  }
+}
+
 void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows) {
   assert(numOfCols > 0 && pFields != NULL && pResultInfo != NULL);
   if (numOfRows == 0) {
     return;
   }
+
+  // todo check for the failure of malloc
+  doPrepareResPtr(pResultInfo);
 
   int32_t offset = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -642,3 +656,11 @@ void setConnectionDB(STscObj* pTscObj, const char* db) {
   pthread_mutex_unlock(&pTscObj->mutex);
 }
 
+void setQueryResultByRsp(SReqResultInfo* pResultInfo, SRetrieveTableRsp* pRsp) {
+  assert(pRsp != NULL && pResultInfo != NULL);
+  pResultInfo->pRspMsg   = pRsp;
+  pResultInfo->pData     = (void*) pRsp->data;
+  pResultInfo->numOfRows = htonl(pRsp->numOfRows);
+
+  setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows);
+}

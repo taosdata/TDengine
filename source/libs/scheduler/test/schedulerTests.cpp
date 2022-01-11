@@ -160,7 +160,7 @@ int32_t schtPlanToString(const SSubplan *subplan, char** str, int32_t* len) {
 }
 
 void schtExecNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep) {
-  
+
 }
 
 
@@ -218,8 +218,6 @@ void *schtSendRsp(void *param) {
 }
 
 struct SSchJob *pInsertJob = NULL;
-
-
 }
 
 TEST(queryTest, normalCase) {
@@ -336,7 +334,7 @@ TEST(insertTest, normalCase) {
   uint64_t numOfRows = 0;
 
   schtInitLogFile();
-  
+
   SArray *qnodeList = taosArrayInit(1, sizeof(SEpAddr));
 
   SEpAddr qnodeAddr = {0};

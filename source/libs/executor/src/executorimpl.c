@@ -18,7 +18,6 @@
 #include "ttime.h"
 #include "exception.h"
 
-#include "../../../../contrib/cJson/cJSON.h"
 #include "executorimpl.h"
 #include "function.h"
 #include "tcompare.h"
@@ -7188,31 +7187,47 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId) {
 SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTaskInfo, void* param) {
   if (pPhyNode->pChildren == NULL || taosArrayGetSize(pPhyNode->pChildren) == 0) {
     if (pPhyNode->info.type == OP_TableScan) {
+      SScanPhyNode* pScanPhyNode = (SScanPhyNode*) pPhyNode;
       size_t numOfCols = taosArrayGetSize(pPhyNode->pTargets);
-      SOperatorInfo* pOperatorInfo = createTableScanOperator(param, TSDB_ORDER_ASC, numOfCols, 1, pTaskInfo);
+      SOperatorInfo* pOperatorInfo = createTableScanOperator(param, pScanPhyNode->order, numOfCols, pScanPhyNode->count, pTaskInfo);
       pTaskInfo->pRoot = pOperatorInfo;
+    } else {
+      assert(0);
     }
   }
 }
 
 int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle) {
-  STsdbQueryCond cond = {.order = TSDB_ORDER_ASC, .numOfCols = 2, .loadExternalRows = false};
+  STsdbQueryCond cond = {.loadExternalRows = false};
   cond.twindow.skey = INT64_MIN;
   cond.twindow.ekey = INT64_MAX;
-  cond.colList = calloc(cond.numOfCols, sizeof(SColumnInfo));
 
-  // todo set the correct table column info
-  cond.colList[0].type = TSDB_DATA_TYPE_TIMESTAMP;
-  cond.colList[0].bytes = sizeof(uint64_t);
-  cond.colList[0].colId = 1;
+  uint64_t uid = 0;
+  SPhyNode* pPhyNode = pPlan->pNode;
+  if (pPhyNode->info.type == OP_TableScan) {
 
-  cond.colList[1].type = TSDB_DATA_TYPE_INT;
-  cond.colList[1].bytes = sizeof(int32_t);
-  cond.colList[1].colId = 2;
+    SScanPhyNode* pScanNode = (SScanPhyNode*) pPhyNode;
+    uid            = pScanNode->uid;
+    cond.order     = pScanNode->order;
+    cond.numOfCols = taosArrayGetSize(pScanNode->node.pTargets);
+    cond.colList   = calloc(cond.numOfCols, sizeof(SColumnInfo));
+
+    for(int32_t i = 0; i < cond.numOfCols; ++i) {
+      SExprInfo* pExprInfo = taosArrayGetP(pScanNode->node.pTargets, i);
+      assert(pExprInfo->pExpr->nodeType == TEXPR_COL_NODE);
+
+      SSchema* pSchema = pExprInfo->pExpr->pSchema;
+      cond.colList[i].type  = pSchema->type;
+      cond.colList[i].bytes = pSchema->bytes;
+      cond.colList[i].colId = pSchema->colId;
+    }
+  } else {
+    assert(0);
+  }
 
   STableGroupInfo group = {.numOfTables = 1, .pGroupList = taosArrayInit(1, POINTER_BYTES)};
   SArray*         pa = taosArrayInit(1, sizeof(STableKeyInfo));
-  STableKeyInfo   info = {.pTable = NULL, .lastKey = 0, .uid = 1};
+  STableKeyInfo   info = {.pTable = NULL, .lastKey = 0, .uid = uid};
   taosArrayPush(pa, &info);
 
   taosArrayPush(group.pGroupList, &pa);
