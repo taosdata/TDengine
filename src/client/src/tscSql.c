@@ -547,6 +547,28 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   return pRes->numOfRows;
 }
 
+TAOS_ROW *taos_result_block(TAOS_RES *res) {
+  SSqlObj *pSql = (SSqlObj *)res;
+  if (pSql == NULL || pSql->signature != pSql) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+
+  SSqlCmd *pCmd = &pSql->cmd;
+  SSqlRes *pRes = &pSql->res;
+
+  if (pCmd == NULL ||
+      pRes == NULL ||
+      pRes->qId == 0 ||
+      pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED ||
+      pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
+      pCmd->command == TSDB_SQL_INSERT) {
+    return NULL;
+  }
+
+  return &pRes->urow;
+}
+
 int taos_select_db(TAOS *taos, const char *db) {
   char sql[256] = {0};
 
