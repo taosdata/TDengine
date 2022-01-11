@@ -830,6 +830,7 @@ static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH *pReadh, 
     return -1;
   }
   memRowSetType(lastRow, SMEM_ROW_DATA);
+  memRowSetVersion(lastRow, pSchema->version);
   tdInitDataRow(memRowDataBody(lastRow), pSchema);
   for (int icol = 0; icol < schemaNCols(pSchema); icol++) {
     STColumn *pCol = schemaColAt(pSchema, icol);
