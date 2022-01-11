@@ -524,7 +524,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   bool shouldFree = tscShouldBeFreed(pSql);
 
-  if (rpcMsg->code != TSDB_CODE_TSC_INVALID_SCHEMA_VERSION && rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+  if (rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     if (rpcMsg->code != TSDB_CODE_SUCCESS) {
       pRes->code = rpcMsg->code;
     }
