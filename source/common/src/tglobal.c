@@ -37,7 +37,7 @@ uint16_t tsServerPort = 6030;
 int32_t  tsStatusInterval = 1;  // second
 int8_t   tsEnableTelemetryReporting = 0;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
-int32_t  tsNumOfSupportVnodes = 16;
+int32_t  tsNumOfSupportVnodes = 128;
 
 // common
 int32_t tsRpcTimer = 300;
