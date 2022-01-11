@@ -2704,13 +2704,28 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   pRes->data = NULL;
 
   tscResetForNextRetrieve(pRes);
-  tscDebug("0x%"PRIx64" query rsp received, qId:0x%"PRIx64, pSql->self, pRes->qId);
 
+  int32_t sVersion = -1;
+  int32_t tVersion = -1;
+  if (pQueryAttr->extend == 1) {
+    STLV* tlv = (STLV*)(pRes->pRsp + sizeof(SQueryTableRsp));
+    while (tlv->type != TLV_TYPE_END_MARK) {
+      switch (ntohs(tlv->type)) {
+        case TLV_TYPE_META_VERSION:
+          sVersion = ntohl(*(int32_t*)tlv->value);
+          tVersion = ntohl(*(int32_t*)(tlv->value + sizeof(int32_t)));
+          break;
+      }
+      tlv = (STLV*) ((char*)tlv + sizeof(STLV) + ntohl(tlv->len));
+    }
+  }
   STableMetaInfo* tableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0);
-  if (tableMetaInfo->pTableMeta->sversion < pQueryAttr->sVersion ||
-      tableMetaInfo->pTableMeta->tversion < pQueryAttr->tVersion) {
+  if (tableMetaInfo->pTableMeta->sversion < sVersion ||
+      tableMetaInfo->pTableMeta->tversion < tVersion) {
     return TSDB_CODE_TSC_INVALID_SCHEMA_VERSION;
   }
+
+  tscDebug("0x%"PRIx64" query rsp received, qId:0x%"PRIx64, pSql->self, pRes->qId);
 
   return 0;
 }
@@ -2802,16 +2817,16 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
     tscSetResRawPtr(pRes, pQueryInfo, pRes->dataConverted);
   }
 
-  char* p = NULL;
-  if (pRetrieve->compressed) {
-    p = pRetrieve->data + ntohl(pRetrieve->compLen) + pQueryInfo->fieldsInfo.numOfOutput * sizeof(int32_t);
-  } else {
-    p = pRetrieve->data + ntohl(pRetrieve->compLen);
-  }
-
-  int32_t numOfTables = htonl(*(int32_t*)p);
-  p += sizeof(int32_t);
   if (pSql->pSubscription != NULL) {
+    int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
+
+    TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
+    int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
+
+    char* p = pRes->data + (pField->bytes + offset) * pRes->numOfRows;
+
+    int32_t numOfTables = htonl(*(int32_t*)p);
+    p += sizeof(int32_t);
     for (int i = 0; i < numOfTables; i++) {
       int64_t uid = htobe64(*(int64_t*)p);
       p += sizeof(int64_t);
@@ -2820,34 +2835,15 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
       p += sizeof(TSKEY);
       tscUpdateSubscriptionProgress(pSql->pSubscription, uid, key);
     }
-  } else {
-    p += numOfTables * sizeof(STableIdInfo);
   }
 
   pRes->row = 0;
   tscDebug("0x%"PRIx64" numOfRows:%d, offset:%" PRId64 ", complete:%d, qId:0x%"PRIx64, pSql->self, pRes->numOfRows, pRes->offset,
-      pRes->completed, pRes->qId);
-
-  if (pRetrieve->extend == 1) {
-    STLV* tlv = (STLV*)(p);
-    while (tlv->type != TLV_TYPE_END_MARK) {
-      switch (ntohs(tlv->type)) {
-        case TLV_TYPE_META_VERSION:
-          pRes->sVersion = ntohl(*(int32_t*)tlv->value);
-          pRes->tVersion = ntohl(*(int32_t*)(tlv->value + sizeof(int32_t)));
-          break;
-      }
-      tlv = (STLV*) ((char*)tlv + sizeof(STLV) + ntohl(tlv->len));
-    }
-  }
-
-  STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
-  if (pTableMeta->sversion < pSql->res.sVersion || pTableMeta->tversion < pSql->res.tVersion) {
-    return TSDB_CODE_TSC_INVALID_SCHEMA_VERSION;
-  }
+           pRes->completed, pRes->qId);
 
   return 0;
 }
+
 
 void tscTableMetaCallBack(void *param, TAOS_RES *res, int code);
 
