@@ -1,29 +1,24 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c wallevel -v 0
-system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 4
-system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 1000
-
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
+
 print ============================ dnode1 start
 
 $i = 0
-$dbPrefix = ob_db_db
-$tbPrefix = ob_db_tb
+$dbPrefix = db
+$tbPrefix = tb
 $db = $dbPrefix . $i
 $tb = $tbPrefix . $i
 
 print =============== step1
-sql create database $db replica 1 days 20 keep 2000 cache 16
+sql create database $db replica 1 days 20 keep 2000 cache 16 vgroups 4
 sql show databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
 if $data00 != $db then 
   return -1
 endi
-if $data02 != 0 then 
+if $data02 != 4 then 
   return -1
 endi
 if $data03 != 0 then 
@@ -63,9 +58,6 @@ print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
 if $data00 != $db then 
   return -1
 endi
-if $data02 != 0 then 
-  return -1
-endi
 if $data03 != 0 then 
   return -1
 endi
@@ -77,29 +69,13 @@ if $data06 != 15 then
 endi
 
 print =============== step6
-sql use $db
-sql create table $tb (ts timestamp, speed int)
-$i = 1
-while $i < 4
+$i = $i + 1
+while $i < 5
   $db = $dbPrefix . $i
-  $tb = $tbPrefix . $i
   sql create database $db
   sql use $db
-  sql create table $tb (ts timestamp, speed int)
   $i = $i + 1
 endw
-
-sql show databases
-if $rows != 4 then 
-  return -1
-endi
-
-$i = 4
-$db = $dbPrefix . $i
-$tb = $tbPrefix . $i
-sql create database $db
-sql use $db
-sql create table $tb (ts timestamp, speed int)
 
 print =============== step7
 $i = 0
@@ -115,7 +91,8 @@ $db = $dbPrefix . $i
 $tb = $tbPrefix . $i
 sql create database $db
 sql use $db
-sql create table $tb (ts timestamp, speed int)
+sql create table st (ts timestamp, i int) tags (j int)
+sql create table $tb using st tags(1)
 sql show tables
 if $rows != 1 then 
   return -1
@@ -133,7 +110,8 @@ if $rows != 0 then
 endi
 
 print =============== step11
-sql create table $tb (ts timestamp, speed int)
+sql create table st (ts timestamp, i int) tags (j int)
+sql create table $tb using st tags(1)
 sql show tables
 if $rows != 1 then 
   return -1
@@ -149,16 +127,23 @@ sql show tables
 if $rows != 0 then 
   return -1
 endi
-sql create table $tb (ts timestamp, speed int)
+
+sql create table st (ts timestamp, i int) tags (j int)
+sql create table $tb using st tags(1)
 sql show tables
 if $rows != 1 then 
   return -1
 endi
+
 sql insert into $tb values (now+1a, 0)
 sql insert into $tb values (now+2a, 1)
 sql insert into $tb values (now+3a, 2)
 sql insert into $tb values (now+4a, 3)
 sql insert into $tb values (now+5a, 4)
+
+
+return 
+
 sql select * from $tb
 if $rows != 5 then 
   return -1
@@ -176,7 +161,8 @@ if $rows != 0 then
 endi
 
 print =============== step16
-sql create table $tb (ts timestamp, speed int)
+sql create table st (ts timestamp, i int) tags (j int)
+sql create table $tb using st tags(1)
 sql show tables
 if $rows != 1 then 
   return -1
