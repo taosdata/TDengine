@@ -13,7 +13,7 @@
 
 class MndTestProfile : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_profile", 9022); }
+  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_profile", 9031); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -53,7 +53,7 @@ TEST_F(MndTestProfile, 01_ConnectMsg) {
 
   EXPECT_EQ(pRsp->epSet.inUse, 0);
   EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-  EXPECT_EQ(pRsp->epSet.port[0], 9022);
+  EXPECT_EQ(pRsp->epSet.port[0], 9031);
   EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
 
   connId = pRsp->connId;
@@ -127,7 +127,7 @@ TEST_F(MndTestProfile, 04_HeartBeatMsg) {
 
   EXPECT_EQ(pRsp->epSet.inUse, 0);
   EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-  EXPECT_EQ(pRsp->epSet.port[0], 9022);
+  EXPECT_EQ(pRsp->epSet.port[0], 9031);
   EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
 }
 
@@ -185,7 +185,7 @@ TEST_F(MndTestProfile, 05_KillConnMsg) {
 
     EXPECT_EQ(pRsp->epSet.inUse, 0);
     EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-    EXPECT_EQ(pRsp->epSet.port[0], 9022);
+    EXPECT_EQ(pRsp->epSet.port[0], 9031);
     EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
 
     connId = pRsp->connId;
@@ -249,7 +249,7 @@ TEST_F(MndTestProfile, 07_KillQueryMsg) {
 
     EXPECT_EQ(pRsp->epSet.inUse, 0);
     EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-    EXPECT_EQ(pRsp->epSet.port[0], 9022);
+    EXPECT_EQ(pRsp->epSet.port[0], 9031);
     EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
   }
 }
