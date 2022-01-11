@@ -89,7 +89,7 @@ int32_t scheduleFetchRows(void *pJob, void **data);
  * @param pJob
  * @return
  */
-int32_t scheduleCancelJob(void *pJob);
+//int32_t scheduleCancelJob(void *pJob);
 
 /**
  * Free the query job

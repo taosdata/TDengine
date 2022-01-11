@@ -87,68 +87,72 @@ int32_t schValidateTaskReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t m
 int32_t schCheckAndUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
   int32_t code = 0;
 
-  int8_t oriStatus = SCH_GET_JOB_STATUS(pJob);
+  int8_t oriStatus = 0;
 
-/*
-  if (oriStatus == newStatus) {
-    SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
-  }
-  
-  switch (oriStatus) {
-    case JOB_TASK_STATUS_NULL:
-      if (newStatus != JOB_TASK_STATUS_EXECUTING 
-       && newStatus != JOB_TASK_STATUS_FAILED 
-       && newStatus != JOB_TASK_STATUS_NOT_START) {
-        SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
-      }
-      
-      break;
-    case JOB_TASK_STATUS_NOT_START:
-      if (newStatus != JOB_TASK_STATUS_CANCELLED) {
-        SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
-      }
-      
-      break;
-    case JOB_TASK_STATUS_EXECUTING:
-      if (newStatus != JOB_TASK_STATUS_PARTIAL_SUCCEED 
-       && newStatus != JOB_TASK_STATUS_FAILED 
-       && newStatus != JOB_TASK_STATUS_CANCELLING 
-       && newStatus != JOB_TASK_STATUS_CANCELLED 
-       && newStatus != JOB_TASK_STATUS_DROPPING) {
-        SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
-      }
-      
-      break;
-    case JOB_TASK_STATUS_PARTIAL_SUCCEED:
-      if (newStatus != JOB_TASK_STATUS_EXECUTING 
-       && newStatus != JOB_TASK_STATUS_SUCCEED
-       && newStatus != JOB_TASK_STATUS_CANCELLED) {
-        SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
-      }
-      
-      break;
-    case JOB_TASK_STATUS_SUCCEED:
-    case JOB_TASK_STATUS_FAILED:
-    case JOB_TASK_STATUS_CANCELLING:
-      if (newStatus != JOB_TASK_STATUS_CANCELLED) {
-        SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
-      }
-      
-      break;
-    case JOB_TASK_STATUS_CANCELLED:
-    case JOB_TASK_STATUS_DROPPING:
+  while (true) {
+    oriStatus = SCH_GET_JOB_STATUS(pJob);
+
+    if (oriStatus == newStatus) {
       SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
-      break;
-      
-    default:
-      qError("invalid task status:%d", oriStatus);
-      return TSDB_CODE_QRY_APP_ERROR;
+    }
+    
+    switch (oriStatus) {
+      case JOB_TASK_STATUS_NULL:
+        if (newStatus != JOB_TASK_STATUS_NOT_START) {
+          SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        }
+        
+        break;
+      case JOB_TASK_STATUS_NOT_START:
+        if (newStatus != JOB_TASK_STATUS_EXECUTING) {
+          SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        }
+        
+        break;
+      case JOB_TASK_STATUS_EXECUTING:
+        if (newStatus != JOB_TASK_STATUS_PARTIAL_SUCCEED 
+         && newStatus != JOB_TASK_STATUS_FAILED 
+         && newStatus != JOB_TASK_STATUS_CANCELLING 
+         && newStatus != JOB_TASK_STATUS_CANCELLED 
+         && newStatus != JOB_TASK_STATUS_DROPPING) {
+          SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        }
+        
+        break;
+      case JOB_TASK_STATUS_PARTIAL_SUCCEED:
+        if (newStatus != JOB_TASK_STATUS_FAILED 
+         && newStatus != JOB_TASK_STATUS_SUCCEED
+         && newStatus != JOB_TASK_STATUS_DROPPING) {
+          SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        }
+        
+        break;
+      case JOB_TASK_STATUS_SUCCEED:
+      case JOB_TASK_STATUS_FAILED:
+      case JOB_TASK_STATUS_CANCELLING:
+        if (newStatus != JOB_TASK_STATUS_DROPPING) {
+          SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        }
+        
+        break;
+      case JOB_TASK_STATUS_CANCELLED:
+      case JOB_TASK_STATUS_DROPPING:
+        SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+        break;
+        
+      default:
+        SCH_JOB_ELOG("invalid job status:%d", oriStatus);
+        SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+    }
+
+    if (oriStatus != atomic_val_compare_exchange_8(&pJob->status, oriStatus, newStatus)) {
+      continue;
+    }
+
+    SCH_JOB_DLOG("job status updated from %d to %d", oriStatus, newStatus);
+
+    break;
   }
-*/
-
-  SCH_SET_JOB_STATUS(pJob, newStatus);
-
-  SCH_JOB_DLOG("status updated from %d to %d", oriStatus, newStatus);
 
   return TSDB_CODE_SUCCESS;
 
@@ -507,6 +511,7 @@ int32_t schTaskCheckAndSetRetry(SSchJob *job, SSchTask *task, int32_t errCode, b
 }
 
 
+// Note: no more error processing, handled in function internal
 int32_t schFetchFromRemote(SSchJob *pJob) {
   int32_t code = 0;
   
@@ -515,7 +520,13 @@ int32_t schFetchFromRemote(SSchJob *pJob) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (atomic_load_ptr(&pJob->res))
+  void *res = atomic_load_ptr(&pJob->res);
+  if (res) {
+    atomic_val_compare_exchange_32(&pJob->remoteFetch, 1, 0);
+
+    SCH_JOB_DLOG("res already fetched, res:%p", res);
+    return TSDB_CODE_SUCCESS;
+  }
 
   SCH_ERR_JRET(schBuildAndSendMsg(pJob, pJob->fetchTask, &pJob->resNode, TDMT_VND_FETCH));
 
@@ -525,12 +536,15 @@ _return:
 
   atomic_val_compare_exchange_32(&pJob->remoteFetch, 1, 0);
 
+  schProcessOnJobFailure(pJob, code);
+
   return code;
 }
 
 
 // Note: no more error processing, handled in function internal
 int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode) {
+  // if already FAILED, no more processing
   SCH_ERR_RET(schCheckAndUpdateJobStatus(pJob, JOB_TASK_STATUS_FAILED));
   
   if (errCode) {
@@ -813,7 +827,7 @@ int32_t schHandleCallback(void* param, const SDataBuf* pMsg, int32_t msgType, in
   
   SSchJob **job = taosHashGet(schMgmt.jobs, &pParam->queryId, sizeof(pParam->queryId));
   if (NULL == job || NULL == (*job)) {
-    qError("QID:%"PRIx64" taosHashGet queryId not exist", pParam->queryId);
+    qError("QID:%"PRIx64" taosHashGet queryId not exist, may be dropped", pParam->queryId);
     SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
@@ -1147,7 +1161,7 @@ void schDropTaskOnExecutedNode(SSchJob *pJob, SSchTask *pTask) {
   int32_t size = (int32_t)taosArrayGetSize(pTask->execAddrs);
   
   if (size <= 0) {
-    SCH_TASK_DLOG("empty exec address, status:%d", SCH_GET_TASK_STATUS(pTask));
+    SCH_TASK_DLOG("task has no exec address, no need to drop it, status:%d", SCH_GET_TASK_STATUS(pTask));
     return;
   }
 
@@ -1157,6 +1171,8 @@ void schDropTaskOnExecutedNode(SSchJob *pJob, SSchTask *pTask) {
 
     schBuildAndSendMsg(pJob, pTask, addr, TDMT_VND_DROP_TASK);
   }
+
+  SCH_TASK_DLOG("task has %d exec address", size);
 }
 
 void schDropTaskInHashList(SSchJob *pJob, SHashObj *list) {
@@ -1331,6 +1347,12 @@ int32_t scheduleFetchRows(void *job, void **data) {
   SSchJob *pJob = job;
   int32_t code = 0;
 
+  int8_t status = SCH_GET_JOB_STATUS(pJob);
+  if (status == JOB_TASK_STATUS_DROPPING) {
+    SCH_JOB_ELOG("job is dropping, status:%d", status);
+    return TSDB_CODE_SCH_STATUS_ERROR;
+  }
+
   atomic_add_fetch_32(&pJob->ref, 1);
   
   if (!SCH_JOB_NEED_FETCH(&pJob->attr)) {
@@ -1344,8 +1366,6 @@ int32_t scheduleFetchRows(void *job, void **data) {
     atomic_sub_fetch_32(&pJob->ref, 1);
     SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
-
-  int8_t status = SCH_GET_JOB_STATUS(pJob);
 
   if (status == JOB_TASK_STATUS_FAILED) {
     *data = atomic_load_ptr(&pJob->res);
@@ -1414,6 +1434,10 @@ void scheduleFreeJob(void *job) {
     return;
   }
 
+  schCheckAndUpdateJobStatus(pJob, JOB_TASK_STATUS_DROPPING);
+
+  SCH_JOB_DLOG("job removed from list, no further ref, ref:%d", atomic_load_32(&pJob->ref));
+
   while (true) {
     int32_t ref = atomic_load_32(&pJob->ref);
     if (0 == ref) {
@@ -1424,6 +1448,8 @@ void scheduleFreeJob(void *job) {
       assert(0);
     }
   }
+
+  SCH_JOB_DLOG("job no ref now, status:%d", SCH_GET_JOB_STATUS(pJob));
 
   if (pJob->status == JOB_TASK_STATUS_EXECUTING) {
     schCancelJob(pJob);
