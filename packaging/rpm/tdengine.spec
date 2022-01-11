@@ -50,7 +50,7 @@ mkdir -p %{buildroot}%{homepath}/cfg
 mkdir -p %{buildroot}%{homepath}/driver
 mkdir -p %{buildroot}%{homepath}/examples
 mkdir -p %{buildroot}%{homepath}/include
-mkdir -p %{buildroot}%{homepath}/init.d
+#mkdir -p %{buildroot}%{homepath}/init.d
 mkdir -p %{buildroot}%{homepath}/script
 
 cp %{_compiledir}/../packaging/cfg/taos.cfg         %{buildroot}%{homepath}/cfg
@@ -60,7 +60,7 @@ fi
 if [ -f %{_compiledir}/test/cfg/taosadapter.service ]; then
     cp %{_compiledir}/test/cfg/taosadapter.service %{buildroot}%{homepath}/cfg
 fi
-cp %{_compiledir}/../packaging/rpm/taosd            %{buildroot}%{homepath}/init.d
+#cp %{_compiledir}/../packaging/rpm/taosd            %{buildroot}%{homepath}/init.d
 cp %{_compiledir}/../packaging/tools/post.sh        %{buildroot}%{homepath}/script
 cp %{_compiledir}/../packaging/tools/preun.sh       %{buildroot}%{homepath}/script
 cp %{_compiledir}/../packaging/tools/startPre.sh    %{buildroot}%{homepath}/bin
